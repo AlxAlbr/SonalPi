@@ -12,33 +12,36 @@
     "appId": "com.sonal.id",
     "productName": "Sonal",
     "npmRebuild": false,
-  "asar": true,
-  "mac": {
-    "icon": "icon/icon.png"
-  },
- 
-  "linux": {
-    "icon": "icon/icon.png"
-  },
-  "files": [
-    "main.js",
-    "package.json",
-    "preload.js",
-    "renderer.js",
-    "index.html",
-    "ajout-entretien.html",
-    "edition_categories.html",
-    "edition_entretien.html",
-    "nouveau_corpus.html",
-    "modules/**/*",
-    "dist/**/*",
-    "css/**/*",
-    "node_modules/**/*"
-  ],
+    "asar": true,
+    "mac": {
+      "icon": "icon/icon.png"
+    },
+    "linux": {
+      "icon": "icon/icon.png"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "ajout-entretien.html",
+      "edition_categories.html",
+      "edition_entretien.html",
+      "nouveau_corpus.html",
+      "modules/**/*",
+      "dist/**/*",
+      "css/**/*",
+      "node_modules/**/*",
+      "img/**/*",
+      "icon/**/*"
+    ],
     "asarUnpack": [
-      "**/node_modules/chardet/**/*",
       "**/node_modules/iconv-lite/**/*",
-      "**/node_modules/safer-buffer/**/*"
+      "**/node_modules/chardet/**/*",
+      "**/node_modules/safer-buffer/**/*",
+      "**/node_modules/encoding/**/*",
+      "**/node_modules/node-fetch/**/*"
     ],
     "nsis": {
       "oneClick": false,
@@ -57,6 +60,7 @@
   "dependencies": {
     "chardet": "^2.1.0",
     "electron-store": "^7.0.3",
+    "iconv-lite": "^0.6.2",
     "node-fetch": "^2.7.0"
   },
   "devDependencies": {
