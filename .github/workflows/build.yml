@@ -42,6 +42,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Limite les téléchargements en parallèle
           ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1
+          ELECTRON_BUILDER_MAX_RETRIES: 3
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
