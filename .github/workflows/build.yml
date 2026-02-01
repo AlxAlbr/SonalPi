@@ -35,6 +35,9 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+
+      - name: Clear electron-builder cache
+        run: rm -rf ~/.cache/electron-builder/appimage
       
       - name: Build application
         run: npm run build
