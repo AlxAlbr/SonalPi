@@ -12,7 +12,7 @@
     "appId": "com.sonal.id",
     "productName": "Sonal",
     "npmRebuild": false,
-  "asar": false,
+  "asar": true,
   "files": [
     "main.js",
     "package.json",
