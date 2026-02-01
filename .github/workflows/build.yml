@@ -12,7 +12,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    
+      fail-fast: false
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,14 +22,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+      
+      - name: Cache electron-builder
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron-builder
+          key: electron-builder-${{ matrix.os }}-${{ hashFiles('**/package-lock.json') }}
       
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       
       - name: Build application
         run: npm run build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Limite les téléchargements en parallèle
+          ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -39,3 +52,4 @@ jobs:
             dist/*.dmg
             dist/*.AppImage
             dist/*.deb
+            dist/*.snap
