@@ -5,46 +5,55 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build-icons": "electron-icon-builder --input=./icon/icon.png --output=./dist"
   },
- "build": {
-  "appId": "com.sonal.id",
-  "productName": "Sonal",
+  "build": {
+    "appId": "com.sonal.id",
+    "productName": "Sonal",
+    "npmRebuild": false,
+  "asar": false,
   "files": [
     "main.js",
     "package.json",
     "preload.js",
     "renderer.js",
-    "corpus.js",
     "index.html",
-    "modules/**/*",	
+    "ajout-entretien.html",
+    "edition_categories.html",
+    "edition_entretien.html",
+    "nouveau_corpus.html",
+    "modules/**/*",
     "dist/**/*",
-    "css/**/*"
+    "css/**/*",
+    "node_modules/**/*"
   ],
-  "asarUnpack": [
-    "**/node_modules/chardet/**/*",
-    "**/node_modules/iconv-lite/**/*",
-    "**/node_modules/safer-buffer/**/*"
-  ],
-  "nsis": {
-    "oneClick": false,
-    "allowToChangeInstallationDirectory": true,
-    "createDesktopShortcut": true,
-    "createStartMenuShortcut": true
+    "asarUnpack": [
+      "**/node_modules/chardet/**/*",
+      "**/node_modules/iconv-lite/**/*",
+      "**/node_modules/safer-buffer/**/*"
+    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "directories": {
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": "nsis"
+    }
   },
-  "directories": {
-    "buildResources": "assets"
-  },
-  "win": {
-    "target": "nsis"
-  }
-},
   "dependencies": {
     "chardet": "^2.1.0",
+    "electron-store": "^7.0.3",
     "node-fetch": "^2.7.0"
   },
   "devDependencies": {
     "electron": "38.1.2",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "electron-icon-builder": "^2.0.1"
   }
 }
