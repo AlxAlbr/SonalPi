@@ -13,6 +13,13 @@
     "productName": "Sonal",
     "npmRebuild": false,
   "asar": true,
+  "mac": {
+    "icon": "icon/icon.png"
+  },
+ 
+  "linux": {
+    "icon": "icon/icon.png"
+  },
   "files": [
     "main.js",
     "package.json",
@@ -43,7 +50,8 @@
       "buildResources": "assets"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "icon/icon.png"
     }
   },
   "dependencies": {

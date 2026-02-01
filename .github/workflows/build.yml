@@ -41,8 +41,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Clear electron-builder cache
+      - name: Clear electron-builder cache (Linux/macOS)
+        if: runner.os != 'Windows'
         run: rm -rf ~/.cache/electron-builder/appimage
+      
+      - name: Clear electron-builder cache (Windows)
+        if: runner.os == 'Windows'
+        run: Remove-Item -Path "$env:LOCALAPPDATA\electron-builder\appimage" -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Install snapcraft
         if: matrix.os == 'ubuntu-latest'
