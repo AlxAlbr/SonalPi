@@ -9,7 +9,7 @@ permissions:
   contents: write  # Required for creating releases and uploading assets
   
   id-token: write  # Required for authentication with cloud providers
-  
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -43,6 +43,10 @@ jobs:
 
       - name: Clear electron-builder cache
         run: rm -rf ~/.cache/electron-builder/appimage
+
+      - name: Install snapcraft
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo snap install snapcraft --classic
       
       - name: Build application
         run: npm run build
