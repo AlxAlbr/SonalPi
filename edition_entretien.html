@@ -1,0 +1,2900 @@
+ 
+
+<html lang="fr" style = "scroll-behavior: smooth"; >
+
+<title> Edition entretien </title>
+
+
+
+<link rel="icon" type="image/png"   href="logoWh.PNG"  />
+
+<head>
+
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+
+
+ 
+
+    <!-- Scripts de fonctionnement -->
+    <script src="modules\gestion_fichiers.js"></script>
+    <script src="modules\gestion_corpus.js"></script>
+    <script src="modules\gestion_fichiers.js"></script>
+    <script src="modules\gestion_data.js"></script>
+    <script src="modules\gestion_audio.js"></script>
+    <script src="modules\locutarisation.js"></script>
+    <script src="modules\thematisation.js"></script>
+    <script src="modules\segmentation.js"></script>
+    <script src="modules\gestion_entretiens.js"></script>
+    <script src="modules\utilitaires.js"></script>
+    <script src="modules\Anonymisation\tableau_base.js"></script>
+    <script src="modules\Anonymisation\import_export.js"></script>
+    <script src="modules\Anonymisation\help.js"></script>
+    
+ 
+
+    </script>
+
+
+    <LINK href="CSS\Styles.css" rel="stylesheet" type="text/css">
+ 
+
+ 
+ 
+    
+    <link rel="icon" type="image/png"   href="" />
+     
+
+    
+</head>
+
+
+<script>
+// ⭐ Rediriger console.log vers le main process (DÉSACTIVÉ)
+/*
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = function(...args) {
+    const message = args.map(arg => {
+        if (typeof arg === 'object') {
+            return JSON.stringify(arg);
+        }
+        return String(arg);
+    }).join(' ');
+    
+    originalLog(...args); // Garde aussi l'affichage local
+    window.electronAPI.log('info', message).catch(err => originalLog('Log send error:', err));
+};
+
+console.error = function(...args) {
+    const message = args.map(arg => {
+        if (typeof arg === 'object') {
+            return JSON.stringify(arg);
+        }
+        return String(arg);
+    }).join(' ');
+    
+    originalError(...args);
+    window.electronAPI.log('error', message).catch(err => originalLog('Log send error:', err));
+};
+*/
+
+// Variable pour tracker si sauvegarde en cours
+let isSaving = false;
+
+// ⭐ Écouter le signal de fermeture depuis le main
+window.electronAPI.onSaveAndClose(async () => {
+    console.log("📩 Signal 'save-and-close' reçu du main");
+    const result = await sauvegarderAvantExit();
+    console.log("📤 Envoi du signal 'save-complete' au main");
+    await window.electronAPI.saveComplete();
+});
+
+// Sauvegarde avant de quitter la page 
+async function sauvegarderAvantExit() {
+    if (isSaving) {
+        console.log("Sauvegarde déjà en cours, abandon");
+        return false;
+    }
+
+    try {
+        isSaving = true;
+        console.log("=== SAUVEGARDE DÉMARRÉE ===");
+        
+        // Vérifier que les éléments existent AVANT de continuer
+        const segmentsElem = document.getElementById('segments');
+        const notesElem = document.getElementById('txtnotes');
+        
+        if (!segmentsElem) {
+            console.error("Élément 'segments' introuvable !");
+            return false;
+        }
+        if (!notesElem) {
+            console.error("Élément 'txtnotes' introuvable !");
+            return false;
+        }
+
+        //console.log("Segments HTML (premiers 100 chars):", segmentsElem.innerHTML.substring(0, 100));
+        //console.log("Notes (premiers 50 chars):", notesElem.value.substring(0, 50));
+        
+        let rkEnt = await window.electronAPI.getEntCur();
+        //console.log("rkEnt trouvé:", rkEnt);
+        
+        if (rkEnt === null || typeof rkEnt !== 'number') {
+            console.error("rkEnt invalide:", rkEnt);
+            return false;
+        }
+        
+        // Appel de la fonction de mise à jour (elle lit tabLoc, tabDat, etc. depuis le DOM)
+        await window.miseàjourEntretien(rkEnt);
+        
+        // ⭐ Signal au main process pour mettre à jour le canvas
+        await window.electronAPI.updateCanvasAfterSave(rkEnt);
+        
+        console.log("=== SAUVEGARDE RÉUSSIE ===");
+        isSaving = false;
+        return true;
+    } catch (error) {
+        console.error("=== ERREUR LORS DE LA SAUVEGARDE ===:", error);
+        isSaving = false;
+        return false;
+    }
+}
+
+// Sauvegarde AVANT destruction du DOM (beforeunload = avant unload)
+window.addEventListener('beforeunload', (event) => {
+    console.log("beforeunload déclenché");
+    sauvegarderAvantExit(); // Lance la sauvegarde sans bloquer
+});
+
+// Fallback supplémentaire
+window.addEventListener('unload', (event) => {
+    console.log("unload déclenché (trop tard probablement)");
+});
+
+</script>
+
+</script>
+
+<body onload="scrollToTop();initBkUp();  ">  
+
+   
+   <div class="containerpage"  >
+        
+    <div class="hautpage">
+
+        <div id="en-tete" class="ligne">
+           
+             
+          <div>
+                <audio id = "lecteur" controls controlslist="nodownload noplaybackrate" style = "  float:left;outline:none;width:350px; position:absolute; margin-top:10px;height: 35px;">
+                    <source id = "sourceLecteur" src="" type="audio/mp3">
+                    
+                Il serait temps de mettre à jour votre navigateur internet!.
+                </audio> 
+            
+                <div id = "vit_lect" style = "float:left;margin-left:360px; margin-top:9px"  >
+                    <label id= "btnspdp" class = "btnfonction  btnspd"  onclick=" vitesselecteur('-')"> - </label>
+                    <label id= "lblspd" class = ""  style= "font-size: 1.5rem; color:rgba(12, 12, 12, 0.521);padding: 10px;" onclick=" vitesselecteur('=')"> x 1.0 </label>
+                    <label id= "btnspdp" class = "btnfonction  btnspd"   onclick=" vitesselecteur('+')" style="float:right"> + </label>
+                </div>
+          </div>
+        
+            
+           <!--  <div id = "menu_rec" class=""   onclick="dialog('Export')" ><img src="WHSPRG\IMG\dwnload.png" style="height: 30px;margin-left: 6px;margin-right: 30px;"><label class='txtbtn' id="lblsauv"  > Export </label> </div>            
+          !-->
+
+                
+        
+
+
+            <br>
+
+        </div>
+        
+        <div  class="ligne" style="display:flex; flex-direction: row;justify-content: space-between; align-items: center;width:100%;border-bottom: 1px solid #525252">
+            <div style="flex: 3;min-width: 33%;"> 
+                <img id = "imgpandet" title = "Modifier le texte" class = "imgbtn_g" src="img\logopen.png" height= "33px" width= '33px'  alt="modifications simples"  onclick="dispPanneauG(this, 'fond_txt')" style="opacity: 1;margin-left:5px">
+                <img id = "imgpanloc" title = "Locuteurs" class = "imgbtn_g" src="img\logoloc.png" height= "33px" width= '33px'  alt="locuteurs"  onclick="dispPanneauG(this, 'fond_loc')"  >
+                <img id = "imgpancat" title = "Catégories" class = "imgbtn_g" src="img\logocat.png" height= "33px" width= '33px' class= ''  alt="catégories"  onclick="dispPanneauG(this, 'fond_thm')"   >
+                <img id = "imgpandat" title = "Notes" class = "imgbtn_g" src="img\logonotes2.png" height= "33px" width= '33px' class= ''  alt="notes"  onclick="dispPanneauG(this, 'fond_notes')"  >
+                <img id = "imgpandat" title = "Métadonnées" class = "imgbtn_g" src="img\logodat2.png" height= "33px" width= '33px' class= ''  alt="métadonnées"  onclick="dispPanneauG(this, 'fond_dat')"  >
+                <img id = "imgpansearch" title = "Rechercher/Remplacer" class = "imgbtn_g" src="img\logosearch.png" height= "33px" width= '33px' class= ''  alt="Rechercher/remplacer"  onclick="dispPanneauG(this, 'fond_rech')"  >
+                <img id = "imgpananon" title = "Anonymisation" class = "imgbtn_g "  src="img\logoanon.png" height= "33px" width= '33px' class= ''  alt="anonymisation"  onclick="dispPanneauG(this, 'fond_anon')"  >
+                <img id = "imgpandet" title = "Outils" class = "imgbtn_g" src="img\outils.png" height= "33px" width= '33px'  alt="outils"  onclick="dispPanneauG(this, 'fond_det')" style="margin-left:5px">
+            </div>
+
+            <div style="flex: 7;"> 
+                <div id="graph" style="height: 45px; margin: 10px; " >
+
+                        <label id = "lblposlect" class = "ligchrono"> </label>
+                        <canvas id="graphEnt" class = "cnv" ></canvas>
+
+                </div>
+            </div>
+
+
+
+        </div>
+    </div>
+
+    
+
+
+
+
+        <div class="contenu">
+
+             <!--  partie gauche !-->
+            <nav class="colonne-g" style="flex:1"> 
+
+               
+                 <div id="fond_txt" class="bloc-col blocvisible ">
+
+                   
+                   <H2 id="lbltxt"  >Edition du texte</H2>
+
+                    <label> Vous pouvez simplement modifier le texte en cliquant dessus. </label> <br>
+                    
+                    <H2 id="lbldetails"  >Détails du segment</H2>
+
+                    <label id ="lblpos">  --- </label> <br>
+                     <!-- <label id ="lblsel">  sélection : </label> <br>  -->
+
+                    <label id = "idseg" style="display:none"></label> 
+
+                    <H2 id="lbltxt"  >Raccourcis</H2>
+
+                    <label> Lancer/arrêter la lecture : → espace → double espace dans la zone d'édition </label>  
+                    <label> Entrée → nettoyer le texte </label> <br>
+                    
+
+                    <label id = "idseg" style="display:none"></label> 
+
+                    
+
+                </div>
+
+                <div id="fond_det" class="bloc-col ">
+
+                   
+                                      
+
+
+                    <H2 id="lbldetails"  >Outils</H2>
+                    <label id = "btnsplit" class='btnfonction btnlarge ' style = "margin-top : 20px ; margin-bottom: 20px "; onclick="SplitSeg(debSel,finSel)">Fusionner</label> 
+                    <label id = "btncomment" class='btnfonction btnlarge ' title="ajouter un commentaire en marge"  onclick=" addComment()" style = "margin-bottom: 20px">Commenter</label> 
+                    <label id = "btnsplit" class='btnfonction btnlarge '  title="Retirer les sauts de ligne jusqu'au segment courant" onclick=" compactJusqua(seg_cur)">Compacter avant</label> 
+                    <label id = "btnsplit" class='btnfonction btnlarge '  title="Retirer tous les sauts de ligne (Attention ralentissement possible!)"  onclick=" compactJusqua('tout')">Compacter tout</label> 
+                    <label id = "btnsplit" class='btnfonction btnlarge '  title="Restaurer les sauts de ligne " onclick=" decompact()" style = "margin-top: 10px">Décompacter</label>
+                     
+
+                </div>
+ 
+
+                <div id="fond_thm" class="bloc-col" >
+                    <H2 style="margin-bottom: 1px;">Catégories 
+                        
+                        
+                        <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="Modifier les catégories"> ✏️ Modifier </label>
+                        <label id="filgraneCat" class="btnbleu" style = "margin-right: 10px;" title="Atténuer l'affichage les catégories dans le texte" onclick="filigraneCats()"> ◐ </label>
+
+                       <!--  <label id= "filtrerCat" class = "btnbleu btnfiltre" onclick="dialog('filtreCat');afflistThmFltr()" title="Filtrer les catégories" style = "font-size: 0.8rem !important;">  </label> -->
+                         
+                                <input 
+                                    type="text" 
+                                    class="search-input" 
+                                    id="searchInput" 
+                                    placeholder="🔎 Rechercher..."
+                                    autocomplete="off"
+                                    onfocus="dsTxtArea=false;dsTxtAutre=true"
+                                    onfocusout= "dsTxtAutre=false"
+                                >
+                              
+ 
+                    </H2> 
+
+                    <div id = "conteneur_cat" class = "conteneur_cat" > </div>
+                    
+
+                    <div id="listthm" ></div>
+
+ 
+                </div>
+
+
+
+
+                <div id="fond_loc" class="bloc-col active">
+                 
+                      <H2 style="margin-bottom: 1px;">Qui parle? 
+                        
+                        <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="modifier les locuteurs" onclick="modifLocut()"> ✏️ Modifier </label>
+                        <label id="btnstatsloc" class="btnbleu" style = "margin-right: 10px;" title="statistiques" onclick="statsLocs('','','statsloc')"> Stats </label>
+                      </H2>
+
+                    <div id="locuteurs" class="listlocs"></div>
+
+                    <div id="statsloc"></div>
+
+                    
+                </div>
+
+                <div id="fond_dat" class="bloc-col" style ="
+                    height: calc(100vh - 255px);
+                    overflow-y: auto;
+                    padding-bottom: 200px;">
+
+                     <div id="menudic" style="display:none; position:absolute; border:1px solid #ccc; background:#fff;"></div>
+
+
+                    <H2 style="margin-bottom: 1px;">Variables
+                    <label id= "plusCat" class = "btnbleu" onclick="dialog('Métadonnées')" title="Ajouter une variable"> + </label> 
+                    </H2>
+
+                    <div id="listVarGen">
+                        <H3 style="margin-bottom: 1px;margin-top: 10px;">Générales</H3>
+                        <div id="listVarGenContent"></div>
+
+                    </div>
+
+                <div id="listVarLoc">
+                        <H3 style="margin-bottom: 1px;margin-top: 10px;">Par répondant.e</H3>
+                        <div id="listVarLocContent"></div>
+
+                    </div>
+
+                </div>
+
+                <div id="fond_notes" class ="bloc-col">
+
+                    <H2 style="margin-bottom: 5px !important;"> Notes</H2>
+
+                    <textarea id="txtnotes" class="txtnotes"  placeholder = "Ajoutez des notes..."   onfocus="dsTxtArea=false;dsTxtAutre=true"  onfocusout= "dsTxtAutre=false;"  ></textarea>
+                     
+
+                </div>
+
+            <!-- Rechercher/Remplacer !-->
+            <div id="fond_rech" class ="bloc-col">
+
+                          <H2 id="lblrech"  >Rechercher/Remplacer</H2>
+
+                          <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center">
+
+                                <div class="floating-label-container">
+                                    <input type="text" id="txtRech" class="floating-input lbl-nom-thm" placeholder="Rechercher " onkeydown="if(event.key==='Enter'){rechercher()}" />
+                                    <label for="txtRech" class="mdc-floating-label">Rechercher</label>
+                                </div>
+
+                                <label id = "btnSuppRech" class='btnfonction dnone' style = "width: 8%;" onclick="annulRech()">X</label>
+
+                                <label id = "btnRech" class='btnfonction' style = " margin-left: 10px;" onclick="rechercher()">Rechercher</label>
+
+                            </div>
+
+                        <div   style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+
+
+                            <div id = "resultRech" class = "dnone" style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;width:33%">
+                                    <label id = "btnPrecRech" class='btnfonction' style = " margin-left: 10px;" onclick="précédent()"><</label>
+                                    <label id = "lblResultRech"  style = "width: 11%;text-align:center" > 0/0</label>
+                                    <label id = "btnSuivRech" class='btnfonction' onclick="suivant()">></label>
+                            </div>
+
+                        </div>
+
+
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;;margin-bottom:20px">
+
+                                <div class="floating-label-container">
+                                    <input type="text" id="txtRemp" class="floating-input lbl-nom-thm" placeholder="Remplacer " />
+                                    <label for="txtRemp" class="mdc-floating-label">Remplacer</label>
+                                </div>
+
+                                <label id = "btnSuivRech" class='btnfonction' style = " margin-left: 10px;" onclick="remplacer()">Remplacer</label>
+                                <label id = "btnSuivRech" class='btnfonction' style = " margin-left: 10px;" onclick="remplacerTout()">Tout</label>
+
+                        </div>
+
+                        <div id="rechinfo" style="font-size:0.9rem;color:gray;">
+
+
+                        </div>
+                    
+ 
+                    
+            </div>
+
+            <!-- Anonymisation !-->
+            <div id = "fond_anon" class="bloc-col">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <H2 style="margin: 0px !important;width:100%">Pseudonymisation 
+                        <label id= "AideAnon" class = "btnbleu" onclick="ouvrirAideAnonymisation()" title="Aide sur la pseudonymisation" style = "font-size:1.2rem"> ? </label> 
+                        <label id= "OuvrirAnon" class = "btnbleu" onclick="document.getElementById('file-import-correspondance').click()" title="Importer un ou des tableau(x) de pseudonymisation" style = "font-size:1.2rem"> 📂 </label> 
+                        <label id= "ExportAnon" class = "btnbleu" onclick="exportTableCorrespondance()" title="Exporter la table de pseudonymisation" style = "font-size:1.2rem"> 💾 </label> 
+                         <label id= "ChercheAnon" class = "btnbleu" onclick="chercherNomPropres()" title="Rechercher les noms propres dans le texte \n pensez à relire !" style = "font-size:1.2rem"> 💾 </label> 
+                    </H2>
+
+                    <!-- 
+                    <button onclick="ouvrirAideAnonymisation()" style="
+                        background-color: #2196F3;
+                        color: white;
+                        border: none;
+                        border-radius: 50%;
+                        width: 30px;
+                        height: 30px;
+                        font-size: 18px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0;
+                        font-weight: bold;
+                    " title="Aide">?</button>
+                    -->
+
+                </div>
+
+                <div id="tableauAnon"></div>
+
+            </div>
+
+            <div id = "ColResize"></div>
+
+            </nav>
+
+   
+
+            <!--  partie droite !-->
+            <div id='contenu' class = "colonne-d" style="flex:3" >
+                
+                                    
+
+                <div id="synthese" class="dnone fondsynth" >
+                    <H2 style="padding: 10px;"> Synthèse </H2>
+                    <div class="close"  onclick="fermeSynth()" style="color: rgb(7, 7, 7);font-size: 2.5rem;margin-right: 5px;margin-top:-70px">×</div> 
+                    <div id="fondsynth"></div>
+                    
+                </div>
+
+
+                <div>
+
+                    <div id= "fermerfiltre" class="dnone messageFiltre fermer " onclick="defiltre();this.classList.add('dnone')"> Filtre actif </div>
+                    <div id= "resultatfiltre" class=" dnone messageFiltre copier  " onclick="copierSynth();"> Résultat </div>
+                </div>
+
+
+
+
+                
+                <!-- <div id = "ligneResize"></div> -->
+
+
+                <div id="segments" class ="defilement resizable" contenteditable="true" style="display:inline-block"></div>
+
+            </div>
+
+            
+            
+        </div>
+
+        
+
+        
+
+
+    
+
+    
+
+
+ 
+
+
+</div>
+
+
+
+     
+
+ 
+
+
+  
+
+
+     
+
+
+
+ 
+
+            <!--==========================================================================================
+             Panneau latéral Droit Notes et variables (positiion fixe)
+             ==========================================================================================  -->
+           <div id="panneau-d" class ="col-lg-2">
+    
+         
+
+            </div>
+          
+
+
+ 
+
+         
+
+    
+    </div>
+
+
+
+        <canvas id="cnvGetLar" style="display:none"></canvas> 
+
+
+    </div>
+</div>
+
+<div id="piedpage" class="footer dnone"> 
+
+</div>
+
+ 
+<!-- Boite de dialogue -->
+<div id="dlg" class = "dialog"  >
+    
+
+    <div id = "ssdlg" class="dialog-content">
+        
+       
+
+         
+    </div>
+
+</div>
+
+ 
+
+<div id="processing" class="process" style="display: none;z-index:0" >
+    <div class="spin"></div>
+    <div id = "lblwait" class="lblspin" >Chargement en cours. Merci de patienter </div>
+
+</div>
+
+<!--
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/!-->
+
+<!-- Scripts du site -->
+ 
+<script> 
+
+ 
+
+
+// déclaration des variables 
+
+var fichText ; // adresse du fichier texte
+var nomFichText; // nom du fichier texte (pour sauvegarde)
+var lignesFich = []; // tableau de mémorisation des lignes des fichiers lus (SRT, VTT, Purge...)
+var objectURL; // pour mémorisation de l'adresse des fichiers lus
+var SGMTS; // variable de tableau accueillant les segments
+var seg_cur = 0; // segment courant (le premier par défaut) 
+var mot_cur = 0 // mot courant 
+var loc_cur = 1;
+var dsTxtArea = false; // repérer la position du curseur dans la zone de texte de saisie
+var dsTxtAutre = false; // repérer la position du lecteur dans une autre zone de texte
+var scrlY = 0; // mémorisation de la position du scroll
+var seg_lu = 0 // segment en cours de lecture
+var textok =false; 
+var audiook = false;
+var spaceKey=false; // mémorisation de l'utilisation de la touche espace
+
+// catégorisation
+//var mode_cat = false; // mode catégorisation - définit le comportement lors de la sélection des mots (active ou non la catégorisation)
+var debSel =0 // mémorisation du rang du conteneur de début
+var finSel =0 // mémorisation du rang du conteneur de fin
+
+
+var taille_cur = 18; // taille de police en cours
+var taille_def = 18;// taille de police par défaut
+
+// utilisateur 
+var utilisateur="";
+
+// désavtivation de la sélection 
+var noSel=true; 
+var typeAction = "txt"
+
+// déclaration du tableau multidimensionnel des segments
+TabSeg = [];
+
+ 
+
+
+var placerApres ="";
+
+// définition du lecteur
+var audio = document.getElementById('lecteur');
+
+
+// au chargmenent de la fenetre, on recupere les parametres envoyes par le main process
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("edition_entretien.html chargé, envoi demande de données");
+
+    
+    // récupération de l'entretien courant
+    let ent_cur = window.electronAPI.getEntCur();
+
+    setTimeout( function() {
+        afficherWhisPurge(ent_cur); 
+        listenerGraph()
+        
+    }, 500);
+
+
+ 
+
+
+    });
+
+
+
+
+function affSegHtml(){
+
+    console.log("affichage des segments html");
+
+    var modSelThm=true;
+
+    const fondseg = document.getElementById("segments")
+    fondseg.innerHTML=``;
+
+    fondseg.style.display = "inline-block";
+    fondseg.contentEditable=true;
+
+     
+    fondseg.innerHTML =   `<div id="titre"><h2>` + nomFichText + `</h2></div>` ;   
+     
+
+
+
+    //let segmentsHtml =
+    
+    //segmentsHtml += `<div id= "fondseg" contenteditable=true >`
+ 
+    var rkMax=1;
+
+    // affichage des n segments suivants
+    for (n=0;n<TabSeg.length;n++){
+
+    if(n>TabSeg.length){ continue;}
+
+
+
+    // création du segment 
+
+
+    let spn = document.createElement('span');
+      
+
+    let contenu =``;
+    let tclass = "";
+    
+    
+    let locutR = TabSeg[n][3] ;
+    let nomloc = "";
+
+    if (n>0) { // Ajout du locuteur
+        if (locutR != TabSeg[n-1][3] && locutR != "" ) {
+            
+            nomloc = locut[locutR]
+
+            //contenu += ligRneLocut(locut,n);
+                    
+        }
+    } else {
+
+        if (locut != "" ) {
+            
+            nomloc = locut[locutR]
+             
+        }
+
+    }
+    
+   
+
+        
+
+
+    //contenu += `<div ><label id="pl` + n + `" class = " playr arrow-right " onclick="seg_cur=`+ n + `;selSegment(` + n + `,false);poslecteur(TabSeg[`+ n + `][1])" style = "cursor: pointer; " ></label> </div>` 
+    
+    if (modSelThm!=true){
+    
+    contenu += `<span  
+        id="sg` + n + `" class = "lblseg  ` + tclass + `" 
+        tabindex="` + n+ `" 
+        onclick="clicSeg(`+ n +`); poslecteur(TabSeg[`+ n + `][1])"  
+        data-rk = "`+ n +  `"
+        data-loc = "`+ TabSeg[n][3] + `"
+        data-deb = "`+ TabSeg[n][1] + `"
+        data-fin = "`+ TabSeg[n][2] + `"
+        data-nomloc = "`+ nomloc + `"
+        
+        onfocusin ="dsTxtArea=true;selSegment(` + n + `,false) "
+        onfocusout ="dsTxtArea=false"
+        style = "cursor: pointer; "
+        >` +   TabSeg[n][4]  + 
+    `</span>`
+    
+    rkMax++;
+
+    } else {
+   
+ 
+
+    // éclatement du segement
+    
+    //spn.id = "sg" + n;
+    spn.tabIndex = rkMax;
+    spn.classList.add("lblseg","sautlig");
+    spn.dataset.rksg = n ;
+    spn.dataset.loc = TabSeg[n][3];
+    if (nomloc!="") {spn.dataset.nomloc= nomloc}; 
+    spn.dataset.deb = TabSeg[n][1];
+    spn.dataset.fin = TabSeg[n][2];
+    
+    //spn.onfocusin = dsTxtArea=true;
+    //spn.onfocusout = dsTxtArea=false;
+    //spn.innerHTML = "sg " + n;
+
+   /*
+    contenu += `<span id="sg` + n + `"  tabindex="` + rkMax + ` class="lblseg"           
+        data-locut = "`+ TabSeg[n][3] + `"
+        data-deb = "`+ TabSeg[n][1] + `"
+        data-fin = "`+ TabSeg[n][2] + `"
+        style = "cursor: pointer;" 
+        onfocusin ="dsTxtArea=true;  "
+        onfocusout ="dsTxtArea=false"
+        onkeyup="MaJSeg(` + n + `)"
+    >`  
+    */
+    
+     
+    if (!TabSeg[n][4]){continue}
+
+    /* Ancienne approche
+    var tabmots = TabSeg[n][4].split(" ")
+    let chaine ="";
+
+    let tbm;
+
+    for (tbm=0;tbm<tabmots.length;tbm++){
+
+        chaine +=`<span 
+      
+
+        data-rk = "`+ rkMax +  `" 
+        data-sg  = "`+ n +  `" 
+         
+        >` +  tabmots[tbm] + ` 
+        </span>`
+        rkMax++;
+
+    }
+    */
+
+    // Regex qui capture chaque mot, ponctuation et espace séparément
+        var texte = TabSeg[n][4];
+        const elements = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g);
+
+        let chaine = "";
+
+        for (const elem of elements) {
+        chaine += `<span 
+            data-rk="${rkMax}" 
+            data-sg="${n}"
+        >${elem}</span>`;
+        rkMax++;
+        }
+            
+    
+    contenu += chaine ;
+     
+  
+    
+    }
+
+    spn.innerHTML+=contenu;
+
+    
+
+    //segmentsHtml += contenu;
+
+
+    fondseg.appendChild(spn)
+    
+    }
+   
+    //segmentsHtml += "</div>";
+    //mefSegLu(seg_lu); // mise en forme du segment en cours de lecture
+    //document.getElementById("segments").innerHTML=segmentsHtml;
+
+    // mise en forme des segments de question
+    mefQuestions()
+
+   // spanEditable()
+
+    // Sauvegarde de l'état initial
+    backUp(); 
+
+}
+
+
+
+document.addEventListener('click', (event) => {
+      // Vérifie si l'élément cliqué est un <span>
+      if (event.target.tagName === 'SPAN') {
+        event.stopPropagation(); // Empêche l'événement de "remonter" au parent
+    // Récupérer l'élément cliqué
+        const target = event.target;
+
+         const rk = target.dataset.rk;       
+         const sg = target.dataset.sg;  
+
+    // Afficher les résultats
+    //console.log(`rk : ${rk}`);
+     dsTxtArea=true;   
+     clicSeg(rk,sg)
+      }
+});
+
+document.addEventListener('dblclick', (event) => {
+      // Vérifie si l'élément cliqué est un <span>
+      if (event.target.tagName === 'SPAN') {
+        event.stopPropagation(); // Empêche l'événement de "remonter" au parent
+        
+        // Récupérer l'élément cliqué
+        const target = event.target;
+
+         const rk = target.dataset.rk;       
+         const sg = target.dataset.sg;  
+
+         debSel= rk; 
+         finSel=0;
+      
+      }
+});
+
+
+
+
+
+document.addEventListener('mouseover', (event) => {
+      // Vérifie si l'élément survolé est un <span>
+      if (event.target.tagName === 'SPAN') {
+        event.stopPropagation(); // Empêche l'événement de "remonter" au parent
+    // Récupérer l'élément survolé
+    const target = event.target;
+
+        const rk = target.dataset.rk;
+        
+        // récupération du nom des catégories en cours
+        const cat = target.classList;
+        let listecat = "";
+        cat.forEach(function(item) {
+            if (item.startsWith("cat_")) {
+
+                let rkthm = Number(getRkThm(item))
+                 
+                let thm = tabThm[rkthm].nom;
+                if (thm) {
+                    if (listecat != "") { listecat += "\n"};
+                    listecat += "- " + thm;
+                }
+            }
+        });     
+
+       if (listecat != "") { target.title = listecat; }
+
+
+        // Afficher les résultats
+        //console.log(`rk : ${rk}`);
+        survSeg(rk);
+      }
+});
+
+ 
+ 
+
+
+
+
+
+function affSegments(seg){
+
+    affSegHtml() ;
+
+  
+};
+
+
+function dessinChunks(){
+// fonction permettant de générer un canvas représentant, sur une ligne horizontale, la structure de l'entretien
+
+}
+
+
+
+function dispPanneauG(bouton, composant){
+
+    // désactivation des autres boutons
+    deselBtn_g();
+    hidepanG();
+    
+    if (bouton) {bouton.style.opacity =1};
+    let cmpsnt = document.getElementById(composant)
+    if (cmpsnt) {cmpsnt.classList.add('blocvisible')}
+
+    // (dé)sactivation du surlignement 
+    //backUp(); 
+    cleanHTML(); 
+
+        const btnFilig = document.getElementById('filgraneCat');
+        if (btnFilig) {
+            if (btnFilig.classList.contains('btn-bleu-actif')) {
+                catsEnFiligrane()
+                
+            }
+        }
+
+    noSel=true; 
+
+    if (composant=="fond_txt"){
+        noSel=true; 
+        typeAction="txt"
+        effaceSel();
+        effaceSurv();
+        debSel=null;
+        finSel=null;
+        typeAction="edition"
+    }
+
+    if (composant=="fond_det"){
+       noSel=false; 
+       typeAction="outils"
+    }
+
+   
+
+    if ( composant=="fond_thm" ) {
+        //document.getElementById("graph").classList.remove("dnone")
+       noSel=false; 
+       typeAction="cat"
+       
+
+    }  
+
+    if ( composant=="fond_loc" ) {
+        //document.getElementById("graph").classList.remove("dnone")
+       noSel=false; 
+       typeAction="loc"
+       
+
+    }  
+
+    if ( composant=="fond_anon" ) {
+       noSel=false; 
+       typeAction="anon"
+    }
+
+       if ( composant=="fond_dat" ) {
+        //document.getElementById("graph").classList.remove("dnone")
+       noSel=true; 
+       typeAction="dat"
+       affichDataEnt();
+       
+
+    }  
+
+}
+
+
+
+// fonction permettant de mettre en forme tous les segments qui contiennent 
+function mefQuestions(){
+
+    
+
+
+    const toussegs = document.querySelectorAll('.lblseg');
+
+
+        for (let seg of toussegs) {
+                 
+            let loc= Number(seg.dataset.loc)
+            let nomloc  = locut[loc]
+
+             
+                if (nomloc.indexOf("?")>-1) {  
+            
+                    seg.classList.add("qst");
+
+                } else {
+
+                    seg.classList.remove("qst");
+                }
+
+            
+   
+        }
+
+        
+
+
+}
+
+
+function poslecteur(pos){
+
+  
+var audio = document.getElementById('lecteur');
+audio.currentTime = Math.floor(pos);
+ 
+//audio.play();
+
+
+
+}
+
+function vitesselecteur(sens){
+
+var audio = document.getElementById('lecteur');
+let spdrate  = audio.playbackRate
+ 
+
+
+    if(sens=="=") {spdrate=1.0}
+    if(sens=="+") {spdrate+=0.25}
+    if(sens=="-" && spdrate>0.25) {spdrate-=0.25} 
+
+audio.playbackRate = spdrate;
+document.getElementById("lblspd").innerText = "x " + spdrate;
+
+
+
+}
+
+function SecToTime(time,ssDec){ // conversion de coordonnées en secondes en hh:mm;ss, avec ou sans décimales
+
+    time = Number(time);
+
+    var nbhr = Math.floor(time / 3600);
+    var nbmin = Math.floor((time - nbhr*3600)/60);
+    var nbsec = Number(time - nbhr*3600 - nbmin * 60);  
+    nbsec=nbsec.toFixed(3);
+
+    if(ssDec==true){nbsec = Math.floor(nbsec)}
+
+    nbhr = String(nbhr);
+    nbmin = String(nbmin);
+    nbsec = String(nbsec);
+    
+    
+    
+    
+
+    return nbhr.padStart(2, "0") + ':' + nbmin.padStart(2, '0')  + ':' + nbsec.padStart(2, '0');
+
+
+};
+
+function TimeToSec(time) { // conversion de données hh:mm:ss en secondes
+
+     
+let sspart =  time.split(":");
+
+let pas=0;
+let secs = 0;
+
+
+for (ss=sspart.length-1;ss>-1;ss--) {
+
+     
+    let valeur =  sspart[ss]
+    valeur = valeur.replace(",",".") // remplacement des virgules par des points
+
+    secs += Number(valeur * Math.pow(60,pas))
+    
+    pas++;
+
+}
+
+return secs;
+
+}
+
+
+
+// réaction aux sélections
+document.addEventListener("selectionchange", () => {
+ 
+// désactivation éventuelle
+    if (noSel==true) {return}
+
+// retrait des sélecteurs 
+document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
+
+  //console.log(document.getSelection());
+  const selection = window.getSelection();
+
+      if (selection.rangeCount > 0) {
+        
+        
+        const range = selection.getRangeAt(0);
+        const startOffset = range.startOffset;  
+        const endOffset = range.endOffset;
+        
+        if (startOffset == endOffset){return}
+
+        const containerD = range.startContainer.parentNode;
+         
+        
+
+        const nomD = containerD.dataset.rk;
+        const containerF = range.endContainer.parentNode;
+        const nomF = containerF.dataset.rk;
+        //console.log("id deb", nomD)
+        //console.log("id fin", nomF)
+        //console.log("poscurs", startOffset)
+        //console.log("finsel selection", endOffset)
+
+        debSel=Number(nomD);
+        finSel=0;
+
+        const db = getSpan(debSel);
+        if (db) {
+            db.classList.add("debsel");
+          } else {console.log("le span " + debSel + "n'existe pas")}
+
+        // désactivation éventuelle
+        //if (noSel==true) {return}        
+        thmEnCours("");
+        effaceSurv();  
+        survSeg(nomF);
+
+      }    
+});
+
+
+
+// réaction aux sélections
+const fdsegs = document.getElementById("segments");
+fdsegs.addEventListener("mouseup", () => {
+
+    if (noSel==true) {return}; 
+
+ //console.log(document.getSelection());
+ const selection = window.getSelection();
+
+    if (selection.rangeCount > 0) {
+
+    
+    const range = selection.getRangeAt(0);
+    const startOffset = range.startOffset;  
+    const endOffset = range.endOffset;
+
+    if (startOffset == endOffset){return}
+
+    const containerD = range.startContainer.parentNode;
+
+    if (containerD.tagName !='SPAN') {
+        
+        return}
+
+    const nomD = containerD.dataset.rk;
+    const containerF = range.endContainer.parentNode;
+    var nomF = containerF.dataset.rk;
+
+    // récupération des ponctuations à droite
+    const nextspn = getSpan(Number(nomF)+1);
+    if (nextspn) {
+        const nextText = nextspn.innerText.trim();
+        
+        if (nextText == "?" || nextText == "!" || nextText == ".") {
+            //console.log("nextText", nextText , "fin : ", nomF);
+            nomF++; 
+            //console.log("nouvelle fin", nomF)
+        }
+    }
+    
+
+    //console.log("id deb", nomD)
+    //console.log("id fin", nomF)
+    //console.log("poscurs", startOffset)
+    //console.log("finsel mouseup", endOffset)
+
+    debSel=Number(nomD);
+    finSel=Number(nomF);
+
+    validSel(debSel, finSel);
+    containerF.focus();
+    }
+
+
+    
+
+
+ 
+});
+ 
+function validSel(debSel, finSel    ){
+
+    // retrait de tous les debsel et finsel SAUF ceux qui sont des anonymisations (qui ont la classe .anon)
+    const allsel = document.querySelectorAll('.debsel, .finsel');
+    allsel.forEach(function(item) {
+        // Si ce n'est pas une anonymisation, on retire les classes
+        if (!item.classList.contains('anon')) {
+            item.classList.remove("debsel");
+            item.classList.remove("finsel");
+        }
+    });
+
+    // ajout aux extrémités 
+    const db = getSpan(debSel);
+        if (db) {
+            // N'ajouter debsel que si ce n'est pas une anonymisation
+            if (!db.classList.contains('anon')) {
+                db.classList.add("debsel");
+            }
+        } else {console.log("le span " + debSel + "n'existe pas")}
+
+     const fn = getSpan(finSel);
+        if (fn) {
+            // N'ajouter finsel que si ce n'est pas une anonymisation
+            if (!fn.classList.contains('anon')) {
+                fn.classList.add("finsel");
+            }
+        } else {console.log("le span " + finSel + "n'existe pas")}
+
+    survSeg(finSel);
+
+    if(finSel!=0){
+        survOk();
+    }
+    
+    // Ajout automatique à la liste d'anonymisation si on est dans cet onglet
+    if (typeAction === "anon" && debSel > 0 && finSel > 0) {
+        ajouteEntiteAnonSelectionnee();
+    }
+    
+     // désactivation éventuelle
+    if (noSel==true) {return}
+
+    setTimeout(() => {
+
+   
+    window.getSelection().removeAllRanges();
+    
+    // Focus sur le champ de remplacement anonymisation après removeAllRanges()
+    if (lastAnonLineToFocus >= 0) {
+        setTimeout(() => {
+            const inputRemp = document.querySelector(`.input-remplacement[data-idx="${lastAnonLineToFocus}"]`);
+            if (inputRemp) {
+                inputRemp.focus();
+                inputRemp.style.backgroundColor = "#ffffcc";
+                
+                // Retire le highlight après 1 seconde
+                setTimeout(() => {
+                    inputRemp.style.backgroundColor = "";
+                }, 1000);
+            }
+            lastAnonLineToFocus = -1;  // Reset pour la prochaine fois
+        }, 50);
+    }
+
+      }, "100");
+
+     
+}
+ 
+// tentative de rattrapage des erreurs de sélection
+// listener sur #segments
+fdsegs.addEventListener("mouseup", (e) => {
+
+if (debSel!=0 && finSel==0){
+
+    // s'il y a une sélection, c'est inutile
+    //const selection = window.getSelection();
+    //if (selection.rangeCount > 0) {return}
+
+     // y a-t-il des span avec survseg ?
+    const survsegs = document.querySelectorAll('.survseg');
+    if (survsegs.length>0){ // pas de survseg, on eff
+        
+        // on cherche le survseg avec le dataset.rk le plus avancé, c'est le fin sel
+        let maxrk=0;
+        survsegs.forEach(function(item) {
+            let rk = Number(item.dataset.rk);
+            if (rk > maxrk) {
+                maxrk = rk;
+            }
+        });
+
+        console.log("finsel rattrapée:", maxrk)
+        const fn = getSpan(maxrk);
+        finSel = maxrk;
+        validSel(debSel, finSel);
+        return;
+    }
+}
+
+});
+
+
+// réactions aux frappes sur le clavier
+
+
+document.addEventListener('keydown', (e) => {
+ 
+
+
+    // Liste des touches spéciales autorisées 
+    const specialKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
+      
+
+    // la fenêtre de définition des noms de thématique
+    if (e.target.matches('.lbl-code-thm')) {
+        
+        if (specialKeys.includes(e.code)){return} 
+
+        const regex = /^[a-zA-Z0-9\-]$/;
+
+        var testchar = regex.test(e.key);
+
+         
+
+        if (testchar==false) {
+            e.preventDefault();
+        }
+
+        
+        
+        return
+    }
+
+    if (e.target.matches('.lbl-nom-thm') || e.target.matches('.txtmod') || e.target.matches('.lbl-lib-var')) {
+         
+         
+        if (specialKeys.includes(e.code)){return} 
+        //const regex = /^[a-zA-Z0-9_\-\[\]\(\)\/]$/;
+         const regex = /^[a-zA-Z0-9 _\-\[\]\(\)\/,'.+!?<>\u00C0-\u00FF-]$/ ;
+         var testchar = regex.test(e.key);
+
+
+        
+         if (testchar==false ) {
+             e.preventDefault();
+         }
+ 
+         
+         
+         return
+     }
+
+     
+    if (document.activeElement.id === "segments" || document.activeElement.tagName === "SPAN") {
+
+        dsTxtArea=true;
+        
+    } else {
+
+        dsTxtArea=false;
+    }
+
+
+    // DANS LA ZONE DE COMMENTAIRES
+    if (document.activeElement.tagName === "DIV" && document.activeElement.classList.contains('OBS')) {
+    
+
+        if (e.code == "Enter") {
+            e.preventDefault();
+            return;
+        }
+
+    }
+
+       
+ 
+    var audio = document.getElementById('lecteur');
+
+    if (e.code === "Space" && dsTxtArea==false && dsTxtAutre==false) {
+
+         
+        
+        e.preventDefault();
+     
+        if (audio.paused == true ) {
+        
+            // recalage sur le segment le plus avancé en cas de redémarrage de la lecture
+            if (seg_cur >0 && seg_lu >0  && seg_cur > seg_lu) { 
+                audio.currentTime = Number(TabSeg[seg_cur][1]) + 0.1;
+            }
+
+             
+            audio.play();
+              e.preventDefault();
+            
+        
+        } else {
+        
+            audio.pause()
+             e.preventDefault();
+        }
+ 
+         
+    }
+
+// ANNULATIONS
+
+   
+    
+    
+     
+
+    if (e.key === "z") {    
+
+
+        if (e.ctrlKey==true) {
+
+            undo(RgBkUp);
+            event.preventDefault();
+
+        }
+
+    }
+
+    if (e.key === "y") {    
+
+
+        if (e.ctrlKey==true) {
+
+            redo(RgBkUp);
+            event.preventDefault();
+
+        }
+
+    }
+            
+
+
+    
+
+
+    if (dsTxtArea==true) { // comportement à l'intérieur de la zone de saisie
+
+        
+
+
+            switch (e.code) {
+
+            // Barre d'espace (pilotage de la bande)
+            case "Space" :
+            
+                // mise en mémoire des modifs
+                backUp(); 
+             
+
+
+
+             if (e.ctrlKey==true) { // contrôle espace équivaut toujours à lire/pause
+                
+                if (audio.paused == true) {audio.play();} else {audio.pause()}
+                event.preventDefault();    
+
+             }   
+
+
+               // double espace
+
+             if (spaceKey==false){ // pendant une seconde, mémorisation de la frappe de la touche espace
+                spaceKey=true;
+                
+
+                console.log("premier espace")
+                setTimeout(() => {
+                    console.log("fin de l'attente")
+                    spaceKey=false;
+                }, 500);
+
+             } else { // c'est le deuxième espace dans la seconde
+                console.log("deuxième espace")
+                if (audio.paused == true) {audio.play();} else {audio.pause()}
+                spaceKey=false;
+                event.preventDefault();
+                // suppression du caractère espace précédent
+                var posCur = posCurs();
+                var pscr =posCur[2] // position locale
+                var pscrG =posCur[3] // position globale
+                var txt = posCur[1]
+                var carPrec = txt.substring(Number(pscrG-1),(pscrG))
+                //console.log("txt : -", txt.trim()   , "-", "pos : ", pscrG)
+                //console.log("carPrec : -", carPrec.trim()   , "-")  
+                if (carPrec.trim() === "" & pscr > 1) {
+                   document.execCommand('delete', false, null);
+                }
+                
+            }
+
+            // récupération du caractère précédent 
+            var posCur = posCurs();
+
+            var pscrG =posCur[3] // position globale
+            var txt = posCur[1] // texte du segment dans son intégralité
+            var carPrec = txt.substring(Number(pscrG-1),(pscrG))
+            //console.log("txt : -", txt.trim()   , "-", "pos : ", pscr)
+            //console.log("carPrec : -", carPrec.trim()   , "-")  
+            if (carPrec.trim() === "") {
+
+               if (audio.paused == true) {audio.play();} else {audio.pause()}
+               event.preventDefault();
+           }
+
+
+            //console.log("pos curs:", pscr )
+            //console.log("carprec :", carPrec )
+            //console.log("carsuiv :", carsuiv )
+
+            /*
+           if (carPrec === " "| carsuiv === " ") {
+
+               //if (audio.paused == true) {audio.play();} else {audio.pause()}
+               event.preventDefault();
+           }
+           */
+            break
+
+            
+            
+            case "Enter" :
+             
+ 
+                event.preventDefault();
+                
+                cleanHTML()
+                seg_cur++
+                selSegment(seg_cur);
+                let segSuiv= getSeg(seg_cur);
+                
+                if (segSuiv){
+                segSuiv.focus()
+                }
+
+
+                
+                
+
+               break;
+
+                
+            /*case "ArrowLeft":
+                
+                break;
+            
+            case "ArrowRight":
+            
+                break;
+                */
+
+            }
+
+             
+
+     
+
+            }
+    
+    else {  // comportement hors de la zone de texte de saisie
+
+         
+
+        if (dsTxtAutre==false) {
+
+            return ; 
+
+        }
+
+    };
+
+    // sauvegarde 
+     
+    if (event.code=="KeyS"){ 
+                
+                if (e.ctrlKey==true || e.metaKey){ 
+                    
+                    enregistrer();   
+                    event.preventDefault();            
+                }
+            }
+
+    // echap des différentes sélections
+
+            if (event.code=="Escape"){ 
+            debSel=0;
+            finSel=0;
+            effaceSurv();
+            effaceSel();
+            
+            }
+
+  
+
+});
+
+
+
+// fonction utilitaires 
+
+ 
+
+
+function posCurs(){ // position du curseur dans la fenêtre de sélection
+    
+ 
+
+ 
+
+    const selection = window.getSelection(); 
+    const currentNode = selection.focusNode;
+    // Si currentNode est un TextNode, utilisez currentNode.parentElement pour obtenir le span
+    const mot = currentNode.nodeType === 3 ? currentNode.parentElement : currentNode;
+    if (!mot || !mot.dataset.rk) {return false} // pas dans un span
+    const segment = mot.parentElement;
+    const posCurseurLocale = selection.focusOffset;
+
+    let posCurseurGlobale = 0
+    let found = false;
+
+        // Fonction récursive pour parcourir les nœuds
+        function traverse(node) {
+            if (node === mot) {
+            found = true;
+            return;
+            }
+            if (node.nodeType === Node.TEXT_NODE) {
+            posCurseurGlobale += node.textContent.length;
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                
+            for (let child of node.childNodes) {
+                    traverse(child);
+                    if (found) return;
+            }
+            }
+        }
+
+        traverse(segment)
+
+        //console.log("dans le segment contenant le texte :", segment.textContent , "\n on est au curseur ", posCurseurGlobale+posCurseurLocale )
+
+        return [mot, segment.textContent, posCurseurLocale, posCurseurGlobale+posCurseurLocale]
+
+
+}
+
+
+function txtArea(rk){
+     
+    const conteneur = getSpan(rk)
+    var txt = conteneur.textContent;  
+
+    
+    return String(txt);
+}
+ 
+
+
+
+
+ 
+
+
+
+
+
+
+// veille de lecture 
+
+timer = setInterval(function() {
+             
+            calePos()
+},500)
+
+
+function calePos(){
+
+    var audio = document.getElementById('lecteur');
+
+        // etat du lecteur 
+        if (audio.paused == true) {return 0};
+
+
+        if (seg_lu == 0 ) {seg_lu=1}
+        let poslect = Number(audio.currentTime);
+     
+        var nbsegs = getNbSegs() 
+         
+        
+            
+
+        // définition du comportement selon positionnement du lecteur
+
+        // 1 - le segment lu n'a pas changé
+        // if (posdeb<poslect && posfin> poslect ) { return 0} // il ne se passe rien
+
+        //recherche du segment à la position
+
+        const collection  = document.getElementsByClassName("lblseg")    
+
+        // Filtrer les éléments avec des opérateurs de comparaison
+        const segPosi = Array.from(collection).find(item => {
+        var  posdeb = Number(item.dataset.deb); 
+        var posfin = Number(item.dataset.fin); 
+        
+       //console.log("dbt : " + posdeb + "poslect : " + poslect + "écart : " + (poslect - posdeb))
+
+        return posdeb < poslect &&  poslect <= posfin; // Appliquer les conditions
+        });
+
+        if (segPosi) {
+             
+            seg_lu = segPosi.dataset.rksg;
+            mefSegLu(seg_lu); 
+        } else {
+             
+            seg_lu=0;
+        }
+
+  
+
+
+
+
+ 
+
+
+ 
+
+
+}
+
+
+function mefSegLu(seg){  // Mise en forme du segment lu
+    
+           
+         
+/*
+            // retrait des sélecteurs partout
+            const cntnr= document.getElementById('fond_seg');
+
+            // Parcourir tous les enfants du conteneur parent
+            Array.from(cntnr.children).forEach(child => {
+                // Vérifier si l'enfant possède la classe "enlect"
+                if (child.classList.contains('enlect')) {
+                child.classList.remove('enlect'); // Retirer la classe
+                }
+            });
+            
+*/
+
+            
+
+
+            const segments = document.querySelectorAll('.lblseg');
+            
+            for (let segment of segments) {
+                 
+                segment.classList.remove('enlect');
+  
+            }
+
+             
+            const conteneur = getSeg(seg)  
+            conteneur.classList.add('enlect');
+
+             
+
+
+           /*
+            // retrait des sélecteurs partout
+            const collection2 = document.querySelectorAll('.playr');
+
+            collection2.forEach(btnloc2 => {
+            btnloc2.classList.remove('arrow-visible');
+            });
+
+            let nom2 = 'pl' + (seg);
+            document.getElementById((nom2)).classList.add('arrow-visible');
+            */
+
+}
+
+
+
+ 
+
+function panfich(pct, bloc) {
+     
+    document.getElementById('accueil').style.height = pct;
+    document.getElementById('accueil').style.display = bloc;
+    //document.getElementById('selfichiers').style.display = bloc;
+    document.getElementById('imgpanfich').classList.remove("dnone");
+    document.getElementById('menu_rec').classList.remove("dnone");
+    document.getElementById('vit_lect').classList.remove("dnone");
+    document.getElementById('btnfichtext').style.display = bloc;
+    document.getElementById('btnfichaudio').style.display = bloc;
+
+    scrollToTop()
+    
+}
+
+
+function checkok(){
+    if (textok==true && audiook==true) {panfich("0%","none")}
+    
+}
+
+
+ 
+function MaJSeg(seg){
+     
+    return;
+
+    let nomseg = "sg"+seg;
+    let lmnt = document.getElementById(nomseg);
+    TabSeg[seg][4] = lmnt.innerText;
+   //console.log(lmnt.innerHTML)
+     
+    
+
+
+}
+
+
+
+// AFFICHAGE DE LA BOITE DE DIALOGUES
+function dialog(type){
+
+     
+    let element = document.getElementById('dlg');
+    element.style.display = "block";
+    
+    let contenu = document.getElementById('ssdlg');
+
+    //element.classList.remove('dnone');
+
+
+    switch (type) {
+
+    case 'Export' :
+    contenu.style.top="25%";
+    contenu.style.height="";    
+    contenu.innerHTML = 
+        `   <div class="close" onclick="hidedlg()">×</div>
+          <h3>  Choisissez un format d'export </h3>
+            <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
+            
+          
+                <div class = "lblmnuxprt"  onclick="enregistrer()"> <label class = "lblformat"> .Sonal </label> <span class="lbldetails"> Sauvegarde temporaire, s'ouvre avec Whispurge (CTRL/CMD+S)</span><br> </div>
+                 <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .Txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
+                <div class = "lblmnuxprt"  onclick="exportWord()"> <label class = "lblformat"> .docx </label> <span class="lbldetails"> Format traitement de texte (Word, Writer)</span> <br></div>
+                <div class = "lblmnuxprt"  onclick="exportSrt()"> <label class = "lblformat"> .srt </label> <span class="lbldetails"> Format Srt</span> <br></div>
+               
+                 
+        </div>`
+
+
+    break;
+
+    case "Cat":
+    contenu.style.top="25%";
+    contenu.style.height="";    
+
+    contenu.innerHTML = 
+        ` <div class="close" onclick="hidedlg()">×</div>
+         <H3 id = "lblTypeModif">Ajouter une catégorie </H3>
+        <div  id = "menucat"  >
+            
+                    <div class="modifCat" >
+                       
+
+                        
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+                                
+                                <div class="floating-label-container" style="width:20%;margin-right:10px" >
+                                    <input type="text" id="lblCodeCat" class="floating-input lbl-code-thm" placeholder=" " onkeyup="existThm(this.value)" />
+                                    <label for="lblCodeCat" class="mdc-floating-label " >Code</label>
+                                </div>
+
+                                
+                            
+                                <div class="floating-label-container">
+                                    <input type="text" id="lblNomCat" class="floating-input lbl-nom-thm" placeholder=" " onkeydown="if(event.key==='Enter'){changeStyle()}" />
+                                    <label for="lblNomCat" class="mdc-floating-label">Libellé</label>
+                                </div>
+
+                                
+                                <label id = "btnthmsuppr" class='btnfonction dnone ' style = "width: 20%;margin-left: 10px;" onclick="supprStyle()">Supprimer</label>
+                                
+
+                        </div>
+                      
+
+
+
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                            <div class="floating-label-container" style="width:20%; margin-right:10px">
+
+                                    <label class="mdc-floating-label floatingstatic">Rang</label>
+                                    
+                                        <div class=" font-size-controls">
+                                        
+                                        <button class="decrease-font" onclick="adjustRang(-1)"><</button>
+                                        <span id="lblrang"> 0 </span>
+                                        <button class="increase-font" onclick="adjustRang(+1)">></button>
+                                                            
+                                        </div>
+
+                                </div>
+
+                                <div class="floating-label-container" >
+                                    <label class="mdc-floating-label floatingstatic">Placer après... </label>
+                                    
+                                        <div class="combothm">
+                        
+                                        <details>
+                                        <summary id="cmbPosThm">En dernier</summary>
+                                        <ul id="listCmbThm" class="optionscmb">
+
+                                                
+                                                
+                                                    
+                                                </ul>
+                                            </details>
+                                        </div>
+                                </div>
+
+                            </div>
+
+                            <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;margin-top:20px;margin-bottom:20px;">
+
+                             <div class="floating-label-container " style="width:66%;margin-right:10px; display:flex; flex-direction:row; justify-content:space-between; align-items:center;padding-left:10px;padding-right:10px;">
+                                <input id = "chkcatcoul" type="checkbox" class = "chkcat" checked style="cursor:pointer;"> Définir 
+                                <input  type="color" id="colorFond" class = "floating-input colpicker" style="cursor:pointer;" value="#F4F4F4" > 
+                                <label for="colorFond" class="mdc-floating-label">Couleur de fond</label>
+
+                                <div class = "color-templates" style=display:flex; flex-direction:row; justify-content:flex-start; align-items:center; margin-left:10px;margin-right:10px; flex-wrap:wrap; max-width:60%;   >
+                                <div class= "color-choose " style = "background-color: #0331ffff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #506ffcff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #97a3dbff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #00ad6bff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #03da87ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #89facfff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #ff802bff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ffa467ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #f5be9aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #bd30ffff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #be68e6ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #cd91e9ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #e94747ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #e27272ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #eba4a4ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #fffb03ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #fffd86ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #fffed0ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #2e7d32ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #66bb6aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #a5d6a7ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #d84315ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ff7043ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ffab91ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #1565c0ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #42a5f5ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #90caf9ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #6a1b9aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ab47bcff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ce93d8ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                
+                                
+                                </div>
+
+                            </div>
+
+                            <div class="floating-label-container" style="width:32%;">
+
+                                <label class="mdc-floating-label floatingstatic">Taille de police</label>
+                                
+                                    <div class=" font-size-controls">
+                                    <input id = "chkcatpol" type="checkbox" class = "chkcat" >
+                                    <button class="decrease-font" onclick="adjustFontSize(-2)">-</button>
+                                    <span class="lblTaillePol">`+ taille_cur + `</span>
+                                    <button class="increase-font" onclick="adjustFontSize(+2)">+</button>
+                                                        
+                                </div>
+                                
+                            </div>
+                        
+
+                            </div>    
+
+
+
+                    </div>
+
+
+
+
+                    <label id = "btnthm" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="changeStyle()">Valider</label> 
+                
+                </div>
+
+
+                 
+        </div>`
+
+
+    break;
+
+    case "comment":
+
+    console.log ("debsel "+ debSel + " finsel " + finSel    )
+    contenu.style.top="25%";
+    contenu.style.height="";    
+    contenu.innerHTML = 
+        `   
+
+            <div class="close" onclick="hidedlg()">×</div>
+            <h3 class = "menu-title-com">  Commentaire </h3>
+
+
+            <div class="menudrlnt" id = "menuexport"   >
+
+            
+            <label style="float:left"> De: </label> 
+            <label id = "authcomm" style="float:left; margin-left:10px"> Auteur.ice </label> 
+             <textarea id="txtcomms"  style = "width:100%; height:180px; padding:12px; margin-top:20px" placeholder = "Ajoutez un commentaire..."   onfocus="dsTxtArea=false;dsTxtAutre=true"  onfocusout= "dsTxtAutre=false;"  ></textarea>
+            <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:10px;"> 
+             <label id = "btnsupprcomm" class='btnfonction' style = "width : 25%;flex:1"; onclick="supprimerCommentaire(`+ debSel + `,` + finSel + `)">❌️ Supprimer</label>  
+             <label id = "btncomm" class='btnfonction' style = "width: 75%; float : right;flex:3"; onclick="validerCommentaire(`+ debSel + `,` + finSel + `)">Valider</label>
+             </div>  
+        </div>`
+
+
+    break;
+
+    case "Métadonnées":
+   
+    contenu.style.top="25%";
+    contenu.style.height="";  
+
+    contenu.innerHTML = 
+        `  
+            <div class="close" onclick="hidedlg()">×</div>
+            <H3 >Ajouter/modifier une variable </H3>
+         
+     <div  id = "menudata"  >
+            
+                    <div class="modifDat" >
+                        
+                      
+
+
+                         <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                                <div class="floating-label-container" style=" margin-right:10px; width:10%" >
+                                    <input type="text" id="lblCodeVar" class="floating-input lbl-code-var" style = "background-color:white" placeholder=" Code " onkeyup="" value = "`+ (tabVar.length + 1) +`" disabled />
+                                    <label for="lblCodeVar" class="mdc-floating-label  floatingstatic" >Code</label>
+                                </div>
+
+                                 <div class="floating-label-container" style=" margin-right:10px" >
+                                    <input type="text" id="lblLibVar" class="floating-input lbl-lib-var" style = "background-color:white" placeholder=" Intitulé de la variable" onkeyup="if(event.key===&quot;Enter&quot;){addVar('loc');}" />
+                                    <label for="lblLibVar" class="mdc-floating-label  floatingstatic" >Libellé de la variable</label>
+                                </div>
+                        </div>
+
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+                                <div class="floating-label-container" style=" margin-right:10px ; padding:10px;" > 
+                                <label class="mdc-floating-label floatingstatic">Champ de la variable</label>
+                                   
+                                    <label>
+                                        <input type="radio" name="chkVarChmp" value="gen" checked>
+                                        générale
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="chkVarChmp" value="loc">
+                                        par locuteur.ices
+                                    </label>
+                                     
+                                </div>
+                         
+                                <div class="floating-label-container" style=" margin-right:10px ; padding:10px;" > 
+                                <label class="mdc-floating-label floatingstatic">Statut.</label>
+                                   
+                                    <label>
+                                        <input type="radio" name="chkVarPriv" value="false" checked>
+                                        Publique (visible dans les exports)
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="chkVarPriv" value="true">
+                                        Privée
+                                    </label>
+                                     
+                                </div>
+                        </div>
+
+                          
+
+
+                        <div id="fond_mod" style="display:none">
+
+                            <H3 >Modalités </H3>
+                            <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto; ">
+
+                                <div class="floating-label-container" style="">
+                                
+                                    <div class="ligmoda" style="">
+                                        <label class="mdc-floating-label floatingstatic codemoda" >Code </label>
+                                        <label class="mdc-floating-label floatingstatic libmoda ">libellé</label>
+                                    </div>
+                                </div>
+                                
+                                <div id= "dico">
+                                    
+                                    <div class="ligmoda" style="">
+                                        <input type="text" class=" case-moda codemoda floating-input lbl-code-thm" placeholder=" " onkeyup="" value="1"/>  
+                                        <input type="text" class="case-moda libmoda floating-input lbl-code-thm" placeholder="Nouvelle modalité" onkeyup="" value=""/> 
+                                    </div>
+
+                                </div>
+                                    
+                                 
+
+                            </div>
+
+                             <div class="ligmoda" style="">
+                                             
+                            
+                       
+                            <div class = "floating-label-container" style="margin-top: 10px;">
+                             <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; width:10%; ";">+</label> 
+
+              
+                                </div>
+
+                             </div>
+                        </div>
+ 
+
+                         <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                                     <div class="floating-label-container" style=""> 
+
+                                    <label for="maListe" class="mdc-floating-label  floatingstatic"> Modalités pré-remplies</label>
+                                    <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;" onchange="ajoutListeModas(this.value)">
+                                    <option value="rien">choisissez un modèle...</option>
+                                    <option value="sexe">Sexe</option>
+                                    <option value="age5">Age en classes de 5</option>
+                                    <option value="age10">Age en classes de 10</option>
+                                    <option value="pcs1">PCS Niveau 1</option>
+                                    <option value="pcs2">PCS Niveau 2</option>
+                                    </select>
+                                    </div>
+
+                        </div>
+
+                           <label id = "btnValidVar" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="addVar('loc')">Valider</label> 
+        `
+
+        document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
+
+        break;   
+        
+    case "filtreCat":
+        contenu.style.top="10%";
+        contenu.style.height="80%";
+
+         contenu.innerHTML = 
+        ` 
+                <div>
+                <div class="close" onclick="hidedlg()">×</div>
+                <H3>Filtrer les catégories affichées </H3>
+                </div>
+            
+ 
+                    <div id = "enteteThmFltr" style = "border-bottom: 1px solid grey;margin-bottom: 5px;cursor:pointer " >
+                        
+                    <label id = "chkAllFiltre" onclick="selAllCat()"> ☑  Tout (dé)sélectionner  </label>
+                       
+                          <div style="float:right; font-size:0.9em; margin-top:5px; ">
+                            <span style="margin-left:10px;" > Condition : </span> 
+                            <label> <input type="radio"   name="filtreEtOu" value="ou" checked> Ou / </label>
+                            <label> <input type="radio"   name="filtreEtOu" value="et"> et</label>
+                            </div>
+                    </div>
+
+                    <div id = "listThmFltr"  class="filtreCat" >
+                        
+
+                         
+                    
+                    </div>
+                     <label id = "btnfiltreCat" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="isoleThm();hidedlg();ThmActifs()">Valider</label> 
+            
+                    `
+
+            }
+}
+
+function hidedlg(){
+    let element = document.getElementById('dlg');
+    element.style.display = "none";
+   
+}
+
+
+
+ 
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// COMMENTAIRES
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// showPrompt: non-bloquant, remplacement de window.prompt via <dialog>
+function showPrompt(message, defaultValue = "") {
+    return new Promise(resolve => {
+        const dlg = document.createElement('dialog');
+        dlg.className = 'electron-prompt';
+        dlg.innerHTML = `
+            <form method="dialog" style="display:flex;flex-direction:column;gap:8px;padding:12px;min-width:320px;">
+                <label style="font-weight:600;">${message}</label>
+                <input id="electron-prompt-input" type="text" value="${String(defaultValue).replace(/"/g,'&quot;')}" style="width:100%;padding:6px;" />
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+                  <button value="cancel">Annuler</button>
+                  <button value="ok">OK</button>
+                </div>
+            </form>
+        `;
+        document.body.appendChild(dlg);
+        const input = dlg.querySelector('#electron-prompt-input');
+        dlg.addEventListener('close', () => {
+            const val = input.value;
+            const result = dlg.returnValue === 'ok' ? val : null;
+            dlg.remove();
+            resolve(result);
+        }, { once: true });
+        dlg.showModal();
+        input.focus();
+    });
+}
+
+async function addComment(){
+
+     console.log ("ajout d'un commentaire entre " + debSel + " et " + finSel)
+
+    if (debSel==0 || finSel==0) {
+
+        //debSel=seg_cur
+        return ;
+    }
+
+    if (!utilisateur) {
+        // utilisation de la boite non bloquante
+        const name = await showPrompt("Pour signer vos commentaires, merci d'entrer votre nom :", "");
+        if (!name) { return; }
+        utilisateur = name;
+    }
+
+    dialog("comment");
+    document.getElementById("authcomm").textContent = utilisateur;
+    document.getElementById("btnsupprcomm").classList.add("dnone"); // on masque le bouton de suppression
+    setTimeout(() => {
+        
+        document.getElementById("txtcomms").focus();
+    }, 100);
+
+    return; 
+
+var commentaire = prompt("Ajoutez votre commentaire :");
+
+if (!commentaire){return}; 
+
+const spn = getSpan(debSel); 
+spn.classList.add('obs'); 
+spn.dataset.obs=utilisateur + " : " + commentaire;
+
+
+    
+/*
+    // Ajout de la balise thmr avant le deb
+    const spn2 = getSpan(debSel)
+
+    // Get the parent element
+    let parentDiv = spn2.parentNode;
+
+    // nom de l'utilisateur
+    var spnObs = document.createElement("DIV");
+    spnObs.contentEditable==false;
+    //spnObs.setAttribute('placeholder', 'Ajoutez un commentaire');
+     spnObs.classList.add("autobs");
+    
+    //spnObs.onfocus = ;
+    spnObs.innerHTML = utilisateur + ` : `
+
+ 
+    // Insert the new element into before sp2
+    parentDiv.insertBefore(spnObs, spn2);
+
+
+    // zone de commentaire
+    var spnObs = document.createElement("DIV");
+    spnObs.contentEditable==true;
+    //spnObs.setAttribute('placeholder', 'Ajoutez un commentaire');
+    spnObs.setAttribute('onclick', 'getThm('+ debSel + ')');
+    spnObs.setAttribute('onfocusout', 'validCom()');
+    //spnObs.setAttribute('onfocusin', 'dsTxtArea=false;dsTxtAutre=true');
+    spnObs.classList.add("obs");
+    
+    //spnObs.onfocus = ;
+    spnObs.innerHTML = ` Commentaire...`
+
+
+
+    // Insert the new element into before sp2
+    parentDiv.insertBefore(spnObs, spn2);
+    */
+    /*
+    var lgnObs = document.createElement("div");
+    lgnObs.classList.add("lgnobs");
+       // Insert the new element into before sp2
+    parentDiv.insertBefore(lgnObs, spn2);
+    */
+
+
+    /*
+    spnObs.focus();
+    const range = document.createRange();
+    range.selectNodeContents(spnObs);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    */
+
+}
+
+function validerCommentaire(rk, rkF){ // validation d'un commentaire existant ou nouveau
+
+    const commentaire = document.getElementById("txtcomms").value;    
+    const sign = document.getElementById("authcomm").textContent;
+
+    //if (!commentaire || !sign){return}; 
+
+    if (commentaire.trim() == "") { // SUPPRESSION (si vide)
+        //const yes = confirm("Voulez vous supprimer le commentaire ?");
+        //if (!yes) { return; }
+
+        supprimerCommentaire(rk, rkF)
+        return;
+    }
+
+    console.log ("validation d'un commentaire à la position " + rk )
+  
+     
+
+    try {
+        const spn = getSpan(rk);
+        if (!spn) {
+            console.warn('validerCommentaire: span introuvable pour rk=', rk);
+            try { if (typeof hidedlg === 'function') { hidedlg(); } } catch (e) {}
+            return;
+        }
+        spn.classList.add('obs');
+        spn.dataset.auth = sign;
+        spn.dataset.obs = commentaire;
+
+        if (rkF > 0) {
+            spn.dataset.finobs = rkF;
+            const spnF = getSpan(rkF);
+            if (spnF) { spnF.classList.add('obsfin'); }
+        }
+    } catch (err) {
+        console.error('Erreur lors de la validation du commentaire :', err);
+    }
+
+    try { if (typeof hidedlg === 'function') { hidedlg(); } } catch (e) {}
+
+}
+
+function modifComm(rk, ancienComm){ // modification d'un commentaire existant
+
+dialog("comment");
+
+const spn = getSpan(rk);
+
+if (!spn){return}
+// récupération de l'auteur et du commentaire   
+
+
+    authcomm= spn.dataset.auth;
+     
+
+
+document.getElementById("authcomm").innerText = authcomm;
+document.getElementById("txtcomms").value = ancienComm;
+document.getElementById("txtcomms").focus();
+document.getElementById("btnsupprcomm").setAttribute("onclick", "supprimerCommentaire(" + rk + ")"); // modification du bouton de validation
+document.getElementById("btncomm").setAttribute("onclick", "validerCommentaire(" + rk + ")"); // modification du bouton de validation
+
+}
+
+function supprimerCommentaire(rk, rkF){ // validation d'un commentaire existant ou nouveau
+
+console.log ("suppression d'un commentaire à la position " + rk )
+
+try {
+            const spn = getSpan(rk);
+            if (spn) {
+                spn.classList.remove('obs');
+                spn.removeAttribute('data-obs');
+                spn.removeAttribute('data-auth');
+                spn.removeAttribute('data-finobs');
+
+                let rkfinobs = Number(spn.dataset.finobs);
+                const spnF = getSpan(rkfinobs);
+                if (spnF) { spnF.classList.remove('obsfin'); }
+            }
+        } catch (err) {
+            console.error('Erreur lors de la suppression du commentaire :', err);
+        }
+        try { if (typeof hidedlg === 'function') { hidedlg(); } } catch (e) {}
+        return;
+
+
+}
+
+
+function surlignComm(rk){ // surlignement d'un commentaire existant
+
+
+
+    // retrait des autres surlignements
+    const collection = document.querySelectorAll('span');
+    collection.forEach(item => {
+        item.classList.remove('surlignobs');
+    });
+
+    const spn = getSpan(rk);
+
+    if (!spn){return}
+
+    spn.classList.add('surlignobs');
+
+       
+    let derSpan = spn.dataset.finobs;
+    if (derSpan) {
+    
+        for (let i = Number(derSpan); i > rk; i--) {
+            const nextSpan = getSpan(i);
+            if (nextSpan) {
+                nextSpan.classList.add('surlignobs');
+            }
+        }
+  
+    }
+ 
+}
+
+ 
+
+
+
+function listenersFinSel(){
+     
+
+    const menuSeg=document.getElementById('contextMenu')
+
+
+    document.querySelector(".finsel").addEventListener("mouseup", (event) => {
+    
+    event.stopPropagation(); // Empêche l'événement de "remonter" au parent
+    const button = event.currentTarget;
+
+    showMenu(button, typeAction); 
+
+ 
+    });
+
+
+
+
+}
+
+  //===================================================
+  // Ecouter le signal de mise à jour des catégories
+  //===================================================
+   
+  
+          // Écouter les mises à jour
+  window.electronAPI.onUpdateCat((data) => {
+          console.log("demande de modifs reçue")
+             afflistThm(data,"conteneur_cat"); // mise à jour de l'affichage des catégories
+    });
+
+
+    
+// veille de sélection des commentaires        
+const fond=document.getElementById('segments')
+
+fond.addEventListener("mousedown", () => {
+    
+    // if (event.target != event.currentTarget) {return} // si clic sur un span, on oublie
+
+     
+
+    const rect = fond.getBoundingClientRect();
+    
+    if (event.clientX > rect.right - 300){
+        
+      
+            // si le segment contient la classe .obs
+        let spn = event.target;
+
+        console.log(spn.classList)
+        if (spn && spn.classList.contains("obs")) {
+            console.log("clic sur un commentaire")
+            rk = Number(spn.dataset.rk);
+            modifComm(rk, spn.dataset.obs)     
+             
+        }
+     
+    debSel=0; 
+    finSel=0;
+
+     effaceSel();
+     effaceSurv(); 
+     thmEnCours("");
+    }
+    });
+
+
+    fond.addEventListener("mouseover", () => {
+    const rect = fond.getBoundingClientRect();
+    if (event.clientX > rect.right - 300){
+ 
+            // si le segment contient la classe .obs
+        let spn = event.target;
+        if (spn && spn.classList.contains("obs")) {
+            rk = Number(spn.dataset.rk);
+            surlignComm(rk);        
+        } else {
+            surlignComm();
+        }
+      
+    }
+    });
+
+    
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// redimensionnement 
+//////////////////////////////////////////////////////////////////////////////////////////////////
+/*const resizeLig = document.getElementById('ligneResize');
+const topDiv = document.getElementById('notes');
+const bottomDiv = document.getElementById('segments');
+const container = document.getElementById('contenu');
+
+let isResizing = false;
+
+resizeLig.addEventListener('mousedown', (e) => {
+  isResizing = true;
+ //console.log("sélection")
+  document.body.style.cursor = 'ns-resize';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+
+ //console.log(" survol vers le h ou b")
+
+  const containerRect = container.getBoundingClientRect();
+  const newTop1 = e.clientY - containerRect.top  ;
+
+  if (newTop1  > 50 && newTop1 < containerRect.height - 50) {
+    topDiv.style.height = `${newTop1}px`;
+    bottomDiv.style.height = `${containerRect.height - newTop1 - resizeLig.offsetHeight}px`;
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  isResizing = false;
+  document.body.style.cursor = 'default';
+});
+
+/// redimensionnement horizontal
+*/
+
+
+// Sélectionner le conteneur et la ligne de redimensionnement
+const colonneG =  document.querySelector('.colonne-g');
+const resizerCol = document.getElementById('ColResize');
+
+// Déclarer une variable pour suivre la position de la souris
+let isResizingC = false;
+let lastX = 0;
+
+resizerCol.addEventListener('mousedown', (e) => {
+  // Démarre le redimensionnement
+  isResizingC = true;
+  lastX = e.clientX;
+  document.body.style.cursor = 'ew-resize'; // Change le curseur pour indiquer le redimensionnement
+ //console.log ("ça resize")
+
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (isResizingC) {
+    // Calculer la nouvelle largeur du conteneur en fonction du mouvement de la souris
+    const deltaX = e.clientX - lastX;
+    const newWidth = colonneG.offsetWidth + deltaX;
+
+    // Appliquer la nouvelle largeur
+    colonneG.style.width = `${newWidth}px`;
+
+    resizerCol.style.left = `${newWidth}px`;
+
+    // déplacer colonne droite
+
+    let colDroite = document.getElementById('contenu');
+    let newWidth2 = colDroite.offsetWidth - deltaX
+    let newLeft = colDroite.offsetLeft + deltaX
+    //colDroite.style.marginLeft  = `${newLeft}px`;
+    colDroite.style.width = `${newWidth2}px`;
+
+
+    // Mettre à jour la position de la souris pour le prochain calcul
+    lastX = e.clientX;
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  // Arrête le redimensionnement quand on relâche le bouton de la souris
+  isResizingC = false;
+  document.body.style.cursor = 'default'; // Rétablir le curseur par défaut
+});
+
+
+
+
+ 
+
+
+ 
+
+
+ // fonction de désélection de tous les boutons du panneau gauche 
+ function deselBtn_g(){
+    const boutons_g = document.querySelectorAll('.imgbtn_g');
+    boutons_g.forEach(btn => {
+    btn.style.opacity = 0.3;
+    });
+}
+
+function hidepanG(){
+    const pan_g = document.querySelectorAll('.blocvisible');
+    pan_g.forEach(btn => {
+    btn.classList.remove('blocvisible')
+    });
+}
+
+function scrollToTop() {
+     
+    window.scrollTo(0, 0);
+};
+
+function scrollToRk(rk){
+
+ //position du cadre (à déduire)
+
+ console.log("on cherche à aller sur le rk " + rk)
+ 
+
+    var PosCadre = document.getElementById("segments").getBoundingClientRect();
+    PosYC = PosCadre.top;
+    PosXC = PosCadre.left;
+
+    // Scroll
+    
+    var scrlY = window.scrollY;
+
+
+    //position de l'étiquette
+    
+    //var nomSeg = String("sg" + (seg));
+    var spn =getSpan(rk);
+
+    if (!spn){'span introuvable' ; return}
+    
+
+    var Pos = spn.getBoundingClientRect();
+    var PosY = Number(Pos.top - 5) - 200   ; //Pos.top;
+    var PosX = Number(Pos.left - 10);
+    /*var PosH = Number(Pos.height)  + 10;
+    var PosW = Number(Pos.width + 30);
+    */
+    //document.getElementById("info").innerText = "pos du seg : " + PosY + " /n pos du scroll : " + scrlY + " /n pos du cadre : " + PosYC;
+
+    document.body.scrollTop = document.body.scrollTop + PosY;
+
+    return ; 
+    
+
+    // évitement de la sortie de l'écran
+    var ht = window.innerHeight;
+    if (PosY>ht -120) {
+        document.body.scrollTop = document.body.scrollTop + ht - 210;
+    }   
+
+    if (PosY<0) {
+        document.body.scrollTop = document.body.scrollTop + PosY;
+    } 
+
+
+
+
+}
+
+ 
+ 
+
+
+ 
+ // copier 
+ function CopiePressePapier (txtHtml, txtPlain) {
+
+    function listener(e) {
+        e.clipboardData.setData("text/html", txtHtml);
+        e.clipboardData.setData("text/plain", txtPlain);
+        e.preventDefault();
+    }
+
+    document.addEventListener("copy", listener);
+    document.execCommand('copy');
+}
+
+
+
+
+function wait(message) {
+console.log("wait")
+document.body.style.cursor = "wait";
+document.getElementById("processing").style.display="block"
+document.getElementById("processing").style.zIndex="100";
+document.getElementById("lblwait").innerText = message
+
+}
+
+function endWait() {
+ console.log("end wait")
+ document.getElementById("processing").style.display="none"
+ document.body.style.cursor = "default";    
+ //document.getElementById("contenu").style.display="block"
+}
+
+
+function listenerGraph() {// ajout d'un listener pour le clic sur graph de l'entretien
+    
+    const cnv = document.getElementById('graphEnt');
+    cnv.addEventListener('mouseup', function() {
+
+   
+            
+            // récupération de la position du canvas
+            const  rect= this.getBoundingClientRect();
+            // récupération de la position du clic
+            const event = window.event; 
+            const x = event.clientX - rect.left;
+            const width = rect.width;      
+
+            let ratio = x/width; // ratio de la position du clic par rapport à la largeur du canvas
+            let nbmots= getNbSpans(); // nombre de mots           
+            let pos = Math.round(nbmots * ratio); // position du mot dans le texte
+
+            let mot = getSpan(pos); // récupération du mot à la position
+            if (!mot) {return} // si le mot n'existe pas, on sort de la fonction
+        
+            mot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                
+            
+ 
+        });
+}
+
+// recherche dans les thm
+ const searchInput = document.getElementById('searchInput');
+ searchInput.addEventListener('keyup', function() {
+        const query = this.value.toLowerCase();
+        const cats = document.querySelectorAll('.ligthm');
+    
+        cats.forEach(cat => {       
+            cat.classList.remove('dnone');
+            cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')
+
+            if (query == '') {
+                return;
+            }
+
+            const text = cat.innerHTML.toLowerCase();
+            const title = cat.title.toLowerCase();
+
+
+            if ((text.includes(query) || title.includes(query)) && query !== '') {
+                cat.classList.remove('dnone');
+
+                if (text.includes(query)) {// surlignement (si dans texte et pas dans title)
+                    let txtInterne = cat.innerHTML.replace(/<\/a>|<a>/g, '') ;
+                    cat.innerHTML = '<a>' + highlightText(txtInterne, query) + '</a>'; 
+                }
+
+            } else {
+                cat.classList.add('dnone');
+                cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')   ; // réinitialiser le contenu
+            }
+        });
+    });
+ 
+
+ // Fonction pour échapper les caractères spéciaux regex
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // Fonction pour mettre en surbrillance le texte recherché
+        function highlightText(text, search) {
+            if (!search) return text;
+            const regex = new RegExp(`(${escapeRegex(search)})`, 'gi');
+            return text.replace(regex, '<mark>$1</mark>');
+        }
+
+
+  //=============================================      
+  //listener sur le bouton editCat 
+  //=============================================
+
+        let editCat = document.getElementById("editCat")
+
+        editCat.addEventListener('mousedown', (event)=> {
+          window.electronAPI.afficherCategories();
+
+        }); 
+
+
+
+</script>
+
+
+
+
+</body>
+
+</html>

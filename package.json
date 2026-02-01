@@ -1,0 +1,50 @@
+{
+  "name": "sonal",
+  "version": "0.0.1",
+  "author": "Alex Alber - Université de Tours",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+ "build": {
+  "appId": "com.sonal.id",
+  "productName": "Sonal",
+  "files": [
+    "main.js",
+    "package.json",
+    "preload.js",
+    "renderer.js",
+    "corpus.js",
+    "index.html",
+    "modules/**/*",	
+    "dist/**/*",
+    "css/**/*"
+  ],
+  "asarUnpack": [
+    "**/node_modules/chardet/**/*",
+    "**/node_modules/iconv-lite/**/*",
+    "**/node_modules/safer-buffer/**/*"
+  ],
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "directories": {
+    "buildResources": "assets"
+  },
+  "win": {
+    "target": "nsis"
+  }
+},
+  "dependencies": {
+    "chardet": "^2.1.0",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "electron": "38.1.2",
+    "electron-builder": "^26.0.12"
+  }
+}

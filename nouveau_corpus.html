@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Créer un nouveau corpus</title>
+     <link href="CSS/styles.css" rel="stylesheet"  type="text/css">   
+ 
+     <style> 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background-color: #fafafa;
+            height: 350px;
+            overflow: hidden;
+ 
+        }
+ 
+         
+        .form-group {
+            margin-bottom: 20px;
+        }
+ 
+        .folder-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            width:100%
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        input[type="text"]:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+ 
+
+        .btn-browse {
+             color: white;
+            background: #0066cc;
+            padding: 12px;
+        }
+
+        .btn-browse:hover {
+            background-color: #0055aa;
+            transform: translateY(-1px);
+        }
+
+        .btn-validate {
+        width:100%; 
+        padding: 6px 6px;
+        margin: 5px;
+        border: 1px solid #cbcbcb;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s;
+        background: #0066cc;
+        color: white;
+        padding: 12px;
+        }
+
+        .btn-validate:hover:not(:disabled) {
+            background-color: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-validate:disabled {
+            background-color: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .info-message {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #92400e;
+            margin-top: 15px;
+        }
+
+        .success-message {
+            background-color: #d1fae5;
+            border-left: 4px solid #10b981;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #065f46;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Création d'un nouveau corpus</h2>
+        
+        <div class="form-group">
+            <label for="folderPath">1 - Où seront stockés les fichiers?</label>
+            <div class="folder-selector">
+                <input type="text" id="folderPath" placeholder="Aucun dossier sélectionné. Choisissez un dossier" disabled>
+                <button class="btn btn-browse btn-secondary" onclick="selectFolder()">Parcourir</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="fileName">2 - Quel est le nom du projet?</label>
+            <input type="text" id="fileName" placeholder="Entrez le nom du fichier">
+        </div>
+
+        <button class="btn btn-validate" id="validateBtn" onclick="validate()" disabled>
+            Valider
+        </button>
+
+ 
+
+        
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        let selectedFolder = '';
+
+        async function selectFolder() {
+            try {
+                const result = await ipcRenderer.invoke('select-folder');
+                if (result && !result.canceled && result.filePaths.length > 0) {
+                    selectedFolder = result.filePaths[0];
+                    document.getElementById('folderPath').value = selectedFolder;
+                    checkValidation();
+                }
+            } catch (error) {
+                console.error('Erreur lors de la sélection du dossier:', error);
+            }
+        }
+
+        document.getElementById('fileName').addEventListener('input', checkValidation);
+        
+        document.getElementById('fileName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !document.getElementById('validateBtn').disabled) {
+                validate();
+            }
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                ipcRenderer.send('prompt-response', null);
+            }
+        });
+
+        function checkValidation() {
+            const folderPath = document.getElementById('folderPath').value;
+            const fileName = document.getElementById('fileName').value.trim();
+            const validateBtn = document.getElementById('validateBtn');
+            
+            if (folderPath && fileName) {
+                validateBtn.disabled = false;
+            } else {
+                validateBtn.disabled = true;
+            }
+        }
+
+        function validate() {
+            const dossierCorpus = document.getElementById('folderPath').value;
+            const nomProjet = document.getElementById('fileName').value.trim();
+            
+            if (dossierCorpus && nomProjet) {
+                ipcRenderer.send('prompt-response', { dossierCorpus, nomProjet });
+            }
+        }
+        
+        // Sélectionner le texte au chargement
+        window.addEventListener('load', () => {
+            document.getElementById('fileName').focus();
+        });
+    </script>
+</body>
+</html>

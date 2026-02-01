@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editer les catégories</title>
+
+    <link href="CSS/styles.css" rel="stylesheet"  type="text/css">   
+    <script src="renderer.js"></script>
+    <script  src="modules/thematisation.js"></script>
+    <script  src="modules/utilitaires.js"></script>
+
+      <style>
+     
+   
+
+
+  </style>
+</head>
+<body >
+
+  <div style=" width:100% ;
+    margin-bottom: 1px;
+    height: 50px;
+    padding: 10px;
+    border-bottom: 2px solid grey;
+  ">   
+      
+    <h2 style="margin-bottom: 1px;">Catégories 
+                       
+    <label  class="btnbleu" onclick="affichListThmEdit(); ajoutThm()" title="Ajouter une catégorie"> ➕ Ajouter </label> 
+                         
+ 
+    </h2>
+  </div>
+
+  <div id = "fond-cat" style = "height: calc(100% - 50px);width: 100%; overflow-y: auto;position:fixed">
+
+        <div id="fond-thm-edit" style="display: flex;flex-direction: column;">
+
+
+
+        </div>
+
+
+        <form id="cat-form" class="cat-form dnone ">
+                   
+                    <div id="en-tete_cat_edit" class="en-tete_cat" >
+                        
+                         <label id = "btnannul" class='btn btn-secondary btnfonction   ' style = "margin-top : 12px;float:right" onclick="annulChgThm()">X</label>
+  
+                        
+                          <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+                                
+
+                                
+                            
+                                <div class="floating-label-container">
+                                    <textarea id="lblNomCat" rows = "2" class="floating-input lbl-nom-thm" style = "overflow: hidden;max-width:100%" placeholder=" " onkeydown="if(event.key==='Enter'){changeStyle(); annulChgThm()}"></textarea>
+                                     <label id = "etq-nom-cat" for="lblNomCat" class="mdc-floating-label dnone">Libellé</label>
+                                </div>
+
+                                
+                               
+
+                   
+              
+
+                        </div>
+                      
+                  </div>  
+
+                  <div class="details_cat" style="display:flex; flex-direction: column;">
+
+
+
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                          
+                                <div class="floating-label-container " style="width:20%;margin-right:10px" >
+                                    <input type="text" id="lblCodeCat" class="floating-input lbl-code-thm" placeholder=" " onkeyup="existThm(this.value)" />
+                                    <label for="lblCodeCat" class="mdc-floating-label " >Code</label>
+                                </div>
+
+                          
+                          <div class="floating-label-container" style="width:20%; margin-right:10px">
+
+                                    <label class="mdc-floating-label floatingstatic">Rang</label>
+                                    
+                                        <div class=" font-size-controls">
+                                        
+                                        <button class="decrease-font" onclick="adjustRang(-1)"><</button>
+                                        <span id="lblrang"> 0 </span>
+                                        <button class="increase-font" onclick="adjustRang(+1)">></button>
+                                                            
+                                        </div>
+
+                                </div>
+
+                                 
+
+                                <div class="floating-label-container" style = "min-height: 50px;">
+                                    <label class="mdc-floating-label floatingstatic">Placer après... </label>
+                                    
+                                        <div class="combothm">
+                        
+                                        <details>
+                                        <summary id="cmbPosThm">En dernier</summary>
+                                        <ul id="listCmbThm" class="optionscmb">
+
+                                                
+                                                
+                                                    
+                                                </ul>
+                                            </details>
+                                        </div>
+                                </div>
+
+                            </div>
+
+                            <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;margin-top:10px;margin-bottom:10px;">
+
+
+                            <div class="floating-label-container" style="width:32%;">
+
+                                <label class="mdc-floating-label floatingstatic">Taille de police</label>
+                                
+                                    <div class=" font-size-controls">
+                                    <input id = "chkcatpol" type="checkbox" class = "chkcat" >
+                                    <button class="decrease-font" onclick="adjustFontSize(-2)">-</button>
+                                    <span class="lblTaillePol">`+ taille_cur + `</span>
+                                    <button class="increase-font" onclick="adjustFontSize(+2)">+</button>
+                                                        
+                                </div>
+                                
+                            </div>
+
+                             <div class="floating-label-container " style="width:100%;margin-right:10px; display:flex; flex-direction:row; align-items:center;padding-left:10px;padding-right:10px;margin-left:15px;">
+                               <label for="colorFond" class="mdc-floating-label floatingstatic">Couleur de fond</label>  
+                              <input id = "chkcatcoul" type="checkbox" class = "chkcat" checked style="cursor:pointer;"> Définir 
+                                <input  type="color" id="colorFond" class = " color-picker " style="cursor:pointer;height: 45px;width:100px" value="#F4F4F4" onchange="document.getElementById('en-tete_cat_edit').style.backgroundColor = hexToRgba(this.value, 0.30);">
+                               
+
+                                <div class = "color-templates" onclick="document.getElementById('chkcatcoul').checked=true">
+                                <div class= "color-choose " style = "background-color: #0331ffff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"></div>
+                                <div class= "color-choose " style = "background-color: #506ffcff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #97a3dbff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #00ad6bff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>    
+                                <div class= "color-choose " style = "background-color: #03da87ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #89facfff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>    
+                                <div class= "color-choose " style = "background-color: #ff802bff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #ffa467ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>    
+                                <div class= "color-choose " style = "background-color: #f5be9aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #bd30ffff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #be68e6ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #cd91e9ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #e94747ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #e27272ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>   
+                                <div class= "color-choose " style = "background-color: #eba4a4ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #fffb03ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #fffd86ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #fffed0ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #2e7d32ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #66bb6aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #a5d6a7ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #d84315ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #ff7043ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #ffab91ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #1565c0ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #42a5f5ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #90caf9ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #6a1b9aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #ab47bcff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+                                <div class= "color-choose " style = "background-color: #ce93d8ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);document.getElementById('en-tete_cat_edit').style.backgroundColor = rgbToHex(this.style.backgroundColor)+ '30';"> </div>
+
+                                
+                                </div>
+
+                            </div>
+                            </div>
+
+                        
+                           <div style="margin-top:10px;margin-bottom:20px;">
+                          
+                          <label id = "btnthmsuppr" class='btn btn-warning' style = "float:left; margin-left: 10px;" onclick="supprStyle();document.getElementById('cat-form').classList.add('dnone'); affichListThmEdit()"> ❌️ Supprimer</label>
+                          
+                          <label style = "float:left;  margin-left: 50px;"> ➕ Ajouter <br> après:</label>
+                          <label id = "btnthmAjoutApres" class='btn btn-secondary' style = "float:left;  margin-left: 10px;" onclick="ajoutThmApres('nouvelle')"> Nouvelle </label>
+                          <label id = "btnthmAjoutClone" class='btn btn-secondary' style = "float:left;  margin-left: 10px;" onclick="ajoutThmApres('clone')"> Clone </label>
+                          
+                          <label id = "valider-modif-cat" class='btn btn-primary' style = "margin-left : 12px; float:right" onclick="validerModifsThm()">Valider</label>
+
+
+                          </div>
+
+                    </div>
+
+                            </div>
+
+                    
+                    <div id="error-message" class="error"></div> 
+
+                    </div>
+
+
+
+                   
+             
+        </form>
+
+
+
+
+  <script>
+
+    var taille_cur = 18; 
+
+    const form = document.getElementById('cat-form');
+    const btnCancel = document.getElementById('btn-cancel');
+    const btnSubmit = document.getElementById('btn-submit');
+    const errorDiv = document.getElementById('error-message');
+
+
+    // Soumission du formulaire
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      
+      
+    });
+
+    // Annulation
+   /* btnCancel.addEventListener('click', () => {
+      window.close();
+    });
+*/
+ 
+
+        // au chargmenent de la fenetre, on recupere les parametres envoyes par le main process
+        document.addEventListener('DOMContentLoaded', () => {
+       // console.log("edition_categories.html chargé, envoi demande de données");
+        affichListThmEdit();
+        loadThm();
+        });
+
+
+        //listener sur le bouton plusCat 
+        /*
+        let plusCat = document.getElementById("plusCat")
+
+        plusCat.addEventListener('mousedown', (event)=> {
+          window.electronAPI.afficherCategories();
+
+        }); 
+        */
+
+
+        // listener sur le scroll pour déplacer l'élément form-cat avec le scroll
+        let scrollableDiv = document.querySelector('div[style*="overflow-y: auto"]');
+        scrollableDiv.addEventListener('scroll', (event) => {
+          let catForm = document.getElementById('cat-form');
+          catForm.style.top = catForm.style.top + scrollableDiv.scrollTop + 'px';
+        });
+
+function adjustRang(increment){
+
+    // Sélection des éléments nécessaires
+ 
+    const lblrang = document.getElementById("lblrang");
+    let rang = Number(lblrang.innerText)
+
+    // Calcule la nouvelle taille (minimum 10px, maximum 48px)
+    const newRank = Math.max(0, Math.min(6, rang + increment));
+
+ 
+
+    // Met à jour l'affichage
+    lblrang.textContent = newRank ;
+
+}
+
+// Fonction pour ajuster la taille de police
+function adjustFontSize(increment) {
+     
+ 
+    // Sélection des éléments nécessaires
+     
+    const currentFontSizeDisplay = document.querySelector('.lblTaillePol');
+
+
+  // Calcule la nouvelle taille (minimum 10px, maximum 48px)
+  const newSize = Math.max(10, Math.min(48, taille_cur + increment));
+
+  // Applique la nouvelle taille
+  currentFontSizeDisplay.style.fontSize = newSize;
+
+  // Met à jour l'affichage
+  currentFontSizeDisplay.textContent = newSize;
+
+   
+  if (taille_cur != newSize) {
+    taille_cur = newSize
+    document.getElementById("chkcatpol").checked=true ;
+  } else {
+    document.getElementById("chkcatpol").checked=false;
+
+  }
+  
+
+  
+  
+   
+}
+
+ 
+
+        function annulChgThm(){
+          let catForm  = document.getElementById('cat-form');
+          catForm.classList.add('dnone');
+          affichListThmEdit();
+        }
+
+
+        
+        // drag and drop functions
+        //const dragEl = document.getElementById('dragElement');
+        
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+
+        // Support tactile
+        //dragEl.addEventListener('touchstart', dragStart);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+
+            //if (e.target === dragEl) {
+                isDragging = true;
+                dragEl.classList.add('dragging');
+            //}
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                setTranslate(currentX, currentY, dragEl);
+            }
+        }
+
+        function dragEnd() {
+            isDragging = false;
+            //dragEl.classList.remove('dragging');
+
+          //  alert("fin du drag");
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate(${xPos}px, ${yPos}px)`;
+        }
+
+        
+
+  </script>
+</body>
+</html>

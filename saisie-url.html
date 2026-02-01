@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ouvrir un fichier distant</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 30px;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    h2 {
+      margin-bottom: 25px;
+      color: #333;
+      font-size: 20px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #0066cc;
+    }
+    
+    .required {
+      color: #e74c3c;
+    }
+    
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .btn-submit {
+      background: #0066cc;
+      color: white;
+    }
+    
+    .btn-submit:hover {
+      background: #0052a3;
+    }
+    
+    .btn-submit:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .btn-cancel {
+      background: #e0e0e0;
+      color: #333;
+    }
+    
+    .btn-cancel:hover {
+      background: #d0d0d0;
+    }
+    
+    .info {
+      margin-top: 20px;
+      padding: 12px;
+      background: #e8f4fd;
+      border-left: 4px solid #0066cc;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #555;
+    }
+    
+    .error {
+      margin-top: 15px;
+      padding: 10px;
+      background: #fee;
+      border-left: 4px solid #e74c3c;
+      border-radius: 4px;
+      color: #c0392b;
+      font-size: 13px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📡 Ouvrir un corpus distant</h2>
+    
+    <form id="url-form">
+      <div class="form-group">
+        <label for="url">
+          URL du fichier <span class="required">*</span>
+        </label>
+        <input 
+          type="url" 
+          id="url" 
+          name="url" 
+          placeholder="https://exemple.com/fichier.txt"
+          value = "https://sonal-info.com/corpus/CorpusSonal3.crp"
+          required
+          autofocus
+        />
+      </div>
+      
+      <div class="form-group">
+        <label for="username">
+          Nom d'utilisateur  
+        </label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          value = "user"
+          placeholder="Identifiant"
+          
+        />
+      </div>
+      
+      <div class="form-group">
+        <label for="password">
+          Mot de passe  
+        </label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          placeholder="Mot de passe"
+          value = "vivelasocio!"
+           
+        />
+      </div>
+      
+      <div class="info">
+        💡 <strong>Info :</strong> Le fichier sera téléchargé avec authentification Basic. 
+        Assurez-vous que l'URL commence par <code>https://</code>
+      </div>
+      
+      <div class="error" id="error-message"></div>
+      
+      <div class="buttons">
+        <button type="button" class="btn-cancel" id="btn-cancel">
+          Annuler
+        </button>
+        <button type="submit" class="btn-submit" id="btn-submit">
+          Télécharger
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('url-form');
+    const btnCancel = document.getElementById('btn-cancel');
+    const btnSubmit = document.getElementById('btn-submit');
+    const errorDiv = document.getElementById('error-message');
+
+    // Validation de l'URL
+    function validerURL(url) {
+      try {
+        const urlObj = new URL(url);
+        return urlObj.protocol === 'https:' || urlObj.protocol === 'http:';
+      } catch {
+        return false;
+      }
+    }
+
+    // Soumission du formulaire
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const url = document.getElementById('url').value.trim();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      
+      // Validation
+      if (!url) {
+        errorDiv.textContent = '❌ Saisissez une URL';
+        errorDiv.style.display = 'block';
+        return;
+      }
+      
+      if (!validerURL(url)) {
+        errorDiv.textContent = '❌ URL invalide. Elle doit commencer par http:// ou https://';
+        errorDiv.style.display = 'block';
+        return;
+      }
+      
+      // Envoyer les données au main process
+      window.electronAPI.submitURL({ url, username, password });
+    });
+
+    // Annulation
+    btnCancel.addEventListener('click', () => {
+      window.close();
+    });
+
+    // Masquer l'erreur lors de la saisie
+    ['url', 'username', 'password'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        errorDiv.style.display = 'none';
+      });
+    });
+  </script>
+</body>
+</html>

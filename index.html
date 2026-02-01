@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sonal</title>
+   <link href="CSS/styles.css" rel="stylesheet"  type="text/css">   
+   
+</head>
+
+
+  
+  <script  src="modules/gestion_corpus.js"></script> 
+  <script  src="modules/gestion_fichiers.js"></script> 
+  <script  src="modules/gestion_entretiens.js"></script>
+  <script  src="modules/thematisation.js"></script>
+  <script  src="modules/locutarisation.js"></script>
+  <script  src="modules/utilitaires.js"></script>
+  <script  src="modules/conversions.js"></script>
+  <script  src="modules/gestion_data.js"></script>
+  <script  src="modules/Synthèse.js"></script>
+  <script  src="renderer.js"></script>
+
+<body>
+  
+  
+
+<!-- fenêtre d'accueil occupant la partie centrale et blurant le fond jusqu'à sélection d'un projet!-->
+  <div id="fenetreAccueil" class="fenetre-accueil">
+      <div class="contenu-accueil">
+        <div class="close" onclick="document.getElementById('fenetreAccueil').style.display='none'; ">×</div>
+          <h2>Bienvenue  </h2>
+          <img id = "logo" src="img/logoSonal.png"  alt=""  height="100"  >
+          
+          
+          <p>Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
+
+          <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir un corpus</button>
+          <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus</button>
+          <br>
+
+          <div id="recent-files-list" class="recent-files-list"></div>
+
+      </div>
+  </div>    
+
+
+
+
+
+  <!-- fond de page  !-->
+  <div class="container"> 
+
+    <!-- en-tête  !-->
+    <div id="fond_fonctions" class="header">
+            <img id = "logo" src="img/logoSonal.png"  alt=""  height="45"  style = "float:left;">
+             
+            <label style="
+                position: absolute;
+                top: 40px;
+                left: 56px;
+                font-size: 10px;
+                color: var(--couleur-titre);"> π.a.0</label>
+
+              <button id="btn-synthèse" class="btn btn-secondary" style="float:left; margin-left:30px; padding:10px;" title="Synthèse des extraits actifs" onclick=" synthese() ;">
+               Synthèse
+              </button>
+
+
+            <button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" affichDataGen() ;">
+                 Base de données
+              </button>
+               
+              <button id="btn-sauvegarder" class="btn btn-primary" style="float:right" title="Sauvegarder (Ctrl+S)" onclick="majFichierSonal() ;">
+                💾 Sauvegarder
+              </button>
+              
+
+
+           <span id="status-sauvegarde" class="status"></span>
+
+            <!-- <div id="nomCorpus" style="position:absolute;top:150px;left:130px;font-size:10px;color:var(--couleur-titre);">Nom du corpus</div>
+
+            <div id="cheminCorpus" style="position:absolute;top:35px;left:130px;font-size:10px;color:rgb(78, 78, 78);">Chemin du corpus</div>
+            !-->
+            
+            <canvas id="testcnv" style="width:500px;height:45px"> </canvas>
+
+    </div>
+    
+    <!-- ligne fonctions  !-->
+    <div id="fond_fonctions" class="subheader">
+     
+      <!-- boutons partie gauche !-->
+      <div id="fonctions-g" style="flex:1;"> 
+
+                <img id = "imgpandet" title = "Outils" class = "imgbtn_g" src="img\outils.png" height= "33px" width= '33px'  alt="outils"  onclick="dispPanneauG(this, 'fond_gen_corpus')" style="margin-left:5px">
+                <!-- <img id = "imgpanloc" title = "Locuteurs" class = "imgbtn_g" src="img\logoloc.png" height= "33px" width= '33px'  alt="locuteurs"    onclick="dispPanneauG(this, 'fond_loc')"  > !-->
+                <img id = "imgpancat" title = "Catégories" class = "imgbtn_g" src="img\logocat.png" height= "33px" width= '33px' class= '' style="opacity: 1; "  alt="catégories"  onclick="dispPanneauG(this, 'fond_thm_corpus')"   >
+                <!--<img id = "imgpandat" title = "Notes" class = "imgbtn_g" src="img\logonotes2.png" height= "33px" width= '33px' class= ''  alt="notes"  onclick="dispPanneauG(this, 'fond_notes')"  >!-->
+                <img id = "imgpandat" title = "Métadonnées" class = "imgbtn_g" src="img\logodat2.png" height= "33px" width= '33px' class= ''  alt="métadonnées"  onclick="dispPanneauG(this, 'fond_dat')"  >
+                <img id = "imgpansearch" title = "Rechercher/Remplacer" class = "imgbtn_g" src="img\logosearch.png" height= "33px" width= '33px' class= ''  alt="Rechercher/remplacer"  onclick="dispPanneauG(this, 'fond_rech')"  >
+                <img id = "imgpananon" title = "Anonymisation" class = "imgbtn_g dnone"  src="img\logoanon.png" height= "33px" width= '38px' class= ''  alt="anonymisation"  onclick="dispPanneauG(this, 'fond_anon')"  >
+
+     </div> 
+     
+     <!-- boutons partie droite !-->
+     <div id="fonctions-d" style="flex:2;">
+                <img id = "btn_ajout_ent" title = "Ajouter un document" class = "imgbtn_g" src="img\logotxt.png" height= "33px" width= '33px'  alt="outils"  onclick="" >
+     </div>
+    </div>
+
+    <div id = "ColResize"></div>
+
+    <!-- contenu de la page  !-->
+    <div class="content">
+
+        <!-- colonne de gauche  !-->
+        <div id = "colonne-gauche" class="colonne-g">
+          
+          <!-- panneau généralités corpus !-->
+          <div id="fond_gen_corpus" class="pan-g dnone">Généralités</div>
+          
+          <!-- infos sur l'entretien !-->
+          <div id="fond_infos_corpus" class="pan-g dnone">
+            <h2 style="margin-bottom: 1px;">Informations sur l'entretien</h2>
+            <div id="infoCorpus" style="font-size: 0.8rem !important;"></div>
+          </div>
+
+          <!-- Catégories thématiques-->
+          <div id="fond_thm_corpus" class="pan-g">
+            
+            <h2 style="margin-bottom: 1px;margin-left:10px; float:left !important;">
+                           <label id="activeAllCat" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer toutes les catégories"></label>
+                            <label>Catégories</label>
+              <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="modifier les catégories"> ✏️ </label>
+
+
+                                <input 
+                                    type="text" 
+                                    class="search-input" 
+                                    id="searchInput" 
+                                    placeholder="🔎 Rechercher..."
+                                    autocomplete="off"
+                                    onfocus="dsTxtArea=false;dsTxtAutre=true"
+                                    onfocusout= "dsTxtAutre=false"
+                                >
+
+                                <label id="cmpct-all" class="btnbleu cmpct-all" style = "margin-right: 10px;" title="Tout (dé)compacter"> </label>
+            
+              <!--  <label id="filtrerCat" class="btnbleu btnfiltre" title="Filtrer les catégories" style="font-size: 0.8rem !important;"> </label>-->
+            </h2>
+              <div id = "conteneur_cat" class = "conteneur_cat" > </div>
+
+           
+          </div>
+
+          <div id="fond_dat_corpus" class="pan-g dnone">Métadonnées</div>
+
+          <div id="fond_infosent_corpus" class="pan-g dnone">Détails de l'entretien</div>
+
+            <!-- Rechercher/Remplacer !-->
+            <div id="fond_rech" class ="dnone pan-g" style="padding:10px">
+
+                          <H2 id="lblrech"  >Rechercher </H2>
+
+                          <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center">
+
+                                <div class="floating-label-container">
+                                    <input type="text" id="txtRech" class="floating-input lbl-nom-thm" placeholder="Rechercher " onkeydown="if(event.key==='Enter'){rechercherDansCorpus(this.value)}" />
+                                    <label for="txtRech" class="mdc-floating-label">Rechercher</label>
+                                </div>
+
+                                <label id = "btnSuppRech" class='btnfonction' style = "width: 8%;" onclick="annulRech()">X</label>
+
+                                <label id = "btnRech" class='btnfonction' style = "width: 20%;margin-left: 10px;" onclick="rechercherDansCorpus(document.getElementById('txtRech').value)">Rechercher</label>
+
+                            </div>
+
+                            <!--
+                        <div   style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+
+
+                            <div id = "resultRech" class = "dnone" style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;width:33%">
+                                    <label id = "btnPrecRech" class='btnfonction' style = "width: 20%;margin-left: 10px;" onclick="précédent()"><</label>
+                                    <label id = "lblResultRech"  style = "width: 11%;text-align:center" > 0/0</label>
+                                    <label id = "btnSuivRech" class='btnfonction' style = "width: 20%;" onclick="suivant()">></label>
+                            </div>
+
+                        </div>
+                        
+
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;;margin-bottom:20px">
+
+                                <div class="floating-label-container">
+                                    <input type="text" id="txtRemp" class="floating-input lbl-nom-thm" placeholder="Remplacer " />
+                                    <label for="txtRemp" class="mdc-floating-label">Remplacer</label>
+                                </div>
+
+                                <label id = "btnSuivRech" class='btnfonction' style = "width: 20%;margin-left: 10px;" onclick="remplacer()">Remplacer</label>
+                                <label id = "btnSuivRech" class='btnfonction' style = "width: 20%;margin-left: 10px;" onclick="remplacerTout()">Tout</label>
+
+                        </div>
+ -->
+                        <div id="rechinfo" style="font-size:0.9rem;color:gray;">
+
+
+                        </div>
+                    
+                   
+                    
+            </div>
+
+
+        </div>
+        
+       
+
+        <!-- colonne de droite (entretiens)  !-->
+        <div  class = "colonne-d " style="flex:3">  
+
+        <div id ="header-ent" >
+              <h2 style="margin-bottom: 1px;margin-left:10px; float:left !important;width:98%;">
+                           <label id="activeAllEnt" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer tous les entretiens"></label>
+                            <label>Entretiens</label>
+              <label id="add-ent" class="btnbleu" style = "margin-right: 10px;" title="ajouter un entretien"> + </label>
+
+
+                                <input 
+                                    type="text" 
+                                    class="search-input dnone" 
+                                    id="searchInputEnt" 
+                                    placeholder="🔎 Rechercher..."
+                                    autocomplete="off"
+                                    onfocus="dsTxtArea=false;dsTxtAutre=true"
+                                    onfocusout= "dsTxtAutre=false"
+                                >
+
+                               
+            
+              <!--  <label id="filtrerCat" class="btnbleu btnfiltre" title="Filtrer les catégories" style="font-size: 0.8rem !important;"> </label>-->
+            </h2>
+        </div> 
+
+        <div id="fond_ent_corpus">
+          <div class="info-no-content"> 
+            <label style ="width:100%;display: block;margin:5px">Aucun document n'a été chargé pour l'instant. </label>
+            <label  style ="width:100%;display: block;margin:5px">Vous pouvez en ajouter un en cliquant sur le bouton "Ajouter un entretien".</label>
+           
+           <img id = "btn_ajout_ent_fantome" title = "Ajouter un document"  src="img\logotxt.png" height= "33px" width= '33px'  style="opacity: 0.25;left:50%" alt="ouvrir"  onclick="" >
+          
+          </div>
+        </div>
+    </div>
+</div>
+
+<!-- Boite de dialogue -->
+<div id="dlg" class = "dialog"  >
+    
+
+    <div id = "ssdlg" class="dialog-content">
+        
+       
+
+         
+    </div>
+
+</div>
+
+  <!-- pied de page  !-->
+<div class="footer"> 
+      <span id="status-bar" class="status-bar">Prêt.</span>
+      <span id ="progress-bar" class="progress-bar"></span>
+
+</div>
+
+   
+
+
+</body>
+<style>
+
+
+
+</style>
+
+
+
+<script>
+
+
+  ///////////////////////////////////////////////////////////////////
+  // AFFICHAGE DES PANNEAUX GAUCHE
+  ///////////////////////////////////////////////////////////////////
+
+  function dispPanneauG(bouton, composant){
+
+  // désactivation des autres boutons
+    deselBtn_g();
+    hidepanG();
+
+    if (typeof bouton === 'string') {
+        bouton = document.getElementById(bouton);
+    }
+
+    if (typeof composant === 'string') {
+        cmpsnt = document.getElementById(composant);
+    }
+
+
+  
+    if (bouton) {bouton.style.opacity =1};
+    //let cmpsnt = document.getElementById(composant)
+    if (cmpsnt) {cmpsnt.classList.remove('dnone')} else (console.log("composant inconnu : "+composant))
+
+    // (dé)sactivation du surlignement 
+ 
+
+    if (composant=="fond_txt"){
+       
+    }
+
+    if (composant=="fond_det"){ // afichage des détails de l'entretien
+    
+     
+        
+    }
+
+    
+    
+
+    if ( composant=="fond_thm_corpus" ) {
+        affichListThmCrp()
+
+    }  
+
+    if ( composant=="fond_loc" ) {
+      
+
+    }  
+
+       if ( composant=="fond_dat" ) {
+        
+       
+
+    }  
+
+    if ( composant=="fond_rech" ) {
+        document.getElementById("txtRech").focus();
+       
+
+    }
+
+}
+
+
+ // fonction de désélection de tous les boutons du panneau gauche 
+ function deselBtn_g(){
+    const boutons_g = document.querySelectorAll('.imgbtn_g');
+    boutons_g.forEach(btn => {
+    btn.style.opacity = 0.3;
+    });
+}
+
+function hidepanG(){
+    const pan_g = document.querySelectorAll('.pan-g');
+    pan_g.forEach(btn => {
+    btn.classList.add('dnone');
+    });
+}
+
+  ///////////////////////////////////////////////////////////////////
+  // LISTENERS
+  ///////////////////////////////////////////////////////////////////
+
+  // ==============================================
+  // REDIMENSIONNEMENT COLONNE GAUCHE
+  // ==============================================
+
+  // Sélectionner le conteneur et la ligne de redimensionnement
+  const colonneG =  document.getElementById('colonne-gauche');
+  const resizerCol = document.getElementById('ColResize');
+
+  // Déclarer une variable pour suivre la position de la souris
+  let isResizingC = false;
+  let lastX = 0;
+
+  resizerCol.addEventListener('mousedown', (e) => {
+    // Démarre le redimensionnement
+    isResizingC = true;
+    lastX = e.clientX;
+    document.body.style.cursor = 'ew-resize';  
+  
+
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (isResizingC) {
+
+      
+      // Calculer la nouvelle largeur du conteneur en fonction du mouvement de la souris
+      const deltaX = e.clientX - lastX;
+      const newWidth = colonneG.offsetWidth + deltaX;
+
+      
+      
+      // Appliquer la nouvelle largeur
+      colonneG.style.width = `${newWidth}px`;
+      resizerCol.style.left = `${newWidth}px`;
+
+      // déplacer colonne droite
+
+      let colDroite = document.getElementById('fond_ent_corpus');
+      let newWidth2 = colDroite.offsetWidth - deltaX;
+      let newLeft = colDroite.offsetLeft + deltaX;
+      //colDroite.style.marginLeft  = `${newLeft}px`;
+      colDroite.style.width = `${newWidth2}px`;
+
+
+      // Mettre à jour la position de la souris pour le prochain calcul
+      lastX = e.clientX;
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    // Arrête le redimensionnement quand on relâche le bouton de la souris
+    isResizingC = false;
+    document.body.style.cursor = 'default'; // Rétablir le curseur par défaut
+  });
+
+
+// =============================================
+// DRAG DROP de fichiers 
+// =============================================
+
+
+        const fondEnts =  document.getElementById('fond_ent_corpus');
+
+        fondEnts.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            fondEnts.classList.add('drag-over');
+        });
+
+        fondEnts.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            fondEnts.classList.remove('drag-over');
+        });
+
+        fondEnts.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            fondEnts.classList.remove('drag-over');
+
+            const files = Array.from(e.dataTransfer.files);
+    
+             
+            if (files.length > 0) {
+                selectedTextFiles = window.electronAPI.getFilePaths(files);
+                console.log('Fichiers déposés :', selectedTextFiles);
+
+                // Appeler la fonction pour ajouter les entretiens
+                ajouterPlusieursEntretiens(selectedTextFiles);
+            }
+        });
+
+    
+  // ============================================== 
+  // ajout d'un listener pour le bouton d'ajout d'entretien
+  // ==============================================
+    const btnAjout = document.getElementById('btn_ajout_ent');
+    btnAjout.addEventListener('click', () => ajouterEntretien());
+
+  //=============================================      
+  //listener sur le bouton editCat 
+  //=============================================
+
+        let editCat = document.getElementById("editCat")
+
+        editCat.addEventListener('mousedown', (event)=> {
+          window.electronAPI.afficherCategories();
+
+        }); 
+
+ //=============================================      
+  //listener sur le bouton activeAllCat 
+  //=============================================
+
+        let activeAllCat = document.getElementById("activeAllCat")
+        activeAllCat.addEventListener('mousedown', async (event)=>  {
+         nbActive=0; 
+
+          // définition de la situation 
+          tabThm.forEach(t => {
+            if (t.act === true ){
+              nbActive++;
+            }
+          });          
+
+          if (nbActive === tabThm.length){
+            // tout est actif, on désactive tout
+            tabThm.forEach(t => {
+              t.act = false;
+            });
+      
+          } else {
+
+            tabThm.forEach(t => {
+              t.act = true;
+            });
+          
+          }
+
+          await window.electronAPI.setThm(tabThm)
+
+          affichListThmCrp();
+          // redessin de tous les graphs 
+          dessinTousEntretiens();
+
+        }); 
+
+
+  //===================================================
+  // Ecouter le signal de mise à jour des catégories
+  //===================================================
+   
+  
+          // Écouter les mises à jour
+  window.electronAPI.onUpdateCat((data) => {
+          console.log("demande de modifs reçue")
+             affichListThmCrp(data)
+    });
+
+  //=============================================      
+  // Écouter le signal de rafraîchissement du canvas
+  //=============================================
+  
+  window.electronAPI.onRefreshCanvas((rkEnt) => {
+    console.log("📊 Signal de rafraîchissement reçu pour l'entretien:", rkEnt);
+    
+    // Récupérer le HTML sauvegardé
+    window.electronAPI.getHtml(rkEnt).then((html) => {
+      if (!html) {
+        console.error("HTML non trouvé pour l'entretien:", rkEnt);
+        return;
+      }
+      
+      // Récupérer l'entretien pour trouver son ID
+      window.electronAPI.getEnt().then((tabEnt) => {
+        if (!tabEnt || !tabEnt[rkEnt]) {
+          console.error("Entretien non trouvé au rang:", rkEnt);
+          return;
+        }
+        
+        const ent = tabEnt[rkEnt];
+        
+        // Trouver le canvas correspondant
+        const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${ent.id}']`);
+        if (cnvEnt) {
+           
+          resumeGraphique(html.replace(/`/g,'')).then((tabGrphEnt) => {
+            dessinResumeGraphique(cnvEnt, tabGrphEnt);
+          }).catch(err => console.error("Erreur resumeGraphique:", err));
+           
+        } else {
+          console.error("Canvas introuvable pour l'entretien id:", ent.id);
+        }
+      }).catch(err => console.error("Erreur getEnt:", err));
+    }).catch(err => console.error("Erreur getHtml:", err));
+  });
+ 
+
+
+
+
+// veille des verrous sur les entertiens
+setInterval(async () => {
+    
+
+    // veille tous les 30 secondes
+    console.log("Vérification des verrous sur les entretiens...");
+
+    // récupération des infos du corpus
+   let Corpus = await window.electronAPI.getCorpus();
+
+   if (!Corpus || Corpus.type !='distant') {return}
+
+    // récupération des entretiens
+    let tabEnt = await window.electronAPI.getEnt();
+
+
+        for (let i=0; i<tabEnt.length; i++){
+        const btn = document.querySelector(`button[data-id="${tabEnt[i].id}"]`);
+        let result = await window.electronAPI.isEntretienLocked(i);
+
+            if (result && result.locked == true){ 
+
+                // entretien verrouillé par un autre utilisateur
+                console.log("L'entretien " + tabEnt[i].nom + " est verrouillé par " + result.user);
+                btn.classList.add("btn-verrou");
+                btn.classList.remove("btn-edit");
+
+            } else {
+
+                // entretien non verrouillé
+                btn.classList.remove("btn-verrou");
+                btn.classList.add("btn-edit");
+        }
+    }
+
+    console.log("Vérification des verrous terminée.");
+
+}, 30000);
+
+
+// AFFICHAGE DE LA BOITE DE DIALOGUES
+function dialog(type){
+
+     
+    let element = document.getElementById('dlg');
+    element.style.display = "block";
+    
+    let contenu = document.getElementById('ssdlg');
+
+    //element.classList.remove('dnone');
+
+
+    switch (type) {
+
+    case 'Export' :
+    contenu.style.top="25%";
+    contenu.style.height="";    
+    contenu.innerHTML = 
+        `   <div class="close" onclick="hidedlg()">×</div>
+          <h3>  Choisissez un format d'export </h3>
+            <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
+            
+          
+                <div class = "lblmnuxprt"  onclick="enregistrer()"> <label class = "lblformat"> .Sonal </label> <span class="lbldetails"> Sauvegarde temporaire, s'ouvre avec Whispurge (CTRL/CMD+S)</span><br> </div>
+                 <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .Txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
+                <div class = "lblmnuxprt"  onclick="exportWord()"> <label class = "lblformat"> .docx </label> <span class="lbldetails"> Format traitement de texte (Word, Writer)</span> <br></div>
+                <div class = "lblmnuxprt"  onclick="exportSrt()"> <label class = "lblformat"> .srt </label> <span class="lbldetails"> Format Srt</span> <br></div>
+               
+                 
+        </div>`
+
+
+    break;
+
+    case "Cat":
+    contenu.style.top="25%";
+    contenu.style.height="";    
+
+    contenu.innerHTML = 
+        ` <div class="close" onclick="hidedlg()">×</div>
+         <H3 id = "lblTypeModif">Ajouter une catégorie </H3>
+        <div  id = "menucat"  >
+            
+                    <div class="modifCat" >
+                       
+
+                        
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+                                
+                                <div class="floating-label-container" style="width:20%;margin-right:10px" >
+                                    <input type="text" id="lblCodeCat" class="floating-input lbl-code-thm" placeholder=" " onkeyup="existThm(this.value)" />
+                                    <label for="lblCodeCat" class="mdc-floating-label " >Code</label>
+                                </div>
+
+                                
+                            
+                                <div class="floating-label-container">
+                                    <input type="text" id="lblNomCat" class="floating-input lbl-nom-thm" placeholder=" " onkeydown="if(event.key==='Enter'){changeStyle()}" />
+                                    <label for="lblNomCat" class="mdc-floating-label">Libellé</label>
+                                </div>
+
+                                
+                                <label id = "btnthmsuppr" class='btnfonction dnone ' style = "width: 20%;margin-left: 10px;" onclick="supprStyle()">Supprimer</label>
+                                
+
+                        </div>
+                      
+
+
+
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                            <div class="floating-label-container" style="width:20%; margin-right:10px">
+
+                                    <label class="mdc-floating-label floatingstatic">Rang</label>
+                                    
+                                        <div class=" font-size-controls">
+                                        
+                                        <button class="decrease-font" onclick="adjustRang(-1)"><</button>
+                                        <span id="lblrang"> 0 </span>
+                                        <button class="increase-font" onclick="adjustRang(+1)">></button>
+                                                            
+                                        </div>
+
+                                </div>
+
+                                <div class="floating-label-container" >
+                                    <label class="mdc-floating-label floatingstatic">Placer après... </label>
+                                    
+                                        <div class="combothm">
+                        
+                                        <details>
+                                        <summary id="cmbPosThm">En dernier</summary>
+                                        <ul id="listCmbThm" class="optionscmb">
+
+                                                
+                                                
+                                                    
+                                                </ul>
+                                            </details>
+                                        </div>
+                                </div>
+
+                            </div>
+
+                            <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;margin-top:20px;margin-bottom:20px;">
+
+                             <div class="floating-label-container " style="width:66%;margin-right:10px; display:flex; flex-direction:row; justify-content:space-between; align-items:center;padding-left:10px;padding-right:10px;">
+                                <input id = "chkcatcoul" type="checkbox" class = "chkcat" checked style="cursor:pointer;"> Définir 
+                                <input  type="color" id="colorFond" class = "floating-input colpicker" style="cursor:pointer;" value="#F4F4F4" > 
+                                <label for="colorFond" class="mdc-floating-label">Couleur de fond</label>
+
+                                <div class = "color-templates" style=display:flex; flex-direction:row; justify-content:flex-start; align-items:center; margin-left:10px;margin-right:10px; flex-wrap:wrap; max-width:60%;   >
+                                <div class= "color-choose " style = "background-color: #0331ffff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #506ffcff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #97a3dbff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #00ad6bff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #03da87ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #89facfff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #ff802bff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ffa467ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #f5be9aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #bd30ffff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #be68e6ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #cd91e9ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #e94747ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #e27272ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>    
+                                <div class= "color-choose " style = "background-color: #eba4a4ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #fffb03ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #fffd86ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #fffed0ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #2e7d32ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #66bb6aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #a5d6a7ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #d84315ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ff7043ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ffab91ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #1565c0ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #42a5f5ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #90caf9ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #6a1b9aff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ab47bcff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                <div class= "color-choose " style = "background-color: #ce93d8ff;" onclick= "document.getElementById('colorFond').value = rgbToHex(this.style.backgroundColor);"> </div>
+                                
+                                
+                                </div>
+
+                            </div>
+
+                            <div class="floating-label-container" style="width:32%;">
+
+                                <label class="mdc-floating-label floatingstatic">Taille de police</label>
+                                
+                                    <div class=" font-size-controls">
+                                    <input id = "chkcatpol" type="checkbox" class = "chkcat" >
+                                    <button class="decrease-font" onclick="adjustFontSize(-2)">-</button>
+                                    <span class="lblTaillePol">`+ taille_cur + `</span>
+                                    <button class="increase-font" onclick="adjustFontSize(+2)">+</button>
+                                                        
+                                </div>
+                                
+                            </div>
+                        
+
+                            </div>    
+
+
+
+                    </div>
+
+
+
+
+                    <label id = "btnthm" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="changeStyle()">Valider</label> 
+                
+                </div>
+
+
+                 
+        </div>`
+
+
+    break;
+
+    case "comment":
+
+    console.log ("debsel "+ debSel + " finsel " + finSel    )
+    contenu.style.top="25%";
+    contenu.style.height="";    
+    contenu.innerHTML = 
+        `   
+
+            <div class="close" onclick="hidedlg()">×</div>
+            <h3 class = "menu-title-com">  Commentaire </h3>
+
+
+            <div class="menudrlnt" id = "menuexport"   >
+
+            
+            <label style="float:left"> De: </label> 
+            <label id = "authcomm" style="float:left; margin-left:10px"> Auteur.ice </label> 
+             <textarea id="txtcomms"  style = "width:100%; height:180px; padding:12px; margin-top:20px" placeholder = "Ajoutez un commentaire..."   onfocus="dsTxtArea=false;dsTxtAutre=true"  onfocusout= "dsTxtAutre=false;"  ></textarea>
+            <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:10px;"> 
+             <label id = "btnsupprcomm" class='btnfonction' style = "width : 25%;flex:1"; onclick="supprimerCommentaire(`+ debSel + `,` + finSel + `)">❌️ Supprimer</label>  
+             <label id = "btncomm" class='btnfonction' style = "width: 75%; float : right;flex:3"; onclick="validerCommentaire(`+ debSel + `,` + finSel + `)">Valider</label>
+             </div>  
+        </div>`
+
+
+    break;
+
+    case "Métadonnées":
+   
+    contenu.style.top="25%";
+    contenu.style.height="";  
+
+    contenu.innerHTML = 
+        `  
+            <div class="close" onclick="hidedlg()">×</div>
+            <H3 >Ajouter/modifier une variable </H3>
+         
+     <div  id = "menudata"  >
+            
+                    <div class="modifDat" >
+                        
+                      
+
+
+                         <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                                <div class="floating-label-container" style=" margin-right:10px; width:10%" >
+                                    <input type="text" id="lblCodeVar" class="floating-input lbl-code-var" style = "background-color:white" placeholder=" Code " onkeyup="" value = "`+ (tabVar.length + 1) +`" disabled />
+                                    <label for="lblCodeVar" class="mdc-floating-label  floatingstatic" >Code</label>
+                                </div>
+
+                                 <div class="floating-label-container" style=" margin-right:10px" >
+                                    <input type="text" id="lblLibVar" class="floating-input lbl-lib-var" style = "background-color:white" placeholder=" Intitulé de la variable" onkeyup="if(event.key===&quot;Enter&quot;){addVar('gen');}" />
+                                    <label for="lblLibVar" class="mdc-floating-label  floatingstatic" >Libellé de la variable</label>
+                                </div>
+                        </div>
+
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+                                <div class="floating-label-container" style=" margin-right:10px ; padding:10px;" > 
+                                <label class="mdc-floating-label floatingstatic">Champ de la variable</label>
+                                   
+                                    <label>
+                                        <input type="radio" name="chkVarChmp" value="gen" checked>
+                                        générale
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="chkVarChmp" value="loc">
+                                        par locuteur.ices
+                                    </label>
+                                     
+                                </div>
+                         
+                                <div class="floating-label-container" style=" margin-right:10px ; padding:10px;" > 
+                                <label class="mdc-floating-label floatingstatic">Statut.</label>
+                                   
+                                    <label>
+                                        <input type="radio" name="chkVarPriv" value="false" checked>
+                                        Publique (visible dans les exports)
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="chkVarPriv" value="true">
+                                        Privée
+                                    </label>
+                                     
+                                </div>
+                        </div>
+
+                          
+
+
+                        <div id="fond_mod" style="display:none">
+
+                            <H3 >Modalités </H3>
+                            <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto; ">
+
+                                <div class="floating-label-container" style="">
+                                
+                                    <div class="ligmoda" style="">
+                                        <label class="mdc-floating-label floatingstatic codemoda" >Code </label>
+                                        <label class="mdc-floating-label floatingstatic libmoda ">libellé</label>
+                                    </div>
+                                </div>
+                                
+                                <div id= "dico">
+                                    
+                                    <div class="ligmoda" style="">
+                                        <input type="text" class=" case-moda codemoda floating-input lbl-code-thm" placeholder=" " onkeyup="" value="1"/>  
+                                        <input type="text" class="case-moda libmoda floating-input lbl-code-thm" placeholder="Nouvelle modalité" onkeyup="" value=""/> 
+                                    </div>
+
+                                </div>
+                                    
+                                 
+
+                            </div>
+
+                             <div class="ligmoda" style="">
+                                             
+                            
+                       
+                            <div class = "floating-label-container" style="margin-top: 10px;">
+                             <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; width:10%; ";">+</label> 
+
+              
+                                </div>
+
+                             </div>
+                        </div>
+ 
+
+                         <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                                     <div class="floating-label-container" style=""> 
+
+                                    <label for="maListe" class="mdc-floating-label  floatingstatic"> Modalités pré-remplies</label>
+                                    <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;" onchange="ajoutListeModas(this.value)">
+                                    <option value="rien">choisissez un modèle...</option>
+                                    <option value="sexe">Sexe</option>
+                                    <option value="age5">Age en classes de 5</option>
+                                    <option value="age10">Age en classes de 10</option>
+                                    <option value="pcs1">PCS Niveau 1</option>
+                                    <option value="pcs2">PCS Niveau 2</option>
+                                    </select>
+                                    </div>
+
+                        </div>
+
+                           <label id = "btnValidVar" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="addVar('gen'); inventaireVars()">Valider</label> 
+        `
+
+        document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
+
+        break;   
+        
+    case "filtreCat":
+        contenu.style.top="10%";
+        contenu.style.height="80%";
+
+         contenu.innerHTML = 
+        ` 
+                <div>
+                <div class="close" onclick="hidedlg()">×</div>
+                <H3>Filtrer les catégories affichées </H3>
+                </div>
+            
+ 
+                    <div id = "enteteThmFltr" style = "border-bottom: 1px solid grey;margin-bottom: 5px;cursor:pointer " >
+                        
+                    <label id = "chkAllFiltre" onclick="selAllCat()"> ☑  Tout (dé)sélectionner  </label>
+                       
+                          <div style="float:right; font-size:0.9em; margin-top:5px; ">
+                            <span style="margin-left:10px;" > Condition : </span> 
+                            <label> <input type="radio"   name="filtreEtOu" value="ou" checked> Ou / </label>
+                            <label> <input type="radio"   name="filtreEtOu" value="et"> et</label>
+                            </div>
+                    </div>
+
+                    <div id = "listThmFltr"  class="filtreCat" >
+                        
+
+                         
+                    
+                    </div>
+                     <label id = "btnfiltreCat" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="isoleThm();hidedlg();ThmActifs()">Valider</label> 
+            
+                    `
+
+            }
+}
+
+function hidedlg(){
+    let element = document.getElementById('dlg');
+    element.style.display = "none";
+   
+}
+
+// Afficher la liste des fichiers récents au chargement
+async function displayRecentFiles() {
+  const recentFiles = await window.recentFiles.getAll();
+
+  const listElement = document.getElementById('recent-files-list');
+  
+  if (recentFiles.length === 0) {
+    listElement.innerHTML = '<li>Aucun fichier récent</li>';
+    return;
+  }
+
+  listElement.innerHTML = recentFiles.map(file => `
+    <li class="recent-file-item">
+      <div class="file-info"">
+        <strong>${file.name}</strong>
+        <small>${file.path}</small>
+        <span class="file-date">${new Date(file.openedAt).toLocaleDateString()}</span>
+      
+      <div onclick="removeRecentFile('${file.path}')" title="Retirer" class="btn-recent-file">✕</div>
+    </div>
+    </li>
+  `).join('');
+
+
+     await window.recentFiles.updateMenu();
+ 
+// recherche dans les thm
+ const searchInput = document.getElementById('searchInput');
+ searchInput.addEventListener('keyup', function() {
+        const query = this.value.toLowerCase();
+        const cats = document.querySelectorAll('.ligthm');
+    
+        cats.forEach(cat => {       
+            cat.classList.remove('dnone');
+            cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')
+
+            if (query == '') {
+                return;
+            }
+
+            const text = cat.innerHTML.toLowerCase();
+            const title = cat.title.toLowerCase();
+
+
+            if ((text.includes(query) || title.includes(query)) && query !== '') {
+                cat.classList.remove('dnone');
+
+                if (text.includes(query)) {// surlignement (si dans texte et pas dans title)
+                    let txtInterne = cat.innerHTML.replace(/<\/a>|<a>/g, '') ;
+                    cat.innerHTML = '<a>' + highlightText(txtInterne, query) + '</a>'; 
+                }
+
+            } else {
+                cat.classList.add('dnone');
+                cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')   ; // réinitialiser le contenu
+            }
+        });
+    });
+ 
+
+ // Fonction pour échapper les caractères spéciaux regex
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // Fonction pour mettre en surbrillance le texte recherché
+        function highlightText(text, search) {
+            if (!search) return text;
+            const regex = new RegExp(`(${escapeRegex(search)})`, 'gi');
+            return text.replace(regex, '<mark>$1</mark>');
+        }
+
+
+
+
+
+document.getElementById('btnOuvrirCorpus').addEventListener('click', async () => {
+
+            const result = await window.electronAPI.ouvrirCorpusLocal();; 
+            if (result && result.success) {
+              
+              mainWindow.webContents.send('afficher-corpus', result);
+            } 
+  
+});
+
+document.getElementById('btnNouveauCorpus').addEventListener('click', async () => {
+             
+  window.electronAPI.créerNouveauCorpus();; 
+         
+});
+
+    // Attacher les event listeners APRÈS avoir créé le HTML
+  document.querySelectorAll('.file-info').forEach((el, index) => {
+    el.addEventListener('click', () => {
+     // console.log('Ouverture de:', recentFiles[index].path);
+      window.electronAPI.ouvrirCorpusLocal(recentFiles[index].path);
+    });
+  });
+
+  document.querySelectorAll('.btn-remove').forEach((btn, index) => {
+    btn.addEventListener('click', async () => {
+      await removeRecentFile(recentFiles[index].path);
+    });
+  });
+}
+ 
+
+
+  // Charger la liste des fichiers récents au chargement de la page
+  document.addEventListener('DOMContentLoaded', () => {
+    displayRecentFiles();
+    
+  });
+
+
+  // listener pour le bouton de compactage/décompactage des thématiques
+  document.getElementById('cmpct-all').addEventListener('click', async () => {
+    //console.log("Compactage/décompactage de toutes les thématiques");
+
+    // défilement des thématiques pour vérifier la situation
+    let nbcmpct = 0;
+    
+    tabThm.forEach(t => {
+
+      if (t.cmpct === true) {
+          nbcmpct += 1;
+      }
+
+    });
+
+    // si toutes compactées, on décompacte toutes
+    if (nbcmpct === tabThm.length) {
+      tabThm.forEach(t => {
+        t.cmpct = false;
+      });
+      console.log("Décompactage de toutes les thématiques");
+    } else {
+      // sinon, on compacte toutes
+      tabThm.forEach(t => { 
+        t.cmpct = true;
+      });
+      console.log("Compactage de toutes les thématiques");
+    }
+
+    await window.electronAPI.setThm(tabThm);
+
+    return; 
+
+    // réaffichage des thématiques
+    lignesThm = document.querySelectorAll('.ligthm');
+    lignesThm.forEach(lig => {
+      
+        const rkThm = parseInt(lig.getAttribute('data-rkthm'));
+        const thm = tabThm[rkThm];
+
+        if (thm.cmpct === true) {
+          
+          if (tabThm[rkThm].rang>0) {
+            lig.classList.add('ligthm-cmpct');
+          }else {
+            lig.classList.add('ligfam');
+            lig.classList.remove('ligfam-cmpct');
+          }
+
+        } else {
+            if (tabThm[rkThm].rang>0) {
+            lig.classList.remove('ligthm-cmpct');
+            } else {
+            lig.classList.add('ligthm-cmpct');
+            lig.classList.remove('ligfam');
+            }
+            
+        }
+
+    });
+  
+    });
+
+
+
+
+
+</script>
+ 
+
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sélection de fichiers</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 {
+            margin-bottom: 30px;
+            color: #333;
+            font-size: 20px;
+        }
+
+        .file-section {
+            margin-bottom: 25px;
+        }
+
+        .file-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 6px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+
+        .drop-zone:hover {
+            border-color: #0066cc;
+            background: #f0f9f0;
+        }
+
+        .drop-zone.drag-over {
+            border-color: #0066cc;
+            background: #e8f5e9;
+            border-style: solid;
+        }
+
+        .drop-zone.has-file {
+            border-color: #0066cc;
+            background: #f1f8f4;
+        }
+
+        .drop-zone-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+            color: #999;
+        }
+
+        .drop-zone-text {
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .drop-zone-hint {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .file-info.visible {
+            display: block;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: #2e7d32;
+            word-break: break-all;
+        }
+
+        .file-count {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .buttons {
+            margin-top: auto;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        button {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 500;
+        }
+
+        .btn-cancel {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-cancel:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-validate {
+            background: #0066cc;
+            color: white;
+        }
+
+        .btn-validate:hover {
+            background: #45a049;
+        }
+
+        .btn-validate:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+     
+</head>
+ <script  src="renderer.js"></script>
+
+<body>
+    <div class="container">
+        <h2>Sélectionner des fichiers</h2>
+
+        <div class="file-section">
+            <label class="file-label">Fichier texte</label>
+            <div class="drop-zone" id="textDropZone">
+                <div class="drop-zone-icon">📄</div>
+                <div class="drop-zone-text">Cliquez pour sélectionner un fichier texte</div>
+                <div class="drop-zone-hint">ou glissez-déposez un fichier ici</div>
+            </div>
+            <div class="file-info" id="textFileInfo">
+                <div class="file-name" id="textFileName"></div>
+                <div class="file-count" id="textFileCount"></div>
+            </div>
+        </div>
+
+        <div class="file-section">
+            <label class="file-label">Fichier son</label>
+            <div class="drop-zone" id="audioDropZone">
+                <div class="drop-zone-icon"> ▶︎•၊၊||၊|။|||||။၊|။•</div>
+                <div class="drop-zone-text">Cliquez pour sélectionner un fichier son</div>
+                <div class="drop-zone-hint">ou glissez-déposez un fichier ici</div>
+            </div>
+            <div class="file-info" id="audioFileInfo">
+                <div class="file-name" id="audioFileName"></div>
+                <div class="file-count" id="audioFileCount"></div>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="btn-cancel" id="btnCancel">Annuler</button>
+            <button class="btn-validate" id="btnValidate" disabled>Valider</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedTextFiles = [];
+        let selectedAudioFiles = [];
+
+        const textDropZone = document.getElementById('textDropZone');
+        const audioDropZone = document.getElementById('audioDropZone');
+        const textFileInfo = document.getElementById('textFileInfo');
+        const audioFileInfo = document.getElementById('audioFileInfo');
+        const textFileName = document.getElementById('textFileName');
+        const audioFileName = document.getElementById('audioFileName');
+        const textFileCount = document.getElementById('textFileCount');
+        const audioFileCount = document.getElementById('audioFileCount');
+        const btnValidate = document.getElementById('btnValidate');
+        const btnCancel = document.getElementById('btnCancel');
+
+        // Fonction pour mettre à jour l'affichage des fichiers texte
+        function updateTextFileDisplay() {
+            if (selectedTextFiles.length > 0) {
+                textDropZone.classList.add('has-file');
+                textFileInfo.classList.add('visible');
+                textFileName.textContent = selectedTextFiles[0];
+                if (selectedTextFiles.length > 1) {
+                    textFileCount.textContent = `+ ${selectedTextFiles.length - 1} autre(s) fichier(s)`;
+                } else {
+                    textFileCount.textContent = '';
+                }
+            } else {
+                textDropZone.classList.remove('has-file');
+                textFileInfo.classList.remove('visible');
+            }
+            updateValidateButton();
+        }
+
+        // Fonction pour mettre à jour l'affichage des fichiers audio
+        function updateAudioFileDisplay() {
+            if (selectedAudioFiles.length > 0) {
+                audioDropZone.classList.add('has-file');
+                audioFileInfo.classList.add('visible');
+                audioFileName.textContent = selectedAudioFiles[0];
+                if (selectedAudioFiles.length > 1) {
+                    audioFileCount.textContent = `+ ${selectedAudioFiles.length - 1} autre(s) fichier(s)`;
+                } else {
+                    audioFileCount.textContent = '';
+                }
+            } else {
+                audioDropZone.classList.remove('has-file');
+                audioFileInfo.classList.remove('visible');
+            }
+            updateValidateButton();
+        }
+
+        // Activer le bouton valider si au moins un type de fichier est sélectionné
+        function updateValidateButton() {
+            btnValidate.disabled = selectedTextFiles.length === 0 && selectedAudioFiles.length === 0;
+        }
+
+        // Clic sur la zone de drop pour fichiers texte
+        textDropZone.addEventListener('click', async () => {
+            const result = await window.electronAPI.selectTextFiles();
+            console.log("filePaths " + result.filePaths + " dirPath " + result.dirPath)
+            if (result && result.filePaths.length > 0) {
+                selectedTextFiles = result.filePaths;
+                updateTextFileDisplay();
+            }
+        });
+
+        // Clic sur la zone de drop pour fichiers audio
+        audioDropZone.addEventListener('click', async () => {
+            const result = await window.electronAPI.selectAudioFiles();
+            if (!result.canceled && result.filePaths.length > 0) {
+                selectedAudioFiles = result.filePaths;
+                updateAudioFileDisplay();
+            }
+        });
+
+        // Drag and drop pour fichiers texte
+        textDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            textDropZone.classList.add('drag-over');
+        });
+
+        textDropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            textDropZone.classList.remove('drag-over');
+        });
+
+        textDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            textDropZone.classList.remove('drag-over');
+
+            const files = Array.from(e.dataTransfer.files);
+    
+             
+            if (files.length > 0) {
+                selectedTextFiles = window.electronAPI.getFilePaths(files);
+                updateTextFileDisplay();
+            }
+        });
+
+        // Drag and drop pour fichiers audio
+        audioDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            audioDropZone.classList.add('drag-over');
+        });
+
+        audioDropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            audioDropZone.classList.remove('drag-over');
+        });
+
+        audioDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            audioDropZone.classList.remove('drag-over');
+
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length > 0) {
+                selectedAudioFiles = window.electronAPI.getFilePaths(files);
+                updateAudioFileDisplay();
+            }
+        });
+
+        // Bouton Valider
+        btnValidate.addEventListener('click', () => {
+            window.electronAPI.sendResult({
+                canceled: false,
+                textFiles: selectedTextFiles,
+                audioFiles: selectedAudioFiles
+            });
+        });
+
+        // Bouton Annuler
+        btnCancel.addEventListener('click', () => {
+            window.electronAPI.sendResult({ canceled: true });
+        });
+    </script>
+</body>
+</html>
