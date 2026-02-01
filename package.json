@@ -1,8 +1,12 @@
 {
   "name": "sonal",
   "version": "0.0.1",
-  "author": "Alex Alber - Université de Tours",
+  "author": {
+    "name": "Alex Albrr",
+    "email": "sonalteam@googlemail.com"
+  },
   "main": "main.js",
+  "description": "Sonal application",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
