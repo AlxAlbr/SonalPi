@@ -17,7 +17,8 @@
       "icon": "icon/icon.png"
     },
     "linux": {
-      "icon": "icon/icon.png"
+      "icon": "icon/icon.png",
+      "target": ["AppImage", "deb"]
     },
     "files": [
       "main.js",
