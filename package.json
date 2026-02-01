@@ -34,6 +34,7 @@
       "edition_categories.html",
       "edition_entretien.html",
       "nouveau_corpus.html",
+      "saisie-url.html",
       "modules/**/*",
       "dist/**/*",
       "css/**/*",

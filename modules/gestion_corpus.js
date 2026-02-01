@@ -2,6 +2,8 @@
 // variables de gestion du projet 
 ////////////////////////////////////////////////////////////////
 
+//const { afficherEnt } = require("./gestion_entretiens");
+
  
 
 // Les fonctions de thematisation.js seront disponibles globalement
@@ -1468,6 +1470,48 @@ function afficherResultatRecherche(){
 }
 
 
+/*
+async function triEntCorpusAlpha() { // fonction permettant de trier les entretiens par ordre alphabétique
+
+ 
+    let tabEntCorpus = await window.electronAPI.getEnt();
+    
+    // Créer un tableau d'indices [0, 1, 2, ...]
+    const indices = Array.from({length: tabEntCorpus.length}, (_, i) => i);
+    
+    // Trier les indices basés sur le nom des entretiens
+    indices.sort((a, b) => {
+        if (tabEntCorpus[a].nom < tabEntCorpus[b].nom) return -1;
+        if (tabEntCorpus[a].nom > tabEntCorpus[b].nom) return 1;
+        return 0;
+    });
+    
+    // Réorganiser tous les tableaux selon l'ordre de tri
+    const tabEntTrié = indices.map(i => tabEntCorpus[i]);
+    const tabHtmlTrié = indices.map(i => tabHtml[i]);
+    const tabGrphTrié = indices.map(i => tabGrph[i]);
+    
+    // Mettre à jour les variables globales
+    tabEnt = tabEntTrié;
+    tabHtml = tabHtmlTrié;
+    tabGrph = tabGrphTrié;
+  
+   
+
+    // Mettre à jour main.js
+    await window.electronAPI.setEnt(tabEnt);
+    await window.electronAPI.setHtml(tabHtml)
+    await window.electronAPI.setGrphAll(tabGrph);
+
+    console.log("tri des entretiens du corpus effectué");
+
+    await afficherEnt(0,tabEnt.length-1); // réaffichage de la liste des entretiens
+
+    return { tabEnt: tabEntTrié, tabHtml: tabHtmlTrié, tabGrph: tabGrphTrié };
+}
+
+*/
+
 /////////////////////////////////////////////////////////////////////////////////:
 // EXPORTATION DES FONCTIONS
 /////////////////////////////////////////////////////////////////////////////////
@@ -1477,7 +1521,7 @@ if (typeof module !== 'undefined' && module.exports) {
         lireCorpus,
         sauvegarderCorpus,
         initFromMain,
-        rechercherDansCorpus
+        rechercherDansCorpus,  
     };
 }
 
@@ -1487,4 +1531,4 @@ if (typeof window !== 'undefined') {
     window.sauvegarderCorpus = sauvegarderCorpus;
     window.initFromMain = initFromMain;
     window.rechercherDansCorpus = rechercherDansCorpus;
-}
+}   

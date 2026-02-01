@@ -39,6 +39,18 @@ async function ajouterEntretien(fichTxt, fichAudio){
     let nomFichTxtO = fichTxt.replace(/^.*[\\\/]/, '');// nom du fichier d'origine (O) (sans chemin d'accès) 
     let extFichTxtO = nomFichTxtO.substring(nomFichTxtO.lastIndexOf(".")).toLowerCase(); // extension du fichier d'origine (O)
     let nomFichTxtA = nomFichTxtO.replace(new RegExp(extFichTxtO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '.sonal'); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
+    
+    /*
+    if (Corpus.type == "distant") {
+        // Supprimer les caractères spéciaux problématiques pour un serveur
+        nomFichTxtA = nomFichTxtA
+            .replace(/\s+/g, '_')              // remplacer espaces par underscores
+            .replace(/[^a-zA-Z0-9._-]/g, '')   // garder seulement alphanumériques, underscore, tiret, point
+            .replace(/\.{2,}/g, '.');  
+    }
+        */
+            
+
     //let cheminFichTxtA = await window.electronAPI.createPath(Corpus.folder, nomFichTxtA); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
 
     //console.log("fichier texte d'origine (O): " + fichTxt + "\n fichier texte d'arrivée (A): " + cheminFichTxtA)
@@ -800,6 +812,7 @@ async function afficherDetailsEnt(rk){
     btnChangeTxt.innerText = "...";
     btnChangeTxt.style.padding = "2px 6px";
     btnChangeTxt.style.float = "right";
+    btnChangeTxt.classList.add('dnone');
     btnChangeTxt.addEventListener('click', function() {
         
         // logique pour changer le fichier texte

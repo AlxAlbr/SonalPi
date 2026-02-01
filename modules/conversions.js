@@ -380,12 +380,15 @@ async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jou
 }
 
 async function fusionTabAnon(tabAnonFich) { // mise à jour du tabAnon à partir d'un fichier sonal importé
+
+    return; // plus tard
+
     if (!tabAnonFich || tabAnonFich.length<1) {return}
 
     // récupération du tabAnon courant
     let tabAnon = window.tabAnonImport || []; // fallback si non disponible via preload
 
-    window.tabAnonFich.forEach(anon => {
+    tabAnonFich.forEach(anon => {
 
         console.log("anonymisation dans le corpus :", anon.type, anon.valeur);
 
