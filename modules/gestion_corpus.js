@@ -1470,7 +1470,6 @@ function afficherResultatRecherche(){
 }
 
 
-/*
 async function triEntCorpusAlpha() { // fonction permettant de trier les entretiens par ordre alphabétique
 
  
@@ -1500,8 +1499,20 @@ async function triEntCorpusAlpha() { // fonction permettant de trier les entreti
 
     // Mettre à jour main.js
     await window.electronAPI.setEnt(tabEnt);
-    await window.electronAPI.setHtml(tabHtml)
-    await window.electronAPI.setGrphAll(tabGrph);
+
+    tabHtml.forEach((html, index) => async () => {
+        
+        await window.electronAPI.setHtml(index, tabHtml[index])
+        
+    });
+
+    tabGrph.forEach((html, index) => async () => {
+        
+        await window.electronAPI.setGrph(index, tabGrph[index])
+        
+    });
+
+   
 
     console.log("tri des entretiens du corpus effectué");
 
@@ -1510,7 +1521,7 @@ async function triEntCorpusAlpha() { // fonction permettant de trier les entreti
     return { tabEnt: tabEntTrié, tabHtml: tabHtmlTrié, tabGrph: tabGrphTrié };
 }
 
-*/
+
 
 /////////////////////////////////////////////////////////////////////////////////:
 // EXPORTATION DES FONCTIONS
