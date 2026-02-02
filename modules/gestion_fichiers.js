@@ -1550,13 +1550,11 @@ function annulRech() { // fonction de désélection des mots trouvés
 
     tabTrv = []; // Réinitialise le tableau de travail
     rgCherche = 0; // Réinitialise le rang de recherche
-    document.getElementById("lblResultRech").innerText = "0/0"; // Réinitialise l'affichage du résultat de recherche
-    document.getElementById("txtRech").value = ""; // Réinitialise le champ de recherche
-    document.getElementById("txtRemp").value = ""; // Réinitialise le champ de remplacement
-    document.getElementById("resultRech").classList.add("dnone"); 
-    document.getElementById("btnSuppRech").classList.add("dnone"); 
-
-
+    if (document.getElementById("lblResultRech")) {document.getElementById("lblResultRech").innerText = "0/0";} // Réinitialise l'affichage du résultat de recherche
+    if (document.getElementById("txtRech")) {document.getElementById("txtRech").value = "";} // Réinitialise le champ de recherche
+    if (document.getElementById("txtRemp")) {document.getElementById("txtRemp").value = "";} // Réinitialise le champ de remplacement
+    if (document.getElementById("resultRech")) {document.getElementById("resultRech").classList.add("dnone");}
+    if (document.getElementById("btnSuppRech")) {document.getElementById("btnSuppRech").classList.add("dnone");}
 }
 
 function remplacer() { // fonction de remplacement de texte dans les segments
