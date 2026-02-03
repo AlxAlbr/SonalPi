@@ -313,6 +313,7 @@ Styles pour les boutons
   margin-top: 1px;
   box-shadow: 1px 1px 1px 1px rgb(200,200,200);
   align-content: center;
+  padding: 5px !important;
 }
 
 
