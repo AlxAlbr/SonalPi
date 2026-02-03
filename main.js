@@ -603,6 +603,7 @@ function demanderDossierEtNom(parentWindow) {
         const promptWindow = new BrowserWindow({
             width: 600,
             height: 300,
+            titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
             parent: parentWindow,
             modal: true,
             show: false,
@@ -650,52 +651,7 @@ function demanderDossierEtNom(parentWindow) {
     });
 }
 
-// Fonction pour afficher la fenêtre modale
-function demanderDossierEtNom(parentWindow) {
-    return new Promise((resolve) => {
-        const promptWindow = new BrowserWindow({
-            width: 650,
-            height: 360,
-            parent: parentWindow,
-            modal: true,
-            show: false,
-            resizable: false,
-            minimizable: false,
-            maximizable: false,
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false
-            }
-        });
 
-        // Charger le fichier HTML externe
-        promptWindow.loadFile('nouveau_corpus.html');
-        
-        // Retirer le menu de la fenêtre modale
-        promptWindow.setMenu(null);
-        
-        promptWindow.once('ready-to-show', () => {
-            promptWindow.show();
-        });
-
-        // Recevoir la réponse
-        const handler = (event, value) => {
-            if (event.sender === promptWindow.webContents) {
-                ipcMain.removeListener('prompt-response', handler);
-                promptWindow.close();
-                resolve(value);
-            }
-        };
-        
-        ipcMain.on('prompt-response', handler);
-
-        // Si la fenêtre est fermée sans validation
-        promptWindow.on('closed', () => {
-            ipcMain.removeListener('prompt-response', handler);
-            resolve(null);
-        });
-    });
-}
 
 module.exports = { nouveauCorpus };
 
@@ -711,6 +667,7 @@ function editerCategories(parentWindow) {
     const catWindow = new BrowserWindow({
       width: 900,
       height: 900,
+      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
       modal: true,
       show: false,
@@ -777,7 +734,7 @@ async function editerEntretien(parentWindow, rgEnt){
     const entWindow = new BrowserWindow({
       width: 900,
       height: 900,
-
+      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
       modal: true,
       show: false,
@@ -1232,6 +1189,7 @@ function creerFenetreURL(parentWindow) {
   const urlWindow = new BrowserWindow({
     width: 500,
     height: 600,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
     parent: parentWindow,
     modal: true,
     resizable: false,
@@ -1456,11 +1414,12 @@ const credentialsManager = new CredentialsManager();
 
 // Ouvrir une modale de sélection personnalisée
 ipcMain.handle('ajout-entretien', async () => {
-  console.log('🆕 Ajout entretien demandé');
+  
 
   const entWindow = new BrowserWindow({
     width: 700,
     height: 780,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
     parent: mainWindow,
     modal: true,
     show: false,
@@ -1821,6 +1780,10 @@ app.on('ready', () => {
 
   const menu = Menu.buildFromTemplate(menuParDefaut)
   Menu.setApplicationMenu(menu)
+
+
+
+
 
 app.on('before-quit', async () => {
   console.log('🚪 Fermeture de l\'application...');
