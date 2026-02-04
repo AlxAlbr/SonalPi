@@ -602,10 +602,10 @@ function demanderDossierEtNom(parentWindow) {
     return new Promise((resolve) => {
         const promptWindow = new BrowserWindow({
             width: 600,
-            height: 300,
+            height: 350,
             titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
             parent: parentWindow,
-            modal: true,
+            // modal: true,
             closable: true,
             show: false,
             resizable: false,
@@ -670,7 +670,7 @@ function editerCategories(parentWindow) {
       height: 900,
       titleBarStyle: process.platform === 'darwin' ? 'customButtonsOnHover' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
-      modal: true,
+      // modal: true,
       closable: true,
       show: false,
       resizable: false,
@@ -738,8 +738,8 @@ async function editerEntretien(parentWindow, rgEnt){
       height: 900,
       titleBarStyle: process.platform === 'darwin' ? 'customButtonsOnHover' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
-      modal: true,
-      closable: true,
+      // modal: true,
+ 
       show: false,
       frame:true,
       resizable: true,
@@ -808,15 +808,15 @@ async function editerEntretien(parentWindow, rgEnt){
 
     });
 
-    // ⭐ INTERCEPTER LA FERMETURE POUR FORCER LA SAUVEGARDE
+    //  gestion de la fermeture de la fenêtre
     entWindow.on('close', (event) => {
-      console.log("🚪 Tentative de fermeture de entWindow");
+       
       
       // Empêcher la fermeture pour le moment
       event.preventDefault();
       
       // Demander au renderer d'exécuter la sauvegarde
-      console.log("📤 Demande de sauvegarde au renderer...");
+       
       entWindow.webContents.send('save-and-close');
 
       
@@ -1194,7 +1194,7 @@ function creerFenetreURL(parentWindow) {
     height: 600,
     titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
     parent: parentWindow,
-    modal: true,
+    //modal: true,
     closable: true,
     resizable: false,
     webPreferences: {
@@ -1425,7 +1425,7 @@ ipcMain.handle('ajout-entretien', async () => {
     height: 780,
     titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
     parent: mainWindow,
-    modal: true,
+    // modal: true,
     closable: true,
     show: false,
     webPreferences: {

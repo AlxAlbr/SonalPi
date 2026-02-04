@@ -1049,9 +1049,10 @@ function mefQuestions(){
 
 function poslecteur(pos){
 
-  
+if (pos==null || isNaN(pos)) {return}
+
 var audio = document.getElementById('lecteur');
-audio.currentTime = Math.floor(pos);
+if (audio) {audio.currentTime = Math.floor(pos);}
  
 //audio.play();
 

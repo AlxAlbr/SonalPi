@@ -579,7 +579,7 @@ async function statsLocs(tabLoc, html, nomConteneur){ // fonction de statistique
         let conteneurStats = document.getElementById(nomConteneur);
         if (conteneurStats){
             let htmlStats = "<h2>Statistiques </h2><br><ul>";
-            for (let i=1; i< tabLoc.length; i++){ // on commence à 1 pour éviter le locuteur vide
+            for (let i=0; i< tabLoc.length-1; i++){ //  
                 htmlStats += `<li><strong>${tabStatsLoc[i].loc}</strong> : ${tabStatsLoc[i].nbInt} interventions, ${tabStatsLoc[i].nbMots} mots, ${Math.round(tabStatsLoc[i].nbSec / 60)} minutes</li>`;
             }
             htmlStats += "</ul>";
@@ -589,7 +589,7 @@ async function statsLocs(tabLoc, html, nomConteneur){ // fonction de statistique
             let totalMots = 0;    
             let totalMotsQ = 0;
 
-                for (let i=1; i< tabLoc.length; i++){
+                for (let i=0; i< tabLoc.length-1; i++){
                     totalMots += tabStatsLoc[i].nbMots;
                     if (tabStatsLoc[i].loc.includes("?")){
                        totalMotsQ += tabStatsLoc[i].nbMots;

@@ -26,7 +26,7 @@ function autoGrowTextarea(textarea) {
 // Initialisation du tableau d'anonymisation
 function initAnon() {
 
-    console.log("tabAnon à l'initialisation " + JSON.stringify(window.tabAnon) );
+    //console.log("tabAnon à l'initialisation " + JSON.stringify(window.tabAnon) );
     if (!window.tabAnon || window.tabAnon.length === 0) {
     // Crée 3 lignes vides au démarrage
     window.tabAnon = [
@@ -130,7 +130,7 @@ function affichTableauAnon() {
     const fileInput = document.getElementById('file-import-correspondance');
     if (fileInput) {
         fileInput.addEventListener('change', function() {
-            console.log("Event listener déclenché, files:", this.files.length);
+            //console.log("Event listener déclenché, files:", this.files.length);
             importTableCorrespondance(this.files);
         });
     }
@@ -496,21 +496,21 @@ function appliquerAnonymisationPour(idxPaire) {
         
         // Trouver l'index du match qui correspond à la sélection actuelle (debSel, finSel)
         let indexCourantMatch = 0;
-        console.log("debSel:", debSel, "finSel:", finSel);
-        console.log("matches:", matches);
+        //console.log("debSel:", debSel, "finSel:", finSel);
+        //console.log("matches:", matches);
         
         // Chercher le match qui contient debSel ou qui est le plus proche
         let minDistance = Infinity;
         for (let i = 0; i < matches.length; i++) {
             const match = matches[i];
-            console.log(`Match ${i}: start=${match.start}, end=${match.end}`);
+          //  console.log(`Match ${i}: start=${match.start}, end=${match.end}`);
             
             // Si debSel ou finSel est dans le match
             if ((debSel >= match.start && debSel <= match.end) || 
                 (finSel >= match.start && finSel <= match.end) ||
                 (debSel <= match.start && finSel >= match.end)) {
                 indexCourantMatch = i;
-                console.log("Match trouvé par inclusion:", i);
+                //console.log("Match trouvé par inclusion:", i);
                 break;
             }
             
@@ -522,7 +522,7 @@ function appliquerAnonymisationPour(idxPaire) {
             }
         }
         window.tabAnon[idxPaire].indexCourant = indexCourantMatch;
-        console.log("indexCourantMatch:", indexCourantMatch);
+        //console.log("indexCourantMatch:", indexCourantMatch);
         
         // Afficher les contrôles de navigation (avec ou sans flèches selon le nombre d'occurrences)
         const occDiv = document.querySelector(`tr[data-idx="${idxPaire}"] .occurrences-nav`);
@@ -855,7 +855,7 @@ function basculerException(idxPaire, matchIdx) {
 
 function chercherNomPropres() {
     if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
-        console.log("tabAnon non défini");
+        //console.log("tabAnon non défini");
         return;
     }
 
@@ -871,7 +871,7 @@ function chercherNomPropres() {
     tousLesSpans.forEach(span => {
         const texte = span.innerText.trim();
 
-        console.log("Mot analysé:", texte);
+         
 
 
         
@@ -890,7 +890,7 @@ function chercherNomPropres() {
 
             if (motsExclus.has(texte)) {
                  
-                console.log(`Mot exclu ignoré: ${texte} au rang ${span.dataset.rk}`);
+              //  console.log(`Mot exclu ignoré: ${texte} au rang ${span.dataset.rk}`);
                 derMotNomPropre = false;
                 if (texte.trim() !== "") {
                     //derMot = texte;
@@ -898,15 +898,15 @@ function chercherNomPropres() {
                 return; // Ignorer ce mot
             }
 
-            console.log("Mot non exclu, traitement en cours.");
+            //console.log("Mot non exclu, traitement en cours.");
 
             // Vérifier que le mot précédent se termine par un point ou est vide (début de phrase)
             if (!/[.!?]/.test(derMot.slice(-1))) {
 
-                  console.log("le mot précédent ne se termine pas par un point.");                  
+                  //console.log("le mot précédent ne se termine pas par un point.");                  
 
                 if (derMotNomPropre===false) {
-                    console.log(`Nouveau nom propre ajouté: ${texte} mot précédent : ${derMot} nomPropre? : ${derMotNomPropre} au rang ${span.dataset.rk}`);
+                    //console.log(`Nouveau nom propre ajouté: ${texte} mot précédent : ${derMot} nomPropre? : ${derMotNomPropre} au rang ${span.dataset.rk}`);
                     // Nouveau nom propre
                     nomsPropresTrouves.add(texte);
                     derMotNomPropre = true;
@@ -918,12 +918,12 @@ function chercherNomPropres() {
                     const nomComplet = dernierNomPropre + " " + texte;
                     nomsPropresTrouves.delete(dernierNomPropre);
                     nomsPropresTrouves.add(nomComplet);
-                    console.log(`complétion du nom propre précédent: ${dernierNomPropre} mot précédent : ${derMot} au rang ${span.dataset.rk}`);
+                    //console.log(`complétion du nom propre précédent: ${dernierNomPropre} mot précédent : ${derMot} au rang ${span.dataset.rk}`);
                     derMotNomPropre = true;
                 }
 
             }  else {
-                console.log("le mot était pas à la suite d'un.");
+              
                 derMotNomPropre = false;
             }
 
@@ -942,7 +942,7 @@ function chercherNomPropres() {
 
     // tri par ordre alphabétique
     const nomsPropresTries = Array.from(nomsPropresTrouves).sort((a, b) => a.localeCompare(b, 'fr'));   
-    console.log("Noms propres trouvés:", nomsPropresTries);
+    //console.log("Noms propres trouvés:", nomsPropresTries);
 
     // ajouter à tabAnon
     nomsPropresTries.forEach(nom => {
@@ -953,7 +953,7 @@ function chercherNomPropres() {
         }
     });
 
-    console.log(`Ajouté ${nomsPropresTries.length} noms propres à tabAnon.`);
+    //console.log(`Ajouté ${nomsPropresTries.length} noms propres à tabAnon.`);
     // Rafraîchir l'affichage du tableau
     affichTableauAnon();
 }    
