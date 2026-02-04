@@ -603,9 +603,10 @@ function demanderDossierEtNom(parentWindow) {
         const promptWindow = new BrowserWindow({
             width: 600,
             height: 300,
-            titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
+            titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
             parent: parentWindow,
             modal: true,
+            closable: true,
             show: false,
             resizable: false,
             minimizable: false,
@@ -667,9 +668,10 @@ function editerCategories(parentWindow) {
     const catWindow = new BrowserWindow({
       width: 900,
       height: 900,
-      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
+      titleBarStyle: process.platform === 'darwin' ? 'customButtonsOnHover' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
       modal: true,
+      closable: true,
       show: false,
       resizable: false,
       minimizable: false,
@@ -734,9 +736,10 @@ async function editerEntretien(parentWindow, rgEnt){
     const entWindow = new BrowserWindow({
       width: 900,
       height: 900,
-      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
+      titleBarStyle: process.platform === 'darwin' ? 'customButtonsOnHover' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
       modal: true,
+      closable: true,
       show: false,
       frame:true,
       resizable: true,
@@ -1189,9 +1192,10 @@ function creerFenetreURL(parentWindow) {
   const urlWindow = new BrowserWindow({
     width: 500,
     height: 600,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
+    titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
     parent: parentWindow,
     modal: true,
+    closable: true,
     resizable: false,
     webPreferences: {
       nodeIntegration: false,
@@ -1419,9 +1423,10 @@ ipcMain.handle('ajout-entretien', async () => {
   const entWindow = new BrowserWindow({
     width: 700,
     height: 780,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default', // pour voir les boutons sur macOS
+    titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
     parent: mainWindow,
     modal: true,
+    closable: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
