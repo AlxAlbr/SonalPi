@@ -1802,3 +1802,33 @@ app.on('window-all-closed', async () => {
   }
 });
 
+// macOS
+app.on('open-file', (event, path) => {
+  event.preventDefault();
+  console.log('Fichier ouvert:', path);
+  ouvrirCorpus(path)
+  
+});
+
+// Windows/Linux
+if (process.argv.length >= 2) {
+
+  for (let i = 1; i < process.argv.length; i++) {
+  const filePath = process.argv[i];
+  
+  // Ignorer les arguments qui commencent par -- (flags Electron)
+  if (filePath.startsWith('--')) continue;
+  
+  // Ignorer le chemin de l'app elle-même
+  if (filePath.includes('electron') || filePath.includes('.exe')) continue;
+  
+  // Vérifier que c'est un fichier
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    console.log('Fichier ouvert:', filePath);
+    ouvrirCorpus(filePath);
+    break;  // Traiter seulement le premier fichier valide
+  }
+}
+
+}
+

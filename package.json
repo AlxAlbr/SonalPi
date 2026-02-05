@@ -15,6 +15,20 @@
   "build": {
     "appId": "com.sonal.id",
     "productName": "Sonal",
+        "fileAssociations": [
+      {
+        "ext": "crp",
+        "name": "Corpus",
+        "description": "Fichier Corpus Sonal",
+        "role": "Viewer"
+      },
+      {
+        "ext": "sonal",
+        "name": "Entretien Sonal",
+        "description": "Fichier Entretien Sonal",
+        "role": "Viewer"
+      }
+    ],
     "npmRebuild": false,
     "asar": true,
     "mac": {

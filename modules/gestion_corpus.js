@@ -597,7 +597,7 @@ async function lireCrpSonal2(contenu){
         if (chaineCat ==""){    
             chaineCat = thm;
         } else {
-            chaineCat += "," + thm;
+            chaineCat += "  " + thm;
         }
         });
 
