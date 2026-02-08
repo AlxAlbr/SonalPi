@@ -59,8 +59,7 @@ ipcMain.handle('get-thm', () => {return tabThm;});
 ipcMain.handle('set-thm', (_, newTabThm) => {
   tabThm = newTabThm;
   // Envoyer à toutes les fenêtres ouvertes
-  const allWindows = require('electron').BrowserWindow.getAllWindows();
-  allWindows.forEach(window => {
+  BrowserWindow.getAllWindows().forEach(window => {
     window.webContents.send('update-cat', tabThm);
   });
   return true;
@@ -1952,10 +1951,15 @@ app.on('window-all-closed', async () => {
 });
 
 // macOS
-app.on('open-file', (event, path) => {
+app.on('open-file', async (event, path) => {
   event.preventDefault();
   console.log('Fichier ouvert:', path);
-  ouvrirCorpus(path)
+
+           const result = await ouvrirCorpus(path); 
+            if (result && result.success) {
+  
+              mainWindow.webContents.send('afficher-corpus', result);
+            }
   
 });
 
@@ -1974,7 +1978,10 @@ if (process.argv.length >= 2) {
   // Vérifier que c'est un fichier
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     console.log('Fichier ouvert:', filePath);
-    ouvrirCorpus(filePath);
+    const result = await ouvrirCorpus(filePath);
+    if (result && result.success) {
+      mainWindow.webContents.send('afficher-corpus', result);
+    }
     break;  // Traiter seulement le premier fichier valide
   }
 }
