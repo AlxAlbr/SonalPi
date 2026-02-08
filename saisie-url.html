@@ -166,7 +166,7 @@
           id="password" 
           name="password" 
           placeholder="Mot de passe"
-          value = "git"
+          value = ""
            
         />
       </div>
@@ -194,6 +194,17 @@
     const btnCancel = document.getElementById('btn-cancel');
     const btnSubmit = document.getElementById('btn-submit');
     const errorDiv = document.getElementById('error-message');
+    const urlInput = document.getElementById('url');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+
+    // Écouter l'événement de pré-remplissage de l'URL
+    window.electronAPI.onPreFillUrl?.((previousUrl) => {
+      console.log('Pré-remplissage de l\'URL:', previousUrl);
+      urlInput.value = previousUrl;
+      // Focus sur le champ username pour que l'utilisateur puisse facilement modifier
+      usernameInput.focus();
+    });
 
     // Validation de l'URL
     function validerURL(url) {

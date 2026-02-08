@@ -668,7 +668,7 @@ function editerCategories(parentWindow) {
     const catWindow = new BrowserWindow({
       width: 900,
       height: 900,
-      titleBarStyle: process.platform === 'darwin' ? 'customButtonsOnHover' : 'default', // pour voir les boutons sur macOS
+      titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
       // modal: true,
       closable: true,
@@ -736,7 +736,7 @@ async function editerEntretien(parentWindow, rgEnt){
     const entWindow = new BrowserWindow({
       width: 900,
       height: 900,
-      titleBarStyle: process.platform === 'darwin' ? 'customButtonsOnHover' : 'default', // pour voir les boutons sur macOS
+      titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
       // modal: true,
  
@@ -912,6 +912,17 @@ ipcMain.handle('ouvrir-corpus-local', async (event, filePath) => {
   return result;
 });
 
+// Handler pour ouvrir un corpus distant avec retry (depuis la liste récente)
+ipcMain.handle('ouvrir-corpus-distant-avec-retry', async (event, url) => {
+  console.log('🌐 Ouverture corpus distant depuis récents:', url);
+  const result = await ouvrirCorpusDistantAvecRetry(mainWindow, null, url);
+  if (result && result.success) {
+    console.log("📂 Corpus distant ouvert avec succès");
+    mainWindow.webContents.send('afficher-corpus', result);
+  }
+  return result;
+});
+
 // ouverture de corpus local
 async function ouvrirCorpus(filePath) {
  
@@ -1000,8 +1011,8 @@ let serveurAPI = null;
 
 // fonction d'appel de fichier distant
 
-async function ouvrirCorpusDistant(mainWindow, filePath) {
-  console.log('🌐 Ouverture corpus distant...');
+async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = null) {
+  console.log('🌐 Ouverture corpus distant avec retry...');
   
   let urlData;
   
@@ -1035,8 +1046,8 @@ async function ouvrirCorpusDistant(mainWindow, filePath) {
     }
   }
   
-  // Sinon, demander les credentials
-  urlData = await creerFenetreURL(mainWindow, filePath);
+  // Sinon, demander les credentials (avec URL pré-remplie si disponible)
+  urlData = await creerFenetreURL(mainWindow, previousUrl);
   
   if (!urlData) {
     console.log('❌ Annulé');
@@ -1103,6 +1114,9 @@ async function ouvrirCorpusDistant(mainWindow, filePath) {
     Corpus.lastChange = new Date().toISOString();
     Corpus.type = "distant"; 
     
+    // Ajouter l'URL du corpus distant à la liste des récents
+    console.log('📝 Ajout du corpus distant aux fichiers récents');
+    recentFilesManager.addRemoteCorpus(cheminComplet, fichProj);
 
     return {
       success: true,
@@ -1116,20 +1130,108 @@ async function ouvrirCorpusDistant(mainWindow, filePath) {
     
     serveurAPI = null; // IMPORTANT : Réinitialiser en cas d'erreur
     
-    // Si erreur d'authentification, supprimer les credentials
+    // Si erreur d'authentification 401, proposer une nouvelle saisie
     if (error.message.includes('401') || 
         error.message.includes('Authentication') ||
         error.message.includes('Invalid credentials')) {
+      
+      console.log('🔐 Erreur 401 - Identifiants invalides');
+      
+      // Supprimer les credentials obsolètes
       if (urlData?.url) {
         credentialsManager.remove(urlData.url);
       }
+      
+      // Proposer à l'utilisateur de réessayer
+      const reponse = await dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'Authentification échouée',
+        message: 'Les identifiants fournis sont invalides ou expirés.',
+        detail: 'Voulez-vous réessayer avec d\'autres identifiants ?',
+        buttons: ['Réessayer', 'Annuler'],
+        defaultId: 0,
+        cancelId: 1
+      });
+      
+      // Si l'utilisateur clique sur "Réessayer"
+      if (reponse.response === 0) {
+        console.log('🔄 Relance de la saisie des identifiants...');
+        // Relancer la fonction en conservant l'URL
+        const urlObj = new URL(urlData.url);
+        const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+        const extractedFilePath = urlObj.pathname.substring(1);
+        const previousUrl = new URL(extractedFilePath, baseUrl).toString();
+        
+        // Réinitialiser serveurAPI et credentials
+        serveurAPI = null;
+        credentialsManager.remove(urlData.url);
+        
+        // Appeler avec l'URL pré-remplie
+        return ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl);
+      }
+      
+      return {
+        success: false,
+        error: 'Authentification échouée - Opération annulée par l\'utilisateur'
+      };
     }
+    
+    // Pour toutes les autres erreurs, afficher un message générique
+    console.log('❌ Erreur lors de l\'accès au corpus distant:', error.message);
+    
+    // Déterminer le type d'erreur et le message approprié
+    let errorTitle = 'Erreur d\'accès au corpus distant';
+    let errorMessage = 'Une erreur est survenue lors de l\'accès au corpus distant.';
+    let errorDetail = error.message;
+    
+    if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+      errorTitle = 'Serveur introuvable';
+      errorMessage = 'Le serveur n\'a pas pu être trouvé.';
+      errorDetail = 'Vérifiez que l\'URL est correcte et que le serveur est accessible.';
+    } else if (error.message.includes('ECONNREFUSED')) {
+      errorTitle = 'Connexion refusée';
+      errorMessage = 'Le serveur a refusé la connexion.';
+      errorDetail = 'Vérifiez que le serveur est accessible sur le port indiqué.';
+    } else if (error.message.includes('ETIMEDOUT') || error.message.includes('timeout')) {
+      errorTitle = 'Délai d\'attente dépassé';
+      errorMessage = 'La connexion au serveur a expiré.';
+      errorDetail = 'Vérifiez votre connexion internet et la disponibilité du serveur.';
+    } else if (error.message.includes('404') || error.message.includes('Not Found')) {
+      errorTitle = 'Fichier non trouvé';
+      errorMessage = 'Le fichier spécifié n\'existe pas sur le serveur.';
+      errorDetail = 'Vérifiez que le chemin du fichier est correct.';
+    } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+      errorTitle = 'Accès refusé';
+      errorMessage = 'Vous n\'avez pas la permission d\'accéder à ce fichier.';
+      errorDetail = 'Vérifiez vos droits d\'accès sur le serveur.';
+    } else if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+      errorTitle = 'Erreur serveur';
+      errorMessage = 'Le serveur a rencontré une erreur interne.';
+      errorDetail = 'Veuillez réessayer plus tard.';
+    }
+    
+    // Afficher la boîte de dialogue d'erreur
+    await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: errorTitle,
+      message: errorMessage,
+      detail: errorDetail,
+      buttons: ['OK'],
+      defaultId: 0
+    });
     
     return {
       success: false,
-      error: error.message
+      error: errorMessage
     };
   }
+}
+
+// fonction d'appel de fichier distant
+
+async function ouvrirCorpusDistant(mainWindow, filePath) {
+  console.log('🌐 Ouverture corpus distant...');
+  return ouvrirCorpusDistantAvecRetry(mainWindow, filePath, null);
 }
 
 /**
@@ -1184,11 +1286,14 @@ function deflouterSousModale(parentWindow) {
     document.body.style.filter = '';
     document.body.style.pointerEvents = '';
   `);
+  
+  // Remettre le focus sur la fenêtre parente
+  parentWindow.focus();
 }
 
 
 // fenêtre de saisie URL/USER/Mot de passe
-function creerFenetreURL(parentWindow) {
+function creerFenetreURL(parentWindow, previousUrl = null) {
   const urlWindow = new BrowserWindow({
     width: 500,
     height: 600,
@@ -1213,6 +1318,14 @@ function creerFenetreURL(parentWindow) {
   flouterSousModale(mainWindow);
 
   return new Promise((resolve) => {
+    // Envoyer l'URL précédente si elle existe
+    urlWindow.webContents.on('did-finish-load', () => {
+      if (previousUrl) {
+        console.log('📝 Pré-remplissage avec l\'URL précédente:', previousUrl);
+        urlWindow.webContents.send('pre-fill-url', previousUrl);
+      }
+    });
+    
     // Attendre que l'utilisateur soumette le formulaire
     ipcMain.once('url-saisie-submit', (event, data) => {
       urlWindow.close();
@@ -1495,7 +1608,27 @@ class RecentFilesManager {
     recentFiles.unshift({
       path: filePath,
       name: path.basename(filePath),
-      openedAt: new Date().toISOString()
+      openedAt: new Date().toISOString(),
+      type: 'local'
+    });
+    
+    recentFiles = recentFiles.slice(0, this.maxFiles);
+    store.set('recentFiles', recentFiles);
+    this.updateMenu();
+    
+    return recentFiles;
+  }
+
+  addRemoteCorpus(url, name) {
+    let recentFiles = store.get('recentFiles', []);
+    // Supprimer si déjà dans la liste
+    recentFiles = recentFiles.filter(f => f.path !== url);
+    
+    recentFiles.unshift({
+      path: url,
+      name: name,
+      openedAt: new Date().toISOString(),
+      type: 'remote'
     });
     
     recentFiles = recentFiles.slice(0, this.maxFiles);
@@ -1507,7 +1640,13 @@ class RecentFilesManager {
 
   getAll() {
     let recentFiles = store.get('recentFiles', []);
-    recentFiles = recentFiles.filter(file => fs.existsSync(file.path));
+    // Filtrer : garder les fichiers distants, vérifier l'existence des fichiers locaux
+    recentFiles = recentFiles.filter(file => {
+      if (file.type === 'remote') {
+        return true; // Garder les fichiers distants
+      }
+      return fs.existsSync(file.path); // Vérifier l'existence des fichiers locaux
+    });
     store.set('recentFiles', recentFiles);
     
     return recentFiles;
@@ -1558,13 +1697,25 @@ class RecentFilesManager {
             subItem.submenu = recentFiles.length > 0 
               ? [
                   ...recentFiles.map(file => ({
-                    label: file.name,
+                    label: `${file.type === 'remote' ? '🌐 ' : ''}${file.name}`,
                     //sublabel: file.path,
-                    click: () => ouvrirCorpus(file.path).then((result) => {
-                      if (result && result.success) {
-                        mainWindow.webContents.send('afficher-corpus', result);
+                    click: () => {
+                      if (file.type === 'remote') {
+                        // Ouvrir corpus distant avec l'URL pré-remplie
+                        ouvrirCorpusDistantAvecRetry(mainWindow, null, file.path).then((result) => {
+                          if (result && result.success) {
+                            mainWindow.webContents.send('afficher-corpus', result);
+                          }
+                        });
+                      } else {
+                        // Ouvrir corpus local
+                        ouvrirCorpus(file.path).then((result) => {
+                          if (result && result.success) {
+                            mainWindow.webContents.send('afficher-corpus', result);
+                          }
+                        });
                       }
-                    }) 
+                    } 
 
                   })),
                   { type: 'separator' },
@@ -1699,15 +1850,12 @@ app.on('ready', () => {
           accelerator: 'CmdOrCtrl+O',
           click: async () => {
             const result = await ouvrirCorpusDistant(mainWindow);
-            if (result && result.success) {
-
-                       
-
+            if (result && result.success) {                  
             //traiterCorpus(result); 
 
               // Envoyer le contenu au renderer
               mainWindow.webContents.send('afficher-corpus', result);
-            }
+            }  
           }
         },
    
@@ -1733,6 +1881,7 @@ app.on('ready', () => {
         { 
           label: 'Quitter', 
           role: 'quit'  
+          
         }
       ]
     },

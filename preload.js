@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createPath: (...args) => ipcRenderer.invoke('file:createPath', ...args),
   // Pour soumettre les données de l'URL
   submitURL: (data) => ipcRenderer.send('url-saisie-submit', data),
+  // Écouter le pré-remplissage de l'URL
+  onPreFillUrl: (callback) =>
+    ipcRenderer.on('pre-fill-url', (event, url) => callback(url)),
   
  // pour récupérer le contenu d'un fichier corpus
   onAfficherCorpus: (callback) => 

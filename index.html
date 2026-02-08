@@ -1091,9 +1091,22 @@ document.getElementById('btnNouveauCorpus').addEventListener('click', async () =
 
     // Attacher les event listeners APRÈS avoir créé le HTML
   document.querySelectorAll('.file-info').forEach((el, index) => {
-    el.addEventListener('click', () => {
-     // console.log('Ouverture de:', recentFiles[index].path);
-      window.electronAPI.ouvrirCorpusLocal(recentFiles[index].path);
+    el.addEventListener('click', async () => {
+      const file = recentFiles[index];
+      console.log('Ouverture de:', file.path, 'Type:', file.type);
+      
+      if (file.type === 'remote') {
+        // Ouvrir corpus distant avec l'URL pré-remplie
+        const result = await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', file.path);
+        if (result && result.success) {
+          window.electronAPI.onAfficherCorpus((corpus) => {
+            // Le renderer affichera le corpus
+          });
+        }
+      } else {
+        // Ouvrir corpus local
+        window.electronAPI.ouvrirCorpusLocal(file.path);
+      }
     });
   });
 

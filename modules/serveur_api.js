@@ -37,12 +37,12 @@ class ServeurAPI {
         url = new URL(this.apiPath, this.baseUrl);
         
         if (filePath) {
-          console.log('🎯 Chemin fichier demandé:', filePath);
+          console.log('Chemin fichier demandé:', filePath);
           url.searchParams.set('file', filePath);
         }
       }
       
-      console.log('\n🌐 URL CONSTRUITE:');
+      console.log('URL CONSTRUITE:');
       console.log('URL complète:', url.toString());
       console.log('Protocol:', url.protocol);
       console.log('Host:', url.host);
@@ -74,16 +74,21 @@ class ServeurAPI {
         options.headers['Content-Type'] = 'text/plain; charset=utf-8';
         options.headers['Content-Length'] = bodyBuffer.length;
         
-        console.log('📦 Body à envoyer:');
+        console.log('  Body à envoyer:');
         console.log('   Type:', typeof body);
         console.log('   Length:', body.length, 'caractères');
         console.log('   Buffer length:', bodyBuffer.length, 'octets');
       }
 
-      console.log(`📡 ${method} ${url.href}`);
+      console.log(`${method} ${url.href}`);
 
       const req = https.request(options, (res) => {
-        console.log('📥 Réponse reçue - Status:', res.statusCode);
+        console.log('Réponse reçue - Status:', res.statusCode);
+
+        if (res.statusCode >= 400) {
+          return reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+        }
+
         const chunks = [];
 
         res.on('data', chunk => chunks.push(chunk));
@@ -109,6 +114,7 @@ class ServeurAPI {
                 const error = new Error(data.error || `HTTP ${res.statusCode}`);
                 error.statusCode = res.statusCode;
                 error.data = data;
+                
                 reject(error);
                 return;
               }

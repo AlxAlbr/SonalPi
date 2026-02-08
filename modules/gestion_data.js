@@ -210,23 +210,22 @@ async function sauvVar(rgVar, mode) {
         await electronAPI.setVar(tabVar);
 
 
-        // modification dans les fichiers Sonal de tous les entretiens
+            if(mode=='loc'){
+               
+                affichDataEnt();
+
+            } 
+
             if (mode=='gen'){
                 await window.sauvegarderCorpus(false);
-                updateVarsDsEnt() ;
+                updateVarsDsEnt() ;// modification dans les fichiers Sonal de tous les entretiens
                 await window.majFichierSonal();
-                
-            }
+                 affichDataGen(); 
+            } 
 
 
-        if(mode=='loc'){
-        affichDataEnt();
-        } else if (mode=='gen'){
-         
-         
-        affichDataGen();    
-        } 
-             // Rafraîchir l'affichage
+      
+              
     } else {
         alert("Veuillez entrer un nom de variable.");
     }
@@ -420,6 +419,8 @@ async function chgDic(v,m, lib){
 // valider un changement de modalité
 function validMod(v, l, m, lib){
     
+
+
    // console.log("on valide un changement de modalité pour la variable ", v, "le locuteur " , l ,  " et la modalité ", m , " le nouveau libellé sera " , lib)
 
     // la modalité saisie existe-t-elle déjà ?
@@ -460,6 +461,20 @@ function validMod(v, l, m, lib){
 
         tabDat[ligDat].m=m; // mise à jour de la modalité
     }
+
+
+    // mise à jour du tabdat dans le tabent de l'entretien
+    const ligEnt = tabEnt.find(ent => ent.rg === rgEnt);
+    if (ligEnt){
+        const varModif = ligEnt.dat.find(d => d.v == v && d.l === l);
+        if (varModif){
+            varModif.m = m;
+        } else {
+            ligEnt.dat.push({'v' : v, 'l' : l, 'm' : m})
+        }
+    }
+
+    
 
 
     document.getElementById("menudic").style.display="none"; 
