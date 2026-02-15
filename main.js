@@ -322,6 +322,56 @@ ipcMain.handle('file:readContent', async (_, filePath) => {
   }
 });
 
+// Récupérer les métadonnées d'un fichier (local ou distant)
+ipcMain.handle('file:getMetadata', async (_, filePath) => {
+  if (!filePath) return null;
+
+  function localOuDistant(filePath) {
+    try {
+      const u = new URL(filePath);
+      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:') {
+        return 'remote';
+      }
+      return 'local';
+    } catch (e) {
+      return fs.existsSync(filePath) ? 'local' : 'remote';
+    }
+  }
+
+  try {
+    if (localOuDistant(filePath) === 'local') {
+      // Fichier local
+      const stats = fs.statSync(filePath);
+      return {
+        success: true,
+        lastModified: stats.mtime.toISOString(),
+        size: stats.size,
+        type: 'local'
+      };
+    } else {
+      // Fichier distant
+      if (!serveurAPI) {
+        return { success: false, error: 'Pas de connexion au serveur' };
+      }
+      
+      const result = await serveurAPI.lireFichier(filePath);
+      if (result.success) {
+        return {
+          success: true,
+          lastModified: result.modified || new Date().toISOString(),
+          size: result.size,
+          type: 'remote'
+        };
+      } else {
+        return { success: false, error: result.error };
+      }
+    }
+  } catch (error) {
+    console.error('Erreur lors de la lecture des métadonnées:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Reconstruire l'adresse d'un fichier   
 ipcMain.handle('file:createPath', async (_, ...args) => {
   if (!args || args.length === 0) return null;
@@ -685,7 +735,7 @@ function editerCategories(parentWindow) {
 
     // chargement de la fenêtre edition_categories.html
     catWindow.loadFile('edition_categories.html');
-    catWindow.webContents.openDevTools();
+    //catWindow.webContents.openDevTools();
     // Retirer le menu de la fenêtre modale
     catWindow.setMenu(null);
 

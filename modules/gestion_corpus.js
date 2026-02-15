@@ -38,13 +38,14 @@ async function initFromMain() {
 //===============================================================================================
 
 async function lireCorpus(fileContent){
-
-     
  
   // 1 détermination du type de corpus (Sonal 2 ou 3)
  if (fileContent.indexOf("<|THEM|") > -1){
     console.log("corpus Sonal 2 détecté")
-    lireCrpSonal2(fileContent)
+
+    dialog("Message","Le corpus que vous avez sélectionné semble être un corpus Sonal 2. \nUne copie au format Sonal π est en cours de création à côté du corpus d'origine. \nLe fichier original ne sera pas modifié.");
+    await lireCrpSonal2(fileContent);
+    
     return ;
  } else {
     console.log("corpus Sonal 3 détecté")
@@ -129,9 +130,19 @@ async function lireCrpSonal2(contenu){
         // récupération du corpus 
         Corpus= await window.electronAPI.getCorpus();
  
-        console.log("corpus en cours : " + Corpus.url);
-        console.log("Dossier source : " + Corpus.folder);
+  
  
+        // remise à zéro
+        tabThm =  [];
+        tabVar =  [];
+        tabDic =  [];
+        tabDat =  [];
+        tabEnt =  [];
+        tabHtml = [];
+        tabGrph = [];
+        ent_cur = -1;
+
+
 
         // split par lignes du contenu du fichier 
         contenu = contenu.replace(/\r?\n|\r/,'\n') // uniformisation des sauts de ligne
@@ -147,6 +158,32 @@ async function lireCrpSonal2(contenu){
         let nbl = lignesFich.length;
          
         let rgThm=0;
+        let nbIntercalaires = 0;
+
+        // Ajout des thèmes de pondération
+          tabThm.push({ // ajout au tableau des thématiques
+                    code: "cat_pond", 
+                    couleur: "",
+                    nom: "Pondérations",
+                    taille : "16",
+                    cmpct: false,
+                    rang: "0",
+                    act: true
+           })
+
+
+            for (p=1;p<6;p++){ // défilement les lignes
+                    tabThm.push({ // ajout au tableau des thématiques
+                    code: "cat_pond"+p, 
+                    couleur: "",
+                    nom: "★".repeat(p) + "☆".repeat(5-p),
+                    taille : (16 + p),
+                    cmpct: false,
+                    rang: "1",
+                    act: true
+                })
+        }
+
 
         for (l=0;l<nbl;l++){ // défilement les lignes
             
@@ -155,18 +192,35 @@ async function lireCrpSonal2(contenu){
 
             if (debThm>0){ // ajout des thèmes à la liste
                 
-                if (lignesFich[l].substring(0,1) == ">"){continue}  // évitement des intercalaires
+                if (lignesFich[l].substring(0,1) == ">"){
+                     
+                    nbIntercalaires++;
+                    let nomIntercalaire = lignesFich[l].substring(1).trim();
+
+                    tabThm.push({ // ajout au tableau des thématiques
+                        code: "cat_int_"+nbIntercalaires, 
+                        couleur: "",
+                        nom: nomIntercalaire,
+                        taille : "16",
+                        cmpct: false,
+                        rang: "0",
+                        act: false
+                    })
+
+                    rgThm = "1"; // les thèmes suivants seront rangés après les intercalaires
+                    continue
+                }  // évitement des intercalaires
                 
-                rgThm++;
+                 
                 let parts = lignesFich[l].split(",")
                  
                 tabThm.push({ // ajout au tableau des thématiques
                     code: "cat_"+ parts[0], 
                     couleur: convertColor(parts[1]),
                     nom: parts[2].replace(/\r/g, ''),
-                    taille : "16px",
+                    taille : "16",
                     cmpct: false,
-                    rang: "0",
+                    rang: rgThm,
                     act: true
                 })
 
@@ -208,11 +262,13 @@ async function lireCrpSonal2(contenu){
                     if (parts[2].replace(/\r/g, '') == "1") {publicVar = true;} 
                 }
 
-                tabVar.push({v:Number(parts[0]),
-                lib:parts[1].replace(/\r/g, ''),
-                public:publicVar,
-                champ:'gen'
-                })
+                if (parts[0] && parts[1]) {
+                    tabVar.push({v:Number(parts[0]),
+                    lib:parts[1].replace(/\r/g, ''),
+                    public:publicVar,
+                    champ:'gen'
+                    })
+                }
                 
                 /*tabVar[rgVar] = new Array (3) // 1 = code, 2 = libellé,3= publique/privé
 
@@ -251,12 +307,14 @@ async function lireCrpSonal2(contenu){
             if (debDic>0){ // ajout des modalités au dictionnaire
                 
                 let parts = lignesFich[l].split(",")
-                
-                let varcur= Number(parts[0]);
-                let modcur= Number(parts[1]);
+                if (parts[0] && parts[1]) {
 
-                tabDic.push({v: varcur, m: modcur, lib: parts[2].replace(/\r/g, '')}) // ajout de la modalité
-                 
+                    let varcur= Number(parts[0]);
+                    let modcur= Number(parts[1]);
+
+                    tabDic.push({v: varcur, m: modcur, lib: parts[2].replace(/\r/g, '')}) // ajout de la modalité
+
+                }
 
             }
 
@@ -285,6 +343,9 @@ async function lireCrpSonal2(contenu){
 
                 console.log("lecture de l'entretien " + rgEnt);
                 let parts = lignesFich[l].split(",")
+
+                if (parts.length < 3) {continue} // évitement des lignes vides
+
                 parts[0] = parts[0].replace(/\r/g, '') // retrait des sauts de ligne dans le nom de fichier
                 let nomEnt = parts[0].substring(0,parts[0].lastIndexOf("."))   
  
@@ -340,9 +401,9 @@ async function lireCrpSonal2(contenu){
         
        
 
-        console.log("les tableaux de données ont été chargés depuis le corpus Sonal 2");
+        //console.log("les tableaux de données ont été chargés depuis le corpus Sonal 2");
 
-        console.log("tabent" + JSON.stringify(tabEnt))
+        //console.log("tabent" + JSON.stringify(tabEnt))
   
          // définition du nom du nouveau corpus (ajout .Pi avant crp)
          let nouveauNomCrp = Corpus.url.substring(0, Corpus.url.lastIndexOf(".")) + ".Sonal_Pi.crp";   
@@ -379,21 +440,28 @@ async function lireCrpSonal2(contenu){
 
         let parts = ligne.split("::");
         let position = Number(parts[1].replace(/\,/g, '.')) // conversion de la position en nombre;
-        let thms = parts[2];
-
-        return {position: position, thms: thms}
+        
+        let posTags = parts[2].indexOf("Tags="); // repérage de la position des tags
+        if (posTags == -1) {posTags = parts[2].length} // si pas de tags, la fin de la chaîne est la fin des thématiques
+       
+        // extraction des thèmes 
+        let thms = parts[2].substring(0, posTags); 
+        // extrait les tags après "Tags="
+        let tags = parts[2].substring(posTags + 5);
+        if (tags.length>0) {console.log("tags trouvés : " + tags)} 
+        return {position: position, thms: thms, tags: tags}
         
     
     }
 
-    async function nouvelExtraitRtr(deb, fin, thms){
-        tabXtrLocal.push( {debut: deb, fin: fin, thms: thms, texte: '' } )
+    async function nouvelExtraitRtr(deb, fin, thms, tags){
+        tabXtrLocal.push( {debut: deb, fin: fin, thms: thms, tags:tags, texte: '' } )
     }
 
 
     function subdiviserExtraits(texte) {
 
-        const regex =  /(\[>[^\]]+\]:?|\[\d+(?:,\d+)?\])/g;
+        const regex =  /(\[>[^\]]+\]:?|\[\d+(?:,\d+)?\]|\n)/g;
         const matches = [...texte.matchAll(regex)];
         const segments = [];
         
@@ -449,6 +517,14 @@ async function lireCrpSonal2(contenu){
                 locuteur: locuteurActuel,
                 texte: texteSegment
             });
+            } else if (balise === '\n') {
+            // Saut de ligne : créer un segment de type saut de ligne
+            segments.push({
+                balise: balise,
+                type: 'sautligne',
+                locuteur: locuteurActuel,
+                texte: texteSegment
+            });
             } else {
             // Balise de synchro : garder le locuteur précédent
             segments.push({
@@ -478,7 +554,7 @@ async function lireCrpSonal2(contenu){
     const contentRtr = await window.electronAPI.readFileContent(fichRtr);
 
     tabLocLocal = extraireLocuteurs(contentRtr);
-    console.log("locuteurs trouvés dans l'entretien converti" + JSON.stringify(tabLocLocal)) ;
+    //console.log("locuteurs trouvés dans l'entretien converti" + JSON.stringify(tabLocLocal)) ;
 
     // mise en lignes du contenu
     const lignesFich = contentRtr.replace(/\r?\n|\r/g,'\n').split("\n");
@@ -536,7 +612,7 @@ async function lireCrpSonal2(contenu){
                     
                     // nouvel extrait, récupération des infos d'ouverture
                     let xtr = await getXtrRtr(lignesFich[lg]);
-                     nouvelExtraitRtr(xtr.position, -1, xtr.thms, '' );   
+                     nouvelExtraitRtr(xtr.position, -1, xtr.thms, xtr.tags );   
                  
                     continue} // repérage de la balise d'ouverture
 
@@ -566,14 +642,14 @@ async function lireCrpSonal2(contenu){
 
      }      
 
-     console.log("le tableau des extraits est finalisé" + JSON.stringify(tabXtrLocal).substring(1,100)+"...");  
+   //  console.log("le tableau des extraits est finalisé" + JSON.stringify(tabXtrLocal).substring(1,100)+"...");  
 
      // création d'un tableau de segments (subdivisions des extraits, ils en récupèrent les thm mais 
      // la position et le contenu sont subdivisés à chaque changement de locuteur ou répérage de point de synchro)
 
      let tabSegLocal= []; 
 
-     console.log("nombre d'extraits dans l'entretien " + rgEnt + " : " + tabXtrLocal.length);
+    // console.log("nombre d'extraits dans l'entretien " + rgEnt + " : " + tabXtrLocal.length);
 
      let contenuHtml = ``;  
      let segCourant= 1; 
@@ -582,23 +658,32 @@ async function lireCrpSonal2(contenu){
      // défilement des extraits 
      for (let ext=0; ext<tabXtrLocal.length; ext++){
         
-        console.log("analyse de l'extrait " + ext)
+      //  console.log("analyse de l'extrait " + ext)
          
         let posDeb = tabXtrLocal[ext].debut;
         let posFin = tabXtrLocal[ext].fin;
         let thmsXtr = tabXtrLocal[ext].thms;
+        let tagsXtr = tabXtrLocal[ext].tags;
+        
+        console.log("tags de l'extrait " + ext + " : " + tagsXtr);
+        //console.log("thématiques de l'extrait " + ext + " : " + thmsXtr);
         
         // mise en tableau éventuelle des thématiques
         let chaineCat=""; 
         let tabThmsXtr = thmsXtr.split(",");
         tabThmsXtr.forEach((thm) => {
+        
+        // évitement des thm vides (000)
+        if (thm.trim() === "000") { return}
+
         thm = "cat_" + thm;
 
-        if (chaineCat ==""){    
-            chaineCat = thm;
-        } else {
-            chaineCat += "  " + thm;
-        }
+            if (chaineCat ==""){    
+                chaineCat = thm;
+            } else {
+                chaineCat += "  " + thm;
+            }
+
         });
 
 
@@ -606,7 +691,7 @@ async function lireCrpSonal2(contenu){
         // découpage des extraits en segments 
         let segments = await subdiviserExtraits(tabXtrLocal[ext].texte);
 
-        console.log("segments trouvés :" + segments.length)
+        //console.log("segments trouvés :" + segments.length)
 
         // 1 repérage des changements de locuteurs "balise d'ouverture"
         let posCourante = posDeb;
@@ -630,6 +715,10 @@ async function lireCrpSonal2(contenu){
 
                 } 
                 
+                else if (seg.type === 'sautligne') { // saut de ligne
+                    // on ne fait rien, le saut de ligne est juste un séparateur
+                }
+                
                 else if (seg.type === 'synchro') { // changement de position
                     posCourante = seg.valeur;
                 }    
@@ -644,21 +733,50 @@ async function lireCrpSonal2(contenu){
                         data-nomloc="${nomLoc}"
                         tabindex="${spnCourant}" 
                         data-rksg="${segCourant}"
+                        data-tags="${tagsXtr}"
                         >`
                         
  
 
-                        // Regex qui capture chaque mot, ponctuation et espace séparément
+                        // Séparation par espaces en conservant les espaces
                         var texte = seg.texte;
                         
-                        const elements = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g);
+                        const elements = texte.split(/(\s+)/);
 
                         let chaine = "";
+                        let pond_cur = "";
 
                         if (elements) {
                             for (const elem of elements) {
-                                chaine += `<span data-rk="${spnCourant}" data-sg="${segCourant}" class="${chaineCat}">${elem}</span>`;
-                                spnCourant++;
+
+                               
+                                // interception des pondérations (OUVERTURE)
+                                if (elem.trim().startsWith("{+") && elem.trim().endsWith("}")) {
+                                                                
+                                    
+
+                                    let pond = Number(elem.trim().substring(3,1)); // extraction de la valeur de pondération
+                                    
+                                    
+                                    if (Number(pond) >= 1 && Number(pond) <= 5) {
+                                        pond_cur = " cat_pond" + pond;
+                                    
+                                    }
+
+                                    continue ; // le mot n'est pas ajouté au texte, seule la classe de pondération est mémorisée
+
+                                }    
+
+                                // interception des pondérations (FERMETURE)
+                                if (elem.trim().startsWith("{-") && elem.trim().endsWith("}")) {
+                                        pond_cur = "";
+                                        continue; // le mot n'est pas ajouté au texte, seule la classe de pondération est mémorisée
+                                }
+
+                                
+                                    chaine += `<span class="${chaineCat}${pond_cur}" data-rk="${spnCourant}" data-sg="${segCourant}">${elem}</span>`;
+                                    spnCourant++;
+                                
                             }
                         }
                         

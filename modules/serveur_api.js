@@ -266,8 +266,8 @@ class ServeurAPI {
       return {
         success: true,
         content: result.content,
-        size: result.size,
-        modified: result.modified,
+        size: result.size || (result.content ? result.content.length : 0),
+        modified: result.modified || new Date().toISOString(), // Fallback: date actuelle
         path: result.path,
         //locked: result.locked,
         //lockInfo: result.lock_info,

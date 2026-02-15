@@ -113,12 +113,11 @@
             // récupération des locuteurs
             const postLocut = await convertSpeaker(tabSeg);
             tabSeg = postLocut.tabSeg;
-            locut = postLocut.locut;
+            let locuteursTrouvés = postLocut.locut;
 
-            //console.log ("importation du fichier Srt \tabseg = ", tabSeg, "\n locut = ", locut);
-
-            let formatSonal = tabSegToSonal (tabSeg,locut)
-
+            console.log ("importation du fichier Srt \tabseg = ", tabSeg, "\n locut = ", locuteursTrouvés);
+            window.tabLocImport = locuteursTrouvés; // stockage temporaire dans le window global pour récupération ultérieure
+            let formatSonal = tabSegToSonal (tabSeg,locuteursTrouvés)
             //console.log("format sonal = \n", formatSonal);
             return {formatSonal};
 }
@@ -453,6 +452,10 @@ function extractFichierSonal(htmlString) {
                     }
 
                 
+                    if (!content || content.length < 2 || content === undefined || content === '{ undefined }') {
+                        //console.warn(`Aucun contenu trouvé pour ${id} après nettoyage.`);
+                        return null;
+                    }
                     return JSON.parse(content);
 
                 } catch (e) {
@@ -518,7 +521,7 @@ function Phrasifier(tabSeg){ // petite fonction visant à regrouper les segments
 async function convertSpeaker(tabSeg) { // fonction permettant de récupérer les "speakers n" dans le srt et de créer un tableau de locuteurs
 
     let rgmax = 0;
-    let locutTemp=[""] // locut[0] n'existe pas
+    locut = [''] // locut[0] n'existe pas
 
     for (s = 0; s< tabSeg.length;s++){
 
@@ -529,13 +532,24 @@ async function convertSpeaker(tabSeg) { // fonction permettant de récupérer le
         if (spk == 0) { // récupération du rang
 
             let rg = txt.substr(8,1)
-            rg = Number(rg)
+            rg = Number(rg)+1               
 
-            tabSeg[s][3] = rg +1  //affectation du locuteur
+            tabSeg[s][3] = rg  //affectation du locuteur
+
+            // faut-il ajouter un nouveau locuteur dans le tableau des locuteurs ?
+            // le nomLoc existe-til déjà dans le tableau des locuteurs ?
+            let nomLoc = "Speaker " + (rg);
+
+            if (!locut.includes(nomLoc)) {
+                locut.push(nomLoc);
+            }
+
+            /*
             if (rgmax < rg+1) {
                 rgmax = rg+1 
                 locutTemp.push("Speaker " + (rg+1))
-                }; // mémorisation du speaker le plus élevé atteint
+            }; // mémorisation du speaker le plus élevé atteint
+            */
  
             //suppression du préfixe "speaker"
             tabSeg[s][4] = txt.substr(11)
@@ -549,7 +563,10 @@ async function convertSpeaker(tabSeg) { // fonction permettant de récupérer le
         }     
  
     };
-    console.log("locuteurs identifiés dans convert speakers: ", locutTemp);
+
+    console.log("locuteurs identifiés dans convert speakers: ", locut);
+
+    /*
     // stocker dans le main via preload API si disponible
     if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
         try {
@@ -562,8 +579,9 @@ async function convertSpeaker(tabSeg) { // fonction permettant de récupérer le
     } else {
         window.tabLocImport = locutTemp; // fallback
     }
+    */  
 
-    return {tabSeg, locutTemp}
+    return { tabSeg, locut }
  
 
 
@@ -585,13 +603,14 @@ let html =`
     
 <body>` 
 
-console.log ("génération du sonal avec tabloc = ", locut);
+ 
 // ajour éventuel des locuteurs
 if (locut && locut.length>1){
 
     const locJSON = JSON.stringify(locut, null);
 
-    html += `<script id="loc-json" type="application/json">
+    html += `
+    <script id="loc-json" type="application/json">
         
             ` + locJSON + `         
         

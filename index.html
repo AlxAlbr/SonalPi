@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sonal</title>
+  <title>Sonal </title>
    <link href="css/styles.css" rel="stylesheet"  type="text/css">   
    
 </head>
@@ -20,6 +20,10 @@
   <script  src="modules/gestion_data.js"></script>
   <script  src="modules/Synthèse.js"></script>
   <script  src="renderer.js"></script>
+  <script>
+    // numéro de version
+    const version = "A.0.3";
+  </script>
 
 <body>
   
@@ -29,11 +33,15 @@
   <div id="fenetreAccueil" class="fenetre-accueil">
       <div class="contenu-accueil">
         <div class="close" onclick="document.getElementById('fenetreAccueil').style.display='none'; ">×</div>
-          <h2>Bienvenue !</h2>
+          <h2>Bienvenue dans </h2>
           <img id = "logo" src="img/logoSonal.png"  alt=""  height="100"  >
-          <p>version 0.0.3</p>
+          <p class="version-label" style="
+          position: absolute;
+          left: 280px;
+          top: 132px;
+          "></p>
           <br>
-          <p>Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
+          <p style = "margin-top:20px">Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
           <br>
           <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir un corpus</button>
           <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus</button>
@@ -55,13 +63,14 @@
     <div id="fond_fonctions" class="header">
             <img id = "logo" src="img/logoSonal.png"  alt=""  height="45"  style = "float:left;">
              
-            <label style="
+            <label class="version-label" style="
                 position: absolute;
-                top: 40px;
-                left: 56px;
+                top: 41px;
+                left: 128px;
                 font-size: 10px;
-                color: var(--couleur-titre);"> π.a.0</label>
-
+                color: var(--couleur-titre);
+                ">A.0.3</label>
+                
               <button id="btn-synthèse" class="btn btn-secondary" style="float:left; margin-left:30px; padding:10px;" title="Synthèse des extraits actifs" onclick=" synthese() ;">
                Synthèse
               </button>
@@ -71,11 +80,11 @@
                  Base de données
               </button>
                
-              <!--
-              <button id="btn-sauvegarder" class="btn btn-primary" style="float:right" title="Sauvegarder (Ctrl+S)" onclick="majFichierSonal() ;">
-                💾 Sauvegarder
+              
+              <button id="btn-sauvegarder" class="btn btn-primary dnone" style="float:right" title="Rafraichir le corpus (charger les fichiers les plus à jour)" onclick="rafraichirCorpus() ;">
+                🗘 Rafraîchir
               </button>
-            !-->
+             
               
 
 
@@ -618,7 +627,7 @@ setInterval(async () => {
 
 
 // AFFICHAGE DE LA BOITE DE DIALOGUES
-function dialog(type){
+function dialog(type, message){
 
      
     let element = document.getElementById('dlg');
@@ -631,17 +640,39 @@ function dialog(type){
 
     switch (type) {
 
+
+    case 'Message' :
+        contenu.style.top="25%";
+        contenu.style.width="40%";
+        contenu.style.display="flex";
+        contenu.style.flexDirection="column";
+        contenu.innerHTML = 
+            ` <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+                <img id = "logo" src="img/logoSonal.png"  alt="" style="height:40px; width:auto;">
+                <div class="close" onclick="hidedlg()" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
+              </div>
+              <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" style="flex:1; overflow-y:auto;">
+                    <p style="padding:20px;white-space:pre-wrap;font-size:1.1rem">${message}</p>
+              </div>
+              <div style="padding:10px; display:flex; justify-content:flex-end;">
+                 <label class='btnfonction' style = "width: 20%;" onclick="hidedlg()">OK</label> 
+              </div>
+                 `
+        break;
+
+
+
     case 'Export' :
     contenu.style.top="25%";
     contenu.style.height="";    
     contenu.innerHTML = 
-        `   <div class="close" onclick="hidedlg()">×</div>
+        ` <div class="close" onclick="hidedlg()">×</div>
           <h3>  Choisissez un format d'export </h3>
             <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
             
           
                 <div class = "lblmnuxprt"  onclick="enregistrer()"> <label class = "lblformat"> .Sonal </label> <span class="lbldetails"> Sauvegarde temporaire, s'ouvre avec Whispurge (CTRL/CMD+S)</span><br> </div>
-                 <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .Txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
+                <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .Txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
                 <div class = "lblmnuxprt"  onclick="exportWord()"> <label class = "lblformat"> .docx </label> <span class="lbldetails"> Format traitement de texte (Word, Writer)</span> <br></div>
                 <div class = "lblmnuxprt"  onclick="exportSrt()"> <label class = "lblformat"> .srt </label> <span class="lbldetails"> Format Srt</span> <br></div>
                
@@ -1015,7 +1046,7 @@ async function displayRecentFiles() {
         <small>${file.path}</small>
         <span class="file-date">${new Date(file.openedAt).toLocaleDateString()}</span>
       
-      <div onclick="removeRecentFile('${file.path}')" title="Retirer" class="btn-recent-file">✕</div>
+      <!-- <div onclick="removeRecentFile('${file.path}')" title="Retirer" class="btn-recent-file">✕</div> !-->
     </div>
     </li>
   `).join('');
@@ -1117,11 +1148,19 @@ document.getElementById('btnNouveauCorpus').addEventListener('click', async () =
   });
 }
  
+function displayVersion() {
+//sélection de tous les éléments avec la classe "version-label"
+  const versionLabels = document.querySelectorAll('.version-label');
+  versionLabels.forEach(label => {
+    label.textContent = version; // Assigner la version à chaque élément
+  });
+}
 
 
   // Charger la liste des fichiers récents au chargement de la page
   document.addEventListener('DOMContentLoaded', () => {
     displayRecentFiles();
+    displayVersion();
     
   });
 

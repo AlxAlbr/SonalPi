@@ -171,8 +171,7 @@ window.addEventListener('unload', (event) => {
           <div>
                 <audio id = "lecteur" controls controlslist="nodownload noplaybackrate" style = "  float:left;outline:none;width:350px; position:absolute; margin-top:10px;height: 35px;">
                     <source id = "sourceLecteur" src="" type="audio/mp3">
-                    
-                Il serait temps de mettre à jour votre navigateur internet!.
+                     Votre navigateur ne supporte pas la lecture audio.
                 </audio> 
             
                 <div id = "vit_lect" style = "float:left;margin-left:360px; margin-top:9px"  >
@@ -278,7 +277,7 @@ window.addEventListener('unload', (event) => {
                     <H2 style="margin-bottom: 1px;">Catégories 
                         
                         
-                        <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="Modifier les catégories"> ✏️ Modifier </label>
+                        <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="Modifier les catégories"> ✏️ </label>
                         <label id="filgraneCat" class="btnbleu" style = "margin-right: 10px;" title="Atténuer l'affichage les catégories dans le texte" onclick="filigraneCats()"> ◐ </label>
 
                        <!--  <label id= "filtrerCat" class = "btnbleu btnfiltre" onclick="dialog('filtreCat');afflistThmFltr()" title="Filtrer les catégories" style = "font-size: 0.8rem !important;">  </label> -->
@@ -1459,10 +1458,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === "z") {    
 
 
-        if (e.ctrlKey==true) {
-
-            undo(RgBkUp);
-            event.preventDefault();
+        if (e.ctrlKey==true || e.metaKey) {
 
         }
 
@@ -1471,7 +1467,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === "y") {    
 
 
-        if (e.ctrlKey==true) {
+        if (e.ctrlKey==true || e.metaKey) {
 
             redo(RgBkUp);
             event.preventDefault();
@@ -1501,7 +1497,7 @@ document.addEventListener('keydown', (e) => {
 
 
 
-             if (e.ctrlKey==true) { // contrôle espace équivaut toujours à lire/pause
+             if (e.ctrlKey==true || e.metaKey) { // contrôle espace équivaut toujours à lire/pause
                 
                 if (audio.paused == true) {audio.play();} else {audio.pause()}
                 event.preventDefault();    

@@ -7,7 +7,7 @@
 // ajout d'un entretien
 async function ajouterEntretien(fichTxt, fichAudio){
     
-    console.log("ajout d'un entretien")
+    //console.log("ajout d'un entretien")
 
     // initialiser le storage centralisé des locuteurs (main) — fallback sur window
     if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
@@ -291,12 +291,27 @@ async function loadHtml(rgDep, rgFin){
                 cheminEnt = [Corpus.folder, tabEnt[e].rtrPath].join('/');      
             }
 
+            // 1bis - Vérification de l'existence du fichier de l'entretien
+            let existFile = await window.electronAPI.doesFileExists(cheminEnt);
+            if (!existFile) {
+                dialog("Message", "Le fichier de l'entretien " + tabEnt[e].nom + " est introuvable à l'adresse :\n'" + cheminEnt+ "'");
+                continue;
+            } 
+
             // 2 - lecture du contenu du fichier de l'entretien
             console.log("lecture du fichier : " + cheminEnt)
             let contenuEnt = await window.electronAPI.readFileContent(cheminEnt);
+            const metadata = await window.electronAPI.getFileMetadata(cheminEnt);
+
+            if (metadata.success) {
+                // Ajouter à l'élément de TabEnt
+                tabEnt[e].lastModified = metadata.lastModified;
+                tabEnt[e].fileSize = (metadata.size / (1000 * 1000)).toFixed(2) + " Mo"; // Convertir en Mo et formater
+            }
 
             if (!contenuEnt) {
                 console.error("Impossible de lire le fichier de l'entretien à l'adresse " + cheminEnt);
+                dialog("Message", "Impossible de lire le fichier de l'entretien à l'adresse " + cheminEnt);
                 return;
             }
  
@@ -319,7 +334,9 @@ async function loadHtml(rgDep, rgFin){
                     tabEnt[e].tabVar = donnéesEnt.tabVar;
                     tabEnt[e].tabDic = donnéesEnt.tabDic;   
                     tabEnt[e].tabDat = donnéesEnt.tabDat;
-                    tabEnt[e].tabAnon = donnéesEnt.tabAnon;
+                    tabEnt[e].tabAnon = donnéesEnt.tabAnon;                
+
+                    tabEnt[e].lastAccess = new Date().toISOString();
 
                     await window.electronAPI.setEnt(tabEnt); // mise à jour du tableau des entretiens dans main
 
@@ -395,9 +412,6 @@ async function afficherEnt(rgDep, rgFin){
         let existingEnt = conteneur.querySelector(`div.ligent[data-id='${tabEnt[e].id}']`);
         
         if (!existingEnt) {
-                
-
-
 
             // div de fond de l'entretien
             const div = document.createElement('div');
@@ -479,8 +493,7 @@ async function afficherEnt(rgDep, rgFin){
                 event.stopPropagation(); //pas de propagation au niveau supérieur
                 let idEnt = Number(this.dataset.id)
                 let rkEnt = tabEnt.findIndex(ent => ent.id === idEnt);
-                // voirEntretien(rkEnt)   
-                console.log("clic sur l'entretien " + rkEnt)  
+    
 
                 dispPanneauG('imgpandet', 'fond_ent_corpus')
                 afficherDetailsEnt(rkEnt);
@@ -491,8 +504,7 @@ async function afficherEnt(rgDep, rgFin){
                 event.preventDefault(); // Empêche le menu contextuel par défaut
                 let idEnt = Number(this.dataset.id)
                 let rkEnt = tabEnt.findIndex(ent => ent.id === idEnt);
-                // menuContextEnt(event.pageX, event.pageY, rkEnt); // Appelle la fonction de menu contextuel
-                console.log("clic droit sur l'entretien " + rkEnt)
+ 
             });
 
             // ajout d'un listener pour le clic sur le canvas (avec position en X)
@@ -784,6 +796,7 @@ async function afficherDetailsEnt(rk){
 
     conteneur.appendChild(infoId);
 
+    // nom du fichier dans le corpus
     let labelId = document.createElement('label');
     labelId.innerText = "Nom";
     labelId.classList.add('mdc-floating-label','floatingstatic');
@@ -806,7 +819,6 @@ async function afficherDetailsEnt(rk){
     infoTxt.appendChild(labelTxt);
 
     
-
     // proposer le changement de fichier texte?
     let btnChangeTxt = document.createElement('button');
     btnChangeTxt.innerText = "...";
@@ -820,6 +832,20 @@ async function afficherDetailsEnt(rk){
      
 
     infoTxt.appendChild(btnChangeTxt);
+
+    // dimensions du fichier
+    let infoDimValue = document.createElement('div');
+    infoDimValue.innerText = ent.fileSize ? `Taille : ${ent.fileSize}` : "Taille : ??";
+    infoDimValue.style= "padding: 5px 0px 0px 5px; width:25%; font-size:0.8em; color:#555;margin-right: 10px;float:left;";
+    infoDimValue.classList.add('floating-label-container');
+    infoTxt.appendChild(infoDimValue);
+
+    // dernière modification du fichier
+    let infoDate = document.createElement('div');
+    infoDate.innerText = ent.lastModified ? `Dernière modification : ${new Date(ent.lastModified).toLocaleString()}` : "Dernière modification : ??";
+    infoDate.style= "padding: 5px 0px 0px 5px; width:60%; font-size:0.8em; color:#555;float:left;";
+    infoDate.classList.add('floating-label-container');
+    infoTxt.appendChild(infoDate);
 
     let infoAud = document.createElement('div');
     infoAud.innerText =  "";
