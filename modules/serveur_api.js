@@ -235,6 +235,27 @@ class ServeurAPI {
   }
 
   /**
+   * Vérifie l'existence d'un fichier via l'endpoint léger du serveur
+   * GET /api/upload.php?file=xxxx/xxxx&action=exists
+   */
+  async verifierExistence(filePath) {
+    console.log('🔍 Vérification existence:', filePath);
+   
+    try {
+      // Utiliser requestWithAction comme pour les verrous
+      const result = await this.requestWithAction(filePath, 'exists');
+      
+      // Si la requête réussit, le fichier existe
+      const exists = result && (result.exists === true || result.success === true);
+      console.log(`   ✅ Résultat: ${exists ? 'EXISTE' : 'N\'EXISTE PAS'}`);
+      return exists;
+    } catch (error) {
+      console.log('❌ Erreur vérification:', error.message);
+      return false;
+    }
+  }
+
+  /**
    * Télécharge un fichier avec verrouillage automatique
    */
   async lireFichier(filePath) {

@@ -2541,3 +2541,15 @@ SYNTHESE
     background-color: #fff9c4 !important;
     box-shadow: inset 0 0 0 2px #fbc02d;
 }
+
+
+/* TAGS */
+.tagssegs::after {
+    content: attr(data-tags);
+    display: none;
+    margin-top: 5px;
+    font-size: 0.9rem;
+    color: #0a22aa;
+    font-style: italic;
+    white-space: pre-wrap;
+}

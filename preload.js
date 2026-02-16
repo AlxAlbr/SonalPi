@@ -88,6 +88,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setEntCur: (ent_cur) => ipcRenderer.invoke('set-ent_cur', ent_cur),
   getEntCur: () => ipcRenderer.invoke('get-ent_cur'),
 
+  // mettre à jour et récupérer l'utilisateur
+  setUser: (user) => ipcRenderer.invoke('set-user', user),
+  getUser: () => ipcRenderer.invoke('get-user'),
+
   // Fonction pour envoyer les logs au main process (DÉSACTIVÉE)
   // log: (level, message) => ipcRenderer.invoke('log', level, message),
 

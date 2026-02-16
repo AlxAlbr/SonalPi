@@ -605,13 +605,14 @@ var spaceKey=false; // mémorisation de l'utilisation de la touche espace
 //var mode_cat = false; // mode catégorisation - définit le comportement lors de la sélection des mots (active ou non la catégorisation)
 var debSel =0 // mémorisation du rang du conteneur de début
 var finSel =0 // mémorisation du rang du conteneur de fin
+var debCom = 0 // début du commentaire 
+var finCom = 0 // fin du commentaire
 
 
 var taille_cur = 18; // taille de police en cours
 var taille_def = 18;// taille de police par défaut
 
-// utilisateur 
-var utilisateur="";
+
 
 // désavtivation de la sélection 
 var noSel=true; 
@@ -2057,7 +2058,7 @@ function dialog(type){
 
     case "comment":
 
-    console.log ("debsel "+ debSel + " finsel " + finSel    )
+    console.log ("debcom "+ debCom + " fincom " + finCom    )
     contenu.style.top="25%";
     contenu.style.height="";    
     contenu.innerHTML = 
@@ -2070,12 +2071,26 @@ function dialog(type){
             <div class="menudrlnt" id = "menuexport"   >
 
             
-            <label style="float:left"> De: </label> 
-            <label id = "authcomm" style="float:left; margin-left:10px"> Auteur.ice </label> 
+            <label style="float:left;padding: 5px;margin-top: 10px;"> De: </label> 
+            <textarea id = "authcomm" style="
+                float: left;
+                margin-left: 10px;
+                background-color: #ffffff;
+                padding: 5px;
+                border-radius: 2px;
+                width: 50%;
+                margin-top: 10px;
+                border: 1px solid;
+                height:35px;
+                resize:none;" 
+                onfocus="dsTxtArea=false;dsTxtAutre=true"  onfocusout= "dsTxtAutre=false;"
+                placeholder="Signataire du commentaire"
+                >  </textarea> 
+
              <textarea id="txtcomms"  style = "width:100%; height:180px; padding:12px; margin-top:20px" placeholder = "Ajoutez un commentaire..."   onfocus="dsTxtArea=false;dsTxtAutre=true"  onfocusout= "dsTxtAutre=false;"  ></textarea>
             <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:10px;"> 
-             <label id = "btnsupprcomm" class='btnfonction' style = "width : 25%;flex:1"; onclick="supprimerCommentaire(`+ debSel + `,` + finSel + `)">❌️ Supprimer</label>  
-             <label id = "btncomm" class='btnfonction' style = "width: 75%; float : right;flex:3"; onclick="validerCommentaire(`+ debSel + `,` + finSel + `)">Valider</label>
+             <label id = "btnsupprcomm" class='btnfonction' style = "width : 25%;flex:1"; onclick="supprimerCommentaire(`+ debCom + `,` + finCom + `)">❌️ Supprimer</label>  
+             <label id = "btncomm" class='btnfonction' style = "width: 75%; float : right;flex:3"; onclick="validerCommentaire(`+ debCom + `,` + finCom + `)">Valider</label>
              </div>  
         </div>`
 
@@ -2297,18 +2312,27 @@ async function addComment(){
         return ;
     }
 
-    if (!utilisateur) {
+    debCom = debSel;
+    finCom = finSel;
+
+    let auteurCom= await electronAPI.getUser();
+
+   /* if (!auteurCom) {
+
+        auteurCom = ""
+        /*
         // utilisation de la boite non bloquante
         const name = await showPrompt("Pour signer vos commentaires, merci d'entrer votre nom :", "");
         if (!name) { return; }
         utilisateur = name;
+        
     }
+    */
 
     dialog("comment");
-    document.getElementById("authcomm").textContent = utilisateur;
+    document.getElementById("authcomm").textContent = auteurCom;
     document.getElementById("btnsupprcomm").classList.add("dnone"); // on masque le bouton de suppression
     setTimeout(() => {
-        
         document.getElementById("txtcomms").focus();
     }, 100);
 
@@ -2324,67 +2348,27 @@ spn.dataset.obs=utilisateur + " : " + commentaire;
 
 
     
-/*
-    // Ajout de la balise thmr avant le deb
-    const spn2 = getSpan(debSel)
-
-    // Get the parent element
-    let parentDiv = spn2.parentNode;
-
-    // nom de l'utilisateur
-    var spnObs = document.createElement("DIV");
-    spnObs.contentEditable==false;
-    //spnObs.setAttribute('placeholder', 'Ajoutez un commentaire');
-     spnObs.classList.add("autobs");
-    
-    //spnObs.onfocus = ;
-    spnObs.innerHTML = utilisateur + ` : `
-
  
-    // Insert the new element into before sp2
-    parentDiv.insertBefore(spnObs, spn2);
-
-
-    // zone de commentaire
-    var spnObs = document.createElement("DIV");
-    spnObs.contentEditable==true;
-    //spnObs.setAttribute('placeholder', 'Ajoutez un commentaire');
-    spnObs.setAttribute('onclick', 'getThm('+ debSel + ')');
-    spnObs.setAttribute('onfocusout', 'validCom()');
-    //spnObs.setAttribute('onfocusin', 'dsTxtArea=false;dsTxtAutre=true');
-    spnObs.classList.add("obs");
-    
-    //spnObs.onfocus = ;
-    spnObs.innerHTML = ` Commentaire...`
-
-
-
-    // Insert the new element into before sp2
-    parentDiv.insertBefore(spnObs, spn2);
-    */
-    /*
-    var lgnObs = document.createElement("div");
-    lgnObs.classList.add("lgnobs");
-       // Insert the new element into before sp2
-    parentDiv.insertBefore(lgnObs, spn2);
-    */
-
-
-    /*
-    spnObs.focus();
-    const range = document.createRange();
-    range.selectNodeContents(spnObs);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    */
 
 }
 
-function validerCommentaire(rk, rkF){ // validation d'un commentaire existant ou nouveau
+async function validerCommentaire(rk, rkF){ // validation d'un commentaire existant ou nouveau
+
+    let auteurcomm = document.getElementById("authcomm").value.trim();
+
+    if (!auteurcomm) {
+        
+        document.getElementById("authcomm").style.border = "1px solid red";
+        
+        return;
+         
+    } else {
+        await electronAPI.setUser(auteurcomm); // mémorisation de l'auteur pour les prochains commentaires
+        utilisateur = auteurcomm; // mémorisation de l'auteur pour les prochains commentaires
+    }
 
     const commentaire = document.getElementById("txtcomms").value;    
-    const sign = document.getElementById("authcomm").textContent;
+    const sign = auteurcomm.trim();
 
     //if (!commentaire || !sign){return}; 
 

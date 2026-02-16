@@ -26,6 +26,8 @@ var tabGrph = []; // tableau des représentations simplifiées des entretiens (p
 var ent_cur = -1; // entretien courant
 var tabLocImport = []; // locuteurs importés (stockage central dans le main)
 
+// utilisateur 
+var utilisateur="";
  
 
 // Handlers pour mettre à jour et récupérer le corpus
@@ -85,6 +87,13 @@ ipcMain.handle('get-ent_cur', () => { console.log("demande get-ent_cur"); return
 ipcMain.handle('set-ent_cur', (_, newEntCur) => {
   console.log("mise à jour de ent_cur avec nouvelle valeur :" + newEntCur);
   ent_cur = newEntCur;
+  return true;
+});
+
+// Handlers pour récupérer et mettre à jour l'utilisateur
+ipcMain.handle('get-user', () => { return utilisateur; });
+ipcMain.handle('set-user', (_, newUser) => {
+  utilisateur = newUser;
   return true;
 });
 
@@ -384,17 +393,49 @@ ipcMain.handle('file:createPath', async (_, ...args) => {
   }
 });
 
-// Vérifier l'existence d'un fichier 
-ipcMain.handle('file:exists', async (_, fileName) => {
+// Vérifier l'existence d'un fichier (local ou distant)
+ipcMain.handle('file:exists', async (_, filePath) => {
   
-  console.log(fileName)
-  if (!fileName) return false;
+  console.log('📁 Vérification existence:', filePath);
+  if (!filePath) return false;
 
-  if (fs.existsSync(fileName)) {
-    return true;
-  } else {return false} ;
+  function localOuDistant(filePath) {
+    try {
+      const u = new URL(filePath);
+      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:') {
+        return 'remote';
+      }
+      return 'local';
+    } catch (e) {
+      return fs.existsSync(filePath) ? 'local' : 'remote';
+    }
+  }
 
-   
+  try {
+    if (localOuDistant(filePath) === 'local') {
+      // Fichier local
+      const exists = fs.existsSync(filePath);
+      console.log(`  ✅ Local: ${exists ? 'Existe' : 'N\'existe pas'}`);
+      return exists;
+    } else {
+      // Fichier distant - utiliser verifierExistence (plus léger)
+      if (!serveurAPI) {
+        console.log('  ❌ Distant: Pas de connexion au serveur');
+        return false;
+      }
+      
+      try {
+        const exists = await serveurAPI.verifierExistence(filePath);
+        return exists;
+      } catch (err) {
+        console.log(`  ❌ Distant: Erreur - ${err.message}`);
+        return false;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erreur vérification existence:', error);
+    return false;
+  }
 });
 
 // copier/coller 

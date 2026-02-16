@@ -724,9 +724,16 @@ async function lireCrpSonal2(contenu){
                 }    
  
 
+                        // prise en compte des tags éventuels 
 
-                // création du span pour le segment
-                        contenuHtml += `<span class="lblseg sautlig" 
+                        let classTags = "";
+
+                        if (tagsXtr.length>0) {
+                        classTags = "tagssegs"
+                        }
+
+                        // création du span pour le segment
+                        contenuHtml += `<span class="lblseg sautlig ${classTags}" 
                         data-deb="${posCourante}" 
                         data-fin="${posFin}" 
                         data-loc="${rkLoc}"
@@ -736,6 +743,7 @@ async function lireCrpSonal2(contenu){
                         data-tags="${tagsXtr}"
                         >`
                         
+                         
  
 
                         // Séparation par espaces en conservant les espaces
