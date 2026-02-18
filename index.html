@@ -81,7 +81,7 @@
               </button>
                
               
-              <button id="btn-rafraichir" class="btn btn-primary" style="float:right" title="Rafraichir le corpus (charger les fichiers les plus à jour)" onclick="rafraichirCorpus() ;">
+              <button id="btn-rafraichir" class="btn btn-primary dnone" style="float:right" title="Rafraichir le corpus (charger les fichiers les plus à jour)" onclick="rafraichirCorpus() ;">
                 🗘 Rafraîchir
               </button>
              
@@ -954,7 +954,8 @@ function dialog(type, message){
                             
                        
                             <div class = "floating-label-container" style="margin-top: 10px;">
-                             <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; width:10%; ";">+</label> 
+                             
+                              <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; width:10%; ";">+</label> 
 
               
                                 </div>
@@ -980,8 +981,13 @@ function dialog(type, message){
 
                         </div>
 
-                           <label id = "btnValidVar" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="addVar('gen'); inventaireVars()">Valider</label> 
-        `
+                        <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
+
+                           <label id = "btnSupprVar" class='btnfonction' style = "width : 25%;flex:1"; onclick="supprVar(document.getElementById('lblCodeVar').value, 'gen')">❌️ Supprimer</label>  
+                           <label id = "btnValidVar" class='btnfonction btnlarge' style = "float:left; flex:3"; onclick="addVar('gen'); inventaireVars()">Valider</label> 
+                         
+                         </div>   
+                           `
 
         document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
 

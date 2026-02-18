@@ -27,6 +27,16 @@ window.electronAPI.onAfficherCorpus(async (resultat) => {
  // document.getElementById('cheminCorpus').textContent = `Chemin: ${Corpus.folder}`;
 
   window.recentFiles.add(Corpus.url); // mémorisation de l'ouverture du corpus
+
+
+    // si corpus distant, affichage du bouton rafraichir : id="btn-rafraichir"
+    if (Corpus.type == "distant"){  
+        document.getElementById('btn-rafraichir').classList.remove('dnone'); // affichage du bouton de rafraichissement
+    } else {
+        document.getElementById('btn-rafraichir').classList.add('dnone');
+    }
+    
+    
   lireCorpus(Corpus.content);  // lecture du fichier crp ()
  
 

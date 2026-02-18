@@ -116,7 +116,16 @@ loadHtml(0,Number(tabEnt.length-1)).then( () => {
 
 
 document.getElementById('fenetreAccueil').classList.add('dnone'); // masquage de la fenêtre d'accueil
- 
+
+  let Corpus = await window.electronAPI.getCorpus();
+
+    // si corpus distant, affichage du bouton rafraichir : id="btn-rafraichir"
+    if (Corpus.type == "distant"){  
+        document.getElementById('btn-rafraichir').classList.remove('dnone'); // affichage du bouton de rafraichissement
+    } else {
+        document.getElementById('btn-rafraichir').classList.add('dnone');
+    }
+
 
 
 }
@@ -890,7 +899,7 @@ async function rafraichirCorpus() {
      tabEnt = await window.electronAPI.getEnt();
 
     // défilement des entretiens 
-    for (ent=0;ent<tabEnt.length;ent++){
+    for (let ent=0;ent<tabEnt.length;ent++){
 
         console.log("vérification de la nécessité de rafraîchir l'entretien " + tabEnt[ent].nom + JSON.stringify(tabEnt[ent]));
             
@@ -902,14 +911,19 @@ async function rafraichirCorpus() {
         console.log("date de modification du fichier " + fich + " : " + dateModif + " comparée à la date de modification enregistrée " + tabEnt[ent].lastModified);
         // comparaison avec la date de modification enregistrée dans le tabEnt
         if (dateModif > tabEnt[ent].lastModified) {
-            console.log("le fichier " + fich + " a été modifié depuis la dernière lecture, il va être rechargé");
+            console.log("le fichier " + fich + " a été modifié depuis la dernière lecture, il va être rechargé au rang" + ent);
 
             // rechargement du fichier .Sonal correspondant
             // récupération du contenu du fichier .Sonal
             loadHtml(ent, ent).then( () => {
 
+                console.log("affichage au rang " + ent );
                 afficherEnt(ent, ent);
                 //inventaireVariables(); // inventaire des variables utilisées dans les entretiens
+                // flash
+                const divEnt = document.querySelector(`div.ligent[data-id='${tabEnt[ent].id}']`);
+                divEnt.classList.add("ligent-flash");
+ 
             })
 
              

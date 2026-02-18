@@ -231,6 +231,40 @@ async function sauvVar(rgVar, mode) {
     }
 }
 
+// suppression d'une variable
+async function supprVar(rgVar, mode) {
+    console.log("Suppression de la variable à l'index :", rgVar, "mode:", mode);
+
+    // recherche de la variable à supprimer
+    const varIndex = tabVar.findIndex(vr => vr.v == rgVar);
+
+    if (varIndex !== -1) {
+    
+        
+    
+        // suppression de la variable du tableau
+        tabVar.splice(varIndex, 1);
+
+        // suppression des modalités associées
+        tabDic = tabDic.filter(item => item.v != rgVar);
+
+        // sauvegarde du tableau des variables
+        await electronAPI.setVar(tabVar);
+
+        if(mode=='loc'){
+            affichDataEnt();
+        } else if (mode=='gen'){
+            await window.sauvegarderCorpus(false);
+            updateVarsDsEnt() ;// modification dans les fichiers Sonal de tous les entretiens
+            await window.majFichierSonal();
+            
+             affichDataGen(); 
+        }
+    } else {
+        alert("Variable non trouvée.");
+    }
+}
+
 // sauvegarde des modalités depuis la fenêtre d'édition des variables
 function sauvModas(ode) {
 
@@ -965,17 +999,18 @@ async function affichDataGen(){
                         const modalite = dataRow.tabDic.find(dc => dc.v === varLoc && dc.m === ligne.m);
                         
                         if (modalite) {
-                        
+                         if (modalite.lib != "" && modalite.lib != undefined && modalite.lib != "undefined") {
                             if (ligne.l != "all") {
                                 
-                                td.innerHTML += "<b>" + dataRow.tabLoc[ligne.l] + "</b> : " + modalite.lib + "   <br>" ;
+                               
+                                    td.innerHTML += "<b>" + dataRow.tabLoc[ligne.l] + "</b> : " + modalite.lib + "   <br>" ;
 
                             } else {
                         
                                 td.textContent += modalite.lib ;
                         
                             }
-                        
+                         }
                         }
                     });
                     

@@ -381,10 +381,13 @@ async function loadHtml(rgDep, rgFin){
 // ============================================================================
 async function afficherEnt(rgDep, rgFin){
 
-    console.log("affichage des entretiens de " + rgDep + " à " + rgFin)
+    
 
     tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
     Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
+
+
+    console.log("affichage des entretiens de " + rgDep + " à " + rgFin + " \n tabent : ", tabEnt);
 
     const conteneur=document.getElementById('fond_ent_corpus');
 
@@ -411,7 +414,12 @@ async function afficherEnt(rgDep, rgFin){
         // 1 - Création (éventuelle) du conteneur
 
         // recherche s'il n'existe pas déjà
+        
+        
+
         let existingEnt = conteneur.querySelector(`div.ligent[data-id='${tabEnt[e].id}']`);
+         
+
         
         if (!existingEnt) {
 
@@ -1222,6 +1230,8 @@ async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sona
     let tabVar = await window.electronAPI.getVar(); // récupération des variables depuis main
     let tabDic = await window.electronAPI.getDic(); // récupération des dictionnaires depuis main
 
+     if (!rkD || !rkD){rkD=0; rkF=tabEnt.length} // si les rangs de début et de fin ne sont pas précisés, on traite tous les entretiens
+
     if (!rkD || rkD<0){rkD=0}
     if (!rkF || rkF>tabEnt.length){rkF=tabEnt.length}
 
@@ -1237,7 +1247,7 @@ async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sona
 
     
     // création d'un fichier Sonal à partir des données mémorisées  
-    let contenuFichierSonal = window.sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, tabDat, ent.notes, await window.electronAPI.getHtml(rkEnt), tabAnon);
+    let contenuFichierSonal = window.sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, tabDat, ent.notes, await window.electronAPI.getHtml(rkEnt), ent.tabAnon);
 
      try {
  
