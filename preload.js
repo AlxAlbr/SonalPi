@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFileContent: (filePath) => ipcRenderer.invoke('file:readContent', filePath),
   getFileMetadata: (filePath) => ipcRenderer.invoke('file:getMetadata', filePath),
   doesFileExists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
+  getLastModified: (filePath) => ipcRenderer.invoke('file:lastModified', filePath),
   getDir: (filePath) => ipcRenderer.invoke('file:getPath', filePath),
   createPath: (...args) => ipcRenderer.invoke('file:createPath', ...args),
   // Pour soumettre les données de l'URL

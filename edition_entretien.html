@@ -206,10 +206,13 @@ window.addEventListener('unload', (event) => {
             </div>
 
             <div style="flex: 7;"> 
-                <div id="graph" style="height: 45px; margin: 10px; " >
-
+                <div id="graph" style="height: 45px; margin: 10px;padding-top:10px" >
+                    <div class="fond-cnv-ent" style="position: relative;">
                         <label id = "lblposlect" class = "ligchrono"> </label>
-                        <canvas id="graphEnt" class = "cnv" ></canvas>
+                         <canvas id="graphEnt" class = "cnv" style="z-index: 11;position:relative;margin-top:0px !important; " ></canvas>
+                        <img alt="" data-id="0" class="ligent-img">
+                       
+                    </div>    
 
                 </div>
             </div>
@@ -951,7 +954,7 @@ function dispPanneauG(bouton, composant){
 
     // (dé)sactivation du surlignement 
     //backUp(); 
-    cleanHTML(); 
+    //cleanHTML(); 
 
         const btnFilig = document.getElementById('filgraneCat');
         if (btnFilig) {
@@ -1137,7 +1140,7 @@ document.addEventListener("selectionchange", () => {
     if (noSel==true) {return}
 
 // retrait des sélecteurs 
-document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
+    document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
 
   //console.log(document.getSelection());
   const selection = window.getSelection();

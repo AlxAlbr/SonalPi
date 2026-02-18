@@ -81,7 +81,7 @@
               </button>
                
               
-              <button id="btn-sauvegarder" class="btn btn-primary dnone" style="float:right" title="Rafraichir le corpus (charger les fichiers les plus à jour)" onclick="rafraichirCorpus() ;">
+              <button id="btn-rafraichir" class="btn btn-primary" style="float:right" title="Rafraichir le corpus (charger les fichiers les plus à jour)" onclick="rafraichirCorpus() ;">
                 🗘 Rafraîchir
               </button>
              
@@ -528,7 +528,8 @@ function hidepanG(){
 
           affichListThmCrp();
           // redessin de tous les graphs 
-          dessinTousEntretiens();
+          //dessinTousEntretiens();
+          affichageExtraitsCorpus();
 
         }); 
 
@@ -572,7 +573,7 @@ function hidepanG(){
         if (cnvEnt) {
            
           resumeGraphique(html.replace(/`/g,'')).then((tabGrphEnt) => {
-            dessinResumeGraphique(cnvEnt, tabGrphEnt);
+            dessinResumeGraphique(rkEnt, cnvEnt, tabGrphEnt);
           }).catch(err => console.error("Erreur resumeGraphique:", err));
            
         } else {
@@ -1227,6 +1228,8 @@ function displayVersion() {
     });
   
     });
+
+
 
 
 

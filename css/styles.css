@@ -940,7 +940,7 @@ height: 45px;
   border: 2px solid #2E73D8 !important;
   box-shadow: 2px 2px 5px #2E73D8a3;
   background-color: rgb(255, 255, 255) !important;
-  border-left: 9px solid #2E73D8 !important;
+  /*border-left: 9px solid #2E73D8 !important;*/
 }
 
 .ligent:hover{
@@ -970,7 +970,7 @@ height: 45px;
   height: 31px;
   border-radius: 3px;
   border: 1px solid #cbcbcb;
-   background-image: linear-gradient(#adadad31 0%, #fbf5f560 50%, #adadad31 100%) !important;
+  background-image: linear-gradient(#00000040 0%, #fbf5f560 50%, #00000040 100%) !important;
 }
 
 .ligent-img{
@@ -1003,20 +1003,36 @@ height: 45px;
   width:100%; 
   border: 1px solid #b9b9b9;
   border-radius: 5px;
-  z-index:10; 
+  z-index:9; 
   cursor: pointer;
 }
 
 
 .ligchrono{
 
-  height:40px;
+  height:29px;
   border-color: red;
   border-style: solid;
   border-width: 1px;
   width: 2px;
   z-index: 10;
   position:absolute
+}
+
+.xtr-graph{
+  z-index: 10;
+  /*pointer-events: none; */
+  cursor:pointer;
+  position: absolute;
+
+}
+.xtr-graph:hover{
+  border: 1px solid #ff0000 !important;
+  transform: translate(-1px, -1px);
+  mix-blend-mode: normal;
+  opacity: 1;
+  z-index: 100;
+
 }
 
 .fenent {
@@ -1262,14 +1278,18 @@ Styles pour les fonctions de recherche
     padding: 5px;
 }
 
-.segselected{
-
-  /*border : 1px solid #80bdff !important;*/
-  background-color: white;
-     /* border-bottom: 3px solid #80bdff !important;
- box-shadow: 2px 2px  2px 2px 0.1rem 0.1rem rgba(0,123,255, 0.25);
-   */
-
+.segselected {
+    /* border: 1px solid #80bdff !important; */
+    background-color: #ffffff;
+    border-left: 4px solid var(--couleur-titre);
+    border-right: 4px solid var(--couleur-titre);
+    border-top: 1px solid var(--couleur-titre);
+    border-bottom: 1px solid var(--couleur-titre);
+    border-radius: 5px;
+    padding-left: 5px;
+    margin-left: -9px;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
  
@@ -1463,7 +1483,7 @@ Styles pour les fonctions de recherche
             height: 20px;
             margin-left: 8px;
             vertical-align: middle;
-            background-image: url('../img/clear-icon.png');
+           /* background-image: url('../img/clear-icon.png');*/
             background-size: contain;
             background-repeat: no-repeat;
             cursor: pointer;

@@ -194,7 +194,7 @@ function chargeAudio(event) {
                 // mise à jour du dessin de l'entretien
                 const html = document.getElementById("segments").innerHTML; 
                 const canva = document.getElementById("graphEnt")
-                dessinResumeGraphique(html, canva);
+                dessinResumeGraphique(tabEnt.length-1, html, canva);
                  
                
     

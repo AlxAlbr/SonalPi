@@ -307,6 +307,7 @@ async function loadHtml(rgDep, rgFin){
                 // Ajouter à l'élément de TabEnt
                 tabEnt[e].lastModified = metadata.lastModified;
                 tabEnt[e].fileSize = (metadata.size / (1000 * 1000)).toFixed(2) + " Mo"; // Convertir en Mo et formater
+                await window.electronAPI.setEnt(tabEnt); // mise à jour du tableau des entretiens dans main
             }
 
             if (!contenuEnt) {
@@ -340,6 +341,7 @@ async function loadHtml(rgDep, rgFin){
 
                     await window.electronAPI.setEnt(tabEnt); // mise à jour du tableau des entretiens dans main
 
+                    
 
                     await window.electronAPI.setHtml(e, String(tabHtml[e]));
 
@@ -577,7 +579,7 @@ async function afficherEnt(rgDep, rgFin){
             }
 
             //console.log("HTML de l'entretien " + e + " pour affichage ", htmlEnt.substring(0, 100) + '...'   );
-            dessinResumeGraphique(cnv, tabGrphEnt); // résumé graphique de l'entretien
+            dessinResumeGraphique(e, cnv, tabGrphEnt); // résumé graphique de l'entretien
 
         }
 
@@ -592,6 +594,20 @@ async function afficherEnt(rgDep, rgFin){
          // message de fin  
         document.getElementById('status-bar').innerText = "Prêt " 
         document.getElementById('progress-bar').style.width = "0"; 
+
+
+        // initialisation de la veille de redimensionnement
+        const canvas = document.querySelector('.ligent-img');
+
+        const resizeObserver = new ResizeObserver(() => {
+        console.log('Un canvas a été redimensionné - correction de tous');
+        
+        // Redessiner TOUS les canvas
+        //let tabGrphEnt = [{"pos":0, "width":0, "catsThm":0} ]; // tableau pour stocker les graphiques de tous les entretiens
+        //dessinTousEntretiens(); // ou ta fonction de redraw
+        });
+
+        resizeObserver.observe(canvas);
 
 }    
 
@@ -847,6 +863,30 @@ async function afficherDetailsEnt(rk){
     infoDate.classList.add('floating-label-container');
     infoTxt.appendChild(infoDate);
 
+    infoDate.addEventListener('click', async function() {
+
+        // récupère la date de modification du fichier (local ou distant)
+        let cheminEnt = "";
+        if (Corpus.type == "local") {
+            cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
+        } else {
+            cheminEnt = [Corpus.folder, ent.rtrPath].join('/');
+        }
+
+        await window.electronAPI.getLastModified(cheminEnt).then(lastModified => {
+            if (!lastModified) {
+                infoDate.innerText = "Dernière modification : ??";
+                return;
+            }
+            console.log("Dernière modification du fichier:", lastModified);
+            infoDate.innerText = `Dernière modification : ${new Date(lastModified).toLocaleString()}`;
+        }).catch(error => {
+            console.error("Erreur lors de la récupération de la dernière modification:", error);
+        });
+
+
+    });
+
     let infoAud = document.createElement('div');
     infoAud.innerText =  "";
     infoAud.classList.add('item-info-ent','floating-label-container');
@@ -1058,7 +1098,7 @@ async function afficherWhisPurge(){
 
     console.log("tableau graphique de l'entretien " + rkEnt + " : ", tabGrphEnt[1])
     // dessin du graphe de l'entretien
-    dessinResumeGraphique( document.getElementById("graphEnt"),tabGrphEnt   );
+    dessinResumeGraphique(0, document.getElementById("graphEnt"),tabGrphEnt);
 
 }
 

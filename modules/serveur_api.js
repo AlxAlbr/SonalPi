@@ -256,6 +256,30 @@ class ServeurAPI {
   }
 
   /**
+   * Vérifie l'existence d'un fichier via l'endpoint léger du serveur
+   * GET /api/upload.php?file=xxxx/xxxx&action=exists
+   */
+  async derniereModif(filePath) {
+    console.log('🔍 Vérification dernière modification:', filePath);
+   
+    try {
+      // Utiliser requestWithAction comme pour les verrous
+      const result = await this.requestWithAction(filePath, 'last_modified');
+      
+      // Normaliser la réponse vers une date ISO ou null
+      const lastModified = result?.last_modified || result?.modified || null;
+      console.log(`   ✅ Résultat: ${lastModified ? lastModified : 'NON MODIFIÉ'}`);
+      return lastModified;
+    } catch (error) {
+      console.log('❌ Erreur vérification:', error.message);
+      return null;
+    }
+  }
+
+
+
+
+  /**
    * Télécharge un fichier avec verrouillage automatique
    */
   async lireFichier(filePath) {

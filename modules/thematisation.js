@@ -211,7 +211,37 @@ async function afflistThm(tabThm, conteneur){
 
                     thm_cur = div.dataset.code;
                     
-                    console.log("envoi du thm" + thm_cur)
+                    
+                    if (!debSel && !finSel){
+
+                        if (seg_cur>0){
+
+                            
+                            let seg_suiv = seg_cur ;
+                            seg_suiv ++;
+
+                            console.log("seg_cur = " + seg_cur + "  seg_suiv = " + seg_suiv ) 
+
+                            // définition du rang du premier mot du segment
+                            let segDeb = document.querySelector(".lblseg[data-rksg='"+ seg_cur +"']")
+                            let segSuiv  = document.querySelector(".lblseg[data-rksg='"+ seg_suiv +"']")
+                            
+                            console.log(segDeb.dataset.rksg + "  " + segSuiv.dataset.rksg)
+
+
+                            if (segDeb && segSuiv){
+                                
+                                debSel = segDeb.tabIndex;
+                                finSel = segSuiv.tabIndex;
+                                finSel-- ; 
+
+                                 console.log("nouveau debSel = " + debSel + " finSel = " + finSel)
+                            }
+
+                        }
+                        
+
+                    }
                     thmSeg(debSel,finSel,thm_cur)
                     //selThmCur(thm_cur) 
                     
@@ -421,7 +451,9 @@ async function affichListThmCrp(tabThm){
         await window.electronAPI.setThm(tabThm);
         
         // redessin de tous les graphs 
-        dessinTousEntretiens();
+        //dessinTousEntretiens();
+            affichageExtraitsCorpus();
+  
     }
 });
         
@@ -465,7 +497,8 @@ div.addEventListener('contextmenu', async (event) => {
         await window.electronAPI.setThm(tabThm);
         
         // redessin de tous les graphs 
-        dessinTousEntretiens();
+        //dessinTousEntretiens();
+        affichageExtraitsCorpus();
 
 
 });
@@ -1171,7 +1204,7 @@ async function thmSeg(deb, fin, thm){ // affecter un code de catérogie
     const html = document.getElementById("segments").innerHTML; 
     const canva = document.getElementById("graphEnt")
     let tabGrphEnt = await resumeGraphique(html.replace(/`/g,''));
-    dessinResumeGraphique(canva, tabGrphEnt);
+    dessinResumeGraphique(0, canva, tabGrphEnt);
 
     
 

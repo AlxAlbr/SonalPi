@@ -72,6 +72,8 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
             Spn2.classList.add("finsel")
             }
 
+             // effacement de la sélection de segment
+            document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
             
             listenersFinSel();
             if (rk==finSel) {showMenu(getSpan(finSel), typeAction)};
@@ -82,7 +84,9 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
         //console.log("debsel",debSel)
         //console.log("finsel",finSel)
         //seg_cur=`+ n + `;selSegment(` + n + `,false) ; dsTxtArea=true;
-    
+        
+       
+
         survSeg(rk);
         
         // récupération de la sélection courante (debsel finsel) à partir du thm courant   
@@ -95,6 +99,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     
     function survSeg(rk){//ce qu'il se passe quand on survole un mot
     
+      
           
         
             if (typeAction !="cat") { return;} // si on n'est pas en mode catégorie, on ne fait rien
@@ -106,6 +111,8 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     
             var survsel=rk;
     
+          
+
             // effacement de la classe de survol
             const tousLbl = document.querySelectorAll('.survseg'); // document.getElementsByClassName("survseg")
              
@@ -130,6 +137,9 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
             if (conteneur) {conteneur.classList.add('survseg');}
     
         }
+
+           // effacement de la sélection de segment
+            document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
     
         // ajout de la classe de survol
     
@@ -138,6 +148,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     
     
     function survOk(){
+
         document.querySelectorAll(".survseg").forEach(el => el.classList.add("survok"));
         document.querySelectorAll(".survseg").forEach(el => el.classList.remove("survseg"));
         
@@ -534,7 +545,9 @@ document.getElementById('segments').innerHTML= BkUp[RgBkUp]
         
         if (segment.dataset.rksg == seg) {
             //console.log ("ajout du segselect dans le seg " + seg)
+            if (debSel==0 && finSel==0){
             segment.classList.add('segselected')
+            }
         }
         
     }

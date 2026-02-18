@@ -2,7 +2,8 @@
 // variables de gestion du projet 
 ////////////////////////////////////////////////////////////////
 
-//const { afficherEnt } = require("./gestion_entretiens");
+// Note: loadHtml and afficherEnt are available from gestion_entretiens.js
+// loaded via <script> tags in index.html
 
  
 
@@ -879,6 +880,57 @@ let corpusActuel = Corpus.url;
   }
 }
 
+async function rafraichirCorpus() {
+
+    if (Corpus.type !=="distant"){
+        return; // le rafraîchissement ne se fait que pour les corpus distants
+    }
+
+     // récupération du tableau des entretiens
+     tabEnt = await window.electronAPI.getEnt();
+
+    // défilement des entretiens 
+    for (ent=0;ent<tabEnt.length;ent++){
+
+        console.log("vérification de la nécessité de rafraîchir l'entretien " + tabEnt[ent].nom + JSON.stringify(tabEnt[ent]));
+            
+        let fich =  [Corpus.folder,tabEnt[ent].rtrPath].join('/');
+
+        // récupération de la dernière date de modification
+        let dateModif = await window.electronAPI.getLastModified(fich);
+
+        console.log("date de modification du fichier " + fich + " : " + dateModif + " comparée à la date de modification enregistrée " + tabEnt[ent].lastModified);
+        // comparaison avec la date de modification enregistrée dans le tabEnt
+        if (dateModif > tabEnt[ent].lastModified) {
+            console.log("le fichier " + fich + " a été modifié depuis la dernière lecture, il va être rechargé");
+
+            // rechargement du fichier .Sonal correspondant
+            // récupération du contenu du fichier .Sonal
+            loadHtml(ent, ent).then( () => {
+
+                afficherEnt(ent, ent);
+                //inventaireVariables(); // inventaire des variables utilisées dans les entretiens
+            })
+
+             
+            tabEnt[ent].lastModified = dateModif;
+
+            await window.electronAPI.setEnt(tabEnt);
+
+        }
+
+            // rechargement de l'entretien
+
+        // définition du nom sur le serveur 
+
+ 
+
+
+    }
+
+    await window.electronAPI.setEnt(tabEnt);
+    console.log("rafraîchissement du corpus terminé")
+}
 
 /*
 async function lireacoté(dossier, fichier) {
@@ -1135,10 +1187,10 @@ async function dessinTousEntretiens(){
 
              // sauvegarde du tabGrph dans le corpus
                 await window.electronAPI.setGrph(e, tabGrphEnt);
-                dessinResumeGraphique(canva, tabGrphEnt);
+                dessinResumeGraphique(e,canva, tabGrphEnt);
                 }
             else { // dessiner à partir du tabGrph existant
-                dessinResumeGraphique(canva, tabGrphEnt);
+                dessinResumeGraphique(e,canva, tabGrphEnt);
             };   
 
 
@@ -1161,7 +1213,7 @@ async function resumeGraphique(html) {
     tabThm = await window.electronAPI.getThm(); // récupération des thématiques dans main.js 
     if (tabThm.length == 0) {return} // s'il n'y a pas de thématiques, on sort de la fonction
 
-    let tabGrphEnt = [{"pos":0, "width":0, "catsThm":0} ]; // tableau des graphismes à dessiner // première ligne non nulle pour distinguer mes tabgrph déjà calculés (mais vides) de ceux qui doivent être calculés
+    let tabGrphEnt = [{"pos":0, "width":0, "catsThm":0, "rkMot":0} ]; // tableau des graphismes à dessiner // première ligne non nulle pour distinguer mes tabgrph déjà calculés (mais vides) de ceux qui doivent être calculés
 
      
     // Créer un conteneur temporaire pour analyser le HTML
@@ -1178,7 +1230,10 @@ async function resumeGraphique(html) {
     
     for (let mot of mots) {
          
-            if (!mot.classList || mot.classList.length === 0) { continue; }
+            if (!mot.classList || mot.classList.length === 0) { 
+                tabGrphEnt.push({"pos":0, "width":1, "catsThm":[]});
+                continue; 
+            }
 
             // c'est un mot
             if (!mot.classList.contains('lblseg') ){ 
@@ -1220,12 +1275,13 @@ async function resumeGraphique(html) {
                     //const ctx = canva.getContext('2d');
 
 
-                    let ratioMot= mot.dataset.rk/ nbmots
+                    let ratioMot = Number((mot.dataset.rk / nbmots*100).toFixed(3))
  
                     
                     // calcul de la position du mot dans l'ensemble
  
-                    let posMot = Math.round(1000 * ratioMot)                      
+                    let posMot = ratioMot   // position relative (2 décimales)  
+                    let largeurMot = (1 / nbmots * 100).toFixed(3) //Number(nbmots/100).toFixed(3); // position relative (2 décimales)  
                     
                     if ( posMot == derPosMot){continue} // n'affiche que tous les  pixels
 
@@ -1234,7 +1290,7 @@ async function resumeGraphique(html) {
                     derPosMot = posMot; 
                     
                    
-                    tabGrphEnt.push({"pos":posMot, "width":1, "catsThm":catsThm});
+                    tabGrphEnt.push({"pos":posMot, "width":largeurMot, "catsThm":catsThm, "rkMot":mot.dataset.rk});
 
                     /*
                     for (thm=0;thm<catsThm.length;thm++){
@@ -1294,21 +1350,25 @@ async function resumeGraphique(html) {
             let dernier = tabGrphEntComp[tabGrphEntComp.length -1]; 
             if (JSON.stringify(dernier.catsThm) === JSON.stringify(tabGrphEnt[i].catsThm)){
                 // même catégorie, on étend la largeur
-                dernier.width += tabGrphEnt[i].width;
+                let valprec = Number(dernier.width);
+                dernier.width = valprec + Number(tabGrphEnt[i].width);
             } else {
                 tabGrphEntComp.push(tabGrphEnt[i]);
             }
         }
     }
 
-//console.log("fin de la création du tableau des graphismes compacté pour l'entretien", tabGrphEntComp)
+// filtrer le tableau pour ne garder que les graphismes qui ont une position à zéro
+tabGrphEntComp = tabGrphEntComp.filter(grph => grph.pos > 0);
+
+console.log("fin de la création du tableau des graphismes compacté pour l'entretien", tabGrphEntComp)
     
 return tabGrphEntComp;
  
 }
 
 
-async function dessinResumeGraphique(canva, tabGrphEnt){
+async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
 
     //console.log("dessin du résumé graphique dans le canvas", canva, tabGrphEnt)
     
@@ -1317,10 +1377,18 @@ async function dessinResumeGraphique(canva, tabGrphEnt){
     if (tabThm.length == 0) {return} // s'il n'y a pas de thématiques, on sort de la fonction
 
     const ctx = canva.getContext('2d');
-    ctx.clearRect(2, 0, canva.width, canva.height-4); // effacement du canvas
+    //ctx.clearRect(2, 0, canva.width, canva.height-4); // effacement du canvas
+
+    //effacement de tous les spans éventuels dans le canvas
+    const spans = document.querySelectorAll('.xtr-graph[data-e="' + rkEnt + '"]');
+    spans.forEach(span => span.remove());
 
 
-            const rect = canva.getBoundingClientRect();          
+    /*
+
+            const rect = canva.getBoundingClientRect();    
+            console.log("dimensions du canvas : " + rect.width + "x" + rect.height);
+
             // Taille d'affichage souhaitée
             const displayWidth = rect.width; //1000;
             const displayHeight = rect.height; //31;
@@ -1340,15 +1408,25 @@ async function dessinResumeGraphique(canva, tabGrphEnt){
             ctx.scale(dpr, dpr);
             
            
-
-
+*/
+    let rangEnt = canva.dataset.id;
+    console.log("rangent " + rangEnt); 
 
     // défilement des éléments du tableau des graphismes
     for (let i=0; i<tabGrphEnt.length; i++){
         let posMot = tabGrphEnt[i].pos;
         let catsThm = tabGrphEnt[i].catsThm;
-        const hauteur = canva.height ;
-        const largeur = canva.width ;
+        let rkMot = tabGrphEnt[i].rkMot;
+         // récupération du rang de l'entretien à partir du dataset du canvas
+
+        
+
+        //const hauteur = canva.height ;
+        //const largeur = canva.width ;
+        const largeur = document.querySelector('.fond-cnv-ent').getBoundingClientRect().width; // largeur du canvas en pixels
+        const hauteur = document.querySelector('.ligent-img').getBoundingClientRect().height; // hauteur du canvas en pixels
+
+        //console.log("dimensions du canvas : " + largeur + "x" + hauteur);
 
         for (thm=0;thm<catsThm.length;thm++){   
 
@@ -1357,11 +1435,14 @@ async function dessinResumeGraphique(canva, tabGrphEnt){
 
                 if (tabThm[rkc]){
                                 
-
-                    ctx.fillStyle ="rgba(200,200,200,0.5)"; // couleur par défaut
-                    ctx.strokeStyle = 'rgba(200,200,200,0.5)'; // couleur de bordure par défaut';
+                    let couleurFond = "rgba(200,200,200,0.5)"; // couleur par défaut
+                    let couleurBordure = 'rgba(200,200,200,0.5)'; // couleur de bordure par défaut';
+                   
+                   /*
+                    ctx.fillStyle = couleurFond; // couleur par défaut
+                    ctx.strokeStyle = couleurBordure; // couleur de bordure par défaut';
                     ctx.globalAlpha = 0.6;
-                                
+                    */           
                     let estAct=tabThm[rkc]?.act
 
                     if (estAct==undefined) {estAct=true} // si pas de valeur, on considère que le thème est actif
@@ -1370,26 +1451,93 @@ async function dessinResumeGraphique(canva, tabGrphEnt){
 
                     if (estAct  == true ){
                         if (tabThm[rkc].couleur) { 
-                        ctx.fillStyle = tabThm[rkc].couleur; } // on met la couleur de fond
+                            couleurFond = tabThm[rkc].couleur;
+                         //ctx.fillStyle = tabThm[rkc].couleur; } // on met la couleur de fond
+                        }
+                        
                     else {
-                        ctx.strokeStyle ="rgba(63, 62, 62, 1)";  // on ne met que la bordure
+                            //ctx.strokeStyle ="rgba(63, 62, 62, 1)";  // on ne met que la bordure
+                            couleurBordure = "rgba(63, 62, 62, 1)"; // couleur de bordure par défaut
+                       
                     }
                     };
 
-                    // définition de la position relative dans le canvas
-                    let lft =  Math.round((posMot / 1000) * largeur);
-                    let wth = Math.round((tabGrphEnt[i].width / 1000) * largeur);
-                    ctx.fillRect(lft,  hauteur/(catsThm.length) *thm, wth,  hauteur/(catsThm.length));
-                    ctx.strokeRect(lft,  hauteur/(catsThm.length) *thm, wth,  hauteur/(catsThm.length));
 
+                    // définition de la position relative dans le canvas
+                    //let lft =  Math.round((posMot) * largeur) ; // position du mot dans le canvas en pourcentage
+                    let lft = tabGrphEnt[i].pos;  
+                    let wth = tabGrphEnt[i].width; 
+                    //ctx.fillRect(lft,  hauteur/(catsThm.length) *thm, wth,  hauteur/(catsThm.length));
+                    //ctx.strokeRect(lft,  hauteur/(catsThm.length) *thm, wth,  hauteur/(catsThm.length));
+
+                    // création d'un span dans le canvas 
+                    let span = document.createElement('span');
+                    span.dataset.rk = rkc;
+                    span.dataset.thm = tabThm[rkc].nom;
+                    span.dataset.e = rkEnt; 
+                    span.classList.add("xtr-graph");
+                    
+                    span.style.left = lft + '%';
+                    span.style.top = (hauteur/(catsThm.length) *thm) + 'px';
+                    span.style.width = wth + '%';
+                    span.style.height = (hauteur/(catsThm.length)) + 'px';
+                    span.style.cursor = 'pointer';
+                    span.style.borderColor = couleurBordure;
+                    span.style.opacity = 0.6;
+                    span.style.mixBlendMode = "multiply";
+
+                    if (estAct  == true ){
+                        if (tabThm[rkc].couleur) { 
+                            span.style.backgroundColor = couleurFond;   
+                        }
 
                     }   
 
+                    // définition du conteneur parent du canvas comme positionné en relatif pour que les spans soient positionnés par rapport à lui
+                    canva.parentElement.style.position = "relative";
+
+                    canva.parentElement.appendChild(span);
+
+                    span.addEventListener('click', (e) => {
+                    
+                        afficherHtmlAtPos(rkEnt, posMot,rkMot);
+                     
+                    // Clic bloqué, mais le hover reste actif
+                    });
+
+                    // ajout d'un listener pour le clic sur le span
+
+                }
         }
     }
 }
 
 
+async function affichageExtraitsCorpus(){
+       // défilement des tous les xtr-graph
+        
+       tabThm = await window.electronAPI.getThm(); // récupération des thématiques dans main.js
+       console.log("affichage des extraits du corpus en fonction des thématiques actives")
+        const xtrGraph = document.querySelectorAll('.xtr-graph')
+        xtrGraph.forEach(xtr => {     
+            // l'xtr a-t-il une thématique active
+            let thmXtr = xtr.dataset.thm;
+
+            // console.log("thématique de l'extrait " + thmXtr)
+            // recherche du thème dans le tableau des thèmes
+            console.log("recherche du thème " + thmXtr + " dans le tableau des thèmes")
+
+            let rangthm = tabThm.findIndex(thm => thm.nom === thmXtr);
+            console.log("rang du thème " + thmXtr + " dans le tableau des thèmes : " + rangthm + "et le thème est actif? :" + tabThm[rangthm]?.act)
+
+            if (rangthm !== -1 && tabThm[rangthm]) {
+
+                xtr.style.display = tabThm[rangthm].act ? "block" : "none";
+            }
+
+        }) 
+
+}
 
 
 
@@ -1657,8 +1805,10 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         lireCorpus,
         sauvegarderCorpus,
+        rafraichirCorpus,
         initFromMain,
         rechercherDansCorpus,  
+        affichageExtraitsCorpus,
     };
 }
 
@@ -1668,4 +1818,6 @@ if (typeof window !== 'undefined') {
     window.sauvegarderCorpus = sauvegarderCorpus;
     window.initFromMain = initFromMain;
     window.rechercherDansCorpus = rechercherDansCorpus;
+    window.affichageExtraitsCorpus = affichageExtraitsCorpus;
+    window.rafraichirCorpus = rafraichirCorpus;
 }   

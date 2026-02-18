@@ -438,6 +438,53 @@ ipcMain.handle('file:exists', async (_, filePath) => {
   }
 });
 
+// Récupérer la date de modification d'un fichier (local ou distant)
+ipcMain.handle('file:lastModified', async (_, filePath) => {
+  console.log('🕒 Dernière modif:', filePath);
+  if (!filePath) return null;
+
+  function localOuDistant(filePath) {
+    try {
+      const u = new URL(filePath);
+      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:') {
+        return 'remote';
+      }
+      return 'local';
+    } catch (e) {
+      return fs.existsSync(filePath) ? 'local' : 'remote';
+    }
+  }
+
+  try {
+    if (localOuDistant(filePath) === 'local') {
+      const stats = fs.statSync(filePath);
+      const lastModified = stats.mtime.toISOString();
+      console.log(`  ✅ Local: ${lastModified}`);
+      return lastModified;
+    }
+
+    if (!serveurAPI) {
+      console.log('  ❌ Distant: Pas de connexion au serveur');
+      return null;
+    }
+
+    try {
+      const lastModified = await serveurAPI.derniereModif(filePath);
+      return lastModified;
+    } catch (err) {
+      console.log(`  ❌ Distant: Erreur - ${err.message}`);
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Erreur récupération dernière modif:', error);
+    return null;
+  }
+});
+
+
+// récupérer la date de modification du fichier
+
+
 // copier/coller 
 ipcMain.handle('file:copyFile', async (_, source, destination) => {
   try {
