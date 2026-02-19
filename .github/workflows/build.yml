@@ -71,3 +71,5 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.snap
+             
+          retention-days: 3 

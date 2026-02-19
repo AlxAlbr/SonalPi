@@ -235,6 +235,11 @@ async function sauvVar(rgVar, mode) {
 async function supprVar(rgVar, mode) {
     console.log("Suppression de la variable à l'index :", rgVar, "mode:", mode);
 
+    // message d'avertissement 
+
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cette variable ? \n Attention! Cette action est irréversible et entraînera la suppression de toutes les modalités associées dans tous les entretiens.")) {
+        return;
+    }
     // recherche de la variable à supprimer
     const varIndex = tabVar.findIndex(vr => vr.v == rgVar);
 
@@ -252,14 +257,18 @@ async function supprVar(rgVar, mode) {
         await electronAPI.setVar(tabVar);
 
         if(mode=='loc'){
+            
             affichDataEnt();
         } else if (mode=='gen'){
             await window.sauvegarderCorpus(false);
             updateVarsDsEnt() ;// modification dans les fichiers Sonal de tous les entretiens
             await window.majFichierSonal();
-            
-             affichDataGen(); 
+
+
+            affichDataGen(); 
         }
+
+        hidedlg();
     } else {
         alert("Variable non trouvée.");
     }

@@ -1294,9 +1294,12 @@ Styles pour les fonctions de recherche
     /* border: 1px solid #80bdff !important; */
     background-color: #ffffff;
     border-left: 4px solid var(--couleur-titre);
+   /*
     border-right: 4px solid var(--couleur-titre);
     border-top: 1px solid var(--couleur-titre);
     border-bottom: 1px solid var(--couleur-titre);
+    */
+    
     border-radius: 5px;
     padding-left: 5px;
     margin-left: -9px;
