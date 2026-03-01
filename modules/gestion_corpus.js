@@ -917,7 +917,7 @@ async function rafraichirCorpus() {
             // récupération du contenu du fichier .Sonal
             loadHtml(ent, ent).then( () => {
 
-                console.log("affichage au rang " + ent );
+                //console.log("affichage au rang " + ent );
                 afficherEnt(ent, ent);
                 //inventaireVariables(); // inventaire des variables utilisées dans les entretiens
                 // flash
@@ -1236,11 +1236,27 @@ async function resumeGraphique(html) {
     
      
     // nombre de mots
-    const nbmots = compterElements(tempContainer, "span","lblseg")
+    let mots = tempContainer.querySelectorAll("span")
+    
+         
+    // nombre de mots
+
+    const derSpan = [...mots]
+        .filter(m => !m.classList.contains('lblseg'))
+        .reduce((max, m) => Number(m.dataset.rk) > Number(max?.dataset?.rk ?? -1) ? m : max, null);
+
+    let nbmots = derSpan
+        ? Number(derSpan.dataset.rk) + Number(derSpan.dataset.len || 0)
+        : 0;
+
+
+   // console.log ("le mot le plus avancé contient " + derMot.textContent + "avec la longueur " + derMot.dataset.len  )
+
+ 
 
     var derPosMot = -99; // position du dernier mot affiché
 
-    const mots = tempContainer.querySelectorAll('span');
+     
     
     for (let mot of mots) {
          
@@ -1295,7 +1311,13 @@ async function resumeGraphique(html) {
                     // calcul de la position du mot dans l'ensemble
  
                     let posMot = ratioMot   // position relative (2 décimales)  
-                    let largeurMot = (1 / nbmots * 100).toFixed(3) //Number(nbmots/100).toFixed(3); // position relative (2 décimales)  
+
+                    // nombre de mots dans le span 
+                    let nbMotsDsSpan = 1 
+                    
+                    if (mot.dataset.len) { nbMotsDsSpan = Number(mot.dataset.len)}; 
+
+                    let largeurMot = (nbMotsDsSpan / nbmots * 100).toFixed(3) //Number(nbmots/100).toFixed(3); // position relative (2 décimales)  
                     
                     if ( posMot == derPosMot){continue} // n'affiche que tous les  pixels
 
@@ -1304,7 +1326,7 @@ async function resumeGraphique(html) {
                     derPosMot = posMot; 
                     
                    
-                    tabGrphEnt.push({"pos":posMot, "width":largeurMot, "catsThm":catsThm, "rkMot":mot.dataset.rk});
+                    tabGrphEnt.push({"pos":posMot, "width":largeurMot, "catsThm":catsThm, "rkMot":mot.dataset.rk, "len": nbMotsDsSpan});
 
                     /*
                     for (thm=0;thm<catsThm.length;thm++){
@@ -1375,7 +1397,7 @@ async function resumeGraphique(html) {
 // filtrer le tableau pour ne garder que les graphismes qui ont une position à zéro
 tabGrphEntComp = tabGrphEntComp.filter(grph => grph.pos > 0);
 
-console.log("fin de la création du tableau des graphismes compacté pour l'entretien", tabGrphEntComp)
+//console.log("fin de la création du tableau des graphismes compacté pour l'entretien", tabGrphEntComp)
     
 return tabGrphEntComp;
  
@@ -1424,7 +1446,7 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
            
 */
     let rangEnt = canva.dataset.id;
-    console.log("rangent " + rangEnt); 
+     
 
     // défilement des éléments du tableau des graphismes
     for (let i=0; i<tabGrphEnt.length; i++){
@@ -1442,6 +1464,9 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
 
         //console.log("dimensions du canvas : " + largeur + "x" + hauteur);
 
+        let nbCouleurs = 0; 
+        let tabCoul = []; // tableau des couleurs utilisées pour les thèmes de l'extrait
+         let couleurBordure = ''; // couleur de bordure par défaut';
         for (thm=0;thm<catsThm.length;thm++){   
 
                 // récupération du rang thm
@@ -1450,13 +1475,9 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
                 if (tabThm[rkc]){
                                 
                     let couleurFond = "rgba(200,200,200,0.5)"; // couleur par défaut
-                    let couleurBordure = 'rgba(200,200,200,0.5)'; // couleur de bordure par défaut';
                    
-                   /*
-                    ctx.fillStyle = couleurFond; // couleur par défaut
-                    ctx.strokeStyle = couleurBordure; // couleur de bordure par défaut';
-                    ctx.globalAlpha = 0.6;
-                    */           
+                   
+                         
                     let estAct=tabThm[rkc]?.act
 
                     if (estAct==undefined) {estAct=true} // si pas de valeur, on considère que le thème est actif
@@ -1464,19 +1485,48 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
                     // console.log("thème " + tabThm[rkc].nom + " avec la couleur " + tabThm[rkc].couleur + " et l'activité " + tabThm[rkc].act + "estact" + estAct)
 
                     if (estAct  == true ){
+
                         if (tabThm[rkc].couleur) { 
-                            couleurFond = tabThm[rkc].couleur;
-                         //ctx.fillStyle = tabThm[rkc].couleur; } // on met la couleur de fond
+                            nbCouleurs++;
+                            tabCoul.push(tabThm[rkc].couleur);
+                         
+                        } else {
+                            couleurBordure = 'rgba(200,200,200,0.5)';
                         }
+
                         
+                    } 
                     else {
-                            //ctx.strokeStyle ="rgba(63, 62, 62, 1)";  // on ne met que la bordure
-                            couleurBordure = "rgba(63, 62, 62, 1)"; // couleur de bordure par défaut
+                           
+                        
+                        if (tabThm[rkc].couleur) { 
+                            nbCouleurs++;
+                            tabCoul.push("rgba(63, 62, 62, 1)");
+                         
+                        }
+                        //ctx.strokeStyle ="rgba(63, 62, 62, 1)";  // on ne met que la bordure
+                            //couleurBordure = "rgba(63, 62, 62, 1)"; // couleur de bordure par défaut
                        
                     }
-                    };
+                    
 
+                }
+        }
 
+                    // définition des couleurs de fond en css
+                    const stops = [];
+                    
+                    for (let c = 0; c < tabCoul.length; c++) {
+                        const coul = tabCoul[c];
+                        const posDeb = (c / nbCouleurs * 100).toFixed(3);
+                        const posFin = ((c + 1) / nbCouleurs * 100).toFixed(3);
+                        stops.push(`${coul} ${posDeb}%`, `${coul} ${posFin}%`);
+                    }
+
+                    chaineCoul = `linear-gradient(to bottom, ${stops.join(', ')})`;
+
+                     
+                    // création de l'étiquette de l'extrait 
                     // définition de la position relative dans le canvas
                     //let lft =  Math.round((posMot) * largeur) ; // position du mot dans le canvas en pourcentage
                     let lft = tabGrphEnt[i].pos;  
@@ -1486,26 +1536,21 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
 
                     // création d'un span dans le canvas 
                     let span = document.createElement('span');
-                    span.dataset.rk = rkc;
-                    span.dataset.thm = tabThm[rkc].nom;
+                    //span.dataset.rk = rkc;
+                    span.dataset.thm = catsThm.join(","); // on stocke les thèmes de l'extrait dans le dataset du span
                     span.dataset.e = rkEnt; 
                     span.classList.add("xtr-graph");
                     
                     span.style.left = lft + '%';
-                    span.style.top = (hauteur/(catsThm.length) *thm) + 'px';
+                    span.style.top = '0px';
                     span.style.width = wth + '%';
-                    span.style.height = (hauteur/(catsThm.length)) + 'px';
-                    span.style.cursor = 'pointer';
+                    span.style.height = hauteur + 'px';
                     span.style.borderColor = couleurBordure;
-                    span.style.opacity = 0.6;
-                    span.style.mixBlendMode = "multiply";
 
-                    if (estAct  == true ){
-                        if (tabThm[rkc].couleur) { 
-                            span.style.backgroundColor = couleurFond;   
-                        }
-
-                    }   
+                   
+                    span.style.background = chaineCoul;   
+                    
+                   
 
                     // définition du conteneur parent du canvas comme positionné en relatif pour que les spans soient positionnés par rapport à lui
                     canva.parentElement.style.position = "relative";
@@ -1521,8 +1566,7 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
 
                     // ajout d'un listener pour le clic sur le span
 
-                }
-        }
+
     }
 }
 
@@ -1531,23 +1575,47 @@ async function affichageExtraitsCorpus(){
        // défilement des tous les xtr-graph
         
        tabThm = await window.electronAPI.getThm(); // récupération des thématiques dans main.js
-       console.log("affichage des extraits du corpus en fonction des thématiques actives")
+       //console.log("affichage des extraits du corpus en fonction des thématiques actives")
         const xtrGraph = document.querySelectorAll('.xtr-graph')
         xtrGraph.forEach(xtr => {     
+            
+            
             // l'xtr a-t-il une thématique active
-            let thmXtr = xtr.dataset.thm;
+            let thmXtr = xtr.dataset.thm.split(","); // récupération des thèmes de l'extrait
+            let affiche = false;
 
-            // console.log("thématique de l'extrait " + thmXtr)
-            // recherche du thème dans le tableau des thèmes
-            console.log("recherche du thème " + thmXtr + " dans le tableau des thèmes")
-
-            let rangthm = tabThm.findIndex(thm => thm.nom === thmXtr);
-            console.log("rang du thème " + thmXtr + " dans le tableau des thèmes : " + rangthm + "et le thème est actif? :" + tabThm[rangthm]?.act)
-
-            if (rangthm !== -1 && tabThm[rangthm]) {
-
-                xtr.style.display = tabThm[rangthm].act ? "block" : "none";
+            for (let t=0; t<thmXtr.length; t++){
+                if (!tabThm[Number(thmXtr[t])]) {continue}
+                if (tabThm[Number(thmXtr[t])].act) {
+                    affiche = true;
+                    break;
+                }
             }
+
+            if (affiche) {
+                xtr.style.display =  "block";
+                }
+            else {
+                xtr.style.display =  "none";
+            }
+
+            /*
+
+                let thm = tabThm[Number(thmXtr[t])];
+            
+
+                // recherche du thème dans le tableau des thèmes
+                // console.log("recherche du thème " + thmXtr + " dans le tableau des thèmes")
+
+                let rangthm = tabThm.findIndex(thm => thm.nom === thmXtr[t]);
+                //console.log("rang du thème " + thmXtr + " dans le tableau des thèmes : " + rangthm + "et le thème est actif? :" + tabThm[rangthm]?.act)
+
+                if (rangthm !== -1 && tabThm[rangthm]) {
+
+                    xtr.style.display = tabThm[rangthm].act ? "block" : "none";
+                    affiche = true;
+                }
+            */
 
         }) 
 
@@ -1586,6 +1654,27 @@ async function rechercherDansCorpus(chaine){
     rgCherche = 0;
     tabRechCrp = [];
 
+        function enregistrerOccurence(contexteTexte, e, rkMot, nbMots, canva, canvaLeft, canvaWidth) {
+            if (rkMot === undefined || rkMot === null || rkMot == 0) { return; }
+
+            tabRechCrp.push({ ent: e, rk: rkMot, contexte: contexteTexte + "</a>" });
+
+            // marquage de l'occurrence sur le canvas
+            const ratioMot = rkMot / nbMots;
+            const posMot = Math.round(1000 * ratioMot);
+            canva.parentElement.style.position = "relative";
+            const divOccur = document.createElement('div');
+            divOccur.classList.add('occurence-canvas');
+            divOccur.style.left = `calc(${canvaLeft + (posMot / 1000) * canvaWidth}px - 1px)`;
+            divOccur.addEventListener('click', async function(event) {
+                event.stopPropagation();
+                event.preventDefault();
+                await afficherHtmlAtPos(e, 0, rkMot);
+            });
+            canva.parentElement.appendChild(divOccur);
+        }
+
+    
 
     for (let e=0;e<tabEnt.length;e++){ // défilement des entretiens
 
@@ -1607,25 +1696,25 @@ async function rechercherDansCorpus(chaine){
 
         const html = await window.electronAPI.getHtml(e); 
 
-        if (!String(html).includes(chaine)) {continue} // si l'entretien ne contient pas la chaîne, on passe au suivant 
+        if (!String(html).toLowerCase().includes(chaine.toLowerCase())) {continue} // si l'entretien ne contient pas la chaîne, on passe au suivant 
 
         const tempContainer = document.createElement('div');
         tempContainer.innerHTML = html.replace(/`/g,'');// suppression des backticks;        
 
-        const nbmots = compterElements(tempContainer, "span","lblseg")
-         
+            // nombre de mots
+        let nbMots = nbMotsEnt(html);
         
         document.getElementById('status-bar').innerText = `Recherche dans le corpus : traitement de l'entretien ${e+1} sur ${tabEnt.length}`;
 
         let segments = tempContainer.querySelectorAll('.lblseg');
-         console.log("recherche dans l'entretien " + e + " nombre de mots " + nbmots + " nombre de segments " + segments.length)
+         console.log("recherche dans l'entretien " + e + " nombre de mots " + nbMots + " nombre de segments " + segments.length)
 
         for (let seg of segments){
             //const seg = tempContainer.querySelector(`span[data-rksg="${s}"]`);
         
            
 
-            if (seg.innerText.includes(chaine)) {
+            if (seg.innerText.toLowerCase().includes(chaine.toLowerCase())) {
                 
                 let m=seg.tabIndex; // rang du 1er mot dans l'entretien
                 
@@ -1633,64 +1722,67 @@ async function rechercherDansCorpus(chaine){
 
                     m++;
 
-                    if (mot.innerText.includes(chaine)) {
+                    if (mot.innerText.toLowerCase().includes(chaine.toLowerCase())) {
 
                         // contexte environnant le mot
-                        let rkMot = m;
-                        let contexteDeb = Math.max(0, rkMot -15);
-                        let contexteFin = Math.min(nbmots -1, rkMot +15);
+                        let rkMot = Number(mot.dataset.rk);
                         let contexteTexte = "<a>";
 
-                        for (let rkC = contexteDeb; rkC <= contexteFin; rkC++){
-                            let motC = tempContainer.querySelector(`span[data-rk="${rkC}"]`);   
-                            if (motC) {
-                                // ajout du mot au contexte
-                                if (rkC != rkMot-1){
-                                    contexteTexte += motC.innerText  ;
-                                } else {
-                                    contexteTexte += "<b>" + motC.innerText + "</b> ";
+                        // si l'entretien est compacté
+                        if (mot.dataset.len >0){
+
+                            // split du mot en plusieurs mots individuels
+                            let motText = mot.innerText;
+                            let nbMotsDsSpan = Number(mot.dataset.len);
+                            let motsIndiv = motText.split(/(\s+)/).slice(0, nbMotsDsSpan); // on prend autant de mots que la longueur du span
+
+                            // défilement de toutes les occurrences dans le span compacté
+                            for (let rkMotDsSpan = 0; rkMotDsSpan < motsIndiv.length; rkMotDsSpan++) {
+
+                                if (!motsIndiv[rkMotDsSpan].toLowerCase().includes(chaine.toLowerCase())) { continue; }
+
+                                rkMot = Number(mot.dataset.rk) + rkMotDsSpan; // rang du mot corrigé dans l'entretien
+
+                                let contexteDeb = Math.max(0, rkMotDsSpan - 15);
+                                let contexteFin = Math.min(motsIndiv.length - 1, rkMotDsSpan + 15);
+                                let contexteTexte = "<a>";
+
+                                for (let rkC = contexteDeb; rkC <= contexteFin; rkC++){
+                                    let motC = motsIndiv[rkC];
+                                    if (motC) {
+                                        if (rkC != rkMotDsSpan){
+                                            contexteTexte += motC;
+                                        } else {
+                                            contexteTexte += "<b>" + motC + "</b> ";
+                                        }
+                                    }
                                 }
 
+                                enregistrerOccurence(contexteTexte, e, mot.dataset.rk, nbMots, canva, canvaLeft, canvaWidth);
                             }
-                        }
 
-                        contexteTexte += "</a>"
+                        } else { // pas de compactage, on prend le mot tel quel
 
-                        // ajout de l'entretien dans le tableau des résultats
-                        if (mot.dataset.rk !== undefined && mot.dataset.rk !== null && mot.dataset.rk !== 0) { 
-                        tabRechCrp.push({ent: e, rk: mot.dataset.rk, contexte : contexteTexte});
-                            
+                           
 
-                        // dessin de la trouvaille dans le canva
-                        /*
-                        const ctx = canva.getContext('2d');
-                            
-                        ctx.fillStyle ="rgba(255, 0, 0, 1)"; 
-                        ctx.fillRect(posMot, 0, 2, 2);
-                        */
+                            let contexteDeb = Math.max(0, rkMot -15);
+                            let contexteFin = Math.min(nbMots -1, rkMot +15);
+ 
 
-                        // ou ajout de divs sur le canvas
-                        let ratioMot= mot.dataset.rk/ nbmots // calcul de la position du mot dans l'ensemble
-                        let posMot = Math.round(1000 * ratioMot)  
-                        canva.parentElement.style.position = "relative";
-                        const divOccur = document.createElement('div');
-                        divOccur.classList.add('occurence-canvas');
-                        divOccur.style.left = `calc(${canvaLeft + (posMot / 1000) * canvaWidth}px  - 1px)`;  
+                            for (let rkC = contexteDeb; rkC <= contexteFin; rkC++){
+                                let motC = tempContainer.querySelector(`span[data-rk="${rkC}"]`);   
+                                if (motC) {
+                                    // ajout du mot au contexte
+                                    if (rkC != rkMot-1){
+                                        contexteTexte += motC.innerText  ;
+                                    } else {
+                                        contexteTexte += "<b>" + motC.innerText + "</b> ";
+                                    }
 
-                        divOccur.addEventListener('click', async function(event) {
-                            
-                            event.stopPropagation(); // empêche le clic de remonter au canvas
-                            event.preventDefault(); // empêche le comportement par défaut
+                                }
+                            }
 
-                            await afficherHtmlAtPos(e, 0, mot.dataset.rk);
-                            //let mot = getSpan(mot.dataset.rk); // récupération du mot à la position
-                            //if (!mot) {return} // si le mot n'existe pas, on sort de la fonction
-                        
-                            //mot.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        });    
-                        
-                        
-                        canva.parentElement.appendChild(divOccur);
+                            enregistrerOccurence(contexteTexte, e, rkMot, nbMots, canva, canvaLeft, canvaWidth);
                         }
                     }
                 }
@@ -1758,21 +1850,61 @@ function afficherResultatRecherche(){
 }
 
 
-async function triEntCorpusAlpha() { // fonction permettant de trier les entretiens par ordre alphabétique
+async function triEntCorpus(mode) { // fonction permettant de trier les entretiens par ordre alphabétique
 
  
     let tabEntCorpus = await window.electronAPI.getEnt();
+    tabHtml = await window.electronAPI.getHtml();
+    tabGrph = await window.electronAPI.getGrph();
     
     // Créer un tableau d'indices [0, 1, 2, ...]
     const indices = Array.from({length: tabEntCorpus.length}, (_, i) => i);
     
+    switch(mode) {
+    
+    case "alpha":
     // Trier les indices basés sur le nom des entretiens
     indices.sort((a, b) => {
-        if (tabEntCorpus[a].nom < tabEntCorpus[b].nom) return -1;
-        if (tabEntCorpus[a].nom > tabEntCorpus[b].nom) return 1;
+        if (tabEntCorpus[a].nom.toLowerCase() < tabEntCorpus[b].nom.toLowerCase()) return -1;
+        if (tabEntCorpus[a].nom.toLowerCase() > tabEntCorpus[b].nom.toLowerCase()) return 1;
         return 0;
     });
+    break;
+
+    case "ordre-ajout":
+        // Trier les indices basés sur la date de création des entretiens
+        indices.sort((a, b) => {
+            const dateA = tabEntCorpus[a].id; // on suppose que l'id est basé sur la date de création
+            const dateB = tabEntCorpus[b].id;
+            return dateA - dateB; // tri croissant (du plus ancien au plus récent)
+        });
+
+        break;
     
+
+    case "date-modification":
+        // Trier les indices basés sur la date de création des entretiens
+        indices.sort((a, b) => {
+            const dateA = new Date(tabEntCorpus[a].lastModified);
+            const dateB = new Date(tabEntCorpus[b].lastModified);
+            return dateB - dateA; // tri décroissant (du plus récent au plus ancien)
+        });
+        break;
+
+    case "longueur":
+        // Trier les indices basés sur la longueur des entretiens
+        indices.sort((a, b) => {
+            const longueurA = nbMotsEnt(tabHtml[a]);
+            const longueurB = nbMotsEnt(tabHtml[b]);
+            return longueurB - longueurA; // tri décroissant (du plus long au plus court)
+        });
+        break;
+    
+        
+    }
+
+
+            
     // Réorganiser tous les tableaux selon l'ordre de tri
     const tabEntTrié = indices.map(i => tabEntCorpus[i]);
     const tabHtmlTrié = indices.map(i => tabHtml[i]);
@@ -1788,17 +1920,13 @@ async function triEntCorpusAlpha() { // fonction permettant de trier les entreti
     // Mettre à jour main.js
     await window.electronAPI.setEnt(tabEnt);
 
-    tabHtml.forEach((html, index) => async () => {
-        
-        await window.electronAPI.setHtml(index, tabHtml[index])
-        
-    });
+    for (let index = 0; index < tabHtml.length; index++) {
+        await window.electronAPI.setHtml(index, tabHtml[index]);
+    }
 
-    tabGrph.forEach((html, index) => async () => {
-        
-        await window.electronAPI.setGrph(index, tabGrph[index])
-        
-    });
+    for (let index = 0; index < tabGrph.length; index++) {
+        await window.electronAPI.setGrph(index, tabGrph[index]);
+    }
 
    
 
@@ -1810,6 +1938,32 @@ async function triEntCorpusAlpha() { // fonction permettant de trier les entreti
 }
 
 
+async function echelleEnt(){ // fonction permettant de mettre à l'échelle les entretiens en fonction de leur longueur
+
+    let tabEntCorpus = await window.electronAPI.getEnt();
+    let tabHtml = await window.electronAPI.getHtml();
+
+    const MAX_LARGEUR = 66; // largeur maximale en % pour l'entretien le plus long
+
+    let longueurs = tabEntCorpus.map(ent => nbMotsEnt(tabHtml[tabEntCorpus.indexOf(ent)]));
+    let maxLongueur = Math.max(...longueurs);
+
+    for (let i=0; i<tabEntCorpus.length; i++){
+        let longueur = longueurs[i];
+        let ratio = (longueur / maxLongueur) * MAX_LARGEUR; // ratio en % plafonné à MAX_LARGEUR
+         
+        let divEnt = document.querySelector(`div.fond-cnv-ent[data-id="${tabEntCorpus[i].id}"]`);
+        if (!divEnt) { console.warn("fond-cnv-ent introuvable pour l'entretien id=" + tabEntCorpus[i].id); continue; }
+        divEnt.style.flex = `0 0 ${ratio.toFixed(2)}%`; // on met à l'échelle la largeur en fonction de la longueur de l'entretien
+
+        // mise à jour des dimensions du canvas interne
+        const cnv = divEnt.querySelector('canvas.cnvent');
+        if (cnv) {
+            cnv.width = divEnt.clientWidth;
+            cnv.height = divEnt.clientHeight;
+        }
+    }
+}
 
 /////////////////////////////////////////////////////////////////////////////////:
 // EXPORTATION DES FONCTIONS
@@ -1822,7 +1976,9 @@ if (typeof module !== 'undefined' && module.exports) {
         rafraichirCorpus,
         initFromMain,
         rechercherDansCorpus,  
+        echelleEnt,
         affichageExtraitsCorpus,
+        triEntCorpus,
     };
 }
 
@@ -1834,4 +1990,6 @@ if (typeof window !== 'undefined') {
     window.rechercherDansCorpus = rechercherDansCorpus;
     window.affichageExtraitsCorpus = affichageExtraitsCorpus;
     window.rafraichirCorpus = rafraichirCorpus;
+    window.triEntCorpusAlpha = triEntCorpus;
+    window.echelleEntretiens = echelleEnt;
 }   

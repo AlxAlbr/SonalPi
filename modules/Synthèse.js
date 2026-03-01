@@ -191,8 +191,15 @@ if (tabEnt.length == 0){
                 m++;
 
                 if (!mot.classList || mot.classList.length === 0) {
-                    continue;
-                }
+                            
+                    if (extraitEnCours) {
+                        extraitEnCours = false;
+                        //extrait.texte.push (...suffixe(mots,m));  
+                        finalizeExtrait(extrait, m, i);
+                        extrait = { debut: 0, fin: 0, texte: [] };
+                        continue; // passer au mot suivant
+                    }
+                }    
 
                 if (!mot.classList.contains('lblseg')) {
                     let estActif = false;

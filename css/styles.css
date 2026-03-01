@@ -950,7 +950,7 @@ height: 45px;
 /* 1s fade-out highlight */
 .ligent-flash {
   background-color: rgba(140, 255, 184, 0.95);
-  animation: ligent-flash 5s ease-out forwards;
+  animation: ligent-flash 3s ease-out forwards;
 }
 
 @keyframes ligent-flash {
@@ -963,7 +963,7 @@ height: 45px;
   display: flex;
   align-items: center;
   padding: 5px 10px;
-  width: 250px; 
+  width: 27%; 
   flex-shrink: 0;  
   font-size: 1em;
   font-weight: bold;
@@ -1032,16 +1032,19 @@ height: 45px;
 }
 
 .xtr-graph{
-  z-index: 10;
+  z-index: 9;
   /*pointer-events: none; */
   cursor:pointer;
   position: absolute;
+  opacity: 0.55;
+  /*mix-blend-mode: multiply;*/
+ 
 
 }
 .xtr-graph:hover{
   border: 1px solid #ff0000 !important;
   transform: translate(-1px, -1px);
-  mix-blend-mode: normal;
+ /* mix-blend-mode: normal; */
   opacity: 1;
   z-index: 100;
 
@@ -1183,7 +1186,7 @@ Styles pour les fonctions de recherche
     position: absolute;
     top: -4px;
     height: 37px;
-    width: 3px;
+    width: 4px;
     z-index: 10;
     /* opacity: 0.5; */
     /* pointer-events: none; */
@@ -1193,6 +1196,8 @@ Styles pour les fonctions de recherche
 
 .occurence-canvas:hover {
     background-color: rgb(255 0 0);
+    border-width: 2px;
+    width: 6px;
 
 }
 
@@ -1272,6 +1277,11 @@ Styles pour les fonctions de recherche
     font-style: italic;
     font-weight: bold;
     color : rgb(76, 76, 77)
+}
+
+.enlect{
+
+    color: rgb(0,102,166);
 }
 
 .listlocs{
@@ -1962,7 +1972,7 @@ background-color: #8d8d8d91;
     height: calc(100vh - 21px);
     background-color: var(--couleur-block);
     padding: 20px;
-    z-index: 10;
+    z-index: 100;
     opacity: 0.97;
 }
 
@@ -2094,7 +2104,7 @@ SYNTHESE
 }
 
 .btn-copied-extrait::after{
-  content :"\n copié !" ;
+  content :"copié !" ;
   position: relative;
   top:40px;
   right:10px;
@@ -2588,4 +2598,52 @@ SYNTHESE
     color: #0a22aa;
     font-style: italic;
     white-space: pre-wrap;
+}
+
+
+
+
+.process {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.75);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.lblspin {
+    margin-top: 45px;
+    font-size: 1rem;
+    color: #444;
+    text-align: center;
+}
+
+@keyframes spinner {
+    0% {
+      transform: translate3d(-50%, -50%, 0) rotate(0deg);
+    }
+    100% {
+      transform: translate3d(-50%, -50%, 0) rotate(360deg);
+    }
+  }
+
+.spin::before {
+	animation: 0.5s linear infinite spinner;
+	animation-play-state: inherit;
+	border: solid 9px #cfd0d1;
+	border-bottom-color: #1c87c9;
+	border-radius: 50%;
+	content: "";
+	height: 60px;
+	width: 60px;
+	position: absolute;
+	left: 50%;
+	transform: translate3d(-50%, -50%, 0);
+	will-change: transform;
 }

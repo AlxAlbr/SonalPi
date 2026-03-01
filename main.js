@@ -134,6 +134,14 @@ ipcMain.handle('save-complete', (event) => {
   return true;
 });
 
+// Demande de fermeture de la fenetre courante depuis le renderer
+ipcMain.on('window-close', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    window.close();
+  }
+});
+
 // ⭐ Handler pour mettre à jour le canvas après sauvegarde
 ipcMain.handle('update-canvas-after-save', (event, rkEnt) => {
  // console.log("📊 Demande de mise à jour du canvas pour l'entretien:", rkEnt);
@@ -197,7 +205,14 @@ ipcMain.handle('set-html', (_, rk, html) => {
 });
 
 // Handlers pour récupérer et mettre à jour les tableaux des représentations graphiques 
-ipcMain.handle('get-grph', (_, rk) => { console.log("demande getGrph pour le rang " + rk); return tabGrph[rk]; });
+ipcMain.handle('get-grph', (_, rk) => { 
+  if (rk === undefined || rk === null) {
+    return tabGrph;
+  } else {
+    return tabGrph[rk];
+  }
+});
+
 ipcMain.handle('set-grph', (_, rk, newTabGrph) => {
   
     // vidage si besoin
@@ -1405,6 +1420,8 @@ async function sauvegarderSurServeur(filePath, content) {
 }
 
 
+ 
+
 // floutage des fenêtres inactives (derrière modale)
  
 function flouterSousModale(parentWindow) {
@@ -1667,13 +1684,11 @@ const credentialsManager = new CredentialsManager();
 
 
 // Ouvrir une modale de sélection personnalisée
-ipcMain.handle('ajout-entretien', async () => {
-  
-
+function ouvrirAjoutEntretien() {
   const entWindow = new BrowserWindow({
     width: 700,
     height: 780,
-    titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
+    titleBarStyle: process.platform === 'darwin' ? 'default' : 'default',
     parent: mainWindow,
     // modal: true,
     closable: true,
@@ -1681,34 +1696,33 @@ ipcMain.handle('ajout-entretien', async () => {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true, 
+      contextIsolation: true,
       sandbox: false
     }
   });
-  
-  entWindow.setMenu(null);
 
+  entWindow.setMenu(null);
   entWindow.loadFile('ajout-entretien.html');
- 
+
   entWindow.once('ready-to-show', () => {
-    
     entWindow.show();
     flouterSousModale(mainWindow);
   });
 
-  // Attendre que la modale retourne des données
   return new Promise((resolve) => {
     ipcMain.once('ajout-entretien-result', (event, data) => {
       entWindow.close();
       resolve(data);
     });
-    
+
     entWindow.on('closed', () => {
       deflouterSousModale(mainWindow);
       resolve({ canceled: true });
     });
   });
-});
+}
+
+ipcMain.handle('ajout-entretien', () => ouvrirAjoutEntretien());
 
  
 //////////////////////////////////////////////////////////////////////////////////////
@@ -2023,21 +2037,27 @@ app.on('ready', () => {
       ]
     },
 
-    /*
+   
     { // menu entretiens
       label: 'Entretiens',
       submenu: [
         { 
           label: 'Ajouter un entretien',
-          click: () => {  } 
+          click: () => mainWindow.webContents.send('menu:ajouter-entretien') 
         },
        
         { type: 'separator' },
       
-                { 
-        label: 'Supprimer',
-          click: () => { console.log('supprimer ') } 
+        { 
+          label: 'Trier les entretiens',
+          submenu: [
+            { label: 'Par ordre alphabétique', click: () => mainWindow.webContents.send('menu:tri-entretiens', 'alpha') },
+            { label: 'Par ordre d\'ajout', click: () => mainWindow.webContents.send('menu:tri-entretiens', 'ordre-ajout') },
+            { label: 'Par date de modification', click: () => mainWindow.webContents.send('menu:tri-entretiens', 'date-modification') },
+            { label: 'Par longueur', click: () => mainWindow.webContents.send('menu:tri-entretiens', 'longueur') }
+          ]
         }
+ 
       ]
     },
         { // menu entretiens
@@ -2048,14 +2068,12 @@ app.on('ready', () => {
           click: () => { editerCategories(mainWindow); } 
         },
        
-        { type: 'separator' },
+         
       
-                { 
-        label: 'Exporter les catégories',
-          click: () => { console.log('supprimer ') } 
-        }
+ 
       ]
     },
+     /*
     {
       label: 'Édition',
       submenu: [

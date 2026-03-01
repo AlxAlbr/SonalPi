@@ -492,15 +492,16 @@ function checkloc(tabLoc){
             if (seg) {
                 loc= seg.dataset.loc
                 
+                if (!loc) {loc=locPrec}
+                
                 // ajout d'un locuteur
                 if (loc!=locPrec){ 
 
                     if (tabLoc[loc]){
                     seg.dataset.nomloc = tabLoc[loc].replaceAll("?","")
-                    } else {seg.dataset.nomloc = "???"}
+                    } else {
+                    seg.dataset.nomloc = "???"}
                     seg.classList.add('ligloc')
-                    
-
                 };
     
                 locPrec=loc;

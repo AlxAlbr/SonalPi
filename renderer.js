@@ -52,7 +52,8 @@ window.electronAPI.onDemanderSauvegardeBackup(async () => {
   await sauvegarderCorpus(true);
 });
 
-
+window.electronAPI.onMenuAjouterEntretien(() => ajouterEntretien());
+window.electronAPI.onMenuTriEntretiens((mode) => triEntCorpus(mode));
  
 
 /**

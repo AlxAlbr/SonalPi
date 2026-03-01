@@ -144,13 +144,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   isEntretienLocked: (rk) => ipcRenderer.invoke('entretien-locked', rk),
   editerEntretien: (rk) => ipcRenderer.invoke('editer-entretien', rk),
-  
+
+  // Écouter la demande du menu pour ajouter un entretien
+  onMenuAjouterEntretien: (callback) =>
+    ipcRenderer.on('menu:ajouter-entretien', () => callback()),
+
+  // Écouter la demande du menu pour trier les entretiens
+  onMenuTriEntretiens: (callback) =>
+    ipcRenderer.on('menu:tri-entretiens', (event, mode) => callback(mode)),
+
   // Écouter le signal de fermeture de la fenêtre
   onSaveAndClose: (callback) =>
     ipcRenderer.on('save-and-close', () => callback()),
   
   // Confirmer la fin de sauvegarde au main process
   saveComplete: () => ipcRenderer.invoke('save-complete'),
+
+  // Demander la fermeture de la fenetre courante
+  closeWindow: () => ipcRenderer.send('window-close'),
   
   // Signal pour mettre à jour le canvas après sauvegarde
   updateCanvasAfterSave: (rkEnt) => ipcRenderer.invoke('update-canvas-after-save', rkEnt),

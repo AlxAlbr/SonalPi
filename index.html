@@ -19,6 +19,7 @@
   <script  src="modules/conversions.js"></script>
   <script  src="modules/gestion_data.js"></script>
   <script  src="modules/Synthèse.js"></script>
+  <script  src="modules/segmentation.js"></script>
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
@@ -80,6 +81,7 @@
                  Base de données
               </button>
                
+ 
               
               <button id="btn-rafraichir" class="btn btn-primary dnone" style="float:right" title="Rafraichir le corpus (charger les fichiers les plus à jour)" onclick="rafraichirCorpus() ;">
                 🗘 Rafraîchir
@@ -118,6 +120,8 @@
      <!-- boutons partie droite !-->
      <div id="fonctions-d" style="flex:2;">
                 <img id = "btn_ajout_ent" title = "Ajouter un document" class = "imgbtn_g" src="img\logotxt.png" height= "33px" width= '33px'  alt="outils"  onclick="" >
+                <img id = "btn_echelle_ent" title = "Mettre à l'échelle" class = "imgbtn_g" src="img\echelle.png" height= "33px" width= '33px'  alt="outils"  onclick="" >
+
      </div>
     </div>
 
@@ -483,6 +487,14 @@ function hidepanG(){
   // ==============================================
     const btnAjout = document.getElementById('btn_ajout_ent');
     btnAjout.addEventListener('click', () => ajouterEntretien());
+
+      // ============================================== 
+  // ajout d'un listener pour le bouton de mise à l'échelle
+  // ==============================================
+    const btnEchelle = document.getElementById('btn_echelle_ent');
+    btnEchelle.addEventListener('click', () => echelleEntretiens());
+
+
 
   //=============================================      
   //listener sur le bouton editCat 

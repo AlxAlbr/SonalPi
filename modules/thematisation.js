@@ -1731,6 +1731,10 @@ console.log("nombre d'enfants= "+nbmov)
 
     tab.splice(arr, 0, ...element); // Insère l'élément à la nouvelle position
 
+
+// mémorise le changement 
+window.electronAPI.setThm(tab);
+
 }
 
 

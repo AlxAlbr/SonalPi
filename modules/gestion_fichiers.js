@@ -665,7 +665,7 @@ function chargeAudio(event) {
     segments.innerHTML = "" // vide le contenu avant d'ajouter les nœuds
     if (segments) {segments.append(...doc.body.childNodes);} // Ajoute les nœuds proprement
     
-    cleanHTML();
+    //cleanHTML();
     
     //document.getElementById("segments").innerHTML = parserHTML(contenuHtml);
     
@@ -874,123 +874,171 @@ return contenuHtml;
  
 function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventuelles
 
-    wait("Le fichier est en train d'être nettoyé \l Merci de patienter");
-
     effaceSurv();
-    //document.activeElement.blur();
+    console.log("efface surv ok");
+
     backUp();
+    console.log("backup ok");
 
-  
+    const conteneur = document.getElementById('segments');
+    const segs = conteneur.querySelectorAll('.lblseg');
 
-    // évitement des spans contenant plusieurs mots (empêche le codage thématique)
-    let nbaj = 0
-    
-     
-    const segs = document.querySelectorAll('.lblseg');
-    let m=0
-     
-    // correction de la couleur des polices 
+    const fragment = document.createDocumentFragment();
+    let rkMot = 1; // compteur global de mots
+    let rkSeg = 0; // compteur global de segments
+
     for (let seg of segs) {
-     
-     //mot.style.opacity="1";
-     seg.classList.remove('segselected')
 
+        // Clone du lblseg sans ses enfants
+        const nvSeg = seg.cloneNode(false);
+        nvSeg.removeAttribute('style');
+        nvSeg.removeAttribute('id');
+        nvSeg.removeAttribute('title');
+        nvSeg.classList.remove('segselected');
+        nvSeg.tabIndex = rkMot;      // rang du premier mot de ce segment
+        nvSeg.dataset.rksg = rkSeg;
 
-    }
+        // Défilement des nœuds enfants directs du segment original
+        for (let enfant of seg.childNodes) {
 
-    // Evitement du texte hors span dans les segments principaux (lblseg)
-    document.querySelectorAll(".lblseg").forEach(phrase => {
-    Array.from(phrase.childNodes)
-        .filter(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0)
-        .forEach(textNode => {
-            const motSpan = document.createElement("span"); // Création d’un span.mot
-            motSpan.textContent = textNode.textContent.trim(); // On met le texte dedans
-
-            phrase.replaceChild(motSpan, textNode); // Remplace le texte brut par le span
-        });
-    });
-
-
-    const mots = document.querySelectorAll('span');
-
-    // traitement des mots 
-
-    for (let mot of mots) {
-
-      
-        // retrait des espaces insécables
-        mot.textContent.replace(/\u00A0/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\u202F/g, ' ');  
-
-        // supprime les styles (généralement issus de copier/coller)
-        mot.removeAttribute("style"); 
-        mot.removeAttribute("id"); 
-        mot.removeAttribute("title"); 
-
-    
-     if (mot.classList.contains('lblseg')){ continue}
-     if (mot.classList.contains('ligloc')){ continue}
-
-        m++;
-
-         let texte = mot.innerText.trim() ;
-
-
-         if (texte.indexOf(" ") >-1){ // il y a un espace dans le span donc plusieurs mots
-
-            let tabmots = texte.split(" ") // mise en tableau des mots à séparer 
-
-            // décalage des tous les mots successifs
-             let deb = Number(mot.dataset.rk) +1 
-             décalageRk(deb, tabmots.length-1);
-
-
-            // recopiage du tableau
-            mot.innerText = tabmots[0] + " "; // on ne garde que le premier mot
-            derSeg = mot;
-
-            for (nvm=1;nvm<tabmots.length;nvm++) { // défilement
-
-            // clone à partir du mot courant
-                let nvSeg1 = mot.cloneNode(false);
-            
-                // création d'un nouveau mot
-                nvSeg1.dataset.rk = Number(mot.dataset.rk)+nvm;
-                nvSeg1.innerText = tabmots[nvm] + " ";
-                derSeg.after(nvSeg1);
-                derSeg=nvSeg1;
+            // Nœud texte brut hors span : on l'encapsule dans un span
+            if (enfant.nodeType === Node.TEXT_NODE) {
+                const texte = enfant.textContent
+                    .replace(/\u00A0/g, ' ')
+                    .replace(/\u202F/g, ' ')
+                    .trim();
+                if (!texte) continue;
+                const nvSpan = document.createElement('span');
+                nvSpan.textContent = texte;
+                nvSpan.dataset.rk = rkMot;
+                nvSpan.dataset.sg = rkSeg;
+                nvSeg.appendChild(nvSpan);
+                rkMot++;
+                continue;
             }
 
+            if (enfant.nodeType !== Node.ELEMENT_NODE) continue;
 
+            // Span ligloc (changement de locuteur) : on le conserve tel quel
+            if (enfant.classList.contains('ligloc')) {
+                nvSeg.appendChild(enfant.cloneNode(true));
+                continue;
+            }
 
-           // console.log ("il y a plusieurs mots à l'index " + mot.dataset.rk + tabmots)
-         
-        
+            // Span de mot : nettoyage + découpage en mots et espaces
+            const texte = enfant.textContent
+                .replace(/\u00A0/g, ' ')
+                .replace(/\u202F/g, ' ');
 
-         
-         }
+            const parts = texte.split(/(\s+)/);
+
+            // Copie explicite de la className (préserve les classes thématiques)
+            const classesMot = enfant.className;
+
+            for (let part of parts) {
+                if (part === '') continue;
+                const nvSpan = document.createElement('span');
+                nvSpan.className = classesMot; 
+                nvSpan.textContent = part;
+                nvSpan.dataset.rk = rkMot;
+                nvSpan.dataset.sg = rkSeg;
+                nvSeg.appendChild(nvSpan);
+                rkMot++;
+            }
+        }
+
+        fragment.appendChild(nvSeg);
+        rkSeg++;
     }
-    
-    
 
-    
+    // Remplacement du contenu en un seul reflow
+    conteneur.innerHTML = '';
+    conteneur.appendChild(fragment);
 
-    //ajustRk() // suppression des index laissés vides
-    reinitRk() // correction générale des rangs
-
-     
     checkloc(locut); // correction éventuelle des changements de locuteurs
 
-    
-
-   //listenerLblSeg(); // ajout de listeners sur les segments pour prise en compte modifs
-   
-endWait()
+    endWait();
 
 }
+function compactHtml(){ // fonction servant à compacter le html (notamment pour les exports en .sonal)
 
+    console.log("compactage du html en cours...")
 
+    const conteneur = document.getElementById("segments");
+    const segs = conteneur.querySelectorAll('.lblseg');
+
+    const fragment = document.createDocumentFragment();
+
+    for (let seg of segs) {
+
+        // Clone du lblseg sans ses enfants
+        const nvSeg = seg.cloneNode(false);
+
+        let spanReceveur = null;  // span en cours d'accumulation
+        let texteAccumule = "";
+        let lenChaine = 0;
+        let classesReceveur = null;
+
+        const enfants = Array.from(seg.childNodes);
+
+        const flush = () => {
+            if (!spanReceveur) return;
+            spanReceveur.textContent += texteAccumule;
+            if (lenChaine > 0) spanReceveur.dataset.len = lenChaine + 1;
+            nvSeg.appendChild(spanReceveur);
+            spanReceveur = null;
+            texteAccumule = "";
+            lenChaine = 0;
+            classesReceveur = null;
+        };
+
+        for (let enfant of enfants) {
+
+            // Nœud texte brut : on flush et on ignore (ne devrait pas arriver après cleanHTML)
+            if (enfant.nodeType === Node.TEXT_NODE) {
+                flush();
+                continue;
+            }
+
+            if (enfant.nodeType !== Node.ELEMENT_NODE) continue;
+
+            // Span ligloc : on flush puis on le conserve tel quel
+            if (enfant.classList.contains('ligloc')) {
+                flush();
+                nvSeg.appendChild(enfant.cloneNode(true));
+                continue;
+            }
+
+            const classesMot = Array.from(enfant.classList).sort().join(' ');
+
+            // Nouveau groupe : classes différentes, segment différent ou attribut obs
+            if (!spanReceveur || classesReceveur !== classesMot || enfant.dataset.obs) {
+                flush();
+                spanReceveur = enfant.cloneNode(false); // premier span du groupe
+                spanReceveur.textContent = enfant.textContent;
+                spanReceveur.removeAttribute('data-len');
+                classesReceveur = classesMot;
+            } else {
+                // Même groupe : on accumule
+                texteAccumule += enfant.textContent;
+                lenChaine++;
+            }
+        }
+
+        flush(); // dernier groupe
+
+        fragment.appendChild(nvSeg);
+    }
+
+    // Remplacement du contenu en un seul reflow
+    conteneur.innerHTML = '';
+    conteneur.appendChild(fragment);
+
+    console.log("fin du compactage");
+
+    // Retourner directement le HTML compacté (évite de relire le DOM après)
+    return conteneur.innerHTML;
+}    
 function SauvegarderSurDisque(textToWrite,fileNameToSaveAs, format) {
 
     //wait("Conversion de la base en cours. Merci de patienter.")
@@ -1644,7 +1692,7 @@ function remplacerTout() { // fonction de remplacement de texte dans les segment
         }
     });
 
-    cleanHTML()
+    //cleanHTML()
 
     alert(nbMatchs + " remplacement(s) effectué(s) dans tout le document")
     //annulRech(); // Réinitialise la recherche après le remplacement

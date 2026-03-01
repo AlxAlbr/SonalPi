@@ -287,8 +287,31 @@ function compterElements(conteneur, type, classeExclue) {
                 .length;
 }
 
+function nbMotsEnt(html){ // fonction permettant de compter le nombre de mots dans un entretien
+
+    if (!html){return 0;}
+    
+    const div = document.createElement('div');
+    div.innerHTML = html;
 
 
+    div.innerHTML = html.replace(/`/g,'');// suppression des backticks;        
+
+            // nombre de mots
+        let mots = div.querySelectorAll("span")
+
+            // nombre de mots       
+           const derSpan = [...mots]
+                .filter(m => !m.classList.contains('lblseg'))
+                .reduce((max, m) => Number(m.dataset.rk) > Number(max?.dataset?.rk ?? -1) ? m : max, null);
+
+            let nbMots = derSpan
+                ? Number(derSpan.dataset.rk) + Number(derSpan.dataset.len || 0)
+                : 0;
+    console.log("nb mots trouvés " + nbMots )     
+    return nbMots;
+
+}
 
 function décalageRk(deb, aj){
 
@@ -450,6 +473,7 @@ var RgBkUp=1;
 
 
 function initBkUp(){
+    console.log("init backup")
     RgBkUp=0;
     BkUp =[0]
     divSegments = document.getElementById('segments')
@@ -457,7 +481,7 @@ function initBkUp(){
     divSegments.addEventListener("paste", () => backUp());
     //divSegments.addEventListener("focusout", () => cleanHTML());
 
-for (i = 0; i < BkUp.length; i++) {
+    for (i = 0; i < BkUp.length; i++) {
     
     BkUp[i]="";
      
@@ -466,6 +490,7 @@ for (i = 0; i < BkUp.length; i++) {
 
 function backUp(){ // mémorisation des dernières modifications
 
+    console.log("backup segments - rang " + RgBkUp)
     if (BkUp[1]==document.getElementById('segments').innerHTML){return;}
 
     // agrandissement du tableau de données
@@ -494,6 +519,8 @@ function backUp(){ // mémorisation des dernières modifications
 }
 
 function undo(){
+
+    console.log("undo - rang " + RgBkUp)
 
     if (RgBkUp<BkUp.length-1) {
         RgBkUp++;

@@ -277,9 +277,9 @@ async function loadHtml(rgDep, rgFin){
 
             // message d'affichage du chargement
             let lblmessage = document.getElementsByClassName('info-no-content')[0]
-            if (lblmessage) lblmessage.innerText = "Chargement de l'entretien " + (e+1) + " / " + tabEnt.length + " ...";    
+            if (lblmessage) lblmessage.innerText = "Chargement de l'entretien " + (e+1) + " / " + tabEnt.length + "..."     
             
-            document.getElementById('status-bar').innerText = "Chargement de l'entretien " + (e+1) + " / " + tabEnt.length + " ...";
+            document.getElementById('status-bar').innerText = "Chargement de l'entretien " + (e+1) + " / " + tabEnt.length + " (" + tabEnt[e].nom + ")";
             document.getElementById('progress-bar').style.width = ((e+1)/tabEnt.length)*100 + "%"; 
 
             // 1 - Définition du chemin du fichier de l'entretien
@@ -299,7 +299,7 @@ async function loadHtml(rgDep, rgFin){
             } 
 
             // 2 - lecture du contenu du fichier de l'entretien
-            console.log("lecture du fichier : " + cheminEnt)
+            //console.log("lecture du fichier : " + cheminEnt)
             let contenuEnt = await window.electronAPI.readFileContent(cheminEnt);
             const metadata = await window.electronAPI.getFileMetadata(cheminEnt);
 
@@ -387,7 +387,7 @@ async function afficherEnt(rgDep, rgFin){
     Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
 
 
-    console.log("affichage des entretiens de " + rgDep + " à " + rgFin + " \n tabent : ", tabEnt);
+    //console.log("affichage des entretiens de " + rgDep + " à " + rgFin + " \n tabent : ", tabEnt);
 
     const conteneur=document.getElementById('fond_ent_corpus');
 
@@ -407,7 +407,7 @@ async function afficherEnt(rgDep, rgFin){
     for (e=rgDep;e<=rgFin;e++){
 
          // message d'affichage du chargement  
-        document.getElementById('status-bar').innerText = "Affichage de l'entretien " + (e+1) + " / " + tabEnt.length + " ...";
+        document.getElementById('status-bar').innerText = "Affichage de l'entretien " + (e+1) + " / " + tabEnt.length + " (" + tabEnt[e].nom + ")"; 
         document.getElementById('progress-bar').style.width = ((e+1)/tabEnt.length)*100 + "%"; 
 
     
@@ -444,6 +444,7 @@ async function afficherEnt(rgDep, rgFin){
             //cadre de l'image
             const divE = document.createElement('div');
             divE.classList.add('fond-cnv-ent');
+            divE.dataset.id = tabEnt[e].id;
             div.appendChild(divE)
 
 
@@ -500,11 +501,14 @@ async function afficherEnt(rgDep, rgFin){
             // ajout d'un listener pour le clic sur l'entretien
             div.addEventListener('click', function(event) {
 
+                console.log("affichage de l'entretien " + this.dataset.id)
                 event.stopPropagation(); //pas de propagation au niveau supérieur
+
+                // récupération du tabEnt
                 let idEnt = Number(this.dataset.id)
                 let rkEnt = tabEnt.findIndex(ent => ent.id === idEnt);
     
-
+                console.log("Rang de l'entretien cliqué : " + rkEnt)
                 dispPanneauG('imgpandet', 'fond_ent_corpus')
                 afficherDetailsEnt(rkEnt);
             })
@@ -625,7 +629,7 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
     let html = await window.electronAPI.getHtml(Number(rkEnt)); // récupération du HTML en cache   
 
-    console.log("affichage de l'entretien " + rkEnt + " à la position " + ratio  );
+    //console.log("affichage de l'entretien " + rkEnt + " à la position " + ratio  );
 
 
     //déselection de tous les autres entretiens
@@ -749,7 +753,7 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
 
 async function afficherDetailsEnt(rk){
 
-    console.log("affichage des détails de l'entretien " + rk)
+    //console.log("affichage des détails de l'entretien " + rk)
     
     
 
@@ -765,6 +769,9 @@ async function afficherDetailsEnt(rk){
     // déselection de tous les autres entretiens
     document.querySelectorAll('div.ligent').forEach(div => {
         div.classList.remove('active-ligent');
+        const fenEnt =  document.getElementById('fenEnt')
+        if (fenEnt) fenEnt.remove(); // fermeture de la fenêtre d'entretien si elle est ouverte 
+
     });
 
     let conteneurEnt = document.querySelector(`div.ligent[data-id='${ent.id}']`);
@@ -983,8 +990,14 @@ async function retirerEnt(rk){
    
      // retrait de l'entretien du tabEEnt
     tabEnt.splice(rk,1);
+    tabHtml.splice(rk,1); // retrait du HTML en cache
+    tabGrphEnt.splice(rk,1); // retrait du graphique en cache
+
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
+    await window.electronAPI.setHtml(rk, null); // suppression du HTML en cache
+    await window.electronAPI.setGrph(rk, null); // suppression du graphique en cache
+    
     // sauvegarde du corpus
     window.sauvegarderCorpus();
 }
@@ -998,7 +1011,7 @@ async function afficherWhisPurge(){
     let rkEnt = await window.electronAPI.getEntCur();
 
 
-    console.log("affichage whispurge du contenu de l'entretien " + rkEnt)
+    //console.log("affichage whispurge du contenu de l'entretien " + rkEnt)
 
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
   
@@ -1045,10 +1058,22 @@ async function afficherWhisPurge(){
     // recopiage du contenu du html dans segments
     document.getElementById('segments').innerHTML = html.replace(/`/g,''); // suppression des backticks
 
+    // remise en mots de l'entretien
+
+    wait("Chargement en cours");
+    setTimeout(() => {
+        cleanHTML();
+        endWait();
+        initBkUp();
+    }, 50);
+
+
+   // document.getElementById('lblspin').classList.add('dnone'); // fin de l'attente
+
         // anonymisation
 
     window.tabAnon = ent.tabAnon; // récupération des anonymisations
-    console.log("anonymisations trouvées :" + JSON.stringify(window.tabAnon) )
+    //console.log("anonymisations trouvées :" + JSON.stringify(window.tabAnon) )
     initAnon();
 
     // effacement des sélections et surlignages
@@ -1138,6 +1163,8 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
         ent.tabLoc = tabLoc;
     }
     
+    // mémorisation de la modification
+    ent.lastModified = Date.now();
 
     // récupération des variables
    ent.tabVar = tabVar;
@@ -1185,32 +1212,40 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
          
 
         if (conteneurHtml) {
-            cleanHTML() // nettoyage du html du conteneur
-            let contenuHtml = String(conteneurHtml.innerHTML).replace(/`/g,''); 
-
-            await window.electronAPI.setHtml(rkEnt, contenuHtml);
+           // cleanHTML() // nettoyage du html du conteneur
             
+            //let contenuHtml = String(conteneurHtml.innerHTML).replace(/`/g,''); 
+            //await window.electronAPI.setHtml(rkEnt, contenuHtml);
+
+            wait("Sauvegarde en cours. Merci de patienter...");
+
+            // Laisser le navigateur repeindre le spinner avant de bloquer le thread
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // compactage du html du conteneur (retourne directement le HTML compacté)
+            let contenuHtmlCmpct = await compactHtml();
+            contenuHtmlCmpct = String(contenuHtmlCmpct).replace(/`/g,'');
+
+            await window.electronAPI.setHtml(rkEnt, contenuHtmlCmpct);
 
             // sauvegarde du fichier de l'entretien
-  
-             
-
-            const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, tabDat, ent.notes, contenuHtml, ent.tabAnon); // conversion du HTML en format Sonal
-
+            const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
 
             let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
             let cheminEnt = ""; 
+            let res;
             if (Corpus.type == "local") {
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
-                const res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
+                res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
             } else {
                 cheminEnt = [Corpus.folder, ent.rtrPath].join('/');    
-                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);  
+                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);  
             }
             
             console.log("4b - fichier de l'entretien sauvegardé :", res);
+            endWait();
 
-            
+
 
         } else {
             console.error("3 - ERREUR: conteneurHtml not found");

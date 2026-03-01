@@ -102,7 +102,8 @@ async function sauvegarderAvantExit() {
     try {
         isSaving = true;
         console.log("=== SAUVEGARDE DÉMARRÉE ===");
-        
+       
+
         // Vérifier que les éléments existent AVANT de continuer
         const segmentsElem = document.getElementById('segments');
         const notesElem = document.getElementById('txtnotes');
@@ -143,6 +144,10 @@ async function sauvegarderAvantExit() {
     }
 }
 
+
+//sauvegarde simple 
+
+
 // Sauvegarde AVANT destruction du DOM (beforeunload = avant unload)
 window.addEventListener('beforeunload', (event) => {
     console.log("beforeunload déclenché");
@@ -178,6 +183,13 @@ window.addEventListener('unload', (event) => {
                     <label id= "btnspdp" class = "btnfonction  btnspd"  onclick=" vitesselecteur('-')"> - </label>
                     <label id= "lblspd" class = ""  style= "font-size: 1.5rem; color:rgba(12, 12, 12, 0.521);padding: 10px;" onclick=" vitesselecteur('=')"> x 1.0 </label>
                     <label id= "btnspdp" class = "btnfonction  btnspd"   onclick=" vitesselecteur('+')" style="float:right"> + </label>
+                </div>
+
+                <div id="btns-droite" style="float:right; margin:19px">
+
+                    <label id = "btn-cmpct" class="btn btn-secondary" style = "padding: 10px;" onclick="undo()"> ⟲ annuler </label>   
+                    <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderAvantExit()"> 💾 Enregistrer</label>
+                    <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();"> Quitter ✖️</label>
                 </div>
           </div>
         
@@ -450,10 +462,12 @@ window.addEventListener('unload', (event) => {
             </nav>
 
    
+            
 
             <!--  partie droite !-->
-            <div id='contenu' class = "colonne-d" style="flex:3" >
+            <div id='contenu' class = "colonne-d " style="flex:3" >
                 
+              
                                     
 
                 <div id="synthese" class="dnone fondsynth" >
@@ -658,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function affSegHtml(){
 
-    console.log("affichage des segments html");
+    //console.log("affichage des segments html");
 
     var modSelThm=true;
 
@@ -1574,8 +1588,12 @@ document.addEventListener('keydown', (e) => {
              
  
                 event.preventDefault();
-                
-                cleanHTML()
+                wait("Nettoyage du code en cours. \n \n Merci de patienter quelques instants.");
+                setTimeout(() => {
+                    cleanHTML();
+                    endWait();
+                }, 50);
+ 
                 seg_cur++
                 selSegment(seg_cur);
                 let segSuiv= getSeg(seg_cur);
@@ -2772,15 +2790,14 @@ function scrollToRk(rk){
 function wait(message) {
 console.log("wait")
 document.body.style.cursor = "wait";
-document.getElementById("processing").style.display="block"
-document.getElementById("processing").style.zIndex="100";
-document.getElementById("lblwait").innerText = message
-
+document.getElementById("processing").style.display="flex";
+document.getElementById("processing").style.zIndex="9999";
+document.getElementById("lblwait").innerText = message;
 }
 
 function endWait() {
  console.log("end wait")
- document.getElementById("processing").style.display="none"
+ document.getElementById("processing").style.display="none";
  document.body.style.cursor = "default";    
  //document.getElementById("contenu").style.display="block"
 }
@@ -2809,8 +2826,16 @@ function listenerGraph() {// ajout d'un listener pour le clic sur graph de l'ent
         
             mot.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-                
-            
+            // récupération de la position dans la bande
+            let seg = getSeg(mot.dataset.sg);
+
+            if (!seg) {return} // si le segment n'existe pas, on sort de la fonction
+
+            let posBande = seg.dataset.deb; // position dans la bande
+            let rangSeg= seg.dataset.rksg; // rang du segment
+            poslecteur(posBande)
+            barreProg(rangSeg)
+
  
         });
 }

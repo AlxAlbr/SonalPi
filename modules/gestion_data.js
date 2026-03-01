@@ -1065,7 +1065,7 @@ async function updateVarsDsEnt(){ // fonction de mise à jour des variables gén
 
 async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pour un entretien donné
 
-    console.log("Affichage des variables publiques pour l'entretien n°" + rkEnt);   
+    //console.log("Affichage des variables publiques pour l'entretien n°" + rkEnt);   
     tabEnt = await window.electronAPI.getEnt();
     tabVar = await window.electronAPI.getVar();
 
