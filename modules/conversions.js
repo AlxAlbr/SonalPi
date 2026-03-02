@@ -200,8 +200,10 @@ function convertPURGE(content) { // converstion d'un fichier PURGE en tabseg
          
     };
     
-async function convertTXT(lignesFich) { // conversion du fichier TXT en tableau
+async function convertTXT(content) { // conversion du fichier TXT en tableau
         
+    console.log("contenu du fichier txt à convertir = \n", content);
+
         // split du texte par lignes \n
         lignesFich = content.split("\n");
         var nblig = lignesFich.length  ;       
@@ -227,7 +229,7 @@ async function convertTXT(lignesFich) { // conversion du fichier TXT en tableau
 
        let formatSonal = tabSegToSonal (tabSeg,locut); 
 
-            //console.log("format sonal = \n", formatSonal);
+            console.log("format sonal = \n", formatSonal);
             return {formatSonal};
 
     }

@@ -80,8 +80,8 @@ async function ajouterEntretien(fichTxt, fichAudio){
         // conversion du fichier sélectionné 
         switch (extFichTxtO) {
             case ".txt":
-                fichApresConversion = convertTXT(lignesFich);
-
+                fichApresConversion = await convertTXT(content);
+                console.log("contenu après conversion du fichier txt = \n", fichApresConversion);
                 break;
 
 
@@ -91,12 +91,12 @@ async function ajouterEntretien(fichTxt, fichAudio){
                 // conversion VTT -> HTML
 
                 fichApresConversion = await convertSRT(content);
-                  console.log("locuteurs dans fich ", window.tabLocImport)
+                 // console.log("locuteurs dans fich ", window.tabLocImport)
                 break;
 
             case ".purge":
                 fichApresConversion = await convertPURGE(content);
-                 console.log("après conversion de fichier purge = ", fichApresConversion.formatSonal)
+                 // console.log("après conversion de fichier purge = ", fichApresConversion.formatSonal)
                 break;
 
             case ".sonal":

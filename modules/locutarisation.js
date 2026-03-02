@@ -19,6 +19,8 @@ async function chargeLocut(){
     locut =  await window.electronAPI.getTabLoc()    ;
 
 
+    if (!locut) {locut = ['','Question?','Réponse','Réponse 2']};
+    
     var divloc = document.getElementById('locuteurs');
 
     divloc.innerHTML="";
