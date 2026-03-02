@@ -32,12 +32,16 @@
     "npmRebuild": false,
     "asar": true,
     "mac": {
-      "icon": "icon/icon.png"
+      "icon": "icon/icon.png",
+      "target": [
+      { "target": "dmg", "arch": ["universal"] }
+      ]
     },
     "linux": {
       "icon": "icon/icon.png",
       "target": ["AppImage", "deb"]
     },
+    
     "files": [
       "main.js",
       "package.json",

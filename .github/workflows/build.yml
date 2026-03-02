@@ -1,13 +1,10 @@
 name: Build Electron App
-
 on:
   push:
     tags:
       - 'v*.*.*'
-
 permissions:
   contents: write  # Required for creating releases and uploading assets
-  
   id-token: write  # Required for authentication with cloud providers
 
 jobs:
@@ -16,7 +13,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-13]
       fail-fast: false
 
     steps:
@@ -57,7 +54,6 @@ jobs:
         run: npm run build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Limite les téléchargements en parallèle
           ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1
           ELECTRON_BUILDER_MAX_RETRIES: 3
       
@@ -71,5 +67,4 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.snap
-             
-          retention-days: 3 
+          retention-days: 3
