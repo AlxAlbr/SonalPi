@@ -991,13 +991,13 @@ async function retirerEnt(rk){
      // retrait de l'entretien du tabEEnt
     tabEnt.splice(rk,1);
     tabHtml.splice(rk,1); // retrait du HTML en cache
-    tabGrphEnt.splice(rk,1); // retrait du graphique en cache
+    tabGrph.splice(rk,1); // retrait du graphique en cache
 
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
     await window.electronAPI.setHtml(rk, null); // suppression du HTML en cache
     await window.electronAPI.setGrph(rk, null); // suppression du graphique en cache
-    
+
     // sauvegarde du corpus
     window.sauvegarderCorpus();
 }
