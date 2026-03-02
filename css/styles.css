@@ -2125,6 +2125,7 @@ SYNTHESE
     display: flex;
     flex-wrap: nowrap;
     margin-top: 10px;
+    max-height: 80px;
 }
 
 .ligne-variables-ent::before {

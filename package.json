@@ -54,7 +54,6 @@
       "nouveau_corpus.html",
       "saisie-url.html",
       "modules/**/*",
-      "dist/**/*",
       "css/**/*",
       "node_modules/**/*",
       "img/**/*",
