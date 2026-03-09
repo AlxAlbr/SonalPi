@@ -898,31 +898,39 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
         nvSeg.tabIndex = rkMot;      // rang du premier mot de ce segment
         nvSeg.dataset.rksg = rkSeg;
 
-        // Défilement des nœuds enfants directs du segment original
-        for (let enfant of seg.childNodes) {
+        // Traitement récursif des nœuds : aplatit les lblseg imbriqués
+        const traiterNoeud = (enfant) => {
 
-            // Nœud texte brut hors span : on l'encapsule dans un span
+            // Nœud texte brut : on l'encapsule dans un span
             if (enfant.nodeType === Node.TEXT_NODE) {
                 const texte = enfant.textContent
                     .replace(/\u00A0/g, ' ')
                     .replace(/\u202F/g, ' ')
                     .trim();
-                if (!texte) continue;
+                if (!texte) return;
                 const nvSpan = document.createElement('span');
                 nvSpan.textContent = texte;
                 nvSpan.dataset.rk = rkMot;
                 nvSpan.dataset.sg = rkSeg;
                 nvSeg.appendChild(nvSpan);
                 rkMot++;
-                continue;
+                return;
             }
 
-            if (enfant.nodeType !== Node.ELEMENT_NODE) continue;
+            if (enfant.nodeType !== Node.ELEMENT_NODE) return;
+
+            // lblseg imbriqué : on descend récursivement dans ses enfants
+            if (enfant.classList.contains('lblseg')) {
+                for (let sousEnfant of enfant.childNodes) {
+                    traiterNoeud(sousEnfant);
+                }
+                return;
+            }
 
             // Span ligloc (changement de locuteur) : on le conserve tel quel
             if (enfant.classList.contains('ligloc')) {
                 nvSeg.appendChild(enfant.cloneNode(true));
-                continue;
+                return;
             }
 
             // Span de mot : nettoyage + découpage en mots et espaces
@@ -932,19 +940,35 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
 
             const parts = texte.split(/(\s+)/);
 
+            if (parts.length === 1 && enfant.dataset.len==1) { // s'il n'y a qu'un seul mot et qu'on est en mode compression!, on le clone simplement
+                const nvSpan = enfant.cloneNode(false); // clone superficiel : classes et attributs, sans enfants
+                nvSeg.textContent = texte.trim();
+                nvSeg.appendChild(nvSpan);
+                rkMot++;
+                return;
+            }
+
             // Copie explicite de la className (préserve les classes thématiques)
-            const classesMot = enfant.className;
+            // On exclut 'lblseg' pour éviter de créer des segments imbriqués
+            const classesMot = Array.from(enfant.classList)
+                .filter(c => c !== 'lblseg' && c !== 'sautlig')
+                .join(' ');
 
             for (let part of parts) {
                 if (part === '') continue;
                 const nvSpan = document.createElement('span');
-                nvSpan.className = classesMot; 
+                nvSpan.className = classesMot;
                 nvSpan.textContent = part;
                 nvSpan.dataset.rk = rkMot;
                 nvSpan.dataset.sg = rkSeg;
                 nvSeg.appendChild(nvSpan);
                 rkMot++;
             }
+        };
+
+        // Défilement des nœuds enfants directs du segment original
+        for (let enfant of seg.childNodes) {
+            traiterNoeud(enfant);
         }
 
         fragment.appendChild(nvSeg);
@@ -960,6 +984,7 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
     endWait();
 
 }
+
 function compactHtml(){ // fonction servant à compacter le html (notamment pour les exports en .sonal)
 
     console.log("compactage du html en cours...")
@@ -1011,8 +1036,8 @@ function compactHtml(){ // fonction servant à compacter le html (notamment pour
 
             const classesMot = Array.from(enfant.classList).sort().join(' ');
 
-            // Nouveau groupe : classes différentes, segment différent ou attribut obs
-            if (!spanReceveur || classesReceveur !== classesMot || enfant.dataset.obs) {
+            // Nouveau groupe : classes différentes, segment différent, attribut obs ou data-pseudo
+            if (!spanReceveur || classesReceveur !== classesMot || enfant.dataset.obs || enfant.dataset.pseudo) {
                 flush();
                 spanReceveur = enfant.cloneNode(false); // premier span du groupe
                 spanReceveur.textContent = enfant.textContent;

@@ -460,11 +460,11 @@ async function chgDic(v,m, lib){
 }
 
 // valider un changement de modalité
-function validMod(v, l, m, lib){
+function validMod(rgEnt, v, l, m, lib){
     
 
 
-   // console.log("on valide un changement de modalité pour la variable ", v, "le locuteur " , l ,  " et la modalité ", m , " le nouveau libellé sera " , lib)
+   console.log("on valide un changement de modalité pour l'entretien " + rgEnt + " la variable ", v, "le locuteur " , l ,  " et la modalité ", m , " le nouveau libellé sera " , lib)
 
     // la modalité saisie existe-t-elle déjà ?
     const rgTabDic = tabDic.findIndex(vr => vr.v === v && vr.lib === lib) ;
@@ -486,6 +486,8 @@ function validMod(v, l, m, lib){
           
         tabDic.push({'v':v, 'm':m,'lib':lib })
 
+        electronAPI.setDic(tabDic); // sauvegarde du tabdic
+
         // console.log(tabDic)
     } else {
         m = tabDic[rgTabDic].m
@@ -496,7 +498,7 @@ function validMod(v, l, m, lib){
     // Mise à jour du tabdat
     // recherche de l'index 
 
-    const ligDat = tabDat.findIndex(vr => vr.e === rgEnt && vr.v == v && vr.l === l) ;
+    const ligDat = tabDat.findIndex(vr => vr.v == v && vr.l === l) ;
 
     if(ligDat ==-1){
         tabDat.push({'e' : rgEnt,'v' : v, 'l' : l, 'm' : m})
@@ -505,18 +507,20 @@ function validMod(v, l, m, lib){
         tabDat[ligDat].m=m; // mise à jour de la modalité
     }
 
+    electronAPI.setDat(tabDat); // sauvegarde du tabdat
 
     // mise à jour du tabdat dans le tabent de l'entretien
     const ligEnt = tabEnt.find(ent => ent.rg === rgEnt);
     if (ligEnt){
-        const varModif = ligEnt.dat.find(d => d.v == v && d.l === l);
+        const varModif = ligEnt.tabDat.find(d => d.v == v && d.l === l);
         if (varModif){
             varModif.m = m;
         } else {
-            ligEnt.dat.push({'v' : v, 'l' : l, 'm' : m})
+            ligEnt.tabDat.push({'v' : v, 'l' : l, 'm' : m})
         }
     }
 
+    electronAPI.setEnt(tabEnt); // sauvegarde du tabent
     
 
 
@@ -528,16 +532,24 @@ function validMod(v, l, m, lib){
 }
 
 // récupérer une valeur de modalité
+// e = index tableau de tabEnt (pas le .id)
 function getMod(e,v,l) {
 let moda = 0;
 let libellé = "";
 
+    // accès direct par index tableau (e est l'index, pas le .id)
+    if (!tabEnt[e] || !tabEnt[e].tabDat) { return [0, ""] }
+    const entObj = tabEnt[e];
+    const tabDatEnt = entObj.tabDat;
+    // utilisation du tabDic LOCAL de l'entretien (comme affichDataGen)
+    const tabDicLoc = entObj.tabDic || tabDic;
+
      // récupération de la valeur de modalité dans le tabdat
-                const ligDat = tabDat.filter(d => d.e === e && d.v == v && d.l === l  );
+                const ligDat = tabDatEnt.filter(d => d.v == v && d.l == l);
                                 
                 // si elle n'existe pas on la crée
                 if (ligDat.length==0){
-                    tabDat.push({'e' : e,'v' : v, 'l' : l, 'm' : 0 })
+                    if (tabDat) { tabDat.push({'e' : e,'v' : v, 'l' : l, 'm' : 0 }) }
                     // la valeur est nulle
                     moda=0 
 
@@ -546,29 +558,35 @@ let libellé = "";
                     moda  = ligDat[0].m
                     
                     if (moda>0){
-               
-                        const ligDic = tabDic.find(item => item.v == v && item.m == ligDat[0].m );                     
+                        // cherche d'abord dans le tabDic local, puis global en fallback
+                        const ligDic = tabDicLoc.find(item => item.v == v && item.m == ligDat[0].m)
+                                    || tabDic.find(item => item.v == v && item.m == ligDat[0].m);
                         libellé  = ligDic ? ligDic.lib : "";
                     }
                 }
-
 return [moda, libellé]
 }
 
 
 // fonction d'affichage des variables/modalités pour un seul entretien 
-async function affichDataEnt(){
+async function affichDataEnt(rgEnt){
 
-    //console.log("Affichage des données de l'entretien");
+
+
+
+    console.log("Affichage des données de l'entretien" + rgEnt);
     const fondVarGen = document.getElementById("listVarGenContent");
     fondVarGen.innerHTML = ""; // Réinitialiser le contenu
+
+    // détection du contexte via l'URL (index.html = fenêtre principale, sinon fenêtre entretien)
+    const estMainWindow = window.location.href.includes('index.html');
 
     //////////////////////////////////////////////////////////
     // sélection des variables ayant le champ "général"
     //////////////////////////////////////////////////////////
 
   
-
+    if (!tabEnt) {tabEnt = await window.electronAPI.getEnt()};
     if (!tabVar) {tabVar = await window.electronAPI.getVar()};
     if (!tabDic) {tabDic = await window.electronAPI.getDic()};
     if (!tabDat) {tabDat = await window.electronAPI.getDat()};
@@ -598,6 +616,7 @@ async function affichDataEnt(){
                 const fondGen = document.createElement("div");
                 fondGen.style="display:flex; flex-direction:row;  align-items:center;margin-left:10px"
                 fondGen.classList.add("ligmod"); 
+                if (estMainWindow) {fondGen.style.pointerEvents="none";fondGen.classList.add("txtmod-inactif")}
                 //fondGen.setAttribute("onclick", "menuMod('" + v.v + "'); alert('clic')");
                 fondVarGen.appendChild(fondGen);
 
@@ -607,6 +626,7 @@ async function affichDataEnt(){
                 div.classList.add("ligvar");
                 div.dataset.v = v.v;
                 div.setAttribute("onclick", "editVar('" + v.v + "', 'loc')"); // Ajouter un gestionnaire d'événement pour l'édition
+                //if (estMainWindow) {div.style.pointerEvents="none";div.classList.add("txtmod-inactif")}
                 //div.className = v.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
                 fondGen.appendChild(div);
 
@@ -622,12 +642,14 @@ async function affichDataEnt(){
                 divmod.classList.add("txtmod");
                 divmod.placeholder = "modalité";
                 //divmod.setAttribute("onchange", "sauvMod('" +  v2.v + " , " + "', this.value, " + index + ")");
-                divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ v.v + ', "all", ' + moda + ' , this.value) }');
+                divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ rgEnt + ',' + v.v + ', "all", ' + moda + ' , this.value) }');
+                if (estMainWindow) {divmod.style.pointerEvents="none"}
+
                 divmod.dataset.v =  v.v;
                 //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
                 fondGen.appendChild(divmod);
 
-         
+               
 
     });
 
@@ -669,13 +691,15 @@ async function affichDataEnt(){
                 div.dataset.v = index2;
                 div.setAttribute("onclick", "editVar('" + v2.v + "', 'loc')"); // Ajouter un gestionnaire d'événement pour l'édition
                 //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
+                 if (estMainWindow) {div.style.pointerEvents="none";div.classList.add("txtmod-inactif")}
+
                 fondLoc.appendChild(div);
 
                 const divmod = document.createElement("input");
                 divmod.type = "text";
                 
                 
-                let findModa = getMod( rgEnt,v2.v,index); 
+                let findModa = getMod(rgEnt,v2.v,index); 
                 var moda =findModa[0]; 
                 var libellé =findModa[1]; 
                
@@ -684,7 +708,8 @@ async function affichDataEnt(){
                 divmod.classList.add("txtmod");
                 divmod.placeholder = "modalité";
                 //divmod.setAttribute("onchange", "sauvMod('" +  v2.v + " , " + "', this.value, " + index + ")");
-                divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ v2.v + ','  + index + ',' + moda + ' , this.value) }');
+                divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ rgEnt + ','  + v2.v + ',' + index + ',' + moda + ' , this.value) }');
+                if (estMainWindow) {divmod.style.pointerEvents="none";divmod.classList.add("txtmod-inactif")}
                 divmod.dataset.v =  v2.v;
                 //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
                 fondLoc.appendChild(divmod);
@@ -697,8 +722,11 @@ async function affichDataEnt(){
     });
 
     // ajout des listeners sur les libellés
-    listenersLibMod()
 
+    if (!estMainWindow) {
+        listenersLibMod();
+    }
+     
 }
 
 function listenersLibMod(){
@@ -934,7 +962,7 @@ async function affichDataGen(){
     // création du fond du tableau
     const fondTab = document.createElement("div");
     fondTab.style.overflow = "auto";
-    fondTab.style.maxHeight = "calc(100vh - 200px)";
+    fondTab.style.maxHeight = "calc(100vh - 70px)";
 
     divTabDat.appendChild(fondTab);
 
@@ -997,7 +1025,7 @@ async function affichDataGen(){
                 // recherche dans le tabDat local la ligne correspondant à la variable  
                 const ligDat = dataRow.tabDat.filter(d => d.v === varLoc );
 
-                console.log("Lignes de tabDat locale pour la variable " + caseVar.lib + " dans l'entretien " + dataRow.nom + " :", ligDat);
+                //console.log("Lignes de tabDat locale pour la variable " + caseVar.lib + " dans l'entretien " + dataRow.nom + " :", ligDat);
                 
                 if (ligDat.length > 0) { // Vérifier s'il y a des résultats
                     // console.log("Lignes de tabDat locale trouvées :", ligDat);
@@ -1071,7 +1099,7 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
 
     const ent = tabEnt[rkEnt];
 
-    if (ent){
+    if (ent && ent.tabDat) {
 
         //console.log("Entretien trouvé :", ent.nom);
         const varPub = tabVar.filter(v => v.priv === "false");  
@@ -1113,5 +1141,8 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
 
         //console.log("Chaine des variables publiques pour l'entretien " + rkEnt + " :\n" + chaineHtml);
         return [chaineHtml, chaineText];
+    }else {
+        //console.log("Entretien non trouvé ou pas de données pour l'entretien n°" + rkEnt);
+        return ["", ""];
     }
 }

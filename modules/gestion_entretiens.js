@@ -753,7 +753,7 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
 
 async function afficherDetailsEnt(rk){
 
-    //console.log("affichage des détails de l'entretien " + rk)
+    console.log("affichage des détails de l'entretien " + rk)
     
     
 
@@ -763,6 +763,7 @@ async function afficherDetailsEnt(rk){
     // récupération de l'entretien
     let ent = tabEnt[rk];
 
+    
 
     // ajouter le marqueur de sélection sur la div de l'entretien
 
@@ -965,14 +966,43 @@ async function afficherDetailsEnt(rk){
     conteneur.appendChild(btnSuppr);
 
 
+
     // infos sur les variables
     let divVars = document.createElement('div');
-    divVars.innerText = "variables associées : " + JSON.stringify(ent.tabVar) + "\n dictionnaires associés : " + JSON.stringify(ent.tabDic) + "\n données associées : " + JSON.stringify(ent.tabDat);
+    divVars.style.height = "570px";
+    divVars.style.overflowY = "auto";
+    //divVars.innerText = "variables associées : " + JSON.stringify(ent.tabVar) + "\n dictionnaires associés : " + JSON.stringify(ent.tabDic) + "\n données associées : " + JSON.stringify(ent.tabDat);
+    
+    conteneur.appendChild(divVars);
+
+    let titreVarGen = document.createElement('H3');
+    titreVarGen.innerText = "Variables générales";
+    titreVarGen.style.marginTop = "20px";
+    titreVarGen.style.marginBottom = "10px";
+    divVars.appendChild(titreVarGen);
+
+    let divVarGen = document.createElement('div');
+    divVarGen.id = "listVarGenContent";
+    divVars.appendChild(divVarGen);
+
+
+    let titreVarLoc = document.createElement('H3');
+    titreVarLoc.innerText = "Variables par locuteur";
+    titreVarLoc.style.marginTop = "20px";
+    titreVarLoc.style.marginBottom = "10px";
+    divVars.appendChild(titreVarLoc);
+
+    let divVarLoc = document.createElement('div');
+    divVarLoc.id = "listVarLocContent";
+    divVars.appendChild(divVarLoc);
+
+
+    setTimeout(() => {
+
+    affichDataEnt(Number(tabEnt[rk].id)); // affichage des variables, dictionnaires et données associées à l'entretien    
+    }, 50);
     
 
- 
-
-    //conteneur.appendChild(divVars);
 
 };
 
@@ -1013,7 +1043,7 @@ async function afficherWhisPurge(){
 
     //console.log("affichage whispurge du contenu de l'entretien " + rkEnt)
 
-    let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
+    tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
   
     // récupération de l'entretien
     let ent = tabEnt[rkEnt];
@@ -1492,7 +1522,7 @@ async function CreerWaveform(audioFile,nomFichierImage){
                 return;
             }
             console.timeEnd('Lecture fichier');
-            afficherNotification('Décodage audio /n Merci de patienter.', 'success');
+            afficherNotification('Décodage audio \n Merci de patienter.', 'success');
             console.log('Décodage audio...');
             console.time('Décodage audio');
             

@@ -1850,9 +1850,19 @@ function afficherResultatRecherche(){
 }
 
 
+let triCorpusEnCours = false; // verrou pour éviter les relances simultanées
+
 async function triEntCorpus(mode) { // fonction permettant de trier les entretiens par ordre alphabétique
 
- 
+    if (triCorpusEnCours) {
+        console.warn("triEntCorpus déjà en cours, appel ignoré");
+        afficherNotification("Tri en cours, veuillez patienter…", "warning");
+        return;
+    }
+    triCorpusEnCours = true;
+    afficherNotification("Tri en cours…", "info");
+
+    try {
     let tabEntCorpus = await window.electronAPI.getEnt();
     tabHtml = await window.electronAPI.getHtml();
     tabGrph = await window.electronAPI.getGrph();
@@ -1935,6 +1945,15 @@ async function triEntCorpus(mode) { // fonction permettant de trier les entretie
     await afficherEnt(0,tabEnt.length-1); // réaffichage de la liste des entretiens
 
     return { tabEnt: tabEntTrié, tabHtml: tabHtmlTrié, tabGrph: tabGrphTrié };
+
+    } catch(err) {
+        console.error("Erreur dans triEntCorpus :", err);
+    } finally {
+        triCorpusEnCours = false; // libération du verrou dans tous les cas
+        if (mode==="longueur") {
+            await echelleEnt(); // mise à l'échelle des entretiens après tri par longueur
+        }
+    }
 }
 
 

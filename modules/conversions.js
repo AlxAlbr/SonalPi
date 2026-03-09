@@ -628,6 +628,10 @@ html += `<div id="contenuText">
     var sgMax=1; 
 
     for (s=0;s<tabSeg.length;s++){
+        
+        
+        // création des spans internes
+        if (!tabSeg[s][4] || tabSeg[s][4].length == 0 || tabSeg[s][4].trim() === ""){continue}
 
         html += `<span class="lblseg sautlig" 
         data-deb="${tabSeg[s][1]}" 
@@ -636,9 +640,8 @@ html += `<div id="contenuText">
         tabindex="${rkMax}" 
         data-rksg="${sgMax}"
         >`
-        
-        // création des spans internes
-        if (!tabSeg[s][4]){continue}
+
+
 
         // Regex qui capture chaque mot, ponctuation et espace séparément
         var texte = tabSeg[s][4];

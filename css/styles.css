@@ -423,6 +423,10 @@ Styles pour les boutons
   background: #17a2b8;
 }
 
+.notification-warning {
+  background: #fc7a00;
+}
+
 .footer {
     position: fixed;
     height: 20px;
@@ -1923,6 +1927,19 @@ background-color: #8d8d8d91;
     height: 37px;
 }
 
+.txtmod-inactif {
+ 
+    background-color: #ececec !important;
+ 
+}
+
+.txtmod-inactif::after {
+ 
+    background-image: none !important;
+ 
+}
+
+
 .txtmod:hover{
   background-color: #ffffff;
   border: 1px solid #2E73D8;
@@ -2045,7 +2062,7 @@ SYNTHESE
     height: calc(100vh - 75px);
     margin-top: 10px;
     position: absolute;
-    background-color: white;
+    background-color: var(--couleur-fond);
 }
 
 .plansynth {
@@ -2171,11 +2188,11 @@ SYNTHESE
 }
 
 .extrait-synthese {
-    width: 54%;
-    background-color: var(--couleur-fond);
+    width: 38%;
+    background-color: white;
     border-radius: 5px;
     border: 1px solid #b9b9b9;
-    /*opacity: 0.95;*/
+    /* opacity: 0.95; */
     padding-top: 10px;
     padding-left: 30px;
     padding-right: 30px;
@@ -2184,11 +2201,10 @@ SYNTHESE
     padding-top: 5px;
     padding-bottom: 30px;
     left: 23%;
-    margin-left: 23%;
+    margin-left: 39%;
     box-shadow: 3px 3px #dedede;
     margin-top: 10px;
 }
-
 .extrait-synthese::before {
     content: attr(data-description);
     color: rgb(103 99 99 / 72%);
