@@ -2069,13 +2069,14 @@ SYNTHESE
     position: sticky;
     float: left;
     width: 20%;
-    height: 100%;
+    height: calc(100vh - 75px);
     left: 0px;
     background-color: var(--couleur-block);
     padding-top: 10px;
     border-right: 2px solid var(--couleur-titre);
     z-index: 10;
     top: 0px;
+    overflow-y: auto;
 }
 
 .nbxtrplansynth{

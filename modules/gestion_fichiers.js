@@ -942,6 +942,8 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
 
             if (parts.length === 1 && enfant.dataset.len==1) { // s'il n'y a qu'un seul mot et qu'on est en mode compression!, on le clone simplement
                 const nvSpan = enfant.cloneNode(false); // clone superficiel : classes et attributs, sans enfants
+                nvSeg.dataset.rk = rkMot;
+                nvSeg.dataset.sg = rkSeg;
                 nvSeg.textContent = texte.trim();
                 nvSeg.appendChild(nvSpan);
                 rkMot++;
@@ -961,6 +963,16 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
                 nvSpan.textContent = part;
                 nvSpan.dataset.rk = rkMot;
                 nvSpan.dataset.sg = rkSeg;
+                if (enfant.dataset.obs) {
+                    nvSpan.dataset.auth = enfant.dataset.auth;
+                    nvSpan.dataset.obs = enfant.dataset.obs || "";
+                    nvSpan.dataset.finobs = enfant.dataset.finobs || "";
+                }
+
+                if (enfant.dataset.pseudo) {
+                    nvSpan.dataset.pseudo = enfant.dataset.pseudo || "";
+                }
+
                 nvSeg.appendChild(nvSpan);
                 rkMot++;
             }
@@ -1467,7 +1479,7 @@ function SauvegarderSurDisque(textToWrite,fileNameToSaveAs, format) {
 
             // ajout du texte
             let texte = span.textContent;
-            if (texte) {txtBrut += texte + " ";}
+            if (texte) {txtBrut += texte;}
 
         }
     

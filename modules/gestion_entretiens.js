@@ -543,7 +543,10 @@ async function afficherEnt(rgDep, rgFin){
                 event.stopPropagation(); // Empêche la propagation de l'événement au div parent
                 let idEnt = Number(this.parentElement.dataset.id)
                 let rkEnt = tabEnt.findIndex(ent => ent.id === idEnt);
-                console.log("clic sur le bouton play de l'entretien " + rkEnt)
+                 
+                désélectEntretiens() // désélection de tous les autres entretiens
+
+                //console.log("clic sur le bouton play de l'entretien " + rkEnt)
                 
                 let editable = true;  // le fichier peut être édité
 
@@ -684,8 +687,7 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
         btnFermer.innerText = "X";
         btnFermer.addEventListener('click', function(event) {
             event.stopPropagation(); // Empêche la propagation de l'événement au div parent
-            divFond.remove()
-            conteneur.classList.remove('active-ligent');
+            désélectEntretiens()
         });
 
         divEntete.appendChild(btnFermer);
@@ -747,6 +749,19 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
                 */
             
 
+
+}
+
+function désélectEntretiens() { // supprime la sélection et l'affichage des détails d'un entretien
+
+    // déselection de tous les autres entretiens
+    document.querySelectorAll('div.ligent').forEach(div => {
+        div.classList.remove('active-ligent');
+    });
+
+    // suppression de la fenêtre d'entretien
+    let fenEnt =  document.getElementById('fenEnt')
+    if (fenEnt) fenEnt.remove(); // fermeture de la fenêtre d'entretien si elle est ouverte
 
 }
 

@@ -1,13 +1,22 @@
 function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
 
  
-
+     
     if (!rk){return}
     if (!sg){return}
 
      
     selSegment(sg,false)
     
+
+            let seg = getSeg(sg)
+            if (seg) {
+    
+                if (audio.paused == true ) {
+                posi = Number(seg.dataset.deb)
+                poslecteur(posi)
+                }
+            }
 
       if (typeAction !="cat") { return;} // si on n'est pas en mode catégorie, on ne fait rien
 

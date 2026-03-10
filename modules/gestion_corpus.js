@@ -1484,7 +1484,7 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
 
                     // console.log("thème " + tabThm[rkc].nom + " avec la couleur " + tabThm[rkc].couleur + " et l'activité " + tabThm[rkc].act + "estact" + estAct)
 
-                    if (estAct  == true ){
+                    
 
                         if (tabThm[rkc].couleur) { 
                             nbCouleurs++;
@@ -1495,19 +1495,11 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
                         }
 
                         
-                    } 
-                    else {
-                           
-                        
-                        if (tabThm[rkc].couleur) { 
-                            nbCouleurs++;
-                            tabCoul.push("rgba(63, 62, 62, 1)");
-                         
-                        }
+                     
                         //ctx.strokeStyle ="rgba(63, 62, 62, 1)";  // on ne met que la bordure
                             //couleurBordure = "rgba(63, 62, 62, 1)"; // couleur de bordure par défaut
                        
-                    }
+                    
                     
 
                 }
