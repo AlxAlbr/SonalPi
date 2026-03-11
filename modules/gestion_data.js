@@ -13,7 +13,7 @@ var txtmod_cur = null; // mémorisation du texte de modalité en cours de modifi
 // AJOUTER UNE VARIABLE
 function addVar(mode) {
 
-    // console.log("Ajout d'une nouvelle variable au tableau existant" + JSON.stringify(tabVar));
+    console.log("Ajout d'une nouvelle variable au tableau existant" + JSON.stringify(tabVar));
     
     var rkVar = Number(document.getElementById("lblCodeVar").value); 
 
@@ -36,7 +36,7 @@ function addVar(mode) {
         
         
         tabVar.push({'v': rkVar, 'lib': newVar, 'champ': champ, 'priv': priv }); // Ajouter la nouvelle variable au tableau
-        tabDic.push ({ 'v': rkVar, 'm' : 0 }) // Ajouter la modalité 0
+        tabDic.push ({ 'v': rkVar, 'm' : 0 , 'lib' : "" }) // Ajouter la modalité 0
         /*
         if (champ=="loc") { // création d'une modalité zéro dans le tabdat
             tabDat.push ({'e': rgEnt, 'v': rkVar, 'l': 0, 'm' : 0  })
@@ -55,7 +55,7 @@ function addVar(mode) {
             let rkV = Number(input.dataset.v)
             let rkM = Number(input.dataset.m); 
             
-            if (input.value != input.dataset.lib) {
+            if (input.value != input.dataset.lib && rkV && rkM) {
                 chgDic(rkV, rkM, input.value)
             }
         });
@@ -292,7 +292,7 @@ function sauvModas(ode) {
         // console.log("Sauvegarde de la modalité pour la variable :", rkV, "et la modalité :", rkM, "avec la valeur :", newValue);
 
         // mise à jour de la modalité dans tabDic
-        if (input.value != input.lib) {
+        if (input.value != input.lib && rkV && rkM) {
             chgDic(rkV, rkM, input.value)
         };
 
@@ -303,6 +303,8 @@ function sauvModas(ode) {
 
 // ajout d'une modalité à la variable éditée
 function addMod(v) {
+
+console.log ("ajout d'une modalité")
 
     const fondDico = document.getElementById("dico")
 
@@ -460,16 +462,18 @@ async function chgDic(v,m, lib){
 }
 
 // valider un changement de modalité
-function validMod(rgEnt, v, l, m, lib){
+async function validMod(rgEnt, v, l, m, lib){
     
-
+    if (!rgEnt) {
+        rgEnt = await window.electronAPI.getEntCur();
+    }
 
    console.log("on valide un changement de modalité pour l'entretien " + rgEnt + " la variable ", v, "le locuteur " , l ,  " et la modalité ", m , " le nouveau libellé sera " , lib)
 
     // la modalité saisie existe-t-elle déjà ?
     const rgTabDic = tabDic.findIndex(vr => vr.v === v && vr.lib === lib) ;
     
-    // console.log("la modalité a été trouvée au rang " + rgTabDic)
+    console.log("la modalité a été trouvée au rang " + rgTabDic)
 
      // si non -->  ajout dans tabdic
     if (rgTabDic==-1){ // la modalité n'est pas trouvée
@@ -479,14 +483,17 @@ function validMod(rgEnt, v, l, m, lib){
         const ligsDic= tabDic.filter (vr => vr.v == v);
         const maxMod = Math.max(...ligsDic.map(item => item.m));   
 
-        //console.log("modalité la plus élevée pour la variable " + v + " = " + maxMod)
-
+        console.log("modalité la plus élevée pour la variable " + v + " = " + maxMod)
+        if (isFinite(maxMod)) {
         m = maxMod+1; 
+        } else {
+            m=1; // si aucune modalité n'existe encore pour cette variable, on commence à 1
+        }
 
           
         tabDic.push({'v':v, 'm':m,'lib':lib })
 
-        electronAPI.setDic(tabDic); // sauvegarde du tabdic
+        await window.electronAPI.setDic(tabDic); // sauvegarde du tabdic
 
         // console.log(tabDic)
     } else {
@@ -498,6 +505,7 @@ function validMod(rgEnt, v, l, m, lib){
     // Mise à jour du tabdat
     // recherche de l'index 
 
+    tabDat = await window.electronAPI.getDat(); // on recharge le tabdat pour être sûr d'avoir la dernière version à jour
     const ligDat = tabDat.findIndex(vr => vr.v == v && vr.l === l) ;
 
     if(ligDat ==-1){
@@ -507,7 +515,7 @@ function validMod(rgEnt, v, l, m, lib){
         tabDat[ligDat].m=m; // mise à jour de la modalité
     }
 
-    electronAPI.setDat(tabDat); // sauvegarde du tabdat
+    await window.electronAPI.setDat(tabDat); // sauvegarde du tabdat
 
     // mise à jour du tabdat dans le tabent de l'entretien
     const ligEnt = tabEnt.find(ent => ent.rg === rgEnt);
@@ -520,7 +528,7 @@ function validMod(rgEnt, v, l, m, lib){
         }
     }
 
-    electronAPI.setEnt(tabEnt); // sauvegarde du tabent
+    await window.electronAPI.setEnt(tabEnt); // sauvegarde du tabent
     
 
 
@@ -533,16 +541,23 @@ function validMod(rgEnt, v, l, m, lib){
 
 // récupérer une valeur de modalité
 // e = index tableau de tabEnt (pas le .id)
-function getMod(e,v,l) {
-let moda = 0;
-let libellé = "";
+async function getMod(e,v,l) {
+
+    console.log("recherche de la valeur prise pour l'entretien ", e, "à la variable" , v)
+
+    let moda = 0;
+    let libellé = "";
 
     // accès direct par index tableau (e est l'index, pas le .id)
-    if (!tabEnt[e] || !tabEnt[e].tabDat) { return [0, ""] }
+    if (!tabEnt[e]) {
+        tabEnt = await window.electronAPI.getEnt(); // on recharge le tabent pour être sûr d'avoir la dernière version à jour
+    }
+    
     const entObj = tabEnt[e];
     const tabDatEnt = entObj.tabDat;
+    
     // utilisation du tabDic LOCAL de l'entretien (comme affichDataGen)
-    const tabDicLoc = entObj.tabDic || tabDic;
+    const tabDicLoc = entObj.tabDic ;
 
      // récupération de la valeur de modalité dans le tabdat
                 const ligDat = tabDatEnt.filter(d => d.v == v && d.l == l);
@@ -569,12 +584,23 @@ return [moda, libellé]
 
 
 // fonction d'affichage des variables/modalités pour un seul entretien 
-async function affichDataEnt(rgEnt){
+async function affichDataEnt(){
+
+     
+    // récupération des tableaux de données nécessaires à l'affiachage
+    if (!tabEnt) {tabEnt = await window.electronAPI.getEnt()};
+    if (!tabVar) {tabVar = await window.electronAPI.getVar()};
+    if (!tabDic) {tabDic = await window.electronAPI.getDic()};
+    if (!tabDat) {tabDat = await window.electronAPI.getDat()};
 
 
+       let rkEnt = await window.electronAPI.getEntCur();
+       let tabEnt_cur = await window.electronAPI.getEnt();
+       rgEnt = String(tabEnt_cur[rkEnt].id);
+       
+    
 
-
-    console.log("Affichage des données de l'entretien" + rgEnt);
+    console.log("Affichage des données de l'entretien id = " + rgEnt + "rang = " + rkEnt);
     const fondVarGen = document.getElementById("listVarGenContent");
     fondVarGen.innerHTML = ""; // Réinitialiser le contenu
 
@@ -585,11 +611,7 @@ async function affichDataEnt(rgEnt){
     // sélection des variables ayant le champ "général"
     //////////////////////////////////////////////////////////
 
-  
-    if (!tabEnt) {tabEnt = await window.electronAPI.getEnt()};
-    if (!tabVar) {tabVar = await window.electronAPI.getVar()};
-    if (!tabDic) {tabDic = await window.electronAPI.getDic()};
-    if (!tabDat) {tabDat = await window.electronAPI.getDat()};
+
 
     // console.log("Variables disponibles :", tabVar);
 
@@ -601,7 +623,7 @@ async function affichDataEnt(rgEnt){
  
 
 
-    varGen.forEach((v, index) => {
+    varGen.forEach(async (v, index) => {
 
 /*
         const div = document.createElement("div");
@@ -633,7 +655,7 @@ async function affichDataEnt(rgEnt){
                 const divmod = document.createElement("input");
                 divmod.type = "text";
                                 
-                let findModa = getMod(rgEnt,v.v,"all"); 
+                let findModa = await getMod(rkEnt,v.v,"all"); // récupération de la valeur de modalité pour l'entretien courant, la variable v et le locuteur "all" (champ général)
                 var moda =findModa[0]; 
                 var libellé =findModa[1]; 
                
@@ -664,6 +686,9 @@ async function affichDataEnt(rgEnt){
     const varLoc = tabVar.filter(v2 => v2.champ === "loc");
 
     // console.log("Variables locuteurs :", varLoc);
+    if (estMainWindow) {
+    locut = tabEnt[rkEnt].tabLoc // récupération de la liste des locuteurs
+    }
 
     locut.forEach((l, index) => {
        // console.log("Traitement du locuteur :", l, "à l'index :", index);
@@ -676,12 +701,13 @@ async function affichDataEnt(rgEnt){
             divLoc.classList.add("liglocvar");
             fondVarLoc.appendChild(divLoc);
 
-            varLoc.forEach((v2, index2) => {
+            varLoc.forEach(async (v2, index2) => {
 
 
                 const fondLoc = document.createElement("div");
                 fondLoc.style="display:flex; flex-direction:row;  align-items:center;margin-left:10px"
                 fondLoc.classList.add("ligmod"); 
+                if (estMainWindow) {fondLoc.classList.add("txtmod-inactif")}
                 //fondLoc.setAttribute("onclick", "menuMod('" + v2.v + "'); alert('clic')");
                 fondVarLoc.appendChild(fondLoc);
 
@@ -691,7 +717,7 @@ async function affichDataEnt(rgEnt){
                 div.dataset.v = index2;
                 div.setAttribute("onclick", "editVar('" + v2.v + "', 'loc')"); // Ajouter un gestionnaire d'événement pour l'édition
                 //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
-                 if (estMainWindow) {div.style.pointerEvents="none";div.classList.add("txtmod-inactif")}
+                 if (estMainWindow) {div.style.pointerEvents="none"}
 
                 fondLoc.appendChild(div);
 
@@ -699,7 +725,7 @@ async function affichDataEnt(rgEnt){
                 divmod.type = "text";
                 
                 
-                let findModa = getMod(rgEnt,v2.v,index); 
+                let findModa = await getMod(rkEnt,v2.v,index); 
                 var moda =findModa[0]; 
                 var libellé =findModa[1]; 
                
@@ -709,7 +735,7 @@ async function affichDataEnt(rgEnt){
                 divmod.placeholder = "modalité";
                 //divmod.setAttribute("onchange", "sauvMod('" +  v2.v + " , " + "', this.value, " + index + ")");
                 divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ rgEnt + ','  + v2.v + ',' + index + ',' + moda + ' , this.value) }');
-                if (estMainWindow) {divmod.style.pointerEvents="none";divmod.classList.add("txtmod-inactif")}
+                if (estMainWindow) {divmod.style.pointerEvents="none";}
                 divmod.dataset.v =  v2.v;
                 //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
                 fondLoc.appendChild(divmod);
@@ -868,17 +894,19 @@ async function inventaireVariables(){ // fonction d'inventaire des variables exi
             return;
         }
         
-        // recopiage des modalités du tabdic qui n'existent pas encore dans le tabdic global
+        // recopiage des modalités du tabdic qui n'existent pas encore dans le tabdic global (Pas là)
+        /*
         tabDicEnt.forEach(dicEnt => { 
 
             if (!tabDic.some(d => d.v === dicEnt.v && d.m === dicEnt.m )) { // n'existe pas encore   
-                if (dicEnt.m != "0" && dicEnt.m != 0 && dicEnt.m != null){
+                if (dicEnt.m != "0" && dicEnt.m != 0 && dicEnt.m != null && dicEnt.m != undefined && isNumber(dicEnt.m)== true)  { // on n'ajoute pas les modalités nulles
                     tabDic.push(dicEnt);
                     // console.log("nouvelle modalité ajoutée :", dicEnt.v, dicEnt.m);
                 }
             }
 
         });
+        */
 
     });
 
@@ -1022,6 +1050,8 @@ async function affichDataGen(){
                 const varLoc = rkVarLoc.v;
                 // console.log("Code local de la variable recherchée :", varLoc);
 
+                if (dataRow.tabDat == undefined){return}; // évitement des fichiers vides
+
                 // recherche dans le tabDat local la ligne correspondant à la variable  
                 const ligDat = dataRow.tabDat.filter(d => d.v === varLoc );
 
@@ -1146,3 +1176,34 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
         return ["", ""];
     }
 }
+
+async function pointvariables(){ // fonction de pointage des variables dans les fichiers d'entretiens
+
+     console.log("Pointage des variables dans les fichiers d'entretiens");
+        // récupération du tableau des entretiens
+        tabEnt = await window.electronAPI.getEnt();
+        tabVar = await window.electronAPI.getVar();
+        tabDic = await window.electronAPI.getDic();
+        tabDat = await window.electronAPI.getDat();
+
+        console.log("tabEnt", tabEnt);
+        console.log("tabVar général", tabVar);
+        console.log("tabDic général", tabDic);
+        console.log("tabDat général", tabDat);
+
+
+        // défilement des entretiens
+        tabEnt.forEach(ent => {
+            const tabVarEnt = ent.tabVar; // récupération des variables de l'entretien
+            const tabDicEnt = ent.tabDic; // récupération des modalités de l'entretien
+            const tabDatEnt = ent.tabDat; // récupération des données de l'entretien
+        
+        console.log("Traitement de l'entretien :", ent.nom);
+        console.log("Variables de l'entretien :", tabVarEnt);
+        console.log("Modalités de l'entretien :", tabDicEnt);
+        console.log("Données de l'entretien :", tabDatEnt);
+        }
+
+    );
+}
+

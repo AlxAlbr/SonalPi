@@ -202,24 +202,34 @@ function convertPURGE(content) { // converstion d'un fichier PURGE en tabseg
     
 async function convertTXT(content) { // conversion du fichier TXT en tableau
         
-    console.log("contenu du fichier txt à convertir = \n", content);
+   // console.log("contenu du fichier txt à convertir = \n", content);
 
         // split du texte par lignes \n
         lignesFich = content.split("\n");
         var nblig = lignesFich.length  ;       
+
+        //console.log("nombre de lignes du fichier txt à convertir = ", nblig);
         var locut = [""] // locut[0] n'existe pas
         let rgSeg=0;
-        tabSeg = new Array (1);
-        tabSeg[rgSeg]=  new Array(6);   
+        tabSeg = new Array (1)  ;
+        tabSeg[rgSeg]= new Array(6);
+        
         for (s=0;s<nblig;s++){
              
             let ligne = lignesFich[s].trim()
             if (ligne.length<1) {continue} // ligne vide
     
-            // il n'y a que le texte à récupérer
-            tabSeg[rgSeg][4] = ligne // texte
+                tabSeg.push();
+                rgSeg++;
+
+                tabSeg[rgSeg]=  new Array(6);
+
+                // il n'y a que le texte à récupérer
+                tabSeg[rgSeg][4] = ligne // texte
             
         }
+
+       //console.log("tabSeg après import du txt = ", tabSeg);
 
         // recherche des locuteurs (sait-on jamais)
         const postLocut = await convertSpeaker(tabSeg);
@@ -229,7 +239,7 @@ async function convertTXT(content) { // conversion du fichier TXT en tableau
 
        let formatSonal = tabSegToSonal (tabSeg,locut); 
 
-            console.log("format sonal = \n", formatSonal);
+           // console.log("format sonal = \n", formatSonal);
             return {formatSonal};
 
     }
@@ -528,6 +538,8 @@ async function convertSpeaker(tabSeg) { // fonction permettant de récupérer le
     for (s = 0; s< tabSeg.length;s++){
 
         let txt = tabSeg[s][4]
+
+        if (!txt || txt.trim() === ""){continue} // segment vide    
 
         let spk = txt.indexOf("Speaker ") // recherche d'un speaker
 

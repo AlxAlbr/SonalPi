@@ -23,7 +23,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "A.0.5";
+    const version = "A.0.6";
   </script>
 
 <body>
@@ -48,7 +48,10 @@
           <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus</button>
           <br>
 
+          <div id="author" class="author">Alex Alber - 2026</div>
           <div id="recent-files-list" class="recent-files-list"></div>
+          
+         
 
       </div>
   </div>    
@@ -81,6 +84,8 @@
                  Base de données
               </button>
                
+              
+          
  
               
               <button id="btn-rafraichir" class="btn btn-primary dnone" style="float:right" title="Rafraichir le corpus (charger les fichiers les plus à jour)" onclick="rafraichirCorpus() ;">
@@ -233,7 +238,7 @@
        
 
         <!-- colonne de droite (entretiens)  !-->
-        <div  class = "colonne-d " style="flex:3">  
+        <div  class = "colonne-d " style="flex:3" onclick="désélectEntretiens()">  
 
         <div id ="header-ent" >
               <h2 style="margin-bottom: 1px;margin-left:10px; float:left !important;width:98%;">
@@ -258,7 +263,8 @@
             </h2>
         </div> 
 
-        <div id="fond_ent_corpus">
+        <div id="fond_ent_corpus" style = "min-height: 100%;" onclick="désélectEntretiens()">
+
           <div class="info-no-content"> 
             <label style ="width:100%;display: block;margin:5px">Aucun document n'a été chargé pour l'instant. </label>
             <label  style ="width:100%;display: block;margin:5px">Vous pouvez en ajouter un en cliquant sur le bouton "Ajouter un entretien".</label>

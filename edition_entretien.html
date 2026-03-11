@@ -128,6 +128,9 @@ async function sauvegarderAvantExit() {
             return false;
         }
         
+        //inventaire variables pour tenir compte des modifications opérées dans l'entretien
+        inventaireVariables();
+        
         // Appel de la fonction de mise à jour (elle lit tabLoc, tabDat, etc. depuis le DOM)
         await window.miseàjourEntretien(rkEnt);
         
@@ -1024,12 +1027,8 @@ async function dispPanneauG(bouton, composant){
        typeAction="dat"
        
         // récupération de l'entretien courant
-       let ent_cur = await window.electronAPI.getEntCur();
-       let tabEnt_cur = await window.electronAPI.getEnt();
-       let id_cur = String(tabEnt_cur[ent_cur].id);
-
-       console.log("ent_cur", ent_cur , "id_cur", id_cur    )
-       affichDataEnt(id_cur);
+       
+       affichDataEnt();
        
 
     }  

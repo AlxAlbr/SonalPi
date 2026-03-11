@@ -1930,6 +1930,7 @@ background-color: #8d8d8d91;
 .txtmod-inactif {
  
     background-color: #ececec !important;
+    cursor:default;
  
 }
 
@@ -2054,6 +2055,13 @@ tr:hover{
   float : right;
 }
 
+.author {
+    position: absolute;
+    bottom: 5px;
+    left: 40%;
+    color: #a7a7a7;
+    padding-top: 10px;
+}
 /* ================================================
 SYNTHESE
 =================================================*/

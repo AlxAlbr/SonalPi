@@ -74,6 +74,7 @@ async function ajouterEntretien(fichTxt, fichAudio){
         content = content.replace(/\r?\n|\r/g,'\n') // uniformisation des sauts de ligne
         
         
+        
 
         let fichApresConversion = ""; // contenu après conversion
 
@@ -81,7 +82,7 @@ async function ajouterEntretien(fichTxt, fichAudio){
         switch (extFichTxtO) {
             case ".txt":
                 fichApresConversion = await convertTXT(content);
-                console.log("contenu après conversion du fichier txt = \n", fichApresConversion);
+                //console.log("contenu après conversion du fichier txt = \n", fichApresConversion);
                 break;
 
 
@@ -499,7 +500,7 @@ async function afficherEnt(rgDep, rgFin){
             // 2 - ajout des listeners
 
             // ajout d'un listener pour le clic sur l'entretien
-            div.addEventListener('click', function(event) {
+            div.addEventListener('click', async function(event) {
 
                 console.log("affichage de l'entretien " + this.dataset.id)
                 event.stopPropagation(); //pas de propagation au niveau supérieur
@@ -510,11 +511,12 @@ async function afficherEnt(rgDep, rgFin){
     
                 console.log("Rang de l'entretien cliqué : " + rkEnt)
                 dispPanneauG('imgpandet', 'fond_ent_corpus')
+                await window.electronAPI.setEntCur(rkEnt) // mise à jour de l'entretien courant dans main
                 afficherDetailsEnt(rkEnt);
             })
 
             // ajout d'un listener pour le clic droit sur l'entretien
-            div.addEventListener('contextmenu', function(event) {
+            div.addEventListener('contextmenu', async function(event) {
                 event.preventDefault(); // Empêche le menu contextuel par défaut
                 let idEnt = Number(this.dataset.id)
                 let rkEnt = tabEnt.findIndex(ent => ent.id === idEnt);
@@ -612,17 +614,17 @@ async function afficherEnt(rgDep, rgFin){
 
 
         // initialisation de la veille de redimensionnement
-        const canvas = document.querySelector('.ligent-img');
+        //const canvas = document.querySelector('.ligent-img');
 
-        const resizeObserver = new ResizeObserver(() => {
-        console.log('Un canvas a été redimensionné - correction de tous');
+        //const resizeObserver = new ResizeObserver(() => {
+        //console.log('Un canvas a été redimensionné - correction de tous');
         
         // Redessiner TOUS les canvas
         //let tabGrphEnt = [{"pos":0, "width":0, "catsThm":0} ]; // tableau pour stocker les graphiques de tous les entretiens
         //dessinTousEntretiens(); // ou ta fonction de redraw
-        });
+        //});
 
-        resizeObserver.observe(canvas);
+        //resizeObserver.observe(canvas);
 
 }    
 

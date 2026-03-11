@@ -1956,7 +1956,7 @@ app.on('ready', () => {
       mainWindow.show();
     });
 
-    //mainWindow.webContents.openDevTools()
+   // mainWindow.webContents.openDevTools()
 
 
 
