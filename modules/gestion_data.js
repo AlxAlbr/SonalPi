@@ -543,7 +543,7 @@ async function validMod(rgEnt, v, l, m, lib){
 // e = index tableau de tabEnt (pas le .id)
 async function getMod(e,v,l) {
 
-    console.log("recherche de la valeur prise pour l'entretien ", e, "à la variable" , v)
+    //console.log("recherche de la valeur prise pour l'entretien ", e, "à la variable" , v)
 
     let moda = 0;
     let libellé = "";
@@ -623,23 +623,12 @@ async function affichDataEnt(){
  
 
 
-    varGen.forEach(async (v, index) => {
-
-/*
-        const div = document.createElement("div");
-        div.textContent = v.lib;
-        div.classList.add("ligvar");
-        div.setAttribute("onclick", "editVar(" + v.v + ")");
-         //div.className = v.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
-        
-        divGen.appendChild(div);
-*/
+    for (const v of varGen) {
 
                 const fondGen = document.createElement("div");
                 fondGen.style="display:flex; flex-direction:row;  align-items:center;margin-left:10px"
                 fondGen.classList.add("ligmod"); 
                 if (estMainWindow) {fondGen.style.pointerEvents="none";fondGen.classList.add("txtmod-inactif")}
-                //fondGen.setAttribute("onclick", "menuMod('" + v.v + "'); alert('clic')");
                 fondVarGen.appendChild(fondGen);
 
                 const div = document.createElement("div");
@@ -647,33 +636,25 @@ async function affichDataEnt(){
                 div.title = v.lib;
                 div.classList.add("ligvar");
                 div.dataset.v = v.v;
-                div.setAttribute("onclick", "editVar('" + v.v + "', 'loc')"); // Ajouter un gestionnaire d'événement pour l'édition
-                //if (estMainWindow) {div.style.pointerEvents="none";div.classList.add("txtmod-inactif")}
-                //div.className = v.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
+                div.setAttribute("onclick", "editVar('" + v.v + "', 'loc')");
                 fondGen.appendChild(div);
 
                 const divmod = document.createElement("input");
                 divmod.type = "text";
                                 
-                let findModa = await getMod(rkEnt,v.v,"all"); // récupération de la valeur de modalité pour l'entretien courant, la variable v et le locuteur "all" (champ général)
-                var moda =findModa[0]; 
-                var libellé =findModa[1]; 
+                let findModa = await getMod(rkEnt, v.v, "all");
+                var moda = findModa[0]; 
+                var libellé = findModa[1]; 
                
-                
                 divmod.value = libellé; 
                 divmod.classList.add("txtmod");
                 divmod.placeholder = "modalité";
-                //divmod.setAttribute("onchange", "sauvMod('" +  v2.v + " , " + "', this.value, " + index + ")");
                 divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ rgEnt + ',' + v.v + ', "all", ' + moda + ' , this.value) }');
                 if (estMainWindow) {divmod.style.pointerEvents="none"}
-
-                divmod.dataset.v =  v.v;
-                //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
+                divmod.dataset.v = v.v;
                 fondGen.appendChild(divmod);
 
-               
-
-    });
+    }
 
     //////////////////////////////////////////////////////////
     // Variables locuteurs 
@@ -690,62 +671,47 @@ async function affichDataEnt(){
     locut = tabEnt[rkEnt].tabLoc // récupération de la liste des locuteurs
     }
 
-    locut.forEach((l, index) => {
-       // console.log("Traitement du locuteur :", l, "à l'index :", index);
+    for (const [index, l] of locut.entries()) {
 
-        if (l && index>0 && locut[index].lastIndexOf("?") == -1) { // on en traite pas le rang 0 ni les questions
+        if (l && index>0 && locut[index].lastIndexOf("?") == -1) {
 
-            // création de la ligne de fond de la variable
             const divLoc = document.createElement("div");
             divLoc.textContent = locut[index];
             divLoc.classList.add("liglocvar");
             fondVarLoc.appendChild(divLoc);
 
-            varLoc.forEach(async (v2, index2) => {
-
+            for (const v2 of varLoc) {
 
                 const fondLoc = document.createElement("div");
                 fondLoc.style="display:flex; flex-direction:row;  align-items:center;margin-left:10px"
                 fondLoc.classList.add("ligmod"); 
                 if (estMainWindow) {fondLoc.classList.add("txtmod-inactif")}
-                //fondLoc.setAttribute("onclick", "menuMod('" + v2.v + "'); alert('clic')");
                 fondVarLoc.appendChild(fondLoc);
 
                 const div = document.createElement("div");
                 div.textContent = v2.lib;
                 div.classList.add("ligvar");
-                div.dataset.v = index2;
-                div.setAttribute("onclick", "editVar('" + v2.v + "', 'loc')"); // Ajouter un gestionnaire d'événement pour l'édition
-                //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
-                 if (estMainWindow) {div.style.pointerEvents="none"}
-
+                div.setAttribute("onclick", "editVar('" + v2.v + "', 'loc')");
+                if (estMainWindow) {div.style.pointerEvents="none"}
                 fondLoc.appendChild(div);
 
                 const divmod = document.createElement("input");
                 divmod.type = "text";
                 
-                
-                let findModa = await getMod(rkEnt,v2.v,index); 
-                var moda =findModa[0]; 
-                var libellé =findModa[1]; 
+                let findModa = await getMod(rkEnt, v2.v, index); 
+                var moda = findModa[0]; 
+                var libellé = findModa[1]; 
                
-                
                 divmod.value = libellé; 
                 divmod.classList.add("txtmod");
                 divmod.placeholder = "modalité";
-                //divmod.setAttribute("onchange", "sauvMod('" +  v2.v + " , " + "', this.value, " + index + ")");
                 divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ rgEnt + ','  + v2.v + ',' + index + ',' + moda + ' , this.value) }');
                 if (estMainWindow) {divmod.style.pointerEvents="none";}
-                divmod.dataset.v =  v2.v;
-                //div.className = v2.priv === "true" ? "var-privee" : "var-publique"; // Ajouter une classe selon le statut
+                divmod.dataset.v = v2.v;
                 fondLoc.appendChild(divmod);
-
-    
-
-            });
-
+            }
         }
-    });
+    }
 
     // ajout des listeners sur les libellés
 
@@ -768,6 +734,8 @@ inputs.forEach(input => {
     // Affiche le menu sous l'input
     input.addEventListener("focus", function() {
      
+    console.log("focus")
+
     // quel est le rang de modalité le plus avancé? 
     const ligsDic= tabDic.filter (vr => vr.v == input.dataset.v && vr.m != 0) ;
     const options = ligsDic.map(item => item.lib);    

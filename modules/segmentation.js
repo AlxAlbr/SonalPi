@@ -537,7 +537,9 @@ function undo(){
     }
 
    //console.log("annulation - rang" + RgBkUp)
-    document.getElementById('segments').innerHTML= BkUp[RgBkUp]
+    if (BkUp[RgBkUp] && BkUp[RgBkUp].length > 0 && BkUp[RgBkUp] !== document.getElementById('segments').innerHTML) {
+        document.getElementById('segments').innerHTML= BkUp[RgBkUp]
+    }
 
 }
 
