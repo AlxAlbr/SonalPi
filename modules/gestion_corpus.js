@@ -1550,10 +1550,8 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
                     canva.parentElement.appendChild(span);
 
                     span.addEventListener('click', (e) => {
-                    
+                        e.stopPropagation(); // empêche la propagation vers div.ligent (qui supprimerait fenEnt)
                         afficherHtmlAtPos(rkEnt, posMot,rkMot);
-                     
-                    // Clic bloqué, mais le hover reste actif
                     });
 
                     // ajout d'un listener pour le clic sur le span

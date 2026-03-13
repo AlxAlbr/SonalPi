@@ -51,35 +51,7 @@
 
 
 <script>
-// ⭐ Rediriger console.log vers le main process (DÉSACTIVÉ)
-/*
-const originalLog = console.log;
-const originalError = console.error;
 
-console.log = function(...args) {
-    const message = args.map(arg => {
-        if (typeof arg === 'object') {
-            return JSON.stringify(arg);
-        }
-        return String(arg);
-    }).join(' ');
-    
-    originalLog(...args); // Garde aussi l'affichage local
-    window.electronAPI.log('info', message).catch(err => originalLog('Log send error:', err));
-};
-
-console.error = function(...args) {
-    const message = args.map(arg => {
-        if (typeof arg === 'object') {
-            return JSON.stringify(arg);
-        }
-        return String(arg);
-    }).join(' ');
-    
-    originalError(...args);
-    window.electronAPI.log('error', message).catch(err => originalLog('Log send error:', err));
-};
-*/
 
 // Variable pour tracker si sauvegarde en cours
 let isSaving = false;
@@ -87,13 +59,42 @@ let isSaving = false;
 // ⭐ Écouter le signal de fermeture depuis le main
 window.electronAPI.onSaveAndClose(async () => {
     console.log("📩 Signal 'save-and-close' reçu du main");
-    const result = await sauvegarderAvantExit();
+
+    // l'entretien a-t-il été modifié? 
+    // récupération de la version précédente du fichier dans le tabhtml
+
+    ent_cur = await window.electronAPI.getEntCur();
+    let html_ent_cur = await window.electronAPI.getHtml(ent_cur);
+    let html_courant = compactHtml(document.getElementById('segments').innerHTML);
+
+    console.log("Comparaison des versions :" + html_ent_cur.substring(0, 100) + " ... VS ... " + html_courant.substring(0, 100) );
+       
+    if (html_ent_cur == html_courant) {
+            console.log("✅ Aucun changement détecté, fermeture immédiate");
+            await window.electronAPI.saveComplete(); // signal au main pour fermer
+            return;
+        }
+
+    const rep = await question("Voulez-vous enregistrer avant de quitter ?");
+
+    if (rep === 'annuler') {
+        console.log("🚫 Fermeture annulée par l'utilisateur");
+        return; // saveComplete() n'est pas appelé → la fenêtre reste ouverte
+    }
+
+    if (rep === 'oui') {
+        console.log("💾 Sauvegarde demandée");
+        await sauvegarderModifsEnt();
+    } else {
+        console.log("⏭️ Fermeture sans sauvegarde");
+    }
+
     console.log("📤 Envoi du signal 'save-complete' au main");
     await window.electronAPI.saveComplete();
 });
 
 // Sauvegarde avant de quitter la page 
-async function sauvegarderAvantExit() {
+async function sauvegarderModifsEnt() {
     if (isSaving) {
         console.log("Sauvegarde déjà en cours, abandon");
         return false;
@@ -147,14 +148,14 @@ async function sauvegarderAvantExit() {
     }
 }
 
-
+ 
 //sauvegarde simple 
 
 
 // Sauvegarde AVANT destruction du DOM (beforeunload = avant unload)
 window.addEventListener('beforeunload', (event) => {
     console.log("beforeunload déclenché");
-    sauvegarderAvantExit(); // Lance la sauvegarde sans bloquer
+    sauvegarderModifsEnt(); // Lance la sauvegarde sans bloquer
 });
 
 // Fallback supplémentaire
@@ -191,8 +192,8 @@ window.addEventListener('unload', (event) => {
                 <div id="btns-droite" style="float:right; margin:19px">
 
                     <label id = "btn-cmpct" class="btn btn-secondary" style = "padding: 10px;" onclick="undo()"> ⟲ annuler </label>   
-                    <!-- <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderAvantExit()"> 💾 Enregistrer</label> !-->
-                    <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();">💾 Quitter ✖️</label>
+                    <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderModifsEnt()"> 💾 Enregistrer</label> 
+                    <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();">Quitter ✖️</label>
                 </div>
           </div>
         
@@ -1594,7 +1595,7 @@ document.addEventListener('keydown', (e) => {
              
  
                 event.preventDefault();
-                wait("Nettoyage du code en cours. \n \n Merci de patienter quelques instants.");
+                wait("Nettoyage du code en cours. \n Merci de patienter quelques instants.");
                 setTimeout(() => {
                     cleanHTML();
                     endWait();
@@ -2287,15 +2288,45 @@ function dialog(type){
             }
 }
 
+
+
 function hidedlg(){
     let element = document.getElementById('dlg');
     element.style.display = "none";
    
 }
 
+// question : affiche une boîte de dialogue Oui / Non / Annuler dans le #dlg existant
+// Retourne une Promise qui résout avec 'oui', 'non' ou 'annuler'
+function question(message) {
+    return new Promise(resolve => {
+
+        const element = document.getElementById('dlg');
+        const contenu = document.getElementById('ssdlg');
+
+        contenu.style.top = "30%";
+        contenu.style.width = "40%";
+        contenu.style.height = "";
+        contenu.innerHTML = `
+            <div class="close" onclick="hidedlg(); _questionResolve('annuler')">×</div>
+          
+            <h3 style="margin-top:50px;margin-bottom:40px;">${message}</h3>
+            <div style="display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;">
+                <label class="btnfonction btnquestion btnoui" onclick="hidedlg(); _questionResolve('oui')">Oui</label>
+                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('non')">Non</label>
+                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('annuler')">Annuler</label>
+            </div>`;
+
+        window._questionResolve = (val) => {
+            window._questionResolve = () => {}; // neutralise les appels doubles
+            resolve(val);
+        };
+
+        element.style.display = "block";
+    });
+}
 
 
- 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // COMMENTAIRES

@@ -631,10 +631,12 @@ async function afficherEnt(rgDep, rgFin){
  
 async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
 
+   // console.log("affichage de l'entretien " + rkEnt + " à la position " + ratio  );
+
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
     let html = await window.electronAPI.getHtml(Number(rkEnt)); // récupération du HTML en cache   
 
-    //console.log("affichage de l'entretien " + rkEnt + " à la position " + ratio  );
+    
 
 
     //déselection de tous les autres entretiens
@@ -652,7 +654,7 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
 
     if (ancienFen) {
 
-        //console.log("il y a une ancienne fenêtre d'entretien ouverte avec le dataset" + conteneur.dataset.id)
+        console.log("il y a une ancienne fenêtre d'entretien ouverte avec le dataset" + conteneur.dataset.id)
 
         if (ancienFen.dataset.id != tabEnt[rkEnt].id){   
             //console.log("suppression de l'ancienne fenêtre d'entretien")
@@ -665,6 +667,7 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
     // création d'une div 
     if (!ancienFen){
 
+         
         // conteneur
         let divFond = document.createElement('div');
         divFond.id = 'fenEnt';
@@ -689,6 +692,7 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
         btnFermer.innerText = "X";
         btnFermer.addEventListener('click', function(event) {
             event.stopPropagation(); // Empêche la propagation de l'événement au div parent
+            console.log("fermeture de la fenêtre d'entretien")
             désélectEntretiens()
         });
 
@@ -755,7 +759,8 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
 }
 
 function désélectEntretiens() { // supprime la sélection et l'affichage des détails d'un entretien
-
+ 
+    console.log("deselection de tous les entretiens")
     // déselection de tous les autres entretiens
     document.querySelectorAll('div.ligent').forEach(div => {
         div.classList.remove('active-ligent');

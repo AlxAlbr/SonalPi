@@ -334,7 +334,20 @@ Styles pour les boutons
  
 }
 
- 
+.btnquestion{
+  width: 100px;
+}
+
+.btnoui{
+    background-color: #2e73d8 !important;
+    color: white;
+}
+
+.btnoui:hover{
+    background-color: #1b488a !important;
+    color: white;
+}
+
 
 .isselloc{
 

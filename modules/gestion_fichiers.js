@@ -942,9 +942,9 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
 
             if (parts.length === 1 && enfant.dataset.len==1) { // s'il n'y a qu'un seul mot et qu'on est en mode compression!, on le clone simplement
                 const nvSpan = enfant.cloneNode(false); // clone superficiel : classes et attributs, sans enfants
-                nvSeg.dataset.rk = rkMot;
-                nvSeg.dataset.sg = rkSeg;
-                nvSeg.textContent = texte.trim();
+                nvSpan.dataset.rk = rkMot;
+                nvSpan.dataset.sg = rkSeg;
+                nvSpan.textContent = texte.trim();
                 nvSeg.appendChild(nvSpan);
                 rkMot++;
                 return;
@@ -972,7 +972,7 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
                 if (enfant.dataset.pseudo) {
                     nvSpan.dataset.pseudo = enfant.dataset.pseudo || "";
                 }
-
+                
                 nvSeg.appendChild(nvSpan);
                 rkMot++;
             }
@@ -1067,14 +1067,13 @@ function compactHtml(){ // fonction servant à compacter le html (notamment pour
         fragment.appendChild(nvSeg);
     }
 
-    // Remplacement du contenu en un seul reflow
-    conteneur.innerHTML = '';
-    conteneur.appendChild(fragment);
+    // Extraction du HTML compacté sans modifier le DOM
+    const tmp = document.createElement('div');
+    tmp.appendChild(fragment);
 
-    console.log("fin du compactage");
+    //console.log("fin du compactage");
 
-    // Retourner directement le HTML compacté (évite de relire le DOM après)
-    return conteneur.innerHTML;
+    return tmp.innerHTML;
 }    
 function SauvegarderSurDisque(textToWrite,fileNameToSaveAs, format) {
 
@@ -1479,7 +1478,7 @@ function SauvegarderSurDisque(textToWrite,fileNameToSaveAs, format) {
 
             // ajout du texte
             let texte = span.textContent;
-            if (texte) {txtBrut += texte;}
+            if (texte) {txtBrut += texte ;}
 
         }
     

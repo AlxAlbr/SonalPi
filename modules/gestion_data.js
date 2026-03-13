@@ -671,6 +671,10 @@ async function affichDataEnt(){
     locut = tabEnt[rkEnt].tabLoc // récupération de la liste des locuteurs
     }
 
+    if (!locut){ // si pas de locuteur défini, on en crée un par défaut pour permettre l'affichage des variables locuteurs
+        return;
+    };
+
     for (const [index, l] of locut.entries()) {
 
         if (l && index>0 && locut[index].lastIndexOf("?") == -1) {
