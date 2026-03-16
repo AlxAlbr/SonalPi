@@ -684,7 +684,7 @@ function chargeAudio(event) {
     }
     
     
-    //////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////
 // Enregistrer fichiers
 //////////////////////////////////////////////////////////////
 
@@ -700,12 +700,34 @@ function dossfichext(fich) { // renvoie le dossier, le nom de fichier sans exten
 }
 
 
-function enregistrer(){
-// fonction permettant de sauvegarder le travail en cours
+async function exportFichierSonal(){
+    
+    // fonction permettant de sauvegarder le travail en cours
+    console.log("demande d'export de l'entretien " + ent_cur); 
+    if (ent_cur==-1){ent_cur = await window.electronAPI.getEntCur()}
 
-    let detailsf = dossfichext(nomFichText)
+    let adrFich = tabEnt[ent_cur].rtrPath; // récupération du chemin du fichier d'origine
 
-    SauvegarderSurDisque(sauvHtml(),detailsf[1] + ".Sonal", "UTF-8")
+
+    let detailsf = dossfichext(adrFich)
+
+            // récupération des caractéristiques de l'entretien
+            let ent = tabEnt[ent_cur];
+            let notes= document.getElementById("txtnotes");
+            if (notes) {ent.notes = notes.value};
+
+
+            // compactage du html du conteneur 
+            let contenuHtmlCmpct = await compactHtml();
+            contenuHtmlCmpct = String(contenuHtmlCmpct).replace(/`/g,'');
+
+          
+
+            // sauvegarde du fichier de l'entretien
+            const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
+
+
+    SauvegarderSurDisque(contenuFichierSonal,detailsf[1] + ".Sonal", "UTF-8")
      
 }
 
@@ -1075,46 +1097,22 @@ function compactHtml(){ // fonction servant à compacter le html (notamment pour
 
     return tmp.innerHTML;
 }    
-function SauvegarderSurDisque(textToWrite,fileNameToSaveAs, format) {
+async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
 
-    //wait("Conversion de la base en cours. Merci de patienter.")
-    
-    if (format != 'UTF-8') {
-        var TxtANSI= ""
-        var textEncoder = new CustomTextEncoder('windows-1252', {NONSTANDARD_allowLegacyEncoding: true})
-    
-    
-        TxtANSI = textEncoder.encode([textToWrite]);
-        textToWrite = TxtANSI;
-            
-         
+    const encoding = (format && format !== 'UTF-8') ? 'windows-1252' : 'utf8';
+
+    const result = await window.electronAPI.saveFileDialog({
+        filename: fileNameToSaveAs,
+        content: textToWrite,
+        encoding: encoding
+    });
+
+    if (!result.success && !result.canceled) {
+        console.error('Erreur lors de la sauvegarde :', result.error);
     }
-    
-    var textFileAsBlob = new Blob([textToWrite], {type:'text/csv;charset=windows-1252;'});
-    //var fileNameToSaveAs = document.getElementById("inputFileNameToSaveAs").value;
-    var downloadLink = document.createElement("a");
-    downloadLink.download = fileNameToSaveAs;
-    downloadLink.innerHTML = "Download File";
-    if (window.webkitURL != null)
-    {
-        // Chrome allows the link to be clicked
-        // without actually adding it to the DOM.
-        downloadLink.href = window.webkitURL.createObjectURL(textFileAsBlob);
-    }
-    else
-    {
-        // Firefox requires the link to be added to the DOM
-        // before it can be clicked.
-        downloadLink.href = window.URL.createObjectURL(textFileAsBlob);
-        downloadLink.onclick = destroyClickedElement;
-        downloadLink.style.display = "none";
-        document.body.appendChild(downloadLink);
-    }
-    
-    downloadLink.click();
-    
-    //endWait()
-    }
+
+    return result;
+}
     
     
     
@@ -1312,132 +1310,79 @@ function SauvegarderSurDisque(textToWrite,fileNameToSaveAs, format) {
     
     }
     
-    function exportSonal(){
+ 
     
-        var txtRtr;
-        var audio = document.getElementById('lecteur');
-    
-        let durée = audio.duration
-        durée = durée.toFixed(0)
-    
-        txtRtr = durée + "\r" ;
-    
-        let txtobs = document.getElementById("txtnotes").value
-        txtRtr += "<|OBS|\r" + txtobs + "\r>|OBS|\r"
+    async function exportSrt(){
     
     
-        txtRtr += "<|ATTR|\r>|ATTR|\r"
-    
-    
-        txtRtr += "::0,01::000 Tags= \r"
-    
-            for (s=0;s<TabSeg.length;s++){
-    
-                if (TabSeg[s][3]>0) {
-                txtRtr += "[>" + locut[TabSeg[s][3]] + "]: "    
-                }
-    
-                let tpsdeb = Number(TabSeg[s][1]);
-                if (tpsdeb !=undefined)  {
-                    tpsdeb = tpsdeb.toFixed(2);
-                    tpsdeb = tpsdeb.replaceAll(".",",")
-                };
-    
-                let tpsfin = Number(TabSeg[s][2]);
-                if (tpsfin !=undefined) {  
-                    tpsfin = tpsfin.toFixed(2);
-                    tpsfin = tpsfin.replaceAll(".",",")
-                };
-    
-                let txt = TabSeg[s][4]
-                if (txt != undefined) {
-                txt = txt.replaceAll("<b>"," {+1} ") 
-                txt = txt.replaceAll("</b>"," {-1} ") 
-                txt = txt.replaceAll("{-1} {+1}","")
-                txt = txt.replaceAll("{-1}{+1}","")
-    
-                }
-    
-                txtRtr += "[" + tpsdeb + "] " + txt +  " [" + tpsfin + "]  \r"
-    
-    
-            }
-    
-        txtRtr += "::"  + durée + "::"
-    
-    
-        let detailsf = dossfichext(nomFichText)
-    
-        SauvegarderSurDisque(txtRtr,detailsf[1] + ".Rtr", "ANSI")
-    
-    
-    }
-    
-    
-    function exportSrt(){
-    
-    var txtSrt;
-    txtSrt ="";
-    
-        if (TabSeg.length<1){
-            console.log("pas de tabseg")
-            HTMLTOTABSEG()
-        }
+      let nbSegs = getNbSegs();
 
-    
-        for (s=0;s<TabSeg.length;s++){
-    
-            txtSrt += (s+1) + "\r"
-             
-            let tpsdeb = Number(TabSeg[s][1]);
-            if (tpsdeb !=undefined)  {
-                tpsdeb = SecToTime(tpsdeb,false)
-                tpsdeb = tpsdeb.replaceAll(".",",")
-            };
-    
-            let tpsfin = Number(TabSeg[s][2]);
-            if (tpsfin !=undefined) { 
-                tpsfin = SecToTime(tpsfin,false) 
-                tpsfin = tpsfin.replaceAll(".",",")
-            };
-    
-            txtSrt += tpsdeb + " --> " + tpsfin + "\r"
-    
-    
-            let txt = TabSeg[s][4]
-            if (txt != undefined) {
-            txt = txt.replaceAll("<b>","") 
-            txt = txt.replaceAll("</b>","") 
-            txt = txt.replaceAll("{+1} {-1}","")
-    
-            }
-    
-            txtSrt +=  txt +  "\r \r"
-    
-    
+    let rgDeb = 1;
+    let rgFin = nbSegs;
+    var txtSrt = "";
+    var locuteur_courant;
+  
+    var RkSegs=0;
+        for (m=rgDeb;m<=rgFin;m++){
+        
+            // récupération du segment
+             let seg = getSeg(m);
+            if (!seg) {continue;}
+
+            RkSegs++;
+            txtSrt += RkSegs + " \r\n"; // numéro du segment
+                     
+                let deb = seg.dataset.deb; 
+                let fin = seg.dataset.fin; 
+
+                if (deb) {txtSrt += SecToTime(deb,false).replace(".",",") + " --> " ;}
+                if (fin) {txtSrt += SecToTime(fin,false).replace(".",",") + "\r\n";}
+                
+                    locuteur_courant = seg.dataset.loc;
+                    let loc = locut[locuteur_courant].replaceAll("?","") ;
+                    if (loc) {txtSrt +=  loc.trim() + ": " }
+
+            // ajout du texte
+            let texte = seg.textContent;
+            if (texte) {txtSrt += texte + " \r\n \r\n";}
+
         }
+          
+
      
+    if (ent_cur==-1){ent_cur = await window.electronAPI.getEntCur()}
+
+    let adrFich = tabEnt[ent_cur].rtrPath; // récupération du chemin du fichier d'origine
+
+    let detailsf = dossfichext(adrFich)
     
-    let detailsf = dossfichext(nomFichText)
     
     SauvegarderSurDisque(txtSrt,detailsf[1] + ".srt", "UTF-8")
     
     
     }
 
-    function exportTxtComplet(){
+    async function exportTxtComplet(){
     // définition du nombre de mots
 
-    let nbspans = getNbSpans();
+    let nbSegs = getNbSegs();
 
     let rgDeb = 1;
-    let rgFin = nbspans;
+    let rgFin = nbSegs;
 
     
+    if (ent_cur==-1){ent_cur = await window.electronAPI.getEntCur()}
 
-    let detailsf = dossfichext(nomFichText)
-    
-    SauvegarderSurDisque(exportTxt(rgDeb, rgFin, true),detailsf[1] + ".txt", "UTF-8")
+    let adrFich = tabEnt[ent_cur].rtrPath; // récupération du chemin du fichier d'origine
+
+    let detailsf = dossfichext(adrFich)
+
+
+
+    let txtEnt = exportTxt(rgDeb, rgFin, true, true, true)
+
+
+    SauvegarderSurDisque(txtEnt,detailsf[1] + ".txt", "UTF-8")
 
     }
 
@@ -1453,32 +1398,36 @@ function SauvegarderSurDisque(textToWrite,fileNameToSaveAs, format) {
 
         for (m=rgDeb;m<=rgFin;m++){
         
-            // récupération du span
-            let span = document.querySelector('[data-rk="'+m+'"]');
-            if (!span) {continue;}
-
-            // récupération du segment d'origine
-            let rgseg = span.dataset.sg; 
-            if (!rgseg) {continue;}
-
-            let seg = getSeg(rgseg);
+            // récupération du segment
+             let seg = getSeg(m);
             if (!seg) {continue;}
 
-            if (avecLoc==true){
+
+            if (avecLoc==true){ // ajout du locuteur
 
                 // ajout du locuteur si changement
                 if (locuteur_courant != seg.dataset.loc){
                 
                     locuteur_courant = seg.dataset.loc;
                     let loc = locut[locuteur_courant].replaceAll("?","") ;
-                    if (loc) {txtBrut += "\r\n \r\n" + loc + " : \r\n";}
+                    if (loc) {txtBrut += "\r\n \r\n" + loc.trim() + ": " }
 
+                        if (avecTime==true) {
+                            let deb = seg.dataset.deb; 
+                            let fin = seg.dataset.fin; 
+
+                            if (deb) {txtBrut += " [" +  SecToTime(deb,true) + "]" ;}
+                            //if (fin) {txtBrut += SecToTime(fin,true) + " ";}
+                        }
+                    txtBrut += "\r\n";
                 }
             }
 
+
+
             // ajout du texte
-            let texte = span.textContent;
-            if (texte) {txtBrut += texte ;}
+            let texte = seg.textContent;
+            if (texte) {txtBrut += texte + " ";}
 
         }
     

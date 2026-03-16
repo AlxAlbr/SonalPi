@@ -75,7 +75,7 @@ window.electronAPI.onSaveAndClose(async () => {
             return;
         }
 
-    const rep = await question("Voulez-vous enregistrer avant de quitter ?");
+    const rep = await question("Voulez-vous enregistrer avant de quitter ?","ouinonannuler");
 
     if (rep === 'annuler') {
         console.log("🚫 Fermeture annulée par l'utilisateur");
@@ -192,6 +192,7 @@ window.addEventListener('unload', (event) => {
                 <div id="btns-droite" style="float:right; margin:19px">
 
                     <label id = "btn-cmpct" class="btn btn-secondary" style = "padding: 10px;" onclick="undo()"> ⟲ annuler </label>   
+                    <label id = "btn-sauv-whsprg" class="btn btn-secondary" style = "padding: 10px;" onclick="dialog('Export')"> 📥 Exporter</label> 
                     <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderModifsEnt()"> 💾 Enregistrer</label> 
                     <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();">Quitter ✖️</label>
                 </div>
@@ -1651,7 +1652,7 @@ document.addEventListener('keydown', (e) => {
                 
                 if (e.ctrlKey==true || e.metaKey){ 
                     
-                    enregistrer();   
+                    sauvegarderModifsEnt();   
                     event.preventDefault();            
                 }
             }
@@ -1918,14 +1919,32 @@ function dialog(type){
     contenu.style.top="25%";
     contenu.style.height="";    
     contenu.innerHTML = 
-        `   <div class="close" onclick="hidedlg()">×</div>
+        `
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+                <img id = "logo" src="img/logoSonal.png"  alt="" style="height:40px; width:auto;">
+
+                <div class="close" onclick="hidedlg()" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
+              </div>
+
+              <!--
+                <div style="display:flex; flex-direction:row; align-items:center; gap:14px;margin-top:20px; margin-bottom:20px">
+                    <label> ⚙️ Options</label>
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptTimeStamps" checked> Coordonnées temporelles</label>
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptLocuteurs" checked > Locuteurs</label>
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkAnon"> Anonymiser</label>
+                </div>
+               !-->
+                
           <h3>  Choisissez un format d'export </h3>
             <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
+
+                
             
           
-                <div class = "lblmnuxprt"  onclick="enregistrer()"> <label class = "lblformat"> .Sonal </label> <span class="lbldetails"> Sauvegarde temporaire, s'ouvre avec Whispurge (CTRL/CMD+S)</span><br> </div>
-                 <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .Txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
-                <div class = "lblmnuxprt"  onclick="exportWord()"> <label class = "lblformat"> .docx </label> <span class="lbldetails"> Format traitement de texte (Word, Writer)</span> <br></div>
+                <div class = "lblmnuxprt"  onclick="exportFichierSonal()"> <label class = "lblformat"> .sonal </label> <span class="lbldetails"> Texte/catégories/métadonnées</span><br> </div>
+                <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
+                <!-- <div class = "lblmnuxprt"  onclick="exportWord()"> <label class = "lblformat"> .docx </label> <span class="lbldetails"> Format traitement de texte (Word, Writer)</span> <br></div> !-->
                 <div class = "lblmnuxprt"  onclick="exportSrt()"> <label class = "lblformat"> .srt </label> <span class="lbldetails"> Format Srt</span> <br></div>
                
                  
@@ -2296,36 +2315,8 @@ function hidedlg(){
    
 }
 
-// question : affiche une boîte de dialogue Oui / Non / Annuler dans le #dlg existant
+// question : affiche une boîte de dialogue Oui / Non / Annuler 
 // Retourne une Promise qui résout avec 'oui', 'non' ou 'annuler'
-function question(message) {
-    return new Promise(resolve => {
-
-        const element = document.getElementById('dlg');
-        const contenu = document.getElementById('ssdlg');
-
-        contenu.style.top = "30%";
-        contenu.style.width = "40%";
-        contenu.style.height = "";
-        contenu.innerHTML = `
-            <div class="close" onclick="hidedlg(); _questionResolve('annuler')">×</div>
-          
-            <h3 style="margin-top:50px;margin-bottom:40px;">${message}</h3>
-            <div style="display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;">
-                <label class="btnfonction btnquestion btnoui" onclick="hidedlg(); _questionResolve('oui')">Oui</label>
-                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('non')">Non</label>
-                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('annuler')">Annuler</label>
-            </div>`;
-
-        window._questionResolve = (val) => {
-            window._questionResolve = () => {}; // neutralise les appels doubles
-            resolve(val);
-        };
-
-        element.style.display = "block";
-    });
-}
-
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////

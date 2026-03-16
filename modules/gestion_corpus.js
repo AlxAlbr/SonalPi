@@ -44,9 +44,21 @@ async function lireCorpus(fileContent){
  if (fileContent.indexOf("<|THEM|") > -1){
     console.log("corpus Sonal 2 détecté")
 
-    dialog("Message","Le corpus que vous avez sélectionné semble être un corpus Sonal 2. \nUne copie au format Sonal π est en cours de création à côté du corpus d'origine. \nLe fichier original ne sera pas modifié.");
-    await lireCrpSonal2(fileContent);
+    const rep = await question("Le corpus que vous avez sélectionné semble être un corpus Sonal 2. \n Une copie au format Sonal π va être créée à côté du corpus d'origine. \n Le fichier original ne sera pas modifié.", "confirm");
+
+    if (rep === 'annuler') {
+         
+        return; // saveComplete() n'est pas appelé → la fenêtre reste ouverte
+    }
+
+    if (rep === 'ok') {
+            
+            dialog("Message","Corpus en cours de création. \n Merci de patienter.");
+            await lireCrpSonal2(fileContent);
+    } 
+
     
+
     return ;
  } else {
     console.log("corpus Sonal 3 détecté")
@@ -447,7 +459,6 @@ async function lireCrpSonal2(contenu){
     async function getXtrRtr(ligne){
     
         // split par :: 
-
         let parts = ligne.split("::");
         let position = Number(parts[1].replace(/\,/g, '.')) // conversion de la position en nombre;
         
@@ -671,11 +682,14 @@ async function lireCrpSonal2(contenu){
       //  console.log("analyse de l'extrait " + ext)
          
         let posDeb = tabXtrLocal[ext].debut;
+        if (posDeb.length>0) {posDeb = posDeb.replace(/\,/g, '.')}; // conversion de la position en nombre;
         let posFin = tabXtrLocal[ext].fin;
+        if (posFin.length>0) {posFin = posFin.replace(/\,/g, '.');} ; // conversion de la position en nombre;
+        
         let thmsXtr = tabXtrLocal[ext].thms;
         let tagsXtr = tabXtrLocal[ext].tags;
         
-        console.log("tags de l'extrait " + ext + " : " + tagsXtr);
+        //console.log("tags de l'extrait " + ext + " : " + tagsXtr);
         //console.log("thématiques de l'extrait " + ext + " : " + thmsXtr);
         
         // mise en tableau éventuelle des thématiques
@@ -730,7 +744,8 @@ async function lireCrpSonal2(contenu){
                 }
                 
                 else if (seg.type === 'synchro') { // changement de position
-                    posCourante = seg.valeur;
+                    posCourante = seg.valeur.replace(/,/g, '.');
+                    return; // le segment de texte associé à la balise de synchro n'est pas traité, on passe directement au segment suivant
                 }    
  
 
@@ -1973,6 +1988,55 @@ async function echelleEnt(){ // fonction permettant de mettre à l'échelle les 
         }
     }
 }
+
+
+function question(message, type ) {
+    return new Promise(resolve => {
+
+        const element = document.getElementById('dlg');
+        const contenu = document.getElementById('ssdlg');
+
+        contenu.style.top = "30%";
+        contenu.style.width = "40%";
+        contenu.style.height = "";
+        contenu.innerHTML = `
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+                <img id = "logo" src="img/logoSonal.png"  alt="" style="height:40px; width:auto;">
+                <div class="close" onclick="hidedlg();_questionResolve('annuler')" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
+              </div>
+
+             
+          
+           <p style="padding:20px;white-space:pre-wrap;font-size:1.1rem">${message}</p>`
+
+        if (type ==="ouinonannuler"){    
+        contenu.innerHTML += `    
+            <div style="display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;">
+                <label class="btnfonction btnquestion btnoui" onclick="hidedlg(); _questionResolve('oui')">Oui</label>
+                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('non')">Non</label>
+                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('annuler')">Annuler</label>
+            </div>`;}
+
+        if (type ==="confirm"){    
+        contenu.innerHTML += `    
+            <div style="display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;">
+                <label class="btnfonction btnquestion btnoui" onclick="hidedlg(); _questionResolve('ok')">Ok</label>
+                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('annuler')">Annuler</label>
+            </div>`;}
+    
+
+        window._questionResolve = (val) => {
+            window._questionResolve = () => {}; // neutralise les appels doubles
+            resolve(val);
+        };
+
+        element.style.display = "block";
+    });
+}
+
+
+
 
 /////////////////////////////////////////////////////////////////////////////////:
 // EXPORTATION DES FONCTIONS

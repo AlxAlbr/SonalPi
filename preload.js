@@ -99,6 +99,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Sauvegarder le corpus
   sauvegarderFichier: (filePath, content) => ipcRenderer.invoke('sauvegarder-fichier', filePath, content),
 
+  // Boîte de dialogue "Enregistrer sous"
+  saveFileDialog: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
+
   // Sauvegarder sur le serveur
   sauvegarderSurServeur: (cheminFichier, contenu) => 
     ipcRenderer.invoke('sauvegarder-sur-serveur', cheminFichier, contenu),

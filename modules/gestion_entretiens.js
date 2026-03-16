@@ -682,8 +682,10 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
     
         // entête
         let divEntete = document.createElement('div');
-        divEntete.classList.add('entete-fenent','ligne-variables-ent');
-        divEntete.innerHTML = (await varsPubliquesEnt(rkEnt))[0]; // ajout des variables publiques dans l'entête;
+        divEntete.classList.add('entete-fenent');
+        divEntete.textContent = tabEnt[rkEnt].nom; // nom de l'entretien dans l'entête
+
+        //divEntete.innerHTML = (await varsPubliquesEnt(rkEnt))[0]; // ajout des variables publiques dans l'entête;
 
         divFond.appendChild (divEntete);
 
@@ -1001,6 +1003,8 @@ async function afficherDetailsEnt(rk){
     titreVarGen.innerText = "Variables générales";
     titreVarGen.style.marginTop = "20px";
     titreVarGen.style.marginBottom = "10px";
+    titreVarGen.style.marginLeft = "1px";
+    titreVarGen.classList.add('ligne-variables-ent');
     divVars.appendChild(titreVarGen);
 
     let divVarGen = document.createElement('div');

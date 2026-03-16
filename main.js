@@ -552,6 +552,41 @@ ipcMain.handle('sauvegarder-fichier', async (event, filePath, content) => {
   }
 });
 
+// Boîte de dialogue "Enregistrer sous" + écriture du fichier
+ipcMain.handle('dialog:saveFile', async (event, { filename, content, encoding }) => {
+
+  // Chemin par défaut : dossier du projet local, sinon Documents
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant')
+    ? Corpus.folder
+    : app.getPath('documents');
+  const defaultPath = path.join(defaultDir, filename);
+
+  // Filtres basés sur l'extension
+  const ext = path.extname(filename).replace('.', '') || '*';
+  const filters = [{ name: 'Fichier', extensions: [ext] }, { name: 'Tous les fichiers', extensions: ['*'] }];
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    defaultPath,
+    filters
+  });
+
+  if (canceled || !filePath) return { success: false, canceled: true };
+
+  try {
+    if (encoding && encoding !== 'utf8' && encoding !== 'UTF-8') {
+      const buf = iconv.encode(content, 'win1252');
+      fs.writeFileSync(filePath, buf);
+    } else {
+      fs.writeFileSync(filePath, content, 'utf8');
+    }
+    console.log('✅ Fichier enregistré :', filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur saveFile :', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Handler pour sauvegarder sur le serveur
 ipcMain.handle('sauvegarder-sur-serveur', async (event, filePath, content) => {
   console.log('💾 Demande de sauvegarde sur serveur');
