@@ -23,7 +23,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "A.0.9";
+    const version = "A.0.10";
   </script>
 
 <body>
@@ -84,7 +84,11 @@
                  Base de données
               </button>
                
-              
+             <!--<button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" pointvariables() ;">
+                 Point variables
+              </button>
+              --> 
+               
           
  
               
@@ -944,7 +948,7 @@ function dialog(type, message){
                         <div id="fond_mod" style="display:none">
 
                             <H3 >Modalités </H3>
-                            <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto; ">
+                            <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto;overflow-x: hidden; ">
 
                                 <div class="floating-label-container" style="">
                                 
@@ -987,7 +991,7 @@ function dialog(type, message){
                                      <div class="floating-label-container" style=""> 
 
                                     <label for="maListe" class="mdc-floating-label  floatingstatic"> Modalités pré-remplies</label>
-                                    <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;" onchange="ajoutListeModas(this.value)">
+                                    <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;padding:5px" onchange="ajoutListeModas(this.value)">
                                     <option value="rien">choisissez un modèle...</option>
                                     <option value="sexe">Sexe</option>
                                     <option value="age5">Age en classes de 5</option>
@@ -1129,22 +1133,6 @@ async function displayRecentFiles() {
 
 
 
-document.getElementById('btnOuvrirCorpus').addEventListener('click', async () => {
-
-            const result = await window.electronAPI.ouvrirCorpusLocal();; 
-            if (result && result.success) {
-              
-              mainWindow.webContents.send('afficher-corpus', result);
-            } 
-  
-});
-
-document.getElementById('btnNouveauCorpus').addEventListener('click', async () => {
-             
-  window.electronAPI.créerNouveauCorpus();; 
-         
-});
-
     // Attacher les event listeners APRÈS avoir créé le HTML
   document.querySelectorAll('.file-info').forEach((el, index) => {
     el.addEventListener('click', async () => {
@@ -1186,12 +1174,25 @@ function displayVersion() {
   document.addEventListener('DOMContentLoaded', () => {
     displayRecentFiles();
     displayVersion();
-    
+
+    document.getElementById('btnOuvrirCorpus').addEventListener('click', async () => {
+      const result = await window.electronAPI.ouvrirCorpusLocal();
+      if (result && result.success) {
+        mainWindow.webContents.send('afficher-corpus', result);
+      }
+    });
+
+    document.getElementById('btnNouveauCorpus').addEventListener('click', async () => {
+      window.electronAPI.créerNouveauCorpus();
+    });
   });
 
 
   // listener pour le bouton de compactage/décompactage des thématiques
   document.getElementById('cmpct-all').addEventListener('click', async () => {
+    
+    tabThm = await window.electronAPI.getThm();
+    
     //console.log("Compactage/décompactage de toutes les thématiques");
 
     // défilement des thématiques pour vérifier la situation

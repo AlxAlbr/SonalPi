@@ -1032,7 +1032,7 @@ ipcMain.handle('editer-entretien', async (event, rgEnt) => {
 
 // renvoyer le statut de verrouillage du fichier  
 ipcMain.handle('entretien-locked', async (event, rgEnt) => {
-  console.log("vérification du verrouillage de l'entretien " + rgEnt + " de type " + Corpus.type)
+  //console.log("vérification du verrouillage de l'entretien " + rgEnt + " de type " + Corpus.type)
   
   if (Corpus.type == "distant" && serveurAPI) {
     try {
@@ -1991,7 +1991,7 @@ app.on('ready', () => {
       mainWindow.show();
     });
 
-    //mainWindow.webContents.openDevTools()
+   // mainWindow.webContents.openDevTools()
 
 
 

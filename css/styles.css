@@ -1838,12 +1838,15 @@ background-color: #8d8d8d91;
  
 .codemoda{
   width:10%;
+  padding:3px; 
 }
 
 
 .libmoda{
   width:90%;
+  padding:3px; 
 }
+ 
 
 .var-privee{
   position: absolute;
@@ -1938,6 +1941,7 @@ background-color: #8d8d8d91;
     cursor: pointer;
     /* float: left; */
     height: 37px;
+    outline: none;
 }
 
 .txtmod-inactif {
@@ -1958,6 +1962,38 @@ background-color: #8d8d8d91;
   background-color: #ffffff;
   border: 1px solid #2E73D8;
   color: #2E73D8;
+}
+
+.en-edition {
+    border-color: #f59e0b !important;
+    background-color: #fffbeb !important;
+    outline: 2px solid #f59e0b;
+}
+
+.ligmod:has(.en-edition) {
+    flex-wrap: wrap;
+}
+
+.ligmod:has(.en-edition)::after {
+    content: "↵  entrée pour valider";
+    background-image: none;
+    width: 100%;
+    height: auto;
+    font-size: 0.92rem;
+    color: #10b981;
+    margin-left: 0;
+    padding: 2px 6px;
+    pointer-events: none;
+}
+
+@keyframes validation-ok {
+    0%   { outline: 2px solid #10b981; background-color: #d1fae5; border-color: #10b981; }
+    60%  { outline: 2px solid #10b981; background-color: #d1fae5; border-color: #10b981; }
+    100% { outline: 2px solid transparent; background-color: #ffffff; border-color: darkgrey; }
+}
+
+.validation-ok {
+    animation: validation-ok 0.8s ease-out forwards;
 }
 
 .ligvarcmb::after{
@@ -2021,6 +2057,7 @@ th{
   top: 0; 
   padding: 5px;
   z-index:10; 
+  cursor:pointer; 
 }
 
 td{

@@ -6,7 +6,7 @@
 
 
 //var tabDat = []; // tableau des données de l'entretien
-var rgEnt = 1; // mémorise le rang de l'entretien courant (1 par défaut dans Whispurge)
+var rgEnt ; // mémorise le rang de l'entretien courant ()
 
 var txtmod_cur = null; // mémorisation du texte de modalité en cours de modification (pour le menu)
 
@@ -146,6 +146,8 @@ async function editVar(rgVar, mode) {
                 divLib.dataset.v = rgVar
                 divLib.dataset.lib = libellé
                 divLib.value = libellé; 
+                divLib.setAttribute('onfocus', 'dsTxtArea=false;dsTxtAutre=true');
+                divLib.setAttribute('onfocusout', 'dsTxtAutre=false');
                  
                 fondMod.appendChild(divLib);
 
@@ -292,7 +294,7 @@ function sauvModas(ode) {
         // console.log("Sauvegarde de la modalité pour la variable :", rkV, "et la modalité :", rkM, "avec la valeur :", newValue);
 
         // mise à jour de la modalité dans tabDic
-        if (input.value != input.lib && rkV && rkM) {
+        if (input.value != input.dataset.lib && rkV && rkM) {
             chgDic(rkV, rkM, input.value)
         };
 
@@ -319,7 +321,11 @@ console.log ("ajout d'une modalité")
                 const ligsDic= tabDic.filter (vr => vr.v == v);
                 const maxMod = Math.max(...ligsDic.map(item => item.m)); 
 
-                var moda =maxMod+1; 
+                if (maxMod == -Infinity) { // il n'existe aucune modalité pour cette variable), on commence à 1
+                    var moda = 1;
+                } else {
+                    var moda = maxMod + 1;
+                }
                 tabDic.push({'v': Number(v), 'm' : moda , 'lib' :""})
                 var libellé =""; 
 
@@ -340,6 +346,8 @@ console.log ("ajout d'une modalité")
                 divLib.dataset.v = v
                 divLib.dataset.lib = libellé
                 divLib.value = libellé; 
+                divLib.setAttribute('onfocus', 'dsTxtArea=false;dsTxtAutre=true');
+                divLib.setAttribute('onfocusout', 'dsTxtAutre=false');
                  
                 fondMod.appendChild(divLib);
                 divLib.focus();
@@ -427,6 +435,8 @@ function ajoutListeModas(type){
                 divLib.dataset.v = rgVar
                 divLib.dataset.lib = libellé
                 divLib.value = libellé; 
+                divLib.setAttribute('onfocus', 'dsTxtArea=false;dsTxtAutre=true');
+                divLib.setAttribute('onfocusout', 'dsTxtAutre=false');
                  
                 fondMod.appendChild(divLib);
 
@@ -465,6 +475,7 @@ async function chgDic(v,m, lib){
 async function validMod(rgEnt, v, l, m, lib){
     
     if (!rgEnt) {
+        console.log("récupération du entcur dans le main")
         rgEnt = await window.electronAPI.getEntCur();
     }
 
@@ -502,14 +513,16 @@ async function validMod(rgEnt, v, l, m, lib){
     
    
 
-    // Mise à jour du tabdat
+    // Mise à jour du tabdat global (sert à quelque chose ici? )
     // recherche de l'index 
 
     tabDat = await window.electronAPI.getDat(); // on recharge le tabdat pour être sûr d'avoir la dernière version à jour
-    const ligDat = tabDat.findIndex(vr => vr.v == v && vr.l === l) ;
+    const ligDat = tabDat.findIndex(vr => vr.e == String(rgEnt) && vr.v == v && vr.l === l) ;
 
     if(ligDat ==-1){
-        tabDat.push({'e' : rgEnt,'v' : v, 'l' : l, 'm' : m})
+        
+        tabDat.push({'e' : String(rgEnt),'v' : v, 'l' : l, 'm' : m})
+
     } else {
 
         tabDat[ligDat].m=m; // mise à jour de la modalité
@@ -518,13 +531,13 @@ async function validMod(rgEnt, v, l, m, lib){
     await window.electronAPI.setDat(tabDat); // sauvegarde du tabdat
 
     // mise à jour du tabdat dans le tabent de l'entretien
-    const ligEnt = tabEnt.find(ent => ent.rg === rgEnt);
+    const ligEnt = tabEnt.find(ent => ent.id === rgEnt);
     if (ligEnt){
-        const varModif = ligEnt.tabDat.find(d => d.v == v && d.l === l);
+        const varModif = ligEnt.tabDat.find(d => d.e == rgEnt && d.v == v && d.l === l);
         if (varModif){
             varModif.m = m;
         } else {
-            ligEnt.tabDat.push({'v' : v, 'l' : l, 'm' : m})
+            ligEnt.tabDat.push({'e' : String(rgEnt) , 'v' : v, 'l' : l, 'm' : m})
         }
     }
 
@@ -534,7 +547,14 @@ async function validMod(rgEnt, v, l, m, lib){
 
     document.getElementById("menudic").style.display="none"; 
 
-
+        // à la fin de validMod, juste avant de cacher le menu
+        const inputValide = document.querySelector(`.txtmod[data-v="${v}"][data-l="${l}"]`)
+        if (inputValide) {
+            inputValide.dataset.m = m; // mise à jour du data-m avec la nouvelle valeur
+            inputValide.classList.remove('validation-ok');
+            void inputValide.offsetWidth; // force le reflow pour relancer l'animation
+            inputValide.classList.add('validation-ok');
+        }
 
 
 }
@@ -553,18 +573,23 @@ async function getMod(e,v,l) {
         tabEnt = await window.electronAPI.getEnt(); // on recharge le tabent pour être sûr d'avoir la dernière version à jour
     }
     
-    const entObj = tabEnt[e];
-    const tabDatEnt = entObj.tabDat;
+    
+    const tabDatEnt = tabEnt[e].tabDat;
+    if (!tabDatEnt) {
+        tabEnt[e].tabDat = [];
+    }
     
     // utilisation du tabDic LOCAL de l'entretien (comme affichDataGen)
-    const tabDicLoc = entObj.tabDic ;
-
+    if (!tabEnt[e].tabDic) {
+        tabEnt[e].tabDic = [];
+    }
+    const tabDicLoc = tabEnt[e].tabDic;
      // récupération de la valeur de modalité dans le tabdat
-                const ligDat = tabDatEnt.filter(d => d.v == v && d.l == l);
+                const ligDat = tabEnt[e].tabDat.filter(d => d.v == v && d.l == l);
                                 
                 // si elle n'existe pas on la crée
                 if (ligDat.length==0){
-                    if (tabDat) { tabDat.push({'e' : e,'v' : v, 'l' : l, 'm' : 0 }) }
+                    if ( tabEnt[e].tabDat ) { tabEnt[e].tabDat.push({'e' : String(tabEnt[e].id),'v' : v, 'l' : l, 'm' : 0 }) }
                     // la valeur est nulle
                     moda=0 
 
@@ -588,10 +613,10 @@ async function affichDataEnt(){
 
      
     // récupération des tableaux de données nécessaires à l'affiachage
-    if (!tabEnt) {tabEnt = await window.electronAPI.getEnt()};
-    if (!tabVar) {tabVar = await window.electronAPI.getVar()};
-    if (!tabDic) {tabDic = await window.electronAPI.getDic()};
-    if (!tabDat) {tabDat = await window.electronAPI.getDat()};
+    tabEnt = await window.electronAPI.getEnt();
+    tabVar = await window.electronAPI.getVar();
+    tabDic = await window.electronAPI.getDic();
+    tabDat = await window.electronAPI.getDat();
 
 
        let rkEnt = await window.electronAPI.getEntCur();
@@ -649,9 +674,12 @@ async function affichDataEnt(){
                 divmod.value = libellé; 
                 divmod.classList.add("txtmod");
                 divmod.placeholder = "modalité";
-                divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ rgEnt + ',' + v.v + ', "all", ' + moda + ' , this.value) }');
+                divmod.setAttribute('onkeydown', 'this.classList.add("en-edition"); if(event.key==="Enter"){validMod('+ rgEnt + ',' + v.v + ', "all", ' + moda + ' , this.value);this.classList.remove("en-edition") };');
                 if (estMainWindow) {divmod.style.pointerEvents="none"}
                 divmod.dataset.v = v.v;
+                divmod.dataset.l = "all";
+                divmod.dataset.m = moda;
+                divmod.setAttribute('onfocusout', 'this.classList.remove("en-edition")');
                 fondGen.appendChild(divmod);
 
     }
@@ -709,9 +737,12 @@ async function affichDataEnt(){
                 divmod.value = libellé; 
                 divmod.classList.add("txtmod");
                 divmod.placeholder = "modalité";
-                divmod.setAttribute('onkeydown', 'if(event.key==="Enter"){validMod('+ rgEnt + ','  + v2.v + ',' + index + ',' + moda + ' , this.value) }');
+                divmod.setAttribute('onkeydown', 'this.classList.add("en-edition"); if(event.key==="Enter"){validMod('+ rgEnt + ','  + v2.v + ',' + index + ',' + moda + ' , this.value);this.classList.remove("en-edition") }');
                 if (estMainWindow) {divmod.style.pointerEvents="none";}
                 divmod.dataset.v = v2.v;
+                divmod.dataset.l = index;
+                divmod.dataset.m = moda;
+
                 fondLoc.appendChild(divmod);
             }
         }
@@ -812,6 +843,7 @@ async function inventaireVariables(){ // fonction d'inventaire des variables exi
 
     //tabVar = []; // réinitialisation du tableau des variables
     //tabDic = []; // réinitialisation du tableau des modalités
+    //tabDat = []; // réinitialisation du tabDat global pour reconstruction
 
     var tabVarEnt = [];
     // défilement des entretiens
@@ -858,6 +890,23 @@ async function inventaireVariables(){ // fonction d'inventaire des variables exi
 
         // console.log("Inventaire terminé. Variables actuelles :", tabVar);
 
+        // reconstitution du tabdat global à partir du tabdat local de l'entretien
+        const tabDatEnt = ent.tabDat;
+        if (tabDatEnt && tabDatEnt.length > 0) {
+            const eId = String(ent.id);
+            tabDatEnt.forEach(datEnt => {
+                const ligExistante = tabDat.findIndex(d => String(d.e) == eId && d.v == datEnt.v && d.l === datEnt.l);
+                if (ligExistante > -1) { // existe déjà → mise à jour
+                    tabDat[ligExistante].m = datEnt.m;
+                } else { // n'existe pas → ajout
+                    tabDat.push({'e': eId, 'v': datEnt.v, 'l': datEnt.l, 'm': datEnt.m});
+                }
+            });
+            //console.log("tabDat reconstitué pour l'entretien " + ent.nom + " : " + tabDatEnt.length + " lignes");
+        }
+
+
+
         tabDicEnt = ent.tabDic; // récupération des modalités
         
                 // evitement des tabvar vides
@@ -884,11 +933,13 @@ async function inventaireVariables(){ // fonction d'inventaire des variables exi
 
       // console.log("Inventaire terminé. modalités actuelles :", tabDic);
 
+    // reconstitution du tabdat global à partir des tabdat locaux des entretiens
 
   
 
     await window.electronAPI.setVar(tabVar); // sauvegarde des variables mises à jour
     await window.electronAPI.setDic(tabDic); // sauvegarde des modalités mises à jour
+    await window.electronAPI.setDat(tabDat); // sauvegarde du tabDat global reconstitué
 
 
     // Correction des modalités et fichiers DAT
@@ -1005,6 +1056,8 @@ async function affichDataGen(){
         tdEnt.textContent =  dataRow.nom;
         tr.appendChild(tdEnt);
 
+        let idEnt = String(dataRow.id);
+
         tabVar.forEach(caseVar => {
     
             const td = document.createElement("td");
@@ -1025,7 +1078,7 @@ async function affichDataGen(){
                 if (dataRow.tabDat == undefined){return}; // évitement des fichiers vides
 
                 // recherche dans le tabDat local la ligne correspondant à la variable  
-                const ligDat = dataRow.tabDat.filter(d => d.v === varLoc );
+                const ligDat = dataRow.tabDat.filter(d => d.e === idEnt && d.v === varLoc );
 
                 //console.log("Lignes de tabDat locale pour la variable " + caseVar.lib + " dans l'entretien " + dataRow.nom + " :", ligDat);
                 
@@ -1179,3 +1232,10 @@ async function pointvariables(){ // fonction de pointage des variables dans les 
     );
 }
 
+async function pointvariablesEnt(){
+       
+        console.log("tabVar ", tabVar);
+        console.log("tabDic ", tabDic);
+        console.log("tabDat ", tabDat);
+
+}

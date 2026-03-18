@@ -130,7 +130,23 @@ async function sauvegarderModifsEnt() {
         }
         
         //inventaire variables pour tenir compte des modifications opérées dans l'entretien
-        inventaireVariables();
+        //inventaireVariables();
+
+        // alignement de la base de l'entretien sur le corpus général
+        tabEnt[rkEnt].tabVar = tabVar;
+        tabEnt[rkEnt].tabDic = tabDic;
+
+        //filtrage des données de l'entretien pour ne garder que celles qui correspondent à l'entretien
+        let idEnt = String(tabEnt[rkEnt].id);
+
+        let tabDatEnt = tabDat.filter(d => String(d.e) === idEnt);
+        tabEnt[rkEnt].tabDat = tabDatEnt; // on met à jour le tabdat de l'entretien avec les données filtrées
+    
+
+            //console.log("Données de l'entretien avant sauvegarde:", tabEnt[rkEnt].tabDat);
+    
+            // Sauvegarde du texte et des notes
+
         
         // Appel de la fonction de mise à jour (elle lit tabLoc, tabDat, etc. depuis le DOM)
         await window.miseàjourEntretien(rkEnt);
@@ -188,6 +204,9 @@ window.addEventListener('unload', (event) => {
                     <label id= "lblspd" class = ""  style= "font-size: 1.5rem; color:rgba(12, 12, 12, 0.521);padding: 10px;" onclick=" vitesselecteur('=')"> x 1.0 </label>
                     <label id= "btnspdp" class = "btnfonction  btnspd"   onclick=" vitesselecteur('+')" style="float:right"> + </label>
                 </div>
+
+                 
+               
 
                 <div id="btns-droite" style="float:right; margin:19px">
 
@@ -350,7 +369,7 @@ window.addEventListener('unload', (event) => {
 
 
                     <H2 style="margin-bottom: 1px;">Variables
-                    <label id= "plusCat" class = "btnbleu" onclick="dialog('Métadonnées')" title="Ajouter une variable"> + </label> 
+                    <label id= "plusCat" class = "btnbleu" onclick="dialog('Métadonnées')" title="Ajouter une variable"> ➕ </label> 
                     </H2>
 
                     <div id="listVarGen">
@@ -1935,7 +1954,7 @@ function dialog(type){
                     <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkAnon"> Anonymiser</label>
                 </div>
                !-->
-                
+
           <h3>  Choisissez un format d'export </h3>
             <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
 
@@ -2210,7 +2229,7 @@ function dialog(type){
                         <div id="fond_mod" style="display:none">
 
                             <H3 >Modalités </H3>
-                            <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto; ">
+                            <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto;overflow-x: hidden; ">
 
                                 <div class="floating-label-container" style="">
                                 
@@ -2252,7 +2271,7 @@ function dialog(type){
                                      <div class="floating-label-container" style=""> 
 
                                     <label for="maListe" class="mdc-floating-label  floatingstatic"> Modalités pré-remplies</label>
-                                    <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;" onchange="ajoutListeModas(this.value)">
+                                    <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;padding:5px" onchange="ajoutListeModas(this.value)">
                                     <option value="rien">choisissez un modèle...</option>
                                     <option value="sexe">Sexe</option>
                                     <option value="age5">Age en classes de 5</option>

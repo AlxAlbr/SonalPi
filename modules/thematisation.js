@@ -282,6 +282,9 @@ async function affichListThmCrp(tabThm){
 
     console.log("affichage des catégories")
     const conteneur=document.getElementById('conteneur_cat');
+
+    // mise à jour des classes CSS de la page principale
+    loadThm();
     
     conteneur.innerHTML = ``;
 
@@ -998,9 +1001,21 @@ function createThm(code,couleur,taille){
 
     // Créer une nouvelle balise <style>
     const style = document.querySelector('style');
- 
+    const sheet = style.sheet;
 
-    // Ajouter des règles CSS
+    // Si la règle existe déjà, la mettre à jour plutôt que d'en ajouter une nouvelle
+    for (let i = 0; i < sheet.cssRules.length; i++) {
+        const rule = sheet.cssRules[i];
+        if (rule.selectorText === '.' + code) {
+            rule.style.backgroundImage = coul ? `linear-gradient(rgba(0, 0, 0, 0) 60%, ${couleur}60 95%, ${couleur} 100%)` : '';
+            rule.style.fontSize = taille > taille_def ? taille : '';
+            rule.style.fontWeight = taille > taille_def ? 'bold' : '';
+            rule.style.paddingBottom = '4px';
+            return;
+        }
+    }
+
+    // Ajouter des règles CSS (seulement si la règle n'existait pas)
     style.innerHTML += `
     .` + code + ` {
     ` + coul + ` 
@@ -1747,6 +1762,7 @@ async function multiThm(conteneurID){
 
     // défilement des spans
     const conteneur = document.getElementById(conteneurID)
+     
     const mots = conteneur.querySelectorAll('span');
 
     let m=0

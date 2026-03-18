@@ -524,6 +524,10 @@ async function afficherEnt(rgDep, rgFin){
             });
 
             // ajout d'un listener pour le clic sur le canvas (avec position en X)
+            cnv.addEventListener('click', function(event) {
+                event.stopPropagation(); // empêche le click de remonter au div.ligent (qui appellerait afficherDetailsEnt et supprimerait fenEnt)
+            });
+
             cnv.addEventListener('mouseup', function(event) {
                 event.stopPropagation(); //pas de propagation au niveau supérieur
                 let idEnt = Number(this.dataset.id)
@@ -631,7 +635,7 @@ async function afficherEnt(rgDep, rgFin){
  
 async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
 
-   // console.log("affichage de l'entretien " + rkEnt + " à la position " + ratio  );
+   console.log("affichage de l'entretien " + rkEnt + " à la position " + ratio  + "ou au mot " + rkmot);
 
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
     let html = await window.electronAPI.getHtml(Number(rkEnt)); // récupération du HTML en cache   
@@ -727,22 +731,33 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
     let mot; 
 
     console.log("recherche du mot à la proportion " + ratio + "ou directement au mot " + rkmot)
+    
     if (rkmot === undefined || rkmot === null){
-            let nbmots= compterElements(divSeg, 'span','.lblseg'); // nombre de mots           
-            let pos = Math.round(nbmots * ratio); // position du mot dans le texte
+            
+        console.log("calcul de la position du mot à afficher en fonction du ratio " + ratio)
 
-            mot = await getSpan(pos); // récupération du mot à la position
+        const fen = document.getElementById('segments-contenu');
+        if (fen) {
+            const scrollPosition = fen.scrollHeight * ratio;
+            fen.scrollTo({
+                top: scrollPosition - fen.clientHeight / 2, // centrer verticalement
+                behavior: 'smooth'
+            });
+        }
+        return;
 
     } else {
             mot = await getSpan(rkmot); // récupération du mot à la position
+             
+            mot.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-            if (!mot) {console.log ("mot introuvable")  ; return} // si le mot n'existe pas, on sort de la fonction
+           
+    if (!mot) {console.log ("mot introuvable")  ; return} // si le mot n'existe pas, on sort de la fonction
             
           
  
             
-            // Alternative : utiliser scrollIntoView
-            mot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
             
             
 
@@ -811,9 +826,36 @@ async function afficherDetailsEnt(rk){
     conteneur.classList.remove('dnone');
     conteneur.classList.add('fond-info-ent');
 
-    // identifiant : conteneur + span éditable pour le nom (éviter de lire le label)
+
+    // wrapper flex pour mettre l'id et le nom côte à côte
+    let wrapperNomId = document.createElement('div');
+    wrapperNomId.style.cssText = "display:flex; flex-direction:row; gap:5px; align-items:flex-end;";
+    conteneur.appendChild(wrapperNomId);
+
+    // champ id (non éditable) avec floating label "Id"
+    let infoIdNum = document.createElement('div');
+    infoIdNum.style.backgroundColor = "#ffffffff";
+    infoIdNum.style.width = "50px";
+    infoIdNum.style.flexShrink = "0";
+    infoIdNum.classList.add('item-info-ent', 'floating-label-container');
+
+    let idSpan = document.createElement('span');
+    idSpan.classList.add('nom-info-ent');
+    idSpan.contentEditable = false;
+    idSpan.innerText = ent.id;
+    infoIdNum.appendChild(idSpan);
+
+    let labelIdNum = document.createElement('label');
+    labelIdNum.innerText = "Id";
+    labelIdNum.classList.add('mdc-floating-label', 'floatingstatic');
+    infoIdNum.appendChild(labelIdNum);
+
+    wrapperNomId.appendChild(infoIdNum);
+
+    // identifiant : conteneur + span éditable pour le nom  
     let infoId = document.createElement('div');
     infoId.style.backgroundColor = "#ffffffff";
+    infoId.style.flex = "1";
     infoId.classList.add('item-info-ent', 'id-info-ent', 'floating-label-container');
 
     // span éditable contenant uniquement le nom
@@ -850,13 +892,15 @@ async function afficherDetailsEnt(rk){
 
     infoId.appendChild(nameSpan);
 
-    conteneur.appendChild(infoId);
+    wrapperNomId.appendChild(infoId);
 
     // nom du fichier dans le corpus
     let labelId = document.createElement('label');
     labelId.innerText = "Nom";
     labelId.classList.add('mdc-floating-label','floatingstatic');
     infoId.appendChild(labelId);
+
+
 
     // informations sur l'origine des fichiers
     let infoTxt = document.createElement('div');
@@ -1034,8 +1078,12 @@ async function afficherDetailsEnt(rk){
 
 async function retirerEnt(rk){
 
+    // demande de confirmation via question 
+    let res = await question("Êtes-vous sûr de vouloir supprimer cet entretien du corpus ? \n (Le fichier .Sonal correspondant ne sera pas supprimé physiquement, seulement retiré du corpus)", "confirm");
+    if (res != "ok") return; // si l'utilisateur annule, on sort de la fonction
+    
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
-    console.log("retrait de l'entretien " + rk)
+    
     let id = tabEnt[rk].id
 
        // recherche du conteneur de l'entretien
@@ -1056,6 +1104,10 @@ async function retirerEnt(rk){
 
     // sauvegarde du corpus
     window.sauvegarderCorpus();
+
+    // recharger le corpus
+    await afficherEnt(0, tabEnt.length-1); // réaffichage de tous les entretiens restants
+    
 }
 
 
@@ -1172,12 +1224,12 @@ async function afficherWhisPurge(){
     // variables 
     tabVar = await window.electronAPI.getVar(); // récupération des variables  
     tabDic = await window.electronAPI.getDic(); // récupération des dictionnaires
-    tabDat = ent.tabDat; // récupération des données
+    tabDat = await window.electronAPI.getDat(); // récupération des données
  
 
-    console.log("variables trouvées :" + JSON.stringify(tabVar) )
-    console.log("dictionnaires trouvés :" + JSON.stringify(tabDic) )
-    console.log("données trouvées :" + JSON.stringify(tabDat) )
+   // console.log("variables trouvées :" + JSON.stringify(tabVar) )
+   // console.log("dictionnaires trouvés :" + JSON.stringify(tabDic) )
+   // console.log("données trouvées :" + JSON.stringify(tabDat) )
 
 
 
@@ -1225,7 +1277,8 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
     // récupération des variables
    ent.tabVar = tabVar;
    ent.tabDic = tabDic;
-   ent.tabDat = tabDat;
+   // ent.tabDat : ne pas écraser avec la variable renderer (peut être []) —
+   // le tabEnt frais chargé via getEnt() contient déjà le tabDat correct mis à jour par validMod
    ent.tabAnon = window.tabAnon; 
   
     // récupération des notes
@@ -1278,14 +1331,14 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
             // Laisser le navigateur repeindre le spinner avant de bloquer le thread
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            // compactage du html du conteneur (retourne directement le HTML compacté)
+            // compactage du html du conteneur 
             let contenuHtmlCmpct = await compactHtml();
             contenuHtmlCmpct = String(contenuHtmlCmpct).replace(/`/g,'');
 
             await window.electronAPI.setHtml(rkEnt, contenuHtmlCmpct);
 
             // sauvegarde du fichier de l'entretien
-            const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
+            const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
 
             let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
             let cheminEnt = ""; 
