@@ -38,6 +38,38 @@ window.electronAPI.onAfficherCorpus(async (resultat) => {
  
 });
 
+
+
+// Recevoir les données et afficher dans le DOM un corpus JSON (pour les sauvegardes exportées)
+window.electronAPI.onAfficherCorpusJSON(async (resultat) => {
+
+console.log("Affichage du corpus JSON reçu...");
+
+  if (!resultat || !resultat.success) {
+    console.error('Erreur lors de la réception du corpus:', resultat ? resultat.error : 'Résultat invalide');
+    return;
+  }
+  
+     
+
+  
+  let Corpus = await window.electronAPI.getCorpus();
+  let tabEnt = await window.electronAPI.getEnt(); 
+  let tabThm = await window.electronAPI.getThm();
+   
+  console.log("URL : " + Corpus.url + " \n dossier : " + Corpus.folder    )
+
+  document.title = "SAUVEGARDE DU CORPUS : " + Corpus.url;
+  Corpus.type = "sauvegarde"; // marquer le corpus comme sauvegarde (pour éviter les confusions avec un corpus normal)
+
+  loadThm(tabThm); // création des classes css
+  affichListThmCrp(tabThm, 'conteneur_cat') // affichage de la liste des thématiques;
+
+
+  afficherEnt(0,Number(tabEnt.length-1));
+  inventaireVariables(); // inventaire des variables utilisées dans les entretiens
+ 
+});
  
 
 

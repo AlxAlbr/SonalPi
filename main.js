@@ -3,6 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const chardet = require('chardet');
 const iconv = require('iconv-lite');
+const AdmZip = require('adm-zip');
+const mammoth = require('mammoth');
+const _pdfParse = require('pdf-parse/lib/pdf-parse.js');
+const pdfParse = _pdfParse.default || _pdfParse;
 //const fetch = require('node-fetch') 
 const http = require('http');
 const https = require('https');
@@ -268,7 +272,7 @@ ipcMain.handle('dialog:openTextFiles', async () => {
     title: 'Sélectionner un fichier',
     properties: ['openFile'],
     filters: [
-      { name: 'Fichiers texte', extensions: ['sonal', 'sonal.html','srt','txt','md','json','purge'] }
+      { name: 'Fichiers texte', extensions: ['sonal', 'sonal.html','srt','txt','md','json','purge','docx','pdf'] }
           
     ],
   });
@@ -322,6 +326,19 @@ ipcMain.handle('file:readContent', async (_, filePath) => {
 
   if (localOuDistant(filePath) === 'local') {
     try {
+      // Fichiers Word : extraction du texte brut via mammoth
+      if (path.extname(filePath).toLowerCase() === '.docx') {
+        const result = await mammoth.extractRawText({ path: filePath });
+        return result.value; // texte brut
+      }
+
+      // Fichiers PDF : extraction du texte brut via pdf-parse
+      if (path.extname(filePath).toLowerCase() === '.pdf') {
+        const buf = fs.readFileSync(filePath);
+        const data = await pdfParse(buf);
+        return data.text; // texte brut
+      }
+
       let buf = fs.readFileSync(filePath);
       const encoding = chardet.detect(buf);
        
@@ -756,8 +773,7 @@ async function nouveauCorpus() {
             tabVar: [],
             tabDic: [], 
             tabDat: [],
-            tabHtml: [],
-            tabGrph: []
+
         };
 
         const jsonString = JSON.stringify(donneesInitiales, null, 2);
@@ -842,6 +858,156 @@ function demanderDossierEtNom(parentWindow) {
 
 
 module.exports = { nouveauCorpus };
+
+
+async function compacterCorpus() { // fonction permettant de compacter les données du corpus dans un seul fichier JSON (pour faciliter l'export et la sauvegarde)
+ 
+  const corpusComp = {
+    meta: {
+      nom: Corpus.fileName,
+      url: Corpus.url,
+      type: Corpus.type,
+      lastChange: new Date().toISOString()
+    },
+    tabThm,
+    tabVar,
+    tabDic,
+    tabDat,
+    tabEnt,
+    tabHtml,
+    tabGrph
+  };
+
+  const json = JSON.stringify(corpusComp, null, '\t');
+
+  // Nom par défaut basé sur le corpus, emplacement au choix
+  const defaultName = Corpus.fileName
+    ? Corpus.fileName.replace('.crp', '.json')
+    : 'corpus.json';
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant')
+    ? Corpus.folder
+    : app.getPath('documents');
+
+  const { canceled, filePath: dest } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Exporter la sauvegarde',
+    defaultPath: path.join(defaultDir, defaultName),
+    filters: [
+      { name: 'JSON', extensions: ['json'] },
+      { name: 'Tous les fichiers', extensions: ['*'] }
+    ]
+  });
+
+  if (canceled || !dest) return null;
+
+  fs.writeFileSync(dest, json, 'utf8');
+
+  await dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'Sauvegarde exportée',
+    message: 'La sauvegarde a été exportée avec succès.',
+    detail: dest,
+    buttons: ['OK']
+  });
+
+  return corpusComp;
+
+}
+
+module.exports = { compacterCorpus };
+
+
+async function archiverCorpus() {
+  // Vérification qu'un corpus est ouvert
+  if (!Corpus.folder || !Corpus.fileName) {
+    await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Aucun corpus ouvert',
+      message: 'Veuillez ouvrir un corpus avant d\'exporter une archive.',
+      buttons: ['OK']
+    });
+    return null;
+  }
+
+  // Nom par défaut : même nom que le corpus + date
+  const baseName = Corpus.fileName.replace('.crp', '');
+  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const defaultName = `${baseName}_${timestamp}.zip`;
+  const defaultDir = (Corpus.type !== 'distant')
+    ? Corpus.folder
+    : app.getPath('documents');
+
+  // Boîte de dialogue "Enregistrer sous"
+  const { canceled, filePath: dest } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Exporter l\'archive du corpus',
+    defaultPath: path.join(defaultDir, defaultName),
+    filters: [
+      { name: 'Archive ZIP', extensions: ['zip'] },
+      { name: 'Tous les fichiers', extensions: ['*'] }
+    ]
+  });
+
+  if (canceled || !dest) return null;
+
+  const zip = new AdmZip();
+  const erreurs = [];
+
+  // 1. Fichier .crp
+  const cheminCrp = path.join(Corpus.folder, Corpus.fileName);
+  if (fs.existsSync(cheminCrp)) {
+    zip.addLocalFile(cheminCrp);
+  } else {
+    erreurs.push(Corpus.fileName);
+  }
+
+  // 2. Fichiers .sonal (et audio associés) référencés dans tabEnt
+  for (const ent of tabEnt) {
+    if (ent.rtrPath) {
+      const cheminSonal = path.join(Corpus.folder, ent.rtrPath);
+      if (fs.existsSync(cheminSonal)) {
+        // Conserver le chemin relatif dans le zip
+        const dirRelative = path.dirname(ent.rtrPath);
+        zip.addLocalFile(cheminSonal, dirRelative !== '.' ? dirRelative : '');
+      } else {
+        erreurs.push(ent.rtrPath);
+      }
+    }
+    // Fichiers audio locaux
+    /*
+    if (ent.audioPath) {
+      const cheminAudio = path.isAbsolute(ent.audioPath)
+        ? ent.audioPath
+        : path.join(Corpus.folder, ent.audioPath);
+      if (fs.existsSync(cheminAudio)) {
+        const dirRelative = path.relative(Corpus.folder, path.dirname(cheminAudio));
+        zip.addLocalFile(cheminAudio, dirRelative || '');
+      }
+    }
+      */
+  }
+
+  // Écriture du zip
+  zip.writeZip(dest);
+
+  // Message de confirmation
+  const detail = erreurs.length > 0
+    ? `Archive créée : ${dest}\n\nFichiers introuvables (ignorés) :\n${erreurs.join('\n')}`
+    : dest;
+  await dialog.showMessageBox(mainWindow, {
+    type: erreurs.length > 0 ? 'warning' : 'info',
+    title: 'Archive exportée',
+    message: erreurs.length > 0
+      ? 'Archive créée avec des fichiers manquants.'
+      : 'L\'archive a été créée avec succès.',
+    detail,
+    buttons: ['OK']
+  });
+
+  return dest;
+}
+
+module.exports = { archiverCorpus };
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Catégories
@@ -1991,7 +2157,7 @@ app.on('ready', () => {
       mainWindow.show();
     });
 
-   // mainWindow.webContents.openDevTools()
+   //mainWindow.webContents.openDevTools()
 
 
 
@@ -2049,19 +2215,20 @@ app.on('ready', () => {
          
          { type: 'separator' },
         {
-          label: 'Enregistrer corpus',
+          label: '💾 Enregistrer corpus',
           click: () => { // Envoyer un message au renderer
           mainWindow.webContents.send('demander-sauvegarde');
          } 
         },
-        /*
-         {
-        label: '💾 Sauvegarder avec backup',
-        accelerator: 'CmdOrCtrl+Shift+S',
-        click: () => {
-          mainWindow.webContents.send('demander-sauvegarde-backup');
+          { type: 'separator' },
+       
+      {
+        label: '🪂 Faire une copie de sauvegarde du corpus (ZIP)',
+          click: async () => {
+          await archiverCorpus();
         }
-      },*/
+      },
+       
         
         { type: 'separator' },
         { 

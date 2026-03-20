@@ -35,12 +35,7 @@ function initAnon() {
         { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
         { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
         { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
-        { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
-        { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
-        { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
-        { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
-        { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] },
-        { entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] }
+    
     ];
     }
 
@@ -957,3 +952,11 @@ function chercherNomPropres() {
     // Rafraîchir l'affichage du tableau
     affichTableauAnon();
 }    
+
+function pointAnon() {
+    if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
+        return;
+    }
+
+    console.log(tabAnon)
+}

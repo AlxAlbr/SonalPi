@@ -1,6 +1,6 @@
 {
   "name": "sonal",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "author": {
     "name": "Alex Alber",
     "email": "sonalteam@googlemail.com"
@@ -15,7 +15,7 @@
   "build": {
     "appId": "com.sonal.id",
     "productName": "Sonal",
-        "fileAssociations": [
+    "fileAssociations": [
       {
         "ext": "crp",
         "name": "Corpus",
@@ -34,14 +34,21 @@
     "mac": {
       "icon": "icon/icon.png",
       "target": [
-      { "target": "dmg", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
       ]
     },
     "linux": {
       "icon": "icon/icon.png",
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     },
-    
     "files": [
       "main.js",
       "package.json",
@@ -81,10 +88,13 @@
     }
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "chardet": "^2.1.0",
     "electron-store": "^7.0.3",
     "iconv-lite": "^0.6.2",
-    "node-fetch": "^2.7.0"
+    "mammoth": "^1.12.0",
+    "node-fetch": "^2.7.0",
+    "pdf-parse": "^1.1.4"
   },
   "devDependencies": {
     "electron": "38.1.2",

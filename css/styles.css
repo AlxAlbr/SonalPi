@@ -1967,8 +1967,25 @@ background-color: #8d8d8d91;
 .en-edition {
     border-color: #f59e0b !important;
     background-color: #fffbeb !important;
-    outline: 2px solid #f59e0b;
+    /*outline: 2px solid #f59e0b;*/
 }
+
+.container-nom-id:has(.en-edition) {
+    flex-wrap: wrap;
+}
+
+.container-nom-id:has(.en-edition)::after {
+    content: "↵  entrée pour valider";
+    background-image: none;
+    width: 100%;
+    height: auto;
+    font-size: 0.92rem;
+    color: #10b981;
+    margin-left: 0;
+    padding: 2px 6px;
+    pointer-events: none;
+}
+
 
 .ligmod:has(.en-edition) {
     flex-wrap: wrap;
@@ -2038,7 +2055,7 @@ background-color: #8d8d8d91;
     width: 100%;
     height: calc(100vh - 21px);
     background-color: var(--couleur-block);
-    padding: 20px;
+    padding: 10px 10px 5px 10px;
     z-index: 11;
     opacity: 0.97;
 }
@@ -2118,9 +2135,10 @@ SYNTHESE
 .fondsynth {
     overflow-y: auto;
     height: calc(100vh - 75px);
-    margin-top: 10px;
+    margin-top: 20px;
     position: absolute;
     background-color: var(--couleur-fond);
+    
 }
 
 .plansynth {

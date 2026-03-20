@@ -42,6 +42,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAfficherCorpus: (callback) => 
     ipcRenderer.on('afficher-corpus', (event, donnees) => callback(donnees)),
 
+  // pour récupérer le contenu d'un fichier corpus JSON
+  onAfficherCorpusJSON: (callback) => 
+    ipcRenderer.on('afficher-corpus-json', (event, donnees) => callback(donnees)),
+
   // gestion de la modale d'ajout d'entretien ---
   ajouterEntretien: () => ipcRenderer.invoke('ajout-entretien'), 
 

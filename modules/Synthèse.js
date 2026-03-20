@@ -152,8 +152,8 @@ if (tabEnt.length == 0){
     const divSynthese = document.createElement("div");
     divSynthese.id = "divSynthese";
 
-    divSynthese.innerHTML = `<h3>Tableau des extraits sélectionnés
-    <div class="close" onclick="hideSynthese()">×</div>
+    divSynthese.innerHTML = `<h3>Extraits sélectionnés
+     <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;float:right;margin-top:-5px" onclick="hideSynthese();">Quitter ✖️</label>
     </h3>`;
     divSynthese.classList.add("fondtabdat");
     document.body.appendChild(divSynthese);

@@ -84,7 +84,7 @@ function chargeAudio(event) {
     
     function lireDrag(files) {
     
-     
+     console.log("lire drag")
     
         for (var i = 0; i < files.length; i++) {
     

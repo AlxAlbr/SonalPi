@@ -200,47 +200,111 @@ function convertPURGE(content) { // converstion d'un fichier PURGE en tabseg
          
     };
     
-async function convertTXT(content) { // conversion du fichier TXT en tableau
-        
-   // console.log("contenu du fichier txt à convertir = \n", content);
+async function convertTXT(content,ext) { // conversion du fichier TXT en tableau
 
         // split du texte par lignes \n
         lignesFich = content.split("\n");
-        var nblig = lignesFich.length  ;       
+        var nblig = lignesFich.length;
 
-        //console.log("nombre de lignes du fichier txt à convertir = ", nblig);
         var locut = [""] // locut[0] n'existe pas
-        let rgSeg=0;
-        tabSeg = new Array (1)  ;
-        tabSeg[rgSeg]= new Array(6);
-        
-        for (s=0;s<nblig;s++){
-             
-            let ligne = lignesFich[s].trim()
-            if (ligne.length<1) {continue} // ligne vide
-    
-                tabSeg.push();
-                rgSeg++;
+        tabSeg = [];
+        let segCourant = null;
 
-                tabSeg[rgSeg]=  new Array(6);
+        // --- Détection du format ---
+        // Format A : lignes de timestamps  "00:01:30 [Locuteur]"
+        // Format B : locuteur en ligne     "Speaker 1: texte..."  (pas de timestamp)
+        const timeRegex  = /^(\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?)\s*(.*)$/;
+        const locInRegex = /^([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\s\-]{0,38}?)\s*:\s*(.+)$/;
 
-                // il n'y a que le texte à récupérer
-                tabSeg[rgSeg][4] = ligne // texte
-            
+        let hasTimestamp = false;
+        let hasLocInline = false;
+        for (let i = 0; i < Math.min(nblig, 20); i++) {
+            const l = lignesFich[i].trim();
+            if (!l) continue;
+            if (timeRegex.test(l)) { hasTimestamp = true; break; }
+            if (locInRegex.test(l)) { hasLocInline = true; }
+        }
+        const formatB = !hasTimestamp && hasLocInline;
+
+        // -------------------------------------------------------
+        // FORMAT B : "Speaker 1: texte" — un segment par prise de parole
+        // -------------------------------------------------------
+        if (formatB) {
+
+            for (s = 0; s < nblig; s++) {
+                let ligne = lignesFich[s].trim();
+                if (ligne.length < 1) { continue; }
+
+                const locMatch = ligne.match(locInRegex);
+                if (locMatch) {
+                    // nouvelle prise de parole → nouveau segment
+                    const nomLoc    = locMatch[1].trim();
+                    const texteApres = locMatch[2].trim();
+                    if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+                    const idxLoc = locut.indexOf(nomLoc);
+                    segCourant = [null, 0, 0, idxLoc, texteApres, false, 0];
+                    tabSeg.push(segCourant);
+                } else {
+                    // ligne de continuation
+                    if (!segCourant) {
+                        segCourant = [null, 0, 0, 0, "", false, 0];
+                        tabSeg.push(segCourant);
+                    }
+                    segCourant[4] += (segCourant[4].length > 0 ? " " : "") + ligne;
+                }
+            }
+
+        // -------------------------------------------------------
+        // FORMAT A : "00:01:30 [Locuteur]" puis texte en-dessous
+        // -------------------------------------------------------
+        } else {
+
+            for (s = 0; s < nblig; s++) {
+                let ligne = lignesFich[s].trim();
+                if (ligne.length < 1) { continue; }
+
+                const match = ligne.match(timeRegex);
+                if (match) {
+                    const rawTime = match[1].replace(/\s/g, '');
+                    const debSec  = TimeToSec(rawTime);
+
+                    if (segCourant) { segCourant[2] = debSec; } // fermeture du segment précédent
+
+                    const nomLoc = match[2] ? match[2].trim() : "";
+                    if (nomLoc && !locut.includes(nomLoc)) { locut.push(nomLoc); }
+                    const idxLoc = nomLoc ? locut.indexOf(nomLoc) : 0;
+
+                    segCourant = [null, debSec, debSec, idxLoc, "", false, 0];
+                    tabSeg.push(segCourant);
+
+                } else {
+                    // ligne de texte
+                    if (!segCourant) {
+                        segCourant = [null, 0, 0, 0, "", false, 0];
+                        tabSeg.push(segCourant);
+                    }
+                    // locuteur éventuel en début de paragraphe : "Nom : texte"
+                    const locMatch = ligne.match(locInRegex);
+                    if (locMatch) {
+                        const nomLoc    = locMatch[1].trim();
+                        const texteApres = locMatch[2].trim();
+                        if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+                        segCourant[3]  = locut.indexOf(nomLoc);
+                        segCourant[4] += (segCourant[4].length > 0 ? " " : "") + texteApres;
+                    } else {
+                        segCourant[4] += (segCourant[4].length > 0 ? " " : "") + ligne;
+                    }
+                }
+            }
         }
 
-       //console.log("tabSeg après import du txt = ", tabSeg);
+        //console.log("tabSeg après import du txt = ", tabSeg);
 
-        // recherche des locuteurs (sait-on jamais)
-        const postLocut = await convertSpeaker(tabSeg);
-            tabSeg = postLocut.tabSeg;
-            locut = postLocut.locut;
-    
+        window.tabLocImport = locut; // stockage temporaire dans le window global pour récupération ultérieure
+        let formatSonal = tabSegToSonal(tabSeg, locut);
 
-       let formatSonal = tabSegToSonal (tabSeg,locut); 
-
-           // console.log("format sonal = \n", formatSonal);
-            return {formatSonal};
+        //console.log("format sonal = \n", formatSonal);
+        return {formatSonal};
 
     }
 

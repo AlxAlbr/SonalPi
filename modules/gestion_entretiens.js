@@ -110,6 +110,16 @@ async function ajouterEntretien(fichTxt, fichAudio){
                 fichApresConversion = await convertJSON(content);
             break;
 
+            case ".docx":
+                // mammoth a déjà extrait le texte brut dans main.js — on le traite comme un .txt
+                fichApresConversion = await convertTXT(content);
+            break;
+
+            case ".pdf":
+                // pdf-parse a déjà extrait le texte brut dans main.js — on le traite comme un .txt
+                fichApresConversion = await convertTXT(content);
+            break;
+
 
 
         }
@@ -679,7 +689,69 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
         divFond.classList.remove('dnone'); 
         divFond.dataset.id = tabEnt[rkEnt].id;
         divFond.contentEditable = false;
+        divFond.addEventListener('click', function(event) {
+            event.stopPropagation(); // Empêche la propagation de l'événement au div parent
+        });
+
+        divFond.addEventListener('contextmenu', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            // suppression d'un éventuel menu contextuel existant
+            const oldMenu = document.getElementById('ctx-menu-fenent');
+            if (oldMenu) oldMenu.remove();
+
+            const selection = window.getSelection();
+            const texteSelectionne = selection ? selection.toString().trim() : '';
+
+            // création du menu
+            const menu = document.createElement('div');
+            menu.id = 'ctx-menu-fenent';
+            menu.style.cssText = `
+                position: fixed;
+                top: ${event.clientY}px;
+                left: ${event.clientX}px;
+                background: #fff;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+                z-index: 9999;
+                min-width: 180px;
+                font-size: 0.9em;
+                cursor: default;
+            `;
+
+            // item : copier la sélection
+            const itemCopier = document.createElement('div');
+            itemCopier.innerText = '📋 Copier';
+            itemCopier.style.cssText = 'padding: 6px 12px;';
+            itemCopier.style.opacity = texteSelectionne ? '1' : '0.4';
+            itemCopier.style.pointerEvents = texteSelectionne ? 'auto' : 'none';
+            itemCopier.addEventListener('mouseenter', () => itemCopier.style.background = '#f0f0f0');
+            itemCopier.addEventListener('mouseleave', () => itemCopier.style.background = '');
+            itemCopier.addEventListener('click', () => {
+                navigator.clipboard.writeText(texteSelectionne).then(() => {
+                    afficherNotification('Texte copié dans le presse-papier', 'success');
+                }).catch(() => {
+                    document.execCommand('copy'); // fallback
+                });
+                menu.remove();
+            });
+            menu.appendChild(itemCopier);
+
             
+
+            document.body.appendChild(menu);
+
+            // fermeture au prochain clic n'importe où
+            const fermerMenu = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.remove();
+                    document.removeEventListener('mousedown', fermerMenu);
+                }
+            };
+            setTimeout(() => document.addEventListener('mousedown', fermerMenu), 0);
+        });
  
         //divFond.setAttribute('onclick', "this.classList.add('dnone')"); // désactivation du menu contextuel
         conteneur.after(divFond); 
@@ -787,7 +859,11 @@ function désélectEntretiens() { // supprime la sélection et l'affichage des d
     let fenEnt =  document.getElementById('fenEnt')
     if (fenEnt) fenEnt.remove(); // fermeture de la fenêtre d'entretien si elle est ouverte
 
+    // masquage de la fenêtre d'information de l'entretien
+    dispPanneauG('imgpancat','fond_thm_corpus')
 }
+
+
 
 
 async function afficherDetailsEnt(rk){
@@ -830,6 +906,7 @@ async function afficherDetailsEnt(rk){
     // wrapper flex pour mettre l'id et le nom côte à côte
     let wrapperNomId = document.createElement('div');
     wrapperNomId.style.cssText = "display:flex; flex-direction:row; gap:5px; align-items:flex-end;";
+    wrapperNomId.classList.add('container-nom-id');
     conteneur.appendChild(wrapperNomId);
 
     // champ id (non éditable) avec floating label "Id"
@@ -866,6 +943,7 @@ async function afficherDetailsEnt(rk){
 
     // valider le changement de nom (entrée) sur le span éditable
     nameSpan.addEventListener('keydown', function(event) {
+        infoId.classList.add("en-edition"); // ajouter une classe pour indiquer que le champ est en cours d'édition
         if (event.key === "Enter") {
             event.preventDefault(); // Empêche le saut de ligne
             this.blur(); // Retire le focus de l'élément
@@ -887,6 +965,9 @@ async function afficherDetailsEnt(rk){
                     }
                 }
             }
+            infoId.classList.remove("en-edition")
+            infoId.classList.remove("validation-ok"); 
+            infoId.classList.add("validation-ok"); 
         }
     });
 
