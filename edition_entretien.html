@@ -75,7 +75,7 @@ window.electronAPI.onSaveAndClose(async () => {
             return;
         }
 
-    const rep = await question("Voulez-vous enregistrer avant de quitter ?","ouinonannuler");
+    const rep = await question("Voulez-vous enregistrer avant de quitter ?",["Oui", "Non", "Annuler"]);
 
     if (rep === 'annuler') {
         console.log("🚫 Fermeture annulée par l'utilisateur");
@@ -219,13 +219,13 @@ window.addEventListener('unload', (event) => {
         
             
            <!--  <div id = "menu_rec" class=""   onclick="dialog('Export')" ><img src="WHSPRG\IMG\dwnload.png" style="height: 30px;margin-left: 6px;margin-right: 30px;"><label class='txtbtn' id="lblsauv"  > Export </label> </div>            
-          !-->
+         
 
-               <!--  <div>
-                    <label onclick="pointAnon()"> Point Annon</label>
+                <div>
+                    <label onclick="pointvariables()"> Point Variables</label>
                 </div>
-                -->
-
+               
+ !-->
 
             <br>
 
@@ -375,14 +375,14 @@ window.addEventListener('unload', (event) => {
                     </H2>
 
                     <div id="listVarGen">
-                        <H3 style="margin-bottom: 1px;margin-top: 10px;">Générales</H3>
-                        <div id="listVarGenContent"></div>
+                        <H3 style="margin-bottom: 1px;margin-top: 10px;" class= "logo-variables">Générales</H3>
+                        <div id="listVarGenContent" ></div>
 
                     </div>
 
                 <div id="listVarLoc">
-                        <H3 style="margin-bottom: 1px;margin-top: 10px;">Par répondant.e</H3>
-                        <div id="listVarLocContent"></div>
+                        <H3 style="margin-bottom: 1px;margin-top: 10px;" class= "logo-variables">Par répondant.e</H3>
+                        <div id="listVarLocContent"  ></div>
 
                     </div>
 
@@ -517,7 +517,9 @@ window.addEventListener('unload', (event) => {
                 <!-- <div id = "ligneResize"></div> -->
 
 
+                <div id="segments-wrapper">
                 <div id="segments" class ="defilement resizable" contenteditable="true" style="display:inline-block"></div>
+                </div>
 
             </div>
 
@@ -1230,6 +1232,13 @@ document.addEventListener("selectionchange", () => {
 
 // réaction aux sélections
 const fdsegs = document.getElementById("segments");
+fdsegs.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+        fdsegs.classList.remove("en-edition");
+    } else if (e.key !== " ") {
+        fdsegs.classList.add("en-edition");
+    }
+});
 fdsegs.addEventListener("mouseup", () => {
 
     if (noSel==true) {return}; 
@@ -1617,7 +1626,7 @@ document.addEventListener('keydown', (e) => {
              
  
                 event.preventDefault();
-                wait("Nettoyage du code en cours. \n Merci de patienter quelques instants.");
+                wait("Intégration des changements en cours. \n Merci de patienter quelques instants.");
                 setTimeout(() => {
                     cleanHTML();
                     endWait();
@@ -1646,6 +1655,9 @@ document.addEventListener('keydown', (e) => {
             
                 break;
                 */
+                // n'importe quelle autre touche que espace
+            default :
+                spaceKey=false;
 
             }
 
@@ -2169,6 +2181,8 @@ function dialog(type){
    
     contenu.style.top="25%";
     contenu.style.height="";  
+    
+ 
 
     contenu.innerHTML = 
         `  
@@ -2185,7 +2199,7 @@ function dialog(type){
                          <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
 
                                 <div class="floating-label-container" style=" margin-right:10px; width:10%" >
-                                    <input type="text" id="lblCodeVar" class="floating-input lbl-code-var" style = "background-color:white" placeholder=" Code " onkeyup="" value = "`+ (tabVar.length + 1) +`" disabled />
+                                    <input type="text" id="lblCodeVar" class="floating-input lbl-code-var" style = "background-color:white" placeholder=" Code " onkeyup="" value = "`+ (tabVar.length > 0 ? Math.max(...tabVar.map(v => Number(v.v))) + 1 : 1) +`" disabled />
                                     <label for="lblCodeVar" class="mdc-floating-label  floatingstatic" >Code</label>
                                 </div>
 
@@ -2233,15 +2247,8 @@ function dialog(type){
                             <H3 >Modalités </H3>
                             <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto;overflow-x: hidden; ">
 
-                                <div class="floating-label-container" style="">
                                 
-                                    <div class="ligmoda" style="">
-                                        <label class="mdc-floating-label floatingstatic codemoda" >Code </label>
-                                        <label class="mdc-floating-label floatingstatic libmoda ">libellé</label>
-                                    </div>
-                                </div>
-                                
-                                <div id= "dico">
+                               <div id= "dico" style="padding: 11px">
                                     
                                     <div class="ligmoda" style="">
                                         <input type="text" class=" case-moda codemoda floating-input lbl-code-thm" placeholder=" " onkeyup="" value="1"/>  
@@ -2259,7 +2266,7 @@ function dialog(type){
                             
                        
                             <div class = "floating-label-container" style="margin-top: 10px;">
-                             <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; width:10%; ";">+</label> 
+                             <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px;   ";">+ ajouter une modalité</label> 
 
               
                                 </div>
@@ -2387,17 +2394,7 @@ async function addComment(){
 
     let auteurCom= await electronAPI.getUser();
 
-   /* if (!auteurCom) {
-
-        auteurCom = ""
-        /*
-        // utilisation de la boite non bloquante
-        const name = await showPrompt("Pour signer vos commentaires, merci d'entrer votre nom :", "");
-        if (!name) { return; }
-        utilisateur = name;
-        
-    }
-    */
+  
 
     dialog("comment");
     document.getElementById("authcomm").textContent = auteurCom;

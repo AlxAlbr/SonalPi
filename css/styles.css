@@ -406,7 +406,7 @@ Styles pour les boutons
 /* Notifications */
 .notification {
   position: fixed;
-  top: 20px;
+  top: 55px;
   right: 20px;
   padding: 15px 20px;
   border-radius: 6px;
@@ -2003,6 +2003,15 @@ background-color: #8d8d8d91;
     pointer-events: none;
 }
 
+#segments-wrapper:has(.en-edition)::before {
+    content: "↵  entrée pour valider";
+    display: block;
+    font-size: 0.88rem;
+    color: #10b981;
+    padding: 2px 6px;
+    pointer-events: none;
+}
+
 @keyframes validation-ok {
     0%   { outline: 2px solid #10b981; background-color: #d1fae5; border-color: #10b981; }
     60%  { outline: 2px solid #10b981; background-color: #d1fae5; border-color: #10b981; }
@@ -2055,11 +2064,20 @@ background-color: #8d8d8d91;
     width: 100%;
     height: calc(100vh - 21px);
     background-color: var(--couleur-block);
-    padding: 10px 10px 5px 10px;
+    padding: 10px 5px 0px 0px; 
     z-index: 11;
     opacity: 0.97;
 }
 
+.header-tabdat {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--couleur-titre);
+    margin-bottom: 10px;
+    border-bottom: 2px solid var(--couleur-titre);
+    padding-bottom: 5px;
+    background-image: linear-gradient(to top, #e1e1e1c9, var(--couleur-block));
+}
 table{
   border-collapse: collapse;
   width: 100%;
@@ -2075,6 +2093,7 @@ th{
   padding: 5px;
   z-index:10; 
   cursor:pointer; 
+  min-width:125px;
 }
 
 td{
@@ -2087,6 +2106,20 @@ td{
 tr:hover{
   background-color: #ffffff;
 }
+
+.grp-pair {
+  background-color: #f7f9fc;
+}
+
+.grp-impair {
+  background-color: #eef2f7;
+}
+
+.grp-last {
+    border-bottom: 2px solid #bbbbbb !important;
+}
+
+ 
 
 .recent-files-list {
     overflow-y: auto;
@@ -2198,12 +2231,11 @@ SYNTHESE
 }
 
 .btn-copied-extrait::after{
-  content :"copié !" ;
+  content :"" ;
   position: relative;
-  top:40px;
-  right:10px;
   font-size: 0.8rem;
   color: green;
+  flex-wrap: wrap;
 }
 
 .ligne-variables-ent {
@@ -2222,17 +2254,30 @@ SYNTHESE
     max-height: 80px;
 }
 
-.ligne-variables-ent::before {
+ 
+
+.logo-variables::before{
     content: "";
     background-image: url('../img/logodat2.png');
     background-size: cover;
     display: inline-block;
-    width: 35px;
-    height: 35px;
+    width: 20px;
+    height: 20px;
     margin-right: 8px;
     vertical-align: middle;
     opacity: 0.3;
- 
+}
+
+.logo-filtre::before{
+    content: "";
+    background-image: url('../img/filtre.png');
+    background-size: cover;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    vertical-align: middle;
+    opacity: 0.3;
 }
 
 .titreplansynth{

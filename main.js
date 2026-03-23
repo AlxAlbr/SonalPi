@@ -101,31 +101,7 @@ ipcMain.handle('set-user', (_, newUser) => {
   return true;
 });
 
-// ⭐ Handler pour les logs du renderer (XXXXX peut être viré à la fin XXXXX)
-// DÉSACTIVÉ - pour éviter l'interception des logs dans VSCode
-/*
-ipcMain.handle('log', (event, level, message) => {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-  
-  // Afficher dans la console du main
-  if (level === 'error') {
-    console.error(logMessage);
-  } else {
-    console.log(logMessage);
-  }
-  
-  // Optionnel: écrire dans un fichier log
-  try {
-    const logFile = path.join(app.getPath('userData'), 'app.log');
-    fs.appendFileSync(logFile, logMessage + '\n');
-  } catch (err) {
-    console.error('Erreur écriture fichier log:', err);
-  }
-  
-  return true;
-});
-*/
+ 
 
 // ⭐ Handler pour confirmer la fin de sauvegarde avant fermeture
 ipcMain.handle('save-complete', (event) => {
@@ -191,6 +167,12 @@ if (rk === undefined || rk === null) {
 });
 ipcMain.handle('set-html', (_, rk, html) => {
   
+  // remplacement complet du tableau
+  if (rk === undefined || rk === null) {
+    tabHtml = html;
+    return true;
+  }
+
   // vidage si besoin
   if (rk === -1) {
     tabHtml = [];
@@ -198,6 +180,8 @@ ipcMain.handle('set-html', (_, rk, html) => {
     return true;
   }
   
+  
+
   // S'assurer que le tableau est assez grand pour l'index rk
   if (rk >= tabHtml.length) {
     tabHtml.length = rk + 1;
@@ -219,6 +203,12 @@ ipcMain.handle('get-grph', (_, rk) => {
 
 ipcMain.handle('set-grph', (_, rk, newTabGrph) => {
   
+  // remplacement complet du tableau
+  if (rk === undefined || rk === null) {
+    tabGrph = newTabGrph;
+    return true;
+  }
+
     // vidage si besoin
   if (rk === -1) {
     tabGrph = [];
@@ -842,6 +832,9 @@ function demanderDossierEtNom(parentWindow) {
                 ipcMain.removeListener('prompt-response', handler);
                 promptWindow.close();
                 resolve(value);
+                if (parentWindow && !parentWindow.isDestroyed()) {
+                    parentWindow.focus();
+                }
             }
         };
         
@@ -851,6 +844,9 @@ function demanderDossierEtNom(parentWindow) {
         promptWindow.on('closed', () => {
             ipcMain.removeListener('prompt-response', handler);
             resolve(null);
+            if (parentWindow && !parentWindow.isDestroyed()) {
+                parentWindow.focus();
+            }
         });
     });
 }
@@ -928,13 +924,13 @@ async function archiverCorpus() {
     return null;
   }
 
+  const estDistant = Corpus.type === 'distant';
+
   // Nom par défaut : même nom que le corpus + date
   const baseName = Corpus.fileName.replace('.crp', '');
   const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const defaultName = `${baseName}_${timestamp}.zip`;
-  const defaultDir = (Corpus.type !== 'distant')
-    ? Corpus.folder
-    : app.getPath('documents');
+  const defaultDir = estDistant ? app.getPath('documents') : Corpus.folder;
 
   // Boîte de dialogue "Enregistrer sous"
   const { canceled, filePath: dest } = await dialog.showSaveDialog(mainWindow, {
@@ -951,38 +947,55 @@ async function archiverCorpus() {
   const zip = new AdmZip();
   const erreurs = [];
 
-  // 1. Fichier .crp
-  const cheminCrp = path.join(Corpus.folder, Corpus.fileName);
-  if (fs.existsSync(cheminCrp)) {
-    zip.addLocalFile(cheminCrp);
-  } else {
-    erreurs.push(Corpus.fileName);
-  }
+  if (estDistant) {
+    // ─── Corpus distant : télécharger les fichiers via serveurAPI ───────────
 
-  // 2. Fichiers .sonal (et audio associés) référencés dans tabEnt
-  for (const ent of tabEnt) {
-    if (ent.rtrPath) {
-      const cheminSonal = path.join(Corpus.folder, ent.rtrPath);
-      if (fs.existsSync(cheminSonal)) {
-        // Conserver le chemin relatif dans le zip
-        const dirRelative = path.dirname(ent.rtrPath);
-        zip.addLocalFile(cheminSonal, dirRelative !== '.' ? dirRelative : '');
-      } else {
-        erreurs.push(ent.rtrPath);
+    // 1. Fichier .crp : on sérialise l'état en mémoire (données courantes)
+    const corpusContent = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic }, null, 2);
+    zip.addFile(Corpus.fileName, Buffer.from(corpusContent, 'utf8'));
+
+    // 2. Fichiers .sonal référencés dans tabEnt
+    for (const ent of tabEnt) {
+      if (ent.rtrPath) {
+        const cheminDistant = Corpus.folder + '/' + ent.rtrPath;
+        try {
+          const result = await serveurAPI.lireFichier(cheminDistant);
+          if (result.success && result.content) {
+            const entryPath = ent.rtrPath.replace(/\\/g, '/');
+            zip.addFile(entryPath, Buffer.from(result.content, 'utf8'));
+          } else {
+            erreurs.push(ent.rtrPath);
+          }
+        } catch (e) {
+          console.error('Erreur téléchargement distant:', ent.rtrPath, e);
+          erreurs.push(ent.rtrPath);
+        }
       }
     }
-    // Fichiers audio locaux
-    /*
-    if (ent.audioPath) {
-      const cheminAudio = path.isAbsolute(ent.audioPath)
-        ? ent.audioPath
-        : path.join(Corpus.folder, ent.audioPath);
-      if (fs.existsSync(cheminAudio)) {
-        const dirRelative = path.relative(Corpus.folder, path.dirname(cheminAudio));
-        zip.addLocalFile(cheminAudio, dirRelative || '');
+
+  } else {
+    // ─── Corpus local : lecture via fs ──────────────────────────────────────
+
+    // 1. Fichier .crp
+    const cheminCrp = path.join(Corpus.folder, Corpus.fileName);
+    if (fs.existsSync(cheminCrp)) {
+      zip.addLocalFile(cheminCrp);
+    } else {
+      erreurs.push(Corpus.fileName);
+    }
+
+    // 2. Fichiers .sonal référencés dans tabEnt
+    for (const ent of tabEnt) {
+      if (ent.rtrPath) {
+        const cheminSonal = path.join(Corpus.folder, ent.rtrPath);
+        if (fs.existsSync(cheminSonal)) {
+          const dirRelative = path.dirname(ent.rtrPath);
+          zip.addLocalFile(cheminSonal, dirRelative !== '.' ? dirRelative : '');
+        } else {
+          erreurs.push(ent.rtrPath);
+        }
       }
     }
-      */
   }
 
   // Écriture du zip
@@ -2126,6 +2139,20 @@ ipcMain.handle('update-recent-files-menu', async () => {
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
+// Windows/Linux : récupérer le fichier passé en argument avant l'event ready
+let pendingFilePath = null;
+for (let i = 1; i < process.argv.length; i++) {
+  const arg = process.argv[i];
+  if (arg.startsWith('--')) continue;
+  if (arg.includes('electron') || arg.includes('.exe')) continue;
+  try {
+    if (fs.existsSync(arg) && fs.statSync(arg).isFile()) {
+      pendingFilePath = arg;
+      break;
+    }
+  } catch (_) {}
+}
+
 app.on('ready', () => {
 
   // définition de l'icône
@@ -2152,9 +2179,18 @@ app.on('ready', () => {
     mainWindow.maximize()
 
     // Définir l'icône après le chargement de la fenêtre
-    mainWindow.once('ready-to-show', () => {
+    mainWindow.once('ready-to-show', async () => {
       mainWindow.setIcon(iconPath);
       mainWindow.show();
+
+      // Windows/Linux : ouvrir le fichier passé en argument
+      if (pendingFilePath) {
+        const result = await ouvrirCorpus(pendingFilePath);
+        if (result && result.success) {
+          mainWindow.webContents.send('afficher-corpus', result);
+        }
+        pendingFilePath = null;
+      }
     });
 
    //mainWindow.webContents.openDevTools()
@@ -2322,27 +2358,4 @@ app.on('open-file', async (event, path) => {
 });
 
 // Windows/Linux
-(async () => {
-  if (process.argv.length >= 2) {
-    for (let i = 1; i < process.argv.length; i++) {
-      const filePath = process.argv[i];
-      
-      // Ignorer les arguments qui commencent par -- (flags Electron)
-      if (filePath.startsWith('--')) continue;
-      
-      // Ignorer le chemin de l'app elle-même
-      if (filePath.includes('electron') || filePath.includes('.exe')) continue;
-      
-      // Vérifier que c'est un fichier
-      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        console.log('Fichier ouvert:', filePath);
-        const result = await ouvrirCorpus(filePath);
-        if (result && result.success) {
-          mainWindow.webContents.send('afficher-corpus', result);
-        }
-        break;  // Traiter seulement le premier fichier valide
-      }
-    }
-  }
-})();
 

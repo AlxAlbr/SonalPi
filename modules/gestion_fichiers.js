@@ -724,7 +724,7 @@ async function exportFichierSonal(){
           
 
             // sauvegarde du fichier de l'entretien
-            const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
+            const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
 
 
     SauvegarderSurDisque(contenuFichierSonal,detailsf[1] + ".Sonal", "UTF-8")

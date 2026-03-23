@@ -23,7 +23,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "A.0.11";
+    const version = "A.0.12";
   </script>
 
 <body>
@@ -75,19 +75,20 @@
                 color: var(--couleur-titre);
                 ">A.0.3</label>
                 
-              <button id="btn-synthèse" class="btn btn-secondary" style="float:left; margin-left:30px; padding:10px;" title="Synthèse des extraits actifs" onclick=" synthese() ;">
+              <button id="btn-synthèse" class="btn btn-secondary logo-filtre" style="float:left; margin-left:70px; padding:10px;" title="Synthèse des extraits actifs" onclick=" synthese(selCatCritereEt) ;">
                Synthèse
               </button>
 
 
-            <button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" affichDataGen() ;">
+            <button id="btn-variables" class="btn btn-secondary logo-variables" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" affichDataGen() ;">
                  Base de données
               </button>
                
-             <!--<button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" pointvariables() ;">
+             <!--
+              <button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" pointvariables() ;">
                  Point variables
               </button>
-              --> 
+              -->
                
           
  
@@ -157,7 +158,9 @@
             <h2 style="margin-bottom: 1px;margin-left:10px; float:left !important;">
                            <label id="activeAllCat" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer toutes les catégories"></label>
                             <label>Catégories</label>
+             
               <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="modifier les catégories"> ✏️ </label>
+               <label id="selCatEt" class="btnbleu" style = "margin-right: 10px;" title="Critère & pour la sélection des catégories "> & </label>
 
 
                                 <input 
@@ -318,6 +321,8 @@
   ///////////////////////////////////////////////////////////////////
   // AFFICHAGE DES PANNEAUX GAUCHE
   ///////////////////////////////////////////////////////////////////
+
+  var selCatCritereEt = false; // 
 
   function dispPanneauG(bouton, composant){
 
@@ -551,9 +556,21 @@ function hidepanG(){
           affichListThmCrp();
           // redessin de tous les graphs 
           //dessinTousEntretiens();
-          affichageExtraitsCorpus();
+          affichageExtraitsCorpus(selCatCritereEt);
 
         }); 
+
+
+  //=============================================      
+  // listener sur le bouton selCatEt
+  //=============================================
+
+        let selCatEt = document.getElementById("selCatEt");
+        selCatEt.addEventListener('mousedown', () => {
+            selCatCritereEt = !selCatCritereEt;
+            selCatEt.classList.toggle('btn-bleu-actif', selCatCritereEt);
+              affichageExtraitsCorpus(selCatCritereEt);
+        });
 
 
   //===================================================
@@ -902,7 +919,7 @@ function dialog(type, message){
                          <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
 
                                 <div class="floating-label-container" style=" margin-right:10px; width:10%" >
-                                    <input type="text" id="lblCodeVar" class="floating-input lbl-code-var" style = "background-color:white" placeholder=" Code " onkeyup="" value = "`+ (tabVar.length + 1) +`" disabled />
+                                    <input type="text" id="lblCodeVar" class="floating-input lbl-code-var" style = "background-color:white" placeholder=" Code " onkeyup="" value = "`+ (tabVar.length > 0 ? Math.max(...tabVar.map(v => Number(v.v))) + 1 : 1) +`" disabled />
                                     <label for="lblCodeVar" class="mdc-floating-label  floatingstatic" >Code</label>
                                 </div>
 
@@ -950,15 +967,9 @@ function dialog(type, message){
                             <H3 >Modalités </H3>
                             <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto;overflow-x: hidden; ">
 
-                                <div class="floating-label-container" style="">
+ 
                                 
-                                    <div class="ligmoda" style="">
-                                        <label class="mdc-floating-label floatingstatic codemoda" >Code </label>
-                                        <label class="mdc-floating-label floatingstatic libmoda ">libellé</label>
-                                    </div>
-                                </div>
-                                
-                                <div id= "dico">
+                                <div id= "dico" style="padding: 11px">
                                     
                                     <div class="ligmoda" style="">
                                         <input type="text" class=" case-moda codemoda floating-input lbl-code-thm" placeholder=" " onkeyup="" value="1"/>  
@@ -977,7 +988,7 @@ function dialog(type, message){
                        
                             <div class = "floating-label-container" style="margin-top: 10px;">
                              
-                              <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; width:10%; ";">+</label> 
+                              <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; ";">+ ajouter une modalité</label> 
 
               
                                 </div>

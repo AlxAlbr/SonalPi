@@ -127,6 +127,11 @@ async function ajouterEntretien(fichTxt, fichAudio){
         // après conversion, écriture du fichier texte dans le dossier du corpus (local ou distant)
         //console.log(fichApresConversion); 
 
+        // Capturer le tabDat aligné AVANT la conversion en string (uniquement pour .sonal)
+        let tabDatImport = (typeof fichApresConversion === 'object' && fichApresConversion && fichApresConversion.tabDatAligned)
+            ? fichApresConversion.tabDatAligned
+            : [];
+
         // Extraire la string de l'objet si nécessaire et s'assurer que c'est une string
         if (typeof fichApresConversion === 'object') {
             if (fichApresConversion && fichApresConversion.formatSonal) {
@@ -213,9 +218,9 @@ async function ajouterEntretien(fichTxt, fichAudio){
         rtrPath: nomFichTxtA, // nom du fichier texte (sans l'adresse)
         audioPath: fichAudio ? String(fichAudio) : "", // S'assurer que c'est une string
         imgPath : "", //fichImg,
-        tabVar: [],
-        tabDic: [],
-        tabDat: [],
+        tabVar: tabVar,   // global, synchronisé par fusionTabVar
+        tabDic: tabDic,   // global, synchronisé par fusionTabVar
+        tabDat: tabDatImport,
         tabAnon: window.tabAnonImport, // tableau des anonymisations importé
     };
 
@@ -1129,7 +1134,7 @@ async function afficherDetailsEnt(rk){
     titreVarGen.style.marginTop = "20px";
     titreVarGen.style.marginBottom = "10px";
     titreVarGen.style.marginLeft = "1px";
-    titreVarGen.classList.add('ligne-variables-ent');
+    titreVarGen.classList.add( 'logo-variables');
     divVars.appendChild(titreVarGen);
 
     let divVarGen = document.createElement('div');
@@ -1141,6 +1146,7 @@ async function afficherDetailsEnt(rk){
     titreVarLoc.innerText = "Variables par locuteur";
     titreVarLoc.style.marginTop = "20px";
     titreVarLoc.style.marginBottom = "10px";
+    titreVarLoc.classList.add('logo-variables');
     divVars.appendChild(titreVarLoc);
 
     let divVarLoc = document.createElement('div');
@@ -1160,7 +1166,7 @@ async function afficherDetailsEnt(rk){
 async function retirerEnt(rk){
 
     // demande de confirmation via question 
-    let res = await question("Êtes-vous sûr de vouloir supprimer cet entretien du corpus ? \n (Le fichier .Sonal correspondant ne sera pas supprimé physiquement, seulement retiré du corpus)", "confirm");
+    let res = await question("Êtes-vous sûr de vouloir supprimer cet entretien du corpus ? \nLe fichier .Sonal correspondant ne sera pas supprimé physiquement, seulement retiré du corpus", ["Ok", "Annuler"]);
     if (res != "ok") return; // si l'utilisateur annule, on sort de la fonction
     
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
@@ -1180,8 +1186,8 @@ async function retirerEnt(rk){
 
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
-    await window.electronAPI.setHtml(rk, null); // suppression du HTML en cache
-    await window.electronAPI.setGrph(rk, null); // suppression du graphique en cache
+    await window.electronAPI.setHtml(null, tabHtml); // remplacement complet du tableau HTML
+    await window.electronAPI.setGrph(null, tabGrph); // remplacement complet du tableau graphique
 
     // sauvegarde du corpus
     window.sauvegarderCorpus();

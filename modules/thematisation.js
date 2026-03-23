@@ -455,7 +455,7 @@ async function affichListThmCrp(tabThm){
         
         // redessin de tous les graphs 
         //dessinTousEntretiens();
-            affichageExtraitsCorpus();
+            affichageExtraitsCorpus(typeof selCatCritereEt !== 'undefined' ? selCatCritereEt : false);
   
     }
 });
@@ -501,7 +501,7 @@ div.addEventListener('contextmenu', async (event) => {
         
         // redessin de tous les graphs 
         //dessinTousEntretiens();
-        affichageExtraitsCorpus();
+        affichageExtraitsCorpus(typeof selCatCritereEt !== 'undefined' ? selCatCritereEt : false);
 
 
 });

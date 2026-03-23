@@ -317,13 +317,13 @@ async function importSONAL(content) { // importation d'un fichier SONAL (html) -
     let fichierSonal = extractFichierSonal(content);
 
     await fusionTabThm(fichierSonal.tabThm);
-    await fusionTabVar(fichierSonal.tabVar, fichierSonal.tabDic, fichierSonal.tabDat);
+    const tabDatAligned = await fusionTabVar(fichierSonal.tabVar, fichierSonal.tabDic, fichierSonal.tabDat);
     await fusionTabAnon(fichierSonal.tabAnon);
 
     window.tabLocImport = fichierSonal.tabLoc; // stockage temporaire dans le window global
-    console.log("--> locteurs " + JSON.stringify(fichierSonal.tabLoc));
+    //console.log("--> locteurs " + JSON.stringify(fichierSonal.tabLoc));
     window.tabAnonImport = fichierSonal.tabAnon; // stockage temporaire dans le window global
-    console.log("--> anonymisations " + JSON.stringify(fichierSonal.tabAnon));
+    //console.log("--> anonymisations " + JSON.stringify(fichierSonal.tabAnon));
     
     // stockage du tabloc importé pour l'ajout d'entretien (centralisé via main)
     //if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
@@ -336,7 +336,7 @@ async function importSONAL(content) { // importation d'un fichier SONAL (html) -
  
     let formatSonal = String(content);
 
-    return {formatSonal};
+    return { formatSonal, tabDatAligned: tabDatAligned || [] };
 
     //return fichierSonal;
 
@@ -449,9 +449,47 @@ async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jou
     if (situation ="ajout") {
         console.log("mise à jour du tabVar avec ajouts");
         let envoi = await window.electronAPI.setVar(tabVar);
-       
     }
-    return;
+
+    // --- Fusion du tabDic : merge des modalités du fichier dans le tabDic global ---
+    let tabDic = await window.electronAPI.getDic();
+
+    // Table de correspondance : code variable dans le fichier → code global
+    const mapV = new Map();
+    tabVarFich.forEach(fVar => {
+        const gVar = tabVar.find(v => v.lib === fVar.lib);
+        if (gVar) mapV.set(Number(fVar.v), Number(gVar.v));
+        else mapV.set(Number(fVar.v), Number(fVar.v));
+    });
+
+    // Table de correspondance : (v_fich|m_fich) → m_global
+    const mapM = new Map();
+    (tabDicFich || []).forEach(fDic => {
+        if (Number(fDic.m) === 0) { mapM.set(`${Number(fDic.v)}|0`, 0); return; }
+        const globalV = mapV.get(Number(fDic.v)) ?? Number(fDic.v);
+        const gDic = tabDic.find(d => d.v == globalV && d.lib === fDic.lib);
+        if (gDic) {
+            mapM.set(`${Number(fDic.v)}|${Number(fDic.m)}`, Number(gDic.m));
+        } else {
+            // Nouvelle modalité : ajouter au tabDic global
+            const ligsDic = tabDic.filter(d => d.v == globalV);
+            const maxM = ligsDic.length > 0 ? Math.max(...ligsDic.map(d => Number(d.m))) : 0;
+            const newM = maxM + 1;
+            tabDic.push({ v: globalV, m: newM, lib: fDic.lib });
+            mapM.set(`${Number(fDic.v)}|${Number(fDic.m)}`, newM);
+        }
+    });
+    await window.electronAPI.setDic(tabDic);
+
+    // Remapper les codes dans tabDatFich (alignement sur les codes globaux)
+    (tabDatFich || []).forEach(dat => {
+        const newV = mapV.get(Number(dat.v)) ?? Number(dat.v);
+        const newM = mapM.get(`${Number(dat.v)}|${Number(dat.m)}`) ?? Number(dat.m);
+        dat.v = newV;
+        dat.m = newM;
+    });
+
+    return tabDatFich; // tableau de données recodé, aligné sur les codes globaux
 }
 
 async function fusionTabAnon(tabAnonFich) { // mise à jour du tabAnon à partir d'un fichier sonal importé
@@ -810,6 +848,7 @@ html += `<div id="contenuText">
         window.HTMLTOTABSEG = HTMLTOTABSEG;
         window.importSONAL = importSONAL;
         window.extractFichierSonal = extractFichierSonal;
+        window.fusionTabVar = fusionTabVar;
 
     }
     

@@ -44,7 +44,7 @@ async function lireCorpus(fileContent){
  if (fileContent.indexOf("<|THEM|") > -1){
     console.log("corpus Sonal 2 détecté")
 
-    const rep = await question("Le corpus que vous avez sélectionné semble être un corpus Sonal 2. \n Une copie au format Sonal π va être créée à côté du corpus d'origine. \n Le fichier original ne sera pas modifié.", "confirm");
+    const rep = await question("Le corpus que vous avez sélectionné semble être un corpus Sonal 2. \n Une copie au format Sonal π va être créée à côté du corpus d'origine. \n Le fichier original ne sera pas modifié.", ["Ok", "Annuler"]);
 
     if (rep === 'annuler') {
          
@@ -120,9 +120,10 @@ affichListThmCrp(tabThm, 'conteneur_cat') // affichage de la liste des thématiq
 await window.electronAPI.setHtml(-1, []);
 
 
-loadHtml(0,Number(tabEnt.length-1)).then( () => { 
+loadHtml(0,Number(tabEnt.length-1)).then( async () => { 
 
          afficherEnt(0,Number(tabEnt.length-1));
+        await cleanVariables(); // nettoyage du tabdat des éventuelles données obsolètes
          inventaireVariables(); // inventaire des variables utilisées dans les entretiens
 });  
 
@@ -857,12 +858,24 @@ let corpusActuel = Corpus.url;
   
   // récupération du contenu actuel
   const tabThm = await window.electronAPI.getThm();
-  const tabEnt = await window.electronAPI.getEnt();
+  let tabEnt = await window.electronAPI.getEnt();
   const tabVar = await window.electronAPI.getVar();
   const tabDic = await window.electronAPI.getDic();
- // const tabDat = await window.electronAPI.getDat();
 
-  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic /*, tabDat */ });
+  // Synchronisation de tabVar et tabDic globaux dans chaque entretien (les locaux sont toujours alignés sur le global)
+  tabEnt.forEach(ent => {
+      ent.tabVar = tabVar;
+      ent.tabDic = tabDic;
+  });
+  await window.electronAPI.setEnt(tabEnt);
+
+  // Reconstruction du tabDat global depuis les tabDat locaux de chaque entretien
+  const tabDatGlobal = tabEnt.flatMap(ent =>
+      (ent.tabDat || []).map(d => ({...d, e: String(ent.id)}))
+  );
+  await window.electronAPI.setDat(tabDatGlobal);
+
+  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic });
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);
   
@@ -1047,16 +1060,42 @@ var ajoutEnt= function(fich){
 
     reader.readAsText(fich);
 
-    reader.onloadend = function() {
+    reader.onloadend = async function() {
 
-    let donnéesEnt = chargerHTML(fich);
-    
-    // retrait de l'extension dans le nom du fichier
-    let nomFich = fich.name.replace(/\.[^/.]+$/, "");
-     
-    tabEnt.push({nom: nomFich, loc: donnéesEnt[1],  thm: donnéesEnt[2] , notes: "`" + donnéesEnt[3] + "`", html:"`"+ donnéesEnt[4] + "`", tabVar: donnéesEnt[5], tabDic: donnéesEnt[6], tabDat: donnéesEnt[7]  }) ;
-     
-    } 
+        // Sauvegarder les globaux avant le parsing (chargerHTML les écrase)
+        const savedTabVar = tabVar ? tabVar.slice() : [];
+        const savedTabDic = tabDic ? tabDic.slice() : [];
+
+        let donnéesEnt = chargerHTML(fich);
+
+        // chargerHTML a écrasé tabVar/tabDic avec les valeurs du fichier — on capture avant de restaurer
+        const fileTabVar = tabVar ? tabVar.slice() : [];
+        const fileTabDic = tabDic ? tabDic.slice() : [];
+        const fileTabDat = (donnéesEnt[7] || []).slice();
+
+        // Restaurer les globaux du corpus
+        tabVar = savedTabVar;
+        tabDic = savedTabDic;
+
+        // Aligner les codes du fichier sur les globaux (met à jour tabVar/tabDic si nouvelles vars/modas)
+        const tabDatAligne = (typeof fusionTabVar === 'function')
+            ? (await fusionTabVar(fileTabVar, fileTabDic, fileTabDat) || fileTabDat)
+            : fileTabDat;
+
+        // retrait de l'extension dans le nom du fichier
+        let nomFich = fich.name.replace(/\.[^/.]+$/, "");
+
+        tabEnt.push({
+            nom: nomFich,
+            loc: donnéesEnt[1],
+            thm: donnéesEnt[2],
+            notes: "`" + donnéesEnt[3] + "`",
+            html: "`" + donnéesEnt[4] + "`",
+            tabVar: tabVar,     // global (source de vérité)
+            tabDic: tabDic,     // global (source de vérité)
+            tabDat: tabDatAligne
+        });
+    }
 
     
 
@@ -1576,10 +1615,11 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
 }
 
 
-async function affichageExtraitsCorpus(){
+async function affichageExtraitsCorpus(critereEt = false){
        // défilement des tous les xtr-graph
         
        tabThm = await window.electronAPI.getThm(); // récupération des thématiques dans main.js
+       const thmActifs = tabThm.filter(th => th.act === true || th.act === "true");
        //console.log("affichage des extraits du corpus en fonction des thématiques actives")
         const xtrGraph = document.querySelectorAll('.xtr-graph')
         xtrGraph.forEach(xtr => {     
@@ -1589,11 +1629,21 @@ async function affichageExtraitsCorpus(){
             let thmXtr = xtr.dataset.thm.split(","); // récupération des thèmes de l'extrait
             let affiche = false;
 
-            for (let t=0; t<thmXtr.length; t++){
-                if (!tabThm[Number(thmXtr[t])]) {continue}
-                if (tabThm[Number(thmXtr[t])].act) {
-                    affiche = true;
-                    break;
+            if (critereEt) {
+                // ET : l'extrait doit contenir TOUS les rangs des catégories actives
+                const rksActifs = thmActifs.map((_, idx) => String(tabThm.indexOf(thmActifs[idx])));
+                affiche = thmActifs.length > 0 && thmActifs.every(th => {
+                    const rk = String(tabThm.indexOf(th));
+                    return thmXtr.includes(rk);
+                });
+            } else {
+                // OU : l'extrait contient au moins une catégorie active
+                for (let t=0; t<thmXtr.length; t++){
+                    if (!tabThm[Number(thmXtr[t])]) {continue}
+                    if (tabThm[Number(thmXtr[t])].act) {
+                        affiche = true;
+                        break;
+                    }
                 }
             }
 
@@ -1990,7 +2040,8 @@ async function echelleEnt(){ // fonction permettant de mettre à l'échelle les 
 }
 
 
-function question(message, type ) {
+function question(message, bouttons) { // fonction d'affichage d'une question avec des boutons de réponse personnalisés, qui retourne une promesse résolue avec la valeur (minuscules) du bouton cliqué
+   
     return new Promise(resolve => {
 
         const element = document.getElementById('dlg');
@@ -1999,6 +2050,10 @@ function question(message, type ) {
         contenu.style.top = "30%";
         contenu.style.width = "40%";
         contenu.style.height = "";
+        const nlIndex = message.indexOf('\n');
+        const msgTitre  = nlIndex !== -1 ? message.slice(0, nlIndex) : message;
+        const msgDetail = nlIndex !== -1 ? message.slice(nlIndex + 1) : '';
+
         contenu.innerHTML = `
             
             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
@@ -2006,25 +2061,24 @@ function question(message, type ) {
                 <div class="close" onclick="hidedlg();_questionResolve('annuler')" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
               </div>
 
-             
-          
-           <p style="padding:20px;white-space:pre-wrap;font-size:1.1rem">${message}</p>`
+           <p style="padding:20px 20px 0 20px; font-size:1.1rem; margin:0;">${msgTitre}</p>${msgDetail ? `<p style="padding:6px 20px 20px 20px; font-size:0.88rem; color:#888; white-space:pre-wrap; margin:0;">${msgDetail}</p>` : ''}`;
 
-        if (type ==="ouinonannuler"){    
-        contenu.innerHTML += `    
-            <div style="display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;">
-                <label class="btnfonction btnquestion btnoui" onclick="hidedlg(); _questionResolve('oui')">Oui</label>
-                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('non')">Non</label>
-                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('annuler')">Annuler</label>
-            </div>`;}
+        const divBtns = document.createElement('div');
+        divBtns.style.cssText = "display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;";
 
-        if (type ==="confirm"){    
-        contenu.innerHTML += `    
-            <div style="display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;">
-                <label class="btnfonction btnquestion btnoui" onclick="hidedlg(); _questionResolve('ok')">Ok</label>
-                <label class="btnfonction btnquestion" onclick="hidedlg(); _questionResolve('annuler')">Annuler</label>
-            </div>`;}
-    
+        (bouttons || []).forEach(btn => {
+            const isPositive = /^(oui|valider|ok)$/i.test(btn.trim());
+            const lbl = document.createElement('label');
+            lbl.className = 'btnfonction btnquestion' + (isPositive ? ' btnoui' : '');
+            lbl.textContent = btn;
+            lbl.addEventListener('click', () => {
+                hidedlg();
+                window._questionResolve(btn.trim().toLowerCase());
+            });
+            divBtns.appendChild(lbl);
+        });
+
+        contenu.appendChild(divBtns);
 
         window._questionResolve = (val) => {
             window._questionResolve = () => {}; // neutralise les appels doubles

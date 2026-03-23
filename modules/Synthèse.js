@@ -1,4 +1,4 @@
-async function synthese(){ // fonction permettant de compiler toutes les parties d'entretien relatives au(x) thème(s) sélectionné(s)
+async function synthese(critereEt){ // fonction permettant de compiler toutes les parties d'entretien relatives au(x) thème(s) sélectionné(s)
 
  if (tabThm.length == 0){
   tabThm = await window.electronAPI.getThm()
@@ -206,14 +206,17 @@ if (tabEnt.length == 0){
 
                     //console.log("analyse du mot " + m + " / " + mots.length + " de l'entretien " + (i+1) + "classlist : " + mot.classList.value );
 
-                    // défilement des classes css du mot
-                    for (let cls of mot.classList) {
-
-                        // vérification si la classe correspond à un thème actif
-                        if (cls.startsWith('cat_')) {
-                            let thmCherché = cls;
-                            estActif = tabThm.some(th => th.code === thmCherché && (th.act === true || th.act === "true"));
-                            if (estActif == true){break;}
+                    // vérification si le mot appartient aux catégories actives
+                    if (critereEt) {
+                        // ET : le mot doit contenir TOUTES les catégories actives
+                        estActif = thmActifs.length > 0 && thmActifs.every(th => mot.classList.contains(th.code));
+                    } else {
+                        // OU : le mot contient AU MOINS UNE catégorie active
+                        for (let cls of mot.classList) {
+                            if (cls.startsWith('cat_')) {
+                                estActif = thmActifs.some(th => th.code === cls);
+                                if (estActif) break;
+                            }
                         }
                     }
 
@@ -269,6 +272,9 @@ if (tabEnt.length == 0){
             }, 0);
         });
     }
+
+    // Pré-calcul des catégories actives (utilisé par le critère ET)
+    const thmActifs = tabThm.filter(th => th.act === true || th.act === "true");
 
     // Traitement asynchrone des entretiens
     for (let i = 0; i < tabHtml.length; i++) {
