@@ -12,10 +12,10 @@ if (tabEnt.length == 0){
 
 
 
-    function finalizeExtrait(extrait, fin,  entretien ) {
+    function finalizeExtrait(extrait, fin, entretien, resetLocCur) {
         extrait.fin = fin;
         tabExt.push({ ...extrait, entretien });
-        loc_cur = -1; // réinitialisation du locuteur courant
+        if (resetLocCur) resetLocCur(); // réinitialisation du locuteur courant
     }
 
     function titreEnt(entretien){
@@ -131,10 +131,60 @@ if (tabEnt.length == 0){
     }
 
 
+    function afficherContexte(extrait) {
+        const existing = document.getElementById('divContexteExtrait');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'divContexteExtrait';
+        overlay.classList.add('contexte-extrait-overlay');
+
+        // En-tête avec titre et bouton fermer
+        const header = document.createElement('div');
+        header.classList.add('contexte-extrait-header');
+        const titre = document.createElement('span');
+        titre.innerText = 'Contexte — ' + tabEnt[extrait.entretien].nom;
+        const btnClose = document.createElement('button');
+        btnClose.classList.add('btn-close-contexte');
+        btnClose.innerText = '✖';
+        btnClose.title = 'Fermer';
+        btnClose.addEventListener('click', () => overlay.remove());
+        header.appendChild(titre);
+        header.appendChild(btnClose);
+        overlay.appendChild(header);
+
+        // Contenu de l'entretien
+        const contenu = document.createElement('div');
+        contenu.classList.add('contexte-extrait-contenu');
+        let html = tabHtml[extrait.entretien];
+        if (html) html = html.replace(/`/g, '');
+        contenu.innerHTML = html || '';
+
+        // Mise en évidence des mots de l'extrait
+        const spans = contenu.querySelectorAll('span');
+        let premierSpan = null;
+        for (let idx = extrait.debut - 1; idx <= extrait.fin - 2; idx++) {
+            if (spans[idx]) {
+                spans[idx].classList.add('highlight-contexte');
+                if (!premierSpan) premierSpan = spans[idx];
+            }
+        }
+
+        overlay.appendChild(contenu);
+        document.body.appendChild(overlay);
+
+        if (premierSpan) {
+            requestAnimationFrame(() => {
+                const offsetInContenu = premierSpan.offsetTop - contenu.offsetTop;
+                contenu.scrollTop = offsetInContenu - contenu.clientHeight / 2 + premierSpan.offsetHeight / 2;
+            });
+        }
+    }
+
     function getLocSynth(entretien, loc){ // fonction permettant de récupérer le nom du locuteur à partir de son entretien d'origine et de son code
        
-        let locNom = "???";
-        let tabloc = tabEnt[entretien].loc;
+        let locNom = "inconnu";
+        let tabloc = tabEnt[entretien].tabLoc;
         if (tabloc) {
             locNom = tabloc[loc];
         } else {"pas de tabloc"}
@@ -152,7 +202,7 @@ if (tabEnt.length == 0){
     const divSynthese = document.createElement("div");
     divSynthese.id = "divSynthese";
 
-    divSynthese.innerHTML = `<h3>Extraits sélectionnés
+    divSynthese.innerHTML = `<h3 style="margin-left:10px;">Extraits sélectionnés
      <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;float:right;margin-top:-5px" onclick="hideSynthese();">Quitter ✖️</label>
     </h3>`;
     divSynthese.classList.add("fondtabdat");
@@ -161,7 +211,59 @@ if (tabEnt.length == 0){
     const divFondSynth = document.createElement("div");
     divFondSynth.id = "fondSynthese";
     divFondSynth.classList.add("fondsynth");
-    document.body.appendChild (divFondSynth);
+    document.body.appendChild(divFondSynth);
+
+    divFondSynth.addEventListener('contextmenu', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const oldMenu = document.getElementById('ctx-menu-fondsynth');
+        if (oldMenu) oldMenu.remove();
+
+        const selection = window.getSelection();
+        const texteSelectionne = selection ? selection.toString().trim() : '';
+
+        const menu = document.createElement('div');
+        menu.id = 'ctx-menu-fondsynth';
+        menu.style.cssText = `
+            position: fixed;
+            top: ${event.clientY}px;
+            left: ${event.clientX}px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+            z-index: 9999;
+            min-width: 180px;
+            font-size: 0.9em;
+            cursor: default;
+        `;
+
+        const itemCopier = document.createElement('div');
+        itemCopier.innerText = '📋 Copier';
+        itemCopier.style.cssText = 'padding: 6px 12px;';
+        itemCopier.style.opacity = texteSelectionne ? '1' : '0.4';
+        itemCopier.style.pointerEvents = texteSelectionne ? 'auto' : 'none';
+        itemCopier.addEventListener('mouseenter', () => itemCopier.style.background = '#f0f0f0');
+        itemCopier.addEventListener('mouseleave', () => itemCopier.style.background = '');
+        itemCopier.addEventListener('click', () => {
+            navigator.clipboard.writeText(texteSelectionne).catch(() => {
+                document.execCommand('copy');
+            });
+            menu.remove();
+        });
+        menu.appendChild(itemCopier);
+
+        document.body.appendChild(menu);
+
+        const fermerMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('mousedown', fermerMenu);
+            }
+        };
+        setTimeout(() => document.addEventListener('mousedown', fermerMenu), 0);
+    });
 
     const divPlanSynth = document.createElement("div");
     divPlanSynth.id = "planSynthese";
@@ -195,7 +297,7 @@ if (tabEnt.length == 0){
                     if (extraitEnCours) {
                         extraitEnCours = false;
                         //extrait.texte.push (...suffixe(mots,m));  
-                        finalizeExtrait(extrait, m, i);
+                        finalizeExtrait(extrait, m, i, () => { locCur = -1; });
                         extrait = { debut: 0, fin: 0, texte: [] };
                         continue; // passer au mot suivant
                     }
@@ -208,8 +310,11 @@ if (tabEnt.length == 0){
 
                     // vérification si le mot appartient aux catégories actives
                     if (critereEt) {
-                        // ET : le mot doit contenir TOUTES les catégories actives
-                        estActif = thmActifs.length > 0 && thmActifs.every(th => mot.classList.contains(th.code));
+                        // ET avec exception famille : chaque groupe doit être satisfait
+                        // (OR à l'intérieur d'une famille complète, AND entre groupes)
+                        estActif = groupesEt.length > 0 && groupesEt.every(
+                            groupe => [...groupe].some(code => mot.classList.contains(code))
+                        );
                     } else {
                         // OU : le mot contient AU MOINS UNE catégorie active
                         for (let cls of mot.classList) {
@@ -230,7 +335,7 @@ if (tabEnt.length == 0){
                         // y'a-t-il changement de locuteur ?
 
                                 let loc = mot.parentNode.dataset.loc;
-                                let locNom = mot.parentNode.dataset.nomloc;
+                                let locNom = getLocSynth(i, loc);
 
                                 if (loc != locCur){
                                     mot.classList.add('ligloc');
@@ -254,7 +359,7 @@ if (tabEnt.length == 0){
                         if (extraitEnCours) {
                             extraitEnCours = false;
                             //extrait.texte.push (...suffixe(mots,m));  
-                            finalizeExtrait(extrait, m, i);
+                            finalizeExtrait(extrait, m, i, () => { locCur = -1; });
                             extrait = { debut: 0, fin: 0, texte: [] };
                         }
                     }
@@ -263,7 +368,7 @@ if (tabEnt.length == 0){
 
             if (extraitEnCours) {
                 //extrait.texte.push (...suffixe(mots,m));
-                finalizeExtrait(extrait, m, i);
+                finalizeExtrait(extrait, m, i, () => { locCur = -1; });
             }
 
             // Utiliser setTimeout pour permettre la mise à jour de l'interface
@@ -276,8 +381,41 @@ if (tabEnt.length == 0){
     // Pré-calcul des catégories actives (utilisé par le critère ET)
     const thmActifs = tabThm.filter(th => th.act === true || th.act === "true");
 
-    // Traitement asynchrone des entretiens
+    // Regroupe les actifs en familles : si un parent ET toute sa descendance sont actifs,
+    // ils forment un groupe OR (l'un suffit). Sinon chaque actif est un groupe solo (AND).
+    function buildGroupesEt(actifs, thm) {
+        const activeSet = new Set(actifs.map(th => th.code));
+        const groupes = [];
+        const visites = new Set();
+        for (let i = 0; i < thm.length; i++) {
+            const th = thm[i];
+            if (!activeSet.has(th.code) || visites.has(th.code)) continue;
+            const rangParent = Number(th.rang ?? 0);
+            // collecter toute la descendance directe/indirecte
+            const famille = [th];
+            let j = i + 1;
+            while (j < thm.length && Number(thm[j].rang ?? 0) > rangParent) {
+                famille.push(thm[j]);
+                j++;
+            }
+            // la famille complète = parent + descendants tous actifs
+            const familleComplete = famille.length > 1 && famille.every(m => activeSet.has(m.code));
+            if (familleComplete) {
+                groupes.push(new Set(famille.map(m => m.code)));
+                famille.forEach(m => visites.add(m.code));
+            } else {
+                groupes.push(new Set([th.code]));
+                visites.add(th.code);
+            }
+        }
+        return groupes;
+    }
+
+    const groupesEt = critereEt ? buildGroupesEt(thmActifs, tabThm) : [];
+
+    // Traitement asynchrone des entretiens (entretiens inactifs exclus)
     for (let i = 0; i < tabHtml.length; i++) {
+        if (tabEnt[i] && tabEnt[i].actif === 0) continue;
         await traiterEntretien(i);
     }
 
@@ -318,6 +456,7 @@ if (tabEnt.length == 0){
             // boutton de copie de l'extrait
             const btnCopy = document.createElement('div');
             btnCopy.classList.add('btn-copy-extrait');
+            
             btnCopy.title = "Copier l'extrait dans le presse-papiers";
             btnCopy.addEventListener('click', async () => {
                 
@@ -345,9 +484,14 @@ if (tabEnt.length == 0){
                 });
 
                 textCopié += " »\n";
+
+                // correction des espaces avant et après la ponctuation (ne doit pas y avoir mot.mot)
+                textCopié = textCopié.replace(/\s([,.!?:;])}/g, "$1"); // supprime les espaces avant la ponctuation
+                textCopié = textCopié.replace(/([,.!?:;])\s/g, "$1 "); // ajoute un espace après la ponctuation
+
                 // ajout des infos sur l'entretien
                 
-                textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesEnt(tabExt[i].entretien))[1] + "\n";              
+                textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "\n";              
 
                 navigator.clipboard.writeText(textCopié).then(() => {
                    btnCopy.classList.add('btn-copied-extrait');
@@ -362,10 +506,19 @@ if (tabEnt.length == 0){
                 });
             });
 
-            let loc_cur = -1;
+            locCur = -1;
 
-               
+            // bouton de contexte de l'extrait
+            const btnContext = document.createElement('div');
+            btnContext.classList.add('btn-context-extrait');
+            btnContext.title = "Afficher le contexte de cet extrait";
+            btnContext.innerText = '⛶';
+            btnContext.addEventListener('click', () => {
+                afficherContexte(tabExt[i]);
+            });
+
             div.appendChild(btnCopy);
+            div.appendChild(btnContext);
             for (m=0;m<tabExt[i].texte.length;m++){
 
                  div.appendChild(tabExt[i].texte[m]);

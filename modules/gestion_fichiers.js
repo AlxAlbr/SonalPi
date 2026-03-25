@@ -955,12 +955,12 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
                 return;
             }
 
-            // Span de mot : nettoyage + découpage en mots et espaces
+            // Span de mot : nettoyage + découpage en mots, ponctuations et espaces
             const texte = enfant.textContent
                 .replace(/\u00A0/g, ' ')
                 .replace(/\u202F/g, ' ');
 
-            const parts = texte.split(/(\s+)/);
+            const parts = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
 
             if (parts.length === 1 && enfant.dataset.len==1) { // s'il n'y a qu'un seul mot et qu'on est en mode compression!, on le clone simplement
                 const nvSpan = enfant.cloneNode(false); // clone superficiel : classes et attributs, sans enfants

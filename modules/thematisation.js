@@ -280,6 +280,8 @@ async function affichListThmCrp(tabThm){
     tabThm = await window.electronAPI.getThm(); // récupération du tableau des thématiques depuis main
     }
 
+    compterCatActifs(); // mise à jour du compteur de catégories actives
+    
     console.log("affichage des catégories")
     const conteneur=document.getElementById('conteneur_cat');
 
@@ -458,6 +460,9 @@ async function affichListThmCrp(tabThm){
             affichageExtraitsCorpus(typeof selCatCritereEt !== 'undefined' ? selCatCritereEt : false);
   
     }
+
+    
+
 });
         
 // listerner au clic droit
@@ -2797,6 +2802,24 @@ function filigraneCats() {
   filigraneActif = !filigraneActif;
 }
 
+
+async function compterCatActifs(){
+
+    tabThm= await window.electronAPI.getThm(); // récupération du tableau des thématiques depuis main
+
+    let nbActifs = 0;
+    tabThm.forEach(row => {
+        if (row.act == true){
+            nbActifs++;
+        }
+    });
+
+    if (nbActifs < tabThm.length) {
+    document.getElementById('lbl-nb-cat').innerText = "(" + nbActifs + " / " + tabThm.length + ")";
+    } else {
+    document.getElementById('lbl-nb-cat').innerText = "(" + tabThm.length + ")";
+    }
+}
 // Export CommonJS pour utilisation dans main.js (contexte Node.js)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {

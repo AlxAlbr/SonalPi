@@ -1519,6 +1519,7 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
         //console.log("dimensions du canvas : " + largeur + "x" + hauteur);
 
         let nbCouleurs = 0; 
+        let nbPond = 0;
         let tabCoul = []; // tableau des couleurs utilisées pour les thèmes de l'extrait
          let couleurBordure = ''; // couleur de bordure par défaut';
         for (thm=0;thm<catsThm.length;thm++){   
@@ -1544,9 +1545,13 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
                             nbCouleurs++;
                             tabCoul.push(tabThm[rkc].couleur);
                          
-                        } else {
-                            couleurBordure = 'rgba(200,200,200,0.5)';
-                        }
+                        } 
+                        
+                         // les catégories  dont la police est supérieure à la taille de police par défaut sont des pondérations affichées en bordure
+                           if (tabThm[rkc].taille && Number(tabThm[rkc].taille) > 16) {
+                            //couleurBordure = 'rgba(200,200,200,0.5)';
+                            nbPond++;
+                           }
 
                         
                      
@@ -1596,6 +1601,12 @@ async function dessinResumeGraphique(rkEnt, canva, tabGrphEnt){
                    
                     span.style.background = chaineCoul;   
                     
+                    if (nbPond > 0) {
+                        //span.style.border = '1px solid rgba(0, 0, 0, 0.5)';
+                        span.style.borderBottom = '3px solid rgb(0, 0, 0)';
+                        //span.style.height = (hauteur+4) + 'px';
+                        //span.style.borderTop = '3px solid rgb(0, 0, 0)';
+                    }
                    
 
                     // définition du conteneur parent du canvas comme positionné en relatif pour que les spans soient positionnés par rapport à lui
@@ -1621,6 +1632,37 @@ async function affichageExtraitsCorpus(critereEt = false){
        tabThm = await window.electronAPI.getThm(); // récupération des thématiques dans main.js
        const thmActifs = tabThm.filter(th => th.act === true || th.act === "true");
        //console.log("affichage des extraits du corpus en fonction des thématiques actives")
+
+       // Regroupe les thèmes actifs en familles (indices dans tabThm) :
+       // OR à l'intérieur d'une famille complète (parent + toute sa descendance actifs),
+       // AND entre groupes distincts.
+       function buildGroupesEt(actifs, thm) {
+           const activeRks = new Set(actifs.map(th => thm.indexOf(th)));
+           const groupes = [];
+           const visites = new Set();
+           for (let i = 0; i < thm.length; i++) {
+               if (!activeRks.has(i) || visites.has(i)) continue;
+               const rangParent = Number(thm[i].rang ?? 0);
+               const famille = [i];
+               let j = i + 1;
+               while (j < thm.length && Number(thm[j].rang ?? 0) > rangParent) {
+                   famille.push(j);
+                   j++;
+               }
+               const familleComplete = famille.length > 1 && famille.every(rk => activeRks.has(rk));
+               if (familleComplete) {
+                   groupes.push(famille);
+                   famille.forEach(rk => visites.add(rk));
+               } else {
+                   groupes.push([i]);
+                   visites.add(i);
+               }
+           }
+           return groupes;
+       }
+
+       const groupesEt = critereEt ? buildGroupesEt(thmActifs, tabThm) : [];
+
         const xtrGraph = document.querySelectorAll('.xtr-graph')
         xtrGraph.forEach(xtr => {     
             
@@ -1630,12 +1672,11 @@ async function affichageExtraitsCorpus(critereEt = false){
             let affiche = false;
 
             if (critereEt) {
-                // ET : l'extrait doit contenir TOUS les rangs des catégories actives
-                const rksActifs = thmActifs.map((_, idx) => String(tabThm.indexOf(thmActifs[idx])));
-                affiche = thmActifs.length > 0 && thmActifs.every(th => {
-                    const rk = String(tabThm.indexOf(th));
-                    return thmXtr.includes(rk);
-                });
+                // ET avec exception famille : chaque groupe doit être satisfait
+                // (OR à l'intérieur d'une famille complète, AND entre groupes)
+                affiche = groupesEt.length > 0 && groupesEt.every(
+                    groupe => groupe.some(rk => thmXtr.includes(String(rk)))
+                );
             } else {
                 // OU : l'extrait contient au moins une catégorie active
                 for (let t=0; t<thmXtr.length; t++){
@@ -1765,82 +1806,53 @@ async function rechercherDansCorpus(chaine){
          console.log("recherche dans l'entretien " + e + " nombre de mots " + nbMots + " nombre de segments " + segments.length)
 
         for (let seg of segments){
-            //const seg = tempContainer.querySelector(`span[data-rksg="${s}"]`);
-        
-           
 
-            if (seg.innerText.toLowerCase().includes(chaine.toLowerCase())) {
-                
-                let m=seg.tabIndex; // rang du 1er mot dans l'entretien
-                
-                for (let mot of seg.children) {
+            if (!seg.textContent.toLowerCase().includes(chaine.toLowerCase())) { continue; }
 
-                    m++;
+            const chaineLow = chaine.toLowerCase();
+            const nbMotsChaine = chaine.trim().split(/\s+/).filter(w => w.length > 0).length;
 
-                    if (mot.innerText.toLowerCase().includes(chaine.toLowerCase())) {
-
-                        // contexte environnant le mot
-                        let rkMot = Number(mot.dataset.rk);
-                        let contexteTexte = "<a>";
-
-                        // si l'entretien est compacté
-                        if (mot.dataset.len >0){
-
-                            // split du mot en plusieurs mots individuels
-                            let motText = mot.innerText;
-                            let nbMotsDsSpan = Number(mot.dataset.len);
-                            let motsIndiv = motText.split(/(\s+)/).slice(0, nbMotsDsSpan); // on prend autant de mots que la longueur du span
-
-                            // défilement de toutes les occurrences dans le span compacté
-                            for (let rkMotDsSpan = 0; rkMotDsSpan < motsIndiv.length; rkMotDsSpan++) {
-
-                                if (!motsIndiv[rkMotDsSpan].toLowerCase().includes(chaine.toLowerCase())) { continue; }
-
-                                rkMot = Number(mot.dataset.rk) + rkMotDsSpan; // rang du mot corrigé dans l'entretien
-
-                                let contexteDeb = Math.max(0, rkMotDsSpan - 15);
-                                let contexteFin = Math.min(motsIndiv.length - 1, rkMotDsSpan + 15);
-                                let contexteTexte = "<a>";
-
-                                for (let rkC = contexteDeb; rkC <= contexteFin; rkC++){
-                                    let motC = motsIndiv[rkC];
-                                    if (motC) {
-                                        if (rkC != rkMotDsSpan){
-                                            contexteTexte += motC;
-                                        } else {
-                                            contexteTexte += "<b>" + motC + "</b> ";
-                                        }
-                                    }
-                                }
-
-                                enregistrerOccurence(contexteTexte, e, mot.dataset.rk, nbMots, canva, canvaLeft, canvaWidth);
-                            }
-
-                        } else { // pas de compactage, on prend le mot tel quel
-
-                           
-
-                            let contexteDeb = Math.max(0, rkMot -15);
-                            let contexteFin = Math.min(nbMots -1, rkMot +15);
- 
-
-                            for (let rkC = contexteDeb; rkC <= contexteFin; rkC++){
-                                let motC = tempContainer.querySelector(`span[data-rk="${rkC}"]`);   
-                                if (motC) {
-                                    // ajout du mot au contexte
-                                    if (rkC != rkMot-1){
-                                        contexteTexte += motC.innerText  ;
-                                    } else {
-                                        contexteTexte += "<b>" + motC.innerText + "</b> ";
-                                    }
-
-                                }
-                            }
-
-                            enregistrerOccurence(contexteTexte, e, rkMot, nbMots, canva, canvaLeft, canvaWidth);
-                        }
-                    }
+            // Construction de la liste plate des mots du segment.
+            // On utilise toujours baseRk (et non baseRk+i) car dans le format compacté
+            // (conversions.js, data-len > 1) il n'existe qu'un seul span par segment :
+            // les rk virtuels baseRk+i ne correspondent à aucun élément du DOM.
+            let wordList = [];
+            for (let motSpan of seg.children) {
+                const baseRk = Number(motSpan.dataset.rk);
+                const words = motSpan.textContent.split(/\s+/).filter(w => w.length > 0);
+                for (let i = 0; i < words.length; i++) {
+                    wordList.push({ rk: baseRk, text: words[i] });
                 }
+            }
+
+            // Recherche de toutes les occurrences dans le texte reconstitué du segment
+            // Le padding ' ... ' permet de respecter les frontières de mots ("je " ne trouve pas "jeudi")
+            const segText = ' ' + wordList.map(w => w.text).join(' ') + ' ';
+            let searchStart = 0;
+            while (true) {
+                const idx = segText.toLowerCase().indexOf(chaineLow, searchStart);
+                if (idx === -1) break;
+
+                // rang du premier mot du match dans wordList
+                // (slice(1, idx) retire le padding initial avant de compter)
+                const iMot = segText.slice(1, idx).split(/\s+/).filter(w => w.length > 0).length;
+                if (iMot >= wordList.length) { searchStart = idx + 1; continue; }
+
+                const rkMot = wordList[iMot].rk;
+
+                const contexteDeb = Math.max(0, iMot - 15);
+                const contexteFin = Math.min(wordList.length - 1, iMot + nbMotsChaine - 1 + 15);
+                let contexteTexte = "<a>";
+
+                for (let c = contexteDeb; c <= contexteFin; c++) {
+                    const isMatch = c >= iMot && c < iMot + nbMotsChaine;
+                    contexteTexte += isMatch
+                        ? "<b>" + wordList[c].text + "</b> "
+                        : wordList[c].text + " ";
+                }
+
+                enregistrerOccurence(contexteTexte, e, rkMot, nbMots, canva, canvaLeft, canvaWidth);
+                searchStart = idx + 1;
             }
         }
           
@@ -2015,6 +2027,26 @@ async function triEntCorpus(mode) { // fonction permettant de trier les entretie
 async function echelleEnt(){ // fonction permettant de mettre à l'échelle les entretiens en fonction de leur longueur
 
     let tabEntCorpus = await window.electronAPI.getEnt();
+
+    // --- MODE RETOUR : si déjà à l'échelle, restaurer les valeurs d'origine ---
+    const premierDiv = document.querySelector(`div.fond-cnv-ent[data-id="${tabEntCorpus[0]?.id}"]`);
+    if (premierDiv && premierDiv.dataset.echelle === "true") {
+        for (let i=0; i<tabEntCorpus.length; i++){
+            const divEnt = document.querySelector(`div.fond-cnv-ent[data-id="${tabEntCorpus[i].id}"]`);
+            if (!divEnt) continue;
+            divEnt.style.flex = divEnt.dataset.flexOrigine ?? "";
+            delete divEnt.dataset.flexOrigine;
+            delete divEnt.dataset.echelle;
+            const cnv = divEnt.querySelector('canvas.cnvent');
+            if (cnv) {
+                cnv.width = divEnt.clientWidth;
+                cnv.height = divEnt.clientHeight;
+            }
+        }
+        return;
+    }
+
+    // --- MODE MISE À L'ÉCHELLE ---
     let tabHtml = await window.electronAPI.getHtml();
 
     const MAX_LARGEUR = 66; // largeur maximale en % pour l'entretien le plus long
@@ -2028,6 +2060,11 @@ async function echelleEnt(){ // fonction permettant de mettre à l'échelle les 
          
         let divEnt = document.querySelector(`div.fond-cnv-ent[data-id="${tabEntCorpus[i].id}"]`);
         if (!divEnt) { console.warn("fond-cnv-ent introuvable pour l'entretien id=" + tabEntCorpus[i].id); continue; }
+
+        // sauvegarde de la flex d'origine avant modification
+        divEnt.dataset.flexOrigine = divEnt.style.flex ?? "";
+        divEnt.dataset.echelle = "true";
+
         divEnt.style.flex = `0 0 ${ratio.toFixed(2)}%`; // on met à l'échelle la largeur en fonction de la longueur de l'entretien
 
         // mise à jour des dimensions du canvas interne

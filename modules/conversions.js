@@ -757,18 +757,12 @@ html += `<div id="contenuText">
 
 
 
-        // Regex qui capture chaque mot, ponctuation et espace séparément
+        // Un seul span compacté par segment : data-len = nombre d'éléments (mots, ponctuations, espaces)
         var texte = tabSeg[s][4];
-        const elements = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g);
+        const elements = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
 
-        let chaine = "";
-
-        for (const elem of elements) {
-        chaine += `<span data-rk="${rkMax}" data-sg="${sgMax}">${elem}</span>`;
-        rkMax++;
-        }
-        
-        html += chaine + `</span>`
+        html += `<span data-rk="${rkMax}" data-sg="${sgMax}" data-len="${elements.length}">${texte}</span></span>`;
+        rkMax += elements.length;
 
         sgMax++;
     }

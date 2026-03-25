@@ -795,7 +795,7 @@ function demanderDossierEtNom(parentWindow) {
     return new Promise((resolve) => {
         const promptWindow = new BrowserWindow({
             width: 600,
-            height: 350,
+            height: 400,
             titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
             parent: parentWindow,
             // modal: true,
@@ -1248,10 +1248,10 @@ ipcMain.handle('entretien-locked', async (event, rgEnt) => {
 ipcMain.handle('load-audio-file', async (event, filePath) => {
   try {
     const buffer = fs.readFileSync(filePath);
-    // Retourner le buffer sous forme d'array pour le transfert
+    // Retourner comme Uint8Array : transfert structuré binaire, pas de sérialisation élément par élément
     return {
       success: true,
-      data: Array.from(buffer)
+      data: new Uint8Array(buffer)
     };
   } catch (error) {
     return {
@@ -1901,7 +1901,7 @@ const credentialsManager = new CredentialsManager();
 function ouvrirAjoutEntretien() {
   const entWindow = new BrowserWindow({
     width: 700,
-    height: 780,
+    height: 680,
     titleBarStyle: process.platform === 'darwin' ? 'default' : 'default',
     parent: mainWindow,
     // modal: true,
@@ -2193,7 +2193,7 @@ app.on('ready', () => {
       }
     });
 
-   //mainWindow.webContents.openDevTools()
+   // mainWindow.webContents.openDevTools(); 
 
 
 

@@ -5,7 +5,8 @@
 //const { compterElements } = require("./utilitaires");
 
 // ajout d'un entretien
-async function ajouterEntretien(fichTxt, fichAudio){
+// batchMode = true : ne pas sauvegarder ni afficher après l'ajout (géré par ajouterPlusieursEntretiens)
+async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     
     //console.log("ajout d'un entretien")
 
@@ -36,28 +37,25 @@ async function ajouterEntretien(fichTxt, fichAudio){
     }    
     
     
-    let nomFichTxtO = fichTxt.replace(/^.*[\\\/]/, '');// nom du fichier d'origine (O) (sans chemin d'accès) 
-    let extFichTxtO = nomFichTxtO.substring(nomFichTxtO.lastIndexOf(".")).toLowerCase(); // extension du fichier d'origine (O)
-    let nomFichTxtA = nomFichTxtO.replace(new RegExp(extFichTxtO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '.sonal'); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
+    let nomFichTxtA;
+    let fichApresConversion;
+    let tabDatImport = [];
+
+    if (fichTxt) {
+
+        let nomFichTxtO = fichTxt.replace(/^.*[\\\/]/, '');// nom du fichier d'origine (O) (sans chemin d'accès) 
+        let extFichTxtO = nomFichTxtO.substring(nomFichTxtO.lastIndexOf(".")).toLowerCase(); // extension du fichier d'origine (O)
+        nomFichTxtA = nomFichTxtO.replace(new RegExp(extFichTxtO.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '.sonal'); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
     
-    /*
-    if (Corpus.type == "distant") {
-        // Supprimer les caractères spéciaux problématiques pour un serveur
-        nomFichTxtA = nomFichTxtA
-            .replace(/\s+/g, '_')              // remplacer espaces par underscores
-            .replace(/[^a-zA-Z0-9._-]/g, '')   // garder seulement alphanumériques, underscore, tiret, point
-            .replace(/\.{2,}/g, '.');  
-    }
-        */
-            
-
-    //let cheminFichTxtA = await window.electronAPI.createPath(Corpus.folder, nomFichTxtA); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
-
-    //console.log("fichier texte d'origine (O): " + fichTxt + "\n fichier texte d'arrivée (A): " + cheminFichTxtA)
-
-     
-    
-
+        /*
+        if (Corpus.type == "distant") {
+            // Supprimer les caractères spéciaux problématiques pour un serveur
+            nomFichTxtA = nomFichTxtA
+                .replace(/\s+/g, '_')              // remplacer espaces par underscores
+                .replace(/[^a-zA-Z0-9._-]/g, '')   // garder seulement alphanumériques, underscore, tiret, point
+                .replace(/\.{2,}/g, '.');  
+        }
+            */
 
         // lecture du contenu du fichier d'origine
         let content = await window.electronAPI.readFileContent(fichTxt);
@@ -69,66 +67,45 @@ async function ajouterEntretien(fichTxt, fichAudio){
         // Prise en compte des fichiers JSON
         if (extFichTxtO === ".json") {content=JSON.parse(content);}
 
-
         // mise en tableau du contenu
         content = content.replace(/\r?\n|\r/g,'\n') // uniformisation des sauts de ligne
-        
-        
-        
 
-        let fichApresConversion = ""; // contenu après conversion
+        fichApresConversion = ""; // contenu après conversion
 
         // conversion du fichier sélectionné 
         switch (extFichTxtO) {
             case ".txt":
                 fichApresConversion = await convertTXT(content);
-                //console.log("contenu après conversion du fichier txt = \n", fichApresConversion);
                 break;
-
 
             case ".srt":
             case ".vtt":
-
-                // conversion VTT -> HTML
-
                 fichApresConversion = await convertSRT(content);
-                 // console.log("locuteurs dans fich ", window.tabLocImport)
                 break;
 
             case ".purge":
                 fichApresConversion = await convertPURGE(content);
-                 // console.log("après conversion de fichier purge = ", fichApresConversion.formatSonal)
                 break;
 
             case ".sonal":
                 fichApresConversion = await importSONAL(content);
-                //console.log("après conversion de fichier Sonal = ", fichApresConversion)
-                //fichApresConversion = String(lignesFich); //importSONAL(lignesFich);
                 break;
 
             case ".json":
                 fichApresConversion = await convertJSON(content);
-            break;
+                break;
 
             case ".docx":
-                // mammoth a déjà extrait le texte brut dans main.js — on le traite comme un .txt
                 fichApresConversion = await convertTXT(content);
-            break;
+                break;
 
             case ".pdf":
-                // pdf-parse a déjà extrait le texte brut dans main.js — on le traite comme un .txt
                 fichApresConversion = await convertTXT(content);
-            break;
-
-
-
+                break;
         }
 
-        // après conversion, écriture du fichier texte dans le dossier du corpus (local ou distant)
-        //console.log(fichApresConversion); 
-
         // Capturer le tabDat aligné AVANT la conversion en string (uniquement pour .sonal)
-        let tabDatImport = (typeof fichApresConversion === 'object' && fichApresConversion && fichApresConversion.tabDatAligned)
+        tabDatImport = (typeof fichApresConversion === 'object' && fichApresConversion && fichApresConversion.tabDatAligned)
             ? fichApresConversion.tabDatAligned
             : [];
 
@@ -137,15 +114,22 @@ async function ajouterEntretien(fichTxt, fichAudio){
             if (fichApresConversion && fichApresConversion.formatSonal) {
                 fichApresConversion = fichApresConversion.formatSonal;
             } else {
-                // Convertir l'objet en string JSON puis le parser si nécessaire
                 fichApresConversion = JSON.stringify(fichApresConversion);
             }
         }
         
-        // S'assurer que fichApresConversion est toujours une string
         if (typeof fichApresConversion !== 'string') {
             fichApresConversion = String(fichApresConversion);
         }
+
+    } else {
+        // Pas de fichier de transcription — contenu par défaut
+        let audioBaseName = fichAudio
+            ? fichAudio.replace(/^.*[\\\/]/, '').replace(/\.[^.]+$/, '')
+            : 'entretien';
+        nomFichTxtA = audioBaseName + '.sonal';
+        fichApresConversion = `<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n</head>\n<body><div id="contenuText"><span class="lblseg sautlig" data-deb="0" data-fin="0" data-loc="" tabindex="1" data-rksg="1"><span data-rk="1" data-sg="1" data-len="3">(pas de transcription)</span></span></div>\n</body>\n</html>`;
+    }
         
         //console.log("Contenu après conversion (string):", typeof fichApresConversion, fichApresConversion.substring(0, 100) + '...');   
 
@@ -180,10 +164,9 @@ async function ajouterEntretien(fichTxt, fichAudio){
     // création de l'image de l'audio
     let fichImg =""
     if(fichAudio){
-        let nomFichTxt = fichTxt.replace(/^.*[\\\/]/, '');// nom du fichier d'origine (O) (sans chemin d'accès) 
-        fichImg = String(nomFichTxt).replace(/\.[^.]+$/, '.' + "png")
-      
-
+        let basePourImg = fichTxt ? fichTxt : fichAudio;
+        let nomFichPourImg = basePourImg.replace(/^.*[\\\/]/, '');// nom du fichier d'origine (sans chemin d'accès)
+        fichImg = String(nomFichPourImg).replace(/\.[^.]+$/, '.' + "png")
     }    
 
 
@@ -217,7 +200,7 @@ async function ajouterEntretien(fichTxt, fichAudio){
         tabThm: [],
         rtrPath: nomFichTxtA, // nom du fichier texte (sans l'adresse)
         audioPath: fichAudio ? String(fichAudio) : "", // S'assurer que c'est une string
-        imgPath : "", //fichImg,
+        imgPath : fichImg, // image de la forme d'onde (vide si pas d'audio)
         tabVar: tabVar,   // global, synchronisé par fusionTabVar
         tabDic: tabDic,   // global, synchronisé par fusionTabVar
         tabDat: tabDatImport,
@@ -230,37 +213,63 @@ async function ajouterEntretien(fichTxt, fichAudio){
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
 
-    // mise à jour du corpus
-    window.sauvegarderCorpus();
-
-
     let rknv = tabEnt.length - 1; // rang de l'entretien ajouté
     console.log("Entretien ajouté avec le rang " + rknv, nouveauEnt);
 
-  // chargement des entretiens PUIS affichage
-    loadHtml(rknv,rknv).then(() => {
-    afficherEnt(rknv,rknv);
-    //CreerWaveform(fichAudio, fichImg)    
-    });  
- 
+    // Génération de la waveform en arrière-plan (fire-and-forget)
+    if (fichAudio && fichImg) {
+        setTimeout(() => CreerWaveform(String(fichAudio), fichImg, async () => {
+            // callback : mettre à jour l'image dans l'UI si l'entretien est déjà affiché
+            let tabEntCur = await window.electronAPI.getEnt();
+            let Corpus = await window.electronAPI.getCorpus();
+            if (!tabEntCur || !Corpus) return;
+            let id = tabEntCur[rknv] ? tabEntCur[rknv].id : null;
+            if (!id) return;
+            let conteneurEnt = document.querySelector(`div.ligent[data-id='${id}']`);
+            if (conteneurEnt) {
+                let imgEl = conteneurEnt.querySelector('.ligent-img');
+                let chemin = Corpus.type === 'local'
+                    ? await window.electronAPI.createPath(Corpus.folder, fichImg)
+                    : [Corpus.folder, fichImg].join('/');
+                if (imgEl) imgEl.src = chemin + '?t=' + Date.now();
+            }
+        }), 2000);
+    }
 
+    if (!batchMode) {
+        // sauvegarde et affichage immédiats (mode ajout unitaire)
+        await window.sauvegarderCorpus();
+        await loadHtml(rknv, rknv);
+        await afficherEnt(rknv, rknv);
+    }
 
+    return rknv;
 
 }
 
 async function ajouterPlusieursEntretiens(selectedTextFiles) {
-    
-     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
 
+    // Mémorise le rang de départ pour n'afficher que les nouveaux entretiens
+    let tabEntInitial = await window.electronAPI.getEnt();
+    if (!tabEntInitial) tabEntInitial = [];
+    const premierRang = tabEntInitial.length;
 
-    if (!tabEnt) {tabEnt = []}; // initialisation si inexistant
+    // Ajout séquentiel en mode batch (sans sauvegarde ni affichage intermédiaires)
+    for (const file of selectedTextFiles) {
+        await ajouterEntretien(file, null, true);
+    }
 
+    // Une seule sauvegarde du corpus à la fin
+    await window.sauvegarderCorpus();
 
+    // Chargement et affichage de tous les nouveaux entretiens en une passe
+    let tabEntFinal = await window.electronAPI.getEnt();
+    if (!tabEntFinal) tabEntFinal = [];
+    const dernierRang = tabEntFinal.length - 1;
 
-    // mise à jour du tableau des entretiens dans main
-   
-   for (const file of selectedTextFiles) {
-    await ajouterEntretien(file);
+    if (dernierRang >= premierRang) {
+        await loadHtml(premierRang, dernierRang);
+        await afficherEnt(premierRang, dernierRang);
     }
 
 }
@@ -447,10 +456,17 @@ async function afficherEnt(rgDep, rgFin){
             div.title=tabEnt[e].nom;
             //div.innerText = tabEnt[e].nom;
             div.style.cursor ="pointer";
+            if (tabEnt[e].actif === 0) div.classList.add('ligent--inactif');
 
             conteneur.appendChild(div);
 
-           
+            // bouton on/off
+            const btnOnOff = document.createElement('button');
+            btnOnOff.classList.add('btn-onoff-ent');
+            btnOnOff.title = 'Activer / désactiver cet entretien';
+            if (tabEnt[e].actif !== 0) btnOnOff.classList.add('btn-onoff-ent--actif');
+            div.appendChild(btnOnOff);
+
             // étiquette du nom
             const lbl = document.createElement('div');
             lbl.classList.add('lbl-nom-ent');
@@ -480,8 +496,8 @@ async function afficherEnt(rgDep, rgFin){
 
 
             // si le fichier d'image existe bien à l'emplacement indiqué, on l'affiche    
-            
-            let existFile = window.electronAPI.doesFileExists(cheminImg);
+                console.log("recherche de l'image à ladresse : " + cheminImg)
+            let existFile = await window.electronAPI.doesFileExists(cheminImg);
             if (existFile==true){
             img.src = cheminImg; 
             }   
@@ -592,7 +608,53 @@ async function afficherEnt(rgDep, rgFin){
                 if (editable) await window.electronAPI.editerEntretien(rkEnt); 
             })
 
- 
+            // bouton on/off : bascule l'état actif de l'entretien
+            btnOnOff.addEventListener('click', async function(event) {
+                event.stopPropagation();
+                let idEnt = Number(this.parentElement.dataset.id);
+                let rkEnt = tabEnt.findIndex(ent => ent.id === idEnt);
+                if (rkEnt === -1) return;
+                tabEnt[rkEnt].actif = (tabEnt[rkEnt].actif === 0) ? 1 : 0;
+                await window.electronAPI.setEnt(tabEnt);
+                //await window.sauvegarderCorpus();
+                const ligentDiv = this.parentElement;
+                if (tabEnt[rkEnt].actif === 0) {
+                    ligentDiv.classList.add('ligent--inactif');
+                    this.classList.remove('btn-onoff-ent--actif');
+                } else {
+                    ligentDiv.classList.remove('ligent--inactif');
+                    this.classList.add('btn-onoff-ent--actif');
+                }
+
+                compterEntActifs(); 
+            });
+
+            // bouton on/off : clic droit → désactive tous les autres entretiens sauf celui-ci
+            btnOnOff.addEventListener('contextmenu', async function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                let idEnt = Number(this.parentElement.dataset.id);
+                let rkEnt = tabEnt.findIndex(ent => ent.id === idEnt);
+                if (rkEnt === -1) return;
+                // activer celui-ci, désactiver tous les autres
+                tabEnt.forEach((ent, i) => { ent.actif = (i === rkEnt) ? 1 : 0; });
+                await window.electronAPI.setEnt(tabEnt);
+                // mettre à jour tous les boutons et lignes dans le DOM
+                document.querySelectorAll('div.ligent').forEach(ligentDiv => {
+                    const id = Number(ligentDiv.dataset.id);
+                    const rk = tabEnt.findIndex(ent => ent.id === id);
+                    const btn = ligentDiv.querySelector('.btn-onoff-ent');
+                    if (id === idEnt) {
+                        ligentDiv.classList.remove('ligent--inactif');
+                        if (btn) btn.classList.add('btn-onoff-ent--actif');
+                    } else {
+                        ligentDiv.classList.add('ligent--inactif');
+                        if (btn) btn.classList.remove('btn-onoff-ent--actif');
+                    }
+                });
+
+                compterEntActifs(); 
+            });
 
 
             // dessin des catégories
@@ -631,22 +693,22 @@ async function afficherEnt(rgDep, rgFin){
         document.getElementById('status-bar').innerText = "Prêt " 
         document.getElementById('progress-bar').style.width = "0"; 
 
+         compterEntActifs(); 
 
-        // initialisation de la veille de redimensionnement
-        //const canvas = document.querySelector('.ligent-img');
-
-        //const resizeObserver = new ResizeObserver(() => {
-        //console.log('Un canvas a été redimensionné - correction de tous');
-        
-        // Redessiner TOUS les canvas
-        //let tabGrphEnt = [{"pos":0, "width":0, "catsThm":0} ]; // tableau pour stocker les graphiques de tous les entretiens
-        //dessinTousEntretiens(); // ou ta fonction de redraw
-        //});
-
-        //resizeObserver.observe(canvas);
-
+ 
 }    
 
+async function compterEntActifs(){ // fonction permettant de compter et d'afficher le nombre d'entretiens actifs
+
+tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
+let nbActifs = tabEnt.filter(ent => ent.actif !== 0).length;
+
+    if (nbActifs < tabEnt.length) {
+    document.getElementById('lbl-nb-ent').innerText = "(" + nbActifs + " / " + tabEnt.length + ")";
+    } else {
+    document.getElementById('lbl-nb-ent').innerText = "(" + tabEnt.length + ")";
+    }
+}
  
 async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
 
@@ -1096,11 +1158,22 @@ async function afficherDetailsEnt(rk){
                 ent.imgPath = fichImg;
                 tabEnt[rk].imgPath = fichImg;
                 await window.electronAPI.setEnt(tabEnt);
-                CreerWaveform(selectedAudioFiles[0], fichImg)
-                
-                // sauvegarde du corpus
+
+                // fire-and-forget : l'UI reste réactive ; l'image s'affiche quand prête
+                CreerWaveform(selectedAudioFiles[0], fichImg, async () => {
+                    const elCont = document.querySelector(`div.ligent[data-id='${ent.id}']`);
+                    if (elCont && ent.imgPath) {
+                        const imgEl = elCont.querySelector('.ligent-img');
+                        const chemin = Corpus.type === 'local'
+                            ? await window.electronAPI.createPath(Corpus.folder, ent.imgPath)
+                            : [Corpus.folder, ent.imgPath].join('/');
+                        imgEl.src = chemin + '?t=' + Date.now(); // évite le cache
+                    }
+                });
+
+                // sauvegarde du corpus sans attendre la waveform
                 window.sauvegarderCorpus();
-            }
+             }
         });
 
 
@@ -1204,11 +1277,12 @@ async function retirerEnt(rk){
 async function afficherWhisPurge(){
 
     let rkEnt = await window.electronAPI.getEntCur();
-
+    //Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
 
     //console.log("affichage whispurge du contenu de l'entretien " + rkEnt)
 
     tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
+    let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
   
     // récupération de l'entretien
     let ent = tabEnt[rkEnt];
@@ -1312,7 +1386,18 @@ async function afficherWhisPurge(){
     tabVar = await window.electronAPI.getVar(); // récupération des variables  
     tabDic = await window.electronAPI.getDic(); // récupération des dictionnaires
     tabDat = await window.electronAPI.getDat(); // récupération des données
- 
+    
+    // alignement des variables, dictionnaires de l'entretien avec le tableau général
+    // (en cas de modifications dans la fenêtre de gestion des variables, les variables, dictionnaires et données associés à l'entretien sont mis à jour dans le tableau des entretiens, mais pas dans les variables renderer tabVar, tabDic et tabDat qui sont utilisées pour l'affichage et l'édition de l'entretien — cette étape permet de remettre tout ça en cohérence)
+    if (typeof tabVar !== 'undefined') {
+        tabEnt[rkEnt].tabVar = tabVar;
+    }
+    if (typeof tabDic !== 'undefined') {
+        tabEnt[rkEnt].tabDic = tabDic;
+    }
+
+    // mémorisation des caractéristiques de l'entretien
+    await window.electronAPI.setEnt(tabEnt)
 
    // console.log("variables trouvées :" + JSON.stringify(tabVar) )
    // console.log("dictionnaires trouvés :" + JSON.stringify(tabDic) )
@@ -1325,6 +1410,21 @@ async function afficherWhisPurge(){
     let tabGrphEnt = await resumeGraphique(html.replace(/`/g,''));    
 
     console.log("tableau graphique de l'entretien " + rkEnt + " : ", tabGrphEnt[1])
+    
+    // chargement de l'image de l'entretien, si elle existe
+    if (ent.imgPath) {
+        let imgEnt = document.getElementById('imgEnt');
+        let cheminImg = "";
+        if (Corpus.type == "local") {
+            cheminImg = await window.electronAPI.createPath(Corpus.folder, ent.imgPath);
+        } else {  
+            cheminImg = [Corpus.folder, ent.imgPath].join('/');
+        }
+        let existImg = await window.electronAPI.doesFileExists(cheminImg);
+        if (existImg) imgEnt.src = cheminImg; 
+    }
+
+
     // dessin du graphe de l'entretien
     dessinResumeGraphique(0, document.getElementById("graphEnt"),tabGrphEnt);
 
@@ -1338,6 +1438,7 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
 
     if (typeof rkEnt !== 'number' || rkEnt < 0) {
         console.error("rkEnt invalide:", rkEnt);
+        notifErreur("Sauvegarde impossible : identifiant d'entretien invalide (" + rkEnt + ").");
         return;
     }
 
@@ -1345,6 +1446,7 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
     
     if (!tabEnt || !tabEnt[rkEnt]) {
         console.error("Entretien non trouvé au rang:", rkEnt);
+        notifErreur("Sauvegarde impossible : entretien introuvable (rang " + rkEnt + ").");
         return;
     }
 
@@ -1386,6 +1488,7 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
     } catch(err) {
         
         console.error("ERREUR lors de setEnt:", err);
+        notifErreur("Erreur lors de la mise à jour de l'entretien en mémoire : " + (err.message || err));
         return;
     }
     
@@ -1439,15 +1542,21 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
             }
             
             console.log("4b - fichier de l'entretien sauvegardé :", res);
+            if (!res) {
+                notifErreur("Le fichier de l'entretien n'a pas pu être sauvegardé sur le disque (chemin : " + cheminEnt + ").");
+            }
             endWait();
 
 
 
         } else {
             console.error("3 - ERREUR: conteneurHtml not found");
+            notifErreur("Sauvegarde impossible : la fenêtre d'édition (\"segments\") est introuvable.");
         }
     } catch(err) {
         console.error("ERREUR lors de setHtml:", err);
+        endWait();
+        notifErreur("Erreur lors de la sauvegarde du fichier : " + (err.message || err));
     }
      
 }
@@ -1652,146 +1761,166 @@ async function ChargerRtr(element, index){
 // DESSIN DES WAVEFORMS
 ////////////////////////////////////////////////////////////////////////////////////
 
-async function CreerWaveform(audioFile,nomFichierImage){
- 
-    // Retourner immédiatement pour ne pas bloquer le thread principal
-    setTimeout(async () => {
-        // Notification visuelle
-        afficherNotification('Le fichier son est en cours d\'analyse /n Merci de patienter.', 'success');
+// onDone(nomFichierImage) est appelé quand le fichier PNG est créé
+async function CreerWaveform(audioFile, nomFichierImage, onDone) {
 
-        // récupération du corpus
-        let Corpus = await window.electronAPI.getCorpus();
-        
-        let cheminFichTxtA = ""
-        if (Corpus.type == "local"){ 	
-            cheminFichTxtA = await window.electronAPI.createPath(Corpus.folder, nomFichierImage); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
-        } else if (Corpus.type == "distant") {
-            cheminFichTxtA =  [Corpus.folder,nomFichierImage].join('/');
-        }
-
-        // le fichier existe-t-il déjà?
-        const existFichA = await window.electronAPI.doesFileExists(cheminFichTxtA);
-        if (existFichA==true){
-            console.log("Le fichier de forme d'onde " + nomFichierImage + " existe déjà. Il ne sera pas recréé.");
-            return; // sortie de la fonction
-        }
-
+    // Fire-and-forget : on lance le travail en arrière-plan sans bloquer l'appelant
+    (async () => {
         try {
-            console.time('Chargement total');
-            console.log('Chargement du fichier...');
-            console.time('Lecture fichier');
-            
+            const statusBar = document.getElementById('status-bar');
+            if (statusBar) {statusBar.textContent = 'Génération de la forme d\'onde en cours…';statusBar.classList.add('status-bar--blink');}
+
+            const Corpus = await window.electronAPI.getCorpus();
+
+            let cheminFichTxtA = Corpus.type === 'local'
+                ? await window.electronAPI.createPath(Corpus.folder, nomFichierImage)
+                : [Corpus.folder, nomFichierImage].join('/');
+
+            const existFichA = await window.electronAPI.doesFileExists(cheminFichTxtA);
+            if (existFichA) {
+                console.log("Forme d'onde déjà existante : " + nomFichierImage);
+                if (statusBar) {
+                    statusBar.textContent = 'Prêt.';
+                    statusBar.classList.remove('status-bar--blink');
+                }
+                if (onDone) onDone(nomFichierImage);
+                return;
+            }
+
+            // 1. Chargement IPC — result.data est un Uint8Array (binaire, pas Array.from)
             const result = await window.electronAPI.loadAudioFile(audioFile);
-            
-            if (!result.success) {
-                console.error('Erreur:', result.error);
-                return;
-            }
-            console.timeEnd('Lecture fichier');
-            afficherNotification('Décodage audio \n Merci de patienter.', 'success');
-            console.log('Décodage audio...');
-            console.time('Décodage audio');
-            
-            const uint8Array = new Uint8Array(result.data);
-            const arrayBuffer = uint8Array.buffer;
-            
+            if (!result.success) { console.error('Erreur loadAudioFile:', result.error); return; }
+
+            if (statusBar) { statusBar.textContent = 'Dessin en cours…'; statusBar.classList.add('status-bar--blink'); }
+
+            // 2. Décodage dans le renderer (AudioContext garanti disponible, async natif)
             const audioContext = new AudioContext();
+            const arrayBuffer = result.data.buffer.slice(
+                result.data.byteOffset,
+                result.data.byteOffset + result.data.byteLength
+            );
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            
-            console.timeEnd('Décodage audio');
-            console.log('Dessin de la forme d\'onde...');
-            console.time('Dessin');
-            
-            // Création d'un canvas pour créer et enregistrer l'image
-            let canva = document.createElement('canvas');
-            canva.width = 800;
+            audioContext.close();
+            if (statusBar) statusBar.classList.remove('status-bar--blink');
+
+            // 3. Transfert du canal audio au Worker (sans copie) pour calcul min/max
+            const channelData = audioBuffer.getChannelData(0); // Float32Array
+            const transferable = channelData.buffer.slice(
+                channelData.byteOffset,
+                channelData.byteOffset + channelData.byteLength
+            );
+            const width = 800;
+
+            const { minValues, maxValues } = await new Promise((resolve, reject) => {
+                const worker = new Worker('modules/waveform.worker.js');
+                worker.postMessage({ channelData: new Float32Array(transferable), width }, [transferable]);
+                worker.onmessage = (e) => { worker.terminate(); resolve(e.data); };
+                worker.onerror  = (err) => {
+                    worker.terminate();
+                    console.error('Worker error:', err.message, err.filename, 'line', err.lineno);
+                    reject(new Error(err.message || 'Worker error'));
+                };
+            });
+
+            // 4. Dessin sur canvas (instantané)
+            const canva = document.createElement('canvas');
+            canva.width = width;
             canva.height = 31;
-            document.body.appendChild(canva); 
-
+            document.body.appendChild(canva);
             const ctx = canva.getContext('2d');
+            const amp = canva.height / 2;
 
-            if (!audioBuffer || audioBuffer.numberOfChannels === 0) {
-                console.error('AudioBuffer invalide ou sans canal');
-                return;
-            }
-
-            const data = audioBuffer.getChannelData(0); // Premier canal
-            const width = canva.width || canva.clientWidth;
-            const height = canva.height || canva.clientHeight;
-            const step = Math.max(1, Math.ceil(data.length / width));
-            const amp = height / 2;
-
-            ctx.strokeStyle = '#d6d6d6ff';
-            ctx.lineWidth = 2;
             ctx.beginPath();
+            ctx.moveTo(0, (1 + maxValues[0]) * amp);
+            for (let i = 1; i < width; i++) ctx.lineTo(i, (1 + maxValues[i]) * amp);
+            for (let i = width - 1; i >= 0; i--) ctx.lineTo(i, (1 + minValues[i]) * amp);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.fill();
 
-            for (let i = 0; i < width; i++) {
-                let min = 1.0;
-                let max = -1.0;
-
-                // Trouver les valeurs min/max dans ce segment
-                for (let j = 0; j < step; j++) {
-                    const idx = (i * step) + j;
-                    if (idx >= data.length) break;
-                    const datum = data[idx];
-                    if (datum < min) min = datum;
-                    if (datum > max) max = datum;
-                }
-
-                const x = i;
-                const yMin = (1 + min) * amp;
-                const yMax = (1 + max) * amp;
-
-                if (i === 0) {
-                    ctx.moveTo(x, amp);
-                }
-
-                ctx.lineTo(x, yMin);
-                ctx.lineTo(x, yMax);
-            }
-
+            ctx.strokeStyle = 'rgb(165,165,165)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, (1 + maxValues[0]) * amp);
+            for (let i = 1; i < width; i++) ctx.lineTo(i, (1 + maxValues[i]) * amp);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, (1 + minValues[0]) * amp);
+            for (let i = 1; i < width; i++) ctx.lineTo(i, (1 + minValues[i]) * amp);
             ctx.stroke();
 
-            console.timeEnd('Dessin');
-            console.timeEnd('Chargement total');
-
-            // enregistrement du canvas sous forme d'image dans le dossier de projet
-            const dataURL = canva.toDataURL('image/png');
-            // Conversion du dataURL en binaire dans le renderer (évite l'utilisation de Buffer)
-            // On utilise fetch -> arrayBuffer -> Uint8Array
-            const response = await fetch(dataURL);
-            const arrayBuffer2 = await response.arrayBuffer();
-            const buffer = new Uint8Array(arrayBuffer2);
-
-            // définition du nom du fichier
-            // récupération du corpus
-            let Corpus = await window.electronAPI.getCorpus();
-            
-            if (Corpus.type == "local"){ 	
-                let cheminFichTxtA = await window.electronAPI.createPath(Corpus.folder, nomFichierImage); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
-                const res = await window.electronAPI.sauvegarderFichier(cheminFichTxtA, buffer);
-                console.log('Résultat écriture fichier local:', res);
-            } else if (Corpus.type == "distant") {
-                let cheminFichTxtA =  [Corpus.folder,nomFichierImage].join('/');
-                const res = await window.electronAPI.sauvegarderSurServeur(cheminFichTxtA, buffer);
-                console.log('Résultat sauvegarde serveur:', res);
-            }
-
-            // Nettoyer le canvas temporaire
             document.body.removeChild(canva);
 
-        } catch (error) {
-            console.error('Erreur de chargement:', error);
-        }
-    }, 0);
+            // 5. Conversion dataURL → Uint8Array via atob() (pas de fetch, compatible CSP Electron)
+            const dataURL = canva.toDataURL('image/png');
+            const base64 = dataURL.split(',')[1];
+            const binStr = atob(base64);
+            const pngBuffer = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) pngBuffer[i] = binStr.charCodeAt(i);
 
-    // Retourner immédiatement
-    return Promise.resolve();
+            // 6. Sauvegarde
+            if (Corpus.type === 'local') {
+                const chemin = await window.electronAPI.createPath(Corpus.folder, nomFichierImage);
+                await window.electronAPI.sauvegarderFichier(chemin, pngBuffer);
+            } else {
+                const chemin = [Corpus.folder, nomFichierImage].join('/');
+                await window.electronAPI.sauvegarderSurServeur(chemin, pngBuffer);
+            }
+
+            console.log('Forme d\'onde créée :', nomFichierImage);
+            if (statusBar) statusBar.textContent = 'Prêt.';
+            if (onDone) onDone(nomFichierImage);
+
+        } catch (err) {
+            console.error('Erreur CreerWaveform:', err);
+            const statusBar = document.getElementById('status-bar');
+            if (statusBar) { statusBar.classList.remove('status-bar--blink'); statusBar.textContent = 'Prêt.'; }
+        }
+    })();
+
+    return nomFichierImage; // retour immédiat
 }
 
-function dessinWaveform(audioBuffer, canva ) {
-    
-    
+function dessinWaveform(audioBuffer, canva ) { // dessin du waveform dans un canvas déjà créé
+
+    const ctx = canva.getContext('2d');
+    if (!audioBuffer || audioBuffer.numberOfChannels === 0) {
+        console.error('AudioBuffer invalide ou sans canal');
+        return;
+    }
+
+    const data = audioBuffer.getChannelData(0); // Premier canal
+    const width = canva.width || canva.clientWidth;
+    const height = canva.height || canva.clientHeight;
+    const step = Math.max(1, Math.ceil(data.length / width));
+    const amp = height / 2;
+
+    ctx.strokeStyle = '#d6d6d6ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    for (let i = 0; i < width; i++) {
+        let min = 1.0;
+        let max = -1.0;
+        // Trouver les valeurs min/max dans ce segment
+        for (let j = 0; j < step; j++) {
+            const idx = (i * step) + j;
+            if (idx >= data.length) break;
+            const datum = data[idx];
+            if (datum < min) min = datum;
+            if (datum > max) max = datum;
+        }
+
+        const x = i;
+        const yMin = (1 + min) * amp;
+        const yMax = (1 + max) * amp;
+        if (i === 0) {
+            ctx.moveTo(x, amp);
+        }
+        ctx.lineTo(x, yMin);
+        ctx.lineTo(x, yMax);
+    }
+    ctx.stroke();
 }
 
 

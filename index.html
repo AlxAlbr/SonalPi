@@ -23,7 +23,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "A.0.12";
+    const version = "A.0.13";
   </script>
 
 <body>
@@ -85,7 +85,7 @@
               </button>
                
              <!--
-              <button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" pointvariables() ;">
+              <button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" afficherContexte() ;">
                  Point variables
               </button>
               -->
@@ -158,6 +158,7 @@
             <h2 style="margin-bottom: 1px;margin-left:10px; float:left !important;">
                            <label id="activeAllCat" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer toutes les catégories"></label>
                             <label>Catégories</label>
+                            <label id = "lbl-nb-cat" class = "nb-elements"></label>
              
               <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="modifier les catégories"> ✏️ </label>
                <label id="selCatEt" class="btnbleu" style = "margin-right: 10px;" title="Critère & pour la sélection des catégories "> & </label>
@@ -248,9 +249,11 @@
         <div  class = "colonne-d " style="flex:3" onclick="désélectEntretiens()">  
 
         <div id ="header-ent" >
-              <h2 style="margin-bottom: 1px;margin-left:10px; float:left !important;width:98%;">
+              <h2 style="margin-bottom: 1px;margin-left:3px; float:left !important;width:98%;">
                            <label id="activeAllEnt" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer tous les entretiens"></label>
                             <label>Entretiens</label>
+                            <label id = "lbl-nb-ent" class = "nb-elements"></label>
+
            <!--  <label id="add-ent" class="btnbleu" style = "margin-right: 10px;" title="trier les entretiens" onclick="triEntCorpusAlpha()"> trier </label> -->
 
 
@@ -554,11 +557,45 @@ function hidepanG(){
           await window.electronAPI.setThm(tabThm)
 
           affichListThmCrp();
+          compterCatActifs();
           // redessin de tous les graphs 
           //dessinTousEntretiens();
           affichageExtraitsCorpus(selCatCritereEt);
+          
 
         }); 
+
+  //=============================================      
+  // listener sur le bouton activeAllEnt
+  //=============================================
+
+        let activeAllEnt = document.getElementById("activeAllEnt");
+        activeAllEnt.addEventListener('mousedown', async (event) => {
+            let tabEnt = await window.electronAPI.getEnt();
+            let nbActifs = tabEnt.filter(e => e.actif !== 0).length;
+            let toutActif = (nbActifs === tabEnt.length);
+
+            tabEnt.forEach(e => { e.actif = toutActif ? 0 : 1; });
+            await window.electronAPI.setEnt(tabEnt);
+           
+
+            // mise à jour du DOM
+            document.querySelectorAll('div.ligent').forEach(ligentDiv => {
+                const id = Number(ligentDiv.dataset.id);
+                const ent = tabEnt.find(e => e.id === id);
+                if (!ent) return;
+                const btn = ligentDiv.querySelector('.btn-onoff-ent');
+                if (ent.actif === 0) {
+                    ligentDiv.classList.add('ligent--inactif');
+                    if (btn) btn.classList.remove('btn-onoff-ent--actif');
+                } else {
+                    ligentDiv.classList.remove('ligent--inactif');
+                    if (btn) btn.classList.add('btn-onoff-ent--actif');
+                }
+            });
+
+            compterEntActifs();
+        });
 
 
   //=============================================      

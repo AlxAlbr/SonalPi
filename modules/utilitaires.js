@@ -133,6 +133,17 @@ function rgbToHex(rgb) {
 }
 
 
+// Notification d'erreur visible pour l'utilisateur final (toast en bas à droite)
+function notifErreur(message) {
+    console.error("[notifErreur]", message);
+    const div = document.createElement('div');
+    div.className = 'notif-erreur';
+    div.innerHTML = `<span class="notif-erreur-msg">&#9888; ${message}</span><button class="notif-erreur-close" title="Fermer">&times;</button>`;
+    div.querySelector('.notif-erreur-close').addEventListener('click', () => div.remove());
+    document.body.appendChild(div);
+    setTimeout(() => { if (div.isConnected) div.remove(); }, 8000);
+}
+
 /////////////////////////////////////////////////////////////////////////////////:
 // EXPORTATION DES FONCTIONS
 /////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +158,8 @@ if (typeof module !== 'undefined' && module.exports) {
         rgbToHex,
         SecToTime,
         TimeToSec,
-        hexToRgba
+        hexToRgba,
+        notifErreur
     };
 }
 
@@ -162,4 +174,5 @@ if (typeof window !== 'undefined') {
     window.SecToTime = SecToTime;
     window.TimeToSec = TimeToSec;
     window.hexToRgba = hexToRgba;
+    window.notifErreur = notifErreur;
 }
