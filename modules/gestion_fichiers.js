@@ -174,7 +174,7 @@ function chargeAudio(event) {
                 break;
     
             case ".SRT":
-            case ".VTT":
+            
                 convertSRT();
                 Phrasifier();
                 convertSpeaker();
@@ -183,24 +183,32 @@ function chargeAudio(event) {
                 loadThm()
                 
                 break;
-    
+            
+            case ".VTT":
+                convertVTT();
+                Phrasifier();
+                affSegments(0);
+                chargeLocut();
+                loadThm()
+                
+                break;
+
             case ".SONAL":
-                chargerHTML(fich);
+                chargerHTMLSONAL(fich);
                 chargeLocut();
                 loadThm();
                 multiThm('segments'); 
                 affichDataEnt(); 
                 
                 // mise à jour du dessin de l'entretien
-                const html = document.getElementById("segments").innerHTML; 
-                const canva = document.getElementById("graphEnt")
-                dessinResumeGraphique(tabEnt.length-1, html, canva);
-                 
-               
-    
-               
-                
-                break;    
+                //const html = document.getElementById("segments").innerHTML; 
+                //const canva = document.getElementById("graphEnt")
+                //dessinResumeGraphique(tabEnt.length-1, html, canva);
+           
+            break;    
+
+            
+
         };
         
         listenerGraph()
@@ -477,7 +485,7 @@ function chargeAudio(event) {
     }
     
     
-    function chargerHTML(adrFile) {
+    function chargerHTMLSONAL(adrFile) {
     
     
     
@@ -721,9 +729,16 @@ async function exportFichierSonal(){
             let contenuHtmlCmpct = await compactHtml();
             contenuHtmlCmpct = String(contenuHtmlCmpct).replace(/`/g,'');
 
-          
+            // la case chkAnon est-elle cochée ? Si oui, export anonymisé (sans table d'anonymisation dans le fichier)
+            const chkAnon = document.getElementById("chkAnon");
+            if (chkAnon && chkAnon.checked) {
+                console.log("Anonymisation activée pour l'export .Sonal");
+                const contenuAnonymise = sauvHtmlAnonymise();
+                SauvegarderSurDisque(contenuAnonymise, detailsf[1] + "_anonymise.Sonal", "UTF-8");
+                return;
+            }
 
-            // sauvegarde du fichier de l'entretien
+            // sauvegarde du fichier de l'entretien (version normale avec table d'anonymisation)
             const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
 
 
@@ -1010,8 +1025,15 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
     }
 
     // Remplacement du contenu en un seul reflow
+    const scrollContainer = document.getElementById('contenu');
+    const savedScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
     conteneur.innerHTML = '';
     conteneur.appendChild(fragment);
+    // Forcer un reflow synchrone pour que scrollHeight soit recalculé avant la restauration
+    void conteneur.offsetHeight;
+    if (scrollContainer && savedScrollTop > 0) {
+        scrollContainer.scrollTop = savedScrollTop;
+    }
 
     checkloc(locut); // correction éventuelle des changements de locuteurs
 
@@ -1321,6 +1343,10 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
     let rgFin = nbSegs;
     var txtSrt = "";
     var locuteur_courant;
+
+    const chkAnon = document.getElementById("chkAnon");
+    const avecAnon = chkAnon && chkAnon.checked;
+    if (avecAnon) { console.log("Anonymisation activée pour l'export .srt"); }
   
     var RkSegs=0;
         for (m=rgDeb;m<=rgFin;m++){
@@ -1342,8 +1368,15 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
                     let loc = locut[locuteur_courant].replaceAll("?","") ;
                     if (loc) {txtSrt +=  loc.trim() + ": " }
 
-            // ajout du texte
-            let texte = seg.textContent;
+            // ajout du texte (anonymisé ou brut selon chkAnon)
+            let texte;
+            if (avecAnon) {
+                const spans = seg.querySelectorAll('span');
+                const resultat = extraireTexteAnonymiseDepuisSpans(spans, 0);
+                texte = resultat.texte;
+            } else {
+                texte = seg.textContent;
+            }
             if (texte) {txtSrt += texte + " \r\n \r\n";}
 
         }
@@ -1357,7 +1390,8 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
     let detailsf = dossfichext(adrFich)
     
     
-    SauvegarderSurDisque(txtSrt,detailsf[1] + ".srt", "UTF-8")
+    const suffixeSrt = avecAnon ? "_anonymise" : "";
+    SauvegarderSurDisque(txtSrt, detailsf[1] + suffixeSrt + ".srt", "UTF-8")
     
     
     }
@@ -1377,7 +1411,14 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
 
     let detailsf = dossfichext(adrFich)
 
-
+    const chkAnon = document.getElementById("chkAnon");
+    if (chkAnon && chkAnon.checked) {
+        console.log("Anonymisation activée pour l'export .txt");
+        let nbspans = getNbSpans();
+        let txtAnonymise = exportTxtAvecClasses(1, nbspans, true);
+        SauvegarderSurDisque(txtAnonymise, detailsf[1] + "_anonymise.txt", "UTF-8");
+        return;
+    }
 
     let txtEnt = exportTxt(rgDeb, rgFin, true, true, true)
 

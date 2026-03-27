@@ -23,7 +23,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "A.0.13";
+    const version = "A.0.14";
   </script>
 
 <body>
@@ -550,7 +550,14 @@ function hidepanG(){
 
             tabThm.forEach(t => {
               t.act = true;
+
             });
+
+            // retrait de la condition & (impossible à réaliser avec tous les thèmes en simultané)
+              if (selCatCritereEt){
+                selCatCritereEt = false;
+                document.getElementById("selCatEt").classList.remove('btn-bleu-actif');
+              }
           
           }
 

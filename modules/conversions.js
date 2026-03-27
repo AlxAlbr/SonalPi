@@ -122,8 +122,102 @@
             return {formatSonal};
 }
 
-   
-    
+
+async function convertVTT(content) { // conversion du fichier VTT (WebVTT) en tableau
+
+    if (!content || content.length < 1) { console.log("pas de contenu"); return; }
+
+    // split du texte par lignes
+    let lignesFich = content.split("\n");
+    var nblig = lignesFich.length;
+    let locut = [''];
+
+    let rgSeg = 0;
+    tabSeg = new Array(1);
+    tabSeg[rgSeg] = new Array(6);
+
+    let inBlock = false; // pour ignorer les blocs NOTE et STYLE
+
+    for (s = 0; s < nblig; s++) {
+
+        let ligne = lignesFich[s].trim();
+
+        // en-tête WEBVTT (et métadonnées éventuelles sur la même ligne)
+        if (ligne.startsWith("WEBVTT")) { continue; }
+
+        // blocs NOTE et STYLE : ignorer jusqu'à la prochaine ligne vide
+        if (ligne.startsWith("NOTE") || ligne.startsWith("STYLE")) { inBlock = true; continue; }
+        if (inBlock) { if (ligne === "") { inBlock = false; } continue; }
+
+        let posflèche = ligne.indexOf("-->"); // test d'une ligne de timestamps
+
+        if (posflèche > -1) { // nouveau segment
+
+            tabSeg.push();
+            rgSeg++;
+            tabSeg[rgSeg] = new Array(6);
+
+            // extraire les timestamps en ignorant les attributs de positionnement VTT (position:, line:, align:…)
+            let tpsBrut = ligne.split("-->");
+            let debStr = tpsBrut[0].trim();
+            let finStr = tpsBrut[1].trim().split(/\s+/)[0]; // premier token seulement
+
+            tabSeg[rgSeg][1] = TimeToSec(debStr);
+            tabSeg[rgSeg][2] = TimeToSec(finStr);
+            tabSeg[rgSeg][3] = 0;     // locuteur (indéfini par défaut)
+            tabSeg[rgSeg][4] = "";
+            tabSeg[rgSeg][5] = false;
+            tabSeg[rgSeg][6] = 0;
+
+        } else {
+
+            if (ligne === "") { continue; } // ligne vide → ignorer
+
+            // identifiant de cue (ligne directement suivie d'un timestamp) → ignorer
+            if (s < nblig - 1 && lignesFich[s + 1].indexOf("-->") > -1) { continue; }
+
+            let lignetxt = ligne.replace(/\r?\n|\r/, "");
+
+            // 1. balise <v Nom> : locuteur au format VTT natif
+            const vTagMatch = lignetxt.match(/^<v\s+([^>]+)>/);
+            if (vTagMatch) {
+                const nomLoc = vTagMatch[1].trim();
+                if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+                tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
+                lignetxt = lignetxt.replace(/^<v\s+[^>]+>/, "");
+            }
+            // 2. préfixe "Speaker N" (format Whisper/diarisation)
+            else if (/^Speaker\s+\d+/.test(lignetxt)) {
+                let rg = Number(lignetxt.substr(8, 1)) + 1;
+                let nomLoc = "Speaker " + rg;
+                if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+                tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
+                lignetxt = lignetxt.substr(11); // suppression du préfixe "Speaker N "
+            }
+
+            // suppression des balises VTT restantes (<b>, <i>, <c.class>, timestamps, etc.)
+            lignetxt = lignetxt.replace(/<[^>]+>/g, "");
+
+            tabSeg[rgSeg][4] += lignetxt;
+        }
+    }
+
+    // trimage des textes
+    for (s = 0; s < tabSeg.length; s++) {
+        if (!tabSeg[s][4] || tabSeg[s][4].trim() === "") { continue; }
+        tabSeg[s][4] = tabSeg[s][4].trim() + " "; // espace final pour séparation entre segments
+    }
+
+    // suppression du rang 0
+    tabSeg.splice(0, 1);
+
+    console.log("importation du fichier VTT \tabseg = ", tabSeg, "\n locut = ", locut);
+    window.tabLocImport = locut;
+    let formatSonal = tabSegToSonal(tabSeg, locut);
+    return { formatSonal };
+}
+
+
 function convertPURGE(content) { // converstion d'un fichier PURGE en tabseg
 
     if (!content || content.length<1) {console.log("pas de contenu"); return;}
@@ -821,6 +915,7 @@ html += `<div id="contenuText">
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             convertSRT,
+            convertVTT,
             convertJSON,
             convertPURGE,
             importSONAL,
@@ -835,6 +930,7 @@ html += `<div id="contenuText">
     if (typeof window !== 'undefined') {
         
         window.convertSRT = convertSRT;
+        window.convertVTT = convertVTT;
         window.convertJSON = convertJSON;
         window.convertPURGE = convertPURGE;
         window.convertTXT = convertTXT;

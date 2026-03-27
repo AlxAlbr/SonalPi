@@ -746,9 +746,11 @@ async function lireCrpSonal2(contenu){
                 
                 else if (seg.type === 'synchro') { // changement de position
                     posCourante = seg.valeur.replace(/,/g, '.');
-                    return; // le segment de texte associé à la balise de synchro n'est pas traité, on passe directement au segment suivant
+                    // pas de return : le texte après le point de synchro doit être rendu avec la nouvelle position
                 }    
- 
+
+                        // garde : pas de span si aucun texte à afficher
+                        if (!seg.texte || seg.texte.trim() === '') return;
 
                         // prise en compte des tags éventuels 
 
@@ -1062,13 +1064,13 @@ var ajoutEnt= function(fich){
 
     reader.onloadend = async function() {
 
-        // Sauvegarder les globaux avant le parsing (chargerHTML les écrase)
+        // Sauvegarder les globaux avant le parsing (chargerHTMLSONAL les écrase)
         const savedTabVar = tabVar ? tabVar.slice() : [];
         const savedTabDic = tabDic ? tabDic.slice() : [];
 
-        let donnéesEnt = chargerHTML(fich);
+        let donnéesEnt = chargerHTMLSONAL(fich);
 
-        // chargerHTML a écrasé tabVar/tabDic avec les valeurs du fichier — on capture avant de restaurer
+        // chargerHTMLSONAL a écrasé tabVar/tabDic avec les valeurs du fichier — on capture avant de restaurer
         const fileTabVar = tabVar ? tabVar.slice() : [];
         const fileTabDic = tabDic ? tabDic.slice() : [];
         const fileTabDat = (donnéesEnt[7] || []).slice();
@@ -2094,7 +2096,7 @@ function question(message, bouttons) { // fonction d'affichage d'une question av
         contenu.innerHTML = `
             
             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
-                <img id = "logo" src="img/logoSonal.png"  alt="" style="height:40px; width:auto;">
+                <img id = "logo" src="img/icon.png"  alt="" style="height:40px; width:auto;">
                 <div class="close" onclick="hidedlg();_questionResolve('annuler')" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
               </div>
 

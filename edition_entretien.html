@@ -194,37 +194,45 @@ window.addEventListener('unload', (event) => {
            
              
           <div>
-                <audio id = "lecteur" controls controlslist="nodownload noplaybackrate" style = "  float:left;outline:none;width:350px; position:absolute; margin-top:10px;height: 35px;">
+                <audio id = "lecteur" controls controlslist="nodownload noplaybackrate" style = "  float:left;outline:none;width:250px; position:absolute; margin-top:10px;height: 35px;">
                     <source id = "sourceLecteur" src="" type="audio/mp3">
                      Votre navigateur ne supporte pas la lecture audio.
                 </audio> 
             
-                <div id = "vit_lect" style = "float:left;margin-left:360px; margin-top:9px"  >
+                <div id = "vit_lect" style = "float:left;margin-left:260px; margin-top:9px"  >
                     <label id= "btnspdp" class = "btnfonction  btnspd"  onclick=" vitesselecteur('-')"> - </label>
-                    <label id= "lblspd" class = ""  style= "font-size: 1.5rem; color:rgba(12, 12, 12, 0.521);padding: 10px;" onclick=" vitesselecteur('=')"> x 1.0 </label>
+                    <label id= "lblspd" class = " btnfonction lblspd"  onclick=" vitesselecteur('=')"> x 1.0 </label>
                     <label id= "btnspdp" class = "btnfonction  btnspd"   onclick=" vitesselecteur('+')" style="float:right"> + </label>
+                             
                 </div>
 
-                 
+                <div id = "avance-recule" style = "float:left; margin-left: 10px; margin-top:9px" >
+                    <label id= "btnrecul" class = "btnfonction  btn-recule" title="reculer de 5 secondes" onclick="reculer5s()">  </label>
+                    <label id= "btnavance" class = "btnfonction  btn-avance"  onclick="avancer5s()" title="avancer de 5 secondes"> </label>
+                </div>
+
+                 <div id = "undo-redo" style = "float:left; margin-left:48px; margin-top:9px"  >
+                    <label id = "btn-undo" class="btnfonction " style = "padding: 10px;" onclick="undo()" title="Annuler"> ⟲ </label>   
+                    <label id = "btn-redo" class="btnfonction " style = "padding: 10px;margin-left:5px" onclick="redo()" title="Refaire"> ⟳ </label>
+                 </div>
                
 
                 <div id="btns-droite" style="float:right; margin:19px">
 
-                    <label id = "btn-cmpct" class="btn btn-secondary" style = "padding: 10px;" onclick="undo()"> ⟲ annuler </label>   
-                    <label id = "btn-sauv-whsprg" class="btn btn-secondary" style = "padding: 10px;" onclick="dialog('Export')"> 📥 Exporter</label> 
-                    <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderModifsEnt()"> 💾 Enregistrer</label> 
-                    <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();">Quitter ✖️</label>
+                    <label id = "btn-sauv-whsprg" class="btn btn-secondary" style = "padding: 10px;" onclick="dialog('Export')" title="Exporter l'entretien dans un nouveau fichier"> 📥 Exporter</label> 
+                    <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderModifsEnt()" title="Enregistrer les modifications"> 💾 Enregistrer</label> 
+                    <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();" title="Quitter">Quitter ✖️</label>
                 </div>
           </div>
         
             
            <!--  <div id = "menu_rec" class=""   onclick="dialog('Export')" ><img src="WHSPRG\IMG\dwnload.png" style="height: 30px;margin-left: 6px;margin-right: 30px;"><label class='txtbtn' id="lblsauv"  > Export </label> </div>            
-          !-->
+          
 
                 <div>
                     <label onclick="pointvariables()"> Point Variables</label>
                 </div>
-               
+              !--> 
 
 
             <br>
@@ -1128,6 +1136,29 @@ document.getElementById("lblspd").innerText = "x " + spdrate;
 
 }
 
+function reculer5s(){
+    var audio = document.getElementById('lecteur');
+    audio.currentTime = Math.max(0, audio.currentTime - 5);
+}
+
+function avancer5s(){
+    var audio = document.getElementById('lecteur');
+    audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
+}
+
+function majPosLecteur() {
+    const aud = document.getElementById('lecteur');
+    const lig = document.getElementById('lblposlect');
+    const cnv = document.getElementById('graphEnt');
+    if (!aud || !lig || !cnv || !aud.duration) { return; }
+    const ratio = aud.currentTime / aud.duration;
+    const posX = Math.round(ratio * cnv.getBoundingClientRect().width);
+    lig.style.marginLeft = posX + 'px';
+}
+
+// Calage continu de lblposlect sur la position du lecteur
+audio.addEventListener('timeupdate', majPosLecteur);
+
 function SecToTime(time,ssDec){ // conversion de coordonnées en secondes en hh:mm;ss, avec ou sans décimales
 
     time = Number(time);
@@ -1517,6 +1548,9 @@ document.addEventListener('keydown', (e) => {
 
         if (e.ctrlKey==true || e.metaKey) {
 
+            undo();
+            event.preventDefault();
+
         }
 
     }
@@ -1526,7 +1560,7 @@ document.addEventListener('keydown', (e) => {
 
         if (e.ctrlKey==true || e.metaKey) {
 
-            redo(RgBkUp);
+            redo();
             event.preventDefault();
 
         }
@@ -1961,14 +1995,14 @@ function dialog(type){
                 <div class="close" onclick="hidedlg()" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
               </div>
 
-              <!--
+              
                 <div style="display:flex; flex-direction:row; align-items:center; gap:14px;margin-top:20px; margin-bottom:20px">
                     <label> ⚙️ Options</label>
-                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptTimeStamps" checked> Coordonnées temporelles</label>
-                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptLocuteurs" checked > Locuteurs</label>
-                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkAnon"> Anonymiser</label>
+                    <!--<label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptTimeStamps" checked> Coordonnées temporelles</label>
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptLocuteurs" checked > Locuteurs</label>!-->
+                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkAnon"> Appliquer la pseudonymisation = anonymiser</label>
                 </div>
-               !-->
+               
 
           <h3>  Choisissez un format d'export </h3>
             <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >

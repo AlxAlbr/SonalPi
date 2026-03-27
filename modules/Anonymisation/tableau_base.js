@@ -93,9 +93,9 @@ function affichTableauAnon() {
                         
                         <button class="btn-anon-add" onclick="ajouterNouvelleLigneAnon()" title="Ajouter une nouvelle ligne" style="display:${estDerniereLigne ? 'inline-block' : 'none'};">➕</button>
                         <div class="occurrences-nav" style="display:${estAnonymisee && window.tabAnon[i].occurrences > 0 ? 'flex' : 'none'};">
-                            <button class="btn-nav-prev" onclick="allerOccurrencePrecedente(${i})" title="Occurrence précédente" style="display:${window.tabAnon[i].occurrences > 1 ? 'inline-block' : 'none'};">◀</button>
+                            <button class="btn-nav-prev" onclick="allerOccurrencePrecedente(${i})" title="Occurrence précédente" style="display:${window.tabAnon[i].occurrences > 1 ? 'inline-block' : 'inline-block'};">◀</button>
                             <span class="count-occ">${window.tabAnon[i].occurrences}</span>
-                            <button class="btn-nav-next" onclick="allerOccurrenceSuivante(${i})" title="Occurrence suivante" style="display:${window.tabAnon[i].occurrences > 1 ? 'inline-block' : 'none'};">▶</button>
+                            <button class="btn-nav-next" onclick="allerOccurrenceSuivante(${i})" title="Occurrence suivante" style="display:${window.tabAnon[i].occurrences > 1 ? 'inline-block' : 'inline-block'};">▶</button>
                         </div>
                         <div class="exceptions-count" style="display:${estAnonymisee && compterExceptions(i) > 0 ? 'inline-block' : 'none'};">
                             ${compterExceptions(i)} except
@@ -136,6 +136,14 @@ function affichTableauAnon() {
             autoGrowTextarea(textarea);
         });
     }, 0);
+
+    // Activer chkAnon si au moins une anonymisation est validée
+    const chkAnon = document.getElementById('chkAnon');
+    if (chkAnon) {
+        const aDesAnonymisations = window.tabAnon && window.tabAnon.some(p => p.occurrences > 0);
+        chkAnon.disabled = !aDesAnonymisations;
+        if (!aDesAnonymisations) chkAnon.checked = false;
+    }
 }
 
 // Sauvegarde d'une ligne du tableau (quand on change le champ entité)
@@ -580,7 +588,13 @@ function appliquerAnonymisationPour(idxPaire) {
 function allerOccurrenceSuivante(idx) {
     const paire = window.tabAnon[idx];
     
-    if (!paire.matchPositions || paire.matchPositions.length <= 1) {
+    if (!paire.matchPositions || paire.matchPositions.length === 0) {
+        return;
+    }
+    
+    // Cas d'une seule occurrence : scroll vers elle sans changer l'index
+    if (paire.matchPositions.length === 1) {
+        surlignerOccurrence(idx);
         return;
     }
     
@@ -602,7 +616,13 @@ function allerOccurrenceSuivante(idx) {
 function allerOccurrencePrecedente(idx) {
     const paire = window.tabAnon[idx];
     
-    if (!paire.matchPositions || paire.matchPositions.length <= 1) {
+    if (!paire.matchPositions || paire.matchPositions.length === 0) {
+        return;
+    }
+    
+    // Cas d'une seule occurrence : scroll vers elle sans changer l'index
+    if (paire.matchPositions.length === 1) {
+        surlignerOccurrence(idx);
         return;
     }
     

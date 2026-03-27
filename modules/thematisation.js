@@ -14,9 +14,12 @@ var taille_def = 18; // taille de police par défaut
 var dragO = null; // thématique en cours de déplacement 
 var dragA = null; // thématique cible du déplacement
 
+let filigraneActif = false;
+const FILIGRANE_OPACITE = 0.55; // opacité du voile blanc (0 = invisible, 1 = blanc total)
+
 async function loadThm(){
 
-    console.log("chargement des thématiques")
+    console.log("chargement des thématiques (filigrane=" + filigraneActif + ")");
     // récupération du tableau des thématiques
 
    
@@ -67,12 +70,7 @@ async function loadThm(){
         
 
     for (t=0;t<tabThm.length;t++){
-        createThm(tabThm[t].code,tabThm[t].couleur, tabThm[t].taille)
-        
-        // initialisation
-        //if (tabThm[t]?.cmpct == "undefined" && aEnfants(t)== "true") {} {tabThm[t].cmpct = "false";}
-        //if (aEnfants(t)== "false"){tabThm[t].remove}
-        //if (tabThm[t]?.rang == "undefined") {tabThm[t].rang="0";}
+        createThm(tabThm[t].code, tabThm[t].couleur, tabThm[t].taille, filigraneActif);
     }
 
 
@@ -987,21 +985,23 @@ async function validerModifsThm(){
 }
 
 // fonction de création des classes CSS des catégories
-function createThm(code,couleur,taille){
+function createThm(code, couleur, taille, filigrane){
 
-    var coul ="";
     var font = "";
 
+    // Construction du gradient selon le mode filigrane
+    var bgImage = '';
     if (couleur) {
-        //coul = `background-color: `+ couleur + `;`
-        coul = `background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, ` + couleur + `60 95%, ` + couleur + ` 100%);`
+        let gradient = `linear-gradient(rgba(0, 0, 0, 0) 60%, ${couleur}60 95%, ${couleur} 100%)`;
+        if (filigrane) {
+            bgImage = `background-image: linear-gradient(rgba(250, 250, 250, ${FILIGRANE_OPACITE}), rgba(250, 250, 250, ${FILIGRANE_OPACITE})), ${gradient};`;
+        } else {
+            bgImage = `background-image: ${gradient};`;
+        }
     }
 
-   
     if (taille > taille_def) {
-        
-        font = `font-size: `+ taille + `; 
-        font-weight: bold; `
+        font = `font-size: ${taille}; font-weight: bold;`;
     }
 
     // Créer une nouvelle balise <style>
@@ -1012,7 +1012,13 @@ function createThm(code,couleur,taille){
     for (let i = 0; i < sheet.cssRules.length; i++) {
         const rule = sheet.cssRules[i];
         if (rule.selectorText === '.' + code) {
-            rule.style.backgroundImage = coul ? `linear-gradient(rgba(0, 0, 0, 0) 60%, ${couleur}60 95%, ${couleur} 100%)` : '';
+            if (couleur && filigrane) {
+                rule.style.backgroundImage = `linear-gradient(rgba(250, 250, 250, ${FILIGRANE_OPACITE}), rgba(250, 250, 250, ${FILIGRANE_OPACITE})), linear-gradient(rgba(0, 0, 0, 0) 60%, ${couleur}60 95%, ${couleur} 100%)`;
+            } else if (couleur) {
+                rule.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0) 60%, ${couleur}60 95%, ${couleur} 100%)`;
+            } else {
+                rule.style.backgroundImage = '';
+            }
             rule.style.fontSize = taille > taille_def ? taille : '';
             rule.style.fontWeight = taille > taille_def ? 'bold' : '';
             rule.style.paddingBottom = '4px';
@@ -1022,15 +1028,12 @@ function createThm(code,couleur,taille){
 
     // Ajouter des règles CSS (seulement si la règle n'existait pas)
     style.innerHTML += `
-    .` + code + ` {
-    ` + coul + ` 
-    ` + font + `  
-    padding-bottom : 4px;    
+    .${code} {
+    ${bgImage}
+    ${font}
+    padding-bottom: 4px;
     }
-
     `;
-
-
 
 }
 
@@ -1869,23 +1872,21 @@ async function multiThm(conteneurID){
 
 
                 
-        let background = `background-image: linear-gradient(rgba(0, 0, 0, 0) 50%, ` + coul1 + `60 ` + seuildep + `%,` + coul1 + ` ` + Number(seuildep +7) + `% ` + chainecoul +  ` );`
+        let background;
+        if (filigraneActif) {
+            background = `background-image: linear-gradient(rgba(250, 250, 250, ${FILIGRANE_OPACITE}), rgba(250, 250, 250, ${FILIGRANE_OPACITE})), linear-gradient(rgba(0, 0, 0, 0) 50%, ` + coul1 + `60 ` + seuildep + `%,` + coul1 + ` ` + Number(seuildep +7) + `% ` + chainecoul +  ` );`
+        } else {
+            background = `background-image: linear-gradient(rgba(0, 0, 0, 0) 50%, ` + coul1 + `60 ` + seuildep + `%,` + coul1 + ` ` + Number(seuildep +7) + `% ` + chainecoul +  ` );`
+        }
          
         // ajout éventuel d'un nouveau style
 
-        
-
         const style = document.querySelector('style');
+        const sheet = style.sheet;
 
-        // Ajouter des règles CSS
-        style.innerHTML += `
-        ` + chaine + ` {
-        ` + background + ` 
-        
-         line-height:` + (1.5 + (0.05 * nbcats)) + `em;
-        }
-
-        `;
+        // Ajouter des règles CSS via CSSOM pour ne pas écraser les modifications existantes
+        const ruleText = chaine + ` { ` + background + ` line-height: ` + (1.5 + (0.05 * nbcats)) + `em; }`;
+        sheet.insertRule(ruleText, sheet.cssRules.length);
 
 
          
@@ -2746,60 +2747,46 @@ function selAllCat(){
 }
 
 
-let catWrapperSheet = null;
-
+// Supprime les règles CSS multi-catégories générées par multiThm()
+// afin qu'elles soient recréées avec la bonne opacité de filigrane
+function purgeMultiThmCss() {
+    const sheet = document.querySelector('style').sheet;
+    for (let i = sheet.cssRules.length - 1; i >= 0; i--) {
+        const sel = sheet.cssRules[i].selectorText || '';
+        if ((sel.match(/\.cat_/g) || []).length > 1) {
+            sheet.deleteRule(i);
+        }
+    }
+}
 
 function catsEnFiligrane() {
-
+  filigraneActif = true;
   const btnFilig = document.getElementById('filgraneCat');
-  btnFilig.classList.add('btn-bleu-actif');   
-
-  const elements = document.querySelectorAll('[class*="cat_"]:not(.ligthm)');
-  
-  elements.forEach(element => {
-    const hasCatClass = Array.from(element.classList).some(cls => cls.startsWith('cat_'));
-    
-    if (hasCatClass) {
-      // Sauvegarder le background original
-      element.dataset.originalBg = element.style.backgroundImage || 
-                                   getComputedStyle(element).backgroundImage;
-      
-      // Ajouter la couche d'opacité
-      const currentBg = element.dataset.originalBg;
-      if (currentBg && currentBg !== 'none') {
-        element.style.backgroundImage = 
-          `linear-gradient(rgba(250, 250, 250, 0.7), rgba(250, 250, 250, 0.8)),
-           ${currentBg}`;
-      }
-    }
+  if (btnFilig) btnFilig.classList.add('btn-bleu-actif');
+  purgeMultiThmCss();
+  loadThm().then(() => {
+    if (document.getElementById('segments')) multiThm('segments');
+    if (document.getElementById('segments-contenu')) multiThm('segments-contenu');
   });
-
 }
 
 function removeCatsEnFiligrane() {
-    const btnFilig = document.getElementById('filgraneCat');
-    btnFilig.classList.remove('btn-bleu-actif');   
-
-   const elements = document.querySelectorAll('[class*="cat_"]');
-  
-  elements.forEach(element => {
-    if (element.dataset.originalBg) {
-      element.style.backgroundImage = element.dataset.originalBg;
-      delete element.dataset.originalBg;
-    }
+  filigraneActif = false;
+  const btnFilig = document.getElementById('filgraneCat');
+  if (btnFilig) btnFilig.classList.remove('btn-bleu-actif');
+  purgeMultiThmCss();
+  loadThm().then(() => {
+    if (document.getElementById('segments')) multiThm('segments');
+    if (document.getElementById('segments-contenu')) multiThm('segments-contenu');
   });
-
 }
-
-let filigraneActif = false;
 
 function filigraneCats() {
   if (filigraneActif) {
     removeCatsEnFiligrane();
   } else {
-    catsEnFiligrane()
+    catsEnFiligrane();
   }
-  filigraneActif = !filigraneActif;
 }
 
 

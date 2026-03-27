@@ -477,82 +477,75 @@ var divSegments = document.getElementById('segments')
 
 
 
-var BkUp = []
-var RgBkUp=1;
+// Piles undo/redo — le plus récent est en fin de tableau (pop/push)
+var BkUp = [];
+var BkUpRedo = [];
+var MAX_HISTORY = 20;
 
 
 function initBkUp(){
-    console.log("init backup")
-    RgBkUp=0;
-    BkUp =[0]
-    divSegments = document.getElementById('segments')
-    //divSegments.addEventListener("input", () => backUp());
+    console.log("init backup");
+    BkUp = [];
+    BkUpRedo = [];
+    let divSegments = document.getElementById('segments');
     divSegments.addEventListener("paste", () => backUp());
-    //divSegments.addEventListener("focusout", () => cleanHTML());
-
-    for (i = 0; i < BkUp.length; i++) {
-    
-    BkUp[i]="";
-     
-    }
 }
 
-function backUp(){ // mémorisation des dernières modifications
+function backUp(){ // mémorisation de l'état courant avant une modification
 
-    console.log("backup segments - rang " + RgBkUp)
-    if (BkUp[1]==document.getElementById('segments').innerHTML){return;}
+    let currentHTML = document.getElementById('segments').innerHTML;
 
-    // agrandissement du tableau de données
-    if (BkUp.length < 20){
+    // Ne pas sauvegarder si identique au dernier état déjà mémorisé
+    if (BkUp.length > 0 && BkUp[BkUp.length - 1] === currentHTML) { return; }
 
-         BkUp.push("");
+    // Nouvelle action : effacer la pile de rétablissement
+    BkUpRedo = [];
 
-    }
-    
-    // suppression des rangs inférieurs
-    if (RgBkUp>0) {
-        BkUp.splice(0,RgBkUp)
-        RgBkUp=1;
-    }
+    // Empiler l'état courant
+    BkUp.push(currentHTML);
 
-    for (b=BkUp.length-1;b>1;b--){
-        
-        BkUp[b]= BkUp[Number(b)-1];
+    // Limiter l'historique
+    if (BkUp.length > MAX_HISTORY) { BkUp.shift(); }
 
-    }
-
-    
-    BkUp[1]=document.getElementById('segments').innerHTML;
-
-
+    console.log("backup — " + BkUp.length + " état(s) en mémoire");
 }
 
 function undo(){
 
-    console.log("undo - rang " + RgBkUp)
+    console.log("undo — " + BkUp.length + " état(s) undo, " + BkUpRedo.length + " état(s) redo");
 
-    if (RgBkUp<BkUp.length-1) {
-        RgBkUp++;
-         
+    if (BkUp.length === 0) {
+        console.log("Rien à annuler");
+        res = question("Il n'y a aucune action à annuler",["ok"])
+        return;
     }
 
-   //console.log("annulation - rang" + RgBkUp)
-    if (BkUp[RgBkUp] && BkUp[RgBkUp].length > 0 && BkUp[RgBkUp] !== document.getElementById('segments').innerHTML) {
-        document.getElementById('segments').innerHTML= BkUp[RgBkUp]
-    }
+    // Sauvegarder l'état courant pour permettre le redo
+    BkUpRedo.push(document.getElementById('segments').innerHTML);
 
+    // Restaurer l'état précédent
+    document.getElementById('segments').innerHTML = BkUp.pop();
+
+    console.log("undo terminé — reste " + BkUp.length + " état(s)");
 }
 
 function redo(){
 
-if (RgBkUp>1) {
-    RgBkUp--;
-     
-}
+    console.log("redo — " + BkUpRedo.length + " état(s) redo");
 
-   //console.log("annulation - rang" + RgBkUp)
-document.getElementById('segments').innerHTML= BkUp[RgBkUp]
+    if (BkUpRedo.length === 0) {
+        res = question("Il n'y a aucune action à refaire",["ok"])
+        //console.log("Rien à refaire");
+        return;
+    }
 
+    // Sauvegarder l'état courant pour permettre un undo ultérieur
+    BkUp.push(document.getElementById('segments').innerHTML);
+
+    // Restaurer l'état suivant
+    document.getElementById('segments').innerHTML = BkUpRedo.pop();
+
+    console.log("redo terminé — reste " + BkUpRedo.length + " état(s) redo");
 }
 
  function selSegment(seg,edit){
@@ -1428,6 +1421,7 @@ async function showMenu(button, typeAction){
 // barre de progression sur le résumé graphique de l'entretien
 function barreProg(seg){
     
+    return; 
      // on se base sur la position du premier mot du segment sur l'ensemble des mots de l'entretien car s'appuyer 
      // sur le temps ne fonctionnerait pas dans une situation où la bande son n'est pas chargée. 
      // par ailleurs, c'est sur la base des mots que le dessin général de l'entretien est réalisé. En s'appuyant sur le temps 

@@ -1181,7 +1181,7 @@ async function afficherDetailsEnt(rk){
  
     // bouton de retrait du corpus
     let btnSuppr = document.createElement('button');
-    btnSuppr.innerText = "Supprimer l'entretien du corpus";
+    btnSuppr.innerText = "❌️ Supprimer l'entretien du corpus";
     btnSuppr.classList.add('btn','btn-warning');
 
     btnSuppr.addEventListener('click', function() {
