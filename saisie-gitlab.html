@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ouvrir un corpus GitLab</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 24px;
+      background: #f5f5f5;
+    }
+
+    .container {
+      background: white;
+      padding: 28px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+
+    .header svg { flex-shrink: 0; }
+
+    h2 {
+      color: #333;
+      font-size: 18px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #555;
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .required { color: #e74c3c; }
+
+    input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #fc6d26;
+    }
+
+    .hint {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #888;
+    }
+
+    .info {
+      margin-top: 16px;
+      padding: 11px 13px;
+      background: #fff3e8;
+      border-left: 4px solid #fc6d26;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    .info a { color: #fc6d26; text-decoration: none; }
+
+    .help-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 14px;
+      font-size: 12px;
+      color: #57606a;
+    }
+
+    .help-link a {
+      color: #fc6d26;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .help-link a:hover { text-decoration: underline; }
+
+    .error {
+      margin-top: 12px;
+      padding: 9px 12px;
+      background: #fee;
+      border-left: 4px solid #e74c3c;
+      border-radius: 4px;
+      color: #c0392b;
+      font-size: 12px;
+      display: none;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    button {
+      flex: 1;
+      padding: 9px 18px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .btn-submit {
+      background: #fc6d26;
+      color: white;
+    }
+
+    .btn-submit:hover { background: #e8601f; }
+    .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
+
+    .btn-cancel {
+      background: #e8e8e8;
+      color: #333;
+    }
+
+    .btn-cancel:hover { background: #d8d8d8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="header">
+      <!-- Logo GitLab (SVG inline, pas de dépendance réseau) -->
+      <svg width="28" height="28" viewBox="0 0 380 380" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#e24329" d="M282.83 170.73l-.27-.69-26.14-68.22a6.81 6.81 0 00-2.69-3.24 7 7 0 00-8 .43 7 7 0 00-2.32 3.52l-17.65 54h-71.47l-17.65-54a6.86 6.86 0 00-2.32-3.52 7 7 0 00-8-.43 6.87 6.87 0 00-2.69 3.24L97.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82 19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91 40.06-30 .1-.08a48.56 48.56 0 0016.08-56.04z"/>
+        <path fill="#fc6d26" d="M282.83 170.73l-.27-.69a88.3 88.3 0 00-35.15 15.8L190 229.25c19.55 14.79 36.57 27.64 36.57 27.64l40.06-30 .1-.08a48.56 48.56 0 0016.1-56.08z"/>
+        <path fill="#fca326" d="M153.43 256.89l19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91s-17-12.89-36.57-27.64c-19.58 14.75-36.02 27.64-36.02 27.64z"/>
+        <path fill="#fc6d26" d="M132.58 185.84A88.19 88.19 0 0097.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82s17-12.85 36.57-27.64z"/>
+      </svg>
+      <h2>Ouvrir un corpus GitLab</h2>
+    </div>
+
+    <form id="gitlab-form">
+
+      <div class="form-group">
+        <label for="instanceUrl">
+          Instance GitLab <span class="required">*</span>
+        </label>
+        <input
+          type="url"
+          id="instanceUrl"
+          placeholder="https://gitlab.univ-exemple.fr"
+          required
+          autofocus
+        />
+        <p class="hint">URL de votre instance GitLab universitaire</p>
+      </div>
+
+      <div class="form-group">
+        <label for="projectPath">
+          Chemin du projet <span class="required">*</span>
+        </label>
+        <input
+          type="text"
+          id="projectPath"
+          placeholder="groupe/nom-du-projet"
+          required
+        />
+        <p class="hint">Visible dans l'URL du projet : gitlab.exemple.fr/<strong>groupe/nom</strong></p>
+      </div>
+
+      <div class="form-group">
+        <label for="filePath">
+          Fichier corpus (.crp) <span class="required">*</span>
+        </label>
+        <input
+          type="text"
+          id="filePath"
+          placeholder="dossier/mon-corpus.crp"
+          required
+        />
+        <p class="hint">Chemin du fichier dans le dépôt (depuis la racine)</p>
+      </div>
+
+      <div class="form-group">
+        <label for="clientId">
+          Client ID OAuth <span class="required">*</span>
+        </label>
+        <input
+          type="text"
+          id="clientId"
+          placeholder="abc123def456..."
+          required
+        />
+        <p class="hint">
+          Dans GitLab : Préférences → Applications → créer une app avec
+          redirect URI <code>http://127.0.0.1</code> et scope <code>api</code>
+        </p>
+      </div>
+
+      <div class="info">
+        <strong>Authentification OAuth 2.0</strong><br>
+        En cliquant sur "Se connecter", votre navigateur s'ouvrira sur la page
+        de connexion GitLab. Après validation, vous serez redirigé automatiquement
+        vers SonalPi.
+      </div>
+
+      <p class="help-link">
+        ❓ Première connexion ?
+        <a href="#" id="help-link">Voir le guide de configuration GitLab</a>
+      </p>
+
+      <div class="error" id="error-message"></div>
+
+      <div class="buttons">
+        <button type="button" class="btn-cancel" id="btn-cancel">Annuler</button>
+        <button type="submit" class="btn-submit" id="btn-submit">
+          Se connecter via GitLab
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+  <script>
+    const form       = document.getElementById('gitlab-form');
+    const errorDiv   = document.getElementById('error-message');
+    const instanceInput = document.getElementById('instanceUrl');
+    const projectInput  = document.getElementById('projectPath');
+    const fileInput     = document.getElementById('filePath');
+    const clientInput   = document.getElementById('clientId');
+
+    // Pré-remplissage si config déjà connue (récents ou retry)
+    window.electronAPI.onPreFillGitLab?.((config) => {
+      if (config.instanceUrl) instanceInput.value = config.instanceUrl;
+      if (config.projectPath) projectInput.value  = config.projectPath;
+      if (config.filePath)    fileInput.value      = config.filePath;
+      if (config.clientId)    clientInput.value    = config.clientId;
+    });
+
+    // Masquer l'erreur à la saisie
+    [instanceInput, projectInput, fileInput, clientInput].forEach(el => {
+      el.addEventListener('input', () => {
+        errorDiv.style.display = 'none';
+      });
+    });
+
+    function afficherErreur(msg) {
+      errorDiv.textContent = '❌ ' + msg;
+      errorDiv.style.display = 'block';
+    }
+
+    function validerUrl(url) {
+      try {
+        const u = new URL(url);
+        return u.protocol === 'https:' || u.protocol === 'http:';
+      } catch {
+        return false;
+      }
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const instanceUrl = instanceInput.value.trim().replace(/\/$/, '');
+      const projectPath = projectInput.value.trim().replace(/^\/|\/$/g, '');
+      const filePath    = fileInput.value.trim().replace(/^\//, '');
+      const clientId    = clientInput.value.trim();
+
+      if (!instanceUrl) {
+        afficherErreur('Saisissez l\'URL de l\'instance GitLab.');
+        instanceInput.focus();
+        return;
+      }
+
+      if (!validerUrl(instanceUrl)) {
+        afficherErreur('URL invalide — elle doit commencer par https:// ou http://');
+        instanceInput.focus();
+        return;
+      }
+
+      if (!projectPath || !projectPath.includes('/')) {
+        afficherErreur('Chemin du projet invalide — format attendu : groupe/nom-projet');
+        projectInput.focus();
+        return;
+      }
+
+      if (!filePath) {
+        afficherErreur('Saisissez le chemin du fichier corpus.');
+        fileInput.focus();
+        return;
+      }
+
+      if (!clientId) {
+        afficherErreur('Saisissez le Client ID OAuth de l\'application GitLab.');
+        clientInput.focus();
+        return;
+      }
+
+      // Désactiver le bouton pendant le flux OAuth (qui ouvre le navigateur)
+      const btn = document.getElementById('btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Attente de l\'authentification…';
+
+      window.electronAPI.submitGitLab({ instanceUrl, projectPath, filePath, clientId });
+    });
+
+    document.getElementById('btn-cancel').addEventListener('click', () => {
+      window.close();
+    });
+
+    // Ouvrir la page d'aide dans le navigateur système
+    document.getElementById('help-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      // Utilise le canal générique invoke pour ouvrir la page d'aide
+      window.electronAPI.invoke('ouvrir-aide-gitlab');
+    });
+  </script>
+</body>
+</html>

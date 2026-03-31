@@ -520,8 +520,8 @@ ipcMain.handle('file:copyFile', async (_, source, destination) => {
 
 // Gérer l'ouverture d'un fichier distant
 ipcMain.handle('ouvrir-fichier-distant', async (event, filePath) => {
-  const result = await serveurAPI.lireFichier(filePath);
-  
+  const result = await remoteAPI().lireFichier(filePath);
+
   if (result.success) {
     if (result.readOnly) {
       // Afficher un message à l'utilisateur
@@ -534,13 +534,13 @@ ipcMain.handle('ouvrir-fichier-distant', async (event, filePath) => {
       event.sender.send('fichier-editable');
     }
   }
-  
+
   return result;
 });
 
 // Gérer la fermeture d'un fichier distant
 ipcMain.handle('fermer-fichier-distant', async (event, filePath) => {
-  await serveurAPI.deverrouillerFichier(filePath);
+  await remoteAPI().deverrouillerFichier(filePath);
 });
 
  
@@ -600,19 +600,18 @@ ipcMain.handle('sauvegarder-sur-serveur', async (event, filePath, content) => {
   console.log('💾 Demande de sauvegarde sur serveur');
   console.log('   Fichier:', filePath);
   console.log('   Taille:', content.length, 'caractères');
-  
-  // Vérifier que serveurAPI existe
-  if (!serveurAPI) {
-    console.error('❌ serveurAPI non initialisé');
+
+  const api = remoteAPI();
+  if (!api) {
+    console.error('❌ Aucune API distante initialisée');
     return {
       success: false,
-      error: 'Non connecté au serveur. Ouvrez d\'abord un fichier distant.'
+      error: 'Non connecté. Ouvrez d\'abord un fichier distant.'
     };
   }
-  
+
   try {
-    // Utiliser serveurAPI.ecrireFichier (pas serveurSync)
-    const result = await serveurAPI.ecrireFichier(filePath, content);
+    const result = await api.ecrireFichier(filePath, content);
     
     if (result.success) {
       console.log('✅ Sauvegarde réussie');
@@ -641,32 +640,33 @@ ipcMain.handle('sauvegarder-sur-serveur', async (event, filePath, content) => {
 // Handler pour sauvegarder avec backup
 ipcMain.handle('sauvegarder-avec-backup', async (event, filePath, content) => {
   console.log('💾 Demande de sauvegarde avec backup');
-  
-  if (!serveurAPI) {
+
+  const api = remoteAPI();
+  if (!api) {
     return {
       success: false,
       error: 'Non connecté au serveur'
     };
   }
-  
+
   try {
     // 1. Télécharger la version actuelle
     console.log('📥 Téléchargement version actuelle...');
-    const ancienneVersion = await serveurAPI.lireFichier(filePath);
-    
+    const ancienneVersion = await api.lireFichier(filePath);
+
     if (ancienneVersion.success) {
       // 2. Créer un backup
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
       const extension = filePath.split('.').pop();
       const cheminBackup = filePath.replace(`.${extension}`, `.backup-${timestamp}.${extension}`);
-      
+
       console.log('📦 Création backup:', cheminBackup);
-      await serveurAPI.ecrireFichier(cheminBackup, ancienneVersion.content);
+      await api.ecrireFichier(cheminBackup, ancienneVersion.content);
     }
-    
+
     // 3. Sauvegarder la nouvelle version
     console.log('💾 Sauvegarde nouvelle version...');
-    const result = await serveurAPI.ecrireFichier(filePath, content);
+    const result = await api.ecrireFichier(filePath, content);
     
     if (result.success) {
       result.backupCreated = ancienneVersion.success;
@@ -1140,12 +1140,12 @@ async function editerEntretien(parentWindow, rgEnt){
 
 
         // verrouiller le fichier sur le serveur
-      if (Corpus.type == "distant" && serveurAPI) {
+      if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
 
         // définition de l'adresse du fichier distant
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].join('/');
         //verrouillage
-        await serveurAPI.verrouillerFichier(adrFile)
+        await remoteAPI().verrouillerFichier(adrFile)
         .then((result) => {
           if (!result.success) {
             // Le fichier est verrouillé par un autre utilisateur
@@ -1194,9 +1194,9 @@ async function editerEntretien(parentWindow, rgEnt){
     entWindow.on('closed', () => {
        
       // déverrouiller le fichier sur le serveur
-      if (Corpus.type == "distant" && serveurAPI) {
+      if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].join('/');
-        serveurAPI.deverrouillerFichier(adrFile)
+        remoteAPI().deverrouillerFichier(adrFile)
       }
       deflouterSousModale(mainWindow);
       resolve(null);
@@ -1214,10 +1214,10 @@ ipcMain.handle('editer-entretien', async (event, rgEnt) => {
 ipcMain.handle('entretien-locked', async (event, rgEnt) => {
   //console.log("vérification du verrouillage de l'entretien " + rgEnt + " de type " + Corpus.type)
   
-  if (Corpus.type == "distant" && serveurAPI) {
+  if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
     try {
       let adrFile = [Corpus.folder, tabEnt[rgEnt].rtrPath].join('/');
-      const result = await serveurAPI.verifierVerrou(adrFile);
+      const result = await remoteAPI().verifierVerrou(adrFile);
       
       if (!result.success) {
         console.log("impossible de vérifier le verrouillage de l'entretien");
@@ -1368,10 +1368,19 @@ app.on('login', (event) => {
 
 
 const ServeurAPI = require('./modules/serveur_api.js');
+const GitLabAPI  = require('./modules/gitlab_api.js');
+const GitLabOAuth = require('./modules/gitlab_oauth.js');
 const { affichListThmCrp } = require('./modules/thematisation.js');
 const { miseàjourEntretien } = require('./modules/gestion_entretiens.js');
 
 let serveurAPI = null;
+let gitlabAPI  = null;
+
+/** Renvoie l'API distante active selon le type du corpus courant */
+function remoteAPI() {
+  if (Corpus.type === 'gitlab') return gitlabAPI;
+  return serveurAPI;
+}
 
 
 
@@ -1601,37 +1610,206 @@ async function ouvrirCorpusDistant(mainWindow, filePath) {
   return ouvrirCorpusDistantAvecRetry(mainWindow, filePath, null);
 }
 
+// ========================================
+// Ouverture de corpus GitLab
+// ========================================
+
+/**
+ * Ouvre une modale de connexion GitLab, authentifie via OAuth 2.0,
+ * puis charge le fichier .crp racine du projet.
+ *
+ * @param {BrowserWindow} parentWindow
+ * @param {object|null}   savedConfig   Config pré-remplie (instanceUrl, projectPath, clientId, filePath)
+ */
+async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
+  console.log('🦊 Ouverture corpus GitLab...');
+
+  // 1. Afficher la modale de saisie des paramètres GitLab
+  const config = await creerFenetreGitLab(parentWindow, savedConfig);
+
+  if (!config) {
+    console.log('❌ Annulé par l\'utilisateur');
+    return null;
+  }
+
+  const { instanceUrl, projectPath, clientId, filePath } = config;
+
+  try {
+    // 2. Lancer le flux OAuth 2.0
+    const oauth = new GitLabOAuth(instanceUrl, clientId);
+
+    // Essayer de récupérer un token sauvegardé
+    const tokenKey = `gitlab:${instanceUrl}:${projectPath}`;
+    const storageDir = app.getPath('userData');
+    let token = oauth.loadToken(storageDir, tokenKey);
+
+    if (!token) {
+      console.log('🔑 Pas de token sauvegardé, lancement du flux OAuth...');
+      token = await oauth.authenticate();
+      oauth.saveToken(storageDir, tokenKey, token);
+    }
+
+    // 3. Créer l'instance GitLabAPI
+    gitlabAPI = new GitLabAPI(instanceUrl, projectPath, token.access_token);
+
+    // 4. Tester la connexion
+    const test = await gitlabAPI.testerConnexion();
+    if (!test.success) {
+      // Token peut-être expiré → essayer de rafraîchir
+      if (token.refresh_token) {
+        console.log('🔄 Token expiré, tentative de rafraîchissement...');
+        const newToken = await oauth.refreshToken(token.refresh_token);
+        oauth.saveToken(storageDir, tokenKey, newToken);
+        gitlabAPI = new GitLabAPI(instanceUrl, projectPath, newToken.access_token);
+      } else {
+        throw new Error('Token invalide et pas de refresh_token disponible');
+      }
+    }
+
+    // 5. Lire le fichier corpus
+    const result = await gitlabAPI.lireFichier(filePath);
+
+    if (!result.success) {
+      gitlabAPI = null;
+      throw new Error(result.error || 'Impossible de lire le fichier corpus');
+    }
+
+    console.log('✅ Corpus GitLab chargé');
+    console.log(`   Taille: ${result.size} caractères`);
+
+    // 6. Mettre à jour l'objet Corpus
+    const fichProj  = filePath.substring(filePath.lastIndexOf('/') + 1);
+    const dosspProj = filePath.substring(0, filePath.lastIndexOf('/'));
+
+    Corpus.url        = `${instanceUrl}/${projectPath}/-/blob/main/${filePath}`;
+    Corpus.fileName   = fichProj;
+    Corpus.folder     = dosspProj;
+    Corpus.content    = result.content;
+    Corpus.lastChange = new Date().toISOString();
+    Corpus.type       = 'gitlab';
+
+    // Ajouter aux fichiers récents (réutilise le même mécanisme)
+    recentFilesManager.addRemoteCorpus(Corpus.url, fichProj);
+
+    return { success: true, size: result.size, modified: result.modified };
+
+  } catch (error) {
+    console.error('❌ Erreur ouverture corpus GitLab:', error.message);
+    gitlabAPI = null;
+
+    await dialog.showMessageBox(parentWindow, {
+      type: 'error',
+      title: 'Erreur de connexion GitLab',
+      message: 'Impossible de se connecter au corpus GitLab.',
+      detail: error.message,
+      buttons: ['OK'],
+      defaultId: 0
+    });
+
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Crée la fenêtre modale de saisie des paramètres GitLab
+ */
+function creerFenetreGitLab(parentWindow, prefill = null) {
+  const gitlabWindow = new BrowserWindow({
+    width: 520,
+    height: 480,
+    parent: parentWindow,
+    closable: true,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    }
+  });
+
+  gitlabWindow.setMenu(null);
+  gitlabWindow.loadFile('saisie-gitlab.html');
+
+  flouterSousModale(mainWindow);
+
+  return new Promise((resolve) => {
+    gitlabWindow.webContents.on('did-finish-load', () => {
+      if (prefill) {
+        gitlabWindow.webContents.send('pre-fill-gitlab', prefill);
+      }
+    });
+
+    ipcMain.once('gitlab-saisie-submit', (event, data) => {
+      gitlabWindow.close();
+      resolve(data);
+    });
+
+    gitlabWindow.on('closed', () => {
+      deflouterSousModale(parentWindow);
+      resolve(null);
+    });
+  });
+}
+
+/** Handler IPC : ouvrir un corpus GitLab */
+ipcMain.handle('ouvrir-corpus-gitlab', async (event, savedConfig) => {
+  console.log('🦊 Handler ouvrir-corpus-gitlab');
+  const result = await ouvrirCorpusGitLab(mainWindow, savedConfig || null);
+  if (result && result.success) {
+    mainWindow.webContents.send('afficher-corpus', result);
+  }
+  return result;
+});
+
+/** Handler IPC : ouvrir la page d'aide GitLab dans une fenêtre Electron */
+ipcMain.handle('ouvrir-aide-gitlab', () => {
+  const helpWindow = new BrowserWindow({
+    width: 820,
+    height: 700,
+    title: 'Aide — Connexion GitLab',
+    resizable: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    }
+  });
+  helpWindow.setMenu(null);
+  helpWindow.loadFile('GitlabHelp.html');
+});
+
 /**
  * Fonction pour lister les fichiers du même dossier
  */
 async function listerFichiersDossier(filePath) {
-  if (!serveurAPI) {
+  const api = remoteAPI();
+  if (!api) {
     return {
       success: false,
       error: 'Pas de connexion au serveur'
     };
   }
-  
+
   // Extraire le dossier parent
   const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
-  
+
   console.log('📂 Liste du dossier:', dirPath);
-  
-  return await serveurAPI.listerFichiers(dirPath);
+
+  return await api.listerFichiers(dirPath);
 }
 
 /**
  * Fonction pour sauvegarder sur le serveur
  */
 async function sauvegarderSurServeur(filePath, content) {
-  if (!serveurAPI) {
+  const api = remoteAPI();
+  if (!api) {
     return {
       success: false,
       error: 'Pas de connexion au serveur'
     };
   }
-  
-  return await serveurAPI.ecrireFichier(filePath, content);
+
+  return await api.ecrireFichier(filePath, content);
 }
 
 
@@ -2269,12 +2447,18 @@ app.on('ready', () => {
           accelerator: 'CmdOrCtrl+O',
           click: async () => {
             const result = await ouvrirCorpusDistant(mainWindow);
-            if (result && result.success) {                  
-            //traiterCorpus(result); 
-
-              // Envoyer le contenu au renderer
+            if (result && result.success) {
               mainWindow.webContents.send('afficher-corpus', result);
-            }  
+            }
+          }
+        },
+        {  // ouvrir un corpus GitLab
+          label: '🦊 Ouvrir corpus GitLab...',
+          click: async () => {
+            const result = await ouvrirCorpusGitLab(mainWindow);
+            if (result && result.success) {
+              mainWindow.webContents.send('afficher-corpus', result);
+            }
           }
         },
    
@@ -2366,10 +2550,12 @@ app.on('ready', () => {
 app.on('before-quit', async () => {
   console.log('🚪 Fermeture de l\'application...');
   if (serveurAPI) await serveurAPI.nettoyerTousLesVerrous();
+  if (gitlabAPI) gitlabAPI.nettoyerTousLesVerrous();
 });
 
 app.on('window-all-closed', async () => {
   if (serveurAPI) await serveurAPI.nettoyerTousLesVerrous();
+  if (gitlabAPI) gitlabAPI.nettoyerTousLesVerrous();
   if (process.platform !== 'darwin') {
     app.quit();
   }

@@ -37,6 +37,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Écouter le pré-remplissage de l'URL
   onPreFillUrl: (callback) =>
     ipcRenderer.on('pre-fill-url', (event, url) => callback(url)),
+
+  // GitLab : soumettre les paramètres de connexion
+  submitGitLab: (data) => ipcRenderer.send('gitlab-saisie-submit', data),
+  // GitLab : écouter le pré-remplissage du formulaire
+  onPreFillGitLab: (callback) =>
+    ipcRenderer.on('pre-fill-gitlab', (event, config) => callback(config)),
+  // GitLab : ouvrir un corpus GitLab
+  ouvrirCorpusGitLab: (savedConfig) => ipcRenderer.invoke('ouvrir-corpus-gitlab', savedConfig),
   
  // pour récupérer le contenu d'un fichier corpus
   onAfficherCorpus: (callback) => 
