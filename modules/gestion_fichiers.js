@@ -912,10 +912,10 @@ return contenuHtml;
 function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventuelles
 
     effaceSurv();
-    console.log("efface surv ok");
+    
 
     backUp();
-    console.log("backup ok");
+     
 
     const conteneur = document.getElementById('segments');
     const segs = conteneur.querySelectorAll('.lblseg');
@@ -1489,71 +1489,89 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
 var rgCherche = 0;
 var tabTrv = []
 
-function rechercher() { // fonction de recherche de texte dans les segments de la fenêtre d'édition
+async function rechercher() { // fonction de recherche de texte dans les segments de la fenêtre d'édition
  
     console.log("lancement d'une recherche depuis? ")
 
-    let chaine = document.getElementById("txtRech").value.trim();
+    // Ne pas trimmer : les espaces en début/fin permettent les recherches aux frontières de mots
+    // (ex : ' dans' ou 'dans ' n'apparie pas 'danseuse')
+    let chaine = document.getElementById("txtRech").value;
 
     chaine = chaine.toLowerCase(); 
-    if (!chaine) {
+    if (!chaine.trim()) {
         alert("Veuillez saisir une chaîne à rechercher.");
         return;
     }
 
-    const conteneur=document.getElementById("segments");
-    
+    const conteneur = document.getElementById("segments");
 
     tabTrv = []; // Réinitialise le tableau des mots trouvés
 
-    // 1 trouver les segments contenant la chaîne recherchée
-    const segments = conteneur.querySelectorAll('.lblseg'); // Sélectionne tous les segments        
-    
-    segments.forEach((segment, index) => { // Pour chaque segment
-            let segmentText = segment.innerText.toLowerCase(); // Vérifie le texte du segment en minuscules
-            
-            
-            if (segmentText.includes(chaine)) { // Si le segment contient la chaîne recherchée
-                            
-         
+    // Efface tous les anciens surlignages
+    conteneur.querySelectorAll('.highlight, .contour').forEach(s => {
+        s.classList.remove('highlight');
+        s.classList.remove('contour');
+    });
 
-                let mots = segment.querySelectorAll('span'); // Sélectionne tous les spans dans le segment
+    const segments = conteneur.querySelectorAll('.lblseg');
+    const nbMotsChaine = chaine.trim().split(/\s+/).filter(w => w.length > 0).length;
 
-                mots.forEach(mot => {
+    segments.forEach((segment) => {
 
-                    mot.classList.remove('highlight');
+        // Construction de la liste de mots avec référence au span DOM
+        // (même logique que rechercherDansCorpus)
+        let wordList = [];
+        for (let motSpan of segment.children) {
+            const words = motSpan.textContent.split(/\s+/).filter(w => w.length > 0);
+            for (let word of words) {
+                wordList.push({ span: motSpan, text: word });
+            }
+        }
+        if (wordList.length === 0) return;
 
-                    let tabMts = chaine.split(" "); // Sépare la chaîne en mots
+        // Reconstitution du texte avec espaces entre tous les tokens
+        // Le padding ' … ' permet de respecter les frontières de mots
+        // (ex : 'je ' ne trouve pas 'jeudi')
+        const segText = ' ' + wordList.map(w => w.text).join(' ') + ' ';
+        let searchStart = 0;
 
-                    for(m2=0; m2<tabMts.length; m2++) { // Pour chaque mot de la chaîne
+        while (true) {
+            const idx = segText.toLowerCase().indexOf(chaine, searchStart);
+            if (idx === -1) break;
 
-                        if (mot.textContent.trim().toLowerCase().includes(tabMts[m2])) {
-                            mot.classList.add('highlight');
+            // Rang du premier mot du match dans wordList.
+            // On saute les espaces éventuels en tête du match (ex : recherche ' dans'),
+            // puis on remonte au dernier espace AVANT ce premier caractère non-espace :
+            // segText.slice(1, lastSpace+1) ne contient alors que des mots complets.
+            let posFirst = idx;
+            while (posFirst < segText.length && segText[posFirst] === ' ') posFirst++;
+            let lastSpace = 0;
+            for (let k = posFirst - 1; k >= 0; k--) {
+                if (segText[k] === ' ') { lastSpace = k; break; }
+            }
+            const iMot = segText.slice(1, lastSpace + 1).split(/\s+/).filter(w => w.length > 0).length;
+            if (iMot >= wordList.length) { searchStart = idx + 1; continue; }
 
-                            if (m2==0){tabTrv.push(mot);}
-                        }
-                    }
+            // Surlignage de tous les spans couverts par le match
+            for (let c = iMot; c < Math.min(iMot + nbMotsChaine, wordList.length); c++) {
+                wordList[c].span.classList.add('highlight');
+            }
 
-                });
-            };
-        });
-           
+            tabTrv.push(wordList[iMot].span); // on retient le premier span pour la navigation
+            searchStart = idx + 1;
+        }
+    });
 
-                    document.getElementById("lblResultRech").innerText = (rgCherche+1) + "/" +  tabTrv.length ; 
-                    // scroll vers le premier mot trouvé
+    document.getElementById("lblResultRech").innerText = (rgCherche + 1) + "/" + tabTrv.length;
 
-                        if (tabTrv.length > 0) {
-                        motTrv = tabTrv[rgCherche]; // On prend le rang du premier mot trouvé
-                        conteneur.scrollTop = motTrv.offsetTop - conteneur.offsetTop; // Fait défiler le conteneur pour afficher le segment
-
-                        document.getElementById("resultRech").classList.remove("dnone"); 
-                        document.getElementById("btnSuppRech").classList.remove("dnone"); 
-
-                        } else {
-                            alert("Aucun mot trouvé.");
-                        }
-                    
-        
+    if (tabTrv.length > 0) {
+        const motTrv = tabTrv[rgCherche];
+        conteneur.scrollTop = motTrv.offsetTop - conteneur.offsetTop;
+        document.getElementById("resultRech").classList.remove("dnone");
+        document.getElementById("btnSuppRech").classList.remove("dnone");
+    } else {
+       res = await question("Aucun mot trouvé pour : " + chaine,  ['ok']);
+    }
 
 }
 
@@ -1615,12 +1633,20 @@ function deselRech() { // fonction de désélection des mots trouvés
 }
 
 function annulRech() { // fonction de désélection des mots trouvés
-    const conteneur=document.getElementById("segments");
-    
-    tabTrv.forEach(mot => {
-        mot.classList.remove('highlight');
-        mot.classList.remove('contour');
-    });
+    const conteneur = document.getElementById("segments");
+
+    // Nettoyage complet (couvre aussi les spans secondaires d'un match multi-mots)
+    if (conteneur) {
+        conteneur.querySelectorAll('.highlight, .contour').forEach(s => {
+            s.classList.remove('highlight');
+            s.classList.remove('contour');
+        });
+    } else {
+        tabTrv.forEach(mot => {
+            mot.classList.remove('highlight');
+            mot.classList.remove('contour');
+        });
+    }
 
     tabTrv = []; // Réinitialise le tableau de travail
     rgCherche = 0; // Réinitialise le rang de recherche
@@ -1638,7 +1664,7 @@ function annulRech() { // fonction de désélection des mots trouvés
     });
 }
 
-function remplacer() { // fonction de remplacement de texte dans les segments
+async function remplacer() { // fonction de remplacement de texte dans les segments
 
     backUp(); // Sauvegarde l'état actuel avant de remplacer
 
@@ -1646,7 +1672,7 @@ function remplacer() { // fonction de remplacement de texte dans les segments
     let remp = document.getElementById("txtRemp").value;
 
     if (!chaine) {
-        alert("Rien à rechercher.");
+        res = await question("Rien à rechercher.", ['ok']);
         return;
     }
 
@@ -1654,7 +1680,7 @@ function remplacer() { // fonction de remplacement de texte dans les segments
     const mot = tabTrv[rgCherche]; // Prend le mot courant dans le tableau des mots trouvés
 
     if (!mot) {
-        alert("Aucun mot trouvé à remplacer.");
+        res = await question("Aucun mot trouvé à remplacer pour : " + chaine,  ['ok']);
         return;
     }
 
@@ -1693,14 +1719,14 @@ function remplacer() { // fonction de remplacement de texte dans les segments
     //annulRech(); // Réinitialise la recherche après le remplacement
 }
 
-function remplacerTout() { // fonction de remplacement de texte dans les segments (tout)
+async function remplacerTout() { // fonction de remplacement de texte dans les segments (tout)
     backUp(); // Sauvegarde l'état actuel avant de remplacer
 
     let chaine = document.getElementById("txtRech").value.trim();
     let remp = document.getElementById("txtRemp").value;
 
     if (!chaine) {
-        alert("Rien à rechercher.");
+        res = await question("Rien à rechercher.", ['ok']);
         return;
     }
 
@@ -1720,7 +1746,7 @@ function remplacerTout() { // fonction de remplacement de texte dans les segment
 
     //cleanHTML()
 
-    alert(nbMatchs + " remplacement(s) effectué(s) dans tout le document")
+    res = await question(nbMatchs + " remplacement(s) effectué(s) dans tout le document", ['ok']);
     //annulRech(); // Réinitialise la recherche après le remplacement
 }
 

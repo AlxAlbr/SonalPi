@@ -7,8 +7,10 @@
 
 //var tabDat = []; // tableau des données de l'entretien
 var rgEnt ; // mémorise le rang de l'entretien courant ()
+var placerApresVar = "dernier"; // valeur de positionnement pour les variables : "dernier" | "premier" | code_v
 
 var txtmod_cur = null; // mémorisation du texte de modalité en cours de modification (pour le menu)
+var filtreVarGen = "all"; // filtre d'affichage du tableau global : "all" | "gen" | "loc"
 
 // AJOUTER UNE VARIABLE
 async function addVar(mode) {
@@ -38,6 +40,7 @@ async function addVar(mode) {
         tabVar.push({'v': rkVar, 'lib': newVar, 'champ': champ, 'priv': priv }); // Ajouter la nouvelle variable au tableau
         tabDic.push ({ 'v': rkVar, 'm' : 0 , 'lib' : "" }) // Ajouter la modalité 0
         
+        repositionnerVar(rkVar); // Appliquer le positionnement demandé
         await electronAPI.setVar(tabVar); // sauvegarder le tableau des variables
         await electronAPI.setDic(tabDic); // sauvegarder le tableau des modalités
         /*
@@ -104,7 +107,11 @@ async function editVar(rgVar, mode) {
         document.getElementById("lblLibVar").value = varToEdit.lib;
         document.querySelector('input[name="chkVarChmp"][value="' + varToEdit.champ + '"]').checked = true;
         document.querySelector('input[name="chkVarPriv"][value="' + varToEdit.priv + '"]').checked = true;
-        
+
+        // Mise à jour du menu de positionnement
+        remplirCmbVar(varToEdit.champ);
+        const cmbPosVarEl = document.getElementById("cmbPosVar");
+        if (cmbPosVarEl) cmbPosVarEl.textContent = "Conserver";
 
         // ajout des modalités
         
@@ -234,6 +241,7 @@ async function sauvVar(rgVar, mode) {
             console.log ("La variable à modifier n'a pas été retrouvée")
         }
  
+        repositionnerVar(updatedVar.v); // Appliquer le positionnement demandé
          
         // Mise à jour des modalités
         await sauvModas(mode);  
@@ -578,7 +586,8 @@ async function validMod(rgEnt, v, l, m, lib){
 
 
 
-    document.getElementById("menudic").style.display="none"; 
+    const menudicEl = document.getElementById("menudic");
+    if (menudicEl) menudicEl.style.display="none";
 
         // à la fin de validMod, juste avant de cacher le menu
         const inputValide = document.querySelector(`.txtmod[data-v="${v}"][data-l="${l}"]`)
@@ -1027,10 +1036,19 @@ async function affichDataGen(){
 
     await inventaireVariables();
 
+    // Tri de tabVar : variables générales en premier, puis locuteurs (sans modifier le tableau d'origine)
+    tabVar = [...tabVar].sort((a, b) => {
+        if (a.champ === b.champ) return 0;
+        return a.champ === "gen" ? -1 : 1;
+    });
+
     // console.log("Affichage du tableau des données (tabvar) :");
     //console.table("envoie le tabDat " + JSON.stringify(tabDat));
 
     // création d'une div pour afficher le tableau
+    // suppression de l'éventuel tableau existant avant de recréer
+    const divTabDatExistant = document.getElementById("divTabDat");
+    if (divTabDatExistant) divTabDatExistant.remove();
 
     const divTabDat = document.createElement("div");
     divTabDat.id = "divTabDat";
@@ -1041,19 +1059,34 @@ async function affichDataGen(){
     divEntete = document.createElement("div");
     divEntete.style="height:50px; border-bottom:1px solid #ccc"
     divEntete.classList.add("header-tabdat");
-    divEntete.innerHTML = `<h3 class="logo-variables" style="margin-left:10px;">Base de données    
-    
-    <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;float:right;margin-top:-5px" onclick="hideTabDat();">Quitter ✖️</label>
-    <label id = "btn-export-dat" class="btn btn-secondary" style = "padding: 10px;float:right;margin-top:-5px" onclick="exportTabDat();">Exporter 📥</label>
-    <label id = "btn-add-var" class="btn btn-primary" style = "padding: 10px;float:right;margin-top:-5px; " onclick="dialog('Métadonnées');"> ➕ Ajouter une variable </label>
-         
+
+    // Calcul des filtres (requis avant la construction de l'en-tête)
+    const hasVarLoc = tabVar.some(v => v.champ === "loc");
+    const varAfficher = filtreVarGen === "gen" ? tabVar.filter(v => v.champ === "gen")
+                      : filtreVarGen === "loc" ? tabVar.filter(v => v.champ === "loc")
+                      : tabVar;
+    const varAfficherGen = varAfficher.filter(v => v.champ === "gen");
+    const varAfficherLoc = varAfficher.filter(v => v.champ === "loc");
+    const showLocCol = hasVarLoc && filtreVarGen !== "gen";
+    const showLocRows = hasVarLoc && filtreVarGen !== "gen";
+
+    divEntete.innerHTML = `<h3 class="logo-variables" style="margin-left:10px;">Base de données
+    <label for="filtre-var-gen" style="margin-left:20px;font-size:0.55em;cursor:pointer">Afficher :</label>
+    <select id="filtre-var-gen" onchange="changerFiltreGen(this.value)" style="margin-left:12px;padding:3px 8px;border:1px solid #ccc;border-radius:4px;font-size:0.55em;vertical-align:middle;cursor:pointer">
+        <option value="all"${filtreVarGen === "all" ? " selected" : ""}>Toutes les variables</option>
+        <option value="gen"${filtreVarGen === "gen" ? " selected" : ""}${!tabVar.some(v => v.champ === "gen") ? " disabled" : ""}>Générales seulement</option>
+        <option value="loc"${filtreVarGen === "loc" ? " selected" : ""}${!hasVarLoc ? " disabled" : ""}>Locuteurs seulement</option>
+    </select>
+    <label id="btn-quit" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px" onclick="hideTabDat();">Quitter ✖️</label>
+    <label id="btn-export-dat" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px" onclick="exportTabDat();">Exporter 📥</label>
+    <label id="btn-add-var" class="btn btn-primary" style="padding: 10px;float:right;margin-top:-5px;" onclick="dialog('Métadonnées');"> ➕ Ajouter une variable </label>
     </h3>`;
     divTabDat.appendChild(divEntete);
 
     // création du fond du tableau
     const fondTab = document.createElement("div");
     fondTab.style.overflow = "auto";
-    fondTab.style.maxHeight = "calc(100vh - 70px)";
+    fondTab.style.maxHeight = "calc(100vh - 80px)";
     fondTab.style.paddingLeft = "10px";
 
     divTabDat.appendChild(fondTab);
@@ -1066,27 +1099,49 @@ async function affichDataGen(){
     table.appendChild(tbody);   
     fondTab.appendChild(table);
 
+    // Édition inline : délégation de clic sur le tbody
+    tbody.addEventListener("click", function(e) {
+        const td = e.target.closest("td.td-editable-gen");
+        if (!td) return;
+        activerEditionGen(td);
+    });
+
     // création de l'en-tête du tableau
+    // (hasVarLoc, varAfficher, showLocCol, showLocRows calculés dans le bloc header ci-dessus)
     const headerRow = document.createElement("tr");
 
         // première colonne : entretien
         const th = document.createElement("th");
         th.textContent = "Entretien";
+        th.classList.add("header-col-ent");
         headerRow.appendChild(th);
 
-        // deuxième colonne : locuteur
+    // colonnes variables générales
+    varAfficherGen.forEach(enteteVar => {
+        const thV = document.createElement("th");
+        thV.textContent = enteteVar.lib;
+        thV.classList.add("header-col-var");
+        headerRow.appendChild(thV);
+        thV.addEventListener("click", function() { editVar(enteteVar.v, 'gen'); });
+    });
+
+        // colonne locuteur : après les variables générales
+        if (showLocCol) {
         const thLoc = document.createElement("th");
         thLoc.textContent = "Locuteur";
+        thLoc.classList.add("header-col-loc");
+        
         headerRow.appendChild(thLoc);
+        }
 
-    tabVar.forEach(enteteVar => {
-        const th = document.createElement("th");
-        th.textContent = enteteVar.lib;
-        headerRow.appendChild(th);
-
-        th.addEventListener("click", function() {
-            editVar(enteteVar.v, 'gen');
-        });
+    // colonnes variables locuteurs
+    varAfficherLoc.forEach(enteteVar => {
+        const thV = document.createElement("th");
+        thV.textContent = enteteVar.lib;
+        thV.classList.add("header-col-var");
+        headerRow.appendChild(thV);
+        
+        thV.addEventListener("click", function() { editVar(enteteVar.v, 'gen'); });
     });
     thead.appendChild(headerRow);
 
@@ -1097,16 +1152,14 @@ async function affichDataGen(){
 
         // Pré-calcul des valeurs générales (l = "all")
         const valeursGen = {};
-        tabVar.forEach(caseVar => {
-            if (caseVar.champ === "gen") {
-                const ligDat = tabDat.filter(d => String(d.e) === idEnt && d.v == caseVar.v);
-                const vals = [];
-                ligDat.forEach(ligne => {
-                    const modalite = tabDic.find(dc => dc.v == caseVar.v && dc.m == ligne.m);
-                    if (modalite && modalite.lib && modalite.lib !== "undefined") vals.push(modalite.lib);
-                });
-                valeursGen[caseVar.v] = vals.join(" | ");
-            }
+        varAfficherGen.forEach(caseVar => {
+            const ligDat = tabDat.filter(d => String(d.e) === idEnt && d.v == caseVar.v);
+            const vals = [];
+            ligDat.forEach(ligne => {
+                const modalite = tabDic.find(dc => dc.v == caseVar.v && dc.m == ligne.m);
+                if (modalite && modalite.lib && modalite.lib !== "undefined") vals.push(modalite.lib);
+            });
+            valeursGen[caseVar.v] = vals.join(" | ");
         });
 
         // Liste des locuteurs valides (index > 0, sans "?")
@@ -1119,13 +1172,14 @@ async function affichDataGen(){
             });
         }
 
-        // Nombre total de lignes : 1 ligne générale + N lignes locuteurs
-        const totalRows = 1 + locuteursValides.length;
+        // Lignes locuteurs à afficher selon le filtre
+        const locuteursAfficher = showLocRows ? locuteursValides : [];
+        const totalRows = 1 + locuteursAfficher.length;
 
-        // --- Ligne générale (variables "gen") ---
+        // --- Ligne générale ---
         const trGen = document.createElement("tr");
         trGen.classList.add(entIdx % 2 === 0 ? "grp-pair" : "grp-impair");
-        if (locuteursValides.length === 0) trGen.classList.add("grp-last");
+        if (locuteursAfficher.length === 0) trGen.classList.add("grp-last");
 
         // cellule entretien : rowSpan sur toutes les lignes du groupe
         const tdEnt = document.createElement("td");
@@ -1135,48 +1189,67 @@ async function affichDataGen(){
         tdEnt.classList.add("grp-last");
         trGen.appendChild(tdEnt);
 
-        // cellule locuteur vide pour la ligne générale
-        const tdLocGen = document.createElement("td");
-        tdLocGen.style.fontStyle = "italic";
-        tdLocGen.style.color = "#868686";
-        tdLocGen.textContent = "";
-        trGen.appendChild(tdLocGen);
-
-        // cellules variables : valeurs générales, vide pour les variables locuteurs
-        tabVar.forEach(caseVar => {
+        // cellules variables générales : rowSpan sur toutes les lignes du groupe
+        varAfficherGen.forEach(caseVar => {
             const td = document.createElement("td");
-            td.textContent = caseVar.champ === "gen" ? (valeursGen[caseVar.v] || "---") : "";
+            td.textContent = valeursGen[caseVar.v] || "---";
+            td.rowSpan = totalRows;
+            td.style.verticalAlign = "middle";
+            td.dataset.entId = idEnt;
+            td.dataset.varV = caseVar.v;
+            td.dataset.loc = "all";
+            td.classList.add("td-editable-gen");
             trGen.appendChild(td);
         });
+
+        // cellule locuteur vide + cellules vars loc dans trGen seulement s'il n'y a pas de lignes locuteurs
+        // (sinon la première ligne locuteur remplit ces colonnes directement)
+        if (locuteursAfficher.length === 0) {
+            if (showLocCol) {
+                const tdLocGen = document.createElement("td");
+                tdLocGen.textContent = "";
+                tdLocGen.classList.add("td-non-editable-gen", "col-loc");
+                trGen.appendChild(tdLocGen);
+            }
+            varAfficherLoc.forEach(() => {
+                const td = document.createElement("td");
+                td.textContent = "";
+                td.classList.add("td-non-editable-gen");
+                trGen.appendChild(td);
+            });
+        }
         tbody.appendChild(trGen);
 
         // --- Lignes locuteurs (variables "loc") ---
-        locuteursValides.forEach((loc, rowIdx) => {
+        locuteursAfficher.forEach((loc, rowIdx) => {
             const tr = document.createElement("tr");
             tr.classList.add(entIdx % 2 === 0 ? "grp-pair" : "grp-impair");
             if (rowIdx === locuteursValides.length - 1) tr.classList.add("grp-last");
 
-            // cellule locuteur
+            // cellule locuteur (selon filtre)
+            if (showLocCol) {
             const tdLoc = document.createElement("td");
             tdLoc.style.fontStyle = "italic";
             tdLoc.style.color = "#868686";
             tdLoc.textContent = loc.nom;
+            tdLoc.classList.add("col-loc");
             tr.appendChild(tdLoc);
+            }
 
-            // cellules variables : "---" pour les variables générales, valeurs locuteurs
-            tabVar.forEach(caseVar => {
+            // cellules variables locuteurs
+            varAfficherLoc.forEach(caseVar => {
                 const td = document.createElement("td");
-                if (caseVar.champ === "gen") {
-                    td.textContent = "---";
-                } else {
-                    const ligDat = tabDat.filter(d => String(d.e) === idEnt && d.v == caseVar.v && d.l == loc.idx);
-                    const vals = [];
-                    ligDat.forEach(ligne => {
-                        const modalite = tabDic.find(dc => dc.v == caseVar.v && dc.m == ligne.m);
-                        if (modalite && modalite.lib && modalite.lib !== "undefined") vals.push(modalite.lib);
-                    });
-                    td.textContent = vals.length > 0 ? vals.join(" | ") : "---";
-                }
+                const ligDat = tabDat.filter(d => String(d.e) === idEnt && d.v == caseVar.v && d.l == loc.idx);
+                const vals = [];
+                ligDat.forEach(ligne => {
+                    const modalite = tabDic.find(dc => dc.v == caseVar.v && dc.m == ligne.m);
+                    if (modalite && modalite.lib && modalite.lib !== "undefined") vals.push(modalite.lib);
+                });
+                td.textContent = vals.length > 0 ? vals.join(" | ") : "---";
+                td.dataset.entId = idEnt;
+                td.dataset.varV = caseVar.v;
+                td.dataset.loc = loc.idx;
+                td.classList.add("td-editable-gen");
                 tr.appendChild(td);
             });
 
@@ -1193,80 +1266,205 @@ function hideTabDat(){
     }
 };
 
-async function exportTabDat() { // création d'un tableau csv exportant les variables
+function changerFiltreGen(val) {
+    filtreVarGen = val;
+    affichDataGen();
+}
 
-    // Séparateur et utilitaire d'échappement CSV
+// Activer l'édition inline d'une cellule du tableau global
+function activerEditionGen(td) {
+    if (td.dataset.editing === "1") return; // déjà en cours d'édition
+    td.dataset.editing = "1";
+
+    const currentText = td.textContent === "---" ? "" : td.textContent;
+    const v = td.dataset.varV;
+
+    // Figer la largeur du td pour éviter tout redimensionnement lors de l'injection de l'input
+    const tdWidth = td.getBoundingClientRect().width;
+    td.style.width = tdWidth + "px";
+    td.style.minWidth = tdWidth + "px";
+    td.style.maxWidth = tdWidth + "px";
+
+    // Récupération des modalités existantes pour cette variable
+    const ligsDic = tabDic.filter(d => d.v == v && d.m != 0);
+    const options = ligsDic.map(item => item.lib);
+
+    // Remplacement du contenu de la cellule par un champ de saisie
+    td.innerHTML = "";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = currentText;
+    input.className = "txtmod-gen";
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    // Création du menu déroulant des modalités existantes
+    let dropdown = null;
+    if (options.length > 0) {
+        dropdown = document.createElement("div");
+        dropdown.className = "menu-dic-gen";
+        dropdown.innerHTML = options.map(opt =>
+            `<div class="menu-dic-item-gen">${opt}</div>`
+        ).join("");
+        document.body.appendChild(dropdown);
+        const positionner = () => {
+            const rect = input.getBoundingClientRect();
+            dropdown.style.left = rect.left + "px";
+            dropdown.style.top = rect.bottom + 1 + "px";
+            dropdown.style.width = Math.max(rect.width, 120) + "px";
+        };
+        positionner();
+
+        // Sélection d'une modalité dans le menu (mousedown avant blur)
+        dropdown.addEventListener("mousedown", async function(e) {
+            if (e.target.classList.contains("menu-dic-item-gen")) {
+                e.preventDefault(); // éviter le blur de l'input
+                const valeur = e.target.textContent;
+                cleanup();
+                await validerCellGen(td, valeur);
+            }
+        });
+    }
+
+    const cleanup = () => {
+        if (dropdown && dropdown.parentElement) dropdown.remove();
+        td.style.width = "";
+        td.style.minWidth = "";
+        td.style.maxWidth = "";
+        delete td.dataset.editing;
+    };
+
+    const annuler = () => {
+        cleanup();
+        td.textContent = currentText || "---";
+    };
+
+    input.addEventListener("keydown", async function(e) {
+        if (e.key === "Enter") {
+            const valeur = input.value;
+            cleanup();
+            await validerCellGen(td, valeur);
+        } else if (e.key === "Escape") {
+            annuler();
+        }
+    });
+
+    input.addEventListener("blur", function() {
+        setTimeout(() => {
+            if (td.dataset.editing === "1") annuler();
+        }, 200);
+    });
+}
+
+// Valider la modification d'une cellule du tableau global et sauvegarder le fichier .sonal
+async function validerCellGen(td, lib) {
+    const entId = td.dataset.entId;
+    const v = Number(td.dataset.varV);
+    const loc = td.dataset.loc; // "all" ou index locuteur
+
+    if (!lib || !lib.trim()) {
+        td.textContent = "---";
+        return;
+    }
+
+    // Trouver le rang actuel de l'entretien (robuste même si tabEnt a changé)
+    tabEnt = await window.electronAPI.getEnt();
+    const rkEnt = tabEnt.findIndex(ent => String(ent.id) === String(entId));
+    if (rkEnt === -1) {
+        console.error("validerCellGen : entretien introuvable id=" + entId);
+        td.textContent = "---";
+        return;
+    }
+
+    // Vérification du verrou pour les corpus distants
+    const Corpus = await window.electronAPI.getCorpus();
+    if (Corpus && Corpus.type === "distant") {
+        const lockResult = await window.electronAPI.isEntretienLocked(rkEnt);
+        if (lockResult && lockResult.locked === true) {
+            alert(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`);
+            // Restaurer la valeur affichée
+            const ligEnt = tabEnt[rkEnt];
+            const ligDat = ligEnt && ligEnt.tabDat ? ligEnt.tabDat.find(d => d.v == v && d.l == loc) : null;
+            const ligDic = ligDat ? tabDic.find(d => d.v == v && d.m == ligDat.m) : null;
+            td.textContent = (ligDic && ligDic.lib) ? ligDic.lib : "---";
+            return;
+        }
+    }
+
+    // Mise à jour des données via validMod (gère tabDic et tabDat)
+    await validMod(entId, v, loc, 0, lib);
+
+    // Rechargement des données depuis le store
+    tabEnt = await window.electronAPI.getEnt();
+    tabDic = await window.electronAPI.getDic();
+    tabDat = await window.electronAPI.getDat();
+
+    // Mise à jour de l'affichage de la cellule
+    td.textContent = lib;
+    td.classList.remove("validation-ok-td");
+    void td.offsetWidth;
+    td.classList.add("validation-ok-td");
+
+    try {
+        // Réécriture du fichier .sonal uniquement pour cet entretien
+        await window.majFichierSonal(rkEnt, rkEnt + 1);
+        // Sauvegarde du fichier .crp pour persistance au redémarrage
+        await window.sauvegarderCorpus(false);
+    } catch(err) {
+        afficherNotification("Erreur lors de la sauvegarde : " + (err.message || err), "error");
+    }
+}
+
+async function exportTabDat() { // export CSV depuis le tableau HTML affiché
+
+    const table = document.querySelector("#divTabDat table");
+    if (!table) {
+        afficherNotification("Le tableau n'est pas affiché.", "error");
+        return;
+    }
+
     const SEP = ";";
     const csvCell = (val) => {
-        const s = (val === null || val === undefined) ? "" : String(val);
+        const s = (val === null || val === undefined) ? "" : String(val).trim();
         if (s.includes(SEP) || s.includes('"') || s.includes('\n') || s.includes('\r')) {
             return '"' + s.replace(/"/g, '""') + '"';
         }
         return s;
     };
 
-    // --- En-tête : Entretien + Locuteur + une colonne par variable ---
-    const colonnes = ["Entretien", "Locuteur", ...tabVar.map(v => v.lib)];
-    const lignes = [colonnes.map(csvCell).join(SEP)];
+    const lignes = [];
 
-    // --- Lignes de données : une ligne générale puis une ligne par locuteur ---
-    tabEnt.forEach(dataRow => {
-        const idEnt = String(dataRow.id);
+    // En-tête depuis le thead
+    const ths = table.querySelectorAll("thead tr th");
+    lignes.push(Array.from(ths).map(th => csvCell(th.textContent)).join(SEP));
 
-        // Pré-calcul des valeurs générales (l = "all")
-        const valeursGen = {};
-        tabVar.forEach(caseVar => {
-            if (caseVar.champ === "gen") {
-                const ligDat = tabDat.filter(d => String(d.e) === idEnt && d.v == caseVar.v);
-                const vals = [];
-                ligDat.forEach(ligne => {
-                    const modalite = tabDic.find(dc => dc.v == caseVar.v && dc.m == ligne.m);
-                    if (modalite && modalite.lib && modalite.lib !== "undefined") vals.push(modalite.lib);
-                });
-                valeursGen[caseVar.v] = vals.join(" | ");
+    // Lignes depuis le tbody
+    // La cellule entretien (rowSpan) porte la classe grp-last et est cells[0] de la ligne générale.
+    // Pour les lignes locuteurs, cells[0] est le nom de locuteur (pas de classe grp-last).
+    table.querySelectorAll("tbody tr").forEach(tr => {
+        const cells = tr.cells;
+        const ligne = [];
+        const estLigneGen = cells[0] && cells[0].classList.contains("grp-last");
+
+        if (estLigneGen) {
+            // Ligne générale : cells[0] = entretien (rowSpan), cells[1..] = reste
+            ligne.push(csvCell(cells[0].textContent));
+            for (let i = 1; i < cells.length; i++) {
+                ligne.push(cells[i].classList.contains("td-non-editable-gen") ? "" : csvCell(cells[i].textContent));
             }
-        });
-
-        // Liste des locuteurs valides (index > 0, sans "?")
-        const locuteursValides = [];
-        if (dataRow.tabLoc) {
-            dataRow.tabLoc.forEach((nom, idx) => {
-                if (nom && idx > 0 && nom.lastIndexOf("?") === -1) {
-                    locuteursValides.push({ idx, nom });
-                }
-            });
+        } else {
+            // Ligne locuteur : pas de cellule entretien dans cells (absorbée par rowSpan)
+            ligne.push(""); // colonne Entretien vide
+            for (let i = 0; i < cells.length; i++) {
+                ligne.push(cells[i].classList.contains("td-non-editable-gen") ? "" : csvCell(cells[i].textContent));
+            }
         }
-
-        // --- Ligne générale : nom entretien, locuteur vide, valeurs gen, vide pour loc ---
-        const cellulesGen = [dataRow.nom, ""];
-        tabVar.forEach(caseVar => {
-            cellulesGen.push(caseVar.champ === "gen" ? (valeursGen[caseVar.v] || "") : "");
-        });
-        lignes.push(cellulesGen.map(csvCell).join(SEP));
-
-        // --- Lignes locuteurs : nom entretien vide, nom locuteur, vide pour gen, valeurs loc ---
-        locuteursValides.forEach(loc => {
-            const cellules = ["", loc.nom];
-            tabVar.forEach(caseVar => {
-                if (caseVar.champ === "gen") {
-                    cellules.push("");
-                } else {
-                    const ligDat = tabDat.filter(d => String(d.e) === idEnt && d.v == caseVar.v && d.l == loc.idx);
-                    const vals = [];
-                    ligDat.forEach(ligne => {
-                        const modalite = tabDic.find(dc => dc.v == caseVar.v && dc.m == ligne.m);
-                        if (modalite && modalite.lib && modalite.lib !== "undefined") vals.push(modalite.lib);
-                    });
-                    cellules.push(vals.join(" | "));
-                }
-            });
-            lignes.push(cellules.map(csvCell).join(SEP));
-        });
+        lignes.push(ligne.join(SEP));
     });
 
     const contenuCsv = lignes.join("\r\n");
 
-    // Nom de fichier par défaut basé sur le corpus
     const Corpus = await window.electronAPI.getCorpus();
     const nomBase = Corpus && Corpus.fileName
         ? Corpus.fileName.replace(/\.[^/.]+$/, '') + "_donnees"
@@ -1350,7 +1548,8 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
             }    
 
             chaineHtml += `<label class="var-pub">${v.lib}\n<b>${modas.length > 0 ? modas.join(", ") : "---"}</b></label>\n`;
-            chaineText += ` ${v.lib} : ${modas.length > 0 ? modas.join(", ") : "---"}`;
+            chaineText += `${v.lib} : ${modas.length > 0 ? modas.join(", ") : "---"}`;
+            chaineText += "\n";
         }
 
         //console.log("Chaine des variables publiques pour l'entretien " + rkEnt + " :\n" + chaineHtml);
@@ -1579,4 +1778,71 @@ async function cleanVariables() { // fonction permettant de faire le ménage dan
 
     const nDoublonsIds = tabEnt.filter((e, i) => tabEnt.findIndex(x => x.id === e.id) !== i).length;
     console.log(`cleanVariables : tabDat = ${tabDat.length} entrées, tabDic global = ${tabDic.length} entrées après nettoyage. IDs dupliqués corrigés : ${nDoublonsIds}.`);
+}
+
+// ============================================================
+// FONCTIONS DE POSITIONNEMENT DES VARIABLES
+// ============================================================
+
+// Remplit le menu déroulant "Placer après..." en filtrant par champ (gen/loc)
+function remplirCmbVar(champ) {
+    const cmb = document.getElementById("listCmbVar");
+    const summaryEl = document.getElementById("cmbPosVar");
+    if (!cmb || !summaryEl) return;
+
+    placerApresVar = "dernier";
+    summaryEl.textContent = "En dernier";
+
+    const rgVar = Number(document.getElementById("lblCodeVar")?.value) || 0;
+
+    cmb.innerHTML = `<li onclick="selPosVar('premier')">En premier</li>`;
+
+    if (!tabVar || !tabVar.length) return;
+
+    const varsFiltrées = tabVar.filter(v => v.champ === champ && v.v != rgVar);
+    varsFiltrées.forEach(v => {
+        cmb.innerHTML += `<li onclick="selPosVar(${v.v})">${v.lib}</li>`;
+    });
+}
+
+// Sélection dans le menu déroulant : 'premier' | 'dernier' | code_v numérique
+function selPosVar(code) {
+    placerApresVar = code;
+    const summaryEl = document.getElementById("cmbPosVar");
+    if (!summaryEl) return;
+
+    if (code === 'premier') {
+        summaryEl.textContent = "En premier";
+    } else if (code === 'dernier') {
+        summaryEl.textContent = "En dernier";
+    } else {
+        const varRef = tabVar.find(v => v.v == code);
+        summaryEl.textContent = varRef ? varRef.lib : "?";
+    }
+
+    const details = summaryEl.closest('details');
+    if (details) details.removeAttribute("open");
+}
+
+// Repositionne la variable vCode dans tabVar selon placerApresVar
+function repositionnerVar(vCode) {
+    if (placerApresVar === "dernier") return; // pas de déplacement
+
+    const currentIdx = tabVar.findIndex(v => v.v == vCode);
+    if (currentIdx === -1) return;
+
+    const [movedVar] = tabVar.splice(currentIdx, 1);
+
+    if (placerApresVar === 'premier') {
+        tabVar.unshift(movedVar);
+    } else {
+        const targetIdx = tabVar.findIndex(v => v.v == placerApresVar);
+        if (targetIdx === -1) {
+            tabVar.push(movedVar); // fallback : en dernier
+        } else {
+            tabVar.splice(targetIdx + 1, 0, movedVar);
+        }
+    }
+
+    placerApresVar = "dernier"; // réinitialisation après usage
 }

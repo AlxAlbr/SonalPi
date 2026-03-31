@@ -51,7 +51,7 @@ jobs:
         run: sudo snap install snapcraft --classic
       
       - name: Build application
-        run: npm run build
+        run: npm run build -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1

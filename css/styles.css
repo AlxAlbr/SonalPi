@@ -490,18 +490,25 @@ Styles pour les boutons
     height: calc(100vh - 210px);
     overflow-y: auto;
     margin-top: 10px;
-    
+    display: flex;
+    flex-direction: column;
+}
+
+.conteneur_cat .ligthm {
+    flex: 0 1 45px;
+    min-height: 30px;
 }
 
 .ligthm {
-    height: 45px;
     width: 100%;
-    padding: 5px 0px 30px 10px;
+    padding: 5px 0px 10px 10px;
     border: 1px solid #e3e3e3;
     color: var(--couleur-texte);
     display: flex;
+    overflow: hidden;
     margin-bottom: 1px !important;
     transition: 0.1s;
+ 
 }
 
 .ligthm:hover{
@@ -549,7 +556,7 @@ Styles pour les boutons
 
 .rang_0{
   
-  margin-top:5px !important; 
+  margin-top:3px !important; 
   margin-left:3px;
   width: calc(100% - 3px);
   margin-top: 0px;
@@ -666,6 +673,11 @@ Styles pour les boutons
     font-size: 0% !important;
     transition: 0.2s;
 
+  }
+
+  .conteneur_cat .ligthm-cmpct {
+    flex: 0 0 1px !important;
+    min-height: 0 !important;
   }
   .ligthm-cmpct:hover::before {
     display: block;
@@ -1794,7 +1806,7 @@ Styles pour les fonctions de recherche
   .close {
     color: #aaa;
     float: right;
-    font-size: 28px;
+    font-size: 16px;
     font-weight: bold;
     color: black;
     cursor: pointer;
@@ -2111,6 +2123,70 @@ background-color: #8d8d8d91;
   background-color: #f4f4f4;
 
 }
+
+/* Tableau global - cellules éditables */
+td.td-editable-gen {
+    cursor: pointer;
+}
+
+td.td-editable-gen:hover {
+    background-color: #e8f0fe;
+    outline: 1px dashed #4a90d9;
+}
+
+td.td-non-editable-gen {
+    background-color: #e8e8e8;
+    cursor: default;
+    color: #999;
+}
+
+th.header-col-loc,
+td.col-loc {
+    border-left: 2px solid #bbbbbb !important;
+}
+
+.txtmod-gen {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #4a90d9;
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-size: inherit;
+    font-family: inherit;
+    background: #fff;
+}
+
+.menu-dic-gen {
+    position: fixed;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 3px 8px rgba(0,0,0,.15);
+    z-index: 9999;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.menu-dic-item-gen {
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.menu-dic-item-gen:hover {
+    color: blue;
+    background-color: #f4f4f4;
+}
+
+@keyframes validation-ok-td {
+    0%   { background-color: #d1fae5; }
+    60%  { background-color: #d1fae5; }
+    100% { background-color: inherit; }
+}
+
+.validation-ok-td {
+    animation: validation-ok-td 0.9s ease-out forwards;
+}
 .var-pub {
     border: 1px solid rgb(199 199 199);
     /* margin-right: 10px; */
@@ -2160,6 +2236,31 @@ th{
   min-width:125px;
 }
 
+th.header-col-var{
+  background-color: var(--couleur-block);
+  color: var(--couleur-titre);
+  
+}
+
+th.header-col-var:hover{
+  background-color: var(--couleur-texte);
+  color: var(--couleur-fond);
+  transition: 1sec;
+}
+
+th.header-col-ent{
+  background-color: var(--couleur-block);
+  color: var(--couleur-texte);
+  font-style: italic;
+}
+
+th.header-col-loc{
+  background-color: var(--couleur-block);
+  color: var(--couleur-texte);
+  font-style: italic;
+  border-left:2px solid #bbbbbb !important;
+}
+
 td{
   border: 1px solid #d4d4d4;
    white-space: pre-wrap;
@@ -2172,11 +2273,11 @@ tr:hover{
 }
 
 .grp-pair {
-  background-color: #f7f9fc;
+  background-color: var(--couleur-fond);
 }
 
 .grp-impair {
-  background-color: #eef2f7;
+  background-color: var(--couleur-fond);
 }
 
 .grp-last {
@@ -2331,6 +2432,67 @@ SYNTHESE
     height: 20px;
     margin-right: 8px;
     vertical-align: middle;
+    opacity: 0.5;
+}
+
+.logo-notes::before{
+    content: "";
+    background-image: url('../img/logonotes2.png');
+    background-size: cover;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    vertical-align: middle;
+    opacity: 0.5 ;
+}
+
+.logo-cat::before{
+    content: "";
+    background-image: url('../img/logocat.png');
+    background-size: cover;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    vertical-align: middle;
+    opacity: 0.5 ;
+}
+
+.logo-loc::before{
+    content: "";
+    background-image: url('../img/logoloc.png');
+    background-size: cover;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    vertical-align: middle;
+    opacity: 0.5 ;
+}
+
+.logo-anon::before {
+    content: "";
+    background-image: url('../img/logoanon.png');
+    background-size: cover;
+    display: inline-block;
+    width: 26px;
+    height: 20px;
+    margin-right: 8px;
+    vertical-align: middle;
+    opacity: 0.3;
+    margin-left: -6px;
+}
+
+.logo-time::before{
+    content: "";
+    background-image: url('../img/logotime.png');
+    background-size: cover;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    vertical-align: middle;
     opacity: 0.3;
 }
 
@@ -2345,6 +2507,8 @@ SYNTHESE
     vertical-align: middle;
     opacity: 0.3;
 }
+
+
 
 .titreplansynth{
  
@@ -2976,13 +3140,15 @@ SYNTHESE
 }
 
 
-.lblmnuxprt{
-    border: 1px solid gray;
-    width:100%;
-    left:0%;
-    height: 70px;
-    padding:15px;    
-    cursor:pointer;
+.lblmnuxprt {
+    border: 1px solid #e5e5e5;
+    width: 100%;
+    left: 0%;
+    height: 55px;
+    padding: 15px;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-bottom: 2px;
 }
 
 .lblmnuxprt:hover{

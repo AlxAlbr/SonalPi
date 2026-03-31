@@ -1131,7 +1131,7 @@ function sauvHtmlAnonymise(){
     effaceSurv();
 
     // Générer le contenu avec texte anonymisé
-    let segmentsAnonymises = genererSegmentsAnonymises();
+    let segmentsAnonymises = AnonymiserSegments(contenuHtml);
 
     // sauvegarde du contenu HTML principal
     contenuHtml +=` <div id="contenuText"> 
@@ -1150,59 +1150,4 @@ function sauvHtmlAnonymise(){
  * Le texte est définitivement remplacé par les pseudonymes
  * @returns {string} Le HTML des segments anonymisés
  */
-function genererSegmentsAnonymises() {
-    // Cloner le conteneur de segments pour ne pas modifier l'original
-    const segmentsOriginal = document.getElementById('segments');
-    const segmentsClone = segmentsOriginal.cloneNode(true);
-    
-    // Parcourir tous les segments du clone
-    const segments = segmentsClone.querySelectorAll('.lblseg');
-    
-    segments.forEach((segment, index) => {
-        // Supprimer les classes d'anonymisation
-        const spans = segment.querySelectorAll('span');
-        spans.forEach(span => {
-            span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-            delete span.dataset.pseudo;
-        });
-        
-        // Obtenir le texte anonymisé de ce segment (depuis l'original, pas le clone)
-        const texteAnonymise = obtenirTexteSegmentAnonymise(index);
-        
-        // Vider le segment et recréer les spans avec le texte anonymisé
-        segment.innerHTML = '';
-        
-        // Découper le texte en mots et créer des spans simples
-        const mots = texteAnonymise.match(/[\wÀ-ÿ\[\]]+|[^\w\s]|[\s]+/g);
-        
-        if (mots) {
-            // Récupérer le data-sg original
-            const segmentOriginal = segmentsOriginal.querySelectorAll('.lblseg')[index];
-            const firstSpanOriginal = segmentOriginal ? segmentOriginal.querySelector('span[data-sg]') : null;
-            const dataSg = firstSpanOriginal ? firstSpanOriginal.dataset.sg : index;
-            
-            let rk = 1; // Commence à 1 comme dans l'original
-            mots.forEach((mot) => {
-                const span = document.createElement('span');
-                span.dataset.rk = rk;
-                span.dataset.sg = dataSg;
-                span.textContent = mot; // textContent échappe automatiquement le HTML
-                segment.appendChild(span);
-                rk++;
-            });
-        } else if (texteAnonymise) {
-            // Si pas de mots détectés, mettre le texte tel quel
-            const segmentOriginal = segmentsOriginal.querySelectorAll('.lblseg')[index];
-            const firstSpanOriginal = segmentOriginal ? segmentOriginal.querySelector('span[data-sg]') : null;
-            const dataSg = firstSpanOriginal ? firstSpanOriginal.dataset.sg : index;
-            
-            const span = document.createElement('span');
-            span.dataset.rk = 1;
-            span.dataset.sg = dataSg;
-            span.textContent = texteAnonymise;
-            segment.appendChild(span);
-        }
-    });
-    
-    return segmentsClone.innerHTML;
-}
+

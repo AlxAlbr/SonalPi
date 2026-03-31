@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
 const chardet = require('chardet');
@@ -2183,6 +2184,9 @@ app.on('ready', () => {
       mainWindow.setIcon(iconPath);
       mainWindow.show();
 
+      // Vérification des mises à jour (ignorée silencieusement en développement)
+      autoUpdater.checkForUpdatesAndNotify();
+
       // Windows/Linux : ouvrir le fichier passé en argument
       if (pendingFilePath) {
         const result = await ouvrirCorpus(pendingFilePath);
@@ -2197,6 +2201,33 @@ app.on('ready', () => {
 
 
 
+  });
+
+  // Mise à jour disponible : informer l'utilisateur
+  autoUpdater.on('update-available', (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Mise à jour disponible',
+      message: `Une nouvelle version (${info.version}) est disponible.`,
+      detail: 'Elle sera téléchargée en arrière-plan et installée à la prochaine fermeture.'
+    });
+  });
+
+  // Mise à jour téléchargée : proposer le redémarrage
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: ['Redémarrer maintenant', 'Plus tard'],
+      defaultId: 0,
+      title: 'Mise à jour prête',
+      message: 'La mise à jour a été téléchargée. Redémarrer Sonal pour l\'installer ?'
+    }).then(result => {
+      if (result.response === 0) autoUpdater.quitAndInstall();
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Erreur autoUpdater:', err.message);
   });
 
 

@@ -462,7 +462,9 @@ if (tabEnt.length == 0){
                 
                 // création d'un conteneur temporaire pour copier le contenu
                 let textCopié =  "« ";
+                let htmlCopié = "« ";
                 let nbInterv = 0;
+                
                 tabExt[i].texte.forEach(mot => {
                     
                     // y'a-t-il changement de locteur?
@@ -470,39 +472,59 @@ if (tabEnt.length == 0){
                         nbInterv++;
 
                         if (nbInterv > 1) {
-                            textCopié += "\n" + mot.dataset.nomloc + ": \n";
+                            textCopié += "\n" + mot.dataset.nomloc.replace("?", "") + ": \n";
+                            htmlCopié += "<br><strong>" + mot.dataset.nomloc.replace("?", "") + ":</strong><br>";
                         } else {
-                            textCopié += mot.dataset.nomloc + ": \n";
+                            textCopié += mot.dataset.nomloc.replace("?", "") + ": \n";
+                            htmlCopié += "<strong>" + mot.dataset.nomloc.replace("?", "") + ":</strong><br>";
                         }
 
                         if (nbInterv>1){
                             textCopié += "- "; // double saut de ligne entre les interventions
+                            htmlCopié += "- "; // double saut de ligne entre les interventions
                         }
                     }
                     
+                    // y'a-t-il un nom à anonymiser dans ce mot (si anon mais pas finsel, le mot n'est pas ajouté)?
+                    if (mot.classList.contains('anon')){
+
+                        if (!mot.classList.contains('finsel')){
+                            return; // ne pas ajouter ce mot à l'extrait copié
+                        } else {
+                            textCopié += mot.dataset.pseudo ? "[" + mot.dataset.pseudo + "]" : "[anonyme]"; // si le mot est à la fois anon et finsel, on ajoute son pseudo (s'il existe) ou "anonyme" s'il n'en a pas
+                            htmlCopié += mot.dataset.pseudo ? "<strong>[" + mot.dataset.pseudo + "]</strong><br>" : "<strong>[anonyme]</strong><br>";
+                        }
+
+
+                    } else { // pas d'anonymisation, on ajoute le mot normalement
+
                     textCopié += mot.innerText ;
+                    htmlCopié += mot.outerHTML;
+
+                    }
                 });
 
                 textCopié += " »\n";
-
+                htmlCopié += " »<br>";
                 // correction des espaces avant et après la ponctuation (ne doit pas y avoir mot.mot)
-                textCopié = textCopié.replace(/\s([,.!?:;])}/g, "$1"); // supprime les espaces avant la ponctuation
-                textCopié = textCopié.replace(/([,.!?:;])\s/g, "$1 "); // ajoute un espace après la ponctuation
+                textCopié = textCopié.replace(/\s+([,.!?:;])/g, "$1"); // supprime les espaces avant la ponctuation
+                textCopié = textCopié.replace(/([,.!?:;])([^\s\n»])/g, "$1 $2"); // ajoute un espace après la ponctuation si manquant
 
                 // ajout des infos sur l'entretien
                 
                 textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "\n";              
+                htmlCopié += "<em>Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "</em><br>";
 
-                navigator.clipboard.writeText(textCopié).then(() => {
+                const blobHtml = new Blob([htmlCopié], { type: 'text/html' });
+                const blobText = new Blob([textCopié], { type: 'text/plain' });
+                navigator.clipboard.write([new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })]).then(() => {
                    btnCopy.classList.add('btn-copied-extrait');
                    setTimeout(() => {
                     btnCopy.classList.remove('btn-copied-extrait');
                    }, 1000);
-                  
 
                 }).catch(err => {
                     alert("Erreur lors de la copie : " + err);
-              
                 });
             });
 

@@ -1949,3 +1949,271 @@ if (typeof window !== 'undefined') {
     window.afficherWhisPurge = afficherWhisPurge;
     window.miseàjourEntretien = miseàjourEntretien;
 }
+// ---------------------------------------------------------------
+// Export d'un entretien avec options (appele depuis dialogExportChoixOptions)
+// ---------------------------------------------------------------
+async function exportEntretien(format) {
+
+    // Lecture des options AVANT fermeture de la boite de dialogue
+    const getChk = id => {
+        const el = document.getElementById(id);
+        return el ? el.checked : false;
+    };
+    const opts = {
+        anon: getChk('opt-anon'),
+        notes: getChk('opt-notes'),
+        vars: getChk('opt-vars'),
+        loc:  getChk('opt-loc'),
+        thm:  getChk('opt-thm'),
+        time: getChk('opt-time'),
+    };
+
+    hidedlg();
+
+    if (ent_cur === -1) ent_cur = await window.electronAPI.getEntCur();
+    const adrFich = tabEnt[ent_cur].rtrPath;
+    const detailsf = dossfichext(adrFich);
+    const suffixeAnon = opts.anon ? '_anonymise' : '';
+
+    // préparation des données de l'entretien
+    const ent = tabEnt[ent_cur];
+    let contenuHtmlCmpct = await compactHtml(); // compactage du html
+    let tabAnonloc = ent.tabAnon; 
+    if (opts.anon) { // anonymisation éventuelle
+        contenuHtmlCmpct = AnonymiserHtml(contenuHtmlCmpct); // remplacement des pseudos dans le texte
+        tabAnonloc = [] //suppression de la table d'anonymisation de l'export
+    } 
+
+    //if (opts.vars) {
+        let txtvars = (await varsPubliquesEnt(ent_cur))[1]; // récupération des variables associées à l'entretien
+    //}
+    switch (format) {
+
+        case 'sonal': { // tout est exporté par défaut, seule l'anonymisation est en option
+           
+            
+            contenuHtmlCmpct = String(contenuHtmlCmpct).replace(/`/g, ''); // mise en string
+           
+ 
+            const contenu = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, tabAnonloc); // création du fichier Sonal
+            SauvegarderSurDisque(contenu, detailsf[1] +  suffixeAnon + '.Sonal', 'UTF-8'); // enregistrement
+
+            
+
+            break;
+        }
+
+        case 'txt': {
+
+            let TxtExport = "Exporté par Sonal π (version " + window.versionSonal + ") le " + new Date().toLocaleString() + "\n\n";
+            
+            TxtExport += "Entretien : " + ent.nom + "\n\n";
+
+
+            if (opts.notes) {
+                const notes = "Notes de l'entretien :\n" + (ent.notes || "Aucune note") + "\n\n";
+                TxtExport += notes;
+            }
+
+            if (opts.vars) {
+               
+               TxtExport += "Variables associées :\n" + txtvars + "\n\n";
+            }
+
+
+            // défilement des mots pour construire le texte exporté
+            // les thèmes sont portés par chaque span-mot (pas par le lblseg)
+            // ligne d'en-tête [time] locuteur uniquement si le locuteur change
+            // [thème] inséré inline quand le thème change d'un mot au suivant
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = contenuHtmlCmpct;
+
+            const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
+            let seg_cur = null;
+            let loc_cur = '';
+            let thm_cur = '';
+
+            mots.forEach(mot => {
+                const seg = mot.closest('.lblseg');
+                if (!seg) return;
+
+                // locuteur du segment parent
+                let locNom = '';
+                if (opts.loc) {
+                    const locIdx = seg.dataset.loc;
+                    locNom = locut[locIdx] ? locut[locIdx].replaceAll('?', '').trim() : '';
+                }
+
+                // thèmes portés par le mot lui-même (span)
+                let thmStr = '';
+                if (opts.thm) {
+                    const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+                    const thmNoms = thmClasses.map(c => {
+                        const thm = tabThm.find(t => t.code === c);
+                        return thm ? thm.nom.split('//')[0].trim() : null;
+                    }).filter(nom => nom);
+                    thmStr = thmNoms.join(', ');
+                }
+
+                const isFirst   = seg_cur === null;
+                const segChange = seg !== seg_cur;
+                const locChange = locNom !== loc_cur;
+                const thmChange = thmStr !== thm_cur;
+
+                if (isFirst || (segChange && locChange)) {
+                    // premier mot ou changement de locuteur : ligne d'en-tête complète
+                    let ligne = isFirst ? '' : '\n\n';
+                    if (opts.time) {
+                        const deb = seg.dataset.deb;
+                        if (deb) ligne +=  SecToTime(deb, true) + " ";
+                    }
+                    if (opts.loc && locNom) ligne += locNom + ' ';
+                    if (opts.thm && thmStr) ligne += '[' + thmStr + '] ';
+                    TxtExport += ligne + '\n';
+                } else if (segChange) {
+                    // nouveau segment, même locuteur : saut de ligne simple
+                    TxtExport += '\n';
+                    if (opts.thm && thmChange) TxtExport += '[' + (thmStr || '–') + '] ';
+                } else if (opts.thm && thmChange) {
+                    // même segment, thème différent du mot précédent : marqueur inline
+                    TxtExport += ' [' + (thmStr || '–') + '] ';
+                }
+
+                TxtExport += mot.textContent;
+                seg_cur = seg;
+                loc_cur = locNom;
+                thm_cur = thmStr;
+            });
+
+            TxtExport += '\n';
+
+            SauvegarderSurDisque(TxtExport, detailsf[1] + suffixeAnon + '.txt', 'UTF-8');
+            
+            break;
+        }
+
+        case 'srt': {
+            let txtSrt = '';
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = contenuHtmlCmpct;
+
+            const segs = tempDiv.querySelectorAll('.lblseg');
+
+            segs.forEach((seg, idx) => {
+                const deb = seg.dataset.deb;
+                const fin = seg.dataset.fin;
+                if (deb && fin) {
+                    const timeDeb = SecToTime(deb, false);
+                    const timeFin = SecToTime(fin, false);
+                    const text = seg.textContent.trim().replace(/\s+/g, ' ');
+                   
+                    if (opts.loc) { // ajout du locuteur en préfixe du texte (optionnel)
+                        const locIdx = seg.dataset.loc;
+                        const locNom = locut[locIdx] ? locut[locIdx].replaceAll('?', '').trim() : '';
+                        if (locNom) {
+                            text = locNom + ': ' + text;
+                        }
+                    }
+
+                    txtSrt += (idx + 1) + '\n' + timeDeb + ' --> ' + timeFin + '\n' + text + '\n\n';
+                }            
+                });    
+
+
+            SauvegarderSurDisque(txtSrt, detailsf[1] + suffixeAnon + '.srt', 'UTF-8');
+            break;
+        }
+
+        case 'vtt': {
+            let txtVtt = 'WEBVTT\n\n';
+
+            if (opts.notes && ent.notes) {
+                // NOTE block: no blank lines allowed inside, compress them
+                const noteContent = ent.notes.replace(/\n{2,}/g, '\n').trim();
+                txtVtt += 'NOTE\n' + noteContent + '\n\n';
+            }
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = contenuHtmlCmpct;
+            const segs = tempDiv.querySelectorAll('.lblseg');
+
+            segs.forEach((seg, idx) => {
+                const deb = seg.dataset.deb;
+                const fin = seg.dataset.fin;
+                if (!deb || !fin) return;
+
+                const timeDeb = SecToTime(deb, false);
+                const timeFin = SecToTime(fin, false);
+
+                // build cue payload word by word (preserves theme tags)
+                let payload = '';
+                if (opts.thm) {
+                    seg.querySelectorAll('span').forEach(mot => {
+                        const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+                        const word = mot.textContent;
+                        if (thmClasses.length > 0) {
+                            payload += '<c.' + thmClasses[0] + '>' + word + '</c>';
+                        } else {
+                            payload += word;
+                        }
+                    });
+                    payload = payload.trim().replace(/\s+/g, ' ');
+                } else {
+                    payload = seg.textContent.trim().replace(/\s+/g, ' ');
+                }
+
+                // wrap with speaker voice tag if needed
+                if (opts.loc) {
+                    const locIdx = seg.dataset.loc;
+                    const locNom = locut[locIdx] ? locut[locIdx].replaceAll('?', '').trim() : '';
+                    if (locNom) payload = '<v ' + locNom + '>' + payload + '</v>';
+                }
+
+                txtVtt += (idx + 1) + '\n' + timeDeb + ' --> ' + timeFin + '\n' + payload + '\n\n';
+            });
+
+            SauvegarderSurDisque(txtVtt, detailsf[1] + suffixeAnon + '.vtt', 'UTF-8');
+            break;
+        }
+
+        case 'html':
+            alert('Export HTML non encore implemente.');
+            break;
+
+        case 'docx':
+            alert('Export .docx non encore implemente.');
+            break;
+    }
+}
+
+
+function AnonymiserHtml (contenuHtml) {
+
+    // affecter le contenu html à un conteneur temporaire pour manipulation
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contenuHtml;
+    
+    //sélectionner tous les mots qui contiennent la classe anon mais pas finsel et anon (dernier span qui contient le pseudo)
+    const motsASuppr = tempDiv.querySelectorAll('span.anon:not(.finsel)');
+
+    motsASuppr.forEach(mot => {
+        mot.remove(); // Supprimer les spans intermédiaires de l'anonymisation
+    });
+
+
+    const motsAAnonymiser = tempDiv.querySelectorAll('span.anon.finsel');
+
+    motsAAnonymiser.forEach(mot => {
+        const pseudo = mot.dataset.pseudo ; // Récupérer le pseudo 
+        if (pseudo) {
+            mot.textContent = "[" + pseudo + "]"; // Remplacer le texte du span par le pseudo
+            mot.classList.remove('anon', 'finsel'); // Retirer les classes d'anonymisation
+            delete mot.dataset.pseudo; // Supprimer l'attribut de pseudo
+        }
+    });
+        
+    htmlAnonymise = tempDiv.innerHTML;
+    tempDiv.remove(); // Nettoyer le conteneur temporaire
+    
+    return htmlAnonymise;
+}

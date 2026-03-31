@@ -23,7 +23,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "A.0.14";
+    const version = "1.0.50";
   </script>
 
 <body>
@@ -750,7 +750,7 @@ function dialog(type, message){
     contenu.style.top="25%";
     contenu.style.height="";    
     contenu.innerHTML = 
-        ` <div class="close" onclick="hidedlg()">×</div>
+        ` <div class="close" onclick="hidedlg()">✖️</div>
           <h3>  Choisissez un format d'export </h3>
             <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
             
@@ -770,8 +770,8 @@ function dialog(type, message){
     contenu.style.top="25%";
     contenu.style.height="";    
 
-    contenu.innerHTML = 
-        ` <div class="close" onclick="hidedlg()">×</div>
+    conteúdo.innerHTML = 
+        ` <div class="close" onclick="hidedlg()">✖️</div>
          <H3 id = "lblTypeModif">Ajouter une catégorie </H3>
         <div  id = "menucat"  >
             
@@ -924,7 +924,7 @@ function dialog(type, message){
     contenu.innerHTML = 
         `   
 
-            <div class="close" onclick="hidedlg()">×</div>
+            <div class="close" onclick="hidedlg()">✖️</div>
             <h3 class = "menu-title-com">  Commentaire </h3>
 
 
@@ -950,7 +950,7 @@ function dialog(type, message){
 
     contenu.innerHTML = 
         `  
-            <div class="close" onclick="hidedlg()">×</div>
+            <div class="close" onclick="hidedlg()">✖️</div>
             <H3 >Ajouter/modifier une variable </H3>
          
      <div  id = "menudata"  >
@@ -978,11 +978,11 @@ function dialog(type, message){
                                 <label class="mdc-floating-label floatingstatic">Champ de la variable</label>
                                    
                                     <label>
-                                        <input type="radio" name="chkVarChmp" value="gen" checked>
+                                        <input type="radio" name="chkVarChmp" value="gen" checked onchange="remplirCmbVar('gen')">
                                         générale
                                     </label>
                                     <label>
-                                        <input type="radio" name="chkVarChmp" value="loc">
+                                        <input type="radio" name="chkVarChmp" value="loc" onchange="remplirCmbVar('loc')">
                                         par locuteur.ices
                                     </label>
                                      
@@ -1058,6 +1058,18 @@ function dialog(type, message){
 
                         </div>
 
+                        <div style="display:flex; flex-direction:row; align-items:center; margin-top:10px;">
+                            <div class="floating-label-container" style="">
+                                <label class="mdc-floating-label floatingstatic">Placer après...</label>
+                                <div class="combothm">
+                                    <details>
+                                        <summary id="cmbPosVar">En dernier</summary>
+                                        <ul id="listCmbVar" class="optionscmb"></ul>
+                                    </details>
+                                </div>
+                            </div>
+                        </div>
+
                         <div style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;">
 
                            <label id = "btnSupprVar" class='btnfonction' style = "width : 25%;flex:1"; onclick="supprVar(document.getElementById('lblCodeVar').value, 'gen')">❌️ Supprimer</label>  
@@ -1067,6 +1079,7 @@ function dialog(type, message){
                            `
 
         document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
+        remplirCmbVar("gen");
 
         break;   
         

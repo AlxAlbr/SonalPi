@@ -168,7 +168,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
      document.querySelectorAll(".survok").forEach(el => el.classList.remove("survok"));
      document.querySelectorAll(".survseg").forEach(el => el.classList.remove("survseg"));
      document.querySelectorAll(".highlight").forEach(el => el.classList.remove("highlight"));   
-    
+     document.querySelectorAll(".contour").forEach(el => el.classList.remove("contour"));  
      /*
      const tousLbl = document.querySelectorAll('.survseg'); // document.getElementsByClassName("survseg")
             

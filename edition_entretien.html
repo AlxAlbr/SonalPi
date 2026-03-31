@@ -1055,7 +1055,7 @@ async function dispPanneauG(bouton, composant){
        typeAction="anon"
     }
 
-       if ( composant=="fond_dat" ) {
+    if ( composant=="fond_dat" ) {
         //document.getElementById("graph").classList.remove("dnone")
        noSel=true; 
        typeAction="dat"
@@ -1066,6 +1066,11 @@ async function dispPanneauG(bouton, composant){
        
 
     }  
+
+    if (composant =="fond_rech"){
+        document.getElementById("txtRech").focus();
+        //noSel=false;
+    }
 
 }
 
@@ -1983,42 +1988,35 @@ function dialog(type){
 
     switch (type) {
 
-    case 'Export' :
-    contenu.style.top="25%";
-    contenu.style.height="";    
-    contenu.innerHTML = 
-        `
-        
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
-                <img id = "logo" src="img/logoSonal.png"  alt="" style="height:40px; width:auto;">
-
-                <div class="close" onclick="hidedlg()" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
-              </div>
-
-              
-                <div style="display:flex; flex-direction:row; align-items:center; gap:14px;margin-top:20px; margin-bottom:20px">
-                    <label> ⚙️ Options</label>
-                    <!--<label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptTimeStamps" checked> Coordonnées temporelles</label>
-                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkOptLocuteurs" checked > Locuteurs</label>!-->
-                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" id="chkAnon"> Appliquer la pseudonymisation = anonymiser</label>
+    case 'Export':
+    contenu.style.top = "20%";
+    contenu.style.height = "";
+    contenu.innerHTML = `
+        <!-- En-tête permanent (logo + fermeture) -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <img src="img/logoSonal.png" alt="" style="height:36px; width:auto;">
+            <div class="close" onclick="hidedlg()" >✖️</div>
+        </div>
+        <!-- Viewport glissant (déborde sur les marges du conteneur pour masquer les bords) -->
+        <div style="overflow:hidden; margin-left:-20px; margin-right:-20px; margin-bottom:-20px;">
+            <div id="export-slider" style="display:flex; width:200%; transition:transform 0.35s cubic-bezier(.4,0,.2,1); transform:translateX(0);">
+                <!-- Panneau 1 : choix du format -->
+                <div style="width:50%; padding:0px 20px 20px; box-sizing:border-box;">
+                    <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
+                    <div class="menudrlnt">
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Texte, catégories, métadonnées</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('srt')"><label class="lblformat">.srt</label> <span class="lbldetails">Sous-titres SRT</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('vtt')"><label class="lblformat">.vtt</label> <span class="lbldetails">Sous-titres WebVTT</span></div>
+                       <!--  <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte</span></div>
+                        !-->
+                    </div>
                 </div>
-               
-
-          <h3>  Choisissez un format d'export </h3>
-            <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
-
-                
-            
-          
-                <div class = "lblmnuxprt"  onclick="exportFichierSonal()"> <label class = "lblformat"> .sonal </label> <span class="lbldetails"> Texte/catégories/métadonnées</span><br> </div>
-                <div class = "lblmnuxprt"  onclick="exportTxtComplet()"> <label class = "lblformat"> .txt </label> <span class="lbldetails"> Format texte brut</span> <br></div>
-                <!-- <div class = "lblmnuxprt"  onclick="exportWord()"> <label class = "lblformat"> .docx </label> <span class="lbldetails"> Format traitement de texte (Word, Writer)</span> <br></div> !-->
-                <div class = "lblmnuxprt"  onclick="exportSrt()"> <label class = "lblformat"> .srt </label> <span class="lbldetails"> Format Srt</span> <br></div>
-               
-                 
-        </div>`
-
-
+                <!-- Panneau 2 : options (rempli dynamiquement par dialogExportChoixOptions) -->
+                <div id="export-panel-options" style="width:50%; padding:0px 20px 20px; box-sizing:border-box;"></div>
+            </div>
+        </div>`;
     break;
 
     case "Cat":
@@ -2026,7 +2024,7 @@ function dialog(type){
     contenu.style.height="";    
 
     contenu.innerHTML = 
-        ` <div class="close" onclick="hidedlg()">×</div>
+        ` <div class="close" onclick="hidedlg()">✖️</div>
          <H3 id = "lblTypeModif">Ajouter une catégorie </H3>
         <div  id = "menucat"  >
             
@@ -2179,7 +2177,7 @@ function dialog(type){
     contenu.innerHTML = 
         `   
 
-            <div class="close" onclick="hidedlg()">×</div>
+            <div class="close" onclick="hidedlg()">×✖️</div>
             <h3 class = "menu-title-com">  Commentaire </h3>
 
 
@@ -2221,7 +2219,7 @@ function dialog(type){
 
     contenu.innerHTML = 
         `  
-            <div class="close" onclick="hidedlg()">×</div>
+            <div class="close" onclick="hidedlg()">✖️</div>
             <H3 >Ajouter/modifier une variable </H3>
          
      <div  id = "menudata"  >
@@ -2341,7 +2339,7 @@ function dialog(type){
          contenu.innerHTML = 
         ` 
                 <div>
-                <div class="close" onclick="hidedlg()">×</div>
+                <div class="close" onclick="hidedlg()">✖️</div>
                 <H3>Filtrer les catégories affichées </H3>
                 </div>
             
@@ -2375,7 +2373,74 @@ function dialog(type){
 function hidedlg(){
     let element = document.getElementById('dlg');
     element.style.display = "none";
-   
+}
+
+// ---------------------------------------------------------------
+// Boîte d'export en deux étapes : sélection du format → options
+// ---------------------------------------------------------------
+function dialogExportChoixOptions(format) {
+
+    // Config par format : [activé, cochéParDéfaut]
+    // Colonnes : anon | notes | variables | locuteurs | catégories thm | coordonnées
+    const CFG = {
+        sonal: [[true,true], [false,true],  [false,true],  [false,true],  [false,true],  [false,true]],
+        html:  [[true,false], [true,false],  [true,false],  [true,false],  [true,false],  [true,false]],
+        txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
+        srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true]],
+        vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true]],
+        docx:  [[true,false], [true,false],  [true,false],  [true,false],  [false,false], [true,false]],
+    };
+    const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', srt:'.srt', vtt:'.vtt', docx:'.docx' };
+
+    const cfg = CFG[format] || CFG.txt;
+    const [oa, on, ov, ol, oth, oti] = cfg;
+
+    const opt = (id,  classes, label, [enabled, checked]) => {
+        const dis  = enabled ? '' : ' disabled';
+        const chk  = checked ? ' checked' : '';
+        const fade = enabled ? '' : 'opacity:0.75;';
+        return `<label class = "${classes}" style="display:flex;align-items:center;gap:10px;padding:6px 0;${fade}cursor:${enabled?'pointer':'default'}">
+                    <input type="checkbox" id="${id}"${chk}${dis} style="width:15px;height:15px;flex-shrink:0;cursor:inherit;">
+                    ${label}
+                </label>`;
+    };
+
+    const panel = document.getElementById('export-panel-options');
+    panel.innerHTML = `
+        <h3 style="margin-top:0;margin-bottom:18px;">2 - Choisissez les éléments à intégrer à l'export au format  ${LABELS[format]}</h3>
+        <div style="margin-bottom:18px;">
+          
+            <hr style="margin: 6px 0;">
+
+            ${opt('opt-notes', 'logo-notes','Notes', on)}
+            ${opt('opt-vars', 'logo-variables', 'Variables', ov)}
+            
+            <hr style="margin: 6px 0;">
+
+            ${opt('opt-time', 'logo-time', 'Coordonnées temporelles', oti)}
+            ${opt('opt-loc',  'logo-loc','Locuteurs ', ol)}
+
+            <hr style="margin: 6px 0;">
+            
+            ${opt('opt-thm', 'logo-cat', 'Catégories thématiques', oth)}
+
+            <hr style="margin: 6px 0;">
+            ${opt('opt-anon', 'logo-anon', 'Anonymiser (appliquer la pseudonymisation de manière définitve)', oa)}
+            <hr style="margin:6px 0;">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <label class="btnfonction" style="flex:1;text-align:center;cursor:pointer;padding:8px 0;margin-top:6px; height:36px"
+                onclick="document.getElementById('export-slider').style.transform='translateX(0)'">
+                ← Retour
+            </label>
+            <label class="btn  btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;"
+                onclick="exportEntretien('${format}')">
+              📥  Exporter 
+            </label>
+        </div>`;
+
+    // Glissement vers le panneau 2
+    document.getElementById('export-slider').style.transform = 'translateX(-50%)';
 }
 
 // question : affiche une boîte de dialogue Oui / Non / Annuler 
@@ -2386,34 +2451,7 @@ function hidedlg(){
 // COMMENTAIRES
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// showPrompt: non-bloquant, remplacement de window.prompt via <dialog>
-function showPrompt(message, defaultValue = "") {
-    return new Promise(resolve => {
-        const dlg = document.createElement('dialog');
-        dlg.className = 'electron-prompt';
-        dlg.innerHTML = `
-            <form method="dialog" style="display:flex;flex-direction:column;gap:8px;padding:12px;min-width:320px;">
-                <label style="font-weight:600;">${message}</label>
-                <input id="electron-prompt-input" type="text" value="${String(defaultValue).replace(/"/g,'&quot;')}" style="width:100%;padding:6px;" />
-                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
-                  <button value="cancel">Annuler</button>
-                  <button value="ok">OK</button>
-                </div>
-            </form>
-        `;
-        document.body.appendChild(dlg);
-        const input = dlg.querySelector('#electron-prompt-input');
-        dlg.addEventListener('close', () => {
-            const val = input.value;
-            const result = dlg.returnValue === 'ok' ? val : null;
-            dlg.remove();
-            resolve(result);
-        }, { once: true });
-        dlg.showModal();
-        input.focus();
-    });
-}
-
+ 
 async function addComment(){
 
      console.log ("ajout d'un commentaire entre " + debSel + " et " + finSel)
