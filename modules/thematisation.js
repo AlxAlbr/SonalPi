@@ -1167,7 +1167,7 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
     const scrollY = fondCat.scrollTop;
 
     let posNv = divCible[0].getBoundingClientRect();
-    catForm.style.top =  posNv.top + scrollY + "px";
+    catForm.style.top =  posNv.top + scrollY - 50 + "px";
     catForm.style.left = posNv.left + "px";
     catForm.style.width = posNv.width + "px";
     catForm.style.height = "400px"

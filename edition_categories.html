@@ -257,9 +257,15 @@
 
         // listener sur le scroll pour déplacer l'élément form-cat avec le scroll
         let scrollableDiv = document.querySelector('div[style*="overflow-y: auto"]');
+        let previousScrollTop = 0;
         scrollableDiv.addEventListener('scroll', (event) => {
           let catForm = document.getElementById('cat-form');
-          catForm.style.top = catForm.style.top + scrollableDiv.scrollTop + 'px';
+          if (!catForm.classList.contains('dnone')) {
+            const delta = scrollableDiv.scrollTop - previousScrollTop;
+            const currentTop = parseInt(catForm.style.top) || 0;
+            catForm.style.top = (currentTop + delta) + 'px';
+          }
+          previousScrollTop = scrollableDiv.scrollTop;
         });
 
 function adjustRang(increment){
