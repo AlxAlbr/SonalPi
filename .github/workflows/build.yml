@@ -4,7 +4,7 @@ on:
     tags:
       - 'v*.*.*'
     branches:
-      - EssaiGitlab
+      - ScrollEditCat
 permissions:
   contents: write  # Required for creating releases and uploading assets
   id-token: write  # Required for authentication with cloud providers
