@@ -1350,9 +1350,9 @@ async function showMenu(button, typeAction){
                 if (cats[c].lastIndexOf("cat_") >-1){
                     let rkc = await getRkThm(cats[c]);
 
-                    chaine += ` <div class="menu-item menu-cat ` + cats[c] + `" onmousedown = "thmSeg(` + debSel+ `,` + finSel + `,'` +   cats[c]+ `'); showMenu(` + getSpan(finSel) + `, 'cat')">` +  
-                         splitNomThm(tabThm[rkc].nom)[0] 
-                         + `  </div> `;   
+                    chaine += ` <div class="menu-item menu-cat ` + cats[c] + `" onmousedown = "event.stopPropagation(); thmSeg(` + debSel+ `,` + finSel + `,'` +   cats[c]+ `'); showMenu(getSpan(` + finSel + `), 'cat')">` +
+                         splitNomThm(tabThm[rkc].nom)[0]
+                         + `  </div> `;
 
                 }
             }
@@ -1406,11 +1406,13 @@ async function showMenu(button, typeAction){
 
             
  
-        document.addEventListener("mousedown", () => {
-        if (!menuSeg.classList.contains('dnone')){
-            menuSeg.classList.add('dnone'); 
+        const fermerMenu = () => {
+            if (!menuSeg.classList.contains('dnone')){
+                menuSeg.classList.add('dnone');
             }
-        });
+            document.removeEventListener("mousedown", fermerMenu);
+        };
+        document.addEventListener("mousedown", fermerMenu);
 
 
 
