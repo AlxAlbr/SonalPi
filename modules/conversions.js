@@ -410,76 +410,102 @@ async function importSONAL(content) { // importation d'un fichier SONAL (html) -
 
     let fichierSonal = extractFichierSonal(content);
 
-    await fusionTabThm(fichierSonal.tabThm);
+    const { codeMap } = await fusionTabThm(fichierSonal.tabThm);
     const tabDatAligned = await fusionTabVar(fichierSonal.tabVar, fichierSonal.tabDic, fichierSonal.tabDat);
     await fusionTabAnon(fichierSonal.tabAnon);
 
     window.tabLocImport = fichierSonal.tabLoc; // stockage temporaire dans le window global
-    //console.log("--> locteurs " + JSON.stringify(fichierSonal.tabLoc));
-    window.tabAnonImport = fichierSonal.tabAnon; // stockage temporaire dans le window global
-    //console.log("--> anonymisations " + JSON.stringify(fichierSonal.tabAnon));
     
-    // stockage du tabloc importé pour l'ajout d'entretien (centralisé via main)
-    //if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
-    //    await window.electronAPI.setTabLoc(fichierSonal.tabLoc);
-    //} else {
-    //    window.tabLocImport = fichierSonal.tabLoc; // fallback
-    //}
+    window.tabAnonImport = fichierSonal.tabAnon; // stockage temporaire dans le window global
 
- 
- 
     let formatSonal = String(content);
+
+    // Remappage des codes de thématiques dans le HTML de l'entretien (cas libellé connu/code différent, et cas 3)
+    if (codeMap && codeMap.size > 0) {
+        codeMap.forEach((nvCode, ancCode) => {
+            // ancCode et nvCode sont déjà des codes complets (ex : "cat_5" → "cat_7")
+            const regex = new RegExp(`\\b${ancCode}\\b`, 'g');
+            formatSonal = formatSonal.replace(regex, nvCode);
+        });
+    }
 
     return { formatSonal, tabDatAligned: tabDatAligned || [] };
 
-    //return fichierSonal;
+ 
 
 }
 
 
 async function fusionTabThm(tabThmFich) { // mise à jour du tabThm à partir d'un fichier sonal importé
 
-    if (!tabThmFich || tabThmFich.length<1) {return}
+    if (!tabThmFich || tabThmFich.length < 1) { return { codeMap: new Map() }; }
 
     // récupération du tabThm courant
-    let tabThm =   await window.electronAPI.getThm();
-    let situation = "ras"; 
-    
-    tabThmFich.forEach(thm => {
+    let tabThm = await window.electronAPI.getThm();
+    const codeMap = new Map(); // remappage oldCode → newCode pour les conflits (cas 3)
+    let modified = false;
 
-             console.log("code dans le corpus :", thm.nom, thm.code);
-        if (tabThm.some(t => t.nom === thm.nom && t.code === thm.code)) {
-            thm.nvcode = "ok"; // Pas de changement
-            console.log("thématique inchangée :", thm.nom);
-        }
-        else if (tabThm.some(t => t.nom != thm.nom && t.code === thm.code)) {
-            // Trouver le code existant correspondant au nom
-            const tTrouve = tabThm.find(t => t.code !== thm.code && t.nom === thm.nom);
-            if (tTrouve) {
-                thm.nvcode = tTrouve.code; // Ajoute le code trouvé dans la ligne du thm
-                console.log(`Mise à jour du code pour la thématique ${thm.nom} : ${thm.code} -> ${tTrouve.code}`);
-            }
-        } else  if (!tabThm.some(t => t.nom === thm.nom && t.code === thm.code)) {
-            thm.nvcode = "ajouter";
-            situation = "ajout";
-            tabThm.push(thm)
-            console.log("nouvelle thématique ajoutée :", thm.nom);
-
-        }
-
-    });
-
-    console.log("situation de mise à jour du tabThm :", situation);
-
-    //mise à jour du tabThm si nécessaire
-    if (situation ="ajout") {
-        console.log("mise à jour du tabThm avec ajouts");
-        let envoi = await window.electronAPI.setThm(tabThm);
-        let affichage = await affichListThmCrp(tabThm); 
+    // Retourne la partie du libellé avant "//" en minuscules (comparaison insensible à la casse)
+    function baseLabel(nom) {
+        return (nom || '').split('//')[0].trim().toLowerCase();
     }
-    return;
 
+    // Trouve le premier code "cat_N" libre dans tabThm (codes au format "cat_1", "cat_2"…)
+    function nextFreeCode() {
+        const used = new Set(
+            tabThm
+                .map(t => { const m = String(t.code).match(/cat_(\d+)$/); return m ? Number(m[1]) : null; })
+                .filter(n => n !== null)
+        );
+        let c = 1;
+        while (used.has(c)) c++;
+        return "cat_" + c;
+    }
 
+    for (const thm of tabThmFich) {
+        const bl = baseLabel(thm.nom);
+        const inCorpusByLabel = tabThm.find(t => baseLabel(t.nom) === bl);
+        const inCorpusByCode  = tabThm.find(t => t.code === thm.code); // comparaison en string
+
+        // Cas 1 : même libellé (base) ET même code → rien à faire
+        if (inCorpusByLabel && inCorpusByLabel.code === thm.code) {
+            thm.nvcode = "ok";
+            console.log("thématique inchangée :", thm.nom);
+            continue;
+        }
+
+        // Libellé existant avec code différent → remapper vers le code du corpus
+        if (inCorpusByLabel && inCorpusByLabel.code !== thm.code) {
+            codeMap.set(thm.code, inCorpusByLabel.code); // ex : "cat_5" → "cat_2"
+            thm.nvcode = inCorpusByLabel.code;
+            console.log(`Remappage code ${thm.code} → ${inCorpusByLabel.code} pour "${thm.nom}"`);
+            continue;
+        }
+
+        // Cas 2 : libellé nouveau ET code libre → ajouter avec toutes ses propriétés
+        if (!inCorpusByCode) {
+            tabThm.push({ nom: thm.nom, code: thm.code, couleur: thm.couleur || "", taille: thm.taille || "", rang: thm.rang ?? 0, act: thm.act ?? true, cmpct: thm.cmpct ?? false });
+            thm.nvcode = thm.code;
+            modified = true;
+            console.log(`Nouvelle thématique ajoutée (code inchangé) : "${thm.nom}" code: ${thm.code}`);
+            continue;
+        }
+
+        // Cas 3 : libellé nouveau mais code déjà pris → nouveau code + remappage HTML
+        const nc = nextFreeCode();
+        tabThm.push({ nom: thm.nom, code: nc, couleur: thm.couleur || "", taille: thm.taille || "", rang: thm.rang ?? 0, act: thm.act ?? true, cmpct: thm.cmpct ?? false });
+        codeMap.set(thm.code, nc); // ex : "cat_5" → "cat_7"
+        thm.nvcode = nc;
+        modified = true;
+        console.log(`Nouvelle thématique, code ${thm.code} déjà pris → nouveau code ${nc} pour "${thm.nom}"`);
+    }
+
+    if (modified) {
+        await window.electronAPI.setThm(tabThm);
+        await affichListThmCrp(tabThm);
+    }
+
+    return { codeMap };
 
 }
 
@@ -487,6 +513,9 @@ async function fusionTabThm(tabThmFich) { // mise à jour du tabThm à partir d'
 async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jour du tabVar à partir d'un fichier sonal importé
 
     if (!tabVarFich || tabVarFich.length<1) {return}
+
+    // comparaison de libellés insensible à la casse
+    const eqLib = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
 
     // récupération du tabVar courant
     let tabVar = await window.electronAPI.getVar();
@@ -496,15 +525,15 @@ async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jou
 
         console.log("variable dans le corpus :", vari.v, vari.lib);
 
-        if (tabVar.some(v => v.v === vari.v && v.lib === vari.lib)) {
+        if (tabVar.some(v => v.v === vari.v && eqLib(v.lib, vari.lib))) {
             vari.nvcode = "ok"; // Pas de changement
             console.log("variable inchangée :", vari.v);
         }
 
-        else if (tabVar.some(v => v.v != vari.v && v.lib === vari.lib)) {
+        else if (tabVar.some(v => v.v != vari.v && eqLib(v.lib, vari.lib))) {
 
             // Trouver le code existant correspondant au nom
-            const vTrouve = tabVar.find(v => v.lib === vari.lib && v.v !== vari.v);
+            const vTrouve = tabVar.find(v => eqLib(v.lib, vari.lib) && v.v !== vari.v);
             if (vTrouve) {
                 vari.nvcode = vTrouve.lib; // Ajoute le code trouvé dans la ligne de la variable
                 console.log(`Mise à jour du code pour la variable ${vari.v} : ${vari.lib} -> ${vTrouve.lib}`);
@@ -526,7 +555,7 @@ async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jou
 
             }
 
-        } else  if (!tabVar.some(v => v.v === vari.v && v.lib === vari.lib)) {
+        } else if (!tabVar.some(v => v.v === vari.v && eqLib(v.lib, vari.lib))) {
             vari.nvcode = "ajouter";
             situation = "ajout";
             tabVar.push(vari)
@@ -540,7 +569,7 @@ async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jou
     console.log("situation de mise à jour du tabVar :", situation);
 
     //mise à jour du tabVar si nécessaire
-    if (situation ="ajout") {
+    if (situation === "ajout") {
         console.log("mise à jour du tabVar avec ajouts");
         let envoi = await window.electronAPI.setVar(tabVar);
     }
@@ -551,7 +580,7 @@ async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jou
     // Table de correspondance : code variable dans le fichier → code global
     const mapV = new Map();
     tabVarFich.forEach(fVar => {
-        const gVar = tabVar.find(v => v.lib === fVar.lib);
+        const gVar = tabVar.find(v => eqLib(v.lib, fVar.lib));
         if (gVar) mapV.set(Number(fVar.v), Number(gVar.v));
         else mapV.set(Number(fVar.v), Number(fVar.v));
     });
@@ -561,7 +590,7 @@ async function fusionTabVar(tabVarFich, tabDicFich, tabDatFich) { // mise à jou
     (tabDicFich || []).forEach(fDic => {
         if (Number(fDic.m) === 0) { mapM.set(`${Number(fDic.v)}|0`, 0); return; }
         const globalV = mapV.get(Number(fDic.v)) ?? Number(fDic.v);
-        const gDic = tabDic.find(d => d.v == globalV && d.lib === fDic.lib);
+        const gDic = tabDic.find(d => d.v == globalV && eqLib(d.lib, fDic.lib));
         if (gDic) {
             mapM.set(`${Number(fDic.v)}|${Number(fDic.m)}`, Number(gDic.m));
         } else {

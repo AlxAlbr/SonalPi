@@ -211,7 +211,7 @@ window.addEventListener('unload', (event) => {
                     <label id= "btnavance" class = "btnfonction  btn-avance"  onclick="avancer5s()" title="avancer de 5 secondes"> </label>
                 </div>
 
-                 <div id = "undo-redo" style = "float:left; margin-left:48px; margin-top:9px"  >
+                 <div id = "undo-redo" style = "float:left; margin-left:10px; margin-top:9px"  >
                     <label id = "btn-undo" class="btnfonction " style = "padding: 10px;" onclick="undo()" title="Annuler"> ⟲ </label>   
                     <label id = "btn-redo" class="btnfonction " style = "padding: 10px;margin-left:5px" onclick="redo()" title="Refaire"> ⟳ </label>
                  </div>
@@ -2008,9 +2008,8 @@ function dialog(type){
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('srt')"><label class="lblformat">.srt</label> <span class="lbldetails">Sous-titres SRT</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('vtt')"><label class="lblformat">.vtt</label> <span class="lbldetails">Sous-titres WebVTT</span></div>
-                       <!--  <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte</span></div>
-                        !-->
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web annotée</span></div>
+                       <!--  <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte</span></div> !-->
                     </div>
                 </div>
                 <!-- Panneau 2 : options (rempli dynamiquement par dialogExportChoixOptions) -->
@@ -2384,7 +2383,7 @@ function dialogExportChoixOptions(format) {
     // Colonnes : anon | notes | variables | locuteurs | catégories thm | coordonnées
     const CFG = {
         sonal: [[true,true], [false,true],  [false,true],  [false,true],  [false,true],  [false,true]],
-        html:  [[true,false], [true,false],  [true,false],  [true,false],  [true,false],  [true,false]],
+        html:  [[true,true], [true,true],  [true,true],  [true,true],  [true,true],  [true,true]],
         txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
         srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true]],
         vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true]],

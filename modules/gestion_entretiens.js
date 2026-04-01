@@ -181,8 +181,8 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     
     // création d'un nouvel entretien
         // récupérer les locuteurs importés (si présents)
-    console.log("--> 2 locteurs " + JSON.stringify(window.tabLocImport));
-    console.log("--> 2 anonymisations " + JSON.stringify(window.tabAnonImport));
+    //console.log("--> 2 locteurs " + JSON.stringify(window.tabLocImport));
+    //console.log("--> 2 anonymisations " + JSON.stringify(window.tabAnonImport));
 
         /*
         let importedLoc = [];
@@ -833,8 +833,8 @@ async function  afficherHtmlAtPos(rkEnt, ratio, rkmot){
         divFond.appendChild (divEntete);
 
         let btnFermer = document.createElement('button');
-        btnFermer.classList.add('btn-close-fenent');
-        btnFermer.innerText = "X";
+        btnFermer.classList.add('btn','btn-close-fenent');
+        btnFermer.innerText = "✖️";
         btnFermer.addEventListener('click', function(event) {
             event.stopPropagation(); // Empêche la propagation de l'événement au div parent
             console.log("fermeture de la fenêtre d'entretien")
@@ -2176,9 +2176,283 @@ async function exportEntretien(format) {
             break;
         }
 
-        case 'html':
-            alert('Export HTML non encore implemente.');
+        case 'html': {
+            // --- 1. Parse HTML ---
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = contenuHtmlCmpct;
+
+            const locuteurs = ent.tabLoc || locut;
+
+            // --- 1b. Convertir audioPath en URL file:// utilisable dans un navigateur ---
+            const audioSrcPath = ent.audioPath || '';
+            let audioSrcUrl = '';
+            if (audioSrcPath) {
+                const normalized = audioSrcPath.replace(/\\/g, '/');
+                audioSrcUrl = /^[a-zA-Z]:\//.test(normalized)
+                    ? 'file:///' + normalized          // Windows absolu : C:/...
+                    : normalized.startsWith('/')
+                        ? 'file://' + normalized       // POSIX absolu
+                        : normalized;                  // chemin relatif ou URL
+            }
+
+            // --- 1c. Injecter en-têtes de locuteurs + boutons play avant chaque .ligloc ---
+            tempDiv.querySelectorAll('.ligloc').forEach(seg => {
+                const locIdx = seg.dataset.loc;
+                const locNom = opts.loc && locuteurs[locIdx]
+                    ? locuteurs[locIdx].replaceAll('?', '').trim()
+                    : '';
+                const deb = seg.dataset.deb;
+
+                // conteneur flex : bouton play + nom du locuteur
+                const header = document.createElement('div');
+                header.className = 'ligloc-header';
+
+                if (audioSrcUrl && deb !== undefined && deb !== '') {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-play-seg';
+                    btn.dataset.deb = deb;
+                    btn.title = SecToTime(Number(deb), true);
+                    btn.textContent = '\u25B6';
+                    header.appendChild(btn);
+                }
+
+                if (locNom) {
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'speaker-name';
+                    nameSpan.textContent = locNom;
+                    header.appendChild(nameSpan);
+                }
+
+                if (header.children.length > 0) {
+                    seg.parentNode.insertBefore(header, seg);
+                }
+            });
+
+            // --- 2. Strip thematic classes if not requested ---
+            if (!opts.thm) {
+                tempDiv.querySelectorAll('span').forEach(span => {
+                    Array.from(span.classList)
+                        .filter(c => c.startsWith('cat_'))
+                        .forEach(c => span.classList.remove(c));
+                });
+            }
+
+            // --- 3. Remove time data if not requested ---
+            if (!opts.time) {
+                tempDiv.querySelectorAll('[data-deb], [data-fin]').forEach(el => {
+                    delete el.dataset.deb;
+                    delete el.dataset.fin;
+                });
+            }
+
+            // --- 4. Generate thematic CSS ---
+            let cssThm = '';
+            if (opts.thm) {
+                const thmMap = {};
+                (tabThm || []).forEach(t => { thmMap[t.code] = t; });
+
+                // Règles mono-catégorie
+                (tabThm || []).forEach(thm => {
+                    if (!thm.couleur) return;
+                    const gradient = `linear-gradient(rgba(0,0,0,0) 60%, ${thm.couleur}60 95%, ${thm.couleur} 100%)`;
+                    const fontRule = thm.taille && parseFloat(thm.taille) > 18 ? `font-size: ${thm.taille}; font-weight: bold;` : '';
+                    cssThm += `.${thm.code} { background-image: ${gradient}; padding-bottom: 4px; ${fontRule} }\n`;
+                });
+
+                // Règles multi-catégories (logique multiThm)
+                const EPAISSEUR = 10;
+                const multiCombos = new Map();
+                tempDiv.querySelectorAll('span').forEach(span => {
+                    const cats = Array.from(span.classList).filter(c => c.startsWith('cat_'));
+                    if (cats.length > 1) {
+                        const key = cats.map(c => '.' + c).join('');
+                        if (!multiCombos.has(key)) multiCombos.set(key, cats);
+                    }
+                });
+                multiCombos.forEach((cats, combo) => {
+                    const nbcats = cats.length;
+                    const seuildep = 90 - (nbcats - 1) * EPAISSEUR;
+                    const thm1 = thmMap[cats[0]];
+                    if (!thm1 || !thm1.couleur) return;
+                    const coul1 = thm1.couleur;
+                    let chainecoul = '';
+                    for (let c = 1; c < cats.length; c++) {
+                        const thmc = thmMap[cats[c]];
+                        if (!thmc || !thmc.couleur) continue;
+                        const prog = seuildep + EPAISSEUR * c;
+                        chainecoul += `, white ${prog}%, white ${prog + 3}%, ${thmc.couleur} ${prog + 3}%, ${thmc.couleur} ${prog + EPAISSEUR}%`;
+                    }
+                    const bg = `linear-gradient(rgba(0,0,0,0) 50%, ${coul1}60 ${seuildep}%, ${coul1} ${seuildep + 7}%${chainecoul})`;
+                    cssThm += `${combo} { background-image: ${bg}; line-height: ${1.5 + 0.05 * nbcats}em; }\n`;
+                });
+            }
+
+            // --- 5. Optional sections ---
+            let txtvarsHtmlExp = '';
+            if (opts.vars) {
+                const [varsH] = await varsPubliquesEnt(ent_cur);
+                if (varsH) txtvarsHtmlExp = `\n  <section class="section-vars">\n    <h3>Variables</h3>\n    ${varsH}\n  </section>`;
+            }
+            let txtNotesHtmlExp = '';
+            if (opts.notes) {
+                const notesElem = document.getElementById('txtnotes');
+                const notesText = (notesElem && notesElem.value) ? notesElem.value : (ent.notes || '');
+                if (notesText) {
+                    const txt = notesText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    txtNotesHtmlExp = `\n  <section class="section-notes">\n    <h3>Notes</h3>\n    <p>${txt}</p>\n  </section>`;
+                }
+            }
+
+            // --- 6. Audio player block ---
+            const audioBlockHtml = audioSrcUrl ? `
+  <div class="audio-player-wrapper">
+    <audio id="audio-export" controls src="${audioSrcUrl.replace(/"/g, '&quot;')}">
+      Votre navigateur ne supporte pas la lecture audio.
+    </audio>
+  </div>` : '';
+
+            // --- 7. Base CSS ---
+            const cssBase = `/* ============================================================
+   BASE — styles généraux
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #fafafa;
+  color: #323232;
+  padding: 30px 5%;
+  line-height: 1.5;
+}
+.audio-player-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fafafa;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+}
+.audio-player-wrapper audio { width: 100%; }
+.ent-header {
+  border-bottom: 2px solid #548dc1;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+}
+.ent-header h1 { color: #548dc1; font-size: 1.8em; margin-bottom: 4px; }
+.ent-meta { color: #999; font-size: 0.85em; }
+.section-notes, .section-vars {
+  background: #f4f4f4;
+  border-left: 4px solid #548dc1;
+  border-radius: 3px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.section-notes h3, .section-vars h3 {
+  color: #548dc1;
+  margin-bottom: 8px;
+  font-size: 1em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.section-notes p { white-space: pre-wrap; }
+.var-pub { display: inline-block; margin-right: 14px; margin-bottom: 6px; font-size: 0.9em; }
+#ent-contenu {
+  line-height: 1.5rem;
+  padding-bottom: 20px;
+  margin-top: 8px;
+}
+.lblseg { font-size: 18px; margin-right: 3px; margin-bottom: 1px; color: #323232; }
+.qst { font-style: italic; font-weight: bold; color: rgb(76,76,77); }
+.ligloc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 18px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(to right, #83838373, #f9f9f9) 1;
+  margin-bottom: 3px;
+}
+.speaker-name {
+  color: #838383;
+  font-style: italic;
+  font-weight: 100;
+}
+.btn-play-seg {
+  background: none;
+  border: 1px solid #548dc1;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  color: #548dc1;
+  font-size: 0.65em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+.btn-play-seg:hover { background: #548dc1; color: #fff; }
+.btn-play-seg.playing { background: #548dc1; color: #fff; }
+.ent-footer {
+  margin-top: 40px;
+  color: #bbb;
+  font-size: 0.8em;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}`;
+
+            // --- 8. Assemble final HTML ---
+            const nomEntExp = ent.nom.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const contenuFinalExp = tempDiv.innerHTML;
+
+            const htmlFinal = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${nomEntExp}</title>
+  <style>
+${cssBase}
+
+/* ============================================================
+   THÉMATIQUES — générées automatiquement par Sonal \u03C0
+   ============================================================ */
+${cssThm}  </style>
+</head>
+<body>
+  <header class="ent-header">
+    <h1>${nomEntExp}</h1>
+    <img src="https://www.sonal-info.com/img/icon.png" alt="Logo Sonal π" style="width: 40px; height: 40px; margin-right: 12px;float:left;padding-bottom:2px"></img>
+    <p class="ent-meta">Exporté par Sonal \u03C0 (v${window.versionSonal || ''}) le ${new Date().toLocaleString()}</p>
+  </header>
+${audioBlockHtml}
+${txtvarsHtmlExp}
+${txtNotesHtmlExp}
+  <div id="ent-contenu">
+    ${contenuFinalExp}
+  </div>
+  <footer class="ent-footer">Sonal \u03C0</footer>
+  <script>
+    document.querySelectorAll('.btn-play-seg').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var aud = document.getElementById('audio-export');
+        if (!aud) return;
+        aud.currentTime = parseFloat(btn.dataset.deb);
+        aud.play();
+        document.querySelectorAll('.btn-play-seg.playing').forEach(function(b) { b.classList.remove('playing'); });
+        btn.classList.add('playing');
+        aud.addEventListener('pause', function() { btn.classList.remove('playing'); }, { once: true });
+      });
+    });
+  <\/script>
+</body>
+</html>`;
+
+            SauvegarderSurDisque(htmlFinal, detailsf[1] + suffixeAnon + '.html', 'UTF-8');
             break;
+        }
 
         case 'docx':
             alert('Export .docx non encore implemente.');

@@ -1147,7 +1147,8 @@ height: 45px;
     float: right;
     padding: 5px;
     position: absolute;
-    right: 5px;
+    right: -10px;
+    width: 35px;
 }
 
 .fenent-contenu {

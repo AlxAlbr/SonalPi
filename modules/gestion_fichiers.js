@@ -1133,6 +1133,14 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
         console.error('Erreur lors de la sauvegarde :', result.error);
     }
 
+    // Ouvrir le fichier créé avec l'application par défaut (sauf .Sonal)
+    if (result.success && result.filePath) {
+        const ext = result.filePath.split('.').pop().toLowerCase();
+        if (ext !== 'sonal') {
+            window.electronAPI.openPath(result.filePath);
+        }
+    }
+
     return result;
 }
     

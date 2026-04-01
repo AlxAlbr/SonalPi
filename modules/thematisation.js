@@ -1398,7 +1398,7 @@ function selModifThm(tabThm, thm){ // sélection d'une catégorie pour modificat
             document.getElementById("chkcatpol").checked = true;
             document.querySelector(".lblTaillePol").innerText = taillepol;
             document.querySelector(".lblTaillePol").style.fontSize = taillepol;
-            taille_cur = taillepol;
+            taille_cur = parseInt(taillepol) || 16; // Valeur par défaut si la conversion échoue
         } else {
 
             console.log("pas de taille de police" + taille_def)

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -595,6 +595,20 @@ ipcMain.handle('dialog:saveFile', async (event, { filename, content, encoding })
   }
 });
 
+// Ouvrir un fichier avec l'application par défaut du système
+ipcMain.handle('open-path', async (event, filePath) => {
+  try {
+    const err = await shell.openPath(filePath);
+    if (err) {
+      console.error('shell.openPath error:', err);
+      return { success: false, error: err };
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // Handler pour sauvegarder sur le serveur
 ipcMain.handle('sauvegarder-sur-serveur', async (event, filePath, content) => {
   console.log('💾 Demande de sauvegarde sur serveur');
@@ -1053,7 +1067,7 @@ function editerCategories(parentWindow) {
 
     // chargement de la fenêtre edition_categories.html
     catWindow.loadFile('edition_categories.html');
-    //catWindow.webContents.openDevTools();
+    catWindow.webContents.openDevTools();
     // Retirer le menu de la fenêtre modale
     catWindow.setMenu(null);
 
@@ -1124,7 +1138,7 @@ async function editerEntretien(parentWindow, rgEnt){
 
     // chargement de la fenêtre edition_categories.html
     entWindow.loadFile('edition_entretien.html');
-    //entWindow.webContents.openDevTools();
+    entWindow.webContents.openDevTools();
     // Retirer le menu de la fenêtre modale
     entWindow.setMenu(null);
     flouterSousModale(mainWindow);
@@ -2197,7 +2211,7 @@ app.on('ready', () => {
       }
     });
 
-    //mainWindow.webContents.openDevTools(); 
+    mainWindow.webContents.openDevTools(); 
 
 
 

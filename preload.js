@@ -177,7 +177,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onRefreshCanvas: (callback) =>
     ipcRenderer.on('refresh-canvas', (event, rkEnt) => callback(rkEnt)),
 
-  
+  // Ouvrir un fichier avec l'application par défaut du système
+  openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
 
 });
 
