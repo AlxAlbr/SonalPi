@@ -2004,11 +2004,13 @@ function dialog(type){
                 <div style="width:50%; padding:0px 20px 20px; box-sizing:border-box;">
                     <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
                     <div class="menudrlnt">
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Texte, catégories, métadonnées</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
+                        
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web lisible (contient tout le codage + lien vers le fichier son)</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut format universel </span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('srt')"><label class="lblformat">.srt</label> <span class="lbldetails">Sous-titres SRT</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('vtt')"><label class="lblformat">.vtt</label> <span class="lbldetails">Sous-titres WebVTT</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web annotée</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Copie du fichier courant (pour sauvegarde ou export vers un autre projet)</span></div>
+                        
                        <!--  <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte</span></div> !-->
                     </div>
                 </div>

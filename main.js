@@ -1067,7 +1067,7 @@ function editerCategories(parentWindow) {
 
     // chargement de la fenêtre edition_categories.html
     catWindow.loadFile('edition_categories.html');
-    catWindow.webContents.openDevTools();
+    //catWindow.webContents.openDevTools();
     // Retirer le menu de la fenêtre modale
     catWindow.setMenu(null);
 
@@ -1138,7 +1138,7 @@ async function editerEntretien(parentWindow, rgEnt){
 
     // chargement de la fenêtre edition_categories.html
     entWindow.loadFile('edition_entretien.html');
-    entWindow.webContents.openDevTools();
+    // entWindow.webContents.openDevTools();
     // Retirer le menu de la fenêtre modale
     entWindow.setMenu(null);
     flouterSousModale(mainWindow);
@@ -2211,7 +2211,7 @@ app.on('ready', () => {
       }
     });
 
-    mainWindow.webContents.openDevTools(); 
+   // mainWindow.webContents.openDevTools(); 
 
 
 

@@ -2237,6 +2237,19 @@ async function exportEntretien(format) {
                 });
             }
 
+            // --- 2b. Add title attributes on themed spans ---
+            if (opts.thm) {
+                const thmTitleMap = {};
+                (tabThm || []).forEach(t => { thmTitleMap[t.code] = splitNomThm(t.nom)[0]; });
+                tempDiv.querySelectorAll('span').forEach(span => {
+                    const cats = Array.from(span.classList).filter(c => c.startsWith('cat_'));
+                    if (cats.length > 0) {
+                        const noms = cats.map(c => thmTitleMap[c]).filter(n => n);
+                        if (noms.length > 0) span.title = noms.join(', \n');
+                    }
+                });
+            }
+
             // --- 3. Remove time data if not requested ---
             if (!opts.time) {
                 tempDiv.querySelectorAll('[data-deb], [data-fin]').forEach(el => {
@@ -2253,10 +2266,10 @@ async function exportEntretien(format) {
 
                 // Règles mono-catégorie
                 (tabThm || []).forEach(thm => {
-                    if (!thm.couleur) return;
-                    const gradient = `linear-gradient(rgba(0,0,0,0) 60%, ${thm.couleur}60 95%, ${thm.couleur} 100%)`;
+                    if (!thm.couleur && !thm.taille) return;
+                    const gradientRule = thm.couleur ? `background-image: linear-gradient(rgba(0,0,0,0) 60%, ${thm.couleur}60 95%, ${thm.couleur} 100%); padding-bottom: 4px;` : '';
                     const fontRule = thm.taille && parseFloat(thm.taille) > 18 ? `font-size: ${thm.taille}; font-weight: bold;` : '';
-                    cssThm += `.${thm.code} { background-image: ${gradient}; padding-bottom: 4px; ${fontRule} }\n`;
+                    cssThm += `.${thm.code} { ${gradientRule} ${fontRule} }\n`;
                 });
 
                 // Règles multi-catégories (logique multiThm)
@@ -2300,6 +2313,23 @@ async function exportEntretien(format) {
                 if (notesText) {
                     const txt = notesText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     txtNotesHtmlExp = `\n  <section class="section-notes">\n    <h3>Notes</h3>\n    <p>${txt}</p>\n  </section>`;
+                }
+            }
+
+            // --- 5b. Legend table ---
+            let legendHtml = '';
+            if (opts.thm) {
+                const thmAvecCouleur = (tabThm || []).filter(t => t.code && (t.couleur || (t.taille && parseFloat(t.taille) > 18)));
+                if (thmAvecCouleur.length > 0) {
+                    const lignes = thmAvecCouleur.map(t => {
+                        const nom  = splitNomThm(t.nom)[0].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        const desc = splitNomThm(t.nom)[1].replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        const swatch = t.couleur
+                            ? `<span class="legend-swatch" style="background:${t.couleur}"></span>`
+                            : `<span class="legend-swatch legend-swatch-size" style="font-size:${t.taille || ''}px;font-weight:bold">A</span>`;
+                        return `      <tr><td>${swatch}</td><td class="legend-name">${nom}</td><td class="legend-desc">${desc}</td></tr>`;
+                    }).join('\n');
+                    legendHtml = `\n  <section class="section-legend">\n    <h3>Thématiques</h3>\n    <table class="legend-table"><tbody>\n${lignes}\n    </tbody></table>\n  </section>`;
                 }
             }
 
@@ -2401,6 +2431,41 @@ body {
   font-size: 0.8em;
   border-top: 1px solid #eee;
   padding-top: 10px;
+}
+.section-legend {
+  background: #f4f4f4;
+  border-left: 4px solid #548dc1;
+  border-radius: 3px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.section-legend h3 {
+  color: #548dc1;
+  margin-bottom: 10px;
+  font-size: 1em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.legend-table { border-collapse: collapse; }
+.legend-table td { padding: 3px 10px 3px 0; vertical-align: middle; }
+.legend-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.legend-name { font-weight: 500; }
+.legend-desc { color: #777; font-size: 0.9em; }
+.legend-swatch-size {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: none;
+  border-radius: 0;
+  color: #323232;
 }`;
 
             // --- 8. Assemble final HTML ---
@@ -2428,8 +2493,9 @@ ${cssThm}  </style>
     <p class="ent-meta">Exporté par Sonal \u03C0 (v${window.versionSonal || ''}) le ${new Date().toLocaleString()}</p>
   </header>
 ${audioBlockHtml}
-${txtvarsHtmlExp}
 ${txtNotesHtmlExp}
+${txtvarsHtmlExp}
+${legendHtml}
   <div id="ent-contenu">
     ${contenuFinalExp}
   </div>
