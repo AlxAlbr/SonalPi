@@ -50,6 +50,7 @@ class GitLabAPI {
     try {
       const data = await this._request('GET', `/api/v4/user`);
       console.log('✅ Connecté en tant que:', data.username);
+      this.currentUser = { name: data.name, username: data.username, id: data.id };
       return { success: true, data };
     } catch (error) {
       console.error('❌ Test connexion échoué:', error.message);
@@ -282,11 +283,17 @@ class GitLabAPI {
       return { success: true, readOnly: false, wasLocked: false };
 
     } catch (error) {
-      // 409 Conflict = déjà verrouillé par quelqu'un d'autre
+      // 409 Conflict = fichier déjà verrouillé
       if (error.statusCode === 409) {
-        const lockedBy = error.data?.lock?.owner?.name || null;
-        console.warn('⚠️ Fichier déjà verrouillé par:', lockedBy);
-        return { success: true, readOnly: true, lockedBy };
+        const lockOwnerName = error.data?.lock?.owner?.name || null;
+        // Si c'est l'utilisateur courant qui a ce verrou (session précédente crash),
+        // on le laisse réouvrir — le verrou est déjà le sien
+        if (this.currentUser && lockOwnerName === this.currentUser.name) {
+          console.log('🔒 Verrou retrouvé (même utilisateur) — réouverture autorisée');
+          return { success: true, readOnly: false, wasLocked: true };
+        }
+        console.warn('⚠️ Fichier verrouillé par:', lockOwnerName);
+        return { success: true, readOnly: true, lockedBy: lockOwnerName };
       }
       console.error('❌ Erreur verrouillage:', error);
       return { success: false, readOnly: true, error: error.message };

@@ -1147,32 +1147,54 @@ async function editerEntretien(parentWindow, rgEnt){
         // définition de l'adresse du fichier distant
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
         //verrouillage
-        await remoteAPI().verrouillerFichier(adrFile)
-        .then((result) => {
-          if (!result.success) {
-            // Le fichier est verrouillé par un autre utilisateur
+        try {
+          const lockResult = await remoteAPI().verrouillerFichier(adrFile);
+          if (lockResult.readOnly) {
+            // Fichier déjà verrouillé par quelqu'un d'autre (409)
             dialog.showMessageBox(parentWindow, {
               type: 'warning',
               title: 'Fichier verrouillé',
-              message: `L'entretien est actuellement édité par ${result.lockInfo.user}. Vous ne pouvez pas l'éditer pour le moment.`,
+              message: `L'entretien est actuellement édité par ${lockResult.lockedBy || 'un autre utilisateur'}. Vous ne pouvez pas l'éditer pour le moment.`,
               buttons: ['OK']
             });
-            entWindow.close(); // fermer la fenêtre d'édition
-            return; 
+            entWindow.close();
+          } else if (!lockResult.success) {
+            // Erreur API ou réseau : proposer lecture seule ou annulation
+            console.warn('⚠️ Verrouillage impossible :', lockResult.error);
+            const { response } = await dialog.showMessageBox(parentWindow, {
+              type: 'warning',
+              title: 'Verrouillage impossible',
+              message: `Impossible de verrouiller l'entretien (${lockResult.error || 'erreur réseau'}).\n\nSans verrou, d'autres utilisateurs pourraient modifier ce fichier en même temps.`,
+              buttons: ['Ouvrir en lecture seule', 'Annuler'],
+              defaultId: 0,
+              cancelId: 1,
+            });
+            if (response === 1) {
+              entWindow.close();
+            } else {
+              entWindow.webContents.send('fichier-lecture-seule', {
+                message: 'Ouvert en lecture seule (verrouillage indisponible)',
+              });
+            }
           }
- 
-        })
-        .catch((error) => {
-          console.error('Erreur lors du verrouillage du fichier :', error);
-          dialog.showMessageBox(parentWindow, {
-            type: 'error',
-            title: 'Erreur',
-            message: `Une erreur est survenue lors du verrouillage de l'entretien.`,
-            buttons: ['OK']
+        } catch (error) {
+          console.error('Erreur inattendue lors du verrouillage :', error);
+          const { response } = await dialog.showMessageBox(parentWindow, {
+            type: 'warning',
+            title: 'Verrouillage impossible',
+            message: `Une erreur inattendue empêche le verrouillage.\n\nSans verrou, d'autres utilisateurs pourraient modifier ce fichier en même temps.`,
+            buttons: ['Ouvrir en lecture seule', 'Annuler'],
+            defaultId: 0,
+            cancelId: 1,
           });
-          entWindow.close(); // fermer la fenêtre d'édition
-          return; 
-        });
+          if (response === 1) {
+            entWindow.close();
+          } else {
+            entWindow.webContents.send('fichier-lecture-seule', {
+              message: 'Ouvert en lecture seule (verrouillage indisponible)',
+            });
+          }
+        }
       }
 
     });
