@@ -526,7 +526,8 @@ class GitLabAPI {
         path: urlObj.pathname + urlObj.search,
         method: method,
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
+          // GitLab LFS attend une auth Basic : "oauth2:<token>"
+          'Authorization': `Basic ${Buffer.from(`oauth2:${this.accessToken}`).toString('base64')}`,
           'User-Agent': 'SonalPi/1.0',
           'Accept': 'application/vnd.git-lfs+json',
         },
