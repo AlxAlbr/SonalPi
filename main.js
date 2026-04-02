@@ -1682,16 +1682,37 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
       // Token peut-être expiré → essayer de rafraîchir
       if (token.refresh_token) {
         console.log('🔄 Token expiré, tentative de rafraîchissement...');
-        const newToken = await oauth.refreshToken(token.refresh_token);
-        oauth.saveToken(storageDir, tokenKey, newToken);
-        gitlabAPI = new GitLabAPI(instanceUrl, projectPath, newToken.access_token);
-        // Vérifier que le nouveau token est valide (et initialiser currentUser)
-        const testApresRefresh = await gitlabAPI.testerConnexion();
-        if (!testApresRefresh.success) {
-          throw new Error('Token rafraîchi invalide — reconnexion OAuth nécessaire');
+        try {
+          const newToken = await oauth.refreshToken(token.refresh_token);
+          oauth.saveToken(storageDir, tokenKey, newToken);
+          gitlabAPI = new GitLabAPI(instanceUrl, projectPath, newToken.access_token);
+          const testApresRefresh = await gitlabAPI.testerConnexion();
+          if (!testApresRefresh.success) {
+            throw new Error('Token rafraîchi invalide');
+          }
+        } catch (refreshError) {
+          // Token révoqué, expiré ou redirect_uri incompatible → supprimer et relancer OAuth
+          console.warn('⚠️ Refresh échoué, suppression du token et relance OAuth:', refreshError.message);
+          oauth.deleteToken(storageDir, tokenKey);
+          token = await oauth.authenticate();
+          oauth.saveToken(storageDir, tokenKey, token);
+          gitlabAPI = new GitLabAPI(instanceUrl, projectPath, token.access_token);
+          const testApresOAuth = await gitlabAPI.testerConnexion();
+          if (!testApresOAuth.success) {
+            throw new Error('Connexion impossible après nouvelle authentification');
+          }
         }
       } else {
-        throw new Error('Token invalide et pas de refresh_token disponible');
+        // Pas de refresh_token → supprimer le token invalide et relancer OAuth
+        console.warn('⚠️ Token invalide sans refresh_token — relance OAuth');
+        oauth.deleteToken(storageDir, tokenKey);
+        token = await oauth.authenticate();
+        oauth.saveToken(storageDir, tokenKey, token);
+        gitlabAPI = new GitLabAPI(instanceUrl, projectPath, token.access_token);
+        const testApresOAuth = await gitlabAPI.testerConnexion();
+        if (!testApresOAuth.success) {
+          throw new Error('Connexion impossible après nouvelle authentification');
+        }
       }
     }
 
