@@ -343,9 +343,9 @@ ipcMain.handle('file:readContent', async (_, filePath) => {
     }
   } else {
     try {
-      // attendre le téléchargement et renvoyer une string décodée
-      const result =  await serveurAPI.lireFichier(filePath);
-       
+      const api = remoteAPI();
+      if (!api) throw new Error('Aucune API distante initialisée');
+      const result = await api.lireFichier(filePath);
       return result.content;
     } catch (err) {
       console.error('Erreur lecture fichier distant :', err);
@@ -382,11 +382,12 @@ ipcMain.handle('file:getMetadata', async (_, filePath) => {
       };
     } else {
       // Fichier distant
-      if (!serveurAPI) {
+      const api = remoteAPI();
+      if (!api) {
         return { success: false, error: 'Pas de connexion au serveur' };
       }
-      
-      const result = await serveurAPI.lireFichier(filePath);
+
+      const result = await api.lireFichier(filePath);
       if (result.success) {
         return {
           success: true,
