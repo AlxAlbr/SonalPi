@@ -32,10 +32,15 @@ class GitLabAPI {
     // Base de l'API REST v4
     this.apiBase = `${this.instanceUrl}/api/v4/projects/${this.projectId}`;
 
+    // Base de l'API LFS (protocole Git LFS standard)
+    // https://instance/groupe/projet.git/info/lfs
+    this.lfsBase = `${this.instanceUrl}/${projectPath}.git/info/lfs`;
+
     console.log('📦 GitLabAPI créé:');
     console.log('   Instance:', this.instanceUrl);
     console.log('   Projet:', this.projectPath);
     console.log('   Branche:', this.branch);
+    console.log('   LFS Base:', this.lfsBase);
   }
 
   // ──────────────────────────────────────────────
@@ -179,10 +184,6 @@ class GitLabAPI {
     const REGLES_LFS = [
       '*.sonal filter=lfs diff=lfs merge=lfs -text',
     ];
-    // Règle à supprimer si elle était présente dans une version précédente
-    const REGLES_OBSOLETES = [
-      '*.crp filter=lfs diff=lfs merge=lfs -text',
-    ];
 
     console.log('📋 Vérification .gitattributes...');
     try {
@@ -194,30 +195,23 @@ class GitLabAPI {
         if (result.success) contenuActuel = result.content;
       }
 
-      // Retirer les règles obsolètes (*.crp en LFS)
-      let contenuNettoye = contenuActuel;
-      for (const regle of REGLES_OBSOLETES) {
-        contenuNettoye = contenuNettoye.split('\n').filter(l => l.trim() !== regle).join('\n');
-      }
-      // Normaliser : pas de double saut de ligne, terminer par \n
-      contenuNettoye = contenuNettoye.replace(/\n{3,}/g, '\n\n').replace(/\n*$/, '\n');
+      const reglesManquantes = REGLES_LFS.filter(r => !contenuActuel.includes(r));
 
-      const reglesManquantes = REGLES_LFS.filter(r => !contenuNettoye.includes(r));
-      const reglesSupprimees = REGLES_OBSOLETES.some(r => contenuActuel.includes(r));
-
-      if (reglesManquantes.length === 0 && !reglesSupprimees) {
+      if (reglesManquantes.length === 0) {
         console.log('   ✅ .gitattributes déjà à jour');
         return false;
       }
 
-      const separateur = contenuNettoye.length > 1 && !contenuNettoye.endsWith('\n') ? '\n' : '';
-      const nouveauContenu = contenuNettoye + separateur + reglesManquantes.join('\n') + (reglesManquantes.length ? '\n' : '');
+      // Normaliser : terminer par \n
+      let contenu = contenuActuel.replace(/\n*$/, '\n');
+      const separateur = contenu.length > 1 && !contenu.endsWith('\n') ? '\n' : '';
+      const nouveauContenu = contenu + separateur + reglesManquantes.join('\n') + '\n';
 
       const method = exists ? 'PUT' : 'POST';
       const body = {
         branch: this.branch,
         content: nouveauContenu,
-        commit_message: '[SonalPi] Mise à jour LFS : *.sonal uniquement (retrait *.crp)',
+        commit_message: '[SonalPi] Mise à jour LFS : *.sonal uniquement',
         encoding: 'text',
       };
       await this._request(method, `/repository/files/${this._encodePath(GITATTRIBUTES_PATH)}`, body);
@@ -338,10 +332,10 @@ class GitLabAPI {
     try {
       const body = {
         path: filePath,
-        ref: { name: this.branch },
+        ref: { name: `refs/heads/${this.branch}` },
       };
 
-      const result = await this._request('POST', `/lfs/locks`, body);
+      const result = await this._requestLFS('POST', `/locks`, body);
 
       console.log('✅ Fichier verrouillé, lock id:', result.lock?.id);
       return { success: true, readOnly: false, wasLocked: false };
@@ -363,9 +357,18 @@ class GitLabAPI {
         console.warn('⚠️ Fichier verrouillé par:', lockOwnerName);
         return { success: true, readOnly: true, lockedBy: lockOwnerName };
       }
+      // 404 = LFS Locks non disponible (LFS pas activé sur le projet)
+      // → lecture seule + flag pour affichage UI
+      if (error.statusCode === 404 || error.statusCode === 403) {
+        console.warn('⚠️ LFS Locks non disponible — fichier en lecture seule');
+        return {
+          success: true,
+          readOnly: true,
+          lfsUnavailable: true,
+          lockedBy: null,
+        };
+      }
       console.error('❌ Erreur verrouillage:', error);
-      // Ne PAS mettre readOnly: true pour une erreur générique (réseau, API…)
-      // Sinon toute erreur est affichée comme "fichier verrouillé"
       return { success: false, readOnly: false, error: error.message };
     }
   }
@@ -385,12 +388,21 @@ class GitLabAPI {
         return { success: true };
       }
 
-      // 2. Supprimer le lock
-      await this._request('DELETE', `/lfs/locks/${lockId}`, {});
+      // 2. Supprimer le lock (protocole LFS : POST /locks/:id/unlock)
+      const body = {
+        force: false,
+        ref: { name: `refs/heads/${this.branch}` },
+      };
+      await this._requestLFS('POST', `/locks/${lockId}/unlock`, body);
 
       console.log('✅ Verrou supprimé');
       return { success: true };
     } catch (error) {
+      // 404 = LFS Locks non disponible — rien à déverrouiller
+      if (error.statusCode === 404 || error.statusCode === 403) {
+        console.warn('⚠️ LFS Locks non disponible — déverrouillage ignoré');
+        return { success: true };
+      }
       console.error('❌ Erreur déverrouillage:', error);
       return { success: false, error: error.message };
     }
@@ -404,7 +416,7 @@ class GitLabAPI {
     console.log('🔍 Vérification verrou LFS:', filePath);
     try {
       const params = new URLSearchParams({ path: filePath });
-      const data = await this._request('GET', `/lfs/locks?${params}`);
+      const data = await this._requestLFS('GET', `/locks?${params}`);
       const locks = data.locks || [];
 
       if (locks.length === 0) {
@@ -422,6 +434,11 @@ class GitLabAPI {
       return { success: true, locked: true, lockInfo };
 
     } catch (error) {
+      // 404/403 = LFS Locks non disponible
+      if (error.statusCode === 404 || error.statusCode === 403) {
+        console.warn('⚠️ LFS Locks non disponible');
+        return { success: true, locked: false, lockInfo: null };
+      }
       console.error('❌ Erreur vérification verrou:', error);
       return { success: false, error: error.message };
     }
@@ -488,9 +505,97 @@ class GitLabAPI {
    */
   async _trouverLockId(filePath) {
     const params = new URLSearchParams({ path: filePath });
-    const data = await this._request('GET', `/lfs/locks?${params}`);
+    const data = await this._requestLFS('GET', `/locks?${params}`);
     const locks = data.locks || [];
     return locks.length > 0 ? locks[0].id : null;
+  }
+
+  /**
+   * Requête HTTPS vers l'API Git LFS (protocole standard).
+   * URL de base : https://instance/projet.git/info/lfs
+   * Headers spécifiques : Accept/Content-Type application/vnd.git-lfs+json
+   */
+  _requestLFS(method, endpoint, body = null) {
+    return new Promise((resolve, reject) => {
+      const fullUrl = `${this.lfsBase}${endpoint}`;
+      const urlObj = new URL(fullUrl);
+
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: method,
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'User-Agent': 'SonalPi/1.0',
+          'Accept': 'application/vnd.git-lfs+json',
+        },
+        rejectUnauthorized: false,
+        agent: false,
+      };
+
+      let bodyBuffer = null;
+      if (body !== null && ['POST', 'PUT', 'DELETE'].includes(method)) {
+        bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
+        options.headers['Content-Type'] = 'application/vnd.git-lfs+json';
+        options.headers['Content-Length'] = bodyBuffer.length;
+      }
+
+      console.log(`→ LFS ${method} ${fullUrl}`);
+
+      const req = https.request(options, (res) => {
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf8');
+
+          if (res.statusCode === 204) {
+            resolve({ success: true });
+            return;
+          }
+
+          let data;
+          try {
+            data = raw.length > 0 ? JSON.parse(raw) : {};
+          } catch {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve({ success: true, raw });
+              return;
+            }
+            const err = new Error(`HTTP ${res.statusCode}: réponse non-JSON`);
+            err.statusCode = res.statusCode;
+            reject(err);
+            return;
+          }
+
+          if (res.statusCode >= 400) {
+            const message = data.message || data.error || `HTTP ${res.statusCode}`;
+            const err = new Error(message);
+            err.statusCode = res.statusCode;
+            err.data = data;
+            reject(err);
+            return;
+          }
+
+          resolve(data);
+        });
+      });
+
+      req.on('error', (error) => {
+        console.error('❌ Erreur réseau LFS:', error);
+        reject(error);
+      });
+
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('Timeout LFS API'));
+      });
+
+      if (bodyBuffer) {
+        req.write(bodyBuffer);
+      }
+      req.end();
+    });
   }
 
   /**

@@ -1168,14 +1168,33 @@ async function editerEntretien(parentWindow, rgEnt){
               });
             }
           } else if (lockResult.readOnly) {
-            // Fichier déjà verrouillé par quelqu'un d'autre (409)
-            dialog.showMessageBox(parentWindow, {
-              type: 'warning',
-              title: 'Fichier verrouillé',
-              message: `L'entretien est actuellement édité par ${lockResult.lockedBy || 'un autre utilisateur'}. Vous ne pouvez pas l'éditer pour le moment.`,
-              buttons: ['OK']
-            });
-            entWindow.close();
+            if (lockResult.lfsUnavailable) {
+              // LFS non activé sur le projet GitLab → lecture seule + message d'aide
+              const { response } = await dialog.showMessageBox(parentWindow, {
+                type: 'warning',
+                title: 'LFS non activé',
+                message: `Le verrouillage des fichiers n'est pas disponible sur ce projet GitLab.\n\nPour l'activer :\n1. Allez dans Settings > General > Visibility, project features, permissions\n2. Activez « Git Large File Storage (LFS) »\n3. Sauvegardez\n\nEn attendant, le fichier est ouvert en lecture seule.`,
+                buttons: ['Ouvrir en lecture seule', 'Annuler'],
+                defaultId: 0,
+                cancelId: 1,
+              });
+              if (response === 1) {
+                entWindow.close();
+              } else {
+                entWindow.webContents.send('fichier-lecture-seule', {
+                  message: 'Lecture seule — LFS non activé sur le projet GitLab',
+                });
+              }
+            } else {
+              // Fichier déjà verrouillé par quelqu'un d'autre (409)
+              dialog.showMessageBox(parentWindow, {
+                type: 'warning',
+                title: 'Fichier verrouillé',
+                message: `L'entretien est actuellement édité par ${lockResult.lockedBy || 'un autre utilisateur'}. Vous ne pouvez pas l'éditer pour le moment.`,
+                buttons: ['OK']
+              });
+              entWindow.close();
+            }
           }
         } catch (error) {
           console.error('Erreur inattendue lors du verrouillage :', error);
