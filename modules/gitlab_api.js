@@ -350,9 +350,13 @@ class GitLabAPI {
       // 409 Conflict = fichier déjà verrouillé
       if (error.statusCode === 409) {
         const lockOwnerName = error.data?.lock?.owner?.name || null;
-        // Si c'est l'utilisateur courant qui a ce verrou (session précédente crash),
-        // on le laisse réouvrir — le verrou est déjà le sien
-        if (this.currentUser && lockOwnerName === this.currentUser.name) {
+        // Vérifier si c'est l'utilisateur courant (comparer name ET username,
+        // car GitLab peut retourner l'un ou l'autre selon la version/config)
+        const estMonVerrou = this.currentUser && lockOwnerName && (
+          lockOwnerName === this.currentUser.name ||
+          lockOwnerName === this.currentUser.username
+        );
+        if (estMonVerrou) {
           console.log('🔒 Verrou retrouvé (même utilisateur) — réouverture autorisée');
           return { success: true, readOnly: false, wasLocked: true };
         }
@@ -360,7 +364,9 @@ class GitLabAPI {
         return { success: true, readOnly: true, lockedBy: lockOwnerName };
       }
       console.error('❌ Erreur verrouillage:', error);
-      return { success: false, readOnly: true, error: error.message };
+      // Ne PAS mettre readOnly: true pour une erreur générique (réseau, API…)
+      // Sinon toute erreur est affichée comme "fichier verrouillé"
+      return { success: false, readOnly: false, error: error.message };
     }
   }
 

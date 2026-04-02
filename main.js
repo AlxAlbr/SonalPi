@@ -1149,16 +1149,7 @@ async function editerEntretien(parentWindow, rgEnt){
         //verrouillage
         try {
           const lockResult = await remoteAPI().verrouillerFichier(adrFile);
-          if (lockResult.readOnly) {
-            // Fichier déjà verrouillé par quelqu'un d'autre (409)
-            dialog.showMessageBox(parentWindow, {
-              type: 'warning',
-              title: 'Fichier verrouillé',
-              message: `L'entretien est actuellement édité par ${lockResult.lockedBy || 'un autre utilisateur'}. Vous ne pouvez pas l'éditer pour le moment.`,
-              buttons: ['OK']
-            });
-            entWindow.close();
-          } else if (!lockResult.success) {
+          if (!lockResult.success) {
             // Erreur API ou réseau : proposer lecture seule ou annulation
             console.warn('⚠️ Verrouillage impossible :', lockResult.error);
             const { response } = await dialog.showMessageBox(parentWindow, {
@@ -1176,6 +1167,15 @@ async function editerEntretien(parentWindow, rgEnt){
                 message: 'Ouvert en lecture seule (verrouillage indisponible)',
               });
             }
+          } else if (lockResult.readOnly) {
+            // Fichier déjà verrouillé par quelqu'un d'autre (409)
+            dialog.showMessageBox(parentWindow, {
+              type: 'warning',
+              title: 'Fichier verrouillé',
+              message: `L'entretien est actuellement édité par ${lockResult.lockedBy || 'un autre utilisateur'}. Vous ne pouvez pas l'éditer pour le moment.`,
+              buttons: ['OK']
+            });
+            entWindow.close();
           }
         } catch (error) {
           console.error('Erreur inattendue lors du verrouillage :', error);
