@@ -86,7 +86,7 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      margin-top: 14px;
+      margin-bottom: 18px;
       font-size: 12px;
       color: #57606a;
     }
@@ -157,6 +157,11 @@
       <h2>Ouvrir un corpus GitLab</h2>
     </div>
 
+    <p class="help-link">
+      ❓ Première connexion ?
+      <a href="#" id="help-link">Voir le guide de configuration GitLab</a>
+    </p>
+
     <form id="gitlab-form">
 
       <div class="form-group">
@@ -219,13 +224,11 @@
         <strong>Authentification OAuth 2.0</strong><br>
         En cliquant sur "Se connecter", votre navigateur s'ouvrira sur la page
         de connexion GitLab. Après validation, vous serez redirigé automatiquement
-        vers SonalPi.
+        vers SonalPi.<br><br>
+        ⚠️ Utilisez cette fonctionnalité uniquement sur un <strong>réseau de confiance</strong>
+        (réseau universitaire ou VPN). Évitez les réseaux Wi-Fi publics partagés
+        (cafés, hôtels, conférences).
       </div>
-
-      <p class="help-link">
-        ❓ Première connexion ?
-        <a href="#" id="help-link">Voir le guide de configuration GitLab</a>
-      </p>
 
       <div class="error" id="error-message"></div>
 

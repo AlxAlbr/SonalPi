@@ -1666,7 +1666,10 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
       }
     }
 
-    // 5. Lire le fichier corpus
+    // 5. S'assurer que .gitattributes contient les règles LFS pour .sonal et .crp
+    await gitlabAPI.initialiserGitattributes();
+
+    // 6. Lire le fichier corpus
     const result = await gitlabAPI.lireFichier(filePath);
 
     if (!result.success) {

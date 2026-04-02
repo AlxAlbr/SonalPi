@@ -167,6 +167,52 @@ class GitLabAPI {
   }
 
   /**
+   * Vérifie que .gitattributes contient les règles LFS pour *.sonal et *.crp.
+   * Crée ou complète le fichier si nécessaire.
+   * À appeler une fois après l'établissement de la connexion.
+   */
+  async initialiserGitattributes() {
+    const GITATTRIBUTES_PATH = '.gitattributes';
+    const REGLES_LFS = [
+      '*.sonal filter=lfs diff=lfs merge=lfs -text',
+      '*.crp filter=lfs diff=lfs merge=lfs -text',
+    ];
+
+    console.log('📋 Vérification .gitattributes...');
+    try {
+      const exists = await this.verifierExistence(GITATTRIBUTES_PATH);
+
+      let contenuActuel = '';
+      if (exists) {
+        const result = await this.lireFichier(GITATTRIBUTES_PATH);
+        if (result.success) contenuActuel = result.content;
+      }
+
+      const reglesManquantes = REGLES_LFS.filter(r => !contenuActuel.includes(r));
+      if (reglesManquantes.length === 0) {
+        console.log('   ✅ .gitattributes déjà à jour');
+        return;
+      }
+
+      const separateur = contenuActuel.length > 0 && !contenuActuel.endsWith('\n') ? '\n' : '';
+      const nouveauContenu = contenuActuel + separateur + reglesManquantes.join('\n') + '\n';
+
+      const method = exists ? 'PUT' : 'POST';
+      const body = {
+        branch: this.branch,
+        content: nouveauContenu,
+        commit_message: '[SonalPi] Initialisation LFS pour .sonal et .crp',
+        encoding: 'text',
+      };
+      await this._request(method, `/repository/files/${this._encodePath(GITATTRIBUTES_PATH)}`, body);
+      console.log('   ✅ .gitattributes mis à jour avec les règles LFS SonalPi');
+    } catch (error) {
+      // Non bloquant : on log mais on ne fait pas échouer la connexion
+      console.warn('   ⚠️ Impossible de mettre à jour .gitattributes:', error.message);
+    }
+  }
+
+  /**
    * Supprime un fichier — crée un commit Git
    */
   async supprimerFichier(filePath) {
