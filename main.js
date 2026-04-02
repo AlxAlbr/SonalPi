@@ -1143,7 +1143,7 @@ async function editerEntretien(parentWindow, rgEnt){
       if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
 
         // définition de l'adresse du fichier distant
-        let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].join('/');
+        let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
         //verrouillage
         await remoteAPI().verrouillerFichier(adrFile)
         .then((result) => {
@@ -1195,7 +1195,7 @@ async function editerEntretien(parentWindow, rgEnt){
        
       // déverrouiller le fichier sur le serveur
       if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
-        let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].join('/');
+        let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
         remoteAPI().deverrouillerFichier(adrFile)
       }
       deflouterSousModale(mainWindow);
@@ -1216,7 +1216,7 @@ ipcMain.handle('entretien-locked', async (event, rgEnt) => {
   
   if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
     try {
-      let adrFile = [Corpus.folder, tabEnt[rgEnt].rtrPath].join('/');
+      let adrFile = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
       const result = await remoteAPI().verifierVerrou(adrFile);
       
       if (!result.success) {
