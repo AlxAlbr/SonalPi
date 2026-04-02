@@ -1743,12 +1743,15 @@ function creerFenetreGitLab(parentWindow, prefill = null) {
       }
     });
 
-    ipcMain.once('gitlab-saisie-submit', (event, data) => {
+    const onSubmit = (_event, data) => {
       gitlabWindow.close();
       resolve(data);
-    });
+    };
+
+    ipcMain.once('gitlab-saisie-submit', onSubmit);
 
     gitlabWindow.on('closed', () => {
+      ipcMain.removeListener('gitlab-saisie-submit', onSubmit);
       deflouterSousModale(parentWindow);
       resolve(null);
     });
