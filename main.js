@@ -442,13 +442,14 @@ ipcMain.handle('file:exists', async (_, filePath) => {
       return exists;
     } else {
       // Fichier distant - utiliser verifierExistence (plus léger)
-      if (!serveurAPI) {
+      const api = remoteAPI();
+      if (!api) {
         console.log('  ❌ Distant: Pas de connexion au serveur');
         return false;
       }
-      
+
       try {
-        const exists = await serveurAPI.verifierExistence(filePath);
+        const exists = await api.verifierExistence(filePath);
         return exists;
       } catch (err) {
         console.log(`  ❌ Distant: Erreur - ${err.message}`);
@@ -1691,8 +1692,8 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
     Corpus.lastChange = new Date().toISOString();
     Corpus.type       = 'gitlab';
 
-    // Ajouter aux fichiers récents (réutilise le même mécanisme)
-    recentFilesManager.addRemoteCorpus(Corpus.url, fichProj);
+    // Ajouter aux fichiers récents avec type 'gitlab' et config pour pré-remplissage
+    recentFilesManager.addGitlabCorpus(Corpus.url, fichProj, { instanceUrl, projectPath, filePath, clientId });
 
     return { success: true, size: result.size, modified: result.modified };
 
@@ -2168,34 +2169,45 @@ class RecentFilesManager {
 
   addRemoteCorpus(url, name) {
     let recentFiles = store.get('recentFiles', []);
-    // Supprimer si déjà dans la liste
     recentFiles = recentFiles.filter(f => f.path !== url);
-    
     recentFiles.unshift({
       path: url,
       name: name,
       openedAt: new Date().toISOString(),
       type: 'remote'
     });
-    
     recentFiles = recentFiles.slice(0, this.maxFiles);
     store.set('recentFiles', recentFiles);
     this.updateMenu();
-    
+    return recentFiles;
+  }
+
+  addGitlabCorpus(url, name, config) {
+    let recentFiles = store.get('recentFiles', []);
+    recentFiles = recentFiles.filter(f => f.path !== url);
+    recentFiles.unshift({
+      path: url,
+      name: name,
+      openedAt: new Date().toISOString(),
+      type: 'gitlab',
+      config: config, // { instanceUrl, projectPath, filePath, clientId }
+    });
+    recentFiles = recentFiles.slice(0, this.maxFiles);
+    store.set('recentFiles', recentFiles);
+    this.updateMenu();
     return recentFiles;
   }
 
   getAll() {
     let recentFiles = store.get('recentFiles', []);
-    // Filtrer : garder les fichiers distants, vérifier l'existence des fichiers locaux
+    // Filtrer : garder les fichiers distants et gitlab, vérifier l'existence des fichiers locaux
     recentFiles = recentFiles.filter(file => {
-      if (file.type === 'remote') {
-        return true; // Garder les fichiers distants
+      if (file.type === 'remote' || file.type === 'gitlab') {
+        return true;
       }
-      return fs.existsSync(file.path); // Vérifier l'existence des fichiers locaux
+      return fs.existsSync(file.path);
     });
     store.set('recentFiles', recentFiles);
-    
     return recentFiles;
   }
 
@@ -2244,11 +2256,16 @@ class RecentFilesManager {
             subItem.submenu = recentFiles.length > 0 
               ? [
                   ...recentFiles.map(file => ({
-                    label: `${file.type === 'remote' ? '🌐 ' : ''}${file.name}`,
+                    label: `${file.type === 'remote' || file.type === 'gitlab' ? '🌐 ' : ''}${file.name}`,
                     //sublabel: file.path,
                     click: () => {
-                      if (file.type === 'remote') {
-                        // Ouvrir corpus distant avec l'URL pré-remplie
+                      if (file.type === 'gitlab') {
+                        ouvrirCorpusGitLab(mainWindow, file.config).then((result) => {
+                          if (result && result.success) {
+                            mainWindow.webContents.send('afficher-corpus', result);
+                          }
+                        });
+                      } else if (file.type === 'remote') {
                         ouvrirCorpusDistantAvecRetry(mainWindow, null, file.path).then((result) => {
                           if (result && result.success) {
                             mainWindow.webContents.send('afficher-corpus', result);
@@ -2262,7 +2279,7 @@ class RecentFilesManager {
                           }
                         });
                       }
-                    } 
+                    }
 
                   })),
                   { type: 'separator' },

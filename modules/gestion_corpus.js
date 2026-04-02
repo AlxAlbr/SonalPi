@@ -933,7 +933,7 @@ async function rafraichirCorpus() {
 
         console.log("vérification de la nécessité de rafraîchir l'entretien " + tabEnt[ent].nom + JSON.stringify(tabEnt[ent]));
             
-        let fich =  [Corpus.folder,tabEnt[ent].rtrPath].join('/');
+        let fich =  [Corpus.folder,tabEnt[ent].rtrPath].filter(Boolean).join('/');
 
         // récupération de la dernière date de modification
         let dateModif = await window.electronAPI.getLastModified(fich);

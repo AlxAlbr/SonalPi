@@ -1207,13 +1207,17 @@ async function displayRecentFiles() {
       const file = recentFiles[index];
       console.log('Ouverture de:', file.path, 'Type:', file.type);
       
-      if (file.type === 'remote') {
+      if (file.type === 'gitlab') {
+        // Ouvrir corpus GitLab avec la config pré-remplie
+        const result = await window.electronAPI.ouvrirCorpusGitLab(file.config);
+        if (result && result.success) {
+          window.electronAPI.onAfficherCorpus((corpus) => {});
+        }
+      } else if (file.type === 'remote') {
         // Ouvrir corpus distant avec l'URL pré-remplie
         const result = await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', file.path);
         if (result && result.success) {
-          window.electronAPI.onAfficherCorpus((corpus) => {
-            // Le renderer affichera le corpus
-          });
+          window.electronAPI.onAfficherCorpus((corpus) => {});
         }
       } else {
         // Ouvrir corpus local

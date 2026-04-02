@@ -313,7 +313,7 @@ async function loadHtml(rgDep, rgFin){
             if (Corpus.type == "local") {
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, tabEnt[e].rtrPath);
             } else {
-                cheminEnt = [Corpus.folder, tabEnt[e].rtrPath].join('/');      
+                cheminEnt = [Corpus.folder, tabEnt[e].rtrPath].filter(Boolean).join('/');
             }
 
             // 1bis - Vérification de l'existence du fichier de l'entretien
@@ -1102,7 +1102,7 @@ async function afficherDetailsEnt(rk){
         if (Corpus.type == "local") {
             cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
         } else {
-            cheminEnt = [Corpus.folder, ent.rtrPath].join('/');
+            cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
         }
 
         await window.electronAPI.getLastModified(cheminEnt).then(lastModified => {
@@ -1537,10 +1537,10 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
                 res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
             } else {
-                cheminEnt = [Corpus.folder, ent.rtrPath].join('/');    
-                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);  
+                cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
+                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
             }
-            
+
             console.log("4b - fichier de l'entretien sauvegardé :", res);
             if (!res) {
                 notifErreur("Le fichier de l'entretien n'a pas pu être sauvegardé sur le disque (chemin : " + cheminEnt + ").");
@@ -1597,8 +1597,8 @@ async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sona
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
                 const res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
             } else {
-                cheminEnt = [Corpus.folder, ent.rtrPath].join('/');    
-                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);  
+                cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
+                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
             }
             
               
