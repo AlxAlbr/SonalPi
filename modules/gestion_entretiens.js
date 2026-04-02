@@ -152,9 +152,9 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
             }
  
 
-        } else if (Corpus.type == "distant") {
+        } else if (Corpus.type == "distant" || Corpus.type == "gitlab") {
 
-            let cheminFichTxtA =  [Corpus.folder,nomFichTxtA].join('/');
+            let cheminFichTxtA = [Corpus.folder, nomFichTxtA].filter(Boolean).join('/');
             const res = await window.electronAPI.sauvegarderSurServeur(cheminFichTxtA, fichApresConversion);
             console.log('Résultat sauvegarde serveur:', res);
         }
@@ -230,7 +230,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
                 let imgEl = conteneurEnt.querySelector('.ligent-img');
                 let chemin = Corpus.type === 'local'
                     ? await window.electronAPI.createPath(Corpus.folder, fichImg)
-                    : [Corpus.folder, fichImg].join('/');
+                    : [Corpus.folder, fichImg].filter(Boolean).join('/');
                 if (imgEl) imgEl.src = chemin + '?t=' + Date.now();
             }
         }), 2000);
