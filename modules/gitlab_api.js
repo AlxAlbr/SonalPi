@@ -207,7 +207,7 @@ class GitLabAPI {
 
       if (reglesManquantes.length === 0 && !reglesSupprimees) {
         console.log('   ✅ .gitattributes déjà à jour');
-        return;
+        return false;
       }
 
       const separateur = contenuNettoye.length > 1 && !contenuNettoye.endsWith('\n') ? '\n' : '';
@@ -222,9 +222,58 @@ class GitLabAPI {
       };
       await this._request(method, `/repository/files/${this._encodePath(GITATTRIBUTES_PATH)}`, body);
       console.log('   ✅ .gitattributes mis à jour avec les règles LFS SonalPi');
+
+      // Migrer les fichiers .sonal existants vers LFS :
+      // les relire puis les réécrire pour que GitLab les stocke en LFS
+      // maintenant que .gitattributes est en place
+      await this._migrerSonalVersLFS();
+
+      return true;
     } catch (error) {
       // Non bloquant : on log mais on ne fait pas échouer la connexion
       console.warn('   ⚠️ Impossible de mettre à jour .gitattributes:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Relire puis réécrire les fichiers .sonal existants pour
+   * forcer leur stockage en LFS (après création de .gitattributes).
+   */
+  async _migrerSonalVersLFS() {
+    console.log('🔄 Migration des fichiers .sonal existants vers LFS...');
+    try {
+      const listing = await this._listerRecursif('');
+      const fichiersSonal = listing.filter(f => f.type === 'blob' && f.name.endsWith('.sonal'));
+
+      if (fichiersSonal.length === 0) {
+        console.log('   ℹ️ Aucun fichier .sonal à migrer');
+        return;
+      }
+
+      for (const fichier of fichiersSonal) {
+        try {
+          console.log(`   🔄 Migration LFS : ${fichier.path}`);
+          const result = await this.lireFichier(fichier.path);
+          if (!result.success) {
+            console.warn(`   ⚠️ Impossible de lire ${fichier.path}`);
+            continue;
+          }
+          // Réécrire le fichier — GitLab le stockera en LFS grâce à .gitattributes
+          const body = {
+            branch: this.branch,
+            content: result.content,
+            commit_message: `[SonalPi] Migration LFS ${fichier.path}`,
+            encoding: 'text',
+          };
+          await this._request('PUT', `/repository/files/${this._encodePath(fichier.path)}`, body);
+          console.log(`   ✅ ${fichier.path} migré en LFS`);
+        } catch (err) {
+          console.warn(`   ⚠️ Échec migration ${fichier.path}:`, err.message);
+        }
+      }
+    } catch (error) {
+      console.warn('   ⚠️ Impossible de lister les fichiers pour migration LFS:', error.message);
     }
   }
 

@@ -1716,9 +1716,10 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
       }
     }
 
-    // 5. S'assurer que .gitattributes contient les règles LFS (fire-and-forget,
-    //    non bloquant — la connexion ne doit pas attendre cette opération)
-    gitlabAPI.initialiserGitattributes();
+    // 5. S'assurer que .gitattributes contient les règles LFS
+    //    BLOQUANT : doit être terminé avant toute lecture/écriture de .sonal
+    //    pour que les fichiers soient bien stockés en LFS
+    await gitlabAPI.initialiserGitattributes();
 
     // 6. Lire le fichier corpus
     const result = await gitlabAPI.lireFichier(filePath);
