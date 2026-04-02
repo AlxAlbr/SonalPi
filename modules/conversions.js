@@ -308,7 +308,7 @@ async function convertTXT(content,ext) { // conversion du fichier TXT en tableau
         // Format A : lignes de timestamps  "00:01:30 [Locuteur]"
         // Format B : locuteur en ligne     "Speaker 1: texte..."  (pas de timestamp)
         const timeRegex  = /^(\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?)\s*(.*)$/;
-        const locInRegex = /^([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\s\-]{0,38}?)\s*:\s*(.+)$/;
+        const locInRegex = /^([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\/\-]*(?:[ \/\-][A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\/\-]*){0,2})\s*:\s*(.+)$/;
 
         let hasTimestamp = false;
         let hasLocInline = false;
@@ -319,11 +319,24 @@ async function convertTXT(content,ext) { // conversion du fichier TXT en tableau
             if (locInRegex.test(l)) { hasLocInline = true; }
         }
         const formatB = !hasTimestamp && hasLocInline;
+        const formatC = !hasTimestamp && !hasLocInline; // Format C : texte brut — un segment par paragraphe
+
+        // -------------------------------------------------------
+        // FORMAT C : texte brut (ex. .docx sans timestamps ni locuteurs)
+        // chaque ligne non vide → un segment
+        // -------------------------------------------------------
+        if (formatC) {
+
+            for (let s = 0; s < nblig; s++) {
+                let ligne = lignesFich[s].trim();
+                if (ligne.length < 1) { continue; }
+                tabSeg.push([null, 0, 0, 0, ligne, false, 0]);
+            }
 
         // -------------------------------------------------------
         // FORMAT B : "Speaker 1: texte" — un segment par prise de parole
         // -------------------------------------------------------
-        if (formatB) {
+        } else if (formatB) {
 
             for (s = 0; s < nblig; s++) {
                 let ligne = lignesFich[s].trim();

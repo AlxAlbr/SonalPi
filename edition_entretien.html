@@ -1270,9 +1270,7 @@ document.addEventListener("selectionchange", () => {
 // réaction aux sélections
 const fdsegs = document.getElementById("segments");
 fdsegs.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-        fdsegs.classList.remove("en-edition");
-    } else if (e.key !== " ") {
+    if (e.key !== "Enter" && e.key !== " ") {
         fdsegs.classList.add("en-edition");
     }
 });
@@ -1663,26 +1661,96 @@ document.addEventListener('keydown', (e) => {
             
             
             case "Enter" :
-             
  
                 event.preventDefault();
-                wait("Intégration des changements en cours. \n Merci de patienter quelques instants.");
-                setTimeout(() => {
-                    cleanHTML();
-                    endWait();
-                }, 50);
- 
-                seg_cur++
-                selSegment(seg_cur);
-                let segSuiv= getSeg(seg_cur);
-                
-                if (segSuiv){
-                segSuiv.focus()
+
+                if (fdsegs.classList.contains("en-edition")) {
+                    // Le contenu a été modifié : nettoyage du HTML
+                    fdsegs.classList.remove("en-edition");
+                    const segCurAvant = seg_cur;
+                    wait("Intégration des changements en cours. \n Merci de patienter quelques instants.");
+                    setTimeout(() => {
+                        cleanHTML();
+                        // Restauration du focus sur le segment édité (cleanHTML appelle déjà endWait)
+                        selSegment(segCurAvant);
+                        const segRestaure = getSeg(segCurAvant);
+                        if (segRestaure) {
+                            segRestaure.focus();
+                            // Curseur en fin du dernier enfant du segment reconstruit
+                            const dernier = segRestaure.lastChild;
+                            if (dernier) {
+                                const range = document.createRange();
+                                const sel = window.getSelection();
+                                range.setStartAfter(dernier);
+                                range.collapse(true);
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                            }
+                        }
+                    }, 50);
+                } else {
+                    // Pas de modification : scission du segment au curseur et insertion d'un nouveau segment vide
+                    const sel = window.getSelection();
+                    if (sel && sel.rangeCount > 0) {
+                        const cur = sel.getRangeAt(0).cloneRange();
+
+                        // Trouver le span .lblseg ancêtre du curseur
+                        let segActuel = cur.startContainer;
+                        while (segActuel && !(segActuel.nodeType === Node.ELEMENT_NODE && segActuel.classList.contains('lblseg'))) {
+                            segActuel = segActuel.parentNode;
+                        }
+
+                        if (segActuel) {
+                            // Extraire le contenu après le curseur
+                            let fragApres = null;
+                            if (segActuel.lastChild) {
+                                const rangeApres = cur.cloneRange();
+                                rangeApres.setEndAfter(segActuel.lastChild);
+                                fragApres = rangeApres.extractContents();
+                            }
+
+                            // Extraire ce qui reste dans segActuel (contenu avant le curseur)
+                            let fragAvant = null;
+                            if (segActuel.hasChildNodes()) {
+                                const rangeAvant = document.createRange();
+                                rangeAvant.selectNodeContents(segActuel);
+                                fragAvant = rangeAvant.extractContents();
+                            }
+
+                            // Construire les nouveaux segments (cloneNode préserve les attributs data-*, classes, etc.)
+                            const segAvant = segActuel.cloneNode(false);
+                            segAvant.classList.remove('segselected');
+                            if (fragAvant) segAvant.appendChild(fragAvant);
+
+                            const segNouveau = segActuel.cloneNode(false);
+                            segNouveau.classList.add('segselected');
+                            segNouveau.classList.remove('ligloc');
+                            segNouveau.innerText ='\u00A0'; 
+
+                            const segApres = segActuel.cloneNode(false);
+                            segApres.classList.remove('segselected');
+                            segApres.classList.remove('ligloc');
+                            if (fragApres) segApres.appendChild(fragApres);
+
+                            // Remplacer l'original (on n'insère segAvant / segApres que s'ils ont du contenu)
+                            const parent = segActuel.parentNode;
+                            if (segAvant.hasChildNodes()) parent.insertBefore(segAvant, segActuel);
+                            parent.insertBefore(segNouveau, segActuel);
+                            if (segApres.hasChildNodes()) parent.insertBefore(segApres, segActuel);
+                            segActuel.remove();
+
+                            // Placer le curseur dans le nouveau segment vide
+                            const newRange = document.createRange();
+                            newRange.setStart(segNouveau, 0);
+                            newRange.setEnd(segNouveau, 1);
+                            newRange.collapse(true);
+                            sel.removeAllRanges();
+                            sel.addRange(newRange);
+                            segNouveau.focus();
+                        }
+                    }
+                    fdsegs.classList.add("en-edition");
                 }
-
-
-                
-                
 
                break;
 
@@ -2005,8 +2073,8 @@ function dialog(type){
                     <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
                     <div class="menudrlnt">
                         
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web lisible (contient tout le codage + lien vers le fichier son)</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut format universel </span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web (contient tout le codage + son)</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut </span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('srt')"><label class="lblformat">.srt</label> <span class="lbldetails">Sous-titres SRT</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('vtt')"><label class="lblformat">.vtt</label> <span class="lbldetails">Sous-titres WebVTT</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Copie du fichier courant (pour sauvegarde ou export vers un autre projet)</span></div>
