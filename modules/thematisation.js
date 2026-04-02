@@ -724,19 +724,13 @@ async function affichListThmEdit(tabThm){
                 const scrollY = fondCat.scrollTop;
 
                 
-                catForm.style.top =  scrollY + rect.top  - 50 +  "px";
+                const rawTop = scrollY + rect.top - 50;
+                const maxTop = fondCat.clientHeight - 400 - 10;
+                catForm.style.top = Math.min(rawTop, maxTop) + "px";
                 catForm.style.left = rect.left + "px";
                 catForm.style.width = rect.width + "px";
                 catForm.classList.remove("dnone");
                 catForm.style.height = "400px"
-
-                // scroll pour rendre le bouton Valider visible
-                const formTop = parseFloat(catForm.style.top);
-                const formBottom = formTop + 400;
-                const visibleBottom = fondCat.scrollTop + fondCat.clientHeight;
-                if (formBottom > visibleBottom) {
-                    fondCat.scrollTop = formBottom - fondCat.clientHeight + 10;
-                }
 
                     const lblNomCat = document.getElementById("lblNomCat");
 
@@ -1171,19 +1165,13 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
     const scrollY = fondCat.scrollTop;
 
     let posNv = divCible[0].getBoundingClientRect();
-    catForm.style.top =  posNv.top + scrollY - 50 + "px";
+    const rawTopNv = posNv.top + scrollY - 50;
+    const maxTopNv = fondCat.clientHeight - 400 - 10;
+    catForm.style.top = Math.min(rawTopNv, maxTopNv) + "px";
     catForm.style.left = posNv.left + "px";
     catForm.style.width = posNv.width + "px";
     catForm.style.height = "400px"
     catForm.classList.remove("dnone");
-
-    // scroll pour rendre le bouton Valider visible
-    const formTop = parseFloat(catForm.style.top);
-    const formBottom = formTop + 400;
-    const visibleBottom = fondCat.scrollTop + fondCat.clientHeight;
-    if (formBottom > visibleBottom) {
-        fondCat.scrollTop = formBottom - fondCat.clientHeight + 10;
-    }
 
     catForm.dataset.rkthm = rangthm;
     catForm.dataset.placerapres = rangthm
