@@ -12,7 +12,7 @@ const { URL, URLSearchParams } = require('url');
  *
  * Prérequis côté GitLab :
  *   - L'utilisateur a créé une application OAuth dans ses Settings > Applications
- *   - Redirect URI configurée : http://localhost (le port est assigné dynamiquement)
+ *   - Redirect URI configurée : http://127.0.0.1:7474/callback (port fixe pour compatibilité maximale)
  *   - Scopes : api (ou read_repository + write_repository selon besoin)
  */
 class GitLabOAuth {
@@ -46,12 +46,14 @@ class GitLabOAuth {
    */
   authenticate() {
     return new Promise((resolve, reject) => {
-      // Démarrer le serveur de callback sur un port aléatoire
+      // Port fixe pour que l'URI de callback corresponde exactement à ce qui est
+      // enregistré dans GitLab — certaines instances n'acceptent pas un port dynamique
+      const CALLBACK_PORT = 7474;
+      const redirectUri = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
       const server = http.createServer();
 
-      server.listen(0, '127.0.0.1', () => {
+      server.listen(CALLBACK_PORT, '127.0.0.1', () => {
         const port = server.address().port;
-        const redirectUri = `http://127.0.0.1:${port}/callback`;
 
         // Générer un state aléatoire anti-CSRF
         const state = crypto.randomBytes(16).toString('hex');
@@ -137,7 +139,14 @@ class GitLabOAuth {
 
         server.on('error', (err) => {
           clearTimeout(timeout);
-          reject(new Error(`Erreur serveur callback : ${err.message}`));
+          if (err.code === 'EADDRINUSE') {
+            reject(new Error(
+              `Le port ${CALLBACK_PORT} est déjà utilisé par un autre programme. ` +
+              `Fermez l'application qui l'occupe et réessayez.`
+            ));
+          } else {
+            reject(new Error(`Erreur serveur callback : ${err.message}`));
+          }
         });
       });
     });
