@@ -1685,13 +1685,19 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
         const newToken = await oauth.refreshToken(token.refresh_token);
         oauth.saveToken(storageDir, tokenKey, newToken);
         gitlabAPI = new GitLabAPI(instanceUrl, projectPath, newToken.access_token);
+        // Vérifier que le nouveau token est valide (et initialiser currentUser)
+        const testApresRefresh = await gitlabAPI.testerConnexion();
+        if (!testApresRefresh.success) {
+          throw new Error('Token rafraîchi invalide — reconnexion OAuth nécessaire');
+        }
       } else {
         throw new Error('Token invalide et pas de refresh_token disponible');
       }
     }
 
-    // 5. S'assurer que .gitattributes contient les règles LFS pour .sonal et .crp
-    await gitlabAPI.initialiserGitattributes();
+    // 5. S'assurer que .gitattributes contient les règles LFS (fire-and-forget,
+    //    non bloquant — la connexion ne doit pas attendre cette opération)
+    gitlabAPI.initialiserGitattributes();
 
     // 6. Lire le fichier corpus
     const result = await gitlabAPI.lireFichier(filePath);
