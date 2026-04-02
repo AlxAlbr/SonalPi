@@ -883,24 +883,21 @@ let corpusActuel = Corpus.url;
   
   let result;
 
-  if (Corpus.type ==="distant"){
+  if (Corpus.type === "distant") {
     if (avecBackup) {
-      result = await window.electronAPI.sauvegarderAvecBackup(
-        corpusActuel,
-        contenu
-      );
+      result = await window.electronAPI.sauvegarderAvecBackup(corpusActuel, contenu);
     } else {
-      result = await window.electronAPI.sauvegarderSurServeur(
-        corpusActuel,
-        contenu
-      );
+      result = await window.electronAPI.sauvegarderSurServeur(corpusActuel, contenu);
     }
-  } else  if (Corpus.type ==="local") {
-    result = await window.electronAPI.sauvegarderFichier(
-      corpusActuel,
-      contenu
-    );
+  } else if (Corpus.type === "gitlab") {
+    // Pour GitLab, Corpus.url est l'URL web — on reconstruit le chemin API
+    const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
+    result = await window.electronAPI.sauvegarderSurServeur(cheminCrp, contenu);
+  } else if (Corpus.type === "local") {
+    result = await window.electronAPI.sauvegarderFichier(corpusActuel, contenu);
   }
+
+  if (!result) return { success: false, error: 'Type de corpus non reconnu' };
 
   if (result.success) {
     contenuModifie = false;
