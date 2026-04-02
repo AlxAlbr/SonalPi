@@ -729,10 +729,17 @@ async function affichListThmEdit(tabThm){
                 catForm.style.width = rect.width + "px";
                 catForm.classList.remove("dnone");
                 catForm.style.height = "400px"
-                
+
+                // scroll pour rendre le bouton Valider visible
+                const formTop = parseFloat(catForm.style.top);
+                const formBottom = formTop + 400;
+                const visibleBottom = fondCat.scrollTop + fondCat.clientHeight;
+                if (formBottom > visibleBottom) {
+                    fondCat.scrollTop = formBottom - fondCat.clientHeight + 10;
+                }
 
                     const lblNomCat = document.getElementById("lblNomCat");
-                    
+
                     lblNomCat.focus();
                     lblNomCat.select();
 
@@ -742,9 +749,6 @@ async function affichListThmEdit(tabThm){
 
 
                 }, 150); // délai pour laisser le temps au navigateur de calculer les positions
-
-
-            catForm.scrollIntoView({ behavior: "smooth" });
 
             /*
                 // paramétrage du bouton 
@@ -1173,8 +1177,16 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
     catForm.style.height = "400px"
     catForm.classList.remove("dnone");
 
-    catForm.dataset.rkthm = rangthm; 
-    catForm.dataset.placerapres = rangthm 
+    // scroll pour rendre le bouton Valider visible
+    const formTop = parseFloat(catForm.style.top);
+    const formBottom = formTop + 400;
+    const visibleBottom = fondCat.scrollTop + fondCat.clientHeight;
+    if (formBottom > visibleBottom) {
+        fondCat.scrollTop = formBottom - fondCat.clientHeight + 10;
+    }
+
+    catForm.dataset.rkthm = rangthm;
+    catForm.dataset.placerapres = rangthm
 
     // Délai pour laisser le DOM se mettre à jour avant de focus/select
     setTimeout(() => {
