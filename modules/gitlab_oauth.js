@@ -49,12 +49,26 @@ class GitLabOAuth {
       // Port fixe pour que l'URI de callback corresponde exactement à ce qui est
       // enregistré dans GitLab — certaines instances n'acceptent pas un port dynamique
       const CALLBACK_PORT = 7474;
+      // Le redirect URI doit correspondre exactement à ce qui est enregistré dans GitLab.
+      // On écoute sur 0.0.0.0 (toutes interfaces) pour que le port forwarding WSL2→Windows
+      // fonctionne, mais l'URI de callback reste sur 127.0.0.1 comme configuré dans GitLab.
       const redirectUri = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
       const server = http.createServer();
 
-      server.listen(CALLBACK_PORT, '127.0.0.1', () => {
-        const port = server.address().port;
+      // Enregistrer le handler d'erreur AVANT listen() pour capturer EADDRINUSE
+      server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          reject(new Error(
+            `Le port ${CALLBACK_PORT} est déjà utilisé par un autre programme. ` +
+            `Fermez l'application qui l'occupe et réessayez.`
+          ));
+        } else {
+          reject(new Error(`Erreur serveur callback : ${err.message}`));
+        }
+      });
 
+      // Écouter sur toutes les interfaces (0.0.0.0) pour compatibilité WSL2
+      server.listen(CALLBACK_PORT, '0.0.0.0', () => {
         // Générer un state aléatoire anti-CSRF
         const state = crypto.randomBytes(16).toString('hex');
 
@@ -78,6 +92,7 @@ class GitLabOAuth {
         });
         const authUrl = `${this.authorizeUrl}?${params.toString()}`;
 
+        console.log('🔑 Serveur callback démarré sur le port', CALLBACK_PORT);
         console.log('🔑 Ouverture navigateur pour authentification GitLab...');
         console.log('   URL:', authUrl);
 
@@ -87,10 +102,12 @@ class GitLabOAuth {
         // Timeout de 5 minutes
         const timeout = setTimeout(() => {
           server.close();
-          reject(new Error('Délai d\'authentification dépassé (5 minutes)'));
+          reject(new Error('Délai d\'authentification dépassé (5 minutes) — le navigateur n\'a pas reçu de réponse au callback'));
         }, 5 * 60 * 1000);
 
         server.on('request', async (req, res) => {
+          console.log('📨 Requête reçue sur le serveur callback:', req.method, req.url);
+
           // Ignorer favicon et autres requêtes parasites
           if (!req.url.startsWith('/callback')) {
             res.writeHead(204);
@@ -100,10 +117,12 @@ class GitLabOAuth {
 
           clearTimeout(timeout);
 
-          const callbackUrl = new URL(req.url, `http://127.0.0.1:${port}`);
+          const callbackUrl = new URL(req.url, `http://127.0.0.1:${CALLBACK_PORT}`);
           const code = callbackUrl.searchParams.get('code');
           const returnedState = callbackUrl.searchParams.get('state');
           const error = callbackUrl.searchParams.get('error');
+
+          console.log('🔑 Callback reçu — code:', code ? '✅ présent' : '❌ absent', '| state match:', returnedState === state);
 
           // Toujours répondre au navigateur avant tout traitement
           if (error || !code || returnedState !== state) {
@@ -128,24 +147,14 @@ class GitLabOAuth {
 
           // Échanger le code contre un token
           try {
+            console.log('🔄 Échange du code contre un token...');
             const token = await this._exchangeCode(code, redirectUri, codeVerifier);
             this._token = token;
             console.log('✅ Token OAuth obtenu');
             resolve(token);
           } catch (err) {
+            console.error('❌ Erreur échange token:', err.message);
             reject(err);
-          }
-        });
-
-        server.on('error', (err) => {
-          clearTimeout(timeout);
-          if (err.code === 'EADDRINUSE') {
-            reject(new Error(
-              `Le port ${CALLBACK_PORT} est déjà utilisé par un autre programme. ` +
-              `Fermez l'application qui l'occupe et réessayez.`
-            ));
-          } else {
-            reject(new Error(`Erreur serveur callback : ${err.message}`));
           }
         });
       });

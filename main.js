@@ -2427,7 +2427,15 @@ app.on('ready', () => {
       }
     });
 
-    //mainWindow.webContents.openDevTools(); 
+    // Activer DevTools avec F12 ou Ctrl+Shift+I
+    mainWindow.webContents.on('before-input-event', (_event, input) => {
+      if (input.type === 'keyDown') {
+        if (input.key === 'F12' ||
+            (input.control && input.shift && (input.key === 'I' || input.key === 'i'))) {
+          mainWindow.webContents.toggleDevTools();
+        }
+      }
+    });
 
 
 

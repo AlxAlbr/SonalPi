@@ -168,7 +168,9 @@ class GitLabAPI {
   }
 
   /**
-   * Vérifie que .gitattributes contient les règles LFS pour *.sonal et *.crp.
+   * Vérifie que .gitattributes contient la règle LFS pour *.sonal.
+   * Les .crp sont du JSON (texte) — ils restent en Git normal pour bénéficier
+   * du diff et du merge automatique, et éviter les verrous LFS involontaires.
    * Crée ou complète le fichier si nécessaire.
    * À appeler une fois après l'établissement de la connexion.
    */
@@ -176,6 +178,9 @@ class GitLabAPI {
     const GITATTRIBUTES_PATH = '.gitattributes';
     const REGLES_LFS = [
       '*.sonal filter=lfs diff=lfs merge=lfs -text',
+    ];
+    // Règle à supprimer si elle était présente dans une version précédente
+    const REGLES_OBSOLETES = [
       '*.crp filter=lfs diff=lfs merge=lfs -text',
     ];
 
@@ -189,20 +194,30 @@ class GitLabAPI {
         if (result.success) contenuActuel = result.content;
       }
 
-      const reglesManquantes = REGLES_LFS.filter(r => !contenuActuel.includes(r));
-      if (reglesManquantes.length === 0) {
+      // Retirer les règles obsolètes (*.crp en LFS)
+      let contenuNettoye = contenuActuel;
+      for (const regle of REGLES_OBSOLETES) {
+        contenuNettoye = contenuNettoye.split('\n').filter(l => l.trim() !== regle).join('\n');
+      }
+      // Normaliser : pas de double saut de ligne, terminer par \n
+      contenuNettoye = contenuNettoye.replace(/\n{3,}/g, '\n\n').replace(/\n*$/, '\n');
+
+      const reglesManquantes = REGLES_LFS.filter(r => !contenuNettoye.includes(r));
+      const reglesSupprimees = REGLES_OBSOLETES.some(r => contenuActuel.includes(r));
+
+      if (reglesManquantes.length === 0 && !reglesSupprimees) {
         console.log('   ✅ .gitattributes déjà à jour');
         return;
       }
 
-      const separateur = contenuActuel.length > 0 && !contenuActuel.endsWith('\n') ? '\n' : '';
-      const nouveauContenu = contenuActuel + separateur + reglesManquantes.join('\n') + '\n';
+      const separateur = contenuNettoye.length > 1 && !contenuNettoye.endsWith('\n') ? '\n' : '';
+      const nouveauContenu = contenuNettoye + separateur + reglesManquantes.join('\n') + (reglesManquantes.length ? '\n' : '');
 
       const method = exists ? 'PUT' : 'POST';
       const body = {
         branch: this.branch,
         content: nouveauContenu,
-        commit_message: '[SonalPi] Initialisation LFS pour .sonal et .crp',
+        commit_message: '[SonalPi] Mise à jour LFS : *.sonal uniquement (retrait *.crp)',
         encoding: 'text',
       };
       await this._request(method, `/repository/files/${this._encodePath(GITATTRIBUTES_PATH)}`, body);
