@@ -831,86 +831,26 @@ async function validerModifsThm(){
 
         // cache de la zone de saisie
         catForm.classList.add("dnone")
-  
 
-         
-        let trouvé = false; 
+        // recherche directe dans tabThm (ne pas dépendre des règles CSS)
+        const row = tabThm.find(item => item.code == "cat_" + code);
 
- 
+        if (row) {
+            // mise à jour de la catégorie existante
+            row['nom'] = nom;
+            row['couleur'] = couleur;
+            row['taille'] = taille;
+            row['rang'] = rang;
+            row['act'] = "true";
+            console.log("après changement ", row);
+        } else {
+            // ajout d'une nouvelle catégorie
+            console.log("ajout de la thématique " + code);
+            tabThm.push({code: "cat_" + code, couleur: couleur, nom : nom, taille : taille, cmpct: "false", rang : rang, act:"true"});
+        }
 
-        // récupération de la feuille de style
-        //const sheet = document.styleSheets[0];
-        const styleTag = document.getElementById('thm-styles') || document.querySelector('style'); // Sélectionne la balise <style> des thématiques
-        const sheet = styleTag.sheet; // Accède à sa feuille de style
-        
-
-        // Parcourir les règles CSS
-        for (let i = 0; i < sheet.cssRules.length; i++) {
-        const rule = sheet.cssRules[i];
-           
-          //  console.log("vérification de la règle " + rule.selectorText + " avec le code " + code)
-            
-            // Vérifier si la règle concerne la classe  
-            if (rule.selectorText === ".cat_" + code) {
-                     
-
-                    if (couleur) {rule.style.backgroundImage =`linear-gradient(rgba(0, 0, 0, 0) 60%, ` + couleur + `60 95%, ` + couleur + ` 100%)`;
-                    } else {    
-                         
-                        rule.style.backgroundImage ="";
-                    }
-
-                    if (taille > taille_def) {
-
-                        rule.style.fontWeight= "bold";
-                    } else {
-                        rule.style.fontWeight= "normal";
-                    }
-
-
-                    rule.style.fontSize = taille;
-      
-                //let lblligthm = document.querySelector(".cat_" + code)
-                //lblligthm.innerText = nom; 
-
-                // mise à jour du tableau des thématiques
-                const row = tabThm.find(item => item.code == "cat_" + code); // Trouver la ligne correspondante
-                if (row) {
-                    
-                    row['nom'] = nom;
-                    row['couleur'] = couleur; // Mettre à jour la couleur
-                    row['taille'] = taille;
-                    row['rang'] = rang;
-                    row['act'] = "true"; // Assure que la thématique est active
-                    
-                    console.log("après changement ", row)
-                    trouvé = true;
-                    break;      
-                    
-                } else {
-
-                    console.log("pas trouvé")
-                    
-                }
-
-
-
- 
-
-            }
-    
-            
-    }
-
-    if (!trouvé) { // pas trouvée, alors ajout
-        
-       console.log("ajout de la thématique " + code)
-        tabThm.push({code: "cat_" + code, couleur: couleur, nom : nom, taille : taille, cmpct: "false", rang : rang, act:"true"}) 
-        
-        createThm("cat_" + code,couleur, taille )
-       
-
-    }
+        // mise à jour / création de la règle CSS
+        createThm("cat_" + code, couleur, taille);
 
     
     // déplacement éventuel
