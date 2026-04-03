@@ -724,12 +724,12 @@ async function affichListThmEdit(tabThm){
 
                 
                 const rawTop = scrollY + rect.top - 50;
-                const maxTop = fondCat.clientHeight - 400 - 10;
-                catForm.style.top = Math.min(rawTop, maxTop) + "px";
+                catForm.style.top = rawTop + "px";
                 catForm.style.left = rect.left + "px";
                 catForm.style.width = rect.width + "px";
                 catForm.classList.remove("dnone");
-                catForm.style.height = "400px"
+                catForm.style.height = "400px";
+                catForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
                     const lblNomCat = document.getElementById("lblNomCat");
 
@@ -1054,11 +1054,8 @@ catForm.dataset.rkthm = derrang;
 await ajoutThmApres('nouvelle');
 
 
-// scroll jusqu'au max  
-
-//const derthm = document.querySelectorAll('.ligthm')[derrang];
-
-catForm.scrollIntoView({ behavior: "smooth", block: "end" });
+// scroll jusqu'au formulaire
+catForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
 }
 
@@ -1165,8 +1162,7 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
 
     let posNv = divCible[0].getBoundingClientRect();
     const rawTopNv = posNv.top + scrollY - 50;
-    const maxTopNv = fondCat.clientHeight - 400 - 10;
-    catForm.style.top = Math.min(rawTopNv, maxTopNv) + "px";
+    catForm.style.top = rawTopNv + "px";
     catForm.style.left = posNv.left + "px";
     catForm.style.width = posNv.width + "px";
     catForm.style.height = "400px"
