@@ -366,7 +366,7 @@ window.addEventListener('unload', (event) => {
 
                     <div id="locuteurs" class="listlocs"></div>
 
-                    <div id="statsloc"></div>
+                    <div id="statsloc" style="padding:10px;"></div>
 
                     
                 </div>
@@ -995,6 +995,12 @@ function dessinChunks(){
 
 async function dispPanneauG(bouton, composant){
 
+    // Si on quitte le mode locuteur, restaurer les xtr-graph et supprimer les loc-graph
+    if (typeAction === 'loc') {
+        document.querySelectorAll('.xtr-graph').forEach(s => s.style.display = '');
+        document.querySelectorAll('.loc-graph').forEach(s => s.remove());
+    }
+
     // désactivation des autres boutons
     deselBtn_g();
     hidepanG();
@@ -1038,7 +1044,7 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="cat"
-       
+        removeCatsEnFiligrane()
 
     }  
 
@@ -1046,6 +1052,7 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="loc"
+       catsEnFiligrane(); // aténuation du contraste des thématiques
        
 
     }  
@@ -1071,6 +1078,11 @@ async function dispPanneauG(bouton, composant){
         document.getElementById("txtRech").focus();
         //noSel=false;
     }
+
+    
+    // appel du checkloc pour retirer les couleurs des locuteurs hors édition 
+    checkloc(locut);
+
 
 }
 
@@ -1270,7 +1282,8 @@ document.addEventListener("selectionchange", () => {
 // réaction aux sélections
 const fdsegs = document.getElementById("segments");
 fdsegs.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") {
+    const arrowKeys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
+    if (e.key !== "Enter" && e.key !== " " && !arrowKeys.includes(e.key)) {
         fdsegs.classList.add("en-edition");
     }
 });

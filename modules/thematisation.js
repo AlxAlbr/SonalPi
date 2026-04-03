@@ -15,11 +15,11 @@ var dragO = null; // thématique en cours de déplacement
 var dragA = null; // thématique cible du déplacement
 
 let filigraneActif = false;
-const FILIGRANE_OPACITE = 0.55; // opacité du voile blanc (0 = invisible, 1 = blanc total)
+const FILIGRANE_OPACITE = 0.75; // opacité du voile blanc (0 = invisible, 1 = blanc total)
 
 async function loadThm(){
 
-    console.log("chargement des thématiques (filigrane=" + filigraneActif + ")");
+    //console.log("chargement des thématiques (filigrane=" + filigraneActif + ")");
     // récupération du tableau des thématiques
 
    

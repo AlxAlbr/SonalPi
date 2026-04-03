@@ -168,7 +168,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
      document.querySelectorAll(".survok").forEach(el => el.classList.remove("survok"));
      document.querySelectorAll(".survseg").forEach(el => el.classList.remove("survseg"));
      document.querySelectorAll(".highlight").forEach(el => el.classList.remove("highlight"));   
-     document.querySelectorAll(".contour").forEach(el => el.classList.remove("contour"));  
+    
      /*
      const tousLbl = document.querySelectorAll('.survseg'); // document.getElementsByClassName("survseg")
             
@@ -1350,9 +1350,9 @@ async function showMenu(button, typeAction){
                 if (cats[c].lastIndexOf("cat_") >-1){
                     let rkc = await getRkThm(cats[c]);
 
-                    chaine += ` <div class="menu-item menu-cat ` + cats[c] + `" onmousedown = "event.stopPropagation(); thmSeg(` + debSel+ `,` + finSel + `,'` +   cats[c]+ `'); showMenu(getSpan(` + finSel + `), 'cat')">` +
-                         splitNomThm(tabThm[rkc].nom)[0]
-                         + `  </div> `;
+                    chaine += ` <div class="menu-item menu-cat ` + cats[c] + `" onmousedown = "thmSeg(` + debSel+ `,` + finSel + `,'` +   cats[c]+ `'); showMenu(` + getSpan(finSel) + `, 'cat')">` +  
+                         splitNomThm(tabThm[rkc].nom)[0] 
+                         + `  </div> `;   
 
                 }
             }
@@ -1406,13 +1406,11 @@ async function showMenu(button, typeAction){
 
             
  
-        const fermerMenu = () => {
-            if (!menuSeg.classList.contains('dnone')){
-                menuSeg.classList.add('dnone');
+        document.addEventListener("mousedown", () => {
+        if (!menuSeg.classList.contains('dnone')){
+            menuSeg.classList.add('dnone'); 
             }
-            document.removeEventListener("mousedown", fermerMenu);
-        };
-        document.addEventListener("mousedown", fermerMenu);
+        });
 
 
 
@@ -1423,7 +1421,6 @@ async function showMenu(button, typeAction){
 // barre de progression sur le résumé graphique de l'entretien
 function barreProg(seg){
     
-    return; 
      // on se base sur la position du premier mot du segment sur l'ensemble des mots de l'entretien car s'appuyer 
      // sur le temps ne fonctionnerait pas dans une situation où la bande son n'est pas chargée. 
      // par ailleurs, c'est sur la base des mots que le dessin général de l'entretien est réalisé. En s'appuyant sur le temps 
