@@ -167,6 +167,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Confirmer la fin de sauvegarde au main process
   saveComplete: () => ipcRenderer.invoke('save-complete'),
 
+  // Signaler au main que la sauvegarde est terminée (pour quitter)
+  saveDoneQuit: () => ipcRenderer.invoke('save-done-quit'),
+
+  // Écouter le signal de sauvegarde avant fermeture
+  onSauvegarderEtQuitter: (callback) =>
+    ipcRenderer.on('sauvegarder-et-quitter', () => callback()),
+
   // Demander la fermeture de la fenetre courante
   closeWindow: () => ipcRenderer.send('window-close'),
   

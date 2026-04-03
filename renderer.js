@@ -80,6 +80,11 @@ window.electronAPI.onDemanderSauvegarde(async () => {
   await sauvegarderCorpus(false);
 });
 
+window.electronAPI.onSauvegarderEtQuitter(async () => {
+  await sauvegarderCorpus(false);
+  await window.electronAPI.saveDoneQuit();
+});
+
 window.electronAPI.onDemanderSauvegardeBackup(async () => {
   await sauvegarderCorpus(true);
 });

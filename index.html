@@ -625,6 +625,7 @@ function hidepanG(){
           // Écouter les mises à jour
   window.electronAPI.onUpdateCat((data) => {
           console.log("demande de modifs reçue")
+          contenuModifie = true;
              affichListThmCrp(data)
     });
 

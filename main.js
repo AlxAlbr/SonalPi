@@ -30,6 +30,7 @@ var tabHtml = []; // tableau des contenus HTML des entretiens
 var tabGrph = []; // tableau des représentations simplifiées des entretiens (pour l'affichage graphique) 
 var ent_cur = -1; // entretien courant
 var tabLocImport = []; // locuteurs importés (stockage central dans le main)
+var corpusDirty = false; // true si des modifications n'ont pas été sauvegardées sur disque
 
 // utilisateur 
 var utilisateur="";
@@ -65,6 +66,7 @@ ipcMain.handle('set-corpus', (_, newCorpus) => {
 ipcMain.handle('get-thm', () => {return tabThm;});
 ipcMain.handle('set-thm', (_, newTabThm) => {
   tabThm = newTabThm;
+  corpusDirty = true;
   // Envoyer à toutes les fenêtres ouvertes
   BrowserWindow.getAllWindows().forEach(window => {
     window.webContents.send('update-cat', tabThm);
@@ -77,6 +79,7 @@ ipcMain.handle('set-thm', (_, newTabThm) => {
 ipcMain.handle('get-ent', () => { return tabEnt; });
 ipcMain.handle('set-ent', (_, newTabEnt) => {
   tabEnt = newTabEnt;
+  corpusDirty = true;
   return true;
 });
 
@@ -112,6 +115,13 @@ ipcMain.handle('save-complete', (event) => {
   if (window) {
     window.destroy(); // Force la fermeture sans déclencher 'close' à nouveau
   }
+  return true;
+});
+
+// Handler pour fermer l'app après sauvegarde demandée à la fermeture
+ipcMain.handle('save-done-quit', () => {
+  corpusDirty = false;
+  if (mainWindow) mainWindow.destroy();
   return true;
 });
 
@@ -553,6 +563,7 @@ ipcMain.handle('sauvegarder-fichier', async (event, filePath, content) => {
   try {
     fs.writeFileSync(filePath, content);
     console.log('✅ fichier sauvegardé localement');
+    corpusDirty = false;
     return { success: true };
   } catch (error) {
     console.error('❌ Erreur lors de la sauvegarde du fichier :', error);
@@ -630,6 +641,7 @@ ipcMain.handle('sauvegarder-sur-serveur', async (event, filePath, content) => {
     
     if (result.success) {
       console.log('✅ Sauvegarde réussie');
+      corpusDirty = false;
     } else {
       console.error('❌ Échec sauvegarde:', result.error);
     }
@@ -684,6 +696,7 @@ ipcMain.handle('sauvegarder-avec-backup', async (event, filePath, content) => {
     
     if (result.success) {
       result.backupCreated = ancienneVersion.success;
+      corpusDirty = false;
     }
     
     return result;
@@ -2194,6 +2207,35 @@ app.on('ready', () => {
     mainWindow.maximize()
 
     // Définir l'icône après le chargement de la fenêtre
+    // Intercepter la fermeture pour proposer la sauvegarde
+    let isQuitting = false;
+    mainWindow.on('close', async (e) => {
+      if (isQuitting) return; // déjà en cours de fermeture
+      if (corpusDirty && Corpus.url) {
+        e.preventDefault();
+        const { response } = await dialog.showMessageBox(mainWindow, {
+          type: 'warning',
+          buttons: ['Enregistrer', 'Ne pas enregistrer', 'Annuler'],
+          defaultId: 0,
+          cancelId: 2,
+          title: 'Modifications non enregistrées',
+          message: 'Le corpus a été modifié depuis la dernière sauvegarde.',
+          detail: 'Voulez-vous enregistrer les modifications avant de quitter ?'
+        });
+        if (response === 0) {
+          // Enregistrer puis quitter
+          isQuitting = true;
+          mainWindow.webContents.send('sauvegarder-et-quitter');
+          // Le renderer va sauvegarder et signaler via 'save-done-quit'
+        } else if (response === 1) {
+          // Ne pas enregistrer → quitter directement
+          corpusDirty = false;
+          mainWindow.destroy();
+        }
+        // response === 2 (Annuler) → ne rien faire, la fermeture est empêchée
+      }
+    });
+
     mainWindow.once('ready-to-show', async () => {
       mainWindow.setIcon(iconPath);
       mainWindow.show();
