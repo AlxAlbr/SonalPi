@@ -724,27 +724,6 @@ async function affichListThmEdit(tabThm){
                     lblNomCat.select();
                 }, 150);
 
-            /*
-                // paramétrage du bouton 
-                let btnX = document.getElementById('valider-modif-cat')
-                    btnX.addEventListener('mousedown', (event) => {
-                        validerModifsThm(tabThm, rangthm);
-                        let formul = document.getElementById('cat-form');
-                        formul.classList.add("dnone");
-                    });
-            */
-
-
-                // réaction de la text area
-                const lblNomCat = document.getElementById("lblNomCat");
-                lblNomCat.addEventListener("keydown", (event) => {
-                    if(event.key==='Enter'){
-                        event.preventDefault();
-                        validerModifsThm();
-                        annulChgThm();
-                    }
-                });
-
                 // ajout d'une nouvelle catégorie après
                 /*
                 const lblNomCatPlus = document.getElementById("btnthmAjoutApres");

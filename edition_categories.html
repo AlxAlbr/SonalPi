@@ -56,7 +56,7 @@
                                 
                             
                                 <div class="floating-label-container">
-                                    <textarea id="lblNomCat" rows = "2" class="floating-input lbl-nom-thm" style = "overflow: hidden;max-width:100%" placeholder=" " onkeydown="if(event.key==='Enter'){changeStyle(); annulChgThm()}"></textarea>
+                                    <textarea id="lblNomCat" rows = "2" class="floating-input lbl-nom-thm" style = "overflow: hidden;max-width:100%" placeholder=" "></textarea>
                                      <label id = "etq-nom-cat" for="lblNomCat" class="mdc-floating-label dnone">Libellé</label>
                                 </div>
 
@@ -234,6 +234,14 @@
        // console.log("edition_categories.html chargé, envoi demande de données");
         affichListThmEdit();
         loadThm();
+
+        // listener unique sur le champ nom (évite l'accumulation de listeners)
+        document.getElementById("lblNomCat").addEventListener("keydown", async (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                await validerModifsThm();
+            }
+        });
         });
 
 
