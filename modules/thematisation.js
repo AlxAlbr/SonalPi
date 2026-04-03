@@ -729,7 +729,13 @@ async function affichListThmEdit(tabThm){
                 catForm.style.width = rect.width + "px";
                 catForm.classList.remove("dnone");
                 catForm.style.height = "400px";
-                catForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+                // scroll pour rendre le bas du formulaire (bouton Valider) visible
+                const formBottom = rawTop + 400;
+                const visibleBottom = fondCat.scrollTop + fondCat.clientHeight;
+                if (formBottom > visibleBottom) {
+                    fondCat.scrollTo({ top: formBottom - fondCat.clientHeight + 10, behavior: 'smooth' });
+                }
 
                     const lblNomCat = document.getElementById("lblNomCat");
 
@@ -1053,10 +1059,6 @@ catForm.dataset.rkthm = derrang;
 // ajout d'une thématique après la dernière
 await ajoutThmApres('nouvelle');
 
-
-// scroll jusqu'au formulaire
-catForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
-
 }
 
 async function ajoutThmApres(typeAjout){
@@ -1167,6 +1169,13 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
     catForm.style.width = posNv.width + "px";
     catForm.style.height = "400px"
     catForm.classList.remove("dnone");
+
+    // scroll pour rendre le bas du formulaire (bouton Valider) visible
+    const formBottomNv = rawTopNv + 400;
+    const visibleBottomNv = fondCat.scrollTop + fondCat.clientHeight;
+    if (formBottomNv > visibleBottomNv) {
+        fondCat.scrollTo({ top: formBottomNv - fondCat.clientHeight + 10, behavior: 'smooth' });
+    }
 
     catForm.dataset.rkthm = rangthm;
     catForm.dataset.placerapres = rangthm
