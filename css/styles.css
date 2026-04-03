@@ -786,6 +786,7 @@ Styles pour les boutons
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
+    margin-top: auto;
 }
 
 .en-tete_cat{

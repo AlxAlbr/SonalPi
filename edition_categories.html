@@ -43,7 +43,7 @@
         </div>
 
 
-        <form id="cat-form" class="cat-form dnone "
+        <form id="cat-form" class="cat-form dnone">
                    
                     <div id="en-tete_cat_edit" class="en-tete_cat" >
                         
@@ -248,18 +248,7 @@
         */
 
 
-        // listener sur le scroll pour déplacer l'élément form-cat avec le scroll
-        let scrollableDiv = document.querySelector('div[style*="overflow-y: auto"]');
-        let previousScrollTop = 0;
-        scrollableDiv.addEventListener('scroll', (event) => {
-          let catForm = document.getElementById('cat-form');
-          if (!catForm.classList.contains('dnone')) {
-            const delta = scrollableDiv.scrollTop - previousScrollTop;
-            const currentTop = parseInt(catForm.style.top) || 0;
-            catForm.style.top = (currentTop + delta) + 'px';
-          }
-          previousScrollTop = scrollableDiv.scrollTop;
-        });
+        // (scroll listener supprimé : le formulaire est désormais positionné en bas via flexbox)
 
 function adjustRang(increment){
 
