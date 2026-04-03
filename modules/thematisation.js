@@ -700,8 +700,6 @@ async function affichListThmEdit(tabThm){
              
                 selModifThm(tabThm, event.target.dataset.code)
 
-                // positionnement du formulaire
-
                 // redimensionnement de tous les autres
                 const fond = document.getElementById("fond-thm-edit")
                 const lignes = fond.querySelectorAll('.ligthm')
@@ -710,44 +708,21 @@ async function affichListThmEdit(tabThm){
                     ligne.innerText = splitNomThm(ligne.dataset.nom)[0];
                 });
 
-                // écartement du thm modifié
-                div.style.height= "400px"; 
-                div.innerText = "";
+                // mise en surbrillance du thm modifié
+                div.style.backgroundColor = "#e0e7ff";
 
-                setTimeout(function() {
-                const rect = div.getBoundingClientRect();
-                
-                // Position de défilement verticale (axe Y)
-                // récupération du scroll du conteneur fond-cat 
-                const fondCat = document.getElementById('fond-cat')
-                const scrollY = fondCat.scrollTop;
-
-                
-                const rawTop = scrollY + rect.top - 50;
-                catForm.style.top = rawTop + "px";
-                catForm.style.left = rect.left + "px";
-                catForm.style.width = rect.width + "px";
+                // affichage du formulaire en bas
                 catForm.classList.remove("dnone");
                 catForm.style.height = "400px";
-
-                // scroll pour rendre le bas du formulaire (bouton Valider) visible
-                const formBottom = rawTop + 400;
-                const visibleBottom = fondCat.scrollTop + fondCat.clientHeight;
-                if (formBottom > visibleBottom) {
-                    fondCat.scrollTo({ top: formBottom - fondCat.clientHeight + 10, behavior: 'smooth' });
-                }
-
-                    const lblNomCat = document.getElementById("lblNomCat");
-
-                    lblNomCat.focus();
-                    lblNomCat.select();
 
                 // chargement de la combo des thm existants
                 chargerCmbMoveThm(rangthm);
 
-
-
-                }, 150); // délai pour laisser le temps au navigateur de calculer les positions
+                setTimeout(function() {
+                    const lblNomCat = document.getElementById("lblNomCat");
+                    lblNomCat.focus();
+                    lblNomCat.select();
+                }, 150);
 
             /*
                 // paramétrage du bouton 
@@ -1142,43 +1117,16 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
    const divCible = fond.querySelectorAll('[data-rkthm="' + rangthm + '"]')
    
    if (divCible.length==0){alert("erreur lors de l'ajout de la thématique"); return;}
-    
-    
 
-    // ajout d'une ligne vide pour le nouveau thm
-    const divNew = document.createElement('label');
-    divNew.classList.add('ligthm');
-    divNew.classList.add('asuppr');
-    divNew.style.backgroundColor= "#f5f5f5ff";
-    divNew.style.height= "400px";
-    divNew.innerText= " ";
-
-   if (divCible.length > 0) {
-        divCible[0].insertAdjacentElement('afterend', divNew);
-        } else {
-        console.error('divCible introuvable');
-}
-
-    const fondCat = document.getElementById('fond-cat')
-    const scrollY = fondCat.scrollTop;
-
-    let posNv = divCible[0].getBoundingClientRect();
-    const rawTopNv = posNv.top + scrollY - 50;
-    catForm.style.top = rawTopNv + "px";
-    catForm.style.left = posNv.left + "px";
-    catForm.style.width = posNv.width + "px";
-    catForm.style.height = "400px"
+    // affichage du formulaire en bas
     catForm.classList.remove("dnone");
-
-    // scroll pour rendre le bas du formulaire (bouton Valider) visible
-    const formBottomNv = rawTopNv + 400;
-    const visibleBottomNv = fondCat.scrollTop + fondCat.clientHeight;
-    if (formBottomNv > visibleBottomNv) {
-        fondCat.scrollTo({ top: formBottomNv - fondCat.clientHeight + 10, behavior: 'smooth' });
-    }
+    catForm.style.height = "400px"
 
     catForm.dataset.rkthm = rangthm;
     catForm.dataset.placerapres = rangthm
+
+    // scroll la catégorie cible pour qu'elle soit visible dans la liste
+    divCible[0].scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     // Délai pour laisser le DOM se mettre à jour avant de focus/select
     setTimeout(() => {
