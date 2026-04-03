@@ -776,18 +776,17 @@ Styles pour les boutons
 /* Formulaire de modif */
 
 .cat-form {
-    position: absolute;
-    top: 0px;
     background:none;
-    width: 90%;
-    height: 0px;
-    left: 0px;
+    width: 100%;
     z-index: 100;
-    border : 1px solid #616161;
-     
-    box-shadow: #9ca9b6 0px 4px 12px ;
+    border-top : 1px solid #616161;
+    box-shadow: #9ca9b6 0px -4px 12px ;
     transition: height 0.2s ease;
- 
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+    margin-top: auto;
 }
 
 .en-tete_cat{
@@ -802,7 +801,9 @@ Styles pour les boutons
     opacity: 0.8;
     padding-left: 15px;
     padding-top: 10px;
-    height: 316px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
     .chkcat {
         position: absolute;

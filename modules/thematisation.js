@@ -29,6 +29,7 @@ async function loadThm(){
     
     // Créer une nouvelle balise <style>
     const style = document.createElement('style');
+    style.id = 'thm-styles';
     style.type = 'text/css';
 
     // Ajouter des règles CSS
@@ -69,7 +70,7 @@ async function loadThm(){
 
         
 
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
         createThm(tabThm[t].code, tabThm[t].couleur, tabThm[t].taille, filigraneActif);
     }
 
@@ -90,7 +91,7 @@ async function afflistThm(tabThm, conteneur){
     conteneur.innerHTML = "";
 
 
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
 
         const div = document.createElement('label');
         div.dataset.code = tabThm[t].code;
@@ -259,7 +260,7 @@ async function afflistThm(tabThm, conteneur){
         
         // compactage des thm lus
         
-        for (t2=0;t2<tabThm.length-1;t2++){
+        for (let t2=0;t2<tabThm.length-1;t2++){
 
             //console.log("tabThm["+ t2 +"].cmpct  " + tabThm[t2].cmpct + "\n  enfants " + aEnfants(t2))
 
@@ -288,8 +289,7 @@ async function affichListThmCrp(tabThm){
     
     conteneur.innerHTML = ``;
 
-    let t;
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
         const div = document.createElement('label');
         div.dataset.code = tabThm[t].code;
         div.dataset.couleur = tabThm[t].couleur;
@@ -435,7 +435,7 @@ async function affichListThmCrp(tabThm){
          
         // propagation aux enfants éventuels    
             
-            for (t2= rangthm+1; t2<tabThm.length;t2++){
+            for (let t2= rangthm+1; t2<tabThm.length;t2++){
 
                 
                 if (tabThm[t2].rang > tabThm[rangthm].rang){
@@ -443,7 +443,7 @@ async function affichListThmCrp(tabThm){
                     tabThm[t2].act = tabThm[rangthm].act
                 } else { // fin de la boucle et sortie
                     
-                    t2 = tabThm.length
+                    break
                 }
 
             }
@@ -487,7 +487,7 @@ div.addEventListener('contextmenu', async (event) => {
         //div.classList.remove ("ligthm-inactive")  
                 // propagation aux enfants éventuels    
             
-            for (t2= rangthm+1; t2<tabThm.length;t2++){
+            for (let t2= rangthm+1; t2<tabThm.length;t2++){
 
                 console.log("le rang suivant est plus grand ? " + t2 + " = " + tabThm[t2].rang)
                 if (tabThm[t2].rang > tabThm[rangthm].rang){
@@ -495,7 +495,7 @@ div.addEventListener('contextmenu', async (event) => {
                     tabThm[t2].act = tabThm[rangthm].act
                 } else { // fin de la boucle et sortie
                     console.log("non")
-                    t2 = tabThm.length
+                    break
                 }
 
             }
@@ -514,8 +514,7 @@ div.addEventListener('contextmenu', async (event) => {
 
         
         // compactage des thm lus
-        let t2; 
-        for (t2=0;t2<tabThm.length-1;t2++){
+        for (let t2=0;t2<tabThm.length-1;t2++){
 
             //console.log("tabThm["+ t2 +"].cmpct  " + tabThm[t2].cmpct + "\n  enfants " + aEnfants(t2))
 
@@ -544,7 +543,7 @@ async function affichListThmEdit(tabThm){
     conteneur.innerHTML = ``;
 
     let t;
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
         const div = document.createElement('label');
         div.dataset.code = tabThm[t].code;
         div.dataset.nom = tabThm[t].nom;
@@ -701,8 +700,6 @@ async function affichListThmEdit(tabThm){
              
                 selModifThm(tabThm, event.target.dataset.code)
 
-                // positionnement du formulaire
-
                 // redimensionnement de tous les autres
                 const fond = document.getElementById("fond-thm-edit")
                 const lignes = fond.querySelectorAll('.ligthm')
@@ -711,61 +708,21 @@ async function affichListThmEdit(tabThm){
                     ligne.innerText = splitNomThm(ligne.dataset.nom)[0];
                 });
 
-                // écartement du thm modifié
-                div.style.height= "400px"; 
-                div.innerText = "";
+                // mise en surbrillance du thm modifié
+                div.style.backgroundColor = "#e0e7ff";
 
-                setTimeout(function() {
-                const rect = div.getBoundingClientRect();
-                
-                // Position de défilement verticale (axe Y)
-                // récupération du scroll du conteneur fond-cat 
-                const fondCat = document.getElementById('fond-cat')
-                const scrollY = fondCat.scrollTop;
-
-                
-                catForm.style.top =  scrollY + rect.top  - 50 +  "px";
-                catForm.style.left = rect.left + "px";
-                catForm.style.width = rect.width + "px";
+                // affichage du formulaire en bas
                 catForm.classList.remove("dnone");
-                catForm.style.height = "400px"
-                
-
-                    const lblNomCat = document.getElementById("lblNomCat");
-                    
-                    lblNomCat.focus();
-                    lblNomCat.select();
+                catForm.style.height = "400px";
 
                 // chargement de la combo des thm existants
                 chargerCmbMoveThm(rangthm);
 
-
-
-                }, 150); // délai pour laisser le temps au navigateur de calculer les positions
-
-
-            catForm.scrollIntoView({ behavior: "smooth" });
-
-            /*
-                // paramétrage du bouton 
-                let btnX = document.getElementById('valider-modif-cat')
-                    btnX.addEventListener('mousedown', (event) => {
-                        validerModifsThm(tabThm, rangthm);
-                        let formul = document.getElementById('cat-form');
-                        formul.classList.add("dnone");
-                    });
-            */
-
-
-                // réaction de la text area
-                const lblNomCat = document.getElementById("lblNomCat");
-                lblNomCat.addEventListener("keydown", (event) => {
-                    if(event.key==='Enter'){
-                        event.preventDefault();
-                        validerModifsThm();
-                        annulChgThm();
-                    }
-                });
+                setTimeout(function() {
+                    const lblNomCat = document.getElementById("lblNomCat");
+                    lblNomCat.focus();
+                    lblNomCat.select();
+                }, 150);
 
                 // ajout d'une nouvelle catégorie après
                 /*
@@ -843,7 +800,7 @@ async function affichListThmEdit(tabThm){
         
         // compactage des thm lus
         let t2; 
-        for (t2=0;t2<tabThm.length-1;t2++){
+        for (let t2=0;t2<tabThm.length-1;t2++){
 
             //console.log("tabThm["+ t2 +"].cmpct  " + tabThm[t2].cmpct + "\n  enfants " + aEnfants(t2))
 
@@ -874,86 +831,26 @@ async function validerModifsThm(){
 
         // cache de la zone de saisie
         catForm.classList.add("dnone")
-  
 
-         
-        let trouvé = false; 
+        // recherche directe dans tabThm (ne pas dépendre des règles CSS)
+        const row = tabThm.find(item => item.code == "cat_" + code);
 
- 
+        if (row) {
+            // mise à jour de la catégorie existante
+            row['nom'] = nom;
+            row['couleur'] = couleur;
+            row['taille'] = taille;
+            row['rang'] = rang;
+            row['act'] = "true";
+            console.log("après changement ", row);
+        } else {
+            // ajout d'une nouvelle catégorie
+            console.log("ajout de la thématique " + code);
+            tabThm.push({code: "cat_" + code, couleur: couleur, nom : nom, taille : taille, cmpct: "false", rang : rang, act:"true"});
+        }
 
-        // récupération de la feuille de style
-        //const sheet = document.styleSheets[0];
-        const styleTag = document.querySelector('style'); // Sélectionne la première balise <style>
-        const sheet = styleTag.sheet; // Accède à sa feuille de style
-        
-
-        // Parcourir les règles CSS
-        for (let i = 0; i < sheet.cssRules.length; i++) {
-        const rule = sheet.cssRules[i];
-           
-          //  console.log("vérification de la règle " + rule.selectorText + " avec le code " + code)
-            
-            // Vérifier si la règle concerne la classe  
-            if (rule.selectorText === ".cat_" + code) {
-                     
-
-                    if (couleur) {rule.style.backgroundImage =`linear-gradient(rgba(0, 0, 0, 0) 60%, ` + couleur + `60 95%, ` + couleur + ` 100%)`;
-                    } else {    
-                         
-                        rule.style.backgroundImage ="";
-                    }
-
-                    if (taille > taille_def) {
-
-                        rule.style.fontWeight= "bold";
-                    } else {
-                        rule.style.fontWeight= "normal";
-                    }
-
-
-                    rule.style.fontSize = taille;
-      
-                //let lblligthm = document.querySelector(".cat_" + code)
-                //lblligthm.innerText = nom; 
-
-                // mise à jour du tableau des thématiques
-                const row = tabThm.find(item => item.code == "cat_" + code); // Trouver la ligne correspondante
-                if (row) {
-                    
-                    row['nom'] = nom;
-                    row['couleur'] = couleur; // Mettre à jour la couleur
-                    row['taille'] = taille;
-                    row['rang'] = rang;
-                    row['act'] = "true"; // Assure que la thématique est active
-                    
-                    console.log("après changement ", tabThm[t])
-                    trouvé = true;
-                    break;      
-                    
-                } else {
-
-                    console.log("pas trouvé")
-                    
-                }
-
-
-
- 
-
-            }
-    
-            
-    }
-
-    if (!trouvé) { // pas trouvée, alors ajout
-        
-       console.log("ajout de la thématique " + code)
-        tabThm.push({code: "cat_" + code, couleur: couleur, nom : nom, taille : taille, cmpct: "false", rang : rang, act:"true"}) 
-        
-        createThm("cat_" + code,couleur, taille )
-       
-
-    }
+        // mise à jour / création de la règle CSS
+        createThm("cat_" + code, couleur, taille);
 
     
     // déplacement éventuel
@@ -1056,13 +953,6 @@ catForm.dataset.rkthm = derrang;
 // ajout d'une thématique après la dernière
 await ajoutThmApres('nouvelle');
 
-
-// scroll jusqu'au max  
-
-//const derthm = document.querySelectorAll('.ligthm')[derrang];
-
-catForm.scrollIntoView({ behavior: "smooth", block: "end" });
-
 }
 
 async function ajoutThmApres(typeAjout){
@@ -1097,7 +987,7 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
     var nvcode="";
 
     // définition d'un code par incrémentation
-    for (t=1;t<1000;t++){
+    for (let t=1;t<1000;t++){
 
         nvcode = `cat_`+ String(t).padStart(3, "0"); 
 
@@ -1146,35 +1036,16 @@ let tabThm = await window.electronAPI.getThm(); // récupération du tableau des
    const divCible = fond.querySelectorAll('[data-rkthm="' + rangthm + '"]')
    
    if (divCible.length==0){alert("erreur lors de l'ajout de la thématique"); return;}
-    
-    
 
-    // ajout d'une ligne vide pour le nouveau thm
-    const divNew = document.createElement('label');
-    divNew.classList.add('ligthm');
-    divNew.classList.add('asuppr');
-    divNew.style.backgroundColor= "#f5f5f5ff";
-    divNew.style.height= "400px";
-    divNew.innerText= " ";
-
-   if (divCible.length > 0) {
-        divCible[0].insertAdjacentElement('afterend', divNew);
-        } else {
-        console.error('divCible introuvable');
-}
-
-    const fondCat = document.getElementById('fond-cat')
-    const scrollY = fondCat.scrollTop;
-
-    let posNv = divCible[0].getBoundingClientRect();
-    catForm.style.top =  posNv.top + scrollY - 50 + "px";
-    catForm.style.left = posNv.left + "px";
-    catForm.style.width = posNv.width + "px";
-    catForm.style.height = "400px"
+    // affichage du formulaire en bas
     catForm.classList.remove("dnone");
+    catForm.style.height = "400px"
 
-    catForm.dataset.rkthm = rangthm; 
-    catForm.dataset.placerapres = rangthm 
+    catForm.dataset.rkthm = rangthm;
+    catForm.dataset.placerapres = rangthm
+
+    // scroll la catégorie cible pour qu'elle soit visible dans la liste
+    divCible[0].scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     // Délai pour laisser le DOM se mettre à jour avant de focus/select
     setTimeout(() => {
@@ -1262,7 +1133,7 @@ function thmEnCours(thmSpan){
     let tabClasses = thmSpan.split(" ");
 
     //resélection
-    for (t=0;t<tabClasses.length;t++) {
+    for (let t=0;t<tabClasses.length;t++) {
     
         let chaine = `[data-code="`+ tabClasses[t].trim() + `"]`
          
@@ -1441,11 +1312,11 @@ async function chargerCmbMoveThm(rkthm){
     <li onclick="cmbMoveThm(-1)" disabled style="border-bottom:1px solid grey> - </li>`; //vidage
 
     // chargement des lignes 
-    for (t2=0;t2<tabThm.length;t2++){
+    for (let t2=0;t2<tabThm.length;t2++){
 
         // caractérisation de la classe
         let ajoutrg =""
-        rg = tabThm[t2].rang
+        let rg = tabThm[t2].rang
 
         if (rg>0) {
             ajoutrg= "  -  ".repeat(rg)
@@ -1480,7 +1351,7 @@ async function supprStyle(){
      const code = document.getElementById("lblCodeCat").value;
 
     // récupération de la feuille de style
-    const styleTag = document.querySelector('style'); // Sélectionne la première balise <style>
+    const styleTag = document.getElementById('thm-styles') || document.querySelector('style'); // Sélectionne la balise <style> des thématiques
     const sheet = styleTag.sheet; // Accède à sa feuille de style
 
     // Parcourir les règles CSS
@@ -1508,7 +1379,7 @@ async function supprStyle(){
 
     // récupération des contenus html des entretiens
     let tabEnt = await window.electronAPI.getEnt();
-    for (e=0;e<tabEnt.length;e++){
+    for (let e=0;e<tabEnt.length;e++){
 
         let htmlEnt =  await window.electronAPI.getHtml(e);
         const conteneur = document.createElement('div');
@@ -1534,9 +1405,9 @@ function existThm(thm){
  
     document.getElementById("lblTypeModif").innerText = "Ajouter une catégorie"
 
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
 
-        if (tabThm[t].code == thm) {
+        if (tabThm[t].code == "cat_" + thm) {
 
             document.getElementById("lblTypeModif").innerText = "Modifier la catégorie"
             document.getElementById("btnthmsuppr").classList.remove("dnone");
@@ -1558,7 +1429,7 @@ var chaineCss = `<style>
     
     `
 
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
          
         chaineCss += `.` + tabThm[t].code + `{
         
@@ -1904,7 +1775,7 @@ function getRkThm(code){
  
      
     
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
 
         if (tabThm[t].code == code) {
        
@@ -2563,7 +2434,7 @@ function afflistThmFltr(){
     conteneur.innerHTML = "";
 
 
-    for (t=0;t<tabThm.length;t++){
+    for (let t=0;t<tabThm.length;t++){
 
 
 
@@ -2619,7 +2490,7 @@ function afflistThmFltr(){
         
         // compactage des thm lus
         
-        for (t2=0;t2<tabThm.length-1;t2++){
+        for (let t2=0;t2<tabThm.length-1;t2++){
 
             //console.log("tabThm["+ t2 +"].cmpct  " + tabThm[t2].cmpct + "\n  enfants " + aEnfants(t2))
 

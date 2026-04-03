@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches:
+      - CreateCategorieScroll  # build automatique sur cette branche (artefacts uniquement)
 permissions:
   contents: write  # Required for creating releases and uploading assets
   id-token: write  # Required for authentication with cloud providers
@@ -51,7 +53,7 @@ jobs:
         run: sudo snap install snapcraft --classic
       
       - name: Build application
-        run: npm run build -- --publish always
+        run: npm run build -- --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1
