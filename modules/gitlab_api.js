@@ -112,7 +112,23 @@ class GitLabAPI {
       );
 
       // GitLab encode toujours en base64
-      const content = Buffer.from(data.content, 'base64').toString('utf8');
+      let content = Buffer.from(data.content, 'base64').toString('utf8');
+
+      // Détecter si c'est un pointeur LFS et résoudre le vrai contenu
+      if (this._isLfsPointer(content)) {
+        console.log('   🔗 Pointeur LFS détecté, téléchargement du contenu réel...');
+        const oid = content.match(/oid sha256:([a-f0-9]+)/)?.[1];
+        const size = parseInt(content.match(/size (\d+)/)?.[1] || '0', 10);
+        if (oid) {
+          const realContent = await this._downloadLfsObject(oid, size);
+          if (realContent !== null) {
+            content = realContent;
+            console.log('   ✅ Contenu LFS téléchargé:', content.length, 'caractères');
+          } else {
+            console.warn('   ⚠️ Impossible de télécharger le contenu LFS');
+          }
+        }
+      }
 
       return {
         success: true,
@@ -471,6 +487,111 @@ class GitLabAPI {
    */
   _encodePath(filePath) {
     return filePath.split('/').map(encodeURIComponent).join('%2F');
+  }
+
+  /**
+   * Détecte si un contenu est un pointeur LFS Git
+   * Format : "version https://git-lfs.github.com/spec/v1\noid sha256:...\nsize ...\n"
+   */
+  _isLfsPointer(content) {
+    return content.startsWith('version https://git-lfs.github.com/spec/v1');
+  }
+
+  /**
+   * Télécharge le contenu réel d'un objet LFS via l'API Batch.
+   * 1. POST /objects/batch → obtient l'URL de téléchargement
+   * 2. GET sur cette URL → contenu réel
+   * @returns {string|null} Le contenu texte ou null en cas d'erreur
+   */
+  async _downloadLfsObject(oid, size) {
+    try {
+      // Étape 1 : Demander l'URL de téléchargement via LFS Batch API
+      const batchBody = {
+        operation: 'download',
+        transfers: ['basic'],
+        ref: { name: `refs/heads/${this.branch}` },
+        objects: [{ oid, size }],
+      };
+
+      const batchResult = await this._requestLFS('POST', '/objects/batch', batchBody);
+
+      const obj = batchResult?.objects?.[0];
+      if (!obj || obj.error) {
+        console.error('❌ LFS Batch erreur:', obj?.error?.message || 'objet introuvable');
+        return null;
+      }
+
+      const downloadUrl = obj.actions?.download?.href;
+      const downloadHeaders = obj.actions?.download?.header || {};
+      if (!downloadUrl) {
+        console.error('❌ Pas d\'URL de téléchargement LFS');
+        return null;
+      }
+
+      // Étape 2 : Télécharger le contenu réel
+      console.log('   📥 Téléchargement LFS depuis:', downloadUrl);
+      const content = await this._downloadFromUrl(downloadUrl, downloadHeaders);
+      return content;
+    } catch (error) {
+      console.error('❌ Erreur téléchargement LFS:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Télécharge le contenu brut depuis une URL (utilisé pour les objets LFS)
+   */
+  _downloadFromUrl(downloadUrl, extraHeaders = {}) {
+    return new Promise((resolve, reject) => {
+      const urlObj = new URL(downloadUrl);
+
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'SonalPi/1.0',
+          ...extraHeaders,
+        },
+        rejectUnauthorized: false,
+        agent: false,
+      };
+
+      // Si pas de header Authorization fourni par LFS, utiliser notre token
+      if (!extraHeaders['Authorization'] && !extraHeaders['authorization']) {
+        options.headers['Authorization'] = `Basic ${Buffer.from(`oauth2:${this.accessToken}`).toString('base64')}`;
+      }
+
+      const req = https.request(options, (res) => {
+        // Suivre les redirections (GitLab renvoie souvent un 302 vers le storage)
+        if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
+          const redirectUrl = res.headers.location;
+          if (redirectUrl) {
+            console.log('   ↪️ Redirection LFS:', redirectUrl);
+            this._downloadFromUrl(redirectUrl, {}).then(resolve).catch(reject);
+            return;
+          }
+        }
+
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            reject(new Error(`HTTP ${res.statusCode} lors du téléchargement LFS`));
+            return;
+          }
+          resolve(Buffer.concat(chunks).toString('utf8'));
+        });
+      });
+
+      req.on('error', reject);
+      req.setTimeout(60000, () => {
+        req.destroy();
+        reject(new Error('Timeout téléchargement LFS'));
+      });
+      req.end();
+    });
   }
 
   /**
