@@ -802,7 +802,8 @@ Styles pour les boutons
     opacity: 0.8;
     padding-left: 15px;
     padding-top: 10px;
-    height: 316px;
+    height: auto;
+    min-height: 316px;
 }
     .chkcat {
         position: absolute;
@@ -2423,7 +2424,7 @@ td.col-loc {
     width: 100%;
     height: calc(100vh - 21px);
     background-color: var(--couleur-block);
-    padding: 10px 5px 0px 0px; 
+  padding: 10px 5px 0px 0px; 
     z-index: 11;
     opacity: 1;
 }
@@ -2433,7 +2434,6 @@ td.col-loc {
     font-weight: bold;
     color: var(--couleur-titre);
     margin-bottom: 10px;
-    border-bottom: 2px solid var(--couleur-titre);
     padding-bottom: 5px;
     background-image: linear-gradient(to top, #e1e1e1c9, var(--couleur-block));
 }
@@ -2550,12 +2550,15 @@ tr:hover{
 SYNTHESE
 =================================================*/
 .fondsynth {
-    overflow-y: auto;
-    height: calc(100vh - 75px);
-    margin-top: 20px;
-    position: absolute;
-    background-color: var(--couleur-fond);
-    
+  position: absolute;
+  top: 60px; /* place le contenu sous l'entête */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  background-color: var(--couleur-fond);
+  box-sizing: border-box;
+  padding: 10px;
 }
 
 .plansynth {

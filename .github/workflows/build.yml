@@ -53,10 +53,22 @@ jobs:
       - name: Build application
         run: npm run build -- --publish always
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1
           ELECTRON_BUILDER_MAX_RETRIES: 3
       
+      - name: List generated files (Linux)
+        if: runner.os == 'Linux'
+        run: ls -la dist/
+      
+      - name: List generated files (macOS)
+        if: runner.os == 'macOS'
+        run: ls -la dist/
+      
+      - name: List generated files (Windows)
+        if: runner.os == 'Windows'
+        run: Get-ChildItem -Path "dist\" -Recurse
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

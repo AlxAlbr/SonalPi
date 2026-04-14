@@ -507,7 +507,7 @@ window.addEventListener('unload', (event) => {
 
                 <div id="synthese" class="dnone fondsynth" >
                     <H2 style="padding: 10px;"> Synthèse </H2>
-                    <div class="close"  onclick="fermeSynth()" style="color: rgb(7, 7, 7);font-size: 2.5rem;margin-right: 5px;margin-top:-70px">×</div> 
+                    <div class="close"  onclick="fermeSynth()" style="color: rgb(7, 7, 7);margin-right: 5px;margin-top:-70px">✖️</div> 
                     <div id="fondsynth"></div>
                     
                 </div>
@@ -1016,7 +1016,7 @@ async function dispPanneauG(bouton, composant){
         const btnFilig = document.getElementById('filgraneCat');
         if (btnFilig) {
             if (btnFilig.classList.contains('btn-bleu-actif')) {
-                catsEnFiligrane()
+               // catsEnFiligrane()
                 
             }
         }
@@ -1044,7 +1044,7 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="cat"
-        removeCatsEnFiligrane()
+       removeCatsEnFiligrane(); // rétablissement du contraste des thématiques
 
     }  
 
@@ -1052,7 +1052,7 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="loc"
-       catsEnFiligrane(); // aténuation du contraste des thématiques
+        
        
 
     }  
@@ -2086,14 +2086,15 @@ function dialog(type){
                     <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
                     <div class="menudrlnt">
                         
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web (contient tout le codage + son)</span></div>
+                        
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte (Word)</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('pdf')"><label class="lblformat">.pdf</label> <span class="lbldetails">Document PDF</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut </span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web (contient tout le codage + son)</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('srt')"><label class="lblformat">.srt</label> <span class="lbldetails">Sous-titres SRT</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('vtt')"><label class="lblformat">.vtt</label> <span class="lbldetails">Sous-titres WebVTT</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Copie du fichier courant (pour sauvegarde ou export vers un autre projet)</span></div>
-                        
-                       <!--  <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte</span></div> !-->
-                    </div>
+                                            </div>
                 </div>
                 <!-- Panneau 2 : options (rempli dynamiquement par dialogExportChoixOptions) -->
                 <div id="export-panel-options" style="width:50%; padding:0px 20px 20px; box-sizing:border-box;"></div>
@@ -2259,7 +2260,7 @@ function dialog(type){
     contenu.innerHTML = 
         `   
 
-            <div class="close" onclick="hidedlg()">×✖️</div>
+            <div class="close" onclick="hidedlg()">✖️</div>
             <h3 class = "menu-title-com">  Commentaire </h3>
 
 
@@ -2470,9 +2471,10 @@ function dialogExportChoixOptions(format) {
         txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
         srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true]],
         vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true]],
-        docx:  [[true,false], [true,false],  [true,false],  [true,false],  [false,false], [true,false]],
+        docx:  [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
+        pdf:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
     };
-    const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', srt:'.srt', vtt:'.vtt', docx:'.docx' };
+    const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', srt:'.srt', vtt:'.vtt', docx:'.docx', pdf:'.pdf' };
 
     const cfg = CFG[format] || CFG.txt;
     const [oa, on, ov, ol, oth, oti] = cfg;

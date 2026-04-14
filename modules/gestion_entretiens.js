@@ -2520,9 +2520,241 @@ ${legendHtml}
             break;
         }
 
-        case 'docx':
-            alert('Export .docx non encore implemente.');
+        case 'docx': {
+            const nomFichier = detailsf[1] + suffixeAnon + '.docx';
+            await genererExportDocxEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locut);
             break;
+        }
+
+        case 'pdf': {
+            const nomFichier = detailsf[1] + suffixeAnon + '.pdf';
+            await genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locut);
+            break;
+        }
+    }
+}
+
+// ---------------------------------------------------------------
+// EXPORT ENTRETIEN - Format DOCX (via IPC au main process)
+// ---------------------------------------------------------------
+async function genererExportDocxEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locuteurs) {
+    try {
+        // Prepare text content data (similar to TXT)
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = contenuHtmlCmpct;
+        const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
+        let contenuTxt = "Entretien : " + ent.nom + "\n\n";
+
+        // Add notes if selected
+        if (opts.notes && ent.notes) {
+            contenuTxt += "Notes de l'entretien :\n" + ent.notes + "\n\n";
+        }
+
+        // Add variables if selected
+        if (opts.vars && txtvars) {
+            contenuTxt += "Variables associées :\n" + txtvars + "\n\n";
+        }
+
+        // Add text content (similar to TXT format)
+        let seg_cur = null;
+        let loc_cur = '';
+        let thm_cur = '';
+
+        mots.forEach(mot => {
+            const seg = mot.closest('.lblseg');
+            if (!seg) return;
+
+            let locNom = '';
+            let isLocBold = false;
+            if (opts.loc) {
+                const locIdx = seg.dataset.loc;
+                const originalLoc = locuteurs[locIdx];
+                locNom = originalLoc ? originalLoc.replaceAll('?', '').trim() : '';
+                // Vérifier si le locuteur doit être en gras
+                isLocBold = originalLoc && originalLoc.includes('?');
+            }
+
+            let thmStr = '';
+            if (opts.thm) {
+                const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+                const thmNoms = thmClasses.map(c => {
+                    const thm = tabThm.find(t => t.code === c);
+                    return thm ? thm.nom.split('//')[0].trim() : null;
+                }).filter(nom => nom);
+                thmStr = thmNoms.join(', ');
+            }
+
+            const isFirst = seg_cur === null;
+            const segChange = seg !== seg_cur;
+            const locChange = locNom !== loc_cur;
+            const thmChange = thmStr !== thm_cur;
+
+            if (isFirst || (segChange && locChange)) {
+                let ligne = isFirst ? '' : '\n\n';
+                // Ajouter {g} si le locuteur doit être en gras
+                if (isLocBold) {
+                    ligne += '{g}';
+                }
+                if (opts.time) {
+                    const deb = seg.dataset.deb;
+                    if (deb) ligne += SecToTime(deb, true) + " ";
+                }
+                if (opts.loc && locNom) ligne += locNom + ' ';
+                if (opts.thm && thmStr) ligne += '[' + thmStr + '] ';
+                contenuTxt += ligne + '\n';
+                // Ajouter {g} avant le contenu du premier mot si le locuteur est gras
+                if (isLocBold) {
+                    contenuTxt += '{g}';
+                }
+            } else if (segChange) {
+                contenuTxt += '\n\n';
+                // Ajouter {g} si le nouveau locuteur est gras
+                if (isLocBold) {
+                    contenuTxt += '{g}';
+                }
+                if (opts.thm && thmChange) contenuTxt += '[' + (thmStr || '–') + '] ';
+            } else if (opts.thm && thmChange) {
+                contenuTxt += ' [' + (thmStr || '–') + '] ';
+            }
+
+            contenuTxt += mot.textContent;
+            seg_cur = seg;
+            loc_cur = locNom;
+            thm_cur = thmStr;
+        });
+
+        contenuTxt += '\n';
+
+        // Call IPC handler
+        const result = await window.electronAPI.exportEntretienDocx({
+            nomEntretien: ent.nom,
+            contenuTxt: contenuTxt,
+            notes: opts.notes ? ent.notes : '',
+            variables: opts.vars ? txtvars : '',
+            nomFichier: nomFichier
+        });
+
+        if (result.success) {
+            wait();
+            setTimeout(() => { endWait(); }, 500);
+        } else if (!result.canceled) {
+            alert("Erreur lors de l'export DOCX : " + (result.error || 'Erreur inconnue'));
+        }
+    } catch (error) {
+        console.error('Erreur exportDocxEntretien :', error);
+        alert("Erreur lors de l'export DOCX");
+    }
+}
+
+// ---------------------------------------------------------------
+// EXPORT ENTRETIEN - Format PDF (via IPC au main process)
+// ---------------------------------------------------------------
+async function genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locuteurs) {
+    try {
+        // Prepare text content data (similar to TXT)
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = contenuHtmlCmpct;
+        const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
+        let contenuTxt = "Entretien : " + ent.nom + "\n\n";
+
+        // Add notes if selected
+        if (opts.notes && ent.notes) {
+            contenuTxt += "Notes de l'entretien :\n" + ent.notes + "\n\n";
+        }
+
+        // Add variables if selected
+        if (opts.vars && txtvars) {
+            contenuTxt += "Variables associées :\n" + txtvars + "\n\n";
+        }
+
+        // Add text content (similar to TXT format)
+        let seg_cur = null;
+        let loc_cur = '';
+        let thm_cur = '';
+
+        mots.forEach(mot => {
+            const seg = mot.closest('.lblseg');
+            if (!seg) return;
+
+            let locNom = '';
+            let isLocBold = false;
+            if (opts.loc) {
+                const locIdx = seg.dataset.loc;
+                const originalLoc = locuteurs[locIdx];
+                locNom = originalLoc ? originalLoc.replaceAll('?', '').trim() : '';
+                // Vérifier si le locuteur doit être en gras
+                isLocBold = originalLoc && originalLoc.includes('?');
+            }
+
+            let thmStr = '';
+            if (opts.thm) {
+                const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+                const thmNoms = thmClasses.map(c => {
+                    const thm = tabThm.find(t => t.code === c);
+                    return thm ? thm.nom.split('//')[0].trim() : null;
+                }).filter(nom => nom);
+                thmStr = thmNoms.join(', ');
+            }
+
+            const isFirst = seg_cur === null;
+            const segChange = seg !== seg_cur;
+            const locChange = locNom !== loc_cur;
+            const thmChange = thmStr !== thm_cur;
+
+            if (isFirst || (segChange && locChange)) {
+                let ligne = isFirst ? '' : '\n\n';
+                // Ajouter {g} si le locuteur doit être en gras
+                if (isLocBold) {
+                    ligne += '{g}';
+                }
+                if (opts.time) {
+                    const deb = seg.dataset.deb;
+                    if (deb) ligne += SecToTime(deb, true) + " ";
+                }
+                if (opts.loc && locNom) ligne += locNom + ' ';
+                if (opts.thm && thmStr) ligne += '[' + thmStr + '] ';
+                contenuTxt += ligne + '\n';
+                // Ajouter {g} avant le contenu du premier mot si le locuteur est gras
+                if (isLocBold) {
+                    contenuTxt += '{g}';
+                }
+            } else if (segChange) {
+                contenuTxt += '\n\n';
+                // Ajouter {g} si le nouveau locuteur est gras
+                if (isLocBold) {
+                    contenuTxt += '{g}';
+                }
+                if (opts.thm && thmChange) contenuTxt += '[' + (thmStr || '–') + '] ';
+            } else if (opts.thm && thmChange) {
+                contenuTxt += ' [' + (thmStr || '–') + '] ';
+            }
+
+            contenuTxt += mot.textContent;
+            seg_cur = seg;
+            loc_cur = locNom;
+            thm_cur = thmStr;
+        });
+
+        contenuTxt += '\n';
+
+        // Call IPC handler
+        const result = await window.electronAPI.exportEntretienPdf({
+            nomEntretien: ent.nom,
+            contenuTxt: contenuTxt,
+            notes: opts.notes ? ent.notes : '',
+            variables: opts.vars ? txtvars : '',
+            nomFichier: nomFichier
+        });
+
+        if (result.success) {
+            wait();
+            setTimeout(() => { endWait(); }, 500);
+        } else if (!result.canceled) {
+            alert("Erreur lors de l'export PDF : " + (result.error || 'Erreur inconnue'));
+        }
+    } catch (error) {
+        console.error('Erreur exportPdfEntretien :', error);
+        alert("Erreur lors de l'export PDF");
     }
 }
 

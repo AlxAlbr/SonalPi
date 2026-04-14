@@ -19,6 +19,7 @@
   <script  src="modules/conversions.js"></script>
   <script  src="modules/gestion_data.js"></script>
   <script  src="modules/Synthèse.js"></script>
+  <script  src="modules/export_synthese_extended.js"></script>
   <script  src="modules/segmentation.js"></script>
   <script  src="renderer.js"></script>
   <script>
@@ -33,7 +34,7 @@
 <!-- fenêtre d'accueil occupant la partie centrale et blurant le fond jusqu'à sélection d'un projet!-->
   <div id="fenetreAccueil" class="fenetre-accueil">
       <div class="contenu-accueil">
-        <div class="close" onclick="document.getElementById('fenetreAccueil').style.display='none'; ">×</div>
+        <div class="close" onclick="document.getElementById('fenetreAccueil').style.display='none'; ">✖️</div>
           <h2>Bienvenue dans </h2>
           <img id = "logo" src="img/logoSonal.png"  alt=""  height="100"  >
           <p class="version-label" style="
@@ -733,7 +734,7 @@ function dialog(type, message){
         contenu.innerHTML = 
             ` <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
                 <img id = "logo" src="img/logoSonal.png"  alt="" style="height:40px; width:auto;">
-                <div class="close" onclick="hidedlg()" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
+                <div class="close" onclick="hidedlg()" style="cursor:pointer;">✖️</div>
               </div>
               <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" style="flex:1; overflow-y:auto;">
                     <p style="padding:20px;white-space:pre-wrap;font-size:1.1rem">${message}</p>
@@ -1090,7 +1091,7 @@ function dialog(type, message){
          contenu.innerHTML = 
         ` 
                 <div>
-                <div class="close" onclick="hidedlg()">×</div>
+                <div class="close" onclick="hidedlg()">✖️</div>
                 <H3>Filtrer les catégories affichées </H3>
                 </div>
             

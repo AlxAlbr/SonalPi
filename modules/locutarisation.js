@@ -73,6 +73,7 @@ function createLocutRow(loc, name) {
     input.type = "text";
     input.className = "txtloc btnloc" + loc + " dnone";
     input.id = "txtloc" + loc;
+    input.dataset.loc = loc;
     input.value = name;
     input.addEventListener('focus', function() {
         this.setSelectionRange(0, this.value.length);
@@ -141,17 +142,18 @@ async function validLocut(){
     
     const collection2 = document.querySelectorAll('.txtloc');
 
-    collection2.forEach(function(txtloc, index) {
+    collection2.forEach(function(txtloc) {
     
-    let txt =txtloc.value;
+    let txt = txtloc.value;
+    let locIdx = parseInt(txtloc.dataset.loc);
  
     
-    if (locut[index] != txt  ) { // si locuteur a été changé
+    if (locut[locIdx] != txt) { // si locuteur a été changé
 
-       if (txt.trim() !="") {
-        locut[index+1] = txt
+       if (txt.trim() != "") {
+        locut[locIdx] = txt;
        } else {
-        locut.splice(index+1,1)
+        locut.splice(locIdx, 1);
        }
 
     };
@@ -625,7 +627,7 @@ async function statsLocs(tabLoc, html, nomConteneur){ // fonction de statistique
         statsActifs.sort((a, b) => b.nbMots - a.nbMots);
 
         // dessin du graphe des locuteurs sur le canvas
-        //dessinGraphLoc();
+        dessinGraphLoc();
 
         const totalMots = statsActifs.reduce((s, e) => s + e.nbMots, 0);
         const totalMotsQ = statsActifs.filter(e => e.loc && e.loc.includes("?")).reduce((s, e) => s + e.nbMots, 0);
@@ -642,9 +644,16 @@ async function statsLocs(tabLoc, html, nomConteneur){ // fonction de statistique
         conteneurStats.appendChild(titre);
         
         // ajout d'un bouton de fermeture
-        const btnFermer = document.createElement('span');
-        btnFermer.textContent = "×";
+        const btnFermer = document.createElement('label');
+        btnFermer.textContent = "✖️";
         btnFermer.className = "close";
+        btnFermer.addEventListener('click', () => {
+            conteneurStats.innerHTML = "";
+            // Réafficher les xtr-graph masqués par dessinGraphLoc
+            document.querySelectorAll('.xtr-graph').forEach(s => s.style.display = '');
+            // Supprimer les loc-graph pour revenir à l'affichage normal
+            document.querySelectorAll('.loc-graph').forEach(s => s.remove());
+        });
         titre.appendChild(btnFermer);
 
 

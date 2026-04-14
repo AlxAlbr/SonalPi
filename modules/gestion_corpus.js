@@ -2097,7 +2097,7 @@ function question(message, bouttons) { // fonction d'affichage d'une question av
             
             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
                 <img id = "logo" src="img/icon.png"  alt="" style="height:40px; width:auto;">
-                <div class="close" onclick="hidedlg();_questionResolve('annuler')" style="cursor:pointer; font-size:24px; font-weight:bold;">×</div>
+                <div class="close" onclick="hidedlg();_questionResolve('annuler')" style="cursor:pointer;">✖️</div>
               </div>
 
            <p style="padding:20px 20px 0 20px; font-size:1.1rem; margin:0;">${msgTitre}</p>${msgDetail ? `<p style="padding:6px 20px 20px 20px; font-size:0.88rem; color:#888; white-space:pre-wrap; margin:0;">${msgDetail}</p>` : ''}`;

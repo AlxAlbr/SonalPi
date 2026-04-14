@@ -8,6 +8,8 @@ const AdmZip = require('adm-zip');
 const mammoth = require('mammoth');
 const _pdfParse = require('pdf-parse/lib/pdf-parse.js');
 const pdfParse = _pdfParse.default || _pdfParse;
+const { Document, Packer, Paragraph, TextRun, HeadingLevel } = require('docx');
+const PDFDocument = require('pdfkit');
 //const fetch = require('node-fetch') 
 const http = require('http');
 const https = require('https');
@@ -1047,7 +1049,7 @@ function editerCategories(parentWindow) {
 
   return new Promise((resolve) => {
     const catWindow = new BrowserWindow({
-      width: 900,
+      width: 1200,
       height: 900,
       titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
@@ -2211,7 +2213,7 @@ app.on('ready', () => {
       }
     });
 
-   // mainWindow.webContents.openDevTools(); 
+  // mainWindow.webContents.openDevTools(); 
 
 
 
@@ -2380,6 +2382,548 @@ app.on('ready', () => {
 app.on('before-quit', async () => {
   console.log('🚪 Fermeture de l\'application...');
   if (serveurAPI) await serveurAPI.nettoyerTousLesVerrous();
+});
+
+// ---------------------------------------------------------------
+// IPC HANDLERS - Export DOCX et PDF - VERSIONS IPC
+// ---------------------------------------------------------------
+// Helper : convertir secondes en HH:MM:SS
+function secToTime(sec, afficherMS = false) {
+  if (!sec && sec !== 0) return "00:00:00";
+  const heures = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  const secondes = Math.floor(sec % 60);
+  const ms = Math.round((sec % 1) * 1000);
+  
+  const h = String(heures).padStart(2, '0');
+  const m = String(minutes).padStart(2, '0');
+  const s = String(secondes).padStart(2, '0');
+  
+  return afficherMS ? `${h}:${m}:${s}.${String(ms).padStart(3, '0')}` : `${h}:${m}:${s}`;
+}
+
+ipcMain.handle('export-synthese-docx', async (event, { extraits, entretiens, themes, opts, nomFichier }) => {
+  try {
+    const currentDate = new Date().toLocaleString();
+    const versionSonal = "3.0"; // À récupérer depuis package.json si nécessaire
+    
+    const children = [];
+
+
+    // EN-TÊTE PRINCIPAL
+
+    children.push(
+      new Paragraph({
+        text: "SYNTHÈSE DES EXTRAITS SÉLECTIONNÉS",
+        heading: HeadingLevel.TITLE,
+        bold: true,
+        spacing: { after: 100 }
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        text: `Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`,
+        spacing: { after: 100 },
+        size: 20
+      })
+    );
+
+
+
+ 
+
+    // PARCOURIR LES EXTRAITS
+    let entretienCourant = -1;
+
+    for (let i = 0; i < extraits.length; i++) {
+      const extrait = extraits[i];
+      const entInfo = entretiens[extrait.entretien];
+
+      // CHANGEMENT D'ENTRETIEN
+      if (entretienCourant !== extrait.entretien) {
+        entretienCourant = extrait.entretien;
+        
+        // Ligne de séparation
+        children.push(
+          new Paragraph({
+            text: "-".repeat(70),
+            spacing: { after: 150 }
+          })
+        );
+
+        // Titre d'entretien (Heading 2)
+        children.push(
+          new Paragraph({
+            text: `ENTRETIEN : ${entInfo.nom}`,
+            heading: HeadingLevel.HEADING_2,
+            bold: true,
+            spacing: { after: 100 }
+          })
+        );
+
+        // Variables d'entretien si demandé
+        if (opts.vars && entInfo.variables) {
+          children.push(
+            new Paragraph({
+              text: `Variables : ${entInfo.variables}`,
+              spacing: { after: 100 }
+            })
+          );
+        }
+
+        // Ligne de séparation
+        children.push(
+          new Paragraph({
+            text: "-".repeat(70),
+            spacing: { after: 200 }
+          })
+        );
+      }
+
+      // EN-TÊTE DE L'EXTRAIT
+      let header = "";
+      
+      if (opts.time) {
+        const startTime = secToTime(extrait.debut);
+        const endTime = secToTime(extrait.fin);
+        header += `${startTime} -> ${endTime} `;
+      }
+
+      if (opts.thm && extrait.categories && extrait.categories.length > 0) {
+        header += `[${extrait.categories.join(" | ")}] `;
+      }
+
+      if (!opts.time && !opts.thm) {
+        header += `Extrait ${i + 1} `;
+      }
+
+      children.push(
+        new Paragraph({
+          text: header,
+          bold: true,
+          spacing: { after: 100 }
+        })
+      );
+
+      // CONTENU DE L'EXTRAIT (pré-traité)
+      let texteComplet = extrait.texteTraite || "";
+      
+      // Filtrer les locuteurs si option désactivée
+      if (!opts.loc) {
+        texteComplet = texteComplet.replace(/^[^:]*:\s*/gm, "");
+      }
+
+      children.push(
+        new Paragraph({
+          text: texteComplet,
+          spacing: { after: 200 }
+        })
+      );
+    }
+
+    // CRÉER LE DOCUMENT
+    const doc = new Document({
+      sections: [{
+        children: children
+      }]
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath,
+      filters: [{ name: 'Document Word', extensions: ['docx'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    fs.writeFileSync(filePath, buffer);
+    shell.openPath(filePath);
+    
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur DOCX :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('export-synthese-pdf', async (event, { contenuTxt, nomFichier }) => {
+  try {
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath,
+        filters: [{ name: 'Document PDF', extensions: ['pdf'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    // Créer un PDF avec pdfkit
+    const doc = new PDFDocument({
+      margin: 50,
+      size: 'A4'
+    });
+
+    // Écrire le fichier PDF sur disque
+    const writeStream = fs.createWriteStream(filePath);
+    doc.pipe(writeStream);
+
+    // Ajouter le contenu au PDF
+    doc.fontSize(18).font('Helvetica-Bold').text('SYNTHÈSE DES EXTRAITS SÉLECTIONNÉS', { underline: false });
+    doc.moveDown(0.5);
+    
+    const currentDate = new Date().toLocaleString();
+    const versionSonal = "1.0.54";
+    doc.fontSize(10).font('Helvetica').text(`Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`);
+    doc.moveDown(1);
+
+    // Ajouter le contenu du texte
+    doc.fontSize(11).font('Helvetica');
+    const lines = contenuTxt.split('\n');
+    
+    // Ignorer les 3 premières lignes (titres dupliqués du contenuTxt)
+    let startLine = 0;
+    for (let i = 0; i < lines.length && i < 3; i++) {
+      if (lines[i].includes('SYNTHÈSE') || lines[i].includes('Exporté par')) {
+        startLine = i + 1;
+      }
+    }
+    
+    for (let i = startLine; i < lines.length; i++) {
+      const line = lines[i];
+      // Gérer les lignes trop longues
+      if (line.length > 100) {
+        doc.text(line + "\n", { width: 480, align: 'left' });
+      } else {
+        doc.text(line + "\n");
+      }
+    }
+
+    // Finaliser et fermer le document
+    doc.end();
+
+    return new Promise((resolve) => {
+      writeStream.on('finish', () => {
+        console.log('✅ PDF créé avec succès:', filePath);
+        shell.openPath(filePath);
+        resolve({ success: true, filePath });
+      });
+
+      writeStream.on('error', (error) => {
+        console.error('❌ Erreur PDF :', error);
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    console.error('❌ Erreur PDF :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---------------------------------------------------------------
+// IPC HANDLERS - Export ENTRETIEN - Format DOCX
+// ---------------------------------------------------------------
+ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt, notes, variables, nomFichier }) => {
+  try {
+    const currentDate = new Date().toLocaleString();
+    const versionSonal = "3.0";
+    
+    // Helper function to parse {g} and **bold** text and create TextRun array
+    function parseTextRuns(text) {
+      // Vérifier si la ligne commence par {g} (entire line bold)
+      if (text.startsWith('{g}')) {
+        const cleanText = text.slice(3); // Enlever {g}
+        if (!cleanText) return [];
+        
+        // Toute la ligne en gras
+        return [new TextRun({
+          text: cleanText,
+          bold: true
+        })];
+      }
+      
+      // Sinon, parser les **bold** markers
+      const parts = text.split(/(\*\*[^*]+\*\*)/);
+      return parts
+        .map(part => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return new TextRun({
+              text: part.slice(2, -2),
+              bold: true
+            });
+          } else if (part) {
+            return new TextRun({
+              text: part,
+              bold: false
+            });
+          }
+          return null;
+        })
+        .filter(Boolean);
+    }
+    
+    const children = [];
+
+    // MAIN HEADING
+    children.push(
+      new Paragraph({
+        text: "ENTRETIEN",
+        heading: HeadingLevel.TITLE,
+        bold: true,
+        spacing: { after: 100 }
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        text: nomEntretien,
+        heading: HeadingLevel.HEADING_1,
+        bold: true,
+        spacing: { after: 100 }
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        text: `Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`,
+        spacing: { after: 200 },
+        size: 20
+      })
+    );
+
+    // ADD NOTES IF PROVIDED
+    if (notes) {
+      children.push(
+        new Paragraph({
+          text: "NOTES",
+          heading: HeadingLevel.HEADING_2,
+          bold: true,
+          spacing: { after: 100 }
+        })
+      );
+
+      const notesLines = notes.split('\n');
+      notesLines.forEach((line, index) => {
+        children.push(
+          new Paragraph({
+            children: parseTextRuns(line),
+            spacing: { after: index === notesLines.length - 1 ? 200 : 0 }
+          })
+        );
+      });
+    }
+
+    // ADD VARIABLES IF PROVIDED
+    if (variables) {
+      children.push(
+        new Paragraph({
+          text: "VARIABLES",
+          heading: HeadingLevel.HEADING_2,
+          bold: true,
+          spacing: { after: 100 }
+        })
+      );
+
+      const varsLines = variables.split('\n');
+      varsLines.forEach((line, index) => {
+        children.push(
+          new Paragraph({
+            children: parseTextRuns(line),
+            spacing: { after: index === varsLines.length - 1 ? 200 : 0 }
+          })
+        );
+      });
+    }
+
+    // ADD CONTENT
+    children.push(
+      new Paragraph({
+        text: "CONTENU",
+        heading: HeadingLevel.HEADING_2,
+        bold: true,
+        spacing: { after: 100 }
+      })
+    );
+
+    if (contenuTxt) {
+      const contentLines = contenuTxt.split('\n');
+      contentLines.forEach((line, index) => {
+        children.push(
+          new Paragraph({
+            children: parseTextRuns(line),
+            spacing: { after: index === contentLines.length - 1 ? 200 : 0 }
+          })
+        );
+      });
+    }
+
+    // CREATE DOCUMENT
+    const doc = new Document({
+      sections: [{
+        children: children
+      }]
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath,
+      filters: [{ name: 'Document Word', extensions: ['docx'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    fs.writeFileSync(filePath, buffer);
+    shell.openPath(filePath);
+    
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur DOCX entretien :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---------------------------------------------------------------
+// PDF Text Parser - Handles {g} prefix and **markers**
+// ---------------------------------------------------------------
+const parsePdfLine = (doc, line, defaultWidth = 480) => {
+  // Check for {g} prefix (entire line should be bold)
+  if (line.startsWith('{g}')) {
+    const cleanText = line.slice(3);
+    doc.font('Helvetica-Bold').text(cleanText, { width: defaultWidth, align: 'left' });
+    doc.font('Helvetica');
+    return;
+  }
+
+  // Parse **markers** for inline bold
+  const parts = line.split(/(\*\*[^*]+\*\*)/).filter(Boolean);
+  const isLongLine = line.length > 100;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const isBold = part.startsWith('**') && part.endsWith('**');
+    const textContent = isBold ? part.slice(2, -2) : part;
+    const font = isBold ? 'Helvetica-Bold' : 'Helvetica';
+    const isContinued = i < parts.length - 1;
+
+    if (isLongLine) {
+      doc.font(font).text(textContent, { width: defaultWidth, align: 'left', continued: isContinued });
+    } else {
+      doc.font(font).text(textContent, { continued: isContinued });
+    }
+  }
+  doc.font('Helvetica');
+};
+
+// ---------------------------------------------------------------
+// IPC HANDLERS - Export ENTRETIEN - Format PDF
+// ---------------------------------------------------------------
+ipcMain.handle('export-entretien-pdf', async (event, { nomEntretien, contenuTxt, notes, variables, nomFichier }) => {
+  try {
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath,
+        filters: [{ name: 'Document PDF', extensions: ['pdf'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    // Create PDF with pdfkit
+    const doc = new PDFDocument({
+      margin: 50,
+      size: 'A4'
+    });
+
+    // Write PDF to disk
+    const writeStream = fs.createWriteStream(filePath);
+    doc.pipe(writeStream);
+
+    // Add content to PDF
+    doc.fontSize(18).font('Helvetica-Bold').text('ENTRETIEN', { underline: false });
+    doc.moveDown(0.5);
+    
+    doc.fontSize(16).font('Helvetica-Bold').text(nomEntretien);
+    doc.moveDown(0.5);
+    
+    const currentDate = new Date().toLocaleString();
+    const versionSonal = "1.0.54";
+    doc.fontSize(10).font('Helvetica').text(`Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`);
+    doc.moveDown(1);
+
+    // Add notes section if provided
+    if (notes) {
+      doc.fontSize(12).font('Helvetica-Bold').text('NOTES');
+      doc.moveDown(0.3);
+      doc.fontSize(11).font('Helvetica');
+      const notesLines = notes.split('\n');
+      notesLines.forEach(line => {
+        if (!line) {
+          doc.text('');
+          return;
+        }
+        parsePdfLine(doc, line, 480);
+      });
+      doc.moveDown(0.5);
+    }
+
+    // Add variables section if provided
+    if (variables) {
+      doc.fontSize(12).font('Helvetica-Bold').text('VARIABLES');
+      doc.moveDown(0.3);
+      doc.fontSize(11).font('Helvetica');
+      const varsLines = variables.split('\n');
+      varsLines.forEach(line => {
+        if (!line) {
+          doc.text('');
+          return;
+        }
+        parsePdfLine(doc, line, 480);
+      });
+      doc.moveDown(0.5);
+    }
+
+    // Add content section
+    doc.fontSize(12).font('Helvetica-Bold').text('CONTENU');
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica');
+    const lines = contenuTxt.split('\n');
+    lines.forEach(line => {
+      if (!line) {
+        doc.text('');
+        return;
+      }
+      parsePdfLine(doc, line, 480);
+    });
+
+    // Finalize and close document
+    doc.end();
+
+    return new Promise((resolve) => {
+      writeStream.on('finish', () => {
+        console.log('✅ PDF entretien créé avec succès:', filePath);
+        shell.openPath(filePath);
+        resolve({ success: true, filePath });
+      });
+
+      writeStream.on('error', (error) => {
+        console.error('❌ Erreur PDF entretien :', error);
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    console.error('❌ Erreur PDF entretien :', error);
+    return { success: false, error: error.message };
+  }
 });
 
 app.on('window-all-closed', async () => {

@@ -180,6 +180,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Ouvrir un fichier avec l'application par défaut du système
   openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
 
+  ////////////////////////////////////////////////////////////////////////////
+  // EXPORT SYNTHÈSE - DOCX ET PDF VIA IPC
+  ///////////////////////////////////////////////////////////////////////////
+  exportSynthesisDocx: (data) => ipcRenderer.invoke('export-synthese-docx', data),
+  exportSynthesisPdf: (data) => ipcRenderer.invoke('export-synthese-pdf', data),
+
+  ////////////////////////////////////////////////////////////////////////////
+  // EXPORT ENTRETIEN - DOCX ET PDF VIA IPC
+  ///////////////////////////////////////////////////////////////////////////
+  exportEntretienDocx: (data) => ipcRenderer.invoke('export-entretien-docx', data),
+  exportEntretienPdf: (data) => ipcRenderer.invoke('export-entretien-pdf', data),
+
 });
 
 
