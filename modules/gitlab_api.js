@@ -1,4 +1,5 @@
 const https = require('https');
+const http = require('http');
 const { URL, URLSearchParams } = require('url');
 
 /**
@@ -482,6 +483,13 @@ class GitLabAPI {
   // ──────────────────────────────────────────────
 
   /**
+   * Retourne le module http ou https selon le protocole de l'URL
+   */
+  _httpModule(urlObj) {
+    return urlObj.protocol === 'https:' ? https : http;
+  }
+
+  /**
    * Encode un chemin de fichier pour l'URL GitLab API
    * "dossier/fichier.sonal" → "dossier%2Ffichier.sonal"
    */
@@ -544,10 +552,11 @@ class GitLabAPI {
   _downloadFromUrl(downloadUrl, extraHeaders = {}) {
     return new Promise((resolve, reject) => {
       const urlObj = new URL(downloadUrl);
+      const defaultPort = urlObj.protocol === 'https:' ? 443 : 80;
 
       const options = {
         hostname: urlObj.hostname,
-        port: urlObj.port || 443,
+        port: urlObj.port || defaultPort,
         path: urlObj.pathname + urlObj.search,
         method: 'GET',
         headers: {
@@ -563,7 +572,7 @@ class GitLabAPI {
         options.headers['Authorization'] = `Basic ${Buffer.from(`oauth2:${this.accessToken}`).toString('base64')}`;
       }
 
-      const req = https.request(options, (res) => {
+      const req = this._httpModule(urlObj).request(options, (res) => {
         // Suivre les redirections (GitLab renvoie souvent un 302 vers le storage)
         if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
           const redirectUrl = res.headers.location;
@@ -640,10 +649,11 @@ class GitLabAPI {
     return new Promise((resolve, reject) => {
       const fullUrl = `${this.lfsBase}${endpoint}`;
       const urlObj = new URL(fullUrl);
+      const defaultPort = urlObj.protocol === 'https:' ? 443 : 80;
 
       const options = {
         hostname: urlObj.hostname,
-        port: urlObj.port || 443,
+        port: urlObj.port || defaultPort,
         path: urlObj.pathname + urlObj.search,
         method: method,
         headers: {
@@ -665,7 +675,7 @@ class GitLabAPI {
 
       console.log(`→ LFS ${method} ${fullUrl}`);
 
-      const req = https.request(options, (res) => {
+      const req = this._httpModule(urlObj).request(options, (res) => {
         const chunks = [];
         res.on('data', chunk => chunks.push(chunk));
         res.on('end', () => {
@@ -728,6 +738,7 @@ class GitLabAPI {
     return new Promise((resolve, reject) => {
       // Construire l'URL complète
       let fullUrl;
+
       if (endpointOrPath.startsWith('/api/v4/')) {
         // Chemin absolu (ex: /api/v4/user)
         fullUrl = `${this.instanceUrl}${endpointOrPath}`;
@@ -737,10 +748,11 @@ class GitLabAPI {
       }
 
       const urlObj = new URL(fullUrl);
+      const defaultPort = urlObj.protocol === 'https:' ? 443 : 80;
 
       const options = {
         hostname: urlObj.hostname,
-        port: urlObj.port || 443,
+        port: urlObj.port || defaultPort,
         path: urlObj.pathname + urlObj.search,
         method: method,
         headers: {
@@ -761,7 +773,7 @@ class GitLabAPI {
 
       console.log(`→ GitLab ${method} ${fullUrl}`);
 
-      const req = https.request(options, (res) => {
+      const req = this._httpModule(urlObj).request(options, (res) => {
         const chunks = [];
         res.on('data', chunk => chunks.push(chunk));
         res.on('end', () => {

@@ -10,7 +10,8 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build-icons": "electron-icon-builder --input=./icon/icon.png --output=./dist"
+    "build-icons": "electron-icon-builder --input=./icon/icon.png --output=./dist",
+    "test:verrouillage": "playwright test tests/verrouillage.spec.js --reporter=line"
   },
   "build": {
     "appId": "com.sonal.id",
@@ -96,15 +97,17 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
-    "electron-updater": "^6.6.2",
     "chardet": "^2.1.0",
     "electron-store": "^7.0.3",
+    "electron-updater": "^6.6.2",
     "iconv-lite": "^0.6.2",
     "mammoth": "^1.12.0",
     "node-fetch": "^2.7.0",
     "pdf-parse": "^1.1.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "dotenv": "^17.4.2",
     "electron": "38.1.2",
     "electron-builder": "^26.0.12",
     "electron-icon-builder": "^2.0.1"

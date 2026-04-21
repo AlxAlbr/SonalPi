@@ -50,7 +50,6 @@ class GitLabOAuth {
       // enregistré dans GitLab — certaines instances n'acceptent pas un port dynamique
       const CALLBACK_PORT = 7474;
       // Le redirect URI doit correspondre exactement à ce qui est enregistré dans GitLab.
-      // On écoute sur 0.0.0.0 (toutes interfaces) pour que le port forwarding WSL2→Windows
       // fonctionne, mais l'URI de callback reste sur 127.0.0.1 comme configuré dans GitLab.
       const redirectUri = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
       const server = http.createServer();
@@ -67,8 +66,8 @@ class GitLabOAuth {
         }
       });
 
-      // Écouter sur toutes les interfaces (0.0.0.0) pour compatibilité WSL2
-      server.listen(CALLBACK_PORT, '0.0.0.0', () => {
+      // Écouter sur le port défini 
+      server.listen(CALLBACK_PORT, '127.0.0.1', () => {
         // Générer un state aléatoire anti-CSRF
         const state = crypto.randomBytes(16).toString('hex');
 
