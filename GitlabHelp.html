@@ -378,6 +378,39 @@
   <div class="step">
     <div class="step-header">
       <div class="step-number">4</div>
+      <div class="step-title">Autoriser les collaborateurs à enregistrer leurs modifications</div>
+    </div>
+    <div class="step-body">
+      <p>Par défaut, GitLab protège la branche principale (<code>main</code>) et n'autorise
+      que les <em>Maintainers</em> à y déposer des modifications. Les collaborateurs avec
+      le rôle <em>Developer</em> sont bloqués, ce qui empêche SonalPi de sauvegarder
+      les entretiens en leur nom.</p>
+      <p>Pour corriger cela :</p>
+      <ul>
+        <li>Dans le projet GitLab, allez dans <strong>Settings → Repository</strong></li>
+        <li>Dépliez la section <strong>Protected branches</strong></li>
+        <li>Sur la ligne correspondant à <code>main</code>, changez
+        <strong>Allowed to push and merge</strong> de <em>Maintainers</em> à
+        <strong>Developers + Maintainers</strong></li>
+      </ul>
+      <div class="warning">
+        ⚠️ Cette modification s'applique à tous les membres avec le rôle <em>Developer</em>
+        sur ce projet. Elle est indispensable pour que chaque collaborateur puisse enregistrer
+        ses modifications dans SonalPi.
+      </div>
+      <div class="info">
+        ℹ️ Si vous utilisez un groupe GitLab (étape 1) et que plusieurs projets partagent
+        la même configuration, vous pouvez définir les branches protégées au niveau du groupe
+        pour ne faire l'opération qu'une seule fois (<strong>Settings → Repository</strong>
+        dans le groupe).
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 5 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">5</div>
       <div class="step-title">Créer une application OAuth dans votre profil GitLab</div>
     </div>
     <div class="step-body">
@@ -415,25 +448,55 @@
     </div>
   </div>
 
-  <!-- ÉTAPE 5 -->
+  <!-- ÉTAPE 6 -->
   <div class="step">
     <div class="step-header">
-      <div class="step-number">5</div>
-      <div class="step-title">Placer le fichier corpus dans le dépôt</div>
+      <div class="step-number">6</div>
+      <div class="step-title">Ouvrir le projet et ajouter les entretiens</div>
     </div>
     <div class="step-body">
-      <p>Le fichier <code>.crp</code> (corpus SonalPi) doit être présent dans le dépôt GitLab
-      avant de pouvoir l'ouvrir depuis SonalPi.</p>
+      <p>Le dépôt GitLab est prêt. Ouvrez SonalPi et connectez-vous au projet via
+      <strong>Fichier → Ouvrir corpus distant (GitLab)…</strong></p>
       <ul>
-        <li>Si vous démarrez un nouveau corpus : créez d'abord le corpus localement dans SonalPi,
-        puis déposez le fichier <code>.crp</code> et les entretiens <code>.sonal</code> dans le
-        dépôt GitLab via l'interface web (<strong>+ → Upload file</strong>) ou via Git</li>
-        <li>Si le corpus existe déjà dans le dépôt : notez son chemin depuis la racine,
-        par exemple <code>corpus/mon-projet.crp</code></li>
+        <li>Si le dépôt ne contient pas encore de fichier <code>.crp</code>,
+        SonalPi en <strong>crée automatiquement un vide</strong> lors de la première ouverture —
+        aucune manipulation préalable n'est nécessaire.</li>
+        <li>Pour ajouter vos entretiens, utilisez le menu
+        <strong>Entretiens → Ajouter un entretien</strong> comme avec un corpus local.
+        Chaque entretien sera créé directement dans GitLab.</li>
+        <li>Si le corpus existe déjà dans le dépôt : notez simplement le chemin du
+        <code>.crp</code> depuis la racine du dépôt (ex. <code>mon-corpus.crp</code>)
+        et saisissez-le dans le champ « Fichier corpus » lors de la connexion.</li>
       </ul>
       <div class="warning">
         ⚠️ Les fichiers audio ne sont pas synchronisés via GitLab — ils restent locaux
         sur chaque machine.
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 7 (optionnelle) -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number" style="background:#6c757d;">7</div>
+      <div class="step-title">Restreindre l'ajout et la suppression d'entretiens <em style="font-weight:400; font-size:13px;">(optionnel)</em></div>
+    </div>
+    <div class="step-body">
+      <p>Par défaut, tous les membres du projet (Developers inclus) peuvent ajouter et supprimer
+      des entretiens. Si vous souhaitez réserver ces actions aux responsables du projet
+      (Maintainer / Owner), activez la restriction depuis SonalPi une fois le corpus ouvert :</p>
+      <ul>
+        <li>Menu <strong>Corpus → ⚙️ Paramètres GitLab…</strong></li>
+        <li>Cochez <strong>Restreindre l'ajout et la suppression d'entretiens aux responsables
+        du projet</strong>, puis cliquez sur <strong>Enregistrer</strong>.</li>
+      </ul>
+      <p>Ce réglage est stocké dans un fichier <code>options.json</code> à la racine du dépôt.
+      Il prend effet pour tous les membres à la prochaine ouverture du corpus. Un Developer
+      qui tente d'ajouter ou de supprimer un entretien reçoit un message explicite — il peut
+      toujours modifier les entretiens existants.</p>
+      <div class="info">
+        ℹ️ Cette option n'est visible que lorsqu'un corpus GitLab est ouvert, et modifiable
+        uniquement par les Maintainer et Owner.
       </div>
     </div>
   </div>
@@ -443,7 +506,7 @@
 
   <div class="step">
     <div class="step-header">
-      <div class="step-number" style="background:#6e40c9;">6</div>
+      <div class="step-number" style="background:#6e40c9;">8</div>
       <div class="step-title">Récupérer tous les fichiers et supprimer le projet GitLab</div>
     </div>
     <div class="step-body">
@@ -528,9 +591,10 @@
     <div class="faq-q">Dois-je répéter ces étapes pour chaque collègue ?</div>
     <div class="faq-a">
       <strong>Une seule fois par le responsable du projet :</strong> étape 1 si nécessaire
-      (créer le groupe — optionnel), étapes 2 (créer le projet), 3 (activer LFS) et 5
-      (déposer le corpus).<br><br>
-      <strong>Une fois par utilisateur :</strong> étape 4 uniquement (créer son application OAuth
+      (créer le groupe — optionnel), étapes 2 (créer le projet), 3 (activer LFS), 4 (autoriser
+      les Developers à pusher), 6 (première ouverture et ajout des entretiens)
+      et 7 si vous souhaitez restreindre l'ajout/suppression d'entretiens.<br><br>
+      <strong>Une fois par utilisateur :</strong> étape 5 uniquement (créer son application OAuth
       dans son propre profil GitLab). Chaque membre de l'équipe doit créer sa propre application
       — c'est ce qui permet à GitLab de distinguer qui fait quelle modification dans l'historique.
     </div>
@@ -572,6 +636,19 @@
       en visibilité <strong>Private</strong> (voir étape 2). C'est cette configuration qui
       garantit que les données du corpus ne sont accessibles qu'aux membres autorisés de
       votre équipe — indépendamment du mécanisme d'authentification OAuth utilisé.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Que se passe-t-il quand je retire un entretien du corpus ?</div>
+    <div class="faq-a">
+      Retirer un entretien du corpus (menu <strong>Entretiens → Détails → Supprimer l'entretien
+      du corpus</strong>) ne supprime <strong>pas</strong> le fichier <code>.sonal</code> du
+      dépôt GitLab — il est simplement retiré de la liste du corpus (le <code>.crp</code> est
+      mis à jour en conséquence). Ce comportement est identique à celui du mode local.<br><br>
+      Le fichier <code>.sonal</code> reste donc visible dans l'interface web GitLab
+      (<strong>Repository → Files</strong>) en tant que fichier orphelin. Il peut être
+      récupéré ou supprimé manuellement depuis GitLab si nécessaire.
     </div>
   </div>
 

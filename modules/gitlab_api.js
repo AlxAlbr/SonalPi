@@ -65,6 +65,44 @@ class GitLabAPI {
   }
 
   /**
+   * Retourne le niveau d'accès du membre courant dans le projet.
+   * access_level : 10=Guest, 20=Reporter, 30=Developer, 40=Maintainer, 50=Owner
+   * Retourne null si non déterminable.
+   */
+  async getMemberRole() {
+    if (!this.currentUser) return null;
+    try {
+      const data = await this._request('GET', `/members/all/${this.currentUser.id}`);
+      return data.access_level || null;
+    } catch (error) {
+      console.warn('⚠️ Impossible de récupérer le rôle du membre:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Lit options.json à la racine du dépôt.
+   * Retourne {} si le fichier est absent ou illisible.
+   */
+  async lireOptions() {
+    try {
+      const result = await this.lireFichier('options.json');
+      if (!result.success) return {};
+      return JSON.parse(result.content);
+    } catch (error) {
+      return {};
+    }
+  }
+
+  /**
+   * Écrit options.json à la racine du dépôt (réservé aux Maintainer/Owner).
+   */
+  async ecrireOptions(options) {
+    const content = JSON.stringify(options, null, 2);
+    return await this.ecrireFichier('options.json', content);
+  }
+
+  /**
    * Vérifie l'existence d'un fichier dans le projet
    */
   async verifierExistence(filePath) {

@@ -11,7 +11,17 @@
     "start": "electron .",
     "build": "electron-builder",
     "build-icons": "electron-icon-builder --input=./icon/icon.png --output=./dist",
-    "test:verrouillage": "playwright test tests/verrouillage.spec.js --reporter=line"
+    "test:verrouillage": "playwright test tests/verrouillage.spec.js --reporter=line",
+    "test:crash": "playwright test tests/crash.spec.js --reporter=line",
+    "test:isolation": "playwright test tests/isolation.spec.js --reporter=line",
+    "test:course": "playwright test tests/course-verrou.spec.js --reporter=line",
+    "test:ecriture": "playwright test tests/ecriture-sans-verrou.spec.js --reporter=line",
+    "test:modif": "playwright test tests/modif-sonal.spec.js --reporter=line",
+    "test:anon": "playwright test tests/anonymisation.spec.js --reporter=line",
+    "test:ajout": "playwright test tests/ajout-entretien.spec.js --reporter=line",
+    "test:premier": "playwright test tests/premier-entretien.spec.js --reporter=line",
+    "test:restriction": "playwright test tests/restriction-ajout.spec.js --reporter=line",
+    "test:all": "playwright test tests/ --reporter=line"
   },
   "build": {
     "appId": "com.sonal.id",

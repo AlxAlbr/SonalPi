@@ -16,13 +16,19 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     } else {
         window.tabLocImport = [];
     }
-     
-    
-
-
 
     // récupération du corpus
     let Corpus = await window.electronAPI.getCorpus();
+
+    // Vérification de la restriction GitLab
+    if (Corpus.type === 'gitlab') {
+        const isOwner = await window.electronAPI.getGitlabUserIsOwner();
+        const opts = await window.electronAPI.getGitlabOptions();
+        if (opts.restrictionAjoutSuppr && !isOwner) {
+            await question("Permission refusée", "Le responsable du projet a restreint l'ajout d'entretiens aux Maintainer/Owner.", ["OK"]);
+            return;
+        }
+    }
 
     if (fichTxt == null && fichAudio == null) {
     const result = await window.electronAPI.ajouterEntretien();
@@ -1237,6 +1243,17 @@ async function afficherDetailsEnt(rk){
 };
 
 async function retirerEnt(rk){
+
+    // Vérification de la restriction GitLab
+    let CorpusRet = await window.electronAPI.getCorpus();
+    if (CorpusRet.type === 'gitlab') {
+        const isOwner = await window.electronAPI.getGitlabUserIsOwner();
+        const opts = await window.electronAPI.getGitlabOptions();
+        if (opts.restrictionAjoutSuppr && !isOwner) {
+            await question("Permission refusée", "Le responsable du projet a restreint la suppression d'entretiens aux Maintainer/Owner.", ["OK"]);
+            return;
+        }
+    }
 
     // demande de confirmation via question 
     let res = await question("Êtes-vous sûr de vouloir supprimer cet entretien du corpus ? \nLe fichier .Sonal correspondant ne sera pas supprimé physiquement, seulement retiré du corpus", ["Ok", "Annuler"]);

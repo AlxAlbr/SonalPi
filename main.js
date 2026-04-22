@@ -102,6 +102,16 @@ ipcMain.handle('set-user', (_, newUser) => {
   return true;
 });
 
+// Handlers GitLab options
+ipcMain.handle('get-gitlab-user-is-owner', () => gitlabUserIsOwner);
+ipcMain.handle('get-gitlab-options', () => gitlabOptions);
+ipcMain.handle('set-gitlab-options', async (_, options) => {
+  if (!gitlabAPI) return { success: false, error: 'Pas de connexion GitLab' };
+  if (!gitlabUserIsOwner) return { success: false, error: 'Permission refusée' };
+  gitlabOptions = options;
+  return await gitlabAPI.ecrireOptions(options);
+});
+
  
 
 // ⭐ Handler pour confirmer la fin de sauvegarde avant fermeture
@@ -1418,6 +1428,8 @@ const { miseàjourEntretien } = require('./modules/gestion_entretiens.js');
 
 let serveurAPI = null;
 let gitlabAPI  = null;
+let gitlabUserIsOwner = false; // true si Maintainer (40) ou Owner (50)
+let gitlabOptions = {};         // contenu de options.json
 
 /** Renvoie l'API distante active selon le type du corpus courant */
 function remoteAPI() {
@@ -1740,32 +1752,61 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
     //    pour que les fichiers soient bien stockés en LFS
     await gitlabAPI.initialiserGitattributes();
 
-    // 6. Lire le fichier corpus
-    const result = await gitlabAPI.lireFichier(filePath);
+    // 6. Lire le fichier corpus (ou créer un corpus vide si nouveau projet)
+    let corpusContent;
+    let corpusSize;
+    let corpusModified;
 
-    if (!result.success) {
-      gitlabAPI = null;
-      throw new Error(result.error || 'Impossible de lire le fichier corpus');
+    const existeCrp = await gitlabAPI.verifierExistence(filePath);
+    if (!existeCrp) {
+      // Nouveau projet sans .crp — créer automatiquement un corpus vide
+      console.log('📄 Aucun .crp trouvé — création d\'un corpus vide...');
+      const corpusVide = JSON.stringify({ tabThm: [], tabEnt: [], tabVar: [], tabDic: [] });
+      const creation = await gitlabAPI.ecrireFichier(filePath, corpusVide);
+      if (!creation.success) {
+        gitlabAPI = null;
+        throw new Error('Impossible de créer le fichier corpus : ' + creation.error);
+      }
+      console.log('✅ Corpus vide créé sur GitLab');
+      corpusContent  = corpusVide;
+      corpusSize     = corpusVide.length;
+      corpusModified = new Date().toISOString();
+    } else {
+      const result = await gitlabAPI.lireFichier(filePath);
+      if (!result.success) {
+        gitlabAPI = null;
+        throw new Error(result.error || 'Impossible de lire le fichier corpus');
+      }
+      corpusContent  = result.content;
+      corpusSize     = result.size;
+      corpusModified = result.modified;
     }
 
     console.log('✅ Corpus GitLab chargé');
-    console.log(`   Taille: ${result.size} caractères`);
+    console.log(`   Taille: ${corpusSize} caractères`);
 
-    // 6. Mettre à jour l'objet Corpus
+    // 7. Mettre à jour l'objet Corpus
     const fichProj  = filePath.substring(filePath.lastIndexOf('/') + 1);
     const dosspProj = filePath.substring(0, filePath.lastIndexOf('/'));
 
     Corpus.url        = `${instanceUrl}/${projectPath}/-/blob/main/${filePath}`;
     Corpus.fileName   = fichProj;
     Corpus.folder     = dosspProj;
-    Corpus.content    = result.content;
+    Corpus.content    = corpusContent;
     Corpus.lastChange = new Date().toISOString();
     Corpus.type       = 'gitlab';
+
+    // 8. Déterminer le rôle et lire les options du projet
+    const role = await gitlabAPI.getMemberRole();
+    gitlabUserIsOwner = role !== null && role >= 40;
+    console.log(`👤 Rôle GitLab: ${role} → isOwner: ${gitlabUserIsOwner}`);
+    gitlabOptions = await gitlabAPI.lireOptions();
+    console.log('⚙️ Options GitLab:', gitlabOptions);
 
     // Ajouter aux fichiers récents avec type 'gitlab' et config pour pré-remplissage
     recentFilesManager.addGitlabCorpus(Corpus.url, fichProj, { instanceUrl, projectPath, filePath, clientId });
 
-    return { success: true, size: result.size, modified: result.modified };
+    return { success: true, size: corpusSize, modified: corpusModified };
 
   } catch (error) {
     console.error('❌ Erreur ouverture corpus GitLab:', error.message);
@@ -1837,6 +1878,35 @@ ipcMain.handle('ouvrir-corpus-gitlab', async (event, savedConfig) => {
   }
   return result;
 });
+
+/**
+ * Ouvre la fenêtre de paramètres GitLab (Maintainer/Owner uniquement)
+ */
+function ouvrirParametresGitLab(parentWindow) {
+  const win = new BrowserWindow({
+    width: 420,
+    height: 280,
+    parent: parentWindow,
+    modal: true,
+    resizable: false,
+    title: 'Paramètres GitLab',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    }
+  });
+  win.setMenu(null);
+  win.loadFile('parametres-gitlab.html');
+  flouterSousModale(parentWindow);
+
+  return new Promise((resolve) => {
+    win.on('closed', () => {
+      deflouterSousModale(parentWindow);
+      resolve();
+    });
+  });
+}
 
 /** Handler IPC : ouvrir la page d'aide GitLab dans une fenêtre Electron */
 ipcMain.handle('ouvrir-aide-gitlab', () => {
@@ -2571,6 +2641,22 @@ app.on('ready', () => {
       },
        
         
+        { type: 'separator' },
+        {
+          label: '⚙️ Paramètres GitLab…',
+          click: async () => {
+            if (Corpus.type !== 'gitlab') {
+              dialog.showMessageBox(mainWindow, {
+                type: 'info',
+                title: 'Paramètres GitLab',
+                message: 'Cette option est disponible uniquement lorsqu\'un corpus GitLab est ouvert.',
+                buttons: ['OK']
+              });
+              return;
+            }
+            await ouvrirParametresGitLab(mainWindow);
+          }
+        },
         { type: 'separator' },
         { 
           label: 'Quitter', 
