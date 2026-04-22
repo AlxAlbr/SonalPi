@@ -1500,7 +1500,7 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
         // mise à jour du tableau des entretiens
          await window.electronAPI.setEnt(tabEnt);
 
-         window.sauvegarderCorpus(false);
+         await window.sauvegarderCorpus(false);
  
     } catch(err) {
         
@@ -1559,7 +1559,7 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
             }
 
             console.log("4b - fichier de l'entretien sauvegardé :", res);
-            if (!res) {
+            if (!res?.success) {
                 notifErreur("Le fichier de l'entretien n'a pas pu être sauvegardé sur le disque (chemin : " + cheminEnt + ").");
             }
             endWait();
