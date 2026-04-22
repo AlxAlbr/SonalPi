@@ -165,43 +165,29 @@
     <form id="gitlab-form">
 
       <div class="form-group">
-        <label for="instanceUrl">
-          Instance GitLab <span class="required">*</span>
+        <label for="projectUrl">
+          URL du projet GitLab <span class="required">*</span>
         </label>
         <input
           type="url"
-          id="instanceUrl"
-          placeholder="https://gitlab.univ-exemple.fr"
+          id="projectUrl"
+          placeholder="https://gitlab.univ-exemple.fr/groupe/nom-du-projet"
           required
           autofocus
         />
-        <p class="hint">URL de votre instance GitLab universitaire</p>
-      </div>
-
-      <div class="form-group">
-        <label for="projectPath">
-          Chemin du projet <span class="required">*</span>
-        </label>
-        <input
-          type="text"
-          id="projectPath"
-          placeholder="groupe/nom-du-projet"
-          required
-        />
-        <p class="hint">Visible dans l'URL du projet : gitlab.exemple.fr/<strong>groupe/nom</strong></p>
+        <p class="hint">Copiez-collez directement l'URL du projet depuis votre navigateur</p>
       </div>
 
       <div class="form-group">
         <label for="filePath">
-          Fichier corpus (.crp) <span class="required">*</span>
+          Fichier corpus (.crp)
         </label>
         <input
           type="text"
           id="filePath"
-          placeholder="dossier/mon-corpus.crp"
-          required
+          placeholder="dossier/mon-corpus.crp (facultatif)"
         />
-        <p class="hint">Chemin du fichier dans le dépôt (depuis la racine)</p>
+        <p class="hint">Chemin du fichier dans le dépôt. Si laissé vide, un fichier <em>nom-du-projet.crp</em> sera créé à la racine.</p>
       </div>
 
       <div class="form-group">
@@ -243,23 +229,22 @@
   </div>
 
   <script>
-    const form       = document.getElementById('gitlab-form');
-    const errorDiv   = document.getElementById('error-message');
-    const instanceInput = document.getElementById('instanceUrl');
-    const projectInput  = document.getElementById('projectPath');
-    const fileInput     = document.getElementById('filePath');
-    const clientInput   = document.getElementById('clientId');
+    const form            = document.getElementById('gitlab-form');
+    const errorDiv        = document.getElementById('error-message');
+    const projectUrlInput = document.getElementById('projectUrl');
+    const fileInput       = document.getElementById('filePath');
+    const clientInput     = document.getElementById('clientId');
 
     // Pré-remplissage si config déjà connue (récents ou retry)
     window.electronAPI.onPreFillGitLab?.((config) => {
-      if (config.instanceUrl) instanceInput.value = config.instanceUrl;
-      if (config.projectPath) projectInput.value  = config.projectPath;
-      if (config.filePath)    fileInput.value      = config.filePath;
-      if (config.clientId)    clientInput.value    = config.clientId;
+      if (config.instanceUrl && config.projectPath)
+        projectUrlInput.value = config.instanceUrl + '/' + config.projectPath;
+      if (config.filePath) fileInput.value   = config.filePath;
+      if (config.clientId) clientInput.value = config.clientId;
     });
 
     // Masquer l'erreur à la saisie
-    [instanceInput, projectInput, fileInput, clientInput].forEach(el => {
+    [projectUrlInput, fileInput, clientInput].forEach(el => {
       el.addEventListener('input', () => {
         errorDiv.style.display = 'none';
       });
@@ -282,34 +267,42 @@
     form.addEventListener('submit', (e) => {
       e.preventDefault();
 
-      const instanceUrl = instanceInput.value.trim().replace(/\/$/, '');
-      const projectPath = projectInput.value.trim().replace(/^\/|\/$/g, '');
-      const filePath    = fileInput.value.trim().replace(/^\//, '');
-      const clientId    = clientInput.value.trim();
+      const rawProjectUrl = projectUrlInput.value.trim().replace(/\/$/, '');
+      const filePath      = fileInput.value.trim().replace(/^\//, '');
+      const clientId      = clientInput.value.trim();
 
-      if (!instanceUrl) {
-        afficherErreur('Saisissez l\'URL de l\'instance GitLab.');
-        instanceInput.focus();
+      if (!rawProjectUrl) {
+        afficherErreur('Saisissez l\'URL du projet GitLab.');
+        projectUrlInput.focus();
         return;
       }
 
-      if (!validerUrl(instanceUrl)) {
+      if (!validerUrl(rawProjectUrl)) {
         afficherErreur('URL invalide — elle doit commencer par https:// ou http://');
-        instanceInput.focus();
+        projectUrlInput.focus();
+        return;
+      }
+
+      // Parser l'URL : instanceUrl = protocole + hostname, projectPath = le reste
+      let instanceUrl, projectPath;
+      try {
+        const u = new URL(rawProjectUrl);
+        instanceUrl = `${u.protocol}//${u.hostname}${u.port ? ':' + u.port : ''}`;
+        projectPath = u.pathname.replace(/^\//, '').replace(/\/$/, '');
+      } catch {
+        afficherErreur('URL invalide.');
+        projectUrlInput.focus();
         return;
       }
 
       if (!projectPath || !projectPath.includes('/')) {
-        afficherErreur('Chemin du projet invalide — format attendu : groupe/nom-projet');
-        projectInput.focus();
+        afficherErreur('L\'URL doit inclure le chemin du projet — ex : https://gitlab.exemple.fr/groupe/nom-projet');
+        projectUrlInput.focus();
         return;
       }
 
-      if (!filePath) {
-        afficherErreur('Saisissez le chemin du fichier corpus.');
-        fileInput.focus();
-        return;
-      }
+      // Si filePath vide, dériver depuis le nom du projet
+      const resolvedFilePath = filePath || (projectPath.split('/').pop() + '.crp');
 
       if (!clientId) {
         afficherErreur('Saisissez le Client ID OAuth de l\'application GitLab.');
@@ -322,7 +315,7 @@
       btn.disabled = true;
       btn.textContent = 'Attente de l\'authentification…';
 
-      window.electronAPI.submitGitLab({ instanceUrl, projectPath, filePath, clientId });
+      window.electronAPI.submitGitLab({ instanceUrl, projectPath, filePath: resolvedFilePath, clientId });
     });
 
     document.getElementById('btn-cancel').addEventListener('click', () => {
