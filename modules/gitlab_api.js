@@ -37,6 +37,20 @@ class GitLabAPI {
     // https://instance/groupe/projet.git/info/lfs
     this.lfsBase = `${this.instanceUrl}/${projectPath}.git/info/lfs`;
 
+    // File d'écriture avec debounce — regroupe les appels simultanés en un commit atomique.
+    //
+    // Problème : quand l'utilisateur modifie une variable d'entretien, deux sauvegardes
+    // sont déclenchées quasi-simultanément : le fichier .sonal (contenu de l'entretien)
+    // et le fichier .crp (index du corpus). Si chacune crée son propre commit Git,
+    // GitLab rejette le second avec l'erreur Gitaly 9 "reference does not point to commit" :
+    // le pointeur de branche a déjà avancé entre les deux pushes.
+    //
+    // Solution : tous les appels à ecrireFichier() qui arrivent dans une fenêtre de 150 ms
+    // sont mis en file, puis envoyés en un seul commit Git via POST /repository/commits
+    // avec un tableau actions[]. Un seul commit = zéro conflit structurellement possible.
+    this._writeQueue = []; // [{ filePath, content, resolve, reject }]
+    this._writeTimer = null;
+
     console.log('📦 GitLabAPI créé:');
     console.log('   Instance:', this.instanceUrl);
     console.log('   Projet:', this.projectPath);
@@ -183,47 +197,85 @@ class GitLabAPI {
   }
 
   /**
-   * Écrit (crée ou met à jour) un fichier — crée un commit Git
+   * Écrit (crée ou met à jour) un fichier — ajoute à la file d'écriture (debounce 150 ms).
+   *
+   * Au lieu d'envoyer immédiatement un commit, on attend 150 ms pour laisser le temps
+   * aux autres appels simultanés de s'enregistrer dans la file. Chaque appel reporte
+   * le timer : si un deuxième fichier arrive dans la fenêtre, le timer repart à zéro.
+   * Passé le délai, _flushWriteQueue() vide la file en un seul commit atomique.
    */
-  async ecrireFichier(filePath, content) {
-    console.log('\n=== ÉCRITURE FICHIER GitLab ===');
-    console.log('📤 Chemin:', filePath);
-    console.log('📏 Taille:', content.length, 'caractères');
-    console.log('================================\n');
+  ecrireFichier(filePath, content) {
+    return new Promise((resolve, reject) => {
+      this._writeQueue.push({ filePath, content, resolve, reject });
+      clearTimeout(this._writeTimer);
+      this._writeTimer = setTimeout(() => this._flushWriteQueue(), 150);
+    });
+  }
+
+  /**
+   * Vide la file d'écriture en un seul commit Git.
+   *
+   * - 1 fichier  → PUT/POST /repository/files/:path  (endpoint classique, plus simple)
+   * - N fichiers → POST /repository/commits avec actions[]  (commit atomique multi-fichiers)
+   *
+   * Le commit atomique garantit que .sonal et .crp (ou tout autre combinaison)
+   * apparaissent dans le même commit Git : l'historique est plus lisible, et surtout
+   * il n'y a qu'un seul avancement du pointeur de branche, ce qui élimine tout risque
+   * de conflit concurrent entre les deux sauvegardes.
+   */
+  async _flushWriteQueue() {
+    const batch = this._writeQueue.splice(0);
+    if (batch.length === 0) return;
+
+    console.log(`\n=== ÉCRITURE GitLab (${batch.length} fichier(s)) ===`);
+    batch.forEach(b => console.log('  📤', b.filePath, `(${b.content.length} car.)`));
 
     try {
-      // Déterminer si le fichier existe pour choisir POST (create) ou PUT (update)
-      const exists = await this.verifierExistence(filePath);
-      const method = exists ? 'PUT' : 'POST';
+      if (batch.length === 1) {
+        // ── Fichier unique : endpoint classique ─────────────────────────────
+        const { filePath, content } = batch[0];
+        const exists = await this.verifierExistence(filePath);
+        const method = exists ? 'PUT' : 'POST';
+        await this._request(method, `/repository/files/${this._encodePath(filePath)}`, {
+          branch: this.branch,
+          content,
+          commit_message: `[SonalPi] Mise à jour ${filePath}`,
+          encoding: 'text',
+        });
+        console.log('✅ Fichier sauvegardé (commit unique)');
+        batch[0].resolve({ success: true, path: filePath, size: content.length });
 
-      const body = {
-        branch: this.branch,
-        content: content,
-        commit_message: `[SonalPi] Mise à jour ${filePath}`,
-        encoding: 'text',
-      };
+      } else {
+        // ── Plusieurs fichiers : commit atomique ─────────────────────────────
+        const actions = await Promise.all(batch.map(async ({ filePath, content }) => ({
+          action: (await this.verifierExistence(filePath)) ? 'update' : 'create',
+          file_path: filePath,
+          content,
+          encoding: 'text',
+        })));
 
-      await this._request(method, `/repository/files/${this._encodePath(filePath)}`, body);
-
-      console.log('✅ Fichier sauvegardé sur GitLab');
-      return {
-        success: true,
-        message: `Fichier sauvegardé (commit sur ${this.branch})`,
-        path: filePath,
-        size: content.length,
-      };
-    } catch (error) {
-      // Fichier verrouillé par quelqu'un d'autre (LFS lock)
-      if (error.statusCode === 403 && error.message.includes('lock')) {
-        console.error('❌ Fichier verrouillé par un autre utilisateur');
-        return {
-          success: false,
-          error: 'Fichier verrouillé par un autre utilisateur',
-          lockedBy: null,
-        };
+        const noms = batch.map(b => b.filePath).join(', ');
+        await this._request('POST', '/repository/commits', {
+          branch: this.branch,
+          commit_message: `[SonalPi] Mise à jour ${noms}`,
+          actions,
+        });
+        console.log(`✅ ${batch.length} fichiers sauvegardés (commit atomique)`);
+        for (const item of batch) {
+          item.resolve({ success: true, path: item.filePath, size: item.content.length });
+        }
       }
-      console.error('❌ Erreur écriture:', error);
-      return { success: false, error: error.message };
+
+    } catch (error) {
+      console.error('❌ Erreur écriture GitLab:', error);
+      const estVerrouille = error.statusCode === 403 && error.message.includes('lock');
+      for (const item of batch) {
+        item.resolve({
+          success: false,
+          error: estVerrouille ? 'Fichier verrouillé par un autre utilisateur' : error.message,
+          ...(estVerrouille && { lockedBy: null }),
+        });
+      }
     }
   }
 
