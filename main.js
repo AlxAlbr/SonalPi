@@ -587,7 +587,7 @@ ipcMain.handle('sauvegarder-fichier', async (event, filePath, content) => {
 ipcMain.handle('dialog:saveFile', async (event, { filename, content, encoding }) => {
 
   // Chemin par défaut : dossier du projet local, sinon Documents
-  const defaultDir = (Corpus.folder && Corpus.type !== 'distant')
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
     ? Corpus.folder
     : app.getPath('documents');
   const defaultPath = path.join(defaultDir, filename);
@@ -921,7 +921,7 @@ async function compacterCorpus() { // fonction permettant de compacter les donn�
   const defaultName = Corpus.fileName
     ? Corpus.fileName.replace('.crp', '.json')
     : 'corpus.json';
-  const defaultDir = (Corpus.folder && Corpus.type !== 'distant')
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
     ? Corpus.folder
     : app.getPath('documents');
 
@@ -965,7 +965,7 @@ async function archiverCorpus() {
     return null;
   }
 
-  const estDistant = Corpus.type === 'distant';
+  const estDistant = Corpus.type === 'distant' || Corpus.type === 'gitlab';
 
   // Nom par défaut : même nom que le corpus + date
   const baseName = Corpus.fileName.replace('.crp', '');
@@ -989,7 +989,7 @@ async function archiverCorpus() {
   const erreurs = [];
 
   if (estDistant) {
-    // ─── Corpus distant : télécharger les fichiers via serveurAPI ───────────
+    // ─── Corpus distant (serveur ou GitLab) : télécharger les fichiers via remoteAPI ─
 
     // 1. Fichier .crp : on sérialise l'état en mémoire (données courantes)
     const corpusContent = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic }, null, 2);
@@ -1000,7 +1000,7 @@ async function archiverCorpus() {
       if (ent.rtrPath) {
         const cheminDistant = Corpus.folder + '/' + ent.rtrPath;
         try {
-          const result = await serveurAPI.lireFichier(cheminDistant);
+          const result = await remoteAPI().lireFichier(cheminDistant);
           if (result.success && result.content) {
             const entryPath = ent.rtrPath.replace(/\\/g, '/');
             zip.addFile(entryPath, Buffer.from(result.content, 'utf8'));
