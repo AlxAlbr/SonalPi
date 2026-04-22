@@ -498,6 +498,17 @@ ipcMain.handle('file:lastModified', async (_, filePath) => {
       return lastModified;
     }
 
+    // Corpus GitLab
+    if (gitlabAPI) {
+      try {
+        const lastModified = await gitlabAPI.derniereModif(filePath);
+        return lastModified;
+      } catch (err) {
+        console.log(`  ❌ GitLab: Erreur - ${err.message}`);
+        return null;
+      }
+    }
+
     if (!serveurAPI) {
       console.log('  ❌ Distant: Pas de connexion au serveur');
       return null;
@@ -1171,7 +1182,7 @@ async function editerEntretien(parentWindow, rgEnt){
               cancelId: 1,
             });
             if (response === 1) {
-              entWindow.close();
+              entWindow.destroy();
             } else {
               entWindow.webContents.send('fichier-lecture-seule', {
                 message: 'Ouvert en lecture seule (verrouillage indisponible)',
@@ -1189,7 +1200,7 @@ async function editerEntretien(parentWindow, rgEnt){
                 cancelId: 1,
               });
               if (response === 1) {
-                entWindow.close();
+                entWindow.destroy();
               } else {
                 entWindow.webContents.send('fichier-lecture-seule', {
                   message: 'Lecture seule — LFS non activé sur le projet GitLab',
@@ -1197,13 +1208,13 @@ async function editerEntretien(parentWindow, rgEnt){
               }
             } else {
               // Fichier déjà verrouillé par quelqu'un d'autre (409)
-              dialog.showMessageBox(parentWindow, {
+              await dialog.showMessageBox(parentWindow, {
                 type: 'warning',
                 title: 'Fichier verrouillé',
                 message: `L'entretien est actuellement édité par ${lockResult.lockedBy || 'un autre utilisateur'}. Vous ne pouvez pas l'éditer pour le moment.`,
                 buttons: ['OK']
               });
-              entWindow.close();
+              entWindow.destroy();
             }
           }
         } catch (error) {
@@ -1217,7 +1228,7 @@ async function editerEntretien(parentWindow, rgEnt){
             cancelId: 1,
           });
           if (response === 1) {
-            entWindow.close();
+            entWindow.destroy();
           } else {
             entWindow.webContents.send('fichier-lecture-seule', {
               message: 'Ouvert en lecture seule (verrouillage indisponible)',

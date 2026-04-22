@@ -684,7 +684,7 @@ setInterval(async () => {
     // récupération des infos du corpus
    let Corpus = await window.electronAPI.getCorpus();
 
-   if (!Corpus || Corpus.type !='distant') {return}
+   if (!Corpus || (Corpus.type != 'distant' && Corpus.type != 'gitlab')) {return}
 
     // récupération des entretiens
     let tabEnt = await window.electronAPI.getEnt();

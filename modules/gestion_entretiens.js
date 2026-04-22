@@ -599,7 +599,7 @@ async function afficherEnt(rgDep, rgFin){
                     // récupération du corpus 
                     let Corpus = await electronAPI.getCorpus();
 
-                    if (Corpus.type == "distant"){
+                    if (Corpus.type == "distant" || Corpus.type == "gitlab"){
                         let result = await electronAPI.isEntretienLocked(rkEnt)
                          if (result.locked==true) {
                                     console.log("l'entretien est verrouillé par " + result.user)
@@ -607,8 +607,11 @@ async function afficherEnt(rgDep, rgFin){
                                     editable=false; 
                                     return   // Ne pas ouvrir la fenêtre d'édition
                         }
-                                
-                                
+
+                        // Rechargement de la version distante avant ouverture
+                        // pour s'assurer d'avoir la version la plus récente
+                        console.log("Rechargement de l'entretien " + rkEnt + " depuis le serveur...");
+                        await loadHtml(rkEnt, rkEnt);
                 }
 
                 if (editable) await window.electronAPI.editerEntretien(rkEnt); 

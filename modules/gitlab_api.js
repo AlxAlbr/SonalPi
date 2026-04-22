@@ -173,7 +173,7 @@ class GitLabAPI {
         success: true,
         content,
         size: content.length,
-        modified: data.last_commit_id || new Date().toISOString(),
+        modified: data.committed_date || null,
         path: filePath,
       };
     } catch (error) {
