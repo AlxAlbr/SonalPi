@@ -203,10 +203,27 @@ class GitLabAPI {
    * aux autres appels simultanés de s'enregistrer dans la file. Chaque appel reporte
    * le timer : si un deuxième fichier arrive dans la fenêtre, le timer repart à zéro.
    * Passé le délai, _flushWriteQueue() vide la file en un seul commit atomique.
+   *
+   * Déduplication : si le même filePath est déjà en attente (ex. : l'utilisateur modifie
+   * deux entretiens rapidement → .crp est mis en queue deux fois), on remplace l'entrée
+   * existante par le contenu le plus récent. Le contenu périmé est ainsi ignoré, et les
+   * deux promesses sont chaînées pour être résolues ensemble avec le résultat final.
+   * Sans cette déduplication, GitLab rejetterait un commit contenant deux actions
+   * sur le même fichier.
    */
   ecrireFichier(filePath, content) {
     return new Promise((resolve, reject) => {
-      this._writeQueue.push({ filePath, content, resolve, reject });
+      const existant = this._writeQueue.find(e => e.filePath === filePath);
+      if (existant) {
+        // Même fichier déjà en attente : le contenu précédent est périmé, on l'écrase
+        // et on chaîne les deux promesses pour que les deux appelants soient notifiés
+        const { resolve: ancienResolve, reject: ancienReject } = existant;
+        existant.content = content;
+        existant.resolve = (result) => { ancienResolve(result); resolve(result); };
+        existant.reject  = (err)    => { ancienReject(err);    reject(err);    };
+      } else {
+        this._writeQueue.push({ filePath, content, resolve, reject });
+      }
       clearTimeout(this._writeTimer);
       this._writeTimer = setTimeout(() => this._flushWriteQueue(), 150);
     });
