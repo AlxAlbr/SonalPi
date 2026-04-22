@@ -1761,7 +1761,15 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
     if (!existeCrp) {
       // Nouveau projet sans .crp — créer automatiquement un corpus vide
       console.log('📄 Aucun .crp trouvé — création d\'un corpus vide...');
-      const corpusVide = JSON.stringify({ tabThm: [], tabEnt: [], tabVar: [], tabDic: [] });
+      const corpusVide = JSON.stringify({
+        tabThm: [
+          {"code":"cat_001","couleur":"","nom":"Pondérations","taille":"","cmpct":"false","rang":"0","act":"true"},
+          {"code":"cat_002","couleur":"","nom":"★★★ Très important","taille":24,"cmpct":"false","rang":"1","act":"true"},
+          {"code":"cat_003","couleur":"","nom":"★★☆ Assez important","taille":22,"cmpct":"false","rang":"1","act":"true"},
+          {"code":"cat_004","couleur":"","nom":"★☆☆ Important","taille":20,"cmpct":"false","rang":"1","act":"true"}
+        ],
+        tabEnt: [], tabVar: [], tabDic: []
+      });
       const creation = await gitlabAPI.ecrireFichier(filePath, corpusVide);
       if (!creation.success) {
         gitlabAPI = null;
@@ -2399,7 +2407,7 @@ class RecentFilesManager {
             subItem.submenu = recentFiles.length > 0 
               ? [
                   ...recentFiles.map(file => ({
-                    label: `${file.type === 'remote' || file.type === 'gitlab' ? '🌐 ' : ''}${file.name}`,
+                    label: `${file.type === 'gitlab' ? '🦊 ' : file.type === 'remote' ? '🌐 ' : ''}${file.name}`,
                     //sublabel: file.path,
                     click: () => {
                       if (file.type === 'gitlab') {
