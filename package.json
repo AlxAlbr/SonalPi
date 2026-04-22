@@ -65,6 +65,8 @@
       "edition_entretien.html",
       "nouveau_corpus.html",
       "saisie-url.html",
+      "saisie-gitlab.html",
+      "GitlabHelp.html",
       "modules/**/*",
       "css/**/*",
       "node_modules/**/*",

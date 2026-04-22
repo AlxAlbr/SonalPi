@@ -132,8 +132,8 @@ document.getElementById('fenetreAccueil').classList.add('dnone'); // masquage de
 
   let Corpus = await window.electronAPI.getCorpus();
 
-    // si corpus distant, affichage du bouton rafraichir : id="btn-rafraichir"
-    if (Corpus.type == "distant"){  
+    // si corpus distant ou gitlab, affichage du bouton rafraichir : id="btn-rafraichir"
+    if (Corpus.type == "distant" || Corpus.type == "gitlab"){  
         document.getElementById('btn-rafraichir').classList.remove('dnone'); // affichage du bouton de rafraichissement
     } else {
         document.getElementById('btn-rafraichir').classList.add('dnone');
@@ -883,24 +883,21 @@ let corpusActuel = Corpus.url;
   
   let result;
 
-  if (Corpus.type ==="distant"){
+  if (Corpus.type === "distant") {
     if (avecBackup) {
-      result = await window.electronAPI.sauvegarderAvecBackup(
-        corpusActuel,
-        contenu
-      );
+      result = await window.electronAPI.sauvegarderAvecBackup(corpusActuel, contenu);
     } else {
-      result = await window.electronAPI.sauvegarderSurServeur(
-        corpusActuel,
-        contenu
-      );
+      result = await window.electronAPI.sauvegarderSurServeur(corpusActuel, contenu);
     }
-  } else  if (Corpus.type ==="local") {
-    result = await window.electronAPI.sauvegarderFichier(
-      corpusActuel,
-      contenu
-    );
+  } else if (Corpus.type === "gitlab") {
+    // Pour GitLab, Corpus.url est l'URL web — on reconstruit le chemin API
+    const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
+    result = await window.electronAPI.sauvegarderSurServeur(cheminCrp, contenu);
+  } else if (Corpus.type === "local") {
+    result = await window.electronAPI.sauvegarderFichier(corpusActuel, contenu);
   }
+
+  if (!result) return { success: false, error: 'Type de corpus non reconnu' };
 
   if (result.success) {
     contenuModifie = false;
@@ -919,7 +916,68 @@ let corpusActuel = Corpus.url;
   }
 }
 
-async function rafraichirCorpus() {
+async function rafraichirCorpus(silencieux = false) {
+
+    const Corpus = await window.electronAPI.getCorpus();
+
+    // ── Rafraîchissement GitLab ──────────────────────────────────────────────
+    if (Corpus.type === "gitlab") {
+
+        // 1. Re-lire le .crp distant — il contient le tabEnt à jour
+        const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
+        const result = await window.electronAPI.lireFichierServeur(cheminCrp);
+        if (!result || !result.success) {
+            console.warn('⚠️ Rafraîchissement GitLab : impossible de lire le corpus distant');
+            if (!silencieux) afficherNotification('Impossible de contacter GitLab', 'error');
+            return;
+        }
+
+        let corpusDistant;
+        try {
+            corpusDistant = JSON.parse(result.content);
+        } catch (e) {
+            console.error('❌ Rafraîchissement GitLab : erreur de parsing du corpus:', e);
+            return;
+        }
+
+        const tabEntDistant = corpusDistant.tabEnt || [];
+        let tabEntLocal = await window.electronAPI.getEnt();
+        if (!tabEntLocal) tabEntLocal = [];
+
+        const idsLocaux = new Set(tabEntLocal.map(e => e.id));
+        const nouveaux = tabEntDistant.filter(e => !idsLocaux.has(e.id));
+
+        // 2. Recharger les entretiens modifiés (présents localement)
+        let modifies = 0;
+        for (let ent = 0; ent < tabEntLocal.length; ent++) {
+            const fich = [Corpus.folder, tabEntLocal[ent].rtrPath].filter(Boolean).join('/');
+            const dateModif = await window.electronAPI.getLastModified(fich);
+            if (dateModif && dateModif > tabEntLocal[ent].lastModified) {
+                if (!silencieux) console.log(`🔄 Entretien modifié détecté : ${tabEntLocal[ent].nom}`);
+                loadHtml(ent, ent).then(() => {
+                    afficherEnt(ent, ent);
+                    const divEnt = document.querySelector(`div.ligent[data-id='${tabEntLocal[ent].id}']`);
+                    if (divEnt) divEnt.classList.add("ligent-flash");
+                });
+                tabEntLocal[ent].lastModified = dateModif;
+                modifies++;
+            }
+        }
+        if (modifies > 0) await window.electronAPI.setEnt(tabEntLocal);
+
+        // 3. Ajouter les nouveaux entretiens
+        if (nouveaux.length > 0) {
+            const premierRang = tabEntLocal.length;
+            const nouveauTabEnt = [...tabEntLocal, ...nouveaux];
+            await window.electronAPI.setEnt(nouveauTabEnt);
+            const dernierRang = nouveauTabEnt.length - 1;
+            await loadHtml(premierRang, dernierRang);
+            await afficherEnt(premierRang, dernierRang);
+            afficherNotification(`${nouveaux.length} nouvel(s) entretien(s) chargé(s)`, 'success');
+            console.log(`✅ Rafraîchissement GitLab : ${nouveaux.length} nouvel(s) entretien(s) ajouté(s)`);
+        }
+        return;
+    }
 
     if (Corpus.type !=="distant"){
         return; // le rafraîchissement ne se fait que pour les corpus distants
@@ -933,7 +991,7 @@ async function rafraichirCorpus() {
 
         console.log("vérification de la nécessité de rafraîchir l'entretien " + tabEnt[ent].nom + JSON.stringify(tabEnt[ent]));
             
-        let fich =  [Corpus.folder,tabEnt[ent].rtrPath].join('/');
+        let fich =  [Corpus.folder,tabEnt[ent].rtrPath].filter(Boolean).join('/');
 
         // récupération de la dernière date de modification
         let dateModif = await window.electronAPI.getLastModified(fich);

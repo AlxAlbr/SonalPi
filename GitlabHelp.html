@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurer un corpus GitLab — SonalPi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f6f8fa;
+      color: #24292f;
+      line-height: 1.6;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #d0d7de;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    header svg { flex-shrink: 0; }
+
+    header h1 {
+      font-size: 17px;
+      color: #24292f;
+    }
+
+    .content {
+      max-width: 760px;
+      margin: 32px auto;
+      padding: 0 24px 60px;
+    }
+
+    .intro {
+      background: #fff;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      font-size: 14px;
+      color: #57606a;
+    }
+
+    .intro strong { color: #24292f; }
+
+    h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #d0d7de;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step {
+      background: #fff;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .step-number {
+      background: #fc6d26;
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step-number.optional {
+      background: #8c959f;
+    }
+
+    .badge-optional {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      color: #8c959f;
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      border-radius: 10px;
+      padding: 1px 7px;
+      margin-left: 6px;
+      vertical-align: middle;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .case-block {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-left: 3px solid #d0d7de;
+      border-radius: 0 4px 4px 0;
+      background: #f6f8fa;
+    }
+
+    .case-block + .case-block {
+      margin-top: 8px;
+    }
+
+    .case-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #24292f;
+      margin-bottom: 6px;
+    }
+
+    .step-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .step-body {
+      padding-left: 40px;
+      font-size: 13px;
+      color: #57606a;
+    }
+
+    .step-body p { margin-bottom: 8px; }
+    .step-body p:last-child { margin-bottom: 0; }
+
+    .step-body ul {
+      margin: 8px 0 8px 18px;
+    }
+
+    .step-body li { margin-bottom: 4px; }
+
+    code {
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 12px;
+      color: #0550ae;
+    }
+
+    .screenshot-hint {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #f6f8fa;
+      border-left: 3px solid #d0d7de;
+      border-radius: 0 4px 4px 0;
+      font-size: 12px;
+      color: #57606a;
+    }
+
+    .screenshot-hint strong { color: #24292f; }
+
+    .warning {
+      margin-top: 10px;
+      padding: 10px 13px;
+      background: #fff8c5;
+      border-left: 3px solid #d4a72c;
+      border-radius: 0 4px 4px 0;
+      font-size: 12px;
+      color: #57606a;
+    }
+
+    .info {
+      margin-top: 10px;
+      padding: 10px 13px;
+      background: #ddf4ff;
+      border-left: 3px solid #54aeff;
+      border-radius: 0 4px 4px 0;
+      font-size: 12px;
+      color: #57606a;
+    }
+
+    .recap {
+      background: #fff;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-top: 8px;
+    }
+
+    .recap table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .recap th {
+      text-align: left;
+      padding: 7px 10px;
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      color: #57606a;
+      font-weight: 600;
+    }
+
+    .recap td {
+      padding: 7px 10px;
+      border: 1px solid #d0d7de;
+      vertical-align: top;
+    }
+
+    .recap td code { color: #0550ae; }
+
+    .faq-item {
+      background: #fff;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+
+    .faq-q {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .faq-a {
+      font-size: 13px;
+      color: #57606a;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: #8c959f;
+      padding: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <!-- Logo GitLab SVG inline -->
+  <svg width="26" height="26" viewBox="0 0 380 380" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#e24329" d="M282.83 170.73l-.27-.69-26.14-68.22a6.81 6.81 0 00-2.69-3.24 7 7 0 00-8 .43 7 7 0 00-2.32 3.52l-17.65 54h-71.47l-17.65-54a6.86 6.86 0 00-2.32-3.52 7 7 0 00-8-.43 6.87 6.87 0 00-2.69 3.24L97.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82 19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91 40.06-30 .1-.08a48.56 48.56 0 0016.08-56.04z"/>
+    <path fill="#fc6d26" d="M282.83 170.73l-.27-.69a88.3 88.3 0 00-35.15 15.8L190 229.25c19.55 14.79 36.57 27.64 36.57 27.64l40.06-30 .1-.08a48.56 48.56 0 0016.1-56.08z"/>
+    <path fill="#fca326" d="M153.43 256.89l19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91s-17-12.89-36.57-27.64c-19.58 14.75-36.02 27.64-36.02 27.64z"/>
+    <path fill="#fc6d26" d="M132.58 185.84A88.19 88.19 0 0097.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82s17-12.85 36.57-27.64z"/>
+  </svg>
+  <h1>Configurer un corpus GitLab pour SonalPi</h1>
+</header>
+
+<div class="content">
+
+  <div class="intro">
+    Cette page explique les étapes à réaliser <strong>une seule fois</strong> avant de pouvoir
+    connecter SonalPi à un projet GitLab. Ces opérations se font directement dans l'interface
+    web de votre instance GitLab universitaire.
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <h2>⚙️ Étapes de configuration</h2>
+
+  <!-- ÉTAPE 1 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number optional">1</div>
+      <div class="step-title">Créer un groupe GitLab pour votre équipe <span class="badge-optional">Optionnel</span></div>
+    </div>
+    <div class="step-body">
+      <p>Sur certaines instances GitLab universitaires, l'option <strong>New project</strong> n'apparaît
+      que lorsque vous êtes à l'intérieur d'un groupe. Si c'est le cas chez vous, commencez par créer
+      un groupe. Sinon, passez directement à l'étape 2.</p>
+      <p>L'autre avantage d'un groupe : vous gérez les membres une seule fois et ils ont accès à
+      tous les projets du groupe.</p>
+      <ul>
+        <li>Connectez-vous à votre instance GitLab : <code>https://gitlab.univ-exemple.fr</code></li>
+        <li>Dans le menu principal (barre de gauche ou menu "+" en haut), choisissez
+        <strong>New group → Create group</strong></li>
+        <li>Donnez-lui un nom (ex. : <code>labo-linguistique</code>) et choisissez la visibilité
+        <strong>Private</strong></li>
+        <li>Invitez vos collègues via <strong>Manage → Members → Invite members</strong>,
+        avec le rôle <em>Developer</em> au minimum</li>
+      </ul>
+      <div class="info">
+        ℹ️ Si un groupe existe déjà pour votre équipe, utilisez-le directement à l'étape 2.<br>
+        Si vous ne créez pas de groupe, vous pourrez inviter vos collaborateurs directement
+        sur le projet à l'étape 2.
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 2 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">2</div>
+      <div class="step-title">Créer le projet GitLab (dépôt du corpus)</div>
+    </div>
+    <div class="step-body">
+      <p>Le corpus sera stocké dans un <strong>dépôt Git privé</strong>. La procédure diffère
+      selon que vous avez créé un groupe à l'étape 1 ou non.</p>
+
+      <div class="case-block">
+        <div class="case-label">Avec un groupe (étape 1 effectuée)</div>
+        <ul>
+          <li>Naviguez dans votre groupe, puis cliquez sur <strong>New project → Create blank project</strong></li>
+          <li>Choisissez la visibilité <strong>Private</strong></li>
+          <li>Le chemin du projet sera : <code>groupe/nom-projet</code><br>
+          (exemple : <code>labo-linguistique/corpus-oral-2024</code>)</li>
+          <li>Tous les membres du groupe auront automatiquement accès au projet</li>
+        </ul>
+      </div>
+
+      <div class="case-block">
+        <div class="case-label">Sans groupe (étape 1 ignorée)</div>
+        <ul>
+          <li>Depuis votre page d'accueil ou le menu "+" en haut, cliquez sur
+          <strong>New project → Create blank project</strong></li>
+          <li>Choisissez la visibilité <strong>Private</strong></li>
+          <li>Le chemin du projet sera : <code>votre-pseudo/nom-projet</code><br>
+          (exemple : <code>jdupont/corpus-oral-2024</code>)</li>
+          <li>Pour donner accès à vos collègues : <strong>Settings → Members → Invite members</strong>,
+          avec le rôle <em>Developer</em> au minimum</li>
+        </ul>
+      </div>
+
+      <div class="warning">
+        ⚠️ Le projet doit impérativement rester en visibilité <strong>Private</strong>.
+        Un projet public rendrait les données du corpus accessibles à tous sans authentification,
+        ce qui serait incompatible avec le RGPD si le corpus contient des données personnelles.
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 3 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">3</div>
+      <div class="step-title">Activer Git LFS sur le projet</div>
+    </div>
+    <div class="step-body">
+      <p>SonalPi utilise les <strong>verrous exclusifs LFS</strong> de GitLab pour empêcher deux
+      personnes de modifier le même entretien simultanément. Ces verrous s'appliquent sur toutes
+      les branches (et non seulement sur la branche par défaut).</p>
+      <p>Pour les activer, LFS doit être activé sur le projet :</p>
+      <ul>
+        <li>Dans le projet GitLab, allez dans <strong>Settings → General</strong></li>
+        <li>Dépliez la section <strong>Visibility, project features, permissions</strong></li>
+        <li>Activez le toggle <strong>Git Large File Storage (LFS)</strong></li>
+        <li>Cliquez sur <strong>Save changes</strong></li>
+      </ul>
+      <div class="info">
+        ℹ️ La configuration du fichier <code>.gitattributes</code> (nécessaire pour déclarer les
+        types de fichiers soumis aux verrous LFS) est gérée automatiquement par SonalPi à la
+        première connexion au projet. Vous n'avez rien à faire manuellement.
+      </div>
+      <div class="warning">
+        ⚠️ Si vous n'avez pas les droits pour modifier ces paramètres, demandez à l'administrateur
+        du projet (rôle <em>Maintainer</em> ou <em>Owner</em>).
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 4 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">4</div>
+      <div class="step-title">Autoriser les collaborateurs à enregistrer leurs modifications</div>
+    </div>
+    <div class="step-body">
+      <p>Par défaut, GitLab protège la branche principale (<code>main</code>) et n'autorise
+      que les <em>Maintainers</em> à y déposer des modifications. Les collaborateurs avec
+      le rôle <em>Developer</em> sont bloqués, ce qui empêche SonalPi de sauvegarder
+      les entretiens en leur nom.</p>
+      <p>Pour corriger cela :</p>
+      <ul>
+        <li>Dans le projet GitLab, allez dans <strong>Settings → Repository</strong></li>
+        <li>Dépliez la section <strong>Protected branches</strong></li>
+        <li>Sur la ligne correspondant à <code>main</code>, changez
+        <strong>Allowed to push and merge</strong> de <em>Maintainers</em> à
+        <strong>Developers + Maintainers</strong></li>
+      </ul>
+      <div class="warning">
+        ⚠️ Cette modification s'applique à tous les membres avec le rôle <em>Developer</em>
+        sur ce projet. Elle est indispensable pour que chaque collaborateur puisse enregistrer
+        ses modifications dans SonalPi.
+      </div>
+      <div class="info">
+        ℹ️ Si vous utilisez un groupe GitLab (étape 1) et que plusieurs projets partagent
+        la même configuration, vous pouvez définir les branches protégées au niveau du groupe
+        pour ne faire l'opération qu'une seule fois (<strong>Settings → Repository</strong>
+        dans le groupe).
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 5 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">5</div>
+      <div class="step-title">Créer une application OAuth dans votre profil GitLab</div>
+    </div>
+    <div class="step-body">
+      <p>SonalPi utilise OAuth 2.0 pour s'authentifier en votre nom sur GitLab.
+      Chaque utilisateur doit créer sa propre application OAuth.</p>
+      <ul>
+        <li>Allez dans <strong>Préférences utilisateur</strong>
+        (icône de profil en haut à droite → <em>Edit profile</em>)</li>
+        <li>Dans le menu de gauche, cliquez sur <strong>Applications</strong></li>
+        <li>Cliquez sur <strong>Add new application</strong></li>
+      </ul>
+
+      <p>Remplissez le formulaire ainsi :</p>
+      <ul>
+        <li><strong>Name :</strong> <code>SonalPi</code> (nom libre)</li>
+        <li><strong>Redirect URI :</strong> <code>http://127.0.0.1:7474/callback</code></li>
+        <li><strong>Confidential :</strong> décocher (application non-confidentielle)</li>
+        <li><strong>Scopes :</strong> cocher uniquement <code>api</code></li>
+      </ul>
+
+      <p>Cliquez sur <strong>Save application</strong>.</p>
+
+      <div class="screenshot-hint">
+        <strong>Client ID :</strong> après la création, GitLab affiche un <em>Application ID</em>
+        (longue chaîne de caractères). C'est la valeur à copier dans le champ
+        <em>Client ID</em> de SonalPi.
+        <br><br>
+        ⚠️ Le <em>Secret</em> affiché n'est pas nécessaire pour SonalPi, vous pouvez l'ignorer.
+      </div>
+
+      <div class="info">
+        ℹ️ Cette application OAuth reste dans votre profil personnel. Elle ne donne accès
+        qu'aux projets auxquels vous êtes déjà membre.
+      </div>
+    </div>
+  </div>
+
+  <!-- RÉCAPITULATIF -->
+  <div style="margin: 4px 0 20px; padding: 16px 20px; background: #fff8e8; border: 1px solid #f0c060; border-radius: 8px; font-size: 13px;">
+    <strong style="font-size:14px;">📋 Ce dont vous aurez besoin dans SonalPi</strong>
+    <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+      <thead>
+        <tr>
+          <th style="text-align:left; padding:7px 10px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font-weight:600;">Champ SonalPi</th>
+          <th style="text-align:left; padding:7px 10px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font-weight:600;">Où le trouver</th>
+          <th style="text-align:left; padding:7px 10px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font-weight:600;">Exemple</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><strong>URL du projet GitLab</strong></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;">Copiez l'URL complète du projet depuis votre navigateur</td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><code>https://gitlab.univ-exemple.fr/labo/corpus-oral</code></td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><strong>Fichier corpus</strong> <em style="font-weight:400;">(facultatif)</em></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;">Chemin du <code>.crp</code> dans le dépôt. Si vide, SonalPi utilise <code>nom-du-projet.crp</code> à la racine</td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><code>data/projet.crp</code></td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><strong>Client ID OAuth</strong></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;">Profil → Applications → votre app SonalPi → <em>Application ID</em></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><code>a3f8c2d1e4b7...</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ÉTAPE 6 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number">6</div>
+      <div class="step-title">Ouvrir le projet et ajouter les entretiens</div>
+    </div>
+    <div class="step-body">
+      <p>Le dépôt GitLab est prêt. Ouvrez SonalPi et connectez-vous au projet via
+      <strong>Fichier → Ouvrir corpus distant (GitLab)…</strong></p>
+      <ul>
+        <li>Si le dépôt ne contient pas encore de fichier <code>.crp</code>,
+        SonalPi en <strong>crée automatiquement un vide</strong> lors de la première ouverture —
+        aucune manipulation préalable n'est nécessaire.</li>
+        <li>Pour ajouter vos entretiens, utilisez le menu
+        <strong>Entretiens → Ajouter un entretien</strong> comme avec un corpus local.
+        Chaque entretien sera créé directement dans GitLab.</li>
+        <li>Si le corpus existe déjà dans le dépôt : notez simplement le chemin du
+        <code>.crp</code> depuis la racine du dépôt (ex. <code>mon-corpus.crp</code>)
+        et saisissez-le dans le champ « Fichier corpus » lors de la connexion.</li>
+      </ul>
+      <div class="warning">
+        ⚠️ Les fichiers audio ne sont pas synchronisés via GitLab — ils restent locaux
+        sur chaque machine.
+      </div>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 7 (optionnelle) -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number" style="background:#6c757d;">7</div>
+      <div class="step-title">Restreindre l'ajout et la suppression d'entretiens <em style="font-weight:400; font-size:13px;">(optionnel)</em></div>
+    </div>
+    <div class="step-body">
+      <p>Par défaut, tous les membres du projet (Developers inclus) peuvent ajouter et supprimer
+      des entretiens. Si vous souhaitez réserver ces actions aux responsables du projet
+      (Maintainer / Owner), activez la restriction depuis SonalPi une fois le corpus ouvert :</p>
+      <ul>
+        <li>Menu <strong>Corpus → ⚙️ Paramètres GitLab…</strong></li>
+        <li>Cochez <strong>Restreindre l'ajout et la suppression d'entretiens aux responsables
+        du projet</strong>, puis cliquez sur <strong>Enregistrer</strong>.</li>
+      </ul>
+      <p>Ce réglage est stocké dans un fichier <code>options.json</code> à la racine du dépôt.
+      Il prend effet pour tous les membres à la prochaine ouverture du corpus. Un Developer
+      qui tente d'ajouter ou de supprimer un entretien reçoit un message explicite — il peut
+      toujours modifier les entretiens existants.</p>
+      <div class="info">
+        ℹ️ Cette option n'est visible que lorsqu'un corpus GitLab est ouvert, et modifiable
+        uniquement par les Maintainer et Owner.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <h2 style="margin-top: 36px;">🔚 En fin de projet</h2>
+
+  <div class="step">
+    <div class="step-header">
+      <div class="step-number" style="background:#6e40c9;">8</div>
+      <div class="step-title">Récupérer tous les fichiers et supprimer le projet GitLab</div>
+    </div>
+    <div class="step-body">
+      <p>Avant de clôturer le projet GitLab, assurez-vous que chaque membre de l'équipe dispose
+      bien de sa copie locale complète du corpus.</p>
+
+      <p><strong>1. Vérifier que tout le monde a récupéré les fichiers</strong></p>
+      <ul>
+        <li>Chaque collaborateur doit ouvrir SonalPi et effectuer une dernière synchronisation
+        pour rapatrier toute modification encore présente sur GitLab</li>
+        <li>Vérifiez dans GitLab (<strong>Repository → Files</strong>) que tous les fichiers
+        <code>.crp</code> et <code>.sonal</code> sont bien présents et à jour dans le dépôt</li>
+        <li>Assurez-vous qu'aucun verrou LFS n'est encore actif :
+        <strong>Repository → Locked files</strong> doit être vide</li>
+      </ul>
+
+      <p><strong>2. Supprimer le projet GitLab</strong></p>
+      <ul>
+        <li>Dans le projet, allez dans <strong>Settings → General</strong></li>
+        <li>Dépliez la section <strong>Advanced</strong> tout en bas</li>
+        <li>Cliquez sur <strong>Delete project</strong> et confirmez en tapant le nom du projet</li>
+      </ul>
+
+      <div class="case-block">
+        <div class="case-label">Si vous aviez créé un groupe (étape 1 effectuée)</div>
+        Une fois tous les projets du groupe supprimés, vous pouvez également supprimer le groupe :
+        dans le groupe, <strong>Settings → General → Advanced → Remove group</strong>.
+      </div>
+
+      <div class="warning">
+        ⚠️ La suppression d'un projet GitLab est <strong>irréversible</strong>. Vérifiez
+        bien que chaque membre a récupéré sa copie locale avant de procéder. Les fichiers audio
+        locaux ne sont pas concernés (ils n'ont jamais transité par GitLab).
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <h2 style="margin-top: 36px;">❓ Questions fréquentes</h2>
+
+  <div class="faq-item">
+    <div class="faq-q">Dois-je répéter ces étapes pour chaque collègue ?</div>
+    <div class="faq-a">
+      <strong>Une seule fois par le responsable du projet :</strong> étape 1 si nécessaire
+      (créer le groupe — optionnel), étapes 2 (créer le projet), 3 (activer LFS), 4 (autoriser
+      les Developers à pusher), 6 (première ouverture et ajout des entretiens)
+      et 7 si vous souhaitez restreindre l'ajout/suppression d'entretiens.<br><br>
+      <strong>Une fois par utilisateur :</strong> étape 5 uniquement (créer son application OAuth
+      dans son propre profil GitLab). Chaque membre de l'équipe doit créer sa propre application
+      — c'est ce qui permet à GitLab de distinguer qui fait quelle modification dans l'historique.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Le token OAuth expire-t-il ?</div>
+    <div class="faq-a">
+      Oui. GitLab émet des tokens avec une durée de vie limitée (généralement 2 heures).
+      SonalPi gère le rafraîchissement automatiquement grâce au <em>refresh token</em>.
+      Si la reconnexion échoue, il faudra relancer le flux d'authentification depuis le menu.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Que se passe-t-il si un entretien est verrouillé par un collègue ?</div>
+    <div class="faq-a">
+      SonalPi affichera un avertissement et ouvrira l'entretien en lecture seule.
+      Le verrou est libéré automatiquement quand le collègue ferme la fenêtre d'édition.
+      Contrairement au mode serveur PHP, les verrous GitLab LFS ne <em>n'expirent pas</em> :
+      si l'application se ferme anormalement, le verrou doit être levé manuellement dans
+      GitLab (<strong>Repository → Locked files</strong>) ou par un Maintainer du projet.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Pourquoi l'option "Confidentielle" doit-elle être décochée ?</div>
+    <div class="faq-a">
+      Une application confidentielle requiert qu'un <em>client secret</em> soit envoyé lors
+      de l'échange du token OAuth. Or SonalPi est une application de bureau : il n'existe pas
+      de serveur backend pour conserver ce secret de façon sécurisée. En décochant
+      "Confidential", GitLab accepte le flux sans secret côté client — c'est le comportement
+      standard pour toutes les applications de bureau (VS Code, GitHub Desktop, etc.).<br><br>
+      <strong>Cela ne compromet pas la confidentialité de vos données.</strong>
+      La sécurité du flux est assurée par <em>PKCE</em> (Proof Key for Code Exchange),
+      un mécanisme cryptographique intégré à SonalPi qui remplace avantageusement le
+      <em>client secret</em> pour les applications de bureau.<br><br>
+      Du point de vue <strong>RGPD</strong>, ce qui compte est que le projet GitLab reste
+      en visibilité <strong>Private</strong> (voir étape 2). C'est cette configuration qui
+      garantit que les données du corpus ne sont accessibles qu'aux membres autorisés de
+      votre équipe — indépendamment du mécanisme d'authentification OAuth utilisé.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Que se passe-t-il quand je retire un entretien du corpus ?</div>
+    <div class="faq-a">
+      Retirer un entretien du corpus (menu <strong>Entretiens → Détails → Supprimer l'entretien
+      du corpus</strong>) ne supprime <strong>pas</strong> le fichier <code>.sonal</code> du
+      dépôt GitLab — il est simplement retiré de la liste du corpus (le <code>.crp</code> est
+      mis à jour en conséquence). Ce comportement est identique à celui du mode local.<br><br>
+      Le fichier <code>.sonal</code> reste donc visible dans l'interface web GitLab
+      (<strong>Repository → Files</strong>) en tant que fichier orphelin. Il peut être
+      récupéré ou supprimé manuellement depuis GitLab si nécessaire.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Mon instance GitLab utilise un certificat SSL auto-signé, est-ce un problème ?</div>
+    <div class="faq-a">
+      Non. SonalPi est configuré pour accepter les certificats auto-signés, ce qui est courant
+      sur les instances universitaires en intranet.
+    </div>
+  </div>
+
+</div>
+
+<footer>SonalPi — Aide connexion GitLab</footer>
+
+</body>
+</html>

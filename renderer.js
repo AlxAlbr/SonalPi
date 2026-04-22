@@ -14,28 +14,20 @@ window.electronAPI.onAfficherCorpus(async (resultat) => {
     return;
   }
 
-  
-  
   let Corpus = await window.electronAPI.getCorpus();
 
-   
-  console.log("URL : " + Corpus.url + " \n dossier : " + Corpus.folder    )
+  console.log("URL : " + Corpus.url + " \n dossier : " + Corpus.folder);
 
   document.title = Corpus.url;
 
- // document.getElementById('nomCorpus').textContent = 'Fichier: ' + Corpus.fileName;
- // document.getElementById('cheminCorpus').textContent = `Chemin: ${Corpus.folder}`;
-
   window.recentFiles.add(Corpus.url); // mémorisation de l'ouverture du corpus
 
-
-    
-
-  lireCorpus(Corpus.content);  // lecture du fichier crp ()
- 
-
-  
- 
+  try {
+    await lireCorpus(Corpus.content);  // lecture du fichier crp
+  } catch (err) {
+    console.error('Erreur lors du chargement du corpus :', err);
+    alert('Erreur lors du chargement du corpus :\n' + err.message);
+  }
 });
 
 

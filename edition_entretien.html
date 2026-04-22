@@ -211,7 +211,7 @@ window.addEventListener('unload', (event) => {
                     <label id= "btnavance" class = "btnfonction  btn-avance"  onclick="avancer5s()" title="avancer de 5 secondes"> </label>
                 </div>
 
-                 <div id = "undo-redo" style = "float:left; margin-left:10px; margin-top:9px"  >
+                 <div id = "undo-redo" style = "float:left; margin-left:48px; margin-top:9px"  >
                     <label id = "btn-undo" class="btnfonction " style = "padding: 10px;" onclick="undo()" title="Annuler"> ⟲ </label>   
                     <label id = "btn-redo" class="btnfonction " style = "padding: 10px;margin-left:5px" onclick="redo()" title="Refaire"> ⟳ </label>
                  </div>
@@ -366,7 +366,7 @@ window.addEventListener('unload', (event) => {
 
                     <div id="locuteurs" class="listlocs"></div>
 
-                    <div id="statsloc" style="padding:10px;"></div>
+                    <div id="statsloc"></div>
 
                     
                 </div>
@@ -507,7 +507,7 @@ window.addEventListener('unload', (event) => {
 
                 <div id="synthese" class="dnone fondsynth" >
                     <H2 style="padding: 10px;"> Synthèse </H2>
-                    <div class="close"  onclick="fermeSynth()" style="color: rgb(7, 7, 7);margin-right: 5px;margin-top:-70px">✖️</div> 
+                    <div class="close"  onclick="fermeSynth()" style="color: rgb(7, 7, 7);font-size: 2.5rem;margin-right: 5px;margin-top:-70px">×</div> 
                     <div id="fondsynth"></div>
                     
                 </div>
@@ -995,12 +995,6 @@ function dessinChunks(){
 
 async function dispPanneauG(bouton, composant){
 
-    // Si on quitte le mode locuteur, restaurer les xtr-graph et supprimer les loc-graph
-    if (typeAction === 'loc') {
-        document.querySelectorAll('.xtr-graph').forEach(s => s.style.display = '');
-        document.querySelectorAll('.loc-graph').forEach(s => s.remove());
-    }
-
     // désactivation des autres boutons
     deselBtn_g();
     hidepanG();
@@ -1016,7 +1010,7 @@ async function dispPanneauG(bouton, composant){
         const btnFilig = document.getElementById('filgraneCat');
         if (btnFilig) {
             if (btnFilig.classList.contains('btn-bleu-actif')) {
-               // catsEnFiligrane()
+                catsEnFiligrane()
                 
             }
         }
@@ -1044,7 +1038,7 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="cat"
-       removeCatsEnFiligrane(); // rétablissement du contraste des thématiques
+       
 
     }  
 
@@ -1052,7 +1046,6 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="loc"
-        
        
 
     }  
@@ -1078,11 +1071,6 @@ async function dispPanneauG(bouton, composant){
         document.getElementById("txtRech").focus();
         //noSel=false;
     }
-
-    
-    // appel du checkloc pour retirer les couleurs des locuteurs hors édition 
-    checkloc(locut);
-
 
 }
 
@@ -1282,8 +1270,9 @@ document.addEventListener("selectionchange", () => {
 // réaction aux sélections
 const fdsegs = document.getElementById("segments");
 fdsegs.addEventListener("keydown", (e) => {
-    const arrowKeys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
-    if (e.key !== "Enter" && e.key !== " " && !arrowKeys.includes(e.key)) {
+    if (e.key === "Enter") {
+        fdsegs.classList.remove("en-edition");
+    } else if (e.key !== " ") {
         fdsegs.classList.add("en-edition");
     }
 });
@@ -1674,96 +1663,26 @@ document.addEventListener('keydown', (e) => {
             
             
             case "Enter" :
+             
  
                 event.preventDefault();
-
-                if (fdsegs.classList.contains("en-edition")) {
-                    // Le contenu a été modifié : nettoyage du HTML
-                    fdsegs.classList.remove("en-edition");
-                    const segCurAvant = seg_cur;
-                    wait("Intégration des changements en cours. \n Merci de patienter quelques instants.");
-                    setTimeout(() => {
-                        cleanHTML();
-                        // Restauration du focus sur le segment édité (cleanHTML appelle déjà endWait)
-                        selSegment(segCurAvant);
-                        const segRestaure = getSeg(segCurAvant);
-                        if (segRestaure) {
-                            segRestaure.focus();
-                            // Curseur en fin du dernier enfant du segment reconstruit
-                            const dernier = segRestaure.lastChild;
-                            if (dernier) {
-                                const range = document.createRange();
-                                const sel = window.getSelection();
-                                range.setStartAfter(dernier);
-                                range.collapse(true);
-                                sel.removeAllRanges();
-                                sel.addRange(range);
-                            }
-                        }
-                    }, 50);
-                } else {
-                    // Pas de modification : scission du segment au curseur et insertion d'un nouveau segment vide
-                    const sel = window.getSelection();
-                    if (sel && sel.rangeCount > 0) {
-                        const cur = sel.getRangeAt(0).cloneRange();
-
-                        // Trouver le span .lblseg ancêtre du curseur
-                        let segActuel = cur.startContainer;
-                        while (segActuel && !(segActuel.nodeType === Node.ELEMENT_NODE && segActuel.classList.contains('lblseg'))) {
-                            segActuel = segActuel.parentNode;
-                        }
-
-                        if (segActuel) {
-                            // Extraire le contenu après le curseur
-                            let fragApres = null;
-                            if (segActuel.lastChild) {
-                                const rangeApres = cur.cloneRange();
-                                rangeApres.setEndAfter(segActuel.lastChild);
-                                fragApres = rangeApres.extractContents();
-                            }
-
-                            // Extraire ce qui reste dans segActuel (contenu avant le curseur)
-                            let fragAvant = null;
-                            if (segActuel.hasChildNodes()) {
-                                const rangeAvant = document.createRange();
-                                rangeAvant.selectNodeContents(segActuel);
-                                fragAvant = rangeAvant.extractContents();
-                            }
-
-                            // Construire les nouveaux segments (cloneNode préserve les attributs data-*, classes, etc.)
-                            const segAvant = segActuel.cloneNode(false);
-                            segAvant.classList.remove('segselected');
-                            if (fragAvant) segAvant.appendChild(fragAvant);
-
-                            const segNouveau = segActuel.cloneNode(false);
-                            segNouveau.classList.add('segselected');
-                            segNouveau.classList.remove('ligloc');
-                            segNouveau.innerText ='\u00A0'; 
-
-                            const segApres = segActuel.cloneNode(false);
-                            segApres.classList.remove('segselected');
-                            segApres.classList.remove('ligloc');
-                            if (fragApres) segApres.appendChild(fragApres);
-
-                            // Remplacer l'original (on n'insère segAvant / segApres que s'ils ont du contenu)
-                            const parent = segActuel.parentNode;
-                            if (segAvant.hasChildNodes()) parent.insertBefore(segAvant, segActuel);
-                            parent.insertBefore(segNouveau, segActuel);
-                            if (segApres.hasChildNodes()) parent.insertBefore(segApres, segActuel);
-                            segActuel.remove();
-
-                            // Placer le curseur dans le nouveau segment vide
-                            const newRange = document.createRange();
-                            newRange.setStart(segNouveau, 0);
-                            newRange.setEnd(segNouveau, 1);
-                            newRange.collapse(true);
-                            sel.removeAllRanges();
-                            sel.addRange(newRange);
-                            segNouveau.focus();
-                        }
-                    }
-                    fdsegs.classList.add("en-edition");
+                wait("Intégration des changements en cours. \n Merci de patienter quelques instants.");
+                setTimeout(() => {
+                    cleanHTML();
+                    endWait();
+                }, 50);
+ 
+                seg_cur++
+                selSegment(seg_cur);
+                let segSuiv= getSeg(seg_cur);
+                
+                if (segSuiv){
+                segSuiv.focus()
                 }
+
+
+                
+                
 
                break;
 
@@ -2085,16 +2004,14 @@ function dialog(type){
                 <div style="width:50%; padding:0px 20px 20px; box-sizing:border-box;">
                     <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
                     <div class="menudrlnt">
-                        
-                        
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte (Word)</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('pdf')"><label class="lblformat">.pdf</label> <span class="lbldetails">Document PDF</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut </span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web (contient tout le codage + son)</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Texte, catégories, métadonnées</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('srt')"><label class="lblformat">.srt</label> <span class="lbldetails">Sous-titres SRT</span></div>
                         <div class="lblmnuxprt" onclick="dialogExportChoixOptions('vtt')"><label class="lblformat">.vtt</label> <span class="lbldetails">Sous-titres WebVTT</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('sonal')"><label class="lblformat">.sonal</label> <span class="lbldetails">Copie du fichier courant (pour sauvegarde ou export vers un autre projet)</span></div>
-                                            </div>
+                       <!--  <div class="lblmnuxprt" onclick="dialogExportChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte</span></div>
+                        !-->
+                    </div>
                 </div>
                 <!-- Panneau 2 : options (rempli dynamiquement par dialogExportChoixOptions) -->
                 <div id="export-panel-options" style="width:50%; padding:0px 20px 20px; box-sizing:border-box;"></div>
@@ -2260,7 +2177,7 @@ function dialog(type){
     contenu.innerHTML = 
         `   
 
-            <div class="close" onclick="hidedlg()">✖️</div>
+            <div class="close" onclick="hidedlg()">×✖️</div>
             <h3 class = "menu-title-com">  Commentaire </h3>
 
 
@@ -2467,14 +2384,13 @@ function dialogExportChoixOptions(format) {
     // Colonnes : anon | notes | variables | locuteurs | catégories thm | coordonnées
     const CFG = {
         sonal: [[true,true], [false,true],  [false,true],  [false,true],  [false,true],  [false,true]],
-        html:  [[true,true], [true,true],  [true,true],  [true,true],  [true,true],  [true,true]],
+        html:  [[true,false], [true,false],  [true,false],  [true,false],  [true,false],  [true,false]],
         txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
         srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true]],
         vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true]],
-        docx:  [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
-        pdf:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
+        docx:  [[true,false], [true,false],  [true,false],  [true,false],  [false,false], [true,false]],
     };
-    const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', srt:'.srt', vtt:'.vtt', docx:'.docx', pdf:'.pdf' };
+    const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', srt:'.srt', vtt:'.vtt', docx:'.docx' };
 
     const cfg = CFG[format] || CFG.txt;
     const [oa, on, ov, ol, oth, oti] = cfg;

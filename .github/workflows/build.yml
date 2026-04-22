@@ -3,6 +3,9 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches:
+      - EssaiGitlab  # build automatique sur cette branche (artefacts uniquement)
+  workflow_dispatch:         # déclenchement manuel depuis l'interface GitHub
 permissions:
   contents: write  # Required for creating releases and uploading assets
   id-token: write  # Required for authentication with cloud providers
@@ -51,7 +54,7 @@ jobs:
         run: sudo snap install snapcraft --classic
       
       - name: Build application
-        run: npm run build -- --publish always
+        run: npm run build -- --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ github.token }}
           ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1

@@ -168,7 +168,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
      document.querySelectorAll(".survok").forEach(el => el.classList.remove("survok"));
      document.querySelectorAll(".survseg").forEach(el => el.classList.remove("survseg"));
      document.querySelectorAll(".highlight").forEach(el => el.classList.remove("highlight"));   
-    
+     document.querySelectorAll(".contour").forEach(el => el.classList.remove("contour"));  
      /*
      const tousLbl = document.querySelectorAll('.survseg'); // document.getElementsByClassName("survseg")
             
@@ -1421,6 +1421,7 @@ async function showMenu(button, typeAction){
 // barre de progression sur le résumé graphique de l'entretien
 function barreProg(seg){
     
+    return; 
      // on se base sur la position du premier mot du segment sur l'ensemble des mots de l'entretien car s'appuyer 
      // sur le temps ne fonctionnerait pas dans une situation où la bande son n'est pas chargée. 
      // par ailleurs, c'est sur la base des mots que le dessin général de l'entretien est réalisé. En s'appuyant sur le temps 

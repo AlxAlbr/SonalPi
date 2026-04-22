@@ -1,6 +1,3 @@
-// Variables globales pour la synthèse
-var tabExt = []; // tableau des extraits sélectionnés
-
 async function synthese(critereEt){ // fonction permettant de compiler toutes les parties d'entretien relatives au(x) thème(s) sélectionné(s)
 
  if (tabThm.length == 0){
@@ -15,67 +12,9 @@ if (tabEnt.length == 0){
 
 
 
-    // Fonction utilitaire : traite le texte d'un extrait (anonymisation + ponctuation)
-    function traiterTexteExtrait(spans) {
-        let texte = "";
-        let locuteurs = new Set();
-        let categories = new Set();
-        let nbInterv = 0;
-
-        spans.forEach(mot => {
-            // Gestion des locuteurs (ajoute un préfixe)
-            if (mot.classList.contains('ligloc')) {
-                nbInterv++;
-                if (nbInterv > 1) {
-                    texte += "\n" + mot.dataset.nomloc.replace("?", "") + ": \n- ";
-                } else {
-                    texte += mot.dataset.nomloc.replace("?", "") + ": ";
-                }
-                locuteurs.add(mot.dataset.nomloc.replace("?", "").trim());
-            }
-            
-            // Gestion de l'anonymisation (indépendant du traitement ci-dessus)
-            if (mot.classList.contains('anon')) {
-                if (mot.classList.contains('finsel')) {
-                    texte += mot.dataset.pseudo ? "[" + mot.dataset.pseudo + "]" : "[anonyme]";
-                }
-                // sinon ignorer ce mot (ne rien ajouter)
-            } else {
-                // Pas d'anonymisation, ajouter le texte du mot
-                texte += mot.innerText;
-            }
-
-            // Récupérer les catégories
-            const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
-            thmClasses.forEach(c => {
-                const thm = tabThm.find(t => t.code === c);
-                if (thm) categories.add(thm.nom.split('//')[0].trim());
-            });
-        });
-
-        // Correction des espaces avant et après la ponctuation
-        texte = texte.replace(/\s+([,.!?:;])/g, "$1"); // supprime les espaces avant la ponctuation
-        texte = texte.replace(/([,.!?:;])([^\s\n»])/g, "$1 $2"); // ajoute un espace après la ponctuation si manquant
-
-        return {
-            texte: texte,
-            locuteurs: Array.from(locuteurs),
-            categories: Array.from(categories)
-        };
-    }
-
     function finalizeExtrait(extrait, fin, entretien, resetLocCur) {
         extrait.fin = fin;
-        const traitement = traiterTexteExtrait(extrait.texte);
-        
-        tabExt.push({
-            ...extrait,
-            entretien,
-            texteTraite: traitement.texte,
-            locuteurs: traitement.locuteurs,
-            categories: traitement.categories
-        });
-        
+        tabExt.push({ ...extrait, entretien });
         if (resetLocCur) resetLocCur(); // réinitialisation du locuteur courant
     }
 
@@ -253,8 +192,7 @@ if (tabEnt.length == 0){
         return locNom;
     }
 
-    // Réinitialiser tabExt pour la nouvelle synthèse
-    tabExt = [];
+    var tabExt=[] // tableau des extraits sélectionné
 
     // Créer un conteneur temporaire pour analyser le HTML
     const tempContainer = document.createElement('div');
@@ -263,27 +201,17 @@ if (tabEnt.length == 0){
 
     const divSynthese = document.createElement("div");
     divSynthese.id = "divSynthese";
-        divSynthese.innerHTML = `
-        <div id="header-synthese" class="header-tabdat" style="height:50px;"> 
-            <h3 class="logo-filtre" style="margin-left:10px;">Extraits sélectionnés
-                <label id="btn-quit" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px;margin-right:8px" onclick="hideSynthese();">Quitter ✖️</label>
-                <label id="btn-export-dat" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px" onclick="exportSynthese();">Exporter 📥</label>
 
-            </h3>
-        </div>
-        `;
+    divSynthese.innerHTML = `<h3 style="margin-left:10px;">Extraits sélectionnés
+     <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;float:right;margin-top:-5px" onclick="hideSynthese();">Quitter ✖️</label>
+    </h3>`;
     divSynthese.classList.add("fondtabdat");
     document.body.appendChild(divSynthese);
 
     const divFondSynth = document.createElement("div");
     divFondSynth.id = "fondSynthese";
     divFondSynth.classList.add("fondsynth");
-        // Make the content area sit clearly under the header (like in Base de données)
-        divFondSynth.style.overflow = "auto";
-        divFondSynth.style.maxHeight = "calc(100vh - 80px)";
-        divFondSynth.style.paddingLeft = "10px";
-        // append inside the synthese container so header stays above content
-        divSynthese.appendChild(divFondSynth);
+    document.body.appendChild(divFondSynth);
 
     divFondSynth.addEventListener('contextmenu', function(event) {
         event.preventDefault();
@@ -532,14 +460,59 @@ if (tabEnt.length == 0){
             btnCopy.title = "Copier l'extrait dans le presse-papiers";
             btnCopy.addEventListener('click', async () => {
                 
-                // Utiliser le texte traité directement
-                let textCopié = "« " + (tabExt[i].texteTraite || "") + " »\n";
+                // création d'un conteneur temporaire pour copier le contenu
+                let textCopié =  "« ";
+                let htmlCopié = "« ";
+                let nbInterv = 0;
                 
-                // Ajout des infos sur l'entretien
-                textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "\n";
+                tabExt[i].texte.forEach(mot => {
+                    
+                    // y'a-t-il changement de locteur?
+                    if (mot.classList.contains('ligloc')){
+                        nbInterv++;
 
-                // HTML version (plus simpliste, basée sur le texte traité)
-                let htmlCopié = "<p>« " + (tabExt[i].texteTraite || "").replace(/\n/g, '<br>') + " »</p>";
+                        if (nbInterv > 1) {
+                            textCopié += "\n" + mot.dataset.nomloc.replace("?", "") + ": \n";
+                            htmlCopié += "<br><strong>" + mot.dataset.nomloc.replace("?", "") + ":</strong><br>";
+                        } else {
+                            textCopié += mot.dataset.nomloc.replace("?", "") + ": \n";
+                            htmlCopié += "<strong>" + mot.dataset.nomloc.replace("?", "") + ":</strong><br>";
+                        }
+
+                        if (nbInterv>1){
+                            textCopié += "- "; // double saut de ligne entre les interventions
+                            htmlCopié += "- "; // double saut de ligne entre les interventions
+                        }
+                    }
+                    
+                    // y'a-t-il un nom à anonymiser dans ce mot (si anon mais pas finsel, le mot n'est pas ajouté)?
+                    if (mot.classList.contains('anon')){
+
+                        if (!mot.classList.contains('finsel')){
+                            return; // ne pas ajouter ce mot à l'extrait copié
+                        } else {
+                            textCopié += mot.dataset.pseudo ? "[" + mot.dataset.pseudo + "]" : "[anonyme]"; // si le mot est à la fois anon et finsel, on ajoute son pseudo (s'il existe) ou "anonyme" s'il n'en a pas
+                            htmlCopié += mot.dataset.pseudo ? "<strong>[" + mot.dataset.pseudo + "]</strong><br>" : "<strong>[anonyme]</strong><br>";
+                        }
+
+
+                    } else { // pas d'anonymisation, on ajoute le mot normalement
+
+                    textCopié += mot.innerText ;
+                    htmlCopié += mot.outerHTML;
+
+                    }
+                });
+
+                textCopié += " »\n";
+                htmlCopié += " »<br>";
+                // correction des espaces avant et après la ponctuation (ne doit pas y avoir mot.mot)
+                textCopié = textCopié.replace(/\s+([,.!?:;])/g, "$1"); // supprime les espaces avant la ponctuation
+                textCopié = textCopié.replace(/([,.!?:;])([^\s\n»])/g, "$1 $2"); // ajoute un espace après la ponctuation si manquant
+
+                // ajout des infos sur l'entretien
+                
+                textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "\n";              
                 htmlCopié += "<em>Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "</em><br>";
 
                 const blobHtml = new Blob([htmlCopié], { type: 'text/html' });
@@ -603,562 +576,3 @@ function hideSynthese(){
         divsynthese.remove();
     }
 };
-
-// ---------------------------------------------------------------
-// Export de la synthèse (appelle dialogExportSyntheseChoixOptions)
-// ---------------------------------------------------------------
-function exportSynthese() {
-    // Affichage du dialog avec l'entête standard
-    let element = document.getElementById('dlg');
-    element.style.display = "block";
-    
-    let contenu = document.getElementById('ssdlg');
-    contenu.style.top = "20%";
-    contenu.style.height = "";
-    
-    contenu.innerHTML = `
-        <!-- En-tête permanent (logo + fermeture) -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <img src="img/logoSonal.png" alt="" style="height:36px; width:auto;">
-            <div class="close" onclick="hidedlg()">✖️</div>
-        </div>
-        <!-- Viewport glissant -->
-        <div style="overflow:hidden; margin-left:-20px; margin-right:-20px; margin-bottom:-20px;">
-            <div id="export-slider-synthese" style="display:flex; width:200%; transition:transform 0.35s cubic-bezier(.4,0,.2,1); transform:translateX(0);">
-                <!-- Panneau 1 : choix du format -->
-                <div style="width:50%; padding:0px 20px 20px; box-sizing:border-box;">
-                    <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
-                    <div class="menudrlnt">
-                        <div class="lblmnuxprt" onclick="dialogExportSyntheseChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
-                        <!-- <div class="lblmnuxprt" onclick="dialogExportSyntheseChoixOptions('csv')"><label class="lblformat">.csv</label> <span class="lbldetails">Format tabulaire (importable dans Excel)</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportSyntheseChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Page web interactive avec audio</span></div> !-->
-                        <div class="lblmnuxprt" onclick="dialogExportSyntheseChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte (Word)</span></div>
-                        <div class="lblmnuxprt" onclick="dialogExportSyntheseChoixOptions('pdf')"><label class="lblformat">.pdf</label> <span class="lbldetails">Document PDF</span></div>
-                    </div>
-                </div>
-                <!-- Panneau 2 : options (rempli dynamiquement par dialogExportSyntheseChoixOptions) -->
-                <div id="export-panel-options-synthese" style="width:50%; padding:0px 20px 20px; box-sizing:border-box;"></div>
-            </div>
-        </div>`;
-}
-
-async function genererExportTxtSynthese(opts) {
-    let txt = "SYNTHÈSE DES EXTRAITS SÉLECTIONNÉS\n";
-    txt += "Exporté par Sonal π (version " + window.versionSonal + ") le " + new Date().toLocaleString() + "\n";
-    
-    txt += "=".repeat(70) + "\n\n";
-
-    let entretienCourant = -1;
-
-    for (let i = 0; i < tabExt.length; i++) {
-        const extrait = tabExt[i];
-
-        // Changement d'entretien
-        if (entretienCourant !== extrait.entretien) {
-            entretienCourant = extrait.entretien;
-            txt += "\n" + "-".repeat(70) + "\n";
-            txt += "ENTRETIEN : " + tabEnt[extrait.entretien].nom + "\n";
-            
-            if (opts.vars) {
-                const varsTexte = (await varsPubliquesEnt(extrait.entretien))[1];
-                txt += "Variables : " + varsTexte + "\n";
-            }
-            txt += "-".repeat(70) + "\n\n";
-        }
-
-        // Numérotation de l'extrait avec timestamp et catégories
-        let header = ``;
-        if (opts.time) {
-            const startTime = SecToTime(extrait.debut, true);
-            const endTime = SecToTime(extrait.fin, true);
-            header += `${startTime} -> ${endTime} `;
-        }
-        if (opts.thm && extrait.categories && extrait.categories.length > 0) {
-            header += `[${extrait.categories.join(" | ")}] `;
-        }
-
-        if (!opts.time && !opts.thm) {
-            header += `Extrait ${i + 1} `;
-        }
-
-        txt += header + "\n";
-
-        // Contenu de l'extrait (pré-traité)
-        let contenuTexte = extrait.texteTraite || "";
-        
-        // Filtrer les locuteurs si option désactivée
-        if (!opts.loc) {
-            contenuTexte = contenuTexte.replace(/^[^:]*:\s*/gm, "");
-        }
-
-        txt += contenuTexte + "\n\n";
-    }
-
-    return txt;
-}
-
-async function genererExportCsvSynthese(opts) {
-    const SEP = ";";
-    const csvCell = (val) => {
-        const s = (val === null || val === undefined) ? "" : String(val).trim();
-        if (s.includes(SEP) || s.includes('"') || s.includes('\n') || s.includes('\r')) {
-            return '"' + s.replace(/"/g, '""') + '"';
-        }
-        return s;
-    };
-
-    const lignes = [];
-
-    // En-tête
-    let entete = ["Extrait#", "Entretien", "Texte"];
-    if (opts.loc) entete.push("Locuteur");
-    if (opts.vars) entete.push("Variables entretien");
-    if (opts.thm) entete.push("Catégories");
-    lignes.push(entete.map(csvCell).join(SEP));
-
-    // Données
-    for (let i = 0; i < tabExt.length; i++) {
-        const extrait = tabExt[i];
-        
-        // Utiliser le texte traité (sans locuteurs si option désactivée)
-        let texte = extrait.texteTraite || "";
-        if (!opts.loc) {
-            texte = texte.replace(/^[^:]*:\s*/gm, "");
-        }
-        // Remplacer les retours à la ligne par des espaces pour CSV
-        texte = texte.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-
-        let ligne = [
-            csvCell(String(i + 1)),
-            csvCell(tabEnt[extrait.entretien].nom),
-            csvCell(texte)
-        ];
-
-        if (opts.loc) {
-            ligne.push(csvCell(extrait.locuteurs.join(", ")));
-        }
-
-        if (opts.vars) {
-            const varsTexte = (await varsPubliquesEnt(extrait.entretien))[1];
-            ligne.push(csvCell(varsTexte));
-        }
-
-        if (opts.thm) {
-            ligne.push(csvCell(extrait.categories.join(", ")));
-        }
-
-        lignes.push(ligne.join(SEP));
-    }
-
-    return lignes.join('\n');
-}
-
-// ---------------------------------------------------------------
-// Boîte d'export synthèse en deux étapes : sélection du format → options
-// ---------------------------------------------------------------
-function dialogExportSyntheseChoixOptions(format) {
-    // Config par format : [activé, cochéParDéfaut]
-    // Colonnes : variables | locuteurs | catégories thm | horodatage
-    const CFG = {
-        txt: [[true, true], [true, true], [true, true], [true, true]],
-        csv: [[true, true], [true, true], [true, true], [false, true]],
-        html: [[true, true], [true, true], [true, true], [true, true]],
-        docx: [[true, true], [true, true], [true, true], [true, true]],
-        pdf:  [[true, true], [true, true], [true, true], [true, true]],
-    };
-    const LABELS = { txt: '.txt', csv: '.csv', html: '.html', docx: '.docx', pdf: '.pdf' };
-
-    const cfg = CFG[format] || CFG.txt;
-    const [ov, ol, oth, ot] = cfg;
-
-    const opt = (id, classes, label, [enabled, checked]) => {
-        const dis = enabled ? '' : ' disabled';
-        const chk = checked ? ' checked' : '';
-        const fade = enabled ? '' : 'opacity:0.75;';
-        return `<label class="${classes}" style="display:flex;align-items:center;gap:10px;padding:6px 0;${fade}cursor:${enabled ? 'pointer' : 'default'}">
-                    <input type="checkbox" id="${id}"${chk}${dis} style="width:15px;height:15px;flex-shrink:0;cursor:inherit;">
-                    ${label}
-                </label>`;
-    };
-
-    const panel = document.getElementById('export-panel-options-synthese');
-    panel.innerHTML = `
-        <h3 style="margin-top:0;margin-bottom:18px;">2 - Choisissez les éléments à intégrer à l'export au format ${LABELS[format]}</h3>
-        <div style="margin-bottom:18px;">
-            <hr style="margin: 6px 0;">
-            ${opt('opt-vars-synth', 'logo-variables', 'Variables', ov)}
-            <hr style="margin: 6px 0;">
-            ${opt('opt-time-synth', 'logo-time', 'Coordonnées temporelles', [true, true])}
-            ${opt('opt-loc-synth', 'logo-loc', 'Locuteurs', ol)}
-            <hr style="margin: 6px 0;">
-            ${opt('opt-thm-synth', 'logo-cat', 'Catégories thématiques', oth)}
-                       
-            <hr style="margin:6px 0;">
-        </div>
-        <div style="display:flex;gap:10px;margin-top:10px;">
-            <label class="btnfonction" style="flex:1;text-align:center;cursor:pointer;padding:8px 0;margin-top:6px; height:36px"
-                onclick="document.getElementById('export-slider-synthese').style.transform='translateX(0)'">
-            ← Retour
-            </label>
-            <label class="btn btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;"
-                onclick="exportSyntheseFormat('${format}')">
-            📥 Exporter
-            </label>
-        </div>`;
-
-    // Glissement vers le panneau 2
-    document.getElementById('export-slider-synthese').style.transform = 'translateX(-50%)';
-}
-
-// ---------------------------------------------------------------
-// Génération de l'export au format sélectionné
-// ---------------------------------------------------------------
-async function exportSyntheseFormat(format) {
-    // Lecture des options
-    const getChk = id => {
-        const el = document.getElementById(id);
-        return el ? el.checked : false;
-    };
-    
-    const opts = {
-        vars: getChk('opt-vars-synth'),
-        loc: getChk('opt-loc-synth'),
-        thm: getChk('opt-thm-synth'),
-        time: getChk('opt-time-synth'),
-    };
-
-    hidedlg();
-
-    // Vérification qu'il existe des extraits à exporter
-    if (!tabExt || tabExt.length === 0) {
-        afficherNotification("Aucun extrait à exporter.", "warning");
-        return;
-    }
-
-    let contenuExport = '';
-    let nomFichier = '';
-
-    if (format === 'txt') {
-        contenuExport = await genererExportTxtSynthese(opts);
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.txt';
-        SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
-    } else if (format === 'csv') {
-        contenuExport = await genererExportCsvSynthese(opts);
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.csv';
-        SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
-    } else if (format === 'docx') {
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.docx';
-        await genererExportDocxSynthese(opts, nomFichier);
-    } else if (format === 'pdf') {
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.pdf';
-        await genererExportPdfSynthese(opts, nomFichier);
-    } else if (format === 'html') {
-        nomFichier = 'Synthèse_' + new Date().toISOString().split('T')[0] + '.html';
-        contenuExport = await genererExportHtmlSynthese(opts);
-        SauvegarderSurDisque(contenuExport, nomFichier, 'UTF-8');
-    }
-
-    afficherNotification("Synthèse exportée en " + format.toUpperCase() + " : " + nomFichier, "success");
-}
-
-// ---------------------------------------------------------------
-// EXPORT SYNTHÈSE - Format DOCX (via IPC au main process)
-// ---------------------------------------------------------------
-async function genererExportDocxSynthese(opts, nomFichier) {
-    try {
-        // Sérialiser les extraits pour IPC (utiliser les données pré-traitées)
-        const extraitsSerialized = tabExt.map(extrait => ({
-            debut: extrait.debut,
-            fin: extrait.fin,
-            entretien: extrait.entretien,
-            texteTraite: extrait.texteTraite,
-            categories: extrait.categories,
-            locuteurs: extrait.locuteurs
-        }));
-
-        // Récupérer les variables de chaque entretien si needed
-        const entretienVariables = {};
-        if (opts.vars) {
-            for (let i = 0; i < tabEnt.length; i++) {
-                const [, varsTexte] = await varsPubliquesEnt(i);
-                entretienVariables[i] = varsTexte;
-            }
-        }
-
-        // Préparer les données à envoyer au main process
-        const donnees = {
-            extraits: extraitsSerialized,
-            entretiens: tabEnt.map((ent, idx) => ({
-                ...ent,
-                variables: entretienVariables[idx] || ""
-            })),
-            themes: tabThm,
-            opts: opts,
-            nomFichier: nomFichier
-        };
-        
-        // Appeler le handler IPC
-        const result = await window.electronAPI.exportSynthesisDocx(donnees);
-        
-        if (result.success) {
-            afficherNotification("Synthèse exportée en DOCX : " + nomFichier, "success");
-        } else if (!result.canceled) {
-            afficherNotification("Erreur lors de l'export DOCX : " + result.error, "error");
-        }
-    } catch (error) {
-        console.error("Erreur :", error);
-        afficherNotification("Erreur lors de l'export DOCX", "error");
-    }
-}
-
-// ---------------------------------------------------------------
-// EXPORT SYNTHÈSE - Format PDF (via IPC au main process)
-// ---------------------------------------------------------------
-async function genererExportPdfSynthese(opts, nomFichier) {
-    try {
-        // Générer le contenu TXT
-        const contenuTxt = await genererExportTxtSynthese(opts);
-        
-        // Appeler le handler IPC
-        const result = await window.electronAPI.exportSynthesisPdf({
-            contenuTxt: contenuTxt,
-            nomFichier: nomFichier
-        });
-        
-        if (result.success) {
-            afficherNotification("Synthèse exportée en PDF : " + nomFichier, "success");
-        } else if (!result.canceled) {
-            afficherNotification("Erreur lors de l'export PDF : " + result.error, "error");
-        }
-    } catch (error) {
-        console.error("Erreur :", error);
-        afficherNotification("Erreur lors de l'export PDF", "error");
-    }
-}
-
-// ---------------------------------------------------------------
-// EXPORT SYNTHÈSE - Format HTML (avec boutons play et audio)
-// ---------------------------------------------------------------
-async function genererExportHtmlSynthese(opts) {
-    let html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Synthèse Sonal</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            max-width: 900px;
-            margin: 40px auto;
-            padding: 20px;
-            line-height: 1.6;
-            color: #333;
-        }
-        h1 {
-            color: #548dc1;
-            border-bottom: 2px solid #548dc1;
-            padding-bottom: 10px;
-        }
-        h2 {
-            color: #548dc1;
-            margin-top: 30px;
-            border-left: 4px solid #548dc1;
-            padding-left: 10px;
-        }
-        h3 {
-            color: #666;
-            margin-top: 20px;
-            font-size: 1.1em;
-        }
-        .meta {
-            color: #999;
-            font-size: 0.9em;
-            font-style: italic;
-            margin-bottom: 30px;
-        }
-        .extrait-container {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f9f9f9;
-            border-radius: 5px;
-            border-left: 3px solid #548dc1;
-        }
-        .extrait-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-            font-weight: bold;
-            color: #333;
-        }
-        .btn-play {
-            background: none;
-            border: 1px solid #548dc1;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            cursor: pointer;
-            color: #548dc1;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            padding: 0;
-            transition: all 0.3s;
-        }
-        .btn-play:hover {
-            background: #548dc1;
-            color: #fff;
-        }
-        .btn-play.playing {
-            background: #548dc1;
-            color: #fff;
-        }
-        .extrait-text {
-            font-style: italic;
-            color: #555;
-            margin: 10px 0;
-            padding: 0 10px;
-        }
-        .speaker-line {
-            font-weight: bold;
-            color: #548dc1;
-            margin: 8px 0 4px 0;
-        }
-        .categories {
-            font-size: 0.85em;
-            color: #998844;
-            font-weight: bold;
-        }
-        .audio-controls {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f0f0f0;
-            border-radius: 5px;
-        }
-        footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            color: #999;
-            font-size: 0.9em;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <h1>Synthèse des Extraits Sélectionnés</h1>
-    <p class="meta">Exporté par Sonal π (version ${window.versionSonal || ''}) le ${new Date().toLocaleString()}</p>
-    
-    <div class="audio-controls">
-        <label>Fichiers audio disponibles :</label>
-        <div id="audio-files-list"></div>
-    </div>
-`;
-
-    let entretienCourant = -1;
-
-    for (let i = 0; i < tabExt.length; i++) {
-        const extrait = tabExt[i];
-        const entInfo = tabEnt[extrait.entretien];
-
-        // Changement d'entretien
-        if (entretienCourant !== extrait.entretien) {
-            entretienCourant = extrait.entretien;
-            html += `<h2>${entInfo.nom}</h2>`;
-
-            if (opts.vars) {
-                const varsTexte = (await varsPubliquesEnt(extrait.entretien))[1];
-                html += `<p><strong>Variables :</strong> ${varsTexte}</p>`;
-            }
-
-            // Ajouter si le fichier audio existe
-            if (entInfo.audioPath) {
-                html += `<audio id="audio-ent-${extrait.entretien}" style="width:100%; margin-bottom: 20px;" controls>
-                    <source src="${entInfo.audioPath}" type="audio/mpeg">
-                    Votre navigateur ne supporte pas le lecteur audio.
-                </audio>`;
-            }
-        }
-
-        // En-tête de l'extrait
-        let headerHTML = `Extrait ${i + 1}`;
-        if (opts.time) {
-            const startTime = secToTime(extrait.debut);
-            headerHTML += ` ${startTime}`;
-        }
-
-        let categs = '';
-        if (opts.thm) {
-            const thmClasses = Array.from(extrait.texte[0].classList).filter(c => c.startsWith('cat_'));
-            if (thmClasses.length > 0) {
-                const thmNoms = thmClasses.map(c => {
-                    const thm = tabThm.find(t => t.code === c);
-                    return thm ? thm.nom.split('//')[0].trim() : null;
-                }).filter(nom => nom);
-                if (thmNoms.length > 0) {
-                    categs = ` <span class="categories">[${thmNoms.join(" | ")}]</span>`;
-                }
-            }
-        }
-
-        html += `<div class="extrait-container">
-                    <div class="extrait-header">
-                        <button class="btn-play" data-deb="${extrait.debut}" data-aud="audio-ent-${extrait.entretien}">▶</button>
-                        <span>${headerHTML}${categs}</span>
-                    </div>
-                    <div class="extrait-text">`;
-
-        // Contenu de l'extrait
-        let isNewSpeaker = true;
-        extrait.texte.forEach((mot) => {
-            if (mot.classList.contains('ligloc')) {
-                if (!isNewSpeaker) html += `</div>`;
-                html += `<div class="speaker-line">${opts.loc ? mot.dataset.nomloc.replace("?", "") + ": " : ""}</div><div>`;
-                isNewSpeaker = true;
-            }
-
-            if (mot.classList.contains('anon')) {
-                if (!mot.classList.contains('finsel')) {
-                    return;
-                } else {
-                    html += (mot.dataset.pseudo ? `[${mot.dataset.pseudo}]` : '[anonyme]');
-                }
-            } else {
-                html += mot.innerText;
-            }
-        });
-
-        html += `</div></div></div>`;
-    }
-
-    html += `
-    <footer>Sonal π</footer>
-    <script>
-        document.querySelectorAll('.btn-play').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const audioId = this.dataset.aud;
-                const aud = document.getElementById(audioId);
-                if (!aud) return;
-                
-                aud.currentTime = parseFloat(this.dataset.deb);
-                aud.play();
-                
-                document.querySelectorAll('.btn-play.playing').forEach(function(b) { 
-                    b.classList.remove('playing'); 
-                });
-                this.classList.add('playing');
-                
-                aud.addEventListener('pause', () => { 
-                    this.classList.remove('playing'); 
-                }, { once: true });
-            });
-        });
-    </script>
-</body>
-</html>`;
-
-    return html;
-}

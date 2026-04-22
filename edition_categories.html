@@ -5,45 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Editer les catégories</title>
 
-  <link href="css/styles.css" rel="stylesheet" type="text/css">
-  <script src="renderer.js"></script>
-  <script src="modules/thematisation.js"></script>
-  <script src="modules/utilitaires.js"></script>
-  <script src="modules/gestion_corpus.js"></script>
+    <link href="css/styles.css" rel="stylesheet"  type="text/css">   
+    <script src="renderer.js"></script>
+    <script  src="modules/thematisation.js"></script>
+    <script  src="modules/utilitaires.js"></script>
 
-  <style>
-    /* Lignes de catégories : animation de hauteur pour l'accordéon */
-    #fond-thm-edit .ligthm {
-      position: relative;
-      height: 45px;
-      transition: height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    }
+      <style>
+     
+   
+
+
   </style>
 </head>
-<body>
+<body >
 
-  <!-- Boite de dialogue (remplie par la fonction question) -->
-<div id="dlg" class = "dialog"  >
-    
-    <div id = "ssdlg" class="dialog-content">
-        
-    </div>
-
-</div>
-
-  <div style="width:100%; margin-bottom:1px; height:50px; padding:10px; border-bottom:2px solid grey;">
-    <h2 style="margin-bottom:1px;">Catégories
-      <label class="btnbleu" onclick="ajoutThm()" title="Ajouter une catégorie"> ➕ Ajouter </label>
+  <div style=" width:100% ;
+    margin-bottom: 1px;
+    height: 50px;
+    padding: 10px;
+    border-bottom: 2px solid grey;
+  ">   
+      
+    <h2 style="margin-bottom: 1px;">Catégories 
+                       
+    <label  class="btnbleu" onclick="affichListThmEdit(); ajoutThm()" title="Ajouter une catégorie"> ➕ Ajouter </label> 
+                         
+ 
     </h2>
   </div>
 
-  <div id="fond-cat" style="height:calc(100% - 50px); width:100%; overflow-y:auto; position:fixed">
-    <div id="fond-thm-edit" style="display:flex; flex-direction:column;"></div>
-  </div>
+  <div id = "fond-cat" style = "height: calc(100% - 50px);width: 100%; overflow-y: auto;position:fixed">
 
-  <!-- Dock invisible : hôte du formulaire quand il n'est pas injecté dans une ligne -->
-  <div id="cat-form-dock" style="display:none">
-    <form id="cat-form" class="cat-form">
+        <div id="fond-thm-edit" style="display: flex;flex-direction: column;">
+
+
+
+        </div>
+
+
+        <form id="cat-form" class="cat-form dnone ">
                    
                     <div id="en-tete_cat_edit" class="en-tete_cat" >
                         
@@ -56,7 +56,7 @@
                                 
                             
                                 <div class="floating-label-container">
-                                    <textarea id="lblNomCat" rows="2" class="floating-input lbl-nom-thm" style="overflow:hidden;max-width:100%" placeholder=" " onkeydown="if(event.key==='Enter'){event.preventDefault(); validerModifsThm(); annulChgThm()}"></textarea>
+                                    <textarea id="lblNomCat" rows = "2" class="floating-input lbl-nom-thm" style = "overflow: hidden;max-width:100%" placeholder=" " onkeydown="if(event.key==='Enter'){changeStyle(); annulChgThm()}"></textarea>
                                      <label id = "etq-nom-cat" for="lblNomCat" class="mdc-floating-label dnone">Libellé</label>
                                 </div>
 
@@ -128,7 +128,7 @@
                                     <div class=" font-size-controls">
                                     <input id = "chkcatpol" type="checkbox" class = "chkcat" >
                                     <button class="decrease-font" onclick="adjustFontSize(-2)">-</button>
-                                    <span class="lblTaillePol">18</span>
+                                    <span class="lblTaillePol">`+ taille_cur + `</span>
                                     <button class="increase-font" onclick="adjustFontSize(+2)">+</button>
                                                         
                                 </div>
@@ -182,12 +182,11 @@
                         
                            <div style="margin-top:10px;margin-bottom:20px;">
                           
-                          <label id="btnthmsuppr" class='btn btn-warning' style="float:left; margin-left:10px;" onclick="(async ()=> { if (await supprStyle()) annulChgThm(); })()"> ❌️ Supprimer</label>
+                          <label id = "btnthmsuppr" class='btn btn-warning' style = "float:left; margin-left: 10px;" onclick="supprStyle();document.getElementById('cat-form').classList.add('dnone'); affichListThmEdit()"> ❌️ Supprimer</label>
                           
                           <label style = "float:left;  margin-left: 50px;"> ➕ Ajouter <br> après:</label>
                           <label id = "btnthmAjoutApres" class='btn btn-secondary' style = "float:left;  margin-left: 10px;" onclick="ajoutThmApres('nouvelle')"> Nouvelle </label>
-                          <label id = "btnthmAjoutClone" class='btn btn-secondary' style = "float:left;  margin-left: 5px;" onclick="ajoutThmApres('clone')"> Clone </label>
-                          <label id = "btnthmAjoutEnfant" class='btn btn-secondary' style = "float:left;  margin-left: 5px;" onclick="ajoutThmApres('enfant')"> Enfant </label>
+                          <label id = "btnthmAjoutClone" class='btn btn-secondary' style = "float:left;  margin-left: 10px;" onclick="ajoutThmApres('clone')"> Clone </label>
                           
                           <label id = "valider-modif-cat" class='btn btn-primary' style = "margin-left : 12px; float:right" onclick="validerModifsThm()">Valider</label>
 
@@ -196,65 +195,200 @@
 
                     </div>
 
+                            </div>
+
+                    
+                    <div id="error-message" class="error"></div> 
+
                     </div>
 
-                    <div id="error-message" class="error"></div>
 
-    </form>
-  </div><!-- fin #cat-form-dock -->
+
+                   
+             
+        </form>
+
+
+
 
   <script>
-    var taille_cur = 18;
 
-    document.addEventListener('DOMContentLoaded', () => {
-      affichListThmEdit();
-      loadThm();
+    var taille_cur = 18; 
+
+    const form = document.getElementById('cat-form');
+    const btnCancel = document.getElementById('btn-cancel');
+    const btnSubmit = document.getElementById('btn-submit');
+    const errorDiv = document.getElementById('error-message');
+
+
+    // Soumission du formulaire
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      
+      
     });
 
-    document.getElementById('cat-form').addEventListener('submit', e => e.preventDefault());
+    // Annulation
+   /* btnCancel.addEventListener('click', () => {
+      window.close();
+    });
+*/
+ 
 
-    /** Ferme l'éditeur ET reconstruit la liste. */
-    function annulChgThm() {
-      // Retirer le formulaire vers le dock et nettoyer ses styles
-      const form = document.getElementById('cat-form');
-      const dock = document.getElementById('cat-form-dock');
-      if (form && dock && form.parentNode !== dock) {
-        form.style.position = '';
-        form.style.top = '';
-        form.style.left = '';
-        form.style.width = '';
-        form.style.height = '';
-        form.style.zIndex = '';
-        form.style.background = '';
-        dock.appendChild(form);
-      }
-      affichListThmEdit();
-    }
-
-    function adjustRang(increment) {
-      const lblrang = document.getElementById('lblrang');
-      lblrang.textContent = Math.max(0, Math.min(6, Number(lblrang.innerText) + increment));
-    }
-
-    function adjustFontSize(increment) {
-      const display = document.querySelector('.lblTaillePol');
-      const newSize = Math.max(10, Math.min(48, taille_cur + increment));
-      display.style.fontSize = newSize + 'px';
-      display.textContent = newSize;
-      if (taille_cur !== newSize) {
-        taille_cur = newSize;
-        document.getElementById('chkcatpol').checked = true;
-      } else {
-        document.getElementById('chkcatpol').checked = false;
-      }
-    }
+        // au chargmenent de la fenetre, on recupere les parametres envoyes par le main process
+        document.addEventListener('DOMContentLoaded', () => {
+       // console.log("edition_categories.html chargé, envoi demande de données");
+        affichListThmEdit();
+        loadThm();
+        });
 
 
-    function hidedlg(){
-    let element = document.getElementById('dlg');
-    element.style.display = "none";
+        //listener sur le bouton plusCat 
+        /*
+        let plusCat = document.getElementById("plusCat")
+
+        plusCat.addEventListener('mousedown', (event)=> {
+          window.electronAPI.afficherCategories();
+
+        }); 
+        */
+
+
+        // listener sur le scroll pour déplacer l'élément form-cat avec le scroll
+        let scrollableDiv = document.querySelector('div[style*="overflow-y: auto"]');
+        scrollableDiv.addEventListener('scroll', (event) => {
+          let catForm = document.getElementById('cat-form');
+          catForm.style.top = catForm.style.top + scrollableDiv.scrollTop + 'px';
+        });
+
+function adjustRang(increment){
+
+    // Sélection des éléments nécessaires
+ 
+    const lblrang = document.getElementById("lblrang");
+    let rang = Number(lblrang.innerText)
+
+    // Calcule la nouvelle taille (minimum 10px, maximum 48px)
+    const newRank = Math.max(0, Math.min(6, rang + increment));
+
+ 
+
+    // Met à jour l'affichage
+    lblrang.textContent = newRank ;
+
+}
+
+// Fonction pour ajuster la taille de police
+function adjustFontSize(increment) {
+     
+ 
+    // Sélection des éléments nécessaires
+     
+    const currentFontSizeDisplay = document.querySelector('.lblTaillePol');
+
+
+  // Calcule la nouvelle taille (minimum 10px, maximum 48px)
+  const newSize = Math.max(10, Math.min(48, taille_cur + increment));
+
+  // Applique la nouvelle taille
+  currentFontSizeDisplay.style.fontSize = newSize;
+
+  // Met à jour l'affichage
+  currentFontSizeDisplay.textContent = newSize;
+
+   
+  if (taille_cur != newSize) {
+    taille_cur = newSize
+    document.getElementById("chkcatpol").checked=true ;
+  } else {
+    document.getElementById("chkcatpol").checked=false;
+
+  }
+  
+
+  
+  
    
 }
+
+ 
+
+        function annulChgThm(){
+          let catForm  = document.getElementById('cat-form');
+          catForm.classList.add('dnone');
+          affichListThmEdit();
+        }
+
+
+        
+        // drag and drop functions
+        //const dragEl = document.getElementById('dragElement');
+        
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+
+        // Support tactile
+        //dragEl.addEventListener('touchstart', dragStart);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+
+            //if (e.target === dragEl) {
+                isDragging = true;
+                dragEl.classList.add('dragging');
+            //}
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                setTranslate(currentX, currentY, dragEl);
+            }
+        }
+
+        function dragEnd() {
+            isDragging = false;
+            //dragEl.classList.remove('dragging');
+
+          //  alert("fin du drag");
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate(${xPos}px, ${yPos}px)`;
+        }
+
+        
+
   </script>
 </body>
 </html>

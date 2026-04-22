@@ -43,10 +43,14 @@
           top: 132px;
           "></p>
           <br>
-          <p style = "margin-top:20px">Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
+          <p style="margin-top:20px">Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
           <br>
-          <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir un corpus</button>
-          <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus</button>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; width:320px; margin-left:auto; margin-right:auto;">
+            <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir corpus local</button>
+            <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus local</button>
+            <button id="btnOuvrirCorpusDistant" class="btn btn-info">Ouvrir corpus distant (serveur)</button>
+            <button id="btnOuvrirCorpusGitLab" class="btn btn-info">Ouvrir corpus GitLab</button>
+          </div>
           <br>
 
           <div id="author" class="author">Alex Alber - 2026</div>
@@ -671,42 +675,52 @@ function hidepanG(){
 
 
 
-// veille des verrous sur les entertiens
+// veille des verrous sur les entretiens + synchronisation des nouveaux entretiens (GitLab)
+let _veillEnCours = false;
 setInterval(async () => {
     
+    if (_veillEnCours) return; // éviter les exécutions concurrentes si réseau lent
+    _veillEnCours = true;
 
-    // veille tous les 30 secondes
-    console.log("Vérification des verrous sur les entretiens...");
+    try {
+        // veille tous les 30 secondes
+        console.log("Vérification des verrous sur les entretiens...");
 
-    // récupération des infos du corpus
-   let Corpus = await window.electronAPI.getCorpus();
+        // récupération des infos du corpus
+        let Corpus = await window.electronAPI.getCorpus();
 
-   if (!Corpus || Corpus.type !='distant') {return}
+        if (!Corpus || (Corpus.type != 'distant' && Corpus.type != 'gitlab')) { return; }
 
-    // récupération des entretiens
-    let tabEnt = await window.electronAPI.getEnt();
-
+        // récupération des entretiens
+        let tabEnt = await window.electronAPI.getEnt();
 
         for (let i=0; i<tabEnt.length; i++){
-        const btn = document.querySelector(`button[data-id="${tabEnt[i].id}"]`);
-        let result = await window.electronAPI.isEntretienLocked(i);
+            const btn = document.querySelector(`button[data-id="${tabEnt[i].id}"]`);
+            let result = await window.electronAPI.isEntretienLocked(i);
 
             if (result && result.locked == true){ 
 
                 // entretien verrouillé par un autre utilisateur
                 console.log("L'entretien " + tabEnt[i].nom + " est verrouillé par " + result.user);
-                btn.classList.add("btn-verrou");
-                btn.classList.remove("btn-edit");
+                if (btn) { btn.classList.add("btn-verrou"); btn.classList.remove("btn-edit"); }
 
             } else {
 
                 // entretien non verrouillé
-                btn.classList.remove("btn-verrou");
-                btn.classList.add("btn-edit");
+                if (btn) { btn.classList.remove("btn-verrou"); btn.classList.add("btn-edit"); }
+            }
         }
-    }
 
-    console.log("Vérification des verrous terminée.");
+        console.log("Vérification des verrous terminée.");
+
+        // Pour GitLab : synchronisation silencieuse des nouveaux entretiens
+        if (Corpus.type === 'gitlab') {
+            await rafraichirCorpus(true);
+        }
+
+    } finally {
+        _veillEnCours = false;
+    }
 
 }, 30000);
 
@@ -1208,13 +1222,17 @@ async function displayRecentFiles() {
       const file = recentFiles[index];
       console.log('Ouverture de:', file.path, 'Type:', file.type);
       
-      if (file.type === 'remote') {
+      if (file.type === 'gitlab') {
+        // Ouvrir corpus GitLab avec la config pré-remplie
+        const result = await window.electronAPI.ouvrirCorpusGitLab(file.config);
+        if (result && result.success) {
+          window.electronAPI.onAfficherCorpus((corpus) => {});
+        }
+      } else if (file.type === 'remote') {
         // Ouvrir corpus distant avec l'URL pré-remplie
         const result = await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', file.path);
         if (result && result.success) {
-          window.electronAPI.onAfficherCorpus((corpus) => {
-            // Le renderer affichera le corpus
-          });
+          window.electronAPI.onAfficherCorpus((corpus) => {});
         }
       } else {
         // Ouvrir corpus local
@@ -1253,6 +1271,14 @@ function displayVersion() {
 
     document.getElementById('btnNouveauCorpus').addEventListener('click', async () => {
       window.electronAPI.créerNouveauCorpus();
+    });
+
+    document.getElementById('btnOuvrirCorpusDistant').addEventListener('click', async () => {
+      await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', null);
+    });
+
+    document.getElementById('btnOuvrirCorpusGitLab').addEventListener('click', async () => {
+      await window.electronAPI.ouvrirCorpusGitLab(null);
     });
   });
 
@@ -1322,9 +1348,6 @@ function displayVersion() {
     });
   
     });
-
-
-
 
 
 

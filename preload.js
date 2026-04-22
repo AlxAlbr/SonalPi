@@ -37,6 +37,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Écouter le pré-remplissage de l'URL
   onPreFillUrl: (callback) =>
     ipcRenderer.on('pre-fill-url', (event, url) => callback(url)),
+
+  // GitLab : soumettre les paramètres de connexion
+  submitGitLab: (data) => ipcRenderer.send('gitlab-saisie-submit', data),
+  // GitLab : écouter le pré-remplissage du formulaire
+  onPreFillGitLab: (callback) =>
+    ipcRenderer.on('pre-fill-gitlab', (event, config) => callback(config)),
+  // GitLab : ouvrir un corpus GitLab
+  ouvrirCorpusGitLab: (savedConfig) => ipcRenderer.invoke('ouvrir-corpus-gitlab', savedConfig),
   
  // pour récupérer le contenu d'un fichier corpus
   onAfficherCorpus: (callback) => 
@@ -97,6 +105,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setUser: (user) => ipcRenderer.invoke('set-user', user),
   getUser: () => ipcRenderer.invoke('get-user'),
 
+  // Options GitLab (rôle + options.json)
+  getGitlabUserIsOwner: () => ipcRenderer.invoke('get-gitlab-user-is-owner'),
+  getGitlabOptions: () => ipcRenderer.invoke('get-gitlab-options'),
+  setGitlabOptions: (options) => ipcRenderer.invoke('set-gitlab-options', options),
+
   // Fonction pour envoyer les logs au main process (DÉSACTIVÉE)
   // log: (level, message) => ipcRenderer.invoke('log', level, message),
 
@@ -109,6 +122,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Sauvegarder sur le serveur
   sauvegarderSurServeur: (cheminFichier, contenu) => 
     ipcRenderer.invoke('sauvegarder-sur-serveur', cheminFichier, contenu),
+
+  // Lire un fichier depuis le serveur distant (serveurAPI ou gitlabAPI)
+  lireFichierServeur: (cheminFichier) =>
+    ipcRenderer.invoke('lire-fichier-serveur', cheminFichier),
   
   sauvegarderAvecBackup: (cheminFichier, contenu) =>
     ipcRenderer.invoke('sauvegarder-avec-backup', cheminFichier, contenu),

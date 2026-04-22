@@ -15,11 +15,11 @@ var dragO = null; // thématique en cours de déplacement
 var dragA = null; // thématique cible du déplacement
 
 let filigraneActif = false;
-const FILIGRANE_OPACITE = 0.75; // opacité du voile blanc (0 = invisible, 1 = blanc total)
+const FILIGRANE_OPACITE = 0.55; // opacité du voile blanc (0 = invisible, 1 = blanc total)
 
 async function loadThm(){
 
-    //console.log("chargement des thématiques (filigrane=" + filigraneActif + ")");
+    console.log("chargement des thématiques (filigrane=" + filigraneActif + ")");
     // récupération du tableau des thématiques
 
    
@@ -545,7 +545,7 @@ async function affichListThmEdit(tabThm){
 
     let t;
     for (t=0;t<tabThm.length;t++){
-        const div = document.createElement('div');
+        const div = document.createElement('label');
         div.dataset.code = tabThm[t].code;
         div.dataset.nom = tabThm[t].nom;
         div.dataset.couleur = tabThm[t].couleur;
@@ -628,11 +628,8 @@ async function affichListThmEdit(tabThm){
         const x = event.clientX - rect.left;
         const width = rect.width;
 
-            // Ignorer les clics qui viennent de l'intérieur du formulaire
-            if (event.target.closest && event.target.closest('#cat-form')) return;
-
             // compactage du segment
-            let rangthm = Number(div.dataset.rkthm);
+            let rangthm = Number(event.target.dataset.rkthm);
 
             if (x > width - 45) {
 
@@ -677,79 +674,112 @@ async function affichListThmEdit(tabThm){
 
                 
             } else {
+                
+                
+                let catForm = document.getElementById("cat-form");
+                catForm.dataset.placerapres = -2; 
 
-                const form = document.getElementById('cat-form');
-                const dock = document.getElementById('cat-form-dock');
+                // fermeture si ouvert sans modifs
+                if (!catForm.classList.contains("dnone") ) {
 
-                // Toggle : si cette ligne est déjà ouverte, on la referme
-                if (form && dock && form.parentNode === div) {
-                    form.style.position = '';
-                    form.style.top = '';
-                    form.style.left = '';
-                    form.style.width = '';
-                    form.style.height = '';
-                    form.style.zIndex = '';
-                    form.style.background = '';
-                    dock.appendChild(form);
-                    div.style.height = '45px';
-                    div.addEventListener('transitionend', function handler() {
-                        div.textContent = splitNomThm(div.dataset.nom)[0];
-                        div.removeEventListener('transitionend', handler);
-                    }, { once: true });
-                    return;
+                     
+            
+
+                    if (catForm.dataset.rkthm == rangthm && catForm.dataset.rkthm != undefined) {
+
+   
+                         
+                        annulChgThm()
+                        return
+                    }
+
                 }
 
-                // Fermer l'éditeur précédent (s'il y en a un) sans reconstruire la liste
-                if (form && dock && form.parentNode && form.parentNode !== dock) {
-                    const prevRow = form.parentNode;
-                    form.style.position = '';
-                    form.style.top = '';
-                    form.style.left = '';
-                    form.style.width = '';
-                    form.style.height = '';
-                    form.style.zIndex = '';
-                    form.style.background = '';
-                    dock.appendChild(form);
-                    prevRow.style.height = '45px';
-                    prevRow.addEventListener('transitionend', function handler() {
-                        prevRow.textContent = splitNomThm(prevRow.dataset.nom)[0];
-                        prevRow.removeEventListener('transitionend', handler);
-                    }, { once: true });
-                }
+             
+                catForm.dataset.rkthm = rangthm;
+                catForm.classList.add("dnone");
+             
+                selModifThm(tabThm, event.target.dataset.code)
 
-                // Initialiser l'état du formulaire
-                form.dataset.rkthm = rangthm;
-                form.dataset.placerapres = -2;
+                // positionnement du formulaire
 
-                // Positionner le formulaire en absolu et l'injecter dans la ligne
-                form.style.position = 'absolute';
-                form.style.top = '0';
-                form.style.left = '0';
-                form.style.width = '100%';
-                form.style.height = '400px';
-                form.style.zIndex = '100';
-                form.style.background = 'white';
-                div.style.position = 'relative';
-                div.appendChild(form);
+                // redimensionnement de tous les autres
+                const fond = document.getElementById("fond-thm-edit")
+                const lignes = fond.querySelectorAll('.ligthm')
+                lignes.forEach(ligne => {
+                    ligne.style.height="45px";
+                    ligne.innerText = splitNomThm(ligne.dataset.nom)[0];
+                });
 
-                // Remplir les champs
-                selModifThm(tabThm, div.dataset.code);
+                // écartement du thm modifié
+                div.style.height= "400px"; 
+                div.innerText = "";
+
+                setTimeout(function() {
+                const rect = div.getBoundingClientRect();
+                
+                // Position de défilement verticale (axe Y)
+                // récupération du scroll du conteneur fond-cat 
+                const fondCat = document.getElementById('fond-cat')
+                const scrollY = fondCat.scrollTop;
+
+                
+                catForm.style.top =  scrollY + rect.top  - 50 +  "px";
+                catForm.style.left = rect.left + "px";
+                catForm.style.width = rect.width + "px";
+                catForm.classList.remove("dnone");
+                catForm.style.height = "400px"
+                
+
+                    const lblNomCat = document.getElementById("lblNomCat");
+                    
+                    lblNomCat.focus();
+                    lblNomCat.select();
+
+                // chargement de la combo des thm existants
                 chargerCmbMoveThm(rangthm);
 
-                // Animer l'expansion à la hauteur du formulaire
-                div.style.height = '45px';
-                div.offsetHeight; // force reflow
-                div.style.height = '400px';
-                div.addEventListener('transitionend', function handler() {
-                    div.removeEventListener('transitionend', handler);
-                    // Focus après l'animation
-                    const lblNomCat = document.getElementById('lblNomCat');
-                    if (lblNomCat) { lblNomCat.focus(); lblNomCat.select(); }
-                }, { once: true });
 
-                // Scroll into view
-                requestAnimationFrame(() => { div.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
 
+                }, 150); // délai pour laisser le temps au navigateur de calculer les positions
+
+
+            catForm.scrollIntoView({ behavior: "smooth" });
+
+            /*
+                // paramétrage du bouton 
+                let btnX = document.getElementById('valider-modif-cat')
+                    btnX.addEventListener('mousedown', (event) => {
+                        validerModifsThm(tabThm, rangthm);
+                        let formul = document.getElementById('cat-form');
+                        formul.classList.add("dnone");
+                    });
+            */
+
+
+                // réaction de la text area
+                const lblNomCat = document.getElementById("lblNomCat");
+                lblNomCat.addEventListener("keydown", (event) => {
+                    if(event.key==='Enter'){
+                        event.preventDefault();
+                        validerModifsThm();
+                        annulChgThm();
+                    }
+                });
+
+                // ajout d'une nouvelle catégorie après
+                /*
+                const lblNomCatPlus = document.getElementById("btnthmAjoutApres");
+                lblNomCatPlus.addEventListener("click", (event) => {
+                  ajoutThmApres(rangthm, 'nouvelle');
+                });
+
+                // ajout d'une nouvelle catégorie clone
+                const lblNomCatClone = document.getElementById("btnthmAjoutClone");
+                lblNomCatClone.addEventListener("click", (event) => {
+                  ajoutThmApres(rangthm, 'clone');
+                });
+                */
             }
 
         });
@@ -842,18 +872,9 @@ async function validerModifsThm(){
         const couleur = document.getElementById('chkcatcoul').checked ? document.getElementById('colorFond').value : "";
         const taille = document.getElementById('chkcatpol').checked ? document.querySelector('.lblTaillePol').innerText : "";
 
-        // Déplacer le formulaire vers le dock avant la reconstruction de la liste
-        const dock = document.getElementById('cat-form-dock');
-        if (dock && catForm.parentNode !== dock) {
-            catForm.style.position = '';
-            catForm.style.top = '';
-            catForm.style.left = '';
-            catForm.style.width = '';
-            catForm.style.height = '';
-            catForm.style.zIndex = '';
-            dock.appendChild(catForm);
-        }
-
+        // cache de la zone de saisie
+        catForm.classList.add("dnone")
+  
 
          
         let trouvé = false; 
@@ -1016,169 +1037,154 @@ function createThm(code, couleur, taille, filigrane){
 
 }
 
-// fonction d'ajout d'une nouvelle thématique (à la fin de la liste)
+// fonction d'ajout d'une nouvelle thématique
 async function ajoutThm(){
 
-    const tabThm = await window.electronAPI.getThm();
-    const form = document.getElementById('cat-form');
-    const dock = document.getElementById('cat-form-dock');
-    const fond = document.getElementById('fond-thm-edit');
+// récupération du tableau des thm
+let tabThm = await window.electronAPI.getThm(); // récupération du tableau des thématiques depuis main
 
-    // Fermer tout éditeur ouvert sans reconstruire la liste
-    if (form && dock && form.parentNode && form.parentNode !== dock) {
-        const prevRow = form.parentNode;
-        dock.appendChild(form);
-        prevRow.style.height = '45px';
-        prevRow.textContent = splitNomThm(prevRow.dataset.nom)[0];
-    }
+// définition du rang le plus avancé
+let derrang = tabThm.length -1
 
-    // Supprimer toute ligne temporaire restante
-    fond.querySelectorAll('.asuppr').forEach(el => el.remove());
 
-    // Générer un code disponible
-    let nvcode = '';
-    for (let i = 1; i < 1000; i++) {
-        nvcode = 'cat_' + String(i).padStart(3, '0');
-        if (!tabThm.find(item => item.code === nvcode)) break;
-    }
 
-    // Créer une ligne temporaire à la fin de la liste
-    const divNew = document.createElement('div');
-    divNew.classList.add('ligthm', 'asuppr');
-    divNew.style.backgroundColor = '#f5f5f5';
-    divNew.style.height = '45px';
-    fond.appendChild(divNew);
 
-    // Initialiser le formulaire pour une nouvelle catégorie
-    const rangthm = tabThm.length - 1;
-    form.dataset.rkthm = rangthm;
-    form.dataset.placerapres = rangthm;
-    document.getElementById('lblCodeCat').value = nvcode.replace('cat_', '');
-    document.getElementById('lblNomCat').value = 'Nouvelle catégorie';
-    document.getElementById('lblrang').innerText = '0';
-    document.getElementById('chkcatcoul').checked = false;
-    document.getElementById('colorFond').value = '#ffffff';
-    document.getElementById('en-tete_cat_edit').style.backgroundColor = '#ffffff';
-    document.getElementById('chkcatpol').checked = false;
-    document.querySelector('.lblTaillePol').innerText = taille_def;
+// récupération du rang du thm via le dataset de catform
+const catForm = document.getElementById("cat-form");
+catForm.dataset.rkthm = derrang;
 
-    // Injecter le formulaire dans la nouvelle ligne
-    divNew.style.position = 'relative';
-    form.style.position = 'absolute';
-    form.style.top = '0';
-    form.style.left = '0';
-    form.style.width = '100%';
-    form.style.height = '400px';
-    form.style.zIndex = '100';
-    form.style.background = 'white';
-    divNew.appendChild(form);
-    chargerCmbMoveThm(rangthm);
+// ajout d'une thématique après la dernière
+await ajoutThmApres('nouvelle');
 
-    // Animer l'expansion
-    divNew.style.height = '45px';
-    divNew.offsetHeight;
-    divNew.style.height = '400px';
-    divNew.addEventListener('transitionend', function handler() {
-        divNew.removeEventListener('transitionend', handler);
-        const lblNomCat = document.getElementById('lblNomCat');
-        if (lblNomCat) { lblNomCat.focus(); lblNomCat.select(); }
-    }, { once: true });
 
-    // Scroll into view
-    requestAnimationFrame(() => { divNew.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+// scroll jusqu'au max  
+
+//const derthm = document.querySelectorAll('.ligthm')[derrang];
+
+catForm.scrollIntoView({ behavior: "smooth", block: "end" });
+
 }
 
 async function ajoutThmApres(typeAjout){
 
-    const form = document.getElementById('cat-form');
-    const dock = document.getElementById('cat-form-dock');
-    const fond = document.getElementById('fond-thm-edit');
+ 
+// récupération du rang du thm via le dataset de catform
+const catForm = document.getElementById("cat-form");
+const rangthm = Number(catForm.dataset.rkthm);
 
-    // Rang courant mémorisé dans le formulaire
-    const rangthm = Number(form.dataset.rkthm);
+// récupération du tableau des thm
+let tabThm = await window.electronAPI.getThm(); // récupération du tableau des thématiques depuis main 
 
-    // Récupération de la liste des thm
-    let tabThm = await window.electronAPI.getThm();
 
-    // Générer un code disponible
-    var nvcode = '';
-    for (let i = 1; i < 1000; i++) {
-        nvcode = 'cat_' + String(i).padStart(3, '0');
-        if (!tabThm.find(item => item.code === nvcode)) break;
+
+    // validation des modfis
+    //validerModifsThm(tabThm, rangthm)
+   // fermeture du formulaire
+   //annulChgThm();
+
+                // positionnement du formulaire
+
+                // redimensionnement de tous les autres
+    const fond = document.getElementById("fond-thm-edit")
+    const lignes = fond.querySelectorAll('.ligthm')
+    lignes.forEach(ligne => {
+                    ligne.style.height="45px";
+                    ligne.innerText = splitNomThm(ligne.dataset.nom)[0];
+    });   
+
+
+
+    var nvcode="";
+
+    // définition d'un code par incrémentation
+    for (t=1;t<1000;t++){
+
+        nvcode = `cat_`+ String(t).padStart(3, "0"); 
+
+        // mise à jour du tableau des thématiques
+        const row = tabThm.find(item => item.code == nvcode); // Trouver la ligne correspondante
+
+        if (!row) {
+
+            break;
+        }
+
+
     }
 
-    console.log('ajout d\'une thématique après le rang ' + rangthm + ' avec le code ' + nvcode);
+    console.log("ajout d'une thématique après le rang " + rangthm + " avec le code " + nvcode)
 
-    // Fermer l'éditeur courant (retirer le formulaire de la ligne actuelle)
-    if (form.parentNode !== dock) {
-        dock.appendChild(form);
-    }
+    // ouverture d'un nouveau formulaire
+     
+    catForm.dataset.rkthm = rangthm    // nouveau thm
+    catForm.classList.add("dnone");
 
-    // Retrouver la ligne de référence (celle qui était ouverte)
-    const divCible = fond.querySelector('[data-rkthm="' + rangthm + '"]');
-    if (!divCible) { alert('Erreur : ligne de référence introuvable'); return; }
+   // réinitialisation des champs
+   //catForm.reset();
 
-    // Restaurer la hauteur de la ligne de référence si besoin
-    divCible.style.height = '45px';
-    divCible.textContent = splitNomThm(divCible.dataset.nom)[0];
+   if (typeAjout =="nouvelle"){
+    document.getElementById("lblCodeCat").value = nvcode.replace("cat_","");
+    document.getElementById("lblNomCat").value = "Nouvelle catégorie";
+    document.getElementById("lblrang").innerText = "0";
+    document.getElementById("chkcatcoul").checked = false;
+    document.getElementById("colorFond").value = "#ffffff";
+    document.getElementById("en-tete_cat_edit").style.backgroundColor = "#ffffff";
+    document.getElementById("chkcatpol").checked = false;
+    document.querySelector('.lblTaillePol').innerText = taille_def;
 
-    // Initialiser le formulaire
-    form.dataset.rkthm = rangthm;
-    form.dataset.placerapres = rangthm;
+   } if (typeAjout =="clone"){
+    document.getElementById("lblCodeCat").value = nvcode.replace("cat_","");
+ 
+   }
 
-    if (typeAjout === 'nouvelle') {
-        document.getElementById('lblCodeCat').value = nvcode.replace('cat_', '');
-        document.getElementById('lblNomCat').value = 'Nouvelle catégorie';
-        document.getElementById('lblrang').innerText = '0';
-        document.getElementById('chkcatcoul').checked = false;
-        document.getElementById('colorFond').value = '#ffffff';
-        document.getElementById('en-tete_cat_edit').style.backgroundColor = '#ffffff';
-        document.getElementById('chkcatpol').checked = false;
-        document.querySelector('.lblTaillePol').innerText = taille_def;
-    } else if (typeAjout === 'clone') {
-        document.getElementById('lblCodeCat').value = nvcode.replace('cat_', '');
-    } else if (typeAjout==='enfant'){
-        document.getElementById('lblCodeCat').value = nvcode.replace('cat_', '');
-        document.getElementById('lblNomCat').value = 'Nouvelle catégorie';
-        const rangParent = Number(divCible.dataset.rang);
-        document.getElementById('lblrang').innerText = rangParent > 0 ? rangParent + 1 : 1;
-    }
 
-    // Supprimer toute ligne temporaire déjà présente
-    fond.querySelectorAll('.asuppr').forEach(el => el.remove());
+    
 
-    // Créer une nouvelle ligne temporaire après la ligne de référence
-    const divNew = document.createElement('div');
-    divNew.classList.add('ligthm', 'asuppr');
-    divNew.style.backgroundColor = '#f5f5f5';
-    divNew.style.height = '45px';
-    divCible.insertAdjacentElement('afterend', divNew);
+   // récupération du label de la thématique
+ 
+   // recherche des .ligthm  avec le data-rkthm = rangthm
+   const divCible = fond.querySelectorAll('[data-rkthm="' + rangthm + '"]')
+   
+   if (divCible.length==0){alert("erreur lors de l'ajout de la thématique"); return;}
+    
+    
 
-    // Injecter le formulaire dans la nouvelle ligne
-    divNew.style.position = 'relative';
-    form.style.position = 'absolute';
-    form.style.top = '0';
-    form.style.left = '0';
-    form.style.width = '100%';
-    form.style.height = '400px';
-    form.style.zIndex = '100';
-    form.style.background = 'white';
-    divNew.appendChild(form);
-    chargerCmbMoveThm(rangthm);
+    // ajout d'une ligne vide pour le nouveau thm
+    const divNew = document.createElement('label');
+    divNew.classList.add('ligthm');
+    divNew.classList.add('asuppr');
+    divNew.style.backgroundColor= "#f5f5f5ff";
+    divNew.style.height= "400px";
+    divNew.innerText= " ";
 
-    // Animer l'expansion
-    divNew.style.height = '45px';
-    divNew.offsetHeight;
-    divNew.style.height = '400px';
-    divNew.addEventListener('transitionend', function handler() {
-        divNew.removeEventListener('transitionend', handler);
-        const lblNomCat = document.getElementById('lblNomCat');
-        if (lblNomCat) { lblNomCat.focus(); lblNomCat.select(); }
-    }, { once: true });
+   if (divCible.length > 0) {
+        divCible[0].insertAdjacentElement('afterend', divNew);
+        } else {
+        console.error('divCible introuvable');
+}
 
-    // Scroll into view
-    requestAnimationFrame(() => { divNew.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+    const fondCat = document.getElementById('fond-cat')
+    const scrollY = fondCat.scrollTop;
 
+    let posNv = divCible[0].getBoundingClientRect();
+    catForm.style.top =  posNv.top + scrollY + "px";
+    catForm.style.left = posNv.left + "px";
+    catForm.style.width = posNv.width + "px";
+    catForm.style.height = "400px"
+    catForm.classList.remove("dnone");
+
+    catForm.dataset.rkthm = rangthm; 
+    catForm.dataset.placerapres = rangthm 
+
+    // Délai pour laisser le DOM se mettre à jour avant de focus/select
+    setTimeout(() => {
+        const lblNomCat = document.getElementById("lblNomCat");
+        if (lblNomCat) {
+            lblNomCat.focus();
+            lblNomCat.select();
+        }
+    }, 100);
+    
 }
 
 
@@ -1392,7 +1398,7 @@ function selModifThm(tabThm, thm){ // sélection d'une catégorie pour modificat
             document.getElementById("chkcatpol").checked = true;
             document.querySelector(".lblTaillePol").innerText = taillepol;
             document.querySelector(".lblTaillePol").style.fontSize = taillepol;
-            taille_cur = parseInt(taillepol) || 16; // Valeur par défaut si la conversion échoue
+            taille_cur = taillepol;
         } else {
 
             console.log("pas de taille de police" + taille_def)
@@ -1463,13 +1469,15 @@ async function supprStyle(){
     // suppression de la thématique
     
     //message d'avertissement
-    let rep = await question("Voulez-vous vraiment supprimer cette catégorie ?\n\nCette action est irréversible !", ["Oui", "Non"], );
-    if (rep !== "oui") {
-        hidedlg();
-        return false;
+    if (confirm("Voulez-vous vraiment supprimer cette catégorie ?\n\nCette action est irréversible !")) {
+
+    } else {
+        return 
     }
 
-    const code = document.getElementById("lblCodeCat").value;
+    
+
+     const code = document.getElementById("lblCodeCat").value;
 
     // récupération de la feuille de style
     const styleTag = document.querySelector('style'); // Sélectionne la première balise <style>
@@ -1491,23 +1499,47 @@ async function supprStyle(){
 
     // enregistrement du tabThm dans le main
     console.log("enregistrement des modifs de thématiques après suppression ", tabThm);
-    await window.electronAPI.setThm(tabThm);
+    window.electronAPI.setThm(tabThm);
+
+
+    return ; 
     
-    return true;
+    // suppression des classes correspondantes dans les entretiens
+
+    // récupération des contenus html des entretiens
+    let tabEnt = await window.electronAPI.getEnt();
+    for (e=0;e<tabEnt.length;e++){
+
+        let htmlEnt =  await window.electronAPI.getHtml(e);
+        const conteneur = document.createElement('div');
+        conteneur.innerHTML = htmlEnt;
+        const mots = conteneur.querySelectorAll('span');
+        mots.forEach(mot => {
+            mot.classList.remove("cat_" + code);
+        });
+
+        // remise à jour du html de l'entretien
+        await window.electronAPI.setHtml(e, conteneur.innerHTML);
+
+    }
+
+ 
+      
+ 
+    
+
 }
 
 function existThm(thm){
  
-    const lblTypeModif = document.getElementById("lblTypeModif");
-    if (lblTypeModif) lblTypeModif.innerText = "Ajouter une catégorie";
+    document.getElementById("lblTypeModif").innerText = "Ajouter une catégorie"
 
     for (t=0;t<tabThm.length;t++){
 
         if (tabThm[t].code == thm) {
 
-            if (lblTypeModif) lblTypeModif.innerText = "Modifier la catégorie";
-            const btnSup = document.getElementById("btnthmsuppr");
-            if (btnSup) btnSup.classList.remove("dnone");
+            document.getElementById("lblTypeModif").innerText = "Modifier la catégorie"
+            document.getElementById("btnthmsuppr").classList.remove("dnone");
             return true;
         }
     }
