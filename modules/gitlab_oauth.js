@@ -205,9 +205,10 @@ class GitLabOAuth {
       const urlObj = new URL(revokeUrl);
       const bodyStr = body.toString();
 
+      const defaultPort = urlObj.protocol === 'https:' ? 443 : 80;
       const options = {
         hostname: urlObj.hostname,
-        port: urlObj.port || 443,
+        port: urlObj.port || defaultPort,
         path: urlObj.pathname,
         method: 'POST',
         headers: {
@@ -217,7 +218,7 @@ class GitLabOAuth {
         rejectUnauthorized: false,
       };
 
-      const req = https.request(options, (res) => {
+      const req = this._httpModule(urlObj).request(options, (res) => {
         res.resume(); // On ne lit pas le body
         this._token = null;
         console.log('✅ Token révoqué (HTTP ' + res.statusCode + ')');
@@ -343,16 +344,22 @@ class GitLabOAuth {
     return this._postToken(body.toString());
   }
 
+  /** Retourne le module http ou https selon le protocole de l'URL */
+  _httpModule(urlObj) {
+    return urlObj.protocol === 'https:' ? https : http;
+  }
+
   /**
    * POST vers l'endpoint token GitLab
    */
   _postToken(bodyStr) {
     return new Promise((resolve, reject) => {
       const urlObj = new URL(this.tokenUrl);
+      const defaultPort = urlObj.protocol === 'https:' ? 443 : 80;
 
       const options = {
         hostname: urlObj.hostname,
-        port: urlObj.port || 443,
+        port: urlObj.port || defaultPort,
         path: urlObj.pathname,
         method: 'POST',
         headers: {
@@ -363,7 +370,7 @@ class GitLabOAuth {
         rejectUnauthorized: false, // Compatibilité certificats self-signed universitaires
       };
 
-      const req = https.request(options, (res) => {
+      const req = this._httpModule(urlObj).request(options, (res) => {
         const chunks = [];
         res.on('data', chunk => chunks.push(chunk));
         res.on('end', () => {
