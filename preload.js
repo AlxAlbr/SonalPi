@@ -122,6 +122,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Sauvegarder sur le serveur
   sauvegarderSurServeur: (cheminFichier, contenu) => 
     ipcRenderer.invoke('sauvegarder-sur-serveur', cheminFichier, contenu),
+
+  // Lire un fichier depuis le serveur distant (serveurAPI ou gitlabAPI)
+  lireFichierServeur: (cheminFichier) =>
+    ipcRenderer.invoke('lire-fichier-serveur', cheminFichier),
   
   sauvegarderAvecBackup: (cheminFichier, contenu) =>
     ipcRenderer.invoke('sauvegarder-avec-backup', cheminFichier, contenu),

@@ -448,6 +448,37 @@
     </div>
   </div>
 
+  <!-- RÉCAPITULATIF -->
+  <div style="margin: 4px 0 20px; padding: 16px 20px; background: #fff8e8; border: 1px solid #f0c060; border-radius: 8px; font-size: 13px;">
+    <strong style="font-size:14px;">📋 Ce dont vous aurez besoin dans SonalPi</strong>
+    <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+      <thead>
+        <tr>
+          <th style="text-align:left; padding:7px 10px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font-weight:600;">Champ SonalPi</th>
+          <th style="text-align:left; padding:7px 10px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font-weight:600;">Où le trouver</th>
+          <th style="text-align:left; padding:7px 10px; background:#f6f8fa; border:1px solid #d0d7de; color:#57606a; font-weight:600;">Exemple</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><strong>URL du projet GitLab</strong></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;">Copiez l'URL complète du projet depuis votre navigateur</td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><code>https://gitlab.univ-exemple.fr/labo/corpus-oral</code></td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><strong>Fichier corpus</strong> <em style="font-weight:400;">(facultatif)</em></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;">Chemin du <code>.crp</code> dans le dépôt. Si vide, SonalPi utilise <code>nom-du-projet.crp</code> à la racine</td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><code>data/projet.crp</code></td>
+        </tr>
+        <tr>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><strong>Client ID OAuth</strong></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;">Profil → Applications → votre app SonalPi → <em>Application ID</em></td>
+          <td style="padding:7px 10px; border:1px solid #d0d7de;"><code>a3f8c2d1e4b7...</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
   <!-- ÉTAPE 6 -->
   <div class="step">
     <div class="step-header">
@@ -542,46 +573,6 @@
         locaux ne sont pas concernés (ils n'ont jamais transité par GitLab).
       </div>
     </div>
-  </div>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <h2 style="margin-top: 36px;">📋 Récapitulatif des informations à saisir</h2>
-
-  <div class="recap">
-    <p style="font-size:13px; color:#57606a; margin-bottom:4px;">
-      Une fois les étapes ci-dessus complétées, vous aurez besoin de ces 4 informations dans SonalPi :
-    </p>
-    <table>
-      <thead>
-        <tr>
-          <th>Champ SonalPi</th>
-          <th>Où le trouver</th>
-          <th>Exemple</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>Instance GitLab</strong></td>
-          <td>URL de base de votre GitLab</td>
-          <td><code>https://gitlab.univ-exemple.fr</code></td>
-        </tr>
-        <tr>
-          <td><strong>Chemin du projet</strong></td>
-          <td>URL du projet après le nom d'hôte</td>
-          <td><code>labo/corpus-oral</code> (avec groupe)<br><code>jdupont/corpus-oral</code> (sans groupe)</td>
-        </tr>
-        <tr>
-          <td><strong>Fichier corpus</strong></td>
-          <td>Chemin du <code>.crp</code> dans le dépôt</td>
-          <td><code>data/projet.crp</code></td>
-        </tr>
-        <tr>
-          <td><strong>Client ID OAuth</strong></td>
-          <td>Profil → Applications → votre app SonalPi</td>
-          <td><code>a3f8c2d1e4b7...</code></td>
-        </tr>
-      </tbody>
-    </table>
   </div>
 
   <!-- ═══════════════════════════════════════════ -->

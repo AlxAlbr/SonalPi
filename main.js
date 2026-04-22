@@ -619,6 +619,23 @@ ipcMain.handle('dialog:saveFile', async (event, { filename, content, encoding })
 });
 
 // Handler pour sauvegarder sur le serveur
+// Lit un fichier depuis le serveur distant (serveurAPI ou gitlabAPI)
+ipcMain.handle('lire-fichier-serveur', async (_event, filePath) => {
+  console.log('📥 Lecture fichier distant:', filePath);
+
+  const api = remoteAPI();
+  if (!api) {
+    return { success: false, error: 'Non connecté au serveur distant.' };
+  }
+
+  try {
+    return await api.lireFichier(filePath);
+  } catch (error) {
+    console.error('❌ Erreur lecture fichier distant:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('sauvegarder-sur-serveur', async (event, filePath, content) => {
   console.log('💾 Demande de sauvegarde sur serveur');
   console.log('   Fichier:', filePath);

@@ -584,7 +584,13 @@ async function validMod(rgEnt, v, l, m, lib){
     await window.electronAPI.setEnt(tabEnt); // sauvegarde du tabent
     await window.electronAPI.setDic(tabDic); // sauvegarde du tabdic
 
-
+    // Persister sur le serveur (distant / gitlab) — fire-and-forget pour ne pas bloquer l'UI
+    const rkEnt = tabEnt.findIndex(ent => String(ent.id) === String(rgEnt));
+    if (rkEnt !== -1) {
+        window.majFichierSonal(rkEnt, rkEnt + 1)
+            .then(() => window.sauvegarderCorpus(false))
+            .catch(err => console.error('validMod : erreur sauvegarde distante', err));
+    }
 
     const menudicEl = document.getElementById("menudic");
     if (menudicEl) menudicEl.style.display="none";
@@ -1379,7 +1385,7 @@ async function validerCellGen(td, lib) {
 
     // Vérification du verrou pour les corpus distants
     const Corpus = await window.electronAPI.getCorpus();
-    if (Corpus && Corpus.type === "distant") {
+    if (Corpus && (Corpus.type === "distant" || Corpus.type === "gitlab")) {
         const lockResult = await window.electronAPI.isEntretienLocked(rkEnt);
         if (lockResult && lockResult.locked === true) {
             alert(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`);
