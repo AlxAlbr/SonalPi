@@ -42,10 +42,14 @@
           top: 132px;
           "></p>
           <br>
-          <p style = "margin-top:20px">Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
+          <p style="margin-top:20px">Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
           <br>
-          <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir un corpus</button>
-          <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus</button>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; width:320px; margin-left:auto; margin-right:auto;">
+            <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir corpus local</button>
+            <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus local</button>
+            <button id="btnOuvrirCorpusDistant" class="btn btn-info">Ouvrir corpus distant (serveur)</button>
+            <button id="btnOuvrirCorpusGitLab" class="btn btn-info">Ouvrir corpus GitLab</button>
+          </div>
           <br>
 
           <div id="author" class="author">Alex Alber - 2026</div>
@@ -1256,6 +1260,14 @@ function displayVersion() {
 
     document.getElementById('btnNouveauCorpus').addEventListener('click', async () => {
       window.electronAPI.créerNouveauCorpus();
+    });
+
+    document.getElementById('btnOuvrirCorpusDistant').addEventListener('click', async () => {
+      await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', null);
+    });
+
+    document.getElementById('btnOuvrirCorpusGitLab').addEventListener('click', async () => {
+      await window.electronAPI.ouvrirCorpusGitLab(null);
     });
   });
 
