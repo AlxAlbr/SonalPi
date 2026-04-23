@@ -1277,7 +1277,11 @@ async function editerEntretien(parentWindow, rgEnt){
       // déverrouiller le fichier sur le serveur
       if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
-        remoteAPI().deverrouillerFichier(adrFile)
+        remoteAPI().deverrouillerFichier(adrFile);
+        // Notifier mainWindow pour mettre à jour l'icône immédiatement
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('entretien-deverrouille', rgEnt);
+        }
       }
       deflouterSousModale(mainWindow);
       resolve(null);

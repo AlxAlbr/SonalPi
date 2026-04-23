@@ -944,6 +944,16 @@ async function rafraichirCorpus(silencieux = false) {
         let tabEntLocal = await window.electronAPI.getEnt();
         if (!tabEntLocal) tabEntLocal = [];
 
+        // Mettre à jour tabVar et tabDic depuis le .crp distant (un autre user peut avoir ajouté des modalités)
+        if (corpusDistant.tabVar) {
+            tabVar = corpusDistant.tabVar;
+            await window.electronAPI.setVar(tabVar);
+        }
+        if (corpusDistant.tabDic) {
+            tabDic = corpusDistant.tabDic;
+            await window.electronAPI.setDic(tabDic);
+        }
+
         const idsLocaux = new Set(tabEntLocal.map(e => e.id));
         const nouveaux = tabEntDistant.filter(e => !idsLocaux.has(e.id));
 

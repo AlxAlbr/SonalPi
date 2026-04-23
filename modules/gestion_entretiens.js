@@ -363,10 +363,11 @@ async function loadHtml(rgDep, rgFin){
                     let donnéesEnt = await extractFichierSonal(contenuEnt);
                     tabHtml[e] = String(donnéesEnt.html); // HTML de l'entretien
                      
-                    tabEnt[e].tabVar = donnéesEnt.tabVar;
-                    tabEnt[e].tabDic = donnéesEnt.tabDic;   
-                    tabEnt[e].tabDat = donnéesEnt.tabDat;
-                    tabEnt[e].tabAnon = donnéesEnt.tabAnon;                
+                    if (donnéesEnt.tabVar)  tabEnt[e].tabVar  = donnéesEnt.tabVar;
+                    if (donnéesEnt.tabDic)  tabEnt[e].tabDic  = donnéesEnt.tabDic;
+                    if (donnéesEnt.tabDat)  tabEnt[e].tabDat  = donnéesEnt.tabDat;
+                    if (donnéesEnt.tabAnon) tabEnt[e].tabAnon = donnéesEnt.tabAnon;
+                    if (donnéesEnt.tabLoc)  tabEnt[e].tabLoc  = donnéesEnt.tabLoc;
 
                     tabEnt[e].lastAccess = new Date().toISOString();
 

@@ -669,8 +669,18 @@ function hidepanG(){
       }).catch(err => console.error("Erreur getEnt:", err));
     }).catch(err => console.error("Erreur getHtml:", err));
   });
- 
 
+
+  //=============================================
+  // Écouter la libération immédiate d'un verrou
+  //=============================================
+  window.electronAPI.onEntretienDeverrouille(async (rkEnt) => {
+    const tabEnt = await window.electronAPI.getEnt();
+    if (!tabEnt || !tabEnt[rkEnt]) return;
+    const btn = document.querySelector(`button[data-id="${tabEnt[rkEnt].id}"]`);
+    if (btn) { btn.classList.remove("btn-verrou"); btn.classList.add("btn-edit"); }
+    console.log("🔓 Verrou libéré pour l'entretien", rkEnt);
+  });
 
 
 

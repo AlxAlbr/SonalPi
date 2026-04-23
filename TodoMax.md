@@ -1,5 +1,4 @@
-Attention désactiver DevTools avant demande pull request
-Changer port 0.0.0.0, c'est parce que ça ne marchait pas dans mon environnement de dev (remmettre 127.0.0.1)
-Enlever le build aussi
+Quand Alex aura fait son merge sur main, refaire l'opération :
+créer une branche comme CollabGitlab et adapter le prompt suivant
 
-J'ai l'impression que ça a commencé à ne plus marche quand j'ai rajouté test de celui qui à lock le fichier pour pouvoir réouvrir par la même personne
+J'ai fait pas mal de travail sur la branch EssaiGitlab sur la fonctionnalité corpus via Gitlab. Maintenant, j'aimerais merger ça dans main. Il y a pas mal de choses à enlever : j'ai fait des tests avec playright-cli. J'aimerais ne pas mettre ce module et enlever tous les tests réalisés. J'iamerais enlevet aussi les fichiers claude.md ettodomax.md. De plus, la branche main a avancé pendant ce travail. C'est pourquoi, j'ai créé la branche CollabGitlab à partir de l'état actuel de main. J'aimerais y mettre le travail réalisé sur EssaiGitlab en enlevant ce que j'ai indiqué

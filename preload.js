@@ -194,6 +194,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onRefreshCanvas: (callback) =>
     ipcRenderer.on('refresh-canvas', (event, rkEnt) => callback(rkEnt)),
 
+  // Écouter la libération d'un verrou d'entretien
+  onEntretienDeverrouille: (callback) =>
+    ipcRenderer.on('entretien-deverrouille', (event, rkEnt) => callback(rkEnt)),
+
   
 
 });
