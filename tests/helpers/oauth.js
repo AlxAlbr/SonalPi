@@ -16,6 +16,7 @@
  */
 
 const http = require('http');
+const https = require('https');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -243,18 +244,39 @@ async function obtenirTokenOAuth(instanceUrl, clientId, clientSecret, username, 
   });
   if (clientSecret) tokenBody.set('client_secret', clientSecret);
 
-  const res = await fetch(`${instanceUrl}/oauth/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: tokenBody.toString(),
+  const postData = tokenBody.toString();
+  const tokenUrl = new URL(`${instanceUrl}/oauth/token`);
+  const httpModule = tokenUrl.protocol === 'https:' ? https : http;
+
+  const token = await new Promise((resolve, reject) => {
+    const req = httpModule.request({
+      hostname: tokenUrl.hostname,
+      port: tokenUrl.port || (tokenUrl.protocol === 'https:' ? 443 : 80),
+      path: tokenUrl.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      rejectUnauthorized: false, // Compatibilité certificats self-signed
+    }, (res) => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`Échange token échoué (${res.statusCode}) : ${body}`));
+          return;
+        }
+        try { resolve(JSON.parse(body)); }
+        catch { reject(new Error(`Réponse token non-JSON : ${body}`)); }
+      });
+    });
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Échange token échoué (${res.status}) : ${text}`);
-  }
-
-  const token = await res.json();
   if (!token.access_token) {
     throw new Error(`Token absent dans la réponse : ${JSON.stringify(token)}`);
   }

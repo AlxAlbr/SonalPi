@@ -23,6 +23,8 @@
     "test:restriction": "npx playwright test tests/restriction-ajout.spec.js --reporter=line",
     "test:sync-variables": "npx playwright test tests/sync-variables.spec.js --reporter=line",
     "test:sync-thematiques": "npx playwright test tests/sync-thematiques.spec.js --reporter=line",
+    "test:sync-variables-ui": "npx playwright test tests/sync-variables-ui.spec.js --reporter=line --timeout=120000",
+    "test:sync-variables-loc-ui": "npx playwright test tests/sync-variables-loc-ui.spec.js --reporter=line --timeout=120000",
     "test:all": "npx playwright test tests/ --reporter=line"
   },
   "build": {

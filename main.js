@@ -2825,6 +2825,58 @@ app.on('ready', () => {
 
 
 
+// ─── Handlers de test (activés uniquement en mode SONAL_TEST_MODE) ───────────
+if (process.env.SONAL_TEST_MODE) {
+  const GitLabAPI = require('./modules/gitlab_api');
+
+  /**
+   * Ouvre un corpus GitLab sans passer par la boîte de dialogue OAuth.
+   * Utilisé dans les tests Playwright pour contourner l'authentification interactive.
+   */
+  ipcMain.handle('test:ouvrir-corpus-gitlab', async (_, { instanceUrl, projectPath, token, branch, filePath }) => {
+    try {
+      gitlabAPI = new GitLabAPI(instanceUrl, projectPath, token, branch || 'main');
+
+      const test = await gitlabAPI.testerConnexion();
+      if (!test.success) return { success: false, error: 'Connexion GitLab échouée : ' + test.error };
+
+      await gitlabAPI.initialiserGitattributes();
+
+      const existeCrp = await gitlabAPI.verifierExistence(filePath);
+      let corpusContent;
+      if (!existeCrp) {
+        return { success: false, error: `Fichier ${filePath} introuvable sur GitLab` };
+      }
+
+      const result = await gitlabAPI.lireFichier(filePath);
+      if (!result.success) return { success: false, error: result.error };
+      corpusContent = result.content;
+
+      const fichProj  = filePath.substring(filePath.lastIndexOf('/') + 1);
+      const dosspProj = filePath.substring(0, filePath.lastIndexOf('/'));
+
+      Corpus.url        = `${instanceUrl}/${projectPath}/-/blob/${branch || 'main'}/${filePath}`;
+      Corpus.fileName   = fichProj;
+      Corpus.folder     = dosspProj;
+      Corpus.filePath   = filePath;
+      Corpus.content    = corpusContent;
+      Corpus.lastChange = new Date().toISOString();
+      Corpus.type       = 'gitlab';
+
+      const role = await gitlabAPI.getMemberRole();
+      gitlabUserIsOwner = role !== null && role >= 40;
+      gitlabOptions = await gitlabAPI.lireOptions().catch(() => ({}));
+
+      mainWindow.webContents.send('afficher-corpus', { success: true });
+      return { success: true };
+    } catch (err) {
+      console.error('test:ouvrir-corpus-gitlab erreur:', err);
+      return { success: false, error: err.message };
+    }
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.on('before-quit', async () => {
   console.log('🚪 Fermeture de l\'application...');
   if (serveurAPI) await serveurAPI.nettoyerTousLesVerrous();

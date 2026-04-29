@@ -70,11 +70,10 @@ async function addVar(mode) {
        // Mise à jour des modalités
         await sauvModas();  
 
-        if (mode =="loc") {
-        affichDataEnt();
-        } else if (mode=="gen") {
-        affichDataGen();
-        }
+        await window.sauvegarderCorpus(false);
+        updateVarsDsEnt();
+        await window.majFichierSonal();
+        await affichDataGen();
         hidedlg();
     } else {
         alert("Veuillez entrer un nom de variable.");
@@ -252,18 +251,10 @@ async function sauvVar(rgVar, mode) {
         await electronAPI.setVar(tabVar);
 
 
-            if(mode=='loc'){
-               
-                affichDataEnt();
-
-            } 
-
-            if (mode=='gen'){
-                await window.sauvegarderCorpus(false);
-                updateVarsDsEnt() ;// modification dans les fichiers Sonal de tous les entretiens
-                await window.majFichierSonal();
-                 affichDataGen(); 
-            } 
+            await window.sauvegarderCorpus(false);
+            updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
+            await window.majFichierSonal();
+            await affichDataGen();
 
 
       
@@ -312,17 +303,10 @@ async function supprVar(rgVar, mode) {
         await electronAPI.setDat(tabDat);
 
 
-        if(mode=='loc'){
-            
-            affichDataEnt();
-        } else if (mode=='gen'){
-            await window.sauvegarderCorpus(false);
-            updateVarsDsEnt() ;// modification dans les fichiers Sonal de tous les entretiens
-            await window.majFichierSonal();
-
-
-            affichDataGen(); 
-        }
+        await window.sauvegarderCorpus(false);
+        updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
+        await window.majFichierSonal();
+        await affichDataGen();
 
         hidedlg();
     } else {
@@ -1265,10 +1249,14 @@ async function affichDataGen(){
 
 }
 
-function hideTabDat(){
+async function hideTabDat(){
     const divTabDat = document.getElementById("divTabDat");
     if (divTabDat){
         divTabDat.remove();
+    }
+    const rkEnt = await window.electronAPI.getEntCur();
+    if (rkEnt !== -1) {
+        await affichDataEnt();
     }
 };
 
