@@ -1012,7 +1012,16 @@ async function rafraichirCorpus(silencieux = false) {
             const dateModif = await window.electronAPI.getLastModified(fich);
             if (dateModif && dateModif > tabEntLocal[ent].lastModified) {
                 if (!silencieux) console.log(`🔄 Entretien modifié détecté : ${tabEntLocal[ent].nom}`);
-                loadHtml(ent, ent).then(() => {
+                loadHtml(ent, ent).then(async () => {
+                    // Invalider le cache tabGrph et redessiner le canvas avec le nouveau contenu
+                    await window.electronAPI.setGrph(ent, []);
+                    const html = await window.electronAPI.getHtml(ent);
+                    if (html) {
+                        const tabGrphEnt = await resumeGraphique(html);
+                        await window.electronAPI.setGrph(ent, tabGrphEnt);
+                        const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${tabEntLocal[ent].id}']`);
+                        if (cnvEnt) dessinResumeGraphique(ent, cnvEnt, tabGrphEnt);
+                    }
                     afficherEnt(ent, ent);
                     const divEnt = document.querySelector(`div.ligent[data-id='${tabEntLocal[ent].id}']`);
                     if (divEnt) divEnt.classList.add("ligent-flash");
@@ -1061,14 +1070,20 @@ async function rafraichirCorpus(silencieux = false) {
 
             // rechargement du fichier .Sonal correspondant
             // récupération du contenu du fichier .Sonal
-            loadHtml(ent, ent).then( () => {
+            loadHtml(ent, ent).then( async () => {
 
-                //console.log("affichage au rang " + ent );
+                // Invalider le cache tabGrph et redessiner le canvas avec le nouveau contenu
+                await window.electronAPI.setGrph(ent, []);
+                const html = await window.electronAPI.getHtml(ent);
+                if (html) {
+                    const tabGrphEnt = await resumeGraphique(html);
+                    await window.electronAPI.setGrph(ent, tabGrphEnt);
+                    const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${tabEnt[ent].id}']`);
+                    if (cnvEnt) dessinResumeGraphique(ent, cnvEnt, tabGrphEnt);
+                }
                 afficherEnt(ent, ent);
-                //inventaireVariables(); // inventaire des variables utilisées dans les entretiens
-                // flash
                 const divEnt = document.querySelector(`div.ligent[data-id='${tabEnt[ent].id}']`);
-                divEnt.classList.add("ligent-flash");
+                if (divEnt) divEnt.classList.add("ligent-flash");
  
             })
 

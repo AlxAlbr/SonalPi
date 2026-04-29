@@ -79,6 +79,7 @@
       "nouveau_corpus.html",
       "saisie-url.html",
       "saisie-gitlab.html",
+      "saisie-distant.html",
       "GitlabHelp.html",
       "modules/**/*",
       "css/**/*",
