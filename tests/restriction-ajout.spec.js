@@ -21,22 +21,26 @@
 
 require('dotenv').config();
 const { test, expect } = require('@playwright/test');
-const { obtenirTokenOAuth } = require('./helpers/oauth');
+const { obtenirToken } = require('./helpers/oauth');
 const GitLabAPI = require('../modules/gitlab_api');
 
 const {
   GITLAB_INSTANCE: INSTANCE,
-  GITLAB_CLIENT_ID: CLIENT_ID,
-  GITLAB_CLIENT_SECRET: CLIENT_SECRET = '',
+  GITLAB_CLIENT_ID_USER1: CLIENT_ID1 = '',
+  GITLAB_CLIENT_SECRET_USER1: CLIENT_SECRET1 = '',
+  GITLAB_CLIENT_ID_USER2: CLIENT_ID2 = '',
+  GITLAB_CLIENT_SECRET_USER2: CLIENT_SECRET2 = '',
   GITLAB_PROJECT: PROJECT,
   GITLAB_BRANCH: BRANCH = 'main',
   GITLAB_USERNAME_USER1: USER1,
-  GITLAB_PASSWORD_USER1: PASS1,
+  GITLAB_PASSWORD_USER1: PASS1 = '',
+  GITLAB_TOKEN_USER1: TOKEN1 = '',
   GITLAB_USERNAME_USER2: USER2,
-  GITLAB_PASSWORD_USER2: PASS2,
+  GITLAB_PASSWORD_USER2: PASS2 = '',
+  GITLAB_TOKEN_USER2: TOKEN2 = '',
 } = process.env;
 
-for (const [nom, val] of Object.entries({ INSTANCE, CLIENT_ID, PROJECT, USER1, PASS1, USER2, PASS2 })) {
+for (const [nom, val] of Object.entries({ INSTANCE, PROJECT, USER1, USER2 })) {
   if (!val) throw new Error(`Variable d'environnement manquante : ${nom}`);
 }
 
@@ -50,11 +54,11 @@ let optionsOriginales = null;
 
 test.beforeAll(async () => {
   console.log('\n🔐 Authentification OAuth — user1 (Owner)...');
-  const token1 = await obtenirTokenOAuth(INSTANCE, CLIENT_ID, CLIENT_SECRET, USER1, PASS1);
+  const token1 = await obtenirToken(INSTANCE, CLIENT_ID1, CLIENT_SECRET1, USER1, PASS1, TOKEN1);
   console.log('✅ user1 authentifié');
 
   console.log('🔐 Authentification OAuth — user2 (Developer)...');
-  const token2 = await obtenirTokenOAuth(INSTANCE, CLIENT_ID, CLIENT_SECRET, USER2, PASS2);
+  const token2 = await obtenirToken(INSTANCE, CLIENT_ID2, CLIENT_SECRET2, USER2, PASS2, TOKEN2);
   console.log('✅ user2 authentifié\n');
 
   api1 = new GitLabAPI(INSTANCE, PROJECT, token1, BRANCH);

@@ -262,4 +262,25 @@ async function obtenirTokenOAuth(instanceUrl, clientId, clientSecret, username, 
   return token.access_token;
 }
 
-module.exports = { obtenirTokenOAuth };
+/**
+ * Retourne un access_token GitLab.
+ * Si directToken est fourni, il est retourné immédiatement (pas de browser automation).
+ * Sinon, effectue le flux OAuth Authorization Code + PKCE via Playwright.
+ *
+ * @param {string} instanceUrl
+ * @param {string} clientId
+ * @param {string} clientSecret
+ * @param {string} username
+ * @param {string} password
+ * @param {string} [directToken]  Token à utiliser directement si disponible
+ * @returns {Promise<string>} access_token
+ */
+async function obtenirToken(instanceUrl, clientId, clientSecret, username, password, directToken) {
+  if (directToken) {
+    console.log(`   ✅ Token direct utilisé (browser automation ignorée)`);
+    return directToken;
+  }
+  return obtenirTokenOAuth(instanceUrl, clientId, clientSecret, username, password);
+}
+
+module.exports = { obtenirTokenOAuth, obtenirToken };

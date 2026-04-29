@@ -47,8 +47,7 @@
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; width:320px; margin-left:auto; margin-right:auto;">
             <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir corpus local</button>
             <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus local</button>
-            <button id="btnOuvrirCorpusDistant" class="btn btn-info">Ouvrir corpus distant (serveur)</button>
-            <button id="btnOuvrirCorpusGitLab" class="btn btn-info">Ouvrir corpus GitLab</button>
+            <button id="btnOuvrirCorpusDistant" class="btn btn-info" style="grid-column: 1 / -1;">Ouvrir corpus distant</button>
           </div>
           <br>
 
@@ -1283,11 +1282,7 @@ function displayVersion() {
     });
 
     document.getElementById('btnOuvrirCorpusDistant').addEventListener('click', async () => {
-      await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', null);
-    });
-
-    document.getElementById('btnOuvrirCorpusGitLab').addEventListener('click', async () => {
-      await window.electronAPI.ouvrirCorpusGitLab(null);
+      await window.electronAPI.invoke('ouvrir-corpus-distant-unifie');
     });
   });
 

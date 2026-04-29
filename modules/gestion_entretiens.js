@@ -365,9 +365,11 @@ async function loadHtml(rgDep, rgFin){
                      
                     if (donnéesEnt.tabVar)  tabEnt[e].tabVar  = donnéesEnt.tabVar;
                     if (donnéesEnt.tabDic)  tabEnt[e].tabDic  = donnéesEnt.tabDic;
-                    if (donnéesEnt.tabDat)  tabEnt[e].tabDat  = donnéesEnt.tabDat;
+                    // Fix : [] est truthy → ne pas écraser un tabDat .crp valide avec un .sonal stale vide
+                    if (donnéesEnt.tabDat && donnéesEnt.tabDat.length > 0)  tabEnt[e].tabDat  = donnéesEnt.tabDat;
                     if (donnéesEnt.tabAnon) tabEnt[e].tabAnon = donnéesEnt.tabAnon;
                     if (donnéesEnt.tabLoc)  tabEnt[e].tabLoc  = donnéesEnt.tabLoc;
+                    if (donnéesEnt.notes  !== undefined && donnéesEnt.notes !== null) tabEnt[e].notes = donnéesEnt.notes;
 
                     tabEnt[e].lastAccess = new Date().toISOString();
 

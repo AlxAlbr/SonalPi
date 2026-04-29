@@ -1474,7 +1474,7 @@ function remoteAPI() {
 
 // fonction d'appel de fichier distant
 
-async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = null) {
+async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = null, _prefillData = null) {
   console.log('🌐 Ouverture corpus distant avec retry...');
   
   let urlData;
@@ -1510,7 +1510,7 @@ async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = 
   }
   
   // Sinon, demander les credentials (avec URL pré-remplie si disponible)
-  urlData = await creerFenetreURL(mainWindow, previousUrl);
+  urlData = _prefillData || await creerFenetreURL(mainWindow, previousUrl);
   
   if (!urlData) {
     console.log('❌ Annulé');
@@ -1708,11 +1708,11 @@ async function ouvrirCorpusDistant(mainWindow, filePath) {
  * @param {BrowserWindow} parentWindow
  * @param {object|null}   savedConfig   Config pré-remplie (instanceUrl, projectPath, clientId, filePath)
  */
-async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
+async function ouvrirCorpusGitLab(parentWindow, savedConfig = null, _existingConfig = null) {
   console.log('🦊 Ouverture corpus GitLab...');
 
   // 1. Afficher la modale de saisie des paramètres GitLab
-  const config = await creerFenetreGitLab(parentWindow, savedConfig);
+  const config = _existingConfig || await creerFenetreGitLab(parentWindow, savedConfig);
 
   if (!config) {
     console.log('❌ Annulé par l\'utilisateur');
@@ -1866,6 +1866,66 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null) {
 }
 
 /**
+ * Ouvre la fenêtre unifiée « corpus distant » sans pré-sélection d'onglet.
+ * Résout avec { type: 'serveur'|'gitlab', data } ou null si annulé.
+ */
+function creerFenetreDistant(parentWindow) {
+  const win = new BrowserWindow({
+    width: 540,
+    height: 640,
+    parent: parentWindow,
+    closable: true,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    }
+  });
+
+  win.setMenu(null);
+  win.loadFile('saisie-distant.html');
+  flouterSousModale(mainWindow);
+
+  return new Promise((resolve) => {
+    const onUrl = (_event, data) => {
+      ipcMain.removeListener('url-saisie-submit', onUrl);
+      ipcMain.removeListener('gitlab-saisie-submit', onGitlab);
+      win.close();
+      resolve({ type: 'serveur', data });
+    };
+    const onGitlab = (_event, data) => {
+      ipcMain.removeListener('url-saisie-submit', onUrl);
+      ipcMain.removeListener('gitlab-saisie-submit', onGitlab);
+      win.close();
+      resolve({ type: 'gitlab', data });
+    };
+    ipcMain.on('url-saisie-submit', onUrl);
+    ipcMain.on('gitlab-saisie-submit', onGitlab);
+    win.on('closed', () => {
+      ipcMain.removeListener('url-saisie-submit', onUrl);
+      ipcMain.removeListener('gitlab-saisie-submit', onGitlab);
+      deflouterSousModale(parentWindow);
+      resolve(null);
+    });
+  });
+}
+
+/**
+ * Ouvre la fenêtre unifiée et route vers le bon handler selon l'onglet soumis.
+ */
+async function ouvrirCorpusDistantUnifie(parentWindow) {
+  const result = await creerFenetreDistant(parentWindow);
+  if (!result) return null;
+  if (result.type === 'serveur') {
+    return ouvrirCorpusDistantAvecRetry(parentWindow, null, null, result.data);
+  } else if (result.type === 'gitlab') {
+    return ouvrirCorpusGitLab(parentWindow, null, result.data);
+  }
+  return null;
+}
+
+/**
  * Crée la fenêtre modale de saisie des paramètres GitLab
  */
 function creerFenetreGitLab(parentWindow, prefill = null) {
@@ -1883,12 +1943,13 @@ function creerFenetreGitLab(parentWindow, prefill = null) {
   });
 
   gitlabWindow.setMenu(null);
-  gitlabWindow.loadFile('saisie-gitlab.html');
+  gitlabWindow.loadFile('saisie-distant.html');
 
   flouterSousModale(mainWindow);
 
   return new Promise((resolve) => {
     gitlabWindow.webContents.on('did-finish-load', () => {
+      gitlabWindow.webContents.send('select-tab', 'gitlab');
       if (prefill) {
         gitlabWindow.webContents.send('pre-fill-gitlab', prefill);
       }
@@ -1908,6 +1969,15 @@ function creerFenetreGitLab(parentWindow, prefill = null) {
     });
   });
 }
+
+/** Handler IPC : ouvrir corpus distant unifié (bouton accueil) */
+ipcMain.handle('ouvrir-corpus-distant-unifie', async () => {
+  const result = await ouvrirCorpusDistantUnifie(mainWindow);
+  if (result && result.success) {
+    mainWindow.webContents.send('afficher-corpus', result);
+  }
+  return result;
+});
 
 /** Handler IPC : ouvrir un corpus GitLab */
 ipcMain.handle('ouvrir-corpus-gitlab', async (event, savedConfig) => {
@@ -2047,13 +2117,14 @@ function creerFenetreURL(parentWindow, previousUrl = null) {
   // Retirer le menu de la fenêtre modale
   urlWindow.setMenu(null);
   
-  urlWindow.loadFile('saisie-url.html');
+  urlWindow.loadFile('saisie-distant.html');
   
   flouterSousModale(mainWindow);
 
   return new Promise((resolve) => {
     // Envoyer l'URL précédente si elle existe
     urlWindow.webContents.on('did-finish-load', () => {
+      urlWindow.webContents.send('select-tab', 'serveur');
       if (previousUrl) {
         console.log('📝 Pré-remplissage avec l\'URL précédente:', previousUrl);
         urlWindow.webContents.send('pre-fill-url', previousUrl);
@@ -2642,20 +2713,11 @@ app.on('ready', () => {
             submenu: [{ label: 'Aucun fichier récent', enabled: false }]
           },
       { type: 'separator' },
-        {  // ouvrir un corpus distant
+        {  // ouvrir un corpus distant (serveur ou GitLab)
           label: '🌐 Ouvrir corpus distant...',
           accelerator: 'CmdOrCtrl+O',
           click: async () => {
-            const result = await ouvrirCorpusDistant(mainWindow);
-            if (result && result.success) {
-              mainWindow.webContents.send('afficher-corpus', result);
-            }
-          }
-        },
-        {  // ouvrir un corpus GitLab
-          label: '🦊 Ouvrir corpus GitLab...',
-          click: async () => {
-            const result = await ouvrirCorpusGitLab(mainWindow);
+            const result = await ouvrirCorpusDistantUnifie(mainWindow);
             if (result && result.success) {
               mainWindow.webContents.send('afficher-corpus', result);
             }

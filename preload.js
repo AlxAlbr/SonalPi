@@ -43,6 +43,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // GitLab : écouter le pré-remplissage du formulaire
   onPreFillGitLab: (callback) =>
     ipcRenderer.on('pre-fill-gitlab', (event, config) => callback(config)),
+
+  // Fenêtre unifiée : sélection d'onglet (serveur / gitlab)
+  onSelectTab: (callback) =>
+    ipcRenderer.on('select-tab', (event, tab) => callback(tab)),
   // GitLab : ouvrir un corpus GitLab
   ouvrirCorpusGitLab: (savedConfig) => ipcRenderer.invoke('ouvrir-corpus-gitlab', savedConfig),
   

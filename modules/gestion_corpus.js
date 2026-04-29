@@ -18,6 +18,8 @@ let tabDat = []; // tableau des données
 let tabEnt = []; // tableau des entretiens
 let ent_cur = -1; // entretien courant
 
+let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
+
 async function initFromMain() {
   Corpus = await window.electronAPI.getCorpus();
   Corpus.folder = await window.electronAPI.getDossProjet();
@@ -97,6 +99,9 @@ async function lireCorpus(fileContent){
         await window.electronAPI.setDat(tabDat);
         await window.electronAPI.setGrph(-1, tabGrph);
         window.electronAPI.setEntCur(ent_cur);
+
+        // Initialiser le cache du contenu sauvegardé pour éviter un commit inutile dès l'ouverture
+        _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic });
 
         console.log("les tableaux de données ont été chargés depuis le corpus");
         console.log("tabThm :", tabThm);
@@ -884,12 +889,22 @@ let corpusActuel = Corpus.url;
   let result;
 
   if (Corpus.type === "distant") {
+    // Éviter un aller-retour réseau inutile si rien n'a changé
+    if (!avecBackup && contenu === _dernierContenuCrp) {
+      console.log('⏭️ .crp inchangé — écriture serveur ignorée');
+      return { success: true, skipped: true };
+    }
     if (avecBackup) {
       result = await window.electronAPI.sauvegarderAvecBackup(corpusActuel, contenu);
     } else {
       result = await window.electronAPI.sauvegarderSurServeur(corpusActuel, contenu);
     }
   } else if (Corpus.type === "gitlab") {
+    // Éviter un commit GitLab inutile si rien n'a changé
+    if (contenu === _dernierContenuCrp) {
+      console.log('⏭️ .crp inchangé — commit GitLab ignoré');
+      return { success: true, skipped: true };
+    }
     // Pour GitLab, Corpus.url est l'URL web — on reconstruit le chemin API
     const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
     result = await window.electronAPI.sauvegarderSurServeur(cheminCrp, contenu);
@@ -900,6 +915,7 @@ let corpusActuel = Corpus.url;
   if (!result) return { success: false, error: 'Type de corpus non reconnu' };
 
   if (result.success) {
+    _dernierContenuCrp = contenu; // mémoriser le contenu sauvegardé
     contenuModifie = false;
     document.title = '📝 Corpus';
     console.log('✅ Fichier sauvegardé');
@@ -944,7 +960,20 @@ async function rafraichirCorpus(silencieux = false) {
         let tabEntLocal = await window.electronAPI.getEnt();
         if (!tabEntLocal) tabEntLocal = [];
 
-        // Mettre à jour tabVar et tabDic depuis le .crp distant (un autre user peut avoir ajouté des modalités)
+        // Mettre à jour tabThm, tabVar et tabDic depuis le .crp distant
+        if (corpusDistant.tabThm) {
+            const tabThmLocal = await window.electronAPI.getThm();
+            const thmDistantStr = JSON.stringify(corpusDistant.tabThm);
+            const thmLocalStr   = JSON.stringify(tabThmLocal);
+            if (thmDistantStr !== thmLocalStr) {
+                tabThm = corpusDistant.tabThm.map(t => ({ ...t, act: true, cmpct: false }));
+                await window.electronAPI.setThm(tabThm);
+                // Rafraîchir l'UI : CSS + liste des thématiques dans le panneau
+                loadThm();
+                affichListThmCrp(tabThm, 'conteneur_cat');
+                console.log('🎨 Thématiques mises à jour depuis le corpus distant');
+            }
+        }
         if (corpusDistant.tabVar) {
             tabVar = corpusDistant.tabVar;
             await window.electronAPI.setVar(tabVar);
@@ -956,6 +985,25 @@ async function rafraichirCorpus(silencieux = false) {
 
         const idsLocaux = new Set(tabEntLocal.map(e => e.id));
         const nouveaux = tabEntDistant.filter(e => !idsLocaux.has(e.id));
+
+        // 1bis. Synchroniser les métadonnées .crp-only (nom, actif) depuis le distant
+        // notes est géré par loadHtml via le .Sonal ; nom/actif ne sont que dans le .crp
+        const mapEntDistant = new Map(tabEntDistant.map(e => [String(e.id), e]));
+        let metaModifiees = false;
+        for (let ent = 0; ent < tabEntLocal.length; ent++) {
+            const entDistant = mapEntDistant.get(String(tabEntLocal[ent].id));
+            if (!entDistant) continue;
+            for (const champ of ['nom', 'actif', 'act']) {
+                if (entDistant[champ] !== undefined && entDistant[champ] !== tabEntLocal[ent][champ]) {
+                    tabEntLocal[ent][champ] = entDistant[champ];
+                    metaModifiees = true;
+                }
+            }
+        }
+        if (metaModifiees) {
+            await window.electronAPI.setEnt(tabEntLocal);
+            console.log('📝 Métadonnées des entretiens synchronisées depuis le corpus distant');
+        }
 
         // 2. Recharger les entretiens modifiés (présents localement)
         let modifies = 0;
