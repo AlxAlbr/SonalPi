@@ -966,12 +966,37 @@ async function rafraichirCorpus(silencieux = false) {
             const thmDistantStr = JSON.stringify(corpusDistant.tabThm);
             const thmLocalStr   = JSON.stringify(tabThmLocal);
             if (thmDistantStr !== thmLocalStr) {
+                // Détecter si la structure (ordre et ensemble des codes) a changé,
+                // ou seulement des propriétés comme la couleur ou le nom
+                const anciensCodes = JSON.stringify(tabThmLocal.map(t => t.code));
+                const nouveauxCodes = JSON.stringify(corpusDistant.tabThm.map(t => t.code));
+                const structureInchangee = anciensCodes === nouveauxCodes;
+
                 tabThm = corpusDistant.tabThm.map(t => ({ ...t, act: true, cmpct: false }));
                 await window.electronAPI.setThm(tabThm);
                 // Rafraîchir l'UI : CSS + liste des thématiques dans le panneau
                 loadThm();
                 affichListThmCrp(tabThm, 'conteneur_cat');
                 console.log('🎨 Thématiques mises à jour depuis le corpus distant');
+
+                if (structureInchangee) {
+                    // Couleurs/noms seulement : tabGrph est encore valide (les rangs n'ont pas changé)
+                    // On redessine uniquement les entretiens dont le cache est déjà calculé
+                    console.log('🎨 Structure tabThm inchangée — redessinage des canvases sans régénération');
+                    const tabEntPourRedesssin = await window.electronAPI.getEnt();
+                    for (let e = 0; e < tabEntPourRedesssin.length; e++) {
+                        const tabGrphEnt = await window.electronAPI.getGrph(e);
+                        if (tabGrphEnt && tabGrphEnt.length > 1) {
+                            const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${tabEntPourRedesssin[e].id}']`);
+                            if (cnvEnt) dessinResumeGraphique(e, cnvEnt, tabGrphEnt);
+                        }
+                    }
+                } else {
+                    // Structure changée (rangs décalés) : invalider tabGrph et régénérer depuis le HTML
+                    console.log('🎨 Structure tabThm modifiée — invalidation et régénération de tabGrph');
+                    await window.electronAPI.setGrph(-1, []);
+                    await dessinTousEntretiens();
+                }
             }
         }
         if (corpusDistant.tabVar) {
