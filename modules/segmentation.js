@@ -5,6 +5,20 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     if (!rk){return}
     if (!sg){return}
 
+    // ⭐ Vérifier si c'est un clic sur un mot anonymisé en mode pseudo (seulement en mode anon)
+    const chkAnon = document.getElementById('chkAnon');
+    const span = getSpan(rk);
+    if (typeAction === "anon" && chkAnon && chkAnon.checked && span && (span.classList.contains('anon') || span.classList.contains('anon-exception'))) {
+        // Afficher le menu d'exception pour ce mot
+        if (typeof showMenuException !== 'undefined' && typeof trouverOccurrenceAnonyme !== 'undefined') {
+            const result = trouverOccurrenceAnonyme(rk, rk);
+            if (result) {
+                const { idxPaire, matchIdx } = result;
+                showMenuException(span, idxPaire, matchIdx);
+                return;
+            }
+        }
+    }
      
     selSegment(sg,false)
     
@@ -18,7 +32,9 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
                 }
             }
 
-      if (typeAction !="cat") { return;} // si on n'est pas en mode catégorie, on ne fait rien
+      // ⭐ Mettre à jour seg_cur avant le return pour que la navigation au clavier parte du bon segment
+      seg_cur = sg;
+      if (typeAction !="cat" && typeAction !="anon") { return;} // si on n'est pas en mode catégorie ou anon, on ne fait rien
 
     /*
     if (mode_cat==false && sg >0) { // comportement hors mode de catégorisation
@@ -81,25 +97,13 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
             Spn2.classList.add("finsel")
             }
 
-             // effacement de la sélection de segment
-            document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
+             // effacement de la sélection de segment (sauf en mode locuteurs)
+            if (typeAction !== "loc") {
+                document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
+            }
             
-            listenersFinSel();
-            if (rk==finSel) {showMenu(getSpan(finSel), typeAction)};
-            //debSel=0;finSel=0;
-            return;
+            getThm(rk)
         } 
-    
-        //console.log("debsel",debSel)
-        //console.log("finsel",finSel)
-        //seg_cur=`+ n + `;selSegment(` + n + `,false) ; dsTxtArea=true;
-        
-       
-
-        survSeg(rk);
-        
-        // récupération de la sélection courante (debsel finsel) à partir du thm courant   
-        getThm(rk)
          
         
     
@@ -147,8 +151,10 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     
         }
 
-           // effacement de la sélection de segment
-            document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
+           // effacement de la sélection de segment (sauf en mode locuteurs où segselected doit persister)
+            if (typeAction !== "loc") {
+                document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
+            }
     
         // ajout de la classe de survol
     
@@ -554,10 +560,11 @@ function redo(){
 
     // if (noSel == false) {return} // si la sélection est activée, on ne fait rien
 
-    if (!seg){return}
+    if (seg === null || seg === undefined){return} // ⭐ !seg excluait le segment 0 (falsy)
 
 
     //console.log ("sélection du segment " + seg)
+    seg = Number(seg); // ⭐ dataset.sg est une chaîne, forcer la conversion numérique
     if (seg<0){seg=0};
     seg_cur=seg ; 
     //if (seg>=TabSeg.length) {seg= TabSeg.length-1}
@@ -576,7 +583,9 @@ function redo(){
         
         if (segment.dataset.rksg == seg) {
             //console.log ("ajout du segselect dans le seg " + seg)
-            if (debSel==0 && finSel==0){
+            // ⭐ La classe segselected doit être ajoutée SEULEMENT pour la fonction locuteurs
+            // !debSel gère à la fois null, undefined et 0
+            if (!debSel && !finSel && typeAction === "loc"){
             segment.classList.add('segselected')
             }
         }

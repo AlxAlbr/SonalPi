@@ -1090,6 +1090,13 @@ function compactHtml(){ // fonction servant à compacter le html (notamment pour
                 continue;
             }
 
+            // Span anonymisé : on flush et on le conserve tel quel (jamais à compacter)
+            if (enfant.classList.contains('anon')) {
+                flush();
+                nvSeg.appendChild(enfant.cloneNode(true));
+                continue;
+            }
+
             const classesMot = Array.from(enfant.classList).sort().join(' ');
 
             // Nouveau groupe : classes différentes, segment différent, attribut obs ou data-pseudo

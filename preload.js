@@ -81,6 +81,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setDat: (tabDat) => ipcRenderer.invoke('set-dat', tabDat),
   getDat: () => ipcRenderer.invoke('get-dat'),
 
+  // mettre à jour et récupérer le tableau global des anonymisations
+  setAnon: (tabAnon) => ipcRenderer.invoke('set-anon', tabAnon),
+  getAnon: () => ipcRenderer.invoke('get-anon'),
+
   // mettre à jour et récupérer le contenu html des entretiens
   setHtml: (rk, tabHtml) => ipcRenderer.invoke('set-html', rk, tabHtml),
   getHtml: (rk) => ipcRenderer.invoke('get-html', rk),

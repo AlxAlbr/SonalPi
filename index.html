@@ -21,10 +21,12 @@
   <script  src="modules/Synthèse.js"></script>
   <script  src="modules/export_synthese_extended.js"></script>
   <script  src="modules/segmentation.js"></script>
+  <script  src="modules/Anonymisation/tableau_base.js"></script>
+  <script  src="modules/Anonymisation/tableau_global.js"></script>
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "1.0.53";
+    const version = "1.0.60";
   </script>
 
 <body>
@@ -84,12 +86,16 @@
             <button id="btn-variables" class="btn btn-secondary logo-variables" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" affichDataGen() ;">
                  Base de données
               </button>
+
+             <button id="btn-anon-globale" class="btn btn-secondary logo-anon" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" affichAnonGen() ;">
+                 Pseudos
+              </button>
                
              <!--
               <button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" afficherContexte() ;">
                  Point variables
               </button>
-              -->
+             -->
                
           
  
@@ -108,7 +114,7 @@
             <div id="cheminCorpus" style="position:absolute;top:35px;left:130px;font-size:10px;color:rgb(78, 78, 78);">Chemin du corpus</div>
             !-->
             
-            <canvas id="testcnv" style="width:500px;height:45px"> </canvas>
+            <canvas id="testcnv" class = "dnone" style="width:500px;height:45px"> </canvas>
 
     </div>
     
@@ -297,6 +303,13 @@
 
          
     </div>
+
+</div>
+
+<!-- fond pour wait -->
+<div id="processing" class="process" style="display: none;z-index:0" >
+    <div class="spin"></div>
+    <div id = "lblwait" class="lblspin" >Chargement en cours. Merci de patienter </div>
 
 </div>
 
@@ -1324,7 +1337,33 @@ function displayVersion() {
     });
 
 
+function wait(message) {
+console.log("wait")
+document.body.style.cursor = "wait";
+document.getElementById("processing").style.display="flex";
+document.getElementById("processing").style.zIndex="999";
+document.getElementsByClassName("footer")[0].style.zIndex = "1000";
+document.getElementById("lblwait").innerText = message;
+document.getElementById("status-bar").innerText = message;
+document.getElementById("progress-bar").style.width = "0%";
+}
 
+function endWait() {
+ console.log("end wait")
+ document.getElementById("processing").style.display="none";
+ document.body.style.cursor = "default";
+ document.getElementById("status-bar").innerText = "Prêt.";
+ document.getElementById("progress-bar").style.width = "0%";
+}
+
+function updateProgressBar(pourcentage) {
+ document.getElementById("progress-bar").style.width = pourcentage + "%";
+ document.getElementById("status-bar").innerText = "Recherche en cours... " + pourcentage + "%";
+}
+
+function closeWaitDialog() {
+ endWait();
+}
 
 
 

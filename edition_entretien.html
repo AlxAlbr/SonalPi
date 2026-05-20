@@ -25,9 +25,9 @@
     <script src="modules\locutarisation.js"></script>
     <script src="modules\thematisation.js"></script>
     <script src="modules\segmentation.js"></script>
+    <script src="modules\Anonymisation\tableau_base.js"></script>
     <script src="modules\gestion_entretiens.js"></script>
     <script src="modules\utilitaires.js"></script>
-    <script src="modules\Anonymisation\tableau_base.js"></script>
     <script src="modules\Anonymisation\import_export.js"></script>
     <script src="modules\Anonymisation\help.js"></script>
     <script src="renderer.js"></script>
@@ -55,6 +55,9 @@
 
 // Variable pour tracker si sauvegarde en cours
 let isSaving = false;
+
+// Variable pour tracker si le panneau d'anonymisation a déjà été affiché
+let anonPanelDisplayed = false;
 
 // ⭐ Écouter le signal de fermeture depuis le main
 window.electronAPI.onSaveAndClose(async () => {
@@ -181,9 +184,7 @@ window.addEventListener('unload', (event) => {
 
 </script>
 
-</script>
-
-<body onload="scrollToTop();initBkUp();  ">  
+<body onload="scrollToTop();initBkUp();  " style="overflow-x: hidden;">  
 
    
    <div class="containerpage"  >
@@ -253,7 +254,7 @@ window.addEventListener('unload', (event) => {
 
             <div style="flex: 7;"> 
                 <div id="graph" style="height: 45px; margin: 10px;padding-top:10px" >
-                    <div class="fond-cnv-ent" style="position: relative;">
+                    <div class="fond-cnv-ent" style="position: relative;height:30px">
                         <label id = "lblposlect" class = "ligchrono"> </label>
 
                         <canvas id="graphEnt" class = "cnv" style="z-index: 11;position:relative;margin-top:0px !important; " ></canvas>
@@ -698,11 +699,112 @@ document.addEventListener('DOMContentLoaded', () => {
         
     }, 500);
 
+    // Fonction partagée pour déclencher le menu d'exception sur un span anonymisé
+    function gererMenuException(spanAnon) {
+        const tousLesSpansAnon = Array.from(document.querySelectorAll('[data-rk]'));
+        const spanIndex = tousLesSpansAnon.indexOf(spanAnon);
+        if (window.tabAnon) {
+            for (let idxPaire = 0; idxPaire < window.tabAnon.length; idxPaire++) {
+                const paire = window.tabAnon[idxPaire];
+                if (!paire.matchPositions || paire.matchPositions.length === 0) continue;
+                for (let matchIdx = 0; matchIdx < paire.matchPositions.length; matchIdx++) {
+                    const match = paire.matchPositions[matchIdx];
+                    if (spanIndex >= match.start && spanIndex <= match.end) {
+                        showMenuException(spanAnon, idxPaire, matchIdx);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
 
- 
+    // Ajouter un écouteur click et contextmenu pour le conteneur segments
+    const segmentsElem = document.getElementById('segments');
+    if (segmentsElem) {
+        // Handler partagé pour click et contextmenu
+        const handleSegmentsEvent = function(event) {
+            // En mode pseudonymisation, clic sur un span anonymisé → menu d'exception
+            if (typeAction === 'anon') {
+                const spanAnon = event.target.closest('[data-rk]');
+                if (spanAnon && (spanAnon.classList.contains('anon') || spanAnon.classList.contains('anon-exception'))) {
+                    if (event.type === 'contextmenu') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    if (gererMenuException(spanAnon)) {
+                        event.stopPropagation();
+                        return;
+                    }
+                    return; // span anon cliqué mais match non trouvé → ignorer
+                }
+            }
 
+            // Pour contextmenu uniquement : afficher le menu générique
+            if (event.type === 'contextmenu') {
+                event.preventDefault();
+                event.stopPropagation();
 
-    });
+                // suppression d'un éventuel menu contextuel existant
+                const oldMenu = document.getElementById('ctx-menu-segments');
+                if (oldMenu) oldMenu.remove();
+
+            const selection = window.getSelection();
+            const texteSelectionne = selection ? selection.toString().trim() : '';
+
+            // création du menu
+            const menu = document.createElement('div');
+            menu.id = 'ctx-menu-segments';
+            menu.style.cssText = `
+                position: fixed;
+                top: ${event.clientY}px;
+                left: ${event.clientX}px;
+                background: #fff;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+                z-index: 9999;
+                min-width: 180px;
+                font-size: 0.9em;
+                cursor: default;
+            `;
+
+            // item : copier la sélection
+            const itemCopier = document.createElement('div');
+            itemCopier.innerText = '📋 Copier';
+            itemCopier.style.cssText = 'padding: 6px 12px;';
+            itemCopier.style.opacity = texteSelectionne ? '1' : '0.4';
+            itemCopier.style.pointerEvents = texteSelectionne ? 'auto' : 'none';
+            itemCopier.addEventListener('mouseenter', () => itemCopier.style.background = '#f0f0f0');
+            itemCopier.addEventListener('mouseleave', () => itemCopier.style.background = '');
+            itemCopier.addEventListener('click', () => {
+                navigator.clipboard.writeText(texteSelectionne).then(() => {
+                    afficherNotification('Texte copié dans le presse-papier', 'success');
+                }).catch(() => {
+                    document.execCommand('copy'); // fallback
+                });
+                menu.remove();
+            });
+            menu.appendChild(itemCopier);
+
+            document.body.appendChild(menu);
+
+            // fermeture au prochain clic n'importe où
+            const fermerMenu = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.remove();
+                    document.removeEventListener('mousedown', fermerMenu);
+                }
+            };
+            setTimeout(() => document.addEventListener('mousedown', fermerMenu), 0);
+            }
+        };
+
+        // Attacher le handler aux deux événements
+        segmentsElem.addEventListener('click', handleSegmentsEvent);
+        segmentsElem.addEventListener('contextmenu', handleSegmentsEvent);
+    }
+});
 
 
 
@@ -991,7 +1093,17 @@ function dessinChunks(){
 
 }
 
-
+// Met à jour la classe "mode-anon" sur #segments selon le typeAction
+function updateSegmentsAnonMode() {
+    const segments = document.getElementById('segments');
+    if (segments) {
+        if (typeAction === 'anon') {
+            segments.classList.add('mode-anon');
+        } else {
+            segments.classList.remove('mode-anon');
+        }
+    }
+}
 
 async function dispPanneauG(bouton, composant){
 
@@ -1031,11 +1143,13 @@ async function dispPanneauG(bouton, composant){
         debSel=null;
         finSel=null;
         typeAction="edition"
+        updateSegmentsAnonMode();
     }
 
     if (composant=="fond_det"){
        noSel=false; 
        typeAction="outils"
+        updateSegmentsAnonMode();
     }
 
    
@@ -1045,6 +1159,7 @@ async function dispPanneauG(bouton, composant){
        noSel=false; 
        typeAction="cat"
        removeCatsEnFiligrane(); // rétablissement du contraste des thématiques
+        updateSegmentsAnonMode();
 
     }  
 
@@ -1052,7 +1167,13 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="loc"
-        
+       // ⭐ Réinitialiser debSel/finSel (peuvent être null depuis fond_txt) pour débloquer la condition dans selSegment
+       debSel=0; finSel=0;
+       // ⭐ Réappliquer segselected au segment courant quand on revient au mode locuteur
+       if (seg_cur != null && seg_cur !== undefined) {
+           selSegment(seg_cur, false);
+       }
+        updateSegmentsAnonMode();
        
 
     }  
@@ -1060,13 +1181,20 @@ async function dispPanneauG(bouton, composant){
     if ( composant=="fond_anon" ) {
        noSel=false; 
        typeAction="anon"
+       updateSegmentsAnonMode();
+       
+       // Exécuter affichTableauAnon() seulement au premier affichage du panneau
+       if (!anonPanelDisplayed) {
+           affichTableauAnon();
+           anonPanelDisplayed = true;
+       }
     }
 
     if ( composant=="fond_dat" ) {
         //document.getElementById("graph").classList.remove("dnone")
        noSel=true; 
        typeAction="dat"
-       
+       updateSegmentsAnonMode();
         // récupération de l'entretien courant
        
        affichDataEnt();
@@ -1233,6 +1361,9 @@ document.addEventListener("selectionchange", () => {
 // désactivation éventuelle
     if (noSel==true) {return}
 
+// en mode locuteurs, segselected ne doit pas être retiré par selectionchange
+    if (typeAction === "loc") {return}
+
 // retrait des sélecteurs 
     document.querySelectorAll('.lblseg.segselected').forEach(segment => segment.classList.remove('segselected'));
 
@@ -1289,7 +1420,12 @@ fdsegs.addEventListener("keydown", (e) => {
 });
 fdsegs.addEventListener("mouseup", () => {
 
-    if (noSel==true) {return}; 
+    //console.log("🖱️ Événement mouseup déclenché - typeAction=" + typeAction + " noSel=" + noSel);
+
+    if (noSel==true) {
+       // console.log("⚠️ noSel est true, retour immédiat");
+        return;
+    }
 
  //console.log(document.getSelection());
  const selection = window.getSelection();
@@ -1301,13 +1437,17 @@ fdsegs.addEventListener("mouseup", () => {
     const startOffset = range.startOffset;  
     const endOffset = range.endOffset;
 
-    if (startOffset == endOffset){return}
+    if (startOffset == endOffset){
+       // console.log("⚠️ Pas de sélection (startOffset == endOffset)");
+        return;
+    }
 
     const containerD = range.startContainer.parentNode;
 
     if (containerD.tagName !='SPAN') {
-        
-        return}
+        console.log("⚠️ containerD n'est pas un SPAN, c'est un " + containerD.tagName);
+        return;
+    }
 
     const nomD = containerD.dataset.rk;
     const containerF = range.endContainer.parentNode;
@@ -1382,7 +1522,10 @@ function validSel(debSel, finSel    ){
     
     // Ajout automatique à la liste d'anonymisation si on est dans cet onglet
     if (typeAction === "anon" && debSel > 0 && finSel > 0) {
+        console.log("📋 Ajout à la liste d'anonymisation: typeAction=" + typeAction + " debSel=" + debSel + " finSel=" + finSel);
         ajouteEntiteAnonSelectionnee();
+    } else {
+        console.log("ℹ️ Pas d'ajout à la liste: typeAction=" + typeAction + " debSel=" + debSel + " finSel=" + finSel);
     }
     
      // désactivation éventuelle
@@ -1454,7 +1597,11 @@ if (debSel!=0 && finSel==0){
 
 document.addEventListener('keydown', (e) => {
  
-
+    // ⚠️ Ignorer les contrôles clavier si le dialogue est ouvert (question, confirmation, etc.)
+    const dlg = document.getElementById('dlg');
+    if (dlg && dlg.style.display === 'block') {
+        return; // Le gestionnaire du dialogue prend le relais
+    }
 
     // Liste des touches spéciales autorisées 
     const specialKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
@@ -1524,6 +1671,27 @@ document.addEventListener('keydown', (e) => {
        
  
     var audio = document.getElementById('lecteur');
+
+    // Navigation au clavier entre segments en mode locuteurs
+    if (typeAction === "loc" && (e.code === "ArrowUp" || e.code === "ArrowDown")) {
+        e.preventDefault();
+        const nbSegs = getNbSegs();
+        if (nbSegs === 0) return;
+        let cible = Number(seg_cur); // ⭐ forcer la conversion numérique (dataset retourne des chaînes)
+        if (e.code === "ArrowDown") {
+            cible = Math.min(cible + 1, nbSegs - 1);
+        } else {
+            cible = Math.max(cible - 1, 0);
+        }
+        if (cible !== seg_cur) {
+            debSel = 0; finSel = 0;
+            seg_cur = cible; // ⭐ mettre à jour seg_cur AVANT selSegment pour que la navigation s'accumule
+            selSegment(cible, false);
+            const segEl = getSeg(cible);
+            if (segEl) { segEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+        return;
+    }
 
     if (e.code === "Space" && dsTxtArea==false && dsTxtAutre==false) {
 
@@ -2994,7 +3162,8 @@ function wait(message) {
 console.log("wait")
 document.body.style.cursor = "wait";
 document.getElementById("processing").style.display="flex";
-document.getElementById("processing").style.zIndex="9999";
+document.getElementById("processing").style.zIndex="999";
+document.getElementsByClassName("footer")[0].style.zIndex = "1000";
 document.getElementById("lblwait").innerText = message;
 }
 

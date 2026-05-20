@@ -16,7 +16,58 @@ let tabVar = []; // tableau des variables
 let tabDic = []; // tableau des dictionnaires
 let tabDat = []; // tableau des données
 let tabEnt = []; // tableau des entretiens
+let tabAnon = []; // tableau global des anonymisations
 let ent_cur = -1; // entretien courant
+
+/**
+ * Synchronise le tabAnon global avec les modifications du tabAnon local d'un entretien
+ * Ajoute les nouvelles paires (entité - pseudo) qui ne sont pas déjà dans le global
+ * @param {Array} tabAnonGlobal - Tableau global existant
+ * @param {Array} tabAnonLocal - Tableau local nettoyé de l'entretien qui vient d'être sauvegardé
+ * @returns {Array} Tableau global mis à jour
+ */
+async function synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonLocal) {
+  if (!tabAnonGlobal) tabAnonGlobal = [];
+  if (!tabAnonLocal || tabAnonLocal.length === 0) {
+    return tabAnonGlobal;
+  }
+
+  // Map des paires existantes dans le global (clé: "entite|pseudo")
+  const mapGlobal = new Map();
+  tabAnonGlobal.forEach(p => {
+    if (p.entite && p.remplacement) {
+      const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
+      mapGlobal.set(key, p);
+    }
+  });
+
+  // Ajouter les nouvelles paires du local au global
+  tabAnonLocal.forEach(p => {
+    if (!p.entite || !p.remplacement) return;
+    
+    const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
+    
+    if (!mapGlobal.has(key)) {
+      // Nouvelle paire : l'ajouter au global
+      const newEntry = {
+        entite: p.entite,
+        remplacement: p.remplacement,
+        occurrences: p.occurrences || 0,
+        indexCourant: p.indexCourant || 0,
+        matchPositions: p.matchPositions || [],
+        source: p.source || 'Entretien' // Marquer comme venant d'un entretien
+      };
+      mapGlobal.set(key, newEntry);
+      console.log(`✅ Nouvelle paire ajoutée au tabAnon global: "${p.entite}" → "${p.remplacement}"`);
+    }
+  });
+
+  // Convertir la map en tableau
+  const tabAnonGlobalMisAJour = Array.from(mapGlobal.values());
+  console.log(`📊 TabAnon global synchronisé : ${tabAnonGlobalMisAJour.length} paire(s) total`, tabAnonGlobalMisAJour);
+  
+  return tabAnonGlobalMisAJour;
+}
 
 async function initFromMain() {
   Corpus = await window.electronAPI.getCorpus();
@@ -75,6 +126,7 @@ async function lireCorpus(fileContent){
         tabDic = crp.tabDic || [];
         tabDat = crp.tabDat || [];
         tabEnt = crp.tabEnt || [];
+        tabAnon = crp.tabAnon || [];
         tabHtml = [];
         tabGrph = [];
         ent_cur = crp.ent_cur || -1;
@@ -95,6 +147,7 @@ async function lireCorpus(fileContent){
         await window.electronAPI.setVar(tabVar); 
         await window.electronAPI.setDic(tabDic);
         await window.electronAPI.setDat(tabDat);
+        await window.electronAPI.setAnon(tabAnon);
         await window.electronAPI.setGrph(-1, tabGrph);
         window.electronAPI.setEntCur(ent_cur);
 
@@ -104,11 +157,14 @@ async function lireCorpus(fileContent){
         console.log("tabDic :", tabDic);
         console.log("tabDat :", tabDat);
         console.log("tabEnt :", tabEnt);
+        console.log("tabAnon :", tabAnon);
  
 
 }
 
  
+
+
 // chargement des thématiques    
  
 loadThm(tabThm); // création des classes css
@@ -125,6 +181,11 @@ loadHtml(0,Number(tabEnt.length-1)).then( async () => {
          afficherEnt(0,Number(tabEnt.length-1));
         await cleanVariables(); // nettoyage du tabdat des éventuelles données obsolètes
          inventaireVariables(); // inventaire des variables utilisées dans les entretiens
+         
+         // Reconstituer le tabAnon global à partir des entretiens si vide
+         //if (!tabAnon || tabAnon.length === 0) {
+           await reconstituerTabAnonGlobal(tabEnt);
+         //}
 });  
 
 
@@ -863,6 +924,7 @@ let corpusActuel = Corpus.url;
   let tabEnt = await window.electronAPI.getEnt();
   const tabVar = await window.electronAPI.getVar();
   const tabDic = await window.electronAPI.getDic();
+  const tabAnon = await window.electronAPI.getAnon();
 
   // Synchronisation de tabVar et tabDic globaux dans chaque entretien (les locaux sont toujours alignés sur le global)
   tabEnt.forEach(ent => {
@@ -877,7 +939,7 @@ let corpusActuel = Corpus.url;
   );
   await window.electronAPI.setDat(tabDatGlobal);
 
-  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic });
+  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);
   
@@ -2105,26 +2167,74 @@ function question(message, bouttons) { // fonction d'affichage d'une question av
         const divBtns = document.createElement('div');
         divBtns.style.cssText = "display:flex; flex-direction:row; justify-content:right; gap:3px; margin-top:30px;";
 
-        (bouttons || []).forEach(btn => {
+        const btnElements = [];
+        let positiveButtonIndex = -1;
+
+        (bouttons || []).forEach((btn, index) => {
             const isPositive = /^(oui|valider|ok)$/i.test(btn.trim());
             const lbl = document.createElement('label');
             lbl.className = 'btnfonction btnquestion' + (isPositive ? ' btnoui' : '');
             lbl.textContent = btn;
+            lbl.setAttribute('data-btn-index', index);
+            lbl.style.cursor = 'pointer';
+            
+            if (isPositive) {
+                positiveButtonIndex = index;
+                lbl.style.outline = '2px solid transparent'; // pour l'effet focus
+            }
+            
             lbl.addEventListener('click', () => {
                 hidedlg();
                 window._questionResolve(btn.trim().toLowerCase());
             });
             divBtns.appendChild(lbl);
+            btnElements.push(lbl);
         });
 
         contenu.appendChild(divBtns);
 
         window._questionResolve = (val) => {
             window._questionResolve = () => {}; // neutralise les appels doubles
+            // Nettoyer les listeners de clavier
+            document.removeEventListener('keydown', window._questionKeyHandler);
+            window._questionKeyHandler = null;
             resolve(val);
         };
 
+        // Gestionnaire de clavier pour le dialogue
+        window._questionKeyHandler = (e) => {
+            // Vérifier que le dialogue est visible
+            if (element.style.display !== 'block') {
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                // Cliquer le bouton positif (bleu)
+                if (positiveButtonIndex !== -1) {
+                    btnElements[positiveButtonIndex].click();
+                } else if (btnElements.length > 0) {
+                    // Si pas de bouton positif, prendre le premier
+                    btnElements[0].click();
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                hidedlg();
+                window._questionResolve('annuler');
+            }
+        };
+
+        // Ajouter le listener de clavier
+        document.addEventListener('keydown', window._questionKeyHandler);
+
         element.style.display = "block";
+        
+        // Focus le bouton positif pour l'accessibilité
+        if (positiveButtonIndex !== -1) {
+            btnElements[positiveButtonIndex].focus();
+        }
     });
 }
 

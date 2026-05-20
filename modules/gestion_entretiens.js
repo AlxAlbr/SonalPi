@@ -1329,21 +1329,37 @@ async function afficherWhisPurge(){
 
     // remise en mots de l'entretien
 
+    // Récupération du tabAnon global et fusion avec le tabAnon local de l'entretien
+    // (fait AVANT le setTimeout pour que window.tabAnon soit prêt quand cleanHTML se termine)
+    const tabAnonGlobal = await window.electronAPI.getAnon();
+    window.tabAnon = fusionnerTabAnon(tabAnonGlobal, ent.tabAnon);
+
+    // Afficher immédiatement le panneau latéral avec les paires fusionnées
+    // (les paires issues du global apparaissent déjà, même sans occurrences détectées)
+    initAnon();
+
     wait("Chargement en cours");
-    setTimeout(() => {
+    setTimeout(async () => {
         cleanHTML();
         endWait();
         initBkUp();
+
+        // 🔍 Détecter les occurrences APRÈS cleanHTML : le DOM est normalisé (un span par mot),
+        // ce qui permet de trouver fiablement les entités dans le texte compact.
+        // Sans ce délai, les spans compactés (data-len > 1) empêchent la détection.
+        detecterOccurrencesToutesLesPaires();
+
+        // Rafraîchir le panneau latéral avec les occurrences détectées
+        affichTableauAnon();
+
+        // 💾 Sauvegarder le tabAnon mis à jour dans l'entretien local (pas le global)
+        ent.tabAnon = window.tabAnon;
+        tabEnt[rkEnt].tabAnon = window.tabAnon;
+        await window.electronAPI.setEnt(tabEnt);
     }, 50);
 
 
    // document.getElementById('lblspin').classList.add('dnone'); // fin de l'attente
-
-        // anonymisation
-
-    window.tabAnon = ent.tabAnon; // récupération des anonymisations
-    //console.log("anonymisations trouvées :" + JSON.stringify(window.tabAnon) )
-    initAnon();
 
     // effacement des sélections et surlignages
     effaceSel();
@@ -1468,7 +1484,13 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
    ent.tabDic = tabDic;
    // ent.tabDat : ne pas écraser avec la variable renderer (peut être []) —
    // le tabEnt frais chargé via getEnt() contient déjà le tabDat correct mis à jour par validMod
-   ent.tabAnon = window.tabAnon; 
+   const tabAnonNettoye = nettoyerTabAnon(); // Nettoyer les lignes vides avant sauvegarde
+   ent.tabAnon = tabAnonNettoye;
+   
+   // Synchronisation du tabAnon global : fusionner les nouvelles règles du local au global
+   const tabAnonGlobal = await window.electronAPI.getAnon() || [];
+   const tabAnonFusionne = await synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonNettoye);
+   await window.electronAPI.setAnon(tabAnonFusionne);
   
     // récupération des notes
     const notesElem = document.getElementById('txtnotes');

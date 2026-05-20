@@ -129,7 +129,7 @@ if (tabEnt.length == 0){
 
             // créer une div contenant le nombre d'extraits
             let nbX = document.createElement('div')
-            nbX.classList.add('nbxtrplansynth')
+            nbX.classList.add('nombre-de')
             nbX.innerText = nbXtr 
 
             titre.appendChild(nbX)

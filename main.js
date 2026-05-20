@@ -28,6 +28,7 @@ var tabVar = [{"v":1,"lib":"sexe","champ":"gen","priv":"false"}]; // tableau des
 var tabDic = [{"v":1,"m":0},{"v":1,"m":1,"lib":"Homme"},{"v":1,"m":2,"lib":"Femme"},{"v":1,"m":3,"lib":"Autre"}]; // dictionnaire
 var tabDat = []; // tableau des métadonnées (valeurs des variables pour chaque entretien)
 var tabEnt = []; // tableau des entretiens
+var tabAnon = []; // tableau des anonymisations
 var tabHtml = []; // tableau des contenus HTML des entretiens
 var tabGrph = []; // tableau des représentations simplifiées des entretiens (pour l'affichage graphique) 
 var ent_cur = -1; // entretien courant
@@ -157,6 +158,13 @@ ipcMain.handle('set-dic', (_, newTabDic) => {
 ipcMain.handle('get-dat', () => { return tabDat; });
 ipcMain.handle('set-dat', (_, newTabDat) => {
   tabDat = newTabDat;
+  return true;
+});
+
+// Handlers pour récupérer et mettre à jour le tableau global des anonymisations
+ipcMain.handle('get-anon', () => { return tabAnon; });
+ipcMain.handle('set-anon', (_, newTabAnon) => {
+  tabAnon = newTabAnon;
   return true;
 });
 
@@ -1049,8 +1057,8 @@ function editerCategories(parentWindow) {
 
   return new Promise((resolve) => {
     const catWindow = new BrowserWindow({
-      width: 1200,
-      height: 900,
+      width: 800,
+      height: 800,
       titleBarStyle: process.platform === 'darwin' ? 'default' : 'default', // pour voir les boutons sur macOS
       parent: parentWindow,
       // modal: true,
@@ -2213,7 +2221,7 @@ app.on('ready', () => {
       }
     });
 
-  // mainWindow.webContents.openDevTools(); 
+  //mainWindow.webContents.openDevTools(); 
 
 
 
@@ -2578,7 +2586,7 @@ ipcMain.handle('export-synthese-pdf', async (event, { contenuTxt, nomFichier }) 
     doc.moveDown(0.5);
     
     const currentDate = new Date().toLocaleString();
-    const versionSonal = "1.0.54";
+    const versionSonal = "1.0.56"; // À récupérer depuis package.json si nécessaire
     doc.fontSize(10).font('Helvetica').text(`Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`);
     doc.moveDown(1);
 
@@ -2856,7 +2864,7 @@ ipcMain.handle('export-entretien-pdf', async (event, { nomEntretien, contenuTxt,
     doc.moveDown(0.5);
     
     const currentDate = new Date().toLocaleString();
-    const versionSonal = "1.0.54";
+    const versionSonal = "1.0.56";
     doc.fontSize(10).font('Helvetica').text(`Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`);
     doc.moveDown(1);
 

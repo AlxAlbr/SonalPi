@@ -1,0 +1,2427 @@
+/**
+ * Module d'affichage de la table d'anonymisation globale
+ * Affiche toutes les combinaisons anonymisation du corpus avec les entretiens concernés
+ */
+
+/**
+ * Reconstitue le tabAnon global à partir des entretiens
+ * - Inventorie tous les tabAnon présents dans tabEnt
+ * @param {Array} entretiens - Tableau des entretiens (tabEnt)
+ */
+async function reconstituerTabAnonGlobal(entretiens) {
+    console.log("Reconstitution du tabAnon global à partir des entretiens...");
+
+    if (!entretiens || entretiens.length === 0) {
+        console.log("❌ Aucun entretien fourni");
+        return;
+    }
+
+    // Map pour tracker les paires (entité, pseudo) uniques
+    const mapEntitePseudo = new Map();
+    
+    // Parcourir tous les entretiens et inventorier
+    for (let i = 0; i < entretiens.length; i++) {
+        const ent = entretiens[i];
+        console.log(`[Entretien ${i}] ${ent.nom || 'Sans nom'}:`, ent.tabAnon ? `${ent.tabAnon.length} règle(s)` : 'Pas de tabAnon');
+        
+        if (!ent.tabAnon || ent.tabAnon.length === 0) {
+            continue;
+        }
+
+        // Parcourir les règles d'anonymisation de cet entretien
+        ent.tabAnon.forEach((regle, idx) => {
+            console.log(`  [${idx}] ${regle.entite} → ${regle.remplacement}`);
+            
+            if (!regle.entite || !regle.remplacement) {
+                return;
+            }
+
+            const entite = regle.entite.trim();
+            const pseudo = regle.remplacement.trim();
+            
+            if (!entite || !pseudo) return;
+
+            // Créer une clé unique
+            const cle = `${entite}|${pseudo}`;
+            
+            // Si pas encore dans la map, ajouter
+            if (!mapEntitePseudo.has(cle)) {
+                mapEntitePseudo.set(cle, {
+                    entite: entite,
+                    remplacement: pseudo,
+                    occurrences: 0,
+                    indexCourant: 0,
+                    matchPositions: []
+                });
+            }
+        });
+    }
+
+    // Récupérer l'ancien tabAnon global pour préserver les entrées ajoutées manuellement
+    // (qui ne sont pas encore dans un entretien local)
+    const ancienTabAnon = await window.electronAPI.getAnon();
+    if (ancienTabAnon && ancienTabAnon.length > 0) {
+        for (const ancien of ancienTabAnon) {
+            if (!ancien.entite || !ancien.remplacement) continue;
+            const entite = ancien.entite.trim();
+            const pseudo = ancien.remplacement.trim();
+            if (!entite || !pseudo) continue;
+            const cle = `${entite}|${pseudo}`;
+            if (!mapEntitePseudo.has(cle)) {
+                mapEntitePseudo.set(cle, {
+                    entite: entite,
+                    remplacement: pseudo,
+                    occurrences: 0,
+                    indexCourant: 0,
+                    matchPositions: []
+                });
+            }
+        }
+    }
+
+    // Convertir la map en tableau
+    const newTabAnon = Array.from(mapEntitePseudo.values());
+    
+    // tri du tabAnon par ordre alphabétique des entités
+    newTabAnon.sort((a, b) => a.entite.localeCompare(b.entite));
+
+    console.log(`✅ TabAnon reconstitué : ${newTabAnon.length} paire(s) unique(s)`, newTabAnon);
+    
+    // Mettre à jour dans le main process
+    await window.electronAPI.setAnon(newTabAnon);
+}
+
+/**
+ * Démarre la vérification globale de tous les états d'anonymisation
+ * Récupère les données nécessaires et appelle la fonction de vérification
+ */
+async function demarrerVerificationGlobale() {
+    try {
+        const tabEnt = await window.electronAPI.getEnt();
+        const tabAnonGlobal = await window.electronAPI.getAnon();
+        
+        if (!tabAnonGlobal || tabAnonGlobal.length === 0) {
+            dialog('Message', 'Aucune anonymisation définie.');
+            return;
+        }
+        
+        // Filtrer les anonymisations valides
+        const anonValides = tabAnonGlobal.filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim());
+        
+        if (anonValides.length === 0) {
+            dialog('Message', 'Aucune anonymisation valide à vérifier.');
+            return;
+        }
+        
+        await verifierEtAfficherEtatsAnonymisations(anonValides, tabEnt);
+    } catch (error) {
+        console.error("Erreur dans demarrerVerificationGlobale():", error);
+        dialog('Message', `Erreur: ${error.message}`);
+    }
+}
+
+/**
+ * Vérifie les états d'anonymisation pour toutes les entités et met à jour le tableau
+ * OPTIMISÉ: Parallélisation des vérifications + tracking de progression
+ * @param {Array} tabAnonGlobal - Tableau des anonymisations globales
+ * @param {Array} tabEnt - Tableau des entretiens
+ */
+async function verifierEtAfficherEtatsAnonymisations(tabAnonGlobal, tabEnt) {
+    try {
+        // Filtrer les anonymisations valides
+        const anonValides = tabAnonGlobal.filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim());
+        
+        // Calculer le nombre total de vérifications
+        const totalVerifications = anonValides.length * tabEnt.length;
+        let verificationsCompletees = 0;
+        
+        // Afficher la barre de progression
+        if (typeof wait === 'function') {
+            wait('Vérification des états en cours...');
+        }
+        
+        // Objet pour stocker les résultats: {entite|pseudo: {entretiensNonAnonymisee, entretiensAnonymisee}}
+        const etatsParEntite = {};
+        
+        for (const anon of anonValides) {
+            // Lancer toutes les vérifications en parallèle avec Promise.all()
+            const promessesVerification = tabEnt.map((ent, i) => 
+                verifierEtatAnonymisation(i, anon.entite, anon.remplacement)
+                    .then(etat => {
+                        // Incrémenter et mettre à jour la progression
+                        verificationsCompletees++;
+                        const pourcentage = Math.round((verificationsCompletees / totalVerifications) * 100);
+                        if (typeof updateProgressBar === 'function') {
+                            updateProgressBar(pourcentage);
+                        }
+                        return { index: i, nom: ent.nom, id: ent.id, etat };
+                    })
+            );
+            
+            const resultats = await Promise.all(promessesVerification);
+            
+            const entretiensNonAnonymisee = [];
+            const entretiensAnonymisee = [];
+            const entretiensExclus = [];
+            
+            for (const res of resultats) {
+                if (res.etat === 'anonymisee') {
+                    entretiensAnonymisee.push({ id: res.id, nom: res.nom, index: res.index });
+                } else if (res.etat === 'non-anonymisee') {
+                    entretiensNonAnonymisee.push({ id: res.id, nom: res.nom, index: res.index });
+                } else if (res.etat === 'exclue') {
+                    entretiensExclus.push({ id: res.id, nom: res.nom, index: res.index });
+                }
+            }
+            
+            // Stocker les résultats par clé entité|pseudo
+            const cle = `${anon.entite}|${anon.remplacement}`;
+            etatsParEntite[cle] = {
+                entretiensNonAnonymisee,
+                entretiensAnonymisee,
+                entretiensExclus
+            };
+        }
+        
+        // Fermer le dialogue d'attente
+        if (typeof endWait === 'function') {
+            endWait();
+        }
+        
+        // Mettre à jour les lignes du tableau avec les états
+        for (const anon of anonValides) {
+            const cle = `${anon.entite}|${anon.remplacement}`;
+            const { entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus } = etatsParEntite[cle];
+            mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
+        }
+        
+        console.log(`✅ Vérification terminée pour ${anonValides.length} entité(s)`);
+        
+    } catch (error) {
+        console.error("Erreur dans verifierEtAfficherEtatsAnonymisations():", error);
+        if (typeof endWait === 'function') {
+            endWait();
+        }
+    }
+}
+
+/**
+ * Vérifie l'état d'une seule entité et met à jour sa ligne dans le tableau
+ * @param {string} entite - Entité à vérifier
+ * @param {string} pseudo - Pseudonyme correspondant
+ * @param {Array} tabEnt - Tableau des entretiens
+ */
+async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
+    try {
+        // Afficher la barre de progression
+        if (typeof wait === 'function') {
+            wait(`Vérification de "${entite}" en cours...`);
+        }
+        
+        // Vérifier pour chaque entretien
+        const promessesVerification = tabEnt.map((ent, i) => 
+            verifierEtatAnonymisation(i, entite, pseudo)
+                .then(etat => ({
+                    index: i,
+                    nom: ent.nom,
+                    id: ent.id,
+                    etat
+                }))
+        );
+        
+        const resultats = await Promise.all(promessesVerification);
+        
+        const entretiensNonAnonymisee = [];
+        const entretiensAnonymisee = [];
+        const entretiensExclus = [];
+        
+        for (const res of resultats) {
+            if (res.etat === 'anonymisee') {
+                entretiensAnonymisee.push({ id: res.id, nom: res.nom, index: res.index });
+            } else if (res.etat === 'non-anonymisee') {
+                entretiensNonAnonymisee.push({ id: res.id, nom: res.nom, index: res.index });
+            } else if (res.etat === 'exclue') {
+                entretiensExclus.push({ id: res.id, nom: res.nom, index: res.index });
+            }
+        }
+        
+        // Fermer le dialogue d'attente
+        if (typeof endWait === 'function') {
+            endWait();
+        }
+        
+        // Mettre à jour la ligne
+        const anon = { entite, remplacement: pseudo };
+        mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
+        
+        console.log(`✅ Vérification terminée pour "${entite}"`);
+        
+    } catch (error) {
+        console.error("Erreur dans verifierEtAfficherEtatEntite():", error);
+        if (typeof endWait === 'function') {
+            endWait();
+        }
+    }
+}
+
+/**
+ * Met à jour la ligne d'une entité avec les états d'anonymisation
+ * @param {Object} anon - Paire {entite, remplacement}
+ * @param {Array} entretiensNonAnonymisee - Entretiens non-anonymisés
+ * @param {Array} entretiensAnonymisee - Entretiens anonymisés
+ */
+function mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
+    const ligneLigne = document.querySelector(`tr[data-entite="${CSS.escape(anon.entite)}"]`);
+    if (!ligneLigne) return;
+    
+    // Récupérer la cellule Entretiens (3e colonne)
+    const tdEntretiens = ligneLigne.cells[2];
+    if (!tdEntretiens) return;
+    
+    // Vider la cellule
+    tdEntretiens.innerHTML = '';
+    tdEntretiens.style.minWidth = "400px";
+    tdEntretiens.style.paddingTop = "8px";
+    tdEntretiens.style.paddingBottom = "8px";
+    
+    if (entretiensNonAnonymisee.length > 0 || entretiensAnonymisee.length > 0 || entretiensExclus.length > 0) {
+        // Créer la modale avec accordéons au lieu des badges
+        afficherOccurrencesEnAccordeon(
+            tdEntretiens, 
+            anon, 
+            entretiensNonAnonymisee, 
+            entretiensAnonymisee,
+            entretiensExclus
+        );
+    } else {
+        tdEntretiens.textContent = "—";
+        tdEntretiens.style.color = "#999";
+    }
+}
+
+/**
+ * Affiche les occurrences d'une entité dans une modale avec accordéons
+ * @param {HTMLElement} tdEntretiens - Cellule du tableau où insérer la modale
+ * @param {Object} anon - Paire {entite, remplacement}
+ * @param {Array} entretiensNonAnonymisee - Entretiens non-anonymisés
+ * @param {Array} entretiensAnonymisee - Entretiens anonymisés
+ */
+async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
+    try {
+        const tabEnt = await window.electronAPI.getEnt();
+        
+        // Conteneur principal de la modale
+        const modale = document.createElement("div");
+        modale.style.position = "relative";
+        modale.style.backgroundColor = "white";
+        modale.style.border = "1px solid #ddd";
+        modale.style.borderRadius = "4px";
+        modale.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+        modale.style.overflow = "hidden";
+        modale.style.display = "flex";
+        modale.style.flexDirection = "column";
+        modale.style.height = "500px";
+        
+        // Bouton de fermeture (haut droite)
+        const btnClose = document.createElement("button");
+        btnClose.innerHTML = "✖️";
+        btnClose.className = "close";
+        btnClose.style.position = "absolute";
+        btnClose.style.top = "8px";
+        btnClose.style.right = "18px";
+        btnClose.style.zIndex = "100";
+        btnClose.style.width = "30px";
+        btnClose.style.height = "30px";
+        btnClose.style.cursor = "pointer";
+        btnClose.style.padding = "0";
+        btnClose.style.display = "flex";
+        btnClose.style.alignItems = "center";
+        btnClose.style.justifyContent = "center";
+        btnClose.style.transition = "all 0.2s";
+        
+        btnClose.addEventListener("click", () => {
+            modale.remove();
+        });
+        modale.appendChild(btnClose);
+        
+        // Conteneur scrollable pour le contenu
+        const scrollContainer = document.createElement("div");
+        scrollContainer.style.overflowY = "auto";
+        scrollContainer.style.overflowX = "hidden";
+        scrollContainer.style.flex = "1";
+        scrollContainer.style.paddingTop = "10px";
+        scrollContainer.style.paddingBottom = "60px"; // espace pour le bouton sticky en bas
+        
+        // Titre
+        const titre = document.createElement("div");
+        titre.style.padding = "10px 12px";
+        titre.style.fontWeight = "bold";
+        titre.style.color = "#333";
+        titre.style.fontSize = "14px";
+        titre.style.borderBottom = "1px solid #eee";
+        titre.innerHTML = `Occurrences de <strong>"${anon.entite}"</strong> → <strong>"${anon.remplacement}"</strong>`;
+        scrollContainer.appendChild(titre);
+        
+        // Case à cocher globale
+        const checkboxGlobaleDiv = document.createElement("div");
+        checkboxGlobaleDiv.style.padding = "10px 12px";
+        checkboxGlobaleDiv.style.borderBottom = "1px solid #eee";
+        checkboxGlobaleDiv.style.display = "flex";
+        checkboxGlobaleDiv.style.alignItems = "center";
+        checkboxGlobaleDiv.style.gap = "8px";
+        checkboxGlobaleDiv.style.backgroundColor = "#f9f9f9";
+        
+        const checkboxGlobale = document.createElement("input");
+        checkboxGlobale.type = "checkbox";
+        checkboxGlobale.style.cursor = "pointer";
+        checkboxGlobale.style.width = "18px";
+        checkboxGlobale.style.height = "18px";
+        checkboxGlobale.id = "checkbox-globale-" + Date.now(); // ID unique pour la modale
+        
+        const labelGlobale = document.createElement("label");
+        labelGlobale.textContent = "Affecter le pseudonyme à toutes les occurrences";
+        labelGlobale.style.cursor = "pointer";
+        labelGlobale.style.fontWeight = "600";
+        labelGlobale.style.color = "#1565c0";
+        labelGlobale.style.fontSize = "13px";
+        labelGlobale.style.margin = "0";
+        
+        checkboxGlobaleDiv.appendChild(checkboxGlobale);
+        checkboxGlobaleDiv.appendChild(labelGlobale);
+        scrollContainer.appendChild(checkboxGlobaleDiv);
+        
+        modale.appendChild(scrollContainer);
+        
+        // Récupérer toutes les occurrences
+        const tousLesEntretiens = [...entretiensNonAnonymisee, ...entretiensAnonymisee, ...entretiensExclus];
+        const occurrencesParEntretien = {};
+        
+        for (const ent of tousLesEntretiens) {
+            const occurrences = await trouverOccurrencesAvecContexte(
+                ent.index, 
+                anon.entite, 
+                anon.remplacement
+            );
+            const entIdStr = String(ent.id); // Utiliser une clé string pour la cohérence
+            occurrencesParEntretien[entIdStr] = {
+                nom: ent.nom,
+                index: ent.index,
+                anonymisee: entretiensAnonymisee.some(e => e.id === ent.id),
+                occurrences: occurrences
+            };
+        }
+        
+        // Créer les accordéons pour chaque entretien
+        for (const ent of tousLesEntretiens) {
+            const entIdStr = String(ent.id);
+            const entData = occurrencesParEntretien[entIdStr];
+            if (entData && entData.occurrences.length > 0) {
+                const accordeon = creerAccordeonEntretien(
+                    entIdStr,
+                    entData.nom,
+                    entData.index,
+                    entData.anonymisee,
+                    entData.occurrences,
+                    anon
+                );
+                scrollContainer.appendChild(accordeon);
+            }
+        }
+        
+        // Ajouter un gestionnaire global pour la checkbox globale
+        checkboxGlobale.addEventListener("change", () => {
+            const tousLesAccordeons = scrollContainer.querySelectorAll(".accordion-entretien");
+            for (const accordeon of tousLesAccordeons) {
+                const checkboxEnt = accordeon._checkboxEntretien;
+                const checkboxesOcc = accordeon._checkboxesOccurrences;
+                
+                if (checkboxEnt) {
+                    checkboxEnt.checked = checkboxGlobale.checked;
+                }
+                if (checkboxesOcc) {
+                    checkboxesOcc.forEach(cb => {
+                        cb.checked = checkboxGlobale.checked;
+                    });
+                }
+            }
+        });
+        
+        // Bouton Valider (sticky en bas)
+        const btnValider = document.createElement("button");
+        btnValider.textContent = "Valider";
+        btnValider.style.position = "absolute";
+        btnValider.style.bottom = "0";
+        btnValider.style.left = "0";
+        btnValider.style.right = "0";
+        //btnValider.style.width = "100%";
+        btnValider.style.padding = "12px";
+        btnValider.classList.add("btn",  "btn-primary")
+        btnValider.style.transition = "all 0.2s";
+        
+        btnValider.addEventListener("click", async () => {
+            await validerOccurrencesSelectionnees(scrollContainer, occurrencesParEntretien, anon);
+            modale.remove();
+        });
+        modale.appendChild(btnValider);
+        
+        tdEntretiens.appendChild(modale);
+        
+    } catch (error) {
+        console.error("Erreur dans afficherOccurrencesEnAccordeon():", error);
+        tdEntretiens.textContent = "Erreur lors du chargement";
+        tdEntretiens.style.color = "#d32f2f";
+    }
+}
+
+/**
+ * Crée un accordéon pour un entretien
+ * @param {string} entId - ID de l'entretien
+ * @param {string} entNom - Nom de l'entretien
+ * @param {number} entIndex - Index de l'entretien
+ * @param {boolean} anonymisee - Si l'entretien est déjà anonymisé
+ * @param {Array} occurrences - Tableau des occurrences
+ * @param {Object} anon - Paire {entite, remplacement}
+ * @returns {HTMLElement}
+ */
+function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrences, anon) {
+    const accordeon = document.createElement("div");
+    accordeon.className = "accordion-entretien";
+    accordeon.style.borderBottom = "1px solid #eee";
+    
+    // En-tête de l'accordéon
+    const header = document.createElement("div");
+    header.style.padding = "10px 12px";
+    header.style.backgroundColor = anonymisee ? "#e3f2fd" : "#fff3e0";
+    header.style.cursor = "pointer";
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "8px";
+    header.style.userSelect = "none";
+    header.style.transition = "background-color 0.2s";
+    
+    // Checkbox de l'entretien
+    const checkboxEnt = document.createElement("input");
+    checkboxEnt.type = "checkbox";
+    checkboxEnt.style.cursor = "pointer";
+    checkboxEnt.style.width = "18px";
+    checkboxEnt.style.height = "18px";
+    checkboxEnt.checked = anonymisee;
+    checkboxEnt.dataset.entId = entId;
+    
+
+    
+    // Label de l'entretien
+    const label = document.createElement("label");
+    label.textContent = entNom;
+    label.style.cursor = "pointer";
+    label.style.fontWeight = "600";
+    label.style.color = anonymisee ? "#15c095" : "#f57c00";
+    label.style.margin = "0";
+    label.style.flex = "1";
+
+    // nb occurrences
+    const labelOcc = document.createElement("label");
+    labelOcc.textContent = occurrences.length;
+    labelOcc.style.cursor = "pointer";
+    labelOcc.classList = "nombre-de"; 
+    labelOcc.style.margin = "0";
+    labelOcc.style.maxWidth = "25px";
+
+        // Flèche d'expansion
+    const fleche = document.createElement("span");
+    fleche.innerHTML = "▼";
+    fleche.style.fontSize = "12px";
+    fleche.style.color = "#666";
+    fleche.style.transition = "transform 0.2s";
+    fleche.style.display = "inline-block";
+    fleche.style.marginLeft = "4px";
+    
+    header.appendChild(checkboxEnt);
+    header.appendChild(label);
+    header.appendChild(fleche);
+    header.appendChild(labelOcc);
+
+    // Contenu de l'accordéon (liste des occurrences)
+    const contenu = document.createElement("div");
+    contenu.style.display = "none";
+    contenu.style.padding = "10px 12px";
+    contenu.style.backgroundColor = "#fafafa";
+    
+    // Ajouter les occurrences
+    for (let i = 0; i < occurrences.length; i++) {
+        const occ = occurrences[i];
+        
+        const occDiv = document.createElement("div");
+        occDiv.style.marginBottom = "10px";
+        occDiv.style.paddingBottom = "8px";
+        occDiv.style.marginLeft = "25px";
+        occDiv.style.borderBottom = i === occurrences.length - 1 ? "none" : "1px solid #ddd";
+        occDiv.style.display = "flex";
+        occDiv.style.alignItems = "flex-start";
+        occDiv.style.gap = "8px";
+        
+        // Checkbox pour l'occurrence
+        const checkboxOcc = document.createElement("input");
+        checkboxOcc.type = "checkbox";
+        checkboxOcc.checked = occ.exclue ? false : (occ.applique || anonymisee);
+        checkboxOcc.style.cursor = "pointer";
+        checkboxOcc.style.width = "16px";
+        checkboxOcc.style.height = "16px";
+        checkboxOcc.style.marginTop = "2px";
+        checkboxOcc.style.flexShrink = "0";
+        checkboxOcc.dataset.occIndex = i;
+        checkboxOcc.dataset.entId = entId;
+        
+        // Texte avec contexte
+        const texteDiv = document.createElement("div");
+        texteDiv.style.flex = "1";
+        texteDiv.style.fontSize = "13px";
+        texteDiv.style.color = occ.exclue ? "#aaa" : "#555";
+        texteDiv.style.lineHeight = "1.4";
+        texteDiv.style.fontFamily = "monospace";
+        if (occ.exclue) {
+            texteDiv.style.fontStyle = "italic";
+            occDiv.style.backgroundColor = "#f5f5f5";
+            occDiv.style.borderRadius = "4px";
+            occDiv.title = "Occurrence explicitement exclue de l'anonymisation — cocher pour réactiver";
+        }
+        
+        const cadenas = occ.exclue ? `<span style="margin-right:5px; font-style:normal;" title="Exclu de l'anonymisation">🔒</span>` : '';
+        const contextAvant = occ.contextAvant ? `<span style="color:${occ.exclue ? '#bbb' : '#999'};">${escapeHtml(occ.contextAvant)}</span>` : '';
+        const entiteHtml = `<strong style="font-weight:bold;padding:2px 2px; border-radius:2px;">${escapeHtml(occ.entite)}</strong>`;
+        const pseudoHtml = occ.applique ? `<span class="pseudo">[${escapeHtml(anon.remplacement)}]</span>` : '';
+        const contextApres = occ.contextApres ? `<span style="color:${occ.exclue ? '#bbb' : '#999'};">${escapeHtml(occ.contextApres)}</span>` : '';
+        
+        texteDiv.innerHTML = `${cadenas}${contextAvant}${entiteHtml}${pseudoHtml}${contextApres}`;
+        
+        occDiv.appendChild(checkboxOcc);
+        occDiv.appendChild(texteDiv);
+        
+        // Stocker les references pour la validation
+        checkboxOcc._occurrence = occ;
+        checkboxOcc._entIndex = entIndex;
+        checkboxOcc._anon = anon;
+        
+        contenu.appendChild(occDiv);
+    }
+    
+    accordeon.appendChild(header);
+    accordeon.appendChild(contenu);
+    
+    // Événement click sur le header pour ouvrir/fermer
+    header.addEventListener("click", (e) => {
+        // Ne pas déclencher si on clique sur la checkbox
+        if (e.target !== checkboxEnt && !checkboxEnt.contains(e.target)) {
+            contenu.style.display = contenu.style.display === "none" ? "block" : "none";
+            fleche.style.transform = contenu.style.display === "none" ? "rotate(0deg)" : "rotate(180deg)";
+        }
+    });
+    
+    // Gestion des checkboxes
+    checkboxEnt.addEventListener("change", () => {
+        const allCheckboxesOcc = contenu.querySelectorAll('input[type="checkbox"][data-occ-index]');
+        allCheckboxesOcc.forEach(cb => {
+            cb.checked = checkboxEnt.checked;
+        });
+    });
+    
+    // Stocker les checkboxes pour la validation
+    accordeon._checkboxEntretien = checkboxEnt;
+    accordeon._checkboxesOccurrences = contenu.querySelectorAll('input[type="checkbox"][data-occ-index]');
+    
+    return accordeon;
+}
+
+/**
+ * Échappe les caractères HTML
+ */
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Trouve les occurrences d'une entité dans un entretien avec contexte
+ * Cherche AUSSI les occurrences déjà pseudonymisées (avec data-pseudo)
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {string} entite - Entité à chercher
+ * @param {string} pseudo - Pseudonyme (pour vérifier si appliqué)
+ * @returns {Promise<Array>} Tableau des occurrences avec contexte
+ */
+async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
+    try {
+        const htmlContent = await window.electronAPI.getHtml(indexEnt);
+        
+        if (!htmlContent) {
+            return [];
+        }
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        
+        const occurrences = [];
+        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
+        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'gi');
+        
+        // Ensemble des spans déjà traités (pour éviter les doublons)
+        const spansTraites = new Set();
+        
+        // Parcourir tous les spans avec data-rk
+        const allSpans = Array.from(tempDiv.querySelectorAll('[data-rk]'));
+        
+        for (const span of allSpans) {
+            const spanId = span.dataset.rk;
+            
+            // Sauter les spans debsel avec ce pseudo : ils seront traités dans la 2e passe
+            // avec le contexte reconstruit depuis les siblings.
+            if (span.classList.contains('debsel') && span.dataset.pseudo === pseudo) {
+                continue;
+            }
+            
+            // === CHERCHER L'ENTITÉ ORIGINALE (NON PSEUDONYMISÉE) ===
+            const texteSpan = span.textContent;
+            let match;
+            regexEntite.lastIndex = 0;
+            
+            while ((match = regexEntite.exec(texteSpan)) !== null) {
+                const contextAvantStart = Math.max(0, match.index - 40);
+                const contextAvantEnd = match.index;
+                const contextApresStart = match.index + match[0].length;
+                const contextApresEnd = Math.min(texteSpan.length, contextApresStart + 40);
+                
+                let contextAvant = texteSpan.substring(contextAvantStart, contextAvantEnd).trim();
+                let contextApres = texteSpan.substring(contextApresStart, contextApresEnd).trim();
+                
+                // Si le contexte est vide (entité en début/fin de span), chercher dans les siblings
+                if (!contextAvant && span.previousSibling) {
+                    const textePrev = (span.previousSibling.textContent || '').trimEnd();
+                    contextAvant = '...' + textePrev.slice(-40).trimStart();
+                } else if (contextAvantStart > 0 && contextAvant.length > 0) {
+                    contextAvant = '...' + contextAvant;
+                }
+                
+                if (!contextApres && span.nextSibling) {
+                    const texteNext = (span.nextSibling.textContent || '').trimStart();
+                    contextApres = texteNext.slice(0, 40).trimEnd() + '...';
+                } else if (contextApresEnd < texteSpan.length && contextApres.length > 0) {
+                    contextApres = contextApres + '...';
+                }
+                
+                // Vérifier si le pseudo a déjà été appliqué, ou si l'occurrence est explicitement exclue
+                const applique = span.classList.contains('debsel') && span.dataset.pseudo === pseudo;
+                const exclue = span.classList.contains('anon-exception');
+                
+                occurrences.push({
+                    entite: match[0],
+                    contextAvant: contextAvant,
+                    contextApres: contextApres,
+                    applique: applique,
+                    exclue: exclue,
+                    spanId: spanId
+                });
+                
+                spansTraites.add(spanId);
+            }
+        }
+        
+        // === CHERCHER LES OCCURRENCES DÉJÀ PSEUDONYMISÉES ===
+        // Structure post-pseudo : [...] [debsel] [anon]* [finsel] [...]
+        // On reconstitue le contexte depuis le parent commun : on accumule le texte
+        // de tous les enfants avant le debsel, et après le finsel.
+        const spansPseudoDebsel = Array.from(tempDiv.querySelectorAll(`[data-pseudo="${pseudo}"].debsel`));
+        
+        for (const spanDebsel of spansPseudoDebsel) {
+            const spanId = spanDebsel.dataset.rk;
+            if (spansTraites.has(spanId)) continue;
+            
+            // Trouver le finsel (peut être debsel lui-même si entité 1 mot)
+            let finselSpan = spanDebsel;
+            if (!spanDebsel.classList.contains('finsel')) {
+                let sib = spanDebsel.nextSibling;
+                while (sib) {
+                    if (sib.nodeType === Node.ELEMENT_NODE
+                        && sib.dataset && sib.dataset.pseudo === pseudo
+                        && sib.classList.contains('finsel')) {
+                        finselSpan = sib;
+                        break;
+                    }
+                    if (sib.nodeType === Node.ELEMENT_NODE
+                        && !sib.classList.contains('anon')
+                        && (sib.textContent || '').trim() !== '') {
+                        break;
+                    }
+                    sib = sib.nextSibling;
+                }
+            }
+            
+            // Stratégie : reconstruire tout le texte du parent en 3 phases
+            // (avant / entité / après), puis si le contexte avant/après est trop court,
+            // remonter au grand-parent pour enrichir.
+            const collectContext = (startNode, direction) => {
+                // direction = 'before' (remonter) ou 'after' (descendre)
+                let parts = [];
+                let len = 0;
+                let node = direction === 'before' ? startNode.previousSibling : startNode.nextSibling;
+                
+                while (node && len < 60) {
+                    const t = node.textContent || '';
+                    if (t) {
+                        if (direction === 'before') parts.unshift(t);
+                        else parts.push(t);
+                        len += t.length;
+                    }
+                    node = direction === 'before' ? node.previousSibling : node.nextSibling;
+                }
+                
+                // Si contexte insuffisant, remonter au parent et continuer
+                if (len < 30 && startNode.parentNode) {
+                    const parentNode = startNode.parentNode;
+                    let parentSib = direction === 'before' ? parentNode.previousSibling : parentNode.nextSibling;
+                    while (parentSib && len < 60) {
+                        const t = parentSib.textContent || '';
+                        if (t) {
+                            if (direction === 'before') parts.unshift(t);
+                            else parts.push(t);
+                            len += t.length;
+                        }
+                        parentSib = direction === 'before' ? parentSib.previousSibling : parentSib.nextSibling;
+                    }
+                }
+                
+                return parts.join('');
+            };
+            
+            // Texte de l'entité (debsel → finsel)
+            let entityText = '';
+            let cur = spanDebsel;
+            while (cur) {
+                entityText += cur.textContent || '';
+                if (cur === finselSpan) break;
+                cur = cur.nextSibling;
+            }
+            
+            const rawAvant = collectContext(spanDebsel, 'before');
+            const rawApres = collectContext(finselSpan, 'after');
+            
+            const contextAvant = rawAvant.length > 40
+                ? '...' + rawAvant.slice(-40).trimStart()
+                : rawAvant;
+            const contextApres = rawApres.length > 40
+                ? rawApres.slice(0, 40).trimEnd() + '...'
+                : rawApres;
+            
+            occurrences.push({
+                entite: entityText.trim(),
+                contextAvant: contextAvant,
+                contextApres: contextApres,
+                applique: true,
+                spanId: spanId
+            });
+            
+            spansTraites.add(spanId);
+        }
+        
+        return occurrences;
+        
+    } catch (error) {
+        console.error("Erreur dans trouverOccurrencesAvecContexte():", error);
+        return [];
+    }
+}
+
+/**
+ * Retire le pseudo de certaines occurrences spécifiques dans un entretien
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {Array} occurrencesARetirer - Tableau des occurrences avec spanId et data-pseudo
+ * @param {Object} anon - Paire {entite, remplacement}
+ */
+async function retirerPseudoOccurrencesSpecifiques(indexEnt, occurrencesARetirer, anon) {
+    try {
+        console.log(`Retrait du pseudo pour ${occurrencesARetirer.length} occurrence(s) dans l'entretien ${indexEnt}`);
+        
+        // Récupérer l'HTML de l'entretien
+        let htmlContent = await window.electronAPI.getHtml(indexEnt);
+        htmlContent = htmlContent.replace(/`/g, '');
+        
+        if (!htmlContent) {
+            dialog('Message', 'Impossible de récupérer le contenu de l\'entretien.');
+            return;
+        }
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // Créer un set des spanIds à traiter
+        const spanIdsARetirer = new Set(occurrencesARetirer.map(occ => occ.spanId));
+
+        let nbRetraits = 0;
+
+        // Parcourir tous les spans marqués debsel (début du pseudo)
+        const debselSpans = Array.from(tempDiv.querySelectorAll('[data-pseudo].debsel'));
+
+        for (const debselSpan of debselSpans) {
+            const spanId = debselSpan.dataset.rk;
+            
+            // Vérifier si ce span doit être retiré
+            if (!spanIdsARetirer.has(spanId)) {
+                continue;
+            }
+
+            // Vérifier que c'est bien le pseudo qu'on veut retirer
+            if (debselSpan.dataset.pseudo !== anon.remplacement) {
+                continue;
+            }
+
+            // Trouver le finsel correspondant
+            let finselSpan = debselSpan;
+            if (!debselSpan.classList.contains('finsel')) {
+                let sib = debselSpan.nextSibling;
+                while (sib) {
+                    if (sib.nodeType === Node.ELEMENT_NODE
+                        && sib.dataset && sib.dataset.pseudo === anon.remplacement
+                        && sib.classList.contains('finsel')) {
+                        finselSpan = sib;
+                        break;
+                    }
+                    if (sib.nodeType === Node.ELEMENT_NODE
+                        && !sib.classList.contains('anon')) {
+                        break;
+                    }
+                    sib = sib.nextSibling;
+                }
+            }
+
+            // Reconstituer le texte original (fusion de debsel → finsel)
+            let texteOriginal = '';
+            let cur = debselSpan;
+            while (cur) {
+                texteOriginal += cur.textContent || '';
+                if (cur === finselSpan) break;
+                cur = cur.nextSibling;
+            }
+
+            // Créer un span neutre avec le texte original
+            const spanContexte = document.createElement('span');
+            Array.from(debselSpan.attributes).forEach(attr => {
+                if (attr.name !== 'data-pseudo' && attr.name !== 'data-rk') {
+                    spanContexte.setAttribute(attr.name, attr.value);
+                }
+            });
+            spanContexte.dataset.rk = debselSpan.dataset.rk;
+            spanContexte.textContent = texteOriginal;
+            
+            // Retirer les classes de pseudonymisation (sauf anon-exception qui marque l'exclusion)
+            ['anon', 'debsel', 'finsel'].forEach(c => {
+                spanContexte.classList.remove(c);
+            });
+            spanContexte.classList.add('anon-exception'); // empêche la ré-application au rechargement
+            delete spanContexte.dataset.pseudo;
+
+            // Remplacer debselSpan par le nouveau span et supprimer jusqu'à finselSpan
+            const parent = debselSpan.parentNode;
+            if (parent) {
+                // Stocker le point d'insertion AVANT les suppressions :
+                // pour les entités multi-mots, nextSibling de debsel serait supprimé dans la boucle.
+                const insertionPoint = finselSpan.nextSibling;
+                
+                // Supprimer tous les spans de debsel à finsel (inclus)
+                let toDelete = debselSpan;
+                while (toDelete && parent.contains(toDelete)) {
+                    const next = toDelete.nextSibling;
+                    if (toDelete.nodeType === Node.ELEMENT_NODE) {
+                        parent.removeChild(toDelete);
+                    }
+                    if (toDelete === finselSpan) break;
+                    toDelete = next;
+                }
+                
+                // Insérer le nouveau span (insertionPoint peut être null → append en fin de parent)
+                parent.insertBefore(spanContexte, insertionPoint);
+                nbRetraits++;
+                console.log(`  ✓ Pseudo retiré pour "${texteOriginal}"`);
+            }
+        }
+
+        if (nbRetraits === 0) {
+            console.log(`Aucune occurrence à retirer pour "${anon.entite}"`);
+            return;
+        }
+
+        const finalHtmlContent = tempDiv.innerHTML;
+        console.log(`✅ ${nbRetraits} pseudo(s) retiré(s)`);
+
+        // Sauvegarder l'HTML modifié
+        await window.electronAPI.setHtml(indexEnt, finalHtmlContent);
+
+        // Réécriture du fichier .sonal
+        try {
+            if (typeof window.majFichierSonal === 'function') {
+                await window.majFichierSonal(indexEnt, indexEnt + 1);
+                console.log(`Fichier Sonal réécrit pour l'entretien ${indexEnt}`);
+            }
+        } catch (errMaj) {
+            console.error('Erreur lors de majFichierSonal:', errMaj);
+        }
+
+    } catch (error) {
+        console.error("Erreur dans retirerPseudoOccurrencesSpecifiques():", error);
+        dialog('Message', `Erreur lors du retrait du pseudo: ${error.message}`);
+    }
+}
+
+/**
+ * Valide et applique les occurrences sélectionnées
+ * @param {HTMLElement} scrollContainer - Conteneur avec les accordéons
+ * @param {Object} occurrencesParEntretien - Données des occurrences par entretien
+ * @param {Object} anon - Paire {entite, remplacement}
+ */
+async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEntretien, anon) {
+    try {
+        const accordeons = scrollContainer.querySelectorAll(".accordion-entretien");
+        const changementsParEntretien = {}; // {entIdStr: {aAjouter: [], aRetirer: []}}
+        
+        // === PHASE 1: Collecter les changements pour chaque entretien ===
+        for (const accordeon of accordeons) {
+            const checkboxEnt = accordeon._checkboxEntretien;
+            const checkboxesOcc = accordeon._checkboxesOccurrences;
+            
+            if (!checkboxEnt || checkboxesOcc.length === 0) continue;
+            
+            const entIdStr = checkboxEnt.dataset.entId;
+            if (!changementsParEntretien[entIdStr]) {
+                changementsParEntretien[entIdStr] = { aAjouter: [], aRetirer: [] };
+            }
+            
+            // Parcourir chaque occurrence pour déterminer si elle doit être ajoutée/retirée
+            for (const cbOcc of checkboxesOcc) {
+                const occ = cbOcc._occurrence;
+                const estCochee = cbOcc.checked;
+                const etaitAppliquee = occ.applique;
+                
+                // Cas 1: checkbox cochée + pas encore appliquée → AJOUTER le pseudo
+                if (estCochee && !etaitAppliquee) {
+                    changementsParEntretien[entIdStr].aAjouter.push(occ);
+                }
+                
+                // Cas 2: checkbox décochée + était appliquée → RETIRER le pseudo
+                if (!estCochee && etaitAppliquee) {
+                    changementsParEntretien[entIdStr].aRetirer.push(occ);
+                }
+            }
+        }
+        
+        // === PHASE 2: Appliquer les changements par entretien ===
+        const changementsEffectues = [];
+        
+        for (const entIdStr in changementsParEntretien) {
+            const { aAjouter, aRetirer } = changementsParEntretien[entIdStr];
+            
+            if (aAjouter.length === 0 && aRetirer.length === 0) {
+                continue; // Pas de changement pour cet entretien
+            }
+            
+            const entData = occurrencesParEntretien[entIdStr];
+            if (!entData) continue;
+            
+            // S'il y a des occurrences à ajouter, pseudonymiser l'entité
+            if (aAjouter.length > 0) {
+                await pseudonymiserEntretienSpecifique(entData.index, anon.entite, anon.remplacement);
+                changementsEffectues.push({ nom: entData.nom, action: 'ajout' });
+            }
+            
+            // S'il y a des occurrences à retirer, retirer le pseudo
+            if (aRetirer.length > 0) {
+                await retirerPseudoOccurrencesSpecifiques(entData.index, aRetirer, anon);
+                changementsEffectues.push({ nom: entData.nom, action: 'retrait' });
+            }
+        }
+        
+        // === PHASE 3: Message de confirmation ===
+        if (changementsEffectues.length > 0) {
+            const resume = changementsEffectues.map(c => `${c.nom} (${c.action})`).join('\n');
+            dialog('Message', `Changements enregistrés:\n${resume}`);
+        } else {
+            dialog('Message', 'Aucun changement effectué.');
+        }
+        
+    } catch (error) {
+        console.error("Erreur dans validerOccurrencesSelectionnees():", error);
+        dialog('Message', `Erreur lors de la validation: ${error.message}`);
+    }
+}
+
+/**
+ * Crée un badge pour un entretien dans la liste d'anonymisation
+ * @param {Object} ent - {id, nom, index}
+ * @param {Object} anon - {entite, remplacement}
+ * @param {string} type - 'anonymise' ou 'non-anonymise'
+ * @returns {HTMLElement}
+ */
+function creerBadgeAnonGen(ent, anon, type) {
+    const badge = document.createElement("span");
+    badge.textContent = ent.nom;
+    badge.style.cursor = "pointer";
+    badge.style.padding = "4px 8px";
+    badge.style.color = "white";
+    badge.style.fontWeight = "600";
+    badge.style.borderRadius = "4px";
+    badge.style.fontSize = "0.9em";
+    badge.style.transition = "all 0.2s";
+    
+    if (type === 'anonymise') {
+        badge.style.backgroundColor = "#64B5F6";
+        badge.style.border = "1px solid #42A5F5";
+        badge.title = "Déjà anonymisé - Clic pour voir";
+        
+        badge.addEventListener("click", () => {
+            hideAnonGen();
+            afficherDetailsEnt(ent.index);
+        });
+
+        badge.addEventListener("mouseover", () => {
+            badge.style.backgroundColor = "#42A5F5";
+            badge.style.borderColor = "#1565c0";
+            badge.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+        });
+
+        badge.addEventListener("mouseout", () => {
+            badge.style.backgroundColor = "#64B5F6";
+            badge.style.borderColor = "#42A5F5";
+            badge.style.boxShadow = "none";
+        });
+    } else {
+        // non-anonymise (orange)
+        badge.style.backgroundColor = "#FFA500";
+        badge.style.border = "1px solid #FF9800";
+        badge.title = `Clic pour pseudonymiser "${anon.remplacement}" dans cet entretien`;
+        badge.dataset.entite = anon.entite;
+        badge.dataset.pseudo = anon.remplacement;
+        badge.dataset.indexEnt = ent.index;
+        
+        badge.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await pseudonymiserEntretienSpecifique(ent.index, anon.entite, anon.remplacement);
+        });
+
+        badge.addEventListener("mouseover", () => {
+            badge.style.backgroundColor = "#FF9800";
+            badge.style.borderColor = "#FF6F00";
+            badge.style.boxShadow = "0 2px 6px rgba(255, 152, 0, 0.4)";
+            badge.style.transform = "scale(1.05)";
+        });
+
+        badge.addEventListener("mouseout", () => {
+            badge.style.backgroundColor = "#FFA500";
+            badge.style.borderColor = "#FF9800";
+            badge.style.boxShadow = "none";
+            badge.style.transform = "scale(1)";
+        });
+    }
+    
+    return badge;
+}
+
+/**
+ * Affiche la table d'anonymisation globale avec les combinaisons et entretiens associés
+ * Affiche d'abord les entités sans tester leur présence - la vérification se fait via des boutons
+ */
+async function affichAnonGen() {
+    console.log("lancement de affichAnonGen")
+    try {
+        // Récupérer la liste des entretiens
+        const tabEnt = await window.electronAPI.getEnt();
+        
+        // NOUVELLE LOGIQUE: Reconstituer le tabAnon à chaque chargement
+        // Appel de la fonction existante de gestion_corpus.js
+        if (typeof reconstituerTabAnonGlobal === 'function') {
+            await reconstituerTabAnonGlobal(tabEnt);
+        }
+        
+        // Récupérer le tabAnon (reconstitué ou existant)
+        const tabAnonGlobal = await window.electronAPI.getAnon();
+        
+        if (!tabAnonGlobal || tabAnonGlobal.length === 0) {
+            dialog('Message', 'Aucune anonymisation définie dans le corpus.');
+            return;
+        }
+        
+        // Filtrer les anonymisations valides (avec entité et remplacement)
+        const anonValides = tabAnonGlobal.filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim());
+        
+        // Variable pour stocker l'état d'édition
+        window.anonGenEditState = {};
+        
+        // === CRÉATION DES LIGNES SANS VÉRIFICATION ===
+        const lignes = [];
+        
+        for (const anon of anonValides) {
+            // Créer la ligne SANS états (vides pour l'instant)
+            const tr = creerLigneAnonGen(anon, [], [], tabEnt);
+            lignes.push(tr);
+        }
+        
+        // Créer le conteneur principal
+        const divAnonExistant = document.getElementById("divAnonGen");
+        if (divAnonExistant) divAnonExistant.remove();
+
+        const divAnonGen = document.createElement("div");
+        divAnonGen.id = "divAnonGen";
+        divAnonGen.classList.add("fondtabdat");
+        document.body.appendChild(divAnonGen);
+
+        // En-tête avec titre et boutons
+        const divEntete = document.createElement("div");
+        divEntete.style = "height:70px; border-bottom:1px solid #ccc; padding-top:10px";
+        divEntete.classList.add("header-tabdat");
+        divEntete.innerHTML = `
+            <h3 class="logo-anon" style="margin-left:10px; margin-top:0; margin-bottom:8px;">
+                Table d'Anonymisation - Pseudonymes
+            </h3>
+ 
+            <div style="float:right; margin-right:10px; margin-top:-48px; display: inline-flex; gap: 10px;">
+                <label id="btn-add-anon" class="btn btn-primary" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">
+                    ➕ Ajouter
+                </label>
+                <label id="btn-export-anon" class="btn btn-secondary" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;" onclick="exportAnonGen();" title="Exporter les anonymisations">
+                    Exporter 📥
+                </label>
+                <label id="btn-quit-anon" class="btn btn-secondary" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;" onclick="hideAnonGen();" title="Fermer la table">
+                    Quitter ✖️
+                </label>
+            </div>
+        `;
+        divAnonGen.appendChild(divEntete);
+
+        // Conteneur du tableau avec scroll
+        const fondTab = document.createElement("div");
+        fondTab.style.overflow = "auto";
+        fondTab.style.maxHeight = "calc(100vh - 120px)";
+        fondTab.style.paddingLeft = "10px";
+        fondTab.style.paddingBottom = "120px";
+        divAnonGen.appendChild(fondTab);
+
+        // Création de la table HTML
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const tbody = document.createElement("tbody");
+        table.appendChild(thead);
+        table.appendChild(tbody);
+        fondTab.appendChild(table);
+
+        // En-tête du tableau
+        const headerRow = document.createElement("tr");
+        
+        const thEntite = document.createElement("th");
+        thEntite.textContent = "Entité Originale";
+        thEntite.classList.add("header-col-ent");
+        headerRow.appendChild(thEntite);
+
+        const thRemplacement = document.createElement("th");
+        thRemplacement.textContent = "Pseudonyme / Remplacement";
+        thRemplacement.classList.add("header-col-var");
+        thRemplacement.style.minWidth = "200px";
+        headerRow.appendChild(thRemplacement);
+
+        const thEntretiens = document.createElement("th");
+        thEntretiens.textContent = "Entretiens";
+        thEntretiens.classList.add("header-col-var");
+        thEntretiens.style.minWidth = "400px";
+        thEntretiens.title = "Bleu/Vert = Anonymisé | Orange = Non-anonymisé (cliquable)";
+        headerRow.appendChild(thEntretiens);
+
+        const thActions = document.createElement("th");
+        thActions.textContent = "Actions";
+        thActions.classList.add("header-col-var");
+        thActions.style.minWidth = "120px";
+        headerRow.appendChild(thActions);
+
+        thead.appendChild(headerRow);
+
+        // === OPTIMISATION: Ajouter toutes les lignes d'un coup via DocumentFragment ===
+        const fragment = document.createDocumentFragment();
+        for (const tr of lignes) {
+            fragment.appendChild(tr);
+        }
+        tbody.appendChild(fragment);
+
+        // Ajouter styles CSS si nécessaire
+        ajouterStylesAnonGen();
+
+        // Ajouter listeners aux boutons d'action
+        document.querySelectorAll('.btn-apply-anon').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const entite = btn.dataset.entite;
+                const pseudoInput = document.querySelector(`.anon-pseudo-input[data-entite="${entite}"]`);
+                if (pseudoInput) {
+                    await appliquerAnonymisationGlobale(entite, pseudoInput.value);
+                }
+            });
+        });
+
+    } catch (error) {
+        console.error("Erreur dans affichAnonGen():", error);
+        if (typeof closeWaitDialog === 'function') {
+            closeWaitDialog();
+        }
+        dialog('Message', `Erreur lors de l'affichage de l'anonymisation: ${error.message}`);
+    }
+}
+
+/**
+ * Crée une ligne de tableau pour une anonymisation
+ * @param {Object} anon - Paire {entite, remplacement}
+ * @param {Array} entretiensNonAnonymisee - Entretiens non-anonymisés (peut être vide)
+ * @param {Array} entretiensAnonymisee - Entretiens anonymisés (peut être vide)
+ * @param {Array} tabEnt - Tableau des entretiens (pour le bouton Vérifier)
+ * @returns {HTMLTableRowElement}
+ */
+function creerLigneAnonGen(anon, entretiensNonAnonymisee, entretiensAnonymisee, tabEnt) {
+    const tr = document.createElement("tr");
+    tr.classList.add("ligne-anon-gen");
+    tr.dataset.entite = anon.entite;
+
+    // Colonne 1: Entité
+    const tdEntite = document.createElement("td");
+    tdEntite.textContent = anon.entite;
+    tdEntite.style.fontStyle = "italic";
+    tdEntite.style.color = "#666";
+    tr.appendChild(tdEntite);
+
+    // Colonne 2: Remplacement (ÉDITABLE)
+    const tdRemplacement = document.createElement("td");
+    tdRemplacement.innerHTML = `
+        <input type="text" 
+               class="anon-pseudo-input" 
+               data-entite="${anon.entite}" 
+               value="${anon.remplacement}"
+               placeholder="Pseudonyme"
+               style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+    `;
+    tr.appendChild(tdRemplacement);
+
+    // Colonne 3: Entretiens
+    const tdEntretiens = document.createElement("td");
+    tdEntretiens.style.minWidth = "400px";
+    tdEntretiens.style.paddingTop = "8px";
+    tdEntretiens.style.paddingBottom = "8px";
+    
+    if (entretiensNonAnonymisee.length > 0 || entretiensAnonymisee.length > 0) {
+        const listeEntretiens = document.createElement("div");
+        listeEntretiens.style.display = "flex";
+        listeEntretiens.style.flexWrap = "wrap";
+        listeEntretiens.style.gap = "5px";
+
+        // Ajouter les entretiens anonymisés (bleu)
+        for (const ent of entretiensAnonymisee) {
+            const badge = creerBadgeAnonGen(ent, anon, 'anonymise');
+            listeEntretiens.appendChild(badge);
+        }
+
+        // Ajouter les entretiens non-anonymisés (orange)
+        for (const ent of entretiensNonAnonymisee) {
+            const badge = creerBadgeAnonGen(ent, anon, 'non-anonymise');
+            listeEntretiens.appendChild(badge);
+        }
+
+        tdEntretiens.appendChild(listeEntretiens);
+    } else {
+        tdEntretiens.textContent = "—";
+        tdEntretiens.style.color = "#999";
+    }
+    tr.appendChild(tdEntretiens);
+
+    // Colonne 4: Actions
+    const tdActions = document.createElement("td");
+    tdActions.style.minWidth = "120px";
+    tdActions.style.textAlign = "center";
+    tdActions.style.paddingTop = "8px";
+    tdActions.style.paddingBottom = "8px";
+    
+    // Bouton Vérifier pour cette entité
+    const btnVerifier = document.createElement("button");
+    btnVerifier.textContent = "";
+    btnVerifier.style.height="33px";
+    btnVerifier.style.width="33px";
+    btnVerifier.style.padding = "5px"
+    btnVerifier.classList.add("btn",  "logo-search")
+    btnVerifier.style.transition = "all 0.2s";
+    btnVerifier.title = `Vérifier la présence de "${anon.entite}" dans les entretiens`;
+    
+    btnVerifier.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await verifierEtAfficherEtatEntite(anon.entite, anon.remplacement, tabEnt);
+    });
+
+    // Bouton Supprimer la règle
+    const btnSupprimer = document.createElement("button");
+    btnSupprimer.textContent = "✖";
+    btnSupprimer.style.height = "33px";
+    btnSupprimer.style.width = "33px";
+    btnSupprimer.style.padding = "5px";
+    btnSupprimer.style.marginLeft = "6px";
+    btnSupprimer.classList.add("btn", "btn-danger");
+    btnSupprimer.title = `Supprimer la règle "${anon.entite}" → "${anon.remplacement}"`;
+
+    btnSupprimer.addEventListener("click", async (e) => {
+        e.preventDefault();
+        await supprimerRegleAnonGen(anon.entite, anon.remplacement, tr);
+    });
+
+    tdActions.appendChild(btnVerifier);
+    tdActions.appendChild(btnSupprimer);
+    tr.appendChild(tdActions);
+
+    return tr;
+}
+
+/**
+ * Vérifie l'état d'anonymisation d'une paire entité/pseudo dans un entretien
+ * OPTIMISÉ: Pré-filtrage texte brut + extraction textContent minimal
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {string} entite - Entité originale à chercher
+ * @param {string} pseudo - Pseudonyme/remplacement
+ * @returns {Promise<string>} 'anonymisee', 'non-anonymisee', ou null
+ */
+async function verifierEtatAnonymisation(indexEnt, entite, pseudo) {
+    try {
+        const htmlContent = await window.electronAPI.getHtml(indexEnt);
+        
+        if (!htmlContent) {
+            return null;
+        }
+
+        // === VÉRIFICATION ANONYMISÉE ===
+        // L'entité est déjà pseudonymisée dans cet entretien si data-pseudo correspond
+        // au pseudo attendu (insensible à la casse).
+        const regexDataPseudo = new RegExp(`data-pseudo="${escapeRegex(pseudo)}"`, 'i');
+        if (regexDataPseudo.test(htmlContent)) {
+            return 'anonymisee';
+        }
+
+        // === VÉRIFICATION NON-ANONYMISÉE — approche HTML brut ===
+        //
+        // Problème : une recherche naïve de l'entité dans le HTML brut produit des faux
+        // positifs dès qu'un autre mot est déjà pseudonymisé SOUS le même nom.
+        // Exemple : jacqueline → data-pseudo="marie" ; l'attribut data-pseudo contient
+        // "marie" mais le textContent du span est "jacqueline".
+        //
+        // Solution : on nettoie la chaîne HTML en plusieurs passes AVANT de chercher
+        // l'entité, afin de supprimer toute occurrence provenant des zones pseudonymisées.
+        //
+        // Passe 1 — Supprimer les spans avec data-pseudo (debsel/finsel pseudonymisés).
+        //   Leur textContent est le mot ORIGINAL (ex : "jacqueline"), leur attribut
+        //   data-pseudo contient le pseudo (ex : "marie"). Les deux disparaissent.
+        //
+        // Passe 2 — Supprimer les spans class "anon" sans data-pseudo (mots intermédiaires
+        //   d'entités multi-mots : ex "jean [marie] dupont" — seul "marie" central n'a pas
+        //   data-pseudo mais a class="anon").
+        //
+        // Passe 3 — Supprimer TOUS les tags HTML restants (et donc leurs attributs :
+        //   data-nomloc="Marie", class="...", etc. qui ne sont PAS du texte transcrit).
+        //   Seul le texte transcrit non pseudonymisé subsiste.
+
+        const plainText = htmlContent
+            // Passe 1 : spans portant data-pseudo — textContent = mot original, attribut = pseudo
+            .replace(/<span\b[^>]*data-pseudo\s*=[^>]*>[^<]*<\/span>/gi, ' ')
+            // Passe 2 : spans portant class anon/anon-exception sans data-pseudo
+            .replace(/<span\b[^>]*class="[^"]*\banon\b[^"]*"[^>]*>[^<]*<\/span>/gi, ' ')
+            // Passe 3 : suppression de tous les tags restants (attributs inclus)
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\s+/g, ' ');
+
+        // Vérification précise avec frontières de mots français
+        // (\b ne fonctionne pas avec les caractères accentués — é, è, à, ç…)
+        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
+        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'i');
+
+        // Pré-filtrage rapide sur la chaîne épurée
+        // NOTE: la Passe 2 a aussi supprimé les spans anon-exception, donc si l'entité
+        // n'est PAS dans plainText, elle peut quand même être présente en exception DOM.
+        if (plainText.toLowerCase().includes(entite.toLowerCase()) && regexEntite.test(plainText)) {
+            return 'non-anonymisee';
+        }
+
+        // === VÉRIFICATION EXCLUE ===
+        // L'entité est présente mais marquée anon-exception (explicitement exclue).
+        // Cette vérification se fait TOUJOURS via le DOM (le plainText ayant supprimé
+        // le contenu des spans anon-exception en Passe 2).
+        const tempDivExc = document.createElement('div');
+        tempDivExc.innerHTML = htmlContent;
+        const excSpans = tempDivExc.querySelectorAll('.anon-exception');
+        const regexEntiteExc = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'i');
+        for (const span of excSpans) {
+            if (regexEntiteExc.test(span.textContent)) {
+                return 'exclue';
+            }
+        }
+        
+        return null;
+
+    } catch (error) {
+        console.error("Erreur dans verifierEtatAnonymisation():", error);
+        return null;
+    }
+}
+
+/**
+ * Vérifie si un pseudo/remplacement est présent dans un entretien
+ * OPTIMISÉ: Test rapide d'abord, puis vérification DOM si nécessaire
+ * @param {number} indexEnt - Index de l'entretien dans tabEnt
+ * @param {string} pseudo - Pseudo à chercher
+ * @returns {Promise<boolean>}
+ */
+async function verifierPresencePseudoEnEnt(indexEnt, pseudo) {
+    try {
+        // Récupérer le contenu HTML de l'entretien
+        const htmlContent = await window.electronAPI.getHtml(indexEnt);
+        
+        if (!htmlContent) {
+            return false;
+        }
+
+        // OPTIMISATION: Pré-filtrage rapide sur HTML brut
+        const lowerHtml = htmlContent.toLowerCase();
+        const lowerPseudo = pseudo.toLowerCase();
+        
+        if (!lowerHtml.includes(lowerPseudo)) {
+            return false;
+        }
+
+        // Créer un DOM temporaire pour une vérification fiable
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        
+        // Récupérer tous les spans avec data-rk
+        const tousLesSpans = Array.from(tempDiv.querySelectorAll('[data-rk]'));
+        
+        const regexPseudo = new RegExp(`\\b${escapeRegex(pseudo)}\\b`, 'i');
+        
+        // Vérifier si le pseudo est présent dans n'importe quel span
+        for (const span of tousLesSpans) {
+            const spanText = span.textContent;
+            if (regexPseudo.test(spanText)) {
+                return true;
+            }
+        }
+        
+        return false;
+
+    } catch (error) {
+        console.error("Erreur dans verifierPresencePseudoEnEnt():", error);
+        return false;
+    }
+}
+
+/**
+ * Échappe les caractères spéciaux pour la regex
+ */
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Tokenize une chaîne exactement comme la segmentation le fait
+ * Pour matcher l'ordre des spans dans le DOM
+ */
+function tokenizeCommeSegmentation(texte) {
+    return texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
+}
+
+/**
+ * Pseudonymise un entretien spécifique en éclatant les spans de phrase pour isoler l'entité.
+ * Approche DOM : les entretiens compressés ont un span par phrase ; chaque span contenant
+ * l'entité est découpé en sous-spans :
+ *   - texte avant  → span neutre (attributs préservés, classes anon retirées)
+ *   - mots de l'entité → un span par mot : class="anon", debsel sur le 1er,
+ *                        finsel sur le dernier, data-pseudo sur les deux
+ *   - texte après  → span neutre
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {string} entite - Entité originale
+ * @param {string} pseudo - Pseudonyme/remplacement
+ */
+async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo) {
+    
+    console.log(`Pseudonymisation dans l'entretien index ${indexEnt} pour l'entité "${entite}" avec le pseudo "${pseudo}"`);
+    
+    try {
+        if (!pseudo || pseudo.trim().length === 0) {
+            dialog('Message', 'Pseudonyme invalide.');
+            return;
+        }
+
+        // Récupérer l'HTML de l'entretien
+        let htmlContent = await window.electronAPI.getHtml(indexEnt);
+        htmlContent = htmlContent.replace(/`/g, '');
+        
+        if (!htmlContent) {
+            dialog('Message', 'Impossible de récupérer le contenu de l\'entretien.');
+            return;
+        }
+
+        // === APPROCHE DOM : éclater les spans pour isoler l'entité ===
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // Trouver le data-rk maximum pour générer de nouvelles valeurs uniques
+        let maxRk = -1;
+        tempDiv.querySelectorAll('[data-rk]').forEach(span => {
+            const rk = parseInt(span.dataset.rk);
+            if (!isNaN(rk) && rk > maxRk) maxRk = rk;
+        });
+        let nextRk = maxRk + 1;
+
+        // Regex pour l'entité (insensible à la casse, mots entiers)
+        // Note: \b ne fonctionne pas avec les caractères accentués français (é, è, à, ç…)
+        // On utilise des lookahead/lookbehind négatifs couvrant l'alphabet français complet
+        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
+        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite.trim())}(?!${FR})`, 'gi');
+
+        let nbRemplacements = 0;
+
+        // Snapshot avant modification pour éviter les conflits d'itération
+        const allSpans = Array.from(tempDiv.querySelectorAll('[data-rk]'));
+
+        for (const span of allSpans) {
+            // Ignorer les spans déjà marqués debsel avec ce pseudo
+            if (span.classList.contains('debsel') && span.dataset.pseudo === pseudo) {
+                continue;
+            }
+
+            const texteSpan = span.textContent;
+
+            // Test rapide : l'entité est-elle présente dans ce span ?
+            regexEntite.lastIndex = 0;
+            if (!regexEntite.test(texteSpan)) {
+                continue;
+            }
+
+            // Collecter les fragments : [texte, entité, texte, entité, ...]
+            const fragments = [];
+            let lastIndex = 0;
+            let match;
+            regexEntite.lastIndex = 0;
+
+            while ((match = regexEntite.exec(texteSpan)) !== null) {
+                if (match.index > lastIndex) {
+                    fragments.push({ type: 'text', content: texteSpan.substring(lastIndex, match.index) });
+                }
+                fragments.push({ type: 'entity', content: match[0] });
+                lastIndex = match.index + match[0].length;
+            }
+            if (lastIndex < texteSpan.length) {
+                fragments.push({ type: 'text', content: texteSpan.substring(lastIndex) });
+            }
+
+            if (!fragments.some(f => f.type === 'entity')) continue;
+
+            // Utilitaire : span neutre (texte hors entité) héritant des attributs du span d'origine
+            const creerSpanContexte = (texte) => {
+                const s = document.createElement('span');
+                Array.from(span.attributes).forEach(attr => {
+                    if (attr.name !== 'data-pseudo') s.setAttribute(attr.name, attr.value);
+                });
+                s.dataset.rk = nextRk++;
+                s.textContent = texte;
+                ['anon', 'anon-exception'].forEach(c => s.classList.remove(c));
+                delete s.dataset.pseudo;
+                return s;
+            };
+
+            // Construire les nouveaux éléments DOM
+            const newElements = [];
+
+            for (const fragment of fragments) {
+                if (fragment.type === 'text') {
+                    if (fragment.content.length > 0) {
+                        newElements.push(creerSpanContexte(fragment.content));
+                    }
+                } else {
+                    // Entité (éventuellement multi-mots) : un span par mot
+                    const allTokens = fragment.content.split(/(\s+)/);
+                    const wordTokens = allTokens.filter(t => t.trim() !== '');
+                    const totalWords = wordTokens.length;
+                    let wordIdx = 0;
+
+                    for (const token of allTokens) {
+                        if (token.trim() === '') {
+                            // Espace inter-mots → span neutre
+                            if (token.length > 0) newElements.push(creerSpanContexte(token));
+                        } else {
+                            // Mot de l'entité → span avec classes anon
+                            const wordSpan = document.createElement('span');
+                            Array.from(span.attributes).forEach(attr => {
+                                if (attr.name !== 'data-pseudo') wordSpan.setAttribute(attr.name, attr.value);
+                            });
+                            wordSpan.dataset.rk = nextRk++;
+                            wordSpan.textContent = token;
+
+                            // Réinitialiser les classes anon héritées, puis appliquer
+                            ['anon', 'anon-exception', 'debsel', 'finsel'].forEach(c => wordSpan.classList.remove(c));
+                            delete wordSpan.dataset.pseudo;
+                            wordSpan.classList.add('anon');
+
+                            if (wordIdx === 0) {
+                                // Premier mot : debsel + data-pseudo
+                                wordSpan.classList.add('debsel');
+                                wordSpan.dataset.pseudo = pseudo;
+                            }
+                            if (wordIdx === totalWords - 1) {
+                                // Dernier mot : finsel + data-pseudo
+                                wordSpan.classList.add('finsel');
+                                wordSpan.dataset.pseudo = pseudo;
+                            }
+
+                            wordIdx++;
+                            newElements.push(wordSpan);
+                        }
+                    }
+
+                    nbRemplacements++;
+                    console.log(`  → "${fragment.content}" isolé en ${wordTokens.length} span(s) [pseudo="${pseudo}"]`);
+                }
+            }
+
+            // Remplacer le span d'origine par les nouveaux éléments
+            const parent = span.parentNode;
+            if (parent) {
+                const nextSibling = span.nextSibling;
+                parent.removeChild(span);
+                newElements.forEach(el => parent.insertBefore(el, nextSibling));
+            }
+        }
+
+        if (nbRemplacements === 0) {
+            dialog('Message', `L'entité "${entite}" n'a pas été trouvée dans cet entretien.`);
+            return;
+        }
+
+        const finalHtmlContent = tempDiv.innerHTML;
+        console.log(`✅ ${nbRemplacements} occurrence(s) traitée(s)`);
+
+        // Sauvegarder l'HTML modifié
+        await window.electronAPI.setHtml(indexEnt, finalHtmlContent);
+
+        // Réécriture du fichier .sonal avec le nouveau HTML
+        try {
+            if (typeof window.majFichierSonal === 'function') {
+                console.log(`Appel de majFichierSonal(${indexEnt}, ${indexEnt + 1})`);
+                await window.majFichierSonal(indexEnt, indexEnt + 1);
+                console.log(`Fichier Sonal réécrit pour l'entretien ${indexEnt}`);
+            } else {
+                console.warn('Fonction majFichierSonal non disponible');
+            }
+        } catch (errMaj) {
+            console.error('Erreur lors de majFichierSonal:', errMaj);
+            dialog('Message', `HTML mis à jour mais erreur lors de la réécriture du fichier Sonal: ${errMaj.message}`);
+        }
+
+        // Récupérer le nom de l'entretien
+        const tabEnt = await window.electronAPI.getEnt();
+        const entName = tabEnt[indexEnt] ? tabEnt[indexEnt].nom : `Entretien ${indexEnt}`;
+
+        dialog('Message', `Pseudonyme "${pseudo}" enregistré dans "${entName}" (${nbRemplacements} occurrence(s)).\n\nNote: Les changements ont été sauvegardés.`);
+
+        // Mettre à jour juste le badge au lieu de recharger tout (plus rapide)
+        mettreAJourBadgeApresAnonymisation(indexEnt, entite, pseudo);
+
+    } catch (error) {
+        console.error("Erreur dans pseudonymiserEntretienSpecifique():", error);
+        dialog('Message', `Erreur: ${error.message}`);
+    }
+}
+
+/**
+ * Met à jour juste le badge d'un entretien après anonymisation (évite un rechargement complet)
+ * Transforme le badge de orange (non-anonymisé) à bleu (anonymisé)
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {string} entite - Entité anonymisée
+ * @param {string} pseudo - Pseudonyme appliqué
+ */
+function mettreAJourBadgeApresAnonymisation(indexEnt, entite, pseudo) {
+    const divAnonGen = document.getElementById("divAnonGen");
+    if (!divAnonGen) return;
+
+    // Chercher le badge orange correspondant
+    let badgeTrouve = null;
+    const allBadges = divAnonGen.querySelectorAll('span[data-index-ent]');
+    
+    for (const badge of allBadges) {
+        if (badge.dataset.indexEnt == indexEnt && 
+            badge.dataset.entite === entite && 
+            badge.dataset.pseudo === pseudo) {
+            badgeTrouve = badge;
+            break;
+        }
+    }
+    
+    if (!badgeTrouve) return;
+
+    console.log(`Mise à jour du badge pour "${entite}" → "${pseudo}" dans entretien ${indexEnt}`);
+    
+    // Cloner le badge pour supprimer les anciens event listeners
+    const newBadge = badgeTrouve.cloneNode(true);
+    
+    // Transformer de orange (non-anonymisé) à bleu (anonymisé)
+    newBadge.style.backgroundColor = "#64B5F6";
+    newBadge.style.borderColor = "#42A5F5";
+    newBadge.style.border = "1px solid #42A5F5";
+    newBadge.style.cursor = "pointer";
+    newBadge.style.padding = "4px 8px";
+    newBadge.style.fontWeight = "600";
+    newBadge.style.borderRadius = "4px";
+    newBadge.style.fontSize = "0.9em";
+    newBadge.style.transition = "all 0.2s";
+    newBadge.title = "Déjà anonymisé - Clic pour voir";
+    
+    // Retirer les attributs de data (pas nécessaires pour les anonymisés)
+    delete newBadge.dataset.entite;
+    delete newBadge.dataset.pseudo;
+    delete newBadge.dataset.indexEnt;
+    
+    // Ajouter nouvel event listener pour voir l'entretien
+    newBadge.addEventListener("click", () => {
+        hideAnonGen();
+        afficherDetailsEnt(indexEnt);
+    });
+
+    // Hover effects pour le badge bleu
+    newBadge.addEventListener("mouseover", () => {
+        newBadge.style.backgroundColor = "#42A5F5";
+        newBadge.style.borderColor = "#1565c0";
+        newBadge.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+    });
+
+    newBadge.addEventListener("mouseout", () => {
+        newBadge.style.backgroundColor = "#64B5F6";
+        newBadge.style.borderColor = "#42A5F5";
+        newBadge.style.boxShadow = "none";
+    });
+    
+    // Remplacer le badge dans le DOM
+    badgeTrouve.parentNode.replaceChild(newBadge, badgeTrouve);
+    console.log(`✅ Badge mis à jour (transformation orange → bleu)`);
+}
+
+/**
+ * Applique l'anonymisation globalement à tous les entretiens
+ * @param {string} entite - Entité originale
+ * @param {string} pseudo - Pseudonyme/remplacement à appliquer
+ */
+async function appliquerAnonymisationGlobale(entite, pseudo) {
+    try {
+        if (!pseudo || pseudo.trim().length === 0) {
+            dialog('Message', 'Veuillez entrer un pseudonyme valide.');
+            return;
+        }
+
+        // Mettre à jour le tabAnon global
+        let tabAnon = await window.electronAPI.getAnon();
+        let found = false;
+        
+        for (const anon of tabAnon) {
+            if (anon.entite && anon.entite.trim() === entite.trim()) {
+                anon.remplacement = pseudo;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            // Ajouter une nouvelle entrée si elle n'existe pas
+            tabAnon.push({
+                entite: entite,
+                remplacement: pseudo,
+                occurrences: 0,
+                indexCourant: 0,
+                matchPositions: []
+            });
+        }
+
+        // Sauvegarder les changements
+        await window.electronAPI.setAnon(tabAnon);
+        
+        dialog('Message', `Pseudonyme "${pseudo}" appliqué globalement.\n\nNote: Vous devez relancer l'anonymisation depuis le module d'anonymisation pour appliquer les changements à tous les entretiens.`);
+        
+        // Rafraîchir l'affichage
+        affichAnonGen();
+
+    } catch (error) {
+        console.error("Erreur dans appliquerAnonymisationGlobale():", error);
+        dialog('Message', `Erreur: ${error.message}`);
+    }
+}
+
+/**
+ * Ouvre un entretien depuis le tableau d'anonymisation
+ */
+async function ouvrirEntretienAnonGen(indexEnt) {
+    try {
+        hideAnonGen();
+        
+        // Appeler la fonction d'affichage existante avec l'index de l'entretien
+        afficherDetailsEnt(indexEnt);
+        
+    } catch (error) {
+        console.error("Erreur:", error);
+        dialog('Message', `Erreur: ${error.message}`);
+    }
+}
+
+/**
+ * Masque la table d'anonymisation
+ */
+function hideAnonGen() {
+    const div = document.getElementById("divAnonGen");
+    if (div) {
+        div.remove();
+    }
+}
+
+/**
+ * Ajoute une nouvelle entité/pseudo au tableau d'anonymisation globale
+ * Ouvre une modale pour saisir l'entité et le pseudo, puis met à jour le tableau
+ */
+async function ajouterNouvelleEntiteAnonGen() {
+    try {
+        // Créer la modale
+        afficherModaleAjoutEntiteAnon();
+    } catch (error) {
+        console.error("Erreur dans ajouterNouvelleEntiteAnonGen():", error);
+        dialog('Message', `Erreur: ${error.message}`);
+    }
+}
+
+/**
+ * Affiche une modale pour ajouter une nouvelle entité d'anonymisation
+ */
+function afficherModaleAjoutEntiteAnon() {
+    // Vérifier si une modale existe déjà
+    let modaleExistante = document.getElementById("modaleAjoutAnon");
+    if (modaleExistante) modaleExistante.remove();
+
+    // Créer le fond semi-transparent
+    const overlay = document.createElement("div");
+    overlay.id = "modaleAjoutAnon";
+    overlay.style.position = "fixed";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+    overlay.style.display = "flex";
+    overlay.style.justifyContent = "center";
+    overlay.style.alignItems = "center";
+    overlay.style.zIndex = "10000";
+
+    // Créer la boîte de dialogue
+    const modale = document.createElement("div");
+    modale.style.backgroundColor = "white";
+    modale.style.borderRadius = "8px";
+    modale.style.padding = "30px";
+    modale.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.3)";
+    modale.style.width = "400px";
+    modale.style.fontFamily = "sans-serif";
+    modale.style.zIndex = "10001";
+
+    // Titre
+    const titre = document.createElement("h3");
+    titre.textContent = "Ajouter une nouvelle entité";
+    titre.style.marginTop = "0";
+    titre.style.marginBottom = "20px";
+    titre.style.color = "#333";
+    modale.appendChild(titre);
+
+    // Champ Entité
+    const labelEntite = document.createElement("label");
+    labelEntite.textContent = "Entité originale :";
+    labelEntite.style.display = "block";
+    labelEntite.style.marginBottom = "8px";
+    labelEntite.style.fontWeight = "bold";
+    labelEntite.style.color = "#555";
+    modale.appendChild(labelEntite);
+
+    const inputEntite = document.createElement("input");
+    inputEntite.id = "inputEntiteAnon";
+    inputEntite.type = "text";
+    inputEntite.placeholder = "Ex: Marie";
+    inputEntite.style.width = "100%";
+    inputEntite.style.padding = "10px";
+    inputEntite.style.marginBottom = "15px";
+    inputEntite.style.border = "1px solid #ccc";
+    inputEntite.style.borderRadius = "4px";
+    inputEntite.style.boxSizing = "border-box";
+    inputEntite.style.fontSize = "14px";
+    modale.appendChild(inputEntite);
+
+    // Champ Pseudonyme
+    const labelPseudo = document.createElement("label");
+    labelPseudo.textContent = "Pseudonyme :";
+    labelPseudo.style.display = "block";
+    labelPseudo.style.marginBottom = "8px";
+    labelPseudo.style.fontWeight = "bold";
+    labelPseudo.style.color = "#555";
+    modale.appendChild(labelPseudo);
+
+    const inputPseudo = document.createElement("input");
+    inputPseudo.id = "inputPseudoAnon";
+    inputPseudo.type = "text";
+    inputPseudo.placeholder = "Ex: P1";
+    inputPseudo.style.width = "100%";
+    inputPseudo.style.padding = "10px";
+    inputPseudo.style.marginBottom = "25px";
+    inputPseudo.style.border = "1px solid #ccc";
+    inputPseudo.style.borderRadius = "4px";
+    inputPseudo.style.boxSizing = "border-box";
+    inputPseudo.style.fontSize = "14px";
+    modale.appendChild(inputPseudo);
+
+    // Conteneur des boutons
+    const conteneurBoutons = document.createElement("div");
+    conteneurBoutons.style.display = "flex";
+    conteneurBoutons.style.justifyContent = "flex-end";
+    conteneurBoutons.style.gap = "10px";
+
+    // Bouton Annuler
+    const btnAnnuler = document.createElement("button");
+    btnAnnuler.textContent = "Annuler";
+    btnAnnuler.classList.add("btn", "btnfonction");
+    
+    btnAnnuler.style.padding = "10px 20px";
+    btnAnnuler.style.backgroundColor = "#ccc";
+    btnAnnuler.style.border = "1px solid #999";
+    btnAnnuler.style.borderRadius = "4px";
+    btnAnnuler.style.cursor = "pointer";
+    btnAnnuler.style.fontSize = "14px";
+    btnAnnuler.addEventListener("click", () => overlay.remove());
+    conteneurBoutons.appendChild(btnAnnuler);
+
+    // Bouton OK
+    const btnOK = document.createElement("button");
+    btnOK.textContent = "Ajouter";
+    btnOK.style.padding = "10px 20px";
+    btnOK.style.backgroundColor = "#4CAF50";
+    btnOK.style.color = "white";
+    btnOK.style.border = "none";
+    btnOK.style.borderRadius = "4px";
+    btnOK.style.cursor = "pointer";
+    btnOK.style.fontSize = "14px";
+    btnOK.style.fontWeight = "bold";
+    btnOK.addEventListener("click", async () => {
+        const entite = inputEntite.value.trim();
+        const pseudo = inputPseudo.value.trim();
+
+        if (!entite) {
+            alert("Veuillez entrer l'entité originale.");
+            inputEntite.focus();
+            return;
+        }
+
+        if (!pseudo) {
+            alert("Veuillez entrer le pseudonyme.");
+            inputPseudo.focus();
+            return;
+        }
+
+        // Vérifier si cette combinaison existe déjà
+        const tabAnonGlobal = await window.electronAPI.getAnon();
+        const existe = tabAnonGlobal.some(a => 
+            a.entite && a.entite.trim() === entite && 
+            a.remplacement && a.remplacement.trim() === pseudo
+        );
+
+        if (existe) {
+            alert(`La combinaison "${entite}" → "${pseudo}" existe déjà.`);
+            return;
+        }
+
+        // Ajouter la nouvelle entité
+        const nouvelleEntite = {
+            entite: entite,
+            remplacement: pseudo,
+            occurrences: 0,
+            indexCourant: 0,
+            matchPositions: []
+        };
+
+        tabAnonGlobal.push(nouvelleEntite);
+        await window.electronAPI.setAnon(tabAnonGlobal);
+
+        // Fermer la modale
+        overlay.remove();
+
+        // Ajouter une nouvelle ligne au tableau
+        ajouterLigneAuTableauAnonGen(nouvelleEntite);
+
+        //dialog('Message', `Entité "${entite}" → "${pseudo}" ajoutée avec succès.`);
+    });
+    conteneurBoutons.appendChild(btnOK);
+
+    modale.appendChild(conteneurBoutons);
+    overlay.appendChild(modale);
+    document.body.appendChild(overlay);
+
+    // Focus sur le premier champ
+    inputEntite.focus();
+
+    // Permettre Enter pour soumettre
+    inputPseudo.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            btnOK.click();
+        }
+    });
+
+    inputEntite.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            inputPseudo.focus();
+        }
+    });
+}
+
+/**
+ * Ajoute une nouvelle ligne au tableau d'anonymisation sans recharger complètement
+ * @param {Object} anon - Objet contenant {entite, remplacement}
+ */
+async function ajouterLigneAuTableauAnonGen(anon) {
+    const divAnonGen = document.getElementById("divAnonGen");
+    if (!divAnonGen) return;
+
+    const tbody = divAnonGen.querySelector("table tbody");
+    if (!tbody) return;
+
+    const tabEnt = await window.electronAPI.getEnt();
+
+    // Utiliser creerLigneAnonGen pour garantir un affichage identique aux lignes existantes
+    const tr = creerLigneAnonGen(anon, [], [], tabEnt);
+
+    // Insérer à la bonne position alphabétique
+    const lignes = Array.from(tbody.querySelectorAll("tr[data-entite]"));
+    const ligneApres = lignes.find(l => l.dataset.entite.localeCompare(anon.entite) > 0);
+    if (ligneApres) {
+        tbody.insertBefore(tr, ligneApres);
+    } else {
+        tbody.appendChild(tr);
+    }
+
+    // Scroller jusqu'à la nouvelle ligne puis la mettre en évidence
+    tr.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => {
+        tr.classList.add("ligent-flash");
+        setTimeout(() => tr.classList.remove("ligent-flash"), 3000);
+    }, 400);
+
+    console.log(`✅ Nouvelle ligne ajoutée au tableau pour "${anon.entite}" → "${anon.remplacement}"`);
+}
+
+/**
+ * Supprime une règle d'anonymisation du tabAnon global, retire le pseudo de tout le corpus
+ * et retire la ligne du tableau
+ * @param {string} entite - Entité à supprimer
+ * @param {string} pseudo - Pseudonyme associé
+ * @param {HTMLTableRowElement} tr - Ligne du tableau à retirer
+ */
+async function supprimerRegleAnonGen(entite, pseudo, tr) {
+    const reponse = await question(
+        `Supprimer la règle "${entite}" → "${pseudo}" ?\nLe pseudonyme sera retiré de tous les entretiens du corpus.`,
+        ["Supprimer", "Annuler"]
+    );
+    if (reponse !== "supprimer") return;
+
+    const tabEnt = await window.electronAPI.getEnt();
+    let nbEntretiensModifies = 0;
+
+    // Retirer le pseudo de chaque entretien du corpus
+    for (let i = 0; i < tabEnt.length; i++) {
+        const modifie = await retirerPseudoDeEntretien(i, pseudo, entite);
+        if (modifie) nbEntretiensModifies++;
+
+        // Nettoyer le tabAnon local de cet entretien
+        if (tabEnt[i].tabAnon && tabEnt[i].tabAnon.length > 0) {
+            tabEnt[i].tabAnon = tabEnt[i].tabAnon.filter(
+                a => !(a.entite === entite && a.remplacement === pseudo)
+            );
+        }
+    }
+
+    // Sauvegarder les entretiens mis à jour (tabAnon locaux nettoyés)
+    await window.electronAPI.setEnt(tabEnt);
+
+    // Retirer du tabAnon global
+    let tabAnon = await window.electronAPI.getAnon();
+    tabAnon = tabAnon.filter(a => !(a.entite === entite && a.remplacement === pseudo));
+    await window.electronAPI.setAnon(tabAnon);
+
+    // Retirer la ligne du tableau avec animation
+    tr.style.transition = "opacity 0.3s";
+    tr.style.opacity = "0";
+    setTimeout(() => tr.remove(), 300);
+
+    const msg = nbEntretiensModifies > 0
+        ? `Règle "${entite}" → "${pseudo}" supprimée.\n${nbEntretiensModifies} entretien(s) nettoyé(s).`
+        : `Règle "${entite}" → "${pseudo}" supprimée.`;
+    dialog('Message', msg);
+}
+
+/**
+ * Retire toutes les occurrences d'un pseudo dans un entretien
+ * Variante sans filtre par spanId — retire TOUTES les occurrences du pseudo
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {string} pseudo - Pseudonyme à retirer
+ * @param {string} entite - Entité correspondante (pour les logs)
+ * @returns {Promise<boolean>} true si au moins une occurrence retirée
+ */
+async function retirerPseudoDeEntretien(indexEnt, pseudo, entite) {
+    try {
+        let htmlContent = await window.electronAPI.getHtml(indexEnt);
+        if (!htmlContent) return false;
+        htmlContent = htmlContent.replace(/`/g, '');
+
+        // Vérification rapide : le pseudo est-il présent ?
+        if (!htmlContent.includes(`data-pseudo="${pseudo}"`)) return false;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        const debselSpans = Array.from(tempDiv.querySelectorAll(`[data-pseudo="${pseudo}"].debsel`));
+        if (debselSpans.length === 0) return false;
+
+        let nbRetraits = 0;
+
+        for (const debselSpan of debselSpans) {
+            // Trouver le finsel correspondant
+            let finselSpan = debselSpan;
+            if (!debselSpan.classList.contains('finsel')) {
+                let sib = debselSpan.nextSibling;
+                while (sib) {
+                    if (sib.nodeType === Node.ELEMENT_NODE
+                        && sib.dataset && sib.dataset.pseudo === pseudo
+                        && sib.classList.contains('finsel')) {
+                        finselSpan = sib;
+                        break;
+                    }
+                    if (sib.nodeType === Node.ELEMENT_NODE && !sib.classList.contains('anon')) break;
+                    sib = sib.nextSibling;
+                }
+            }
+
+            // Reconstituer le texte original (fusion debsel → finsel)
+            let texteOriginal = '';
+            let cur = debselSpan;
+            while (cur) {
+                texteOriginal += cur.textContent || '';
+                if (cur === finselSpan) break;
+                cur = cur.nextSibling;
+            }
+
+            // Créer un span neutre avec le texte original
+            const spanContexte = document.createElement('span');
+            Array.from(debselSpan.attributes).forEach(attr => {
+                if (attr.name !== 'data-pseudo' && attr.name !== 'data-rk') {
+                    spanContexte.setAttribute(attr.name, attr.value);
+                }
+            });
+            spanContexte.dataset.rk = debselSpan.dataset.rk;
+            spanContexte.textContent = texteOriginal;
+            ['anon', 'debsel', 'finsel'].forEach(c => spanContexte.classList.remove(c));
+            delete spanContexte.dataset.pseudo;
+
+            // Remplacer debsel→finsel par le span neutre
+            const parent = debselSpan.parentNode;
+            if (parent) {
+                const insertionPoint = finselSpan.nextSibling;
+                let toDelete = debselSpan;
+                while (toDelete && parent.contains(toDelete)) {
+                    const next = toDelete.nextSibling;
+                    if (toDelete.nodeType === Node.ELEMENT_NODE) parent.removeChild(toDelete);
+                    if (toDelete === finselSpan) break;
+                    toDelete = next;
+                }
+                parent.insertBefore(spanContexte, insertionPoint);
+                nbRetraits++;
+            }
+        }
+
+        if (nbRetraits === 0) return false;
+
+        await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
+
+        if (typeof window.majFichierSonal === 'function') {
+            await window.majFichierSonal(indexEnt, indexEnt + 1);
+        }
+
+        console.log(`  ✓ Entretien ${indexEnt} : ${nbRetraits} occurrence(s) de "${pseudo}" retirée(s)`);
+        return true;
+
+    } catch (error) {
+        console.error(`Erreur retirerPseudoDeEntretien(${indexEnt}):`, error);
+        return false;
+    }
+}
+
+/**
+ * Exporte la table d'anonymisation
+ */
+async function exportAnonGen() {
+    try {
+        const tabAnonGlobal = await window.electronAPI.getAnon();
+        const tabEnt = await window.electronAPI.getEnt();
+        
+        if (!tabAnonGlobal || tabAnonGlobal.length === 0) {
+            dialog('Message', 'Aucune anonymisation à exporter.');
+            return;
+        }
+
+        // Créer un fichier CSV
+        let csv = "Entité Originale,Pseudonyme,Entretiens (✅ = Anonymisé | ❌ = Non-anonymisé)\n";
+
+        for (const anon of tabAnonGlobal) {
+            if (!anon.entite || !anon.entite.trim() || !anon.remplacement || !anon.remplacement.trim()) {
+                continue;
+            }
+
+            const entretiensData = [];
+            
+            for (let i = 0; i < tabEnt.length; i++) {
+                const etat = await verifierEtatAnonymisation(i, anon.entite, anon.remplacement);
+                if (etat === 'anonymisee') {
+                    entretiensData.push(`✅ ${tabEnt[i].nom}`);
+                } else if (etat === 'non-anonymisee') {
+                    entretiensData.push(`❌ ${tabEnt[i].nom}`);
+                }
+            }
+
+            const entiteEchappee = `"${anon.entite.replace(/"/g, '""')}"`;
+            const remplacementEchappee = `"${anon.remplacement.replace(/"/g, '""')}"`;
+            const entretiensEchappes = `"${entretiensData.join('; ').replace(/"/g, '""')}"`;
+            
+            csv += `${entiteEchappee},${remplacementEchappee},${entretiensEchappes}\n`;
+        }
+
+        // Télécharger le fichier
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const lien = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        lien.setAttribute("href", url);
+        lien.setAttribute("download", "anonymisation_globale.csv");
+        lien.style.visibility = "hidden";
+        document.body.appendChild(lien);
+        lien.click();
+        document.body.removeChild(lien);
+
+        dialog('Message', 'Table d\'anonymisation exportée avec succès.');
+
+    } catch (error) {
+        console.error("Erreur export:", error);
+        dialog('Message', `Erreur lors de l'export: ${error.message}`);
+    }
+}
+
+/**
+ * Ajoute les styles CSS nécessaires pour l'affichage
+ */
+function ajouterStylesAnonGen() {
+    // Vérifier si les styles sont déjà présents
+    if (document.getElementById("styles-anon-gen")) {
+        return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "styles-anon-gen";
+    style.textContent = `
+        /* Styles spécifiques pour la table d'anonymisation */
+        .ligne-anon-gen {
+            transition: background-color 0.2s;
+        }
+
+        .ligne-anon-gen:hover {
+            background-color: #f5f5f5;
+        }
+
+        /*
+        .logo-anon::before {
+            content: "🔐 ";
+            margin-right: 8px;
+        }
+
+        .logo-variables::before {
+            content: "📊 ";
+            margin-right: 8px;
+        }
+        */
+
+        /* Input pour le pseudonyme */
+        .anon-pseudo-input {
+            font-weight: bold;
+            color: #1565c0;
+            padding: 6px 8px;
+            border: 2px solid #90CAF9;
+            border-radius: 4px;
+            font-size: 0.95em;
+            
+        }
+
+        .anon-pseudo-input:hover {
+            border-color: #64B5F6;
+            box-shadow: 0 0 4px rgba(21, 101, 192, 0.2);
+        }
+
+        .anon-pseudo-input:focus {
+            outline: none;
+            border-color: #1565c0;
+            box-shadow: 0 0 6px rgba(21, 101, 192, 0.3);
+        }
+
+        /* Bouton d'application globale */
+        .btn-apply-anon {
+            background-color: #FFC107;
+            color: #333;
+            border: 1px solid #FFB300;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-apply-anon:hover {
+            background-color: #FFB300;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-apply-anon:active {
+            transform: translateY(0);
+        }
+
+        /* Badges - Anonymisés (bleu) */
+        span[style*="64B5F6"] {
+            transition: all 0.2s !important;
+        }
+
+        /* Badges - Non-anonymisés (orange) - cliquables */
+        span[style*="FFA500"] {
+            transition: all 0.2s !important;
+        }
+
+        /* Styles pour les accordéons */
+        .accordion-entretien {
+            border-bottom: 1px solid #eee;
+        }
+
+        .accordion-entretien:hover {
+            background-color: #fafafa;
+        }
+
+        
+
+
+
+        /* Conteneur modale d'occurrences */
+        div[style*="500px"] {
+            display: flex;
+            flex-direction: column;
+        }
+    `;
+    document.head.appendChild(style);
+}
