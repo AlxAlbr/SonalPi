@@ -19,6 +19,8 @@ let tabEnt = []; // tableau des entretiens
 let tabAnon = []; // tableau global des anonymisations
 let ent_cur = -1; // entretien courant
 
+let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
+
 /**
  * Synchronise le tabAnon global avec les modifications du tabAnon local d'un entretien
  * Ajoute les nouvelles paires (entité - pseudo) qui ne sont pas déjà dans le global
@@ -151,6 +153,9 @@ async function lireCorpus(fileContent){
         await window.electronAPI.setGrph(-1, tabGrph);
         window.electronAPI.setEntCur(ent_cur);
 
+        // Initialiser le cache du contenu sauvegardé pour éviter un commit inutile dès l'ouverture
+        _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic });
+
         console.log("les tableaux de données ont été chargés depuis le corpus");
         console.log("tabThm :", tabThm);
         console.log("tabVar :", tabVar);
@@ -193,8 +198,8 @@ document.getElementById('fenetreAccueil').classList.add('dnone'); // masquage de
 
   let Corpus = await window.electronAPI.getCorpus();
 
-    // si corpus distant, affichage du bouton rafraichir : id="btn-rafraichir"
-    if (Corpus.type == "distant"){  
+    // si corpus distant ou gitlab, affichage du bouton rafraichir : id="btn-rafraichir"
+    if (Corpus.type == "distant" || Corpus.type == "gitlab"){  
         document.getElementById('btn-rafraichir').classList.remove('dnone'); // affichage du bouton de rafraichissement
     } else {
         document.getElementById('btn-rafraichir').classList.add('dnone');
@@ -945,26 +950,34 @@ let corpusActuel = Corpus.url;
   
   let result;
 
-  if (Corpus.type ==="distant"){
-    if (avecBackup) {
-      result = await window.electronAPI.sauvegarderAvecBackup(
-        corpusActuel,
-        contenu
-      );
-    } else {
-      result = await window.electronAPI.sauvegarderSurServeur(
-        corpusActuel,
-        contenu
-      );
+  if (Corpus.type === "distant") {
+    // Éviter un aller-retour réseau inutile si rien n'a changé
+    if (!avecBackup && contenu === _dernierContenuCrp) {
+      console.log('⏭️ .crp inchangé — écriture serveur ignorée');
+      return { success: true, skipped: true };
     }
-  } else  if (Corpus.type ==="local") {
-    result = await window.electronAPI.sauvegarderFichier(
-      corpusActuel,
-      contenu
-    );
+    if (avecBackup) {
+      result = await window.electronAPI.sauvegarderAvecBackup(corpusActuel, contenu);
+    } else {
+      result = await window.electronAPI.sauvegarderSurServeur(corpusActuel, contenu);
+    }
+  } else if (Corpus.type === "gitlab") {
+    // Éviter un commit GitLab inutile si rien n'a changé
+    if (contenu === _dernierContenuCrp) {
+      console.log('⏭️ .crp inchangé — commit GitLab ignoré');
+      return { success: true, skipped: true };
+    }
+    // Pour GitLab, Corpus.url est l'URL web — on reconstruit le chemin API
+    const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
+    result = await window.electronAPI.sauvegarderSurServeur(cheminCrp, contenu);
+  } else if (Corpus.type === "local") {
+    result = await window.electronAPI.sauvegarderFichier(corpusActuel, contenu);
   }
 
+  if (!result) return { success: false, error: 'Type de corpus non reconnu' };
+
   if (result.success) {
+    _dernierContenuCrp = contenu; // mémoriser le contenu sauvegardé
     contenuModifie = false;
     document.title = '📝 Corpus';
     console.log('✅ Fichier sauvegardé');
@@ -981,7 +994,144 @@ let corpusActuel = Corpus.url;
   }
 }
 
-async function rafraichirCorpus() {
+async function rafraichirCorpus(silencieux = false) {
+
+    const Corpus = await window.electronAPI.getCorpus();
+
+    // ── Rafraîchissement GitLab ──────────────────────────────────────────────
+    if (Corpus.type === "gitlab") {
+
+        // 1. Re-lire le .crp distant — il contient le tabEnt à jour
+        const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
+        const result = await window.electronAPI.lireFichierServeur(cheminCrp);
+        if (!result || !result.success) {
+            console.warn('⚠️ Rafraîchissement GitLab : impossible de lire le corpus distant');
+            if (!silencieux) afficherNotification('Impossible de contacter GitLab', 'error');
+            return;
+        }
+
+        let corpusDistant;
+        try {
+            corpusDistant = JSON.parse(result.content);
+        } catch (e) {
+            console.error('❌ Rafraîchissement GitLab : erreur de parsing du corpus:', e);
+            return;
+        }
+
+        const tabEntDistant = corpusDistant.tabEnt || [];
+        let tabEntLocal = await window.electronAPI.getEnt();
+        if (!tabEntLocal) tabEntLocal = [];
+
+        // Mettre à jour tabThm, tabVar et tabDic depuis le .crp distant
+        if (corpusDistant.tabThm) {
+            const tabThmLocal = await window.electronAPI.getThm();
+            const thmDistantStr = JSON.stringify(corpusDistant.tabThm);
+            const thmLocalStr   = JSON.stringify(tabThmLocal);
+            if (thmDistantStr !== thmLocalStr) {
+                // Détecter si la structure (ordre et ensemble des codes) a changé,
+                // ou seulement des propriétés comme la couleur ou le nom
+                const anciensCodes = JSON.stringify(tabThmLocal.map(t => t.code));
+                const nouveauxCodes = JSON.stringify(corpusDistant.tabThm.map(t => t.code));
+                const structureInchangee = anciensCodes === nouveauxCodes;
+
+                tabThm = corpusDistant.tabThm.map(t => ({ ...t, act: true, cmpct: false }));
+                await window.electronAPI.setThm(tabThm);
+                // Rafraîchir l'UI : CSS + liste des thématiques dans le panneau
+                loadThm();
+                affichListThmCrp(tabThm, 'conteneur_cat');
+                console.log('🎨 Thématiques mises à jour depuis le corpus distant');
+
+                if (structureInchangee) {
+                    // Couleurs/noms seulement : tabGrph est encore valide (les rangs n'ont pas changé)
+                    // On redessine uniquement les entretiens dont le cache est déjà calculé
+                    console.log('🎨 Structure tabThm inchangée — redessinage des canvases sans régénération');
+                    const tabEntPourRedesssin = await window.electronAPI.getEnt();
+                    for (let e = 0; e < tabEntPourRedesssin.length; e++) {
+                        const tabGrphEnt = await window.electronAPI.getGrph(e);
+                        if (tabGrphEnt && tabGrphEnt.length > 1) {
+                            const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${tabEntPourRedesssin[e].id}']`);
+                            if (cnvEnt) dessinResumeGraphique(e, cnvEnt, tabGrphEnt);
+                        }
+                    }
+                } else {
+                    // Structure changée (rangs décalés) : invalider tabGrph et régénérer depuis le HTML
+                    console.log('🎨 Structure tabThm modifiée — invalidation et régénération de tabGrph');
+                    await window.electronAPI.setGrph(-1, []);
+                    await dessinTousEntretiens();
+                }
+            }
+        }
+        if (corpusDistant.tabVar) {
+            tabVar = corpusDistant.tabVar;
+            await window.electronAPI.setVar(tabVar);
+        }
+        if (corpusDistant.tabDic) {
+            tabDic = corpusDistant.tabDic;
+            await window.electronAPI.setDic(tabDic);
+        }
+
+        const idsLocaux = new Set(tabEntLocal.map(e => e.id));
+        const nouveaux = tabEntDistant.filter(e => !idsLocaux.has(e.id));
+
+        // 1bis. Synchroniser les métadonnées .crp-only (nom, actif) depuis le distant
+        // notes est géré par loadHtml via le .Sonal ; nom/actif ne sont que dans le .crp
+        const mapEntDistant = new Map(tabEntDistant.map(e => [String(e.id), e]));
+        let metaModifiees = false;
+        for (let ent = 0; ent < tabEntLocal.length; ent++) {
+            const entDistant = mapEntDistant.get(String(tabEntLocal[ent].id));
+            if (!entDistant) continue;
+            for (const champ of ['nom', 'actif', 'act']) {
+                if (entDistant[champ] !== undefined && entDistant[champ] !== tabEntLocal[ent][champ]) {
+                    tabEntLocal[ent][champ] = entDistant[champ];
+                    metaModifiees = true;
+                }
+            }
+        }
+        if (metaModifiees) {
+            await window.electronAPI.setEnt(tabEntLocal);
+            console.log('📝 Métadonnées des entretiens synchronisées depuis le corpus distant');
+        }
+
+        // 2. Recharger les entretiens modifiés (présents localement)
+        let modifies = 0;
+        for (let ent = 0; ent < tabEntLocal.length; ent++) {
+            const fich = [Corpus.folder, tabEntLocal[ent].rtrPath].filter(Boolean).join('/');
+            const dateModif = await window.electronAPI.getLastModified(fich);
+            if (dateModif && dateModif > tabEntLocal[ent].lastModified) {
+                if (!silencieux) console.log(`🔄 Entretien modifié détecté : ${tabEntLocal[ent].nom}`);
+                loadHtml(ent, ent).then(async () => {
+                    // Invalider le cache tabGrph et redessiner le canvas avec le nouveau contenu
+                    await window.electronAPI.setGrph(ent, []);
+                    const html = await window.electronAPI.getHtml(ent);
+                    if (html) {
+                        const tabGrphEnt = await resumeGraphique(html);
+                        await window.electronAPI.setGrph(ent, tabGrphEnt);
+                        const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${tabEntLocal[ent].id}']`);
+                        if (cnvEnt) dessinResumeGraphique(ent, cnvEnt, tabGrphEnt);
+                    }
+                    afficherEnt(ent, ent);
+                    const divEnt = document.querySelector(`div.ligent[data-id='${tabEntLocal[ent].id}']`);
+                    if (divEnt) divEnt.classList.add("ligent-flash");
+                });
+                tabEntLocal[ent].lastModified = dateModif;
+                modifies++;
+            }
+        }
+        if (modifies > 0) await window.electronAPI.setEnt(tabEntLocal);
+
+        // 3. Ajouter les nouveaux entretiens
+        if (nouveaux.length > 0) {
+            const premierRang = tabEntLocal.length;
+            const nouveauTabEnt = [...tabEntLocal, ...nouveaux];
+            await window.electronAPI.setEnt(nouveauTabEnt);
+            const dernierRang = nouveauTabEnt.length - 1;
+            await loadHtml(premierRang, dernierRang);
+            await afficherEnt(premierRang, dernierRang);
+            afficherNotification(`${nouveaux.length} nouvel(s) entretien(s) chargé(s)`, 'success');
+            console.log(`✅ Rafraîchissement GitLab : ${nouveaux.length} nouvel(s) entretien(s) ajouté(s)`);
+        }
+        return;
+    }
 
     if (Corpus.type !=="distant"){
         return; // le rafraîchissement ne se fait que pour les corpus distants
@@ -995,7 +1145,7 @@ async function rafraichirCorpus() {
 
         console.log("vérification de la nécessité de rafraîchir l'entretien " + tabEnt[ent].nom + JSON.stringify(tabEnt[ent]));
             
-        let fich =  [Corpus.folder,tabEnt[ent].rtrPath].join('/');
+        let fich =  [Corpus.folder,tabEnt[ent].rtrPath].filter(Boolean).join('/');
 
         // récupération de la dernière date de modification
         let dateModif = await window.electronAPI.getLastModified(fich);
@@ -1007,14 +1157,20 @@ async function rafraichirCorpus() {
 
             // rechargement du fichier .Sonal correspondant
             // récupération du contenu du fichier .Sonal
-            loadHtml(ent, ent).then( () => {
+            loadHtml(ent, ent).then( async () => {
 
-                //console.log("affichage au rang " + ent );
+                // Invalider le cache tabGrph et redessiner le canvas avec le nouveau contenu
+                await window.electronAPI.setGrph(ent, []);
+                const html = await window.electronAPI.getHtml(ent);
+                if (html) {
+                    const tabGrphEnt = await resumeGraphique(html);
+                    await window.electronAPI.setGrph(ent, tabGrphEnt);
+                    const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${tabEnt[ent].id}']`);
+                    if (cnvEnt) dessinResumeGraphique(ent, cnvEnt, tabGrphEnt);
+                }
                 afficherEnt(ent, ent);
-                //inventaireVariables(); // inventaire des variables utilisées dans les entretiens
-                // flash
                 const divEnt = document.querySelector(`div.ligent[data-id='${tabEnt[ent].id}']`);
-                divEnt.classList.add("ligent-flash");
+                if (divEnt) divEnt.classList.add("ligent-flash");
  
             })
 
