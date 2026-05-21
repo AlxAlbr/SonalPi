@@ -70,11 +70,10 @@ async function addVar(mode) {
        // Mise à jour des modalités
         await sauvModas();  
 
-        if (mode =="loc") {
-        affichDataEnt();
-        } else if (mode=="gen") {
-        affichDataGen();
-        }
+        await window.sauvegarderCorpus(false);
+        updateVarsDsEnt();
+        await window.majFichierSonal();
+        await affichDataGen();
         hidedlg();
     } else {
         alert("Veuillez entrer un nom de variable.");
@@ -252,18 +251,10 @@ async function sauvVar(rgVar, mode) {
         await electronAPI.setVar(tabVar);
 
 
-            if(mode=='loc'){
-               
-                affichDataEnt();
-
-            } 
-
-            if (mode=='gen'){
-                await window.sauvegarderCorpus(false);
-                updateVarsDsEnt() ;// modification dans les fichiers Sonal de tous les entretiens
-                await window.majFichierSonal();
-                 affichDataGen(); 
-            } 
+            await window.sauvegarderCorpus(false);
+            updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
+            await window.majFichierSonal();
+            await affichDataGen();
 
 
       
@@ -312,17 +303,10 @@ async function supprVar(rgVar, mode) {
         await electronAPI.setDat(tabDat);
 
 
-        if(mode=='loc'){
-            
-            affichDataEnt();
-        } else if (mode=='gen'){
-            await window.sauvegarderCorpus(false);
-            updateVarsDsEnt() ;// modification dans les fichiers Sonal de tous les entretiens
-            await window.majFichierSonal();
-
-
-            affichDataGen(); 
-        }
+        await window.sauvegarderCorpus(false);
+        updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
+        await window.majFichierSonal();
+        await affichDataGen();
 
         hidedlg();
     } else {
@@ -584,7 +568,13 @@ async function validMod(rgEnt, v, l, m, lib){
     await window.electronAPI.setEnt(tabEnt); // sauvegarde du tabent
     await window.electronAPI.setDic(tabDic); // sauvegarde du tabdic
 
-
+    // Persister sur le serveur (distant / gitlab) — fire-and-forget pour ne pas bloquer l'UI
+    const rkEnt = tabEnt.findIndex(ent => String(ent.id) === String(rgEnt));
+    if (rkEnt !== -1) {
+        window.majFichierSonal(rkEnt, rkEnt + 1)
+            .then(() => window.sauvegarderCorpus(false))
+            .catch(err => console.error('validMod : erreur sauvegarde distante', err));
+    }
 
     const menudicEl = document.getElementById("menudic");
     if (menudicEl) menudicEl.style.display="none";
@@ -1259,10 +1249,14 @@ async function affichDataGen(){
 
 }
 
-function hideTabDat(){
+async function hideTabDat(){
     const divTabDat = document.getElementById("divTabDat");
     if (divTabDat){
         divTabDat.remove();
+    }
+    const rkEnt = await window.electronAPI.getEntCur();
+    if (rkEnt !== -1) {
+        await affichDataEnt();
     }
 };
 
@@ -1379,7 +1373,7 @@ async function validerCellGen(td, lib) {
 
     // Vérification du verrou pour les corpus distants
     const Corpus = await window.electronAPI.getCorpus();
-    if (Corpus && Corpus.type === "distant") {
+    if (Corpus && (Corpus.type === "distant" || Corpus.type === "gitlab")) {
         const lockResult = await window.electronAPI.isEntretienLocked(rkEnt);
         if (lockResult && lockResult.locked === true) {
             alert(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`);

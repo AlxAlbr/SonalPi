@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ouvrir un corpus distant</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+    }
+
+    .container {
+      background: white;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Onglets ---- */
+    .tabs-header {
+      display: flex;
+      border-bottom: 2px solid #e0e0e0;
+      background: #fafafa;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 13px 20px;
+      border: none;
+      background: none;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab-btn:hover { color: #333; background: #f0f0f0; }
+
+    .tab-btn.active {
+      color: #0066cc;
+      border-bottom-color: #0066cc;
+      background: white;
+    }
+
+    #tab-btn-gitlab.active { color: #fc6d26; border-bottom-color: #fc6d26; }
+
+    /* ---- Panneaux ---- */
+    .tab-panel {
+      display: none;
+      padding: 24px 28px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .tab-panel.active { display: block; }
+
+    /* ---- Styles communs aux formulaires ---- */
+    h2 {
+      margin-bottom: 18px;
+      color: #333;
+      font-size: 18px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .panel-header h2 { margin-bottom: 0; }
+
+    .form-group { margin-bottom: 16px; }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #555;
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    #panel-serveur input:focus { outline: none; border-color: #0066cc; }
+    #panel-gitlab  input:focus { outline: none; border-color: #fc6d26; }
+
+    .required { color: #e74c3c; }
+
+    .hint {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #888;
+    }
+
+    .info {
+      margin-top: 14px;
+      padding: 11px 13px;
+      border-left: 4px solid;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    .info-serveur { background: #e8f4fd; border-color: #0066cc; }
+    .info-gitlab  { background: #fff3e8; border-color: #fc6d26; }
+    .info-gitlab a { color: #fc6d26; text-decoration: none; }
+
+    .error {
+      margin-top: 12px;
+      padding: 9px 12px;
+      background: #fee;
+      border-left: 4px solid #e74c3c;
+      border-radius: 4px;
+      color: #c0392b;
+      font-size: 12px;
+      display: none;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 9px 18px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .btn-submit-serveur { background: #0066cc; color: white; }
+    .btn-submit-serveur:hover { background: #0052a3; }
+    .btn-submit-serveur:disabled { background: #ccc; cursor: not-allowed; }
+
+    .btn-submit-gitlab { background: #fc6d26; color: white; }
+    .btn-submit-gitlab:hover { background: #e8601f; }
+    .btn-submit-gitlab:disabled { background: #ccc; cursor: not-allowed; }
+
+    .btn-cancel { background: #e8e8e8; color: #333; }
+    .btn-cancel:hover { background: #d8d8d8; }
+
+    /* ---- Spécifique GitLab ---- */
+    .help-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: #57606a;
+    }
+
+    .help-link a {
+      color: #fc6d26;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .help-link a:hover { text-decoration: underline; }
+
+    .input-password-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-password-wrapper input { padding-right: 36px; }
+
+    .btn-toggle-password {
+      position: absolute;
+      right: 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: #888;
+      display: flex;
+      align-items: center;
+      flex: none;
+      width: auto;
+    }
+
+    .btn-toggle-password:hover { color: #555; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- En-têtes des onglets -->
+    <div class="tabs-header">
+      <button class="tab-btn active" id="tab-btn-serveur" data-tab="serveur">
+        📡 Serveur
+      </button>
+      <button class="tab-btn" id="tab-btn-gitlab" data-tab="gitlab">
+        🦊 GitLab
+      </button>
+    </div>
+
+    <!-- ========== Panel Serveur ========== -->
+    <div class="tab-panel active" id="panel-serveur">
+      <h2>Ouvrir un corpus distant</h2>
+
+      <form id="url-form">
+        <div class="form-group">
+          <label for="url">URL du fichier <span class="required">*</span></label>
+          <input
+            type="url"
+            id="url"
+            name="url"
+            placeholder="https://exemple.com/fichier.crp"
+            required
+            autofocus
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="username">Nom d'utilisateur</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            placeholder="Identifiant"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Mot de passe"
+          />
+        </div>
+
+        <div class="info info-serveur">
+          💡 <strong>Info :</strong> Le fichier sera téléchargé avec authentification Basic.
+          Assurez-vous que l'URL commence par <code>https://</code>
+        </div>
+
+        <div class="error" id="url-error-message"></div>
+
+        <div class="buttons">
+          <button type="button" class="btn-cancel" id="url-btn-cancel">Annuler</button>
+          <button type="submit" class="btn-submit-serveur" id="url-btn-submit">Télécharger</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ========== Panel GitLab ========== -->
+    <div class="tab-panel" id="panel-gitlab">
+
+      <div class="panel-header">
+        <!-- Logo GitLab (SVG inline, pas de dépendance réseau) -->
+        <svg width="28" height="28" viewBox="0 0 380 380" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#e24329" d="M282.83 170.73l-.27-.69-26.14-68.22a6.81 6.81 0 00-2.69-3.24 7 7 0 00-8 .43 7 7 0 00-2.32 3.52l-17.65 54h-71.47l-17.65-54a6.86 6.86 0 00-2.32-3.52 7 7 0 00-8-.43 6.87 6.87 0 00-2.69 3.24L97.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82 19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91 40.06-30 .1-.08a48.56 48.56 0 0016.08-56.04z"/>
+          <path fill="#fc6d26" d="M282.83 170.73l-.27-.69a88.3 88.3 0 00-35.15 15.8L190 229.25c19.55 14.79 36.57 27.64 36.57 27.64l40.06-30 .1-.08a48.56 48.56 0 0016.1-56.08z"/>
+          <path fill="#fca326" d="M153.43 256.89l19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91s-17-12.89-36.57-27.64c-19.58 14.75-36.02 27.64-36.02 27.64z"/>
+          <path fill="#fc6d26" d="M132.58 185.84A88.19 88.19 0 0097.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82s17-12.85 36.57-27.64z"/>
+        </svg>
+        <h2>Ouvrir un corpus GitLab</h2>
+      </div>
+
+      <p class="help-link">
+        ❓ Première connexion ?
+        <a href="#" id="help-link">Voir le guide de configuration GitLab</a>
+      </p>
+
+      <form id="gitlab-form">
+
+        <div class="form-group">
+          <label for="projectUrl">
+            URL du projet GitLab <span class="required">*</span>
+          </label>
+          <input
+            type="url"
+            id="projectUrl"
+            placeholder="https://gitlab.univ-exemple.fr/groupe/nom-du-projet"
+            required
+          />
+          <p class="hint">Copiez-collez directement l'URL du projet depuis votre navigateur</p>
+        </div>
+
+        <div class="form-group">
+          <label for="filePath">Fichier corpus (.crp)</label>
+          <input
+            type="text"
+            id="filePath"
+            placeholder="dossier/mon-corpus.crp (facultatif)"
+          />
+          <p class="hint">Chemin du fichier dans le dépôt. Si laissé vide, un fichier <em>nom-du-projet.crp</em> sera utilisé.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="clientId">
+            Client ID OAuth <span class="required">*</span>
+          </label>
+          <div class="input-password-wrapper">
+            <input
+              type="password"
+              id="clientId"
+              placeholder="abc123def456..."
+              required
+            />
+            <button type="button" class="btn-toggle-password" id="btn-toggle-clientid"
+              title="Afficher / masquer" aria-label="Afficher / masquer le Client ID">
+              <svg id="icon-eye" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg id="icon-eye-off" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </button>
+          </div>
+          <p class="hint">
+            Dans GitLab : Préférences → Applications → créer une app avec
+            redirect URI <code>http://127.0.0.1:7474/callback</code> et scope <code>api</code>
+          </p>
+        </div>
+
+        <div class="info info-gitlab">
+          <strong>Authentification OAuth 2.0</strong><br>
+          En cliquant sur "Se connecter", votre navigateur s'ouvrira sur la page
+          de connexion GitLab. Après validation, vous serez redirigé automatiquement
+          vers SonalPi.<br><br>
+          ⚠️ Utilisez cette fonctionnalité uniquement sur un <strong>réseau de confiance</strong>
+          (réseau universitaire ou VPN). Évitez les réseaux Wi-Fi publics partagés
+          (cafés, hôtels, conférences).
+        </div>
+
+        <div class="error" id="gl-error-message"></div>
+
+        <div class="buttons">
+          <button type="button" class="btn-cancel" id="gl-btn-cancel">Annuler</button>
+          <button type="submit" class="btn-submit-gitlab" id="gl-btn-submit">
+            Se connecter via GitLab
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+
+  <script>
+    // ========== Gestion des onglets ==========
+    function selectTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.tab === tabName)
+      );
+      document.querySelectorAll('.tab-panel').forEach(panel =>
+        panel.classList.toggle('active', panel.id === 'panel-' + tabName)
+      );
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => selectTab(btn.dataset.tab));
+    });
+
+    // Sélection d'onglet depuis main.js (pré-sélection)
+    window.electronAPI.onSelectTab?.((tab) => selectTab(tab));
+
+    // ========== Panel Serveur ==========
+    const urlForm       = document.getElementById('url-form');
+    const urlInput      = document.getElementById('url');
+    const usernameInput = document.getElementById('username');
+    const urlError      = document.getElementById('url-error-message');
+
+    window.electronAPI.onPreFillUrl?.((previousUrl) => {
+      urlInput.value = previousUrl;
+      usernameInput.focus();
+    });
+
+    function validerURL(url) {
+      try {
+        const u = new URL(url);
+        return u.protocol === 'https:' || u.protocol === 'http:';
+      } catch { return false; }
+    }
+
+    urlForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const url      = urlInput.value.trim();
+      const username = usernameInput.value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!url) {
+        urlError.textContent = '❌ Saisissez une URL';
+        urlError.style.display = 'block';
+        return;
+      }
+      if (!validerURL(url)) {
+        urlError.textContent = '❌ URL invalide. Elle doit commencer par http:// ou https://';
+        urlError.style.display = 'block';
+        return;
+      }
+      window.electronAPI.submitURL({ url, username, password });
+    });
+
+    document.getElementById('url-btn-cancel').addEventListener('click', () => window.close());
+
+    ['url', 'username', 'password'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        urlError.style.display = 'none';
+      });
+    });
+
+    // ========== Panel GitLab ==========
+    const gitlabForm      = document.getElementById('gitlab-form');
+    const projectUrlInput = document.getElementById('projectUrl');
+    const fileInput       = document.getElementById('filePath');
+    const clientInput     = document.getElementById('clientId');
+    const glError         = document.getElementById('gl-error-message');
+
+    // Bouton œil — afficher/masquer le Client ID
+    document.getElementById('btn-toggle-clientid').addEventListener('click', () => {
+      const input  = document.getElementById('clientId');
+      const eyeOn  = document.getElementById('icon-eye');
+      const eyeOff = document.getElementById('icon-eye-off');
+      if (input.type === 'password') {
+        input.type = 'text';
+        eyeOn.style.display  = 'none';
+        eyeOff.style.display = '';
+      } else {
+        input.type = 'password';
+        eyeOn.style.display  = '';
+        eyeOff.style.display = 'none';
+      }
+    });
+
+    window.electronAPI.onPreFillGitLab?.((config) => {
+      if (config.instanceUrl && config.projectPath)
+        projectUrlInput.value = config.instanceUrl + '/' + config.projectPath;
+      if (config.filePath) fileInput.value   = config.filePath;
+      if (config.clientId) clientInput.value = config.clientId;
+    });
+
+    [projectUrlInput, fileInput, clientInput].forEach(el => {
+      el.addEventListener('input', () => { glError.style.display = 'none'; });
+    });
+
+    function afficherErreurGitlab(msg) {
+      glError.textContent = '❌ ' + msg;
+      glError.style.display = 'block';
+    }
+
+    function validerUrl(url) {
+      try {
+        const u = new URL(url);
+        return u.protocol === 'https:' || u.protocol === 'http:';
+      } catch { return false; }
+    }
+
+    gitlabForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const rawProjectUrl = projectUrlInput.value.trim().replace(/\/$/, '');
+      const filePath      = fileInput.value.trim().replace(/^\//, '');
+      const clientId      = clientInput.value.trim();
+
+      if (!rawProjectUrl) {
+        afficherErreurGitlab('Saisissez l\'URL du projet GitLab.');
+        projectUrlInput.focus();
+        return;
+      }
+      if (!validerUrl(rawProjectUrl)) {
+        afficherErreurGitlab('URL invalide — elle doit commencer par https:// ou http://');
+        projectUrlInput.focus();
+        return;
+      }
+
+      let instanceUrl, projectPath;
+      try {
+        const u = new URL(rawProjectUrl);
+        instanceUrl = `${u.protocol}//${u.hostname}${u.port ? ':' + u.port : ''}`;
+        projectPath = u.pathname.replace(/^\//, '').replace(/\/$/, '');
+      } catch {
+        afficherErreurGitlab('URL invalide.');
+        projectUrlInput.focus();
+        return;
+      }
+
+      if (!projectPath || !projectPath.includes('/')) {
+        afficherErreurGitlab('L\'URL doit inclure le chemin du projet — ex : https://gitlab.exemple.fr/groupe/nom-projet');
+        projectUrlInput.focus();
+        return;
+      }
+
+      const resolvedFilePath = filePath || (projectPath.split('/').pop() + '.crp');
+
+      if (!clientId) {
+        afficherErreurGitlab('Saisissez le Client ID OAuth de l\'application GitLab.');
+        clientInput.focus();
+        return;
+      }
+
+      const btn = document.getElementById('gl-btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Attente de l\'authentification…';
+
+      window.electronAPI.submitGitLab({ instanceUrl, projectPath, filePath: resolvedFilePath, clientId });
+    });
+
+    document.getElementById('gl-btn-cancel').addEventListener('click', () => window.close());
+
+    document.getElementById('help-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.electronAPI.invoke('ouvrir-aide-gitlab');
+    });
+  </script>
+</body>
+</html>

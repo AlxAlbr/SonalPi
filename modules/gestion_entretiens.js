@@ -16,13 +16,19 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     } else {
         window.tabLocImport = [];
     }
-     
-    
-
-
 
     // récupération du corpus
     let Corpus = await window.electronAPI.getCorpus();
+
+    // Vérification de la restriction GitLab
+    if (Corpus.type === 'gitlab') {
+        const isOwner = await window.electronAPI.getGitlabUserIsOwner();
+        const opts = await window.electronAPI.getGitlabOptions();
+        if (opts.restrictionAjoutSuppr && !isOwner) {
+            await question("Permission refusée", "Le responsable du projet a restreint l'ajout d'entretiens aux Maintainer/Owner.", ["OK"]);
+            return;
+        }
+    }
 
     if (fichTxt == null && fichAudio == null) {
     const result = await window.electronAPI.ajouterEntretien();
@@ -152,9 +158,9 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
             }
  
 
-        } else if (Corpus.type == "distant") {
+        } else if (Corpus.type == "distant" || Corpus.type == "gitlab") {
 
-            let cheminFichTxtA =  [Corpus.folder,nomFichTxtA].join('/');
+            let cheminFichTxtA = [Corpus.folder, nomFichTxtA].filter(Boolean).join('/');
             const res = await window.electronAPI.sauvegarderSurServeur(cheminFichTxtA, fichApresConversion);
             console.log('Résultat sauvegarde serveur:', res);
         }
@@ -230,7 +236,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
                 let imgEl = conteneurEnt.querySelector('.ligent-img');
                 let chemin = Corpus.type === 'local'
                     ? await window.electronAPI.createPath(Corpus.folder, fichImg)
-                    : [Corpus.folder, fichImg].join('/');
+                    : [Corpus.folder, fichImg].filter(Boolean).join('/');
                 if (imgEl) imgEl.src = chemin + '?t=' + Date.now();
             }
         }), 2000);
@@ -313,7 +319,7 @@ async function loadHtml(rgDep, rgFin){
             if (Corpus.type == "local") {
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, tabEnt[e].rtrPath);
             } else {
-                cheminEnt = [Corpus.folder, tabEnt[e].rtrPath].join('/');      
+                cheminEnt = [Corpus.folder, tabEnt[e].rtrPath].filter(Boolean).join('/');
             }
 
             // 1bis - Vérification de l'existence du fichier de l'entretien
@@ -357,10 +363,13 @@ async function loadHtml(rgDep, rgFin){
                     let donnéesEnt = await extractFichierSonal(contenuEnt);
                     tabHtml[e] = String(donnéesEnt.html); // HTML de l'entretien
                      
-                    tabEnt[e].tabVar = donnéesEnt.tabVar;
-                    tabEnt[e].tabDic = donnéesEnt.tabDic;   
-                    tabEnt[e].tabDat = donnéesEnt.tabDat;
-                    tabEnt[e].tabAnon = donnéesEnt.tabAnon;                
+                    if (donnéesEnt.tabVar)  tabEnt[e].tabVar  = donnéesEnt.tabVar;
+                    if (donnéesEnt.tabDic)  tabEnt[e].tabDic  = donnéesEnt.tabDic;
+                    // Fix : [] est truthy → ne pas écraser un tabDat .crp valide avec un .sonal stale vide
+                    if (donnéesEnt.tabDat && donnéesEnt.tabDat.length > 0)  tabEnt[e].tabDat  = donnéesEnt.tabDat;
+                    if (donnéesEnt.tabAnon) tabEnt[e].tabAnon = donnéesEnt.tabAnon;
+                    if (donnéesEnt.tabLoc)  tabEnt[e].tabLoc  = donnéesEnt.tabLoc;
+                    if (donnéesEnt.notes  !== undefined && donnéesEnt.notes !== null) tabEnt[e].notes = donnéesEnt.notes;
 
                     tabEnt[e].lastAccess = new Date().toISOString();
 
@@ -593,7 +602,7 @@ async function afficherEnt(rgDep, rgFin){
                     // récupération du corpus 
                     let Corpus = await electronAPI.getCorpus();
 
-                    if (Corpus.type == "distant"){
+                    if (Corpus.type == "distant" || Corpus.type == "gitlab"){
                         let result = await electronAPI.isEntretienLocked(rkEnt)
                          if (result.locked==true) {
                                     console.log("l'entretien est verrouillé par " + result.user)
@@ -601,8 +610,11 @@ async function afficherEnt(rgDep, rgFin){
                                     editable=false; 
                                     return   // Ne pas ouvrir la fenêtre d'édition
                         }
-                                
-                                
+
+                        // Rechargement de la version distante avant ouverture
+                        // pour s'assurer d'avoir la version la plus récente
+                        console.log("Rechargement de l'entretien " + rkEnt + " depuis le serveur...");
+                        await loadHtml(rkEnt, rkEnt);
                 }
 
                 if (editable) await window.electronAPI.editerEntretien(rkEnt); 
@@ -1102,7 +1114,7 @@ async function afficherDetailsEnt(rk){
         if (Corpus.type == "local") {
             cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
         } else {
-            cheminEnt = [Corpus.folder, ent.rtrPath].join('/');
+            cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
         }
 
         await window.electronAPI.getLastModified(cheminEnt).then(lastModified => {
@@ -1237,6 +1249,17 @@ async function afficherDetailsEnt(rk){
 };
 
 async function retirerEnt(rk){
+
+    // Vérification de la restriction GitLab
+    let CorpusRet = await window.electronAPI.getCorpus();
+    if (CorpusRet.type === 'gitlab') {
+        const isOwner = await window.electronAPI.getGitlabUserIsOwner();
+        const opts = await window.electronAPI.getGitlabOptions();
+        if (opts.restrictionAjoutSuppr && !isOwner) {
+            await question("Permission refusée", "Le responsable du projet a restreint la suppression d'entretiens aux Maintainer/Owner.", ["OK"]);
+            return;
+        }
+    }
 
     // demande de confirmation via question 
     let res = await question("Êtes-vous sûr de vouloir supprimer cet entretien du corpus ? \nLe fichier .Sonal correspondant ne sera pas supprimé physiquement, seulement retiré du corpus", ["Ok", "Annuler"]);
@@ -1505,7 +1528,7 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
         // mise à jour du tableau des entretiens
          await window.electronAPI.setEnt(tabEnt);
 
-         window.sauvegarderCorpus(false);
+         await window.sauvegarderCorpus(false);
  
     } catch(err) {
         
@@ -1559,12 +1582,12 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
                 res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
             } else {
-                cheminEnt = [Corpus.folder, ent.rtrPath].join('/');    
-                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);  
+                cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
+                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
             }
-            
+
             console.log("4b - fichier de l'entretien sauvegardé :", res);
-            if (!res) {
+            if (!res?.success) {
                 notifErreur("Le fichier de l'entretien n'a pas pu être sauvegardé sur le disque (chemin : " + cheminEnt + ").");
             }
             endWait();
@@ -1619,8 +1642,8 @@ async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sona
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
                 const res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
             } else {
-                cheminEnt = [Corpus.folder, ent.rtrPath].join('/');    
-                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);  
+                cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
+                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
             }
             
               

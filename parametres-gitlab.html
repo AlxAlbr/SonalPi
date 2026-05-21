@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paramètres GitLab</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 24px;
+      background: #f5f5f5;
+    }
+
+    .container {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    h2 { color: #333; font-size: 16px; }
+
+    .role-info {
+      padding: 10px 13px;
+      background: #f0f7ff;
+      border-left: 4px solid #0078d4;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    .role-info strong { color: #333; }
+
+    .option-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 14px 0;
+      border-top: 1px solid #eee;
+    }
+
+    .option-row input[type="checkbox"] {
+      margin-top: 2px;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .option-row input[type="checkbox"]:disabled { cursor: not-allowed; }
+
+    .option-label { font-size: 13px; color: #333; line-height: 1.4; }
+    .option-label small { display: block; margin-top: 4px; color: #888; font-size: 11px; }
+
+    .warning {
+      margin-top: 16px;
+      padding: 9px 12px;
+      background: #fff8e1;
+      border-left: 4px solid #f59e0b;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #7a5f00;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    button {
+      flex: 1;
+      padding: 9px 18px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-save {
+      background: #fc6d26;
+      color: white;
+    }
+    .btn-save:hover { background: #e8601f; }
+    .btn-save:disabled { background: #ccc; cursor: not-allowed; }
+
+    .btn-cancel {
+      background: #e8e8e8;
+      color: #333;
+    }
+    .btn-cancel:hover { background: #d8d8d8; }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #2e7d32;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="header">
+      <svg width="22" height="22" viewBox="0 0 380 380" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#e24329" d="M282.83 170.73l-.27-.69-26.14-68.22a6.81 6.81 0 00-2.69-3.24 7 7 0 00-8 .43 7 7 0 00-2.32 3.52l-17.65 54h-71.47l-17.65-54a6.86 6.86 0 00-2.32-3.52 7 7 0 00-8-.43 6.87 6.87 0 00-2.69 3.24L97.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82 19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91 40.06-30 .1-.08a48.56 48.56 0 0016.08-56.04z"/>
+        <path fill="#fc6d26" d="M282.83 170.73l-.27-.69a88.3 88.3 0 00-35.15 15.8L190 229.25c19.55 14.79 36.57 27.64 36.57 27.64l40.06-30 .1-.08a48.56 48.56 0 0016.1-56.08z"/>
+        <path fill="#fca326" d="M153.43 256.89l19.7 14.91 12 9.06a8.07 8.07 0 009.19 0l12-9.06 19.7-14.91s-17-12.89-36.57-27.64c-19.58 14.75-36.02 27.64-36.02 27.64z"/>
+        <path fill="#fc6d26" d="M132.58 185.84A88.19 88.19 0 0097.44 170l-.26.69a48.54 48.54 0 0016.1 56.1l.09.07.24.17 39.82 29.82s17-12.85 36.57-27.64z"/>
+      </svg>
+      <h2>⚙️ Paramètres GitLab</h2>
+    </div>
+
+    <div class="role-info" id="roleInfo">
+      Chargement du rôle…
+    </div>
+
+    <div class="option-row">
+      <input type="checkbox" id="chkRestriction" />
+      <label for="chkRestriction" class="option-label">
+        Restreindre l'ajout et la suppression d'entretiens aux responsables du projet
+        <small>Si coché, seuls les Maintainer et Owner peuvent ajouter ou retirer des entretiens.
+        Les Developers peuvent toujours modifier les entretiens existants.</small>
+      </label>
+    </div>
+
+    <div class="warning" id="warningReadOnly" style="display:none;">
+      ⚠️ Vous êtes Developer sur ce projet — vous ne pouvez pas modifier ces paramètres.
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="buttons">
+      <button class="btn-save" id="btnSave">Enregistrer</button>
+      <button class="btn-cancel" id="btnCancel">Fermer</button>
+    </div>
+
+  </div>
+
+  <script>
+    async function init() {
+      const isOwner = await window.electronAPI.getGitlabUserIsOwner();
+      const opts    = await window.electronAPI.getGitlabOptions();
+
+      // Afficher le rôle
+      const roleInfo = document.getElementById('roleInfo');
+      if (isOwner) {
+        roleInfo.innerHTML = '<strong>Votre rôle :</strong> Maintainer / Owner — vous pouvez modifier ces paramètres.';
+        roleInfo.style.borderColor = '#2e7d32';
+        roleInfo.style.background  = '#f0fff4';
+      } else {
+        roleInfo.innerHTML = '<strong>Votre rôle :</strong> Developer — paramètres en lecture seule.';
+        document.getElementById('warningReadOnly').style.display = 'block';
+        document.getElementById('chkRestriction').disabled = true;
+        document.getElementById('btnSave').disabled = true;
+      }
+
+      // Pré-remplir la checkbox
+      document.getElementById('chkRestriction').checked = !!opts.restrictionAjoutSuppr;
+    }
+
+    document.getElementById('btnSave').addEventListener('click', async () => {
+      const btn = document.getElementById('btnSave');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.textContent = '';
+
+      const options = {
+        restrictionAjoutSuppr: document.getElementById('chkRestriction').checked
+      };
+
+      const result = await window.electronAPI.setGitlabOptions(options);
+
+      if (result && result.success) {
+        status.textContent = '✅ Paramètres enregistrés sur GitLab.';
+        setTimeout(() => window.close(), 1200);
+      } else {
+        status.style.color = '#c0392b';
+        status.textContent = '❌ Erreur : ' + (result?.error || 'Impossible d\'enregistrer.');
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btnCancel').addEventListener('click', () => window.close());
+
+    init();
+  </script>
+</body>
+</html>
