@@ -41,6 +41,7 @@
     "asar": true,
     "mac": {
       "icon": "icon/icon.icns",
+      "identity": null,
       "target": [
         {
           "target": "dmg",
@@ -112,7 +113,7 @@
   },
   "devDependencies": {
     "electron": "38.1.2",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^25.1.8",
     "electron-icon-builder": "^2.0.1"
   }
 }

@@ -59,6 +59,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ELECTRON_BUILDER_CONCURRENT_DOWNLOADS: 1
           ELECTRON_BUILDER_MAX_RETRIES: 3
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_LINK: ""
+          CSC_KEY_PASSWORD: ""
       
       - name: List generated files (Linux)
         if: runner.os == 'Linux'
