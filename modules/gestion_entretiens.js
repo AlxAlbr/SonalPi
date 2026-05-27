@@ -1391,7 +1391,10 @@ async function afficherWhisPurge(){
     // création des classes css 
         
     
-    loadThm();
+    loadThm().then(() => {
+        const btnFilig = document.getElementById('filgraneCat');
+        if (btnFilig) btnFilig.classList.add('btn-bleu-actif');
+    });
     afflistThm("", 'conteneur_cat') 
        
 

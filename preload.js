@@ -212,10 +212,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportSynthesisPdf: (data) => ipcRenderer.invoke('export-synthese-pdf', data),
 
   ////////////////////////////////////////////////////////////////////////////
+  // EXPORT RECUEIL - DOCX ET PDF VIA IPC
+  ///////////////////////////////////////////////////////////////////////////
+  exportRecueilDocx: (data) => ipcRenderer.invoke('export-recueil-docx', data),
+  exportRecueilPdf:  (data) => ipcRenderer.invoke('export-recueil-pdf', data),
+
+  ////////////////////////////////////////////////////////////////////////////
   // EXPORT ENTRETIEN - DOCX ET PDF VIA IPC
   ///////////////////////////////////////////////////////////////////////////
   exportEntretienDocx: (data) => ipcRenderer.invoke('export-entretien-docx', data),
   exportEntretienPdf: (data) => ipcRenderer.invoke('export-entretien-pdf', data),
+
+  // Lister les fichiers .rcl dans le dossier du corpus courant (local ou distant)
+  listerRecueils: () => ipcRenderer.invoke('lister-recueils'),
+  supprimerRecueil: (filePath) => ipcRenderer.invoke('supprimer-recueil', filePath),
 
   // Écouter la libération d'un verrou d'entretien
   onEntretienDeverrouille: (callback) =>

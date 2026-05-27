@@ -24,6 +24,7 @@
     <script src="modules\gestion_audio.js"></script>
     <script src="modules\locutarisation.js"></script>
     <script src="modules\thematisation.js"></script>
+    <script src="modules\recueil.js"></script>
     <script src="modules\segmentation.js"></script>
     <script src="modules\Anonymisation\tableau_base.js"></script>
     <script src="modules\gestion_entretiens.js"></script>
@@ -361,8 +362,8 @@ window.addEventListener('unload', (event) => {
                  
                       <H2 style="margin-bottom: 1px;">Qui parle? 
                         
-                        <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="modifier les locuteurs" onclick="modifLocut()"> ✏️ Modifier </label>
-                        <label id="btnstatsloc" class="btnbleu" style = "margin-right: 10px;" title="statistiques" onclick="statsLocs('','','statsloc')"> Stats </label>
+                        <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="modifier les locuteurs" onclick="modifLocut()"> ✏️ </label>
+                        <label id="btnstatsloc" class="btnbleu" style = "margin-right: 10px;" title="statistiques" onclick="statsLocs('','','statsloc')"> 📊  </label>
                       </H2>
 
                     <div id="locuteurs" class="listlocs"></div>
@@ -1093,7 +1094,7 @@ function dessinChunks(){
 
 }
 
-// Met à jour la classe "mode-anon" sur #segments selon le typeAction
+// Met à jour les classes "mode-anon" et "mode-cat" sur #segments selon le typeAction
 function updateSegmentsAnonMode() {
     const segments = document.getElementById('segments');
     if (segments) {
@@ -1101,6 +1102,11 @@ function updateSegmentsAnonMode() {
             segments.classList.add('mode-anon');
         } else {
             segments.classList.remove('mode-anon');
+        }
+        if (typeAction === 'cat') {
+            segments.classList.add('mode-cat');
+        } else {
+            segments.classList.remove('mode-cat');
         }
     }
 }
@@ -1111,6 +1117,11 @@ async function dispPanneauG(bouton, composant){
     if (typeAction === 'loc') {
         document.querySelectorAll('.xtr-graph').forEach(s => s.style.display = '');
         document.querySelectorAll('.loc-graph').forEach(s => s.remove());
+    }
+
+    // Filigrane : actif par défaut hors mode cat, inactif en mode cat
+    if (composant !== 'fond_thm' && !filigraneActif) {
+        catsEnFiligrane();
     }
 
     // désactivation des autres boutons
@@ -1167,9 +1178,8 @@ async function dispPanneauG(bouton, composant){
         //document.getElementById("graph").classList.remove("dnone")
        noSel=false; 
        typeAction="loc"
-       // ⭐ Réinitialiser debSel/finSel (peuvent être null depuis fond_txt) pour débloquer la condition dans selSegment
        debSel=0; finSel=0;
-       // ⭐ Réappliquer segselected au segment courant quand on revient au mode locuteur
+        
        if (seg_cur != null && seg_cur !== undefined) {
            selSegment(seg_cur, false);
        }
@@ -1205,6 +1215,7 @@ async function dispPanneauG(bouton, composant){
     if (composant =="fond_rech"){
         document.getElementById("txtRech").focus();
         //noSel=false;
+        typeAction="rech"
     }
 
     
@@ -1396,6 +1407,8 @@ document.addEventListener("selectionchange", () => {
 
         const db = getSpan(debSel);
         if (db) {
+            // effacement des debsel précédents (hors anonymisations)
+            document.querySelectorAll('.debsel:not(.anon)').forEach(el => el.classList.remove('debsel'));
             db.classList.add("debsel");
           } else {console.log("le span " + debSel + "n'existe pas")}
 
@@ -2941,7 +2954,11 @@ fond.addEventListener("mousedown", () => {
             modifComm(rk, spn.dataset.obs)     
              
         }
-     
+
+        // Ne pas interrompre une sélection en cours (1er mot cliqué, 2e en attente) :
+        // le mot cible peut être en bout de ligne dans cette zone, le clic doit la compléter.
+        if (debSel && !finSel) { return; }
+
     debSel=0; 
     finSel=0;
 

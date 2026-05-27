@@ -483,6 +483,63 @@ ipcMain.handle('file:exists', async (_, filePath) => {
   }
 });
 
+// Lister les fichiers .rcl dans le dossier du corpus courant (local ou distant)
+ipcMain.handle('lister-recueils', async () => {
+  try {
+    if (!Corpus.folder) {
+      return { success: false, error: 'Aucun corpus ouvert' };
+    }
+
+    if (Corpus.type === 'local') {
+      const fichiers = fs.readdirSync(Corpus.folder);
+      const recueils = fichiers
+        .filter(f => f.toLowerCase().endsWith('.rcl'))
+        .map(f => ({ name: f, path: path.join(Corpus.folder, f) }));
+      return { success: true, files: recueils };
+    }
+
+    // Corpus distant (serveur ou GitLab)
+    const api = remoteAPI();
+    if (!api) {
+      return { success: false, error: 'Pas de connexion au serveur distant.' };
+    }
+
+    if (Corpus.type === 'gitlab') {
+      const allFiles = await api._listerRecursif(Corpus.folder);
+      const recueils = allFiles
+        .filter(f => f.type === 'blob' && f.name.toLowerCase().endsWith('.rcl'))
+        .map(f => ({ name: f.name, path: f.path }));
+      return { success: true, files: recueils };
+    }
+
+    // Serveur distant
+    const result = await api.listerFichiers(Corpus.folder);
+    if (!result.success) return result;
+    const recueils = result.files.filter(f => f.name.toLowerCase().endsWith('.rcl'));
+    return { success: true, files: recueils };
+
+  } catch (error) {
+    console.error('❌ Erreur liste recueils:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Supprimer un fichier recueil (.rcl)
+ipcMain.handle('supprimer-recueil', async (_, filePath) => {
+  try {
+    if (Corpus.type === 'local') {
+      fs.unlinkSync(filePath);
+      return { success: true };
+    }
+    const api = remoteAPI();
+    if (!api) return { success: false, error: 'Pas de connexion au serveur distant.' };
+    return await api.supprimerFichier(filePath);
+  } catch (error) {
+    console.error('\u274c Erreur suppression recueil:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Récupérer la date de modification d'un fichier (local ou distant)
 ipcMain.handle('file:lastModified', async (_, filePath) => {
   console.log('🕒 Dernière modif:', filePath);
@@ -2658,10 +2715,38 @@ app.on('ready', () => {
     // Définir l'icône après le chargement de la fenêtre
     mainWindow.once('ready-to-show', async () => {
       mainWindow.setIcon(iconPath);
+     // mainWindow.webContents.openDevTools();
       mainWindow.show();
 
-      // Vérification des mises à jour (ignorée silencieusement en développement)
-      autoUpdater.checkForUpdatesAndNotify();
+      // Vérification des mises à jour
+      console.log('[AutoUpdater] Démarrage de la vérification des mises à jour...');
+      console.log('[AutoUpdater] Version courante :', app.getVersion());
+      console.log('[AutoUpdater] isDev :', !app.isPackaged);
+
+      // En mode dev, forcer la lecture de dev-app-update.yml
+      if (!app.isPackaged) {
+        autoUpdater.forceDevUpdateConfig = true;
+      }
+
+      autoUpdater.logger = {
+        info:  (msg) => console.log('[AutoUpdater]', msg),
+        warn:  (msg) => console.warn('[AutoUpdater]', msg),
+        error: (msg) => console.error('[AutoUpdater]', msg),
+        debug: (msg) => console.log('[AutoUpdater][debug]', msg),
+      };
+
+      autoUpdater.checkForUpdatesAndNotify()
+        .then(result => {
+          if (result) {
+            console.log('[AutoUpdater] Réponse checkForUpdatesAndNotify :', JSON.stringify(result.updateInfo || result));
+          } else {
+            console.log('[AutoUpdater] checkForUpdatesAndNotify a renvoyé null (pas de mise à jour ou mode dev sans config)');
+          }
+        })
+        .catch(err => {
+          console.error('[AutoUpdater] Erreur lors de checkForUpdatesAndNotify :', err.message);
+          console.error('[AutoUpdater] Stack :', err.stack);
+        });
 
       // Windows/Linux : ouvrir le fichier passé en argument
       if (pendingFilePath) {
@@ -2678,13 +2763,26 @@ app.on('ready', () => {
   });
 
   // Mise à jour disponible : informer l'utilisateur
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[AutoUpdater] Vérification en cours sur GitHub...');
+  });
+
   autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] ✅ Mise à jour disponible :', JSON.stringify(info));
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'Mise à jour disponible',
       message: `Une nouvelle version (${info.version}) est disponible.`,
       detail: 'Elle sera téléchargée en arrière-plan et installée à la prochaine fermeture.'
     });
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('[AutoUpdater] ℹ️ Pas de mise à jour disponible. Version en ligne :', info.version);
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`[AutoUpdater] ⬇️ Téléchargement : ${progress.percent.toFixed(1)}% — ${(progress.transferred / 1024 / 1024).toFixed(2)} Mo / ${(progress.total / 1024 / 1024).toFixed(2)} Mo`);
   });
 
   // Mise à jour téléchargée : proposer le redémarrage
@@ -2701,7 +2799,8 @@ app.on('ready', () => {
   });
 
   autoUpdater.on('error', (err) => {
-    console.error('Erreur autoUpdater:', err.message);
+    console.error('[AutoUpdater] ❌ Erreur :', err.message);
+    console.error('[AutoUpdater] Stack :', err.stack);
   });
 
 
@@ -3093,6 +3192,181 @@ ipcMain.handle('export-synthese-pdf', async (event, { contenuTxt, nomFichier }) 
     });
   } catch (error) {
     console.error('❌ Erreur PDF :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---------------------------------------------------------------
+// IPC HANDLERS - Export RECUEIL - Format DOCX
+// ---------------------------------------------------------------
+ipcMain.handle('export-recueil-docx', async (event, { nom, items, nomFichier, opts }) => {
+  try {
+    const currentDate = new Date().toLocaleString();
+    const children = [];
+
+    const headingMap = {
+      1: HeadingLevel.HEADING_1,
+      2: HeadingLevel.HEADING_2,
+      3: HeadingLevel.HEADING_3
+    };
+
+    // Titre du recueil
+    children.push(
+      new Paragraph({
+        text: nom,
+        heading: HeadingLevel.TITLE,
+        spacing: { after: 120 }
+      })
+    );
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: `Exporté par Sonal π le ${currentDate}`, size: 20, italics: true })],
+        spacing: { after: 300 }
+      })
+    );
+
+    for (const item of items) {
+      if (item.type === 'titre') {
+        const niv = item.niveau || 1;
+        children.push(
+          new Paragraph({
+            text: item.libelle || '',
+            heading: headingMap[niv] || HeadingLevel.HEADING_1,
+            spacing: { before: 240, after: 120 }
+          })
+        );
+      } else if (item.type === 'extrait') {
+        const texte = (item.texte || '').trim();
+        if (texte) {
+          const lignes = texte.split('\n');
+          for (let li = 0; li < lignes.length; li++) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: lignes[li], italics: true })],
+                indent: { left: 720 },
+                spacing: { after: li === lignes.length - 1 ? 0 : 0 }
+              })
+            );
+          }
+        }
+        if (opts.inclureCommentaires && item.commentaire && item.commentaire.trim()) {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: item.commentaire.trim(), italics: true, color: '888888', size: 20 })],
+              indent: { left: 720 },
+              spacing: { after: 200 }
+            })
+          );
+        } else {
+          children.push(new Paragraph({ text: '', spacing: { after: 200 } }));
+        }
+      } else if (item.type === 'texte') {
+        const texte = (item.texte || '').trim();
+        if (texte) {
+          const lignes = texte.split('\n');
+          for (const ligne of lignes) {
+            children.push(
+              new Paragraph({
+                text: ligne,
+                spacing: { after: 80 }
+              })
+            );
+          }
+          children.push(new Paragraph({ text: '', spacing: { after: 120 } }));
+        }
+      }
+    }
+
+    const doc = new Document({ sections: [{ children }] });
+    const buffer = await Packer.toBuffer(doc);
+
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath,
+      filters: [{ name: 'Document Word', extensions: ['docx'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    fs.writeFileSync(filePath, buffer);
+    shell.openPath(filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur DOCX recueil :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---------------------------------------------------------------
+// IPC HANDLERS - Export RECUEIL - Format PDF
+// ---------------------------------------------------------------
+ipcMain.handle('export-recueil-pdf', async (event, { nom, items, nomFichier, opts }) => {
+  try {
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, nomFichier);
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      defaultPath,
+      filters: [{ name: 'Document PDF', extensions: ['pdf'] }]
+    });
+
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const writeStream = fs.createWriteStream(filePath);
+    doc.pipe(writeStream);
+
+    const currentDate = new Date().toLocaleString();
+    const headingSizes = { 1: 16, 2: 14, 3: 12 };
+
+    // Titre du recueil
+    doc.fontSize(20).font('Helvetica-Bold').text(nom, { width: 480 });
+    doc.moveDown(0.3);
+    doc.fontSize(10).font('Helvetica-Oblique').text(`Exporté par Sonal π le ${currentDate}`);
+    doc.moveDown(1);
+
+    for (const item of items) {
+      if (item.type === 'titre') {
+        const niv = item.niveau || 1;
+        const size = headingSizes[niv] || 14;
+        doc.moveDown(0.5);
+        doc.fontSize(size).font('Helvetica-Bold').text(item.libelle || '', { width: 480 });
+        doc.moveDown(0.3);
+        doc.font('Helvetica');
+      } else if (item.type === 'extrait') {
+        const texte = (item.texte || '').trim();
+        if (texte) {
+          doc.fontSize(11).font('Helvetica-Oblique').text(texte, { width: 440, indent: 40 });
+        }
+        if (opts.inclureCommentaires && item.commentaire && item.commentaire.trim()) {
+          doc.fontSize(10).font('Helvetica-Oblique').fillColor('#888888')
+            .text(item.commentaire.trim(), { width: 440, indent: 40 });
+          doc.fillColor('#000000');
+        }
+        doc.moveDown(0.5);
+        doc.font('Helvetica');
+      } else if (item.type === 'texte') {
+        const texte = (item.texte || '').trim();
+        if (texte) {
+          doc.fontSize(11).font('Helvetica').text(texte, { width: 480 });
+          doc.moveDown(0.3);
+        }
+      }
+    }
+
+    doc.end();
+
+    return new Promise(resolve => {
+      writeStream.on('finish', () => {
+        shell.openPath(filePath);
+        resolve({ success: true, filePath });
+      });
+      writeStream.on('error', err => resolve({ success: false, error: err.message }));
+    });
+  } catch (error) {
+    console.error('❌ Erreur PDF recueil :', error);
     return { success: false, error: error.message };
   }
 });

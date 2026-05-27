@@ -14,8 +14,8 @@ var taille_def = 18; // taille de police par défaut
 var dragO = null; // thématique en cours de déplacement 
 var dragA = null; // thématique cible du déplacement
 
-let filigraneActif = false;
-const FILIGRANE_OPACITE = 0.75; // opacité du voile blanc (0 = invisible, 1 = blanc total)
+let filigraneActif = true;
+const FILIGRANE_OPACITE = 0.55; // opacité du voile blanc (0 = invisible, 1 = blanc total)
 
 async function loadThm(){
 
@@ -1223,7 +1223,8 @@ async function thmSeg(deb, fin, thm){ // affecter un code de catérogie
     let tabGrphEnt = await resumeGraphique(html.replace(/`/g,''));
     dessinResumeGraphique(0, canva, tabGrphEnt);
 
-    
+    // Rafraîchissement du menu de sélection pour refléter la catégorie appliquée
+    if (debSel && finSel) { afficherMenuSel(); }
 
  
 
@@ -1888,6 +1889,8 @@ function getRkThm(code){
 
 function getThm(rk){
 
+
+    console.log("recherche des thématiques pour le rang " + rk)
     var ruptAv=0; 
     var ruptAp=0;
     //var tabRuptAv = [];
@@ -1988,6 +1991,7 @@ function getThm(rk){
      
 
     listenersFinSel() // ajout du listener lié à fin sel
+    afficherMenuSel(); // affichage du menu de sélection
      
     thmEnCours(classes)
    

@@ -18,6 +18,8 @@
   <script  src="modules/utilitaires.js"></script>
   <script  src="modules/conversions.js"></script>
   <script  src="modules/gestion_data.js"></script>
+  <script  src="modules/recueil.js"></script>
+  <script  src="modules/export_recueil.js"></script>
   <script  src="modules/Synthèse.js"></script>
   <script  src="modules/export_synthese_extended.js"></script>
   <script  src="modules/segmentation.js"></script>
@@ -26,7 +28,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "1.0.60";
+    const version = "1.0.61";
   </script>
 
 <body>
@@ -47,10 +49,10 @@
           <br>
           <p style="margin-top:20px">Veuillez ouvrir un corpus existant ou en créer un nouveau pour commencer.</p>
           <br>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; width:320px; margin-left:auto; margin-right:auto;">
-            <button id="btnOuvrirCorpus" class="btn btn-primary">Ouvrir corpus local</button>
-            <button id="btnNouveauCorpus" class="btn btn-secondary">Nouveau corpus local</button>
-            <button id="btnOuvrirCorpusDistant" class="btn btn-info" style="grid-column: 1 / -1;">Ouvrir corpus distant</button>
+          <div style=" margin-left:auto; margin-right:auto;">
+            <button id="btnOuvrirCorpus" class="btn btn-primary"> 📂 Ouvrir Corpus</button>
+            <button id="btnNouveauCorpus" class="btn btn-secondary"> 📁+ Nouveau corpus</button>
+            <button id="btnOuvrirCorpusDistant" class="btn btn-secondary" style="grid-column: 1 / -1;"> 🌐 Ouvrir corpus distant</button>
           </div>
           <br>
 
@@ -1177,8 +1179,8 @@ async function displayRecentFiles() {
     <li class="recent-file-item">
       <div class="file-info"">
         <strong>${file.name}</strong>
-        <small>${file.path}</small>
-        <span class="file-date">${new Date(file.openedAt).toLocaleDateString()}</span>
+        <small style="color: #aaaaaa;">${file.path}</small>
+        <span style="color: #aaaaaa; class="file-date">${new Date(file.openedAt).toLocaleDateString()}</span>
       
       <!-- <div onclick="removeRecentFile('${file.path}')" title="Retirer" class="btn-recent-file">✕</div> !-->
     </div>

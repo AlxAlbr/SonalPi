@@ -268,6 +268,7 @@ if (tabEnt.length == 0){
             <h3 class="logo-filtre" style="margin-left:10px;">Extraits sélectionnés
                 <label id="btn-quit" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px;margin-right:8px" onclick="hideSynthese();">Quitter ✖️</label>
                 <label id="btn-export-dat" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px" onclick="exportSynthese();">Exporter 📥</label>
+                <label id="btn-recueil-synth" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px;margin-right:4px" onclick="afficherPanneauRecueil();">Recueils 📌</label>
 
             </h3>
         </div>
@@ -521,7 +522,17 @@ if (tabEnt.length == 0){
             const div = document.createElement('div');
             div.classList.add("extrait-synthese");
             div.dataset.description = "Extrait " + (i+1) + " / " + tabExt.length;
-
+            div.draggable = true;
+            div.dataset.extIdx = i;
+            div.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('application/sonal-extrait', String(i));
+                e.dataTransfer.effectAllowed = 'copy';
+                div.classList.add('extrait-synthese-dragging');
+            });
+            div.addEventListener('dragend', () => {
+                div.classList.remove('extrait-synthese-dragging');
+                div.draggable = true;
+            });
 
             conteneur.appendChild(div);
             
@@ -568,10 +579,25 @@ if (tabEnt.length == 0){
 
             div.appendChild(btnCopy);
             div.appendChild(btnContext);
-            for (m=0;m<tabExt[i].texte.length;m++){
 
-                 div.appendChild(tabExt[i].texte[m]);
+            // Div interne non-draggable : contient le texte de l'extrait.
+            // Au mousedown dans cette zone, on désactive temporairement le drag
+            // du parent pour permettre la sélection de texte.
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('extrait-synthese-content');
+            contentDiv.addEventListener('mousedown', () => {
+                div.draggable = false;
+                const re = () => {
+                    div.draggable = true;
+                    document.removeEventListener('mouseup', re);
+                };
+                document.addEventListener('mouseup', re);
+            });
+
+            for (m=0;m<tabExt[i].texte.length;m++){
+                 contentDiv.appendChild(tabExt[i].texte[m]);
             }
+            div.appendChild(contentDiv);
 
 
          
@@ -604,6 +630,7 @@ function hideSynthese(){
     }
 };
 
+ 
 // ---------------------------------------------------------------
 // Export de la synthèse (appelle dialogExportSyntheseChoixOptions)
 // ---------------------------------------------------------------

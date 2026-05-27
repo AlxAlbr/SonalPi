@@ -483,16 +483,25 @@ class ServeurAPI {
     console.log('🗑️ Suppression:', filePath);
     
     try {
-      const result = await this.request(filePath, 'DELETE');
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Erreur inconnue');
+      // Essai principal : HTTP DELETE (méthode REST standard)
+      let result;
+      try {
+        result = await this.request(filePath, 'DELETE');
+      } catch (deleteErr) {
+        // Fallback : certains serveurs ne supportent pas la méthode HTTP DELETE.
+        // On tente via action=delete (requête GET avec paramètre action).
+        console.warn('⚠️ HTTP DELETE échoué, tentative via action=delete :', deleteErr.message);
+        result = await this.requestWithAction(filePath, 'delete');
       }
-      
+
+      if (result && result.success === false && result.error) {
+        throw new Error(result.error);
+      }
+
       console.log('✅ Fichier supprimé');
       return {
         success: true,
-        message: result.message
+        message: result && result.message
       };
     } catch (error) {
       console.error('❌ Erreur suppression:', error);
@@ -510,7 +519,7 @@ class ServeurAPI {
     console.log('📂 Liste des fichiers:', dirPath);
     
     try {
-      const result = await this.request(dirPath, 'POST');
+      const result = await this.requestWithAction(dirPath, 'list');
       
       if (!result.success) {
         throw new Error(result.error || 'Erreur inconnue');

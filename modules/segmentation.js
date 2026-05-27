@@ -70,13 +70,36 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
          
         }
     
-        //if (debSel==0){debSel=rk;console.log("def deb"); console.log("debsel",debSel); return} // définition du début
+        // Protection : si une sélection est en cours (debSel posé, finSel pas encore fixé),
+        // compléter directement sans passer par getThm, quelles que soient les classes du mot.
+        if (debSel && !finSel) { finSel = Number(rk); survOk(); return; }
+
+        if (debSel==0){
+            // si le mot a déjà une catégorie, afficher directement sa continuité thématique
+            const spnClic = getSpan(rk);
+            if (spnClic && Array.from(spnClic.classList).some(c => c.startsWith("cat_"))) {
+                getThm(rk);
+                return;
+            }
+            debSel=Number(rk);
+            afficherMenuSelAttente();
+            return; // sinon, définition du début de sélection
+        }
     
         if (debSel!=0 && finSel!=0){
             
             if (debSel>rk || finSel<rk ) {
+                // Mot hors de la sélection courante
+                const spnClic = getSpan(rk);
+                if (spnClic && Array.from(spnClic.classList).some(c => c.startsWith("cat_"))) {
+                    // Mot thématisé → sélectionner directement sa portion thématique
+                    effaceSurv();
+                    getThm(rk);
+                    return;
+                }
                 debSel=0;finSel=0;
                 effaceSurv();
+                thmEnCours(spnClic ? spnClic.classList.value : '');
             } else (
                 survSeg(rk) // on survole le mot cliqué
             )
@@ -87,7 +110,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
 
            // if (debSel==rk){debSel=0;finSel=0;return}
                   
-            if (finSel==0){finSel=rk;survOk();return}
+            if (finSel==0){finSel=Number(rk);survOk();return}
 
             // ajouter les classes debsel et fin (si aucune classe n'est déjà présente = quand la sélection à la souris ne fonctionne pas)
             if (document.querySelectorAll(".debsel , .finsel").length==0) {
@@ -115,7 +138,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
       
           
         
-            if (typeAction !="cat") { return;} // si on n'est pas en mode catégorie, on ne fait rien
+            if (typeAction !="cat" && typeAction !="loc") { return;} // si on n'est pas en mode catégorie ou locuteur, on ne fait rien
 
 
             if (debSel==0){return;}
@@ -166,7 +189,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
 
         document.querySelectorAll(".survseg").forEach(el => el.classList.add("survok"));
         document.querySelectorAll(".survseg").forEach(el => el.classList.remove("survseg"));
-        
+        afficherMenuSel();
     }
     function effaceSurv(){
      // effacement de la classe de survol
@@ -1286,6 +1309,231 @@ function fusionSegs(seg){
     TabSeg.splice(seg+1,1);
     
 
+}
+
+
+// ============================================================
+// Menu d'attente — affiché dès le 1er clic (debSel posé, finSel en attente)
+// ============================================================
+function afficherMenuSelAttente() {
+
+    const oldMenu = document.getElementById('menu-sel');
+    if (oldMenu) oldMenu.remove();
+
+    const spnDeb = getSpan(debSel);
+    let topPos = 120;
+    if (spnDeb) {
+        const rect = spnDeb.getBoundingClientRect();
+        topPos = Math.max(60, Math.min(rect.top, window.innerHeight - 300));
+    }
+
+    const menu = document.createElement('div');
+    menu.id = 'menu-sel';
+    menu.style.top = topPos + 'px';
+    menu.innerHTML = `
+        <div class="menu-sel-titre">
+            Cliquez pour terminer la sélection
+            <span class="menu-sel-close" onmousedown="annulerDebSel()">✕</span>
+        </div>
+        <div class="menu-sel-action" onmousedown="annulerDebSel()">✕ Annuler la sélection</div>`;
+    document.body.appendChild(menu);
+
+    // rAF pour suivre le scroll
+    let _rafAttenteId;
+    const _majPos = () => {
+        const m = document.getElementById('menu-sel');
+        if (!m) return;
+        const spn = getSpan(debSel);
+        if (spn) {
+            const r = spn.getBoundingClientRect();
+            m.style.top = Math.max(60, Math.min(r.top, window.innerHeight - 300)) + 'px';
+        }
+        _rafAttenteId = requestAnimationFrame(_majPos);
+    };
+    _rafAttenteId = requestAnimationFrame(_majPos);
+    window._menuSelRaf = _rafAttenteId;
+}
+
+function annulerDebSel() {
+    debSel = 0; finSel = 0;
+    const menu = document.getElementById('menu-sel');
+    if (menu) menu.remove();
+    if (window._menuSelRaf) {
+        cancelAnimationFrame(window._menuSelRaf);
+        window._menuSelRaf = null;
+    }
+    effaceSel();
+    effaceSurv();
+}
+
+// ============================================================
+// Menu de sélection — panneau droit, affiché dès que debSel+finSel sont posés
+// ============================================================
+async function afficherMenuSel() {
+
+    if (typeAction !== 'cat' && typeAction !== 'loc') return;
+    if (!debSel || !finSel) return;
+
+    // Supprimer l'ancien menu s'il existe
+    const oldMenu = document.getElementById('menu-sel');
+    if (oldMenu) oldMenu.remove();
+
+    // Position verticale : hauteur du premier mot de la sélection, clampée au viewport
+    const spnDeb = getSpan(debSel);
+    let topPos = 120;
+    if (spnDeb) {
+        const rect = spnDeb.getBoundingClientRect();
+        topPos = Math.max(60, Math.min(rect.top , window.innerHeight - 300));
+    }
+
+    // Catégories présentes sur TOUS les spans de la sélection (intersection)
+    const deb = Number(debSel);
+    const fin = Number(finSel);
+    let catsCommunes = null;
+    for (let rk = deb; rk <= fin; rk++) {
+        const sp = getSpan(rk);
+        if (!sp) continue;
+        const catsSp = Array.from(sp.classList).filter(c => c.startsWith('cat_'));
+        if (catsCommunes === null) {
+            catsCommunes = catsSp;
+        } else {
+            catsCommunes = catsCommunes.filter(c => catsSp.includes(c));
+        }
+        if (catsCommunes.length === 0) break;
+    }
+    if (!catsCommunes) catsCommunes = [];
+
+    // Construction du HTML
+    let chaine = `
+        <div class="menu-sel-titre">
+            Sélection...
+            <span class="menu-sel-close" onmousedown="fermerMenuSel()">✕</span>
+        </div>`;
+
+    // En-tête contextuel selon le mode
+    if (typeAction === 'cat') {
+        chaine += `<div class="menu-sel-action menu-title-cat" style="font-size: 14px;">Catégories</div>`;
+    } else if (typeAction === 'loc') {
+        const segCurEl = getSeg(seg_cur);
+        const rgloc = segCurEl ? (segCurEl.dataset.loc || 0) : 0;
+        const nomLoc = (typeof locut !== 'undefined' && locut[rgloc]) ? locut[rgloc] : 'Locuteur';
+        chaine += `<div class="menu-sel-action menu-title-loc" style="font-size: 14px;">${nomLoc}</div>`;
+    }
+
+    if (catsCommunes.length > 0) {
+        for (const cat of catsCommunes) {
+            const rkc = getRkThm(cat);
+            const thm = (tabThm && tabThm[rkc]) ? tabThm[rkc] : null;
+            const nom = thm ? thm.nom : cat;
+            const couleur = (thm && thm.couleur) ? thm.couleur : '#ccc';
+            chaine += `<div class="menu-sel-item" style="border-left: 4px solid ${couleur};">
+                <span>${nom}</span>
+                <span class="menu-sel-cat-close" onmousedown="supprimerCatSel('${cat}', ${deb}, ${fin})">✕</span>
+            </div>`;
+        }
+        chaine += `<div class="menu-sel-action" style = "font-size: 14px;" onmousedown="effacerToutesCatsSel(${deb}, ${fin})">✖ Tout retirer</div>
+        `;
+    }
+
+    chaine += `
+        <div class="menu-sel-action" onmousedown="addComment()">💬 Commenter...</div>
+        <div class="menu-sel-action" onmousedown="navigator.clipboard.writeText(exportTxt(${deb}, ${fin}, true))">📋 Copier</div>
+        <div class="menu-sel-action" onmousedown="ouvrirMenuAjoutRecueil(${deb}, ${fin}, exportTxt(${deb}, ${fin}), event.target)">📌 Ajouter au recueil</div>`;
+
+    const menu = document.createElement('div');
+    menu.id = 'menu-sel';
+    menu.style.top = topPos + 'px';
+    menu.innerHTML = chaine;
+    document.body.appendChild(menu);
+
+    // Repositionnement en continu via rAF (fonctionne quel que soit le conteneur scrollable)
+    let _rafMenuSel = null;
+    const _majPosMenuSel = () => {
+        const m = document.getElementById('menu-sel');
+        if (!m) return; // menu fermé, on arrête
+        const spn = getSpan(debSel);
+        if (spn) {
+            const r = spn.getBoundingClientRect();
+            m.style.top = Math.max(60, Math.min(r.top , window.innerHeight - 300)) + 'px';
+        }
+        _rafMenuSel = requestAnimationFrame(_majPosMenuSel);
+    };
+    _rafMenuSel = requestAnimationFrame(_majPosMenuSel);
+    window._menuSelRaf = _rafMenuSel;
+
+    // Fermeture au prochain clic hors du menu
+    setTimeout(() => {
+        document.addEventListener('mousedown', _fermerMenuSelSiHors);
+    }, 0);
+}
+
+function fermerMenuSel() {
+    const menu = document.getElementById('menu-sel');
+    if (menu) menu.remove();
+    document.removeEventListener('mousedown', _fermerMenuSelSiHors);
+    if (window._menuSelRaf) {
+        cancelAnimationFrame(window._menuSelRaf);
+        window._menuSelRaf = null;
+    }
+    effaceSel();
+    effaceSurv();
+    debSel = 0; finSel = 0;
+    thmEnCours('');
+}
+
+function _fermerMenuSelSiHors(e) {
+    const menu = document.getElementById('menu-sel');
+    // Ne pas fermer si le clic vient d'une étiquette de catégorie (panneau latéral)
+    if (e.target.closest('.ligthm')) return;
+    if (menu && !menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('mousedown', _fermerMenuSelSiHors);
+        if (window._menuSelRaf) {
+            cancelAnimationFrame(window._menuSelRaf);
+            window._menuSelRaf = null;
+        }
+    }
+}
+
+async function supprimerCatSel(cat, deb, fin) {
+    // Retire la catégorie de tous les spans de la sélection
+    for (let rk = deb; rk <= fin; rk++) {
+        const sp = getSpan(rk);
+        if (sp) sp.classList.remove(cat);
+    }
+    backUp();
+    await majUIApresModifCatsSelection(deb);
+    afficherMenuSel(); // rafraîchissement
+}
+
+async function effacerToutesCatsSel(deb, fin) {
+    backUp();
+    for (let rk = deb; rk <= fin; rk++) {
+        const sp = getSpan(rk);
+        if (!sp) continue;
+        Array.from(sp.classList)
+            .filter(c => c.startsWith('cat_'))
+            .forEach(c => sp.classList.remove(c));
+    }
+    await majUIApresModifCatsSelection(deb);
+    afficherMenuSel(); // rafraîchissement
+}
+
+async function majUIApresModifCatsSelection(deb) {
+    const cible = getSpan(deb);
+    const classes = cible ? cible.classList.value : '';
+    thmEnCours(classes);
+    effaceSurv();
+    multiThm('segments');
+
+    // Synchronise aussi le résumé graphique après retrait de catégories.
+    const segs = document.getElementById('segments');
+    const canva = document.getElementById('graphEnt');
+    if (segs && canva) {
+        const html = segs.innerHTML;
+        const tabGrphEnt = await resumeGraphique(html.replace(/`/g, ''));
+        dessinResumeGraphique(0, canva, tabGrphEnt);
+    }
 }
 
 
