@@ -76,7 +76,7 @@ async function addVar(mode) {
         await affichDataGen();
         hidedlg();
     } else {
-        alert("Veuillez entrer un nom de variable.");
+        question("Veuillez entrer un nom de variable.", ['OK']);
     }
   
     
@@ -93,7 +93,7 @@ async function editVar(rgVar, mode) {
     //recherche dans le tableau tabVar l'index de la variable à modifier
     const rgVarToEdit = tabVar.findIndex(vr => vr.v == rgVar);
     if (rgVarToEdit === -1) {
-        alert("Variable non trouvée au début");
+        question("Variable non trouvée au début", ['OK']);
         return;
     }
 
@@ -208,7 +208,7 @@ async function editVar(rgVar, mode) {
         saveButton.setAttribute("onclick", "sauvVar('" + rgVar + "', '" + mode + "'); hidedlg()");
         //console.log(saveButton, saveButton.getAttribute("onclick"));
     } else {
-        alert("Variable non trouvée.");
+        question("Variable non trouvée.", ['OK']);
     }
 }
 
@@ -260,7 +260,7 @@ async function sauvVar(rgVar, mode) {
       
               
     } else {
-        alert("Veuillez entrer un nom de variable.");
+        question("Veuillez entrer un nom de variable.", ['OK']);
     }
 }
 
@@ -310,7 +310,7 @@ async function supprVar(rgVar, mode) {
 
         hidedlg();
     } else {
-        alert("Variable non trouvée.");
+        question("Variable non trouvée.", ['OK']);
     }
 }
 
@@ -1376,7 +1376,7 @@ async function validerCellGen(td, lib) {
     if (Corpus && (Corpus.type === "distant" || Corpus.type === "gitlab")) {
         const lockResult = await window.electronAPI.isEntretienLocked(rkEnt);
         if (lockResult && lockResult.locked === true) {
-            alert(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`);
+            question(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`, ['OK']);
             // Restaurer la valeur affichée
             const ligEnt = tabEnt[rkEnt];
             const ligDat = ligEnt && ligEnt.tabDat ? ligEnt.tabDat.find(d => d.v == v && d.l == loc) : null;

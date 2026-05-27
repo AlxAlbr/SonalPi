@@ -9,7 +9,7 @@
  */
 function exportTableCorrespondance() {
     if (typeof tabAnon === 'undefined' || !tabAnon) {
-        alert("⚠️ Aucune donnée d'anonymisation à exporter.");
+        question("Aucune donnée d'anonymisation à exporter.", ['OK']);
         return;
     }
     
@@ -30,7 +30,7 @@ function exportTableCorrespondance() {
     
     // Vérifier s'il y a des données à exporter
     if (correspondances.length === 0) {
-        alert("⚠️ Aucune anonymisation validée à exporter. Veuillez d'abord valider au least une ligne.");
+        question("Aucune anonymisation validée à exporter. Veuillez d'abord valider au moins une ligne.", ['OK']);
         return;
     }
     
@@ -55,7 +55,7 @@ function exportTableCorrespondance() {
     URL.revokeObjectURL(url);
     
     // Afficher un message de confirmation
-    alert(`✅ Export réussi : ${correspondances.length} correspondance(s) exportée(s).`);
+    question(`Export réussi : ${correspondances.length} correspondance(s) exportée(s).`, ['OK']);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ function importTableCorrespondance(files) {
                     traiterImportCorrespondances(allCorrespondances);
                 }
             } catch (error) {
-                alert(`❌ Erreur lors de la lecture du fichier ${file.name}:\n${error.message}`);
+                notifErreur(`Erreur lors de la lecture du fichier ${file.name}:\n${error.message}`);
             }
         };
         
@@ -217,7 +217,7 @@ function traiterImportCorrespondances(allCorrespondances) {
         appliquerImportCorrespondances(valides);
     } else {
         console.log("Aucune correspondance valide");
-        alert("⚠️ Aucune correspondance valide trouvée dans les fichiers.");
+        question("Aucune correspondance valide trouvée dans les fichiers.", ['OK']);
     }
 }
 
@@ -462,7 +462,7 @@ function appliquerImportCorrespondances(correspondances) {
     if (compteurDoublons > 0) {
         message += `\n⚠️ ${compteurDoublons} doublon(s) trouvé(s) (déjà anonymisé).`;
     }
-    alert(message);
+    question(message, ['OK']);
 }
 
 /**

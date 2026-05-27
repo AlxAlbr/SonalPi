@@ -26,7 +26,7 @@ window.electronAPI.onAfficherCorpus(async (resultat) => {
     await lireCorpus(Corpus.content);  // lecture du fichier crp
   } catch (err) {
     console.error('Erreur lors du chargement du corpus :', err);
-    alert('Erreur lors du chargement du corpus :\n' + err.message);
+    question('Erreur lors du chargement du corpus\n' + err.message, ['OK']);
   }
 });
 

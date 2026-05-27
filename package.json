@@ -19,7 +19,9 @@
     "publish": {
       "provider": "github",
       "owner": "AlxAlbr",
-      "repo": "SonalPi"
+      "repo": "SonalPi",
+      "draft": false,
+      "releaseType": "release"
     },
     "fileAssociations": [
       {

@@ -920,7 +920,7 @@ let corpusActuel = Corpus.url;
  // console.log('Corpus actuel:', corpusActuel);
 
   if (!corpusActuel) {
-    alert('Aucun corpus ouvert');
+    question('Aucun corpus ouvert', ['OK']);
     return { success: false, error: 'Aucun corpus ouvert' };
   }
   

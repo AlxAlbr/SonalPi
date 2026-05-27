@@ -1366,6 +1366,30 @@ function annulerDebSel() {
     effaceSurv();
 }
 
+// Extrait le texte brut d'une plage de spans (data-rk = rangs de mots)
+function txtSelectionSpans(deb, fin) {
+    // Préfixe du locuteur : déduit du segment parent du premier span
+    let prefix = '';
+    const spDeb = getSpan(deb);
+    if (spDeb) {
+        const seg = spDeb.closest('.lblseg');
+        if (seg) {
+            const idxLoc = seg.dataset.loc;
+            if (idxLoc && typeof locut !== 'undefined' && locut[idxLoc]) {
+                const nomLoc = locut[idxLoc].replaceAll('?', '').trim();
+                if (nomLoc) prefix = nomLoc + ' : ';
+            }
+        }
+    }
+    // Texte brut de la sélection
+    let txt = '';
+    for (let rk = deb; rk <= fin; rk++) {
+        const sp = getSpan(rk);
+        if (sp) txt += sp.textContent;
+    }
+    return prefix + txt;
+}
+
 // ============================================================
 // Menu de sélection — panneau droit, affiché dès que debSel+finSel sont posés
 // ============================================================
@@ -1437,8 +1461,8 @@ async function afficherMenuSel() {
 
     chaine += `
         <div class="menu-sel-action" onmousedown="addComment()">💬 Commenter...</div>
-        <div class="menu-sel-action" onmousedown="navigator.clipboard.writeText(exportTxt(${deb}, ${fin}, true))">📋 Copier</div>
-        <div class="menu-sel-action" onmousedown="ouvrirMenuAjoutRecueil(${deb}, ${fin}, exportTxt(${deb}, ${fin}), event.target)">📌 Ajouter au recueil</div>`;
+        <div class="menu-sel-action" onmousedown="navigator.clipboard.writeText(txtSelectionSpans(${deb}, ${fin}))">📋 Copier</div>
+        <div class="menu-sel-action" onmousedown="ouvrirMenuAjoutRecueil(${deb}, ${fin}, txtSelectionSpans(${deb}, ${fin}), event.target)">📌 Ajouter au recueil</div>`;
 
     const menu = document.createElement('div');
     menu.id = 'menu-sel';

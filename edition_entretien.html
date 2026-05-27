@@ -216,6 +216,7 @@ window.addEventListener('unload', (event) => {
                  <div id = "undo-redo" style = "float:left; margin-left:10px; margin-top:9px"  >
                     <label id = "btn-undo" class="btnfonction " style = "padding: 10px;" onclick="undo()" title="Annuler"> ⟲ </label>   
                     <label id = "btn-redo" class="btnfonction " style = "padding: 10px;margin-left:5px" onclick="redo()" title="Refaire"> ⟳ </label>
+                    <label id = "btn-valider" class="btnfonction btn-valider-inactif" style = "padding: 10px;margin-left:10px;" onclick="validerChangements()" title="Valider les changements de texte"> ✔ Valider modifications </label>
                  </div>
                
 
@@ -299,7 +300,7 @@ window.addEventListener('unload', (event) => {
                     <H2 id="lbltxt"  >Raccourcis</H2>
 
                     <label> Lancer/arrêter la lecture : → espace → double espace dans la zone d'édition </label>  
-                    <label> Entrée → nettoyer le texte </label> <br>
+                    <label> Entrée → valider les modifs textuelles (ou utiliser le bouton en haut) </label> <br>
                     
 
                     <label id = "idseg" style="display:none"></label> 
@@ -315,8 +316,9 @@ window.addEventListener('unload', (event) => {
 
 
                     <H2 id="lbldetails"  >Outils</H2>
-                    <label id = "btnsplit" class='btnfonction btnlarge ' style = "margin-top : 20px ; margin-bottom: 20px "; onclick="SplitSeg(debSel,finSel)">Fusionner</label> 
-                    <label id = "btncomment" class='btnfonction btnlarge ' title="ajouter un commentaire en marge"  onclick=" addComment()" style = "margin-bottom: 20px">Commenter</label> 
+                    <!-- <label id = "btnsplit" class='btnfonction btnlarge ' style = "margin-top : 20px ; margin-bottom: 20px "; onclick="SplitSeg(debSel,finSel)">Fusionner</label> 
+                    <label id = "btncomment" class='btnfonction btnlarge ' title="ajouter un commentaire en marge"  onclick=" addComment()" style = "margin-bottom: 20px">Commenter</label> !--> 
+
                     <label id = "btnsplit" class='btnfonction btnlarge '  title="Retirer les sauts de ligne jusqu'au segment courant" onclick=" compactJusqua(seg_cur)">Compacter avant</label> 
                     <label id = "btnsplit" class='btnfonction btnlarge '  title="Retirer tous les sauts de ligne (Attention ralentissement possible!)"  onclick=" compactJusqua('tout')">Compacter tout</label> 
                     <label id = "btnsplit" class='btnfonction btnlarge '  title="Restaurer les sauts de ligne " onclick=" decompact()" style = "margin-top: 10px">Décompacter</label>
@@ -656,6 +658,46 @@ var seg_lu = 0 // segment en cours de lecture
 var textok =false; 
 var audiook = false;
 var spaceKey=false; // mémorisation de l'utilisation de la touche espace
+var segmentsModified = false; // indique si le contenu des segments a été modifié depuis la dernière validation
+
+// met à jour l'état de modification et l'apparence du bouton valider
+function setSegmentsModified(val) {
+    segmentsModified = val;
+    const btn = document.getElementById('btn-valider');
+    if (!btn) return;
+    if (val) {
+        btn.classList.add('btn-valider-actif');
+        btn.classList.remove('btn-valider-inactif');
+    } else {
+        btn.classList.remove('btn-valider-actif');
+        btn.classList.add('btn-valider-inactif');
+    }
+}
+
+// valide les modifications textuelles en cours dans #segments
+function validerChangements() {
+    if (!segmentsModified) return;
+    setSegmentsModified(false);
+    const segCurAvant = seg_cur;
+    wait("Intégration des changements en cours. \n Merci de patienter quelques instants.");
+    setTimeout(() => {
+        cleanHTML();
+        selSegment(segCurAvant);
+        const segRestaure = getSeg(segCurAvant);
+        if (segRestaure) {
+            segRestaure.focus();
+            const dernier = segRestaure.lastChild;
+            if (dernier) {
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.setStartAfter(dernier);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        }
+    }, 50);
+}
 
 // catégorisation
 //var mode_cat = false; // mode catégorisation - définit le comportement lors de la sélection des mots (active ou non la catégorisation)
@@ -1428,7 +1470,7 @@ const fdsegs = document.getElementById("segments");
 fdsegs.addEventListener("keydown", (e) => {
     const arrowKeys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
     if (e.key !== "Enter" && e.key !== " " && !arrowKeys.includes(e.key)) {
-        fdsegs.classList.add("en-edition");
+        setSegmentsModified(true);
     }
 });
 fdsegs.addEventListener("mouseup", () => {
@@ -1858,30 +1900,9 @@ document.addEventListener('keydown', (e) => {
  
                 event.preventDefault();
 
-                if (fdsegs.classList.contains("en-edition")) {
+                if (segmentsModified) {
                     // Le contenu a été modifié : nettoyage du HTML
-                    fdsegs.classList.remove("en-edition");
-                    const segCurAvant = seg_cur;
-                    wait("Intégration des changements en cours. \n Merci de patienter quelques instants.");
-                    setTimeout(() => {
-                        cleanHTML();
-                        // Restauration du focus sur le segment édité (cleanHTML appelle déjà endWait)
-                        selSegment(segCurAvant);
-                        const segRestaure = getSeg(segCurAvant);
-                        if (segRestaure) {
-                            segRestaure.focus();
-                            // Curseur en fin du dernier enfant du segment reconstruit
-                            const dernier = segRestaure.lastChild;
-                            if (dernier) {
-                                const range = document.createRange();
-                                const sel = window.getSelection();
-                                range.setStartAfter(dernier);
-                                range.collapse(true);
-                                sel.removeAllRanges();
-                                sel.addRange(range);
-                            }
-                        }
-                    }, 50);
+                    validerChangements();
                 } else {
                     // Pas de modification : scission du segment au curseur et insertion d'un nouveau segment vide
                     const sel = window.getSelection();
@@ -1943,7 +1964,7 @@ document.addEventListener('keydown', (e) => {
                             segNouveau.focus();
                         }
                     }
-                    fdsegs.classList.add("en-edition");
+                    setSegmentsModified(true);
                 }
 
                break;

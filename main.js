@@ -2715,7 +2715,7 @@ app.on('ready', () => {
     // Définir l'icône après le chargement de la fenêtre
     mainWindow.once('ready-to-show', async () => {
       mainWindow.setIcon(iconPath);
-     // mainWindow.webContents.openDevTools();
+     //mainWindow.webContents.openDevTools();
       mainWindow.show();
 
       // Vérification des mises à jour

@@ -1116,7 +1116,7 @@ async function ajoutThmApres(typeAjout){
 
     // Retrouver la ligne de référence (celle qui était ouverte)
     const divCible = fond.querySelector('[data-rkthm="' + rangthm + '"]');
-    if (!divCible) { alert('Erreur : ligne de référence introuvable'); return; }
+    if (!divCible) { question('Erreur : ligne de référence introuvable', ['OK']); return; }
 
     // Restaurer la hauteur de la ligne de référence si besoin
     divCible.style.height = '45px';

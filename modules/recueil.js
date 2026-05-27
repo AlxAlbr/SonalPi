@@ -605,6 +605,56 @@ function fermerPanneauRecueil() {
     _recueilCourant = null;
 }
 
+// ---------------------------------------------------------------
+// MODALE RECUEILS (accessible depuis le bouton dans le header)
+// ---------------------------------------------------------------
+async function ouvrirModaleRecueils() {
+    // Bascule : si déjà ouverte, fermer
+    const existing = document.getElementById('divModaleRecueils');
+    if (existing) { existing.remove(); _recueilCourant = null; return; }
+
+    const divModale = document.createElement('div');
+    divModale.id = 'divModaleRecueils';
+    divModale.classList.add('fondtabdat');
+
+    // En-tête (même style que Synthèse / Base de données)
+    const divEntete = document.createElement('div');
+    divEntete.style.cssText = 'height:50px; border-bottom:1px solid #ccc;';
+    divEntete.classList.add('header-tabdat');
+    divEntete.innerHTML = `
+        <h3 style="margin-left:10px;">📌 Recueils
+            <label class="btn btn-secondary" style="padding:10px;float:right;margin-top:-5px;margin-right:8px;cursor:pointer;"
+                onclick="document.getElementById('divModaleRecueils').remove(); _recueilCourant=null;">
+                Quitter ✖️
+            </label>
+            <button id="btn-export-recueil-header" class="btn btn-secondary" title="Exporter le recueil affiché"
+                style="padding:10px;float:right;margin-top:-5px;margin-right:4px;" disabled>
+                📥 Exporter
+            </button>
+        </h3>`;
+    divModale.appendChild(divEntete);
+
+    // Activation du bouton export
+    const btnExport = divEntete.querySelector('#btn-export-recueil-header');
+    if (btnExport) {
+        btnExport.addEventListener('click', () => {
+            if (!_recueilCourant) return;
+            exportRecueil(_recueilCourant);
+        });
+    }
+
+    // Corps défilant
+    const corps = document.createElement('div');
+    corps.id = 'corps-modale-recueils';
+    corps.style.overflow = 'auto';
+    corps.style.maxHeight = 'calc(100vh - 80px)';
+    corps.style.padding = '10px 16%';
+    divModale.appendChild(corps);
+
+    document.body.appendChild(divModale);
+    await afficherListeRecueilsDansPanneau(corps);
+}
+
 async function afficherListeRecueilsDansPanneau(conteneur) {
     _recueilCourant = null;
     const btnExportHeader = document.getElementById('btn-export-recueil-header');

@@ -149,7 +149,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
             let overwrite = null;
             if (fichExists) {
             
-                overwrite = confirm(`Le fichier ${nomFichTxtA} existe déjà dans le dossier du corpus. Voulez-vous l'écraser ?`);
+                overwrite = (await question(`Le fichier ${nomFichTxtA} existe déjà dans le dossier du corpus.\nVoulez-vous l'écraser ?`, ['Oui', 'Non'])) === 'oui';
             
             }
             if (fichExists && overwrite || !fichExists) { // si le fichier existe et qu'on veut l'écraser, ou s'il n'existe pas, on l'écrit
@@ -286,7 +286,7 @@ async function ajouterPlusieursEntretiens(selectedTextFiles) {
 async function loadHtml(rgDep, rgFin){
 
     let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
-    if (Corpus==null){alert("Aucun corpus n'est chargé"); return};
+    if (Corpus==null){question("Aucun corpus n'est chargé", ['OK']); return};
 
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
     
@@ -606,7 +606,7 @@ async function afficherEnt(rgDep, rgFin){
                         let result = await electronAPI.isEntretienLocked(rkEnt)
                          if (result.locked==true) {
                                     console.log("l'entretien est verrouillé par " + result.user)
-                                    alert(`L'entretien est actuellement édité par ${result.user}. \n Vous ne pouvez pas l'éditer pour le moment.`);
+                                    question(`L'entretien est actuellement édité par ${result.user}.\nVous ne pouvez pas l'éditer pour le moment.`, ['OK']);
                                     editable=false; 
                                     return   // Ne pas ouvrir la fenêtre d'édition
                         }
@@ -2686,11 +2686,11 @@ async function genererExportDocxEntretien(ent, opts, txtvars, nomFichier, conten
             wait();
             setTimeout(() => { endWait(); }, 500);
         } else if (!result.canceled) {
-            alert("Erreur lors de l'export DOCX : " + (result.error || 'Erreur inconnue'));
+            question("Erreur lors de l'export DOCX : " + (result.error || 'Erreur inconnue'), ['OK']);
         }
     } catch (error) {
         console.error('Erreur exportDocxEntretien :', error);
-        alert("Erreur lors de l'export DOCX");
+        question("Erreur lors de l'export DOCX", ['OK']);
     }
 }
 
@@ -2798,11 +2798,11 @@ async function genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenu
             wait();
             setTimeout(() => { endWait(); }, 500);
         } else if (!result.canceled) {
-            alert("Erreur lors de l'export PDF : " + (result.error || 'Erreur inconnue'));
+            question("Erreur lors de l'export PDF : " + (result.error || 'Erreur inconnue'), ['OK']);
         }
     } catch (error) {
         console.error('Erreur exportPdfEntretien :', error);
-        alert("Erreur lors de l'export PDF");
+        question("Erreur lors de l'export PDF", ['OK']);
     }
 }
 

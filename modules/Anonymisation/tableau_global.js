@@ -2014,13 +2014,13 @@ function afficherModaleAjoutEntiteAnon() {
         const pseudo = inputPseudo.value.trim();
 
         if (!entite) {
-            alert("Veuillez entrer l'entité originale.");
+            question("Veuillez entrer l'entité originale.", ['OK']);
             inputEntite.focus();
             return;
         }
 
         if (!pseudo) {
-            alert("Veuillez entrer le pseudonyme.");
+            question("Veuillez entrer le pseudonyme.", ['OK']);
             inputPseudo.focus();
             return;
         }
@@ -2033,7 +2033,7 @@ function afficherModaleAjoutEntiteAnon() {
         );
 
         if (existe) {
-            alert(`La combinaison "${entite}" → "${pseudo}" existe déjà.`);
+            question(`La combinaison "${entite}" → "${pseudo}" existe déjà.`, ['OK']);
             return;
         }
 

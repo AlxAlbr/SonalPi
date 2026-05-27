@@ -20,10 +20,11 @@ function exportRecueil(recueil) {
         </div>
         <h3 style="margin-top:0;margin-bottom:18px;">Choisissez un format d'export</h3>
         <div class="menudrlnt">
-            <div class="lblmnuxprt" onclick="exportRecueilFormat('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
-            <div class="lblmnuxprt" onclick="exportRecueilFormat('md')"><label class="lblformat">.md</label> <span class="lbldetails">Markdown</span></div>
+           
             <div class="lblmnuxprt" onclick="exportRecueilFormat('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte (Word)</span></div>
             <div class="lblmnuxprt" onclick="exportRecueilFormat('pdf')"><label class="lblformat">.pdf</label> <span class="lbldetails">Document PDF</span></div>
+             <div class="lblmnuxprt" onclick="exportRecueilFormat('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut</span></div>
+            <div class="lblmnuxprt" onclick="exportRecueilFormat('md')"><label class="lblformat">.md</label> <span class="lbldetails">Markdown</span></div>
         </div>`;
 }
 

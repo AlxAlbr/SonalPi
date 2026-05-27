@@ -1514,7 +1514,7 @@ async function rechercher() { // fonction de recherche de texte dans les segment
 
     chaine = chaine.toLowerCase(); 
     if (!chaine.trim()) {
-        alert("Veuillez saisir une chaîne à rechercher.");
+        question("Veuillez saisir une chaîne à rechercher.", ['OK']);
         return;
     }
 

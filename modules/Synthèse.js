@@ -562,7 +562,7 @@ if (tabEnt.length == 0){
                    }, 1000);
 
                 }).catch(err => {
-                    alert("Erreur lors de la copie : " + err);
+                    notifErreur("Erreur lors de la copie : " + err);
                 });
             });
 

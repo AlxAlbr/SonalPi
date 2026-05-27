@@ -2432,6 +2432,41 @@ background-color: #8d8d8d91;
     100% { outline: 2px solid transparent; background-color: #ffffff; border-color: darkgrey; }
 }
 
+/* Bouton "Valider changements" — état inactif */
+.btn-valider-inactif {
+    display: none;
+}
+
+/* Bouton "Valider changements" — état actif (fond bleu animé) */
+@keyframes shimmer-bleu {
+    0%   { background-position: -250% center; }
+    70%  { background-position: 250% center; }
+    100% { background-position: 250% center; }
+}
+
+.btn-valider-actif {
+    background-color: #16a34a;
+    background-image: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255,255,255,0.35) 50%,
+        transparent 100%
+    );
+    background-size: 60% 100%;
+    background-repeat: no-repeat;
+    animation: shimmer-bleu 2.5s ease-in-out infinite;
+    color: #ffffff !important;
+    border-color: #15803d !important;
+    cursor: pointer !important;
+    pointer-events: auto;
+}
+
+.btn-valider-actif:hover {
+    background-color: #15803d !important;
+    animation: none;
+    background-image: none;
+}
+
 .validation-ok {
     animation: validation-ok 0.8s ease-out forwards;
 }
@@ -2843,7 +2878,19 @@ SYNTHESE
     height: 20px;
     margin-right: 8px;
     vertical-align: middle;
-    opacity: 0.3;
+    opacity: 0.5;
+}
+
+.logo-recueil::before{
+    content: "";
+    background-image: url('../img/recueil.png');
+    background-size: cover;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    vertical-align: middle;
+    opacity: 0.5;
 }
 
 .logo-search::before{
@@ -3501,6 +3548,7 @@ SYNTHESE
     line-height: 1;
     opacity: 0;
     transition: opacity 0.15s;
+    z-index: 1;
 }
 .rcl-item-edit:hover .btn-rcl-del { opacity: 1; }
 .btn-rcl-del:hover { background: #fdd; color: #a00; }
@@ -3747,6 +3795,24 @@ SYNTHESE
     color: #888;
 }
 .rcl-edit-commentaire:focus { background: #f9f6f0; border-radius: 2px; }
+
+/* Commentaire vide : invisible par défaut, révélé au survol du bloc */
+.rcl-edit-commentaire:placeholder-shown:not(:focus) {
+    opacity: 0;
+    min-height: 2px;
+    height: 2px;
+    padding: 0;
+    border-top-color: transparent;
+    overflow: hidden;
+    transition: opacity 0.15s, min-height 0.15s, height 0.15s, padding 0.15s, border-top-color 0.15s;
+}
+.rcl-item-edit:hover .rcl-edit-commentaire:placeholder-shown:not(:focus) {
+    opacity: 0.5;
+    min-height: 28px;
+    height: 28px;
+    padding: 4px 0 2px 0;
+    border-top-color: #ccc;
+}
 
 /* Barre d'ajout */
 .barre-ajout-recueil {
