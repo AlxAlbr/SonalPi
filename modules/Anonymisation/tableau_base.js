@@ -126,16 +126,14 @@ function nettoyerPairesOrphelines() {
     const avantNettoyage = window.tabAnon.length;
     
     window.tabAnon = window.tabAnon.filter(paire => {
-        // Garder si:
-        // - occurrences > 0 (entité trouvée dans le texte)
-        // - OU entité vide (ligne vide pour saisie)
-        // - OU paire issue du tabAnon global avec un pseudo défini
-        //   → elle reste "en attente" dans le panneau latéral, prête à être validée
         const aOccurrences = paire.occurrences > 0;
         const estVide = !paire.entite || !paire.entite.trim();
-        // Paire globale présente dans le texte mais pas encore anonymisée dans cet entretien
         const estGlobalEnAttente = paire.presentMaisNonAnonymise === true;
-        return aOccurrences || estVide || estGlobalEnAttente;
+        // Conserver toutes les entrées globales non encore appliquées localement :
+        // la présence réelle dans le texte sera vérifiée au rendu par compterOccurrencesEntite
+        const estGlobalNonLocal = paire.source === 'Global' && !paire.existeLocalement;
+        const garde = aOccurrences || estVide || estGlobalEnAttente || estGlobalNonLocal;
+        return garde;
     });
     
     const apresNettoyage = window.tabAnon.length;
@@ -161,7 +159,7 @@ function entitePresenterDansDOM(entite) {
 
     const spansNonVides = [];
     tousLesSpans.forEach(span => {
-        const txt = (span.innerText || span.textContent || '').trim();
+        const txt = span.textContent.trim();
         if (txt) spansNonVides.push(txt);
     });
 
@@ -197,7 +195,7 @@ function detecterOccurrencesToutesLesPaires() {
     const tousLesSpans = document.querySelectorAll('[data-rk]');
     const motsPresents = new Set();
     tousLesSpans.forEach(span => {
-        const txt = (span.innerText || span.textContent || '').trim();
+        const txt = span.textContent.trim();
         if (txt) motsPresents.add(txt);
     });
     console.log(`⚡ Pré-filtrage : ${motsPresents.size} mot(s) distinct(s) dans le texte`);
@@ -225,13 +223,22 @@ function detecterOccurrencesToutesLesPaires() {
             }
 
             if (paire.source === 'Global' && !paire.existeLocalement) {
-                // Paire venue uniquement du global : vérifier si l'entité est présente
-                // dans le texte de cet entretien mais pas encore anonymisée.
-                // Si oui → afficher en attente. Si non → sera supprimée par le nettoyage.
-                paire.presentMaisNonAnonymise = entitePresenterDansDOM(paire.entite);
-                continue; // ne pas appliquer les classes anon
+                const presente = entitePresenterDansDOM(paire.entite);
+                paire.presentMaisNonAnonymise = presente;
+                if (presente) {
+                    paire.nbOccurrencesNonTraitees = compterOccurrencesEntite(paire.entite);
+                }
+                continue;
             }
-            appliquerAnonymisationPour(i);
+            // Le DOM préservé par cleanHTML est la source de vérité pour toute paire déjà
+            // appliquée (occurrences > 0) : réindexer sans toucher aux classes préserve
+            // l'état anon / exclu / non-traité tel qu'il a été sauvegardé.
+            // Pour les nouvelles paires (occurrences = 0), appliquer normalement.
+            if (paire.occurrences > 0) {
+                reindexerMatchPositions(i);
+            } else {
+                appliquerAnonymisationPour(i);
+            }
         }
     }
     
@@ -265,6 +272,31 @@ function initAnon() {
 function affichTableauAnon() {
     const tableauDiv = document.getElementById('tableauAnon');
     if (!tableauDiv) return;
+    // Réinitialiser le compteur actif (les flèches disparaissent au re-rendu)
+    window._activeCounter = null;
+
+    // --- DEBUG TERMINAL ---
+    if (window.electronAPI && window.electronAPI.debugLog && window.tabAnon) {
+        const total = window.tabAnon.length;
+        const avecOcc = window.tabAnon.filter(p => p.occurrences > 0);
+        const globEnAttente = window.tabAnon.filter(p => p.source === 'Global' && !p.existeLocalement && p.entite && p.entite.trim());
+        const lines = [
+            '┌─ [ENTRETIEN] affichTableauAnon ──────────────────────',
+            `│  tabAnon total    : ${total} entrée(s)`,
+            `│  avec occurrences : ${avecOcc.length}`,
+            `│  global en attente: ${globEnAttente.length}`,
+        ];
+        avecOcc.forEach(p => {
+            lines.push(`│    ✅ "${p.entite}" → "${p.remplacement}" | occ=${p.occurrences} exc=${p.matchPositions ? p.matchPositions.filter(m=>m.isException).length : 0}`);
+        });
+        globEnAttente.forEach(p => {
+            const nbDom = compterOccurrencesEntite(p.entite);
+            lines.push(`│    🔴 "${p.entite}" → "${p.remplacement}" | presentMaisNonAnonymise=${p.presentMaisNonAnonymise} | compterOccurrences(DOM)=${nbDom}`);
+        });
+        lines.push('└──────────────────────────────────────────────────────');
+        window.electronAPI.debugLog(lines.join('\n'));
+    }
+    // --- FIN DEBUG ---
     
     // 1. Construire la liste des indices à afficher
     // - Toutes les paires avec occurrences > 0
@@ -282,8 +314,17 @@ function affichTableauAnon() {
     
     // Ajouter les paires avec entité mais 0 occurrences (l'utilisateur vient de les ajouter)
     for (let i = 0; i < window.tabAnon.length; i++) {
-        if (window.tabAnon[i].occurrences === 0 && window.tabAnon[i].entite && window.tabAnon[i].entite.trim() && !indicesToDisplay.includes(i)) {
-            indicesToDisplay.push(i);
+        const p = window.tabAnon[i];
+        if (p.occurrences === 0 && p.entite && p.entite.trim() && !indicesToDisplay.includes(i)) {
+            // Pour les entrées globales non encore appliquées localement,
+            // ne montrer que si l'entité est réellement présente dans le texte
+            if (p.source === 'Global' && !p.existeLocalement) {
+                if (compterOccurrencesEntite(p.entite) > 0) {
+                    indicesToDisplay.push(i);
+                }
+            } else {
+                indicesToDisplay.push(i);
+            }
         }
     }
     
@@ -324,6 +365,19 @@ function affichTableauAnon() {
         const aDesOccurrences = paire.occurrences > 0;
         // Déterminer si cette ligne est VRAIMENT anonymisée (occurrences + pseudo défini)
         const estAnonymisee = aDesOccurrences && paire.remplacement.trim().length > 0;
+        // Réindexer les positions depuis le DOM si nécessaire (placeholders du panel corpus ou entrée non encore traitée)
+        if (paire.entite && paire.entite.trim()) {
+            const hasPlaceholders = aDesOccurrences && paire.matchPositions && paire.matchPositions.length > 0 && paire.matchPositions[0].start === -1;
+            const needsNonTraiteScan = !aDesOccurrences;
+            if (hasPlaceholders || needsNonTraiteScan) {
+                reindexerMatchPositions(i);
+            }
+        }
+        // Compteurs par catégorie
+        const nbAnon = paire.matchPositions ? paire.matchPositions.filter(m => !m.isException && !m.isNonTraite).length : 0;
+        const nbExc  = paire.matchPositions ? paire.matchPositions.filter(m => m.isException).length : 0;
+        const nbNon  = paire.matchPositions ? paire.matchPositions.filter(m => m.isNonTraite).length : 0;
+        const estPending = nbNon > 0;
         
         html += `
             <tr data-idx="${i}" class="ligne-anon${estAnonymisee ? ' ligne-anonymisee' : ''}">
@@ -353,22 +407,21 @@ function affichTableauAnon() {
                 </td>
                 <td class="col-actions">
                     <div class="actions-container-new">
-                        <!-- Bouton gauche: loupe (avant occurrences) ou navigation (après occurrences trouvées) -->
-                        <button class="btn-action btn-action-left" onclick="${aDesOccurrences ? `allerOccurrencePrecedente(${i})` : `rechercherOccurrences(${i})`}" title="${aDesOccurrences ? 'Occurrence précédente' : 'Rechercher occurrences'}" style="display:${aDesOccurrences || (paire.entite.trim() && paire.remplacement.trim()) ? 'inline-flex' : 'none'};">
-                            <span class="btn-main-icon">${aDesOccurrences ? '◀' : '🔍'}</span>
-                            <!-- Compteur overlay pour après recherche -->
-                            <span class="counter-badge" data-idx="${i}" style="display:${aDesOccurrences && paire.occurrences > 0 ? 'block' : 'none'};">${paire.occurrences > 0 ? paire.indexCourant + 1 + '/' + paire.occurrences : ''}</span>
-                            <!-- Exceptions badge, ancré à la droite du counter-badge -->
-                            <span class="exceptions-badge" style="display:${aDesOccurrences && compterExceptions(i) > 0 ? 'block' : 'none'};">${compterExceptions(i)}</span>
+                        ${nbAnon > 0 ? `<button class="btn-nav-cat btn-nav-cat-anon" data-idx="${i}" data-cat="anon" onclick="clicCompteur(this,${i},'anon')" title="${nbAnon} occurrence(s) anonymisée(s) — cliquer pour naviguer">${nbAnon}</button>` : ''}
+                        ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
+                        ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
+                        ${aDesOccurrences ? `
+                        <button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer">
+                            <span class="btn-main-icon">✖️</span>
                         </button>
-                        
-                        <!-- Bouton suivant (visible dès qu'il y a une occurrence) -->
-                        <button class="btn-action btn-action-next" onclick="allerOccurrenceSuivante(${i})" title="Occurrence suivante" style="display:${aDesOccurrences && paire.occurrences > 0 ? 'inline-flex' : 'none'};"><span class="btn-main-icon">▶</span></button>
-                        
-                        <!-- Bouton droit: valider (avant pseudo) ou supprimer (après vraie anonymisation) -->
-                        <button class="btn-action btn-action-delete" onclick="${estAnonymisee ? `supprimeLigneAnon(${i})` : `validerLigneAnon(${i})`}" title="${estAnonymisee ? 'Supprimer' : 'Valider et appliquer'}">
-                            <span class="btn-main-icon">${estAnonymisee ? '✖️' : '✓'}</span>
+                        ` : `
+                        <button class="btn-action btn-action-left" onclick="rechercherOccurrences(${i})" title="Rechercher occurrences" style="display:${paire.entite.trim() && paire.remplacement.trim() && !nbNon ? 'inline-flex' : 'none'};">
+                            <span class="btn-main-icon">🔍</span>
                         </button>
+                        <button class="btn-action btn-action-delete" onclick="validerLigneAnon(${i})" title="Valider et appliquer">
+                            <span class="btn-main-icon">✓</span>
+                        </button>
+                        `}
                     </div>
                 </td>
             </tr>
@@ -453,14 +506,78 @@ function nettoyerTabAnon() {
   return Array.from(map.values());
 }
 
-// Sauvegarde d'une ligne du tableau (quand on change le champ entité)
+// Sauvegarde d'une ligne du tableau (quand on change le champ entité ou pseudo)
 function sauvAnon(idx) {
-    const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
-    const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
-    
-    if (entite && remplacement) {
-        window.tabAnon[idx].entite = entite.value.trim();
-        window.tabAnon[idx].remplacement = remplacement.value.trim();
+    const entiteInput = document.querySelector(`.input-entite[data-idx="${idx}"]`);
+    const remplacementInput = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
+    if (!entiteInput || !remplacementInput) return;
+
+    const paire = window.tabAnon[idx];
+    if (!paire) return;
+
+    const ancienneEntite = (paire.entite || '').trim();
+    const ancienRemplacement = (paire.remplacement || '').trim();
+    const nouvelleEntite = entiteInput.value.trim();
+    const nouveauRemplacement = remplacementInput.value.trim();
+
+    paire.entite = nouvelleEntite;
+    paire.remplacement = nouveauRemplacement;
+
+    const aOccurrences = paire.occurrences > 0;
+
+    // Cas 1 : on vide la case "Nom" d'une ligne déjà anonymisée
+    // → on retire toutes les marques DOM, on remet à zéro matchPositions/occurrences
+    //   pour que les 3 compteurs (anon / exc / non) disparaissent.
+    if (ancienneEntite && !nouvelleEntite && aOccurrences) {
+        const tousLesSpans = document.querySelectorAll('[data-rk]');
+        if (paire.matchPositions && paire.matchPositions.length > 0) {
+            paire.matchPositions.forEach(match => {
+                for (let i = match.start; i <= match.end; i++) {
+                    if (tousLesSpans[i]) {
+                        tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                        tousLesSpans[i].removeAttribute('data-anon-nt');
+                        delete tousLesSpans[i].dataset.pseudo;
+                    }
+                }
+            });
+        }
+        // Filet de sécurité via l'ancien pseudo
+        if (ancienRemplacement) {
+            tousLesSpans.forEach(span => {
+                if (span.dataset.pseudo === ancienRemplacement) {
+                    span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                    span.removeAttribute('data-anon-nt');
+                    delete span.dataset.pseudo;
+                }
+            });
+        }
+        paire.occurrences = 0;
+        paire.matchPositions = [];
+        paire.indexCourant = 0;
+        affichTableauAnon();
+        return;
+    }
+
+    // Cas 2 : on vide uniquement la case "Pseudo" d'une ligne déjà anonymisée
+    // → les occurrences non-exception basculent en "à anonymiser" (isNonTraite),
+    //   le compteur "anonymisées" devient "à anonymiser".
+    if (ancienRemplacement && !nouveauRemplacement && aOccurrences
+        && paire.matchPositions && paire.matchPositions.length > 0) {
+        const tousLesSpans = document.querySelectorAll('[data-rk]');
+        paire.matchPositions.forEach(match => {
+            if (!match.isException) {
+                for (let i = match.start; i <= match.end; i++) {
+                    if (tousLesSpans[i]) {
+                        tousLesSpans[i].classList.remove('anon', 'debsel', 'finsel');
+                        delete tousLesSpans[i].dataset.pseudo;
+                        tousLesSpans[i].setAttribute('data-anon-nt', 'true');
+                    }
+                }
+                match.isNonTraite = true;
+            }
+        });
+        affichTableauAnon();
+        return;
     }
 }
 
@@ -650,13 +767,12 @@ function reactiverEditionLigne(idx) {
 // Sauvegarde le tabAnon courant dans l'entretien
 async function sauvegarderTabAnonEnt() {
     try {
-        if (typeof ent_cur !== 'undefined' && ent_cur >= 0) {
-            if (typeof tabEnt !== 'undefined' && tabEnt[ent_cur]) {
-                tabEnt[ent_cur].tabAnon = window.tabAnon;
-                await window.electronAPI.setEnt(tabEnt);
-                console.log("✅ TabAnon sauvegardé pour l'entretien");
-            }
-        }
+        const rkEnt = await window.electronAPI.getEntCur();
+        if (rkEnt === null || rkEnt === undefined || rkEnt < 0) return;
+        const tabEntLocal = await window.electronAPI.getEnt();
+        if (!tabEntLocal || !tabEntLocal[rkEnt]) return;
+        tabEntLocal[rkEnt].tabAnon = window.tabAnon;
+        await window.electronAPI.setEnt(tabEntLocal);
     } catch (error) {
         console.error("❌ Erreur lors de la sauvegarde du tabAnon:", error);
     }
@@ -788,7 +904,12 @@ function ajouteEntiteAnonSelectionnee() {
                 console.log("finselSpan:", finselSpan);
                 if (finselSpan) {
                     setTimeout(() => {
-                        showMenuException(finselSpan, idxPaire, matchIdx);
+                        const match = window.tabAnon[idxPaire]?.matchPositions?.[matchIdx];
+                        if (match && match.isNonTraite) {
+                            showMenuNonTraite(finselSpan, idxPaire, matchIdx);
+                        } else {
+                            showMenuException(finselSpan, idxPaire, matchIdx);
+                        }
                     }, 10);
                 }
             } else {
@@ -843,6 +964,73 @@ function tokenizeCommeSegmentation(texte) {
     return texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
 }
 
+/**
+ * Réindexe matchPositions depuis le DOM courant, sans modifier les classes.
+ * Classifie chaque occurrence : anonymisée (debsel), exception (anon-exception), ou non-traitée.
+ */
+function reindexerMatchPositions(idxPaire) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.entite || !paire.entite.trim()) return;
+
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+    let motsRecherche = tokenizeCommeSegmentation(paire.entite.trim());
+    motsRecherche = motsRecherche.filter(t => t.trim() !== '');
+    if (motsRecherche.length === 0) return;
+
+    const spansNonVides = [];
+    tousLesSpans.forEach((span, idx) => {
+        const txt = span.textContent.trim();
+        if (txt) spansNonVides.push({ span, txt, originalIdx: idx });
+    });
+
+    const matches = [];
+    for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
+        let match = true;
+        let spanIdx = i;
+        let firstSpanIdx = spansNonVides[i].originalIdx;
+        let lastSpanIdx = spansNonVides[i].originalIdx;
+
+        for (let j = 0; j < motsRecherche.length; j++) {
+            if (spanIdx >= spansNonVides.length) { match = false; break; }
+            if (spansNonVides[spanIdx].txt === motsRecherche[j]) {
+                lastSpanIdx = spansNonVides[spanIdx].originalIdx;
+                spanIdx++;
+            } else { match = false; break; }
+        }
+
+        if (match) {
+            const firstSpan = tousLesSpans[firstSpanIdx];
+            const estException = firstSpan.classList.contains('anon-exception');
+            // 'anon' est la seule classe fiable pour distinguer une vraie anonymisation d'une simple
+            // sélection à la souris : 'debsel' seul est aussi ajouté par survOk()/validSel() lors de
+            // la sélection courante, ce qui faussait le compteur (1 "anonymisée" dès la sélection).
+            const estAnon = firstSpan.classList.contains('anon');
+            const isNonTraite = !estException && !estAnon;
+            matches.push({ start: firstSpanIdx, end: lastSpanIdx, isException: estException, isNonTraite });
+        }
+    }
+
+    paire.matchPositions = matches;
+
+    // Marquer/démarquer les spans avec data-anon-nt (cursor pointer côté CSS)
+    matches.forEach(m => {
+        for (let i = m.start; i <= m.end; i++) {
+            const s = tousLesSpans[i];
+            if (!s) continue;
+            if (m.isNonTraite) {
+                s.setAttribute('data-anon-nt', 'true');
+            } else {
+                s.removeAttribute('data-anon-nt');
+            }
+        }
+    });
+
+    // Réinitialiser les index de navigation par catégorie
+    paire.indexCourant_anon = -1;
+    paire.indexCourant_exc  = -1;
+    paire.indexCourant_non  = -1;
+}
+
 // Applique l'anonymisation pour une paire spécifique sur TOUTES les occurrences
 function appliquerAnonymisationPour(idxPaire) {
     const paire = window.tabAnon[idxPaire];
@@ -876,7 +1064,7 @@ function appliquerAnonymisationPour(idxPaire) {
     // Créer une liste de spans non-vides pour la recherche
     const spansNonVides = [];
     tousLesSpans.forEach((span, idx) => {
-        const txt = span.innerText.trim();
+        const txt = span.textContent.trim();
         if (txt) {
             spansNonVides.push({ span, txt, originalIdx: idx });
         }
@@ -911,7 +1099,8 @@ function appliquerAnonymisationPour(idxPaire) {
             // Vérifier si la première occurrence est déjà marquée comme exception
             const firstSpan = tousLesSpans[firstSpanIdx];
             const estException = firstSpan ? firstSpan.classList.contains('anon-exception') : false;
-            matches.push({ start: firstSpanIdx, end: lastSpanIdx, isException: estException });
+            // isNonTraite = false : cette fonction va immédiatement ajouter debsel à tout non-exception
+            matches.push({ start: firstSpanIdx, end: lastSpanIdx, isException: estException, isNonTraite: false });
         }
     }
     
@@ -1216,6 +1405,108 @@ async function validerAnonEnAttente() {
     }
 }
 
+// Navigation vers la prochaine occurrence d'une catégorie (anon | exc)
+function allerCatSuivante(idx, cat) {
+    const paire = window.tabAnon[idx];
+    if (!paire || !paire.matchPositions || paire.matchPositions.length === 0) return;
+
+    // Filtrer les matches de cette catégorie (avec leur index original)
+    const matchesCat = [];
+    paire.matchPositions.forEach((m, origIdx) => {
+        if ((cat === 'anon' && !m.isException && !m.isNonTraite) ||
+            (cat === 'exc' && m.isException) ||
+            (cat === 'non' && m.isNonTraite)) {
+            matchesCat.push({ origIdx });
+        }
+    });
+    if (matchesCat.length === 0) return;
+
+    // Avancer l'index de catégorie (cyclique)
+    const indexKey = `indexCourant_${cat}`;
+    if (paire[indexKey] === undefined) paire[indexKey] = -1;
+    paire[indexKey] = (paire[indexKey] + 1) % matchesCat.length;
+
+    // Synchroniser l'index global pour surlignerOccurrence
+    paire.indexCourant = matchesCat[paire[indexKey]].origIdx;
+
+    // Mettre à jour le bouton temporairement avec X/N
+    const btn = document.querySelector(`.btn-nav-cat[data-idx="${idx}"][data-cat="${cat}"]`);
+    if (btn) {
+        const total = matchesCat.length;
+        const current = paire[indexKey] + 1;
+        btn.textContent = `${current}/${total}`;
+        clearTimeout(btn._resetTimer);
+        btn._resetTimer = setTimeout(() => { btn.textContent = `${total}`; }, 1800);
+    }
+
+    // Surligner et scroller vers l'occurrence
+    surlignerOccurrence(idx);
+}
+
+// Navigation vers l'occurrence précédente d'une catégorie (anon | exc | non)
+function allerCatPrecedente(idx, cat) {
+    const paire = window.tabAnon[idx];
+    if (!paire || !paire.matchPositions || paire.matchPositions.length === 0) return;
+
+    const matchesCat = [];
+    paire.matchPositions.forEach((m, origIdx) => {
+        if ((cat === 'anon' && !m.isException && !m.isNonTraite) ||
+            (cat === 'exc' && m.isException) ||
+            (cat === 'non' && m.isNonTraite)) {
+            matchesCat.push({ origIdx });
+        }
+    });
+    if (matchesCat.length === 0) return;
+
+    const indexKey = `indexCourant_${cat}`;
+    if (paire[indexKey] === undefined) paire[indexKey] = 0;
+    paire[indexKey] = (paire[indexKey] - 1 + matchesCat.length) % matchesCat.length;
+    paire.indexCourant = matchesCat[paire[indexKey]].origIdx;
+
+    const btn = document.querySelector(`.btn-nav-cat[data-idx="${idx}"][data-cat="${cat}"]`);
+    if (btn) {
+        const total = matchesCat.length;
+        const current = paire[indexKey] + 1;
+        btn.textContent = `${current}/${total}`;
+        clearTimeout(btn._resetTimer);
+        btn._resetTimer = setTimeout(() => { btn.textContent = `${total}`; }, 1800);
+    }
+    surlignerOccurrence(idx);
+}
+
+// Affiche les flèches ◄ ► autour du compteur actif, retire les précédentes
+function clicCompteur(btn, idx, cat) {
+    const memeCompteur = window._activeCounter &&
+        window._activeCounter.idx === idx &&
+        window._activeCounter.cat === cat;
+
+    if (!memeCompteur) {
+        // Supprimer les flèches existantes
+        document.querySelectorAll('.fleche-nav-cat').forEach(f => f.remove());
+
+        // Couleur selon la catégorie
+        const couleurs = { anon: '#4caf50', exc: '#555', non: '#ff9800' };
+        const couleur = couleurs[cat] || '#666';
+        const style = `color:${couleur};background:none;border:none;cursor:pointer;padding:0 3px;font-size:9px;line-height:1;opacity:0.85;`;
+
+        const fleche = (texte, fn) => {
+            const b = document.createElement('button');
+            b.className = 'fleche-nav-cat';
+            b.textContent = texte;
+            b.style.cssText = style;
+            b.onclick = (e) => { e.stopPropagation(); fn(); };
+            return b;
+        };
+
+        btn.parentNode.insertBefore(fleche('◄', () => allerCatPrecedente(idx, cat)), btn);
+        btn.after(fleche('►', () => allerCatSuivante(idx, cat)));
+
+        window._activeCounter = { idx, cat };
+    }
+
+    allerCatSuivante(idx, cat);
+}
+
 // Compte le nombre d'exceptions pour une paire d'anonymisation
 function compterExceptions(idxPaire) {
     const paire = window.tabAnon[idxPaire];
@@ -1239,7 +1530,7 @@ function compterOccurrencesEntite(entite) {
     // Créer une liste de spans non-vides pour la recherche
     const spansNonVides = [];
     tousLesSpans.forEach((span, idx) => {
-        const txt = span.innerText.trim();
+        const txt = span.textContent.trim();
         if (txt) {
             spansNonVides.push({ txt, originalIdx: idx });
         }
@@ -1672,8 +1963,9 @@ async function showMenuException(span, idxPaire, matchIdx) {
     }
 
     chaine += `
-             
-    
+        <div class="menu-item" onmousedown="allerVueCorpus(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
+            ↗ Voir au niveau du corpus
+        </div>
     `;
 
     menuDiv.innerHTML = chaine;
@@ -1706,71 +1998,197 @@ async function showMenuException(span, idxPaire, matchIdx) {
     document.addEventListener("mousedown", closeMenu);
 }
 
+////////////////////////////////////////////////////////////////////////
+// MENU CONTEXTUEL POUR LES OCCURRENCES NON TRAITÉES
+////////////////////////////////////////////////////////////////////////
+
+// Applique l'anonymisation sur une seule occurrence (match) sans toucher aux autres
+async function pseudonymiserOccurrence(idxPaire, matchIdx) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
+
+    const match = paire.matchPositions[matchIdx];
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+
+    for (let i = match.start; i <= match.end; i++) {
+        const span = tousLesSpans[i];
+        if (!span) continue;
+        span.classList.remove('anon-exception');
+        span.classList.add('anon');
+        span.removeAttribute('data-anon-nt');
+        if (i === match.start) {
+            span.classList.add('debsel');
+            if (paire.remplacement.trim()) span.dataset.pseudo = paire.remplacement;
+        }
+        if (i === match.end) {
+            span.classList.add('finsel');
+            if (paire.remplacement.trim()) span.dataset.pseudo = paire.remplacement;
+        }
+    }
+
+    match.isNonTraite = false;
+    match.isException = false;
+
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+    await syncHtmlVersMainProcess();
+}
+
+// Marque une occurrence non-traitée comme exception
+async function marquerExceptionDepuisNonTraite(idxPaire, matchIdx) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
+
+    const match = paire.matchPositions[matchIdx];
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+
+    for (let i = match.start; i <= match.end; i++) {
+        const span = tousLesSpans[i];
+        if (!span) continue;
+        span.classList.remove('anon', 'debsel', 'finsel');
+        span.classList.add('anon-exception');
+        span.removeAttribute('data-anon-nt');
+        delete span.dataset.pseudo;
+    }
+
+    match.isException = true;
+    match.isNonTraite = false;
+
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+    await syncHtmlVersMainProcess();
+}
+
+// Menu contextuel pour une occurrence non traitée
+function showMenuNonTraite(span, idxPaire, matchIdx) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
+
+    const match = paire.matchPositions[matchIdx];
+
+    // Supprimer l'ancien menu s'il existe
+    const oldMenu = document.getElementById('contextMenuException');
+    if (oldMenu) oldMenu.remove();
+
+    const fondseg = document.getElementById('segments');
+    if (!fondseg) return;
+
+    const menuDiv = document.createElement('div');
+    menuDiv.id = 'contextMenuException';
+    menuDiv.classList.add('context-menu', 'dnone');
+    fondseg.appendChild(menuDiv);
+
+    const rect = span.getBoundingClientRect();
+
+    // Surligner tous les spans du match
+    const tousLesSpansSurlig = Array.from(document.querySelectorAll('[data-rk]'));
+    const spansMatch = [];
+    for (let i = match.start; i <= match.end; i++) {
+        if (tousLesSpansSurlig[i]) {
+            tousLesSpansSurlig[i].classList.add('anon-selected');
+            spansMatch.push(tousLesSpansSurlig[i]);
+        }
+    }
+
+    menuDiv.innerHTML = `
+        <div class="menu-item" onmousedown="pseudonymiserOccurrence(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
+            ✓ Pseudonymiser cette occurrence
+        </div>
+        <div class="menu-item" onmousedown="marquerExceptionDepuisNonTraite(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
+            ⊘ Marquer comme exception
+        </div>
+        <div class="menu-item" onmousedown="allerVueCorpus(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
+            ↗ Voir au niveau du corpus
+        </div>
+    `;
+
+    // Positionner le menu
+    menuDiv.style.top = (rect.top - fondseg.getBoundingClientRect().top + fondseg.scrollTop) + 'px';
+    menuDiv.style.left = (rect.left + rect.width + 10 - fondseg.getBoundingClientRect().left) + 'px';
+    menuDiv.classList.remove('dnone');
+
+    // MutationObserver : retire anon-selected dès que le menu disparaît du DOM
+    const cleanupSelected = () => spansMatch.forEach(s => s.classList.remove('anon-selected'));
+    const observer = new MutationObserver(() => {
+        if (!document.getElementById('contextMenuException')) {
+            cleanupSelected();
+            observer.disconnect();
+        }
+    });
+    observer.observe(fondseg, { childList: true });
+
+    // Fermer le menu au clic ailleurs
+    const closeMenu = (e) => {
+        const menu = document.getElementById('contextMenuException');
+        if (menu && !menu.contains(e.target) && e.target !== span) {
+            menu.remove();
+            document.removeEventListener('mousedown', closeMenu);
+        }
+    };
+    document.addEventListener('mousedown', closeMenu);
+}
+
 // Attache les event listeners pour gérer les clics sur les mots anonymisés
 // Utilise la délégation d'événements pour éviter les doublons
 function attacheExceptionListeners() {
-    // Vérifier que le mode pseudonymisation est activé
-    const chkAnon = document.getElementById('chkAnon');
-    if (!chkAnon || !chkAnon.checked) {
-        console.log("⚠️ attacheExceptionListeners: mode pseudo désactivé ou checkbox non trouvée");
-        return;
-    }
-
     // Récupérer le conteneur des segments
     const segments = document.getElementById("segments");
-    if (!segments) {
-        console.log("⚠️ attacheExceptionListeners: conteneur segments non trouvé");
-        return;
-    }
+    if (!segments) return;
 
     // Retirer le listener existant s'il y a (pour éviter les doublons)
     if (segments._exceptionClickHandler) {
         segments.removeEventListener("click", segments._exceptionClickHandler);
         segments.removeEventListener("contextmenu", segments._exceptionClickHandler);
-        console.log("🔄 Ancien listener d'exception retiré");
     }
 
     // Créer le handler de clic/contextmenu
     const handler = (e) => {
+        // Seulement en mode anonymisation
+        if (typeof typeAction === 'undefined' || typeAction !== 'anon') return;
+
         const span = e.target.closest('[data-rk]');
-        if (!span || (!span.classList.contains('anon') && !span.classList.contains('anon-exception'))) {
-            return;
-        }
+        if (!span) return;
 
-        console.log("🎯 Clic sur span anonymisé détecté:", span.innerText);
+        // Filtre rapide : ignorer les spans qui ne sont ni anonymisés, ni exceptions, ni non-traités connus
+        const isKnown = span.classList.contains('anon') ||
+                        span.classList.contains('anon-exception') ||
+                        span.hasAttribute('data-anon-nt');
+        if (!isKnown) return;
 
-        // Empêcher le comportement par défaut pour contextmenu
-        if (e.type === 'contextmenu') {
-            e.preventDefault();
-        }
-
-        // Trouver quelle paire et quel match correspond à ce span
         // match.start/end sont des indices NodeList (base 0), pas des data-rk
         const tousLesSpansLookup = Array.from(document.querySelectorAll('[data-rk]'));
         const spanIndex = tousLesSpansLookup.indexOf(span);
-        console.log("🔍 Span index:", spanIndex);
-        
-        // Parcourir les paires pour trouver celle-ci
+
+        // Source de vérité : l'état DOM du span cliqué lui-même
+        const isNonTraiteSpan = span.hasAttribute('data-anon-nt');
+
+        // Chercher le match correspondant dans tabAnon
         for (let idxPaire = 0; idxPaire < window.tabAnon.length; idxPaire++) {
             const paire = window.tabAnon[idxPaire];
+            if (!paire.matchPositions || paire.matchPositions.length === 0) continue;
 
-            if (!paire.matchPositions || paire.matchPositions.length === 0) {
-                continue;
-            }
-
-            // Chercher le match qui contient ce span
             for (let matchIdx = 0; matchIdx < paire.matchPositions.length; matchIdx++) {
                 const match = paire.matchPositions[matchIdx];
-                if (spanIndex >= match.start && spanIndex <= match.end) {
-                    // Trouvé !
-                    console.log("✅ Match trouvé! idxPaire:", idxPaire, "matchIdx:", matchIdx);
+                if (spanIndex < match.start || spanIndex > match.end) continue;
+
+                // Si le span est non-traité, ignorer les matches d'autres entités déjà
+                // anonymisées qui chevaucheraient la même plage (évite le mauvais routage)
+                if (isNonTraiteSpan && !match.isNonTraite) continue;
+
+                // Trouvé
+                if (e.type === 'contextmenu') e.preventDefault();
+                e.stopPropagation();
+
+                if (isNonTraiteSpan) {
+                    // Occurrence non traitée : menu avec Pseudonymiser / Exception
+                    showMenuNonTraite(span, idxPaire, matchIdx);
+                } else {
+                    // Occurrence anonymisée ou exception : menu existant
                     showMenuException(span, idxPaire, matchIdx);
-                    e.stopPropagation();
-                    return;
                 }
+                return;
             }
         }
-        console.log("❌ Aucun match trouvé pour ce span");
     };
 
     // Sauvegarder le handler pour pouvoir le retirer plus tard
@@ -1780,6 +2198,21 @@ function attacheExceptionListeners() {
     segments.addEventListener("click", handler);
     segments.addEventListener("contextmenu", handler);
     console.log("✅ Listeners d'exception attachés");
+}
+
+// Synchronise le HTML courant (après modif DOM) vers tabHtml du process main
+// Permet au corpus global de voir les changements sans attendre la sauvegarde complète
+async function syncHtmlVersMainProcess() {
+    if (!window.electronAPI || !window.electronAPI.getEntCur || !window.electronAPI.setHtml) return;
+    if (typeof compactHtml !== 'function') return;
+    try {
+        const rkEnt = await window.electronAPI.getEntCur();
+        if (rkEnt === null || rkEnt === undefined || rkEnt < 0) return;
+        const html = await compactHtml();
+        await window.electronAPI.setHtml(rkEnt, String(html).replace(/`/g, ''));
+    } catch(e) {
+        console.warn('[syncHtmlVersMainProcess] erreur:', e);
+    }
 }
 
 // Initialise le listener sur la checkbox chkAnon pour gérer les exceptions
@@ -1808,5 +2241,45 @@ function initChkAnonListener() {
         setTimeout(() => {
             attacheExceptionListeners();
         }, 100);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+// NAVIGATION ENTRETIEN -> CORPUS
+////////////////////////////////////////////////////////////////////////
+
+// Sauvegarde l'état courant, ferme la fenêtre d'entretien et demande au panneau
+// corpus de se positionner sur l'occurrence cible.
+async function allerVueCorpus(idxPaire, matchIdx) {
+    try {
+        const paire = window.tabAnon ? window.tabAnon[idxPaire] : null;
+        if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) {
+            console.warn("allerVueCorpus: match invalide", idxPaire, matchIdx);
+            return;
+        }
+        const match = paire.matchPositions[matchIdx];
+
+        // Calculer le spanId (data-rk) du premier span du match
+        const tousLesSpans = document.querySelectorAll('[data-rk]');
+        const spanCible = tousLesSpans[match.start];
+        const spanId = spanCible ? spanCible.dataset.rk : null;
+
+        // Sauvegarder l'état avant la fermeture
+        if (typeof sauvegarderTabAnonEnt === 'function') {
+            await sauvegarderTabAnonEnt();
+        }
+        if (typeof syncHtmlVersMainProcess === 'function') {
+            await syncHtmlVersMainProcess();
+        }
+
+        const rkEnt = await window.electronAPI.getEntCur();
+        await window.electronAPI.demandeVueCorpus({
+            entite: paire.entite,
+            pseudo: paire.remplacement,
+            rkEnt,
+            spanId
+        });
+    } catch (err) {
+        console.error("Erreur dans allerVueCorpus:", err);
     }
 }

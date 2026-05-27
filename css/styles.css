@@ -2443,6 +2443,30 @@ td.col-loc {
     opacity: 1;
 }
 
+/* Mode plein écran pour le panneau Base de données  */
+.container.plein-ecran #ColResize {
+    display: none;
+}
+.container.plein-ecran .colonne-g {
+    width: 100%;
+}
+.container.plein-ecran .colonne-d {
+    display: none;
+}
+.container.plein-ecran #fond_dat_corpus {
+    height: calc(100vh - 145px);
+    overflow-y: auto;
+}
+.container.plein-ecran #fond_dat_corpus #divTabDat {
+    height: 100%;
+}
+
+/* Mode panneau pseudonymisation corpus */
+.container.anon-mode #header-ent { display: none; }
+.container.anon-mode #fond_ent_corpus { display: none; }
+.container.anon-mode #fond_verif_anon { display: block !important; height: calc(100vh - 145px); overflow-y: auto; }
+#fond_anon_corpus { height: 100%; overflow-y: auto; }
+
 .header-tabdat {
     font-size: 1.2rem;
     font-weight: bold;
@@ -2948,6 +2972,16 @@ SYNTHESE
   cursor: pointer;
 }
 
+/* Occurrences non encore traitées : curseur pointer pour indiquer qu'elles sont cliquables */
+#segments.mode-anon [data-anon-nt] {
+  cursor: pointer;
+}
+
+#segments.mode-anon [data-anon-nt]:hover {
+  background-color: rgba(255, 201, 100, 0.4);
+  border-radius: 2px;
+}
+
 #segments.mode-anon .anon-exception:hover {
   text-decoration: none;
   background-color: rgba(255, 201, 100, 0.642);
@@ -3431,6 +3465,42 @@ SYNTHESE
     z-index: 10;
 }
 
+/* Boutons de navigation par catégorie (vert/violet/rouge) */
+.btn-nav-cat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    padding: 0 4px;
+    line-height: 1;
+    white-space: nowrap;
+}
+.btn-nav-cat-anon {
+    background-color: #15c095;
+    color: white;
+}
+.btn-nav-cat-exc {
+    background-color: #555;
+    color: white;
+}
+.btn-nav-cat-non {
+    background-color: #ff9800;
+    color: white;
+    cursor: default;
+}
+.btn-nav-cat:hover {
+    filter: brightness(1.15);
+    transform: scale(1.05);
+}
+
 /* Surlignage de l'occurrence actuelle */
 .highlight-occ {
     background-color: #fff9c4 !important;
@@ -3587,4 +3657,15 @@ SYNTHESE
     color: rgb(114, 114, 114);
     padding: 5px;
     vertical-align: middle;
+}
+
+/* Highlight temporaire pour la navigation corpus <-> entretien (flash jaune ~2s) */
+@keyframes nav-highlight-flash {
+    0%   { background-color: #fff59d; box-shadow: 0 0 0 3px #fff59d; }
+    70%  { background-color: #fff59d; box-shadow: 0 0 0 3px #fff59d; }
+    100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+.nav-highlight {
+    animation: nav-highlight-flash 2s ease-out forwards;
+    border-radius: 3px;
 }

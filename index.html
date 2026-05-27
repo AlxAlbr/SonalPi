@@ -86,13 +86,6 @@
               </button>
 
 
-            <button id="btn-variables" class="btn btn-secondary logo-variables" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" affichDataGen() ;">
-                 Base de données
-              </button>
-
-             <button id="btn-anon-globale" class="btn btn-secondary logo-anon" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" affichAnonGen() ;">
-                 Pseudos
-              </button>
                
              <!--
               <button id="btn-variables" class="btn btn-secondary" style="float:left;; padding:10px;" title="Voir la base de données" onclick=" afficherContexte() ;">
@@ -133,7 +126,8 @@
                 <!--<img id = "imgpandat" title = "Notes" class = "imgbtn_g" src="img\logonotes2.png" height= "33px" width= '33px' class= ''  alt="notes"  onclick="dispPanneauG(this, 'fond_notes')"  >
                 <img id = "imgpandat" title = "Métadonnées" class = "imgbtn_g" src="img\logodat2.png" height= "33px" width= '33px' class= ''  alt="métadonnées"  onclick="dispPanneauG(this, 'fond_dat')"  >!-->
                 <img id = "imgpansearch" title = "Rechercher/Remplacer" class = "imgbtn_g" src="img\logosearch.png" height= "33px" width= '33px' class= ''  alt="Rechercher/remplacer"  onclick="dispPanneauG(this, 'fond_rech')"  >
-                 <!--<img id = "imgpananon" title = "Anonymisation" class = "imgbtn_g dnone"  src="img\logoanon.png" height= "33px" width= '38px' class= ''  alt="anonymisation"  onclick="dispPanneauG(this, 'fond_anon')"  > !-->
+                <img id = "imgpandat" title = "Base de données" class = "imgbtn_g" src="img\logodat2.png" height= "33px" width= '33px' alt="base de données"  onclick="dispPanneauG(this, 'fond_dat_corpus')"  >
+                <img id = "imgpananon" title = "Pseudonymisation" class = "imgbtn_g" src="img\logoanon.png" height= "33px" width= '33px' alt="pseudonymisation" onclick="dispPanneauG(this, 'fond_anon_corpus')">
 
      </div> 
      
@@ -194,6 +188,8 @@
           </div>
 
           <div id="fond_dat_corpus" class="pan-g dnone">Métadonnées</div>
+
+          <div id="fond_anon_corpus" class="pan-g dnone"></div>
 
           <div id="fond_infosent_corpus" class="pan-g dnone">Détails de l'entretien</div>
 
@@ -292,6 +288,11 @@
            <img id = "btn_ajout_ent_fantome" title = "Ajouter un document"  src="img\logotxt.png" height= "33px" width= '33px'  style="opacity: 0.25;left:50%" alt="ouvrir"  onclick="" >
           
           </div>
+        </div>
+        <div id="fond_verif_anon" class="dnone" style="padding:10px">
+            <div class="info-no-content">
+                <label style="width:100%;display:block;margin:5px">Cliquez sur 🔍 pour vérifier la présence d'une entité dans les entretiens.</label>
+            </div>
         </div>
     </div>
 </div>
@@ -398,8 +399,25 @@
 
     if ( composant=="fond_rech" ) {
         document.getElementById("txtRech").focus();
-       
+    }
 
+    if ( composant === 'fond_dat_corpus' ) {
+        document.querySelector('.container').classList.add('plein-ecran');
+        affichDataGen();
+    }
+
+    if ( composant === 'fond_anon_corpus' ) {
+        document.querySelector('.container').classList.add('anon-mode');
+        affichAnonGen().then(async () => {
+            if (window._lastVerifiedAnon && typeof verifierEtAfficherEtatEntite === 'function') {
+                const tabEnt = await window.electronAPI.getEnt();
+                verifierEtAfficherEtatEntite(
+                    window._lastVerifiedAnon.entite,
+                    window._lastVerifiedAnon.pseudo,
+                    tabEnt
+                );
+            }
+        });
     }
 
 }
@@ -418,11 +436,42 @@ function hidepanG(){
     pan_g.forEach(btn => {
     btn.classList.add('dnone');
     });
+    const container = document.querySelector('.container');
+    if (container) {
+        container.classList.remove('plein-ecran');
+        container.classList.remove('anon-mode');
+    }
 }
 
   ///////////////////////////////////////////////////////////////////
   // LISTENERS
   ///////////////////////////////////////////////////////////////////
+
+  // Rafraîchir le panneau corpus pseudo à la fermeture de la fenêtre entretien
+  if (window.electronAPI && window.electronAPI.onEntretienFerme) {
+      window.electronAPI.onEntretienFerme(async () => {
+          const fondAnon = document.getElementById('fond_anon_corpus');
+          if (!fondAnon || fondAnon.classList.contains('dnone')) return;
+          await affichAnonGen();
+          if (window._lastVerifiedAnon && typeof verifierEtAfficherEtatEntite === 'function') {
+              const tabEnt = await window.electronAPI.getEnt();
+              verifierEtAfficherEtatEntite(
+                  window._lastVerifiedAnon.entite,
+                  window._lastVerifiedAnon.pseudo,
+                  tabEnt
+              );
+          }
+      });
+  }
+
+  // Navigation entretien -> corpus : ouvrir le panneau et focaliser sur l'occurrence
+  if (window.electronAPI && window.electronAPI.onOuvrirVueCorpusAnon) {
+      window.electronAPI.onOuvrirVueCorpusAnon(async (payload) => {
+          if (typeof window.focaliserOccurrenceCorpus === 'function') {
+              await window.focaliserOccurrenceCorpus(payload);
+          }
+      });
+  }
 
   // ==============================================
   // REDIMENSIONNEMENT COLONNE GAUCHE

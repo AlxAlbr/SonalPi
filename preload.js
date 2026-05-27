@@ -118,8 +118,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getGitlabOptions: () => ipcRenderer.invoke('get-gitlab-options'),
   setGitlabOptions: (options) => ipcRenderer.invoke('set-gitlab-options', options),
 
-  // Fonction pour envoyer les logs au main process (DÉSACTIVÉE)
-  // log: (level, message) => ipcRenderer.invoke('log', level, message),
+  // Envoyer un message de debug vers le terminal (stdout du processus principal)
+  debugLog: (message) => ipcRenderer.send('debug-log', message),
+
+  // Écouter la fermeture de la fenêtre entretien pour rafraîchir le panneau corpus pseudo
+  onEntretienFerme: (callback) => ipcRenderer.on('entretien-ferme-refresh-anon', () => callback()),
 
   // Sauvegarder le corpus
   sauvegarderFichier: (filePath, content) => ipcRenderer.invoke('sauvegarder-fichier', filePath, content),
@@ -175,7 +178,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ///////////////////////////////////////////////////////////////////////////
   
   isEntretienLocked: (rk) => ipcRenderer.invoke('entretien-locked', rk),
-  editerEntretien: (rk) => ipcRenderer.invoke('editer-entretien', rk),
+  editerEntretien: (rk, navTarget = null) => ipcRenderer.invoke('editer-entretien', rk, navTarget),
+
+  // Navigation corpus <-> entretien (pseudonymisation)
+  demandeVueCorpus: (payload) => ipcRenderer.invoke('entretien:demande-vue-corpus', payload),
+  getNavTarget: () => ipcRenderer.invoke('get-nav-target'),
+  onOuvrirVueCorpusAnon: (callback) =>
+    ipcRenderer.on('ouvrir-vue-corpus-anon', (event, payload) => callback(payload)),
 
   // Écouter la demande du menu pour ajouter un entretien
   onMenuAjouterEntretien: (callback) =>

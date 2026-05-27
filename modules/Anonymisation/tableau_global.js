@@ -271,6 +271,24 @@ async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
  * @param {Array} entretiensAnonymisee - Entretiens anonymisés
  */
 function mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
+    // Détection du mode panneau
+    const _fondAnonCorpus = document.getElementById("fond_anon_corpus");
+    const _estModePanneau = _fondAnonCorpus && !_fondAnonCorpus.classList.contains('dnone');
+
+    if (_estModePanneau) {
+        const fondVerif = document.getElementById("fond_verif_anon");
+        if (!fondVerif) return;
+        // Mémoriser l'entité en cours de vérification pour le rafraîchissement automatique
+        window._lastVerifiedAnon = { entite: anon.entite, pseudo: anon.remplacement };
+        fondVerif.innerHTML = '';
+        if (entretiensNonAnonymisee.length > 0 || entretiensAnonymisee.length > 0 || entretiensExclus.length > 0) {
+            afficherOccurrencesEnAccordeon(fondVerif, anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
+        } else {
+            fondVerif.innerHTML = '<div style="padding:20px;color:#999;">Aucune occurrence trouvée.</div>';
+        }
+        return;
+    }
+
     const ligneLigne = document.querySelector(`tr[data-entite="${CSS.escape(anon.entite)}"]`);
     if (!ligneLigne) return;
     
@@ -309,7 +327,7 @@ function mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnon
 async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
     try {
         const tabEnt = await window.electronAPI.getEnt();
-        
+
         // Conteneur principal de la modale
         const modale = document.createElement("div");
         modale.style.position = "relative";
@@ -321,6 +339,9 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         modale.style.display = "flex";
         modale.style.flexDirection = "column";
         modale.style.height = "500px";
+        // Bloquer le bubbling pour éviter que les clics remontent à .colonne-d
+        // (qui a onclick="désélectEntretiens()" et ferait basculer sur l'onglet Catégories)
+        modale.addEventListener("click", e => e.stopPropagation());
         
         // Bouton de fermeture (haut droite)
         const btnClose = document.createElement("button");
@@ -379,7 +400,7 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         checkboxGlobale.id = "checkbox-globale-" + Date.now(); // ID unique pour la modale
         
         const labelGlobale = document.createElement("label");
-        labelGlobale.textContent = "Affecter le pseudonyme à toutes les occurrences";
+        labelGlobale.textContent = "Affecter le pseudonyme à toutes les occurrences non traitées";
         labelGlobale.style.cursor = "pointer";
         labelGlobale.style.fontWeight = "600";
         labelGlobale.style.color = "#1565c0";
@@ -441,7 +462,11 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
                 if (checkboxesOcc) {
                     checkboxesOcc.forEach(cb => {
                         cb.checked = checkboxGlobale.checked;
+                        cb.dispatchEvent(new Event('change'));
                     });
+                }
+                if (accordeon._mettreAJourBadges) {
+                    accordeon._mettreAJourBadges();
                 }
             }
         });
@@ -461,6 +486,9 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         btnValider.addEventListener("click", async () => {
             await validerOccurrencesSelectionnees(scrollContainer, occurrencesParEntretien, anon);
             modale.remove();
+            // Rafraîchir la cellule du tableau avec l'état réel après sauvegarde
+            const tabEntFresh = await window.electronAPI.getEnt();
+            await verifierEtAfficherEtatEntite(anon.entite, anon.remplacement, tabEntFresh);
         });
         modale.appendChild(btnValider);
         
@@ -487,11 +515,21 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
     const accordeon = document.createElement("div");
     accordeon.className = "accordion-entretien";
     accordeon.style.borderBottom = "1px solid #eee";
-    
+    accordeon.style.marginLeft = "16px";
+    // Marqueurs pour la navigation entretien -> corpus
+    accordeon.dataset.entIndex = entIndex;
+    accordeon.dataset.entId = entId;
+
+    // Calcul de l'état visuel : bleu si tout traité (anonymisé ou exclu), orange sinon
+    // On ne tient PAS compte de anonymisee : des variantes de casse peuvent rester non traitées
+    const toutEstTraite = occurrences.length > 0 && occurrences.every(occ => occ.applique || occ.exclue);
+    const bgCouleur = toutEstTraite ? "#e3f2fd" : "#fff3e0";
+    const labelCouleur = toutEstTraite ? "#15c095" : "#f57c00";
+
     // En-tête de l'accordéon
     const header = document.createElement("div");
     header.style.padding = "10px 12px";
-    header.style.backgroundColor = anonymisee ? "#e3f2fd" : "#fff3e0";
+    header.style.backgroundColor = bgCouleur;
     header.style.cursor = "pointer";
     header.style.display = "flex";
     header.style.alignItems = "center";
@@ -505,29 +543,57 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
     checkboxEnt.style.cursor = "pointer";
     checkboxEnt.style.width = "18px";
     checkboxEnt.style.height = "18px";
-    checkboxEnt.checked = anonymisee;
+    checkboxEnt.checked = toutEstTraite;
     checkboxEnt.dataset.entId = entId;
-    
-
     
     // Label de l'entretien
     const label = document.createElement("label");
     label.textContent = entNom;
     label.style.cursor = "pointer";
     label.style.fontWeight = "600";
-    label.style.color = anonymisee ? "#15c095" : "#f57c00";
+    label.style.color = labelCouleur;
     label.style.margin = "0";
     label.style.flex = "1";
 
-    // nb occurrences
-    const labelOcc = document.createElement("label");
-    labelOcc.textContent = occurrences.length;
-    labelOcc.style.cursor = "pointer";
-    labelOcc.classList = "nombre-de"; 
-    labelOcc.style.margin = "0";
-    labelOcc.style.maxWidth = "25px";
+    // Compteurs d'occurrences (bleu = anonymisé, orange = exception, rouge = non traité)
+    const nbApplique  = occurrences.filter(o => o.applique && !o.exclue).length;
+    const nbExclue    = occurrences.filter(o => o.exclue).length;
+    const nbNonTraite = occurrences.filter(o => !o.applique && !o.exclue).length;
 
-        // Flèche d'expansion
+    const divCompteurs = document.createElement("div");
+    divCompteurs.style.display = "flex";
+    divCompteurs.style.gap = "4px";
+    divCompteurs.style.alignItems = "center";
+    divCompteurs.style.flexShrink = "0";
+
+    const creerBadge = (count, color, title) => {
+        if (count === 0) return null;
+        const badge = document.createElement("span");
+        badge.textContent = count;
+        badge.title = title;
+        badge.style.backgroundColor = color;
+        badge.style.color = "white";
+        badge.style.borderRadius = "50%";
+        badge.style.width = "20px";
+        badge.style.height = "20px";
+        badge.style.fontSize = "11px";
+        badge.style.fontWeight = "bold";
+        badge.style.display = "inline-flex";
+        badge.style.alignItems = "center";
+        badge.style.justifyContent = "center";
+        badge.style.flexShrink = "0";
+        return badge;
+    };
+    [
+        [nbApplique,  "#15c095", "Occurrence(s) anonymisée(s)"],
+        [nbExclue,    "#555", "Occurrence(s) exclue(s)"],
+        [nbNonTraite, "#ff9800", "Occurrence(s) non traitée(s)"]
+    ].forEach(([count, color, title]) => {
+        const badge = creerBadge(count, color, title);
+        if (badge) divCompteurs.appendChild(badge);
+    });
+
+    // Flèche d'expansion
     const fleche = document.createElement("span");
     fleche.innerHTML = "▼";
     fleche.style.fontSize = "12px";
@@ -538,8 +604,8 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
     
     header.appendChild(checkboxEnt);
     header.appendChild(label);
+    header.appendChild(divCompteurs);
     header.appendChild(fleche);
-    header.appendChild(labelOcc);
 
     // Contenu de l'accordéon (liste des occurrences)
     const contenu = document.createElement("div");
@@ -547,10 +613,31 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
     contenu.style.padding = "10px 12px";
     contenu.style.backgroundColor = "#fafafa";
     
+    // Référence vers toutes les occurrences de cet accordéon (pour recalculer les badges)
+    const occurrencesRefs = [];
+
+    const mettreAJourBadges = () => {
+        let nbApp = 0, nbExc = 0, nbNon = 0;
+        occurrencesRefs.forEach(({checkboxOcc, btnException}) => {
+            if (btnException._pendingExclusion) nbExc++;
+            else if (checkboxOcc.checked) nbApp++;
+            else nbNon++;
+        });
+        divCompteurs.innerHTML = "";
+        [
+            [nbApp,  "#15c095", "Occurrence(s) anonymisée(s)"],
+            [nbExc,  "#555", "Occurrence(s) exclue(s)"],
+            [nbNon,  "#ff9800", "Occurrence(s) non traitée(s)"]
+        ].forEach(([count, color, title]) => {
+            const badge = creerBadge(count, color, title);
+            if (badge) divCompteurs.appendChild(badge);
+        });
+    };
+
     // Ajouter les occurrences
     for (let i = 0; i < occurrences.length; i++) {
         const occ = occurrences[i];
-        
+
         const occDiv = document.createElement("div");
         occDiv.style.marginBottom = "10px";
         occDiv.style.paddingBottom = "8px";
@@ -559,11 +646,13 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         occDiv.style.display = "flex";
         occDiv.style.alignItems = "flex-start";
         occDiv.style.gap = "8px";
+        // Marqueur pour la navigation entretien -> corpus (retrouver l'occurrence cible)
+        if (occ.spanId) occDiv.dataset.occSpanid = occ.spanId;
         
         // Checkbox pour l'occurrence
         const checkboxOcc = document.createElement("input");
         checkboxOcc.type = "checkbox";
-        checkboxOcc.checked = occ.exclue ? false : (occ.applique || anonymisee);
+        checkboxOcc.checked = occ.exclue ? false : occ.applique;
         checkboxOcc.style.cursor = "pointer";
         checkboxOcc.style.width = "16px";
         checkboxOcc.style.height = "16px";
@@ -571,6 +660,18 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         checkboxOcc.style.flexShrink = "0";
         checkboxOcc.dataset.occIndex = i;
         checkboxOcc.dataset.entId = entId;
+
+        // Icône d'exception (remplace la checkbox à gauche quand exception active)
+        const spanExceptionToggle = document.createElement("span");
+        spanExceptionToggle.textContent = "🚫";
+        spanExceptionToggle.title = "Retirer l'exception";
+        spanExceptionToggle.style.display = "none";
+        spanExceptionToggle.style.fontSize = "15px";
+        spanExceptionToggle.style.width = "16px";
+        spanExceptionToggle.style.cursor = "pointer";
+        spanExceptionToggle.style.flexShrink = "0";
+        spanExceptionToggle.style.marginTop = "2px";
+        spanExceptionToggle.style.lineHeight = "1";
         
         // Texte avec contexte
         const texteDiv = document.createElement("div");
@@ -583,31 +684,159 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
             texteDiv.style.fontStyle = "italic";
             occDiv.style.backgroundColor = "#f5f5f5";
             occDiv.style.borderRadius = "4px";
-            occDiv.title = "Occurrence explicitement exclue de l'anonymisation — cocher pour réactiver";
+            occDiv.title = "Occurrence explicitement exclue de l'anonymisation — cliquer sur 🚫 pour réactiver";
         }
         
-        const cadenas = occ.exclue ? `<span style="margin-right:5px; font-style:normal;" title="Exclu de l'anonymisation">🔒</span>` : '';
         const contextAvant = occ.contextAvant ? `<span style="color:${occ.exclue ? '#bbb' : '#999'};">${escapeHtml(occ.contextAvant)}</span>` : '';
         const entiteHtml = `<strong style="font-weight:bold;padding:2px 2px; border-radius:2px;">${escapeHtml(occ.entite)}</strong>`;
         const pseudoHtml = occ.applique ? `<span class="pseudo">[${escapeHtml(anon.remplacement)}]</span>` : '';
         const contextApres = occ.contextApres ? `<span style="color:${occ.exclue ? '#bbb' : '#999'};">${escapeHtml(occ.contextApres)}</span>` : '';
         
-        texteDiv.innerHTML = `${cadenas}${contextAvant}${entiteHtml}${pseudoHtml}${contextApres}`;
+        texteDiv.innerHTML = `${contextAvant}${entiteHtml}${pseudoHtml}${contextApres}`;
+
+        const mettreAJourTexteOcc = () => {
+            const exclu = btnException._pendingExclusion;
+            const checked = checkboxOcc.checked;
+            const ctxColor = exclu ? '#bbb' : '#999';
+            const cAvant = occ.contextAvant ? `<span style="color:${ctxColor};">${escapeHtml(occ.contextAvant)}</span>` : '';
+            const eHtml = `<strong style="font-weight:bold;padding:2px 2px; border-radius:2px;">${escapeHtml(occ.entite)}</strong>`;
+            const pHtml = checked && !exclu ? `<span class="pseudo">[${escapeHtml(anon.remplacement)}]</span>` : '';
+            const cApres = occ.contextApres ? `<span style="color:${ctxColor};">${escapeHtml(occ.contextApres)}</span>` : '';
+            texteDiv.innerHTML = `${cAvant}${eHtml}${pHtml}${cApres}`;
+        };
         
+        // Bouton exception 🚫 (droite — visible uniquement quand case cochée, active l'exception)
+        const btnException = document.createElement("button");
+        btnException.textContent = "🚫";
+        btnException.title = "Marquer comme exception (ne pas anonymiser)";
+        btnException.style.border = "none";
+        btnException.style.background = "none";
+        btnException.style.padding = "0 2px";
+        btnException.style.fontSize = "13px";
+        btnException.style.lineHeight = "1";
+        btnException.style.flexShrink = "0";
+        btnException.style.alignSelf = "flex-start";
+        btnException.style.marginTop = "1px";
+        btnException._pendingExclusion = occ.exclue;
+
+        const appliquerEtatException = (exclu) => {
+            if (exclu) {
+                texteDiv.style.color = "#aaa";
+                texteDiv.style.fontStyle = "italic";
+                occDiv.style.backgroundColor = "#f5f5f5";
+                occDiv.style.borderRadius = "4px";
+            } else {
+                texteDiv.style.color = occ.exclue ? "#aaa" : "#555";
+                texteDiv.style.fontStyle = occ.exclue ? "italic" : "normal";
+                occDiv.style.backgroundColor = "";
+            }
+        };
+
+        const updateBtnExceptionState = () => {
+            if (btnException._pendingExclusion) {
+                // Exception active : icône 🚫 à gauche, checkbox et bouton droit cachés
+                checkboxOcc.style.display = "none";
+                spanExceptionToggle.style.display = "inline";
+                btnException.style.display = "none";
+            } else if (checkboxOcc.checked) {
+                // Case cochée : bouton droit disponible (ghost)
+                checkboxOcc.style.display = "";
+                spanExceptionToggle.style.display = "none";
+                btnException.style.display = "";
+                btnException.style.opacity = "0.35";
+                btnException.style.pointerEvents = "auto";
+                btnException.style.cursor = "pointer";
+            } else {
+                // Case décochée : bouton droit désactivé
+                checkboxOcc.style.display = "";
+                spanExceptionToggle.style.display = "none";
+                btnException.style.display = "";
+                btnException.style.opacity = "0.1";
+                btnException.style.pointerEvents = "none";
+                btnException.style.cursor = "default";
+            }
+        };
+        updateBtnExceptionState();
+
+        // Clic sur l'icône gauche → retire l'exception
+        spanExceptionToggle.addEventListener("click", (e) => {
+            e.stopPropagation();
+            btnException._pendingExclusion = false;
+            appliquerEtatException(false);
+            updateBtnExceptionState();
+            mettreAJourTexteOcc();
+            mettreAJourBadges();
+        });
+
+        // Clic sur le bouton droit → active l'exception
+        btnException.addEventListener("click", (e) => {
+            e.stopPropagation();
+            btnException._pendingExclusion = true;
+            checkboxOcc.checked = false;
+            appliquerEtatException(true);
+            updateBtnExceptionState();
+            mettreAJourTexteOcc();
+            mettreAJourBadges();
+        });
+
+        checkboxOcc.addEventListener("change", () => {
+            updateBtnExceptionState();
+            mettreAJourTexteOcc();
+            mettreAJourBadges();
+        });
+
+        // Bouton ↗ : ouvre l'entretien sur le segment de cette occurrence
+        const btnNav = document.createElement("button");
+        btnNav.textContent = "↗";
+        btnNav.title = "Aller à ce segment dans l'entretien";
+        btnNav.style.border = "none";
+        btnNav.style.background = "none";
+        btnNav.style.padding = "0 2px";
+        btnNav.style.fontSize = "14px";
+        btnNav.style.lineHeight = "1";
+        btnNav.style.flexShrink = "0";
+        btnNav.style.alignSelf = "flex-start";
+        btnNav.style.marginTop = "1px";
+        btnNav.style.cursor = "pointer";
+        btnNav.style.color = "#1976d2";
+        btnNav.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            try {
+                // Mettre à jour l'entretien courant dans main avant l'ouverture
+                // (le renderer de la fenêtre d'édition lit ent_cur via getEntCur).
+                await window.electronAPI.setEntCur(entIndex);
+                await window.electronAPI.editerEntretien(entIndex, {
+                    entite: anon.entite,
+                    pseudo: anon.remplacement,
+                    spanId: occ.spanId
+                });
+            } catch (err) {
+                console.error("Erreur lors de l'ouverture de l'entretien:", err);
+            }
+        });
+
         occDiv.appendChild(checkboxOcc);
+        occDiv.appendChild(spanExceptionToggle);
         occDiv.appendChild(texteDiv);
-        
+        occDiv.appendChild(btnException);
+        occDiv.appendChild(btnNav);
+
         // Stocker les references pour la validation
         checkboxOcc._occurrence = occ;
         checkboxOcc._entIndex = entIndex;
         checkboxOcc._anon = anon;
-        
+        checkboxOcc._btnException = btnException;
+        occurrencesRefs.push({ checkboxOcc, btnException });
+
         contenu.appendChild(occDiv);
     }
     
     accordeon.appendChild(header);
     accordeon.appendChild(contenu);
     
+    // Stopper la propagation de tous les clics pour éviter de déclencher les handlers parents (colonne-d)
+    accordeon.addEventListener("click", (e) => e.stopPropagation());
+
     // Événement click sur le header pour ouvrir/fermer
     header.addEventListener("click", (e) => {
         // Ne pas déclencher si on clique sur la checkbox
@@ -622,12 +851,14 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         const allCheckboxesOcc = contenu.querySelectorAll('input[type="checkbox"][data-occ-index]');
         allCheckboxesOcc.forEach(cb => {
             cb.checked = checkboxEnt.checked;
+            cb.dispatchEvent(new Event('change'));
         });
     });
     
     // Stocker les checkboxes pour la validation
     accordeon._checkboxEntretien = checkboxEnt;
     accordeon._checkboxesOccurrences = contenu.querySelectorAll('input[type="checkbox"][data-occ-index]');
+    accordeon._mettreAJourBadges = mettreAJourBadges;
     
     return accordeon;
 }
@@ -662,7 +893,7 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
         
         const occurrences = [];
         const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
-        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'gi');
+        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'g');
         
         // Ensemble des spans déjà traités (pour éviter les doublons)
         const spansTraites = new Set();
@@ -822,6 +1053,33 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
             spansTraites.add(spanId);
         }
         
+        // === 3ÈME PASSE : entités multi-mots NON TRAITÉES ===
+        // La regex du 1er pass cherche dans span.textContent de chaque span individuel
+        // et ne peut pas trouver une entité multi-mots répartie sur plusieurs spans
+        // (structure un-mot-par-span après cleanHTML). On fait ici un parcours token par token.
+        const tokensEntite = entite.trim().split(/[\s\u00A0]+/).filter(t => t);
+        if (tokensEntite.length > 1) {
+            const spansFiltrés = allSpans.filter(s => s.textContent.trim() !== '');
+            for (let i = 0; i <= spansFiltrés.length - tokensEntite.length; i++) {
+                const estMatch = tokensEntite.every((tok, j) => spansFiltrés[i + j].textContent.trim() === tok);
+                if (!estMatch) continue;
+                const firstSpan = spansFiltrés[i];
+                const spanId = firstSpan.dataset.rk;
+                if (spansTraites.has(spanId)) continue; // déjà compté par une autre passe
+                const applique = firstSpan.classList.contains('debsel') && firstSpan.dataset.pseudo === pseudo;
+                const exclue   = firstSpan.classList.contains('anon-exception');
+                const spansBefore = spansFiltrés.slice(Math.max(0, i - 5), i).map(s => s.textContent).join(' ');
+                const spansAfter  = spansFiltrés.slice(i + tokensEntite.length, i + tokensEntite.length + 5).map(s => s.textContent).join(' ');
+                occurrences.push({
+                    entite: tokensEntite.join(' '),
+                    contextAvant: spansBefore ? '...' + spansBefore.slice(-40) : '',
+                    contextApres: spansAfter  ? spansAfter.slice(0, 40) + '...'  : '',
+                    applique, exclue, spanId
+                });
+                spansTraites.add(spanId);
+            }
+        }
+
         return occurrences;
         
     } catch (error) {
@@ -971,6 +1229,120 @@ async function retirerPseudoOccurrencesSpecifiques(indexEnt, occurrencesARetirer
 }
 
 /**
+ * Marque des occurrences spécifiques comme exceptions (anon-exception) dans un entretien
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {Array} occurrencesAMarquer - Occurrences à marquer comme exceptions
+ * @param {Object} anon - Paire {entite, remplacement}
+ */
+async function marquerExceptionOccurrencesSpecifiques(indexEnt, occurrencesAMarquer, anon) {
+    try {
+        let htmlContent = await window.electronAPI.getHtml(indexEnt);
+        htmlContent = htmlContent.replace(/`/g, '');
+        if (!htmlContent) return;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        const spanIdsAMarquer = new Set(occurrencesAMarquer.map(occ => occ.spanId));
+        let nbMarquages = 0;
+
+        for (const spanId of spanIdsAMarquer) {
+            const span = tempDiv.querySelector(`[data-rk="${spanId}"]`);
+            if (!span) continue;
+
+            if (span.classList.contains('debsel')) {
+                // Occurrence déjà pseudonymisée → reconstituer le texte et remplacer par un span anon-exception
+                let finselSpan = span;
+                if (!span.classList.contains('finsel')) {
+                    let sib = span.nextSibling;
+                    while (sib) {
+                        if (sib.nodeType === Node.ELEMENT_NODE && sib.dataset && sib.dataset.pseudo === anon.remplacement && sib.classList.contains('finsel')) {
+                            finselSpan = sib; break;
+                        }
+                        if (sib.nodeType === Node.ELEMENT_NODE && !sib.classList.contains('anon')) break;
+                        sib = sib.nextSibling;
+                    }
+                }
+                let texteOriginal = '';
+                let cur = span;
+                while (cur) {
+                    texteOriginal += cur.textContent || '';
+                    if (cur === finselSpan) break;
+                    cur = cur.nextSibling;
+                }
+                const spanExc = document.createElement('span');
+                Array.from(span.attributes).forEach(attr => {
+                    if (attr.name !== 'data-pseudo' && attr.name !== 'data-rk') spanExc.setAttribute(attr.name, attr.value);
+                });
+                spanExc.dataset.rk = span.dataset.rk;
+                spanExc.textContent = texteOriginal;
+                ['anon', 'debsel', 'finsel'].forEach(c => spanExc.classList.remove(c));
+                spanExc.classList.add('anon-exception');
+                delete spanExc.dataset.pseudo;
+                const parent = span.parentNode;
+                if (parent) {
+                    const insertionPoint = finselSpan.nextSibling;
+                    let toDelete = span;
+                    while (toDelete && parent.contains(toDelete)) {
+                        const next = toDelete.nextSibling;
+                        if (toDelete.nodeType === Node.ELEMENT_NODE) parent.removeChild(toDelete);
+                        if (toDelete === finselSpan) break;
+                        toDelete = next;
+                    }
+                    parent.insertBefore(spanExc, insertionPoint);
+                    nbMarquages++;
+                }
+            } else if (!span.classList.contains('anon-exception')) {
+                // Occurrence non encore pseudonymisée → ajouter anon-exception directement
+                span.classList.add('anon-exception');
+                nbMarquages++;
+            }
+        }
+
+        if (nbMarquages === 0) return;
+        await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
+        if (typeof window.majFichierSonal === 'function') await window.majFichierSonal(indexEnt, indexEnt + 1);
+    } catch (error) {
+        console.error("Erreur dans marquerExceptionOccurrencesSpecifiques():", error);
+        dialog('Message', `Erreur lors du marquage de l'exception: ${error.message}`);
+    }
+}
+
+/**
+ * Retire le statut d'exception d'occurrences spécifiques (les remet à l'état non-traité)
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {Array} occurrencesADesexclure - Occurrences à dés-exclure
+ * @param {Object} anon - Paire {entite, remplacement}
+ */
+async function retirerExceptionOccurrencesSpecifiques(indexEnt, occurrencesADesexclure, anon) {
+    try {
+        let htmlContent = await window.electronAPI.getHtml(indexEnt);
+        htmlContent = htmlContent.replace(/`/g, '');
+        if (!htmlContent) return;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        const spanIdsADesexclure = new Set(occurrencesADesexclure.map(occ => occ.spanId));
+        let nbRetraits = 0;
+
+        for (const spanId of spanIdsADesexclure) {
+            const span = tempDiv.querySelector(`[data-rk="${spanId}"]`);
+            if (!span || !span.classList.contains('anon-exception')) continue;
+            span.classList.remove('anon-exception');
+            nbRetraits++;
+        }
+
+        if (nbRetraits === 0) return;
+        await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
+        if (typeof window.majFichierSonal === 'function') await window.majFichierSonal(indexEnt, indexEnt + 1);
+    } catch (error) {
+        console.error("Erreur dans retirerExceptionOccurrencesSpecifiques():", error);
+        dialog('Message', `Erreur lors du retrait de l'exception: ${error.message}`);
+    }
+}
+
+/**
  * Valide et applique les occurrences sélectionnées
  * @param {HTMLElement} scrollContainer - Conteneur avec les accordéons
  * @param {Object} occurrencesParEntretien - Données des occurrences par entretien
@@ -979,7 +1351,7 @@ async function retirerPseudoOccurrencesSpecifiques(indexEnt, occurrencesARetirer
 async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEntretien, anon) {
     try {
         const accordeons = scrollContainer.querySelectorAll(".accordion-entretien");
-        const changementsParEntretien = {}; // {entIdStr: {aAjouter: [], aRetirer: []}}
+        const changementsParEntretien = {}; // {entIdStr: {aAjouter: [], aRetirer: [], aExclure: [], aDesexclure: []}}
         
         // === PHASE 1: Collecter les changements pour chaque entretien ===
         for (const accordeon of accordeons) {
@@ -990,17 +1362,19 @@ async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEn
             
             const entIdStr = checkboxEnt.dataset.entId;
             if (!changementsParEntretien[entIdStr]) {
-                changementsParEntretien[entIdStr] = { aAjouter: [], aRetirer: [] };
+                changementsParEntretien[entIdStr] = { aAjouter: [], aRetirer: [], aExclure: [], aDesexclure: [] };
             }
             
-            // Parcourir chaque occurrence pour déterminer si elle doit être ajoutée/retirée
+            // Parcourir chaque occurrence pour déterminer si elle doit être ajoutée/retirée/exclue
             for (const cbOcc of checkboxesOcc) {
                 const occ = cbOcc._occurrence;
                 const estCochee = cbOcc.checked;
                 const etaitAppliquee = occ.applique;
+                const etaitExclue = occ.exclue;
+                const pendingExclusion = cbOcc._btnException ? cbOcc._btnException._pendingExclusion : etaitExclue;
                 
-                // Cas 1: checkbox cochée + pas encore appliquée → AJOUTER le pseudo
-                if (estCochee && !etaitAppliquee) {
+                // Cas 1: checkbox cochée + pas encore appliquée + pas d'exception en attente → AJOUTER le pseudo
+                if (estCochee && !etaitAppliquee && !pendingExclusion) {
                     changementsParEntretien[entIdStr].aAjouter.push(occ);
                 }
                 
@@ -1008,39 +1382,93 @@ async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEn
                 if (!estCochee && etaitAppliquee) {
                     changementsParEntretien[entIdStr].aRetirer.push(occ);
                 }
+
+                // Cas 3: bouton 🔒 activé + pas encore exclue → MARQUER EXCEPTION
+                if (pendingExclusion && !etaitExclue) {
+                    changementsParEntretien[entIdStr].aExclure.push(occ);
+                }
+
+                // Cas 4: bouton 🔒 désactivé + était exclue → RETIRER EXCEPTION
+                if (!pendingExclusion && etaitExclue) {
+                    changementsParEntretien[entIdStr].aDesexclure.push(occ);
+                }
             }
         }
         
         // === PHASE 2: Appliquer les changements par entretien ===
-        const changementsEffectues = [];
+        let totalAjouter = 0, totalRetirer = 0, totalExclure = 0, totalDesexclure = 0;
+        const tabEntPourMaj = await window.electronAPI.getEnt();
+        let tabEntModifie = false;
         
         for (const entIdStr in changementsParEntretien) {
-            const { aAjouter, aRetirer } = changementsParEntretien[entIdStr];
+            const { aAjouter, aRetirer, aExclure, aDesexclure } = changementsParEntretien[entIdStr];
             
-            if (aAjouter.length === 0 && aRetirer.length === 0) {
+            if (aAjouter.length === 0 && aRetirer.length === 0 && aExclure.length === 0 && aDesexclure.length === 0) {
                 continue; // Pas de changement pour cet entretien
             }
             
             const entData = occurrencesParEntretien[entIdStr];
             if (!entData) continue;
             
-            // S'il y a des occurrences à ajouter, pseudonymiser l'entité
-            if (aAjouter.length > 0) {
-                await pseudonymiserEntretienSpecifique(entData.index, anon.entite, anon.remplacement);
-                changementsEffectues.push({ nom: entData.nom, action: 'ajout' });
+            // 1. D'abord retirer les exceptions (pour que les pseudonymisations suivantes voient un HTML propre)
+            if (aDesexclure.length > 0) {
+                await retirerExceptionOccurrencesSpecifiques(entData.index, aDesexclure, anon);
+                totalDesexclure += aDesexclure.length;
             }
-            
-            // S'il y a des occurrences à retirer, retirer le pseudo
+
+            // 2. Pseudonymiser seulement les spans sélectionnés
+            if (aAjouter.length > 0) {
+                const spanIdsATraiter = new Set(aAjouter.map(occ => occ.spanId));
+                await pseudonymiserEntretienSpecifique(entData.index, anon.entite, anon.remplacement, spanIdsATraiter, true);
+                totalAjouter += aAjouter.length;
+
+                // Ajouter au tabAnon local les variantes de casse explicitement traitées
+                const entretien = tabEntPourMaj[entData.index];
+                if (entretien) {
+                    const tabAnonLocal = entretien.tabAnon || [];
+                    const entitesDejaPresentes = new Set(tabAnonLocal.map(p => p.entite));
+                    for (const occ of aAjouter) {
+                        if (!entitesDejaPresentes.has(occ.entite)) {
+                            tabAnonLocal.push({ entite: occ.entite, remplacement: anon.remplacement });
+                            entitesDejaPresentes.add(occ.entite);
+                            tabEntModifie = true;
+                        }
+                    }
+                    entretien.tabAnon = tabAnonLocal;
+                }
+            }
+
+            // 3. Retirer les pseudonymes désélectionnés
             if (aRetirer.length > 0) {
                 await retirerPseudoOccurrencesSpecifiques(entData.index, aRetirer, anon);
-                changementsEffectues.push({ nom: entData.nom, action: 'retrait' });
+                totalRetirer += aRetirer.length;
             }
+
+            // 4. Marquer les nouvelles exceptions
+            if (aExclure.length > 0) {
+                await marquerExceptionOccurrencesSpecifiques(entData.index, aExclure, anon);
+                totalExclure += aExclure.length;
+            }
+
+            // Recalculer les stats (occurrences + matchPositions) depuis le HTML mis à jour
+            await recalculerStatsAnonEntretien(entData.index, anon.entite, anon.remplacement, tabEntPourMaj);
+            tabEntModifie = true;
+        }
+
+        // Sauvegarder les mises à jour du tabAnon local
+        if (tabEntModifie) {
+            await window.electronAPI.setEnt(tabEntPourMaj);
         }
         
         // === PHASE 3: Message de confirmation ===
-        if (changementsEffectues.length > 0) {
-            const resume = changementsEffectues.map(c => `${c.nom} (${c.action})`).join('\n');
-            dialog('Message', `Changements enregistrés:\n${resume}`);
+        const totalChangements = totalAjouter + totalRetirer + totalExclure + totalDesexclure;
+        if (totalChangements > 0) {
+            const lignes = [];
+            if (totalAjouter   > 0) lignes.push(`✅ ${totalAjouter} occurrence(s) anonymisée(s)`);
+            if (totalRetirer   > 0) lignes.push(`↩️ ${totalRetirer} occurrence(s) dé-pseudonymisée(s)`);
+            if (totalExclure   > 0) lignes.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
+            if (totalDesexclure > 0) lignes.push(`🔓 ${totalDesexclure} exception(s) retirée(s)`);
+            dialog('Message', `Changements enregistrés :\n${lignes.join('\n')}`);
         } else {
             dialog('Message', 'Aucun changement effectué.');
         }
@@ -1052,74 +1480,45 @@ async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEn
 }
 
 /**
- * Crée un badge pour un entretien dans la liste d'anonymisation
- * @param {Object} ent - {id, nom, index}
- * @param {Object} anon - {entite, remplacement}
- * @param {string} type - 'anonymise' ou 'non-anonymise'
- * @returns {HTMLElement}
+ * Relit le HTML sauvegardé d'un entretien et recalcule occurrences + matchPositions
+ * pour la règle (entite, pseudo) dans tabEntArr[indexEnt].tabAnon.
+ * Les champs start/end de matchPositions sont des placeholders (-1) : ils seront
+ * réindexés sur le DOM réel lors de la prochaine ouverture de l'entretien.
+ * @param {number} indexEnt
+ * @param {string} entite
+ * @param {string} pseudo
+ * @param {Array} tabEntArr - tableau des entretiens (sera modifié en place)
  */
-function creerBadgeAnonGen(ent, anon, type) {
-    const badge = document.createElement("span");
-    badge.textContent = ent.nom;
-    badge.style.cursor = "pointer";
-    badge.style.padding = "4px 8px";
-    badge.style.color = "white";
-    badge.style.fontWeight = "600";
-    badge.style.borderRadius = "4px";
-    badge.style.fontSize = "0.9em";
-    badge.style.transition = "all 0.2s";
-    
-    if (type === 'anonymise') {
-        badge.style.backgroundColor = "#64B5F6";
-        badge.style.border = "1px solid #42A5F5";
-        badge.title = "Déjà anonymisé - Clic pour voir";
-        
-        badge.addEventListener("click", () => {
-            hideAnonGen();
-            afficherDetailsEnt(ent.index);
-        });
+async function recalculerStatsAnonEntretien(indexEnt, entite, pseudo, tabEntArr) {
+    try {
+        const occurrences = await trouverOccurrencesAvecContexte(indexEnt, entite, pseudo);
 
-        badge.addEventListener("mouseover", () => {
-            badge.style.backgroundColor = "#42A5F5";
-            badge.style.borderColor = "#1565c0";
-            badge.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
-        });
+        const nbApplique   = occurrences.filter(o => o.applique && !o.exclue).length;
+        const nbExclue     = occurrences.filter(o => o.exclue).length;
+        const nbNonTraite  = occurrences.filter(o => !o.applique && !o.exclue).length;
+        const total        = nbApplique + nbExclue;
 
-        badge.addEventListener("mouseout", () => {
-            badge.style.backgroundColor = "#64B5F6";
-            badge.style.borderColor = "#42A5F5";
-            badge.style.boxShadow = "none";
-        });
-    } else {
-        // non-anonymise (orange)
-        badge.style.backgroundColor = "#FFA500";
-        badge.style.border = "1px solid #FF9800";
-        badge.title = `Clic pour pseudonymiser "${anon.remplacement}" dans cet entretien`;
-        badge.dataset.entite = anon.entite;
-        badge.dataset.pseudo = anon.remplacement;
-        badge.dataset.indexEnt = ent.index;
-        
-        badge.addEventListener("click", async (e) => {
-            e.stopPropagation();
-            await pseudonymiserEntretienSpecifique(ent.index, anon.entite, anon.remplacement);
-        });
+        const entretien = tabEntArr[indexEnt];
+        if (!entretien) return;
+        if (!entretien.tabAnon) entretien.tabAnon = [];
 
-        badge.addEventListener("mouseover", () => {
-            badge.style.backgroundColor = "#FF9800";
-            badge.style.borderColor = "#FF6F00";
-            badge.style.boxShadow = "0 2px 6px rgba(255, 152, 0, 0.4)";
-            badge.style.transform = "scale(1.05)";
-        });
+        let regle = entretien.tabAnon.find(p => p.entite === entite);
+        if (!regle) {
+            if (total === 0 && nbNonTraite === 0) return;
+            regle = { entite, remplacement: pseudo, occurrences: 0, indexCourant: 0, matchPositions: [] };
+            entretien.tabAnon.push(regle);
+        }
 
-        badge.addEventListener("mouseout", () => {
-            badge.style.backgroundColor = "#FFA500";
-            badge.style.borderColor = "#FF9800";
-            badge.style.boxShadow = "none";
-            badge.style.transform = "scale(1)";
-        });
+        regle.occurrences = total;
+        regle.nonTraiteOccurrences = nbNonTraite;
+        // start/end sont des placeholders : réindexés à l'ouverture individuelle de l'entretien
+        regle.matchPositions = [
+            ...Array.from({ length: nbApplique }, () => ({ start: -1, end: -1, isException: false })),
+            ...Array.from({ length: nbExclue },   () => ({ start: -1, end: -1, isException: true }))
+        ];
+    } catch (err) {
+        console.error(`Erreur recalculerStatsAnonEntretien(${indexEnt}):`, err);
     }
-    
-    return badge;
 }
 
 /**
@@ -1128,6 +1527,9 @@ function creerBadgeAnonGen(ent, anon, type) {
  */
 async function affichAnonGen() {
     console.log("lancement de affichAnonGen")
+    if (window.electronAPI && window.electronAPI.debugLog) {
+        window.electronAPI.debugLog('┌─ [CORPUS] affichAnonGen ─────────────────────────────');
+    }
     try {
         // Récupérer la liste des entretiens
         const tabEnt = await window.electronAPI.getEnt();
@@ -1148,16 +1550,45 @@ async function affichAnonGen() {
         
         // Filtrer les anonymisations valides (avec entité et remplacement)
         const anonValides = tabAnonGlobal.filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim());
+
+        // --- DEBUG TERMINAL ---
+        if (window.electronAPI && window.electronAPI.debugLog) {
+            const lines = [
+                `│  tabAnonGlobal    : ${tabAnonGlobal.length} entrée(s) (${anonValides.length} valide(s))`,
+            ];
+            // Lire les stats directement depuis l'HTML de chaque entretien (source de vérité)
+            for (const a of anonValides) {
+                let totalApplique = 0, totalException = 0, totalNonTraite = 0;
+                const entretiensConcernes = [];
+                for (let iEnt = 0; iEnt < tabEnt.length; iEnt++) {
+                    const ent = tabEnt[iEnt];
+                    const occs = await trouverOccurrencesAvecContexte(iEnt, a.entite, a.remplacement);
+                    if (!occs || occs.length === 0) continue;
+                    const anon = occs.filter(o => o.applique && !o.exclue).length;
+                    const exc  = occs.filter(o => o.exclue).length;
+                    const non  = occs.filter(o => !o.applique && !o.exclue).length;
+                    totalApplique  += anon;
+                    totalException += exc;
+                    totalNonTraite += non;
+                    const nonPart = non > 0 ? ` 🔸${non}` : '';
+                    entretiensConcernes.push(`${ent.nom || ent.rk || '?'}(✅${anon} 🚫${exc}${nonPart})`);
+                }
+                const nonTraitePart = totalNonTraite > 0 ? `  🔸${totalNonTraite} non-traités` : '';
+                lines.push(`│    "${a.entite}" → "${a.remplacement}" | total: ✅${totalApplique} anon  🚫${totalException} exc${nonTraitePart} | [${entretiensConcernes.join(', ') || 'aucun local'}]`);
+            }
+            lines.push('└──────────────────────────────────────────────────────');
+            window.electronAPI.debugLog(lines.join('\n'));
+        }
+        // --- FIN DEBUG ---
         
         // Variable pour stocker l'état d'édition
         window.anonGenEditState = {};
-        
+
         // === CRÉATION DES LIGNES SANS VÉRIFICATION ===
         const lignes = [];
         
         for (const anon of anonValides) {
-            // Créer la ligne SANS états (vides pour l'instant)
-            const tr = creerLigneAnonGen(anon, [], [], tabEnt);
+            const tr = creerLigneAnonGen(anon, tabEnt);
             lignes.push(tr);
         }
         
@@ -1165,38 +1596,31 @@ async function affichAnonGen() {
         const divAnonExistant = document.getElementById("divAnonGen");
         if (divAnonExistant) divAnonExistant.remove();
 
+        const fondAnonCorpus = document.getElementById("fond_anon_corpus");
         const divAnonGen = document.createElement("div");
         divAnonGen.id = "divAnonGen";
-        divAnonGen.classList.add("fondtabdat");
-        document.body.appendChild(divAnonGen);
+        fondAnonCorpus.innerHTML = '';
+        divAnonGen.style.height = '100%';
+        divAnonGen.style.display = 'flex';
+        divAnonGen.style.flexDirection = 'column';
+        fondAnonCorpus.appendChild(divAnonGen);
 
         // En-tête avec titre et boutons
         const divEntete = document.createElement("div");
-        divEntete.style = "height:70px; border-bottom:1px solid #ccc; padding-top:10px";
+        divEntete.style = "border-bottom:1px solid #ccc; padding:8px 10px 6px 10px;";
         divEntete.classList.add("header-tabdat");
         divEntete.innerHTML = `
-            <h3 class="logo-anon" style="margin-left:10px; margin-top:0; margin-bottom:8px;">
-                Table d'Anonymisation - Pseudonymes
+            <h3 class="logo-anon" style="margin:0; width:100%">Table d'Anonymisation - Pseudonymes
+                <label id="btn-export-anon" class="btnbleu" onclick="exportAnonGen();" title="Exporter les anonymisations" style="font-size:1.2rem"> 💾 </label>
+                <label id="btn-add-anon" class="btnbleu" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité" style="font-size:1.2rem"> ➕ </label>
             </h3>
- 
-            <div style="float:right; margin-right:10px; margin-top:-48px; display: inline-flex; gap: 10px;">
-                <label id="btn-add-anon" class="btn btn-primary" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">
-                    ➕ Ajouter
-                </label>
-                <label id="btn-export-anon" class="btn btn-secondary" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;" onclick="exportAnonGen();" title="Exporter les anonymisations">
-                    Exporter 📥
-                </label>
-                <label id="btn-quit-anon" class="btn btn-secondary" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;" onclick="hideAnonGen();" title="Fermer la table">
-                    Quitter ✖️
-                </label>
-            </div>
         `;
         divAnonGen.appendChild(divEntete);
 
         // Conteneur du tableau avec scroll
         const fondTab = document.createElement("div");
         fondTab.style.overflow = "auto";
-        fondTab.style.maxHeight = "calc(100vh - 120px)";
+        fondTab.style.maxHeight = "calc(100vh - 210px)";
         fondTab.style.paddingLeft = "10px";
         fondTab.style.paddingBottom = "120px";
         divAnonGen.appendChild(fondTab);
@@ -1222,13 +1646,6 @@ async function affichAnonGen() {
         thRemplacement.classList.add("header-col-var");
         thRemplacement.style.minWidth = "200px";
         headerRow.appendChild(thRemplacement);
-
-        const thEntretiens = document.createElement("th");
-        thEntretiens.textContent = "Entretiens";
-        thEntretiens.classList.add("header-col-var");
-        thEntretiens.style.minWidth = "400px";
-        thEntretiens.title = "Bleu/Vert = Anonymisé | Orange = Non-anonymisé (cliquable)";
-        headerRow.appendChild(thEntretiens);
 
         const thActions = document.createElement("th");
         thActions.textContent = "Actions";
@@ -1277,10 +1694,11 @@ async function affichAnonGen() {
  * @param {Array} tabEnt - Tableau des entretiens (pour le bouton Vérifier)
  * @returns {HTMLTableRowElement}
  */
-function creerLigneAnonGen(anon, entretiensNonAnonymisee, entretiensAnonymisee, tabEnt) {
+function creerLigneAnonGen(anon, tabEnt) {
     const tr = document.createElement("tr");
     tr.classList.add("ligne-anon-gen");
     tr.dataset.entite = anon.entite;
+    tr.dataset.pseudo = anon.remplacement;
 
     // Colonne 1: Entité
     const tdEntite = document.createElement("td");
@@ -1300,37 +1718,6 @@ function creerLigneAnonGen(anon, entretiensNonAnonymisee, entretiensAnonymisee, 
                style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
     `;
     tr.appendChild(tdRemplacement);
-
-    // Colonne 3: Entretiens
-    const tdEntretiens = document.createElement("td");
-    tdEntretiens.style.minWidth = "400px";
-    tdEntretiens.style.paddingTop = "8px";
-    tdEntretiens.style.paddingBottom = "8px";
-    
-    if (entretiensNonAnonymisee.length > 0 || entretiensAnonymisee.length > 0) {
-        const listeEntretiens = document.createElement("div");
-        listeEntretiens.style.display = "flex";
-        listeEntretiens.style.flexWrap = "wrap";
-        listeEntretiens.style.gap = "5px";
-
-        // Ajouter les entretiens anonymisés (bleu)
-        for (const ent of entretiensAnonymisee) {
-            const badge = creerBadgeAnonGen(ent, anon, 'anonymise');
-            listeEntretiens.appendChild(badge);
-        }
-
-        // Ajouter les entretiens non-anonymisés (orange)
-        for (const ent of entretiensNonAnonymisee) {
-            const badge = creerBadgeAnonGen(ent, anon, 'non-anonymise');
-            listeEntretiens.appendChild(badge);
-        }
-
-        tdEntretiens.appendChild(listeEntretiens);
-    } else {
-        tdEntretiens.textContent = "—";
-        tdEntretiens.style.color = "#999";
-    }
-    tr.appendChild(tdEntretiens);
 
     // Colonne 4: Actions
     const tdActions = document.createElement("td");
@@ -1392,69 +1779,58 @@ async function verifierEtatAnonymisation(indexEnt, entite, pseudo) {
             return null;
         }
 
-        // === VÉRIFICATION ANONYMISÉE ===
-        // L'entité est déjà pseudonymisée dans cet entretien si data-pseudo correspond
-        // au pseudo attendu (insensible à la casse).
-        const regexDataPseudo = new RegExp(`data-pseudo="${escapeRegex(pseudo)}"`, 'i');
-        if (regexDataPseudo.test(htmlContent)) {
-            return 'anonymisee';
-        }
+        // Frontières de mots français (les \b standard ne gèrent pas les accents)
+        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
+        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'i');
 
         // === VÉRIFICATION NON-ANONYMISÉE — approche HTML brut ===
         //
-        // Problème : une recherche naïve de l'entité dans le HTML brut produit des faux
-        // positifs dès qu'un autre mot est déjà pseudonymisé SOUS le même nom.
-        // Exemple : jacqueline → data-pseudo="marie" ; l'attribut data-pseudo contient
-        // "marie" mais le textContent du span est "jacqueline".
-        //
-        // Solution : on nettoie la chaîne HTML en plusieurs passes AVANT de chercher
-        // l'entité, afin de supprimer toute occurrence provenant des zones pseudonymisées.
+        // On nettoie la chaîne HTML en plusieurs passes pour isoler le texte transcrit
+        // non traité (ni pseudonymisé, ni exception).
         //
         // Passe 1 — Supprimer les spans avec data-pseudo (debsel/finsel pseudonymisés).
         //   Leur textContent est le mot ORIGINAL (ex : "jacqueline"), leur attribut
         //   data-pseudo contient le pseudo (ex : "marie"). Les deux disparaissent.
         //
         // Passe 2 — Supprimer les spans class "anon" sans data-pseudo (mots intermédiaires
-        //   d'entités multi-mots : ex "jean [marie] dupont" — seul "marie" central n'a pas
-        //   data-pseudo mais a class="anon").
+        //   d'entités multi-mots, et spans anon-exception — \banon\b matche aussi
+        //   "anon-exception" car le tiret est une frontière de mot).
         //
-        // Passe 3 — Supprimer TOUS les tags HTML restants (et donc leurs attributs :
-        //   data-nomloc="Marie", class="...", etc. qui ne sont PAS du texte transcrit).
-        //   Seul le texte transcrit non pseudonymisé subsiste.
+        // Passe 3 — Supprimer TOUS les tags HTML restants (attributs inclus).
+        //   Seul le texte transcrit non pseudonymisé et non-exception subsiste.
 
         const plainText = htmlContent
-            // Passe 1 : spans portant data-pseudo — textContent = mot original, attribut = pseudo
+            // Passe 1 : spans portant data-pseudo
             .replace(/<span\b[^>]*data-pseudo\s*=[^>]*>[^<]*<\/span>/gi, ' ')
-            // Passe 2 : spans portant class anon/anon-exception sans data-pseudo
+            // Passe 2 : spans portant class anon ou anon-exception sans data-pseudo
             .replace(/<span\b[^>]*class="[^"]*\banon\b[^"]*"[^>]*>[^<]*<\/span>/gi, ' ')
-            // Passe 3 : suppression de tous les tags restants (attributs inclus)
+            // Passe 3 : suppression de tous les tags restants
             .replace(/<[^>]+>/g, ' ')
             .replace(/\s+/g, ' ');
 
-        // Vérification précise avec frontières de mots français
-        // (\b ne fonctionne pas avec les caractères accentués — é, è, à, ç…)
-        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
-        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'i');
-
-        // Pré-filtrage rapide sur la chaîne épurée
-        // NOTE: la Passe 2 a aussi supprimé les spans anon-exception, donc si l'entité
-        // n'est PAS dans plainText, elle peut quand même être présente en exception DOM.
         if (plainText.toLowerCase().includes(entite.toLowerCase()) && regexEntite.test(plainText)) {
             return 'non-anonymisee';
         }
 
         // === VÉRIFICATION EXCLUE ===
-        // L'entité est présente mais marquée anon-exception (explicitement exclue).
-        // Cette vérification se fait TOUJOURS via le DOM (le plainText ayant supprimé
-        // le contenu des spans anon-exception en Passe 2).
+        // Vérifié AVANT anonymisée : si l'entité a des occurrences pseudonymisées ET des
+        // exceptions dans le même entretien, l'entretien est classé 'exclue' (les
+        // catégories doivent être exclusives — présence d'une exception prime sur
+        // le fait que d'autres occurrences soient pseudonymisées).
         const tempDivExc = document.createElement('div');
         tempDivExc.innerHTML = htmlContent;
         const excSpans = tempDivExc.querySelectorAll('.anon-exception');
-        const regexEntiteExc = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'i');
         for (const span of excSpans) {
-            if (regexEntiteExc.test(span.textContent)) {
+            if (regexEntite.test(span.textContent)) {
                 return 'exclue';
             }
+        }
+
+        // === VÉRIFICATION ANONYMISÉE ===
+        // Atteint seulement si AUCUNE exception n'existe pour cette entité.
+        const regexDataPseudo = new RegExp(`data-pseudo="${escapeRegex(pseudo)}"`, 'i');
+        if (regexDataPseudo.test(htmlContent)) {
+            return 'anonymisee';
         }
         
         return null;
@@ -1541,7 +1917,7 @@ function tokenizeCommeSegmentation(texte) {
  * @param {string} entite - Entité originale
  * @param {string} pseudo - Pseudonyme/remplacement
  */
-async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo) {
+async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanIdsATraiter = null, suppressDialog = false) {
     
     console.log(`Pseudonymisation dans l'entretien index ${indexEnt} pour l'entité "${entite}" avec le pseudo "${pseudo}"`);
     
@@ -1577,7 +1953,7 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo) {
         // Note: \b ne fonctionne pas avec les caractères accentués français (é, è, à, ç…)
         // On utilise des lookahead/lookbehind négatifs couvrant l'alphabet français complet
         const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
-        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite.trim())}(?!${FR})`, 'gi');
+        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite.trim())}(?!${FR})`, 'g');
 
         let nbRemplacements = 0;
 
@@ -1587,6 +1963,16 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo) {
         for (const span of allSpans) {
             // Ignorer les spans déjà marqués debsel avec ce pseudo
             if (span.classList.contains('debsel') && span.dataset.pseudo === pseudo) {
+                continue;
+            }
+
+            // Ignorer les spans marqués comme exception (sauf si aDesexclure a déjà retiré la classe)
+            if (span.classList.contains('anon-exception')) {
+                continue;
+            }
+
+            // Si une liste de spanIds est fournie, n'appliquer que sur ces spans spécifiques
+            if (spanIdsATraiter && !spanIdsATraiter.has(span.dataset.rk)) {
                 continue;
             }
 
@@ -1722,7 +2108,9 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo) {
         const tabEnt = await window.electronAPI.getEnt();
         const entName = tabEnt[indexEnt] ? tabEnt[indexEnt].nom : `Entretien ${indexEnt}`;
 
-        dialog('Message', `Pseudonyme "${pseudo}" enregistré dans "${entName}" (${nbRemplacements} occurrence(s)).\n\nNote: Les changements ont été sauvegardés.`);
+        if (!suppressDialog) {
+            dialog('Message', `Pseudonyme "${pseudo}" enregistré dans "${entName}" (${nbRemplacements} occurrence(s)).\n\nNote: Les changements ont été sauvegardés.`);
+        }
 
         // Mettre à jour juste le badge au lieu de recharger tout (plus rapide)
         mettreAJourBadgeApresAnonymisation(indexEnt, entite, pseudo);
@@ -1874,10 +2262,20 @@ async function ouvrirEntretienAnonGen(indexEnt) {
  * Masque la table d'anonymisation
  */
 function hideAnonGen() {
-    const div = document.getElementById("divAnonGen");
-    if (div) {
-        div.remove();
+    const _fondAnonCorpus = document.getElementById("fond_anon_corpus");
+    if (_fondAnonCorpus) {
+        // Mode panneau : fermer via les fonctions de index.html
+        if (typeof deselBtn_g === 'function') deselBtn_g();
+        if (typeof hidepanG === 'function') hidepanG();
+        _fondAnonCorpus.innerHTML = '';
+        const fondVerif = document.getElementById("fond_verif_anon");
+        if (fondVerif) {
+            fondVerif.innerHTML = '<div class="info-no-content"><label style="width:100%;display:block;margin:5px">Cliquez sur 🔍 pour vérifier la présence d\'une entité dans les entretiens.</label></div>';
+        }
+        return;
     }
+    const div = document.getElementById("divAnonGen");
+    if (div) div.remove();
 }
 
 /**
@@ -2094,7 +2492,7 @@ async function ajouterLigneAuTableauAnonGen(anon) {
     const tabEnt = await window.electronAPI.getEnt();
 
     // Utiliser creerLigneAnonGen pour garantir un affichage identique aux lignes existantes
-    const tr = creerLigneAnonGen(anon, [], [], tabEnt);
+    const tr = creerLigneAnonGen(anon, tabEnt);
 
     // Insérer à la bonne position alphabétique
     const lignes = Array.from(tbody.querySelectorAll("tr[data-entite]"));
@@ -2424,4 +2822,87 @@ function ajouterStylesAnonGen() {
         }
     `;
     document.head.appendChild(style);
+}
+
+/**
+ * Navigation entretien -> corpus : focalise le tableau global sur une occurrence précise.
+ * - Ouvre le panneau corpus si fermé
+ * - Déclenche la vérification de l'entité pour générer les accordéons
+ * - Défile vers la ligne, déplie l'accordéon de l'entretien, défile vers l'occurrence et la met en évidence (flash 2s)
+ *
+ * @param {{entite: string, pseudo: string, rkEnt: number, spanId: string}} payload
+ */
+async function focaliserOccurrenceCorpus(payload) {
+    if (!payload || !payload.entite) return;
+    const { entite, pseudo, rkEnt, spanId } = payload;
+
+    // Cible courante + purge synchrone des modales résiduelles avant tout await
+    window._lastVerifiedAnon = { entite, pseudo };
+    const fondVerif = document.getElementById("fond_verif_anon");
+    if (fondVerif) fondVerif.innerHTML = '';
+
+    // Une seule chaîne de vérification possible :
+    //  - panneau fermé : dispPanneauG le rend et déclenche affichAnonGen + verifierEtAfficherEtatEntite(_lastVerifiedAnon)
+    //  - panneau ouvert : on déclenche manuellement la vérification de la cible
+    const fondAnonCorpus = document.getElementById("fond_anon_corpus");
+    const dejaOuvert = fondAnonCorpus && !fondAnonCorpus.classList.contains('dnone');
+    if (!dejaOuvert) {
+        const btnPan = document.getElementById('imgpananon');
+        if (typeof dispPanneauG === 'function' && btnPan) {
+            dispPanneauG(btnPan, 'fond_anon_corpus');
+        }
+    } else {
+        try {
+            const tabEnt = await window.electronAPI.getEnt();
+            if (typeof verifierEtAfficherEtatEntite === 'function') {
+                await verifierEtAfficherEtatEntite(entite, pseudo, tabEnt);
+            }
+        } catch (err) {
+            console.error("focaliserOccurrenceCorpus: erreur vérification", err);
+        }
+    }
+
+    // Défiler vers la ligne du tableau
+    let ligne = pseudo
+        ? document.querySelector(`tr.ligne-anon-gen[data-entite="${CSS.escape(entite)}"][data-pseudo="${CSS.escape(pseudo)}"]`)
+        : null;
+    if (!ligne) ligne = document.querySelector(`tr.ligne-anon-gen[data-entite="${CSS.escape(entite)}"]`);
+    if (ligne) ligne.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Attendre l'apparition de l'accordéon cible (la modale est rendue de façon
+    // asynchrone par afficherOccurrencesEnAccordeon, fire-and-forget depuis verifier...).
+    if (!fondVerif) return;
+    let accordeon = null;
+    for (let i = 0; i < 50; i++) {
+        accordeon = fondVerif.querySelector(
+            `.accordion-entretien[data-ent-index="${CSS.escape(String(rkEnt))}"]`
+        );
+        if (accordeon) break;
+        await new Promise(r => setTimeout(r, 100));
+    }
+    if (!accordeon) return;
+
+    // Déplier l'accordéon de l'entretien cible
+    const contenu = accordeon.children[1];
+    if (contenu && contenu.style.display === 'none') {
+        const header = accordeon.children[0];
+        if (header) header.click();
+    }
+
+    // Défiler vers l'occurrence + flash
+    await new Promise(r => setTimeout(r, 100));
+    if (!spanId) return;
+    const occDiv = accordeon.querySelector(`[data-occ-spanid="${CSS.escape(String(spanId))}"]`);
+    if (occDiv) {
+        occDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        occDiv.classList.remove('nav-highlight');
+        void occDiv.offsetWidth;
+        occDiv.classList.add('nav-highlight');
+        setTimeout(() => occDiv.classList.remove('nav-highlight'), 2200);
+    }
+}
+
+// Exposer la fonction pour qu'index.html puisse l'invoquer
+if (typeof window !== 'undefined') {
+    window.focaliserOccurrenceCorpus = focaliserOccurrenceCorpus;
 }

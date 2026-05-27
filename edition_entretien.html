@@ -689,15 +689,71 @@ var audio = document.getElementById('lecteur');
 document.addEventListener('DOMContentLoaded', () => {
     console.log("edition_entretien.html chargé, envoi demande de données");
 
-    
+
     // récupération de l'entretien courant
     let ent_cur = window.electronAPI.getEntCur();
 
     setTimeout( function() {
-        afficherWhisPurge(ent_cur); 
+        afficherWhisPurge(ent_cur);
         listenerGraph()
-        
+
     }, 500);
+
+    // Navigation corpus -> entretien : récupération pull-based de la cible
+    // (le main process la garde en attente, on la demande quand on est prêt).
+    if (window.electronAPI && window.electronAPI.getNavTarget) {
+        window.electronAPI.getNavTarget().then((navTarget) => {
+            if (!navTarget || !navTarget.spanId) return;
+
+            const spanIdEscape = CSS.escape(String(navTarget.spanId));
+            const segments = document.getElementById('segments');
+            if (!segments) return;
+
+            let agi = false;
+            const TIMEOUT_MS = 15000;
+
+            // Tente d'agir : si le span cible existe et que tabAnon est un array,
+            // ouvre le panneau Pseudonymisation, défile et applique le highlight.
+            const essayer = () => {
+                if (agi) return true;
+                const span = segments.querySelector(`[data-rk="${spanIdEscape}"]`);
+                if (!span || !Array.isArray(window.tabAnon)) return false;
+                agi = true;
+                try {
+                    const btnAnon = document.getElementById('imgpananon');
+                    const panneauAnon = document.getElementById('fond_anon');
+                    const panneauOuvert = panneauAnon && panneauAnon.classList.contains('blocvisible');
+                    if (btnAnon && !panneauOuvert) btnAnon.click();
+                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    span.classList.remove('nav-highlight');
+                    void span.offsetWidth;
+                    span.classList.add('nav-highlight');
+                    setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                } catch (err) {
+                    console.error("Erreur focalisation navigation:", err);
+                }
+                return true;
+            };
+
+            // Si déjà prêt, agir immédiatement (cas rare)
+            if (essayer()) return;
+
+            // Sinon, MutationObserver sur #segments pour détecter l'apparition du span
+            // après cleanHTML(). Plus fiable qu'un polling à délai fixe.
+            const observer = new MutationObserver(() => {
+                if (essayer()) observer.disconnect();
+            });
+            observer.observe(segments, { childList: true, subtree: true });
+
+            // Filet de sécurité : timeout dur si rien ne se produit
+            setTimeout(() => {
+                if (!agi) {
+                    observer.disconnect();
+                    console.warn("Navigation corpus->entretien: timeout 15s, abandon.");
+                }
+            }, TIMEOUT_MS);
+        }).catch(err => console.error("getNavTarget a échoué:", err));
+    }
 
     // Fonction partagée pour déclencher le menu d'exception sur un span anonymisé
     function gererMenuException(spanAnon) {
@@ -1187,6 +1243,9 @@ async function dispPanneauG(bouton, composant){
        if (!anonPanelDisplayed) {
            affichTableauAnon();
            anonPanelDisplayed = true;
+       } else {
+           // Réattacher les listeners à chaque réouverture du panneau
+           setTimeout(() => attacheExceptionListeners(), 50);
        }
     }
 

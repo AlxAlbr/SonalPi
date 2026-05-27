@@ -10,7 +10,13 @@ var rgEnt ; // mémorise le rang de l'entretien courant ()
 var placerApresVar = "dernier"; // valeur de positionnement pour les variables : "dernier" | "premier" | code_v
 
 var txtmod_cur = null; // mémorisation du texte de modalité en cours de modification (pour le menu)
-var filtreVarGen = "all"; // filtre d'affichage du tableau global : "all" | "gen" | "loc"
+
+var colsVisibiliteData = {}; // visibilité des colonnes : { key: bool } — true = visible
+var lignesVisibiliteData = {}; // visibilité des lignes par entretien : { idEnt: bool } — true = visible
+var _handlerFermerColVis = null; // handler click-away panneau colonnes (référence unique pour removeEventListener)
+var _handlerFermerLigVis = null; // handler click-away panneau lignes
+var _colDefsData = []; // référence aux colDefs courants pour _updateInfoVisData
+var _entretienesListData = []; // référence à entretiensList courant pour _updateInfoVisData
 
 // AJOUTER UNE VARIABLE
 async function addVar(mode) {
@@ -1042,44 +1048,53 @@ async function affichDataGen(){
 
     const divTabDat = document.createElement("div");
     divTabDat.id = "divTabDat";
-    divTabDat.classList.add("fondtabdat");
-     
-    document.body.appendChild(divTabDat);
+
+    // Détection du mode panneau (index.html avec fond_dat_corpus visible)
+    const _fondDatCorpus = document.getElementById("fond_dat_corpus");
+    const _estModePanneau = _fondDatCorpus && !_fondDatCorpus.classList.contains('dnone');
+
+    if (_estModePanneau) {
+        _fondDatCorpus.innerHTML = '';
+        divTabDat.style.height = '100%';
+        _fondDatCorpus.appendChild(divTabDat);
+    } else {
+        divTabDat.classList.add("fondtabdat");
+        document.body.appendChild(divTabDat);
+    }
     
     divEntete = document.createElement("div");
     divEntete.style="height:50px; border-bottom:1px solid #ccc"
     divEntete.classList.add("header-tabdat");
 
-    // Calcul des filtres (requis avant la construction de l'en-tête)
+    // Calcul des filtres
     const hasVarLoc = tabVar.some(v => v.champ === "loc");
-    const varAfficher = filtreVarGen === "gen" ? tabVar.filter(v => v.champ === "gen")
-                      : filtreVarGen === "loc" ? tabVar.filter(v => v.champ === "loc")
-                      : tabVar;
-    const varAfficherGen = varAfficher.filter(v => v.champ === "gen");
-    const varAfficherLoc = varAfficher.filter(v => v.champ === "loc");
-    const showLocCol = hasVarLoc && filtreVarGen !== "gen";
-    const showLocRows = hasVarLoc && filtreVarGen !== "gen";
+    const varAfficherGen = tabVar.filter(v => v.champ === "gen");
+    const varAfficherLoc = tabVar.filter(v => v.champ === "loc");
+    const showLocCol = hasVarLoc;
+    const showLocRows = hasVarLoc;
 
     divEntete.innerHTML = `<h3 class="logo-variables" style="margin-left:10px;">Base de données
-    <label for="filtre-var-gen" style="margin-left:20px;font-size:0.55em;cursor:pointer">Afficher :</label>
-    <select id="filtre-var-gen" onchange="changerFiltreGen(this.value)" style="margin-left:12px;padding:3px 8px;border:1px solid #ccc;border-radius:4px;font-size:0.55em;vertical-align:middle;cursor:pointer">
-        <option value="all"${filtreVarGen === "all" ? " selected" : ""}>Toutes les variables</option>
-        <option value="gen"${filtreVarGen === "gen" ? " selected" : ""}${!tabVar.some(v => v.champ === "gen") ? " disabled" : ""}>Générales seulement</option>
-        <option value="loc"${filtreVarGen === "loc" ? " selected" : ""}${!hasVarLoc ? " disabled" : ""}>Locuteurs seulement</option>
-    </select>
-    <label id="btn-quit" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px" onclick="hideTabDat();">Quitter ✖️</label>
+    ${_estModePanneau ? '' : '<label id="btn-quit" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px" onclick="hideTabDat();">Quitter ✖️</label>'}
     <label id="btn-export-dat" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px" onclick="exportTabDat();">Exporter 📥</label>
     <label id="btn-add-var" class="btn btn-primary" style="padding: 10px;float:right;margin-top:-5px;" onclick="dialog('Métadonnées');"> ➕ Ajouter une variable </label>
+    <label id="btn-col-vis" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px;" title="Afficher/masquer des colonnes">👁 Variables</label>
+    <label id="btn-lig-vis" class="btn btn-secondary" style="padding: 10px;float:right;margin-top:-5px;" title="Afficher/masquer des entretiens">👁 Lignes</label>
     </h3>`;
     divTabDat.appendChild(divEntete);
 
     // création du fond du tableau
     const fondTab = document.createElement("div");
     fondTab.style.overflow = "auto";
-    fondTab.style.maxHeight = "calc(100vh - 80px)";
+    fondTab.style.maxHeight = _estModePanneau ? "calc(100vh - 200px)" : "calc(100vh - 80px)";
     fondTab.style.paddingLeft = "10px";
 
     divTabDat.appendChild(fondTab);
+
+    // Bandeau d'information sur les lignes/colonnes cachées
+    const divInfoVis = document.createElement("div");
+    divInfoVis.id = "info-vis-dat";
+    divInfoVis.style.cssText = "display:none; padding:3px 10px 5px; font-size:0.82em; color:#999; font-style:italic; border-bottom:1px solid #eee;";
+    fondTab.appendChild(divInfoVis);
 
     // création du tableau HTML
     const table = document.createElement("table");
@@ -1099,6 +1114,7 @@ async function affichDataGen(){
     // création de l'en-tête du tableau
     // (hasVarLoc, varAfficher, showLocCol, showLocRows calculés dans le bloc header ci-dessus)
     const headerRow = document.createElement("tr");
+    const colDefs = []; // [{key, label, cssClass}] — utilisé pour le panneau de visibilité
 
         // première colonne : entretien
         const th = document.createElement("th");
@@ -1108,10 +1124,12 @@ async function affichDataGen(){
 
     // colonnes variables générales
     varAfficherGen.forEach(enteteVar => {
+        const cssClass = `col-dat-gen-${enteteVar.v}`;
         const thV = document.createElement("th");
         thV.textContent = enteteVar.lib;
-        thV.classList.add("header-col-var");
+        thV.classList.add("header-col-var", cssClass);
         headerRow.appendChild(thV);
+        colDefs.push({ key: `gen-${enteteVar.v}`, label: enteteVar.lib, cssClass });
         thV.addEventListener("click", function() { editVar(enteteVar.v, 'gen'); });
     });
 
@@ -1119,18 +1137,19 @@ async function affichDataGen(){
         if (showLocCol) {
         const thLoc = document.createElement("th");
         thLoc.textContent = "Locuteur";
-        thLoc.classList.add("header-col-loc");
-        
+        thLoc.classList.add("header-col-loc", "col-dat-locuteur");
         headerRow.appendChild(thLoc);
+        colDefs.push({ key: 'locuteur', label: 'Locuteur', cssClass: 'col-dat-locuteur' });
         }
 
     // colonnes variables locuteurs
     varAfficherLoc.forEach(enteteVar => {
+        const cssClass = `col-dat-loc-${enteteVar.v}`;
         const thV = document.createElement("th");
         thV.textContent = enteteVar.lib;
-        thV.classList.add("header-col-var");
+        thV.classList.add("header-col-var", cssClass);
         headerRow.appendChild(thV);
-        
+        colDefs.push({ key: `loc-${enteteVar.v}`, label: enteteVar.lib, cssClass });
         thV.addEventListener("click", function() { editVar(enteteVar.v, 'gen'); });
     });
     thead.appendChild(headerRow);
@@ -1168,7 +1187,7 @@ async function affichDataGen(){
 
         // --- Ligne générale ---
         const trGen = document.createElement("tr");
-        trGen.classList.add(entIdx % 2 === 0 ? "grp-pair" : "grp-impair");
+        trGen.classList.add(entIdx % 2 === 0 ? "grp-pair" : "grp-impair", `ent-dat-${idEnt}`);
         if (locuteursAfficher.length === 0) trGen.classList.add("grp-last");
 
         // cellule entretien : rowSpan sur toutes les lignes du groupe
@@ -1188,7 +1207,7 @@ async function affichDataGen(){
             td.dataset.entId = idEnt;
             td.dataset.varV = caseVar.v;
             td.dataset.loc = "all";
-            td.classList.add("td-editable-gen");
+            td.classList.add("td-editable-gen", `col-dat-gen-${caseVar.v}`);
             trGen.appendChild(td);
         });
 
@@ -1198,13 +1217,13 @@ async function affichDataGen(){
             if (showLocCol) {
                 const tdLocGen = document.createElement("td");
                 tdLocGen.textContent = "";
-                tdLocGen.classList.add("td-non-editable-gen", "col-loc");
+                tdLocGen.classList.add("td-non-editable-gen", "col-loc", "col-dat-locuteur");
                 trGen.appendChild(tdLocGen);
             }
-            varAfficherLoc.forEach(() => {
+            varAfficherLoc.forEach(caseVar => {
                 const td = document.createElement("td");
                 td.textContent = "";
-                td.classList.add("td-non-editable-gen");
+                td.classList.add("td-non-editable-gen", `col-dat-loc-${caseVar.v}`);
                 trGen.appendChild(td);
             });
         }
@@ -1213,7 +1232,7 @@ async function affichDataGen(){
         // --- Lignes locuteurs (variables "loc") ---
         locuteursAfficher.forEach((loc, rowIdx) => {
             const tr = document.createElement("tr");
-            tr.classList.add(entIdx % 2 === 0 ? "grp-pair" : "grp-impair");
+            tr.classList.add(entIdx % 2 === 0 ? "grp-pair" : "grp-impair", `ent-dat-${idEnt}`);
             if (rowIdx === locuteursValides.length - 1) tr.classList.add("grp-last");
 
             // cellule locuteur (selon filtre)
@@ -1222,7 +1241,7 @@ async function affichDataGen(){
             tdLoc.style.fontStyle = "italic";
             tdLoc.style.color = "#868686";
             tdLoc.textContent = loc.nom;
-            tdLoc.classList.add("col-loc");
+            tdLoc.classList.add("col-loc", "col-dat-locuteur");
             tr.appendChild(tdLoc);
             }
 
@@ -1239,7 +1258,7 @@ async function affichDataGen(){
                 td.dataset.entId = idEnt;
                 td.dataset.varV = caseVar.v;
                 td.dataset.loc = loc.idx;
-                td.classList.add("td-editable-gen");
+                td.classList.add("td-editable-gen", `col-dat-loc-${caseVar.v}`);
                 tr.appendChild(td);
             });
 
@@ -1247,23 +1266,363 @@ async function affichDataGen(){
         });
     });
 
+    // Initialiser le panneau de visibilité des colonnes
+    const entretiensList = tabEnt.map(r => ({ id: String(r.id), nom: r.nom }));
+    _setupColVisData(divTabDat, table, colDefs);
+    _setupRowVisData(divTabDat, entretiensList);
+
+}
+
+/**
+ * Initialise le panneau de visibilité des colonnes du tableau Base de données
+ */
+function _setupColVisData(divTabDat, table, colDefs) {
+    _colDefsData = colDefs; // mémoriser pour _updateInfoVisData
+    // Initialiser les nouvelles colonnes à visible par défaut
+    colDefs.forEach(({ key }) => {
+        if (colsVisibiliteData[key] === undefined) colsVisibiliteData[key] = true;
+    });
+
+    // Appliquer la visibilité courante
+    _applyColVisData(colDefs);
+
+    // Séparer les colonnes par groupe (exclure la colonne structurelle "Locuteur" du dropdown)
+    const colsGen = colDefs.filter(c => c.key.startsWith("gen-"));
+    const colsLoc = colDefs.filter(c => c.key.startsWith("loc-"));
+
+    // Panneau dropdown
+    const panneau = document.createElement("div");
+    panneau.id = "panneau-col-vis";
+    panneau.style.cssText = `
+        display: none; position: absolute; z-index: 1000;
+        background: white; border: 1px solid #ccc; border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 8px 12px;
+        min-width: 200px; max-height: 340px; overflow-y: auto;
+    `;
+
+    // --- Helpers ---
+    const creerLigneCheckbox = (label, indent, checked, onChange) => {
+        const ligne = document.createElement("label");
+        ligne.style.cssText = `display:flex; align-items:center; gap:8px; padding:3px 0;
+            cursor:pointer; font-size:0.9em; padding-left:${indent}px;`;
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = checked;
+        cb.addEventListener("change", () => onChange(cb));
+        ligne.appendChild(cb);
+        ligne.appendChild(document.createTextNode(label));
+        panneau.appendChild(ligne);
+        return cb;
+    };
+
+    const mettreAJourGroupe = (cbGroupe, cols) => {
+        const total = cols.length;
+        const coches = cols.filter(c => colsVisibiliteData[c.key] !== false).length;
+        cbGroupe.checked = coches === total;
+        cbGroupe.indeterminate = coches > 0 && coches < total;
+    };
+
+    const mettreAJourTout = (cbTout) => {
+        const total = colDefs.length;
+        const coches = colDefs.filter(c => colsVisibiliteData[c.key] !== false).length;
+        cbTout.checked = coches === total;
+        cbTout.indeterminate = coches > 0 && coches < total;
+    };
+
+    // --- Checkbox "Tout" ---
+    const separator = document.createElement("div");
+    separator.style.cssText = "font-weight:600; font-size:0.85em; color:#555; padding-bottom:4px; border-bottom:1px solid #eee; margin-bottom:4px;";
+    separator.textContent = "Colonnes visibles";
+    panneau.appendChild(separator);
+
+    let cbTout, cbGen, cbLoc;
+    const cbsGen = [], cbsLoc = [];
+
+    cbTout = creerLigneCheckbox("Tout", 0, true, (cb) => {
+        colDefs.forEach(c => { colsVisibiliteData[c.key] = cb.checked; });
+        cbsGen.forEach(c => c.checked = cb.checked);
+        cbsLoc.forEach(c => c.checked = cb.checked);
+        if (cbGen) { cbGen.checked = cb.checked; cbGen.indeterminate = false; }
+        if (cbLoc) { cbLoc.checked = cb.checked; cbLoc.indeterminate = false; }
+        _applyColVisData(colDefs);
+    });
+
+    // --- Groupe "Variables d'entretien" ---
+    if (colsGen.length > 0) {
+        const sepGen = document.createElement("div");
+        sepGen.style.cssText = "margin-top:6px; margin-bottom:2px;";
+        panneau.appendChild(sepGen);
+
+        cbGen = creerLigneCheckbox("Variables d'entretien", 12, true, (cb) => {
+            colsGen.forEach((c, i) => {
+                colsVisibiliteData[c.key] = cb.checked;
+                cbsGen[i].checked = cb.checked;
+            });
+            cb.indeterminate = false;
+            mettreAJourTout(cbTout);
+            _applyColVisData(colDefs);
+        });
+        cbGen.style.accentColor = "#2E73D8";
+
+        colsGen.forEach(col => {
+            const cb = creerLigneCheckbox(col.label, 24, colsVisibiliteData[col.key] !== false, (cb) => {
+                colsVisibiliteData[col.key] = cb.checked;
+                mettreAJourGroupe(cbGen, colsGen);
+                mettreAJourTout(cbTout);
+                _applyColVisData(colDefs);
+            });
+            cbsGen.push(cb);
+        });
+    }
+
+    // --- Groupe "Variables de locuteur" ---
+    if (colsLoc.length > 0) {
+        const sepLoc = document.createElement("div");
+        sepLoc.style.cssText = "margin-top:6px; margin-bottom:2px;";
+        panneau.appendChild(sepLoc);
+
+        cbLoc = creerLigneCheckbox("Variables de locuteur", 12, true, (cb) => {
+            colsLoc.forEach((c, i) => {
+                colsVisibiliteData[c.key] = cb.checked;
+                cbsLoc[i].checked = cb.checked;
+            });
+            colsVisibiliteData['locuteur'] = cb.checked;
+            cb.indeterminate = false;
+            mettreAJourTout(cbTout);
+            _applyColVisData(colDefs);
+        });
+        cbLoc.style.accentColor = "#2E73D8";
+
+        colsLoc.forEach(col => {
+            const cb = creerLigneCheckbox(col.label, 24, colsVisibiliteData[col.key] !== false, (cb) => {
+                colsVisibiliteData[col.key] = cb.checked;
+                // La colonne Locuteur est visible si au moins une variable de locuteur l'est
+                colsVisibiliteData['locuteur'] = colsLoc.some(c => colsVisibiliteData[c.key] !== false);
+                mettreAJourGroupe(cbLoc, colsLoc);
+                mettreAJourTout(cbTout);
+                _applyColVisData(colDefs);
+            });
+            cbsLoc.push(cb);
+        });
+    }
+
+    // Initialiser l'état indeterminate au chargement
+    if (cbGen) mettreAJourGroupe(cbGen, colsGen);
+    if (cbLoc) mettreAJourGroupe(cbLoc, colsLoc);
+    mettreAJourTout(cbTout);
+
+    divTabDat.style.position = "relative";
+    divTabDat.appendChild(panneau);
+
+    // Bouton toggle
+    const btn = document.getElementById("btn-col-vis");
+    if (btn) {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const rect = btn.getBoundingClientRect();
+            const divRect = divTabDat.getBoundingClientRect();
+            panneau.style.top = (rect.bottom - divRect.top + 4) + "px";
+            panneau.style.right = (divRect.right - rect.right) + "px";
+            panneau.style.display = panneau.style.display === "none" ? "block" : "none";
+        });
+    }
+
+    // Fermer le panneau en cliquant ailleurs (handler unique, remplacé à chaque reconstruction)
+    if (_handlerFermerColVis) document.removeEventListener("click", _handlerFermerColVis);
+    _handlerFermerColVis = () => { panneau.style.display = "none"; };
+    document.addEventListener("click", _handlerFermerColVis);
+}
+
+/**
+ * Applique la visibilité des colonnes via une règle CSS dynamique
+ */
+function _applyColVisData(colDefs) {
+    let styleEl = document.getElementById("col-vis-style-dat");
+    if (!styleEl) {
+        styleEl = document.createElement("style");
+        styleEl.id = "col-vis-style-dat";
+        document.head.appendChild(styleEl);
+    }
+    const rules = colDefs
+        .filter(({ key }) => colsVisibiliteData[key] === false)
+        .map(({ cssClass }) => `#divTabDat table .${cssClass} { display: none; }`)
+        .join("\n");
+    styleEl.textContent = rules;
+    _updateInfoVisData();
+}
+
+/**
+ * Initialise le panneau de visibilité des lignes (entretiens) du tableau Base de données
+ */
+function _setupRowVisData(divTabDat, entretiensList) {
+    _entretienesListData = entretiensList; // mémoriser pour _updateInfoVisData
+    // Initialiser les nouveaux entretiens à visible par défaut
+    entretiensList.forEach(({ id }) => {
+        if (lignesVisibiliteData[id] === undefined) lignesVisibiliteData[id] = true;
+    });
+
+    // Appliquer la visibilité courante
+    _applyRowVisData(entretiensList);
+
+    // Panneau dropdown
+    const panneau = document.createElement("div");
+    panneau.id = "panneau-lig-vis";
+    panneau.style.cssText = `
+        display: none; position: absolute; z-index: 1000;
+        background: white; border: 1px solid #ccc; border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 8px 12px;
+        min-width: 200px; max-height: 340px; overflow-y: auto;
+    `;
+
+    // --- Helpers ---
+    const creerLigne = (label, indent, checked, onChange) => {
+        const ligne = document.createElement("label");
+        ligne.style.cssText = `display:flex; align-items:center; gap:8px; padding:3px 0;
+            cursor:pointer; font-size:0.9em; padding-left:${indent}px;`;
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = checked;
+        cb.addEventListener("change", () => onChange(cb));
+        ligne.appendChild(cb);
+        ligne.appendChild(document.createTextNode(label));
+        panneau.appendChild(ligne);
+        return cb;
+    };
+
+    const mettreAJourTout = (cbTout) => {
+        const total = entretiensList.length;
+        const coches = entretiensList.filter(e => lignesVisibiliteData[e.id] !== false).length;
+        cbTout.checked = coches === total;
+        cbTout.indeterminate = coches > 0 && coches < total;
+    };
+
+    // Titre
+    const titre = document.createElement("div");
+    titre.style.cssText = "font-weight:600; font-size:0.85em; color:#555; padding-bottom:4px; border-bottom:1px solid #eee; margin-bottom:4px;";
+    titre.textContent = "Entretiens visibles";
+    panneau.appendChild(titre);
+
+    const cbsEnt = [];
+    const cbTout = creerLigne("Tout", 0, true, (cb) => {
+        entretiensList.forEach((e, i) => {
+            lignesVisibiliteData[e.id] = cb.checked;
+            cbsEnt[i].checked = cb.checked;
+        });
+        cb.indeterminate = false;
+        _applyRowVisData(entretiensList);
+    });
+
+    entretiensList.forEach(ent => {
+        const cb = creerLigne(ent.nom, 12, lignesVisibiliteData[ent.id] !== false, (cb) => {
+            lignesVisibiliteData[ent.id] = cb.checked;
+            mettreAJourTout(cbTout);
+            _applyRowVisData(entretiensList);
+        });
+        cbsEnt.push(cb);
+    });
+
+    mettreAJourTout(cbTout);
+
+    divTabDat.style.position = "relative";
+    divTabDat.appendChild(panneau);
+
+    // Bouton toggle
+    const btn = document.getElementById("btn-lig-vis");
+    if (btn) {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const rect = btn.getBoundingClientRect();
+            const divRect = divTabDat.getBoundingClientRect();
+            panneau.style.top = (rect.bottom - divRect.top + 4) + "px";
+            panneau.style.right = (divRect.right - rect.right) + "px";
+            panneau.style.display = panneau.style.display === "none" ? "block" : "none";
+        });
+    }
+
+    // Fermer le panneau en cliquant ailleurs (handler unique, remplacé à chaque reconstruction)
+    if (_handlerFermerLigVis) document.removeEventListener("click", _handlerFermerLigVis);
+    _handlerFermerLigVis = () => { panneau.style.display = "none"; };
+    document.addEventListener("click", _handlerFermerLigVis);
+}
+
+/**
+ * Applique la visibilité des lignes via une règle CSS dynamique
+ */
+function _applyRowVisData(entretiensList) {
+    let styleEl = document.getElementById("lig-vis-style-dat");
+    if (!styleEl) {
+        styleEl = document.createElement("style");
+        styleEl.id = "lig-vis-style-dat";
+        document.head.appendChild(styleEl);
+    }
+    const rules = entretiensList
+        .filter(({ id }) => lignesVisibiliteData[id] === false)
+        .map(({ id }) => `#divTabDat table .ent-dat-${id} { display: none; }`)
+        .join("\n");
+    styleEl.textContent = rules;
+    _updateInfoVisData();
+}
+
+/**
+ * Met à jour le bandeau d'information sur les lignes/colonnes cachées
+ */
+function _updateInfoVisData() {
+    const divInfo = document.getElementById("info-vis-dat");
+    if (!divInfo) return;
+
+    const lister = (noms) => {
+        if (noms.length === 1) return noms[0];
+        return noms.slice(0, -1).join(", ") + " et " + noms[noms.length - 1];
+    };
+
+    const lignes = [];
+
+    // Lignes cachées
+    const entsCaches = _entretienesListData.filter(e => lignesVisibiliteData[e.id] === false);
+    if (entsCaches.length > 0) {
+        const label = entsCaches.length === 1 ? "Ligne cachée" : "Lignes cachées";
+        lignes.push(`${label} : ${lister(entsCaches.map(e => e.nom))}`);
+    }
+
+    // Colonnes cachées — variables générales
+    const genCaches = _colDefsData.filter(c => c.key.startsWith("gen-") && colsVisibiliteData[c.key] === false);
+    if (genCaches.length > 0) {
+        const label = genCaches.length === 1 ? "Variable d’entretien cachée" : "Variables d’entretien cachées";
+        lignes.push(`${label} : ${lister(genCaches.map(c => c.label))}`);
+    }
+
+    // Colonnes cachées — variables de locuteur
+    const locCaches = _colDefsData.filter(c => c.key.startsWith("loc-") && colsVisibiliteData[c.key] === false);
+    if (locCaches.length > 0) {
+        const label = locCaches.length === 1 ? "Variable de locuteur cachée" : "Variables de locuteur cachées";
+        lignes.push(`${label} : ${lister(locCaches.map(c => c.label))}`);
+    }
+
+    divInfo.innerHTML = lignes.map(l => `<span>${l}</span>`).join("<br>");
+    divInfo.style.display = lignes.length > 0 ? "block" : "none";
 }
 
 async function hideTabDat(){
     const divTabDat = document.getElementById("divTabDat");
-    if (divTabDat){
-        divTabDat.remove();
+    if (divTabDat) divTabDat.remove();
+
+    // Mode panneau dans index.html : fond_dat_corpus n'existe que dans cette page
+    const fondDatCorpus = document.getElementById("fond_dat_corpus");
+    if (fondDatCorpus) {
+        const container = document.querySelector('.container');
+        if (container) container.classList.remove('plein-ecran');
+        fondDatCorpus.classList.add('dnone');
+        fondDatCorpus.innerHTML = '';
+        document.querySelectorAll('.imgbtn_g').forEach(b => b.style.opacity = 0.3);
+        return;
     }
+
+    // Comportement original (edition_entretien.html)
     const rkEnt = await window.electronAPI.getEntCur();
     if (rkEnt !== -1) {
         await affichDataEnt();
     }
 };
-
-function changerFiltreGen(val) {
-    filtreVarGen = val;
-    affichDataGen();
-}
 
 // Activer l'édition inline d'une cellule du tableau global
 function activerEditionGen(td) {
@@ -1410,7 +1769,7 @@ async function validerCellGen(td, lib) {
     }
 }
 
-async function exportTabDat() { // export CSV depuis le tableau HTML affiché
+async function exportTabDat() { // export CSV depuis le tableau HTML affiché — respecte la visibilité lignes/colonnes
 
     const table = document.querySelector("#divTabDat table");
     if (!table) {
@@ -1427,34 +1786,44 @@ async function exportTabDat() { // export CSV depuis le tableau HTML affiché
         return s;
     };
 
+    // Colonnes visibles (ordre conservé depuis _colDefsData)
+    const visibleCols = _colDefsData.filter(c => colsVisibiliteData[c.key] !== false);
+
+    // En-tête : "Entretien" toujours en premier, puis les colonnes visibles
+    const allThs = Array.from(table.querySelectorAll("thead tr th"));
     const lignes = [];
+    const headerCells = ["Entretien"];
+    for (const col of visibleCols) {
+        const th = allThs.find(th => th.classList.contains(col.cssClass));
+        headerCells.push(th ? csvCell(th.textContent) : col.label);
+    }
+    lignes.push(headerCells.join(SEP));
 
-    // En-tête depuis le thead
-    const ths = table.querySelectorAll("thead tr th");
-    lignes.push(Array.from(ths).map(th => csvCell(th.textContent)).join(SEP));
-
-    // Lignes depuis le tbody
-    // La cellule entretien (rowSpan) porte la classe grp-last et est cells[0] de la ligne générale.
-    // Pour les lignes locuteurs, cells[0] est le nom de locuteur (pas de classe grp-last).
+    // Lignes du tbody : on saute les lignes cachées, et pour chaque td
+    // on cherche la cellule par sa classe CSS de colonne (robuste face aux rowspan).
     table.querySelectorAll("tbody tr").forEach(tr => {
-        const cells = tr.cells;
-        const ligne = [];
+        if (getComputedStyle(tr).display === "none") return; // ligne cachée par le filtre "Lignes"
+
+        const cells = Array.from(tr.cells);
         const estLigneGen = cells[0] && cells[0].classList.contains("grp-last");
+        const rowCells = [];
 
         if (estLigneGen) {
-            // Ligne générale : cells[0] = entretien (rowSpan), cells[1..] = reste
-            ligne.push(csvCell(cells[0].textContent));
-            for (let i = 1; i < cells.length; i++) {
-                ligne.push(cells[i].classList.contains("td-non-editable-gen") ? "" : csvCell(cells[i].textContent));
-            }
+            rowCells.push(csvCell(cells[0].textContent)); // colonne Entretien
         } else {
-            // Ligne locuteur : pas de cellule entretien dans cells (absorbée par rowSpan)
-            ligne.push(""); // colonne Entretien vide
-            for (let i = 0; i < cells.length; i++) {
-                ligne.push(cells[i].classList.contains("td-non-editable-gen") ? "" : csvCell(cells[i].textContent));
+            rowCells.push(""); // colonne Entretien vide pour les lignes locuteurs
+        }
+
+        for (const col of visibleCols) {
+            const td = cells.find(td => td.classList.contains(col.cssClass));
+            if (!td || td.classList.contains("td-non-editable-gen")) {
+                rowCells.push(""); // colonne absente dans cette ligne (rowspan ou vide intentionnel)
+            } else {
+                rowCells.push(csvCell(td.textContent));
             }
         }
-        lignes.push(ligne.join(SEP));
+
+        lignes.push(rowCells.join(SEP));
     });
 
     const contenuCsv = lignes.join("\r\n");

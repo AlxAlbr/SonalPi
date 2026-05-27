@@ -1093,7 +1093,9 @@ function compactHtml(){ // fonction servant à compacter le html (notamment pour
             // Span anonymisé : on flush et on le conserve tel quel (jamais à compacter)
             if (enfant.classList.contains('anon')) {
                 flush();
-                nvSeg.appendChild(enfant.cloneNode(true));
+                const clone = enfant.cloneNode(true);
+                clone.classList.remove('anon-selected'); // classe runtime uniquement, ne pas persister
+                nvSeg.appendChild(clone);
                 continue;
             }
 
@@ -1105,6 +1107,7 @@ function compactHtml(){ // fonction servant à compacter le html (notamment pour
                 spanReceveur = enfant.cloneNode(false); // premier span du groupe
                 spanReceveur.textContent = enfant.textContent;
                 spanReceveur.removeAttribute('data-len');
+                spanReceveur.removeAttribute('data-anon-nt'); // attribut runtime uniquement, ne pas persister
                 classesReceveur = classesMot;
             } else {
                 // Même groupe : on accumule

@@ -3,4 +3,5 @@ out
 dist/
 site/
 .env
-TodoMax.md
+claude.md
+anon.md
