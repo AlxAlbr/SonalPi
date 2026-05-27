@@ -16,13 +16,6 @@
   "build": {
     "appId": "com.sonal.id",
     "productName": "Sonal",
-    "publish": {
-      "provider": "github",
-      "owner": "AlxAlbr",
-      "repo": "SonalPi",
-      "draft": false,
-      "releaseType": "release"
-    },
     "fileAssociations": [
       {
         "ext": "crp",
@@ -113,7 +106,7 @@
   },
   "devDependencies": {
     "electron": "38.1.2",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^26.0.12",
     "electron-icon-builder": "^2.0.1"
   }
 }
