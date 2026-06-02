@@ -430,6 +430,32 @@ function hidepanG(){
   // LISTENERS
   ///////////////////////////////////////////////////////////////////
 
+  // Rafraîchir la page Pseudos à la fermeture d'une fenêtre entretien (si elle est ouverte)
+  if (window.electronAPI && window.electronAPI.onEntretienFerme) {
+      window.electronAPI.onEntretienFerme(async () => {
+          if (!document.getElementById('divAnonGenPage')) return;
+          if (typeof affichAnonGen !== 'function') return;
+          await affichAnonGen();
+          if (window._lastVerifiedAnon && typeof verifierEtAfficherEtatEntite === 'function') {
+              const tabEnt = await window.electronAPI.getEnt();
+              verifierEtAfficherEtatEntite(
+                  window._lastVerifiedAnon.entite,
+                  window._lastVerifiedAnon.pseudo,
+                  tabEnt
+              );
+          }
+      });
+  }
+
+  // Navigation entretien -> corpus : ouvrir la page Pseudos et focaliser sur l'occurrence
+  if (window.electronAPI && window.electronAPI.onOuvrirVueCorpusAnon) {
+      window.electronAPI.onOuvrirVueCorpusAnon(async (payload) => {
+          if (typeof window.focaliserOccurrenceCorpus === 'function') {
+              await window.focaliserOccurrenceCorpus(payload);
+          }
+      });
+  }
+
   // ==============================================
   // REDIMENSIONNEMENT COLONNE GAUCHE
   // ==============================================

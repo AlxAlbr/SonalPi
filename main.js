@@ -1214,9 +1214,9 @@ module.exports = { editerCategories };
 
 // fonction pour afficher la fenêtre modale d'édition des entretiens
 
-async function editerEntretien(parentWindow, rgEnt){
-   
-  
+async function editerEntretien(parentWindow, rgEnt, navTarget = null){
+
+
 
   // ouvrir la fenêtre modale
 
@@ -1250,7 +1250,11 @@ async function editerEntretien(parentWindow, rgEnt){
     entWindow.setMenu(null);
     flouterSousModale(mainWindow);
 
-    
+    // Mémoriser la cible de navigation pour qu'elle soit récupérable via IPC
+    // (pull-based plus fiable qu'un push 'ready-to-show' qui peut arriver pendant l'init renderer)
+    if (navTarget) {
+      entWindow._navTarget = navTarget;
+    }
 
     entWindow.once('ready-to-show', async () => {
               // définition de l'icône
@@ -1364,6 +1368,18 @@ async function editerEntretien(parentWindow, rgEnt){
           mainWindow.webContents.send('entretien-deverrouille', rgEnt);
         }
       }
+      // Signaler la fermeture pour rafraîchir le panneau corpus pseudo s'il est visible.
+      // Si la fermeture vient du menu "Voir au niveau du corpus", on émet uniquement
+      // 'ouvrir-vue-corpus-anon' : focaliserOccurrenceCorpus rafraîchit déjà le panneau,
+      // et émettre les deux signaux provoquerait une double vérification concurrente
+      // (deux modales d'occurrences finiraient empilées dans fond_verif_anon).
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (entWindow._navRetourCorpus) {
+          mainWindow.webContents.send('ouvrir-vue-corpus-anon', entWindow._navRetourCorpus);
+        } else {
+          mainWindow.webContents.send('entretien-ferme-refresh-anon');
+        }
+      }
       deflouterSousModale(mainWindow);
       resolve(null);
     });
@@ -1372,8 +1388,29 @@ async function editerEntretien(parentWindow, rgEnt){
 }
 
 // Écouter la demande d'ouverture depuis le renderer
-ipcMain.handle('editer-entretien', async (event, rgEnt) => {
-  return editerEntretien(mainWindow, rgEnt);
+ipcMain.handle('editer-entretien', async (event, rgEnt, navTarget) => {
+  return editerEntretien(mainWindow, rgEnt, navTarget);
+});
+
+// Le renderer (edition_entretien.html) demande sa cible de navigation quand il
+// est prêt. Pull-based, donc immune au timing de DOMContentLoaded/ready-to-show.
+ipcMain.handle('get-nav-target', (event) => {
+  const w = BrowserWindow.fromWebContents(event.sender);
+  if (!w) return null;
+  const target = w._navTarget || null;
+  w._navTarget = null;
+  return target;
+});
+
+// Navigation entretien -> corpus : marquer la fenêtre puis demander sa fermeture.
+// La sauvegarde est gérée par le cycle existant 'save-and-close', et le signal
+// 'ouvrir-vue-corpus-anon' est émis dans le handler 'closed' de editerEntretien.
+ipcMain.handle('entretien:demande-vue-corpus', async (event, payload) => {
+  const entWindow = BrowserWindow.fromWebContents(event.sender);
+  if (entWindow) {
+    entWindow._navRetourCorpus = payload;
+    entWindow.close();
+  }
 });
 
 // renvoyer le statut de verrouillage du fichier  

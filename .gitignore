@@ -3,4 +3,4 @@ out
 dist/
 site/
 .env
-TodoMax.md
+*.md

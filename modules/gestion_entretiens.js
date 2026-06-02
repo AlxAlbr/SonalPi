@@ -1376,8 +1376,14 @@ async function afficherWhisPurge(){
         affichTableauAnon();
 
         // 💾 Sauvegarder le tabAnon mis à jour dans l'entretien local (pas le global)
-        ent.tabAnon = window.tabAnon;
-        tabEnt[rkEnt].tabAnon = window.tabAnon;
+        // Exclure les paires venues uniquement du global et pas encore validées localement,
+        // sinon à la 2ème ouverture elles seraient traitées comme locales et appliquées automatiquement.
+        const tabAnonLocalPourSauvegarde = window.tabAnon.filter(p =>
+            p.entite && p.remplacement &&
+            !(p.source === 'Global' && !p.existeLocalement)
+        );
+        ent.tabAnon = tabAnonLocalPourSauvegarde;
+        tabEnt[rkEnt].tabAnon = tabAnonLocalPourSauvegarde;
         await window.electronAPI.setEnt(tabEnt);
     }, 50);
 

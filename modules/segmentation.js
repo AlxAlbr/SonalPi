@@ -5,16 +5,20 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     if (!rk){return}
     if (!sg){return}
 
-    // ⭐ Vérifier si c'est un clic sur un mot anonymisé en mode pseudo (seulement en mode anon)
-    const chkAnon = document.getElementById('chkAnon');
+    // Vérifier si c'est un clic sur un mot anonymisé en mode pseudo (seulement en mode anon)
     const span = getSpan(rk);
-    if (typeAction === "anon" && chkAnon && chkAnon.checked && span && (span.classList.contains('anon') || span.classList.contains('anon-exception'))) {
+    if (typeAction === "anon" && span && (span.classList.contains('anon') || span.classList.contains('anon-exception') || span.hasAttribute('data-anon-nt'))) {
         // Afficher le menu d'exception pour ce mot
         if (typeof showMenuException !== 'undefined' && typeof trouverOccurrenceAnonyme !== 'undefined') {
             const result = trouverOccurrenceAnonyme(rk, rk);
             if (result) {
                 const { idxPaire, matchIdx } = result;
-                showMenuException(span, idxPaire, matchIdx);
+                const match = window.tabAnon[idxPaire]?.matchPositions?.[matchIdx];
+                if (match && match.isNonTraite && typeof showMenuNonTraite !== 'undefined') {
+                    showMenuNonTraite(span, idxPaire, matchIdx);
+                } else {
+                    showMenuException(span, idxPaire, matchIdx);
+                }
                 return;
             }
         }

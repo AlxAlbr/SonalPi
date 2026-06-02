@@ -4407,3 +4407,94 @@ SYNTHESE
     padding: 5px;
     vertical-align: middle;
 }
+/* ============================================================
+   PSEUDONYMISATION — page dédiée 2 colonnes + navigation entités
+   ============================================================ */
+
+/* Page dédiée Pseudonymisation (overlay plein écran à deux zones) :
+   gauche = table des pseudonymes, droite = vérification / occurrences */
+#divAnonGenPage {
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+}
+#divAnonGenPage .anon-page-gauche {
+    /* défaut : 1/3 de la page pour la table ; ajustable via le séparateur */
+    flex: 0 0 33%;
+    min-width: 180px;
+    height: 100%;
+    overflow-y: auto;
+}
+#divAnonGenPage .anon-page-resizer {
+    flex: 0 0 6px;
+    cursor: col-resize;
+    background: #ccc;
+    transition: background 0.15s;
+}
+#divAnonGenPage .anon-page-resizer:hover {
+    background: #1976d2;
+}
+#divAnonGenPage .anon-page-droite {
+    /* 2/3 par défaut : prend tout l'espace restant */
+    flex: 1 1 auto;
+    min-width: 200px;
+    height: 100%;
+    overflow-y: auto;
+    padding-left: 6px;
+}
+
+/* Occurrences non encore traitées : curseur pointer pour indiquer qu'elles sont cliquables */
+#segments.mode-anon [data-anon-nt] {
+    cursor: pointer;
+}
+#segments.mode-anon [data-anon-nt]:hover {
+    background-color: rgba(255, 201, 100, 0.4);
+    border-radius: 2px;
+}
+
+/* Boutons de navigation par catégorie (vert = anonymisée / gris = exception / orange = non traitée) */
+.btn-nav-cat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    padding: 0 4px;
+    line-height: 1;
+    white-space: nowrap;
+}
+.btn-nav-cat-anon {
+    background-color: #15c095;
+    color: white;
+}
+.btn-nav-cat-exc {
+    background-color: #555;
+    color: white;
+}
+.btn-nav-cat-non {
+    background-color: #ff9800;
+    color: white;
+    cursor: default;
+}
+.btn-nav-cat:hover {
+    filter: brightness(1.15);
+    transform: scale(1.05);
+}
+
+/* Highlight temporaire pour la navigation corpus <-> entretien (flash jaune ~2s) */
+@keyframes nav-highlight-flash {
+    0%   { background-color: #fff59d; box-shadow: 0 0 0 3px #fff59d; }
+    70%  { background-color: #fff59d; box-shadow: 0 0 0 3px #fff59d; }
+    100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+.nav-highlight {
+    animation: nav-highlight-flash 2s ease-out forwards;
+    border-radius: 3px;
+}
