@@ -150,31 +150,9 @@ function nettoyerPairesOrphelines() {
  */
 function entitePresenterDansDOM(entite) {
     if (!entite || !entite.trim()) return false;
-
+    // Présente si au moins un alias est trouvé (insensible à la casse).
     const tousLesSpans = document.querySelectorAll('[data-rk]');
-    let motsRecherche = tokenizeCommeSegmentation(entite.trim());
-    motsRecherche = motsRecherche.filter(t => t.trim() !== '');
-
-    if (motsRecherche.length === 0) return false;
-
-    const spansNonVides = [];
-    tousLesSpans.forEach(span => {
-        const txt = span.textContent.trim();
-        if (txt) spansNonVides.push(txt);
-    });
-
-    for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
-        let match = true;
-        for (let j = 0; j < motsRecherche.length; j++) {
-            if (spansNonVides[i + j] !== motsRecherche[j]) {
-                match = false;
-                break;
-            }
-        }
-        if (match) return true;
-    }
-
-    return false;
+    return trouverMatchesEntiteDOM(entite, tousLesSpans).length > 0;
 }
 
 /**
@@ -196,7 +174,7 @@ function detecterOccurrencesToutesLesPaires() {
     const motsPresents = new Set();
     tousLesSpans.forEach(span => {
         const txt = span.textContent.trim();
-        if (txt) motsPresents.add(txt);
+        if (txt) motsPresents.add(txt.toLowerCase()); // pré-filtrage insensible à la casse
     });
     console.log(`⚡ Pré-filtrage : ${motsPresents.size} mot(s) distinct(s) dans le texte`);
 
@@ -207,11 +185,12 @@ function detecterOccurrencesToutesLesPaires() {
         const paire = window.tabAnon[i];
         if (paire.entite && paire.entite.trim()) {
 
-            // ⚡ Vérifier que tous les tokens de l'entité sont présents dans le texte
-            // avant de lancer l'analyse fine (coûteuse) sur les spans.
-            let tokens = tokenizeCommeSegmentation(paire.entite.trim());
-            tokens = tokens.filter(t => t.trim() !== '');
-            const tousPresents = tokens.every(token => motsPresents.has(token));
+            // ⚡ Vérifier qu'au moins UN alias a tous ses tokens présents dans le texte
+            // (insensible à la casse) avant de lancer l'analyse fine (coûteuse) sur les spans.
+            const tousPresents = parseAliases(paire.entite).some(al => {
+                let tokens = tokenizeCommeSegmentation(al.trim()).filter(t => t.trim() !== '');
+                return tokens.length > 0 && tokens.every(token => motsPresents.has(token.toLowerCase()));
+            });
 
             if (!tousPresents) {
                 // Au moins un token absent : l'entité ne peut pas être dans le texte.
@@ -943,6 +922,69 @@ function tokenizeCommeSegmentation(texte) {
 }
 
 /**
+ * Découpe un champ « entité » en alias séparés par « / ».
+ * "Saint-Étienne / St-Étienne" → ["Saint-Étienne", "St-Étienne"]
+ * Espaces autour du « / » ignorés, parts vides ignorées. Sans « / » : un seul alias.
+ * @param {string} entite
+ * @returns {string[]}
+ */
+function parseAliases(entite) {
+    if (!entite) return [];
+    return entite.split('/').map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Trouve, dans le DOM, les occurrences (plages d'indices de spans) de tous les alias d'une entité.
+ * - Insensible à la casse (comparaison des tokens en minuscules).
+ * - Réutilise la tokenisation/segmentation existante (multi-mots, tirets, apostrophes).
+ * - Mutualise un Set de spans pour ne pas compter deux fois le même emplacement quand deux
+ *   alias se recouvrent. Les alias les plus longs (en tokens) sont essayés d'abord.
+ * @param {string} entite - chaîne « entité » pouvant contenir des alias séparés par « / »
+ * @param {NodeList} tousLesSpans - résultat de querySelectorAll('[data-rk]')
+ * @returns {Array<{start:number, end:number}>} plages d'indices NodeList, triées par position
+ */
+function trouverMatchesEntiteDOM(entite, tousLesSpans) {
+    const spansNonVides = [];
+    tousLesSpans.forEach((span, idx) => {
+        const txt = span.textContent.trim();
+        if (txt) spansNonVides.push({ txt, originalIdx: idx });
+    });
+
+    // Préparer la liste des alias tokenisés, les plus longs d'abord (préférence en cas de recouvrement)
+    const aliasTokens = parseAliases(entite)
+        .map(al => tokenizeCommeSegmentation(al.trim()).filter(t => t.trim() !== ''))
+        .filter(toks => toks.length > 0)
+        .sort((a, b) => b.length - a.length);
+
+    const matches = [];
+    const spansTraites = new Set(); // originalIdx du premier span déjà consommé
+
+    aliasTokens.forEach(motsRecherche => {
+        for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
+            const firstSpanIdx = spansNonVides[i].originalIdx;
+            if (spansTraites.has(firstSpanIdx)) continue;
+
+            let ok = true;
+            let lastSpanIdx = firstSpanIdx;
+            for (let j = 0; j < motsRecherche.length; j++) {
+                if (spansNonVides[i + j].txt.toLowerCase() !== motsRecherche[j].toLowerCase()) {
+                    ok = false;
+                    break;
+                }
+                lastSpanIdx = spansNonVides[i + j].originalIdx;
+            }
+            if (ok) {
+                spansTraites.add(firstSpanIdx);
+                matches.push({ start: firstSpanIdx, end: lastSpanIdx });
+            }
+        }
+    });
+
+    matches.sort((a, b) => a.start - b.start);
+    return matches;
+}
+
+/**
  * Réindexe matchPositions depuis le DOM courant, sans modifier les classes.
  * Classifie chaque occurrence : anonymisée (debsel), exception (anon-exception), ou non-traitée.
  */
@@ -951,42 +993,20 @@ function reindexerMatchPositions(idxPaire) {
     if (!paire || !paire.entite || !paire.entite.trim()) return;
 
     const tousLesSpans = document.querySelectorAll('[data-rk]');
-    let motsRecherche = tokenizeCommeSegmentation(paire.entite.trim());
-    motsRecherche = motsRecherche.filter(t => t.trim() !== '');
-    if (motsRecherche.length === 0) return;
+    // Recherche insensible à la casse + tous les alias « / » de l'entité.
+    const baseMatches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans);
+    if (baseMatches.length === 0) { paire.matchPositions = []; return; }
 
-    const spansNonVides = [];
-    tousLesSpans.forEach((span, idx) => {
-        const txt = span.textContent.trim();
-        if (txt) spansNonVides.push({ span, txt, originalIdx: idx });
+    const matches = baseMatches.map(({ start, end }) => {
+        const firstSpan = tousLesSpans[start];
+        const estException = firstSpan.classList.contains('anon-exception');
+        // 'anon' est la seule classe fiable pour distinguer une vraie anonymisation d'une simple
+        // sélection à la souris : 'debsel' seul est aussi ajouté par survOk()/validSel() lors de
+        // la sélection courante, ce qui faussait le compteur (1 "anonymisée" dès la sélection).
+        const estAnon = firstSpan.classList.contains('anon');
+        const isNonTraite = !estException && !estAnon;
+        return { start, end, isException: estException, isNonTraite };
     });
-
-    const matches = [];
-    for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
-        let match = true;
-        let spanIdx = i;
-        let firstSpanIdx = spansNonVides[i].originalIdx;
-        let lastSpanIdx = spansNonVides[i].originalIdx;
-
-        for (let j = 0; j < motsRecherche.length; j++) {
-            if (spanIdx >= spansNonVides.length) { match = false; break; }
-            if (spansNonVides[spanIdx].txt === motsRecherche[j]) {
-                lastSpanIdx = spansNonVides[spanIdx].originalIdx;
-                spanIdx++;
-            } else { match = false; break; }
-        }
-
-        if (match) {
-            const firstSpan = tousLesSpans[firstSpanIdx];
-            const estException = firstSpan.classList.contains('anon-exception');
-            // 'anon' est la seule classe fiable pour distinguer une vraie anonymisation d'une simple
-            // sélection à la souris : 'debsel' seul est aussi ajouté par survOk()/validSel() lors de
-            // la sélection courante, ce qui faussait le compteur (1 "anonymisée" dès la sélection).
-            const estAnon = firstSpan.classList.contains('anon');
-            const isNonTraite = !estException && !estAnon;
-            matches.push({ start: firstSpanIdx, end: lastSpanIdx, isException: estException, isNonTraite });
-        }
-    }
 
     paire.matchPositions = matches;
 
@@ -1022,12 +1042,7 @@ function appliquerAnonymisationPour(idxPaire) {
     
     // Recherche l'entité dans le texte
     const tousLesSpans = document.querySelectorAll('[data-rk]');
-    const motRecherche = paire.entite.trim();
-    // Tokenize comme la segmentation pour matcher tous les cas (tirets, apostrophes, etc.)
-    let motsRecherche = tokenizeCommeSegmentation(motRecherche);
-    // Retirer les espaces des tokens recherchés (car les espaces ne correspondent pas aux spans)
-    motsRecherche = motsRecherche.filter(t => t.trim() !== '');
-    
+
     // Retirer d'abord les classes de cette paire spécifique
     tousLesSpans.forEach(span => {
         if (span.dataset.pseudo === paire.remplacement) {
@@ -1035,52 +1050,15 @@ function appliquerAnonymisationPour(idxPaire) {
             delete span.dataset.pseudo;
         }
     });
-    
-    // Chercher TOUTES les occurrences
-    const matches = [];
-    
-    // Créer une liste de spans non-vides pour la recherche
-    const spansNonVides = [];
-    tousLesSpans.forEach((span, idx) => {
-        const txt = span.textContent.trim();
-        if (txt) {
-            spansNonVides.push({ span, txt, originalIdx: idx });
-        }
+
+    // Chercher TOUTES les occurrences (insensible à la casse + tous les alias « / »)
+    const matches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans).map(({ start, end }) => {
+        // Vérifier si la première occurrence est déjà marquée comme exception
+        const firstSpan = tousLesSpans[start];
+        const estException = firstSpan ? firstSpan.classList.contains('anon-exception') : false;
+        // isNonTraite = false : cette fonction va immédiatement ajouter debsel à tout non-exception
+        return { start, end, isException: estException, isNonTraite: false };
     });
-    
-    // Chercher la séquence de tokens dans les spans
-    for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
-        let match = true;
-        
-        // Vérifier si les mots correspondent en concatenant les spans si nécessaire
-        let tokenIdx = 0;
-        let spanIdx = i;
-        let firstSpanIdx = spansNonVides[i].originalIdx;
-        let lastSpanIdx = spansNonVides[i].originalIdx;
-        
-        for (let j = 0; j < motsRecherche.length; j++) {
-            if (spanIdx >= spansNonVides.length) {
-                match = false;
-                break;
-            }
-            
-            if (spansNonVides[spanIdx].txt === motsRecherche[j]) {
-                lastSpanIdx = spansNonVides[spanIdx].originalIdx;
-                spanIdx++;
-            } else {
-                match = false;
-                break;
-            }
-        }
-        
-        if (match) {
-            // Vérifier si la première occurrence est déjà marquée comme exception
-            const firstSpan = tousLesSpans[firstSpanIdx];
-            const estException = firstSpan ? firstSpan.classList.contains('anon-exception') : false;
-            // isNonTraite = false : cette fonction va immédiatement ajouter debsel à tout non-exception
-            matches.push({ start: firstSpanIdx, end: lastSpanIdx, isException: estException, isNonTraite: false });
-        }
-    }
     
     // Appliquer les classes à toutes les correspondances trouvées
     if (matches.length > 0) {
@@ -1496,47 +1474,9 @@ function compterExceptions(idxPaire) {
 
 // Compte le nombre d'occurrences d'une entité dans le texte
 function compterOccurrencesEntite(entite) {
+    // Insensible à la casse + somme des occurrences de tous les alias « / » (spans mutualisés).
     const tousLesSpans = document.querySelectorAll('[data-rk]');
-    const motRecherche = entite.trim();
-    // Tokenize comme la segmentation pour matcher tous les cas (tirets, apostrophes, etc.)
-    let motsRecherche = tokenizeCommeSegmentation(motRecherche);
-    // Retirer les espaces des tokens recherchés (car les espaces ne correspondent pas aux spans)
-    motsRecherche = motsRecherche.filter(t => t.trim() !== '');
-    
-    let count = 0;
-    
-    // Créer une liste de spans non-vides pour la recherche
-    const spansNonVides = [];
-    tousLesSpans.forEach((span, idx) => {
-        const txt = span.textContent.trim();
-        if (txt) {
-            spansNonVides.push({ txt, originalIdx: idx });
-        }
-    });
-    
-    // Chercher la séquence de tokens dans les spans
-    for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
-        let match = true;
-        
-        // Vérifier si les mots correspondent
-        for (let j = 0; j < motsRecherche.length; j++) {
-            if (i + j >= spansNonVides.length) {
-                match = false;
-                break;
-            }
-            
-            if (spansNonVides[i + j].txt !== motsRecherche[j]) {
-                match = false;
-                break;
-            }
-        }
-        
-        if (match) {
-            count++;
-        }
-    }
-    
-    return count;
+    return trouverMatchesEntiteDOM(entite, tousLesSpans).length;
 }
 
 // Cherche si la sélection courante (debSel/finSel) correspond à une occurrence anonymisée existante

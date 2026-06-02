@@ -746,8 +746,11 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
         tempDiv.innerHTML = htmlContent;
         
         const occurrences = [];
-        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
-        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'g');
+        // Insensible à la casse ('i') + tous les alias « / » de l'entité (alternance échappée).
+        const regexEntite = construireRegexEntite(entite, 'gi');
+        if (!regexEntite) {
+            return [];
+        }
         
         // Ensemble des spans déjà traités (pour éviter les doublons)
         const spansTraites = new Set();
@@ -1665,8 +1668,11 @@ async function verifierEtatAnonymisation(indexEnt, entite, pseudo) {
         }
 
         // Frontières de mots français (les \b standard ne gèrent pas les accents)
-        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
-        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite)}(?!${FR})`, 'i');
+        // Insensible à la casse ('i') + tous les alias « / » de l'entité.
+        const regexEntite = construireRegexEntite(entite, 'i');
+        if (!regexEntite) {
+            return null;
+        }
 
         // === VÉRIFICATION NON-ANONYMISÉE — approche HTML brut ===
         //
@@ -1693,7 +1699,10 @@ async function verifierEtatAnonymisation(indexEnt, entite, pseudo) {
             .replace(/<[^>]+>/g, ' ')
             .replace(/\s+/g, ' ');
 
-        if (plainText.toLowerCase().includes(entite.toLowerCase()) && regexEntite.test(plainText)) {
+        // Pré-filtre : au moins un alias présent (insensible à la casse), puis confirmation regex.
+        const lowerPlain = plainText.toLowerCase();
+        const auMoinsUnAliasPresent = parseAliases(entite).some(a => lowerPlain.includes(a.toLowerCase()));
+        if (auMoinsUnAliasPresent && regexEntite.test(plainText)) {
             return 'non-anonymisee';
         }
 
@@ -1783,6 +1792,34 @@ function escapeRegex(string) {
 }
 
 /**
+ * Découpe un champ « entité » en alias séparés par « / ».
+ * "Saint-Étienne / St-Étienne" → ["Saint-Étienne", "St-Étienne"]
+ * Espaces autour du « / » ignorés, parts vides ignorées. Sans « / » : un seul alias.
+ * @param {string} entite
+ * @returns {string[]}
+ */
+function parseAliases(entite) {
+    if (!entite) return [];
+    return entite.split('/').map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Construit une regex (avec frontières de mots français) couvrant tous les alias d'une entité.
+ * Chaque alias est échappé (aucun footgun regex). Les alias les plus longs sont placés en tête
+ * de l'alternance pour être préférés en cas de recouvrement.
+ * @param {string} entite - chaîne « entité » (peut contenir des alias séparés par « / »)
+ * @param {string} flags - flags de la RegExp (ex. 'gi', 'i')
+ * @returns {RegExp|null} null si aucun alias exploitable
+ */
+function construireRegexEntite(entite, flags) {
+    const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
+    const alias = parseAliases(entite).sort((a, b) => b.length - a.length);
+    if (alias.length === 0) return null;
+    const alternation = alias.map(a => escapeRegex(a)).join('|');
+    return new RegExp(`(?<!${FR})(?:${alternation})(?!${FR})`, flags);
+}
+
+/**
  * Tokenize une chaîne exactement comme la segmentation le fait
  * Pour matcher l'ordre des spans dans le DOM
  */
@@ -1836,9 +1873,13 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanId
 
         // Regex pour l'entité (insensible à la casse, mots entiers)
         // Note: \b ne fonctionne pas avec les caractères accentués français (é, è, à, ç…)
-        // On utilise des lookahead/lookbehind négatifs couvrant l'alphabet français complet
-        const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
-        const regexEntite = new RegExp(`(?<!${FR})${escapeRegex(entite.trim())}(?!${FR})`, 'g');
+        // On utilise des lookahead/lookbehind négatifs couvrant l'alphabet français complet.
+        // 'gi' : insensible à la casse + tous les alias « / » pointent vers le même pseudo.
+        const regexEntite = construireRegexEntite(entite.trim(), 'gi');
+        if (!regexEntite) {
+            if (!suppressDialog) dialog('Message', 'Entité invalide.');
+            return;
+        }
 
         let nbRemplacements = 0;
 
