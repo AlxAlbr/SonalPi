@@ -3,15 +3,18 @@ const { URL } = require('url');
 const chardet = require('chardet');
 const iconv = require('iconv-lite');
 
-class ServeurAPI {
+const Storage = require('./Storage.js');
+
+class ServeurStorage extends Storage {
   constructor(baseUrl, username, password) {
+    super();
     this.baseUrl = baseUrl;
     this.apiPath = '/api/upload.php';
     this.username = username;
     this.password = password;
     this.lockRefreshIntervals = new Map();
     
-    console.log('📦 ServeurAPI créé:');
+    console.log('📦 ServeurStorage créé:');
     console.log('   Base URL:', this.baseUrl);
     console.log('   API Path:', this.apiPath);
     console.log('   Username:', this.username);
@@ -612,4 +615,4 @@ async verifierVerrou(filePath) {
 
 }
 
-module.exports = ServeurAPI;
+module.exports = ServeurStorage;

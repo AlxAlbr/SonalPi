@@ -315,27 +315,23 @@ ipcMain.handle('dialog:openAudioFiles', async () => {
   return { canceled: false, filePaths, dirPath };
 });
 
+// Détermine si un chemin désigne un fichier local (système) ou distant (URL/serveur).
+// Centralise l'ancien helper `localOuDistant` qui était dupliqué dans plusieurs handlers.
+function estCheminLocal(filePath) {
+  try {
+    const u = new URL(filePath);
+    return !(u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:');
+  } catch {
+    // pas une URL → probablement un chemin système
+    return fs.existsSync(filePath);
+  }
+}
+
 // Lire le contenu d'un fichier (local ou distant)
 ipcMain.handle('file:readContent', async (_, filePath) => {
-
- 
-
   if (!filePath) return null;
 
-  function localOuDistant(filePath) {
-    try {
-      const u = new URL(filePath);
-      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:') {
-        return 'remote';
-      }
-      return 'local';
-    } catch (e) {
-      // pas une URL → probablement un chemin système
-      return fs.existsSync(filePath) ? 'local' : 'remote';
-    }
-  }
-
-  if (localOuDistant(filePath) === 'local') {
+  if (estCheminLocal(filePath)) {
     try {
       // Fichiers Word : extraction du texte brut via mammoth
       if (path.extname(filePath).toLowerCase() === '.docx') {
@@ -350,13 +346,10 @@ ipcMain.handle('file:readContent', async (_, filePath) => {
         return data.text; // texte brut
       }
 
-      let buf = fs.readFileSync(filePath);
-      const encoding = chardet.detect(buf);
-       
-      const content = (encoding === 'ISO-8859-1' || encoding === 'windows-1252')
-        ? iconv.decode(buf, 'windows-1252')
-        : iconv.decode(buf, 'utf8');
-      return content; // string
+      // Texte : décodage chardet/iconv délégué à LocalStorage.
+      const result = await StorageFactory.local.lireFichier(filePath);
+      if (!result.success) throw new Error(result.error);
+      return result.content; // string
     } catch (err) {
       console.error('Erreur de lecture du fichier local :', err);
       throw err;
@@ -378,20 +371,8 @@ ipcMain.handle('file:readContent', async (_, filePath) => {
 ipcMain.handle('file:getMetadata', async (_, filePath) => {
   if (!filePath) return null;
 
-  function localOuDistant(filePath) {
-    try {
-      const u = new URL(filePath);
-      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:') {
-        return 'remote';
-      }
-      return 'local';
-    } catch (e) {
-      return fs.existsSync(filePath) ? 'local' : 'remote';
-    }
-  }
-
   try {
-    if (localOuDistant(filePath) === 'local') {
+    if (estCheminLocal(filePath)) {
       // Fichier local
       const stats = fs.statSync(filePath);
       return {
@@ -443,22 +424,10 @@ ipcMain.handle('file:exists', async (_, filePath) => {
   console.log('📁 Vérification existence:', filePath);
   if (!filePath) return false;
 
-  function localOuDistant(filePath) {
-    try {
-      const u = new URL(filePath);
-      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:') {
-        return 'remote';
-      }
-      return 'local';
-    } catch (e) {
-      return fs.existsSync(filePath) ? 'local' : 'remote';
-    }
-  }
-
   try {
-    if (localOuDistant(filePath) === 'local') {
+    if (estCheminLocal(filePath)) {
       // Fichier local
-      const exists = fs.existsSync(filePath);
+      const exists = await StorageFactory.local.verifierExistence(filePath);
       console.log(`  ✅ Local: ${exists ? 'Existe' : 'N\'existe pas'}`);
       return exists;
     } else {
@@ -490,30 +459,14 @@ ipcMain.handle('lister-recueils', async () => {
       return { success: false, error: 'Aucun corpus ouvert' };
     }
 
-    if (Corpus.type === 'local') {
-      const fichiers = fs.readdirSync(Corpus.folder);
-      const recueils = fichiers
-        .filter(f => f.toLowerCase().endsWith('.rcl'))
-        .map(f => ({ name: f, path: path.join(Corpus.folder, f) }));
-      return { success: true, files: recueils };
+    // Flux fichier unifié : la storage du corpus (local/serveur/gitlab) liste,
+    // l'appelant filtre les .rcl.
+    const storage = storagePour();
+    if (!storage) {
+      return { success: false, error: 'Pas de connexion au stockage du corpus.' };
     }
 
-    // Corpus distant (serveur ou GitLab)
-    const api = remoteAPI();
-    if (!api) {
-      return { success: false, error: 'Pas de connexion au serveur distant.' };
-    }
-
-    if (Corpus.type === 'gitlab') {
-      const allFiles = await api._listerRecursif(Corpus.folder);
-      const recueils = allFiles
-        .filter(f => f.type === 'blob' && f.name.toLowerCase().endsWith('.rcl'))
-        .map(f => ({ name: f.name, path: f.path }));
-      return { success: true, files: recueils };
-    }
-
-    // Serveur distant
-    const result = await api.listerFichiers(Corpus.folder);
+    const result = await storage.listerFichiers(Corpus.folder);
     if (!result.success) return result;
     const recueils = result.files.filter(f => f.name.toLowerCase().endsWith('.rcl'));
     return { success: true, files: recueils };
@@ -527,13 +480,9 @@ ipcMain.handle('lister-recueils', async () => {
 // Supprimer un fichier recueil (.rcl)
 ipcMain.handle('supprimer-recueil', async (_, filePath) => {
   try {
-    if (Corpus.type === 'local') {
-      fs.unlinkSync(filePath);
-      return { success: true };
-    }
-    const api = remoteAPI();
-    if (!api) return { success: false, error: 'Pas de connexion au serveur distant.' };
-    return await api.supprimerFichier(filePath);
+    const storage = storagePour();
+    if (!storage) return { success: false, error: 'Pas de connexion au stockage du corpus.' };
+    return await storage.supprimerFichier(filePath);
   } catch (error) {
     console.error('\u274c Erreur suppression recueil:', error);
     return { success: false, error: error.message };
@@ -545,45 +494,22 @@ ipcMain.handle('file:lastModified', async (_, filePath) => {
   console.log('🕒 Dernière modif:', filePath);
   if (!filePath) return null;
 
-  function localOuDistant(filePath) {
-    try {
-      const u = new URL(filePath);
-      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:') {
-        return 'remote';
-      }
-      return 'local';
-    } catch (e) {
-      return fs.existsSync(filePath) ? 'local' : 'remote';
-    }
-  }
-
   try {
-    if (localOuDistant(filePath) === 'local') {
-      const stats = fs.statSync(filePath);
-      const lastModified = stats.mtime.toISOString();
+    if (estCheminLocal(filePath)) {
+      const lastModified = await StorageFactory.local.derniereModif(filePath);
       console.log(`  ✅ Local: ${lastModified}`);
       return lastModified;
     }
 
-    // Corpus GitLab
-    if (gitlabAPI) {
-      try {
-        const lastModified = await gitlabAPI.derniereModif(filePath);
-        return lastModified;
-      } catch (err) {
-        console.log(`  ❌ GitLab: Erreur - ${err.message}`);
-        return null;
-      }
-    }
-
-    if (!serveurAPI) {
+    // Fichier distant (serveur ou GitLab)
+    const api = remoteAPI();
+    if (!api) {
       console.log('  ❌ Distant: Pas de connexion au serveur');
       return null;
     }
 
     try {
-      const lastModified = await serveurAPI.derniereModif(filePath);
-      return lastModified;
+      return await api.derniereModif(filePath);
     } catch (err) {
       console.log(`  ❌ Distant: Erreur - ${err.message}`);
       return null;
@@ -1533,8 +1459,9 @@ app.on('login', (event) => {
 
 
 
-const ServeurAPI = require('./modules/serveur_api.js');
-const GitLabAPI  = require('./modules/gitlab_api.js');
+const ServeurStorage = require('./modules/storage/ServeurStorage.js');
+const GitLabStorage  = require('./modules/storage/GitLabStorage.js');
+const StorageFactory = require('./modules/storage/StorageFactory.js');
 const GitLabOAuth = require('./modules/gitlab_oauth.js');
 const { affichListThmCrp } = require('./modules/thematisation.js');
 const { miseàjourEntretien } = require('./modules/gestion_entretiens.js');
@@ -1544,10 +1471,18 @@ let gitlabAPI  = null;
 let gitlabUserIsOwner = false; // true si Maintainer (40) ou Owner (50)
 let gitlabOptions = {};         // contenu de options.json
 
-/** Renvoie l'API distante active selon le type du corpus courant */
+/** Renvoie l'API distante active selon le type du corpus courant (null si local). */
 function remoteAPI() {
   if (Corpus.type === 'gitlab') return gitlabAPI;
   return serveurAPI;
+}
+
+/**
+ * Storage du corpus courant (local / serveur / gitlab). Généralise remoteAPI()
+ * en incluant le local : tout le flux fichier passe par cette interface unique.
+ */
+function storagePour() {
+  return StorageFactory.pour(Corpus, { serveur: serveurAPI, gitlab: gitlabAPI });
 }
 
 
@@ -1615,12 +1550,12 @@ async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = 
     console.log('File Path extrait:', extractedFilePath);
     
     // VÉRIFIER que les credentials sont corrects
-    console.log('Création ServeurAPI avec:');
+    console.log('Création ServeurStorage avec:');
     console.log('  baseUrl:', baseUrl);
     console.log('  username:', urlData.username);
     console.log('  password:', urlData.password ? 'SET' : 'NOT SET');
     
-    serveurAPI = new ServeurAPI(baseUrl, urlData.username, urlData.password);
+    serveurAPI = new ServeurStorage(baseUrl, urlData.username, urlData.password);
     
     // Test immédiat avec test-auth.php
     console.log('\n🔌 Test de connexion avec test-auth.php...');
@@ -1817,8 +1752,8 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null, _existingCon
       oauth.saveToken(storageDir, tokenKey, token);
     }
 
-    // 3. Créer l'instance GitLabAPI
-    gitlabAPI = new GitLabAPI(instanceUrl, projectPath, token.access_token);
+    // 3. Créer l'instance GitLabStorage
+    gitlabAPI = new GitLabStorage(instanceUrl, projectPath, token.access_token);
 
     // 4. Tester la connexion
     const test = await gitlabAPI.testerConnexion();
@@ -1829,7 +1764,7 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null, _existingCon
         try {
           const newToken = await oauth.refreshToken(token.refresh_token);
           oauth.saveToken(storageDir, tokenKey, newToken);
-          gitlabAPI = new GitLabAPI(instanceUrl, projectPath, newToken.access_token);
+          gitlabAPI = new GitLabStorage(instanceUrl, projectPath, newToken.access_token);
           const testApresRefresh = await gitlabAPI.testerConnexion();
           if (!testApresRefresh.success) {
             throw new Error('Token rafraîchi invalide');
@@ -1840,7 +1775,7 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null, _existingCon
           oauth.deleteToken(storageDir, tokenKey);
           token = await oauth.authenticate();
           oauth.saveToken(storageDir, tokenKey, token);
-          gitlabAPI = new GitLabAPI(instanceUrl, projectPath, token.access_token);
+          gitlabAPI = new GitLabStorage(instanceUrl, projectPath, token.access_token);
           const testApresOAuth = await gitlabAPI.testerConnexion();
           if (!testApresOAuth.success) {
             throw new Error('Connexion impossible après nouvelle authentification');
@@ -1852,7 +1787,7 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null, _existingCon
         oauth.deleteToken(storageDir, tokenKey);
         token = await oauth.authenticate();
         oauth.saveToken(storageDir, tokenKey, token);
-        gitlabAPI = new GitLabAPI(instanceUrl, projectPath, token.access_token);
+        gitlabAPI = new GitLabStorage(instanceUrl, projectPath, token.access_token);
         const testApresOAuth = await gitlabAPI.testerConnexion();
         if (!testApresOAuth.success) {
           throw new Error('Connexion impossible après nouvelle authentification');

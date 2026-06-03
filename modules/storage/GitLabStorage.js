@@ -2,10 +2,12 @@ const https = require('https');
 const http = require('http');
 const { URL, URLSearchParams } = require('url');
 
+const Storage = require('./Storage.js');
+
 /**
- * Client GitLab API v4 — interface identique à ServeurAPI
+ * Client GitLab API v4 — implémente l'interface Storage
  *
- * Remplace ServeurAPI pour les corpus hébergés sur un projet GitLab privé.
+ * Remplace ServeurStorage pour les corpus hébergés sur un projet GitLab privé.
  * Authentification : OAuth 2.0 Bearer token (pas d'auth Basic).
  * Verrous : GitLab LFS Lock API (pas d'expiration → pas de refresh timer).
  *
@@ -14,7 +16,7 @@ const { URL, URLSearchParams } = require('url');
  *   - Le token OAuth a le scope "api"
  *   - Les fichiers sont du texte (UTF-8) — pas de binaires
  */
-class GitLabAPI {
+class GitLabStorage extends Storage {
   /**
    * @param {string} instanceUrl   ex: "https://gitlab.univ-xxx.fr"
    * @param {string} projectPath   ex: "groupe/mon-corpus"  (ou "user/mon-corpus")
@@ -22,6 +24,7 @@ class GitLabAPI {
    * @param {string} branch        Branche Git cible (défaut: "main")
    */
   constructor(instanceUrl, projectPath, accessToken, branch = 'main') {
+    super();
     this.instanceUrl = instanceUrl.replace(/\/$/, '');
     this.projectPath = projectPath;
     this.accessToken = accessToken;
@@ -51,7 +54,7 @@ class GitLabAPI {
     this._writeQueue = []; // [{ filePath, content, resolve, reject }]
     this._writeTimer = null;
 
-    console.log('📦 GitLabAPI créé:');
+    console.log('📦 GitLabStorage créé:');
     console.log('   Instance:', this.instanceUrl);
     console.log('   Projet:', this.projectPath);
     console.log('   Branche:', this.branch);
@@ -59,7 +62,7 @@ class GitLabAPI {
   }
 
   // ──────────────────────────────────────────────
-  // MÉTHODES PUBLIQUES (interface = ServeurAPI)
+  // MÉTHODES PUBLIQUES (interface = Storage)
   // ──────────────────────────────────────────────
 
   /**
@@ -423,18 +426,16 @@ class GitLabAPI {
   async listerFichiers(dirPath) {
     console.log('📂 Liste des fichiers:', dirPath);
     try {
+      // Interface Storage uniforme : renvoyer TOUS les fichiers (blobs) sous la
+      // forme commune { name, path }. Le filtrage par extension (.rcl, .sonal…)
+      // est à la charge de l'appelant, comme pour ServeurStorage/LocalStorage.
       const files = await this._listerRecursif(dirPath);
+      const blobs = files
+        .filter(f => f.type === 'blob')
+        .map(f => ({ name: f.name, path: f.path, size: null }));
 
-      const filtered = files.filter(f =>
-        f.type === 'blob' && (f.name.endsWith('.sonal') || f.name.endsWith('.crp'))
-      );
-
-      console.log(`✅ ${filtered.length} fichier(s) trouvé(s)`);
-      return {
-        success: true,
-        files: filtered.map(f => ({ name: f.name, path: f.path, size: null })),
-        directory: dirPath,
-      };
+      console.log(`✅ ${blobs.length} fichier(s) trouvé(s)`);
+      return { success: true, files: blobs, directory: dirPath };
     } catch (error) {
       console.error('❌ Erreur liste:', error);
       return { success: false, error: error.message };
@@ -449,7 +450,7 @@ class GitLabAPI {
 
   /**
    * Verrouille un fichier via l'API LFS Locks
-   * Retourne le même format que ServeurAPI.verrouillerFichier
+   * Retourne le même format que ServeurStorage.verrouillerFichier
    */
   async verrouillerFichier(filePath) {
     console.log('🔒 Tentative de verrouillage LFS:', filePath);
@@ -534,7 +535,7 @@ class GitLabAPI {
 
   /**
    * Vérifie si un fichier est verrouillé
-   * Retourne le même format que ServeurAPI.verifierVerrou
+   * Retourne le même format que ServeurStorage.verifierVerrou
    */
   async verifierVerrou(filePath) {
     console.log('🔍 Vérification verrou LFS:', filePath);
@@ -569,7 +570,7 @@ class GitLabAPI {
   }
 
   /**
-   * Stub pour compatibilité avec ServeurAPI.
+   * Stub pour compatibilité avec ServeurStorage.
    * Les LFS locks n'expirent pas, donc pas de refresh nécessaire.
    */
   async rafraichirVerrou(_filePath) {
@@ -578,7 +579,7 @@ class GitLabAPI {
   }
 
   /**
-   * Stub pour compatibilité avec ServeurAPI.
+   * Stub pour compatibilité avec ServeurStorage.
    * Aucun timer à gérer côté GitLab.
    */
   nettoyerTousLesVerrous() {
@@ -938,4 +939,4 @@ class GitLabAPI {
   }
 }
 
-module.exports = GitLabAPI;
+module.exports = GitLabStorage;
