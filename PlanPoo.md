@@ -9,6 +9,36 @@
 
 ---
 
+## ⏱️ État d'avancement (reprendre ici)
+
+> Mis à jour au fil de l'eau. Pour reprendre sur une nouvelle machine, lire ce bloc puis la
+> section de phase correspondante.
+
+| Phase | État | Notes |
+|---|---|---|
+| **0** — Filets de sécurité (tests, golden, formats) | ✅ **Fait** | harnais `node:test`, golden masters, [docs/FORMATS.md](docs/FORMATS.md) |
+| **Option B** — modules ES réels (`src/`) | ✅ **Fait** | `src/domain/*.mjs` (vrai code .crp/.sonal) testés sur le vrai corpus via jsdom ; cf. §2 |
+| **1a** — couche `Storage` côté *main* | ✅ **Fait** | voir §4 |
+| **1b tranche 1** — flux fichier *renderer* | ✅ **Fait, validé en local** | voir §4 |
+| **1b tranche 2** — branches collaboratives *renderer* | ⏳ **À FAIRE (prochaine étape)** | voir §4 |
+| **2** → **6** | ⬜ à venir | inchangé |
+
+**⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** 1a et 1b n'ont été validés qu'en **local**.
+Tester en priorité avant d'aller plus loin (verrous, LFS, chemins distants).
+
+**Artefacts clés introduits** (pour s'orienter à froid) :
+- Domaine ESM : [src/domain/corpus.mjs](src/domain/corpus.mjs), [src/domain/sonal.mjs](src/domain/sonal.mjs),
+  exposés au renderer via [src/index.mjs](src/index.mjs) → `window.SonalDomain` (chargé par `<script type="module">` dans index.html).
+- Couche Storage (main, CommonJS) : [modules/storage/](modules/storage/) =
+  `Storage.js` (interface), `LocalStorage.js`, `ServeurStorage.js` (ex-`serveur_api.js`),
+  `GitLabStorage.js` (ex-`gitlab_api.js`), `StorageFactory.js`.
+- Tests : `test/*.test.mjs` (`npm test` / `npm run test:update`), fixtures **immuables** dans
+  `test/fixtures/` (ne pas éditer en GUI). `TestInteropFromSonal/` = bac à sable libre.
+
+**Prochaine action concrète** : implémenter la **Tranche 2** (cf. §4), puis tester distant/gitlab.
+
+---
+
 ## 0. Principes directeurs
 
 1. **Non-régression d'abord.** Aucune phase ne change un comportement visible. Format `.crp`
@@ -86,9 +116,10 @@ Ces contraintes du code actuel conditionnent l'ordre des phases :
   - [ ] un export (docx/pdf/recueil) → snapshot. **Reporté** (binaires fragiles : zip/timestamps ;
         à traiter en extraction texte normalisée plus tard).
   - Jeux d'essai : `TestInteropFromSonal/`. ⚠️ `LauraFinMB/` **absent** du dépôt.
-- [x] **Harnais** : runner natif `node:test` (zéro dépendance), scripts `npm test` /
-      `npm run test:update`. Glob shell `test/*.test.js` → portable Node 18 **et** 24.
-      Golden-file maison dans `test/helpers/golden.js`.
+- [x] **Harnais** : runner natif `node:test`, scripts `npm test` / `npm run test:update`.
+      Glob shell `test/*.test.mjs` → portable Node 18 **et** 24. Golden-file maison dans
+      `test/helpers/golden.mjs`. Les tests exécutent le **vrai code** (`src/domain/*.mjs`) sur
+      les fixtures immuables `test/fixtures/` (jsdom pour le `.sonal`). Dépendance ajoutée : `jsdom`.
 - [x] **Décider la stratégie de modules** (§2) → Option **A** maintenant, **B** plus tard (cf. §2 ci-dessus).
 - [x] **Geler les formats** : spec courte rédigée dans [docs/FORMATS.md](docs/FORMATS.md).
 
@@ -102,20 +133,53 @@ Ces contraintes du code actuel conditionnent l'ordre des phases :
 la moins couplée au métier et au DOM, et elle vit côté *main* (CommonJS, déjà modularisé).
 Voir MODELE_OBJET3 §7.
 
-- Définir l'**interface `Storage`** (le plus petit dénominateur commun) :
-  `lireFichier`, `ecrireFichier`, `verifierExistence`, `derniereModif`,
-  `verrouiller`/`deverrouiller`/`rafraichirVerrou`/`verifierVerrou`,
-  `listerFichiers`, `supprimerFichier`.
-- **Renommer** `ServeurAPI` → `ServeurStorage`, `GitLabAPI` → `GitLabStorage` (interface conforme).
-- **Créer `LocalStorage`** (le morceau manquant) : wrappe `fs`, verrous = no-op.
-- **Généraliser `remoteAPI()`** → `StorageFactory.pour(Corpus)`, *incluant local*.
-- **Supprimer les ~25 branchements `if (Corpus.type === …)`** côté renderer ET main :
-  tout passe par `storage.xxx()`.
-- Garder **hors interface** les spécificités GitLab (LFS, file d'écriture par lots,
-  `getMemberRole`, branches, `.gitattributes`).
+> **Découpage retenu** : la Phase 1 a été scindée en **1a** (cœur côté *main*) et **1b**
+> (renderer), elle-même en **tranche 1** (flux fichier) et **tranche 2** (collaboratif).
 
-**Critère de sortie** : plus aucun `Corpus.type ===` dans le code de flux fichier ;
-local/distant/gitlab fonctionnent à l'identique ; ajouter Nextcloud (WebDAV) = une seule classe.
+### 1a — Couche Storage côté *main* — ✅ **FAIT**
+- [x] Interface `Storage` ([modules/storage/Storage.js](modules/storage/Storage.js)) :
+  `lireFichier`, `ecrireFichier`, `verifierExistence`, `derniereModif`,
+  `verrouiller/deverrouiller/rafraichirVerrou/verifierVerrou`, `listerFichiers`, `supprimerFichier`.
+- [x] `ServeurAPI` → **`ServeurStorage`**, `GitLabAPI` → **`GitLabStorage`** (fichiers déplacés
+  dans `modules/storage/`, `extends Storage`). `GitLabStorage.listerFichiers` rendu uniforme
+  (tous les blobs `{name,path}`).
+- [x] **`LocalStorage`** créé (wrappe `fs` + chardet/iconv ; verrous = no-op). Testé unitairement
+  (`test/local-storage.test.mjs`).
+- [x] **`StorageFactory.pour(corpus, {serveur, gitlab})`** (généralise `remoteAPI()`, inclut local).
+- [x] Handlers IPC de flux fichier du *main* dé-branchés (helper unique `estCheminLocal`,
+  `lister-recueils`/`supprimer-recueil`/`file:*` via `storagePour()`).
+- Hors interface (appels directs sur l'instance GitLab) : LFS, file d'écriture par lots,
+  `getMemberRole`, `lireOptions/ecrireOptions`, `_listerRecursif`, branches.
+
+### 1b tranche 1 — Flux fichier côté *renderer* — ✅ **FAIT (validé local uniquement)**
+Objectif : supprimer les branches `Corpus.type` qui (a) construisent un chemin (local absolu vs
+distant relatif) et (b) choisissent le canal d'écriture.
+- [x] Primitives *main* + preload : **`cheminCorpus(nom)`** (IPC `corpus:chemin`),
+  **`cheminCorpusCrp()`** (IPC `corpus:cheminCrp`), **`ecrireFichier(chemin, content, opts)`**
+  (IPC `corpus:ecrire`, route par **type de corpus** via `storagePour()` — pas par existence).
+- [x] Drapeau **`Corpus.collaboratif`** posé à l'ouverture (local=false ; distant/gitlab=true),
+  utilisé pour conserver le prompt d'écrasement **local uniquement**.
+- [x] Migrés : `gestion_corpus.js:sauvegarderCorpus` (skip-if-unchanged uniformisé) ;
+  `gestion_entretiens.js` (création/sauvegarde/lecture d'entretien, chemins d'image, waveform).
+- ⚠️ **Corpus local validé en GUI ; distant/gitlab NON testés.**
+- Détails/correctifs notables : routage `corpus:ecrire` par type (un fichier neuf n'existe pas
+  encore) ; `estCheminLocal` → un corpus local ne route **jamais** vers le distant ; garde
+  `entWindow.isDestroyed()` dans `ouvrirAjoutEntretien` (crash main à l'import).
+
+### 1b tranche 2 — Branches collaboratives côté *renderer* — ⏳ **À FAIRE (reprendre ici)**
+Ces branches `Corpus.type === 'distant'|'gitlab'` ne relèvent **pas** du flux fichier mais d'une
+**capacité** (multi-utilisateurs). Les remplacer par le test du drapeau **`Corpus.collaboratif`** :
+- bouton « rafraîchir » + `rafraichirCorpus` GitLab : [modules/gestion_corpus.js:197](modules/gestion_corpus.js#L197) et `:985` ;
+- sync gitlab périodique : [index.html:747](index.html#L747) ;
+- restriction d'ajout d'entretien (GitLab) : [modules/gestion_entretiens.js:24](modules/gestion_entretiens.js#L24) ;
+- vérification de verrou avant édition : [modules/gestion_entretiens.js:586](modules/gestion_entretiens.js#L586),
+  [modules/gestion_data.js:1376](modules/gestion_data.js#L1376).
+- Restent aussi des `Corpus.type`/`remoteAPI()` d'**orchestration** dans le *main* (verrou
+  d'entretien à l'ouverture, téléchargement distant) — à évaluer pour cette tranche.
+- (Lignes 57 et 1301 de `gestion_entretiens.js` = blocs **commentés**, à ignorer.)
+
+**Critère de sortie (Phase 1 complète)** : plus aucun `Corpus.type ===` dans le flux fichier ;
+local/distant/gitlab à l'identique ; ajouter Nextcloud (WebDAV) = une seule classe.
 
 ---
 

@@ -946,31 +946,18 @@ let corpusActuel = Corpus.url;
   
   let result;
 
-  if (Corpus.type === "distant") {
-    // Éviter un aller-retour réseau inutile si rien n'a changé
-    if (!avecBackup && contenu === _dernierContenuCrp) {
-      console.log('⏭️ .crp inchangé — écriture serveur ignorée');
-      return { success: true, skipped: true };
-    }
-    if (avecBackup) {
-      result = await window.electronAPI.sauvegarderAvecBackup(corpusActuel, contenu);
-    } else {
-      result = await window.electronAPI.sauvegarderSurServeur(corpusActuel, contenu);
-    }
-  } else if (Corpus.type === "gitlab") {
-    // Éviter un commit GitLab inutile si rien n'a changé
-    if (contenu === _dernierContenuCrp) {
-      console.log('⏭️ .crp inchangé — commit GitLab ignoré');
-      return { success: true, skipped: true };
-    }
-    // Pour GitLab, Corpus.url est l'URL web — on reconstruit le chemin API
-    const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
-    result = await window.electronAPI.sauvegarderSurServeur(cheminCrp, contenu);
-  } else if (Corpus.type === "local") {
-    result = await window.electronAPI.sauvegarderFichier(corpusActuel, contenu);
+  // Éviter une écriture inutile si rien n'a changé (optimisation uniforme).
+  if (!avecBackup && contenu === _dernierContenuCrp) {
+    console.log('⏭️ .crp inchangé — écriture ignorée');
+    return { success: true, skipped: true };
   }
 
-  if (!result) return { success: false, error: 'Type de corpus non reconnu' };
+  // Flux fichier unifié : main résout le chemin du .crp (convention par backend)
+  // et route l'écriture vers la storage adéquate (local/serveur/gitlab).
+  const cheminCrp = await window.electronAPI.cheminCorpusCrp();
+  result = await window.electronAPI.ecrireFichier(cheminCrp, contenu, { backup: avecBackup });
+
+  if (!result) return { success: false, error: 'Échec de la sauvegarde' };
 
   if (result.success) {
     _dernierContenuCrp = contenu; // mémoriser le contenu sauvegardé

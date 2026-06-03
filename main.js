@@ -315,14 +315,17 @@ ipcMain.handle('dialog:openAudioFiles', async () => {
   return { canceled: false, filePaths, dirPath };
 });
 
-// Détermine si un chemin désigne un fichier local (système) ou distant (URL/serveur).
+// Détermine si une opération fichier doit cibler le disque local (vs un backend distant).
 // Centralise l'ancien helper `localOuDistant` qui était dupliqué dans plusieurs handlers.
+// - Corpus local : TOUT est local (un fichier pas encore créé ne doit pas router vers le distant).
+// - Corpus distant/gitlab : on inspecte le chemin (URL http→distant ; chemin système existant→local,
+//   ce qui permet les imports locaux — docx/pdf — dans un corpus distant).
 function estCheminLocal(filePath) {
+  if (Corpus && Corpus.type === 'local') return true;
   try {
     const u = new URL(filePath);
     return !(u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'ftp:');
   } catch {
-    // pas une URL → probablement un chemin système
     return fs.existsSync(filePath);
   }
 }
@@ -418,9 +421,55 @@ ipcMain.handle('file:createPath', async (_, ...args) => {
   }
 });
 
+// ── Flux fichier unifié (Phase 1b) ────────────────────────────────────────
+// Résout le chemin d'un fichier RELATIF au dossier du corpus courant, selon le
+// type de corpus (seul endroit où le type pilote le chemin — côté main).
+// local → chemin système absolu ; distant/gitlab → chemin relatif au dépôt.
+function cheminCorpus(nom) {
+  if (!nom) return Corpus.folder;
+  if (Corpus.type === 'local') return path.join(Corpus.folder, nom);
+  return [Corpus.folder, nom].filter(Boolean).join('/');
+}
+ipcMain.handle('corpus:chemin', async (_, nom) => cheminCorpus(nom));
+
+// Chemin d'écriture du .crp, par convention propre à chaque backend (préservée
+// à l'identique) : gitlab → chemin relatif (Corpus.url y est une URL web) ;
+// local & distant → Corpus.url (chemin absolu / URL complète).
+function cheminCorpusCrp() {
+  if (Corpus.type === 'gitlab') return [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
+  return Corpus.url;
+}
+ipcMain.handle('corpus:cheminCrp', async () => cheminCorpusCrp());
+
+// Écrit un fichier en routant vers la storage du corpus courant (local/serveur/
+// gitlab). On route par TYPE de corpus (storagePour), pas par inspection du
+// chemin : un nouveau fichier local n'existe pas encore sur le disque.
+// opts.backup → flux backup distant (no-op en local).
+// Remplace côté renderer le couple sauvegarder-fichier / sauvegarder-sur-serveur.
+ipcMain.handle('corpus:ecrire', async (event, chemin, content, opts = {}) => {
+  if (!chemin) return { success: false, error: 'Chemin invalide' };
+
+  const storage = storagePour();
+  if (!storage) return { success: false, error: 'Aucun stockage pour le corpus courant.' };
+
+  // Backup horodaté : uniquement distant (LocalStorage n'a pas de file d'écriture distante).
+  if (opts.backup && Corpus.collaboratif) {
+    return await sauvegarderAvecBackupInterne(chemin, content);
+  }
+
+  const result = await storage.ecrireFichier(chemin, content);
+  if (result && !result.success && result.error && result.error.includes('verrouillé')) {
+    event.sender.send('fichier-verrouille', {
+      message: 'Impossible de sauvegarder : fichier verrouillé par un autre utilisateur',
+      lockedBy: result.lockedBy,
+    });
+  }
+  return result;
+});
+
 // Vérifier l'existence d'un fichier (local ou distant)
 ipcMain.handle('file:exists', async (_, filePath) => {
-  
+
   console.log('📁 Vérification existence:', filePath);
   if (!filePath) return false;
 
@@ -685,15 +734,13 @@ ipcMain.handle('sauvegarder-sur-serveur', async (event, filePath, content) => {
 });
 
 // Handler pour sauvegarder avec backup
-ipcMain.handle('sauvegarder-avec-backup', async (event, filePath, content) => {
-  console.log('💾 Demande de sauvegarde avec backup');
-
+// Sauvegarde distante avec backup horodaté de la version précédente.
+// Extrait pour être réutilisé par le handler 'sauvegarder-avec-backup' et par
+// le flux unifié 'corpus:ecrire' (opts.backup).
+async function sauvegarderAvecBackupInterne(filePath, content) {
   const api = remoteAPI();
   if (!api) {
-    return {
-      success: false,
-      error: 'Non connecté au serveur'
-    };
+    return { success: false, error: 'Non connecté au serveur' };
   }
 
   try {
@@ -714,20 +761,22 @@ ipcMain.handle('sauvegarder-avec-backup', async (event, filePath, content) => {
     // 3. Sauvegarder la nouvelle version
     console.log('💾 Sauvegarde nouvelle version...');
     const result = await api.ecrireFichier(filePath, content);
-    
+
     if (result.success) {
       result.backupCreated = ancienneVersion.success;
     }
-    
+
     return result;
-    
+
   } catch (error) {
     console.error('❌ Exception:', error);
-    return {
-      success: false,
-      error: error.message
-    };
+    return { success: false, error: error.message };
   }
+}
+
+ipcMain.handle('sauvegarder-avec-backup', async (event, filePath, content) => {
+  console.log('💾 Demande de sauvegarde avec backup');
+  return await sauvegarderAvecBackupInterne(filePath, content);
 });
 
  
@@ -1410,7 +1459,8 @@ console.log('📂 Ouverture corpus local...' + filePath);
     Corpus.folder = path.dirname(filePath);
     Corpus.fileName = path.basename(filePath);
     Corpus.lastChange = new Date().toISOString();
-    Corpus.type = "local"; 
+    Corpus.type = "local";
+    Corpus.collaboratif = false; // local : mono-utilisateur, pas de verrous
 
      
     // lecture du fichier local
@@ -1591,8 +1641,9 @@ async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = 
     Corpus.folder = dosspProj; 
     Corpus.content = result.content;
     Corpus.lastChange = new Date().toISOString();
-    Corpus.type = "distant"; 
-    
+    Corpus.type = "distant";
+    Corpus.collaboratif = true; // distant : multi-utilisateurs, verrous actifs
+
     // Ajouter l'URL du corpus distant à la liste des récents
     console.log('📝 Ajout du corpus distant aux fichiers récents');
     recentFilesManager.addRemoteCorpus(cheminComplet, fichProj);
@@ -1851,6 +1902,7 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null, _existingCon
     Corpus.content    = corpusContent;
     Corpus.lastChange = new Date().toISOString();
     Corpus.type       = 'gitlab';
+    Corpus.collaboratif = true; // gitlab : multi-utilisateurs, verrous LFS
 
     // 8. Déterminer le rôle et lire les options du projet
     const role = await gitlabAPI.getMemberRole();
@@ -2378,7 +2430,8 @@ function ouvrirAjoutEntretien() {
 
   return new Promise((resolve) => {
     ipcMain.once('ajout-entretien-result', (event, data) => {
-      entWindow.close();
+      // La fenêtre peut déjà être détruite (course avec l'événement 'closed').
+      if (entWindow && !entWindow.isDestroyed()) entWindow.close();
       resolve(data);
     });
 

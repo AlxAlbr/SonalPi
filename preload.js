@@ -124,6 +124,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Sauvegarder le corpus
   sauvegarderFichier: (filePath, content) => ipcRenderer.invoke('sauvegarder-fichier', filePath, content),
 
+  // ── Flux fichier unifié (Phase 1b) ──
+  // Résout un chemin relatif au dossier du corpus (local absolu / distant relatif).
+  cheminCorpus: (nom) => ipcRenderer.invoke('corpus:chemin', nom),
+  // Chemin d'écriture du .crp (convention propre à chaque backend).
+  cheminCorpusCrp: () => ipcRenderer.invoke('corpus:cheminCrp'),
+  // Écrit un fichier en routant vers la storage adéquate (local/serveur/gitlab).
+  ecrireFichier: (chemin, content, opts) => ipcRenderer.invoke('corpus:ecrire', chemin, content, opts),
+
   // Boîte de dialogue "Enregistrer sous"
   saveFileDialog: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
 

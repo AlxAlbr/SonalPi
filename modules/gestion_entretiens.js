@@ -140,29 +140,22 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
         //console.log("Contenu après conversion (string):", typeof fichApresConversion, fichApresConversion.substring(0, 100) + '...');   
 
 
-        if (Corpus.type == "local") {
+        {
+            const cheminFichTxtA = await window.electronAPI.cheminCorpus(nomFichTxtA);
 
-            let cheminFichTxtA = await window.electronAPI.createPath(Corpus.folder, nomFichTxtA); // nom du fichier d'arrivée (A) à créer dans le projet (si local?)
-            
-            let fichExists = await window.electronAPI.doesFileExists(cheminFichTxtA);
-            
-            let overwrite = null;
-            if (fichExists) {
-            
-                overwrite = (await question(`Le fichier ${nomFichTxtA} existe déjà dans le dossier du corpus.\nVoulez-vous l'écraser ?`, ['Oui', 'Non'])) === 'oui';
-            
+            // En local (non collaboratif), on demande confirmation avant d'écraser.
+            // En distant/gitlab, on écrit directement (comportement historique préservé).
+            let ecrire = true;
+            if (!Corpus.collaboratif) {
+                const fichExists = await window.electronAPI.doesFileExists(cheminFichTxtA);
+                if (fichExists) {
+                    ecrire = (await question(`Le fichier ${nomFichTxtA} existe déjà dans le dossier du corpus.\nVoulez-vous l'écraser ?`, ['Oui', 'Non'])) === 'oui';
+                }
             }
-            if (fichExists && overwrite || !fichExists) { // si le fichier existe et qu'on veut l'écraser, ou s'il n'existe pas, on l'écrit
-                const res = await window.electronAPI.sauvegarderFichier(cheminFichTxtA, fichApresConversion);
-                console.log('Résultat écriture fichier local:', res);
+            if (ecrire) {
+                const res = await window.electronAPI.ecrireFichier(cheminFichTxtA, fichApresConversion);
+                console.log('Résultat écriture entretien:', res);
             }
- 
-
-        } else if (Corpus.type == "distant" || Corpus.type == "gitlab") {
-
-            let cheminFichTxtA = [Corpus.folder, nomFichTxtA].filter(Boolean).join('/');
-            const res = await window.electronAPI.sauvegarderSurServeur(cheminFichTxtA, fichApresConversion);
-            console.log('Résultat sauvegarde serveur:', res);
         }
     
 
@@ -234,9 +227,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
             let conteneurEnt = document.querySelector(`div.ligent[data-id='${id}']`);
             if (conteneurEnt) {
                 let imgEl = conteneurEnt.querySelector('.ligent-img');
-                let chemin = Corpus.type === 'local'
-                    ? await window.electronAPI.createPath(Corpus.folder, fichImg)
-                    : [Corpus.folder, fichImg].filter(Boolean).join('/');
+                let chemin = await window.electronAPI.cheminCorpus(fichImg);
                 if (imgEl) imgEl.src = chemin + '?t=' + Date.now();
             }
         }), 2000);
@@ -314,13 +305,7 @@ async function loadHtml(rgDep, rgFin){
             document.getElementById('progress-bar').style.width = ((e+1)/tabEnt.length)*100 + "%"; 
 
             // 1 - Définition du chemin du fichier de l'entretien
-            let cheminEnt  =""; 
-            
-            if (Corpus.type == "local") {
-                cheminEnt = await window.electronAPI.createPath(Corpus.folder, tabEnt[e].rtrPath);
-            } else {
-                cheminEnt = [Corpus.folder, tabEnt[e].rtrPath].filter(Boolean).join('/');
-            }
+            let cheminEnt = await window.electronAPI.cheminCorpus(tabEnt[e].rtrPath);
 
             // 1bis - Vérification de l'existence du fichier de l'entretien
             let existFile = await window.electronAPI.doesFileExists(cheminEnt);
@@ -497,11 +482,7 @@ async function afficherEnt(rgDep, rgFin){
 
             if (tabEnt[e].imgPath !="" && tabEnt[e].imgPath !== null && tabEnt[e].imgPath !== undefined) {
 
-                if (Corpus.type == "local") {
-                    cheminImg = await window.electronAPI.createPath(Corpus.folder, tabEnt[e].imgPath);
-                } else {
-                    cheminImg = [Corpus.folder, tabEnt[e].imgPath].join('/');    
-                }
+                cheminImg = await window.electronAPI.cheminCorpus(tabEnt[e].imgPath);
 
 
             // si le fichier d'image existe bien à l'emplacement indiqué, on l'affiche    
@@ -1110,12 +1091,7 @@ async function afficherDetailsEnt(rk){
     infoDate.addEventListener('click', async function() {
 
         // récupère la date de modification du fichier (local ou distant)
-        let cheminEnt = "";
-        if (Corpus.type == "local") {
-            cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
-        } else {
-            cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
-        }
+        let cheminEnt = await window.electronAPI.cheminCorpus(ent.rtrPath);
 
         await window.electronAPI.getLastModified(cheminEnt).then(lastModified => {
             if (!lastModified) {
@@ -1176,9 +1152,7 @@ async function afficherDetailsEnt(rk){
                     const elCont = document.querySelector(`div.ligent[data-id='${ent.id}']`);
                     if (elCont && ent.imgPath) {
                         const imgEl = elCont.querySelector('.ligent-img');
-                        const chemin = Corpus.type === 'local'
-                            ? await window.electronAPI.createPath(Corpus.folder, ent.imgPath)
-                            : [Corpus.folder, ent.imgPath].join('/');
+                        const chemin = await window.electronAPI.cheminCorpus(ent.imgPath);
                         imgEl.src = chemin + '?t=' + Date.now(); // évite le cache
                     }
                 });
@@ -1456,12 +1430,7 @@ async function afficherWhisPurge(){
     // chargement de l'image de l'entretien, si elle existe
     if (ent.imgPath) {
         let imgEnt = document.getElementById('imgEnt');
-        let cheminImg = "";
-        if (Corpus.type == "local") {
-            cheminImg = await window.electronAPI.createPath(Corpus.folder, ent.imgPath);
-        } else {  
-            cheminImg = [Corpus.folder, ent.imgPath].join('/');
-        }
+        let cheminImg = await window.electronAPI.cheminCorpus(ent.imgPath);
         let existImg = await window.electronAPI.doesFileExists(cheminImg);
         if (existImg) imgEnt.src = cheminImg; 
     }
@@ -1578,16 +1547,8 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
             // sauvegarde du fichier de l'entretien
             const contenuFichierSonal = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, ent.tabAnon); // conversion du HTML en format Sonal
 
-            let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
-            let cheminEnt = ""; 
-            let res;
-            if (Corpus.type == "local") {
-                cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
-                res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
-            } else {
-                cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
-                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
-            }
+            const cheminEnt = await window.electronAPI.cheminCorpus(ent.rtrPath);
+            const res = await window.electronAPI.ecrireFichier(cheminEnt, contenuFichierSonal);
 
             console.log("4b - fichier de l'entretien sauvegardé :", res);
             if (!res?.success) {
@@ -1639,15 +1600,8 @@ async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sona
 
      try {
  
-            let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
-            let cheminEnt = ""; 
-            if (Corpus.type == "local") {
-                cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
-                const res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
-            } else {
-                cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
-                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
-            }
+            const cheminEnt = await window.electronAPI.cheminCorpus(ent.rtrPath);
+            const res = await window.electronAPI.ecrireFichier(cheminEnt, contenuFichierSonal);
             
               
 
@@ -1820,9 +1774,7 @@ async function CreerWaveform(audioFile, nomFichierImage, onDone) {
 
             const Corpus = await window.electronAPI.getCorpus();
 
-            let cheminFichTxtA = Corpus.type === 'local'
-                ? await window.electronAPI.createPath(Corpus.folder, nomFichierImage)
-                : [Corpus.folder, nomFichierImage].join('/');
+            let cheminFichTxtA = await window.electronAPI.cheminCorpus(nomFichierImage);
 
             const existFichA = await window.electronAPI.doesFileExists(cheminFichTxtA);
             if (existFichA) {
@@ -1907,13 +1859,8 @@ async function CreerWaveform(audioFile, nomFichierImage, onDone) {
             for (let i = 0; i < binStr.length; i++) pngBuffer[i] = binStr.charCodeAt(i);
 
             // 6. Sauvegarde
-            if (Corpus.type === 'local') {
-                const chemin = await window.electronAPI.createPath(Corpus.folder, nomFichierImage);
-                await window.electronAPI.sauvegarderFichier(chemin, pngBuffer);
-            } else {
-                const chemin = [Corpus.folder, nomFichierImage].join('/');
-                await window.electronAPI.sauvegarderSurServeur(chemin, pngBuffer);
-            }
+            const chemin = await window.electronAPI.cheminCorpus(nomFichierImage);
+            await window.electronAPI.ecrireFichier(chemin, pngBuffer);
 
             console.log('Forme d\'onde créée :', nomFichierImage);
             if (statusBar) statusBar.textContent = 'Prêt.';
