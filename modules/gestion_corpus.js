@@ -122,24 +122,19 @@ async function lireCorpus(fileContent){
 
         console.log("les tableaux de données ont été remis à zéro");
 
-        const crp = JSON.parse(fileContent);
-        tabThm = crp.tabThm || [];
-        tabVar = crp.tabVar || [];
-        tabDic = crp.tabDic || [];
-        tabDat = crp.tabDat || [];
-        tabEnt = crp.tabEnt || [];
-        tabAnon = crp.tabAnon || [];
+        // Parsing + normalisation codebook (act=true, cmpct=false) délégués à la
+        // couche domaine ESM (src/domain/corpus.mjs, exposée via window.SonalDomain).
+        const crp = window.SonalDomain.parseCorpus(fileContent);
+        tabThm = crp.tabThm;
+        tabVar = crp.tabVar;
+        tabDic = crp.tabDic;
+        tabDat = crp.tabDat;
+        tabEnt = crp.tabEnt;
+        tabAnon = crp.tabAnon;
         tabHtml = [];
         tabGrph = [];
-        ent_cur = crp.ent_cur || -1;
+        ent_cur = crp.ent_cur;
 
-        
-        // toutes les thématiques sont actives par défaut
-        for (let i=0; i<tabThm.length; i++){
-            tabThm[i].act = true;
-            tabThm[i].cmpct = false; 
-        }
-        
 
 
 
@@ -944,7 +939,8 @@ let corpusActuel = Corpus.url;
   );
   await window.electronAPI.setDat(tabDatGlobal);
 
-  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
+  // Sérialisation déléguée à la couche domaine (src/domain/corpus.mjs).
+  const contenu = window.SonalDomain.serializeCorpus({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);
   

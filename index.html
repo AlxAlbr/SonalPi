@@ -10,7 +10,9 @@
 
 
   
-  <script  src="modules/gestion_corpus.js"></script> 
+  <!-- Couche domaine (ESM, Option B) : expose window.SonalDomain pour le code legacy. -->
+  <script type="module" src="src/index.mjs"></script>
+  <script  src="modules/gestion_corpus.js"></script>
   <script  src="modules/gestion_fichiers.js"></script> 
   <script  src="modules/gestion_entretiens.js"></script>
   <script  src="modules/thematisation.js"></script>

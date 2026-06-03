@@ -1,0 +1,622 @@
+{
+  "ent_cur": -1,
+  "tabAnon": [
+    {
+      "entite": "Karine",
+      "indexCourant": 0,
+      "matchPositions": [],
+      "occurrences": 0,
+      "remplacement": "Marie"
+    },
+    {
+      "entite": "Michel",
+      "indexCourant": 0,
+      "matchPositions": [],
+      "occurrences": 0,
+      "remplacement": "Max"
+    },
+    {
+      "entite": "pas",
+      "indexCourant": 0,
+      "matchPositions": [],
+      "occurrences": 0,
+      "remplacement": "test"
+    },
+    {
+      "entite": "réforme",
+      "indexCourant": 0,
+      "matchPositions": [],
+      "occurrences": 0,
+      "remplacement": "test2"
+    }
+  ],
+  "tabDat": [],
+  "tabDic": [
+    {
+      "lib": "",
+      "m": 0,
+      "v": 1
+    },
+    {
+      "lib": "MonTest",
+      "m": 1,
+      "v": 1
+    },
+    {
+      "lib": "",
+      "m": 0,
+      "v": 2
+    },
+    {
+      "lib": "Homme",
+      "m": 1,
+      "v": 2
+    },
+    {
+      "lib": "Femme",
+      "m": 2,
+      "v": 2
+    },
+    {
+      "lib": "Autre",
+      "m": 3,
+      "v": 2
+    },
+    {
+      "lib": "",
+      "m": 0,
+      "v": 3
+    }
+  ],
+  "tabEnt": [
+    {
+      "audioPath": "",
+      "fileSize": "<volatile>",
+      "hms": "00:00:00",
+      "id": 1,
+      "imgPath": "",
+      "lastAccess": "<volatile>",
+      "lastModified": "<volatile>",
+      "nom": "entretien1",
+      "notes": "",
+      "rtrPath": "entretien1.sonal",
+      "tabAnon": [
+        {
+          "entite": "Karine",
+          "indexCourant": 0,
+          "indexCourant_anon": -1,
+          "indexCourant_exc": -1,
+          "indexCourant_non": -1,
+          "matchPositions": [
+            {
+              "end": 41,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 41
+            }
+          ],
+          "occurrences": 1,
+          "remplacement": "Marie"
+        },
+        {
+          "entite": "pas",
+          "indexCourant": 2,
+          "indexCourant_anon": 2,
+          "indexCourant_exc": -1,
+          "indexCourant_non": -1,
+          "matchPositions": [
+            {
+              "end": 84,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 84
+            },
+            {
+              "end": 271,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 271
+            },
+            {
+              "end": 308,
+              "isException": true,
+              "isNonTraite": false,
+              "start": 308
+            },
+            {
+              "end": 365,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 365
+            },
+            {
+              "end": 444,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 444
+            },
+            {
+              "end": 578,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 578
+            },
+            {
+              "end": 753,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 753
+            },
+            {
+              "end": 1090,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 1090
+            },
+            {
+              "end": 1131,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 1131
+            },
+            {
+              "end": 1186,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 1186
+            },
+            {
+              "end": 1241,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 1241
+            },
+            {
+              "end": 1402,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 1402
+            }
+          ],
+          "occurrences": 12,
+          "remplacement": "test"
+        },
+        {
+          "entite": "réforme",
+          "indexCourant": 0,
+          "indexCourant_anon": -1,
+          "indexCourant_exc": -1,
+          "indexCourant_non": -1,
+          "matchPositions": [
+            {
+              "end": 606,
+              "isException": false,
+              "isNonTraite": true,
+              "start": 606
+            }
+          ],
+          "occurrences": 0,
+          "remplacement": "test2"
+        }
+      ],
+      "tabDat": [],
+      "tabDic": [
+        {
+          "lib": "",
+          "m": 0,
+          "v": 1
+        },
+        {
+          "lib": "MonTest",
+          "m": 1,
+          "v": 1
+        },
+        {
+          "lib": "",
+          "m": 0,
+          "v": 2
+        },
+        {
+          "lib": "Homme",
+          "m": 1,
+          "v": 2
+        },
+        {
+          "lib": "Femme",
+          "m": 2,
+          "v": 2
+        },
+        {
+          "lib": "Autre",
+          "m": 3,
+          "v": 2
+        },
+        {
+          "lib": "",
+          "m": 0,
+          "v": 3
+        }
+      ],
+      "tabLoc": [
+        "",
+        "Interwiever1",
+        "Interwievé1",
+        "commentaire"
+      ],
+      "tabThm": [],
+      "tabVar": [
+        {
+          "champ": "gen",
+          "lib": "Lieu",
+          "priv": "false",
+          "v": 1
+        },
+        {
+          "champ": "loc",
+          "lib": "sexe",
+          "priv": "false",
+          "v": 2
+        },
+        {
+          "champ": "loc",
+          "lib": "PCS",
+          "priv": "false",
+          "v": 3
+        }
+      ]
+    },
+    {
+      "audioPath": "",
+      "fileSize": "<volatile>",
+      "hms": "00:00:00",
+      "id": 2,
+      "imgPath": "",
+      "lastAccess": "<volatile>",
+      "lastModified": "<volatile>",
+      "nom": "entretien2",
+      "notes": "test",
+      "rtrPath": "entretien2.sonal",
+      "tabAnon": [],
+      "tabDat": [
+        {
+          "e": "2",
+          "l": "all",
+          "m": 1,
+          "v": 1
+        },
+        {
+          "e": "2",
+          "l": 1,
+          "m": 0,
+          "v": 2
+        },
+        {
+          "e": "2",
+          "l": 2,
+          "m": 1,
+          "v": 2
+        }
+      ],
+      "tabDic": [
+        {
+          "lib": "",
+          "m": 0,
+          "v": 1
+        },
+        {
+          "lib": "MonTest",
+          "m": 1,
+          "v": 1
+        },
+        {
+          "lib": "",
+          "m": 0,
+          "v": 2
+        },
+        {
+          "lib": "Homme",
+          "m": 1,
+          "v": 2
+        },
+        {
+          "lib": "Femme",
+          "m": 2,
+          "v": 2
+        },
+        {
+          "lib": "Autre",
+          "m": 3,
+          "v": 2
+        },
+        {
+          "lib": "",
+          "m": 0,
+          "v": 3
+        }
+      ],
+      "tabLoc": [
+        "",
+        "Interviewer2",
+        "Interviewé2"
+      ],
+      "tabThm": [],
+      "tabVar": [
+        {
+          "champ": "gen",
+          "lib": "Lieu",
+          "priv": "false",
+          "v": 1
+        },
+        {
+          "champ": "loc",
+          "lib": "sexe",
+          "priv": "false",
+          "v": 2
+        },
+        {
+          "champ": "loc",
+          "lib": "PCS",
+          "priv": "false",
+          "v": 3
+        }
+      ]
+    },
+    {
+      "audioPath": "",
+      "fileSize": "<volatile>",
+      "hms": "00:00:00",
+      "id": 3,
+      "imgPath": "",
+      "lastAccess": "<volatile>",
+      "lastModified": "<volatile>",
+      "nom": "entretien3",
+      "notes": "",
+      "rtrPath": "entretien3.sonal",
+      "tabAnon": [
+        {
+          "entite": "Karine",
+          "indexCourant": 0,
+          "matchPositions": [],
+          "occurrences": 0,
+          "presentMaisNonAnonymise": false,
+          "remplacement": "Marie",
+          "source": "Global"
+        },
+        {
+          "entite": "pas",
+          "indexCourant": 0,
+          "indexCourant_anon": -1,
+          "indexCourant_exc": -1,
+          "indexCourant_non": -1,
+          "matchPositions": [
+            {
+              "end": 119,
+              "isException": false,
+              "isNonTraite": true,
+              "start": 119
+            },
+            {
+              "end": 483,
+              "isException": false,
+              "isNonTraite": true,
+              "start": 483
+            },
+            {
+              "end": 528,
+              "isException": false,
+              "isNonTraite": true,
+              "start": 528
+            },
+            {
+              "end": 698,
+              "isException": false,
+              "isNonTraite": true,
+              "start": 698
+            }
+          ],
+          "nbOccurrencesNonTraitees": 4,
+          "occurrences": 0,
+          "presentMaisNonAnonymise": true,
+          "remplacement": "test",
+          "source": "Global"
+        },
+        {
+          "entite": "réforme",
+          "indexCourant": 0,
+          "indexCourant_anon": -1,
+          "indexCourant_exc": -1,
+          "indexCourant_non": -1,
+          "matchPositions": [
+            {
+              "end": 456,
+              "isException": false,
+              "isNonTraite": true,
+              "start": 456
+            }
+          ],
+          "nbOccurrencesNonTraitees": 1,
+          "occurrences": 0,
+          "presentMaisNonAnonymise": true,
+          "remplacement": "test2",
+          "source": "Global"
+        },
+        {
+          "entite": "Michel",
+          "indexCourant": 0,
+          "indexCourant_anon": -1,
+          "indexCourant_exc": -1,
+          "indexCourant_non": -1,
+          "matchPositions": [
+            {
+              "end": 31,
+              "isException": false,
+              "isNonTraite": false,
+              "start": 31
+            }
+          ],
+          "occurrences": 1,
+          "remplacement": "Max"
+        }
+      ],
+      "tabDat": [],
+      "tabDic": [
+        {
+          "lib": "",
+          "m": 0,
+          "v": 1
+        },
+        {
+          "lib": "MonTest",
+          "m": 1,
+          "v": 1
+        },
+        {
+          "lib": "",
+          "m": 0,
+          "v": 2
+        },
+        {
+          "lib": "Homme",
+          "m": 1,
+          "v": 2
+        },
+        {
+          "lib": "Femme",
+          "m": 2,
+          "v": 2
+        },
+        {
+          "lib": "Autre",
+          "m": 3,
+          "v": 2
+        },
+        {
+          "lib": "",
+          "m": 0,
+          "v": 3
+        }
+      ],
+      "tabLoc": [
+        "",
+        "Interviewer1",
+        "Interviewé3",
+        "commentaire"
+      ],
+      "tabThm": [],
+      "tabVar": [
+        {
+          "champ": "gen",
+          "lib": "Lieu",
+          "priv": "false",
+          "v": 1
+        },
+        {
+          "champ": "loc",
+          "lib": "sexe",
+          "priv": "false",
+          "v": 2
+        },
+        {
+          "champ": "loc",
+          "lib": "PCS",
+          "priv": "false",
+          "v": 3
+        }
+      ]
+    }
+  ],
+  "tabThm": [
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_001",
+      "couleur": "",
+      "nom": "Pondérations",
+      "rang": "0",
+      "taille": ""
+    },
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_002",
+      "couleur": "",
+      "nom": "★★★ Très important",
+      "rang": "1",
+      "taille": 24
+    },
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_003",
+      "couleur": "",
+      "nom": "★★☆ Assez important",
+      "rang": "1",
+      "taille": 22
+    },
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_004",
+      "couleur": "",
+      "nom": "★☆☆ Important",
+      "rang": "1",
+      "taille": 20
+    },
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_005",
+      "couleur": "#0331ff",
+      "nom": "Cat1",
+      "rang": "0",
+      "taille": ""
+    },
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_006",
+      "couleur": "#42a5f5",
+      "nom": "SousCat1",
+      "rang": "1",
+      "taille": ""
+    },
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_007",
+      "couleur": "#90caf9",
+      "nom": "SousCat2",
+      "rang": "1",
+      "taille": ""
+    },
+    {
+      "act": true,
+      "cmpct": false,
+      "code": "cat_008",
+      "couleur": "#d84315",
+      "nom": "Cat2",
+      "rang": "0",
+      "taille": ""
+    }
+  ],
+  "tabVar": [
+    {
+      "champ": "gen",
+      "lib": "Lieu",
+      "priv": "false",
+      "v": 1
+    },
+    {
+      "champ": "loc",
+      "lib": "sexe",
+      "priv": "false",
+      "v": 2
+    },
+    {
+      "champ": "loc",
+      "lib": "PCS",
+      "priv": "false",
+      "v": 3
+    }
+  ]
+}

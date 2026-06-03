@@ -1,0 +1,405 @@
+{
+  "anon": [
+    {
+      "nt": "true",
+      "pseudo": "Marie",
+      "rk": "42",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "85",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "272",
+      "type": "anon"
+    },
+    {
+      "nt": null,
+      "pseudo": null,
+      "rk": "309",
+      "type": "anon-exception"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "366",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "445",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "579",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "754",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "1091",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "1132",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "1187",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "1242",
+      "type": "anon"
+    },
+    {
+      "nt": "true",
+      "pseudo": "test",
+      "rk": "1403",
+      "type": "anon"
+    }
+  ],
+  "codages": {
+    "cat_005": 4,
+    "cat_006": 2,
+    "cat_007": 3,
+    "cat_008": 3
+  },
+  "commentaires": [],
+  "locuteurs": [
+    {
+      "loc": "1",
+      "nomloc": "Interwiever1"
+    },
+    {
+      "loc": "1",
+      "nomloc": null
+    },
+    {
+      "loc": "2",
+      "nomloc": "Interwievé1"
+    },
+    {
+      "loc": "3",
+      "nomloc": "commentaire"
+    }
+  ],
+  "segments": [
+    {
+      "deb": "0.700",
+      "fin": "4.317",
+      "loc": "3",
+      "nomloc": "commentaire",
+      "rksg": "0",
+      "statut": "deb"
+    },
+    {
+      "deb": "4.317",
+      "fin": "4.575",
+      "loc": "1",
+      "nomloc": "Interwiever1",
+      "rksg": "1",
+      "statut": "fin"
+    },
+    {
+      "deb": "4.595",
+      "fin": "7.992",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "2",
+      "statut": null
+    },
+    {
+      "deb": "7.992",
+      "fin": "33.149",
+      "loc": "2",
+      "nomloc": "Interwievé1",
+      "rksg": "3",
+      "statut": "deb"
+    },
+    {
+      "deb": "33.149",
+      "fin": "33.262",
+      "loc": "1",
+      "nomloc": "Interwiever1",
+      "rksg": "4",
+      "statut": "fin"
+    },
+    {
+      "deb": "34.804",
+      "fin": "39.625",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "5",
+      "statut": null
+    },
+    {
+      "deb": "39.625",
+      "fin": "86.341",
+      "loc": "2",
+      "nomloc": "Interwievé1",
+      "rksg": "6",
+      "statut": "deb"
+    },
+    {
+      "deb": "86.341",
+      "fin": "86.486",
+      "loc": "1",
+      "nomloc": "Interwiever1",
+      "rksg": "7",
+      "statut": "fin"
+    },
+    {
+      "deb": "86.506",
+      "fin": "92.404",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "8",
+      "statut": null
+    },
+    {
+      "deb": "92.404",
+      "fin": "98.387",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "9",
+      "statut": null
+    },
+    {
+      "deb": "98.42699999999999",
+      "fin": "103.40899999999999",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "10",
+      "statut": null
+    },
+    {
+      "deb": "103.449",
+      "fin": "109.55199999999999",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "11",
+      "statut": null
+    },
+    {
+      "deb": "109.592",
+      "fin": "113.354",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "12",
+      "statut": null
+    },
+    {
+      "deb": "113.394",
+      "fin": "117.976",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "13",
+      "statut": null
+    },
+    {
+      "deb": "119.124",
+      "fin": "124.868",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "14",
+      "statut": null
+    },
+    {
+      "deb": "124.868",
+      "fin": "125.949",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "15",
+      "statut": null
+    },
+    {
+      "deb": "126.009",
+      "fin": "129.191",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "16",
+      "statut": null
+    },
+    {
+      "deb": "129.231",
+      "fin": "134.355",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "17",
+      "statut": null
+    },
+    {
+      "deb": "134.375",
+      "fin": "137.437",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "18",
+      "statut": null
+    },
+    {
+      "deb": "137.457",
+      "fin": "141.22",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "19",
+      "statut": null
+    },
+    {
+      "deb": "141.46",
+      "fin": "146.504",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "20",
+      "statut": null
+    },
+    {
+      "deb": "148.564",
+      "fin": "152.886",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "21",
+      "statut": null
+    },
+    {
+      "deb": "152.886",
+      "fin": "158.629",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "22",
+      "statut": null
+    },
+    {
+      "deb": "158.689",
+      "fin": "163.33100000000002",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "23",
+      "statut": null
+    },
+    {
+      "deb": "163.371",
+      "fin": "172.336",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "24",
+      "statut": null
+    },
+    {
+      "deb": "172.376",
+      "fin": "175.617",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "25",
+      "statut": null
+    },
+    {
+      "deb": "175.617",
+      "fin": "177.178",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "26",
+      "statut": null
+    },
+    {
+      "deb": "178.917",
+      "fin": "183.656",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "27",
+      "statut": null
+    },
+    {
+      "deb": "183.656",
+      "fin": "185.437",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "28",
+      "statut": null
+    },
+    {
+      "deb": "185.457",
+      "fin": "187.637",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "29",
+      "statut": null
+    },
+    {
+      "deb": "187.657",
+      "fin": "189.718",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "30",
+      "statut": null
+    },
+    {
+      "deb": "189.778",
+      "fin": "192.378",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "31",
+      "statut": null
+    },
+    {
+      "deb": "192.418",
+      "fin": "195.019",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "32",
+      "statut": null
+    },
+    {
+      "deb": "195.039",
+      "fin": "199.88",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "33",
+      "statut": null
+    },
+    {
+      "deb": "199.9",
+      "fin": "204.181",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "34",
+      "statut": null
+    },
+    {
+      "deb": "204.221",
+      "fin": "208.583",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "35",
+      "statut": null
+    },
+    {
+      "deb": "208.603",
+      "fin": "210.323",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "36",
+      "statut": null
+    }
+  ]
+}

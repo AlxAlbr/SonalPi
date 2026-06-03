@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fichier Whispurge</title>
+   <link href="http://www.sonal-info.com/WHSPRG/CSS/Styles.css" rel="stylesheet"  type="text/css">  
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous"> 
+   
+   <style> 
+
+
+    body { margin: 20px; padding: 60px; font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; };
+    h1 { font-size: 24px; margin-bottom: 10px; };
+    h2 { font-size: 20px; margin-bottom: 8px; };
+    
+    .cat_001{
+        
+        
+        }
+    .cat_002{
+        
+        font-size: 24;
+            font-weight: bold;
+            
+        }
+    .cat_003{
+        
+        font-size: 22;
+            font-weight: bold;
+            
+        }
+    .cat_004{
+        
+        font-size: 20;
+            font-weight: bold;
+            
+        }
+    .cat_005{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #0331ff60 95%, #0331ff 100%); 
+            
+        }
+    .cat_006{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #42a5f560 95%, #42a5f5 100%); 
+            
+        }
+    .cat_007{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #90caf960 95%, #90caf9 100%); 
+            
+        }
+    .cat_008{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #d8431560 95%, #d84315 100%); 
+            
+        }
+    
+</style>
+ </head>
+ 
+<body>
+<script id="loc-json" type="application/json">
+        {
+            ["","Interviewer1","Interviewé3","commentaire"]         
+        }
+</script> 
+<script id="cat-json" type="application/json">
+        {
+            
+            [{"code":"cat_001","couleur":"","nom":"Pondérations","taille":"","cmpct":false,"rang":"0","act":true},{"code":"cat_002","couleur":"","nom":"★★★ Très important","taille":24,"cmpct":false,"rang":"1","act":true},{"code":"cat_003","couleur":"","nom":"★★☆ Assez important","taille":22,"cmpct":false,"rang":"1","act":true},{"code":"cat_004","couleur":"","nom":"★☆☆ Important","taille":20,"cmpct":false,"rang":"1","act":true},{"code":"cat_005","couleur":"#0331ff","nom":"Cat1","taille":"","cmpct":false,"rang":"0","act":true},{"code":"cat_006","couleur":"#42a5f5","nom":"SousCat1","taille":"","cmpct":false,"rang":"1","act":true},{"code":"cat_007","couleur":"#90caf9","nom":"SousCat2","taille":"","cmpct":false,"rang":"1","act":true},{"code":"cat_008","couleur":"#d84315","nom":"Cat2","taille":"","cmpct":false,"rang":"0","act":true}]          
+        }
+</script> 
+<script id="var-json" type="application/json">
+        {
+            [{"v":1,"lib":"Lieu","champ":"gen","priv":"false"},{"v":2,"lib":"sexe","champ":"loc","priv":"false"},{"v":3,"lib":"PCS","champ":"loc","priv":"false"}]          
+        }
+</script> 
+<script id="dic-json" type="application/json">
+        {   
+            [{"v":1,"m":0,"lib":""},{"v":1,"m":1,"lib":"MonTest"},{"v":2,"m":0,"lib":""},{"v":2,"m":1,"lib":"Homme"},{"v":2,"m":2,"lib":"Femme"},{"v":2,"m":3,"lib":"Autre"},{"v":3,"m":0,"lib":""}]          
+        }
+</script> 
+<script id="dat-json" type="application/json">
+        {   
+            []          
+        }
+</script> 
+<script id="anon-json" type="application/json">
+        {   
+            [{"entite":"Karine","remplacement":"Marie","occurrences":0,"indexCourant":0,"matchPositions":[],"source":"Global","presentMaisNonAnonymise":false},{"entite":"pas","remplacement":"test","occurrences":0,"indexCourant":0,"matchPositions":[{"start":119,"end":119,"isException":false,"isNonTraite":true},{"start":483,"end":483,"isException":false,"isNonTraite":true},{"start":528,"end":528,"isException":false,"isNonTraite":true},{"start":698,"end":698,"isException":false,"isNonTraite":true}],"source":"Global","presentMaisNonAnonymise":true,"nbOccurrencesNonTraitees":4,"indexCourant_anon":-1,"indexCourant_exc":-1,"indexCourant_non":-1},{"entite":"réforme","remplacement":"test2","occurrences":0,"indexCourant":0,"matchPositions":[{"start":456,"end":456,"isException":false,"isNonTraite":true}],"source":"Global","presentMaisNonAnonymise":true,"nbOccurrencesNonTraitees":1,"indexCourant_anon":-1,"indexCourant_exc":-1,"indexCourant_non":-1},{"entite":"Michel","remplacement":"Max","occurrences":1,"indexCourant":0,"matchPositions":[{"start":31,"end":31,"isException":false,"isNonTraite":false}],"indexCourant_anon":-1,"indexCourant_exc":-1,"indexCourant_non":-1}]          
+        }
+</script> 
+
+    <div style="margin-bottom: 5px !important; 
+	margin-bottom: 5px !important;
+	margin: 40px;"
+	>
+
+    <H2 > Notes</H2>
+    
+        <div id="txtnotes">
+        
+        </div>
+    </div>
+     <div id="contenuText"> 
+     <span class="lblseg sautlig ligloc" data-deb="1.020" data-fin="1.576" data-loc="3" tabindex="1" data-rksg="0" data-statut="deb" data-nomloc="commentaire"><span class="" data-rk="1" data-sg="0" data-len="2">bla </span><span class="cat_008" data-rk="3" data-sg="0" data-len="2">bla.</span></span><span class="lblseg sautlig ligloc" data-deb="1.576" data-fin="4.91" data-loc="1" tabindex="5" data-rksg="1" data-statut="fin" data-nomloc="Interviewer1"><span class="" data-rk="5" data-sg="1" data-len="18"> Bonjour, pouvez-vous présenter en quelques mots ? </span></span><span class="lblseg sautlig ligloc" data-deb="4.910" data-fin="35.128" data-loc="2" tabindex="23" data-rksg="2" data-statut="deb" data-nomloc="Interviewé3"><span class="" data-rk="23" data-sg="2" data-len="9">Bonjour, je m'appelle </span><span class="debsel finsel anon" data-rk="32" data-sg="2" data-anon-nt="true" data-pseudo="Max">Michel</span><span class="" data-rk="33" data-sg="2" data-len="40"> Durand, j'ai 42 ans. Je suis marié et père de trois enfants. Nous vivons en périphérie de </span><span class="cat_008" data-rk="73" data-sg="2" data-len="21">Lyon, dans une petite ville où il fait bon vivre.</span><span class="" data-rk="94" data-sg="2" data-len="120"> Même si ces dernières années, la circulation et l'urbanisation ont changé pas mal de choses. J'habite dans un pavillon avec un petit jardin, ce qui est appréciable. La communauté est plutôt soudée, mais on voit bien que des inégalités se creusent entre les familles. Pouvez-vous nous parler de votre parcours scolaire et professionnel ?</span></span><span class="lblseg sautlig ligloc" data-deb="35.128" data-fin="35.365" data-loc="1" tabindex="214" data-rksg="3" data-statut="fin" data-nomloc="Interviewer1"><span class="" data-rk="214" data-sg="3"> </span></span><span class="lblseg sautlig" data-deb="35.365" data-fin="40.611" data-loc="1" tabindex="215" data-rksg="4"><span class="" data-rk="215" data-sg="4" data-len="35">J'ai suivi un bac technologique avant de me diriger vers un BTS en gestion des entreprises. </span></span><span class="lblseg sautlig" data-deb="40.671" data-fin="45.036" data-loc="1" tabindex="250" data-rksg="5"><span class="" data-rk="250" data-sg="5" data-len="27">Ensuite j'ai commencé à travailler dans une PME spécialisée dans la logistique. </span></span><span class="lblseg sautlig" data-deb="45.056" data-fin="51.05" data-loc="1" tabindex="277" data-rksg="6"><span class="" data-rk="277" data-sg="6" data-len="21">J'y suis jusqu'à devenir responsable d'un service. </span></span><span class="lblseg sautlig" data-deb="51.09" data-fin="56.891" data-loc="1" tabindex="298" data-rksg="7"><span class="" data-rk="298" data-sg="7" data-len="44">Il y a quelques années, l'entreprise a été rachetée par un grand groupe et les conditions de travail ont changé. </span></span><span class="lblseg sautlig" data-deb="56.911" data-fin="60.232" data-loc="1" tabindex="342" data-rksg="8"><span class="" data-rk="342" data-sg="8" data-len="10">Pression accrue, réorganisation incessante. </span></span><span class="lblseg sautlig" data-deb="60.292" data-fin="67.174" data-loc="1" tabindex="352" data-rksg="9"><span class="" data-rk="352" data-sg="9" data-len="51">J'ai fini par quitter mon poste pour rejoindre une autre société où je suis aujourd'hui cadre dans un service de gestion des stocks. </span></span><span class="lblseg sautlig" data-deb="67.214" data-fin="73.696" data-loc="1" tabindex="403" data-rksg="10"><span class="" data-rk="403" data-sg="10" data-len="44">C'est un métier prenant mais qui me plaît, même si je constate une précarisation progressive des emplois dans mon secteur. </span></span><span class="lblseg sautlig" data-deb="75.418" data-fin="81.44" data-loc="1" tabindex="447" data-rksg="11"><span class="" data-rk="447" data-sg="11" data-len="22">Comment percevez-vous la récente réforme des retraites en France ? </span></span><span class="lblseg sautlig" data-deb="81.44" data-fin="85.962" data-loc="1" tabindex="469" data-rksg="12"><span class="" data-rk="469" data-sg="12" data-len="36">Honnêtement, je trouve qu'on ne prend pas en compte la diversité des carrières et des situations. </span></span><span class="lblseg sautlig" data-deb="86.002" data-fin="90.563" data-loc="1" tabindex="505" data-rksg="13"><span class="" data-rk="505" data-sg="13" data-len="35">Certes, on vit plus longtemps, mais tous les métiers ne sont pas égaux face au vieillissement. </span></span><span class="lblseg sautlig" data-deb="90.604" data-fin="96.26599999999999" data-loc="1" tabindex="540" data-rksg="14"><span class="" data-rk="540" data-sg="14" data-len="30">Dans mon entourage, je vois des collègues qui, à 60 ans, sont épuisés. </span></span><span class="lblseg sautlig" data-deb="96.306" data-fin="100.247" data-loc="1" tabindex="570" data-rksg="15"><span class="" data-rk="570" data-sg="15" data-len="29">Surtout ceux qui ont commencé très jeunes et qui exercent des métiers physiquement épuisés. </span></span><span class="lblseg sautlig" data-deb="104.282" data-fin="105.563" data-loc="1" tabindex="599" data-rksg="16"><span class="" data-rk="599" data-sg="16" data-len="3">concertation. </span></span><span class="lblseg sautlig" data-deb="105.583" data-fin="111.207" data-loc="1" tabindex="602" data-rksg="17"><span class="" data-rk="602" data-sg="17" data-len="33">Les décisions tombent d'en haut et ceux qui sont le plus impactés sont rarement écoutés. </span></span><span class="lblseg sautlig" data-deb="111.247" data-fin="117.092" data-loc="1" tabindex="635" data-rksg="18"><span class="" data-rk="635" data-sg="18" data-len="28">Pensez-vous que le système présidentiel en France pose des problèmes de démocratie ? </span></span><span class="lblseg sautlig" data-deb="117.092" data-fin="126.405" data-loc="1" tabindex="663" data-rksg="19"><span class="" data-rk="663" data-sg="19" data-len="49">Il y a clairement un problème de Le président a trop de pouvoir et le parlement ne joue pas toujours son rôle de contrepoids. </span></span><span class="lblseg sautlig" data-deb="126.485" data-fin="132.248" data-loc="1" tabindex="712" data-rksg="20"><span class="" data-rk="712" data-sg="20" data-len="41">On a un système où les décisions sont prises par une élite politique qui semble déconnectée des réalités du terrain. </span></span><span class="lblseg sautlig" data-deb="132.288" data-fin="141.313" data-loc="1" tabindex="753" data-rksg="21"><span class="" data-rk="753" data-sg="21" data-len="61">Je pense qu'on devrait réformer le mode de fonctionnement des institutions pour qu'il y ait plus de consultations populaires et une meilleure prise en compte des attentes citoyennes. </span></span><span class="lblseg sautlig" data-deb="142.927" data-fin="146.988" data-loc="1" tabindex="814" data-rksg="22"><span class="" data-rk="814" data-sg="22" data-len="24">Quel est votre regard sur l'Europe et les conflits internationaux ? </span></span><span class="lblseg sautlig" data-deb="146.988" data-fin="150.368" data-loc="1" tabindex="838" data-rksg="23"><span class="" data-rk="838" data-sg="23" data-len="26">L'Europe a des avantages, notamment pour le commerce et la mobilité. </span></span><span class="lblseg sautlig" data-deb="150.409" data-fin="157.13" data-loc="1" tabindex="864" data-rksg="24"><span class="" data-rk="864" data-sg="24" data-len="33">Mais elle donne l'impression d'être dirigée par des technocrates loin des préoccupations des citoyens. </span></span><span class="lblseg sautlig" data-deb="157.17000000000002" data-fin="161.011" data-loc="1" tabindex="897" data-rksg="25"><span class="" data-rk="897" data-sg="25" data-len="22">Sur les conflits internationaux, la guerre en Ukraine est préoccupante. </span></span><span class="lblseg sautlig" data-deb="161.071" data-fin="162.77100000000002" data-loc="1" tabindex="919" data-rksg="26"><span class="" data-rk="919" data-sg="26" data-len="11">Et il faut être solidaire. </span></span><span class="lblseg sautlig" data-deb="162.811" data-fin="167.292" data-loc="1" tabindex="930" data-rksg="27"><span class="" data-rk="930" data-sg="27" data-len="46">Moi, j'ai parfois l'impression qu'on en fait plus pour ce conflit que pour d'autres crises dans le monde. </span></span><span class="lblseg sautlig" data-deb="167.332" data-fin="170.272" data-loc="1" tabindex="976" data-rksg="28"><span class="" data-rk="976" data-sg="28" data-len="18">Quand aux Etats-Unis, leur influence est immense. </span></span><span class="lblseg sautlig" data-deb="170.333" data-fin="178.484" data-loc="1" tabindex="994" data-rksg="29"><span class="" data-rk="994" data-sg="29" data-len="42">Et je trouve que la France est parfois... Je devrais parfois prendre plus de recul dans ces décisions diplomatiques. </span></span><span class="lblseg sautlig" data-deb="178.504" data-fin="181.049" data-loc="1" tabindex="1036" data-rksg="30"><span class="" data-rk="1036" data-sg="30" data-len="21">Quelles sont vos opinions politiques et votre rapport au vote? </span></span><span class="lblseg sautlig" data-deb="182.346" data-fin="187.249" data-loc="1" tabindex="1057" data-rksg="31"><span class="" data-rk="1057" data-sg="31" data-len="36">J'ai toujours voté, mais de plus en plus de méfiance vis-à-vis des grands partis. </span></span><span class="lblseg sautlig" data-deb="187.29" data-fin="193.094" data-loc="1" tabindex="1093" data-rksg="32"><span class="" data-rk="1093" data-sg="32" data-len="44">J'ai longtemps soutenu des candidats de droite modérés, mais aujourd'hui je ne me reconnais plus totalement dans leurs discours. </span></span><span class="lblseg sautlig" data-deb="193.13400000000001" data-fin="199.098" data-loc="1" tabindex="1137" data-rksg="33"><span class="" data-rk="1137" data-sg="33" data-len="32">J'ai choisi de choisir en fonction des programmes, mais je ressens une frustration croissante. </span></span><span class="lblseg sautlig" data-deb="199.118" data-fin="204.162" data-loc="1" tabindex="1169" data-rksg="34"><span class="" data-rk="1169" data-sg="34" data-len="34">De plus en plus de gens autour de moi s'abstiennent, et je peux comprendre pourquoi. </span></span><span class="lblseg sautlig" data-deb="204.202" data-fin="210.266" data-loc="1" tabindex="1203" data-rksg="35"><span class="" data-rk="1203" data-sg="35" data-len="53">Cela dit, je pense qu'il est important de continuer à s'exprimer dans les urnes, pour éviter que d'autres décident à notre place. </span></span> 
+</div></body>

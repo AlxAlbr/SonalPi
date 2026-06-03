@@ -2718,35 +2718,35 @@ app.on('ready', () => {
      //mainWindow.webContents.openDevTools();
       mainWindow.show();
 
-      // Vérification des mises à jour
-      console.log('[AutoUpdater] Démarrage de la vérification des mises à jour...');
-      console.log('[AutoUpdater] Version courante :', app.getVersion());
-      console.log('[AutoUpdater] isDev :', !app.isPackaged);
-
-      // En mode dev, forcer la lecture de dev-app-update.yml
+      // Vérification des mises à jour — uniquement dans une vraie build packagée.
+      // En dev (electron .), la vérification GitHub échoue (pas de latest-linux.yml)
+      // et pollue la console : on l'ignore.
       if (!app.isPackaged) {
-        autoUpdater.forceDevUpdateConfig = true;
+        console.log('[AutoUpdater] Mode dev : vérification des mises à jour ignorée.');
+      } else {
+        console.log('[AutoUpdater] Démarrage de la vérification des mises à jour...');
+        console.log('[AutoUpdater] Version courante :', app.getVersion());
+
+        autoUpdater.logger = {
+          info:  (msg) => console.log('[AutoUpdater]', msg),
+          warn:  (msg) => console.warn('[AutoUpdater]', msg),
+          error: (msg) => console.error('[AutoUpdater]', msg),
+          debug: (msg) => console.log('[AutoUpdater][debug]', msg),
+        };
+
+        autoUpdater.checkForUpdatesAndNotify()
+          .then(result => {
+            if (result) {
+              console.log('[AutoUpdater] Réponse checkForUpdatesAndNotify :', JSON.stringify(result.updateInfo || result));
+            } else {
+              console.log('[AutoUpdater] checkForUpdatesAndNotify a renvoyé null (pas de mise à jour).');
+            }
+          })
+          .catch(err => {
+            console.error('[AutoUpdater] Erreur lors de checkForUpdatesAndNotify :', err.message);
+            console.error('[AutoUpdater] Stack :', err.stack);
+          });
       }
-
-      autoUpdater.logger = {
-        info:  (msg) => console.log('[AutoUpdater]', msg),
-        warn:  (msg) => console.warn('[AutoUpdater]', msg),
-        error: (msg) => console.error('[AutoUpdater]', msg),
-        debug: (msg) => console.log('[AutoUpdater][debug]', msg),
-      };
-
-      autoUpdater.checkForUpdatesAndNotify()
-        .then(result => {
-          if (result) {
-            console.log('[AutoUpdater] Réponse checkForUpdatesAndNotify :', JSON.stringify(result.updateInfo || result));
-          } else {
-            console.log('[AutoUpdater] checkForUpdatesAndNotify a renvoyé null (pas de mise à jour ou mode dev sans config)');
-          }
-        })
-        .catch(err => {
-          console.error('[AutoUpdater] Erreur lors de checkForUpdatesAndNotify :', err.message);
-          console.error('[AutoUpdater] Stack :', err.stack);
-        });
 
       // Windows/Linux : ouvrir le fichier passé en argument
       if (pendingFilePath) {

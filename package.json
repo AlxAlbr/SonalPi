@@ -11,7 +11,9 @@
     "start": "electron .",
     "build": "electron-builder",
     "publish": "electron-builder --publish always",
-    "build-icons": "electron-icon-builder --input=./icon/icon.png --output=./dist"
+    "build-icons": "electron-icon-builder --input=./icon/icon.png --output=./dist",
+    "test": "node --test test/*.test.mjs",
+    "test:update": "UPDATE_GOLDEN=1 node --test test/*.test.mjs"
   },
   "build": {
     "appId": "com.sonal.id",
@@ -56,6 +58,7 @@
       "package.json",
       "preload.js",
       "renderer.js",
+      "src/**/*",
       "index.html",
       "ajout-entretien.html",
       "edition_categories.html",
@@ -107,6 +110,7 @@
   "devDependencies": {
     "electron": "38.1.2",
     "electron-builder": "^26.0.12",
-    "electron-icon-builder": "^2.0.1"
+    "electron-icon-builder": "^2.0.1",
+    "jsdom": "^24.1.3"
   }
 }

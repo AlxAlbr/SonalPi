@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fichier Whispurge</title>
+   <link href="http://www.sonal-info.com/WHSPRG/CSS/Styles.css" rel="stylesheet"  type="text/css">  
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous"> 
+   
+   <style> 
+
+
+    body { margin: 20px; padding: 60px; font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; };
+    h1 { font-size: 24px; margin-bottom: 10px; };
+    h2 { font-size: 20px; margin-bottom: 8px; };
+    
+    .cat_001{
+        
+        
+        }
+    .cat_002{
+        
+        font-size: 24;
+            font-weight: bold;
+            
+        }
+    .cat_003{
+        
+        font-size: 22;
+            font-weight: bold;
+            
+        }
+    .cat_004{
+        
+        font-size: 20;
+            font-weight: bold;
+            
+        }
+    .cat_005{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #0331ff60 95%, #0331ff 100%); 
+            
+        }
+    .cat_006{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #42a5f560 95%, #42a5f5 100%); 
+            
+        }
+    .cat_007{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #90caf960 95%, #90caf9 100%); 
+            
+        }
+    .cat_008{
+        
+        background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, #d8431560 95%, #d84315 100%); 
+            
+        }
+    
+</style>
+ </head>
+ 
+<body>
+<script id="loc-json" type="application/json">
+        {
+            ["","Interviewer2","Interviewé2"]         
+        }
+</script> 
+<script id="cat-json" type="application/json">
+        {
+            
+            [{"code":"cat_001","couleur":"","nom":"Pondérations","taille":"","cmpct":false,"rang":"0","act":true},{"code":"cat_002","couleur":"","nom":"★★★ Très important","taille":24,"cmpct":false,"rang":"1","act":true},{"code":"cat_003","couleur":"","nom":"★★☆ Assez important","taille":22,"cmpct":false,"rang":"1","act":true},{"code":"cat_004","couleur":"","nom":"★☆☆ Important","taille":20,"cmpct":false,"rang":"1","act":true},{"code":"cat_005","couleur":"#0331ff","nom":"Cat1","taille":"","cmpct":false,"rang":"0","act":true},{"code":"cat_006","couleur":"#42a5f5","nom":"SousCat1","taille":"","cmpct":false,"rang":"1","act":true},{"code":"cat_007","couleur":"#90caf9","nom":"SousCat2","taille":"","cmpct":false,"rang":"1","act":true},{"code":"cat_008","couleur":"#d84315","nom":"Cat2","taille":"","cmpct":false,"rang":"0","act":true}]          
+        }
+</script> 
+<script id="var-json" type="application/json">
+        {
+            [{"v":1,"lib":"Lieu","champ":"gen","priv":"false"},{"v":2,"lib":"sexe","champ":"loc","priv":"false"},{"v":3,"lib":"PCS","champ":"loc","priv":"false"}]          
+        }
+</script> 
+<script id="dic-json" type="application/json">
+        {   
+            [{"v":1,"m":0,"lib":""},{"v":1,"m":1,"lib":"MonTest"},{"v":2,"m":0,"lib":""},{"v":2,"m":1,"lib":"Homme"},{"v":2,"m":2,"lib":"Femme"},{"v":2,"m":3,"lib":"Autre"},{"v":3,"m":0,"lib":""}]          
+        }
+</script> 
+<script id="dat-json" type="application/json">
+        {   
+            [{"e":"2","v":1,"l":"all","m":1},{"e":"2","v":2,"l":1,"m":0},{"e":"2","v":2,"l":2,"m":1}]          
+        }
+</script> 
+<script id="anon-json" type="application/json">
+        {   
+            []          
+        }
+</script> 
+
+    <div style="margin-bottom: 5px !important; 
+	margin-bottom: 5px !important;
+	margin: 40px;"
+	>
+
+    <H2 > Notes</H2>
+    
+        <div id="txtnotes">
+        test
+        </div>
+    </div>
+     <div id="contenuText"> 
+     <span class="lblseg sautlig ligloc" data-deb="1.1" data-fin="4.306" data-loc="1" tabindex="1" data-rksg="0" data-nomloc="Interviewer2"><span class="" data-rk="1" data-sg="0" data-len="16">Bonjour, merci d'avoir accepté cet entretien. </span></span><span class="lblseg sautlig" data-deb="4.346" data-fin="7.487" data-loc="1" tabindex="17" data-rksg="1"><span class="" data-rk="17" data-sg="1" data-len="16">Pouvez-vous vous présenter en quelques mots ? </span></span><span class="lblseg sautlig ligloc" data-deb="7.487" data-fin="74.138" data-loc="2" tabindex="33" data-rksg="2" data-statut="deb" data-nomloc="Interviewé2"><span class="cat_006 cat_007" data-rk="33" data-sg="2" data-len="48">Bonjour, je m'appelle Pierre Lemaitre, j'ai 55 ans et je suis agriculteur en Bretagne, dans le Morbihan. Je suis marié </span><span class="cat_005" data-rk="81" data-sg="2" data-len="17">depuis 30 ans et nous avons deux enfants adultes</span><span class="cat_005 cat_007" data-rk="98" data-sg="2"> </span><span class="cat_006 cat_007" data-rk="99" data-sg="2" data-len="183">qui ont choisi des métiers en dehors de l'agriculture. J'exploite une ferme de 120 hectares et je cultive principalement du blé et du maïs, avec un petit élevage de bovins. générations. La vie à la campagne est agréable mais c'est un métier qui demande énormément d'investissements personnels. Pouvez-vous nous parler de votre parcours scolaire et professionnel ? J'ai passé un bac agricole avant de suivre un BTS en gestion et production agricole. Ensuite, j'ai travaillé quelques années chez un agriculteur voisin </span><span class="cat_008 cat_006 cat_007" data-rk="282" data-sg="2" data-len="16">avant de reprendre la ferme familiale, après le</span><span class="cat_006 cat_007" data-rk="298" data-sg="2" data-len="119"> départ à la retraite de mon père. J'ai dû moderniser les équipements et adapter les cultures aux nouvelles exigences du marché. Aujourd'hui, les contraintes sont de plus en plus lourdes, normes environnementales, pression des coopératives, hausse des coûts de production. Ce n'est pas facile, mais c'est un métier qui me passionne.</span></span><span class="lblseg sautlig ligloc" data-deb="74.138" data-fin="74.222" data-loc="1" tabindex="417" data-rksg="3" data-statut="fin" data-nomloc="Interviewer2"><span class="" data-rk="417" data-sg="3"> </span></span><span class="lblseg sautlig" data-deb="75.623" data-fin="81.248" data-loc="1" tabindex="418" data-rksg="4"><span class="" data-rk="418" data-sg="4" data-len="22">Comment percevez-vous la récente réforme des retraites en France ? </span></span><span class="lblseg sautlig" data-deb="81.248" data-fin="85.271" data-loc="1" tabindex="440" data-rksg="5"><span class="" data-rk="440" data-sg="5" data-len="24">Pour les agriculteurs, la question des retraites a toujours été compliquée. </span></span><span class="lblseg sautlig" data-deb="85.331" data-fin="90.916" data-loc="1" tabindex="464" data-rksg="6"><span class="" data-rk="464" data-sg="6" data-len="33">On cotise souvent moins que dans d'autres professions et nos pensions sont bien plus faibles. </span></span><span class="lblseg sautlig" data-deb="90.956" data-fin="97.881" data-loc="1" tabindex="497" data-rksg="7"><span class="" data-rk="497" data-sg="7" data-len="53">Travailler jusqu'à 64 ans, voire plus, c'est une évidence pour beaucoup d'entre nous parce qu'on n'a pas d'autre choix. </span></span><span class="lblseg sautlig" data-deb="97.90100000000001" data-fin="101.525" data-loc="1" tabindex="550" data-rksg="8"><span class="cat_006" data-rk="550" data-sg="8" data-len="24">Mais ce que je trouve injuste, c'est le manque de reconnaissance</span><span class="" data-rk="574" data-sg="8" data-len="14"> de la pénibilité de notre travail. </span></span><span class="lblseg sautlig" data-deb="102.345" data-fin="107.88900000000001" data-loc="1" tabindex="588" data-rksg="9"><span class="" data-rk="588" data-sg="9" data-len="36">Travailler dehors dans le froid, sous la pluie, porter des charges lourdes, c'est usant physiquement. </span></span><span class="lblseg sautlig" data-deb="107.90899999999999" data-fin="113.233" data-loc="1" tabindex="624" data-rksg="10"><span class="" data-rk="624" data-sg="10" data-len="31">Beaucoup d'agriculteurs n'arrivent même pas à profiter de leur retraite en bonne santé. </span></span><span class="lblseg sautlig" data-deb="113.273" data-fin="118.797" data-loc="1" tabindex="655" data-rksg="11"><span class="" data-rk="655" data-sg="11" data-len="28">Pensez-vous que le système présidentiel en France pose des problèmes de démocratie ? </span></span><span class="lblseg sautlig" data-deb="118.797" data-fin="119.37700000000001" data-loc="1" tabindex="683" data-rksg="12"><span class="" data-rk="683" data-sg="12" data-len="13">Il y a un vrai problème. </span></span><span class="lblseg sautlig" data-deb="123.55" data-fin="128.612" data-loc="1" tabindex="696" data-rksg="13"><span class="" data-rk="696" data-sg="13" data-len="29">Les décisions sont prises depuis Paris sans vraiment consulter ceux qui sont directement concernés. </span></span><span class="lblseg sautlig" data-deb="128.692" data-fin="133.534" data-loc="1" tabindex="725" data-rksg="14"><span class="" data-rk="725" data-sg="14" data-len="29">On nous impose des normes, des réglementations, sans prendre en compte nos contraintes. </span></span><span class="lblseg sautlig" data-deb="133.614" data-fin="139.356" data-loc="1" tabindex="754" data-rksg="15"><span class="" data-rk="754" data-sg="15" data-len="36">Il faudrait plus de concertation, donner plus de poids aux régions et aux représentants du monde agricole. </span></span><span class="lblseg sautlig" data-deb="139.436" data-fin="145.518" data-loc="1" tabindex="790" data-rksg="16"><span class="" data-rk="790" data-sg="16" data-len="37">On voit bien que les manifestations agricoles se multiplient parce que les agriculteurs ne se sentent pas écoutés. </span></span><span class="lblseg sautlig" data-deb="145.619" data-fin="150.561" data-loc="1" tabindex="827" data-rksg="17"><span class="" data-rk="827" data-sg="17" data-len="26">Et quel est votre regard sur l'Europe et les conflits internationaux ? </span></span><span class="lblseg sautlig" data-deb="150.561" data-fin="153.883" data-loc="1" tabindex="853" data-rksg="18"><span class="" data-rk="853" data-sg="18" data-len="22">L'Union européenne, c'est un couteau à double tranchant. </span></span><span class="lblseg sautlig" data-deb="153.923" data-fin="162.627" data-loc="1" tabindex="875" data-rksg="19"><span class="" data-rk="875" data-sg="19" data-len="60">D'un côté, elle apporte des aides précieuses via la PAC, mais de l'autre, elle impose des règles qui ne sont pas toujours adaptées à notre réalité. </span></span><span class="lblseg sautlig" data-deb="162.667" data-fin="168.99099999999999" data-loc="1" tabindex="935" data-rksg="20"><span class="" data-rk="935" data-sg="20" data-len="33">La concurrence déloyale avec des pays où les normes sont bien plus souples nous pénalise énormément. </span></span><span class="lblseg sautlig" data-deb="169.031" data-fin="171.552" data-loc="1" tabindex="968" data-rksg="21"><span class="" data-rk="968" data-sg="21" data-len="18">Concernant l'Ukraine, la guerre est une tragédie. </span></span><span class="lblseg sautlig" data-deb="172.172" data-fin="178.155" data-loc="1" tabindex="986" data-rksg="22"><span class="" data-rk="986" data-sg="22" data-len="44">Mais elle a aussi un impact direct sur notre secteur, notamment avec l'augmentation des prix des engrais et des céréales. </span></span><span class="lblseg sautlig" data-deb="178.175" data-fin="184.018" data-loc="1" tabindex="1030" data-rksg="23"><span class="" data-rk="1030" data-sg="23" data-len="40">Quant aux États-Unis, ils imposent leur modèle économique et agricole et ont peine à rivaliser avec leur puissance. </span></span><span class="lblseg sautlig" data-deb="185.219" data-fin="189.481" data-loc="1" tabindex="1070" data-rksg="24"><span class="" data-rk="1070" data-sg="24" data-len="22">Quelles sont vos opinions politiques et votre rapport au vote ? </span></span><span class="lblseg sautlig" data-deb="189.481" data-fin="192.102" data-loc="1" tabindex="1092" data-rksg="25"><span class="" data-rk="1092" data-sg="25" data-len="21">J'ai toujours voté et c'est important pour moi. </span></span><span class="lblseg sautlig" data-deb="192.142" data-fin="195.844" data-loc="1" tabindex="1113" data-rksg="26"><span class="" data-rk="1113" data-sg="26" data-len="24">Je suis plutôt conservateur, attaché aux valeurs rurales et au travail. </span></span><span class="lblseg sautlig" data-deb="197.363" data-fin="205.905" data-loc="1" tabindex="1137" data-rksg="27"><span class="" data-rk="1137" data-sg="27" data-len="59">Je me suis longtemps retrouvé dans des partis de droite, mais ces dernières années, je trouve qu'ils sont trop centrés sur les villes et oublient les campagnes. </span></span><span class="lblseg sautlig" data-deb="205.945" data-fin="212.126" data-loc="1" tabindex="1196" data-rksg="28"><span class="" data-rk="1196" data-sg="28" data-len="46">De plus en plus d'agriculteurs se tournent vers des mouvements plus radicaux, parce qu'ils ont le sentiment d'être abandonnés. </span></span><span class="lblseg sautlig" data-deb="212.166" data-fin="217.347" data-loc="1" tabindex="1242" data-rksg="29"><span class="" data-rk="1242" data-sg="29" data-len="41">Pour ma part, je continue de voter, mais je suis de plus en plus méfiant envers les promesses électorales. </span></span><span class="lblseg sautlig" data-deb="217.447" data-fin="222.428" data-loc="1" tabindex="1283" data-rksg="30"><span class="" data-rk="1283" data-sg="30" data-len="45">Ce que je veux, c'est une politique qui soutienne vraiment le monde agricole, pas juste des discours lors des crises. </span></span> 
+</div></body>

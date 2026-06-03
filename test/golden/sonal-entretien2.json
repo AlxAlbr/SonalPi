@@ -1,0 +1,274 @@
+{
+  "anon": [],
+  "codages": {
+    "cat_005": 2,
+    "cat_006": 5,
+    "cat_007": 5,
+    "cat_008": 1
+  },
+  "commentaires": [],
+  "locuteurs": [
+    {
+      "loc": "1",
+      "nomloc": "Interviewer2"
+    },
+    {
+      "loc": "1",
+      "nomloc": null
+    },
+    {
+      "loc": "2",
+      "nomloc": "Interviewé2"
+    }
+  ],
+  "segments": [
+    {
+      "deb": "1.1",
+      "fin": "4.306",
+      "loc": "1",
+      "nomloc": "Interviewer2",
+      "rksg": "0",
+      "statut": null
+    },
+    {
+      "deb": "4.346",
+      "fin": "7.487",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "1",
+      "statut": null
+    },
+    {
+      "deb": "7.487",
+      "fin": "74.138",
+      "loc": "2",
+      "nomloc": "Interviewé2",
+      "rksg": "2",
+      "statut": "deb"
+    },
+    {
+      "deb": "74.138",
+      "fin": "74.222",
+      "loc": "1",
+      "nomloc": "Interviewer2",
+      "rksg": "3",
+      "statut": "fin"
+    },
+    {
+      "deb": "75.623",
+      "fin": "81.248",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "4",
+      "statut": null
+    },
+    {
+      "deb": "81.248",
+      "fin": "85.271",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "5",
+      "statut": null
+    },
+    {
+      "deb": "85.331",
+      "fin": "90.916",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "6",
+      "statut": null
+    },
+    {
+      "deb": "90.956",
+      "fin": "97.881",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "7",
+      "statut": null
+    },
+    {
+      "deb": "97.90100000000001",
+      "fin": "101.525",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "8",
+      "statut": null
+    },
+    {
+      "deb": "102.345",
+      "fin": "107.88900000000001",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "9",
+      "statut": null
+    },
+    {
+      "deb": "107.90899999999999",
+      "fin": "113.233",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "10",
+      "statut": null
+    },
+    {
+      "deb": "113.273",
+      "fin": "118.797",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "11",
+      "statut": null
+    },
+    {
+      "deb": "118.797",
+      "fin": "119.37700000000001",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "12",
+      "statut": null
+    },
+    {
+      "deb": "123.55",
+      "fin": "128.612",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "13",
+      "statut": null
+    },
+    {
+      "deb": "128.692",
+      "fin": "133.534",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "14",
+      "statut": null
+    },
+    {
+      "deb": "133.614",
+      "fin": "139.356",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "15",
+      "statut": null
+    },
+    {
+      "deb": "139.436",
+      "fin": "145.518",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "16",
+      "statut": null
+    },
+    {
+      "deb": "145.619",
+      "fin": "150.561",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "17",
+      "statut": null
+    },
+    {
+      "deb": "150.561",
+      "fin": "153.883",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "18",
+      "statut": null
+    },
+    {
+      "deb": "153.923",
+      "fin": "162.627",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "19",
+      "statut": null
+    },
+    {
+      "deb": "162.667",
+      "fin": "168.99099999999999",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "20",
+      "statut": null
+    },
+    {
+      "deb": "169.031",
+      "fin": "171.552",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "21",
+      "statut": null
+    },
+    {
+      "deb": "172.172",
+      "fin": "178.155",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "22",
+      "statut": null
+    },
+    {
+      "deb": "178.175",
+      "fin": "184.018",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "23",
+      "statut": null
+    },
+    {
+      "deb": "185.219",
+      "fin": "189.481",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "24",
+      "statut": null
+    },
+    {
+      "deb": "189.481",
+      "fin": "192.102",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "25",
+      "statut": null
+    },
+    {
+      "deb": "192.142",
+      "fin": "195.844",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "26",
+      "statut": null
+    },
+    {
+      "deb": "197.363",
+      "fin": "205.905",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "27",
+      "statut": null
+    },
+    {
+      "deb": "205.945",
+      "fin": "212.126",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "28",
+      "statut": null
+    },
+    {
+      "deb": "212.166",
+      "fin": "217.347",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "29",
+      "statut": null
+    },
+    {
+      "deb": "217.447",
+      "fin": "222.428",
+      "loc": "1",
+      "nomloc": null,
+      "rksg": "30",
+      "statut": null
+    }
+  ]
+}
