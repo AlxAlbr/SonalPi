@@ -4,3 +4,4 @@ dist/
 site/
 .env
 *.md
+/TestInteropFromSonal/*

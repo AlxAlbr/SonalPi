@@ -744,7 +744,27 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlContent;
-        
+
+        return trouverOccurrencesDansDoc(tempDiv, entite, pseudo);
+
+    } catch (error) {
+        console.error("Erreur dans trouverOccurrencesAvecContexte():", error);
+        return [];
+    }
+}
+
+/**
+ * Cœur de la détection d'occurrences, opérant sur un document HTML DÉJÀ parsé.
+ * Extrait de trouverOccurrencesAvecContexte pour permettre le scan « passe unique »
+ * du corpus (§4 du plan) : un seul parse HTML par entretien, réutilisé pour toutes
+ * les paires, au lieu d'un fetch+parse par (entité × entretien).
+ * @param {HTMLElement} tempDiv - racine DOM contenant le HTML de l'entretien
+ * @param {string} entite - entité à chercher
+ * @param {string} pseudo - pseudonyme (pour détecter l'application)
+ * @returns {Array} occurrences (mêmes objets {entite, contextAvant, contextApres, applique, exclue, spanId})
+ */
+function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
+    try {
         const occurrences = [];
         // Insensible à la casse ('i') + tous les alias « / » de l'entité (alternance échappée).
         const regexEntite = construireRegexEntite(entite, 'gi');
@@ -938,11 +958,90 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
         }
 
         return occurrences;
-        
+
     } catch (error) {
-        console.error("Erreur dans trouverOccurrencesAvecContexte():", error);
+        console.error("Erreur dans trouverOccurrencesDansDoc():", error);
         return [];
     }
+}
+
+/**
+ * Pré-filtre du scan corpus : indique si l'entité PEUT figurer dans un entretien,
+ * en testant si au moins un de ses alias (séparés par « / ») a tous ses tokens
+ * présents dans l'ensemble des mots de l'entretien (insensible à la casse).
+ * Conservateur : ne doit jamais écarter un entretien qui contient réellement l'entité
+ * (les spans déjà pseudonymisés/exclus conservent le mot original dans leur textContent).
+ * @param {string} entite
+ * @param {Set<string>} motsPresents - mots (lowercased) présents dans l'entretien
+ * @returns {boolean}
+ */
+function entitePeutEtrePresente(entite, motsPresents) {
+    return entite.split('/').some(alias => {
+        const tokens = alias.trim().toLowerCase().split(/[\s ]+/).filter(t => t);
+        return tokens.length > 0 && tokens.every(t => motsPresents.has(t));
+    });
+}
+
+/**
+ * Scan « état » du corpus (Phase 2, §4) : pour chaque paire (entité, pseudo),
+ * agrège sur tous les entretiens le nombre d'occurrences anonymisées / exceptions /
+ * non traitées, et le nombre d'entretiens où l'entité apparaît.
+ * Optimisé par la passe unique : un seul parse HTML par entretien + pré-filtre par Set de mots.
+ * Met à jour la barre de progression globale si disponible.
+ * @param {Array} anonValides - paires {entite, remplacement}
+ * @param {Array} tabEnt - entretiens (l'index dans ce tableau = index getHtml)
+ * @returns {Promise<Map<string,{nbAnon:number,nbExc:number,nbNon:number,nbEntretiens:number}>>}
+ *          clé = `${entite.trim()}|${remplacement.trim()}`
+ */
+async function scannerEtatCorpus(anonValides, tabEnt) {
+    const stats = new Map();
+    for (const a of anonValides) {
+        stats.set(`${a.entite.trim()}|${a.remplacement.trim()}`,
+                  { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
+    }
+
+    const n = tabEnt.length;
+    for (let i = 0; i < n; i++) {
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { html = null; }
+
+        if (typeof updateProgressBar === 'function') {
+            updateProgressBar(Math.round(((i + 1) / n) * 100));
+        }
+
+        if (html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+
+            // Pré-filtre : un seul Set de mots pour tout l'entretien.
+            const motsPresents = new Set();
+            tempDiv.querySelectorAll('[data-rk]').forEach(s => {
+                const t = s.textContent.trim();
+                if (t) motsPresents.add(t.toLowerCase());
+            });
+
+            for (const a of anonValides) {
+                const entite = a.entite.trim();
+                const pseudo = a.remplacement.trim();
+                if (!entitePeutEtrePresente(entite, motsPresents)) continue;
+
+                const occ = trouverOccurrencesDansDoc(tempDiv, entite, pseudo);
+                if (occ.length === 0) continue;
+
+                const st = stats.get(`${entite}|${pseudo}`);
+                if (!st) continue;
+                st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
+                st.nbExc  += occ.filter(o => o.exclue).length;
+                st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
+                st.nbEntretiens += 1;
+            }
+        }
+
+        // Laisser respirer l'UI (rendu de la barre de progression) périodiquement.
+        if (i % 5 === 4) await new Promise(r => setTimeout(r, 0));
+    }
+
+    return stats;
 }
 
 /**
@@ -1446,6 +1545,23 @@ async function affichAnonGen() {
         // Filtrer les anonymisations valides (avec entité et remplacement)
         const anonValides = tabAnonGlobal.filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim());
 
+        // === INDEX POUR LES FILTRES INSTANTANÉS (Famille 1, sans scan) ===
+        // Calculés depuis les règles seules : aucune lecture du texte des entretiens.
+        //  - conflit  : une même entité est mappée sur plusieurs pseudos différents (arbitrage)
+        //  - collision : un même pseudo est partagé par plusieurs entités différentes (fuite/confusion)
+        const idxParEntite = new Map(); // entite (trim) -> Set(pseudo)
+        const idxParPseudo = new Map(); // pseudo (trim) -> Set(entite)
+        for (const a of anonValides) {
+            const e = a.entite.trim();
+            const p = a.remplacement.trim();
+            if (!idxParEntite.has(e)) idxParEntite.set(e, new Set());
+            idxParEntite.get(e).add(p);
+            if (!idxParPseudo.has(p)) idxParPseudo.set(p, new Set());
+            idxParPseudo.get(p).add(e);
+        }
+        const entitesEnConflit = new Set([...idxParEntite].filter(([, s]) => s.size > 1).map(([e]) => e));
+        const pseudosEnCollision = new Set([...idxParPseudo].filter(([, s]) => s.size > 1).map(([p]) => p));
+
         // Variable pour stocker l'état d'édition
         window.anonGenEditState = {};
 
@@ -1507,6 +1623,38 @@ async function affichAnonGen() {
         `;
         divAnonGen.appendChild(divEntete);
 
+        // === BARRE DE FILTRAGE (Phase 1 : filtres instantanés + recherche + tri) ===
+        // Opère uniquement sur les lignes déjà rendues (masquer/montrer + réordonner) :
+        // aucun scan du texte, tout est déduit des règles via les index ci-dessus.
+        const nbConflits = entitesEnConflit.size;
+        const nbCollisions = pseudosEnCollision.size;
+        const divFiltres = document.createElement("div");
+        divFiltres.className = "anon-gen-filtres";
+        divFiltres.innerHTML = `
+            <select id="anon-gen-filtre" class="anon-gen-select" title="Filtrer les entités">
+                <option value="toutes">Toutes les entités</option>
+                <optgroup label="Sans calcul (règles seules)">
+                    <option value="conflits">Conflits de pseudo${nbConflits ? ` (${nbConflits})` : ''}</option>
+                    <option value="collisions">Collisions de pseudo${nbCollisions ? ` (${nbCollisions})` : ''}</option>
+                </optgroup>
+                <optgroup label="Avec vérification du corpus">
+                    <option value="a_traiter">À traiter</option>
+                    <option value="avec_exceptions">Avec exceptions</option>
+                    <option value="bouclees">Entièrement anonymisées</option>
+                    <option value="partielles">Partiellement traitées</option>
+                </optgroup>
+            </select>
+            <button id="anon-gen-rescan" class="anon-gen-rescan" title="Recalculer l'état du corpus" style="display:none">↻</button>
+            <input type="text" id="anon-gen-recherche" class="anon-gen-recherche"
+                   placeholder="🔎 Rechercher (entité ou pseudo)…" autocomplete="off">
+            <select id="anon-gen-tri" class="anon-gen-select" title="Trier la liste">
+                <option value="az">Entité A→Z</option>
+                <option value="za">Entité Z→A</option>
+            </select>
+            <span id="anon-gen-compteur" class="anon-gen-compteur"></span>
+        `;
+        divAnonGen.appendChild(divFiltres);
+
         // Conteneur du tableau avec scroll
         const fondTab = document.createElement("div");
         fondTab.style.overflow = "auto";
@@ -1566,6 +1714,89 @@ async function affichAnonGen() {
                 }
             });
         });
+
+        // === CÂBLAGE DE LA BARRE DE FILTRAGE ===
+        const selectFiltre = document.getElementById("anon-gen-filtre");
+        const btnRescan = document.getElementById("anon-gen-rescan");
+        const inputRecherche = document.getElementById("anon-gen-recherche");
+        const selectTri = document.getElementById("anon-gen-tri");
+        const compteur = document.getElementById("anon-gen-compteur");
+
+        // Filtres nécessitant un scan du corpus (coûteux). Le résultat est mis en cache
+        // pour la durée d'affichage de la page ; il est recalculé à la réouverture
+        // (affichAnonGen recrée ce contexte) ou via le bouton ↻.
+        const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees', 'partielles']);
+        let cacheStatsCorpus = null;
+
+        const appliquerFiltrePseudos = async () => {
+            const filtre = selectFiltre.value;
+            const recherche = (inputRecherche.value || '').trim().toLowerCase();
+            const estEtat = FILTRES_ETAT.has(filtre);
+
+            // Le bouton ↻ n'a de sens que pour les filtres d'état (état du corpus).
+            if (btnRescan) btnRescan.style.display = estEtat ? '' : 'none';
+
+            // Filtre d'état : lancer le scan corpus si pas encore en cache (fenêtre de progression).
+            if (estEtat && !cacheStatsCorpus) {
+                if (typeof wait === 'function') wait("Vérification du corpus en cours…");
+                try {
+                    cacheStatsCorpus = await scannerEtatCorpus(anonValides, tabEnt);
+                } catch (e) {
+                    console.error("Erreur lors du scan d'état du corpus:", e);
+                } finally {
+                    if (typeof endWait === 'function') endWait();
+                }
+            }
+
+            let nbVisibles = 0;
+            for (const tr of lignes) {
+                const e = (tr.dataset.entite || '').trim();
+                const pData = (tr.dataset.pseudo || '').trim();
+                // Le pseudo peut avoir été édité dans l'input : on lit la valeur courante pour la recherche.
+                const inputP = tr.querySelector('.anon-pseudo-input');
+                const p = (inputP ? inputP.value : pData).trim();
+
+                let ok = true;
+                if (filtre === 'conflits') ok = entitesEnConflit.has(e);
+                else if (filtre === 'collisions') ok = pseudosEnCollision.has(pData);
+                else if (estEtat) {
+                    const st = cacheStatsCorpus ? cacheStatsCorpus.get(`${e}|${pData}`) : null;
+                    if (!st) ok = false;
+                    else if (filtre === 'a_traiter') ok = st.nbNon >= 1;
+                    else if (filtre === 'avec_exceptions') ok = st.nbExc >= 1;
+                    else if (filtre === 'bouclees') ok = st.nbAnon > 0 && st.nbNon === 0 && st.nbExc === 0;
+                    else if (filtre === 'partielles') ok = st.nbAnon >= 1 && st.nbNon >= 1;
+                }
+
+                if (ok && recherche) {
+                    ok = e.toLowerCase().includes(recherche) || p.toLowerCase().includes(recherche);
+                }
+
+                tr.style.display = ok ? '' : 'none';
+                if (ok) nbVisibles++;
+            }
+            compteur.textContent = `${nbVisibles} / ${lignes.length}`;
+        };
+
+        const trierPseudos = () => {
+            const sens = selectTri.value === 'za' ? -1 : 1;
+            [...lignes]
+                .sort((a, b) => a.dataset.entite.localeCompare(b.dataset.entite, 'fr', { sensitivity: 'base' }) * sens)
+                .forEach(tr => tbody.appendChild(tr));
+        };
+
+        if (selectFiltre && inputRecherche && selectTri && compteur) {
+            selectFiltre.addEventListener('change', appliquerFiltrePseudos);
+            inputRecherche.addEventListener('input', appliquerFiltrePseudos);
+            selectTri.addEventListener('change', trierPseudos);
+            if (btnRescan) {
+                btnRescan.addEventListener('click', () => {
+                    cacheStatsCorpus = null; // forcer un nouveau scan
+                    appliquerFiltrePseudos();
+                });
+            }
+            appliquerFiltrePseudos();
+        }
 
     } catch (error) {
         console.error("Erreur dans affichAnonGen():", error);
@@ -2652,6 +2883,55 @@ function ajouterStylesAnonGen() {
         /* Styles spécifiques pour la table d'anonymisation */
         .ligne-anon-gen {
             transition: background-color 0.2s;
+        }
+
+        /* Barre de filtrage de la page Pseudos */
+        .anon-gen-filtres {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            flex-wrap: wrap;
+        }
+        .anon-gen-select {
+            padding: 5px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+        .anon-gen-recherche {
+            flex: 1;
+            min-width: 140px;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .anon-gen-recherche:focus {
+            outline: none;
+            border-color: #1565c0;
+            box-shadow: 0 0 4px rgba(21, 101, 192, 0.25);
+        }
+        .anon-gen-compteur {
+            font-size: 0.8em;
+            color: #888;
+            white-space: nowrap;
+        }
+        .anon-gen-rescan {
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.95em;
+            line-height: 1;
+        }
+        .anon-gen-rescan:hover {
+            background: #f0f0f0;
+            border-color: #1565c0;
         }
 
         .ligne-anon-gen:hover {
