@@ -8,16 +8,16 @@
  * Seules les lignes avec entité initiale, entité de remplacement et occurrences > 0 sont exportées
  */
 function exportTableCorrespondance() {
-    if (typeof tabAnon === 'undefined' || !tabAnon) {
+    if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
         question("Aucune donnée d'anonymisation à exporter.", ['OK']);
         return;
     }
-    
+
     // Créer un tableau avec les lignes validées
     const correspondances = [];
-    
-    for (let i = 0; i < tabAnon.length; i++) {
-        const paire = tabAnon[i];
+
+    for (let i = 0; i < window.tabAnon.length; i++) {
+        const paire = window.tabAnon[i];
         
         // Vérifier que la ligne a été validée (entité + remplacement + au moins une occurrence)
         if (paire.entite && paire.remplacement && paire.occurrences > 0) {
