@@ -163,6 +163,7 @@ function mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnon
     if (!fondVerif) return;
     // Mémoriser l'entité en cours de vérification pour le rafraîchissement automatique
     window._lastVerifiedAnon = { entite: anon.entite, pseudo: anon.remplacement };
+    window._anonDetailDirty = false; // nouvelle entité affichée = nouvelle session sans modifications
     fondVerif.innerHTML = '';
     if (entretiensNonAnonymisee.length > 0 || entretiensAnonymisee.length > 0 || entretiensExclus.length > 0) {
         afficherOccurrencesEnAccordeon(fondVerif, anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
@@ -227,17 +228,7 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         scrollContainer.style.paddingTop = "10px";
         scrollContainer.style.paddingBottom = "60px"; // espace pour le bouton sticky en bas
         
-        // Titre
-        const titre = document.createElement("div");
-        titre.style.padding = "10px 12px";
-        titre.style.fontWeight = "bold";
-        titre.style.color = "#333";
-        titre.style.fontSize = "14px";
-        titre.style.borderBottom = "1px solid #eee";
-        titre.innerHTML = `Occurrences de <strong>"${anon.entite}"</strong> → <strong>"${anon.remplacement}"</strong>`;
-        scrollContainer.appendChild(titre);
-        
-        // Légende des couleurs
+        // Légende des couleurs (en tête, avant le titre de l'entité)
         const legende = document.createElement("div");
         legende.style.cssText = "padding:8px 12px;background:#f5f5f5;border-bottom:1px solid #eee;font-size:11px;color:#555;display:flex;flex-direction:column;gap:5px;";
         legende.innerHTML = `
@@ -260,6 +251,17 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
             </div>
         `;
         scrollContainer.appendChild(legende);
+
+        // Titre (après la légende)
+        const titre = document.createElement("div");
+        titre.style.padding = "10px 12px";
+        titre.style.fontWeight = "bold";
+        titre.style.color = "#333";
+        titre.style.fontSize = "14px";
+        titre.style.borderBottom = "1px solid #eee";
+        titre.innerHTML = `Occurrences de <strong>"${anon.entite}"</strong> → <strong>"${anon.remplacement}"</strong>`;
+        scrollContainer.appendChild(titre);
+
 
         // Case à cocher globale
         const checkboxGlobaleDiv = document.createElement("div");
@@ -645,24 +647,27 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
             updateBtnExceptionState();
             mettreAJourTexteOcc();
             mettreAJourBadges();
+            window._anonDetailDirty = true;
         });
 
         // Clic sur le bouton droit → active l'exception (seulement si la checkbox est cochée)
         btnException.addEventListener("click", (e) => {
             e.stopPropagation();
-            if (!checkboxOcc.checked) return; // sécurité : ne peut pas marquer exception si non-coché
+            if (!checkboxOcc.checked) return;
             btnException._pendingExclusion = true;
             checkboxOcc.checked = false;
             appliquerEtatException(true);
             updateBtnExceptionState();
             mettreAJourTexteOcc();
             mettreAJourBadges();
+            window._anonDetailDirty = true;
         });
 
         checkboxOcc.addEventListener("change", () => {
             updateBtnExceptionState();
             mettreAJourTexteOcc();
             mettreAJourBadges();
+            window._anonDetailDirty = true;
         });
 
         // Bouton ↗ : ouvre l'entretien sur le segment de cette occurrence
@@ -682,8 +687,21 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         btnNav.addEventListener("click", async (e) => {
             e.stopPropagation();
             try {
-                // Catégorie de l'occurrence et son index dans cette catégorie
-                // (pour que l'entretien active le bon compteur sur le bon match)
+                // Demander si des modifications sont en attente
+                if (window._anonDetailDirty) {
+                    const rep = await question(
+                        'Modifications non enregistrées\nDes modifications n\'ont pas été validées. Voulez-vous les enregistrer avant d\'ouvrir l\'entretien ?',
+                        ['Enregistrer', 'Ignorer', 'Annuler']
+                    );
+                    if (rep === 'annuler') return;
+                    if (rep === 'enregistrer') {
+                        const btnValider = document.querySelector('#fond_verif_anon .btn-primary');
+                        if (btnValider) btnValider.click();
+                        await new Promise(r => setTimeout(r, 400));
+                    }
+                    window._anonDetailDirty = false;
+                }
+
                 const occCat = occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
                 const occIdxInCat = occurrences
                     .slice(0, occurrences.indexOf(occ))
@@ -1464,6 +1482,7 @@ async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEn
             if (totalExclure   > 0) lignesMaj.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
             if (totalDesexclure > 0) lignesMaj.push(`🔓 ${totalDesexclure} exception(s) retirée(s)`);
             dialog('Message', `Changements enregistrés :\n${lignesMaj.join('\n')}`);
+            window._anonDetailDirty = false;
             // Level 2 : mise à jour du cache sans invalider le scan global
             await mettreAJourCacheEntite(anon.entite, anon.remplacement);
         } else {
@@ -2782,8 +2801,21 @@ async function ouvrirEntretienAnonGen(indexEnt) {
 /**
  * Masque la table d'anonymisation
  */
-function hideAnonGen() {
-    // Page dédiée : on retire entièrement l'overlay (table + zone de vérification).
+async function hideAnonGen() {
+    if (window._anonDetailDirty) {
+        const rep = await question(
+            'Modifications non enregistrées\nDes modifications dans le panneau de détail n\'ont pas été validées. Voulez-vous les enregistrer avant de quitter ?',
+            ['Enregistrer', 'Ignorer', 'Annuler']
+        );
+        if (rep === 'annuler') return;
+        if (rep === 'enregistrer') {
+            const btnValider = document.querySelector('#fond_verif_anon .btn-primary');
+            if (btnValider) btnValider.click();
+            // Laisser la sauvegarde se terminer avant de fermer
+            await new Promise(r => setTimeout(r, 400));
+        }
+        window._anonDetailDirty = false;
+    }
     const page = document.getElementById("divAnonGenPage");
     if (page) {
         page.remove();
