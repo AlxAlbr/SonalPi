@@ -159,6 +159,43 @@ function entitePresenterDansDOM(entite) {
  * Détecte automatiquement les occurrences de toutes les paires du tabAnon dans le texte
  * Utile pour initialiser les occurrences après la fusion de tabAnon
  */
+/**
+ * Pour une paire jamais validée (occurrences = 0) : trouve les occurrences dans le DOM
+ * et les marque data-anon-nt (à traiter / orange) SANS appliquer le pseudo ni la classe anon.
+ * L'application reste un geste volontaire (Enter / bouton Valider).
+ */
+function detecterOccurrencesNonTraitees(idxPaire) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.entite || !paire.entite.trim()) return;
+
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+    const matches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans);
+    if (matches.length === 0) return;
+
+    const matchPositions = matches.map(({ start, end }) => {
+        const firstSpan = tousLesSpans[start];
+        const estException = firstSpan ? firstSpan.classList.contains('anon-exception') : false;
+        const estAnon      = firstSpan ? firstSpan.classList.contains('anon') : false;
+        const isNonTraite  = !estException && !estAnon;
+
+        // Marquer les spans comme "à traiter" sans toucher aux classes CSS
+        for (let i = start; i <= end; i++) {
+            const s = tousLesSpans[i];
+            if (!s) continue;
+            if (isNonTraite) {
+                s.setAttribute('data-anon-nt', 'true');
+            } else {
+                s.removeAttribute('data-anon-nt');
+            }
+        }
+        return { start, end, isException: estException, isNonTraite };
+    });
+
+    paire.matchPositions = matchPositions;
+    paire.occurrences    = matches.length; // non-zéro pour que la paire reste visible
+    paire.indexCourant   = 0;
+}
+
 function detecterOccurrencesToutesLesPaires() {
     console.log("🔍 Détection automatique des occurrences pour toutes les paires...");
     
@@ -212,11 +249,13 @@ function detecterOccurrencesToutesLesPaires() {
             // Le DOM préservé par cleanHTML est la source de vérité pour toute paire déjà
             // appliquée (occurrences > 0) : réindexer sans toucher aux classes préserve
             // l'état anon / exclu / non-traité tel qu'il a été sauvegardé.
-            // Pour les nouvelles paires (occurrences = 0), appliquer normalement.
+            // Pour les paires jamais validées (occurrences = 0) : détecter les occurrences
+            // SANS appliquer le pseudo — elles restent "à traiter" (orange), l'application
+            // reste un geste volontaire de l'utilisateur.
             if (paire.occurrences > 0) {
                 reindexerMatchPositions(i);
             } else {
-                appliquerAnonymisationPour(i);
+                detecterOccurrencesNonTraitees(i);
             }
         }
     }
@@ -436,6 +475,42 @@ function affichTableauAnon() {
     setTimeout(() => {
         attacheExceptionListeners();
     }, 50);
+
+    // Navigation corpus → entretien : activer le compteur sur l'occurrence cible.
+    // On utilise les données sémantiques (entite, cat, index) — pas le span DOM,
+    // qui peut avoir un data-rk différent après cleanHTML si le HTML était compact.
+    if (window._pendingNavActivation) {
+        const { entite, pseudo, cat, occIdxInCat } = window._pendingNavActivation;
+        window._pendingNavActivation = null;
+        if (entite && cat && window.tabAnon) {
+            for (let idxPaire = 0; idxPaire < window.tabAnon.length; idxPaire++) {
+                const paire = window.tabAnon[idxPaire];
+                if (!paire.matchPositions || paire.matchPositions.length === 0) continue;
+                if (paire.entite.trim() !== entite.trim()) continue;
+
+                const catEffective = cat;
+                let matchesCat = paire.matchPositions
+                    .map((m, i) => ({ m, i }))
+                    .filter(({ m }) =>
+                        (cat === 'anon' && !m.isException && !m.isNonTraite) ||
+                        (cat === 'exc'  &&  m.isException) ||
+                        (cat === 'non'  &&  m.isNonTraite)
+                    );
+
+                if (matchesCat.length === 0) continue;
+
+                // Clamp au cas où l'index serait hors limites (état différent entre corpus et entretien)
+                const targetPosInCat = Math.min(occIdxInCat, matchesCat.length - 1);
+
+                // Positionner juste avant : allerCatSuivante atterrira exactement sur cette occurrence
+                paire[`indexCourant_${catEffective}`] = targetPosInCat - 1;
+
+                const btn = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="${catEffective}"]`);
+                if (btn) clicCompteur(btn, idxPaire, catEffective);
+                return;
+            }
+        }
+    }
 }
 
 /**
@@ -535,6 +610,13 @@ function sauvAnon(idx) {
         });
         affichTableauAnon();
         return;
+    }
+
+    // Cas 3 : entité + pseudo remplis mais ligne non encore validée (occurrences = 0).
+    // → rafraîchir le tableau pour que reindexerMatchPositions détecte les occurrences
+    //   présentes dans le texte et affiche le badge orange "à traiter".
+    if (nouvelleEntite && nouveauRemplacement && !aOccurrences) {
+        affichTableauAnon();
     }
 }
 
@@ -1926,6 +2008,20 @@ async function showMenuException(span, idxPaire, matchIdx) {
 ////////////////////////////////////////////////////////////////////////
 
 // Applique l'anonymisation sur une seule occurrence (match) sans toucher aux autres
+async function pseudonymiserOccurrenceEtSuivante(idxPaire, matchIdx) {
+    await pseudonymiserOccurrence(idxPaire, matchIdx);
+    // affichTableauAnon() a été appelé → flèches supprimées, _activeCounter = null.
+    // On passe par clicCompteur pour les rétablir et naviguer d'un coup.
+    const btnNon = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="non"]`);
+    if (btnNon) clicCompteur(btnNon, idxPaire, 'non');
+}
+
+async function marquerExceptionEtSuivante(idxPaire, matchIdx) {
+    await marquerExceptionDepuisNonTraite(idxPaire, matchIdx);
+    const btnNon = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="non"]`);
+    if (btnNon) clicCompteur(btnNon, idxPaire, 'non');
+}
+
 async function pseudonymiserOccurrence(idxPaire, matchIdx) {
     const paire = window.tabAnon[idxPaire];
     if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
@@ -2013,10 +2109,21 @@ function showMenuNonTraite(span, idxPaire, matchIdx) {
         }
     }
 
+    const nbNonTraite = paire.matchPositions.filter(m => m.isNonTraite).length;
+    const avecSuivante = nbNonTraite > 1;
+
     menuDiv.innerHTML = `
+        ${avecSuivante ? `
+        <div class="menu-item" onmousedown="pseudonymiserOccurrenceEtSuivante(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
+            ✓ Pseudonymiser et aller à la suivante
+        </div>` : ''}
         <div class="menu-item" onmousedown="pseudonymiserOccurrence(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ✓ Pseudonymiser cette occurrence
         </div>
+        ${avecSuivante ? `
+        <div class="menu-item" onmousedown="marquerExceptionEtSuivante(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
+            ⊘ Marquer comme exception et aller à la suivante
+        </div>` : ''}
         <div class="menu-item" onmousedown="marquerExceptionDepuisNonTraite(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ⊘ Marquer comme exception
         </div>

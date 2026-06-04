@@ -433,6 +433,12 @@ function hidepanG(){
   // Rafraîchir la page Pseudos à la fermeture d'une fenêtre entretien (si elle est ouverte)
   if (window.electronAPI && window.electronAPI.onEntretienFerme) {
       window.electronAPI.onEntretienFerme(async () => {
+          // La fenêtre entretien a son propre renderer (window séparé) : on ne peut pas
+          // détecter ses sauvegardes depuis ce renderer. On invalide le scan ici, au retour.
+          if (window._anonScanCache) {
+              window._anonScanStale = true;
+              window._anonIndexInverse = null;
+          }
           if (!document.getElementById('divAnonGenPage')) return;
           if (typeof affichAnonGen !== 'function') return;
           await affichAnonGen();

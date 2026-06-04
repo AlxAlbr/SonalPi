@@ -243,16 +243,20 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         legende.innerHTML = `
             <div style="display:flex;align-items:center;gap:6px;">
                 <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#ff9800;flex-shrink:0;"></span>
-                <span>Entretien en cours de traitement (occurrences non traitées)</span>
+                <span>Entretien avec occurrences non traitées</span>
             </div>
             <div style="display:flex;align-items:center;gap:6px;">
-                <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#2e7d32;flex-shrink:0;"></span>
-                <span>Entretien entièrement traité</span>
+                <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#558b2f;flex-shrink:0;"></span>
+                <span>Entretien traité (occurrences anonymisées ou en exception)</span>
             </div>
             <div style="display:flex;align-items:center;gap:14px;margin-top:2px;">
                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#4caf50;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> anonymisées</span>
                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#555;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> exceptions</span>
                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#ff9800;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> à traiter</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;margin-top:2px;border-top:1px solid #e0e0e0;padding-top:4px;">
+                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="font-size:13px;line-height:1;">🚫</span> Mettre cette occurrence en exception</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="font-size:14px;line-height:1;color:#1976d2;">↗</span> Voir l'occurrence dans l'entretien</span>
             </div>
         `;
         scrollContainer.appendChild(legende);
@@ -397,8 +401,8 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
     // Calcul de l'état visuel : bleu si tout traité (anonymisé ou exclu), orange sinon
     // On ne tient PAS compte de anonymisee : des variantes de casse peuvent rester non traitées
     const toutEstTraite = occurrences.length > 0 && occurrences.every(occ => occ.applique || occ.exclue);
-    const bgCouleur = toutEstTraite ? "#e8f5e9" : "#fff3e0";
-    const labelCouleur = toutEstTraite ? "#2e7d32" : "#f57c00";
+    const bgCouleur = toutEstTraite ? "#f1f8e9" : "#fff3e0";
+    const labelCouleur = toutEstTraite ? "#558b2f" : "#f57c00";
 
     // En-tête de l'accordéon
     const header = document.createElement("div");
@@ -508,8 +512,8 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         });
         // Mettre à jour le fond du header selon l'état courant
         const toutTraite = nbNon === 0 && (nbApp + nbExc) > 0;
-        header.style.backgroundColor = toutTraite ? '#e8f5e9' : '#fff3e0';
-        label.style.color = toutTraite ? '#2e7d32' : '#f57c00';
+        header.style.backgroundColor = toutTraite ? '#f1f8e9' : '#fff3e0';
+        label.style.color = toutTraite ? '#558b2f' : '#f57c00';
     };
 
     // Ajouter les occurrences
@@ -625,13 +629,10 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
                 btnException.style.pointerEvents = "auto";
                 btnException.style.cursor = "pointer";
             } else {
-                // Case décochée : bouton droit désactivé
+                // Case décochée : bouton exception complètement caché
                 checkboxOcc.style.display = "";
                 spanExceptionToggle.style.display = "none";
-                btnException.style.display = "";
-                btnException.style.opacity = "0.1";
-                btnException.style.pointerEvents = "none";
-                btnException.style.cursor = "default";
+                btnException.style.display = "none";
             }
         };
         updateBtnExceptionState();
@@ -646,9 +647,10 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
             mettreAJourBadges();
         });
 
-        // Clic sur le bouton droit → active l'exception
+        // Clic sur le bouton droit → active l'exception (seulement si la checkbox est cochée)
         btnException.addEventListener("click", (e) => {
             e.stopPropagation();
+            if (!checkboxOcc.checked) return; // sécurité : ne peut pas marquer exception si non-coché
             btnException._pendingExclusion = true;
             checkboxOcc.checked = false;
             appliquerEtatException(true);
@@ -680,13 +682,24 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         btnNav.addEventListener("click", async (e) => {
             e.stopPropagation();
             try {
-                // Mettre à jour l'entretien courant dans main avant l'ouverture
-                // (le renderer de la fenêtre d'édition lit ent_cur via getEntCur).
+                // Catégorie de l'occurrence et son index dans cette catégorie
+                // (pour que l'entretien active le bon compteur sur le bon match)
+                const occCat = occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
+                const occIdxInCat = occurrences
+                    .slice(0, occurrences.indexOf(occ))
+                    .filter(o =>
+                        (occCat === 'exc'  &&  o.exclue) ||
+                        (occCat === 'anon' && !o.exclue &&  o.applique) ||
+                        (occCat === 'non'  && !o.exclue && !o.applique)
+                    ).length;
+
                 await window.electronAPI.setEntCur(entIndex);
                 await window.electronAPI.editerEntretien(entIndex, {
                     entite: anon.entite,
                     pseudo: anon.remplacement,
-                    spanId: occ.spanId
+                    spanId: occ.spanId,
+                    occCat,
+                    occIdxInCat
                 });
             } catch (err) {
                 console.error("Erreur lors de l'ouverture de l'entretien:", err);
@@ -1586,14 +1599,21 @@ async function mettreAJourCacheEntite(entite, pseudo) {
     const tr = document.querySelector(`tr[data-entite="${CSS.escape(entite)}"][data-pseudo="${CSS.escape(pseudo)}"]`);
     if (!tr) return;
     const tdEtat = tr.querySelector('.td-etat-corpus');
-    if (tdEtat && tdEtat.style.display !== 'none') {
+    if (tdEtat) {
+        tdEtat.style.display = ''; // toujours rendre visible si un scan est valide
         let badgesHtml = '';
         if (st.nbAnon > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
         if (st.nbExc  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-exc"  title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
         if (st.nbNon  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-non"  title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
         tdEtat.innerHTML = badgesHtml || '<span style="color:#bbb;font-size:0.8rem;">—</span>';
     }
-    tr.style.backgroundColor = st.nbNon > 0 ? '#fff3e0' : '';
+    if (st.nbNon > 0) {
+        tr.style.backgroundColor = '#fff3e0';
+    } else if ((st.nbAnon + st.nbExc) > 0) {
+        tr.style.backgroundColor = '#e8f5e9';
+    } else {
+        tr.style.backgroundColor = '';
+    }
 }
 
 /**
@@ -2954,15 +2974,10 @@ function afficherModaleAjoutEntiteAnon() {
         if (window._anonScanCache && !window._anonScanStale && window._anonIndexInverse) {
             const key = `${entite}|${pseudo}`;
             window._anonScanCache.set(key, { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
+            // mettreAJourCacheEntite rend la td visible et écrit les badges
             await mettreAJourCacheEntite(entite, pseudo);
-            // Rendre visible la colonne si ce n'est pas déjà le cas
             const thEtat = document.querySelector('.header-col-etat-corpus');
             if (thEtat) thEtat.style.display = '';
-            const tr = document.querySelector(`tr[data-entite="${CSS.escape(entite)}"][data-pseudo="${CSS.escape(pseudo)}"]`);
-            if (tr) {
-                const tdEtat = tr.querySelector('.td-etat-corpus');
-                if (tdEtat) tdEtat.style.display = '';
-            }
         }
     });
     conteneurBoutons.appendChild(btnOK);

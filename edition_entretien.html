@@ -492,6 +492,22 @@ window.addEventListener('unload', (event) => {
 
                 </div>
 
+                <div id="legende-anon" style="font-size:11px;color:#555;background:#f5f5f5;border:1px solid #eee;border-radius:4px;padding:7px 10px;margin-bottom:8px;display:flex;flex-direction:column;gap:5px;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-anon" style="pointer-events:none;">N</span> anonymisées</span>
+                        <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-exc" style="pointer-events:none;">N</span> exceptions</span>
+                        <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-non" style="pointer-events:none;">N</span> à traiter</span>
+                    </div>
+                    <div style="display:flex;align-items:baseline;gap:4px;">
+                        <span style="flex-shrink:0;">◄ N ►</span>
+                        <span>Cliquer sur un compteur pour naviguer entre les occurrences</span>
+                    </div>
+                    <div style="display:flex;align-items:baseline;gap:4px;">
+                        <span style="flex-shrink:0;">🖱</span>
+                        <span>Clic gauche sur occurrence dans texte : changer son statut ou remonter au niveau Corpus</span>
+                    </div>
+                </div>
+
                 <div id="tableauAnon"></div>
 
             </div>
@@ -772,6 +788,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     void span.offsetWidth;
                     span.classList.add('nav-highlight');
                     setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                    // Stocker les infos sémantiques (pas le span DOM, instable après cleanHTML).
+                    // affichTableauAnon() les consommera une fois matchPositions et boutons prêts.
+                    window._pendingNavActivation = {
+                        entite:       navTarget.entite,
+                        pseudo:       navTarget.pseudo,
+                        cat:          navTarget.occCat || 'non',
+                        occIdxInCat:  navTarget.occIdxInCat || 0
+                    };
                 } catch (err) {
                     console.error("Erreur focalisation navigation:", err);
                 }
@@ -823,20 +847,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (segmentsElem) {
         // Handler partagé pour click et contextmenu
         const handleSegmentsEvent = function(event) {
-            // En mode pseudonymisation, clic sur un span anonymisé → menu d'exception
+            // En mode pseudonymisation : tous les clics (gauche et droit) restent dans
+            // le domaine de la pseudonymisation → on bloque systématiquement le menu générique.
             if (typeAction === 'anon') {
                 const spanAnon = event.target.closest('[data-rk]');
-                if (spanAnon && (spanAnon.classList.contains('anon') || spanAnon.classList.contains('anon-exception'))) {
-                    if (event.type === 'contextmenu') {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    }
-                    if (gererMenuException(spanAnon)) {
-                        event.stopPropagation();
-                        return;
-                    }
-                    return; // span anon cliqué mais match non trouvé → ignorer
+                const estSpanAnon = spanAnon && (
+                    spanAnon.classList.contains('anon') ||
+                    spanAnon.classList.contains('anon-exception') ||
+                    spanAnon.hasAttribute('data-anon-nt')
+                );
+                if (event.type === 'contextmenu') {
+                    event.preventDefault();
+                    event.stopPropagation();
                 }
+                if (estSpanAnon && gererMenuException(spanAnon)) {
+                    event.stopPropagation();
+                    return;
+                }
+                // Aucune action pseudonymisation trouvée mais on reste en mode anon :
+                // ne pas laisser le menu Copier s'afficher.
+                return;
             }
 
             // Pour contextmenu uniquement : afficher le menu générique
