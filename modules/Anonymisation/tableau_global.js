@@ -237,6 +237,26 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         titre.innerHTML = `Occurrences de <strong>"${anon.entite}"</strong> → <strong>"${anon.remplacement}"</strong>`;
         scrollContainer.appendChild(titre);
         
+        // Légende des couleurs
+        const legende = document.createElement("div");
+        legende.style.cssText = "padding:8px 12px;background:#f5f5f5;border-bottom:1px solid #eee;font-size:11px;color:#555;display:flex;flex-direction:column;gap:5px;";
+        legende.innerHTML = `
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#ff9800;flex-shrink:0;"></span>
+                <span>Entretien en cours de traitement (occurrences non traitées)</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#2e7d32;flex-shrink:0;"></span>
+                <span>Entretien entièrement traité</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;margin-top:2px;">
+                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#4caf50;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> anonymisées</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#555;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> exceptions</span>
+                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#ff9800;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> à traiter</span>
+            </div>
+        `;
+        scrollContainer.appendChild(legende);
+
         // Case à cocher globale
         const checkboxGlobaleDiv = document.createElement("div");
         checkboxGlobaleDiv.style.padding = "10px 12px";
@@ -377,8 +397,8 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
     // Calcul de l'état visuel : bleu si tout traité (anonymisé ou exclu), orange sinon
     // On ne tient PAS compte de anonymisee : des variantes de casse peuvent rester non traitées
     const toutEstTraite = occurrences.length > 0 && occurrences.every(occ => occ.applique || occ.exclue);
-    const bgCouleur = toutEstTraite ? "#e3f2fd" : "#fff3e0";
-    const labelCouleur = toutEstTraite ? "#15c095" : "#f57c00";
+    const bgCouleur = toutEstTraite ? "#e8f5e9" : "#fff3e0";
+    const labelCouleur = toutEstTraite ? "#2e7d32" : "#f57c00";
 
     // En-tête de l'accordéon
     const header = document.createElement("div");
@@ -486,6 +506,10 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
             const badge = creerBadge(count, color, title);
             if (badge) divCompteurs.appendChild(badge);
         });
+        // Mettre à jour le fond du header selon l'état courant
+        const toutTraite = nbNon === 0 && (nbApp + nbExc) > 0;
+        header.style.backgroundColor = toutTraite ? '#e8f5e9' : '#fff3e0';
+        label.style.color = toutTraite ? '#2e7d32' : '#f57c00';
     };
 
     // Ajouter les occurrences
@@ -977,7 +1001,9 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
  */
 function entitePeutEtrePresente(entite, motsPresents) {
     return entite.split('/').some(alias => {
-        const tokens = alias.trim().toLowerCase().split(/[\s ]+/).filter(t => t);
+        // Découper sur espaces ET séparateurs non-alpha (tirets, apostrophes…)
+        // pour correspondre à la tokenisation de cleanHTML (un span par mot/signe).
+        const tokens = alias.trim().toLowerCase().split(/[\s \-’‘']+/).filter(t => t);
         return tokens.length > 0 && tokens.every(t => motsPresents.has(t));
     });
 }
@@ -1419,12 +1445,14 @@ async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEn
         // === PHASE 3: Message de confirmation ===
         const totalChangements = totalAjouter + totalRetirer + totalExclure + totalDesexclure;
         if (totalChangements > 0) {
-            const lignes = [];
-            if (totalAjouter   > 0) lignes.push(`✅ ${totalAjouter} occurrence(s) anonymisée(s)`);
-            if (totalRetirer   > 0) lignes.push(`↩️ ${totalRetirer} occurrence(s) dé-pseudonymisée(s)`);
-            if (totalExclure   > 0) lignes.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
-            if (totalDesexclure > 0) lignes.push(`🔓 ${totalDesexclure} exception(s) retirée(s)`);
-            dialog('Message', `Changements enregistrés :\n${lignes.join('\n')}`);
+            const lignesMaj = [];
+            if (totalAjouter   > 0) lignesMaj.push(`✅ ${totalAjouter} occurrence(s) anonymisée(s)`);
+            if (totalRetirer   > 0) lignesMaj.push(`↩️ ${totalRetirer} occurrence(s) dé-pseudonymisée(s)`);
+            if (totalExclure   > 0) lignesMaj.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
+            if (totalDesexclure > 0) lignesMaj.push(`🔓 ${totalDesexclure} exception(s) retirée(s)`);
+            dialog('Message', `Changements enregistrés :\n${lignesMaj.join('\n')}`);
+            // Level 2 : mise à jour du cache sans invalider le scan global
+            await mettreAJourCacheEntite(anon.entite, anon.remplacement);
         } else {
             dialog('Message', 'Aucun changement effectué.');
         }
@@ -1522,6 +1550,272 @@ function initAnonPageResizer(pageAnon) {
  * Affiche la table d'anonymisation globale avec les combinaisons et entretiens associés
  * Affiche d'abord les entités sans tester leur présence - la vérification se fait via des boutons
  */
+/**
+ * Level 2 — Met à jour le cache de scan pour une seule entité,
+ * sans marquer le cache comme stale (action depuis le panneau Corpus).
+ * Met aussi à jour les badges et la couleur de la ligne dans le DOM.
+ * Ne fait rien si le cache n'existe pas ou est déjà stale.
+ */
+async function mettreAJourCacheEntite(entite, pseudo) {
+    if (!window._anonScanCache || window._anonScanStale) return;
+    if (!window._anonIndexInverse) return;
+
+    const key = `${entite.trim()}|${pseudo.trim()}`;
+    const st = { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 };
+
+    const candidats = entretiensCandidats(entite, window._anonIndexInverse);
+    for (const i of candidats) {
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
+        if (!html) continue;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const occ = trouverOccurrencesDansDoc(tempDiv, entite.trim(), pseudo.trim());
+        if (occ.length === 0) continue;
+
+        st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
+        st.nbExc  += occ.filter(o => o.exclue).length;
+        st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
+        st.nbEntretiens += 1;
+    }
+
+    window._anonScanCache.set(key, st);
+
+    // Mise à jour DOM : badges + couleur de ligne
+    const tr = document.querySelector(`tr[data-entite="${CSS.escape(entite)}"][data-pseudo="${CSS.escape(pseudo)}"]`);
+    if (!tr) return;
+    const tdEtat = tr.querySelector('.td-etat-corpus');
+    if (tdEtat && tdEtat.style.display !== 'none') {
+        let badgesHtml = '';
+        if (st.nbAnon > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
+        if (st.nbExc  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-exc"  title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
+        if (st.nbNon  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-non"  title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
+        tdEtat.innerHTML = badgesHtml || '<span style="color:#bbb;font-size:0.8rem;">—</span>';
+    }
+    tr.style.backgroundColor = st.nbNon > 0 ? '#fff3e0' : '';
+}
+
+/**
+ * Affiche le dialog d'explication avant de lancer le scan du corpus.
+ * Résout true si l'utilisateur clique "Lancer l'analyse", false sinon.
+ */
+function ouvrirDialogScan() {
+    return new Promise(resolve => {
+        window._scanDialogResolve = (val) => {
+            window._scanDialogResolve = () => {};
+            resolve(val);
+        };
+
+        const element = document.getElementById('dlg');
+        const contenu = document.getElementById('ssdlg');
+        if (!element || !contenu) { resolve(false); return; }
+
+        contenu.style.top = "20%";
+        contenu.style.width = "500px";
+        contenu.style.height = "";
+
+        contenu.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eee;">
+                <strong style="font-size:1.05rem;">🔍 Analyser le corpus</strong>
+                <div class="close" onclick="hidedlg();window._scanDialogResolve(false)" style="cursor:pointer;">✖️</div>
+            </div>
+            <div style="padding:16px;">
+                <p style="margin:0 0 12px;font-size:0.92rem;color:#333;line-height:1.5;">
+                    Cette analyse parcourt tous les entretiens pour calculer l'état de chaque
+                    entité et enrichit le tableau avec une colonne <strong>"État corpus"</strong> :
+                </p>
+                <div style="display:flex;gap:6px;align-items:center;margin:0 0 14px;padding:8px 12px;background:#f5f5f5;border-radius:4px;">
+                    <span class="btn-nav-cat btn-nav-cat-anon">12</span>
+                    <span style="font-size:0.82rem;color:#555;margin-right:8px;">anonymisées</span>
+                    <span class="btn-nav-cat btn-nav-cat-exc">2</span>
+                    <span style="font-size:0.82rem;color:#555;margin-right:8px;">exceptions</span>
+                    <span class="btn-nav-cat btn-nav-cat-non">1</span>
+                    <span style="font-size:0.82rem;color:#555;">à traiter</span>
+                </div>
+                <p style="margin:0 0 12px;font-size:0.92rem;color:#333;line-height:1.5;">
+                    Elle permet aussi d'utiliser les filtres
+                    <em>"À traiter"</em>, <em>"Entièrement anonymisées"</em>, etc.
+                </p>
+                <div style="font-size:0.85rem;color:#555;background:#e8f4fd;padding:10px 12px;border-radius:4px;border-left:3px solid #1976d2;line-height:1.6;">
+                    ℹ️ Si vous travaillez depuis ce panneau (cases à cocher, exceptions),
+                    l'état se met à jour automatiquement sans relancer l'analyse.<br>
+                    Si vous modifiez un entretien depuis la <strong>vue Entretien</strong>,
+                    il faudra relancer l'analyse pour rafraîchir.
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+                    <label class="btn btn-secondary" style="padding:8px 16px;cursor:pointer;"
+                           onclick="hidedlg();window._scanDialogResolve(false)">Annuler</label>
+                    <label class="btn btn-primary" style="padding:8px 16px;cursor:pointer;"
+                           onclick="hidedlg();window._scanDialogResolve(true)">Lancer l'analyse</label>
+                </div>
+            </div>
+        `;
+
+        element.style.display = "block";
+    });
+}
+
+/**
+ * Construit un index inversé : mot (minuscules) → Set d'indices d'entretiens.
+ * Inclut les mots des spans normaux ET des spans déjà pseudonymisés (data-pseudo).
+ * @param {Array} tabEnt
+ * @returns {Promise<Map<string, Set<number>>>}
+ */
+async function construireIndexInverse(tabEnt) {
+    const index = new Map(); // mot → Set<idxEnt>
+    const n = tabEnt.length;
+    for (let i = 0; i < n; i++) {
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { html = null; }
+        if (!html) continue;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        tempDiv.querySelectorAll('[data-rk]').forEach(s => {
+            const texte = s.textContent.trim();
+            if (!texte) return;
+            // Tokeniser pour gérer les spans compressés (data-len : texte multi-mots).
+            // Un entretien jamais ouvert a des spans phrases entières → sans tokenisation,
+            // les mots individuels ("pierre", "edouard") ne seraient pas trouvés.
+            texte.toLowerCase().split(/[\s \-''']+/).filter(t => t).forEach(token => {
+                if (!index.has(token)) index.set(token, new Set());
+                index.get(token).add(i);
+            });
+        });
+
+        if (i % 5 === 4) await new Promise(r => setTimeout(r, 0)); // respirer l'UI
+    }
+    return index;
+}
+
+/**
+ * Retourne les indices d'entretiens susceptibles de contenir l'entité,
+ * en intersectant les sets de l'index inversé pour chaque token.
+ * @param {string} entite
+ * @param {Map<string, Set<number>>} index
+ * @returns {Set<number>}
+ */
+function entretiensCandidats(entite, index) {
+    const aliases = entite.split('/').map(a => a.trim()).filter(Boolean);
+    const candidats = new Set();
+    for (const alias of aliases) {
+        const tokens = alias.toLowerCase().split(/[\s \-''']+/).filter(t => t);
+        if (tokens.length === 0) continue;
+        // Intersection : seuls les entretiens ayant TOUS les tokens de l'alias
+        let sets = tokens.map(t => index.get(t) || new Set());
+        let inter = new Set(sets[0]);
+        for (let k = 1; k < sets.length; k++) {
+            for (const v of inter) { if (!sets[k].has(v)) inter.delete(v); }
+        }
+        for (const v of inter) candidats.add(v);
+    }
+    return candidats;
+}
+
+/**
+ * Lance le scan du corpus avec index inversé.
+ * Construit window._anonIndexInverse (une fois), calcule les stats par entité,
+ * stocke dans window._anonScanCache, puis déclenche l'affichage (étape 3).
+ */
+async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur) {
+    if (typeof wait === 'function') wait('Analyse du corpus en cours…');
+    try {
+        // 1. Construire l'index inversé (ou le réutiliser s'il est déjà en mémoire)
+        if (!window._anonIndexInverse) {
+            window._anonIndexInverse = await construireIndexInverse(tabEnt);
+        }
+        const index = window._anonIndexInverse;
+
+        // 2. Calculer les stats pour chaque entité via l'index
+        const stats = new Map();
+        for (const a of anonValides) {
+            const key = `${a.entite.trim()}|${a.remplacement.trim()}`;
+            const st = { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 };
+            stats.set(key, st);
+
+            const candidats = entretiensCandidats(a.entite, index);
+            for (const i of candidats) {
+                let html = null;
+                try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
+                if (!html) continue;
+
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                const occ = trouverOccurrencesDansDoc(tempDiv, a.entite.trim(), a.remplacement.trim());
+                if (occ.length === 0) continue;
+
+                st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
+                st.nbExc  += occ.filter(o => o.exclue).length;
+                st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
+                st.nbEntretiens += 1;
+            }
+        }
+
+        // 3. Stocker le cache et marquer comme valide
+        window._anonScanCache = stats;
+        window._anonScanStale = false;
+
+        // 4. Mettre à jour l'affichage : colonne + coloration + filtres d'état
+        appliquerResultatsScan(stats, lignes);
+        // Débloquer le groupe de filtres d'état dans le sélecteur
+        const selectFiltre = document.getElementById('anon-gen-filtre');
+        if (selectFiltre) {
+            const optgroup = selectFiltre.querySelector('optgroup[label="Avec vérification du corpus"]');
+            if (optgroup) optgroup.style.display = '';
+        }
+
+    } catch (err) {
+        console.error('[Scan] Erreur :', err);
+    } finally {
+        if (typeof endWait === 'function') endWait();
+    }
+}
+
+/**
+ * Applique les résultats du scan sur les lignes du tableau :
+ * - affiche la colonne "État corpus" avec badges colorés
+ * - colore la ligne en orange clair si nbNon > 0
+ * - met à jour window._anonScanCache pour les filtres d'état
+ */
+function appliquerResultatsScan(stats, lignes) {
+    // Rendre visible l'en-tête de la colonne
+    const thEtat = document.querySelector('.header-col-etat-corpus');
+    if (thEtat) thEtat.style.display = '';
+
+    for (const tr of lignes) {
+        const e = (tr.dataset.entite || '').trim();
+        const p = (tr.dataset.pseudo || '').trim();
+        const st = stats.get(`${e}|${p}`);
+        const tdEtat = tr.querySelector('.td-etat-corpus');
+        if (!tdEtat) continue;
+
+        tdEtat.style.display = '';
+
+        if (!st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0)) {
+            tdEtat.innerHTML = '<span style="color:#bbb;font-size:0.8rem;">—</span>';
+            tr.style.backgroundColor = '';
+            continue;
+        }
+
+        // Badges (réutilise les classes btn-nav-cat existantes)
+        let badgesHtml = '';
+        if (st.nbAnon > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
+        if (st.nbExc  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-exc"  title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
+        if (st.nbNon  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-non"  title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
+        tdEtat.innerHTML = badgesHtml;
+
+        // Coloration de la ligne
+        if (st.nbNon > 0) {
+            tr.style.backgroundColor = '#fff3e0'; // orange : occurrences à traiter
+        } else if ((st.nbAnon + st.nbExc) > 0) {
+            tr.style.backgroundColor = '#e8f5e9'; // vert : entièrement traité
+        } else {
+            tr.style.backgroundColor = '';
+        }
+    }
+}
+
 async function affichAnonGen() {
     console.log("lancement de affichAnonGen")
     try {
@@ -1589,11 +1883,22 @@ async function affichAnonGen() {
             pageAnon.id = "divAnonGenPage";
             pageAnon.classList.add("fondtabdat");
             pageAnon.innerHTML = `
-                <div id="fond_anon_corpus" class="anon-page-gauche"></div>
-                <div id="anonPageResizer" class="anon-page-resizer" title="Glisser pour redimensionner"></div>
-                <div id="fond_verif_anon" class="anon-page-droite">
-                    <div class="info-no-content" style="padding:10px">
-                        <label style="width:100%;display:block;margin:5px">Cliquez sur 🔍 pour vérifier la présence d'une entité dans les entretiens.</label>
+                <div id="anon-page-banner" class="header-tabdat" style="display:flex;align-items:center;height:50px;padding:0 10px;margin-bottom:0;border-bottom:1px solid #ccc;">
+                    <h3 class="logo-anon" style="margin:0;flex:1;">Table Pseudonymisation (Corpus)</h3>
+                    <div id="anon-stale-banner" style="display:none;align-items:center;gap:8px;margin-right:12px;padding:4px 10px;background:#fff3e0;border:1px solid #ffb74d;border-radius:4px;font-size:0.82rem;color:#e65100;">
+                        ⚠️ Des entretiens ont été modifiés. Relancez l'analyse pour rafraîchir.
+                        <button id="btn-scan-stale" class="btn btn-secondary" style="padding:4px 10px;font-size:0.82rem;">Scan</button>
+                    </div>
+                    <label id="btn-export-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exportAnonGen();" title="Exporter les anonymisations">Exporter 💾</label>
+                    <label id="btn-quit-anon" class="btn btn-secondary" style="padding:10px" onclick="hideAnonGen();" title="Fermer la table">Quitter ✖️</label>
+                </div>
+                <div id="anon-page-content" style="display:flex;flex:1;min-height:0;overflow:hidden;">
+                    <div id="fond_anon_corpus" class="anon-page-gauche"></div>
+                    <div id="anonPageResizer" class="anon-page-resizer" title="Glisser pour redimensionner"></div>
+                    <div id="fond_verif_anon" class="anon-page-droite">
+                        <div class="info-no-content" style="padding:10px">
+                            <label style="width:100%;display:block;margin:5px">Cliquez sur 🔍 pour vérifier la présence d'une entité dans les entretiens.</label>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1610,18 +1915,46 @@ async function affichAnonGen() {
         divAnonGen.style.flexDirection = 'column';
         fondAnonCorpus.appendChild(divAnonGen);
 
-        // En-tête avec titre et boutons
+        // Gestion de la bannière de péremption dans le bandeau
+        const staleBanner = document.getElementById('anon-stale-banner');
+        const syncStaleBanner = () => {
+            if (!staleBanner) return;
+            const stale = !!window._anonScanCache && !!window._anonScanStale;
+            staleBanner.style.display = stale ? 'flex' : 'none';
+        };
+        syncStaleBanner();
+        const btnScanStale = document.getElementById('btn-scan-stale');
+        if (btnScanStale) {
+            // Remplacer le listener à chaque ouverture (évite les doublons)
+            const newBtn = btnScanStale.cloneNode(true);
+            btnScanStale.parentNode.replaceChild(newBtn, btnScanStale);
+            newBtn.addEventListener('click', async () => {
+                const lancer = await ouvrirDialogScan();
+                if (lancer) {
+                    await lancerScanCorpus(tabEnt, anonValides, lignes, compteur);
+                    syncStaleBanner();
+                    syncGroupeFiltresEtat();
+                }
+            });
+        }
+
+        // En-tête du panneau gauche (bouton ➕ + bouton Scan)
         const divEntete = document.createElement("div");
-        divEntete.style = "border-bottom:1px solid #ccc; padding:8px 10px 6px 10px;";
-        divEntete.classList.add("header-tabdat");
+        divEntete.style = "border-bottom:1px solid #ccc; padding:6px 10px; display:flex; justify-content:flex-end; gap:6px;";
         divEntete.innerHTML = `
-            <h3 class="logo-anon" style="margin:0; width:100%">Table d'Anonymisation - Pseudonymes
-                <label id="btn-export-anon" class="btnbleu" onclick="exportAnonGen();" title="Exporter les anonymisations" style="font-size:1.2rem"> 💾 </label>
-                <label id="btn-add-anon" class="btnbleu" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité" style="font-size:1.2rem"> ➕ </label>
-                <label id="btn-quit-anon" class="btnbleu" onclick="hideAnonGen();" title="Fermer la table" style="font-size:1.2rem; float:right; margin-right:6px"> ✖️ </label>
-            </h3>
+            <label id="btn-add-anon" class="btn btn-primary" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">Ajouter une entité</label>
+            <button id="btn-scan-anon" class="btn btn-secondary" title="Analyser l'état d'anonymisation dans tous les entretiens">Scan</button>
         `;
         divAnonGen.appendChild(divEntete);
+
+        divEntete.querySelector('#btn-scan-anon').addEventListener('click', async () => {
+            const lancer = await ouvrirDialogScan();
+            if (lancer) {
+                await lancerScanCorpus(tabEnt, anonValides, lignes, compteur);
+                syncStaleBanner();
+                syncGroupeFiltresEtat();
+            }
+        });
 
         // === BARRE DE FILTRAGE (Phase 1 : filtres instantanés + recherche + tri) ===
         // Opère uniquement sur les lignes déjà rendues (masquer/montrer + réordonner) :
@@ -1633,15 +1966,15 @@ async function affichAnonGen() {
         divFiltres.innerHTML = `
             <select id="anon-gen-filtre" class="anon-gen-select" title="Filtrer les entités">
                 <option value="toutes">Toutes les entités</option>
+                ${nbConflits || nbCollisions ? `
                 <optgroup label="Sans calcul (règles seules)">
-                    <option value="conflits">Conflits de pseudo${nbConflits ? ` (${nbConflits})` : ''}</option>
-                    <option value="collisions">Collisions de pseudo${nbCollisions ? ` (${nbCollisions})` : ''}</option>
-                </optgroup>
+                    ${nbConflits ? `<option value="conflits">Conflits de pseudo (${nbConflits})</option>` : ''}
+                    ${nbCollisions ? `<option value="collisions">Collisions de pseudo (${nbCollisions})</option>` : ''}
+                </optgroup>` : ''}
                 <optgroup label="Avec vérification du corpus">
                     <option value="a_traiter">À traiter</option>
                     <option value="avec_exceptions">Avec exceptions</option>
                     <option value="bouclees">Entièrement anonymisées</option>
-                    <option value="partielles">Partiellement traitées</option>
                 </optgroup>
             </select>
             <button id="anon-gen-rescan" class="anon-gen-rescan" title="Recalculer l'état du corpus" style="display:none">↻</button>
@@ -1685,6 +2018,12 @@ async function affichAnonGen() {
         thRemplacement.style.minWidth = "200px";
         headerRow.appendChild(thRemplacement);
 
+        const thEtat = document.createElement("th");
+        thEtat.textContent = "État corpus";
+        thEtat.classList.add("header-col-etat-corpus");
+        thEtat.style.display = "none"; // visible seulement après un scan valide
+        headerRow.appendChild(thEtat);
+
         const thActions = document.createElement("th");
         thActions.textContent = "Actions";
         thActions.classList.add("header-col-var");
@@ -1722,37 +2061,32 @@ async function affichAnonGen() {
         const selectTri = document.getElementById("anon-gen-tri");
         const compteur = document.getElementById("anon-gen-compteur");
 
-        // Filtres nécessitant un scan du corpus (coûteux). Le résultat est mis en cache
-        // pour la durée d'affichage de la page ; il est recalculé à la réouverture
-        // (affichAnonGen recrée ce contexte) ou via le bouton ↻.
-        const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees', 'partielles']);
-        let cacheStatsCorpus = null;
+        const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees']);
 
-        const appliquerFiltrePseudos = async () => {
+        // Masquer/afficher le groupe de filtres d'état selon disponibilité du scan
+        const syncGroupeFiltresEtat = () => {
+            const scanValide = !!window._anonScanCache && !window._anonScanStale;
+            const optgroup = selectFiltre.querySelector('optgroup[label="Avec vérification du corpus"]');
+            if (optgroup) optgroup.style.display = scanValide ? '' : 'none';
+            // Si le filtre actif est d'état et scan invalide, repasser sur "toutes"
+            if (!scanValide && FILTRES_ETAT.has(selectFiltre.value)) {
+                selectFiltre.value = 'toutes';
+            }
+        };
+        syncGroupeFiltresEtat();
+
+        const appliquerFiltrePseudos = () => {
             const filtre = selectFiltre.value;
             const recherche = (inputRecherche.value || '').trim().toLowerCase();
             const estEtat = FILTRES_ETAT.has(filtre);
+            const stats = window._anonScanCache;
 
-            // Le bouton ↻ n'a de sens que pour les filtres d'état (état du corpus).
-            if (btnRescan) btnRescan.style.display = estEtat ? '' : 'none';
-
-            // Filtre d'état : lancer le scan corpus si pas encore en cache (fenêtre de progression).
-            if (estEtat && !cacheStatsCorpus) {
-                if (typeof wait === 'function') wait("Vérification du corpus en cours…");
-                try {
-                    cacheStatsCorpus = await scannerEtatCorpus(anonValides, tabEnt);
-                } catch (e) {
-                    console.error("Erreur lors du scan d'état du corpus:", e);
-                } finally {
-                    if (typeof endWait === 'function') endWait();
-                }
-            }
+            if (btnRescan) btnRescan.style.display = 'none'; // ↻ retiré (remplacé par bouton Scan)
 
             let nbVisibles = 0;
             for (const tr of lignes) {
                 const e = (tr.dataset.entite || '').trim();
                 const pData = (tr.dataset.pseudo || '').trim();
-                // Le pseudo peut avoir été édité dans l'input : on lit la valeur courante pour la recherche.
                 const inputP = tr.querySelector('.anon-pseudo-input');
                 const p = (inputP ? inputP.value : pData).trim();
 
@@ -1760,12 +2094,12 @@ async function affichAnonGen() {
                 if (filtre === 'conflits') ok = entitesEnConflit.has(e);
                 else if (filtre === 'collisions') ok = pseudosEnCollision.has(pData);
                 else if (estEtat) {
-                    const st = cacheStatsCorpus ? cacheStatsCorpus.get(`${e}|${pData}`) : null;
+                    const st = stats ? stats.get(`${e}|${pData}`) : null;
                     if (!st) ok = false;
                     else if (filtre === 'a_traiter') ok = st.nbNon >= 1;
                     else if (filtre === 'avec_exceptions') ok = st.nbExc >= 1;
-                    else if (filtre === 'bouclees') ok = st.nbAnon > 0 && st.nbNon === 0 && st.nbExc === 0;
-                    else if (filtre === 'partielles') ok = st.nbAnon >= 1 && st.nbNon >= 1;
+                    else if (filtre === 'bouclees') ok = (st.nbAnon + st.nbExc) > 0 && st.nbNon === 0;
+
                 }
 
                 if (ok && recherche) {
@@ -1838,6 +2172,14 @@ function creerLigneAnonGen(anon, tabEnt) {
     `;
     tr.appendChild(tdRemplacement);
 
+    // Colonne 3: État corpus (cachée par défaut, visible après un scan valide)
+    const tdEtat = document.createElement("td");
+    tdEtat.classList.add("td-etat-corpus");
+    tdEtat.style.display = "none";
+    tdEtat.style.textAlign = "center";
+    tdEtat.style.padding = "4px 8px";
+    tr.appendChild(tdEtat);
+
     // Colonne 4: Actions
     const tdActions = document.createElement("td");
     tdActions.style.minWidth = "120px";
@@ -1847,11 +2189,13 @@ function creerLigneAnonGen(anon, tabEnt) {
     
     // Bouton Vérifier pour cette entité
     const btnVerifier = document.createElement("button");
-    btnVerifier.textContent = "";
-    btnVerifier.style.height="33px";
-    btnVerifier.style.width="33px";
-    btnVerifier.style.padding = "5px"
-    btnVerifier.classList.add("btn",  "logo-search")
+    btnVerifier.textContent = "🔍";
+    btnVerifier.style.height = "33px";
+    btnVerifier.style.width = "33px";
+    btnVerifier.style.padding = "5px";
+    btnVerifier.style.fontSize = "16px";
+    btnVerifier.style.lineHeight = "1";
+    btnVerifier.classList.add("btn");
     btnVerifier.style.transition = "all 0.2s";
     btnVerifier.title = `Vérifier la présence de "${anon.entite}" dans les entretiens`;
     
@@ -2605,7 +2949,21 @@ function afficherModaleAjoutEntiteAnon() {
         // Ajouter une nouvelle ligne au tableau
         ajouterLigneAuTableauAnonGen(nouvelleEntite);
 
-        //dialog('Message', `Entité "${entite}" → "${pseudo}" ajoutée avec succès.`);
+        // Level 2 : si un scan valide existe, calculer l'état de cette nouvelle entité
+        // et l'ajouter au cache sans invalider le scan global.
+        if (window._anonScanCache && !window._anonScanStale && window._anonIndexInverse) {
+            const key = `${entite}|${pseudo}`;
+            window._anonScanCache.set(key, { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
+            await mettreAJourCacheEntite(entite, pseudo);
+            // Rendre visible la colonne si ce n'est pas déjà le cas
+            const thEtat = document.querySelector('.header-col-etat-corpus');
+            if (thEtat) thEtat.style.display = '';
+            const tr = document.querySelector(`tr[data-entite="${CSS.escape(entite)}"][data-pseudo="${CSS.escape(pseudo)}"]`);
+            if (tr) {
+                const tdEtat = tr.querySelector('.td-etat-corpus');
+                if (tdEtat) tdEtat.style.display = '';
+            }
+        }
     });
     conteneurBoutons.appendChild(btnOK);
 

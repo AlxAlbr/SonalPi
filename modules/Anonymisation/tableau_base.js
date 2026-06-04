@@ -730,6 +730,11 @@ async function sauvegarderTabAnonEnt() {
         if (!tabEntLocal || !tabEntLocal[rkEnt]) return;
         tabEntLocal[rkEnt].tabAnon = window.tabAnon;
         await window.electronAPI.setEnt(tabEntLocal);
+        // Invalider le scan corpus : une modification vient de la vue Entretien
+        if (window._anonScanCache) {
+            window._anonScanStale = true;
+            window._anonIndexInverse = null; // l'index est périmé aussi
+        }
     } catch (error) {
         console.error("❌ Erreur lors de la sauvegarde du tabAnon:", error);
     }

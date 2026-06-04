@@ -4415,7 +4415,15 @@ SYNTHESE
    gauche = table des pseudonymes, droite = vérification / occurrences */
 #divAnonGenPage {
     display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+#anon-page-content {
+    display: flex;
     flex-direction: row;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
 }
 #divAnonGenPage .anon-page-gauche {
