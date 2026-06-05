@@ -19,9 +19,10 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
 
     // récupération du corpus
     let Corpus = await window.electronAPI.getCorpus();
+    const corpus = window.SonalDomain.Corpus.fromParts({ corpus: Corpus });
 
     // Vérification de la restriction GitLab
-    if (Corpus.type === 'gitlab') {
+    if (corpus.estGitlab) {
         const isOwner = await window.electronAPI.getGitlabUserIsOwner();
         const opts = await window.electronAPI.getGitlabOptions();
         if (opts.restrictionAjoutSuppr && !isOwner) {
@@ -146,7 +147,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
             // En local (non collaboratif), on demande confirmation avant d'écraser.
             // En distant/gitlab, on écrit directement (comportement historique préservé).
             let ecrire = true;
-            if (!Corpus.collaboratif) {
+            if (!corpus.estCollaboratif) {
                 const fichExists = await window.electronAPI.doesFileExists(cheminFichTxtA);
                 if (fichExists) {
                     ecrire = (await question(`Le fichier ${nomFichTxtA} existe déjà dans le dossier du corpus.\nVoulez-vous l'écraser ?`, ['Oui', 'Non'])) === 'oui';
@@ -582,8 +583,9 @@ async function afficherEnt(rgDep, rgFin){
                 // vérification que l'entertien est accessible (si distant)
                     // récupération du corpus 
                     let Corpus = await electronAPI.getCorpus();
+                    const corpus = window.SonalDomain.Corpus.fromParts({ corpus: Corpus });
 
-                    if (Corpus.collaboratif){
+                    if (corpus.estCollaboratif){
                         let result = await electronAPI.isEntretienLocked(rkEnt)
                          if (result.locked==true) {
                                     console.log("l'entretien est verrouillé par " + result.user)

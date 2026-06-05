@@ -102,6 +102,7 @@ export class Corpus {
   get estLocal() { return this.#meta.type === 'local'; }
   get estCollaboratif() { return this.#meta.type != null && this.#meta.type !== 'local'; }
   get estGitlab() { return this.#meta.type === 'gitlab'; }
+  get estDistant() { return this.#meta.type === 'distant'; }
   get dossier() { return this.#meta.folder; }            // folder
   get nomFichier() { return this.#meta.fileName; }       // fileName
   get url() { return this.#meta.url; }

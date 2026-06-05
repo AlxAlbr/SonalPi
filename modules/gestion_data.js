@@ -1265,7 +1265,8 @@ async function validerCellGen(td, lib) {
 
     // Vérification du verrou pour les corpus distants
     const Corpus = await window.electronAPI.getCorpus();
-    if (Corpus && Corpus.collaboratif) {
+    const corpus = window.SonalDomain.Corpus.fromParts({ corpus: Corpus || {} });
+    if (corpus.estCollaboratif) {
         const lockResult = await window.electronAPI.isEntretienLocked(rkEnt);
         if (lockResult && lockResult.locked === true) {
             question(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`, ['OK']);
@@ -1395,9 +1396,10 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
     tabVar = await window.electronAPI.getVar();
     tabDic = await window.electronAPI.getDic(); // tabDic global = source de vérité
 
-    const ent = tabEnt[rkEnt];
+    const brut = tabEnt[rkEnt];
 
-    if (ent && ent.tabDat) {
+    if (brut && brut.tabDat) {
+        const ent = window.SonalDomain.Entretien.fromJSON(brut);
 
         //console.log("Entretien trouvé :", ent.nom);
         const varPub = tabVar.filter(v => v.priv === "false");  
@@ -1410,7 +1412,7 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
             const v = varPub[i];
 
             // recherche dans le tabdat de l'entretien des différentes valeurs de la variable
-            const ligDat = ent.tabDat.filter(d => d.v == v.v );
+            const ligDat = ent.donnees().filter(d => d.variable == v.v );
             
             let modas = [];
             if (ligDat.length > 0) { // Vérifier s'il y a des résultats
@@ -1419,12 +1421,12 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
                 // récupération de la valeur de modalité
                 modas = [];
                 ligDat.forEach(ligne => {
-                    const modalite = tabDic.find(dc => dc.v == v.v && dc.m === ligne.m && ligne.m>0);
+                    const modalite = tabDic.find(dc => dc.v == v.v && dc.m === ligne.modalite && ligne.modalite>0);
                     if (modalite) {
                         // récupération du nom du locuteur si var par locuteurs
                         let modaLib = modalite.lib;
                         if (v.champ === "loc") {
-                            const locName = ent.tabLoc[ligne.l];
+                            const locName = ent.nomLocuteur(ligne.locuteur);
                             modaLib = locName + " : " + modaLib;
                         }
                         modas.push(modaLib);
@@ -1453,11 +1455,12 @@ async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : v
     tabDic = await window.electronAPI.getDic();
 
     const rkEnt = xtr.entretien;
-    const ent = tabEnt[rkEnt];
+    const brut = tabEnt[rkEnt];
 
-    if (!ent || !ent.tabDat) {
+    if (!brut || !brut.tabDat) {
         return ["", ""];
     }
+    const ent = window.SonalDomain.Entretien.fromJSON(brut);
 
     // Identification des noms de locuteurs présents dans l'extrait (via les spans ligloc)
     const nomsLocXtr = new Set();
@@ -1469,13 +1472,11 @@ async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : v
 
     // Correspondance noms → indices dans tabLoc
     const indicesLocXtr = new Set();
-    if (ent.tabLoc) {
-        ent.tabLoc.forEach((nom, idx) => {
-            if (nom && nomsLocXtr.has(nom)) {
-                indicesLocXtr.add(idx);
-            }
-        });
-    }
+    ent.locuteurs.forEach((nom, idx) => {
+        if (nom && nomsLocXtr.has(nom)) {
+            indicesLocXtr.add(idx);
+        }
+    });
 
     const varPub = tabVar.filter(v => v.priv === "false");
     let chaineHtml = "";
@@ -1484,10 +1485,10 @@ async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : v
     // Variables générales : une ligne par variable
     const varGen = varPub.filter(v => v.champ === "gen");
     for (const v of varGen) {
-        const ligDat = ent.tabDat.filter(d => d.v == v.v);
+        const ligDat = ent.donnees().filter(d => d.variable == v.v);
         const modas = [];
         ligDat.forEach(ligne => {
-            const modalite = tabDic.find(dc => dc.v == v.v && dc.m === ligne.m && ligne.m > 0);
+            const modalite = tabDic.find(dc => dc.v == v.v && dc.m === ligne.modalite && ligne.modalite > 0);
             if (modalite) modas.push(modalite.lib);
         });
         chaineHtml += `<label class="var-pub">${v.lib}\n<b>${modas.length > 0 ? modas.join(", ") : "---"}</b></label>\n`;
@@ -1502,11 +1503,11 @@ async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : v
         indicesLocXtr.forEach(idx => valsParLoc.set(idx, []));
 
         for (const v of varLoc) {
-            const ligDat = ent.tabDat.filter(d => d.v == v.v && indicesLocXtr.has(Number(d.l)));
+            const ligDat = ent.donnees().filter(d => d.variable == v.v && indicesLocXtr.has(Number(d.locuteur)));
             ligDat.forEach(ligne => {
-                const modalite = tabDic.find(dc => dc.v == v.v && dc.m === ligne.m && ligne.m > 0);
+                const modalite = tabDic.find(dc => dc.v == v.v && dc.m === ligne.modalite && ligne.modalite > 0);
                 if (modalite) {
-                    const idx = Number(ligne.l);
+                    const idx = Number(ligne.locuteur);
                     if (!valsParLoc.has(idx)) valsParLoc.set(idx, []);
                     valsParLoc.get(idx).push(modalite.lib);
                 }
@@ -1515,7 +1516,7 @@ async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : v
 
         valsParLoc.forEach((vals, idx) => {
             if (vals.length > 0) {
-                const locName = ent.tabLoc[idx] || "?";
+                const locName = ent.nomLocuteur(idx) || "?";
                 chaineHtml += `<label class="var-pub">${locName}\n<b>${vals.join(", ")}</b></label>\n`;
                 chaineText += ` ${locName} : ${vals.join(", ")}`;
             }

@@ -26,7 +26,7 @@
 | **2 tranche 3** — câblage CRUD variables → domaine | ✅ **Fait (à valider en GUI)** | addVar/sauvVar/supprVar appellent `ajouter/modifier/supprimerVariable` + `retirerVariableDesDonnees` ; **Phase 2 complète** |
 | **3 tranche 1** — agrégat `Entretien` pur (`src/domain/entretien.mjs`) | ✅ **Fait** | wrapper typé + accès EAV, testé en Node ; voir §6 |
 | **3 tranche 2** — agrégat `Corpus` pur (`src/domain/corpus.mjs`) | ✅ **Fait** | possède `Entretien[]` + variables, getters `estLocal`/`estCollaboratif`, testé ; voir §6 |
-| **3 tranche 3+** — câblage renderer | ⬜ à venir | remplacer les `tabEnt[i].xxx` / `Corpus.type` par l'API objet, un appelant à la fois |
+| **3 tranche 3** — câblage renderer (en cours) | 🟡 **`collaboratif`+`type`+3 appelants lecture — validés en local** | getters `est*` + `Entretien` (varsPubliquesEnt/Xtr, voirEntretien). Distant/gitlab non testé. Reste : flux sauvegarde + churn métadonnées (faible valeur). recueil.js différé (post-Phase 5) |
 | **4** → **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
@@ -298,8 +298,37 @@ vraies entités qui *possèdent* leurs sous-objets.
 > `donnees()` (= `eav.unionDonnees`), et `toEntretiens()`/`toVariables()`/`toModalites()` pour
 > repousser via `set-*`. Exposé sur `window.SonalDomain.Corpus`. Tests :
 > [test/corpus-aggregat.test.mjs](test/corpus-aggregat.test.mjs).
-> **Tranche 3+** : remplacer les `tabEnt[i].xxx` et les `Corpus.type`/`collaboratif` épars du
-> renderer par l'API objet, un appelant à la fois (strangler).
+> **Tranche 3 (en cours)** : remplacer les accès épars du renderer par l'API objet, un appelant à
+> la fois (strangler).
+> - **✅ Sous-étape `collaboratif`** : les 5 lectures transverses `Corpus.collaboratif` du renderer
+>   ([gestion_corpus.js:197](modules/gestion_corpus.js#L197), [gestion_entretiens.js:149](modules/gestion_entretiens.js#L149)
+>   & [:586](modules/gestion_entretiens.js#L586), [gestion_data.js:1268](modules/gestion_data.js#L1268),
+>   [index.html:722](index.html#L722)) passent par `window.SonalDomain.Corpus.fromParts({corpus}).estCollaboratif`
+>   (dérivé de `type`, source de vérité). Sémantique préservée (`collaboratif === type !== 'local'`).
+>   ⚠️ Le champ persisté `collaboratif` reste **lu par le main** (main.js ≈456, hors agrégat
+>   renderer) ; sa suppression complète relèvera d'une consolidation main ultérieure. **À valider
+>   en GUI distant/gitlab** (bouton rafraîchir, verrous, veille, prompt d'écrasement).
+> - **✅ Sous-étape `type` (spécifique-backend)** : ajout du getter `estDistant` ; les lectures
+>   vivantes `Corpus.type` du renderer passent par les getters — restriction d'ajout GitLab
+>   ([gestion_entretiens.js:24](modules/gestion_entretiens.js#L24) → `estGitlab`), re-sync GitLab
+>   ([gestion_corpus.js:986](modules/gestion_corpus.js#L986) → `estGitlab`) et refresh serveur
+>   ([gestion_corpus.js:1120](modules/gestion_corpus.js#L1120) : `type!=='distant'` → `!estDistant`),
+>   sync périodique GitLab ([index.html:748](index.html#L748) → `estGitlab`). Les deux `Corpus.type`
+>   restants en gestion_entretiens.js (≈58, ≈1303) sont dans des **blocs commentés** (intacts).
+>   **recueil.js NON migré** : le plan (§7) le diffère après la Phase 5 (le Recueil dépend du Document).
+> - **🟡 Sous-étape `tabEnt[i].xxx` (lectures, option A — validée en local)** : 3 appelants
+>   lecture seule migrés vers l'API `Entretien` — [varsPubliquesXtr](modules/gestion_data.js#L1450),
+>   [varsPubliquesEnt](modules/gestion_data.js#L1392) (`tabDat`→`donnees()`, `tabLoc[i]`→`nomLocuteur`),
+>   [voirEntretien](modules/gestion_corpus.js#L1403) (`tabLoc`→`locuteurs`, `nom`). Validé GUI local
+>   (smoke + écrasement local + ouverture entretien + variables publiques + synthèse). Distant/gitlab
+>   non testé. **Choix de portée** : on ne migre PAS (a) les lectures `.tabLoc` testées en truthiness
+>   (ex. gestion_data.js:698 `if(!locut)` — `locuteurs` renverrait `[]` et casserait la branche),
+>   (b) les métadonnées nues (`.nom`/`.notes`/`.id` : getter de même nom = churn sans valeur).
+> - **À suivre (optionnel, plus risqué)** : flux de sauvegarde de `gestion_entretiens.js` (lectures
+>   `tabLoc`/`tabDat`/`notes`/`tabAnon` passées à `sauvHtml`) → API `Entretien`. Les **écritures**
+>   `tabEnt[i]` (ex. `cleanVariables`, `ent.tabDat=…`) relèveraient de l'option B (méthodes de
+>   mutation) — non décidée. La cible stricte « tout passe par Corpus/Entretien » (critère §6) reste
+>   un objectif de nettoyage Phase 6.
 
 - `Entretien` : `id, nom, rtrPath, audioPath, imgPath, notes`, possède `Locuteur[]`,
   `Donnee[]`, `RegleAnon[]`, et **un** `Document`. Méthodes : `charger/sauvegarderSonal`,
@@ -342,6 +371,21 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 ---
 
 ## 8. Phase 5 — `Document` / `Segment` / `Fragment` (le plus couplé au DOM)
+
+> **▶ Première tranche prévue (reportée de la Phase 3) : sérialisation `.sonal` dans le domaine.**
+> En Phase 3 (tranche 3), on a constaté que le flux de sauvegarde de `gestion_entretiens.js` n'était
+> pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`
+> renvoie des instances → corromprait le `.sonal`), et envelopper `ent` casse les accès bruts voisins.
+> La bonne forme (option B) est d'**extraire `sauvHtml`** ([gestion_fichiers.js:796](modules/gestion_fichiers.js#L796),
+> **sans DOM** — assemblage de chaîne, miroir de `parseSonal` ; seule dépendance : le global `tabThm`
+> via `exportThmcss`, à passer en argument) vers **`src/domain/sonal.mjs` (`serializeSonal`, pur)**,
+> puis exposer **`Entretien.serialiserSonal({ html, tabThm, tabVar, tabDic })`**. Bénéfices : le site
+> de sauvegarde se contracte (fini les 8 args positionnels), et surtout on gagne un **golden de
+> sérialisation + round-trip `parse(serialize(x)) ≈ x`** — un filet de test qui MANQUE aujourd'hui
+> sur la sauvegarde. À faire **avant** de toucher `Document`/`Segment`, et à **valider en GUI (local
+> ET distant/gitlab)** car c'est du code de sauvegarde (risque de perte de données). Les écritures
+> `ent.xxx =` (mutations : `renommer`/`definirNotes`/`definirLocuteurs`…) sont de moindre priorité —
+> l'essentiel des écritures `tabDat` passe déjà par la logique EAV (Phase 2).
 
 **Pourquoi en dernier** : c'est le cœur du couplage au `document` (innerHTML de `#segments`,
 spans `.lblseg`, undo/redo par snapshot HTML). Le plus risqué.

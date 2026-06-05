@@ -28,10 +28,12 @@ test('Corpus : getters dérivés local/collaboratif/gitlab depuis type', () => {
   const distant = corpusFixture({ type: 'distant' });
   assert.strictEqual(distant.estLocal, false);
   assert.strictEqual(distant.estCollaboratif, true);
+  assert.strictEqual(distant.estDistant, true);
   assert.strictEqual(distant.estGitlab, false);
 
   const gitlab = corpusFixture({ type: 'gitlab' });
   assert.strictEqual(gitlab.estCollaboratif, true);
+  assert.strictEqual(gitlab.estDistant, false);
   assert.strictEqual(gitlab.estGitlab, true);
 });
 

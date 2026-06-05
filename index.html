@@ -718,8 +718,9 @@ setInterval(async () => {
 
         // récupération des infos du corpus
         let Corpus = await window.electronAPI.getCorpus();
+        const corpus = window.SonalDomain.Corpus.fromParts({ corpus: Corpus || {} });
 
-        if (!Corpus || !Corpus.collaboratif) { return; }
+        if (!corpus.estCollaboratif) { return; }
 
         // récupération des entretiens
         let tabEnt = await window.electronAPI.getEnt();
@@ -744,7 +745,7 @@ setInterval(async () => {
         console.log("Vérification des verrous terminée.");
 
         // Pour GitLab : synchronisation silencieuse des nouveaux entretiens
-        if (Corpus.type === 'gitlab') {
+        if (corpus.estGitlab) {
             await rafraichirCorpus(true);
         }
 

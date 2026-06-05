@@ -192,9 +192,10 @@ loadHtml(0,Number(tabEnt.length-1)).then( async () => {
 document.getElementById('fenetreAccueil').classList.add('dnone'); // masquage de la fenêtre d'accueil
 
   let Corpus = await window.electronAPI.getCorpus();
+  const corpus = window.SonalDomain.Corpus.fromParts({ corpus: Corpus });
 
     // corpus collaboratif (distant ou gitlab) : affichage du bouton rafraichir : id="btn-rafraichir"
-    if (Corpus.collaboratif){
+    if (corpus.estCollaboratif){
         document.getElementById('btn-rafraichir').classList.remove('dnone'); // affichage du bouton de rafraichissement
     } else {
         document.getElementById('btn-rafraichir').classList.add('dnone');
@@ -980,9 +981,10 @@ let corpusActuel = Corpus.url;
 async function rafraichirCorpus(silencieux = false) {
 
     const Corpus = await window.electronAPI.getCorpus();
+    const corpus = window.SonalDomain.Corpus.fromParts({ corpus: Corpus });
 
     // ── Rafraîchissement GitLab ──────────────────────────────────────────────
-    if (Corpus.type === "gitlab") {
+    if (corpus.estGitlab) {
 
         // 1. Re-lire le .crp distant — il contient le tabEnt à jour
         const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
@@ -1116,7 +1118,7 @@ async function rafraichirCorpus(silencieux = false) {
         return;
     }
 
-    if (Corpus.type !== "distant"){
+    if (!corpus.estDistant){
         return; // le rafraîchissement (hors GitLab, déjà traité) ne se fait que pour le serveur distant
     }
 
@@ -1412,12 +1414,13 @@ async function voirEntretien(rangEnt){
     //effaceSurv() // effacement des surlignages
 
     
-    const tabLoc =  tabEnt[rangEnt].tabLoc; // récupération des locuteurs
+    const ent = window.SonalDomain.Entretien.fromJSON(tabEnt[rangEnt]);
+    const tabLoc = ent.locuteurs; // récupération des locuteurs
 
-    fen.innerHTML =text; 
-    checkloc(tabLoc);//affichage des locuteurs 
+    fen.innerHTML =text;
+    checkloc(tabLoc);//affichage des locuteurs
     multiThm(); // définition des couches thématiques multiples
-    document.getElementById("titreEnt").innerHTML = tabEnt[rangEnt].nom; // affichage du nom de l'entretien
+    document.getElementById("titreEnt").innerHTML = ent.nom; // affichage du nom de l'entretien
     document.getElementById('fenEnt').classList.remove("dnone"); 
 
 
