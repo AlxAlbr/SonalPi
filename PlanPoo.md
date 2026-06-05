@@ -20,11 +20,18 @@
 | **Option B** — modules ES réels (`src/`) | ✅ **Fait** | `src/domain/*.mjs` (vrai code .crp/.sonal) testés sur le vrai corpus via jsdom ; cf. §2 |
 | **1a** — couche `Storage` côté *main* | ✅ **Fait** | voir §4 |
 | **1b tranche 1** — flux fichier *renderer* | ✅ **Fait, validé en local** | voir §4 |
-| **1b tranche 2** — branches collaboratives *renderer* | ⏳ **À FAIRE (prochaine étape)** | voir §4 |
-| **2** → **6** | ⬜ à venir | inchangé |
+| **1b tranche 2** — branches collaboratives *renderer* | ✅ **Fait** (à valider en GUI) | voir §4 |
+| **2 tranche 1** — domaine EAV pur (`src/domain/eav.mjs`) | ✅ **Fait** | classes + vue calculée + logique de valeurs, testées en Node ; voir §5 |
+| **2 tranche 2** — câblage `gestion_data.js` → domaine | ✅ **Fait, validé en local** | inventaireVariables/getMod/validMod/chgDic appellent `SonalDomain.eav` ; affichage entretien (gén. + locuteurs) OK après chargement du domaine dans `edition_entretien.html` ; voir §5 |
+| **2 tranche 3** — câblage CRUD variables → domaine | ✅ **Fait (à valider en GUI)** | addVar/sauvVar/supprVar appellent `ajouter/modifier/supprimerVariable` + `retirerVariableDesDonnees` ; **Phase 2 complète** |
+| **3** → **6** | ⬜ à venir | prochaine étape : Phase 3 (agrégats `Entretien`/`Corpus`) |
 
-**⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** 1a et 1b n'ont été validés qu'en **local**.
-Tester en priorité avant d'aller plus loin (verrous, LFS, chemins distants).
+**⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
+qu'en **local**. Tester en priorité avant la Phase 2 (verrous, LFS, sync, chemins distants).
+Sur `Corpus` : 2 concepts seulement — **`type`** (`'local'|'distant'|'gitlab'`, identité backend,
+source de vérité) et **`collaboratif`** (capacité dérivée = multi-utilisateurs). Le renderer
+utilise `collaboratif` pour le transverse ; `type` n'y subsiste que pour le **spécifique GitLab**
+assumé. (La consolidation finale — `Corpus` classe avec getters — relève de la Phase 3.)
 
 **Artefacts clés introduits** (pour s'orienter à froid) :
 - Domaine ESM : [src/domain/corpus.mjs](src/domain/corpus.mjs), [src/domain/sonal.mjs](src/domain/sonal.mjs),
@@ -35,7 +42,9 @@ Tester en priorité avant d'aller plus loin (verrous, LFS, chemins distants).
 - Tests : `test/*.test.mjs` (`npm test` / `npm run test:update`), fixtures **immuables** dans
   `test/fixtures/` (ne pas éditer en GUI). `TestInteropFromSonal/` = bac à sable libre.
 
-**Prochaine action concrète** : implémenter la **Tranche 2** (cf. §4), puis tester distant/gitlab.
+**Prochaine action concrète** : **valider en GUI** la Phase 2 tranche 2 (édition de
+modalités/valeurs sur un corpus), puis porter le CRUD variables (addVar/sauvVar/supprVar) sur le
+domaine. Toujours en attente : valider Phase 1 en distant/gitlab.
 
 ---
 
@@ -97,12 +106,22 @@ Ces contraintes du code actuel conditionnent l'ordre des phases :
 >
 > **✅ Option B amorcée (ESM natif, sans bundler)** : on a finalement retenu de **vrais modules
 > ES** dès maintenant, sans bundler — le renderer Electron charge `src/index.mjs` via
-> `<script type="module">`, qui expose la couche domaine sur `window.SonalDomain` (pont vers le
-> code legacy global). Les modules `src/domain/*.mjs` sont importés tels quels par les tests
-> Node (et `jsdom` fournit le DOM pour tester le vrai parsing `.sonal`). esbuild/Vite restent
+> `<script type="module">`, qui expose la couche domaine sur `window.SonalDomain` (pont
+> **transitoire** vers le code legacy global, voué à disparaître à mesure que les modules legacy
+> seront migrés — cf. Phase 5). Les modules `src/domain/*.mjs` sont importés tels quels par les
+> tests Node (et `jsdom` fournit le DOM pour tester le vrai parsing `.sonal` : jsdom suffit ici
+> car le parsing n'utilise que des APIs DOM de base — `innerHTML`, `querySelectorAll`,
+> `closest`, `dataset` — fidèles entre jsdom et Electron). esbuild/Vite restent
 > une option ultérieure si une étape de build devient utile. Premier seam livré : `parseCorpus`/
 > `serializeCorpus` (`.crp`, adoptés par `lireCorpus`/`sauvegarderCorpus`) et `parseSonal`
 > (`.sonal`, lecteur canonique que la Phase 5 adoptera).
+>
+> ⚠️ **Règle de portée fenêtre** : `window.SonalDomain` est posé par `src/index.mjs`, chargé
+> **par fenêtre**. Toute `BrowserWindow` dont le HTML exécute du code legacy appelant le domaine
+> **doit** inclure `<script type="module" src="src/index.mjs"></script>`. Concernées à ce jour :
+> `index.html` **et** `edition_entretien.html` (la fenêtre entretien — oubli initial en Phase 2
+> tranche 2, qui faisait planter `affichDataEnt` faute de `SonalDomain`). À revérifier dès qu'une
+> nouvelle fenêtre consomme le domaine.
 
 ---
 
@@ -166,20 +185,26 @@ distant relatif) et (b) choisissent le canal d'écriture.
   encore) ; `estCheminLocal` → un corpus local ne route **jamais** vers le distant ; garde
   `entWindow.isDestroyed()` dans `ouvrirAjoutEntretien` (crash main à l'import).
 
-### 1b tranche 2 — Branches collaboratives côté *renderer* — ⏳ **À FAIRE (reprendre ici)**
-Ces branches `Corpus.type === 'distant'|'gitlab'` ne relèvent **pas** du flux fichier mais d'une
-**capacité** (multi-utilisateurs). Les remplacer par le test du drapeau **`Corpus.collaboratif`** :
-- bouton « rafraîchir » + `rafraichirCorpus` GitLab : [modules/gestion_corpus.js:197](modules/gestion_corpus.js#L197) et `:985` ;
-- sync gitlab périodique : [index.html:747](index.html#L747) ;
-- restriction d'ajout d'entretien (GitLab) : [modules/gestion_entretiens.js:24](modules/gestion_entretiens.js#L24) ;
-- vérification de verrou avant édition : [modules/gestion_entretiens.js:586](modules/gestion_entretiens.js#L586),
-  [modules/gestion_data.js:1376](modules/gestion_data.js#L1376).
-- Restent aussi des `Corpus.type`/`remoteAPI()` d'**orchestration** dans le *main* (verrou
-  d'entretien à l'ouverture, téléchargement distant) — à évaluer pour cette tranche.
-- (Lignes 57 et 1301 de `gestion_entretiens.js` = blocs **commentés**, à ignorer.)
+### 1b tranche 2 — Branches collaboratives côté *renderer* — ✅ **FAIT (à valider en GUI)**
+Un seul drapeau **dérivé** posé à l'ouverture (main.js) : **`Corpus.collaboratif`**
+(= `type !== 'local'`). `Corpus.type` reste la source de vérité (pas de champ `backend` :
+ce serait un doublon de `type`).
+- **Transverse → `Corpus.collaboratif`** (vraies fonctions multi-utilisateurs) :
+  bouton rafraîchir [gestion_corpus.js:197](modules/gestion_corpus.js#L197), verrou avant
+  ouverture [gestion_entretiens.js:586](modules/gestion_entretiens.js#L586), verrou avant
+  édition de donnée [gestion_data.js:1376](modules/gestion_data.js#L1376), garde de la veille
+  [index.html:722](index.html#L722), orchestration *main* (≈ main.js 975/1239/1334/1358).
+- **Spécifique-backend assumé → `Corpus.type === 'gitlab'`** (légitime, comme la couche Storage
+  garde le LFS hors interface) : re-sync GitLab [gestion_corpus.js:985](modules/gestion_corpus.js#L985),
+  refresh serveur `:1119` (`type !== 'distant'`), sync périodique [index.html:747](index.html#L747),
+  restriction d'ajout GitLab [gestion_entretiens.js:24](modules/gestion_entretiens.js#L24), menu
+  « Paramètres GitLab » (main.js ≈2865).
+- Hors scope (inchangé) : heuristiques de dossier par défaut des dialogues d'export dans main.js
+  (`Corpus.type !== 'distant'`) ; blocs commentés `gestion_entretiens.js:57` et `:1301`.
 
-**Critère de sortie (Phase 1 complète)** : plus aucun `Corpus.type ===` dans le flux fichier ;
-local/distant/gitlab à l'identique ; ajouter Nextcloud (WebDAV) = une seule classe.
+**Critère de sortie (Phase 1 complète)** : ✅ plus aucun `Corpus.type` **transverse** dans le
+renderer (seul subsiste le spécifique-GitLab assumé) ; `npm test` 14/14 (Node 18+24). **Reste à
+valider en GUI distant/gitlab.** Ajouter Nextcloud (WebDAV) = une classe Storage + `collaboratif`.
 
 ---
 
@@ -188,9 +213,38 @@ local/distant/gitlab à l'identique ; ajouter Nextcloud (WebDAV) = une seule cla
 **Pourquoi ici** : domaine pur, **sans DOM**, donc testable unitairement tout de suite ;
 et c'est le siège de la duplication la plus douloureuse.
 
+> **✅ Tranche 1 faite (domaine pur + tests)** : [src/domain/eav.mjs](src/domain/eav.mjs) —
+> classes `Variable`/`Modalite`/`Donnee` (noms explicites, `fromJSON`/`toJSON` vers les clés
+> gelées `v`/`lib`/`champ`/`priv`/`m`/`e`/`l`), **vue calculée** `unionDonnees` (union des `tabDat`
+> locaux — officialise ce que `inventaireVariables` reconstruisait à la main), `inventorierVariables`,
+> et la logique de valeurs sans DOM/IO (`lireValeur`/`definirValeur`/`renommerModalite`,
+> `ajouter`/`modifier`/`supprimerVariable`). Exposé sur `window.SonalDomain.eav`. Tests :
+> [test/eav.test.mjs](test/eav.test.mjs) (golden de la vue calculée + équivalence stricte au
+> rebuild legacy).
+>
+> **✅ Tranche 2 faite (câblage renderer, à valider en GUI)** : [gestion_data.js](modules/gestion_data.js)
+> délègue désormais au domaine — `inventaireVariables` → `unionDonnees` + `inventorierVariables`
+> (le `tabDat` corpus n'est **plus** reconstruit à la main : critère de sortie atteint),
+> `getMod` → `lireValeur`, `validMod` → `definirValeur`, `chgDic` → `renommerModalite`. Le rendu
+> (`affichDataGen`/`affichDataEnt`) et la persistance (`electronAPI`, `majFichierSonal`) restent
+> côté renderer. Deux affinements de comportement assumés : (a) `inventaireVariables` ne pollue
+> plus `tabVar` avec le marqueur mort `nvcode` ; (b) `validMod` ne crée plus de modalité orpheline
+> si l'entretien est introuvable (cas qui ne survient pas en pratique). **Reste hors tranche** :
+> le CRUD de variables (`addVar`/`sauvVar`/`supprVar`), très couplé au DOM (formulaire + modalités),
+> dont la logique pure existe déjà dans le domaine (`ajouter`/`modifier`/`supprimerVariable`).
+>
+> **✅ Tranche 3 faite (CRUD variables, à valider en GUI)** : `addVar` (création) →
+> `ajouterVariable` (variable + modalité 0), `sauvVar` → `modifierVariable`, `supprVar` →
+> `supprimerVariable` + `retirerVariableDesDonnees` (cascade sur les `tabDat` locaux et la vue
+> corpus). Le DOM (formulaire, modalités), le repositionnement et la persistance restent côté
+> renderer. `editVar` reste purement UI (peuple la boîte de dialogue, délègue à `sauvVar`).
+> **Phase 2 complète** : toute la logique EAV listée au §5 est encapsulée dans
+> [src/domain/eav.mjs](src/domain/eav.mjs).
+
 - Classes `Variable {v, lib, champ, priv}`, `Modalite {v, m, lib}`, `Donnee {e, v, l, m}`.
   ⚠️ **Pas** deux conteneurs « BaseDeDonnéesEntretien / Corpus » (ça graverait l'accident dans
   le marbre, cf. MODELE_OBJET3 §3) — soit des méthodes sur les agrégats, soit un service unique.
+- Renommer les méthodes et propriétés avec des noms courts mais explicites, ne pas utiliser de noms abréviés
 - **Établir la source de vérité unique**, partagée selon la *nature* de la donnée (cf. MODELE_OBJET3 §3) :
   - **valeurs** (`Donnee`/`tabDat`, rattachées à un entretien `e`) → maîtres dans le **`.sonal`** ;
     le `tabDat` corpus devient une **vue calculée** (l'*union* des locaux), jamais un cache resynchronisé à la main ;
@@ -218,6 +272,10 @@ vraies entités qui *possèdent* leurs sous-objets.
   méthodes `ouvrir/sauvegarder` (délèguent à `StorageFactory`).
 - Remplacer les accès directs `tabEnt[i].xxx` des appelants par l'API d'objet, un appelant
   à la fois (strangler).
+- **Absorption de `StorageFactory` (issu de Phase 1a)** : la *sélection* du backend (« quel
+  Storage pour ce corpus ? ») a vocation à devenir une méthode de l'agrégat, ex. `Corpus.storage()`,
+  et les drapeaux dérivés (`collaboratif`) des **getters** de `Corpus` (`estLocal`, `estCollaboratif`).
+  `StorageFactory.js` — couche de pont volontairement mince — disparaîtra alors au profit de `Corpus`.
 
 **Critère de sortie** : ouverture/sauvegarde de corpus passe par `Corpus`/`Entretien` ;
 les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces classes.

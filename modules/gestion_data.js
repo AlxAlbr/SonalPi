@@ -37,9 +37,16 @@ async function addVar(mode) {
     if (newVar) { // création d'une nouvelle variable 
         
         
-        tabVar.push({'v': rkVar, 'lib': newVar, 'champ': champ, 'priv': priv }); // Ajouter la nouvelle variable au tableau
-        tabDic.push ({ 'v': rkVar, 'm' : 0 , 'lib' : "" }) // Ajouter la modalité 0
-        
+        // Création de la variable + sa modalité 0 : logique dans src/domain/eav.mjs:ajouterVariable.
+        const eav = window.SonalDomain.eav;
+        const ajout = eav.ajouterVariable(
+            tabVar.map(v => eav.Variable.fromJSON(v)),
+            tabDic.map(d => eav.Modalite.fromJSON(d)),
+            { code: rkVar, libelle: newVar, portee: champ, privee: priv }
+        );
+        tabVar = ajout.variables.map(v => v.toJSON());
+        tabDic = ajout.modalites.map(m => m.toJSON());
+
         repositionnerVar(rkVar); // Appliquer le positionnement demandé
         await electronAPI.setVar(tabVar); // sauvegarder le tableau des variables
         await electronAPI.setDic(tabDic); // sauvegarder le tableau des modalités
@@ -227,19 +234,13 @@ async function sauvVar(rgVar, mode) {
      
     if (updatedVar.lib) {
 
-        // recherche de la ligne correspondante dans tabvar
-        const varmodifIndex = tabVar.findIndex (vr => vr.v == rgVar);
+        // Mise à jour de la définition (repérée par code) : src/domain/eav.mjs:modifierVariable.
+        const eav = window.SonalDomain.eav;
+        tabVar = eav.modifierVariable(
+            tabVar.map(v => eav.Variable.fromJSON(v)),
+            { code: updatedVar.v, libelle: updatedVar.lib, portee: updatedVar.champ, privee: updatedVar.priv }
+        ).map(v => v.toJSON());
 
-        if (varmodifIndex !== -1){
-            console.log("variable trouvée pour modification au rang :", varmodifIndex);
-             console.log ("tableau des variables avant mise à jour:", tabVar);
-            tabVar[varmodifIndex] = updatedVar; // Mettre à jour la variable dans le tableau
-            console.log ("Nouveau tableau des variables :", tabVar);
-
-        } else {
-            console.log ("La variable à modifier n'a pas été retrouvée")
-        }
- 
         repositionnerVar(updatedVar.v); // Appliquer le positionnement demandé
          
         // Mise à jour des modalités
@@ -279,22 +280,28 @@ async function supprVar(rgVar, mode) {
     if (varIndex !== -1) {
     
     
-        // suppression de la variable du tableau
-        tabVar.splice(varIndex, 1);
+        // Suppression de la variable et de ses modalités : src/domain/eav.mjs:supprimerVariable.
+        const eav = window.SonalDomain.eav;
+        const suppr = eav.supprimerVariable(
+            tabVar.map(v => eav.Variable.fromJSON(v)),
+            tabDic.map(d => eav.Modalite.fromJSON(d)),
+            rgVar
+        );
+        tabVar = suppr.variables.map(v => v.toJSON());
+        tabDic = suppr.modalites.map(m => m.toJSON());
 
-        // suppression des modalités associées
-        tabDic = tabDic.filter(item => item.v != rgVar);
-
-        // suppression des enregistrements dans le tabDat local de chaque entretien
+        // Cascade sur les tabDat locaux (source de vérité .sonal) puis sur la vue corpus.
         tabEnt = await window.electronAPI.getEnt();
         tabEnt.forEach(ent => {
             if (Array.isArray(ent.tabDat)) {
-                ent.tabDat = ent.tabDat.filter(d => d.v != rgVar);
+                ent.tabDat = eav.retirerVariableDesDonnees(
+                    ent.tabDat.map(d => eav.Donnee.fromJSON(d)), rgVar
+                ).map(d => d.toJSON());
             }
         });
-
-        // reconstruction du tabDat global depuis les locaux
-        tabDat = tabDat.filter(item => item.v != rgVar);
+        tabDat = eav.retirerVariableDesDonnees(
+            tabDat.map(d => eav.Donnee.fromJSON(d)), rgVar
+        ).map(d => d.toJSON());
 
         // sauvegarde
         await electronAPI.setVar(tabVar);
@@ -499,12 +506,10 @@ function ajoutListeModas(type){
 
 async function chgDic(v,m, lib){
 
-    const rkLigDic= tabDic.findIndex (vr => vr.v == v && vr.m == m);
-    if (rkLigDic > -1){
-        tabDic[rkLigDic].lib = lib; 
-    } else {
-        tabDic.push({'v':Number(v), 'm':m, 'lib':lib})
-    }
+    // Renommage/création de modalité : logique dans src/domain/eav.mjs:renommerModalite.
+    const eav = window.SonalDomain.eav;
+    tabDic = eav.renommerModalite(tabDic.map(d => eav.Modalite.fromJSON(d)), v, m, lib)
+                .map(mod => mod.toJSON());
 
     // sauvegarde du tabdic
  await electronAPI.setDic(tabDic);
@@ -520,49 +525,21 @@ async function validMod(rgEnt, v, l, m, lib){
 
    console.log("on valide un changement de modalité pour l'entretien " + rgEnt + " la variable ", v, "le locuteur " , l ,  " et la modalité ", m , " le nouveau libellé sera " , lib)
 
-    // la modalité saisie existe-t-elle déjà ?
-    const rgTabDic = tabDic.findIndex(vr => vr.v === v && vr.lib === lib) ;
-    
-    console.log("la modalité a été trouvée au rang " + rgTabDic)
-
-     // si non -->  ajout dans tabdic
-    if (rgTabDic==-1){ // la modalité n'est pas trouvée
-
-        
-        // quel est le rang de modalité le plus avancé? 
-        const ligsDic= tabDic.filter (vr => vr.v == v);
-        const maxMod = Math.max(...ligsDic.map(item => item.m));   
-
-        console.log("modalité la plus élevée pour la variable " + v + " = " + maxMod)
-        if (isFinite(maxMod)) {
-            m = maxMod+1; 
-        } else {
-            m=1; // si aucune modalité n'existe encore pour cette variable, on commence à 1
-        }
-
-        console.log("la nouvelle modalité sera " + m)  
-
-        tabDic.push({'v':v, 'm':m,'lib':lib })
-
-        await window.electronAPI.setDic(tabDic); // sauvegarde du tabdic
-
-        // console.log(tabDic)
-    } else {
-        m = tabDic[rgTabDic].m
-    }
-    
-   
-
-    // mise à jour du tabdat local de l'entretien (source de vérité)
+    // Trouve-ou-crée la modalité (code = max+1 si nouveau libellé) puis écrit la valeur
+    // dans le tabDat LOCAL de l'entretien (source de vérité .sonal).
+    // Logique : src/domain/eav.mjs:definirValeur.
     const ligEnt = tabEnt.find(ent => ent.id == rgEnt);
     if (ligEnt){
         if (!Array.isArray(ligEnt.tabDat)) { ligEnt.tabDat = []; }
-        const varModif = ligEnt.tabDat.find(d => d.e == rgEnt && d.v == v && d.l == l);
-        if (varModif){
-            varModif.m = m;
-        } else {
-            ligEnt.tabDat.push({'e' : String(rgEnt) , 'v' : v, 'l' : l, 'm' : m})
-        }
+        const eav = window.SonalDomain.eav;
+        const res = eav.definirValeur(
+            ligEnt.tabDat.map(d => eav.Donnee.fromJSON(d)),
+            tabDic.map(d => eav.Modalite.fromJSON(d)),
+            { entretien: rgEnt, variable: v, locuteur: l, libelle: lib }
+        );
+        ligEnt.tabDat = res.donnees.map(d => d.toJSON());
+        tabDic = res.modalites.map(mod => mod.toJSON());
+        m = res.modalite; // pour la mise à jour du data-m de l'input plus bas
     }
 
     await window.electronAPI.setEnt(tabEnt); // sauvegarde du tabent
@@ -606,30 +583,26 @@ async function getMod(e,v,l) {
     }
     
     
-    const tabDatEnt = tabEnt[e].tabDat;
-    if (!tabDatEnt) {
+    if (!tabEnt[e].tabDat) {
         tabEnt[e].tabDat = [];
     }
-    
-                // récupération de la valeur de modalité dans le tabdat local
-                const ligDat = tabEnt[e].tabDat.filter(d => d.v == v && d.l == l);
-                                
-                // si elle n'existe pas on la crée
-                if (ligDat.length==0){
-                    if ( tabEnt[e].tabDat ) { tabEnt[e].tabDat.push({'e' : String(tabEnt[e].id),'v' : v, 'l' : l, 'm' : 0 }) }
-                    // la valeur est nulle
-                    moda=0 
 
-                } else {
+    // Lecture de la modalité prise : logique dans src/domain/eav.mjs:lireValeur
+    // (tabDic global = source de vérité des libellés).
+    const eav = window.SonalDomain.eav;
+    const lue = eav.lireValeur(
+        tabEnt[e].tabDat.map(d => eav.Donnee.fromJSON(d)),
+        v, l,
+        tabDic.map(d => eav.Modalite.fromJSON(d))
+    );
+    moda = lue.modalite;
+    libellé = lue.libelle;
 
-                    moda  = ligDat[0].m
-                    
-                    if (moda>0){
-                        // recherche dans le tabDic global (source de vérité)
-                        const ligDic = tabDic.find(item => item.v == v && item.m == ligDat[0].m);
-                        libellé  = ligDic ? ligDic.lib : "";
-                    }
-                }
+    // Effet de bord legacy préservé : initialiser la ligne locale à 0 si absente.
+    if (!tabEnt[e].tabDat.some(d => d.v == v && d.l == l)) {
+        tabEnt[e].tabDat.push({'e' : String(tabEnt[e].id), 'v' : v, 'l' : l, 'm' : 0 });
+    }
+
 return [moda, libellé]
 }
 
@@ -870,97 +843,16 @@ async function inventaireVariables(){ // fonction d'inventaire des variables exi
     //tabVar = []; // réinitialisation du tableau des variables
     //tabDic = []; // réinitialisation du tableau des modalités
 
-    // Reconstruction complète et propre du tabDat global depuis les tabDat locaux
-    // (évite d'accumuler des entrées périmées entre appels successifs)
-    const newTabDat = [];
-    const tabEntFresh = await window.electronAPI.getEnt();
-    tabEntFresh.forEach(ent => {
-        const eId = String(ent.id);
-        (ent.tabDat || []).forEach(datEnt => {
-            if (datEnt.v == null || datEnt.l == null || datEnt.m == null) return;
-            const ligExistante = newTabDat.findIndex(d => d.e == eId && d.v == datEnt.v && d.l == datEnt.l);
-            if (ligExistante > -1) {
-                newTabDat[ligExistante].m = datEnt.m;
-            } else {
-                newTabDat.push({e: eId, v: datEnt.v, l: datEnt.l, m: datEnt.m});
-            }
-        });
-    });
-    tabDat = newTabDat;
+    // Vue calculée du tabDat corpus = UNION des tabDat locaux (source de vérité .sonal).
+    // Cf. src/domain/eav.mjs:unionDonnees — remplace l'ancien « rebuild » manuel, qui ne
+    // peut donc plus accumuler d'entrées périmées entre appels successifs.
+    tabDat = window.SonalDomain.eav.unionDonnees(tabEnt).map(d => d.toJSON());
     await window.electronAPI.setDat(tabDat);
 
-    var tabVarEnt = [];
-    // défilement des entretiens
-    tabEnt.forEach(ent => {
-
-        tabVarEnt = ent.tabVar; // récupération des variables
-
-        // evitement des tabvar vides
-        if (!tabVarEnt || tabVarEnt.length==0){
-            console.log("Aucune variable dans l'entretien n°" + ent.rk);
-            return;
-        }
-
-        tabVarEnt.forEach(varEnt => {
-            // console.log("Entretien n°" + ent.rk + " - Variable n°" + varEnt.v + " : " + varEnt.lib + " (champ : " + varEnt.champ + ", privée : " + varEnt.priv + ")");
-
-              
-            if (tabVar.some(v => v.v === varEnt.v && v.lib === varEnt.lib)) { // existe déjà
-                varEnt.nvcode = "ok"; // Pas de changement
-                //console.log("variable inchangée :", varEnt.v);
-            }
-            else if (tabVar.some(v => v.v != varEnt.v && v.lib === varEnt.lib)) { // existe avec un code différent
-                varEnt.nvcode = "ok"; // Pas de changement
-                // console.log("variable existante à un autre rang:", varEnt.v);
-
-                // le rang du tabvar est imposé dans l'entretien
-                ///alert("Attention : la variable '" + varEnt.lib + "' existe déjà avec un autre code. Le code de la variable dans l'entretien n°" + ent.rk + " sera conservé (" + varEnt.v + "). Veuillez vérifier la cohérence des variables.");
-
-
-
-
-            } else  if (!tabVar.some(v => v.v === varEnt.v && v.lib === varEnt.lib)) {
-                varEnt.nvcode = "ajouter";
-                situation = "ajout";
-                tabVar.push(varEnt)
-                // console.log("nouvelle variable ajoutée :", varEnt.v);
-
-            }
-
-
-
-        });
-
-
-        // console.log("Inventaire terminé. Variables actuelles :", tabVar);
-
-        // tabDat global déjà reconstruit proprement au début de cette fonction
-
-
-
-        tabDicEnt = ent.tabDic; // récupération des modalités
-        
-                // evitement des tabvar vides
-        if (!tabDicEnt || tabDicEnt.length==0){
-            // console.log("Aucune modalité dans l'entretien n°" + ent.rk);
-            return;
-        }
-        
-        // recopiage des modalités du tabdic qui n'existent pas encore dans le tabdic global (Pas là)
-        /*
-        tabDicEnt.forEach(dicEnt => { 
-
-            if (!tabDic.some(d => d.v === dicEnt.v && d.m === dicEnt.m )) { // n'existe pas encore   
-                if (dicEnt.m != "0" && dicEnt.m != 0 && dicEnt.m != null && dicEnt.m != undefined && isNumber(dicEnt.m)== true)  { // on n'ajoute pas les modalités nulles
-                    tabDic.push(dicEnt);
-                    // console.log("nouvelle modalité ajoutée :", dicEnt.v, dicEnt.m);
-                }
-            }
-
-        });
-        */
-
-    });
+    // Inventaire des définitions = UNION des tabVar locaux par-dessus le tabVar corpus.
+    // Cf. src/domain/eav.mjs:inventorierVariables. (Le recopiage des modalités locales
+    // était déjà désactivé : tabDic reste maître dans le .crp.)
+    tabVar = window.SonalDomain.eav.inventorierVariables(tabEnt, tabVar).map(v => v.toJSON());
 
       // console.log("Inventaire terminé. modalités actuelles :", tabDic);
 
@@ -1373,7 +1265,7 @@ async function validerCellGen(td, lib) {
 
     // Vérification du verrou pour les corpus distants
     const Corpus = await window.electronAPI.getCorpus();
-    if (Corpus && (Corpus.type === "distant" || Corpus.type === "gitlab")) {
+    if (Corpus && Corpus.collaboratif) {
         const lockResult = await window.electronAPI.isEntretienLocked(rkEnt);
         if (lockResult && lockResult.locked === true) {
             question(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`, ['OK']);

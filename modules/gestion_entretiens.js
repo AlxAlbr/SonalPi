@@ -583,7 +583,7 @@ async function afficherEnt(rgDep, rgFin){
                     // récupération du corpus 
                     let Corpus = await electronAPI.getCorpus();
 
-                    if (Corpus.type == "distant" || Corpus.type == "gitlab"){
+                    if (Corpus.collaboratif){
                         let result = await electronAPI.isEntretienLocked(rkEnt)
                          if (result.locked==true) {
                                     console.log("l'entretien est verrouillé par " + result.user)

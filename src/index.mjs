@@ -6,5 +6,6 @@
 
 import { parseCorpus, serializeCorpus } from './domain/corpus.mjs';
 import { parseSonal } from './domain/sonal.mjs';
+import * as eav from './domain/eav.mjs';
 
-window.SonalDomain = { parseCorpus, serializeCorpus, parseSonal };
+window.SonalDomain = { parseCorpus, serializeCorpus, parseSonal, eav };

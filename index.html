@@ -719,7 +719,7 @@ setInterval(async () => {
         // récupération des infos du corpus
         let Corpus = await window.electronAPI.getCorpus();
 
-        if (!Corpus || (Corpus.type != 'distant' && Corpus.type != 'gitlab')) { return; }
+        if (!Corpus || !Corpus.collaboratif) { return; }
 
         // récupération des entretiens
         let tabEnt = await window.electronAPI.getEnt();

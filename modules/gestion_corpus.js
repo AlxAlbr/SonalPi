@@ -193,8 +193,8 @@ document.getElementById('fenetreAccueil').classList.add('dnone'); // masquage de
 
   let Corpus = await window.electronAPI.getCorpus();
 
-    // si corpus distant ou gitlab, affichage du bouton rafraichir : id="btn-rafraichir"
-    if (Corpus.type == "distant" || Corpus.type == "gitlab"){  
+    // corpus collaboratif (distant ou gitlab) : affichage du bouton rafraichir : id="btn-rafraichir"
+    if (Corpus.collaboratif){
         document.getElementById('btn-rafraichir').classList.remove('dnone'); // affichage du bouton de rafraichissement
     } else {
         document.getElementById('btn-rafraichir').classList.add('dnone');
@@ -1116,8 +1116,8 @@ async function rafraichirCorpus(silencieux = false) {
         return;
     }
 
-    if (Corpus.type !=="distant"){
-        return; // le rafraîchissement ne se fait que pour les corpus distants
+    if (Corpus.type !== "distant"){
+        return; // le rafraîchissement (hors GitLab, déjà traité) ne se fait que pour le serveur distant
     }
 
      // récupération du tableau des entretiens

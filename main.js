@@ -1021,7 +1021,7 @@ async function archiverCorpus() {
     return null;
   }
 
-  const estDistant = Corpus.type === 'distant' || Corpus.type === 'gitlab';
+  const estDistant = Corpus.collaboratif;
 
   // Nom par défaut : même nom que le corpus + date
   const baseName = Corpus.fileName.replace('.crp', '');
@@ -1236,7 +1236,7 @@ async function editerEntretien(parentWindow, rgEnt){
 
 
         // verrouiller le fichier sur le serveur
-      if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
+      if (Corpus.collaboratif && remoteAPI()) {
 
         // définition de l'adresse du fichier distant
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
@@ -1331,7 +1331,7 @@ async function editerEntretien(parentWindow, rgEnt){
     entWindow.on('closed', () => {
        
       // déverrouiller le fichier sur le serveur
-      if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
+      if (Corpus.collaboratif && remoteAPI()) {
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
         remoteAPI().deverrouillerFichier(adrFile);
         // Notifier mainWindow pour mettre à jour l'icône immédiatement
@@ -1355,7 +1355,7 @@ ipcMain.handle('editer-entretien', async (event, rgEnt) => {
 ipcMain.handle('entretien-locked', async (event, rgEnt) => {
   //console.log("vérification du verrouillage de l'entretien " + rgEnt + " de type " + Corpus.type)
   
-  if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
+  if (Corpus.collaboratif && remoteAPI()) {
     try {
       let adrFile = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
       const result = await remoteAPI().verifierVerrou(adrFile);

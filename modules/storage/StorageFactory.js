@@ -9,6 +9,10 @@ const LocalStorage = require('./LocalStorage.js');
  * gré des connexions/déconnexions ; elles sont donc passées **en argument** à
  * `pour()` (instances vivantes), plutôt qu'enregistrées une fois pour toutes.
  * Le `LocalStorage`, lui, est sans état → singleton interne.
+ *
+ * ⚠️ Couche de pont volontairement mince. À terme (PlanPoo Phase 3, agrégat
+ * `Corpus`), cette sélection a vocation à devenir une méthode `Corpus.storage()`
+ * et ce fichier à disparaître au profit de l'entité `Corpus`. Cf. PlanPoo.md §6.
  */
 const localStorage = new LocalStorage();
 
