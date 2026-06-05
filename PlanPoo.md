@@ -24,7 +24,10 @@
 | **2 tranche 1** — domaine EAV pur (`src/domain/eav.mjs`) | ✅ **Fait** | classes + vue calculée + logique de valeurs, testées en Node ; voir §5 |
 | **2 tranche 2** — câblage `gestion_data.js` → domaine | ✅ **Fait, validé en local** | inventaireVariables/getMod/validMod/chgDic appellent `SonalDomain.eav` ; affichage entretien (gén. + locuteurs) OK après chargement du domaine dans `edition_entretien.html` ; voir §5 |
 | **2 tranche 3** — câblage CRUD variables → domaine | ✅ **Fait (à valider en GUI)** | addVar/sauvVar/supprVar appellent `ajouter/modifier/supprimerVariable` + `retirerVariableDesDonnees` ; **Phase 2 complète** |
-| **3** → **6** | ⬜ à venir | prochaine étape : Phase 3 (agrégats `Entretien`/`Corpus`) |
+| **3 tranche 1** — agrégat `Entretien` pur (`src/domain/entretien.mjs`) | ✅ **Fait** | wrapper typé + accès EAV, testé en Node ; voir §6 |
+| **3 tranche 2** — agrégat `Corpus` pur (`src/domain/corpus.mjs`) | ✅ **Fait** | possède `Entretien[]` + variables, getters `estLocal`/`estCollaboratif`, testé ; voir §6 |
+| **3 tranche 3+** — câblage renderer | ⬜ à venir | remplacer les `tabEnt[i].xxx` / `Corpus.type` par l'API objet, un appelant à la fois |
+| **4** → **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
 qu'en **local**. Tester en priorité avant la Phase 2 (verrous, LFS, sync, chemins distants).
@@ -264,6 +267,39 @@ global ; tests unitaires sur les valeurs sans DOM.
 
 **But** : transformer les sacs de propriétés `tabEnt[i]` et l'objet global `Corpus` en
 vraies entités qui *possèdent* leurs sous-objets.
+
+> **⚠️ Décision d'architecture (prise en démarrant la Phase 3).** Constat : l'état canonique
+> (`Corpus` meta, `tabEnt`, `tabVar/Dic/Dat`) vit dans le **process main** (main.js, globaux +
+> store), `StorageFactory` et l'I/O aussi ; le renderer n'obtient que des **snapshots via IPC** et
+> *orchestre* l'ouverture/sauvegarde. La douleur (`tabEnt[i].xxx` éparpillés, `Corpus` global
+> trifouillé) est **renderer-side**. **Décision** :
+> - `Corpus`/`Entretien` = **domaine pur ESM dans `src/domain/`** (aucun Electron/IPC/fs/DOM),
+>   calqué sur `eav.mjs` : on enveloppe les snapshots (`fromJSON`/`toJSON` sans perte), on opère,
+>   on repousse via `set-*`. Le **main reste l'unique source de vérité** (pas de second état vivant).
+> - **Déviation assumée du plan sur `StorageFactory`** : il **reste dans le main** comme sélecteur
+>   de backend derrière l'IPC (pas de `Corpus.storage()` tenant une instance `Storage` dans le
+>   renderer — impossible proprement). Ce qui migre dans `Corpus`, c'est la partie **pure** : les
+>   getters dérivés `estLocal`/`estCollaboratif`. `Corpus.ouvrir/sauvegarder` (renderer) orchestrent
+>   et délèguent l'I/O à l'IPC (qui, lui, utilise `StorageFactory`).
+> - Bénéfice : zéro pont ESM→CommonJS dans le main, cohérent avec `src/domain`, testable en Node.
+>
+> **✅ Tranche 1 faite** : [src/domain/entretien.mjs](src/domain/entretien.mjs) — wrapper typé pur
+> sur le snapshot entretien (accesseurs explicites `identifiant`/`nom`/`fichierSonal`/`locuteurs`…,
+> `donnees()`/`variables()`/`modalites()` réutilisant `eav`), `fromJSON`/`toJSON` sans perte.
+> Exposé sur `window.SonalDomain.Entretien`. Tests : [test/entretien.test.mjs](test/entretien.test.mjs).
+> Les méthodes I/O (charger/sauvegarderSonal, exports, verrou) restent à l'orchestration et seront
+> branchées plus tard.
+>
+> **✅ Tranche 2 faite** : agrégat racine `Corpus` dans [src/domain/corpus.mjs](src/domain/corpus.mjs)
+> (aux côtés de `parseCorpus`/`serializeCorpus`). Possède `Entretien[]` + variables/modalités ;
+> `Corpus.fromParts({corpus, tabEnt, tabVar, tabDic})` assemble depuis les snapshots IPC ; getters
+> dérivés `estLocal`/`estCollaboratif`/`estGitlab` (depuis `type`, source de vérité), méta
+> (`dossier`/`nomFichier`/`url`), `entretiens()`/`entretienParId(id)`/`variables()`/`modalites()`,
+> `donnees()` (= `eav.unionDonnees`), et `toEntretiens()`/`toVariables()`/`toModalites()` pour
+> repousser via `set-*`. Exposé sur `window.SonalDomain.Corpus`. Tests :
+> [test/corpus-aggregat.test.mjs](test/corpus-aggregat.test.mjs).
+> **Tranche 3+** : remplacer les `tabEnt[i].xxx` et les `Corpus.type`/`collaboratif` épars du
+> renderer par l'API objet, un appelant à la fois (strangler).
 
 - `Entretien` : `id, nom, rtrPath, audioPath, imgPath, notes`, possède `Locuteur[]`,
   `Donnee[]`, `RegleAnon[]`, et **un** `Document`. Méthodes : `charger/sauvegarderSonal`,

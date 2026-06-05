@@ -5,6 +5,11 @@
 // importable en Node (tests) comme dans le renderer (via src/index.mjs).
 //
 // Voir docs/FORMATS.md §1.
+//
+// Ce module porte AUSSI l'agrégat racine `Corpus` (Phase 3) — voir en bas de fichier.
+
+import { Variable, Modalite, unionDonnees } from './eav.mjs';
+import { Entretien } from './entretien.mjs';
 
 /**
  * Parse le contenu d'un .crp (Sonal π / Sonal 3) et applique la normalisation
@@ -51,4 +56,72 @@ export function parseCorpus(content) {
  */
 export function serializeCorpus({ tabThm, tabEnt, tabVar, tabDic, tabAnon }) {
   return JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
+}
+
+// ── Agrégat racine `Corpus` (Phase 3) ───────────────────────────────────────
+//
+// Enveloppe TYPÉE et PURE du corpus ouvert. Comme `Entretien`, c'est un wrapper
+// transitoire sur les snapshots du process main (assemblés via IPC get-corpus /
+// get-ent / get-var / get-dic) : on opère, puis on repousse via set-*. Le main
+// reste l'unique source de vérité ; cette classe ne tient aucun état persistant,
+// ni Electron/IPC/fs/DOM.
+//
+// Décision Phase 3 (cf. PlanPoo §6) : `StorageFactory` n'est PAS absorbé ici (il
+// reste main-side comme sélecteur de backend derrière l'IPC). Ce qui migre dans
+// `Corpus`, c'est la partie pure : les getters dérivés `estLocal`/`estCollaboratif`
+// — `type` restant la source de vérité (PlanPoo, bloc d'état).
+
+export class Corpus {
+  #meta; #entretiens; #variables; #modalites;
+
+  /**
+   * @param {{meta?:object, entretiens?:Entretien[], variables?:Variable[], modalites?:Modalite[]}} parts
+   */
+  constructor({ meta = {}, entretiens = [], variables = [], modalites = [] } = {}) {
+    this.#meta = meta;
+    this.#entretiens = entretiens;
+    this.#variables = variables;
+    this.#modalites = modalites;
+  }
+
+  /**
+   * Assemble un Corpus depuis les snapshots IPC.
+   * @param {{corpus?:object, tabEnt?:Array, tabVar?:Array, tabDic?:Array}} snapshots
+   */
+  static fromParts({ corpus = {}, tabEnt = [], tabVar = [], tabDic = [] } = {}) {
+    return new Corpus({
+      meta: corpus,
+      entretiens: tabEnt.map(o => Entretien.fromJSON(o)),
+      variables: tabVar.map(o => Variable.fromJSON(o)),
+      modalites: tabDic.map(o => Modalite.fromJSON(o)),
+    });
+  }
+
+  // ── Identité backend & capacités dérivées ──────────────────────────────────
+  get type() { return this.#meta.type; }                 // 'local'|'distant'|'gitlab'
+  get estLocal() { return this.#meta.type === 'local'; }
+  get estCollaboratif() { return this.#meta.type != null && this.#meta.type !== 'local'; }
+  get estGitlab() { return this.#meta.type === 'gitlab'; }
+  get dossier() { return this.#meta.folder; }            // folder
+  get nomFichier() { return this.#meta.fileName; }       // fileName
+  get url() { return this.#meta.url; }
+
+  // ── Sous-objets ────────────────────────────────────────────────────────────
+  entretiens() { return this.#entretiens; }
+  /** @returns {Entretien|undefined} */
+  entretienParId(id) { return this.#entretiens.find(e => e.identifiant == id); }
+  variables() { return this.#variables; }   // définitions (maîtres dans le .crp)
+  modalites() { return this.#modalites; }
+
+  /**
+   * Vue calculée des données du corpus = UNION des tabDat locaux des entretiens
+   * (cf. eav.unionDonnees). N'est jamais un cache resynchronisé.
+   * @returns {import('./eav.mjs').Donnee[]}
+   */
+  donnees() { return unionDonnees(this.#entretiens.map(e => e.toJSON())); }
+
+  // ── Sérialisation vers les snapshots (pour repousser via set-*) ────────────
+  toEntretiens() { return this.#entretiens.map(e => e.toJSON()); }
+  toVariables() { return this.#variables.map(v => v.toJSON()); }
+  toModalites() { return this.#modalites.map(m => m.toJSON()); }
 }
