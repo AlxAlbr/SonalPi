@@ -36,7 +36,8 @@
 | **5 tranche 3b** — requêtes de codage + `Extrait` (`document.mjs`) | ✅ **Fait** | `extraits(predicat)`/`extraitsParCategorie`/`categoriesPresentes`/`fragmentsCodes`, testé (dont enjambement de segments) ; voir §8 |
 | **5 tranche 3c-i** — `renumeroter` pur (port de `reinitRk`) | ✅ **Fait** | transform `html→html` déterministe, idempotent, testé ; voir §8 |
 | **5 tranche 3c-ii** — `HistoriqueDocument` pur (undo/redo) | ✅ **Fait** | pile pure (port de backUp/undo/redo), testée ; voir §8 |
-| **5 tranche 3c-iii+** — DocumentView + éditions structurelles | ⬜ à venir | SplitSeg/compact/fusion + câblage DOM (`#segments`) |
+| **5 tranche 3c-iii** — câblage undo/redo → `HistoriqueDocument` | 🟡 **Fait (à valider GUI)** | `backUp/undo/redo` de segmentation.js délèguent à l'historique pur ; voir §8 |
+| **5 tranche 3c-iv+** — `renumeroter` câblé + éditions structurelles | ⬜ à venir | SplitSeg/compact/fusion (le plus risqué) |
 | **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
@@ -466,8 +467,16 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > l'état courant et applique le retour au DOM (binding mince = futur DocumentView). Exposé sur
 > `window.SonalDomain.HistoriqueDocument`. Tests : [test/historique.test.mjs](test/historique.test.mjs)
 > (séquence annuler/rétablir, état identique ignoré, redo vidé, piles vides, limite de profondeur).
-> **Tranche 3c-iii+ (à venir)** : `DocumentView` (lie `#segments.innerHTML` à `renumeroter` +
-> `HistoriqueDocument`) puis éditions structurelles (SplitSeg/compact/fusion) — la couche DOM, la plus risquée.
+> **🟡 Tranche 3c-iii FAITE (câblage undo/redo, à valider GUI)** : `segmentation.js` —
+> `backUp`/`undo`/`redo` délèguent à une instance `HistoriqueDocument` (créée dans `initBkUp`) ;
+> les globaux `BkUp`/`BkUpRedo` supprimés. Behavior-preserving : le legacy remplaçait DÉJÀ
+> `#segments.innerHTML` (seule la logique de pile a migré vers l'objet pur testé) ; le get/set DOM
+> reste dans `segmentation.js` (= amorce de `DocumentView`). **À valider en GUI** : éditer (couper un
+> segment, coller…), **annuler** puis **rétablir** → le contenu revient correctement ; messages
+> « aucune action à annuler/refaire » sur pile vide.
+> **Tranche 3c-iv+ (à venir)** : câbler `reinitRk` → `renumeroter` (⚠️ remplace les nœuds via
+> `innerHTML` au lieu de muter en place — à évaluer : listeners/sélection), puis les éditions
+> structurelles (SplitSeg/compact/fusion) — la couche DOM, la plus risquée.
 >
 > _Contexte (constat Phase 3 tranche 3)_ : le flux de sauvegarde de `gestion_entretiens.js` n'était
 > pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`

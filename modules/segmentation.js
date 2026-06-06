@@ -506,75 +506,40 @@ var divSegments = document.getElementById('segments')
 
 
 
-// Piles undo/redo — le plus récent est en fin de tableau (pop/push)
-var BkUp = [];
-var BkUpRedo = [];
+// Historique undo/redo : logique dans src/domain/document.mjs:HistoriqueDocument.
+// Le get/set de #segments.innerHTML reste ici (binding DOM mince = DocumentView).
 var MAX_HISTORY = 20;
+let historiqueDoc = null;
 
 
 function initBkUp(){
     console.log("init backup");
-    BkUp = [];
-    BkUpRedo = [];
+    historiqueDoc = new window.SonalDomain.HistoriqueDocument(MAX_HISTORY);
     let divSegments = document.getElementById('segments');
     divSegments.addEventListener("paste", () => backUp());
 }
 
 function backUp(){ // mémorisation de l'état courant avant une modification
-
-    let currentHTML = document.getElementById('segments').innerHTML;
-
-    // Ne pas sauvegarder si identique au dernier état déjà mémorisé
-    if (BkUp.length > 0 && BkUp[BkUp.length - 1] === currentHTML) { return; }
-
-    // Nouvelle action : effacer la pile de rétablissement
-    BkUpRedo = [];
-
-    // Empiler l'état courant
-    BkUp.push(currentHTML);
-
-    // Limiter l'historique
-    if (BkUp.length > MAX_HISTORY) { BkUp.shift(); }
-
-    console.log("backup — " + BkUp.length + " état(s) en mémoire");
+    if (!historiqueDoc) { historiqueDoc = new window.SonalDomain.HistoriqueDocument(MAX_HISTORY); }
+    historiqueDoc.memoriser(document.getElementById('segments').innerHTML);
 }
 
 function undo(){
-
-    console.log("undo — " + BkUp.length + " état(s) undo, " + BkUpRedo.length + " état(s) redo");
-
-    if (BkUp.length === 0) {
-        console.log("Rien à annuler");
+    if (!historiqueDoc || !historiqueDoc.peutAnnuler) {
         res = question("Il n'y a aucune action à annuler",["ok"])
         return;
     }
-
-    // Sauvegarder l'état courant pour permettre le redo
-    BkUpRedo.push(document.getElementById('segments').innerHTML);
-
-    // Restaurer l'état précédent
-    document.getElementById('segments').innerHTML = BkUp.pop();
-
-    console.log("undo terminé — reste " + BkUp.length + " état(s)");
+    const etat = historiqueDoc.annuler(document.getElementById('segments').innerHTML);
+    if (etat != null) { document.getElementById('segments').innerHTML = etat; }
 }
 
 function redo(){
-
-    console.log("redo — " + BkUpRedo.length + " état(s) redo");
-
-    if (BkUpRedo.length === 0) {
+    if (!historiqueDoc || !historiqueDoc.peutRetablir) {
         res = question("Il n'y a aucune action à refaire",["ok"])
-        //console.log("Rien à refaire");
         return;
     }
-
-    // Sauvegarder l'état courant pour permettre un undo ultérieur
-    BkUp.push(document.getElementById('segments').innerHTML);
-
-    // Restaurer l'état suivant
-    document.getElementById('segments').innerHTML = BkUpRedo.pop();
-
-    console.log("redo terminé — reste " + BkUpRedo.length + " état(s) redo");
+    const etat = historiqueDoc.retablir(document.getElementById('segments').innerHTML);
+    if (etat != null) { document.getElementById('segments').innerHTML = etat; }
 }
 
  function selSegment(seg,edit){
