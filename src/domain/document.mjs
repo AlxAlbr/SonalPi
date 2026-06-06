@@ -118,6 +118,82 @@ export class Extrait {
   }
 }
 
+/**
+ * Historique undo/redo d'un Document : deux piles d'états (snapshots HTML).
+ * Logique PURE (port de segmentation.js:backUp/undo/redo) — l'appelant fournit
+ * l'état courant et applique l'état renvoyé au DOM (binding mince = DocumentView).
+ * `annuler`/`retablir` renvoient `null` quand il n'y a rien (l'UI affiche alors
+ * son message « rien à annuler/refaire »).
+ */
+export class HistoriqueDocument {
+  #annuler; #retablir; #max;
+
+  constructor(max = 20) { this.#annuler = []; this.#retablir = []; this.#max = max; }
+
+  /** Mémorise un état AVANT modification (cf. backUp). No-op si identique au dernier mémorisé. */
+  memoriser(etat) {
+    if (this.#annuler.length > 0 && this.#annuler[this.#annuler.length - 1] === etat) return;
+    this.#retablir = [];                 // nouvelle action → la pile de rétablissement est vidée
+    this.#annuler.push(etat);
+    if (this.#annuler.length > this.#max) this.#annuler.shift();
+  }
+
+  /**
+   * Annule : empile l'état courant pour un rétablissement, renvoie l'état à restaurer.
+   * @returns {?string} état précédent, ou null si rien à annuler.
+   */
+  annuler(etatCourant) {
+    if (this.#annuler.length === 0) return null;
+    this.#retablir.push(etatCourant);
+    return this.#annuler.pop();
+  }
+
+  /**
+   * Rétablit : empile l'état courant pour une annulation, renvoie l'état à restaurer.
+   * @returns {?string} état suivant, ou null si rien à rétablir.
+   */
+  retablir(etatCourant) {
+    if (this.#retablir.length === 0) return null;
+    this.#annuler.push(etatCourant);
+    return this.#retablir.pop();
+  }
+
+  get peutAnnuler() { return this.#annuler.length > 0; }
+  get peutRetablir() { return this.#retablir.length > 0; }
+  get tailleAnnuler() { return this.#annuler.length; }
+  get tailleRetablir() { return this.#retablir.length; }
+}
+
+/**
+ * Renumérote les rangs d'un contenu segmenté : `data-rk` séquentiel (1, 2, …) sur
+ * chaque fragment, `data-rksg` (0, 1, …) sur chaque segment, `data-sg` du fragment
+ * = rang de son segment ; `tabindex` du segment suivi. Transform PUR `html → html`,
+ * port fidèle de segmentation.js:reinitRk (qui muait le DOM en place).
+ *
+ * @param {string} html contenu segmenté (corps #contenuText)
+ * @param {Document} doc fournit createElement (jsdom en test, document au runtime)
+ * @returns {string} le HTML renuméroté
+ */
+export function renumeroter(html = '', doc) {
+  const root = doc.createElement('div');
+  root.innerHTML = html;
+  let m = 1; // rang de fragment (token de tête) courant
+  let s = 0; // rang de segment courant
+  for (const span of root.querySelectorAll('span')) {
+    if (!span.classList.contains('lblseg')) {
+      span.dataset.rk = String(m);
+      span.dataset.sg = String(s - 1);
+      m++;
+    } else {
+      span.tabIndex = m;
+      span.dataset.rksg = String(s);
+      span.removeAttribute('data-sg');
+      s++;
+    }
+  }
+  return root.innerHTML;
+}
+
 /** Agrégat racine d'un entretien : le contenu segmenté du .sonal. */
 export class Document {
   #html; #segments;

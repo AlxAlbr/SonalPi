@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
-import { Document, Segment, Fragment, Extrait } from '../src/domain/document.mjs';
+import { Document, Segment, Fragment, Extrait, renumeroter } from '../src/domain/document.mjs';
 import { parseSonal, segments as segmentsPlats } from '../src/domain/sonal.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -136,6 +136,42 @@ test('Document : extraits(predicat) — ensemble de catégories actives (ex. syn
   const actifs = new Set(['cat_001', 'cat_002']);
   const ext = Document.fromHtml(html, doc).extraits((f) => f.categories.some((c) => actifs.has(c)));
   assert.deepStrictEqual(ext.map((e) => e.texte), ['ab', 'd']); // a+b fusionnés, c rompt, d seul
+});
+
+// ── Renumérotation (3c-i) ────────────────────────────────────────────────────
+
+test('renumeroter : data-rk séquentiel, data-rksg par segment, data-sg = rang segment', () => {
+  // rangs volontairement faux en entrée.
+  const html = `
+    <span class="lblseg" data-rksg="9">
+      <span data-rk="50" data-sg="7" class="cat_001">a</span>
+      <span data-rk="51" data-sg="7" class="">b</span>
+    </span>
+    <span class="lblseg" data-rksg="3">
+      <span data-rk="80" data-sg="1" class="">c</span>
+    </span>`;
+  const d = Document.fromHtml(renumeroter(html, doc), doc);
+  const segs = d.segments();
+  assert.deepStrictEqual(segs.map((s) => s.rang), [0, 1]);
+  assert.deepStrictEqual(segs[0].fragments().map((f) => f.rang), [1, 2]);
+  assert.deepStrictEqual(segs[1].fragments().map((f) => f.rang), [3]);
+  // data-sg de chaque fragment = rang (rksg) de son segment
+  assert.deepStrictEqual(segs[0].fragments().map((f) => f.segment), [0, 0]);
+  assert.deepStrictEqual(segs[1].fragments().map((f) => f.segment), [1]);
+});
+
+test('renumeroter : idempotent', () => {
+  const corps = new JSDOM(sonal1).window.document.getElementById('contenuText')?.innerHTML ?? '';
+  const une = renumeroter(corps, doc);
+  const deux = renumeroter(une, doc);
+  assert.strictEqual(deux, une);
+});
+
+test('renumeroter : préserve le codage (les classes cat_xxx restent)', () => {
+  const corps = new JSDOM(sonal1).window.document.getElementById('contenuText')?.innerHTML ?? '';
+  const avant = Document.fromHtml(corps, doc).categoriesPresentes().sort();
+  const apres = Document.fromHtml(renumeroter(corps, doc), doc).categoriesPresentes().sort();
+  assert.deepStrictEqual(apres, avant);
 });
 
 test('Document : toSonal puis fromSonal préserve les segments', () => {

@@ -34,7 +34,9 @@
 | **5 tranche 2** — `sauvHtml` délègue à `serializeSonal` | ✅ **Fait, validé en local** | source unique ; legacy `_sauvHtmlLegacy`+`exportThmcss` supprimés. Distant/gitlab non testé. Voir §8 |
 | **5 tranche 3a** — read-model `Document`/`Segment`/`Fragment` (`src/domain/document.mjs`) | ✅ **Fait** | graphe d'objets + calques (codage/anon/commentaire) + `toSonal`, testé jsdom ; voir §8 |
 | **5 tranche 3b** — requêtes de codage + `Extrait` (`document.mjs`) | ✅ **Fait** | `extraits(predicat)`/`extraitsParCategorie`/`categoriesPresentes`/`fragmentsCodes`, testé (dont enjambement de segments) ; voir §8 |
-| **5 tranche 3c** — DocumentView + mutations | ⬜ à venir | le cœur DOM (SplitSeg/compact/undo), encapsule `segmentation.js` |
+| **5 tranche 3c-i** — `renumeroter` pur (port de `reinitRk`) | ✅ **Fait** | transform `html→html` déterministe, idempotent, testé ; voir §8 |
+| **5 tranche 3c-ii** — `HistoriqueDocument` pur (undo/redo) | ✅ **Fait** | pile pure (port de backUp/undo/redo), testée ; voir §8 |
+| **5 tranche 3c-iii+** — DocumentView + éditions structurelles | ⬜ à venir | SplitSeg/compact/fusion + câblage DOM (`#segments`) |
 | **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
@@ -444,8 +446,28 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > `fragments()`/`debut`/`fin`/`texte`/`categorie`). Exposée sur `window.SonalDomain.Extrait`. Tests :
 > cas contrôlés (fusion, rupture, **enjambement de segments**, prédicat « ensemble actif » façon
 > synthèse OU) + fixture. Le filtrage par catégories *actives* (état codebook/UI) sera un appelant
-> de `extraits(predicat)`. **Tranche 3c (à venir)** : **DocumentView + mutations**
-> (SplitSeg/compact/undo, encapsule `segmentation.js`) — la couche d'accès DOM, la plus risquée.
+> de `extraits(predicat)`.
+>
+> **Cartographie 3c** (tri de `segmentation.js` par purifiabilité) : `reinitRk`/`ajustRk`/`décalageRk`
+> = renumérotation → **transform pur `html→html`** ; `undo`/`redo`/`backUp` = **pile pure** + 1 accès
+> DOM ; `SplitSeg`/`compactSegs`/`fusionSegs` = édition structurelle (purifiable mais complexe) ;
+> `clicSeg`/`showMenu`/menus = **vue** (restent DOM). La **`DocumentView`** (§ ci-dessous) ne fera que
+> lire/écrire `#segments.innerHTML` et appeler ces transforms.
+>
+> **✅ Tranche 3c-i FAITE** : [renumeroter(html, doc)](src/domain/document.mjs) — port fidèle de
+> `segmentation.js:reinitRk` en transform PUR `html→html` (`data-rk` séquentiel sur les fragments,
+> `data-rksg` sur les segments, `data-sg` = rang du segment). Testé : renumérotation correcte,
+> **idempotence**, préservation du codage. Exposé sur `window.SonalDomain.renumeroter`. Non câblé
+> (le renderer pourra faire `#segments.innerHTML = renumeroter(#segments.innerHTML, document)`).
+> **✅ Tranche 3c-ii FAITE** : [HistoriqueDocument](src/domain/document.mjs) — pile undo/redo PURE
+> (port de `segmentation.js:backUp/undo/redo`) : `memoriser(etat)` (no-op si identique, vide la pile
+> de rétablissement), `annuler(etatCourant)`/`retablir(etatCourant)` renvoyant l'état à appliquer (ou
+> `null`), `peutAnnuler`/`peutRetablir`/`taille*`, profondeur limitée (défaut 20). L'appelant fournit
+> l'état courant et applique le retour au DOM (binding mince = futur DocumentView). Exposé sur
+> `window.SonalDomain.HistoriqueDocument`. Tests : [test/historique.test.mjs](test/historique.test.mjs)
+> (séquence annuler/rétablir, état identique ignoré, redo vidé, piles vides, limite de profondeur).
+> **Tranche 3c-iii+ (à venir)** : `DocumentView` (lie `#segments.innerHTML` à `renumeroter` +
+> `HistoriqueDocument`) puis éditions structurelles (SplitSeg/compact/fusion) — la couche DOM, la plus risquée.
 >
 > _Contexte (constat Phase 3 tranche 3)_ : le flux de sauvegarde de `gestion_entretiens.js` n'était
 > pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`

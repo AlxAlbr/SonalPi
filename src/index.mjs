@@ -10,10 +10,10 @@ import * as metadonnees from './domain/metadonnees.mjs';
 import { Entretien } from './domain/entretien.mjs';
 import { Categorie, Codebook } from './domain/codebook.mjs';
 import { RegleAnon, fusionnerReglesAnon } from './domain/anonymisation.mjs';
-import { Document, Segment, Fragment, Extrait } from './domain/document.mjs';
+import { Document, Segment, Fragment, Extrait, renumeroter, HistoriqueDocument } from './domain/document.mjs';
 
 window.SonalDomain = {
   parseCorpus, serializeCorpus, parseSonal, serializeSonal, metadonnees,
   Entretien, Corpus, Categorie, Codebook, RegleAnon, fusionnerReglesAnon,
-  Document, Segment, Fragment, Extrait,
+  Document, Segment, Fragment, Extrait, renumeroter, HistoriqueDocument,
 };
