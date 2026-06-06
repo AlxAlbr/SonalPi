@@ -37,11 +37,11 @@ async function addVar(mode) {
     if (newVar) { // création d'une nouvelle variable 
         
         
-        // Création de la variable + sa modalité 0 : logique dans src/domain/eav.mjs:ajouterVariable.
-        const eav = window.SonalDomain.eav;
-        const ajout = eav.ajouterVariable(
-            tabVar.map(v => eav.Variable.fromJSON(v)),
-            tabDic.map(d => eav.Modalite.fromJSON(d)),
+        // Création de la variable + sa modalité 0 : logique dans src/domain/metadonnees.mjs:ajouterVariable.
+        const meta = window.SonalDomain.metadonnees;
+        const ajout = meta.ajouterVariable(
+            tabVar.map(v => meta.Variable.fromJSON(v)),
+            tabDic.map(d => meta.Modalite.fromJSON(d)),
             { code: rkVar, libelle: newVar, portee: champ, privee: priv }
         );
         tabVar = ajout.variables.map(v => v.toJSON());
@@ -234,10 +234,10 @@ async function sauvVar(rgVar, mode) {
      
     if (updatedVar.lib) {
 
-        // Mise à jour de la définition (repérée par code) : src/domain/eav.mjs:modifierVariable.
-        const eav = window.SonalDomain.eav;
-        tabVar = eav.modifierVariable(
-            tabVar.map(v => eav.Variable.fromJSON(v)),
+        // Mise à jour de la définition (repérée par code) : src/domain/metadonnees.mjs:modifierVariable.
+        const meta = window.SonalDomain.metadonnees;
+        tabVar = meta.modifierVariable(
+            tabVar.map(v => meta.Variable.fromJSON(v)),
             { code: updatedVar.v, libelle: updatedVar.lib, portee: updatedVar.champ, privee: updatedVar.priv }
         ).map(v => v.toJSON());
 
@@ -280,11 +280,11 @@ async function supprVar(rgVar, mode) {
     if (varIndex !== -1) {
     
     
-        // Suppression de la variable et de ses modalités : src/domain/eav.mjs:supprimerVariable.
-        const eav = window.SonalDomain.eav;
-        const suppr = eav.supprimerVariable(
-            tabVar.map(v => eav.Variable.fromJSON(v)),
-            tabDic.map(d => eav.Modalite.fromJSON(d)),
+        // Suppression de la variable et de ses modalités : src/domain/metadonnees.mjs:supprimerVariable.
+        const meta = window.SonalDomain.metadonnees;
+        const suppr = meta.supprimerVariable(
+            tabVar.map(v => meta.Variable.fromJSON(v)),
+            tabDic.map(d => meta.Modalite.fromJSON(d)),
             rgVar
         );
         tabVar = suppr.variables.map(v => v.toJSON());
@@ -294,13 +294,13 @@ async function supprVar(rgVar, mode) {
         tabEnt = await window.electronAPI.getEnt();
         tabEnt.forEach(ent => {
             if (Array.isArray(ent.tabDat)) {
-                ent.tabDat = eav.retirerVariableDesDonnees(
-                    ent.tabDat.map(d => eav.Donnee.fromJSON(d)), rgVar
+                ent.tabDat = meta.retirerVariableDesDonnees(
+                    ent.tabDat.map(d => meta.Donnee.fromJSON(d)), rgVar
                 ).map(d => d.toJSON());
             }
         });
-        tabDat = eav.retirerVariableDesDonnees(
-            tabDat.map(d => eav.Donnee.fromJSON(d)), rgVar
+        tabDat = meta.retirerVariableDesDonnees(
+            tabDat.map(d => meta.Donnee.fromJSON(d)), rgVar
         ).map(d => d.toJSON());
 
         // sauvegarde
@@ -506,9 +506,9 @@ function ajoutListeModas(type){
 
 async function chgDic(v,m, lib){
 
-    // Renommage/création de modalité : logique dans src/domain/eav.mjs:renommerModalite.
-    const eav = window.SonalDomain.eav;
-    tabDic = eav.renommerModalite(tabDic.map(d => eav.Modalite.fromJSON(d)), v, m, lib)
+    // Renommage/création de modalité : logique dans src/domain/metadonnees.mjs:renommerModalite.
+    const meta = window.SonalDomain.metadonnees;
+    tabDic = meta.renommerModalite(tabDic.map(d => meta.Modalite.fromJSON(d)), v, m, lib)
                 .map(mod => mod.toJSON());
 
     // sauvegarde du tabdic
@@ -527,14 +527,14 @@ async function validMod(rgEnt, v, l, m, lib){
 
     // Trouve-ou-crée la modalité (code = max+1 si nouveau libellé) puis écrit la valeur
     // dans le tabDat LOCAL de l'entretien (source de vérité .sonal).
-    // Logique : src/domain/eav.mjs:definirValeur.
+    // Logique : src/domain/metadonnees.mjs:definirValeur.
     const ligEnt = tabEnt.find(ent => ent.id == rgEnt);
     if (ligEnt){
         if (!Array.isArray(ligEnt.tabDat)) { ligEnt.tabDat = []; }
-        const eav = window.SonalDomain.eav;
-        const res = eav.definirValeur(
-            ligEnt.tabDat.map(d => eav.Donnee.fromJSON(d)),
-            tabDic.map(d => eav.Modalite.fromJSON(d)),
+        const meta = window.SonalDomain.metadonnees;
+        const res = meta.definirValeur(
+            ligEnt.tabDat.map(d => meta.Donnee.fromJSON(d)),
+            tabDic.map(d => meta.Modalite.fromJSON(d)),
             { entretien: rgEnt, variable: v, locuteur: l, libelle: lib }
         );
         ligEnt.tabDat = res.donnees.map(d => d.toJSON());
@@ -587,13 +587,13 @@ async function getMod(e,v,l) {
         tabEnt[e].tabDat = [];
     }
 
-    // Lecture de la modalité prise : logique dans src/domain/eav.mjs:lireValeur
+    // Lecture de la modalité prise : logique dans src/domain/metadonnees.mjs:lireValeur
     // (tabDic global = source de vérité des libellés).
-    const eav = window.SonalDomain.eav;
-    const lue = eav.lireValeur(
-        tabEnt[e].tabDat.map(d => eav.Donnee.fromJSON(d)),
+    const meta = window.SonalDomain.metadonnees;
+    const lue = meta.lireValeur(
+        tabEnt[e].tabDat.map(d => meta.Donnee.fromJSON(d)),
         v, l,
-        tabDic.map(d => eav.Modalite.fromJSON(d))
+        tabDic.map(d => meta.Modalite.fromJSON(d))
     );
     moda = lue.modalite;
     libellé = lue.libelle;
@@ -844,15 +844,15 @@ async function inventaireVariables(){ // fonction d'inventaire des variables exi
     //tabDic = []; // réinitialisation du tableau des modalités
 
     // Vue calculée du tabDat corpus = UNION des tabDat locaux (source de vérité .sonal).
-    // Cf. src/domain/eav.mjs:unionDonnees — remplace l'ancien « rebuild » manuel, qui ne
+    // Cf. src/domain/metadonnees.mjs:unionDonnees — remplace l'ancien « rebuild » manuel, qui ne
     // peut donc plus accumuler d'entrées périmées entre appels successifs.
-    tabDat = window.SonalDomain.eav.unionDonnees(tabEnt).map(d => d.toJSON());
+    tabDat = window.SonalDomain.metadonnees.unionDonnees(tabEnt).map(d => d.toJSON());
     await window.electronAPI.setDat(tabDat);
 
     // Inventaire des définitions = UNION des tabVar locaux par-dessus le tabVar corpus.
-    // Cf. src/domain/eav.mjs:inventorierVariables. (Le recopiage des modalités locales
+    // Cf. src/domain/metadonnees.mjs:inventorierVariables. (Le recopiage des modalités locales
     // était déjà désactivé : tabDic reste maître dans le .crp.)
-    tabVar = window.SonalDomain.eav.inventorierVariables(tabEnt, tabVar).map(v => v.toJSON());
+    tabVar = window.SonalDomain.metadonnees.inventorierVariables(tabEnt, tabVar).map(v => v.toJSON());
 
       // console.log("Inventaire terminé. modalités actuelles :", tabDic);
 

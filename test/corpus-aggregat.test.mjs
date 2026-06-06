@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseCorpus, Corpus } from '../src/domain/corpus.mjs';
 import { Entretien } from '../src/domain/entretien.mjs';
-import { Variable, Modalite, unionDonnees } from '../src/domain/eav.mjs';
+import { Variable, Modalite, unionDonnees } from '../src/domain/metadonnees.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');
@@ -68,7 +68,7 @@ test('Corpus : entretienParId retrouve par identité (comparaison lâche)', () =
   assert.strictEqual(e.identifiant, id);
 });
 
-test('Corpus : donnees() = union des tabDat locaux (cohérent avec eav.unionDonnees)', () => {
+test('Corpus : donnees() = union des tabDat locaux (cohérent avec metadonnees.unionDonnees)', () => {
   const c = corpusFixture();
   assert.deepStrictEqual(
     c.donnees().map(d => d.toJSON()),

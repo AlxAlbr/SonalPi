@@ -14,7 +14,8 @@
 // exports, verrou) reste côté orchestration/infra et sera branchée en tranches
 // ultérieures ; ici on n'expose que la structure pure et ses accès EAV.
 
-import { Variable, Modalite, Donnee } from './eav.mjs';
+import { Variable, Modalite, Donnee } from './metadonnees.mjs';
+import { serializeSonal } from './sonal.mjs';
 
 export class Entretien {
   #data;
@@ -54,4 +55,24 @@ export class Entretien {
   // ── Bruts pour l'instant (modélisés en Phase 4) ────────────────────────────
   get reglesAnon() { return this.#data.tabAnon || []; }  // tabAnon
   get categories() { return this.#data.tabThm || []; }   // tabThm
+
+  // ── Sérialisation .sonal (Phase 5) ─────────────────────────────────────────
+  /**
+   * Produit le contenu .sonal de l'entretien à partir de SES données (locuteurs,
+   * valeurs, notes, règles anon) et du codebook/définitions du corpus + du HTML
+   * compacté des segments. Sérialisation pure (I/O = orchestrateur). Cf.
+   * src/domain/sonal.mjs:serializeSonal (port de gestion_fichiers.js:sauvHtml).
+   *
+   * @param {{html:string, tabThm:Array, tabVar:Array, tabDic:Array}} contexte
+   * @returns {string}
+   */
+  serialiserSonal({ html, tabThm, tabVar, tabDic } = {}) {
+    return serializeSonal({
+      tabLoc: this.#data.tabLoc,
+      tabDat: this.#data.tabDat,
+      notes: this.#data.notes,
+      tabAnon: this.#data.tabAnon,
+      tabThm, tabVar, tabDic, html,
+    });
+  }
 }

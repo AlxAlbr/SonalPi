@@ -1,11 +1,16 @@
-// Domaine : lecture du fichier .sonal (Entretien) via DOM.
+// Domaine : lecture ET écriture du fichier .sonal (Entretien).
 //
-// Lecteur canonique des invariants observables d'un .sonal. Fidèle au pattern de
-// production (modules/gestion_entretiens.js : createElement('div') + innerHTML +
-// querySelectorAll('.lblseg') + .closest() + .dataset). La Phase 5 adoptera ce
-// module dans les lecteurs DOM du renderer.
+// LECTURE (parseSonal & co) : lecteur canonique des invariants observables d'un
+// .sonal, via DOM (createElement('div') + innerHTML + querySelectorAll('.lblseg')
+// + .closest() + .dataset). `doc` = `document` réel dans le renderer ; un document
+// jsdom dans les tests.
 //
-// `doc` = `document` réel dans le renderer ; un document jsdom dans les tests.
+// ÉCRITURE (serializeSonal) : sérialisation pure (assemblage de chaîne, sans DOM)
+// du .sonal, port fidèle de gestion_fichiers.js:sauvHtml (+ exportThmcss, ici
+// paramétré par `cssFromCodebook(tabThm)` au lieu du global). Le renderer pourra
+// y déléguer (tranche 2) ; en attendant, golden + round-trip parse(serialize)
+// servent de filet de sécurité sur la sauvegarde.
+//
 // Voir docs/FORMATS.md §2.
 
 function num(v) {
@@ -106,4 +111,151 @@ export function parseSonal(html, doc) {
     anon: anon(html, doc),
     commentaires: commentaires(html, doc),
   };
+}
+
+// ── Écriture (.sonal) ────────────────────────────────────────────────────────
+
+/**
+ * CSS du codebook (classes .cat_XXX). Port fidèle de thematisation.js:exportThmcss,
+ * paramétré par `tabThm` (au lieu du global). Pur.
+ */
+export function cssFromCodebook(tabThm = []) {
+  var chaineCss = `<style>
+
+
+    body { margin: 20px; padding: 60px; font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; };
+    h1 { font-size: 24px; margin-bottom: 10px; };
+    h2 { font-size: 20px; margin-bottom: 8px; };
+
+    `;
+
+  for (let t = 0; t < tabThm.length; t++) {
+    chaineCss += `.` + tabThm[t].code + `{
+
+        `;
+
+    if (tabThm[t].couleur) {
+      chaineCss += `background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, ` + tabThm[t].couleur + `60 95%, ` + tabThm[t].couleur + ` 100%);
+            `;
+    }
+
+    if (tabThm[t].taille) {
+      chaineCss += `font-size: ` + tabThm[t].taille + `;
+            font-weight: bold;
+            `;
+    }
+
+    chaineCss += `
+        }
+    `;
+  }
+
+  chaineCss += `
+</style>
+ `;
+
+  return chaineCss;
+}
+
+/**
+ * Sérialise un .sonal complet (HTML). Port fidèle de gestion_fichiers.js:sauvHtml.
+ * Pur, sans DOM. L'ordre et la structure (blocs <script> loc/cat/var/dic/dat/anon,
+ * notes, #contenuText) sont l'invariant de format à préserver (cf. FORMATS.md §2).
+ *
+ * @param {{tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon}} parts
+ * @returns {string} le contenu .sonal
+ */
+export function serializeSonal({ tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon } = {}) {
+  var contenuHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fichier Whispurge</title>
+   <link href="http://www.sonal-info.com/WHSPRG/CSS/Styles.css" rel="stylesheet"  type="text/css">
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+   `;
+
+  const locJSON = JSON.stringify(tabLoc, null);
+  const thmJSON = JSON.stringify(tabThm, null);
+  const varJSON = JSON.stringify(tabVar, null);
+  const dicJSON = JSON.stringify(tabDic, null);
+  const datJSON = JSON.stringify(tabDat, null);
+  const anonJSON = JSON.stringify(tabAnon, null);
+
+  contenuHtml += cssFromCodebook(tabThm);
+
+  contenuHtml += `</head>
+
+<body>
+`;
+
+  contenuHtml += `<script id="loc-json" type="application/json">
+        {
+            ` + locJSON + `
+        }
+<` + `/script>
+`;
+
+  contenuHtml += `<script id="cat-json" type="application/json">
+        {
+
+            ` + thmJSON + `
+        }
+<` + `/script>
+`;
+
+  contenuHtml += `<script id="var-json" type="application/json">
+        {
+            ` + varJSON + `
+        }
+<` + `/script>
+`;
+
+  contenuHtml += `<script id="dic-json" type="application/json">
+        {
+            ` + dicJSON + `
+        }
+<` + `/script>
+`;
+
+  contenuHtml += `<script id="dat-json" type="application/json">
+        {
+            ` + datJSON + `
+        }
+<` + `/script>
+`;
+
+  contenuHtml += `<script id="anon-json" type="application/json">
+        {
+            ` + anonJSON + `
+        }
+<` + `/script>
+`;
+
+  contenuHtml += `
+    <div style="margin-bottom: 5px !important;
+	margin-bottom: 5px !important;
+	margin: 40px;"
+	>
+
+    <H2 > Notes</H2>
+
+        <div id="txtnotes">
+        ` + notes + `
+        </div>
+    </div>
+    `;
+
+  contenuHtml += ` <div id="contenuText">
+     `;
+
+  contenuHtml += html;
+
+  contenuHtml += `
+</div></body>`;
+
+  return contenuHtml;
 }

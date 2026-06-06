@@ -8,7 +8,7 @@
 //
 // Ce module porte AUSSI l'agrégat racine `Corpus` (Phase 3) — voir en bas de fichier.
 
-import { Variable, Modalite, unionDonnees } from './eav.mjs';
+import { Variable, Modalite, unionDonnees } from './metadonnees.mjs';
 import { Entretien } from './entretien.mjs';
 
 /**
@@ -116,8 +116,8 @@ export class Corpus {
 
   /**
    * Vue calculée des données du corpus = UNION des tabDat locaux des entretiens
-   * (cf. eav.unionDonnees). N'est jamais un cache resynchronisé.
-   * @returns {import('./eav.mjs').Donnee[]}
+   * (cf. metadonnees.unionDonnees). N'est jamais un cache resynchronisé.
+   * @returns {import('./metadonnees.mjs').Donnee[]}
    */
   donnees() { return unionDonnees(this.#entretiens.map(e => e.toJSON())); }
 

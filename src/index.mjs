@@ -5,13 +5,13 @@
 // (scripts globaux) puisse l'appeler sans être lui-même converti en module.
 
 import { parseCorpus, serializeCorpus, Corpus } from './domain/corpus.mjs';
-import { parseSonal } from './domain/sonal.mjs';
-import * as eav from './domain/eav.mjs';
+import { parseSonal, serializeSonal } from './domain/sonal.mjs';
+import * as metadonnees from './domain/metadonnees.mjs';
 import { Entretien } from './domain/entretien.mjs';
 import { Categorie, Codebook } from './domain/codebook.mjs';
 import { RegleAnon, fusionnerReglesAnon } from './domain/anonymisation.mjs';
 
 window.SonalDomain = {
-  parseCorpus, serializeCorpus, parseSonal, eav,
+  parseCorpus, serializeCorpus, parseSonal, serializeSonal, metadonnees,
   Entretien, Corpus, Categorie, Codebook, RegleAnon, fusionnerReglesAnon,
 };

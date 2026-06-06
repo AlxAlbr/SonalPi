@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseCorpus } from '../src/domain/corpus.mjs';
 import { Entretien } from '../src/domain/entretien.mjs';
-import { Donnee, Variable, Modalite } from '../src/domain/eav.mjs';
+import { Donnee, Variable, Modalite } from '../src/domain/metadonnees.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');

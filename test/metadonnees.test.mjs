@@ -1,4 +1,4 @@
-// Tests du domaine EAV pur (src/domain/eav.mjs).
+// Tests du domaine EAV pur (src/domain/metadonnees.mjs).
 //
 // Fidélité du format + vue calculée : sur la VRAIE fixture (.crp immuable).
 // Logique de valeurs (max+1, réutilisation, cascade) : sur cas synthétiques.
@@ -16,7 +16,7 @@ import {
   unionDonnees, inventorierVariables,
   lireValeur, definirValeur, renommerModalite,
   ajouterVariable, modifierVariable, supprimerVariable, retirerVariableDesDonnees,
-} from '../src/domain/eav.mjs';
+} from '../src/domain/metadonnees.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');
@@ -64,7 +64,7 @@ test('EAV : unionDonnees n\'a aucun triplet (e,v,l) en double', () => {
 });
 
 test('EAV : golden master de la vue calculée corpus', () => {
-  assertGolden('eav-union-TestInterop1', unionDonnees(state.tabEnt).map(d => d.toJSON()));
+  assertGolden('metadonnees-union-TestInterop1', unionDonnees(state.tabEnt).map(d => d.toJSON()));
 });
 
 test('EAV : inventorierVariables est un sur-ensemble sans libellé en double', () => {

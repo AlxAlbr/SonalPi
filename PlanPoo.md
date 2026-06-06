@@ -21,8 +21,8 @@
 | **1a** — couche `Storage` côté *main* | ✅ **Fait** | voir §4 |
 | **1b tranche 1** — flux fichier *renderer* | ✅ **Fait, validé en local** | voir §4 |
 | **1b tranche 2** — branches collaboratives *renderer* | ✅ **Fait** (à valider en GUI) | voir §4 |
-| **2 tranche 1** — domaine EAV pur (`src/domain/eav.mjs`) | ✅ **Fait** | classes + vue calculée + logique de valeurs, testées en Node ; voir §5 |
-| **2 tranche 2** — câblage `gestion_data.js` → domaine | ✅ **Fait, validé en local** | inventaireVariables/getMod/validMod/chgDic appellent `SonalDomain.eav` ; affichage entretien (gén. + locuteurs) OK après chargement du domaine dans `edition_entretien.html` ; voir §5 |
+| **2 tranche 1** — domaine EAV pur (`src/domain/metadonnees.mjs`) | ✅ **Fait** | classes + vue calculée + logique de valeurs, testées en Node ; voir §5 |
+| **2 tranche 2** — câblage `gestion_data.js` → domaine | ✅ **Fait, validé en local** | inventaireVariables/getMod/validMod/chgDic appellent `SonalDomain.metadonnees` ; affichage entretien (gén. + locuteurs) OK après chargement du domaine dans `edition_entretien.html` ; voir §5 |
 | **2 tranche 3** — câblage CRUD variables → domaine | ✅ **Fait (à valider en GUI)** | addVar/sauvVar/supprVar appellent `ajouter/modifier/supprimerVariable` + `retirerVariableDesDonnees` ; **Phase 2 complète** |
 | **3 tranche 1** — agrégat `Entretien` pur (`src/domain/entretien.mjs`) | ✅ **Fait** | wrapper typé + accès EAV, testé en Node ; voir §6 |
 | **3 tranche 2** — agrégat `Corpus` pur (`src/domain/corpus.mjs`) | ✅ **Fait** | possède `Entretien[]` + variables, getters `estLocal`/`estCollaboratif`, testé ; voir §6 |
@@ -30,7 +30,9 @@
 | **4 tranche 1** — Codebook pur (`src/domain/codebook.mjs`) | ✅ **Fait** | `Categorie`/`Codebook` : hiérarchie par `rang` + activation, testés ; voir §7 |
 | **4 tranche 2** — `RegleAnon` pur (`src/domain/anonymisation.mjs`) | ✅ **Fait** | instruction `tabAnon` + `fusionnerReglesAnon` ≡ legacy, testés ; voir §7 |
 | **4 tranche 3** — câblage renderer | 🟡 **merge anon fait (à valider GUI)** | `synchroniserTabAnonGlobal` → `fusionnerReglesAnon`. Câblage codebook (thematisation.js) laissé (DOM/quirky). `ContenuAnon` différé Phase 5 |
-| **5** → **6** | ⬜ à venir | |
+| **5 tranche 1** — sérialisation `.sonal` pure (`serializeSonal`) | ✅ **Fait** | port de `sauvHtml` + `Entretien.serialiserSonal` ; golden + round-trip `parse(serialize)` ; voir §8 |
+| **5 tranche 2+** — câbler la sauvegarde + `Document`/`Segment` | ⬜ à venir | brancher les 5 sites `sauvHtml`, puis Document |
+| **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
 qu'en **local**. Tester en priorité avant la Phase 2 (verrous, LFS, sync, chemins distants).
@@ -219,13 +221,13 @@ valider en GUI distant/gitlab.** Ajouter Nextcloud (WebDAV) = une classe Storage
 **Pourquoi ici** : domaine pur, **sans DOM**, donc testable unitairement tout de suite ;
 et c'est le siège de la duplication la plus douloureuse.
 
-> **✅ Tranche 1 faite (domaine pur + tests)** : [src/domain/eav.mjs](src/domain/eav.mjs) —
+> **✅ Tranche 1 faite (domaine pur + tests)** : [src/domain/metadonnees.mjs](src/domain/metadonnees.mjs) —
 > classes `Variable`/`Modalite`/`Donnee` (noms explicites, `fromJSON`/`toJSON` vers les clés
 > gelées `v`/`lib`/`champ`/`priv`/`m`/`e`/`l`), **vue calculée** `unionDonnees` (union des `tabDat`
 > locaux — officialise ce que `inventaireVariables` reconstruisait à la main), `inventorierVariables`,
 > et la logique de valeurs sans DOM/IO (`lireValeur`/`definirValeur`/`renommerModalite`,
-> `ajouter`/`modifier`/`supprimerVariable`). Exposé sur `window.SonalDomain.eav`. Tests :
-> [test/eav.test.mjs](test/eav.test.mjs) (golden de la vue calculée + équivalence stricte au
+> `ajouter`/`modifier`/`supprimerVariable`). Exposé sur `window.SonalDomain.metadonnees`. Tests :
+> [test/metadonnees.test.mjs](test/metadonnees.test.mjs) (golden de la vue calculée + équivalence stricte au
 > rebuild legacy).
 >
 > **✅ Tranche 2 faite (câblage renderer, à valider en GUI)** : [gestion_data.js](modules/gestion_data.js)
@@ -245,7 +247,7 @@ et c'est le siège de la duplication la plus douloureuse.
 > corpus). Le DOM (formulaire, modalités), le repositionnement et la persistance restent côté
 > renderer. `editVar` reste purement UI (peuple la boîte de dialogue, délègue à `sauvVar`).
 > **Phase 2 complète** : toute la logique EAV listée au §5 est encapsulée dans
-> [src/domain/eav.mjs](src/domain/eav.mjs).
+> [src/domain/metadonnees.mjs](src/domain/metadonnees.mjs).
 
 - Classes `Variable {v, lib, champ, priv}`, `Modalite {v, m, lib}`, `Donnee {e, v, l, m}`.
   ⚠️ **Pas** deux conteneurs « BaseDeDonnéesEntretien / Corpus » (ça graverait l'accident dans
@@ -277,7 +279,7 @@ vraies entités qui *possèdent* leurs sous-objets.
 > *orchestre* l'ouverture/sauvegarde. La douleur (`tabEnt[i].xxx` éparpillés, `Corpus` global
 > trifouillé) est **renderer-side**. **Décision** :
 > - `Corpus`/`Entretien` = **domaine pur ESM dans `src/domain/`** (aucun Electron/IPC/fs/DOM),
->   calqué sur `eav.mjs` : on enveloppe les snapshots (`fromJSON`/`toJSON` sans perte), on opère,
+>   calqué sur `metadonnees.mjs` : on enveloppe les snapshots (`fromJSON`/`toJSON` sans perte), on opère,
 >   on repousse via `set-*`. Le **main reste l'unique source de vérité** (pas de second état vivant).
 > - **Déviation assumée du plan sur `StorageFactory`** : il **reste dans le main** comme sélecteur
 >   de backend derrière l'IPC (pas de `Corpus.storage()` tenant une instance `Storage` dans le
@@ -288,7 +290,7 @@ vraies entités qui *possèdent* leurs sous-objets.
 >
 > **✅ Tranche 1 faite** : [src/domain/entretien.mjs](src/domain/entretien.mjs) — wrapper typé pur
 > sur le snapshot entretien (accesseurs explicites `identifiant`/`nom`/`fichierSonal`/`locuteurs`…,
-> `donnees()`/`variables()`/`modalites()` réutilisant `eav`), `fromJSON`/`toJSON` sans perte.
+> `donnees()`/`variables()`/`modalites()` réutilisant `metadonnees`), `fromJSON`/`toJSON` sans perte.
 > Exposé sur `window.SonalDomain.Entretien`. Tests : [test/entretien.test.mjs](test/entretien.test.mjs).
 > Les méthodes I/O (charger/sauvegarderSonal, exports, verrou) restent à l'orchestration et seront
 > branchées plus tard.
@@ -298,7 +300,7 @@ vraies entités qui *possèdent* leurs sous-objets.
 > `Corpus.fromParts({corpus, tabEnt, tabVar, tabDic})` assemble depuis les snapshots IPC ; getters
 > dérivés `estLocal`/`estCollaboratif`/`estGitlab` (depuis `type`, source de vérité), méta
 > (`dossier`/`nomFichier`/`url`), `entretiens()`/`entretienParId(id)`/`variables()`/`modalites()`,
-> `donnees()` (= `eav.unionDonnees`), et `toEntretiens()`/`toVariables()`/`toModalites()` pour
+> `donnees()` (= `metadonnees.unionDonnees`), et `toEntretiens()`/`toVariables()`/`toModalites()` pour
 > repousser via `set-*`. Exposé sur `window.SonalDomain.Corpus`. Tests :
 > [test/corpus-aggregat.test.mjs](test/corpus-aggregat.test.mjs).
 > **Tranche 3 (en cours)** : remplacer les accès épars du renderer par l'API objet, un appelant à
@@ -402,8 +404,19 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 
 ## 8. Phase 5 — `Document` / `Segment` / `Fragment` (le plus couplé au DOM)
 
-> **▶ Première tranche prévue (reportée de la Phase 3) : sérialisation `.sonal` dans le domaine.**
-> En Phase 3 (tranche 3), on a constaté que le flux de sauvegarde de `gestion_entretiens.js` n'était
+> **✅ Tranche 1 FAITE : sérialisation `.sonal` dans le domaine (filet de sécurité posé).**
+> [src/domain/sonal.mjs](src/domain/sonal.mjs) gagne `serializeSonal({tabLoc,tabThm,tabVar,tabDic,
+> tabDat,notes,html,tabAnon})` (port fidèle de `gestion_fichiers.js:sauvHtml`) + `cssFromCodebook(tabThm)`
+> (port de `exportThmcss`, paramétré). [Entretien](src/domain/entretien.mjs) gagne
+> `serialiserSonal({html,tabThm,tabVar,tabDic})` (utilise ses propres tabLoc/tabDat/notes/tabAnon).
+> Exposé sur `window.SonalDomain.serializeSonal`. **Filet** : golden `sonal-serialize-synthetique`
+> + **round-trip `parseSonal(serializeSonal(corps)) ≡ parseSonal(fixture)`** sur les 3 entretiens
+> (test/sonal.test.mjs) — la sauvegarde a enfin un filet de test. **Pas encore câblé** : les 5 sites
+> `sauvHtml` (gestion_entretiens 1550/1601/1995, gestion_fichiers 742, gestion_corpus 440) tournent
+> toujours sur le legacy → **tranche 2** (faire déléguer `sauvHtml` à `serializeSonal`), à **valider
+> en GUI (local ET distant/gitlab)** car c'est du code de sauvegarde (risque de perte de données).
+>
+> _Contexte (constat Phase 3 tranche 3)_ : le flux de sauvegarde de `gestion_entretiens.js` n'était
 > pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`
 > renvoie des instances → corromprait le `.sonal`), et envelopper `ent` casse les accès bruts voisins.
 > La bonne forme (option B) est d'**extraire `sauvHtml`** ([gestion_fichiers.js:796](modules/gestion_fichiers.js#L796),
