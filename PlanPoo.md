@@ -32,7 +32,9 @@
 | **4 tranche 3** — câblage renderer | 🟡 **merge anon fait (à valider GUI)** | `synchroniserTabAnonGlobal` → `fusionnerReglesAnon`. Câblage codebook (thematisation.js) laissé (DOM/quirky). `ContenuAnon` différé Phase 5 |
 | **5 tranche 1** — sérialisation `.sonal` pure (`serializeSonal`) | ✅ **Fait** | port de `sauvHtml` + `Entretien.serialiserSonal` ; golden + round-trip `parse(serialize)` ; voir §8 |
 | **5 tranche 2** — `sauvHtml` délègue à `serializeSonal` | ✅ **Fait, validé en local** | source unique ; legacy `_sauvHtmlLegacy`+`exportThmcss` supprimés. Distant/gitlab non testé. Voir §8 |
-| **5 tranche 3+** — `Document`/`Segment`/`Fragment` | ⬜ à venir | le cœur DOM |
+| **5 tranche 3a** — read-model `Document`/`Segment`/`Fragment` (`src/domain/document.mjs`) | ✅ **Fait** | graphe d'objets + calques (codage/anon/commentaire) + `toSonal`, testé jsdom ; voir §8 |
+| **5 tranche 3b** — requêtes de codage + `Extrait` (`document.mjs`) | ✅ **Fait** | `extraits(predicat)`/`extraitsParCategorie`/`categoriesPresentes`/`fragmentsCodes`, testé (dont enjambement de segments) ; voir §8 |
+| **5 tranche 3c** — DocumentView + mutations | ⬜ à venir | le cœur DOM (SplitSeg/compact/undo), encapsule `segmentation.js` |
 | **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
@@ -422,6 +424,28 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > bougent pas). Une **seule** implémentation désormais (GUI + tests). Le legacy `_sauvHtmlLegacy`
 > **et** `exportThmcss` (devenu mort) ont été **supprimés**. Validé GUI **en local** (sauvegarde
 > d'un entretien puis réouverture OK). ⚠️ Distant/gitlab **non testé** (dette habituelle).
+>
+> **✅ Tranche 3a FAITE (read-model `Document` pur + tests)** : [src/domain/document.mjs](src/domain/document.mjs)
+> — `Document` (`fromHtml`/`fromSonal`, `segments()`/`fragments()`/`locuteurs()`/`segmentParRang`,
+> `toSonal` via `serializeSonal`), `Segment` (`rang`/`debut`/`fin`/`locuteur`/`statut`/`nomLocuteur`
+> + `fragments()`), `Fragment` (`rang`/`longueur`/`segment`/`texte` + les **3 calques** :
+> `categories` cat_xxx, `anon` {type,pseudo,nt}, `commentaire` {auteur,obs,finobs}). Le `Token`
+> reste sans objet (désigné par `data-rk`). Construit par lecture DOM (jsdom en test). Exposé sur
+> `window.SonalDomain.{Document,Segment,Fragment}`. Tests : [test/document.test.mjs](test/document.test.mjs)
+> (structure sur fixtures + calques contrôlés + round-trip `toSonal`/`fromSonal`).
+> **Read-model** : le graphe est une projection en lecture ; la source du contenu reste le HTML
+> (`document.html`), `toSonal` le sérialise.
+>
+> **✅ Tranche 3b FAITE (requêtes de codage + `Extrait`)** : sur `Document` —
+> `fragmentsCodes()`, `categoriesPresentes()`, et surtout **`extraits(predicat[, code])`** (runs
+> CONTIGUS de fragments satisfaisant le prédicat, **transparents aux `.lblseg`** → un extrait peut
+> **enjamber les segments**, cœur de l'algorithme de `Synthèse.js`, ici pur et paramétrable) +
+> `extraitsParCategorie(code)`. Classe **`Extrait`** (dérivé NON stocké, MODELE §4 :
+> `fragments()`/`debut`/`fin`/`texte`/`categorie`). Exposée sur `window.SonalDomain.Extrait`. Tests :
+> cas contrôlés (fusion, rupture, **enjambement de segments**, prédicat « ensemble actif » façon
+> synthèse OU) + fixture. Le filtrage par catégories *actives* (état codebook/UI) sera un appelant
+> de `extraits(predicat)`. **Tranche 3c (à venir)** : **DocumentView + mutations**
+> (SplitSeg/compact/undo, encapsule `segmentation.js`) — la couche d'accès DOM, la plus risquée.
 >
 > _Contexte (constat Phase 3 tranche 3)_ : le flux de sauvegarde de `gestion_entretiens.js` n'était
 > pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`
