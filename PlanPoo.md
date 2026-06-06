@@ -31,7 +31,8 @@
 | **4 tranche 2** — `RegleAnon` pur (`src/domain/anonymisation.mjs`) | ✅ **Fait** | instruction `tabAnon` + `fusionnerReglesAnon` ≡ legacy, testés ; voir §7 |
 | **4 tranche 3** — câblage renderer | 🟡 **merge anon fait (à valider GUI)** | `synchroniserTabAnonGlobal` → `fusionnerReglesAnon`. Câblage codebook (thematisation.js) laissé (DOM/quirky). `ContenuAnon` différé Phase 5 |
 | **5 tranche 1** — sérialisation `.sonal` pure (`serializeSonal`) | ✅ **Fait** | port de `sauvHtml` + `Entretien.serialiserSonal` ; golden + round-trip `parse(serialize)` ; voir §8 |
-| **5 tranche 2+** — câbler la sauvegarde + `Document`/`Segment` | ⬜ à venir | brancher les 5 sites `sauvHtml`, puis Document |
+| **5 tranche 2** — `sauvHtml` délègue à `serializeSonal` | ✅ **Fait, validé en local** | source unique ; legacy `_sauvHtmlLegacy`+`exportThmcss` supprimés. Distant/gitlab non testé. Voir §8 |
+| **5 tranche 3+** — `Document`/`Segment`/`Fragment` | ⬜ à venir | le cœur DOM |
 | **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
@@ -415,6 +416,12 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > `sauvHtml` (gestion_entretiens 1550/1601/1995, gestion_fichiers 742, gestion_corpus 440) tournent
 > toujours sur le legacy → **tranche 2** (faire déléguer `sauvHtml` à `serializeSonal`), à **valider
 > en GUI (local ET distant/gitlab)** car c'est du code de sauvegarde (risque de perte de données).
+>
+> **✅ Tranche 2 FAITE (validée en local)** : [gestion_fichiers.js:sauvHtml](modules/gestion_fichiers.js#L796)
+> délègue à `window.SonalDomain.serializeSonal(...)` (signature inchangée → les 5 appelants ne
+> bougent pas). Une **seule** implémentation désormais (GUI + tests). Le legacy `_sauvHtmlLegacy`
+> **et** `exportThmcss` (devenu mort) ont été **supprimés**. Validé GUI **en local** (sauvegarde
+> d'un entretien puis réouverture OK). ⚠️ Distant/gitlab **non testé** (dette habituelle).
 >
 > _Contexte (constat Phase 3 tranche 3)_ : le flux de sauvegarde de `gestion_entretiens.js` n'était
 > pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`

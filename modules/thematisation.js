@@ -1516,46 +1516,6 @@ function existThm(thm){
     return false; 
 }
 
-function exportThmcss(){
-
-var chaineCss = `<style> 
-
-
-    body { margin: 20px; padding: 60px; font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; };
-    h1 { font-size: 24px; margin-bottom: 10px; };
-    h2 { font-size: 20px; margin-bottom: 8px; };
-    
-    `
-
-    for (t=0;t<tabThm.length;t++){
-         
-        chaineCss += `.` + tabThm[t].code + `{
-        
-        ` 
-        
-        if (tabThm[t].couleur){
-            chaineCss += `background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, ` + tabThm[t].couleur + `60 95%, ` + tabThm[t].couleur + ` 100%); 
-            `
-        }
-        
-        if (tabThm[t].taille){
-            chaineCss += `font-size: ` + tabThm[t].taille + `;
-            font-weight: bold;
-            `
-        }
-
-        chaineCss += `
-        }
-    `
-    }    
-
-chaineCss += `
-</style>
- `;
-
-
-return chaineCss;
-}
 
 async function compactThm(tabThm, rkthm, compact){
 

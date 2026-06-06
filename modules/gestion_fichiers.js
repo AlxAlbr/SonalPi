@@ -793,119 +793,12 @@ function SauvPurge(){
 
 }
 
-function sauvHtml(tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon){ // fonction permettant de sauvegarder le fichier au format HTML
-
-var contenuHtml =`
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fichier Whispurge</title>
-   <link href="http://www.sonal-info.com/WHSPRG/CSS/Styles.css" rel="stylesheet"  type="text/css">  
-   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous"> 
-   
-   `
-
-const locJSON = JSON.stringify(tabLoc, null);
-const thmJSON = JSON.stringify(tabThm,null)
-const varJSON = JSON.stringify(tabVar,null)
-const dicJSON = JSON.stringify(tabDic,null)
-const datJSON = JSON.stringify(tabDat,null)
-const anonJSON = JSON.stringify(tabAnon, null);
-
-
-contenuHtml += exportThmcss();
-
-contenuHtml += `</head>
- 
-<body>
-`
-// sauvegarde des locuteurs
-
-
-contenuHtml += `<script id="loc-json" type="application/json">
-        {
-            ` + locJSON + `         
-        }
-<`+ `/script> 
-`;  
-
-
-contenuHtml += `<script id="cat-json" type="application/json">
-        {
-            
-            ` + thmJSON + `          
-        }
-<`+ `/script> 
-`;  
-
-contenuHtml += `<script id="var-json" type="application/json">
-        {
-            ` + varJSON + `          
-        }
-<`+ `/script> 
-`;  
-
-contenuHtml += `<script id="dic-json" type="application/json">
-        {   
-            ` + dicJSON + `          
-        }
-<`+ `/script> 
-`;  
-
-contenuHtml += `<script id="dat-json" type="application/json">
-        {   
-            ` + datJSON + `          
-        }
-<`+ `/script> 
-`;  
-
-contenuHtml += `<script id="anon-json" type="application/json">
-        {   
-            ` + anonJSON + `          
-        }
-<`+ `/script> 
-`;  
-
-
-// sauvegarde des notes
-
- 
-contenuHtml +=`
-    <div style="margin-bottom: 5px !important; 
-	margin-bottom: 5px !important;
-	margin: 40px;"
-	>
-
-    <H2 > Notes</H2>
-    
-        <div id="txtnotes">
-        ` + notes + `
-        </div>
-    </div>
-    `; 
-
-
-
-
-
-//let segments = document.getElementById('segments').innerHTML // getHtml() // appelle d'une fonction d'affichage complet du html( caché )
-
-
-// sauvegarde du contenu HTML principal
-contenuHtml +=` <div id="contenuText"> 
-     `
-
-contenuHtml += html
-
-contenuHtml +=` 
-</div></body>`
-
-
-
-return contenuHtml;
+function sauvHtml(tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon){
+  // Délègue à la sérialisation pure du domaine (src/domain/sonal.mjs:serializeSonal),
+  // dont cette fonction était le port fidèle. Source unique : GUI + tests (golden + round-trip).
+  return window.SonalDomain.serializeSonal({ tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon });
 }
+
 
  
  
