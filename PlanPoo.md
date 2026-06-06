@@ -37,8 +37,9 @@
 | **5 tranche 3c-i** — `renumeroter` pur (port de `reinitRk`) | ✅ **Fait** | transform `html→html` déterministe, idempotent, testé ; voir §8 |
 | **5 tranche 3c-ii** — `HistoriqueDocument` pur (undo/redo) | ✅ **Fait** | pile pure (port de backUp/undo/redo), testée ; voir §8 |
 | **5 tranche 3c-iii** — câblage undo/redo → `HistoriqueDocument` | 🟡 **Fait (à valider GUI)** | `backUp/undo/redo` de segmentation.js délèguent à l'historique pur ; voir §8 |
-| **5 tranche 3c-iv+** — `renumeroter` câblé + éditions structurelles | ⬜ à venir | SplitSeg/compact/fusion (le plus risqué) |
-| **6** | ⬜ à venir | |
+| **5 tranche 3c-iv** — nettoyage renumérotation morte | ✅ **Fait** | `reinitRk`/`ajustRk`/`décalageRk` (jamais appelées) supprimées ; `renumeroter` (pur) les remplace |
+| **5 tranche 3c-v** — éditions structurelles | ✅ **Décidé : restent couche de vue** | SplitSeg/compact/fusion = DOM impératif (§8 critère « DOM touché par la vue ») ; **Phase 5 close** |
+| **6** — nettoyage / fin du strangler | 🟡 **En cours (recadrée)** | `tabXxx` **conservés** (modèle assumé, cf. Phase 3) ; nettoyage = code mort + sync doc. Morts supprimés à ce jour : `_sauvHtmlLegacy`, `exportThmcss`, `reinitRk`/`ajustRk`/`décalageRk`, `pointvariablesEnt`, `inlineSeg`. Voir §9 |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
 qu'en **local**. Tester en priorité avant la Phase 2 (verrous, LFS, sync, chemins distants).
@@ -56,9 +57,18 @@ assumé. (La consolidation finale — `Corpus` classe avec getters — relève d
 - Tests : `test/*.test.mjs` (`npm test` / `npm run test:update`), fixtures **immuables** dans
   `test/fixtures/` (ne pas éditer en GUI). `TestInteropFromSonal/` = bac à sable libre.
 
-**Prochaine action concrète** : **valider en GUI** la Phase 2 tranche 2 (édition de
-modalités/valeurs sur un corpus), puis porter le CRUD variables (addVar/sauvVar/supprVar) sur le
-domaine. Toujours en attente : valider Phase 1 en distant/gitlab.
+**🏁 Chantier clôturé (pour l'instant).** Phases 0→5 faites ; le domaine métier vit dans
+`src/domain/*.mjs` (pur, **78 tests** : `npm test`), le renderer y délègue via `window.SonalDomain`,
+formats `.crp`/`.sonal` préservés (golden + round-trip). Phase 6 = nettoyage ciblé (code mort retiré),
+recadrée (les `tabXxx` restent, cf. §9).
+
+**Reprise à froid — dette restante (par priorité)** :
+1. **Valider en GUI distant/gitlab** : Phase 1 (verrous/sync), Phase 3 (`estCollaboratif`/`estGitlab`),
+   Phase 4 (fusion anon), Phase 5 (sauvegarde `.sonal`). Tout n'a été validé qu'en **local**.
+2. **recueil.js** : non encapsulé (différé post-Phase 5, dépend du Document — cf. §7).
+3. **Éditions structurelles** (`SplitSeg`/`compact`/`fusion`) : restent couche de vue (décision §8).
+4. **Optionnel** : sync MODELE_OBJET3.md vers l'état final ; nettoyage code mort additionnel
+   (⚠️ vérifier les `onclick` de **tous** les `.html`).
 
 ---
 
@@ -474,9 +484,21 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > reste dans `segmentation.js` (= amorce de `DocumentView`). **À valider en GUI** : éditer (couper un
 > segment, coller…), **annuler** puis **rétablir** → le contenu revient correctement ; messages
 > « aucune action à annuler/refaire » sur pile vide.
-> **Tranche 3c-iv+ (à venir)** : câbler `reinitRk` → `renumeroter` (⚠️ remplace les nœuds via
-> `innerHTML` au lieu de muter en place — à évaluer : listeners/sélection), puis les éditions
-> structurelles (SplitSeg/compact/fusion) — la couche DOM, la plus risquée.
+> **✅ Tranche 3c-iv FAITE (nettoyage)** : `reinitRk`/`ajustRk`/`décalageRk` étaient du **code mort**
+> (zéro appelant dans tout le dépôt) → **supprimées** de `segmentation.js` (≈140 l.). `renumeroter`
+> (pur) les remplace côté domaine. Le câblage `reinitRk → renumeroter` était donc sans objet.
+> **✅ Tranche 3c-v — décision : les éditions structurelles RESTENT couche de vue.** `SplitSeg`
+> (363 l.), `compactSegs`, `fusionSegs` sont du **DOM impératif** intriqué (interpolation temporelle,
+> état de sélection/audio) — pas des lectures ni des calculs. Les porter en pur serait gros, risqué
+> (chemin d'édition central = perte de travail si bug) et **à contre-sens du modèle** : le critère
+> §8 dit *« le DOM n'est touché que par la couche de vue »* — ces opérations SONT cette couche. Elles
+> utilisent déjà les primitives extraites (`backUp`→historique, etc.). Si besoin un jour : extraire
+> les **sous-calculs purs** (ex. interpolation temporelle `pos = posDeb + (nbAvant/nbTotal)·durée`)
+> sans toucher l'orchestration. **Phase 5 close.**
+>
+> **Bilan Phase 5** : lecture+écriture `.sonal` (parse/serializeSonal, câblé), read-model
+> `Document`/`Segment`/`Fragment`, requêtes codage + `Extrait`, `renumeroter`, `HistoriqueDocument`
+> (câblé) — tous purs/testés. Les mutations structurelles restent en vue, par conception.
 >
 > _Contexte (constat Phase 3 tranche 3)_ : le flux de sauvegarde de `gestion_entretiens.js` n'était
 > pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`
@@ -519,10 +541,24 @@ mémoire ; le DOM n'est touché que par la couche de vue.
 
 ## 9. Phase 6 — Nettoyage UI et fin du strangler
 
-- Retirer les anciens chemins (`tabXxx` globaux résiduels, fonctions doublées).
-- Séparer nettement, dans chaque module d'affichage, le **rendu** (DOM) de la **logique**
-  (déjà déplacée dans les classes).
-- Mettre à jour MODELE_OBJET3.md si le modèle a divergé en route.
+> **⚠️ Recadrage (au vu de l'archi réellement retenue).** Le « retrait des `tabXxx` globaux » du
+> plan initial **ne s'applique pas tel quel** : on a délibérément gardé le modèle « **main = source
+> de vérité + renderer enveloppe des snapshots** » (décision Phase 3). Les `tabVar`/`tabDic`/`tabDat`/
+> `tabEnt`/`tabThm` ne sont donc PAS des résidus mais le modèle de travail courant — les supprimer
+> serait une refonte écartée. Phase 6 réaliste = **nettoyage ciblé + sync doc**, pas une refonte.
+>
+> **🟡 En cours — code mort supprimé à ce jour** : `_sauvHtmlLegacy` + `exportThmcss` (Phase 5 t2),
+> `reinitRk`/`ajustRk`/`décalageRk` (3c-iv), `pointvariablesEnt`, `inlineSeg`. ⚠️ **Rendement
+> faible/risqué** : beaucoup de fonctions « mortes en apparence » sont en fait câblées en `onclick`
+> dans **`edition_entretien.html`** (ex. `pointvariables`, `compactJusqua`, `decompact`) — toute
+> suppression exige de vérifier **tous** les `.html`, pas seulement `index.html`.
+>
+> **Reste (optionnel)** :
+> - séparer rendu/logique dans les modules d'affichage : **déjà fait là où ça comptait** (la logique
+>   métier est dans `src/domain`, les `modules/*.js` appellent `window.SonalDomain`) ; le reste est
+>   du DOM de vue légitime.
+> - **sync doc** : refléter l'état final dans MODELE_OBJET3.md (ce qui vit dans `src/domain`, le
+>   pattern snapshot-wrap, ce qui reste en vue) — surtout utile si PlanPoo ne suffit pas.
 
 ---
 

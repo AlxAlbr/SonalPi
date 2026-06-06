@@ -1556,13 +1556,6 @@ async function pointvariables(){ // fonction de pointage des variables dans les 
     );
 }
 
-async function pointvariablesEnt(){
-       
-        console.log("tabVar ", tabVar);
-        console.log("tabDic ", tabDic);
-        console.log("tabDat ", tabDat);
-
-}
 
 function _dedupArray(arr, keyFn) {
     const seen = new Map();
