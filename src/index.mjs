@@ -8,5 +8,10 @@ import { parseCorpus, serializeCorpus, Corpus } from './domain/corpus.mjs';
 import { parseSonal } from './domain/sonal.mjs';
 import * as eav from './domain/eav.mjs';
 import { Entretien } from './domain/entretien.mjs';
+import { Categorie, Codebook } from './domain/codebook.mjs';
+import { RegleAnon, fusionnerReglesAnon } from './domain/anonymisation.mjs';
 
-window.SonalDomain = { parseCorpus, serializeCorpus, parseSonal, eav, Entretien, Corpus };
+window.SonalDomain = {
+  parseCorpus, serializeCorpus, parseSonal, eav,
+  Entretien, Corpus, Categorie, Codebook, RegleAnon, fusionnerReglesAnon,
+};

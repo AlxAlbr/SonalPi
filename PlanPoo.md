@@ -27,7 +27,10 @@
 | **3 tranche 1** — agrégat `Entretien` pur (`src/domain/entretien.mjs`) | ✅ **Fait** | wrapper typé + accès EAV, testé en Node ; voir §6 |
 | **3 tranche 2** — agrégat `Corpus` pur (`src/domain/corpus.mjs`) | ✅ **Fait** | possède `Entretien[]` + variables, getters `estLocal`/`estCollaboratif`, testé ; voir §6 |
 | **3 tranche 3** — câblage renderer (en cours) | 🟡 **`collaboratif`+`type`+3 appelants lecture — validés en local** | getters `est*` + `Entretien` (varsPubliquesEnt/Xtr, voirEntretien). Distant/gitlab non testé. Reste : flux sauvegarde + churn métadonnées (faible valeur). recueil.js différé (post-Phase 5) |
-| **4** → **6** | ⬜ à venir | |
+| **4 tranche 1** — Codebook pur (`src/domain/codebook.mjs`) | ✅ **Fait** | `Categorie`/`Codebook` : hiérarchie par `rang` + activation, testés ; voir §7 |
+| **4 tranche 2** — `RegleAnon` pur (`src/domain/anonymisation.mjs`) | ✅ **Fait** | instruction `tabAnon` + `fusionnerReglesAnon` ≡ legacy, testés ; voir §7 |
+| **4 tranche 3** — câblage renderer | 🟡 **merge anon fait (à valider GUI)** | `synchroniserTabAnonGlobal` → `fusionnerReglesAnon`. Câblage codebook (thematisation.js) laissé (DOM/quirky). `ContenuAnon` différé Phase 5 |
+| **5** → **6** | ⬜ à venir | |
 
 **⚠️ Non encore vérifié : corpus DISTANT et GITLAB.** Toute la Phase 1 (1a + 1b) n'a été validée
 qu'en **local**. Tester en priorité avant la Phase 2 (verrous, LFS, sync, chemins distants).
@@ -361,6 +364,33 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 
 **Critère de sortie** : codebook, règles **et** matérialisations (`ContenuAnon`) manipulés via objets ;
 `Extrait` calculé à la lecture ; rendu DOM séparé de la logique.
+
+> **✅ Tranche 1 faite (Codebook pur + tests)** : [src/domain/codebook.mjs](src/domain/codebook.mjs)
+> — `Categorie` (accesseurs explicites `code`/`nom`/`couleur`/`taille`/`compacte`/`niveau`/`active`)
+> + `Codebook` (arbre **aplati par profondeur** via `rang` : `nbDescendants`/`descendants`/
+> `enfantsDirects`/`aEnfants`/`parent`/`racines`, lookup `parCode`, `nbActives`/`auMoinsUneActive`).
+> `nbDescendants` testé **équivalent** à `thematisation.js:nbEnfants`. `parent()` est une requête
+> structurelle PROPRE — on ne reproduit PAS le `ascendantActif` legacy (quirky, lié au filtrage DOM).
+> Exposé sur `window.SonalDomain.{Categorie,Codebook}`. Tests : [test/codebook.test.mjs](test/codebook.test.mjs).
+> Le rendu/filtrage (afflistThm/multiThm/CSS/isoleThm) reste côté UI.
+>
+> **✅ Tranche 2 faite (RègleAnon pur + tests)** : [src/domain/anonymisation.mjs](src/domain/anonymisation.mjs)
+> — `RegleAnon` (instruction `entite`→`remplacement`, identité `cle()` insensible à la casse,
+> `estVide()`, `positions` = `matchPositions`), + `fusionnerReglesAnon(global, local)` testé
+> **équivalent** à `gestion_corpus.js:synchroniserTabAnonGlobal`. Exposé sur
+> `window.SonalDomain.{RegleAnon,fusionnerReglesAnon}`. Tests : [test/anonymisation.test.mjs](test/anonymisation.test.mjs).
+> **`ContenuAnon` (matérialisation 3 états dans les spans) reste différé en Phase 5** (dépend du Document).
+>
+> **🟡 Tranche 3 (câblage renderer — merge anon, validée GUI à faire)** :
+> [gestion_corpus.js:synchroniserTabAnonGlobal](modules/gestion_corpus.js#L31) délègue à
+> `window.SonalDomain.fusionnerReglesAnon` (les early-returns sont conservés ; corps de fusion
+> remplacé). Seul appelant : [gestion_entretiens.js:1489](modules/gestion_entretiens.js#L1489)
+> (fusion des règles d'un entretien vers le global à la sauvegarde). **À valider en GUI** :
+> anonymiser une entité dans un entretien, sauvegarder, vérifier qu'elle apparaît dans la table
+> anon globale. **Câblage codebook NON fait (délibéré)** : les appelants `aEnfants`/`nbEnfants`
+> de `thematisation.js` sont soit buggés-mais-utilisés (`aEnfants(t2)==true` compare une `Promise`
+> jamais `await`-ée → toujours faux), soit au cœur de `moveThm` (mutation d'arbre) — risque élevé,
+> valeur faible. À reprendre prudemment plus tard (ou avec le filtrage en Phase 5/6).
 
 > **Recueil & Synthèse (lecture/restitution).** Consommateurs d'`Extrait` : la Synthèse les
 > regroupe/filtre ; le **Recueil** les *collecte* en items

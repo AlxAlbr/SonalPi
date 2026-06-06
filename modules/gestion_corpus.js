@@ -34,41 +34,9 @@ async function synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonLocal) {
     return tabAnonGlobal;
   }
 
-  // Map des paires existantes dans le global (clé: "entite|pseudo")
-  const mapGlobal = new Map();
-  tabAnonGlobal.forEach(p => {
-    if (p.entite && p.remplacement) {
-      const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
-      mapGlobal.set(key, p);
-    }
-  });
-
-  // Ajouter les nouvelles paires du local au global
-  tabAnonLocal.forEach(p => {
-    if (!p.entite || !p.remplacement) return;
-    
-    const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
-    
-    if (!mapGlobal.has(key)) {
-      // Nouvelle paire : l'ajouter au global
-      const newEntry = {
-        entite: p.entite,
-        remplacement: p.remplacement,
-        occurrences: p.occurrences || 0,
-        indexCourant: p.indexCourant || 0,
-        matchPositions: p.matchPositions || [],
-        source: p.source || 'Entretien' // Marquer comme venant d'un entretien
-      };
-      mapGlobal.set(key, newEntry);
-      console.log(`✅ Nouvelle paire ajoutée au tabAnon global: "${p.entite}" → "${p.remplacement}"`);
-    }
-  });
-
-  // Convertir la map en tableau
-  const tabAnonGlobalMisAJour = Array.from(mapGlobal.values());
-  console.log(`📊 TabAnon global synchronisé : ${tabAnonGlobalMisAJour.length} paire(s) total`, tabAnonGlobalMisAJour);
-  
-  return tabAnonGlobalMisAJour;
+  // Fusion global ← local : logique dans src/domain/anonymisation.mjs:fusionnerReglesAnon
+  // (équivalence vérifiée par test/anonymisation.test.mjs).
+  return window.SonalDomain.fusionnerReglesAnon(tabAnonGlobal, tabAnonLocal).map(r => r.toJSON());
 }
 
 async function initFromMain() {
