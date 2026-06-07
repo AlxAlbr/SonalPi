@@ -1,7 +1,7 @@
 // Domaine : agrégat Document (= un .sonal) — Phase 5.
 //
 // Document → Segment[] → Fragment[]. Le `.sonal` est du HTML segmenté
-// (MODELE_OBJET3 §1/§2) : chaque `span.lblseg` est un Segment, chaque
+// (MODELE_OBJET §1/§2) : chaque `span.lblseg` est un Segment, chaque
 // `span[data-rk]` à l'intérieur est un Fragment (un run de tokens consécutifs au
 // même formatage). Le Token (rang `data-rk`) est l'atome, JAMAIS matérialisé en
 // objet — on ne le désigne que par son rang.
@@ -97,7 +97,7 @@ export class Segment {
 }
 
 /**
- * Extrait (dérivé — NON stocké, MODELE_OBJET3 §4) : une plage CONTIGUË de
+ * Extrait (dérivé — NON stocké, MODELE_OBJET §4) : une plage CONTIGUË de
  * Fragment partageant une catégorie. Peut enjamber les segments (les `.lblseg`
  * sont transparents). Reconstruit à la lecture, jamais persisté.
  */

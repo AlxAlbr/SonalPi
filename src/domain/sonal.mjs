@@ -63,7 +63,7 @@ export function codages(html, doc) {
 }
 
 /**
- * Anon : préserve l'asymétrie à 3 états (MODELE_OBJET3 §5).
+ * Anon : préserve l'asymétrie à 3 états (MODELE_OBJET §5).
  *   type 'anon' / 'anon-exception' ; le 3e état (présent-non-anonymisé) n'a pas
  *   de span dédié et est donc absent de cette liste (documenté par omission).
  */

@@ -1,7 +1,7 @@
 # Plan de refactorisation orientée objet — SonalPi
 
 > Document de travail. Objectif : faire émerger progressivement les **objets implicites**
-> identifiés dans [MODELE_OBJET3.md](MODELE_OBJET3.md) (Corpus, Entretien, Document/Segment/Fragment/Token,
+> identifiés dans [MODELE_OBJET.md](MODELE_OBJET.md) (Corpus, Entretien, Document/Segment/Fragment/Token,
 > Variable/Modalité/Donnée, Catégorie + Extrait, RègleAnon + ContenuAnon, Commentaire, Recueil,
 > couche Storage) **sans jamais casser l'application existante**.
 >
@@ -67,7 +67,7 @@ recadrée (les `tabXxx` restent, cf. §9).
    Phase 4 (fusion anon), Phase 5 (sauvegarde `.sonal`). Tout n'a été validé qu'en **local**.
 2. **recueil.js** : non encapsulé (différé post-Phase 5, dépend du Document — cf. §7).
 3. **Éditions structurelles** (`SplitSeg`/`compact`/`fusion`) : restent couche de vue (décision §8).
-4. **Optionnel** : sync MODELE_OBJET3.md vers l'état final ; nettoyage code mort additionnel
+4. **Optionnel** : sync MODELE_OBJET.md vers l'état final ; nettoyage code mort additionnel
    (⚠️ vérifier les `onclick` de **tous** les `.html`).
 
 ---
@@ -83,10 +83,10 @@ recadrée (les `tabXxx` restent, cf. §9).
    « copie locale dans l'Entretien ↔ cache global au Corpus » (cf. `inventaireVariables`
    qui reconstruit `tabDat`, et le correctif défensif `gestion_entretiens.js:368`).
    **Origine** : les verrous **par fichier** (travail concurrent distant) — ce qui justifie une
-   vérité *par entretien*, **pas** deux vérités co-égales (cf. MODELE_OBJET3 §3). **Résolution
+   vérité *par entretien*, **pas** deux vérités co-égales (cf. MODELE_OBJET §3). **Résolution
    retenue** : valeurs (`tabDat`) maîtres dans le `.sonal`, définitions (`tabVar`/`tabDic`)
    maîtres dans le `.crp`. Chaque phase doit *réduire*, jamais aggraver, cette duplication.
-4. **Trois altitudes séparées** (voir MODELE_OBJET3 §1 et §7) :
+4. **Trois altitudes séparées** (voir MODELE_OBJET §1 et §7) :
    domaine (Corpus, Entretien…) ↔ infrastructure (Storage) ↔ UI/DOM. On ne mélange pas.
 5. **Petits pas livrables.** Chaque étape se termine sur une appli qui démarre et passe les
    tests de caractérisation. On peut s'arrêter entre deux phases sans dette ouverte.
@@ -174,7 +174,7 @@ Ces contraintes du code actuel conditionnent l'ordre des phases :
 
 **Pourquoi en premier** : c'est la couche la plus mûre (deux classes parallèles existent déjà),
 la moins couplée au métier et au DOM, et elle vit côté *main* (CommonJS, déjà modularisé).
-Voir MODELE_OBJET3 §7.
+Voir MODELE_OBJET §7.
 
 > **Découpage retenu** : la Phase 1 a été scindée en **1a** (cœur côté *main*) et **1b**
 > (renderer), elle-même en **tranche 1** (flux fichier) et **tranche 2** (collaboratif).
@@ -267,9 +267,9 @@ et c'est le siège de la duplication la plus douloureuse.
 
 - Classes `Variable {v, lib, champ, priv}`, `Modalite {v, m, lib}`, `Donnee {e, v, l, m}`.
   ⚠️ **Pas** deux conteneurs « BaseDeDonnéesEntretien / Corpus » (ça graverait l'accident dans
-  le marbre, cf. MODELE_OBJET3 §3) — soit des méthodes sur les agrégats, soit un service unique.
+  le marbre, cf. MODELE_OBJET §3) — soit des méthodes sur les agrégats, soit un service unique.
 - Renommer les méthodes et propriétés avec des noms courts mais explicites, ne pas utiliser de noms abréviés
-- **Établir la source de vérité unique**, partagée selon la *nature* de la donnée (cf. MODELE_OBJET3 §3) :
+- **Établir la source de vérité unique**, partagée selon la *nature* de la donnée (cf. MODELE_OBJET §3) :
   - **valeurs** (`Donnee`/`tabDat`, rattachées à un entretien `e`) → maîtres dans le **`.sonal`** ;
     le `tabDat` corpus devient une **vue calculée** (l'*union* des locaux), jamais un cache resynchronisé à la main ;
   - **définitions** (`Variable`/`Modalite` = `tabVar`/`tabDic`, transverses) → maîtres dans le **`.crp`**.
@@ -373,9 +373,9 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 - `Categorie {code, nom, couleur, taille, rang, cmpct, act}` + conteneur `Codebook`
   (hiérarchie via `rang`, compactage). Encapsule `thematisation.js`.
   `Extrait` (dérivé, **non stocké** : plage continue d'une catégorie, peut enjamber les segments,
-  cf. MODELE_OBJET3 §4) = **read-model** reconstruit à la lecture, pas une entité à persister.
+  cf. MODELE_OBJET §4) = **read-model** reconstruit à la lecture, pas une entité à persister.
 - `RegleAnon` (instruction) **et** `ContenuAnon` (matérialisation `anon`/`anon-exception` + `data-pseudo`,
-  cf. MODELE_OBJET3 §5) + service d'anonymisation. Encapsule `modules/Anonymisation/*`.
+  cf. MODELE_OBJET §5) + service d'anonymisation. Encapsule `modules/Anonymisation/*`.
   Rappel : règles = *instructions* ; l'anonymisation effective vit dans les `span.anon` du Document
   → la partie **application dépend du Document** (Phase 5). **Invariant à préserver** : l'asymétrie à
   3 états (anonymisé / exception / présent-non-anonymisé, ce dernier *sans* `ContenuAnon`).
@@ -500,6 +500,16 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > `Document`/`Segment`/`Fragment`, requêtes codage + `Extrait`, `renumeroter`, `HistoriqueDocument`
 > (câblé) — tous purs/testés. Les mutations structurelles restent en vue, par conception.
 >
+> **🔖 Dette assumée — double parsing du `.sonal`.** `sonal.mjs` (lecteurs PLATS
+> `segments`/`locuteurs`/`codages`/`anon`/`commentaires`, pour golden/observabilité) et
+> `document.mjs` (`Document.fromHtml` → graphe RICHE `Segment`→`Fragment`) parsent **tous deux** le
+> même HTML, avec une logique recoupée (détection `cat_xxx`, `anon`, champs de segment). Côté
+> **écriture**, pas de doublon : `Document.toSonal` délègue à `sonal.mjs:serializeSonal` (vérité
+> unique). À noter aussi : `corpus.mjs` réunit format+agrégat dans un fichier, alors que le `.sonal`
+> est scindé `sonal.mjs` (format) / `document.mjs` (agrégat) — justifié par la taille de Document.
+> **Consolidation optionnelle** (faire dériver les lecteurs plats du `Document`, ou l'inverse) : à ne
+> tenter que si la duplication gêne — ça toucherait du code golden-testé pour un gain modeste.
+>
 > _Contexte (constat Phase 3 tranche 3)_ : le flux de sauvegarde de `gestion_entretiens.js` n'était
 > pas migrable « en lecture » : `sauvHtml(...)` exige des **tableaux bruts** (`Entretien.donnees()`
 > renvoie des instances → corromprait le `.sonal`), et envelopper `ent` casse les accès bruts voisins.
@@ -520,11 +530,11 @@ spans `.lblseg`, undo/redo par snapshot HTML). Le plus risqué.
 - `Document` : encapsule le HTML du `.sonal`, expose `segments`, `reinitRk`, `undo/redo`.
 - `Segment {rksg, deb, fin, loc, statut, nomloc}` possède `Fragment[]`.
   **`Fragment {rk, len, sg, codes}`** = *run de tokens consécutifs au même formatage* (ex-« Mot » :
-  ce n'est **pas** un mot, cf. MODELE_OBJET3 §2). Le **`Token`** (le vrai atome, désigné par `rk`)
+  ce n'est **pas** un mot, cf. MODELE_OBJET §2). Le **`Token`** (le vrai atome, désigné par `rk`)
   reste **sans objet** — un rang jamais matérialisé en HTML.
 - Les marquages inline sont **3 calques orthogonaux** sur les fragments (codage `cat_xxx` /
   anon `data-pseudo` / commentaire `data-obs`) : un fragment en porte n'importe quelle combinaison ;
-  ce ne sont ni des sous-types ni des attributs scalaires (cf. MODELE_OBJET3 §2).
+  ce ne sont ni des sous-types ni des attributs scalaires (cf. MODELE_OBJET §2).
 - **`Commentaire {auteur, texte, rkDebut, rkFin}`** (`obs`/`obsfin` + `data-obs`/`data-auth`/`data-finobs`) :
   annotation **persistée dans le `.sonal`**, autonome (aucune règle au-dessus). À **préserver** lors de
   l'encapsulation — la compaction la conserve et elle force une coupure de fragment. Encapsule aussi les
@@ -557,7 +567,7 @@ mémoire ; le DOM n'est touché que par la couche de vue.
 > - séparer rendu/logique dans les modules d'affichage : **déjà fait là où ça comptait** (la logique
 >   métier est dans `src/domain`, les `modules/*.js` appellent `window.SonalDomain`) ; le reste est
 >   du DOM de vue légitime.
-> - **sync doc** : refléter l'état final dans MODELE_OBJET3.md (ce qui vit dans `src/domain`, le
+> - **sync doc** : refléter l'état final dans MODELE_OBJET.md (ce qui vit dans `src/domain`, le
 >   pattern snapshot-wrap, ce qui reste en vue) — surtout utile si PlanPoo ne suffit pas.
 
 ---
