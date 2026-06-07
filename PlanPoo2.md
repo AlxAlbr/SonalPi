@@ -170,6 +170,14 @@ Pour exécuter `src/domain/*` dans le main, trancher :
 
 Recommandation : **import dynamique** pour commencer (zéro outillage), réévaluer si besoin.
 
+> **✅ Décision actée (spike validé).** L'import dynamique ESM-depuis-CommonJS **fonctionne** :
+> `await import(pathToFileURL('src/domain/corpus.mjs'))` charge le domaine dans un contexte
+> CommonJS, et `Corpus.fromParts(...)` s'instancie **sans `window`/DOM**. Spike non destructif posé
+> dans `main.js` (`app.on('ready')`, loggue `[spike PlanPoo2] … ✓` — à retirer en Étape A).
+> **Caveat clé** : côté main, importer les **modules de domaine directement** (`corpus.mjs`,
+> `document.mjs`…), **PAS `index.mjs`** (qui pose `window.SonalDomain` et n'a pas de `window` en main).
+> Le domaine devient ainsi consommé des deux côtés : `window.SonalDomain` (renderer) / `import` (main).
+
 ---
 
 ## 4. Y aller **incrémentalement** (même un changement d'archi peut se stranglier)
@@ -192,6 +200,30 @@ le temps de migrer les appelants un par un.
 
 > Ainsi l'étape 2, bien que « changement d'archi », se déroule **derrière un shim**, par petits pas
 > testables — fidèle à l'esprit strangler de l'étape 1.
+
+> **🟡 EN COURS — pivot vers une tranche VERTICALE d'abord (validé avec l'utilisateur).** Constat en
+> cadrant `main.js` : les **écritures** des globaux sont **centralisées** (7 handlers `set-*`,
+> bon), mais (1) la forme de l'agrégat domaine ≠ l'état du main (meta + 5 tableaux + `ent_cur`,
+> getters `dossier` vs `folder`…) et (2) les **lectures** des globaux (`Corpus.folder`/`.type`, `tabEnt`)
+> sont **dispersées** dans `main.js`. Donc l'Étape A « horizontale » (swap d'état complet) est
+> invasive. **On pivote** : faire **une commande de bout en bout** d'abord (proof du pattern, faible
+> risque, informatif), la consolidation d'état venant ensuite. (a) et (b) **convergent** au même
+> point d'arrivée tant qu'on fait la consolidation à la fin.
+>
+> **✅ Posé** : helper `domaine()` dans `main.js` (import dynamique **mémoïsé** des modules
+> `src/domain/*`), et **1ʳᵉ commande** `corpus:ajouterVariable` (`{code,libelle,portee,privee}`) qui
+> exécute `metadonnees.ajouterVariable` côté main et réécrit `tabVar`/`tabDic`. **DORMANTE** : nouveau
+> canal, l'ancien chemin `gestion_data.js:addVar` intact (rien câblé côté renderer). Persistance `.crp`
+> = flux sauvegarde existant. Vérifié : `node --check` + preuve fonctionnelle du corps du handler en Node.
+> **🟡 Bascule renderer FAITE (à valider GUI)** : `gestion_data.js:addVar` (branche création)
+> n'exécute plus le domaine en local — il **envoie la commande** `corpus:ajouterVariable` (via le
+> `invoke` générique du preload), puis **re-tire** `tabVar`/`tabDic` (`getVar`/`getDic`) pour que la
+> suite (positionnement, modalités, affichage) travaille à jour. `repositionnerVar` + `setVar`
+> restent côté renderer (colle transitoire, attendue en voie (a)). **À valider en GUI** : créer une
+> variable (position + modalités) → apparaît/persiste, console propre. **Boucle commande prouvée
+> de bout en bout : renderer → main → domaine → état → renderer.**
+> **Suite** : (ii) d'autres commandes (`definirValeur`, `supprimerVariable`…), (iii) consolider
+> l'état (agrégat unique dans le main) une fois le pattern éprouvé, (iv) événements (Étape C).
 
 ---
 

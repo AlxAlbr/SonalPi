@@ -34,9 +34,24 @@ var tabGrph = []; // tableau des représentations simplifiées des entretiens (p
 var ent_cur = -1; // entretien courant
 var tabLocImport = []; // locuteurs importés (stockage central dans le main)
 
-// utilisateur 
+// utilisateur
 var utilisateur="";
- 
+
+// ── Domaine ESM (src/domain) consommé dans le main via import dynamique (PlanPoo2 §3).
+//    Mémoïsé. NB : on importe les MODULES directement, pas src/index.mjs (qui pose
+//    window.SonalDomain, inexistant côté main).
+let _domaineCache = null;
+async function domaine() {
+  if (_domaineCache) return _domaineCache;
+  const { pathToFileURL } = require('url');
+  const charger = (m) => import(pathToFileURL(path.join(__dirname, 'src', 'domain', m)).href);
+  const [metadonnees, corpus, doc] = await Promise.all([
+    charger('metadonnees.mjs'), charger('corpus.mjs'), charger('document.mjs'),
+  ]);
+  _domaineCache = { metadonnees, corpus, document: doc };
+  return _domaineCache;
+}
+
 
 // Handlers pour mettre à jour et récupérer le corpus
 ipcMain.handle('get-corpus', () => { return Corpus;});
@@ -169,6 +184,28 @@ ipcMain.handle('get-dat', () => { return tabDat; });
 ipcMain.handle('set-dat', (_, newTabDat) => {
   tabDat = newTabDat;
   return true;
+});
+
+// ── [PlanPoo2 — Étape A, tranche verticale] Commande de bout en bout dans le main.
+// Première commande qui exécute le DOMAINE côté main (au lieu du « pull→muter→push »
+// du renderer). DORMANTE : nouveau canal, l'ancien chemin (gestion_data.js:addVar)
+// reste en place tant qu'on ne bascule pas l'appelant. Ne touche que tabVar/tabDic.
+// La persistance (.crp) reste assurée par le flux sauvegarde existant.
+ipcMain.handle('corpus:ajouterVariable', async (_e, { code, libelle, portee, privee }) => {
+  try {
+    const { metadonnees } = await domaine();
+    const res = metadonnees.ajouterVariable(
+      tabVar.map((v) => metadonnees.Variable.fromJSON(v)),
+      tabDic.map((d) => metadonnees.Modalite.fromJSON(d)),
+      { code, libelle, portee, privee }
+    );
+    tabVar = res.variables.map((v) => v.toJSON());
+    tabDic = res.modalites.map((m) => m.toJSON());
+    return { ok: true };
+  } catch (e) {
+    console.error('corpus:ajouterVariable', e);
+    return { ok: false, error: String(e && e.message || e) };
+  }
 });
 
 // Handlers pour récupérer et mettre à jour le tableau global des anonymisations
@@ -2677,8 +2714,21 @@ for (let i = 1; i < process.argv.length; i++) {
 
 app.on('ready', () => {
 
+  // [spike PlanPoo2] Vérifie que le domaine ESM (src/domain) est importable dans le
+  // process main (CommonJS) via import dynamique — prérequis de l'archi Niveau 2.
+  // Non destructif : ne fait que logguer. À retirer une fois l'Étape A engagée.
+  (async () => {
+    try {
+      const { metadonnees, corpus } = await domaine();
+      console.log('[PlanPoo2] domaine chargé dans le main ✓',
+        'ajouterVariable=' + typeof metadonnees.ajouterVariable, 'Corpus=' + typeof corpus.Corpus);
+    } catch (e) {
+      console.error('[PlanPoo2] échec chargement domaine dans le main ✗', e);
+    }
+  })();
+
   // définition de l'icône
-  const iconPath = path.join(__dirname, 'icon', 'icon.png') 
+  const iconPath = path.join(__dirname, 'icon', 'icon.png')
  
   
 

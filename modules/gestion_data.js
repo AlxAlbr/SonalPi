@@ -37,19 +37,21 @@ async function addVar(mode) {
     if (newVar) { // création d'une nouvelle variable 
         
         
-        // Création de la variable + sa modalité 0 : logique dans src/domain/metadonnees.mjs:ajouterVariable.
-        const meta = window.SonalDomain.metadonnees;
-        const ajout = meta.ajouterVariable(
-            tabVar.map(v => meta.Variable.fromJSON(v)),
-            tabDic.map(d => meta.Modalite.fromJSON(d)),
-            { code: rkVar, libelle: newVar, portee: champ, privee: priv }
-        );
-        tabVar = ajout.variables.map(v => v.toJSON());
-        tabDic = ajout.modalites.map(m => m.toJSON());
+        // [PlanPoo2 — bascule] La création passe par la COMMANDE du main
+        // (corpus:ajouterVariable) : le domaine s'exécute côté main et met à jour
+        // tabVar/tabDic. On re-tire l'état pour que la suite (positionnement, modalités,
+        // affichage) travaille sur les globaux à jour.
+        const res = await electronAPI.invoke('corpus:ajouterVariable',
+            { code: rkVar, libelle: newVar, portee: champ, privee: priv });
+        if (!res || !res.ok) {
+            question("Impossible d'ajouter la variable" + (res && res.error ? " : " + res.error : ""), ['OK']);
+            return;
+        }
+        tabVar = await electronAPI.getVar(); // re-tire l'état mis à jour par la commande
+        tabDic = await electronAPI.getDic();
 
-        repositionnerVar(rkVar); // Appliquer le positionnement demandé
-        await electronAPI.setVar(tabVar); // sauvegarder le tableau des variables
-        await electronAPI.setDic(tabDic); // sauvegarder le tableau des modalités
+        repositionnerVar(rkVar); // Appliquer le positionnement demandé (réordonne le tabVar local)
+        await electronAPI.setVar(tabVar); // persiste le repositionnement
         /*
         if (champ=="loc") { // création d'une modalité zéro dans le tabdat
             tabDat.push ({'e': rgEnt, 'v': rkVar, 'l': 0, 'm' : 0  })
