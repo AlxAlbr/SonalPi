@@ -236,12 +236,14 @@ async function sauvVar(rgVar, mode) {
      
     if (updatedVar.lib) {
 
-        // Mise à jour de la définition (repérée par code) : src/domain/metadonnees.mjs:modifierVariable.
-        const meta = window.SonalDomain.metadonnees;
-        tabVar = meta.modifierVariable(
-            tabVar.map(v => meta.Variable.fromJSON(v)),
-            { code: updatedVar.v, libelle: updatedVar.lib, portee: updatedVar.champ, privee: updatedVar.priv }
-        ).map(v => v.toJSON());
+        // [PlanPoo2 — bascule] Mise à jour de la définition via la COMMANDE du main.
+        const res = await electronAPI.invoke('corpus:modifierVariable',
+            { code: updatedVar.v, libelle: updatedVar.lib, portee: updatedVar.champ, privee: updatedVar.priv });
+        if (!res || !res.ok) {
+            question("Impossible de modifier la variable" + (res && res.error ? " : " + res.error : ""), ['OK']);
+            return;
+        }
+        tabVar = await electronAPI.getVar(); // re-tire l'état mis à jour par la commande
 
         repositionnerVar(updatedVar.v); // Appliquer le positionnement demandé
          

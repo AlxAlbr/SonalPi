@@ -222,8 +222,12 @@ le temps de migrer les appelants un par un.
 > restent côté renderer (colle transitoire, attendue en voie (a)). **À valider en GUI** : créer une
 > variable (position + modalités) → apparaît/persiste, console propre. **Boucle commande prouvée
 > de bout en bout : renderer → main → domaine → état → renderer.**
-> **Suite** : (ii) d'autres commandes (`definirValeur`, `supprimerVariable`…), (iii) consolider
-> l'état (agrégat unique dans le main) une fois le pattern éprouvé, (iv) événements (Étape C).
+> **Commandes livrées** : `corpus:ajouterVariable` (bascule `addVar`, ✅ validé GUI) ;
+> `corpus:modifierVariable` (bascule `sauvVar`, 🟡 à valider GUI). Même patron : handler main +
+> `electronAPI.invoke(...)` + re-pull `getVar`/`getDic`.
+> **Suite** : (ii) `corpus:supprimerVariable` (bascule `supprVar` — **cascade** : touche aussi
+> `tabEnt`/`tabDat`, donc plus d'état), puis `entretien:definirValeur` (validMod) ; (iii) consolider
+> l'état (agrégat unique dans le main) une fois le pattern éprouvé ; (iv) événements (Étape C).
 
 ---
 

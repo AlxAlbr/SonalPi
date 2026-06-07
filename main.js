@@ -208,6 +208,21 @@ ipcMain.handle('corpus:ajouterVariable', async (_e, { code, libelle, portee, pri
   }
 });
 
+// [PlanPoo2 — Étape B] Modifier la définition d'une variable (cf. metadonnees.modifierVariable).
+ipcMain.handle('corpus:modifierVariable', async (_e, { code, libelle, portee, privee }) => {
+  try {
+    const { metadonnees } = await domaine();
+    tabVar = metadonnees.modifierVariable(
+      tabVar.map((v) => metadonnees.Variable.fromJSON(v)),
+      { code, libelle, portee, privee }
+    ).map((v) => v.toJSON());
+    return { ok: true };
+  } catch (e) {
+    console.error('corpus:modifierVariable', e);
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
 // Handlers pour récupérer et mettre à jour le tableau global des anonymisations
 ipcMain.handle('get-anon', () => { return tabAnon; });
 ipcMain.handle('set-anon', (_, newTabAnon) => {
