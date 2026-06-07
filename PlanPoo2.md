@@ -234,8 +234,23 @@ le temps de migrer les appelants un par un.
 > (`addVar`/`sauvModas`) sont passés en `for...of await` (le re-pull de `tabDic` doit précéder la
 > sauvegarde du `.crp` qui lit le `tabDic` local). Les **lectures** (`getMod`/`inventaireVariables`)
 > restent locales (domaine renderer) — deviendront des *requêtes* (`corpus:etat`/`:donnees`) plus tard.
-> **Suite** : **consolider l'état** (agrégat unique dans le main) — pattern éprouvé sur 5 commandes
-> dont multi-état + cascade ; c'est le moment de simplifier la « colle » re-pull ; puis événements (Étape C).
+> **✅ Colle re-pull supprimée (Option 1) — « les commandes renvoient l'état ».** Chaque commande EAV
+> renvoie les tranches modifiées (`{ ok, tabVar, tabDic, tabEnt?, tabDat?, modalite? }`) et le renderer
+> les utilise directement, **au lieu** de `getVar/getDic/getEnt/getDat` séparés. → 1 aller-retour au
+> lieu de 2-5 par commande. Aucun re-pull EAV restant.
+>
+> **⚠️ Cadrage consolidation complète (Étape A horizontale) — REPORTÉE.** Mesure dans `main.js` :
+> ≈ **200 lectures de globaux**, dont **`Corpus` méta = 112** (folder/type/url/content — I/O fichier,
+> Storage, dialogues), **sans rapport avec l'EAV**. La consolidation *complète* (agrégat = état unique,
+> réécrire toutes les lectures) est donc **chère et risquée à cause de `Corpus`**, pour un bénéfice
+> surtout interne (le main tiendrait un agrégat vivant). Une consolidation *EAV-only* serait petite
+> (~12 sites hors handlers) mais à bénéfice modeste. **Décision : ne pas consolider pour l'instant** —
+> l'architecture commande + (à venir) événements donne l'essentiel ; la consolidation reste un
+> **idéal lointain optionnel**.
+>
+> **Suite recommandée** : **Étape C — événements** (`corpus:modifie` émis par le main → les vues se
+> re-rendent), qui complète l'archi et permettra à terme la synchro multi-fenêtres native ; puis,
+> éventuellement, d'autres blocs de commandes (entretiens, codebook, anon).
 
 ---
 

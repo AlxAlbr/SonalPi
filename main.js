@@ -201,7 +201,7 @@ ipcMain.handle('corpus:ajouterVariable', async (_e, { code, libelle, portee, pri
     );
     tabVar = res.variables.map((v) => v.toJSON());
     tabDic = res.modalites.map((m) => m.toJSON());
-    return { ok: true };
+    return { ok: true, tabVar, tabDic };
   } catch (e) {
     console.error('corpus:ajouterVariable', e);
     return { ok: false, error: String(e && e.message || e) };
@@ -216,7 +216,7 @@ ipcMain.handle('corpus:modifierVariable', async (_e, { code, libelle, portee, pr
       tabVar.map((v) => metadonnees.Variable.fromJSON(v)),
       { code, libelle, portee, privee }
     ).map((v) => v.toJSON());
-    return { ok: true };
+    return { ok: true, tabVar };
   } catch (e) {
     console.error('corpus:modifierVariable', e);
     return { ok: false, error: String(e && e.message || e) };
@@ -242,7 +242,7 @@ ipcMain.handle('corpus:supprimerVariable', async (_e, { code }) => {
     tabDat = metadonnees.retirerVariableDesDonnees(
       tabDat.map((d) => metadonnees.Donnee.fromJSON(d)), code
     ).map((d) => d.toJSON());
-    return { ok: true };
+    return { ok: true, tabVar, tabDic, tabEnt, tabDat };
   } catch (e) {
     console.error('corpus:supprimerVariable', e);
     return { ok: false, error: String(e && e.message || e) };
@@ -265,7 +265,7 @@ ipcMain.handle('entretien:definirValeur', async (_e, { entretien, variable, locu
     );
     ligEnt.tabDat = res.donnees.map((d) => d.toJSON());
     tabDic = res.modalites.map((m) => m.toJSON());
-    return { ok: true, modalite: res.modalite };
+    return { ok: true, modalite: res.modalite, tabEnt, tabDic };
   } catch (e) {
     console.error('entretien:definirValeur', e);
     return { ok: false, error: String(e && e.message || e) };
@@ -279,7 +279,7 @@ ipcMain.handle('corpus:renommerModalite', async (_e, { variable, code, libelle }
     tabDic = metadonnees.renommerModalite(
       tabDic.map((d) => metadonnees.Modalite.fromJSON(d)), variable, code, libelle
     ).map((m) => m.toJSON());
-    return { ok: true };
+    return { ok: true, tabDic };
   } catch (e) {
     console.error('corpus:renommerModalite', e);
     return { ok: false, error: String(e && e.message || e) };

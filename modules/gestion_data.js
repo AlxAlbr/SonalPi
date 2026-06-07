@@ -47,8 +47,8 @@ async function addVar(mode) {
             question("Impossible d'ajouter la variable" + (res && res.error ? " : " + res.error : ""), ['OK']);
             return;
         }
-        tabVar = await electronAPI.getVar(); // re-tire l'état mis à jour par la commande
-        tabDic = await electronAPI.getDic();
+        tabVar = res.tabVar; // état renvoyé par la commande (plus de re-pull)
+        tabDic = res.tabDic;
 
         repositionnerVar(rkVar); // Appliquer le positionnement demandé (réordonne le tabVar local)
         await electronAPI.setVar(tabVar); // persiste le repositionnement
@@ -243,7 +243,7 @@ async function sauvVar(rgVar, mode) {
             question("Impossible de modifier la variable" + (res && res.error ? " : " + res.error : ""), ['OK']);
             return;
         }
-        tabVar = await electronAPI.getVar(); // re-tire l'état mis à jour par la commande
+        tabVar = res.tabVar; // état renvoyé par la commande (plus de re-pull)
 
         repositionnerVar(updatedVar.v); // Appliquer le positionnement demandé
          
@@ -291,10 +291,8 @@ async function supprVar(rgVar, mode) {
             question("Impossible de supprimer la variable" + (r && r.error ? " : " + r.error : ""), ['OK']);
             return;
         }
-        tabVar = await electronAPI.getVar();
-        tabDic = await electronAPI.getDic();
-        tabEnt = await electronAPI.getEnt();
-        tabDat = await electronAPI.getDat();
+        // état renvoyé par la commande (plus de re-pull)
+        tabVar = r.tabVar; tabDic = r.tabDic; tabEnt = r.tabEnt; tabDat = r.tabDat;
 
 
         await window.sauvegarderCorpus(false);
@@ -492,7 +490,7 @@ async function chgDic(v,m, lib){
     // (chgDic doit être AWAITÉ par ses appelants, cf. addVar/sauvModas : le re-pull
     //  de tabDic doit précéder la sauvegarde du .crp qui lit le tabDic local.)
     const r = await electronAPI.invoke('corpus:renommerModalite', { variable: v, code: m, libelle: lib });
-    if (r && r.ok) { tabDic = await electronAPI.getDic(); }
+    if (r && r.ok) { tabDic = r.tabDic; } // état renvoyé par la commande (plus de re-pull)
 }
 
 // valider un changement de modalité
@@ -511,8 +509,8 @@ async function validMod(rgEnt, v, l, m, lib){
         { entretien: rgEnt, variable: v, locuteur: l, libelle: lib });
     if (res && res.ok) {
         m = res.modalite; // pour la mise à jour du data-m de l'input plus bas
-        tabEnt = await electronAPI.getEnt(); // re-tire l'état mis à jour par la commande
-        tabDic = await electronAPI.getDic();
+        tabEnt = res.tabEnt; // état renvoyé par la commande (plus de re-pull)
+        tabDic = res.tabDic;
     }
 
     // Persister sur le serveur (distant / gitlab) — fire-and-forget pour ne pas bloquer l'UI
