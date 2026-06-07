@@ -222,14 +222,20 @@ le temps de migrer les appelants un par un.
 > restent côté renderer (colle transitoire, attendue en voie (a)). **À valider en GUI** : créer une
 > variable (position + modalités) → apparaît/persiste, console propre. **Boucle commande prouvée
 > de bout en bout : renderer → main → domaine → état → renderer.**
-> **Commandes livrées (CRUD variables complet)** : `corpus:ajouterVariable` (bascule `addVar`,
-> ✅ GUI), `corpus:modifierVariable` (bascule `sauvVar`, ✅ GUI), `corpus:supprimerVariable`
-> (bascule `supprVar`, 🟡 à valider GUI — **cascade** sur `tabVar`/`tabDic`/`tabEnt`/`tabDat`,
-> premier cas multi-état ; le renderer re-tire les 4). Patron constant : handler main +
-> `electronAPI.invoke(...)` + re-pull des globaux impactés.
-> **Suite** : (ii) `entretien:definirValeur` (validMod — touche le `tabDat` d'un entretien, → `.sonal`) ;
-> (iii) **consolider l'état** (agrégat unique dans le main) — le pattern est désormais éprouvé sur
-> 3 commandes dont une multi-état ; c'est le moment de simplifier la « colle » re-pull ; (iv) événements (Étape C).
+> **✅ Bloc « Commandes — Variables / Modalités (EAV) » COMPLET** (5 commandes d'écriture) :
+> - `corpus:ajouterVariable` (bascule `addVar`, ✅ GUI)
+> - `corpus:modifierVariable` (bascule `sauvVar`, ✅ GUI)
+> - `corpus:supprimerVariable` (bascule `supprVar`, ✅ GUI — **cascade** `tabVar`/`tabDic`/`tabEnt`/`tabDat`)
+> - `entretien:definirValeur` (bascule `validMod` — modalité max+1 + valeur dans le `tabDat` de l'entretien) 🟡 à valider GUI
+> - `corpus:renommerModalite` (bascule `chgDic`) 🟡 à valider GUI
+>
+> Patron constant : handler main (exécute le domaine, met à jour les globaux) + `electronAPI.invoke(...)`
+> côté renderer + re-pull des globaux impactés. ⚠️ `chgDic` étant appelé en boucle, ses appelants
+> (`addVar`/`sauvModas`) sont passés en `for...of await` (le re-pull de `tabDic` doit précéder la
+> sauvegarde du `.crp` qui lit le `tabDic` local). Les **lectures** (`getMod`/`inventaireVariables`)
+> restent locales (domaine renderer) — deviendront des *requêtes* (`corpus:etat`/`:donnees`) plus tard.
+> **Suite** : **consolider l'état** (agrégat unique dans le main) — pattern éprouvé sur 5 commandes
+> dont multi-état + cascade ; c'est le moment de simplifier la « colle » re-pull ; puis événements (Étape C).
 
 ---
 

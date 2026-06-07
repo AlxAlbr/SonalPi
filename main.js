@@ -249,6 +249,43 @@ ipcMain.handle('corpus:supprimerVariable', async (_e, { code }) => {
   }
 });
 
+// [PlanPoo2 — Étape B] Définir la valeur (modalité) prise par un entretien pour une
+// variable/locuteur, à partir d'un libellé (crée la modalité si besoin, code = max+1).
+// Touche le tabDat de l'entretien + tabDic. Renvoie le code de modalité retenu.
+ipcMain.handle('entretien:definirValeur', async (_e, { entretien, variable, locuteur, libelle }) => {
+  try {
+    const { metadonnees } = await domaine();
+    const ligEnt = tabEnt.find((ent) => ent.id == entretien);
+    if (!ligEnt) return { ok: false, error: 'entretien introuvable' };
+    if (!Array.isArray(ligEnt.tabDat)) ligEnt.tabDat = [];
+    const res = metadonnees.definirValeur(
+      ligEnt.tabDat.map((d) => metadonnees.Donnee.fromJSON(d)),
+      tabDic.map((d) => metadonnees.Modalite.fromJSON(d)),
+      { entretien, variable, locuteur, libelle }
+    );
+    ligEnt.tabDat = res.donnees.map((d) => d.toJSON());
+    tabDic = res.modalites.map((m) => m.toJSON());
+    return { ok: true, modalite: res.modalite };
+  } catch (e) {
+    console.error('entretien:definirValeur', e);
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+// [PlanPoo2 — Étape B] Renommer (ou créer) une modalité dans le dictionnaire.
+ipcMain.handle('corpus:renommerModalite', async (_e, { variable, code, libelle }) => {
+  try {
+    const { metadonnees } = await domaine();
+    tabDic = metadonnees.renommerModalite(
+      tabDic.map((d) => metadonnees.Modalite.fromJSON(d)), variable, code, libelle
+    ).map((m) => m.toJSON());
+    return { ok: true };
+  } catch (e) {
+    console.error('corpus:renommerModalite', e);
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
 // Handlers pour récupérer et mettre à jour le tableau global des anonymisations
 ipcMain.handle('get-anon', () => { return tabAnon; });
 ipcMain.handle('set-anon', (_, newTabAnon) => {

@@ -64,16 +64,16 @@ async function addVar(mode) {
         
 
          
-        // y'a-t-il des modalités à ajouter?
+        // y'a-t-il des modalités à ajouter? (await : chgDic est une commande IPC, cf. PlanPoo2)
         const inputs = document.querySelectorAll(".libmoda");
-        inputs.forEach(input => {
+        for (const input of inputs) {
             let rkV = Number(input.dataset.v)
-            let rkM = Number(input.dataset.m); 
-            
+            let rkM = Number(input.dataset.m);
+
             if (input.value != input.dataset.lib && rkV && rkM) {
-                chgDic(rkV, rkM, input.value)
+                await chgDic(rkV, rkM, input.value)
             }
-        });
+        }
 
 
        // Mise à jour des modalités
@@ -316,21 +316,17 @@ async function sauvModas(ode) {
     // récupération de la variable courante
     const rgVar = document.getElementById("lblCodeVar").value;
 
-    // récupération des modalités
+    // récupération des modalités (await : chgDic est une commande IPC, cf. PlanPoo2)
     const inputs = document.querySelectorAll(".libmoda");
-    inputs.forEach(input => {
+    for (const input of inputs) {
         let rkV = Number(input.dataset.v);
         let rkM = Number(input.dataset.m);
-        let newValue = input.value;
-
-        // console.log("Sauvegarde de la modalité pour la variable :", rkV, "et la modalité :", rkM, "avec la valeur :", newValue);
 
         // mise à jour de la modalité dans tabDic
         if (rkV && rkM && input.value) {
-             chgDic(rkV, rkM, input.value)
-        };
-
-    });
+             await chgDic(rkV, rkM, input.value)
+        }
+    }
      await electronAPI.setDic(tabDic);
 
     
@@ -492,14 +488,11 @@ function ajoutListeModas(type){
 
 
 async function chgDic(v,m, lib){
-
-    // Renommage/création de modalité : logique dans src/domain/metadonnees.mjs:renommerModalite.
-    const meta = window.SonalDomain.metadonnees;
-    tabDic = meta.renommerModalite(tabDic.map(d => meta.Modalite.fromJSON(d)), v, m, lib)
-                .map(mod => mod.toJSON());
-
-    // sauvegarde du tabdic
- await electronAPI.setDic(tabDic);
+    // [PlanPoo2 — bascule] Renommage/création de modalité via la COMMANDE du main.
+    // (chgDic doit être AWAITÉ par ses appelants, cf. addVar/sauvModas : le re-pull
+    //  de tabDic doit précéder la sauvegarde du .crp qui lit le tabDic local.)
+    const r = await electronAPI.invoke('corpus:renommerModalite', { variable: v, code: m, libelle: lib });
+    if (r && r.ok) { tabDic = await electronAPI.getDic(); }
 }
 
 // valider un changement de modalité
@@ -512,25 +505,15 @@ async function validMod(rgEnt, v, l, m, lib){
 
    console.log("on valide un changement de modalité pour l'entretien " + rgEnt + " la variable ", v, "le locuteur " , l ,  " et la modalité ", m , " le nouveau libellé sera " , lib)
 
-    // Trouve-ou-crée la modalité (code = max+1 si nouveau libellé) puis écrit la valeur
-    // dans le tabDat LOCAL de l'entretien (source de vérité .sonal).
-    // Logique : src/domain/metadonnees.mjs:definirValeur.
-    const ligEnt = tabEnt.find(ent => ent.id == rgEnt);
-    if (ligEnt){
-        if (!Array.isArray(ligEnt.tabDat)) { ligEnt.tabDat = []; }
-        const meta = window.SonalDomain.metadonnees;
-        const res = meta.definirValeur(
-            ligEnt.tabDat.map(d => meta.Donnee.fromJSON(d)),
-            tabDic.map(d => meta.Modalite.fromJSON(d)),
-            { entretien: rgEnt, variable: v, locuteur: l, libelle: lib }
-        );
-        ligEnt.tabDat = res.donnees.map(d => d.toJSON());
-        tabDic = res.modalites.map(mod => mod.toJSON());
+    // [PlanPoo2 — bascule] Trouve-ou-crée la modalité (code = max+1 si nouveau libellé)
+    // puis écrit la valeur dans le tabDat de l'entretien via la COMMANDE du main.
+    const res = await electronAPI.invoke('entretien:definirValeur',
+        { entretien: rgEnt, variable: v, locuteur: l, libelle: lib });
+    if (res && res.ok) {
         m = res.modalite; // pour la mise à jour du data-m de l'input plus bas
+        tabEnt = await electronAPI.getEnt(); // re-tire l'état mis à jour par la commande
+        tabDic = await electronAPI.getDic();
     }
-
-    await window.electronAPI.setEnt(tabEnt); // sauvegarde du tabent
-    await window.electronAPI.setDic(tabDic); // sauvegarde du tabdic
 
     // Persister sur le serveur (distant / gitlab) — fire-and-forget pour ne pas bloquer l'UI
     const rkEnt = tabEnt.findIndex(ent => String(ent.id) === String(rgEnt));
