@@ -21,7 +21,7 @@ Le code se lit par **altitude**, pas par fichier. Les trois niveaux existent dé
 | Altitude | Rôle | Où c'est |
 |---|---|---|
 | **Domaine** | logique métier pure (Corpus, Entretien, Variable/Modalité/Donnée, Catégorie, RègleAnon, Document/Segment/Fragment…). Aucun DOM, IPC, fs. | **`src/domain/*.mjs`** (ESM) |
-| **Infrastructure** | persistance & I/O : lire/écrire fichiers, verrous, backends (local / serveur / GitLab). | **`modules/storage/*.js`** + **`main.js`** (CommonJS, process *main*) |
+| **Infrastructure** | persistance & I/O : lire/écrire fichiers, verrous, backends (local / serveur / GitLab). | **`storage/*.js`** + **`main.js`** (CommonJS, process *main*) |
 | **UX / Vue** | rendu DOM, interactions, fenêtres. | **`modules/*.js`** (scripts globaux) + **`*.html`** |
 
 > **Règle de dépendance** : le **domaine ne dépend de rien** (ni DOM, ni Electron). La **vue** appelle
@@ -35,7 +35,7 @@ Le code se lit par **altitude**, pas par fichier. Les trois niveaux existent dé
 ```
    ┌─────────────────────────── process MAIN (Node, CommonJS) ───────────────────────────┐
    │  main.js  ── détient l'état canonique (Corpus, tabEnt, tabVar/Dic/Dat/Thm)           │
-   │           ── orchestre l'I/O via  modules/storage/ (Storage + StorageFactory)        │
+   │           ── orchestre l'I/O via  storage/ (Storage + StorageFactory)               │
    └───────────────────────────────────────────────┬─────────────────────────────────────┘
                               IPC  ▲  electronAPI  │  (preload.js, contextBridge)
                   get-* / set-* / corpus:* / file:* │  ▼
@@ -70,8 +70,14 @@ renderer:  const corpus = SonalDomain.Corpus.fromParts({ corpus, tabEnt, tabVar,
 ```
 
 Donc les classes de `src/domain` sont des **wrappers de lecture + logique pure**, pas des objets
-vivants détenteurs de l'état. C'est un **choix assumé** (cf. PlanPoo §6). L'évolution possible vers
-des « objets = source de vérité » est décrite dans [PlanPoo2.md](PlanPoo2.md) (chantier optionnel).
+vivants détenteurs de l'état. C'est un **choix assumé** (cf. PlanPoo §6).
+
+**Coexistence transitoire (IPC hybride)** : pour les opérations EAV (variables / modalités / valeurs),
+ce cycle a été remplacé par des **commandes** (`corpus:ajouterVariable`, `corpus:modifierVariable`,
+`corpus:supprimerVariable`, `entretien:definirValeur`, `corpus:renommerModalite`) qui exécutent le
+domaine côté **main** et renvoient directement les tranches modifiées (`{ ok, tabVar, tabDic, … }`).
+Le renderer les utilise sans re-pull séparé. Les autres globaux (`tabEnt`, `tabThm`, `Corpus` méta)
+restent sur le cycle get/set legacy — les deux coexistent intentionnellement.
 
 **Source de vérité par donnée** (cf. MODELE_OBJET §3) : les **valeurs** (`tabDat`) sont maîtres dans
 le **`.sonal`** de chaque entretien ; les **définitions** (`tabVar`/`tabDic`) et le codebook
@@ -97,8 +103,8 @@ modules/                 VUE (scripts globaux renderer) :
   gestion_corpus.js, gestion_entretiens.js, gestion_data.js, gestion_fichiers.js,
   segmentation.js, thematisation.js, locutarisation.js, recueil.js, conversions.js,
   Synthèse.js, Anonymisation/…  (rendu DOM + interactions ; délèguent au domaine)
-  storage/               INFRA (CommonJS, main) :
-    Storage.js (interface), LocalStorage.js, ServeurStorage.js, GitLabStorage.js, StorageFactory.js
+storage/               INFRA (CommonJS, main) :
+  Storage.js (interface), LocalStorage.js, ServeurStorage.js, GitLabStorage.js, StorageFactory.js
 
 main.js                  Process main : état canonique, handlers IPC, fenêtres
 preload.js               contextBridge → window.electronAPI
@@ -142,4 +148,7 @@ Démarrage : `npm start` → Electron lance `main.js` → `mainWindow.loadFile('
 3. [src/domain/](src/domain/) — le métier, lisible et testé ; commence par `corpus.mjs` et `document.mjs`.
 4. [MODELE_OBJET.md](MODELE_OBJET.md) — le modèle conceptuel (Corpus → Entretien → Document → Segment → Fragment).
 5. [PlanPoo.md](PlanPoo.md) — l'historique du refactoring (le « pourquoi » de l'organisation actuelle).
-6. [PlanPoo2.md](PlanPoo2.md) — la piste d'évolution d'architecture (optionnelle, non commencée).
+6. [PlanPoo2.md](PlanPoo2.md) — l'évolution d'architecture commandes/événements : le bloc EAV est
+   **en production** (commandes + état renvoyé directement). Le reste du plan (cycle de vie corpus,
+   entretiens, codebook) a été évalué et **non poursuivi** — l'architecture hybride actuelle est
+   le point d'arrêt assumé.

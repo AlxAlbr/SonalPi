@@ -248,9 +248,17 @@ le temps de migrer les appelants un par un.
 > l'architecture commande + (à venir) événements donne l'essentiel ; la consolidation reste un
 > **idéal lointain optionnel**.
 >
-> **Suite recommandée** : **Étape C — événements** (`corpus:modifie` émis par le main → les vues se
-> re-rendent), qui complète l'archi et permettra à terme la synchro multi-fenêtres native ; puis,
-> éventuellement, d'autres blocs de commandes (entretiens, codebook, anon).
+> **🟡 Étape C — slice 1 FAITE (synchro multi-fenêtres, à valider GUI).** Le main diffuse
+> `corpus:modifie` à toutes les fenêtres **SAUF l'émettrice** (`diffuserCorpusModifie(_e.sender)`)
+> après les 5 commandes EAV ; `preload` expose `onCorpusModifie` ; `gestion_data.js` (chargé dans les
+> 2 fenêtres) écoute et **rafraîchit la vue de données si elle est ouverte** (`affichDataEnt` /
+> `affichDataGen`, idempotentes + re-tirent l'état). Additif : la fenêtre émettrice est exclue (pas de
+> double-rendu/boucle). **Valeur** : éditer dans une fenêtre rafraîchit l'autre — impossible avant.
+> **À valider GUI** : 2 fenêtres ouvertes, éditer dans l'une → l'autre se met à jour.
+> **Portée** : ciblé EAV + vues de données. Un Étape C complet diffuserait après *toutes* les
+> commandes avec un rafraîchissement plus général.
+> **Suite possible** : autres blocs de commandes (entretiens/codebook/anon), élargir la diffusion,
+> ou s'arrêter là (l'archi commande+événements est démontrée de bout en bout).
 
 ---
 

@@ -186,11 +186,9 @@ ipcMain.handle('set-dat', (_, newTabDat) => {
   return true;
 });
 
-// ── [PlanPoo2 — Étape A, tranche verticale] Commande de bout en bout dans le main.
-// Première commande qui exécute le DOMAINE côté main (au lieu du « pull→muter→push »
-// du renderer). DORMANTE : nouveau canal, l'ancien chemin (gestion_data.js:addVar)
-// reste en place tant qu'on ne bascule pas l'appelant. Ne touche que tabVar/tabDic.
-// La persistance (.crp) reste assurée par le flux sauvegarde existant.
+// ── Commandes EAV (PlanPoo2) : exécutent le domaine côté main, renvoient les tranches
+// modifiées directement (tabVar, tabDic, …). En production — remplacent le cycle
+// pull→muter→push pour les variables / modalités / valeurs.
 ipcMain.handle('corpus:ajouterVariable', async (_e, { code, libelle, portee, privee }) => {
   try {
     const { metadonnees } = await domaine();
@@ -1624,9 +1622,9 @@ app.on('login', (event) => {
 
 
 
-const ServeurStorage = require('./modules/storage/ServeurStorage.js');
-const GitLabStorage  = require('./modules/storage/GitLabStorage.js');
-const StorageFactory = require('./modules/storage/StorageFactory.js');
+const ServeurStorage = require('./storage/ServeurStorage.js');
+const GitLabStorage  = require('./storage/GitLabStorage.js');
+const StorageFactory = require('./storage/StorageFactory.js');
 const GitLabOAuth = require('./modules/gitlab_oauth.js');
 const { affichListThmCrp } = require('./modules/thematisation.js');
 const { miseàjourEntretien } = require('./modules/gestion_entretiens.js');
@@ -2791,19 +2789,6 @@ for (let i = 1; i < process.argv.length; i++) {
 }
 
 app.on('ready', () => {
-
-  // [spike PlanPoo2] Vérifie que le domaine ESM (src/domain) est importable dans le
-  // process main (CommonJS) via import dynamique — prérequis de l'archi Niveau 2.
-  // Non destructif : ne fait que logguer. À retirer une fois l'Étape A engagée.
-  (async () => {
-    try {
-      const { metadonnees, corpus } = await domaine();
-      console.log('[PlanPoo2] domaine chargé dans le main ✓',
-        'ajouterVariable=' + typeof metadonnees.ajouterVariable, 'Corpus=' + typeof corpus.Corpus);
-    } catch (e) {
-      console.error('[PlanPoo2] échec chargement domaine dans le main ✗', e);
-    }
-  })();
 
   // définition de l'icône
   const iconPath = path.join(__dirname, 'icon', 'icon.png')

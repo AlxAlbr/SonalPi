@@ -51,7 +51,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ouvrirCorpusGitLab: (savedConfig) => ipcRenderer.invoke('ouvrir-corpus-gitlab', savedConfig),
   
  // pour récupérer le contenu d'un fichier corpus
-  onAfficherCorpus: (callback) => 
+  onAfficherCorpus: (callback) =>
     ipcRenderer.on('afficher-corpus', (event, donnees) => callback(donnees)),
 
   // pour récupérer le contenu d'un fichier corpus JSON

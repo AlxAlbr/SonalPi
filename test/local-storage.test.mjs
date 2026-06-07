@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import LocalStorage from '../modules/storage/LocalStorage.js';
+import LocalStorage from '../storage/LocalStorage.js';
 
 const storage = new LocalStorage();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sonal-localstorage-'));
