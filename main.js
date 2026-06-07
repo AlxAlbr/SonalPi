@@ -223,6 +223,32 @@ ipcMain.handle('corpus:modifierVariable', async (_e, { code, libelle, portee, pr
   }
 });
 
+// [PlanPoo2 — Étape B] Supprimer une variable : retire la variable + ses modalités,
+// et CASCADE sur le tabDat de chaque entretien + la vue corpus (touche 4 globaux).
+ipcMain.handle('corpus:supprimerVariable', async (_e, { code }) => {
+  try {
+    const { metadonnees } = await domaine();
+    const suppr = metadonnees.supprimerVariable(
+      tabVar.map((v) => metadonnees.Variable.fromJSON(v)),
+      tabDic.map((d) => metadonnees.Modalite.fromJSON(d)),
+      code
+    );
+    tabVar = suppr.variables.map((v) => v.toJSON());
+    tabDic = suppr.modalites.map((m) => m.toJSON());
+    tabEnt = tabEnt.map((ent) => Array.isArray(ent.tabDat)
+      ? { ...ent, tabDat: metadonnees.retirerVariableDesDonnees(
+          ent.tabDat.map((d) => metadonnees.Donnee.fromJSON(d)), code).map((d) => d.toJSON()) }
+      : ent);
+    tabDat = metadonnees.retirerVariableDesDonnees(
+      tabDat.map((d) => metadonnees.Donnee.fromJSON(d)), code
+    ).map((d) => d.toJSON());
+    return { ok: true };
+  } catch (e) {
+    console.error('corpus:supprimerVariable', e);
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
 // Handlers pour récupérer et mettre à jour le tableau global des anonymisations
 ipcMain.handle('get-anon', () => { return tabAnon; });
 ipcMain.handle('set-anon', (_, newTabAnon) => {

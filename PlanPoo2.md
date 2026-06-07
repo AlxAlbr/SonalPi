@@ -222,12 +222,14 @@ le temps de migrer les appelants un par un.
 > restent côté renderer (colle transitoire, attendue en voie (a)). **À valider en GUI** : créer une
 > variable (position + modalités) → apparaît/persiste, console propre. **Boucle commande prouvée
 > de bout en bout : renderer → main → domaine → état → renderer.**
-> **Commandes livrées** : `corpus:ajouterVariable` (bascule `addVar`, ✅ validé GUI) ;
-> `corpus:modifierVariable` (bascule `sauvVar`, 🟡 à valider GUI). Même patron : handler main +
-> `electronAPI.invoke(...)` + re-pull `getVar`/`getDic`.
-> **Suite** : (ii) `corpus:supprimerVariable` (bascule `supprVar` — **cascade** : touche aussi
-> `tabEnt`/`tabDat`, donc plus d'état), puis `entretien:definirValeur` (validMod) ; (iii) consolider
-> l'état (agrégat unique dans le main) une fois le pattern éprouvé ; (iv) événements (Étape C).
+> **Commandes livrées (CRUD variables complet)** : `corpus:ajouterVariable` (bascule `addVar`,
+> ✅ GUI), `corpus:modifierVariable` (bascule `sauvVar`, ✅ GUI), `corpus:supprimerVariable`
+> (bascule `supprVar`, 🟡 à valider GUI — **cascade** sur `tabVar`/`tabDic`/`tabEnt`/`tabDat`,
+> premier cas multi-état ; le renderer re-tire les 4). Patron constant : handler main +
+> `electronAPI.invoke(...)` + re-pull des globaux impactés.
+> **Suite** : (ii) `entretien:definirValeur` (validMod — touche le `tabDat` d'un entretien, → `.sonal`) ;
+> (iii) **consolider l'état** (agrégat unique dans le main) — le pattern est désormais éprouvé sur
+> 3 commandes dont une multi-état ; c'est le moment de simplifier la « colle » re-pull ; (iv) événements (Étape C).
 
 ---
 

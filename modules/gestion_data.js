@@ -284,34 +284,17 @@ async function supprVar(rgVar, mode) {
     if (varIndex !== -1) {
     
     
-        // Suppression de la variable et de ses modalités : src/domain/metadonnees.mjs:supprimerVariable.
-        const meta = window.SonalDomain.metadonnees;
-        const suppr = meta.supprimerVariable(
-            tabVar.map(v => meta.Variable.fromJSON(v)),
-            tabDic.map(d => meta.Modalite.fromJSON(d)),
-            rgVar
-        );
-        tabVar = suppr.variables.map(v => v.toJSON());
-        tabDic = suppr.modalites.map(m => m.toJSON());
-
-        // Cascade sur les tabDat locaux (source de vérité .sonal) puis sur la vue corpus.
-        tabEnt = await window.electronAPI.getEnt();
-        tabEnt.forEach(ent => {
-            if (Array.isArray(ent.tabDat)) {
-                ent.tabDat = meta.retirerVariableDesDonnees(
-                    ent.tabDat.map(d => meta.Donnee.fromJSON(d)), rgVar
-                ).map(d => d.toJSON());
-            }
-        });
-        tabDat = meta.retirerVariableDesDonnees(
-            tabDat.map(d => meta.Donnee.fromJSON(d)), rgVar
-        ).map(d => d.toJSON());
-
-        // sauvegarde
-        await electronAPI.setVar(tabVar);
-        await electronAPI.setDic(tabDic);
-        await electronAPI.setEnt(tabEnt);
-        await electronAPI.setDat(tabDat);
+        // [PlanPoo2 — bascule] Suppression + cascade (var + modalités + tabDat de chaque
+        // entretien + vue corpus) via la COMMANDE du main. On re-tire ensuite tout l'état impacté.
+        const r = await electronAPI.invoke('corpus:supprimerVariable', { code: rgVar });
+        if (!r || !r.ok) {
+            question("Impossible de supprimer la variable" + (r && r.error ? " : " + r.error : ""), ['OK']);
+            return;
+        }
+        tabVar = await electronAPI.getVar();
+        tabDic = await electronAPI.getDic();
+        tabEnt = await electronAPI.getEnt();
+        tabDat = await electronAPI.getDat();
 
 
         await window.sauvegarderCorpus(false);
