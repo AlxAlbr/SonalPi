@@ -1,4 +1,4 @@
-// Tests du Codebook pur (src/domain/codebook.mjs).
+// Tests du Codebook pur (domain/codebook.mjs).
 // Fidélité du format + hiérarchie sur la VRAIE fixture .crp ; activation sur cas synthétiques.
 
 import { test } from 'node:test';
@@ -7,8 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseCorpus } from '../src/domain/corpus.mjs';
-import { Categorie, Codebook } from '../src/domain/codebook.mjs';
+import { parseCorpus } from '../domain/corpus.mjs';
+import { Categorie, Codebook } from '../domain/codebook.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');

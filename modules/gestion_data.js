@@ -555,7 +555,7 @@ async function getMod(e,v,l) {
         tabEnt[e].tabDat = [];
     }
 
-    // Lecture de la modalité prise : logique dans src/domain/metadonnees.mjs:lireValeur
+    // Lecture de la modalité prise : logique dans domain/metadonnees.mjs:lireValeur
     // (tabDic global = source de vérité des libellés).
     const meta = window.SonalDomain.metadonnees;
     const lue = meta.lireValeur(
@@ -812,13 +812,13 @@ async function inventaireVariables(){ // fonction d'inventaire des variables exi
     //tabDic = []; // réinitialisation du tableau des modalités
 
     // Vue calculée du tabDat corpus = UNION des tabDat locaux (source de vérité .sonal).
-    // Cf. src/domain/metadonnees.mjs:unionDonnees — remplace l'ancien « rebuild » manuel, qui ne
+    // Cf. domain/metadonnees.mjs:unionDonnees — remplace l'ancien « rebuild » manuel, qui ne
     // peut donc plus accumuler d'entrées périmées entre appels successifs.
     tabDat = window.SonalDomain.metadonnees.unionDonnees(tabEnt).map(d => d.toJSON());
     await window.electronAPI.setDat(tabDat);
 
     // Inventaire des définitions = UNION des tabVar locaux par-dessus le tabVar corpus.
-    // Cf. src/domain/metadonnees.mjs:inventorierVariables. (Le recopiage des modalités locales
+    // Cf. domain/metadonnees.mjs:inventorierVariables. (Le recopiage des modalités locales
     // était déjà désactivé : tabDic reste maître dans le .crp.)
     tabVar = window.SonalDomain.metadonnees.inventorierVariables(tabEnt, tabVar).map(v => v.toJSON());
 

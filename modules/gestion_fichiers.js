@@ -794,7 +794,7 @@ function SauvPurge(){
 }
 
 function sauvHtml(tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon){
-  // Délègue à la sérialisation pure du domaine (src/domain/sonal.mjs:serializeSonal),
+  // Délègue à la sérialisation pure du domaine (domain/sonal.mjs:serializeSonal),
   // dont cette fonction était le port fidèle. Source unique : GUI + tests (golden + round-trip).
   return window.SonalDomain.serializeSonal({ tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon });
 }

@@ -1,4 +1,4 @@
-// Tests du VRAI parseur .sonal (src/domain/sonal.mjs) via DOM jsdom, sur le VRAI corpus.
+// Tests du VRAI parseur .sonal (domain/sonal.mjs) via DOM jsdom, sur le VRAI corpus.
 
 import { test } from 'node:test';
 import assert from 'node:assert';
@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 import { assertGolden } from './helpers/golden.mjs';
-import { parseSonal, serializeSonal } from '../src/domain/sonal.mjs';
-import { Entretien } from '../src/domain/entretien.mjs';
+import { parseSonal, serializeSonal } from '../domain/sonal.mjs';
+import { Entretien } from '../domain/entretien.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Fixtures isolées (immuables) : copie figée, jamais éditée par l'appli en GUI.

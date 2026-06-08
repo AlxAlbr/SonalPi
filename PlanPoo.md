@@ -17,22 +17,22 @@
 | Phase | État | Notes |
 |---|---|---|
 | **0** — Filets de sécurité (tests, golden, formats) | ✅ **Fait** | harnais `node:test`, golden masters, [docs/FORMATS.md](docs/FORMATS.md) |
-| **Option B** — modules ES réels (`src/`) | ✅ **Fait** | `src/domain/*.mjs` (vrai code .crp/.sonal) testés sur le vrai corpus via jsdom ; cf. §2 |
+| **Option B** — modules ES réels (`domain/`) | ✅ **Fait** | `domain/*.mjs` (vrai code .crp/.sonal) testés sur le vrai corpus via jsdom ; cf. §2 |
 | **1a** — couche `Storage` côté *main* | ✅ **Fait** | voir §4 |
 | **1b tranche 1** — flux fichier *renderer* | ✅ **Fait, validé en local** | voir §4 |
 | **1b tranche 2** — branches collaboratives *renderer* | ✅ **Fait** (à valider en GUI) | voir §4 |
-| **2 tranche 1** — domaine EAV pur (`src/domain/metadonnees.mjs`) | ✅ **Fait** | classes + vue calculée + logique de valeurs, testées en Node ; voir §5 |
+| **2 tranche 1** — domaine EAV pur (`domain/metadonnees.mjs`) | ✅ **Fait** | classes + vue calculée + logique de valeurs, testées en Node ; voir §5 |
 | **2 tranche 2** — câblage `gestion_data.js` → domaine | ✅ **Fait, validé en local** | inventaireVariables/getMod/validMod/chgDic appellent `SonalDomain.metadonnees` ; affichage entretien (gén. + locuteurs) OK après chargement du domaine dans `edition_entretien.html` ; voir §5 |
 | **2 tranche 3** — câblage CRUD variables → domaine | ✅ **Fait (à valider en GUI)** | addVar/sauvVar/supprVar appellent `ajouter/modifier/supprimerVariable` + `retirerVariableDesDonnees` ; **Phase 2 complète** |
-| **3 tranche 1** — agrégat `Entretien` pur (`src/domain/entretien.mjs`) | ✅ **Fait** | wrapper typé + accès EAV, testé en Node ; voir §6 |
-| **3 tranche 2** — agrégat `Corpus` pur (`src/domain/corpus.mjs`) | ✅ **Fait** | possède `Entretien[]` + variables, getters `estLocal`/`estCollaboratif`, testé ; voir §6 |
+| **3 tranche 1** — agrégat `Entretien` pur (`domain/entretien.mjs`) | ✅ **Fait** | wrapper typé + accès EAV, testé en Node ; voir §6 |
+| **3 tranche 2** — agrégat `Corpus` pur (`domain/corpus.mjs`) | ✅ **Fait** | possède `Entretien[]` + variables, getters `estLocal`/`estCollaboratif`, testé ; voir §6 |
 | **3 tranche 3** — câblage renderer (en cours) | 🟡 **`collaboratif`+`type`+3 appelants lecture — validés en local** | getters `est*` + `Entretien` (varsPubliquesEnt/Xtr, voirEntretien). Distant/gitlab non testé. Reste : flux sauvegarde + churn métadonnées (faible valeur). recueil.js différé (post-Phase 5) |
-| **4 tranche 1** — Codebook pur (`src/domain/codebook.mjs`) | ✅ **Fait** | `Categorie`/`Codebook` : hiérarchie par `rang` + activation, testés ; voir §7 |
-| **4 tranche 2** — `RegleAnon` pur (`src/domain/anonymisation.mjs`) | ✅ **Fait** | instruction `tabAnon` + `fusionnerReglesAnon` ≡ legacy, testés ; voir §7 |
+| **4 tranche 1** — Codebook pur (`domain/codebook.mjs`) | ✅ **Fait** | `Categorie`/`Codebook` : hiérarchie par `rang` + activation, testés ; voir §7 |
+| **4 tranche 2** — `RegleAnon` pur (`domain/anonymisation.mjs`) | ✅ **Fait** | instruction `tabAnon` + `fusionnerReglesAnon` ≡ legacy, testés ; voir §7 |
 | **4 tranche 3** — câblage renderer | 🟡 **merge anon fait (à valider GUI)** | `synchroniserTabAnonGlobal` → `fusionnerReglesAnon`. Câblage codebook (thematisation.js) laissé (DOM/quirky). `ContenuAnon` différé Phase 5 |
 | **5 tranche 1** — sérialisation `.sonal` pure (`serializeSonal`) | ✅ **Fait** | port de `sauvHtml` + `Entretien.serialiserSonal` ; golden + round-trip `parse(serialize)` ; voir §8 |
 | **5 tranche 2** — `sauvHtml` délègue à `serializeSonal` | ✅ **Fait, validé en local** | source unique ; legacy `_sauvHtmlLegacy`+`exportThmcss` supprimés. Distant/gitlab non testé. Voir §8 |
-| **5 tranche 3a** — read-model `Document`/`Segment`/`Fragment` (`src/domain/document.mjs`) | ✅ **Fait** | graphe d'objets + calques (codage/anon/commentaire) + `toSonal`, testé jsdom ; voir §8 |
+| **5 tranche 3a** — read-model `Document`/`Segment`/`Fragment` (`domain/document.mjs`) | ✅ **Fait** | graphe d'objets + calques (codage/anon/commentaire) + `toSonal`, testé jsdom ; voir §8 |
 | **5 tranche 3b** — requêtes de codage + `Extrait` (`document.mjs`) | ✅ **Fait** | `extraits(predicat)`/`extraitsParCategorie`/`categoriesPresentes`/`fragmentsCodes`, testé (dont enjambement de segments) ; voir §8 |
 | **5 tranche 3c-i** — `renumeroter` pur (port de `reinitRk`) | ✅ **Fait** | transform `html→html` déterministe, idempotent, testé ; voir §8 |
 | **5 tranche 3c-ii** — `HistoriqueDocument` pur (undo/redo) | ✅ **Fait** | pile pure (port de backUp/undo/redo), testée ; voir §8 |
@@ -49,8 +49,8 @@ utilise `collaboratif` pour le transverse ; `type` n'y subsiste que pour le **sp
 assumé. (La consolidation finale — `Corpus` classe avec getters — relève de la Phase 3.)
 
 **Artefacts clés introduits** (pour s'orienter à froid) :
-- Domaine ESM : [src/domain/corpus.mjs](src/domain/corpus.mjs), [src/domain/sonal.mjs](src/domain/sonal.mjs),
-  exposés au renderer via [src/index.mjs](src/index.mjs) → `window.SonalDomain` (chargé par `<script type="module">` dans index.html).
+- Domaine ESM : [domain/corpus.mjs](domain/corpus.mjs), [domain/sonal.mjs](domain/sonal.mjs),
+  exposés au renderer via [domain/index.mjs](domain/index.mjs) → `window.SonalDomain` (chargé par `<script type="module">` dans index.html).
 - Couche Storage (main, CommonJS) : [modules/storage/](modules/storage/) =
   `Storage.js` (interface), `LocalStorage.js`, `ServeurStorage.js` (ex-`serveur_api.js`),
   `GitLabStorage.js` (ex-`gitlab_api.js`), `StorageFactory.js`.
@@ -58,7 +58,7 @@ assumé. (La consolidation finale — `Corpus` classe avec getters — relève d
   `test/fixtures/` (ne pas éditer en GUI). `TestInteropFromSonal/` = bac à sable libre.
 
 **🏁 Chantier clôturé (pour l'instant).** Phases 0→5 faites ; le domaine métier vit dans
-`src/domain/*.mjs` (pur, **78 tests** : `npm test`), le renderer y délègue via `window.SonalDomain`,
+`domain/*.mjs` (pur, **78 tests** : `npm test`), le renderer y délègue via `window.SonalDomain`,
 formats `.crp`/`.sonal` préservés (golden + round-trip). Phase 6 = nettoyage ciblé (code mort retiré),
 recadrée (les `tabXxx` restent, cf. §9).
 
@@ -129,10 +129,10 @@ Ces contraintes du code actuel conditionnent l'ordre des phases :
 > de ce choix.
 >
 > **✅ Option B amorcée (ESM natif, sans bundler)** : on a finalement retenu de **vrais modules
-> ES** dès maintenant, sans bundler — le renderer Electron charge `src/index.mjs` via
+> ES** dès maintenant, sans bundler — le renderer Electron charge `domain/index.mjs` via
 > `<script type="module">`, qui expose la couche domaine sur `window.SonalDomain` (pont
 > **transitoire** vers le code legacy global, voué à disparaître à mesure que les modules legacy
-> seront migrés — cf. Phase 5). Les modules `src/domain/*.mjs` sont importés tels quels par les
+> seront migrés — cf. Phase 5). Les modules `domain/*.mjs` sont importés tels quels par les
 > tests Node (et `jsdom` fournit le DOM pour tester le vrai parsing `.sonal` : jsdom suffit ici
 > car le parsing n'utilise que des APIs DOM de base — `innerHTML`, `querySelectorAll`,
 > `closest`, `dataset` — fidèles entre jsdom et Electron). esbuild/Vite restent
@@ -140,9 +140,9 @@ Ces contraintes du code actuel conditionnent l'ordre des phases :
 > `serializeCorpus` (`.crp`, adoptés par `lireCorpus`/`sauvegarderCorpus`) et `parseSonal`
 > (`.sonal`, lecteur canonique que la Phase 5 adoptera).
 >
-> ⚠️ **Règle de portée fenêtre** : `window.SonalDomain` est posé par `src/index.mjs`, chargé
+> ⚠️ **Règle de portée fenêtre** : `window.SonalDomain` est posé par `domain/index.mjs`, chargé
 > **par fenêtre**. Toute `BrowserWindow` dont le HTML exécute du code legacy appelant le domaine
-> **doit** inclure `<script type="module" src="src/index.mjs"></script>`. Concernées à ce jour :
+> **doit** inclure `<script type="module" src="domain/index.mjs"></script>`. Concernées à ce jour :
 > `index.html` **et** `edition_entretien.html` (la fenêtre entretien — oubli initial en Phase 2
 > tranche 2, qui faisait planter `affichDataEnt` faute de `SonalDomain`). À revérifier dès qu'une
 > nouvelle fenêtre consomme le domaine.
@@ -161,7 +161,7 @@ Ces contraintes du code actuel conditionnent l'ordre des phases :
   - Jeux d'essai : `TestInteropFromSonal/`. ⚠️ `LauraFinMB/` **absent** du dépôt.
 - [x] **Harnais** : runner natif `node:test`, scripts `npm test` / `npm run test:update`.
       Glob shell `test/*.test.mjs` → portable Node 18 **et** 24. Golden-file maison dans
-      `test/helpers/golden.mjs`. Les tests exécutent le **vrai code** (`src/domain/*.mjs`) sur
+      `test/helpers/golden.mjs`. Les tests exécutent le **vrai code** (`domain/*.mjs`) sur
       les fixtures immuables `test/fixtures/` (jsdom pour le `.sonal`). Dépendance ajoutée : `jsdom`.
 - [x] **Décider la stratégie de modules** (§2) → Option **A** maintenant, **B** plus tard (cf. §2 ci-dessus).
 - [x] **Geler les formats** : spec courte rédigée dans [docs/FORMATS.md](docs/FORMATS.md).
@@ -237,7 +237,7 @@ valider en GUI distant/gitlab.** Ajouter Nextcloud (WebDAV) = une classe Storage
 **Pourquoi ici** : domaine pur, **sans DOM**, donc testable unitairement tout de suite ;
 et c'est le siège de la duplication la plus douloureuse.
 
-> **✅ Tranche 1 faite (domaine pur + tests)** : [src/domain/metadonnees.mjs](src/domain/metadonnees.mjs) —
+> **✅ Tranche 1 faite (domaine pur + tests)** : [domain/metadonnees.mjs](domain/metadonnees.mjs) —
 > classes `Variable`/`Modalite`/`Donnee` (noms explicites, `fromJSON`/`toJSON` vers les clés
 > gelées `v`/`lib`/`champ`/`priv`/`m`/`e`/`l`), **vue calculée** `unionDonnees` (union des `tabDat`
 > locaux — officialise ce que `inventaireVariables` reconstruisait à la main), `inventorierVariables`,
@@ -263,7 +263,7 @@ et c'est le siège de la duplication la plus douloureuse.
 > corpus). Le DOM (formulaire, modalités), le repositionnement et la persistance restent côté
 > renderer. `editVar` reste purement UI (peuple la boîte de dialogue, délègue à `sauvVar`).
 > **Phase 2 complète** : toute la logique EAV listée au §5 est encapsulée dans
-> [src/domain/metadonnees.mjs](src/domain/metadonnees.mjs).
+> [domain/metadonnees.mjs](domain/metadonnees.mjs).
 
 - Classes `Variable {v, lib, champ, priv}`, `Modalite {v, m, lib}`, `Donnee {e, v, l, m}`.
   ⚠️ **Pas** deux conteneurs « BaseDeDonnéesEntretien / Corpus » (ça graverait l'accident dans
@@ -294,7 +294,7 @@ vraies entités qui *possèdent* leurs sous-objets.
 > store), `StorageFactory` et l'I/O aussi ; le renderer n'obtient que des **snapshots via IPC** et
 > *orchestre* l'ouverture/sauvegarde. La douleur (`tabEnt[i].xxx` éparpillés, `Corpus` global
 > trifouillé) est **renderer-side**. **Décision** :
-> - `Corpus`/`Entretien` = **domaine pur ESM dans `src/domain/`** (aucun Electron/IPC/fs/DOM),
+> - `Corpus`/`Entretien` = **domaine pur ESM dans `domain/`** (aucun Electron/IPC/fs/DOM),
 >   calqué sur `metadonnees.mjs` : on enveloppe les snapshots (`fromJSON`/`toJSON` sans perte), on opère,
 >   on repousse via `set-*`. Le **main reste l'unique source de vérité** (pas de second état vivant).
 > - **Déviation assumée du plan sur `StorageFactory`** : il **reste dans le main** comme sélecteur
@@ -302,16 +302,16 @@ vraies entités qui *possèdent* leurs sous-objets.
 >   renderer — impossible proprement). Ce qui migre dans `Corpus`, c'est la partie **pure** : les
 >   getters dérivés `estLocal`/`estCollaboratif`. `Corpus.ouvrir/sauvegarder` (renderer) orchestrent
 >   et délèguent l'I/O à l'IPC (qui, lui, utilise `StorageFactory`).
-> - Bénéfice : zéro pont ESM→CommonJS dans le main, cohérent avec `src/domain`, testable en Node.
+> - Bénéfice : zéro pont ESM→CommonJS dans le main, cohérent avec `domain`, testable en Node.
 >
-> **✅ Tranche 1 faite** : [src/domain/entretien.mjs](src/domain/entretien.mjs) — wrapper typé pur
+> **✅ Tranche 1 faite** : [domain/entretien.mjs](domain/entretien.mjs) — wrapper typé pur
 > sur le snapshot entretien (accesseurs explicites `identifiant`/`nom`/`fichierSonal`/`locuteurs`…,
 > `donnees()`/`variables()`/`modalites()` réutilisant `metadonnees`), `fromJSON`/`toJSON` sans perte.
 > Exposé sur `window.SonalDomain.Entretien`. Tests : [test/entretien.test.mjs](test/entretien.test.mjs).
 > Les méthodes I/O (charger/sauvegarderSonal, exports, verrou) restent à l'orchestration et seront
 > branchées plus tard.
 >
-> **✅ Tranche 2 faite** : agrégat racine `Corpus` dans [src/domain/corpus.mjs](src/domain/corpus.mjs)
+> **✅ Tranche 2 faite** : agrégat racine `Corpus` dans [domain/corpus.mjs](domain/corpus.mjs)
 > (aux côtés de `parseCorpus`/`serializeCorpus`). Possède `Entretien[]` + variables/modalités ;
 > `Corpus.fromParts({corpus, tabEnt, tabVar, tabDic})` assemble depuis les snapshots IPC ; getters
 > dérivés `estLocal`/`estCollaboratif`/`estGitlab` (depuis `type`, source de vérité), méta
@@ -383,7 +383,7 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 **Critère de sortie** : codebook, règles **et** matérialisations (`ContenuAnon`) manipulés via objets ;
 `Extrait` calculé à la lecture ; rendu DOM séparé de la logique.
 
-> **✅ Tranche 1 faite (Codebook pur + tests)** : [src/domain/codebook.mjs](src/domain/codebook.mjs)
+> **✅ Tranche 1 faite (Codebook pur + tests)** : [domain/codebook.mjs](domain/codebook.mjs)
 > — `Categorie` (accesseurs explicites `code`/`nom`/`couleur`/`taille`/`compacte`/`niveau`/`active`)
 > + `Codebook` (arbre **aplati par profondeur** via `rang` : `nbDescendants`/`descendants`/
 > `enfantsDirects`/`aEnfants`/`parent`/`racines`, lookup `parCode`, `nbActives`/`auMoinsUneActive`).
@@ -392,7 +392,7 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > Exposé sur `window.SonalDomain.{Categorie,Codebook}`. Tests : [test/codebook.test.mjs](test/codebook.test.mjs).
 > Le rendu/filtrage (afflistThm/multiThm/CSS/isoleThm) reste côté UI.
 >
-> **✅ Tranche 2 faite (RègleAnon pur + tests)** : [src/domain/anonymisation.mjs](src/domain/anonymisation.mjs)
+> **✅ Tranche 2 faite (RègleAnon pur + tests)** : [domain/anonymisation.mjs](domain/anonymisation.mjs)
 > — `RegleAnon` (instruction `entite`→`remplacement`, identité `cle()` insensible à la casse,
 > `estVide()`, `positions` = `matchPositions`), + `fusionnerReglesAnon(global, local)` testé
 > **équivalent** à `gestion_corpus.js:synchroniserTabAnonGlobal`. Exposé sur
@@ -421,9 +421,9 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 ## 8. Phase 5 — `Document` / `Segment` / `Fragment` (le plus couplé au DOM)
 
 > **✅ Tranche 1 FAITE : sérialisation `.sonal` dans le domaine (filet de sécurité posé).**
-> [src/domain/sonal.mjs](src/domain/sonal.mjs) gagne `serializeSonal({tabLoc,tabThm,tabVar,tabDic,
+> [domain/sonal.mjs](domain/sonal.mjs) gagne `serializeSonal({tabLoc,tabThm,tabVar,tabDic,
 > tabDat,notes,html,tabAnon})` (port fidèle de `gestion_fichiers.js:sauvHtml`) + `cssFromCodebook(tabThm)`
-> (port de `exportThmcss`, paramétré). [Entretien](src/domain/entretien.mjs) gagne
+> (port de `exportThmcss`, paramétré). [Entretien](domain/entretien.mjs) gagne
 > `serialiserSonal({html,tabThm,tabVar,tabDic})` (utilise ses propres tabLoc/tabDat/notes/tabAnon).
 > Exposé sur `window.SonalDomain.serializeSonal`. **Filet** : golden `sonal-serialize-synthetique`
 > + **round-trip `parseSonal(serializeSonal(corps)) ≡ parseSonal(fixture)`** sur les 3 entretiens
@@ -438,7 +438,7 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > **et** `exportThmcss` (devenu mort) ont été **supprimés**. Validé GUI **en local** (sauvegarde
 > d'un entretien puis réouverture OK). ⚠️ Distant/gitlab **non testé** (dette habituelle).
 >
-> **✅ Tranche 3a FAITE (read-model `Document` pur + tests)** : [src/domain/document.mjs](src/domain/document.mjs)
+> **✅ Tranche 3a FAITE (read-model `Document` pur + tests)** : [domain/document.mjs](domain/document.mjs)
 > — `Document` (`fromHtml`/`fromSonal`, `segments()`/`fragments()`/`locuteurs()`/`segmentParRang`,
 > `toSonal` via `serializeSonal`), `Segment` (`rang`/`debut`/`fin`/`locuteur`/`statut`/`nomLocuteur`
 > + `fragments()`), `Fragment` (`rang`/`longueur`/`segment`/`texte` + les **3 calques** :
@@ -465,12 +465,12 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > `clicSeg`/`showMenu`/menus = **vue** (restent DOM). La **`DocumentView`** (§ ci-dessous) ne fera que
 > lire/écrire `#segments.innerHTML` et appeler ces transforms.
 >
-> **✅ Tranche 3c-i FAITE** : [renumeroter(html, doc)](src/domain/document.mjs) — port fidèle de
+> **✅ Tranche 3c-i FAITE** : [renumeroter(html, doc)](domain/document.mjs) — port fidèle de
 > `segmentation.js:reinitRk` en transform PUR `html→html` (`data-rk` séquentiel sur les fragments,
 > `data-rksg` sur les segments, `data-sg` = rang du segment). Testé : renumérotation correcte,
 > **idempotence**, préservation du codage. Exposé sur `window.SonalDomain.renumeroter`. Non câblé
 > (le renderer pourra faire `#segments.innerHTML = renumeroter(#segments.innerHTML, document)`).
-> **✅ Tranche 3c-ii FAITE** : [HistoriqueDocument](src/domain/document.mjs) — pile undo/redo PURE
+> **✅ Tranche 3c-ii FAITE** : [HistoriqueDocument](domain/document.mjs) — pile undo/redo PURE
 > (port de `segmentation.js:backUp/undo/redo`) : `memoriser(etat)` (no-op si identique, vide la pile
 > de rétablissement), `annuler(etatCourant)`/`retablir(etatCourant)` renvoyant l'état à appliquer (ou
 > `null`), `peutAnnuler`/`peutRetablir`/`taille*`, profondeur limitée (défaut 20). L'appelant fournit
@@ -515,7 +515,7 @@ les `tabEnt`/`Corpus` globaux ne sont plus manipulés en direct hors de ces clas
 > renvoie des instances → corromprait le `.sonal`), et envelopper `ent` casse les accès bruts voisins.
 > La bonne forme (option B) est d'**extraire `sauvHtml`** ([gestion_fichiers.js:796](modules/gestion_fichiers.js#L796),
 > **sans DOM** — assemblage de chaîne, miroir de `parseSonal` ; seule dépendance : le global `tabThm`
-> via `exportThmcss`, à passer en argument) vers **`src/domain/sonal.mjs` (`serializeSonal`, pur)**,
+> via `exportThmcss`, à passer en argument) vers **`domain/sonal.mjs` (`serializeSonal`, pur)**,
 > puis exposer **`Entretien.serialiserSonal({ html, tabThm, tabVar, tabDic })`**. Bénéfices : le site
 > de sauvegarde se contracte (fini les 8 args positionnels), et surtout on gagne un **golden de
 > sérialisation + round-trip `parse(serialize(x)) ≈ x`** — un filet de test qui MANQUE aujourd'hui
@@ -565,9 +565,9 @@ mémoire ; le DOM n'est touché que par la couche de vue.
 >
 > **Reste (optionnel)** :
 > - séparer rendu/logique dans les modules d'affichage : **déjà fait là où ça comptait** (la logique
->   métier est dans `src/domain`, les `modules/*.js` appellent `window.SonalDomain`) ; le reste est
+>   métier est dans `domain`, les `modules/*.js` appellent `window.SonalDomain`) ; le reste est
 >   du DOM de vue légitime.
-> - **sync doc** : refléter l'état final dans MODELE_OBJET.md (ce qui vit dans `src/domain`, le
+> - **sync doc** : refléter l'état final dans MODELE_OBJET.md (ce qui vit dans `domain`, le
 >   pattern snapshot-wrap, ce qui reste en vue) — surtout utile si PlanPoo ne suffit pas.
 
 ---

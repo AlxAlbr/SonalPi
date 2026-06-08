@@ -37,14 +37,14 @@ var tabLocImport = []; // locuteurs importés (stockage central dans le main)
 // utilisateur
 var utilisateur="";
 
-// ── Domaine ESM (src/domain) consommé dans le main via import dynamique (PlanPoo2 §3).
-//    Mémoïsé. NB : on importe les MODULES directement, pas src/index.mjs (qui pose
+// ── Domaine ESM (domain/) consommé dans le main via import dynamique (PlanPoo2 §3).
+//    Mémoïsé. NB : on importe les MODULES directement, pas domain/index.mjs (qui pose
 //    window.SonalDomain, inexistant côté main).
 let _domaineCache = null;
 async function domaine() {
   if (_domaineCache) return _domaineCache;
   const { pathToFileURL } = require('url');
-  const charger = (m) => import(pathToFileURL(path.join(__dirname, 'src', 'domain', m)).href);
+  const charger = (m) => import(pathToFileURL(path.join(__dirname, 'domain', m)).href);
   const [metadonnees, corpus, doc] = await Promise.all([
     charger('metadonnees.mjs'), charger('corpus.mjs'), charger('document.mjs'),
   ]);

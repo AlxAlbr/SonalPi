@@ -1,8 +1,8 @@
-// Tests de HistoriqueDocument (src/domain/document.mjs) — logique pure undo/redo.
+// Tests de HistoriqueDocument (domain/document.mjs) — logique pure undo/redo.
 
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { HistoriqueDocument } from '../src/domain/document.mjs';
+import { HistoriqueDocument } from '../domain/document.mjs';
 
 test('Historique : séquence memoriser → annuler → retablir', () => {
   const h = new HistoriqueDocument();

@@ -58,7 +58,7 @@
       "package.json",
       "preload.js",
       "renderer.js",
-      "src/**/*",
+      "domain/**/*",
       "index.html",
       "ajout-entretien.html",
       "edition_categories.html",

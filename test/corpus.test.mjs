@@ -1,4 +1,4 @@
-// Tests du VRAI code .crp (src/domain/corpus.mjs) sur le VRAI corpus.
+// Tests du VRAI code .crp (domain/corpus.mjs) sur le VRAI corpus.
 
 import { test } from 'node:test';
 import assert from 'node:assert';
@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { assertGolden } from './helpers/golden.mjs';
-import { parseCorpus, serializeCorpus } from '../src/domain/corpus.mjs';
+import { parseCorpus, serializeCorpus } from '../domain/corpus.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Fixtures isolées (immuables) : copie figée, jamais éditée par l'appli en GUI.

@@ -1,4 +1,4 @@
-// Tests du domaine EAV pur (src/domain/metadonnees.mjs).
+// Tests du domaine EAV pur (domain/metadonnees.mjs).
 //
 // Fidélité du format + vue calculée : sur la VRAIE fixture (.crp immuable).
 // Logique de valeurs (max+1, réutilisation, cascade) : sur cas synthétiques.
@@ -10,13 +10,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { assertGolden } from './helpers/golden.mjs';
-import { parseCorpus } from '../src/domain/corpus.mjs';
+import { parseCorpus } from '../domain/corpus.mjs';
 import {
   Variable, Modalite, Donnee,
   unionDonnees, inventorierVariables,
   lireValeur, definirValeur, renommerModalite,
   ajouterVariable, modifierVariable, supprimerVariable, retirerVariableDesDonnees,
-} from '../src/domain/metadonnees.mjs';
+} from '../domain/metadonnees.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');

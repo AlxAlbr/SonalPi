@@ -2,7 +2,7 @@
 //
 // Enveloppe TYPÉE et PURE d'un entretien (le « sac de propriétés » tabEnt[i] du
 // format .crp/.sonal). Sans Electron, IPC, fs ni DOM : importable en Node (tests)
-// comme dans le renderer (via src/index.mjs). Source de vérité inchangée : l'état
+// comme dans le renderer (via domain/index.mjs). Source de vérité inchangée : l'état
 // canonique reste le store du process main ; cette classe est un wrapper transitoire
 // (pull snapshot → wrap → opère → toJSON → push), comme le domaine EAV.
 //
@@ -61,7 +61,7 @@ export class Entretien {
    * Produit le contenu .sonal de l'entretien à partir de SES données (locuteurs,
    * valeurs, notes, règles anon) et du codebook/définitions du corpus + du HTML
    * compacté des segments. Sérialisation pure (I/O = orchestrateur). Cf.
-   * src/domain/sonal.mjs:serializeSonal (port de gestion_fichiers.js:sauvHtml).
+   * domain/sonal.mjs:serializeSonal (port de gestion_fichiers.js:sauvHtml).
    *
    * @param {{html:string, tabThm:Array, tabVar:Array, tabDic:Array}} contexte
    * @returns {string}

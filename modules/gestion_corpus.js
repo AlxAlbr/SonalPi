@@ -34,7 +34,7 @@ async function synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonLocal) {
     return tabAnonGlobal;
   }
 
-  // Fusion global ← local : logique dans src/domain/anonymisation.mjs:fusionnerReglesAnon
+  // Fusion global ← local : logique dans domain/anonymisation.mjs:fusionnerReglesAnon
   // (équivalence vérifiée par test/anonymisation.test.mjs).
   return window.SonalDomain.fusionnerReglesAnon(tabAnonGlobal, tabAnonLocal).map(r => r.toJSON());
 }
@@ -91,7 +91,7 @@ async function lireCorpus(fileContent){
         console.log("les tableaux de données ont été remis à zéro");
 
         // Parsing + normalisation codebook (act=true, cmpct=false) délégués à la
-        // couche domaine ESM (src/domain/corpus.mjs, exposée via window.SonalDomain).
+        // couche domaine ESM (domain/corpus.mjs, exposée via window.SonalDomain).
         const crp = window.SonalDomain.parseCorpus(fileContent);
         tabThm = crp.tabThm;
         tabVar = crp.tabVar;
@@ -908,7 +908,7 @@ let corpusActuel = Corpus.url;
   );
   await window.electronAPI.setDat(tabDatGlobal);
 
-  // Sérialisation déléguée à la couche domaine (src/domain/corpus.mjs).
+  // Sérialisation déléguée à la couche domaine (domain/corpus.mjs).
   const contenu = window.SonalDomain.serializeCorpus({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);

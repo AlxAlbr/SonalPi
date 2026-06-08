@@ -9,7 +9,7 @@
 
 SonalPi est une app **Electron** d'analyse d'entretiens : un process **main** (Node) détient l'état
 et fait l'I/O ; des fenêtres **renderer** affichent et éditent ; la **logique métier** est isolée
-dans des modules **purs et testés** sous `src/domain/`.
+dans des modules **purs et testés** sous `domain/`.
 
 ---
 
@@ -20,7 +20,7 @@ Le code se lit par **altitude**, pas par fichier. Les trois niveaux existent dé
 
 | Altitude | Rôle | Où c'est |
 |---|---|---|
-| **Domaine** | logique métier pure (Corpus, Entretien, Variable/Modalité/Donnée, Catégorie, RègleAnon, Document/Segment/Fragment…). Aucun DOM, IPC, fs. | **`src/domain/*.mjs`** (ESM) |
+| **Domaine** | logique métier pure (Corpus, Entretien, Variable/Modalité/Donnée, Catégorie, RègleAnon, Document/Segment/Fragment…). Aucun DOM, IPC, fs. | **`domain/*.mjs`** (ESM) |
 | **Infrastructure** | persistance & I/O : lire/écrire fichiers, verrous, backends (local / serveur / GitLab). | **`storage/*.js`** + **`main.js`** (CommonJS, process *main*) |
 | **UX / Vue** | rendu DOM, interactions, fenêtres. | **`modules/*.js`** (scripts globaux) + **`*.html`** |
 
@@ -42,16 +42,16 @@ Le code se lit par **altitude**, pas par fichier. Les trois niveaux existent dé
    ┌───────────────────────────────────────────────┴─────────── fenêtres RENDERER ────────┐
    │  *.html  +  modules/*.js (scripts globaux : gestion_*, segmentation, thematisation…)  │
    │     │                                                                                  │
-   │     └── window.SonalDomain  ◄── src/index.mjs  ◄── src/domain/*.mjs  (ESM pur)        │
+   │     └── window.SonalDomain  ◄── domain/index.mjs  ◄── domain/*.mjs  (ESM pur)        │
    └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 1. **`electronAPI` (pont main ↔ renderer)** — exposé par [preload.js](preload.js) (`contextBridge`).
    Le renderer appelle `window.electronAPI.getEnt()/setEnt()/…` ; le main répond via ses handlers IPC.
-2. **`window.SonalDomain` (pont legacy ↔ domaine)** — posé par [src/index.mjs](src/index.mjs),
+2. **`window.SonalDomain` (pont legacy ↔ domaine)** — posé par [domain/index.mjs](domain/index.mjs),
    chargé en `<script type="module">` dans `index.html` **et** `edition_entretien.html`. Il expose
    le domaine ESM aux scripts globaux (qui ne sont pas des modules). ⚠️ **Toute fenêtre dont les
-   scripts appellent le domaine doit charger `src/index.mjs`** (oubli classique → `SonalDomain undefined`).
+   scripts appellent le domaine doit charger `domain/index.mjs`** (oubli classique → `SonalDomain undefined`).
 
 > `window.SonalDomain` est un **pont transitoire** : il existe tant que la vue est en scripts globaux.
 
@@ -69,7 +69,7 @@ renderer:  const corpus = SonalDomain.Corpus.fromParts({ corpus, tabEnt, tabVar,
            await electronAPI.setEnt(corpus.toEntretiens());   // repousse vers le main
 ```
 
-Donc les classes de `src/domain` sont des **wrappers de lecture + logique pure**, pas des objets
+Donc les classes de `domain` sont des **wrappers de lecture + logique pure**, pas des objets
 vivants détenteurs de l'état. C'est un **choix assumé** (cf. PlanPoo §6).
 
 ### Coexistence assumée des deux patterns IPC (et pourquoi on s'arrête là)
@@ -87,10 +87,10 @@ résorber — c'est un point d'arrêt délibéré.
 
 **Pourquoi l'EAV et pas le reste ?** Parce que l'EAV était le seul bloc *bon marché* à migrer : ses
 fonctions de commande (`ajouterVariable`, `definirValeur`…) **existaient déjà** dans
-[metadonnees.mjs](src/domain/metadonnees.mjs) depuis le refactoring d'étape 1 (PlanPoo). La migration
+[metadonnees.mjs](domain/metadonnees.mjs) depuis le refactoring d'étape 1 (PlanPoo). La migration
 n'a donc été que du *câblage*. Les blocs suivants n'ont **pas** ces fonctions :
-[entretien.mjs](src/domain/entretien.mjs), [codebook.mjs](src/domain/codebook.mjs) et
-[anonymisation.mjs](src/domain/anonymisation.mjs) n'exposent que des classes — il faudrait *écrire* la
+[entretien.mjs](domain/entretien.mjs), [codebook.mjs](domain/codebook.mjs) et
+[anonymisation.mjs](domain/anonymisation.mjs) n'exposent que des classes — il faudrait *écrire* la
 logique de commande. Et le candidat le plus naturel (l'ajout d'entretien) est surtout de l'**I/O et de
 la conversion de format**, pas de la logique pure : peu adapté au modèle commande.
 
@@ -112,16 +112,15 @@ le **`.sonal`** de chaque entretien ; les **définitions** (`tabVar`/`tabDic`) e
 ## Carte des dossiers
 
 ```
-src/
-  index.mjs              Pont : importe le domaine, pose window.SonalDomain
-  domain/                LE métier, pur & testé (ESM) :
-    metadonnees.mjs        Variable / Modalite / Donnee + logique EAV (ex-"eav")
-    corpus.mjs             parse/serializeCorpus (.crp) + agrégat Corpus
-    entretien.mjs          Entretien (+ serialiserSonal)
-    codebook.mjs           Categorie / Codebook (hiérarchie des catégories)
-    anonymisation.mjs      RegleAnon + fusionnerReglesAnon
-    sonal.mjs              parse/serializeSonal (.sonal) — lecteurs plats
-    document.mjs           Document / Segment / Fragment / Extrait + renumeroter + HistoriqueDocument
+domain/                  LE métier, pur & testé (ESM) :
+  index.mjs              Pont : importe les modules, pose window.SonalDomain
+  metadonnees.mjs        Variable / Modalite / Donnee + logique EAV (ex-"eav")
+  corpus.mjs             parse/serializeCorpus (.crp) + agrégat Corpus
+  entretien.mjs          Entretien (+ serialiserSonal)
+  codebook.mjs           Categorie / Codebook (hiérarchie des catégories)
+  anonymisation.mjs      RegleAnon + fusionnerReglesAnon
+  sonal.mjs              parse/serializeSonal (.sonal) — lecteurs plats
+  document.mjs           Document / Segment / Fragment / Extrait + renumeroter + HistoriqueDocument
 
 modules/                 VUE (scripts globaux renderer) :
   gestion_corpus.js, gestion_entretiens.js, gestion_data.js, gestion_fichiers.js,
@@ -135,7 +134,7 @@ preload.js               contextBridge → window.electronAPI
 *.html                   Fenêtres (voir ci-dessous)
 
 test/                    Tests Node (node:test) :
-  *.test.mjs             exécutent le VRAI code src/domain sur des fixtures
+  *.test.mjs             exécutent le VRAI code domain sur des fixtures
   fixtures/              corpus/.sonal figés, IMMUABLES (ne pas éditer en GUI)
   golden/                golden masters (régénérer : npm run test:update)
   helpers/golden.mjs
@@ -147,8 +146,8 @@ test/                    Tests Node (node:test) :
 
 | Fenêtre | Rôle | Charge le domaine ? |
 |---|---|---|
-| `index.html` | fenêtre principale (corpus, données, synthèse) | ✅ `src/index.mjs` |
-| `edition_entretien.html` | édition d'un entretien (segments, codage, anon) | ✅ `src/index.mjs` |
+| `index.html` | fenêtre principale (corpus, données, synthèse) | ✅ `domain/index.mjs` |
+| `edition_entretien.html` | édition d'un entretien (segments, codage, anon) | ✅ `domain/index.mjs` |
 | `ajout-entretien.html`, `nouveau_corpus.html`, `edition_categories.html`, `saisie-*.html`, `parametres-gitlab.html`, `GitlabHelp.html` | dialogues/auxiliaires | ❌ (n'utilisent pas le domaine) |
 
 Démarrage : `npm start` → Electron lance `main.js` → `mainWindow.loadFile('index.html')`.
@@ -158,7 +157,7 @@ Démarrage : `npm start` → Electron lance `main.js` → `mainWindow.loadFile('
 ## Tests & garde-fous
 
 - **`npm test`** : exécute les tests `test/*.test.mjs` (Node natif, + `jsdom` pour le `.sonal`).
-  Ils font tourner le **vrai** code de `src/domain` sur des **fixtures immuables**.
+  Ils font tourner le **vrai** code de `domain` sur des **fixtures immuables**.
 - **Golden masters** : verrouillent les invariants des formats `.crp`/`.sonal` et des vues calculées.
   Après un changement *intentionnel* de format : `npm run test:update` puis relire `git diff test/golden/`.
 - **Invariant n°1** : les formats `.crp`/`.sonal` (données utilisateur) sont **strictement préservés**.
@@ -169,7 +168,7 @@ Démarrage : `npm start` → Electron lance `main.js` → `mainWindow.loadFile('
 
 1. Ce fichier (les 3 altitudes + les 2 ponts).
 2. [docs/FORMATS.md](docs/FORMATS.md) — à quoi ressemblent `.crp` et `.sonal`.
-3. [src/domain/](src/domain/) — le métier, lisible et testé ; commence par `corpus.mjs` et `document.mjs`.
+3. [domain/](domain/) — le métier, lisible et testé ; commence par `corpus.mjs` et `document.mjs`.
 4. [MODELE_OBJET.md](MODELE_OBJET.md) — le modèle conceptuel (Corpus → Entretien → Document → Segment → Fragment).
 5. [PlanPoo.md](PlanPoo.md) — l'historique du refactoring (le « pourquoi » de l'organisation actuelle).
 6. [PlanPoo2.md](PlanPoo2.md) — l'évolution d'architecture commandes/événements : le bloc EAV est

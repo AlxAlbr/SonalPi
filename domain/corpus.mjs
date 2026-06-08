@@ -2,7 +2,7 @@
 //
 // Source de vérité unique de la logique de format .crp, extraite fidèlement de
 // modules/gestion_corpus.js (lireCorpus / sauvegarderCorpus). Pur, sans DOM :
-// importable en Node (tests) comme dans le renderer (via src/index.mjs).
+// importable en Node (tests) comme dans le renderer (via domain/index.mjs).
 //
 // Voir docs/FORMATS.md §1.
 //

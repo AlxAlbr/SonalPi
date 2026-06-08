@@ -1,4 +1,4 @@
-// Tests de l'agrégat racine Corpus (src/domain/corpus.mjs).
+// Tests de l'agrégat racine Corpus (domain/corpus.mjs).
 // Getters dérivés sur méta synthétique ; sous-objets sur la VRAIE fixture .crp.
 
 import { test } from 'node:test';
@@ -7,9 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseCorpus, Corpus } from '../src/domain/corpus.mjs';
-import { Entretien } from '../src/domain/entretien.mjs';
-import { Variable, Modalite, unionDonnees } from '../src/domain/metadonnees.mjs';
+import { parseCorpus, Corpus } from '../domain/corpus.mjs';
+import { Entretien } from '../domain/entretien.mjs';
+import { Variable, Modalite, unionDonnees } from '../domain/metadonnees.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');

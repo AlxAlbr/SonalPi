@@ -1,4 +1,4 @@
-// Tests de l'agrégat Document (src/domain/document.mjs) via jsdom.
+// Tests de l'agrégat Document (domain/document.mjs) via jsdom.
 // Structure sur de VRAIES fixtures .sonal ; calques (codage/anon/commentaire) sur cas contrôlés.
 
 import { test } from 'node:test';
@@ -8,8 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
-import { Document, Segment, Fragment, Extrait, renumeroter } from '../src/domain/document.mjs';
-import { parseSonal, segments as segmentsPlats } from '../src/domain/sonal.mjs';
+import { Document, Segment, Fragment, Extrait, renumeroter } from '../domain/document.mjs';
+import { parseSonal, segments as segmentsPlats } from '../domain/sonal.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(__dirname, 'fixtures');

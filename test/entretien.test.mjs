@@ -1,4 +1,4 @@
-// Tests de l'agrégat Entretien pur (src/domain/entretien.mjs).
+// Tests de l'agrégat Entretien pur (domain/entretien.mjs).
 // Fidélité du wrapper sur le VRAI entretien (fixture .crp immuable).
 
 import { test } from 'node:test';
@@ -7,9 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseCorpus } from '../src/domain/corpus.mjs';
-import { Entretien } from '../src/domain/entretien.mjs';
-import { Donnee, Variable, Modalite } from '../src/domain/metadonnees.mjs';
+import { parseCorpus } from '../domain/corpus.mjs';
+import { Entretien } from '../domain/entretien.mjs';
+import { Donnee, Variable, Modalite } from '../domain/metadonnees.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');

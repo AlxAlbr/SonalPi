@@ -1,4 +1,4 @@
-// Tests de RègleAnon pure (src/domain/anonymisation.mjs).
+// Tests de RègleAnon pure (domain/anonymisation.mjs).
 // Fidélité du format sur la VRAIE fixture ; fusion sur cas synthétiques + équivalence legacy.
 
 import { test } from 'node:test';
@@ -7,8 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseCorpus } from '../src/domain/corpus.mjs';
-import { RegleAnon, fusionnerReglesAnon } from '../src/domain/anonymisation.mjs';
+import { parseCorpus } from '../domain/corpus.mjs';
+import { RegleAnon, fusionnerReglesAnon } from '../domain/anonymisation.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CRP = path.join(__dirname, 'fixtures', 'TestInterop1.crp');

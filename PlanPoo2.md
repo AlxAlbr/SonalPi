@@ -22,7 +22,7 @@
 
 ### Ce qu'on a fait (PlanPoo — « étape 1 »)
 Un **refactoring strangler SANS changer l'architecture** : extraire la logique métier dans des
-**modules de domaine purs et testés** (`src/domain/*.mjs`), pendant que le renderer continue de
+**modules de domaine purs et testés** (`domain/*.mjs`), pendant que le renderer continue de
 **déléguer** à ces modules via `window.SonalDomain`. L'app n'a **jamais cessé de fonctionner**,
 aucun comportement visible ni format n'a changé. Modèle conservé :
 
@@ -191,15 +191,15 @@ Convention : `agrégat:verbe` (commande), `agrégat:état` (requête). ~~`agrég
 ## 3. Décision préalable : exécuter le domaine dans le main
 
 Le domaine est en **ESM pur** ; le main est en **CommonJS** (`package.json` sans `"type":"module"`).
-Pour exécuter `src/domain/*` dans le main, trancher :
-- **import dynamique** `await import('./src/domain/…')` depuis le CommonJS (faible friction, async à l'init), **ou**
+Pour exécuter `domain/*` dans le main, trancher :
+- **import dynamique** `await import('./domain/…')` depuis le CommonJS (faible friction, async à l'init), **ou**
 - passer le projet/main en **ESM** (`"type":"module"` + ajustements), **ou**
 - une **étape de build** (esbuild) — cf. PlanPoo §2 (Option B « bundler »), restée optionnelle.
 
 Recommandation : **import dynamique** pour commencer (zéro outillage), réévaluer si besoin.
 
 > **✅ Décision actée (spike validé).** L'import dynamique ESM-depuis-CommonJS **fonctionne** :
-> `await import(pathToFileURL('src/domain/corpus.mjs'))` charge le domaine dans un contexte
+> `await import(pathToFileURL('domain/corpus.mjs'))` charge le domaine dans un contexte
 > CommonJS, et `Corpus.fromParts(...)` s'instancie **sans `window`/DOM**. Spike non destructif posé
 > dans `main.js` (`app.on('ready')`, loggue `[spike PlanPoo2] … ✓` — à retirer en Étape A).
 > **Caveat clé** : côté main, importer les **modules de domaine directement** (`corpus.mjs`,
@@ -240,7 +240,7 @@ le temps de migrer les appelants un par un.
 > point d'arrivée tant qu'on fait la consolidation à la fin.
 >
 > **✅ Posé** : helper `domaine()` dans `main.js` (import dynamique **mémoïsé** des modules
-> `src/domain/*`), et **1ʳᵉ commande** `corpus:ajouterVariable` (`{code,libelle,portee,privee}`) qui
+> `domain/*`), et **1ʳᵉ commande** `corpus:ajouterVariable` (`{code,libelle,portee,privee}`) qui
 > exécute `metadonnees.ajouterVariable` côté main et réécrit `tabVar`/`tabDic`. **DORMANTE** : nouveau
 > canal, l'ancien chemin `gestion_data.js:addVar` intact (rien câblé côté renderer). Persistance `.crp`
 > = flux sauvegarde existant. Vérifié : `node --check` + preuve fonctionnelle du corps du handler en Node.
@@ -319,7 +319,7 @@ le temps de migrer les appelants un par un.
 - ~~`Corpus` (main) est l'**unique** détenteur de l'état~~ — **non visé** : consolidation reportée (§4).
 - ~~Les deux fenêtres restent synchronisées sans rafraîchissement manuel (via événements).~~
   **Abandonné** : pas de multi-fenêtres simultané (les vues s'excluent), donc rien à synchroniser.
-- Le domaine `src/domain/*` est réutilisé **tel quel** comme modèle du main (peu de modifications). ✅ (EAV)
+- Le domaine `domain/*` est réutilisé **tel quel** comme modèle du main (peu de modifications). ✅ (EAV)
 - App iso-fonctionnelle pour l'utilisateur ; formats `.crp`/`.sonal` toujours préservés (golden). ✅
 - Validé en GUI **local ET distant/gitlab**. 🟡 reste à valider (distant/gitlab + commandes 🟡 de §4).
 

@@ -365,7 +365,7 @@ var divSegments = document.getElementById('segments')
 
 
 
-// Historique undo/redo : logique dans src/domain/document.mjs:HistoriqueDocument.
+// Historique undo/redo : logique dans domain/document.mjs:HistoriqueDocument.
 // Le get/set de #segments.innerHTML reste ici (binding DOM mince = DocumentView).
 var MAX_HISTORY = 20;
 let historiqueDoc = null;
