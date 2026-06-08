@@ -3,11 +3,10 @@
 // fichier .sonal déjà formé. Logique PURE (chaîne → structure) : aucun DOM vivant,
 // IPC ou fs. Importable en Node (tests) comme dans le renderer (via domain/index.mjs).
 //
-// Périmètre (slice 1, cf. plans/PlanPoo.md « recueil/conversions ») : seuls les
-// morceaux SANS canal-window ni doublon sont ici — `convertPURGE`, `tabSegToSonal`
-// (sa dépendance) et `extractFichierSonal`. Les convertisseurs SRT/VTT/TXT/JSON
-// (qui planquent les locuteurs dans `window.tabLocImport`) et la fusion corpus
-// (`fusionTab*`, qui mute l'état via IPC) restent côté renderer pour l'instant.
+// Contenu : tous les convertisseurs purs (TXT/SRT/VTT/JSON/PURGE → format Sonal),
+// leurs helpers (tabSegToSonal, Phrasifier, convertSpeaker, TimeToSec) et
+// extractFichierSonal. Restent côté renderer (par nature) : la fusion corpus
+// (`fusionTab*`, mutation d'état via IPC) et HTMLTOTABSEG (lit le DOM vivant).
 //
 // ⚠️ Différences assumées avec les ex-fonctions du renderer (non-régression visée) :
 //  - les globaux implicites (`s`, `lignesFich`, `seg_cur`, `cases`) deviennent des
@@ -272,7 +271,7 @@ export function convertSpeaker(tabSeg) {
   return { tabSeg, locut };
 }
 
-// ── Convertisseurs de formats d'import (slice 2b) ────────────────────────────
+// ── Convertisseurs de formats d'import ────────────────────────────
 // Tous PURS : chaîne (ou tableau JSON) → { formatSonal, locuteurs } (ou { tabSeg,
 // locut } pour JSON, forme d'origine conservée). L'ancien `window.tabLocImport`
 // est supprimé : les locuteurs sont RENVOYÉS. Dépendances internes au module :

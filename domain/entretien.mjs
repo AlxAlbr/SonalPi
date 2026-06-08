@@ -1,4 +1,4 @@
-// Domaine : agrégat Entretien (Phase 3).
+// Domaine : agrégat Entretien.
 //
 // Enveloppe TYPÉE et PURE d'un entretien (le « sac de propriétés » tabEnt[i] du
 // format .crp/.sonal). Sans Electron, IPC, fs ni DOM : importable en Node (tests)
@@ -10,9 +10,9 @@
 // (cf. docs/FORMATS.md §1 tabEnt) — il préserve aussi les champs non modélisés
 // (métadonnées volatiles, etc.) pour rester sans perte.
 //
-// La logique I/O listée au plan §6 (charger/sauvegarderSonal, convertRtrToSonal,
-// exports, verrou) reste côté orchestration/infra et sera branchée en tranches
-// ultérieures ; ici on n'expose que la structure pure et ses accès EAV.
+// La logique I/O (charger/sauvegarderSonal, convertRtrToSonal, exports, verrou)
+// reste côté orchestration/infra ; ici on n'expose que la structure pure et ses
+// accès EAV.
 
 import { Variable, Modalite, Donnee } from './metadonnees.mjs';
 import { serializeSonal } from './sonal.mjs';
@@ -52,11 +52,11 @@ export class Entretien {
   /** Modalités embarquées dans l'entretien — `tabDic`. @returns {Modalite[]} */
   modalites() { return (this.#data.tabDic || []).map(o => Modalite.fromJSON(o)); }
 
-  // ── Bruts pour l'instant (modélisés en Phase 4) ────────────────────────────
+  // ── Bruts pour l'instant (Variable/Modalité, voir metadonnees.mjs) ────────────────────────────
   get reglesAnon() { return this.#data.tabAnon || []; }  // tabAnon
   get categories() { return this.#data.tabThm || []; }   // tabThm
 
-  // ── Sérialisation .sonal (Phase 5) ─────────────────────────────────────────
+  // ── Sérialisation .sonal ─────────────────────────────────────────
   /**
    * Produit le contenu .sonal de l'entretien à partir de SES données (locuteurs,
    * valeurs, notes, règles anon) et du codebook/définitions du corpus + du HTML

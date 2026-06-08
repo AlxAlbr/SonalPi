@@ -6,7 +6,7 @@
 //
 // Voir docs/FORMATS.md §1.
 //
-// Ce module porte AUSSI l'agrégat racine `Corpus` (Phase 3) — voir en bas de fichier.
+// Ce module porte AUSSI l'agrégat racine `Corpus` — voir en bas de fichier.
 
 import { Variable, Modalite, unionDonnees } from './metadonnees.mjs';
 import { Entretien } from './entretien.mjs';
@@ -58,7 +58,7 @@ export function serializeCorpus({ tabThm, tabEnt, tabVar, tabDic, tabAnon }) {
   return JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
 }
 
-// ── Agrégat racine `Corpus` (Phase 3) ───────────────────────────────────────
+// ── Agrégat racine `Corpus` ───────────────────────────────────────
 //
 // Enveloppe TYPÉE et PURE du corpus ouvert. Comme `Entretien`, c'est un wrapper
 // transitoire sur les snapshots du process main (assemblés via IPC get-corpus /
@@ -66,10 +66,10 @@ export function serializeCorpus({ tabThm, tabEnt, tabVar, tabDic, tabAnon }) {
 // reste l'unique source de vérité ; cette classe ne tient aucun état persistant,
 // ni Electron/IPC/fs/DOM.
 //
-// Décision Phase 3 (cf. PlanPoo §6) : `StorageFactory` n'est PAS absorbé ici (il
+// Décision : `StorageFactory` n'est PAS absorbé ici (il
 // reste main-side comme sélecteur de backend derrière l'IPC). Ce qui migre dans
 // `Corpus`, c'est la partie pure : les getters dérivés `estLocal`/`estCollaboratif`
-// — `type` restant la source de vérité (PlanPoo, bloc d'état).
+// — `type` restant la source de vérité.
 
 export class Corpus {
   #meta; #entretiens; #variables; #modalites;

@@ -1,4 +1,4 @@
-// Domaine : agrégat Document (= un .sonal) — Phase 5.
+// Domaine : agrégat Document (= un .sonal).
 //
 // Document → Segment[] → Fragment[]. Le `.sonal` est du HTML segmenté
 // (MODELE_OBJET §1/§2) : chaque `span.lblseg` est un Segment, chaque
@@ -52,8 +52,8 @@ export class Fragment {
       segment: nombre(d.sg),              // data-sg (segment parent)
       texte: span.textContent,
       categories: classes.filter((c) => EST_CATEGORIE.test(c)), // cat_xxx
-      anon,                               // OccurrenceAnon (§5) ou null
-      commentaire,                        // Commentaire (§2) ou null
+      anon,                               // OccurrenceAnon (MODELE_OBJET §5) ou null
+      commentaire,                        // Commentaire (MODELE_OBJET §2) ou null
     });
   }
 
@@ -237,7 +237,7 @@ export class Document {
     return [...vus.values()];
   }
 
-  // ── Requêtes de codage (Phase 5 tranche 3b) ────────────────────────────────
+  // ── Requêtes de codage ────────────────────────────────
 
   /** Fragments portant au moins une catégorie. */
   fragmentsCodes() { return this.fragments().filter((f) => f.estCode()); }

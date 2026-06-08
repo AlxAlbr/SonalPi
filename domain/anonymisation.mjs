@@ -1,4 +1,4 @@
-// Domaine : RègleAnon (instruction d'anonymisation) — Phase 4.
+// Domaine : RègleAnon (instruction d'anonymisation).
 //
 // Une RègleAnon est une INSTRUCTION : « remplacer l'entité par le pseudonyme ».
 // Son identité est le couple (entite, remplacement), insensible à la casse.
@@ -6,7 +6,7 @@
 // (combien de fois trouvée, où). La MATÉRIALISATION dans le texte — les spans
 // `anon`/`anon-exception` + `data-pseudo`, avec l'asymétrie à 3 états
 // (anonymisé / exception / présent-non-anonymisé) — est le `ContenuAnon`, qui
-// dépend du Document : modélisé en Phase 5 (cf. PlanPoo §7/§8). Ici on ne modélise
+// dépend du Document (cf. docs/MODELE_OBJET.md §5). Ici on ne modélise
 // que l'instruction et la fusion des listes de règles.
 //
 // Pur, sans DOM. Noms explicites ; toJSON fidèle aux clés gelées du format
@@ -28,7 +28,7 @@ export class RegleAnon {
   get remplacement() { return this.#data.remplacement; }   // le pseudonyme affiché
   get occurrences() { return this.#data.occurrences; }
   get source() { return this.#data.source; }               // 'Global' | 'Entretien' | 'Local'
-  /** Positions matérialisées (ContenuAnon, modélisé en Phase 5). */
+  /** Positions matérialisées (ContenuAnon, cf. docs/MODELE_OBJET.md §5). */
   get positions() { return this.#data.matchPositions || []; }
 
   /** Clé d'identité : `entite|remplacement`, insensible à la casse. */

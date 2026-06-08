@@ -1,4 +1,4 @@
-// Domaine : Codebook (Catégorie) — Phase 4.
+// Domaine : Codebook (Catégorie).
 //
 // Le codebook (`tabThm` du .crp) est un ARBRE APLATI PAR PROFONDEUR : une liste
 // ordonnée où le `rang` (niveau, "0" racine, "1" enfant…) encode la hiérarchie.

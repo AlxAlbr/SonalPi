@@ -1,4 +1,4 @@
-// Point d'entrée ESM du renderer (pont Option A → Option B).
+// Point d'entrée ESM du renderer.
 //
 // Chargé via <script type="module" src="domain/index.mjs"> dans index.html.
 // Expose la couche domaine sur window.SonalDomain pour que le code legacy

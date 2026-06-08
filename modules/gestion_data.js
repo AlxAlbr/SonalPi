@@ -37,7 +37,7 @@ async function addVar(mode) {
     if (newVar) { // création d'une nouvelle variable 
         
         
-        // [PlanPoo2 — bascule] La création passe par la COMMANDE du main
+        // [commande EAV] La création passe par la COMMANDE du main
         // (corpus:ajouterVariable) : le domaine s'exécute côté main et met à jour
         // tabVar/tabDic. On re-tire l'état pour que la suite (positionnement, modalités,
         // affichage) travaille sur les globaux à jour.
@@ -64,7 +64,7 @@ async function addVar(mode) {
         
 
          
-        // y'a-t-il des modalités à ajouter? (await : chgDic est une commande IPC, cf. PlanPoo2)
+        // y'a-t-il des modalités à ajouter? (await : chgDic est une commande IPC)
         const inputs = document.querySelectorAll(".libmoda");
         for (const input of inputs) {
             let rkV = Number(input.dataset.v)
@@ -236,7 +236,7 @@ async function sauvVar(rgVar, mode) {
      
     if (updatedVar.lib) {
 
-        // [PlanPoo2 — bascule] Mise à jour de la définition via la COMMANDE du main.
+        // [commande EAV] Mise à jour de la définition via la COMMANDE du main.
         const res = await electronAPI.invoke('corpus:modifierVariable',
             { code: updatedVar.v, libelle: updatedVar.lib, portee: updatedVar.champ, privee: updatedVar.priv });
         if (!res || !res.ok) {
@@ -284,7 +284,7 @@ async function supprVar(rgVar, mode) {
     if (varIndex !== -1) {
     
     
-        // [PlanPoo2 — bascule] Suppression + cascade (var + modalités + tabDat de chaque
+        // [commande EAV] Suppression + cascade (var + modalités + tabDat de chaque
         // entretien + vue corpus) via la COMMANDE du main. On re-tire ensuite tout l'état impacté.
         const r = await electronAPI.invoke('corpus:supprimerVariable', { code: rgVar });
         if (!r || !r.ok) {
@@ -314,7 +314,7 @@ async function sauvModas(ode) {
     // récupération de la variable courante
     const rgVar = document.getElementById("lblCodeVar").value;
 
-    // récupération des modalités (await : chgDic est une commande IPC, cf. PlanPoo2)
+    // récupération des modalités (await : chgDic est une commande IPC)
     const inputs = document.querySelectorAll(".libmoda");
     for (const input of inputs) {
         let rkV = Number(input.dataset.v);
@@ -486,7 +486,7 @@ function ajoutListeModas(type){
 
 
 async function chgDic(v,m, lib){
-    // [PlanPoo2 — bascule] Renommage/création de modalité via la COMMANDE du main.
+    // [commande EAV] Renommage/création de modalité via la COMMANDE du main.
     // (chgDic doit être AWAITÉ par ses appelants, cf. addVar/sauvModas : le re-pull
     //  de tabDic doit précéder la sauvegarde du .crp qui lit le tabDic local.)
     const r = await electronAPI.invoke('corpus:renommerModalite', { variable: v, code: m, libelle: lib });
@@ -503,7 +503,7 @@ async function validMod(rgEnt, v, l, m, lib){
 
    console.log("on valide un changement de modalité pour l'entretien " + rgEnt + " la variable ", v, "le locuteur " , l ,  " et la modalité ", m , " le nouveau libellé sera " , lib)
 
-    // [PlanPoo2 — bascule] Trouve-ou-crée la modalité (code = max+1 si nouveau libellé)
+    // [commande EAV] Trouve-ou-crée la modalité (code = max+1 si nouveau libellé)
     // puis écrit la valeur dans le tabDat de l'entretien via la COMMANDE du main.
     const res = await electronAPI.invoke('entretien:definirValeur',
         { entretien: rgEnt, variable: v, locuteur: l, libelle: lib });

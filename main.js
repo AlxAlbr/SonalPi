@@ -37,7 +37,7 @@ var tabLocImport = []; // locuteurs importés (stockage central dans le main)
 // utilisateur
 var utilisateur="";
 
-// ── Domaine ESM (domain/) consommé dans le main via import dynamique (PlanPoo2 §3).
+// ── Domaine ESM (domain/) consommé dans le main via import dynamique.
 //    Mémoïsé. NB : on importe les MODULES directement, pas domain/index.mjs (qui pose
 //    window.SonalDomain, inexistant côté main).
 let _domaineCache = null;
@@ -186,7 +186,7 @@ ipcMain.handle('set-dat', (_, newTabDat) => {
   return true;
 });
 
-// ── Commandes EAV (PlanPoo2) : exécutent le domaine côté main, renvoient les tranches
+// ── Commandes EAV : exécutent le domaine côté main, renvoient les tranches
 // modifiées directement (tabVar, tabDic, …). En production — remplacent le cycle
 // pull→muter→push pour les variables / modalités / valeurs.
 ipcMain.handle('corpus:ajouterVariable', async (_e, { code, libelle, portee, privee }) => {
@@ -206,7 +206,7 @@ ipcMain.handle('corpus:ajouterVariable', async (_e, { code, libelle, portee, pri
   }
 });
 
-// [PlanPoo2 — Étape B] Modifier la définition d'une variable (cf. metadonnees.modifierVariable).
+// [commande EAV] Modifier la définition d'une variable (cf. metadonnees.modifierVariable).
 ipcMain.handle('corpus:modifierVariable', async (_e, { code, libelle, portee, privee }) => {
   try {
     const { metadonnees } = await domaine();
@@ -221,7 +221,7 @@ ipcMain.handle('corpus:modifierVariable', async (_e, { code, libelle, portee, pr
   }
 });
 
-// [PlanPoo2 — Étape B] Supprimer une variable : retire la variable + ses modalités,
+// [commande EAV] Supprimer une variable : retire la variable + ses modalités,
 // et CASCADE sur le tabDat de chaque entretien + la vue corpus (touche 4 globaux).
 ipcMain.handle('corpus:supprimerVariable', async (_e, { code }) => {
   try {
@@ -247,7 +247,7 @@ ipcMain.handle('corpus:supprimerVariable', async (_e, { code }) => {
   }
 });
 
-// [PlanPoo2 — Étape B] Définir la valeur (modalité) prise par un entretien pour une
+// [commande EAV] Définir la valeur (modalité) prise par un entretien pour une
 // variable/locuteur, à partir d'un libellé (crée la modalité si besoin, code = max+1).
 // Touche le tabDat de l'entretien + tabDic. Renvoie le code de modalité retenu.
 ipcMain.handle('entretien:definirValeur', async (_e, { entretien, variable, locuteur, libelle }) => {
@@ -270,7 +270,7 @@ ipcMain.handle('entretien:definirValeur', async (_e, { entretien, variable, locu
   }
 });
 
-// [PlanPoo2 — Étape B] Renommer (ou créer) une modalité dans le dictionnaire.
+// [commande EAV] Renommer (ou créer) une modalité dans le dictionnaire.
 ipcMain.handle('corpus:renommerModalite', async (_e, { variable, code, libelle }) => {
   try {
     const { metadonnees } = await domaine();
@@ -534,7 +534,7 @@ ipcMain.handle('file:createPath', async (_, ...args) => {
   }
 });
 
-// ── Flux fichier unifié (Phase 1b) ────────────────────────────────────────
+// ── Flux fichier unifié ────────────────────────────────────────
 // Résout le chemin d'un fichier RELATIF au dossier du corpus courant, selon le
 // type de corpus (seul endroit où le type pilote le chemin — côté main).
 // local → chemin système absolu ; distant/gitlab → chemin relatif au dépôt.

@@ -76,7 +76,7 @@ function SecToTime(time,ssDec){
 };
 
 // conversion de données hh:mm:ss en secondes
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs),
+// Délègue au domaine pur (domain/conversions.mjs),
 // source unique de la conversion temps→secondes. (Appelée dans le flux d'import,
 // où window.SonalDomain est chargé.)
 function TimeToSec(time) {

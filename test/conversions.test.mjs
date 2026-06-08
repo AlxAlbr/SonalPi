@@ -1,4 +1,4 @@
-// Tests du domaine de conversions pur (domain/conversions.mjs) — slice 1.
+// Tests du domaine de conversions pur (domain/conversions.mjs).
 //
 // Logique chaîne→structure : sur cas synthétiques déterministes (convertPURGE,
 // tabSegToSonal) + extraction des blocs JSON d'un .sonal (extractFichierSonal).
@@ -143,7 +143,7 @@ test('convertSpeaker : nettoie les « Speaker i: » intempestifs dans le corps',
   assert.equal(res.tabSeg[0][4], 'texte  parasite');
 });
 
-// ── slice 2b : TimeToSec + convertJSON/SRT/VTT/TXT ───────────────────────────
+// ── TimeToSec + convertJSON/SRT/VTT/TXT ───────────────────────────
 import { TimeToSec, convertJSON, convertSRT, convertVTT, convertTXT } from '../domain/conversions.mjs';
 
 test('TimeToSec : HH:MM:SS(,ms) → secondes', () => {

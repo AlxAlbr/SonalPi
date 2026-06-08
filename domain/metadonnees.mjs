@@ -2,7 +2,7 @@
 //
 // EAV = Entité-Attribut-Valeur. Pour un Entretien (entité) et une Variable
 // (attribut), une Donnée porte la Modalité (valeur) prise, éventuellement par
-// locuteur. Source de vérité (PlanPoo §5, docs/FORMATS.md §1) :
+// locuteur. Source de vérité (docs/FORMATS.md §1) :
 //   - définitions (Variable/Modalité ↔ tabVar/tabDic) : maîtres dans le .crp ;
 //   - valeurs (Donnée ↔ tabDat) : maîtres dans le .sonal de CHAQUE entretien.
 //     Le tabDat au niveau corpus est une VUE CALCULÉE (union des locaux), jamais
@@ -65,7 +65,7 @@ export class Donnee {
   toJSON() { return { e: this.entretien, v: this.variable, l: this.locuteur, m: this.modalite }; }
 }
 
-// ── Vue calculée (le cœur de la Phase 2) ────────────────────────────────────
+// ── Vue calculée ────────────────────────────────────
 
 /**
  * Vue calculée des données au niveau corpus : UNION des `tabDat` locaux des

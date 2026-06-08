@@ -10,9 +10,9 @@ const LocalStorage = require('./LocalStorage.js');
  * `pour()` (instances vivantes), plutôt qu'enregistrées une fois pour toutes.
  * Le `LocalStorage`, lui, est sans état → singleton interne.
  *
- * ⚠️ Couche de pont volontairement mince. À terme (PlanPoo Phase 3, agrégat
- * `Corpus`), cette sélection a vocation à devenir une méthode `Corpus.storage()`
- * et ce fichier à disparaître au profit de l'entité `Corpus`. Cf. plans/PlanPoo.md §6.
+ * ⚠️ Couche de pont volontairement mince. À terme, cette sélection a vocation à
+ * devenir une méthode `Corpus.storage()` (l'agrégat `Corpus` du domaine), et ce
+ * fichier à disparaître au profit de l'entité `Corpus`.
  */
 const localStorage = new LocalStorage();
 

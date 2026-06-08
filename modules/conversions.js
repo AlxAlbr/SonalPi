@@ -1,6 +1,6 @@
  
 
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 // Restaure le global `locut` (canal historique encore lu plus loin dans l'import).
 async function convertJSON(lignesFich) {
     const res = window.SonalDomain.conversions.convertJSON(lignesFich);
@@ -8,21 +8,21 @@ async function convertJSON(lignesFich) {
     return res; // { tabSeg, locut }
 }
     
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 async function convertSRT(content) {
     const res = window.SonalDomain.conversions.convertSRT(content);
     return res; // { formatSonal, locuteurs }
 }
 
 
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 async function convertVTT(content) {
     const res = window.SonalDomain.conversions.convertVTT(content);
     return res; // { formatSonal, locuteurs }
 }
 
 
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 // Le domaine renvoie { formatSonal, segCourant } ; on réapplique ici l'effet de bord
 // historique `seg_cur` (position atteinte), qui n'a pas sa place dans le code pur.
 function convertPURGE(content) {
@@ -31,7 +31,7 @@ function convertPURGE(content) {
     return res; // { formatSonal, segCourant } — les appelants lisent .formatSonal
 }
     
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 async function convertTXT(content, ext) {
     const res = window.SonalDomain.conversions.convertTXT(content, ext);
     return res; // { formatSonal, locuteurs }
@@ -270,14 +270,14 @@ async function fusionTabAnon(tabAnonFich) { // mise à jour du tabAnon à partir
 }
 
 
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 // Le domaine reçoit le `doc` déjà parsé (il n'instancie pas DOMParser) — on le construit ici.
 function extractFichierSonal(htmlString) {
     const doc = new DOMParser().parseFromString(htmlString, 'text/html');
     return window.SonalDomain.conversions.extractFichierSonal(htmlString, doc);
 }
 
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 // Le domaine mute tabSeg en place (fusion des phrases) ; le rafraîchissement UI
 // `affSegments(0)` reste ici (hors du code pur).
 function Phrasifier(tabSeg) {
@@ -285,7 +285,7 @@ function Phrasifier(tabSeg) {
     affSegments(0);
 }
 
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 // Le domaine mute tabSeg et renvoie { tabSeg, locut } ; on restaure le global
 // `locut` (canal historique encore lu par convertSRT/VTT/JSON).
 async function convertSpeaker(tabSeg) {
@@ -294,7 +294,7 @@ async function convertSpeaker(tabSeg) {
     return res;
 }
 
-// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Délègue au domaine pur (domain/conversions.mjs).
 function tabSegToSonal(tabSeg, locut, notes) {
     return window.SonalDomain.conversions.tabSegToSonal(tabSeg, locut, notes);
 }

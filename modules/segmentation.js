@@ -5,7 +5,7 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     if (!rk){return}
     if (!sg){return}
 
-    // ⭐ Vérifier si c'est un clic sur un mot anonymisé en mode pseudo (seulement en mode anon)
+    // Vérifier si c'est un clic sur un mot anonymisé en mode pseudo (seulement en mode anon)
     const chkAnon = document.getElementById('chkAnon');
     const span = getSpan(rk);
     if (typeAction === "anon" && chkAnon && chkAnon.checked && span && (span.classList.contains('anon') || span.classList.contains('anon-exception'))) {

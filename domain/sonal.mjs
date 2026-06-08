@@ -85,7 +85,7 @@ export function anon(html, doc) {
   return out.sort((a, b) => num(a.rk) - num(b.rk));
 }
 
-/** Commentaires : annotations data-obs/data-auth/data-finobs (Commentaire, Phase 5). */
+/** Commentaires : annotations data-obs/data-auth/data-finobs (Commentaire, cf. docs/MODELE_OBJET.md §2). */
 export function commentaires(html, doc) {
   const root = buildRoot(html, doc);
   const out = [];
