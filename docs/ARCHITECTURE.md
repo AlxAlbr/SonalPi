@@ -2,8 +2,8 @@
 
 > **À lire en premier** si tu arrives sur le projet. Ce document décrit l'organisation *réelle* du
 > code et comment les pièces communiquent. Pour le *pourquoi* et l'historique du refactoring, voir
-> [PlanPoo.md](PlanPoo.md) ; pour le modèle conceptuel des objets, [MODELE_OBJET.md](MODELE_OBJET.md) ;
-> pour les formats de fichiers, [docs/FORMATS.md](docs/FORMATS.md).
+> [PlanPoo.md](../plans/PlanPoo.md) ; pour le modèle conceptuel des objets, [MODELE_OBJET.md](MODELE_OBJET.md) ;
+> pour les formats de fichiers, [docs/FORMATS.md](FORMATS.md).
 
 ## En une phrase
 
@@ -46,9 +46,9 @@ Le code se lit par **altitude**, pas par fichier. Les trois niveaux existent dé
    └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **`electronAPI` (pont main ↔ renderer)** — exposé par [preload.js](preload.js) (`contextBridge`).
+1. **`electronAPI` (pont main ↔ renderer)** — exposé par [preload.js](../preload.js) (`contextBridge`).
    Le renderer appelle `window.electronAPI.getEnt()/setEnt()/…` ; le main répond via ses handlers IPC.
-2. **`window.SonalDomain` (pont legacy ↔ domaine)** — posé par [domain/index.mjs](domain/index.mjs),
+2. **`window.SonalDomain` (pont legacy ↔ domaine)** — posé par [domain/index.mjs](../domain/index.mjs),
    chargé en `<script type="module">` dans `index.html` **et** `edition_entretien.html`. Il expose
    le domaine ESM aux scripts globaux (qui ne sont pas des modules). ⚠️ **Toute fenêtre dont les
    scripts appellent le domaine doit charger `domain/index.mjs`** (oubli classique → `SonalDomain undefined`).
@@ -87,15 +87,15 @@ résorber — c'est un point d'arrêt délibéré.
 
 **Pourquoi l'EAV et pas le reste ?** Parce que l'EAV était le seul bloc *bon marché* à migrer : ses
 fonctions de commande (`ajouterVariable`, `definirValeur`…) **existaient déjà** dans
-[metadonnees.mjs](domain/metadonnees.mjs) depuis le refactoring d'étape 1 (PlanPoo). La migration
+[metadonnees.mjs](../domain/metadonnees.mjs) depuis le refactoring d'étape 1 (PlanPoo). La migration
 n'a donc été que du *câblage*. Les blocs suivants n'ont **pas** ces fonctions :
-[entretien.mjs](domain/entretien.mjs), [codebook.mjs](domain/codebook.mjs) et
-[anonymisation.mjs](domain/anonymisation.mjs) n'exposent que des classes — il faudrait *écrire* la
+[entretien.mjs](../domain/entretien.mjs), [codebook.mjs](../domain/codebook.mjs) et
+[anonymisation.mjs](../domain/anonymisation.mjs) n'exposent que des classes — il faudrait *écrire* la
 logique de commande. Et le candidat le plus naturel (l'ajout d'entretien) est surtout de l'**I/O et de
 la conversion de format**, pas de la logique pure : peu adapté au modèle commande.
 
 **Pourquoi c'est volontaire (et non « pas fini ») ?** La motivation phare de cette évolution
-(cf. [PlanPoo2.md](PlanPoo2.md)) était la **synchro multi-fenêtres gratuite** via événements. Or les
+(cf. [PlanPoo2.md](../plans/PlanPoo2.md)) était la **synchro multi-fenêtres gratuite** via événements. Or les
 vues de cette app **s'excluent mutuellement** (ouvrir l'une ferme les autres) : il n'y a jamais deux
 copies vivantes du modèle à synchroniser. Le bénéfice phare est donc **sans objet ici**. La vraie
 valeur — un domaine pur, isolé et testé — **a déjà été capturée par l'étape 1** ; les commandes ne
@@ -167,11 +167,11 @@ Démarrage : `npm start` → Electron lance `main.js` → `mainWindow.loadFile('
 ## Par où commencer (nouvel arrivant)
 
 1. Ce fichier (les 3 altitudes + les 2 ponts).
-2. [docs/FORMATS.md](docs/FORMATS.md) — à quoi ressemblent `.crp` et `.sonal`.
-3. [domain/](domain/) — le métier, lisible et testé ; commence par `corpus.mjs` et `document.mjs`.
+2. [docs/FORMATS.md](FORMATS.md) — à quoi ressemblent `.crp` et `.sonal`.
+3. [domain/](../domain/) — le métier, lisible et testé ; commence par `corpus.mjs` et `document.mjs`.
 4. [MODELE_OBJET.md](MODELE_OBJET.md) — le modèle conceptuel (Corpus → Entretien → Document → Segment → Fragment).
-5. [PlanPoo.md](PlanPoo.md) — l'historique du refactoring (le « pourquoi » de l'organisation actuelle).
-6. [PlanPoo2.md](PlanPoo2.md) — l'évolution d'architecture commandes/événements : le bloc EAV est
+5. [PlanPoo.md](../plans/PlanPoo.md) — l'historique du refactoring (le « pourquoi » de l'organisation actuelle).
+6. [PlanPoo2.md](../plans/PlanPoo2.md) — l'évolution d'architecture commandes/événements : le bloc EAV est
    **en production** (commandes + état renvoyé directement). Le reste du plan (cycle de vie corpus,
    entretiens, codebook) a été évalué et **non poursuivi** — l'architecture hybride actuelle est
    le point d'arrêt assumé.

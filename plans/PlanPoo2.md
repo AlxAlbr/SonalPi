@@ -315,7 +315,7 @@ le temps de migrer les appelants un par un.
 > abandonnés, cf. encart en tête), plusieurs ne s'appliquent plus — annotés ci-dessous.
 
 - ~~Plus aucun `get-*`/`set-*` de **données métier** dans l'IPC~~ — **non atteint / non visé** : seul l'EAV
-  est passé en commandes ; le reste reste volontairement sur get/set (cf. §4 et ARCHITECTURE.md).
+  est passé en commandes ; le reste reste volontairement sur get/set (cf. §4 et docs/ARCHITECTURE.md).
 - ~~`Corpus` (main) est l'**unique** détenteur de l'état~~ — **non visé** : consolidation reportée (§4).
 - ~~Les deux fenêtres restent synchronisées sans rafraîchissement manuel (via événements).~~
   **Abandonné** : pas de multi-fenêtres simultané (les vues s'excluent), donc rien à synchroniser.
@@ -345,4 +345,4 @@ le temps de migrer les appelants un par un.
 > si l'on voulait des **objets vivants détenteurs de la vérité** ET une **synchro multi-fenêtres** —
 > or cette dernière est **sans objet ici** (les vues s'excluent). L'architecture actuelle
 > (main = vérité via wrappers + commandes EAV) est **saine et suffisante** ; c'est le point d'équilibre
-> assumé (voir aussi [ARCHITECTURE.md](ARCHITECTURE.md), section « Coexistence assumée des deux patterns IPC »).
+> assumé (voir aussi [ARCHITECTURE.md](../docs/ARCHITECTURE.md), section « Coexistence assumée des deux patterns IPC »).

@@ -23,7 +23,7 @@
 > **Qu'est-ce qu'un « agrégat » ?** (terme *Domain-Driven Design*) c'est une
 > **frontière de cohérence** : un cluster d'objets traité comme **une seule unité**.  Aujourd'hui l'agrégat est **implicite** : ce sont les fichiers qui trahissent les
 > frontières — aucune classe ne *possède* encore vraiment ses sous-objets (le rendre explicite =
-> [PlanPoo](PlanPoo.md) Phase 3).
+> [PlanPoo](../plans/PlanPoo.md) Phase 3).
 
 > **Pourquoi 2 agrégats dans notre analyse.** La correspondance fichier↔objet (§8.2) est le meilleur guide pour tracer les
 > frontières de cohérence : le `.crp` = l'agrégat **Corpus** ; chaque `.sonal` = l'agrégat **Document**
@@ -222,7 +222,7 @@ fondamentale et **deux** (`Fragment`, `Extrait`) sont dérivées.
 
 ### Token *(unité atomique — sans objet propre)*
 La **vraie** plus petite unité. À l'import, le texte d'un segment est découpé par
-`texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g)` ([conversions.js](modules/conversions.js)) en **éléments** :
+`texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g)` ([conversions.js](../modules/conversions.js)) en **éléments** :
 un mot, **un** signe de ponctuation, ou une suite d'espaces. Chaque token reçoit un **rang** global
 (le `rk`) mais **ne se matérialise jamais en élément HTML** : on ne le désigne que par ce rang.
 Ex. : `"je m'appelle "` = 6 tokens → `je` · `␣` · `m` · `'` · `appelle` · `␣`.
@@ -230,10 +230,10 @@ Ex. : `"je m'appelle "` = 6 tokens → `je` · `␣` · `m` · `'` · `appelle` 
 > **La grille de tokens n'est PAS un artefact figé d'import** (invariant non évident). Elle est établie
 > à l'**import** (la regex ci-dessus), **re-dérivée à la sélection** (le `mouseup` lit le `data-rk` du span
 > + les *offsets de caractères* du texte courant et scinde aux frontières de tokens —
-> [edition_entretien.html:1486-1509](edition_entretien.html#L1486-L1509)), et **renormalisée à la
-> compaction** (au save, `data-len` recalculé en fusionnant — [gestion_fichiers.js:1068](modules/gestion_fichiers.js#L1068)).
+> [edition_entretien.html:1486-1509](../edition_entretien.html#L1486-L1509)), et **renormalisée à la
+> compaction** (au save, `data-len` recalculé en fusionnant — [gestion_fichiers.js:1068](../modules/gestion_fichiers.js#L1068)).
 > Mais elle **n'est pas maintenue à la frappe** : taper ne re-tokenise pas (le clavier ne fait que marquer
-> « modifié », [edition_entretien.html:1470-1474](edition_entretien.html#L1470-L1474)) et `reinitRk`
+> « modifié », [edition_entretien.html:1470-1474](../edition_entretien.html#L1470-L1474)) et `reinitRk`
 > renumérote **par span** (`m++`), il ne re-découpe pas le texte brut en mots.
 > **Conséquences** : (a) entre la frappe et l'action suivante, un span peut contenir un « blob » édité
 > « plus qu'un mot » sans `rk` par mot — mais coder/sélectionner le **re-tokenise** à la volée, donc on
@@ -244,7 +244,7 @@ Ex. : `"je m'appelle "` = 6 tokens → `je` · `␣` · `m` · `'` · `appelle` 
 ### Fragment *(span de texte : `data-rk`, `data-len`, `data-sg` ; ex-« Mot »)*
 **Pas un mot** : une **plage de tokens consécutifs au même formatage**. `data-rk` = rang du 1er token,
 `data-len` = nombre de tokens couverts (les `data-rk` sautent donc de `len` en `len`). À l'import, un
-segment = **un seul** fragment compacté ([conversions.js](modules/conversions.js), `data-len =
+segment = **un seul** fragment compacté ([conversions.js](../modules/conversions.js), `data-len =
 elements.length`) ; il se **scinde** dès qu'on code, anonymise **ou commente** une partie. Porte
 **0..\* overlays** (cf. ci-dessous).
 
@@ -285,22 +285,22 @@ classDiagram
     Commentaire "1" o-- "1..*" Fragment : ancré sur la tête, couvre rkDebut→rkFin
 ```
 
-- **Pose** : sélection → « 💬 Commenter… » ([segmentation.js:1463](modules/segmentation.js#L1463)) →
-  [validerCommentaire](edition_entretien.html#L2820).
+- **Pose** : sélection → « 💬 Commenter… » ([segmentation.js:1463](../modules/segmentation.js#L1463)) →
+  [validerCommentaire](../edition_entretien.html#L2820).
 - **Ancrage** sur le fragment de **tête** (`obs` + `data-obs` + `data-auth`) ; **portée** sur la plage
   tête→`data-finobs` (le fragment de fin reçoit `obsfin`), reparcourue par `surlignComm`
-  ([edition_entretien.html:2902-2910](edition_entretien.html#L2902-L2910)).
+  ([edition_entretien.html:2902-2910](../edition_entretien.html#L2902-L2910)).
 - **Dégénère à 1 fragment** : `data-finobs` n'est posé que si la sélection déborde (`rkF > 0`,
-  [:2824](edition_entretien.html#L2824)) — sinon ce sont deux attributs sur la tête (et là, la frontière
+  [:2824](../edition_entretien.html#L2824)) — sinon ce sont deux attributs sur la tête (et là, la frontière
   avec « attribut de `Fragment` » est ténue : c'est le cas multi-fragments qui justifie la boîte).
 - Comme `data-pseudo`, il **force une coupure de fragment** et est **préservé à la compaction**
-  ([gestion_fichiers.js:1103](modules/gestion_fichiers.js#L1103)).
+  ([gestion_fichiers.js:1103](../modules/gestion_fichiers.js#L1103)).
 - **Jumeau structurel de `OccurrenceAnon`** (§5) : même patron d'overlay (plage sur fragments, bornes
   `obs`/`obsfin` ≈ `debsel`/`finsel`). Seule différence, la **finalité** : `OccurrenceAnon` matérialise une
   `RegleAnon` ; `Commentaire` n'a **pas de dictionnaire** au-dessus (étage 1 absent, cf. §1).
 
 > ⚠️ **Homonyme à ne pas confondre** : le `commentaire` d'un *item de Recueil*
-> ([recueil.js:23](modules/recueil.js#L23), cf. §6) annote un extrait collecté — rien à voir avec celui-ci.
+> ([recueil.js:23](../modules/recueil.js#L23), cf. §6) annote un extrait collecté — rien à voir avec celui-ci.
 
 ### Extrait *(dérivé — non stocké)*
 Voir §4 : c'est la lecture du **codage** (plage continue d'une même catégorie), pas une notion du texte brut.
@@ -363,30 +363,30 @@ classDiagram
 > **L'édition corpus écrit dans la vérité locale, pas dans le cache (rassurant).** Éditer une donnée
 > depuis la vue « Base de données » du **Corpus** ne touche **pas** un cache séparé qui serait écrasé
 > plus tard : chaque cellule porte l'identité de son entretien (`data-ent-id`/`data-var-v`/`data-loc`,
-> [gestion_data.js:1356-1358](modules/gestion_data.js#L1356-L1358)) et l'édition est **routée vers
-> l'entretien propriétaire**. `validerCellGen` → [validMod](modules/gestion_data.js#L514) met à jour
+> [gestion_data.js:1356-1358](../modules/gestion_data.js#L1356-L1358)) et l'édition est **routée vers
+> l'entretien propriétaire**. `validerCellGen` → [validMod](../modules/gestion_data.js#L514) met à jour
 > `tabEnt[i].tabDat` — le code l'étiquette littéralement *« source de vérité »*
-> ([:556](modules/gestion_data.js#L556)) — puis **réécrit le `.sonal`** de ce seul entretien
-> (`majFichierSonal`, [:1405](modules/gestion_data.js#L1405)). La vue corpus n'est donc qu'une **fenêtre**
+> ([:556](../modules/gestion_data.js#L556)) — puis **réécrit le `.sonal`** de ce seul entretien
+> (`majFichierSonal`, [:1405](../modules/gestion_data.js#L1405)). La vue corpus n'est donc qu'une **fenêtre**
 > sur des données *par entretien*. **Le seul décalage possible** est sur le cache global `tabDat` (`.crp`),
 > que `validMod` ne réécrit pas (`setEnt`/`setDic` seulement) : il est **reconstruit depuis les locaux**
-> par [inventaireVariables](modules/gestion_data.js#L862) ([:873-890](modules/gestion_data.js#L873-L890)).
+> par [inventaireVariables](../modules/gestion_data.js#L862) ([:873-890](../modules/gestion_data.js#L873-L890)).
 > Ta donnée ne se perd jamais ; c'est le cache qui peut traîner — la fragilité notée ci-dessus.
 
 > **Origine (verrous fins) vs justification (la double tenue n'en découle pas).** D'où vient cette
 > duplication ? Du **travail concurrent sur corpus distant** : les verrous sont **par fichier**
-> (`verrouillerFichier`, `isEntretienLocked` — [gestion_entretiens.js:606](modules/gestion_entretiens.js#L606)),
+> (`verrouillerFichier`, `isEntretienLocked` — [gestion_entretiens.js:606](../modules/gestion_entretiens.js#L606)),
 > donc garder les données d'un entretien dans **son** `.sonal` permet d'éditer deux entretiens **en
 > parallèle** sans bloquer tout le corpus. Tout mettre dans le seul `.crp` bloquerait tout le monde à
 > chaque édition. **Deux besoins** tirent donc vers deux endroits : verrous fins → vérité **par entretien**
 > (`.sonal`) ; vues corpus sans tout charger → **agrégat** (`.crp`, relu du distant,
-> [gestion_corpus.js:1004-1025](modules/gestion_corpus.js#L1004-L1025)).
+> [gestion_corpus.js:1004-1025](../modules/gestion_corpus.js#L1004-L1025)).
 >
 > Mais ces contraintes justifient « une vérité **+** un cache », **pas deux vérités co-égales**. La source
 > unique **s'aligne** sur le verrou (vérité = `.sonal`) ; le `.crp` redevient un cache recalculé. *Preuve
 > que l'implémentation actuelle est la version fragile* : le correctif
 > `// ne pas écraser un tabDat .crp valide avec un .sonal stale vide`
-> ([gestion_entretiens.js:368](modules/gestion_entretiens.js#L368)) — du tissu cicatriciel contre la
+> ([gestion_entretiens.js:368](../modules/gestion_entretiens.js#L368)) — du tissu cicatriciel contre la
 > divergence des deux copies. **Résolution naturelle** (lisible dans `Donnee {e, …}`, donc rattachée à un
 > entretien) : **valeurs** (`tabDat`) → vérité dans le `.sonal` (granularité du verrou) ; **définitions**
 > (`tabVar`/`tabDic`, transverses) → vérité dans le `.crp`. Chaque donnée a alors **un seul propriétaire,
@@ -458,7 +458,7 @@ n'existe qu'**en lecture**.
 
 > **Frontière segment : à l'édition, pas à la lecture.** Le segment borne le *codage* (on code dans un
 > segment ; un passage à cheval se code en deux temps). Mais ni la Synthèse ni
-> [getThm](modules/thematisation.js#L1890) ne posent de borne au segment : elles balaient l'espace
+> [getThm](../modules/thematisation.js#L1890) ne posent de borne au segment : elles balaient l'espace
 > **global** des rangs (les `.lblseg` n'ont pas de `data-rk`, donc transparentes). *Conséquence vérifiée*
 > (test ad hoc rejouant `getThm`) : deux parts codées **contiguës** et de même catégorie se
 > re-sélectionnent **d'un seul bloc**, par-dessus la frontière → un `Extrait` *peut* algorithmiquement
@@ -466,7 +466,7 @@ n'existe qu'**en lecture**.
 
 > **Asymétrie Catégorie ↔ Locuteur** (granularité). Le locuteur est porté par le **Segment** (`data-loc`),
 > jamais par le `Fragment`. Affecter un locuteur à une sous-sélection ne descend pas au fragment :
-> `affectLoc` appelle `SplitSeg(debSel, finSel)` ([locutarisation.js](modules/locutarisation.js)) qui
+> `affectLoc` appelle `SplitSeg(debSel, finSel)` ([locutarisation.js](../modules/locutarisation.js)) qui
 > **scinde** le segment, puis pose `data-loc`.
 >
 > | | **Catégorie** | **Locuteur** |
@@ -518,10 +518,10 @@ le texte reste en clair, l'anonymisation effective est portée par le `Occurrenc
   `OccurrenceAnon`** (bornes en index de fragments + état). C'est pourquoi il **disparaît du diagramme
   `RegleAnon`** (cf. ci-dessous) — il ne figure plus ici que comme trace de l'implémentation actuelle.
 - `occurrences === 0` = instruction **en attente** : conservée dans `tabAnon`, **non** réappliquée au
-  texte ([import_export.js:552](modules/Anonymisation/import_export.js#L552)).
+  texte ([import_export.js:552](../modules/Anonymisation/import_export.js#L552)).
 - **Matching** insensible à la casse, et `entite` peut grouper plusieurs graphies via `/`
   (`Saint-Étienne / St-Étienne` → un même pseudo) — cf. helpers `parseAliases` /
-  `trouverMatchesEntiteDOM` ([tableau_base.js](modules/Anonymisation/tableau_base.js)).
+  `trouverMatchesEntiteDOM` ([tableau_base.js](../modules/Anonymisation/tableau_base.js)).
 
 > **Instruction vs cache (confusion à dissiper).** `tabAnon` ne contient **pas que les règles** : seuls
 > `entite`, `remplacement`, `source` sont l'**instruction**. `occurrences`, `matchPositions[]`
@@ -529,9 +529,9 @@ le texte reste en clair, l'anonymisation effective est portée par le `Occurrenc
 > quel état** — c'est le territoire de `OccurrenceAnon`, pas celui de la règle.
 >
 > Pire : ce cache est **persisté aux deux niveaux** — dans le `.sonal` (`tabEnt[i].tabAnon`) **et** dans le
-> `.crp` ([gestion_corpus.js:54-60](modules/gestion_corpus.js#L54-L60) recopie `matchPositions` au niveau
+> `.crp` ([gestion_corpus.js:54-60](../modules/gestion_corpus.js#L54-L60) recopie `matchPositions` au niveau
 > corpus). On a donc une **triple tenue** : le DOM/HTML (`OccurrenceAnon` = **vérité**) ↔ `tabAnon` entretien
-> ↔ `tabAnon` corpus. D'où [reindexerMatchPositions](modules/Anonymisation/tableau_base.js) qui **re-dérive**
+> ↔ `tabAnon` corpus. D'où [reindexerMatchPositions](../modules/Anonymisation/tableau_base.js) qui **re-dérive**
 > le cache depuis le DOM. Le cache corpus joue le **même rôle que `tabDat` (§3)** : éviter d'ouvrir tous les
 > `.sonal` pour le statut d'anonymisation à l'échelle du corpus — et porte la même fragilité.
 >
@@ -543,7 +543,7 @@ le texte reste en clair, l'anonymisation effective est portée par le `Occurrenc
 
 ### OccurrenceAnon *(marquage effectif, dans le HTML `.sonal`)*
 La **matérialisation** d'une occurrence sur des `Fragment` — pendant de la classe `cat_xxx`. Posée par
-[reappliquerAnonymisationsSonal](modules/Anonymisation/import_export.js#L545) à partir des
+[reappliquerAnonymisationsSonal](../modules/Anonymisation/import_export.js#L545) à partir des
 `matchPositions` :
 - **anonymisé** : classe `anon` + `data-pseudo="…"` sur les fragments `start→end` ;
 - **exception** : classe `anon-exception`, `data-pseudo` retiré (texte d'origine conservé).
@@ -551,7 +551,7 @@ La **matérialisation** d'une occurrence sur des `Fragment` — pendant de la cl
 > **Asymétrie des 3 états.** Seuls *anonymisé* et *exception* sont des `OccurrenceAnon` **stockés dans le
 > HTML**. Le 3ᵉ état — *présent mais non anonymisé* (`presentMaisNonAnonymise`) — n'a
 > **aucun** `OccurrenceAnon` : l'entité est en clair, sans marque. On ne le détecte qu'en **passant la règle
-> sur le texte** ([detecterOccurrencesToutesLesPaires](modules/Anonymisation/tableau_base.js#L186)), d'où
+> sur le texte** ([detecterOccurrencesToutesLesPaires](../modules/Anonymisation/tableau_base.js#L186)), d'où
 > les **compteurs**. C'est le strict parallèle d'un mot **non codé** : pas de `cat_xxx`, pas d'objet.
 
 > **Plage de tokens, pas de fragments (nuance).** `OccurrenceAnon "o-- 1..* Fragment"` est une expression
@@ -588,9 +588,9 @@ classDiagram
     ItemRecueil "*" ..> "1" Extrait : collecte (rgdep→rgfin)
 ```
 
-- Un **item** de recueil ([recueil.js:22-23](modules/recueil.js#L22-L23)) capture un extrait choisi
+- Un **item** de recueil ([recueil.js:22-23](../modules/recueil.js#L22-L23)) capture un extrait choisi
   (`{rang, type, rgdep, rgfin, texte, commentaire}`) ; la **Synthèse** en est la vue de regroupement/filtre.
-- Export : [export_recueil.js](modules/export_recueil.js), `main.js` (DOCX/PDF, option `inclureCommentaires`).
+- Export : [export_recueil.js](../modules/export_recueil.js), `main.js` (DOCX/PDF, option `inclureCommentaires`).
 
 > ⚠️ Le champ **`commentaire`** d'un item de Recueil annote un *extrait collecté*. Il **n'a aucun
 > rapport** avec le `Commentaire` posé sur le texte (§2) — homonyme à garder distinct.
@@ -604,8 +604,8 @@ classDiagram
 > en local, sur serveur ou sur GitLab.
 
 ### Constat : l'abstraction existe déjà aux 2/3
-- Deux classes parallèles à vocabulaire quasi identique : `ServeurAPI` ([serveur_api.js](modules/serveur_api.js))
-  et `GitLabAPI` ([gitlab_api.js](modules/gitlab_api.js)).
+- Deux classes parallèles à vocabulaire quasi identique : `ServeurAPI` ([serveur_api.js](../modules/serveur_api.js))
+  et `GitLabAPI` ([gitlab_api.js](../modules/gitlab_api.js)).
 - Un dispatcher polymorphe improvisé : `remoteAPI()` dans `main.js`
   (`Corpus.type === 'gitlab' ? gitlabAPI : serveurAPI`).
 - **Le seul intrus est `local`** : pas de classe, handlers `fs` directs → ~25 branchements

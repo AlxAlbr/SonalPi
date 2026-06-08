@@ -12,7 +12,7 @@ const LocalStorage = require('./LocalStorage.js');
  *
  * ⚠️ Couche de pont volontairement mince. À terme (PlanPoo Phase 3, agrégat
  * `Corpus`), cette sélection a vocation à devenir une méthode `Corpus.storage()`
- * et ce fichier à disparaître au profit de l'entité `Corpus`. Cf. PlanPoo.md §6.
+ * et ce fichier à disparaître au profit de l'entité `Corpus`. Cf. plans/PlanPoo.md §6.
  */
 const localStorage = new LocalStorage();
 
