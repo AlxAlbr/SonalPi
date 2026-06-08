@@ -9,19 +9,15 @@ async function convertJSON(lignesFich) {
 }
     
 // [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
-// Préserve l'effet de bord window.tabLocImport (retiré en slice 2b-ii).
 async function convertSRT(content) {
     const res = window.SonalDomain.conversions.convertSRT(content);
-    if (res) window.tabLocImport = res.locuteurs;
     return res; // { formatSonal, locuteurs }
 }
 
 
 // [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
-// Préserve l'effet de bord window.tabLocImport (retiré en slice 2b-ii).
 async function convertVTT(content) {
     const res = window.SonalDomain.conversions.convertVTT(content);
-    if (res) window.tabLocImport = res.locuteurs;
     return res; // { formatSonal, locuteurs }
 }
 
@@ -36,10 +32,8 @@ function convertPURGE(content) {
 }
     
 // [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
-// Préserve l'effet de bord window.tabLocImport (retiré en slice 2b-ii).
 async function convertTXT(content, ext) {
     const res = window.SonalDomain.conversions.convertTXT(content, ext);
-    if (res) window.tabLocImport = res.locuteurs;
     return res; // { formatSonal, locuteurs }
 }
 async function importSONAL(content) { // importation d'un fichier SONAL (html) --> permet de vérifier l'ajustement des thématiques et des variables au corpus avant importation
@@ -53,10 +47,6 @@ async function importSONAL(content) { // importation d'un fichier SONAL (html) -
     const tabDatAligned = await fusionTabVar(fichierSonal.tabVar, fichierSonal.tabDic, fichierSonal.tabDat);
     await fusionTabAnon(fichierSonal.tabAnon);
 
-    window.tabLocImport = fichierSonal.tabLoc; // stockage temporaire dans le window global
-    
-    window.tabAnonImport = fichierSonal.tabAnon; // stockage temporaire dans le window global
-
     let formatSonal = String(content);
 
     // Remappage des codes de thématiques dans le HTML de l'entretien (cas libellé connu/code différent, et cas 3)
@@ -68,7 +58,7 @@ async function importSONAL(content) { // importation d'un fichier SONAL (html) -
         });
     }
 
-    return { formatSonal, tabDatAligned: tabDatAligned || [] };
+    return { formatSonal, tabDatAligned: tabDatAligned || [], locuteurs: fichierSonal.tabLoc, tabAnon: fichierSonal.tabAnon };
 
  
 

@@ -10,11 +10,9 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     
     //console.log("ajout d'un entretien")
 
-    // initialiser le storage centralisé des locuteurs (main) — fallback sur window
+    // réinitialiser le storage centralisé des locuteurs côté main (avant import)
     if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
         window.electronAPI.setTabLoc([]).catch(err => console.warn('setTabLoc init failed', err));
-    } else {
-        window.tabLocImport = [];
     }
 
     // récupération du corpus
@@ -47,6 +45,8 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     let nomFichTxtA;
     let fichApresConversion;
     let tabDatImport = [];
+    let locuteursImport = []; // locuteurs issus de la conversion (canal de retour, ex-window.tabLocImport)
+    let tabAnonImport = [];   // règles d'anon issues de la conversion .sonal (canal de retour, ex-window.tabAnonImport)
 
     if (fichTxt) {
 
@@ -115,6 +115,14 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
         tabDatImport = (typeof fichApresConversion === 'object' && fichApresConversion && fichApresConversion.tabDatAligned)
             ? fichApresConversion.tabDatAligned
             : [];
+
+        // Capturer locuteurs + anon AVANT la mise en string (canaux de retour, remplacent window.tabLocImport/tabAnonImport).
+        // `.locuteurs` : convertSRT/VTT/TXT + importSONAL ; `.locut` : convertJSON (forme d'origine).
+        // `.tabAnon` : importSONAL uniquement (les autres formats n'apportent pas de règles d'anon).
+        if (typeof fichApresConversion === 'object' && fichApresConversion) {
+            locuteursImport = fichApresConversion.locuteurs || fichApresConversion.locut || [];
+            tabAnonImport = fichApresConversion.tabAnon || [];
+        }
 
         // Extraire la string de l'objet si nécessaire et s'assurer que c'est une string
         if (typeof fichApresConversion === 'object') {
@@ -194,7 +202,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
         let nouveauEnt = {
         id: tabEnt.length > 0 ? Math.max(...tabEnt.map(ent => ent.id)) + 1 : 1, // ID unique
         notes: "",
-        tabLoc: window.tabLocImport, // tableau des locuteurs importé
+        tabLoc: locuteursImport, // locuteurs issus de la conversion (canal de retour)
         nom: nomFichTxtA.replace(/\.[^/.]+$/, ''), // nom du fichier sans extension
         hms: "00:00:00",
         tabThm: [],
@@ -204,7 +212,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
         tabVar: tabVar,   // global, synchronisé par fusionTabVar
         tabDic: tabDic,   // global, synchronisé par fusionTabVar
         tabDat: tabDatImport,
-        tabAnon: window.tabAnonImport, // tableau des anonymisations importé
+        tabAnon: tabAnonImport, // règles d'anon issues de la conversion (canal de retour)
     };
 
     // ajout de l'entretien au tableau

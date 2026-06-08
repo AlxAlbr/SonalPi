@@ -121,6 +121,7 @@ domain/                  LE métier, pur & testé (ESM) :
   anonymisation.mjs      RegleAnon + fusionnerReglesAnon
   sonal.mjs              parse/serializeSonal (.sonal) — lecteurs plats
   document.mjs           Document / Segment / Fragment / Extrait + renumeroter + HistoriqueDocument
+  conversions.mjs        import de formats (TXT/SRT/VTT/JSON/PURGE → format Sonal) + extractFichierSonal
 
 modules/                 VUE (scripts globaux renderer) :
   gestion_corpus.js, gestion_entretiens.js, gestion_data.js, gestion_fichiers.js,
