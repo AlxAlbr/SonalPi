@@ -271,3 +271,263 @@ export function convertSpeaker(tabSeg) {
 
   return { tabSeg, locut };
 }
+
+// ── Convertisseurs de formats d'import (slice 2b) ────────────────────────────
+// Tous PURS : chaîne (ou tableau JSON) → { formatSonal, locuteurs } (ou { tabSeg,
+// locut } pour JSON, forme d'origine conservée). L'ancien `window.tabLocImport`
+// est supprimé : les locuteurs sont RENVOYÉS. Dépendances internes au module :
+// TimeToSec, convertSpeaker, tabSegToSonal.
+
+// "HH:MM:SS,ms" (ou "MM:SS") → secondes. Pur.
+export function TimeToSec(time) {
+  const sspart = time.split(":");
+  let pas = 0;
+  let secs = 0;
+  for (let ss = sspart.length - 1; ss > -1; ss--) {
+    let valeur = sspart[ss];
+    valeur = valeur.replace(",", "."); // virgules décimales → points
+    secs += Number(valeur * Math.pow(60, pas));
+    pas++;
+  }
+  return secs;
+}
+
+// Tableau JSON (objets {start,end,text,avg_logprob}) → { tabSeg, locut }.
+export function convertJSON(lignesFich) {
+  const nbseg = lignesFich.length;
+  let tabSeg = new Array(nbseg);
+  for (let s = 0; s < nbseg; s++) { tabSeg[s] = new Array(6); }
+  for (let s = 0; s < nbseg; s++) {
+    tabSeg[s][1] = lignesFich[s].start.toFixed(2);
+    tabSeg[s][2] = lignesFich[s].end.toFixed(2);
+    tabSeg[s][3] = ""; // locuteur
+    tabSeg[s][4] = lignesFich[s].text;
+    tabSeg[s][5] = false; // non sélectionné par défaut
+    tabSeg[s][6] = lignesFich[s].avg_logprob;
+  }
+  const postLocut = convertSpeaker(tabSeg);
+  tabSeg = postLocut.tabSeg;
+  const locut = postLocut.locut;
+  return { tabSeg, locut };
+}
+
+// SRT → { formatSonal, locuteurs }.
+export function convertSRT(content) {
+  if (!content || content.length < 1) { return; }
+
+  const lignesFich = content.split("\n");
+  const nblig = lignesFich.length;
+
+  let rgSeg = 0;
+  let tabSeg = new Array(1);
+  tabSeg[rgSeg] = new Array(6);
+
+  for (let s = 0; s < nblig; s++) {
+    const ligne = lignesFich[s].trim();
+    const posfleche = ligne.lastIndexOf("-->"); // indicateur de coordonnées
+
+    if (posfleche > -1) { // ajout d'un segment
+      tabSeg.push();
+      rgSeg++;
+      tabSeg[rgSeg] = new Array(6);
+
+      const tps = ligne.split("-->");
+      tabSeg[rgSeg][1] = TimeToSec(tps[0]);
+      tabSeg[rgSeg][2] = TimeToSec(tps[1]);
+      tabSeg[rgSeg][3] = ""; // locuteur
+      tabSeg[rgSeg][4] = "";
+      tabSeg[rgSeg][5] = false;
+      tabSeg[rgSeg][6] = 0;
+    } else {
+      if (ligne == "" || isNaN(ligne) == false) { // numéros de sous-titre / sauts de ligne
+        if (s < nblig - 1) {
+          if (lignesFich[s + 1].lastIndexOf("-->") > -1) { continue; }
+        }
+      }
+      const lignetxt = ligne.replace(/\r?\n|\r/, "");
+      tabSeg[rgSeg][4] += lignetxt; // ajout du texte au segment courant
+    }
+  }
+
+  // trimage des portions de texte
+  for (let s = 0; s < tabSeg.length; s++) {
+    if (!tabSeg[s][4] || tabSeg[s][4].trim() === "") { continue; }
+    tabSeg[s][4] = tabSeg[s][4].trim() + " "; // espace final de séparation
+  }
+
+  tabSeg.splice(0, 1); // suppression du rang 0
+
+  const postLocut = convertSpeaker(tabSeg);
+  tabSeg = postLocut.tabSeg;
+  const locuteurs = postLocut.locut;
+  const formatSonal = tabSegToSonal(tabSeg, locuteurs);
+  return { formatSonal, locuteurs };
+}
+
+// WebVTT → { formatSonal, locuteurs }. Gère <v Nom> et "Speaker N" inline.
+export function convertVTT(content) {
+  if (!content || content.length < 1) { return; }
+
+  const lignesFich = content.split("\n");
+  const nblig = lignesFich.length;
+  const locut = [''];
+
+  let rgSeg = 0;
+  let tabSeg = new Array(1);
+  tabSeg[rgSeg] = new Array(6);
+
+  let inBlock = false; // pour ignorer les blocs NOTE et STYLE
+
+  for (let s = 0; s < nblig; s++) {
+    const ligne = lignesFich[s].trim();
+
+    if (ligne.startsWith("WEBVTT")) { continue; }
+    if (ligne.startsWith("NOTE") || ligne.startsWith("STYLE")) { inBlock = true; continue; }
+    if (inBlock) { if (ligne === "") { inBlock = false; } continue; }
+
+    const posfleche = ligne.indexOf("-->");
+
+    if (posfleche > -1) { // nouveau segment
+      tabSeg.push();
+      rgSeg++;
+      tabSeg[rgSeg] = new Array(6);
+
+      const tpsBrut = ligne.split("-->");
+      const debStr = tpsBrut[0].trim();
+      const finStr = tpsBrut[1].trim().split(/\s+/)[0]; // premier token (ignore position:, line:…)
+
+      tabSeg[rgSeg][1] = TimeToSec(debStr);
+      tabSeg[rgSeg][2] = TimeToSec(finStr);
+      tabSeg[rgSeg][3] = 0;
+      tabSeg[rgSeg][4] = "";
+      tabSeg[rgSeg][5] = false;
+      tabSeg[rgSeg][6] = 0;
+    } else {
+      if (ligne === "") { continue; }
+      if (s < nblig - 1 && lignesFich[s + 1].indexOf("-->") > -1) { continue; } // identifiant de cue
+
+      let lignetxt = ligne.replace(/\r?\n|\r/, "");
+
+      // 1. balise <v Nom>
+      const vTagMatch = lignetxt.match(/^<v\s+([^>]+)>/);
+      if (vTagMatch) {
+        const nomLoc = vTagMatch[1].trim();
+        if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+        tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
+        lignetxt = lignetxt.replace(/^<v\s+[^>]+>/, "");
+      }
+      // 2. préfixe "Speaker N"
+      else if (/^Speaker\s+\d+/.test(lignetxt)) {
+        const rg = Number(lignetxt.substr(8, 1)) + 1;
+        const nomLoc = "Speaker " + rg;
+        if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+        tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
+        lignetxt = lignetxt.substr(11);
+      }
+
+      lignetxt = lignetxt.replace(/<[^>]+>/g, ""); // balises VTT restantes
+      tabSeg[rgSeg][4] += lignetxt;
+    }
+  }
+
+  for (let s = 0; s < tabSeg.length; s++) {
+    if (!tabSeg[s][4] || tabSeg[s][4].trim() === "") { continue; }
+    tabSeg[s][4] = tabSeg[s][4].trim() + " ";
+  }
+
+  tabSeg.splice(0, 1);
+
+  const formatSonal = tabSegToSonal(tabSeg, locut);
+  return { formatSonal, locuteurs: locut };
+}
+
+// TXT (3 formats : C texte brut, B "Speaker N: texte", A "HH:MM:SS [Loc]") →
+// { formatSonal, locuteurs }.
+export function convertTXT(content, ext) {
+  const lignesFich = content.split("\n");
+  const nblig = lignesFich.length;
+
+  const locut = [""]; // locut[0] n'existe pas
+  const tabSeg = [];
+  let segCourant = null;
+
+  const timeRegex  = /^(\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?)\s*(.*)$/;
+  const locInRegex = /^([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\/\-]*(?:[ \/\-][A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\/\-]*){0,2})\s*:\s*(.+)$/;
+
+  let hasTimestamp = false;
+  let hasLocInline = false;
+  for (let i = 0; i < Math.min(nblig, 20); i++) {
+    const l = lignesFich[i].trim();
+    if (!l) continue;
+    if (timeRegex.test(l)) { hasTimestamp = true; break; }
+    if (locInRegex.test(l)) { hasLocInline = true; }
+  }
+  const formatB = !hasTimestamp && hasLocInline;
+  const formatC = !hasTimestamp && !hasLocInline;
+
+  if (formatC) {
+    for (let s = 0; s < nblig; s++) {
+      const ligne = lignesFich[s].trim();
+      if (ligne.length < 1) { continue; }
+      tabSeg.push([null, 0, 0, 0, ligne, false, 0]);
+    }
+  } else if (formatB) {
+    for (let s = 0; s < nblig; s++) {
+      const ligne = lignesFich[s].trim();
+      if (ligne.length < 1) { continue; }
+
+      const locMatch = ligne.match(locInRegex);
+      if (locMatch) {
+        const nomLoc = locMatch[1].trim();
+        const texteApres = locMatch[2].trim();
+        if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+        const idxLoc = locut.indexOf(nomLoc);
+        segCourant = [null, 0, 0, idxLoc, texteApres, false, 0];
+        tabSeg.push(segCourant);
+      } else {
+        if (!segCourant) {
+          segCourant = [null, 0, 0, 0, "", false, 0];
+          tabSeg.push(segCourant);
+        }
+        segCourant[4] += (segCourant[4].length > 0 ? " " : "") + ligne;
+      }
+    }
+  } else {
+    for (let s = 0; s < nblig; s++) {
+      const ligne = lignesFich[s].trim();
+      if (ligne.length < 1) { continue; }
+
+      const match = ligne.match(timeRegex);
+      if (match) {
+        const rawTime = match[1].replace(/\s/g, '');
+        const debSec = TimeToSec(rawTime);
+        if (segCourant) { segCourant[2] = debSec; }
+
+        const nomLoc = match[2] ? match[2].trim() : "";
+        if (nomLoc && !locut.includes(nomLoc)) { locut.push(nomLoc); }
+        const idxLoc = nomLoc ? locut.indexOf(nomLoc) : 0;
+
+        segCourant = [null, debSec, debSec, idxLoc, "", false, 0];
+        tabSeg.push(segCourant);
+      } else {
+        if (!segCourant) {
+          segCourant = [null, 0, 0, 0, "", false, 0];
+          tabSeg.push(segCourant);
+        }
+        const locMatch = ligne.match(locInRegex);
+        if (locMatch) {
+          const nomLoc = locMatch[1].trim();
+          const texteApres = locMatch[2].trim();
+          if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
+          segCourant[3] = locut.indexOf(nomLoc);
+          segCourant[4] += (segCourant[4].length > 0 ? " " : "") + texteApres;
+        } else {
+          segCourant[4] += (segCourant[4].length > 0 ? " " : "") + ligne;
+        }
+      }
+    }
+  }
+
+  const formatSonal = tabSegToSonal(tabSeg, locut);
+  return { formatSonal, locuteurs: locut };
+}

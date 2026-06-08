@@ -1,220 +1,28 @@
  
 
-   async function convertJSON(lignesFich) { // conversion de l'objet JSON en tableau
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Restaure le global `locut` (canal historique encore lu plus loin dans l'import).
+async function convertJSON(lignesFich) {
+    const res = window.SonalDomain.conversions.convertJSON(lignesFich);
+    locut = res.locut;
+    return res; // { tabSeg, locut }
+}
     
-        var nbseg = lignesFich.length ;
-        let tabSeg = new Array(nbseg);
-    
-        for (s=0;s<nbseg;s++){
-            tabSeg[s]=  new Array(6);
-        }
-      
-        
-        for (s=0;s<nbseg;s++){
-
-
-            tabSeg[s][1]= lignesFich[s].start.toFixed(2) ;
-            tabSeg[s][2]= lignesFich[s].end.toFixed(2);
-            tabSeg[s][3]= ""; // locuteur
-            tabSeg[s][4]= lignesFich[s].text;
-            tabSeg[s][5]= false ; // non sélectionné par défaut
-            tabSeg[s][6]= lignesFich[s].avg_logprob
-
-
-        }
-
-        // récupération des locuteurs
-        const postLocut = await convertSpeaker(tabSeg);
-        tabSeg = postLocut.tabSeg;
-        locut = postLocut.locut;
-
-        //console.log ("importation du fichier JSON \tabseg = ", tabSeg, "\n locut = ", locut);
-        return { tabSeg, locut } ;
-
-
-    };
-    
-    async function convertSRT(content) { // conversion du fichier SRT en tableau
-        
-        if (!content || content.length<1) {console.log("pas de contenu"); return;}
-
-        // split du texte par lignes \n
-        let lignesFich = content.split("\n");
-        var nblig = lignesFich.length  ;       
-        var locut = [""];
-
-        let rgSeg=0;
-        tabSeg = new Array (1);
-        tabSeg[rgSeg]=  new Array(6);
-
-
-        for (s=0;s<nblig;s++){
-             
-            let ligne = lignesFich[s].trim()     
-            
-            let posflèche= ligne.lastIndexOf("-->") // recherche d'un indicateur de coordonnées
-    
-            if (posflèche>-1) { // ajout d'un segment
-
-                tabSeg.push();
-                rgSeg++;
-
-                tabSeg[rgSeg]=  new Array(6);
-
-                let tps = ligne.split("-->") 
-                let deb = TimeToSec(tps[0])
-                let fin = TimeToSec(tps[1])
-
-                tabSeg[rgSeg][1]= deb  ;
-                tabSeg[rgSeg][2]= fin;
-                tabSeg[rgSeg][3]= ""; // locuteur
-                tabSeg[rgSeg][4]= "" //
-                tabSeg[rgSeg][5]= false ; // non sélectionné par défaut
-                tabSeg[rgSeg][6]= 0;
-
-            } else {
-            
-                if (ligne=="" || isNaN(ligne)==false) { // évitement des numéros de sous-titre et sauts de ligne
-    
-                    if (s<nblig-1) {
-    
-                        if (lignesFich[s+1].lastIndexOf("-->") > -1){ continue;}               
-                    
-                    }
-    
-                 
-                }
-    
-                let lignetxt = ligne.replace(/\r?\n|\r/,"") // retrait des sauts de ligne 
-                tabSeg[rgSeg][4]+= lignetxt // ajout du texte au segment courant
-
-            }
-
-        }
-    
-
-
-    
-
-            //"trimage" des portions de texte
-            for (s=0;s<tabSeg.length;s++){
-                if (!tabSeg[s][4] || tabSeg[s][4].trim() === ""){continue}
-                let txttrim = tabSeg[s][4].trim();
-                tabSeg[s][4]= txttrim + " " // ajout d'un espace final pour séparation entre segments;
-
-            }
-             
-
-            // suppression du rang 0
-            tabSeg.splice(0,1)
-
- 
-
-            // récupération des locuteurs
-            const postLocut = await convertSpeaker(tabSeg);
-            tabSeg = postLocut.tabSeg;
-            let locuteursTrouvés = postLocut.locut;
-
-            console.log ("importation du fichier Srt \tabseg = ", tabSeg, "\n locut = ", locuteursTrouvés);
-            window.tabLocImport = locuteursTrouvés; // stockage temporaire dans le window global pour récupération ultérieure
-            let formatSonal = tabSegToSonal (tabSeg,locuteursTrouvés)
-            //console.log("format sonal = \n", formatSonal);
-            return {formatSonal};
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Préserve l'effet de bord window.tabLocImport (retiré en slice 2b-ii).
+async function convertSRT(content) {
+    const res = window.SonalDomain.conversions.convertSRT(content);
+    if (res) window.tabLocImport = res.locuteurs;
+    return res; // { formatSonal, locuteurs }
 }
 
 
-async function convertVTT(content) { // conversion du fichier VTT (WebVTT) en tableau
-
-    if (!content || content.length < 1) { console.log("pas de contenu"); return; }
-
-    // split du texte par lignes
-    let lignesFich = content.split("\n");
-    var nblig = lignesFich.length;
-    let locut = [''];
-
-    let rgSeg = 0;
-    tabSeg = new Array(1);
-    tabSeg[rgSeg] = new Array(6);
-
-    let inBlock = false; // pour ignorer les blocs NOTE et STYLE
-
-    for (s = 0; s < nblig; s++) {
-
-        let ligne = lignesFich[s].trim();
-
-        // en-tête WEBVTT (et métadonnées éventuelles sur la même ligne)
-        if (ligne.startsWith("WEBVTT")) { continue; }
-
-        // blocs NOTE et STYLE : ignorer jusqu'à la prochaine ligne vide
-        if (ligne.startsWith("NOTE") || ligne.startsWith("STYLE")) { inBlock = true; continue; }
-        if (inBlock) { if (ligne === "") { inBlock = false; } continue; }
-
-        let posflèche = ligne.indexOf("-->"); // test d'une ligne de timestamps
-
-        if (posflèche > -1) { // nouveau segment
-
-            tabSeg.push();
-            rgSeg++;
-            tabSeg[rgSeg] = new Array(6);
-
-            // extraire les timestamps en ignorant les attributs de positionnement VTT (position:, line:, align:…)
-            let tpsBrut = ligne.split("-->");
-            let debStr = tpsBrut[0].trim();
-            let finStr = tpsBrut[1].trim().split(/\s+/)[0]; // premier token seulement
-
-            tabSeg[rgSeg][1] = TimeToSec(debStr);
-            tabSeg[rgSeg][2] = TimeToSec(finStr);
-            tabSeg[rgSeg][3] = 0;     // locuteur (indéfini par défaut)
-            tabSeg[rgSeg][4] = "";
-            tabSeg[rgSeg][5] = false;
-            tabSeg[rgSeg][6] = 0;
-
-        } else {
-
-            if (ligne === "") { continue; } // ligne vide → ignorer
-
-            // identifiant de cue (ligne directement suivie d'un timestamp) → ignorer
-            if (s < nblig - 1 && lignesFich[s + 1].indexOf("-->") > -1) { continue; }
-
-            let lignetxt = ligne.replace(/\r?\n|\r/, "");
-
-            // 1. balise <v Nom> : locuteur au format VTT natif
-            const vTagMatch = lignetxt.match(/^<v\s+([^>]+)>/);
-            if (vTagMatch) {
-                const nomLoc = vTagMatch[1].trim();
-                if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-                tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
-                lignetxt = lignetxt.replace(/^<v\s+[^>]+>/, "");
-            }
-            // 2. préfixe "Speaker N" (format Whisper/diarisation)
-            else if (/^Speaker\s+\d+/.test(lignetxt)) {
-                let rg = Number(lignetxt.substr(8, 1)) + 1;
-                let nomLoc = "Speaker " + rg;
-                if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-                tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
-                lignetxt = lignetxt.substr(11); // suppression du préfixe "Speaker N "
-            }
-
-            // suppression des balises VTT restantes (<b>, <i>, <c.class>, timestamps, etc.)
-            lignetxt = lignetxt.replace(/<[^>]+>/g, "");
-
-            tabSeg[rgSeg][4] += lignetxt;
-        }
-    }
-
-    // trimage des textes
-    for (s = 0; s < tabSeg.length; s++) {
-        if (!tabSeg[s][4] || tabSeg[s][4].trim() === "") { continue; }
-        tabSeg[s][4] = tabSeg[s][4].trim() + " "; // espace final pour séparation entre segments
-    }
-
-    // suppression du rang 0
-    tabSeg.splice(0, 1);
-
-    console.log("importation du fichier VTT \tabseg = ", tabSeg, "\n locut = ", locut);
-    window.tabLocImport = locut;
-    let formatSonal = tabSegToSonal(tabSeg, locut);
-    return { formatSonal };
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Préserve l'effet de bord window.tabLocImport (retiré en slice 2b-ii).
+async function convertVTT(content) {
+    const res = window.SonalDomain.conversions.convertVTT(content);
+    if (res) window.tabLocImport = res.locuteurs;
+    return res; // { formatSonal, locuteurs }
 }
 
 
@@ -227,128 +35,13 @@ function convertPURGE(content) {
     return res; // { formatSonal, segCourant } — les appelants lisent .formatSonal
 }
     
-async function convertTXT(content,ext) { // conversion du fichier TXT en tableau
-
-        // split du texte par lignes \n
-        lignesFich = content.split("\n");
-        var nblig = lignesFich.length;
-
-        var locut = [""] // locut[0] n'existe pas
-        tabSeg = [];
-        let segCourant = null;
-
-        // --- Détection du format ---
-        // Format A : lignes de timestamps  "00:01:30 [Locuteur]"
-        // Format B : locuteur en ligne     "Speaker 1: texte..."  (pas de timestamp)
-        const timeRegex  = /^(\d{1,2}\s*:\s*\d{2}(?:\s*:\s*\d{2})?)\s*(.*)$/;
-        const locInRegex = /^([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\/\-]*(?:[ \/\-][A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\/\-]*){0,2})\s*:\s*(.+)$/;
-
-        let hasTimestamp = false;
-        let hasLocInline = false;
-        for (let i = 0; i < Math.min(nblig, 20); i++) {
-            const l = lignesFich[i].trim();
-            if (!l) continue;
-            if (timeRegex.test(l)) { hasTimestamp = true; break; }
-            if (locInRegex.test(l)) { hasLocInline = true; }
-        }
-        const formatB = !hasTimestamp && hasLocInline;
-        const formatC = !hasTimestamp && !hasLocInline; // Format C : texte brut — un segment par paragraphe
-
-        // -------------------------------------------------------
-        // FORMAT C : texte brut (ex. .docx sans timestamps ni locuteurs)
-        // chaque ligne non vide → un segment
-        // -------------------------------------------------------
-        if (formatC) {
-
-            for (let s = 0; s < nblig; s++) {
-                let ligne = lignesFich[s].trim();
-                if (ligne.length < 1) { continue; }
-                tabSeg.push([null, 0, 0, 0, ligne, false, 0]);
-            }
-
-        // -------------------------------------------------------
-        // FORMAT B : "Speaker 1: texte" — un segment par prise de parole
-        // -------------------------------------------------------
-        } else if (formatB) {
-
-            for (s = 0; s < nblig; s++) {
-                let ligne = lignesFich[s].trim();
-                if (ligne.length < 1) { continue; }
-
-                const locMatch = ligne.match(locInRegex);
-                if (locMatch) {
-                    // nouvelle prise de parole → nouveau segment
-                    const nomLoc    = locMatch[1].trim();
-                    const texteApres = locMatch[2].trim();
-                    if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-                    const idxLoc = locut.indexOf(nomLoc);
-                    segCourant = [null, 0, 0, idxLoc, texteApres, false, 0];
-                    tabSeg.push(segCourant);
-                } else {
-                    // ligne de continuation
-                    if (!segCourant) {
-                        segCourant = [null, 0, 0, 0, "", false, 0];
-                        tabSeg.push(segCourant);
-                    }
-                    segCourant[4] += (segCourant[4].length > 0 ? " " : "") + ligne;
-                }
-            }
-
-        // -------------------------------------------------------
-        // FORMAT A : "00:01:30 [Locuteur]" puis texte en-dessous
-        // -------------------------------------------------------
-        } else {
-
-            for (s = 0; s < nblig; s++) {
-                let ligne = lignesFich[s].trim();
-                if (ligne.length < 1) { continue; }
-
-                const match = ligne.match(timeRegex);
-                if (match) {
-                    const rawTime = match[1].replace(/\s/g, '');
-                    const debSec  = TimeToSec(rawTime);
-
-                    if (segCourant) { segCourant[2] = debSec; } // fermeture du segment précédent
-
-                    const nomLoc = match[2] ? match[2].trim() : "";
-                    if (nomLoc && !locut.includes(nomLoc)) { locut.push(nomLoc); }
-                    const idxLoc = nomLoc ? locut.indexOf(nomLoc) : 0;
-
-                    segCourant = [null, debSec, debSec, idxLoc, "", false, 0];
-                    tabSeg.push(segCourant);
-
-                } else {
-                    // ligne de texte
-                    if (!segCourant) {
-                        segCourant = [null, 0, 0, 0, "", false, 0];
-                        tabSeg.push(segCourant);
-                    }
-                    // locuteur éventuel en début de paragraphe : "Nom : texte"
-                    const locMatch = ligne.match(locInRegex);
-                    if (locMatch) {
-                        const nomLoc    = locMatch[1].trim();
-                        const texteApres = locMatch[2].trim();
-                        if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-                        segCourant[3]  = locut.indexOf(nomLoc);
-                        segCourant[4] += (segCourant[4].length > 0 ? " " : "") + texteApres;
-                    } else {
-                        segCourant[4] += (segCourant[4].length > 0 ? " " : "") + ligne;
-                    }
-                }
-            }
-        }
-
-        //console.log("tabSeg après import du txt = ", tabSeg);
-
-        window.tabLocImport = locut; // stockage temporaire dans le window global pour récupération ultérieure
-        let formatSonal = tabSegToSonal(tabSeg, locut);
-
-        //console.log("format sonal = \n", formatSonal);
-        return {formatSonal};
-
-    }
-
-
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Préserve l'effet de bord window.tabLocImport (retiré en slice 2b-ii).
+async function convertTXT(content, ext) {
+    const res = window.SonalDomain.conversions.convertTXT(content, ext);
+    if (res) window.tabLocImport = res.locuteurs;
+    return res; // { formatSonal, locuteurs }
+}
 async function importSONAL(content) { // importation d'un fichier SONAL (html) --> permet de vérifier l'ajustement des thématiques et des variables au corpus avant importation
 
  

@@ -76,29 +76,11 @@ function SecToTime(time,ssDec){
 };
 
 // conversion de données hh:mm:ss en secondes
-function TimeToSec(time) { 
-
-     
-let sspart =  time.split(":");
-
-let pas=0;
-let secs = 0;
-
-
-for (ss=sspart.length-1;ss>-1;ss--) {
-
-     
-    let valeur =  sspart[ss]
-    valeur = valeur.replace(",",".") // remplacement des virgules par des points
-
-    secs += Number(valeur * Math.pow(60,pas))
-    
-    pas++;
-
-}
-
-return secs;
-
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs),
+// source unique de la conversion temps→secondes. (Appelée dans le flux d'import,
+// où window.SonalDomain est chargé.)
+function TimeToSec(time) {
+    return window.SonalDomain.conversions.TimeToSec(time);
 }
 
 

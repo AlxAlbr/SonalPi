@@ -142,3 +142,64 @@ test('convertSpeaker : nettoie les « Speaker i: » intempestifs dans le corps',
   assert.equal(res.locut.length, 1);          // aucun locuteur en tête de segment
   assert.equal(res.tabSeg[0][4], 'texte  parasite');
 });
+
+// ── slice 2b : TimeToSec + convertJSON/SRT/VTT/TXT ───────────────────────────
+import { TimeToSec, convertJSON, convertSRT, convertVTT, convertTXT } from '../domain/conversions.mjs';
+
+test('TimeToSec : HH:MM:SS(,ms) → secondes', () => {
+  assert.equal(TimeToSec('00:01:30'), 90);
+  assert.equal(TimeToSec('01:00:00'), 3600);
+  assert.equal(TimeToSec('00:00:01,5'), 1.5); // virgule décimale
+  assert.equal(TimeToSec('00:05'), 5);
+});
+
+test('convertJSON : tableau Whisper → { tabSeg, locut }', () => {
+  const arr = [
+    { start: 0, end: 1.5, text: 'Bonjour', avg_logprob: -0.1 },
+    { start: 1.5, end: 3, text: 'Salut', avg_logprob: -0.2 },
+  ];
+  const res = convertJSON(arr);
+  assert.equal(res.tabSeg.length, 2);
+  assert.equal(res.tabSeg[0][1], '0.00');
+  assert.equal(res.tabSeg[0][4], 'Bonjour');
+  assert.deepEqual(res.locut, ['']);
+});
+
+test('convertSRT : deux cues → formatSonal à 2 segments', () => {
+  const srt = [
+    '1', '00:00:00,000 --> 00:00:02,000', 'Bonjour le monde.', '',
+    '2', '00:00:02,000 --> 00:00:04,000', 'Salut tout le monde.',
+  ].join('\n');
+  const res = convertSRT(srt);
+  assert.equal((res.formatSonal.match(/class="lblseg/g) || []).length, 2);
+  assert.match(res.formatSonal, /Bonjour le monde\./);
+  assert.match(res.formatSonal, /Salut tout le monde\./);
+  assert.deepEqual(res.locuteurs, ['']); // aucun "Speaker N"
+});
+
+test('convertVTT : balises <v Nom> → locuteurs nommés', () => {
+  const vtt = [
+    'WEBVTT', '',
+    '00:00:00.000 --> 00:00:02.000', '<v Alice>Bonjour', '',
+    '00:00:02.000 --> 00:00:04.000', '<v Bob>Salut',
+  ].join('\n');
+  const res = convertVTT(vtt);
+  assert.deepEqual(res.locuteurs, ['', 'Alice', 'Bob']);
+  assert.match(res.formatSonal, /Bonjour/);
+  assert.match(res.formatSonal, /Salut/);
+});
+
+test('convertTXT : format C (texte brut) → un segment par ligne', () => {
+  const txt = 'Première ligne de texte.\nDeuxième ligne.';
+  const res = convertTXT(txt);
+  assert.equal((res.formatSonal.match(/class="lblseg/g) || []).length, 2);
+  assert.match(res.formatSonal, /Première ligne de texte\./);
+  assert.deepEqual(res.locuteurs, ['']);
+});
+
+test('convertTXT : format B ("Nom: texte") → locuteurs', () => {
+  const txt = 'Alice: Bonjour tout le monde\nBob: Salut';
+  const res = convertTXT(txt);
+  assert.deepEqual(res.locuteurs, ['', 'Alice', 'Bob']);
+  assert.match(res.formatSonal, /Bonjour tout le monde/);
+});
