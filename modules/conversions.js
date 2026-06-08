@@ -218,81 +218,14 @@ async function convertVTT(content) { // conversion du fichier VTT (WebVTT) en ta
 }
 
 
-function convertPURGE(content) { // converstion d'un fichier PURGE en tabseg
-
-    if (!content || content.length<1) {console.log("pas de contenu"); return;}
-
-    // split du texte par lignes \n
-        lignesFich = content.split("\n");
-        var nblig = lignesFich.length  ;       
-         
-        //récupération des locuteurs (première ligne)
-        let locut =  lignesFich[0].split("\t") ;
-       
-            
-        // récupération du segment courant (seconde ligne)
-        let lig = lignesFich[1].split("\t") ;
-        seg_cur=lig[1]
-        //seg_lu=lig[1]
-    
-        // récupération de la vitesse de lecture (troisième ligne)
-        lig = lignesFich[2].split("\t") ;
-         
-    
-    
-        // récupération des notes
-    
- 
-        let debutSegments=0 ;
-        let debutMemo=0;
-        let notes = "";
-    
-        for (s=3;s<nblig;s++){
-             
-            
-             
-            if (lignesFich[s].substr(0,6) == "Memo :") {debutMemo=s+1}
-            if (lignesFich[s].substr(0,9) == "Début\tFin") {debutSegments=(s+1);break;}
-            
-            if (s>=debutMemo){notes= notes + lignesFich[s] + " \r\n";} //ajout de la ligne aux notes
-    
-        }
-    
-    
-        
-    
-    
-        
-        // suppression des premières lignes puis importation des segments en masse
-        lignesFich.splice(0,debutSegments);
-    
-        var nbseg = lignesFich.length  ;
-        tabSeg = new Array(nbseg);
-
-        for (s=0;s<nbseg;s++){
-            tabSeg[s]=  new Array(6);
-        }
-      
-        
-        for (s=0;s<nbseg;s++){
-            
-            cases = lignesFich[s].split("\t") 
-            tabSeg[s][1]= cases[0]  ;
-            tabSeg[s][2]= cases[1];
-            tabSeg[s][3]= cases[2]; // locuteur
-            tabSeg[s][4]= cases[3] //
-            tabSeg[s][5]= false ; // non sélectionné par défaut
-            tabSeg[s][6]= 0;
-
-            
-        }
-    
-       let formatSonal = tabSegToSonal (tabSeg,locut, notes)
-
-             console.log("format sonal = \n", formatSonal);
-            return {formatSonal};
-         
-    };
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Le domaine renvoie { formatSonal, segCourant } ; on réapplique ici l'effet de bord
+// historique `seg_cur` (position atteinte), qui n'a pas sa place dans le code pur.
+function convertPURGE(content) {
+    const res = window.SonalDomain.conversions.convertPURGE(content);
+    if (res) seg_cur = res.segCourant;
+    return res; // { formatSonal, segCourant } — les appelants lisent .formatSonal
+}
     
 async function convertTXT(content,ext) { // conversion du fichier TXT en tableau
 
@@ -654,263 +587,33 @@ async function fusionTabAnon(tabAnonFich) { // mise à jour du tabAnon à partir
 }
 
 
-function extractFichierSonal(htmlString) {  
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlString, 'text/html');
-
-
-    function extractJSON(id) { // nettoyage et parsing d'un bloc JSON dans le HTML
-            const regex = new RegExp(
-                `<script[^>]*id=["']${id}["'][^>]*>([\\s\\S]*?)</script>`,
-                'i'
-            );
-            const match = htmlString.match(regex);
-            if (match) {
-                let content = '';
-                try {
-                    // Nettoyage  
-                    content = match[1]
-                        .replace(/\s+/g, ' ')           // Normaliser les espaces
-                        .replace(/,\s*,+/g, ',')        // Supprimer virgules multiples
-                        .replace(/^\s*,+\s*/, '')       // Retirer virgules au début
-                        .replace(/\s*,+\s*$/, '')       // Retirer virgules à la fin
-                        .replace(/{\s*,+\s*/, '{')      // Retirer virgules après {
-                        .replace(/,+\s*}/g, '}')        // Retirer virgules avant }
-                        .replace(/\[\s*,+\s*/, '[')     // Retirer virgules après [
-                        .replace(/,+\s*\]/g, ']')       // Retirer virgules avant ]
-                        .trim();
-
-                    // Supprimer les '}' terminaux en excès (accolades fermantes orphelines)
-                    (function removeOrphanClosingBraces() {
-                        const countOpen = s => (s.match(/{/g) || []).length;
-                        const countClose = s => (s.match(/}/g) || []).length;
-                        // Tant que le nombre de '}' est supérieur au nombre de '{', on enlève la dernière '}'
-                        while (countClose(content) > countOpen(content)) {
-                            content = content.replace(/}\s*$/, '');
-                        }
-                    })();
-
-                    // Retirer les accolades externes si elles encadrent un tableau/objet
-                    if (content.startsWith('{') && content.endsWith('}')) {
-                        let inner = content.slice(1, -1).trim();
-                        
-                        // Si le contenu interne est un tableau ou objet valide
-                        if (inner.startsWith('[') || inner.startsWith('{')) {
-                            content = inner;
-                        }
-                    }
-
-                
-                    if (!content || content.length < 2 || content === undefined || content === '{ undefined }') {
-                        //console.warn(`Aucun contenu trouvé pour ${id} après nettoyage.`);
-                        return null;
-                    }
-                    return JSON.parse(content);
-
-                } catch (e) {
-                    console.error(`Erreur parsing ${id}:`, e);
-                    console.log('Contenu complet qui a échoué:', content);
-                    return null;
-                }
-            }
-            return null;
-        }
-    
-    const tabLoc = extractJSON('loc-json');
-    const tabThm = extractJSON('cat-json');
-    const tabVar = extractJSON('var-json');
-    const tabDic = extractJSON('dic-json');
-    const tabDat = extractJSON('dat-json');
-    const tabAnon = extractJSON('anon-json');
-    
-     
-
-    const notes = doc.getElementById('txtnotes')?.innerHTML.trim() || '';
-    const html = doc.getElementById('contenuText')?.innerHTML.trim() || '';
-    
-    return { tabLoc, tabThm, tabVar, tabDic, tabDat,  notes, html, tabAnon };
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Le domaine reçoit le `doc` déjà parsé (il n'instancie pas DOMParser) — on le construit ici.
+function extractFichierSonal(htmlString) {
+    const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+    return window.SonalDomain.conversions.extractFichierSonal(htmlString, doc);
 }
 
-function Phrasifier(tabSeg){ // petite fonction visant à regrouper les segments en phrases
-
-    var nbseg = tabSeg.length ;
-    const finPhrase = new Set(['.', '?', '!'])
-    var asquizzer = [];
-
-        function fusionSegs(seg){
-
-            tabSeg[seg][4] = tabSeg[seg][4] + tabSeg[seg+1][4]; // fusion des textes
-            tabSeg[seg][2] = tabSeg[seg+1][2];
-
-            tabSeg.splice(seg+1,1);
-        
-
-        }
-    
-    for (s=0;s<tabSeg.length- 1;s++){
-
-        const str = tabSeg[s][4];
-        var endtxt = str.slice((str.length-1));
-        const estFin = finPhrase.has(endtxt) ;
-
-        if (estFin==false) {
-            //concaténation des séquences 
-
-            fusionSegs(s)
-            s --;
-        }
-
-        
-    }
-
-    affSegments(0)
-
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Le domaine mute tabSeg en place (fusion des phrases) ; le rafraîchissement UI
+// `affSegments(0)` reste ici (hors du code pur).
+function Phrasifier(tabSeg) {
+    window.SonalDomain.conversions.Phrasifier(tabSeg);
+    affSegments(0);
 }
 
-async function convertSpeaker(tabSeg) { // fonction permettant de récupérer les "speakers n" dans le srt et de créer un tableau de locuteurs
-
-    let rgmax = 0;
-    locut = [''] // locut[0] n'existe pas
-
-    for (s = 0; s< tabSeg.length;s++){
-
-        let txt = tabSeg[s][4]
-
-        if (!txt || txt.trim() === ""){continue} // segment vide    
-
-        let spk = txt.indexOf("Speaker ") // recherche d'un speaker
-
-        if (spk == 0) { // récupération du rang
-
-            let rg = txt.substr(8,1)
-            rg = Number(rg)+1               
-
-            tabSeg[s][3] = rg  //affectation du locuteur
-
-            // faut-il ajouter un nouveau locuteur dans le tableau des locuteurs ?
-            // le nomLoc existe-til déjà dans le tableau des locuteurs ?
-            let nomLoc = "Speaker " + (rg);
-
-            if (!locut.includes(nomLoc)) {
-                locut.push(nomLoc);
-            }
-
-            /*
-            if (rgmax < rg+1) {
-                rgmax = rg+1 
-                locutTemp.push("Speaker " + (rg+1))
-            }; // mémorisation du speaker le plus élevé atteint
-            */
- 
-            //suppression du préfixe "speaker"
-            tabSeg[s][4] = txt.substr(11)
-            
-        } 
-
-        //suppression des "speaker 0 etc.", qui apparaissent de manière intempestive dans le corps du texte
-        // on ne garde que ceux qui figurent au début des segments
-        for (i=0;i<10;i++){
-            tabSeg[s][4] = tabSeg[s][4].replaceAll("Speaker " + i + ":","")
-        }     
- 
-    };
-
-    console.log("locuteurs identifiés dans convert speakers: ", locut);
-
-    /*
-    // stocker dans le main via preload API si disponible
-    if (window && window.electronAPI && typeof window.electronAPI.setTabLoc === 'function') {
-        try {
-            await window.electronAPI.setTabLoc(locutTemp);
-        } catch (err) {
-            console.error('Erreur setTabLoc:', err);
-            // fallback to window global
-            window.tabLocImport = locutTemp;
-        }
-    } else {
-        window.tabLocImport = locutTemp; // fallback
-    }
-    */  
-
-    return { tabSeg, locut }
- 
-
-
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+// Le domaine mute tabSeg et renvoie { tabSeg, locut } ; on restaure le global
+// `locut` (canal historique encore lu par convertSRT/VTT/JSON).
+async function convertSpeaker(tabSeg) {
+    const res = window.SonalDomain.conversions.convertSpeaker(tabSeg);
+    locut = res.locut;
+    return res;
 }
 
-function tabSegToSonal(tabSeg,locut,notes){
-
-let html =`
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fichier Whispurge</title>
-   <link href="http://www.sonal-info.com/WHSPRG/CSS/Styles.css" rel="stylesheet"  type="text/css">  
-   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous"> 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-</head>
-    
-<body>` 
-
- 
-// ajour éventuel des locuteurs
-if (locut && locut.length>1){
-
-    const locJSON = JSON.stringify(locut, null);
-
-    html += `
-    <script id="loc-json" type="application/json">
-        
-            ` + locJSON + `         
-        
-        </script> 
-        `;
-}
-
-
-html += `<div id="contenuText"> 
-`
- 
-    var rkMax=1;
-    var sgMax=1; 
-
-    for (s=0;s<tabSeg.length;s++){
-        
-        
-        // création des spans internes
-        if (!tabSeg[s][4] || tabSeg[s][4].length == 0 || tabSeg[s][4].trim() === ""){continue}
-
-        html += `<span class="lblseg sautlig" 
-        data-deb="${tabSeg[s][1]}" 
-        data-fin="${tabSeg[s][2]}" 
-        data-loc="${tabSeg[s][3]}"
-        tabindex="${rkMax}" 
-        data-rksg="${sgMax}"
-        >`
-
-
-
-        // Un seul span compacté par segment : data-len = nombre d'éléments (mots, ponctuations, espaces)
-        var texte = tabSeg[s][4];
-        const elements = texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
-
-        html += `<span data-rk="${rkMax}" data-sg="${sgMax}" data-len="${elements.length}">${texte}</span></span>`;
-        rkMax += elements.length;
-
-        sgMax++;
-    }
-
-    html += `</div>
-    </body>
-    </html>`
-     
-    html=String(html);
-
-    return html;
-
+// [PlanPoo — slice conversions] Délègue au domaine pur (domain/conversions.mjs).
+function tabSegToSonal(tabSeg, locut, notes) {
+    return window.SonalDomain.conversions.tabSegToSonal(tabSeg, locut, notes);
 }
 
 

@@ -11,9 +11,11 @@ import { Entretien } from './entretien.mjs';
 import { Categorie, Codebook } from './codebook.mjs';
 import { RegleAnon, fusionnerReglesAnon } from './anonymisation.mjs';
 import { Document, Segment, Fragment, Extrait, renumeroter, HistoriqueDocument } from './document.mjs';
+import * as conversions from './conversions.mjs';
 
 window.SonalDomain = {
   parseCorpus, serializeCorpus, parseSonal, serializeSonal, metadonnees,
   Entretien, Corpus, Categorie, Codebook, RegleAnon, fusionnerReglesAnon,
   Document, Segment, Fragment, Extrait, renumeroter, HistoriqueDocument,
+  conversions,
 };
