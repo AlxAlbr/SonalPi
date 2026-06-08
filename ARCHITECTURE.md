@@ -72,12 +72,36 @@ renderer:  const corpus = SonalDomain.Corpus.fromParts({ corpus, tabEnt, tabVar,
 Donc les classes de `src/domain` sont des **wrappers de lecture + logique pure**, pas des objets
 vivants détenteurs de l'état. C'est un **choix assumé** (cf. PlanPoo §6).
 
-**Coexistence transitoire (IPC hybride)** : pour les opérations EAV (variables / modalités / valeurs),
-ce cycle a été remplacé par des **commandes** (`corpus:ajouterVariable`, `corpus:modifierVariable`,
-`corpus:supprimerVariable`, `entretien:definirValeur`, `corpus:renommerModalite`) qui exécutent le
-domaine côté **main** et renvoient directement les tranches modifiées (`{ ok, tabVar, tabDic, … }`).
-Le renderer les utilise sans re-pull séparé. Les autres globaux (`tabEnt`, `tabThm`, `Corpus` méta)
-restent sur le cycle get/set legacy — les deux coexistent intentionnellement.
+### Coexistence assumée des deux patterns IPC (et pourquoi on s'arrête là)
+
+Deux styles d'IPC d'écriture **coexistent volontairement**, et ce n'est **pas un état transitoire** à
+résorber — c'est un point d'arrêt délibéré.
+
+- **EAV (variables / modalités / valeurs) → commandes.** Le cycle pull-mutate-push a été remplacé par
+  des **commandes** (`corpus:ajouterVariable`, `corpus:modifierVariable`, `corpus:supprimerVariable`,
+  `entretien:definirValeur`, `corpus:renommerModalite`) qui exécutent le domaine côté **main** et
+  renvoient directement les tranches modifiées (`{ ok, tabVar, tabDic, … }`). Le renderer les utilise
+  sans re-pull séparé.
+- **Tout le reste (`tabEnt`, `tabThm`, `Corpus` méta…) → get/set legacy.** Cycle pull-mutate-push
+  inchangé.
+
+**Pourquoi l'EAV et pas le reste ?** Parce que l'EAV était le seul bloc *bon marché* à migrer : ses
+fonctions de commande (`ajouterVariable`, `definirValeur`…) **existaient déjà** dans
+[metadonnees.mjs](src/domain/metadonnees.mjs) depuis le refactoring d'étape 1 (PlanPoo). La migration
+n'a donc été que du *câblage*. Les blocs suivants n'ont **pas** ces fonctions :
+[entretien.mjs](src/domain/entretien.mjs), [codebook.mjs](src/domain/codebook.mjs) et
+[anonymisation.mjs](src/domain/anonymisation.mjs) n'exposent que des classes — il faudrait *écrire* la
+logique de commande. Et le candidat le plus naturel (l'ajout d'entretien) est surtout de l'**I/O et de
+la conversion de format**, pas de la logique pure : peu adapté au modèle commande.
+
+**Pourquoi c'est volontaire (et non « pas fini ») ?** La motivation phare de cette évolution
+(cf. [PlanPoo2.md](PlanPoo2.md)) était la **synchro multi-fenêtres gratuite** via événements. Or les
+vues de cette app **s'excluent mutuellement** (ouvrir l'une ferme les autres) : il n'y a jamais deux
+copies vivantes du modèle à synchroniser. Le bénéfice phare est donc **sans objet ici**. La vraie
+valeur — un domaine pur, isolé et testé — **a déjà été capturée par l'étape 1** ; les commandes ne
+font que déplacer *où* ce domaine s'exécute. Migrer le reste coûterait cher (écrire du domaine neuf
+pour des opérations I/O-lourdes) pour un gain quasi nul. **Décision : l'EAV reste un pilote démontré,
+le reste reste sur get/set, et l'architecture hybride est le point d'équilibre assumé.**
 
 **Source de vérité par donnée** (cf. MODELE_OBJET §3) : les **valeurs** (`tabDat`) sont maîtres dans
 le **`.sonal`** de chaque entretien ; les **définitions** (`tabVar`/`tabDic`) et le codebook

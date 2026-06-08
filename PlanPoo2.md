@@ -4,6 +4,17 @@
 > c'est un **deuxième chantier, optionnel et d'une autre nature** — un changement d'**architecture**.
 > À ne lancer que sur une **branche dédiée**, après avoir mesuré l'effort. Le premier chantier
 > (PlanPoo) est terminé et autosuffisant ; l'app fonctionne sans celui-ci.
+>
+> **🛑 État réel à l'arrêt (à lire avant le reste).** Ce chantier a été **partiellement réalisé puis
+> arrêté volontairement**. Concrètement, seules les **commandes EAV** (variables / modalités / valeurs,
+> §2) sont en place ; le reste de la *surface cible* décrite ci-dessous est resté **prospectif**.
+> Surtout, la famille **« événements » + l'Étape C (synchro multi-fenêtres) a été tentée puis RETIRÉE**
+> (cf. §4) : dans cette app les vues **s'excluent mutuellement** (ouvrir l'une ferme les autres), donc
+> il n'y a jamais deux copies vivantes du modèle à synchroniser — le bénéfice qui motivait toute
+> l'architecture événements est **sans objet**. **L'architecture retenue se limite donc à
+> commandes + requêtes** (pas d'événements). Les sections §2 et §7 ci-dessous décrivent la *cible
+> initiale* et sont conservées comme trace de réflexion : lire chaque mention d'« événements » /
+> « Étape C » à la lumière de cet encart.
 
 ---
 
@@ -90,21 +101,29 @@ MAIN (modèle vivant)                         RENDERER(s) (vue)
   StorageFactory (déjà là, Phase 1)
 ```
 
-Bonus structurel : les **événements diffusés à toutes les fenêtres** rendent la **synchro
-multi-fenêtres gratuite** (fini le « push puis re-pull / rafraîchir » manuel).
+~~Bonus structurel : les **événements diffusés à toutes les fenêtres** rendent la **synchro
+multi-fenêtres gratuite** (fini le « push puis re-pull / rafraîchir » manuel).~~
+> ⚠️ Ce « bonus » était la motivation centrale — il s'est révélé **sans objet** : les vues s'excluent
+> (ouvrir l'une ferme les autres), donc pas de multi-fenêtres à synchroniser. Événements abandonnés (§4).
 
 ---
 
 ## 2. Surface IPC cible (CQRS-léger)
 
-Trois familles remplacent les `get-*`/`set-*` :
+> ⚠️ **Cible initiale (CQRS-léger à trois familles), partiellement abandonnée.** Telle qu'imaginée
+> au départ, la surface visait trois familles. **La famille « Événements » a finalement été abandonnée**
+> (cf. encart en tête + §4) : l'archi réelle se limite à **commandes + requêtes**, et les commandes
+> **n'émettent pas d'événement** — elles **renvoient directement l'état modifié** dans leur retour
+> (`{ ok, tabVar, tabDic, … }`). La table « Événements » plus bas est barrée pour cette raison.
+
+Trois familles étaient visées pour remplacer les `get-*`/`set-*` :
 - **Commandes** (renderer → main, `invoke`) : verbe d'intention ; le main mute l'agrégat, **persiste**,
-  **émet un événement** ; retourne `{ok, …}`.
+  retourne `{ok, …}` **avec les tranches d'état modifiées** (et non un événement — cf. encart).
 - **Requêtes** (renderer → main, `invoke`) : lire pour afficher ; retourne un **snapshot** (`toJSON`),
   jamais muté par le renderer.
-- **Événements** (main → fenêtres, `send`) : « l'état a changé » → re-render.
+- ~~**Événements** (main → fenêtres, `send`) : « l'état a changé » → re-render.~~ **Abandonné** (§4).
 
-Convention : `agrégat:verbe` (commande), `agrégat:état` (requête), `agrégat:participePassé` (événement).
+Convention : `agrégat:verbe` (commande), `agrégat:état` (requête). ~~`agrégat:participePassé` (événement).~~
 
 ### Commandes — Corpus (cycle de vie)
 | Canal | Charge | Retour |
@@ -144,19 +163,28 @@ Convention : `agrégat:verbe` (commande), `agrégat:état` (requête), `agrégat
 | `entretien:document` `{id}` | `{html, notes, …}` |
 | `corpus:donnees` | vue calculée (union `tabDat`) si besoin |
 
-### Événements (main → fenêtres)
-| Canal | Charge |
-|---|---|
-| `corpus:ouvert` | `{etat}` |
-| `corpus:modifie` | `{etat}` (ou un delta) |
-| `entretien:modifie` | `{id}` |
-| `entretien:verrou-change` | `{id, verrouille, utilisateur}` |
-| `progression` | `{message, pourcent}` |
+### ~~Événements (main → fenêtres)~~ — ABANDONNÉ (cf. encart en tête + §4)
+> Famille **non retenue** : les vues s'excluent mutuellement, donc rien à synchroniser entre fenêtres.
+> Les commandes renvoient l'état modifié dans leur retour ; pas de canal `send` côté main.
+> Table conservée pour mémoire de la cible initiale uniquement.
 
-### Disparaissent
-`get-corpus`/`set-corpus`, `get-ent`/`set-ent`, `get-var`/`set-var`, `get-dic`/`set-dic`,
+| ~~Canal~~ | ~~Charge~~ |
+|---|---|
+| ~~`corpus:ouvert`~~ | ~~`{etat}`~~ |
+| ~~`corpus:modifie`~~ | ~~`{etat}` (ou un delta)~~ |
+| ~~`entretien:modifie`~~ | ~~`{id}`~~ |
+| ~~`entretien:verrou-change`~~ | ~~`{id, verrouille, utilisateur}`~~ |
+| ~~`progression`~~ | ~~`{message, pourcent}`~~ |
+
+### Disparaissent (cible initiale — **non atteinte**, voir encart)
+> En pratique, seuls `get-var`/`set-var` et `get-dic`/`set-dic` sont *partiellement* court-circuités par
+> les commandes EAV (qui renvoient l'état). Tous les autres get/set ci-dessous **sont conservés** : le
+> chantier s'est arrêté à l'EAV.
+
+~~`get-corpus`/`set-corpus`, `get-ent`/`set-ent`, `get-var`/`set-var`, `get-dic`/`set-dic`,
 `get-dat`/`set-dat`, `get-thm`/`set-thm` → remplacés par `corpus:etat` (lecture) + commandes
-(écriture) + événements (synchro). Fin du cycle « pull → muter → push » et de la double tenue de cache.
+(écriture) + événements (synchro).~~ Cible non atteinte ; pas d'événements (abandonnés). Le cycle
+« pull → muter → push » **survit** pour tout sauf l'EAV.
 
 ---
 
@@ -192,8 +220,9 @@ le temps de migrer les appelants un par un.
 2. **Étape B — Commandes en parallèle (strangler).** Ajouter les canaux `corpus:*`/`entretien:*` ;
    migrer les appelants du renderer de « pull-mutate-push » vers « envoyer une commande », **un par un**.
    Les shims get/set restent tant que tous les appelants ne sont pas migrés.
-3. **Étape C — Événements + vues réactives.** Émettre `corpus:modifie` après chaque commande ;
-   les fenêtres se re-rendent depuis l'état reçu ; supprimer les rafraîchissements manuels.
+3. ~~**Étape C — Événements + vues réactives.** Émettre `corpus:modifie` après chaque commande ;
+   les fenêtres se re-rendent depuis l'état reçu ; supprimer les rafraîchissements manuels.~~
+   **❌ ABANDONNÉE** (tentée puis retirée — voir le bloc d'avancement plus bas).
 4. **Étape D — Retrait des shims.** Une fois plus aucun appelant get/set, supprimer ces canaux.
 5. **Étape E — Nettoyage.** Les fonctions libres de mutation du renderer deviennent de minces
    émetteurs de commandes ; la logique vit dans l'agrégat (main).
@@ -245,20 +274,20 @@ le temps de migrer les appelants un par un.
 > réécrire toutes les lectures) est donc **chère et risquée à cause de `Corpus`**, pour un bénéfice
 > surtout interne (le main tiendrait un agrégat vivant). Une consolidation *EAV-only* serait petite
 > (~12 sites hors handlers) mais à bénéfice modeste. **Décision : ne pas consolider pour l'instant** —
-> l'architecture commande + (à venir) événements donne l'essentiel ; la consolidation reste un
+> l'architecture commande (les événements ont été abandonnés, cf. plus bas) donne l'essentiel ; la consolidation reste un
 > **idéal lointain optionnel**.
 >
-> **🟡 Étape C — slice 1 FAITE (synchro multi-fenêtres, à valider GUI).** Le main diffuse
-> `corpus:modifie` à toutes les fenêtres **SAUF l'émettrice** (`diffuserCorpusModifie(_e.sender)`)
-> après les 5 commandes EAV ; `preload` expose `onCorpusModifie` ; `gestion_data.js` (chargé dans les
-> 2 fenêtres) écoute et **rafraîchit la vue de données si elle est ouverte** (`affichDataEnt` /
-> `affichDataGen`, idempotentes + re-tirent l'état). Additif : la fenêtre émettrice est exclue (pas de
-> double-rendu/boucle). **Valeur** : éditer dans une fenêtre rafraîchit l'autre — impossible avant.
-> **À valider GUI** : 2 fenêtres ouvertes, éditer dans l'une → l'autre se met à jour.
-> **Portée** : ciblé EAV + vues de données. Un Étape C complet diffuserait après *toutes* les
-> commandes avec un rafraîchissement plus général.
-> **Suite possible** : autres blocs de commandes (entretiens/codebook/anon), élargir la diffusion,
-> ou s'arrêter là (l'archi commande+événements est démontrée de bout en bout).
+> **❌ Étape C — TENTÉE puis RETIRÉE (multi-fenêtres sans objet).** Une première slice avait été
+> posée : le main diffusait `corpus:modifie` à toutes les fenêtres sauf l'émettrice
+> (`diffuserCorpusModifie`), `preload` exposait `onCorpusModifie`, et `gestion_data.js` rafraîchissait
+> la vue de données si elle était ouverte. **Ce code a été entièrement retiré.** Raison : dans cette
+> app, **les vues s'excluent mutuellement** — ouvrir une fenêtre ferme les autres, donc il n'y a jamais
+> deux copies vivantes du modèle à synchroniser. Le bénéfice phare de l'Étape C (synchro multi-fenêtres
+> gratuite, qui motivait toute l'architecture événements) est donc **sans objet ici**. Aucune trace
+> dans le code : ni `diffuserCorpusModifie`, ni `onCorpusModifie`, ni le canal `corpus:modifie`.
+> **Conséquence** : l'Étape C est abandonnée pour de bon (pas « à faire plus tard »), et avec elle la
+> famille « événements » de la surface IPC cible (§2). L'archi retenue se limite à **commandes +
+> requêtes** ; les commandes renvoient directement l'état modifié (cf. bloc EAV ci-dessus).
 
 ---
 
@@ -270,8 +299,9 @@ le temps de migrer les appelants un par un.
   fluide **et** la vérité dans le main. (Lève la tension « vue mince vs édition lourde ».)
 - **Verrous / collaboratif.** Les commandes côté main sont le bon endroit pour centraliser les
   verrous (vérifier/poser avant mutation distante) — à valider en **distant/gitlab** (dette héritée).
-- **Coût de sérialisation.** `corpus:etat` renvoie un gros snapshot ; préférer des **événements delta**
-  (`entretien:modifie {id}` + requête ciblée) pour les gros corpus, plutôt que renvoyer tout l'état.
+- **Coût de sérialisation.** ~~`corpus:etat` renvoie un gros snapshot ; préférer des **événements delta**
+  (`entretien:modifie {id}` + requête ciblée) pour les gros corpus.~~ *Garde-fou caduc (pas d'événements).*
+  En pratique les commandes EAV renvoient déjà des **deltas** (les seules tranches touchées), pas tout l'état.
 - **Atomicité.** Une commande = une transaction (muter + persister + émettre). En cas d'échec de
   persistance, ne pas émettre / rollback l'agrégat.
 - **Tests.** L'agrégat enrichi de commandes reste **pur et testable en Node** (les commandes
@@ -281,28 +311,38 @@ le temps de migrer les appelants un par un.
 
 ## 6. Critères de réussite
 
-- Plus aucun `get-*`/`set-*` de **données métier** dans l'IPC (remplacés par commandes/requêtes/événements).
-- `Corpus` (main) est l'**unique** détenteur de l'état ; les fenêtres n'ont que des vues dérivées.
-- Les **deux fenêtres restent synchronisées** sans rafraîchissement manuel (via événements).
-- Le domaine `src/domain/*` est réutilisé **tel quel** comme modèle du main (peu de modifications).
-- App iso-fonctionnelle pour l'utilisateur ; formats `.crp`/`.sonal` toujours préservés (golden).
-- Validé en GUI **local ET distant/gitlab**.
+> Critères de la **cible initiale**. Le chantier ayant été arrêté à l'EAV (et les événements
+> abandonnés, cf. encart en tête), plusieurs ne s'appliquent plus — annotés ci-dessous.
+
+- ~~Plus aucun `get-*`/`set-*` de **données métier** dans l'IPC~~ — **non atteint / non visé** : seul l'EAV
+  est passé en commandes ; le reste reste volontairement sur get/set (cf. §4 et ARCHITECTURE.md).
+- ~~`Corpus` (main) est l'**unique** détenteur de l'état~~ — **non visé** : consolidation reportée (§4).
+- ~~Les deux fenêtres restent synchronisées sans rafraîchissement manuel (via événements).~~
+  **Abandonné** : pas de multi-fenêtres simultané (les vues s'excluent), donc rien à synchroniser.
+- Le domaine `src/domain/*` est réutilisé **tel quel** comme modèle du main (peu de modifications). ✅ (EAV)
+- App iso-fonctionnelle pour l'utilisateur ; formats `.crp`/`.sonal` toujours préservés (golden). ✅
+- Validé en GUI **local ET distant/gitlab**. 🟡 reste à valider (distant/gitlab + commandes 🟡 de §4).
 
 ---
 
-## 7. Ordre conseillé (récap)
+## 7. Ordre conseillé (récap) — *ce qui a réellement été fait en gras*
 
 ```
-0. Brancher (archi-niveau2) ───────────────────────────────────────────►
-1. Décider l'exécution du domaine dans le main (import dynamique)
-2. Étape A : agrégat Corpus dans le main, derrière shim get/set
-3. Étape B : canaux commandes, migration des appelants un par un (strangler)
-4. Étape C : événements + vues réactives
-5. Étape D : retrait des shims get/set
-6. Étape E : nettoyage des fonctions libres → émetteurs de commandes
+0. Brancher (archi-niveau2) ───────────────────────────────────────────►  ✅ fait (branche TestPoo2)
+1. Décider l'exécution du domaine dans le main (import dynamique)          ✅ fait (helper domaine())
+2. Étape A : agrégat Corpus dans le main, derrière shim get/set            ⏸ reportée (consolidation, §4)
+3. Étape B : canaux commandes, migration des appelants un par un           ✅ partiel : bloc EAV uniquement
+4. Étape C : événements + vues réactives                                   ❌ abandonnée (tentée puis retirée, §4)
+5. Étape D : retrait des shims get/set                                     ⏸ non fait (get/set conservés)
+6. Étape E : nettoyage des fonctions libres → émetteurs de commandes       ⏸ non fait
 ```
 
-> Rappel final : ce chantier est **optionnel**. L'étape 1 a déjà isolé et testé le métier ; l'étape 2
-> ne se justifie que si l'on veut réellement des **objets vivants détenteurs de la vérité** (vraies
-> commandes, synchro multi-fenêtres native). Sinon, l'architecture actuelle (main = vérité via
-> wrappers) est saine et suffisante.
+> **Point d'arrêt réel** : seules les étapes 0, 1 et **B-pour-l'EAV** sont en place. L'Étape C
+> (événements) est **abandonnée définitivement** ; les étapes A, D, E sont **reportées** sans échéance.
+
+> Rappel final : ce chantier est **optionnel**, et il a été **arrêté volontairement** après l'EAV.
+> L'étape 1 (PlanPoo) a déjà isolé et testé le métier ; l'étape 2 ne se justifierait pleinement que
+> si l'on voulait des **objets vivants détenteurs de la vérité** ET une **synchro multi-fenêtres** —
+> or cette dernière est **sans objet ici** (les vues s'excluent). L'architecture actuelle
+> (main = vérité via wrappers + commandes EAV) est **saine et suffisante** ; c'est le point d'équilibre
+> assumé (voir aussi [ARCHITECTURE.md](ARCHITECTURE.md), section « Coexistence assumée des deux patterns IPC »).
