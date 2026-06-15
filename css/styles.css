@@ -3898,11 +3898,15 @@ SYNTHESE
     word-wrap: break-word;
     overflow-wrap: break-word;
     white-space: pre-wrap;
-    height: 30px!important;
+    /* La hauteur est gérée par autoGrowTextarea (style inline) : la ligne s'adapte
+       au contenu. min-height = hauteur d'une ligne, max-height = plafond avant scroll. */
+    min-height: 30px;
+    height: auto;
     max-height: 150px;
     resize: none;
     display: block;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .tableau-anon input:focus {

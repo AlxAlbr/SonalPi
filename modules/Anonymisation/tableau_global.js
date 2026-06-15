@@ -232,20 +232,7 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         const legende = document.createElement("div");
         legende.style.cssText = "padding:8px 12px;background:#f5f5f5;border-bottom:1px solid #eee;font-size:11px;color:#555;display:flex;flex-direction:column;gap:5px;";
         legende.innerHTML = `
-            <div style="display:flex;align-items:center;gap:6px;">
-                <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#ff9800;flex-shrink:0;"></span>
-                <span>Entretien avec occurrences non traitées</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-                <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#558b2f;flex-shrink:0;"></span>
-                <span>Entretien traité (occurrences anonymisées ou en exception)</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:14px;margin-top:2px;">
-                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#4caf50;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> anonymisées</span>
-                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#555;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> exceptions</span>
-                <span style="display:inline-flex;align-items:center;gap:4px;"><span style="background:#ff9800;color:white;border-radius:3px;padding:0 5px;font-size:11px;">N</span> à traiter</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:14px;margin-top:2px;border-top:1px solid #e0e0e0;padding-top:4px;">
+            <div style="display:flex;align-items:center;gap:14px;">
                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="font-size:13px;line-height:1;">🚫</span> Mettre cette occurrence en exception</span>
                 <span style="display:inline-flex;align-items:center;gap:4px;"><span style="font-size:14px;line-height:1;color:#1976d2;">↗</span> Voir l'occurrence dans l'entretien</span>
             </div>
@@ -773,6 +760,18 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
 }
 
 /**
+ * Ajuste la hauteur d'un textarea pour afficher tout son contenu sans barre de
+ * défilement (les pseudos longs s'enroulent sur plusieurs lignes).
+ * Nécessite que le textarea soit déjà inséré dans le DOM (scrollHeight = 0 sinon).
+ * @param {HTMLTextAreaElement} ta
+ */
+function autoResizeTextarea(ta) {
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+}
+
+/**
  * Échappe les caractères HTML
  */
 function escapeHtml(text) {
@@ -963,7 +962,16 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
                 if (cur === finselSpan) break;
                 cur = cur.nextSibling;
             }
-            
+
+            // FILTRE par entité réelle (Fix B) : cette passe sélectionne les spans par
+            // data-pseudo uniquement. Or deux entités distinctes peuvent partager le même
+            // pseudo → sans ce contrôle, on compterait les occurrences de l'AUTRE entité.
+            // On ne garde donc que celles dont le texte d'origine correspond à l'entité
+            // cherchée (comparaison des mots normalisés, comme le pré-filtre du scan).
+            const entityNorm = motsCles(entityText).join(' ');
+            const correspondEntite = parseAliases(entite).some(a => motsCles(a).join(' ') === entityNorm);
+            if (!correspondEntite) continue;
+
             const rawAvant = collectContext(spanDebsel, 'before');
             const rawApres = collectContext(finselSpan, 'after');
             
@@ -1018,87 +1026,6 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
         console.error("Erreur dans trouverOccurrencesDansDoc():", error);
         return [];
     }
-}
-
-/**
- * Pré-filtre du scan corpus : indique si l'entité PEUT figurer dans un entretien,
- * en testant si au moins un de ses alias (séparés par « / ») a tous ses tokens
- * présents dans l'ensemble des mots de l'entretien (insensible à la casse).
- * Conservateur : ne doit jamais écarter un entretien qui contient réellement l'entité
- * (les spans déjà pseudonymisés/exclus conservent le mot original dans leur textContent).
- * @param {string} entite
- * @param {Set<string>} motsPresents - mots (lowercased) présents dans l'entretien
- * @returns {boolean}
- */
-function entitePeutEtrePresente(entite, motsPresents) {
-    return entite.split('/').some(alias => {
-        // Découper sur espaces ET séparateurs non-alpha (tirets, apostrophes…)
-        // pour correspondre à la tokenisation de cleanHTML (un span par mot/signe).
-        const tokens = alias.trim().toLowerCase().split(/[\s \-’‘']+/).filter(t => t);
-        return tokens.length > 0 && tokens.every(t => motsPresents.has(t));
-    });
-}
-
-/**
- * Scan « état » du corpus (Phase 2, §4) : pour chaque paire (entité, pseudo),
- * agrège sur tous les entretiens le nombre d'occurrences anonymisées / exceptions /
- * non traitées, et le nombre d'entretiens où l'entité apparaît.
- * Optimisé par la passe unique : un seul parse HTML par entretien + pré-filtre par Set de mots.
- * Met à jour la barre de progression globale si disponible.
- * @param {Array} anonValides - paires {entite, remplacement}
- * @param {Array} tabEnt - entretiens (l'index dans ce tableau = index getHtml)
- * @returns {Promise<Map<string,{nbAnon:number,nbExc:number,nbNon:number,nbEntretiens:number}>>}
- *          clé = `${entite.trim()}|${remplacement.trim()}`
- */
-async function scannerEtatCorpus(anonValides, tabEnt) {
-    const stats = new Map();
-    for (const a of anonValides) {
-        stats.set(`${a.entite.trim()}|${a.remplacement.trim()}`,
-                  { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
-    }
-
-    const n = tabEnt.length;
-    for (let i = 0; i < n; i++) {
-        let html = null;
-        try { html = await window.electronAPI.getHtml(i); } catch (e) { html = null; }
-
-        if (typeof updateProgressBar === 'function') {
-            updateProgressBar(Math.round(((i + 1) / n) * 100));
-        }
-
-        if (html) {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = html;
-
-            // Pré-filtre : un seul Set de mots pour tout l'entretien.
-            const motsPresents = new Set();
-            tempDiv.querySelectorAll('[data-rk]').forEach(s => {
-                const t = s.textContent.trim();
-                if (t) motsPresents.add(t.toLowerCase());
-            });
-
-            for (const a of anonValides) {
-                const entite = a.entite.trim();
-                const pseudo = a.remplacement.trim();
-                if (!entitePeutEtrePresente(entite, motsPresents)) continue;
-
-                const occ = trouverOccurrencesDansDoc(tempDiv, entite, pseudo);
-                if (occ.length === 0) continue;
-
-                const st = stats.get(`${entite}|${pseudo}`);
-                if (!st) continue;
-                st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
-                st.nbExc  += occ.filter(o => o.exclue).length;
-                st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
-                st.nbEntretiens += 1;
-            }
-        }
-
-        // Laisser respirer l'UI (rendu de la barre de progression) périodiquement.
-        if (i % 5 === 4) await new Promise(r => setTimeout(r, 0));
-    }
-
-    return stats;
 }
 
 /**
@@ -1579,6 +1506,120 @@ function initAnonPageResizer(pageAnon) {
 }
 
 /**
+ * Dimensionne le panneau gauche (table des pseudonymes) sur la largeur NATURELLE
+ * de son tableau, au lieu du 33 % fixe qui tronquait les colonnes sur petit écran.
+ * - Mesure la largeur réelle du tableau rendu (table.scrollWidth) : elle reflète la
+ *   somme des colonnes même quand le panneau est trop étroit pour les afficher.
+ * - Borne le résultat entre un minimum lisible et une fraction de la page (pour
+ *   laisser de la place au panneau de droite).
+ * - Ne fait RIEN si l'utilisateur a déjà choisi une largeur via le séparateur
+ *   (valeur mémorisée en %), afin de respecter son réglage.
+ * @param {HTMLElement} pageAnon - conteneur #divAnonGenPage
+ * @param {HTMLElement} gauche - panneau gauche (.anon-page-gauche)
+ * @param {HTMLTableElement} table - la table des pseudonymes
+ */
+function ajusterLargeurPanneauGauche(pageAnon, gauche, table) {
+    if (!pageAnon || !gauche || !table) return;
+
+    // Respecter une largeur déjà ajustée manuellement (mémorisée en %).
+    const saved = parseFloat(localStorage.getItem('anonPageGaucheWidth'));
+    if (!isNaN(saved)) return;
+
+    const largeurTable = table.scrollWidth;
+    if (!largeurTable) return; // page non encore visible : mesure impossible
+
+    // Marge : padding gauche du conteneur + largeur d'une barre de défilement.
+    const CHROME = 28;
+    const largeurPage = pageAnon.getBoundingClientRect().width || window.innerWidth;
+    const MIN_PX = 280;
+    const MAX_PX = largeurPage * 0.65; // ne jamais dépasser 65 % pour garder le panneau droit utile
+
+    const cible = Math.max(MIN_PX, Math.min(largeurTable + CHROME, MAX_PX));
+    gauche.style.flexBasis = Math.round(cible) + 'px';
+}
+
+/**
+ * Crée l'encart-légende repliable du panneau gauche (corpus), inspiré de
+ * #legende-anon côté entretien. Comportement type « fenêtre » :
+ *  - bouton « – » pour réduire, « ▢ » pour réagrandir ;
+ *  - déployé à la 1re ouverture après chaque démarrage de l'app, puis l'état
+ *    suit le choix de l'utilisateur pour le reste de la session
+ *    (flag de session window._anonLegendeReduite, remis à zéro à chaque lancement).
+ * Peut être rouvert via ouvrirLegendeCorpus() (bouton « ? »).
+ * @returns {HTMLElement}
+ */
+function creerEncartLegendeCorpus() {
+    // État de SESSION (window, remis à zéro à chaque lancement de l'app) plutôt que
+    // localStorage : l'encart est déployé à la 1re ouverture après chaque démarrage,
+    // et reste replié pour le reste de la session si l'utilisateur le replie.
+    if (typeof window._anonLegendeReduite === 'undefined') {
+        window._anonLegendeReduite = false; // 1er rendu de la session → déployé
+    }
+
+    const encart = document.createElement('div');
+    encart.id = 'anon-corpus-legende';
+    encart.className = 'anon-corpus-legende';
+
+    const header = document.createElement('div');
+    header.className = 'anon-corpus-legende-header';
+    header.innerHTML = `<span style="font-weight:600;">ℹ️ Légende</span>`;
+
+    const btnToggle = document.createElement('button');
+    btnToggle.className = 'anon-corpus-legende-toggle';
+    header.appendChild(btnToggle);
+
+    const contenu = document.createElement('div');
+    contenu.className = 'anon-corpus-legende-contenu';
+    contenu.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-anon" style="pointer-events:none;">N</span> anonymisées</span>
+            <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-exc" style="pointer-events:none;">N</span> exceptions</span>
+            <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-non" style="pointer-events:none;">N</span> à traiter</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#fff3e0;border:1px solid #ffb74d;display:inline-block;flex-shrink:0;"></span>ligne orange = occurrences à traiter</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#e8f5e9;border:1px solid #a5d6a7;display:inline-block;flex-shrink:0;"></span>ligne verte = entièrement traité</span>
+        </div>
+    `;
+
+    encart.appendChild(header);
+    encart.appendChild(contenu);
+
+    const appliquerEtat = (reduit) => {
+        contenu.style.display = reduit ? 'none' : '';
+        btnToggle.textContent = reduit ? '▢' : '–';
+        btnToggle.title = reduit ? 'Agrandir' : 'Réduire';
+        encart.classList.toggle('reduit', reduit);
+    };
+
+    // État initial = état de session courant (déployé au 1er rendu, sinon dernier choix).
+    let reduit = window._anonLegendeReduite;
+    appliquerEtat(reduit);
+
+    const toggle = () => {
+        reduit = !reduit;
+        window._anonLegendeReduite = reduit; // mémoriser pour la session (re-rendus du panneau)
+        appliquerEtat(reduit);
+    };
+    btnToggle.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+    header.addEventListener('click', toggle);
+
+    // Hook d'ouverture pour le bouton « ? ».
+    encart._ouvrir = () => { reduit = false; window._anonLegendeReduite = false; appliquerEtat(false); };
+
+    return encart;
+}
+
+/**
+ * Ouvre (déplie) l'encart-légende du corpus. Branché sur le bouton « ? ».
+ * Réservé : pourra ouvrir une aide plus développée par la suite.
+ */
+function ouvrirLegendeCorpus() {
+    const encart = document.getElementById('anon-corpus-legende');
+    if (encart && encart._ouvrir) encart._ouvrir();
+}
+
+/**
  * Affiche la table d'anonymisation globale avec les combinaisons et entretiens associés
  * Affiche d'abord les entités sans tester leur présence - la vérification se fait via des boutons
  */
@@ -1636,63 +1677,17 @@ async function mettreAJourCacheEntite(entite, pseudo) {
 }
 
 /**
- * Affiche le dialog d'explication avant de lancer le scan du corpus.
- * Résout true si l'utilisateur clique "Lancer l'analyse", false sinon.
+ * Extrait les mots-clés d'un texte pour l'index inversé et le pré-filtre du scan.
+ * On ne garde que les suites de lettres/chiffres, en minuscules : la ponctuation
+ * (virgules, points, « ... », tirets, apostrophes…) sert de séparateur.
+ * CRUCIAL : l'index inversé ET entretiensCandidats DOIVENT utiliser cette même
+ * fonction, sinon une entité ponctuée (« Loire... ») ne matcherait pas les mots
+ * propres de l'index (« loire »), et l'entretien serait écarté à tort du scan.
+ * @param {string} texte
+ * @returns {string[]}
  */
-function ouvrirDialogScan() {
-    return new Promise(resolve => {
-        window._scanDialogResolve = (val) => {
-            window._scanDialogResolve = () => {};
-            resolve(val);
-        };
-
-        const element = document.getElementById('dlg');
-        const contenu = document.getElementById('ssdlg');
-        if (!element || !contenu) { resolve(false); return; }
-
-        contenu.style.top = "20%";
-        contenu.style.width = "500px";
-        contenu.style.height = "";
-
-        contenu.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eee;">
-                <strong style="font-size:1.05rem;">🔍 Analyser le corpus</strong>
-                <div class="close" onclick="hidedlg();window._scanDialogResolve(false)" style="cursor:pointer;">✖️</div>
-            </div>
-            <div style="padding:16px;">
-                <p style="margin:0 0 12px;font-size:0.92rem;color:#333;line-height:1.5;">
-                    Cette analyse parcourt tous les entretiens pour calculer l'état de chaque
-                    entité et enrichit le tableau avec une colonne <strong>"État corpus"</strong> :
-                </p>
-                <div style="display:flex;gap:6px;align-items:center;margin:0 0 14px;padding:8px 12px;background:#f5f5f5;border-radius:4px;">
-                    <span class="btn-nav-cat btn-nav-cat-anon">12</span>
-                    <span style="font-size:0.82rem;color:#555;margin-right:8px;">anonymisées</span>
-                    <span class="btn-nav-cat btn-nav-cat-exc">2</span>
-                    <span style="font-size:0.82rem;color:#555;margin-right:8px;">exceptions</span>
-                    <span class="btn-nav-cat btn-nav-cat-non">1</span>
-                    <span style="font-size:0.82rem;color:#555;">à traiter</span>
-                </div>
-                <p style="margin:0 0 12px;font-size:0.92rem;color:#333;line-height:1.5;">
-                    Elle permet aussi d'utiliser les filtres
-                    <em>"À traiter"</em>, <em>"Entièrement anonymisées"</em>, etc.
-                </p>
-                <div style="font-size:0.85rem;color:#555;background:#e8f4fd;padding:10px 12px;border-radius:4px;border-left:3px solid #1976d2;line-height:1.6;">
-                    ℹ️ Si vous travaillez depuis ce panneau (cases à cocher, exceptions),
-                    l'état se met à jour automatiquement sans relancer l'analyse.<br>
-                    Si vous modifiez un entretien depuis la <strong>vue Entretien</strong>,
-                    il faudra relancer l'analyse pour rafraîchir.
-                </div>
-                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
-                    <label class="btn btn-secondary" style="padding:8px 16px;cursor:pointer;"
-                           onclick="hidedlg();window._scanDialogResolve(false)">Annuler</label>
-                    <label class="btn btn-primary" style="padding:8px 16px;cursor:pointer;"
-                           onclick="hidedlg();window._scanDialogResolve(true)">Lancer l'analyse</label>
-                </div>
-            </div>
-        `;
-
-        element.style.display = "block";
-    });
+function motsCles(texte) {
+    return (texte || '').toLowerCase().match(/[0-9a-zà-öø-ÿ]+/g) || [];
 }
 
 /**
@@ -1717,7 +1712,7 @@ async function construireIndexInverse(tabEnt) {
             // Tokeniser pour gérer les spans compressés (data-len : texte multi-mots).
             // Un entretien jamais ouvert a des spans phrases entières → sans tokenisation,
             // les mots individuels ("pierre", "edouard") ne seraient pas trouvés.
-            texte.toLowerCase().split(/[\s \-''']+/).filter(t => t).forEach(token => {
+            motsCles(texte).forEach(token => {
                 if (!index.has(token)) index.set(token, new Set());
                 index.get(token).add(i);
             });
@@ -1739,7 +1734,7 @@ function entretiensCandidats(entite, index) {
     const aliases = entite.split('/').map(a => a.trim()).filter(Boolean);
     const candidats = new Set();
     for (const alias of aliases) {
-        const tokens = alias.toLowerCase().split(/[\s \-''']+/).filter(t => t);
+        const tokens = motsCles(alias);
         if (tokens.length === 0) continue;
         // Intersection : seuls les entretiens ayant TOUS les tokens de l'alias
         let sets = tokens.map(t => index.get(t) || new Set());
@@ -1757,8 +1752,9 @@ function entretiensCandidats(entite, index) {
  * Construit window._anonIndexInverse (une fois), calcule les stats par entité,
  * stocke dans window._anonScanCache, puis déclenche l'affichage (étape 3).
  */
-async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur) {
-    if (typeof wait === 'function') wait('Analyse du corpus en cours…');
+async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur, silencieux = false) {
+    // silencieux = true : pas d'overlay bloquant (auto-scan en arrière-plan à l'ouverture).
+    if (!silencieux && typeof wait === 'function') wait('Analyse du corpus en cours…');
     try {
         // 1. Construire l'index inversé (ou le réutiliser s'il est déjà en mémoire)
         if (!window._anonIndexInverse) {
@@ -1766,29 +1762,48 @@ async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur) {
         }
         const index = window._anonIndexInverse;
 
-        // 2. Calculer les stats pour chaque entité via l'index
+        // 2. Calculer les stats — PASSE UNIQUE.
+        //    Au lieu de re-parser le HTML d'un entretien une fois par entité candidate
+        //    (coûteux : N parses × M entités), on construit d'abord la liste des entités
+        //    candidates PAR entretien (via l'index inversé), puis on parse chaque
+        //    entretien UNE SEULE FOIS et on teste toutes ses entités candidates d'affilée.
         const stats = new Map();
+        const entretienVersEntites = new Map(); // idxEnt -> [anon, ...]
         for (const a of anonValides) {
-            const key = `${a.entite.trim()}|${a.remplacement.trim()}`;
-            const st = { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 };
-            stats.set(key, st);
+            stats.set(`${a.entite.trim()}|${a.remplacement.trim()}`,
+                      { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
+            for (const i of entretiensCandidats(a.entite, index)) {
+                if (!entretienVersEntites.has(i)) entretienVersEntites.set(i, []);
+                entretienVersEntites.get(i).push(a);
+            }
+        }
 
-            const candidats = entretiensCandidats(a.entite, index);
-            for (const i of candidats) {
-                let html = null;
-                try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
-                if (!html) continue;
+        const indices = [...entretienVersEntites.keys()];
+        for (let k = 0; k < indices.length; k++) {
+            const i = indices[k];
+            let html = null;
+            try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
+            if (!html) continue;
 
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html; // un seul parse, réutilisé pour toutes les entités de cet entretien
+
+            for (const a of entretienVersEntites.get(i)) {
                 const occ = trouverOccurrencesDansDoc(tempDiv, a.entite.trim(), a.remplacement.trim());
                 if (occ.length === 0) continue;
 
+                const st = stats.get(`${a.entite.trim()}|${a.remplacement.trim()}`);
+                if (!st) continue;
                 st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
                 st.nbExc  += occ.filter(o => o.exclue).length;
                 st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
                 st.nbEntretiens += 1;
             }
+
+            if (typeof updateProgressBar === 'function') {
+                updateProgressBar(Math.round(((k + 1) / indices.length) * 100));
+            }
+            if (k % 5 === 4) await new Promise(r => setTimeout(r, 0)); // laisser respirer l'UI
         }
 
         // 3. Stocker le cache et marquer comme valide
@@ -1807,7 +1822,7 @@ async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur) {
     } catch (err) {
         console.error('[Scan] Erreur :', err);
     } finally {
-        if (typeof endWait === 'function') endWait();
+        if (!silencieux && typeof endWait === 'function') endWait();
     }
 }
 
@@ -1925,7 +1940,7 @@ async function affichAnonGen() {
                 <div id="anon-page-banner" class="header-tabdat" style="display:flex;align-items:center;height:50px;padding:0 10px;margin-bottom:0;border-bottom:1px solid #ccc;">
                     <h3 class="logo-anon" style="margin:0;flex:1;">Table Pseudonymisation (Corpus)</h3>
                     <div id="anon-stale-banner" style="display:none;align-items:center;gap:8px;margin-right:12px;padding:4px 10px;background:#fff3e0;border:1px solid #ffb74d;border-radius:4px;font-size:0.82rem;color:#e65100;">
-                        ⚠️ Des entretiens ont été modifiés. Relancez l'analyse pour rafraîchir.
+                        ⚠️ Des entretiens ont été ouverts. Relancez l'analyse pour rafraîchir.
                         <button id="btn-scan-stale" class="btn btn-secondary" style="padding:4px 10px;font-size:0.82rem;">Scan</button>
                     </div>
                     <label id="btn-export-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exportAnonGen();" title="Exporter les anonymisations">Exporter 💾</label>
@@ -1968,32 +1983,25 @@ async function affichAnonGen() {
             const newBtn = btnScanStale.cloneNode(true);
             btnScanStale.parentNode.replaceChild(newBtn, btnScanStale);
             newBtn.addEventListener('click', async () => {
-                const lancer = await ouvrirDialogScan();
-                if (lancer) {
-                    await lancerScanCorpus(tabEnt, anonValides, lignes, compteur);
-                    syncStaleBanner();
-                    syncGroupeFiltresEtat();
-                }
-            });
-        }
-
-        // En-tête du panneau gauche (bouton ➕ + bouton Scan)
-        const divEntete = document.createElement("div");
-        divEntete.style = "border-bottom:1px solid #ccc; padding:6px 10px; display:flex; justify-content:flex-end; gap:6px;";
-        divEntete.innerHTML = `
-            <label id="btn-add-anon" class="btn btn-primary" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">Ajouter une entité</label>
-            <button id="btn-scan-anon" class="btn btn-secondary" title="Analyser l'état d'anonymisation dans tous les entretiens">Scan</button>
-        `;
-        divAnonGen.appendChild(divEntete);
-
-        divEntete.querySelector('#btn-scan-anon').addEventListener('click', async () => {
-            const lancer = await ouvrirDialogScan();
-            if (lancer) {
                 await lancerScanCorpus(tabEnt, anonValides, lignes, compteur);
                 syncStaleBanner();
                 syncGroupeFiltresEtat();
-            }
-        });
+            });
+        }
+
+        // En-tête du panneau gauche (bouton ➕). Le scan manuel a été retiré :
+        // l'analyse se lance automatiquement à l'ouverture (voir auto-scan plus bas),
+        // et le rafraîchissement après modif d'entretien passe par la bannière « stale ».
+        const divEntete = document.createElement("div");
+        divEntete.style = "border-bottom:1px solid #ccc; padding:6px 10px; display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-shrink:0;";
+        divEntete.innerHTML = `
+            <label id="btn-add-anon" class="btn btn-primary" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">Ajouter une entité</label>
+            <label id="btn-aide-anon" class="btn btn-secondary" onclick="ouvrirLegendeCorpus();" title="Afficher la légende / l'aide" style="font-weight:bold;">?</label>
+        `;
+        divAnonGen.appendChild(divEntete);
+
+        // Encart-légende repliable (ouvert au 1er affichage, replié ensuite)
+        divAnonGen.appendChild(creerEncartLegendeCorpus());
 
         // === BARRE DE FILTRAGE (Phase 1 : filtres instantanés + recherche + tri) ===
         // Opère uniquement sur les lignes déjà rendues (masquer/montrer + réordonner) :
@@ -2014,23 +2022,22 @@ async function affichAnonGen() {
                     <option value="a_traiter">À traiter</option>
                     <option value="avec_exceptions">Avec exceptions</option>
                     <option value="bouclees">Entièrement anonymisées</option>
+                    <option value="inutilisees">Inutilisées (0 occurrence)</option>
                 </optgroup>
             </select>
-            <button id="anon-gen-rescan" class="anon-gen-rescan" title="Recalculer l'état du corpus" style="display:none">↻</button>
             <input type="text" id="anon-gen-recherche" class="anon-gen-recherche"
                    placeholder="🔎 Rechercher (entité ou pseudo)…" autocomplete="off">
-            <select id="anon-gen-tri" class="anon-gen-select" title="Trier la liste">
-                <option value="az">Entité A→Z</option>
-                <option value="za">Entité Z→A</option>
-            </select>
             <span id="anon-gen-compteur" class="anon-gen-compteur"></span>
         `;
         divAnonGen.appendChild(divFiltres);
 
         // Conteneur du tableau avec scroll
         const fondTab = document.createElement("div");
+        // Le tableau prend toute la hauteur restante du panneau (flex column de divAnonGen)
+        // et scrolle à l'intérieur : plus de nombre magique calc(100vh - …) à recalibrer.
+        fondTab.style.flex = "1";
+        fondTab.style.minHeight = "0";
         fondTab.style.overflow = "auto";
-        fondTab.style.maxHeight = "calc(100vh - 210px)";
         fondTab.style.paddingLeft = "10px";
         fondTab.style.paddingBottom = "120px";
         divAnonGen.appendChild(fondTab);
@@ -2047,13 +2054,15 @@ async function affichAnonGen() {
         const headerRow = document.createElement("tr");
         
         const thEntite = document.createElement("th");
-        thEntite.textContent = "Entité Originale";
-        thEntite.classList.add("header-col-ent");
+        thEntite.innerHTML = `Entité Originale <span class="sort-indicator"></span>`;
+        thEntite.classList.add("header-col-ent", "th-sortable");
+        thEntite.title = "Trier par entité originale";
         headerRow.appendChild(thEntite);
 
         const thRemplacement = document.createElement("th");
-        thRemplacement.textContent = "Pseudonyme / Remplacement";
-        thRemplacement.classList.add("header-col-var");
+        thRemplacement.innerHTML = `Pseudonyme / Remplacement <span class="sort-indicator"></span>`;
+        thRemplacement.classList.add("header-col-var", "th-sortable");
+        thRemplacement.title = "Trier par pseudonyme";
         thRemplacement.style.minWidth = "200px";
         headerRow.appendChild(thRemplacement);
 
@@ -2081,6 +2090,14 @@ async function affichAnonGen() {
         // Ajouter styles CSS si nécessaire
         ajouterStylesAnonGen();
 
+        // Dimensionner le panneau gauche sur la largeur réelle du tableau
+        // (remplace le 33 % rigide qui tronquait les colonnes sur petit écran).
+        ajusterLargeurPanneauGauche(pageAnon, fondAnonCorpus, table);
+
+        // Ajuster la hauteur des champs pseudo (textarea) à leur contenu initial :
+        // impossible à la création (hors DOM), donc fait une fois la table insérée.
+        fondTab.querySelectorAll("textarea.anon-pseudo-input").forEach(autoResizeTextarea);
+
         // Ajouter listeners aux boutons d'action
         document.querySelectorAll('.btn-apply-anon').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -2095,12 +2112,18 @@ async function affichAnonGen() {
 
         // === CÂBLAGE DE LA BARRE DE FILTRAGE ===
         const selectFiltre = document.getElementById("anon-gen-filtre");
-        const btnRescan = document.getElementById("anon-gen-rescan");
         const inputRecherche = document.getElementById("anon-gen-recherche");
-        const selectTri = document.getElementById("anon-gen-tri");
         const compteur = document.getElementById("anon-gen-compteur");
 
-        const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees']);
+        // Remonter le filtre dans l'en-tête, calé à gauche (les boutons restent à droite
+        // grâce au margin-right:auto). Le câblage tient par l'id, donc le déplacement du
+        // nœud DOM ne casse rien.
+        if (selectFiltre && divEntete) {
+            selectFiltre.style.marginRight = 'auto';
+            divEntete.insertBefore(selectFiltre, divEntete.firstChild);
+        }
+
+        const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees', 'inutilisees']);
 
         // Masquer/afficher le groupe de filtres d'état selon disponibilité du scan
         const syncGroupeFiltresEtat = () => {
@@ -2120,8 +2143,6 @@ async function affichAnonGen() {
             const estEtat = FILTRES_ETAT.has(filtre);
             const stats = window._anonScanCache;
 
-            if (btnRescan) btnRescan.style.display = 'none'; // ↻ retiré (remplacé par bouton Scan)
-
             let nbVisibles = 0;
             for (const tr of lignes) {
                 const e = (tr.dataset.entite || '').trim();
@@ -2138,6 +2159,7 @@ async function affichAnonGen() {
                     else if (filtre === 'a_traiter') ok = st.nbNon >= 1;
                     else if (filtre === 'avec_exceptions') ok = st.nbExc >= 1;
                     else if (filtre === 'bouclees') ok = (st.nbAnon + st.nbExc) > 0 && st.nbNon === 0;
+                    else if (filtre === 'inutilisees') ok = (st.nbAnon + st.nbExc + st.nbNon) === 0;
 
                 }
 
@@ -2151,24 +2173,68 @@ async function affichAnonGen() {
             compteur.textContent = `${nbVisibles} / ${lignes.length}`;
         };
 
-        const trierPseudos = () => {
-            const sens = selectTri.value === 'za' ? -1 : 1;
-            [...lignes]
-                .sort((a, b) => a.dataset.entite.localeCompare(b.dataset.entite, 'fr', { sensitivity: 'base' }) * sens)
-                .forEach(tr => tbody.appendChild(tr));
+        // === TRI PAR COLONNE (clic sur l'en-tête Entité ou Pseudonyme) ===
+        const triState = { col: 'entite', sens: 1 }; // défaut : Entité A→Z
+
+        const valeurTri = (tr, col) => {
+            if (col === 'pseudo') {
+                const inp = tr.querySelector('.anon-pseudo-input');
+                return (inp ? inp.value : (tr.dataset.pseudo || '')).trim();
+            }
+            return (tr.dataset.entite || '').trim();
         };
 
-        if (selectFiltre && inputRecherche && selectTri && compteur) {
+        const rendreIndicateursTri = () => {
+            [[thEntite, 'entite'], [thRemplacement, 'pseudo']].forEach(([th, col]) => {
+                const ind = th.querySelector('.sort-indicator');
+                if (!ind) return;
+                const actif = triState.col === col;
+                ind.textContent = actif ? (triState.sens === 1 ? '▲' : '▼') : '↕';
+                ind.style.opacity = actif ? '1' : '0.3';
+            });
+        };
+
+        const trierTable = () => {
+            [...lignes]
+                .sort((a, b) => valeurTri(a, triState.col)
+                    .localeCompare(valeurTri(b, triState.col), 'fr', { sensitivity: 'base' }) * triState.sens)
+                .forEach(tr => tbody.appendChild(tr));
+            rendreIndicateursTri();
+        };
+
+        const clicTriColonne = (col) => {
+            if (triState.col === col) triState.sens = -triState.sens; // même colonne → on inverse
+            else { triState.col = col; triState.sens = 1; }           // nouvelle colonne → A→Z
+            trierTable();
+        };
+
+        thEntite.addEventListener('click', () => clicTriColonne('entite'));
+        thRemplacement.addEventListener('click', () => clicTriColonne('pseudo'));
+
+        if (selectFiltre && inputRecherche && compteur) {
             selectFiltre.addEventListener('change', appliquerFiltrePseudos);
             inputRecherche.addEventListener('input', appliquerFiltrePseudos);
-            selectTri.addEventListener('change', trierPseudos);
-            if (btnRescan) {
-                btnRescan.addEventListener('click', () => {
-                    cacheStatsCorpus = null; // forcer un nouveau scan
-                    appliquerFiltrePseudos();
-                });
-            }
             appliquerFiltrePseudos();
+        }
+        trierTable(); // applique le tri par défaut (Entité A→Z) + affiche les indicateurs
+
+        // === AUTO-SCAN À L'OUVERTURE ===
+        // - Cache valide  → on réaffiche l'état immédiatement, sans rescanner.
+        // - Aucun cache   → premier affichage : scan automatique en arrière-plan
+        //                   (silencieux, table utilisable, l'état se remplit ensuite).
+        // - Cache périmé  → on ne rescanne PAS ici : la bannière « Actualiser » s'en charge
+        //                   (un rescan auto après modif d'entretien serait coûteux/surprenant).
+        if (window._anonScanCache && !window._anonScanStale) {
+            appliquerResultatsScan(window._anonScanCache, lignes);
+        } else if (!window._anonScanCache && anonValides.length > 0) {
+            if (compteur) compteur.textContent = '⏳ Analyse du corpus…';
+            lancerScanCorpus(tabEnt, anonValides, lignes, compteur, true)
+                .then(() => {
+                    syncStaleBanner();
+                    syncGroupeFiltresEtat();
+                    appliquerFiltrePseudos();
+                })
+                .catch(err => console.error('[Auto-scan] échec :', err));
         }
 
     } catch (error) {
@@ -2200,15 +2266,21 @@ function creerLigneAnonGen(anon, tabEnt) {
     tr.appendChild(tdEntite);
 
     // Colonne 2: Remplacement (ÉDITABLE)
+    // textarea (et non input) pour que les pseudos longs s'enroulent sur plusieurs
+    // lignes au lieu de défiler horizontalement. La hauteur s'ajuste au contenu et
+    // les retours à la ligne sont bloqués : la valeur reste une seule ligne logique.
     const tdRemplacement = document.createElement("td");
-    tdRemplacement.innerHTML = `
-        <input type="text" 
-               class="anon-pseudo-input" 
-               data-entite="${anon.entite}" 
-               value="${anon.remplacement}"
-               placeholder="Pseudonyme"
-               style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
-    `;
+    const inputPseudo = document.createElement("textarea");
+    inputPseudo.className = "anon-pseudo-input";
+    inputPseudo.dataset.entite = anon.entite;
+    inputPseudo.value = anon.remplacement;
+    inputPseudo.placeholder = "Pseudonyme";
+    inputPseudo.rows = 1;
+    inputPseudo.addEventListener("input", () => autoResizeTextarea(inputPseudo));
+    inputPseudo.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") e.preventDefault(); // pas de saut de ligne dans un pseudo
+    });
+    tdRemplacement.appendChild(inputPseudo);
     tr.appendChild(tdRemplacement);
 
     // Colonne 3: État corpus (cachée par défaut, visible après un scan valide)
@@ -3290,6 +3362,25 @@ function ajouterStylesAnonGen() {
             transition: background-color 0.2s;
         }
 
+        /* Ne pas forcer le min-width: 125px générique des th : la colonne Entité
+           se réduit à son contenu, ce qui réduit la largeur naturelle du tableau
+           (et donc du panneau gauche) quand les entités sont courtes. Les colonnes
+           Pseudo et Actions gardent leur min-width inline. */
+        #divAnonGen th.header-col-ent {
+            min-width: 0;
+        }
+
+        /* En-têtes triables (clic = tri par cette colonne) */
+        #divAnonGen th.th-sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        #divAnonGen th.th-sortable .sort-indicator {
+            font-size: 0.8em;
+            margin-left: 4px;
+        }
+
         /* Barre de filtrage de la page Pseudos */
         .anon-gen-filtres {
             display: flex;
@@ -3298,6 +3389,7 @@ function ajouterStylesAnonGen() {
             padding: 8px 10px;
             border-bottom: 1px solid #eee;
             flex-wrap: wrap;
+            flex-shrink: 0;
         }
         .anon-gen-select {
             padding: 5px 8px;
@@ -3325,22 +3417,50 @@ function ajouterStylesAnonGen() {
             color: #888;
             white-space: nowrap;
         }
-        .anon-gen-rescan {
-            padding: 4px 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background: #fff;
-            cursor: pointer;
-            font-size: 0.95em;
-            line-height: 1;
-        }
-        .anon-gen-rescan:hover {
-            background: #f0f0f0;
-            border-color: #1565c0;
-        }
 
         .ligne-anon-gen:hover {
             background-color: #f5f5f5;
+        }
+
+        /* Encart-légende repliable du panneau gauche (corpus) */
+        .anon-corpus-legende {
+            font-size: 11px;
+            color: #555;
+            background: #f5f5f5;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            margin: 8px 10px;
+            overflow: hidden;
+            flex-shrink: 0; /* ne pas se faire compresser/rogner par le flex column de divAnonGen */
+        }
+        .anon-corpus-legende-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 5px 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .anon-corpus-legende-toggle {
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            color: #666;
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+        .anon-corpus-legende-toggle:hover {
+            color: #1565c0;
+        }
+        .anon-corpus-legende-contenu {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 0 10px 8px;
         }
 
         /*
@@ -3355,7 +3475,7 @@ function ajouterStylesAnonGen() {
         }
         */
 
-        /* Input pour le pseudonyme */
+        /* Champ d'édition du pseudonyme (textarea : enroulement multi-lignes) */
         .anon-pseudo-input {
             font-weight: bold;
             color: #1565c0;
@@ -3363,7 +3483,27 @@ function ajouterStylesAnonGen() {
             border: 2px solid #90CAF9;
             border-radius: 4px;
             font-size: 0.95em;
-            
+            width: 100%;
+            box-sizing: border-box;
+            font-family: inherit;
+            line-height: 1.3;
+            resize: none;            /* hauteur gérée automatiquement par autoResizeTextarea */
+            overflow: hidden;        /* pas de barre de défilement : le champ grandit */
+            white-space: pre-wrap;   /* enroule les pseudos longs */
+            overflow-wrap: anywhere; /* coupe aussi les mots très longs sans espace */
+            display: block;
+        }
+
+        /* Colonne Entité : enrouler les entités longues (mots sans espace inclus) */
+        .ligne-anon-gen td:first-child {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        /* La ligne grandit avec le contenu (textarea / entité enroulée) : caler
+           toutes les cellules en haut pour qu'elles restent alignées. */
+        .ligne-anon-gen td {
+            vertical-align: top;
         }
 
         .anon-pseudo-input:hover {

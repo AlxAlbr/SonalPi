@@ -379,11 +379,11 @@ function affichTableauAnon() {
             <tr data-idx="${i}" class="ligne-anon${estAnonymisee ? ' ligne-anonymisee' : ''}">
                 <td class="col-entite">
                     <textarea 
-                           class="input-entite textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}" 
-                           data-idx="${i}" 
+                           class="input-entite textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}"
+                           data-idx="${i}"
                            placeholder="Entité"
                            onchange="sauvAnon(${i})"
-                           oninput="mettreAJourBoutonRechercher(${i})"
+                           oninput="autoGrowTextarea(this);mettreAJourBoutonRechercher(${i})"
                            onfocus="mettreAJourBoutonRechercher(${i});dsTxtArea=false;dsTxtAutre=true"
                            onfocusout="cacherBoutonRechercher(${i});dsTxtAutre=false"
                            onkeydown="if(event.key==='Enter'){event.preventDefault();rechercherOccurrences(${i})}"
@@ -391,11 +391,11 @@ function affichTableauAnon() {
                 </td>
                 <td class="col-remplacement">
                     <textarea 
-                           class="input-remplacement textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}" 
-                           data-idx="${i}" 
+                           class="input-remplacement textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}"
+                           data-idx="${i}"
                            placeholder="Pseudo"
                            onchange="sauvAnon(${i})"
-                           oninput="mettreAJourBoutonRechercher(${i})"
+                           oninput="autoGrowTextarea(this);mettreAJourBoutonRechercher(${i})"
                            onfocus="mettreAJourBoutonRechercher(${i});dsTxtArea=false;dsTxtAutre=true"
                            onfocusout="cacherBoutonRechercher(${i});dsTxtAutre=false"
                            onkeydown="if(event.key==='Enter'){event.preventDefault();gererEntrePseudo(${i})}"
