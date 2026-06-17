@@ -3,93 +3,7 @@
  * Affiche toutes les combinaisons anonymisation du corpus avec les entretiens concernés
  */
 
-/**
- * Reconstitue le tabAnon global à partir des entretiens
- * - Inventorie tous les tabAnon présents dans tabEnt
- * @param {Array} entretiens - Tableau des entretiens (tabEnt)
- */
-async function reconstituerTabAnonGlobal(entretiens) {
-    console.log("Reconstitution du tabAnon global à partir des entretiens...");
-
-    if (!entretiens || entretiens.length === 0) {
-        console.log("❌ Aucun entretien fourni");
-        return;
-    }
-
-    // Map pour tracker les paires (entité, pseudo) uniques
-    const mapEntitePseudo = new Map();
-    
-    // Parcourir tous les entretiens et inventorier
-    for (let i = 0; i < entretiens.length; i++) {
-        const ent = entretiens[i];
-        console.log(`[Entretien ${i}] ${ent.nom || 'Sans nom'}:`, ent.tabAnon ? `${ent.tabAnon.length} règle(s)` : 'Pas de tabAnon');
-        
-        if (!ent.tabAnon || ent.tabAnon.length === 0) {
-            continue;
-        }
-
-        // Parcourir les règles d'anonymisation de cet entretien
-        ent.tabAnon.forEach((regle, idx) => {
-            console.log(`  [${idx}] ${regle.entite} → ${regle.remplacement}`);
-            
-            if (!regle.entite || !regle.remplacement) {
-                return;
-            }
-
-            const entite = regle.entite.trim();
-            const pseudo = regle.remplacement.trim();
-            
-            if (!entite || !pseudo) return;
-
-            // Créer une clé unique
-            const cle = `${entite}|${pseudo}`;
-            
-            // Si pas encore dans la map, ajouter
-            if (!mapEntitePseudo.has(cle)) {
-                mapEntitePseudo.set(cle, {
-                    entite: entite,
-                    remplacement: pseudo,
-                    occurrences: 0,
-                    indexCourant: 0,
-                    matchPositions: []
-                });
-            }
-        });
-    }
-
-    // Récupérer l'ancien tabAnon global pour préserver les entrées ajoutées manuellement
-    // (qui ne sont pas encore dans un entretien local)
-    const ancienTabAnon = await window.electronAPI.getAnon();
-    if (ancienTabAnon && ancienTabAnon.length > 0) {
-        for (const ancien of ancienTabAnon) {
-            if (!ancien.entite || !ancien.remplacement) continue;
-            const entite = ancien.entite.trim();
-            const pseudo = ancien.remplacement.trim();
-            if (!entite || !pseudo) continue;
-            const cle = `${entite}|${pseudo}`;
-            if (!mapEntitePseudo.has(cle)) {
-                mapEntitePseudo.set(cle, {
-                    entite: entite,
-                    remplacement: pseudo,
-                    occurrences: 0,
-                    indexCourant: 0,
-                    matchPositions: []
-                });
-            }
-        }
-    }
-
-    // Convertir la map en tableau
-    const newTabAnon = Array.from(mapEntitePseudo.values());
-    
-    // tri du tabAnon par ordre alphabétique des entités
-    newTabAnon.sort((a, b) => a.entite.localeCompare(b.entite));
-
-    console.log(`✅ TabAnon reconstitué : ${newTabAnon.length} paire(s) unique(s)`, newTabAnon);
-    
-    // Mettre à jour dans le main process (règles propres uniquement)
-    await persisterReglesCorpus(newTabAnon);
-}
+// reconstituerTabAnonGlobal a été déplacée dans anon-scan.js (refacto Tâche 3).
 
 /**
  * Vérifie l'état d'une seule entité et met à jour sa ligne dans le tableau
@@ -138,7 +52,7 @@ async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
         
         // Mettre à jour la ligne
         const anon = { entite, remplacement: pseudo };
-        mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
+        afficherVerificationDansPanneau(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
         
         console.log(`✅ Vérification terminée pour "${entite}"`);
         
@@ -156,7 +70,7 @@ async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
  * @param {Array} entretiensNonAnonymisee - Entretiens non-anonymisés
  * @param {Array} entretiensAnonymisee - Entretiens anonymisés
  */
-function mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
+function afficherVerificationDansPanneau(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
     // Page dédiée : la vérification d'une entité s'affiche toujours dans la zone droite
     // (#fond_verif_anon), sous forme d'accordéons par entretien.
     const fondVerif = document.getElementById("fond_verif_anon");
@@ -174,12 +88,12 @@ function mettreAJourLigneAvecEtats(anon, entretiensNonAnonymisee, entretiensAnon
 
 /**
  * Affiche les occurrences d'une entité dans une modale avec accordéons
- * @param {HTMLElement} tdEntretiens - Cellule du tableau où insérer la modale
+ * @param {HTMLElement} fondVerif - Conteneur du panneau droit (#fond_verif_anon) où insérer la modale
  * @param {Object} anon - Paire {entite, remplacement}
  * @param {Array} entretiensNonAnonymisee - Entretiens non-anonymisés
  * @param {Array} entretiensAnonymisee - Entretiens anonymisés
  */
-async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
+async function afficherOccurrencesEnAccordeon(fondVerif, anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus = []) {
     try {
         const tabEnt = await window.electronAPI.getEnt();
 
@@ -359,12 +273,12 @@ async function afficherOccurrencesEnAccordeon(tdEntretiens, anon, entretiensNonA
         });
         modale.appendChild(btnValider);
         
-        tdEntretiens.appendChild(modale);
+        fondVerif.appendChild(modale);
         
     } catch (error) {
         console.error("Erreur dans afficherOccurrencesEnAccordeon():", error);
-        tdEntretiens.textContent = "Erreur lors du chargement";
-        tdEntretiens.style.color = "#d32f2f";
+        fondVerif.textContent = "Erreur lors du chargement";
+        fondVerif.style.color = "#d32f2f";
     }
 }
 
@@ -1121,181 +1035,8 @@ function ouvrirLegendeCorpus() {
  * Affiche la table d'anonymisation globale avec les combinaisons et entretiens associés
  * Affiche d'abord les entités sans tester leur présence - la vérification se fait via des boutons
  */
-/**
- * Level 2 — Met à jour le cache de scan pour une seule entité,
- * sans marquer le cache comme stale (action depuis le panneau Corpus).
- * Met aussi à jour les badges et la couleur de la ligne dans le DOM.
- * Ne fait rien si le cache n'existe pas ou est déjà stale.
- */
-async function mettreAJourCacheEntite(entite, pseudo) {
-    if (!window._anonScanCache || window._anonScanStale) return;
-    if (!window._anonIndexInverse) return;
-
-    const key = `${entite.trim()}|${pseudo.trim()}`;
-    const st = { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 };
-
-    const candidats = entretiensCandidats(entite, window._anonIndexInverse);
-    for (const i of candidats) {
-        let html = null;
-        try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
-        if (!html) continue;
-
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        const occ = trouverOccurrencesDansDoc(tempDiv, entite.trim(), pseudo.trim());
-        if (occ.length === 0) continue;
-
-        st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
-        st.nbExc  += occ.filter(o => o.exclue).length;
-        st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
-        st.nbEntretiens += 1;
-    }
-
-    window._anonScanCache.set(key, st);
-
-    // Mise à jour DOM : badges + couleur de ligne
-    const tr = document.querySelector(`tr[data-entite="${CSS.escape(entite)}"][data-pseudo="${CSS.escape(pseudo)}"]`);
-    if (!tr) return;
-    const tdEtat = tr.querySelector('.td-etat-corpus');
-    if (tdEtat) {
-        tdEtat.style.display = ''; // toujours rendre visible si un scan est valide
-        let badgesHtml = '';
-        if (st.nbAnon > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
-        if (st.nbExc  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-exc"  title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
-        if (st.nbNon  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-non"  title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
-        tdEtat.innerHTML = badgesHtml || '<span style="color:#bbb;font-size:0.8rem;">—</span>';
-    }
-    if (st.nbNon > 0) {
-        tr.style.backgroundColor = '#fff3e0';
-    } else if ((st.nbAnon + st.nbExc) > 0) {
-        tr.style.backgroundColor = '#e8f5e9';
-    } else {
-        tr.style.backgroundColor = '';
-    }
-}
-
-/**
- * Lance le scan du corpus avec index inversé.
- * Construit window._anonIndexInverse (une fois), calcule les stats par entité,
- * stocke dans window._anonScanCache, puis déclenche l'affichage (étape 3).
- */
-async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur, silencieux = false) {
-    // silencieux = true : pas d'overlay bloquant (auto-scan en arrière-plan à l'ouverture).
-    if (!silencieux && typeof wait === 'function') wait('Analyse du corpus en cours…');
-    try {
-        // 1. Construire l'index inversé (ou le réutiliser s'il est déjà en mémoire)
-        if (!window._anonIndexInverse) {
-            window._anonIndexInverse = await construireIndexInverse(tabEnt);
-        }
-        const index = window._anonIndexInverse;
-
-        // 2. Calculer les stats — PASSE UNIQUE.
-        //    Au lieu de re-parser le HTML d'un entretien une fois par entité candidate
-        //    (coûteux : N parses × M entités), on construit d'abord la liste des entités
-        //    candidates PAR entretien (via l'index inversé), puis on parse chaque
-        //    entretien UNE SEULE FOIS et on teste toutes ses entités candidates d'affilée.
-        const stats = new Map();
-        const entretienVersEntites = new Map(); // idxEnt -> [anon, ...]
-        for (const a of anonValides) {
-            stats.set(`${a.entite.trim()}|${a.remplacement.trim()}`,
-                      { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
-            for (const i of entretiensCandidats(a.entite, index)) {
-                if (!entretienVersEntites.has(i)) entretienVersEntites.set(i, []);
-                entretienVersEntites.get(i).push(a);
-            }
-        }
-
-        const indices = [...entretienVersEntites.keys()];
-        for (let k = 0; k < indices.length; k++) {
-            const i = indices[k];
-            let html = null;
-            try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
-            if (!html) continue;
-
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = html; // un seul parse, réutilisé pour toutes les entités de cet entretien
-
-            for (const a of entretienVersEntites.get(i)) {
-                const occ = trouverOccurrencesDansDoc(tempDiv, a.entite.trim(), a.remplacement.trim());
-                if (occ.length === 0) continue;
-
-                const st = stats.get(`${a.entite.trim()}|${a.remplacement.trim()}`);
-                if (!st) continue;
-                st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
-                st.nbExc  += occ.filter(o => o.exclue).length;
-                st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
-                st.nbEntretiens += 1;
-            }
-
-            if (typeof updateProgressBar === 'function') {
-                updateProgressBar(Math.round(((k + 1) / indices.length) * 100));
-            }
-            if (k % 5 === 4) await new Promise(r => setTimeout(r, 0)); // laisser respirer l'UI
-        }
-
-        // 3. Stocker le cache et marquer comme valide
-        window._anonScanCache = stats;
-        window._anonScanStale = false;
-
-        // 4. Mettre à jour l'affichage : colonne + coloration + filtres d'état
-        appliquerResultatsScan(stats, lignes);
-        // Débloquer le groupe de filtres d'état dans le sélecteur
-        const selectFiltre = document.getElementById('anon-gen-filtre');
-        if (selectFiltre) {
-            const optgroup = selectFiltre.querySelector('optgroup[label="Avec vérification du corpus"]');
-            if (optgroup) optgroup.style.display = '';
-        }
-
-    } catch (err) {
-        console.error('[Scan] Erreur :', err);
-    } finally {
-        if (!silencieux && typeof endWait === 'function') endWait();
-    }
-}
-
-/**
- * Applique les résultats du scan sur les lignes du tableau :
- * - affiche la colonne "État corpus" avec badges colorés
- * - colore la ligne en orange clair si nbNon > 0
- * - met à jour window._anonScanCache pour les filtres d'état
- */
-function appliquerResultatsScan(stats, lignes) {
-    // Rendre visible l'en-tête de la colonne
-    const thEtat = document.querySelector('.header-col-etat-corpus');
-    if (thEtat) thEtat.style.display = '';
-
-    for (const tr of lignes) {
-        const e = (tr.dataset.entite || '').trim();
-        const p = (tr.dataset.pseudo || '').trim();
-        const st = stats.get(`${e}|${p}`);
-        const tdEtat = tr.querySelector('.td-etat-corpus');
-        if (!tdEtat) continue;
-
-        tdEtat.style.display = '';
-
-        if (!st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0)) {
-            tdEtat.innerHTML = '<span style="color:#bbb;font-size:0.8rem;">—</span>';
-            tr.style.backgroundColor = '';
-            continue;
-        }
-
-        // Badges (réutilise les classes btn-nav-cat existantes)
-        let badgesHtml = '';
-        if (st.nbAnon > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
-        if (st.nbExc  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-exc"  title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
-        if (st.nbNon  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-non"  title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
-        tdEtat.innerHTML = badgesHtml;
-
-        // Coloration de la ligne
-        if (st.nbNon > 0) {
-            tr.style.backgroundColor = '#fff3e0'; // orange : occurrences à traiter
-        } else if ((st.nbAnon + st.nbExc) > 0) {
-            tr.style.backgroundColor = '#e8f5e9'; // vert : entièrement traité
-        } else {
-            tr.style.backgroundColor = '';
-        }
-    }
-}
+// mettreAJourCacheEntite, lancerScanCorpus et appliquerResultatsScan ont été
+// déplacées dans anon-scan.js (refacto Tâche 3).
 
 async function affichAnonGen() {
     console.log("lancement de affichAnonGen")
@@ -1356,7 +1097,7 @@ async function affichAnonGen() {
         // gauche = table des pseudonymes (#fond_anon_corpus),
         // droite = vérification / occurrences par entretien (#fond_verif_anon).
         // On conserve volontairement ces id pour réutiliser la logique de rendu existante
-        // (mettreAJourLigneAvecEtats, verifierEtAfficherEtatEntite, focaliserOccurrenceCorpus)
+        // (afficherVerificationDansPanneau, verifierEtAfficherEtatEntite, focaliserOccurrenceCorpus)
         // sans la modifier. La page est persistante : recréée seulement si absente.
         let pageAnon = document.getElementById("divAnonGenPage");
         if (!pageAnon) {
@@ -1370,6 +1111,8 @@ async function affichAnonGen() {
                         ⚠️ Des entretiens ont été ouverts. Relancez l'analyse pour rafraîchir.
                         <button id="btn-scan-stale" class="btn btn-secondary" style="padding:4px 10px;font-size:0.82rem;">Scan</button>
                     </div>
+                    <input type="file" id="file-import-corpus" multiple accept=".json" style="display:none;" onchange="importTableCorpus(this.files)">
+                    <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de correspondance (ajoute des règles au corpus)">Importer 📂</label>
                     <label id="btn-export-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exportAnonGen();" title="Exporter les anonymisations">Exporter 💾</label>
                     <label id="btn-quit-anon" class="btn btn-secondary" style="padding:10px" onclick="hideAnonGen();" title="Fermer la table">Quitter ✖️</label>
                 </div>
@@ -2452,6 +2195,102 @@ async function retirerPseudoDeEntretien(indexEnt, pseudo, entite) {
 }
 
 /**
+ * Import d'une (ou plusieurs) table(s) de correspondance JSON au niveau du CORPUS.
+ * Contrairement à l'entretien (qui applique au texte ouvert), ici on AJOUTE des règles
+ * au tabAnon global (.crp). Réutilise le moteur de conflits partagé (anon-correspondance.js)
+ * avec un callback d'application propre au corpus.
+ * @param {FileList} files
+ */
+async function importTableCorpus(files) {
+    if (!files || files.length === 0) return;
+
+    // Lire + parser + valider tous les fichiers
+    const allCorrespondances = [];
+    for (const file of Array.from(files)) {
+        try {
+            const arr = JSON.parse(await file.text());
+            if (!Array.isArray(arr)) throw new Error("le fichier n'est pas un tableau JSON");
+            arr.forEach(c => {
+                if (!c.entite_init || !c.entite_pseudo) {
+                    throw new Error("chaque correspondance doit avoir 'entite_init' et 'entite_pseudo'");
+                }
+                allCorrespondances.push(c);
+            });
+        } catch (e) {
+            if (typeof notifErreur === 'function') notifErreur(`Erreur lecture ${file.name} :\n${e.message}`);
+            else dialog('Erreur', `Erreur lecture ${file.name} : ${e.message}`);
+        }
+    }
+
+    // Réinitialiser l'input (permet de recharger le même fichier)
+    const input = document.getElementById('file-import-corpus');
+    if (input) input.value = '';
+
+    if (allCorrespondances.length === 0) {
+        dialog('Message', 'Aucune correspondance valide trouvée dans le(s) fichier(s).');
+        return;
+    }
+
+    // Règles déjà présentes dans le corpus (toutes les paires entité→pseudo du global).
+    const reglesExistantes = (await window.electronAPI.getAnon() || [])
+        .filter(a => a.entite && a.remplacement)
+        .map(a => ({ entite: a.entite, remplacement: a.remplacement }));
+
+    // Moteur partagé : détecte les conflits (entité déjà mappée) et applique via le callback corpus.
+    traiterImportCorrespondances(allCorrespondances, {
+        reglesExistantes,
+        appliquer: appliquerImportCorpus
+    });
+}
+
+/**
+ * Applique au CORPUS les correspondances retenues (après résolution des conflits) :
+ * ajoute les règles au tabAnon global, persiste le .crp, met à jour la table et le cache de scan.
+ * @param {Array<{entite_init:string, entite_pseudo:string}>} correspondances
+ */
+async function appliquerImportCorpus(correspondances) {
+    const tabAnonGlobal = (await window.electronAPI.getAnon()) || [];
+    let ajoutes = 0;
+    let doublons = 0;
+    const nouvelles = [];
+
+    for (const corr of correspondances) {
+        const entite = (corr.entite_init || '').trim();
+        const pseudo = (corr.entite_pseudo || '').trim();
+        if (!entite || !pseudo) continue;
+
+        // Dédoublonnage sur la paire exacte (entité, pseudo)
+        const existe = tabAnonGlobal.some(a =>
+            a.entite && a.entite.trim() === entite &&
+            a.remplacement && a.remplacement.trim() === pseudo);
+        if (existe) { doublons++; continue; }
+
+        const regle = { entite, remplacement: pseudo, occurrences: 0, indexCourant: 0, matchPositions: [] };
+        tabAnonGlobal.push(regle);
+        nouvelles.push(regle);
+        ajoutes++;
+    }
+
+    if (ajoutes > 0) {
+        // Persister (règles propres uniquement, cf. persisterReglesCorpus)
+        await persisterReglesCorpus(tabAnonGlobal);
+
+        for (const r of nouvelles) {
+            await ajouterLigneAuTableauAnonGen(r);
+            // Level 2 : si un scan valide existe, calculer l'état de la nouvelle entité sans l'invalider
+            if (window._anonScanCache && !window._anonScanStale && window._anonIndexInverse) {
+                window._anonScanCache.set(`${r.entite}|${r.remplacement}`, { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
+                await mettreAJourCacheEntite(r.entite, r.remplacement);
+            }
+        }
+    }
+
+    let message = `✅ Import corpus : ${ajoutes} règle(s) ajoutée(s).`;
+    if (doublons > 0) message += `\n⚠️ ${doublons} règle(s) déjà présente(s) (ignorée(s)).`;
+    question(message, ['OK']);
+}
+
+/**
  * Exporte la table d'anonymisation
  */
 async function exportAnonGen() {
@@ -2512,227 +2351,7 @@ async function exportAnonGen() {
 /**
  * Ajoute les styles CSS nécessaires pour l'affichage
  */
-function ajouterStylesAnonGen() {
-    // Vérifier si les styles sont déjà présents
-    if (document.getElementById("styles-anon-gen")) {
-        return;
-    }
-
-    const style = document.createElement("style");
-    style.id = "styles-anon-gen";
-    style.textContent = `
-        /* Styles spécifiques pour la table d'anonymisation */
-        .ligne-anon-gen {
-            transition: background-color 0.2s;
-        }
-
-        /* Ne pas forcer le min-width: 125px générique des th : la colonne Entité
-           se réduit à son contenu, ce qui réduit la largeur naturelle du tableau
-           (et donc du panneau gauche) quand les entités sont courtes. Les colonnes
-           Pseudo et Actions gardent leur min-width inline. */
-        #divAnonGen th.header-col-ent {
-            min-width: 0;
-        }
-
-        /* En-têtes triables (clic = tri par cette colonne) */
-        #divAnonGen th.th-sortable {
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
-        }
-        #divAnonGen th.th-sortable .sort-indicator {
-            font-size: 0.8em;
-            margin-left: 4px;
-        }
-
-        /* Barre de filtrage de la page Pseudos */
-        .anon-gen-filtres {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            border-bottom: 1px solid #eee;
-            flex-wrap: wrap;
-            flex-shrink: 0;
-        }
-        .anon-gen-select {
-            padding: 5px 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background: #fff;
-            font-size: 0.9em;
-            cursor: pointer;
-        }
-        .anon-gen-recherche {
-            flex: 1;
-            min-width: 140px;
-            padding: 6px 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 0.9em;
-        }
-        .anon-gen-recherche:focus {
-            outline: none;
-            border-color: #1565c0;
-            box-shadow: 0 0 4px rgba(21, 101, 192, 0.25);
-        }
-        .anon-gen-compteur {
-            font-size: 0.8em;
-            color: #888;
-            white-space: nowrap;
-        }
-
-        .ligne-anon-gen:hover {
-            background-color: #f5f5f5;
-        }
-
-        /* Encart-légende repliable du panneau gauche (corpus) */
-        .anon-corpus-legende {
-            font-size: 11px;
-            color: #555;
-            background: #f5f5f5;
-            border: 1px solid #eee;
-            border-radius: 4px;
-            margin: 8px 10px;
-            overflow: hidden;
-            flex-shrink: 0; /* ne pas se faire compresser/rogner par le flex column de divAnonGen */
-        }
-        .anon-corpus-legende-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 5px 10px;
-            cursor: pointer;
-            user-select: none;
-        }
-        .anon-corpus-legende-toggle {
-            border: none;
-            background: none;
-            cursor: pointer;
-            font-size: 14px;
-            line-height: 1;
-            color: #666;
-            width: 22px;
-            height: 22px;
-            flex-shrink: 0;
-        }
-        .anon-corpus-legende-toggle:hover {
-            color: #1565c0;
-        }
-        .anon-corpus-legende-contenu {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            padding: 0 10px 8px;
-        }
-
-        /*
-        .logo-anon::before {
-            content: "🔐 ";
-            margin-right: 8px;
-        }
-
-        .logo-variables::before {
-            content: "📊 ";
-            margin-right: 8px;
-        }
-        */
-
-        /* Champ d'édition du pseudonyme (textarea : enroulement multi-lignes) */
-        .anon-pseudo-input {
-            font-weight: bold;
-            color: #1565c0;
-            padding: 6px 8px;
-            border: 2px solid #90CAF9;
-            border-radius: 4px;
-            font-size: 0.95em;
-            width: 100%;
-            box-sizing: border-box;
-            font-family: inherit;
-            line-height: 1.3;
-            resize: none;            /* hauteur gérée automatiquement par autoResizeTextarea */
-            overflow: hidden;        /* pas de barre de défilement : le champ grandit */
-            white-space: pre-wrap;   /* enroule les pseudos longs */
-            overflow-wrap: anywhere; /* coupe aussi les mots très longs sans espace */
-            display: block;
-        }
-
-        /* Colonne Entité : enrouler les entités longues (mots sans espace inclus) */
-        .ligne-anon-gen td:first-child {
-            overflow-wrap: anywhere;
-            word-break: break-word;
-        }
-
-        /* La ligne grandit avec le contenu (textarea / entité enroulée) : caler
-           toutes les cellules en haut pour qu'elles restent alignées. */
-        .ligne-anon-gen td {
-            vertical-align: top;
-        }
-
-        .anon-pseudo-input:hover {
-            border-color: #64B5F6;
-            box-shadow: 0 0 4px rgba(21, 101, 192, 0.2);
-        }
-
-        .anon-pseudo-input:focus {
-            outline: none;
-            border-color: #1565c0;
-            box-shadow: 0 0 6px rgba(21, 101, 192, 0.3);
-        }
-
-        /* Bouton d'application globale */
-        .btn-apply-anon {
-            background-color: #FFC107;
-            color: #333;
-            border: 1px solid #FFB300;
-            border-radius: 4px;
-            padding: 6px 12px;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-
-        .btn-apply-anon:hover {
-            background-color: #FFB300;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            transform: translateY(-1px);
-        }
-
-        .btn-apply-anon:active {
-            transform: translateY(0);
-        }
-
-        /* Badges - Anonymisés (bleu) */
-        span[style*="64B5F6"] {
-            transition: all 0.2s !important;
-        }
-
-        /* Badges - Non-anonymisés (orange) - cliquables */
-        span[style*="FFA500"] {
-            transition: all 0.2s !important;
-        }
-
-        /* Styles pour les accordéons */
-        .accordion-entretien {
-            border-bottom: 1px solid #eee;
-        }
-
-        .accordion-entretien:hover {
-            background-color: #fafafa;
-        }
-
-        
-
-
-
-        /* Conteneur modale d'occurrences */
-        div[style*="500px"] {
-            display: flex;
-            flex-direction: column;
-        }
-    `;
-    document.head.appendChild(style);
-}
+// ajouterStylesAnonGen a été déplacée dans anon-styles.js (refacto Tâche 3).
 
 /**
  * Navigation entretien -> corpus : focalise le tableau global sur une occurrence précise.
