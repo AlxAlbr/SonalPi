@@ -1003,57 +1003,6 @@ function getTexteSelection(debSel, finSel) {
 }
 
 /**
- * Trouve, dans le DOM, les occurrences (plages d'indices de spans) de tous les alias d'une entité.
- * - Insensible à la casse (comparaison des tokens en minuscules).
- * - Réutilise la tokenisation/segmentation existante (multi-mots, tirets, apostrophes).
- * - Mutualise un Set de spans pour ne pas compter deux fois le même emplacement quand deux
- *   alias se recouvrent. Les alias les plus longs (en tokens) sont essayés d'abord.
- * @param {string} entite - chaîne « entité » pouvant contenir des alias séparés par « / »
- * @param {NodeList} tousLesSpans - résultat de querySelectorAll('[data-rk]')
- * @returns {Array<{start:number, end:number}>} plages d'indices NodeList, triées par position
- */
-function trouverMatchesEntiteDOM(entite, tousLesSpans) {
-    const spansNonVides = [];
-    tousLesSpans.forEach((span, idx) => {
-        const txt = span.textContent.trim();
-        if (txt) spansNonVides.push({ txt, originalIdx: idx });
-    });
-
-    // Préparer la liste des alias tokenisés, les plus longs d'abord (préférence en cas de recouvrement)
-    const aliasTokens = parseAliases(entite)
-        .map(al => tokenizeCommeSegmentation(al.trim()).filter(t => t.trim() !== ''))
-        .filter(toks => toks.length > 0)
-        .sort((a, b) => b.length - a.length);
-
-    const matches = [];
-    const spansTraites = new Set(); // originalIdx du premier span déjà consommé
-
-    aliasTokens.forEach(motsRecherche => {
-        for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
-            const firstSpanIdx = spansNonVides[i].originalIdx;
-            if (spansTraites.has(firstSpanIdx)) continue;
-
-            let ok = true;
-            let lastSpanIdx = firstSpanIdx;
-            for (let j = 0; j < motsRecherche.length; j++) {
-                if (spansNonVides[i + j].txt.toLowerCase() !== motsRecherche[j].toLowerCase()) {
-                    ok = false;
-                    break;
-                }
-                lastSpanIdx = spansNonVides[i + j].originalIdx;
-            }
-            if (ok) {
-                spansTraites.add(firstSpanIdx);
-                matches.push({ start: firstSpanIdx, end: lastSpanIdx });
-            }
-        }
-    });
-
-    matches.sort((a, b) => a.start - b.start);
-    return matches;
-}
-
-/**
  * Réindexe matchPositions depuis le DOM courant, sans modifier les classes.
  * Classifie chaque occurrence : anonymisée (debsel), exception (anon-exception), ou non-traitée.
  */

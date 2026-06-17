@@ -326,3 +326,117 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
         return [];
     }
 }
+
+// Matcher entretien : occurrences (plages de spans) du texte d'une entité dans le DOM courant.
+
+/**
+ * Trouve, dans le DOM, les occurrences (plages d'indices de spans) de tous les alias d'une entité.
+ * - Insensible à la casse (comparaison des tokens en minuscules).
+ * - Réutilise la tokenisation/segmentation existante (multi-mots, tirets, apostrophes).
+ * - Mutualise un Set de spans pour ne pas compter deux fois le même emplacement quand deux
+ *   alias se recouvrent. Les alias les plus longs (en tokens) sont essayés d'abord.
+ * @param {string} entite - chaîne « entité » pouvant contenir des alias séparés par « / »
+ * @param {NodeList} tousLesSpans - résultat de querySelectorAll('[data-rk]')
+ * @returns {Array<{start:number, end:number}>} plages d'indices NodeList, triées par position
+ */
+function trouverMatchesEntiteDOM(entite, tousLesSpans) {
+    const spansNonVides = [];
+    tousLesSpans.forEach((span, idx) => {
+        const txt = span.textContent.trim();
+        if (txt) spansNonVides.push({ txt, originalIdx: idx });
+    });
+
+    // Préparer la liste des alias tokenisés, les plus longs d'abord (préférence en cas de recouvrement)
+    const aliasTokens = parseAliases(entite)
+        .map(al => tokenizeCommeSegmentation(al.trim()).filter(t => t.trim() !== ''))
+        .filter(toks => toks.length > 0)
+        .sort((a, b) => b.length - a.length);
+
+    const matches = [];
+    const spansTraites = new Set(); // originalIdx du premier span déjà consommé
+
+    aliasTokens.forEach(motsRecherche => {
+        for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
+            const firstSpanIdx = spansNonVides[i].originalIdx;
+            if (spansTraites.has(firstSpanIdx)) continue;
+
+            let ok = true;
+            let lastSpanIdx = firstSpanIdx;
+            for (let j = 0; j < motsRecherche.length; j++) {
+                if (spansNonVides[i + j].txt.toLowerCase() !== motsRecherche[j].toLowerCase()) {
+                    ok = false;
+                    break;
+                }
+                lastSpanIdx = spansNonVides[i + j].originalIdx;
+            }
+            if (ok) {
+                spansTraites.add(firstSpanIdx);
+                matches.push({ start: firstSpanIdx, end: lastSpanIdx });
+            }
+        }
+    });
+
+    matches.sort((a, b) => a.start - b.start);
+    return matches;
+}
+
+////////////////////////////////////////////////////////////////////////
+// Pré-filtre du scan corpus : index inversé mot→entretiens + entretiens candidats
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Construit un index inversé : mot (minuscules) → Set d'indices d'entretiens.
+ * Inclut les mots des spans normaux ET des spans déjà pseudonymisés (data-pseudo).
+ * @param {Array} tabEnt
+ * @returns {Promise<Map<string, Set<number>>>}
+ */
+async function construireIndexInverse(tabEnt) {
+    const index = new Map(); // mot → Set<idxEnt>
+    const n = tabEnt.length;
+    for (let i = 0; i < n; i++) {
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { html = null; }
+        if (!html) continue;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        tempDiv.querySelectorAll('[data-rk]').forEach(s => {
+            const texte = s.textContent.trim();
+            if (!texte) return;
+            // Tokeniser pour gérer les spans compressés (data-len : texte multi-mots).
+            // Un entretien jamais ouvert a des spans phrases entières → sans tokenisation,
+            // les mots individuels ("pierre", "edouard") ne seraient pas trouvés.
+            motsCles(texte).forEach(token => {
+                if (!index.has(token)) index.set(token, new Set());
+                index.get(token).add(i);
+            });
+        });
+
+        if (i % 5 === 4) await new Promise(r => setTimeout(r, 0)); // respirer l'UI
+    }
+    return index;
+}
+
+/**
+ * Retourne les indices d'entretiens susceptibles de contenir l'entité,
+ * en intersectant les sets de l'index inversé pour chaque token.
+ * @param {string} entite
+ * @param {Map<string, Set<number>>} index
+ * @returns {Set<number>}
+ */
+function entretiensCandidats(entite, index) {
+    const aliases = entite.split('/').map(a => a.trim()).filter(Boolean);
+    const candidats = new Set();
+    for (const alias of aliases) {
+        const tokens = motsCles(alias);
+        if (tokens.length === 0) continue;
+        // Intersection : seuls les entretiens ayant TOUS les tokens de l'alias
+        let sets = tokens.map(t => index.get(t) || new Set());
+        let inter = new Set(sets[0]);
+        for (let k = 1; k < sets.length; k++) {
+            for (const v of inter) { if (!sets[k].has(v)) inter.delete(v); }
+        }
+        for (const v of inter) candidats.add(v);
+    }
+    return candidats;
+}
