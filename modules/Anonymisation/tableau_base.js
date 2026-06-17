@@ -1002,24 +1002,6 @@ function getTexteSelection(debSel, finSel) {
     return texte.trim();
 }
 
-// Tokenize une chaîne exactement comme la segmentation le fait
-// Pour matcher l'ordre des spans dans le DOM
-function tokenizeCommeSegmentation(texte) {
-    return texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
-}
-
-/**
- * Découpe un champ « entité » en alias séparés par « / ».
- * "Saint-Étienne / St-Étienne" → ["Saint-Étienne", "St-Étienne"]
- * Espaces autour du « / » ignorés, parts vides ignorées. Sans « / » : un seul alias.
- * @param {string} entite
- * @returns {string[]}
- */
-function parseAliases(entite) {
-    if (!entite) return [];
-    return entite.split('/').map(s => s.trim()).filter(Boolean);
-}
-
 /**
  * Trouve, dans le DOM, les occurrences (plages d'indices de spans) de tous les alias d'une entité.
  * - Insensible à la casse (comparaison des tokens en minuscules).
