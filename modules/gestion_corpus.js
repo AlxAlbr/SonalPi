@@ -22,6 +22,43 @@ let ent_cur = -1; // entretien courant
 let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
 
 /**
+ * Normalise un tabAnon en RÈGLES de corpus propres : uniquement { entite, remplacement }
+ * (trim), dédupliquées sur la paire (entité, pseudo).
+ *
+ * Le corpus ne stocke QUE des règles entité→pseudo. Les occurrences vivent dans les
+ * entretiens (matchPositions) et l'état réel (anonymisé/exception/à traiter) est dérivé du
+ * DOM/scan. On évite ainsi de polluer le .crp avec occurrences/matchPositions/indexCourant/
+ * source — et leurs incohérences (le champ `source` était posé/supprimé selon le chemin).
+ * @param {Array} tab
+ * @returns {Array<{entite:string, remplacement:string}>}
+ */
+function reglesCorpusPropres(tab) {
+    const vues = new Set();
+    const regles = [];
+    (tab || []).forEach(p => {
+        if (!p || !p.entite || !p.remplacement) return;
+        const entite = String(p.entite).trim();
+        const remplacement = String(p.remplacement).trim();
+        if (!entite || !remplacement) return;
+        const cle = `${entite}|${remplacement}`;
+        if (vues.has(cle)) return;
+        vues.add(cle);
+        regles.push({ entite, remplacement });
+    });
+    return regles;
+}
+
+/**
+ * Persiste le tabAnon global du corpus en ne gardant que des règles propres.
+ * Point d'entrée unique pour toute écriture du tabAnon corpus (remplace les appels
+ * directs à window.electronAPI.setAnon).
+ * @param {Array} tab
+ */
+async function persisterReglesCorpus(tab) {
+    return window.electronAPI.setAnon(reglesCorpusPropres(tab));
+}
+
+/**
  * Synchronise le tabAnon global avec les modifications du tabAnon local d'un entretien
  * Ajoute les nouvelles paires (entité - pseudo) qui ne sont pas déjà dans le global
  * @param {Array} tabAnonGlobal - Tableau global existant
@@ -149,7 +186,7 @@ async function lireCorpus(fileContent){
         await window.electronAPI.setVar(tabVar); 
         await window.electronAPI.setDic(tabDic);
         await window.electronAPI.setDat(tabDat);
-        await window.electronAPI.setAnon(tabAnon);
+        await persisterReglesCorpus(tabAnon);
         await window.electronAPI.setGrph(-1, tabGrph);
         window.electronAPI.setEntCur(ent_cur);
 

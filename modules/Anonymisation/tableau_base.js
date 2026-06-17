@@ -1084,16 +1084,29 @@ function reindexerMatchPositions(idxPaire) {
     const baseMatches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans);
     if (baseMatches.length === 0) { paire.matchPositions = []; return; }
 
-    const matches = baseMatches.map(({ start, end }) => {
+    // Critère unifié avec le corpus (trouverOccurrencesDansDoc) : une occurrence ne compte
+    // pour CETTE paire que si :
+    //   - exception (anon-exception), OU
+    //   - anonymisée avec CE pseudo (classe `anon` ET data-pseudo === remplacement), OU
+    //   - non traitée (aucun marquage `anon`).
+    // Une occurrence anonymisée avec un AUTRE pseudo (ou en tant que mot d'une autre entité)
+    // appartient à une autre règle → on l'EXCLUT (ni « anonymisé » ni « à traiter » ici).
+    // NB : on s'appuie sur `anon` (+ data-pseudo), pas sur `debsel` seul, car `debsel` est
+    // aussi posé par la sélection souris (survOk/validSel) sans la classe `anon`.
+    const matches = [];
+    for (const { start, end } of baseMatches) {
         const firstSpan = tousLesSpans[start];
         const estException = firstSpan.classList.contains('anon-exception');
-        // 'anon' est la seule classe fiable pour distinguer une vraie anonymisation d'une simple
-        // sélection à la souris : 'debsel' seul est aussi ajouté par survOk()/validSel() lors de
-        // la sélection courante, ce qui faussait le compteur (1 "anonymisée" dès la sélection).
         const estAnon = firstSpan.classList.contains('anon');
-        const isNonTraite = !estException && !estAnon;
-        return { start, end, isException: estException, isNonTraite };
-    });
+        if (estAnon && !estException) {
+            if (firstSpan.dataset.pseudo !== paire.remplacement) continue; // autre règle → ignorer
+            matches.push({ start, end, isException: false, isNonTraite: false });
+        } else if (estException) {
+            matches.push({ start, end, isException: true, isNonTraite: false });
+        } else {
+            matches.push({ start, end, isException: false, isNonTraite: true });
+        }
+    }
 
     paire.matchPositions = matches;
 

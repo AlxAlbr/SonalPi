@@ -1522,7 +1522,7 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
    // Synchronisation du tabAnon global : fusionner les nouvelles règles du local au global
    const tabAnonGlobal = await window.electronAPI.getAnon() || [];
    const tabAnonFusionne = await synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonNettoye);
-   await window.electronAPI.setAnon(tabAnonFusionne);
+   await persisterReglesCorpus(tabAnonFusionne);
   
     // récupération des notes
     const notesElem = document.getElementById('txtnotes');

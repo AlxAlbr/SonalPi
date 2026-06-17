@@ -87,8 +87,8 @@ async function reconstituerTabAnonGlobal(entretiens) {
 
     console.log(`✅ TabAnon reconstitué : ${newTabAnon.length} paire(s) unique(s)`, newTabAnon);
     
-    // Mettre à jour dans le main process
-    await window.electronAPI.setAnon(newTabAnon);
+    // Mettre à jour dans le main process (règles propres uniquement)
+    await persisterReglesCorpus(newTabAnon);
 }
 
 /**
@@ -835,9 +835,13 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
         for (const span of allSpans) {
             const spanId = span.dataset.rk;
             
-            // Sauter les spans debsel avec ce pseudo : ils seront traités dans la 2e passe
-            // avec le contexte reconstruit depuis les siblings.
-            if (span.classList.contains('debsel') && span.dataset.pseudo === pseudo) {
+            // Sauter TOUT span déjà anonymisé (classe `anon`) : il est déjà traité.
+            //  - s'il correspond à CETTE règle → compté en passe 2 (applique) ;
+            //  - s'il appartient à une autre entité / un autre pseudo → on ne le compte pas
+            //    en « à traiter » (on ne re-pseudonymise pas du texte déjà dans une entité).
+            // Les exceptions portent `anon-exception` (sans `anon`) → elles restent traitées
+            // ici et classées « exclue ».
+            if (span.classList.contains('anon')) {
                 continue;
             }
             
@@ -1006,6 +1010,9 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
                 const firstSpan = spansFiltrés[i];
                 const spanId = firstSpan.dataset.rk;
                 if (spansTraites.has(spanId)) continue; // déjà compté par une autre passe
+                // Déjà anonymisé (par cette règle ou une autre) → pas « à traiter » (cf. passe 1).
+                // Les occurrences appliquées de CETTE règle sont comptées en passe 2.
+                if (firstSpan.classList.contains('anon')) continue;
                 const applique = firstSpan.classList.contains('debsel') && firstSpan.dataset.pseudo === pseudo;
                 const exclue   = firstSpan.classList.contains('anon-exception');
                 const spansBefore = spansFiltrés.slice(Math.max(0, i - 5), i).map(s => s.textContent).join(' ');
@@ -2841,7 +2848,7 @@ async function appliquerAnonymisationGlobale(entite, pseudo) {
         }
 
         // Sauvegarder les changements
-        await window.electronAPI.setAnon(tabAnon);
+        await persisterReglesCorpus(tabAnon);
         
         dialog('Message', `Pseudonyme "${pseudo}" appliqué globalement.\n\nNote: Vous devez relancer l'anonymisation depuis le module d'anonymisation pour appliquer les changements à tous les entretiens.`);
         
@@ -3065,7 +3072,7 @@ function afficherModaleAjoutEntiteAnon() {
         };
 
         tabAnonGlobal.push(nouvelleEntite);
-        await window.electronAPI.setAnon(tabAnonGlobal);
+        await persisterReglesCorpus(tabAnonGlobal);
 
         // Fermer la modale
         overlay.remove();
@@ -3178,7 +3185,7 @@ async function supprimerRegleAnonGen(entite, pseudo, tr) {
     // Retirer du tabAnon global
     let tabAnon = await window.electronAPI.getAnon();
     tabAnon = tabAnon.filter(a => !(a.entite === entite && a.remplacement === pseudo));
-    await window.electronAPI.setAnon(tabAnon);
+    await persisterReglesCorpus(tabAnon);
 
     // Retirer la ligne du tableau avec animation
     tr.style.transition = "opacity 0.3s";
