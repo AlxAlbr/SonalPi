@@ -361,6 +361,7 @@ if (tabEnt.length == 0){
             let extraitEnCours = false;
             let extrait = { debut: 0, fin: 0, texte: [] };
             let locCur = -1; // initialisation du locuteur courant
+            let catsDernierMot = []; // catégories du dernier mot actif traité
 
             for (let mot of mots) {
                 m++;
@@ -372,6 +373,7 @@ if (tabEnt.length == 0){
                         //extrait.texte.push (...suffixe(mots,m));  
                         finalizeExtrait(extrait, m, i, () => { locCur = -1; });
                         extrait = { debut: 0, fin: 0, texte: [] };
+                        catsDernierMot = [];
                         continue; // passer au mot suivant
                     }
                 }    
@@ -405,6 +407,18 @@ if (tabEnt.length == 0){
 
                         //mot.classList.value=""; // réinitialisation des classes du mot pour la synthèse
 
+                        // vérification du changement de catégorie : si aucune catégorie en commun avec le mot précédent, nouvel extrait
+                        const catsMot = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+                        if (extraitEnCours && catsDernierMot.length > 0 && catsMot.length > 0) {
+                            const partage = catsMot.some(c => catsDernierMot.includes(c));
+                            if (!partage) {
+                                finalizeExtrait(extrait, m, i, () => { locCur = -1; });
+                                extrait = { debut: 0, fin: 0, texte: [] };
+                                extraitEnCours = false;
+                            }
+                        }
+                        catsDernierMot = catsMot;
+
                         // y'a-t-il changement de locuteur ?
 
                                 let loc = mot.parentNode.dataset.loc;
@@ -434,6 +448,7 @@ if (tabEnt.length == 0){
                             //extrait.texte.push (...suffixe(mots,m));  
                             finalizeExtrait(extrait, m, i, () => { locCur = -1; });
                             extrait = { debut: 0, fin: 0, texte: [] };
+                            catsDernierMot = [];
                         }
                     }
                 }
@@ -677,6 +692,10 @@ async function genererExportTxtSynthese(opts) {
 
     let entretienCourant = -1;
 
+    const retirerLocuteursTexte = (texte) => {
+        return (texte || "").replace(/^[ \t]*[^:\r\n]+:[ \t]*/gm, "");
+    };
+
     for (let i = 0; i < tabExt.length; i++) {
         const extrait = tabExt[i];
 
@@ -715,7 +734,7 @@ async function genererExportTxtSynthese(opts) {
         
         // Filtrer les locuteurs si option désactivée
         if (!opts.loc) {
-            contenuTexte = contenuTexte.replace(/^[^:]*:\s*/gm, "");
+            contenuTexte = retirerLocuteursTexte(contenuTexte);
         }
 
         txt += contenuTexte + "\n\n";
@@ -750,7 +769,7 @@ async function genererExportCsvSynthese(opts) {
         // Utiliser le texte traité (sans locuteurs si option désactivée)
         let texte = extrait.texteTraite || "";
         if (!opts.loc) {
-            texte = texte.replace(/^[^:]*:\s*/gm, "");
+            texte = texte.replace(/^[ \t]*[^:\r\n]+:[ \t]*/gm, "");
         }
         // Remplacer les retours à la ligne par des espaces pour CSV
         texte = texte.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();

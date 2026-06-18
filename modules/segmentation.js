@@ -1427,6 +1427,9 @@ async function afficherMenuSel() {
     }
     if (!catsCommunes) catsCommunes = [];
 
+    // Mémorisation du contexte pour la modale de catégories
+    window._menuSelCtx = { deb, fin, catsCommunes: catsCommunes.slice() };
+
     // Construction du HTML
     let chaine = `
         <div class="menu-sel-titre">
@@ -1436,7 +1439,7 @@ async function afficherMenuSel() {
 
     // En-tête contextuel selon le mode
     if (typeAction === 'cat') {
-        chaine += `<div class="menu-sel-action menu-title-cat" style="font-size: 14px;">Catégories</div>`;
+        chaine += `<div class="menu-sel-action menu-title-cat" style="font-size: 14px; cursor:pointer;" title="Choisir des catégories dans la liste complète" onmousedown="event.stopPropagation(); ouvrirModalCategoriesSelectionCourante();">Catégories ➕</div>`;
     } else if (typeAction === 'loc') {
         const segCurEl = getSeg(seg_cur);
         const rgloc = segCurEl ? (segCurEl.dataset.loc || 0) : 0;
@@ -1448,10 +1451,12 @@ async function afficherMenuSel() {
         for (const cat of catsCommunes) {
             const rkc = getRkThm(cat);
             const thm = (tabThm && tabThm[rkc]) ? tabThm[rkc] : null;
-            const nom = thm ? thm.nom : cat;
+            const nomParts = thm ? splitNomThm(thm.nom) : [cat, ''];
+            const nomAff = nomParts[0];
+            const nomTitle = nomParts[1] ? ` title="${nomParts[1]}"` : '';
             const couleur = (thm && thm.couleur) ? thm.couleur : '#ccc';
             chaine += `<div class="menu-sel-item" style="border-left: 4px solid ${couleur};">
-                <span>${nom}</span>
+                <span${nomTitle}>${nomAff}</span>
                 <span class="menu-sel-cat-close" onmousedown="supprimerCatSel('${cat}', ${deb}, ${fin})">✕</span>
             </div>`;
         }
@@ -1560,6 +1565,38 @@ async function majUIApresModifCatsSelection(deb) {
     }
 }
 
+
+// ---------------------------------------------------------------
+// Ouvre la modale de catégories pour la sélection courante (menu-sel)
+// ---------------------------------------------------------------
+function ouvrirModalCategoriesSelectionCourante() {
+    const ctx = window._menuSelCtx || {};
+    const deb = ctx.deb || 0;
+    const fin = ctx.fin || 0;
+    const catsCommunes = Array.isArray(ctx.catsCommunes) ? ctx.catsCommunes : [];
+
+    fermerMenuSel(); // refermer le menu de sélection flottant
+
+    ouvrirModalCategories(catsCommunes, async (selectedCats) => {
+        if (!deb || !fin) return;
+
+        const toAdd    = selectedCats.filter(c => !catsCommunes.includes(c));
+        const toRemove = catsCommunes.filter(c => !selectedCats.includes(c));
+
+        if (toAdd.length === 0 && toRemove.length === 0) return;
+
+        backUp();
+
+        for (let rk = deb; rk <= fin; rk++) {
+            const sp = getSpan(rk);
+            if (!sp) continue;
+            toAdd.forEach(c => sp.classList.add(c));
+            toRemove.forEach(c => sp.classList.remove(c));
+        }
+
+        await majUIApresModifCatsSelection(deb);
+    });
+}
 
 // affichage du menu contextuel
 async function showMenu(button, typeAction){

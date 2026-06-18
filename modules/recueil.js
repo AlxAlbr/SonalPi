@@ -309,7 +309,7 @@ function applyCollapsed(liste, recueil) {
     }
 }
 
-function renderItemsRecueil(recueil, liste, conteneur) {
+async function renderItemsRecueil(recueil, liste, conteneur) {
     liste.innerHTML = '';
     let currentNiveau = 0;
     recueil.items.forEach((item, idx) => {
@@ -348,7 +348,26 @@ function renderItemsRecueil(recueil, liste, conteneur) {
         btnDel.className = 'btn-rcl-del';
         btnDel.title = 'Supprimer cet item';
         btnDel.textContent = '✕';
-        btnDel.addEventListener('click', () => {
+        btnDel.addEventListener('click', async () => {
+
+            // question de confirmation si c'est un titre avec des items en dessous
+            
+            if (item.type === 'titre') {
+                const sousItems = recueil.items.slice(idx + 1).filter(i => i.niveau > (item.niveau || 1));
+                if (sousItems.length > 0) {
+                    let rep;
+                    
+                        rep = await question(
+                            `Supprimer cette partie? \n Attention, cette action est irr\u00e9versible.`,
+                            ['Supprimer', 'Annuler']
+                        );
+                    
+                    
+                    if (rep !== 'supprimer') return;
+
+                }
+            }
+                
             recueil.items.splice(idx, 1);
             reindexerItems(recueil); sauverRecueil(recueil); renderItemsRecueil(recueil, liste, conteneur);
         });
@@ -434,7 +453,7 @@ function renderItemsRecueil(recueil, liste, conteneur) {
                 updateNiv();
             });
             btnNivD.addEventListener('click', () => {
-                item.niveau = Math.min(3, (item.niveau || 1) + 1);
+                item.niveau = Math.min(4, (item.niveau || 1) + 1);
                 updateNiv();
             });
             nivCtrl.appendChild(btnNivG);
@@ -527,6 +546,22 @@ function renderItemsRecueil(recueil, liste, conteneur) {
         liste.appendChild(div);
     });
     applyCollapsed(liste, recueil);
+    majNumerotationRecueil(liste);
+}
+
+function majNumerotationRecueil(liste) {
+    const compteurs = [0, 0, 0, 0]; // indices 0..3 pour niveaux 1..4
+    liste.querySelectorAll('.rcl-item-edit.rcl-item-titre').forEach(div => {
+        let niv = 1;
+        for (let n = 4; n >= 1; n--) {
+            if (div.classList.contains('rcl-item-titre-niv' + n)) { niv = n; break; }
+        }
+        // Remettre à zéro les niveaux inférieurs
+        for (let i = niv; i < 4; i++) compteurs[i] = 0;
+        compteurs[niv - 1]++;
+        const numSpan = div.querySelector('.rcl-num');
+        if (numSpan) numSpan.textContent = compteurs.slice(0, niv).join('.') + '. ';
+    });
 }
 
 // ---------------------------------------------------------------

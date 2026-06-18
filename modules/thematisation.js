@@ -177,9 +177,9 @@ async function afflistThm(tabThm, conteneur){
                     
                     console.log("clic sur la flèche")
                      
-                    let fam= aEnfants(rangthm);
+                    let fam = await aEnfants(tabThm, rangthm);
 
-                    if (fam==false){return};
+                    if (!fam){return};
 
                     var compact = tabThm[rangthm].cmpct
 
@@ -263,7 +263,7 @@ async function afflistThm(tabThm, conteneur){
 
             //console.log("tabThm["+ t2 +"].cmpct  " + tabThm[t2].cmpct + "\n  enfants " + aEnfants(t2))
 
-            if (tabThm[t2].cmpct==true && aEnfants(t2)==true){
+            if (tabThm[t2].cmpct==true && await aEnfants(tabThm, t2)){
                   compactThm(tabThm,t2,tabThm[t2].cmpct)}
         }
 
@@ -386,6 +386,7 @@ async function affichListThmCrp(tabThm){
 
  // ajout d'un listener au clic gauche
     div.addEventListener('mousedown', async (event) => {
+        if (event.button !== 0) return; // ignorer clic droit et clic molette
         const rect = div.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const width = rect.width;
@@ -395,9 +396,9 @@ async function affichListThmCrp(tabThm){
 
         if (x > width - 45) {
 
-                let fam= aEnfants(rangthm);
+                let fam = await aEnfants(tabThm, rangthm);
 
-            if (fam==false){return};
+            if (!fam){return};
 
             var compact = tabThm[rangthm].cmpct
 
@@ -519,12 +520,17 @@ div.addEventListener('contextmenu', async (event) => {
 
             //console.log("tabThm["+ t2 +"].cmpct  " + tabThm[t2].cmpct + "\n  enfants " + aEnfants(t2))
 
-            if (tabThm[t2].cmpct==true && aEnfants(t2)==true){
+            if (tabThm[t2].cmpct==true && await aEnfants(tabThm, t2)){
                   compactThm(tabThm,t2,tabThm[t2].cmpct)}
         }
 
         //listenersThm();
 
+        // réappliquer le filtre de recherche s'il est actif
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput && searchInput.value) {
+            searchInput.dispatchEvent(new Event('keyup'));
+        }
 
 }    
 
@@ -1609,6 +1615,7 @@ async function compactThm(tabThm, rkthm, compact){
             } else {
 
                 lig.classList.remove("ligthm-cmpct");
+                tabThm[t].cmpct = false; // synchroniser l'état data avec l'état visuel
 
  
             }
@@ -1622,8 +1629,6 @@ async function compactThm(tabThm, rkthm, compact){
 
 
     }
-
-    tabThm[rkthm].cmpct = compact;
 
    // await window.electronAPI.setThm(); 
 
@@ -2779,6 +2784,325 @@ async function compterCatActifs(){
     document.getElementById('lbl-nb-cat').innerText = "(" + tabThm.length + ")";
     }
 }
+// ---------------------------------------------------------------
+// Modale de sélection des catégories (multi-colonnes, déplaçable)
+// ---------------------------------------------------------------
+async function ouvrirModalCategories(preselected, callback) {
+    // Supprimer une éventuelle modale existante
+    const existant = document.getElementById('modal-categories-sel');
+    if (existant) existant.remove();
+
+    // Récupération des thématiques
+    const tabThm = await window.electronAPI.getThm();
+    const preselSet = new Set(Array.isArray(preselected) ? preselected : []);
+    const selection = new Set(preselSet);
+
+    // --- Création de la modale ---
+    const modal = document.createElement('div');
+    modal.id = 'modal-categories-sel';
+    modal.style.cssText = `
+        position: fixed;
+        top: 10%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #fafafa;
+        border: 1px solid #888;
+        border-radius: 5px;
+        padding: 0;
+        z-index: 10000;
+        width: 72vw;
+        max-height: 80vh;
+        overflow: hidden;
+        box-shadow: 2px 4px 16px rgba(0,0,0,0.35);
+        display: flex;
+        flex-direction: column;
+    `;
+
+    // --- En-tête (poignée de déplacement) ---
+    const header = document.createElement('div');
+    header.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px 8px;
+        cursor: move;
+        user-select: none;
+        border-bottom: 1px solid #ddd;
+        background: #f0f0f0;
+        border-radius: 5px 5px 0 0;
+    `;
+
+    const logoImg = document.createElement('img');
+    logoImg.src = 'img/logoSonal.png';
+    logoImg.alt = '';
+    logoImg.style.cssText = 'height:32px; width:auto; margin-right:10px;';
+
+    const titre = document.createElement('span');
+    titre.innerText = 'Sélectionner des catégories';
+    titre.style.cssText = 'font-weight: bold; font-size: 1.1em; flex: 1;';
+
+    const btnFermer = document.createElement('div');
+    btnFermer.className = 'close';
+    btnFermer.innerText = '✖️';
+    btnFermer.style.cursor = 'pointer';
+    btnFermer.addEventListener('click', () => modal.remove());
+
+    let estPleinEcran = false;
+    let savedStyle = {};
+    const btnPleinEcran = document.createElement('div');
+    btnPleinEcran.innerText = '⛶';
+    btnPleinEcran.title = 'Plein écran';
+    btnPleinEcran.style.cssText = 'cursor:pointer; font-size:1.1em; margin-right:8px; user-select:none;';
+    btnPleinEcran.addEventListener('click', () => {
+        if (!estPleinEcran) {
+            savedStyle = {
+                top: modal.style.top,
+                left: modal.style.left,
+                width: modal.style.width,
+                maxHeight: modal.style.maxHeight,
+                transform: modal.style.transform,
+            };
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100vw';
+            modal.style.maxHeight = '100vh';
+            modal.style.transform = 'none';
+            modal.style.borderRadius = '0';
+            content.style.maxHeight = 'calc(100vh - 130px)';
+            btnPleinEcran.innerText = '🗗';
+            btnPleinEcran.title = 'Restaurer';
+            estPleinEcran = true;
+        } else {
+            modal.style.top = savedStyle.top;
+            modal.style.left = savedStyle.left;
+            modal.style.width = savedStyle.width;
+            modal.style.maxHeight = savedStyle.maxHeight;
+            modal.style.transform = savedStyle.transform;
+            modal.style.borderRadius = '5px';
+            content.style.maxHeight = 'calc(80vh - 130px)';
+            btnPleinEcran.innerText = '⛶';
+            btnPleinEcran.title = 'Plein écran';
+            estPleinEcran = false;
+        }
+    });
+
+    header.appendChild(logoImg);
+    header.appendChild(titre);
+    header.appendChild(btnPleinEcran);
+    header.appendChild(btnFermer);
+    modal.appendChild(header);
+
+    // --- Zone de catégories (colonnes adaptées au nombre de catégories) ---
+    const nbCols = tabThm.length / 10 > 1 ? Math.ceil(tabThm.length / 13) : 1;
+    const content = document.createElement('div');
+    content.style.cssText = `
+        overflow-y: auto;
+        flex: 1;
+        padding: 8px 10px;
+        column-count: ${nbCols};
+        column-gap: 6px;
+        max-height: calc(80vh - 130px);
+    `;
+
+    for (let t = 0; t < tabThm.length; t++) {
+        const thm = tabThm[t];
+        const rang = Number(thm.rang || 0);
+        const nom = splitNomThm(thm.nom)[0];
+        const description = splitNomThm(thm.nom)[1];
+        const estSelectionne = preselSet.has(thm.code);
+        const couleurBg = thm.couleur ? thm.couleur + '30' : '';
+
+        const item = document.createElement('div');
+        item.classList.add('ligthm', thm.code);
+        if (!estSelectionne) item.classList.add('thm-nonsel');
+        // Indentation selon le rang (inline, sans dépendre des classes rang_N)
+        item.style.cssText = `
+            padding-left: ${3 + rang * 6}px;
+            cursor: pointer;
+            user-select: none;
+            width: 100%;
+            margin: 0 0 2px 0;
+            box-sizing: border-box;
+            break-inside: avoid;
+            background-color: ${thm.couleur ? thm.couleur + '30' : 'transparent'};
+        `;
+        if (thm.couleur) item.style.borderLeft = `5px solid ${thm.couleur}`;
+        if (couleurBg && estSelectionne) item.style.backgroundColor = couleurBg;
+        if (rang === 0 && !thm.couleur) item.style.fontWeight = 'bold';
+        if (description) item.title = description;
+
+        // Indicateur de sélection (tick à gauche)
+        const tick = document.createElement('span');
+        tick.style.cssText = `
+            margin-right: 4px;
+            font-size: 1em;
+            color: #548dc1;
+            font-weight: bold;
+            display: ${estSelectionne ? 'inline' : 'none'};
+            flex-shrink: 0;
+        `;
+        tick.innerText = '✓';
+
+        // Nom de la catégorie
+        const nameSpan = document.createElement('span');
+        nameSpan.innerText = nom;
+        nameSpan.style.cssText = 'flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;';
+
+        item.appendChild(tick);
+        item.appendChild(nameSpan);
+
+        item.addEventListener('mouseenter', () => {
+            if (nameSpan.scrollWidth <= nameSpan.clientWidth) return;
+            const existing = document.getElementById('cat-modal-tooltip');
+            if (existing) existing.remove();
+            const rect = item.getBoundingClientRect();
+            const cs = getComputedStyle(item);
+            // Fond opaque : couleur de catégorie sur blanc, ou gris clair pour les inactifs
+            const bgColor = couleurBg
+                ? `color-mix(in srgb, ${thm.couleur} 20%, #f8f8f8)`
+                : '#f0f0f0';
+            const tooltip = document.createElement('div');
+            tooltip.id = 'cat-modal-tooltip';
+            tooltip.style.cssText = `
+                position: fixed;
+                top: ${rect.top}px;
+                left: ${rect.left}px;
+                height: ${rect.height}px;
+                padding: 0 10px 0 ${3 + rang * 6}px;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                background: ${bgColor};
+                border-left: ${item.style.borderLeft || 'none'};
+                white-space: nowrap;
+                z-index: 99999;
+                pointer-events: none;
+                box-shadow: 3px 0 8px rgba(0,0,0,0.3);
+                font-size: ${cs.fontSize};
+                font-family: ${cs.fontFamily};
+                font-weight: ${item.style.fontWeight || 'normal'};
+                color: ${cs.color};
+                box-sizing: border-box;
+                color: var(--couleur-texte, #333); 
+            `;
+            const tickClone = document.createElement('span');
+            tickClone.innerText = '✓';
+            tickClone.style.cssText = `color:#548dc1; font-weight:bold; flex-shrink:0; display:${tick.style.display};`;
+            const nameClone = document.createElement('span');
+            nameClone.innerText = nom;
+            tooltip.appendChild(tickClone);
+            tooltip.appendChild(nameClone);
+            document.body.appendChild(tooltip);
+        });
+        item.addEventListener('mouseleave', () => {
+            const tooltip = document.getElementById('cat-modal-tooltip');
+            if (tooltip) tooltip.remove();
+        });
+
+        item.addEventListener('click', () => {
+            if (selection.has(thm.code)) {
+                selection.delete(thm.code);
+                item.classList.add('ligthm-inactive');
+                tick.style.display = 'none';
+                if (couleurBg) item.style.backgroundColor = '';
+            } else {
+                selection.add(thm.code);
+                item.classList.remove('ligthm-inactive');
+                tick.style.display = 'inline';
+                if (couleurBg) item.style.backgroundColor = couleurBg;
+            }
+        });
+
+        content.appendChild(item);
+    }
+    modal.appendChild(content);
+
+    // --- Pied (boutons) ---
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+        display: flex;
+        gap: 10px;
+        padding: 12px 16px;
+        border-top: 1px solid #ddd;
+        background: #f8f8f8;
+        border-radius: 0 0 5px 5px;
+    `;
+
+    const btnAnnuler = document.createElement('label');
+    btnAnnuler.className = 'btnfonction';
+    btnAnnuler.style.cssText = 'flex:1;text-align:center;cursor:pointer;padding:7px 0;margin:0;';
+    btnAnnuler.innerText = 'Annuler';
+    btnAnnuler.addEventListener('click', () => modal.remove());
+
+    const btnValider = document.createElement('label');
+    btnValider.className = 'btn btn-primary';
+    btnValider.style.cssText = 'flex:3;text-align:center;cursor:pointer;padding:7px 0;margin:0;';
+    btnValider.innerText = '✓ Valider';
+    btnValider.addEventListener('click', () => {
+        modal.remove();
+        if (typeof callback === 'function') callback(Array.from(selection));
+    });
+
+    footer.appendChild(btnAnnuler);
+    footer.appendChild(btnValider);
+    modal.appendChild(footer);
+
+    // Règles CSS scoped : supprime le ::after de .ligthm (flèche ▼) dans la modale
+    const modalStyle = document.createElement('style');
+    modalStyle.id = 'modal-categories-sel-style';
+    modalStyle.textContent = `
+        #modal-categories-sel .ligthm::after { display: none !important; content: none !important; }
+        #modal-categories-sel .ligthm::before { display: none !important; content: none !important; }
+    `;
+    document.head.appendChild(modalStyle);
+    document.body.appendChild(modal);
+
+    // Nettoyage du style scoped quand la modale est fermée
+    const removeModalStyle = () => { const s = document.getElementById('modal-categories-sel-style'); if (s) s.remove(); };
+    btnFermer.addEventListener('click', removeModalStyle);
+    btnAnnuler.addEventListener('click', removeModalStyle);
+    btnValider.addEventListener('click', removeModalStyle);
+
+    // --- Drag ---
+    let isDragging = false;
+    let dragStartX = 0, dragStartY = 0;
+    let startLeft = 0, startTop = 0;
+
+    header.addEventListener('mousedown', (e) => {
+        if (e.target === btnFermer) return;
+        isDragging = true;
+        const rect = modal.getBoundingClientRect();
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        modal.style.transform = 'none';
+        modal.style.left = startLeft + 'px';
+        modal.style.top = startTop + 'px';
+        e.preventDefault();
+    });
+
+    const onMouseMove = (e) => {
+        if (!isDragging) return;
+        modal.style.left = (startLeft + e.clientX - dragStartX) + 'px';
+        modal.style.top = (startTop + e.clientY - dragStartY) + 'px';
+    };
+    const onMouseUp = () => { isDragging = false; };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    // Nettoyage des listeners globaux quand la modale disparaît
+    const observer = new MutationObserver(() => {
+        if (!document.getElementById('modal-categories-sel')) {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            observer.disconnect();
+        }
+    });
+    observer.observe(document.body, { childList: true });
+}
+
 // Export CommonJS pour utilisation dans main.js (contexte Node.js)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -2807,8 +3131,8 @@ if (typeof module !== 'undefined' && module.exports) {
         multiThm,
         ajoutThmApres,
         catsEnFiligrane,
-        removeCatsEnFiligrane
-         
+        removeCatsEnFiligrane,
+        ouvrirModalCategories
 
     };
 }
@@ -2841,6 +3165,7 @@ if (typeof window !== 'undefined') {
     window.ajoutThmApres = ajoutThmApres;
     window.catsEnFiligrane = catsEnFiligrane;
     window.removeCatsEnFiligrane = removeCatsEnFiligrane;
+    window.ouvrirModalCategories = ouvrirModalCategories;
     
     // listener IPC pour rafraîchir la liste des thématiques
     if (window.electronAPI && typeof window.electronAPI.onThematisationRefresh === 'function') {

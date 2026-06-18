@@ -131,6 +131,7 @@ async function lireCorpus(fileContent){
         tabAnon = crp.tabAnon || [];
         tabHtml = [];
         tabGrph = [];
+        tabLexico = [];
         ent_cur = crp.ent_cur || -1;
 
         
