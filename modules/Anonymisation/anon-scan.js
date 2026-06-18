@@ -30,71 +30,13 @@ async function reconstituerTabAnonGlobal(entretiens) {
         return;
     }
 
-    // Map pour tracker les paires (entité, pseudo) uniques
-    const mapEntitePseudo = new Map();
-
-    // Parcourir tous les entretiens et inventorier
-    for (let i = 0; i < entretiens.length; i++) {
-        const ent = entretiens[i];
-        console.log(`[Entretien ${i}] ${ent.nom || 'Sans nom'}:`, ent.tabAnon ? `${ent.tabAnon.length} règle(s)` : 'Pas de tabAnon');
-
-        if (!ent.tabAnon || ent.tabAnon.length === 0) {
-            continue;
-        }
-
-        // Parcourir les règles d'anonymisation de cet entretien
-        ent.tabAnon.forEach((regle, idx) => {
-            console.log(`  [${idx}] ${regle.entite} → ${regle.remplacement}`);
-
-            if (!regle.entite || !regle.remplacement) {
-                return;
-            }
-
-            const entite = regle.entite.trim();
-            const pseudo = regle.remplacement.trim();
-
-            if (!entite || !pseudo) return;
-
-            // Créer une clé unique
-            const cle = `${entite}|${pseudo}`;
-
-            // Si pas encore dans la map, ajouter
-            if (!mapEntitePseudo.has(cle)) {
-                mapEntitePseudo.set(cle, {
-                    entite: entite,
-                    remplacement: pseudo,
-                    occurrences: 0,
-                    indexCourant: 0,
-                    matchPositions: []
-                });
-            }
-        });
-    }
-
-    // Récupérer l'ancien tabAnon global pour préserver les entrées ajoutées manuellement
-    // (qui ne sont pas encore dans un entretien local)
-    const ancienTabAnon = await window.electronAPI.getAnon();
-    if (ancienTabAnon && ancienTabAnon.length > 0) {
-        for (const ancien of ancienTabAnon) {
-            if (!ancien.entite || !ancien.remplacement) continue;
-            const entite = ancien.entite.trim();
-            const pseudo = ancien.remplacement.trim();
-            if (!entite || !pseudo) continue;
-            const cle = `${entite}|${pseudo}`;
-            if (!mapEntitePseudo.has(cle)) {
-                mapEntitePseudo.set(cle, {
-                    entite: entite,
-                    remplacement: pseudo,
-                    occurrences: 0,
-                    indexCourant: 0,
-                    matchPositions: []
-                });
-            }
-        }
-    }
-
-    // Convertir la map en tableau
-    const newTabAnon = Array.from(mapEntitePseudo.values());
+    // Inventaire des règles : tous les tabAnon des entretiens (dans l'ordre, priorité) PUIS
+    // l'ancien global (pour préserver les entrées ajoutées manuellement, pas encore dans un
+    // entretien). La primitive unique fusionnerRegles déduplique sur la clé canonique
+    // (insensible à la casse) → plus de divergence de casse entre les chemins de fusion.
+    const ancienTabAnon = await window.electronAPI.getAnon() || [];
+    const listesEntretiens = entretiens.map(ent => (ent && ent.tabAnon) ? ent.tabAnon : []);
+    const newTabAnon = fusionnerRegles(...listesEntretiens, ancienTabAnon);
 
     // tri du tabAnon par ordre alphabétique des entités
     newTabAnon.sort((a, b) => a.entite.localeCompare(b.entite));

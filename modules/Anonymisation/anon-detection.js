@@ -100,232 +100,80 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
 }
 
 /**
- * Cœur de la détection d'occurrences, opérant sur un document HTML DÉJÀ parsé.
- * Extrait de trouverOccurrencesAvecContexte pour permettre le scan « passe unique »
- * du corpus (§4 du plan) : un seul parse HTML par entretien, réutilisé pour toutes
- * les paires, au lieu d'un fetch+parse par (entité × entretien).
+ * Détection d'occurrences pour le panneau corpus, opérant sur un document HTML DÉJÀ parsé.
+ * Adaptateur AUTOUR de la fonction unifiée analyserOccurrences : reformate la sortie au
+ * format attendu par le panneau ({entite, contextAvant, contextApres, applique, exclue, spanId})
+ * et reconstruit le contexte d'affichage. Opère en « passe unique » (un seul parse HTML par
+ * entretien, réutilisé pour toutes les paires).
  * @param {HTMLElement} tempDiv - racine DOM contenant le HTML de l'entretien
  * @param {string} entite - entité à chercher
- * @param {string} pseudo - pseudonyme (pour détecter l'application)
- * @returns {Array} occurrences (mêmes objets {entite, contextAvant, contextApres, applique, exclue, spanId})
+ * @param {string} pseudo - pseudonyme (pour l'attribution des occurrences anonymisées)
+ * @returns {Array} occurrences {entite, contextAvant, contextApres, applique, exclue, spanId}
  */
 function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
     try {
-        const occurrences = [];
-        // Insensible à la casse ('i') + tous les alias « / » de l'entité (alternance échappée).
-        const regexEntite = construireRegexEntite(entite, 'gi');
-        if (!regexEntite) {
-            return [];
-        }
-        
-        // Ensemble des spans déjà traités (pour éviter les doublons)
-        const spansTraites = new Set();
-        
-        // Parcourir tous les spans avec data-rk
-        const allSpans = Array.from(tempDiv.querySelectorAll('[data-rk]'));
-        
-        for (const span of allSpans) {
-            const spanId = span.dataset.rk;
-            
-            // Sauter TOUT span déjà anonymisé (classe `anon`) : il est déjà traité.
-            //  - s'il correspond à CETTE règle → compté en passe 2 (applique) ;
-            //  - s'il appartient à une autre entité / un autre pseudo → on ne le compte pas
-            //    en « à traiter » (on ne re-pseudonymise pas du texte déjà dans une entité).
-            // Les exceptions portent `anon-exception` (sans `anon`) → elles restent traitées
-            // ici et classées « exclue ».
-            if (span.classList.contains('anon')) {
-                continue;
-            }
-            
-            // === CHERCHER L'ENTITÉ ORIGINALE (NON PSEUDONYMISÉE) ===
-            const texteSpan = span.textContent;
-            let match;
-            regexEntite.lastIndex = 0;
-            
-            while ((match = regexEntite.exec(texteSpan)) !== null) {
-                const contextAvantStart = Math.max(0, match.index - 40);
-                const contextAvantEnd = match.index;
-                const contextApresStart = match.index + match[0].length;
-                const contextApresEnd = Math.min(texteSpan.length, contextApresStart + 40);
-                
-                let contextAvant = texteSpan.substring(contextAvantStart, contextAvantEnd).trim();
-                let contextApres = texteSpan.substring(contextApresStart, contextApresEnd).trim();
-                
-                // Si le contexte est vide (entité en début/fin de span), chercher dans les siblings
-                if (!contextAvant && span.previousSibling) {
-                    const textePrev = (span.previousSibling.textContent || '').trimEnd();
-                    contextAvant = '...' + textePrev.slice(-40).trimStart();
-                } else if (contextAvantStart > 0 && contextAvant.length > 0) {
-                    contextAvant = '...' + contextAvant;
-                }
-                
-                if (!contextApres && span.nextSibling) {
-                    const texteNext = (span.nextSibling.textContent || '').trimStart();
-                    contextApres = texteNext.slice(0, 40).trimEnd() + '...';
-                } else if (contextApresEnd < texteSpan.length && contextApres.length > 0) {
-                    contextApres = contextApres + '...';
-                }
-                
-                // Vérifier si le pseudo a déjà été appliqué, ou si l'occurrence est explicitement exclue
-                const applique = span.classList.contains('debsel') && span.dataset.pseudo === pseudo;
-                const exclue = span.classList.contains('anon-exception');
-                
-                occurrences.push({
-                    entite: match[0],
-                    contextAvant: contextAvant,
-                    contextApres: contextApres,
-                    applique: applique,
-                    exclue: exclue,
-                    spanId: spanId
-                });
-                
-                spansTraites.add(spanId);
-            }
-        }
-        
-        // === CHERCHER LES OCCURRENCES DÉJÀ PSEUDONYMISÉES ===
-        // Structure post-pseudo : [...] [debsel] [anon]* [finsel] [...]
-        // On reconstitue le contexte depuis le parent commun : on accumule le texte
-        // de tous les enfants avant le debsel, et après le finsel.
-        const spansPseudoDebsel = Array.from(tempDiv.querySelectorAll(`[data-pseudo="${pseudo}"].debsel`));
-        
-        for (const spanDebsel of spansPseudoDebsel) {
-            const spanId = spanDebsel.dataset.rk;
-            if (spansTraites.has(spanId)) continue;
-            
-            // Trouver le finsel (peut être debsel lui-même si entité 1 mot)
-            let finselSpan = spanDebsel;
-            if (!spanDebsel.classList.contains('finsel')) {
-                let sib = spanDebsel.nextSibling;
-                while (sib) {
-                    if (sib.nodeType === Node.ELEMENT_NODE
-                        && sib.dataset && sib.dataset.pseudo === pseudo
-                        && sib.classList.contains('finsel')) {
-                        finselSpan = sib;
-                        break;
-                    }
-                    if (sib.nodeType === Node.ELEMENT_NODE
-                        && !sib.classList.contains('anon')
-                        && (sib.textContent || '').trim() !== '') {
-                        break;
-                    }
-                    sib = sib.nextSibling;
-                }
-            }
-            
-            // Stratégie : reconstruire tout le texte du parent en 3 phases
-            // (avant / entité / après), puis si le contexte avant/après est trop court,
-            // remonter au grand-parent pour enrichir.
-            const collectContext = (startNode, direction) => {
-                // direction = 'before' (remonter) ou 'after' (descendre)
-                let parts = [];
-                let len = 0;
-                let node = direction === 'before' ? startNode.previousSibling : startNode.nextSibling;
-                
-                while (node && len < 60) {
-                    const t = node.textContent || '';
-                    if (t) {
-                        if (direction === 'before') parts.unshift(t);
-                        else parts.push(t);
-                        len += t.length;
-                    }
-                    node = direction === 'before' ? node.previousSibling : node.nextSibling;
-                }
-                
-                // Si contexte insuffisant, remonter au parent et continuer
-                if (len < 30 && startNode.parentNode) {
-                    const parentNode = startNode.parentNode;
-                    let parentSib = direction === 'before' ? parentNode.previousSibling : parentNode.nextSibling;
-                    while (parentSib && len < 60) {
-                        const t = parentSib.textContent || '';
-                        if (t) {
-                            if (direction === 'before') parts.unshift(t);
-                            else parts.push(t);
-                            len += t.length;
-                        }
-                        parentSib = direction === 'before' ? parentSib.previousSibling : parentSib.nextSibling;
-                    }
-                }
-                
-                return parts.join('');
+        // Détection + classification via la fonction UNIFIÉE (partagée avec l'entretien).
+        // On adapte la sortie au format attendu par le panneau corpus :
+        //   applique = 'anon' (anonymisée par CE pseudo) · exclue = 'exception' ·
+        //   non-traite → applique:false/exclue:false. Contexte reconstruit depuis le DOM.
+        const occ = analyserOccurrences(tempDiv, entite, pseudo);
+        return occ.map(o => {
+            const { contextAvant, contextApres } = construireContexteOccurrence(o.spanDebut, o.spanFin);
+            return {
+                entite: o.texte,
+                contextAvant,
+                contextApres,
+                applique: o.etat === 'anon',
+                exclue: o.etat === 'exception',
+                spanId: o.spanDebut.dataset.rk
             };
-            
-            // Texte de l'entité (debsel → finsel)
-            let entityText = '';
-            let cur = spanDebsel;
-            while (cur) {
-                entityText += cur.textContent || '';
-                if (cur === finselSpan) break;
-                cur = cur.nextSibling;
-            }
-
-            // FILTRE par entité réelle (Fix B) : cette passe sélectionne les spans par
-            // data-pseudo uniquement. Or deux entités distinctes peuvent partager le même
-            // pseudo → sans ce contrôle, on compterait les occurrences de l'AUTRE entité.
-            // On ne garde donc que celles dont le texte d'origine correspond à l'entité
-            // cherchée (comparaison des mots normalisés, comme le pré-filtre du scan).
-            const entityNorm = motsCles(entityText).join(' ');
-            const correspondEntite = parseAliases(entite).some(a => motsCles(a).join(' ') === entityNorm);
-            if (!correspondEntite) continue;
-
-            const rawAvant = collectContext(spanDebsel, 'before');
-            const rawApres = collectContext(finselSpan, 'after');
-            
-            const contextAvant = rawAvant.length > 40
-                ? '...' + rawAvant.slice(-40).trimStart()
-                : rawAvant;
-            const contextApres = rawApres.length > 40
-                ? rawApres.slice(0, 40).trimEnd() + '...'
-                : rawApres;
-            
-            occurrences.push({
-                entite: entityText.trim(),
-                contextAvant: contextAvant,
-                contextApres: contextApres,
-                applique: true,
-                spanId: spanId
-            });
-            
-            spansTraites.add(spanId);
-        }
-        
-        // === 3ÈME PASSE : entités multi-mots NON TRAITÉES ===
-        // La regex du 1er pass cherche dans span.textContent de chaque span individuel
-        // et ne peut pas trouver une entité multi-mots répartie sur plusieurs spans
-        // (structure un-mot-par-span après cleanHTML). On fait ici un parcours token par token.
-        const tokensEntite = entite.trim().split(/[\s\u00A0]+/).filter(t => t);
-        if (tokensEntite.length > 1) {
-            const spansFiltrés = allSpans.filter(s => s.textContent.trim() !== '');
-            for (let i = 0; i <= spansFiltrés.length - tokensEntite.length; i++) {
-                const estMatch = tokensEntite.every((tok, j) => spansFiltrés[i + j].textContent.trim() === tok);
-                if (!estMatch) continue;
-                const firstSpan = spansFiltrés[i];
-                const spanId = firstSpan.dataset.rk;
-                if (spansTraites.has(spanId)) continue; // déjà compté par une autre passe
-                // Déjà anonymisé (par cette règle ou une autre) → pas « à traiter » (cf. passe 1).
-                // Les occurrences appliquées de CETTE règle sont comptées en passe 2.
-                if (firstSpan.classList.contains('anon')) continue;
-                const applique = firstSpan.classList.contains('debsel') && firstSpan.dataset.pseudo === pseudo;
-                const exclue   = firstSpan.classList.contains('anon-exception');
-                const spansBefore = spansFiltrés.slice(Math.max(0, i - 5), i).map(s => s.textContent).join(' ');
-                const spansAfter  = spansFiltrés.slice(i + tokensEntite.length, i + tokensEntite.length + 5).map(s => s.textContent).join(' ');
-                occurrences.push({
-                    entite: tokensEntite.join(' '),
-                    contextAvant: spansBefore ? '...' + spansBefore.slice(-40) : '',
-                    contextApres: spansAfter  ? spansAfter.slice(0, 40) + '...'  : '',
-                    applique, exclue, spanId
-                });
-                spansTraites.add(spanId);
-            }
-        }
-
-        return occurrences;
-
+        });
     } catch (error) {
         console.error("Erreur dans trouverOccurrencesDansDoc():", error);
         return [];
     }
 }
+
+/**
+ * Reconstruit le contexte (avant / après) d'une occurrence pour l'affichage du panneau corpus,
+ * en accumulant le texte des siblings autour des spans de début/fin (remonte au parent si trop
+ * court). ~40 caractères de chaque côté, tronqués avec « ... ».
+ * @param {Element} spanDebut
+ * @param {Element} spanFin
+ * @returns {{contextAvant:string, contextApres:string}}
+ */
+function construireContexteOccurrence(spanDebut, spanFin) {
+    const collect = (startNode, direction) => {
+        const parts = [];
+        let len = 0;
+        const next = (n) => direction === 'before' ? n.previousSibling : n.nextSibling;
+        const add = (t) => { direction === 'before' ? parts.unshift(t) : parts.push(t); len += t.length; };
+
+        let node = next(startNode);
+        while (node && len < 60) {
+            const t = node.textContent || '';
+            if (t) add(t);
+            node = next(node);
+        }
+        // Contexte insuffisant : remonter au parent et continuer sur ses siblings.
+        if (len < 30 && startNode.parentNode) {
+            let parentSib = next(startNode.parentNode);
+            while (parentSib && len < 60) {
+                const t = parentSib.textContent || '';
+                if (t) add(t);
+                parentSib = next(parentSib);
+            }
+        }
+        return parts.join('');
+    };
+
+    const rawAvant = collect(spanDebut, 'before');
+    const rawApres = collect(spanFin, 'after');
+    const contextAvant = rawAvant.length > 40 ? '...' + rawAvant.slice(-40).trimStart() : rawAvant.trimStart();
+    const contextApres = rawApres.length > 40 ? rawApres.slice(0, 40).trimEnd() + '...' : rawApres.trimEnd();
+    return { contextAvant, contextApres };
+}
+
 
 // Matcher entretien : occurrences (plages de spans) du texte d'une entité dans le DOM courant.
 
@@ -378,6 +226,126 @@ function trouverMatchesEntiteDOM(entite, tousLesSpans) {
 
     matches.sort((a, b) => a.start - b.start);
     return matches;
+}
+
+////////////////////////////////////////////////////////////////////////
+// FONCTION UNIFIÉE de détection + classification (entretien ET corpus)
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Analyse les occurrences d'une (entité, pseudo) dans un DOM d'entretien et renvoie leur
+ * ÉTAT par occurrence. Fonction UNIQUE partagée par l'entretien (reindexerMatchPositions) et
+ * le corpus (trouverOccurrencesDansDoc) → supprime la classe de bugs « les deux vues divergent ».
+ *
+ * Principe : on cherche le TEXTE de l'entité sur un flux de tokens couvrant TOUS les spans (les
+ * spans anonymisés conservent le texte ORIGINAL — le pseudo n'est qu'affiché), puis on CLASSE
+ * chaque occurrence d'après son premier span. Le flux est tokenisé comme la segmentation (mots ET
+ * ponctuation, espaces retirés) et le match est exact token-par-token → MÊME comportement que les
+ * anciens matchers : la ponctuation entre les mots bloque un match multi-mots (« New, York » ne
+ * matche pas « New York »), les entités à tirets/apostrophes exigent la ponctuation exacte. Gère
+ * uniformément le DOM normalisé (un token/span) ET compacté (data-len>1, plusieurs tokens/span ;
+ * entretiens jamais ouverts).
+ *
+ * États :
+ *  - 'anon'       : 1er span `.anon` ET data-pseudo = pseudo (anonymisé par CETTE règle).
+ *  - 'exception'  : 1er span `.anon-exception`.
+ *  - 'non-traite' : 1er span sans marquage d'anonymisation.
+ * Occurrence dont le 1er span est `.anon` avec un AUTRE data-pseudo (autre règle) → EXCLUE.
+ *
+ * Attribution = TEXTE de l'entité (et non le pseudo) → tue le bug de collision (deux entités
+ * partageant un pseudo) : une occurrence n'est rattachée qu'à l'entité dont elle porte le texte.
+ * Le filtrage par `.anon`/`.anon-exception` distingue les vraies anonymisations des debsel/finsel
+ * posés par la sélection souris / thématisation (qui n'ont pas ces classes → 'non-traite').
+ *
+ * @param {HTMLElement} racineDOM - racine contenant les spans [data-rk] (document live côté
+ *        entretien, tempDiv parsé côté corpus)
+ * @param {string} entite - entité (peut contenir des alias séparés par « / »)
+ * @param {string} pseudo - pseudonyme de la règle
+ * @returns {Array<{etat:'anon'|'exception'|'non-traite', texte:string,
+ *                  spanDebut:Element, spanFin:Element, indexDebut:number, indexFin:number}>}
+ *          indexDebut/indexFin = index dans la NodeList [data-rk] de racineDOM (adaptateur
+ *          entretien : {start,end}) ; spanDebut/spanFin = éléments (adaptateur corpus :
+ *          contexte + spanId). Trié par ordre du document.
+ */
+function analyserOccurrences(racineDOM, entite, pseudo) {
+    const spans = Array.from(racineDOM.querySelectorAll('[data-rk]'));
+    if (spans.length === 0) return [];
+
+    // Flux de tokens sur TOUS les spans (anonymisés inclus : leur texte d'origine est préservé).
+    // Tokenisation = segmentation (mots ET ponctuation) ; les espaces (insécables compris) sont
+    // retirés, exactement comme les anciens matchers qui ignoraient les spans vides mais gardaient
+    // les spans de ponctuation. Un span compacté (data-len>1) produit plusieurs tokens.
+    const flux = []; // { tok, tokL (minuscule), idxSpan }
+    for (let i = 0; i < spans.length; i++) {
+        for (const tok of tokenizeCommeSegmentation(spans[i].textContent || '')) {
+            if (tok.trim() === '') continue; // espace/insécable → séparateur, pas un token
+            flux.push({ tok, tokL: tok.toLowerCase(), idxSpan: i });
+        }
+    }
+
+    // Séquences de tokens des alias (mots + ponctuation), les plus longues d'abord (préférence
+    // en cas de recouvrement). Même tokenisation que le flux → comparaison token-par-token.
+    const aliasTokens = parseAliases(entite)
+        .map(a => tokenizeCommeSegmentation(a).filter(t => t.trim() !== '').map(t => t.toLowerCase()))
+        .filter(toks => toks.length > 0)
+        .sort((a, b) => b.length - a.length);
+    if (aliasTokens.length === 0) return [];
+
+    // Reconstruit le texte d'affichage d'un match : espace entre deux mots, rien autour de la
+    // ponctuation (« New York », « Saint-Étienne »).
+    const reconstruireTexte = (debut, len) => {
+        let out = '';
+        for (let k = 0; k < len; k++) {
+            const t = flux[debut + k].tok;
+            const estMot = /[\wÀ-ÿ]/.test(t);
+            const precMot = k > 0 && /[\wÀ-ÿ]/.test(flux[debut + k - 1].tok);
+            if (estMot && precMot) out += ' ';
+            out += t;
+        }
+        return out;
+    };
+
+    const fluxConsomme = new Array(flux.length).fill(false);
+    const occurrences = [];
+
+    for (const toks of aliasTokens) {
+        for (let p = 0; p + toks.length <= flux.length; p++) {
+            if (fluxConsomme[p]) continue;
+            let ok = true;
+            for (let q = 0; q < toks.length; q++) {
+                if (flux[p + q].tokL !== toks[q]) { ok = false; break; }
+            }
+            if (!ok) continue;
+            for (let q = 0; q < toks.length; q++) fluxConsomme[p + q] = true;
+
+            const idxDebut = flux[p].idxSpan;
+            const idxFin   = flux[p + toks.length - 1].idxSpan;
+            const spanDebut = spans[idxDebut];
+
+            // Classification par le 1er span de l'occurrence (cohérente entretien ↔ corpus).
+            let etat;
+            if (spanDebut.classList.contains('anon-exception')) {
+                etat = 'exception';
+            } else if (spanDebut.classList.contains('anon')) {
+                if (spanDebut.dataset.pseudo !== pseudo) continue; // anonymisé par une AUTRE règle → exclu
+                etat = 'anon';
+            } else {
+                etat = 'non-traite';
+            }
+
+            occurrences.push({
+                etat,
+                texte: reconstruireTexte(p, toks.length),
+                spanDebut,
+                spanFin: spans[idxFin],
+                indexDebut: idxDebut,
+                indexFin: idxFin
+            });
+        }
+    }
+
+    occurrences.sort((a, b) => a.indexDebut - b.indexDebut);
+    return occurrences;
 }
 
 ////////////////////////////////////////////////////////////////////////

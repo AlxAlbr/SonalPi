@@ -15,7 +15,7 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
   if (tabAnonGlobal && tabAnonGlobal.length > 0) {
     tabAnonGlobal.forEach(regle => {
       if (!regle.entite || !regle.remplacement) return;
-      const key = `${regle.entite.toLowerCase()}|${regle.remplacement.toLowerCase()}`;
+      const key = cleAnon(regle.entite, regle.remplacement);
       if (!map.has(key)) {
         map.set(key, {
           entite: regle.entite,
@@ -33,7 +33,7 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
   if (tabAnonLocal && tabAnonLocal.length > 0) {
     tabAnonLocal.forEach(regle => {
       if (!regle.entite || !regle.remplacement) return;
-      const key = `${regle.entite.toLowerCase()}|${regle.remplacement.toLowerCase()}`;
+      const key = cleAnon(regle.entite, regle.remplacement);
       if (!map.has(key)) {
         map.set(key, {
           entite: regle.entite,
@@ -526,10 +526,12 @@ function nettoyerTabAnon() {
     p.remplacement && p.remplacement.trim().length > 0
   );
 
-  // Supprimer les doublons (même entité + remplacement)
+  // Supprimer les doublons (même entité + remplacement), clé canonique unique (cleAnon).
+  // NB : on conserve l'objet `p` COMPLET (champs runtime de l'entretien local), donc on ne
+  // peut pas utiliser fusionnerRegles ici (qui ne renvoie que {entite, remplacement}).
   const map = new Map();
   lignesValides.forEach(p => {
-    const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
+    const key = cleAnon(p.entite, p.remplacement);
     if (!map.has(key)) {
       map.set(key, p);
     }
@@ -1004,40 +1006,25 @@ function getTexteSelection(debSel, finSel) {
 
 /**
  * Réindexe matchPositions depuis le DOM courant, sans modifier les classes.
- * Classifie chaque occurrence : anonymisée (debsel), exception (anon-exception), ou non-traitée.
+ * Délègue la détection + classification à la fonction unifiée analyserOccurrences
+ * (anon / exception / non-traite) et adapte au format matchPositions de l'entretien.
  */
 function reindexerMatchPositions(idxPaire) {
     const paire = window.tabAnon[idxPaire];
     if (!paire || !paire.entite || !paire.entite.trim()) return;
 
     const tousLesSpans = document.querySelectorAll('[data-rk]');
-    // Recherche insensible à la casse + tous les alias « / » de l'entité.
-    const baseMatches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans);
-    if (baseMatches.length === 0) { paire.matchPositions = []; return; }
 
-    // Critère unifié avec le corpus (trouverOccurrencesDansDoc) : une occurrence ne compte
-    // pour CETTE paire que si :
-    //   - exception (anon-exception), OU
-    //   - anonymisée avec CE pseudo (classe `anon` ET data-pseudo === remplacement), OU
-    //   - non traitée (aucun marquage `anon`).
-    // Une occurrence anonymisée avec un AUTRE pseudo (ou en tant que mot d'une autre entité)
-    // appartient à une autre règle → on l'EXCLUT (ni « anonymisé » ni « à traiter » ici).
-    // NB : on s'appuie sur `anon` (+ data-pseudo), pas sur `debsel` seul, car `debsel` est
-    // aussi posé par la sélection souris (survOk/validSel) sans la classe `anon`.
-    const matches = [];
-    for (const { start, end } of baseMatches) {
-        const firstSpan = tousLesSpans[start];
-        const estException = firstSpan.classList.contains('anon-exception');
-        const estAnon = firstSpan.classList.contains('anon');
-        if (estAnon && !estException) {
-            if (firstSpan.dataset.pseudo !== paire.remplacement) continue; // autre règle → ignorer
-            matches.push({ start, end, isException: false, isNonTraite: false });
-        } else if (estException) {
-            matches.push({ start, end, isException: true, isNonTraite: false });
-        } else {
-            matches.push({ start, end, isException: false, isNonTraite: true });
-        }
-    }
+    // Détection + classification via la fonction UNIFIÉE (partagée avec le corpus) :
+    // 'anon' / 'exception' / 'non-traite' ; les occurrences anonymisées par un autre pseudo
+    // sont déjà exclues. On adapte simplement la sortie au format matchPositions de l'entretien.
+    const occ = analyserOccurrences(document, paire.entite, paire.remplacement);
+    const matches = occ.map(o => ({
+        start: o.indexDebut,
+        end: o.indexFin,
+        isException: o.etat === 'exception',
+        isNonTraite: o.etat === 'non-traite'
+    }));
 
     paire.matchPositions = matches;
 

@@ -22,8 +22,44 @@ let ent_cur = -1; // entretien courant
 let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
 
 /**
+ * Clé canonique d'une paire (entité, pseudo) pour la déduplication des règles d'anonymisation.
+ * RÈGLE UNIQUE partagée par tous les chemins de fusion/synchro/dédup : trim + minuscules
+ * (insensible à la casse → « Paris » et « paris » sont la MÊME règle). Centralisée ici pour
+ * que les différents chemins ne puissent plus diverger (avant : certains lowercase, d'autres non).
+ * @param {string} entite
+ * @param {string} remplacement
+ * @returns {string}
+ */
+function cleAnon(entite, remplacement) {
+    return `${String(entite).trim().toLowerCase()}|${String(remplacement).trim().toLowerCase()}`;
+}
+
+/**
+ * Primitive UNIQUE de fusion : combine plusieurs listes de règles en une liste DÉDUPLIQUÉE de
+ * règles propres { entite, remplacement } (trim), clé canonique cleAnon (insensible à la casse).
+ * Première occurrence gagnante → l'ORDRE des listes définit la priorité. Paires incomplètes ignorées.
+ * Utilisée par reglesCorpusPropres, synchroniserTabAnonGlobal et reconstituerTabAnonGlobal.
+ * @param {...Array} listes - listes de règles ({entite, remplacement, ...})
+ * @returns {Array<{entite:string, remplacement:string}>}
+ */
+function fusionnerRegles(...listes) {
+    const vues = new Map();
+    for (const liste of listes) {
+        for (const p of (liste || [])) {
+            if (!p || !p.entite || !p.remplacement) continue;
+            const entite = String(p.entite).trim();
+            const remplacement = String(p.remplacement).trim();
+            if (!entite || !remplacement) continue;
+            const cle = cleAnon(entite, remplacement);
+            if (!vues.has(cle)) vues.set(cle, { entite, remplacement });
+        }
+    }
+    return Array.from(vues.values());
+}
+
+/**
  * Normalise un tabAnon en RÈGLES de corpus propres : uniquement { entite, remplacement }
- * (trim), dédupliquées sur la paire (entité, pseudo).
+ * (trim), dédupliquées sur la paire (entité, pseudo), insensible à la casse.
  *
  * Le corpus ne stocke QUE des règles entité→pseudo. Les occurrences vivent dans les
  * entretiens (matchPositions) et l'état réel (anonymisé/exception/à traiter) est dérivé du
@@ -33,19 +69,7 @@ let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pou
  * @returns {Array<{entite:string, remplacement:string}>}
  */
 function reglesCorpusPropres(tab) {
-    const vues = new Set();
-    const regles = [];
-    (tab || []).forEach(p => {
-        if (!p || !p.entite || !p.remplacement) return;
-        const entite = String(p.entite).trim();
-        const remplacement = String(p.remplacement).trim();
-        if (!entite || !remplacement) return;
-        const cle = `${entite}|${remplacement}`;
-        if (vues.has(cle)) return;
-        vues.add(cle);
-        regles.push({ entite, remplacement });
-    });
-    return regles;
+    return fusionnerRegles(tab);
 }
 
 /**
@@ -66,46 +90,11 @@ async function persisterReglesCorpus(tab) {
  * @returns {Array} Tableau global mis à jour
  */
 async function synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonLocal) {
-  if (!tabAnonGlobal) tabAnonGlobal = [];
-  if (!tabAnonLocal || tabAnonLocal.length === 0) {
-    return tabAnonGlobal;
-  }
-
-  // Map des paires existantes dans le global (clé: "entite|pseudo")
-  const mapGlobal = new Map();
-  tabAnonGlobal.forEach(p => {
-    if (p.entite && p.remplacement) {
-      const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
-      mapGlobal.set(key, p);
-    }
-  });
-
-  // Ajouter les nouvelles paires du local au global
-  tabAnonLocal.forEach(p => {
-    if (!p.entite || !p.remplacement) return;
-    
-    const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
-    
-    if (!mapGlobal.has(key)) {
-      // Nouvelle paire : l'ajouter au global
-      const newEntry = {
-        entite: p.entite,
-        remplacement: p.remplacement,
-        occurrences: p.occurrences || 0,
-        indexCourant: p.indexCourant || 0,
-        matchPositions: p.matchPositions || [],
-        source: p.source || 'Entretien' // Marquer comme venant d'un entretien
-      };
-      mapGlobal.set(key, newEntry);
-      console.log(`✅ Nouvelle paire ajoutée au tabAnon global: "${p.entite}" → "${p.remplacement}"`);
-    }
-  });
-
-  // Convertir la map en tableau
-  const tabAnonGlobalMisAJour = Array.from(mapGlobal.values());
-  console.log(`📊 TabAnon global synchronisé : ${tabAnonGlobalMisAJour.length} paire(s) total`, tabAnonGlobalMisAJour);
-  
-  return tabAnonGlobalMisAJour;
+  // Global d'abord (priorité aux règles déjà connues), puis les nouvelles paires du local.
+  // La primitive fusionnerRegles déduplique sur la clé canonique (insensible à la casse) et
+  // ne renvoie que des règles propres { entite, remplacement } ; les champs runtime
+  // (occurrences/source/…) ne sont de toute façon pas persistés (cf. persisterReglesCorpus).
+  return fusionnerRegles(tabAnonGlobal, tabAnonLocal);
 }
 
 async function initFromMain() {
