@@ -11,7 +11,7 @@ function testFonctionsExistent() {
         'affichAnonGen',
         'verifierPresencePseudoEnEnt',
         'hideAnonGen',
-        'exportAnonGen',
+        'exporterTableCorpusCSV',
         'escapeRegex',
         'ouvrirEntretienAnonGen',
         'ajouterStylesAnonGen'

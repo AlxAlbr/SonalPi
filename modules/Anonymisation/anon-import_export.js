@@ -265,13 +265,18 @@ function importerAnonSonal(donneeImportees) {
 
     console.log("Import anonymisation depuis .Sonal :", donneeImportees.length, "lignes");
     
+    // NB : on opère sur window.tabAnon = array ACTIF de l'entretien (celui que le tableau
+    // affiche et que compterExceptions/appliquerAnonymisationPour lisent), PAS le `tabAnon` nu
+    // (let de gestion_corpus.js, AUTRE binding non posé sur window). Indispensable pour que la
+    // restauration .sonal soit cohérente avec l'affichage et la réapplication.
+
     // Si le tableau est vide (fichier anonymisé), initialiser avec des lignes vides
     if (donneeImportees.length === 0) {
         console.log("Tableau vide détecté (fichier anonymisé), initialisation avec lignes vides");
-        tabAnon = [];
+        window.tabAnon = [];
         // Ajouter quelques lignes vides pour permettre l'anonymisation
         for (let i = 0; i < 3; i++) {
-            tabAnon.push({
+            window.tabAnon.push({
                 entite: "",
                 remplacement: "",
                 occurrences: 0,
@@ -282,9 +287,9 @@ function importerAnonSonal(donneeImportees) {
         affichTableauAnon();
         return;
     }
-    
-    // Remplacer tabAnon complètement
-    tabAnon = donneeImportees;
+
+    // Remplacer window.tabAnon complètement
+    window.tabAnon = donneeImportees;
     
     // Rafraîchir l'affichage du tableau
     affichTableauAnon();
@@ -303,8 +308,9 @@ function importerAnonSonal(donneeImportees) {
 function reappliquerAnonymisationsSonal() {
     const tousLesSpans = document.querySelectorAll('[data-rk]');
     
-    // Parcourir chaque paire d'anonymisation
-    tabAnon.forEach((paire, idxPaire) => {
+    // Parcourir chaque paire d'anonymisation (array ACTIF de l'entretien — cf. importerAnonSonal ;
+    // idxPaire doit indexer le MÊME array que compterExceptions, qui lit window.tabAnon).
+    window.tabAnon.forEach((paire, idxPaire) => {
         // SUBTILITÉ 1 : Si occurrences === 0, c'est une ligne en attente
         // On NE la réapplique PAS sur le texte, mais elle reste dans le tableau
         if (paire.occurrences === 0) {

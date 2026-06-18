@@ -992,6 +992,11 @@ function creerEncartLegendeCorpus() {
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#fff3e0;border:1px solid #ffb74d;display:inline-block;flex-shrink:0;"></span>ligne orange = occurrences à traiter</span>
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#e8f5e9;border:1px solid #a5d6a7;display:inline-block;flex-shrink:0;"></span>ligne verte = entièrement traité</span>
         </div>
+        <div style="display:flex;flex-direction:column;gap:3px;border-top:1px solid #eee;padding-top:5px;">
+            <span><strong>📂 Importer</strong> : ajoute des règles (entité→pseudo) depuis un ou plusieurs fichiers JSON ; en cas d'entité déjà définie, un choix est proposé.</span>
+            <span><strong>📤 Exporter règles</strong> : règles en JSON, <em>réimportable</em> (dans ce corpus ou un autre).</span>
+            <span><strong>💾 Exporter CSV</strong> : état du corpus (anonymisé/non par entretien) — <em>non réimportable</em>.</span>
+        </div>
     `;
 
     encart.appendChild(header);
@@ -1112,8 +1117,9 @@ async function affichAnonGen() {
                         <button id="btn-scan-stale" class="btn btn-secondary" style="padding:4px 10px;font-size:0.82rem;">Scan</button>
                     </div>
                     <input type="file" id="file-import-corpus" multiple accept=".json" style="display:none;" onchange="importTableCorpus(this.files)">
-                    <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de correspondance (ajoute des règles au corpus)">Importer 📂</label>
-                    <label id="btn-export-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exportAnonGen();" title="Exporter les anonymisations">Exporter 💾</label>
+                    <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de règles JSON (ajoute des règles au corpus)">Importer 📂</label>
+                    <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterReglesCorpusJSON();" title="Exporter les règles (entité→pseudo) en JSON, réimportable dans un autre corpus">Exporter règles 📤</label>
+                    <label id="btn-export-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterTableCorpusCSV();" title="Exporter l'état du corpus en CSV (anonymisé/non par entretien) — non réimportable">Exporter CSV 💾</label>
                     <label id="btn-quit-anon" class="btn btn-secondary" style="padding:10px" onclick="hideAnonGen();" title="Fermer la table">Quitter ✖️</label>
                 </div>
                 <div id="anon-page-content" style="display:flex;flex:1;min-height:0;overflow:hidden;">
@@ -2195,6 +2201,38 @@ async function retirerPseudoDeEntretien(indexEnt, pseudo, entite) {
 }
 
 /**
+ * Exporte les RÈGLES du corpus (entité→pseudo) en JSON, au format de la table de
+ * correspondance [{ entite_init, entite_pseudo }, ...] — donc **réimportable** via 📂 Importer
+ * (dans ce corpus ou un autre). À distinguer de exporterTableCorpusCSV (rapport d'état, non
+ * réimportable).
+ */
+async function exporterReglesCorpusJSON() {
+    const tabAnonGlobal = (await window.electronAPI.getAnon()) || [];
+    const correspondances = tabAnonGlobal
+        .filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim())
+        .map(a => ({ entite_init: a.entite.trim(), entite_pseudo: a.remplacement.trim() }));
+
+    if (correspondances.length === 0) {
+        dialog('Message', 'Aucune règle à exporter.');
+        return;
+    }
+
+    const json = JSON.stringify(correspondances, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    link.download = `regles_corpus_${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    question(`Export réussi : ${correspondances.length} règle(s) exportée(s).`, ['OK']);
+}
+
+/**
  * Import d'une (ou plusieurs) table(s) de correspondance JSON au niveau du CORPUS.
  * Contrairement à l'entretien (qui applique au texte ouvert), ici on AJOUTE des règles
  * au tabAnon global (.crp). Réutilise le moteur de conflits partagé (anon-correspondance.js)
@@ -2291,9 +2329,11 @@ async function appliquerImportCorpus(correspondances) {
 }
 
 /**
- * Exporte la table d'anonymisation
+ * Exporte l'état du corpus en CSV : une ligne par règle (entité, pseudo) avec, par entretien,
+ * ✅ anonymisé / ❌ non-anonymisé. À distinguer de l'export/import JSON de la table de
+ * correspondance (les règles seules), géré par anon-correspondance.js / anon-import_export.js.
  */
-async function exportAnonGen() {
+async function exporterTableCorpusCSV() {
     try {
         const tabAnonGlobal = await window.electronAPI.getAnon();
         const tabEnt = await window.electronAPI.getEnt();
