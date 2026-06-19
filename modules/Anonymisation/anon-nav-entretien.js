@@ -107,18 +107,29 @@ function surlignerOccurrence(idx) {
 }
 
 // Navigation vers la prochaine occurrence d'une catégorie (anon | exc | non)
+// Teste l'appartenance d'un match à une catégorie de navigation.
+// cat : 'exc' | 'non' | 'anon' (toutes variantes) | 'anon0'/'anon1' (variante précise, lue au DOM).
+function _matchDansCategorie(paire, m, cat, spans) {
+    if (cat === 'exc') return m.isException;
+    if (cat === 'non') return m.isNonTraite;
+    if (m.isException || m.isNonTraite) return false; // 'anon' / 'anonN'
+    if (cat === 'anon') return true;
+    const vi = parseInt(cat.slice(4), 10); // 'anon0' -> 0
+    if (isNaN(vi)) return true;
+    const cible = (pseudosDe(paire)[vi] || '').toLowerCase();
+    const dp = ((spans && spans[m.start] && spans[m.start].dataset.pseudo) || '').toLowerCase();
+    return dp === cible || (dp === '' && vi === 0); // sans data-pseudo → primaire
+}
+
 function allerCatSuivante(idx, cat) {
     const paire = window.tabAnon[idx];
     if (!paire || !paire.matchPositions || paire.matchPositions.length === 0) return;
 
     // Filtrer les matches de cette catégorie (avec leur index original)
+    const spans = cat.startsWith('anon') ? document.querySelectorAll('[data-rk]') : null;
     const matchesCat = [];
     paire.matchPositions.forEach((m, origIdx) => {
-        if ((cat === 'anon' && !m.isException && !m.isNonTraite) ||
-            (cat === 'exc' && m.isException) ||
-            (cat === 'non' && m.isNonTraite)) {
-            matchesCat.push({ origIdx });
-        }
+        if (_matchDansCategorie(paire, m, cat, spans)) matchesCat.push({ origIdx });
     });
     if (matchesCat.length === 0) return;
 
@@ -149,13 +160,10 @@ function allerCatPrecedente(idx, cat) {
     const paire = window.tabAnon[idx];
     if (!paire || !paire.matchPositions || paire.matchPositions.length === 0) return;
 
+    const spans = cat.startsWith('anon') ? document.querySelectorAll('[data-rk]') : null;
     const matchesCat = [];
     paire.matchPositions.forEach((m, origIdx) => {
-        if ((cat === 'anon' && !m.isException && !m.isNonTraite) ||
-            (cat === 'exc' && m.isException) ||
-            (cat === 'non' && m.isNonTraite)) {
-            matchesCat.push({ origIdx });
-        }
+        if (_matchDansCategorie(paire, m, cat, spans)) matchesCat.push({ origIdx });
     });
     if (matchesCat.length === 0) return;
 
@@ -186,7 +194,7 @@ function clicCompteur(btn, idx, cat) {
         document.querySelectorAll('.fleche-nav-cat').forEach(f => f.remove());
 
         // Couleur selon la catégorie
-        const couleurs = { anon: '#4caf50', exc: '#555', non: '#ff9800' };
+        const couleurs = { anon: '#4caf50', anon0: '#4caf50', anon1: '#00897b', exc: '#555', non: '#ff9800' };
         const couleur = couleurs[cat] || '#666';
         const style = `color:${couleur};background:none;border:none;cursor:pointer;padding:0 3px;font-size:9px;line-height:1;opacity:0.85;`;
 

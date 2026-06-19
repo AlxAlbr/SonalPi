@@ -386,7 +386,32 @@ function affichTableauAnon() {
         const estPending = nbNon > 0;
         // Ligne verte uniquement si toutes les occurrences sont traitées (anonymisées ou en exception)
         const estAnonymisee = aDesOccurrences && paire.remplacement.trim().length > 0 && nbNon === 0;
-        
+
+        // Compteur(s) « anonymisées » : pour une ligne MULTI-PSEUDO, un badge PAR variante (compté
+        // depuis le DOM via data-pseudo) avec navigation propre (cat 'anon0'/'anon1') ; sinon un seul
+        // badge agrégé (cat 'anon'). Exceptions / à-traiter restent partagés.
+        const pseudosLigne = pseudosDe(paire);
+        let badgesAnonHtml = '';
+        if (pseudosLigne.length > 1 && nbAnon > 0) {
+            const spansLigne = document.querySelectorAll('[data-rk]');
+            const compteVar = pseudosLigne.map(() => 0);
+            paire.matchPositions.forEach(m => {
+                if (m.isException || m.isNonTraite) return;
+                const dp = ((spansLigne[m.start] && spansLigne[m.start].dataset.pseudo) || '').toLowerCase();
+                let vi = pseudosLigne.findIndex(p => p.toLowerCase() === dp);
+                if (vi < 0) vi = 0; // pseudo inconnu/legacy → compté sur le primaire
+                compteVar[vi]++;
+            });
+            const couleursVar = ['#4caf50', '#00897b']; // primaire = vert, alt = teal
+            badgesAnonHtml = pseudosLigne.map((p, vi) => compteVar[vi] > 0
+                ? `<button class="btn-nav-cat btn-nav-cat-anon" data-idx="${i}" data-cat="anon${vi}" onclick="clicCompteur(this,${i},'anon${vi}')" style="background:${couleursVar[vi] || '#4caf50'};" title="${compteVar[vi]} occurrence(s) anonymisée(s) comme « ${_escAnonMenu(p)} » — cliquer pour naviguer">${compteVar[vi]}</button>`
+                : '').join('');
+        } else {
+            badgesAnonHtml = nbAnon > 0
+                ? `<button class="btn-nav-cat btn-nav-cat-anon" data-idx="${i}" data-cat="anon" onclick="clicCompteur(this,${i},'anon')" title="${nbAnon} occurrence(s) anonymisée(s) — cliquer pour naviguer">${nbAnon}</button>`
+                : '';
+        }
+
         html += `
             <tr data-idx="${i}" class="ligne-anon${estAnonymisee ? ' ligne-anonymisee' : estPending ? ' ligne-en-attente' : ''}">
                 <td class="col-entite">
@@ -415,7 +440,7 @@ function affichTableauAnon() {
                 </td>
                 <td class="col-actions">
                     <div class="actions-container-new">
-                        ${nbAnon > 0 ? `<button class="btn-nav-cat btn-nav-cat-anon" data-idx="${i}" data-cat="anon" onclick="clicCompteur(this,${i},'anon')" title="${nbAnon} occurrence(s) anonymisée(s) — cliquer pour naviguer">${nbAnon}</button>` : ''}
+                        ${badgesAnonHtml}
                         ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
                         ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
                         ${aDesOccurrences ? `
