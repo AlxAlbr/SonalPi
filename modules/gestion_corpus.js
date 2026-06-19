@@ -21,81 +21,11 @@ let ent_cur = -1; // entretien courant
 
 let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
 
-/**
- * Clé canonique d'une paire (entité, pseudo) pour la déduplication des règles d'anonymisation.
- * RÈGLE UNIQUE partagée par tous les chemins de fusion/synchro/dédup : trim + minuscules
- * (insensible à la casse → « Paris » et « paris » sont la MÊME règle). Centralisée ici pour
- * que les différents chemins ne puissent plus diverger (avant : certains lowercase, d'autres non).
- * @param {string} entite
- * @param {string} remplacement
- * @returns {string}
- */
-function cleAnon(entite, remplacement) {
-    return `${String(entite).trim().toLowerCase()}|${String(remplacement).trim().toLowerCase()}`;
-}
-
-/**
- * Primitive UNIQUE de fusion : combine plusieurs listes de règles en une liste DÉDUPLIQUÉE de
- * règles propres { entite, remplacement } (trim), clé canonique cleAnon (insensible à la casse).
- * Première occurrence gagnante → l'ORDRE des listes définit la priorité. Paires incomplètes ignorées.
- * Utilisée par reglesCorpusPropres, synchroniserTabAnonGlobal et reconstituerTabAnonGlobal.
- * @param {...Array} listes - listes de règles ({entite, remplacement, ...})
- * @returns {Array<{entite:string, remplacement:string}>}
- */
-function fusionnerRegles(...listes) {
-    const vues = new Map();
-    for (const liste of listes) {
-        for (const p of (liste || [])) {
-            if (!p || !p.entite || !p.remplacement) continue;
-            const entite = String(p.entite).trim();
-            const remplacement = String(p.remplacement).trim();
-            if (!entite || !remplacement) continue;
-            const cle = cleAnon(entite, remplacement);
-            if (!vues.has(cle)) vues.set(cle, { entite, remplacement });
-        }
-    }
-    return Array.from(vues.values());
-}
-
-/**
- * Normalise un tabAnon en RÈGLES de corpus propres : uniquement { entite, remplacement }
- * (trim), dédupliquées sur la paire (entité, pseudo), insensible à la casse.
- *
- * Le corpus ne stocke QUE des règles entité→pseudo. Les occurrences vivent dans les
- * entretiens (matchPositions) et l'état réel (anonymisé/exception/à traiter) est dérivé du
- * DOM/scan. On évite ainsi de polluer le .crp avec occurrences/matchPositions/indexCourant/
- * source — et leurs incohérences (le champ `source` était posé/supprimé selon le chemin).
- * @param {Array} tab
- * @returns {Array<{entite:string, remplacement:string}>}
- */
-function reglesCorpusPropres(tab) {
-    return fusionnerRegles(tab);
-}
-
-/**
- * Persiste le tabAnon global du corpus en ne gardant que des règles propres.
- * Point d'entrée unique pour toute écriture du tabAnon corpus (remplace les appels
- * directs à window.electronAPI.setAnon).
- * @param {Array} tab
- */
-async function persisterReglesCorpus(tab) {
-    return window.electronAPI.setAnon(reglesCorpusPropres(tab));
-}
-
-/**
- * Synchronise le tabAnon global avec les modifications du tabAnon local d'un entretien
- * Ajoute les nouvelles paires (entité - pseudo) qui ne sont pas déjà dans le global
- * @param {Array} tabAnonGlobal - Tableau global existant
- * @param {Array} tabAnonLocal - Tableau local nettoyé de l'entretien qui vient d'être sauvegardé
- * @returns {Array} Tableau global mis à jour
- */
-async function synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonLocal) {
-  // Global d'abord (priorité aux règles déjà connues), puis les nouvelles paires du local.
-  // La primitive fusionnerRegles déduplique sur la clé canonique (insensible à la casse) et
-  // ne renvoie que des règles propres { entite, remplacement } ; les champs runtime
-  // (occurrences/source/…) ne sont de toute façon pas persistés (cf. persisterReglesCorpus).
-  return fusionnerRegles(tabAnonGlobal, tabAnonLocal);
-}
+// ── Cœur des règles d'anonymisation du corpus (cleAnon, clesAlias, cleEntite,
+//    regleEnCollisionAlias, fusionnerRegles, conflitsPseudoParEntite, reglesCorpusPropres,
+//    persisterReglesCorpus, synchroniserTabAnonGlobal) DÉPLACÉ dans
+//    modules/Anonymisation/anon-regles.js (Partie 0 du plan multi-pseudo). Fonctions globales,
+//    toujours disponibles au runtime (anon-regles.js chargé dans index.html et edition_entretien.html).
 
 async function initFromMain() {
   Corpus = await window.electronAPI.getCorpus();

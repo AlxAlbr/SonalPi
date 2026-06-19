@@ -1051,10 +1051,14 @@ async function affichAnonGen() {
         
         // NOUVELLE LOGIQUE: Reconstituer le tabAnon à chaque chargement
         // Appel de la fonction existante de gestion_corpus.js
+        let conflitsPseudo = [];
         if (typeof reconstituerTabAnonGlobal === 'function') {
-            await reconstituerTabAnonGlobal(tabEnt);
+            conflitsPseudo = await reconstituerTabAnonGlobal(tabEnt) || [];
         }
-        
+        // Signaler ici (ouverture délibérée de l'onglet Pseudos) les conflits de pseudo détectés
+        // — pas à chaque ouverture du corpus.
+        if (typeof signalerConflitsPseudo === 'function') signalerConflitsPseudo(conflitsPseudo);
+
         // Récupérer le tabAnon (reconstitué ou existant)
         const tabAnonGlobal = await window.electronAPI.getAnon();
         
@@ -1956,15 +1960,20 @@ function afficherModaleAjoutEntiteAnon() {
             return;
         }
 
-        // Vérifier si cette combinaison existe déjà
+        // Une entité = UN pseudo (décision « corpus autoritaire »). On vérifie au niveau ALIAS
+        // (insensible à la casse) : si un alias en jeu (y compris dans un groupe "A/B") est déjà
+        // pris par une règle, on n'ajoute jamais un second pseudo (sinon ligne fantôme : la
+        // persistance, dédupliquée par alias, n'en garderait qu'un).
         const tabAnonGlobal = await window.electronAPI.getAnon();
-        const existe = tabAnonGlobal.some(a => 
-            a.entite && a.entite.trim() === entite && 
-            a.remplacement && a.remplacement.trim() === pseudo
-        );
+        const existante = regleEnCollisionAlias(entite, tabAnonGlobal);
 
-        if (existe) {
-            question(`La combinaison "${entite}" → "${pseudo}" existe déjà.`, ['OK']);
+        if (existante) {
+            if (cleAnon(existante.entite, existante.remplacement) === cleAnon(entite, pseudo)) {
+                question(`La combinaison "${entite}" → "${pseudo}" existe déjà.`, ['OK']);
+            } else {
+                question(`L'entité « ${existante.entite} » a déjà le pseudonyme « ${existante.remplacement} ». ` +
+                         `Une entité ne peut avoir qu'un seul pseudonyme : modifiez la règle existante pour le changer.`, ['OK']);
+            }
             return;
         }
 
@@ -2297,10 +2306,11 @@ async function appliquerImportCorpus(correspondances) {
         const pseudo = (corr.entite_pseudo || '').trim();
         if (!entite || !pseudo) continue;
 
-        // Dédoublonnage sur la paire exacte (entité, pseudo)
-        const existe = tabAnonGlobal.some(a =>
-            a.entite && a.entite.trim() === entite &&
-            a.remplacement && a.remplacement.trim() === pseudo);
+        // Une entité = UN pseudo (corpus autoritaire) : si un alias en jeu est déjà pris (insensible
+        // à la casse, quel que soit son pseudo, y compris via un groupe "A/B"), on n'ajoute pas de
+        // second pseudo → on l'ignore (compté en « déjà présente(s) »). La résolution « remplacer »
+        // passe par le dialogue de conflit d'import (traiterImportCorrespondances), pas par cet ajout direct.
+        const existe = regleEnCollisionAlias(entite, tabAnonGlobal) !== null;
         if (existe) { doublons++; continue; }
 
         const regle = { entite, remplacement: pseudo, occurrences: 0, indexCourant: 0, matchPositions: [] };

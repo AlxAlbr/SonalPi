@@ -4025,10 +4025,15 @@ SYNTHESE
     font-weight: 700;
 }
 
-/* Ligne anonymisée */
+/* Ligne anonymisée (toutes les occurrences traitées) */
 .ligne-anonymisee {
     background-color: #97d19c47;
     opacity: 0.8;
+}
+
+/* Ligne en attente (occurrences non traitées restantes) */
+.ligne-en-attente {
+    background-color: #fff3e0;
 }
 
 /* Bouton d'édition */

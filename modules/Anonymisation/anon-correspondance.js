@@ -49,14 +49,12 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
     const valides = [];
     const mapEntites = {}; // { entite_init: [{ pseudo, source }] }
 
-    // Index des règles déjà présentes : entité (trim) → pseudo.
-    // Pour l'entretien = règles validées (occurrences>0) ; pour le corpus = toutes les règles.
-    const pseudoParEntite = new Map();
-    ((ctx && ctx.reglesExistantes) || []).forEach(r => {
-        if (r && r.entite) pseudoParEntite.set(String(r.entite).trim(), r.remplacement);
-    });
-    const entitesDejaAnonym = new Set(pseudoParEntite.keys());
-    console.log(`Total entités déjà présentes : ${entitesDejaAnonym.size}`);
+    // Règles déjà présentes (pour l'entretien = règles validées occurrences>0 ; pour le corpus =
+    // toutes). La détection de conflit se fait AU NIVEAU ALIAS (regleEnCollisionAlias) : un import
+    // "Lyon/Lyons" entre en conflit avec une règle existante "Lyon" même s'ils ne sont pas la même
+    // chaîne. Cohérent avec fusionnerRegles / l'ajout direct.
+    const reglesExistantes = ((ctx && ctx.reglesExistantes) || []).filter(r => r && r.entite && r.remplacement);
+    console.log(`Total règles déjà présentes : ${reglesExistantes.length}`);
 
     // Regrouper les pseudos importés par entité
     allCorrespondances.forEach((corr, idx) => {
@@ -73,11 +71,12 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
         const pseudos = mapEntites[entiteInit];
         const pseudosUniques = [...new Set(pseudos.map(p => p.pseudo))];
 
-        // Cas 1: Entité déjà présente dans les règles existantes
-        if (entitesDejaAnonym.has(entiteInit)) {
-            const pseudoExistant = pseudoParEntite.get(entiteInit);
-            // Ne sont en conflit que les pseudos importés DIFFÉRENTS de l'existant.
-            const differents = pseudosUniques.filter(p => p !== pseudoExistant);
+        // Cas 1: un alias de l'entité importée est déjà pris par une règle existante (insensible à la casse)
+        const regleExistante = regleEnCollisionAlias(entiteInit, reglesExistantes);
+        if (regleExistante) {
+            const pseudoExistant = regleExistante.remplacement;
+            // Ne sont en conflit que les pseudos importés DIFFÉRENTS (insensible à la casse) de l'existant.
+            const differents = pseudosUniques.filter(p => p.toLowerCase() !== String(pseudoExistant).toLowerCase());
             if (differents.length === 0) {
                 // Réimport à l'identique → simple doublon (pas un conflit) : on laisse
                 // l'étape d'application le détecter et l'ignorer.

@@ -98,14 +98,6 @@ window.tabAnon = [];
 // Index de la ligne à focus après ajout (pour éviter les conflits de focus lors de validSel)
 var lastAnonLineToFocus = -1;
 
-// Retire le surlignage des occurrences quand on clique ailleurs
-function clearHighlightOccurrences() {
-    const tousLesSpans = document.querySelectorAll('[data-rk]');
-    tousLesSpans.forEach(span => {
-        span.classList.remove('highlight-occ');
-    });
-}
-
 // Auto-agrandissement des textareas en fonction du contenu
 function autoGrowTextarea(textarea) {
     if (!textarea) return;
@@ -293,7 +285,6 @@ function affichTableauAnon() {
     // Réinitialiser le compteur actif (les flèches disparaissent au re-rendu)
     window._activeCounter = null;
 
-
     // 1. Construire la liste des indices à afficher
     // - Toutes les paires avec occurrences > 0
     // - Les paires avec entité mais 0 occurrences (en cours de remplissage par l'utilisateur)
@@ -359,8 +350,6 @@ function affichTableauAnon() {
         
         // Déterminer si cette ligne a des occurrences trouvées
         const aDesOccurrences = paire.occurrences > 0;
-        // Déterminer si cette ligne est VRAIMENT anonymisée (occurrences + pseudo défini)
-        const estAnonymisee = aDesOccurrences && paire.remplacement.trim().length > 0;
         // Réindexer les positions depuis le DOM si nécessaire (placeholders du panel corpus ou entrée non encore traitée)
         if (paire.entite && paire.entite.trim()) {
             const hasPlaceholders = aDesOccurrences && paire.matchPositions && paire.matchPositions.length > 0 && paire.matchPositions[0].start === -1;
@@ -374,9 +363,11 @@ function affichTableauAnon() {
         const nbExc  = paire.matchPositions ? paire.matchPositions.filter(m => m.isException).length : 0;
         const nbNon  = paire.matchPositions ? paire.matchPositions.filter(m => m.isNonTraite).length : 0;
         const estPending = nbNon > 0;
+        // Ligne verte uniquement si toutes les occurrences sont traitées (anonymisées ou en exception)
+        const estAnonymisee = aDesOccurrences && paire.remplacement.trim().length > 0 && nbNon === 0;
         
         html += `
-            <tr data-idx="${i}" class="ligne-anon${estAnonymisee ? ' ligne-anonymisee' : ''}">
+            <tr data-idx="${i}" class="ligne-anon${estAnonymisee ? ' ligne-anonymisee' : estPending ? ' ligne-en-attente' : ''}">
                 <td class="col-entite">
                     <textarea 
                            class="input-entite textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}"
@@ -686,7 +677,6 @@ function verifierDoublonEntite(idxCourant) {
     return false;
 }
 
-
 // Désactive l'édition d'une ligne (après avoir validé l'anonymisation)
 function desactiverEditionLigne(idx) {
     const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
@@ -704,6 +694,7 @@ function desactiverEditionLigne(idx) {
     // Marquer la ligne comme "anonymisée"
     const ligne = document.querySelector(`tr[data-idx="${idx}"]`);
     if (ligne) {
+        ligne.classList.remove('ligne-en-attente');
         ligne.classList.add('ligne-anonymisee');
     }
     
@@ -802,8 +793,6 @@ function reactiverEditionLigne(idx) {
         remplacement.focus();
     }
 }
-
-
 
 // Sauvegarde le tabAnon courant dans l'entretien
 async function sauvegarderTabAnonEnt() {
@@ -1179,98 +1168,6 @@ function appliquerAnonymisationPour(idxPaire) {
     }
 }
 
-// Navigation vers l'occurrence suivante
-function allerOccurrenceSuivante(idx) {
-    const paire = window.tabAnon[idx];
-    
-    if (!paire.matchPositions || paire.matchPositions.length === 0) {
-        return;
-    }
-    
-    // Cas d'une seule occurrence : scroll vers elle sans changer l'index
-    if (paire.matchPositions.length === 1) {
-        surlignerOccurrence(idx);
-        return;
-    }
-    
-    // Au premier clic, passer de "N" à "1/N"
-    if (paire.indexCourant === 0) {
-        const countSpan = document.querySelector(`tr[data-idx="${idx}"] .count-occ`);
-        if (countSpan && !countSpan.textContent.includes('/')) {
-            countSpan.textContent = `1/${paire.occurrences}`;
-        }
-    }
-    
-    if (paire.indexCourant < paire.matchPositions.length - 1) {
-        paire.indexCourant++;
-        surlignerOccurrence(idx);
-    }
-}
-
-// Navigation vers l'occurrence précédente
-function allerOccurrencePrecedente(idx) {
-    const paire = window.tabAnon[idx];
-    
-    if (!paire.matchPositions || paire.matchPositions.length === 0) {
-        return;
-    }
-    
-    // Cas d'une seule occurrence : scroll vers elle sans changer l'index
-    if (paire.matchPositions.length === 1) {
-        surlignerOccurrence(idx);
-        return;
-    }
-    
-    // Au premier clic, passer de "N occ" à "1/N"
-    if (paire.indexCourant === 0) {
-        const countSpan = document.querySelector(`tr[data-idx="${idx}"] .count-occ`);
-        if (countSpan && !countSpan.textContent.includes('/')) {
-            countSpan.textContent = `1/${paire.occurrences}`;
-        }
-    }
-    
-    if (paire.indexCourant > 0) {
-        paire.indexCourant--;
-        surlignerOccurrence(idx);
-    }
-}
-
-// Surligne l'occurrence courante et scroll vers elle
-function surlignerOccurrence(idx) {
-    const paire = window.tabAnon[idx];
-    
-    if (!paire.matchPositions || paire.matchPositions.length === 0) {
-        return;
-    }
-    
-    const tousLesSpans = document.querySelectorAll('[data-rk]');
-    const matchCourant = paire.matchPositions[paire.indexCourant];
-    
-    // Retirer les surbrillances d'autres occurrences (classe highlight-occ)
-    tousLesSpans.forEach(span => {
-        span.classList.remove('highlight-occ');
-    });
-    
-    // Ajouter la surbrillance sur l'occurrence courante
-    for (let i = matchCourant.start; i <= matchCourant.end; i++) {
-        if (tousLesSpans[i]) {
-            tousLesSpans[i].classList.add('highlight-occ');
-        }
-    }
-    
-    // Scroll vers la première occurrence
-    const firstSpan = tousLesSpans[matchCourant.start];
-    if (firstSpan) {
-        firstSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    
-    // Mettre à jour le texte du compteur avec index courant
-    const counterBadge = document.querySelector(`.counter-badge[data-idx="${idx}"]`);
-    if (counterBadge) {
-        counterBadge.textContent = `${paire.indexCourant + 1}/${paire.occurrences}`;
-    }
-}
-
 // Valide toutes les anonymisations en attente (lignes qui ont entité et remplacement mais pas validées)
 async function validerAnonEnAttente() {
     // Garde contre les appels récursifs
@@ -1379,108 +1276,6 @@ async function validerAnonEnAttente() {
     }
 }
 
-// Navigation vers la prochaine occurrence d'une catégorie (anon | exc)
-function allerCatSuivante(idx, cat) {
-    const paire = window.tabAnon[idx];
-    if (!paire || !paire.matchPositions || paire.matchPositions.length === 0) return;
-
-    // Filtrer les matches de cette catégorie (avec leur index original)
-    const matchesCat = [];
-    paire.matchPositions.forEach((m, origIdx) => {
-        if ((cat === 'anon' && !m.isException && !m.isNonTraite) ||
-            (cat === 'exc' && m.isException) ||
-            (cat === 'non' && m.isNonTraite)) {
-            matchesCat.push({ origIdx });
-        }
-    });
-    if (matchesCat.length === 0) return;
-
-    // Avancer l'index de catégorie (cyclique)
-    const indexKey = `indexCourant_${cat}`;
-    if (paire[indexKey] === undefined) paire[indexKey] = -1;
-    paire[indexKey] = (paire[indexKey] + 1) % matchesCat.length;
-
-    // Synchroniser l'index global pour surlignerOccurrence
-    paire.indexCourant = matchesCat[paire[indexKey]].origIdx;
-
-    // Mettre à jour le bouton temporairement avec X/N
-    const btn = document.querySelector(`.btn-nav-cat[data-idx="${idx}"][data-cat="${cat}"]`);
-    if (btn) {
-        const total = matchesCat.length;
-        const current = paire[indexKey] + 1;
-        btn.textContent = `${current}/${total}`;
-        clearTimeout(btn._resetTimer);
-        btn._resetTimer = setTimeout(() => { btn.textContent = `${total}`; }, 1800);
-    }
-
-    // Surligner et scroller vers l'occurrence
-    surlignerOccurrence(idx);
-}
-
-// Navigation vers l'occurrence précédente d'une catégorie (anon | exc | non)
-function allerCatPrecedente(idx, cat) {
-    const paire = window.tabAnon[idx];
-    if (!paire || !paire.matchPositions || paire.matchPositions.length === 0) return;
-
-    const matchesCat = [];
-    paire.matchPositions.forEach((m, origIdx) => {
-        if ((cat === 'anon' && !m.isException && !m.isNonTraite) ||
-            (cat === 'exc' && m.isException) ||
-            (cat === 'non' && m.isNonTraite)) {
-            matchesCat.push({ origIdx });
-        }
-    });
-    if (matchesCat.length === 0) return;
-
-    const indexKey = `indexCourant_${cat}`;
-    if (paire[indexKey] === undefined) paire[indexKey] = 0;
-    paire[indexKey] = (paire[indexKey] - 1 + matchesCat.length) % matchesCat.length;
-    paire.indexCourant = matchesCat[paire[indexKey]].origIdx;
-
-    const btn = document.querySelector(`.btn-nav-cat[data-idx="${idx}"][data-cat="${cat}"]`);
-    if (btn) {
-        const total = matchesCat.length;
-        const current = paire[indexKey] + 1;
-        btn.textContent = `${current}/${total}`;
-        clearTimeout(btn._resetTimer);
-        btn._resetTimer = setTimeout(() => { btn.textContent = `${total}`; }, 1800);
-    }
-    surlignerOccurrence(idx);
-}
-
-// Affiche les flèches ◄ ► autour du compteur actif, retire les précédentes
-function clicCompteur(btn, idx, cat) {
-    const memeCompteur = window._activeCounter &&
-        window._activeCounter.idx === idx &&
-        window._activeCounter.cat === cat;
-
-    if (!memeCompteur) {
-        // Supprimer les flèches existantes
-        document.querySelectorAll('.fleche-nav-cat').forEach(f => f.remove());
-
-        // Couleur selon la catégorie
-        const couleurs = { anon: '#4caf50', exc: '#555', non: '#ff9800' };
-        const couleur = couleurs[cat] || '#666';
-        const style = `color:${couleur};background:none;border:none;cursor:pointer;padding:0 3px;font-size:9px;line-height:1;opacity:0.85;`;
-
-        const fleche = (texte, fn) => {
-            const b = document.createElement('button');
-            b.className = 'fleche-nav-cat';
-            b.textContent = texte;
-            b.style.cssText = style;
-            b.onclick = (e) => { e.stopPropagation(); fn(); };
-            return b;
-        };
-
-        btn.parentNode.insertBefore(fleche('◄', () => allerCatPrecedente(idx, cat)), btn);
-        btn.after(fleche('►', () => allerCatSuivante(idx, cat)));
-
-        window._activeCounter = { idx, cat };
-    }
-
-    allerCatSuivante(idx, cat);
-}
-
 // Compte le nombre d'exceptions pour une paire d'anonymisation
 function compterExceptions(idxPaire) {
     const paire = window.tabAnon[idxPaire];
@@ -1554,69 +1349,6 @@ function trouverOccurrenceAnonyme(debSel, finSel) {
     return null;
 }
 
-// Bascule le statut d'exception pour une occurrence
-// On retrouve le match en utilisant le pseudo et l'index du span cliqué
-function basculerException(idxPaire, matchIdxOrSpanRk) {
-    const paire = window.tabAnon[idxPaire];
-    if (!paire) return;
-    
-    // Déterminer si on a reçu un matchIdx ou un span rk
-    // (matchIdxOrSpanRk peut être soit l'index du match, soit le data-rk du span)
-    let match = null;
-    
-    // Essayer d'abord en tant que matchIdx
-    if (typeof matchIdxOrSpanRk === 'number' && paire.matchPositions && paire.matchPositions[matchIdxOrSpanRk]) {
-        match = paire.matchPositions[matchIdxOrSpanRk];
-    }
-    
-    if (!match) return;
-    
-    // Basculer le flag
-    match.isException = !match.isException;
-    
-    // Retrouver tous les spans avec ce pseudo et les mettre à jour
-    const pseudoABascueler = paire.remplacement.trim();
-    if (pseudoABascueler) {
-        // Chercher les spans associés à ce match par leur position
-        const tousLesSpans = document.querySelectorAll('[data-rk]');
-        
-        // Mettre à jour les classes pour tous les spans du match
-        let spansUpdated = 0;
-        for (let i = match.start; i <= match.end; i++) {
-            const span = tousLesSpans[i];
-            if (!span) continue;
-
-            if (match.isException) {
-                // Ajout d'exception : retirer tout le marquage normal, ajouter anon-exception
-                span.classList.remove('anon', 'debsel', 'finsel');
-                span.classList.add('anon-exception');
-                delete span.dataset.pseudo;
-            } else {
-                // Retrait d'exception : rétablir le marquage normal complet
-                span.classList.remove('anon-exception');
-                span.classList.add('anon');
-                if (i === match.start) {
-                    span.classList.add('debsel');
-                    span.dataset.pseudo = pseudoABascueler;
-                }
-                if (i === match.end) {
-                    span.classList.add('finsel');
-                    span.dataset.pseudo = pseudoABascueler;
-                }
-            }
-            spansUpdated++;
-        }
-        
-        console.log(`✅ Basculé exception: ${match.isException ? 'ajoutée' : 'retirée'} pour ${spansUpdated} span(s)`);
-    }
-    
-    // Rafraîchir le tableau pour mettre à jour le compteur d'exceptions
-    affichTableauAnon();
-    
-    // 💾 Sauvegarder les changements dans l'entretien
-    sauvegarderTabAnonEnt();
-}
-
 async function chercherNomPropres() {
     if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
         //console.log("tabAnon non défini");
@@ -1635,13 +1367,8 @@ async function chercherNomPropres() {
     tousLesSpans.forEach(span => {
         const texte = span.innerText.trim();
 
-         
-
-
-        
         // Vérifier si le premier caractère est une majuscule
         if (texte && /^[A-ZÀ-ÖØ-Ý]/.test(texte[0])) {
-            
             
             console.log(`Nom propre détecté: ${texte}`);
 
@@ -1824,341 +1551,6 @@ async function validerLigneAnon(idx) {
     } else {
         await question(`⚠️ L'entité "${entiteVal}" n'a pas été trouvée dans le texte.`, ["OK"]);
     }
-}
-
-////////////////////////////////////////////////////////////////////////
-// MENU CONTEXTUEL POUR GÉRER LES EXCEPTIONS
-////////////////////////////////////////////////////////////////////////
-
-// Menu contextuel pour gérer les exceptions sur un mot anonymisé
-async function showMenuException(span, idxPaire, matchIdx) {
-    if (!span || idxPaire === undefined || matchIdx === undefined) {
-        return;
-    }
-
-    // Vérifier que le match existe et est valide
-    const paire = window.tabAnon[idxPaire];
-    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) {
-        console.warn("❌ Match invalide:", idxPaire, matchIdx);
-        return;
-    }
-    
-    const match = paire.matchPositions[matchIdx];
-
-    // Supprimer l'ancien menu s'il existe
-    const oldMenu = document.getElementById("contextMenuException");
-    if (oldMenu) {
-        oldMenu.remove();
-    }
-
-    // Créer le menu contextuel
-    const fondseg = document.getElementById("segments");
-    if (!fondseg) return;
-
-    const menuDiv = document.createElement("div");
-    menuDiv.id = "contextMenuException";
-    menuDiv.classList.add("context-menu", "dnone");
-    fondseg.appendChild(menuDiv);
-
-    // Récupérer la position du span
-    const rect = span.getBoundingClientRect();
-
-    // Vérifier si c'est déjà une exception
-    const estException = match.isException;
-
-    // Surligner tous les spans du match
-    const tousLesSpansSurlig = Array.from(document.querySelectorAll('[data-rk]'));
-    const spansMatch = [];
-    for (let i = match.start; i <= match.end; i++) {
-        if (tousLesSpansSurlig[i]) {
-            tousLesSpansSurlig[i].classList.add('anon-selected');
-            spansMatch.push(tousLesSpansSurlig[i]);
-        }
-    }
-
-    // Construire le menu
-    let chaine = `
-       
-             
-    `;
-
-    if (estException) {
-        // Si c'est une exception, proposer de la retirer
-        chaine += `
-            <div class="menu-item" onmousedown="basculerException(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-                ✓ Retirer l'exception
-            </div>
-        `;
-    } else {
-        // Sinon, proposer d'en ajouter une
-        chaine += `
-            <div class="menu-item " onmousedown="basculerException(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-                ⊘ Ajouter une exception
-            </div>
-        `;
-    }
-
-    chaine += `
-        <div class="menu-item" onmousedown="allerVueCorpus(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-            ↗ Voir au niveau du corpus
-        </div>
-    `;
-
-    menuDiv.innerHTML = chaine;
-
-    // Positionner le menu
-    menuDiv.style.top = (rect.top - fondseg.getBoundingClientRect().top + fondseg.scrollTop) + "px";
-    menuDiv.style.left = (rect.left + rect.width + 10 - fondseg.getBoundingClientRect().left) + "px";
-    menuDiv.classList.remove('dnone');
-
-    // MutationObserver : retire anon-selected dès que le menu disparaît du DOM,
-    // quelle que soit la cause (clic ailleurs, bouton, appel externe…)
-    const cleanupSelected = () => spansMatch.forEach(s => s.classList.remove('anon-selected'));
-
-    const observer = new MutationObserver(() => {
-        if (!document.getElementById('contextMenuException')) {
-            cleanupSelected();
-            observer.disconnect();
-        }
-    });
-    observer.observe(fondseg, { childList: true });
-
-    // Fermer le menu au clic ailleurs
-    const closeMenu = (e) => {
-        const menu = document.getElementById("contextMenuException");
-        if (menu && !menu.contains(e.target) && e.target !== span) {
-            menu.remove(); // l'observer se charge du nettoyage
-            document.removeEventListener("mousedown", closeMenu);
-        }
-    };
-    document.addEventListener("mousedown", closeMenu);
-}
-
-////////////////////////////////////////////////////////////////////////
-// MENU CONTEXTUEL POUR LES OCCURRENCES NON TRAITÉES
-////////////////////////////////////////////////////////////////////////
-
-// Applique l'anonymisation sur une seule occurrence (match) sans toucher aux autres
-async function pseudonymiserOccurrenceEtSuivante(idxPaire, matchIdx) {
-    await pseudonymiserOccurrence(idxPaire, matchIdx);
-    // affichTableauAnon() a été appelé → flèches supprimées, _activeCounter = null.
-    // On passe par clicCompteur pour les rétablir et naviguer d'un coup.
-    const btnNon = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="non"]`);
-    if (btnNon) clicCompteur(btnNon, idxPaire, 'non');
-}
-
-async function marquerExceptionEtSuivante(idxPaire, matchIdx) {
-    await marquerExceptionDepuisNonTraite(idxPaire, matchIdx);
-    const btnNon = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="non"]`);
-    if (btnNon) clicCompteur(btnNon, idxPaire, 'non');
-}
-
-async function pseudonymiserOccurrence(idxPaire, matchIdx) {
-    const paire = window.tabAnon[idxPaire];
-    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
-
-    const match = paire.matchPositions[matchIdx];
-    const tousLesSpans = document.querySelectorAll('[data-rk]');
-
-    for (let i = match.start; i <= match.end; i++) {
-        const span = tousLesSpans[i];
-        if (!span) continue;
-        span.classList.remove('anon-exception');
-        span.classList.add('anon');
-        span.removeAttribute('data-anon-nt');
-        if (i === match.start) {
-            span.classList.add('debsel');
-            if (paire.remplacement.trim()) span.dataset.pseudo = paire.remplacement;
-        }
-        if (i === match.end) {
-            span.classList.add('finsel');
-            if (paire.remplacement.trim()) span.dataset.pseudo = paire.remplacement;
-        }
-    }
-
-    match.isNonTraite = false;
-    match.isException = false;
-
-    affichTableauAnon();
-    await sauvegarderTabAnonEnt();
-    await syncHtmlVersMainProcess();
-}
-
-// Marque une occurrence non-traitée comme exception
-async function marquerExceptionDepuisNonTraite(idxPaire, matchIdx) {
-    const paire = window.tabAnon[idxPaire];
-    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
-
-    const match = paire.matchPositions[matchIdx];
-    const tousLesSpans = document.querySelectorAll('[data-rk]');
-
-    for (let i = match.start; i <= match.end; i++) {
-        const span = tousLesSpans[i];
-        if (!span) continue;
-        span.classList.remove('anon', 'debsel', 'finsel');
-        span.classList.add('anon-exception');
-        span.removeAttribute('data-anon-nt');
-        delete span.dataset.pseudo;
-    }
-
-    match.isException = true;
-    match.isNonTraite = false;
-
-    affichTableauAnon();
-    await sauvegarderTabAnonEnt();
-    await syncHtmlVersMainProcess();
-}
-
-// Menu contextuel pour une occurrence non traitée
-function showMenuNonTraite(span, idxPaire, matchIdx) {
-    const paire = window.tabAnon[idxPaire];
-    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
-
-    const match = paire.matchPositions[matchIdx];
-
-    // Supprimer l'ancien menu s'il existe
-    const oldMenu = document.getElementById('contextMenuException');
-    if (oldMenu) oldMenu.remove();
-
-    const fondseg = document.getElementById('segments');
-    if (!fondseg) return;
-
-    const menuDiv = document.createElement('div');
-    menuDiv.id = 'contextMenuException';
-    menuDiv.classList.add('context-menu', 'dnone');
-    fondseg.appendChild(menuDiv);
-
-    const rect = span.getBoundingClientRect();
-
-    // Surligner tous les spans du match
-    const tousLesSpansSurlig = Array.from(document.querySelectorAll('[data-rk]'));
-    const spansMatch = [];
-    for (let i = match.start; i <= match.end; i++) {
-        if (tousLesSpansSurlig[i]) {
-            tousLesSpansSurlig[i].classList.add('anon-selected');
-            spansMatch.push(tousLesSpansSurlig[i]);
-        }
-    }
-
-    const nbNonTraite = paire.matchPositions.filter(m => m.isNonTraite).length;
-    const avecSuivante = nbNonTraite > 1;
-
-    menuDiv.innerHTML = `
-        ${avecSuivante ? `
-        <div class="menu-item" onmousedown="pseudonymiserOccurrenceEtSuivante(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-            ✓ Pseudonymiser et aller à la suivante
-        </div>` : ''}
-        <div class="menu-item" onmousedown="pseudonymiserOccurrence(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-            ✓ Pseudonymiser cette occurrence
-        </div>
-        ${avecSuivante ? `
-        <div class="menu-item" onmousedown="marquerExceptionEtSuivante(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-            ⊘ Marquer comme exception et aller à la suivante
-        </div>` : ''}
-        <div class="menu-item" onmousedown="marquerExceptionDepuisNonTraite(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-            ⊘ Marquer comme exception
-        </div>
-        <div class="menu-item" onmousedown="allerVueCorpus(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
-            ↗ Voir au niveau du corpus
-        </div>
-    `;
-
-    // Positionner le menu
-    menuDiv.style.top = (rect.top - fondseg.getBoundingClientRect().top + fondseg.scrollTop) + 'px';
-    menuDiv.style.left = (rect.left + rect.width + 10 - fondseg.getBoundingClientRect().left) + 'px';
-    menuDiv.classList.remove('dnone');
-
-    // MutationObserver : retire anon-selected dès que le menu disparaît du DOM
-    const cleanupSelected = () => spansMatch.forEach(s => s.classList.remove('anon-selected'));
-    const observer = new MutationObserver(() => {
-        if (!document.getElementById('contextMenuException')) {
-            cleanupSelected();
-            observer.disconnect();
-        }
-    });
-    observer.observe(fondseg, { childList: true });
-
-    // Fermer le menu au clic ailleurs
-    const closeMenu = (e) => {
-        const menu = document.getElementById('contextMenuException');
-        if (menu && !menu.contains(e.target) && e.target !== span) {
-            menu.remove();
-            document.removeEventListener('mousedown', closeMenu);
-        }
-    };
-    document.addEventListener('mousedown', closeMenu);
-}
-
-// Attache les event listeners pour gérer les clics sur les mots anonymisés
-// Utilise la délégation d'événements pour éviter les doublons
-function attacheExceptionListeners() {
-    // Récupérer le conteneur des segments
-    const segments = document.getElementById("segments");
-    if (!segments) return;
-
-    // Retirer le listener existant s'il y a (pour éviter les doublons)
-    if (segments._exceptionClickHandler) {
-        segments.removeEventListener("click", segments._exceptionClickHandler);
-        segments.removeEventListener("contextmenu", segments._exceptionClickHandler);
-    }
-
-    // Créer le handler de clic/contextmenu
-    const handler = (e) => {
-        // Seulement en mode anonymisation
-        if (typeof typeAction === 'undefined' || typeAction !== 'anon') return;
-
-        const span = e.target.closest('[data-rk]');
-        if (!span) return;
-
-        // Filtre rapide : ignorer les spans qui ne sont ni anonymisés, ni exceptions, ni non-traités connus
-        const isKnown = span.classList.contains('anon') ||
-                        span.classList.contains('anon-exception') ||
-                        span.hasAttribute('data-anon-nt');
-        if (!isKnown) return;
-
-        // match.start/end sont des indices NodeList (base 0), pas des data-rk
-        const tousLesSpansLookup = Array.from(document.querySelectorAll('[data-rk]'));
-        const spanIndex = tousLesSpansLookup.indexOf(span);
-
-        // Source de vérité : l'état DOM du span cliqué lui-même
-        const isNonTraiteSpan = span.hasAttribute('data-anon-nt');
-
-        // Chercher le match correspondant dans tabAnon
-        for (let idxPaire = 0; idxPaire < window.tabAnon.length; idxPaire++) {
-            const paire = window.tabAnon[idxPaire];
-            if (!paire.matchPositions || paire.matchPositions.length === 0) continue;
-
-            for (let matchIdx = 0; matchIdx < paire.matchPositions.length; matchIdx++) {
-                const match = paire.matchPositions[matchIdx];
-                if (spanIndex < match.start || spanIndex > match.end) continue;
-
-                // Si le span est non-traité, ignorer les matches d'autres entités déjà
-                // anonymisées qui chevaucheraient la même plage (évite le mauvais routage)
-                if (isNonTraiteSpan && !match.isNonTraite) continue;
-
-                // Trouvé
-                if (e.type === 'contextmenu') e.preventDefault();
-                e.stopPropagation();
-
-                if (isNonTraiteSpan) {
-                    // Occurrence non traitée : menu avec Pseudonymiser / Exception
-                    showMenuNonTraite(span, idxPaire, matchIdx);
-                } else {
-                    // Occurrence anonymisée ou exception : menu existant
-                    showMenuException(span, idxPaire, matchIdx);
-                }
-                return;
-            }
-        }
-    };
-
-    // Sauvegarder le handler pour pouvoir le retirer plus tard
-    segments._exceptionClickHandler = handler;
-
-    // Attacher les listeners
-    segments.addEventListener("click", handler);
-    segments.addEventListener("contextmenu", handler);
-    console.log("✅ Listeners d'exception attachés");
 }
 
 // Synchronise le HTML courant (après modif DOM) vers tabHtml du process main

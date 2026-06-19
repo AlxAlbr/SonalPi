@@ -477,3 +477,71 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanId
         dialog('Message', `Erreur: ${error.message}`);
     }
 }
+
+/**
+ * Re-pseudonymise une entité dans UN entretien : remplace le pseudo des occurrences déjà
+ * anonymisées avec `ancienPseudo` par `nouveauPseudo`. Approche « relabel » — on ne retouche PAS
+ * la structure des spans (debsel/finsel/anon préservés) : on ne fait que ré-écrire `data-pseudo`,
+ * puis on met à jour la règle locale (ent.tabAnon) et on re-sauve le `.sonal`.
+ *
+ * Sert à PROPAGER le pseudo retenu (décision « corpus autoritaire ») aux entretiens qui en
+ * utilisaient un autre. S'appuie sur analyserOccurrences (fonction unifiée) pour ne cibler que
+ * les occurrences de CETTE entité portant l'ANCIEN pseudo (pas celles d'une autre entité qui
+ * partagerait par hasard le même pseudo — cas collision).
+ *
+ * @param {number} indexEnt
+ * @param {string} entite
+ * @param {string} ancienPseudo
+ * @param {string} nouveauPseudo
+ * @returns {Promise<number>} nombre d'occurrences relabellisées (0 si rien / erreur)
+ */
+async function repseudonymiserEntiteDansEntretien(indexEnt, entite, ancienPseudo, nouveauPseudo) {
+    try {
+        if (!nouveauPseudo || !nouveauPseudo.trim()) return 0;
+        if (cleAnon(entite, ancienPseudo) === cleAnon(entite, nouveauPseudo)) return 0; // rien à changer
+
+        let htmlContent = await window.electronAPI.getHtml(indexEnt);
+        if (!htmlContent) return 0;
+        htmlContent = htmlContent.replace(/`/g, '');
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // Occurrences de cette entité déjà anonymisées avec l'ANCIEN pseudo.
+        const occ = analyserOccurrences(tempDiv, entite, ancienPseudo).filter(o => o.etat === 'anon');
+        let n = 0;
+        for (const o of occ) {
+            // Seuls debsel/finsel portent data-pseudo ; relabelliser les deux (= même span si 1 mot).
+            for (const span of [o.spanDebut, o.spanFin]) {
+                if (span && span.dataset && span.dataset.pseudo === ancienPseudo) {
+                    span.dataset.pseudo = nouveauPseudo;
+                    n++;
+                }
+            }
+        }
+        if (n === 0) return 0;
+
+        await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
+
+        // Mettre à jour la règle locale de l'entretien (entité → nouveauPseudo).
+        const tabEnt = await window.electronAPI.getEnt();
+        const ent = tabEnt[indexEnt];
+        if (ent && Array.isArray(ent.tabAnon)) {
+            ent.tabAnon.forEach(r => {
+                if (r && r.entite && cleEntite(r.entite) === cleEntite(entite)) r.remplacement = nouveauPseudo;
+            });
+            await window.electronAPI.setEnt(tabEnt);
+        }
+
+        // Re-sauver le .sonal (même mécanisme que les autres mutations par entretien).
+        if (typeof window.majFichierSonal === 'function') {
+            await window.majFichierSonal(indexEnt, indexEnt + 1);
+        }
+
+        console.log(`✅ Re-pseudonymisation entretien ${indexEnt} : « ${entite} » « ${ancienPseudo} » → « ${nouveauPseudo} » (${occ.length} occ.)`);
+        return occ.length;
+    } catch (error) {
+        console.error("Erreur dans repseudonymiserEntiteDansEntretien():", error);
+        return 0;
+    }
+}

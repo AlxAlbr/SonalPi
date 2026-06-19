@@ -30,21 +30,52 @@ async function reconstituerTabAnonGlobal(entretiens) {
         return;
     }
 
-    // Inventaire des règles : tous les tabAnon des entretiens (dans l'ordre, priorité) PUIS
-    // l'ancien global (pour préserver les entrées ajoutées manuellement, pas encore dans un
-    // entretien). La primitive unique fusionnerRegles déduplique sur la clé canonique
-    // (insensible à la casse) → plus de divergence de casse entre les chemins de fusion.
+    // Inventaire des règles, « corpus AUTORITAIRE » : l'ancien global EN PREMIER (son pseudo
+    // gagne pour une entité déjà connue), PUIS les entretiens (qui ne peuvent qu'AJOUTER des
+    // entités nouvelles). fusionnerRegles déduplique sur l'ENTITÉ seule → une entité = un pseudo.
     const ancienTabAnon = await window.electronAPI.getAnon() || [];
     const listesEntretiens = entretiens.map(ent => (ent && ent.tabAnon) ? ent.tabAnon : []);
-    const newTabAnon = fusionnerRegles(...listesEntretiens, ancienTabAnon);
+
+    // Signaler (sans le perdre en silence) ce que la fusion tranche : entités auxquelles le
+    // corpus et/ou des entretiens donnent des pseudos différents. Le 1er (= corpus) est retenu.
+    const conflits = conflitsPseudoParEntite(ancienTabAnon, ...listesEntretiens);
+
+    const newTabAnon = fusionnerRegles(ancienTabAnon, ...listesEntretiens);
 
     // tri du tabAnon par ordre alphabétique des entités
     newTabAnon.sort((a, b) => a.entite.localeCompare(b.entite));
 
     console.log(`✅ TabAnon reconstitué : ${newTabAnon.length} paire(s) unique(s)`, newTabAnon);
 
+    if (conflits.length > 0) {
+        console.warn(`⚠️ ${conflits.length} entité(s) avec des pseudos divergents (le pseudo du corpus est conservé) :`, conflits);
+    }
+
     // Mettre à jour dans le main process (règles propres uniquement)
     await persisterReglesCorpus(newTabAnon);
+
+    // On RENVOIE les conflits (sans afficher de dialogue ici) : la signalisation est faite par
+    // l'appelant qui correspond à une action délibérée (ouverture de l'onglet Pseudos, scan),
+    // pas à chaque ouverture du corpus. cf. signalerConflitsPseudo.
+    return conflits;
+}
+
+/**
+ * Affiche (dialogue) un récapitulatif des conflits de pseudo détectés par reconstituerTabAnonGlobal.
+ * Appelé depuis l'ouverture du panneau Pseudos (affichAnonGen) — action délibérée de l'utilisateur.
+ * @param {Array<{entite:string, pseudoRetenu:string, pseudosIgnores:string[]}>} conflits
+ */
+function signalerConflitsPseudo(conflits) {
+    if (!conflits || conflits.length === 0) return;
+    const apercu = conflits.slice(0, 8)
+        .map(c => `• « ${c.entite} » → « ${c.pseudoRetenu} » (ignoré${c.pseudosIgnores.length > 1 ? 's' : ''} : ${c.pseudosIgnores.map(p => `« ${p} »`).join(', ')})`)
+        .join('\n');
+    const reste = conflits.length > 8 ? `\n… et ${conflits.length - 8} autre(s).` : '';
+    dialog('Message',
+        `⚠️ Pseudos en conflit\n\n` +
+        `${conflits.length} entité(s) ont des pseudonymes différents selon le corpus / les entretiens.\n` +
+        `Règle appliquée : une entité = un seul pseudo, celui du corpus est conservé.\n\n` +
+        apercu + reste);
 }
 
 /**
