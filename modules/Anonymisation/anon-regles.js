@@ -77,6 +77,55 @@ function regleEnCollisionAlias(entite, regles) {
     return null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MULTI-PSEUDO (≤2) — une règle peut autoriser DEUX pseudos pour une même entité :
+// `remplacement` = pseudo primaire (toujours un pseudo valide unique), `remplacementAlt`
+// = 2ᵉ pseudo optionnel. Le pseudo réellement posé est choisi PAR OCCURRENCE (cf. plan
+// multi-pseudo). Côté corpus, une règle multi-pseudo est de la donnée passive.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Pseudos autorisés par une règle, dans l'ordre [primaire, (alt)]. Trim, sans vide, sans
+ * doublon insensible à la casse. Si le primaire est vide mais l'alt présent, l'alt devient
+ * le seul pseudo (garantit qu'on ne perd pas un pseudo isolé).
+ * @param {{remplacement?:string, remplacementAlt?:string}} regle
+ * @returns {string[]} 0, 1 ou 2 pseudos
+ */
+function pseudosDe(regle) {
+    if (!regle) return [];
+    const out = [];
+    const p = regle.remplacement != null ? String(regle.remplacement).trim() : '';
+    if (p) out.push(p);
+    const alt = regle.remplacementAlt != null ? String(regle.remplacementAlt).trim() : '';
+    if (alt && !out.some(x => x.toLowerCase() === alt.toLowerCase())) out.push(alt);
+    return out;
+}
+
+/**
+ * Vrai si la règle autorise deux pseudos distincts (insensible à la casse).
+ * @param {object} regle
+ * @returns {boolean}
+ */
+function estMultiPseudo(regle) {
+    return pseudosDe(regle).length > 1;
+}
+
+/**
+ * Copie propre d'une règle garantissant l'invariant I5 : `remplacement` = pseudo primaire
+ * valide (jamais vide ni « a/b »), `remplacementAlt` présent UNIQUEMENT s'il est non vide et
+ * distinct du primaire (insensible à la casse). Les autres champs sont conservés tels quels.
+ * @param {object} regle
+ * @returns {object}
+ */
+function normaliserRegle(regle) {
+    const pseudos = pseudosDe(regle);
+    const out = { ...regle };
+    out.remplacement = pseudos[0] || '';
+    if (pseudos.length > 1) out.remplacementAlt = pseudos[1];
+    else delete out.remplacementAlt;
+    return out;
+}
+
 /**
  * Primitive UNIQUE de fusion : combine plusieurs listes de règles en une liste DÉDUPLIQUÉE de
  * règles propres { entite, remplacement } (trim), clé canonique = l'ENTITÉ seule (cleEntite,
@@ -90,9 +139,13 @@ function regleEnCollisionAlias(entite, regles) {
  * libre au lieu de le perdre. La divergence sur l'alias commun est signalée par
  * conflitsPseudoParEntite (rien n'est tranché en silence). Une règle dont tous les alias sont déjà
  * pris disparaît. Paires incomplètes ignorées.
+ *
+ * Multi-pseudo : PAS d'auto-union (le « corpus gagne » reste). On se contente de PRÉSERVER le
+ * `remplacementAlt` de la règle gagnante (normalisé I5) ; un 2ᵉ pseudo ne naît jamais ici, il
+ * provient d'une création explicite (saisie « a/b » ou « garder les deux »).
  * Utilisée par reglesCorpusPropres, synchroniserTabAnonGlobal et reconstituerTabAnonGlobal.
- * @param {...Array} listes - listes de règles ({entite, remplacement, ...})
- * @returns {Array<{entite:string, remplacement:string}>}
+ * @param {...Array} listes - listes de règles ({entite, remplacement, remplacementAlt?, ...})
+ * @returns {Array<{entite:string, remplacement:string, remplacementAlt?:string}>}
  */
 function fusionnerRegles(...listes) {
     const pris = new Set(); // clés d'alias déjà attribuées (1ʳᵉ liste gagnante)
@@ -113,7 +166,8 @@ function fusionnerRegles(...listes) {
             }
             if (survivants.length === 0) continue;
             survivants.forEach(a => pris.add(a.toLowerCase()));
-            out.push({ entite: survivants.join('/'), remplacement });
+            // normaliserRegle garantit I5 (alt conservé seulement si non vide et distinct).
+            out.push(normaliserRegle({ entite: survivants.join('/'), remplacement, remplacementAlt: p.remplacementAlt }));
         }
     }
     return out;
@@ -127,47 +181,67 @@ function fusionnerRegles(...listes) {
  * Détection AU NIVEAU ALIAS, cohérente avec fusionnerRegles : un groupe "A/B" est éclaté en alias,
  * et le conflit "Lyon→ville" vs "Lyon/Lyons→métropole" est signalé sur l'alias « Lyon ». Le champ
  * `entite` du conflit porte donc l'ALIAS en cause.
- * @param {...Array} listes - mêmes listes (dans le même ORDRE) que celles passées à fusionnerRegles
+ *
+ * Multi-pseudo : l'ENSEMBLE RETENU pour un alias = les pseudos (≤2) de la 1ʳᵉ règle qui le mentionne
+ * (= celle que fusionnerRegles garde). Un pseudo vu ensuite qui APPARTIENT à cet ensemble n'est PAS
+ * un conflit (les deux rendus sont légitimes : "Lyon→ville (alt: ville de l'Est)" + un entretien qui
+ * utilise « ville de l'Est »). Seuls les pseudos HORS ensemble retenu sont signalés comme ignorés.
+ * → appeler avec les MÊMES listes, dans le MÊME ORDRE que fusionnerRegles.
+ * @param {...Array} listes
  * @returns {Array<{entite:string, pseudoRetenu:string, pseudosIgnores:string[]}>}
  */
 function conflitsPseudoParEntite(...listes) {
-    const m = new Map(); // clé d'alias → { alias, pseudos: [] (1er = retenu), vus: Set(normalisés) }
+    const m = new Map(); // clé d'alias → { alias, pseudoRetenu, retenus:Set(norm), ignores:[], vusIgnore:Set }
     for (const liste of listes) {
         for (const p of (liste || [])) {
             if (!p || !p.entite || !p.remplacement) continue;
-            const pseudo = String(p.remplacement).trim();
-            if (!pseudo) continue;
+            const pseudos = pseudosDe(p); // [primaire, (alt)]
+            if (pseudos.length === 0) continue;
             for (const alias of parseAliases(p.entite)) {
                 const aliasTrim = alias.trim();
                 const cle = aliasTrim.toLowerCase();
                 if (!cle) continue;
-                if (!m.has(cle)) m.set(cle, { alias: aliasTrim, pseudos: [], vus: new Set() });
-                const rec = m.get(cle);
-                // Comparaison insensible à la casse : « ville » et « Ville » ne sont PAS un conflit.
-                const norm = pseudo.toLowerCase();
-                if (!rec.vus.has(norm)) { rec.vus.add(norm); rec.pseudos.push(pseudo); }
+                if (!m.has(cle)) {
+                    // 1ʳᵉ règle pour cet alias → définit l'ensemble retenu (≤2 pseudos).
+                    m.set(cle, {
+                        alias: aliasTrim,
+                        pseudoRetenu: pseudos[0],
+                        retenus: new Set(pseudos.map(x => x.toLowerCase())),
+                        ignores: [],
+                        vusIgnore: new Set()
+                    });
+                } else {
+                    const rec = m.get(cle);
+                    for (const ps of pseudos) {
+                        const norm = ps.toLowerCase();
+                        if (rec.retenus.has(norm) || rec.vusIgnore.has(norm)) continue;
+                        rec.vusIgnore.add(norm);
+                        rec.ignores.push(ps);
+                    }
+                }
             }
         }
     }
     const conflits = [];
     for (const rec of m.values()) {
-        if (rec.pseudos.length > 1) {
-            conflits.push({ entite: rec.alias, pseudoRetenu: rec.pseudos[0], pseudosIgnores: rec.pseudos.slice(1) });
+        if (rec.ignores.length > 0) {
+            conflits.push({ entite: rec.alias, pseudoRetenu: rec.pseudoRetenu, pseudosIgnores: rec.ignores });
         }
     }
     return conflits;
 }
 
 /**
- * Normalise un tabAnon en RÈGLES de corpus propres : uniquement { entite, remplacement }
- * (trim), dédupliquées sur l'ENTITÉ (insensible à la casse) → une entité = un pseudo.
+ * Normalise un tabAnon en RÈGLES de corpus propres : uniquement { entite, remplacement
+ * (, remplacementAlt) } (trim, I5), dédupliquées sur l'ALIAS → une entité = ≤2 pseudos autorisés.
  *
- * Le corpus ne stocke QUE des règles entité→pseudo. Les occurrences vivent dans les
+ * Le corpus ne stocke QUE des règles entité→pseudo(s). Les occurrences vivent dans les
  * entretiens (matchPositions) et l'état réel (anonymisé/exception/à traiter) est dérivé du
  * DOM/scan. On évite ainsi de polluer le .crp avec occurrences/matchPositions/indexCourant/
  * source — et leurs incohérences (le champ `source` était posé/supprimé selon le chemin).
+ * `remplacementAlt` est conservé tel quel par fusionnerRegles (pas d'auto-union).
  * @param {Array} tab
- * @returns {Array<{entite:string, remplacement:string}>}
+ * @returns {Array<{entite:string, remplacement:string, remplacementAlt?:string}>}
  */
 function reglesCorpusPropres(tab) {
     return fusionnerRegles(tab);
