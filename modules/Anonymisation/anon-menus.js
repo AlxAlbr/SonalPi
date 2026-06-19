@@ -6,6 +6,13 @@
 // non-traitées dans le tableau de pseudonymisation de l'entretien.
 ////////////////////////////////////////////////////////////////////////
 
+// Échappement minimal pour injecter un libellé (pseudo) dans l'innerHTML d'un menu.
+// (escapeHtml de tableau_global/recueil n'est pas chargé en contexte entretien.)
+function _escAnonMenu(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // Bascule le statut d'exception pour une occurrence
 // On retrouve le match en utilisant le pseudo et l'index du span cliqué
 function basculerException(idxPaire, matchIdxOrSpanRk) {
@@ -141,6 +148,21 @@ async function showMenuException(span, idxPaire, matchIdx) {
         `;
     }
 
+    // Multi-pseudo : si l'occurrence est anonymisée (pas une exception), proposer de la basculer
+    // vers l'autre pseudo autorisé. Le pseudo courant est lu sur le span de début du match.
+    const pseudosOcc = pseudosDe(paire);
+    if (!estException && pseudosOcc.length > 1) {
+        const courant = (tousLesSpansSurlig[match.start]?.dataset.pseudo || '').trim().toLowerCase();
+        pseudosOcc.forEach((p, pi) => {
+            if (p.toLowerCase() === courant) return;
+            chaine += `
+            <div class="menu-item" onmousedown="pseudonymiserOccurrence(${idxPaire}, ${matchIdx}, ${pi}); document.getElementById('contextMenuException')?.remove();">
+                ↺ Anonymiser plutôt comme « ${_escAnonMenu(p)} »
+            </div>
+        `;
+        });
+    }
+
     chaine += `
         <div class="menu-item" onmousedown="allerVueCorpus(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ↗ Voir au niveau du corpus
@@ -182,8 +204,8 @@ async function showMenuException(span, idxPaire, matchIdx) {
 ////////////////////////////////////////////////////////////////////////
 
 // Applique l'anonymisation sur une seule occurrence (match) sans toucher aux autres
-async function pseudonymiserOccurrenceEtSuivante(idxPaire, matchIdx) {
-    await pseudonymiserOccurrence(idxPaire, matchIdx);
+async function pseudonymiserOccurrenceEtSuivante(idxPaire, matchIdx, pseudoIdx = 0) {
+    await pseudonymiserOccurrence(idxPaire, matchIdx, pseudoIdx);
     // affichTableauAnon() a été appelé → flèches supprimées, _activeCounter = null.
     // On passe par clicCompteur pour les rétablir et naviguer d'un coup.
     const btnNon = document.querySelector(`.btn-nav-cat[data-idx="${idxPaire}"][data-cat="non"]`);
@@ -196,11 +218,15 @@ async function marquerExceptionEtSuivante(idxPaire, matchIdx) {
     if (btnNon) clicCompteur(btnNon, idxPaire, 'non');
 }
 
-async function pseudonymiserOccurrence(idxPaire, matchIdx) {
+// Applique l'anonymisation sur une occurrence avec le pseudo choisi (multi-pseudo).
+// pseudoIdx = index dans pseudosDe(paire) : 0 = primaire (défaut), 1 = alt. Mono-pseudo : 0.
+async function pseudonymiserOccurrence(idxPaire, matchIdx, pseudoIdx = 0) {
     const paire = window.tabAnon[idxPaire];
     if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
 
     const match = paire.matchPositions[matchIdx];
+    const pseudos = pseudosDe(paire);
+    const pseudo = (pseudos[pseudoIdx] || pseudos[0] || paire.remplacement || '').trim();
     const tousLesSpans = document.querySelectorAll('[data-rk]');
 
     for (let i = match.start; i <= match.end; i++) {
@@ -211,11 +237,11 @@ async function pseudonymiserOccurrence(idxPaire, matchIdx) {
         span.removeAttribute('data-anon-nt');
         if (i === match.start) {
             span.classList.add('debsel');
-            if (paire.remplacement.trim()) span.dataset.pseudo = paire.remplacement;
+            if (pseudo) span.dataset.pseudo = pseudo;
         }
         if (i === match.end) {
             span.classList.add('finsel');
-            if (paire.remplacement.trim()) span.dataset.pseudo = paire.remplacement;
+            if (pseudo) span.dataset.pseudo = pseudo;
         }
     }
 
@@ -286,14 +312,26 @@ function showMenuNonTraite(span, idxPaire, matchIdx) {
     const nbNonTraite = paire.matchPositions.filter(m => m.isNonTraite).length;
     const avecSuivante = nbNonTraite > 1;
 
-    menuDiv.innerHTML = `
+    // Multi-pseudo : un item « Pseudonymiser comme «X» » par pseudo autorisé (chacun applique sa
+    // variante puis, s'il reste des occurrences, va à la suivante). Mono-pseudo : item unique.
+    const pseudosNT = pseudosDe(paire);
+    const fnPseudo = avecSuivante ? 'pseudonymiserOccurrenceEtSuivante' : 'pseudonymiserOccurrence';
+    const itemsPseudo = (pseudosNT.length > 1)
+        ? pseudosNT.map((p, pi) => `
+        <div class="menu-item" onmousedown="${fnPseudo}(${idxPaire}, ${matchIdx}, ${pi}); document.getElementById('contextMenuException')?.remove();">
+            ✓ Pseudonymiser comme « ${_escAnonMenu(p)} »${avecSuivante ? ' (puis suivante)' : ''}
+        </div>`).join('')
+        : `
         ${avecSuivante ? `
         <div class="menu-item" onmousedown="pseudonymiserOccurrenceEtSuivante(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ✓ Pseudonymiser et aller à la suivante
         </div>` : ''}
         <div class="menu-item" onmousedown="pseudonymiserOccurrence(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ✓ Pseudonymiser cette occurrence
-        </div>
+        </div>`;
+
+    menuDiv.innerHTML = `
+        ${itemsPseudo}
         ${avecSuivante ? `
         <div class="menu-item" onmousedown="marquerExceptionEtSuivante(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ⊘ Marquer comme exception et aller à la suivante

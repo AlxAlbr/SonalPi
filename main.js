@@ -1073,7 +1073,9 @@ async function archiverCorpus() {
     // ─── Corpus distant (serveur ou GitLab) : télécharger les fichiers via remoteAPI ─
 
     // 1. Fichier .crp : on sérialise l'état en mémoire (données courantes)
-    const corpusContent = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic }, null, 2);
+    //    tabAnon inclus (même contenu que sauvegarderCorpus) pour ne pas perdre les règles
+    //    d'anonymisation du corpus dans l'archive.
+    const corpusContent = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon }, null, 2);
     zip.addFile(Corpus.fileName, Buffer.from(corpusContent, 'utf8'));
 
     // 2. Fichiers .sonal référencés dans tabEnt

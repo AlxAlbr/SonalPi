@@ -111,6 +111,41 @@ function estMultiPseudo(regle) {
 }
 
 /**
+ * Parse une SAISIE utilisateur de pseudo(s) en liste ordonnée [primaire, (alt), …]. Sépare sur
+ * « / » (symétrique à parseAliases côté entité), trim, retire vides et doublons (insensible à la
+ * casse). Ne tronque PAS à 2 : l'appelant vérifie la limite ≤2 pour afficher un message dédié.
+ * @param {string} saisie
+ * @returns {string[]}
+ */
+function parsePseudos(saisie) {
+    const out = [];
+    for (const part of String(saisie == null ? '' : saisie).split('/')) {
+        const p = part.trim();
+        if (p && !out.some(x => x.toLowerCase() === p.toLowerCase())) out.push(p);
+    }
+    return out;
+}
+
+/**
+ * Valide une SAISIE (entité, pseudo) avant création d'une règle, côté entretien comme corpus :
+ * gère le multi-pseudo « a/b » et fait respecter I2 (pas de « / » à la fois côté entité ET côté
+ * pseudo) + la limite ≤2. Renvoie soit { erreur:string } soit { remplacement, remplacementAlt? }.
+ * Dépend de parseAliases (anon-detection.js).
+ * @param {string} entiteVal
+ * @param {string} remplacementVal
+ * @returns {{erreur:string}|{remplacement:string, remplacementAlt?:string}}
+ */
+function analyserChampsEntitePseudo(entiteVal, remplacementVal) {
+    const pseudos = parsePseudos(remplacementVal);
+    if (pseudos.length === 0) return { erreur: "Veuillez remplir le champ Pseudo." };
+    if (pseudos.length > 2) return { erreur: "Deux pseudonymes maximum (séparés par « / »)." };
+    if (pseudos.length > 1 && parseAliases(entiteVal).length > 1) {
+        return { erreur: "Impossible d'avoir « / » à la fois côté entité (alias) et côté pseudo. Choisissez l'un ou l'autre." };
+    }
+    return { remplacement: pseudos[0], remplacementAlt: pseudos[1] };
+}
+
+/**
  * Copie propre d'une règle garantissant l'invariant I5 : `remplacement` = pseudo primaire
  * valide (jamais vide ni « a/b »), `remplacementAlt` présent UNIQUEMENT s'il est non vide et
  * distinct du primaire (insensible à la casse). Les autres champs sont conservés tels quels.

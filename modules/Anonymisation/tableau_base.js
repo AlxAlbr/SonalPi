@@ -20,6 +20,7 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
         map.set(key, {
           entite: regle.entite,
           remplacement: regle.remplacement,
+          remplacementAlt: regle.remplacementAlt, // multi-pseudo : 2ᵉ pseudo autorisé (undefined si mono)
           occurrences: 0,
           indexCourant: 0,
           matchPositions: [],
@@ -38,6 +39,7 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
         map.set(key, {
           entite: regle.entite,
           remplacement: regle.remplacement,
+          remplacementAlt: regle.remplacementAlt, // multi-pseudo : 2ᵉ pseudo autorisé (undefined si mono)
           occurrences: regle.occurrences || 0,
           indexCourant: regle.indexCourant || 0,
           matchPositions: regle.matchPositions || [],
@@ -50,6 +52,8 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
         existing.indexCourant = regle.indexCourant || 0;
         existing.matchPositions = regle.matchPositions || [];
         existing.existeLocalement = true; // présente dans le tabAnon local → pas en attente
+        // Multi-pseudo : l'alt local prime ; sinon on garde celui du corpus déjà posé.
+        if (regle.remplacementAlt) existing.remplacementAlt = regle.remplacementAlt;
       }
     });
   }
@@ -81,8 +85,13 @@ function gererEntrePseudo(idx) {
     if (paire.occurrences > 0) {
         const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
         if (remplacement) {
-            // Mettre à jour le pseudo depuis le champ
-            paire.remplacement = remplacement.value.trim();
+            // Mettre à jour le(s) pseudo(s) depuis le champ (gère « a/b » + interdit I2).
+            const analyse = analyserChampsEntitePseudo(paire.entite, remplacement.value.trim());
+            if (analyse.erreur) {
+                question("⚠️ " + analyse.erreur, ["OK"]);
+                return;
+            }
+            appliquerChampsAPaire(paire, paire.entite, analyse);
         }
         appliquerAnonymisationPour(idx);
         affichTableauAnon();
@@ -90,6 +99,18 @@ function gererEntrePseudo(idx) {
         // Sinon, valider la ligne normalement
         validerLigneAnon(idx);
     }
+}
+
+// analyserChampsEntitePseudo (parse « a/b » + I2 + ≤2) est défini dans anon-regles.js (cœur
+// partagé entretien/corpus). Ici on ne garde que l'écriture dans la paire de l'entretien.
+
+// Écrit dans la paire le résultat d'analyserChampsEntitePseudo (entité + pseudo primaire + alt),
+// en respectant I5 : remplacementAlt présent uniquement s'il existe.
+function appliquerChampsAPaire(paire, entiteVal, analyse) {
+    paire.entite = entiteVal;
+    paire.remplacement = analyse.remplacement;
+    if (analyse.remplacementAlt) paire.remplacementAlt = analyse.remplacementAlt;
+    else delete paire.remplacementAlt;
 }
 
 // Tableau contenant les paires d'anonymisation
@@ -390,7 +411,7 @@ function affichTableauAnon() {
                            onfocus="mettreAJourBoutonRechercher(${i});dsTxtArea=false;dsTxtAutre=true"
                            onfocusout="cacherBoutonRechercher(${i});dsTxtAutre=false"
                            onkeydown="if(event.key==='Enter'){event.preventDefault();gererEntrePseudo(${i})}"
-                           ${estAnonymisee ? '' : ''}>${paire.remplacement}</textarea>
+                           ${estAnonymisee ? '' : ''}>${pseudosDe(paire).join('/')}</textarea>
                 </td>
                 <td class="col-actions">
                     <div class="actions-container-new">
@@ -543,10 +564,16 @@ function sauvAnon(idx) {
     const ancienneEntite = (paire.entite || '').trim();
     const ancienRemplacement = (paire.remplacement || '').trim();
     const nouvelleEntite = entiteInput.value.trim();
-    const nouveauRemplacement = remplacementInput.value.trim();
+    // Normaliser le pseudo saisi en primaire (+ alt) — gère le multi-pseudo « a/b ». Pas de blocage
+    // I2 ici (édition en cours) : l'interdit est appliqué à la validation. paire.remplacement reste
+    // un pseudo unique (I5), le 2ᵉ éventuel va dans remplacementAlt.
+    const pseudosSaisis = parsePseudos(remplacementInput.value);
+    const nouveauRemplacement = pseudosSaisis[0] || '';
 
     paire.entite = nouvelleEntite;
     paire.remplacement = nouveauRemplacement;
+    if (pseudosSaisis[1]) paire.remplacementAlt = pseudosSaisis[1];
+    else delete paire.remplacementAlt;
 
     const aOccurrences = paire.occurrences > 0;
 
@@ -730,18 +757,19 @@ function reactiverEditionLigne(idx) {
     const paire = window.tabAnon[idx];
     
     // Utiliser le pseudo pour retrouver tous les spans (plus fiable que les indices)
-    if (paire && paire.remplacement) {
-        const pseudoAEffacer = paire.remplacement.trim();
-        
+    // Multi-pseudo : nettoyer chaque pseudo autorisé (primaire ET alt), sinon les occurrences
+    // appliquées avec l'alt resteraient anonymisées après réactivation de l'édition.
+    for (const pseudoAEffacer of (paire ? pseudosDe(paire) : [])) {
+
         // Chercher et nettoyer tous les spans avec ce pseudo
         let occurrenceTrouvee = true;
         let compteur = 0;
         const maxIterations = 100;
-        
+
         while (occurrenceTrouvee && compteur < maxIterations) {
             occurrenceTrouvee = false;
             compteur++;
-            
+
             const debselSpan = document.querySelector(`[data-pseudo="${pseudoAEffacer}"].debsel`);
             if (debselSpan) {
                 // Retrouver le finsel
@@ -832,11 +860,13 @@ async function supprimeLigneAnon(idx) {
             });
         }
 
-        // 2. Filet de sécurité : balayer les spans encore marqués data-pseudo (cas où matchPositions serait vide/périmé)
-        const pseudoAEffacer = paireSupprimee.remplacement ? paireSupprimee.remplacement.trim() : '';
-        if (pseudoAEffacer) {
+        // 2. Filet de sécurité : balayer les spans encore marqués data-pseudo (cas où matchPositions
+        //    serait vide/périmé). Multi-pseudo : couvrir CHAQUE pseudo autorisé (primaire ET alt).
+        const pseudosAEffacer = pseudosDe(paireSupprimee).map(p => p.toLowerCase());
+        if (pseudosAEffacer.length > 0) {
             tousLesSpans.forEach(span => {
-                if (span.dataset.pseudo === pseudoAEffacer) {
+                const dp = (span.dataset.pseudo || '').toLowerCase();
+                if (dp && pseudosAEffacer.includes(dp)) {
                     span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
                     delete span.dataset.pseudo;
                 }
@@ -1124,6 +1154,13 @@ function appliquerAnonymisationPour(idxPaire) {
         }
         
         matches.forEach((match, matchIdx) => {
+            // No-flatten multi-pseudo (I6) : si ce match porte déjà un pseudo AUTORISÉ (la variante
+            // choisie par occurrence, ex. l'alt), on le conserve ; sinon on pose le primaire par
+            // défaut. Lu sur le span de début (l'étape de nettoyage ci-dessus a retiré le data-pseudo
+            // des occurrences en PRIMAIRE, donc seules les variantes alt subsistent ici).
+            const dejaPose = tousLesSpans[match.start] ? tousLesSpans[match.start].dataset.pseudo : '';
+            const pseudoMatch = (dejaPose && pseudosDe(paire).some(p => p.toLowerCase() === dejaPose.toLowerCase()))
+                ? dejaPose : paire.remplacement;
             for (let i = match.start; i <= match.end; i++) {
                 if (tousLesSpans[i]) {
                     // Ajouter la classe anon (sauf si exception)
@@ -1132,19 +1169,19 @@ function appliquerAnonymisationPour(idxPaire) {
                     } else {
                         tousLesSpans[i].classList.add('anon-exception');
                     }
-                    
+
                     // Ajouter debsel/finsel uniquement pour les occurrences non-exception
                     if (!match.isException) {
                         if (i === match.start) {
                             tousLesSpans[i].classList.add('debsel');
-                            if (paire.remplacement.trim()) {
-                                tousLesSpans[i].dataset.pseudo = paire.remplacement;
+                            if (pseudoMatch.trim()) {
+                                tousLesSpans[i].dataset.pseudo = pseudoMatch;
                             }
                         }
                         if (i === match.end) {
                             tousLesSpans[i].classList.add('finsel');
-                            if (paire.remplacement.trim()) {
-                                tousLesSpans[i].dataset.pseudo = paire.remplacement;
+                            if (pseudoMatch.trim()) {
+                                tousLesSpans[i].dataset.pseudo = pseudoMatch;
                             }
                         }
                     }
@@ -1196,10 +1233,11 @@ async function validerAnonEnAttente() {
         
         // Vérifier si cette ligne a les deux champs remplis mais n'est pas validée
         if (entiteVal && remplacementVal && window.tabAnon[i].occurrences === 0) {
-            // Sauvegarder les valeurs
-            window.tabAnon[i].entite = entiteVal;
-            window.tabAnon[i].remplacement = remplacementVal;
-            
+            // Analyser le(s) pseudo(s) (multi-pseudo « a/b » + interdit I2). En lot : erreur → on saute.
+            const analyse = analyserChampsEntitePseudo(entiteVal, remplacementVal);
+            if (analyse.erreur) { compteurErreurs++; continue; }
+            appliquerChampsAPaire(window.tabAnon[i], entiteVal, analyse);
+
             // Vérifier si cette entité n'est pas déjà anonymisée
             let estDoublon = false;
             for (let j = 0; j < tabAnonLength; j++) {
@@ -1527,11 +1565,15 @@ async function validerLigneAnon(idx) {
         await question("⚠️ Veuillez remplir les champs Entité et Pseudo.", ["OK"]);
         return;
     }
-    
-    // Sauvegarder les valeurs
-    window.tabAnon[idx].entite = entiteVal;
-    window.tabAnon[idx].remplacement = remplacementVal;
-    
+
+    // Analyser le(s) pseudo(s) saisis (multi-pseudo « a/b » + interdit I2) puis stocker.
+    const analyse = analyserChampsEntitePseudo(entiteVal, remplacementVal);
+    if (analyse.erreur) {
+        await question("⚠️ " + analyse.erreur, ["OK"]);
+        return;
+    }
+    appliquerChampsAPaire(window.tabAnon[idx], entiteVal, analyse);
+
     // Vérifier si cette entité n'est pas déjà anonymisée ailleurs
     if (verifierDoublonEntite(idx)) {
         await question(`⚠️ L'entité "${entiteVal}" est déjà anonymisée ailleurs.\n\nVeuillez rééditer la ligne existante.`, ["OK"]);

@@ -13,6 +13,17 @@
  */
 async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
     try {
+        // Multi-pseudo : la vérification/application par occurrence depuis le CORPUS est désactivée
+        // (la vérif ne teste que le primaire → fausse pour l'alt ; et l'application par occurrence
+        // se fait dans l'entretien). On informe et on s'arrête. Couvre 🔍, allerVueCorpus, refresh.
+        const _tabAnonGlobalMp = await window.electronAPI.getAnon();
+        const _regleMp = (_tabAnonGlobalMp || []).find(r => r && r.entite && cleEntite(r.entite) === cleEntite(entite));
+        if (_regleMp && estMultiPseudo(_regleMp)) {
+            question(`L'entité « ${entite} » a deux pseudonymes (${pseudosDe(_regleMp).join(' / ')}).\n\n` +
+                     `La vérification et l'application par occurrence se gèrent au niveau de l'entretien, pas au corpus.`, ['OK']);
+            return;
+        }
+
         // Afficher la barre de progression
         if (typeof wait === 'function') {
             wait(`Vérification de "${entite}" en cours...`);
@@ -1453,7 +1464,8 @@ function creerLigneAnonGen(anon, tabEnt) {
     const inputPseudo = document.createElement("textarea");
     inputPseudo.className = "anon-pseudo-input";
     inputPseudo.dataset.entite = anon.entite;
-    inputPseudo.value = anon.remplacement;
+    // Affiche le combiné « primaire/alt » pour une règle multi-pseudo (sinon le primaire seul).
+    inputPseudo.value = pseudosDe(anon).join('/');
     inputPseudo.placeholder = "Pseudonyme";
     inputPseudo.rows = 1;
     inputPseudo.addEventListener("input", () => autoResizeTextarea(inputPseudo));
@@ -1960,6 +1972,14 @@ function afficherModaleAjoutEntiteAnon() {
             return;
         }
 
+        // Multi-pseudo : parser « a/b » en primaire+alt (refus I2, ≤2), comme dans l'entretien.
+        const analyse = analyserChampsEntitePseudo(entite, pseudo);
+        if (analyse.erreur) {
+            question("⚠️ " + analyse.erreur, ['OK']);
+            inputPseudo.focus();
+            return;
+        }
+
         // Une entité = UN pseudo (décision « corpus autoritaire »). On vérifie au niveau ALIAS
         // (insensible à la casse) : si un alias en jeu (y compris dans un groupe "A/B") est déjà
         // pris par une règle, on n'ajoute jamais un second pseudo (sinon ligne fantôme : la
@@ -1977,14 +1997,15 @@ function afficherModaleAjoutEntiteAnon() {
             return;
         }
 
-        // Ajouter la nouvelle entité
+        // Ajouter la nouvelle entité (multi-pseudo : remplacement = primaire, + remplacementAlt).
         const nouvelleEntite = {
             entite: entite,
-            remplacement: pseudo,
+            remplacement: analyse.remplacement,
             occurrences: 0,
             indexCourant: 0,
             matchPositions: []
         };
+        if (analyse.remplacementAlt) nouvelleEntite.remplacementAlt = analyse.remplacementAlt;
 
         tabAnonGlobal.push(nouvelleEntite);
         await persisterReglesCorpus(tabAnonGlobal);
