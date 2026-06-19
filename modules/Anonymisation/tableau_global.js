@@ -13,14 +13,13 @@
  */
 async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
     try {
-        // Multi-pseudo : la vérification/application par occurrence depuis le CORPUS est désactivée
-        // (la vérif ne teste que le primaire → fausse pour l'alt ; et l'application par occurrence
-        // se fait dans l'entretien). On informe et on s'arrête. Couvre 🔍, allerVueCorpus, refresh.
+        // Multi-pseudo : l'application par occurrence depuis le corpus n'a pas de sens (quelle
+        // variante ?). On bascule sur une VUE LECTURE SEULE (état par entretien, ouverture possible),
+        // au lieu du drill-down applicateur. Couvre 🔍, allerVueCorpus, refresh.
         const _tabAnonGlobalMp = await window.electronAPI.getAnon();
         const _regleMp = (_tabAnonGlobalMp || []).find(r => r && r.entite && cleEntite(r.entite) === cleEntite(entite));
         if (_regleMp && estMultiPseudo(_regleMp)) {
-            question(`L'entité « ${entite} » a deux pseudonymes (${pseudosDe(_regleMp).join(' / ')}).\n\n` +
-                     `La vérification et l'application par occurrence se gèrent au niveau de l'entretien, pas au corpus.`, ['OK']);
+            await verifierEtAfficherEtatMultiEntite(_regleMp, tabEnt);
             return;
         }
 
@@ -73,6 +72,73 @@ async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
             endWait();
         }
     }
+}
+
+/**
+ * VUE LECTURE SEULE pour une entité MULTI-PSEUDO (corpus). Calcule l'état par entretien (sur les
+ * deux pseudos, via accumulerStatOccurrences) et l'affiche sans aucun contrôle d'application : un
+ * bandeau d'avertissement + la liste des entretiens concernés (badges par variante) + ouverture.
+ * @param {{entite:string, remplacement:string, remplacementAlt?:string}} regle
+ * @param {Array} tabEnt
+ */
+async function verifierEtAfficherEtatMultiEntite(regle, tabEnt) {
+    if (typeof wait === 'function') wait(`Vérification de "${regle.entite}"…`);
+    try {
+        const parEntretien = [];
+        for (let i = 0; i < tabEnt.length; i++) {
+            let html = null;
+            try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
+            if (!html) continue;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const st = { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 };
+            accumulerStatOccurrences(st, tempDiv, regle);
+            if (st.nbAnon + st.nbExc + st.nbNon > 0) {
+                parEntretien.push({ index: i, nom: (tabEnt[i] && tabEnt[i].nom) || `Entretien ${i + 1}`, st });
+            }
+        }
+        if (typeof endWait === 'function') endWait();
+        afficherVueLectureSeuleMultiPseudo(regle, parEntretien);
+    } catch (err) {
+        console.error('verifierEtAfficherEtatMultiEntite():', err);
+        if (typeof endWait === 'function') endWait();
+    }
+}
+
+/**
+ * Rend la vue lecture seule multi-pseudo dans le panneau droit (#fond_verif_anon).
+ * @param {object} regle
+ * @param {Array<{index:number, nom:string, st:object}>} parEntretien
+ */
+function afficherVueLectureSeuleMultiPseudo(regle, parEntretien) {
+    const fondVerif = document.getElementById('fond_verif_anon');
+    if (!fondVerif) return;
+    window._lastVerifiedAnon = { entite: regle.entite, pseudo: regle.remplacement };
+    const pseudosTxt = pseudosDe(regle).join(' / ');
+
+    let html = `
+        <div style="padding:10px 12px;background:#fff3e0;border:1px solid #ffcc80;border-radius:4px;margin:8px;font-size:0.9rem;color:#7a4f00;">
+            ⚠️ Entité à pseudonymes multiples (« ${escapeHtml(pseudosTxt)} »). Vue en <strong>lecture seule</strong> :
+            les modifications se font en ouvrant les entretiens concernés (choix par occurrence).
+        </div>
+        <div style="padding:6px 12px;font-weight:bold;color:#333;">« ${escapeHtml(regle.entite)} » — ${parEntretien.length} entretien(s) concerné(s)</div>
+    `;
+    if (parEntretien.length === 0) {
+        html += `<div style="padding:14px;color:#999;">Aucune occurrence trouvée dans le corpus.</div>`;
+    } else {
+        html += `<div style="display:flex;flex-direction:column;gap:6px;padding:6px 12px;">`;
+        for (const e of parEntretien) {
+            html += `
+                <div style="display:flex;align-items:center;gap:10px;border:1px solid #eee;border-radius:4px;padding:6px 10px;">
+                    <span style="flex:1;color:#333;">${escapeHtml(e.nom)}</span>
+                    <span style="display:flex;gap:4px;align-items:center;">${construireBadgesEtat(e.st)}</span>
+                    <button class="btn" style="padding:3px 8px;" onclick="ouvrirEntretienAnonGen(${e.index})" title="Ouvrir cet entretien">↗ Ouvrir</button>
+                </div>
+            `;
+        }
+        html += `</div>`;
+    }
+    fondVerif.innerHTML = html;
 }
 
 /**
@@ -1180,16 +1246,10 @@ async function affichAnonGen() {
             });
         }
 
-        // En-tête du panneau gauche (bouton ➕). Le scan manuel a été retiré :
-        // l'analyse se lance automatiquement à l'ouverture (voir auto-scan plus bas),
-        // et le rafraîchissement après modif d'entretien passe par la bannière « stale ».
-        const divEntete = document.createElement("div");
-        divEntete.style = "border-bottom:1px solid #ccc; padding:6px 10px; display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-shrink:0;";
-        divEntete.innerHTML = `
-            <label id="btn-add-anon" class="btn btn-primary" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">Ajouter une entité</label>
-            <label id="btn-aide-anon" class="btn btn-secondary" onclick="ouvrirLegendeCorpus();" title="Afficher la légende / l'aide" style="font-weight:bold;">?</label>
-        `;
-        divAnonGen.appendChild(divEntete);
+        // Le scan manuel a été retiré : l'analyse se lance automatiquement à l'ouverture
+        // (voir auto-scan plus bas), et le rafraîchissement après modif d'entretien passe
+        // par la bannière « stale ». Les boutons « Ajouter une entité » / « ? » sont
+        // désormais intégrés à la barre de filtrage ci-dessous (même rangée que la recherche).
 
         // Encart-légende repliable (ouvert au 1er affichage, replié ensuite)
         divAnonGen.appendChild(creerEncartLegendeCorpus());
@@ -1219,6 +1279,8 @@ async function affichAnonGen() {
             <input type="text" id="anon-gen-recherche" class="anon-gen-recherche"
                    placeholder="🔎 Rechercher (entité ou pseudo)…" autocomplete="off">
             <span id="anon-gen-compteur" class="anon-gen-compteur"></span>
+            <label id="btn-add-anon" class="btn btn-primary" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">Ajouter une entité</label>
+            <label id="btn-aide-anon" class="btn btn-secondary" onclick="ouvrirLegendeCorpus();" title="Afficher la légende / l'aide" style="font-weight:bold;">?</label>
         `;
         divAnonGen.appendChild(divFiltres);
 
@@ -1305,14 +1367,6 @@ async function affichAnonGen() {
         const selectFiltre = document.getElementById("anon-gen-filtre");
         const inputRecherche = document.getElementById("anon-gen-recherche");
         const compteur = document.getElementById("anon-gen-compteur");
-
-        // Remonter le filtre dans l'en-tête, calé à gauche (les boutons restent à droite
-        // grâce au margin-right:auto). Le câblage tient par l'id, donc le déplacement du
-        // nœud DOM ne casse rien.
-        if (selectFiltre && divEntete) {
-            selectFiltre.style.marginRight = 'auto';
-            divEntete.insertBefore(selectFiltre, divEntete.firstChild);
-        }
 
         const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees', 'inutilisees']);
 
@@ -1470,8 +1524,10 @@ function creerLigneAnonGen(anon, tabEnt) {
     inputPseudo.rows = 1;
     inputPseudo.addEventListener("input", () => autoResizeTextarea(inputPseudo));
     inputPseudo.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") e.preventDefault(); // pas de saut de ligne dans un pseudo
+        if (e.key === "Enter") { e.preventDefault(); inputPseudo.blur(); } // Entrée valide la saisie
     });
+    // Persistance + propagation de l'édition du pseudo au corpus (cf. renommerPseudoCorpus).
+    inputPseudo.addEventListener("blur", () => { renommerPseudoCorpus(inputPseudo, anon, tr); });
     tdRemplacement.appendChild(inputPseudo);
     tr.appendChild(tdRemplacement);
 
@@ -1527,6 +1583,85 @@ function creerLigneAnonGen(anon, tabEnt) {
     tr.appendChild(tdActions);
 
     return tr;
+}
+
+// Édition du pseudo d'une règle depuis le panneau corpus (au blur du textarea).
+// Côté corpus il n'y a pas de texte vivant : on met à jour la RÈGLE et on PROPAGE le renommage
+// à tous les entretiens via repseudonymiserEntiteDansEntretien (relabel des occurrences anon,
+// exceptions/à-traiter préservées) — même logique que supprimerRegleAnonGen.
+// Volontairement borné au RENOMMAGE simple (même nombre de pseudos, un seul qui change) : pour
+// ajouter/retirer un 2ᵉ pseudo, l'utilisateur passe par ✖ Supprimer / ➕ Ajouter.
+async function renommerPseudoCorpus(inputPseudo, anon, tr) {
+    const canoniqueAvant = pseudosDe(anon).join('/');
+    const valeur = inputPseudo.value.trim();
+    const revert = () => { inputPseudo.value = canoniqueAvant; autoResizeTextarea(inputPseudo); };
+
+    // No-op si pas de changement réel (insensible casse/espaces).
+    if (valeur.toLowerCase() === canoniqueAvant.toLowerCase()) { revert(); return; }
+    if (!valeur) { revert(); return; }
+
+    // Validation (multi-pseudo « a/b » + interdit I2 + ≤2).
+    const analyse = analyserChampsEntitePseudo(anon.entite, valeur);
+    if (analyse.erreur) { await question("⚠️ " + analyse.erreur, ['OK']); revert(); return; }
+
+    const anciensPseudos = pseudosDe(anon);
+    const nouveauxPseudos = pseudosDe({ remplacement: analyse.remplacement, remplacementAlt: analyse.remplacementAlt });
+    const basA = anciensPseudos.map(p => p.toLowerCase());
+    const basN = nouveauxPseudos.map(p => p.toLowerCase());
+    const retires = anciensPseudos.filter(p => !basN.includes(p.toLowerCase()));
+    const ajoutes = nouveauxPseudos.filter(p => !basA.includes(p.toLowerCase()));
+
+    // Borner au renommage non ambigu : même cardinalité, exactement un pseudo qui diffère.
+    if (anciensPseudos.length !== nouveauxPseudos.length || retires.length !== 1 || ajoutes.length !== 1) {
+        await question(
+            "Ici on ne peut que RENOMMER un pseudonyme (en conserver le même nombre).\n\n" +
+            "Pour ajouter ou retirer un 2ᵉ pseudonyme, utilisez ✖ Supprimer puis ➕ Ajouter une entité.",
+            ['OK']);
+        revert();
+        return;
+    }
+    const ancienPseudo = retires[0];
+    const nouveauPseudo = ajoutes[0];
+
+    // 1. Mettre à jour la règle corpus + persister.
+    const tabAnonGlobal = await window.electronAPI.getAnon() || [];
+    const regle = tabAnonGlobal.find(a => a && cleEntite(a.entite) === cleEntite(anon.entite))
+               || regleEnCollisionAlias(anon.entite, tabAnonGlobal);
+    if (!regle) { revert(); return; }
+    regle.remplacement = analyse.remplacement;
+    if (analyse.remplacementAlt) regle.remplacementAlt = analyse.remplacementAlt;
+    else delete regle.remplacementAlt;
+    await persisterReglesCorpus(tabAnonGlobal);
+
+    // 2. Propager le renommage à tous les entretiens (la primitive gère HTML + tabAnon local + .sonal).
+    const tabEnt = await window.electronAPI.getEnt() || [];
+    let nbEntretiens = 0;
+    for (let i = 0; i < tabEnt.length; i++) {
+        const n = await repseudonymiserEntiteDansEntretien(i, anon.entite, ancienPseudo, nouveauPseudo);
+        if (n > 0) nbEntretiens++;
+    }
+
+    // 3. Rafraîchir la ligne en place (les closures 🔍/✖ lisent anon.* au moment du clic).
+    anon.remplacement = analyse.remplacement;
+    if (analyse.remplacementAlt) anon.remplacementAlt = analyse.remplacementAlt;
+    else delete anon.remplacementAlt;
+    if (tr) tr.dataset.pseudo = anon.remplacement;
+    inputPseudo.value = pseudosDe(anon).join('/');
+    autoResizeTextarea(inputPseudo);
+
+    // 4. Les badges du scan reflètent l'ancien pseudo → marquer périmé (bannière « Relancez l'analyse »).
+    if (window._anonScanCache) {
+        window._anonScanStale = true;
+        window._anonIndexInverse = null;
+        const banner = document.getElementById('anon-stale-banner');
+        if (banner) banner.style.display = 'flex';
+    }
+
+    // 5. Retour utilisateur.
+    const msg = nbEntretiens > 0
+        ? `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».\n${nbEntretiens} entretien(s) mis à jour.`
+        : `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».`;
+    dialog('Message', msg);
 }
 
 /**

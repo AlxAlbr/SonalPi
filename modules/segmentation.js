@@ -543,6 +543,17 @@ function backUp(){ // mémorisation de l'état courant avant une modification
     console.log("backup — " + BkUp.length + " état(s) en mémoire");
 }
 
+// Resynchronise la table d'anonymisation à partir du DOM #segments restauré (le DOM est
+// la source de vérité : matchPositions se re-dérive, cf. anon.md §2). No-op hors entretien
+// ou si le module anon n'est pas chargé.
+function _resyncAnonApresUndo(){
+    if (typeof detecterOccurrencesToutesLesPaires !== 'function') return;
+    if (!window.tabAnon || window.tabAnon.length === 0) return;
+    detecterOccurrencesToutesLesPaires();        // re-dérive matchPositions depuis le DOM
+    if (typeof affichTableauAnon === 'function') affichTableauAnon();   // recalcule les compteurs
+    if (typeof sauvegarderTabAnonEnt === 'function') sauvegarderTabAnonEnt();
+}
+
 function undo(){
 
     console.log("undo — " + BkUp.length + " état(s) undo, " + BkUpRedo.length + " état(s) redo");
@@ -558,6 +569,8 @@ function undo(){
 
     // Restaurer l'état précédent
     document.getElementById('segments').innerHTML = BkUp.pop();
+
+    _resyncAnonApresUndo();
 
     console.log("undo terminé — reste " + BkUp.length + " état(s)");
 }
@@ -577,6 +590,8 @@ function redo(){
 
     // Restaurer l'état suivant
     document.getElementById('segments').innerHTML = BkUpRedo.pop();
+
+    _resyncAnonApresUndo();
 
     console.log("redo terminé — reste " + BkUpRedo.length + " état(s) redo");
 }

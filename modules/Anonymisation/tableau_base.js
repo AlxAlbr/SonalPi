@@ -80,21 +80,13 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
 // Gère la validation/revalidation au clavier du champ Pseudo
 function gererEntrePseudo(idx) {
     const paire = window.tabAnon[idx];
-    
-    // Si des occurrences existent, relancer la substitution
+
+    // Ligne déjà appliquée : réconcilier via sauvAnon. Une modif réelle du nom/pseudo la repasse
+    // « en attente » (Cas 4) ; sans changement, no-op. Pas de ré-application silencieuse en place
+    // (qui laisserait l'ancien marquage en cas de changement du pseudo). L'utilisateur ré-applique
+    // ensuite explicitement via « Valider et appliquer ».
     if (paire.occurrences > 0) {
-        const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
-        if (remplacement) {
-            // Mettre à jour le(s) pseudo(s) depuis le champ (gère « a/b » + interdit I2).
-            const analyse = analyserChampsEntitePseudo(paire.entite, remplacement.value.trim());
-            if (analyse.erreur) {
-                question("⚠️ " + analyse.erreur, ["OK"]);
-                return;
-            }
-            appliquerChampsAPaire(paire, paire.entite, analyse);
-        }
-        appliquerAnonymisationPour(idx);
-        affichTableauAnon();
+        sauvAnon(idx);
     } else {
         // Sinon, valider la ligne normalement
         validerLigneAnon(idx);
@@ -298,11 +290,44 @@ function initAnon() {
     // affichTableauAnon() sera appelé seulement au premier clic sur le panneau d'anonymisation
 }
 
+// Légende repliable de l'entretien (même principe que l'encart corpus, cf.
+// creerEncartLegendeCorpus) : déployée à la 1re ouverture de la session, puis garde le
+// dernier état choisi (replié/déployé) pour le reste de la session.
+function initLegendeAnonEntretien() {
+    const header = document.getElementById('legende-anon-header');
+    const btn = document.getElementById('legende-anon-toggle');
+    const contenu = document.getElementById('legende-anon-contenu');
+    if (!header || !btn || !contenu) return;
+
+    if (typeof window._anonLegendeEntretienReduite === 'undefined') {
+        window._anonLegendeEntretienReduite = false; // 1er rendu de la session → déployé
+    }
+
+    const appliquerEtat = (reduit) => {
+        contenu.style.display = reduit ? 'none' : '';
+        btn.textContent = reduit ? '▢' : '–';
+        btn.title = reduit ? 'Agrandir' : 'Réduire';
+    };
+    appliquerEtat(window._anonLegendeEntretienReduite);
+
+    // Brancher les écouteurs une seule fois (affichTableauAnon est rappelé souvent).
+    if (!header.dataset.toggleInit) {
+        header.dataset.toggleInit = '1';
+        const toggle = () => {
+            window._anonLegendeEntretienReduite = !window._anonLegendeEntretienReduite;
+            appliquerEtat(window._anonLegendeEntretienReduite);
+        };
+        btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+        header.addEventListener('click', toggle);
+    }
+}
+
 // Affichage du tableau d'anonymisation
 // FILTRAGE : affiche les paires avec occurrences > 0, + les paires en cours de remplissage (entité sans occurrences), + lignes vides
 function affichTableauAnon() {
     const tableauDiv = document.getElementById('tableauAnon');
     if (!tableauDiv) return;
+    initLegendeAnonEntretien();
     // Réinitialiser le compteur actif (les flèches disparaissent au re-rendu)
     window._activeCounter = null;
 
@@ -578,6 +603,52 @@ function nettoyerTabAnon() {
 }
 
 // Sauvegarde d'une ligne du tableau (quand on change le champ entité ou pseudo)
+// Démarque toutes les occurrences d'une ligne et la repasse « en attente » (occurrences=0).
+// affichTableauAnon re-scanne ensuite le texte démarqué et re-détecte les occurrences en
+// « à traiter » (orange) — donc la ligne réapparaît en attente avec le bouton « Valider et
+// appliquer ». Réutilisé par sauvAnon : vidage du nom (Cas 1) et modification d'une ligne déjà
+// appliquée (Cas 4). anciensPseudos = pseudos AVANT modification (filet de sécurité multi-pseudo).
+function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos) {
+    const paire = window.tabAnon[idx];
+    if (!paire) return;
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+
+    // 1. Démarquage par positions exactes (matchPositions) — couvre anon ET anon-exception.
+    if (paire.matchPositions && paire.matchPositions.length > 0) {
+        paire.matchPositions.forEach(match => {
+            for (let i = match.start; i <= match.end; i++) {
+                if (tousLesSpans[i]) {
+                    tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                    tousLesSpans[i].removeAttribute('data-anon-nt');
+                    delete tousLesSpans[i].dataset.pseudo;
+                }
+            }
+        });
+    }
+
+    // 2. Filet de sécurité via les anciens pseudos (matchPositions vide/périmé). Multi-pseudo :
+    //    couvrir CHAQUE pseudo autorisé (primaire ET alt).
+    const pseudosBas = (anciensPseudos || []).map(p => (p || '').toLowerCase()).filter(Boolean);
+    if (pseudosBas.length > 0) {
+        tousLesSpans.forEach(span => {
+            const dp = (span.dataset.pseudo || '').toLowerCase();
+            if (dp && pseudosBas.includes(dp)) {
+                span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                span.removeAttribute('data-anon-nt');
+                delete span.dataset.pseudo;
+            }
+        });
+    }
+
+    // 3. Reset → « en attente ». Le re-scan « à traiter » est fait par affichTableauAnon
+    //    (reindexerMatchPositions) tant que l'entité reste renseignée.
+    paire.occurrences = 0;
+    paire.matchPositions = [];
+    paire.indexCourant = 0;
+    affichTableauAnon();
+    sauvegarderTabAnonEnt();
+}
+
 function sauvAnon(idx) {
     const entiteInput = document.querySelector(`.input-entite[data-idx="${idx}"]`);
     const remplacementInput = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
@@ -588,6 +659,8 @@ function sauvAnon(idx) {
 
     const ancienneEntite = (paire.entite || '').trim();
     const ancienRemplacement = (paire.remplacement || '').trim();
+    // Pseudos AVANT modification (primaire + alt) — capturés avant l'écrasement de paire ci-dessous.
+    const anciensPseudos = pseudosDe(paire);
     const nouvelleEntite = entiteInput.value.trim();
     // Normaliser le pseudo saisi en primaire (+ alt) — gère le multi-pseudo « a/b ». Pas de blocage
     // I2 ici (édition en cours) : l'interdit est appliqué à la validation. paire.remplacement reste
@@ -603,35 +676,10 @@ function sauvAnon(idx) {
     const aOccurrences = paire.occurrences > 0;
 
     // Cas 1 : on vide la case "Nom" d'une ligne déjà anonymisée
-    // → on retire toutes les marques DOM, on remet à zéro matchPositions/occurrences
-    //   pour que les 3 compteurs (anon / exc / non) disparaissent.
+    // → démarquer + reset. L'entité étant désormais vide, affichTableauAnon ne re-scanne pas :
+    //   les 3 compteurs (anon / exc / non) disparaissent.
     if (ancienneEntite && !nouvelleEntite && aOccurrences) {
-        const tousLesSpans = document.querySelectorAll('[data-rk]');
-        if (paire.matchPositions && paire.matchPositions.length > 0) {
-            paire.matchPositions.forEach(match => {
-                for (let i = match.start; i <= match.end; i++) {
-                    if (tousLesSpans[i]) {
-                        tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                        tousLesSpans[i].removeAttribute('data-anon-nt');
-                        delete tousLesSpans[i].dataset.pseudo;
-                    }
-                }
-            });
-        }
-        // Filet de sécurité via l'ancien pseudo
-        if (ancienRemplacement) {
-            tousLesSpans.forEach(span => {
-                if (span.dataset.pseudo === ancienRemplacement) {
-                    span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                    span.removeAttribute('data-anon-nt');
-                    delete span.dataset.pseudo;
-                }
-            });
-        }
-        paire.occurrences = 0;
-        paire.matchPositions = [];
-        paire.indexCourant = 0;
-        affichTableauAnon();
+        demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
         return;
     }
 
@@ -655,6 +703,24 @@ function sauvAnon(idx) {
         });
         affichTableauAnon();
         return;
+    }
+
+    // Cas 4 : on MODIFIE (sans vider) le nom ou le pseudo d'une ligne déjà appliquée.
+    // → pour éviter une désynchro silencieuse (le texte garderait l'ANCIEN marquage alors que les
+    //   champs montrent la NOUVELLE valeur), on démarque et on repasse la ligne « en attente » :
+    //   l'utilisateur ré-applique explicitement via « Valider et appliquer ».
+    if (aOccurrences && nouvelleEntite && nouveauRemplacement) {
+        const memeEnsemble = (a, b) => {
+            const na = a.map(p => (p || '').toLowerCase()).sort();
+            const nb = b.map(p => (p || '').toLowerCase()).sort();
+            return na.length === nb.length && na.every((v, k) => v === nb[k]);
+        };
+        const nomChange = nouvelleEntite.toLowerCase() !== ancienneEntite.toLowerCase();
+        const pseudoChange = !memeEnsemble(pseudosDe(paire), anciensPseudos); // paire déjà à jour
+        if (nomChange || pseudoChange) {
+            demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+            return;
+        }
     }
 
     // Cas 3 : entité + pseudo remplis mais ligne non encore validée (occurrences = 0).
@@ -1241,7 +1307,12 @@ async function validerAnonEnAttente() {
     try {
         let compteurValides = 0;
         let compteurErreurs = 0;
-        
+        let compteurConflits = 0; // conflits corpus non résolus en lot (à valider individuellement)
+
+        // Règles corpus, pour détecter les conflits (le dialogue « garder les deux » n'a pas lieu en
+        // lot : on saute ces lignes et on invite à les valider une par une → pas de divergence silencieuse).
+        const corpusRules = await window.electronAPI.getAnon() || [];
+
         // Capturer la longueur du tableau au début pour éviter une boucle infinie si la taille change
         const tabAnonLength = window.tabAnon.length;
         
@@ -1261,6 +1332,16 @@ async function validerAnonEnAttente() {
             // Analyser le(s) pseudo(s) (multi-pseudo « a/b » + interdit I2). En lot : erreur → on saute.
             const analyse = analyserChampsEntitePseudo(entiteVal, remplacementVal);
             if (analyse.erreur) { compteurErreurs++; continue; }
+
+            // Conflit avec le corpus (pseudo hors ensemble autorisé) → ne PAS trancher en lot :
+            // laisser la ligne en attente, l'utilisateur la validera individuellement (dialogue 2b).
+            const cRegle = regleEnCollisionAlias(entiteVal, corpusRules);
+            if (cRegle) {
+                const cPseudos = pseudosDe(cRegle).map(p => p.toLowerCase());
+                const sPseudos = pseudosDe({ remplacement: analyse.remplacement, remplacementAlt: analyse.remplacementAlt });
+                if (sPseudos.some(p => !cPseudos.includes(p.toLowerCase()))) { compteurConflits++; continue; }
+            }
+
             appliquerChampsAPaire(window.tabAnon[i], entiteVal, analyse);
 
             // Vérifier si cette entité n'est pas déjà anonymisée
@@ -1329,6 +1410,13 @@ async function validerAnonEnAttente() {
     }
     if (compteurValides > 0 || compteurErreurs > 0) {
         console.log(message);
+    }
+    // Avertir (non silencieux) si des conflits corpus ont été laissés de côté.
+    if (compteurConflits > 0) {
+        await question(
+            `${compteurConflits} entité(s) en conflit avec le corpus n'ont pas été validées en lot.\n\n` +
+            `Validez-les individuellement (bouton ✓ de la ligne) pour choisir « Garder les deux » ou « Utiliser l'existant ».`,
+            ['OK']);
     }
     } finally {
         // 💾 Sauvegarder les changements dans l'entretien
@@ -1529,9 +1617,17 @@ function pointAnon() {
 async function rechercherOccurrences(idx) {
     const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
     const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
-    
+
     if (!entite || !remplacement) return;
-    
+
+    // Ligne déjà appliquée : une modif de nom/pseudo doit la repasser « en attente » (via sauvAnon,
+    // Cas 4), pas la ré-appliquer en place (sinon marquage orphelin si les deux ont changé).
+    const paireCourante = window.tabAnon[idx];
+    if (paireCourante && paireCourante.occurrences > 0) {
+        sauvAnon(idx);
+        return;
+    }
+
     const entiteVal = entite.value.trim();
     const remplacementVal = remplacement.value.trim();
     

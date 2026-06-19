@@ -16,15 +16,29 @@ function exportTableCorrespondance() {
     // Créer un tableau avec les lignes validées
     const correspondances = [];
 
+    const spansExport = document.querySelectorAll('[data-rk]');
     for (let i = 0; i < window.tabAnon.length; i++) {
         const paire = window.tabAnon[i];
-        
+
         // Vérifier que la ligne a été validée (entité + remplacement + au moins une occurrence)
-        if (paire.entite && paire.remplacement && paire.occurrences > 0) {
-            correspondances.push({
-                entite_init: paire.entite,
-                entite_pseudo: paire.remplacement
+        if (!(paire.entite && paire.remplacement && paire.occurrences > 0)) continue;
+
+        const pseudosLigne = pseudosDe(paire);
+        if (pseudosLigne.length > 1) {
+            // Multi-pseudo : exporter chaque variante RÉELLEMENT appliquée (lue au DOM), → 2 entrées.
+            const utilises = new Set();
+            (paire.matchPositions || []).forEach(m => {
+                if (m.isException || m.isNonTraite) return;
+                const dp = ((spansExport[m.start] && spansExport[m.start].dataset.pseudo) || '').toLowerCase();
+                if (dp) utilises.add(dp);
             });
+            const variantes = pseudosLigne.filter(p => utilises.has(p.toLowerCase()));
+            // Filet : si rien n'a pu être détecté, exporter au moins le primaire.
+            (variantes.length > 0 ? variantes : [paire.remplacement]).forEach(p => {
+                correspondances.push({ entite_init: paire.entite, entite_pseudo: p });
+            });
+        } else {
+            correspondances.push({ entite_init: paire.entite, entite_pseudo: paire.remplacement });
         }
     }
     

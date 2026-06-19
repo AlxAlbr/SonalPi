@@ -91,6 +91,10 @@ async function mettreAJourCacheEntite(entite, pseudo) {
     const key = `${entite.trim()}|${pseudo.trim()}`;
     const st = { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 };
 
+    // Règle complète (pour un éventuel 2ᵉ pseudo) : multi-pseudo géré par accumulerStatOccurrences.
+    const _tab = await window.electronAPI.getAnon() || [];
+    const regle = _tab.find(a => a && a.entite === entite && a.remplacement === pseudo) || { entite, remplacement: pseudo };
+
     const candidats = entretiensCandidats(entite, window._anonIndexInverse);
     for (const i of candidats) {
         let html = null;
@@ -99,13 +103,7 @@ async function mettreAJourCacheEntite(entite, pseudo) {
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
-        const occ = trouverOccurrencesDansDoc(tempDiv, entite.trim(), pseudo.trim());
-        if (occ.length === 0) continue;
-
-        st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
-        st.nbExc  += occ.filter(o => o.exclue).length;
-        st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
-        st.nbEntretiens += 1;
+        accumulerStatOccurrences(st, tempDiv, regle);
     }
 
     window._anonScanCache.set(key, st);
@@ -116,11 +114,7 @@ async function mettreAJourCacheEntite(entite, pseudo) {
     const tdEtat = tr.querySelector('.td-etat-corpus');
     if (tdEtat) {
         tdEtat.style.display = ''; // toujours rendre visible si un scan est valide
-        let badgesHtml = '';
-        if (st.nbAnon > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
-        if (st.nbExc  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-exc"  title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
-        if (st.nbNon  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-non"  title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
-        tdEtat.innerHTML = badgesHtml || '<span style="color:#bbb;font-size:0.8rem;">—</span>';
+        tdEtat.innerHTML = construireBadgesEtat(st) || '<span style="color:#bbb;font-size:0.8rem;">—</span>';
     }
     if (st.nbNon > 0) {
         tr.style.backgroundColor = '#fff3e0';
@@ -129,6 +123,65 @@ async function mettreAJourCacheEntite(entite, pseudo) {
     } else {
         tr.style.backgroundColor = '';
     }
+}
+
+/**
+ * Accumule, pour une règle, les occurrences d'un entretien (DOM déjà parsé) dans son objet de stats.
+ * Multi-pseudo (option B) : 2 appels (1 par pseudo) sur le même DOM → nbAnon PAR variante ; les
+ * exceptions / à-traiter (agnostiques au pseudo) sont comptées UNE seule fois (appel primaire).
+ * Renseigne `st.pseudos` et `st.nbAnonParPseudo` (alignés), et `st.nbAnon` = total.
+ * @param {{nbAnon:number,nbExc:number,nbNon:number,nbEntretiens:number,pseudos?:string[],nbAnonParPseudo?:number[]}} st
+ * @param {HTMLElement} tempDiv
+ * @param {{entite:string, remplacement:string, remplacementAlt?:string}} regle
+ */
+function accumulerStatOccurrences(st, tempDiv, regle) {
+    const pseudos = pseudosDe(regle);
+    if (pseudos.length === 0) return;
+    if (!st.pseudos) st.pseudos = pseudos;
+    if (!st.nbAnonParPseudo) st.nbAnonParPseudo = pseudos.map(() => 0);
+
+    const ent = regle.entite.trim();
+    // Appel primaire : sert aussi pour exc/non (mêmes en exception/non-traité quel que soit le pseudo).
+    const occPrim = trouverOccurrencesDansDoc(tempDiv, ent, pseudos[0]);
+    let touche = occPrim.length > 0;
+    st.nbAnonParPseudo[0] += occPrim.filter(o => o.applique && !o.exclue).length;
+    st.nbExc += occPrim.filter(o => o.exclue).length;
+    st.nbNon += occPrim.filter(o => !o.applique && !o.exclue).length;
+
+    // Variante alt : ne compter QUE l'anon (exc/non déjà comptés sur l'appel primaire).
+    if (pseudos.length > 1) {
+        const occAlt = trouverOccurrencesDansDoc(tempDiv, ent, pseudos[1]);
+        st.nbAnonParPseudo[1] += occAlt.filter(o => o.applique && !o.exclue).length;
+        if (occAlt.length > 0) touche = true;
+    }
+
+    st.nbAnon = st.nbAnonParPseudo.reduce((a, b) => a + b, 0);
+    if (touche) st.nbEntretiens += 1;
+}
+
+/**
+ * Construit le HTML des badges d'état corpus depuis un objet de stats. Multi-pseudo → un badge
+ * « anonymisé » PAR variante (vert primaire / teal alt) ; sinon un badge agrégé. + exc / non.
+ * @param {object} st
+ * @returns {string}
+ */
+function construireBadgesEtat(st) {
+    let html = '';
+    const pseudos = st.pseudos || [];
+    const parP = st.nbAnonParPseudo || (st.nbAnon ? [st.nbAnon] : []);
+    if (pseudos.length > 1) {
+        const couleurs = ['#4caf50', '#00897b'];
+        pseudos.forEach((p, vi) => {
+            if (parP[vi] > 0) {
+                html += `<span class="btn-nav-cat btn-nav-cat-anon" style="background:${couleurs[vi] || '#4caf50'};" title="${escapeHtml(parP[vi] + ' anonymisée(s) en « ' + p + ' »')}">${parP[vi]}</span> `;
+            }
+        });
+    } else if (st.nbAnon > 0) {
+        html += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
+    }
+    if (st.nbExc > 0) html += `<span class="btn-nav-cat btn-nav-cat-exc" title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
+    if (st.nbNon > 0) html += `<span class="btn-nav-cat btn-nav-cat-non" title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
+    return html;
 }
 
 /**
@@ -173,15 +226,9 @@ async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur, silencieu
             tempDiv.innerHTML = html; // un seul parse, réutilisé pour toutes les entités de cet entretien
 
             for (const a of entretienVersEntites.get(i)) {
-                const occ = trouverOccurrencesDansDoc(tempDiv, a.entite.trim(), a.remplacement.trim());
-                if (occ.length === 0) continue;
-
                 const st = stats.get(`${a.entite.trim()}|${a.remplacement.trim()}`);
                 if (!st) continue;
-                st.nbAnon += occ.filter(o => o.applique && !o.exclue).length;
-                st.nbExc  += occ.filter(o => o.exclue).length;
-                st.nbNon  += occ.filter(o => !o.applique && !o.exclue).length;
-                st.nbEntretiens += 1;
+                accumulerStatOccurrences(st, tempDiv, a);
             }
 
             if (typeof updateProgressBar === 'function') {
@@ -236,12 +283,8 @@ function appliquerResultatsScan(stats, lignes) {
             continue;
         }
 
-        // Badges (réutilise les classes btn-nav-cat existantes)
-        let badgesHtml = '';
-        if (st.nbAnon > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
-        if (st.nbExc  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-exc"  title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
-        if (st.nbNon  > 0) badgesHtml += `<span class="btn-nav-cat btn-nav-cat-non"  title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
-        tdEtat.innerHTML = badgesHtml;
+        // Badges (réutilise les classes btn-nav-cat existantes ; multi-pseudo → 1 badge par variante)
+        tdEtat.innerHTML = construireBadgesEtat(st);
 
         // Coloration de la ligne
         if (st.nbNon > 0) {

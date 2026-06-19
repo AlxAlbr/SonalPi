@@ -29,7 +29,10 @@ function basculerException(idxPaire, matchIdxOrSpanRk) {
     }
     
     if (!match) return;
-    
+
+    // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
+    if (typeof backUp === 'function') backUp();
+
     // Basculer le flag
     match.isException = !match.isException;
     
@@ -224,6 +227,9 @@ async function pseudonymiserOccurrence(idxPaire, matchIdx, pseudoIdx = 0) {
     const paire = window.tabAnon[idxPaire];
     if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
 
+    // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
+    if (typeof backUp === 'function') backUp();
+
     const match = paire.matchPositions[matchIdx];
     const pseudos = pseudosDe(paire);
     const pseudo = (pseudos[pseudoIdx] || pseudos[0] || paire.remplacement || '').trim();
@@ -257,6 +263,9 @@ async function pseudonymiserOccurrence(idxPaire, matchIdx, pseudoIdx = 0) {
 async function marquerExceptionDepuisNonTraite(idxPaire, matchIdx) {
     const paire = window.tabAnon[idxPaire];
     if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
+
+    // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
+    if (typeof backUp === 'function') backUp();
 
     const match = paire.matchPositions[matchIdx];
     const tousLesSpans = document.querySelectorAll('[data-rk]');
