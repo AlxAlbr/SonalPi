@@ -146,6 +146,27 @@ function analyserChampsEntitePseudo(entiteVal, remplacementVal) {
 }
 
 /**
+ * « Garder les deux » : ajoute un 2ᵉ pseudo (alt) à la règle CORPUS d'une entité et persiste.
+ * No-op si l'entité n'a pas de règle corpus, si elle est déjà multi-pseudo (≤2), ou si l'alt y
+ * figure déjà. Sert aux chemins de conflit (validation entretien, import) pour que l'alt survive à
+ * la fusion « corpus autoritaire » du save.
+ * @param {string} entite
+ * @param {string} pseudoAlt
+ * @returns {Promise<boolean>} true si la règle a été modifiée
+ */
+async function ajouterPseudoAltCorpus(entite, pseudoAlt) {
+    const alt = String(pseudoAlt == null ? '' : pseudoAlt).trim();
+    if (!alt) return false;
+    const tab = await window.electronAPI.getAnon() || [];
+    const regle = regleEnCollisionAlias(entite, tab);
+    if (!regle || estMultiPseudo(regle)) return false;
+    if (pseudosDe(regle).some(p => p.toLowerCase() === alt.toLowerCase())) return false;
+    regle.remplacementAlt = alt;
+    await persisterReglesCorpus(tab);
+    return true;
+}
+
+/**
  * Copie propre d'une règle garantissant l'invariant I5 : `remplacement` = pseudo primaire
  * valide (jamais vide ni « a/b »), `remplacementAlt` présent UNIQUEMENT s'il est non vide et
  * distinct du primaire (insensible à la casse). Les autres champs sont conservés tels quels.

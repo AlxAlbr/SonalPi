@@ -174,6 +174,16 @@ function afficherDialogueResolutionConflits(conflits, valides, allCorrespondance
                     </label>
                 `;
             });
+            // « Garder les deux » (uniquement si UN seul pseudo importé → total ≤ 2). Crée un
+            // multi-pseudo : ensuite l'anonymisation se choisit occurrence par occurrence.
+            if (conflit.pseudos_import.length === 1) {
+                dialogueHtml += `
+                    <label style="display: block; margin: 5px 0;">
+                        <input type="radio" name="conflit-${idx}" value="both">
+                        ⚖️ Garder les deux : « ${conflit.pseudo_existant} » + « ${conflit.pseudos_import[0]} » (choix par occurrence)
+                    </label>
+                `;
+            }
             dialogueHtml += `
                 <label style="display: block; margin: 5px 0;">
                     <input type="radio" name="conflit-${idx}" value="skip">
@@ -257,19 +267,20 @@ function validerResolutionConflits(conflits, valides) {
 
     conflits.forEach((conflit, idx) => {
         const radio = document.querySelector(`input[name="conflit-${idx}"]:checked`);
-        if (radio) {
-            const choix = radio.value;
-            if (choix !== 'skip') {
-                if (conflit.type === 'deja-anonymisee' && choix === 'existing') {
-                    // Garder l'existant, ne rien faire
-                } else {
-                    correspondancesFinales.push({
-                        entite_init: conflit.entite_init,
-                        entite_pseudo: choix
-                    });
-                }
-            }
+        if (!radio) return;
+        const choix = radio.value;
+        if (choix === 'skip') return;
+        if (choix === 'both') {
+            // Garder les deux → correspondance multi-pseudo : primaire = existant, alt = importé.
+            correspondancesFinales.push({
+                entite_init: conflit.entite_init,
+                entite_pseudo: conflit.pseudo_existant,
+                entite_pseudo_alt: conflit.pseudos_import[0]
+            });
+            return;
         }
+        if (conflit.type === 'deja-anonymisee' && choix === 'existing') return; // garder l'existant
+        correspondancesFinales.push({ entite_init: conflit.entite_init, entite_pseudo: choix });
     });
 
     // Fermer le dialogue

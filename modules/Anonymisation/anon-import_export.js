@@ -140,7 +140,7 @@ function importTableCorrespondance(files) {
  * Applique les correspondances importées au tableau d'anonymisation
  * @param {Array} correspondances - Les correspondances à appliquer
  */
-function appliquerImportCorrespondances(correspondances) {
+async function appliquerImportCorrespondances(correspondances) {
     console.log("=== APPLICATION DES CORRESPONDANCES IMPORTEES ===");
     console.log(`Correspondances à appliquer: ${correspondances.length}`);
 
@@ -152,12 +152,26 @@ function appliquerImportCorrespondances(correspondances) {
 
     let compteurAjoutes = 0;
     let compteurDoublons = 0;
-    
+    const altsCorpus = []; // entités passées en multi-pseudo (« garder les deux ») → MAJ corpus
+
     correspondances.forEach((corr, corrIdx) => {
-        console.log(`[${corrIdx + 1}] Traitement: "${corr.entite_init}" -> "${corr.entite_pseudo}"`);
         const entiteInit = corr.entite_init.trim();
         const entiePseudo = corr.entite_pseudo.trim();
-        
+        const entiePseudoAlt = (corr.entite_pseudo_alt || '').trim();
+        console.log(`[${corrIdx + 1}] Traitement: "${entiteInit}" -> "${entiePseudo}"${entiePseudoAlt ? ' (+ ' + entiePseudoAlt + ')' : ''}`);
+
+        // « Garder les deux » : pose l'alt sur une ligne mono (alt distinct), et note l'entité pour
+        // répercuter au corpus. Renvoie true si l'alt a été posé.
+        const poserAlt = (ligne) => {
+            if (entiePseudoAlt && !estMultiPseudo(ligne) &&
+                !pseudosDe(ligne).some(p => p.toLowerCase() === entiePseudoAlt.toLowerCase())) {
+                ligne.remplacementAlt = entiePseudoAlt;
+                altsCorpus.push({ entite: entiteInit, alt: entiePseudoAlt });
+                return true;
+            }
+            return false;
+        };
+
         // Vérifier s'il existe déjà une ligne avec cette entité
         let idxLigneExistante = -1;
         for (let i = 0; i < tabAnon.length; i++) {
@@ -166,20 +180,22 @@ function appliquerImportCorrespondances(correspondances) {
                 break;
             }
         }
-        
+
         if (idxLigneExistante >= 0) {
-            // La ligne existe, mettre à jour si nécessaire
-            if (tabAnon[idxLigneExistante].occurrences === 0) {
-                // Ligne non validée, la mettre à jour
-                tabAnon[idxLigneExistante].remplacement = entiePseudo;
+            const ligne = tabAnon[idxLigneExistante];
+            if (ligne.occurrences === 0) {
+                // Ligne non validée → mettre à jour pseudo (+ alt éventuel).
+                ligne.remplacement = entiePseudo;
+                poserAlt(ligne);
+                compteurAjoutes++;
+            } else if (poserAlt(ligne)) {
+                // Ligne déjà validée → « garder les deux » : on ajoute l'alt sans toucher aux occurrences.
                 compteurAjoutes++;
             } else {
-                // Ligne déjà validée, c'est un doublon
                 compteurDoublons++;
             }
         } else {
-            // Créer une nouvelle ligne
-            // Chercher une ligne vide
+            // Créer une nouvelle ligne (réutilise une ligne vide si dispo)
             let idxLigneVide = -1;
             for (let i = 0; i < tabAnon.length; i++) {
                 if (tabAnon[i].entite.trim() === '') {
@@ -187,26 +203,25 @@ function appliquerImportCorrespondances(correspondances) {
                     break;
                 }
             }
-            
+
             if (idxLigneVide === -1) {
-                // Ajouter une nouvelle ligne
-                tabAnon.push({
-                    entite: entiteInit,
-                    remplacement: entiePseudo,
-                    occurrences: 0,
-                    indexCourant: 0,
-                    matchPositions: []
-                });
-                idxLigneVide = tabAnon.length - 1;
+                const ligne = { entite: entiteInit, remplacement: entiePseudo, occurrences: 0, indexCourant: 0, matchPositions: [] };
+                poserAlt(ligne);
+                tabAnon.push(ligne);
             } else {
-                // Remplir la ligne vide
                 tabAnon[idxLigneVide].entite = entiteInit;
                 tabAnon[idxLigneVide].remplacement = entiePseudo;
+                poserAlt(tabAnon[idxLigneVide]);
             }
-            
+
             compteurAjoutes++;
         }
     });
+
+    // Répercuter l'alt sur la règle CORPUS (sinon la fusion « corpus autoritaire » au save l'écrase).
+    for (const a of altsCorpus) {
+        await ajouterPseudoAltCorpus(a.entite, a.alt);
+    }
     
     // Rafraîchir le tableau pour afficher les nouvelles lignes
     affichTableauAnon();

@@ -355,7 +355,15 @@ Styles pour les boutons
 }
 
 .btnquestion{
-  width: 100px;
+  /* min-width au lieu d'une largeur fixe : les libellés longs (ex. « Garder les deux »)
+     élargissent le bouton au lieu de déborder sous la bordure. Hauteur auto pour la même raison. */
+  min-width: 100px;
+  width: auto;
+  height: auto;
+  min-height: 35px;
+  line-height: 1.2;
+  white-space: nowrap;
+  padding: 5px 12px !important;
   outline: none; /* Supprimer l'outline par défaut */
 }
 

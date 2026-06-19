@@ -1988,11 +1988,32 @@ function afficherModaleAjoutEntiteAnon() {
         const existante = regleEnCollisionAlias(entite, tabAnonGlobal);
 
         if (existante) {
-            if (cleAnon(existante.entite, existante.remplacement) === cleAnon(entite, pseudo)) {
-                question(`La combinaison "${entite}" → "${pseudo}" existe déjà.`, ['OK']);
-            } else {
-                question(`L'entité « ${existante.entite} » a déjà le pseudonyme « ${existante.remplacement} ». ` +
-                         `Une entité ne peut avoir qu'un seul pseudonyme : modifiez la règle existante pour le changer.`, ['OK']);
+            const pseudosExist = pseudosDe(existante).map(p => p.toLowerCase());
+            // Déjà présent (ou déjà dans l'ensemble autorisé) → simple doublon.
+            if (pseudosExist.includes(analyse.remplacement.toLowerCase()) && !analyse.remplacementAlt) {
+                question(`La combinaison "${entite}" → "${analyse.remplacement}" existe déjà.`, ['OK']);
+                return;
+            }
+            // Limite ≤2 : si l'existant a déjà 2 pseudos, ou si la saisie en apporte 2, on ne peut pas.
+            if (estMultiPseudo(existante) || analyse.remplacementAlt) {
+                question(`L'entité « ${existante.entite} » a déjà deux pseudonymes (${pseudosDe(existante).join(' / ')}) — maximum atteint. ` +
+                         `Modifiez la règle existante pour les changer.`, ['OK']);
+                return;
+            }
+            // Conflit « 1 vs 1 » : proposer GARDER LES DEUX (création explicite d'un multi-pseudo).
+            const rep = await question(
+                `L'entité « ${existante.entite} » a déjà le pseudonyme « ${existante.remplacement} ».\n\n` +
+                `Garder LES DEUX pseudonymes (« ${existante.remplacement} » et « ${analyse.remplacement} ») ?\n\n` +
+                `⚠️ Une entité à deux pseudonymes se gère ensuite uniquement dans les entretiens (choix par occurrence).`,
+                ['Garder les deux', 'Annuler']);
+            if (rep === 'garder les deux') {
+                existante.remplacementAlt = analyse.remplacement;
+                await persisterReglesCorpus(tabAnonGlobal);
+                overlay.remove();
+                // Mettre à jour l'affichage de la ligne existante (pseudo combiné).
+                const inp = Array.from(document.querySelectorAll('.anon-pseudo-input'))
+                    .find(el => el.dataset.entite === existante.entite);
+                if (inp) inp.value = pseudosDe(existante).join('/');
             }
             return;
         }
@@ -2093,8 +2114,15 @@ async function ajouterLigneAuTableauAnonGen(anon) {
  * @param {HTMLTableRowElement} tr - Ligne du tableau à retirer
  */
 async function supprimerRegleAnonGen(entite, pseudo, tr) {
+    // Multi-pseudo : le bouton ne passe que le primaire → récupérer TOUS les pseudos autorisés de la
+    // règle, sinon l'alt resterait anonymisé dans les entretiens après suppression.
+    const tabAnonAvant = await window.electronAPI.getAnon() || [];
+    const regle = tabAnonAvant.find(a => a && a.entite === entite && a.remplacement === pseudo)
+               || regleEnCollisionAlias(entite, tabAnonAvant);
+    const pseudosARetirer = regle ? pseudosDe(regle) : [pseudo];
+
     const reponse = await question(
-        `Supprimer la règle "${entite}" → "${pseudo}" ?\nLe pseudonyme sera retiré de tous les entretiens du corpus.`,
+        `Supprimer la règle "${entite}" → "${pseudosARetirer.join(' / ')}" ?\nLe(s) pseudonyme(s) seront retirés de tous les entretiens du corpus.`,
         ["Supprimer", "Annuler"]
     );
     if (reponse !== "supprimer") return;
@@ -2102,12 +2130,15 @@ async function supprimerRegleAnonGen(entite, pseudo, tr) {
     const tabEnt = await window.electronAPI.getEnt();
     let nbEntretiensModifies = 0;
 
-    // Retirer le pseudo de chaque entretien du corpus
+    // Retirer chaque pseudo autorisé (primaire + alt) de chaque entretien du corpus
     for (let i = 0; i < tabEnt.length; i++) {
-        const modifie = await retirerPseudoDeEntretien(i, pseudo, entite);
+        let modifie = false;
+        for (const p of pseudosARetirer) {
+            if (await retirerPseudoDeEntretien(i, p, entite)) modifie = true;
+        }
         if (modifie) nbEntretiensModifies++;
 
-        // Nettoyer le tabAnon local de cet entretien
+        // Nettoyer le tabAnon local de cet entretien (filtre par entité+primaire → retire l'objet entier)
         if (tabEnt[i].tabAnon && tabEnt[i].tabAnon.length > 0) {
             tabEnt[i].tabAnon = tabEnt[i].tabAnon.filter(
                 a => !(a.entite === entite && a.remplacement === pseudo)
@@ -2128,9 +2159,10 @@ async function supprimerRegleAnonGen(entite, pseudo, tr) {
     tr.style.opacity = "0";
     setTimeout(() => tr.remove(), 300);
 
+    const pseudosTxt = pseudosARetirer.join(' / ');
     const msg = nbEntretiensModifies > 0
-        ? `Règle "${entite}" → "${pseudo}" supprimée.\n${nbEntretiensModifies} entretien(s) nettoyé(s).`
-        : `Règle "${entite}" → "${pseudo}" supprimée.`;
+        ? `Règle "${entite}" → "${pseudosTxt}" supprimée.\n${nbEntretiensModifies} entretien(s) nettoyé(s).`
+        : `Règle "${entite}" → "${pseudosTxt}" supprimée.`;
     dialog('Message', msg);
 }
 
@@ -2321,26 +2353,37 @@ async function appliquerImportCorpus(correspondances) {
     let ajoutes = 0;
     let doublons = 0;
     const nouvelles = [];
+    const lignesMaj = []; // règles existantes passées en multi-pseudo (« garder les deux »)
 
     for (const corr of correspondances) {
         const entite = (corr.entite_init || '').trim();
         const pseudo = (corr.entite_pseudo || '').trim();
         if (!entite || !pseudo) continue;
+        const pseudoAlt = (corr.entite_pseudo_alt || '').trim();
 
-        // Une entité = UN pseudo (corpus autoritaire) : si un alias en jeu est déjà pris (insensible
-        // à la casse, quel que soit son pseudo, y compris via un groupe "A/B"), on n'ajoute pas de
-        // second pseudo → on l'ignore (compté en « déjà présente(s) »). La résolution « remplacer »
-        // passe par le dialogue de conflit d'import (traiterImportCorrespondances), pas par cet ajout direct.
-        const existe = regleEnCollisionAlias(entite, tabAnonGlobal) !== null;
-        if (existe) { doublons++; continue; }
+        // Une entité = UN pseudo (corpus autoritaire) : si un alias en jeu est déjà pris, on
+        // n'ajoute pas de second pseudo → ignoré (« déjà présente »). EXCEPTION « garder les deux »
+        // (corr.entite_pseudo_alt) : on pose l'alt sur la règle existante (si mono et alt distinct).
+        const existante = regleEnCollisionAlias(entite, tabAnonGlobal);
+        if (existante) {
+            if (pseudoAlt && !estMultiPseudo(existante) &&
+                !pseudosDe(existante).some(p => p.toLowerCase() === pseudoAlt.toLowerCase())) {
+                existante.remplacementAlt = pseudoAlt;
+                lignesMaj.push(existante);
+            } else {
+                doublons++;
+            }
+            continue;
+        }
 
         const regle = { entite, remplacement: pseudo, occurrences: 0, indexCourant: 0, matchPositions: [] };
+        if (pseudoAlt && pseudoAlt.toLowerCase() !== pseudo.toLowerCase()) regle.remplacementAlt = pseudoAlt;
         tabAnonGlobal.push(regle);
         nouvelles.push(regle);
         ajoutes++;
     }
 
-    if (ajoutes > 0) {
+    if (ajoutes > 0 || lignesMaj.length > 0) {
         // Persister (règles propres uniquement, cf. persisterReglesCorpus)
         await persisterReglesCorpus(tabAnonGlobal);
 
@@ -2352,9 +2395,15 @@ async function appliquerImportCorpus(correspondances) {
                 await mettreAJourCacheEntite(r.entite, r.remplacement);
             }
         }
+        // Mettre à jour l'affichage des règles passées en multi-pseudo (pseudo combiné).
+        for (const r of lignesMaj) {
+            const inp = Array.from(document.querySelectorAll('.anon-pseudo-input')).find(el => el.dataset.entite === r.entite);
+            if (inp) inp.value = pseudosDe(r).join('/');
+        }
     }
 
     let message = `✅ Import corpus : ${ajoutes} règle(s) ajoutée(s).`;
+    if (lignesMaj.length > 0) message += `\n➕ ${lignesMaj.length} entité(s) passée(s) à deux pseudonymes.`;
     if (doublons > 0) message += `\n⚠️ ${doublons} règle(s) déjà présente(s) (ignorée(s)).`;
     question(message, ['OK']);
 }

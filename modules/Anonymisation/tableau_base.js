@@ -1591,13 +1591,53 @@ async function validerLigneAnon(idx) {
         return;
     }
 
-    // Analyser le(s) pseudo(s) saisis (multi-pseudo « a/b » + interdit I2) puis stocker.
+    // Analyser le(s) pseudo(s) saisis (multi-pseudo « a/b » + interdit I2).
     const analyse = analyserChampsEntitePseudo(entiteVal, remplacementVal);
     if (analyse.erreur) {
         await question("⚠️ " + analyse.erreur, ["OK"]);
         return;
     }
-    appliquerChampsAPaire(window.tabAnon[idx], entiteVal, analyse);
+
+    // 2b — Conflit avec une règle du CORPUS : l'entité y a déjà un/des pseudo(s), et la saisie en
+    // introduit un nouveau (hors ensemble autorisé). Sans propagation : « Garder les deux » (crée le
+    // multi-pseudo au corpus + localement) ou aligner sur le corpus. Sinon la fusion au save (corpus
+    // autoritaire) écraserait silencieusement le pseudo local.
+    let champsAAppliquer = analyse;
+    const corpusRules = await window.electronAPI.getAnon() || [];
+    const corpusRegle = regleEnCollisionAlias(entiteVal, corpusRules);
+    if (corpusRegle) {
+        const corpusPseudos = pseudosDe(corpusRegle).map(p => p.toLowerCase());
+        const saisiePseudos = pseudosDe({ remplacement: analyse.remplacement, remplacementAlt: analyse.remplacementAlt });
+        const nouveaux = saisiePseudos.filter(p => !corpusPseudos.includes(p.toLowerCase()));
+        if (nouveaux.length > 0) {
+            const peutGarderLesDeux = !estMultiPseudo(corpusRegle) && saisiePseudos.length === 1;
+            if (!peutGarderLesDeux) {
+                // Impossible de fusionner sans dépasser 2 → aligner la ligne sur le corpus.
+                await question(`L'entité « ${corpusRegle.entite} » a déjà « ${pseudosDe(corpusRegle).join(' / ')} » au corpus. ` +
+                    `La ligne va utiliser ${corpusPseudos.length > 1 ? 'ces pseudonymes' : 'ce pseudonyme'}.`, ['OK']);
+                champsAAppliquer = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
+            } else {
+                const nouveau = nouveaux[0];
+                const rep = await question(
+                    `L'entité « ${corpusRegle.entite} » est déjà au corpus avec « ${corpusRegle.remplacement} », ` +
+                    `et vous saisissez « ${nouveau} ».\n\n` +
+                    `• « Garder les deux » : l'entité aura deux pseudonymes, à choisir occurrence par occurrence ` +
+                    `(ici ET dans les autres entretiens). Par défaut le pseudo « ${corpusRegle.remplacement} » est posé.\n` +
+                    `• « Utiliser le pseudo du corpus » : aligner cette ligne sur « ${corpusRegle.remplacement} ».`,
+                    ['Garder les deux', "Utiliser l'existant", 'Annuler']);
+                if (rep === 'annuler') return;
+                if (rep === 'garder les deux') {
+                    // Mettre à jour le CORPUS tout de suite (alt = nouveau) puis aligner la ligne dessus.
+                    corpusRegle.remplacementAlt = nouveau;
+                    await persisterReglesCorpus(corpusRules);
+                    champsAAppliquer = { remplacement: corpusRegle.remplacement, remplacementAlt: nouveau };
+                } else {
+                    champsAAppliquer = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
+                }
+            }
+        }
+    }
+    appliquerChampsAPaire(window.tabAnon[idx], entiteVal, champsAAppliquer);
 
     // Vérifier si cette entité n'est pas déjà anonymisée ailleurs
     if (verifierDoublonEntite(idx)) {
