@@ -2,6 +2,13 @@
 // GESTION DE L'EXPORT TABLE DE CORRESPONDANCE
 ////////////////////////////////////////////////////////////////////////
 
+// Vrai si toutes les occurrences détectées d'une règle sont des incluses (absorbées par une autre
+// règle plus large) → rien d'« appliqué en propre » à consigner dans la table de correspondance (§2.2).
+function estEntierementIncluse(paire) {
+    const mp = paire.matchPositions || [];
+    return mp.length > 0 && mp.every(m => m.isIncluded);
+}
+
 /**
  * Exporte la table de correspondance des anonymisations validées en JSON
  * Format: [{"entite_init": "XXX", "entite_pseudo":"YYYY"}, ...]
@@ -28,16 +35,19 @@ function exportTableCorrespondance() {
             // Multi-pseudo : exporter chaque variante RÉELLEMENT appliquée (lue au DOM), → 2 entrées.
             const utilises = new Set();
             (paire.matchPositions || []).forEach(m => {
-                if (m.isException || m.isNonTraite) return;
+                if (m.isException || m.isNonTraite || m.isIncluded) return; // incluse : couverte par l'autre règle
                 const dp = ((spansExport[m.start] && spansExport[m.start].dataset.pseudo) || '').toLowerCase();
                 if (dp) utilises.add(dp);
             });
             const variantes = pseudosLigne.filter(p => utilises.has(p.toLowerCase()));
-            // Filet : si rien n'a pu être détecté, exporter au moins le primaire.
-            (variantes.length > 0 ? variantes : [paire.remplacement]).forEach(p => {
-                correspondances.push({ entite_init: paire.entite, entite_pseudo: p });
-            });
-        } else {
+            // Si aucune variante propre n'a pu être détectée : n'exporter le primaire QUE si la ligne
+            // n'est pas entièrement absorbée (sinon rien d'« appliqué » à consigner).
+            if (variantes.length > 0) {
+                variantes.forEach(p => correspondances.push({ entite_init: paire.entite, entite_pseudo: p }));
+            } else if (!estEntierementIncluse(paire)) {
+                correspondances.push({ entite_init: paire.entite, entite_pseudo: paire.remplacement });
+            }
+        } else if (!estEntierementIncluse(paire)) {
             correspondances.push({ entite_init: paire.entite, entite_pseudo: paire.remplacement });
         }
     }

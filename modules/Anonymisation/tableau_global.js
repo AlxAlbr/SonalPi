@@ -277,9 +277,10 @@ async function afficherOccurrencesEnAccordeon(fondVerif, anon, entretiensNonAnon
         
         for (const ent of tousLesEntretiens) {
             const occurrences = await trouverOccurrencesAvecContexte(
-                ent.index, 
-                anon.entite, 
-                anon.remplacement
+                ent.index,
+                anon.entite,
+                anon.remplacement,
+                pseudosDe(anon) // active la détection 'incluse' (absorbée par une autre règle)
             );
             const entIdStr = String(ent.id); // Utiliser une clé string pour la cohérence
             occurrencesParEntretien[entIdStr] = {
@@ -380,7 +381,8 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
 
     // Calcul de l'état visuel : bleu si tout traité (anonymisé ou exclu), orange sinon
     // On ne tient PAS compte de anonymisee : des variantes de casse peuvent rester non traitées
-    const toutEstTraite = occurrences.length > 0 && occurrences.every(occ => occ.applique || occ.exclue);
+    // Incluse (absorbée par une autre règle) = traitée : compte comme « traité » et hors « à traiter ».
+    const toutEstTraite = occurrences.length > 0 && occurrences.every(occ => occ.applique || occ.exclue || occ.incluse);
     const bgCouleur = toutEstTraite ? "#f1f8e9" : "#fff3e0";
     const labelCouleur = toutEstTraite ? "#558b2f" : "#f57c00";
 
@@ -416,7 +418,8 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
     // Compteurs d'occurrences (bleu = anonymisé, orange = exception, rouge = non traité)
     const nbApplique  = occurrences.filter(o => o.applique && !o.exclue).length;
     const nbExclue    = occurrences.filter(o => o.exclue).length;
-    const nbNonTraite = occurrences.filter(o => !o.applique && !o.exclue).length;
+    const nbNonTraite = occurrences.filter(o => !o.applique && !o.exclue && !o.incluse).length;
+    const nbIncluse   = occurrences.filter(o => o.incluse).length;
 
     const divCompteurs = document.createElement("div");
     divCompteurs.style.display = "flex";
@@ -442,13 +445,24 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         badge.style.flexShrink = "0";
         return badge;
     };
+    const suffIncl = nbIncluse > 0
+        ? ` — plus ${nbIncluse} absorbée(s) par une autre entité plus large (non comptée(s) ici)` : "";
     [
-        [nbApplique,  "#15c095", "Occurrence(s) anonymisée(s)"],
+        [nbApplique,  "#15c095", "Occurrence(s) anonymisée(s)" + suffIncl],
         [nbExclue,    "#555", "Occurrence(s) exclue(s)"],
         [nbNonTraite, "#ff9800", "Occurrence(s) non traitée(s)"]
-    ].forEach(([count, color, title]) => {
+    ].forEach(([count, color, title], k) => {
         const badge = creerBadge(count, color, title);
-        if (badge) divCompteurs.appendChild(badge);
+        if (!badge) return;
+        // Exposant discret sur le badge « anonymisé » si des occurrences sont incluses (I-INC-4).
+        if (k === 0 && nbIncluse > 0) {
+            const sup = document.createElement("sup");
+            sup.textContent = "*";
+            sup.style.fontSize = "9px";
+            sup.style.marginLeft = "1px";
+            badge.appendChild(sup);
+        }
+        divCompteurs.appendChild(badge);
     });
 
     // Flèche d'expansion
@@ -617,6 +631,23 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
         };
         updateBtnExceptionState();
 
+        // Incluse (I-INC-6) : absorbée par une entité plus large → lecture seule. Checkbox cochée +
+        // désactivée (elle EST anonymisée, sous l'autre règle), aucun chemin « exception ».
+        if (occ.incluse) {
+            checkboxOcc.checked = true;
+            checkboxOcc.disabled = true;
+            checkboxOcc.style.cursor = "default";
+            btnException.style.display = "none";
+            spanExceptionToggle.style.display = "none";
+            occDiv.title = "Occurrence absorbée par une entité plus large — anonymisée sous cette autre règle (non modifiable ici)";
+            const noteIncl = document.createElement("span");
+            noteIncl.textContent = " (incluse)";
+            noteIncl.style.color = "#9e9e9e";
+            noteIncl.style.fontStyle = "italic";
+            noteIncl.style.fontSize = "11px";
+            texteDiv.appendChild(noteIncl);
+        }
+
         // Clic sur l'icône gauche → retire l'exception
         spanExceptionToggle.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -680,13 +711,15 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
                     window._anonDetailDirty = false;
                 }
 
-                const occCat = occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
+                // Incluse écartée des catégories de nav (cohérent avec l'entretien, I-INC-3) ;
+                // rattachée à 'anon' pour le ciblage, et exclue des filtres pour ne pas décaler les index.
+                const occCat = occ.incluse ? 'anon' : occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
                 const occIdxInCat = occurrences
                     .slice(0, occurrences.indexOf(occ))
                     .filter(o =>
                         (occCat === 'exc'  &&  o.exclue) ||
-                        (occCat === 'anon' && !o.exclue &&  o.applique) ||
-                        (occCat === 'non'  && !o.exclue && !o.applique)
+                        (occCat === 'anon' && !o.exclue &&  o.applique && !o.incluse) ||
+                        (occCat === 'non'  && !o.exclue && !o.applique && !o.incluse)
                     ).length;
 
                 await window.electronAPI.setEntCur(entIndex);
@@ -927,7 +960,7 @@ async function recalculerStatsAnonEntretien(indexEnt, entite, pseudo, tabEntArr)
 
         const nbApplique   = occurrences.filter(o => o.applique && !o.exclue).length;
         const nbExclue     = occurrences.filter(o => o.exclue).length;
-        const nbNonTraite  = occurrences.filter(o => !o.applique && !o.exclue).length;
+        const nbNonTraite  = occurrences.filter(o => !o.applique && !o.exclue && !o.incluse).length;
         const total        = nbApplique + nbExclue;
 
         const entretien = tabEntArr[indexEnt];

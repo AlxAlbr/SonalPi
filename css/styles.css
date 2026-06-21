@@ -4512,6 +4512,16 @@ SYNTHESE
     filter: brightness(1.15);
     transform: scale(1.05);
 }
+/* Exposant discret « * » signalant des occurrences incluses (absorbées par une autre règle).
+   Voir le tooltip du badge pour le détail. (I-INC-4) */
+.badge-incl-mark {
+    font-size: 8px;
+    line-height: 0;
+    margin-left: 1px;
+    opacity: 0.85;
+    cursor: help;
+    vertical-align: super;
+}
 
 /* Highlight temporaire pour la navigation corpus <-> entretien (flash jaune ~2s) */
 @keyframes nav-highlight-flash {

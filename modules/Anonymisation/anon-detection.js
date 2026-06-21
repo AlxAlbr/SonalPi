@@ -80,10 +80,10 @@ function motsCles(texte) {
  * @param {string} pseudo - Pseudonyme (pour vérifier si appliqué)
  * @returns {Promise<Array>} Tableau des occurrences avec contexte
  */
-async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
+async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo, pseudosRegle) {
     try {
         const htmlContent = await window.electronAPI.getHtml(indexEnt);
-        
+
         if (!htmlContent) {
             return [];
         }
@@ -91,7 +91,7 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlContent;
 
-        return trouverOccurrencesDansDoc(tempDiv, entite, pseudo);
+        return trouverOccurrencesDansDoc(tempDiv, entite, pseudo, pseudosRegle);
 
     } catch (error) {
         console.error("Erreur dans trouverOccurrencesAvecContexte():", error);
@@ -110,13 +110,14 @@ async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo) {
  * @param {string} pseudo - pseudonyme (pour l'attribution des occurrences anonymisées)
  * @returns {Array} occurrences {entite, contextAvant, contextApres, applique, exclue, spanId}
  */
-function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
+function trouverOccurrencesDansDoc(tempDiv, entite, pseudo, pseudosRegle) {
     try {
         // Détection + classification via la fonction UNIFIÉE (partagée avec l'entretien).
         // On adapte la sortie au format attendu par le panneau corpus :
         //   applique = 'anon' (anonymisée par CE pseudo) · exclue = 'exception' ·
-        //   non-traite → applique:false/exclue:false. Contexte reconstruit depuis le DOM.
-        const occ = analyserOccurrences(tempDiv, entite, pseudo);
+        //   incluse = 'incluse' (absorbée par une autre règle) ·
+        //   non-traite → applique/exclue/incluse:false. Contexte reconstruit depuis le DOM.
+        const occ = analyserOccurrences(tempDiv, entite, pseudo, pseudosRegle);
         return occ.map(o => {
             const { contextAvant, contextApres } = construireContexteOccurrence(o.spanDebut, o.spanFin);
             return {
@@ -125,6 +126,7 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo) {
                 contextApres,
                 applique: o.etat === 'anon',
                 exclue: o.etat === 'exception',
+                incluse: o.etat === 'incluse',
                 spanId: o.spanDebut.dataset.rk
             };
         });
@@ -248,9 +250,12 @@ function trouverMatchesEntiteDOM(entite, tousLesSpans) {
  *
  * États :
  *  - 'anon'       : 1er span `.anon` ET data-pseudo = pseudo (anonymisé par CETTE règle).
+ *  - 'incluse'    : 1er span `.anon` avec un data-pseudo ÉTRANGER à la règle (absorbée par une
+ *                   autre règle plus large). Nécessite `pseudosRegle` ; une autre VARIANTE de la
+ *                   même règle est exclue (captée par son propre pseudo).
  *  - 'exception'  : 1er span `.anon-exception`.
  *  - 'non-traite' : 1er span sans marquage d'anonymisation.
- * Occurrence dont le 1er span est `.anon` avec un AUTRE data-pseudo (autre règle) → EXCLUE.
+ * Sans `pseudosRegle` : une occurrence portant un autre data-pseudo est EXCLUE (ancien comportement).
  *
  * Attribution = TEXTE de l'entité (et non le pseudo) → tue le bug de collision (deux entités
  * partageant un pseudo) : une occurrence n'est rattachée qu'à l'entité dont elle porte le texte.
@@ -260,14 +265,18 @@ function trouverMatchesEntiteDOM(entite, tousLesSpans) {
  * @param {HTMLElement} racineDOM - racine contenant les spans [data-rk] (document live côté
  *        entretien, tempDiv parsé côté corpus)
  * @param {string} entite - entité (peut contenir des alias séparés par « / »)
- * @param {string} pseudo - pseudonyme de la règle
- * @returns {Array<{etat:'anon'|'exception'|'non-traite', texte:string,
+ * @param {string} pseudo - pseudonyme de la règle (variante visée pour l'état 'anon')
+ * @param {string[]} [pseudosRegle] - tous les pseudos de la règle (active la détection 'incluse')
+ * @param {boolean} [toutesVariantesAnon] - si vrai, TOUTE variante de `pseudosRegle` compte comme
+ *        'anon' (vue entretien : une seule passe couvre la règle entière). Sinon (corpus per-pseudo)
+ *        seules les occurrences en `pseudo` sont 'anon', les autres variantes → exclues (continue).
+ * @returns {Array<{etat:'anon'|'incluse'|'exception'|'non-traite', texte:string,
  *                  spanDebut:Element, spanFin:Element, indexDebut:number, indexFin:number}>}
  *          indexDebut/indexFin = index dans la NodeList [data-rk] de racineDOM (adaptateur
  *          entretien : {start,end}) ; spanDebut/spanFin = éléments (adaptateur corpus :
  *          contexte + spanId). Trié par ordre du document.
  */
-function analyserOccurrences(racineDOM, entite, pseudo) {
+function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVariantesAnon) {
     const spans = Array.from(racineDOM.querySelectorAll('[data-rk]'));
     if (spans.length === 0) return [];
 
@@ -327,8 +336,17 @@ function analyserOccurrences(racineDOM, entite, pseudo) {
             if (spanDebut.classList.contains('anon-exception')) {
                 etat = 'exception';
             } else if (spanDebut.classList.contains('anon')) {
-                if (spanDebut.dataset.pseudo !== pseudo) continue; // anonymisé par une AUTRE règle → exclu
-                etat = 'anon';
+                const dp = spanDebut.dataset.pseudo;
+                const dansRegle = pseudosRegle && pseudosRegle.some(p => (p || '').toLowerCase() === (dp || '').toLowerCase());
+                if (dp === pseudo || (toutesVariantesAnon && dansRegle)) {
+                    etat = 'anon'; // CE pseudo, ou (mode entretien) N'IMPORTE quelle variante de la règle
+                } else if (dansRegle) {
+                    continue; // autre VARIANTE de la même règle → captée par son propre appel (mode corpus per-pseudo)
+                } else if (pseudosRegle) {
+                    etat = 'incluse'; // pseudo ÉTRANGER → occurrence absorbée par une autre règle
+                } else {
+                    continue; // compat : sans liste de pseudos, ancien comportement (autre pseudo → exclu)
+                }
             } else {
                 etat = 'non-traite';
             }

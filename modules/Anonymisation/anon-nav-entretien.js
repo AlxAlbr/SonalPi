@@ -112,7 +112,7 @@ function surlignerOccurrence(idx) {
 function _matchDansCategorie(paire, m, cat, spans) {
     if (cat === 'exc') return m.isException;
     if (cat === 'non') return m.isNonTraite;
-    if (m.isException || m.isNonTraite) return false; // 'anon' / 'anonN'
+    if (m.isException || m.isNonTraite || m.isIncluded) return false; // 'anon' / 'anonN' (incluse exclue, I-INC-3)
     if (cat === 'anon') return true;
     const vi = parseInt(cat.slice(4), 10); // 'anon0' -> 0
     if (isNaN(vi)) return true;

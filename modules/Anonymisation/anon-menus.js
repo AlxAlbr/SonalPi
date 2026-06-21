@@ -29,6 +29,7 @@ function basculerException(idxPaire, matchIdxOrSpanRk) {
     }
     
     if (!match) return;
+    if (match.isIncluded) return; // incluse = lecture seule : pas d'exception dans le run large (I-INC-6)
 
     // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
     if (typeof backUp === 'function') backUp();
@@ -231,6 +232,7 @@ async function pseudonymiserOccurrence(idxPaire, matchIdx, pseudoIdx = 0) {
     if (typeof backUp === 'function') backUp();
 
     const match = paire.matchPositions[matchIdx];
+    if (match.isIncluded) return; // incluse = lecture seule : ne pas re-marquer dans le run large (I-INC-3)
     const pseudos = pseudosDe(paire);
     const pseudo = (pseudos[pseudoIdx] || pseudos[0] || paire.remplacement || '').trim();
     const tousLesSpans = document.querySelectorAll('[data-rk]');
@@ -268,6 +270,7 @@ async function marquerExceptionDepuisNonTraite(idxPaire, matchIdx) {
     if (typeof backUp === 'function') backUp();
 
     const match = paire.matchPositions[matchIdx];
+    if (match.isIncluded) return; // incluse = lecture seule : pas d'exception dans le run large (I-INC-6)
     const tousLesSpans = document.querySelectorAll('[data-rk]');
 
     for (let i = match.start; i <= match.end; i++) {

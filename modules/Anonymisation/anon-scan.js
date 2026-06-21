@@ -118,8 +118,8 @@ async function mettreAJourCacheEntite(entite, pseudo) {
     }
     if (st.nbNon > 0) {
         tr.style.backgroundColor = '#fff3e0';
-    } else if ((st.nbAnon + st.nbExc) > 0) {
-        tr.style.backgroundColor = '#e8f5e9';
+    } else if ((st.nbAnon + st.nbExc + (st.nbIncl || 0)) > 0) {
+        tr.style.backgroundColor = '#e8f5e9'; // vert : traité (incluse comptée comme traitée)
     } else {
         tr.style.backgroundColor = '';
     }
@@ -142,15 +142,17 @@ function accumulerStatOccurrences(st, tempDiv, regle) {
 
     const ent = regle.entite.trim();
     // Appel primaire : sert aussi pour exc/non (mêmes en exception/non-traité quel que soit le pseudo).
-    const occPrim = trouverOccurrencesDansDoc(tempDiv, ent, pseudos[0]);
+    const occPrim = trouverOccurrencesDansDoc(tempDiv, ent, pseudos[0], pseudos);
     let touche = occPrim.length > 0;
     st.nbAnonParPseudo[0] += occPrim.filter(o => o.applique && !o.exclue).length;
     st.nbExc += occPrim.filter(o => o.exclue).length;
-    st.nbNon += occPrim.filter(o => !o.applique && !o.exclue).length;
+    // Incluse (absorbée par une autre règle) : exclue de « à traiter » (I-INC-5), comptée à part.
+    st.nbNon += occPrim.filter(o => !o.applique && !o.exclue && !o.incluse).length;
+    st.nbIncl = (st.nbIncl || 0) + occPrim.filter(o => o.incluse).length;
 
-    // Variante alt : ne compter QUE l'anon (exc/non déjà comptés sur l'appel primaire).
+    // Variante alt : ne compter QUE l'anon (exc/non/incluse déjà comptés sur l'appel primaire).
     if (pseudos.length > 1) {
-        const occAlt = trouverOccurrencesDansDoc(tempDiv, ent, pseudos[1]);
+        const occAlt = trouverOccurrencesDansDoc(tempDiv, ent, pseudos[1], pseudos);
         st.nbAnonParPseudo[1] += occAlt.filter(o => o.applique && !o.exclue).length;
         if (occAlt.length > 0) touche = true;
     }
@@ -169,15 +171,24 @@ function construireBadgesEtat(st) {
     let html = '';
     const pseudos = st.pseudos || [];
     const parP = st.nbAnonParPseudo || (st.nbAnon ? [st.nbAnon] : []);
+    // Incluses (absorbées par une autre règle) : exclues du compteur, signalées par exposant + tooltip
+    // sur le badge « anonymisé » (I-INC-4). Ligne entièrement absorbée (nbAnon=0) → aucun badge (§2).
+    const nbIncl = st.nbIncl || 0;
+    const inclMark = nbIncl > 0 ? '<sup style="font-size:9px;">*</sup>' : '';
+    const inclSuff = nbIncl > 0 ? ` — plus ${nbIncl} absorbée(s) par une autre entité plus large (non comptée(s) ici)` : '';
     if (pseudos.length > 1) {
         const couleurs = ['#4caf50', '#00897b'];
+        let inclPlace = false; // exposant/tooltip sur le 1er badge rendu
         pseudos.forEach((p, vi) => {
             if (parP[vi] > 0) {
-                html += `<span class="btn-nav-cat btn-nav-cat-anon" style="background:${couleurs[vi] || '#4caf50'};" title="${escapeHtml(parP[vi] + ' anonymisée(s) en « ' + p + ' »')}">${parP[vi]}</span> `;
+                const mark = (!inclPlace && nbIncl > 0) ? inclMark : '';
+                const suff = (!inclPlace && nbIncl > 0) ? inclSuff : '';
+                if (nbIncl > 0) inclPlace = true;
+                html += `<span class="btn-nav-cat btn-nav-cat-anon" style="background:${couleurs[vi] || '#4caf50'};" title="${escapeHtml(parP[vi] + ' anonymisée(s) en « ' + p + ' »' + suff)}">${parP[vi]}${mark}</span> `;
             }
         });
     } else if (st.nbAnon > 0) {
-        html += `<span class="btn-nav-cat btn-nav-cat-anon" title="${st.nbAnon} occurrence(s) anonymisée(s)">${st.nbAnon}</span> `;
+        html += `<span class="btn-nav-cat btn-nav-cat-anon" title="${escapeHtml(st.nbAnon + ' occurrence(s) anonymisée(s)' + inclSuff)}">${st.nbAnon}${inclMark}</span> `;
     }
     if (st.nbExc > 0) html += `<span class="btn-nav-cat btn-nav-cat-exc" title="${st.nbExc} exception(s)">${st.nbExc}</span> `;
     if (st.nbNon > 0) html += `<span class="btn-nav-cat btn-nav-cat-non" title="${st.nbNon} occurrence(s) non traitée(s)">${st.nbNon}</span>`;
@@ -277,7 +288,7 @@ function appliquerResultatsScan(stats, lignes) {
 
         tdEtat.style.display = '';
 
-        if (!st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0)) {
+        if (!st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0 && (st.nbIncl || 0) === 0)) {
             tdEtat.innerHTML = '<span style="color:#bbb;font-size:0.8rem;">—</span>';
             tr.style.backgroundColor = '';
             continue;
@@ -289,8 +300,8 @@ function appliquerResultatsScan(stats, lignes) {
         // Coloration de la ligne
         if (st.nbNon > 0) {
             tr.style.backgroundColor = '#fff3e0'; // orange : occurrences à traiter
-        } else if ((st.nbAnon + st.nbExc) > 0) {
-            tr.style.backgroundColor = '#e8f5e9'; // vert : entièrement traité
+        } else if ((st.nbAnon + st.nbExc + (st.nbIncl || 0)) > 0) {
+            tr.style.backgroundColor = '#e8f5e9'; // vert : entièrement traité (incluse comprise)
         } else {
             tr.style.backgroundColor = '';
         }
