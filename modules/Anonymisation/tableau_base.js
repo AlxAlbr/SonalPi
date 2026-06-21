@@ -185,6 +185,7 @@ function detecterOccurrencesNonTraitees(idxPaire) {
         // Anonymisé par une AUTRE règle (pseudo étranger) → occurrence incluse, ni anon propre ni à-traiter.
         const dp = firstSpan ? firstSpan.dataset.pseudo : '';
         const isIncluded = estAnon && !!dp && !pseudosLigne.some(p => p.toLowerCase() === dp.toLowerCase());
+        const pseudoAbsorbe = (isIncluded && firstSpan && firstSpan.dataset.pseudoAbsorbe) || '';
         const isNonTraite  = !estException && !estAnon;
 
         // Marquer les spans comme "à traiter" sans toucher aux classes CSS
@@ -197,7 +198,7 @@ function detecterOccurrencesNonTraitees(idxPaire) {
                 s.removeAttribute('data-anon-nt');
             }
         }
-        return { start, end, isException: estException, isNonTraite, isIncluded };
+        return { start, end, isException: estException, isNonTraite, isIncluded, pseudoAbsorbe };
     });
 
     paire.matchPositions = matchPositions;
@@ -466,20 +467,37 @@ function affichTableauAnon() {
         if (pseudosLigne.length > 1 && nbAnon > 0) {
             const spansLigne = document.querySelectorAll('[data-rk]');
             const compteVar = pseudosLigne.map(() => 0);
+            const inclVar = pseudosLigne.map(() => 0); // incluses rattachées à leur variante d'origine
+            let inclSansVar = 0;                       // incluses sans variante connue (Scénario B / périmée)
             paire.matchPositions.forEach(m => {
-                if (m.isException || m.isNonTraite || m.isIncluded) return; // incluse exclue du split (I-INC-5)
+                if (m.isIncluded) {
+                    // L'incluse est exclue du compteur (I-INC-5) mais signalée sur le badge de SA variante
+                    // d'origine (pseudoAbsorbe, mémorisé à l'absorption).
+                    const pa = (m.pseudoAbsorbe || '').toLowerCase();
+                    const vi = pa ? pseudosLigne.findIndex(p => p.toLowerCase() === pa) : -1;
+                    if (vi >= 0) inclVar[vi]++; else inclSansVar++;
+                    return;
+                }
+                if (m.isException || m.isNonTraite) return;
                 const dp = ((spansLigne[m.start] && spansLigne[m.start].dataset.pseudo) || '').toLowerCase();
                 let vi = pseudosLigne.findIndex(p => p.toLowerCase() === dp);
                 if (vi < 0) vi = 0; // pseudo inconnu/legacy → compté sur le primaire
                 compteVar[vi]++;
             });
+            // Une variante est affichée si elle a des occurrences réelles OU des incluses (→ badge « 0* »
+            // quand son unique occurrence a été absorbée). Seules les incluses SANS variante connue se
+            // replient sur le 1er badge rendu.
+            const inclRepli = inclSansVar;
+
             const couleursVar = ['#4caf50', '#00897b']; // primaire = vert, alt = teal
-            let inclPlace = false; // l'exposant/tooltip va sur le 1er badge rendu
+            const nomsAbs = entitesAbsorbantes(paire.matchPositions, spansLigne);
+            let premierRendu = true;
             badgesAnonHtml = pseudosLigne.map((p, vi) => {
-                if (compteVar[vi] <= 0) return '';
-                const mark = (!inclPlace && nbIncl > 0) ? markIncl : '';
-                const suff = (!inclPlace && nbIncl > 0) ? suffIncl : '';
-                if (nbIncl > 0) inclPlace = true;
+                if (compteVar[vi] <= 0 && inclVar[vi] <= 0) return '';
+                let nInc = inclVar[vi];
+                if (premierRendu) { nInc += inclRepli; premierRendu = false; }
+                const mark = nInc > 0 ? markIncl : '';
+                const suff = nInc > 0 ? suffixeTooltipIncluse(nInc, nomsAbs) : '';
                 return `<button class="btn-nav-cat btn-nav-cat-anon" data-idx="${i}" data-cat="anon${vi}" onclick="clicCompteur(this,${i},'anon${vi}')" style="background:${couleursVar[vi] || '#4caf50'};" title="${compteVar[vi]} occurrence(s) anonymisée(s) comme « ${_escAnonMenu(p)} »${suff} — cliquer pour naviguer">${compteVar[vi]}${mark}</button>`;
             }).join('');
         } else {
@@ -704,8 +722,8 @@ function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos) {
         });
     }
 
-    // §G-bis : runs retirés → réindexer les règles chevauchantes (leurs incluses repassent à traiter).
-    rangesLiberees.forEach(r => recompterReglesChevauchant(r.start, r.end, idx));
+    // §G-bis / Partie 2 : runs retirés → RESTAURER les occurrences absorbées (pseudo réaligné).
+    rangesLiberees.forEach(r => restaurerAbsorbeesDansPortee(r.start, r.end, idx));
 
     // 3. Reset → « en attente ». Le re-scan « à traiter » est fait par affichTableauAnon
     //    (reindexerMatchPositions) tant que l'entité reste renseignée.
@@ -771,8 +789,8 @@ function sauvAnon(idx) {
                 match.isNonTraite = true;
             }
         });
-        // §G-bis : runs redevenus « à traiter » → libérer les incluses qu'ils absorbaient (I-INC-7).
-        rangesLiberees.forEach(r => recompterReglesChevauchant(r.start, r.end, idx));
+        // §G-bis / Partie 2 : runs redevenus « à traiter » → RESTAURER les occurrences absorbées.
+        rangesLiberees.forEach(r => restaurerAbsorbeesDansPortee(r.start, r.end, idx));
         affichTableauAnon();
         return;
     }
@@ -789,6 +807,14 @@ function sauvAnon(idx) {
         };
         const nomChange = nouvelleEntite.toLowerCase() !== ancienneEntite.toLowerCase();
         const pseudoChange = !memeEnsemble(pseudosDe(paire), anciensPseudos); // paire déjà à jour
+        if (!nomChange && pseudoChange) {
+            // SEUL le pseudo change (nom identique) → relabel EN PLACE (préserve les choix par occurrence).
+            // Fallback démarquage si mapping ambigu (≥2 changements) ; 'annule' gère son propre revert.
+            relabelPseudoEnPlace(idx, anciensPseudos).then(r => {
+                if (r === 'ambigu') demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+            });
+            return;
+        }
         if (nomChange || pseudoChange) {
             demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
             return;
@@ -1042,9 +1068,9 @@ async function supprimeLigneAnon(idx) {
             });
         }
 
-        // §G-bis : les spans des runs retirés sont redevenus nus → réindexer les règles qui les
-        // chevauchaient pour que leurs incluses repassent « à traiter ».
-        rangesLiberees.forEach(r => recompterReglesChevauchant(r.start, r.end, idx));
+        // §G-bis / Partie 2 : les spans des runs retirés sont redevenus nus → RESTAURER les
+        // occurrences que ces runs absorbaient (pseudo réaligné sur la règle courante).
+        rangesLiberees.forEach(r => restaurerAbsorbeesDansPortee(r.start, r.end, idx));
     }
 
     // Supprimer la ligne du tableau
@@ -1281,7 +1307,8 @@ function reindexerMatchPositions(idxPaire) {
         end: o.indexFin,
         isException: o.etat === 'exception',
         isNonTraite: o.etat === 'non-traite',
-        isIncluded: o.etat === 'incluse'
+        isIncluded: o.etat === 'incluse',
+        pseudoAbsorbe: o.pseudoAbsorbe || ''
     }));
 
     paire.matchPositions = matches;
@@ -1330,8 +1357,7 @@ function _runEtrangerEnglobe(spans, s, e, pseudosRegle) {
 }
 
 // Réindexe les règles AUTRES que idxSource dont au moins une occurrence chevauche [start,end].
-// Pose d'une englobante → leurs occurrences absorbées basculent en 'incluse' ; retrait/édition de
-// l'englobante → elles redeviennent 'non-traité'. (Plan §A.3 / §G-bis, I-INC-7)
+// Pose d'une englobante → leurs occurrences absorbées basculent en 'incluse'. (Plan §A.3)
 function recompterReglesChevauchant(start, end, idxSource) {
     if (!window.tabAnon) return;
     for (let j = 0; j < window.tabAnon.length; j++) {
@@ -1339,6 +1365,39 @@ function recompterReglesChevauchant(start, end, idxSource) {
         const p = window.tabAnon[j];
         if (!p || !p.matchPositions || !p.matchPositions.length) continue;
         if (p.matchPositions.some(m => m.start <= end && m.end >= start)) reindexerMatchPositions(j);
+    }
+}
+
+// §G-bis / Partie 2 — au RETRAIT ou à l'ÉDITION d'une englobante (run nettoyé), RESTAURE les
+// occurrences qu'elle absorbait : re-pose anon + debsel/finsel + pseudo depuis data-pseudo-absorbe,
+// RÉALIGNÉ sur le pseudo COURANT de la règle (variante mémorisée si toujours valide, sinon primaire).
+// Remplace l'ancien comportement « re-bascule en non-traité ». (anon.md §10)
+function restaurerAbsorbeesDansPortee(start, end, idxSource) {
+    if (!window.tabAnon) return;
+    const spans = document.querySelectorAll('[data-rk]');
+    for (let j = 0; j < window.tabAnon.length; j++) {
+        if (j === idxSource) continue;
+        const p = window.tabAnon[j];
+        if (!p || !p.matchPositions || !p.matchPositions.length) continue;
+        const pseudos = pseudosDe(p);
+        let restaure = false;
+        p.matchPositions.forEach(m => {
+            if (!m.isIncluded || !(m.start <= end && m.end >= start)) return;
+            // Réalignement : la variante mémorisée si elle existe encore dans la règle, sinon le primaire.
+            const memo = (spans[m.start] && spans[m.start].dataset.pseudoAbsorbe) || m.pseudoAbsorbe || '';
+            const pseudo = (memo && pseudos.some(x => x.toLowerCase() === memo.toLowerCase())) ? memo : (p.remplacement || '');
+            for (let i = m.start; i <= m.end; i++) {
+                const sp = spans[i]; if (!sp) continue;
+                sp.classList.remove('anon-exception');
+                sp.classList.add('anon');
+                sp.removeAttribute('data-anon-nt');
+                delete sp.dataset.pseudoAbsorbe; // consommé : l'occurrence est de nouveau marquée en propre
+                if (i === m.start) { sp.classList.add('debsel'); if (pseudo) sp.dataset.pseudo = pseudo; }
+                if (i === m.end)   { sp.classList.add('finsel'); if (pseudo) sp.dataset.pseudo = pseudo; }
+            }
+            restaure = true;
+        });
+        if (restaure) reindexerMatchPositions(j); // incluse → anon, compteurs à jour
     }
 }
 
@@ -1461,6 +1520,10 @@ function appliquerAnonymisationPour(idxPaire) {
                     // étrangers portent un pseudo → détectables via dpI.
                     const dpI = tousLesSpans[i].dataset.pseudo;
                     if (dpI && !pseudosPaire.some(p => p.toLowerCase() === dpI.toLowerCase())) {
+                        // Mémoriser la variante d'origine AVANT de l'effacer : sert à poser l'exposant
+                        // sur le bon badge de variante, et (Partie 2) à restaurer le pseudo si on retire
+                        // l'englobante. (Fondation §10)
+                        tousLesSpans[i].dataset.pseudoAbsorbe = dpI;
                         delete tousLesSpans[i].dataset.pseudo;
                         tousLesSpans[i].classList.remove('debsel', 'finsel');
                     }
@@ -1897,6 +1960,128 @@ async function rechercherOccurrences(idx) {
     }
 }
 
+// Résout un éventuel conflit entre le(s) pseudo(s) saisi(s) et une règle CORPUS existante pour la même
+// entité (alias). Renvoie { champs:{remplacement, remplacementAlt} } à appliquer, ou { annule:true }.
+// Effet de bord assumé : « garder les deux » met à jour ET persiste le corpus. Partagé par
+// validerLigneAnon et le relabel en place (sauvAnon Cas 4).
+async function resoudreConflitCorpus(entiteVal, analyse) {
+    let champs = { remplacement: analyse.remplacement, remplacementAlt: analyse.remplacementAlt };
+    const corpusRules = await window.electronAPI.getAnon() || [];
+    const corpusRegle = regleEnCollisionAlias(entiteVal, corpusRules);
+    if (corpusRegle) {
+        const corpusPseudos = pseudosDe(corpusRegle).map(p => p.toLowerCase());
+        const saisiePseudos = pseudosDe({ remplacement: analyse.remplacement, remplacementAlt: analyse.remplacementAlt });
+        const nouveaux = saisiePseudos.filter(p => !corpusPseudos.includes(p.toLowerCase()));
+        if (nouveaux.length > 0) {
+            const saisieLower = saisiePseudos.map(p => p.toLowerCase());
+            const union = [...new Set([...corpusPseudos, ...saisieLower])];
+            const manquants = corpusPseudos.filter(p => !saisieLower.includes(p)); // pseudos corpus absents de la saisie
+            if (union.length <= 2 && manquants.length === 0) {
+                // La saisie ÉTEND le corpus (conserve tous ses pseudos + ajoute un alt, total ≤ 2) :
+                // intention NON ambiguë → garder les deux SANS dialogue. Persister l'alt au corpus.
+                corpusRegle.remplacementAlt = nouveaux[0];
+                await persisterReglesCorpus(corpusRules);
+                return { champs: { remplacement: corpusRegle.remplacement, remplacementAlt: nouveaux[0] } };
+            }
+            const peutGarderLesDeux = !estMultiPseudo(corpusRegle) && saisiePseudos.length === 1;
+            if (!peutGarderLesDeux) {
+                // Impossible de fusionner sans dépasser 2 → aligner la ligne sur le corpus.
+                await question(`L'entité « ${corpusRegle.entite} » a déjà « ${pseudosDe(corpusRegle).join(' / ')} » au corpus. ` +
+                    `La ligne va utiliser ${corpusPseudos.length > 1 ? 'ces pseudonymes' : 'ce pseudonyme'}.`, ['OK']);
+                champs = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
+            } else {
+                const nouveau = nouveaux[0];
+                const rep = await question(
+                    `L'entité « ${corpusRegle.entite} » est déjà au corpus avec « ${corpusRegle.remplacement} », ` +
+                    `et vous saisissez « ${nouveau} ».\n\n` +
+                    `• « Garder les deux » : l'entité aura deux pseudonymes, à choisir occurrence par occurrence ` +
+                    `(ici ET dans les autres entretiens). Par défaut le pseudo « ${corpusRegle.remplacement} » est posé.\n` +
+                    `• « Utiliser le pseudo du corpus » : aligner cette ligne sur « ${corpusRegle.remplacement} ».`,
+                    ['Garder les deux', "Utiliser l'existant", 'Annuler']);
+                if (rep === 'annuler') return { annule: true };
+                if (rep === 'garder les deux') {
+                    // Mettre à jour le CORPUS tout de suite (alt = nouveau) puis aligner la ligne dessus.
+                    corpusRegle.remplacementAlt = nouveau;
+                    await persisterReglesCorpus(corpusRules);
+                    champs = { remplacement: corpusRegle.remplacement, remplacementAlt: nouveau };
+                } else {
+                    champs = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
+                }
+            }
+        }
+    }
+    return { champs };
+}
+
+// Mapping ancien(minuscule)→nouveau pseudo pour un relabel, ou null si AMBIGU (≥2 changements
+// simultanés). Cas nets : renommage (1↔1), retrait d'alt (→ primaire), ajout d'alt / swap (no-op).
+function _mappingPseudoOuNull(anciensPseudos, nouveauxPseudos) {
+    const Po = anciensPseudos.map(p => (p || '').toLowerCase());
+    const Pn = nouveauxPseudos;
+    const PnLower = Pn.map(p => p.toLowerCase());
+    const removed = Po.filter(p => !PnLower.includes(p));
+    const added = Pn.filter(p => !Po.includes(p.toLowerCase()));
+    const map = {};
+    Po.forEach(p => { const k = PnLower.indexOf(p); if (k >= 0) map[p] = Pn[k]; }); // inchangés
+    if (removed.length === 1 && added.length === 1)      map[removed[0]] = added[0];  // renommage
+    else if (removed.length === 1 && added.length === 0) map[removed[0]] = Pn[0];     // alt retiré → primaire
+    else if (removed.length === 0)                       { /* ajout d'alt ou swap */ }
+    else                                                 return null;                 // ≥2 changements → ambigu
+    return map;
+}
+
+// Relabel EN PLACE des pseudos d'une ligne déjà appliquée quand SEUL le pseudo change (nom inchangé) :
+// réécrit data-pseudo des occurrences sans démarquer → préserve les choix par occurrence (multi-pseudo).
+// Renvoie true (fait), 'ambigu' (mapping ≥2 changements → l'appelant fait un démarquage) ou 'annule'.
+// (anon.md §10 / affinage Cas 4)
+async function relabelPseudoEnPlace(idx, anciensPseudos) {
+    const paire = window.tabAnon[idx];
+    if (!paire) return 'ambigu';
+    const entiteVal = paire.entite;
+
+    // Pré-contrôle d'ambiguïté sur les pseudos SAISIS (sans dialogue) : ≥2 changements → démarquage.
+    if (_mappingPseudoOuNull(anciensPseudos, pseudosDe(paire)) === null) return 'ambigu';
+
+    // Rejeu du conflit corpus (même dialogue que validerLigneAnon) sur les pseudos saisis (déjà dans paire).
+    const res = await resoudreConflitCorpus(entiteVal, { remplacement: paire.remplacement, remplacementAlt: paire.remplacementAlt });
+    if (res.annule) {
+        // Revert : restaurer les anciens pseudos + ré-afficher (le champ repart de paire).
+        paire.remplacement = anciensPseudos[0] || '';
+        if (anciensPseudos[1]) paire.remplacementAlt = anciensPseudos[1]; else delete paire.remplacementAlt;
+        affichTableauAnon();
+        return 'annule';
+    }
+    appliquerChampsAPaire(paire, entiteVal, res.champs);
+
+    // Mapping sur l'ensemble RÉSOLU (peut différer du saisi si aligné corpus) ; rare cas ambigu → démarquage.
+    const map = _mappingPseudoOuNull(anciensPseudos, pseudosDe(paire));
+    if (map === null) return 'ambigu';
+
+    // Relabel DOM : occurrences réelles (data-pseudo) + incluses (data-pseudo-absorbe), via le mapping.
+    const spans = document.querySelectorAll('[data-rk]');
+    (paire.matchPositions || []).forEach(m => {
+        if (m.isIncluded) {
+            for (let i = m.start; i <= m.end; i++) {
+                const sp = spans[i]; if (!sp || !sp.dataset.pseudoAbsorbe) continue;
+                const cible = map[sp.dataset.pseudoAbsorbe.toLowerCase()];
+                if (cible) sp.dataset.pseudoAbsorbe = cible;
+            }
+            return;
+        }
+        if (m.isException || m.isNonTraite) return;
+        const sd = spans[m.start];
+        const cible = sd && map[(sd.dataset.pseudo || '').toLowerCase()];
+        if (!cible) return;
+        if (spans[m.start]) spans[m.start].dataset.pseudo = cible;
+        if (spans[m.end])   spans[m.end].dataset.pseudo = cible;
+    });
+
+    reindexerMatchPositions(idx);
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+    return true;
+}
+
 // Valide et applique l'anonymisation pour une ligne spécifique
 async function validerLigneAnon(idx) {
     const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
@@ -1920,46 +2105,11 @@ async function validerLigneAnon(idx) {
         return;
     }
 
-    // 2b — Conflit avec une règle du CORPUS : l'entité y a déjà un/des pseudo(s), et la saisie en
-    // introduit un nouveau (hors ensemble autorisé). Sans propagation : « Garder les deux » (crée le
-    // multi-pseudo au corpus + localement) ou aligner sur le corpus. Sinon la fusion au save (corpus
-    // autoritaire) écraserait silencieusement le pseudo local.
-    let champsAAppliquer = analyse;
-    const corpusRules = await window.electronAPI.getAnon() || [];
-    const corpusRegle = regleEnCollisionAlias(entiteVal, corpusRules);
-    if (corpusRegle) {
-        const corpusPseudos = pseudosDe(corpusRegle).map(p => p.toLowerCase());
-        const saisiePseudos = pseudosDe({ remplacement: analyse.remplacement, remplacementAlt: analyse.remplacementAlt });
-        const nouveaux = saisiePseudos.filter(p => !corpusPseudos.includes(p.toLowerCase()));
-        if (nouveaux.length > 0) {
-            const peutGarderLesDeux = !estMultiPseudo(corpusRegle) && saisiePseudos.length === 1;
-            if (!peutGarderLesDeux) {
-                // Impossible de fusionner sans dépasser 2 → aligner la ligne sur le corpus.
-                await question(`L'entité « ${corpusRegle.entite} » a déjà « ${pseudosDe(corpusRegle).join(' / ')} » au corpus. ` +
-                    `La ligne va utiliser ${corpusPseudos.length > 1 ? 'ces pseudonymes' : 'ce pseudonyme'}.`, ['OK']);
-                champsAAppliquer = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
-            } else {
-                const nouveau = nouveaux[0];
-                const rep = await question(
-                    `L'entité « ${corpusRegle.entite} » est déjà au corpus avec « ${corpusRegle.remplacement} », ` +
-                    `et vous saisissez « ${nouveau} ».\n\n` +
-                    `• « Garder les deux » : l'entité aura deux pseudonymes, à choisir occurrence par occurrence ` +
-                    `(ici ET dans les autres entretiens). Par défaut le pseudo « ${corpusRegle.remplacement} » est posé.\n` +
-                    `• « Utiliser le pseudo du corpus » : aligner cette ligne sur « ${corpusRegle.remplacement} ».`,
-                    ['Garder les deux', "Utiliser l'existant", 'Annuler']);
-                if (rep === 'annuler') return;
-                if (rep === 'garder les deux') {
-                    // Mettre à jour le CORPUS tout de suite (alt = nouveau) puis aligner la ligne dessus.
-                    corpusRegle.remplacementAlt = nouveau;
-                    await persisterReglesCorpus(corpusRules);
-                    champsAAppliquer = { remplacement: corpusRegle.remplacement, remplacementAlt: nouveau };
-                } else {
-                    champsAAppliquer = { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt };
-                }
-            }
-        }
-    }
-    appliquerChampsAPaire(window.tabAnon[idx], entiteVal, champsAAppliquer);
+    // 2b — Conflit avec une règle du CORPUS (entité déjà pseudonymisée ailleurs) : aligner / garder
+    // les deux / annuler. Logique extraite dans resoudreConflitCorpus (partagée avec le relabel Cas 4).
+    const resConflit = await resoudreConflitCorpus(entiteVal, analyse);
+    if (resConflit.annule) return;
+    appliquerChampsAPaire(window.tabAnon[idx], entiteVal, resConflit.champs);
 
     // Vérifier si cette entité n'est pas déjà anonymisée ailleurs
     if (verifierDoublonEntite(idx)) {

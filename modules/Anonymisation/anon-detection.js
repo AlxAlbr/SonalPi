@@ -357,7 +357,10 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
                 spanDebut,
                 spanFin: spans[idxFin],
                 indexDebut: idxDebut,
-                indexFin: idxFin
+                indexFin: idxFin,
+                // Variante d'origine d'une occurrence absorbée (mémorisée par l'absorption) → exposant
+                // sur le bon badge de variante. Vide hors cas 'incluse'.
+                pseudoAbsorbe: (etat === 'incluse' && spanDebut.dataset.pseudoAbsorbe) || ''
             });
         }
     }
