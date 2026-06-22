@@ -292,7 +292,13 @@ window.addEventListener('unload', (event) => {
                     
                     <H2 id="lbldetails"  >Détails du segment</H2>
 
-                    <label id ="lblpos">  --- </label> <br>
+                    <div id="lblpos" class="seg-pos-editor">
+                        <label for="seg-pos-deb" class="seg-pos-label">Début</label>
+                        <input id="seg-pos-deb" class="seg-pos-input" type="text" value="--:--:--" autocomplete="off" spellcheck="false">
+                        <label for="seg-pos-fin" class="seg-pos-label">Fin</label>
+                        <input id="seg-pos-fin" class="seg-pos-input" type="text" value="--:--:--" autocomplete="off" spellcheck="false">
+                    </div>
+                    <label id="seg-pos-msg" class="seg-pos-msg"></label> <br>
                      <!-- <label id ="lblsel">  sélection : </label> <br>  -->
 
                     <label id = "idseg" style="display:none"></label> 

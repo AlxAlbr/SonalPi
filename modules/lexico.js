@@ -165,6 +165,7 @@ var lxFiltreListeTexteActif = false; // true si la recherche texte de la liste e
 var lxMaxFreqGlobal = 1; // fréquence maximale du corpus entier (référence de l'échelle)
 var lxCorpusCompletVisible = true; // true si aucune sélection (thm/var/ent) ne restreint le corpus
 var lxSpecifActives = false; // true si les spécificités sont calculées sur un sous-corpus sélectionné
+var lxIgnorerFiltreVariablesInitial = true; // ignore le filtre variables tant qu'aucune interaction n'a eu lieu
 
 // ---- Options d'affichage ----
 var lxOptExclureQuestions = true;  // exclure les locuteurs dont le nom contient '?'
@@ -345,6 +346,8 @@ async function afficherLexico() {
     body.appendChild(_lxPanneauEnt());
     body.appendChild(_lxPanneauIndex());
 
+    // Au chargement, on n'applique pas les filtres variables hérités d'autres vues.
+    lxIgnorerFiltreVariablesInitial = true;
     _lxAfficherPanneauxFiltresInitiaux();
 
     // Appliquer dès le premier affichage les filtres chargés (mots outils, etc.)
@@ -551,7 +554,7 @@ function _lxCreerPanneau(id, titre) {
  * Crée un bouton on/off (icône onoff.png, même style qu'activeallcat) pour basculer
  * tous les éléments d'un panneau en une seule action.
  */
-function _lxCreerBtnTout(getItems, isActif, appliquer) {
+function _lxCreerBtnTout(getItems, isActif, appliquer, onAppliquer = null) {
     const btn = document.createElement('label');
     btn.className = 'btnbleu activeallcat lx-pnl-onoff';
     const maj = () => {
@@ -562,6 +565,7 @@ function _lxCreerBtnTout(getItems, isActif, appliquer) {
     btn.addEventListener('click', () => {
         const items = [...getItems()];
         const tousActifs = items.length > 0 && items.every(isActif);
+        if (typeof onAppliquer === 'function') onAppliquer();
         appliquer(!tousActifs);
         maj();
         _lxRefreshTable();
@@ -646,7 +650,8 @@ function _lxPanneauVar() {
     const { btn: btnVarAll, maj: majVarBtn } = _lxCreerBtnTout(
         () => body.querySelectorAll('.btn-onoff-ent:not([data-vide="1"])'),
         el  => el.classList.contains('btn-onoff-ent--actif'),
-        activer => body.querySelectorAll('.btn-onoff-ent:not([data-vide="1"])').forEach(b => b.classList.toggle('btn-onoff-ent--actif', activer))
+        activer => body.querySelectorAll('.btn-onoff-ent:not([data-vide="1"])').forEach(b => b.classList.toggle('btn-onoff-ent--actif', activer)),
+        () => { lxIgnorerFiltreVariablesInitial = false; }
     );
     head.insertBefore(btnVarAll, head.firstChild);
 
@@ -713,9 +718,15 @@ function _lxPanneauVar() {
             const modaliteActive = !etatVar || etatVar.actifs.has(String(mod.m));
             btnSwitch.classList.toggle('btn-onoff-ent--actif', modaliteActive);
             btnSwitch.title = 'Clic gauche\u00a0: inclure / exclure\nClic droit\u00a0: isoler cette modalité';
-            btnSwitch.addEventListener('click', e => { e.stopPropagation(); btnSwitch.classList.toggle('btn-onoff-ent--actif'); _lxRefreshTable(); });
+            btnSwitch.addEventListener('click', e => {
+                e.stopPropagation();
+                lxIgnorerFiltreVariablesInitial = false;
+                btnSwitch.classList.toggle('btn-onoff-ent--actif');
+                _lxRefreshTable();
+            });
             btnSwitch.addEventListener('contextmenu', e => {
                 e.preventDefault(); e.stopPropagation();
+                lxIgnorerFiltreVariablesInitial = false;
                 // Isoler : désactiver les autres modalités de CETTE variable uniquement
                 document.querySelectorAll(`#lxPnlVar .btn-onoff-ent[data-v="${v.v}"]`).forEach(b => b.classList.remove('btn-onoff-ent--actif'));
                 btnSwitch.classList.add('btn-onoff-ent--actif');
@@ -727,9 +738,14 @@ function _lxPanneauVar() {
             lblMod.classList.add('tap-mod-lbl');
             lblMod.textContent = mod.lib;
             lblMod.title = 'Clic gauche\u00a0: inclure / exclure\nClic droit\u00a0: isoler cette modalité';
-            lblMod.addEventListener('click', () => { btnSwitch.classList.toggle('btn-onoff-ent--actif'); _lxRefreshTable(); });
+            lblMod.addEventListener('click', () => {
+                lxIgnorerFiltreVariablesInitial = false;
+                btnSwitch.classList.toggle('btn-onoff-ent--actif');
+                _lxRefreshTable();
+            });
             lblMod.addEventListener('contextmenu', e => {
                 e.preventDefault();
+                lxIgnorerFiltreVariablesInitial = false;
                 document.querySelectorAll(`#lxPnlVar .btn-onoff-ent[data-v="${v.v}"]`).forEach(b => b.classList.remove('btn-onoff-ent--actif'));
                 btnSwitch.classList.add('btn-onoff-ent--actif');
                 _lxRefreshTable();
@@ -750,9 +766,15 @@ function _lxPanneauVar() {
         const nonRenseigneActif = !etatVar || etatVar.actifs.has('0');
         btnNR.classList.toggle('btn-onoff-ent--actif', nonRenseigneActif);
         btnNR.title = 'Clic gauche\u00a0: inclure / exclure les non-renseignés\nClic droit\u00a0: isoler';
-        btnNR.addEventListener('click', e => { e.stopPropagation(); btnNR.classList.toggle('btn-onoff-ent--actif'); _lxRefreshTable(); });
+        btnNR.addEventListener('click', e => {
+            e.stopPropagation();
+            lxIgnorerFiltreVariablesInitial = false;
+            btnNR.classList.toggle('btn-onoff-ent--actif');
+            _lxRefreshTable();
+        });
         btnNR.addEventListener('contextmenu', e => {
             e.preventDefault(); e.stopPropagation();
+            lxIgnorerFiltreVariablesInitial = false;
             document.querySelectorAll(`#lxPnlVar .btn-onoff-ent[data-v="${v.v}"]`).forEach(b => b.classList.remove('btn-onoff-ent--actif'));
             btnNR.classList.add('btn-onoff-ent--actif');
             _lxRefreshTable();
@@ -763,9 +785,14 @@ function _lxPanneauVar() {
         lblNR.classList.add('tap-mod-lbl', 'tap-mod-lbl--nr');
         lblNR.textContent = 'Non renseigné';
         lblNR.title = 'Clic gauche\u00a0: inclure / exclure les non-renseignés\nClic droit\u00a0: isoler';
-        lblNR.addEventListener('click', () => { btnNR.classList.toggle('btn-onoff-ent--actif'); _lxRefreshTable(); });
+        lblNR.addEventListener('click', () => {
+            lxIgnorerFiltreVariablesInitial = false;
+            btnNR.classList.toggle('btn-onoff-ent--actif');
+            _lxRefreshTable();
+        });
         lblNR.addEventListener('contextmenu', e => {
             e.preventDefault();
+            lxIgnorerFiltreVariablesInitial = false;
             document.querySelectorAll(`#lxPnlVar .btn-onoff-ent[data-v="${v.v}"]`).forEach(b => b.classList.remove('btn-onoff-ent--actif'));
             btnNR.classList.add('btn-onoff-ent--actif');
             _lxRefreshTable();
@@ -1763,7 +1790,8 @@ function _lxOccurrencesActivesPourForme(forme) {
         e.total++;
         if (btn.classList.contains('btn-onoff-ent--actif')) e.actifs.add(Number(btn.dataset.m));
     });
-    const filtreVar = [...varMap.values()].some(e => e.actifs.size < e.total);
+    const filtreVarBrut = [...varMap.values()].some(e => e.actifs.size < e.total);
+    const filtreVar = !lxIgnorerFiltreVariablesInitial && filtreVarBrut;
 
     let entActifsVar = null;
     if (filtreVar) {
@@ -2430,7 +2458,8 @@ function _lxRefreshTable() {
         e.total++;
         if (btn.classList.contains('btn-onoff-ent--actif')) e.actifs.add(Number(btn.dataset.m));
     });
-    const filtreVar = [...varMap.values()].some(e => e.actifs.size < e.total);
+    const filtreVarBrut = [...varMap.values()].some(e => e.actifs.size < e.total);
+    const filtreVar = !lxIgnorerFiltreVariablesInitial && filtreVarBrut;
 
     // Si filtre variables actif, calculer les indices d'entretiens valides
     let entActifsVar = null;
