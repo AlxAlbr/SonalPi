@@ -290,8 +290,81 @@ function detecterOccurrencesToutesLesPaires() {
     
     // 🧹 Nettoyer les paires orphelines après la détection
     nettoyerPairesOrphelines();
-    
+
     console.log(`✅ Détection terminée (${ignorees} entité(s) ignorée(s) par pré-filtrage)`);
+}
+
+/**
+ * Compte, sur l'entretien OUVERT, le total des occurrences « à anonymiser » (isNonTraite),
+ * toutes règles confondues (locales ET corpus présentes mais pas encore appliquées ici). Lit
+ * window.tabAnon[].matchPositions, re-dérivé du DOM (source de vérité, anon.md §2) — même notion
+ * exacte que le compteur orange `nbNon` de chaque ligne (affichTableauAnon). N'inclut NI les
+ * incluses NI les exceptions (assumées). À appeler APRÈS detecterOccurrencesToutesLesPaires/
+ * affichTableauAnon pour que matchPositions soit à jour.
+ * @returns {{ total:number, lignes:Array<{entite:string, nb:number}> }}
+ */
+function compterAnonATraiterEntretien() {
+    let total = 0;
+    const lignes = [];
+    (window.tabAnon || []).forEach(p => {
+        if (!p || !p.entite || !p.entite.trim()) return;
+        const nbNon = (p.matchPositions || []).filter(m => m && m.isNonTraite).length;
+        if (nbNon > 0) { total += nbNon; lignes.push({ entite: p.entite, nb: nbNon }); }
+    });
+    return { total, lignes };
+}
+
+/**
+ * « Vérifier l'entretien » (scan local, pendant du scan corpus) : re-scanne le texte courant contre
+ * TOUTES les règles connues (locales + corpus), rafraîchit la table, puis affiche un bilan consolidé
+ * « rien d'oublié » / « N à anonymiser ». Le DOM étant la source de vérité, le scan reflète l'état
+ * réel après corrections.
+ * ⚠️ Ne trouve que des occurrences d'entités DÉJÀ identifiées (une règle existe pour elles, ici ou au
+ * corpus) — ce n'est PAS un détecteur de noms (pas de NER). « Rien d'oublié » = parmi les entités déjà
+ * repérées.
+ */
+async function verifierEntretien() {
+    if (typeof detecterOccurrencesToutesLesPaires === 'function') detecterOccurrencesToutesLesPaires();
+    if (typeof affichTableauAnon === 'function') affichTableauAnon();
+
+    const { total, lignes } = compterAnonATraiterEntretien();
+
+    // Brouillons « parqués » ayant des occurrences réelles dans le texte : ce ne sont PAS des
+    // « à anonymiser » (I-POR-4 : un brouillon ne le devient jamais seul, matchPositions=[]), mais un
+    // brouillon non promu est un oubli potentiel → on le signale à part, comme rappel non bloquant.
+    const brouillons = [];
+    (window.tabAnon || []).forEach(p => {
+        if (!p || !p.entite || !p.entite.trim()) return;
+        if ((p.portee || 'corpus') !== 'brouillon') return;
+        const nb = (typeof compterOccurrencesEntite === 'function') ? compterOccurrencesEntite(p.entite) : 0;
+        if (nb > 0) brouillons.push({ entite: p.entite, nb });
+    });
+
+    const tronq = (typeof tronquerEntiteAffichage === 'function') ? tronquerEntiteAffichage : (t => t);
+    const listeBrouillons = brouillons.length
+        ? `\n\nℹ️ ${brouillons.length} brouillon(s) avec des occurrences non marquées (à promouvoir 🚧→📄/📁 si voulu) :\n` +
+          brouillons.sort((a, b) => b.nb - a.nb).map(l => `• ${tronq(l.entite)} — ${l.nb}`).join('\n')
+        : '';
+    const noteNER = '\n\n(Rappel : la vérification ne couvre que les entités déjà repérées — ce n\'est pas une détection automatique de noms.)';
+
+    if (total === 0) {
+        const enTete = brouillons.length
+            ? '✅ Aucune occurrence « à anonymiser » : prêt pour l\'export.'
+            : '✅ Entretien tout vert : aucune occurrence « à anonymiser ».';
+        await question(enTete + listeBrouillons + noteNER, ['OK']);
+        return { total, lignes, brouillons };
+    }
+
+    const detail = lignes
+        .sort((a, b) => b.nb - a.nb)
+        .map(l => `• ${tronq(l.entite)} — ${l.nb}`)
+        .join('\n');
+    await question(
+        `⚠️ ${total} occurrence(s) encore « à anonymiser » dans cet entretien :\n\n${detail}\n\n` +
+        `Les lignes concernées sont en orange dans le panneau ci-dessous. Appliquez-les avant l'export.` +
+        listeBrouillons + noteNER,
+        ['OK']);
+    return { total, lignes, brouillons };
 }
 
 // Initialisation du tableau d'anonymisation
@@ -593,17 +666,22 @@ function affichTableauAnon() {
     html += `
             </tbody>
         </table>
-        <div style="margin-top: 10px; display: flex; gap: 5px;width:100%; position:sticky;bottom:0px;">
-            <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('document')" title="Appliquer tous les brouillons dans cet entretien seulement (sans toucher au corpus)">
-                Appliquer au doc 🚧→📄
+        <div style="margin-top: 10px; display: flex; flex-direction:column; gap: 5px;width:100%; position:sticky;bottom:0px;">
+            <div style="display:flex; gap:5px; width:100%;">
+                <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('document')" title="Appliquer tous les brouillons dans cet entretien seulement (sans toucher au corpus)">
+                    Appliquer au doc 🚧→📄
+                </button>
+                <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('corpus')" title="Appliquer tous les brouillons ET créer les règles au corpus (partagé)">
+                    Applique au corpus 🚧→📁
+                </button>
+                <button class="btn-valider-anon-attente btnfonction btnlarge " style="flex:1;" onclick="ajouterNouvelleLigneAnon()">
+                    ➕
+                </button>
+            </div>
+            <button class="btn-verifier-entretien btnfonction btnlarge " onclick="verifierEntretien()" title="Re-scanner le texte contre toutes les règles connues (locales et corpus) et vérifier qu'aucune occurrence n'a été oubliée. Ne détecte que les entités déjà repérées (pas de détection automatique de noms).">
+                🔍 Scan anonymisation entretien
             </button>
-            <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('corpus')" title="Appliquer tous les brouillons ET créer les règles au corpus (partagé)">
-                Applique au corpus 🚧→📁
-            </button>
-            <button class="btn-valider-anon-attente btnfonction btnlarge " style="flex:1;" onclick="ajouterNouvelleLigneAnon()">
-                ➕
-            </button>
-   
+
             <input type="file" id="file-import-correspondance" multiple accept=".json" style="display: none;">
         </div>
     `;
