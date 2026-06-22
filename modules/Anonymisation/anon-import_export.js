@@ -280,6 +280,10 @@ function validerImportsAutomatic(correspondances) {
                 // Désactiver l'édition si des occurrences ont été trouvées
                 if (tabAnon[i].occurrences > 0) {
                     desactiverEditionLigne(i);
+                    // Import au niveau ENTRETIEN → portée 'document' (local, ne remonte pas au corpus,
+                    // §11ter). Une éventuelle divergence avec le corpus a déjà été résolue par le moteur
+                    // de conflit ; à la réouverture, une entité réellement au corpus se naturalise en corpus.
+                    tabAnon[i].portee = 'document';
                 }
 
                 break;

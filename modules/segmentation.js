@@ -74,6 +74,10 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
          
         }
     
+        // Re-cliquer le MÊME mot de départ annule la sélection en cours (remplace l'ancien bouton
+        // « Annuler » du popup d'attente, désormais retiré).
+        if (debSel && !finSel && Number(rk) === debSel) { annulerDebSel(); return; }
+
         // Protection : si une sélection est en cours (debSel posé, finSel pas encore fixé),
         // compléter directement sans passer par getThm, quelles que soient les classes du mot.
         if (debSel && !finSel) { finSel = Number(rk); survOk(); return; }
@@ -86,8 +90,9 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
                 return;
             }
             debSel=Number(rk);
-            afficherMenuSelAttente();
-            return; // sinon, définition du début de sélection
+            // Popup « Cliquez pour terminer la sélection » retiré (jugé intrusif) : la sélection en
+            // deux clics fonctionne toujours ; re-cliquer le même mot l'annule (voir ci-dessus).
+            return; // définition du début de sélection
         }
     
         if (debSel!=0 && finSel!=0){

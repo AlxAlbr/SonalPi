@@ -15,6 +15,75 @@
 ////////////////////////////////////////////////////////////////////////
 
 /**
+ * Affichage COMPACT d'une entité longue : « n premiers mots […] n derniers mots » au-delà de 2·n mots.
+ * Ne touche QUE l'affichage — le texte complet reste la donnée (entretien : révélé au focus ;
+ * corpus : conservé dans le title). Partagé entretien (textarea) ↔ corpus (cellule). Défaut n=6.
+ * @param {string} texte
+ * @param {number} n
+ * @returns {string}
+ */
+function tronquerEntiteAffichage(texte, n = 6) {
+    const t = (texte == null ? '' : String(texte)).trim();
+    if (!t) return '';
+    const mots = t.split(/\s+/);
+    if (mots.length <= 2 * n) return t;
+    return mots.slice(0, n).join(' ') + ' […] ' + mots.slice(-n).join(' ');
+}
+
+/**
+ * Anonymisation HTML DÉFINITIVE (irréversible), en place dans un élément DOM détaché.
+ * - run anonymisé (debsel.anon … finsel.anon) → remplacé par « [pseudo] » (pseudo lu sur le finsel →
+ *   gère le multi-pseudo par occurrence) ; les spans absorbés internes (incluses) sont vidés ;
+ * - exception (.anon-exception) / « à anonymiser » (data-anon-nt) → texte original conservé, marqueurs retirés.
+ * Ne touche QUE le marquage d'anonymisation : la structure (data-rk/data-sg/data-deb…) est préservée.
+ * Placé ici (anon-regles.js, chargé dans LES DEUX fenêtres) car l'export corpus tourne côté index.html
+ * alors qu'anon-export-document.js n'est chargé que côté entretien. @returns {HTMLElement} root muté
+ */
+function _anonymiserDansElement(root) {
+    if (!root) return root;
+    const spans = Array.from(root.querySelectorAll('[data-rk]'));
+    const nettoyerMarqueurs = (s) => {
+        s.classList.remove('anon', 'anon-exception', 'debsel', 'finsel', 'anon-selected', 'highlight-occ', 'reperage-hit');
+        s.removeAttribute('data-pseudo');
+        s.removeAttribute('data-anon-nt');
+        s.removeAttribute('data-pseudo-absorbe');
+    };
+    let i = 0;
+    while (i < spans.length) {
+        const span = spans[i];
+        if (span.classList.contains('anon') && span.classList.contains('debsel')) {
+            let fin = i;
+            for (let j = i; j < spans.length; j++) {
+                if (spans[j].classList.contains('finsel') && spans[j].classList.contains('anon')) { fin = j; break; }
+            }
+            const pseudo = (spans[fin].dataset.pseudo || span.dataset.pseudo || span.textContent || '').trim();
+            for (let k = i; k <= fin; k++) {
+                const s = spans[k];
+                nettoyerMarqueurs(s);
+                s.textContent = (k === i) ? `[${pseudo}]` : '';
+            }
+            i = fin + 1;
+        } else {
+            i++;
+        }
+    }
+    root.querySelectorAll('.anon-exception, [data-anon-nt]').forEach(nettoyerMarqueurs);
+    return root;
+}
+
+/**
+ * Variante chaîne : anonymise définitivement un fragment HTML stocké (ex. tabEnt[i].html) et renvoie
+ * le HTML nettoyé. Utilisée par l'export corpus (index.html) et l'export document (entretien).
+ * @param {string} html @returns {string}
+ */
+function _anonymiserHtml(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = (html == null ? '' : String(html)).replace(/^`|`$/g, ''); // certains HTML stockés sont entourés de backticks
+    _anonymiserDansElement(tmp);
+    return tmp.innerHTML;
+}
+
+/**
  * Clé canonique d'une paire (entité, pseudo) pour la déduplication des règles d'anonymisation.
  * RÈGLE UNIQUE partagée par tous les chemins de fusion/synchro/dédup : trim + minuscules
  * (insensible à la casse → « Paris » et « paris » sont la MÊME règle). Centralisée ici pour

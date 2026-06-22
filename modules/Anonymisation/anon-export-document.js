@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////
 // EXPORT DU DOCUMENT ANONYMISÉ (texte final : txt / word / srt / html)
 //
-// Extrait de anon-import_export.js (todo2.md, Étape 0) sans changement de comportement.
+// Extrait de anon-import_export.js (refacto) sans changement de comportement.
 // Produit le DOCUMENT exporté (le texte avec les pseudonymes appliqués), à distinguer de
 // la table de correspondance (les règles entité↔pseudo, restée dans anon-correspondance).
 //
@@ -9,23 +9,6 @@
 // (segmentation.js) et de globaux runtime de l'entretien. Chargé UNIQUEMENT dans
 // edition_entretien.html — seule fenêtre où ces fonctions étaient disponibles auparavant.
 ////////////////////////////////////////////////////////////////////////
-
-/**
- * Export txt avec anonymisations/pseudonymisations appliquées
- * Utilise le texte affiché (qui inclut les classes CSS anon et anon-exception)
- */
-function exportTxtAvecAnonymisation(){
-    let nbspans = getNbSpans();
-    let rgDeb = 1;
-    let rgFin = nbspans;
-
-    let detailsf = dossfichext(nomFichText);
-    
-    // Extraire le texte avec les anonymisations appliquées
-    let txtAnonymise = exportTxtAvecClasses(rgDeb, rgFin, true);
-    
-    SauvegarderSurDisque(txtAnonymise, detailsf[1] + "_anonymise.txt", "UTF-8");
-}
 
 /**
  * Extrait le texte d'un ensemble de spans en appliquant les anonymisations
@@ -142,9 +125,19 @@ function exportTxtAvecClasses(rgDeb, rgFin, avecLoc){
         const indexActuel = tousLesSpans.findIndex(s => s.dataset.rk == i);
         
         if (indexActuel !== -1) {
-            const indexFin = tousLesSpans.findIndex(s => s.dataset.rk == rgFin);
-            const resultat = extraireTexteAnonymiseDepuisSpans(tousLesSpans, indexActuel, indexFin);
-            
+            // Borne l'extraction au SEGMENT courant : sinon l'extracteur consomme tout le document
+            // d'un coup et la boucle locuteur/segment (ci-dessus) ne tourne qu'une fois → étiquettes
+            // de locuteur et séparation des segments perdues. On s'arrête au dernier span contigu de
+            // même data-sg, sans dépasser rgFin.
+            const indexFinGlobal = tousLesSpans.findIndex(s => s.dataset.rk == rgFin);
+            let indexFinSeg = indexActuel;
+            while (indexFinSeg + 1 < tousLesSpans.length
+                   && (indexFinGlobal === -1 || indexFinSeg + 1 <= indexFinGlobal)
+                   && tousLesSpans[indexFinSeg + 1].dataset.sg == rgseg) {
+                indexFinSeg++;
+            }
+            const resultat = extraireTexteAnonymiseDepuisSpans(tousLesSpans, indexActuel, indexFinSeg);
+
             if (resultat.texte) {
                 txtAnonymise += resultat.texte;
             }
@@ -158,292 +151,6 @@ function exportTxtAvecClasses(rgDeb, rgFin, avecLoc){
     }
 
     return txtAnonymise;
-}
-
-/**
- * Exporte le document Word avec anonymisation/pseudonymisation appliquée
- * Similaire à exportWord() mais utilise le texte anonymisé
- */
-function exportWordAvecAnonymisation(){
-
-    // Basculement du html en tableau
-    HTMLTOTABSEG()
-
-    let txtobs = document.getElementById("txtnotes").value
-     
-    const doc = new docx.Document({
-
-
-    sections: [
-     {
-    properties: {
-
-
-    },
-    children: [
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: nomFichText,
-            bold: true
-          }),
-     ]
-      }),
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: "",
-            bold: true
-          }),
-     ]
-      }),
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: "Exporté par whispurge : www.sonal-info.com/whispurge.html", 
-           italics : true
-          }),
-     ]
-      }),
-
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: "", 
-            
-          }),
-     ]
-      }),
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: "---", 
-            
-          })
-     ]
-      }),
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: "", 
-            
-          })
-     ]
-      }),
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: "Notes : " + txtobs, 
-            
-          })
-     ]
-      }),
-      new docx.Paragraph({
-        children: [
-           
-          new docx.TextRun({
-            text: "---" , 
-            
-          })
-     ]
-      }),
-    ]
-  }
-]
-
-});
-
-  
-
-
-for (s=0;s<TabSeg.length;s++){
-
-// défintion du locuteur
-
-var loc = "" 
-if (locut[TabSeg[s][3]]){loc= locut[TabSeg[s][3]]}
-var changeloc = false
-if (s>0 && TabSeg[s][3]!=TabSeg[s-1][3]) {
-    changeloc = true 
-}
-
-if (s==0) {changeloc = true }
-
-var italouinon=false
-// italouinon
-if (loc.indexOf("?")>-1){italouinon=true}
-loc = loc.replaceAll("?","") ;
-loc += " : ";
-
-// ajout de la position chronométrique
-let posit = TabSeg[s][1]
-if (posit) {loc += SecToTime(TabSeg[s][1],true)};
-
-// ajout du locuteur
-if (changeloc==true){
-    doc.addSection({
-    properties: {
-            type: docx.SectionType.CONTINUOUS
-            },
-
-    children: [ 
-    new docx.Paragraph({
-        children: [
-            new docx.TextRun({
-            text: "",
-            }),
-            
-        ],
-        }),
-        new docx.Paragraph({
-        children: [
-            new docx.TextRun({
-            text: loc,
-            italics: italouinon,
-            }),
-            
-        ],
-        }),
-    ],
-    })
-}
-
-// Récupération du texte du segment avec anonymisation appliquée
-let texteSegment = obtenirTexteSegmentAnonymise(s);
-
-// ajout du texte
-doc.addSection({
-properties: {
-           type: docx.SectionType.CONTINUOUS
-        },
-
-  children: [ 
-    new docx.Paragraph({
-      children: [
-        new docx.TextRun({
-          text: texteSegment,
-          italics: italouinon,
-           
-        }),
-      ],
-    }),
-  ],
-})
-
-}
-
-
-docx.Packer.toBlob(doc).then((blob) => {
-console.log("Blob créé:", blob);
-
-// Génération du nom de fichier
-let nomFichier = "transcription"; // Nom par défaut
-
-if (typeof nomFichText !== 'undefined' && nomFichText) {
-    let detailsf = dossfichext(nomFichText);
-    nomFichier = detailsf[1]; // Récupère le nom sans extension
-    console.log("Nom extrait:", nomFichier);
-}
-
-const nomComplet = nomFichier + "_anonymise.docx";
-console.log("Nom de fichier final:", nomComplet);
-
-// Utilisation de la méthode native du navigateur (plus fiable que FileSaver.js)
-const url = window.URL.createObjectURL(blob);
-const link = document.createElement('a');
-link.href = url;
-link.download = nomComplet;
-link.style.display = 'none';
-document.body.appendChild(link);
-link.click();
-
-// Nettoyage après un court délai
-setTimeout(() => {
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    console.log("Document exporté:", nomComplet);
-}, 100);
-});
-
-
-
-
-}
-
-/**
- * Obtient le texte d'un segment avec les anonymisations appliquées
- * @param {number} indexSegment - L'index du segment dans TabSeg
- * @returns {string} Le texte du segment avec anonymisations
- */
-function obtenirTexteSegmentAnonymise(indexSegment) {
-    // Récupérer le segment HTML correspondant
-    const segments = document.querySelectorAll('.lblseg');
-    const segment = segments[indexSegment];
-    
-    if (!segment) {
-        return TabSeg[indexSegment][4]; // Retourner le texte brut si segment non trouvé
-    }
-    
-    // Parcourir tous les spans du segment et utiliser la fonction commune
-    const spans = segment.querySelectorAll('span');
-    const resultat = extraireTexteAnonymiseDepuisSpans(spans, 0);
-    
-    return resultat.texte;
-}
-
-/**
- * Exporte le fichier SRT avec anonymisation/pseudonymisation appliquée
- */
-function exportSrtAvecAnonymisation(){
-
-    var txtSrt;
-    txtSrt ="";
-    var loc_cur = -1; // mémorisation du locuteur
-    
-    if (TabSeg.length<1){
-        console.log("pas de tabseg")
-        HTMLTOTABSEG()
-    }
-
-    for (s=0;s<TabSeg.length;s++){
-
-        txtSrt += (s+1) + "\r"
-         
-        let tpsdeb = Number(TabSeg[s][1]);
-        if (tpsdeb !=undefined)  {
-            tpsdeb = SecToTime(tpsdeb,false)
-            tpsdeb = tpsdeb.replaceAll(".",",")
-        };
-
-        let tpsfin = Number(TabSeg[s][2]);
-        if (tpsfin !=undefined) { 
-            tpsfin = SecToTime(tpsfin,false) 
-            tpsfin = tpsfin.replaceAll(".",",")
-        };
-
-        txtSrt += tpsdeb + " --> " + tpsfin + "\r"
-
-        // Ajout du locuteur
-        loc_cur = TabSeg[s][3]
-        let loc = locut[loc_cur].replaceAll("?","") ;   
-        if (loc) {txtSrt += loc + " : ";}
-        
-        // Récupération du texte du segment avec anonymisation appliquée
-        let txt = obtenirTexteSegmentAnonymise(s);
-        
-        txtSrt +=  txt +  "\r \r"
-    }
- 
-    let detailsf = dossfichext(nomFichText)
-
-    SauvegarderSurDisque(txtSrt, detailsf[1] + "_anonymise.srt", "UTF-8")
 }
 
 /**
@@ -548,7 +255,7 @@ function sauvHtmlAnonymise(){
     effaceSurv();
 
     // Générer le contenu avec texte anonymisé
-    let segmentsAnonymises = AnonymiserSegments(contenuHtml);
+    let segmentsAnonymises = AnonymiserSegments();
 
     // sauvegarde du contenu HTML principal
     contenuHtml +=` <div id="contenuText"> 
@@ -563,8 +270,21 @@ function sauvHtmlAnonymise(){
 }
 
 /**
- * Génère le HTML des segments avec texte anonymisé mais sans les classes/attributs d'anonymisation
- * Le texte est définitivement remplacé par les pseudonymes
+ * Génère le HTML des segments avec texte anonymisé mais sans les classes/attributs d'anonymisation.
+ * Le texte est DÉFINITIVEMENT remplacé par les pseudonymes (version irréversible pour le partage) :
+ * - run anonymisé (debsel.anon … finsel.anon) → remplacé par « [pseudo] » (pseudo lu sur le finsel →
+ *   gère le multi-pseudo par occurrence) ; les spans absorbés (incluses, .anon nus internes) sont
+ *   couverts par le run large et vidés ;
+ * - exception (.anon-exception) → texte original conservé, classe retirée ;
+ * - « à anonymiser » (data-anon-nt) → texte original conservé (non anonymisé), attribut retiré.
+ * La STRUCTURE des segments (data-rk/data-sg/data-deb…) est préservée → le fichier reste réouvrable.
  * @returns {string} Le HTML des segments anonymisés
  */
+function AnonymiserSegments() {
+    const segmentsEl = document.getElementById('segments');
+    if (!segmentsEl) return '';
+    // Cœur partagé _anonymiserHtml (anon-regles.js) : remplace chaque run par « [pseudo] », garde
+    // exceptions/à-traiter en clair, préserve la structure. (cf. anon.md §8)
+    return _anonymiserHtml(segmentsEl.innerHTML);
+}
 

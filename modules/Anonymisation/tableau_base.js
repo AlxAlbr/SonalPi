@@ -24,7 +24,8 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
           occurrences: 0,
           indexCourant: 0,
           matchPositions: [],
-          source: regle.source || 'Global' // Marquer comme venant du global
+          source: regle.source || 'Global', // Marquer comme venant du global
+          portee: regle.portee || 'corpus' // règle venue du corpus ⇒ portée corpus (legacy ≡ corpus)
         });
       }
     });
@@ -43,7 +44,8 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
           occurrences: regle.occurrences || 0,
           indexCourant: regle.indexCourant || 0,
           matchPositions: regle.matchPositions || [],
-          source: 'Local'
+          source: 'Local',
+          portee: regle.portee || 'corpus' // préserver la portée locale (legacy ≡ corpus)
         });
       } else {
         // Si la règle existe, mettre à jour les données d'exécution
@@ -69,7 +71,8 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
       remplacement: "",
       occurrences: 0,
       indexCourant: 0,
-      matchPositions: []
+      matchPositions: [],
+      portee: 'brouillon' // nouvelle ligne de saisie = brouillon par défaut (R3)
     });
   }
 
@@ -78,18 +81,22 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
 }
 
 // Gère la validation/revalidation au clavier du champ Pseudo
-function gererEntrePseudo(idx) {
+function gererEntrePseudo(idx, versCorpus = false) {
     const paire = window.tabAnon[idx];
 
-    // Ligne déjà appliquée : réconcilier via sauvAnon. Une modif réelle du nom/pseudo la repasse
-    // « en attente » (Cas 4) ; sans changement, no-op. Pas de ré-application silencieuse en place
-    // (qui laisserait l'ancien marquage en cas de changement du pseudo). L'utilisateur ré-applique
-    // ensuite explicitement via « Valider et appliquer ».
+    // Ligne déjà appliquée :
+    // - Shift+Entrée sur une ligne pas encore au corpus → promotion D→C (R5) ;
+    // - sinon (Entrée, ou déjà corpus) → réconcilier via sauvAnon. Une modif réelle du nom/pseudo la
+    //   repasse « en attente » (Cas 4) ; sans changement, no-op. Pas de ré-application silencieuse.
     if (paire.occurrences > 0) {
-        sauvAnon(idx);
+        if (versCorpus && (paire.portee || 'corpus') !== 'corpus') {
+            promouvoirLigneAuCorpus(idx);
+        } else {
+            sauvAnon(idx);
+        }
     } else {
-        // Sinon, valider la ligne normalement
-        validerLigneAnon(idx);
+        // Brouillon : valider en document (Entrée) ou corpus (Shift+Entrée).
+        validerLigneAnon(idx, versCorpus ? 'corpus' : 'document');
     }
 }
 
@@ -137,7 +144,10 @@ function nettoyerPairesOrphelines() {
         // Conserver toutes les entrées globales non encore appliquées localement :
         // la présence réelle dans le texte sera vérifiée au rendu par compterOccurrencesEntite
         const estGlobalNonLocal = paire.source === 'Global' && !paire.existeLocalement;
-        const garde = aOccurrences || estVide || estGlobalEnAttente || estGlobalNonLocal;
+        // Brouillon explicite (entité saisie, portée 'brouillon', occ=0) : conservé, c'est un draft
+        // voulu et persisté (§7), pas une orpheline. La détection l'ignore déjà (occ reste 0).
+        const estBrouillon = (paire.portee || 'corpus') === 'brouillon' && paire.entite && paire.entite.trim();
+        const garde = aOccurrences || estVide || estGlobalEnAttente || estGlobalNonLocal || estBrouillon;
         return garde;
     });
     
@@ -172,6 +182,14 @@ function entitePresenterDansDOM(entite) {
 function detecterOccurrencesNonTraitees(idxPaire) {
     const paire = window.tabAnon[idxPaire];
     if (!paire || !paire.entite || !paire.entite.trim()) return;
+
+    // Brouillon parqué : pas de détection auto → reste occ=0 (aucun « à traiter »). Le repérage des
+    // occurrences se fait à la demande via la loupe (§10ter), de façon non destructive.
+    if ((paire.portee || 'corpus') === 'brouillon') {
+        paire.matchPositions = [];
+        paire.occurrences = 0;
+        return;
+    }
 
     const tousLesSpans = document.querySelectorAll('[data-rk]');
     const matches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans);
@@ -506,49 +524,66 @@ function affichTableauAnon() {
                 : '';
         }
 
+        // Portée + classes de ligne : FOND = statut (vert/orange/gris brouillon), TYPO = portée
+        // (gras = corpus, italique = brouillon). Slider montré dès qu'une entité est saisie.
+        const portee = paire.portee || 'corpus';
+        const montrerSlider = !!(paire.entite && paire.entite.trim());
+        const classeFond = estAnonymisee ? 'ligne-anonymisee'
+            : (estPending ? 'ligne-en-attente'
+            : (portee === 'brouillon' && montrerSlider ? 'ligne-brouillon' : ''));
+        const classeTypo = portee === 'corpus' ? 'p-corpus' : (portee === 'brouillon' ? 'p-brouillon' : '');
+
+        // Affichage COMPACT de l'entité pour une longue sélection (« 6 mots […] 6 mots »). UNIQUEMENT
+        // sur les lignes appliquées (occ>0) : leur valeur n'est lue qu'à l'édition (révélée au focus en
+        // relisant window.tabAnon) → aucun risque. Les brouillons restent en texte plein (leur .value
+        // est lue telle quelle par l'application).
+        const entiteAffichee = aDesOccurrences ? tronquerEntiteAffichage(paire.entite) : paire.entite;
+        const onfocusEntite = aDesOccurrences
+            ? `this.value=window.tabAnon[${i}].entite;autoGrowTextarea(this);dsTxtArea=false;dsTxtAutre=true`
+            : `dsTxtArea=false;dsTxtAutre=true`;
+        const onfocusoutEntite = aDesOccurrences
+            ? `this.value=tronquerEntiteAffichage(window.tabAnon[${i}].entite);autoGrowTextarea(this);dsTxtAutre=false`
+            : `dsTxtAutre=false`;
+
         html += `
-            <tr data-idx="${i}" class="ligne-anon${estAnonymisee ? ' ligne-anonymisee' : estPending ? ' ligne-en-attente' : ''}">
+            <tr data-idx="${i}" class="ligne-anon${classeFond ? ' ' + classeFond : ''}${classeTypo ? ' ' + classeTypo : ''}">
                 <td class="col-entite">
-                    <textarea 
+                    <textarea
                            class="input-entite textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}"
                            data-idx="${i}"
                            placeholder="Entité"
                            onchange="sauvAnon(${i})"
-                           oninput="autoGrowTextarea(this);mettreAJourBoutonRechercher(${i})"
-                           onfocus="mettreAJourBoutonRechercher(${i});dsTxtArea=false;dsTxtAutre=true"
-                           onfocusout="cacherBoutonRechercher(${i});dsTxtAutre=false"
-                           onkeydown="if(event.key==='Enter'){event.preventDefault();rechercherOccurrences(${i})}"
-                           ${estAnonymisee ? '' : ''}>${paire.entite}</textarea>
+                           oninput="autoGrowTextarea(this)"
+                           onfocus="${onfocusEntite}"
+                           onfocusout="${onfocusoutEntite}"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();repererOccurrences(${i})}"
+                           >${entiteAffichee}</textarea>
                 </td>
                 <td class="col-remplacement">
-                    <textarea 
+                    <textarea
                            class="input-remplacement textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}"
                            data-idx="${i}"
                            placeholder="Pseudo"
                            onchange="sauvAnon(${i})"
-                           oninput="autoGrowTextarea(this);mettreAJourBoutonRechercher(${i})"
-                           onfocus="mettreAJourBoutonRechercher(${i});dsTxtArea=false;dsTxtAutre=true"
-                           onfocusout="cacherBoutonRechercher(${i});dsTxtAutre=false"
-                           onkeydown="if(event.key==='Enter'){event.preventDefault();gererEntrePseudo(${i})}"
-                           ${estAnonymisee ? '' : ''}>${pseudosDe(paire).join('/')}</textarea>
+                           oninput="autoGrowTextarea(this)"
+                           onfocus="dsTxtArea=false;dsTxtAutre=true"
+                           onfocusout="dsTxtAutre=false"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();gererEntrePseudo(${i}, event.shiftKey)}"
+                           >${pseudosDe(paire).join('/')}</textarea>
                 </td>
                 <td class="col-actions">
-                    <div class="actions-container-new">
-                        ${badgesAnonHtml}
-                        ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
-                        ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
-                        ${aDesOccurrences ? `
-                        <button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer">
-                            <span class="btn-main-icon">✖️</span>
-                        </button>
-                        ` : `
-                        <button class="btn-action btn-action-left" onclick="rechercherOccurrences(${i})" title="Rechercher occurrences" style="display:${paire.entite.trim() && paire.remplacement.trim() && !nbNon ? 'inline-flex' : 'none'};">
-                            <span class="btn-main-icon">🔍</span>
-                        </button>
-                        <button class="btn-action btn-action-delete" onclick="validerLigneAnon(${i})" title="Valider et appliquer">
-                            <span class="btn-main-icon">✓</span>
-                        </button>
-                        `}
+                    <div class="actions-stack-portee">
+                        <div class="actions-container-new">
+                            ${badgesAnonHtml}
+                            ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
+                            ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
+                            ${aDesOccurrences
+                                ? `<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer"><span class="btn-main-icon">✖️</span></button>`
+                                : (montrerSlider
+                                    ? `${_reperageHtml(i, paire)}<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer ce brouillon"><span class="btn-main-icon">✖️</span></button>`
+                                    : '')}
+                        </div>
+                        ${montrerSlider ? _sliderPorteeHtml(i, portee) : ''}
                     </div>
                 </td>
             </tr>
@@ -559,11 +594,14 @@ function affichTableauAnon() {
             </tbody>
         </table>
         <div style="margin-top: 10px; display: flex; gap: 5px;width:100%; position:sticky;bottom:0px;">
-            <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente()">
-                Appliquer
+            <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('document')" title="Appliquer tous les brouillons dans cet entretien seulement (sans toucher au corpus)">
+                Appliquer au doc 🚧→📄
+            </button>
+            <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('corpus')" title="Appliquer tous les brouillons ET créer les règles au corpus (partagé)">
+                Applique au corpus 🚧→📁
             </button>
             <button class="btn-valider-anon-attente btnfonction btnlarge " style="flex:1;" onclick="ajouterNouvelleLigneAnon()">
-                ➕ 
+                ➕
             </button>
    
             <input type="file" id="file-import-correspondance" multiple accept=".json" style="display: none;">
@@ -571,7 +609,11 @@ function affichTableauAnon() {
     `;
     
     tableauDiv.innerHTML = html;
-    
+
+    // Passe ASYNCHRONE : marquer les sliders corpus « verrouillés » (entité partagée avec un autre
+    // entretien → on ne peut pas quitter C, §6). Découplé du rendu sync car le test lit getEnt (IPC).
+    marquerVerrousPortee();
+
     // Ajouter l'event listener pour l'import de fichiers
     const fileInput = document.getElementById('file-import-correspondance');
     if (fileInput) {
@@ -659,10 +701,14 @@ function nettoyerTabAnon() {
   // corpus et reviennent par fusion à la réouverture, donc aucune perte.
   // ⚠️ Garde-fou occurrences===0 : une règle globale RÉELLEMENT appliquée cette session
   // (occurrences>0) doit être conservée (sinon on perdrait du travail).
+  // ⚠️ Un BROUILLON explicite (portée 'brouillon', entité+pseudo, occ=0) est CONSERVÉ même s'il
+  // ressemble à un fantôme : c'est un draft voulu et persisté (§7). Il ne fuit pas au corpus (les
+  // chokepoints filtrent 'brouillon') et la détection l'ignore (reste occ=0).
   const lignesValides = window.tabAnon.filter(p =>
     p.entite && p.entite.trim().length > 0 &&
     p.remplacement && p.remplacement.trim().length > 0 &&
-    !(p.source === 'Global' && !p.existeLocalement && (p.occurrences || 0) === 0)
+    ((p.portee || 'corpus') === 'brouillon' ||
+     !(p.source === 'Global' && !p.existeLocalement && (p.occurrences || 0) === 0))
   );
 
   // Supprimer les doublons (même entité + remplacement), clé canonique unique (cleAnon).
@@ -746,7 +792,14 @@ function sauvAnon(idx) {
     const ancienRemplacement = (paire.remplacement || '').trim();
     // Pseudos AVANT modification (primaire + alt) — capturés avant l'écrasement de paire ci-dessous.
     const anciensPseudos = pseudosDe(paire);
-    const nouvelleEntite = entiteInput.value.trim();
+    let nouvelleEntite = entiteInput.value.trim();
+    // Garde-fou « affichage compact » : sauvAnon est déclenché par l'onchange de N'IMPORTE quel champ
+    // de la ligne (y compris le pseudo). Si le textarea Entité montre la version TRONQUÉE (« … […] … »,
+    // non éditée) d'une entité longue, ne PAS écraser l'entité complète par ce placeholder.
+    if (nouvelleEntite && nouvelleEntite === tronquerEntiteAffichage(ancienneEntite)
+        && nouvelleEntite !== ancienneEntite) {
+        nouvelleEntite = ancienneEntite;
+    }
     // Normaliser le pseudo saisi en primaire (+ alt) — gère le multi-pseudo « a/b ». Pas de blocage
     // I2 ici (édition en cours) : l'interdit est appliqué à la validation. paire.remplacement reste
     // un pseudo unique (I5), le 2ᵉ éventuel va dans remplacementAlt.
@@ -829,40 +882,6 @@ function sauvAnon(idx) {
     }
 }
 
-// Mise à jour de la visibilité du bouton rechercher
-function mettreAJourBoutonRechercher(idx) {
-    const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
-    const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
-    const boutonRechercher = document.querySelector(`tr[data-idx="${idx}"] .btn-action-left`);
-    
-    if (boutonRechercher && entite && remplacement) {
-        // Afficher le bouton si au moins un des deux champs est rempli
-        const entiteRemplie = entite.value.trim().length > 0;
-        const remplacementRemplie = remplacement.value.trim().length > 0;
-        
-        if (entiteRemplie || remplacementRemplie) {
-            boutonRechercher.style.display = 'inline-flex';
-        } else {
-            boutonRechercher.style.display = 'none';
-        }
-    }
-}
-
-// Cache le bouton rechercher quand on quitte le focus
-function cacherBoutonRechercher(idx) {
-    // Délai pour laisser le temps au clic sur le bouton de s'enregistrer avant de le cacher
-    setTimeout(() => {
-        // Ne pas cacher si des occurrences existent (alors on navigue)
-        const paire = window.tabAnon[idx];
-        if (!paire || paire.occurrences === 0) {
-            const boutonRechercher = document.querySelector(`tr[data-idx="${idx}"] .btn-action-left`);
-            if (boutonRechercher) {
-                boutonRechercher.style.display = 'none';
-            }
-        }
-    }, 200);
-}
-
 // Vérifie s'il y a un doublon d'entité dans les lignes déjà anonymisées
 function verifierDoublonEntite(idxCourant) {
     const entiteActuelle = window.tabAnon[idxCourant].entite.trim();
@@ -914,101 +933,6 @@ function desactiverEditionLigne(idx) {
         ligne.classList.add('ligne-anonymisee');
     }
     
-    // Afficher les contrôles de navigation si plus d'une occurrence
-    const paire = window.tabAnon[idx];
-    if (paire.occurrences > 1) {
-        const occDiv = document.querySelector(`tr[data-idx="${idx}"] .occurrences-nav`);
-        if (occDiv) {
-            occDiv.style.display = 'flex';
-            // Le compteur affiche déjà "N occ" depuis appliquerAnonymisationPour()
-            // On ne change pas ici pour laisser l'utilisateur voir le nombre total
-        }
-    }
-}
-
-// Réactive l'édition d'une ligne et enlève l'anonymisation
-function reactiverEditionLigne(idx) {
-    const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
-    const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
-    
-    if (entite) {
-        entite.disabled = false;
-        entite.classList.remove('textarea-disabled');
-        entite.dataset.previousValue = entite.value;
-    }
-    if (remplacement) {
-        remplacement.disabled = false;
-        remplacement.classList.remove('textarea-disabled');
-        remplacement.dataset.previousValue = remplacement.value;
-    }
-    
-    // Retirer les classes d'anonymisation du texte
-    const paire = window.tabAnon[idx];
-    
-    // Utiliser le pseudo pour retrouver tous les spans (plus fiable que les indices)
-    // Multi-pseudo : nettoyer chaque pseudo autorisé (primaire ET alt), sinon les occurrences
-    // appliquées avec l'alt resteraient anonymisées après réactivation de l'édition.
-    for (const pseudoAEffacer of (paire ? pseudosDe(paire) : [])) {
-
-        // Chercher et nettoyer tous les spans avec ce pseudo
-        let occurrenceTrouvee = true;
-        let compteur = 0;
-        const maxIterations = 100;
-
-        while (occurrenceTrouvee && compteur < maxIterations) {
-            occurrenceTrouvee = false;
-            compteur++;
-
-            const debselSpan = document.querySelector(`[data-pseudo="${pseudoAEffacer}"].debsel`);
-            if (debselSpan) {
-                // Retrouver le finsel
-                let finselSpan = debselSpan;
-                const allSpans = document.querySelectorAll('[data-rk]');
-                
-                for (let i = parseInt(debselSpan.dataset.rk); i < allSpans.length; i++) {
-                    const span = allSpans[i];
-                    if (span.dataset.pseudo === pseudoAEffacer && span.classList.contains('finsel')) {
-                        finselSpan = span;
-                        break;
-                    }
-                }
-                
-                // Nettoyer tous les spans du match
-                const debutRk = parseInt(debselSpan.dataset.rk);
-                const finRk = parseInt(finselSpan.dataset.rk);
-                
-                for (let i = debutRk; i <= finRk; i++) {
-                    if (allSpans[i]) {
-                        allSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                        delete allSpans[i].dataset.pseudo;
-                    }
-                }
-                occurrenceTrouvee = true;
-            }
-        }
-    }
-    
-    // Retirer la classe de la ligne
-    const ligne = document.querySelector(`tr[data-idx="${idx}"]`);
-    if (ligne) {
-        ligne.classList.remove('ligne-anonymisee');
-    }
-    
-    // Réinitialiser les données d'anonymisation
-    window.tabAnon[idx].occurrences = 0;
-    window.tabAnon[idx].indexCourant = 0;
-    window.tabAnon[idx].matchPositions = [];
-    
-    // Réinitialiser l'affichage du compteur
-    const occDiv = document.querySelector(`tr[data-idx="${idx}"] .occurrences-nav`);
-    if (occDiv) {
-        occDiv.style.display = 'none';
-    }
-    
-    // Focus sur le champ de remplacement pour édition
-    if (remplacement) {
-        remplacement.focus();
-    }
 }
 
 // Sauvegarde le tabAnon courant dans l'entretien
@@ -1033,6 +957,19 @@ async function sauvegarderTabAnonEnt() {
 // Supprime une ligne du tableau
 async function supprimeLigneAnon(idx) {
     const paireSupprimee = window.tabAnon[idx];
+
+    // Garde-fou « règle partagée » (cohérent avec le 🔒 du slider, §6) : une entité réellement
+    // TRAITÉE (anonymisée ou exception) dans un AUTRE entretien ne peut pas être supprimée ici —
+    // sinon on retirerait localement une règle dont d'autres entretiens dépendent. Il faut d'abord
+    // la ramener à un seul entretien, ou la supprimer depuis le panneau Pseudos.
+    if (paireSupprimee && paireSupprimee.entite && paireSupprimee.entite.trim()
+        && !(await regleEstIsolee(paireSupprimee.entite))) {
+        await question(
+            `La règle « ${paireSupprimee.entite} » est utilisée (anonymisée ou en exception) dans plusieurs entretiens 🔒.\n\n` +
+            `Impossible de la supprimer ici. Ramenez-la d'abord à un seul entretien, ou supprimez-la depuis le panneau « Pseudos ».`,
+            ['OK']);
+        return;
+    }
 
     if (paireSupprimee) {
         const tousLesSpans = document.querySelectorAll('[data-rk]');
@@ -1094,26 +1031,59 @@ async function supprimeLigneAnon(idx) {
 // entrées fantômes (occurrences=0, simples copies de la règle corpus) pour éviter sa résurrection
 // via reconstituerTabAnonGlobal. Les règles réellement PARTAGÉES sont laissées intactes : leur
 // nettoyage propre vit au panneau Pseudos (filtre « Inutilisées » + suppression qui réécrit tout).
+// Une règle est « réellement traitée » dans un entretien si AU MOINS une de ses occurrences y est
+// ANONYMISÉE OU mise en EXCEPTION — cohérent avec la notion de « traité » du reste du logiciel
+// (ligne verte = nbNon === 0 = plus aucune « à anonymiser »). On exclut donc les « à anonymiser »
+// (non-traité) et les incluses (absorbées par une autre règle). C'est ce qui définit une entité
+// PARTAGÉE : la règle corpus porte du travail ailleurs. Une entité juste repérée/à-traiter ne compte pas.
+function _aOccurrenceTraitee(r) {
+    return !!(r && r.entite && Array.isArray(r.matchPositions) &&
+        r.matchPositions.some(m => m && !m.isNonTraite && !m.isIncluded));
+}
+
+// True si AUCUN entretien AUTRE que le courant n'a réellement TRAITÉ cette entité (anonymisée ou
+// exception, cf. _aOccurrenceTraitee). Les fantômes (occ=0) et les « à anonymiser » ne comptent pas.
+// Partagé : suppression de ligne isolée ET garde-fou du slider « quitter C » (§6).
+async function regleEstIsolee(entite) {
+    if (!entite || !entite.trim()) return true;
+    const rkCur = await window.electronAPI.getEntCur();
+    const tabEnt = await window.electronAPI.getEnt() || [];
+    const estUsageReel = r => r && r.entite && cleEntite(r.entite) === cleEntite(entite) && _aOccurrenceTraitee(r);
+    return !tabEnt.some((ent, i) =>
+        i !== rkCur && ent && Array.isArray(ent.tabAnon) && ent.tabAnon.some(estUsageReel));
+}
+
+// Retire la règle corpus d'une entité + nettoie les fantômes (occ=0) dans TOUS les entretiens (sinon
+// reconstituerTabAnonGlobal la ressusciterait). Partagé : suppression de ligne isolée ET downgrade
+// C→D / C→B du slider. Données seulement (pas de marquage HTML) → sûr.
+async function retirerRegleCorpusEtFantomes(entite) {
+    const aJour = (await window.electronAPI.getAnon() || [])
+        .filter(r => !(r && r.entite && cleEntite(r.entite) === cleEntite(entite)));
+    await persisterReglesCorpus(aJour);
+
+    const tabEnt = await window.electronAPI.getEnt() || [];
+    let modifie = false;
+    tabEnt.forEach(ent => {
+        if (ent && Array.isArray(ent.tabAnon)) {
+            const avant = ent.tabAnon.length;
+            ent.tabAnon = ent.tabAnon.filter(r =>
+                !(r && r.entite && cleEntite(r.entite) === cleEntite(entite) && (r.occurrences || 0) === 0));
+            if (ent.tabAnon.length !== avant) modifie = true;
+        }
+    });
+    if (modifie) await window.electronAPI.setEnt(tabEnt);
+}
+
 async function proposerSuppressionRegleCorpusSiIsolee(entite, pseudosTxt) {
     try {
         if (!window.electronAPI || !entite || !entite.trim()) return;
 
         // 1. Existe-t-il une règle corpus pour cette entité ? Sinon : ligne purement locale.
         const reglesCorpus = await window.electronAPI.getAnon() || [];
-        const regle = regleEnCollisionAlias(entite, reglesCorpus);
-        if (!regle) return;
+        if (!regleEnCollisionAlias(entite, reglesCorpus)) return;
 
-        // 2. Un AUTRE entretien APPLIQUE-t-il vraiment cette entité (occurrences>0) ? Les entrées
-        //    « fantômes » (occurrences=0) viennent juste de la fusion des règles corpus à l'ouverture
-        //    (nettoyerTabAnon les conserve) et ne comptent PAS comme un usage réel → on les ignore.
-        //    Si un autre entretien l'a appliquée → règle partagée, on ne propose pas (conservateur).
-        const rkCur = await window.electronAPI.getEntCur();
-        const tabEnt = await window.electronAPI.getEnt() || [];
-        const estUsageReel = r => r && r.entite && cleEntite(r.entite) === cleEntite(entite) && (r.occurrences || 0) > 0;
-        const concerneAutreEntretien = tabEnt.some((ent, i) =>
-            i !== rkCur && ent && Array.isArray(ent.tabAnon) && ent.tabAnon.some(estUsageReel)
-        );
-        if (concerneAutreEntretien) return;
+        // 2. Règle réellement partagée (un autre entretien l'applique) → conservateur, on ne propose pas.
+        if (!(await regleEstIsolee(entite))) return;
 
         // 3. Cas isolé : proposer la suppression de la règle au corpus.
         const rep = await question(
@@ -1122,24 +1092,8 @@ async function proposerSuppressionRegleCorpusSiIsolee(entite, pseudosTxt) {
             ['Oui', 'Non']);
         if (rep !== 'oui') return;
 
-        // 4a. Retrait de la règle au corpus + persistance via le point d'entrée canonique.
-        const aJour = (await window.electronAPI.getAnon() || [])
-            .filter(r => !(r && r.entite && cleEntite(r.entite) === cleEntite(entite)));
-        await persisterReglesCorpus(aJour);
-
-        // 4b. Retirer les entrées fantômes (occurrences=0) de cette entité dans TOUS les entretiens,
-        //     sinon reconstituerTabAnonGlobal la ferait ressusciter au corpus. Données seulement
-        //     (pas de marquage HTML pour une entrée jamais appliquée) → sûr.
-        let entretiensModifies = false;
-        tabEnt.forEach(ent => {
-            if (ent && Array.isArray(ent.tabAnon)) {
-                const avant = ent.tabAnon.length;
-                ent.tabAnon = ent.tabAnon.filter(r =>
-                    !(r && r.entite && cleEntite(r.entite) === cleEntite(entite) && (r.occurrences || 0) === 0));
-                if (ent.tabAnon.length !== avant) entretiensModifies = true;
-            }
-        });
-        if (entretiensModifies) await window.electronAPI.setEnt(tabEnt);
+        // 4. Retrait corpus + nettoyage des fantômes (point d'entrée canonique).
+        await retirerRegleCorpusEtFantomes(entite);
     } catch (e) {
         console.error("❌ proposerSuppressionRegleCorpusSiIsolee:", e);
     }
@@ -1147,7 +1101,7 @@ async function proposerSuppressionRegleCorpusSiIsolee(entite, pseudosTxt) {
 
 // Ajoute une nouvelle ligne au tableau
 function ajouterNouvelleLigneAnon() {
-    window.tabAnon.push({ entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] });
+    window.tabAnon.push({ entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [], portee: 'brouillon' });
     affichTableauAnon();
 
     // Placer le focus sur le champ Entité de la nouvelle ligne avec un scroll smooth
@@ -1258,7 +1212,7 @@ function ajouteEntiteAnonSelectionnee() {
     // Si pas de ligne vide, en crée une
     if (idxLigneVide === -1) {
         console.log("➕ Pas de ligne vide, création d'une nouvelle");
-        window.tabAnon.push({ entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] });
+        window.tabAnon.push({ entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [], portee: 'brouillon' });
         idxLigneVide = window.tabAnon.length - 1;
     }
     
@@ -1293,6 +1247,14 @@ function getTexteSelection(debSel, finSel) {
 function reindexerMatchPositions(idxPaire) {
     const paire = window.tabAnon[idxPaire];
     if (!paire || !paire.entite || !paire.entite.trim()) return;
+
+    // Brouillon parqué : pas de (ré)indexation auto → reste occ=0 (aucun « à traiter »). Le repérage
+    // se fait à la demande via la loupe (§10ter), sans marquage. Garde miroir de detecterOccurrencesNonTraitees.
+    if ((paire.portee || 'corpus') === 'brouillon') {
+        paire.matchPositions = [];
+        paire.occurrences = 0;
+        return;
+    }
 
     const tousLesSpans = document.querySelectorAll('[data-rk]');
 
@@ -1476,28 +1438,7 @@ function appliquerAnonymisationPour(idxPaire) {
             }
         }
         window.tabAnon[idxPaire].indexCourant = indexCourantMatch;
-        //console.log("indexCourantMatch:", indexCourantMatch);
-        
-        // Afficher les contrôles de navigation (avec ou sans flèches selon le nombre d'occurrences)
-        const occDiv = document.querySelector(`tr[data-idx="${idxPaire}"] .occurrences-nav`);
-        if (occDiv) {
-            occDiv.style.display = 'flex';
-            const countSpan = occDiv.querySelector('.count-occ');
-            if (countSpan) {
-                countSpan.textContent = `${matches.length} occ`;
-            }
-            // Afficher/cacher les flèches selon le nombre d'occurrences
-            const btnPrev = occDiv.querySelector('.btn-nav-prev');
-            const btnNext = occDiv.querySelector('.btn-nav-next');
-            if (matches.length > 1) {
-                if (btnPrev) btnPrev.style.display = 'inline-block';
-                if (btnNext) btnNext.style.display = 'inline-block';
-            } else {
-                if (btnPrev) btnPrev.style.display = 'none';
-                if (btnNext) btnNext.style.display = 'none';
-            }
-        }
-        
+
         const pseudosPaire = pseudosDe(paire);
         matches.forEach((match, matchIdx) => {
             // §A — « le large absorbe l'étroit » : si ce match est strictement à l'intérieur d'un run
@@ -1564,12 +1505,6 @@ function appliquerAnonymisationPour(idxPaire) {
         // désormais absorbées basculent en 'incluse'. (helper mutualisé avec le retrait/édition, §G-bis)
         matches.forEach(m => { if (!m.isIncluded) recompterReglesChevauchant(m.start, m.end, idxPaire); });
 
-        // Mettre à jour le compteur pour afficher le numéro courant (indexCourant + 1)
-        const countSpan = document.querySelector(`tr[data-idx="${idxPaire}"] .count-occ`);
-        if (countSpan && matches.length > 1) {
-            countSpan.textContent = `${indexCourantMatch + 1}/${matches.length}`;
-        }
-        
         // Attacher les listeners pour les exceptions
         attacheExceptionListeners();
     } else {
@@ -1581,17 +1516,21 @@ function appliquerAnonymisationPour(idxPaire) {
 }
 
 // Valide toutes les anonymisations en attente (lignes qui ont entité et remplacement mais pas validées)
-async function validerAnonEnAttente() {
+// porteeRequise : 'document' (bouton 🚧→📄, défaut) ou 'corpus' (bouton 🚧→📁). N'agit que sur les
+// BROUILLONS (occ=0, champs remplis). Les lignes en conflit avec le corpus restent en attente
+// (validation individuelle) → pas de divergence silencieuse en lot (I-POR-3), pour les deux modes.
+async function validerAnonEnAttente(porteeRequise = 'document') {
     // Garde contre les appels récursifs
     if (window._validerAnonEnCours) {
         return;
     }
     window._validerAnonEnCours = true;
-    
+
     try {
         let compteurValides = 0;
         let compteurErreurs = 0;
         let compteurConflits = 0; // conflits corpus non résolus en lot (à valider individuellement)
+        const aPousserCorpus = []; // règles à créer au corpus (mode 🚧→📁, entités encore absentes)
 
         // Règles corpus, pour détecter les conflits (le dialogue « garder les deux » n'a pas lieu en
         // lot : on saute ces lignes et on invite à les valider une par une → pas de divergence silencieuse).
@@ -1648,6 +1587,11 @@ async function validerAnonEnAttente() {
             // Désactiver l'édition des textareassi des occurrences ont été trouvées
             if (window.tabAnon[i].occurrences > 0) {
                 desactiverEditionLigne(i);
+                // Portée effective : corpus si demandé (🚧→📁) OU si l'entité est déjà une règle
+                // corpus (cRegle) ; sinon document (local). Les nouvelles règles corpus sont poussées
+                // en une fois après la boucle.
+                window.tabAnon[i].portee = (porteeRequise === 'corpus' || cRegle) ? 'corpus' : 'document';
+                if (window.tabAnon[i].portee === 'corpus' && !cRegle) aPousserCorpus.push(window.tabAnon[i]);
                 compteurValides++;
             } else {
                 compteurErreurs++;
@@ -1655,6 +1599,16 @@ async function validerAnonEnAttente() {
         }
     }
     
+    // Pousser en UNE fois les nouvelles règles corpus (mode 🚧→📁). Corpus autoritaire : fusionnerRegles
+    // n'écrase jamais un pseudo existant. Les conflits ont déjà été écartés (compteurConflits).
+    if (aPousserCorpus.length > 0) {
+        const corpus = await window.electronAPI.getAnon() || [];
+        const fusionne = fusionnerRegles(corpus, aPousserCorpus.map(p => ({
+            entite: p.entite, remplacement: p.remplacement, remplacementAlt: p.remplacementAlt
+        })));
+        await persisterReglesCorpus(fusionne);
+    }
+
     // NETTOYAGE ET TRI
     // Séparer les lignes en deux groupes
     const lignesValidees = window.tabAnon.filter(p => p.occurrences > 0 && p.remplacement.trim().length > 0);
@@ -1894,72 +1848,6 @@ async function chercherNomPropres() {
     }
 }    
 
-function pointAnon() {
-    if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
-        return;
-    }
-
-    console.log(tabAnon)
-}
-
-// Recherche les occurrences d'une entité (bouton loupe)
-async function rechercherOccurrences(idx) {
-    const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
-    const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
-
-    if (!entite || !remplacement) return;
-
-    // Ligne déjà appliquée : une modif de nom/pseudo doit la repasser « en attente » (via sauvAnon,
-    // Cas 4), pas la ré-appliquer en place (sinon marquage orphelin si les deux ont changé).
-    const paireCourante = window.tabAnon[idx];
-    if (paireCourante && paireCourante.occurrences > 0) {
-        sauvAnon(idx);
-        return;
-    }
-
-    const entiteVal = entite.value.trim();
-    const remplacementVal = remplacement.value.trim();
-    
-    // Vérifier que au moins l'entité est remplie
-    if (!entiteVal) {
-        await question("⚠️ Veuillez remplir le champ Entité pour chercher.", ["OK"]);
-        return;
-    }
-    
-    // Sauvegarder les valeurs
-    window.tabAnon[idx].entite = entiteVal;
-    window.tabAnon[idx].remplacement = remplacementVal || ""; // Remplacement peut être vide
-    
-    // Appliquer l'anonymisation (cela va surligner les occurrences)
-    appliquerAnonymisationPour(idx);
-    
-    // Rafraîchir le tableau pour que les boutons de navigation apparaissent
-    affichTableauAnon();
-    
-    // Refocuser sur la textarea Entité pour mettre à jour l'affichage des boutons
-    setTimeout(() => {
-        const entiteRefocus = document.querySelector(`.input-entite[data-idx="${idx}"]`);
-        if (entiteRefocus) {
-            entiteRefocus.focus();
-        }
-    }, 50);
-    
-    if (window.tabAnon[idx].occurrences === 0) {
-        await question(`⚠️ L'entité "${entiteVal}" n'a pas été trouvée dans le texte.`, ["OK"]);
-    } else {
-        // Scroll smooth vers la première occurrence
-        const tousLesSpans = document.querySelectorAll('[data-rk]');
-        const paire = window.tabAnon[idx];
-        if (paire.matchPositions && paire.matchPositions.length > 0) {
-            const firstMatch = paire.matchPositions[0];
-            const firstSpan = tousLesSpans[firstMatch.start];
-            if (firstSpan) {
-                firstSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-    }
-}
-
 // Résout un éventuel conflit entre le(s) pseudo(s) saisi(s) et une règle CORPUS existante pour la même
 // entité (alias). Renvoie { champs:{remplacement, remplacementAlt} } à appliquer, ou { annule:true }.
 // Effet de bord assumé : « garder les deux » met à jour ET persiste le corpus. Partagé par
@@ -2082,11 +1970,234 @@ async function relabelPseudoEnPlace(idx, anciensPseudos) {
     return true;
 }
 
-// Valide et applique l'anonymisation pour une ligne spécifique
-async function validerLigneAnon(idx) {
+// Pousse la règle d'une paire au corpus (ajout si absente — corpus autoritaire, jamais d'écrasement
+// d'un pseudo existant ; les conflits sont résolus AVANT via resoudreConflitCorpus). Point d'entrée
+// canonique : persisterReglesCorpus. Partagé par validerLigneAnon (Shift+Entrée), la promotion D→C
+// et le slider (changerPorteeLigne).
+async function pousserRegleAuCorpus(paire) {
+    if (!paire || !paire.entite || !paire.remplacement) return;
+    const corpusRules = await window.electronAPI.getAnon() || [];
+    const fusionne = fusionnerRegles(corpusRules, [{
+        entite: paire.entite, remplacement: paire.remplacement, remplacementAlt: paire.remplacementAlt
+    }]);
+    await persisterReglesCorpus(fusionne);
+}
+
+// Promotion d'une ligne déjà appliquée vers la portée corpus (D→C) : pousse au corpus + bascule la
+// portée + rafraîchit. Sûr car une ligne 'document' n'a, par construction (I-POR-3), pas de règle
+// corpus divergente pour son entité.
+async function promouvoirLigneAuCorpus(idx) {
+    const paire = window.tabAnon[idx];
+    if (!paire) return;
+    await pousserRegleAuCorpus(paire);
+    paire.portee = 'corpus';
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+}
+
+// R2 — Re-validation à l'ouverture : une règle locale 'document' (appliquée) peut diverger d'une règle
+// corpus apparue ENTRE-TEMPS (créée dans un autre entretien APRÈS la pose locale). I-POR-3 interdit cette
+// divergence persistante → on la résout via le dialogue de conflit (resoudreConflitCorpus, réutilisé par
+// relabelPseudoEnPlace, qui préserve les choix par occurrence), puis on bascule la ligne en corpus et on
+// retire l'éventuel fantôme global redondant. Les BROUILLONS (occ=0) sont ignorés : leur divergence se
+// résout à l'application. Appelée APRÈS detecterOccurrencesToutesLesPaires (matchPositions présents).
+async function reconcilierPorteesDivergentesAOuverture() {
+    if (!Array.isArray(window.tabAnon)) return;
+    const corpusRules = await window.electronAPI.getAnon() || [];
+
+    for (let idx = 0; idx < window.tabAnon.length; idx++) {
+        const p = window.tabAnon[idx];
+        if (!p || !p.entite || !p.remplacement) continue;
+        if ((p.portee || 'corpus') === 'corpus') continue;   // déjà corpus
+        if ((p.occurrences || 0) === 0) continue;            // brouillon : résolu à l'application
+        const corpusRegle = regleEnCollisionAlias(p.entite, corpusRules);
+        if (!corpusRegle) continue;                          // entité hors corpus → document légitime
+
+        const corpusPseudos = pseudosDe(corpusRegle).map(s => s.toLowerCase());
+        const diverge = pseudosDe(p).some(lp => !corpusPseudos.includes(lp.toLowerCase()));
+        if (!diverge) { p.portee = 'corpus'; continue; }     // même pseudo → l'entité EST corpus
+
+        // Divergence réelle → dialogue + réalignement du marquage (réutilise le relabel éprouvé).
+        const anciensPseudos = pseudosDe(p);
+        const r = await relabelPseudoEnPlace(idx, anciensPseudos);
+        if (r === 'annule' || r === 'ambigu') {
+            // Annulation / cas ambigu → alignement DUR sur le corpus (pas de divergence persistante).
+            appliquerChampsAPaire(p, p.entite, { remplacement: corpusRegle.remplacement, remplacementAlt: corpusRegle.remplacementAlt });
+            demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+            appliquerAnonymisationPour(idx);
+        }
+        p.portee = 'corpus';
+    }
+
+    // Retirer les fantômes globaux (occ=0) dont l'entité est désormais appliquée par une autre ligne.
+    window.tabAnon = window.tabAnon.filter((p, i) =>
+        !(p && p.source === 'Global' && !p.existeLocalement && (p.occurrences || 0) === 0 &&
+          window.tabAnon.some((q, j) => j !== i && q && q.entite &&
+              cleEntite(q.entite) === cleEntite(p.entite) && (q.occurrences || 0) > 0)));
+}
+
+////////////////////////////////////////////////////////////////////////
+// SLIDER DE PORTÉE (brouillon 🚧 / document 📄 / corpus 📁) + repérage loupe
+////////////////////////////////////////////////////////////////////////
+
+// HTML du slider à icônes (§10). Pas de lettres — icônes seules. La poignée (cran actif) est posée
+// par la classe portee-<etat> ; les transitions passent par changerPorteeLigne (gardes incluses).
+function _sliderPorteeHtml(i, portee) {
+    const cran = (c, emoji, titre) =>
+        `<button class="portee-cran" data-cran="${c}" onclick="changerPorteeLigne(${i},'${c}')" title="${titre}">${emoji}</button>`;
+    return `<div class="portee-slider portee-${portee}" data-idx="${i}">
+        <span class="portee-thumb"></span>
+        ${cran('brouillon', '🚧', 'Brouillon — pas encore appliqué')}
+        ${cran('document', '📄', 'Document — cet entretien seulement')}
+        ${cran('corpus', '📁', 'Corpus — partagé entre tous les entretiens')}
+    </div>`;
+}
+
+// Contrôles de repérage d'une ligne brouillon : loupe seule, ou ◄ i/N ► si un repérage est en cours
+// sur cette entité (§10ter). Non destructif : aucune application.
+function _reperageHtml(i, paire) {
+    const actif = _reperage && _reperage.entite && paire.entite &&
+        cleEntite(_reperage.entite) === cleEntite(paire.entite) && _reperage.matches.length > 0;
+    if (!actif) {
+        return `<button class="btn-action" onclick="repererOccurrences(${i})" title="Repérer les occurrences (sans appliquer)"><span class="btn-main-icon">🔍</span></button>`;
+    }
+    const n = _reperage.matches.length, c = _reperage.cur + 1;
+    return `<button class="btn-action btn-reperage" onclick="repererNav(${i},-1)" title="Occurrence précédente">◄</button>` +
+        `<span class="reperage-pos" title="Occurrence repérée (non appliquée)">${c}/${n}</span>` +
+        `<button class="btn-action btn-reperage" onclick="repererNav(${i},1)" title="Occurrence suivante">►</button>`;
+}
+
+// Marque (classe .verrou + 🔒 via CSS) les sliders de portée CORPUS dont l'entité est appliquée
+// (occ>0) dans un AUTRE entretien : on ne peut alors pas quitter C (§6). Asynchrone (lit getEnt),
+// appelée après chaque rendu — fire-and-forget. Le garde-fou réel reste dans changerPorteeLigne.
+async function marquerVerrousPortee() {
+    try {
+        const sliders = document.querySelectorAll('.portee-slider.portee-corpus');
+        if (!sliders.length || !window.electronAPI) return;
+        const rkCur = await window.electronAPI.getEntCur();
+        const tabEnt = await window.electronAPI.getEnt() || [];
+        const partageesAilleurs = new Set();
+        tabEnt.forEach((ent, i) => {
+            if (i === rkCur || !ent || !Array.isArray(ent.tabAnon)) return;
+            ent.tabAnon.forEach(r => {
+                // Partagée = réellement anonymisée ailleurs (pas seulement « à anonymiser »).
+                if (_aOccurrenceTraitee(r)) partageesAilleurs.add(cleEntite(r.entite));
+            });
+        });
+        sliders.forEach(sl => {
+            const idx = parseInt(sl.dataset.idx, 10);
+            const paire = window.tabAnon[idx];
+            const verrou = !!(paire && paire.entite && partageesAilleurs.has(cleEntite(paire.entite)));
+            sl.classList.toggle('verrou', verrou);
+        });
+    } catch (e) {
+        console.warn('[marquerVerrousPortee]', e);
+    }
+}
+
+// État transitoire (non persisté) du repérage loupe en cours. Une seule ligne repérée à la fois.
+let _reperage = null; // { entite, matches:[{start,end}], cur }
+
+function _effacerSurlignageReperage() {
+    document.querySelectorAll('.reperage-hit').forEach(s => s.classList.remove('reperage-hit'));
+}
+function _surlignerReperage(matchIdx) {
+    _effacerSurlignageReperage();
+    if (!_reperage || !_reperage.matches[matchIdx]) return;
+    const spans = document.querySelectorAll('[data-rk]');
+    const { start, end } = _reperage.matches[matchIdx];
+    for (let k = start; k <= end; k++) if (spans[k]) spans[k].classList.add('reperage-hit');
+    if (spans[start]) spans[start].scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Loupe = repérage NON destructif : compte + surligne (transitoire) + scroll, SANS poser de marquage
+// anon → la ligne reste brouillon (occ=0). Marche avec l'entité seule (pseudo facultatif).
+function repererOccurrences(idx) {
+    const paire = window.tabAnon[idx];
+    if (!paire || !paire.entite || !paire.entite.trim()) return;
+    // Ligne déjà appliquée : pas de repérage (les compteurs cliquables gèrent la navigation).
+    if ((paire.occurrences || 0) > 0) return;
+    const spans = document.querySelectorAll('[data-rk]');
+    const matches = trouverMatchesEntiteDOM(paire.entite, spans);
+    if (!matches.length) {
+        _reperage = null; _effacerSurlignageReperage(); affichTableauAnon();
+        question(`Aucune occurrence de « ${paire.entite} » trouvée dans le texte.`, ['OK']);
+        return;
+    }
+    _reperage = { entite: paire.entite, matches: matches.map(m => ({ start: m.start, end: m.end })), cur: 0 };
+    _surlignerReperage(0);
+    affichTableauAnon();
+}
+function repererNav(idx, sens) {
+    if (!_reperage || !_reperage.matches.length) return;
+    const n = _reperage.matches.length;
+    _reperage.cur = (_reperage.cur + sens + n) % n;
+    _surlignerReperage(_reperage.cur);
+    affichTableauAnon();
+}
+
+// Handler du slider : exécute la transition de portée (machine à états §3) avec garde §6 (quitter C)
+// et conflit §5 (via validerLigneAnon pour les passages depuis brouillon).
+async function changerPorteeLigne(idx, cible) {
+    const paire = window.tabAnon[idx];
+    if (!paire) return;
+    const actuel = paire.portee || 'corpus';
+    if (cible === actuel) return;
+
+    // Toute transition met fin au repérage en cours.
+    _reperage = null; _effacerSurlignageReperage();
+
+    const applique = (paire.occurrences || 0) > 0;
+
+    // Depuis BROUILLON (rien d'appliqué) → appliquer : lit les champs de saisie, gère le conflit corpus.
+    if (!applique) {
+        if (cible === 'document') return validerLigneAnon(idx, 'document');
+        if (cible === 'corpus')   return validerLigneAnon(idx, 'corpus');
+        return;
+    }
+
+    // Ligne APPLIQUÉE. Promotion vers corpus (D→C) : pousse au corpus + bascule.
+    if (cible === 'corpus') return promouvoirLigneAuCorpus(idx);
+
+    // cible ∈ {document, brouillon}. Si on QUITTE le corpus → garde-fou « règle isolée » (§6).
+    if (actuel === 'corpus') {
+        if (!(await regleEstIsolee(paire.entite))) {
+            await question(
+                `La règle « ${paire.entite} » est utilisée dans plusieurs entretiens.\n\n` +
+                `Ramenez-la à un seul entretien avant de réduire sa portée.`, ['OK']);
+            affichTableauAnon(); // re-cale le slider sur 📁
+            return;
+        }
+        await retirerRegleCorpusEtFantomes(paire.entite);
+    }
+
+    if (cible === 'document') {
+        paire.portee = 'document';
+        affichTableauAnon();
+        await sauvegarderTabAnonEnt();
+        return;
+    }
+    if (cible === 'brouillon') {
+        // Parquer : démarquer (occ→0) et conserver le brouillon (la garde détection brouillon
+        // évite qu'il soit re-détecté en « à traiter »).
+        demarquerLigneEtRemettreEnAttente(idx, pseudosDe(paire));
+        paire.portee = 'brouillon';
+        affichTableauAnon();
+        await sauvegarderTabAnonEnt();
+        return;
+    }
+}
+
+// Valide et applique l'anonymisation pour une ligne spécifique.
+// porteeRequise : 'document' (Entrée, défaut) ou 'corpus' (Shift+Entrée). La portée EFFECTIVE est
+// forcée à 'corpus' dès que l'entité a (ou acquiert via le dialogue de conflit) une règle au corpus.
+async function validerLigneAnon(idx, porteeRequise = 'document') {
+    // Toute application met fin au repérage loupe en cours (surbrillance transitoire).
+    _reperage = null; _effacerSurlignageReperage();
+
     const entite = document.querySelector(`.input-entite[data-idx="${idx}"]`);
     const remplacement = document.querySelector(`.input-remplacement[data-idx="${idx}"]`);
-    
+
     if (!entite || !remplacement) return;
     
     const entiteVal = entite.value.trim();
@@ -2119,15 +2230,25 @@ async function validerLigneAnon(idx) {
     
     // Appliquer l'anonymisation
     appliquerAnonymisationPour(idx);
-    
+
     // Désactiver l'édition si des occurrences ont été trouvées
     if (window.tabAnon[idx].occurrences > 0) {
+        // Portée EFFECTIVE : corpus si demandé (Shift+Entrée) OU si l'entité est (devenue, via le
+        // dialogue de conflit « garder les deux ») une règle du corpus. Sinon document (local).
+        const corpusApres = regleEnCollisionAlias(entiteVal, await window.electronAPI.getAnon() || []);
+        const porteeEff = (porteeRequise === 'corpus' || corpusApres) ? 'corpus' : 'document';
+        window.tabAnon[idx].portee = porteeEff;
+        // Si corpus demandé pour une entité encore absente du corpus → l'y pousser maintenant.
+        if (porteeEff === 'corpus' && !corpusApres) await pousserRegleAuCorpus(window.tabAnon[idx]);
+
         desactiverEditionLigne(idx);
         affichTableauAnon();
-        
+
         // 💾 Sauvegarder les changements dans l'entretien
         await sauvegarderTabAnonEnt();
     } else {
+        // Rien trouvé → rien d'appliqué : la ligne reste un brouillon (R6).
+        window.tabAnon[idx].portee = 'brouillon';
         await question(`⚠️ L'entité "${entiteVal}" n'a pas été trouvée dans le texte.`, ["OK"]);
     }
 }

@@ -1102,11 +1102,6 @@ function creerEncartLegendeCorpus() {
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#fff3e0;border:1px solid #ffb74d;display:inline-block;flex-shrink:0;"></span>ligne orange = occurrences à traiter</span>
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#e8f5e9;border:1px solid #a5d6a7;display:inline-block;flex-shrink:0;"></span>ligne verte = entièrement traité</span>
         </div>
-        <div style="display:flex;flex-direction:column;gap:3px;border-top:1px solid #eee;padding-top:5px;">
-            <span><strong>📂 Importer</strong> : ajoute des règles (entité→pseudo) depuis un ou plusieurs fichiers JSON ; en cas d'entité déjà définie, un choix est proposé.</span>
-            <span><strong>📤 Exporter règles</strong> : règles en JSON, <em>réimportable</em> (dans ce corpus ou un autre).</span>
-            <span><strong>💾 Exporter CSV</strong> : état du corpus (anonymisé/non par entretien) — <em>non réimportable</em>.</span>
-        </div>
     `;
 
     encart.appendChild(header);
@@ -1231,9 +1226,10 @@ async function affichAnonGen() {
                         <button id="btn-scan-stale" class="btn btn-secondary" style="padding:4px 10px;font-size:0.82rem;">Scan</button>
                     </div>
                     <input type="file" id="file-import-corpus" multiple accept=".json" style="display:none;" onchange="importTableCorpus(this.files)">
-                    <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de règles JSON (ajoute des règles au corpus)">Importer 📂</label>
-                    <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterReglesCorpusJSON();" title="Exporter les règles (entité→pseudo) en JSON, réimportable dans un autre corpus">Exporter règles 📤</label>
-                    <label id="btn-export-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterTableCorpusCSV();" title="Exporter l'état du corpus en CSV (anonymisé/non par entretien) — non réimportable">Exporter CSV 💾</label>
+                    <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de règles JSON (ajoute des règles au corpus)">Import règles 📥</label>
+                    <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterReglesCorpusJSON();" title="Exporter les règles (entité→pseudo) en JSON, réimportable dans un autre corpus">Export règles 📤</label>
+                    <label id="btn-export-corpus-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterCorpusReouvrable();" title="Exporter une copie ANONYMISÉE IRRÉVERSIBLE du corpus, réouvrable dans SonalPi (.crp)">Export corpus 📦</label>
+                    <label id="btn-export-partage-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterCorpusPartage();" title="Exporter un HTML plat anonymisé (lecture/partage hors SonalPi)">Export html 📄</label>
                     <label id="btn-quit-anon" class="btn btn-secondary" style="padding:10px" onclick="hideAnonGen();" title="Fermer la table">Quitter ✖️</label>
                 </div>
                 <div id="anon-page-content" style="display:flex;flex:1;min-height:0;overflow:hidden;">
@@ -1536,9 +1532,11 @@ function creerLigneAnonGen(anon, tabEnt) {
     tr.dataset.entite = anon.entite;
     tr.dataset.pseudo = anon.remplacement;
 
-    // Colonne 1: Entité
+    // Colonne 1: Entité (affichage compact « 6 mots […] 6 mots » pour les longues sélections ;
+    // texte complet en tooltip).
     const tdEntite = document.createElement("td");
-    tdEntite.textContent = anon.entite;
+    tdEntite.textContent = tronquerEntiteAffichage(anon.entite);
+    tdEntite.title = anon.entite;
     tdEntite.style.fontStyle = "italic";
     tdEntite.style.color = "#666";
     tr.appendChild(tdEntite);
@@ -2148,10 +2146,9 @@ function afficherModaleAjoutEntiteAnon() {
             return;
         }
 
-        // Une entité = UN pseudo (décision « corpus autoritaire »). On vérifie au niveau ALIAS
-        // (insensible à la casse) : si un alias en jeu (y compris dans un groupe "A/B") est déjà
-        // pris par une règle, on n'ajoute jamais un second pseudo (sinon ligne fantôme : la
-        // persistance, dédupliquée par alias, n'en garderait qu'un).
+        // Une entité a AU PLUS 2 pseudos (anon.md §9). Vérification au niveau ALIAS (insensible à la
+        // casse) : sur collision avec une règle existante, on propose « Garder les deux » tant que le
+        // cap ≤2 est respecté ; au-delà (existant déjà multi, ou saisie « a/b » en plus), on refuse.
         const tabAnonGlobal = await window.electronAPI.getAnon();
         const existante = regleEnCollisionAlias(entite, tabAnonGlobal);
 
@@ -2433,8 +2430,7 @@ async function retirerPseudoDeEntretien(indexEnt, pseudo, entite) {
 /**
  * Exporte les RÈGLES du corpus (entité→pseudo) en JSON, au format de la table de
  * correspondance [{ entite_init, entite_pseudo }, ...] — donc **réimportable** via 📂 Importer
- * (dans ce corpus ou un autre). À distinguer de exporterTableCorpusCSV (rapport d'état, non
- * réimportable).
+ * (dans ce corpus ou un autre).
  */
 async function exporterReglesCorpusJSON() {
     const tabAnonGlobal = (await window.electronAPI.getAnon()) || [];
@@ -2460,6 +2456,90 @@ async function exporterReglesCorpusJSON() {
     URL.revokeObjectURL(url);
 
     question(`Export réussi : ${correspondances.length} règle(s) exportée(s).`, ['OK']);
+}
+
+// Télécharge un fichier (download navigateur, comme les autres exports corpus).
+function _telechargerFichierCorpus(contenu, mime, suffixe) {
+    const blob = new Blob([contenu], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    link.download = `corpus_${ts}${suffixe}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+// Anonymise le HTML stocké d'un entretien en préservant l'encadrement par backticks (cf. le format
+// stocké, lireCrpSonal2). Source = ent.html (persisté dans le .crp) ou le cache tabHtml en repli.
+function _htmlEntretienAnonymise(ent, htmlCache) {
+    const raw = (ent && ent.html != null && ent.html !== '') ? ent.html : (htmlCache || '');
+    const aBackticks = typeof raw === 'string' && raw.startsWith('`') && raw.endsWith('`');
+    const inner = aBackticks ? raw.slice(1, -1) : raw;
+    const anon = _anonymiserHtml(inner); // cœur partagé (anon-regles.js) : runs → « [pseudo] »
+    return aBackticks ? '`' + anon + '`' : anon;
+}
+
+/**
+ * Export du corpus ANONYMISÉ IRRÉVERSIBLE, réouvrable dans SonalPi (.crp JSON, même format que la
+ * sauvegarde). Chaque entretien voit son HTML définitivement anonymisé et ses règles vidées ;
+ * tabAnon global vidé. ⚠️ N'anonymise que ce qui est EFFECTIVEMENT marqué dans le HTML stocké :
+ * valider d'abord l'application de toutes les règles (panneau Pseudos — lignes vertes).
+ */
+async function exporterCorpusReouvrable() {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+
+    const rep = await question(
+        `Exporter une copie ANONYMISÉE et IRRÉVERSIBLE du corpus (${tabEnt.length} entretien(s)), réouvrable dans SonalPi ?\n\n` +
+        `Les noms d'origine seront définitivement remplacés par les pseudonymes et les règles retirées.\n` +
+        `⚠️ Seules les occurrences réellement anonymisées sont remplacées — vérifiez d'abord que tout est appliqué (vert).`,
+        ['Exporter', 'Annuler']);
+    if (rep !== 'exporter') return;
+
+    const tabThm = (await window.electronAPI.getThm()) || [];
+    const tabVar = (await window.electronAPI.getVar()) || [];
+    const tabDic = (await window.electronAPI.getDic()) || [];
+    let tabHtml = []; try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    // Copie des entretiens : HTML anonymisé + règles locales vidées (originaux NON mutés).
+    const tabEntAnon = tabEnt.map((ent, i) => ({
+        ...ent,
+        tabAnon: [],
+        html: _htmlEntretienAnonymise(ent, tabHtml[i])
+    }));
+
+    const contenu = JSON.stringify({ tabThm, tabEnt: tabEntAnon, tabVar, tabDic, tabAnon: [] });
+    _telechargerFichierCorpus(contenu, 'application/json', '_anonymise.crp');
+    question(`Export réussi : corpus anonymisé irréversible (${tabEnt.length} entretien(s)), réouvrable dans SonalPi.`, ['OK']);
+}
+
+/**
+ * Export ANONYMISÉ « partage » : un HTML plat lisible (hors SonalPi) regroupant tous les entretiens,
+ * texte définitivement remplacé par les pseudos. Non réimportable — destiné à la lecture/diffusion.
+ */
+async function exporterCorpusPartage() {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = []; try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    let corps = '';
+    tabEnt.forEach((ent, i) => {
+        let html = _htmlEntretienAnonymise(ent, tabHtml[i]);
+        if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
+        const nom = (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1));
+        corps += `<section style="margin:28px 0;border-top:1px solid #ddd;padding-top:12px;">
+            <h2>${escapeHtml(String(nom))}</h2>\n${html}\n</section>\n`;
+    });
+
+    const doc = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>Corpus anonymisé</title>
+<style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#222}</style>
+</head><body><h1>Corpus anonymisé</h1>${corps}</body></html>`;
+    _telechargerFichierCorpus(doc, 'text/html', '_anonymise.html');
+    question(`Export réussi : ${tabEnt.length} entretien(s) anonymisé(s) (HTML de partage, hors SonalPi).`, ['OK']);
 }
 
 /**
@@ -2529,9 +2609,9 @@ async function appliquerImportCorpus(correspondances) {
         if (!entite || !pseudo) continue;
         const pseudoAlt = (corr.entite_pseudo_alt || '').trim();
 
-        // Une entité = UN pseudo (corpus autoritaire) : si un alias en jeu est déjà pris, on
-        // n'ajoute pas de second pseudo → ignoré (« déjà présente »). EXCEPTION « garder les deux »
-        // (corr.entite_pseudo_alt) : on pose l'alt sur la règle existante (si mono et alt distinct).
+        // Entité déjà présente (collision d'alias) : par défaut on n'ajoute pas le pseudo importé
+        // (doublon ignoré). Le multi-pseudo (≤2, anon.md §9) ne se crée QUE via « garder les deux »
+        // (corr.entite_pseudo_alt) : on pose l'alt sur la règle existante si elle est mono et l'alt distinct.
         const existante = regleEnCollisionAlias(entite, tabAnonGlobal);
         if (existante) {
             if (pseudoAlt && !estMultiPseudo(existante) &&
@@ -2574,66 +2654,6 @@ async function appliquerImportCorpus(correspondances) {
     if (lignesMaj.length > 0) message += `\n➕ ${lignesMaj.length} entité(s) passée(s) à deux pseudonymes.`;
     if (doublons > 0) message += `\n⚠️ ${doublons} règle(s) déjà présente(s) (ignorée(s)).`;
     question(message, ['OK']);
-}
-
-/**
- * Exporte l'état du corpus en CSV : une ligne par règle (entité, pseudo) avec, par entretien,
- * ✅ anonymisé / ❌ non-anonymisé. À distinguer de l'export/import JSON de la table de
- * correspondance (les règles seules), géré par anon-correspondance.js / anon-import_export.js.
- */
-async function exporterTableCorpusCSV() {
-    try {
-        const tabAnonGlobal = await window.electronAPI.getAnon();
-        const tabEnt = await window.electronAPI.getEnt();
-        
-        if (!tabAnonGlobal || tabAnonGlobal.length === 0) {
-            dialog('Message', 'Aucune anonymisation à exporter.');
-            return;
-        }
-
-        // Créer un fichier CSV
-        let csv = "Entité Originale,Pseudonyme,Entretiens (✅ = Anonymisé | ❌ = Non-anonymisé)\n";
-
-        for (const anon of tabAnonGlobal) {
-            if (!anon.entite || !anon.entite.trim() || !anon.remplacement || !anon.remplacement.trim()) {
-                continue;
-            }
-
-            const entretiensData = [];
-            
-            for (let i = 0; i < tabEnt.length; i++) {
-                const etat = await verifierEtatAnonymisation(i, anon.entite, anon.remplacement);
-                if (etat === 'anonymisee') {
-                    entretiensData.push(`✅ ${tabEnt[i].nom}`);
-                } else if (etat === 'non-anonymisee') {
-                    entretiensData.push(`❌ ${tabEnt[i].nom}`);
-                }
-            }
-
-            const entiteEchappee = `"${anon.entite.replace(/"/g, '""')}"`;
-            const remplacementEchappee = `"${anon.remplacement.replace(/"/g, '""')}"`;
-            const entretiensEchappes = `"${entretiensData.join('; ').replace(/"/g, '""')}"`;
-            
-            csv += `${entiteEchappee},${remplacementEchappee},${entretiensEchappes}\n`;
-        }
-
-        // Télécharger le fichier
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const lien = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        lien.setAttribute("href", url);
-        lien.setAttribute("download", "anonymisation_globale.csv");
-        lien.style.visibility = "hidden";
-        document.body.appendChild(lien);
-        lien.click();
-        document.body.removeChild(lien);
-
-        dialog('Message', 'Table d\'anonymisation exportée avec succès.');
-
-    } catch (error) {
-        console.error("Erreur export:", error);
-        dialog('Message', `Erreur lors de l'export: ${error.message}`);
-    }
 }
 
 /**

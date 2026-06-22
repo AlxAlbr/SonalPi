@@ -12,7 +12,7 @@
 //   })
 //
 // L'entretien applique les règles au texte ouvert (marquage DOM) ; le corpus ajoute
-// des règles au .crp (todo2.md). Seul le callback `appliquer` change.
+// des règles au .crp. Seul le callback `appliquer` change.
 //
 // Chargé dans index.html ET edition_entretien.html (ce dernier en chemins antislash).
 // Dépend uniquement de `question` (utilitaires) + DOM.
@@ -47,7 +47,7 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
 
     const conflits = [];
     const valides = [];
-    const mapEntites = {}; // { entite_init: [{ pseudo, source }] }
+    const mapEntites = {}; // { entite_init: [pseudo, ...] } — pseudos UNIQUES (casse insensible, 1ère casse gardée)
 
     // Règles déjà présentes (pour l'entretien = règles validées occurrences>0 ; pour le corpus =
     // toutes). La détection de conflit se fait AU NIVEAU ALIAS (regleEnCollisionAlias) : un import
@@ -56,54 +56,60 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
     const reglesExistantes = ((ctx && ctx.reglesExistantes) || []).filter(r => r && r.entite && r.remplacement);
     console.log(`Total règles déjà présentes : ${reglesExistantes.length}`);
 
-    // Regrouper les pseudos importés par entité
-    allCorrespondances.forEach((corr, idx) => {
-        const entiteInit = corr.entite_init.trim();
-        const entiePseudo = corr.entite_pseudo.trim();
+    // Regrouper les pseudos importés par entité : on collecte le pseudo ET un éventuel
+    // entite_pseudo_alt (multi-pseudo dans le fichier), dédupliqués (insensible à la casse). Ainsi le
+    // round-trip d'un « a/b » — qu'il vienne de 2 lignes {entite,a}+{entite,b} OU d'une ligne portant
+    // un alt — redonne bien l'ensemble {a, b}. (corrige : perte d'alt + perte du multi au round-trip)
+    allCorrespondances.forEach((corr) => {
+        const entiteInit = (corr.entite_init || '').trim();
+        if (!entiteInit) return;
         if (!mapEntites[entiteInit]) mapEntites[entiteInit] = [];
-        mapEntites[entiteInit].push({ pseudo: entiePseudo, source: `Fichier ${idx + 1}` });
+        const ajout = (p) => {
+            const v = (p || '').trim();
+            if (v && !mapEntites[entiteInit].some(x => x.toLowerCase() === v.toLowerCase())) {
+                mapEntites[entiteInit].push(v);
+            }
+        };
+        ajout(corr.entite_pseudo);
+        ajout(corr.entite_pseudo_alt);
     });
 
     console.log(`Entités uniques à traiter: ${Object.keys(mapEntites).length}`);
 
-    // Analyser les conflits
+    // Analyser les conflits. Cap système : une entité a AU PLUS 2 pseudos (anon.md §9).
     Object.keys(mapEntites).forEach(entiteInit => {
-        const pseudos = mapEntites[entiteInit];
-        const pseudosUniques = [...new Set(pseudos.map(p => p.pseudo))];
-
-        // Cas 1: un alias de l'entité importée est déjà pris par une règle existante (insensible à la casse)
+        const pseudosUniques = mapEntites[entiteInit];
         const regleExistante = regleEnCollisionAlias(entiteInit, reglesExistantes);
+
         if (regleExistante) {
-            const pseudoExistant = regleExistante.remplacement;
-            // Ne sont en conflit que les pseudos importés DIFFÉRENTS (insensible à la casse) de l'existant.
-            const differents = pseudosUniques.filter(p => p.toLowerCase() !== String(pseudoExistant).toLowerCase());
-            if (differents.length === 0) {
-                // Réimport à l'identique → simple doublon (pas un conflit) : on laisse
-                // l'étape d'application le détecter et l'ignorer.
-                valides.push({ entite_init: entiteInit, entite_pseudo: pseudoExistant });
+            // Comparer aux pseudos EXISTANTS — primaire ET alt (pas seulement le primaire).
+            const existPseudos = pseudosDe(regleExistante);
+            const existLower = existPseudos.map(p => p.toLowerCase());
+            const nouveaux = pseudosUniques.filter(p => !existLower.includes(p.toLowerCase()));
+            if (nouveaux.length === 0) {
+                // Réimport : tous les pseudos importés sont déjà dans la règle → doublon (préserver l'existant + alt).
+                valides.push({ entite_init: entiteInit, entite_pseudo: existPseudos[0], entite_pseudo_alt: existPseudos[1] });
             } else {
+                // Divergence avec l'existant → l'utilisateur tranche. « Garder les deux » n'est proposé
+                // que si l'UNION des pseudos respecte le cap ≤2 (vérifié CONTRE l'alt existant).
+                const union = [...new Set([...existLower, ...pseudosUniques.map(p => p.toLowerCase())])];
                 conflits.push({
                     type: 'deja-anonymisee',
                     entite_init: entiteInit,
-                    pseudo_existant: pseudoExistant,
-                    pseudos_import: differents
+                    pseudo_existant: existPseudos.join('/'),
+                    pseudos_import: nouveaux,
+                    peutGarderLesDeux: union.length <= 2
                 });
             }
-        }
-        // Cas 2: Plusieurs pseudos différents pour la même entité (dans l'import)
-        else if (pseudosUniques.length > 1) {
-            conflits.push({
-                type: 'multi-pseudo',
-                entite_init: entiteInit,
-                options: pseudosUniques
-            });
-        }
-        // Pas de conflit
-        else {
-            valides.push({
-                entite_init: entiteInit,
-                entite_pseudo: pseudos[0].pseudo
-            });
+        } else if (pseudosUniques.length === 1) {
+            valides.push({ entite_init: entiteInit, entite_pseudo: pseudosUniques[0] });
+        } else if (pseudosUniques.length === 2) {
+            // 2 pseudos pour la même entité = multi-pseudo LÉGITIME (round-trip « a/b ») → garder les deux,
+            // sans dialogue (ce n'est pas un conflit mais une donnée multi-pseudo valide, cap respecté).
+            valides.push({ entite_init: entiteInit, entite_pseudo: pseudosUniques[0], entite_pseudo_alt: pseudosUniques[1] });
+        } else {
+            // ≥3 pseudos → dépasse le cap : conflit, l'utilisateur choisit lequel appliquer.
+            conflits.push({ type: 'multi-pseudo', entite_init: entiteInit, options: pseudosUniques });
         }
     });
 
@@ -174,9 +180,10 @@ function afficherDialogueResolutionConflits(conflits, valides, allCorrespondance
                     </label>
                 `;
             });
-            // « Garder les deux » (uniquement si UN seul pseudo importé → total ≤ 2). Crée un
-            // multi-pseudo : ensuite l'anonymisation se choisit occurrence par occurrence.
-            if (conflit.pseudos_import.length === 1) {
+            // « Garder les deux » : proposé uniquement si l'UNION des pseudos respecte le cap ≤2
+            // (calculé contre le primaire ET l'alt existants). Crée un multi-pseudo : l'anonymisation
+            // se choisit ensuite occurrence par occurrence.
+            if (conflit.peutGarderLesDeux) {
                 dialogueHtml += `
                     <label style="display: block; margin: 5px 0;">
                         <input type="radio" name="conflit-${idx}" value="both">

@@ -167,6 +167,14 @@ async function showMenuException(span, idxPaire, matchIdx) {
         });
     }
 
+    // Remettre l'occurrence en « à anonymiser » (revient en arrière depuis anonymisé OU exception) :
+    // permet de vider une ligne de tout anon/exception pour pouvoir la supprimer.
+    chaine += `
+        <div class="menu-item" onmousedown="remettreEnNonTraite(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
+            ↩ Remettre en « à anonymiser »
+        </div>
+    `;
+
     chaine += `
         <div class="menu-item" onmousedown="allerVueCorpus(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ↗ Voir au niveau du corpus
@@ -284,6 +292,42 @@ async function marquerExceptionDepuisNonTraite(idxPaire, matchIdx) {
 
     match.isException = true;
     match.isNonTraite = false;
+
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+    await syncHtmlVersMainProcess();
+}
+
+// Remet une occurrence ANONYMISÉE ou en EXCEPTION en « à anonymiser » (non-traité) : retire tout le
+// marquage et repose data-anon-nt. Permet de revenir à une ligne sans anon ni exception (donc
+// supprimable). Symétrique de pseudonymiserOccurrence / marquerExceptionDepuisNonTraite.
+async function remettreEnNonTraite(idxPaire, matchIdx) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.matchPositions || !paire.matchPositions[matchIdx]) return;
+
+    // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
+    if (typeof backUp === 'function') backUp();
+
+    const match = paire.matchPositions[matchIdx];
+    if (match.isIncluded) return; // incluse = lecture seule : possédée par le run large (I-INC-3)
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+
+    for (let i = match.start; i <= match.end; i++) {
+        const span = tousLesSpans[i];
+        if (!span) continue;
+        span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+        delete span.dataset.pseudo;
+        span.setAttribute('data-anon-nt', 'true');
+    }
+
+    match.isException = false;
+    match.isNonTraite = true;
+
+    // Ce run n'anonymise plus → libérer d'éventuelles occurrences qu'il absorbait (règles étroites
+    // chevauchantes) : elles rebasculent en « à anonymiser » (§G-bis / I-INC-7).
+    if (typeof recompterReglesChevauchant === 'function') {
+        recompterReglesChevauchant(match.start, match.end, idxPaire);
+    }
 
     affichTableauAnon();
     await sauvegarderTabAnonEnt();

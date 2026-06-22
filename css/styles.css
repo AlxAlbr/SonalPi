@@ -4204,11 +4204,6 @@ SYNTHESE
     transform: scale(0.92);
 }
 
-/* Bouton gauche (loupe ou navigation) */
-.btn-action-left {
-    flex: 0 0 auto;
-}
-
 /* Bouton droit (valider ou supprimer) */
 .btn-action-delete {
     flex: 0 0 auto;
@@ -4521,6 +4516,110 @@ SYNTHESE
     opacity: 0.85;
     cursor: help;
     vertical-align: super;
+}
+
+/* ───────── Portée d'une règle : slider à icônes + encodage typographique de la ligne ───────── */
+
+/* Cellule actions : compteurs (haut) + slider de portée (bas), empilés sans coût horizontal. */
+.actions-stack-portee {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+    width: 100%;                           /* pour centrer le slider dans toute la largeur de la cellule */
+}
+
+/* Encodage : FOND = statut (brouillon gris), TYPO = portée (gras = corpus, italique = brouillon).
+   Le vert (.ligne-anonymisee) et l'orange (.ligne-en-attente) restent gérés ailleurs. */
+.ligne-brouillon { background-color: #f4f4f4; }
+tr.p-corpus .input-entite,
+tr.p-corpus .input-remplacement { font-weight: 700; }
+tr.p-brouillon .input-entite,
+tr.p-brouillon .input-remplacement { font-style: italic; color: #777; }
+
+/* Slider à icônes : piste grise allongée, distincte des badges numériques. Centré dans la cellule. */
+.portee-slider {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    align-self: center;                    /* centré horizontalement dans la colonne actions */
+    height: 22px;
+    background: #ececec;
+    border-radius: 999px;
+    padding: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .08);
+    user-select: none;
+}
+.portee-slider .portee-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 26px;
+    height: 18px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1.5px solid #1565c0;          /* poignée bleue, hors palette des compteurs */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+    transition: transform .2s cubic-bezier(.4, 1.3, .5, 1);
+    z-index: 1;
+}
+.portee-slider .portee-cran {
+    position: relative;
+    z-index: 2;
+    width: 26px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    filter: grayscale(1);                  /* crans inactifs estompés */
+    opacity: .4;
+    transition: filter .15s, opacity .15s, transform .15s;
+}
+.portee-slider .portee-cran:hover { opacity: .7; }
+.portee-slider.portee-brouillon .portee-thumb { transform: translateX(0); }
+.portee-slider.portee-document  .portee-thumb { transform: translateX(26px); }
+.portee-slider.portee-corpus    .portee-thumb { transform: translateX(52px); }
+.portee-slider.portee-brouillon .portee-cran[data-cran="brouillon"],
+.portee-slider.portee-document  .portee-cran[data-cran="document"],
+.portee-slider.portee-corpus    .portee-cran[data-cran="corpus"] {
+    filter: none;
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+/* Verrou : entité partagée avec d'autres entretiens → impossible de quitter le corpus (§6).
+   Les crans brouillon/document sont signalés non cliquables et un 🔒 s'affiche à droite. */
+.portee-slider.verrou { margin-right: 16px; }
+.portee-slider.verrou .portee-cran[data-cran="brouillon"],
+.portee-slider.verrou .portee-cran[data-cran="document"] { cursor: not-allowed; }
+.portee-slider.verrou .portee-thumb { border-color: #9aa; }
+.portee-slider.verrou::after {
+    content: "🔒";
+    position: absolute;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    opacity: .6;
+}
+
+/* Navigation de repérage (loupe) : position i/N + surbrillance transitoire des occurrences. */
+.reperage-pos {
+    font-size: 11px;
+    color: #1565c0;
+    font-weight: bold;
+    padding: 0 3px;
+}
+.btn-reperage { min-width: 20px; }
+.reperage-hit {
+    background: #fff3b0;
+    outline: 1px solid #f0c000;
+    border-radius: 2px;
 }
 
 /* Highlight temporaire pour la navigation corpus <-> entretien (flash jaune ~2s) */

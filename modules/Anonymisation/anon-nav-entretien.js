@@ -14,62 +14,6 @@ function clearHighlightOccurrences() {
     });
 }
 
-// Navigation vers l'occurrence suivante
-function allerOccurrenceSuivante(idx) {
-    const paire = window.tabAnon[idx];
-    
-    if (!paire.matchPositions || paire.matchPositions.length === 0) {
-        return;
-    }
-    
-    // Cas d'une seule occurrence : scroll vers elle sans changer l'index
-    if (paire.matchPositions.length === 1) {
-        surlignerOccurrence(idx);
-        return;
-    }
-    
-    // Au premier clic, passer de "N" à "1/N"
-    if (paire.indexCourant === 0) {
-        const countSpan = document.querySelector(`tr[data-idx="${idx}"] .count-occ`);
-        if (countSpan && !countSpan.textContent.includes('/')) {
-            countSpan.textContent = `1/${paire.occurrences}`;
-        }
-    }
-    
-    if (paire.indexCourant < paire.matchPositions.length - 1) {
-        paire.indexCourant++;
-        surlignerOccurrence(idx);
-    }
-}
-
-// Navigation vers l'occurrence précédente
-function allerOccurrencePrecedente(idx) {
-    const paire = window.tabAnon[idx];
-    
-    if (!paire.matchPositions || paire.matchPositions.length === 0) {
-        return;
-    }
-    
-    // Cas d'une seule occurrence : scroll vers elle sans changer l'index
-    if (paire.matchPositions.length === 1) {
-        surlignerOccurrence(idx);
-        return;
-    }
-    
-    // Au premier clic, passer de "N occ" à "1/N"
-    if (paire.indexCourant === 0) {
-        const countSpan = document.querySelector(`tr[data-idx="${idx}"] .count-occ`);
-        if (countSpan && !countSpan.textContent.includes('/')) {
-            countSpan.textContent = `1/${paire.occurrences}`;
-        }
-    }
-    
-    if (paire.indexCourant > 0) {
-        paire.indexCourant--;
-        surlignerOccurrence(idx);
-    }
-}
-
 // Surligne l'occurrence courante et scroll vers elle
 function surlignerOccurrence(idx) {
     const paire = window.tabAnon[idx];

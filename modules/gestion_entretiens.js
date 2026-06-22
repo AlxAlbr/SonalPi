@@ -1372,6 +1372,12 @@ async function afficherWhisPurge(){
         // Sans ce délai, les spans compactés (data-len > 1) empêchent la détection.
         detecterOccurrencesToutesLesPaires();
 
+        // R2 — résoudre une éventuelle divergence portée locale 'document' vs règle corpus apparue
+        // entre-temps (I-POR-3) AVANT le rendu final (réaligne le marquage si besoin).
+        if (typeof reconcilierPorteesDivergentesAOuverture === 'function') {
+            await reconcilierPorteesDivergentesAOuverture();
+        }
+
         // Rafraîchir le panneau latéral avec les occurrences détectées
         affichTableauAnon();
 
@@ -1519,9 +1525,13 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
    const tabAnonNettoye = nettoyerTabAnon(); // Nettoyer les lignes vides avant sauvegarde
    ent.tabAnon = tabAnonNettoye;
    
-   // Synchronisation du tabAnon global : fusionner les nouvelles règles du local au global
+   // Synchronisation du tabAnon global : fusionner les nouvelles règles du local au global.
+   // Chokepoint portée (2/2) : SEULES les règles de portée CORPUS (legacy sans portée ≡ corpus)
+   // remontent au corpus. Les règles 'document'/'brouillon' restent confinées à l'entretien
+   // (ent.tabAnon les garde toutes ; seul le push corpus est filtré).
    const tabAnonGlobal = await window.electronAPI.getAnon() || [];
-   const tabAnonFusionne = await synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonNettoye);
+   const aSynchroniser = tabAnonNettoye.filter(r => (r.portee || 'corpus') === 'corpus');
+   const tabAnonFusionne = await synchroniserTabAnonGlobal(tabAnonGlobal, aSynchroniser);
    await persisterReglesCorpus(tabAnonFusionne);
   
     // récupération des notes

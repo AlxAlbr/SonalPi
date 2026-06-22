@@ -228,7 +228,7 @@ window.addEventListener('unload', (event) => {
 
                 <div id="btns-droite" style="float:right; margin:19px">
 
-                    <label id = "btn-sauv-whsprg" class="btn btn-secondary" style = "padding: 10px;" onclick="dialog('Export')" title="Exporter l'entretien dans un nouveau fichier"> 📥 Exporter</label> 
+                    <label id = "btn-sauv-whsprg" class="btn btn-secondary" style = "padding: 10px;" onclick="dialog('Export')" title="Exporter l'entretien dans un nouveau fichier"> ↗️ Exporter entretien</label>
                     <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderModifsEnt()" title="Enregistrer les modifications"> 💾 Enregistrer</label> 
                     <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();" title="Quitter">Quitter ✖️</label>
                 </div>
@@ -473,8 +473,8 @@ window.addEventListener('unload', (event) => {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <H2 style="margin: 0px !important;width:100%">Pseudonymisation 
                         <label id= "AideAnon" class = "btnbleu" onclick="ouvrirAideAnonymisation()" title="Aide sur la pseudonymisation" style = "font-size:1.2rem"> ? </label> 
-                        <label id= "OuvrirAnon" class = "btnbleu" onclick="document.getElementById('file-import-correspondance').click()" title="Importer un ou des tableau(x) de pseudonymisation" style = "font-size:1.2rem"> 📂 </label> 
-                        <label id= "ExportAnon" class = "btnbleu" onclick="exportTableCorrespondance()" title="Exporter la table de pseudonymisation" style = "font-size:1.2rem"> 💾 </label> 
+                        <label id= "OuvrirAnon" class = "btnbleu" onclick="document.getElementById('file-import-correspondance').click()" title="Importer un ou des tableau(x) de pseudonymisation" style = "font-size:1.2rem"> 📥 </label> 
+                        <label id= "ExportAnon" class = "btnbleu" onclick="exportTableCorrespondance()" title="Exporter la table de pseudonymisation" style = "font-size:1.2rem"> 📤 </label>
                          <label id= "ChercheAnon" class = "btnbleu" onclick="chercherNomPropres()" title="Rechercher les noms propres dans le texte \n pensez à relire !" style = "font-size:1.2rem"> 🔎 </label> 
                     </H2>
 
@@ -498,7 +498,7 @@ window.addEventListener('unload', (event) => {
 
                 </div>
 
-                <div id="legende-anon" style="font-size:11px;color:#555;background:#f5f5f5;border:1px solid #eee;border-radius:4px;margin-bottom:8px;overflow:hidden;">
+                <div id="legende-anon" style="font-size:11px;color:#555;background:#f5f5f5;border:1px solid #eee;border-radius:4px;margin-bottom:8px;overflow:hidden;flex-shrink:0;">
                     <div id="legende-anon-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;cursor:pointer;user-select:none;">
                         <span style="font-weight:600;">ℹ️ Légende</span>
                         <button id="legende-anon-toggle" type="button" title="Réduire" style="border:none;background:none;cursor:pointer;font-size:14px;line-height:1;color:#666;width:22px;height:22px;flex-shrink:0;">–</button>
@@ -511,11 +511,14 @@ window.addEventListener('unload', (event) => {
                         </div>
                         <div style="display:flex;align-items:baseline;gap:4px;">
                             <span style="flex-shrink:0;">◄ N ►</span>
-                            <span>Cliquer sur un compteur pour naviguer entre les occurrences</span>
+                            <span style="flex:1;min-width:0;overflow-wrap:anywhere;">Cliquer sur un compteur pour naviguer entre les occurrences</span>
                         </div>
                         <div style="display:flex;align-items:baseline;gap:4px;">
                             <span style="flex-shrink:0;">🖱</span>
-                            <span>Clic gauche sur occurrence dans texte : changer son statut ou remonter au niveau Corpus</span>
+                            <span style="flex:1;min-width:0;overflow-wrap:anywhere;">Clic gauche sur occurrence dans texte : changer son statut ou remonter au niveau Corpus</span>
+                        </div>
+                        <div style="display:flex;align-items:baseline;gap:4px;">
+                            <span style="flex:1;min-width:0;overflow-wrap:anywhere;"><b>Portée</b> : <b>🚧</b> brouillon, non appliqué · <b>📄</b> document, cet entretien seulement · <b>📁</b> règle pour tout le corpus</span>
                         </div>
                     </div>
                 </div>
@@ -2822,7 +2825,7 @@ function dialogExportChoixOptions(format) {
             </label>
             <label class="btn  btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;"
                 onclick="exportEntretien('${format}')">
-              📥  Exporter 
+              ↗️  Exporter
             </label>
         </div>`;
 

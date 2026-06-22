@@ -34,7 +34,11 @@ async function reconstituerTabAnonGlobal(entretiens) {
     // gagne pour une entité déjà connue), PUIS les entretiens (qui ne peuvent qu'AJOUTER des
     // entités nouvelles). fusionnerRegles déduplique sur l'ENTITÉ seule → une entité = un pseudo.
     const ancienTabAnon = await window.electronAPI.getAnon() || [];
-    const listesEntretiens = entretiens.map(ent => (ent && ent.tabAnon) ? ent.tabAnon : []);
+    // Chokepoint portée (1/2) : seules les règles de portée CORPUS (et legacy sans portée ≡ corpus)
+    // remontent au corpus. Les règles 'document'/'brouillon' restent confinées à leur entretien.
+    const listesEntretiens = entretiens.map(ent => (ent && ent.tabAnon)
+        ? ent.tabAnon.filter(r => (r.portee || 'corpus') === 'corpus')
+        : []);
 
     // Signaler (sans le perdre en silence) ce que la fusion tranche : entités auxquelles le
     // corpus et/ou des entretiens donnent des pseudos différents. Le 1er (= corpus) est retenu.
