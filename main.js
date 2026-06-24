@@ -685,6 +685,41 @@ ipcMain.handle('dialog:saveFile', async (event, { filename, content, encoding })
   }
 });
 
+// Export d'un lot de fichiers dans une archive .zip (un fichier par entretien anonymisé : .txt, .html…).
+// fichiers : [{ nom: '<entretien>.<ext>', contenu: '<texte>' }]
+ipcMain.handle('export-files-zip', async (event, fichiers, defaultName) => {
+  if (!Array.isArray(fichiers) || fichiers.length === 0) {
+    return { success: false, error: 'Aucun fichier à exporter.' };
+  }
+
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+    ? Corpus.folder
+    : app.getPath('documents');
+  const defaultPath = path.join(defaultDir, defaultName || 'corpus_anonymise.zip');
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Exporter les entretiens anonymisés',
+    defaultPath,
+    filters: [{ name: 'Archive ZIP', extensions: ['zip'] }, { name: 'Tous les fichiers', extensions: ['*'] }]
+  });
+
+  if (canceled || !filePath) return { success: false, canceled: true };
+
+  try {
+    const zip = new AdmZip();
+    for (const f of fichiers) {
+      if (!f || !f.nom) continue;
+      zip.addFile(f.nom, Buffer.from(f.contenu != null ? String(f.contenu) : '', 'utf8'));
+    }
+    zip.writeZip(filePath);
+    console.log('✅ Archive enregistrée :', filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur export-files-zip :', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Ouvrir un fichier avec l'application par défaut du système
 ipcMain.handle('open-path', async (event, filePath) => {
   try {

@@ -130,6 +130,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Boîte de dialogue "Enregistrer sous"
   saveFileDialog: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
 
+  // Export d'un ensemble de fichiers dans une archive .zip (un fichier par entretien : .txt, .html…)
+  exporterFichiersZip: (fichiers, defaultName) => ipcRenderer.invoke('export-files-zip', fichiers, defaultName),
+
   // Sauvegarder sur le serveur
   sauvegarderSurServeur: (cheminFichier, contenu) => 
     ipcRenderer.invoke('sauvegarder-sur-serveur', cheminFichier, contenu),

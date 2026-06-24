@@ -668,20 +668,18 @@ function affichTableauAnon() {
         </table>
         <div style="margin-top: 10px; display: flex; flex-direction:column; gap: 5px;width:100%; position:sticky;bottom:0px;">
             <div style="display:flex; gap:5px; width:100%;">
-                <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('document')" title="Appliquer tous les brouillons dans cet entretien seulement (sans toucher au corpus)">
-                    Appliquer au doc 🚧→📄
+                <button class="btn-valider-anon-attente btnfonction btnlarge " style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:auto; padding-bottom:6px !important;" onclick="validerAnonEnAttente('document')" title="Appliquer tous les brouillons dans cet entretien seulement (sans toucher au corpus)">
+                    <span>Appliquer au doc</span>
+                    <span>🚧→📄</span>
                 </button>
-                <button class="btn-valider-anon-attente btnfonction btnlarge " onclick="validerAnonEnAttente('corpus')" title="Appliquer tous les brouillons ET créer les règles au corpus (partagé)">
-                    Applique au corpus 🚧→📁
+                <button class="btn-valider-anon-attente btnfonction btnlarge " style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:auto; padding-bottom:6px !important;" onclick="validerAnonEnAttente('corpus')" title="Appliquer tous les brouillons ET créer les règles au corpus (partagé)">
+                    <span>Applique au corpus</span>
+                    <span>🚧→📁</span>
                 </button>
                 <button class="btn-valider-anon-attente btnfonction btnlarge " style="flex:1;" onclick="ajouterNouvelleLigneAnon()">
                     ➕
                 </button>
             </div>
-            <button class="btn-verifier-entretien btnfonction btnlarge " onclick="verifierEntretien()" title="Re-scanner le texte contre toutes les règles connues (locales et corpus) et vérifier qu'aucune occurrence n'a été oubliée. Ne détecte que les entités déjà repérées (pas de détection automatique de noms).">
-                🔍 Scan anonymisation entretien
-            </button>
-
             <input type="file" id="file-import-correspondance" multiple accept=".json" style="display: none;">
         </div>
     `;
@@ -1820,111 +1818,6 @@ function trouverOccurrenceAnonyme(debSel, finSel) {
     console.log("❌ Aucun match trouvé");
     return null;
 }
-
-async function chercherNomPropres() {
-    if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
-        //console.log("tabAnon non défini");
-        return;
-    }
-
-    console.log("Recherche de noms propres dans le texte...");
-    
-    const tousLesSpans = document.querySelectorAll('[data-rk]');
-    const nomsPropresTrouves = new Set();
-    // Parcourir tous les spans pour détecter les noms propres
-
-    let derMot="."; 
-    let derMotNomPropre =false; 
-
-    tousLesSpans.forEach(span => {
-        const texte = span.innerText.trim();
-
-        // Vérifier si le premier caractère est une majuscule
-        if (texte && /^[A-ZÀ-ÖØ-Ý]/.test(texte[0])) {
-            
-            console.log(`Nom propre détecté: ${texte}`);
-
-            // liste de mots ne pouvant pas être des noms propres
-            const motsExclus = new Set(["Le", "La", "Les", "Un", "Une", "Des", "Et", "Mais", "Ou", "Donc", "Or", "Ni", "À", "Au", "Aux", "Du", "De", "Des", "Mon", 
-                "Ton", "Son", "Notre", "Votre", "Leur", "Ce", "Cette", "Ces", "Qui", "Que", "Quoi", "Dont", "Où", "Si", "Oui", "Non", "Je", "J", "Tu", "Il", "Elle", "Nous", "Vous", "Ils", "Elles", "Est", "Sont", "Était", "Étaient",
-                "A", "As", "Avons", "Avez", "Ont", "Faire", "Fait", "Fais", "Être", "Es", "Étés", "Étée", "Des", "Dans", "Sur", "Sous", "Avec", "Pour", "Par", "En", "Comme", "Mais", "Si", "Quand", "Alors",
-                "C", "Ça", "Ceci", "Cela", "Celui", "Celle", "Ceux", "Celles","D", "L", "Là", "Y", "Ne", "Pas", "Plus", "Moins", "Très", "Bien", "Mal", "Toujours", "Jamais", "Souvent", "Parfois", "Oui", "Non", "Ouais", "Hem","Heu", 
-                "Ah", "Oh", "Hé", "Allô", "Ok", "D","M", "Bon","Bah", "Qestion", "Réponse", "Ensuite", "Puis", "Enfin", "Déjà", "Peut-être"]);
-
-            if (motsExclus.has(texte)) {
-                 
-              //  console.log(`Mot exclu ignoré: ${texte} au rang ${span.dataset.rk}`);
-                derMotNomPropre = false;
-                if (texte.trim() !== "") {
-                    //derMot = texte;
-                }
-                return; // Ignorer ce mot
-            }
-
-            //console.log("Mot non exclu, traitement en cours.");
-
-            // Vérifier que le mot précédent se termine par un point ou est vide (début de phrase)
-            if (!/[.!?]/.test(derMot.slice(-1))) {
-
-                  //console.log("le mot précédent ne se termine pas par un point.");                  
-
-                if (derMotNomPropre===false) {
-                    //console.log(`Nouveau nom propre ajouté: ${texte} mot précédent : ${derMot} nomPropre? : ${derMotNomPropre} au rang ${span.dataset.rk}`);
-                    // Nouveau nom propre
-                    nomsPropresTrouves.add(texte);
-                    derMotNomPropre = true;
-
-                } else {
-                
-                    // Si le mot précédent était déjà un nom propre, on le complète 
-                    const dernierNomPropre = Array.from(nomsPropresTrouves).pop();
-                    const nomComplet = dernierNomPropre + " " + texte;
-                    nomsPropresTrouves.delete(dernierNomPropre);
-                    nomsPropresTrouves.add(nomComplet);
-                    //console.log(`complétion du nom propre précédent: ${dernierNomPropre} mot précédent : ${derMot} au rang ${span.dataset.rk}`);
-                    derMotNomPropre = true;
-                }
-
-            }  else {
-              
-                derMotNomPropre = false;
-            }
-
-            if (texte.trim() !== "" && texte) {
-                derMot = texte;
-            }
-
-        } else {
-               
-             if (texte.trim() !== "") {
-                 derMotNomPropre = false;
-                derMot = texte;
-            }
-            }
-    });
-
-    // tri par ordre alphabétique
-    const nomsPropresTries = Array.from(nomsPropresTrouves).sort((a, b) => a.localeCompare(b, 'fr'));   
-    //console.log("Noms propres trouvés:", nomsPropresTries);
-
-    // ajouter à tabAnon
-    nomsPropresTries.forEach(nom => {
-        // Vérifier si le nom propre n'est pas déjà dans tabAnon
-        const existeDeja = window.tabAnon.some(paire => paire.entite === nom);
-        if (!existeDeja) {
-            window.tabAnon.push({ entite: nom, remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [] });
-        }
-    });
-
-    //console.log(`Ajouté ${nomsPropresTries.length} noms propres à tabAnon.`);
-    // Rafraîchir l'affichage du tableau
-    affichTableauAnon();
-    
-    // 💾 Sauvegarder les changements dans l'entretien si des noms propres ont été ajoutés
-    if (nomsPropresTries.length > 0) {
-        await sauvegarderTabAnonEnt();
-    }
-}    
 
 // Résout un éventuel conflit entre le(s) pseudo(s) saisi(s) et une règle CORPUS existante pour la même
 // entité (alias). Renvoie { champs:{remplacement, remplacementAlt} } à appliquer, ou { annule:true }.
