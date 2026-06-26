@@ -146,6 +146,27 @@ function regleEnCollisionAlias(entite, regles) {
     return null;
 }
 
+/**
+ * Garde-fou de la proposition « affixe de liaison » (cf. plan-affixes-liaison.md) : vrai s'il existe
+ * DÉJÀ, dans le jeu effectif de l'entretien (window.tabAnon = local + corpus fusionnés), une règle
+ * portant à la fois l'entité-cœur (même alias) ET le pseudo-cœur (parmi ses pseudos, multi-pseudo
+ * inclus). Empêche de re-proposer « Lyon → une grande ville » quand on traite « de Lyon » alors que
+ * le cœur existe déjà.
+ * @param {string} entiteCoeur
+ * @param {string} pseudoCoeur
+ * @returns {boolean}
+ */
+function regleCoeurExiste(entiteCoeur, pseudoCoeur) {
+    const cibles = new Set(clesAlias(entiteCoeur));
+    if (cibles.size === 0) return false;
+    const pc = (pseudoCoeur || '').trim().toLowerCase();
+    return (window.tabAnon || []).some(p =>
+        p && p.entite &&
+        clesAlias(p.entite).some(k => cibles.has(k)) &&
+        pseudosDe(p).some(x => x.toLowerCase() === pc)
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MULTI-PSEUDO (≤2) — une règle peut autoriser DEUX pseudos pour une même entité :
 // `remplacement` = pseudo primaire (toujours un pseudo valide unique), `remplacementAlt`

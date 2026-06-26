@@ -65,21 +65,77 @@ async function reconstituerTabAnonGlobal(entretiens) {
 }
 
 /**
- * Affiche (dialogue) un récapitulatif des conflits de pseudo détectés par reconstituerTabAnonGlobal.
+ * Signale les conflits de pseudo détectés par reconstituerTabAnonGlobal et propose, le cas échéant,
+ * de GARDER LES DEUX pseudonymes là où c'est possible (conflit « 1 vs 1 » sur une règle mono, cap ≤2).
  * Appelé depuis l'ouverture du panneau Pseudos (affichAnonGen) — action délibérée de l'utilisateur.
+ *
+ * Au moment de l'appel, la fusion « corpus gagne » est DÉJÀ appliquée et persistée (cf.
+ * reconstituerTabAnonGlobal). « Garder seulement le pseudo du corpus » = accepter cet état (no-op) ;
+ * « Garder les deux » = la seule action en avant (pose `remplacementAlt` sur la règle gagnante, ≤2).
+ * Doit être AWAIT par l'appelant : la persistance a lieu AVANT le rendu de la table.
  * @param {Array<{entite:string, pseudoRetenu:string, pseudosIgnores:string[]}>} conflits
  */
-function signalerConflitsPseudo(conflits) {
+async function signalerConflitsPseudo(conflits) {
     if (!conflits || conflits.length === 0) return;
+
+    // État persisté (fusion « corpus gagne » déjà appliquée). On y reposera l'alt si demandé.
+    const tab = await window.electronAPI.getAnon() || [];
+
+    // Classer : fusionnables (1 ignoré, règle gagnante mono, alt distinct) vs cap >2 (non fusionnables).
+    const fusionnables = []; // { regle, alt }
+    const nonFusionnables = [];
+    for (const c of conflits) {
+        const regle = regleEnCollisionAlias(c.entite, tab);
+        const alt = (c.pseudosIgnores && c.pseudosIgnores.length === 1) ? c.pseudosIgnores[0] : null;
+        if (regle && alt && !estMultiPseudo(regle) &&
+            !pseudosDe(regle).some(p => p.toLowerCase() === alt.toLowerCase())) {
+            fusionnables.push({ regle, alt });
+        } else {
+            nonFusionnables.push(c);
+        }
+    }
+
     const apercu = conflits.slice(0, 8)
         .map(c => `• « ${c.entite} » → « ${c.pseudoRetenu} » (ignoré${c.pseudosIgnores.length > 1 ? 's' : ''} : ${c.pseudosIgnores.map(p => `« ${p} »`).join(', ')})`)
         .join('\n');
     const reste = conflits.length > 8 ? `\n… et ${conflits.length - 8} autre(s).` : '';
-    dialog('Message',
+    const noteCap = nonFusionnables.length
+        ? `\n\n⚠️ ${nonFusionnables.length} entité(s) ont plus de deux pseudonymes possibles : impossible de tous les garder (maximum 2). Seul le pseudo du corpus est conservé pour celles-ci.`
+        : '';
+
+    const enTete =
         `⚠️ Pseudos en conflit\n\n` +
-        `${conflits.length} entité(s) ont des pseudonymes différents selon le corpus / les entretiens.\n` +
-        `Règle appliquée : une entité = un seul pseudo, celui du corpus est conservé.\n\n` +
-        apercu + reste);
+        `${conflits.length} entité(s) ont des pseudonymes différents selon le corpus / les entretiens.\n`;
+
+    // Rien de fusionnable (que des cas >2) → simple message informatif, comme avant.
+    if (fusionnables.length === 0) {
+        dialog('Message',
+            enTete +
+            `Règle appliquée : une entité = un seul pseudo, celui du corpus est conservé.\n\n` +
+            apercu + reste + noteCap);
+        return;
+    }
+
+    const rep = await question(
+        enTete +
+        `Par défaut : une entité = un seul pseudo (celui du corpus).\n\n` +
+        apercu + reste + noteCap + `\n\n` +
+        `Garder LES DEUX pseudonymes là où c'est possible (${fusionnables.length} entité(s)) ?\n` +
+        `⚠️ Une entité à deux pseudonymes se gère ensuite occurrence par occurrence dans les entretiens.`,
+        ['Garder les deux', 'Garder le pseudo du corpus']);
+
+    if (rep !== 'garder les deux') return;
+
+    // Poser l'alt sur chaque règle fusionnable (mécanisme multi-pseudo ≤2) et persister.
+    // reglesCorpusPropres/fusionnerRegles conservent remplacementAlt tel quel (pas d'auto-union).
+    for (const f of fusionnables) f.regle.remplacementAlt = f.alt;
+    await persisterReglesCorpus(tab);
+
+    // IMPORTANT : écrire le .crp sur disque. persisterReglesCorpus (set-anon) ne met à jour que la
+    // mémoire du process principal. L'alt n'existe QUE dans le global (les entretiens restent
+    // divergents) : sans sauvegarde, reconstituerTabAnonGlobal le reperd au rechargement du corpus
+    // (global rebâti depuis les entretiens) et REPROPOSE le conflit à la réouverture suivante.
+    await window.sauvegarderCorpus(false);
 }
 
 /**

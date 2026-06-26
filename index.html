@@ -32,6 +32,8 @@
   <script  src="modules/Anonymisation/tableau_base.js"></script>
   <script  src="modules/Anonymisation/tableau_global.js"></script>
   <script  src="modules/Anonymisation/anon-apply.js"></script>
+  <script  src="modules/Anonymisation/anon-help.js"></script>
+  <script  src="modules/Anonymisation/anon-params.js"></script>
   <script  src="modules/Anonymisation/anon-styles.js"></script>
   <script  src="renderer.js"></script>
   <script>
@@ -467,6 +469,13 @@ function hidepanG(){
           if (typeof window.focaliserOccurrenceCorpus === 'function') {
               await window.focaliserOccurrenceCorpus(payload);
           }
+      });
+  }
+
+  // Menu Corpus -> Exporter le corpus : ouvrir la modale d'export (format + options)
+  if (window.electronAPI && window.electronAPI.onMenuExporterCorpus) {
+      window.electronAPI.onMenuExporterCorpus(() => {
+          if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus();
       });
   }
 

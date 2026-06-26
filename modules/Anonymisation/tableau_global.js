@@ -132,13 +132,22 @@ function afficherVueLectureSeuleMultiPseudo(regle, parEntretien) {
                 <div style="display:flex;align-items:center;gap:10px;border:1px solid #eee;border-radius:4px;padding:6px 10px;">
                     <span style="flex:1;color:#333;">${escapeHtml(e.nom)}</span>
                     <span style="display:flex;gap:4px;align-items:center;">${construireBadgesEtat(e.st)}</span>
-                    <button class="btn" style="padding:3px 8px;" onclick="ouvrirEntretienAnonGen(${e.index})" title="Ouvrir cet entretien">↗ Ouvrir</button>
+                    <button class="btn btn-ouvrir-ent-multi" style="padding:3px 8px;" data-ent-index="${e.index}" title="Ouvrir cet entretien">↗ Ouvrir</button>
                 </div>
             `;
         }
         html += `</div>`;
     }
     fondVerif.innerHTML = html;
+
+    // Lier les boutons « Ouvrir » après le rendu (onclick inline impossible : l'entité peut contenir
+    // des apostrophes/guillemets). On passe l'entité ciblée pour que l'entretien ouvre le panneau Pseudos.
+    fondVerif.querySelectorAll('.btn-ouvrir-ent-multi').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = Number(btn.dataset.entIndex);
+            ouvrirEntretienAnonGen(idx, { entite: regle.entite, pseudo: regle.remplacement });
+        });
+    });
 }
 
 /**
@@ -239,7 +248,6 @@ async function afficherOccurrencesEnAccordeon(fondVerif, anon, entretiensNonAnon
         titre.style.borderBottom = "1px solid #eee";
         titre.innerHTML = `Occurrences de <strong>"${anon.entite}"</strong> → <strong>"${anon.remplacement}"</strong>`;
         scrollContainer.appendChild(titre);
-
 
         // Case à cocher globale
         const checkboxGlobaleDiv = document.createElement("div");
@@ -1162,16 +1170,13 @@ async function affichAnonGen() {
         }
         // Signaler ici (ouverture délibérée de l'onglet Pseudos) les conflits de pseudo détectés
         // — pas à chaque ouverture du corpus.
-        if (typeof signalerConflitsPseudo === 'function') signalerConflitsPseudo(conflitsPseudo);
+        if (typeof signalerConflitsPseudo === 'function') await signalerConflitsPseudo(conflitsPseudo);
 
         // Récupérer le tabAnon (reconstitué ou existant)
-        const tabAnonGlobal = await window.electronAPI.getAnon();
-        
-        if (!tabAnonGlobal || tabAnonGlobal.length === 0) {
-            dialog('Message', 'Aucune anonymisation définie dans le corpus.');
-            return;
-        }
-        
+        // On ouvre le panneau MÊME sans règle (table vide) : il donne accès aux réglages
+        // (« Paramètres ⚙ »), à l'import de règles et à l'ajout manuel d'une entité.
+        const tabAnonGlobal = await window.electronAPI.getAnon() || [];
+
         // Filtrer les anonymisations valides (avec entité et remplacement)
         const anonValides = tabAnonGlobal.filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim());
 
@@ -1222,13 +1227,13 @@ async function affichAnonGen() {
                 <div id="anon-page-banner" class="header-tabdat" style="display:flex;align-items:center;height:50px;padding:0 10px;margin-bottom:0;border-bottom:1px solid #ccc;">
                     <h3 class="logo-anon" style="margin:0;flex:1;">Table Pseudonymisation (Corpus)</h3>
                     <div id="anon-stale-banner" style="display:none;align-items:center;gap:8px;margin-right:12px;padding:4px 10px;background:#fff3e0;border:1px solid #ffb74d;border-radius:4px;font-size:0.82rem;color:#e65100;">
-                        ⚠️ Des entretiens ont été ouverts. Relancez l'analyse pour rafraîchir.
+                        ⚠️ Des entretiens ont été changés ou ouverts. Relancez l'analyse pour rafraîchir.
                         <button id="btn-scan-stale" class="btn btn-secondary" style="padding:4px 10px;font-size:0.82rem;">Scan</button>
                     </div>
                     <input type="file" id="file-import-corpus" multiple accept=".json" style="display:none;" onchange="importTableCorpus(this.files)">
                     <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de règles JSON (ajoute des règles au corpus)">Import règles 📥</label>
                     <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterReglesCorpusJSON();" title="Exporter les règles (entité→pseudo) en JSON, réimportable dans un autre corpus">Export règles 📤</label>
-                    <label id="btn-export-corpus-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="ouvrirModaleExportCorpus();" title="Exporter le corpus anonymisé (Sonal, HTML ou TXT)">Export corpus 📦</label>
+                    <label id="btn-params-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="ouvrirParamsAnonCorpus();" title="Paramètres de pseudonymisation (mots de liaison…)">Paramètres ⚙</label>
                     <label id="btn-quit-anon" class="btn btn-secondary" style="padding:10px" onclick="hideAnonGen();" title="Fermer la table">Quitter ✖️</label>
                 </div>
                 <div id="anon-page-content" style="display:flex;flex:1;min-height:0;overflow:hidden;">
@@ -1305,10 +1310,10 @@ async function affichAnonGen() {
                 </optgroup>
             </select>
             <input type="text" id="anon-gen-recherche" class="anon-gen-recherche"
-                   placeholder="🔎 Rechercher (entité ou pseudo)…" autocomplete="off">
+                   placeholder="Rechercher (entité ou pseudo)…" autocomplete="off">
             <span id="anon-gen-compteur" class="anon-gen-compteur"></span>
             <label id="btn-add-anon" class="btn btn-primary" onclick="ajouterNouvelleEntiteAnonGen();" title="Ajouter une nouvelle entité">Ajouter une entité</label>
-            <label id="btn-aide-anon" class="btn btn-secondary" onclick="ouvrirLegendeCorpus();" title="Afficher la légende / l'aide" style="font-weight:bold;">?</label>
+            <label id="btn-aide-anon" class="btn btn-secondary" onclick="ouvrirAideCorpus();" title="Aide sur la pseudonymisation au niveau du corpus" style="font-weight:bold;">?</label>
         `;
         divAnonGen.appendChild(divFiltres);
 
@@ -1367,6 +1372,19 @@ async function affichAnonGen() {
             fragment.appendChild(tr);
         }
         tbody.appendChild(fragment);
+
+        // État vide : aucune règle au niveau du corpus pour l'instant.
+        if (lignes.length === 0) {
+            const trVide = document.createElement("tr");
+            const tdVide = document.createElement("td");
+            tdVide.colSpan = headerRow.children.length;
+            tdVide.style.cssText = "padding:24px;text-align:center;color:#777;font-style:italic;white-space:pre-line;";
+            tdVide.textContent =
+                "Aucune règle de pseudonymisation au niveau du corpus.\n\n" +
+                "Utilisez « Ajouter une entité » \n ou travaillez sur un entretien en créant une règle corpus.";
+            trVide.appendChild(tdVide);
+            tbody.appendChild(trVide);
+        }
 
         // Ajouter styles CSS si nécessaire
         ajouterStylesAnonGen();
@@ -1658,6 +1676,9 @@ async function renommerPseudoCorpus(inputPseudo, anon, tr) {
     const regle = tabAnonGlobal.find(a => a && cleEntite(a.entite) === cleEntite(anon.entite))
                || regleEnCollisionAlias(anon.entite, tabAnonGlobal);
     if (!regle) { revert(); return; }
+    // Capture de l'état AVANT renommage, pour un éventuel rollback (bouton « Annuler »).
+    const regleRemplacementAvant = regle.remplacement;
+    const regleRemplacementAltAvant = regle.remplacementAlt;
     regle.remplacement = analyse.remplacement;
     if (analyse.remplacementAlt) regle.remplacementAlt = analyse.remplacementAlt;
     else delete regle.remplacementAlt;
@@ -1687,11 +1708,41 @@ async function renommerPseudoCorpus(inputPseudo, anon, tr) {
         if (banner) banner.style.display = 'flex';
     }
 
-    // 5. Retour utilisateur.
-    const msg = nbEntretiens > 0
+    // 5. Retour utilisateur — avec possibilité d'ANNULER (rollback du renommage).
+    const msg = (nbEntretiens > 0
         ? `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».\n${nbEntretiens} entretien(s) mis à jour.`
-        : `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».`;
-    dialog('Message', msg);
+        : `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».`)
+        + `\n\nCliquez « Annuler » pour revenir en arrière.`;
+    const rep = await question(msg, ['Annuler', 'OK']);
+    if (rep !== 'annuler') {
+        // Renommage confirmé → écrire le .crp (persisterReglesCorpus n'a touché que la mémoire main).
+        await window.sauvegarderCorpus(false);
+        return;
+    }
+
+    // ROLLBACK : on rejoue le renommage en sens inverse (nouveau → ancien) et on restaure la règle.
+    const tabAnonGlobalRb = await window.electronAPI.getAnon() || [];
+    const regleRb = tabAnonGlobalRb.find(a => a && cleEntite(a.entite) === cleEntite(anon.entite))
+                 || regleEnCollisionAlias(anon.entite, tabAnonGlobalRb);
+    if (regleRb) {
+        regleRb.remplacement = regleRemplacementAvant;
+        if (regleRemplacementAltAvant) regleRb.remplacementAlt = regleRemplacementAltAvant;
+        else delete regleRb.remplacementAlt;
+        await persisterReglesCorpus(tabAnonGlobalRb);
+    }
+    const tabEntRb = await window.electronAPI.getEnt() || [];
+    for (let i = 0; i < tabEntRb.length; i++) {
+        await repseudonymiserEntiteDansEntretien(i, anon.entite, nouveauPseudo, ancienPseudo);
+    }
+    // Restaurer l'affichage de la ligne.
+    anon.remplacement = regleRemplacementAvant;
+    if (regleRemplacementAltAvant) anon.remplacementAlt = regleRemplacementAltAvant;
+    else delete anon.remplacementAlt;
+    if (tr) tr.dataset.pseudo = anon.remplacement;
+    inputPseudo.value = pseudosDe(anon).join('/');
+    autoResizeTextarea(inputPseudo);
+    // Rollback confirmé → écrire le .crp avec l'état restauré.
+    await window.sauvegarderCorpus(false);
 }
 
 /**
@@ -1934,9 +1985,11 @@ async function appliquerAnonymisationGlobale(entite, pseudo) {
             });
         }
 
-        // Sauvegarder les changements
+        // Sauvegarder les changements (mémoire main puis disque : sans sauvegarderCorpus le .crp
+        // ne reçoit pas la règle et elle est perdue à la réouverture).
         await persisterReglesCorpus(tabAnon);
-        
+        await window.sauvegarderCorpus(false);
+
         dialog('Message', `Pseudonyme "${pseudo}" appliqué globalement.\n\nNote: Vous devez relancer l'anonymisation depuis le module d'anonymisation pour appliquer les changements à tous les entretiens.`);
         
         // Rafraîchir l'affichage
@@ -1951,15 +2004,32 @@ async function appliquerAnonymisationGlobale(entite, pseudo) {
 /**
  * Ouvre un entretien depuis le tableau d'anonymisation
  */
-async function ouvrirEntretienAnonGen(indexEnt) {
+async function ouvrirEntretienAnonGen(indexEnt, cible = null) {
     try {
-        hideAnonGen();
-        
-        // Appeler la fonction d'affichage existante avec l'index de l'entretien
-        afficherDetailsEnt(indexEnt);
-        
+        // Modifications en attente dans le panneau de détail : proposer de les enregistrer avant
+        // d'ouvrir l'entretien (cohérent avec le bouton ↗ par occurrence).
+        if (window._anonDetailDirty) {
+            const rep = await question(
+                'Modifications non enregistrées\nDes modifications n\'ont pas été validées. Voulez-vous les enregistrer avant d\'ouvrir l\'entretien ?',
+                ['Enregistrer', 'Ignorer', 'Annuler']
+            );
+            if (rep === 'annuler') return;
+            if (rep === 'enregistrer') {
+                const btnValider = document.querySelector('#fond_verif_anon .btn-primary');
+                if (btnValider) btnValider.click();
+                await new Promise(r => setTimeout(r, 400));
+            }
+            window._anonDetailDirty = false;
+        }
+
+        // Ouvrir DIRECTEMENT la fenêtre d'entretien (comme le bouton ↗ par occurrence), au lieu de
+        // refermer le panneau corpus et de retomber sur la liste des entretiens. `cible` (optionnelle)
+        // permet à l'entretien d'ouvrir le panneau Pseudonymisation sur l'entité concernée.
+        await window.electronAPI.setEntCur(indexEnt);
+        await window.electronAPI.editerEntretien(indexEnt, cible);
+
     } catch (error) {
-        console.error("Erreur:", error);
+        console.error("Erreur lors de l'ouverture de l'entretien:", error);
         dialog('Message', `Erreur: ${error.message}`);
     }
 }
@@ -2173,6 +2243,9 @@ function afficherModaleAjoutEntiteAnon() {
             if (rep === 'garder les deux') {
                 existante.remplacementAlt = analyse.remplacement;
                 await persisterReglesCorpus(tabAnonGlobal);
+                // Écrire le .crp : sans cela l'alt ne vit qu'en mémoire et reconstituerTabAnonGlobal
+                // le reperd au rechargement (global rebâti depuis les entretiens). cf. signalerConflitsPseudo.
+                await window.sauvegarderCorpus(false);
                 overlay.remove();
                 // Mettre à jour l'affichage de la ligne existante (pseudo combiné).
                 const inp = Array.from(document.querySelectorAll('.anon-pseudo-input'))
@@ -2194,6 +2267,7 @@ function afficherModaleAjoutEntiteAnon() {
 
         tabAnonGlobal.push(nouvelleEntite);
         await persisterReglesCorpus(tabAnonGlobal);
+        await window.sauvegarderCorpus(false);
 
         // Fermer la modale
         overlay.remove();
@@ -2317,6 +2391,10 @@ async function supprimerRegleAnonGen(entite, pseudo, tr) {
     let tabAnon = await window.electronAPI.getAnon();
     tabAnon = tabAnon.filter(a => !(a.entite === entite && a.remplacement === pseudo));
     await persisterReglesCorpus(tabAnon);
+
+    // Persister sur disque : les setEnt/persisterReglesCorpus ci-dessus ne touchent que la mémoire
+    // du process main ; sans cet appel le .crp garde la règle et elle réapparaît à la réouverture.
+    await window.sauvegarderCorpus(false);
 
     // Retirer la ligne du tableau avec animation
     tr.style.transition = "opacity 0.3s";
@@ -2468,9 +2546,25 @@ function _htmlEntretienAnonymise(ent, htmlCache) {
 }
 
 /**
- * Ouvre la modale de choix de format pour l'export du corpus anonymisé.
- * Trois formats : Sonal (.crp réouvrable), HTML (partage hors SonalPi), TXT (zip, 1 .txt/entretien).
- * Réutilise la modale générique #dlg / #ssdlg (même style que les autres menus d'export).
+ * HTML stocké d'un entretien prêt pour la génération de texte (txt/docx) : anonymisé si demandé,
+ * et toujours dé-encadré des backticks. Source = ent.html (persisté .crp) ou cache tabHtml en repli.
+ * @param {object} ent
+ * @param {string} htmlCache - tabHtml[i] (repli)
+ * @param {boolean} anon - appliquer la pseudonymisation
+ * @returns {string} HTML interne (sans backticks)
+ */
+function _htmlEntretienPourExport(ent, htmlCache, anon) {
+    let html = anon
+        ? _htmlEntretienAnonymise(ent, htmlCache)
+        : ((ent && ent.html != null && ent.html !== '') ? ent.html : (htmlCache || ''));
+    if (typeof html === 'string' && html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
+    return html || '';
+}
+
+/**
+ * Ouvre la modale d'export du corpus (déclenchée par le menu Corpus → « Exporter le corpus… »).
+ * Modale à 2 panneaux glissants (même UX que l'entretien) : panneau 1 = format (Sonal / .docx /
+ * .html / .txt), panneau 2 = options (dont la case « Anonymiser »). Réutilise #dlg / #ssdlg.
  */
 function ouvrirModaleExportCorpus() {
     const element = document.getElementById('dlg');
@@ -2481,93 +2575,142 @@ function ouvrirModaleExportCorpus() {
     contenu.style.top = "20%";
     contenu.style.height = "";
 
+    // Modale à 2 panneaux glissants (même UX que l'export entretien) :
+    // panneau 1 = format, panneau 2 = options (rempli par dialogExportCorpusChoixOptions).
     contenu.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
             <img src="img/logoSonal.png" alt="" style="height:36px; width:auto;">
             <div class="close" onclick="hidedlg()">✖️</div>
         </div>
-        <h3 style="margin-top:0;margin-bottom:18px;">Exporter le corpus anonymisé</h3>
-        <div class="menudrlnt">
-            <div class="lblmnuxprt" onclick="exporterCorpusFormat('sonal')"><label class="lblformat">Sonal</label> <span class="lbldetails">Copie anonymisée irréversible, réouvrable dans SonalPi (.crp)</span></div>
-            <div class="lblmnuxprt" onclick="exporterCorpusFormat('html')"><label class="lblformat">.html</label> <span class="lbldetails">fichiers HTML pour lecture/partage hors SonalPi</span></div>
-            <div class="lblmnuxprt" onclick="exporterCorpusFormat('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Un fichier texte par entretien</span></div>
+        <div style="overflow:hidden; margin-left:-20px; margin-right:-20px; margin-bottom:-20px;">
+            <div id="export-slider-corpus" style="display:flex; width:200%; transition:transform 0.35s cubic-bezier(.4,0,.2,1); transform:translateX(0);">
+                <!-- Panneau 1 : choix du format -->
+                <div style="width:50%; padding:0px 20px 20px; box-sizing:border-box;">
+                    <h3 style="margin-top:0;margin-bottom:18px;">1 - Choisissez un format d'export</h3>
+                    <div class="menudrlnt">
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('sonal')"><label class="lblformat">Sonal</label> <span class="lbldetails">Copie réouvrable dans SonalPi (.crp + .Sonal), regroupée en ZIP</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('docx')"><label class="lblformat">.docx</label> <span class="lbldetails">Traitement de texte (Word) — un fichier par entretien (ZIP)</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('html')"><label class="lblformat">.html</label> <span class="lbldetails">Pages web pour lecture/partage hors SonalPi (ZIP)</span></div>
+                        <div class="lblmnuxprt" onclick="dialogExportCorpusChoixOptions('txt')"><label class="lblformat">.txt</label> <span class="lbldetails">Texte brut — un fichier par entretien (ZIP)</span></div>
+                    </div>
+                </div>
+                <!-- Panneau 2 : options (rempli dynamiquement) -->
+                <div id="export-panel-options-corpus" style="width:50%; padding:0px 20px 20px; box-sizing:border-box;"></div>
+            </div>
         </div>`;
 }
 
-/** Dispatch vers le bon générateur d'export corpus selon le format choisi dans la modale. */
-async function exporterCorpusFormat(format) {
+/**
+ * Construit le panneau 2 (options) pour le format choisi et fait glisser la modale.
+ * Calqué sur dialogExportChoixOptions (entretien) : même matrice CFG et mêmes ids de cases
+ * (opt-anon/notes/vars/loc/thm/time) → exporterCorpusAvecOptions réutilise le même lecteur.
+ */
+function dialogExportCorpusChoixOptions(format) {
+    // Config par format : [activé, cochéParDéfaut]. Colonnes : anon | notes | vars | loc | thm | time
+    // sonal = format STRUCTUREL (copie .crp) → seule l'anonymisation s'applique. html/txt/docx
+    // honorent les options granulaires (mêmes builders que l'export entretien).
+    const CFG = {
+        sonal: [[true,true],  [false,true], [false,true], [false,true], [false,true],  [false,true]],
+        html:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,true],   [true,true]],
+        txt:   [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true]],
+        docx:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true]],
+    };
+    const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', docx:'.docx' };
+
+    const cfg = CFG[format] || CFG.txt;
+    const [oa, on, ov, ol, oth, oti] = cfg;
+
+    const opt = (id, classes, label, [enabled, checked]) => {
+        const dis  = enabled ? '' : ' disabled';
+        const chk  = checked ? ' checked' : '';
+        const fade = enabled ? '' : 'opacity:0.75;';
+        return `<label class="${classes}" style="display:flex;align-items:center;gap:10px;padding:6px 0;${fade}cursor:${enabled?'pointer':'default'}">
+                    <input type="checkbox" id="${id}"${chk}${dis} style="width:15px;height:15px;flex-shrink:0;cursor:inherit;">
+                    ${label}
+                </label>`;
+    };
+
+    const panel = document.getElementById('export-panel-options-corpus');
+    panel.innerHTML = `
+        <h3 style="margin-top:0;margin-bottom:18px;">2 - Choisissez les éléments à intégrer à l'export au format ${LABELS[format]}</h3>
+        <div style="margin-bottom:18px;">
+            <hr style="margin: 6px 0;">
+            ${opt('opt-notes', 'logo-notes', 'Notes', on)}
+            ${opt('opt-vars',  'logo-variables', 'Variables', ov)}
+            <hr style="margin: 6px 0;">
+            ${opt('opt-time', 'logo-time', 'Coordonnées temporelles', oti)}
+            ${opt('opt-loc',  'logo-loc', 'Locuteurs', ol)}
+            <hr style="margin: 6px 0;">
+            ${opt('opt-thm', 'logo-cat', 'Catégories thématiques', oth)}
+            <hr style="margin: 6px 0;">
+            ${opt('opt-anon', 'logo-anon', 'Anonymiser (appliquer la pseudonymisation de manière définitive)', oa)}
+            <hr style="margin:6px 0;">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <label class="btnfonction" style="flex:1;text-align:center;cursor:pointer;padding:8px 0;margin-top:6px; height:36px"
+                onclick="document.getElementById('export-slider-corpus').style.transform='translateX(0)'">
+                ← Retour
+            </label>
+            <label class="btn btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;"
+                onclick="exporterCorpusAvecOptions('${format}')">
+              ↗️  Exporter
+            </label>
+        </div>`;
+
+    document.getElementById('export-slider-corpus').style.transform = 'translateX(-50%)';
+}
+
+/** Lit les cases du panneau 2 et dispatche vers le générateur d'export corpus du format choisi. */
+async function exporterCorpusAvecOptions(format) {
+    const getChk = id => { const el = document.getElementById(id); return el ? el.checked : false; };
+    const opts = {
+        anon:  getChk('opt-anon'),
+        notes: getChk('opt-notes'),
+        vars:  getChk('opt-vars'),
+        loc:   getChk('opt-loc'),
+        thm:   getChk('opt-thm'),
+        time:  getChk('opt-time'),
+    };
     hidedlg();
-    if (format === 'sonal') {
-        await exporterCorpusReouvrable();
-    } else if (format === 'html') {
-        await exporterCorpusPartage();
-    } else if (format === 'txt') {
-        await exporterCorpusTxtZip();
-    }
+    if (format === 'sonal')      await exporterCorpusReouvrable(opts);
+    else if (format === 'html')  await exporterCorpusPartage(opts);
+    else if (format === 'txt')   await exporterCorpusTxtZip(opts);
+    else if (format === 'docx')  await exporterCorpusDocxZip(opts);
 }
 
 /**
- * Extrait le TEXTE anonymisé d'un entretien à partir de son HTML STOCKÉ (hors DOM live).
- * Équivalent « avecLoc » de exportTxtAvecClasses (anon-export-document.js) : étiquettes de locuteur
- * + séparation des segments. Le HTML est d'abord anonymisé (_htmlEntretienAnonymise → runs « [pseudo] »)
- * puis parcouru segment par segment (.lblseg, data-nomloc = nom du locuteur embarqué).
- * @returns {string} texte anonymisé prêt à écrire dans un .txt
- */
-function _txtEntretienAnonymise(ent, htmlCache) {
-    let html = _htmlEntretienAnonymise(ent, htmlCache);
-    if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
-
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-
-    let txt = "";
-    let locuteurCourant = null;
-    const segments = tempDiv.querySelectorAll('.lblseg');
-    // Repli : structure inattendue (pas de segments .lblseg) → texte brut anonymisé, sans locuteurs.
-    if (segments.length === 0) {
-        return (tempDiv.textContent || '').trim() + "\r\n";
-    }
-    segments.forEach(seg => {
-        const loc = (seg.dataset.nomloc || '').replaceAll('?', '').trim();
-        if (loc && loc !== locuteurCourant) {
-            locuteurCourant = loc;
-            txt += "\r\n \r\n" + loc + " : \r\n";
-        } else if (txt) {
-            txt += " ";
-        }
-        // textContent : le texte est déjà anonymisé (runs remplacés par « [pseudo] »).
-        txt += (seg.textContent || '').trim();
-    });
-
-    return txt.trim() + "\r\n";
-}
-
-/**
- * Export ANONYMISÉ « TXT » : un fichier texte par entretien (avec locuteurs), regroupés dans une
- * archive .zip téléchargée. Destiné à un retraitement dans d'autres logiciels (analyse textuelle…).
+ * Export « TXT » : un fichier texte par entretien, regroupés dans une archive .zip. Réutilise
+ * construireTxtEntretien (le MÊME builder que l'export txt de l'entretien) → sortie identique.
  * Le zip est construit côté main (AdmZip) via l'IPC exporterFichiersZip.
+ * @param {object} opts - { anon, notes, vars, loc, thm, time }
  */
-async function exporterCorpusTxtZip() {
+async function exporterCorpusTxtZip(opts = {}) {
     const tabEnt = (await window.electronAPI.getEnt()) || [];
     if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
     let tabHtml = []; try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
 
     // Garde-fou contre les noms de fichiers en doublon (entretiens homonymes) et invalides.
     const nomsUtilises = new Set();
-    const fichiers = tabEnt.map((ent, i) => {
+    const fichiers = [];
+    for (let i = 0; i < tabEnt.length; i++) {
+        const ent = tabEnt[i];
         let base = ((ent && ent.nom) ? String(ent.nom) : ('Entretien_' + (i + 1)))
             .replace(/[/\\?%*:|"<>]/g, '-').trim() || ('Entretien_' + (i + 1));
         let nom = base;
         let n = 2;
         while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
         nomsUtilises.add(nom.toLowerCase());
-        return { nom: nom + '.txt', contenu: _txtEntretienAnonymise(ent, tabHtml[i]) };
-    });
+
+        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const txtvars = opts.vars ? ((await varsPubliquesEnt(i))[1] || '') : '';
+        const contenu = construireTxtEntretien(ent, opts, txtvars, html, (ent && ent.tabLoc) || []);
+        fichiers.push({ nom: nom + '.txt', contenu });
+    }
 
     const ts = new Date().toISOString().slice(0, 10);
-    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_txt_anonymise_${ts}.zip`);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_txt_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
     if (res && res.success) {
-        question(`Export réussi : ${fichiers.length} fichier(s) .txt anonymisé(s) dans l'archive.`, ['OK']);
+        question(`Export réussi : ${fichiers.length} fichier(s) .txt dans l'archive.`, ['OK']);
     } else if (res && res.canceled) {
         // L'utilisateur a annulé la boîte d'enregistrement : pas de message.
     } else {
@@ -2588,21 +2731,16 @@ async function exporterCorpusTxtZip() {
  * ⚠️ N'anonymise que ce qui est EFFECTIVEMENT marqué dans le HTML stocké : valider d'abord
  * l'application de toutes les règles (panneau Pseudos — lignes vertes).
  */
-async function exporterCorpusReouvrable() {
+async function exporterCorpusReouvrable(opts = {}) {
     const tabEnt = (await window.electronAPI.getEnt()) || [];
     if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
-
-    const rep = await question(
-        `Exporter une copie ANONYMISÉE et IRRÉVERSIBLE du corpus (${tabEnt.length} entretien(s)), réouvrable dans SonalPi ?\n\n` +
-        `Les noms d'origine seront définitivement remplacés par les pseudonymes et les règles retirées.\n` +
-        `⚠️ Seules les occurrences réellement anonymisées sont remplacées — vérifiez d'abord que tout est appliqué (vert).`,
-        ['Exporter', 'Annuler']);
-    if (rep !== 'exporter') return;
 
     const Corpus = (await window.electronAPI.getCorpus()) || {};
     const tabThm = (await window.electronAPI.getThm()) || [];
     const tabVar = (await window.electronAPI.getVar()) || [];
     const tabDic = (await window.electronAPI.getDic()) || [];
+    // Non anonymisé : on garde le contenu d'origine ET les règles (copie fidèle réouvrable).
+    const tabAnonGlobal = opts.anon ? [] : (await window.electronAPI.getAnon() || []);
 
     const fichiers = [];        // [{nom, contenu}] → contenu du zip
     const tabEntExport = [];    // tabEnt aplati pour le .crp (rtrPath = <nom>.Sonal)
@@ -2626,14 +2764,14 @@ async function exporterCorpusReouvrable() {
         try { contenu = chemin ? await window.electronAPI.readFileContent(chemin) : null; } catch (e) { contenu = null; }
         if (!contenu) { erreurs.push(libelle); continue; }
 
-        // 3. Extraction → anonymisation du HTML → réécriture du .Sonal (tabAnon vidé).
+        // 3. Extraction → (anonymisation conditionnelle du HTML) → réécriture du .Sonal.
         const data = extractFichierSonal(contenu);
         let html = data.html || '';
         if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
-        const htmlAnon = _anonymiserHtml(html); // runs marqués → « [pseudo] » (cœur partagé)
-        const sonalAnon = sauvHtml(
+        const htmlOut = opts.anon ? _anonymiserHtml(html) : html; // runs marqués → « [pseudo] » si anon
+        const sonalOut = sauvHtml(
             data.tabLoc, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
-            data.tabDat, data.notes, htmlAnon, []);
+            data.tabDat, data.notes, htmlOut, opts.anon ? [] : (data.tabAnon || []));
 
         // 4. Nom de fichier à plat, anti-doublons.
         let base = libelle.replace(/[/\\?%*:|"<>]/g, '-').trim() || ('Entretien_' + (i + 1));
@@ -2643,9 +2781,10 @@ async function exporterCorpusReouvrable() {
         nomsUtilises.add(nom.toLowerCase());
         const nomFichier = nom + '.Sonal';
 
-        fichiers.push({ nom: nomFichier, contenu: sonalAnon });
-        // Entretien aplati pour le .crp : rtrPath relatif, règles vidées, pas de html embarqué.
-        const entExport = { ...ent, tabAnon: [], rtrPath: nomFichier };
+        fichiers.push({ nom: nomFichier, contenu: sonalOut });
+        // Entretien aplati pour le .crp : rtrPath relatif, pas de html embarqué. Règles vidées si
+        // anonymisé (irréversible), conservées sinon (copie fidèle).
+        const entExport = { ...ent, tabAnon: opts.anon ? [] : (ent.tabAnon || []), rtrPath: nomFichier };
         delete entExport.html;
         tabEntExport.push(entExport);
     }
@@ -2656,16 +2795,18 @@ async function exporterCorpusReouvrable() {
     }
 
     // 5. .crp aplati + ajout au zip.
-    const crp = JSON.stringify({ tabThm, tabEnt: tabEntExport, tabVar, tabDic, tabAnon: [] });
-    fichiers.push({ nom: 'corpus_anonymise.crp', contenu: crp });
+    const crp = JSON.stringify({ tabThm, tabEnt: tabEntExport, tabVar, tabDic, tabAnon: tabAnonGlobal });
+    const nomCrp = opts.anon ? 'corpus_anonymise.crp' : 'corpus_copie.crp';
+    fichiers.push({ nom: nomCrp, contenu: crp });
 
     const ts = new Date().toISOString().slice(0, 10);
-    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_sonal_anonymise_${ts}.zip`);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_sonal_${opts.anon ? 'anonymise_' : 'copie_'}${ts}.zip`);
     if (res && res.success) {
         const avert = erreurs.length > 0
             ? `\n\n⚠️ ${erreurs.length} entretien(s) introuvable(s), ignoré(s) :\n${erreurs.join('\n')}`
             : '';
-        question(`Export réussi : corpus anonymisé irréversible (${tabEntExport.length} entretien(s)), réouvrable dans SonalPi.${avert}`, ['OK']);
+        const quoi = opts.anon ? 'corpus anonymisé irréversible' : 'copie du corpus';
+        question(`Export réussi : ${quoi} (${tabEntExport.length} entretien(s)), réouvrable dans SonalPi.${avert}`, ['OK']);
     } else if (res && res.canceled) {
         // Annulé par l'utilisateur : pas de message.
     } else {
@@ -2674,43 +2815,116 @@ async function exporterCorpusReouvrable() {
 }
 
 /**
- * Export ANONYMISÉ « partage » : un fichier HTML plat lisible (hors SonalPi) PAR entretien, texte
- * définitivement remplacé par les pseudos, regroupés dans une archive .zip. Non réimportable —
- * destiné à la lecture/diffusion (cohérent avec l'export TXT).
+ * Export « partage » : une page HTML lisible (hors SonalPi) PAR entretien, regroupées en .zip.
+ * Honore les options (anon/notes/vars/loc/thm/time) en réutilisant traiterHtmlEntretienPourExport
+ * (le MÊME traitement loc/thm que l'export HTML de l'entretien), dans une coquille légère sans
+ * lecteur audio (chemins file:// inutiles en partage). Non réimportable — lecture/diffusion.
+ * @param {object} opts - { anon, notes, vars, loc, thm, time }
  */
-async function exporterCorpusPartage() {
+async function exporterCorpusPartage(opts = {}) {
     const tabEnt = (await window.electronAPI.getEnt()) || [];
     if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
     let tabHtml = []; try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
 
     // Garde-fou contre les noms de fichiers en doublon (entretiens homonymes) et invalides.
     const nomsUtilises = new Set();
-    const fichiers = tabEnt.map((ent, i) => {
-        let html = _htmlEntretienAnonymise(ent, tabHtml[i]);
-        if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
+    const fichiers = [];
+    for (let i = 0; i < tabEnt.length; i++) {
+        const ent = tabEnt[i];
+        const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        // Traitement loc/thm partagé avec l'export entretien (en-têtes locuteurs, classes/CSS de
+        // thématiques, coordonnées) ; pas de boutons audio en partage (audioSrcUrl vide).
+        const { html: contenuTraite, cssThm } = traiterHtmlEntretienPourExport(htmlSrc, opts, (ent && ent.tabLoc) || [], '');
+
         const nomEnt = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
+        const suffixeTitre = opts.anon ? ' (anonymisé)' : '';
+
+        // Sections optionnelles (notes / variables), cohérentes avec l'export entretien.
+        let notesHtml = '';
+        if (opts.notes && ent && ent.notes) {
+            const txt = String(ent.notes).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            notesHtml = `\n  <section class="sec-export"><h3>Notes</h3><p style="white-space:pre-wrap">${txt}</p></section>`;
+        }
+        let varsHtml = '';
+        if (opts.vars) {
+            const vH = (await varsPubliquesEnt(i))[0];
+            if (vH) varsHtml = `\n  <section class="sec-export"><h3>Variables</h3>${vH}</section>`;
+        }
 
         const doc = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-<title>${escapeHtml(nomEnt)} (anonymisé)</title>
-<style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#222}</style>
-</head><body><h1>${escapeHtml(nomEnt)}</h1>\n${html}\n</body></html>`;
+<title>${escapeHtml(nomEnt)}${suffixeTitre}</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#222;line-height:1.5}
+.ligloc-header{margin-top:16px;color:#838383;font-style:italic}
+.sec-export{background:#f4f4f4;border-left:4px solid #548dc1;border-radius:3px;padding:10px 14px;margin-bottom:16px}
+.sec-export h3{color:#548dc1;margin-bottom:6px;font-size:1em}
+${cssThm}</style>
+</head><body><h1>${escapeHtml(nomEnt)}</h1>${notesHtml}${varsHtml}
+<div id="contenu">${contenuTraite}</div>
+</body></html>`;
 
         let base = nomEnt.replace(/[/\\?%*:|"<>]/g, '-').trim() || ('Entretien_' + (i + 1));
         let nom = base;
         let n = 2;
         while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
         nomsUtilises.add(nom.toLowerCase());
-        return { nom: nom + '.html', contenu: doc };
-    });
+        fichiers.push({ nom: nom + '.html', contenu: doc });
+    }
 
     const ts = new Date().toISOString().slice(0, 10);
-    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_html_anonymise_${ts}.zip`);
+    const res = await window.electronAPI.exporterFichiersZip(fichiers, `corpus_html_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
     if (res && res.success) {
-        question(`Export réussi : ${fichiers.length} entretien(s) anonymisé(s) (HTML de partage, hors SonalPi).`, ['OK']);
+        question(`Export réussi : ${fichiers.length} entretien(s) (HTML de partage, hors SonalPi).`, ['OK']);
     } else if (res && res.canceled) {
         // Annulé par l'utilisateur : pas de message.
     } else {
         dialog('Erreur', `Échec de l'export HTML : ${(res && res.error) || 'erreur inconnue'}`);
+    }
+}
+
+/**
+ * Export « DOCX » : un document Word par entretien, regroupés dans une archive .zip. Honore les
+ * options (anon/notes/vars/loc/thm/time) via construireContenuEntretien (marqueurs {g} → gras).
+ * Les buffers .docx sont construits ET zippés côté main (IPC export-corpus-docx-zip), car
+ * exporterFichiersZip ne gère que du texte UTF-8 (le .docx est binaire).
+ * @param {object} opts - { anon, notes, vars, loc, thm, time }
+ */
+async function exporterCorpusDocxZip(opts = {}) {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    if (tabEnt.length === 0) { dialog('Message', 'Aucun entretien à exporter.'); return; }
+    let tabHtml = []; try { tabHtml = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtml = []; }
+
+    const nomsUtilises = new Set();
+    const fichiers = [];
+    for (let i = 0; i < tabEnt.length; i++) {
+        const ent = tabEnt[i];
+        let base = ((ent && ent.nom) ? String(ent.nom) : ('Entretien_' + (i + 1)))
+            .replace(/[/\\?%*:|"<>]/g, '-').trim() || ('Entretien_' + (i + 1));
+        let nom = base;
+        let n = 2;
+        while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
+        nomsUtilises.add(nom.toLowerCase());
+
+        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const txtvars = opts.vars ? ((await varsPubliquesEnt(i))[1] || '') : '';
+        const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, (ent && ent.tabLoc) || [], true);
+        fichiers.push({
+            nom: nom + '.docx',
+            nomEntretien: (ent && ent.nom) ? ent.nom : nom,
+            contenuTxt,
+            notes: (opts.notes && ent && ent.notes) ? ent.notes : '',
+            variables: txtvars,
+        });
+    }
+
+    const ts = new Date().toISOString().slice(0, 10);
+    const res = await window.electronAPI.exportCorpusDocxZip(fichiers, `corpus_docx_${opts.anon ? 'anonymise_' : ''}${ts}.zip`);
+    if (res && res.success) {
+        question(`Export réussi : ${fichiers.length} fichier(s) .docx dans l'archive.`, ['OK']);
+    } else if (res && res.canceled) {
+        // Annulé par l'utilisateur : pas de message.
+    } else {
+        dialog('Erreur', `Échec de l'export DOCX : ${(res && res.error) || 'erreur inconnue'}`);
     }
 }
 
@@ -2806,6 +3020,9 @@ async function appliquerImportCorpus(correspondances) {
     if (ajoutes > 0 || lignesMaj.length > 0) {
         // Persister (règles propres uniquement, cf. persisterReglesCorpus)
         await persisterReglesCorpus(tabAnonGlobal);
+        // Écrire le .crp : les règles importées (et l'alt « garder les deux ») ne vivent qu'en mémoire
+        // sinon, et reconstituerTabAnonGlobal les reperdrait au rechargement. cf. signalerConflitsPseudo.
+        await window.sauvegarderCorpus(false);
 
         for (const r of nouvelles) {
             await ajouterLigneAuTableauAnonGen(r);

@@ -17,6 +17,7 @@ let tabDic = []; // tableau des dictionnaires
 let tabDat = []; // tableau des données
 let tabEnt = []; // tableau des entretiens
 let tabAnon = []; // tableau global des anonymisations
+let paramsAnonCorpus = {}; // réglages de pseudonymisation au niveau corpus (ex. motsLiaison)
 let ent_cur = -1; // entretien courant
 
 let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
@@ -85,6 +86,7 @@ async function lireCorpus(fileContent){
         tabDat = crp.tabDat || [];
         tabEnt = crp.tabEnt || [];
         tabAnon = crp.tabAnon || [];
+        paramsAnonCorpus = crp.paramsAnonCorpus || {};
         tabHtml = [];
         tabGrph = [];
         ent_cur = crp.ent_cur || -1;
@@ -106,6 +108,8 @@ async function lireCorpus(fileContent){
         await window.electronAPI.setDic(tabDic);
         await window.electronAPI.setDat(tabDat);
         await persisterReglesCorpus(tabAnon);
+        await window.electronAPI.setParamsAnon(paramsAnonCorpus);
+        window.paramsAnonCorpus = paramsAnonCorpus; // lu (synchrone) par getMotsLiaison()
         await window.electronAPI.setGrph(-1, tabGrph);
         window.electronAPI.setEntCur(ent_cur);
 
@@ -886,6 +890,7 @@ let corpusActuel = Corpus.url;
   const tabVar = await window.electronAPI.getVar();
   const tabDic = await window.electronAPI.getDic();
   const tabAnon = await window.electronAPI.getAnon();
+  const paramsAnonCorpus = await window.electronAPI.getParamsAnon();
 
   // Synchronisation de tabVar et tabDic globaux dans chaque entretien (les locaux sont toujours alignés sur le global)
   tabEnt.forEach(ent => {
@@ -900,7 +905,7 @@ let corpusActuel = Corpus.url;
   );
   await window.electronAPI.setDat(tabDatGlobal);
 
-  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
+  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon, paramsAnonCorpus });
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);
   

@@ -31,6 +31,19 @@ function parseAliases(entite) {
 }
 
 /**
+ * Retire la ponctuation EN TÊTE et EN QUEUE d'une chaîne « entité », pour que la détection ignore
+ * la ponctuation de bord, non discriminante : « Lyon. » ≡ « Lyon », « ...Loire » ≡ « Loire ».
+ * La ponctuation INTERNE est CONSERVÉE (« Saint-Étienne », « New York » inchangés) — seuls les
+ * bords sont rognés. Une chaîne entièrement ponctuation devient vide (ignorée en aval).
+ * @param {string} str
+ * @returns {string}
+ */
+function rognerPonctuationBords(str) {
+    const FR = 'a-zA-ZÀ-ÖØ-öø-ÿ0-9_';
+    return (str || '').replace(new RegExp(`^[^${FR}]+|[^${FR}]+$`, 'g'), '');
+}
+
+/**
  * Construit une regex (avec frontières de mots français) couvrant tous les alias d'une entité.
  * Chaque alias est échappé (aucun footgun regex). Les alias les plus longs sont placés en tête
  * de l'alternance pour être préférés en cas de recouvrement.
@@ -40,7 +53,10 @@ function parseAliases(entite) {
  */
 function construireRegexEntite(entite, flags) {
     const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
-    const alias = parseAliases(entite).sort((a, b) => b.length - a.length);
+    const alias = parseAliases(entite)
+        .map(rognerPonctuationBords)
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
     if (alias.length === 0) return null;
     const alternation = alias.map(a => escapeRegex(a)).join('|');
     return new RegExp(`(?<!${FR})(?:${alternation})(?!${FR})`, flags);
@@ -66,6 +82,96 @@ function tokenizeCommeSegmentation(texte) {
  */
 function motsCles(texte) {
     return (texte || '').toLowerCase().match(/[0-9a-zà-öø-ÿ]+/g) || [];
+}
+
+////////////////////////////////////////////////////////////////////////
+// Détection d'« affixes de liaison » : dériver le CŒUR d'une sélection encadrée
+// (« à Lyon » → proposer « Lyon »). Fonctions PURES. Voir plan-affixes-liaison.md.
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Mots de liaison par défaut qui « encadrent » un nom propre : **prépositions** (y compris les
+ * contractions préposition+article « du/des/au/aux »). En minuscules (comparaison insensible à la
+ * casse) ; « d' » via « d » (l'apostrophe est un token séparé, consommée à la suite).
+ * VOLONTAIREMENT **pas** les articles nus (le/la/les/l/un/une) : ils font partie du contenu du
+ * pseudo (« une grande ville ») et ne doivent pas être rognés. Surchargeable au niveau corpus.
+ */
+const MOTS_LIAISON_DEFAUT = ['à','de','d','du','des','au','aux','en','chez','dans','sur','pour'];
+
+/**
+ * Reconstruit une chaîne lisible depuis une liste de tokens (mots + ponctuation) : un espace entre
+ * deux mots, rien autour de la ponctuation. « ['Saint','-','Étienne'] » → « Saint-Étienne ».
+ * @param {string[]} tokens
+ * @returns {string}
+ */
+function reconstruireDepuisTokens(tokens) {
+    let out = '';
+    for (let k = 0; k < tokens.length; k++) {
+        const estMot = /[\wÀ-ÿ]/.test(tokens[k]);
+        const precMot = k > 0 && /[\wÀ-ÿ]/.test(tokens[k - 1]);
+        if (estMot && precMot) out += ' ';
+        out += tokens[k];
+    }
+    return out;
+}
+
+/**
+ * Rogne EN TÊTE UN SEUL mot de liaison (+ l'apostrophe d'élision qui suit « d' »). Ne touche PAS la
+ * fin, et NE consomme PAS de second mot. « ['de',"Lyon"] » avec « de » ∈ set → affixe ['de'], reste
+ * ['Lyon']. Choix « premier seulement » (et non glouton) : on retire le mot de cadrage et on garde le
+ * reste tel quel — ainsi un article qui suit la préposition (« dans une grande ville ») est PRÉSERVÉ
+ * dans le cœur, même si cet article figurait dans la liste. Contrepartie assumée : les doubles
+ * prépositions (« de chez Pierre ») ne sont plus dégraissées → pas d'auto-proposition (repli manuel),
+ * ce que le garde-fou de capitalisation écartait déjà de toute façon. Voir plan-affixes-liaison.md.
+ * @param {string[]} tokens - tokens (mots/ponctuation), espaces déjà retirés
+ * @param {Set<string>} set - mots de liaison en minuscules
+ * @returns {{reste:string[], affixe:string[]}}
+ */
+function rognerAffixesTete(tokens, set) {
+    let i = 0;
+    const t = tokens[0];
+    if (t && /[\wÀ-ÿ]/.test(t) && set.has(t.toLowerCase())) {
+        i = 1;
+        if (i < tokens.length && tokens[i] === "'") i++; // élision « d' »
+    }
+    return { affixe: tokens.slice(0, i), reste: tokens.slice(i) };
+}
+
+/**
+ * Détecte une (entité, pseudo) « encadrée » par des mots de liaison et renvoie le CŒUR dégraissé.
+ * Ex. (« à Lyon », « dans une grande ville ») → { entiteCoeur:'Lyon', pseudoCoeur:'une grande ville' }.
+ * Renvoie `null` si : l'entité n'a pas d'affixe de tête ; le cœur est vide ; ou le 1er token du cœur
+ * n'est PAS capitalisé (garde-fou anti « à la maison », « la résidence Sainte-Anne »). L'affixe du
+ * PSEUDO est facultatif (« à Lyon » → « [grande ville] » propose quand même « Lyon » → « [grande
+ * ville] »). NB : l'entité est nettoyée de sa ponctuation de bord (rognerPonctuationBords) ; le pseudo
+ * NON (on préserve « [grande ville] »).
+ * @param {string} entite
+ * @param {string} pseudo
+ * @param {string[]} [motsLiaison]
+ * @returns {{entiteCoeur:string, pseudoCoeur:string, affixeEntite:string, affixePseudo:string}|null}
+ */
+function detecterAffixeLiaison(entite, pseudo, motsLiaison = MOTS_LIAISON_DEFAUT) {
+    const set = new Set((motsLiaison || []).map(m => m.toLowerCase()));
+    const sansVides = arr => arr.filter(t => t.trim() !== '');
+
+    // Entité : ponctuation de bord rognée puis tokenisée.
+    const tEnt = sansVides(tokenizeCommeSegmentation(rognerPonctuationBords(entite || '')));
+    const { affixe: affEnt, reste: coeurEnt } = rognerAffixesTete(tEnt, set);
+    if (affEnt.length === 0) return null;                  // rien d'encadrant
+    if (coeurEnt.length === 0) return null;                // que des mots-outils
+    if (!/^[A-ZÀ-ÖØ-Þ]/.test(coeurEnt[0])) return null;    // garde-fou : nom propre capitalisé attendu
+
+    // Pseudo : tokenisé TEL QUEL (on ne rogne pas sa ponctuation → « [grande ville] » préservé).
+    const tPse = sansVides(tokenizeCommeSegmentation(pseudo || ''));
+    const { affixe: affPse, reste: coeurPse } = rognerAffixesTete(tPse, set);
+    const pseudoCoeur = affPse.length ? reconstruireDepuisTokens(coeurPse) : (pseudo || '').trim();
+
+    return {
+        entiteCoeur: reconstruireDepuisTokens(coeurEnt),
+        pseudoCoeur,
+        affixeEntite: reconstruireDepuisTokens(affEnt),
+        affixePseudo: reconstruireDepuisTokens(affPse)
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -198,7 +304,7 @@ function trouverMatchesEntiteDOM(entite, tousLesSpans) {
 
     // Préparer la liste des alias tokenisés, les plus longs d'abord (préférence en cas de recouvrement)
     const aliasTokens = parseAliases(entite)
-        .map(al => tokenizeCommeSegmentation(al.trim()).filter(t => t.trim() !== ''))
+        .map(al => tokenizeCommeSegmentation(rognerPonctuationBords(al)).filter(t => t.trim() !== ''))
         .filter(toks => toks.length > 0)
         .sort((a, b) => b.length - a.length);
 
@@ -295,7 +401,7 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
     // Séquences de tokens des alias (mots + ponctuation), les plus longues d'abord (préférence
     // en cas de recouvrement). Même tokenisation que le flux → comparaison token-par-token.
     const aliasTokens = parseAliases(entite)
-        .map(a => tokenizeCommeSegmentation(a).filter(t => t.trim() !== '').map(t => t.toLowerCase()))
+        .map(a => tokenizeCommeSegmentation(rognerPonctuationBords(a)).filter(t => t.trim() !== '').map(t => t.toLowerCase()))
         .filter(toks => toks.length > 0)
         .sort((a, b) => b.length - a.length);
     if (aliasTokens.length === 0) return [];
@@ -428,4 +534,15 @@ function entretiensCandidats(entite, index) {
         for (const v of inter) candidats.add(v);
     }
     return candidats;
+}
+
+// Export CommonJS (gardé) : permet de tester les fonctions PURES en Node. Inerte dans le navigateur
+// (où `module` est indéfini), où ces fonctions restent des globales chargées via <script>.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        escapeRegex, parseAliases, rognerPonctuationBords, construireRegexEntite,
+        tokenizeCommeSegmentation, motsCles, reconstruireDepuisTokens, rognerAffixesTete,
+        detecterAffixeLiaison, MOTS_LIAISON_DEFAUT,
+        analyserOccurrences, trouverMatchesEntiteDOM
+    };
 }

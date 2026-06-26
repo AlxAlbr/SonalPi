@@ -475,7 +475,7 @@ window.addEventListener('unload', (event) => {
                         <label id= "AideAnon" class = "btnbleu" onclick="ouvrirAideAnonymisation()" title="Aide sur la pseudonymisation" style = "font-size:1.2rem"> ? </label> 
                         <label id= "OuvrirAnon" class = "btnbleu" onclick="document.getElementById('file-import-correspondance').click()" title="Importer un ou des tableau(x) de pseudonymisation" style = "font-size:1.2rem"> 📥 </label> 
                         <label id= "ExportAnon" class = "btnbleu" onclick="exportTableCorrespondance()" title="Exporter la table de pseudonymisation" style = "font-size:1.2rem"> 📤 </label>
-                         <label id= "ChercheAnon" class = "btnbleu" onclick="verifierEntretien()" title="Re-scanner le texte contre toutes les règles connues (locales et corpus) et vérifier qu'aucune occurrence n'a été oubliée. Ne détecte que les entités déjà repérées (pas de détection automatique de noms)." style = "font-size:1.2rem"> 🔎 </label>
+                         <label id= "ChercheAnon" class = "btnbleu" onclick="verifierEntretien()" title="Re-scanner le texte contre toutes les règles connues (locales et corpus) et vérifier qu'aucune occurrence n'a été oubliée. Ne détecte que les entités déjà repérées (pas de détection automatique de noms)." style = "font-size:1.2rem"> 🔄 </label>
                     </H2>
 
                     <!-- 
@@ -777,7 +777,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // (le main process la garde en attente, on la demande quand on est prêt).
     if (window.electronAPI && window.electronAPI.getNavTarget) {
         window.electronAPI.getNavTarget().then((navTarget) => {
-            if (!navTarget || !navTarget.spanId) return;
+            if (!navTarget) return;
+
+            // Cible sans occurrence précise (ex. entité multi-pseudo du corpus, pas de spanId) :
+            // on se contente d'ouvrir le panneau Pseudonymisation pour que l'utilisateur gère les
+            // occurrences. Petit poll borné : le bouton fait partie du chrome statique de la page.
+            if (!navTarget.spanId) {
+                if (!navTarget.entite) return;
+                let tries = 0;
+                const tick = setInterval(() => {
+                    const btnAnon = document.getElementById('imgpananon');
+                    if (btnAnon) {
+                        const panneauAnon = document.getElementById('fond_anon');
+                        const ouvert = panneauAnon && panneauAnon.classList.contains('blocvisible');
+                        if (!ouvert) btnAnon.click();
+                        clearInterval(tick);
+                    } else if (++tries > 20) {
+                        clearInterval(tick);
+                    }
+                }, 150);
+                return;
+            }
 
             const spanIdEscape = CSS.escape(String(navTarget.spanId));
             const segments = document.getElementById('segments');

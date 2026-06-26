@@ -324,6 +324,14 @@ function compterAnonATraiterEntretien() {
  * repérées.
  */
 async function verifierEntretien() {
+    // Re-normaliser le DOM AVANT de scanner : si l'utilisateur a édité le texte depuis l'ouverture
+    // (saisie, corrections), des spans multi-tokens non éclatés subsistent. La détection les compte
+    // (analyserOccurrences re-tokenise), mais le marquage (trouverMatchesEntiteDOM) les rate → une
+    // occurrence « vue mais non marquable ». cleanHTML() éclate à nouveau en un span/token (et préserve
+    // les marquages anon/data-pseudo) → le scan reflète le réel ET les occurrences redeviennent
+    // applicables. C'est l'endroit sûr pour ça : action utilisateur explicite, pas à chaque frappe.
+    if (typeof cleanHTML === 'function') cleanHTML();
+
     if (typeof detecterOccurrencesToutesLesPaires === 'function') detecterOccurrencesToutesLesPaires();
     if (typeof affichTableauAnon === 'function') affichTableauAnon();
 
@@ -464,19 +472,17 @@ function affichTableauAnon() {
     const indicesToDisplay = [];
     const nbLignesVidesAAfficher = 2;
     
-    // Ajouter d'abord toutes les paires avec occurrences > 0
-    for (let i = 0; i < window.tabAnon.length; i++) {
-        if (window.tabAnon[i].occurrences > 0) {
-            indicesToDisplay.push(i);
-        }
-    }
-    
-    // Ajouter les paires avec entité mais 0 occurrences (l'utilisateur vient de les ajouter)
+    // UNE SEULE passe, dans l'ORDRE du tableau (tabAnon) : on mélange volontairement les lignes
+    // validées (occurrences > 0) et les lignes en cours (0 occurrence) selon leur position réelle.
+    // Ainsi, valider une ligne ne la fait PAS « sauter » en haut (UX : elle reste là où on l'a saisie).
+    // Auparavant : 2 passes (occ>0 d'abord, puis 0 occ) → la validation déplaçait la ligne.
     for (let i = 0; i < window.tabAnon.length; i++) {
         const p = window.tabAnon[i];
-        if (p.occurrences === 0 && p.entite && p.entite.trim() && !indicesToDisplay.includes(i)) {
-            // Pour les entrées globales non encore appliquées localement,
-            // ne montrer que si l'entité est réellement présente dans le texte
+        if (p.occurrences > 0) {
+            indicesToDisplay.push(i);
+        } else if (p.entite && p.entite.trim()) {
+            // En cours de remplissage / brouillon. Pour les entrées globales non encore appliquées
+            // localement, ne montrer que si l'entité est réellement présente dans le texte.
             if (p.source === 'Global' && !p.existeLocalement) {
                 if (compterOccurrencesEntite(p.entite) > 0) {
                     indicesToDisplay.push(i);
@@ -2217,11 +2223,63 @@ async function validerLigneAnon(idx, porteeRequise = 'document') {
 
         // 💾 Sauvegarder les changements dans l'entretien
         await sauvegarderTabAnonEnt();
+
+        // Proposition « affixe de liaison » (opt-in) : si l'entité est encadrée par un mot-outil
+        // (« à Lyon »), proposer la règle cœur (« Lyon ») pour la capter partout (plan-affixes-liaison.md).
+        await proposerRegleCoeurAffixe(window.tabAnon[idx], porteeRequise);
     } else {
         // Rien trouvé → rien d'appliqué : la ligne reste un brouillon (R6).
         window.tabAnon[idx].portee = 'brouillon';
         await question(`⚠️ L'entité "${entiteVal}" n'a pas été trouvée dans le texte.`, ["OK"]);
     }
+}
+
+/**
+ * Liste EFFECTIVE des mots de liaison utilisée par la détection d'affixes : surcharge corpus si
+ * présente (`window.paramsAnonCorpus.motsLiaison`), sinon défauts en dur (MOTS_LIAISON_DEFAUT,
+ * anon-detection.js). La surcharge corpus est éditée via la modale « Paramètres ⚙ » (anon-params.js)
+ * et persistée dans le .crp (clé `paramsAnonCorpus`, chargée dans gestion_corpus.js).
+ * @returns {string[]}
+ */
+function getMotsLiaison() {
+    const p = window.paramsAnonCorpus;
+    if (p && Array.isArray(p.motsLiaison) && p.motsLiaison.length) return p.motsLiaison;
+    return (typeof MOTS_LIAISON_DEFAUT !== 'undefined') ? MOTS_LIAISON_DEFAUT : [];
+}
+
+/**
+ * Si la règle qu'on vient de poser est « encadrée » par un mot de liaison (« à Lyon » → « dans une
+ * grande ville »), PROPOSE (opt-in) de créer aussi la règle cœur dégraissée (« Lyon » → « une grande
+ * ville »), à la MÊME portée que le geste. Ne propose pas si le cœur existe déjà (regleCoeurExiste).
+ * La création réutilise validerLigneAnon → conflit corpus (aligner / garder les deux), portée et
+ * sauvegarde gérés exactement comme une saisie manuelle. Voir plan-affixes-liaison.md.
+ * @param {object} paire - la règle qui vient d'être appliquée
+ * @param {string} porteeRequise - 'document' (Entrée) ou 'corpus' (Maj+Entrée), héritée du geste
+ */
+async function proposerRegleCoeurAffixe(paire, porteeRequise) {
+    if (!paire || !paire.entite || !paire.remplacement) return;
+    const aff = detecterAffixeLiaison(paire.entite, paire.remplacement, getMotsLiaison());
+    if (!aff) return;
+    if (regleCoeurExiste(aff.entiteCoeur, aff.pseudoCoeur)) return;
+
+    const rep = await question(
+        `Vous avez remplacé « ${paire.entite} » par « ${paire.remplacement} ».\n\n` +
+        `Ajouter aussi la règle générale « ${aff.entiteCoeur} » → « ${aff.pseudoCoeur} » ? `,
+        ['Oui', 'Non']);
+    if (rep !== 'oui') return;
+
+    // Nouvelle ligne + remplissage de ses champs, puis réutilisation de validerLigneAnon (DRY :
+    // conflit/portée/sauvegarde identiques à une saisie manuelle). L'« à Lyon » interne deviendra
+    // une incluse sous la règle englobante déjà posée.
+    window.tabAnon.push({ entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [], portee: 'brouillon' });
+    const idxCoeur = window.tabAnon.length - 1;
+    affichTableauAnon();
+    const eInp = document.querySelector(`.input-entite[data-idx="${idxCoeur}"]`);
+    const rInp = document.querySelector(`.input-remplacement[data-idx="${idxCoeur}"]`);
+    if (!eInp || !rInp) { window.tabAnon.splice(idxCoeur, 1); return; }
+    eInp.value = aff.entiteCoeur;
+    rInp.value = aff.pseudoCoeur;
+    await validerLigneAnon(idxCoeur, porteeRequise);
 }
 
 // Synchronise le HTML courant (après modif DOM) vers tabHtml du process main
