@@ -104,13 +104,41 @@ seulement** (le `.crp` ne la stocke pas) — voir §11.
   `tabEnt` (copie de chaque entretien) et chaque `.sonal` reduplique son entretien. Tout
   item « modèle cible » qui toucherait à ça est **gelé**.
 
+### 3.4 ⚠️ DEUX `tabHtml` (cache renderer figé vs main autoritaire) — piège de perte d'anon
+
+Le HTML marqué **est** la persistance de l'anonymisation (§2). Or il existe **deux** copies du
+cache HTML, et la même chose pour `tabGrph` :
+
+| Copie | Où | Mise à jour par |
+|---|---|---|
+| `tabHtml` **main** (AUTORITAIRE) | [main.js](../../main.js) handler `set-html` | l'anonymisation, par index via `setHtml(i, html)` ([anon-apply.js](anon-apply.js)) |
+| `tabHtml` **renderer** (global implicite) | `gestion_corpus.js` (`tabHtml = …`) | **seulement** `loadHtml` à l'ouverture du corpus |
+
+L'anonymisation depuis la vue corpus écrit **uniquement dans le main** (`setHtml(i)`) + réécrit le
+`.sonal` sur disque (`majFichierSonal`, qui relit `getHtml(i)`). Le global **renderer reste figé** à
+l'état d'ouverture du corpus — il **ne voit pas** les anonymisations de la session.
+
+- **Règle d'or** : avant tout `setHtml(null, …)` / `setGrph(null, …)` (remplacement complet du
+  tableau), **repartir d'un `getHtml()` / `getGrph()` frais**, JAMAIS du global renderer. Sinon on
+  réécrase le main avec un instantané périmé → **toutes les anon de la session sont perdues** sur les
+  entretiens restants. (Bug historique : `retirerEnt` splicait le global renderer puis le repoussait
+  via `setHtml(null,…)` → entités « anonymisées » repassées « à anonymiser » dans le texte ET le
+  tableau. Corrigé [gestion_entretiens.js — retirerEnt](../gestion_entretiens.js#L1251) ; `triEntCorpus`
+  fait déjà bien : `getHtml()` frais d'abord.)
+- À la **réouverture** d'un entretien, le texte est lu depuis le **cache main** (`getHtml(rkEnt)`,
+  [gestion_entretiens.js](../gestion_entretiens.js#L1346)), pas depuis le disque → un cache main
+  corrompu s'affiche tel quel. Tant que le `.sonal` n'a pas été réécrit (depuis ce cache corrompu),
+  **rouvrir le corpus** (`loadHtml` relit le disque) restaure tout : utile pour diagnostiquer/récupérer.
+- Penser aussi à invalider le scan corpus (`window._anonScanStale = true`, `_anonIndexInverse = null`)
+  quand le corpus change (ajout/suppression d'entretien) — sinon badges périmés.
+
 ---
 
 ## 4. Carte des fichiers
 
 | Fichier | Lignes | Rôle | Chargé dans |
 |---|---|---|---|
-| `anon-detection.js` | ~330 | **Détection pure** : tokenisation (`motsCles`, `escapeRegex`, `construireRegexEntite`), index inversé, **`analyserOccurrences` (fonction unifiée)**, `trouverOccurrencesDansDoc` (adaptateur corpus) + `construireContexteOccurrence`, `trouverMatchesEntiteDOM`. Pas d'état. | **les deux** |
+| `anon-detection.js` | ~330 | **Détection pure** : tokenisation (`motsCles`, `escapeRegex`, `construireRegexEntite`), index inversé, **`analyserOccurrences` (fonction unifiée)**, `trouverOccurrencesDansDoc` (adaptateur corpus) + `construireContexteFlux` (contexte depuis le flux de tokens), `trouverMatchesEntiteDOM`. Pas d'état. | **les deux** |
 | `anon-regles.js` | ~330 | **Cœur des règles corpus** (rapatrié de gestion_corpus.js) : clés canoniques (`cleAnon`, `clesAlias`, `cleEntite`, `regleEnCollisionAlias`), fusion/déduplication (`fusionnerRegles`, `conflitsPseudoParEntite`), persistance (`reglesCorpusPropres`, `persisterReglesCorpus`, `synchroniserTabAnonGlobal`) **+ helpers multi-pseudo** (`pseudosDe`, `estMultiPseudo`, `parsePseudos`, `analyserChampsEntitePseudo`, `normaliserRegle`, `ajouterPseudoAltCorpus`). Pas d'état UI. Charger **après** anon-detection.js. | **les deux** |
 | `anon-correspondance.js` | 281 | **Moteur de conflits partagé** (import table de correspondance JSON) : `traiterImportCorrespondances` paramétré par `ctx={reglesExistantes, appliquer}`. Découplé. | **les deux** |
 | `anon-scan.js` | 282 | Scan corpus : `reconstituerTabAnonGlobal`, `lancerScanCorpus`, `appliquerResultatsScan`, `mettreAJourCacheEntite`. | index.html |
@@ -196,7 +224,8 @@ pseudo) → tue la collision.
 - Adaptateur entretien : `reindexerMatchPositions` → `{start,end,isException,isNonTraite}` +
   marquage `data-anon-nt` (garde l'état : mute `matchPositions`, touche `window.tabAnon`).
 - Adaptateur corpus : `trouverOccurrencesDansDoc` → `{applique,exclue,contextAvant,contextApres,
-  entite,spanId}` (contexte reconstruit par `construireContexteOccurrence`).
+  entite,spanId}` (contexte reconstruit par `analyserOccurrences`/`construireContexteFlux`
+  depuis le flux de tokens — robuste aux spans multi-mots des entretiens jamais ouverts).
 - `trouverMatchesEntiteDOM` (matcher de plages live) **reste** : utilisé par
   `appliquerAnonymisationPour` (application réelle du marquage) et `compterOccurrencesEntite`.
 
@@ -213,6 +242,8 @@ désormais ignorée (cf. `rognerPonctuationBords` ci-dessus) — « Lyon. » et 
 - **Antislash** des chemins de scripts dans `edition_entretien.html` (§5).
 - **Ordre de chargement** des scripts (§5).
 - **Persistance corpus** uniquement via `persisterReglesCorpus` (§3.3), jamais `setAnon`.
+- **`setHtml(null,…)`/`setGrph(null,…)`** : repartir d'un `getHtml()`/`getGrph()` **frais**, jamais
+  du global renderer figé → sinon perte des anon de session (§3.4).
 - Filtrer sur **`.anon`** (debsel/finsel existent sans, §2).
 - Appariement `debsel`→`finsel` **structurel**, pas par pseudo (collisions, §2).
 - Refacto : **petites extractions vérifiables**, jamais mélanger déplacement de code et

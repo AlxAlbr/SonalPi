@@ -1277,13 +1277,31 @@ async function retirerEnt(rk){
    
      // retrait de l'entretien du tabEEnt
     tabEnt.splice(rk,1);
-    tabHtml.splice(rk,1); // retrait du HTML en cache
-    tabGrph.splice(rk,1); // retrait du graphique en cache
+
+    // ⚠️ Les globals renderer tabHtml/tabGrph sont figés au dernier loadHtml (ouverture du
+    // corpus) : ils NE contiennent PAS les modifications de session (ex. anonymisations, écrites
+    // uniquement dans le cache du main par index via setHtml). Splicer puis repousser ces copies
+    // périmées écraserait le HTML marqué des entretiens restants → perte d'anonymisation. On
+    // repart donc de la copie AUTORITAIRE du main, et on réaligne les globals renderer dessus.
+    let tabHtmlMain = (await window.electronAPI.getHtml()) || [];
+    tabHtmlMain.splice(rk,1); // retrait du HTML en cache
+    tabHtml = tabHtmlMain;
+
+    let tabGrphMain = (await window.electronAPI.getGrph()) || [];
+    tabGrphMain.splice(rk,1); // retrait du graphique en cache
+    tabGrph = tabGrphMain;
 
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
     await window.electronAPI.setHtml(null, tabHtml); // remplacement complet du tableau HTML
     await window.electronAPI.setGrph(null, tabGrph); // remplacement complet du tableau graphique
+
+    // La suppression change le corpus → le scan d'anonymisation en cache est périmé.
+    // (sinon les badges corpus resteraient ceux d'avant suppression)
+    if (window._anonScanCache) {
+        window._anonScanStale = true;
+        window._anonIndexInverse = null;
+    }
 
     // sauvegarde du corpus
     window.sauvegarderCorpus();

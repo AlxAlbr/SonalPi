@@ -174,6 +174,16 @@ async function showMenuException(span, idxPaire, matchIdx) {
         </div>
     `;
 
+    // Actions « tout » : sur l'ensemble des occurrences de l'entité dans cet entretien.
+    chaine += `
+        <div class="menu-item" onmousedown="toutEnException(${idxPaire}); document.getElementById('contextMenuException')?.remove();">
+            ⊘ Mettre tout en exception
+        </div>
+        <div class="menu-item" onmousedown="toutEnNonTraite(${idxPaire}); document.getElementById('contextMenuException')?.remove();">
+            ↩ Remettre tout en « à anonymiser »
+        </div>
+    `;
+
     chaine += `
         <div class="menu-item" onmousedown="allerVueCorpus(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ↗ Voir au niveau du corpus
@@ -326,6 +336,74 @@ async function remettreEnNonTraite(idxPaire, matchIdx) {
     // chevauchantes) : elles rebasculent en « à anonymiser » (§G-bis / I-INC-7).
     if (typeof recompterReglesChevauchant === 'function') {
         recompterReglesChevauchant(match.start, match.end, idxPaire);
+    }
+
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+    await syncHtmlVersMainProcess();
+}
+
+// Bulk : met en EXCEPTION toutes les occurrences ACTUELLEMENT ANONYMISÉES de la paire
+// (laisse les non-traitées et les incluses intactes). Version « tout » de basculerException.
+async function toutEnException(idxPaire) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.matchPositions) return;
+
+    // Uniquement les occurrences anonymisées : ni exception, ni non-traitée, ni incluse.
+    const cibles = paire.matchPositions.filter(m => m && !m.isIncluded && !m.isException && !m.isNonTraite);
+    if (cibles.length === 0) return;
+
+    // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
+    if (typeof backUp === 'function') backUp();
+
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+    for (const match of cibles) {
+        for (let i = match.start; i <= match.end; i++) {
+            const span = tousLesSpans[i];
+            if (!span) continue;
+            span.classList.remove('anon', 'debsel', 'finsel');
+            span.classList.add('anon-exception');
+            span.removeAttribute('data-anon-nt');
+            delete span.dataset.pseudo;
+        }
+        match.isException = true;
+        match.isNonTraite = false;
+    }
+
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+    await syncHtmlVersMainProcess();
+}
+
+// Bulk : remet en « à anonymiser » (non-traité) toutes les occurrences anonymisées OU en
+// exception de la paire (laisse les incluses). Version « tout » de remettreEnNonTraite.
+async function toutEnNonTraite(idxPaire) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.matchPositions) return;
+
+    // Tout ce qui est anonymisé ou exception (donc pas déjà non-traité, pas incluse).
+    const cibles = paire.matchPositions.filter(m => m && !m.isIncluded && !m.isNonTraite);
+    if (cibles.length === 0) return;
+
+    // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
+    if (typeof backUp === 'function') backUp();
+
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+    for (const match of cibles) {
+        for (let i = match.start; i <= match.end; i++) {
+            const span = tousLesSpans[i];
+            if (!span) continue;
+            span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+            delete span.dataset.pseudo;
+            span.setAttribute('data-anon-nt', 'true');
+        }
+        match.isException = false;
+        match.isNonTraite = true;
+        // Ce run n'anonymise plus → libère d'éventuelles occurrences qu'il absorbait
+        // (règles étroites chevauchantes), cf. remettreEnNonTraite (§G-bis / I-INC-7).
+        if (typeof recompterReglesChevauchant === 'function') {
+            recompterReglesChevauchant(match.start, match.end, idxPaire);
+        }
     }
 
     affichTableauAnon();

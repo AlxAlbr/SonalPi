@@ -222,66 +222,23 @@ function trouverOccurrencesDansDoc(tempDiv, entite, pseudo, pseudosRegle) {
         // On adapte la sortie au format attendu par le panneau corpus :
         //   applique = 'anon' (anonymisée par CE pseudo) · exclue = 'exception' ·
         //   incluse = 'incluse' (absorbée par une autre règle) ·
-        //   non-traite → applique/exclue/incluse:false. Contexte reconstruit depuis le DOM.
-        const occ = analyserOccurrences(tempDiv, entite, pseudo, pseudosRegle);
-        return occ.map(o => {
-            const { contextAvant, contextApres } = construireContexteOccurrence(o.spanDebut, o.spanFin);
-            return {
-                entite: o.texte,
-                contextAvant,
-                contextApres,
-                applique: o.etat === 'anon',
-                exclue: o.etat === 'exception',
-                incluse: o.etat === 'incluse',
-                spanId: o.spanDebut.dataset.rk
-            };
-        });
+        //   non-traite → applique/exclue/incluse:false. Contexte fourni par analyserOccurrences
+        //   (reconstruit depuis le flux de tokens, cf. construireContexteFlux).
+        const occ = analyserOccurrences(tempDiv, entite, pseudo, pseudosRegle, false, true);
+        return occ.map(o => ({
+            entite: o.texte,
+            contextAvant: o.contextAvant,
+            contextApres: o.contextApres,
+            applique: o.etat === 'anon',
+            exclue: o.etat === 'exception',
+            incluse: o.etat === 'incluse',
+            spanId: o.spanDebut.dataset.rk
+        }));
     } catch (error) {
         console.error("Erreur dans trouverOccurrencesDansDoc():", error);
         return [];
     }
 }
-
-/**
- * Reconstruit le contexte (avant / après) d'une occurrence pour l'affichage du panneau corpus,
- * en accumulant le texte des siblings autour des spans de début/fin (remonte au parent si trop
- * court). ~40 caractères de chaque côté, tronqués avec « ... ».
- * @param {Element} spanDebut
- * @param {Element} spanFin
- * @returns {{contextAvant:string, contextApres:string}}
- */
-function construireContexteOccurrence(spanDebut, spanFin) {
-    const collect = (startNode, direction) => {
-        const parts = [];
-        let len = 0;
-        const next = (n) => direction === 'before' ? n.previousSibling : n.nextSibling;
-        const add = (t) => { direction === 'before' ? parts.unshift(t) : parts.push(t); len += t.length; };
-
-        let node = next(startNode);
-        while (node && len < 60) {
-            const t = node.textContent || '';
-            if (t) add(t);
-            node = next(node);
-        }
-        // Contexte insuffisant : remonter au parent et continuer sur ses siblings.
-        if (len < 30 && startNode.parentNode) {
-            let parentSib = next(startNode.parentNode);
-            while (parentSib && len < 60) {
-                const t = parentSib.textContent || '';
-                if (t) add(t);
-                parentSib = next(parentSib);
-            }
-        }
-        return parts.join('');
-    };
-
-    const rawAvant = collect(spanDebut, 'before');
-    const rawApres = collect(spanFin, 'after');
-    const contextAvant = rawAvant.length > 40 ? '...' + rawAvant.slice(-40).trimStart() : rawAvant.trimStart();
-    const contextApres = rawApres.length > 40 ? rawApres.slice(0, 40).trimEnd() + '...' : rawApres.trimEnd();
-    return { contextAvant, contextApres };
-}
-
 
 // Matcher entretien : occurrences (plages de spans) du texte d'une entité dans le DOM courant.
 
@@ -382,7 +339,7 @@ function trouverMatchesEntiteDOM(entite, tousLesSpans) {
  *          entretien : {start,end}) ; spanDebut/spanFin = éléments (adaptateur corpus :
  *          contexte + spanId). Trié par ordre du document.
  */
-function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVariantesAnon) {
+function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVariantesAnon, avecContexte) {
     const spans = Array.from(racineDOM.querySelectorAll('[data-rk]'));
     if (spans.length === 0) return [];
 
@@ -398,6 +355,39 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
         }
     }
 
+    // Helpers de reconstruction textuelle depuis le flux de tokens (espace entre deux mots,
+    // rien autour de la ponctuation). Sert au texte du match ET au contexte d'affichage.
+    const estMotTok = (t) => /[\wÀ-ÿ]/.test(t);
+    const joinFlux = (from, to) => {
+        let out = '';
+        for (let k = from; k <= to; k++) {
+            if (k > from && estMotTok(flux[k].tok) && estMotTok(flux[k - 1].tok)) out += ' ';
+            out += flux[k].tok;
+        }
+        return out;
+    };
+    // Contexte d'affichage (~40 car. de part et d'autre) reconstruit depuis le FLUX et NON
+    // depuis les frères DOM : correct que les spans portent un seul mot (entretien ouvert/édité)
+    // ou des phrases entières (entretien jamais ouvert, lu depuis le cache au niveau corpus).
+    // L'ancienne version par siblings affichait le segment voisin au lieu des mots réellement
+    // collés à l'occurrence.
+    const MAX_CTX = 40;
+    const construireContexteFlux = (debut, len) => {
+        let a = debut, lenA = 0;
+        while (a > 0 && lenA < MAX_CTX) { a--; lenA += flux[a].tok.length + 1; }
+        const rawAvant = a <= debut - 1 ? joinFlux(a, debut - 1) : '';
+        const fin = debut + len;
+        let b = fin - 1, lenB = 0;
+        while (b + 1 < flux.length && lenB < MAX_CTX) { b++; lenB += flux[b].tok.length + 1; }
+        const rawApres = b >= fin ? joinFlux(fin, b) : '';
+        let contextAvant = rawAvant.length > MAX_CTX ? '...' + rawAvant.slice(-MAX_CTX).trimStart() : rawAvant.trimStart();
+        let contextApres = rawApres.length > MAX_CTX ? rawApres.slice(0, MAX_CTX).trimEnd() + '...' : rawApres.trimEnd();
+        // Espace de liaison avec l'entité (l'affichage concatène avant + entité + après).
+        if (contextAvant && estMotTok(flux[debut - 1].tok)) contextAvant += ' ';
+        if (contextApres && estMotTok(flux[fin].tok)) contextApres = ' ' + contextApres;
+        return { contextAvant, contextApres };
+    };
+
     // Séquences de tokens des alias (mots + ponctuation), les plus longues d'abord (préférence
     // en cas de recouvrement). Même tokenisation que le flux → comparaison token-par-token.
     const aliasTokens = parseAliases(entite)
@@ -408,17 +398,7 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
 
     // Reconstruit le texte d'affichage d'un match : espace entre deux mots, rien autour de la
     // ponctuation (« New York », « Saint-Étienne »).
-    const reconstruireTexte = (debut, len) => {
-        let out = '';
-        for (let k = 0; k < len; k++) {
-            const t = flux[debut + k].tok;
-            const estMot = /[\wÀ-ÿ]/.test(t);
-            const precMot = k > 0 && /[\wÀ-ÿ]/.test(flux[debut + k - 1].tok);
-            if (estMot && precMot) out += ' ';
-            out += t;
-        }
-        return out;
-    };
+    const reconstruireTexte = (debut, len) => joinFlux(debut, debut + len - 1);
 
     const fluxConsomme = new Array(flux.length).fill(false);
     const occurrences = [];
@@ -457,9 +437,12 @@ function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVari
                 etat = 'non-traite';
             }
 
+            const ctx = avecContexte ? construireContexteFlux(p, toks.length) : null;
             occurrences.push({
                 etat,
                 texte: reconstruireTexte(p, toks.length),
+                contextAvant: ctx ? ctx.contextAvant : undefined,
+                contextApres: ctx ? ctx.contextApres : undefined,
                 spanDebut,
                 spanFin: spans[idxFin],
                 indexDebut: idxDebut,
