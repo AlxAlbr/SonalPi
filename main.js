@@ -1118,7 +1118,10 @@ async function archiverCorpus() {
     // 1. Fichier .crp : on sérialise l'état en mémoire (données courantes)
     //    tabAnon inclus (même contenu que sauvegarderCorpus) pour ne pas perdre les règles
     //    d'anonymisation du corpus dans l'archive.
-    const corpusContent = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon, paramsAnonCorpus }, null, 2);
+    // Retire la table de règles `tabAnon` de chaque entretien (vit dans les .sonal) ; ne touche pas le
+    // texte anonymisé (HTML). Le top-level `tabAnon` (règles corpus) reste sérialisé.
+    const tabEntSansTabAnon = (tabEnt || []).map(({ tabAnon, ...e }) => e);
+    const corpusContent = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon, tabVar, tabDic, tabAnon, paramsAnonCorpus }, null, 2);
     zip.addFile(Corpus.fileName, Buffer.from(corpusContent, 'utf8'));
 
     // 2. Fichiers .sonal référencés dans tabEnt
@@ -3465,7 +3468,7 @@ ipcMain.handle('export-recueil-pdf', async (event, { nom, items, nomFichier, opt
 // ---------------------------------------------------------------
 // Construit le buffer .docx d'un entretien (titre, notes, variables, contenu à marqueurs {g}/**gras**).
 // Factorisé : réutilisé par l'export entretien (un fichier) ET l'export corpus DOCX (zip de fichiers).
-async function construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables }) {
+async function construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables, entete = true }) {
     const currentDate = new Date().toLocaleString();
     const versionSonal = "3.0";
 
@@ -3505,32 +3508,34 @@ async function construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables
     
     const children = [];
 
-    // MAIN HEADING
-    children.push(
-      new Paragraph({
-        text: "ENTRETIEN",
-        heading: HeadingLevel.TITLE,
-        bold: true,
-        spacing: { after: 100 }
-      })
-    );
+    // MAIN HEADING (en-tête optionnel : titre + nom de l'entretien + ligne d'export)
+    if (entete) {
+      children.push(
+        new Paragraph({
+          text: "ENTRETIEN",
+          heading: HeadingLevel.TITLE,
+          bold: true,
+          spacing: { after: 100 }
+        })
+      );
 
-    children.push(
-      new Paragraph({
-        text: nomEntretien,
-        heading: HeadingLevel.HEADING_1,
-        bold: true,
-        spacing: { after: 100 }
-      })
-    );
+      children.push(
+        new Paragraph({
+          text: nomEntretien,
+          heading: HeadingLevel.HEADING_1,
+          bold: true,
+          spacing: { after: 100 }
+        })
+      );
 
-    children.push(
-      new Paragraph({
-        text: `Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`,
-        spacing: { after: 200 },
-        size: 20
-      })
-    );
+      children.push(
+        new Paragraph({
+          text: `Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`,
+          spacing: { after: 200 },
+          size: 20
+        })
+      );
+    }
 
     // ADD NOTES IF PROVIDED
     if (notes) {
@@ -3608,9 +3613,9 @@ async function construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables
     return await Packer.toBuffer(doc);
 }
 
-ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt, notes, variables, nomFichier }) => {
+ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt, notes, variables, nomFichier, entete }) => {
   try {
-    const buffer = await construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables });
+    const buffer = await construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables, entete });
 
     const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
     const defaultPath = path.join(defaultDir, nomFichier);
@@ -3661,7 +3666,8 @@ ipcMain.handle('export-corpus-docx-zip', async (event, fichiers, defaultName) =>
         nomEntretien: f.nomEntretien || f.nom || 'Entretien',
         contenuTxt: f.contenuTxt || '',
         notes: f.notes || '',
-        variables: f.variables || ''
+        variables: f.variables || '',
+        entete: f.entete !== false
       });
       // Anti-collision (ceinture+bretelles ; déjà géré côté renderer).
       let nom = f.nom || ((f.nomEntretien || 'Entretien') + '.docx');

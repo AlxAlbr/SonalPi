@@ -1385,7 +1385,10 @@ async function afficherWhisPurge(){
         // Exclure les paires venues uniquement du global et pas encore validées localement,
         // sinon à la 2ème ouverture elles seraient traitées comme locales et appliquées automatiquement.
         const tabAnonLocalPourSauvegarde = window.tabAnon.filter(p =>
-            p.entite && p.remplacement &&
+            p.entite && p.entite.trim() &&
+            // Garder les règles avec pseudo ET les BROUILLONS en chantier (entité seule, sans pseudo) :
+            // un brouillon reste local et n'est jamais appliqué — il ne sert qu'à ne pas perdre le travail.
+            (p.remplacement || (p.portee || 'corpus') === 'brouillon') &&
             !(p.source === 'Global' && !p.existeLocalement)
         );
         ent.tabAnon = tabAnonLocalPourSauvegarde;
@@ -2030,6 +2033,7 @@ async function exportEntretien(format) {
         loc:  getChk('opt-loc'),
         thm:  getChk('opt-thm'),
         time: getChk('opt-time'),
+        entete: getChk('opt-entete'),
     };
 
     hidedlg();
@@ -2527,9 +2531,14 @@ ${legendHtml}
  * @returns {string}
  */
 function construireTxtEntretien(ent, opts, txtvars, contenuHtmlCmpct, locuteurs) {
-    const v = window.versionSonal ? (" (version " + window.versionSonal + ")") : "";
-    let TxtExport = "Exporté par Sonal π" + v + " le " + new Date().toLocaleString() + "\n\n";
-    TxtExport += "Entretien : " + (ent && ent.nom ? ent.nom : '') + "\n\n";
+    let TxtExport = "";
+    // En-tête (Sonal π + nom de l'entretien) — optionnel, pour pouvoir n'exporter que le texte brut.
+    // Affiché par défaut ; masqué seulement si la case est explicitement décochée.
+    if (opts.entete !== false) {
+        const v = window.versionSonal ? (" (version " + window.versionSonal + ")") : "";
+        TxtExport += "Exporté par Sonal π" + v + " le " + new Date().toLocaleString() + "\n\n";
+        TxtExport += "Entretien : " + (ent && ent.nom ? ent.nom : '') + "\n\n";
+    }
 
     // Sections optionnelles : masquées si la donnée est absente (pas de « Aucune note » ni d'en-tête vide).
     if (opts.notes && ent && ent.notes) {
@@ -2740,7 +2749,8 @@ function construireContenuEntretien(ent, opts, txtvars, contenuHtmlCmpct, locute
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = contenuHtmlCmpct;
     const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
-    let contenuTxt = "Entretien : " + (ent && ent.nom ? ent.nom : '') + "\n\n";
+    // En-tête « Entretien : nom » optionnel (cohérent avec opts.entete ; le titre DOCX est géré côté main).
+    let contenuTxt = (opts.entete === false) ? "" : ("Entretien : " + (ent && ent.nom ? ent.nom : '') + "\n\n");
 
     // Add notes if selected
     if (opts.notes && ent && ent.notes) {
@@ -2834,7 +2844,8 @@ async function genererExportDocxEntretien(ent, opts, txtvars, nomFichier, conten
             contenuTxt: contenuTxt,
             notes: opts.notes ? ent.notes : '',
             variables: opts.vars ? txtvars : '',
-            nomFichier: nomFichier
+            nomFichier: nomFichier,
+            entete: opts.entete
         });
 
         if (result.success) {

@@ -64,7 +64,6 @@ async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
         const anon = { entite, remplacement: pseudo };
         afficherVerificationDansPanneau(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
         
-        console.log(`✅ Vérification terminée pour "${entite}"`);
         
     } catch (error) {
         console.error("Erreur dans verifierEtAfficherEtatEntite():", error);
@@ -1157,7 +1156,6 @@ function ouvrirLegendeCorpus() {
 // déplacées dans anon-scan.js (refacto Tâche 3).
 
 async function affichAnonGen() {
-    console.log("lancement de affichAnonGen")
     try {
         // Récupérer la liste des entretiens
         const tabEnt = await window.electronAPI.getEnt();
@@ -1904,7 +1902,6 @@ function mettreAJourBadgeApresAnonymisation(indexEnt, entite, pseudo) {
     
     if (!badgeTrouve) return;
 
-    console.log(`Mise à jour du badge pour "${entite}" → "${pseudo}" dans entretien ${indexEnt}`);
     
     // Cloner le badge pour supprimer les anciens event listeners
     const newBadge = badgeTrouve.cloneNode(true);
@@ -1947,7 +1944,6 @@ function mettreAJourBadgeApresAnonymisation(indexEnt, entite, pseudo) {
     
     // Remplacer le badge dans le DOM
     badgeTrouve.parentNode.replaceChild(newBadge, badgeTrouve);
-    console.log(`✅ Badge mis à jour (transformation orange → bleu)`);
 }
 
 /**
@@ -2341,7 +2337,6 @@ async function ajouterLigneAuTableauAnonGen(anon) {
         setTimeout(() => tr.classList.remove("ligent-flash"), 3000);
     }, 400);
 
-    console.log(`✅ Nouvelle ligne ajoutée au tableau pour "${anon.entite}" → "${anon.remplacement}"`);
 }
 
 /**
@@ -2495,7 +2490,6 @@ async function retirerPseudoDeEntretien(indexEnt, pseudo, entite) {
             await window.majFichierSonal(indexEnt, indexEnt + 1);
         }
 
-        console.log(`  ✓ Entretien ${indexEnt} : ${nbRetraits} occurrence(s) de "${pseudo}" retirée(s)`);
         return true;
 
     } catch (error) {
@@ -2606,19 +2600,19 @@ function ouvrirModaleExportCorpus() {
  * (opt-anon/notes/vars/loc/thm/time) → exporterCorpusAvecOptions réutilise le même lecteur.
  */
 function dialogExportCorpusChoixOptions(format) {
-    // Config par format : [activé, cochéParDéfaut]. Colonnes : anon | notes | vars | loc | thm | time
+    // Config par format : [activé, coché]. Colonnes : anon | notes | vars | loc | thm | time | en-tête
     // sonal = format STRUCTUREL (copie .crp) → seule l'anonymisation s'applique. html/txt/docx
     // honorent les options granulaires (mêmes builders que l'export entretien).
     const CFG = {
-        sonal: [[true,true],  [false,true], [false,true], [false,true], [false,true],  [false,true]],
-        html:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,true],   [true,true]],
-        txt:   [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true]],
-        docx:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true]],
+        sonal: [[true,true],  [false,true], [false,true], [false,true], [false,true],  [false,true],  [false,true]],
+        html:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,true],   [true,true],   [false,true]],
+        txt:   [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true],   [true,true]],
+        docx:  [[true,true],  [true,true],  [true,true],  [true,true],  [true,false],  [true,true],   [true,true]],
     };
     const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', docx:'.docx' };
 
     const cfg = CFG[format] || CFG.txt;
-    const [oa, on, ov, ol, oth, oti] = cfg;
+    const [oa, on, ov, ol, oth, oti, oe] = cfg;
 
     const opt = (id, classes, label, [enabled, checked]) => {
         const dis  = enabled ? '' : ' disabled';
@@ -2634,6 +2628,7 @@ function dialogExportCorpusChoixOptions(format) {
     panel.innerHTML = `
         <h3 style="margin-top:0;margin-bottom:18px;">2 - Choisissez les éléments à intégrer à l'export au format ${LABELS[format]}</h3>
         <div style="margin-bottom:18px;">
+            ${opt('opt-entete', '', 'En-tête (Sonal π + nom de l\'entretien)', oe)}
             <hr style="margin: 6px 0;">
             ${opt('opt-notes', 'logo-notes', 'Notes', on)}
             ${opt('opt-vars',  'logo-variables', 'Variables', ov)}
@@ -2670,6 +2665,7 @@ async function exporterCorpusAvecOptions(format) {
         loc:   getChk('opt-loc'),
         thm:   getChk('opt-thm'),
         time:  getChk('opt-time'),
+        entete: getChk('opt-entete'),
     };
     hidedlg();
     if (format === 'sonal')      await exporterCorpusReouvrable(opts);
@@ -2914,6 +2910,7 @@ async function exporterCorpusDocxZip(opts = {}) {
             contenuTxt,
             notes: (opts.notes && ent && ent.notes) ? ent.notes : '',
             variables: txtvars,
+            entete: opts.entete,
         });
     }
 

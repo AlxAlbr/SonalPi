@@ -91,11 +91,8 @@ function exportTableCorrespondance() {
  * @param {FileList} files - Les fichiers sélectionnés par l'utilisateur
  */
 function importTableCorrespondance(files) {
-    console.log("=== DEBUT IMPORT ===");
-    console.log("Fichiers sélectionnés:", files.length);
     
     if (!files || files.length === 0) {
-        console.log("Aucun fichier sélectionné");
         return;
     }
     
@@ -104,19 +101,15 @@ function importTableCorrespondance(files) {
     let filesLoaded = 0;
     const totalFiles = files.length; 
     
-    console.log(`Total fichiers à charger: ${totalFiles}`);
     
     Array.from(files).forEach((file, fileIdx) => {
-        console.log(`[File ${fileIdx + 1}] Lecture du fichier: ${file.name}`);
         const reader = new FileReader();
         
         reader.onload = (e) => {
             filesLoaded++;
-            console.log(`[File ${fileIdx + 1}] Fichier chargé (${filesLoaded}/${totalFiles})`);
             
             try {
                 const correspondances = JSON.parse(e.target.result);
-                console.log(`[File ${fileIdx + 1}] JSON parsé, nombre de correspondances: ${Array.isArray(correspondances) ? correspondances.length : 'N/A'}`);
                 
                 // Vérifier que c'est un tableau
                 if (!Array.isArray(correspondances)) {
@@ -125,20 +118,15 @@ function importTableCorrespondance(files) {
                 
                 // Valider la structure de chaque correspondance
                 correspondances.forEach((corr, corrIdx) => {
-                    console.log(`[File ${fileIdx + 1}] Correspondance ${corrIdx}: "${corr.entite_init}" -> "${corr.entite_pseudo}"`);
                     if (!corr.entite_init || !corr.entite_pseudo) {
                         throw new Error("Chaque correspondance doit avoir 'entite_init' et 'entite_pseudo'");
                     }
                     allCorrespondances.push(corr);
                 });
                 
-                console.log(`[File ${fileIdx + 1}] Total accumulé: ${allCorrespondances.length} correspondances`);
                 
                 // Quand tous les fichiers sont chargés, traiter les imports
-                console.log(`Vérification: filesLoaded=${filesLoaded}, totalFiles=${totalFiles}, condition=${filesLoaded === totalFiles}`);
                 if (filesLoaded === totalFiles) {
-                    console.log("=== TOUS LES FICHIERS CHARGES ===");
-                    console.log(`Total de correspondances à traiter: ${allCorrespondances.length}`);
                     // Contexte entretien : règles déjà validées (occurrences>0) + application au texte ouvert.
                     // NB : window.tabAnon = array ACTIF de l'entretien (≠ `tabAnon` nu de gestion_corpus.js).
                     traiterImportCorrespondances(allCorrespondances, {
@@ -165,8 +153,6 @@ function importTableCorrespondance(files) {
  * @param {Array} correspondances - Les correspondances à appliquer
  */
 async function appliquerImportCorrespondances(correspondances) {
-    console.log("=== APPLICATION DES CORRESPONDANCES IMPORTEES ===");
-    console.log(`Correspondances à appliquer: ${correspondances.length}`);
 
     // L'array ACTIF de l'entretien est window.tabAnon (celui que le tableau affiche et que
     // lit appliquerAnonymisationPour). Le `tabAnon` nu est un AUTRE binding (let de
@@ -182,7 +168,6 @@ async function appliquerImportCorrespondances(correspondances) {
         const entiteInit = corr.entite_init.trim();
         const entiePseudo = corr.entite_pseudo.trim();
         const entiePseudoAlt = (corr.entite_pseudo_alt || '').trim();
-        console.log(`[${corrIdx + 1}] Traitement: "${entiteInit}" -> "${entiePseudo}"${entiePseudoAlt ? ' (+ ' + entiePseudoAlt + ')' : ''}`);
 
         // « Garder les deux » : pose l'alt sur une ligne mono (alt distinct), et note l'entité pour
         // répercuter au corpus. Renvoie true si l'alt a été posé.
@@ -302,11 +287,9 @@ function validerImportsAutomatic(correspondances) {
  */
 function importerAnonSonal(donneeImportees) {
     if (!donneeImportees || !Array.isArray(donneeImportees)) {
-        console.log("Pas de données d'anonymisation à importer");
         return;
     }
 
-    console.log("Import anonymisation depuis .Sonal :", donneeImportees.length, "lignes");
     
     // NB : on opère sur window.tabAnon = array ACTIF de l'entretien (celui que le tableau
     // affiche et que compterExceptions/appliquerAnonymisationPour lisent), PAS le `tabAnon` nu
@@ -315,7 +298,6 @@ function importerAnonSonal(donneeImportees) {
 
     // Si le tableau est vide (fichier anonymisé), initialiser avec des lignes vides
     if (donneeImportees.length === 0) {
-        console.log("Tableau vide détecté (fichier anonymisé), initialisation avec lignes vides");
         window.tabAnon = [];
         // Ajouter quelques lignes vides pour permettre l'anonymisation
         for (let i = 0; i < 3; i++) {
@@ -340,7 +322,6 @@ function importerAnonSonal(donneeImportees) {
     // Réappliquer les anonymisations validées
     reappliquerAnonymisationsSonal();
     
-    console.log("✅ Importation complète, anonymisations réappliquées");
 }
 
 /**
@@ -357,7 +338,6 @@ function reappliquerAnonymisationsSonal() {
         // SUBTILITÉ 1 : Si occurrences === 0, c'est une ligne en attente
         // On NE la réapplique PAS sur le texte, mais elle reste dans le tableau
         if (paire.occurrences === 0) {
-            console.log(`Ligne ${idxPaire} en attente : "${paire.entite}" -> "${paire.remplacement}" (non réappliquée)`);
             return; // Skip la réapplication, mais la ligne existe toujours dans tabAnon
         }
         
@@ -396,6 +376,5 @@ function reappliquerAnonymisationsSonal() {
             }
         });
         
-        console.log(`Ligne ${idxPaire} réappliquée : "${paire.entite}" (${paire.occurrences} occurrences, ${compterExceptions(idxPaire)} exceptions)`);
     });
 }

@@ -42,7 +42,6 @@ function appliquerCorrespondancesImport(correspondances) {
  * @param {{reglesExistantes: Array<{entite:string, remplacement:string}>, appliquer: Function}} ctx
  */
 function traiterImportCorrespondances(allCorrespondances, ctx) {
-    console.log("=== TRAITEMENT DES CORRESPONDANCES ===");
     _ctxImportCorrespondance = ctx || {};
 
     const conflits = [];
@@ -54,7 +53,6 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
     // "Lyon/Lyons" entre en conflit avec une règle existante "Lyon" même s'ils ne sont pas la même
     // chaîne. Cohérent avec fusionnerRegles / l'ajout direct.
     const reglesExistantes = ((ctx && ctx.reglesExistantes) || []).filter(r => r && r.entite && r.remplacement);
-    console.log(`Total règles déjà présentes : ${reglesExistantes.length}`);
 
     // Regrouper les pseudos importés par entité : on collecte le pseudo ET un éventuel
     // entite_pseudo_alt (multi-pseudo dans le fichier), dédupliqués (insensible à la casse). Ainsi le
@@ -74,7 +72,6 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
         ajout(corr.entite_pseudo_alt);
     });
 
-    console.log(`Entités uniques à traiter: ${Object.keys(mapEntites).length}`);
 
     // Analyser les conflits. Cap système : une entité a AU PLUS 2 pseudos (anon.md §9).
     Object.keys(mapEntites).forEach(entiteInit => {
@@ -113,7 +110,6 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
         }
     });
 
-    console.log(`Conflits détectés: ${conflits.length} · Correspondances valides: ${valides.length}`);
 
     if (conflits.length > 0) {
         afficherDialogueResolutionConflits(conflits, valides, allCorrespondances);
@@ -269,7 +265,6 @@ function fermerDialogueConflits() {
  * @param {Array} valides - Les correspondances valides
  */
 function validerResolutionConflits(conflits, valides) {
-    console.log("=== VALIDATION RESOLUTION CONFLITS ===");
     const correspondancesFinales = [...valides];
 
     conflits.forEach((conflit, idx) => {

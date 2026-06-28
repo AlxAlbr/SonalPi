@@ -79,7 +79,10 @@ window.electronAPI.onSaveAndClose(async () => {
 
     console.log("Comparaison des versions :" + html_ent_cur.substring(0, 100) + " ... VS ... " + html_courant.substring(0, 100) );
        
-    if (html_ent_cur == html_courant) {
+    // Un brouillon « en chantier » (repérage d'entité sans pseudo) ne change pas le HTML mais doit
+    // être sauvegardé dans le .sonal — sinon il serait perdu. On ne ferme en silence que si NI le
+    // HTML NI l'anonymisation n'ont changé.
+    if (html_ent_cur == html_courant && !window._tabAnonModifieEnAttente) {
             console.log("✅ Aucun changement détecté, fermeture immédiate");
             await window.electronAPI.saveComplete(); // signal au main pour fermer
             return;
@@ -163,7 +166,10 @@ async function sauvegarderModifsEnt() {
         
         // ⭐ Signal au main process pour mettre à jour le canvas
         await window.electronAPI.updateCanvasAfterSave(rkEnt);
-        
+
+        // Le .sonal vient d'être réécrit (avec les brouillons) → plus de modif d'anonymisation en attente.
+        window._tabAnonModifieEnAttente = false;
+
         console.log("=== SAUVEGARDE RÉUSSIE ===");
         isSaving = false;
         return true;
@@ -2790,20 +2796,20 @@ function hidedlg(){
 function dialogExportChoixOptions(format) {
 
     // Config par format : [activé, cochéParDéfaut]
-    // Colonnes : anon | notes | variables | locuteurs | catégories thm | coordonnées
+    // Colonnes : anon | notes | variables | locuteurs | catégories thm | coordonnées | en-tête
     const CFG = {
-        sonal: [[true,true], [false,true],  [false,true],  [false,true],  [false,true],  [false,true]],
-        html:  [[true,true], [true,true],  [true,true],  [true,true],  [true,true],  [true,true]],
-        txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
-        srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true]],
-        vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true]],
-        docx:  [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
-        pdf:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
+        sonal: [[true,true], [false,true],  [false,true],  [false,true],  [false,true],  [false,true],  [false,true]],
+        html:  [[true,true], [true,true],  [true,true],  [true,true],  [true,true],  [true,true],  [false,true]],
+        txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true],  [true,true]],
+        srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true], [false,false]],
+        vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true], [false,false]],
+        docx:  [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true],  [true,true]],
+        pdf:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true],  [false,true]],
     };
     const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', srt:'.srt', vtt:'.vtt', docx:'.docx', pdf:'.pdf' };
 
     const cfg = CFG[format] || CFG.txt;
-    const [oa, on, ov, ol, oth, oti] = cfg;
+    const [oa, on, ov, ol, oth, oti, oe] = cfg;
 
     const opt = (id,  classes, label, [enabled, checked]) => {
         const dis  = enabled ? '' : ' disabled';
@@ -2819,7 +2825,9 @@ function dialogExportChoixOptions(format) {
     panel.innerHTML = `
         <h3 style="margin-top:0;margin-bottom:18px;">2 - Choisissez les éléments à intégrer à l'export au format  ${LABELS[format]}</h3>
         <div style="margin-bottom:18px;">
-          
+
+            ${opt('opt-entete', '', 'En-tête (Sonal π + nom de l\'entretien)', oe)}
+
             <hr style="margin: 6px 0;">
 
             ${opt('opt-notes', 'logo-notes','Notes', on)}

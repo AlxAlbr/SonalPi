@@ -22,6 +22,13 @@ let ent_cur = -1; // entretien courant
 
 let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
 
+// Retire la CLÉ `tabAnon` (la table de RÈGLES entité→pseudo) de chaque entretien avant sérialisation
+// du .crp. ⚠️ Ne touche PAS le texte anonymisé (porté par le HTML / ent.html) : on n'enlève que la
+// copie des règles locales, qui vit aussi dans les .sonal (source de vérité, relue par loadHtml).
+// Le top-level `tabAnon` (règles corpus partagées) reste, lui, sérialisé. Ne mute pas les objets en
+// mémoire (map → nouveaux objets).
+const tabEntSansTabAnon = (t) => (t || []).map(({ tabAnon, ...e }) => e);
+
 // ── Cœur des règles d'anonymisation du corpus (cleAnon, clesAlias, cleEntite,
 //    regleEnCollisionAlias, fusionnerRegles, conflitsPseudoParEntite, reglesCorpusPropres,
 //    persisterReglesCorpus, synchroniserTabAnonGlobal) DÉPLACÉ dans
@@ -114,7 +121,7 @@ async function lireCorpus(fileContent){
         window.electronAPI.setEntCur(ent_cur);
 
         // Initialiser le cache du contenu sauvegardé pour éviter un commit inutile dès l'ouverture
-        _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic });
+        _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic });
 
         console.log("les tableaux de données ont été chargés depuis le corpus");
         console.log("tabThm :", tabThm);
@@ -147,9 +154,12 @@ loadHtml(0,Number(tabEnt.length-1)).then( async () => {
         await cleanVariables(); // nettoyage du tabdat des éventuelles données obsolètes
          inventaireVariables(); // inventaire des variables utilisées dans les entretiens
          
-         // Reconstituer le tabAnon global à partir des entretiens si vide
+         // Reconstituer le tabAnon global à partir des entretiens.
+         // On relit le tabEnt du MAIN (et non la variable module, issue du parse .crp) : après
+         // loadHtml, le main porte les ent.tabAnon chargés depuis les .sonal — la source de vérité
+         // du niveau entretien. (Indispensable une fois la copie .crp de ent.tabAnon retirée.)
          //if (!tabAnon || tabAnon.length === 0) {
-           await reconstituerTabAnonGlobal(tabEnt);
+           await reconstituerTabAnonGlobal(await window.electronAPI.getEnt());
          //}
 });  
 
@@ -457,7 +467,7 @@ async function lireCrpSonal2(contenu){
          // définition du nom du nouveau corpus (ajout .Pi avant crp)
          let nouveauNomCrp = Corpus.url.substring(0, Corpus.url.lastIndexOf(".")) + ".Sonal_Pi.crp";   
 
-          const contenuCrp = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic /*, tabDat */ });
+          const contenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic /*, tabDat */ });
   
           
  
@@ -905,7 +915,7 @@ let corpusActuel = Corpus.url;
   );
   await window.electronAPI.setDat(tabDatGlobal);
 
-  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon, paramsAnonCorpus });
+  const contenu = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic, tabAnon, paramsAnonCorpus });
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);
   

@@ -23,10 +23,8 @@
  * @param {Array} entretiens - Tableau des entretiens (tabEnt)
  */
 async function reconstituerTabAnonGlobal(entretiens) {
-    console.log("Reconstitution du tabAnon global à partir des entretiens...");
 
     if (!entretiens || entretiens.length === 0) {
-        console.log("❌ Aucun entretien fourni");
         return;
     }
 
@@ -49,7 +47,6 @@ async function reconstituerTabAnonGlobal(entretiens) {
     // tri du tabAnon par ordre alphabétique des entités
     newTabAnon.sort((a, b) => a.entite.localeCompare(b.entite));
 
-    console.log(`✅ TabAnon reconstitué : ${newTabAnon.length} paire(s) unique(s)`, newTabAnon);
 
     if (conflits.length > 0) {
         console.warn(`⚠️ ${conflits.length} entité(s) avec des pseudos divergents (le pseudo du corpus est conservé) :`, conflits);

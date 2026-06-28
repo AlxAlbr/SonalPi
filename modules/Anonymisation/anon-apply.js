@@ -12,7 +12,6 @@
  */
 async function retirerPseudoOccurrencesSpecifiques(indexEnt, occurrencesARetirer, anon) {
     try {
-        console.log(`Retrait du pseudo pour ${occurrencesARetirer.length} occurrence(s) dans l'entretien ${indexEnt}`);
         
         // Récupérer l'HTML de l'entretien
         let htmlContent = await window.electronAPI.getHtml(indexEnt);
@@ -113,17 +112,14 @@ async function retirerPseudoOccurrencesSpecifiques(indexEnt, occurrencesARetirer
                 // Insérer le nouveau span (insertionPoint peut être null → append en fin de parent)
                 parent.insertBefore(spanContexte, insertionPoint);
                 nbRetraits++;
-                console.log(`  ✓ Pseudo retiré pour "${texteOriginal}"`);
             }
         }
 
         if (nbRetraits === 0) {
-            console.log(`Aucune occurrence à retirer pour "${anon.entite}"`);
             return;
         }
 
         const finalHtmlContent = tempDiv.innerHTML;
-        console.log(`✅ ${nbRetraits} pseudo(s) retiré(s)`);
 
         // Sauvegarder l'HTML modifié
         await window.electronAPI.setHtml(indexEnt, finalHtmlContent);
@@ -132,7 +128,6 @@ async function retirerPseudoOccurrencesSpecifiques(indexEnt, occurrencesARetirer
         try {
             if (typeof window.majFichierSonal === 'function') {
                 await window.majFichierSonal(indexEnt, indexEnt + 1);
-                console.log(`Fichier Sonal réécrit pour l'entretien ${indexEnt}`);
             }
         } catch (errMaj) {
             console.error('Erreur lors de majFichierSonal:', errMaj);
@@ -272,7 +267,6 @@ async function retirerExceptionOccurrencesSpecifiques(indexEnt, occurrencesADese
  */
 async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanIdsATraiter = null, suppressDialog = false) {
     
-    console.log(`Pseudonymisation dans l'entretien index ${indexEnt} pour l'entité "${entite}" avec le pseudo "${pseudo}"`);
     
     try {
         if (!pseudo || pseudo.trim().length === 0) {
@@ -423,7 +417,6 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanId
                     }
 
                     nbRemplacements++;
-                    console.log(`  → "${fragment.content}" isolé en ${wordTokens.length} span(s) [pseudo="${pseudo}"]`);
                 }
             }
 
@@ -442,7 +435,6 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanId
         }
 
         const finalHtmlContent = tempDiv.innerHTML;
-        console.log(`✅ ${nbRemplacements} occurrence(s) traitée(s)`);
 
         // Sauvegarder l'HTML modifié
         await window.electronAPI.setHtml(indexEnt, finalHtmlContent);
@@ -450,9 +442,7 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanId
         // Réécriture du fichier .sonal avec le nouveau HTML
         try {
             if (typeof window.majFichierSonal === 'function') {
-                console.log(`Appel de majFichierSonal(${indexEnt}, ${indexEnt + 1})`);
                 await window.majFichierSonal(indexEnt, indexEnt + 1);
-                console.log(`Fichier Sonal réécrit pour l'entretien ${indexEnt}`);
             } else {
                 console.warn('Fonction majFichierSonal non disponible');
             }
@@ -538,7 +528,6 @@ async function repseudonymiserEntiteDansEntretien(indexEnt, entite, ancienPseudo
             await window.majFichierSonal(indexEnt, indexEnt + 1);
         }
 
-        console.log(`✅ Re-pseudonymisation entretien ${indexEnt} : « ${entite} » « ${ancienPseudo} » → « ${nouveauPseudo} » (${occ.length} occ.)`);
         return occ.length;
     } catch (error) {
         console.error("Erreur dans repseudonymiserEntiteDansEntretien():", error);

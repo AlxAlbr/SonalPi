@@ -70,7 +70,6 @@ function basculerException(idxPaire, matchIdxOrSpanRk) {
             spansUpdated++;
         }
         
-        console.log(`✅ Basculé exception: ${match.isException ? 'ajoutée' : 'retirée'} pour ${spansUpdated} span(s)`);
     }
     
     // Rafraîchir le tableau pour mettre à jour le compteur d'exceptions
@@ -495,5 +494,4 @@ function attacheExceptionListeners() {
     // Attacher les listeners
     segments.addEventListener("click", handler);
     segments.addEventListener("contextmenu", handler);
-    console.log("✅ Listeners d'exception attachés");
 }

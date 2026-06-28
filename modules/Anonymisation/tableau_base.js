@@ -34,12 +34,16 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
   // 2. Ajouter les règles du tabAnon local (qui peuvent surcharger les globales)
   if (tabAnonLocal && tabAnonLocal.length > 0) {
     tabAnonLocal.forEach(regle => {
-      if (!regle.entite || !regle.remplacement) return;
-      const key = cleAnon(regle.entite, regle.remplacement);
+      if (!regle.entite) return;
+      // Sans pseudo : on ne charge QUE les brouillons en chantier (restaurés tels quels) ;
+      // une vraie règle (document/corpus) exige toujours un pseudo.
+      const estBrouillon = (regle.portee || 'corpus') === 'brouillon';
+      if (!regle.remplacement && !estBrouillon) return;
+      const key = cleAnon(regle.entite, regle.remplacement || '');
       if (!map.has(key)) {
         map.set(key, {
           entite: regle.entite,
-          remplacement: regle.remplacement,
+          remplacement: regle.remplacement || '',
           remplacementAlt: regle.remplacementAlt, // multi-pseudo : 2ᵉ pseudo autorisé (undefined si mono)
           occurrences: regle.occurrences || 0,
           indexCourant: regle.indexCourant || 0,
@@ -76,7 +80,6 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
     });
   }
 
-  console.log(`✅ Fusion tabAnon : ${tabAnonGlobal?.length || 0} global(es) + ${tabAnonLocal?.length || 0} local(es) = ${result.length} total`, result);
   return result;
 }
 
@@ -130,13 +133,10 @@ function autoGrowTextarea(textarea) {
  * (c'est-à-dire que l'entité n'existe pas dans le texte de l'entretien)
  */
 function nettoyerPairesOrphelines() {
-    console.log("🧹 Nettoyage des paires orphelines (entité non trouvée)...");
     
     if (!window.tabAnon) return;
     
     // Supprimer les paires qui ont une entité mais 0 occurrences
-    const avantNettoyage = window.tabAnon.length;
-    
     window.tabAnon = window.tabAnon.filter(paire => {
         const aOccurrences = paire.occurrences > 0;
         const estVide = !paire.entite || !paire.entite.trim();
@@ -150,11 +150,6 @@ function nettoyerPairesOrphelines() {
         const garde = aOccurrences || estVide || estGlobalEnAttente || estGlobalNonLocal || estBrouillon;
         return garde;
     });
-    
-    const apresNettoyage = window.tabAnon.length;
-    if (avantNettoyage !== apresNettoyage) {
-        console.log(`🧹 ${avantNettoyage - apresNettoyage} paire(s) orpheline(s) supprimée(s)`);
-    }
 }
 
 /**
@@ -225,10 +220,8 @@ function detecterOccurrencesNonTraitees(idxPaire) {
 }
 
 function detecterOccurrencesToutesLesPaires() {
-    console.log("🔍 Détection automatique des occurrences pour toutes les paires...");
     
     if (!window.tabAnon || window.tabAnon.length === 0) {
-        console.log("tabAnon vide, pas de détection");
         return;
     }
 
@@ -241,7 +234,6 @@ function detecterOccurrencesToutesLesPaires() {
         const txt = span.textContent.trim();
         if (txt) motsPresents.add(txt.toLowerCase()); // pré-filtrage insensible à la casse
     });
-    console.log(`⚡ Pré-filtrage : ${motsPresents.size} mot(s) distinct(s) dans le texte`);
 
     let ignorees = 0;
     
@@ -250,7 +242,7 @@ function detecterOccurrencesToutesLesPaires() {
         const paire = window.tabAnon[i];
         if (paire.entite && paire.entite.trim()) {
 
-            // ⚡ Vérifier qu'au moins UN alias a tous ses tokens présents dans le texte
+            // Vérifier qu'au moins UN alias a tous ses tokens présents dans le texte
             // (insensible à la casse) avant de lancer l'analyse fine (coûteuse) sur les spans.
             const tousPresents = parseAliases(paire.entite).some(al => {
                 let tokens = tokenizeCommeSegmentation(al.trim()).filter(t => t.trim() !== '');
@@ -291,7 +283,6 @@ function detecterOccurrencesToutesLesPaires() {
     // 🧹 Nettoyer les paires orphelines après la détection
     nettoyerPairesOrphelines();
 
-    console.log(`✅ Détection terminée (${ignorees} entité(s) ignorée(s) par pré-filtrage)`);
 }
 
 /**
@@ -378,7 +369,6 @@ async function verifierEntretien() {
 // Initialisation du tableau d'anonymisation
 function initAnon() {
 
-    //console.log("tabAnon à l'initialisation " + JSON.stringify(window.tabAnon) );
     if (!window.tabAnon || window.tabAnon.length === 0) {
     // Crée 3 lignes vides au démarrage
     window.tabAnon = [
@@ -508,7 +498,6 @@ function affichTableauAnon() {
         }
     }
     
-    console.log(`📊 Affichage du tableau : ${indicesToDisplay.filter(i => window.tabAnon[i].occurrences > 0).length} paire(s) avec occurrences + ${indicesToDisplay.filter(i => window.tabAnon[i].entite && window.tabAnon[i].entite.trim() && window.tabAnon[i].occurrences === 0).length} paire(s) en cours de remplissage + lignes vides`);
     
     let html = `
         <table class="tableau-anon">
@@ -700,7 +689,6 @@ function affichTableauAnon() {
     const fileInput = document.getElementById('file-import-correspondance');
     if (fileInput) {
         fileInput.addEventListener('change', function() {
-            //console.log("Event listener déclenché, files:", this.files.length);
             importTableCorrespondance(this.files);
         });
     }
@@ -783,22 +771,23 @@ function nettoyerTabAnon() {
   // corpus et reviennent par fusion à la réouverture, donc aucune perte.
   // ⚠️ Garde-fou occurrences===0 : une règle globale RÉELLEMENT appliquée cette session
   // (occurrences>0) doit être conservée (sinon on perdrait du travail).
-  // ⚠️ Un BROUILLON explicite (portée 'brouillon', entité+pseudo, occ=0) est CONSERVÉ même s'il
-  // ressemble à un fantôme : c'est un draft voulu et persisté (§7). Il ne fuit pas au corpus (les
-  // chokepoints filtrent 'brouillon') et la détection l'ignore (reste occ=0).
-  const lignesValides = window.tabAnon.filter(p =>
-    p.entite && p.entite.trim().length > 0 &&
-    p.remplacement && p.remplacement.trim().length > 0 &&
-    ((p.portee || 'corpus') === 'brouillon' ||
-     !(p.source === 'Global' && !p.existeLocalement && (p.occurrences || 0) === 0))
-  );
+  // ⚠️ Un BROUILLON explicite (portée 'brouillon') est CONSERVÉ — y compris ENTITÉ SEULE, sans
+  // pseudo : c'est un travail en chantier qu'on ne veut pas perdre (§7). Il ne fuit pas au corpus
+  // (les chokepoints filtrent 'brouillon'), n'est jamais appliqué (occ=0) et la règle « vraie
+  // anonymisation = pseudo requis » reste intacte (validerLigneAnon exige toujours un pseudo).
+  const lignesValides = window.tabAnon.filter(p => {
+    if (!p.entite || !p.entite.trim().length) return false;
+    if ((p.portee || 'corpus') === 'brouillon') return true; // brouillon en chantier : gardé même sans pseudo
+    return p.remplacement && p.remplacement.trim().length > 0 &&
+           !(p.source === 'Global' && !p.existeLocalement && (p.occurrences || 0) === 0);
+  });
 
   // Supprimer les doublons (même entité + remplacement), clé canonique unique (cleAnon).
   // NB : on conserve l'objet `p` COMPLET (champs runtime de l'entretien local), donc on ne
   // peut pas utiliser fusionnerRegles ici (qui ne renvoie que {entite, remplacement}).
   const map = new Map();
   lignesValides.forEach(p => {
-    const key = cleAnon(p.entite, p.remplacement);
+    const key = cleAnon(p.entite, p.remplacement || ''); // brouillon entité-seule : remplacement vide
     if (!map.has(key)) {
       map.set(key, p);
     }
@@ -1231,11 +1220,9 @@ function ajouterNouvelleLigneAnon() {
 
 // Ajoute une entité sélectionnée à la première ligne vide
 function ajouteEntiteAnonSelectionnee() {
-    console.log("🎯 ajouteEntiteAnonSelectionnee() appelée");
     
     // Vérifie qu'une sélection est active
     if (debSel <= 0 || finSel <= 0) {
-        console.log("❌ Aucune sélection (debSel=" + debSel + ", finSel=" + finSel + ")");
         return;
     }
     
@@ -1243,28 +1230,21 @@ function ajouteEntiteAnonSelectionnee() {
     let texteSel = getTexteSelection(debSel, finSel);
     
     if (!texteSel) {
-        console.log("❌ Texte sélectionné vide");
         return;
     }
     
-    console.log("✅ Texte sélectionné: '" + texteSel + "'");
     
     // Vérifier si cette entité est déjà anonymisée
     for (let i = 0; i < window.tabAnon.length; i++) {
         if (window.tabAnon[i].entite.trim() === texteSel && window.tabAnon[i].occurrences > 0) {
-            console.log("ℹ️ Entité déjà anonymisée, affichage du menu contextuel");
-            console.log("debSel:", debSel, "finSel:", finSel);
             
             // Trouver le match qui correspond à la sélection courante
             const result = trouverOccurrenceAnonyme(debSel, finSel);
-            console.log("Résultat trouverOccurrenceAnonyme:", result);
             
             if (result) {
                 const { idxPaire, matchIdx } = result;
-                console.log("Menu exception à afficher pour idxPaire:", idxPaire, "matchIdx:", matchIdx);
                 // Récupérer le span finsel pour passer à showMenuException
                 const finselSpan = document.querySelector(".finsel");
-                console.log("finselSpan:", finselSpan);
                 if (finselSpan) {
                     setTimeout(() => {
                         const match = window.tabAnon[idxPaire]?.matchPositions?.[matchIdx];
@@ -1275,8 +1255,6 @@ function ajouteEntiteAnonSelectionnee() {
                         }
                     }, 10);
                 }
-            } else {
-                console.log("❌ Aucun match trouvé pour la sélection");
             }
             return;
         }
@@ -1293,20 +1271,17 @@ function ajouteEntiteAnonSelectionnee() {
     
     // Si pas de ligne vide, en crée une
     if (idxLigneVide === -1) {
-        console.log("➕ Pas de ligne vide, création d'une nouvelle");
         window.tabAnon.push({ entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [], portee: 'brouillon' });
         idxLigneVide = window.tabAnon.length - 1;
     }
     
     // Remplit la ligne
-    console.log("📝 Remplissage de la ligne " + idxLigneVide + " avec l'entité '" + texteSel + "'");
     window.tabAnon[idxLigneVide].entite = texteSel;
     
     affichTableauAnon();
     
     // Stocker l'index pour le focus après validSel()
     lastAnonLineToFocus = idxLigneVide;
-    console.log("✅ Nouvelle entité ajoutée et tableau rafraîchi");
 }
 
 // Récupère le texte de la sélection
@@ -1494,21 +1469,17 @@ function appliquerAnonymisationPour(idxPaire) {
         
         // Trouver l'index du match qui correspond à la sélection actuelle (debSel, finSel)
         let indexCourantMatch = 0;
-        //console.log("debSel:", debSel, "finSel:", finSel);
-        //console.log("matches:", matches);
         
         // Chercher le match qui contient debSel ou qui est le plus proche
         let minDistance = Infinity;
         for (let i = 0; i < matches.length; i++) {
             const match = matches[i];
-          //  console.log(`Match ${i}: start=${match.start}, end=${match.end}`);
             
             // Si debSel ou finSel est dans le match
             if ((debSel >= match.start && debSel <= match.end) || 
                 (finSel >= match.start && finSel <= match.end) ||
                 (debSel <= match.start && finSel >= match.end)) {
                 indexCourantMatch = i;
-                //console.log("Match trouvé par inclusion:", i);
                 break;
             }
             
@@ -1723,14 +1694,6 @@ async function validerAnonEnAttente(porteeRequise = 'document') {
     // Rafraîchir le tableau
     affichTableauAnon();
     
-    // Afficher un message de résumé
-    let message = `${compteurValides} anonymisation(s) validée(s)`;
-    if (compteurErreurs > 0) {
-        message += ` et ${compteurErreurs} erreur(s)`;
-    }
-    if (compteurValides > 0 || compteurErreurs > 0) {
-        console.log(message);
-    }
     // Avertir (non silencieux) si des conflits corpus ont été laissés de côté.
     if (compteurConflits > 0) {
         await question(
@@ -1766,11 +1729,9 @@ function compterOccurrencesEntite(entite) {
 // Cherche si la sélection courante (debSel/finSel) correspond à une occurrence anonymisée existante
 function trouverOccurrenceAnonyme(debSel, finSel) {
     if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
-        console.log("❌ trouverOccurrenceAnonyme: tabAnon non défini");
         return null;
     }
     
-    console.log("🔍 Recherche occurrence: debSel=", debSel, "finSel=", finSel);
     
     // Parcourir toutes les paires anonymisées
     for (let idxPaire = 0; idxPaire < window.tabAnon.length; idxPaire++) {
@@ -1781,7 +1742,6 @@ function trouverOccurrenceAnonyme(debSel, finSel) {
             continue;
         }
         
-        console.log(`  Paire ${idxPaire} (${paire.entite}): ${paire.matchPositions.length} match(es)`);
         
         // Chercher si la sélection correspond à l'un des matchPositions
         for (let matchIdx = 0; matchIdx < paire.matchPositions.length; matchIdx++) {
@@ -1792,36 +1752,30 @@ function trouverOccurrenceAnonyme(debSel, finSel) {
             // re-marquage parasite à l'intérieur du run large.
             if (match.isIncluded) continue;
 
-            console.log(`    Match ${matchIdx}: start=${match.start}, end=${match.end}`);
             
             // Cas 1: Match exact (débuts et fins identiques)
             if (debSel === match.start && finSel === match.end) {
-                console.log("    ✅ Match exact trouvé!");
                 return { idxPaire, matchIdx, match };
             }
             
             // Cas 1b: Match avec tolérance de ±1 (pour gérer les décalages d'indices)
             if (Math.abs(debSel - match.start) <= 1 && Math.abs(finSel - match.end) <= 1) {
-                console.log("    ✅ Match avec tolérance trouvé!");
                 return { idxPaire, matchIdx, match };
             }
             
             // Cas 2: debSel/finSel est juste après le match
             // (cas où le match inclut un espace avant le mot)
             if (debSel === match.end + 1 && finSel === match.end + 1) {
-                console.log("    ✅ Match juste après trouvé!");
                 return { idxPaire, matchIdx, match };
             }
             
             // Cas 3: debSel/finSel est inclus dans le match (pour un clic simple)
             if (debSel >= match.start && finSel <= match.end) {
-                console.log("    ✅ Clic simple inclus dans le match!");
                 return { idxPaire, matchIdx, match };
             }
         }
     }
     
-    console.log("❌ Aucun match trouvé");
     return null;
 }
 
@@ -2104,6 +2058,10 @@ function repererOccurrences(idx) {
     _reperage = { entite: paire.entite, matches: matches.map(m => ({ start: m.start, end: m.end })), cur: 0 };
     _surlignerReperage(0);
     affichTableauAnon();
+    // Un repérage crée un brouillon « en chantier » mais ne modifie PAS le HTML → le save-on-close
+    // (basé sur un diff HTML) l'ignorerait. On signale donc une modif d'anonymisation en attente pour
+    // que la fermeture écrive le .sonal (où vit l'anonymisation de l'entretien — cf. nettoyerTabAnon).
+    window._tabAnonModifieEnAttente = true;
 }
 function repererNav(idx, sens) {
     if (!_reperage || !_reperage.matches.length) return;
