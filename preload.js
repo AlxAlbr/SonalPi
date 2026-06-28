@@ -250,6 +250,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listerRecueils: () => ipcRenderer.invoke('lister-recueils'),
   supprimerRecueil: (filePath) => ipcRenderer.invoke('supprimer-recueil', filePath),
 
+  // Lecture / écriture des fichiers annexes du corpus (.lem, .out)
+  lireAnnexeLexico: (ext) => ipcRenderer.invoke('lexico:lireAnnexe', ext),
+  sauvegarderAnnexeLexico: (ext, content) => ipcRenderer.invoke('lexico:sauvegarderAnnexe', ext, content),
+  lireDicosVerbesLexico: () => ipcRenderer.invoke('lexico:lireDicosVerbes'),
+
   // Écouter la libération d'un verrou d'entretien
   onEntretienDeverrouille: (callback) =>
     ipcRenderer.on('entretien-deverrouille', (event, rkEnt) => callback(rkEnt)),

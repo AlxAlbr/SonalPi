@@ -96,6 +96,7 @@ async function lireCorpus(fileContent){
         paramsAnonCorpus = crp.paramsAnonCorpus || {};
         tabHtml = [];
         tabGrph = [];
+        tabLexico = [];
         ent_cur = crp.ent_cur || -1;
 
         

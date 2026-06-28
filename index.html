@@ -35,10 +35,12 @@
   <script  src="modules/Anonymisation/anon-help.js"></script>
   <script  src="modules/Anonymisation/anon-params.js"></script>
   <script  src="modules/Anonymisation/anon-styles.js"></script>
+  <script  src="node_modules/wordcloud2/src/wordcloud2.js"></script>
+  <script  src="modules/lexico.js"></script>
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "1.0.65";
+    const version = "1.0.72";
   </script>
 
 <body>
@@ -97,6 +99,10 @@
                Synthèse
               </button>
 
+              <button id="btn-lexico" class="btn btn-secondary logo-lexico" style="float:left;; padding:10px;" title="Statistiques lexicales" onclick=" afficherLexico() ;">
+                 Lexico
+              </button>
+
               <button id="btn-recueils" class="btn btn-secondary logo-recueil" style="float:left; padding:10px;" title="Ouvrir les recueils" onclick="ouvrirModaleRecueils();">
                 Recueils
               </button>
@@ -143,11 +149,11 @@
       <!-- boutons partie gauche !-->
       <div id="fonctions-g" style="flex:1;"> 
 
-                <img id = "imgpandet" title = "Outils" class = "imgbtn_g" src="img\outils.png" height= "33px" width= '33px'  alt="outils"  onclick="dispPanneauG(this, 'fond_gen_corpus')" style="margin-left:5px">
+                <img id = "imgpandet" title = "Informations sur l'entretien" class = "imgbtn_g" src="img\buddy.png" height= "30px" width= '30px'  alt="outils"  onclick="dispPanneauG(this, 'fond_gen_corpus')" style="margin-left:5px">
                 <!-- <img id = "imgpanloc" title = "Locuteurs" class = "imgbtn_g" src="img\logoloc.png" height= "33px" width= '33px'  alt="locuteurs"    onclick="dispPanneauG(this, 'fond_loc')"  > !-->
-                <img id = "imgpancat" title = "Catégories" class = "imgbtn_g" src="img\logocat.png" height= "33px" width= '33px' class= '' style="opacity: 1; "  alt="catégories"  onclick="dispPanneauG(this, 'fond_thm_corpus')"   >
-                <!--<img id = "imgpandat" title = "Notes" class = "imgbtn_g" src="img\logonotes2.png" height= "33px" width= '33px' class= ''  alt="notes"  onclick="dispPanneauG(this, 'fond_notes')"  >
-                <img id = "imgpandat" title = "Métadonnées" class = "imgbtn_g" src="img\logodat2.png" height= "33px" width= '33px' class= ''  alt="métadonnées"  onclick="dispPanneauG(this, 'fond_dat')"  >!-->
+                <img id = "imgpancat" title = "Catégories" class = "imgbtn_g" src="img\logocat-filtre.png" height= "33px" width= '33px' class= '' style="opacity: 1; "  alt="catégories"  onclick="dispPanneauG(this, 'fond_thm_corpus')"   >
+                <!--<img id = "imgpandat" title = "Notes" class = "imgbtn_g" src="img\logonotes2.png" height= "33px" width= '33px' class= ''  alt="notes"  onclick="dispPanneauG(this, 'fond_notes')"  >!-->
+                <img id = "imgpandat" title = "Métadonnées" class = "imgbtn_g" src="img\logodat-filtre.png" height= "33px" width= '33px' class= ''  alt="métadonnées"  onclick="dispPanneauG(this, 'fond_dat')"  >
                 <img id = "imgpansearch" title = "Rechercher/Remplacer" class = "imgbtn_g" src="img\logosearch.png" height= "33px" width= '33px' class= ''  alt="Rechercher/remplacer"  onclick="dispPanneauG(this, 'fond_rech')"  >
                  <!--<img id = "imgpananon" title = "Anonymisation" class = "imgbtn_g dnone"  src="img\logoanon.png" height= "33px" width= '38px' class= ''  alt="anonymisation"  onclick="dispPanneauG(this, 'fond_anon')"  > !-->
 
@@ -170,7 +176,10 @@
         <div id = "colonne-gauche" class="colonne-g">
           
           <!-- panneau généralités corpus !-->
-          <div id="fond_gen_corpus" class="pan-g dnone">Généralités</div>
+          <div id="fond_gen_corpus" class="pan-g dnone" >
+            <label style = "padding: 10px 30px;color: grey;">Sélectionnez un entretien (clic sur son nom)</label>
+            
+          </div>
           
           <!-- infos sur l'entretien !-->
           <div id="fond_infos_corpus" class="pan-g dnone">
@@ -185,22 +194,25 @@
                            <label id="activeAllCat" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer toutes les catégories"></label>
                             <label>Catégories</label>
                             <label id = "lbl-nb-cat" class = "nb-elements"></label>
+                            <label id="cmpct-all" class="cmpct-all" title="Tout (dé)compacter"></label>
              
               <label id="editCat" class="btnbleu" style = "margin-right: 10px;" title="modifier les catégories"> ✏️ </label>
                <label id="selCatEt" class="btnbleu" style = "margin-right: 10px;" title="Critère & pour la sélection des catégories "> & </label>
+               <label id="toggleSearch" class="btnbleu" style="margin-right: 10px;" title="Rechercher une catégorie">🔎</label>
 
-
-                                <input 
-                                    type="text" 
-                                    class="search-input" 
-                                    id="searchInput" 
-                                    placeholder="🔎 Rechercher..."
-                                    autocomplete="off"
-                                    onfocus="dsTxtArea=false;dsTxtAutre=true"
-                                    onfocusout= "dsTxtAutre=false"
-                                >
-
-                                <label id="cmpct-all" class="btnbleu cmpct-all" style = "margin-right: 10px;" title="Tout (dé)compacter"> </label>
+                                <div id="search-wrapper" class="dnone" style="float:left; width:100%; display:flex; align-items:center; gap:4px; margin-top:8px;">
+                                    <input 
+                                        type="text" 
+                                        class="search-input" 
+                                        id="searchInput" 
+                                        placeholder="Rechercher..."
+                                        autocomplete="off"
+                                        onfocus="dsTxtArea=false;dsTxtAutre=true"
+                                        onfocusout= "dsTxtAutre=false"
+                                        style="flex:1; margin-top:0; width:auto;"
+                                    >
+                                    <label id="clearSearch" class="btnbleu" style="float:none; margin-top:0; cursor:pointer;" title="Effacer la recherche">✕</label>
+                                </div>
             
               <!--  <label id="filtrerCat" class="btnbleu btnfiltre" title="Filtrer les catégories" style="font-size: 0.8rem !important;"> </label>-->
             </h2>
@@ -210,6 +222,20 @@
           </div>
 
           <div id="fond_dat_corpus" class="pan-g dnone">Métadonnées</div>
+
+          <!-- Tris à plat -->
+          <div id="fond_dat" class="pan-g dnone" style="height:calc(100vh - 145px);display:flex;flex-direction:column;">
+            <div id="tap-header" style="flex-shrink:0;padding:4px 10px 4px 10px;border-bottom:1px solid #ddd;">
+              <h2 style="margin:0;display:flex;align-items:center;justify-content:space-between;">
+                <span style="display:flex;align-items:center;gap:6px;">
+                  <button id="tap-global-switch" class="btn-onoff-ent btn-onoff-ent--actif" title="(dés)activer tous les entretiens"></button>
+                  Tris à plat
+                </span>
+                <span id="tap-compact-all" class="tap-collapse-btn" title="Tout compacter / décompacter" style="font-size:1rem;margin-right:4px;cursor:pointer;">▲</span>
+              </h2>
+            </div>
+            <div id="triaplat-content" style="flex:1;overflow-y:auto;padding:4px 4px 20px 4px;"></div>
+          </div>
 
           <div id="fond_infosent_corpus" class="pan-g dnone">Détails de l'entretien</div>
 
@@ -274,7 +300,7 @@
         <!-- colonne de droite (entretiens)  !-->
         <div  class = "colonne-d " style="flex:3" onclick="désélectEntretiens()">  
 
-        <div id ="header-ent" >
+        <div id ="header-ent" style="flex-shrink:0;">
               <h2 style="margin-bottom: 1px;margin-left:3px; float:left !important;width:98%;">
                            <label id="activeAllEnt" class="btnbleu activeallcat" style = "margin-right: 10px;float:left !important" title="(dés)activer tous les entretiens"></label>
                             <label>Entretiens</label>
@@ -299,7 +325,7 @@
             </h2>
         </div> 
 
-        <div id="fond_ent_corpus" style = "min-height: 100%;" onclick="désélectEntretiens()">
+        <div id="fond_ent_corpus" style = "flex:1; overflow-y:auto;" onclick="désélectEntretiens()">
 
           <div class="info-no-content"> 
             <label style ="width:100%;display: block;margin:5px">Aucun document n'a été chargé pour l'instant. </label>
@@ -407,9 +433,7 @@
     }  
 
        if ( composant=="fond_dat" ) {
-        
-       
-
+        affichTriAPlat();
     }  
 
     if ( composant=="fond_rech" ) {
@@ -1289,6 +1313,29 @@ async function displayRecentFiles() {
             return text.replace(regex, '<mark>$1</mark>');
         }
 
+        // Toggle du champ de recherche
+        document.getElementById('toggleSearch').addEventListener('click', () => {
+            const wrapper = document.getElementById('search-wrapper');
+            const btn = document.getElementById('toggleSearch');
+            const input = document.getElementById('searchInput');
+            const isHidden = wrapper.classList.toggle('dnone');
+            btn.classList.toggle('btn-bleu-actif', !isHidden);
+            if (!isHidden) {
+                input.focus();
+            } else {
+                input.value = '';
+                input.dispatchEvent(new Event('keyup'));
+            }
+        });
+
+        // Effacement de la recherche sans cacher le champ
+        document.getElementById('clearSearch').addEventListener('click', () => {
+            const input = document.getElementById('searchInput');
+            input.value = '';
+            input.dispatchEvent(new Event('keyup'));
+            input.focus();
+        });
+
 
 
 
@@ -1389,38 +1436,8 @@ function displayVersion() {
     }
 
     await window.electronAPI.setThm(tabThm);
-
-    return; 
-
-    // réaffichage des thématiques
-    lignesThm = document.querySelectorAll('.ligthm');
-    lignesThm.forEach(lig => {
-      
-        const rkThm = parseInt(lig.getAttribute('data-rkthm'));
-        const thm = tabThm[rkThm];
-
-        if (thm.cmpct === true) {
-          
-          if (tabThm[rkThm].rang>0) {
-            lig.classList.add('ligthm-cmpct');
-          }else {
-            lig.classList.add('ligfam');
-            lig.classList.remove('ligfam-cmpct');
-          }
-
-        } else {
-            if (tabThm[rkThm].rang>0) {
-            lig.classList.remove('ligthm-cmpct');
-            } else {
-            lig.classList.add('ligthm-cmpct');
-            lig.classList.remove('ligfam');
-            }
-            
-        }
-
-    });
-  
-    });
+    await affichListThmCrp(tabThm);
+  });
 
 
 function wait(message) {

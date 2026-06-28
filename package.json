@@ -1,6 +1,6 @@
 {
   "name": "sonal",
-  "version": "1.0.65",
+  "version": "1.0.72",
   "author": {
     "name": "Alex Alber",
     "email": "sonalteam@gmail.com"
@@ -66,6 +66,7 @@
       "saisie-distant.html",
       "GitlabHelp.html",
       "modules/**/*",
+      "Dico/**/*",
       "css/**/*",
       "node_modules/**/*",
       "img/**/*",
@@ -102,7 +103,8 @@
     "mammoth": "^1.12.0",
     "node-fetch": "^2.7.0",
     "pdf-parse": "^1.1.4",
-    "pdfkit": "^0.18.0"
+    "pdfkit": "^0.18.0",
+    "wordcloud2": "^1.0.0"
   },
   "devDependencies": {
     "electron": "^38.1.2",

@@ -847,7 +847,124 @@ ipcMain.handle('sauvegarder-avec-backup', async (event, filePath, content) => {
   }
 });
 
- 
+
+
+//=============================================
+// Fichiers annexes du corpus (.lem, .out)
+// Lecture et écriture des lemmatisations et mots outils
+//=============================================
+
+/**
+ * Construit le chemin d'un fichier annexe (.lem, .out, etc.)
+ * pour le corpus actuellement ouvert.
+ */
+function _cheminAnnexe(ext) {
+  if (!Corpus.folder || !Corpus.fileName) return null;
+  const base = Corpus.fileName.replace(/\.[^.]+$/, '');
+  if (Corpus.type === 'local') {
+    return path.join(Corpus.folder, base + ext);
+  }
+  // Distant (serveur ou GitLab) : chemin relatif avec '/'
+  return Corpus.folder.replace(/\/+$/, '') + '/' + base + ext;
+}
+
+// Lire un fichier annexe du corpus courant
+ipcMain.handle('lexico:lireAnnexe', async (_, ext) => {
+  const filePath = _cheminAnnexe(ext);
+  if (!filePath) return { success: false, content: null, error: 'Aucun corpus ouvert' };
+
+  if (Corpus.type === 'local') {
+    if (!fs.existsSync(filePath)) return { success: true, content: null };
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      return { success: true, content };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Distant
+  const api = remoteAPI();
+  if (!api) return { success: false, error: 'Pas de connexion au serveur' };
+  try {
+    const result = await api.lireFichier(filePath);
+    if (!result.success) return { success: true, content: null }; // absent = OK
+    return { success: true, content: result.content };
+  } catch (err) {
+    return { success: true, content: null }; // absent = OK
+  }
+});
+
+// Sauvegarder un fichier annexe du corpus courant
+ipcMain.handle('lexico:sauvegarderAnnexe', async (_, ext, content) => {
+  const filePath = _cheminAnnexe(ext);
+  if (!filePath) return { success: false, error: 'Aucun corpus ouvert' };
+
+  if (Corpus.type === 'local') {
+    try {
+      fs.writeFileSync(filePath, content, 'utf8');
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Distant
+  const api = remoteAPI();
+  if (!api) return { success: false, error: 'Pas de connexion au serveur' };
+  try {
+    return await api.ecrireFichier(filePath, content);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+function _lireTexteAvecEncodageAuto(filePath) {
+  const buf = fs.readFileSync(filePath);
+  const encoding = chardet.detect(buf);
+  if (encoding === 'ISO-8859-1' || encoding === 'windows-1252') {
+    return iconv.decode(buf, 'windows-1252');
+  }
+  return iconv.decode(buf, 'utf8');
+}
+
+ipcMain.handle('lexico:lireDicosVerbes', async () => {
+  const baseDirs = [
+    path.join(__dirname, 'Dico'),
+    path.join(process.resourcesPath, 'Dico')
+  ];
+
+  let dicoDir = null;
+  for (const dir of baseDirs) {
+    if (
+      fs.existsSync(path.join(dir, 'VrbGrp1.txt')) &&
+      fs.existsSync(path.join(dir, 'VrbGrp2.txt')) &&
+      fs.existsSync(path.join(dir, 'VrbIrg.txt'))
+    ) {
+      dicoDir = dir;
+      break;
+    }
+  }
+
+  if (!dicoDir) {
+    return {
+      success: false,
+      error: 'Dictionnaires verbaux introuvables (Dico/VrbGrp1.txt, VrbGrp2.txt, VrbIrg.txt).'
+    };
+  }
+
+  try {
+    return {
+      success: true,
+      grp1: _lireTexteAvecEncodageAuto(path.join(dicoDir, 'VrbGrp1.txt')),
+      grp2: _lireTexteAvecEncodageAuto(path.join(dicoDir, 'VrbGrp2.txt')),
+      irg: _lireTexteAvecEncodageAuto(path.join(dicoDir, 'VrbIrg.txt'))
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 
 //=============================================
 // Création d'un nouveau corpus
@@ -1222,7 +1339,7 @@ function editerCategories(parentWindow) {
 
     // chargement de la fenêtre edition_categories.html
     catWindow.loadFile('edition_categories.html');
-    //catWindow.webContents.openDevTools();
+     
     // Retirer le menu de la fenêtre modale
     catWindow.setMenu(null);
 
@@ -1305,7 +1422,8 @@ async function editerEntretien(parentWindow, rgEnt, navTarget = null){
     }
 
     entWindow.once('ready-to-show', async () => {
-              // définition de l'icône
+      
+      // définition de l'icône
       const iconPath = path.join(__dirname, 'icon', 'icon.png') 
       entWindow.setIcon(iconPath);
       entWindow.show();
@@ -3065,6 +3183,11 @@ function secToTime(sec, afficherMS = false) {
   return afficherMS ? `${h}:${m}:${s}.${String(ms).padStart(3, '0')}` : `${h}:${m}:${s}`;
 }
 
+// Retire les préfixes de locuteurs sans traverser les retours ligne.
+function retirerLocuteursTexte(texte) {
+  return (texte || "").replace(/^[ \t]*[^:\r\n]+:[ \t]*/gm, "");
+}
+
 ipcMain.handle('export-synthese-docx', async (event, { extraits, entretiens, themes, opts, nomFichier }) => {
   try {
     const currentDate = new Date().toLocaleString();
@@ -3174,12 +3297,23 @@ ipcMain.handle('export-synthese-docx', async (event, { extraits, entretiens, the
       
       // Filtrer les locuteurs si option désactivée
       if (!opts.loc) {
-        texteComplet = texteComplet.replace(/^[^:]*:\s*/gm, "");
+        texteComplet = retirerLocuteursTexte(texteComplet);
+      }
+
+      const lignesExtrait = texteComplet.split(/\r?\n/);
+      const runsExtrait = [];
+      for (let li = 0; li < lignesExtrait.length; li++) {
+        const ligne = lignesExtrait[li];
+        if (li === 0) {
+          runsExtrait.push(new TextRun({ text: ligne }));
+        } else {
+          runsExtrait.push(new TextRun({ text: ligne, break: 1 }));
+        }
       }
 
       children.push(
         new Paragraph({
-          text: texteComplet,
+          children: runsExtrait,
           spacing: { after: 200 }
         })
       );

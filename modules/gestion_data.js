@@ -73,7 +73,7 @@ async function addVar(mode) {
         await window.sauvegarderCorpus(false);
         updateVarsDsEnt();
         await window.majFichierSonal();
-        await affichDataGen();
+        if (document.getElementById("divTabDat")) await affichDataGen();
         hidedlg();
     } else {
         question("Veuillez entrer un nom de variable.", ['OK']);
@@ -254,7 +254,7 @@ async function sauvVar(rgVar, mode) {
             await window.sauvegarderCorpus(false);
             updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
             await window.majFichierSonal();
-            await affichDataGen();
+            if (document.getElementById("divTabDat")) await affichDataGen();
 
 
       
@@ -1816,6 +1816,349 @@ function selPosVar(code) {
 
     const details = summaryEl.closest('details');
     if (details) details.removeAttribute("open");
+}
+
+////////////////////////////////////////////////////////////////
+// TRIS À PLAT
+////////////////////////////////////////////////////////////////
+
+/**
+ * Met à jour le DOM des ligent (entretiens) d'après l'état actuel de tabEnt.
+ */
+function majLigentsDOM(tabEntLocal) {
+    document.querySelectorAll('div.ligent').forEach(ligentDiv => {
+        const id = Number(ligentDiv.dataset.id);
+        const ent = tabEntLocal.find(e => e.id === id);
+        if (!ent) return;
+        const btn = ligentDiv.querySelector('.btn-onoff-ent');
+        if (ent.actif === 0) {
+            ligentDiv.classList.add('ligent--inactif');
+            if (btn) btn.classList.remove('btn-onoff-ent--actif');
+        } else {
+            ligentDiv.classList.remove('ligent--inactif');
+            if (btn) btn.classList.add('btn-onoff-ent--actif');
+        }
+    });
+}
+
+/**
+ * Met à jour l'état visuel des interrupteurs du panneau tris à plat
+ * en fonction de l'état actif/inactif des entretiens.
+ */
+function majSwitchesTAP(tabEntLocal) {
+    // Interrupteurs modalités normales
+    document.querySelectorAll('.tap-row > .btn-onoff-ent:not([data-nr])').forEach(btn => {
+        const rkV = btn.dataset.v;
+        const rkM = Number(btn.dataset.m);
+        const champ = btn.dataset.champ;
+
+        const cibles = tabEntLocal.filter(en =>
+            Array.isArray(en.tabDat) && en.tabDat.some(d =>
+                Number(d.v) === Number(rkV) &&
+                Number(d.m) === rkM &&
+                (champ === 'gen' ? d.l == 'all' : true)
+            )
+        );
+
+        const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
+        btn.classList.toggle('btn-onoff-ent--actif', tousActifs);
+    });
+
+    // Interrupteurs non-réponses
+    document.querySelectorAll('.tap-row > .btn-onoff-ent[data-nr="1"]').forEach(btn => {
+        const rkV = btn.dataset.v;
+        const champ = btn.dataset.champ;
+        const varMods = tabDic.filter(d => Number(d.v) === Number(rkV) && Number(d.m) > 0);
+        const cibles = tabEntLocal.filter(e => {
+            if (!Array.isArray(e.tabDat)) return true;
+            return !varMods.some(dic =>
+                e.tabDat.some(d =>
+                    Number(d.v) === Number(rkV) &&
+                    Number(d.m) === Number(dic.m) &&
+                    (champ === 'gen' ? d.l == 'all' : true)
+                )
+            );
+        });
+        const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
+        btn.classList.toggle('btn-onoff-ent--actif', tousActifs);
+    });
+
+    // Interrupteur global
+    const globalSwitch = document.getElementById('tap-global-switch');
+    if (globalSwitch) {
+        const tousActifs = tabEntLocal.length > 0 && tabEntLocal.every(e => e.actif !== 0);
+        globalSwitch.classList.toggle('btn-onoff-ent--actif', tousActifs);
+    }
+}
+
+/**
+ * Construit et affiche le panneau "Tris à plat" dans #fond_dat.
+ * Affiche pour chaque variable/modalité une barre horizontale proportionnelle
+ * au nombre d'entretiens concernés, avec un interrupteur pour les activer/désactiver.
+ */
+async function affichTriAPlat() {
+
+    tabEnt = await window.electronAPI.getEnt();
+    tabVar = await window.electronAPI.getVar();
+    tabDic = await window.electronAPI.getDic();
+
+    const conteneur = document.getElementById('triaplat-content');
+    if (!conteneur) return;
+    conteneur.innerHTML = '';
+
+    const nbEnt = tabEnt.length;
+    let varIdx = 0; // indice pour les couleurs (cycle sur --coul-loc1..20)
+    const tapGroups = []; // pour le bouton compact global
+
+    for (const v of tabVar) {
+
+        // Filtrer les modalités valides (m > 0) pour cette variable
+        const mods = tabDic.filter(d => Number(d.v) === Number(v.v) && Number(d.m) > 0);
+        if (mods.length === 0) continue;
+
+        const coulVar = `var(--coul-loc${(varIdx % 20) + 1})`;
+        varIdx++;
+
+        // --- Section variable ---
+        const divVar = document.createElement('div');
+        divVar.classList.add('tap-var');
+        conteneur.appendChild(divVar);
+
+        const lblVar = document.createElement('div');
+        lblVar.classList.add('tap-var-lbl');
+        lblVar.style.color = coulVar;
+        lblVar.style.borderBottomColor = coulVar;
+        divVar.appendChild(lblVar);
+
+        const lblVarTxt = document.createElement('span');
+        lblVarTxt.textContent = v.lib + (v.champ === 'loc' ? ' \u2013 locuteurs' : '');
+        lblVar.appendChild(lblVarTxt);
+
+        const btnCollapse = document.createElement('span');
+        btnCollapse.classList.add('tap-collapse-btn');
+        btnCollapse.textContent = '\u25bc'; // ▼ replié par défaut
+        btnCollapse.title = 'Replier / déplier';
+        lblVar.appendChild(btnCollapse);
+
+        // Conteneur repliable des modalités (replié par défaut)
+        const divMods = document.createElement('div');
+        divMods.classList.add('tap-mods');
+        divMods.style.display = 'none';
+        divVar.appendChild(divMods);
+        tapGroups.push({ divMods, btnCollapse });
+
+        lblVar.addEventListener('click', () => {
+            const repli = divMods.style.display === 'none';
+            divMods.style.display = repli ? '' : 'none';
+            btnCollapse.textContent = repli ? '\u25b2' : '\u25bc'; // ▲ déployé, ▼ replié
+        });
+
+        // --- Ligne pour chaque modalité ---
+        for (const dic of mods) {
+
+            // Entretiens portant cette modalité
+            const entAvecMod = tabEnt.filter(e =>
+                Array.isArray(e.tabDat) && e.tabDat.some(d =>
+                    Number(d.v) === Number(v.v) &&
+                    Number(d.m) === Number(dic.m) &&
+                    (v.champ === 'gen' ? d.l == 'all' : true)
+                )
+            );
+
+            const count = entAvecMod.length;
+            const pct = nbEnt > 0 ? Math.round(count / nbEnt * 100) : 0;
+
+            const divRow = document.createElement('div');
+            divRow.classList.add('tap-row');
+            divMods.appendChild(divRow);
+
+            // Interrupteur on/off
+            const btnSwitch = document.createElement('button');
+            btnSwitch.classList.add('btn-onoff-ent');
+            btnSwitch.dataset.v = v.v;
+            btnSwitch.dataset.m = dic.m;
+            btnSwitch.dataset.champ = v.champ;
+            btnSwitch.title = 'Clic gauche\u00a0: activer/d\u00e9sactiver\nClic droit\u00a0: isoler cette modalit\u00e9';
+            divRow.appendChild(btnSwitch);
+
+            // Libellé de la modalité
+            const lblMod = document.createElement('div');
+            lblMod.classList.add('tap-mod-lbl');
+            lblMod.textContent = dic.lib;
+            lblMod.title = dic.lib;
+            divRow.appendChild(lblMod);
+
+            // Conteneur de la barre (wrapper pour position relative)
+            const barWrap = document.createElement('div');
+            barWrap.classList.add('tap-bar-wrap');
+            divRow.appendChild(barWrap);
+
+            const barBg = document.createElement('div');
+            barBg.classList.add('tap-bar-bg');
+            barWrap.appendChild(barBg);
+
+            const barFill = document.createElement('div');
+            barFill.classList.add('tap-bar-fill');
+            barFill.style.width = pct + '%';
+            barFill.style.backgroundColor = coulVar;
+            barBg.appendChild(barFill);
+
+            // Texte en surimpression (largeur réelle de la barre indépendante du texte)
+            const barLbl = document.createElement('div');
+            barLbl.classList.add('tap-bar-lbl');
+            barLbl.textContent = count + '\u00a0(' + pct + '\u00a0%)';
+            barWrap.appendChild(barLbl);
+
+            // ---- Handlers partagés (switch, libellé, barre) ----
+            const doToggle = async () => {
+                tabEnt = await window.electronAPI.getEnt();
+                const cibles = tabEnt.filter(en =>
+                    Array.isArray(en.tabDat) && en.tabDat.some(d =>
+                        Number(d.v) === Number(v.v) &&
+                        Number(d.m) === Number(dic.m) &&
+                        (v.champ === 'gen' ? d.l == 'all' : true)
+                    )
+                );
+                const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
+                cibles.forEach(en => { en.actif = tousActifs ? 0 : 1; });
+                await window.electronAPI.setEnt(tabEnt);
+                majLigentsDOM(tabEnt);
+                majSwitchesTAP(tabEnt);
+                compterEntActifs();
+            };
+
+            const doIsolate = async () => {
+                tabEnt = await window.electronAPI.getEnt();
+                tabEnt.forEach(en => {
+                    const aMod = Array.isArray(en.tabDat) && en.tabDat.some(d =>
+                        Number(d.v) === Number(v.v) &&
+                        Number(d.m) === Number(dic.m) &&
+                        (v.champ === 'gen' ? d.l == 'all' : true)
+                    );
+                    en.actif = aMod ? 1 : 0;
+                });
+                await window.electronAPI.setEnt(tabEnt);
+                majLigentsDOM(tabEnt);
+                majSwitchesTAP(tabEnt);
+                compterEntActifs();
+            };
+
+            [btnSwitch, lblMod, barWrap].forEach(el => {
+                el.addEventListener('click', (e) => { e.stopPropagation(); doToggle(); });
+                el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); doIsolate(); });
+            });
+        }
+
+        // --- Ligne "non-réponse" ---
+        const hasModality = en =>
+            Array.isArray(en.tabDat) && mods.some(dic =>
+                en.tabDat.some(d =>
+                    Number(d.v) === Number(v.v) &&
+                    Number(d.m) === Number(dic.m) &&
+                    (v.champ === 'gen' ? d.l == 'all' : true)
+                )
+            );
+        const entNR = tabEnt.filter(e => !hasModality(e));
+
+        if (entNR.length > 0) {
+            const countNR = entNR.length;
+            const pctNR = nbEnt > 0 ? Math.round(countNR / nbEnt * 100) : 0;
+
+            const divRowNR = document.createElement('div');
+            divRowNR.classList.add('tap-row', 'tap-row--nr');
+            divMods.appendChild(divRowNR);
+
+            const btnSwitchNR = document.createElement('button');
+            btnSwitchNR.classList.add('btn-onoff-ent');
+            btnSwitchNR.dataset.v = v.v;
+            btnSwitchNR.dataset.champ = v.champ;
+            btnSwitchNR.dataset.nr = '1';
+            btnSwitchNR.title = 'Clic gauche\u00a0: activer/d\u00e9sactiver les non-r\u00e9ponses\nClic droit\u00a0: isoler';
+            if (entNR.every(en => en.actif !== 0)) btnSwitchNR.classList.add('btn-onoff-ent--actif');
+            divRowNR.appendChild(btnSwitchNR);
+
+            const lblModNR = document.createElement('div');
+            lblModNR.classList.add('tap-mod-lbl', 'tap-mod-lbl--nr');
+            lblModNR.textContent = 'Non renseign\u00e9';
+            lblModNR.title = 'Non renseign\u00e9';
+            divRowNR.appendChild(lblModNR);
+
+            const barWrapNR = document.createElement('div');
+            barWrapNR.classList.add('tap-bar-wrap');
+            divRowNR.appendChild(barWrapNR);
+
+            const barBgNR = document.createElement('div');
+            barBgNR.classList.add('tap-bar-bg');
+            barWrapNR.appendChild(barBgNR);
+
+            const barFillNR = document.createElement('div');
+            barFillNR.classList.add('tap-bar-fill', 'tap-bar-fill--nr');
+            barFillNR.style.width = pctNR + '%';
+            barBgNR.appendChild(barFillNR);
+
+            const barLblNR = document.createElement('div');
+            barLblNR.classList.add('tap-bar-lbl');
+            barLblNR.textContent = countNR + '\u00a0(' + pctNR + '\u00a0%)';
+            barWrapNR.appendChild(barLblNR);
+
+            const doToggleNR = async () => {
+                tabEnt = await window.electronAPI.getEnt();
+                const cibles = tabEnt.filter(e => !hasModality(e));
+                const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
+                cibles.forEach(en => { en.actif = tousActifs ? 0 : 1; });
+                await window.electronAPI.setEnt(tabEnt);
+                majLigentsDOM(tabEnt);
+                majSwitchesTAP(tabEnt);
+                compterEntActifs();
+            };
+
+            const doIsolateNR = async () => {
+                tabEnt = await window.electronAPI.getEnt();
+                tabEnt.forEach(en => { en.actif = hasModality(en) ? 0 : 1; });
+                await window.electronAPI.setEnt(tabEnt);
+                majLigentsDOM(tabEnt);
+                majSwitchesTAP(tabEnt);
+                compterEntActifs();
+            };
+
+            [btnSwitchNR, lblModNR, barWrapNR].forEach(el => {
+                el.addEventListener('click', (e) => { e.stopPropagation(); doToggleNR(); });
+                el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); doIsolateNR(); });
+            });
+        }
+    }
+
+    // ---- Bouton compact global ----
+    const btnCompactAll = document.getElementById('tap-compact-all');
+    if (btnCompactAll) {
+        btnCompactAll.textContent = '\u25bc'; // ▼ tout replié au départ
+        btnCompactAll.onclick = () => {
+            const anyExpanded = tapGroups.some(g => g.divMods.style.display !== 'none');
+            tapGroups.forEach(g => {
+                g.divMods.style.display = anyExpanded ? 'none' : '';
+                g.btnCollapse.textContent = anyExpanded ? '\u25bc' : '\u25b2';
+            });
+            btnCompactAll.textContent = anyExpanded ? '\u25bc' : '\u25b2';
+        };
+    }
+
+    // ---- Interrupteur global ----
+    const globalSwitch = document.getElementById('tap-global-switch');
+    if (globalSwitch) {
+        globalSwitch.onclick = async function (e) {
+            e.stopPropagation();
+            tabEnt = await window.electronAPI.getEnt();
+            const tousActifs = tabEnt.length > 0 && tabEnt.every(en => en.actif !== 0);
+            tabEnt.forEach(en => { en.actif = tousActifs ? 0 : 1; });
+            await window.electronAPI.setEnt(tabEnt);
+            majLigentsDOM(tabEnt);
+            majSwitchesTAP(tabEnt);
+            compterEntActifs();
+        };
+    }
+
+    // Initialiser l'état des interrupteurs
+    majSwitchesTAP(tabEnt);
 }
 
 // Repositionne la variable vCode dans tabVar selon placerApresVar

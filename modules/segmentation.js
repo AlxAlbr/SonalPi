@@ -601,6 +601,215 @@ function redo(){
     console.log("redo terminé — reste " + BkUpRedo.length + " état(s) redo");
 }
 
+function parseSegmentPositionInput(rawValue) {
+    if (rawValue === null || rawValue === undefined) {
+        return { ok: false, erreur: "Valeur vide." };
+    }
+
+    const valeur = String(rawValue).trim().replace(/,/g, '.');
+    if (!valeur) {
+        return { ok: false, erreur: "Valeur vide." };
+    }
+
+    let secondes = NaN;
+    if (valeur.includes(':')) {
+        secondes = Number(TimeToSec(valeur));
+    } else {
+        secondes = Number(valeur);
+    }
+
+    if (!Number.isFinite(secondes)) {
+        return { ok: false, erreur: "Format invalide (attendu hh:mm:ss ou secondes)." };
+    }
+
+    if (secondes < 0) {
+        return { ok: false, erreur: "La position doit être positive." };
+    }
+
+    return { ok: true, sec: secondes };
+}
+
+function showSegmentPosMessage(message, isError = false) {
+    const lblMsg = document.getElementById('seg-pos-msg');
+    if (!lblMsg) {
+        return;
+    }
+
+    lblMsg.textContent = message || '';
+    lblMsg.style.color = isError ? '#c0392b' : '#888';
+}
+
+function validateSegmentBounds(segIndex, deb, fin) {
+    const EPS = 1e-6;
+
+    if (!Number.isFinite(deb) || !Number.isFinite(fin)) {
+        return { ok: false, erreur: "Coordonnées invalides." };
+    }
+
+    if (deb >= fin - EPS) {
+        return { ok: false, erreur: "Le début doit être strictement inférieur à la fin." };
+    }
+
+    if (deb < 0 || fin < 0) {
+        return { ok: false, erreur: "Les coordonnées doivent être positives." };
+    }
+
+    const segPrec = getSeg(segIndex - 1);
+    if (segPrec) {
+        const finPrec = Number(segPrec.dataset.fin);
+        if (Number.isFinite(finPrec) && deb < finPrec - EPS) {
+            return { ok: false, erreur: "Le début chevauche le segment précédent." };
+        }
+    }
+
+    const segSuiv = getSeg(segIndex + 1);
+    if (segSuiv) {
+        const debSuiv = Number(segSuiv.dataset.deb);
+        if (Number.isFinite(debSuiv) && fin > debSuiv + EPS) {
+            return { ok: false, erreur: "La fin chevauche le segment suivant." };
+        }
+    }
+
+    const aud = document.getElementById('lecteur');
+    if (aud && Number.isFinite(aud.duration) && aud.duration > 0) {
+        if (deb > aud.duration || fin > aud.duration) {
+            return { ok: false, erreur: "Les coordonnées dépassent la durée du média." };
+        }
+    }
+
+    return { ok: true };
+}
+
+function applySegmentPositionEdit(field) {
+    const inputDeb = document.getElementById('seg-pos-deb');
+    const inputFin = document.getElementById('seg-pos-fin');
+    if (!inputDeb || !inputFin) {
+        return;
+    }
+
+    const segIndex = Number(seg_cur);
+    const seg = getSeg(segIndex);
+    if (!seg) {
+        showSegmentPosMessage("Aucun segment sélectionné.", true);
+        return;
+    }
+
+    const parseDeb = parseSegmentPositionInput(inputDeb.value);
+    if (!parseDeb.ok) {
+        showSegmentPosMessage("Début invalide: " + parseDeb.erreur, true);
+        inputDeb.focus();
+        return;
+    }
+
+    const parseFin = parseSegmentPositionInput(inputFin.value);
+    if (!parseFin.ok) {
+        showSegmentPosMessage("Fin invalide: " + parseFin.erreur, true);
+        inputFin.focus();
+        return;
+    }
+
+    const deb = parseDeb.sec;
+    const fin = parseFin.sec;
+    const validation = validateSegmentBounds(segIndex, deb, fin);
+
+    if (!validation.ok) {
+        showSegmentPosMessage(validation.erreur, true);
+        if (field === 'fin') {
+            inputFin.focus();
+        } else {
+            inputDeb.focus();
+        }
+        return;
+    }
+
+    seg.dataset.deb = deb;
+    seg.dataset.fin = fin;
+
+    if (Array.isArray(TabSeg) && TabSeg[segIndex]) {
+        TabSeg[segIndex][1] = deb;
+        TabSeg[segIndex][2] = fin;
+    }
+
+    inputDeb.value = SecToTime(deb, false);
+    inputFin.value = SecToTime(fin, false);
+    showSegmentPosMessage("Positions mises à jour.", false);
+
+    if (typeof setSegmentsModified === 'function') {
+        setSegmentsModified(true);
+    }
+}
+
+function ensureSegmentPositionInputs() {
+    const inputDeb = document.getElementById('seg-pos-deb');
+    const inputFin = document.getElementById('seg-pos-fin');
+    if (!inputDeb || !inputFin) {
+        return;
+    }
+
+    if (inputDeb.dataset.segPosBound === '1') {
+        return;
+    }
+
+    const bindInput = (input, field) => {
+        input.addEventListener('focus', () => {
+            input.classList.add('en-edition');
+            showSegmentPosMessage("Entrée pour valider (hh:mm:ss ou secondes).", false);
+        });
+
+        input.addEventListener('blur', () => {
+            input.classList.remove('en-edition');
+        });
+
+        input.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applySegmentPositionEdit(field);
+                input.classList.remove('en-edition');
+                input.blur();
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                const seg = getSeg(Number(seg_cur));
+                if (seg) {
+                    inputDeb.value = SecToTime(Number(seg.dataset.deb), false);
+                    inputFin.value = SecToTime(Number(seg.dataset.fin), false);
+                }
+                showSegmentPosMessage("Modification annulée.", false);
+                input.classList.remove('en-edition');
+                input.blur();
+            }
+        });
+    };
+
+    bindInput(inputDeb, 'deb');
+    bindInput(inputFin, 'fin');
+    inputDeb.dataset.segPosBound = '1';
+}
+
+function updateSegmentPositionInputs(segIndex, deb, fin) {
+    const inputDeb = document.getElementById('seg-pos-deb');
+    const inputFin = document.getElementById('seg-pos-fin');
+    if (!inputDeb || !inputFin) {
+        const lblPos = document.getElementById('lblpos');
+        if (lblPos) {
+            lblPos.textContent = SecToTime(deb, true) + ' - ' + SecToTime(fin, true);
+        }
+        return;
+    }
+
+    ensureSegmentPositionInputs();
+
+    inputDeb.value = SecToTime(deb, false);
+    inputFin.value = SecToTime(fin, false);
+    inputDeb.dataset.seg = String(segIndex);
+    inputFin.dataset.seg = String(segIndex);
+    showSegmentPosMessage('', false);
+}
+
  function selSegment(seg,edit){
   
 
@@ -653,7 +862,7 @@ function redo(){
 
     // affichage détaillé du segment courant 
     document.getElementById('lbldetails').textContent = 'Segment ' + rksg + '/' + getNbSegs();
-    document.getElementById('lblpos').textContent = SecToTime(infos[0].db ,true) + " - " + SecToTime(infos[0].fn ,true) 
+    updateSegmentPositionInputs(seg, infos[0].db, infos[0].fn);
        
     
 
@@ -1451,6 +1660,9 @@ async function afficherMenuSel() {
     }
     if (!catsCommunes) catsCommunes = [];
 
+    // Mémorisation du contexte pour la modale de catégories
+    window._menuSelCtx = { deb, fin, catsCommunes: catsCommunes.slice() };
+
     // Construction du HTML
     let chaine = `
         <div class="menu-sel-titre">
@@ -1460,7 +1672,7 @@ async function afficherMenuSel() {
 
     // En-tête contextuel selon le mode
     if (typeAction === 'cat') {
-        chaine += `<div class="menu-sel-action menu-title-cat" style="font-size: 14px;">Catégories</div>`;
+        chaine += `<div class="menu-sel-action menu-title-cat" style="font-size: 14px; cursor:pointer;" title="Choisir des catégories dans la liste complète" onmousedown="event.stopPropagation(); ouvrirModalCategoriesSelectionCourante();">Catégories ➕</div>`;
     } else if (typeAction === 'loc') {
         const segCurEl = getSeg(seg_cur);
         const rgloc = segCurEl ? (segCurEl.dataset.loc || 0) : 0;
@@ -1472,10 +1684,12 @@ async function afficherMenuSel() {
         for (const cat of catsCommunes) {
             const rkc = getRkThm(cat);
             const thm = (tabThm && tabThm[rkc]) ? tabThm[rkc] : null;
-            const nom = thm ? thm.nom : cat;
+            const nomParts = thm ? splitNomThm(thm.nom) : [cat, ''];
+            const nomAff = nomParts[0];
+            const nomTitle = nomParts[1] ? ` title="${nomParts[1]}"` : '';
             const couleur = (thm && thm.couleur) ? thm.couleur : '#ccc';
             chaine += `<div class="menu-sel-item" style="border-left: 4px solid ${couleur};">
-                <span>${nom}</span>
+                <span${nomTitle}>${nomAff}</span>
                 <span class="menu-sel-cat-close" onmousedown="supprimerCatSel('${cat}', ${deb}, ${fin})">✕</span>
             </div>`;
         }
@@ -1584,6 +1798,38 @@ async function majUIApresModifCatsSelection(deb) {
     }
 }
 
+
+// ---------------------------------------------------------------
+// Ouvre la modale de catégories pour la sélection courante (menu-sel)
+// ---------------------------------------------------------------
+function ouvrirModalCategoriesSelectionCourante() {
+    const ctx = window._menuSelCtx || {};
+    const deb = ctx.deb || 0;
+    const fin = ctx.fin || 0;
+    const catsCommunes = Array.isArray(ctx.catsCommunes) ? ctx.catsCommunes : [];
+
+    fermerMenuSel(); // refermer le menu de sélection flottant
+
+    ouvrirModalCategories(catsCommunes, async (selectedCats) => {
+        if (!deb || !fin) return;
+
+        const toAdd    = selectedCats.filter(c => !catsCommunes.includes(c));
+        const toRemove = catsCommunes.filter(c => !selectedCats.includes(c));
+
+        if (toAdd.length === 0 && toRemove.length === 0) return;
+
+        backUp();
+
+        for (let rk = deb; rk <= fin; rk++) {
+            const sp = getSpan(rk);
+            if (!sp) continue;
+            toAdd.forEach(c => sp.classList.add(c));
+            toRemove.forEach(c => sp.classList.remove(c));
+        }
+
+        await majUIApresModifCatsSelection(deb);
+    });
+}
 
 // affichage du menu contextuel
 async function showMenu(button, typeAction){
