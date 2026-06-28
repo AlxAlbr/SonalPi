@@ -3,5 +3,4 @@ out
 dist/
 site/
 .env
-*.md
-/TestCorpusSonal/*
+plan-*.md
