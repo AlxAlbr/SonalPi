@@ -362,7 +362,15 @@ Styles pour les boutons
 }
 
 .btnquestion{
-  width: 100px;
+  /* min-width au lieu d'une largeur fixe : les libellés longs (ex. « Garder les deux »)
+     élargissent le bouton au lieu de déborder sous la bordure. Hauteur auto pour la même raison. */
+  min-width: 100px;
+  width: auto;
+  height: auto;
+  min-height: 35px;
+  line-height: 1.2;
+  white-space: nowrap;
+  padding: 5px 12px !important;
   outline: none; /* Supprimer l'outline par défaut */
 }
 
@@ -4044,11 +4052,15 @@ SYNTHESE
     word-wrap: break-word;
     overflow-wrap: break-word;
     white-space: pre-wrap;
-    height: 30px!important;
+    /* La hauteur est gérée par autoGrowTextarea (style inline) : la ligne s'adapte
+       au contenu. min-height = hauteur d'une ligne, max-height = plafond avant scroll. */
+    min-height: 30px;
+    height: auto;
     max-height: 150px;
     resize: none;
     display: block;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .tableau-anon input:focus {
@@ -4167,10 +4179,15 @@ SYNTHESE
     font-weight: 700;
 }
 
-/* Ligne anonymisée */
+/* Ligne anonymisée (toutes les occurrences traitées) */
 .ligne-anonymisee {
     background-color: #97d19c47;
     opacity: 0.8;
+}
+
+/* Ligne en attente (occurrences non traitées restantes) */
+.ligne-en-attente {
+    background-color: #fff3e0;
 }
 
 /* Bouton d'édition */
@@ -4331,11 +4348,6 @@ SYNTHESE
 
 .btn-action:active {
     transform: scale(0.92);
-}
-
-/* Bouton gauche (loupe ou navigation) */
-.btn-action-left {
-    flex: 0 0 auto;
 }
 
 /* Bouton droit (valider ou supprimer) */
@@ -4552,6 +4564,219 @@ SYNTHESE
     color: rgb(114, 114, 114);
     padding: 5px;
     vertical-align: middle;
+}
+/* ============================================================
+   PSEUDONYMISATION — page dédiée 2 colonnes + navigation entités
+   ============================================================ */
+
+/* Page dédiée Pseudonymisation (overlay plein écran à deux zones) :
+   gauche = table des pseudonymes, droite = vérification / occurrences */
+#divAnonGenPage {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+#anon-page-content {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+#divAnonGenPage .anon-page-gauche {
+    /* défaut : 1/3 de la page pour la table ; ajustable via le séparateur */
+    flex: 0 0 33%;
+    min-width: 180px;
+    height: 100%;
+    overflow-y: auto;
+}
+#divAnonGenPage .anon-page-resizer {
+    flex: 0 0 6px;
+    cursor: col-resize;
+    background: #ccc;
+    transition: background 0.15s;
+}
+#divAnonGenPage .anon-page-resizer:hover {
+    background: #1976d2;
+}
+#divAnonGenPage .anon-page-droite {
+    /* 2/3 par défaut : prend tout l'espace restant */
+    flex: 1 1 auto;
+    min-width: 200px;
+    height: 100%;
+    overflow-y: auto;
+    padding-left: 6px;
+}
+
+/* Occurrences non encore traitées : curseur pointer pour indiquer qu'elles sont cliquables */
+#segments.mode-anon [data-anon-nt] {
+    cursor: pointer;
+}
+#segments.mode-anon [data-anon-nt]:hover {
+    background-color: rgba(255, 201, 100, 0.4);
+    border-radius: 2px;
+}
+
+/* Boutons de navigation par catégorie (vert = anonymisée / gris = exception / orange = non traitée) */
+.btn-nav-cat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    padding: 0 4px;
+    line-height: 1;
+    white-space: nowrap;
+}
+.btn-nav-cat-anon {
+    background-color: #15c095;
+    color: white;
+}
+.btn-nav-cat-exc {
+    background-color: #555;
+    color: white;
+}
+.btn-nav-cat-non {
+    background-color: #ff9800;
+    color: white;
+    cursor: default;
+}
+.btn-nav-cat:hover {
+    filter: brightness(1.15);
+    transform: scale(1.05);
+}
+/* Exposant discret « * » signalant des occurrences incluses (absorbées par une autre règle).
+   Voir le tooltip du badge pour le détail. (I-INC-4) */
+.badge-incl-mark {
+    font-size: 8px;
+    line-height: 0;
+    margin-left: 1px;
+    opacity: 0.85;
+    cursor: help;
+    vertical-align: super;
+}
+
+/* ───────── Portée d'une règle : slider à icônes + encodage typographique de la ligne ───────── */
+
+/* Cellule actions : compteurs (haut) + slider de portée (bas), empilés sans coût horizontal. */
+.actions-stack-portee {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+    width: 100%;                           /* pour centrer le slider dans toute la largeur de la cellule */
+}
+
+/* Encodage : FOND = statut (brouillon gris), TYPO = portée (gras = corpus, italique = brouillon).
+   Le vert (.ligne-anonymisee) et l'orange (.ligne-en-attente) restent gérés ailleurs. */
+.ligne-brouillon { background-color: #f4f4f4; }
+tr.p-corpus .input-entite,
+tr.p-corpus .input-remplacement { font-weight: 700; }
+tr.p-brouillon .input-entite,
+tr.p-brouillon .input-remplacement { font-style: italic; color: #777; }
+
+/* Slider à icônes : piste grise allongée, distincte des badges numériques. Centré dans la cellule. */
+.portee-slider {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    align-self: center;                    /* centré horizontalement dans la colonne actions */
+    height: 22px;
+    background: #ececec;
+    border-radius: 999px;
+    padding: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .08);
+    user-select: none;
+}
+.portee-slider .portee-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 26px;
+    height: 18px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1.5px solid #1565c0;          /* poignée bleue, hors palette des compteurs */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+    transition: transform .2s cubic-bezier(.4, 1.3, .5, 1);
+    z-index: 1;
+}
+.portee-slider .portee-cran {
+    position: relative;
+    z-index: 2;
+    width: 26px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    filter: grayscale(1);                  /* crans inactifs estompés */
+    opacity: .4;
+    transition: filter .15s, opacity .15s, transform .15s;
+}
+.portee-slider .portee-cran:hover { opacity: .7; }
+.portee-slider.portee-brouillon .portee-thumb { transform: translateX(0); }
+.portee-slider.portee-document  .portee-thumb { transform: translateX(26px); }
+.portee-slider.portee-corpus    .portee-thumb { transform: translateX(52px); }
+.portee-slider.portee-brouillon .portee-cran[data-cran="brouillon"],
+.portee-slider.portee-document  .portee-cran[data-cran="document"],
+.portee-slider.portee-corpus    .portee-cran[data-cran="corpus"] {
+    filter: none;
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+/* Verrou : entité partagée avec d'autres entretiens → impossible de quitter le corpus (§6).
+   Les crans brouillon/document sont signalés non cliquables et un 🔒 s'affiche à droite. */
+.portee-slider.verrou { margin-right: 16px; }
+.portee-slider.verrou .portee-cran[data-cran="brouillon"],
+.portee-slider.verrou .portee-cran[data-cran="document"] { cursor: not-allowed; }
+.portee-slider.verrou .portee-thumb { border-color: #9aa; }
+.portee-slider.verrou::after {
+    content: "🔒";
+    position: absolute;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    opacity: .6;
+}
+
+/* Navigation de repérage (loupe) : position i/N + surbrillance transitoire des occurrences. */
+.reperage-pos {
+    font-size: 11px;
+    color: #1565c0;
+    font-weight: bold;
+    padding: 0 3px;
+}
+.btn-reperage { min-width: 20px; }
+.reperage-hit {
+    background: #fff3b0;
+    outline: 1px solid #f0c000;
+    border-radius: 2px;
+}
+
+/* Highlight temporaire pour la navigation corpus <-> entretien (flash jaune ~2s) */
+@keyframes nav-highlight-flash {
+    0%   { background-color: #fff59d; box-shadow: 0 0 0 3px #fff59d; }
+    70%  { background-color: #fff59d; box-shadow: 0 0 0 3px #fff59d; }
+    100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+.nav-highlight {
+    animation: nav-highlight-flash 2s ease-out forwards;
+    border-radius: 3px;
 }
 
 /* ============================================================

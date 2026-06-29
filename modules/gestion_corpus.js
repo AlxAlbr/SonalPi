@@ -17,59 +17,23 @@ let tabDic = []; // tableau des dictionnaires
 let tabDat = []; // tableau des données
 let tabEnt = []; // tableau des entretiens
 let tabAnon = []; // tableau global des anonymisations
+let paramsAnonCorpus = {}; // réglages de pseudonymisation au niveau corpus (ex. motsLiaison)
 let ent_cur = -1; // entretien courant
 
 let _dernierContenuCrp = null; // cache du dernier contenu .crp sauvegardé (pour éviter les écritures inutiles)
 
-/**
- * Synchronise le tabAnon global avec les modifications du tabAnon local d'un entretien
- * Ajoute les nouvelles paires (entité - pseudo) qui ne sont pas déjà dans le global
- * @param {Array} tabAnonGlobal - Tableau global existant
- * @param {Array} tabAnonLocal - Tableau local nettoyé de l'entretien qui vient d'être sauvegardé
- * @returns {Array} Tableau global mis à jour
- */
-async function synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonLocal) {
-  if (!tabAnonGlobal) tabAnonGlobal = [];
-  if (!tabAnonLocal || tabAnonLocal.length === 0) {
-    return tabAnonGlobal;
-  }
+// Retire la CLÉ `tabAnon` (la table de RÈGLES entité→pseudo) de chaque entretien avant sérialisation
+// du .crp. ⚠️ Ne touche PAS le texte anonymisé (porté par le HTML / ent.html) : on n'enlève que la
+// copie des règles locales, qui vit aussi dans les .sonal (source de vérité, relue par loadHtml).
+// Le top-level `tabAnon` (règles corpus partagées) reste, lui, sérialisé. Ne mute pas les objets en
+// mémoire (map → nouveaux objets).
+const tabEntSansTabAnon = (t) => (t || []).map(({ tabAnon, ...e }) => e);
 
-  // Map des paires existantes dans le global (clé: "entite|pseudo")
-  const mapGlobal = new Map();
-  tabAnonGlobal.forEach(p => {
-    if (p.entite && p.remplacement) {
-      const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
-      mapGlobal.set(key, p);
-    }
-  });
-
-  // Ajouter les nouvelles paires du local au global
-  tabAnonLocal.forEach(p => {
-    if (!p.entite || !p.remplacement) return;
-    
-    const key = `${p.entite.toLowerCase()}|${p.remplacement.toLowerCase()}`;
-    
-    if (!mapGlobal.has(key)) {
-      // Nouvelle paire : l'ajouter au global
-      const newEntry = {
-        entite: p.entite,
-        remplacement: p.remplacement,
-        occurrences: p.occurrences || 0,
-        indexCourant: p.indexCourant || 0,
-        matchPositions: p.matchPositions || [],
-        source: p.source || 'Entretien' // Marquer comme venant d'un entretien
-      };
-      mapGlobal.set(key, newEntry);
-      console.log(`✅ Nouvelle paire ajoutée au tabAnon global: "${p.entite}" → "${p.remplacement}"`);
-    }
-  });
-
-  // Convertir la map en tableau
-  const tabAnonGlobalMisAJour = Array.from(mapGlobal.values());
-  console.log(`📊 TabAnon global synchronisé : ${tabAnonGlobalMisAJour.length} paire(s) total`, tabAnonGlobalMisAJour);
-  
-  return tabAnonGlobalMisAJour;
-}
+// ── Cœur des règles d'anonymisation du corpus (cleAnon, clesAlias, cleEntite,
+//    regleEnCollisionAlias, fusionnerRegles, conflitsPseudoParEntite, reglesCorpusPropres,
+//    persisterReglesCorpus, synchroniserTabAnonGlobal) DÉPLACÉ dans
+//    modules/Anonymisation/anon-regles.js (Partie 0 du plan multi-pseudo). Fonctions globales,
+//    toujours disponibles au runtime (anon-regles.js chargé dans index.html et edition_entretien.html).
 
 async function initFromMain() {
   Corpus = await window.electronAPI.getCorpus();
@@ -129,6 +93,7 @@ async function lireCorpus(fileContent){
         tabDat = crp.tabDat || [];
         tabEnt = crp.tabEnt || [];
         tabAnon = crp.tabAnon || [];
+        paramsAnonCorpus = crp.paramsAnonCorpus || {};
         tabHtml = [];
         tabGrph = [];
         tabLexico = [];
@@ -150,12 +115,14 @@ async function lireCorpus(fileContent){
         await window.electronAPI.setVar(tabVar); 
         await window.electronAPI.setDic(tabDic);
         await window.electronAPI.setDat(tabDat);
-        await window.electronAPI.setAnon(tabAnon);
+        await persisterReglesCorpus(tabAnon);
+        await window.electronAPI.setParamsAnon(paramsAnonCorpus);
+        window.paramsAnonCorpus = paramsAnonCorpus; // lu (synchrone) par getMotsLiaison()
         await window.electronAPI.setGrph(-1, tabGrph);
         window.electronAPI.setEntCur(ent_cur);
 
         // Initialiser le cache du contenu sauvegardé pour éviter un commit inutile dès l'ouverture
-        _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic });
+        _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic });
 
         console.log("les tableaux de données ont été chargés depuis le corpus");
         console.log("tabThm :", tabThm);
@@ -188,9 +155,12 @@ loadHtml(0,Number(tabEnt.length-1)).then( async () => {
         await cleanVariables(); // nettoyage du tabdat des éventuelles données obsolètes
          inventaireVariables(); // inventaire des variables utilisées dans les entretiens
          
-         // Reconstituer le tabAnon global à partir des entretiens si vide
+         // Reconstituer le tabAnon global à partir des entretiens.
+         // On relit le tabEnt du MAIN (et non la variable module, issue du parse .crp) : après
+         // loadHtml, le main porte les ent.tabAnon chargés depuis les .sonal — la source de vérité
+         // du niveau entretien. (Indispensable une fois la copie .crp de ent.tabAnon retirée.)
          //if (!tabAnon || tabAnon.length === 0) {
-           await reconstituerTabAnonGlobal(tabEnt);
+           await reconstituerTabAnonGlobal(await window.electronAPI.getEnt());
          //}
 });  
 
@@ -498,7 +468,7 @@ async function lireCrpSonal2(contenu){
          // définition du nom du nouveau corpus (ajout .Pi avant crp)
          let nouveauNomCrp = Corpus.url.substring(0, Corpus.url.lastIndexOf(".")) + ".Sonal_Pi.crp";   
 
-          const contenuCrp = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic /*, tabDat */ });
+          const contenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic /*, tabDat */ });
   
           
  
@@ -931,6 +901,7 @@ let corpusActuel = Corpus.url;
   const tabVar = await window.electronAPI.getVar();
   const tabDic = await window.electronAPI.getDic();
   const tabAnon = await window.electronAPI.getAnon();
+  const paramsAnonCorpus = await window.electronAPI.getParamsAnon();
 
   // Synchronisation de tabVar et tabDic globaux dans chaque entretien (les locaux sont toujours alignés sur le global)
   tabEnt.forEach(ent => {
@@ -945,7 +916,7 @@ let corpusActuel = Corpus.url;
   );
   await window.electronAPI.setDat(tabDatGlobal);
 
-  const contenu = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic, tabAnon });
+  const contenu = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic, tabAnon, paramsAnonCorpus });
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);
   

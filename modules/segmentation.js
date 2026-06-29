@@ -5,16 +5,20 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
     if (!rk){return}
     if (!sg){return}
 
-    // ⭐ Vérifier si c'est un clic sur un mot anonymisé en mode pseudo (seulement en mode anon)
-    const chkAnon = document.getElementById('chkAnon');
+    // Vérifier si c'est un clic sur un mot anonymisé en mode pseudo (seulement en mode anon)
     const span = getSpan(rk);
-    if (typeAction === "anon" && chkAnon && chkAnon.checked && span && (span.classList.contains('anon') || span.classList.contains('anon-exception'))) {
+    if (typeAction === "anon" && span && (span.classList.contains('anon') || span.classList.contains('anon-exception') || span.hasAttribute('data-anon-nt'))) {
         // Afficher le menu d'exception pour ce mot
         if (typeof showMenuException !== 'undefined' && typeof trouverOccurrenceAnonyme !== 'undefined') {
             const result = trouverOccurrenceAnonyme(rk, rk);
             if (result) {
                 const { idxPaire, matchIdx } = result;
-                showMenuException(span, idxPaire, matchIdx);
+                const match = window.tabAnon[idxPaire]?.matchPositions?.[matchIdx];
+                if (match && match.isNonTraite && typeof showMenuNonTraite !== 'undefined') {
+                    showMenuNonTraite(span, idxPaire, matchIdx);
+                } else {
+                    showMenuException(span, idxPaire, matchIdx);
+                }
                 return;
             }
         }
@@ -70,6 +74,10 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
          
         }
     
+        // Re-cliquer le MÊME mot de départ annule la sélection en cours (remplace l'ancien bouton
+        // « Annuler » du popup d'attente, désormais retiré).
+        if (debSel && !finSel && Number(rk) === debSel) { annulerDebSel(); return; }
+
         // Protection : si une sélection est en cours (debSel posé, finSel pas encore fixé),
         // compléter directement sans passer par getThm, quelles que soient les classes du mot.
         if (debSel && !finSel) { finSel = Number(rk); survOk(); return; }
@@ -82,8 +90,9 @@ function clicSeg(rk,sg){ //ce qu'il se passe quand on clique sur un mot
                 return;
             }
             debSel=Number(rk);
-            afficherMenuSelAttente();
-            return; // sinon, définition du début de sélection
+            // Popup « Cliquez pour terminer la sélection » retiré (jugé intrusif) : la sélection en
+            // deux clics fonctionne toujours ; re-cliquer le même mot l'annule (voir ci-dessus).
+            return; // définition du début de sélection
         }
     
         if (debSel!=0 && finSel!=0){
@@ -539,6 +548,17 @@ function backUp(){ // mémorisation de l'état courant avant une modification
     console.log("backup — " + BkUp.length + " état(s) en mémoire");
 }
 
+// Resynchronise la table d'anonymisation à partir du DOM #segments restauré (le DOM est
+// la source de vérité : matchPositions se re-dérive, cf. anon.md §2). No-op hors entretien
+// ou si le module anon n'est pas chargé.
+function _resyncAnonApresUndo(){
+    if (typeof detecterOccurrencesToutesLesPaires !== 'function') return;
+    if (!window.tabAnon || window.tabAnon.length === 0) return;
+    detecterOccurrencesToutesLesPaires();        // re-dérive matchPositions depuis le DOM
+    if (typeof affichTableauAnon === 'function') affichTableauAnon();   // recalcule les compteurs
+    if (typeof sauvegarderTabAnonEnt === 'function') sauvegarderTabAnonEnt();
+}
+
 function undo(){
 
     console.log("undo — " + BkUp.length + " état(s) undo, " + BkUpRedo.length + " état(s) redo");
@@ -554,6 +574,8 @@ function undo(){
 
     // Restaurer l'état précédent
     document.getElementById('segments').innerHTML = BkUp.pop();
+
+    _resyncAnonApresUndo();
 
     console.log("undo terminé — reste " + BkUp.length + " état(s)");
 }
@@ -573,6 +595,8 @@ function redo(){
 
     // Restaurer l'état suivant
     document.getElementById('segments').innerHTML = BkUpRedo.pop();
+
+    _resyncAnonApresUndo();
 
     console.log("redo terminé — reste " + BkUpRedo.length + " état(s) redo");
 }

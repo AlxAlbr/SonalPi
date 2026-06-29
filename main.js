@@ -29,6 +29,7 @@ var tabDic = [{"v":1,"m":0},{"v":1,"m":1,"lib":"Homme"},{"v":1,"m":2,"lib":"Femm
 var tabDat = []; // tableau des métadonnées (valeurs des variables pour chaque entretien)
 var tabEnt = []; // tableau des entretiens
 var tabAnon = []; // tableau des anonymisations
+var paramsAnonCorpus = {}; // réglages de pseudonymisation au niveau corpus (ex. motsLiaison)
 var tabHtml = []; // tableau des contenus HTML des entretiens
 var tabGrph = []; // tableau des représentations simplifiées des entretiens (pour l'affichage graphique) 
 var ent_cur = -1; // entretien courant
@@ -175,6 +176,13 @@ ipcMain.handle('set-dat', (_, newTabDat) => {
 ipcMain.handle('get-anon', () => { return tabAnon; });
 ipcMain.handle('set-anon', (_, newTabAnon) => {
   tabAnon = newTabAnon;
+  return true;
+});
+
+// Handlers pour les réglages de pseudonymisation au niveau corpus (persistés dans le .crp)
+ipcMain.handle('get-params-anon', () => { return paramsAnonCorpus; });
+ipcMain.handle('set-params-anon', (_, newParams) => {
+  paramsAnonCorpus = newParams || {};
   return true;
 });
 
@@ -685,6 +693,41 @@ ipcMain.handle('dialog:saveFile', async (event, { filename, content, encoding })
   }
 });
 
+// Export d'un lot de fichiers dans une archive .zip (un fichier par entretien anonymisé : .txt, .html…).
+// fichiers : [{ nom: '<entretien>.<ext>', contenu: '<texte>' }]
+ipcMain.handle('export-files-zip', async (event, fichiers, defaultName) => {
+  if (!Array.isArray(fichiers) || fichiers.length === 0) {
+    return { success: false, error: 'Aucun fichier à exporter.' };
+  }
+
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+    ? Corpus.folder
+    : app.getPath('documents');
+  const defaultPath = path.join(defaultDir, defaultName || 'corpus_anonymise.zip');
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Exporter les entretiens anonymisés',
+    defaultPath,
+    filters: [{ name: 'Archive ZIP', extensions: ['zip'] }, { name: 'Tous les fichiers', extensions: ['*'] }]
+  });
+
+  if (canceled || !filePath) return { success: false, canceled: true };
+
+  try {
+    const zip = new AdmZip();
+    for (const f of fichiers) {
+      if (!f || !f.nom) continue;
+      zip.addFile(f.nom, Buffer.from(f.contenu != null ? String(f.contenu) : '', 'utf8'));
+    }
+    zip.writeZip(filePath);
+    console.log('✅ Archive enregistrée :', filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur export-files-zip :', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Ouvrir un fichier avec l'application par défaut du système
 ipcMain.handle('open-path', async (event, filePath) => {
   try {
@@ -1190,7 +1233,12 @@ async function archiverCorpus() {
     // ─── Corpus distant (serveur ou GitLab) : télécharger les fichiers via remoteAPI ─
 
     // 1. Fichier .crp : on sérialise l'état en mémoire (données courantes)
-    const corpusContent = JSON.stringify({ tabThm, tabEnt, tabVar, tabDic }, null, 2);
+    //    tabAnon inclus (même contenu que sauvegarderCorpus) pour ne pas perdre les règles
+    //    d'anonymisation du corpus dans l'archive.
+    // Retire la table de règles `tabAnon` de chaque entretien (vit dans les .sonal) ; ne touche pas le
+    // texte anonymisé (HTML). Le top-level `tabAnon` (règles corpus) reste sérialisé.
+    const tabEntSansTabAnon = (tabEnt || []).map(({ tabAnon, ...e }) => e);
+    const corpusContent = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon, tabVar, tabDic, tabAnon, paramsAnonCorpus }, null, 2);
     zip.addFile(Corpus.fileName, Buffer.from(corpusContent, 'utf8'));
 
     // 2. Fichiers .sonal référencés dans tabEnt
@@ -1331,9 +1379,9 @@ module.exports = { editerCategories };
 
 // fonction pour afficher la fenêtre modale d'édition des entretiens
 
-async function editerEntretien(parentWindow, rgEnt){
-   
-  
+async function editerEntretien(parentWindow, rgEnt, navTarget = null){
+
+
 
   // ouvrir la fenêtre modale
 
@@ -1367,7 +1415,11 @@ async function editerEntretien(parentWindow, rgEnt){
     entWindow.setMenu(null);
     flouterSousModale(mainWindow);
 
-    
+    // Mémoriser la cible de navigation pour qu'elle soit récupérable via IPC
+    // (pull-based plus fiable qu'un push 'ready-to-show' qui peut arriver pendant l'init renderer)
+    if (navTarget) {
+      entWindow._navTarget = navTarget;
+    }
 
     entWindow.once('ready-to-show', async () => {
       
@@ -1482,6 +1534,18 @@ async function editerEntretien(parentWindow, rgEnt){
           mainWindow.webContents.send('entretien-deverrouille', rgEnt);
         }
       }
+      // Signaler la fermeture pour rafraîchir le panneau corpus pseudo s'il est visible.
+      // Si la fermeture vient du menu "Voir au niveau du corpus", on émet uniquement
+      // 'ouvrir-vue-corpus-anon' : focaliserOccurrenceCorpus rafraîchit déjà le panneau,
+      // et émettre les deux signaux provoquerait une double vérification concurrente
+      // (deux modales d'occurrences finiraient empilées dans fond_verif_anon).
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (entWindow._navRetourCorpus) {
+          mainWindow.webContents.send('ouvrir-vue-corpus-anon', entWindow._navRetourCorpus);
+        } else {
+          mainWindow.webContents.send('entretien-ferme-refresh-anon');
+        }
+      }
       deflouterSousModale(mainWindow);
       resolve(null);
     });
@@ -1490,8 +1554,29 @@ async function editerEntretien(parentWindow, rgEnt){
 }
 
 // Écouter la demande d'ouverture depuis le renderer
-ipcMain.handle('editer-entretien', async (event, rgEnt) => {
-  return editerEntretien(mainWindow, rgEnt);
+ipcMain.handle('editer-entretien', async (event, rgEnt, navTarget) => {
+  return editerEntretien(mainWindow, rgEnt, navTarget);
+});
+
+// Le renderer (edition_entretien.html) demande sa cible de navigation quand il
+// est prêt. Pull-based, donc immune au timing de DOMContentLoaded/ready-to-show.
+ipcMain.handle('get-nav-target', (event) => {
+  const w = BrowserWindow.fromWebContents(event.sender);
+  if (!w) return null;
+  const target = w._navTarget || null;
+  w._navTarget = null;
+  return target;
+});
+
+// Navigation entretien -> corpus : marquer la fenêtre puis demander sa fermeture.
+// La sauvegarde est gérée par le cycle existant 'save-and-close', et le signal
+// 'ouvrir-vue-corpus-anon' est émis dans le handler 'closed' de editerEntretien.
+ipcMain.handle('entretien:demande-vue-corpus', async (event, payload) => {
+  const entWindow = BrowserWindow.fromWebContents(event.sender);
+  if (entWindow) {
+    entWindow._navRetourCorpus = payload;
+    entWindow.close();
+  }
 });
 
 // renvoyer le statut de verrouillage du fichier  
@@ -2983,6 +3068,13 @@ app.on('ready', () => {
           await archiverCorpus();
         }
       },
+       { type: 'separator' },
+      {
+        label: '📦 Exporter le corpus…',
+          click: () => {
+          mainWindow.webContents.send('menu:exporter-corpus');
+        }
+      },
        
         
         { type: 'separator' },
@@ -3508,11 +3600,12 @@ ipcMain.handle('export-recueil-pdf', async (event, { nom, items, nomFichier, opt
 // ---------------------------------------------------------------
 // IPC HANDLERS - Export ENTRETIEN - Format DOCX
 // ---------------------------------------------------------------
-ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt, notes, variables, nomFichier }) => {
-  try {
+// Construit le buffer .docx d'un entretien (titre, notes, variables, contenu à marqueurs {g}/**gras**).
+// Factorisé : réutilisé par l'export entretien (un fichier) ET l'export corpus DOCX (zip de fichiers).
+async function construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables, entete = true }) {
     const currentDate = new Date().toLocaleString();
     const versionSonal = "3.0";
-    
+
     // Helper function to parse {g} and **bold** text and create TextRun array
     function parseTextRuns(text) {
       // Vérifier si la ligne commence par {g} (entire line bold)
@@ -3549,32 +3642,34 @@ ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt
     
     const children = [];
 
-    // MAIN HEADING
-    children.push(
-      new Paragraph({
-        text: "ENTRETIEN",
-        heading: HeadingLevel.TITLE,
-        bold: true,
-        spacing: { after: 100 }
-      })
-    );
+    // MAIN HEADING (en-tête optionnel : titre + nom de l'entretien + ligne d'export)
+    if (entete) {
+      children.push(
+        new Paragraph({
+          text: "ENTRETIEN",
+          heading: HeadingLevel.TITLE,
+          bold: true,
+          spacing: { after: 100 }
+        })
+      );
 
-    children.push(
-      new Paragraph({
-        text: nomEntretien,
-        heading: HeadingLevel.HEADING_1,
-        bold: true,
-        spacing: { after: 100 }
-      })
-    );
+      children.push(
+        new Paragraph({
+          text: nomEntretien,
+          heading: HeadingLevel.HEADING_1,
+          bold: true,
+          spacing: { after: 100 }
+        })
+      );
 
-    children.push(
-      new Paragraph({
-        text: `Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`,
-        spacing: { after: 200 },
-        size: 20
-      })
-    );
+      children.push(
+        new Paragraph({
+          text: `Exporté par Sonal Pi (version ${versionSonal}) le ${currentDate}`,
+          spacing: { after: 200 },
+          size: 20
+        })
+      );
+    }
 
     // ADD NOTES IF PROVIDED
     if (notes) {
@@ -3649,8 +3744,13 @@ ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt
       }]
     });
 
-    const buffer = await Packer.toBuffer(doc);
-    
+    return await Packer.toBuffer(doc);
+}
+
+ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt, notes, variables, nomFichier, entete }) => {
+  try {
+    const buffer = await construireDocxBuffer({ nomEntretien, contenuTxt, notes, variables, entete });
+
     const defaultDir = (Corpus.folder && Corpus.type !== 'distant') ? Corpus.folder : app.getPath('documents');
     const defaultPath = path.join(defaultDir, nomFichier);
 
@@ -3663,10 +3763,57 @@ ipcMain.handle('export-entretien-docx', async (event, { nomEntretien, contenuTxt
 
     fs.writeFileSync(filePath, buffer);
     shell.openPath(filePath);
-    
+
     return { success: true, filePath };
   } catch (error) {
     console.error('❌ Erreur DOCX entretien :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Export corpus DOCX : un .docx par entretien, regroupés dans un ZIP (un seul dialogue d'enregistrement).
+// exporterFichiersZip ne gère que du texte UTF-8 → IPC dédié pour le binaire docx.
+ipcMain.handle('export-corpus-docx-zip', async (event, fichiers, defaultName) => {
+  if (!Array.isArray(fichiers) || fichiers.length === 0) {
+    return { success: false, error: 'Aucun fichier à exporter.' };
+  }
+
+  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+    ? Corpus.folder
+    : app.getPath('documents');
+  const defaultPath = path.join(defaultDir, defaultName || 'corpus_docx.zip');
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Exporter les entretiens (DOCX)',
+    defaultPath,
+    filters: [{ name: 'Archive ZIP', extensions: ['zip'] }, { name: 'Tous les fichiers', extensions: ['*'] }]
+  });
+
+  if (canceled || !filePath) return { success: false, canceled: true };
+
+  try {
+    const zip = new AdmZip();
+    const nomsUtilises = new Set();
+    for (const f of fichiers) {
+      if (!f) continue;
+      const buffer = await construireDocxBuffer({
+        nomEntretien: f.nomEntretien || f.nom || 'Entretien',
+        contenuTxt: f.contenuTxt || '',
+        notes: f.notes || '',
+        variables: f.variables || '',
+        entete: f.entete !== false
+      });
+      // Anti-collision (ceinture+bretelles ; déjà géré côté renderer).
+      let nom = f.nom || ((f.nomEntretien || 'Entretien') + '.docx');
+      while (nomsUtilises.has(nom.toLowerCase())) nom = nom.replace(/\.docx$/i, '') + '_2.docx';
+      nomsUtilises.add(nom.toLowerCase());
+      zip.addFile(nom, buffer);
+    }
+    zip.writeZip(filePath);
+    console.log('✅ Archive DOCX enregistrée :', filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur export-corpus-docx-zip :', error);
     return { success: false, error: error.message };
   }
 });

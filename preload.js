@@ -97,6 +97,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAnon: (tabAnon) => ipcRenderer.invoke('set-anon', tabAnon),
   getAnon: () => ipcRenderer.invoke('get-anon'),
 
+  // réglages de pseudonymisation au niveau corpus (ex. mots de liaison)
+  setParamsAnon: (params) => ipcRenderer.invoke('set-params-anon', params),
+  getParamsAnon: () => ipcRenderer.invoke('get-params-anon'),
+
   // mettre à jour et récupérer le contenu html des entretiens
   setHtml: (rk, tabHtml) => ipcRenderer.invoke('set-html', rk, tabHtml),
   getHtml: (rk) => ipcRenderer.invoke('get-html', rk),
@@ -121,11 +125,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Fonction pour envoyer les logs au main process (DÉSACTIVÉE)
   // log: (level, message) => ipcRenderer.invoke('log', level, message),
 
+  // Écouter la fermeture de la fenêtre entretien pour rafraîchir le panneau corpus pseudo
+  onEntretienFerme: (callback) => ipcRenderer.on('entretien-ferme-refresh-anon', () => callback()),
+
   // Sauvegarder le corpus
   sauvegarderFichier: (filePath, content) => ipcRenderer.invoke('sauvegarder-fichier', filePath, content),
 
   // Boîte de dialogue "Enregistrer sous"
   saveFileDialog: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
+
+  // Export d'un ensemble de fichiers dans une archive .zip (un fichier par entretien : .txt, .html…)
+  exporterFichiersZip: (fichiers, defaultName) => ipcRenderer.invoke('export-files-zip', fichiers, defaultName),
 
   // Sauvegarder sur le serveur
   sauvegarderSurServeur: (cheminFichier, contenu) => 
@@ -175,11 +185,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ///////////////////////////////////////////////////////////////////////////
   
   isEntretienLocked: (rk) => ipcRenderer.invoke('entretien-locked', rk),
-  editerEntretien: (rk) => ipcRenderer.invoke('editer-entretien', rk),
+  editerEntretien: (rk, navTarget = null) => ipcRenderer.invoke('editer-entretien', rk, navTarget),
+
+  // Navigation corpus <-> entretien (pseudonymisation)
+  demandeVueCorpus: (payload) => ipcRenderer.invoke('entretien:demande-vue-corpus', payload),
+  getNavTarget: () => ipcRenderer.invoke('get-nav-target'),
+  onOuvrirVueCorpusAnon: (callback) =>
+    ipcRenderer.on('ouvrir-vue-corpus-anon', (event, payload) => callback(payload)),
 
   // Écouter la demande du menu pour ajouter un entretien
   onMenuAjouterEntretien: (callback) =>
     ipcRenderer.on('menu:ajouter-entretien', () => callback()),
+
+  // Écouter la demande du menu pour exporter le corpus (modale 2 panneaux)
+  onMenuExporterCorpus: (callback) =>
+    ipcRenderer.on('menu:exporter-corpus', () => callback()),
 
   // Écouter la demande du menu pour trier les entretiens
   onMenuTriEntretiens: (callback) =>
@@ -222,6 +242,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ///////////////////////////////////////////////////////////////////////////
   exportEntretienDocx: (data) => ipcRenderer.invoke('export-entretien-docx', data),
   exportEntretienPdf: (data) => ipcRenderer.invoke('export-entretien-pdf', data),
+
+  // Export corpus DOCX : construit un .docx par entretien et les regroupe dans un ZIP (un seul dialogue)
+  exportCorpusDocxZip: (fichiers, defaultName) => ipcRenderer.invoke('export-corpus-docx-zip', fichiers, defaultName),
 
   // Lister les fichiers .rcl dans le dossier du corpus courant (local ou distant)
   listerRecueils: () => ipcRenderer.invoke('lister-recueils'),

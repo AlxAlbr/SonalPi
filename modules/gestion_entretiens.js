@@ -1277,13 +1277,31 @@ async function retirerEnt(rk){
    
      // retrait de l'entretien du tabEEnt
     tabEnt.splice(rk,1);
-    tabHtml.splice(rk,1); // retrait du HTML en cache
-    tabGrph.splice(rk,1); // retrait du graphique en cache
+
+    // ⚠️ Les globals renderer tabHtml/tabGrph sont figés au dernier loadHtml (ouverture du
+    // corpus) : ils NE contiennent PAS les modifications de session (ex. anonymisations, écrites
+    // uniquement dans le cache du main par index via setHtml). Splicer puis repousser ces copies
+    // périmées écraserait le HTML marqué des entretiens restants → perte d'anonymisation. On
+    // repart donc de la copie AUTORITAIRE du main, et on réaligne les globals renderer dessus.
+    let tabHtmlMain = (await window.electronAPI.getHtml()) || [];
+    tabHtmlMain.splice(rk,1); // retrait du HTML en cache
+    tabHtml = tabHtmlMain;
+
+    let tabGrphMain = (await window.electronAPI.getGrph()) || [];
+    tabGrphMain.splice(rk,1); // retrait du graphique en cache
+    tabGrph = tabGrphMain;
 
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
     await window.electronAPI.setHtml(null, tabHtml); // remplacement complet du tableau HTML
     await window.electronAPI.setGrph(null, tabGrph); // remplacement complet du tableau graphique
+
+    // La suppression change le corpus → le scan d'anonymisation en cache est périmé.
+    // (sinon les badges corpus resteraient ceux d'avant suppression)
+    if (window._anonScanCache) {
+        window._anonScanStale = true;
+        window._anonIndexInverse = null;
+    }
 
     // sauvegarde du corpus
     window.sauvegarderCorpus();
@@ -1372,12 +1390,27 @@ async function afficherWhisPurge(){
         // Sans ce délai, les spans compactés (data-len > 1) empêchent la détection.
         detecterOccurrencesToutesLesPaires();
 
+        // R2 — résoudre une éventuelle divergence portée locale 'document' vs règle corpus apparue
+        // entre-temps (I-POR-3) AVANT le rendu final (réaligne le marquage si besoin).
+        if (typeof reconcilierPorteesDivergentesAOuverture === 'function') {
+            await reconcilierPorteesDivergentesAOuverture();
+        }
+
         // Rafraîchir le panneau latéral avec les occurrences détectées
         affichTableauAnon();
 
         // 💾 Sauvegarder le tabAnon mis à jour dans l'entretien local (pas le global)
-        ent.tabAnon = window.tabAnon;
-        tabEnt[rkEnt].tabAnon = window.tabAnon;
+        // Exclure les paires venues uniquement du global et pas encore validées localement,
+        // sinon à la 2ème ouverture elles seraient traitées comme locales et appliquées automatiquement.
+        const tabAnonLocalPourSauvegarde = window.tabAnon.filter(p =>
+            p.entite && p.entite.trim() &&
+            // Garder les règles avec pseudo ET les BROUILLONS en chantier (entité seule, sans pseudo) :
+            // un brouillon reste local et n'est jamais appliqué — il ne sert qu'à ne pas perdre le travail.
+            (p.remplacement || (p.portee || 'corpus') === 'brouillon') &&
+            !(p.source === 'Global' && !p.existeLocalement)
+        );
+        ent.tabAnon = tabAnonLocalPourSauvegarde;
+        tabEnt[rkEnt].tabAnon = tabAnonLocalPourSauvegarde;
         await window.electronAPI.setEnt(tabEnt);
     }, 50);
 
@@ -1513,10 +1546,14 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
    const tabAnonNettoye = nettoyerTabAnon(); // Nettoyer les lignes vides avant sauvegarde
    ent.tabAnon = tabAnonNettoye;
    
-   // Synchronisation du tabAnon global : fusionner les nouvelles règles du local au global
+   // Synchronisation du tabAnon global : fusionner les nouvelles règles du local au global.
+   // Chokepoint portée (2/2) : SEULES les règles de portée CORPUS (legacy sans portée ≡ corpus)
+   // remontent au corpus. Les règles 'document'/'brouillon' restent confinées à l'entretien
+   // (ent.tabAnon les garde toutes ; seul le push corpus est filtré).
    const tabAnonGlobal = await window.electronAPI.getAnon() || [];
-   const tabAnonFusionne = await synchroniserTabAnonGlobal(tabAnonGlobal, tabAnonNettoye);
-   await window.electronAPI.setAnon(tabAnonFusionne);
+   const aSynchroniser = tabAnonNettoye.filter(r => (r.portee || 'corpus') === 'corpus');
+   const tabAnonFusionne = await synchroniserTabAnonGlobal(tabAnonGlobal, aSynchroniser);
+   await persisterReglesCorpus(tabAnonFusionne);
   
     // récupération des notes
     const notesElem = document.getElementById('txtnotes');
@@ -2014,6 +2051,7 @@ async function exportEntretien(format) {
         loc:  getChk('opt-loc'),
         thm:  getChk('opt-thm'),
         time: getChk('opt-time'),
+        entete: getChk('opt-entete'),
     };
 
     hidedlg();
@@ -2052,91 +2090,8 @@ async function exportEntretien(format) {
         }
 
         case 'txt': {
-
-            let TxtExport = "Exporté par Sonal π (version " + window.versionSonal + ") le " + new Date().toLocaleString() + "\n\n";
-            
-            TxtExport += "Entretien : " + ent.nom + "\n\n";
-
-
-            if (opts.notes) {
-                const notes = "Notes de l'entretien :\n" + (ent.notes || "Aucune note") + "\n\n";
-                TxtExport += notes;
-            }
-
-            if (opts.vars) {
-               
-               TxtExport += "Variables associées :\n" + txtvars + "\n\n";
-            }
-
-
-            // défilement des mots pour construire le texte exporté
-            // les thèmes sont portés par chaque span-mot (pas par le lblseg)
-            // ligne d'en-tête [time] locuteur uniquement si le locuteur change
-            // [thème] inséré inline quand le thème change d'un mot au suivant
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = contenuHtmlCmpct;
-
-            const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
-            let seg_cur = null;
-            let loc_cur = '';
-            let thm_cur = '';
-
-            mots.forEach(mot => {
-                const seg = mot.closest('.lblseg');
-                if (!seg) return;
-
-                // locuteur du segment parent
-                let locNom = '';
-                if (opts.loc) {
-                    const locIdx = seg.dataset.loc;
-                    locNom = locut[locIdx] ? locut[locIdx].replaceAll('?', '').trim() : '';
-                }
-
-                // thèmes portés par le mot lui-même (span)
-                let thmStr = '';
-                if (opts.thm) {
-                    const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
-                    const thmNoms = thmClasses.map(c => {
-                        const thm = tabThm.find(t => t.code === c);
-                        return thm ? thm.nom.split('//')[0].trim() : null;
-                    }).filter(nom => nom);
-                    thmStr = thmNoms.join(', ');
-                }
-
-                const isFirst   = seg_cur === null;
-                const segChange = seg !== seg_cur;
-                const locChange = locNom !== loc_cur;
-                const thmChange = thmStr !== thm_cur;
-
-                if (isFirst || (segChange && locChange)) {
-                    // premier mot ou changement de locuteur : ligne d'en-tête complète
-                    let ligne = isFirst ? '' : '\n\n';
-                    if (opts.time) {
-                        const deb = seg.dataset.deb;
-                        if (deb) ligne +=  SecToTime(deb, true) + " ";
-                    }
-                    if (opts.loc && locNom) ligne += locNom + ' ';
-                    if (opts.thm && thmStr) ligne += '[' + thmStr + '] ';
-                    TxtExport += ligne + '\n';
-                } else if (segChange) {
-                    // nouveau segment, même locuteur : saut de ligne simple
-                    TxtExport += '\n';
-                    if (opts.thm && thmChange) TxtExport += '[' + (thmStr || '–') + '] ';
-                } else if (opts.thm && thmChange) {
-                    // même segment, thème différent du mot précédent : marqueur inline
-                    TxtExport += ' [' + (thmStr || '–') + '] ';
-                }
-
-                TxtExport += mot.textContent;
-                seg_cur = seg;
-                loc_cur = locNom;
-                thm_cur = thmStr;
-            });
-
-            TxtExport += '\n';
-
+            const TxtExport = construireTxtEntretien(ent, opts, txtvars, contenuHtmlCmpct, locut);
             SauvegarderSurDisque(TxtExport, detailsf[1] + suffixeAnon + '.txt', 'UTF-8');
-            
             break;
         }
 
@@ -2582,96 +2537,324 @@ ${legendHtml}
     }
 }
 
+/**
+ * Construit le .txt d'un entretien (en-tête, notes, variables, puis texte avec [time]/locuteur/[thème]).
+ * Factorisé depuis exportEntretien (case 'txt') → réutilisé par l'export entretien ET l'export corpus.
+ * Fonction pure (DOM hors-écran) : aucune dépendance au DOM live.
+ * @param {object} ent
+ * @param {object} opts - { notes, vars, loc, thm, time }
+ * @param {string} txtvars - variables formatées (si opts.vars)
+ * @param {string} contenuHtmlCmpct - HTML compacté (déjà anonymisé si demandé)
+ * @param {string[]} locuteurs - noms de locuteurs indexés (locut entretien / ent.tabLoc corpus)
+ * @returns {string}
+ */
+function construireTxtEntretien(ent, opts, txtvars, contenuHtmlCmpct, locuteurs) {
+    let TxtExport = "";
+    // En-tête (Sonal π + nom de l'entretien) — optionnel, pour pouvoir n'exporter que le texte brut.
+    // Affiché par défaut ; masqué seulement si la case est explicitement décochée.
+    if (opts.entete !== false) {
+        const v = window.versionSonal ? (" (version " + window.versionSonal + ")") : "";
+        TxtExport += "Exporté par Sonal π" + v + " le " + new Date().toLocaleString() + "\n\n";
+        TxtExport += "Entretien : " + (ent && ent.nom ? ent.nom : '') + "\n\n";
+    }
+
+    // Sections optionnelles : masquées si la donnée est absente (pas de « Aucune note » ni d'en-tête vide).
+    if (opts.notes && ent && ent.notes) {
+        TxtExport += "Notes de l'entretien :\n" + ent.notes + "\n\n";
+    }
+    if (opts.vars && txtvars) {
+        TxtExport += "Variables associées :\n" + txtvars + "\n\n";
+    }
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contenuHtmlCmpct;
+
+    const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
+    let seg_cur = null;
+    let loc_cur = '';
+    let thm_cur = '';
+
+    mots.forEach(mot => {
+        const seg = mot.closest('.lblseg');
+        if (!seg) return;
+
+        let locNom = '';
+        if (opts.loc) {
+            const locIdx = seg.dataset.loc;
+            locNom = locuteurs[locIdx] ? locuteurs[locIdx].replaceAll('?', '').trim() : '';
+        }
+
+        let thmStr = '';
+        if (opts.thm) {
+            const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+            const thmNoms = thmClasses.map(c => {
+                const thm = tabThm.find(t => t.code === c);
+                return thm ? thm.nom.split('//')[0].trim() : null;
+            }).filter(nom => nom);
+            thmStr = thmNoms.join(', ');
+        }
+
+        const isFirst   = seg_cur === null;
+        const segChange = seg !== seg_cur;
+        const locChange = locNom !== loc_cur;
+        const thmChange = thmStr !== thm_cur;
+
+        if (isFirst || (segChange && locChange)) {
+            let ligne = isFirst ? '' : '\n\n';
+            if (opts.time) {
+                const deb = seg.dataset.deb;
+                if (deb) ligne +=  SecToTime(deb, true) + " ";
+            }
+            if (opts.loc && locNom) ligne += locNom + ' ';
+            if (opts.thm && thmStr) ligne += '[' + thmStr + '] ';
+            TxtExport += ligne + '\n';
+        } else if (segChange) {
+            TxtExport += '\n';
+            if (opts.thm && thmChange) TxtExport += '[' + (thmStr || '–') + '] ';
+        } else if (opts.thm && thmChange) {
+            TxtExport += ' [' + (thmStr || '–') + '] ';
+        }
+
+        TxtExport += mot.textContent;
+        seg_cur = seg;
+        loc_cur = locNom;
+        thm_cur = thmStr;
+    });
+
+    TxtExport += '\n';
+    return TxtExport;
+}
+
+/**
+ * Traitement loc/thm partagé des exports HTML (entretien ET corpus). À partir du HTML compacté :
+ * injecte les en-têtes de locuteurs avant chaque .ligloc (opts.loc) — avec bouton play si audioSrcUrl
+ * est fourni —, retire/conserve les classes cat_ (opts.thm), pose les title de thématiques, retire les
+ * coordonnées si !opts.time, et génère le CSS des thématiques. Factorisé depuis exportEntretien (html).
+ * @param {string} contenuHtmlCmpct
+ * @param {object} opts - { loc, thm, time }
+ * @param {string[]} locuteurs - locut (entretien) ou ent.tabLoc (corpus)
+ * @param {string} [audioSrcUrl] - vide → pas de boutons play (cas corpus / partage)
+ * @returns {{html:string, cssThm:string}}
+ */
+function traiterHtmlEntretienPourExport(contenuHtmlCmpct, opts, locuteurs, audioSrcUrl = '') {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contenuHtmlCmpct;
+
+    // Injecter en-têtes de locuteurs + boutons play avant chaque .ligloc
+    tempDiv.querySelectorAll('.ligloc').forEach(seg => {
+        const locIdx = seg.dataset.loc;
+        const locNom = opts.loc && locuteurs[locIdx]
+            ? locuteurs[locIdx].replaceAll('?', '').trim()
+            : '';
+        const deb = seg.dataset.deb;
+
+        const header = document.createElement('div');
+        header.className = 'ligloc-header';
+
+        if (audioSrcUrl && deb !== undefined && deb !== '') {
+            const btn = document.createElement('button');
+            btn.className = 'btn-play-seg';
+            btn.dataset.deb = deb;
+            btn.title = SecToTime(Number(deb), true);
+            btn.textContent = '▶';
+            header.appendChild(btn);
+        }
+
+        if (locNom) {
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'speaker-name';
+            nameSpan.textContent = locNom;
+            header.appendChild(nameSpan);
+        }
+
+        if (header.children.length > 0) {
+            seg.parentNode.insertBefore(header, seg);
+        }
+    });
+
+    // Strip thematic classes if not requested
+    if (!opts.thm) {
+        tempDiv.querySelectorAll('span').forEach(span => {
+            Array.from(span.classList)
+                .filter(c => c.startsWith('cat_'))
+                .forEach(c => span.classList.remove(c));
+        });
+    }
+
+    // Add title attributes on themed spans
+    if (opts.thm) {
+        const thmTitleMap = {};
+        (tabThm || []).forEach(t => { thmTitleMap[t.code] = splitNomThm(t.nom)[0]; });
+        tempDiv.querySelectorAll('span').forEach(span => {
+            const cats = Array.from(span.classList).filter(c => c.startsWith('cat_'));
+            if (cats.length > 0) {
+                const noms = cats.map(c => thmTitleMap[c]).filter(n => n);
+                if (noms.length > 0) span.title = noms.join(', \n');
+            }
+        });
+    }
+
+    // Remove time data if not requested
+    if (!opts.time) {
+        tempDiv.querySelectorAll('[data-deb], [data-fin]').forEach(el => {
+            delete el.dataset.deb;
+            delete el.dataset.fin;
+        });
+    }
+
+    // Generate thematic CSS
+    let cssThm = '';
+    if (opts.thm) {
+        const thmMap = {};
+        (tabThm || []).forEach(t => { thmMap[t.code] = t; });
+
+        // Règles mono-catégorie
+        (tabThm || []).forEach(thm => {
+            if (!thm.couleur && !thm.taille) return;
+            const gradientRule = thm.couleur ? `background-image: linear-gradient(rgba(0,0,0,0) 60%, ${thm.couleur}60 95%, ${thm.couleur} 100%); padding-bottom: 4px;` : '';
+            const fontRule = thm.taille && parseFloat(thm.taille) > 18 ? `font-size: ${thm.taille}; font-weight: bold;` : '';
+            cssThm += `.${thm.code} { ${gradientRule} ${fontRule} }\n`;
+        });
+
+        // Règles multi-catégories (logique multiThm)
+        const EPAISSEUR = 10;
+        const multiCombos = new Map();
+        tempDiv.querySelectorAll('span').forEach(span => {
+            const cats = Array.from(span.classList).filter(c => c.startsWith('cat_'));
+            if (cats.length > 1) {
+                const key = cats.map(c => '.' + c).join('');
+                if (!multiCombos.has(key)) multiCombos.set(key, cats);
+            }
+        });
+        multiCombos.forEach((cats, combo) => {
+            const nbcats = cats.length;
+            const seuildep = 90 - (nbcats - 1) * EPAISSEUR;
+            const thm1 = thmMap[cats[0]];
+            if (!thm1 || !thm1.couleur) return;
+            const coul1 = thm1.couleur;
+            let chainecoul = '';
+            for (let c = 1; c < cats.length; c++) {
+                const thmc = thmMap[cats[c]];
+                if (!thmc || !thmc.couleur) continue;
+                const prog = seuildep + EPAISSEUR * c;
+                chainecoul += `, white ${prog}%, white ${prog + 3}%, ${thmc.couleur} ${prog + 3}%, ${thmc.couleur} ${prog + EPAISSEUR}%`;
+            }
+            const bg = `linear-gradient(rgba(0,0,0,0) 50%, ${coul1}60 ${seuildep}%, ${coul1} ${seuildep + 7}%${chainecoul})`;
+            cssThm += `${combo} { background-image: ${bg}; line-height: ${1.5 + 0.05 * nbcats}em; }\n`;
+        });
+    }
+
+    return { html: tempDiv.innerHTML, cssThm };
+}
+
 // ---------------------------------------------------------------
 // EXPORT ENTRETIEN - Format DOCX (via IPC au main process)
 // ---------------------------------------------------------------
+
+/**
+ * Construit le texte à marqueurs d'un entretien (locuteurs, [catégories], coordonnées temporelles,
+ * gras via {g}) à partir de son HTML compacté, en honorant les options d'export. Fonction pure
+ * (DOM hors-écran), réutilisée par l'export DOCX entretien ET l'export DOCX/TXT corpus.
+ * @param {object} ent - entretien (ent.nom, ent.notes)
+ * @param {object} opts - { notes, vars, loc, thm, time }
+ * @param {string} txtvars - variables formatées (si opts.vars)
+ * @param {string} contenuHtmlCmpct - HTML compacté (déjà anonymisé si demandé)
+ * @param {string[]} locuteurs - noms de locuteurs indexés (ent.tabLoc)
+ * @param {boolean} [marqueurGras=true] - émettre les marqueurs « {g} » (gras DOCX/PDF). false pour le .txt brut.
+ * @returns {string}
+ */
+function construireContenuEntretien(ent, opts, txtvars, contenuHtmlCmpct, locuteurs, marqueurGras = true) {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contenuHtmlCmpct;
+    const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
+    // En-tête « Entretien : nom » optionnel (cohérent avec opts.entete ; le titre DOCX est géré côté main).
+    let contenuTxt = (opts.entete === false) ? "" : ("Entretien : " + (ent && ent.nom ? ent.nom : '') + "\n\n");
+
+    // Add notes if selected
+    if (opts.notes && ent && ent.notes) {
+        contenuTxt += "Notes de l'entretien :\n" + ent.notes + "\n\n";
+    }
+
+    // Add variables if selected
+    if (opts.vars && txtvars) {
+        contenuTxt += "Variables associées :\n" + txtvars + "\n\n";
+    }
+
+    // Add text content (similar to TXT format)
+    let seg_cur = null;
+    let loc_cur = '';
+    let thm_cur = '';
+
+    mots.forEach(mot => {
+        const seg = mot.closest('.lblseg');
+        if (!seg) return;
+
+        let locNom = '';
+        let isLocBold = false;
+        if (opts.loc) {
+            const locIdx = seg.dataset.loc;
+            const originalLoc = locuteurs[locIdx];
+            locNom = originalLoc ? originalLoc.replaceAll('?', '').trim() : '';
+            // Vérifier si le locuteur doit être en gras
+            isLocBold = originalLoc && originalLoc.includes('?');
+        }
+
+        let thmStr = '';
+        if (opts.thm) {
+            const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+            const thmNoms = thmClasses.map(c => {
+                const thm = tabThm.find(t => t.code === c);
+                return thm ? thm.nom.split('//')[0].trim() : null;
+            }).filter(nom => nom);
+            thmStr = thmNoms.join(', ');
+        }
+
+        const isFirst = seg_cur === null;
+        const segChange = seg !== seg_cur;
+        const locChange = locNom !== loc_cur;
+        const thmChange = thmStr !== thm_cur;
+
+        if (isFirst || (segChange && locChange)) {
+            let ligne = isFirst ? '' : '\n\n';
+            // Ajouter {g} si le locuteur doit être en gras
+            if (marqueurGras && isLocBold) {
+                ligne += '{g}';
+            }
+            if (opts.time) {
+                const deb = seg.dataset.deb;
+                if (deb) ligne += SecToTime(deb, true) + " ";
+            }
+            if (opts.loc && locNom) ligne += locNom + ' ';
+            if (opts.thm && thmStr) ligne += '[' + thmStr + '] ';
+            contenuTxt += ligne + '\n';
+            // Ajouter {g} avant le contenu du premier mot si le locuteur est gras
+            if (marqueurGras && isLocBold) {
+                contenuTxt += '{g}';
+            }
+        } else if (segChange) {
+            contenuTxt += '\n\n';
+            // Ajouter {g} si le nouveau locuteur est gras
+            if (marqueurGras && isLocBold) {
+                contenuTxt += '{g}';
+            }
+            if (opts.thm && thmChange) contenuTxt += '[' + (thmStr || '–') + '] ';
+        } else if (opts.thm && thmChange) {
+            contenuTxt += ' [' + (thmStr || '–') + '] ';
+        }
+
+        contenuTxt += mot.textContent;
+        seg_cur = seg;
+        loc_cur = locNom;
+        thm_cur = thmStr;
+    });
+
+    contenuTxt += '\n';
+    return contenuTxt;
+}
+
 async function genererExportDocxEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locuteurs) {
     try {
-        // Prepare text content data (similar to TXT)
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = contenuHtmlCmpct;
-        const mots = tempDiv.querySelectorAll('span:not(.lblseg)');
-        let contenuTxt = "Entretien : " + ent.nom + "\n\n";
-
-        // Add notes if selected
-        if (opts.notes && ent.notes) {
-            contenuTxt += "Notes de l'entretien :\n" + ent.notes + "\n\n";
-        }
-
-        // Add variables if selected
-        if (opts.vars && txtvars) {
-            contenuTxt += "Variables associées :\n" + txtvars + "\n\n";
-        }
-
-        // Add text content (similar to TXT format)
-        let seg_cur = null;
-        let loc_cur = '';
-        let thm_cur = '';
-
-        mots.forEach(mot => {
-            const seg = mot.closest('.lblseg');
-            if (!seg) return;
-
-            let locNom = '';
-            let isLocBold = false;
-            if (opts.loc) {
-                const locIdx = seg.dataset.loc;
-                const originalLoc = locuteurs[locIdx];
-                locNom = originalLoc ? originalLoc.replaceAll('?', '').trim() : '';
-                // Vérifier si le locuteur doit être en gras
-                isLocBold = originalLoc && originalLoc.includes('?');
-            }
-
-            let thmStr = '';
-            if (opts.thm) {
-                const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
-                const thmNoms = thmClasses.map(c => {
-                    const thm = tabThm.find(t => t.code === c);
-                    return thm ? thm.nom.split('//')[0].trim() : null;
-                }).filter(nom => nom);
-                thmStr = thmNoms.join(', ');
-            }
-
-            const isFirst = seg_cur === null;
-            const segChange = seg !== seg_cur;
-            const locChange = locNom !== loc_cur;
-            const thmChange = thmStr !== thm_cur;
-
-            if (isFirst || (segChange && locChange)) {
-                let ligne = isFirst ? '' : '\n\n';
-                // Ajouter {g} si le locuteur doit être en gras
-                if (isLocBold) {
-                    ligne += '{g}';
-                }
-                if (opts.time) {
-                    const deb = seg.dataset.deb;
-                    if (deb) ligne += SecToTime(deb, true) + " ";
-                }
-                if (opts.loc && locNom) ligne += locNom + ' ';
-                if (opts.thm && thmStr) ligne += '[' + thmStr + '] ';
-                contenuTxt += ligne + '\n';
-                // Ajouter {g} avant le contenu du premier mot si le locuteur est gras
-                if (isLocBold) {
-                    contenuTxt += '{g}';
-                }
-            } else if (segChange) {
-                contenuTxt += '\n\n';
-                // Ajouter {g} si le nouveau locuteur est gras
-                if (isLocBold) {
-                    contenuTxt += '{g}';
-                }
-                if (opts.thm && thmChange) contenuTxt += '[' + (thmStr || '–') + '] ';
-            } else if (opts.thm && thmChange) {
-                contenuTxt += ' [' + (thmStr || '–') + '] ';
-            }
-
-            contenuTxt += mot.textContent;
-            seg_cur = seg;
-            loc_cur = locNom;
-            thm_cur = thmStr;
-        });
-
-        contenuTxt += '\n';
+        const contenuTxt = construireContenuEntretien(ent, opts, txtvars, contenuHtmlCmpct, locuteurs);
 
         // Call IPC handler
         const result = await window.electronAPI.exportEntretienDocx({
@@ -2679,7 +2862,8 @@ async function genererExportDocxEntretien(ent, opts, txtvars, nomFichier, conten
             contenuTxt: contenuTxt,
             notes: opts.notes ? ent.notes : '',
             variables: opts.vars ? txtvars : '',
-            nomFichier: nomFichier
+            nomFichier: nomFichier,
+            entete: opts.entete
         });
 
         if (result.success) {

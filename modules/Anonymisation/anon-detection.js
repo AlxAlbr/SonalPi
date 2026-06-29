@@ -1,0 +1,531 @@
+////////////////////////////////////////////////////////////////////////
+// SOCLE DE DÉTECTION D'ANONYMISATION (utilitaires partagés)
+//
+// Cluster « tokenisation + regex entité » mutualisé entre la table corpus
+// (tableau_global.js) et la table entretien (tableau_base.js). Extrait ici pour
+// supprimer les définitions en double (parseAliases / tokenizeCommeSegmentation
+// étaient redéfinis dans les deux fichiers — la dernière chargée écrasait l'autre)
+// et préparer l'unification de la détection.
+//
+// Fonctions PURES (pas d'accès au DOM applicatif, pas d'état) : sûres à appeler de
+// partout. Chargé dans index.html AVANT tableau_base.js / tableau_global.js.
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Échappe les caractères spéciaux pour la regex
+ */
+function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Découpe un champ « entité » en alias séparés par « / ».
+ * "Saint-Étienne / St-Étienne" → ["Saint-Étienne", "St-Étienne"]
+ * Espaces autour du « / » ignorés, parts vides ignorées. Sans « / » : un seul alias.
+ * @param {string} entite
+ * @returns {string[]}
+ */
+function parseAliases(entite) {
+    if (!entite) return [];
+    return entite.split('/').map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Retire la ponctuation EN TÊTE et EN QUEUE d'une chaîne « entité », pour que la détection ignore
+ * la ponctuation de bord, non discriminante : « Lyon. » ≡ « Lyon », « ...Loire » ≡ « Loire ».
+ * La ponctuation INTERNE est CONSERVÉE (« Saint-Étienne », « New York » inchangés) — seuls les
+ * bords sont rognés. Une chaîne entièrement ponctuation devient vide (ignorée en aval).
+ * @param {string} str
+ * @returns {string}
+ */
+function rognerPonctuationBords(str) {
+    const FR = 'a-zA-ZÀ-ÖØ-öø-ÿ0-9_';
+    return (str || '').replace(new RegExp(`^[^${FR}]+|[^${FR}]+$`, 'g'), '');
+}
+
+/**
+ * Construit une regex (avec frontières de mots français) couvrant tous les alias d'une entité.
+ * Chaque alias est échappé (aucun footgun regex). Les alias les plus longs sont placés en tête
+ * de l'alternance pour être préférés en cas de recouvrement.
+ * @param {string} entite - chaîne « entité » (peut contenir des alias séparés par « / »)
+ * @param {string} flags - flags de la RegExp (ex. 'gi', 'i')
+ * @returns {RegExp|null} null si aucun alias exploitable
+ */
+function construireRegexEntite(entite, flags) {
+    const FR = '[a-zA-ZÀ-ÖØ-öø-ÿ0-9_]';
+    const alias = parseAliases(entite)
+        .map(rognerPonctuationBords)
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+    if (alias.length === 0) return null;
+    const alternation = alias.map(a => escapeRegex(a)).join('|');
+    return new RegExp(`(?<!${FR})(?:${alternation})(?!${FR})`, flags);
+}
+
+/**
+ * Tokenize une chaîne exactement comme la segmentation le fait
+ * Pour matcher l'ordre des spans dans le DOM
+ */
+function tokenizeCommeSegmentation(texte) {
+    return texte.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) || [];
+}
+
+/**
+ * Extrait les mots-clés d'un texte pour l'index inversé et le pré-filtre du scan.
+ * On ne garde que les suites de lettres/chiffres, en minuscules : la ponctuation
+ * (virgules, points, « ... », tirets, apostrophes…) sert de séparateur.
+ * CRUCIAL : l'index inversé ET entretiensCandidats DOIVENT utiliser cette même
+ * fonction, sinon une entité ponctuée (« Loire... ») ne matcherait pas les mots
+ * propres de l'index (« loire »), et l'entretien serait écarté à tort du scan.
+ * @param {string} texte
+ * @returns {string[]}
+ */
+function motsCles(texte) {
+    return (texte || '').toLowerCase().match(/[0-9a-zà-öø-ÿ]+/g) || [];
+}
+
+////////////////////////////////////////////////////////////////////////
+// Détection d'« affixes de liaison » : dériver le CŒUR d'une sélection encadrée
+// (« à Lyon » → proposer « Lyon »). Fonctions PURES. Voir plan-affixes-liaison.md.
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Mots de liaison par défaut qui « encadrent » un nom propre : **prépositions** (y compris les
+ * contractions préposition+article « du/des/au/aux »). En minuscules (comparaison insensible à la
+ * casse) ; « d' » via « d » (l'apostrophe est un token séparé, consommée à la suite).
+ * VOLONTAIREMENT **pas** les articles nus (le/la/les/l/un/une) : ils font partie du contenu du
+ * pseudo (« une grande ville ») et ne doivent pas être rognés. Surchargeable au niveau corpus.
+ */
+const MOTS_LIAISON_DEFAUT = ['à','de','d','du','des','au','aux','en','chez','dans','sur','pour'];
+
+/**
+ * Reconstruit une chaîne lisible depuis une liste de tokens (mots + ponctuation) : un espace entre
+ * deux mots, rien autour de la ponctuation. « ['Saint','-','Étienne'] » → « Saint-Étienne ».
+ * @param {string[]} tokens
+ * @returns {string}
+ */
+function reconstruireDepuisTokens(tokens) {
+    let out = '';
+    for (let k = 0; k < tokens.length; k++) {
+        const estMot = /[\wÀ-ÿ]/.test(tokens[k]);
+        const precMot = k > 0 && /[\wÀ-ÿ]/.test(tokens[k - 1]);
+        if (estMot && precMot) out += ' ';
+        out += tokens[k];
+    }
+    return out;
+}
+
+/**
+ * Rogne EN TÊTE UN SEUL mot de liaison (+ l'apostrophe d'élision qui suit « d' »). Ne touche PAS la
+ * fin, et NE consomme PAS de second mot. « ['de',"Lyon"] » avec « de » ∈ set → affixe ['de'], reste
+ * ['Lyon']. Choix « premier seulement » (et non glouton) : on retire le mot de cadrage et on garde le
+ * reste tel quel — ainsi un article qui suit la préposition (« dans une grande ville ») est PRÉSERVÉ
+ * dans le cœur, même si cet article figurait dans la liste. Contrepartie assumée : les doubles
+ * prépositions (« de chez Pierre ») ne sont plus dégraissées → pas d'auto-proposition (repli manuel),
+ * ce que le garde-fou de capitalisation écartait déjà de toute façon. Voir plan-affixes-liaison.md.
+ * @param {string[]} tokens - tokens (mots/ponctuation), espaces déjà retirés
+ * @param {Set<string>} set - mots de liaison en minuscules
+ * @returns {{reste:string[], affixe:string[]}}
+ */
+function rognerAffixesTete(tokens, set) {
+    let i = 0;
+    const t = tokens[0];
+    if (t && /[\wÀ-ÿ]/.test(t) && set.has(t.toLowerCase())) {
+        i = 1;
+        if (i < tokens.length && tokens[i] === "'") i++; // élision « d' »
+    }
+    return { affixe: tokens.slice(0, i), reste: tokens.slice(i) };
+}
+
+/**
+ * Détecte une (entité, pseudo) « encadrée » par des mots de liaison et renvoie le CŒUR dégraissé.
+ * Ex. (« à Lyon », « dans une grande ville ») → { entiteCoeur:'Lyon', pseudoCoeur:'une grande ville' }.
+ * Renvoie `null` si : l'entité n'a pas d'affixe de tête ; le cœur est vide ; ou le 1er token du cœur
+ * n'est PAS capitalisé (garde-fou anti « à la maison », « la résidence Sainte-Anne »). L'affixe du
+ * PSEUDO est facultatif (« à Lyon » → « [grande ville] » propose quand même « Lyon » → « [grande
+ * ville] »). NB : l'entité est nettoyée de sa ponctuation de bord (rognerPonctuationBords) ; le pseudo
+ * NON (on préserve « [grande ville] »).
+ * @param {string} entite
+ * @param {string} pseudo
+ * @param {string[]} [motsLiaison]
+ * @returns {{entiteCoeur:string, pseudoCoeur:string, affixeEntite:string, affixePseudo:string}|null}
+ */
+function detecterAffixeLiaison(entite, pseudo, motsLiaison = MOTS_LIAISON_DEFAUT) {
+    const set = new Set((motsLiaison || []).map(m => m.toLowerCase()));
+    const sansVides = arr => arr.filter(t => t.trim() !== '');
+
+    // Entité : ponctuation de bord rognée puis tokenisée.
+    const tEnt = sansVides(tokenizeCommeSegmentation(rognerPonctuationBords(entite || '')));
+    const { affixe: affEnt, reste: coeurEnt } = rognerAffixesTete(tEnt, set);
+    if (affEnt.length === 0) return null;                  // rien d'encadrant
+    if (coeurEnt.length === 0) return null;                // que des mots-outils
+    if (!/^[A-ZÀ-ÖØ-Þ]/.test(coeurEnt[0])) return null;    // garde-fou : nom propre capitalisé attendu
+
+    // Pseudo : tokenisé TEL QUEL (on ne rogne pas sa ponctuation → « [grande ville] » préservé).
+    const tPse = sansVides(tokenizeCommeSegmentation(pseudo || ''));
+    const { affixe: affPse, reste: coeurPse } = rognerAffixesTete(tPse, set);
+    const pseudoCoeur = affPse.length ? reconstruireDepuisTokens(coeurPse) : (pseudo || '').trim();
+
+    return {
+        entiteCoeur: reconstruireDepuisTokens(coeurEnt),
+        pseudoCoeur,
+        affixeEntite: reconstruireDepuisTokens(affEnt),
+        affixePseudo: reconstruireDepuisTokens(affPse)
+    };
+}
+
+////////////////////////////////////////////////////////////////////////
+// Détection d'occurrences dans un document HTML d'entretien (DOM déjà parsé)
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Trouve les occurrences d'une entité dans un entretien avec contexte
+ * Cherche AUSSI les occurrences déjà pseudonymisées (avec data-pseudo)
+ * @param {number} indexEnt - Index de l'entretien
+ * @param {string} entite - Entité à chercher
+ * @param {string} pseudo - Pseudonyme (pour vérifier si appliqué)
+ * @returns {Promise<Array>} Tableau des occurrences avec contexte
+ */
+async function trouverOccurrencesAvecContexte(indexEnt, entite, pseudo, pseudosRegle) {
+    try {
+        const htmlContent = await window.electronAPI.getHtml(indexEnt);
+
+        if (!htmlContent) {
+            return [];
+        }
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        return trouverOccurrencesDansDoc(tempDiv, entite, pseudo, pseudosRegle);
+
+    } catch (error) {
+        console.error("Erreur dans trouverOccurrencesAvecContexte():", error);
+        return [];
+    }
+}
+
+/**
+ * Détection d'occurrences pour le panneau corpus, opérant sur un document HTML DÉJÀ parsé.
+ * Adaptateur AUTOUR de la fonction unifiée analyserOccurrences : reformate la sortie au
+ * format attendu par le panneau ({entite, contextAvant, contextApres, applique, exclue, spanId})
+ * et reconstruit le contexte d'affichage. Opère en « passe unique » (un seul parse HTML par
+ * entretien, réutilisé pour toutes les paires).
+ * @param {HTMLElement} tempDiv - racine DOM contenant le HTML de l'entretien
+ * @param {string} entite - entité à chercher
+ * @param {string} pseudo - pseudonyme (pour l'attribution des occurrences anonymisées)
+ * @returns {Array} occurrences {entite, contextAvant, contextApres, applique, exclue, spanId}
+ */
+function trouverOccurrencesDansDoc(tempDiv, entite, pseudo, pseudosRegle) {
+    try {
+        // Détection + classification via la fonction UNIFIÉE (partagée avec l'entretien).
+        // On adapte la sortie au format attendu par le panneau corpus :
+        //   applique = 'anon' (anonymisée par CE pseudo) · exclue = 'exception' ·
+        //   incluse = 'incluse' (absorbée par une autre règle) ·
+        //   non-traite → applique/exclue/incluse:false. Contexte fourni par analyserOccurrences
+        //   (reconstruit depuis le flux de tokens, cf. construireContexteFlux).
+        const occ = analyserOccurrences(tempDiv, entite, pseudo, pseudosRegle, false, true);
+        return occ.map(o => ({
+            entite: o.texte,
+            contextAvant: o.contextAvant,
+            contextApres: o.contextApres,
+            applique: o.etat === 'anon',
+            exclue: o.etat === 'exception',
+            incluse: o.etat === 'incluse',
+            spanId: o.spanDebut.dataset.rk
+        }));
+    } catch (error) {
+        console.error("Erreur dans trouverOccurrencesDansDoc():", error);
+        return [];
+    }
+}
+
+// Matcher entretien : occurrences (plages de spans) du texte d'une entité dans le DOM courant.
+
+/**
+ * Trouve, dans le DOM, les occurrences (plages d'indices de spans) de tous les alias d'une entité.
+ * - Insensible à la casse (comparaison des tokens en minuscules).
+ * - Réutilise la tokenisation/segmentation existante (multi-mots, tirets, apostrophes).
+ * - Mutualise un Set de spans pour ne pas compter deux fois le même emplacement quand deux
+ *   alias se recouvrent. Les alias les plus longs (en tokens) sont essayés d'abord.
+ * @param {string} entite - chaîne « entité » pouvant contenir des alias séparés par « / »
+ * @param {NodeList} tousLesSpans - résultat de querySelectorAll('[data-rk]')
+ * @returns {Array<{start:number, end:number}>} plages d'indices NodeList, triées par position
+ */
+function trouverMatchesEntiteDOM(entite, tousLesSpans) {
+    const spansNonVides = [];
+    tousLesSpans.forEach((span, idx) => {
+        const txt = span.textContent.trim();
+        if (txt) spansNonVides.push({ txt, originalIdx: idx });
+    });
+
+    // Préparer la liste des alias tokenisés, les plus longs d'abord (préférence en cas de recouvrement)
+    const aliasTokens = parseAliases(entite)
+        .map(al => tokenizeCommeSegmentation(rognerPonctuationBords(al)).filter(t => t.trim() !== ''))
+        .filter(toks => toks.length > 0)
+        .sort((a, b) => b.length - a.length);
+
+    const matches = [];
+    const spansTraites = new Set(); // originalIdx du premier span déjà consommé
+
+    aliasTokens.forEach(motsRecherche => {
+        for (let i = 0; i <= spansNonVides.length - motsRecherche.length; i++) {
+            const firstSpanIdx = spansNonVides[i].originalIdx;
+            if (spansTraites.has(firstSpanIdx)) continue;
+
+            let ok = true;
+            let lastSpanIdx = firstSpanIdx;
+            for (let j = 0; j < motsRecherche.length; j++) {
+                if (spansNonVides[i + j].txt.toLowerCase() !== motsRecherche[j].toLowerCase()) {
+                    ok = false;
+                    break;
+                }
+                lastSpanIdx = spansNonVides[i + j].originalIdx;
+            }
+            if (ok) {
+                spansTraites.add(firstSpanIdx);
+                matches.push({ start: firstSpanIdx, end: lastSpanIdx });
+            }
+        }
+    });
+
+    matches.sort((a, b) => a.start - b.start);
+    return matches;
+}
+
+////////////////////////////////////////////////////////////////////////
+// FONCTION UNIFIÉE de détection + classification (entretien ET corpus)
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Analyse les occurrences d'une (entité, pseudo) dans un DOM d'entretien et renvoie leur
+ * ÉTAT par occurrence. Fonction UNIQUE partagée par l'entretien (reindexerMatchPositions) et
+ * le corpus (trouverOccurrencesDansDoc) → supprime la classe de bugs « les deux vues divergent ».
+ *
+ * Principe : on cherche le TEXTE de l'entité sur un flux de tokens couvrant TOUS les spans (les
+ * spans anonymisés conservent le texte ORIGINAL — le pseudo n'est qu'affiché), puis on CLASSE
+ * chaque occurrence d'après son premier span. Le flux est tokenisé comme la segmentation (mots ET
+ * ponctuation, espaces retirés) et le match est exact token-par-token → MÊME comportement que les
+ * anciens matchers : la ponctuation entre les mots bloque un match multi-mots (« New, York » ne
+ * matche pas « New York »), les entités à tirets/apostrophes exigent la ponctuation exacte. Gère
+ * uniformément le DOM normalisé (un token/span) ET compacté (data-len>1, plusieurs tokens/span ;
+ * entretiens jamais ouverts).
+ *
+ * États :
+ *  - 'anon'       : 1er span `.anon` ET data-pseudo = pseudo (anonymisé par CETTE règle).
+ *  - 'incluse'    : 1er span `.anon` avec un data-pseudo ÉTRANGER à la règle (absorbée par une
+ *                   autre règle plus large). Nécessite `pseudosRegle` ; une autre VARIANTE de la
+ *                   même règle est exclue (captée par son propre pseudo).
+ *  - 'exception'  : 1er span `.anon-exception`.
+ *  - 'non-traite' : 1er span sans marquage d'anonymisation.
+ * Sans `pseudosRegle` : une occurrence portant un autre data-pseudo est EXCLUE (ancien comportement).
+ *
+ * Attribution = TEXTE de l'entité (et non le pseudo) → tue le bug de collision (deux entités
+ * partageant un pseudo) : une occurrence n'est rattachée qu'à l'entité dont elle porte le texte.
+ * Le filtrage par `.anon`/`.anon-exception` distingue les vraies anonymisations des debsel/finsel
+ * posés par la sélection souris / thématisation (qui n'ont pas ces classes → 'non-traite').
+ *
+ * @param {HTMLElement} racineDOM - racine contenant les spans [data-rk] (document live côté
+ *        entretien, tempDiv parsé côté corpus)
+ * @param {string} entite - entité (peut contenir des alias séparés par « / »)
+ * @param {string} pseudo - pseudonyme de la règle (variante visée pour l'état 'anon')
+ * @param {string[]} [pseudosRegle] - tous les pseudos de la règle (active la détection 'incluse')
+ * @param {boolean} [toutesVariantesAnon] - si vrai, TOUTE variante de `pseudosRegle` compte comme
+ *        'anon' (vue entretien : une seule passe couvre la règle entière). Sinon (corpus per-pseudo)
+ *        seules les occurrences en `pseudo` sont 'anon', les autres variantes → exclues (continue).
+ * @returns {Array<{etat:'anon'|'incluse'|'exception'|'non-traite', texte:string,
+ *                  spanDebut:Element, spanFin:Element, indexDebut:number, indexFin:number}>}
+ *          indexDebut/indexFin = index dans la NodeList [data-rk] de racineDOM (adaptateur
+ *          entretien : {start,end}) ; spanDebut/spanFin = éléments (adaptateur corpus :
+ *          contexte + spanId). Trié par ordre du document.
+ */
+function analyserOccurrences(racineDOM, entite, pseudo, pseudosRegle, toutesVariantesAnon, avecContexte) {
+    const spans = Array.from(racineDOM.querySelectorAll('[data-rk]'));
+    if (spans.length === 0) return [];
+
+    // Flux de tokens sur TOUS les spans (anonymisés inclus : leur texte d'origine est préservé).
+    // Tokenisation = segmentation (mots ET ponctuation) ; les espaces (insécables compris) sont
+    // retirés, exactement comme les anciens matchers qui ignoraient les spans vides mais gardaient
+    // les spans de ponctuation. Un span compacté (data-len>1) produit plusieurs tokens.
+    const flux = []; // { tok, tokL (minuscule), idxSpan }
+    for (let i = 0; i < spans.length; i++) {
+        for (const tok of tokenizeCommeSegmentation(spans[i].textContent || '')) {
+            if (tok.trim() === '') continue; // espace/insécable → séparateur, pas un token
+            flux.push({ tok, tokL: tok.toLowerCase(), idxSpan: i });
+        }
+    }
+
+    // Helpers de reconstruction textuelle depuis le flux de tokens (espace entre deux mots,
+    // rien autour de la ponctuation). Sert au texte du match ET au contexte d'affichage.
+    const estMotTok = (t) => /[\wÀ-ÿ]/.test(t);
+    const joinFlux = (from, to) => {
+        let out = '';
+        for (let k = from; k <= to; k++) {
+            if (k > from && estMotTok(flux[k].tok) && estMotTok(flux[k - 1].tok)) out += ' ';
+            out += flux[k].tok;
+        }
+        return out;
+    };
+    // Contexte d'affichage (~40 car. de part et d'autre) reconstruit depuis le FLUX et NON
+    // depuis les frères DOM : correct que les spans portent un seul mot (entretien ouvert/édité)
+    // ou des phrases entières (entretien jamais ouvert, lu depuis le cache au niveau corpus).
+    // L'ancienne version par siblings affichait le segment voisin au lieu des mots réellement
+    // collés à l'occurrence.
+    const MAX_CTX = 40;
+    const construireContexteFlux = (debut, len) => {
+        let a = debut, lenA = 0;
+        while (a > 0 && lenA < MAX_CTX) { a--; lenA += flux[a].tok.length + 1; }
+        const rawAvant = a <= debut - 1 ? joinFlux(a, debut - 1) : '';
+        const fin = debut + len;
+        let b = fin - 1, lenB = 0;
+        while (b + 1 < flux.length && lenB < MAX_CTX) { b++; lenB += flux[b].tok.length + 1; }
+        const rawApres = b >= fin ? joinFlux(fin, b) : '';
+        let contextAvant = rawAvant.length > MAX_CTX ? '...' + rawAvant.slice(-MAX_CTX).trimStart() : rawAvant.trimStart();
+        let contextApres = rawApres.length > MAX_CTX ? rawApres.slice(0, MAX_CTX).trimEnd() + '...' : rawApres.trimEnd();
+        // Espace de liaison avec l'entité (l'affichage concatène avant + entité + après).
+        if (contextAvant && estMotTok(flux[debut - 1].tok)) contextAvant += ' ';
+        if (contextApres && estMotTok(flux[fin].tok)) contextApres = ' ' + contextApres;
+        return { contextAvant, contextApres };
+    };
+
+    // Séquences de tokens des alias (mots + ponctuation), les plus longues d'abord (préférence
+    // en cas de recouvrement). Même tokenisation que le flux → comparaison token-par-token.
+    const aliasTokens = parseAliases(entite)
+        .map(a => tokenizeCommeSegmentation(rognerPonctuationBords(a)).filter(t => t.trim() !== '').map(t => t.toLowerCase()))
+        .filter(toks => toks.length > 0)
+        .sort((a, b) => b.length - a.length);
+    if (aliasTokens.length === 0) return [];
+
+    // Reconstruit le texte d'affichage d'un match : espace entre deux mots, rien autour de la
+    // ponctuation (« New York », « Saint-Étienne »).
+    const reconstruireTexte = (debut, len) => joinFlux(debut, debut + len - 1);
+
+    const fluxConsomme = new Array(flux.length).fill(false);
+    const occurrences = [];
+
+    for (const toks of aliasTokens) {
+        for (let p = 0; p + toks.length <= flux.length; p++) {
+            if (fluxConsomme[p]) continue;
+            let ok = true;
+            for (let q = 0; q < toks.length; q++) {
+                if (flux[p + q].tokL !== toks[q]) { ok = false; break; }
+            }
+            if (!ok) continue;
+            for (let q = 0; q < toks.length; q++) fluxConsomme[p + q] = true;
+
+            const idxDebut = flux[p].idxSpan;
+            const idxFin   = flux[p + toks.length - 1].idxSpan;
+            const spanDebut = spans[idxDebut];
+
+            // Classification par le 1er span de l'occurrence (cohérente entretien ↔ corpus).
+            let etat;
+            if (spanDebut.classList.contains('anon-exception')) {
+                etat = 'exception';
+            } else if (spanDebut.classList.contains('anon')) {
+                const dp = spanDebut.dataset.pseudo;
+                const dansRegle = pseudosRegle && pseudosRegle.some(p => (p || '').toLowerCase() === (dp || '').toLowerCase());
+                if (dp === pseudo || (toutesVariantesAnon && dansRegle)) {
+                    etat = 'anon'; // CE pseudo, ou (mode entretien) N'IMPORTE quelle variante de la règle
+                } else if (dansRegle) {
+                    continue; // autre VARIANTE de la même règle → captée par son propre appel (mode corpus per-pseudo)
+                } else if (pseudosRegle) {
+                    etat = 'incluse'; // pseudo ÉTRANGER → occurrence absorbée par une autre règle
+                } else {
+                    continue; // compat : sans liste de pseudos, ancien comportement (autre pseudo → exclu)
+                }
+            } else {
+                etat = 'non-traite';
+            }
+
+            const ctx = avecContexte ? construireContexteFlux(p, toks.length) : null;
+            occurrences.push({
+                etat,
+                texte: reconstruireTexte(p, toks.length),
+                contextAvant: ctx ? ctx.contextAvant : undefined,
+                contextApres: ctx ? ctx.contextApres : undefined,
+                spanDebut,
+                spanFin: spans[idxFin],
+                indexDebut: idxDebut,
+                indexFin: idxFin,
+                // Variante d'origine d'une occurrence absorbée (mémorisée par l'absorption) → exposant
+                // sur le bon badge de variante. Vide hors cas 'incluse'.
+                pseudoAbsorbe: (etat === 'incluse' && spanDebut.dataset.pseudoAbsorbe) || ''
+            });
+        }
+    }
+
+    occurrences.sort((a, b) => a.indexDebut - b.indexDebut);
+    return occurrences;
+}
+
+////////////////////////////////////////////////////////////////////////
+// Pré-filtre du scan corpus : index inversé mot→entretiens + entretiens candidats
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Construit un index inversé : mot (minuscules) → Set d'indices d'entretiens.
+ * Inclut les mots des spans normaux ET des spans déjà pseudonymisés (data-pseudo).
+ * @param {Array} tabEnt
+ * @returns {Promise<Map<string, Set<number>>>}
+ */
+async function construireIndexInverse(tabEnt) {
+    const index = new Map(); // mot → Set<idxEnt>
+    const n = tabEnt.length;
+    for (let i = 0; i < n; i++) {
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { html = null; }
+        if (!html) continue;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        tempDiv.querySelectorAll('[data-rk]').forEach(s => {
+            const texte = s.textContent.trim();
+            if (!texte) return;
+            // Tokeniser pour gérer les spans compressés (data-len : texte multi-mots).
+            // Un entretien jamais ouvert a des spans phrases entières → sans tokenisation,
+            // les mots individuels ("pierre", "edouard") ne seraient pas trouvés.
+            motsCles(texte).forEach(token => {
+                if (!index.has(token)) index.set(token, new Set());
+                index.get(token).add(i);
+            });
+        });
+
+        if (i % 5 === 4) await new Promise(r => setTimeout(r, 0)); // respirer l'UI
+    }
+    return index;
+}
+
+/**
+ * Retourne les indices d'entretiens susceptibles de contenir l'entité,
+ * en intersectant les sets de l'index inversé pour chaque token.
+ * @param {string} entite
+ * @param {Map<string, Set<number>>} index
+ * @returns {Set<number>}
+ */
+function entretiensCandidats(entite, index) {
+    const aliases = entite.split('/').map(a => a.trim()).filter(Boolean);
+    const candidats = new Set();
+    for (const alias of aliases) {
+        const tokens = motsCles(alias);
+        if (tokens.length === 0) continue;
+        // Intersection : seuls les entretiens ayant TOUS les tokens de l'alias
+        let sets = tokens.map(t => index.get(t) || new Set());
+        let inter = new Set(sets[0]);
+        for (let k = 1; k < sets.length; k++) {
+            for (const v of inter) { if (!sets[k].has(v)) inter.delete(v); }
+        }
+        for (const v of inter) candidats.add(v);
+    }
+    return candidats;
+}
+
+// Export CommonJS (gardé) : permet de tester les fonctions PURES en Node. Inerte dans le navigateur
+// (où `module` est indéfini), où ces fonctions restent des globales chargées via <script>.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        escapeRegex, parseAliases, rognerPonctuationBords, construireRegexEntite,
+        tokenizeCommeSegmentation, motsCles, reconstruireDepuisTokens, rognerAffixesTete,
+        detecterAffixeLiaison, MOTS_LIAISON_DEFAUT,
+        analyserOccurrences, trouverMatchesEntiteDOM
+    };
+}

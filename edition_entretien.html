@@ -26,11 +26,17 @@
     <script src="modules\thematisation.js"></script>
     <script src="modules\recueil.js"></script>
     <script src="modules\segmentation.js"></script>
+    <script src="modules\Anonymisation\anon-detection.js"></script>
+    <script src="modules\Anonymisation\anon-regles.js"></script>
+    <script src="modules\Anonymisation\anon-nav-entretien.js"></script>
+    <script src="modules\Anonymisation\anon-menus.js"></script>
     <script src="modules\Anonymisation\tableau_base.js"></script>
     <script src="modules\gestion_entretiens.js"></script>
     <script src="modules\utilitaires.js"></script>
-    <script src="modules\Anonymisation\import_export.js"></script>
-    <script src="modules\Anonymisation\help.js"></script>
+    <script src="modules\Anonymisation\anon-correspondance.js"></script>
+    <script src="modules\Anonymisation\anon-import_export.js"></script>
+    <script src="modules\Anonymisation\anon-export-document.js"></script>
+    <script src="modules\Anonymisation\anon-help.js"></script>
     <script src="renderer.js"></script>
     
  
@@ -73,7 +79,10 @@ window.electronAPI.onSaveAndClose(async () => {
 
     console.log("Comparaison des versions :" + html_ent_cur.substring(0, 100) + " ... VS ... " + html_courant.substring(0, 100) );
        
-    if (html_ent_cur == html_courant) {
+    // Un brouillon « en chantier » (repérage d'entité sans pseudo) ne change pas le HTML mais doit
+    // être sauvegardé dans le .sonal — sinon il serait perdu. On ne ferme en silence que si NI le
+    // HTML NI l'anonymisation n'ont changé.
+    if (html_ent_cur == html_courant && !window._tabAnonModifieEnAttente) {
             console.log("✅ Aucun changement détecté, fermeture immédiate");
             await window.electronAPI.saveComplete(); // signal au main pour fermer
             return;
@@ -157,7 +166,10 @@ async function sauvegarderModifsEnt() {
         
         // ⭐ Signal au main process pour mettre à jour le canvas
         await window.electronAPI.updateCanvasAfterSave(rkEnt);
-        
+
+        // Le .sonal vient d'être réécrit (avec les brouillons) → plus de modif d'anonymisation en attente.
+        window._tabAnonModifieEnAttente = false;
+
         console.log("=== SAUVEGARDE RÉUSSIE ===");
         isSaving = false;
         return true;
@@ -222,7 +234,7 @@ window.addEventListener('unload', (event) => {
 
                 <div id="btns-droite" style="float:right; margin:19px">
 
-                    <label id = "btn-sauv-whsprg" class="btn btn-secondary" style = "padding: 10px;" onclick="dialog('Export')" title="Exporter l'entretien dans un nouveau fichier"> 📥 Exporter</label> 
+                    <label id = "btn-sauv-whsprg" class="btn btn-secondary" style = "padding: 10px;" onclick="dialog('Export')" title="Exporter l'entretien dans un nouveau fichier"> ↗️ Exporter entretien</label>
                     <label id = "btn-sauv-whsprg" class="btn btn-primary" style = "padding: 10px;" onclick="sauvegarderModifsEnt()" title="Enregistrer les modifications"> 💾 Enregistrer</label> 
                     <label id = "btn-quit" class="btn btn-secondary" style = "padding: 10px;" onclick="window.electronAPI.closeWindow();" title="Quitter">Quitter ✖️</label>
                 </div>
@@ -473,9 +485,9 @@ window.addEventListener('unload', (event) => {
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <H2 style="margin: 0px !important;width:100%">Pseudonymisation 
                         <label id= "AideAnon" class = "btnbleu" onclick="ouvrirAideAnonymisation()" title="Aide sur la pseudonymisation" style = "font-size:1.2rem"> ? </label> 
-                        <label id= "OuvrirAnon" class = "btnbleu" onclick="document.getElementById('file-import-correspondance').click()" title="Importer un ou des tableau(x) de pseudonymisation" style = "font-size:1.2rem"> 📂 </label> 
-                        <label id= "ExportAnon" class = "btnbleu" onclick="exportTableCorrespondance()" title="Exporter la table de pseudonymisation" style = "font-size:1.2rem"> 💾 </label> 
-                         <label id= "ChercheAnon" class = "btnbleu" onclick="chercherNomPropres()" title="Rechercher les noms propres dans le texte \n pensez à relire !" style = "font-size:1.2rem"> 🔎 </label> 
+                        <label id= "OuvrirAnon" class = "btnbleu" onclick="document.getElementById('file-import-correspondance').click()" title="Importer un ou des tableau(x) de pseudonymisation" style = "font-size:1.2rem"> 📥 </label> 
+                        <label id= "ExportAnon" class = "btnbleu" onclick="exportTableCorrespondance()" title="Exporter la table de pseudonymisation" style = "font-size:1.2rem"> 📤 </label>
+                         <label id= "ChercheAnon" class = "btnbleu" onclick="verifierEntretien()" title="Re-scanner le texte contre toutes les règles connues (locales et corpus) et vérifier qu'aucune occurrence n'a été oubliée. Ne détecte que les entités déjà repérées (pas de détection automatique de noms)." style = "font-size:1.2rem"> 🔄 </label>
                     </H2>
 
                     <!-- 
@@ -496,6 +508,31 @@ window.addEventListener('unload', (event) => {
                     " title="Aide">?</button>
                     -->
 
+                </div>
+
+                <div id="legende-anon" style="font-size:11px;color:#555;background:#f5f5f5;border:1px solid #eee;border-radius:4px;margin-bottom:8px;overflow:hidden;flex-shrink:0;">
+                    <div id="legende-anon-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;cursor:pointer;user-select:none;">
+                        <span style="font-weight:600;">ℹ️ Légende</span>
+                        <button id="legende-anon-toggle" type="button" title="Réduire" style="border:none;background:none;cursor:pointer;font-size:14px;line-height:1;color:#666;width:22px;height:22px;flex-shrink:0;">–</button>
+                    </div>
+                    <div id="legende-anon-contenu" style="display:flex;flex-direction:column;gap:5px;padding:0 10px 8px;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-anon" style="pointer-events:none;">N</span> anonymisées</span>
+                            <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-exc" style="pointer-events:none;">N</span> exceptions</span>
+                            <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-non" style="pointer-events:none;">N</span> à traiter</span>
+                        </div>
+                        <div style="display:flex;align-items:baseline;gap:4px;">
+                            <span style="flex-shrink:0;">◄ N ►</span>
+                            <span style="flex:1;min-width:0;overflow-wrap:anywhere;">Cliquer sur un compteur pour naviguer entre les occurrences</span>
+                        </div>
+                        <div style="display:flex;align-items:baseline;gap:4px;">
+                            <span style="flex-shrink:0;">🖱</span>
+                            <span style="flex:1;min-width:0;overflow-wrap:anywhere;">Clic gauche sur occurrence dans texte : changer son statut ou remonter au niveau Corpus</span>
+                        </div>
+                        <div style="display:flex;align-items:baseline;gap:4px;">
+                            <span style="flex:1;min-width:0;overflow-wrap:anywhere;"><b>Portée</b> : <b>🚧</b> brouillon, non appliqué · <b>📄</b> document, cet entretien seulement · <b>📁</b> règle pour tout le corpus</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="tableauAnon"></div>
@@ -743,10 +780,94 @@ document.addEventListener('DOMContentLoaded', () => {
     let ent_cur = window.electronAPI.getEntCur();
 
     setTimeout( function() {
-        afficherWhisPurge(ent_cur); 
+        afficherWhisPurge(ent_cur);
         listenerGraph()
-        
+
     }, 500);
+
+    // Navigation corpus -> entretien : récupération pull-based de la cible
+    // (le main process la garde en attente, on la demande quand on est prêt).
+    if (window.electronAPI && window.electronAPI.getNavTarget) {
+        window.electronAPI.getNavTarget().then((navTarget) => {
+            if (!navTarget) return;
+
+            // Cible sans occurrence précise (ex. entité multi-pseudo du corpus, pas de spanId) :
+            // on se contente d'ouvrir le panneau Pseudonymisation pour que l'utilisateur gère les
+            // occurrences. Petit poll borné : le bouton fait partie du chrome statique de la page.
+            if (!navTarget.spanId) {
+                if (!navTarget.entite) return;
+                let tries = 0;
+                const tick = setInterval(() => {
+                    const btnAnon = document.getElementById('imgpananon');
+                    if (btnAnon) {
+                        const panneauAnon = document.getElementById('fond_anon');
+                        const ouvert = panneauAnon && panneauAnon.classList.contains('blocvisible');
+                        if (!ouvert) btnAnon.click();
+                        clearInterval(tick);
+                    } else if (++tries > 20) {
+                        clearInterval(tick);
+                    }
+                }, 150);
+                return;
+            }
+
+            const spanIdEscape = CSS.escape(String(navTarget.spanId));
+            const segments = document.getElementById('segments');
+            if (!segments) return;
+
+            let agi = false;
+            const TIMEOUT_MS = 15000;
+
+            // Tente d'agir : si le span cible existe et que tabAnon est un array,
+            // ouvre le panneau Pseudonymisation, défile et applique le highlight.
+            const essayer = () => {
+                if (agi) return true;
+                const span = segments.querySelector(`[data-rk="${spanIdEscape}"]`);
+                if (!span || !Array.isArray(window.tabAnon)) return false;
+                agi = true;
+                try {
+                    const btnAnon = document.getElementById('imgpananon');
+                    const panneauAnon = document.getElementById('fond_anon');
+                    const panneauOuvert = panneauAnon && panneauAnon.classList.contains('blocvisible');
+                    if (btnAnon && !panneauOuvert) btnAnon.click();
+                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    span.classList.remove('nav-highlight');
+                    void span.offsetWidth;
+                    span.classList.add('nav-highlight');
+                    setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                    // Stocker les infos sémantiques (pas le span DOM, instable après cleanHTML).
+                    // affichTableauAnon() les consommera une fois matchPositions et boutons prêts.
+                    window._pendingNavActivation = {
+                        entite:       navTarget.entite,
+                        pseudo:       navTarget.pseudo,
+                        cat:          navTarget.occCat || 'non',
+                        occIdxInCat:  navTarget.occIdxInCat || 0
+                    };
+                } catch (err) {
+                    console.error("Erreur focalisation navigation:", err);
+                }
+                return true;
+            };
+
+            // Si déjà prêt, agir immédiatement (cas rare)
+            if (essayer()) return;
+
+            // Sinon, MutationObserver sur #segments pour détecter l'apparition du span
+            // après cleanHTML(). Plus fiable qu'un polling à délai fixe.
+            const observer = new MutationObserver(() => {
+                if (essayer()) observer.disconnect();
+            });
+            observer.observe(segments, { childList: true, subtree: true });
+
+            // Filet de sécurité : timeout dur si rien ne se produit
+            setTimeout(() => {
+                if (!agi) {
+                    observer.disconnect();
+                    console.warn("Navigation corpus->entretien: timeout 15s, abandon.");
+                }
+            }, TIMEOUT_MS);
+        }).catch(err => console.error("getNavTarget a échoué:", err));
+    }
 
     // Fonction partagée pour déclencher le menu d'exception sur un span anonymisé
     function gererMenuException(spanAnon) {
@@ -773,20 +894,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (segmentsElem) {
         // Handler partagé pour click et contextmenu
         const handleSegmentsEvent = function(event) {
-            // En mode pseudonymisation, clic sur un span anonymisé → menu d'exception
+            // En mode pseudonymisation : tous les clics (gauche et droit) restent dans
+            // le domaine de la pseudonymisation → on bloque systématiquement le menu générique.
             if (typeAction === 'anon') {
                 const spanAnon = event.target.closest('[data-rk]');
-                if (spanAnon && (spanAnon.classList.contains('anon') || spanAnon.classList.contains('anon-exception'))) {
-                    if (event.type === 'contextmenu') {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    }
-                    if (gererMenuException(spanAnon)) {
-                        event.stopPropagation();
-                        return;
-                    }
-                    return; // span anon cliqué mais match non trouvé → ignorer
+                const estSpanAnon = spanAnon && (
+                    spanAnon.classList.contains('anon') ||
+                    spanAnon.classList.contains('anon-exception') ||
+                    spanAnon.hasAttribute('data-anon-nt')
+                );
+                if (event.type === 'contextmenu') {
+                    event.preventDefault();
+                    event.stopPropagation();
                 }
+                if (estSpanAnon && gererMenuException(spanAnon)) {
+                    event.stopPropagation();
+                    return;
+                }
+                // Aucune action pseudonymisation trouvée mais on reste en mode anon :
+                // ne pas laisser le menu Copier s'afficher.
+                return;
             }
 
             // Pour contextmenu uniquement : afficher le menu générique
@@ -1245,6 +1372,9 @@ async function dispPanneauG(bouton, composant){
        if (!anonPanelDisplayed) {
            affichTableauAnon();
            anonPanelDisplayed = true;
+       } else {
+           // Réattacher les listeners à chaque réouverture du panneau
+           setTimeout(() => attacheExceptionListeners(), 50);
        }
     }
 
@@ -2672,20 +2802,20 @@ function hidedlg(){
 function dialogExportChoixOptions(format) {
 
     // Config par format : [activé, cochéParDéfaut]
-    // Colonnes : anon | notes | variables | locuteurs | catégories thm | coordonnées
+    // Colonnes : anon | notes | variables | locuteurs | catégories thm | coordonnées | en-tête
     const CFG = {
-        sonal: [[true,true], [false,true],  [false,true],  [false,true],  [false,true],  [false,true]],
-        html:  [[true,true], [true,true],  [true,true],  [true,true],  [true,true],  [true,true]],
-        txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
-        srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true]],
-        vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true]],
-        docx:  [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
-        pdf:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true]],
+        sonal: [[true,true], [false,true],  [false,true],  [false,true],  [false,true],  [false,true],  [false,true]],
+        html:  [[true,true], [true,true],  [true,true],  [true,true],  [true,true],  [true,true],  [false,true]],
+        txt:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true],  [true,true]],
+        srt:   [[true,false], [false,false], [false,false], [true,true],  [false,false], [false,true], [false,false]],
+        vtt:   [[true,false], [true,true], [false,false], [true,false],  [false,false], [false,true], [false,false]],
+        docx:  [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true],  [true,true]],
+        pdf:   [[true,true], [true,true],  [true,true],  [true,true],  [true,false], [true,true],  [false,true]],
     };
     const LABELS = { sonal:'.Sonal', html:'.Html', txt:'.txt', srt:'.srt', vtt:'.vtt', docx:'.docx', pdf:'.pdf' };
 
     const cfg = CFG[format] || CFG.txt;
-    const [oa, on, ov, ol, oth, oti] = cfg;
+    const [oa, on, ov, ol, oth, oti, oe] = cfg;
 
     const opt = (id,  classes, label, [enabled, checked]) => {
         const dis  = enabled ? '' : ' disabled';
@@ -2701,7 +2831,9 @@ function dialogExportChoixOptions(format) {
     panel.innerHTML = `
         <h3 style="margin-top:0;margin-bottom:18px;">2 - Choisissez les éléments à intégrer à l'export au format  ${LABELS[format]}</h3>
         <div style="margin-bottom:18px;">
-          
+
+            ${opt('opt-entete', '', 'En-tête (Sonal π + nom de l\'entretien)', oe)}
+
             <hr style="margin: 6px 0;">
 
             ${opt('opt-notes', 'logo-notes','Notes', on)}
@@ -2727,7 +2859,7 @@ function dialogExportChoixOptions(format) {
             </label>
             <label class="btn  btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;"
                 onclick="exportEntretien('${format}')">
-              📥  Exporter 
+              ↗️  Exporter
             </label>
         </div>`;
 

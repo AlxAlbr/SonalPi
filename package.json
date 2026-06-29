@@ -107,7 +107,7 @@
     "wordcloud2": "^1.0.0"
   },
   "devDependencies": {
-    "electron": "38.1.2",
+    "electron": "^38.1.2",
     "electron-builder": "^26.0.12",
     "electron-icon-builder": "^2.0.1"
   }

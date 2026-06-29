@@ -4,7 +4,7 @@ on:
     tags:
       - 'v*.*.*'
     branches:
-      - CollabGitlab  # build automatique sur cette branche (artefacts uniquement)
+      - PseudoGlobal  # build automatique sur cette branche (artefacts uniquement)
   workflow_dispatch:         # déclenchement manuel depuis l'interface GitHub
 permissions:
   contents: write  # Required for creating releases and uploading assets
