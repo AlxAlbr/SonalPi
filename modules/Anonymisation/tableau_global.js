@@ -1061,7 +1061,17 @@ function ajusterLargeurPanneauGauche(pageAnon, gauche, table) {
     const CHROME = 28;
     const largeurPage = pageAnon.getBoundingClientRect().width || window.innerWidth;
     const MIN_PX = 280;
-    const MAX_PX = largeurPage * 0.65; // ne jamais dépasser 65 % pour garder le panneau droit utile
+    // Plafond = largeur de page MOINS la place incompressible du panneau droit.
+    // On NE code AUCUNE constante en dur (qui dépendrait de la police/DPI) : on lit la
+    // largeur mini réelle du panneau droit (min-width calculé) et la largeur réelle du
+    // séparateur sur le DOM. Tant que la page est assez large, la table tient en entier —
+    // colonne « Actions » comprise — quel que soit le système ou le facteur d'échelle.
+    // (Avant : plafond rigide à 65 % qui tronquait la dernière colonne sous Windows.)
+    const droite = pageAnon.querySelector('.anon-page-droite');
+    const resizer = pageAnon.querySelector('.anon-page-resizer');
+    const minDroite = (droite && parseFloat(getComputedStyle(droite).minWidth)) || 200;
+    const largeurResizer = resizer ? resizer.getBoundingClientRect().width : 6;
+    const MAX_PX = Math.max(MIN_PX, largeurPage - minDroite - largeurResizer);
 
     const cible = Math.max(MIN_PX, Math.min(largeurTable + CHROME, MAX_PX));
     gauche.style.flexBasis = Math.round(cible) + 'px';

@@ -363,4 +363,17 @@ function appliquerResultatsScan(stats, lignes) {
             tr.style.backgroundColor = '';
         }
     }
+
+    // Le scan vient de révéler la colonne « État corpus » : la table est désormais plus
+    // large qu'au premier dimensionnement (fait AVANT le scan, colonne masquée). On re-mesure
+    // pour que le panneau gauche inclue cette colonne ; sinon la dernière colonne (« Actions »)
+    // déborde et se retrouve tronquée. La fonction respecte une largeur réglée manuellement.
+    if (typeof ajusterLargeurPanneauGauche === 'function') {
+        const pageAnon = document.getElementById('divAnonGenPage');
+        const gauche = pageAnon && pageAnon.querySelector('.anon-page-gauche');
+        const table = gauche && gauche.querySelector('table');
+        if (pageAnon && gauche && table) {
+            ajusterLargeurPanneauGauche(pageAnon, gauche, table);
+        }
+    }
 }
