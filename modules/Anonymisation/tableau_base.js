@@ -147,7 +147,11 @@ function nettoyerPairesOrphelines() {
         // Brouillon explicite (entité saisie, portée 'brouillon', occ=0) : conservé, c'est un draft
         // voulu et persisté (§7), pas une orpheline. La détection l'ignore déjà (occ reste 0).
         const estBrouillon = (paire.portee || 'corpus') === 'brouillon' && paire.entite && paire.entite.trim();
-        const garde = aOccurrences || estVide || estGlobalEnAttente || estGlobalNonLocal || estBrouillon;
+        // Matérialisée par un LIBELLÉ de locuteur (plan-locuteurs-pseudo.md) : une règle à 0 occurrence
+        // de TEXTE mais dont un libellé est pseudonymisé n'est PAS orpheline (matérialisé = texte OU
+        // libellé). Sinon elle est supprimée à la réouverture et disparaît du tableau.
+        const aLibelle = (typeof aLibellePseudonymise === 'function') && aLibellePseudonymise(paire);
+        const garde = aOccurrences || estVide || estGlobalEnAttente || estGlobalNonLocal || estBrouillon || aLibelle;
         return garde;
     });
 }
@@ -283,6 +287,11 @@ function detecterOccurrencesToutesLesPaires() {
     // 🧹 Nettoyer les paires orphelines après la détection
     nettoyerPairesOrphelines();
 
+    // Suggestions de LIBELLÉS (plan-locuteurs-pseudo.md Étape 3) : marque « à pseudonymiser » les
+    // libellés dont le nom matche une règle non-brouillon mais pas encore confirmés. Tourne à
+    // l'ouverture ET au scan (les deux appellent cette fonction).
+    detecterLibellesASuggerer();
+
 }
 
 /**
@@ -325,6 +334,11 @@ async function verifierEntretien() {
 
     if (typeof detecterOccurrencesToutesLesPaires === 'function') detecterOccurrencesToutesLesPaires();
     if (typeof affichTableauAnon === 'function') affichTableauAnon();
+
+    // Catch-all LIBELLÉS (plan-locuteurs-pseudo.md Étape 5b) : réaligner les libellés pseudonymisés sur
+    // l'état courant des règles après re-locutarisation / dérive (cleanHTML & compactHtml préservent
+    // loc-anon/data-locpseudo). Démarque les libellés orphelins, resynchronise les pseudos changés.
+    await resynchroniserLibellesLocuteurs();
 
     const { total, lignes } = compterAnonATraiterEntretien();
 
@@ -849,6 +863,9 @@ function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos) {
     paire.indexCourant = 0;
     affichTableauAnon();
     sauvegarderTabAnonEnt();
+    // Propagation au LIBELLÉ (plan-locuteurs-pseudo.md Étape 5b) : entité vidée/renommée (Cas 1/4) ou
+    // pseudo modifié → réaligner les libellés sur l'état courant des règles.
+    resynchroniserLibellesLocuteurs();
 }
 
 function sauvAnon(idx) {
@@ -949,6 +966,9 @@ function sauvAnon(idx) {
     // → rafraîchir le tableau pour que reindexerMatchPositions détecte les occurrences
     //   présentes dans le texte et affiche le badge orange "à traiter".
     if (nouvelleEntite && nouveauRemplacement && !aOccurrences) {
+        // Règle label-only (occ=0) : l'édition ne passe pas par relabelPseudoEnPlace (gardé sur occ>0)
+        // → réaligner le libellé ici (plan-locuteurs-pseudo.md Étape 5b).
+        resynchroniserLibellesLocuteurs();
         affichTableauAnon();
     }
 }
@@ -1083,6 +1103,10 @@ async function supprimeLigneAnon(idx) {
 
     // Supprimer la ligne du tableau
     window.tabAnon.splice(idx, 1);
+
+    // Propagation au LIBELLÉ (plan-locuteurs-pseudo.md Étape 5) : plus de règle pour cette entité →
+    // le libellé du locuteur se démarque (revient au vrai nom).
+    await resynchroniserLibellesLocuteurs();
 
     affichTableauAnon();
 
@@ -1896,6 +1920,8 @@ async function relabelPseudoEnPlace(idx, anciensPseudos) {
     });
 
     reindexerMatchPositions(idx);
+    // Propagation au LIBELLÉ (plan-locuteurs-pseudo.md Étape 5) : pseudo changé → réécrire data-locpseudo.
+    await resynchroniserLibellesLocuteurs();
     affichTableauAnon();
     await sauvegarderTabAnonEnt();
     return true;
@@ -2073,6 +2099,101 @@ function repererNav(idx, sens) {
 
 // Handler du slider : exécute la transition de portée (machine à états §3) avec garde §6 (quitter C)
 // et conflit §5 (via validerLigneAnon pour les passages depuis brouillon).
+/**
+ * Vrai si la règle matérialise au moins un LIBELLÉ de locuteur dans l'entretien courant (un `.ligloc`
+ * `loc-anon` dont le nom matche un alias de l'entité). Un libellé pseudonymisé vaut « appliqué » au
+ * même titre qu'une occurrence de texte (plan-locuteurs-pseudo.md) → indispensable au slider de portée.
+ * @param {object} paire
+ * @returns {boolean}
+ */
+function aLibellePseudonymise(paire) {
+    if (!paire || !paire.entite) return false;
+    const cles = new Set(clesAlias(paire.entite));
+    if (cles.size === 0) return false;
+    return Array.from(document.querySelectorAll('.ligloc.loc-anon[data-nomloc]')).some(lig =>
+        clesAlias(lig.dataset.nomloc || '').some(k => cles.has(k)));
+}
+
+/**
+ * Réconcilie les LIBELLÉS pseudonymisés (`.ligloc.loc-anon`) avec l'état COURANT des règles
+ * (plan-locuteurs-pseudo.md, Étape 5). Pour chaque libellé marqué, on cherche une règle **non-brouillon**
+ * de `window.tabAnon` dont un alias d'entité matche le nom du locuteur (`data-nomloc`) :
+ *  - aucune (règle supprimée, reparquée en brouillon, ou entité renommée) → on **démarque** (le libellé
+ *    revient au vrai nom) ;
+ *  - pseudo de la règle changé → on **réécrit** `data-locpseudo`.
+ * Indépendant des occurrences de texte (couvre aussi les règles label-only). À appeler après toute
+ * mutation de règle. Persiste via le cache HTML si quelque chose a changé.
+ * @returns {Promise<boolean>} true si au moins un libellé a été modifié.
+ */
+async function resynchroniserLibellesLocuteurs() {
+    const ligs = Array.from(document.querySelectorAll('.ligloc.loc-anon[data-locpseudo]'));
+    if (ligs.length === 0) return false;
+    let modifie = false;
+    for (const lig of ligs) {
+        const clesNom = clesAlias(lig.dataset.nomloc || '');
+        const regle = (window.tabAnon || []).find(p =>
+            p && p.entite && (p.portee || 'corpus') !== 'brouillon' &&
+            clesAlias(p.entite).some(k => clesNom.includes(k)));
+        if (!regle) {
+            lig.classList.remove('loc-anon');
+            delete lig.dataset.locpseudo;
+            modifie = true;
+        } else {
+            const pseudo = (pseudosDe(regle)[0] || '').trim();
+            if (pseudo && lig.dataset.locpseudo !== pseudo) {
+                lig.dataset.locpseudo = pseudo;
+                modifie = true;
+            }
+        }
+    }
+    if (modifie) await syncHtmlVersMainProcess();
+    return modifie;
+}
+
+/**
+ * SUGGÈRE la pseudonymisation des LIBELLÉS (plan-locuteurs-pseudo.md Étape 3) : pour chaque `.ligloc`
+ * PAS encore pseudonymisé (`loc-anon`), si son nom matche une règle **non-brouillon** (locale OU corpus
+ * fusionnée) → marqueur `loc-suggere` + `data-locpseudo-suggere` (le CSS l'affiche « Nom → Pseudo ? » en
+ * pointillé). L'utilisateur confirme par clic-droit — même logique « suggest-then-confirm-locally » que
+ * les occurrences de texte « à anonymiser ». Marqueurs **RUNTIME** (re-dérivés à chaque ouverture/scan
+ * via detecterOccurrencesToutesLesPaires) ; non confirmés, ils ne pseudonymisent PAS l'export.
+ */
+function detecterLibellesASuggerer() {
+    document.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
+        // Déjà pseudonymisé (loc-anon) → pas de suggestion concurrente. De plus, le libellé confirmé
+        // (persisté dans le HTML = SOURCE DE VÉRITÉ) fait APPARTENIR sa règle à l'entretien : on (re)pose
+        // existeLocalement → la règle corpus s'affiche au tableau et survit à la sauvegarde d'ouverture
+        // (gestion_entretiens.js exclut les Global && !existeLocalement). Sinon, après fermeture/
+        // réouverture, le seul flag tabAnon ne survit pas et la règle redevient un fantôme caché.
+        if (lig.classList.contains('loc-anon')) {
+            lig.classList.remove('loc-suggere');
+            delete lig.dataset.locpseudoSuggere;
+            const clesNomA = clesAlias(lig.dataset.nomloc || '');
+            (window.tabAnon || []).forEach(p => {
+                if (p && p.entite && !p.existeLocalement && (p.portee || 'corpus') !== 'brouillon'
+                    && clesAlias(p.entite).some(k => clesNomA.includes(k))) {
+                    p.existeLocalement = true;
+                }
+            });
+            return;
+        }
+        // Refusé explicitement (« ne pas pseudonymiser », loc-suggere-refuse) → ne pas re-suggérer.
+        if (lig.classList.contains('loc-suggere-refuse')) return;
+        const clesNom = clesAlias(lig.dataset.nomloc || '');
+        const regle = (window.tabAnon || []).find(p =>
+            p && p.entite && (p.portee || 'corpus') !== 'brouillon' &&
+            clesAlias(p.entite).some(k => clesNom.includes(k)));
+        const pseudo = regle ? (pseudosDe(regle)[0] || '').trim() : '';
+        if (pseudo) {
+            lig.classList.add('loc-suggere');
+            lig.dataset.locpseudoSuggere = pseudo;
+        } else {
+            lig.classList.remove('loc-suggere');
+            delete lig.dataset.locpseudoSuggere;
+        }
+    });
+}
+
 async function changerPorteeLigne(idx, cible) {
     const paire = window.tabAnon[idx];
     if (!paire) return;
@@ -2082,7 +2203,11 @@ async function changerPorteeLigne(idx, cible) {
     // Toute transition met fin au repérage en cours.
     _reperage = null; _effacerSurlignageReperage();
 
-    const applique = (paire.occurrences || 0) > 0;
+    // « Appliqué » = MATÉRIALISÉ : occurrences de TEXTE OU libellé de locuteur (cohérent avec le gate
+    // de portée de validerLigneAnon). Sinon une règle label-only (occ=0) serait traitée en brouillon
+    // → slider mal routé (corpus↔document cassé : la transition repassait par validerLigneAnon qui
+    // remettait 'corpus' car l'entité est déjà au corpus).
+    const applique = (paire.occurrences || 0) > 0 || aLibellePseudonymise(paire);
 
     // Depuis BROUILLON (rien d'appliqué) → appliquer : lit les champs de saisie, gère le conflit corpus.
     if (!applique) {
@@ -2117,6 +2242,8 @@ async function changerPorteeLigne(idx, cible) {
         // évite qu'il soit re-détecté en « à traiter »).
         demarquerLigneEtRemettreEnAttente(idx, pseudosDe(paire));
         paire.portee = 'brouillon';
+        // Le libellé suit la portée (plan-locuteurs-pseudo.md Étape 5) : règle en brouillon → démarquer.
+        await resynchroniserLibellesLocuteurs();
         affichTableauAnon();
         await sauvegarderTabAnonEnt();
         return;
@@ -2163,11 +2290,17 @@ async function validerLigneAnon(idx, porteeRequise = 'document') {
         return;
     }
     
-    // Appliquer l'anonymisation
+    // Appliquer l'anonymisation (texte)
     appliquerAnonymisationPour(idx);
 
-    // Désactiver l'édition si des occurrences ont été trouvées
-    if (window.tabAnon[idx].occurrences > 0) {
+    // Proposer la pseudonymisation du LIBELLÉ si l'entité est un nom de locuteur — INDÉPENDANT des
+    // occurrences de texte (couvre le locuteur non cité, §4 du plan). Retourne {matched, marked}.
+    const loc = await proposerPseudoLocuteur(window.tabAnon[idx], porteeRequise);
+
+    // Une règle est MATÉRIALISÉE (donc document/corpus, jamais brouillon) si elle marque QUELQUE
+    // CHOSE : des occurrences de TEXTE (occ>0) OU un LIBELLÉ de locuteur. Un libellé pseudonymisé vaut
+    // matérialisation au même titre que le texte → cohérence avec l'UX du texte (plan-locuteurs-pseudo.md).
+    if (window.tabAnon[idx].occurrences > 0 || loc.marked) {
         // Portée EFFECTIVE : corpus si demandé (Shift+Entrée) OU si l'entité est (devenue, via le
         // dialogue de conflit « garder les deux ») une règle du corpus. Sinon document (local).
         const corpusApres = regleEnCollisionAlias(entiteVal, await window.electronAPI.getAnon() || []);
@@ -2182,13 +2315,18 @@ async function validerLigneAnon(idx, porteeRequise = 'document') {
         // 💾 Sauvegarder les changements dans l'entretien
         await sauvegarderTabAnonEnt();
 
-        // Proposition « affixe de liaison » (opt-in) : si l'entité est encadrée par un mot-outil
-        // (« à Lyon »), proposer la règle cœur (« Lyon ») pour la capter partout (plan-affixes-liaison.md).
-        await proposerRegleCoeurAffixe(window.tabAnon[idx], porteeRequise);
+        // Affixe de liaison (opt-in) : pertinent UNIQUEMENT s'il y a des occurrences de TEXTE.
+        if (window.tabAnon[idx].occurrences > 0) {
+            await proposerRegleCoeurAffixe(window.tabAnon[idx], porteeRequise);
+        }
     } else {
-        // Rien trouvé → rien d'appliqué : la ligne reste un brouillon (R6).
+        // Rien de matérialisé (ni texte, ni libellé) → la ligne reste un brouillon (R6). On n'avertit
+        // « pas trouvé dans le texte » que si l'entité n'est PAS non plus un locuteur (sinon = brouillon
+        // de locuteur volontairement décliné, pas une entité introuvable).
         window.tabAnon[idx].portee = 'brouillon';
-        await question(`⚠️ L'entité "${entiteVal}" n'a pas été trouvée dans le texte.`, ["OK"]);
+        if (!loc.matched) {
+            await question(`⚠️ L'entité "${entiteVal}" n'a pas été trouvée dans le texte.`, ["OK"]);
+        }
     }
 }
 
@@ -2238,6 +2376,56 @@ async function proposerRegleCoeurAffixe(paire, porteeRequise) {
     eInp.value = aff.entiteCoeur;
     rInp.value = aff.pseudoCoeur;
     await validerLigneAnon(idxCoeur, porteeRequise);
+}
+
+/**
+ * Si l'entité d'une règle qu'on vient de valider est le NOM d'un ou plusieurs locuteurs de
+ * l'entretien, PROPOSE (opt-in) de pseudonymiser aussi leur LIBELLÉ : pose `loc-anon` +
+ * `data-locpseudo` sur tous les `.ligloc` correspondants (le CSS de l'Étape 1 barre alors le nom
+ * réel et affiche le pseudo). Indépendant des occurrences de TEXTE → couvre le locuteur non cité
+ * dans le corps (§4 du plan). Mirroir de proposerRegleCoeurAffixe : opt-in post-validation, pseudo
+ * = primaire de la règle. Marquage DOM-natif (anon.md §2) → persiste via le cache HTML.
+ * @param {object} paire - la règle qui vient d'être validée
+ * @param {string} porteeRequise - 'document'/'corpus' héritée du geste (réservé : la portée du
+ *   libellé suivra la règle, cf. plan-locuteurs-pseudo.md — Étapes 3/5).
+ * @returns {Promise<{matched:boolean, marked:boolean}>} matched = l'entité est le nom d'au moins un
+ *   locuteur ; marked = un libellé est (désormais ou déjà) pseudonymisé avec ce pseudo → vaut
+ *   MATÉRIALISATION (l'appelant met alors la règle en document/corpus, pas en brouillon).
+ */
+async function proposerPseudoLocuteur(paire, porteeRequise) {
+    const aucun = { matched: false, marked: false };
+    if (!paire || !paire.entite) return aucun;
+    const pseudo = (pseudosDe(paire)[0] || '').trim();
+    if (!pseudo) return aucun;
+
+    const clesEntite = new Set(clesAlias(paire.entite));
+    if (clesEntite.size === 0) return aucun;
+
+    // Libellés dont le nom (data-nomloc, déjà sans « ? ») matche un alias de l'entité.
+    const cibles = Array.from(document.querySelectorAll('.ligloc[data-nomloc]')).filter(lig => {
+        const nom = lig.dataset.nomloc || '';
+        return nom && clesAlias(nom).some(k => clesEntite.has(k));
+    });
+    if (cibles.length === 0) return aucun;
+
+    // Ask-once : déjà tous pseudonymisés avec CE pseudo → déjà matérialisé, rien à reproposer.
+    if (cibles.every(lig => lig.classList.contains('loc-anon') && lig.dataset.locpseudo === pseudo)) {
+        return { matched: true, marked: true };
+    }
+
+    const rep = await question(
+        `« ${cibles[0].dataset.nomloc} » est aussi un locuteur de l'entretien.\n\n` +
+        `Pseudonymiser aussi son libellé en « ${pseudo} » ?`,
+        ['Oui', 'Non']);
+    if (rep !== 'oui') return { matched: true, marked: false }; // décliné : locuteur connu, mais rien marqué
+
+    if (typeof backUp === 'function') backUp(); // snapshot undo (cf. anon-menus.js)
+    cibles.forEach(lig => {
+        lig.classList.add('loc-anon');
+        lig.dataset.locpseudo = pseudo;
+    });
+    await syncHtmlVersMainProcess(); // DOM marqué → cache HTML du main (anon.md §3.4)
+    return { matched: true, marked: true };
 }
 
 // Synchronise le HTML courant (après modif DOM) vers tabHtml du process main

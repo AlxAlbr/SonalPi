@@ -26,12 +26,15 @@ if (tabEnt.length == 0){
             // Gestion des locuteurs (ajoute un préfixe)
             if (mot.classList.contains('ligloc')) {
                 nbInterv++;
+                // Point de passage unique (plan-locuteurs-pseudo.md Étape 0) : repli = nom réel tant
+                // que la pseudonymisation du libellé n'existe pas → sortie inchangée aujourd'hui.
+                const nomLoc = nomLocAffiche(mot, { anonymise: true });
                 if (nbInterv > 1) {
-                    texte += "\n" + mot.dataset.nomloc.replace("?", "") + ": \n- ";
+                    texte += "\n" + nomLoc + ": \n- ";
                 } else {
-                    texte += mot.dataset.nomloc.replace("?", "") + ": ";
+                    texte += nomLoc + ": ";
                 }
-                locuteurs.add(mot.dataset.nomloc.replace("?", "").trim());
+                locuteurs.add(nomLoc.trim());
             }
             
             // Gestion de l'anonymisation (indépendant du traitement ci-dessus)

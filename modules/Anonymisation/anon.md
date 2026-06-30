@@ -440,3 +440,41 @@ l'application. Garde-fou dans `sauvAnon` : si le champ montre le placeholder « 
 on **ne réécrit pas** l'entité complète.
 
 ---
+
+## 12. Pseudonymisation des libellés de locuteurs
+
+Pseudonymise les **étiquettes de prise de parole** (`.ligloc` → `data-nomloc`), sur un **axe séparé** du
+moteur d'occurrences de texte (même comportement, plomberie distincte). Détail :
+[plan-locuteurs-pseudo.md](plan-locuteurs-pseudo.md).
+
+- **Stockage DOM-natif** (§2) : marqueurs posés sur le `.ligloc` — `loc-anon` + `data-locpseudo`
+  (confirmé) ; `loc-suggere` + `data-locpseudo-suggere` (suggéré, **runtime**, re-dérivé) ;
+  `loc-suggere-refuse` (refusé, **persisté**). **Rien dans `tabAnon`/`.crp`.** Persiste via le HTML :
+  `cleanHTML`/`compactHtml` **préservent** ces marqueurs (`cloneNode` garde attributs+classes du `.lblseg`).
+- **Rendu** : CSS `.ligloc.loc-anon::before` = « Nom → Pseudo » (le `::before` EST déjà le libellé → pas
+  de barré du seul nom possible, un seul pseudo-élément ; suggéré = « Nom → Pseudo ? » pointillé).
+  Lecture centralisée par **`nomLocAffiche(ref,{anonymise})`** ([locutarisation.js](../locutarisation.js)) :
+  pseudo si `loc-anon` **ou** `loc-suggere` (suggestion = sûre par défaut à l'export), sinon nom réel.
+- ⚠️ **Matérialisation = texte OU libellé** (invariant clé) : une règle est document/corpus (jamais
+  brouillon) si elle marque des occurrences de TEXTE (`occ>0`) **ou** un libellé. ⇒ une règle peut être
+  **document/corpus à 0 occurrence de texte**. Tout test `occ>0` valant « appliqué » doit l'inclure
+  (`aLibellePseudonymise`, sinon slider mal routé). `nettoyerTabAnon` conserve ces règles **locales** ;
+  confirmer une suggestion **corpus** pose `existeLocalement=true` (sinon fantôme caché par le filtre
+  d'affichage `Global && occ-texte=0`).
+- **Flux** ([tableau_base.js](tableau_base.js) sauf mention) :
+  - *Création* : dialogue post-validation `proposerPseudoLocuteur` (miroir de `proposerRegleCoeurAffixe`),
+    match d'alias `clesAlias` contre `data-nomloc`. Couvre le locuteur **non cité dans le texte**.
+  - *Suggestion* (corpus → nouvel entretien) : `detecterLibellesASuggerer` en fin de
+    `detecterOccurrencesToutesLesPaires` (ouverture + scan).
+  - *Menu libellé* ([anon-menus.js](anon-menus.js)) : clic-droit sur le `.ligloc` (détecté car **hors
+    `[data-rk]`**) — confirmer / refuser / ré-activer / retirer (local ; **≠** suppression de règle, §11).
+  - *Propagation* : `resynchroniserLibellesLocuteurs` (suppression, parking 🚧, édition de pseudo,
+    re-locutarisation via scan) → réaligne les `loc-anon` sur les règles **non-brouillon**.
+- **Export** : `nomLocAffiche` branché sur `exportTxtAvecClasses` + [Synthèse.js](../Synthèse.js).
+  `sauvHtmlAnonymise` neutralise les **deux** fuites — `loc-json` sérialise les pseudos ;
+  `AnonymiserSegments` réécrit `data-nomloc` (pseudo) + retire les marqueurs sur un **clone**
+  (`_anonymiserHtml` n'agit que sur les `[data-rk]`). ⚠️ Contextes **array-only** (variables publiques
+  `varsPubliquesEnt`, stats corpus) lisent `ent.tabLoc[]` **sans DOM** → pseudo inatteignable, à dériver
+  des règles. Locuteur sans pseudo / refusé → **nom réel** (garde-fou export non implémenté, assumé).
+
+---
