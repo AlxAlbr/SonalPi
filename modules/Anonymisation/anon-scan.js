@@ -410,27 +410,33 @@ function appliquerResultatsScan(stats, lignes) {
 
         tdEtat.style.display = '';
 
-        if (!st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0 && (st.nbIncl || 0) === 0)) {
-            // Pas d'occurrence de TEXTE → statut basé sur les LIBELLÉS de locuteurs
-            // (plan-locuteurs-pseudo.md) : orange si des locuteurs restent à pseudonymiser, vert si tous
-            // résolus (pseudonymisés ou refusés). PAS de compteur affiché, juste le fond de ligne.
+        const nbIncl = st ? (st.nbIncl || 0) : 0;
+        const texteVide = !st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0 && nbIncl === 0);
+        const locP = st ? (st.nbLocPending || 0) : 0;
+        const locR = st ? (st.nbLocResolu || 0) : 0;
+
+        // Rien du tout (ni texte, ni libellé) → tiret, pas de couleur.
+        if (texteVide && locP === 0 && locR === 0) {
             tdEtat.innerHTML = '<span style="color:#bbb;font-size:0.8rem;">—</span>';
-            const locPending = st ? (st.nbLocPending || 0) : 0;
-            const locResolu = st ? (st.nbLocResolu || 0) : 0;
-            if (locPending > 0)     tr.style.backgroundColor = '#fff3e0'; // orange : locuteur(s) à pseudonymiser
-            else if (locResolu > 0) tr.style.backgroundColor = '#e8f5e9'; // vert : locuteur(s) résolu(s)
-            else                    tr.style.backgroundColor = '';
+            tr.style.backgroundColor = '';
             continue;
         }
 
-        // Badges (réutilise les classes btn-nav-cat existantes ; multi-pseudo → 1 badge par variante)
-        tdEtat.innerHTML = construireBadgesEtat(st);
+        // Colonne État : badges TEXTE (si occurrences) sinon tiret ; PAS de compteur pour les libellés.
+        tdEtat.innerHTML = texteVide ? '<span style="color:#bbb;font-size:0.8rem;">—</span>' : construireBadgesEtat(st);
+        // Indicateur LIBELLÉ (personne) : pastille 👤 pour expliquer la couleur combinée (pas un compteur).
+        if (locP > 0 || locR > 0) {
+            const cLoc = locP > 0 ? '#e65100' : '#2e7d32';
+            const titre = locP > 0 ? `${locP} locuteur(s) à pseudonymiser` : 'locuteur(s) pseudonymisé(s)/refusé(s)';
+            tdEtat.innerHTML += ` <span title="${titre}" style="color:${cLoc};font-size:0.8rem;white-space:nowrap;">👤${locP > 0 ? '●' : '✓'}</span>`;
+        }
 
-        // Coloration de la ligne
-        if (st.nbNon > 0) {
-            tr.style.backgroundColor = '#fff3e0'; // orange : occurrences à traiter
-        } else if ((st.nbAnon + st.nbExc + (st.nbIncl || 0)) > 0) {
-            tr.style.backgroundColor = '#e8f5e9'; // vert : entièrement traité (incluse comprise)
+        // Coloration COMBINÉE (plan-locuteurs-pseudo.md) : orange si à traiter (texte OU libellé pending),
+        // sinon vert si quelque chose est fait (texte anonymisé/exception/incluse OU libellé résolu).
+        if (st.nbNon > 0 || locP > 0) {
+            tr.style.backgroundColor = '#fff3e0'; // orange
+        } else if ((st.nbAnon + st.nbExc + nbIncl + locR) > 0) {
+            tr.style.backgroundColor = '#e8f5e9'; // vert
         } else {
             tr.style.backgroundColor = '';
         }
