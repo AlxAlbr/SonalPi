@@ -476,5 +476,9 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
   (`_anonymiserHtml` n'agit que sur les `[data-rk]`). ⚠️ Contextes **array-only** (variables publiques
   `varsPubliquesEnt`, stats corpus) lisent `ent.tabLoc[]` **sans DOM** → pseudo inatteignable, à dériver
   des règles. Locuteur sans pseudo / refusé → **nom réel** (garde-fou export non implémenté, assumé).
+- **Statut au panneau corpus** : le scan (`accumulerStatsLibellesCorpus`, anon-scan.js) colore une règle
+  **personne** (0 occurrence texte) vert/orange selon l'état de ses libellés — candidats via
+  `ent.tabLoc` (pas d'index), **tout-ou-rien** (1 test d'état/locuteur), sans compteur. Priorité au texte
+  pour les entités texte+personne.
 
 ---

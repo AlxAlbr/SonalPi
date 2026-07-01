@@ -59,7 +59,18 @@ async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
         if (typeof endWait === 'function') {
             endWait();
         }
-        
+
+        // Aucune occurrence de TEXTE dans le corpus ? Si l'entité est un LOCUTEUR (présent dans un
+        // tabLoc), afficher l'état des LIBELLÉS par entretien (plan-locuteurs-pseudo.md) au lieu de
+        // « aucune occurrence trouvée ».
+        if (!entretiensAnonymisee.length && !entretiensNonAnonymisee.length && !entretiensExclus.length) {
+            const parEntLoc = await etatLibellesParEntretien(entite, tabEnt);
+            if (parEntLoc.length > 0) {
+                afficherVueLibellesLoc({ entite, remplacement: pseudo }, parEntLoc);
+                return;
+            }
+        }
+
         // Mettre à jour la ligne
         const anon = { entite, remplacement: pseudo };
         afficherVerificationDansPanneau(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
@@ -145,6 +156,90 @@ function afficherVueLectureSeuleMultiPseudo(regle, parEntretien) {
         btn.addEventListener('click', () => {
             const idx = Number(btn.dataset.entIndex);
             ouvrirEntretienAnonGen(idx, { entite: regle.entite, pseudo: regle.remplacement });
+        });
+    });
+}
+
+/**
+ * État de pseudonymisation du LIBELLÉ d'un locuteur, PAR ENTRETIEN (plan-locuteurs-pseudo.md — loupe
+ * corpus). Candidats via `ent.tabLoc` (pas de parse pour trouver), état lu sur le 1er `.ligloc` matchant
+ * (tout-ou-rien). `loc-anon`/`loc-suggere-refuse` → résolu (vert) ; sinon → pending (orange).
+ * @param {string} entite
+ * @param {Array} tabEnt
+ * @returns {Promise<Array<{index:number, nom:string, statut:'resolu'|'pending', refuse:boolean}>>}
+ */
+async function etatLibellesParEntretien(entite, tabEnt) {
+    const parEntretien = [];
+    if (typeof clesAlias !== 'function' || !Array.isArray(tabEnt)) return parEntretien;
+    const clesEntite = new Set(clesAlias(entite));
+    if (clesEntite.size === 0) return parEntretien;
+    for (let i = 0; i < tabEnt.length; i++) {
+        const ent = tabEnt[i];
+        if (!ent || !Array.isArray(ent.tabLoc)) continue;
+        // Ce locuteur existe-t-il dans cet entretien ? (via tabLoc, sans parse)
+        const present = ent.tabLoc.some(nom =>
+            nom && clesAlias(String(nom).replace(/\?/g, '')).some(k => clesEntite.has(k)));
+        if (!present) continue;
+        // État : parser le HTML une fois, lire le 1er .ligloc matchant.
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
+        if (!html) continue;
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        const lig = Array.from(div.querySelectorAll('.ligloc[data-nomloc]'))
+            .find(l => clesAlias(l.dataset.nomloc || '').some(k => clesEntite.has(k)));
+        const refuse = !!lig && lig.classList.contains('loc-suggere-refuse');
+        const resolu = !!lig && (lig.classList.contains('loc-anon') || refuse);
+        parEntretien.push({
+            index: i,
+            nom: (ent.nom) || `Entretien ${i + 1}`,
+            statut: resolu ? 'resolu' : 'pending',
+            refuse
+        });
+    }
+    return parEntretien;
+}
+
+/**
+ * Rend, dans le panneau droit, l'état des LIBELLÉS par entretien pour une entité LOCUTEUR (0 occurrence
+ * texte) : liste verte (résolu : pseudonymisé ou refusé) / orange (à pseudonymiser), + bouton Ouvrir.
+ * Calqué sur afficherVueLectureSeuleMultiPseudo, sans comptage d'occurrences.
+ * @param {{entite:string, remplacement:string}} regle
+ * @param {Array<{index:number, nom:string, statut:string, refuse:boolean}>} parEntretien
+ */
+function afficherVueLibellesLoc(regle, parEntretien) {
+    const fondVerif = document.getElementById('fond_verif_anon');
+    if (!fondVerif) return;
+    window._lastVerifiedAnon = { entite: regle.entite, pseudo: regle.remplacement };
+    const nbPending = parEntretien.filter(e => e.statut === 'pending').length;
+    let html = `
+        <div style="padding:10px 12px;background:#e3f2fd;border:1px solid #90caf9;border-radius:4px;margin:8px;font-size:0.9rem;color:#0d47a1;">
+            👤 Entité <strong>locuteur</strong> « ${escapeHtml(regle.entite)} » → « ${escapeHtml(regle.remplacement)} ».
+            Pas d'occurrence dans le texte : statut par <strong>libellé</strong>. Les modifications se font
+            en ouvrant l'entretien concerné.
+        </div>
+        <div style="padding:6px 12px;font-weight:bold;color:#333;">${parEntretien.length} entretien(s) avec ce locuteur${nbPending ? ` — ${nbPending} à pseudonymiser` : ''}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding:6px 12px;">
+    `;
+    for (const e of parEntretien) {
+        const vert = e.statut === 'resolu';
+        const couleur = vert ? '#2e7d32' : '#e65100';
+        const fond = vert ? '#e8f5e9' : '#fff3e0';
+        const statutTxt = vert ? (e.refuse ? '⊘ non pseudonymisé (choix)' : '✓ pseudonymisé') : '● à pseudonymiser';
+        html += `
+            <div style="display:flex;align-items:center;gap:10px;border:1px solid #eee;border-left:4px solid ${couleur};border-radius:4px;padding:6px 10px;background:${fond};">
+                <span style="flex:1;color:#333;">${escapeHtml(e.nom)}</span>
+                <span style="color:${couleur};font-size:0.85rem;white-space:nowrap;">${statutTxt}</span>
+                <button class="btn btn-ouvrir-ent-loc" style="padding:3px 8px;" data-ent-index="${e.index}" title="Ouvrir cet entretien">↗ Ouvrir</button>
+            </div>
+        `;
+    }
+    html += `</div>`;
+    fondVerif.innerHTML = html;
+
+    fondVerif.querySelectorAll('.btn-ouvrir-ent-loc').forEach(btn => {
+        btn.addEventListener('click', () => {
+            ouvrirEntretienAnonGen(Number(btn.dataset.entIndex), { entite: regle.entite, pseudo: regle.remplacement });
         });
     });
 }
@@ -1445,10 +1540,17 @@ async function affichAnonGen() {
                 else if (estEtat) {
                     const st = stats ? stats.get(`${e}|${pData}`) : null;
                     if (!st) ok = false;
-                    else if (filtre === 'a_traiter') ok = st.nbNon >= 1;
-                    else if (filtre === 'avec_exceptions') ok = st.nbExc >= 1;
-                    else if (filtre === 'bouclees') ok = (st.nbAnon + st.nbExc) > 0 && st.nbNon === 0;
-                    else if (filtre === 'inutilisees') ok = (st.nbAnon + st.nbExc + st.nbNon) === 0;
+                    else {
+                        // Statut LIBELLÉS intégré (plan-locuteurs-pseudo.md, Étape 6) : mêmes règles que
+                        // la coloration — priorité au texte, sinon état des libellés (pending/résolu).
+                        const nbInclF = st.nbIncl || 0;
+                        const texteVide = (st.nbAnon + st.nbExc + st.nbNon + nbInclF) === 0;
+                        const locP = st.nbLocPending || 0, locR = st.nbLocResolu || 0;
+                        if (filtre === 'a_traiter') ok = st.nbNon >= 1 || (texteVide && locP >= 1);
+                        else if (filtre === 'avec_exceptions') ok = st.nbExc >= 1;
+                        else if (filtre === 'bouclees') ok = texteVide ? (locR > 0 && locP === 0) : ((st.nbAnon + st.nbExc) > 0 && st.nbNon === 0);
+                        else if (filtre === 'inutilisees') ok = texteVide && locR === 0 && locP === 0;
+                    }
 
                 }
 
