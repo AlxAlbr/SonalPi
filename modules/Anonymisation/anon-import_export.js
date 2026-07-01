@@ -12,7 +12,7 @@ function estEntierementIncluse(paire) {
 /**
  * Exporte la table de correspondance des anonymisations validées en JSON
  * Format: [{"entite_init": "XXX", "entite_pseudo":"YYYY"}, ...]
- * Seules les lignes avec entité initiale, entité de remplacement et occurrences > 0 sont exportées
+ * Lignes exportées : entité + remplacement + MATÉRIALISÉES (occurrences de texte OU libellé de locuteur).
  */
 function exportTableCorrespondance() {
     if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
@@ -27,8 +27,18 @@ function exportTableCorrespondance() {
     for (let i = 0; i < window.tabAnon.length; i++) {
         const paire = window.tabAnon[i];
 
-        // Vérifier que la ligne a été validée (entité + remplacement + au moins une occurrence)
-        if (!(paire.entite && paire.remplacement && paire.occurrences > 0)) continue;
+        // Ligne validée = entité + remplacement + MATÉRIALISÉE : occurrences de TEXTE OU libellé de
+        // locuteur (plan-locuteurs-pseudo.md). Sinon une pseudonymisation de LIBELLÉ (occ texte=0)
+        // manquerait dans la clé « qui est qui ».
+        const aLibelle = (typeof aLibellePseudonymise === 'function') && aLibellePseudonymise(paire);
+        if (!(paire.entite && paire.remplacement && (paire.occurrences > 0 || aLibelle))) continue;
+
+        // Label-only (0 occurrence de TEXTE) : pas de spans à interroger → on consigne entité → pseudo
+        // primaire (= le pseudo du libellé). La logique multi-pseudo ci-dessous ne vaut que pour le texte.
+        if (!(paire.occurrences > 0)) {
+            correspondances.push({ entite_init: paire.entite, entite_pseudo: paire.remplacement });
+            continue;
+        }
 
         const pseudosLigne = pseudosDe(paire);
         if (pseudosLigne.length > 1) {

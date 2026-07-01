@@ -532,8 +532,10 @@ function showMenuLibelleLocuteur(lig) {
 
     if (lig.classList.contains('loc-anon')) {
         const pseudo = lig.dataset.locpseudo || '';
-        ajouterItem(`🗑 Retirer la pseudonymisation « ${pseudo} » (ce locuteur, cet entretien)`,
+        ajouterItem(`🚫 Ne plus pseudonymiser « ${pseudo} » (ce locuteur, cet entretien)`,
             () => retirerPseudoLibelleLocuteur(lig.dataset.nomloc));
+        ajouterItem(`🗑 Supprimer la règle « ${lig.dataset.nomloc || ''} → ${pseudo} »…`,
+            () => supprimerRegleDepuisLibelle(lig.dataset.nomloc));
     } else if (lig.classList.contains('loc-suggere')) {
         const pseudo = lig.dataset.locpseudoSuggere || '';
         ajouterItem(`✓ Pseudonymiser ce locuteur en « ${pseudo} » (cet entretien)`,
@@ -567,18 +569,24 @@ function showMenuLibelleLocuteur(lig) {
 }
 
 /**
- * Retire la pseudonymisation du LIBELLÉ pour tous les `.ligloc` du même locuteur (match par nom, comme
- * la pose en Étape 2 → N→1 couvert). Local + persistance cache HTML. La RÈGLE n'est PAS touchée.
+ * « Retirer la pseudonymisation » d'un libellé confirmé (plan-locuteurs-pseudo.md Étape 4) : ce n'est
+ * PAS une suppression mais un REFUS **persistant** (loc-anon → loc-suggere-refuse). Le locuteur reste EN
+ * CLAIR ici, durablement — plus de re-suggestion ni de re-pseudonymisation à la réouverture (un simple
+ * retrait de `loc-anon` laissait la règle corpus re-suggérer). Le pseudo est conservé dans
+ * `data-locpseudo-suggere` (ré-activation au clic-droit). La règle CORPUS n'est PAS supprimée (reste au
+ * `.crp`, s'applique ailleurs). Match par nom (N→1).
  * @param {string} nomLoc - data-nomloc du locuteur (nom réel, sans « ? »)
  */
 async function retirerPseudoLibelleLocuteur(nomLoc) {
     if (typeof backUp === 'function') backUp();
     const clesNom = clesAlias(nomLoc || '');
     document.querySelectorAll('.ligloc.loc-anon[data-nomloc]').forEach(l => {
-        if (clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k))) {
-            l.classList.remove('loc-anon');
-            delete l.dataset.locpseudo;
-        }
+        if (!clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k))) return;
+        const pseudo = l.dataset.locpseudo || '';
+        l.classList.remove('loc-anon');
+        delete l.dataset.locpseudo;
+        l.classList.add('loc-suggere-refuse');
+        if (pseudo) l.dataset.locpseudoSuggere = pseudo;
     });
     // Symétrie de la confirmation : si la règle n'était matérialisée QUE par ce libellé (corpus
     // fusionnée, 0 occurrence de TEXTE), elle redevient un « fantôme » corpus → on retire
@@ -648,6 +656,24 @@ async function refuserPseudoLibelleLocuteur(nomLoc) {
         l.classList.add('loc-suggere-refuse');
     });
     if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
+}
+
+/**
+ * SUPPRIME la règle (≠ opt-out local) depuis le libellé : trouve sa ligne dans window.tabAnon et
+ * délègue à `supprimeLigneAnon`, qui applique le garde-fou d'isolement (I-POR-5) :
+ *  - règle utilisée UNIQUEMENT dans cet entretien → supprimée (+ proposition de la retirer du corpus) ;
+ *  - règle PARTAGÉE (labels/texte dans d'autres entretiens, 🔒) → refus + renvoi au panneau Pseudos.
+ * Le démarquage du libellé suit via le hook resynchroniserLibellesLocuteurs de supprimeLigneAnon.
+ * @param {string} nomLoc
+ */
+async function supprimerRegleDepuisLibelle(nomLoc) {
+    if (typeof supprimeLigneAnon !== 'function') return;
+    const clesNom = clesAlias(nomLoc || '');
+    const idx = (window.tabAnon || []).findIndex(p =>
+        p && p.entite && (p.portee || 'corpus') !== 'brouillon'
+        && clesAlias(p.entite).some(k => clesNom.includes(k)));
+    if (idx < 0) return;
+    await supprimeLigneAnon(idx);
 }
 
 // Attache les event listeners pour gérer les clics sur les mots anonymisés

@@ -717,7 +717,11 @@ function affichTableauAnon() {
     // Activer chkAnon si au moins une anonymisation est validée
     const chkAnon = document.getElementById('chkAnon');
     if (chkAnon) {
-        const aDesAnonymisations = window.tabAnon && window.tabAnon.some(p => p.occurrences > 0);
+        // Matérialisé = occurrences de TEXTE OU libellé de locuteur (plan-locuteurs-pseudo.md) : sinon,
+        // dans un entretien pseudonymisé UNIQUEMENT par libellés, chkAnon resterait désactivé → les
+        // listeners du menu clic-droit des libellés ne s'attacheraient pas.
+        const aDesAnonymisations = window.tabAnon && window.tabAnon.some(p =>
+            p.occurrences > 0 || (typeof aLibellePseudonymise === 'function' && aLibellePseudonymise(p)));
         chkAnon.disabled = !aDesAnonymisations;
         if (!aDesAnonymisations) chkAnon.checked = false;
     }
@@ -1131,9 +1135,20 @@ async function supprimeLigneAnon(idx) {
 // (ligne verte = nbNon === 0 = plus aucune « à anonymiser »). On exclut donc les « à anonymiser »
 // (non-traité) et les incluses (absorbées par une autre règle). C'est ce qui définit une entité
 // PARTAGÉE : la règle corpus porte du travail ailleurs. Une entité juste repérée/à-traiter ne compte pas.
+// Compte AUSSI la matérialisation par LIBELLÉ de locuteur (plan-locuteurs-pseudo.md) : une règle
+// pseudonymisant un libellé « porte du travail » au même titre qu'une occurrence de texte.
 function _aOccurrenceTraitee(r) {
-    return !!(r && r.entite && Array.isArray(r.matchPositions) &&
-        r.matchPositions.some(m => m && !m.isNonTraite && !m.isIncluded));
+    if (!r || !r.entite) return false;
+    // Occurrence de TEXTE réellement traitée (anonymisée ou exception).
+    if (Array.isArray(r.matchPositions) && r.matchPositions.some(m => m && !m.isNonTraite && !m.isIncluded)) {
+        return true;
+    }
+    // Matérialisée par un LIBELLÉ : dans un entretien SAUVEGARDÉ, une règle qui appartient localement
+    // (existeLocalement) à 0 occurrence de TEXTE et non-brouillon a sa matérialisation dans le libellé
+    // → « utilisée ». Proxy data-only (le DOM des autres entretiens n'est pas chargé) : un libellé
+    // confirmé persiste existeLocalement=true dans ent.tabAnon ; un simple fantôme corpus non confirmé
+    // en est EXCLU à la sauvegarde d'ouverture (donc jamais compté ici).
+    return !!(r.existeLocalement && (r.occurrences || 0) === 0 && (r.portee || 'corpus') !== 'brouillon');
 }
 
 // True si AUCUN entretien AUTRE que le courant n'a réellement TRAITÉ cette entité (anonymisée ou
@@ -1687,9 +1702,13 @@ async function validerAnonEnAttente(porteeRequise = 'document') {
     }
 
     // NETTOYAGE ET TRI
-    // Séparer les lignes en deux groupes
-    const lignesValidees = window.tabAnon.filter(p => p.occurrences > 0 && p.remplacement.trim().length > 0);
-    const lignesAttente = window.tabAnon.filter(p => !(p.occurrences > 0 && p.remplacement.trim().length > 0));
+    // Séparer les lignes en deux groupes. « Validée » = matérialisée (occurrences de TEXTE OU libellé de
+    // locuteur, plan-locuteurs-pseudo.md) avec un pseudo — sinon une règle label-only tomberait à tort
+    // dans le groupe « en attente ».
+    const estValidee = p => (p.occurrences > 0 || (typeof aLibellePseudonymise === 'function' && aLibellePseudonymise(p)))
+        && p.remplacement && p.remplacement.trim().length > 0;
+    const lignesValidees = window.tabAnon.filter(estValidee);
+    const lignesAttente = window.tabAnon.filter(p => !estValidee(p));
     
     // Trier chaque groupe alphabétiquement par entité
     lignesValidees.sort((a, b) => a.entite.localeCompare(b.entite, 'fr'));
@@ -2169,12 +2188,18 @@ function detecterLibellesASuggerer() {
             lig.classList.remove('loc-suggere');
             delete lig.dataset.locpseudoSuggere;
             const clesNomA = clesAlias(lig.dataset.nomloc || '');
-            (window.tabAnon || []).forEach(p => {
-                if (p && p.entite && !p.existeLocalement && (p.portee || 'corpus') !== 'brouillon'
-                    && clesAlias(p.entite).some(k => clesNomA.includes(k))) {
-                    p.existeLocalement = true;
-                }
-            });
+            const regleA = (window.tabAnon || []).find(p =>
+                p && p.entite && (p.portee || 'corpus') !== 'brouillon'
+                && clesAlias(p.entite).some(k => clesNomA.includes(k)));
+            if (!regleA) {
+                // ORPHELIN : plus aucune règle non-brouillon (ex. règle corpus supprimée au panneau
+                // Pseudos) → démarquer le libellé (retour au vrai nom). Nettoyé au **plain open**, pas
+                // seulement au scan — sinon « Nom → pseudo » persistait dans le HTML à la réouverture.
+                lig.classList.remove('loc-anon');
+                delete lig.dataset.locpseudo;
+            } else if (!regleA.existeLocalement) {
+                regleA.existeLocalement = true;
+            }
             return;
         }
         // Refusé explicitement (« ne pas pseudonymiser », loc-suggere-refuse) → ne pas re-suggérer.
