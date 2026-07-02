@@ -1523,6 +1523,11 @@ async function affichAnonGen() {
         const inputRecherche = document.getElementById("anon-gen-recherche");
         const compteur = document.getElementById("anon-gen-compteur");
 
+        // Découvrabilité : signaler la recherche par thème dans le placeholder quand la feature est active.
+        if (inputRecherche && typeof getThematiques === 'function' && getThematiques().actif) {
+            inputRecherche.placeholder = "Rechercher (entité, pseudo, ou thème)…";
+        }
+
         const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees', 'inutilisees']);
 
         // Masquer/afficher le groupe de filtres d'état selon disponibilité du scan
@@ -1542,6 +1547,13 @@ async function affichAnonGen() {
             const recherche = (inputRecherche.value || '').trim().toLowerCase();
             const estEtat = FILTRES_ETAT.has(filtre);
             const stats = window._anonScanCache;
+
+            // Recherche par THÉMATIQUE (plan-thematiques-entites.md, Phase 3) : si la fonctionnalité est
+            // active et que le terme saisi correspond EXACTEMENT (insensible à la casse) à une thématique
+            // du vocabulaire contrôlé, on bascule en filtre par thème ; sinon recherche texte habituelle.
+            const themes = (typeof getThematiques === 'function') ? getThematiques() : { actif: false, liste: [] };
+            const themeMatch = (themes.actif && recherche && themes.liste.some(t => String(t).toLowerCase() === recherche))
+                ? recherche : null;
 
             let nbVisibles = 0;
             for (const tr of lignes) {
@@ -1571,7 +1583,11 @@ async function affichAnonGen() {
                 }
 
                 if (ok && recherche) {
-                    ok = e.toLowerCase().includes(recherche) || p.toLowerCase().includes(recherche);
+                    if (themeMatch) {
+                        ok = (tr.dataset.thematique || '').trim().toLowerCase() === themeMatch;
+                    } else {
+                        ok = e.toLowerCase().includes(recherche) || p.toLowerCase().includes(recherche);
+                    }
                 }
 
                 tr.style.display = ok ? '' : 'none';
@@ -1659,11 +1675,53 @@ async function affichAnonGen() {
  * @param {Array} tabEnt - Tableau des entretiens (passé au bouton 🔍 Vérifier)
  * @returns {HTMLTableRowElement}
  */
+/**
+ * Badge de thématique (niveau CORPUS, rendu en DOM). Chip coloré si thématique posée, chip discret
+ * « ＋ thème » sinon. Le clic ouvre le sélecteur partagé ; l'écriture (portée corpus) passe par
+ * definirThematiqueEntite. Rafraîchit le badge ET tr.dataset.thematique (lu par la recherche par thème).
+ * @param {object} anon - la règle corpus (mutée en place pour l'affichage)
+ * @param {HTMLTableRowElement} tr - la ligne, pour synchroniser dataset.thematique
+ * @returns {HTMLButtonElement}
+ */
+function _creerBadgeThematiqueCorpus(anon, tr) {
+    const badge = document.createElement("button");
+    badge.type = "button";
+    badge.className = "btn-theme-badge-corpus";
+
+    const rafraichir = () => {
+        const theme = (anon.thematique || '').trim();
+        if (theme) {
+            badge.textContent = theme;
+            badge.title = `Thématique : ${theme} — cliquer pour changer`;
+            badge.style.cssText = `background:${couleurThematique(theme)};color:#fff;border:1px solid rgba(0,0,0,0.15);`
+                + `border-radius:12px;padding:2px 8px;font-size:0.75rem;cursor:pointer;margin-right:6px;`;
+        } else {
+            badge.textContent = "＋ thème";
+            badge.title = "Attribuer une thématique";
+            badge.style.cssText = `background:#f0f0f0;color:#666;border:1px dashed #bbb;`
+                + `border-radius:12px;padding:2px 8px;font-size:0.75rem;cursor:pointer;margin-right:6px;`;
+        }
+        if (tr) tr.dataset.thematique = theme;
+    };
+    rafraichir();
+
+    badge.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        ouvrirSelecteurThematique(badge, anon.thematique || '', async (valeur) => {
+            await definirThematiqueEntite(anon, valeur);
+            rafraichir();
+        });
+    });
+    return badge;
+}
+
 function creerLigneAnonGen(anon, tabEnt) {
     const tr = document.createElement("tr");
     tr.classList.add("ligne-anon-gen");
     tr.dataset.entite = anon.entite;
     tr.dataset.pseudo = anon.remplacement;
+    tr.dataset.thematique = (anon.thematique || '').trim(); // exposé pour la recherche par thème (Phase 3)
 
     // Colonne 1: Entité (affichage compact « 6 mots […] 6 mots » pour les longues sélections ;
     // texte complet en tooltip).
@@ -1710,6 +1768,12 @@ function creerLigneAnonGen(anon, tabEnt) {
     tdActions.style.paddingTop = "8px";
     tdActions.style.paddingBottom = "8px";
     
+    // Badge de thématique (opt-in) — inséré AVANT les boutons. Ici toutes les lignes sont de portée
+    // corpus, donc definirThematiqueEntite écrit dans le store corpus.
+    if (typeof getThematiques === 'function' && getThematiques().actif) {
+        tdActions.appendChild(_creerBadgeThematiqueCorpus(anon, tr));
+    }
+
     // Bouton Vérifier pour cette entité
     const btnVerifier = document.createElement("button");
     btnVerifier.textContent = "🔍";

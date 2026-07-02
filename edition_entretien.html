@@ -535,6 +535,14 @@ window.addEventListener('unload', (event) => {
                     </div>
                 </div>
 
+                <!-- Recherche par thème (opt-in) : hors de #tableauAnon (re-rendu) pour survivre aux
+                     re-render ; affichée seulement si les thématiques sont actives (géré par affichTableauAnon). -->
+                <div id="anon-ent-recherche-zone" style="display:none;margin-bottom:8px;flex-shrink:0;">
+                    <input type="text" id="anon-ent-recherche" autocomplete="off"
+                           placeholder="Rechercher (entité, pseudo, ou thème)…"
+                           style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;">
+                </div>
+
                 <div id="tableauAnon"></div>
 
             </div>

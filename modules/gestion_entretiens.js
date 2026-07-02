@@ -1373,6 +1373,12 @@ async function afficherWhisPurge(){
     // Récupération du tabAnon global et fusion avec le tabAnon local de l'entretien
     // (fait AVANT le setTimeout pour que window.tabAnon soit prêt quand cleanHTML se termine)
     const tabAnonGlobal = await window.electronAPI.getAnon();
+    // Hydrater les réglages de pseudonymisation au niveau corpus (motsLiaison, thematiques) : la page
+    // entretien ne passe pas par chargerCorpus, donc window.paramsAnonCorpus n'y est pas amorcé. Sans
+    // ça, getThematiques()/getMotsLiaison() retomberaient toujours sur les défauts (badge jamais actif).
+    try {
+        if (window.electronAPI.getParamsAnon) window.paramsAnonCorpus = await window.electronAPI.getParamsAnon() || {};
+    } catch (e) { console.warn('[entretien] hydratation paramsAnonCorpus échouée:', e); }
     window.tabAnon = fusionnerTabAnon(tabAnonGlobal, ent.tabAnon);
 
     // Afficher immédiatement le panneau latéral avec les paires fusionnées

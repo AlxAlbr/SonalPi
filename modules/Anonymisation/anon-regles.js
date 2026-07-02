@@ -313,7 +313,13 @@ function fusionnerRegles(...listes) {
             if (survivants.length === 0) continue;
             survivants.forEach(a => pris.add(a.toLowerCase()));
             // normaliserRegle garantit I5 (alt conservé seulement si non vide et distinct).
-            out.push(normaliserRegle({ entite: survivants.join('/'), remplacement, remplacementAlt: p.remplacementAlt }));
+            // On PORTE la thématique (plan-thematiques-entites.md, Point 1) : sans ça, elle serait
+            // jetée à chaque resync/remontée (l'objet reconstruit est volontairement épuré). Absente
+            // → non ajoutée (normaliserRegle fait {...regle}, il ne crée pas de champ undefined parasite
+            // seulement si on ne le passe pas → on l'omet quand p.thematique est falsy).
+            const reconstruite = { entite: survivants.join('/'), remplacement, remplacementAlt: p.remplacementAlt };
+            if (p.thematique) reconstruite.thematique = p.thematique;
+            out.push(normaliserRegle(reconstruite));
         }
     }
     return out;

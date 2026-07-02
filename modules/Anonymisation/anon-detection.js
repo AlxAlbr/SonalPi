@@ -99,6 +99,13 @@ function motsCles(texte) {
 const MOTS_LIAISON_DEFAUT = ['à','de','d','du','des','au','aux','en','chez','dans','sur','pour'];
 
 /**
+ * Thématiques d'entités par défaut (fonctionnalité opt-in, cf. plan-thematiques-entites.md).
+ * Vocabulaire CONTRÔLÉ et court, stocké en MAJUSCULES (convention) : PERsonne, LOCalisation,
+ * ORGanisation, DATe. Surchargeable au niveau corpus (window.paramsAnonCorpus.thematiques.liste).
+ */
+const THEMES_DEFAUT = ['PER', 'LOC', 'ORG', 'DAT'];
+
+/**
  * Reconstruit une chaîne lisible depuis une liste de tokens (mots + ponctuation) : un espace entre
  * deux mots, rien autour de la ponctuation. « ['Saint','-','Étienne'] » → « Saint-Étienne ».
  * @param {string[]} tokens
@@ -525,7 +532,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         escapeRegex, parseAliases, rognerPonctuationBords, construireRegexEntite,
         tokenizeCommeSegmentation, motsCles, reconstruireDepuisTokens, rognerAffixesTete,
-        detecterAffixeLiaison, MOTS_LIAISON_DEFAUT,
+        detecterAffixeLiaison, MOTS_LIAISON_DEFAUT, THEMES_DEFAUT,
         analyserOccurrences, trouverMatchesEntiteDOM
     };
 }

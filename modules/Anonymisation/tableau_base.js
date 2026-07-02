@@ -25,7 +25,8 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
           indexCourant: 0,
           matchPositions: [],
           source: regle.source || 'Global', // Marquer comme venant du global
-          portee: regle.portee || 'corpus' // règle venue du corpus ⇒ portée corpus (legacy ≡ corpus)
+          portee: regle.portee || 'corpus', // règle venue du corpus ⇒ portée corpus (legacy ≡ corpus)
+          thematique: regle.thematique // thématique portée par la règle corpus (plan-thematiques-entites.md)
         });
       }
     });
@@ -49,7 +50,8 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
           indexCourant: regle.indexCourant || 0,
           matchPositions: regle.matchPositions || [],
           source: 'Local',
-          portee: regle.portee || 'corpus' // préserver la portée locale (legacy ≡ corpus)
+          portee: regle.portee || 'corpus', // préserver la portée locale (legacy ≡ corpus)
+          thematique: regle.thematique // thématique posée localement (portée document/brouillon)
         });
       } else {
         // Si la règle existe, mettre à jour les données d'exécution
@@ -60,6 +62,9 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
         existing.existeLocalement = true; // présente dans le tabAnon local → pas en attente
         // Multi-pseudo : l'alt local prime ; sinon on garde celui du corpus déjà posé.
         if (regle.remplacementAlt) existing.remplacementAlt = regle.remplacementAlt;
+        // Thématique : la valeur locale prime (elle a pu être posée depuis l'entretien) ; sinon
+        // on conserve celle héritée du corpus déjà présente.
+        if (regle.thematique) existing.thematique = regle.thematique;
       }
     });
   }
@@ -628,7 +633,7 @@ function affichTableauAnon() {
             : `dsTxtAutre=false`;
 
         html += `
-            <tr data-idx="${i}" class="ligne-anon${classeFond ? ' ' + classeFond : ''}${classeTypo ? ' ' + classeTypo : ''}">
+            <tr data-idx="${i}" data-thematique="${(paire.thematique || '').trim()}" class="ligne-anon${classeFond ? ' ' + classeFond : ''}${classeTypo ? ' ' + classeTypo : ''}">
                 <td class="col-entite">
                     <textarea
                            class="input-entite textarea-auto${estAnonymisee ? ' textarea-disabled' : ''}"
@@ -656,6 +661,7 @@ function affichTableauAnon() {
                 <td class="col-actions">
                     <div class="actions-stack-portee">
                         <div class="actions-container-new">
+                            ${_badgeThematiqueHtml(i, paire)}
                             ${badgesAnonHtml}
                             ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
                             ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
@@ -698,6 +704,15 @@ function affichTableauAnon() {
     // Passe ASYNCHRONE : marquer les sliders corpus « verrouillés » (entité partagée avec un autre
     // entretien → on ne peut pas quitter C, §6). Découplé du rendu sync car le test lit getEnt (IPC).
     marquerVerrousPortee();
+
+    // Recherche par thème (opt-in) : la case vit hors de #tableauAnon (survit au re-render). Brancher
+    // l'écouteur une seule fois, puis (dé)masquer les lignes selon le terme courant + l'état actif/off.
+    const rechThemeInput = document.getElementById('anon-ent-recherche');
+    if (rechThemeInput && !rechThemeInput.dataset.themeInit) {
+        rechThemeInput.dataset.themeInit = '1';
+        rechThemeInput.addEventListener('input', _appliquerFiltreThemeEntretien);
+    }
+    _appliquerFiltreThemeEntretien();
 
     // Ajouter l'event listener pour l'import de fichiers
     const fileInput = document.getElementById('file-import-correspondance');
@@ -2366,6 +2381,202 @@ function getMotsLiaison() {
     const p = window.paramsAnonCorpus;
     if (p && Array.isArray(p.motsLiaison) && p.motsLiaison.length) return p.motsLiaison;
     return (typeof MOTS_LIAISON_DEFAUT !== 'undefined') ? MOTS_LIAISON_DEFAUT : [];
+}
+
+/**
+ * Réglage EFFECTIF des thématiques d'entités (fonctionnalité opt-in, cf. plan-thematiques-entites.md).
+ * Miroir de getMotsLiaison() : surcharge corpus (`window.paramsAnonCorpus.thematiques`) si présente,
+ * sinon défauts. LECTURE DÉFENSIVE : renvoie TOUJOURS un objet valide { actif:boolean, liste:string[] }
+ * même sur un ancien .crp sans bloc `thematiques`. Disponible sur les DEUX pages (index + entretien)
+ * car défini dans tableau_base.js — window.paramsAnonCorpus est hydraté à l'ouverture de l'entretien.
+ * @returns {{actif:boolean, liste:string[]}}
+ */
+function getThematiques() {
+    const defauts = (typeof THEMES_DEFAUT !== 'undefined') ? THEMES_DEFAUT.slice() : [];
+    const t = window.paramsAnonCorpus && window.paramsAnonCorpus.thematiques;
+    if (!t || typeof t !== 'object') return { actif: false, liste: defauts };
+    const liste = Array.isArray(t.liste) ? t.liste.slice() : defauts;
+    return { actif: !!t.actif, liste };
+}
+
+/**
+ * Palette FIXE des badges de thématique. La couleur est DÉRIVÉE de l'index dans la liste effective
+ * (ordre d'arrivée) — jamais persistée : rien à stocker par entité ni à exporter (décision archi).
+ * Au-delà de la palette OU pour une thématique retirée de la liste (index -1) → gris « inconnue ».
+ */
+const PALETTE_THEMES = [
+    '#1976d2', '#388e3c', '#e64a19', '#7b1fa2', '#c2185b', '#0097a7',
+    '#f57c00', '#5d4037', '#455a64', '#00796b', '#512da8', '#c62828',
+    '#2e7d32', '#ad1457', '#00838f', '#ef6c00', '#4527a0', '#283593',
+    '#558b2f', '#d84315'
+];
+const COULEUR_THEME_INCONNU = '#9e9e9e'; // gris : hors palette ou thème retiré de la liste
+
+/**
+ * Couleur du badge pour une thématique donnée : PALETTE_THEMES[index dans la liste effective],
+ * gris si absente/hors palette. Comparaison insensible à la casse (vocabulaire stocké en MAJUSCULES).
+ * @param {string} theme
+ * @returns {string} code couleur CSS
+ */
+function couleurThematique(theme) {
+    if (!theme) return COULEUR_THEME_INCONNU;
+    const { liste } = getThematiques();
+    const cible = String(theme).trim().toLowerCase();
+    const i = liste.findIndex(t => String(t).toLowerCase() === cible);
+    return (i >= 0 && i < PALETTE_THEMES.length) ? PALETTE_THEMES[i] : COULEUR_THEME_INCONNU;
+}
+
+/**
+ * Sélecteur PARTAGÉ de thématique (popover positionné sur le badge). Liste les thématiques actives
+ * + « Aucune », ferme au clic extérieur. Appelé par les DEUX niveaux (corpus DOM / entretien string).
+ * @param {HTMLElement} ancre - l'élément badge sur lequel positionner le popover
+ * @param {string} valeurCourante - thématique actuelle (pour cocher l'option active)
+ * @param {(valeur:string)=>void} onChoix - callback avec la thématique choisie ('' = Aucune)
+ */
+function ouvrirSelecteurThematique(ancre, valeurCourante, onChoix) {
+    const existant = document.getElementById('theme-selecteur-popover');
+    if (existant) existant.remove(); // un seul ouvert à la fois
+
+    const { liste } = getThematiques();
+    const pop = document.createElement('div');
+    pop.id = 'theme-selecteur-popover';
+    pop.style.cssText =
+        'position:fixed;z-index:100000;background:#fff;border:1px solid #ccc;border-radius:8px;' +
+        'box-shadow:0 4px 16px rgba(0,0,0,0.2);padding:6px;display:flex;flex-direction:column;gap:4px;' +
+        'max-height:60vh;overflow-y:auto;font-family:Arial,sans-serif;font-size:0.9rem;';
+
+    const courant = (valeurCourante || '').trim().toLowerCase();
+    const faireOption = (label, valeur, couleur) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = label;
+        const actif = (valeur || '').toLowerCase() === courant;
+        b.style.cssText =
+            'text-align:left;border:none;cursor:pointer;padding:5px 10px;border-radius:6px;white-space:nowrap;' +
+            (couleur ? `color:#fff;background:${couleur};` : 'color:#333;background:#f0f0f0;') +
+            (actif ? 'outline:2px solid #333;outline-offset:-2px;' : '');
+        b.addEventListener('click', (e) => { e.stopPropagation(); pop.remove(); onChoix(valeur); });
+        pop.appendChild(b);
+    };
+
+    faireOption('— Aucune —', '', null);
+    liste.forEach(t => faireOption(t, t, couleurThematique(t)));
+
+    document.body.appendChild(pop);
+    // Positionner sous l'ancre, en restant dans la fenêtre (bascule au-dessus/à gauche si débord).
+    const r = ancre.getBoundingClientRect();
+    const pr = pop.getBoundingClientRect();
+    let left = r.left, top = r.bottom + 4;
+    if (left + pr.width > window.innerWidth - 8) left = window.innerWidth - pr.width - 8;
+    if (top + pr.height > window.innerHeight - 8) top = r.top - pr.height - 4;
+    pop.style.left = Math.max(8, left) + 'px';
+    pop.style.top = Math.max(8, top) + 'px';
+
+    // Fermeture au clic extérieur (différée : ne pas capter le clic d'ouverture).
+    setTimeout(() => {
+        const ferme = (e) => {
+            if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('mousedown', ferme); }
+        };
+        document.addEventListener('mousedown', ferme);
+    }, 0);
+}
+
+/**
+ * Écriture PARTAGÉE de la thématique d'une entité, SELON LA PORTÉE de la ligne (parade à l'écrasement
+ * par la fusion « corpus prioritaire », cf. plan-thematiques-entites.md Point 2). Met à jour la valeur
+ * en mémoire pour un affichage immédiat, puis persiste là où vit la règle.
+ * @param {object} regle - la ligne { entite, portee, thematique?, ... } (window.tabAnon[i] ou anon corpus)
+ * @param {string} valeur - thématique choisie ('' = retirer)
+ */
+async function definirThematiqueEntite(regle, valeur) {
+    if (!regle || !regle.entite) return;
+    const theme = (valeur || '').trim().toUpperCase();
+    if (theme) regle.thematique = theme; else delete regle.thematique; // mémoire (affichage immédiat)
+
+    const portee = regle.portee || 'corpus';
+    if (portee === 'corpus') {
+        // Source de vérité = règle corpus (résolue par cleEntite dans le store getAnon()). On écrit
+        // directement la règle corpus au lieu de compter sur la fusion (qui écraserait par « corpus gagne »).
+        const tabAnonGlobal = await window.electronAPI.getAnon() || [];
+        const cible = tabAnonGlobal.find(a => a && a.entite && cleEntite(a.entite) === cleEntite(regle.entite))
+                   || (typeof regleEnCollisionAlias === 'function' ? regleEnCollisionAlias(regle.entite, tabAnonGlobal) : null);
+        if (cible) {
+            if (theme) cible.thematique = theme; else delete cible.thematique;
+            await persisterReglesCorpus(tabAnonGlobal);
+            if (typeof window.sauvegarderCorpus === 'function') await window.sauvegarderCorpus(false);
+        }
+    } else {
+        // Portée document / brouillon : la thématique vit dans le tabAnon local de l'entretien ; elle
+        // remontera au corpus via fusionnerRegles (Point 1) à la promotion.
+        if (typeof sauvegarderTabAnonEnt === 'function') await sauvegarderTabAnonEnt();
+    }
+}
+
+/**
+ * Badge de thématique (niveau ENTRETIEN, rendu en CHAÎNE HTML) : chip coloré si thématique posée,
+ * chip discret « ＋ thème » sinon. Visible seulement si la fonctionnalité est active ET l'entité non
+ * vide. Le clic délègue au sélecteur/écriture partagés via ouvrirBadgeThematique(event, i).
+ * @param {number} i - index dans window.tabAnon
+ * @param {object} paire - window.tabAnon[i]
+ * @returns {string} HTML du badge (vide si non applicable)
+ */
+function _badgeThematiqueHtml(i, paire) {
+    if (!getThematiques().actif) return '';
+    if (!paire || !paire.entite || !paire.entite.trim()) return '';
+    const theme = (paire.thematique || '').trim();
+    if (theme) {
+        const bg = couleurThematique(theme);
+        return `<button type="button" class="btn-theme-badge" onclick="ouvrirBadgeThematique(event,${i})"`
+            + ` title="Thématique : ${_escAnonMenu(theme)} — cliquer pour changer"`
+            + ` style="background:${bg};color:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:12px;`
+            + `padding:2px 8px;font-size:0.75rem;cursor:pointer;line-height:1.4;">${_escAnonMenu(theme)}</button>`;
+    }
+    return `<button type="button" class="btn-theme-badge" onclick="ouvrirBadgeThematique(event,${i})"`
+        + ` title="Attribuer une thématique"`
+        + ` style="background:#f0f0f0;color:#666;border:1px dashed #bbb;border-radius:12px;`
+        + `padding:2px 8px;font-size:0.75rem;cursor:pointer;line-height:1.4;">＋ thème</button>`;
+}
+
+/** Handler du badge thématique entretien : ouvre le sélecteur ancré sur le badge, écrit selon portée. */
+function ouvrirBadgeThematique(event, i) {
+    event.stopPropagation();
+    const paire = window.tabAnon[i];
+    if (!paire) return;
+    ouvrirSelecteurThematique(event.currentTarget, paire.thematique || '', async (valeur) => {
+        await definirThematiqueEntite(paire, valeur);
+        affichTableauAnon(); // re-render : badge + éventuel filtre thème à jour
+    });
+}
+
+/**
+ * Recherche/filtre au niveau ENTRETIEN (plan-thematiques-entites.md, Phase 3 — extension corpus+entretien).
+ * Même logique que le corpus : si le terme correspond EXACTEMENT à une thématique active → filtre par
+ * thème ; sinon substring entité/pseudo. La case (#anon-ent-recherche) vit HORS de #tableauAnon (re-rendu),
+ * elle survit donc aux affichTableauAnon ; on ne fait que (dé)masquer les lignes déjà rendues.
+ */
+function _appliquerFiltreThemeEntretien() {
+    const zone = document.getElementById('anon-ent-recherche-zone');
+    const input = document.getElementById('anon-ent-recherche');
+    if (!zone || !input) return;
+    const themes = getThematiques();
+    zone.style.display = themes.actif ? '' : 'none';
+    if (!themes.actif) return; // feature off → pas de filtrage (toutes les lignes visibles)
+
+    const terme = (input.value || '').trim().toLowerCase();
+    const themeMatch = (terme && themes.liste.some(t => String(t).toLowerCase() === terme)) ? terme : null;
+    document.querySelectorAll('#tableauAnon tr.ligne-anon').forEach(tr => {
+        if (!terme) { tr.style.display = ''; return; }
+        let ok;
+        if (themeMatch) {
+            ok = (tr.dataset.thematique || '').trim().toLowerCase() === themeMatch;
+        } else {
+            const paire = window.tabAnon[Number(tr.dataset.idx)];
+            const e = (paire && paire.entite || '').toLowerCase();
+            const p = paire ? pseudosDe(paire).join('/').toLowerCase() : '';
+            ok = e.includes(terme) || p.includes(terme);
+        }
+        tr.style.display = ok ? '' : 'none';
+    });
 }
 
 /**
