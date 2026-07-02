@@ -3391,7 +3391,12 @@ SYNTHESE
 
 #tableauAnon {
     overflow-y: auto;
-    height: calc(100vh - 230px);
+    /* Remplit l'espace restant sous l'en-tête / la légende / la case de recherche par thème
+       (#fond_anon est un flex-column via .blocvisible). Auparavant hauteur figée calc(100vh - 230px),
+       qui ne tenait pas compte de la case de recherche ajoutée → la barre collante « + » en bas
+       passait hors écran. flex:1 + min-height:0 garantit que le bas (bouton +) reste visible. */
+    flex: 1;
+    min-height: 0;
 }
 
 .tableau-anon {
@@ -3419,12 +3424,14 @@ SYNTHESE
 
 .tableau-anon th.col-entite {
   width: 40%;
-  color:var(--couleur-titre) !important; 
+  text-align: center;
+  color:var(--couleur-titre) !important;
 }
 
 .tableau-anon th.col-remplacement {
   width: 40%;
-  color:var(--couleur-titre) !important; 
+  text-align: center;
+  color:var(--couleur-titre) !important;
 }
 
 .tableau-anon th.col-actions {
@@ -4037,19 +4044,23 @@ SYNTHESE
 }
 
 .tableau-anon td {
-  padding: 10px;
+  padding: 12px 10px;
   vertical-align: middle;
 }
 
 .tableau-anon td.col-entite,
 .tableau-anon td.col-remplacement {
   width: 40%;
+  /* Centrage vertical de la boîte texte quand la ligne est plus haute (3 lignes dans Actions).
+     On utilise align-content (comme .col-actions ci-dessous), car dans ce Chromium/Electron
+     vertical-align:middle sur une cellule au contenu bloc ne recentrait pas visuellement. */
+  align-content: center;
 }
 
 .tableau-anon td.col-actions {
   width: 20%;
   text-align: center;
-  padding: 1px 0px;
+  padding: 8px 0px;
   align-content: center;
 }
 
@@ -4699,7 +4710,7 @@ SYNTHESE
 .actions-stack-portee {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     align-items: flex-start;
     width: 100%;                           /* pour centrer le slider dans toute la largeur de la cellule */
 }

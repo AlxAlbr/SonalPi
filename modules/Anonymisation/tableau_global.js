@@ -1703,13 +1703,13 @@ function _creerBadgeThematiqueCorpus(anon, tr) {
         if (theme) {
             badge.textContent = theme;
             badge.title = `Thématique : ${theme} — cliquer pour changer`;
-            badge.style.cssText = `background:${couleurThematique(theme)};color:#fff;border:1px solid rgba(0,0,0,0.15);`
-                + `border-radius:12px;padding:2px 8px;font-size:0.75rem;cursor:pointer;margin-right:6px;`;
+            badge.style.cssText = `display:block;margin:8px auto 0;background:${couleurThematique(theme)};color:#fff;`
+                + `border:1px solid rgba(0,0,0,0.15);border-radius:10px;padding:1px 7px;font-size:0.68rem;cursor:pointer;`;
         } else {
             badge.textContent = "＋ thème";
             badge.title = "Attribuer une thématique";
-            badge.style.cssText = `background:#f0f0f0;color:#666;border:1px dashed #bbb;`
-                + `border-radius:12px;padding:2px 8px;font-size:0.75rem;cursor:pointer;margin-right:6px;`;
+            badge.style.cssText = `display:block;margin:8px auto 0;background:#f0f0f0;color:#666;border:1px dashed #bbb;`
+                + `border-radius:12px;padding:2px 8px;font-size:0.75rem;cursor:pointer;`;
         }
         if (tr) tr.dataset.thematique = theme;
     };
@@ -1778,12 +1778,6 @@ function creerLigneAnonGen(anon, tabEnt) {
     tdActions.style.paddingTop = "8px";
     tdActions.style.paddingBottom = "8px";
     
-    // Badge de thématique (opt-in) — inséré AVANT les boutons. Ici toutes les lignes sont de portée
-    // corpus, donc definirThematiqueEntite écrit dans le store corpus.
-    if (typeof getThematiques === 'function' && getThematiques().actif) {
-        tdActions.appendChild(_creerBadgeThematiqueCorpus(anon, tr));
-    }
-
     // Bouton Vérifier pour cette entité
     const btnVerifier = document.createElement("button");
     btnVerifier.textContent = "🔍";
@@ -1818,6 +1812,13 @@ function creerLigneAnonGen(anon, tabEnt) {
 
     tdActions.appendChild(btnVerifier);
     tdActions.appendChild(btnSupprimer);
+
+    // Badge de thématique (opt-in) — placé SOUS la ligne des boutons 🔍/✖ (display:block centré).
+    // Ici toutes les lignes sont de portée corpus → definirThematiqueEntite écrit dans le store corpus.
+    if (typeof getThematiques === 'function' && getThematiques().actif) {
+        tdActions.appendChild(_creerBadgeThematiqueCorpus(anon, tr));
+    }
+
     tr.appendChild(tdActions);
 
     return tr;

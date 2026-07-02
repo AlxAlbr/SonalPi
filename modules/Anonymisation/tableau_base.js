@@ -62,9 +62,12 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
         existing.existeLocalement = true; // présente dans le tabAnon local → pas en attente
         // Multi-pseudo : l'alt local prime ; sinon on garde celui du corpus déjà posé.
         if (regle.remplacementAlt) existing.remplacementAlt = regle.remplacementAlt;
-        // Thématique : la valeur locale prime (elle a pu être posée depuis l'entretien) ; sinon
-        // on conserve celle héritée du corpus déjà présente.
-        if (regle.thematique) existing.thematique = regle.thematique;
+        // Thématique : « corpus autoritaire » — la valeur du corpus (déjà posée en branche global)
+        // fait foi pour une règle présente aux DEUX niveaux. On ne comble depuis le local QUE si le
+        // corpus n'en a pas, pour éviter qu'une thématique locale périmée écrase un changement fait
+        // au corpus (cf. divergence tracée). Les lignes document/brouillon (absentes du corpus)
+        // passent par la branche d'insertion, pas par ce else : leur thématique locale reste affichée.
+        if (regle.thematique && !existing.thematique) existing.thematique = regle.thematique;
       }
     });
   }
@@ -661,7 +664,6 @@ function affichTableauAnon() {
                 <td class="col-actions">
                     <div class="actions-stack-portee">
                         <div class="actions-container-new">
-                            ${_badgeThematiqueHtml(i, paire)}
                             ${badgesAnonHtml}
                             ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
                             ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
@@ -672,6 +674,7 @@ function affichTableauAnon() {
                                     : '')}
                         </div>
                         ${montrerSlider ? _sliderPorteeHtml(i, portee) : ''}
+                        ${_badgeThematiqueHtml(i, paire)}
                     </div>
                 </td>
             </tr>
@@ -682,17 +685,14 @@ function affichTableauAnon() {
             </tbody>
         </table>
         <div style="margin-top: 10px; display: flex; flex-direction:column; gap: 5px;width:100%; position:sticky;bottom:0px;">
-            <div style="display:flex; gap:5px; width:100%;">
-                <button class="btn-valider-anon-attente btnfonction btnlarge " style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:auto; padding-bottom:6px !important;" onclick="validerAnonEnAttente('document')" title="Appliquer tous les brouillons dans cet entretien seulement (sans toucher au corpus)">
+            <div style="display:flex; gap:8px; width:100%; justify-content:center;">
+                <button class="btn-valider-anon-attente btnfonction btnlarge " style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:auto; padding-bottom:6px !important; flex:1 1 auto; max-width:220px;" onclick="validerAnonEnAttente('document')" title="Appliquer tous les brouillons dans cet entretien seulement (sans toucher au corpus)">
                     <span>Appliquer au doc</span>
                     <span>🚧→📄</span>
                 </button>
-                <button class="btn-valider-anon-attente btnfonction btnlarge " style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:auto; padding-bottom:6px !important;" onclick="validerAnonEnAttente('corpus')" title="Appliquer tous les brouillons ET créer les règles au corpus (partagé)">
+                <button class="btn-valider-anon-attente btnfonction btnlarge " style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:auto; padding-bottom:6px !important; flex:1 1 auto; max-width:220px;" onclick="validerAnonEnAttente('corpus')" title="Appliquer tous les brouillons ET créer les règles au corpus (partagé)">
                     <span>Applique au corpus</span>
                     <span>🚧→📁</span>
-                </button>
-                <button class="btn-valider-anon-attente btnfonction btnlarge " style="flex:1;" onclick="ajouterNouvelleLigneAnon()">
-                    ➕
                 </button>
             </div>
             <input type="file" id="file-import-correspondance" multiple accept=".json" style="display: none;">
@@ -1222,54 +1222,6 @@ async function proposerSuppressionRegleCorpusSiIsolee(entite, pseudosTxt) {
     } catch (e) {
         console.error("❌ proposerSuppressionRegleCorpusSiIsolee:", e);
     }
-}
-
-// Ajoute une nouvelle ligne au tableau
-function ajouterNouvelleLigneAnon() {
-    window.tabAnon.push({ entite: "", remplacement: "", occurrences: 0, indexCourant: 0, matchPositions: [], portee: 'brouillon' });
-    affichTableauAnon();
-
-    // Placer le focus sur le champ Entité de la nouvelle ligne avec un scroll smooth
-    setTimeout(() => {
-        const newIdx = window.tabAnon.length - 1;
-        const nouvelleEntite = document.querySelector(`.input-entite[data-idx="${newIdx}"]`);
-        const tableauDiv = document.getElementById('tableauAnon');
-
-        if (nouvelleEntite) {
-            try {
-                // Forcer le conteneur à utiliser un comportement de scroll smooth
-                if (tableauDiv) {
-                    // sauvegarder valeur précédente
-                    const prev = tableauDiv.style.scrollBehavior;
-                    tableauDiv.style.scrollBehavior = 'smooth';
-
-                    // scroller la nouvelle ligne au centre
-                    nouvelleEntite.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                    // restaurer après un court délai
-                    setTimeout(() => { tableauDiv.style.scrollBehavior = prev || ''; }, 400);
-                } else {
-                    // fallback si conteneur non trouvé
-                    nouvelleEntite.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            } catch (e) {
-                // si le navigateur ne supporte pas smooth, utiliser fallback
-                nouvelleEntite.scrollIntoView(true);
-            }
-
-            // Focus sur le champ après le scroll
-            setTimeout(() => { nouvelleEntite.focus(); }, 220);
-            // Ajouter une animation discrète sur la nouvelle ligne pour la repérer
-            setTimeout(() => {
-                const nouvelleLigne = document.querySelector(`tr[data-idx="${newIdx}"]`);
-                if (nouvelleLigne) {
-                    nouvelleLigne.classList.add('new-row-pulse');
-                    // retirer la classe après l'animation
-                    setTimeout(() => { nouvelleLigne.classList.remove('new-row-pulse'); }, 900);
-                }
-            }, 260);
-        }
-    }, 0);
 }
 
 // Ajoute une entité sélectionnée à la première ligne vide
@@ -2528,12 +2480,12 @@ function _badgeThematiqueHtml(i, paire) {
         const bg = couleurThematique(theme);
         return `<button type="button" class="btn-theme-badge" onclick="ouvrirBadgeThematique(event,${i})"`
             + ` title="Thématique : ${_escAnonMenu(theme)} — cliquer pour changer"`
-            + ` style="background:${bg};color:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:12px;`
-            + `padding:2px 8px;font-size:0.75rem;cursor:pointer;line-height:1.4;">${_escAnonMenu(theme)}</button>`;
+            + ` style="align-self:center;background:${bg};color:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:10px;`
+            + `padding:1px 7px;font-size:0.68rem;cursor:pointer;line-height:1.4;">${_escAnonMenu(theme)}</button>`;
     }
     return `<button type="button" class="btn-theme-badge" onclick="ouvrirBadgeThematique(event,${i})"`
         + ` title="Attribuer une thématique"`
-        + ` style="background:#f0f0f0;color:#666;border:1px dashed #bbb;border-radius:12px;`
+        + ` style="align-self:center;background:#f0f0f0;color:#666;border:1px dashed #bbb;border-radius:12px;`
         + `padding:2px 8px;font-size:0.75rem;cursor:pointer;line-height:1.4;">＋ thème</button>`;
 }
 
