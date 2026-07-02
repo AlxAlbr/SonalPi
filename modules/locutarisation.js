@@ -11,6 +11,42 @@
 var  locut = ['','Question?','Réponse','Réponse 2'];
 
 
+/**
+ * Nom AFFICHÉ d'un locuteur, pseudonymisé si demandé. Point de passage UNIQUE pour toute
+ * lecture d'un nom de locuteur dans les exports/synthèses (plan-locuteurs-pseudo.md, Étape 0) :
+ * le jour où la pseudonymisation du libellé existe, elle s'applique ici sans toucher les appelants.
+ *
+ * Le pseudo du libellé (`data-locpseudo`, posé par les étapes suivantes) vit dans le DOM — il n'existe
+ * pas encore, donc le repli est le NOM RÉEL et le comportement actuel est inchangé. Comme le pseudo
+ * est lu sur le DOM, ce helper n'est utile que là où l'entretien est rendu (fenêtre d'édition).
+ *
+ * @param {HTMLElement|number|string} ref - un élément `.ligloc` (ou un de ses descendants), OU un
+ *   index dans `locut[]`.
+ * @param {{anonymise?: boolean}} [opts] - `anonymise=true` → renvoie le pseudo du libellé s'il est posé.
+ * @returns {string} le pseudo (si `anonymise` et `data-locpseudo` présent), sinon le nom réel sans « ? ».
+ */
+function nomLocAffiche(ref, { anonymise = false } = {}) {
+    let lig = null;
+    let nomReel = "";
+
+    if (typeof HTMLElement !== 'undefined' && ref instanceof HTMLElement) {
+        lig = ref.classList.contains('ligloc') ? ref : ref.closest('.ligloc');
+        nomReel = ((lig && lig.dataset.nomloc) || "").replace(/\?/g, "");
+    } else {
+        nomReel = ((typeof locut !== 'undefined' && locut[ref]) || "").replace(/\?/g, "");
+        if (anonymise) lig = document.querySelector(`.ligloc[data-loc="${ref}"]`);
+    }
+
+    if (anonymise && lig) {
+        // Confirmé (loc-anon) OU suggéré non refusé (loc-suggere) → pseudonymisé. SÉCURITÉ : un libellé
+        // affiché « Nom → Pseudo ? » (suggestion) sort pseudonymisé à l'export, pas en clair — on évite
+        // la mauvaise surprise. Le refus explicite (loc-suggere-refuse) n'a aucune de ces classes → nom réel.
+        if (lig.classList.contains('loc-anon') && lig.dataset.locpseudo) return lig.dataset.locpseudo;
+        if (lig.classList.contains('loc-suggere') && lig.dataset.locpseudoSuggere) return lig.dataset.locpseudoSuggere;
+    }
+    return nomReel;
+}
+
 
 async function chargeLocut(){
 

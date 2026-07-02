@@ -503,6 +503,179 @@ function showMenuNonTraite(span, idxPaire, matchIdx) {
     document.addEventListener('mousedown', closeMenu);
 }
 
+/**
+ * Menu contextuel du LIBELLÉ pseudonymisé d'un locuteur (plan-locuteurs-pseudo.md Étape 4) : retrait
+ * LOCAL de la pseudonymisation du libellé — distinct de la suppression de la règle (qui obéit, elle, à
+ * I-POR-5). Toujours accessible, même pour un locuteur NON cité dans le texte (pas d'occurrence à
+ * clic-droiter).
+ * @param {HTMLElement} lig - le `.ligloc.loc-anon` cliqué
+ */
+function showMenuLibelleLocuteur(lig) {
+    const oldMenu = document.getElementById('contextMenuException');
+    if (oldMenu) oldMenu.remove();
+
+    const fondseg = document.getElementById('segments');
+    if (!fondseg) return;
+
+    const menuDiv = document.createElement('div');
+    menuDiv.id = 'contextMenuException';
+    menuDiv.classList.add('context-menu', 'dnone');
+    fondseg.appendChild(menuDiv);
+
+    const ajouterItem = (texte, action) => {
+        const item = document.createElement('div');
+        item.className = 'menu-item';
+        item.textContent = texte;
+        item.addEventListener('mousedown', async () => { menuDiv.remove(); await action(); });
+        menuDiv.appendChild(item);
+    };
+
+    if (lig.classList.contains('loc-anon')) {
+        const pseudo = lig.dataset.locpseudo || '';
+        ajouterItem(`🚫 Ne plus pseudonymiser « ${pseudo} » (ce locuteur, cet entretien)`,
+            () => retirerPseudoLibelleLocuteur(lig.dataset.nomloc));
+        ajouterItem(`🗑 Supprimer la règle « ${lig.dataset.nomloc || ''} → ${pseudo} »…`,
+            () => supprimerRegleDepuisLibelle(lig.dataset.nomloc));
+    } else if (lig.classList.contains('loc-suggere')) {
+        const pseudo = lig.dataset.locpseudoSuggere || '';
+        ajouterItem(`✓ Pseudonymiser ce locuteur en « ${pseudo} » (cet entretien)`,
+            () => confirmerPseudoLibelleLocuteur(lig.dataset.nomloc));
+        ajouterItem(`✕ Ne pas pseudonymiser ce locuteur (cet entretien)`,
+            () => refuserPseudoLibelleLocuteur(lig.dataset.nomloc));
+    } else if (lig.classList.contains('loc-suggere-refuse')) {
+        const pseudo = lig.dataset.locpseudoSuggere || '';
+        ajouterItem(`✓ Pseudonymiser ce locuteur en « ${pseudo} » (cet entretien)`,
+            () => confirmerPseudoLibelleLocuteur(lig.dataset.nomloc));
+    } else {
+        menuDiv.remove(); // état inattendu : pas de menu
+        return;
+    }
+
+    const rect = lig.getBoundingClientRect();
+    const base = fondseg.getBoundingClientRect();
+    menuDiv.style.top = (rect.top - base.top + fondseg.scrollTop) + 'px';
+    menuDiv.style.left = (rect.left + 20 - base.left) + 'px';
+    menuDiv.classList.remove('dnone');
+
+    // Fermer au clic ailleurs (différé pour ne pas se refermer sur le clic-droit courant).
+    const closeMenu = (e) => {
+        const menu = document.getElementById('contextMenuException');
+        if (menu && !menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('mousedown', closeMenu);
+        }
+    };
+    setTimeout(() => document.addEventListener('mousedown', closeMenu), 0);
+}
+
+/**
+ * « Retirer la pseudonymisation » d'un libellé confirmé (plan-locuteurs-pseudo.md Étape 4) : ce n'est
+ * PAS une suppression mais un REFUS **persistant** (loc-anon → loc-suggere-refuse). Le locuteur reste EN
+ * CLAIR ici, durablement — plus de re-suggestion ni de re-pseudonymisation à la réouverture (un simple
+ * retrait de `loc-anon` laissait la règle corpus re-suggérer). Le pseudo est conservé dans
+ * `data-locpseudo-suggere` (ré-activation au clic-droit). La règle CORPUS n'est PAS supprimée (reste au
+ * `.crp`, s'applique ailleurs). Match par nom (N→1).
+ * @param {string} nomLoc - data-nomloc du locuteur (nom réel, sans « ? »)
+ */
+async function retirerPseudoLibelleLocuteur(nomLoc) {
+    if (typeof backUp === 'function') backUp();
+    const clesNom = clesAlias(nomLoc || '');
+    document.querySelectorAll('.ligloc.loc-anon[data-nomloc]').forEach(l => {
+        if (!clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k))) return;
+        const pseudo = l.dataset.locpseudo || '';
+        l.classList.remove('loc-anon');
+        delete l.dataset.locpseudo;
+        l.classList.add('loc-suggere-refuse');
+        if (pseudo) l.dataset.locpseudoSuggere = pseudo;
+    });
+    // Symétrie de la confirmation : si la règle n'était matérialisée QUE par ce libellé (corpus
+    // fusionnée, 0 occurrence de TEXTE), elle redevient un « fantôme » corpus → on retire
+    // existeLocalement (disparaît du tableau + nettoyée à la sauvegarde, reste au corpus). Une règle
+    // avec des occurrences de texte, ou créée localement, n'est pas touchée.
+    let regleTouchee = false;
+    (window.tabAnon || []).forEach(p => {
+        if (p && p.entite && p.source === 'Global' && p.existeLocalement && (p.occurrences || 0) === 0
+            && clesAlias(p.entite).some(k => clesNom.includes(k))) {
+            p.existeLocalement = false; regleTouchee = true;
+        }
+    });
+    if (regleTouchee && typeof affichTableauAnon === 'function') affichTableauAnon();
+    if (regleTouchee && typeof sauvegarderTabAnonEnt === 'function') await sauvegarderTabAnonEnt();
+    if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
+}
+
+/**
+ * Confirme une SUGGESTION de pseudonymisation de libellé (plan-locuteurs-pseudo.md Étape 3) : promeut
+ * tous les `.ligloc.loc-suggere` du même locuteur (match par nom, N→1) en `loc-anon` + `data-locpseudo`.
+ * Local + persistance cache HTML. La RÈGLE (corpus ou locale) n'est PAS touchée — c'est l'opt-in LOCAL.
+ * @param {string} nomLoc - data-nomloc du locuteur
+ */
+async function confirmerPseudoLibelleLocuteur(nomLoc) {
+    if (typeof backUp === 'function') backUp();
+    const clesNom = clesAlias(nomLoc || '');
+    // 1. Promouvoir les libellés suggérés OU refusés → confirmés (loc-suggere/-refuse → loc-anon).
+    document.querySelectorAll('.ligloc.loc-suggere[data-nomloc], .ligloc.loc-suggere-refuse[data-nomloc]').forEach(l => {
+        if (!clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k))) return;
+        const pseudo = (l.dataset.locpseudoSuggere || '').trim();
+        l.classList.remove('loc-suggere', 'loc-suggere-refuse');
+        delete l.dataset.locpseudoSuggere;
+        if (pseudo) {
+            l.classList.add('loc-anon');
+            l.dataset.locpseudo = pseudo;
+        }
+    });
+    // 2. La règle (corpus fusionnée) est désormais MATÉRIALISÉE ici par le libellé → elle APPARTIENT à
+    //    l'entretien : existeLocalement=true. Sinon, fantôme corpus (occ texte=0) → cachée du tableau
+    //    (filtre affichTableauAnon) et jetée à la sauvegarde. Cohérent avec « matérialisé = texte OU
+    //    libellé » : la règle s'affiche comme règle corpus (à 0 occurrence de texte) et survit.
+    let regleTouchee = false;
+    (window.tabAnon || []).forEach(p => {
+        if (p && p.entite && !p.existeLocalement
+            && clesAlias(p.entite).some(k => clesNom.includes(k))) {
+            p.existeLocalement = true; regleTouchee = true;
+        }
+    });
+    if (regleTouchee && typeof affichTableauAnon === 'function') affichTableauAnon();
+    if (regleTouchee && typeof sauvegarderTabAnonEnt === 'function') await sauvegarderTabAnonEnt();
+    if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
+}
+
+/**
+ * Refuse une SUGGESTION de pseudonymisation de libellé (« ne pas pseudonymiser ce locuteur ») : les
+ * `.ligloc.loc-suggere` du locuteur passent en `loc-suggere-refuse` (**persisté**). Effet : plus de
+ * re-suggestion (detecterLibellesASuggerer l'ignore) ET le libellé sort EN CLAIR à l'export
+ * (nomLocAffiche). On conserve `data-locpseudo-suggere` pour pouvoir ré-activer plus tard (clic-droit).
+ * @param {string} nomLoc
+ */
+async function refuserPseudoLibelleLocuteur(nomLoc) {
+    if (typeof backUp === 'function') backUp();
+    const clesNom = clesAlias(nomLoc || '');
+    document.querySelectorAll('.ligloc.loc-suggere[data-nomloc]').forEach(l => {
+        if (!clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k))) return;
+        l.classList.remove('loc-suggere');
+        l.classList.add('loc-suggere-refuse');
+    });
+    if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
+}
+
+/**
+ * SUPPRIME la règle (≠ opt-out local) depuis le libellé : trouve sa ligne dans window.tabAnon et
+ * délègue à `supprimeLigneAnon`, qui applique le garde-fou d'isolement (I-POR-5) :
+ *  - règle utilisée UNIQUEMENT dans cet entretien → supprimée (+ proposition de la retirer du corpus) ;
+ *  - règle PARTAGÉE (labels/texte dans d'autres entretiens, 🔒) → refus + renvoi au panneau Pseudos.
+ * Le démarquage du libellé suit via le hook resynchroniserLibellesLocuteurs de supprimeLigneAnon.
+ * @param {string} nomLoc
+ */
+async function supprimerRegleDepuisLibelle(nomLoc) {
+    if (typeof supprimeLigneAnon !== 'function') return;
+    const clesNom = clesAlias(nomLoc || '');
+    const idx = (window.tabAnon || []).findIndex(p =>
+        p && p.entite && (p.portee || 'corpus') !== 'brouillon'
+        && clesAlias(p.entite).some(k => clesNom.includes(k)));
+    if (idx < 0) return;
+    await supprimeLigneAnon(idx);
+}
+
 // Attache les event listeners pour gérer les clics sur les mots anonymisés
 // Utilise la délégation d'événements pour éviter les doublons
 function attacheExceptionListeners() {
@@ -520,6 +693,17 @@ function attacheExceptionListeners() {
     const handler = (e) => {
         // Seulement en mode anonymisation
         if (typeof typeAction === 'undefined' || typeAction !== 'anon') return;
+
+        // Clic-DROIT sur le LIBELLÉ d'un locuteur (le ::before du .ligloc, donc hors texte : pas de
+        // [data-rk]) → menu : retrait si pseudonymisé (loc-anon, Étape 4), confirmation si suggéré
+        // (loc-suggere, Étape 3).
+        const ligLabel = e.target.closest('.ligloc.loc-anon, .ligloc.loc-suggere, .ligloc.loc-suggere-refuse');
+        if (ligLabel && !e.target.closest('[data-rk]') && e.type === 'contextmenu') {
+            e.preventDefault();
+            e.stopPropagation();
+            showMenuLibelleLocuteur(ligLabel);
+            return;
+        }
 
         const span = e.target.closest('[data-rk]');
         if (!span) return;

@@ -12,11 +12,25 @@
 // qu'à l'Enregistrer ; Annuler/✕ jettent ce brouillon sans rien persister.
 let _motsLiaisonBrouillon = [];
 
+// Brouillon des THÉMATIQUES d'entités (fonctionnalité opt-in, cf. plan-thematiques-entites.md).
+// Même principe que _motsLiaisonBrouillon : copie de travail amorcée à l'ouverture, persistée
+// seulement à l'Enregistrer. { actif:boolean, liste:string[] } (liste en MAJUSCULES).
+let _thematiquesBrouillon = { actif: false, liste: [] };
+
 /** Liste effective courante des mots de liaison (corpus si défini, sinon défauts). */
 function _motsLiaisonEffectifs() {
     if (typeof getMotsLiaison === 'function') return getMotsLiaison().slice();
     if (typeof MOTS_LIAISON_DEFAUT !== 'undefined') return MOTS_LIAISON_DEFAUT.slice();
     return [];
+}
+
+/** Réglage effectif courant des thématiques (corpus si défini, sinon défauts). Copie profonde. */
+function _thematiquesEffectives() {
+    if (typeof getThematiques === 'function') {
+        const t = getThematiques();
+        return { actif: !!t.actif, liste: (t.liste || []).slice() };
+    }
+    return { actif: false, liste: (typeof THEMES_DEFAUT !== 'undefined') ? THEMES_DEFAUT.slice() : [] };
 }
 
 /**
@@ -26,6 +40,7 @@ function _motsLiaisonEffectifs() {
 function ouvrirParamsAnonCorpus() {
     if (document.getElementById('params-anon-overlay')) return; // déjà ouverte
     _motsLiaisonBrouillon = _motsLiaisonEffectifs();
+    _thematiquesBrouillon = _thematiquesEffectives();
 
     const overlay = document.createElement('div');
     overlay.id = 'params-anon-overlay';
@@ -62,6 +77,49 @@ function ouvrirParamsAnonCorpus() {
                         border:none;border-radius:6px;cursor:pointer;">Ajouter</button>
             </div>
 
+            <style>
+                /* Toggle stylé (interrupteur) de la section Thématiques */
+                #params-anon-overlay .switch { position:relative; display:inline-block; width:44px; height:24px; }
+                #params-anon-overlay .switch input { opacity:0; width:0; height:0; }
+                #params-anon-overlay .switch .slider {
+                    position:absolute; cursor:pointer; inset:0; background:#ccc; transition:.2s; border-radius:24px; }
+                #params-anon-overlay .switch .slider:before {
+                    position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px;
+                    background:white; transition:.2s; border-radius:50%; }
+                #params-anon-overlay .switch input:checked + .slider { background:#4CAF50; }
+                #params-anon-overlay .switch input:checked + .slider:before { transform:translateX(20px); }
+            </style>
+
+            <div style="display:flex;align-items:center;gap:10px;margin:26px 0 6px;">
+                <h3 style="color:#2196F3;margin:0;">Thématiques d'entités</h3>
+                <label class="switch" title="Activer / désactiver les thématiques">
+                    <input id="params-themes-actif" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <p style="color:#555;line-height:1.5;margin:0 0 12px;">
+                Catégorisez chaque entité par une <strong>thématique</strong> (PER, LOC, ORG, DAT…) via un
+                badge dans la colonne Actions, puis <strong>retrouvez</strong> toutes les entités d'un thème
+                en tapant son nom dans la case « Rechercher ». Fonctionnalité <strong>optionnelle</strong>,
+                réglage <strong>partagé par tout le corpus</strong>.
+            </p>
+
+            <div id="params-themes-body">
+                <div id="params-themes-chips"
+                     style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #ccc;
+                            border-radius:6px;padding:8px;min-height:44px;"></div>
+
+                <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                    <input id="params-themes-input" type="text" autocomplete="off" placeholder="ajouter une thématique…"
+                           style="flex:1;padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem;">
+                    <button id="params-themes-add" style="padding:7px 14px;background:#2196F3;color:white;
+                            border:none;border-radius:6px;cursor:pointer;">Ajouter</button>
+                    <button onclick="reinitThematiques()" title="Revenir à la liste fournie par défaut"
+                            style="padding:7px 12px;background:#f0f0f0;color:#333;border:1px solid #ccc;
+                                   border-radius:6px;cursor:pointer;">↺ Réinitialiser</button>
+                </div>
+            </div>
+
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;">
                 <button onclick="reinitMotsLiaison()" title="Revenir à la liste fournie par défaut"
                         style="padding:8px 14px;background:#f0f0f0;color:#333;border:1px solid #ccc;
@@ -91,6 +149,30 @@ function ouvrirParamsAnonCorpus() {
     input.focus();
 
     _renderChipsLiaison();
+
+    // Câblage de la section Thématiques
+    const themeInput = document.getElementById('params-themes-input');
+    const themeActif = document.getElementById('params-themes-actif');
+    themeActif.checked = !!_thematiquesBrouillon.actif;
+    document.getElementById('params-themes-add').addEventListener('click', () => _ajouterThemeDepuisInput());
+    themeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); _ajouterThemeDepuisInput(); }
+    });
+    themeActif.addEventListener('change', () => {
+        _thematiquesBrouillon.actif = themeActif.checked;
+        _syncEtatSectionThemes();
+    });
+    _renderChipsThematiques();
+    _syncEtatSectionThemes();
+}
+
+/** Grise/dé-grise l'éditeur de thématiques selon l'état de l'interrupteur (opt-in). */
+function _syncEtatSectionThemes() {
+    const body = document.getElementById('params-themes-body');
+    if (!body) return;
+    const off = !_thematiquesBrouillon.actif;
+    body.style.opacity = off ? '0.45' : '1';
+    body.style.pointerEvents = off ? 'none' : 'auto';
 }
 
 /** Ferme la modale sans rien persister (le brouillon est abandonné). */
@@ -98,6 +180,7 @@ function fermerParamsAnonCorpus() {
     const overlay = document.getElementById('params-anon-overlay');
     if (overlay) overlay.remove();
     _motsLiaisonBrouillon = [];
+    _thematiquesBrouillon = { actif: false, liste: [] };
 }
 
 /** (Re)dessine les chips depuis le brouillon courant. */
@@ -163,14 +246,82 @@ function reinitMotsLiaison() {
     _renderChipsLiaison();
 }
 
+/** (Re)dessine les chips de thématiques depuis le brouillon courant (couleur = palette indexée). */
+function _renderChipsThematiques() {
+    const box = document.getElementById('params-themes-chips');
+    if (!box) return;
+    box.innerHTML = '';
+
+    if (_thematiquesBrouillon.liste.length === 0) {
+        const vide = document.createElement('span');
+        vide.style.cssText = 'color:#999;font-style:italic;';
+        vide.textContent = 'Aucune thématique — ajoutez-en pour catégoriser les entités.';
+        box.appendChild(vide);
+        return;
+    }
+
+    _thematiquesBrouillon.liste.forEach((theme, i) => {
+        // Couleur = position dans la liste (ordre d'arrivée), gris au-delà de la palette.
+        const bg = (typeof PALETTE_THEMES !== 'undefined' && i < PALETTE_THEMES.length)
+            ? PALETTE_THEMES[i] : (typeof COULEUR_THEME_INCONNU !== 'undefined' ? COULEUR_THEME_INCONNU : '#9e9e9e');
+
+        const chip = document.createElement('span');
+        chip.style.cssText =
+            'display:inline-flex;align-items:center;gap:5px;padding:3px 6px 3px 10px;border-radius:14px;' +
+            `font-size:0.9rem;background:${bg};border:1px solid rgba(0,0,0,0.15);color:#fff;`;
+
+        const label = document.createElement('span');
+        label.textContent = theme;
+        chip.appendChild(label);
+
+        const x = document.createElement('button');
+        x.textContent = '✕';
+        x.title = 'Retirer';
+        x.style.cssText =
+            'background:none;border:none;cursor:pointer;color:inherit;font-size:0.8rem;line-height:1;padding:0;';
+        x.addEventListener('click', () => {
+            _thematiquesBrouillon.liste = _thematiquesBrouillon.liste.filter((t) => t !== theme);
+            _renderChipsThematiques();
+        });
+        chip.appendChild(x);
+
+        box.appendChild(chip);
+    });
+}
+
+/** Lit le champ, normalise (trim, un seul token, MAJUSCULES), ajoute la thématique si valide et nouvelle. */
+function _ajouterThemeDepuisInput() {
+    const input = document.getElementById('params-themes-input');
+    if (!input) return;
+    const brut = (input.value || '').trim().toUpperCase();
+    input.value = '';
+    input.focus();
+    if (!brut) return;
+    if (/\s/.test(brut)) { // un thème = un token (cohérent avec la recherche « match exact »)
+        if (typeof afficherNotification === 'function')
+            afficherNotification('Une seule thématique à la fois (pas d\'espace).', 'error');
+        return;
+    }
+    if (_thematiquesBrouillon.liste.some((t) => t.toUpperCase() === brut)) return; // déjà présent
+    _thematiquesBrouillon.liste.push(brut);
+    _renderChipsThematiques();
+}
+
+/** Remet la liste de thématiques aux valeurs fournies par défaut (THEMES_DEFAUT). */
+function reinitThematiques() {
+    _thematiquesBrouillon.liste = (typeof THEMES_DEFAUT !== 'undefined') ? THEMES_DEFAUT.slice() : [];
+    _renderChipsThematiques();
+}
+
 /**
  * Persiste le brouillon : met à jour window.paramsAnonCorpus, le pousse dans le process main
  * (setParamsAnon) puis déclenche une sauvegarde du corpus (écriture dans le .crp).
  */
 async function enregistrerParamsAnonCorpus() {
     const motsLiaison = _motsLiaisonBrouillon.slice();
-    const params = Object.assign({}, window.paramsAnonCorpus || {}, { motsLiaison });
-    window.paramsAnonCorpus = params; // lu (synchrone) par getMotsLiaison()
+    const thematiques = { actif: !!_thematiquesBrouillon.actif, liste: _thematiquesBrouillon.liste.slice() };
+    const params = Object.assign({}, window.paramsAnonCorpus || {}, { motsLiaison, thematiques });
+    window.paramsAnonCorpus = params; // lu (synchrone) par getMotsLiaison() / getThematiques()
 
     try {
         await window.electronAPI.setParamsAnon(params);

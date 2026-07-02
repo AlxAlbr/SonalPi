@@ -12,7 +12,7 @@ function estEntierementIncluse(paire) {
 /**
  * Exporte la table de correspondance des anonymisations validées en JSON
  * Format: [{"entite_init": "XXX", "entite_pseudo":"YYYY"}, ...]
- * Seules les lignes avec entité initiale, entité de remplacement et occurrences > 0 sont exportées
+ * Lignes exportées : entité + remplacement + MATÉRIALISÉES (occurrences de texte OU libellé de locuteur).
  */
 function exportTableCorrespondance() {
     if (typeof window.tabAnon === 'undefined' || !window.tabAnon) {
@@ -23,12 +23,30 @@ function exportTableCorrespondance() {
     // Créer un tableau avec les lignes validées
     const correspondances = [];
 
+    // Champ `thematique` OPTIONNEL (plan-thematiques-entites.md, Phase 4) : ajouté seulement si présent,
+    // ignoré à l'import s'il est absent (rétrocompatible).
+    const pousser = (entite_init, entite_pseudo, paire) => {
+        const c = { entite_init, entite_pseudo };
+        if (paire && paire.thematique) c.thematique = paire.thematique;
+        correspondances.push(c);
+    };
+
     const spansExport = document.querySelectorAll('[data-rk]');
     for (let i = 0; i < window.tabAnon.length; i++) {
         const paire = window.tabAnon[i];
 
-        // Vérifier que la ligne a été validée (entité + remplacement + au moins une occurrence)
-        if (!(paire.entite && paire.remplacement && paire.occurrences > 0)) continue;
+        // Ligne validée = entité + remplacement + MATÉRIALISÉE : occurrences de TEXTE OU libellé de
+        // locuteur (plan-locuteurs-pseudo.md). Sinon une pseudonymisation de LIBELLÉ (occ texte=0)
+        // manquerait dans la clé « qui est qui ».
+        const aLibelle = (typeof aLibellePseudonymise === 'function') && aLibellePseudonymise(paire);
+        if (!(paire.entite && paire.remplacement && (paire.occurrences > 0 || aLibelle))) continue;
+
+        // Label-only (0 occurrence de TEXTE) : pas de spans à interroger → on consigne entité → pseudo
+        // primaire (= le pseudo du libellé). La logique multi-pseudo ci-dessous ne vaut que pour le texte.
+        if (!(paire.occurrences > 0)) {
+            pousser(paire.entite, paire.remplacement, paire);
+            continue;
+        }
 
         const pseudosLigne = pseudosDe(paire);
         if (pseudosLigne.length > 1) {
@@ -43,12 +61,12 @@ function exportTableCorrespondance() {
             // Si aucune variante propre n'a pu être détectée : n'exporter le primaire QUE si la ligne
             // n'est pas entièrement absorbée (sinon rien d'« appliqué » à consigner).
             if (variantes.length > 0) {
-                variantes.forEach(p => correspondances.push({ entite_init: paire.entite, entite_pseudo: p }));
+                variantes.forEach(p => pousser(paire.entite, p, paire));
             } else if (!estEntierementIncluse(paire)) {
-                correspondances.push({ entite_init: paire.entite, entite_pseudo: paire.remplacement });
+                pousser(paire.entite, paire.remplacement, paire);
             }
         } else if (!estEntierementIncluse(paire)) {
-            correspondances.push({ entite_init: paire.entite, entite_pseudo: paire.remplacement });
+            pousser(paire.entite, paire.remplacement, paire);
         }
     }
     
@@ -168,6 +186,8 @@ async function appliquerImportCorrespondances(correspondances) {
         const entiteInit = corr.entite_init.trim();
         const entiePseudo = corr.entite_pseudo.trim();
         const entiePseudoAlt = (corr.entite_pseudo_alt || '').trim();
+        // Champ thematique OPTIONNEL (round-trip) : restauré s'il est présent, ignoré sinon.
+        const themeImport = (corr.thematique || '').trim().toUpperCase();
 
         // « Garder les deux » : pose l'alt sur une ligne mono (alt distinct), et note l'entité pour
         // répercuter au corpus. Renvoie true si l'alt a été posé.
@@ -192,6 +212,7 @@ async function appliquerImportCorrespondances(correspondances) {
 
         if (idxLigneExistante >= 0) {
             const ligne = tabAnon[idxLigneExistante];
+            if (themeImport) ligne.thematique = themeImport;
             if (ligne.occurrences === 0) {
                 // Ligne non validée → mettre à jour pseudo (+ alt éventuel).
                 ligne.remplacement = entiePseudo;
@@ -215,11 +236,13 @@ async function appliquerImportCorrespondances(correspondances) {
 
             if (idxLigneVide === -1) {
                 const ligne = { entite: entiteInit, remplacement: entiePseudo, occurrences: 0, indexCourant: 0, matchPositions: [] };
+                if (themeImport) ligne.thematique = themeImport;
                 poserAlt(ligne);
                 tabAnon.push(ligne);
             } else {
                 tabAnon[idxLigneVide].entite = entiteInit;
                 tabAnon[idxLigneVide].remplacement = entiePseudo;
+                if (themeImport) tabAnon[idxLigneVide].thematique = themeImport;
                 poserAlt(tabAnon[idxLigneVide]);
             }
 

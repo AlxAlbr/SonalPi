@@ -215,6 +215,27 @@ function ouvrirAideCorpus() {
                         <code>une</code>, <code>des</code> sont à manier avec précaution (ils peuvent
                         tronquer le pseudo proposé) — à n'ajouter qu'en connaissance de cause.</li>
                     </ul>
+
+                    <h3 style="color:#2196F3;">8️⃣ Thématiques d'entités (optionnel)</h3>
+                    <ul style="margin:8px 0;padding-left:20px;">
+                        <li>Dans <strong>⚙ Paramètres</strong>, activez les <strong>thématiques</strong> (interrupteur)
+                        pour catégoriser chaque entité — par défaut <code>PER</code> (personne),
+                        <code>LOC</code> (lieu), <code>ORG</code> (organisation), <code>DAT</code> (date).
+                        Vous pouvez <strong>ajouter / retirer</strong> des thématiques. Réglage
+                        <strong>partagé par tout le corpus</strong>, enregistré dans le <code>.crp</code>.</li>
+                        <li>Un <strong>badge</strong> apparaît alors dans la colonne Actions (niveaux entretien
+                        <em>et</em> corpus) : cliquez-le pour attribuer une thématique (ou « Aucune »).
+                        <strong>Une seule</strong> thématique par entité ; toutes ses occurrences en héritent.</li>
+                        <li>La thématique posée au niveau <strong>entretien</strong> <strong>remonte</strong> au
+                        corpus en suivant le cycle de portée 🚧 brouillon → 📄 document → 📁 corpus.</li>
+                        <li><strong>Retrouver</strong> les entités d'un thème : tapez son nom (ex. « <code>PER</code> »)
+                        dans la case <strong>Rechercher</strong> — si le terme correspond exactement à une
+                        thématique active, l'affichage se filtre par ce thème ; sinon la recherche texte
+                        habituelle (entité / pseudo) s'applique.</li>
+                        <li>Si vous <strong>désactivez</strong> les thématiques, les badges et la recherche par
+                        thème disparaissent, mais les valeurs déjà posées sont <strong>conservées</strong> et
+                        réapparaissent à la réactivation.</li>
+                    </ul>
                 </div>
 
                 <div style="margin-top: 20px; text-align: right;">
