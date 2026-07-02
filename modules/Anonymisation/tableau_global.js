@@ -1726,9 +1726,32 @@ function _creerBadgeThematiqueCorpus(anon, tr) {
     return badge;
 }
 
+/**
+ * Rafraîchit À CHAUD les badges de thématique du panneau Pseudos corpus après un changement de
+ * réglage (activation/désactivation), SANS re-render complet (pas de reconstitution/scan). Ajoute
+ * le badge sur chaque ligne si la fonctionnalité est active, le retire sinon ; met à jour le
+ * placeholder de la case Rechercher. Appelé par enregistrerParamsAnonCorpus.
+ */
+function rafraichirBadgesThematiquesCorpus() {
+    const actif = (typeof getThematiques === 'function') && getThematiques().actif;
+    document.querySelectorAll('.ligne-anon-gen').forEach(tr => {
+        const tdActions = tr.lastElementChild; // colonne Actions
+        if (!tdActions) return;
+        const existant = tdActions.querySelector('.btn-theme-badge-corpus');
+        if (actif) {
+            if (!existant && tr._anonRegle) tdActions.appendChild(_creerBadgeThematiqueCorpus(tr._anonRegle, tr));
+        } else if (existant) {
+            existant.remove();
+        }
+    });
+    const input = document.getElementById('anon-gen-recherche');
+    if (input) input.placeholder = actif ? 'Rechercher (entité, pseudo, ou thème)…' : 'Rechercher (entité ou pseudo)…';
+}
+
 function creerLigneAnonGen(anon, tabEnt) {
     const tr = document.createElement("tr");
     tr.classList.add("ligne-anon-gen");
+    tr._anonRegle = anon; // référence à la règle (pour recréer le badge thématique à chaud, cf. rafraichirBadgesThematiquesCorpus)
     tr.dataset.entite = anon.entite;
     tr.dataset.pseudo = anon.remplacement;
     tr.dataset.thematique = (anon.thematique || '').trim(); // exposé pour la recherche par thème (Phase 3)

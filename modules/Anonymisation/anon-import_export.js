@@ -23,11 +23,13 @@ function exportTableCorrespondance() {
     // Créer un tableau avec les lignes validées
     const correspondances = [];
 
-    // Champ `thematique` OPTIONNEL (plan-thematiques-entites.md, Phase 4) : ajouté seulement si présent,
-    // ignoré à l'import s'il est absent (rétrocompatible).
+    // Champ `thematique` OPTIONNEL (plan-thematiques-entites.md, Phase 4) : ajouté seulement si la
+    // fonctionnalité est ACTIVE au corpus ET si la valeur est présente. Désactivée → l'export n'émet
+    // pas les thématiques (cohérent avec le masquage badges/recherche). Ignoré à l'import s'il est absent.
+    const themesActifs = (typeof getThematiques === 'function') && getThematiques().actif;
     const pousser = (entite_init, entite_pseudo, paire) => {
         const c = { entite_init, entite_pseudo };
-        if (paire && paire.thematique) c.thematique = paire.thematique;
+        if (themesActifs && paire && paire.thematique) c.thematique = paire.thematique;
         correspondances.push(c);
     };
 

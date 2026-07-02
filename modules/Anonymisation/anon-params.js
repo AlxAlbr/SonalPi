@@ -17,6 +17,10 @@ let _motsLiaisonBrouillon = [];
 // seulement à l'Enregistrer. { actif:boolean, liste:string[] } (liste en MAJUSCULES).
 let _thematiquesBrouillon = { actif: false, liste: [] };
 
+// Brouillon de la PRIORITÉ DE VALIDATION ('corpus' défaut | 'entretien') : quelle portée applique
+// la touche Entrée nue au niveau entretien (Maj inverse). Voir getPrioriteValidation (tableau_base.js).
+let _prioriteBrouillon = 'corpus';
+
 /** Liste effective courante des mots de liaison (corpus si défini, sinon défauts). */
 function _motsLiaisonEffectifs() {
     if (typeof getMotsLiaison === 'function') return getMotsLiaison().slice();
@@ -33,6 +37,11 @@ function _thematiquesEffectives() {
     return { actif: false, liste: (typeof THEMES_DEFAUT !== 'undefined') ? THEMES_DEFAUT.slice() : [] };
 }
 
+/** Priorité de validation effective courante ('corpus' par défaut). */
+function _prioriteEffective() {
+    return (typeof getPrioriteValidation === 'function') ? getPrioriteValidation() : 'corpus';
+}
+
 /**
  * Ouvre la modale « Paramètres de pseudonymisation ». Amorce le brouillon avec la liste
  * effective courante (donc les défauts si le corpus n'a jamais été réglé).
@@ -41,6 +50,7 @@ function ouvrirParamsAnonCorpus() {
     if (document.getElementById('params-anon-overlay')) return; // déjà ouverte
     _motsLiaisonBrouillon = _motsLiaisonEffectifs();
     _thematiquesBrouillon = _thematiquesEffectives();
+    _prioriteBrouillon = _prioriteEffective();
 
     const overlay = document.createElement('div');
     overlay.id = 'params-anon-overlay';
@@ -58,24 +68,25 @@ function ouvrirParamsAnonCorpus() {
                         style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;">✕</button>
             </div>
 
-            <h3 style="color:#2196F3;margin:18px 0 6px;">Mots de liaison</h3>
+            
+            <h3 style="color:#2196F3;margin:26px 0 6px;">Priorité de validation</h3>
             <p style="color:#555;line-height:1.5;margin:0 0 12px;">
-                Quand vous pseudonymisez une expression qui <strong>commence par un de ces mots</strong>
-                suivi d'un nom propre (« <em>à&nbsp;Lyon</em> »), SonalPi vous propose aussi la règle
-                générale dégraissée (« <em>Lyon</em> »), pour capter l'entité partout. Réglage
-                <strong>partagé par tout le corpus</strong>.
+                Au niveau d'un entretien, choisit la portée appliquée par <strong>Entrée</strong> quand vous
+                validez une ligne (<strong>Maj&nbsp;+&nbsp;Entrée</strong> fait l'inverse).
             </p>
-
-            <div id="params-liaison-chips"
-                 style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #ccc;
-                        border-radius:6px;padding:8px;min-height:44px;"></div>
-
-            <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
-                <input id="params-liaison-input" type="text" autocomplete="off" placeholder="ajouter un mot…"
-                       style="flex:1;padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem;">
-                <button id="params-liaison-add" style="padding:7px 14px;background:#2196F3;color:white;
-                        border:none;border-radius:6px;cursor:pointer;">Ajouter</button>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+                    <input type="radio" name="params-priorite" value="corpus" style="margin-top:3px;">
+                    <span><strong>Priorité corpus</strong> (défaut) — Entrée&nbsp;→&nbsp;📁&nbsp;corpus,
+                        Maj+Entrée&nbsp;→&nbsp;📄&nbsp;document.</span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
+                    <input type="radio" name="params-priorite" value="entretien" style="margin-top:3px;">
+                    <span><strong>Priorité entretien</strong> — Entrée&nbsp;→&nbsp;📄&nbsp;document,
+                        Maj+Entrée&nbsp;→&nbsp;📁&nbsp;corpus.</span>
+                </label>
             </div>
+
 
             <style>
                 /* Toggle stylé (interrupteur) de la section Thématiques */
@@ -119,6 +130,27 @@ function ouvrirParamsAnonCorpus() {
                                    border-radius:6px;cursor:pointer;">↺ Réinitialiser</button>
                 </div>
             </div>
+            
+            
+            <h3 style="color:#2196F3;margin:18px 0 6px;">Mots de liaison</h3>
+            <p style="color:#555;line-height:1.5;margin:0 0 12px;">
+                Quand vous pseudonymisez une expression qui <strong>commence par un de ces mots</strong>
+                suivi d'un nom propre (« <em>à&nbsp;Lyon</em> »), SonalPi vous propose aussi la règle
+                générale dégraissée (« <em>Lyon</em> »), pour capter l'entité partout. Réglage
+                <strong>partagé par tout le corpus</strong>.
+            </p>
+
+            <div id="params-liaison-chips"
+                 style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #ccc;
+                        border-radius:6px;padding:8px;min-height:44px;"></div>
+
+            <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+                <input id="params-liaison-input" type="text" autocomplete="off" placeholder="ajouter un mot…"
+                       style="flex:1;padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:0.95rem;">
+                <button id="params-liaison-add" style="padding:7px 14px;background:#2196F3;color:white;
+                        border:none;border-radius:6px;cursor:pointer;">Ajouter</button>
+            </div>
+
 
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;">
                 <button onclick="reinitMotsLiaison()" title="Revenir à la liste fournie par défaut"
@@ -164,6 +196,12 @@ function ouvrirParamsAnonCorpus() {
     });
     _renderChipsThematiques();
     _syncEtatSectionThemes();
+
+    // Câblage de la priorité de validation (radios)
+    document.querySelectorAll('input[name="params-priorite"]').forEach((r) => {
+        r.checked = (r.value === _prioriteBrouillon);
+        r.addEventListener('change', () => { if (r.checked) _prioriteBrouillon = r.value; });
+    });
 }
 
 /** Grise/dé-grise l'éditeur de thématiques selon l'état de l'interrupteur (opt-in). */
@@ -181,6 +219,7 @@ function fermerParamsAnonCorpus() {
     if (overlay) overlay.remove();
     _motsLiaisonBrouillon = [];
     _thematiquesBrouillon = { actif: false, liste: [] };
+    _prioriteBrouillon = 'corpus';
 }
 
 /** (Re)dessine les chips depuis le brouillon courant. */
@@ -320,8 +359,9 @@ function reinitThematiques() {
 async function enregistrerParamsAnonCorpus() {
     const motsLiaison = _motsLiaisonBrouillon.slice();
     const thematiques = { actif: !!_thematiquesBrouillon.actif, liste: _thematiquesBrouillon.liste.slice() };
-    const params = Object.assign({}, window.paramsAnonCorpus || {}, { motsLiaison, thematiques });
-    window.paramsAnonCorpus = params; // lu (synchrone) par getMotsLiaison() / getThematiques()
+    const prioriteValidation = (_prioriteBrouillon === 'entretien') ? 'entretien' : 'corpus';
+    const params = Object.assign({}, window.paramsAnonCorpus || {}, { motsLiaison, thematiques, prioriteValidation });
+    window.paramsAnonCorpus = params; // lu (synchrone) par getMotsLiaison() / getThematiques() / getPrioriteValidation()
 
     try {
         await window.electronAPI.setParamsAnon(params);
@@ -333,6 +373,10 @@ async function enregistrerParamsAnonCorpus() {
         if (typeof afficherNotification === 'function')
             afficherNotification('Erreur à l\'enregistrement des paramètres', 'error');
     }
+
+    // Le panneau Pseudos corpus est déjà affiché (le bouton ⚙ y vit) : refléter à chaud
+    // l'activation/désactivation des thématiques (badges + placeholder), sans re-render lourd.
+    if (typeof rafraichirBadgesThematiquesCorpus === 'function') rafraichirBadgesThematiquesCorpus();
 
     fermerParamsAnonCorpus();
 }

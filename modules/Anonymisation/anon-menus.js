@@ -599,7 +599,9 @@ async function retirerPseudoLibelleLocuteur(nomLoc) {
             p.existeLocalement = false; regleTouchee = true;
         }
     });
-    if (regleTouchee && typeof affichTableauAnon === 'function') affichTableauAnon();
+    // Re-render inconditionnel : la pastille 👤 par ligne (tableau_base.js) dépend de l'état des
+    // libellés, pas seulement de regleTouchee (existeLocalement). La persistance reste gâtée.
+    if (typeof affichTableauAnon === 'function') affichTableauAnon();
     if (regleTouchee && typeof sauvegarderTabAnonEnt === 'function') await sauvegarderTabAnonEnt();
     if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
 }
@@ -635,7 +637,9 @@ async function confirmerPseudoLibelleLocuteur(nomLoc) {
             p.existeLocalement = true; regleTouchee = true;
         }
     });
-    if (regleTouchee && typeof affichTableauAnon === 'function') affichTableauAnon();
+    // Re-render inconditionnel : la pastille 👤 par ligne (tableau_base.js) dépend de l'état des
+    // libellés, pas seulement de regleTouchee (existeLocalement). La persistance reste gâtée.
+    if (typeof affichTableauAnon === 'function') affichTableauAnon();
     if (regleTouchee && typeof sauvegarderTabAnonEnt === 'function') await sauvegarderTabAnonEnt();
     if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
 }
@@ -655,6 +659,7 @@ async function refuserPseudoLibelleLocuteur(nomLoc) {
         l.classList.remove('loc-suggere');
         l.classList.add('loc-suggere-refuse');
     });
+    if (typeof affichTableauAnon === 'function') affichTableauAnon(); // pastille 👤 : suggéré → refusé
     if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
 }
 

@@ -40,9 +40,12 @@ function ouvrirAideAnonymisation() {
                     <h3 style="color:#2196F3;">2️⃣ Donner un pseudo et choisir la portée</h3>
                     <ul style="margin:8px 0;padding-left:20px;">
                         <li>Saisissez le pseudo dans la colonne <strong>Pseudo</strong>.</li>
-                        <li><strong>Entrée</strong> → portée <strong>document</strong> (local à cet entretien).</li>
-                        <li><strong>Maj (⇧) + Entrée</strong> → portée <strong>corpus</strong> (partagé :
-                        la règle vaut pour tous les entretiens).</li>
+                        <li>Par défaut (« priorité corpus ») : <strong>Entrée</strong> → portée
+                        <strong>corpus</strong> (partagé : la règle vaut pour tous les entretiens),
+                        <strong>Maj (⇧) + Entrée</strong> → portée <strong>document</strong> (local à cet entretien).</li>
+                        <li>Ce mapping est <strong>inversable</strong> dans <strong>⚙ Paramètres → Priorité de
+                        validation</strong> : en « priorité entretien », <strong>Entrée</strong> vise le
+                        <strong>document</strong> et <strong>Maj + Entrée</strong> le <strong>corpus</strong>.</li>
                         <li>Toutes les occurrences de l'entité sont traitées d'un coup.</li>
                     </ul>
 

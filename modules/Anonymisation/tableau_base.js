@@ -91,9 +91,16 @@ function fusionnerTabAnon(tabAnonGlobal, tabAnonLocal) {
   return result;
 }
 
-// Gère la validation/revalidation au clavier du champ Pseudo
-function gererEntrePseudo(idx, versCorpus = false) {
+// Gère la validation/revalidation au clavier du champ Pseudo.
+// shiftPressed = event.shiftKey. La portée visée dépend du réglage « priorité de validation » :
+//  - priorité 'corpus' (défaut)    : Entrée → corpus,   Maj+Entrée → document ;
+//  - priorité 'entretien'          : Entrée → document, Maj+Entrée → corpus (inversé).
+function gererEntrePseudo(idx, shiftPressed = false) {
     const paire = window.tabAnon[idx];
+
+    // Portée visée : Entrée applique la portée PRIORITAIRE réglée au corpus ; Maj inverse.
+    const prioriteCorpus = (typeof getPrioriteValidation === 'function') && getPrioriteValidation() === 'corpus';
+    const versCorpus = prioriteCorpus ? !shiftPressed : shiftPressed;
 
     // Ligne déjà appliquée :
     // - Shift+Entrée sur une ligne pas encore au corpus → promotion D→C (R5) ;
@@ -533,10 +540,14 @@ function affichTableauAnon() {
             <tbody>
     `;
     
+    // Précalcul (1×/rendu) des LIBELLÉS locuteurs : leur liste et leurs clés d'alias sont identiques
+    // pour toutes les lignes → on évite un querySelectorAll + N×M clesAlias par ligne (cf. pastille 👤).
+    const idxLibLoc = _indexerLibellesLocuteurs();
+
     for (let displayIdx = 0; displayIdx < indicesToDisplay.length; displayIdx++) {
         const i = indicesToDisplay[displayIdx];
         const paire = window.tabAnon[i];
-        
+
         // Déterminer si cette ligne a des occurrences trouvées
         const aDesOccurrences = paire.occurrences > 0;
         // Réindexer les positions depuis le DOM si nécessaire (placeholders du panel corpus ou entrée non encore traitée)
@@ -557,6 +568,10 @@ function affichTableauAnon() {
         const estPending = nbNon > 0;
         // Ligne verte uniquement si toutes les occurrences sont traitées (anonymisées ou en exception)
         const estAnonymisee = aDesOccurrences && paire.remplacement.trim().length > 0 && nbNon === 0;
+        // État LIBELLÉ locuteur de CET entretien (null / 'pending' / 'resolu') — sert à la pastille 👤 ET
+        // à masquer la loupe de repérage (une entité qui n'est QUE locuteur n'a pas d'occurrence de texte
+        // à repérer). Utilise l'index pré-calculé hors boucle.
+        const etatLoc = _etatLocuteurLigne(paire, idxLibLoc);
 
         // Compteur(s) « anonymisées » : pour une ligne MULTI-PSEUDO, un badge PAR variante (compté
         // depuis le DOM via data-pseudo) avec navigation propre (cat 'anon0'/'anon1') ; sinon un seul
@@ -667,10 +682,11 @@ function affichTableauAnon() {
                             ${badgesAnonHtml}
                             ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
                             ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
+                            ${_badgeLocuteurHtml(etatLoc)}
                             ${aDesOccurrences
                                 ? `<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer"><span class="btn-main-icon">✖️</span></button>`
                                 : (montrerSlider
-                                    ? `${_reperageHtml(i, paire)}<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer ce brouillon"><span class="btn-main-icon">✖️</span></button>`
+                                    ? `${(nbNon > 0 || etatLoc) ? '' : _reperageHtml(i, paire)}<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer ce brouillon"><span class="btn-main-icon">✖️</span></button>`
                                     : '')}
                         </div>
                         ${montrerSlider ? _sliderPorteeHtml(i, portee) : ''}
@@ -2101,6 +2117,62 @@ function aLibellePseudonymise(paire) {
 }
 
 /**
+ * Index (1×/rendu) des LIBELLÉS locuteurs de l'entretien, DÉDOUBLONNÉ par locuteur. Un locuteur est
+ * pseudonymisé tout-ou-rien (les handlers confirmer/refuser/retirer marquent d'un coup TOUS ses
+ * `.ligloc`, cf. anon-menus.js) → une seule entrée par `data-nomloc` distinct suffit. On ne fait donc
+ * que D `clesAlias` (D = locuteurs distincts) au lieu de M (M = lignes d'énoncé), M ≫ D. Le parcours des
+ * M nœuds reste (natif + `classList` trivial), mais l'agrégation « pending si UN énoncé non résolu »
+ * garde la robustesse même si un état partiel transitoire existait.
+ * @returns {Array<{cles:string[], resolu:boolean}>}
+ */
+function _indexerLibellesLocuteurs() {
+    const parNom = new Map(); // data-nomloc brut → { cles, resolu }
+    document.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
+        const nom = lig.dataset.nomloc || '';
+        const resolu = lig.classList.contains('loc-anon') || lig.classList.contains('loc-suggere-refuse');
+        const prev = parNom.get(nom);
+        if (!prev) parNom.set(nom, { cles: clesAlias(nom), resolu });
+        else if (!resolu) prev.resolu = false; // un seul énoncé non résolu → locuteur pending
+    });
+    return Array.from(parNom.values());
+}
+
+/**
+ * État du LIBELLÉ de locuteur pour cette entité DANS L'ENTRETIEN COURANT (pastille 👤 par ligne,
+ * pendant du 👤 corpus d'anon-scan.js). Généralise aLibellePseudonymise : détecte tout `.ligloc`
+ * (pseudonymisé ou non) dont le nom matche un alias de l'entité, indépendamment des occurrences de texte.
+ * @param {object} paire
+ * @param {Array<{cles:string[], resolu:boolean}>} [index] - index pré-calculé (_indexerLibellesLocuteurs) ;
+ *   reconstruit à la volée si omis (appel hors rendu).
+ * @returns {null|'pending'|'resolu'} null = pas un locuteur ici ; 'pending' = libellé à pseudonymiser ;
+ *   'resolu' = tous les libellés matchants sont pseudonymisés (loc-anon) ou refusés (loc-suggere-refuse).
+ */
+function _etatLocuteurLigne(paire, index) {
+    if (!paire || !paire.entite) return null;
+    const cles = new Set(clesAlias(paire.entite));
+    if (cles.size === 0) return null;
+    const libs = index || _indexerLibellesLocuteurs();
+    const matching = libs.filter(l => l.cles.some(k => cles.has(k)));
+    if (matching.length === 0) return null;
+    return matching.some(l => !l.resolu) ? 'pending' : 'resolu';
+}
+
+/**
+ * Pastille 👤 « locuteur de cet entretien » pour une ligne (couleurs alignées sur le 👤 corpus).
+ * @param {null|'pending'|'resolu'} etat - état pré-calculé par _etatLocuteurLigne (évite un 2e parcours DOM).
+ */
+function _badgeLocuteurHtml(etat) {
+    if (!etat) return '';
+    const pending = etat === 'pending';
+    const c = pending ? '#e65100' : '#2e7d32';
+    const titre = pending
+        ? 'Locuteur de cet entretien — libellé à pseudonymiser'
+        : 'Locuteur de cet entretien — libellé pseudonymisé/refusé';
+    return `<span class="badge-loc-entretien" title="${titre}" style="color:${c};font-size:0.72rem;`
+        + `white-space:nowrap;align-self:center;margin-left:6px;">👤${pending ? '●' : '✓'}</span>`;
+}
+
+/**
  * Réconcilie les LIBELLÉS pseudonymisés (`.ligloc.loc-anon`) avec l'état COURANT des règles
  * (plan-locuteurs-pseudo.md, Étape 5). Pour chaque libellé marqué, on cherche une règle **non-brouillon**
  * de `window.tabAnon` dont un alias d'entité matche le nom du locuteur (`data-nomloc`) :
@@ -2352,6 +2424,18 @@ function getThematiques() {
 }
 
 /**
+ * Priorité de validation au clavier au niveau ENTRETIEN : quelle portée applique la touche Entrée
+ * « nue » (Maj inverse). Réglage corpus, lecture défensive (défaut = priorité corpus).
+ * - 'corpus' (défaut) : Entrée → corpus,   Maj+Entrée → document.
+ * - 'entretien'       : Entrée → document, Maj+Entrée → corpus.
+ * @returns {'entretien'|'corpus'}
+ */
+function getPrioriteValidation() {
+    return (window.paramsAnonCorpus && window.paramsAnonCorpus.prioriteValidation === 'entretien')
+        ? 'entretien' : 'corpus';
+}
+
+/**
  * Palette FIXE des badges de thématique. La couleur est DÉRIVÉE de l'index dans la liste effective
  * (ordre d'arrivée) — jamais persistée : rien à stocker par entité ni à exporter (décision archi).
  * Au-delà de la palette OU pour une thématique retirée de la liste (index -1) → gris « inconnue ».
@@ -2392,27 +2476,33 @@ function ouvrirSelecteurThematique(ancre, valeurCourante, onChoix) {
     const { liste } = getThematiques();
     const pop = document.createElement('div');
     pop.id = 'theme-selecteur-popover';
+    // Grille ENROULÉE : les thèmes se répartissent sur plusieurs colonnes (flex-wrap) sous une largeur
+    // plafonnée, plutôt qu'une seule colonne verticale interminable au-delà de ~15 thèmes.
     pop.style.cssText =
         'position:fixed;z-index:100000;background:#fff;border:1px solid #ccc;border-radius:8px;' +
-        'box-shadow:0 4px 16px rgba(0,0,0,0.2);padding:6px;display:flex;flex-direction:column;gap:4px;' +
-        'max-height:60vh;overflow-y:auto;font-family:Arial,sans-serif;font-size:0.9rem;';
+        'box-shadow:0 4px 16px rgba(0,0,0,0.2);padding:6px;display:flex;flex-wrap:wrap;gap:4px;' +
+        'align-content:flex-start;max-width:320px;max-height:60vh;overflow-y:auto;' +
+        'font-family:Arial,sans-serif;font-size:0.9rem;';
 
     const courant = (valeurCourante || '').trim().toLowerCase();
-    const faireOption = (label, valeur, couleur) => {
+    // pleineLargeur : « Aucune » occupe sa propre rangée en tête (flex-basis:100%) ; les thèmes
+    // s'enroulent ensuite en colonnes (largeur au contenu).
+    const faireOption = (label, valeur, couleur, pleineLargeur) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.textContent = label;
         const actif = (valeur || '').toLowerCase() === courant;
         b.style.cssText =
-            'text-align:left;border:none;cursor:pointer;padding:5px 10px;border-radius:6px;white-space:nowrap;' +
+            'text-align:center;border:none;cursor:pointer;padding:5px 10px;border-radius:6px;white-space:nowrap;' +
+            (pleineLargeur ? 'flex:0 0 100%;' : 'flex:0 0 auto;') +
             (couleur ? `color:#fff;background:${couleur};` : 'color:#333;background:#f0f0f0;') +
             (actif ? 'outline:2px solid #333;outline-offset:-2px;' : '');
         b.addEventListener('click', (e) => { e.stopPropagation(); pop.remove(); onChoix(valeur); });
         pop.appendChild(b);
     };
 
-    faireOption('— Aucune —', '', null);
-    liste.forEach(t => faireOption(t, t, couleurThematique(t)));
+    faireOption('— Aucune —', '', null, true);
+    liste.forEach(t => faireOption(t, t, couleurThematique(t), false));
 
     document.body.appendChild(pop);
     // Positionner sous l'ancre, en restant dans la fenêtre (bascule au-dessus/à gauche si débord).
