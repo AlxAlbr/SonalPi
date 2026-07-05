@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "useDefineForClassFields": true,
+    "types": ["vite/client", "node"]
+  },
+  "include": [
+    "src/renderer/**/*.ts",
+    "src/renderer/**/*.vue",
+    "src/renderer/**/*.d.ts",
+    "src/shared/**/*.ts",
+    "test/**/*.ts"
+  ]
+}

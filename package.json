@@ -1,0 +1,36 @@
+{
+  "name": "sonal-asynchro",
+  "version": "0.1.0",
+  "description": "SonalAsynchro — set minimum SonalPi : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^25.9.2",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "electron": "^42.3.3",
+    "electron-vite": "^5.0.0",
+    "happy-dom": "^20.10.6",
+    "typescript": "^6.0.3",
+    "vite": "^7.3.5",
+    "vitest": "^4.1.8",
+    "vue-tsc": "^3.3.4"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.26.0",
+    "@tiptap/pm": "^3.26.0",
+    "@tiptap/starter-kit": "^3.26.0",
+    "@tiptap/vue-3": "^3.26.0",
+    "vue": "^3.5.35"
+  }
+}
