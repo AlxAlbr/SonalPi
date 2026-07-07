@@ -1,6 +1,68 @@
 // Variables globales pour la synthèse
 var tabExt = []; // tableau des extraits sélectionnés
 
+// Fonction utilitaire : traite le texte d'un extrait (ponctuation + pseudonymisation optionnelle).
+// anonymise=true (défaut, affichage synthèse et copie) : entités → [pseudo], libellés de locuteurs
+// → « [Pseudo] » si pseudonymisé. anonymise=false (option « Pseudonymiser » décochée à l'export) :
+// texte ET noms de locuteurs réels — les spans de xtr.texte gardent le texte d'origine, la
+// pseudonymisation n'est qu'une lecture des marqueurs, on peut donc re-traiter à la demande.
+function traiterTexteExtrait(spans, { anonymise = true } = {}) {
+    let texte = "";
+    let locuteurs = new Set();
+    let categories = new Set();
+    let nbInterv = 0;
+
+    spans.forEach(mot => {
+        // Gestion des locuteurs (ajoute un préfixe)
+        if (mot.classList.contains('ligloc')) {
+            nbInterv++;
+            // Point de passage unique (plan-locuteurs-pseudo.md) : les marqueurs loc-anon/loc-suggere
+            // sont recopiés du vrai .ligloc sur ce ligloc synthétique (traiterEntretien) → libellé
+            // pseudonymisé rendu « [Pseudo] », sinon nom réel (convention locuteursExport).
+            const reelLoc = (mot.dataset.nomloc || '').replace(/\?/g, '').trim();
+            let nomLoc = reelLoc;
+            if (anonymise) {
+                const affLoc = (nomLocAffiche(mot, { anonymise: true }) || '').trim();
+                nomLoc = (affLoc && affLoc !== reelLoc) ? '[' + affLoc + ']' : affLoc;
+            }
+            if (nbInterv > 1) {
+                texte += "\n" + nomLoc + ": \n- ";
+            } else {
+                texte += nomLoc + ": ";
+            }
+            locuteurs.add(nomLoc.trim());
+        }
+
+        // Gestion de l'anonymisation (indépendant du traitement ci-dessus)
+        if (anonymise && mot.classList.contains('anon')) {
+            if (mot.classList.contains('finsel')) {
+                texte += mot.dataset.pseudo ? "[" + mot.dataset.pseudo + "]" : "[anonyme]";
+            }
+            // sinon ignorer ce mot (ne rien ajouter)
+        } else {
+            // Pas d'anonymisation, ajouter le texte du mot
+            texte += mot.innerText;
+        }
+
+        // Récupérer les catégories
+        const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
+        thmClasses.forEach(c => {
+            const thm = tabThm.find(t => t.code === c);
+            if (thm) categories.add(thm.nom.split('//')[0].trim());
+        });
+    });
+
+    // Correction des espaces avant et après la ponctuation
+    texte = texte.replace(/\s+([,.!?:;])/g, "$1"); // supprime les espaces avant la ponctuation
+    texte = texte.replace(/([,.!?:;])([^\s\n»])/g, "$1 $2"); // ajoute un espace après la ponctuation si manquant
+
+    return {
+        texte: texte,
+        locuteurs: Array.from(locuteurs),
+        categories: Array.from(categories)
+    };
+}
+
 async function synthese(critereEt){ // fonction permettant de compiler toutes les parties d'entretien relatives au(x) thème(s) sélectionné(s)
 
  if (tabThm.length == 0){
@@ -14,58 +76,6 @@ if (tabEnt.length == 0){
 //console.log("début de la synthèse. TabTHm=" + JSON.stringify (tabThm) + " / tabEnt=" + JSON.stringify (tabEnt) );
 
 
-
-    // Fonction utilitaire : traite le texte d'un extrait (anonymisation + ponctuation)
-    function traiterTexteExtrait(spans) {
-        let texte = "";
-        let locuteurs = new Set();
-        let categories = new Set();
-        let nbInterv = 0;
-
-        spans.forEach(mot => {
-            // Gestion des locuteurs (ajoute un préfixe)
-            if (mot.classList.contains('ligloc')) {
-                nbInterv++;
-                // Point de passage unique (plan-locuteurs-pseudo.md Étape 0) : repli = nom réel tant
-                // que la pseudonymisation du libellé n'existe pas → sortie inchangée aujourd'hui.
-                const nomLoc = nomLocAffiche(mot, { anonymise: true });
-                if (nbInterv > 1) {
-                    texte += "\n" + nomLoc + ": \n- ";
-                } else {
-                    texte += nomLoc + ": ";
-                }
-                locuteurs.add(nomLoc.trim());
-            }
-            
-            // Gestion de l'anonymisation (indépendant du traitement ci-dessus)
-            if (mot.classList.contains('anon')) {
-                if (mot.classList.contains('finsel')) {
-                    texte += mot.dataset.pseudo ? "[" + mot.dataset.pseudo + "]" : "[anonyme]";
-                }
-                // sinon ignorer ce mot (ne rien ajouter)
-            } else {
-                // Pas d'anonymisation, ajouter le texte du mot
-                texte += mot.innerText;
-            }
-
-            // Récupérer les catégories
-            const thmClasses = Array.from(mot.classList).filter(c => c.startsWith('cat_'));
-            thmClasses.forEach(c => {
-                const thm = tabThm.find(t => t.code === c);
-                if (thm) categories.add(thm.nom.split('//')[0].trim());
-            });
-        });
-
-        // Correction des espaces avant et après la ponctuation
-        texte = texte.replace(/\s+([,.!?:;])/g, "$1"); // supprime les espaces avant la ponctuation
-        texte = texte.replace(/([,.!?:;])([^\s\n»])/g, "$1 $2"); // ajoute un espace après la ponctuation si manquant
-
-        return {
-            texte: texte,
-            locuteurs: Array.from(locuteurs),
-            categories: Array.from(categories)
-        };
-    }
 
     function finalizeExtrait(extrait, fin, entretien, resetLocCur) {
         extrait.fin = fin;
@@ -430,6 +440,25 @@ if (tabEnt.length == 0){
                                 if (loc != locCur){
                                     mot.classList.add('ligloc');
                                     mot.dataset.nomloc = locNom;
+                                    // Recopie de l'état de pseudonymisation du libellé depuis le vrai
+                                    // .ligloc de ce locuteur (persisté dans le HTML de l'entretien) :
+                                    // sans ces marqueurs, nomLocAffiche retomberait toujours sur le nom
+                                    // réel — dans l'affichage synthèse, texteTraite ET les recueils.
+                                    const ligReel = tempContainer.querySelector(`.ligloc[data-loc="${loc}"]`);
+                                    if (ligReel) {
+                                        for (const c of ['loc-anon', 'loc-suggere', 'loc-suggere-refuse']) {
+                                            if (ligReel.classList.contains(c)) mot.classList.add(c);
+                                        }
+                                        if (ligReel.dataset.locpseudo) mot.dataset.locpseudo = ligReel.dataset.locpseudo;
+                                        if (ligReel.dataset.locpseudoSuggere) mot.dataset.locpseudoSuggere = ligReel.dataset.locpseudoSuggere;
+                                        // data-nomloc-barre : nécessaire au rendu CSS « Nom̶ [Pseudo] »
+                                        if (ligReel.dataset.nomlocBarre) {
+                                            mot.dataset.nomlocBarre = ligReel.dataset.nomlocBarre;
+                                        } else if (typeof barrerTexte === 'function' &&
+                                                   (mot.classList.contains('loc-anon') || mot.classList.contains('loc-suggere'))) {
+                                            mot.dataset.nomlocBarre = barrerTexte(locNom || '');
+                                        }
+                                    }
                                     locCur = loc;
                                 }
 
@@ -565,11 +594,12 @@ if (tabEnt.length == 0){
                 let textCopié = "« " + (tabExt[i].texteTraite || "") + " »\n";
                 
                 // Ajout des infos sur l'entretien
-                textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "\n";
+                // anon:true — cohérent avec le texte copié (texteTraite), déjà pseudonymisé.
+                textCopié += "Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i], { anon: true }))[1] + "\n";
 
                 // HTML version (plus simpliste, basée sur le texte traité)
                 let htmlCopié = "<p>« " + (tabExt[i].texteTraite || "").replace(/\n/g, '<br>') + " »</p>";
-                htmlCopié += "<em>Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i]))[1] + "</em><br>";
+                htmlCopié += "<em>Entretien : " + tabEnt[tabExt[i].entretien].nom + " " + (await varsPubliquesXtr(tabExt[i], { anon: true }))[1] + "</em><br>";
 
                 const blobHtml = new Blob([htmlCopié], { type: 'text/html' });
                 const blobText = new Blob([textCopié], { type: 'text/plain' });
@@ -687,12 +717,50 @@ function exportSynthese() {
         </div>`;
 }
 
+/**
+ * Résolveur des LIBELLÉS de locuteurs pseudonymisés pour un run d'export de la synthèse.
+ * Quand l'export sort pseudonymisé (option « Pseudonymiser », cochée par défaut), les variables
+ * « par locuteur » (varsPubliquesEnt) doivent l'être aussi, avec la même convention « [Pseudo] ».
+ * Un getHtml() FRAIS (cache main, règle d'or anon.md §3.4) une seule fois par run, puis
+ * résolution locuteursAffiches mémoïsée par entretien (varsPubliquesEnt est appelée en boucle
+ * sur les extraits). Option décochée → ne pas créer le résolveur (noms réels partout).
+ * @returns {Promise<(rkEnt: number) => string[]|null>} rkEnt → tableau des noms affichés (ou null).
+ */
+async function creerResolveurLocAffSynthese() {
+    let tabHtmlFrais = [];
+    try { tabHtmlFrais = (await window.electronAPI.getHtml()) || []; } catch (e) { tabHtmlFrais = []; }
+    const memo = new Map();
+    return (rkEnt) => {
+        if (!memo.has(rkEnt)) {
+            memo.set(rkEnt, (typeof locuteursAffiches === 'function' && tabEnt[rkEnt])
+                ? locuteursAffiches(tabEnt[rkEnt], tabHtmlFrais[rkEnt], true)
+                : null);
+        }
+        return memo.get(rkEnt);
+    };
+}
+
+/**
+ * Texte et locuteurs d'un extrait pour l'export : pseudonymisés (texteTraite/locuteurs
+ * pré-calculés à la construction de la synthèse) ou RE-TRAITÉS en clair depuis les spans
+ * d'origine quand l'option « Pseudonymiser » est décochée.
+ * @param {object} extrait - un élément de tabExt
+ * @param {boolean} anon - export pseudonymisé ?
+ * @returns {{texte:string, locuteurs:string[]}}
+ */
+function traitementExtraitExport(extrait, anon) {
+    if (anon) return { texte: extrait.texteTraite || "", locuteurs: extrait.locuteurs || [] };
+    const t = traiterTexteExtrait(extrait.texte, { anonymise: false });
+    return { texte: t.texte || "", locuteurs: t.locuteurs || [] };
+}
+
 async function genererExportTxtSynthese(opts) {
     let txt = "SYNTHÈSE DES EXTRAITS SÉLECTIONNÉS\n";
     txt += "Exporté par Sonal π (version " + window.versionSonal + ") le " + new Date().toLocaleString() + "\n";
     
     txt += "=".repeat(70) + "\n\n";
 
+    const locAffEnt = (opts.vars && opts.anon) ? await creerResolveurLocAffSynthese() : null;
     let entretienCourant = -1;
 
     const retirerLocuteursTexte = (texte) => {
@@ -709,7 +777,7 @@ async function genererExportTxtSynthese(opts) {
             txt += "ENTRETIEN : " + tabEnt[extrait.entretien].nom + "\n";
             
             if (opts.vars) {
-                const varsTexte = (await varsPubliquesEnt(extrait.entretien))[1];
+                const varsTexte = (await varsPubliquesEnt(extrait.entretien, locAffEnt && locAffEnt(extrait.entretien)))[1];
                 txt += "Variables : " + varsTexte + "\n";
             }
             txt += "-".repeat(70) + "\n\n";
@@ -732,9 +800,9 @@ async function genererExportTxtSynthese(opts) {
 
         txt += header + "\n";
 
-        // Contenu de l'extrait (pré-traité)
-        let contenuTexte = extrait.texteTraite || "";
-        
+        // Contenu de l'extrait (pré-traité, ou re-traité en clair si pseudonymisation décochée)
+        let contenuTexte = traitementExtraitExport(extrait, opts.anon).texte;
+
         // Filtrer les locuteurs si option désactivée
         if (!opts.loc) {
             contenuTexte = retirerLocuteursTexte(contenuTexte);
@@ -765,12 +833,15 @@ async function genererExportCsvSynthese(opts) {
     if (opts.thm) entete.push("Catégories");
     lignes.push(entete.map(csvCell).join(SEP));
 
+    const locAffEnt = (opts.vars && opts.anon) ? await creerResolveurLocAffSynthese() : null;
+
     // Données
     for (let i = 0; i < tabExt.length; i++) {
         const extrait = tabExt[i];
-        
+
         // Utiliser le texte traité (sans locuteurs si option désactivée)
-        let texte = extrait.texteTraite || "";
+        const trait = traitementExtraitExport(extrait, opts.anon);
+        let texte = trait.texte;
         if (!opts.loc) {
             texte = texte.replace(/^[ \t]*[^:\r\n]+:[ \t]*/gm, "");
         }
@@ -784,11 +855,11 @@ async function genererExportCsvSynthese(opts) {
         ];
 
         if (opts.loc) {
-            ligne.push(csvCell(extrait.locuteurs.join(", ")));
+            ligne.push(csvCell(trait.locuteurs.join(", ")));
         }
 
         if (opts.vars) {
-            const varsTexte = (await varsPubliquesEnt(extrait.entretien))[1];
+            const varsTexte = (await varsPubliquesEnt(extrait.entretien, locAffEnt && locAffEnt(extrait.entretien)))[1];
             ligne.push(csvCell(varsTexte));
         }
 
@@ -807,18 +878,18 @@ async function genererExportCsvSynthese(opts) {
 // ---------------------------------------------------------------
 function dialogExportSyntheseChoixOptions(format) {
     // Config par format : [activé, cochéParDéfaut]
-    // Colonnes : variables | locuteurs | catégories thm | horodatage
+    // Colonnes : variables | locuteurs | catégories thm | horodatage | pseudonymisation
     const CFG = {
-        txt: [[true, true], [true, true], [true, true], [true, true]],
-        csv: [[true, true], [true, true], [true, true], [false, true]],
-        html: [[true, true], [true, true], [true, true], [true, true]],
-        docx: [[true, true], [true, true], [true, true], [true, true]],
-        pdf:  [[true, true], [true, true], [true, true], [true, true]],
+        txt: [[true, true], [true, true], [true, true], [true, true], [true, true]],
+        csv: [[true, true], [true, true], [true, true], [false, true], [true, true]],
+        html: [[true, true], [true, true], [true, true], [true, true], [true, true]],
+        docx: [[true, true], [true, true], [true, true], [true, true], [true, true]],
+        pdf:  [[true, true], [true, true], [true, true], [true, true], [true, true]],
     };
     const LABELS = { txt: '.txt', csv: '.csv', html: '.html', docx: '.docx', pdf: '.pdf' };
 
     const cfg = CFG[format] || CFG.txt;
-    const [ov, ol, oth, ot] = cfg;
+    const [ov, ol, oth, ot, oa] = cfg;
 
     const opt = (id, classes, label, [enabled, checked]) => {
         const dis = enabled ? '' : ' disabled';
@@ -841,7 +912,9 @@ function dialogExportSyntheseChoixOptions(format) {
             ${opt('opt-loc-synth', 'logo-loc', 'Locuteurs', ol)}
             <hr style="margin: 6px 0;">
             ${opt('opt-thm-synth', 'logo-cat', 'Catégories thématiques', oth)}
-                       
+
+            <hr style="margin:6px 0;">
+            ${opt('opt-anon-synth', 'logo-anon', 'Pseudonymiser (noms et entités remplacés par leurs pseudos)', oa)}
             <hr style="margin:6px 0;">
         </div>
         <div style="display:flex;gap:10px;margin-top:10px;">
@@ -874,6 +947,7 @@ async function exportSyntheseFormat(format) {
         loc: getChk('opt-loc-synth'),
         thm: getChk('opt-thm-synth'),
         time: getChk('opt-time-synth'),
+        anon: getChk('opt-anon-synth'),
     };
 
     hidedlg();
@@ -915,21 +989,26 @@ async function exportSyntheseFormat(format) {
 // ---------------------------------------------------------------
 async function genererExportDocxSynthese(opts, nomFichier) {
     try {
-        // Sérialiser les extraits pour IPC (utiliser les données pré-traitées)
-        const extraitsSerialized = tabExt.map(extrait => ({
-            debut: extrait.debut,
-            fin: extrait.fin,
-            entretien: extrait.entretien,
-            texteTraite: extrait.texteTraite,
-            categories: extrait.categories,
-            locuteurs: extrait.locuteurs
-        }));
+        // Sérialiser les extraits pour IPC (données pré-traitées, ou re-traitées en clair
+        // si l'option « Pseudonymiser » est décochée)
+        const extraitsSerialized = tabExt.map(extrait => {
+            const trait = traitementExtraitExport(extrait, opts.anon);
+            return {
+                debut: extrait.debut,
+                fin: extrait.fin,
+                entretien: extrait.entretien,
+                texteTraite: trait.texte,
+                categories: extrait.categories,
+                locuteurs: trait.locuteurs
+            };
+        });
 
         // Récupérer les variables de chaque entretien si needed
         const entretienVariables = {};
         if (opts.vars) {
+            const locAffEnt = opts.anon ? await creerResolveurLocAffSynthese() : null;
             for (let i = 0; i < tabEnt.length; i++) {
-                const [, varsTexte] = await varsPubliquesEnt(i);
+                const [, varsTexte] = await varsPubliquesEnt(i, locAffEnt && locAffEnt(i));
                 entretienVariables[i] = varsTexte;
             }
         }
@@ -1107,6 +1186,7 @@ async function genererExportHtmlSynthese(opts) {
     </div>
 `;
 
+    const locAffEnt = (opts.vars && opts.anon) ? await creerResolveurLocAffSynthese() : null;
     let entretienCourant = -1;
 
     for (let i = 0; i < tabExt.length; i++) {
@@ -1119,7 +1199,7 @@ async function genererExportHtmlSynthese(opts) {
             html += `<h2>${entInfo.nom}</h2>`;
 
             if (opts.vars) {
-                const varsTexte = (await varsPubliquesEnt(extrait.entretien))[1];
+                const varsTexte = (await varsPubliquesEnt(extrait.entretien, locAffEnt && locAffEnt(extrait.entretien)))[1];
                 html += `<p><strong>Variables :</strong> ${varsTexte}</p>`;
             }
 
@@ -1165,11 +1245,20 @@ async function genererExportHtmlSynthese(opts) {
         extrait.texte.forEach((mot) => {
             if (mot.classList.contains('ligloc')) {
                 if (!isNewSpeaker) html += `</div>`;
-                html += `<div class="speaker-line">${opts.loc ? mot.dataset.nomloc.replace("?", "") + ": " : ""}</div><div>`;
+                // Libellé pseudonymisé → « [Pseudo] » (les marqueurs loc-* sont portés par le
+                // ligloc synthétique, cf. traiterEntretien), sinon nom réel. Option
+                // « Pseudonymiser » décochée → nom réel directement.
+                const reelLoc = (mot.dataset.nomloc || '').replace(/\?/g, '').trim();
+                let nomLocExp = reelLoc;
+                if (opts.anon) {
+                    const affLoc = (nomLocAffiche(mot, { anonymise: true }) || '').trim();
+                    nomLocExp = (affLoc && affLoc !== reelLoc) ? '[' + affLoc + ']' : affLoc;
+                }
+                html += `<div class="speaker-line">${opts.loc ? nomLocExp + ": " : ""}</div><div>`;
                 isNewSpeaker = true;
             }
 
-            if (mot.classList.contains('anon')) {
+            if (opts.anon && mot.classList.contains('anon')) {
                 if (!mot.classList.contains('finsel')) {
                     return;
                 } else {

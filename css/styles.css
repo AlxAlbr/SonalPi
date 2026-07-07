@@ -1441,13 +1441,15 @@ Styles pour les fonctions de recherche
 }
 
 /* — Libellé de locuteur pseudonymisé (plan-locuteurs-pseudo.md, Étape 1) ————————————————
-   Le pseudo s'affiche DANS le header (::before), pas en ::after : le .ligloc enveloppe le texte
-   du 1er segment, donc ::after tomberait à la fin de la parole. On ne peut pas barrer seulement le
-   nom dans un ::before unique (text-decoration tout-ou-rien) → on montre « Nom → Pseudo », la flèche
-   tenant lieu de « remplacé par ». loc-anon + data-locpseudo posés par l'Étape 2 → règle INERTE tant
-   qu'aucun .ligloc ne les porte. Non gated par mode-anon, comme le rendu de base du texte. */
+   Rendu calqué sur le texte : nom barré + [pseudo] entre crochets (« remplacé par »). Le header est
+   un ::before UNIQUE (pas de ::after : le .ligloc enveloppe le texte du 1er segment, ::after tomberait
+   en fin de parole) → le barré ne peut PAS venir de text-decoration (elle frapperait aussi le pseudo).
+   Le barré est donc intégré aux caractères du NOM via l'overlay combinant U+0336 (data-nomloc-barre,
+   dérivé de data-nomloc par majBarreLoc/barrerTexte — locutarisation.js). data-nomloc reste le vrai nom.
+   loc-anon + data-locpseudo posés par l'Étape 2 → INERTE tant qu'aucun .ligloc ne les porte. Non gated
+   par mode-anon, comme le rendu de base du texte. */
 .ligloc.loc-anon::before {
-  content: attr(data-nomloc) "  →  " attr(data-locpseudo);
+  content: attr(data-nomloc-barre) "  [" attr(data-locpseudo) "]";
 }
 
 /* — Suggestion de pseudonymisation d'un libellé (plan-locuteurs-pseudo.md, Étape 3) —————————————
@@ -1455,7 +1457,7 @@ Styles pour les fonctions de recherche
    en pointillé/atténué. loc-suggere / data-locpseudo-suggere = marqueurs RUNTIME (re-dérivés à
    l'ouverture/scan, non persistés). Clic-droit sur le libellé pour confirmer. */
 .ligloc.loc-suggere::before {
-  content: attr(data-nomloc) "  →  " attr(data-locpseudo-suggere) "  ?";
+  content: attr(data-nomloc-barre) "  [" attr(data-locpseudo-suggere) "]  ?";
   text-decoration: underline dotted;
   opacity: 0.7;
   cursor: context-menu;

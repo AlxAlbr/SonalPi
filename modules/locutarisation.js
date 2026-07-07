@@ -47,6 +47,68 @@ function nomLocAffiche(ref, { anonymise = false } = {}) {
     return nomReel;
 }
 
+/**
+ * Barre chaque caractère d'une chaîne en y intercalant l'overlay combinant U+0336 (« K̶a̶r̶i̶n̶e̶ »).
+ * C'est le SEUL moyen de barrer *uniquement* le nom dans le `::before` du libellé (plan-locuteurs-pseudo.md,
+ * Étape 1) : `content` n'accepte qu'une chaîne indivisible → `text-decoration` barrerait aussi le pseudo.
+ * En intégrant le barré aux caractères eux-mêmes, on n'affecte que le nom, le pseudo reste normal.
+ * Rendu purement visuel — accessibilité dégradée (lecteurs d'écran), à réserver au libellé.
+ * @param {string} str
+ * @returns {string} la chaîne avec un barré combinant après chaque caractère.
+ */
+function barrerTexte(str) {
+    return [...(str || '')].map(c => c + '̶').join(''); // U+0336 = COMBINING LONG STROKE OVERLAY
+}
+
+/**
+ * Maintient `data-nomloc-barre` (le nom réel barré, lu par le `::before` de `.ligloc.loc-anon`/`.loc-suggere`)
+ * en cohérence avec l'état du libellé. Posé quand le nom est « remplacé » (confirmé ou suggéré) — le CSS
+ * affiche alors « Nom̶ [Pseudo] » — ; retiré sinon (nom en clair : refusé, non pseudonymisé).
+ *
+ * ATTRIBUT DÉRIVÉ, purement visuel : `data-nomloc` reste la source de vérité (le vrai nom, pour l'export
+ * NON-anonymisé). Il contient le VRAI nom → NE DOIT PAS fuiter dans l'export anonymisé : supprimé par
+ * AnonymiserSegments (anon-export-document.js), comme les autres marqueurs.
+ * @param {HTMLElement} lig - un `.ligloc`.
+ */
+function majBarreLoc(lig) {
+    if (!lig || !lig.dataset) return;
+    if (lig.classList.contains('loc-anon') || lig.classList.contains('loc-suggere')) {
+        lig.dataset.nomlocBarre = barrerTexte(lig.dataset.nomloc || '');
+    } else {
+        delete lig.dataset.nomlocBarre;
+    }
+}
+
+/**
+ * Noms de locuteurs À AFFICHER DANS UN EXPORT pour un entretien, SANS DOM live : l'état de
+ * pseudonymisation des libellés (`loc-anon`/`loc-suggere`, persisté dans le HTML) est lu sur les
+ * `.ligloc[data-loc]` du HTML fourni, via `nomLocAffiche`. Renvoie un tableau indexé comme
+ * `ent.tabLoc` : locuteur RÉELLEMENT pseudonymisé (nom affiché ≠ vrai nom) → « [Pseudo] » entre
+ * crochets, comme le texte anonymisé ; locuteur sans règle (ou refusé) → vrai nom en clair, SANS
+ * crochets. Non-anon → `tabLoc` tel quel. Cœur commun des exports corpus (`locuteursExportCorpus`,
+ * tableau_global.js) et Base de données (`exportTabDat`, gestion_data.js).
+ * ⚠️ `htmlEnt` doit venir d'une source FRAÎCHE (`getHtml(i)` cache main, ou DOM live sérialisé),
+ * jamais du global renderer figé (anon.md §3.4) — sinon état de libellés périmé.
+ * @param {object} ent - entretien (fournit tabLoc).
+ * @param {string} htmlEnt - HTML de l'entretien (marqueurs loc-* intacts).
+ * @param {boolean} anon - export anonymisé ?
+ * @returns {string[]} noms de locuteurs à afficher, indexés comme tabLoc.
+ */
+function locuteursAffiches(ent, htmlEnt, anon) {
+    const base = ((ent && ent.tabLoc) || []).slice();
+    if (!anon || typeof nomLocAffiche !== 'function') return base;
+    let html = (htmlEnt == null ? '' : String(htmlEnt));
+    if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return base.map((nom, i) => {
+        const reel = (nom || '').replace(/\?/g, '').trim();
+        const lig = tmp.querySelector(`.ligloc[data-loc="${i}"]`);
+        const aff = lig ? (nomLocAffiche(lig, { anonymise: true }) || '').trim() : reel;
+        return (aff && aff !== reel) ? '[' + aff + ']' : aff;
+    });
+}
+
 
 async function chargeLocut(){
 

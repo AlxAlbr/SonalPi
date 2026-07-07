@@ -1230,6 +1230,10 @@ function creerEncartLegendeCorpus() {
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#fff3e0;border:1px solid #ffb74d;display:inline-block;flex-shrink:0;"></span>ligne orange = occurrences à traiter</span>
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#e8f5e9;border:1px solid #a5d6a7;display:inline-block;flex-shrink:0;"></span>ligne verte = entièrement traité</span>
         </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#e65100;">👤●</span> locuteur à pseudonymiser</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#2e7d32;">👤✓</span> locuteur résolu</span>
+        </div>
     `;
 
     encart.appendChild(header);
@@ -2830,6 +2834,24 @@ function _htmlEntretienPourExport(ent, htmlCache, anon) {
 }
 
 /**
+ * LIBELLÉS de locuteurs pour l'export CORPUS (plan-locuteurs-pseudo.md) : équivalent du `locuteursExport`
+ * de l'export entretien (gestion_entretiens.js), mais SANS DOM live. On lit l'état `loc-anon`/`loc-suggere`
+ * (persisté dans le .sonal) directement sur les `.ligloc` du HTML SAUVEGARDÉ de l'entretien, en passant
+ * chaque élément à `nomLocAffiche` (mode élément : lit l'état de l'élément lui-même). Renvoie un tableau
+ * indexé comme `ent.tabLoc` : locuteur RÉELLEMENT pseudonymisé (nom affiché ≠ vrai nom) → « [Pseudo] »
+ * comme le texte anonymisé ; locuteur sans règle → vrai nom en clair, SANS crochets. Non-anon → tabLoc tel quel.
+ * @param {object} ent - entretien (fournit tabLoc).
+ * @param {string} htmlCache - HTML sauvegardé de l'entretien (tabHtml[i]).
+ * @param {boolean} anon - export anonymisé ?
+ * @returns {string[]} noms de locuteurs à afficher, indexés comme tabLoc.
+ */
+function locuteursExportCorpus(ent, htmlCache, anon) {
+    // HTML BRUT (non anonymisé) : loc-anon + data-nomloc (vrai nom) intacts, quelle que soit la transfo anon.
+    // Cœur partagé locuteursAffiches (locutarisation.js).
+    return locuteursAffiches(ent, _htmlEntretienPourExport(ent, htmlCache, false), anon);
+}
+
+/**
  * Ouvre la modale d'export du corpus (déclenchée par le menu Corpus → « Exporter le corpus… »).
  * Modale à 2 panneaux glissants (même UX que l'entretien) : panneau 1 = format (Sonal / .docx /
  * .html / .txt), panneau 2 = options (dont la case « Anonymiser »). Réutilise #dlg / #ssdlg.
@@ -2972,8 +2994,10 @@ async function exporterCorpusTxtZip(opts = {}) {
         nomsUtilises.add(nom.toLowerCase());
 
         const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
-        const txtvars = opts.vars ? ((await varsPubliquesEnt(i))[1] || '') : '';
-        const contenu = construireTxtEntretien(ent, opts, txtvars, html, (ent && ent.tabLoc) || []);
+        // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
+        const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+        const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+        const contenu = construireTxtEntretien(ent, opts, txtvars, html, locAff);
         fichiers.push({ nom: nom + '.txt', contenu });
     }
 
@@ -3038,9 +3062,31 @@ async function exporterCorpusReouvrable(opts = {}) {
         const data = extractFichierSonal(contenu);
         let html = data.html || '';
         if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
-        const htmlOut = opts.anon ? _anonymiserHtml(html) : html; // runs marqués → « [pseudo] » si anon
+        let htmlOut = html;
+        let tabLocOut = data.tabLoc;
+        if (opts.anon) {
+            // Miroir de sauvHtmlAnonymise (anon-export-document.js), SANS DOM live : les vrais noms
+            // de locuteurs voyagent par TROIS canaux — data-nomloc(-barre) des .ligloc, bloc loc-json,
+            // tabLoc du .crp. Le tabLoc pseudonymisé est dérivé des .ligloc AVANT le retrait des
+            // marqueurs (ils portent l'état) ; statut « ? » préservé ; locuteur sans pseudo (ou
+            // refusé) → nom réel (relève du garde-fou export global, non traité ici).
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            tabLocOut = (data.tabLoc || ent.tabLoc || []).map((nom, idx) => {
+                if (!nom) return nom;
+                const estQ = String(nom).endsWith('?');
+                const lig = tmp.querySelector(`.ligloc[data-loc="${idx}"]`);
+                const aff = (lig && typeof nomLocAffiche === 'function')
+                    ? nomLocAffiche(lig, { anonymise: true })
+                    : String(nom).replace(/\?/g, '');
+                return estQ ? aff + '?' : aff;
+            });
+            _anonymiserLiglocsDansElement(tmp); // libellés → nom affiché, marqueurs + data-nomloc-barre retirés
+            _anonymiserDansElement(tmp);        // runs marqués → « [pseudo] »
+            htmlOut = tmp.innerHTML;
+        }
         const sonalOut = sauvHtml(
-            data.tabLoc, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
+            tabLocOut, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
             data.tabDat, data.notes, htmlOut, opts.anon ? [] : (data.tabAnon || []));
 
         // 4. Nom de fichier à plat, anti-doublons.
@@ -3053,8 +3099,10 @@ async function exporterCorpusReouvrable(opts = {}) {
 
         fichiers.push({ nom: nomFichier, contenu: sonalOut });
         // Entretien aplati pour le .crp : rtrPath relatif, pas de html embarqué. Règles vidées si
-        // anonymisé (irréversible), conservées sinon (copie fidèle).
-        const entExport = { ...ent, tabAnon: opts.anon ? [] : (ent.tabAnon || []), rtrPath: nomFichier };
+        // anonymisé (irréversible), conservées sinon (copie fidèle). tabLoc pseudonymisé si anonymisé
+        // (3e canal de fuite : le .crp embarque les noms de locuteurs), aligné sur le loc-json du .Sonal.
+        const entExport = { ...ent, tabAnon: opts.anon ? [] : (ent.tabAnon || []),
+            tabLoc: opts.anon ? tabLocOut : ent.tabLoc, rtrPath: nomFichier };
         delete entExport.html;
         tabEntExport.push(entExport);
     }
@@ -3104,7 +3152,9 @@ async function exporterCorpusPartage(opts = {}) {
         const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
         // Traitement loc/thm partagé avec l'export entretien (en-têtes locuteurs, classes/CSS de
         // thématiques, coordonnées) ; pas de boutons audio en partage (audioSrcUrl vide).
-        const { html: contenuTraite, cssThm } = traiterHtmlEntretienPourExport(htmlSrc, opts, (ent && ent.tabLoc) || [], '');
+        // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
+        const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+        const { html: contenuTraite, cssThm } = traiterHtmlEntretienPourExport(htmlSrc, opts, locAff, '');
 
         const nomEnt = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
         const suffixeTitre = opts.anon ? ' (anonymisé)' : '';
@@ -3117,7 +3167,7 @@ async function exporterCorpusPartage(opts = {}) {
         }
         let varsHtml = '';
         if (opts.vars) {
-            const vH = (await varsPubliquesEnt(i))[0];
+            const vH = (await varsPubliquesEnt(i, opts.anon ? locAff : null))[0];
             if (vH) varsHtml = `\n  <section class="sec-export"><h3>Variables</h3>${vH}</section>`;
         }
 
@@ -3176,8 +3226,10 @@ async function exporterCorpusDocxZip(opts = {}) {
         nomsUtilises.add(nom.toLowerCase());
 
         const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
-        const txtvars = opts.vars ? ((await varsPubliquesEnt(i))[1] || '') : '';
-        const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, (ent && ent.tabLoc) || [], true);
+        // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
+        const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+        const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+        const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, locAff, true);
         fichiers.push({
             nom: nom + '.docx',
             nomEntretien: (ent && ent.nom) ? ent.nom : nom,

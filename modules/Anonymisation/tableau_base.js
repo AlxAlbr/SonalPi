@@ -2203,6 +2203,7 @@ async function resynchroniserLibellesLocuteurs() {
                 modifie = true;
             }
         }
+        majBarreLoc(lig); // barré du nom cohérent avec l'état loc-anon après resynchro
     }
     if (modifie) await syncHtmlVersMainProcess();
     return modifie;
@@ -2239,10 +2240,11 @@ function detecterLibellesASuggerer() {
             } else if (!regleA.existeLocalement) {
                 regleA.existeLocalement = true;
             }
+            majBarreLoc(lig); // barré du nom (data-nomloc-barre) selon l'état final
             return;
         }
         // Refusé explicitement (« ne pas pseudonymiser », loc-suggere-refuse) → ne pas re-suggérer.
-        if (lig.classList.contains('loc-suggere-refuse')) return;
+        if (lig.classList.contains('loc-suggere-refuse')) { majBarreLoc(lig); return; }
         const clesNom = clesAlias(lig.dataset.nomloc || '');
         const regle = (window.tabAnon || []).find(p =>
             p && p.entite && (p.portee || 'corpus') !== 'brouillon' &&
@@ -2255,6 +2257,7 @@ function detecterLibellesASuggerer() {
             lig.classList.remove('loc-suggere');
             delete lig.dataset.locpseudoSuggere;
         }
+        majBarreLoc(lig); // barré du nom (data-nomloc-barre) selon l'état final
     });
 }
 
@@ -2402,9 +2405,22 @@ async function validerLigneAnon(idx, porteeRequise = 'document') {
  * @returns {string[]}
  */
 function getMotsLiaison() {
+    if (!getMotsLiaisonActif()) return []; // désactivé → liste vide = détection d'affixes éteinte
     const p = window.paramsAnonCorpus;
     if (p && Array.isArray(p.motsLiaison) && p.motsLiaison.length) return p.motsLiaison;
     return (typeof MOTS_LIAISON_DEFAUT !== 'undefined') ? MOTS_LIAISON_DEFAUT : [];
+}
+
+/**
+ * Interrupteur des mots de liaison (modale « Paramètres ⚙ », anon-params.js) : ACTIVÉ par défaut.
+ * Lecture défensive — un ancien .crp sans la clé `motsLiaisonActif` reste au comportement
+ * historique (détection active). Désactivé → getMotsLiaison() renvoie [] et la proposition de
+ * règle cœur (proposerRegleCoeurAffixe) ne se déclenche plus ; la LISTE de mots reste intacte
+ * dans le .crp (réactivable sans perte).
+ * @returns {boolean}
+ */
+function getMotsLiaisonActif() {
+    return !(window.paramsAnonCorpus && window.paramsAnonCorpus.motsLiaisonActif === false);
 }
 
 /**
@@ -2701,6 +2717,7 @@ async function proposerPseudoLocuteur(paire, porteeRequise) {
     cibles.forEach(lig => {
         lig.classList.add('loc-anon');
         lig.dataset.locpseudo = pseudo;
+        majBarreLoc(lig); // nom barré (data-nomloc-barre) pour le ::before
     });
     await syncHtmlVersMainProcess(); // DOM marqué → cache HTML du main (anon.md §3.4)
     return { matched: true, marked: true };

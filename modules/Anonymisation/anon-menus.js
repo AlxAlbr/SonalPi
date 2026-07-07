@@ -411,6 +411,48 @@ async function toutEnNonTraite(idxPaire) {
     await syncHtmlVersMainProcess();
 }
 
+// Bulk : PSEUDONYMISE toutes les occurrences NON-TRAITÉES de la paire (laisse les exceptions et les
+// incluses intactes). Version « tout » de pseudonymiserOccurrence.
+// pseudoIdx = index dans pseudosDe(paire) : 0 = primaire (défaut), 1 = alt. Mono-pseudo : 0.
+async function toutPseudonymiser(idxPaire, pseudoIdx = 0) {
+    const paire = window.tabAnon[idxPaire];
+    if (!paire || !paire.matchPositions) return;
+
+    // Uniquement les occurrences non-traitées : ni exception, ni déjà anonymisée, ni incluse.
+    const cibles = paire.matchPositions.filter(m => m && !m.isIncluded && m.isNonTraite);
+    if (cibles.length === 0) return;
+
+    // Snapshot undo (DOM #segments) avant mutation — voir undo()/redo() (segmentation.js).
+    if (typeof backUp === 'function') backUp();
+
+    const pseudos = pseudosDe(paire);
+    const pseudo = (pseudos[pseudoIdx] || pseudos[0] || paire.remplacement || '').trim();
+    const tousLesSpans = document.querySelectorAll('[data-rk]');
+    for (const match of cibles) {
+        for (let i = match.start; i <= match.end; i++) {
+            const span = tousLesSpans[i];
+            if (!span) continue;
+            span.classList.remove('anon-exception');
+            span.classList.add('anon');
+            span.removeAttribute('data-anon-nt');
+            if (i === match.start) {
+                span.classList.add('debsel');
+                if (pseudo) span.dataset.pseudo = pseudo;
+            }
+            if (i === match.end) {
+                span.classList.add('finsel');
+                if (pseudo) span.dataset.pseudo = pseudo;
+            }
+        }
+        match.isNonTraite = false;
+        match.isException = false;
+    }
+
+    affichTableauAnon();
+    await sauvegarderTabAnonEnt();
+    await syncHtmlVersMainProcess();
+}
+
 // Menu contextuel pour une occurrence non traitée
 function showMenuNonTraite(span, idxPaire, matchIdx) {
     const paire = window.tabAnon[idxPaire];
@@ -463,8 +505,21 @@ function showMenuNonTraite(span, idxPaire, matchIdx) {
             ✓ Pseudonymiser cette occurrence
         </div>`;
 
+    // « Tout » : pseudonymise toutes les occurrences NON-TRAITÉES restantes (laisse les exceptions).
+    // Multi-pseudo : un item par pseudo autorisé ; mono-pseudo : item unique.
+    const itemsToutPseudo = (pseudosNT.length > 1)
+        ? pseudosNT.map((p, pi) => `
+        <div class="menu-item" onmousedown="toutPseudonymiser(${idxPaire}, ${pi}); document.getElementById('contextMenuException')?.remove();">
+            ✓✓ Pseudonymiser toutes les occurrences non traitées comme « ${_escAnonMenu(p)} »
+        </div>`).join('')
+        : `
+        <div class="menu-item" onmousedown="toutPseudonymiser(${idxPaire}); document.getElementById('contextMenuException')?.remove();">
+            ✓✓ Pseudonymiser toutes les occurrences non traitées
+        </div>`;
+
     menuDiv.innerHTML = `
         ${itemsPseudo}
+        ${itemsToutPseudo}
         ${avecSuivante ? `
         <div class="menu-item" onmousedown="marquerExceptionEtSuivante(${idxPaire}, ${matchIdx}); document.getElementById('contextMenuException')?.remove();">
             ⊘ Marquer comme exception et aller à la suivante
@@ -587,6 +642,7 @@ async function retirerPseudoLibelleLocuteur(nomLoc) {
         delete l.dataset.locpseudo;
         l.classList.add('loc-suggere-refuse');
         if (pseudo) l.dataset.locpseudoSuggere = pseudo;
+        majBarreLoc(l); // refusé → nom en clair : retire data-nomloc-barre
     });
     // Symétrie de la confirmation : si la règle n'était matérialisée QUE par ce libellé (corpus
     // fusionnée, 0 occurrence de TEXTE), elle redevient un « fantôme » corpus → on retire
@@ -625,6 +681,7 @@ async function confirmerPseudoLibelleLocuteur(nomLoc) {
             l.classList.add('loc-anon');
             l.dataset.locpseudo = pseudo;
         }
+        majBarreLoc(l); // confirmé → nom barré (data-nomloc-barre) pour le ::before
     });
     // 2. La règle (corpus fusionnée) est désormais MATÉRIALISÉE ici par le libellé → elle APPARTIENT à
     //    l'entretien : existeLocalement=true. Sinon, fantôme corpus (occ texte=0) → cachée du tableau
@@ -658,6 +715,7 @@ async function refuserPseudoLibelleLocuteur(nomLoc) {
         if (!clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k))) return;
         l.classList.remove('loc-suggere');
         l.classList.add('loc-suggere-refuse');
+        majBarreLoc(l); // refusé → nom en clair : retire data-nomloc-barre
     });
     if (typeof affichTableauAnon === 'function') affichTableauAnon(); // pastille 👤 : suggéré → refusé
     if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();

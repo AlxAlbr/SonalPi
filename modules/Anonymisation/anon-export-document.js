@@ -298,16 +298,10 @@ function AnonymiserSegments() {
     const segmentsEl = document.getElementById('segments');
     if (!segmentsEl) return '';
     // LIBELLÉS de locuteurs : sur un CLONE (sans toucher le DOM live), remplacer data-nomloc par le nom
-    // AFFICHÉ anonymisé (pseudo si confirmé/suggéré, sinon nom réel) et retirer les marqueurs runtime —
-    // sinon le vrai nom fuiterait via le ::before du libellé dans le fichier partagé.
+    // AFFICHÉ anonymisé et retirer les marqueurs runtime — sinon le vrai nom fuiterait via le ::before
+    // du libellé dans le fichier partagé. Cœur partagé _anonymiserLiglocsDansElement (anon-regles.js).
     const clone = segmentsEl.cloneNode(true);
-    clone.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
-        const aff = (typeof nomLocAffiche === 'function') ? nomLocAffiche(lig, { anonymise: true }) : lig.dataset.nomloc;
-        lig.dataset.nomloc = aff;
-        lig.classList.remove('loc-anon', 'loc-suggere', 'loc-suggere-refuse');
-        delete lig.dataset.locpseudo;
-        delete lig.dataset.locpseudoSuggere;
-    });
+    _anonymiserLiglocsDansElement(clone);
     // Cœur partagé _anonymiserHtml (anon-regles.js) : remplace chaque run par « [pseudo] », garde
     // exceptions/à-traiter en clair, préserve la structure. (cf. anon.md §8)
     return _anonymiserHtml(clone.innerHTML);

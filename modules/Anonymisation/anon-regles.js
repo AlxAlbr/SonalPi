@@ -84,6 +84,28 @@ function _anonymiserHtml(html) {
 }
 
 /**
+ * Pseudonymisation DÉFINITIVE des LIBELLÉS de locuteurs (.ligloc) d'un élément DOM détaché :
+ * `data-nomloc` ← nom affiché anonymisé (pseudo si confirmé/suggéré, sinon nom réel), marqueurs
+ * `loc-*` et attributs dérivés retirés — sinon le VRAI nom fuiterait via `data-nomloc` /
+ * `data-nomloc-barre` dans le fichier partagé. Pendant ligloc de `_anonymiserDansElement` (qui ne
+ * traite que les `[data-rk]`). Partagé : export entretien (`AnonymiserSegments`,
+ * anon-export-document.js) et export corpus réouvrable (`exporterCorpusReouvrable`, tableau_global.js).
+ * @param {HTMLElement} root @returns {HTMLElement} root muté
+ */
+function _anonymiserLiglocsDansElement(root) {
+    if (!root) return root;
+    root.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
+        const aff = (typeof nomLocAffiche === 'function') ? nomLocAffiche(lig, { anonymise: true }) : lig.dataset.nomloc;
+        lig.dataset.nomloc = aff;
+        lig.classList.remove('loc-anon', 'loc-suggere', 'loc-suggere-refuse');
+        delete lig.dataset.locpseudo;
+        delete lig.dataset.locpseudoSuggere;
+        delete lig.dataset.nomlocBarre; // dérivé du VRAI nom (barré) → ne pas fuiter dans l'export
+    });
+    return root;
+}
+
+/**
  * Clé canonique d'une paire (entité, pseudo) pour la déduplication des règles d'anonymisation.
  * RÈGLE UNIQUE partagée par tous les chemins de fusion/synchro/dédup : trim + minuscules
  * (insensible à la casse → « Paris » et « paris » sont la MÊME règle). Centralisée ici pour
