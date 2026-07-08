@@ -161,20 +161,25 @@ var lxVueDonnees = [];  // données actuellement affichées (filtrées ou non)
 var lxVueOffset  = 0;   // nombre de lignes déjà rendues dans le tbody
 const LX_BATCH   = 200; // lignes chargées par lot au scroll
 var lxTypesLemmesParForme = new Map(); // index forme visible -> type(s) de lemmatisation présents
+var lxParentRowUid = 0; // identifiant technique des lignes parentes pour le repli/depli
 var lxFiltreListeTexteActif = false; // true si la recherche texte de la liste est active
 var lxMaxFreqGlobal = 1; // fréquence maximale du corpus entier (référence de l'échelle)
 var lxCorpusCompletVisible = true; // true si aucune sélection (thm/var/ent) ne restreint le corpus
 var lxSpecifActives = false; // true si les spécificités sont calculées sur un sous-corpus sélectionné
+var lxHistogrammeComparatifActif = false; // true si l'on affiche la proportion filtrée / globale en %
 var lxIgnorerFiltreVariablesInitial = true; // ignore le filtre variables tant qu'aucune interaction n'a eu lieu
 
 // ---- Options d'affichage ----
 var lxOptExclureQuestions = true;  // exclure les locuteurs dont le nom contient '?'
 var lxOptOccMin           = 1;     // fréquence minimale pour figurer dans le tableau
 var lxOptAfficherSpecNeg  = false; // afficher les spécificités négatives
-var lxOptMasquerChiffres  = true;  // masquer les tokens purement numériques
+var lxOptAfficherChiffres = false; // afficher les tokens purement numériques
 var lxOptLemmatiserVerbes = true; // lemmatiser automatiquement les verbes
+var lxOptAfficherVerbesLemmes = true; // afficher les lemmes de verbes dans les vues lexico
+var lxOptAfficherWordle   = true;  // afficher le nuage de mots par défaut
 
 var lxMotsOutils = new Set(); // formes à ignorer (mots vides / mots outils)
+var lxConcatRegles = new Map(); // regles de concatenation chargees/saisies (.cnct)
 
 const _LX_TERM_ER = new Set([
     'er', 'er+', 'é', 'ée', 'ées', 'a', 'ea', 'era', 'e', 'ai', 'eai', 'erai', 'er', 'ais',
@@ -266,6 +271,7 @@ function _lxTrier() {
         if      (lexicoTriPar === 'alpha') cmp = a.forme.localeCompare(b.forme, 'fr', { sensitivity: 'base' });
         else if (lexicoTriPar === 'nbEnt') cmp = b.nbEnt - a.nbEnt;
         else if (lexicoTriPar === 'pval')  cmp = (a.pValue ?? 1) - (b.pValue ?? 1);
+        else if (lexicoTriPar === 'rel')   cmp = b.occTotal - a.occTotal;
         else                               cmp = b.occTotal - a.occTotal;
         return lexicoDesc ? cmp : -cmp;
     });
@@ -303,11 +309,211 @@ function _lxClassesLemmeForme(forme) {
     return classes.join(' ');
 }
 
+function _lxFormeEstLemmeVerbeMasquable(forme) {
+    const e = lxTypesLemmesParForme.get(forme);
+    return !!(e && e.verbe && !e.manuel);
+}
+
 function _lxClassesLemmeItem(item) {
     const classes = [];
     if (_lxItemEstLemmeVerbe(item)) classes.push('lx-lemme-verbe');
     if (_lxItemEstLemmeManuel(item)) classes.push('lx-lemme-manuel');
     return classes.join(' ');
+}
+
+function _lxFormeEstDeveloppable(forme) {
+    const e = lxTypesLemmesParForme.get(forme);
+    return !!(e && (e.verbe || e.manuel));
+}
+
+function _lxSousFormesDynamiques(cleForme) {
+    const cle = String(cleForme || '').trim();
+    if (!cle) return [];
+
+    const map = new Map();
+    let trouveParSubstitut = false;
+
+    tabLexico.forEach(item => {
+        const sub = (item.substitut && item.substitut.trim()) ? item.substitut.trim() : '';
+        if (sub !== cle) return;
+        trouveParSubstitut = true;
+
+        const formeBase = item.forme;
+        if (!map.has(formeBase)) {
+            map.set(formeBase, { forme: formeBase, occTotal: 0, entretiens: new Set() });
+        }
+        const e = map.get(formeBase);
+        e.occTotal++;
+        e.entretiens.add(item.entretien);
+    });
+
+    if (!trouveParSubstitut) return [];
+
+    return Array.from(map.values())
+        .map(e => ({
+            forme: e.forme,
+            occTotal: e.occTotal,
+            nbEnt: e.entretiens.size
+        }))
+        .sort((a, b) => {
+            const cmp = b.occTotal - a.occTotal;
+            if (cmp !== 0) return cmp;
+            return a.forme.localeCompare(b.forme, 'fr', { sensitivity: 'base' });
+        });
+}
+
+function _lxCreerSousLigne(item, logMax, parentId, cleParent) {
+    const tr = document.createElement('tr');
+    tr.className = 'lx-row lx-sub-row';
+    tr.dataset.lxParentId = parentId;
+
+    const tdChk = document.createElement('td');
+    tdChk.className = 'lx-td-chk';
+    tr.appendChild(tdChk);
+
+    const tdRk = document.createElement('td');
+    tdRk.className = 'lx-td-rk';
+    tdRk.textContent = '';
+    tr.appendChild(tdRk);
+
+    const tdForme = document.createElement('td');
+    tdForme.className = 'lx-td-forme lx-td-forme-sub';
+    const spanForme = document.createElement('span');
+    spanForme.className = 'lx-forme-txt lx-forme-sub';
+    spanForme.textContent = item.forme;
+    tdForme.appendChild(spanForme);
+
+    const btnDet = document.createElement('button');
+    btnDet.className = 'lx-btn-det';
+    btnDet.textContent = '➕';
+    btnDet.title = 'Voir les occurrences en contexte';
+    btnDet.addEventListener('click', e => {
+        e.stopPropagation();
+        _lxOuvrirModalOccurrences(item.forme);
+    });
+    tdForme.appendChild(btnDet);
+
+    const btnUngrp = document.createElement('button');
+    btnUngrp.className = 'lx-btn-ungrp';
+    btnUngrp.textContent = 'x';
+    btnUngrp.title = 'Libérer cette sous-forme (ne plus la regrouper)';
+    btnUngrp.addEventListener('click', e => {
+        e.stopPropagation();
+        _lxLibererSousForme(item.forme, cleParent);
+    });
+    tdForme.appendChild(btnUngrp);
+
+    tr.appendChild(tdForme);
+
+    const tdFreq = document.createElement('td');
+    tdFreq.className = 'lx-td-freq';
+    tdFreq.textContent = item.occTotal.toLocaleString('fr-FR');
+    tr.appendChild(tdFreq);
+
+    const tdBar = document.createElement('td');
+    tdBar.className = 'lx-td-bar';
+    const pct = (Math.log10(item.occTotal + 1) / logMax) * 100;
+    tdBar.innerHTML =
+        `<div class="lx-bar-outer"><div class="lx-bar-inner" style="width:${pct.toFixed(1)}%"></div></div>`;
+    tr.appendChild(tdBar);
+
+    const tdNbEnt = document.createElement('td');
+    tdNbEnt.className = 'lx-td-nbent';
+    tdNbEnt.textContent = item.nbEnt;
+    tr.appendChild(tdNbEnt);
+
+    const tdPval = document.createElement('td');
+    tdPval.className = 'lx-td-pval';
+    tr.appendChild(tdPval);
+
+    return tr;
+}
+
+function _lxBasculerSousFormes(trParent, cleForme, logMax) {
+    if (!trParent || !trParent.parentNode) return;
+    const parentId = trParent.dataset.lxParentId;
+    if (!parentId) return;
+
+    const ouvert = trParent.dataset.lxExpanded === '1';
+    let cur = trParent.nextElementSibling;
+    while (cur && cur.classList.contains('lx-sub-row') && cur.dataset.lxParentId === parentId) {
+        const next = cur.nextElementSibling;
+        cur.remove();
+        cur = next;
+    }
+
+    const btnExpand = trParent.querySelector('.lx-btn-expand');
+    if (ouvert) {
+        trParent.dataset.lxExpanded = '0';
+        if (btnExpand) btnExpand.textContent = '▼';
+        return;
+    }
+
+    const sousFormes = _lxSousFormesDynamiques(cleForme);
+    if (!sousFormes.length) {
+        trParent.dataset.lxExpanded = '0';
+        if (btnExpand) btnExpand.textContent = '▼';
+        return;
+    }
+
+    const frag = document.createDocumentFragment();
+    sousFormes.forEach(sf => {
+        frag.appendChild(_lxCreerSousLigne(sf, logMax, parentId, cleForme));
+    });
+    trParent.parentNode.insertBefore(frag, trParent.nextSibling);
+
+    trParent.dataset.lxExpanded = '1';
+    if (btnExpand) btnExpand.textContent = '▲';
+}
+
+function _lxRouvrirParentApresRefresh(cleParent) {
+    const cle = String(cleParent || '').trim();
+    if (!cle) return;
+
+    const idx = lxVueDonnees.findIndex(d => d && d.forme === cle);
+    if (idx < 0) return;
+
+    const tbody = document.getElementById('lx-tbody');
+    if (!tbody) return;
+
+    // S'assurer que la ligne parent est chargee meme si elle est hors premier lot.
+    while (lxVueOffset <= idx && lxVueOffset < lxVueDonnees.length) {
+        _lxAppendBatch(tbody);
+    }
+
+    const rows = tbody.querySelectorAll('tr.lx-row:not(.lx-sub-row)');
+    const trParent = rows[idx];
+    if (!trParent) return;
+
+    const maxFreq = lxMaxFreqGlobal;
+    const logMax  = Math.log10(maxFreq + 1);
+    if (trParent.dataset.lxExpanded !== '1') {
+        _lxBasculerSousFormes(trParent, cle, logMax);
+    }
+}
+
+function _lxLibererSousForme(forme, cleParent) {
+    const cibleForme = String(forme || '').trim();
+    const cibleParent = String(cleParent || '').trim();
+    if (!cibleForme || !cibleParent) return;
+
+    let modifie = 0;
+    tabLexico.forEach(item => {
+        if (item.forme !== cibleForme) return;
+        const sub = (item.substitut && item.substitut.trim()) ? item.substitut.trim() : '';
+        if (sub !== cibleParent) return;
+
+        item.substitut = '';
+        item.typeForme = '';
+        modifie++;
+    });
+
+    if (modifie === 0) return;
+
+    agreguerLexico();
+    _lxRefreshTable();
+    _lxRouvrirParentApresRefresh(cibleParent);
+    _lxSauvegarderLem();
 }
 
 // ============================================================
@@ -345,6 +551,12 @@ async function afficherLexico() {
     body.appendChild(_lxPanneauVar());
     body.appendChild(_lxPanneauEnt());
     body.appendChild(_lxPanneauIndex());
+    if (lxOptAfficherWordle) {
+        const pnlIndex = document.getElementById('lxPnlIndex');
+        if (pnlIndex && !document.getElementById('lx-wordle-panel')) {
+            pnlIndex.appendChild(_lxCreerPanneauWordle());
+        }
+    }
 
     // Au chargement, on n'applique pas les filtres variables hérités d'autres vues.
     lxIgnorerFiltreVariablesInitial = true;
@@ -466,7 +678,7 @@ function _lxHeader(divRoot) {
     const panelIds = ['lxPnlThm', 'lxPnlVar', 'lxPnlEnt'];
 
     [
-        { id: 'lxPnlThm', label: 'Thématiques', class: 'logo-cat-filtre' },
+        { id: 'lxPnlThm', label: 'Catégories', class: 'logo-cat-filtre' },
         { id: 'lxPnlVar', label: 'Variables', class: 'logo-variables-filtre'   },
         { id: 'lxPnlEnt', label: 'Entretiens' , class: 'logo-ent-filtre' },
     ].forEach(({ id, label, class: btnClass }) => {
@@ -576,9 +788,22 @@ function _lxCreerBtnTout(getItems, isActif, appliquer, onAppliquer = null) {
 // ---- Thématiques — même apparence que conteneur_cat ----
 
 function _lxPanneauThm() {
-    const { pnl, body, head } = _lxCreerPanneau('lxPnlThm', 'Thématiques');
+    const { pnl, body, head } = _lxCreerPanneau('lxPnlThm', 'Catégories');
     pnl.classList.add('lx-hidden');
     body.classList.add('conteneur_cat');
+
+    const _lxPropagerEtatThmAuxDescendants = (tabThmLocal, indexThm, nouvelEtat) => {
+        const rangParent = Number(tabThmLocal[indexThm].rang);
+        for (let i = indexThm + 1; i < tabThmLocal.length; i++) {
+            if (Number(tabThmLocal[i].rang) > rangParent) {
+                tabThmLocal[i].act = nouvelEtat;
+                const descendant = body.querySelector(`.ligthm[data-code="${tabThmLocal[i].code}"]`);
+                if (descendant) descendant.classList.toggle('ligthm-inactive', !nouvelEtat);
+            } else {
+                break;
+            }
+        }
+    };
 
     const { btn: btnThmAll, maj: majThmBtn } = _lxCreerBtnTout(
         () => body.querySelectorAll('.ligthm[data-code]'),
@@ -589,7 +814,7 @@ function _lxPanneauThm() {
 
     tabThm
         .filter(t => !t.code.startsWith('cat_int_'))
-        .forEach(thm => {
+        .forEach((thm, idxThm) => {
             const lbl = document.createElement('label');
             lbl.dataset.code = thm.code;
             lbl.classList.add(thm.code, 'ligthm');
@@ -612,15 +837,21 @@ function _lxPanneauThm() {
 
             // Clic gauche : bascule l'état actif/inactif dans le panneau lexico uniquement
             lbl.addEventListener('click', () => {
+                const nouvelEtat = lbl.classList.contains('ligthm-inactive');
                 lbl.classList.toggle('ligthm-inactive');
+                thm.act = nouvelEtat;
+                _lxPropagerEtatThmAuxDescendants(tabThm, idxThm, nouvelEtat);
                 _lxRefreshTable();
             });
 
-            // Clic droit : isoler — toutes les autres thématiques passent inactives
+            // Clic droit : isoler la branche — la thématique et ses descendants restent actifs
             lbl.addEventListener('contextmenu', e => {
                 e.preventDefault();
                 body.querySelectorAll('.ligthm[data-code]').forEach(l => l.classList.add('ligthm-inactive'));
+                tabThm.forEach(thmItem => { thmItem.act = false; });
                 lbl.classList.remove('ligthm-inactive');
+                thm.act = true;
+                _lxPropagerEtatThmAuxDescendants(tabThm, idxThm, true);
                 _lxRefreshTable();
             });
 
@@ -715,7 +946,9 @@ function _lxPanneauVar() {
             btnSwitch.dataset.v = v.v;
             btnSwitch.dataset.m = mod.m;
             btnSwitch.dataset.vide = _lxModaliteVarACibles(v.v, mod.m, v.champ) ? '0' : '1';
-            const modaliteActive = !etatVar || etatVar.actifs.has(String(mod.m));
+            // Ne pas heriter des etats actifs/inactifs du tri a plat:
+            // la lexico doit demarrer avec toutes les modalites actives.
+            const modaliteActive = true;
             btnSwitch.classList.toggle('btn-onoff-ent--actif', modaliteActive);
             btnSwitch.title = 'Clic gauche\u00a0: inclure / exclure\nClic droit\u00a0: isoler cette modalité';
             btnSwitch.addEventListener('click', e => {
@@ -763,7 +996,7 @@ function _lxPanneauVar() {
         btnNR.dataset.v = v.v;
         btnNR.dataset.m = '0';
         btnNR.dataset.vide = _lxModaliteVarACibles(v.v, 0, v.champ) ? '0' : '1';
-        const nonRenseigneActif = !etatVar || etatVar.actifs.has('0');
+        const nonRenseigneActif = true;
         btnNR.classList.toggle('btn-onoff-ent--actif', nonRenseigneActif);
         btnNR.title = 'Clic gauche\u00a0: inclure / exclure les non-renseignés\nClic droit\u00a0: isoler';
         btnNR.addEventListener('click', e => {
@@ -921,6 +1154,49 @@ function _lxPanneauIndex() {
     btnSpont.title = 'Analyser la spontanéité (une seule forme sélectionnée)';
     btnSpont.addEventListener('click', _lxOuvrirModalSpontaneite);
     selBar.appendChild(btnSpont);
+
+    const btnMO = document.createElement('button');
+    btnMO.id = 'lx-btn-mo';
+    btnMO.className = 'btn btn-secondary lx-selbar-btn';
+    btnMO.textContent = '🔧+ ajout aux mots outils';
+    btnMO.title = 'Ajouter les formes sélectionnées aux mots outils (mots vides)';
+    btnMO.addEventListener('click', () => {
+        lxVueDonnees.filter(d => d.selectionne).forEach(d => lxMotsOutils.add(d.forme));
+        lxVueDonnees.forEach(d => { d.selectionne = false; });
+        tabOccLexico.forEach(d => { d.selectionne = false; });
+        _lxRefreshTable();
+        _lxSauvegarderOut();
+    });
+    selBar.appendChild(btnMO);
+
+    const btnContexte = document.createElement('button');
+    btnContexte.id = 'lx-btn-contexte';
+    btnContexte.className = 'btn btn-secondary lx-selbar-btn lx-selbar-btn--hidden';
+    btnContexte.textContent = '➕ Voir contexte';
+    btnContexte.title = 'Voir les occurrences en contexte (une seule forme sélectionnée)';
+    btnContexte.addEventListener('click', () => {
+        const sel = lxVueDonnees.find(d => d.selectionne);
+        if (sel) _lxOuvrirModalOccurrences(sel.forme);
+    });
+    selBar.appendChild(btnContexte);
+
+    const btnDeplier = document.createElement('button');
+    btnDeplier.id = 'lx-btn-deplier';
+    btnDeplier.className = 'btn btn-secondary lx-selbar-btn lx-selbar-btn--hidden';
+    btnDeplier.textContent = '▼ Déplier';
+    btnDeplier.title = 'Afficher les sous-formes regroupées sous cette entrée';
+    btnDeplier.addEventListener('click', () => {
+        const sel = lxVueDonnees.find(d => d.selectionne);
+        if (!sel) return;
+        const idx = lxVueDonnees.indexOf(sel);
+        const tbody = document.getElementById('lx-tbody');
+        if (!tbody) return;
+        while (lxVueOffset <= idx && lxVueOffset < lxVueDonnees.length) _lxAppendBatch(tbody);
+        const rows = tbody.querySelectorAll('tr.lx-row:not(.lx-sub-row)');
+        const trParent = rows[idx];
+        if (trParent) _lxBasculerSousFormes(trParent, sel.forme, Math.log10(lxMaxFreqGlobal + 1));
+    });
+    selBar.appendChild(btnDeplier);
 
     const btnDesel = document.createElement('button');
     btnDesel.className = 'btn btn-secondary lx-selbar-btn';
@@ -1161,6 +1437,26 @@ function _lxOuvrirOptions() {
     rowQ.appendChild(lblQ);
     body.appendChild(rowQ);
 
+    // Afficher le nuage de mots (Wordle)
+    const rowWordle = document.createElement('div');
+    rowWordle.className = 'lx-opt-row';
+    const chkWordle = document.createElement('input');
+    chkWordle.type = 'checkbox';
+    chkWordle.id = 'lx-opt-wordle';
+    chkWordle.checked = lxOptAfficherWordle;
+    const lblWordle = document.createElement('label');
+    lblWordle.htmlFor = 'lx-opt-wordle';
+    lblWordle.textContent = 'Afficher le nuage de mots';
+    rowWordle.appendChild(chkWordle);
+    rowWordle.appendChild(lblWordle);
+    body.appendChild(rowWordle);
+
+    // Sous partie
+    const sep = document.createElement('H3');
+    sep.className = 'lx-opt-sep';
+    sep.textContent = 'Affichage';
+    body.appendChild(sep);
+
     // Ligne 2 : Occurrence minimum
     const rowOcc = document.createElement('div');
     rowOcc.className = 'lx-opt-row';
@@ -1224,19 +1520,38 @@ function _lxOuvrirOptions() {
     rowSpec.appendChild(lblSpec);
     body.appendChild(rowSpec);
 
-    // Ligne 4 : Masquer les chiffres
+    // Ligne 4 : Afficher les chiffres
     const rowChif = document.createElement('div');
     rowChif.className = 'lx-opt-row';
     const chkChif = document.createElement('input');
     chkChif.type = 'checkbox';
-    chkChif.id = 'lx-opt-masquer-chiffres';
-    chkChif.checked = lxOptMasquerChiffres;
+    chkChif.id = 'lx-opt-afficher-chiffres';
+    chkChif.checked = lxOptAfficherChiffres;
     const lblChif = document.createElement('label');
-    lblChif.htmlFor = 'lx-opt-masquer-chiffres';
-    lblChif.textContent = 'Masquer les chiffres';
+    lblChif.htmlFor = 'lx-opt-afficher-chiffres';
+    lblChif.textContent = 'Afficher les chiffres';
     rowChif.appendChild(chkChif);
     rowChif.appendChild(lblChif);
     body.appendChild(rowChif);
+
+    const rowAfficherVrb = document.createElement('div');
+    rowAfficherVrb.className = 'lx-opt-row';
+    const chkAfficherVrb = document.createElement('input');
+    chkAfficherVrb.type = 'checkbox';
+    chkAfficherVrb.id = 'lx-opt-afficher-lemma-verbes';
+    chkAfficherVrb.checked = lxOptAfficherVerbesLemmes;
+    const lblAfficherVrb = document.createElement('label');
+    lblAfficherVrb.htmlFor = 'lx-opt-afficher-lemma-verbes';
+    lblAfficherVrb.textContent = 'Afficher verbes lemmatisés';
+    rowAfficherVrb.appendChild(chkAfficherVrb);
+    rowAfficherVrb.appendChild(lblAfficherVrb);
+    body.appendChild(rowAfficherVrb);
+
+    // Sous partie
+    const sep2 = document.createElement('H3');
+    sep2.className = 'lx-opt-sep';
+    sep2.textContent = 'Lemmatisation';
+    body.appendChild(sep2);
 
     // Ligne 5 : Lemmatisation automatique des verbes
     const rowVrb = document.createElement('div');
@@ -1249,23 +1564,44 @@ function _lxOuvrirOptions() {
     lblVrb.htmlFor = 'lx-opt-lemma-verbes';
     lblVrb.textContent = 'Lemmatiser verbes';
 
+    const majEtatAfficherVrb = () => {
+        chkAfficherVrb.disabled = !chkVrb.checked;
+        lblAfficherVrb.style.opacity = chkVrb.checked ? '1' : '0.55';
+    };
+    chkVrb.addEventListener('change', majEtatAfficherVrb);
+    majEtatAfficherVrb();
+
     rowVrb.appendChild(chkVrb);
     rowVrb.appendChild(lblVrb);
     body.appendChild(rowVrb);
 
-    // Ligne 6 : Afficher le nuage de mots (Wordle)
-    const rowWordle = document.createElement('div');
-    rowWordle.className = 'lx-opt-row';
-    const chkWordle = document.createElement('input');
-    chkWordle.type = 'checkbox';
-    chkWordle.id = 'lx-opt-wordle';
-    chkWordle.checked = !!document.getElementById('lx-wordle-panel');
-    const lblWordle = document.createElement('label');
-    lblWordle.htmlFor = 'lx-opt-wordle';
-    lblWordle.textContent = 'Afficher le nuage de mots';
-    rowWordle.appendChild(chkWordle);
-    rowWordle.appendChild(lblWordle);
-    body.appendChild(rowWordle);
+
+
+    // Ligne 7 : Ouvrir l'edition des mots outils
+    const rowMO = document.createElement('div');
+    rowMO.className = 'lx-opt-row';
+    const btnMO = document.createElement('label');
+    btnMO.className = 'btnfonction';
+    btnMO.textContent = '✏️ Editer les mots outils';
+    btnMO.title = 'Ouvrir la gestion des mots outils';
+    btnMO.addEventListener('click', () => {
+        _lxOuvrirGestionMotsOutils();
+    });
+    rowMO.appendChild(btnMO);
+    body.appendChild(rowMO);
+
+    // Ligne 8 : Ouvrir la gestion des concatenations lexicales
+    const rowConcat = document.createElement('div');
+    rowConcat.className = 'lx-opt-row';
+    const btnConcat = document.createElement('label');
+    btnConcat.className = 'btnfonction';
+    btnConcat.textContent = '🔗 Concatener des formes';
+    btnConcat.title = 'Construire une forme composee a partir de mots consecutifs';
+    btnConcat.addEventListener('click', () => {
+        _lxOuvrirGestionConcatenations();
+    });
+    rowConcat.appendChild(btnConcat);
+    body.appendChild(rowConcat);
 
     modal.appendChild(body);
 
@@ -1281,9 +1617,11 @@ function _lxOuvrirOptions() {
         lxOptExclureQuestions = chkQ.checked;
         lxOptOccMin           = chkOcc.checked ? Math.max(1, parseInt(inputOcc.value, 10) || 1) : 1;
         lxOptAfficherSpecNeg  = chkSpec.checked;
-        lxOptMasquerChiffres  = chkChif.checked;
+        lxOptAfficherChiffres = chkChif.checked;
+        lxOptAfficherWordle   = chkWordle.checked;
         const prevLemmaVerbes = lxOptLemmatiserVerbes;
         lxOptLemmatiserVerbes = chkVrb.checked;
+        lxOptAfficherVerbesLemmes = chkAfficherVrb.checked;
 
         if (prevLemmaVerbes !== lxOptLemmatiserVerbes) {
             await _lxAppliquerOptionLemmatisationVerbes(lxOptLemmatiserVerbes);
@@ -1346,14 +1684,13 @@ function _lxMajCheckboxToutEntete() {
 function _lxTableHeader() {
     const thead = document.createElement('thead');
     const tr    = document.createElement('tr');
-    const maxFreq = lxMaxFreqGlobal;
 
     const cols = [
         { txt: '',        cls: 'lx-th-chk',   key: null    },
         { txt: '#',       cls: 'lx-th-rk',    key: null    },
         { txt: 'Formes',  cls: 'lx-th-forme', key: 'alpha' },
         { txt: 'Fréq.',   cls: 'lx-th-freq',  key: 'freq'  },
-        { txt: '',        cls: 'lx-th-bar',   key: null    },
+        { txt: '',        cls: 'lx-th-bar',   key: 'rel'   },
         { txt: 'Nb Ent.', cls: 'lx-th-nbent', key: 'nbEnt' },
         { txt: 'Spéc.',   cls: 'lx-th-pval',  key: 'pval'  },
     ];
@@ -1386,7 +1723,7 @@ function _lxTableHeader() {
             });
             th.appendChild(chkAll);
         } else if (col.cls === 'lx-th-bar') {
-            th.innerHTML = _lxBarGraduationHtml(maxFreq);
+            th.innerHTML = _lxBarGraduationHtml();
         } else {
             th.textContent = col.txt;
         }
@@ -1397,7 +1734,17 @@ function _lxTableHeader() {
     return thead;
 }
 
-function _lxBarGraduationHtml(maxFreq) {
+function _lxBarGraduationHtml() {
+    if (lxHistogrammeComparatifActif) {
+        const marksPct = [0, 25, 50, 75, 100];
+        let htmlPct = '<div class="lx-scale">';
+        marksPct.forEach(v => {
+            htmlPct += `<span class="lx-scale-mark" style="left:${v}%">${v}%</span>`;
+        });
+        return htmlPct + '</div>';
+    }
+
+    const maxFreq = lxMaxFreqGlobal;
     const logMax = Math.log10(maxFreq + 1);
     const marks  = [1, 10, 100, 1000, 10000, 100000].filter(v => v <= maxFreq);
     let html = '<div class="lx-scale">';
@@ -1407,6 +1754,12 @@ function _lxBarGraduationHtml(maxFreq) {
         html += `<span class="lx-scale-mark" style="left:${pct.toFixed(1)}%">${label}</span>`;
     });
     return html + '</div>';
+}
+
+function _lxMajEnteteBarre() {
+    const thBar = document.querySelector('#lxPnlIndex .lx-th-bar');
+    if (!thBar) return;
+    thBar.innerHTML = _lxBarGraduationHtml();
 }
 
 // ============================================================
@@ -1421,6 +1774,7 @@ function _lxRendreTable(tbody, données) {
     tbody.innerHTML = '';
     lxVueDonnees = données;
     lxVueOffset  = 0;
+    lxParentRowUid = 0;
     _lxReconstruireTypesLemmesParForme();
     _lxAppendBatch(tbody);
 }
@@ -1429,6 +1783,8 @@ function _lxRendreTable(tbody, données) {
 function _lxCreerLigne(item, idx, logMax) {
     const tr = document.createElement('tr');
     tr.className = 'lx-row' + (item.selectionne ? ' lx-row--sel' : '');
+    tr.dataset.lxParentId = `lx-parent-${++lxParentRowUid}`;
+    tr.dataset.lxExpanded = '0';
 
     // □ Checkbox sélection
     const tdChk = document.createElement('td');
@@ -1459,6 +1815,19 @@ function _lxCreerLigne(item, idx, logMax) {
     if (classesLemme) spanForme.classList.add(...classesLemme.split(' '));
     spanForme.textContent = item.forme;
     tdForme.appendChild(spanForme);
+
+    if (_lxFormeEstDeveloppable(item.forme)) {
+        const btnExpand = document.createElement('button');
+        btnExpand.className = 'lx-btn-expand';
+        btnExpand.textContent = '▼';
+        btnExpand.title = 'Afficher les formes réunies sous cette entrée';
+        btnExpand.addEventListener('click', e => {
+            e.stopPropagation();
+            _lxBasculerSousFormes(tr, item.forme, logMax);
+        });
+        tdForme.appendChild(btnExpand);
+    }
+
     const btnDet = document.createElement('button');
     btnDet.className = 'lx-btn-det';
     btnDet.textContent = '➕';
@@ -1468,6 +1837,9 @@ function _lxCreerLigne(item, idx, logMax) {
         _lxOuvrirModalOccurrences(item.forme);
     });
     tdForme.appendChild(btnDet);
+
+
+
     tr.appendChild(tdForme);
 
     // Fréquence
@@ -1476,12 +1848,23 @@ function _lxCreerLigne(item, idx, logMax) {
     tdFreq.textContent = item.occTotal.toLocaleString('fr-FR');
     tr.appendChild(tdFreq);
 
-    // Barre logarithmique
+    // Barre: fréquence globale (sans filtre) ou proportion filtrée/global (avec filtre)
     const tdBar = document.createElement('td');
     tdBar.className = 'lx-td-bar';
-    const pct = (Math.log10(item.occTotal + 1) / logMax) * 100;
+    const occGlobal = Number.isFinite(item.occTotalGlobal) ? item.occTotalGlobal : item.occTotal;
+    const occFiltree = item.occTotal;
+    const afficherCompare = lxHistogrammeComparatifActif && Number.isFinite(item.occTotalGlobal) && occGlobal > 0;
+    const pctBar = afficherCompare
+        ? (occFiltree / occGlobal) * 100
+        : (Math.log10(occGlobal + 1) / logMax) * 100;
+    const pctTxt = pctBar.toFixed(1).replace('.', ',') + '%';
+
     tdBar.innerHTML =
-        `<div class="lx-bar-outer"><div class="lx-bar-inner" style="width:${pct.toFixed(1)}%"></div></div>`;
+        `<div class="lx-bar-wrap">` +
+            `<div class="lx-bar-outer" title="Fréquence globale: ${occGlobal.toLocaleString('fr-FR')}${afficherCompare ? ` | Fréquence filtrée: ${occFiltree.toLocaleString('fr-FR')} | ${pctTxt}` : ''}">` +
+                `<div class="lx-bar-inner" style="width:${pctBar.toFixed(1)}%"></div>` +
+            `</div>` +
+        `</div>`;
     tr.appendChild(tdBar);
 
     // Nombre d'entretiens
@@ -1560,14 +1943,20 @@ function _lxInstallSentinel(tbody) {
  * Basé sur lxVueDonnees (données actuellement affichées).
  */
 function _lxMajSelBar() {
-    const n = lxVueDonnees.filter(d => d.selectionne).length;
+    const sels = lxVueDonnees.filter(d => d.selectionne);
+    const n = sels.length;
     const bar = document.getElementById('lx-selbar');
     if (!bar) return;
     const lbl = bar.querySelector('.lx-selbar-count');
     const btnSpont = document.getElementById('lx-btn-spont');
+    const btnContexte = document.getElementById('lx-btn-contexte');
+    const btnDeplier = document.getElementById('lx-btn-deplier');
     if (lbl) lbl.textContent = `${n}\u00a0forme${n > 1 ? 's' : ''}\u00a0sélectionnée${n > 1 ? 's' : ''}`;
     bar.classList.toggle('lx-selbar--hidden', n < 1);
     if (btnSpont) btnSpont.classList.toggle('lx-selbar-btn--hidden', n !== 1);
+    if (btnContexte) btnContexte.classList.toggle('lx-selbar-btn--hidden', n !== 1);
+    const seuleDeveloppable = n === 1 && _lxFormeEstDeveloppable(sels[0].forme);
+    if (btnDeplier) btnDeplier.classList.toggle('lx-selbar-btn--hidden', !seuleDeveloppable);
     _lxMajCheckboxToutEntete();
 }
 
@@ -1702,7 +2091,7 @@ function _lxRegrouperFormes() {
     // Bouton Mots Outils
     const btnMO = document.createElement('label');
     btnMO.className = 'btnfonction lx-lemma-btnmo';
-    btnMO.innerHTML = '🔧\u00a0Mots Outils';
+    btnMO.innerHTML = '🔧\u00a0 ajout aux mots outils';
     btnMO.title = 'Ajouter ces formes aux mots vides (ignorés dans l\'analyse)';
     btnMO.addEventListener('click', () => {
         const formesMO = [...etatFormes.entries()]
@@ -1729,7 +2118,7 @@ function _lxRegrouperFormes() {
     // Bouton Lemmatiser (actif uniquement si l'input est rempli)
     const btnLemma = document.createElement('label');
     btnLemma.className = 'btnfonction lx-lemma-btnlemma';
-    btnLemma.innerHTML = '✔\u00a0Lemmatiser';
+    btnLemma.innerHTML = '✔\u00a0Grouper';
     btnLemma.title = 'Appliquer la forme synthétique à toutes les occurrences sélectionnées';
 
     const majBtnLemma = () => {
@@ -1776,7 +2165,9 @@ function _lxRegrouperFormes() {
     setTimeout(() => { inputForme.select(); }, 50);
 }
 
-function _lxOccurrencesActivesPourForme(forme) {
+function _lxConstruireContexteFiltresActifs(options = {}) {
+    const inclureQuestions = options.inclureQuestions !== false;
+
     const thmLabels   = [...document.querySelectorAll('#lxPnlThm .ligthm[data-code]')];
     const thmInactifs = new Set(thmLabels.filter(l => l.classList.contains('ligthm-inactive')).map(l => l.dataset.code));
     const filtreThm   = thmInactifs.size > 0;
@@ -1822,19 +2213,501 @@ function _lxOccurrencesActivesPourForme(forme) {
             : base;
     }
 
+    return {
+        inclureQuestions,
+        filtreThm,
+        thmInactifs,
+        filtreEntFinal,
+        entActifsFinal
+    };
+}
+
+function _lxOccurrencePasseContexteActif(item, ctx) {
+    if (!ctx.inclureQuestions && item.locuteur && item.locuteur.endsWith('?')) return false;
+    if (ctx.filtreEntFinal && !ctx.entActifsFinal.has(item.entretien)) return false;
+    if (ctx.filtreThm) {
+        if (item.thematiques.length === 0) return false;
+        if (item.thematiques.every(t => ctx.thmInactifs.has(t))) return false;
+    }
+    return true;
+}
+
+function _lxToutesOccurrencesActives(options = {}) {
+    const ctx = _lxConstruireContexteFiltresActifs(options);
+    return tabLexico.filter(item => _lxOccurrencePasseContexteActif(item, ctx));
+}
+
+function _lxOccurrencesActivesPourForme(forme, options = {}) {
+    const ctx = _lxConstruireContexteFiltresActifs(options);
+
     // Résoudre toutes les formes d'origine associées à la clé (gère les formes regroupées)
     const formesOrigines = new Set(_lxFormesAssocieesACle(forme));
 
     return tabLexico.filter(item => {
         if (!formesOrigines.has(item.forme)) return false;
-        // Pour la spontanéité, on inclut toujours les questions dans les décomptes.
-        if (filtreEntFinal && !entActifsFinal.has(item.entretien)) return false;
-        if (filtreThm) {
-            if (item.thematiques.length === 0) return false;
-            if (item.thematiques.every(t => thmInactifs.has(t))) return false;
-        }
-        return true;
+        return _lxOccurrencePasseContexteActif(item, ctx);
     });
+}
+
+function _lxNuageCategoriePalette(type, couleurTheme = '') {
+    if (type === 'THM') {
+        return { couleurTexte: couleurTheme || '#2f7d4b', couleurFond: couleurTheme || '#2f7d4b' };
+    }
+    if (type === 'MOD') {
+        return { couleurTexte: '#a05a2c', couleurFond: '#a05a2c' };
+    }
+    return { couleurTexte: '#2a4f9d', couleurFond: '#2a4f9d' };
+}
+
+function _lxCouleurAvecAlpha(couleur, alpha, fallback = '#777777') {
+    const src = String(couleur || '').trim() || fallback;
+    const a = Math.max(0, Math.min(1, Number(alpha)));
+
+    const hex = src.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+        let h = hex[1];
+        if (h.length === 3) h = h.split('').map(ch => ch + ch).join('');
+        const r = parseInt(h.slice(0, 2), 16);
+        const g = parseInt(h.slice(2, 4), 16);
+        const b = parseInt(h.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+    }
+
+    const rgb = src.match(/^rgba?\(([^)]+)\)$/i);
+    if (rgb) {
+        const parts = rgb[1].split(',').map(p => p.trim());
+        if (parts.length >= 3) {
+            const r = Number(parts[0]);
+            const g = Number(parts[1]);
+            const b = Number(parts[2]);
+            if (isFinite(r) && isFinite(g) && isFinite(b)) {
+                return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${a.toFixed(3)})`;
+            }
+        }
+    }
+
+    return src;
+}
+
+function _lxKwicCloudPValuePctArrondi(pValue) {
+    return Math.round((Number(pValue) || 0) * 100000) / 1000;
+}
+
+function _lxKwicCloudComparerParSpec(a, b) {
+    const aPct = _lxKwicCloudPValuePctArrondi(a.pValue);
+    const bPct = _lxKwicCloudPValuePctArrondi(b.pValue);
+    return (aPct - bPct) || (b.k - a.k) || a.label.localeCompare(b.label, 'fr');
+}
+
+function _lxKwicCloudComparerParFreq(a, b) {
+    const aPct = _lxKwicCloudPValuePctArrondi(a.pValue);
+    const bPct = _lxKwicCloudPValuePctArrondi(b.pValue);
+    return (b.k - a.k) || (aPct - bPct) || a.label.localeCompare(b.label, 'fr');
+}
+
+function _lxNuageModalitesParEntretien() {
+    const varById = new Map((tabVar || []).map(v => [Number(v.v), v]));
+    const dicByVM = new Map(
+        (tabDic || [])
+            .filter(d => Number(d.m) > 0)
+            .map(d => [`${Number(d.v)}|${Number(d.m)}`, d.lib || ''])
+    );
+
+    const index = new Map();
+    (tabEnt || []).forEach((ent, idxEnt) => {
+        const generalEntries = new Map();
+        const byLoc = new Map();
+        const rows = Array.isArray(ent.tabDat) ? ent.tabDat : [];
+
+        rows.forEach(d => {
+            const rkV = Number(d.v);
+            const rkM = Number(d.m);
+            if (!rkV || rkM <= 0) return;
+
+            const vDef = varById.get(rkV);
+            const mLib = dicByVM.get(`${rkV}|${rkM}`);
+            if (!vDef || !mLib) return;
+
+            const label = `${vDef.lib} : ${mLib}`;
+            const entry = { key: `mod|${rkV}|${rkM}`, type: 'MOD', label, couleur: '', v: rkV, m: rkM };
+            if (vDef.champ === 'loc' && d.l !== undefined && d.l !== 'all') {
+                const idxLoc = Number(d.l);
+                const locName = Array.isArray(ent.tabLoc) ? String(ent.tabLoc[idxLoc] || '') : '';
+                if (!locName) return;
+                if (!byLoc.has(locName)) byLoc.set(locName, new Map());
+                byLoc.get(locName).set(entry.key, entry);
+            } else {
+                generalEntries.set(entry.key, entry);
+            }
+        });
+
+        index.set(idxEnt, { generalEntries, byLoc });
+    });
+    return index;
+}
+
+function _lxNuageCategoriesSpecifiquesKWIC(forme, occurrences, options = {}) {
+    const occActives = _lxToutesOccurrencesActives(options);
+    const gt = occActives.length;
+    const f = occurrences.length;
+    if (!gt || !f) return [];
+
+    const mapThm = new Map((tabThm || []).map(t => [t.code, t]));
+    const mapModalites = _lxNuageModalitesParEntretien();
+    const cats = new Map();
+
+    const assurer = (key, type, label, couleur = '') => {
+        if (!cats.has(key)) {
+            cats.set(key, { key, type, label, couleur, pt: 0, k: 0, pValue: 1, score: 0, size: 12, opacity: 0.18 });
+        }
+        return cats.get(key);
+    };
+
+    const categoriesOccurrence = item => {
+        const out = [];
+
+        (item.thematiques || []).forEach(code => {
+            const thm = mapThm.get(code);
+            const nom = thm
+                ? ((typeof splitNomThm === 'function') ? splitNomThm(thm.nom)[0] : (thm.nom || code))
+                : code;
+            out.push({ key: `thm|${code}`, type: 'THM', label: nom, couleur: thm?.couleur || '', code });
+        });
+
+        const modsEnt = mapModalites.get(item.entretien);
+        if (modsEnt) {
+            modsEnt.generalEntries.forEach(entry => {
+                out.push(entry);
+            });
+            const locKey = String(item.locuteur || '');
+            if (locKey && modsEnt.byLoc.has(locKey)) {
+                modsEnt.byLoc.get(locKey).forEach(entry => {
+                    out.push(entry);
+                });
+            }
+        }
+
+        const nomEnt = (tabEnt[item.entretien] && tabEnt[item.entretien].nom)
+            ? tabEnt[item.entretien].nom
+            : `Entretien ${item.entretien + 1}`;
+        out.push({ key: `ent|${item.entretien}`, type: 'ENT', label: nomEnt, couleur: '', entIdx: item.entretien });
+
+        return out;
+    };
+
+    occActives.forEach(item => {
+        const deja = new Set();
+        categoriesOccurrence(item).forEach(cat => {
+            if (deja.has(cat.key)) return;
+            deja.add(cat.key);
+            assurer(cat.key, cat.type, cat.label, cat.couleur).pt++;
+        });
+    });
+
+    occurrences.forEach(item => {
+        const deja = new Set();
+        categoriesOccurrence(item).forEach(cat => {
+            if (deja.has(cat.key)) return;
+            deja.add(cat.key);
+            assurer(cat.key, cat.type, cat.label, cat.couleur).k++;
+        });
+    });
+
+    const res = [];
+    cats.forEach(cat => {
+        if (!cat.k || !cat.pt) return;
+        const theorique = (f * cat.pt) / gt;
+        if (cat.k <= theorique) return;
+        cat.pValue = _lxPLafon(gt, cat.pt, f, cat.k);
+        cat.score = Math.max(0, -Math.log10(Math.max(cat.pValue, 1e-12)));
+        res.push(cat);
+    });
+
+    if (res.length === 0) return [];
+
+    const maxK = res.reduce((m, c) => Math.max(m, c.k), 1);
+    const maxScore = res.reduce((m, c) => Math.max(m, c.score), 0);
+
+    res.forEach(cat => {
+        const rK = maxK > 0 ? cat.k / maxK : 0;
+        const rS = maxScore > 0 ? cat.score / maxScore : 0;
+        cat.size = Math.round(11 + Math.pow(rK, 0.55) * 24);
+        cat.opacity = 0.10 + Math.pow(rS, 0.72) * 0.90;
+    });
+
+    return res
+        .sort(_lxKwicCloudComparerParSpec)
+        .slice(0, 70);
+}
+
+var _lxKwicCloudCategories = [];
+var _lxKwicCloudForme = '';
+var _lxKwicCloudTypeFiltre = 'ALL';
+var _lxKwicCloudTri = 'PVAL';
+var _lxKwicCloudHeight = 210;
+var _lxKwicCloudFiltreActif = '';
+var _lxKwicCloudModalitesIndex = null;
+var _lxKwicOccurrencesBase = [];
+
+function _lxKwicCategoriesOccurrence(item, mapModalites = null) {
+    const out = [];
+    const mapThm = new Map((tabThm || []).map(t => [t.code, t]));
+    const modsIndex = mapModalites || _lxKwicCloudModalitesIndex || _lxNuageModalitesParEntretien();
+
+    (item.thematiques || []).forEach(code => {
+        const thm = mapThm.get(code);
+        const nom = thm
+            ? ((typeof splitNomThm === 'function') ? splitNomThm(thm.nom)[0] : (thm.nom || code))
+            : code;
+        out.push({ key: `thm|${code}`, type: 'THM', label: nom, couleur: thm?.couleur || '', code });
+    });
+
+    const modsEnt = modsIndex ? modsIndex.get(item.entretien) : null;
+    if (modsEnt) {
+        modsEnt.generalEntries.forEach(entry => {
+            out.push(entry);
+        });
+        const locKey = String(item.locuteur || '');
+        if (locKey && modsEnt.byLoc.has(locKey)) {
+            modsEnt.byLoc.get(locKey).forEach(entry => {
+                out.push(entry);
+            });
+        }
+    }
+
+    const nomEnt = (tabEnt[item.entretien] && tabEnt[item.entretien].nom)
+        ? tabEnt[item.entretien].nom
+        : `Entretien ${item.entretien + 1}`;
+    out.push({ key: `ent|${item.entretien}`, type: 'ENT', label: nomEnt, couleur: '', entIdx: item.entretien });
+
+    return out;
+}
+
+function _lxKwicOccurrenceAppartientAuFiltre(item, key) {
+    if (!key) return true;
+    return _lxKwicCategoriesOccurrence(item).some(cat => cat.key === key);
+}
+
+function _lxKwicOccurrencesFiltrees() {
+    if (!_lxKwicCloudFiltreActif) return [..._lxKwicOccurrencesBase];
+    return _lxKwicOccurrencesBase.filter(item => _lxKwicOccurrenceAppartientAuFiltre(item, _lxKwicCloudFiltreActif));
+}
+
+function _lxKwicCloudAjusterHauteur() {
+    const wrap = document.getElementById('lx-kwic-cloud-wrap');
+    const body = document.getElementById('lx-kwic-cloud-body');
+    if (!wrap || !body) return;
+
+    const handle = wrap.querySelector('.lx-kwic-cloud-handle');
+    const header = wrap.querySelector('.lx-kwic-cloud-header');
+    const toolbar = wrap.querySelector('.lx-kwic-cloud-toolbar');
+    const note = wrap.querySelector('.lx-kwic-cloud-note');
+
+    const minWrap = 120;
+    const maxWrap = Math.max(minWrap, Math.min(420, Math.round(window.innerHeight * 0.55)));
+    _lxKwicCloudHeight = Math.max(minWrap, Math.min(maxWrap, Math.round(_lxKwicCloudHeight || 210)));
+
+    wrap.style.height = _lxKwicCloudHeight + 'px';
+
+    const reserved =
+        (handle ? handle.offsetHeight : 0) +
+        (header ? header.offsetHeight : 0) +
+        (toolbar ? toolbar.offsetHeight : 0) +
+        (note ? note.offsetHeight : 0) + 18;
+    body.style.maxHeight = Math.max(42, _lxKwicCloudHeight - reserved) + 'px';
+}
+
+function _lxKwicCloudInstallerResize() {
+    const wrap = document.getElementById('lx-kwic-cloud-wrap');
+    const handle = document.getElementById('lx-kwic-cloud-handle');
+    if (!wrap || !handle || handle.dataset.resizeBound === '1') return;
+
+    handle.dataset.resizeBound = '1';
+    handle.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startH = wrap.offsetHeight;
+
+        const onMove = ev => {
+            const delta = startY - ev.clientY;
+            _lxKwicCloudHeight = startH + delta;
+            _lxKwicCloudAjusterHauteur();
+        };
+        const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
+}
+
+function _lxKwicCloudCategoriesVisibles() {
+    let cats = Array.isArray(_lxKwicCloudCategories) ? [..._lxKwicCloudCategories] : [];
+    if (_lxKwicCloudTypeFiltre !== 'ALL') cats = cats.filter(cat => cat.type === _lxKwicCloudTypeFiltre);
+    if (_lxKwicCloudTri === 'FREQ') {
+        cats.sort(_lxKwicCloudComparerParFreq);
+    } else {
+        cats.sort(_lxKwicCloudComparerParSpec);
+    }
+    return cats;
+}
+
+function _lxKwicCloudChoisirType(type) {
+    _lxKwicCloudTypeFiltre = type || 'ALL';
+    _lxKwicCloudRendre();
+}
+
+function _lxKwicCloudChoisirTri(tri) {
+    _lxKwicCloudTri = tri || 'PVAL';
+    _lxKwicCloudRendre();
+}
+
+function _lxKwicCloudIsolerType(type) {
+    return _lxKwicCloudTypeFiltre === type ? ' lx-kwic-chip--actif' : '';
+}
+
+function _lxKwicCloudTagActif(key) {
+    return _lxKwicCloudFiltreActif === key ? ' lx-kwic-tag--actif' : '';
+}
+
+function _lxActiverBrancheThematiqueLexico(code) {
+    const panel = document.getElementById('lxPnlThm');
+    if (panel) panel.classList.remove('lx-hidden');
+    const labels = [...document.querySelectorAll('#lxPnlThm .ligthm[data-code]')];
+    labels.forEach(lbl => lbl.classList.add('ligthm-inactive'));
+    (tabThm || []).forEach(thm => { thm.act = false; });
+
+    const idx = (tabThm || []).findIndex(thm => thm.code === code);
+    if (idx < 0) return;
+    const parentRg = Number(tabThm[idx].rang || 0);
+    for (let i = idx; i < tabThm.length; i++) {
+        if (i !== idx && Number(tabThm[i].rang || 0) <= parentRg) break;
+        tabThm[i].act = true;
+        const lbl = document.querySelector(`#lxPnlThm .ligthm[data-code="${tabThm[i].code}"]`);
+        if (lbl) lbl.classList.remove('ligthm-inactive');
+    }
+}
+
+function _lxIsolerModaliteLexico(v, m) {
+    const panel = document.getElementById('lxPnlVar');
+    if (panel) panel.classList.remove('lx-hidden');
+    lxIgnorerFiltreVariablesInitial = false;
+
+    const buttonsVar = [...document.querySelectorAll(`#lxPnlVar .btn-onoff-ent[data-v="${v}"]`)];
+    buttonsVar.forEach(btn => btn.classList.remove('btn-onoff-ent--actif'));
+    const cible = document.querySelector(`#lxPnlVar .btn-onoff-ent[data-v="${v}"][data-m="${m}"]`);
+    if (cible) cible.classList.add('btn-onoff-ent--actif');
+
+    const blocVar = cible ? cible.closest('.tap-var') : null;
+    const blocMods = blocVar ? blocVar.querySelector('.tap-mods') : null;
+    const btnCollapse = blocVar ? blocVar.querySelector('.tap-collapse-btn') : null;
+    if (blocMods) blocMods.style.display = '';
+    if (btnCollapse) btnCollapse.textContent = '▲';
+}
+
+function _lxIsolerEntretienLexico(entIdx) {
+    const panel = document.getElementById('lxPnlEnt');
+    if (panel) panel.classList.remove('lx-hidden');
+    const buttons = [...document.querySelectorAll('#lxPnlEnt .btn-onoff-ent[data-ent-idx]')];
+    buttons.forEach(btn => btn.classList.remove('btn-onoff-ent--actif'));
+    const cible = document.querySelector(`#lxPnlEnt .btn-onoff-ent[data-ent-idx="${entIdx}"]`);
+    if (cible) cible.classList.add('btn-onoff-ent--actif');
+}
+
+function _lxKwicCloudAppliquerFiltre(key) {
+    _lxKwicCloudFiltreActif = (_lxKwicCloudFiltreActif === key) ? '' : key;
+    _lxOuvrirModalOccurrences(_lxKwicCloudForme, _lxKwicCloudFiltreActif, _lxKwicCloudTypeFiltre, _lxKwicCloudTri);
+}
+
+function _lxKwicCloudRendre() {
+    const wrap = document.getElementById('lx-kwic-cloud-wrap');
+    if (!wrap) return;
+
+    const cats = _lxKwicCloudCategoriesVisibles();
+    const titre = document.getElementById('lx-kwic-cloud-title');
+    const toolbar = document.getElementById('lx-kwic-cloud-toolbar');
+    const body = document.getElementById('lx-kwic-cloud-body');
+    const note = document.getElementById('lx-kwic-cloud-note');
+    if (!titre || !toolbar || !body || !note) return;
+
+    const formeEch = _lxEchapHtml(_lxKwicCloudForme);
+    titre.innerHTML = `Catégories les plus spécifiques pour <em>${formeEch}</em> <span class="lx-kwic-cloud-count">(${cats.length}${cats.length !== (_lxKwicCloudCategories || []).length ? ` / ${(_lxKwicCloudCategories || []).length}` : ''})</span>`;
+
+    toolbar.innerHTML = `
+        <div class="lx-kwic-cloud-filters">
+            <button class="lx-kwic-chip${_lxKwicCloudIsolerType('ALL')}" onclick="_lxKwicCloudChoisirType('ALL')">Tout</button>
+            <button class="lx-kwic-chip${_lxKwicCloudIsolerType('THM')}" onclick="_lxKwicCloudChoisirType('THM')">Catégories</button>
+            <button class="lx-kwic-chip${_lxKwicCloudIsolerType('MOD')}" onclick="_lxKwicCloudChoisirType('MOD')">Modalités</button>
+            <button class="lx-kwic-chip${_lxKwicCloudIsolerType('ENT')}" onclick="_lxKwicCloudChoisirType('ENT')">Entretiens</button>
+        </div>
+        <label class="lx-kwic-cloud-sort">Tri
+            <select onchange="_lxKwicCloudChoisirTri(this.value)">
+                <option value="PVAL"${_lxKwicCloudTri === 'PVAL' ? ' selected' : ''}>spécificité</option>
+                <option value="FREQ"${_lxKwicCloudTri === 'FREQ' ? ' selected' : ''}>fréquence</option>
+            </select>
+        </label>
+    `;
+
+    if (cats.length === 0) {
+        body.innerHTML = '<div class="lx-kwic-cloud-empty">Aucune catégorie pour ce filtre.</div>';
+    } else {
+        body.innerHTML = cats.map(cat => {
+            const palette = _lxNuageCategoriePalette(cat.type, cat.couleur);
+            const pTxt = _lxKwicCloudPValuePctArrondi(cat.pValue).toFixed(3);
+            const title = `${cat.label} | freq=${cat.k} | p=${pTxt}% | ${cat.type}`;
+            const clsType = cat.type === 'THM' ? 'lx-kwic-tag--thm' : (cat.type === 'MOD' ? 'lx-kwic-tag--mod' : 'lx-kwic-tag--ent');
+            const bgColor = _lxCouleurAvecAlpha(palette.couleurFond, 0.11 + cat.opacity * 0.22, '#999999');
+            const bdColor = _lxCouleurAvecAlpha(palette.couleurFond, 0.32 + cat.opacity * 0.26, '#999999');
+            const shadowColor = _lxCouleurAvecAlpha(palette.couleurFond, 0.08 + cat.opacity * 0.16, '#999999');
+            const style = [
+                `font-size:${cat.size}px`,
+                `opacity:${cat.opacity.toFixed(3)}`,
+                `color:${palette.couleurTexte}`,
+                `background-color:${bgColor}`,
+                `border-color:${bdColor}`,
+                `box-shadow:0 1px 0 ${shadowColor}`
+            ].join(';');
+            const keyEnc = encodeURIComponent(cat.key);
+            return `<button class="lx-kwic-tag ${clsType}${_lxKwicCloudTagActif(cat.key)}" style="${style}" title="${_lxEchapHtml(title)}" onclick="_lxKwicCloudAppliquerFiltre(decodeURIComponent('${keyEnc}'))">${_lxEchapHtml(cat.label)}</button>`;
+        }).join('');
+    }
+
+    note.textContent = 'Taille = fréquence des occurrences de la forme dans la catégorie. Intensité = force de la spécificité positive (p faible). Clic = filtrer les occurrences du haut ; recliquer = enlever le filtre.';
+    requestAnimationFrame(() => _lxKwicCloudAjusterHauteur());
+}
+
+function _lxKwicCloudInitialiser(forme, categories, occurrencesBase, modalitesIndex, filtreActif = '', typeFiltre = 'ALL', tri = 'PVAL') {
+    _lxKwicCloudForme = forme;
+    _lxKwicCloudCategories = Array.isArray(categories) ? categories : [];
+    _lxKwicOccurrencesBase = Array.isArray(occurrencesBase) ? occurrencesBase : [];
+    _lxKwicCloudModalitesIndex = modalitesIndex || null;
+    _lxKwicCloudTypeFiltre = typeFiltre || 'ALL';
+    _lxKwicCloudTri = tri || 'PVAL';
+    _lxKwicCloudFiltreActif = filtreActif || '';
+    _lxKwicCloudInstallerResize();
+    _lxKwicCloudRendre();
+}
+
+function _lxNuageCategoriesHTML(forme, categories) {
+    const formeEch = _lxEchapHtml(forme);
+    return `
+        <div id="lx-kwic-cloud-wrap" class="lx-kwic-cloud-wrap">
+            <div id="lx-kwic-cloud-handle" class="lx-kwic-cloud-handle" title="Glisser pour redimensionner le nuage"></div>
+            <div class="lx-kwic-cloud-header">
+                <div id="lx-kwic-cloud-title" class="lx-kwic-cloud-title">Catégories les plus spécifiques pour <em>${formeEch}</em>${Array.isArray(categories) ? ` <span class="lx-kwic-cloud-count">(${categories.length})</span>` : ''}</div>
+                <div class="lx-kwic-cloud-legend">
+                    <span class="lx-kwic-legend-item lx-kwic-legend-thm">Catégories</span>
+                    <span class="lx-kwic-legend-item lx-kwic-legend-mod">Modalités</span>
+                    <span class="lx-kwic-legend-item lx-kwic-legend-ent">Entretiens</span>
+                </div>
+            </div>
+            <div id="lx-kwic-cloud-toolbar" class="lx-kwic-cloud-toolbar"></div>
+            <div id="lx-kwic-cloud-body" class="lx-kwic-cloud-body"></div>
+            <div id="lx-kwic-cloud-note" class="lx-kwic-cloud-note">Taille = fréquence des occurrences de la forme dans la catégorie. Intensité = force de la spécificité positive (p faible).</div>
+        </div>
+    `;
 }
 
 function _lxFmtPct(num, den) {
@@ -2077,6 +2950,332 @@ function _lxOuvrirModalSpontaneite() {
     footer.appendChild(btnFermer);
     modal.appendChild(footer);
 
+    document.body.appendChild(overlay);
+}
+
+// ============================================================
+// CONCATENATION LEXICALE
+// ============================================================
+
+function _lxCnctNormaliserToken(token) {
+    return String(token || '').trim().toLowerCase();
+}
+
+function _lxCnctNormaliserSequence(tokens) {
+    if (!Array.isArray(tokens)) return [];
+    return tokens.map(_lxCnctNormaliserToken).filter(Boolean);
+}
+
+function _lxCnctCleSequence(tokens) {
+    return _lxCnctNormaliserSequence(tokens).join(' ');
+}
+
+function _lxCnctCompterOccurrencesSequence(tokens) {
+    const seq = _lxCnctNormaliserSequence(tokens);
+    if (seq.length === 0) return 0;
+    let total = 0;
+
+    for (let i = 0; i <= tabLexico.length - seq.length; i++) {
+        const premier = tabLexico[i];
+        if (!premier || premier.forme !== seq[0]) continue;
+
+        const ent = premier.entretien;
+        let ok = true;
+        for (let j = 1; j < seq.length; j++) {
+            const cur = tabLexico[i + j];
+            if (!cur || cur.entretien !== ent || cur.forme !== seq[j]) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok) total++;
+    }
+
+    return total;
+}
+
+function _lxCnctCompterPremiersMots() {
+    const map = new Map();
+    tabLexico.forEach(item => {
+        const f = _lxCnctNormaliserToken(item?.forme);
+        if (!f) return;
+        map.set(f, (map.get(f) || 0) + 1);
+    });
+    return [...map.entries()]
+        .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' }))
+        .map(([forme, n]) => ({ forme, n }));
+}
+
+function _lxCnctListerSuivants(prefixeTokens) {
+    const prefixe = _lxCnctNormaliserSequence(prefixeTokens);
+    if (prefixe.length === 0) return [];
+
+    const map = new Map();
+    const n = prefixe.length;
+
+    for (let i = 0; i <= tabLexico.length - n - 1; i++) {
+        const premier = tabLexico[i];
+        if (!premier || premier.forme !== prefixe[0]) continue;
+
+        const ent = premier.entretien;
+        let ok = true;
+        for (let j = 1; j < n; j++) {
+            const cur = tabLexico[i + j];
+            if (!cur || cur.entretien !== ent || cur.forme !== prefixe[j]) {
+                ok = false;
+                break;
+            }
+        }
+        if (!ok) continue;
+
+        const suivant = tabLexico[i + n];
+        if (!suivant || suivant.entretien !== ent) continue;
+        const f = _lxCnctNormaliserToken(suivant.forme);
+        if (!f) continue;
+        map.set(f, (map.get(f) || 0) + 1);
+    }
+
+    return [...map.entries()]
+        .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' }))
+        .map(([forme, n]) => ({ forme, n }));
+}
+
+function _lxCnctReindexerRangs() {
+    tabLexico.forEach((item, idx) => {
+        item.rang = idx;
+    });
+}
+
+function _lxCnctFusionnerSequence(tokens, substitut = '') {
+    const seq = _lxCnctNormaliserSequence(tokens);
+    if (seq.length < 2) return 0;
+
+    const cible = String(substitut || '').trim() || seq.join(' ');
+    let nb = 0;
+
+    for (let i = 0; i <= tabLexico.length - seq.length; i++) {
+        const premier = tabLexico[i];
+        if (!premier || premier.forme !== seq[0]) continue;
+
+        const ent = premier.entretien;
+        let ok = true;
+        const thematiques = new Set(premier.thematiques || []);
+
+        for (let j = 1; j < seq.length; j++) {
+            const cur = tabLexico[i + j];
+            if (!cur || cur.entretien !== ent || cur.forme !== seq[j]) {
+                ok = false;
+                break;
+            }
+            (cur.thematiques || []).forEach(t => thematiques.add(t));
+        }
+        if (!ok) continue;
+
+        premier.forme = cible;
+        premier.substitut = '';
+        premier.typeForme = '';
+        premier.thematiques = [...thematiques];
+
+        tabLexico.splice(i + 1, seq.length - 1);
+        nb++;
+    }
+
+    if (nb > 0) _lxCnctReindexerRangs();
+    return nb;
+}
+
+function _lxAppliquerToutesConcatenations() {
+    if (!(lxConcatRegles instanceof Map) || lxConcatRegles.size === 0) return 0;
+
+    const reglesTriees = [...lxConcatRegles.values()].sort((a, b) => {
+        const lenA = (a.tokens || []).length;
+        const lenB = (b.tokens || []).length;
+        if (lenA !== lenB) return lenB - lenA;
+        const keyA = _lxCnctCleSequence(a.tokens);
+        const keyB = _lxCnctCleSequence(b.tokens);
+        return keyA.localeCompare(keyB, 'fr', { sensitivity: 'base' });
+    });
+
+    let total = 0;
+    reglesTriees.forEach(regle => {
+        total += _lxCnctFusionnerSequence(regle.tokens, regle.substitut || '');
+    });
+
+    return total;
+}
+
+function _lxOuvrirGestionConcatenations() {
+    document.getElementById('lx-cnct-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'lx-cnct-overlay';
+    overlay.className = 'lx-options-overlay';
+    overlay.style.zIndex = '215';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'lx-options-modal lx-lemma-modal';
+    overlay.appendChild(modal);
+
+    const header = document.createElement('div');
+    header.className = 'lx-options-header';
+    const titre = document.createElement('h3');
+    titre.className = 'lx-options-title';
+    titre.textContent = 'Concatenation lexicale';
+    header.appendChild(titre);
+    const btnClose = document.createElement('div');
+    btnClose.className = 'close';
+    btnClose.textContent = '✖️';
+    btnClose.style.cursor = 'pointer';
+    btnClose.addEventListener('click', () => overlay.remove());
+    header.appendChild(btnClose);
+    modal.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'lx-options-body lx-lemma-body';
+
+    const info = document.createElement('div');
+    info.className = 'lx-lemma-label';
+    info.textContent = 'Selectionnez les mots successifs à réunir.';
+    body.appendChild(info);
+
+        const rowSelect = document.createElement('div');
+    rowSelect.style.display = 'flex';
+    rowSelect.style.gap = '8px';
+    rowSelect.style.alignItems = 'center';
+    const select = document.createElement('select');
+    select.className = 'lx-lemma-input';
+    select.style.flex = '1';
+    const btnAjouter = document.createElement('label');
+    btnAjouter.className = 'btnfonction';
+    btnAjouter.textContent = 'Ajouter';
+    rowSelect.appendChild(select);
+    rowSelect.appendChild(btnAjouter);
+    body.appendChild(rowSelect);
+
+    const chn = document.createElement('div');
+    chn.className = 'lx-lemma-listbox';
+    chn.style.minHeight = '58px';
+    chn.style.maxHeight = '80px';
+    body.appendChild(chn);
+
+
+
+    const rowActions = document.createElement('div');
+    rowActions.style.display = 'flex';
+    rowActions.style.gap = '8px';
+    rowActions.style.marginTop = '8px';
+    const btnRetirer = document.createElement('label');
+    btnRetirer.className = 'btnfonction';
+    btnRetirer.textContent = 'Retirer dernier';
+    const btnReset = document.createElement('label');
+    btnReset.className = 'btnfonction';
+    btnReset.textContent = 'Reinitialiser';
+    rowActions.appendChild(btnRetirer);
+    rowActions.appendChild(btnReset);
+    body.appendChild(rowActions);
+
+    const resume = document.createElement('div');
+    resume.className = 'lx-lemma-label';
+    resume.style.marginTop = '8px';
+    body.appendChild(resume);
+
+    modal.appendChild(body);
+
+    const footer = document.createElement('div');
+    footer.className = 'lx-options-footer lx-lemma-footer';
+    const btnValider = document.createElement('label');
+    btnValider.className = 'btnfonction btnlarge';
+    btnValider.textContent = 'Valider concatenation';
+    footer.appendChild(btnValider);
+    modal.appendChild(footer);
+
+    const sequence = [];
+
+    const render = () => {
+        chn.innerHTML = '';
+        if (sequence.length === 0) {
+            const vide = document.createElement('div');
+            vide.className = 'lx-mo-vide';
+            vide.textContent = 'Aucune forme selectionnee.';
+            chn.appendChild(vide);
+        } else {
+            const l = document.createElement('div');
+            l.style.lineHeight = '1.7';
+            l.textContent = sequence.join(' + ');
+            chn.appendChild(l);
+        }
+
+        const options = sequence.length === 0
+            ? _lxCnctCompterPremiersMots()
+            : _lxCnctListerSuivants(sequence);
+
+        select.innerHTML = '';
+        options.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.forme;
+            opt.textContent = `${o.forme} (${o.n})`;
+            select.appendChild(opt);
+        });
+
+        const occ = sequence.length > 0 ? _lxCnctCompterOccurrencesSequence(sequence) : 0;
+        resume.textContent = sequence.length === 0
+            ? 'Choisissez le premier mot.'
+            : `${occ} chaine(s) trouvee(s) pour : ${sequence.join(' ')}`;
+
+        const hasOption = options.length > 0;
+        btnAjouter.style.pointerEvents = hasOption ? '' : 'none';
+        btnAjouter.style.opacity = hasOption ? '1' : '0.55';
+
+        btnRetirer.style.pointerEvents = sequence.length > 0 ? '' : 'none';
+        btnRetirer.style.opacity = sequence.length > 0 ? '1' : '0.55';
+
+        btnReset.style.pointerEvents = sequence.length > 0 ? '' : 'none';
+        btnReset.style.opacity = sequence.length > 0 ? '1' : '0.55';
+
+        const peutValider = sequence.length >= 2 && occ > 0;
+        btnValider.style.pointerEvents = peutValider ? '' : 'none';
+        btnValider.style.opacity = peutValider ? '1' : '0.55';
+    };
+
+    btnAjouter.addEventListener('click', () => {
+        const mot = _lxCnctNormaliserToken(select.value);
+        if (!mot) return;
+        sequence.push(mot);
+        render();
+    });
+
+    btnRetirer.addEventListener('click', () => {
+        if (sequence.length === 0) return;
+        sequence.pop();
+        render();
+    });
+
+    btnReset.addEventListener('click', () => {
+        sequence.length = 0;
+        render();
+    });
+
+    btnValider.addEventListener('click', async () => {
+        const seq = _lxCnctNormaliserSequence(sequence);
+        if (seq.length < 2) return;
+
+        const source = _lxCnctCleSequence(seq);
+        const substitut = source;
+        const nb = _lxCnctFusionnerSequence(seq, substitut);
+        if (nb < 1) return;
+
+        lxConcatRegles.set(source, { tokens: seq, substitut });
+        await _lxSauvegarderCnct();
+
+        lxVueDonnees.forEach(d => { d.selectionne = false; });
+        tabOccLexico.forEach(d => { d.selectionne = false; });
+        agreguerLexico();
+        _lxRefreshTable();
+        overlay.remove();
+    });
+
+    render();
     document.body.appendChild(overlay);
 }
 
@@ -2434,12 +3633,42 @@ function _lxRBSelectRow(tr, valeur) {
     if (chk) chk.checked = valeur;
 }
 
+function _lxRecupererFormesSelectionnees() {
+    const formes = new Set();
+
+    tabOccLexico.forEach(item => {
+        if (item && item.selectionne) formes.add(item.forme);
+    });
+
+    lxVueDonnees.forEach(item => {
+        if (item && item.selectionne) formes.add(item.forme);
+    });
+
+    return formes;
+}
+
+function _lxAppliquerFormesSelectionnees(formesSelectionnees, donnees) {
+    const setSel = formesSelectionnees instanceof Set ? formesSelectionnees : new Set();
+
+    tabOccLexico.forEach(item => {
+        if (!item) return;
+        item.selectionne = setSel.has(item.forme);
+    });
+
+    donnees.forEach(item => {
+        if (!item) return;
+        item.selectionne = setSel.has(item.forme);
+    });
+}
+
 // ============================================================
 // RAFRAÎCHISSEMENT (filtres actifs)
 // ============================================================
 
 function _lxRefreshTable() {
     const recherche = (document.getElementById('lx-search')?.value || '').toLowerCase().trim();
+    const formesSelectionnees = _lxRecupererFormesSelectionnees();
+    const _matchRecherche = d => !recherche || d.forme.startsWith(recherche) || formesSelectionnees.has(d.forme);
     lxFiltreListeTexteActif = recherche.length > 0;
 
     // --- Thématiques : ligthm-inactive = exclu du filtre lexico ---
@@ -2449,7 +3678,7 @@ function _lxRefreshTable() {
     const filtreThm   = thmInactifs.size > 0;
 
     // --- Variables : btn sans --actif = modalité exclue ---
-    const varBtns = [...document.querySelectorAll('#lxPnlVar .btn-onoff-ent:not([data-vide="1"])')];
+    const varBtns = [...document.querySelectorAll('#lxPnlVar .btn-onoff-ent[data-v]:not([data-vide="1"])')];
     const varMap = new Map();
     varBtns.forEach(btn => {
         const v = btn.dataset.v;
@@ -2459,12 +3688,12 @@ function _lxRefreshTable() {
         if (btn.classList.contains('btn-onoff-ent--actif')) e.actifs.add(Number(btn.dataset.m));
     });
     const filtreVarBrut = [...varMap.values()].some(e => e.actifs.size < e.total);
-    const filtreVar = !lxIgnorerFiltreVariablesInitial && filtreVarBrut;
+    const filtreVarPossible = !lxIgnorerFiltreVariablesInitial && filtreVarBrut;
 
     // Si filtre variables actif, calculer les indices d'entretiens valides
-    let entActifsVar = null;
-    if (filtreVar) {
-        entActifsVar = new Set();
+    let entActifsVarCandidate = null;
+    if (filtreVarPossible) {
+        entActifsVarCandidate = new Set();
         tabEnt.forEach((ent, i) => {
             for (const [v, { total, actifs }] of varMap) {
                 if (actifs.size >= total) continue;
@@ -2474,9 +3703,13 @@ function _lxRefreshTable() {
                 const m = modEnt ? Number(modEnt.m) : 0;
                 if (!actifs.has(m)) return;
             }
-            entActifsVar.add(i);
+            entActifsVarCandidate.add(i);
         });
     }
+
+    // Un filtre variables n'est retenu que s'il réduit effectivement le sous-corpus.
+    const filtreVar = !!entActifsVarCandidate && entActifsVarCandidate.size < tabEnt.length;
+    const entActifsVar = filtreVar ? entActifsVarCandidate : null;
 
     // --- Entretiens (boutons on/off) ---
     const entBtns      = [...document.querySelectorAll('#lxPnlEnt .btn-onoff-ent[data-ent-idx]')];
@@ -2501,6 +3734,7 @@ function _lxRefreshTable() {
     lxSpecifActives = filtreSelectionCorpus;
 
     let données;
+    lxHistogrammeComparatifActif = filtreSelectionCorpus;
 
     if (filtreThm || filtreEntFinal || filtreQuestions) {
         // ---- Filtre structurel actif : réagrégation depuis tabLexico ----
@@ -2533,7 +3767,7 @@ function _lxRefreshTable() {
         données = [];
         tabOccLexico.forEach(d => {
             if (!aggMap.has(d.forme)) return;
-            if (recherche && !d.forme.startsWith(recherche)) return;
+            if (!_matchRecherche(d)) return;
             const agg = aggMap.get(d.forme);
             données.push({ ...d, occTotalGlobal: d.occTotal, occTotal: agg.occTotal, nbEnt: agg.entretiens.size });
         });
@@ -2561,27 +3795,41 @@ function _lxRefreshTable() {
             if (lexicoTriPar === 'pval') {
                 return lexicoDesc ? a.pValue - b.pValue : b.pValue - a.pValue;
             }
+            if (lexicoTriPar === 'rel') {
+                const relA = (Number.isFinite(a.occTotalGlobal) && a.occTotalGlobal > 0)
+                    ? (a.occTotal / a.occTotalGlobal)
+                    : 1;
+                const relB = (Number.isFinite(b.occTotalGlobal) && b.occTotalGlobal > 0)
+                    ? (b.occTotal / b.occTotalGlobal)
+                    : 1;
+                const cmp = relB - relA;
+                return lexicoDesc ? cmp : -cmp;
+            }
             // freq (défaut) : tri par fréquence filtrée décroissante
             const cmp = b.occTotal - a.occTotal;
             return lexicoDesc ? cmp : -cmp;
         });
     } else {
         // Aucun filtre structurel : on utilise tabOccLexico déjà trié
-        données = recherche ? tabOccLexico.filter(d => d.forme.startsWith(recherche)) : tabOccLexico;
+        données = recherche ? tabOccLexico.filter(_matchRecherche) : tabOccLexico;
     }
 
     // ---- Application des options d'affichage ----
-    if (lxOptMasquerChiffres) données = données.filter(d => !/^[0-9]+$/.test(d.forme));
+    if (!lxOptAfficherChiffres) données = données.filter(d => !/^[0-9]+$/.test(d.forme));
     if (lxOptOccMin > 1) données = données.filter(d => d.occTotal >= lxOptOccMin);
+    if (lxOptLemmatiserVerbes && !lxOptAfficherVerbesLemmes) données = données.filter(d => !_lxFormeEstLemmeVerbeMasquable(d.forme));
     // Le filtrage des spécificités négatives n'est pertinent que si les spécificités sont actives.
     if (lxSpecifActives && !lxOptAfficherSpecNeg) données = données.filter(d => !d.specSign || d.specSign !== 'NEG');
     if (lxMotsOutils.size > 0) données = données.filter(d => !lxMotsOutils.has(d.forme));
+
+    _lxAppliquerFormesSelectionnees(formesSelectionnees, données);
 
     const tbody = document.getElementById('lx-tbody');
     if (tbody) _lxRendreTable(tbody, données);
 
     const bar = document.getElementById('lx-infobar');
     if (bar) _lxMajInfoBar(bar, données);
+    _lxMajEnteteBarre();
     _lxMajSelBar();
 
     // Synchroniser le nuage avec la liste effectivement affichee.
@@ -2646,14 +3894,47 @@ function _lxPLafon(gt, pt, f, k) {
 }
 
 // ============================================================
-// PERSISTANCE — fichiers .lem et .out
+// PERSISTANCE — fichiers .cnct, .lem et .out
 // ============================================================
 
 /**
- * Chargement initial des lemmatisations (.lem) et mots outils (.out).
+ * Chargement initial des concatenations (.cnct), lemmatisations (.lem) et mots outils (.out).
  * Appelée à la fin de extraireLexico(), avant l'agrégation.
  */
 async function _lxChargerFichiersAnnexes() {
+    // ---- Fichier .cnct ----
+    try {
+        lxConcatRegles = new Map();
+        const res = await window.electronAPI.lireAnnexeLexico('.cnct');
+        if (res && res.success && res.content) {
+            res.content.split('\n').forEach(raw => {
+                const ligne = String(raw || '').trim();
+                if (!ligne) return;
+
+                const sep = ligne.indexOf('\t');
+                const sourceBrut = sep > 0 ? ligne.slice(0, sep).trim() : ligne;
+                const suite = sep > 0 ? ligne.slice(sep + 1).trim() : '';
+                if (!sourceBrut) return;
+
+                const tokens = _lxCnctNormaliserSequence(sourceBrut.split(/\s+/));
+                if (tokens.length < 2) return;
+
+                const source = tokens.join(' ');
+                const sep2 = suite.indexOf('\t');
+                const substitut = (sep2 >= 0 ? suite.slice(0, sep2) : suite).trim() || source;
+
+                lxConcatRegles.set(source, { tokens, substitut });
+            });
+
+            if (lxConcatRegles.size > 0) {
+                const nb = _lxAppliquerToutesConcatenations();
+                console.log(`[Lexico] ${lxConcatRegles.size} regle(s) de concatenation chargee(s) depuis .cnct (${nb} occurrence(s) fusionnee(s))`);
+            }
+        }
+    } catch (e) {
+        console.warn('[Lexico] Impossible de lire le fichier .cnct :', e);
+    }
+
     // ---- Fichier .lem ----
     try {
         const res = await window.electronAPI.lireAnnexeLexico('.lem');
@@ -2740,6 +4021,26 @@ async function _lxSauvegarderLem() {
         console.log(`[Lexico] ${lemMap.size} lemmatisation(s) sauvegardée(s) dans .lem`);
     } catch (e) {
         console.warn('[Lexico] Impossible de sauvegarder le fichier .lem :', e);
+    }
+}
+
+/**
+ * Sauvegarde l'ensemble des regles de concatenation courantes dans le fichier .cnct.
+ */
+async function _lxSauvegarderCnct() {
+    const content = [...lxConcatRegles.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' }))
+        .map(([source, regle]) => {
+            const substitut = String(regle?.substitut || source).trim() || source;
+            return source + '\t' + substitut + '\tC';
+        })
+        .join('\n');
+
+    try {
+        await window.electronAPI.sauvegarderAnnexeLexico('.cnct', content);
+        console.log(`[Lexico] ${lxConcatRegles.size} regle(s) de concatenation sauvegardee(s) dans .cnct`);
+    } catch (e) {
+        console.warn('[Lexico] Impossible de sauvegarder le fichier .cnct :', e);
     }
 }
 
@@ -3061,14 +4362,18 @@ function _lxInjecterStyles() {
         .lx-th-nbent, .lx-td-nbent  { width: 52px;  text-align: right; color: #555; }
         .lx-th-pval,  .lx-td-pval   { width: 52px;  text-align: right; font-size: 11px; }
 
-        /* Barre logarithmique */
+        /* Barre de fréquence / proportion */
+        .lx-bar-wrap {
+            display: flex; align-items: center; gap: 6px;
+        }
         .lx-bar-outer {
             position: relative; height: 10px;
+            flex: 1 1 auto;
             background: #e4e4e4; border-radius: 3px; overflow: hidden; margin: 1px 2px;
         }
         .lx-bar-inner {
             height: 100%; border-radius: 3px;
-            background: linear-gradient(90deg, #548dc1, #7b5ea7);
+            background: linear-gradient(90deg, #4f84bb, #7aa8d4);
         }
 
         /* Graduation logarithmique dans l'en-tête */
@@ -3135,8 +4440,33 @@ function _lxInjecterStyles() {
             background: transparent; color: #2c5e8c; cursor: pointer;
             opacity: 0; transition: opacity 0.15s;
         }
-        .lx-row:hover .lx-btn-det { opacity: 1; }
+        .lx-btn-expand {
+            flex-shrink: 0; font-size: 10px; line-height: 1;
+            padding: 1px 3px; border-radius: 3px; border: none;
+            background: transparent; color: #2c5e8c; cursor: pointer;
+            opacity: 0; transition: opacity 0.15s;
+        }
+        .lx-btn-ungrp {
+            flex-shrink: 0; font-size: 11px; line-height: 1;
+            padding: 1px 4px; border-radius: 3px; border: none;
+            background: transparent; color: #9f2f2f; cursor: pointer;
+            opacity: 0; transition: opacity 0.15s;
+        }
+        .lx-row:hover .lx-btn-det,
+        .lx-row:hover .lx-btn-expand,
+        .lx-row:hover .lx-btn-ungrp { opacity: 1; }
         .lx-btn-det:hover { background: #c5daf7; }
+        .lx-btn-expand:hover { background: #c5daf7; }
+        .lx-btn-ungrp:hover { background: #f8d6d6; }
+
+        .lx-sub-row td { background: #f8fbff; }
+        .lx-sub-row:hover td { background: #eef5ff; }
+        .lx-td-forme-sub { padding-left: 20px; }
+        .lx-forme-sub::before {
+            content: '>';
+            color: #8aa5c3;
+            margin-right: 6px;
+        }
 
         /* ---- Modal occurrences en contexte ---- */
         .lx-occ-ligne {
@@ -3191,6 +4521,163 @@ function _lxInjecterStyles() {
             background: linear-gradient(to top, #e1e1e1c9, var(--couleur-block));
             border-top: 1px solid #d0d0d0; border-bottom: 1px solid #d0d0d0;
             position: sticky; top: 0; z-index: 1;
+        }
+        .lx-occ-cloud-filter-badge {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 2px 8px;
+            border: 1px solid #9fb5d9;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: #45689f;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+
+        .lx-kwic-cloud-wrap {
+            flex-shrink: 0;
+            border-top: 1px solid #d0d0d0;
+            background: #fcfdff;
+            padding: 0 10px 6px 10px;
+            overflow: hidden;
+        }
+        .lx-kwic-cloud-handle {
+            height: 8px;
+            margin: 0 -10px 6px -10px;
+            cursor: ns-resize;
+            user-select: none;
+            background: linear-gradient(to bottom, #d7dee9, #eef2f8 55%, transparent 55%);
+            border-bottom: 1px solid #dde4ef;
+        }
+        .lx-kwic-cloud-handle:hover {
+            background: linear-gradient(to bottom, #aac2ea, #dbe8fb 55%, transparent 55%);
+            border-bottom-color: #9db8e6;
+        }
+        .lx-kwic-cloud-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 7px;
+        }
+        .lx-kwic-cloud-title {
+            color: var(--couleur-titre);
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .lx-kwic-cloud-count {
+            color: #6f7f98;
+            font-weight: normal;
+            font-size: 11px;
+        }
+        .lx-kwic-cloud-legend {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .lx-kwic-cloud-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .lx-kwic-cloud-filters {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .lx-kwic-chip {
+            border: 1px solid #c9d3e6;
+            background: #fff;
+            color: #5c6f8f;
+            border-radius: 999px;
+            padding: 2px 9px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .lx-kwic-chip:hover {
+            border-color: #8eb0e8;
+            color: #2859a8;
+            background: #f4f8ff;
+        }
+        .lx-kwic-chip--actif {
+            border-color: #5d8ddb;
+            background: #e8f0ff;
+            color: #2859a8;
+            font-weight: bold;
+        }
+        .lx-kwic-cloud-sort {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #5c6f8f;
+        }
+        .lx-kwic-cloud-sort select {
+            border: 1px solid #ccd5e6;
+            border-radius: 5px;
+            padding: 2px 6px;
+            background: #fff;
+            color: #40526f;
+            font-size: 11px;
+        }
+        .lx-kwic-legend-item {
+            font-size: 10px;
+            border: 1px solid #ccc;
+            border-radius: 999px;
+            padding: 1px 7px;
+            white-space: nowrap;
+        }
+        .lx-kwic-legend-thm { color: #2f7d4b; border-color: #2f7d4b66; background: #2f7d4b18; }
+        .lx-kwic-legend-mod { color: #a05a2c; border-color: #a05a2c66; background: #a05a2c18; }
+        .lx-kwic-legend-ent { color: #2a4f9d; border-color: #2a4f9d66; background: #2a4f9d18; }
+        .lx-kwic-cloud-body {
+            min-height: 48px;
+            overflow-y: auto;
+            border: 1px solid #ebeff8;
+            border-radius: 6px;
+            padding: 8px;
+            background: #fff;
+            line-height: 2.1;
+        }
+        .lx-kwic-tag {
+            display: inline-block;
+            appearance: none;
+            border: 1px solid;
+            border-radius: 6px;
+            padding: 1px 8px;
+            margin: 2px 4px;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            cursor: pointer;
+            user-select: none;
+            background-clip: padding-box;
+        }
+        .lx-kwic-tag:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(60, 75, 110, 0.12);
+        }
+        .lx-kwic-tag:active { transform: translateY(0); }
+        .lx-kwic-tag--actif {
+            outline: 2px solid rgba(42, 79, 157, 0.28);
+            outline-offset: 1px;
+            box-shadow: 0 0 0 2px rgba(42, 79, 157, 0.10), 0 3px 8px rgba(50, 70, 110, 0.16) !important;
+            transform: translateY(-1px);
+        }
+        .lx-kwic-cloud-note {
+            margin-top: 6px;
+            font-size: 10px;
+            color: #7a879d;
+        }
+        .lx-kwic-cloud-empty {
+            font-size: 12px;
+            color: #8a8a8a;
+            font-style: italic;
+            padding: 4px 2px;
         }
 
         /* ---- Barre de sélection multiple ---- */
@@ -3556,71 +5043,27 @@ function _lxContexteParRang(rang, entretien, Navant, Napres) {
  * Ouvre la fenêtre modale globale (dlg/ssdlg) avec toutes les occurrences
  * actives de `forme`, avec leur contexte avant/après.
  */
-function _lxOuvrirModalOccurrences(forme) {
-    // ---- Recalcul des filtres actifs (même logique que _lxRefreshTable) ----
-    const thmLabels   = [...document.querySelectorAll('#lxPnlThm .ligthm[data-code]')];
-    const thmInactifs = new Set(thmLabels.filter(l => l.classList.contains('ligthm-inactive')).map(l => l.dataset.code));
-    const filtreThm   = thmInactifs.size > 0;
-
-    const varBtns = [...document.querySelectorAll('#lxPnlVar .btn-onoff-ent:not([data-vide="1"])')];
-    const varMap  = new Map();
-    varBtns.forEach(btn => {
-        const v = btn.dataset.v;
-        if (!varMap.has(v)) varMap.set(v, { total: 0, actifs: new Set() });
-        const e = varMap.get(v);
-        e.total++;
-        if (btn.classList.contains('btn-onoff-ent--actif')) e.actifs.add(Number(btn.dataset.m));
-    });
-    const filtreVar = [...varMap.values()].some(e => e.actifs.size < e.total);
-
-    let entActifsVar = null;
-    if (filtreVar) {
-        entActifsVar = new Set();
-        tabEnt.forEach((ent, i) => {
-            for (const [v, { total, actifs }] of varMap) {
-                if (actifs.size >= total) continue;
-                const modEnt = Array.isArray(ent.tabDat)
-                    ? ent.tabDat.find(d => Number(d.v) === Number(v) && (d.l === 'all' || d.l === undefined))
-                    : null;
-                const m = modEnt ? Number(modEnt.m) : 0;
-                if (!actifs.has(m)) return;
-            }
-            entActifsVar.add(i);
-        });
-    }
-
-    const entBtns      = [...document.querySelectorAll('#lxPnlEnt .btn-onoff-ent[data-ent-idx]')];
-    const entActifsChk = new Set(entBtns.filter(b => b.classList.contains('btn-onoff-ent--actif')).map(b => Number(b.dataset.entIdx)));
-    const filtreEnt    = entBtns.some(b => !b.classList.contains('btn-onoff-ent--actif'));
-
-    const filtreEntFinal = filtreVar || filtreEnt;
-    let entActifsFinal = null;
-    if (filtreEntFinal) {
-        const base = entActifsVar ?? new Set([...Array(tabEnt.length).keys()]);
-        entActifsFinal = filtreEnt
-            ? new Set([...base].filter(i => entActifsChk.has(i)))
-            : base;
-    }
-
+function _lxOuvrirModalOccurrences(forme, cloudFilterKey = '', cloudTypeFiltre = 'ALL', cloudTri = 'PVAL') {
     // ---- Filtrage des occurrences pour cette forme ----
-    const occurrences = tabLexico.filter(item => {
-        const itemForme = (item.substitut && item.substitut.trim()) ? item.substitut.trim() : item.forme;
-        if (itemForme !== forme) return false;
-        // Filtre questions : exclure les locuteurs dont le nom se termine par '?'
-        if (lxOptExclureQuestions && item.locuteur && item.locuteur.endsWith('?')) return false;
-        if (filtreEntFinal && !entActifsFinal.has(item.entretien)) return false;
-        if (filtreThm) {
-            if (item.thematiques.length === 0) return false;
-            if (item.thematiques.every(t => thmInactifs.has(t))) return false;
-        }
-        return true;
+    // Réutilise la même logique que la table principale pour éviter les écarts de décompte.
+    const occurrencesBase = _lxOccurrencesActivesPourForme(forme, {
+        inclureQuestions: !lxOptExclureQuestions
     });
+    const modalitesIndex = _lxNuageModalitesParEntretien();
+    const occurrences = cloudFilterKey
+        ? occurrencesBase.filter(item => _lxKwicCategoriesOccurrence(item, modalitesIndex).some(cat => cat.key === cloudFilterKey))
+        : occurrencesBase;
 
     // ---- Construction du contenu HTML ----
     const formeEch = _lxEchapHtml(forme);
     // Stockage pour la vue arbre
     _lxArbreOccs  = occurrences;
     _lxArbreForme = forme;
+
+    const categoriesSpecifiques = _lxNuageCategoriesSpecifiquesKWIC(forme, occurrencesBase, {
+        inclureQuestions: !lxOptExclureQuestions
+    });
+    const filtreCatActif = categoriesSpecifiques.find(cat => cat.key === cloudFilterKey) || null;
 
     let html = `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px;
@@ -3629,8 +5072,9 @@ function _lxOuvrirModalOccurrences(forme) {
             <div style="font-weight:bold; font-size:1rem; color:var(--couleur-titre);">
                 Occurrences de <em>${formeEch}</em>
                 <span style="font-size:0.85rem; font-weight:normal; color:#666; margin-left:10px;">
-                    (${occurrences.length} occurrence${occurrences.length > 1 ? 's' : ''})
+                    (${occurrences.length} occurrence${occurrences.length > 1 ? 's' : ''}${occurrences.length !== occurrencesBase.length ? ` / ${occurrencesBase.length}` : ''})
                 </span>
+                ${filtreCatActif ? `<span class="lx-occ-cloud-filter-badge">Filtre : ${_lxEchapHtml(filtreCatActif.label)}</span>` : ''}
             </div>
             <div style="display:flex; align-items:center; gap:10px;">
                 <button onclick="_lxArbreOuvrir()" title="Afficher l'arborescence de contexte"
@@ -3689,6 +5133,7 @@ function _lxOuvrirModalOccurrences(forme) {
         });
     }
     html += `</div>`;
+    html += _lxNuageCategoriesHTML(forme, categoriesSpecifiques);
 
     // ---- Affichage dans la modale globale ----
     const dlg   = document.getElementById('dlg');
@@ -3705,6 +5150,7 @@ function _lxOuvrirModalOccurrences(forme) {
     ssdlg.style.padding     = '0';
 
     ssdlg.innerHTML = html;
+    _lxKwicCloudInitialiser(forme, categoriesSpecifiques, occurrencesBase, modalitesIndex, cloudFilterKey, cloudTypeFiltre, cloudTri);
     dlg.style.display = 'block';
 }
 
@@ -3897,7 +5343,7 @@ function _lxArbreSVGSide(nodes, sens) {
         const n  = nodes[i];
         const p  = nodes[n.parentId];
         const sw  = _lxArbreStrokeWidth(n.nb, maxNb);
-        const col = n.nbpass > 0 ? '#2962ff' : `rgb(${180 - n.rang * 15},${180 - n.rang * 15},${180 - n.rang * 15})`;
+        const col = n.nbpass > 0 ? '#2962ff' : `rgb(${230},${230},${230})`;
         const midX = ((p.xPos + n.xPos) / 2).toFixed(1);
         const d = `M ${p.xPos.toFixed(1)},${p.yPos.toFixed(1)} C ${midX},${p.yPos.toFixed(1)} ${midX},${n.yPos.toFixed(1)} ${n.xPos.toFixed(1)},${n.yPos.toFixed(1)}`;
         svg += `<path d="${d}" fill="none" stroke="${col}" stroke-width="${sw}"
@@ -3907,7 +5353,7 @@ function _lxArbreSVGSide(nodes, sens) {
     // Labels des nœuds
     for (let i = 1; i < nodes.length; i++) {
         const n   = nodes[i];
-        const col = n.nbpass > 0 ? '#2962ff' : (n.nb < 2 ? '#aaa' : '#333');
+        const col = n.nbpass > 0 ? '#2962ff' : (n.nb < 2 ? '#aaa' : 'rgb(${230},${230},${230}');
         const fw  = n.nbpass > 0 ? 'bold' : 'normal';
         const fs  = Math.max(9, 13 - n.rang);
         svg += `<g class="lx-arbre-noeud" data-nid="${i}" data-sens="${sens}"

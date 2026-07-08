@@ -1,0 +1,828 @@
+{
+  "bloc_0": {
+    "query": " Je ne me voyais plus évoluer dans cet environnement, je n'''apprenais rien, les missions n'''avaient pas de sens, je ne sais pas, je ne dis pas que je sais tout, mais juste il n'''y avait pas de stimulation intellectuelle, de sujets intéressant ou complexes, mes compétences stagnées",
+    "total_results": 20,
+    "results": [
+      {
+        "rank": 1,
+        "path": "033 - 03032014_anonymise.txt::page_3",
+        "doc_id": "033 - 03032014_anonymise.txt::page_3",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Et qui est toujours présent dans l'établissement donc... il est chef de maintenant du bureau nucléaire à l'international. et du coup c'est vrai que voilà je n'hésite pas... Et je n'ai pas hésité à l'appeler sur des questions enfin... Toujours prêt à me répondre, quand j'ai des points précis. Après donc comme mes collègues avaient fait aussi la période de... Enfin entre son départ et mon arrivée, qui a quand même duré quatre ou cinq mois donc... C'est vrai que eux avaient repris un peu les sujets, donc ils ont pu aussi m'assurer la continuité. Et puis pour le reste bah voilà j'ai appris. J'ai appris. mais bon c'est vrai que c'est un tout. Enfin c'est assez... Finalement je continue à me former tout le temps enfin... Enfin je n'ai pas le choix... J'essaye de comprendre au fur et à mesure que je découvre des nouveaux sujets aussi. oui. Tout à fait. Enfin je ne me voyais pas tout de suite manager enfin... Par exemple tout ce qui était poste en région ou en département ne m'attirait pas plus que ça. Et c'est vrai que je voulais quand même garder un aspect technique. Après sinon les aspects juridiques moi je suis sur un poste où j'en vois un peu moins par exemple contrairement à d'autres... J'ai une camarade qui a au niveau... Enfin adjointe au chef du bureau des renouvelables, qui gère de l'éolien, où c'est quand même beaucoup de questions juridiques avant tout. non là c'est vraiment des codes... C'est vraiment des codes techniques. c'est-à-dire qu'il y a le cas de comitologie, enfin la procédure d'adoption qui certes, elle rentre dans un cadre juridique bien particulier, mais vraiment le fond des technicités c'est uniquement des normes, des prescriptions techniques etc. Finalement les vrais experts ce n'est pas les Etats membres, ce sont les gestionnaires de réseau qui nous aident aussi. bah... Donc en fait c'est les gestionnaires de réseau qui ont participé à la rédaction de ces codes, réseau transport. Du coup ils connaissent très bien parfaitement les sujets. Et sinon on est beaucoup en contact avec la Commission de régulation où eux ils ont des vrais experts aussi de ces sujets-là. C'est surtout avec eux qu'on travaille pour arbitrer les positions, qu'on décide de porter. à part bien sûr enfin... Il faut relativiser dans le sens où j'ai quand même tout un cadre hiérarchique. Il n'y a rien de ce que je fais que je fais seule. voilà. C'est quand même validé comme tout... Enfin tout ce qui sort de la DGEC a été revu par tous les échelons. Donc c'est un côté ... Enfin ça me protège. donc moi j'ai plus le rôle... Je déblaye je propose. Je formalise etc. Mais après c'est... C'est la validation qui est indispensable, parce qu'effectivement je peux... Ce n'est pas des aspects que je maîtrise forcément, ou des dimensions que je ne vois pas forcément. Donc voilà j'ai un chef, un sous-directeur, un directeur. non non c'est au bout d'un an, je crois. oui je pense. si si c'est vrai que localiser les interlocuteurs au début c'est vrai que c'était une étape importante. Savoir à qui s'adresser d'avoir les contacts dans les entreprises. Mais bon ça c'est quand même bon ... Enfin ça ça passe essentiellement par l'échange avec les collègues qui... Enfin comme on a... Enfin ils connaissent... Ils sont là depuis longtemps la plupart. Donc mon chef de bureau, il travaille dans tous les dossiers donc... Donc c'est vrai que c'est un très bon appui pour moi aussi. enfin si lui il a une question... Enfin il a une connaissance du droit de l'énergie qui est excellente et donc ça... C'est vrai que je me... Enfin voilà. Je considère apprendre beaucoup de lui. Et il m'a appris beaucoup. Mon prédécesseur était... il est resté deux ans et demi. Et celui d'avant, deux ans, je crois. Il y a une rotation assez... oui. Non c'est pour ça que... On a plutôt intérêt à s'y mettre vite. mais maintenant c'est plutôt trois ans à peu près. plutôt trois ans pour pouvoir voir tous les aspects. non mais ça évolue. C'est-à-dire qu'au départ c'est vrai que les adjoints restaient plutôt deux ans. Et puis maintenant j'ai l'impression que le turnover c'est plutôt trois. oui. Et puis ce n'est pas écrit noir sur blanc. mais non mais ça vient... Des échanges qu'on a avec d'autres camarades... Disons qu'on... Ça sera plus facile pour nous de bouger et d'avancer... Après voilà comme dans tout système, comme celui-là ça dépend beaucoup...",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.2,
+          "rerank": 55.6,
+          "factuality": 0.0,
+          "final": 51.0,
+          "confidence": 72.7
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 52.3,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 72.7%) — Score final: 51.0%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "033 - 03032014_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/033 - 03032014_anonymise.txt",
+          "page": 3,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "033 - 03032014_anonymise.txt::page_3",
+          "path": "033 - 03032014_anonymise.txt::page_3",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.025568181818181816,
+          "faiss_rank": 36,
+          "bm25_rank": 6
+        }
+      },
+      {
+        "rank": 2,
+        "path": "033 - 03032014_anonymise.txt::page_18",
+        "doc_id": "033 - 03032014_anonymise.txt::page_18",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "mais c'est un beau... Un beau projet. oui. Et puis ça va ouvrir sûrement beaucoup de... Beaucoup de... Beaucoup de choses. Une première brèche, je dirais, d'un monde qui s'ouvre. les connaissances parfaites des flux. Et puis surtout ça va aussi je pense, enfin permettre de... Une meilleure... Une meilleure connaissance de ces consommations enfin de chaque consommateur. bah de toute manière j'étais... Enfin... j'étais déjà engagée dans le corps des Ponts. Enfin je suis entrée au corps à la sortie de l'X. Donc c'était un stage juste dans le cadre du Master mais de quatre mois. Et je voulais le faire en entreprise pour avoir un peu une vision du secteur privé, et puis à l'étranger c'était encore mieux mais... Mais ce n'était pas du tout dans l'optique d'y rester parce que je vais faire mes années dans la fonction publique donc. bah un peu les deux. Enfin disons que j'étais intéressée par les... Déjà par le champ... Enfin une problématique environnement général m'intéressait bien. Et puis le classement me le permettait. Et puis... Et puis voilà enfin... c'est tout ça. Et que ... Et puis voilà je me voyais bien... Parce que ce que j'aime bien dans ces postes-là en fait c'est qu'on est... Enfin il n'y a pas comme dans le privé, je dirais, un passage forcément par des choses effectivement très techniques d'ingénieur. Enfin là tout de suite on a des visions plus... On est quand même, pour des premiers postes, je trouve assez responsabilisés. On a des visions plus globales, je dirais, plus... Qui me plaisaient mieux. Enfin ça collait mieux à ce que... bah oui. Ça fait... À moins de travailler carrément dans la branche direction financière, mais qui n'était pas forcément ma formation, mais après je me suis aperçue que ça me plaisait beaucoup ces aspects-là aussi. Mais sinon c'est... Si... Enfin par exemple l'ingénierie c'est vraiment des projets. Enfin c'est très concret, je veux dire. non mais c'est vrai que c'est un secteur au départ qui ne m'attirait pas plus que ça enfin notamment quand j'étais à l'école, c'est vrai que je n'ai pas trop cherché à suivre des cours dans ce domaine. Et puis en fait ça me fait beaucoup. Ça reste...XXX (32.10) . bah non mais le côté prévisionnel, le côté... C'est les calculs que j'aime bien et puis... Enfin c'est vraiment quelque chose que j'ai découvert un peu au travers de mon stage, où j'ai été mise sur des projets justement où tout... Enfin voilà, où il y avait cette double composante déjà un peu financière et technique, où je devais à la fois appréhender les aspects concrets de réalisation. Enfin c'était vraiment... Moi j'étais sur un sujet au... enfin j'avais deux choses.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 83.4,
+          "rerank": 53.0,
+          "factuality": 0.0,
+          "final": 55.4,
+          "confidence": 72.9
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 58.6,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 72.9%) — Score final: 55.4%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "033 - 03032014_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/033 - 03032014_anonymise.txt",
+          "page": 18,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "033 - 03032014_anonymise.txt::page_18",
+          "path": "033 - 03032014_anonymise.txt::page_18",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.028814262023217248,
+          "faiss_rank": 7,
+          "bm25_rank": 12
+        }
+      },
+      {
+        "rank": 3,
+        "path": "026 - 25112013_anonymise.txt::page_198",
+        "doc_id": "026 - 25112013_anonymise.txt::page_198",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Voire même j'y ai pensé, on essaye d'expliquer mes échecs enfin pour simplifier... Pourtant bizarrement il semblerait quand même que, autant la structure, elle est bien organisée pour donner ce type de conseil à ses cadres. C'est d'ailleurs une journée de bureau d'études, ils étaient trois autour de moi. C'est formidable. Je ne me le serai pas payé moi-même tout seul. Et là, je vais avoir 12 demi-journées de travail avec un coach. Je ne me serai pas payé ça moi-même. Donc c'est vraiment quelque chose de très intéressant, et de... Et qui est un véritable investissement de l'employeur. Malgré cet investissement-là il semblerait que l'employeur n'en tire pas lui-même d'enseignement. C'est-à-dire que, ils ne connaissent pas la synthèse de mon... de mon RVO. Je suis le seul à le connaître. Et le coach du fait de sa déontologie et du secret professionnel, sera le seul à entendre ce que je lui dis. R1 : voilà. Il semblerait. Je ne sais pas ce qu'il peut se passer entre le bureau d'études et l'employeur discrètement. Mais en tout cas à chaque étape, on m'a dit que c'était effectivement une offre de l'employeur à ses cadres, pour permettre aux cadres de progresser, et pas une offre pour l'employeur pour lui permettre de mieux connaître ses cadres. Voilà. R1 : ils n'utilisent pas. Ils ne connaissent pas. C'est mis à ma disposition. J'en fais ce que je veux . Et j'en tire les enseignements qui me seront utiles. Voilà. Si c'est le cas, tant mieux. Ça me va bien. C'est très intéressant de travailler avec un coach. Je n'en suis pas certain que je vais en sortir meilleur, mais en tout cas ça reste effectivement très intéressant. Et donc voilà. Et donc le chargé de mission, il est quand même là-dessus. C'est quand même lui qui m'a proposé un RVO et qui m'a mis en contact avec les coaches. R1 : comment ? R1 : mais il en a trouvé quand même. Il en a quand même. Il en a quand même un paquet. R1 : oui. Oui. Il y en a un paquet. R1 : oui. Donc il y en a beaucoup. Il en a sélectionné quelques-uns. Et c'est peut-être normal que je ne sois pas dedans. Si il y en avait que quelques-uns ... R1 : voilà.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.7,
+          "rerank": 52.9,
+          "factuality": 0.0,
+          "final": 55.1,
+          "confidence": 72.3
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 55.6,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 72.3%) — Score final: 55.1%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "026 - 25112013_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/026 - 25112013_anonymise.txt",
+          "page": 198,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "026 - 25112013_anonymise.txt::page_198",
+          "path": "026 - 25112013_anonymise.txt::page_198",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.02690100430416069,
+          "faiss_rank": 22,
+          "bm25_rank": 8
+        }
+      },
+      {
+        "rank": 4,
+        "path": "033 - 03032014_anonymise.txt::page_38",
+        "doc_id": "033 - 03032014_anonymise.txt::page_38",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "ah oui oui. On peut être adjointe sur un bureau, et passer chef d'un autre bureau. en venant d'un autre poste complètement différent vous voulez dire ? enfin je sais qu'il y a des gens qui ont fait un premier poste par exemple en services déconcentrés, direction régionale ou autre, et après qui sont passés chefs. Donc ce n'est pas impossible. oui oui. Je pense que des allers-retours... Mais en général des allers-retours entre déconcentré, et enfin face aux centrales, sont assez valorisés. Et... et ils nous incitent tous fortement à faire... À ne pas rester dans un... Une seule branche donc... ça c'était plus des messages qu'on a eus, je dirais, au... Par les membres du corps quand on cherchait nos postes etc. Ils nous ont tous vendu l'intérêt d'aller de l'un, là ou là. Enfin je veux dire, une complémentarité des deux. Donc voilà. On avait quand même des entretiens de temps en temps avec un responsable un peu... Pas RH mais enfin je me rappelle d'un ou deux entretiens qu'on a eus comme ça l'année dernière. Et voilà. Ils nous demandaient un peu déjà nos centres d'intérêt. Et puis ils nous incitaient sur ces aspects-là, qu'il ne faut pas... Donc peut-être historiquement moi j'avais en tête qu'il y avait pas mal de gens qui pouvaient entrer dans une direction, monter, pendant toute leur vie. Et je pense que maintenant ce n'est plus possible. Et que ce n'est plus vraiment ce que les gens cherchent non plus. oui. À peu près oui. C'était... Mais après je ne sais pas comment... Enfin il y a quand même un suivi un peu ressource humaines au sein du corps mais ça, je ne me suis pas encore... ... penchée tellement dessus. Enfin au moment du choix des postes, mais... Depuis on commence seulement. pas sur ce poste-là. Je n'ai pas eu... Non. Non. Sur les postes pour connaître un peu le contenu des postes enfin mêmes... On avait eu des présentations de plusieurs directions, notamment DHEP qui s'occupe de l'habitat et de l'urbanisme enfin au sein de la direction et la DGEC n'était pas venuE, je crois. Mais... Après on n'a pas de enfin... Enfin par exemple on a notre fiche en fait qui décrive un peu les postes, et que après c'est à nous de plutôt contacter les anciens qui ont occupé le poste pour savoir un peu... oui. Tous les postes que... Enfin tous les entretiens que j'ai passés, j'avais... bah rapide, relativement parce que c'était une durée... oui. C'était une durée normale. Bah il était très content. Oui. Il était très content. Et il m'a dit qu'au bout de deux ans il avait hésité même à chercher et puis il s'était dit qu'il avait encore des choses à apprendre. Et il a prolongé un peu et puis... Non globalement très content. Et très rassurant. Il était beaucoup sur ... Et puis il m'avait incité à prendre le poste. oui. Bah c'est très complet. C'est... Enfin la configuration du bureau est très bien. Enfin donc oui que des choses positives. Mais au global les premiers postes... Enfin les postes la DGEC je pense sont quand même tous très intéressants enfin... c'est vraiment une problématique... Enfin c'est vraiment une belle direction, enfin je trouve. Je ne connais pas assez bien les autres pour juger mais... bah après c'est vraiment... Non après, c'est vraiment... non non. Les routes pour le coup c'est vraiment après une question de goût. Mais je pense qu'il y a des choses très bien à faire. Et j'ai un ami qui est très content aussi. Non après c'est vrai qu'il y a des... Des directions qui m'auraient moins plu moi. Enfin après c'est vraiment une histoire de goût. Et... bah c'est vrai que les aspects plus... tout ce qui a trait pour moi purement à tout ce qui est biodiversité ou développement durable enfin... Il y a un certain nombre de... Il y a un certain nombre de postes sur ces aspects-là qui m'auraient moins... Moins motivé. Mais après oui c'est une question de goût. non mais je pense qu'il y a... Déjà en termes d'intérêts... Enfin d'intérêt personnel pour le sujet. Et puis... Et puis j'ai le sentiment que c'est quand même moins dynamique. Mais bon une fois de plus c'est sans y être allée, et de voir ça XX (52.58) quand même. oui et puis des sujets à enjeux forts enfin... Voilà. C'est assez flou. on se fait une image des choses. non mais moi ce que j'aime bien... Ce que j'aime beaucoup aussi dans mon poste, c'est les relations avec l'entreprise quand même, parce que j'ai eu un poste... Une entreprise publique du coup mais même pas que, parce que quand on fait des concertations d'acteurs, on voit tous les acteurs d'énergie donc il n'y a pas que les grandes entreprises publiques. Et ça, ça me... Enfin je voulais quand même garder ce lien-là, qu'il n'y a pas forcément du tout... Enfin il y a des postes qui vont être en administration centrale, qui vont être vraiment plus tournés vers les services déconcentrés, le lien... Enfin l'articulation entre le national et le local, alors que nous c'est des politiques qui sont quand même globales vraiment nationales, des aspects quand même territoriaux qui sont... Qui ont leur importance d'ailleurs mais... Mais nous ça va être plus axé... Enfin en tout cas mon poste sur le lien avec l'entreprise etc. Et ça, ça me plaît bien. Et j'aimerais bien idéalement ne pas perdre ce lien. Enfin parce que j'aime bien aussi ce secteur-là enfin... Au-delà de mes envies plus tard etc. Je n'en sais rien mais... C'est... Enfin... Je trouverais ça dommage que de faire que du public public. enfin oui j'ai le sentiment que ça dynamise aussi du coup, parce que justement on travaille avec des acteurs privés qui n'ont pas forcément les mêmes... je dirais, plus dynamique. Ce n'est pas forcément... C'est vrai que les décisions ne sont pas forcément toujours plus rapides, plus simples mais... Mais je trouve qu'il y a un... Enfin moi c'est comme ça que je le ressens, après effectivement il est toujours dur de parler quand on a une seule expérience. oui tout à fait. Après c'est vrai que... Bon comme c'était en plus ce dans un contexte étranger et tout, je trouve que enfin... Il y a beaucoup de choses auxquelles on a peut-être pas accès ne serait-ce que par la langue, ou par... Je veux dire qu'on découvre ce type des cultures même temps donc ce qui est vraiment lié au secteur privé et ce qui est lié à la culture ou...XXX (55.39) les deux... Mais non c'est vrai que c'était comme utile je trouve, de passer quelques mois... si si si si. Si je pense bah au moins terminer mon... mes dix ans. mais après je ne sais pas. Enfin après je... Après je ne sais pas. Mais au moins faire trois postes. En essayant de varier quand même un peu, peut-être deux postes aussi et sur un poste très différent par exemple. Et puis après voir... voilà. Je reste ouverte. Après aussi bien que je resterai... je ne sais pas. Et puis voilà. On ne sait pas ce que la vie nous réserve, si il faut partir à droite ou à gauche. Il y a des contraintes personnelles qui fait qu'on ne maîtrise pas tout. oui tout à fait.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.5,
+          "rerank": 52.2,
+          "factuality": 0.0,
+          "final": 54.7,
+          "confidence": 70.0
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 45.5,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 70.0%) — Score final: 54.7%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "033 - 03032014_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/033 - 03032014_anonymise.txt",
+          "page": 38,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "033 - 03032014_anonymise.txt::page_38",
+          "path": "033 - 03032014_anonymise.txt::page_38",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.026860955056179775,
+          "faiss_rank": 29,
+          "bm25_rank": 4
+        }
+      },
+      {
+        "rank": 5,
+        "path": "033 - 03032014_anonymise.txt::page_24",
+        "doc_id": "033 - 03032014_anonymise.txt::page_24",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "non mais c'est parce que comme moi je ne suis pas non plus une experte dans un domaine... Enfin j'aime bien plus toucher à tout mais pas forcément enfin... Voilà il n'y a pas forcément... Enfin j'aimais beaucoup la biologie mais sur ces aspects finalement assez théoriques et puis en pratique voilà, que sur des aspects recherche, c'était assez différent de ce que je pensais mais... Mais oui j'aime mieux avoir cet aspect global que à fond sur un sujet. ce n'est pas une peur, c'est juste... C'est juste... Enfin ça me plaît moins. J'ai... Oui. mais peut-être aussi c'est... Enfin... Enfin c'est aussi pour ça d'ailleurs que j'ai choisi Polytechnique. C'est-à-dire de rester toujours le plus général possible, de pouvoir dire : tu peux faire ça et ça. Enfin le côté un peu... Qui décide jamais peut-être, mais en même temps qui laisse la porte ouverte. c'est... Alors non c'était plus... Ce n'était pas tellement l'aspect spécialisation c'était vraiment le... L'aspect pratique enfin l'expérimentation qui me... Qui me frustrait beaucoup. Et que... Enfin... Enfin... Quelque chose qui est un peu propre aussi quand même à la biologie, qui n'est pas vraie à toutes les disciplines de recherche que vraiment on... Voilà la difficulté d'avoir des certitudes. C'est vrai. Avec un objet vivant, un peu imprévisible. Moi j'avais travaillé en plus sur... Mon sujet de recherche c'était sur les... L'impact des nano-particules sur le système nerveux. Et du coup bah... Enfin c'est des... Tout ce qui est lié aux aspects toxicologiques. C'est-à-dire qu'on traite un... Ils sont très difficiles parce que il y a plein de variables qu'on ne maîtrise pas, ou peu. Donc que ce soit les durées d'exposition, les quantités auxquelles on expose. Enfin tous ces paramètres-là qui sont absolument déterminants dans les résultats qu'on obtient, et finalement qu'on fait un peu à la louche. Sans parler des cocktails de... De choses auxquelles on expose. Enfin qui peuvent changer les effets. Enfin un côté marrant... Je me dis tellement... Parce que j'étudais et je lisais les applications que je pouvais en voir. En plus je travaillais sur des cellules donc ne parlons pas des animaux voire de l'homme enfin... trop loin d'une potentiel.. D'une potentiel d'application avec en plus beaucoup d'incertitudes sur les résultats. Enfin le côté... Je pourrais passer un temps fou. Intelligemment c'était intéressant mais... Mais c'est vrai que je trouve que la preuve dans l'expérience, c'est difficile. Et du coup... mais non tout à fait. Et puis après c'est vrai que après moi j'ai plus eu le réflexe de me dire : bon ce n'est pas ça que je veux faire. Mais pas forcément aller chercher... Enfin je pense que j'aurais été plus intéressée par des aspects biologiques quantitatifs en fait. Enfin croisés avec des aspects plus mathématiques, de modélisation etc. où là j'aurais plus su où je marchais. Et puis je n'ai pas forcément non plus pris le temps de creuser une autre voie pour une thèse et puis... Et puis voilà comme je le disais sur ce côté j'aime bien voir beaucoup de choses. Enfin je pense que ça collait mieux à ma personnalité d'aller voir plutôt côté administration. oui oui j'y avais pensé. Tout à fait. J'avais pensé parce que dans le secteur... Enfin si je voulais rester dans le secteur de la santé, c'est vrai que c'était un peu une condition. Voilà. C'est vrai que c'est un secteur où sans thèse on n'est vraiment pas du tout légitime. Ce qui est moins vrai peut-être de l'énergie où là c'est plus des profils ingénieurs, classiques. Donc voilà. C'était moins... Enfin un désavantage en tout cas de ne pas avoir fait de thèse là-dedans.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.4,
+          "rerank": 51.8,
+          "factuality": 0.0,
+          "final": 54.5,
+          "confidence": 71.4
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 53.3,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.4%) — Score final: 54.5%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "033 - 03032014_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/033 - 03032014_anonymise.txt",
+          "page": 24,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "033 - 03032014_anonymise.txt::page_24",
+          "path": "033 - 03032014_anonymise.txt::page_24",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.025245441795231416,
+          "faiss_rank": 33,
+          "bm25_rank": 9
+        }
+      },
+      {
+        "rank": 6,
+        "path": "033 - 03032014_anonymise.txt::page_9",
+        "doc_id": "033 - 03032014_anonymise.txt::page_9",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "très... Très variés. Ce qui est intéressant. Et l'aspect juridique que je découvre, qui me plaît aussi mais c'est vrai que je découvre... Et finalement je découvre... Que je découvre sans ... Sans vraiment découvrir parce que comme je ne suis pas non plus au c ur de ces problématiques, je me repose beaucoup plus peut-être sur mes collègues sur ces aspects-là où eux sont très compétents. Et donc du coup je fais l'effort pour apprendre ça, mais comme j'ai déjà suffisamment de choses par ailleurs, je ne m'ennuie pas.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 83.0,
+          "rerank": 51.7,
+          "factuality": 0.0,
+          "final": 49.7,
+          "confidence": 77.1
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 82.0,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟢 Fiable (confiance: 77.1%) — Score final: 49.7%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "033 - 03032014_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/033 - 03032014_anonymise.txt",
+          "page": 9,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "033 - 03032014_anonymise.txt::page_9",
+          "path": "033 - 03032014_anonymise.txt::page_9",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.021739130434782608,
+          "faiss_rank": 9,
+          "bm25_rank": 78
+        }
+      },
+      {
+        "rank": 7,
+        "path": "026 - 25112013_anonymise.txt::page_11",
+        "doc_id": "026 - 25112013_anonymise.txt::page_11",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "R1 : alors à la sortie d'école mon premier poste c'est le service national. Donc au titre de la coopération, je suis parti faire des routes au Cameroun. R1 : donc 18 mois. R1 : voilà. Donc 18 mois à faire des routes au Cameroun. Donc des routes et des lotissements donc sur terrains nus. Donc on trace la route sur un papier. Et sur le terrain, les buls avancent, et poussent les arbres. Donc voilà. R1 : oui. Formateur quand même. Oui. Oui. Absolument. Absolument. R1 : oui. Oui. Il y avait des dessinateurs. Oui. Des assistants techniques . Oui. Tout à fait. Il y avait une équipe à encadrer. Il y avait des modalités de fonctionnement qui étaient un peu particulières. On était équipés... On était équipés d'informatique. Alors ça effectivement, ça ne vous dit plus rien. Mais on avait des disquettes souples. Des disquettes souples de cette dimension-là, pour les études et tout. Et donc dans ce bureau d'études au Cameroun, j'avais développé le système informatique. Et donc on avait réussi à brancher un traceur automatique. Et donc bien sûr dans ces disquettes, la mémoire était minable. Donc il fallait la changer tous les demi-heures. Et donc on avait une procédure de fonctionnement qui était marrante. On faisait des tours de rôle, pour passer la nuit à venir changer les disquettes etc. donc ... donc si ça avait un côté formateur, pas sur la technique, mais sur... Sur la... La... sur la gestion des temps et des personnes. R1 : une dizaine de dessinateurs. Oui. Oui. Parce que la machine faisait le boulot, mais derrière il fallait reprendre... Gratter un peu les erreurs, les trucs et les machins. R1 : et donc le second c'était pour continuer ça, mais dans des contraintes environnementales un peu plus crédibles. Donc je continue à faire des routes en Alsace. Mon premier poste, c'était à Vilme . Et donc ça s'appelait un bureau d'études travaux neufs. Et j'ai fait des autoroutes autour de Vilme . R1 : pareil. Donc j'étais responsable d'un bureau d'études. Et il y avait trois ou quatre dessinateurs, et trois ou quatre assistants techniques. Voilà. Dans un service à l'époque qu'on appelait arrondissement qui comportait deux unités de travaux neufs, et deux unités d'études. Et donc la mienne, c'était des autoroutes de raz de campagne, donc j'ai fait l'ex nord-sud alsacien. Vous ne connaissez pas l'Alsace. R1 : XXX (11.34) s'appelle aujourd'hui l'autoroute A35, c'est moi qui l'ai dessinée. Et donc effectivement c'était pour faire la même chose qu'au Cameroun, mais avec des contraintes environnementales parce que en Alsace, on contourne les clochers, on contourne les pieds de vigne. On ne va pas mettre les pieds dans l'eau etc. À cette époque-là il y avait déjà des problématiques d'espèces protégées, très peu quand même, mais il y en avait quand même quelques-unes. Et donc voilà. Et donc... R1 : par hasard, puisque c'était une pratique de l'époque. Les jeunes commençaient par les secteurs les moins pourvus de volontaires. Et le Nord Est faisait partie de ces secteurs. Et donc en rentrant du Cameroun... Je suis rentré... Alors oui donc... Le service national, c'est 16 mois, plus deux mois de congé. Les deux mois de congé, je les ai faits là-bas parce que mon patron a voulu me rémunérer deux mois supplémentaires sous forme de vacations. J'étais mieux payé que en tant que service national, donc j'ai fait deux mois de plus. Donc du coup je suis rentré deux mois après la première vague, qui avait terminé ses 16 mois. Donc je suis rentré seul. Et on m'a dit : il faut aller au ministère. Au ministère j'ai rencontré un gars qui m'a donné deux postes, ou Vilme donc. Donc j'ai choisi sur ou Vilme . J'ai choisi Vilme . R1 : le pourquoi du choix ? Parce que à c'était un autre sujet. Je ne sais plus trop lequel. Et à Vilme c'était de faire des routes dans un contexte environnement particulier. R1 : voilà. Oui. Oui. Oui. Oui. R1 : quatre ans. R1 : quatre ou cinq ans. Oui. Et donc là du coup j'ai fait mes premières armes là. Je me suis fait connaître. Et mon deuxième poste, j'ai formulé une candidature pour un poste de subdivisionnaire justement. Subdivisionnaire à H. dans la même direction départementale de l'équipement. R1 : oui. Oui. Tout à fait. Donc j'ai fait quatre ans à H.. R1 : quatre ans ou cinq ans en fait. Je sais que j'ai quitté l'Alsace en 92. Donc à H. c'était subdivisionnaire avec toutes les problématiques d'époque : des routes à gérer, du déneigement, du fauchage, de l'entretien, des gros travaux, du permis de construire. Donc voilà tout ce qu'on faisait à cette époque-là, et bien entendu de l'ingénierie. Beaucoup de lotissements et de traversées d'agglomération et autres. L'Alsace étant à cette époque-là, mais je pense qui le sont encore, plutôt riche. Vous savez, il y avait de quoi faire des projets intéressants. R1 : classique. Oui. Un deuxième poste subdivisionnaire . Oui. Oui. Classique. R1 : euh... Oui. Oui. Si. Si. Si. Parce qu'en fait c'est... Oui. Je ne sais pas peut-être vous pensez à divisionnaire ? R1 : ah oui. Moi je l'ai été donc voilà peut-être que effectivement je me suis fait connaître pendant mes quatre premières années. R1 : enfin parce que je me suis fait connaître c'est-à-dire je suis... Voilà c'est ça. Au bout d'un certain temps quand le subdivisionnaire est parti, j'ai dit à mon patron que ça m'intéressait. Et il ne voyait pas d'inconvénient me connaissant, à donner un avis favorable tout de suite. Parce que c'est vrai que on avait bien des procédures de... D'appel à candidature, et autres mais enfin... Les mouvements internes ont toujours été un peu facilités par rapport à l'appel à candidature. Il est plus facile de bouger à l'intérieur d'une même direction, que de formuler une candidature dans un département d'à côté. Donc du coup au lieu de publier le poste de subdivisionnaire de l'Haugenau, il a publié mon poste. Et voilà. R1 : oui. Oui. R1 : oui tout à fait. Alors là je ne sais plus combien c'est mais enfin... R1 : pour les permis de construire j'avais une équipe de cinq ou six. Pour les projets de maîtrise d' uvre, je vois effectivement un... J'avais un adjoint et deux contrôleurs qui suivaient les travaux. Et puis j'avais un contrôleur pour le volet gestion de la route. Alors on devait avoir une équipe de 15 à 20 agents de travaux. R1 : il y avait trois camions. Une petite entreprise de travaux publics. R1 : et deux comptables parce que alors là aussi il y avait de l'argent à brasser, parce qu'on faisait de la maîtrise d' uvre et tout. Oui. Oui. R1 : oui. Donc en fait on faisait l'entretien des routes pour le compte du Conseil Général et de l'État puisqu'il y avait une route nationale. Donc on reçoit effectivement des...",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 80.9,
+          "rerank": 51.5,
+          "factuality": 0.0,
+          "final": 58.9,
+          "confidence": 70.5
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 49.7,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 70.5%) — Score final: 58.9%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "026 - 25112013_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/026 - 25112013_anonymise.txt",
+          "page": 11,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "026 - 25112013_anonymise.txt::page_11",
+          "path": "026 - 25112013_anonymise.txt::page_11",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.018250423533035576,
+          "faiss_rank": 91,
+          "bm25_rank": 26
+        }
+      },
+      {
+        "rank": 8,
+        "path": "026 - 25112013_anonymise.txt::page_30",
+        "doc_id": "026 - 25112013_anonymise.txt::page_30",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Oui. Oui. Quand on est divisionnaire à cette époque-là, il n'y avait pas de choix. C'était chef de service. R1 : alors directeur adjoint beaucoup trop tôt puisque effectivement un peu comme le cursus qui consiste à faire trois postes au premier niveau pour être divisionnaire, il faut trois postes de divisionnaire pour être directeur adjoint. R1 : il m'en manquait. Oui. C'était mon premier. Donc il va falloir faire mon second. Et j'ai fait celui-là. R1 : voilà. R1 : alors à cette époque-là, on venait de faire... Quand j'étais secrétaire général, j'avais mobilisé la réorganisation. On était en train de quitter une mission... Finalement je fuis devant les... Devant les bêtes... Devant les retraits de l'État en fait. Puisqu'on avait un service qui faisait des documents de l'urbanisme à l'époque qui s'appelait des XX (41.37) ... Mais qui faisait les XXX pour le compte des collectivités donc, qui décidait qui faisait les zonages, qui grattait les plans, qui faisait les procédures etc. Donc on était vraiment à faire des XX (41.49) comme aujourd'hui les bureaux d'études. Et donc le ministère se retirait de cette responsabilité-là. Et dans la réorganisation qu'on avait préparée entre 99 et 2000, on a créé un service de l'État qui se contentait de porter la politique de l'État en fait, de veiller à ce que dans les documents d'urbanisme l'État... Les enjeux de l'État soient préservés, que ce soient les risques autres, puisque je faisais les risques en 79, donc inondation, risque submersion marine. Donc c'était le volet de l'État qui venait influencer les documents d'urbanisme, lesquels étaient repris par les maires, et qui faisaient travailler des bureaux d'études puisque là aussi au fur et à mesure, il y avait des compétences qui se créent quand même sur le territoire français. Il n'y avait pas que les services de l'État qui savaient faire. Et donc il y avait de plus en plus de bureaux d'études et d'architectes qui étaient en mesure de réaliser les documents d'urbanisme pour les maires. Et donc ce service c'était le service de l'État. C'est celui qui faisait le contrôle de la légalité, qui assurait les enjeux de l'État, qui faisait les études de risque et qui les imposait dans les documents d'urbanisme. Voilà. Et à côté de ça il y avait un service qui terminait un peu la mise à disposition des maires pour faire les documents d'urbanisme. R1 : service de l'État. Voilà. Service de l'État. Enjeu de l'État. Portage de la politique... Politique de l'État. Voilà. R1 : oui. Voilà. En gros c'est ça. R1 : alors je n'ai pas reculé avec l'État. À chaque fois... À chaque fois... Dans ce que je viens de vous dire c'est que à chaque fois donc que l'État effectivement se retire d'une mission, je passe à une autre mission. C'est ce que je constate dans ce que je vous décris. R1 : je viens de vous dire que en quittant H., on baissait un peu les activités d'ingénierie pour le compte des communes au profit des activités de maîtrise d'ouvrage. Je suis arrivé en pour faire la maîtrise d'ouvrage. Et là je quitte... Je quitte... Je prends un service de l'État pour réduire les interventions de l'État au titre des documents d'urbanisme, en tant que assistant technique des maires. Mais c'est... R1 : oui. Oui parce que si vous remontez effectivement en 46. L'État faisait tout en 46. L'État a tout reconstruit le moindre fil électrique, ou le fil téléphonique suspendu d'un poteau à l'autre, c'était l'État aussi. Donc au fur et à mesure l'État se retire pour laisser intervenir d'autres compétences, qui ne sont pas nécessairement de l'État. Et ça continue. R1 : oui. Oui. Oui. Moi je suis arrivé après la décentralisation, puisque mon premier poste c'était donc en 84. La décentralisation Deferre venait d'être installée donc je n'ai pas connu l'époque où l'État faisait tout. Donc je ne connais que la projection de la décentralisation. Et je suis absolument pas opposé à la progression de la décentralisation, bien au contraire.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 80.6,
+          "rerank": 51.5,
+          "factuality": 0.0,
+          "final": 53.8,
+          "confidence": 70.9
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 51.6,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 70.9%) — Score final: 53.8%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "026 - 25112013_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/026 - 25112013_anonymise.txt",
+          "page": 30,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "026 - 25112013_anonymise.txt::page_30",
+          "path": "026 - 25112013_anonymise.txt::page_30",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.014654282765737874,
+          "faiss_rank": 110,
+          "bm25_rank": 54
+        }
+      },
+      {
+        "rank": 9,
+        "path": "018 - 071021003_anonymise.txt::page_12",
+        "doc_id": "018 - 071021003_anonymise.txt::page_12",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Ça a évolué parce que ces approches qui étaient très différenciées jusqu'à il y a cinq ou six ans, je n'en avais plus du tout le ressenti, il y a cinq ou six ans enfin même jusqu'à il y a trois ans, aucun ressenti de tout ça. Une logique très forte, très bonne. Et c'était... C'était ce que nous avait dit le chargé de mission à l'époque qui était venu vanter les postes équipement à l'Ira c'était : faites vos preuves. Faites vos preuves, et vous serez reconnus. Et de ce point de vue là jusqu'à il y a trois ou quatre ans, moi j'aurais dit que j'étais dans un parcours qui était riche, tout en restant dans le corps des attachés parce qu'il y a des gens qui ont des parcours beaucoup plus intéressants, ou beaucoup plus forts, en réussissant à l'Ira, ou en évoluant par d'autres voies. Mais j'estimais qu'on était dans quelque chose de très bien jusqu'à il y a trois ou quatre ans d'une manière assez forte. pourquoi ? Parce qu'on avait... On avait une obligation à la mobilité. Mobilité fonctionnelle XXX (11.41) par rapport à la mobilité géographique. Au CETE moi j'avais déjà commencé à prendre un poste en déléguant beaucoup, en élargissant les sujets de travail, donc... J'avais eu l'habitude de reproduire purement et simplement ce qui a été fait auparavant, donc le travail avait été fortement développé. J'ai candidaté donc pour aller sur un autre poste en DDE qui était dans le champ du logement social, et où à l'époque quelques collègues m'avaient dit qu'il ne fallait pas que je reste plus de trois ans parce que c'était une usine.Et en fait effectivement s'occuper du... R1 : donc la section des aides publiques au logement c'était à peu près entre 11 000 décisions par an individuelles, 19 000 donc deux ans après avec mon impulsion pour le maintien de l'aide personnelle au logement XXX (12.40) puisqu'il y a un lien fort XXX (12.45) et les analystes... Remise indue d'APL je pense que c'est un système qui est très itératif. Vous n'avez pas de ressources. Vous avez une évolution de situation, votre APL doit être corrigée, donc comme elle a déjà été versée, il faut que vous récupériez ce qui a été trop payé, enfin c'est quand même quelque chose d'assez sophistiqué. Le FSL, c'est les fonds de solidarité logement, depuis que ça a évolué c'est les départements qui l'ont en charge, mais on avait à l'époque plus de 20 fonds de solidarité logement qui étaient des structures cogérées État et département, et qui examinaient les situations d'impayés de loyer pour accorder des aides. Donc il s'agissait de piloter 20 fonds sur l'arrondissement de Lille, et sur les autres arrondissements un fonds par arrondissement, avec une mission à la fois de représentation sur les fonds lillois, je dis ça parce que c'était quand même assez intense, ça faisait au moins 20 réunions mensuelles, donc 20 demi-journées par mois, c'était déjà bien. Et plus l'animation du reste puisqu'à l'époque, la participation des employeurs à l'effort de construction donnait lieu à des missions de contrôle même si les missions d'agrément de dossier pour permettre à ces fonds de venir participer au financement des dossiers de construction à logement. Je suis dans le très technique. R1 : et... R1 : voilà. Par contre l'exemple que je prendrai sur ce sujet là pour répondre à votre question : pourquoi l'administration ? Il y avait un dossier à l'époque que je ne voyais pas... Que je n'avais pas vu venir qui était la situation des personnes en difficulté. On avait un groupe de maisons familiales qui avaient construit beaucoup de modèles types dans les années 80 donc les prépas à l'époque. Et il y avait un moment où leurs constructions étaient très standardisées, et par points fragiles, mais surtout où les taux d'intérêt étaient à deux chiffres quand les... Quand le chômage s'est mis à reprendre très sérieusement, parce qu'il y a eu un effet de ciseaux très fort. Et donc le Nord et le Pas-de- , et particulièrement le Pas-de- (14.41) des ménages pris à la gorge beaucoup, avec des travaux de remise en état des logements pour les achever, parce qu'ils n'étaient pas finis, ont décidé de grèves de paiement . Donc on se retrouvait dans une situation complètement conflictuelle où on avait un côté en général, les épouses qui venaient en réunion et avec la représentante de cette société de constructeur qui était un ancien commercial et qui venait aussi en réunion, et la mission que j'avais c'était de favoriser le dialogue pour permettre aux choses de se décanter, de trouver des solutions, des compromis pour que les paiements reprennent, que les travaux le cas échéant puissent être faits etc. On aurait pu gérer ça de manière administrative. Mon propos c'était de faire des réunions, des comptes-rendus considérer que ça tombait etc... que ce soit sur ce dossier là ou d'autres. J'ai suivi les dossiers qui n'ont pu aboutir à activer le règlement de situation. R1 : ah la sensation vous l'aviez, quand vous aviez un commissaire de police qui était derrière en mairie, et derrière la porte de sortie pour s'assurer qu'il n'y avait pas de casse, vous l'aviez... Vous aviez l'impression de revivre Germinal dans la scène... R1 : oui. Alors le problème... L'utilité moi je la mesure enfin ça c'est ma façon de voir les choses-là aussi, je la mesure quand j'attends le résultat. Si j'avais été en réunion juste pour qu'ils se crêpent les cheveux, ce n'est pas ça l'utilité. On peut en parler, parce que je pense que c'est un énorme sujet : à quoi sert l'administration ? C'est un des items que j'ai aussi... (abordé dans un document de synthèse remis en début d'entretien) ... je vais être plus caricatural sur quelque chose d'utilité. Prenez un couple contre sans emplois, 7 enfants trois handicapés mentaux, en échelle d'accession, et avec à l'époque 250 000 Fr. d'indemnités de refus d'octroyer la force publique c'est-à-dire que si le préfet ne donne pas la police pour expulser la famille, il doit payer des indemnités au prêteur si vous prenez un dossier comme ça.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.4,
+          "rerank": 51.0,
+          "factuality": 0.0,
+          "final": 49.2,
+          "confidence": 71.6
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 56.0,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.6%) — Score final: 49.2%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 12,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_12",
+          "path": "018 - 071021003_anonymise.txt::page_12",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.024568195354377605,
+          "faiss_rank": 32,
+          "bm25_rank": 13
+        }
+      },
+      {
+        "rank": 10,
+        "path": "018 - 071021003_anonymise.txt::page_112",
+        "doc_id": "018 - 071021003_anonymise.txt::page_112",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Ça veut dire que les fonctions de direction sont ingénieurs des Ponts. Et ça, ça provient du fait directement que si les postes de catégorie 1 et de catégorie 2, sont ouverts à des niveaux d'emploi très très hauts, et de très grands corps, à partir du moment où on vous dit de ne pas aller en catégorie 3, et puis vous voyez apparaître sur des emplois de catégorie 3, des ingénieurs en chef des Ponts... Ingénieurs des Ponts, tant que ça marche... Ça a un sens. C'est un peu... Ça dépend de plein de choses. Mais il faut dire aussi que l'ingénieur des Ponts XX (1.48.45) . Il y a des témoignages de cabinet qui m'arrivent aux oreilles. Quand vous prenez en fonction en cabinet, et qu'on vient vous apporter voilà quelqu'un de très très haut niveau, il y a une liste de personnes qui XXX (1.48.56) pour la révolution, ou de prendre un cabinet. Bon bah voilà. Mais ça c'est ce qu'on dit. Après je ne suis pas... R1 : bon je prends un exemple. Si je reprends XXX (1.49.13) Basse-Normandie. Donc je suis reçu. J'envoie un CV et une lettre de motivation. Et je n'ai jamais envoyé... ils ne demandent pas dans le recrutement des fiches, les comptes rendus d'entretien d'évaluation. Ils ne demandent pas l'avis de mon chef du service au départ. Il n'y a pas de mise en relation avec ce que j'ai fait. C'est XX (1.49.31) et la mise en forme que je choisie. La lettre de motivation. Le savoir-être. Et puis après quand XX (1.49.36) ça peut poser quelques petits points. Alors c'est vrai qu'il se trouve que si on demandait... XXX (1.49.42) par hasard mais bon. Donc aujourd'hui je me sens un peu quelque part floué parce que j'étais près... L'épouse perdait son boulot. On gérait la baraque. On change de région puis d'amis. On essaye de trouver une région intéressante, qui nous colle toujours, où se rapprocher de la région qui nous intéresse. Même pas sur la région qu'on peut avoir parce que... Je ne peux même pas y aller parce que je n'ai pas le grade assez haut pour pouvoir prétendre à ces emplois de ce niveau-là. C'est des postes en plus qui sont quand même hyper exigeants donc... Et effectivement là je candidate ça ne marche pas. Là je ne peux pas candidater, là je n'ai pas droit, là où je ne dois pas candidater maintenant, et là où je candidate ça ne marche pas, je n'ai pas d'écho positif. Je n'ai pas que des entretiens qui m'ont été proposés. Donc ... Peut-être que raisonnablement je suis peut-être allé trop loin, parce que finalement... je me pose la question selon ce que l'administration a besoin. Voilà. Donc c'est... ça renvoie à votre question, mais... R1 : en fait c'est surtout qu'il y a 3 ans j'avais commencé un schéma. Il y a trois ans avec la création des DDI et compagnie, il y a eu un effet qui a complètement fait valdinguer les règles de gestion et les processus de gestion sont actuellement en manque d'air, si on décrit ce mal que j'évoquais tout à l'heure. XXX (1.51) ... si manque de politesse, manque d'emballage, le fait que il n'apelle pas pour qu'on en parle, mais lui c'est parce qu'il est... ça part. Mais sinon s'il avait la possibilité je suis persuadé qu'il serait le premier à dire : viens là j'ai un truc.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 81.7,
+          "rerank": 51.0,
+          "factuality": 0.0,
+          "final": 49.0,
+          "confidence": 71.7
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 56.6,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.7%) — Score final: 49.0%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 112,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_112",
+          "path": "018 - 071021003_anonymise.txt::page_112",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.019237849779086894,
+          "faiss_rank": 52,
+          "bm25_rank": 37
+        }
+      },
+      {
+        "rank": 11,
+        "path": "018 - 071021003_anonymise.txt::page_74",
+        "doc_id": "018 - 071021003_anonymise.txt::page_74",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "R1 : la régulation XXX (1.16.17) c'est comme un gant de chirurgien. Plus la main se rétrécit, et plus le gant continu à coller sur... Donc vos emplois autorisés sont vraiment à la mesure de votre main. Et c'est tout. Et puis ça peut aller très longtemps en rétrécissement. L'année prochaine on nous annonce au niveau... Au niveau régional sur 800 postes, 100 postes en moins. Voilà. R1 : sur ces secteurs d'activité application des droits des sols, XXX (1.16.48) psychosociaux des projets qui devraient péter sur le territoire... Moi j'aime bien les services... En fait ce qui est difficile c'est que dans la conduite de réformes, l'idée centrale c'est d'amener les gens à un mouvement global de resserrement des activités. Le problème c'est que quand vous donnez une impulsion ce n'est pas forcément comme ça que ça se passe. Donc après vous descendez au niveau régional, au niveau départemental et vous arrivez au niveau local. Le problème c'est qu'il ne faut pas que ça fasse comme le fouet. Le fameux exemple du fouet où vous donnez un petit coup de poignet sur un fouet assez long, votre mouvement il est très souple au départ, mais à l'arrivée ça claque. Et là ce qu'on connait c'est ça, c'est-à-dire qu'en ETP on a quatre postes vacants, on a un projet de longue maladie pour un cancer qui est avéré. On a même une personne aujourd'hui qui est hospitalisée pour un traitement de canal carpien. On a des gens qui sont un petit peu en faiblesse, en maladie, pas plus que ça quand même parce qu'on a quand même que 13 agents vacants, enfin d'encadrement. Donc on fait de l'intérim à haute dose. Donc on est... Et on bouge les trous. Et on va chercher quand même les dossiers pour gagner même si on se fait un peu sauter sur la figure en ce moment, mais on n'y va pour gagner. Et puis on ne tiendra pas comme ça des lustres, très franchement. Mais entre l'objectif général est l'objectif en particulier, on n'est pas dans ces schémas-là. Et par exemple notre problème nous ce n'est pas d'ici 2 ans abandonner les activités qu'on a ici aux communes, c'est que ça fait deux ans qu'on a créés une cellule XXX (1.18.14) d'instruction où les missions qui avaient perdu, c'est-à-dire pour les communes XXX (1.18.18) ... Et les missions à l'État qui vont rester, sont dans un autre pôle. Ça fait deux ans que j'ai ça dans mon organisation. je pense être le seul au niveau... et mes collègues d'avoir fait ça. Aujourd'hui on est les seuls à être en tension pour pouvoir tenir maintenant sachant qu'on est quasiment au carré en termes d'effectifs, en termes d'ETP par rapport à ce qu'il nous faut... on est tellement sur la pente de ce qu'il faut... en ETP et en forme de marge, quand même que c'est un peu emmerdant que je me suis à me demander qu'on aille démarcher les collectivités pour transférer la participation parce que sinon on ne va pas tenir ou alors il faudra qu'on travaille autrement. Et à deux trois ans mes ETP théoriques sont bons. Moi, je n'ai pas de souci dans mon organisation avec ça. C'est déjà géré. On a une autre activité, donc le patron nous annonce qu'il va refaire le tour XXX (1.19.07) pour l'ATESAT qu'il faut à un moment donné, XXX (1.19.09) demandé il y a deux ans, j'ai pris son XXX (1.19.13) on a assisté avec nos collègues qu'il faut arrêter. De toute façon on a des postes... Dans toutes ces réformes là on vous dit : il va falloir arrêter. XXX (1.19.18) : ça ne sera qu'un métier. Vous avez des postes publiés. Alors les agents disent : on n'y vient pas. On a plus un métier. Ensuite donc vous n'avez pas de candidat. Après vous n'avez plus de poste. Et puis après vous n'avez plus que les yeux pour pleurer parce que de toute façon on a mis en place une mécanique où... En discussion avec nos équipes l'impulsion est donnée, le retour il me disait : on pourrait quand même pas faire ça comme ça. Il faudrait en parler avec des élus. Bon d accord. Mais en attendant on ne peut pas l'écrire parce qu'on n'a pas de mandat. Le ministre répondait toujours à l'époque, les communes avaient le droit à XXX (1.19.46) . Donc... Mais en fait on ne pouvait plus tenir.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 80.4,
+          "rerank": 50.9,
+          "factuality": 0.0,
+          "final": 48.5,
+          "confidence": 71.0
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 53.4,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.0%) — Score final: 48.5%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 74,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_74",
+          "path": "018 - 071021003_anonymise.txt::page_74",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.016304347826086956,
+          "faiss_rank": 124,
+          "bm25_rank": 32
+        }
+      },
+      {
+        "rank": 12,
+        "path": "018 - 071021003_anonymise.txt::page_104",
+        "doc_id": "018 - 071021003_anonymise.txt::page_104",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Et puis se dire en écoutant la centrale, en écoutant les coachs qu'on me donne, ou les conseils qu'on me donne, en se disant : bah pourquoi pas ? Pourquoi pas maintenant... Donc vous allez imaginer une autre forme de déconvenue. C'est-à-dire que là où effectivement je pourrais être en aspiration qu'on me donne une chance sur un autre... Un palier plus haut pour lequel on m'a conduit à penser à ça. Mon patron m'a conduit à ça. Ma chargée de mission m'a conduit à ça. Et même Sud... Même la semaine dernière c'était un conseil, pour se positionner sur un sujet que... En fait le chargé de mission des cadres dirigeants, je parle de Roubaix, m'a envoyé un mail en me disant de ne pas toucher à ça, sur un ton complètement péremptoire, limite donc d'aller me faire voir. Moi je me dis aujourd'hui... R1 : aujourd'hui quand vous avez des gens qui XXX (1.41.03) ... Vous ne pouvez pas ... R1 : c'est ça. Mais sauf que celui qui dit : pas touche, c'est juste au-dessus ce n'est pas... R1 : XXX (1.41.22) . C'est assez ... XXX (1.41.26) ... R1 : ou alors on va faire vite. Donc en fait le message que j'ai reçu XXX (1.41.42) le ménage rapide... bon l'année dernière parce que là je n'ai pas tellement apprécié du tout. XXX (1.41.51) je me suis dit... euh... donc il parlait d'un poste qui s'était libéré XXX (1.42.04) je t'ai indiqué dans notre entretien du mois d'avril que... XXX (1.42.05) que j'ai renvoyé après... que l'accès direct à des emplois de management était actuellement pour toi difficilement envisageable. Et je t'avais conseillé de viser dans un premier temps les emplois de DDT ou du directeur adjoint groupe quatre cinq. C'est-à-dire un cran en dessous de ce que je peux faire. Ton positionnement DDT XXX (1.42.21) ... Et puis je suis passé un poste de directeur de 250 agents. Mais je ne l'ai pas fait tout seul. Je l'ai fait parce que mon patron a dit : tu y vas. Tu ne te poses pas la question. Et Je te renouvelle ce conseil de privilégier ces centres de coeur de cible ... les candidatures pour lesquelles les décalages de niveau de responsabilité est important, cf. ta démarche récente sur un poste de directeur de DDT n'ayant aucune chance d'aboutir, et peuvent même être contre-productives. D'un point de vue XXX (1.42.56) aujourd'hui en charge de la question des gens, ils ont un resserrement des... XXX (1.43.04) qui n'existe plus. D'abord ce n'est pas lui qui l'avait, c'était le ministre. Un pouvoir d'orientation qui est extrêmement concurrencé parce que les centres des directions départementales, c'est les préfets qui les ont. Eux XXX (1.43.16) ... Donc voilà. Et donc à partir du moment où effectivement on... qu'il y a des règles de : commencer par entrer, et puis après on voit qu'est-ce qu'on peut donner parce que sinon on peut le choper en cinq siècles on... Ne tiendra pas encore cinq siècles. On peut le lire de manière... quand on n'a pas le... Le pouvoir vrai, il reste encore les capacités de nuisance. C'est-à-dire je n'ai peut-être pas de pouvoir le nommer quelque part mais je peux lui dire : où il ne faut pas qu'il aille chercher. R1 : absolument. R1 : c'est ambigu. Oui. C'est vrai que j'ai mis vraiment longtemps pour me dire : autant encore rester ici. Et en même temps ça me fait un plaisir parce que j'ai vraiment... R1 : dans la région Nord-Pas-de- , pourquoi rester par ici ? En fait c'était assez simple. C'est que mon beau-père, on l'a perdu en début d'année. Ma belle-mère ne va pas bien. Les parents ne sont pas là. La famille, les amis, on les a là... C'est ce que je disais, c'est la santé parce que je commence à en prendre un peu sur la tronche aussi. Je ne le dis pas, vous allez voir après. La famille XXX (1.44.35) ... Immobiliser dans les critères de recherche de poste, j'ai fait ça.. À chaque fois que j'envoyais même en DDT 53, on appelait le patron avant pour savoir ce qu'il... Mon patron qui lui disait : vas-y. Après le chargé de mission Sylvain L pour lui demander comment ça tournait, qui m'a dit : tu veux faire une grande carrière ?",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.0,
+          "rerank": 50.9,
+          "factuality": 0.0,
+          "final": 54.0,
+          "confidence": 71.2
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 54.4,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.2%) — Score final: 54.0%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 104,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_104",
+          "path": "018 - 071021003_anonymise.txt::page_104",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.02230392156862745,
+          "faiss_rank": 42,
+          "bm25_rank": 20
+        }
+      },
+      {
+        "rank": 13,
+        "path": "026 - 25112013_anonymise.txt::page_196",
+        "doc_id": "026 - 25112013_anonymise.txt::page_196",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "R1 : alors puisqu'on parlait de mon chargé de mission donc... Mon chargé de mission ... Alors le chargé de mission était toujours présent donc pour notre système... Le chargé de mission a une grande influence justement pour diriger les gens. Avant d'être proposé par un directeur, il faut avoir rencontré le chargé de mission, parce que le chargé de mission dit : en fonction de ton parcours ça me semble effectivement possible. Donc le directeur l'appellera avant de proposer. Il dira : oui c'est possible. Et donc le directeur choisira. Donc c'est toujours ... Le chargé de mission a toujours un rôle considérable. Et puis une fois qu'on passe à la promotion, mon chargé de mission était là. Et avant le chargé de mission continuait. Il poussait les gens vers le niveau trois de direction. Aujourd'hui le niveau trois des DDI c'est effectivement ce qu'on appelle les cadres dirigeants. Les cadres dirigeants, c'est une unité à part, qui travaille en interministériel, et avec des SGG, puisque la décision est prise au niveau du SGG. Donc le chargé de mission, il est... il est limité par ça. Malgré tout, il donne effectivement des conseils de temps en temps, parce que bon on peut essayer de... Grace à lui, de faire valoir notre... Notre... Notre parcours. Donc l'année dernière... Il y a deux ans. Il y a deux ans, parce qu'on va vite... En 2011 donc il m'a proposé un dispositif de... D'orientation qui est monté par le ministère, et qui s'appelle les rendez-vous d'orientation . Donc on passe une journée avec un cabinet spécialisé, où ils nous font faire des petits jeux. Ils en retirent une synthèse. Et le cabinet nous donne des conseils. Donc j'ai fait ma petite journée. On a fait des petits jeux etc. Et à la fin j'ai eu un document de synthèse, un peu discuté, négocié etc. dans lequel il y a un certain nombre de conseils. Donc ce rendez-vous d'orientation a été conclusif, et m'apporte des éléments. R1 : un conseil était effectivement de régler un problème qui avait été décelé par le bureau d'études, à l'aide d'un coaching. Le coaching. C'était leurs conseils. Voilà. R1 : un problème de...... De... ... Un problème comportemental par rapport à... Alors... En gros la synthèse, c'était de dire que : je me positionne avec une hauteur de vue suffisante. J'arrive à déceler les enjeux. J'arrive à les traduire en objectif. Je sais mobiliser le collectif pour atteindre les objectifs. Mais ce cheminement se fait trop rapidement ou de façon trop intégrée. Au moment où j'arrive à la phase opérationnelle, je n'ai pas la patience d'attendre que mes collaborateurs aient fait le même cheminement intellectuel. Et donc je fais preuve d'un niveau d'impatience trop... Trop... Trop fort, qui perturbe mes relations avec les personnels. Et donc qui sont... Qui peuvent être néfastes à la production. R1 : pendant une journée. R1 : et donc ils m'ont conseillé de régler cette question-là, et donc de m'appuyer sur un coach pour y travailler. R1 : sûrement. Sûrement. R1 : non. Sûrement un peu. Bon il est vrai que une journée à faire des petits jeux... On ne peut pas vraiment déceler à mon avis, sur un jeu... Surtout que c'était... ils tirent les enseignements d'un jeu où j'ai eu du mal à me positionner. Je ne sais plus ce que on vendait. On vendait de la lingerie ou quelque chose comme ça donc... Voilà. Et donc j'avais un assistant qualité... Enfin bon donc je n'avais pas vraiment... Voilà. Donc. R1 : je n'ai pas bien joué. Voilà. Je n'ai pas bien joué. Voilà. Bon. Mais ceci étant, je pense que ça vaut le coup d'écouter ça. Voilà. Et donc du coup je vois maintenant mon coach. Et on est partis sur cette idée-là. Il faut qu'on décèle quelque chose, et que on n'en tire des enseignements. R1 : oui. Oui. Oui. J'ai déjà rencontré... Mais donc voilà ... Et à chaque fois, c'est pour signer le contrat. R1 : et c'est interne. C'est interne. On a une famille de coachs qui sont formés, et qui sont supervisés. Une petite dizaine. R1 : je crois qu'effectivement on essaye de me faire patienter. On m'occupe un petit peu pendant ce temps effectivement. Voilà. Alors le temps que je prépare le RVO (3.00.21) , qu'il se tienne, que j'ai la synthèse, que je réfléchisse une petite année sur les suites que je donne. Et puis maintenant etc. Oui. On me fait patienter.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.5,
+          "rerank": 50.8,
+          "factuality": 0.0,
+          "final": 54.2,
+          "confidence": 71.2
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 54.4,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.2%) — Score final: 54.2%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "026 - 25112013_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/026 - 25112013_anonymise.txt",
+          "page": 196,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "026 - 25112013_anonymise.txt::page_196",
+          "path": "026 - 25112013_anonymise.txt::page_196",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.021110500274876307,
+          "faiss_rank": 25,
+          "bm25_rank": 47
+        }
+      },
+      {
+        "rank": 14,
+        "path": "026 - 25112013_anonymise.txt::page_101",
+        "doc_id": "026 - 25112013_anonymise.txt::page_101",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "R1 : oui. Oui. Oui. C'était le secrétaire général dans le . Parce qu'il n'y a pas de préfet c'était un préfet de région. C'était un chef de région. Donc c'était son secrétaire général qui était avec le DDT. Bon du coup c'était plutôt des questions structures. Qu'est-ce que j'ai eu encore comme préfet ? Voilà. C'est un peu ça. Voilà. La différence entre les deux, oui c'est ça. Le directeur, c'est plutôt il va essayer de voir si ce futur adjoint là peut lui apporter les compétences nouvelles, et pour voir si il est capable de travailler avec ce gars-là à côté de lui, tous les jours. Le préfet, c'est plus tout de suite dans l'opérationnel. Oui. R1 : oui les directeurs ils commencent effectivement mais ça c'est parce que... C'était les pratiques anciennes aussi donc ils l'on gardait. Donc pendant cinq ou dix minutes on présente son CV. Pendant cinq ou dix minutes on explique ce qu'on a fait, un peu comme j'ai fait avec vous. Pourquoi j'ai commencé par les routes etc. Qu'est-ce que j'ai gagné de poste en poste. Voilà. Les 10 premières minutes c'est ça. Mais on faisait comme ça aussi avant. Donc ça c'est... C'est la technique traditionnelle pour rencontrer un cadre. R1 : depuis 2005 voilà... Depuis 2005 donc je suis passé donc DDE à DDTM. Voilà. R1 : très peu évolué quand même. L'organigramme a changé en passant de DDE à DDTM il y a deux ou trois missions nouvelles qui sont passées chez moi. Deux ou trois qui sont... Qui sont parties. Donc quelques adaptations . Mais je suis dans cette situation-là effectivement depuis 2005.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 80.3,
+          "rerank": 50.8,
+          "factuality": 0.0,
+          "final": 48.4,
+          "confidence": 72.7
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 62.1,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 72.7%) — Score final: 48.4%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "026 - 25112013_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/026 - 25112013_anonymise.txt",
+          "page": 101,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "026 - 25112013_anonymise.txt::page_101",
+          "path": "026 - 25112013_anonymise.txt::page_101",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.011984068238694441,
+          "faiss_rank": 133,
+          "bm25_rank": 87
+        }
+      },
+      {
+        "rank": 15,
+        "path": "018 - 071021003_anonymise.txt::page_99",
+        "doc_id": "018 - 071021003_anonymise.txt::page_99",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "On a discuté mobilité géographique, avec l'épouse, ça on peut en parler deux secondes aussi... En fait le retour parce que j'avais deux sous-préfets qui se souciaient de mon avenir aussi... XXX (1.31.54) coordonnateur de l'inspection générale qui m'a poussé donc pour être reçu par le niveau central de la gestion des cadres dirigeants, j'avais deux sous-préfets qui ne demandent qu'à... Alors vous en êtes tout ? Je peux donner... Vous postulez sur quoi ? Je peux appeler le secrétaire général etc. Alors là c'est un bonheur de soutien, mais finalement j'ai fini par arrêter de leur dire parce que je multiplie des trucs mais ça ne va pas. Ça ne fonctionne pas. Parce qu'il n'y a pas le fil. Parce qu'il y a déjà quelqu'un qui est passé dessus. R1 : oui. R1 : ou alors la situation est courante. Alors je n'ai pas de données statistiques mais... là (j'ai postulé sur un emploi) de direction où il y a les commissions à passer mais on me disait qu'on connaissait le nom. Donc les choses sont jouées avant. Et ça existe. On a eu le cas aussi de... Enfin bon donc... Il y a les gens en place à faire circuler. Il y a la discrimination positive. Il y a la parité. Il y a les coups fourrés. Il y a les coups d'urgence. Il y a peu de postes, et est-ce que celui auquel vous allez vous présenter il y en a un qui va tomber dessus parce que il est téléguidé. Est-ce que vous allez avoir le filtre ou pas avec le mec qui recrute ? Parce qu'il n'y a XXX (1.33.10) parce qu'il s'agit quand même d'avoir une équipe où ça fonctionne, parce que si on a des... Des gens qui sont complètement... Enfin qui sont enfin... Il y a besoin d'avoir l'énergie de façon à ce qu'on fonctionne ensemble. Ce n'est pas autrement. Voilà. Donc les processus de recrutement aussi ont leur je la dedans. Voilà. R1 : bah là aussi il me semble... Fonction publique éthique il y a... Le vice président du Conseil Général du Nord, c'est un copain de fac. Je ne vais pas le faire intervenir. Je n'ai voulu tester. J'ai déjà vu que faire intervenir des politiques... Et puis bon là aussi je ne suis pas plus bête qu'un autre, c'est que quand les recrutements il y a tellement de processus de concertation, que même si c'est un établissement public local, de toute façon on va chercher l'aval des élus locaux alors... Je veux dire, pourquoi pas. Puisque de toute façon les... Il y a des sous-préfets qui se font virer parce qu'ils ne sont pas de la même couleur politique tout simplement. Il y en a d'autres qui se font mettre, je suppose, parce que ils... Pas toujours... Quand on regarde un peu ce qui se dit effectivement, et ce qui s'écrit sur les fonctionnements d'adhésion au parti politique ou pas, entrée dans les systèmes d'allégeance etc. Il y a des allégeances politique. Des allégeances extra politiques. Mon éthique n'est pas là. Un des défauts de ma personnalité c'est que quand je suis arrivé ici, mes équipes avaient déjà pré-informé, et surtout les entreprises de BTP que ce n'était pas la peine de me proposer des bouffes, ou ou des machins, parce qu'ils repartaient avec. Donc le seul qui est venu une fois, il est reparti avec. ça ne l'a pas fait. On a une éthique. Et faire intervenir les politiques pour moi, c'est probablement une erreur. C'est une de mes grandes questions que je me suis posée une dizaine de fois. Personne ne me dit oui. Et... Et en même temps je me dis : si on faisait ça sur un recrutement que je pilote, je pense que ça ne le ferait pas. Donc... Mais je ne suis pas les autres. Mais moi, si on le faisait... J'ai besoin d'avoir des références, mais c'est avant tout en voyant... En voyant la personne, et d'ailleurs beaucoup plus... XXX (1.38.22) c'est en voyant la personne que je commence à me faire des idées. Et puis les systèmes de recrutement dans le privé ont vachement évolué. Je veux dire, prenez justement Amazone, ce n'est pas un CV, un entretien.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 81.4,
+          "rerank": 50.7,
+          "factuality": 0.0,
+          "final": 48.8,
+          "confidence": 71.0
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 53.6,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.0%) — Score final: 48.8%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 99,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_99",
+          "path": "018 - 071021003_anonymise.txt::page_99",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.021157894736842105,
+          "faiss_rank": 65,
+          "bm25_rank": 16
+        }
+      },
+      {
+        "rank": 16,
+        "path": "018 - 071021003_anonymise.txt::page_62",
+        "doc_id": "018 - 071021003_anonymise.txt::page_62",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Je ne cherchais plus de postes parce que vu comme c'était fait ce n'était pas la peine... Et lui, il m'a dit que ce poste-là m'irait très bien. Et je mérite très bien mon poste. Je ne vais pas dire le contraire aujourd'hui. On a une relation de ... Oui donc XXX (55.04) tout à fait facile a posteriori, mais en tout cas parce que c'est quelque chose qui m'a... R1 : c'est très lourd. R1 : il l'évoquait comme ça. Oui. R1 : oui. XXX (55.19) jusque-là. Mais... Mais sur le... effectivement comme ça... Très vite je suis rentré en dialogue avec le patron. Et on est parti... Il y avait 120 agents encore ici à l'époque. Donc on a encore regrimpé en nombre. On est parti sur une logique de... De changement , de conduite du changement. De conduite du changement donc ça veut dire toute la progressivité de... Lorsque les départs en retraite se faisaient d'un côté, de vérifier quel était le niveau de service sur les équipes d'un côté, c'est-à-dire la production, le caractère de production à faire. De dégager un poste si on pouvait, pour l'ouvrir ailleurs sur des domaines qui étaient XXX (56.02) ... et de commencer à se recaler vers la sortie de l'ingénierie publique concurrentielle, qui était faite dans les quatre premières années, vers... Pour les deux premières années : conduire un des chantiers routiers qui était à faire, donc c'était un ouvrage dans le sud de . Il y avait un terrain qui était à finir au nord de Douai, à l'autoroute. Et puis... Voilà. Ça c'était le ... Et puis prendre en charge tous les dossiers particuliers qui se présentaient. Donc là c'est vrai que le temps a passé XXX (56.32) relogement. On a développé ... On a participé à d'autres activités. On a aussi conforté les interventions sur la programmation du logement. La programmation du logement c'est un ministère où en fait on va... Les bailleurs sociaux nous proposent des opérations qu'ils ont conçues avec les élus. On regarde tous les aspects de ces dossiers-là pour les mettre en sécurité, si bien l'urbanisme, les risques. On aidait logiquement pour des personnes âgées une fois XXX (57.00) c'est très embêtant, surtout quand on leur dit. Ce n'est pas bien. On regarde tous les aspects... Donc on a développé... En fait on est parti des productions qui étaient à laisser de côté, à l'ingénierie publique, on a fini l'étude des travaux neufs pendant un an. Et on a redéveloppé tout ce qui était les autres activités dans le service... R1 : oui. R1 : un peu plus en... À la main en dialogue avec les équipes, et progressivement. donc on a mis en place l'ATESAT, l'aide technique aux collectivités. Mais là c'était assez... Enfin bon bref, donc ça s'est fait de manière très souple dans un premier temps. Par contre dans la deuxième partie du mandat on va dire là, on a fait utiliser une autre technique de conduites du changement, c'est la grande réorganisation, avec quelqu'un aussi qui était un peu... Un peu en critique de leur chef de service pour tout dire les choses. On s'est dit : vous voulez la réorganisation, c'est bien. Vous avez plein d'idées. Pas mal. J'en ai parlé à Philippe ELART. On a cadré une démarche, avec mon adjointe aussi à l'époque. Et puis on leur a dit : c'est bien. Allez. Groupe de travail. Qui sommes-nous ? Que savons-nous faire ? Et où allons-nous ? Et puis XXX (58.17) ... R1 : alors ça a débouché sur quelque chose qui a été... D'abord tout de suite ça a été beaucoup plus calme sur certains éléments. Ensuite il y avait un ou deux gars qui n'étaient pas très créatifs, et qui vivaient un peu trop sur l'esprit critique. Donc ce n'était pas trop... Ce n'est pas eux qui ont... La démarche, elle a pris parce qu'il y avait beaucoup d'implication des agents B et A autre, qui se sont vraiment grattés la tête, et qui se sont mis dans une attitude c'est : quelles sont les grandes tendances ? Quelles sont les politiques qu'on a à porter ? Celles où on doit investir absolument ? Celles où on doit se dégager, ou qu'il faut fermer ? Qu'est-ce qui est prioritaire ? Voilà. Après ça, on est sorti... On est sorti d'un... Cette fois au niveau au moins de mon adjoint pour se poser le questionnement du rassemblage d'équipe, et on a géré les compteurs avec des chiffres de raisonnement assez complexes : maintien d'affectation géographique des agents. Identification des compétences et des ressources, des personnes ressources, on va dire. Constitution d'équipe qui était non pas répartie parce qu'on a plusieurs sites ici. On n'en a un Douai et à . Ne pas se retrouver avec des gens qui étaient en fonction d' uvre orphelines d'un côté, tout seul d'un côté, pas accompagnés etc. Donc on a recomposé une organisation qui collait à des domaines ou aux compétences, ou aux savoir-faire des DDT on a quand même eu... Il y avait quand même 80 postes et 20 personnes qui changeaient de métier. On a... On a nettoyé XXX (59.54) . On a redimensionné notre activité ADS. On a créé une cellule environnement. On a créé une cellule planification et renouvellement. On a complètement repositionné sur les... Les missions principales. Donc on a là cette fois ça a été la grande lessiveuse, en dialogue, avec participation des patrons. Le grand chef était à côté pour ne pas être... en poste pour laisser faire les travaux. On a présenté ça au personnel. On a présenté ça en CHS... CHS, comité technique CDS, des services. Les patrons ont approuvé, entériné. Donc voilà. R1 : en préparant les administrateurs civils et en m'étant fait jeter... J'ai assisté à une scène en centrale qui était assez rigolote. Quand j'ai expliqué en gros ce que je viens de vous dire, donc travailler avec des groupes de travail, les agents étant dans d'autres domaines pour reprendre sur leur mission, leurs compétences, leur avenir etc. On a cru en centrale que je racontais des conneries, tellement la méthode... pas de propos par rapport à ce qui s'y passe. Que les gens soient associés c'est... XXX (1.01.16) correctement les agents. Donc leur dire les choses telles qu'elles sont. R1 : ce n'est pas des injonctions. C'est le besoin de réinvestir les domaines où on n'est pas assez forts, de politiques nouvelles qui sont intégrées. Voilà comment ça se fait, ça se dit. Il y a des sujets où on est trop faibles. Il y a des sujets où il faut que l'on fasse un peu autrement. Il y a des sujets où on est très bons, on ne touche pas. Mais bon en même temps voilà, vous prenez vos post-it sur les questions. Vous répondez sur ce que vous entendez. Et puis après on fait une compile. Et on voit ce que ça donne. Et on a fait ce travail collectivement. Ils ont vraiment été associés. Et on a su... Un des produits c'était l'organigramme, mais pour bâtir l'organigramme c'est vrai qu'on a travaillé un peu en Off. Mais... Enfin à l'extérieur de leurs yeux, mais le problème c'était que... Comme il y a toujours des aspects humains, des aspects compétences etc., il y a des souplesses qu'on pouvait intégrer, mais le document de sortie et l'organigramme qui a été entièrement mis au point, a été présenté à l'ensemble du personnel avant d'être... Et chacun a su, a été informé là où on le voyait de manière à ce qu'il soit rassuré sur son avenir ce qui est quand même un facteur très... oui très fort.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 81.4,
+          "rerank": 50.7,
+          "factuality": 0.0,
+          "final": 53.8,
+          "confidence": 70.7
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 51.8,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 70.7%) — Score final: 53.8%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 62,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_62",
+          "path": "018 - 071021003_anonymise.txt::page_62",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.018078097380684555,
+          "faiss_rank": 67,
+          "bm25_rank": 38
+        }
+      },
+      {
+        "rank": 17,
+        "path": "018 - 071021003_anonymise.txt::page_68",
+        "doc_id": "018 - 071021003_anonymise.txt::page_68",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Alors on a vu les autoroutes, les appuis financiers etc. mais quand le bâtiment XX (1.04.10) constructeur, devant un conseil de proximité, et non pas d'un sous-préfet qui ne aurait demandé comme ça a été le cas justement celui qui était avant, de faire des choses pour qu'il les revendique pour lui, et puis ce qu'on appelle XXX (1.04.23) peinard. il pouvait très bien par contre... et donc on l'a... On a... On a réussi aussi à apporter notre pierre sur la qualité juridique et la rapidité des procédures, et la fiabilité des analyses juridiques qu'on a rendues. Ça, c'était très fort à certains moments. On s'est fait engueuler parce qu'on ne devait pas s'occuper de ce qui se passait dans le département voisin, ou un permis similaire pour 10 ha de XXX (1.04.59) a été est accordée en 10 jours, régulièrement. Très bien. Très bien. C'est énorme. R1 : alors j'ai fait un exercice... là on sort de... On sort du parcours. J'ai fait un exercice qui était... Si je termine par mes douanes. On a vu naître des petites bricoles. J'ai repris... On a... Donc maintenant dans la zone où on a gagné, et apporté le permis... à côté d'un élu qui a arraché, et qui était fortement présent. On a appris quand on finissait le dossier que ce n'était pas 800 emplois comme vous pensez au départ c'était 2500 XX (1.05.48) . Donc on encore une fois arraché la timbale. On a ensuite juste sur Sin Le Noble, en commune automnale, à chaque fois qu'ils en prennent une commune automnale, 10 ha en entrepôt qui attendaient... c'est la DREAL qui m'a envoyé le dossier dans les mains. On a invité le maire ici à plusieurs réunions pour qu'il sorte son dossier, ce qu'il n'aurait jamais fait si on n'avait pas été là déjà, et il a fallu les mettre autour de la table pour discuter. D'ailleurs un autre lieu, ça serait le sous-préfet qui aurait fait ça. Là il m'a laissé faire. J'avais commencé, le sous-préfet... On l'a fait. Sur une mission qui est la première implantation de Fleury-Michon à l'extérieur de sa campagne nantaise si je me trompe, qui s'est posé à... XXX (1.06.29) à . En optimisant les procédures, il n'y a même pas un élu local qui s'est rendu compte à quel point, même sans avoir un ingénieur des Ponts pour répondre à l'un de leur crédit parce qu'en fait en commission parlementaire on a le député local qui est allé raconter XXX (1.06.45) de l'administration. Et du temps où il y avait des ingénieurs des Ponts qui étaient responsables des arrondissements, au moins ils avaient une délégation. Le mec, on lui a dit : il faudrait une autorisation de construire régulière, non contestée, en... Il ne sait même pas rendu compte de ce qu'on a fait, à la vitesse où ça a été fait. Rien vu. On a ensuite... J'en ai d'autres des dossiers de DAF parce qu'ils étaient pris... C'est un sujet rigolo c'est l'attaque du crapaud rouge. Prenez les produits de bâtiment environnemental maintenant vous faites des études d'impact, vous tombez sur une petite bête qui est protégée. Donc voilà. R1 : c'est Lille Métropole Communauté Urbaine. C'était la communauté urbaine de Lille. C'est... R1 : ils recrutaient sur du... Sur de l'immobilier d'entreprise. Donc ça, ça me branche. Ça me branchait beaucoup. Et en fait je suis tombé aussi sur quelqu'un qui s'occupait d'un recrutement, qui était absolument génial... Il y a aussi une fuite là-dedans. Je ne sais pas pourquoi elle est tombée sur mon CV, mais en tout cas j'étais... J'avais l'impression d'être aspiré dans cette structure pour... Mais jusqu'au moment où c'était plutôt moi qui devais me désister parce que à l'étape de recrutement que c'était, parce que les grilles financières n'étaient pas de recruter sans perte. Et à chaque fois on me proposait ça. C'est-à-dire en gros : vous nous intéressez. Super. Mais on ne peut pas vous prendre sur les grilles qu'on a, ou des choses de cette nature là. R1 : c'est ça. Et en fait il y a d'autres phénomènes c'est que si vous regardez les publications en territoriale, une réponse qui m'a été donnée par un élu c'est de dire : bah il faut avant tout qu'on assure la promotion interne de nos structures. Donc effectivement la FPT a aussi ses règles qui font qu'il y a très peu de postes au niveau, qui soient ouverts. Et pour le niveau où j'en suis, c'est presque des postes d'administrateurs territoriaux quand même, qui sont aussi très hauts et pas beaucoup de poste de pilote sur de grands services. Donc ça signifie que s'il y a très peu de postes au niveau national, j'ai refait Emploi Public ce week-end, et il y a très très peu de postes donc sincèrement les débouchés sont assez compromis entre les gens qui sont issus de la XXX (1.11.50) et leur promotion normale, elles passent par ça. Et puis les ... les gens qui peuvent venir d'autres fonctions publiques donc cette piste-là montre qu'il y a un confinement des perspectives de recrutement territorial, assez rapidement. R1 : c'est plus... Ma conclusion va être beaucoup plus... Je ne peux pas continuer dans la région mais la réponse ça va être de vous dire que je ne pense pas pouvoir continuer tout court.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 80.2,
+          "rerank": 50.6,
+          "factuality": 0.0,
+          "final": 58.3,
+          "confidence": 71.5
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 56.1,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.5%) — Score final: 58.3%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 68,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_68",
+          "path": "018 - 071021003_anonymise.txt::page_68",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.015680954964731417,
+          "faiss_rank": 134,
+          "bm25_rank": 35
+        }
+      },
+      {
+        "rank": 18,
+        "path": "033 - 03032014_anonymise.txt::page_56",
+        "doc_id": "033 - 03032014_anonymise.txt::page_56",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Vraiment je n'ai pas d'idée. Enfin je vois des choses , je vois des parcours etc. mais... Je ne me fais pas de plan à aussi longtemps. je pense qu'il faut rester alerte mais voilà... Avoir de l'idée tout de suite XXX (1.05.57) ... C'est aussi la porte ouverte aux déceptions. c'est comme ça que je le vois. tout être... Voilà.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 83.2,
+          "rerank": 50.6,
+          "factuality": 0.0,
+          "final": 49.4,
+          "confidence": 76.3
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 80.2,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟢 Fiable (confiance: 76.3%) — Score final: 49.4%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "033 - 03032014_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/033 - 03032014_anonymise.txt",
+          "page": 56,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "033 - 03032014_anonymise.txt::page_56",
+          "path": "033 - 03032014_anonymise.txt::page_56",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.021372549019607844,
+          "faiss_rank": 8,
+          "bm25_rank": 90
+        }
+      },
+      {
+        "rank": 19,
+        "path": "018 - 071021003_anonymise.txt::page_126",
+        "doc_id": "018 - 071021003_anonymise.txt::page_126",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "Il est tout vert. Il est tout beau etc. Mais il y a des bouchons dedans tous les matins, aux heures de pointe, la semaine, le matin, le soir, pendant deux heures. Le samedi c'est déjà merdier, avec la zone qui a été découpée en location commerciale, ça ne fonctionnait pas. Avis défavorable. On leur a expliqué tout. Et on leur a donné un avis défavorable. Après c'est un bon joueur. Dans les commissions XXX (1.55.17) les discussions. Bah on a deux attitudes. Donc les magasins seront construits, et il n'y a plus... Il y a encore moins de bagnoles qui circulent qu'avant. Il n'y a pas de solution de transport qui a été créé. Les... À chaque fois s'affiche une belle discussion, même si XXX (1.55.31) à gauche qui n'est pas bon, et que le département veut le payer. XXX (1.55.35) c'est chaud parfois. Mais quand ça se développe, ils ont réglé tous les problèmes. deux attitudes. R1 : mais parce que je suis proche de mes dossiers que j'ai encore une efficacité parce que après... Mais bon voilà. Et après c'est XXX (1.55.55) de motivation... R1 : oui je n'ai pas honte de ce que j'ai fait. D'un autre côté, si j'avais un challenge changement de poste c'est de le transformer en succès. Relations avec le préfet. Relations avec le chef de service. Pilotage des équipes. C'est des postes quand même qui sont hyper sensibles, et... Bon mais c'est un challenge, enfin un autre poste, complet d'ailleurs mais bon je n'ai pas honte de ce que j'ai fait. R1 : travail de gestion. Ici ils considèrent que je suis là depuis... Depuis quand déjà ? Depuis 2006. On est consommé même si mon détachement remonté un peu avant. Mais ils ne sont pas loin de me dire que je vais avoir dix ans de détachement XXX (1.59.06) dans le Conseil d'Administration. Donc pas de mobilité, je perds. C'est ce qu'ils pourront me sortir. Donc là maintenant XXX (1.59.13) ... Je ne sais pas. On ne peut pas me reprocher de ne pas avoir... J'ai tout cherché. Chargé territorial. Chargé administrateur civil . Il faut peut-être que je recommence parce qu'on est quand même sur des choses aussi intéressantes... R1 : non c'est parce que... je le reçois moi comme... Plutôt le process normal d'évolution des gens en central, parce que c'est l'administration centrale. Pour moi c'est plutôt des gens qui sont en administration centrale pour passer... Pour devenir administrateur civil, qui sont... Le lieu d'élection quand même de tout ce qui est pilotage des politiques publiques, et budgétaire au niveau national. Donc c'est quand même leur base. Mais j'hésite. En fait je me suis rendu compte... En fait j'ai été assez marqué par le... Deux choses. Donc effectivement XXX (2.00.01) tout à l'heure, qui est assez... Et puis XXX (2.00.08) où j'ai eu un gars qui visiblement avait plutôt l'habitude de la provocation, d'ailleurs ça se passait très très bien, plutôt douce, et ça passait mais... En bonne intelligence, ça passait très bien. J'ai eu quelqu'un qui m'a dit qu'avec le poste que j'avais ici quand même il fallait que je change pour être beaucoup plus crédible, par exemple pour être directeur adjoint, ou comme la dame qui a été recrutée XXX (2.00.29) comme directeur adjoint. Mais sinon il fallait que je prenne un poste très... Très engagé, comme par exemple secrétaire général de la DIRECCTE à Ville -sur-Marne. Je lui ai fait une réponse aux critères. Il a commencé par me... Me demander... Je suis un fou de XXX DIRECCTE à Ville -sur-Marne. Ville -sur-Marne je suis allé à l'hôpital militaire. Je suis allé XXX (2.00.46) je veux dire... Il va y avoir quoi dans les DIRECCTE ? C'est quoi qui tourne dans les DIRECCTE ?",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 83.0,
+          "rerank": 50.5,
+          "factuality": 0.0,
+          "final": 54.2,
+          "confidence": 71.5
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 56.4,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 71.5%) — Score final: 54.2%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "018 - 071021003_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/018 - 071021003_anonymise.txt",
+          "page": 126,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "018 - 071021003_anonymise.txt::page_126",
+          "path": "018 - 071021003_anonymise.txt::page_126",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.025793650793650792,
+          "faiss_rank": 12,
+          "bm25_rank": 24
+        }
+      },
+      {
+        "rank": 20,
+        "path": "033 - 03032014_anonymise.txt::page_1",
+        "doc_id": "033 - 03032014_anonymise.txt::page_1",
+        "title": "Exemple de document",
+        "segment_id": 0,
+        "text": "alors moi je suis sortie un peu comme mes deux autres camarades que vous avez vus, de l'école Polytechnique avec peut-être un parcours un peu particulier parce que je ne suis pas tout de suite venue dans le secteur où je suis maintenant, dans l'énergie. Donc j'ai fait une troisième année d'école d'ingénieurs. J'ai fait un parcours plus biologie biophysique. oui en troisième année. Et après du coup j'ai au sein du corps des Ponts en première année j'ai choisi le Master plutôt du côté Ecole , sur tout ce qui était santé environnement, avec l'idée au départ de plutôt après partir éventuellement dans une thèse. j'ai fait un Master de recherche. Et voilà. Après donc j'ai passé six mois l'année dans un laboratoire. Et voilà je n'ai pas été suffisamment, je pense, passionnée sur le sujet que j'avais choisi... ... Et puis l'aspect en fait... Ce qui me déplaisait un peu c'était... Moi je me disais que personnellement j'aime bien voir des choses très variées, comprendre un peu les choses mais de manière assez globale, enfin scientifique etc. et pas forcément creuser de manière très précise un sujet. Or c'était quand même bien la définition d'une thèse. Donc j'ai compris que ce n'était pas forcément ce que je recherchais, mais bon ça m'a quand même permis d'avoir une vision un peu rapide de ce qui était la recherche. Et après du coup en deuxième année donc j'ai fait Master politique d'action publique... ... Voilà le parcours commun. Et puis petit à petit enfin l'énergie m'intéressait déjà aussi. Et du coup j'ai cherché à faire un stage aussi là-dedans pendant le Master. Et donc je suis partie... Enfin j'ai eu une petite expérience du coup de quatre mois chez Entreprise à Boston. donc Entreprise la partie énergie, celle qui est en France, et qui m'a beaucoup beaucoup plu. et dans ce poste c'est assez axé sur les aspects financiers, assez technique, et donc qui me plaisait beaucoup parce que j'ai une composante un peu technique, que j'avais quand même bien appréciée dans les aspects recherche que j'avais faits... voilà sans être du tout surspécialisée. au sein du corps du coup mon Master deux, recherche, c'était mon école d'application. j'étais inscrite... C'était via l'agro du coup, mais c'était en fait... C'est plusieurs ... le corps des Ponts. oui c'est-à-dire au corps des Ponts des Eaux et des Forêts. en fait moi j'étais après... je suis arrivée après la fusion du corps. Donc le corps avait déjà fusionné. Et après on peut choisir en première année en fait des deux ans de formation, qui est un peu l'année scientifique, de s'inscrire plutôt selon les sujets plutôt côté Ponts ou plutôt côté . et moi il se trouve que comme j'étais partie sur les aspects santé et environnement, c'était plutôt... mais ça n'empêche en rien après de... De changer de domaine. moi je suis entrée par le concours physique chimie, PC, après deux ans de prépa à la Prénom à Ville . c'est - . alors oui. Donc c'est un poste qui... Donc qui me plaît beaucoup déjà. Donc en fait c'est ... Enfin il y a plusieurs aspects. Donc il y a déjà un volet France et un volet européen. Sur le volet France donc j'ai essentiellement tous les aspects financiers et liés aux réseaux. Donc tout ce qui est arrive. Je suis aussi le projet LINKI, donc le côté communicant, le côté ERDF. Et après on assure la tutelle aussi des entreprises de transport et de distribution de l'électricité. Donc on suit un peu de près toute leur activité. Et... Et sur le volet européen, c'est tout ce qui concerne en fait les... Le développement des interconnexions au niveau européen, avec à la fois des travaux au sens de groupes régionaux, je dirais, donc dans toute la région Centre Ouest Europe. Donc des initiatives régionales pour essayer de développer en fait le réseau européen. Et puis aussi les aspects communautaires avec la Commission Européenne qui cherche à... En fait à développer un certain nombre de textes qu'on appelle des codes de réseau qui visent à harmoniser un peu les pratiques en Europe sur tous les aspects du réseau. Donc aussi bien les aspects de marché, les couplages de marché de prix etc. et puis les aspects vraiment techniques, de raccordement de l'installation au réseau. Donc ça me permet à travers ces codes de... Sinon j'ai un balayage de tous les aspects techniques liés au réseau, et puis aussi sur le marché. adjointe au chef de bureau. au sein du bureau, on est sept, avec un chef, deux adjoints, deux chargés de mission, un qui est plus du côté... Une qui est plus du côté distribution et une du côté transport. Et après ... Et après deux personnes qui se chargent du secrétariat et... je n'ai pas d'autorité formelle. Mais on travaille avec les chargés de mission sur des sujets aussi... Plutôt en collaboration. c'est-à-dire qu'on n'a pas... Enfin tout ce qui est l'aspect tarif par exemple c'est... C'est la Commission de régulation qui est une commission indépendante, qui... Qui régule vraiment. Et nous, on est plus là pour suivre. Et puis après nous on a tout le pouvoir réglementaire par contre. A travers les décret etc. ça c'est nous qui le faisons . Sinon... Et puis après oui c'était essentiellement effectivement du suivi, et puis en revanche au niveau des codes... Enfin au niveau européen, c'est vraiment à travers les codes de réseau là c'est vraiment en tant qu'État membre qu'on participe aux discussions communautaires, et qu'on vote les textes au niveau... À Bruxelles. pas mal de déplacement. j'étais rapidement formée... Très rapidement à travers le Master politiques et actions publiques là. Donc on ne peut pas dire que c'était une formation en profondeur mais du coup je me suis assez... Enfin... Plutôt seule enfin après ce n'est pas... On ne monte pas une expertise vraiment... Enfin voilà on n'est pas des experts. Enfin on est... On doit comprendre . On doit être capable de synthétiser etc. mais c'est... Voilà, avec le bagage que j'ai et puis le... Enfin la formation. J'ai eu aussi des échanges avec mon prédécesseur, avec des collègues ici c'était à peu près suffisant. enfin juste avant. Oui. C'est sur une liste comme tout... ... Tout ceux du corps des Ponts. On a une liste diffusée au mois de février de l'année d'avant. Et puis après on se positionne. On passe un certain nombre d'entretiens selon les sujets qui nous intéressent. du coup moi j'avais postulé uniquement à la DGEC. On était un petit groupe de quatre ou cinq, à être intéressé par ces postes-là. Et puis il y avait notre année il y avait quand même pas mal de postes ouverts sur ces sujets donc ça n'avait pas été si difficile. donc on était trois. Après on rencontre les chefs de bureau, les chefs de service. Enfin les sous-directeurs. Et ... moi j'ai rencontré le sous-directeur et le chef de bureau en même temps... Un peu avant... Enfin avant de partir en stage voilà. Et puis après il y avait une sorte de clé de répartition de postes entre nous, et puis on a tous été affectés à nos postes. bah notre année la compétition n'était pas si forte parce que... Par rapport au nombre de personnes intéressées et les postes libres, c'était... C'était bien alors que l'année d'avant par exemple, ils étaient beaucoup plus nombreux à postuler que le nombre de postes possibles donc... Après ça dépend des années. mais sachant que finalement on a tous enfin... Le recrutement... On a à peu près tous le même profil. Moi c'est vrai que je n'avais pas forcément un profil du tout marqué énergie donc... Mais bon finalement voilà on a aussi une formation assez polyvalente à l'école Polytechnique donc... On nous oblige à avoir même en deuxième année de l'école, on doit valider des matières dans six matières différentes donc on a forcément fait de la physique, de l'économie, des maths enfin... Donc après c'est... Une fois de plus comme on ne nous demande pas d'être très expert dans le sujet mais plutôt... Enfin ce qu'on nous demande avant tout c'est de savoir faire des synthèses, et d'être clairs et de faire des voilà... Enfin c'est plus une formation générale que sur des sujets précis. celui où je suis ? c'est vrai qu'il y a tous les aspects européens en fait c'est vrai que c'est très responsabilisant, parce que c'est... Ça implique déjà d'avoir voilà... De participer aux réunions à Bruxelles. Et d'avoir un rôle de représentant de la France etc. Et puis ... Et de préparer en amont... Par exemple nous c'est vrai que du coup on prépare un côté français. Avant d'aller à Bruxelles on essaye de donner une position pour la France avec les acteurs français, donc ça implique d'organiser des réunions, des rencontres d'avoir un contact... Et c'est vrai que... C'est un poste mais je pense que la plupart quand même à la DGEC sont similaires dans le sens où à la fois on nous demande de... Assez rapidement de maîtriser les aspects... Le fond des sujets. Et puis aussi il y a tout cet aspect de rencontres des acteurs, dialogue avec les acteurs, c'est aussi une autre composante à laquelle on est moins formés parce qu'il y a quand même tout un jeu d'acteurs, tout un... Qu'il faut découvrir qu'il faut appréhender. Mais effectivement... Je pense que cet aspect européen c'est un peu particulier parce que il n'y en a pas dans tous les postes... Donc tous les aspects internationaux, et que du coup là j'ai quand même une grande marge de... Quand même de responsabilité, et avec... Et c'est vrai que c'est assez motivant. bah ça m'a été vendu globalement. Enfin pas plus ça que le reste. Mais c'est vrai que... En plus les codes de... Après il y a aussi des points d'activité sur certains sujets, donc... Par exemple quand je suis arrivée le compteur bon bah on n'était pas encore sûrs est-ce qu'il allait y avoir un déploiement. Et puis finalement ça a été annoncé en juillet donc juste avant que j'arrive non déjà ça... Ça prolonge le sujet, aussi bien ça aurait pu s'arrêter. Et puis à l'inverse... Enfin sur l'aspect codes de réseau européen, c'est vrai que jusque-là il ne se passait pas grand-chose. Et puis cette année on a XXX (12.54) de code d'un coup, donc il y a un pic d'activité... des codes, c'est des textes de 60 70 pages en anglais, sur un aspect... Et c'est vrai que bon c'est cette année que ça se passe... Enfin j'ai eu de la chance aussi. depuis fin août. oui oui. On plonge dans le bain. oui. Oui. Oui. Moi j'ai eu un collègue du coup qui a assuré un peu le... Parce que mon prédécesseur est parti au mois de mars avril. Du coup il y a eu ... oui. Exactement le même profil.",
+        "segment_type": "paragraph",
+        "scores": {
+          "faiss": 82.8,
+          "rerank": 50.5,
+          "factuality": 0.0,
+          "final": 59.2,
+          "confidence": 69.1
+        },
+        "verification": {
+          "contradiction_risk": 0.0,
+          "coverage": 100.0,
+          "specificity": 44.6,
+          "factuality_explanation": ""
+        },
+        "interpretation": "🟡 Moyennement fiable (confiance: 69.1%) — Score final: 59.2%, Factualité: 0.0% — ",
+        "metadata": {
+          "pdf": "033 - 03032014_anonymise.txt",
+          "source": "/Users/maxime/Documents/api_sonal/033 - 03032014_anonymise.txt",
+          "page": 1,
+          "paragraph_id": 0,
+          "label": "paragraph",
+          "segment_id": 0,
+          "id": "033 - 03032014_anonymise.txt::page_1",
+          "path": "033 - 03032014_anonymise.txt::page_1",
+          "title": "Exemple de document",
+          "retrieval_sources": [
+            "bm25",
+            "faiss"
+          ],
+          "fusion_score": 0.02684684684684685,
+          "faiss_rank": 15,
+          "bm25_rank": 14
+        }
+      }
+    ]
+  }
+}
