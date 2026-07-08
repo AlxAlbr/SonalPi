@@ -161,10 +161,13 @@ function ajouterStylesAnonGen() {
             word-break: break-word;
         }
 
-        /* La ligne grandit avec le contenu (textarea / entité enroulée) : caler
-           toutes les cellules en haut pour qu'elles restent alignées. */
+        /* La ligne grandit avec le contenu (textarea / entité enroulée) ET avec le badge de
+           thématique posé sous les boutons Actions. On CENTRE verticalement le contenu de chaque
+           cellule (entité, pseudo, boutons) via align-content — même mécanisme que le tableau
+           entretien, car dans ce Chromium/Electron vertical-align:middle ne recentrait pas le
+           contenu bloc (textarea). */
         .ligne-anon-gen td {
-            vertical-align: top;
+            align-content: center;
         }
 
         .anon-pseudo-input:hover {

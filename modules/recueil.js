@@ -19,8 +19,11 @@ function creerRecueil(nomRecueil = "", fileRecueil = null) {
     return recueil;
 }
 
-    function creerItemExtrait(rang, rgdep, rgfin, texte, commentaire = "") {
-        return { rang, type: "extrait", rgdep, rgfin, texte, commentaire };
+    // `entretien` = nom de l'entretien source (traçabilité : le texte est un instantané
+    // pseudonymisé au moment de la capture ; sans cette référence, rgdep/rgfin sont
+    // inexploitables pour retrouver la source).
+    function creerItemExtrait(rang, rgdep, rgfin, texte, commentaire = "", entretien = "") {
+        return { rang, type: "extrait", rgdep, rgfin, texte, commentaire, entretien };
     }
 
     function creerItemTitre(rang, niveau, libelle) {
@@ -189,22 +192,43 @@ function afficherItemsRecueil(recueil, conteneur) {
             _removeDropIndicator();
         }
     });
-    liste.addEventListener('drop', e => {
+    liste.addEventListener('drop', async e => {
         liste.classList.remove('rcl-drop-zone-active');
         const insertIdx = _getInsertIdx(e);
         _removeDropIndicator();
+        // Lectures de dataTransfer + preventDefault AVANT tout await (exigence du DnD navigateur).
         const extIdxStr = e.dataTransfer.getData('application/sonal-extrait');
         if (!extIdxStr) return;
         e.preventDefault();
         const extIdx = parseInt(extIdxStr);
         if (isNaN(extIdx) || !tabExt || !tabExt[extIdx] || !_recueilCourant) return;
         const ext = tabExt[extIdx];
+
+        // Choix de la version AU CAS PAR CAS : le .rcl est un instantané figé (texte plat, non
+        // ré-anonymisable), c'est donc au moment de la capture que la version se décide. Le texte
+        // clair est re-traité depuis les spans d'origine (traiterTexteExtrait, synthese.js) ;
+        // s'il est identique au texte pseudonymisé, l'extrait ne contient aucun élément
+        // pseudonymisé → insertion directe sans question.
+        let texteItem = ext.texteTraite || '';
+        if (typeof traiterTexteExtrait === 'function' && typeof question === 'function') {
+            const texteClair = traiterTexteExtrait(ext.texte, { anonymise: false }).texte || '';
+            if (texteClair !== texteItem) {
+                const rep = await question(
+                    'Cet extrait contient des éléments pseudonymisés.\n\nQuelle version insérer dans le recueil ?',
+                    ['Pseudonymisée', 'Texte original', 'Annuler']
+                );
+                if (!rep || rep === 'annuler') return;
+                if (rep === 'texte original') texteItem = texteClair;
+            }
+        }
+
         const item = creerItemExtrait(
             insertIdx,
             ext.debut,
             ext.fin,
-            ext.texteTraite || '',
-            ''
+            texteItem,
+            '',
+            (typeof tabEnt !== 'undefined' && tabEnt[ext.entretien]) ? (tabEnt[ext.entretien].nom || '') : ''
         );
         _recueilCourant.items.splice(insertIdx, 0, item);
         reindexerItems(_recueilCourant);
@@ -879,6 +903,22 @@ async function ouvrirMenuAjoutRecueil(deb, fin, texte, anchorEl) {
         menuTop = Math.max(10, Math.min(rect.top - 40, window.innerHeight - 400));
     }
 
+    // Choix de la version AU CAS PAR CAS (même process que le drop d'un extrait de synthèse
+    // dans un recueil) : le .rcl est un instantané figé, la version se décide à la capture.
+    // La version claire est recalculée depuis les mêmes spans ; identique à la version
+    // pseudonymisée → aucun élément pseudonymisé dans la sélection → pas de question.
+    if (typeof txtSelectionSpans === 'function' && typeof question === 'function') {
+        const texteClair = txtSelectionSpans(deb, fin, { anonymise: false });
+        if (texteClair !== texte) {
+            const rep = await question(
+                'Cette sélection contient des éléments pseudonymisés.\n\nQuelle version ajouter au recueil ?',
+                ['Pseudonymisée', 'Texte original', 'Annuler']
+            );
+            if (!rep || rep === 'annuler') { if (typeof fermerMenuSel === 'function') fermerMenuSel(); return; }
+            if (rep === 'texte original') texte = texteClair;
+        }
+    }
+
     // Fermer le menu de sélection s'il est ouvert
     if (typeof fermerMenuSel === 'function') fermerMenuSel();
 
@@ -1041,7 +1081,15 @@ function _marSections(menu, recueil, deb, fin, texte) {
 }
 
 async function _marInserer(recueil, idx, deb, fin, texte) {
-    const item = creerItemExtrait(idx, deb, fin, texte, '');
+    // Appelé depuis la fenêtre d'entretien (menu de sélection) : l'entretien source est
+    // l'entretien courant, résolu via main.
+    let nomEnt = '';
+    try {
+        const rk = await window.electronAPI.getEntCur();
+        const ents = await window.electronAPI.getEnt();
+        if (ents && ents[rk]) nomEnt = ents[rk].nom || '';
+    } catch { /* hors fenêtre entretien : pas de source */ }
+    const item = creerItemExtrait(idx, deb, fin, texte, '', nomEnt);
     recueil.items.splice(idx, 0, item);
     reindexerItems(recueil);
     try {

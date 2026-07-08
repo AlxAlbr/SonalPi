@@ -1418,6 +1418,49 @@ async function exportTabDat() { // export CSV depuis le tableau HTML affiché
         return;
     }
 
+    // Pseudonymisation des noms de locuteurs (colonne locuteur) : l'écran affiche les noms réels,
+    // c'est l'EXPORT qui ne doit pas les fuiter. Convention « [Pseudo] » (locuteursAffiches) ;
+    // locuteur sans règle → nom réel en clair.
+    let anonExport = false;
+    let tabHtmlFrais = null; // HTML FRAIS depuis le main (anon.md §3.4), jamais le global renderer figé
+    if (typeof question === 'function' && typeof locuteursAffiches === 'function') {
+        tabHtmlFrais = (await window.electronAPI.getHtml()) || [];
+        // Modale SAUTÉE si aucun libellé de locuteur pseudonymisé/suggéré dans le corpus : les deux
+        // réponses produiraient le même CSV (noms réels). Détection sur classes exactes
+        // .loc-anon/.loc-suggere — un refus explicite (loc-suggere-refuse) sort en clair de toute
+        // façon et ne déclenche donc pas la modale.
+        const aDesPseudosLoc = tabHtmlFrais.some(h => {
+            let html = (h == null ? '' : String(h));
+            if (!html.includes('loc-anon') && !html.includes('loc-suggere')) return false; // pré-filtre sans parsing
+            if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return !!tmp.querySelector('.ligloc.loc-anon, .ligloc.loc-suggere');
+        });
+        if (aDesPseudosLoc) {
+            const rep = await question(
+                "Noms de locuteurs dans le CSV exporté ?\nUn locuteur sans pseudo défini reste en clair dans les deux cas.",
+                ['Pseudonymiser', 'Noms réels', 'Annuler']
+            );
+            if (!rep || rep === 'annuler') return;
+            anonExport = (rep === 'pseudonymiser');
+        }
+    }
+
+    // Résolution nom réel → nom affiché, par entretien (clé = nom d'entretien, celui de la cellule
+    // rowSpan).
+    let locResParEnt = null;
+    if (anonExport) {
+        const tabEntFrais = (await window.electronAPI.getEnt()) || [];
+        locResParEnt = new Map();
+        tabEntFrais.forEach((ent, i) => {
+            locResParEnt.set(String(ent.nom || '').trim(), {
+                tabLoc: ent.tabLoc || [],
+                locAff: locuteursAffiches(ent, tabHtmlFrais[i], true),
+            });
+        });
+    }
+
     const SEP = ";";
     const csvCell = (val) => {
         const s = (val === null || val === undefined) ? "" : String(val).trim();
@@ -1436,6 +1479,12 @@ async function exportTabDat() { // export CSV depuis le tableau HTML affiché
     // Lignes depuis le tbody
     // La cellule entretien (rowSpan) porte la classe grp-last et est cells[0] de la ligne générale.
     // Pour les lignes locuteurs, cells[0] est le nom de locuteur (pas de classe grp-last).
+    let entCourant = null; // entrée de locResParEnt du groupe courant (suivie via la cellule rowSpan)
+    const nomLocResolu = (val) => {
+        if (!entCourant) return val;
+        const idx = entCourant.tabLoc.findIndex(n => (n || '').trim() === val.trim());
+        return (idx >= 0 && entCourant.locAff[idx]) ? entCourant.locAff[idx] : val;
+    };
     table.querySelectorAll("tbody tr").forEach(tr => {
         const cells = tr.cells;
         const ligne = [];
@@ -1443,6 +1492,7 @@ async function exportTabDat() { // export CSV depuis le tableau HTML affiché
 
         if (estLigneGen) {
             // Ligne générale : cells[0] = entretien (rowSpan), cells[1..] = reste
+            if (locResParEnt) entCourant = locResParEnt.get(cells[0].textContent.trim()) || null;
             ligne.push(csvCell(cells[0].textContent));
             for (let i = 1; i < cells.length; i++) {
                 ligne.push(cells[i].classList.contains("td-non-editable-gen") ? "" : csvCell(cells[i].textContent));
@@ -1451,7 +1501,9 @@ async function exportTabDat() { // export CSV depuis le tableau HTML affiché
             // Ligne locuteur : pas de cellule entretien dans cells (absorbée par rowSpan)
             ligne.push(""); // colonne Entretien vide
             for (let i = 0; i < cells.length; i++) {
-                ligne.push(cells[i].classList.contains("td-non-editable-gen") ? "" : csvCell(cells[i].textContent));
+                let val = cells[i].classList.contains("td-non-editable-gen") ? "" : cells[i].textContent;
+                if (val && locResParEnt && cells[i].classList.contains("col-loc")) val = nomLocResolu(val);
+                ligne.push(csvCell(val));
             }
         }
         lignes.push(ligne.join(SEP));
@@ -1460,9 +1512,10 @@ async function exportTabDat() { // export CSV depuis le tableau HTML affiché
     const contenuCsv = lignes.join("\r\n");
 
     const Corpus = await window.electronAPI.getCorpus();
-    const nomBase = Corpus && Corpus.fileName
+    let nomBase = Corpus && Corpus.fileName
         ? Corpus.fileName.replace(/\.[^/.]+$/, '') + "_donnees"
         : "donnees";
+    if (anonExport) nomBase += "_pseudonymisees";
 
     const result = await window.electronAPI.saveFileDialog({
         filename: nomBase + ".csv",
@@ -1496,7 +1549,12 @@ async function updateVarsDsEnt(){ // fonction de mise à jour des variables gén
     await window.electronAPI.setEnt(tabEnt)
 }
 
-async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pour un entretien donné
+// locAffiches (optionnel) : tableau des noms de locuteurs À AFFICHER, indexé comme ent.tabLoc
+// (typiquement locuteursExport / locuteursAffiches, avec « [Pseudo] » pour les locuteurs
+// pseudonymisés). Fourni par l'APPELANT (chemins d'export anonymisé) pour que les variables
+// « par locuteur » sortent avec le même nom que les en-têtes de parole. Absent → noms réels
+// (affichage écran inchangé).
+async function varsPubliquesEnt(rkEnt, locAffiches = null){ // Affichage des variables publiques pour un entretien donné
 
     //console.log("Affichage des variables publiques pour l'entretien n°" + rkEnt);   
     tabEnt = await window.electronAPI.getEnt();
@@ -1532,7 +1590,7 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
                         // récupération du nom du locuteur si var par locuteurs
                         let modaLib = modalite.lib;
                         if (v.champ === "loc") {
-                            const locName = ent.tabLoc[ligne.l];
+                            const locName = (locAffiches && locAffiches[ligne.l]) || ent.tabLoc[ligne.l];
                             modaLib = locName + " : " + modaLib;
                         }
                         modas.push(modaLib);
@@ -1554,7 +1612,11 @@ async function varsPubliquesEnt(rkEnt){ // Affichage des variables publiques pou
     }
 }
 
-async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : variables d'entretien + variables des seuls locuteurs présents dans l'extrait
+// anon=true : les noms des locuteurs sortent pseudonymisés (« [Pseudo] »), résolus SANS IPC ni
+// HTML : les liglocs synthétiques de xtr.texte portent les marqueurs loc-* (loc-anon/loc-suggere),
+// lus via nomLocAffiche. L'identification des locuteurs (matching contre tabLoc) reste sur les
+// noms réels (data-nomloc) — seul l'AFFICHAGE change. Défaut : noms réels (écran inchangé).
+async function varsPubliquesXtr(xtr, { anon = false } = {}){ // Variables publiques pour un extrait : variables d'entretien + variables des seuls locuteurs présents dans l'extrait
 
     tabEnt = await window.electronAPI.getEnt();
     tabVar = await window.electronAPI.getVar();
@@ -1567,11 +1629,19 @@ async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : v
         return ["", ""];
     }
 
-    // Identification des noms de locuteurs présents dans l'extrait (via les spans ligloc)
+    // Identification des noms de locuteurs présents dans l'extrait (via les spans ligloc).
+    // En mode anon, on construit au passage la map nom réel → nom affiché (pseudo entre
+    // crochets si réellement pseudonymisé), lue sur les marqueurs loc-* des liglocs.
     const nomsLocXtr = new Set();
+    const affParNom = new Map();
     xtr.texte.forEach(mot => {
         if (mot.classList && mot.classList.contains('ligloc') && mot.dataset.nomloc) {
             nomsLocXtr.add(mot.dataset.nomloc);
+            if (anon && typeof nomLocAffiche === 'function' && !affParNom.has(mot.dataset.nomloc)) {
+                const reel = mot.dataset.nomloc.replace(/\?/g, '').trim();
+                const aff = (nomLocAffiche(mot, { anonymise: true }) || '').trim();
+                if (aff && aff !== reel) affParNom.set(mot.dataset.nomloc, '[' + aff + ']');
+            }
         }
     });
 
@@ -1623,7 +1693,7 @@ async function varsPubliquesXtr(xtr){ // Variables publiques pour un extrait : v
 
         valsParLoc.forEach((vals, idx) => {
             if (vals.length > 0) {
-                const locName = ent.tabLoc[idx] || "?";
+                const locName = affParNom.get(ent.tabLoc[idx]) || ent.tabLoc[idx] || "?";
                 chaineHtml += `<label class="var-pub">${locName}\n<b>${vals.join(", ")}</b></label>\n`;
                 chaineText += ` ${locName} : ${vals.join(", ")}`;
             }

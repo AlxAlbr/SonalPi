@@ -1440,6 +1440,37 @@ Styles pour les fonctions de recherche
 
 }
 
+/* — Libellé de locuteur pseudonymisé (plan-locuteurs-pseudo.md, Étape 1) ————————————————
+   Rendu calqué sur le texte : nom barré + [pseudo] entre crochets (« remplacé par »). Le header est
+   un ::before UNIQUE (pas de ::after : le .ligloc enveloppe le texte du 1er segment, ::after tomberait
+   en fin de parole) → le barré ne peut PAS venir de text-decoration (elle frapperait aussi le pseudo).
+   Le barré est donc intégré aux caractères du NOM via l'overlay combinant U+0336 (data-nomloc-barre,
+   dérivé de data-nomloc par majBarreLoc/barrerTexte — locutarisation.js). data-nomloc reste le vrai nom.
+   loc-anon + data-locpseudo posés par l'Étape 2 → INERTE tant qu'aucun .ligloc ne les porte. Non gated
+   par mode-anon, comme le rendu de base du texte. */
+.ligloc.loc-anon::before {
+  content: attr(data-nomloc-barre) "  [" attr(data-locpseudo) "]";
+}
+
+/* — Suggestion de pseudonymisation d'un libellé (plan-locuteurs-pseudo.md, Étape 3) —————————————
+   Le nom matche une règle non-brouillon mais le libellé n'est PAS encore confirmé : « Nom → Pseudo ? »
+   en pointillé/atténué. loc-suggere / data-locpseudo-suggere = marqueurs RUNTIME (re-dérivés à
+   l'ouverture/scan, non persistés). Clic-droit sur le libellé pour confirmer. */
+.ligloc.loc-suggere::before {
+  content: attr(data-nomloc-barre) "  [" attr(data-locpseudo-suggere) "]  ?";
+  text-decoration: underline dotted;
+  opacity: 0.7;
+  cursor: context-menu;
+}
+
+/* Suggestion REFUSÉE (« ne pas pseudonymiser ») : nom réel + ⊘ discret, restera en clair à l'export.
+   Clic-droit pour ré-activer. data-locpseudo-suggere conservé (re-pseudonymisation possible). */
+.ligloc.loc-suggere-refuse::before {
+  content: attr(data-nomloc) "  ⊘";
+  opacity: 0.55;
+  cursor: context-menu;
+}
+
 .qst {
     font-style: italic;
     font-weight: bold;
@@ -3362,7 +3393,12 @@ SYNTHESE
 
 #tableauAnon {
     overflow-y: auto;
-    height: calc(100vh - 230px);
+    /* Remplit l'espace restant sous l'en-tête / la légende / la case de recherche par thème
+       (#fond_anon est un flex-column via .blocvisible). Auparavant hauteur figée calc(100vh - 230px),
+       qui ne tenait pas compte de la case de recherche ajoutée → la barre collante « + » en bas
+       passait hors écran. flex:1 + min-height:0 garantit que le bas (bouton +) reste visible. */
+    flex: 1;
+    min-height: 0;
 }
 
 .tableau-anon {
@@ -3390,12 +3426,14 @@ SYNTHESE
 
 .tableau-anon th.col-entite {
   width: 40%;
-  color:var(--couleur-titre) !important; 
+  text-align: center;
+  color:var(--couleur-titre) !important;
 }
 
 .tableau-anon th.col-remplacement {
   width: 40%;
-  color:var(--couleur-titre) !important; 
+  text-align: center;
+  color:var(--couleur-titre) !important;
 }
 
 .tableau-anon th.col-actions {
@@ -4008,19 +4046,23 @@ SYNTHESE
 }
 
 .tableau-anon td {
-  padding: 10px;
+  padding: 12px 10px;
   vertical-align: middle;
 }
 
 .tableau-anon td.col-entite,
 .tableau-anon td.col-remplacement {
   width: 40%;
+  /* Centrage vertical de la boîte texte quand la ligne est plus haute (3 lignes dans Actions).
+     On utilise align-content (comme .col-actions ci-dessous), car dans ce Chromium/Electron
+     vertical-align:middle sur une cellule au contenu bloc ne recentrait pas visuellement. */
+  align-content: center;
 }
 
 .tableau-anon td.col-actions {
   width: 20%;
   text-align: center;
-  padding: 1px 0px;
+  padding: 8px 0px;
   align-content: center;
 }
 
@@ -4670,7 +4712,7 @@ SYNTHESE
 .actions-stack-portee {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     align-items: flex-start;
     width: 100%;                           /* pour centrer le slider dans toute la largeur de la cellule */
 }

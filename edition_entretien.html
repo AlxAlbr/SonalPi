@@ -487,7 +487,7 @@ window.addEventListener('unload', (event) => {
                         <label id= "AideAnon" class = "btnbleu" onclick="ouvrirAideAnonymisation()" title="Aide sur la pseudonymisation" style = "font-size:1.2rem"> ? </label> 
                         <label id= "OuvrirAnon" class = "btnbleu" onclick="document.getElementById('file-import-correspondance').click()" title="Importer un ou des tableau(x) de pseudonymisation" style = "font-size:1.2rem"> 📥 </label> 
                         <label id= "ExportAnon" class = "btnbleu" onclick="exportTableCorrespondance()" title="Exporter la table de pseudonymisation" style = "font-size:1.2rem"> 📤 </label>
-                         <label id= "ChercheAnon" class = "btnbleu" onclick="verifierEntretien()" title="Re-scanner le texte contre toutes les règles connues (locales et corpus) et vérifier qu'aucune occurrence n'a été oubliée. Ne détecte que les entités déjà repérées (pas de détection automatique de noms)." style = "font-size:1.2rem"> 🔄 </label>
+                         <label id= "ChercheAnon" class = "btnbleu" onclick="verifierEntretien()" title="Re-scanner le texte avec toutes les règles connues (locales et corpus) et vérifier qu'aucune occurrence n'a été oubliée." style = "font-size:1.2rem"> 🔄 </label>
                     </H2>
 
                     <!-- 
@@ -521,6 +521,10 @@ window.addEventListener('unload', (event) => {
                             <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-exc" style="pointer-events:none;">N</span> exceptions</span>
                             <span style="display:inline-flex;align-items:center;gap:3px;"><span class="btn-nav-cat btn-nav-cat-non" style="pointer-events:none;">N</span> à traiter</span>
                         </div>
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="color:#e65100;">👤●</span> locuteur à pseudonymiser</span>
+                            <span style="display:inline-flex;align-items:center;gap:3px;"><span style="color:#2e7d32;">👤✓</span> locuteur résolu</span>
+                        </div>
                         <div style="display:flex;align-items:baseline;gap:4px;">
                             <span style="flex-shrink:0;">◄ N ►</span>
                             <span style="flex:1;min-width:0;overflow-wrap:anywhere;">Cliquer sur un compteur pour naviguer entre les occurrences</span>
@@ -533,6 +537,14 @@ window.addEventListener('unload', (event) => {
                             <span style="flex:1;min-width:0;overflow-wrap:anywhere;"><b>Portée</b> : <b>🚧</b> brouillon, non appliqué · <b>📄</b> document, cet entretien seulement · <b>📁</b> règle pour tout le corpus</span>
                         </div>
                     </div>
+                </div>
+
+                <!-- Recherche par thème (opt-in) : hors de #tableauAnon (re-rendu) pour survivre aux
+                     re-render ; affichée seulement si les thématiques sont actives (géré par affichTableauAnon). -->
+                <div id="anon-ent-recherche-zone" style="display:none;margin-bottom:8px;flex-shrink:0;">
+                    <input type="text" id="anon-ent-recherche" autocomplete="off"
+                           placeholder="Rechercher (entité, pseudo, ou thème)…"
+                           style="width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;">
                 </div>
 
                 <div id="tableauAnon"></div>

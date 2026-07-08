@@ -1373,6 +1373,12 @@ async function afficherWhisPurge(){
     // Récupération du tabAnon global et fusion avec le tabAnon local de l'entretien
     // (fait AVANT le setTimeout pour que window.tabAnon soit prêt quand cleanHTML se termine)
     const tabAnonGlobal = await window.electronAPI.getAnon();
+    // Hydrater les réglages de pseudonymisation au niveau corpus (motsLiaison, thematiques) : la page
+    // entretien ne passe pas par chargerCorpus, donc window.paramsAnonCorpus n'y est pas amorcé. Sans
+    // ça, getThematiques()/getMotsLiaison() retomberaient toujours sur les défauts (badge jamais actif).
+    try {
+        if (window.electronAPI.getParamsAnon) window.paramsAnonCorpus = await window.electronAPI.getParamsAnon() || {};
+    } catch (e) { console.warn('[entretien] hydratation paramsAnonCorpus échouée:', e); }
     window.tabAnon = fusionnerTabAnon(tabAnonGlobal, ent.tabAnon);
 
     // Afficher immédiatement le panneau latéral avec les paires fusionnées
@@ -2068,10 +2074,27 @@ async function exportEntretien(format) {
     if (opts.anon) { // anonymisation éventuelle
         contenuHtmlCmpct = AnonymiserHtml(contenuHtmlCmpct); // remplacement des pseudos dans le texte
         tabAnonloc = [] //suppression de la table d'anonymisation de l'export
-    } 
+    }
+
+    // LIBELLÉS de locuteurs (plan-locuteurs-pseudo.md) : AnonymiserHtml n'anonymise que le TEXTE, pas les
+    // en-têtes de locuteurs (construits par index depuis locut[] dans chaque case). À l'export anonymisé,
+    // le nom AFFICHÉ doit être le PSEUDO du libellé (loc-anon/data-locpseudo sur le .ligloc), pas le vrai
+    // nom. On pré-calcule un tableau indexé comme locut via nomLocAffiche (lit l'état sur le DOM live —
+    // compactHtml/AnonymiserHtml ne modifient pas le DOM). Non-anon : on garde locut (vrais noms).
+    // Locuteur RÉELLEMENT pseudonymisé (nom affiché ≠ vrai nom) → mis entre crochets « [Pseudo] » comme
+    // le texte anonymisé ; un locuteur sans règle reste en clair, SANS crochets (il n'est pas anonymisé).
+    const locuteursExport = (opts.anon && typeof nomLocAffiche === 'function')
+        ? locut.map((nom, i) => {
+            const reel = (nom || '').replace(/\?/g, '').trim();
+            const aff  = (nomLocAffiche(i, { anonymise: true }) || '').trim();
+            return (aff && aff !== reel) ? '[' + aff + ']' : aff;
+        })
+        : locut;
 
     //if (opts.vars) {
-        let txtvars = (await varsPubliquesEnt(ent_cur))[1]; // récupération des variables associées à l'entretien
+        // locuteursExport injecté : les variables « par locuteur » sortent avec le même nom
+        // (pseudonymisé) que les en-têtes de parole — même source, le DOM live.
+        let txtvars = (await varsPubliquesEnt(ent_cur, opts.anon ? locuteursExport : null))[1]; // récupération des variables associées à l'entretien
     //}
     switch (format) {
 
@@ -2090,7 +2113,7 @@ async function exportEntretien(format) {
         }
 
         case 'txt': {
-            const TxtExport = construireTxtEntretien(ent, opts, txtvars, contenuHtmlCmpct, locut);
+            const TxtExport = construireTxtEntretien(ent, opts, txtvars, contenuHtmlCmpct, locuteursExport);
             SauvegarderSurDisque(TxtExport, detailsf[1] + suffixeAnon + '.txt', 'UTF-8');
             break;
         }
@@ -2108,11 +2131,11 @@ async function exportEntretien(format) {
                 if (deb && fin) {
                     const timeDeb = SecToTime(deb, false);
                     const timeFin = SecToTime(fin, false);
-                    const text = seg.textContent.trim().replace(/\s+/g, ' ');
-                   
+                    let text = seg.textContent.trim().replace(/\s+/g, ' ');
+
                     if (opts.loc) { // ajout du locuteur en préfixe du texte (optionnel)
                         const locIdx = seg.dataset.loc;
-                        const locNom = locut[locIdx] ? locut[locIdx].replaceAll('?', '').trim() : '';
+                        const locNom = locuteursExport[locIdx] ? locuteursExport[locIdx].replaceAll('?', '').trim() : '';
                         if (locNom) {
                             text = locNom + ': ' + text;
                         }
@@ -2168,7 +2191,7 @@ async function exportEntretien(format) {
                 // wrap with speaker voice tag if needed
                 if (opts.loc) {
                     const locIdx = seg.dataset.loc;
-                    const locNom = locut[locIdx] ? locut[locIdx].replaceAll('?', '').trim() : '';
+                    const locNom = locuteursExport[locIdx] ? locuteursExport[locIdx].replaceAll('?', '').trim() : '';
                     if (locNom) payload = '<v ' + locNom + '>' + payload + '</v>';
                 }
 
@@ -2184,7 +2207,7 @@ async function exportEntretien(format) {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = contenuHtmlCmpct;
 
-            const locuteurs = ent.tabLoc || locut;
+            const locuteurs = locuteursExport;
 
             // --- 1b. Convertir audioPath en URL file:// utilisable dans un navigateur ---
             const audioSrcPath = ent.audioPath || '';
@@ -2306,7 +2329,7 @@ async function exportEntretien(format) {
             // --- 5. Optional sections ---
             let txtvarsHtmlExp = '';
             if (opts.vars) {
-                const [varsH] = await varsPubliquesEnt(ent_cur);
+                const [varsH] = await varsPubliquesEnt(ent_cur, opts.anon ? locuteursExport : null);
                 if (varsH) txtvarsHtmlExp = `\n  <section class="section-vars">\n    <h3>Variables</h3>\n    ${varsH}\n  </section>`;
             }
             let txtNotesHtmlExp = '';
@@ -2525,13 +2548,13 @@ ${legendHtml}
 
         case 'docx': {
             const nomFichier = detailsf[1] + suffixeAnon + '.docx';
-            await genererExportDocxEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locut);
+            await genererExportDocxEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locuteursExport);
             break;
         }
 
         case 'pdf': {
             const nomFichier = detailsf[1] + suffixeAnon + '.pdf';
-            await genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locut);
+            await genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenuHtmlCmpct, locuteursExport);
             break;
         }
     }

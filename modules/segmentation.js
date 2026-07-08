@@ -1599,9 +1599,14 @@ function annulerDebSel() {
     effaceSurv();
 }
 
-// Extrait le texte brut d'une plage de spans (data-rk = rangs de mots)
-function txtSelectionSpans(deb, fin) {
-    // Préfixe du locuteur : déduit du segment parent du premier span
+// Extrait le texte d'une plage de spans (data-rk = rangs de mots), PSEUDONYMISÉ par défaut
+// comme les exports : ce texte part dans le presse-papiers et les recueils (.rcl écrits sur
+// disque), il ne doit pas fuir les vrais noms en clair. anonymise=false → texte et nom de
+// locuteur RÉELS (utilisé par « Ajouter au recueil » pour proposer le choix de version).
+function txtSelectionSpans(deb, fin, { anonymise = true } = {}) {
+    // Préfixe du locuteur : déduit du segment parent du premier span. Libellé pseudonymisé
+    // (loc-anon/loc-suggere) → « [Pseudo] », sinon nom réel en clair (même convention que
+    // locuteursExport, gestion_entretiens.js).
     let prefix = '';
     const spDeb = getSpan(deb);
     if (spDeb) {
@@ -1609,16 +1614,29 @@ function txtSelectionSpans(deb, fin) {
         if (seg) {
             const idxLoc = seg.dataset.loc;
             if (idxLoc && typeof locut !== 'undefined' && locut[idxLoc]) {
-                const nomLoc = locut[idxLoc].replaceAll('?', '').trim();
+                const reel = locut[idxLoc].replaceAll('?', '').trim();
+                let nomLoc = reel;
+                if (anonymise && typeof nomLocAffiche === 'function') {
+                    const aff = (nomLocAffiche(idxLoc, { anonymise: true }) || '').trim();
+                    nomLoc = (aff && aff !== reel) ? '[' + aff + ']' : aff;
+                }
                 if (nomLoc) prefix = nomLoc + ' : ';
             }
         }
     }
-    // Texte brut de la sélection
-    let txt = '';
+    // Texte de la sélection : runs .anon → [pseudo], exceptions → texte original.
+    // En clair (anonymise=false) : concaténation brute des spans — même sortie que la
+    // version pseudonymisée quand la plage ne contient aucun run .anon (comparables).
+    const spans = [];
     for (let rk = deb; rk <= fin; rk++) {
         const sp = getSpan(rk);
-        if (sp) txt += sp.textContent;
+        if (sp) spans.push(sp);
+    }
+    let txt = '';
+    if (anonymise && typeof extraireTexteAnonymiseDepuisSpans === 'function') {
+        txt = extraireTexteAnonymiseDepuisSpans(spans, 0).texte;
+    } else {
+        for (const sp of spans) txt += sp.textContent;
     }
     return prefix + txt;
 }

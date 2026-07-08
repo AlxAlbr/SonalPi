@@ -59,10 +59,30 @@ async function verifierEtAfficherEtatEntite(entite, pseudo, tabEnt) {
         if (typeof endWait === 'function') {
             endWait();
         }
-        
-        // Mettre à jour la ligne
+
+        // VUE COMBINÉE (plan-locuteurs-pseudo.md) : état LIBELLÉS par entretien (via tabLoc), en plus du
+        // texte. parEntLoc est vide si l'entité n'est pas un locuteur (cheap : aucun parse).
         const anon = { entite, remplacement: pseudo };
+        const aDuTexte = entretiensAnonymisee.length || entretiensNonAnonymisee.length || entretiensExclus.length;
+        const parEntLoc = await etatLibellesParEntretien(entite, tabEnt);
+
+        if (!aDuTexte) {
+            // Personne-pure : la liste libellés remplace « aucune occurrence » (sinon texte inchangé).
+            if (parEntLoc.length > 0) { afficherVueLibellesLoc(anon, parEntLoc); return; }
+            afficherVerificationDansPanneau(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
+            return;
+        }
+
+        // Texte présent : drill-down texte, PUIS la section libellés en dessous si l'entité est aussi
+        // un locuteur (vue combinée).
         afficherVerificationDansPanneau(anon, entretiensNonAnonymisee, entretiensAnonymisee, entretiensExclus);
+        if (parEntLoc.length > 0) {
+            const fondVerif = document.getElementById('fond_verif_anon');
+            if (fondVerif) {
+                fondVerif.insertAdjacentHTML('beforeend', construireHtmlLibellesLoc(anon, parEntLoc, true));
+                lierBoutonsLibellesLoc(fondVerif, anon);
+            }
+        }
         
         
     } catch (error) {
@@ -147,6 +167,97 @@ function afficherVueLectureSeuleMultiPseudo(regle, parEntretien) {
             ouvrirEntretienAnonGen(idx, { entite: regle.entite, pseudo: regle.remplacement });
         });
     });
+}
+
+/**
+ * État de pseudonymisation du LIBELLÉ d'un locuteur, PAR ENTRETIEN (plan-locuteurs-pseudo.md — loupe
+ * corpus). Candidats via `ent.tabLoc` (pas de parse pour trouver), état lu sur le 1er `.ligloc` matchant
+ * (tout-ou-rien). `loc-anon`/`loc-suggere-refuse` → résolu (vert) ; sinon → pending (orange).
+ * @param {string} entite
+ * @param {Array} tabEnt
+ * @returns {Promise<Array<{index:number, nom:string, statut:'resolu'|'pending', refuse:boolean}>>}
+ */
+async function etatLibellesParEntretien(entite, tabEnt) {
+    const parEntretien = [];
+    if (typeof clesAlias !== 'function' || !Array.isArray(tabEnt)) return parEntretien;
+    const clesEntite = new Set(clesAlias(entite));
+    if (clesEntite.size === 0) return parEntretien;
+    for (let i = 0; i < tabEnt.length; i++) {
+        const ent = tabEnt[i];
+        if (!ent || !Array.isArray(ent.tabLoc)) continue;
+        // Ce locuteur existe-t-il dans cet entretien ? (via tabLoc, sans parse)
+        const present = ent.tabLoc.some(nom =>
+            nom && clesAlias(String(nom).replace(/\?/g, '')).some(k => clesEntite.has(k)));
+        if (!present) continue;
+        // État : parser le HTML une fois, lire le 1er .ligloc matchant.
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
+        if (!html) continue;
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        const lig = Array.from(div.querySelectorAll('.ligloc[data-nomloc]'))
+            .find(l => clesAlias(l.dataset.nomloc || '').some(k => clesEntite.has(k)));
+        const refuse = !!lig && lig.classList.contains('loc-suggere-refuse');
+        const resolu = !!lig && (lig.classList.contains('loc-anon') || refuse);
+        parEntretien.push({
+            index: i,
+            nom: (ent.nom) || `Entretien ${i + 1}`,
+            statut: resolu ? 'resolu' : 'pending',
+            refuse
+        });
+    }
+    return parEntretien;
+}
+
+/**
+ * Rend, dans le panneau droit, l'état des LIBELLÉS par entretien pour une entité LOCUTEUR (0 occurrence
+ * texte) : liste verte (résolu : pseudonymisé ou refusé) / orange (à pseudonymiser), + bouton Ouvrir.
+ * Calqué sur afficherVueLectureSeuleMultiPseudo, sans comptage d'occurrences.
+ * @param {{entite:string, remplacement:string}} regle
+ * @param {Array<{index:number, nom:string, statut:string, refuse:boolean}>} parEntretien
+ */
+function construireHtmlLibellesLoc(regle, parEntretien, compact) {
+    const nbPending = parEntretien.filter(e => e.statut === 'pending').length;
+    let html = compact
+        ? `<div style="padding:8px 12px;margin-top:8px;border-top:2px solid #90caf9;font-weight:bold;color:#0d47a1;">👤 Libellés locuteur — ${parEntretien.length} entretien(s)${nbPending ? `, ${nbPending} à pseudonymiser` : ' (tous résolus)'}</div>`
+        : `<div style="padding:10px 12px;background:#e3f2fd;border:1px solid #90caf9;border-radius:4px;margin:8px;font-size:0.9rem;color:#0d47a1;">
+               👤 Entité <strong>locuteur</strong> « ${escapeHtml(regle.entite)} » → « ${escapeHtml(regle.remplacement)} ». Pas d'occurrence dans le texte : statut par <strong>libellé</strong>. Les modifications se font en ouvrant l'entretien.
+           </div>
+           <div style="padding:6px 12px;font-weight:bold;color:#333;">${parEntretien.length} entretien(s) avec ce locuteur${nbPending ? ` — ${nbPending} à pseudonymiser` : ''}</div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:6px;padding:6px 12px;">`;
+    for (const e of parEntretien) {
+        const vert = e.statut === 'resolu';
+        const couleur = vert ? '#2e7d32' : '#e65100';
+        const fond = vert ? '#e8f5e9' : '#fff3e0';
+        const statutTxt = vert ? (e.refuse ? '⊘ non pseudonymisé (choix)' : '✓ pseudonymisé') : '● à pseudonymiser';
+        html += `
+            <div style="display:flex;align-items:center;gap:10px;border:1px solid #eee;border-left:4px solid ${couleur};border-radius:4px;padding:6px 10px;background:${fond};">
+                <span style="flex:1;color:#333;">${escapeHtml(e.nom)}</span>
+                <span style="color:${couleur};font-size:0.85rem;white-space:nowrap;">${statutTxt}</span>
+                <button class="btn btn-ouvrir-ent-loc" style="padding:3px 8px;" data-ent-index="${e.index}" title="Ouvrir cet entretien">↗ Ouvrir</button>
+            </div>
+        `;
+    }
+    html += `</div>`;
+    return html;
+}
+
+/** Lie les boutons « Ouvrir » de la section libellés présents dans `container`. */
+function lierBoutonsLibellesLoc(container, regle) {
+    container.querySelectorAll('.btn-ouvrir-ent-loc').forEach(btn => {
+        btn.addEventListener('click', () => {
+            ouvrirEntretienAnonGen(Number(btn.dataset.entIndex), { entite: regle.entite, pseudo: regle.remplacement });
+        });
+    });
+}
+
+/** Vue pleine (panneau droit) pour une entité personne-pure : remplace le contenu par la section libellés. */
+function afficherVueLibellesLoc(regle, parEntretien) {
+    const fondVerif = document.getElementById('fond_verif_anon');
+    if (!fondVerif) return;
+    window._lastVerifiedAnon = { entite: regle.entite, pseudo: regle.remplacement };
+    fondVerif.innerHTML = construireHtmlLibellesLoc(regle, parEntretien, false);
+    lierBoutonsLibellesLoc(fondVerif, regle);
 }
 
 /**
@@ -1061,7 +1172,17 @@ function ajusterLargeurPanneauGauche(pageAnon, gauche, table) {
     const CHROME = 28;
     const largeurPage = pageAnon.getBoundingClientRect().width || window.innerWidth;
     const MIN_PX = 280;
-    const MAX_PX = largeurPage * 0.65; // ne jamais dépasser 65 % pour garder le panneau droit utile
+    // Plafond = largeur de page MOINS la place incompressible du panneau droit.
+    // On NE code AUCUNE constante en dur (qui dépendrait de la police/DPI) : on lit la
+    // largeur mini réelle du panneau droit (min-width calculé) et la largeur réelle du
+    // séparateur sur le DOM. Tant que la page est assez large, la table tient en entier —
+    // colonne « Actions » comprise — quel que soit le système ou le facteur d'échelle.
+    // (Avant : plafond rigide à 65 % qui tronquait la dernière colonne sous Windows.)
+    const droite = pageAnon.querySelector('.anon-page-droite');
+    const resizer = pageAnon.querySelector('.anon-page-resizer');
+    const minDroite = (droite && parseFloat(getComputedStyle(droite).minWidth)) || 200;
+    const largeurResizer = resizer ? resizer.getBoundingClientRect().width : 6;
+    const MAX_PX = Math.max(MIN_PX, largeurPage - minDroite - largeurResizer);
 
     const cible = Math.max(MIN_PX, Math.min(largeurTable + CHROME, MAX_PX));
     gauche.style.flexBasis = Math.round(cible) + 'px';
@@ -1108,6 +1229,10 @@ function creerEncartLegendeCorpus() {
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#fff3e0;border:1px solid #ffb74d;display:inline-block;flex-shrink:0;"></span>ligne orange = occurrences à traiter</span>
             <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:#e8f5e9;border:1px solid #a5d6a7;display:inline-block;flex-shrink:0;"></span>ligne verte = entièrement traité</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#e65100;">👤●</span> locuteur à pseudonymiser</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;"><span style="color:#2e7d32;">👤✓</span> locuteur résolu</span>
         </div>
     `;
 
@@ -1412,6 +1537,11 @@ async function affichAnonGen() {
         const inputRecherche = document.getElementById("anon-gen-recherche");
         const compteur = document.getElementById("anon-gen-compteur");
 
+        // Découvrabilité : signaler la recherche par thème dans le placeholder quand la feature est active.
+        if (inputRecherche && typeof getThematiques === 'function' && getThematiques().actif) {
+            inputRecherche.placeholder = "Rechercher (entité, pseudo, ou thème)…";
+        }
+
         const FILTRES_ETAT = new Set(['a_traiter', 'avec_exceptions', 'bouclees', 'inutilisees']);
 
         // Masquer/afficher le groupe de filtres d'état selon disponibilité du scan
@@ -1432,6 +1562,13 @@ async function affichAnonGen() {
             const estEtat = FILTRES_ETAT.has(filtre);
             const stats = window._anonScanCache;
 
+            // Recherche par THÉMATIQUE (plan-thematiques-entites.md, Phase 3) : si la fonctionnalité est
+            // active et que le terme saisi correspond EXACTEMENT (insensible à la casse) à une thématique
+            // du vocabulaire contrôlé, on bascule en filtre par thème ; sinon recherche texte habituelle.
+            const themes = (typeof getThematiques === 'function') ? getThematiques() : { actif: false, liste: [] };
+            const themeMatch = (themes.actif && recherche && themes.liste.some(t => String(t).toLowerCase() === recherche))
+                ? recherche : null;
+
             let nbVisibles = 0;
             for (const tr of lignes) {
                 const e = (tr.dataset.entite || '').trim();
@@ -1445,15 +1582,26 @@ async function affichAnonGen() {
                 else if (estEtat) {
                     const st = stats ? stats.get(`${e}|${pData}`) : null;
                     if (!st) ok = false;
-                    else if (filtre === 'a_traiter') ok = st.nbNon >= 1;
-                    else if (filtre === 'avec_exceptions') ok = st.nbExc >= 1;
-                    else if (filtre === 'bouclees') ok = (st.nbAnon + st.nbExc) > 0 && st.nbNon === 0;
-                    else if (filtre === 'inutilisees') ok = (st.nbAnon + st.nbExc + st.nbNon) === 0;
+                    else {
+                        // Statut LIBELLÉS intégré, logique COMBINÉE texte+libellé (plan-locuteurs-pseudo.md) :
+                        // même règle que la coloration combinée (orange = à traiter d'un côté OU l'autre).
+                        const nbInclF = st.nbIncl || 0;
+                        const texteVide = (st.nbAnon + st.nbExc + st.nbNon + nbInclF) === 0;
+                        const locP = st.nbLocPending || 0, locR = st.nbLocResolu || 0;
+                        if (filtre === 'a_traiter') ok = st.nbNon >= 1 || locP >= 1;
+                        else if (filtre === 'avec_exceptions') ok = st.nbExc >= 1;
+                        else if (filtre === 'bouclees') ok = (st.nbAnon + st.nbExc + locR) > 0 && st.nbNon === 0 && locP === 0;
+                        else if (filtre === 'inutilisees') ok = texteVide && locR === 0 && locP === 0;
+                    }
 
                 }
 
                 if (ok && recherche) {
-                    ok = e.toLowerCase().includes(recherche) || p.toLowerCase().includes(recherche);
+                    if (themeMatch) {
+                        ok = (tr.dataset.thematique || '').trim().toLowerCase() === themeMatch;
+                    } else {
+                        ok = e.toLowerCase().includes(recherche) || p.toLowerCase().includes(recherche);
+                    }
                 }
 
                 tr.style.display = ok ? '' : 'none';
@@ -1541,11 +1689,76 @@ async function affichAnonGen() {
  * @param {Array} tabEnt - Tableau des entretiens (passé au bouton 🔍 Vérifier)
  * @returns {HTMLTableRowElement}
  */
+/**
+ * Badge de thématique (niveau CORPUS, rendu en DOM). Chip coloré si thématique posée, chip discret
+ * « ＋ thème » sinon. Le clic ouvre le sélecteur partagé ; l'écriture (portée corpus) passe par
+ * definirThematiqueEntite. Rafraîchit le badge ET tr.dataset.thematique (lu par la recherche par thème).
+ * @param {object} anon - la règle corpus (mutée en place pour l'affichage)
+ * @param {HTMLTableRowElement} tr - la ligne, pour synchroniser dataset.thematique
+ * @returns {HTMLButtonElement}
+ */
+function _creerBadgeThematiqueCorpus(anon, tr) {
+    const badge = document.createElement("button");
+    badge.type = "button";
+    badge.className = "btn-theme-badge-corpus";
+
+    const rafraichir = () => {
+        const theme = (anon.thematique || '').trim();
+        if (theme) {
+            badge.textContent = theme;
+            badge.title = `Thématique : ${theme} — cliquer pour changer`;
+            badge.style.cssText = `display:block;margin:8px auto 0;background:${couleurThematique(theme)};color:#fff;`
+                + `border:1px solid rgba(0,0,0,0.15);border-radius:10px;padding:1px 7px;font-size:0.68rem;cursor:pointer;`;
+        } else {
+            badge.textContent = "＋ thème";
+            badge.title = "Attribuer une thématique";
+            badge.style.cssText = `display:block;margin:8px auto 0;background:#f0f0f0;color:#666;border:1px dashed #bbb;`
+                + `border-radius:12px;padding:2px 8px;font-size:0.75rem;cursor:pointer;`;
+        }
+        if (tr) tr.dataset.thematique = theme;
+    };
+    rafraichir();
+
+    badge.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        ouvrirSelecteurThematique(badge, anon.thematique || '', async (valeur) => {
+            await definirThematiqueEntite(anon, valeur);
+            rafraichir();
+        });
+    });
+    return badge;
+}
+
+/**
+ * Rafraîchit À CHAUD les badges de thématique du panneau Pseudos corpus après un changement de
+ * réglage (activation/désactivation), SANS re-render complet (pas de reconstitution/scan). Ajoute
+ * le badge sur chaque ligne si la fonctionnalité est active, le retire sinon ; met à jour le
+ * placeholder de la case Rechercher. Appelé par enregistrerParamsAnonCorpus.
+ */
+function rafraichirBadgesThematiquesCorpus() {
+    const actif = (typeof getThematiques === 'function') && getThematiques().actif;
+    document.querySelectorAll('.ligne-anon-gen').forEach(tr => {
+        const tdActions = tr.lastElementChild; // colonne Actions
+        if (!tdActions) return;
+        const existant = tdActions.querySelector('.btn-theme-badge-corpus');
+        if (actif) {
+            if (!existant && tr._anonRegle) tdActions.appendChild(_creerBadgeThematiqueCorpus(tr._anonRegle, tr));
+        } else if (existant) {
+            existant.remove();
+        }
+    });
+    const input = document.getElementById('anon-gen-recherche');
+    if (input) input.placeholder = actif ? 'Rechercher (entité, pseudo, ou thème)…' : 'Rechercher (entité ou pseudo)…';
+}
+
 function creerLigneAnonGen(anon, tabEnt) {
     const tr = document.createElement("tr");
     tr.classList.add("ligne-anon-gen");
+    tr._anonRegle = anon; // référence à la règle (pour recréer le badge thématique à chaud, cf. rafraichirBadgesThematiquesCorpus)
     tr.dataset.entite = anon.entite;
     tr.dataset.pseudo = anon.remplacement;
+    tr.dataset.thematique = (anon.thematique || '').trim(); // exposé pour la recherche par thème (Phase 3)
 
     // Colonne 1: Entité (affichage compact « 6 mots […] 6 mots » pour les longues sélections ;
     // texte complet en tooltip).
@@ -1626,6 +1839,13 @@ function creerLigneAnonGen(anon, tabEnt) {
 
     tdActions.appendChild(btnVerifier);
     tdActions.appendChild(btnSupprimer);
+
+    // Badge de thématique (opt-in) — placé SOUS la ligne des boutons 🔍/✖ (display:block centré).
+    // Ici toutes les lignes sont de portée corpus → definirThematiqueEntite écrit dans le store corpus.
+    if (typeof getThematiques === 'function' && getThematiques().actif) {
+        tdActions.appendChild(_creerBadgeThematiqueCorpus(anon, tr));
+    }
+
     tr.appendChild(tdActions);
 
     return tr;
@@ -2369,6 +2589,9 @@ async function supprimerRegleAnonGen(entite, pseudo, tr) {
         for (const p of pseudosARetirer) {
             if (await retirerPseudoDeEntretien(i, p, entite)) modifie = true;
         }
+        // Libellés de locuteurs : le retrait texte ci-dessus ne touche pas les .ligloc → les démarquer
+        // aussi (plan-locuteurs-pseudo.md), sinon le locuteur reste pseudonymisé dans le HTML sauvegardé.
+        if (await retirerLibelleDeEntretien(i, entite)) modifie = true;
         if (modifie) nbEntretiensModifies++;
 
         // Nettoyer le tabAnon local de cet entretien (filtre par entité+primaire → retire l'objet entier)
@@ -2395,6 +2618,15 @@ async function supprimerRegleAnonGen(entite, pseudo, tr) {
     tr.style.transition = "opacity 0.3s";
     tr.style.opacity = "0";
     setTimeout(() => tr.remove(), 300);
+
+    // Si la vue détaillée (loupe, #fond_verif_anon) montrait cette entité, la vider : la règle n'existe
+    // plus. Sinon son drill-down (occurrences texte OU liste des libellés) reste affiché à tort.
+    if (window._lastVerifiedAnon && typeof cleEntite === 'function'
+        && cleEntite(window._lastVerifiedAnon.entite || '') === cleEntite(entite)) {
+        const fondVerif = document.getElementById('fond_verif_anon');
+        if (fondVerif) fondVerif.innerHTML = '<div style="padding:20px;color:#999;">Règle supprimée.</div>';
+        window._lastVerifiedAnon = null;
+    }
 
     const pseudosTxt = pseudosARetirer.join(' / ');
     const msg = nbEntretiensModifies > 0
@@ -2499,6 +2731,52 @@ async function retirerPseudoDeEntretien(indexEnt, pseudo, entite) {
 }
 
 /**
+ * Retire le marquage de pseudonymisation du LIBELLÉ d'un locuteur dans un entretien (pendant « libellé »
+ * de retirerPseudoDeEntretien, qui ne traite que le texte). Démarque les `.ligloc` dont le nom matche
+ * l'entité : retire `loc-anon`/`loc-suggere`/`loc-suggere-refuse` + `data-locpseudo(-suggere)`, puis
+ * réécrit le HTML (setHtml + majFichierSonal). Utilisé à la suppression d'une règle corpus.
+ * @param {number} indexEnt
+ * @param {string} entite
+ * @returns {Promise<boolean>} true si au moins un libellé démarqué
+ */
+async function retirerLibelleDeEntretien(indexEnt, entite) {
+    try {
+        let htmlContent = await window.electronAPI.getHtml(indexEnt);
+        if (!htmlContent) return false;
+        htmlContent = htmlContent.replace(/`/g, '');
+        // Vérif rapide : un libellé marqué est-il présent ? (loc-suggere couvre aussi loc-suggere-refuse)
+        if (!/loc-anon|loc-suggere/.test(htmlContent)) return false;
+        if (typeof clesAlias !== 'function') return false;
+        const clesEntite = new Set(clesAlias(entite));
+        if (clesEntite.size === 0) return false;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        let n = 0;
+        tempDiv.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
+            const marque = lig.classList.contains('loc-anon')
+                || lig.classList.contains('loc-suggere') || lig.classList.contains('loc-suggere-refuse');
+            if (!marque) return;
+            if (!clesAlias(lig.dataset.nomloc || '').some(k => clesEntite.has(k))) return;
+            lig.classList.remove('loc-anon', 'loc-suggere', 'loc-suggere-refuse');
+            delete lig.dataset.locpseudo;
+            delete lig.dataset.locpseudoSuggere;
+            n++;
+        });
+        if (n === 0) return false;
+
+        await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
+        if (typeof window.majFichierSonal === 'function') {
+            await window.majFichierSonal(indexEnt, indexEnt + 1);
+        }
+        return true;
+    } catch (error) {
+        console.error(`Erreur retirerLibelleDeEntretien(${indexEnt}):`, error);
+        return false;
+    }
+}
+
+/**
  * Exporte les RÈGLES du corpus (entité→pseudo) en JSON, au format de la table de
  * correspondance [{ entite_init, entite_pseudo }, ...] — donc **réimportable** via 📂 Importer
  * (dans ce corpus ou un autre).
@@ -2553,6 +2831,24 @@ function _htmlEntretienPourExport(ent, htmlCache, anon) {
         : ((ent && ent.html != null && ent.html !== '') ? ent.html : (htmlCache || ''));
     if (typeof html === 'string' && html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
     return html || '';
+}
+
+/**
+ * LIBELLÉS de locuteurs pour l'export CORPUS (plan-locuteurs-pseudo.md) : équivalent du `locuteursExport`
+ * de l'export entretien (gestion_entretiens.js), mais SANS DOM live. On lit l'état `loc-anon`/`loc-suggere`
+ * (persisté dans le .sonal) directement sur les `.ligloc` du HTML SAUVEGARDÉ de l'entretien, en passant
+ * chaque élément à `nomLocAffiche` (mode élément : lit l'état de l'élément lui-même). Renvoie un tableau
+ * indexé comme `ent.tabLoc` : locuteur RÉELLEMENT pseudonymisé (nom affiché ≠ vrai nom) → « [Pseudo] »
+ * comme le texte anonymisé ; locuteur sans règle → vrai nom en clair, SANS crochets. Non-anon → tabLoc tel quel.
+ * @param {object} ent - entretien (fournit tabLoc).
+ * @param {string} htmlCache - HTML sauvegardé de l'entretien (tabHtml[i]).
+ * @param {boolean} anon - export anonymisé ?
+ * @returns {string[]} noms de locuteurs à afficher, indexés comme tabLoc.
+ */
+function locuteursExportCorpus(ent, htmlCache, anon) {
+    // HTML BRUT (non anonymisé) : loc-anon + data-nomloc (vrai nom) intacts, quelle que soit la transfo anon.
+    // Cœur partagé locuteursAffiches (locutarisation.js).
+    return locuteursAffiches(ent, _htmlEntretienPourExport(ent, htmlCache, false), anon);
 }
 
 /**
@@ -2698,8 +2994,10 @@ async function exporterCorpusTxtZip(opts = {}) {
         nomsUtilises.add(nom.toLowerCase());
 
         const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
-        const txtvars = opts.vars ? ((await varsPubliquesEnt(i))[1] || '') : '';
-        const contenu = construireTxtEntretien(ent, opts, txtvars, html, (ent && ent.tabLoc) || []);
+        // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
+        const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+        const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+        const contenu = construireTxtEntretien(ent, opts, txtvars, html, locAff);
         fichiers.push({ nom: nom + '.txt', contenu });
     }
 
@@ -2764,9 +3062,31 @@ async function exporterCorpusReouvrable(opts = {}) {
         const data = extractFichierSonal(contenu);
         let html = data.html || '';
         if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
-        const htmlOut = opts.anon ? _anonymiserHtml(html) : html; // runs marqués → « [pseudo] » si anon
+        let htmlOut = html;
+        let tabLocOut = data.tabLoc;
+        if (opts.anon) {
+            // Miroir de sauvHtmlAnonymise (anon-export-document.js), SANS DOM live : les vrais noms
+            // de locuteurs voyagent par TROIS canaux — data-nomloc(-barre) des .ligloc, bloc loc-json,
+            // tabLoc du .crp. Le tabLoc pseudonymisé est dérivé des .ligloc AVANT le retrait des
+            // marqueurs (ils portent l'état) ; statut « ? » préservé ; locuteur sans pseudo (ou
+            // refusé) → nom réel (relève du garde-fou export global, non traité ici).
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            tabLocOut = (data.tabLoc || ent.tabLoc || []).map((nom, idx) => {
+                if (!nom) return nom;
+                const estQ = String(nom).endsWith('?');
+                const lig = tmp.querySelector(`.ligloc[data-loc="${idx}"]`);
+                const aff = (lig && typeof nomLocAffiche === 'function')
+                    ? nomLocAffiche(lig, { anonymise: true })
+                    : String(nom).replace(/\?/g, '');
+                return estQ ? aff + '?' : aff;
+            });
+            _anonymiserLiglocsDansElement(tmp); // libellés → nom affiché, marqueurs + data-nomloc-barre retirés
+            _anonymiserDansElement(tmp);        // runs marqués → « [pseudo] »
+            htmlOut = tmp.innerHTML;
+        }
         const sonalOut = sauvHtml(
-            data.tabLoc, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
+            tabLocOut, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
             data.tabDat, data.notes, htmlOut, opts.anon ? [] : (data.tabAnon || []));
 
         // 4. Nom de fichier à plat, anti-doublons.
@@ -2779,8 +3099,10 @@ async function exporterCorpusReouvrable(opts = {}) {
 
         fichiers.push({ nom: nomFichier, contenu: sonalOut });
         // Entretien aplati pour le .crp : rtrPath relatif, pas de html embarqué. Règles vidées si
-        // anonymisé (irréversible), conservées sinon (copie fidèle).
-        const entExport = { ...ent, tabAnon: opts.anon ? [] : (ent.tabAnon || []), rtrPath: nomFichier };
+        // anonymisé (irréversible), conservées sinon (copie fidèle). tabLoc pseudonymisé si anonymisé
+        // (3e canal de fuite : le .crp embarque les noms de locuteurs), aligné sur le loc-json du .Sonal.
+        const entExport = { ...ent, tabAnon: opts.anon ? [] : (ent.tabAnon || []),
+            tabLoc: opts.anon ? tabLocOut : ent.tabLoc, rtrPath: nomFichier };
         delete entExport.html;
         tabEntExport.push(entExport);
     }
@@ -2830,7 +3152,9 @@ async function exporterCorpusPartage(opts = {}) {
         const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
         // Traitement loc/thm partagé avec l'export entretien (en-têtes locuteurs, classes/CSS de
         // thématiques, coordonnées) ; pas de boutons audio en partage (audioSrcUrl vide).
-        const { html: contenuTraite, cssThm } = traiterHtmlEntretienPourExport(htmlSrc, opts, (ent && ent.tabLoc) || [], '');
+        // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
+        const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+        const { html: contenuTraite, cssThm } = traiterHtmlEntretienPourExport(htmlSrc, opts, locAff, '');
 
         const nomEnt = (ent && ent.nom) ? String(ent.nom) : ('Entretien ' + (i + 1));
         const suffixeTitre = opts.anon ? ' (anonymisé)' : '';
@@ -2843,7 +3167,7 @@ async function exporterCorpusPartage(opts = {}) {
         }
         let varsHtml = '';
         if (opts.vars) {
-            const vH = (await varsPubliquesEnt(i))[0];
+            const vH = (await varsPubliquesEnt(i, opts.anon ? locAff : null))[0];
             if (vH) varsHtml = `\n  <section class="sec-export"><h3>Variables</h3>${vH}</section>`;
         }
 
@@ -2902,8 +3226,10 @@ async function exporterCorpusDocxZip(opts = {}) {
         nomsUtilises.add(nom.toLowerCase());
 
         const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
-        const txtvars = opts.vars ? ((await varsPubliquesEnt(i))[1] || '') : '';
-        const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, (ent && ent.tabLoc) || [], true);
+        // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
+        const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
+        const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
+        const contenuTxt = construireContenuEntretien(ent, opts, txtvars, html, locAff, true);
         fichiers.push({
             nom: nom + '.docx',
             nomEntretien: (ent && ent.nom) ? ent.nom : nom,

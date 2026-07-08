@@ -440,3 +440,101 @@ l'application. Garde-fou dans `sauvAnon` : si le champ montre le placeholder « 
 on **ne réécrit pas** l'entité complète.
 
 ---
+
+## 12. Pseudonymisation des libellés de locuteurs
+
+Pseudonymise les **étiquettes de prise de parole** (`.ligloc` → `data-nomloc`), sur un **axe séparé** du
+moteur d'occurrences de texte (même comportement, plomberie distincte). Détail :
+[plan-locuteurs-pseudo.md](plan-locuteurs-pseudo.md).
+
+- **Stockage DOM-natif** (§2) : marqueurs posés sur le `.ligloc` — `loc-anon` + `data-locpseudo`
+  (confirmé) ; `loc-suggere` + `data-locpseudo-suggere` (suggéré, **runtime**, re-dérivé) ;
+  `loc-suggere-refuse` (refusé, **persisté**). **Rien dans `tabAnon`/`.crp`.** Persiste via le HTML :
+  `cleanHTML`/`compactHtml` **préservent** ces marqueurs (`cloneNode` garde attributs+classes du `.lblseg`).
+- **Rendu** : CSS `.ligloc.loc-anon::before` = « Nom̶ [Pseudo] » (nom barré + pseudo entre crochets, calqué
+  sur le texte anonymisé ; suggéré = « Nom̶ [Pseudo] ? » pointillé). Le `::before` EST le libellé (un seul
+  pseudo-élément, `content` indivisible → `text-decoration` frapperait aussi le pseudo) → le barré du **seul
+  nom** est intégré aux caractères via l'overlay combinant **U+0336** dans `data-nomloc-barre` (dérivé de
+  `data-nomloc` par `majBarreLoc`/`barrerTexte`, [locutarisation.js](../locutarisation.js) ; posé partout où
+  les classes `loc-*` changent, re-dérivé à l'ouverture par `detecterLibellesASuggerer`, retiré à l'export).
+  Lecture centralisée par **`nomLocAffiche(ref,{anonymise})`** : pseudo si `loc-anon` **ou** `loc-suggere`
+  (suggestion = sûre par défaut à l'export), sinon nom réel.
+- ⚠️ **Matérialisation = texte OU libellé** (invariant clé) : une règle est document/corpus (jamais
+  brouillon) si elle marque des occurrences de TEXTE (`occ>0`) **ou** un libellé. ⇒ une règle peut être
+  **document/corpus à 0 occurrence de texte**. Tout test `occ>0` valant « appliqué » doit l'inclure
+  (`aLibellePseudonymise`, sinon slider mal routé). `nettoyerTabAnon` conserve ces règles **locales** ;
+  confirmer une suggestion **corpus** pose `existeLocalement=true` (sinon fantôme caché par le filtre
+  d'affichage `Global && occ-texte=0`).
+- **Flux** ([tableau_base.js](tableau_base.js) sauf mention) :
+  - *Création* : dialogue post-validation `proposerPseudoLocuteur` (miroir de `proposerRegleCoeurAffixe`),
+    match d'alias `clesAlias` contre `data-nomloc`. Couvre le locuteur **non cité dans le texte**.
+  - *Suggestion* (corpus → nouvel entretien) : `detecterLibellesASuggerer` en fin de
+    `detecterOccurrencesToutesLesPaires` (ouverture + scan).
+  - *Menu libellé* ([anon-menus.js](anon-menus.js)) : clic-droit sur le `.ligloc` (détecté car **hors
+    `[data-rk]`**) — confirmer / refuser / ré-activer / retirer (local ; **≠** suppression de règle, §11).
+  - *Propagation* : `resynchroniserLibellesLocuteurs` (suppression, parking 🚧, édition de pseudo,
+    re-locutarisation via scan) → réaligne les `loc-anon` sur les règles **non-brouillon**.
+- **Synthèse & recueils** ([synthese.js](../synthese.js), [recueil.js](../recueil.js),
+  [segmentation.js](../segmentation.js)) : le texte des extraits de synthèse est pseudonymisé par
+  `traiterTexteExtrait` (runs `.anon` → `[pseudo]` ; option `anonymise`, défaut vrai — l'AFFICHAGE
+  synthèse et la copie restent toujours pseudonymisés, mais l'**export synthèse** expose une case
+  « Pseudonymiser » cochée par défaut, décochée → re-traitement en clair depuis les spans
+  d'origine, `traitementExtraitExport`). Les `.ligloc` de la synthèse sont
+  **synthétiques** (posés sur le 1ᵉʳ mot d'une prise de parole) : `traiterEntretien` **recopie** les
+  marqueurs `loc-*` + `data-locpseudo(-suggere)` + `data-nomloc-barre` depuis le vrai `.ligloc[data-loc]`
+  du HTML — sans cette recopie, `nomLocAffiche` retombe sur le nom réel (affichage, exports synthèse,
+  recueils). Libellé pseudonymisé rendu « [Pseudo] » (convention `locuteursExport`). La capture
+  « Ajouter au recueil »/« Copier » depuis l'entretien (`txtSelectionSpans`) passe par
+  `extraireTexteAnonymiseDepuisSpans` + `nomLocAffiche`. ⚠️ Un **recueil `.rcl` = instantané figé**
+  (texte plat, non ré-anonymisable) : une règle créée *après* la capture ne s'y propage pas ; l'item
+  extrait stocke le **nom de l'entretien source** (traçabilité, re-dérivation future possible).
+  C'est pourquoi les DEUX entrées de recueil demandent la version AU CAS PAR CAS (« Pseudonymisée /
+  Texte original / Annuler »), uniquement si la sélection contient réellement des éléments
+  pseudonymisés (comparaison version pseudonymisée vs re-calcul clair depuis les mêmes spans) :
+  **drop d'un extrait de synthèse** ([recueil.js](../recueil.js), handler `drop`) et **« Ajouter au
+  recueil » depuis l'entretien** (`ouvrirMenuAjoutRecueil`, question posée AVANT le choix du recueil ;
+  version claire via `txtSelectionSpans(deb, fin, {anonymise:false})`, segmentation.js). La COPIE
+  presse-papiers, elle, reste toujours pseudonymisée (cohérente avec l'écran).
+- **Export** : `nomLocAffiche` centralise la lecture ; les **fichiers exportés** sont désormais **tous**
+  couverts — `exportTxtAvecClasses` + [synthese.js](../synthese.js) ; export **entretien** (`locuteursExport`
+  via `nomLocAffiche` sur le **DOM live**, 6 formats — [gestion_entretiens.js](../gestion_entretiens.js)) ;
+  export **corpus** (`locuteursExportCorpus` lit l'état sur les `.ligloc` du HTML **sauvegardé**, pas de DOM
+  live — [tableau_global.js](tableau_global.js)). Locuteur pseudonymisé → « [Pseudo] », sinon nom en clair
+  (gaté sur `opts.anon`). `sauvHtmlAnonymise` neutralise les **deux** fuites — `loc-json` sérialise les
+  pseudos ; `AnonymiserSegments` réécrit `data-nomloc` (pseudo) + retire les marqueurs **ET
+  `data-nomloc-barre`** (vrai nom barré) sur un **clone** (`_anonymiserHtml` n'agit que sur les `[data-rk]`).
+  Le cœur ligloc est **mutualisé** : `_anonymiserLiglocsDansElement` ([anon-regles.js](anon-regles.js),
+  les deux fenêtres).
+- **Export CSV Base de données** (`exportTabDat`, [gestion_data.js](../gestion_data.js)) : question à
+  l'export (Pseudonymiser / Noms réels / Annuler — l'ÉCRAN garde les noms réels, principe : seuls les
+  exports sont pseudonymisables). Modale **sautée** (export direct, noms réels) si aucun `.ligloc`
+  du corpus ne porte `loc-anon`/`loc-suggere` (HTML frais) — les deux réponses seraient identiques ;
+  un refus explicite (`loc-suggere-refuse`) ne la déclenche pas. En mode pseudonymisé, la colonne locuteur est résolue par entretien
+  (suivi de la cellule rowSpan `grp-last`, nom → index `tabLoc`) via **`locuteursAffiches`**
+  ([locutarisation.js](../locutarisation.js), cœur promu — `locuteursExportCorpus` en est un wrapper)
+  sur du HTML **frais** (`getHtml()`, §3.4). Fichier suffixé `_pseudonymisees`.
+- **Export corpus RÉOUVRABLE anonymisé** (`exporterCorpusReouvrable`, [tableau_global.js](tableau_global.js)) :
+  les vrais noms de locuteurs voyageaient par **trois canaux**, tous neutralisés (sans DOM live) —
+  (1) `data-nomloc(-barre)` des `.ligloc` du HTML (`_anonymiserLiglocsDansElement`) ; (2) bloc `loc-json`
+  des `.Sonal` ; (3) `tabEnt[].tabLoc` du `.crp` exporté. Le `tabLoc` pseudonymisé est dérivé des
+  `.ligloc` **AVANT** le retrait des marqueurs (ils portent l'état), statut « ? » préservé, et sert aux
+  canaux (2) et (3). Locuteur sans pseudo ou refusé → nom réel (garde-fou export global, point ouvert).
+  ⚠️ Reste **array-only sans** résolution du pseudo (`ent.tabLoc[]`, à dériver des règles) : stats
+  corpus → nom réel. ⚠️ Hors périmètre assumé : `notes` (texte libre), **noms de fichiers/entretiens**
+  (`ent.nom`) et le **contenu des modalités** (variable libre contenant un nom) partent tels quels.
+- **Variables « par locuteur »** (`v.champ === "loc"`, préfixe « Nom : modalité ») : pseudonymisées sur
+  **tous** les chemins d'export via `varsPubliquesEnt(rkEnt, locAffiches)` ([gestion_data.js](../gestion_data.js)) —
+  le tableau résolu (convention « [Pseudo] ») est **injecté par l'APPELANT**, jamais recalculé en interne
+  (perf : appels en boucle ; cohérence : même source que les en-têtes de parole). Export **entretien** :
+  `locuteursExport` (DOM live) gaté sur `opts.anon` ; export **corpus** : `locuteursExportCorpus` hissé et
+  partagé en-têtes/variables ; **synthèse** : anon **systématique** (comme `texteTraite`) via le résolveur
+  mémoïsé `creerResolveurLocAffSynthese` ([synthese.js](../synthese.js), `getHtml()` frais §3.4 +
+  `locuteursAffiches`). `varsPubliquesXtr(xtr, {anon})` (copie d'extrait) se résout **seule**, sans IPC :
+  les liglocs synthétiques de `xtr.texte` portent les marqueurs `loc-*`. Défaut (`null`/`anon:false`) =
+  noms réels → l'ÉCRAN (vue synthèse comprise) inchangé.
+- **Statut au panneau corpus** : le scan (`accumulerStatsLibellesCorpus`, anon-scan.js) colore une règle
+  **personne** (0 occurrence texte) vert/orange selon l'état de ses libellés — candidats via
+  `ent.tabLoc` (pas d'index), **tout-ou-rien** (1 test d'état/locuteur), sans compteur. Priorité au texte
+  pour les entités texte+personne.
+
+---

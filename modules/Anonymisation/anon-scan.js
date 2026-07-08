@@ -276,7 +276,7 @@ async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur, silencieu
         const entretienVersEntites = new Map(); // idxEnt -> [anon, ...]
         for (const a of anonValides) {
             stats.set(`${a.entite.trim()}|${a.remplacement.trim()}`,
-                      { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0 });
+                      { nbAnon: 0, nbExc: 0, nbNon: 0, nbEntretiens: 0, nbLocPending: 0, nbLocResolu: 0 });
             for (const i of entretiensCandidats(a.entite, index)) {
                 if (!entretienVersEntites.has(i)) entretienVersEntites.set(i, []);
                 entretienVersEntites.get(i).push(a);
@@ -305,6 +305,10 @@ async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur, silencieu
             if (k % 5 === 4) await new Promise(r => setTimeout(r, 0)); // laisser respirer l'UI
         }
 
+        // 2-bis. Statut des LIBELLÉS de locuteurs (plan-locuteurs-pseudo.md) : indépendant du texte,
+        // tout-ou-rien par locuteur, candidats via ent.tabLoc (aucun nouvel index inversé).
+        await accumulerStatsLibellesCorpus(stats, anonValides, tabEnt);
+
         // 3. Stocker le cache et marquer comme valide
         window._anonScanCache = stats;
         window._anonScanStale = false;
@@ -322,6 +326,67 @@ async function lancerScanCorpus(tabEnt, anonValides, lignes, compteur, silencieu
         console.error('[Scan] Erreur :', err);
     } finally {
         if (!silencieux && typeof endWait === 'function') endWait();
+    }
+}
+
+/**
+ * Accumule, PAR RÈGLE, le statut de pseudonymisation des LIBELLÉS de locuteurs à travers le corpus
+ * (plan-locuteurs-pseudo.md). Principes :
+ *  - candidats via `ent.tabLoc` (liste des noms de locuteurs de chaque entretien) → pas de nouvel index ;
+ *  - « tout-ou-rien » par locuteur : un seul test d'état par (entretien, locuteur), pas de comptage
+ *    d'occurrences (tous les `.ligloc` d'un nom partagent le même état) ;
+ *  - état lu sur le premier `.ligloc[data-nomloc]` matchant, dans le HTML sauvegardé (`getHtml`) :
+ *    `loc-anon`/`loc-suggere-refuse` → résolu (vert) ; `loc-suggere`, non marqué, ou locuteur absent du
+ *    rendu → pending (orange, « à pseudonymiser »).
+ * Remplit `st.nbLocPending` / `st.nbLocResolu` (nombre d'entretiens dans chaque cas). N'affiche rien.
+ * @param {Map} stats - clé `entite|remplacement` → objet stat (mutée)
+ * @param {Array} anonValides - règles corpus scannées ({entite, remplacement})
+ * @param {Array} tabEnt - entretiens (avec `.tabLoc`)
+ */
+async function accumulerStatsLibellesCorpus(stats, anonValides, tabEnt) {
+    if (!Array.isArray(tabEnt) || !anonValides || anonValides.length === 0) return;
+    if (typeof clesAlias !== 'function') return;
+    // Précalcul : clés d'alias de chaque règle (une fois).
+    const regles = anonValides.map(a => ({
+        cles: new Set(clesAlias(a.entite)),
+        key: `${a.entite.trim()}|${a.remplacement.trim()}`
+    }));
+    for (let i = 0; i < tabEnt.length; i++) {
+        const ent = tabEnt[i];
+        if (!ent || !Array.isArray(ent.tabLoc)) continue;
+
+        // Règles matchant AU MOINS un locuteur de cet entretien (via tabLoc, sans parse). 1 entrée / règle.
+        const paireByKey = new Map(); // key -> cles (array) du nom matchant
+        const vus = new Set();
+        for (const nom of ent.tabLoc) {
+            if (!nom) continue;
+            const nomNu = String(nom).replace(/\?/g, '');
+            const kNom = nomNu.toLowerCase();
+            if (!nomNu || vus.has(kNom)) continue;
+            vus.add(kNom);
+            const clesNom = clesAlias(nomNu);
+            for (const r of regles) {
+                if (!paireByKey.has(r.key) && clesNom.some(k => r.cles.has(k))) paireByKey.set(r.key, clesNom);
+            }
+        }
+        if (paireByKey.size === 0) continue;
+
+        // Parse le HTML une seule fois pour lire l'état des libellés.
+        let html = null;
+        try { html = await window.electronAPI.getHtml(i); } catch (e) { continue; }
+        if (!html) continue;
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        const ligs = Array.from(div.querySelectorAll('.ligloc[data-nomloc]'));
+
+        for (const [key, clesNom] of paireByKey) {
+            const st = stats.get(key);
+            if (!st) continue;
+            const lig = ligs.find(l => clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k)));
+            const resolu = !!lig && (lig.classList.contains('loc-anon') || lig.classList.contains('loc-suggere-refuse'));
+            if (resolu) st.nbLocResolu = (st.nbLocResolu || 0) + 1;
+            else st.nbLocPending = (st.nbLocPending || 0) + 1;
+        }
     }
 }
 
@@ -345,22 +410,48 @@ function appliquerResultatsScan(stats, lignes) {
 
         tdEtat.style.display = '';
 
-        if (!st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0 && (st.nbIncl || 0) === 0)) {
+        const nbIncl = st ? (st.nbIncl || 0) : 0;
+        const texteVide = !st || (st.nbAnon === 0 && st.nbExc === 0 && st.nbNon === 0 && nbIncl === 0);
+        const locP = st ? (st.nbLocPending || 0) : 0;
+        const locR = st ? (st.nbLocResolu || 0) : 0;
+
+        // Rien du tout (ni texte, ni libellé) → tiret, pas de couleur.
+        if (texteVide && locP === 0 && locR === 0) {
             tdEtat.innerHTML = '<span style="color:#bbb;font-size:0.8rem;">—</span>';
             tr.style.backgroundColor = '';
             continue;
         }
 
-        // Badges (réutilise les classes btn-nav-cat existantes ; multi-pseudo → 1 badge par variante)
-        tdEtat.innerHTML = construireBadgesEtat(st);
+        // Colonne État : badges TEXTE (si occurrences) sinon tiret ; PAS de compteur pour les libellés.
+        tdEtat.innerHTML = texteVide ? '<span style="color:#bbb;font-size:0.8rem;">—</span>' : construireBadgesEtat(st);
+        // Indicateur LIBELLÉ (personne) : pastille 👤 pour expliquer la couleur combinée (pas un compteur).
+        if (locP > 0 || locR > 0) {
+            const cLoc = locP > 0 ? '#e65100' : '#2e7d32';
+            const titre = locP > 0 ? `${locP} locuteur(s) à pseudonymiser` : 'locuteur(s) pseudonymisé(s)/refusé(s)';
+            tdEtat.innerHTML += ` <span title="${titre}" style="color:${cLoc};font-size:0.8rem;white-space:nowrap;">👤${locP > 0 ? '●' : '✓'}</span>`;
+        }
 
-        // Coloration de la ligne
-        if (st.nbNon > 0) {
-            tr.style.backgroundColor = '#fff3e0'; // orange : occurrences à traiter
-        } else if ((st.nbAnon + st.nbExc + (st.nbIncl || 0)) > 0) {
-            tr.style.backgroundColor = '#e8f5e9'; // vert : entièrement traité (incluse comprise)
+        // Coloration COMBINÉE (plan-locuteurs-pseudo.md) : orange si à traiter (texte OU libellé pending),
+        // sinon vert si quelque chose est fait (texte anonymisé/exception/incluse OU libellé résolu).
+        if (st.nbNon > 0 || locP > 0) {
+            tr.style.backgroundColor = '#fff3e0'; // orange
+        } else if ((st.nbAnon + st.nbExc + nbIncl + locR) > 0) {
+            tr.style.backgroundColor = '#e8f5e9'; // vert
         } else {
             tr.style.backgroundColor = '';
+        }
+    }
+
+    // Le scan vient de révéler la colonne « État corpus » : la table est désormais plus
+    // large qu'au premier dimensionnement (fait AVANT le scan, colonne masquée). On re-mesure
+    // pour que le panneau gauche inclue cette colonne ; sinon la dernière colonne (« Actions »)
+    // déborde et se retrouve tronquée. La fonction respecte une largeur réglée manuellement.
+    if (typeof ajusterLargeurPanneauGauche === 'function') {
+        const pageAnon = document.getElementById('divAnonGenPage');
+        const gauche = pageAnon && pageAnon.querySelector('.anon-page-gauche');
+        const table = gauche && gauche.querySelector('table');
+        if (pageAnon && gauche && table) {
+            ajusterLargeurPanneauGauche(pageAnon, gauche, table);
         }
     }
 }

@@ -107,7 +107,9 @@ function exportTxtAvecClasses(rgDeb, rgFin, avecLoc){
             // ajout du locuteur si changement
             if (locuteur_courant != seg.dataset.loc){
                 locuteur_courant = seg.dataset.loc;
-                let loc = locut[locuteur_courant].replaceAll("?","") ;
+                // Point de passage unique (plan-locuteurs-pseudo.md Étape 0) : repli = nom réel tant
+                // que la pseudonymisation du libellé n'existe pas → sortie inchangée aujourd'hui.
+                let loc = nomLocAffiche(locuteur_courant, { anonymise: true });
                 if (loc) {txtAnonymise += "\r\n \r\n" + loc + " : \r\n";}
                 segment_courant = -1; // Réinitialiser le segment car nouveau locuteur
             }
@@ -172,7 +174,19 @@ function sauvHtmlAnonymise(){
    
    `
 
-    const locJSON = JSON.stringify(locut, null);
+    // ANONYMISATION DES LIBELLÉS (plan-locuteurs-pseudo.md) : le bloc loc-json ne doit pas fuiter les
+    // vrais noms. Pour chaque locuteur pseudonymisé (libellé confirmé OU suggéré), on sérialise le
+    // PSEUDO (nomLocAffiche) ; le statut interrogateur « ? » est préservé. Locuteur sans pseudo (ou
+    // refusé) → nom réel (relève du garde-fou export, non traité ici).
+    const locAnonymise = (locut || []).map((nom, i) => {
+        if (!nom) return nom;
+        const estQ = String(nom).endsWith('?');
+        const aff = (typeof nomLocAffiche === 'function')
+            ? nomLocAffiche(i, { anonymise: true })
+            : String(nom).replace(/\?/g, '');
+        return estQ ? aff + '?' : aff;
+    });
+    const locJSON = JSON.stringify(locAnonymise, null);
     const thmJSON = JSON.stringify(tabThm,null)
     const varJSON = JSON.stringify(tabVar,null)
     const dicJSON = JSON.stringify(tabDic,null)
@@ -283,8 +297,13 @@ function sauvHtmlAnonymise(){
 function AnonymiserSegments() {
     const segmentsEl = document.getElementById('segments');
     if (!segmentsEl) return '';
+    // LIBELLÉS de locuteurs : sur un CLONE (sans toucher le DOM live), remplacer data-nomloc par le nom
+    // AFFICHÉ anonymisé et retirer les marqueurs runtime — sinon le vrai nom fuiterait via le ::before
+    // du libellé dans le fichier partagé. Cœur partagé _anonymiserLiglocsDansElement (anon-regles.js).
+    const clone = segmentsEl.cloneNode(true);
+    _anonymiserLiglocsDansElement(clone);
     // Cœur partagé _anonymiserHtml (anon-regles.js) : remplace chaque run par « [pseudo] », garde
     // exceptions/à-traiter en clair, préserve la structure. (cf. anon.md §8)
-    return _anonymiserHtml(segmentsEl.innerHTML);
+    return _anonymiserHtml(clone.innerHTML);
 }
 
