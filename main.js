@@ -1101,7 +1101,7 @@ function demanderDossierEtNom(parentWindow) {
         
 
         promptWindow.once('ready-to-show', () => {
-         // promptWindow.webContents.openDevTools();
+         
             promptWindow.show();
             
         });
