@@ -4,7 +4,7 @@ on:
     tags:
       - 'v*.*.*'
     branches:
-      - PseudoGlobalV2  # build automatique sur cette branche (artefacts uniquement)
+      - main  # build automatique sur cette branche (artefacts uniquement)
   workflow_dispatch:         # déclenchement manuel depuis l'interface GitHub
 permissions:
   contents: write  # Required for creating releases and uploading assets
