@@ -6,15 +6,37 @@ import { BlocAttributs } from '../editor/schema'
 import { pluginRemap } from '../editor/remap'
 import { pluginDecorations, decorationsPluginKey } from '../editor/decorations'
 import { pluginGouttiere, gouttierePluginKey } from '../editor/locuteursGutter'
+import { pluginLecture, lecturePluginKey } from '../editor/lecture'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
-import { renommerLocuteur, ajouterLocuteur, nomDeLocuteur } from '../../shared/entretien/locuteurs'
+import { pluginRemapJournal } from '../editor/journalRemap'
+import {
+  renommerLocuteur,
+  ajouterLocuteur,
+  supprimerLocuteur,
+  nomDeLocuteur,
+} from '../../shared/entretien/locuteurs'
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
 import { ajouterCodage, retirerAnnotation, trouverCodage, type Entretien } from '../../shared/entretien/entretien'
-import type { EntretienFichier, Locuteur } from '../../shared/format'
+import {
+  projeterAncres,
+  plageCourante,
+  tempsAuPoint,
+  debutTour,
+  type AncreTexte,
+} from '../../shared/entretien/audio'
+import {
+  enregistrer,
+  annuler as annulerAuJournal,
+  estApplicable,
+  type CtxInverse,
+  type Journal,
+} from '../../shared/entretien/journal'
+import type { Ancre } from '../../shared/entretien/audio'
+import { resumeThematique } from '../../shared/corpus'
+import type { EntretienFichier, Locuteur, SegmentThematique } from '../../shared/format'
 import type { LegacyBlobs } from '../import/importSonal'
 
-type Ligne = { id: string; type: string; code: string; from: number; to: number; extrait: string; orpheline: boolean }
 type Extrait = { id: string; texte: string; locuteurs: string[] }
 
 /**
@@ -24,29 +46,50 @@ type Extrait = { id: string; texte: string; locuteurs: string[] }
  * Ne connaît PAS le corpus : ses dépendances de scope sont injectées —
  *  - `couleurTrait` : résout la couleur d'un code (scope corpus) pour le marquage ;
  *  - `apresSauvegarde` : rafraîchit les requêtes corpus après un save (orchestration) ;
- *  - `codeExtraits` : le thème filtrant la requête Extraits (vestige D-S7).
+ *  - `codeExtraits` : le thème filtrant la requête Extraits (vestige D-S7) ;
+ *  - `nomCode` / `libelleValeur` : libellés lisibles pour le journal S5 (les noms
+ *    de thèmes/variables vivent au corpus, le journal vit ici).
  */
 export function useEntretien(deps: {
   couleurTrait: (code: string) => string
+  /** Taille de police (px) d'un code — la `taille` du codebook (scope corpus),
+   *  `undefined` = taille du texte. Même idiome d'injection que `couleurTrait`. */
+  tailleTrait?: (code: string) => number | undefined
   apresSauvegarde: () => Promise<void>
   codeExtraits: () => string
+  nomCode: (code: string) => string
+  libelleValeur: (idVar: string, idMod: string) => string
+  /** S6 : clic sur la gouttière d'un bloc → l'orchestrateur cale l'audio au
+   *  début du tour (le scope entretien ne connaît pas le lecteur). */
+  clicTour?: (posBloc: number) => void
+  /** S7 : clic DANS le texte → l'orchestrateur cale l'audio au temps interpolé
+   *  à cet endroit précis (comme SonalPi — la barre suit, play reprend là). */
+  clicTexte?: (pos: number) => void
+  /** Double-espace dans le texte = play/pause (parité SonalPi). Renvoie `true`
+   *  si un audio était chargé et a donc été (dé)clenché ; `false` sinon (aucun
+   *  audio → l'éditeur laisse la 2ᵉ espace se taper normalement). */
+  basculerLecture?: () => boolean
 }) {
   const auteur = 'moi'
   const genId = () => 'a-' + Math.random().toString(36).slice(2, 9)
 
   // --- Modèle en session (LA vérité ; éditeur et disque = projections) ---
-  const entretien = reactive<Entretien>({ annotations: [] })
+  const entretien = reactive<Entretien>({ annotations: [], ancres: [] })
   const locuteurs = ref<Locuteur[]>([])
   const legacyCourant = ref<LegacyBlobs>({ tabAnon: null, notes: '' })
   const meta = reactive<{ valeursGen: Record<string, string>; audioRef: string | null }>({
     valeursGen: {},
     audioRef: null,
   })
-  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees'>('themes')
+  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal'>('themes')
   const hintCodage = ref<string | null>(null)
   /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (S4 :
    *  « Attribuer la sélection » vs « …le bloc courant »). */
   const selectionVide = ref(true)
+
+  // --- Journal d'actions (S5) : volatil (D-S9), actions de modèle seules (D-S3) ---
+  const journal = reactive<Journal>({ entrees: [] })
+  const genIdJournal = () => 'j-' + Math.random().toString(36).slice(2, 9)
 
   // --- État de persistance de l'entretien ouvert ---
   const ouvertId = ref<string | null>(null)
@@ -61,15 +104,54 @@ export function useEntretien(deps: {
     addProseMirrorPlugins() {
       return [
         pluginRemap(entretien),
-        pluginDecorations(entretien, deps.couleurTrait),
-        pluginGouttiere(() => locuteurs.value),
+        pluginRemapJournal(journal),
+        pluginDecorations(entretien, deps.couleurTrait, deps.tailleTrait),
+        pluginGouttiere(() => locuteurs.value, deps.clicTour),
+        pluginLecture(),
       ]
     },
   })
+  // Double-espace = play/pause (parité SonalPi) : dans le texte, une espace tape
+  // un caractère — c'est la 2ᵉ espace rapprochée qui sert de commande de lecture.
+  const SEUIL_DOUBLE_ESPACE = 300 // ms
+  let derniereEspace = 0
   const editor = useEditor({
     content: '<p></p>',
     extensions: [StarterKit, BlocAttributs, MoteurExtension],
-    editorProps: { attributes: { class: 'editeur' } },
+    editorProps: {
+      attributes: { class: 'editeur' },
+      // Un CLIC (pas un drag de sélection) → seek audio à cet endroit (S7).
+      // On ne consomme pas l'événement : le curseur se place normalement.
+      handleClick: (_view, pos) => {
+        deps.clicTexte?.(pos)
+        return false
+      },
+      // Deux espaces à moins de SEUIL_DOUBLE_ESPACE = play/pause : on retire la
+      // 1ʳᵉ espace (déjà insérée) et on consomme la 2ᵉ. Ne se déclenche QUE si un
+      // audio est chargé (sinon `basculerLecture` renvoie false → frappe normale).
+      handleKeyDown: (view, event) => {
+        // Toute autre touche « coupe » la séquence : seules DEUX espaces
+        // consécutives (rien entre elles) comptent, jamais deux espaces
+        // rapprochées dans le temps mais séparées par de la frappe.
+        if (event.key !== ' ') {
+          derniereEspace = 0
+          return false
+        }
+        const now = Date.now()
+        const rapprochee = now - derniereEspace < SEUIL_DOUBLE_ESPACE
+        derniereEspace = now
+        if (!rapprochee) return false // 1ʳᵉ espace : frappe normale
+        if (!deps.basculerLecture?.()) return false // pas d'audio : ne rien manger
+        derniereEspace = 0 // évite qu'une 3ᵉ espace enchaîne un nouveau toggle
+        event.preventDefault()
+        // Retirer la 1ʳᵉ espace, déjà insérée juste avant le curseur.
+        const { from } = view.state.selection
+        if (from > 0 && view.state.doc.textBetween(from - 1, from) === ' ') {
+          view.dispatch(view.state.tr.delete(from - 1, from))
+        }
+        return true
+      },
+    },
     onUpdate: () => {
       rafraichir()
       planifierSauvegarde()
@@ -87,21 +169,67 @@ export function useEntretien(deps: {
     if (ed) ed.view.dispatch(ed.state.tr.setMeta(gouttierePluginKey, 'refresh'))
   }
 
-  // --- Projections lisibles du modèle (panneau debug + requête Extraits D-S7) ---
-  const lignes = ref<Ligne[]>([])
-  const extraits = ref<Extrait[]>([])
-  function rafraichir() {
+  // --- Journal (S5) : contexte d'inverse + projection affichable ---
+  /** Le contexte sur lequel un inverse s'applique : le modèle + l'accès aux blocs
+   *  du doc (injecté ici — le module journal reste pur). */
+  function ctxInverse(): CtxInverse {
     const ed = editor.value
-    lignes.value = entretien.annotations.map((a: Annotation) => ({
-      id: a.id,
-      type: a.type,
-      code: a.code ?? '',
-      from: a.from,
-      to: a.to,
-      orpheline: estOrpheline(a),
-      extrait: ed && !estOrpheline(a) ? ed.state.doc.textBetween(a.from, a.to, ' ') : '—',
+    return {
+      entretien,
+      locuteurs: locuteurs.value,
+      valeursGen: meta.valeursGen,
+      blocs: ed
+        ? {
+            locDe: (pos) => {
+              const n = ed.state.doc.nodeAt(pos)
+              return n?.type.name === 'paragraph' ? ((n.attrs.loc ?? null) as number | null) : undefined
+            },
+            poserLoc: (pos, loc) => {
+              const n = ed.state.doc.nodeAt(pos)
+              if (n) ed.view.dispatch(ed.state.tr.setNodeMarkup(pos, undefined, { ...n.attrs, loc }))
+            },
+          }
+        : undefined,
+    }
+  }
+  type LigneJournal = { id: string; heure: string; libelle: string; annulable: boolean }
+  const entreesJournal = ref<LigneJournal[]>([])
+  /** Projection du journal (REQUÊTE : l'annulabilité dépend de l'état courant du
+   *  modèle/doc — recalculée, jamais stockée). */
+  function rafraichirJournal() {
+    const ctx = ctxInverse()
+    entreesJournal.value = journal.entrees.map((e) => ({
+      id: e.id,
+      heure: new Date(e.horodatage).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      libelle: e.libelle,
+      annulable: estApplicable(e.inverse, ctx),
     }))
+  }
+  /** Annule une entrée : applique son inverse si encore applicable, la retire du
+   *  journal, redessine et autosave. Cible disparue → rien (l'entrée reste grisée). */
+  function annulerEntree(id: string) {
+    if (annulerAuJournal(journal, id, ctxInverse())) {
+      rafraichir()
+      rafraichirDecorations()
+      rafraichirGouttiere()
+      planifierSauvegarde()
+    }
+    rafraichirJournal()
+  }
+
+  // --- Projections lisibles du modèle (requête Extraits D-S7 + journal S5) ---
+  const extraits = ref<Extrait[]>([])
+  /** Résumé thématique LIVE de l'entretien ouvert (calque de la bande du lecteur) :
+   *  recalculé avec les autres projections — même requête pure que les cartes
+   *  Corpus, sur le modèle en session au lieu du disque. */
+  const resumeOuvert = ref<SegmentThematique[]>([])
+  function rafraichir() {
     rafraichirExtraits()
+    rafraichirJournal() // l'annulabilité dépend du doc et des annotations
+    const ed = editor.value
+    resumeOuvert.value = ed
+      ? resumeThematique({ corpsTexte: ed.getJSON(), annotations: entretien.annotations })
+      : []
   }
   /** Extraits du thème courant (REQUÊTE, rien de stocké ; UI retirée — D-S7, mais la
    *  requête reste dans le code). Une annotation = UN extrait même à cheval sur blocs. */
@@ -128,6 +256,100 @@ export function useEntretien(deps: {
       })
   }
 
+  // --- Synchro audio (S7, D-S14) : ancres projetées + plage lue ---
+  /** MÉMO de la projection des ancres en coordonnées texte (dérivation, jamais
+   *  persistée) — invalidé quand le doc change (identité du doc PM) : en lecture
+   *  sans édition, le tick reste une pure dichotomie (invariant perf D-S14). */
+  let projection: { doc: unknown; ancres: AncreTexte[] } | null = null
+  function ancresTexte(): AncreTexte[] {
+    const ed = editor.value
+    if (!ed) return []
+    if (!projection || projection.doc !== ed.state.doc) {
+      const longueurs: number[] = []
+      ed.state.doc.forEach((node) => {
+        if (node.type.name === 'paragraph') longueurs.push(node.content.size)
+      })
+      projection = { doc: ed.state.doc, ancres: projeterAncres(entretien.ancres, longueurs) }
+    }
+    return projection.ancres
+  }
+
+  /** Plage actuellement surlignée (cache d'égalité : on ne dispatch que si elle
+   *  CHANGE — le remap du plugin suit les éditions entre-temps). */
+  let plageLue: { de: number; a: number } | null = null
+  /** Cale le surlignage sur l'instant de lecture `t` (null = éteindre) et fait
+   *  défiler le texte vers la plage lue. La plage = les 2 ancres du MODÈLE qui
+   *  encadrent `t` (indices partagés avec la projection, ordre 1:1). */
+  function majPlageLue(t: number | null) {
+    const ed = editor.value
+    if (!ed) return
+    const idx = t == null ? null : plageCourante(ancresTexte(), t)
+    const plage =
+      idx == null ? null : { de: entretien.ancres[idx.g].pos, a: entretien.ancres[idx.d].pos }
+    if (plage?.de === plageLue?.de && plage?.a === plageLue?.a) return
+    plageLue = plage
+    ed.view.dispatch(ed.state.tr.setMeta(lecturePluginKey, plage))
+    if (plage) {
+      const dom = ed.view.domAtPos(plage.de).node
+      const el = dom instanceof HTMLElement ? dom : dom.parentElement
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
+  /** Place le curseur à `pos` (bornée au doc) et fait défiler le texte jusque-là
+   *  (point de reprise : revenir à l'endroit du texte où on a quitté). */
+  function allerAuTexte(pos: number) {
+    const ed = editor.value
+    if (!ed) return
+    const p = Math.max(1, Math.min(pos, ed.state.doc.content.size - 1))
+    ed.commands.setTextSelection(p)
+    const dom = ed.view.domAtPos(p).node
+    const el = dom instanceof HTMLElement ? dom : dom.parentElement
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  /** Temps interpolé à la position de texte `pos` (clic DANS le texte → seek
+   *  précis, comme SonalPi). Aujourd'hui : prorata entre les 2 ancres qui
+   *  encadrent le point (D-S13) ; avec des ancres au mot, la précision suivra
+   *  toute seule. null si aucune ancre (texte sans timecodes). */
+  function tempsAuTexte(pos: number): number | null {
+    const ed = editor.value
+    if (!ed) return null
+    let x = 0
+    let xClic: number | null = null
+    ed.state.doc.forEach((node, offset) => {
+      if (node.type.name !== 'paragraph' || xClic != null) return
+      const debut = offset + 1
+      if (pos <= debut + node.content.size) {
+        xClic = x + Math.max(0, Math.min(node.content.size, pos - debut))
+      } else {
+        x += node.content.size
+      }
+    })
+    return xClic == null ? null : tempsAuPoint(ancresTexte(), xClic)
+  }
+
+  /** Temps de seek pour un clic-tour sur le bloc à `posBloc` : le temps
+   *  interpolé au DÉBUT du tour contenant ce bloc (D-S2 : tour dérivé ;
+   *  D-S13 : interpolation entre ancres si le début du tour n'en porte pas). */
+  function tempsDuBloc(posBloc: number): number | null {
+    const ed = editor.value
+    if (!ed) return null
+    const locs: (number | null)[] = []
+    const xDebuts: number[] = []
+    let k = -1
+    let x = 0
+    ed.state.doc.forEach((node, offset) => {
+      if (node.type.name !== 'paragraph') return
+      if (offset === posBloc) k = locs.length
+      locs.push((node.attrs.loc ?? null) as number | null)
+      xDebuts.push(x)
+      x += node.content.size
+    })
+    if (k < 0) return null
+    return tempsAuPoint(ancresTexte(), xDebuts[debutTour(locs, k)])
+  }
+
   // --- Autosave (débounce) + persistance de l'entretien ouvert ---
   let tid: ReturnType<typeof setTimeout> | undefined
   function planifierSauvegarde() {
@@ -149,6 +371,7 @@ export function useEntretien(deps: {
     return {
       corpsTexte: ed.getJSON(),
       annotations: entretien.annotations.map((a) => ({ ...a })),
+      ancres: entretien.ancres.map((a) => ({ ...a })),
       // Clone PLAT : locuteurs.value est un proxy réactif Vue, non clonable par l'IPC
       // Electron (structured clone) → on l'aplatit avant l'envoi.
       locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
@@ -179,15 +402,22 @@ export function useEntretien(deps: {
     // puis recharger le doc, puis reposer les annotations (positions valides par
     // construction contre ce doc), puis redessiner.
     entretien.annotations.splice(0, entretien.annotations.length)
+    entretien.ancres.splice(0, entretien.ancres.length)
     locuteurs.value = res.data.locuteurs
     ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
     for (const a of res.data.annotations) entretien.annotations.push(a)
+    for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
     meta.valeursGen = { ...res.data.meta.valeursGen }
     meta.audioRef = res.data.meta.audioRef
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
     perime.value = res.perime
     chargement = false
+    journal.entrees.length = 0 // volatil PAR entretien (D-S9)
+    // Le surlignage audio ne survit pas au changement de doc (dispatch direct :
+    // la garde d'égalité de majPlageLue ne voit pas un remplacement de doc).
+    plageLue = null
+    ed.view.dispatch(ed.state.tr.setMeta(lecturePluginKey, null))
     rafraichir()
     rafraichirDecorations()
     rafraichirGouttiere()
@@ -197,10 +427,15 @@ export function useEntretien(deps: {
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
   function reinitialiser() {
     ouvertId.value = null
+    journal.entrees.length = 0
     entretien.annotations.splice(0, entretien.annotations.length)
+    entretien.ancres.splice(0, entretien.ancres.length)
     editor.value?.commands.setContent('<p></p>', { emitUpdate: false })
     refusFormat.value = null
     perime.value = false
+    plageLue = null
+    const ed = editor.value
+    if (ed) ed.view.dispatch(ed.state.tr.setMeta(lecturePluginKey, null))
     rafraichir()
     rafraichirDecorations()
   }
@@ -219,14 +454,25 @@ export function useEntretien(deps: {
     }
     hintCodage.value = null
     const existant = trouverCodage(entretien, { ...snapped, code })
-    if (existant) retirerAnnotation(entretien, existant.id)
-    else ajouterCodage(entretien, { ...snapped, code, auteur }, genId)
-    rafraichir()
-    rafraichirDecorations()
-    planifierSauvegarde()
-  }
-  function retirer(id: string) {
-    retirerAnnotation(entretien, id)
+    if (existant) {
+      retirerAnnotation(entretien, existant.id)
+      // L'objet retiré survit dans l'entrée : journalRemap continue à le remapper.
+      enregistrer(
+        journal,
+        `Codage retiré : ${deps.nomCode(code)}`,
+        { type: 'reposerAnnotation', annotation: existant },
+        genIdJournal,
+      )
+    } else {
+      const a = ajouterCodage(entretien, { ...snapped, code, auteur }, genId)
+      if (a)
+        enregistrer(
+          journal,
+          `Codage posé : ${deps.nomCode(code)}`,
+          { type: 'retirerAnnotation', annotationId: a.id },
+          genIdJournal,
+        )
+    }
     rafraichir()
     rafraichirDecorations()
     planifierSauvegarde()
@@ -249,21 +495,49 @@ export function useEntretien(deps: {
   function attribuerLoc(loc: number | null) {
     const ed = editor.value
     if (!ed) return
+    const libelle = `Locuteur attribué : ${nomDeLocuteur(locuteurs.value, loc) || 'aucun'}`
     if (ed.state.selection.empty) {
+      const { $from } = ed.state.selection
+      const pos = $from.before($from.depth)
+      const ancien = ($from.parent.attrs.loc ?? null) as number | null
       ed.chain().focus().updateAttributes('paragraph', { loc }).run()
+      if (ancien !== loc)
+        enregistrer(journal, libelle, { type: 'restaurerLocs', blocs: [{ pos, loc: ancien }] }, genIdJournal)
     } else {
       const { from, to } = snapBornes(ed.state, ed.state.selection.from, ed.state.selection.to)
-      const tr = attribuerSelectionTr(ed.state, from, to, loc)
-      if (tr) {
-        ed.view.dispatch(tr)
+      const r = attribuerSelectionTr(ed.state, from, to, loc)
+      if (r) {
+        ed.view.dispatch(r.tr)
         ed.view.focus()
+        // L'inverse : restaurer l'ancien loc des blocs qui ont VRAIMENT changé
+        // (positions valides post-dispatch ; enregistrées APRÈS → pas re-remappées).
+        const changes = r.blocs.filter((b) => b.ancien !== loc)
+        if (changes.length)
+          enregistrer(
+            journal,
+            libelle,
+            { type: 'restaurerLocs', blocs: changes.map((b) => ({ pos: b.pos, loc: b.ancien })) },
+            genIdJournal,
+          )
         rafraichir() // le doc a changé : les positions d'annotations ont été remappées
       }
     }
+    rafraichirJournal()
     planifierSauvegarde()
   }
   function renommerLoc(index: number, evt: Event) {
-    renommerLocuteur(locuteurs.value, index, (evt.target as HTMLInputElement).value)
+    const nouveau = (evt.target as HTMLInputElement).value
+    const ancien = locuteurs.value.find((l) => l.index === index)?.nom
+    renommerLocuteur(locuteurs.value, index, nouveau)
+    if (ancien !== undefined && ancien !== nouveau) {
+      enregistrer(
+        journal,
+        `Locuteur renommé : ${ancien} → ${nouveau}`,
+        { type: 'renommerLocuteur', index, nom: ancien },
+        genIdJournal,
+      )
+      rafraichirJournal()
+    }
     rafraichirGouttiere()
     planifierSauvegarde()
   }
@@ -272,16 +546,80 @@ export function useEntretien(deps: {
     rafraichirGouttiere()
     planifierSauvegarde()
   }
+  /** (Dé)clare un locuteur INTERVIEWER : ses tours passent en italique (le
+   *  pendant du « ? » SonalPi). Hors journal S5 (comme + Locuteur) : l'inverse
+   *  est le re-clic du même interrupteur. */
+  function setInterviewer(index: number, actif: boolean) {
+    const l = locuteurs.value.find((x) => x.index === index)
+    if (!l || (l.interviewer ?? false) === actif) return
+    l.interviewer = actif
+    rafraichirGouttiere()
+    planifierSauvegarde()
+  }
+
+  // --- Suppression d'un locuteur (acte destructif : nom + valeurs EAV + le
+  // lien de ses blocs — confirmation in-app, comme les thèmes D-S10) ---
+  const locuteurASupprimer = ref<{ index: number; nom: string; nbBlocs: number } | null>(null)
+  function demanderSuppressionLocuteur(index: number) {
+    const ed = editor.value
+    const l = locuteurs.value.find((x) => x.index === index)
+    if (!ed || !l) return
+    let nbBlocs = 0
+    ed.state.doc.forEach((node) => {
+      if (node.type.name === 'paragraph' && node.attrs.loc === index) nbBlocs++
+    })
+    locuteurASupprimer.value = { index, nom: l.nom, nbBlocs }
+  }
+  /** Confirme : ses blocs passent à « aucun » (UNE transaction — le remap et le
+   *  journal la voient passer), puis l'entrée quitte la liste. Non journalisé
+   *  (non réversible, comme la suppression de thème). */
+  function confirmerSuppressionLocuteur() {
+    const ed = editor.value
+    const cible = locuteurASupprimer.value
+    if (!ed || !cible) return
+    const tr = ed.state.tr
+    ed.state.doc.forEach((node, offset) => {
+      if (node.type.name === 'paragraph' && node.attrs.loc === cible.index) {
+        tr.setNodeMarkup(offset, undefined, { ...node.attrs, loc: null })
+      }
+    })
+    if (tr.steps.length) ed.view.dispatch(tr)
+    supprimerLocuteur(locuteurs.value, cible.index)
+    locuteurASupprimer.value = null
+    rafraichir() // des entrées de journal visant ce locuteur deviennent grisées
+    rafraichirGouttiere()
+    planifierSauvegarde()
+  }
 
   // --- Valeurs EAV de CET entretien (chez leur propriétaire, pas de l="all") ---
   function setValeurGen(idVar: string, idMod: string) {
+    const ancien = meta.valeursGen[idVar] ?? null
     if (idMod) meta.valeursGen[idVar] = idMod
     else delete meta.valeursGen[idVar]
+    if (ancien !== (idMod || null)) {
+      enregistrer(
+        journal,
+        `Valeur : ${deps.libelleValeur(idVar, idMod)}`,
+        { type: 'poserValeurGen', idVar, idMod: ancien },
+        genIdJournal,
+      )
+      rafraichirJournal()
+    }
     planifierSauvegarde()
   }
   function setValeurLoc(index: number, idVar: string, idMod: string) {
     const l = locuteurs.value.find((x) => x.index === index)
     if (!l) return
+    const ancien = l.valeursLoc[idVar] ?? null
+    if (ancien !== (idMod || null)) {
+      enregistrer(
+        journal,
+        `Valeur (${l.nom}) : ${deps.libelleValeur(idVar, idMod)}`,
+        { type: 'poserValeurLoc', index, idVar, idMod: ancien },
+        genIdJournal,
+      )
+      rafraichirJournal()
+    }
     if (idMod) l.valeursLoc[idVar] = idMod
     else delete l.valeursLoc[idVar]
     planifierSauvegarde()
@@ -291,6 +629,7 @@ export function useEntretien(deps: {
   function donneesExport(): {
     corpsTexte: unknown
     annotations: Annotation[]
+    ancres: Ancre[]
     locuteurs: Locuteur[]
     meta: { valeursGen: Record<string, string> }
     legacy: LegacyBlobs
@@ -298,6 +637,7 @@ export function useEntretien(deps: {
     return {
       corpsTexte: editor.value!.getJSON(),
       annotations: entretien.annotations.map((a) => ({ ...a })),
+      ancres: entretien.ancres.map((a) => ({ ...a })),
       locuteurs: locuteurs.value,
       meta: { valeursGen: meta.valeursGen },
       legacy: legacyCourant.value,
@@ -322,14 +662,18 @@ export function useEntretien(deps: {
     refusFormat,
     etatSauvegarde,
     editor,
-    lignes,
+    entreesJournal,
+    annulerEntree,
     // gestes
     coderAvec,
-    retirer,
     retirerCodagesDuCode,
     attribuerLoc,
     renommerLoc,
     nouveauLocuteur,
+    setInterviewer,
+    locuteurASupprimer,
+    demanderSuppressionLocuteur,
+    confirmerSuppressionLocuteur,
     setValeurGen,
     setValeurLoc,
     // cycle de vie / persistance
@@ -340,5 +684,11 @@ export function useEntretien(deps: {
     // rafraîchissements (l'App les déclenche après des changements corpus)
     rafraichir,
     rafraichirDecorations,
+    resumeOuvert,
+    // synchro audio (S7)
+    majPlageLue,
+    allerAuTexte,
+    tempsDuBloc,
+    tempsAuTexte,
   }
 }

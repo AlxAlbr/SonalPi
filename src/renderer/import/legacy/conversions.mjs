@@ -243,6 +243,17 @@ export function Phrasifier(tabSeg) {
 // affecte le locuteur, retire le préfixe « Speaker N » du texte, et nettoie les
 // « Speaker i: » intempestifs. Mute tabSeg en place ; renvoie { tabSeg, locut }.
 // Pur : l'ancien stash window.tabLocImport / setTabLoc (déjà commenté) est supprimé.
+//
+// ⚠️ Corrections assumées par rapport à SonalPi (bugs constatés à l'import) :
+//  - le NOM garde la numérotation du fichier (« Speaker 3 » reste « Speaker 3 » ;
+//    SonalPi renommait N → N+1) ;
+//  - l'INDEX du bloc est la position du nom dans `locut` (contrat d'import :
+//    position dans le tableau = index du locuteur). SonalPi posait N+1 en index,
+//    faux dès que la numérotation du fichier a des trous (Speaker 3, Speaker 7 →
+//    blocs pointant vers des locuteurs inexistants) ;
+//  - numéros multi-chiffres acceptés (« Speaker 12 », SonalPi lisait 1 chiffre) ;
+//  - préfixe « None: » (diarisation sans locuteur identifié) → bloc SANS locuteur,
+//    préfixe retiré du texte.
 export function convertSpeaker(tabSeg) {
   const locut = ['']; // locut[0] n'existe pas
 
@@ -250,22 +261,22 @@ export function convertSpeaker(tabSeg) {
     const txt = tabSeg[s][4];
     if (!txt || txt.trim() === "") { continue; } // segment vide
 
-    const spk = txt.indexOf("Speaker "); // recherche d'un speaker
-    if (spk == 0) {
-      let rg = txt.substr(8, 1);
-      rg = Number(rg) + 1;
-      tabSeg[s][3] = rg; // affectation du locuteur
+    const mNone = txt.match(/^None\s*:\s*/);
+    if (mNone) {
+      tabSeg[s][4] = txt.slice(mNone[0].length);
+      continue;
+    }
 
-      const nomLoc = "Speaker " + (rg);
+    const m = txt.match(/^Speaker\s+(\d+)\s*:\s*/); // recherche d'un speaker
+    if (m) {
+      const nomLoc = "Speaker " + m[1];
       if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
-
-      tabSeg[s][4] = txt.substr(11); // suppression du préfixe "Speaker N"
+      tabSeg[s][3] = locut.indexOf(nomLoc); // affectation du locuteur
+      tabSeg[s][4] = txt.slice(m[0].length); // suppression du préfixe "Speaker N: "
     }
 
     // suppression des "Speaker i:" intempestifs dans le corps du texte
-    for (let i = 0; i < 10; i++) {
-      tabSeg[s][4] = tabSeg[s][4].replaceAll("Speaker " + i + ":", "");
-    }
+    tabSeg[s][4] = tabSeg[s][4].replace(/Speaker\s+\d+\s*:/g, "");
   }
 
   return { tabSeg, locut };
@@ -415,13 +426,17 @@ export function convertVTT(content) {
         tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
         lignetxt = lignetxt.replace(/^<v\s+[^>]+>/, "");
       }
-      // 2. préfixe "Speaker N"
+      // 2. préfixe "Speaker N" (numérotation du fichier conservée, cf. convertSpeaker)
       else if (/^Speaker\s+\d+/.test(lignetxt)) {
-        const rg = Number(lignetxt.substr(8, 1)) + 1;
-        const nomLoc = "Speaker " + rg;
+        const m = lignetxt.match(/^Speaker\s+(\d+)\s*:?\s*/);
+        const nomLoc = "Speaker " + m[1];
         if (!locut.includes(nomLoc)) { locut.push(nomLoc); }
         tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
-        lignetxt = lignetxt.substr(11);
+        lignetxt = lignetxt.slice(m[0].length);
+      }
+      // 3. préfixe "None:" (diarisation sans locuteur identifié) → pas de locuteur
+      else if (/^None\s*:/.test(lignetxt)) {
+        lignetxt = lignetxt.replace(/^None\s*:\s*/, "");
       }
 
       lignetxt = lignetxt.replace(/<[^>]+>/g, ""); // balises VTT restantes

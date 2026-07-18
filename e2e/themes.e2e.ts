@@ -1,12 +1,21 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ouvrir, ouvrirSurCorpus, retourCorpus, coderTheme } from './util'
+import {
+  ouvrir,
+  ouvrirSurCorpus,
+  retourCorpus,
+  coderTheme,
+  compterAnnotations,
+  ouvrirEditionThemes,
+  fermerEditionThemes,
+} from './util'
 
 /**
- * ÉTAPE 5 + S2 + S3 — thèmes GÉRÉS à l'écran CORPUS (CRUD/couleur/ordre/suppression)
- * tandis que le CODAGE se fait à l'écran Entretien via l'onglet Thématique (clic =
- * coder — S3). Invariants : (1) recolorer se reflète en direct SANS écrire dans
- * l'entretien ; (2) cliquer un thème code la sélection ; (3) supprimer un thème
- * utilisé = refus + compteur.
+ * ÉTAPE 5 + S2 + S3 + S8 — les thèmes s'ÉDITENT dans la fenêtre EditionThemes
+ * (crayon, parité SonalPi : nom/couleur/taille/arbre), ouverte depuis l'écran
+ * Corpus OU l'onglet Thématique ; le CODAGE se fait à l'écran Entretien (clic =
+ * coder — S3). Invariants : (1) recolorer/retailler se reflète en direct SANS
+ * écrire dans l'entretien ; (2) cliquer un thème code la sélection ; (3)
+ * supprimer un thème utilisé = refus + compteur.
  */
 
 /** Code le 1er mot (curseur au début → snap « Karine ») avec « Famille » (cat_001). */
@@ -15,18 +24,23 @@ async function coderPremierMot(page: Page) {
   await coderTheme(page, 'Famille')
 }
 
-test('recolorer un thème (écran Corpus) se reflète en direct sur le codage, sans re-sauver', async () => {
+test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur le codage, sans réécrire l’entretien', async () => {
   const { app, page } = await ouvrir('sonal-thm-')
   await coderPremierMot(page) // code cat_001 sur « Karine » (écran Entretien)
-  await expect(page.locator('.debug li')).toHaveCount(1)
+  await expect.poll(() => compterAnnotations(page)).toBe(1)
   await expect(page.locator('.etat')).toHaveText('à jour') // autosave terminé
 
-  // Retour Corpus, recolore cat_001 (1er swatch) en rouge (fill dispatche input+change).
+  // Retour Corpus (FERME l'entretien, D-S11 rév.), recolore cat_001 en rouge
+  // dans la fenêtre d'édition (fill dispatche input+change).
   await retourCorpus(page)
-  await page.locator('.swatch').first().fill('#ff0000')
+  await ouvrirEditionThemes(page)
+  await page.locator('.liste-thm li[data-nom="Famille"] .swatch').fill('#ff0000')
+  await fermerEditionThemes(page)
 
-  // Le surlignage suit (résolution par id, l'éditeur reste monté), et l'entretien
-  // N'A PAS été re-sauvé par le recoloriage (éditer une définition ≠ un entretien).
+  // Rouvrir via la reprise : le surlignage porte la nouvelle couleur (résolue
+  // par id à la projection — jamais copiée dans l'entretien), et l'entretien
+  // n'a pas été touché par le recoloriage (pas de re-sauvegarde).
+  await page.locator('.corpus-ecran .btn-reprise').click()
   await expect(page.locator('.editeur .annot')).toHaveAttribute('style', /rgb\(255, 0, 0\)/)
   await expect(page.locator('.etat')).toHaveText('à jour')
   await app.close()
@@ -38,50 +52,102 @@ test('cliquer un thème dans l’onglet Thématique code la sélection (clic = c
   // Sélection (caret au début → snap « Karine »), puis clic sur « Travail » (cat_002).
   await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
   await coderTheme(page, 'Travail')
-  await expect(page.locator('.debug li code').first()).toHaveText('cat_002')
+  await expect(page.locator('.editeur .annot').first()).toHaveAttribute('title', /cat_002/)
   await app.close()
 })
 
-test('double-cliquer un thème permet de le renommer', async () => {
+test('renommer un thème dans la fenêtre d’édition → reflété dans le panneau', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-thm-')
-  await page.locator('.liste-thm li', { hasText: 'Famille' }).locator('.nom-thm-label').dblclick()
-  const champ = page.locator('.liste-thm li .nom-thm')
+  await ouvrirEditionThemes(page)
+  const champ = page.locator('.liste-thm li[data-nom="Famille"] .nom-thm')
   await champ.fill('Famille élargie')
   await champ.press('Enter')
-  await expect(page.locator('.liste-thm li').first()).toContainText('Famille élargie')
+  await expect(page.locator('.liste-thm li[data-nom="Famille élargie"]')).toHaveCount(1)
+  await fermerEditionThemes(page)
+  // Le panneau compact (consultation) reflète le nouveau nom.
+  await expect(page.locator('.liste-thm-lecture li').first()).toContainText('Famille élargie')
   await app.close()
 })
 
-test('une annotation à cheval sur deux blocs reste UNE entité (debug)', async () => {
+test('poser une taille de police sur un thème → les passages codés la portent', async () => {
+  const { app, page } = await ouvrir('sonal-thm-')
+  await coderPremierMot(page) // cat_001 sur « Karine »
+  await expect.poll(() => compterAnnotations(page)).toBe(1)
+
+  // Taille 24 sur « Famille » depuis la fenêtre d'édition (ouverte ICI, dans
+  // l'entretien — même fenêtre que côté Corpus).
+  await ouvrirEditionThemes(page)
+  await page.locator('.liste-thm li[data-nom="Famille"] .taille-thm').selectOption('24')
+  await fermerEditionThemes(page)
+  // Taille + GRAS, indissociables (parité SonalPi : son CSS généré pose les deux).
+  // L'effet ne s'applique QU'AU marquage dans le texte — le nom du thème dans
+  // l'onglet reste en taille uniforme (décision utilisateur).
+  await expect(page.locator('.editeur .annot')).toHaveAttribute('style', /font-size:\s*24px/)
+  await expect(page.locator('.editeur .annot')).toHaveAttribute('style', /font-weight:\s*bold/)
+  await expect(page.locator('.theme-coder .theme-nom', { hasText: 'Famille' })).not.toHaveAttribute(
+    'style',
+    /font-size/,
+  )
+
+  // Revenir à la taille du texte (défaut 16) → le font-size disparaît du marquage.
+  await ouvrirEditionThemes(page)
+  await page.locator('.liste-thm li[data-nom="Famille"] .taille-thm').selectOption('')
+  await fermerEditionThemes(page)
+  await expect(page.locator('.editeur .annot')).not.toHaveAttribute('style', /font-size/)
+  await app.close()
+})
+
+test('coder → la carte Corpus porte le résumé thématique (calque, clic = rouvrir au texte)', async () => {
+  const { app, page } = await ouvrir('sonal-resume-')
+  await coderPremierMot(page) // « Famille » sur « Karine » (début du texte)
+  await expect(page.locator('.etat')).toHaveText('à jour') // codage sur disque
+
+  // Retour Corpus : la carte porte UN segment de résumé, calé au début (% du
+  // texte, parité SonalPi), coloré et titré par le thème.
+  await retourCorpus(page)
+  const seg = page.locator('.carte-ent .xtr-graph')
+  await expect(seg).toHaveCount(1)
+  await expect(seg).toHaveAttribute('title', 'Famille')
+  await expect(seg).toHaveAttribute('style', /left:\s*0%/)
+  await expect(seg).toHaveAttribute('style', /linear-gradient/)
+
+  // Clic sur le segment → rouvre l'entretien (le texte codé est là).
+  await seg.click()
+  await expect(page.locator('.editeur')).toContainText('Karine')
+  await app.close()
+})
+
+test('une annotation à cheval sur deux blocs reste UNE entité (ids des décorations)', async () => {
   const { app, page } = await ouvrir('sonal-thm-')
   const ed = page.locator('.editeur')
 
   // Tout sélectionner (le seed = 2 blocs) puis coder → UNE seule annotation qui
-  // enjambe les deux blocs (l'Extraits UI est retiré — D-S7 ; on vérifie
-  // l'invariant « le codage enjambe » via l'extrait du panneau debug).
+  // enjambe les deux blocs : PLUSIEURS segments décorés (un par bloc), mais tous
+  // porteurs du MÊME id d'annotation (l'invariant « le codage enjambe »).
   await ed.click()
   await ed.press('ControlOrMeta+a')
   await coderTheme(page, 'Famille')
 
-  await expect(page.locator('.debug li')).toHaveCount(1)
-  const li = page.locator('.debug li').first()
-  await expect(li.locator('.extrait')).toContainText('retraite') // bloc 1
-  await expect(li.locator('.extrait')).toContainText('Elle parle') // bloc 2
+  await expect.poll(() => compterAnnotations(page)).toBe(1) // UNE entité…
+  expect(await ed.locator('.annot').count()).toBeGreaterThan(1) // …en plusieurs segments
+  await expect(ed.locator('.annot', { hasText: 'retraite' })).toHaveCount(1) // bloc 1
+  await expect(ed.locator('.annot', { hasText: 'Elle parle' })).toHaveCount(1) // bloc 2
   await app.close()
 })
 
 test('créer un sous-thème → apparaît indenté sous son parent (hiérarchie D-S8)', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-hier-')
+  await ouvrirEditionThemes(page)
 
   // « + sous » sur « Famille » (thème racine, ordre 0).
-  await page.locator('.liste-thm li', { hasText: 'Famille' }).first().locator('.mini-sous').click()
+  await page.locator('.liste-thm li[data-nom="Famille"] .mini-sous').click()
 
   // Un sous-thème apparaît, indenté (profondeur 1 → padding-left 1.1rem inline).
-  const sous = page.locator('.liste-thm li', { hasText: 'Nouveau sous-thème' })
+  const sous = page.locator('.liste-thm li[data-nom="Nouveau sous-thème"]')
   await expect(sous).toHaveCount(1)
   await expect(sous).toHaveAttribute('style', /padding-left:\s*1\.1rem/)
   // Le thème racine « Famille » reste à plat (padding-left 0rem).
-  await expect(page.locator('.liste-thm li', { hasText: 'Famille' }).first()).toHaveAttribute(
+  await expect(page.locator('.liste-thm li[data-nom="Famille"]')).toHaveAttribute(
     'style',
     /padding-left:\s*0rem/,
   )
@@ -94,13 +160,15 @@ test('supprimer un thème utilisé est refusé avec un compteur ; un thème inut
   await expect(page.locator('.etat')).toHaveText('à jour') // sur disque → compte fiable
 
   await retourCorpus(page)
-  // Supprimer cat_001 (utilisé) → refus + compteur, toujours 3 thèmes.
-  await page.locator('.liste-thm li').first().locator('.x').click()
-  await expect(page.locator('.msg-thm')).toContainText('utilisé 1')
-  await expect(page.locator('.liste-thm li')).toHaveCount(3)
+  await ouvrirEditionThemes(page)
+  // Supprimer cat_001 (utilisé) → refus + compteur, toujours 7 thèmes (3 démo +
+  // le bloc Pondérations : parent + 3 enfants).
+  await page.locator('.liste-thm li[data-nom="Famille"] .x').click()
+  await expect(page.locator('.modale-themes .msg-thm')).toContainText('utilisé 1')
+  await expect(page.locator('.liste-thm li')).toHaveCount(7)
 
-  // Supprimer cat_003 (inutilisé) → retiré.
-  await page.locator('.liste-thm li').nth(2).locator('.x').click()
-  await expect(page.locator('.liste-thm li')).toHaveCount(2)
+  // Supprimer « Lieu » (inutilisé) → retiré.
+  await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
+  await expect(page.locator('.liste-thm li')).toHaveCount(6)
   await app.close()
 })

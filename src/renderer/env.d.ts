@@ -18,6 +18,7 @@ import type {
   PayloadEntretien,
   ResultatSuppression,
   ResultatSuppressionCategorie,
+  SegmentThematique,
   Variable,
 } from '../shared/format'
 
@@ -29,6 +30,7 @@ declare global {
         ouvrir: () => Promise<CorpusFichier>
         dossierCourant: () => Promise<DossierCorpus>
         recents: () => Promise<DossierCorpus[]>
+        retirerRecent: (dir: string) => Promise<DossierCorpus[]>
         ouvrirDossier: (dir: string) => Promise<OuvertureCorpus>
         choisirDossier: () => Promise<OuvertureCorpus | null>
         lireEntretien: (id: string) => Promise<LectureEntretien>
@@ -50,6 +52,7 @@ declare global {
         deplacerCategorie: (id: string, sens: -1 | 1) => Promise<CorpusFichier>
         supprimerCategorie: (id: string, exceptId?: string) => Promise<ResultatSuppressionCategorie>
         usagesParCode: () => Promise<Record<string, number>>
+        resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
         compterUsagesCode: (code: string, exceptId?: string) => Promise<number>
         ajouterVariable: (
           lib: string,
@@ -61,6 +64,9 @@ declare global {
         modifierModalite: (idVar: string, idMod: string, lib: string) => Promise<CorpusFichier>
         supprimerModalite: (idVar: string, idMod: string) => Promise<ResultatSuppression>
         matrice: () => Promise<MatriceCorpus>
+        assignerAudio: (id: string, source: string) => Promise<{ audioRef: string } | null>
+        ecrireWaveform: (id: string, png: Uint8Array) => Promise<string>
+        audios: () => Promise<Record<string, { audio: string | null; waveform: string | null }>>
         poserValeur: (
           entretienId: string,
           cible: CibleValeur,
@@ -69,8 +75,12 @@ declare global {
         ) => Promise<boolean>
       }
       dialog: {
-        choisirImport: () => Promise<{ nom: string; contenu: string } | null>
+        choisirTexte: () => Promise<{ nom: string; contenu: string } | null>
+        choisirAudio: () => Promise<string | null>
         choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
+      }
+      fichier: {
+        cheminDe: (f: File) => string
       }
     }
   }

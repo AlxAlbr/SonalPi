@@ -32,7 +32,7 @@ test('round-trip : coder + éditer → fermer → rouvrir, tout est conservé', 
   await entrerCorpus(page1)
   await entrerEntretien(page1)
   await coderKarine(page1, 'Lieu')
-  await expect(page1.locator('.debug li')).toHaveCount(1)
+  await expect(page1.locator('.editeur .annot')).toHaveText('Karine')
 
   const ed1 = page1.locator('.editeur')
   await ed1.click({ position: { x: 40, y: 260 } })
@@ -48,8 +48,7 @@ test('round-trip : coder + éditer → fermer → rouvrir, tout est conservé', 
   await entrerCorpus(page2)
   await entrerEntretien(page2)
   await expect(page2.locator('.editeur')).toContainText('MODIF-PERSISTEE')
-  await expect(page2.locator('.debug li')).toHaveCount(1)
-  await expect(page2.locator('.debug li .extrait')).toHaveText('« Karine »')
+  await expect(page2.locator('.editeur .annot')).toHaveText('Karine')
   await app2.close()
 })
 
@@ -73,7 +72,7 @@ test('un entretien de format inconnu est refusé poliment (bannière, pas d’é
   const app2 = await lancer(dir)
   const page2 = await app2.firstWindow()
   await entrerCorpus(page2)
-  await page2.locator('.ents li .open').first().click()
+  await page2.locator('.carte-ent .crayon').first().click()
   await expect(page2.locator('.banniere.refus')).toBeVisible({ timeout: 20_000 })
   await expect(page2.locator('.editeur')).not.toContainText('Karine')
   await app2.close()

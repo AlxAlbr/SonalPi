@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ouvrir, coderTheme } from './util'
+import { ouvrir, coderTheme, compterAnnotations } from './util'
 
 /**
  * ÉTAPE 1 — le marquage devient visible (décorations projetées depuis le modèle).
@@ -24,7 +24,7 @@ test('coder surligne le passage (décoration), et le surlignage suit l’éditio
   // Surlignage présent sur « Karine » (décoration = span .annot).
   const annot = ed.locator('.annot')
   await expect(annot).toHaveText('Karine')
-  await expect(page.locator('.debug li')).toHaveCount(1)
+  await expect.poll(() => compterAnnotations(page)).toBe(1)
 
   // Édite en fin de doc : le surlignage reste sur « Karine » (positions suivies).
   await ed.click({ position: { x: 40, y: 260 } })
@@ -43,11 +43,8 @@ test('deux thèmes sur la même plage se composent (annotations superposées)', 
   await coderPremierMot(page, 'Famille')
   await coderPremierMot(page, 'Travail')
 
-  // Modèle : deux codages, tous deux sur « Karine ».
-  const lignes = page.locator('.debug li')
-  await expect(lignes).toHaveCount(2)
-  await expect(lignes.nth(0).locator('.extrait')).toHaveText('« Karine »')
-  await expect(lignes.nth(1).locator('.extrait')).toHaveText('« Karine »')
+  // Modèle : deux codages (deux ids distincts sur la même plage).
+  await expect.poll(() => compterAnnotations(page)).toBe(2)
   // Rendu : UN segment couvrant « Karine », porteur des DEUX codages empilés
   // (fonds superposés + deux soulignés) → composition visible.
   const annot = ed.locator('.annot')
@@ -64,13 +61,13 @@ test('re-coder la même sélection retire le codage (toggle)', async () => {
   const ed = page.locator('.editeur')
 
   await coderPremierMot(page, 'Famille')
-  await expect(page.locator('.debug li')).toHaveCount(1)
   await expect(ed.locator('.annot')).toHaveCount(1)
+  await expect.poll(() => compterAnnotations(page)).toBe(1)
 
   // Re-coder à l'identique (le caret n'a pas bougé) → retire (toggle D-S6).
   await coderTheme(page, 'Famille')
-  await expect(page.locator('.debug li')).toHaveCount(0)
   await expect(ed.locator('.annot')).toHaveCount(0)
+  await expect.poll(() => compterAnnotations(page)).toBe(0)
 
   await app.close()
 })
@@ -87,10 +84,9 @@ test('supprimer le passage codé → annotation orpheline, plus de surlignage', 
   await ed.press('ControlOrMeta+a')
   await ed.press('Backspace')
 
-  // Conservée au modèle mais marquée orpheline, et plus aucune décoration.
-  await expect(page.locator('.debug li')).toHaveCount(1)
-  await expect(page.locator('.debug li.orph')).toBeVisible()
-  await expect(page.locator('.debug .tag-orph')).toHaveText('orpheline')
+  // Plus aucune décoration : l'annotation s'est refermée (orpheline). Sa
+  // CONSERVATION au modèle (pas de suppression silencieuse) est prouvée par
+  // les unitaires remap — plus d'observable UI depuis le retrait du panneau debug.
   await expect(ed.locator('.annot')).toHaveCount(0)
 
   await app.close()

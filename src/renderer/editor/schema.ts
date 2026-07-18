@@ -1,21 +1,21 @@
 import { Extension } from '@tiptap/core'
 
 /**
- * Contrat de schéma D2 (DEMARRAGE) — GELÉ.
+ * Contrat de schéma D2 (DEMARRAGE) — GELÉ, révisé S7 (D-S14).
  *
- * Le « bloc » de MODELE_OBJET2 §4 = le paragraphe de ProseMirror, augmenté de
- * trois attributs :
- *   - `loc` : id du locuteur (index par entretien) — attribut de bloc, éditable ;
- *   - `deb`/`fin` : timecodes, INERTES au set minimum (aucune UI, aucune
- *     contrainte) mais portés pour survivre au round-trip .sonal et préparer
- *     l'audio.
+ * Le « bloc » de MODELE_OBJET2 §4 = le paragraphe de ProseMirror, augmenté d'un
+ * seul attribut :
+ *   - `loc` : id du locuteur (index par entretien) — attribut de bloc, éditable.
+ *
+ * Les timecodes ne sont PLUS des attrs de bloc : le temps est porté par les
+ * ANCRES du modèle (`entretien.ancres`, positions remappées comme les
+ * annotations — D-S14). Les fichiers v1 sont migrés au store.
  *
  * On n'ajoute AUCUN mark utilisateur (gras/italique) : tout le visuel du
  * marquage vient des décorations (calque), jamais du texte.
  *
  * Règle de scission (Entrée) : ProseMirror copie les attributs du bloc courant
- * dans le nouveau bloc → `loc` est hérité gratuitement. `deb`/`fin` le sont
- * aussi ; leur remise à null au split est un raffinement différé (POC audio).
+ * dans le nouveau bloc → `loc` est hérité gratuitement.
  */
 export const BlocAttributs = Extension.create({
   name: 'blocAttributs',
@@ -33,24 +33,6 @@ export const BlocAttributs = Extension.create({
             },
             renderHTML: (attrs) =>
               attrs.loc == null ? {} : { 'data-loc': String(attrs.loc) },
-          },
-          deb: {
-            default: null,
-            parseHTML: (el) => {
-              const v = el.getAttribute('data-deb')
-              return v == null ? null : Number(v)
-            },
-            renderHTML: (attrs) =>
-              attrs.deb == null ? {} : { 'data-deb': String(attrs.deb) },
-          },
-          fin: {
-            default: null,
-            parseHTML: (el) => {
-              const v = el.getAttribute('data-fin')
-              return v == null ? null : Number(v)
-            },
-            renderHTML: (attrs) =>
-              attrs.fin == null ? {} : { 'data-fin': String(attrs.fin) },
           },
         },
       },

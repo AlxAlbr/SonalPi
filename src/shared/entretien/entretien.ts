@@ -1,12 +1,15 @@
 import type { Annotation, AnnotationType } from './annotation'
+import type { Ancre } from './audio'
 
 /**
- * L'agrégat Entretien. Au set minimum, il porte les annotations (le corps-texte
- * vit dans l'éditeur ProseMirror ; sa sérialisation JSON viendra à l'étape 2).
- * Ces commandes sont pures : aucun accès au DOM ni au disque (MODELE_OBJET §2).
+ * L'agrégat Entretien. Il porte les annotations et les ancres temporelles
+ * (D-S14) — deux familles de positions remappées par l'éditeur ; le corps-texte
+ * vit dans l'éditeur ProseMirror. Ces commandes sont pures : aucun accès au DOM
+ * ni au disque (MODELE_OBJET §2).
  */
 export interface Entretien {
   annotations: Annotation[]
+  ancres: Ancre[]
 }
 
 /**

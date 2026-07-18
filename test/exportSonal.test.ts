@@ -43,8 +43,9 @@ describe('export .sonal — structure', () => {
 
 describe('export .sonal — couleur des codages (visibilité dans SonalPi)', () => {
   const base = {
-    corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null, deb: null, fin: null }, content: [{ type: 'text', text: 'Karine habite Lyon.' }] }] },
+    corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Karine habite Lyon.' }] }] },
     annotations: [{ id: 'a1', type: 'codage' as const, from: 15, to: 19, auteur: 'moi', code: 'cat_003' }],
+    ancres: [],
     locuteurs: [],
     variables: [],
     meta: { valeursGen: {} },
@@ -69,6 +70,92 @@ describe('export .sonal — couleur des codages (visibilité dans SonalPi)', () 
     })
     expect(out.match(/\.cat_003\s*\{[\s\S]*?\}/)?.[0]).toContain('#0331ff')
   })
+
+  test('la taille de police sort en nombre nu SonalPi ; absente → "" (cat-json)', () => {
+    const out = exporterSonal({
+      ...base,
+      codebook: [
+        { id: 'cat_003', nom: 'Lieu', taille: 18, ordre: 0, parent: null, actif: true, codeExport: 'cat_003' },
+        { id: 'cat_004', nom: 'Autre', ordre: 1, parent: null, actif: true, codeExport: 'cat_004' },
+      ],
+    })
+    const catJson = out.match(/<script[^>]*id="cat-json"[^>]*>([\s\S]*?)<\/script>/)?.[1] ?? ''
+    expect(catJson).toContain('"taille":18')
+    expect(catJson).toMatch(/"cat_004"[^\]]*"taille":""/)
+  })
+})
+
+describe('export .sonal — un lblseg par intervalle d’ancres (S7, D-S15)', () => {
+  test('un tour fusionné ressort re-découpé en cues ; le ré-import re-fusionne (stable)', () => {
+    // Un tour (loc 1) né de la fusion de 2 cues : « Un deux. » [0→2] puis
+    // « Trois quatre. » [3→5] — la frontière interne vit à la pos 10 (2 ancres).
+    const entree = {
+      corpsTexte: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: 'Un deux. Trois quatre.' }] },
+        ],
+      },
+      annotations: [],
+      ancres: [
+        { pos: 1, t: 0 },
+        { pos: 10, t: 2 },
+        { pos: 10, t: 3 },
+        { pos: 23, t: 5 },
+      ],
+      locuteurs: [{ index: 1, nom: 'Speaker 3', valeursLoc: {}, personneRef: null }],
+      codebook: [],
+      variables: [],
+      meta: { valeursGen: {} },
+      legacy: { tabAnon: null, notes: '' },
+    }
+    const out = exporterSonal(entree)
+
+    // SonalPi garde sa granularité : 2 segments, chacun avec SES timecodes
+    // (la 1re ancre de la frontière ferme le cue 1, la dernière ouvre le cue 2).
+    const segs = Array.from(parse(out).querySelectorAll('.lblseg')) as HTMLElement[]
+    expect(segs.map((s) => [s.dataset.deb, s.dataset.fin, s.dataset.loc])).toEqual([
+      ['0', '2', '1'],
+      ['3', '5', '1'],
+    ])
+
+    // Ré-import : les 2 cues de même loc se RE-fusionnent — texte, bloc unique
+    // et ancres identiques (round-trip canonique).
+    const r = importerSonal(out, parse(out))
+    const doc = r.payload.corpsTexte as { content: Array<{ attrs: { loc: number | null } }> }
+    expect(doc.content.length).toBe(1)
+    expect(doc.content[0].attrs.loc).toBe(1)
+    expect(texteDe(r.payload.corpsTexte)).toBe('Un deux. Trois quatre.')
+    expect(r.payload.ancres).toEqual(entree.ancres)
+  })
+})
+
+describe('interviewer — le « ? » SonalPi est un artefact d’export (drapeau au modèle)', () => {
+  test('export : « Nom? » dans tabLoc ; ré-import : drapeau posé, nom nettoyé', () => {
+    const out = exporterSonal({
+      corpsTexte: {
+        type: 'doc',
+        content: [{ type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: 'Une question.' }] }],
+      },
+      annotations: [],
+      ancres: [],
+      locuteurs: [
+        { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
+        { index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null },
+      ],
+      codebook: [],
+      variables: [],
+      meta: { valeursGen: {} },
+      legacy: { tabAnon: null, notes: '' },
+    })
+    expect(out).toContain('Enquêteur?') // la convention SonalPi, dans loc-json
+
+    const r = importerSonal(out, parse(out))
+    expect(r.payload.locuteurs).toEqual([
+      { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
+      { index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null },
+    ])
+  })
 })
 
 describe('round-trip import → export → ré-import (golden : rien ne se perd)', () => {
@@ -83,6 +170,9 @@ describe('round-trip import → export → ré-import (golden : rien ne se perd)
       expect(comptesCodage(r2.payload.annotations)).toEqual(comptesCodage(r1.payload.annotations))
       expect(anonCount(r2.payload.annotations)).toBe(anonCount(r1.payload.annotations))
       expect(r2.payload.locuteurs).toEqual(r1.payload.locuteurs)
+      // Ancres (D-S14) : re-dérivées en data-deb/data-fin à l'export, relues à
+      // l'import — les timecodes mesurés survivent au round-trip.
+      expect(r2.payload.ancres).toEqual(r1.payload.ancres)
     })
   }
 })

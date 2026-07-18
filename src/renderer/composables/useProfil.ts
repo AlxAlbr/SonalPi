@@ -33,6 +33,10 @@ export function useProfil() {
     await rafraichirRecents()
     return res.corpus
   }
+  /** Retire un RACCOURCI des récents — le dossier sur disque n'est pas touché. */
+  async function retirerRecent(dir: string): Promise<void> {
+    recents.value = await window.sonal.corpus.retirerRecent(dir)
+  }
 
-  return { dossierCourantNom, recents, rafraichirRecents, majDossierCourant, choisirDossier, ouvrirDossier }
+  return { dossierCourantNom, recents, rafraichirRecents, majDossierCourant, choisirDossier, ouvrirDossier, retirerRecent }
 }

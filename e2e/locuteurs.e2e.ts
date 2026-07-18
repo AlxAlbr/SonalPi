@@ -15,13 +15,55 @@ const gouttiere = (t: string) => `.editeur .gouttiere-loc:text-is("${t}")`
 
 /** Ouvre l'onglet Locuteurs (le panneau est masqué par défaut = onglet Thèmes). */
 async function ongletLocuteurs(page: import('@playwright/test').Page) {
-  await page.locator('.onglets button', { hasText: 'Locuteurs' }).click()
+  await page.locator('.onglets button', { hasText: 'Loc' }).click()
 }
 
 test('la gouttière affiche le nom du locuteur devant chaque tour', async () => {
   const { app, page } = await ouvrir('sonal-loc-')
   await expect(page.locator(gouttiere('Enquêteur'))).toHaveCount(1)
   await expect(page.locator(gouttiere('Karine'))).toHaveCount(1)
+  await app.close()
+})
+
+test('interrupteur « ? » : un interviewer a ses tours en italique et son label « Nom ? »', async () => {
+  const { app, page } = await ouvrir('sonal-loc-')
+  await ongletLocuteurs(page)
+
+  // Déclarer « Enquêteur » (index 1) interviewer → son tour passe en italique
+  // (classe bloc-interviewer) et la gouttière reprend la convention « Nom ? ».
+  await page.locator('.liste-loc .interv').first().click()
+  await expect(page.locator('.editeur .bloc-interviewer')).toHaveCount(1)
+  await expect(page.locator('.editeur .bloc-interviewer')).toContainText('Karine habite Lyon')
+  await expect(page.locator(gouttiere('Enquêteur ?'))).toHaveCount(1)
+
+  // Re-clic = retour à la normale (l'inverse est le même interrupteur).
+  await page.locator('.liste-loc .interv').first().click()
+  await expect(page.locator('.editeur .bloc-interviewer')).toHaveCount(0)
+  await expect(page.locator(gouttiere('Enquêteur'))).toHaveCount(1)
+  await app.close()
+})
+
+test('croix ✕ : supprimer un locuteur (confirmation) → ses tours passent à « aucun »', async () => {
+  const { app, page } = await ouvrir('sonal-loc-')
+  await ongletLocuteurs(page)
+
+  // ✕ sur « Karine » (2e ligne) → bannière de confirmation avec le compte.
+  await page.locator('.liste-loc .x-loc').nth(1).click()
+  await expect(page.locator('.panneau .confirm-suppr')).toContainText('Karine')
+  await expect(page.locator('.panneau .confirm-suppr')).toContainText('1 bloc(s)')
+  await page.locator('.confirm-actions .danger').click()
+
+  // La liste n'a plus qu'une entrée ; son tour est désattribué (gouttière vide),
+  // le TEXTE n'a pas bougé (loc = attribut de bloc, pas une retouche).
+  await expect(page.locator('.liste-loc li')).toHaveCount(1)
+  await expect(page.locator(gouttiere('Karine'))).toHaveCount(0)
+  await expect(page.locator('.editeur .gouttiere-loc.vide')).toHaveCount(1)
+  await expect(page.locator('.editeur')).toContainText('Elle parle souvent de son travail')
+
+  // Annuler existe aussi : ✕ sur le survivant puis Annuler → rien ne bouge.
+  await page.locator('.liste-loc .x-loc').first().click()
+  await page.locator('.confirm-actions button', { hasText: 'Annuler' }).click()
+  await expect(page.locator('.liste-loc li')).toHaveCount(1)
   await app.close()
 })
 

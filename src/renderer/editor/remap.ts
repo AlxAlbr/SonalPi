@@ -1,6 +1,7 @@
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Mapping } from '@tiptap/pm/transform'
 import type { Annotation } from '../../shared/entretien/annotation'
+import type { Ancre } from '../../shared/entretien/audio'
 import type { Entretien } from '../../shared/entretien/entretien'
 
 /**
@@ -26,13 +27,26 @@ export function remapperAnnotations(annotations: Annotation[], mapping: Mapping)
   }
 }
 
+/**
+ * Ancres temporelles (S7, D-S14) : même canal que les annotations. assoc -1 :
+ * une insertion EXACTEMENT sur l'ancre la laisse en place — le texte tapé au
+ * début d'un cue entre dans le cue, celui tapé à sa fin tombe après sa borne
+ * (dans le trou, que l'interpolation répartit). Une suppression effondre les
+ * ancres couvertes sur la coupe (plage devenue vide — plageCourante l'enjambe).
+ * Le mapping est monotone : l'ordre par pos (donc par x) est préservé.
+ */
+export function remapperAncres(ancres: Ancre[], mapping: Mapping): void {
+  for (const a of ancres) a.pos = mapping.map(a.pos, -1)
+}
+
 export const remapPluginKey = new PluginKey('sonal-remap-annotations')
 
 /**
  * Le SEUL écrivain des positions du modèle : ce plugin voit passer chaque
  * transaction (y compris celles d'undo/redo, qui portent leur mapping) et
- * remappe les annotations de l'entretien. Le modèle reste la vérité ; le
- * plugin n'est que le canal par lequel l'éditeur l'informe des éditions.
+ * remappe les annotations ET les ancres de l'entretien. Le modèle reste la
+ * vérité ; le plugin n'est que le canal par lequel l'éditeur l'informe des
+ * éditions.
  */
 export function pluginRemap(entretien: Entretien): Plugin {
   return new Plugin({
@@ -40,7 +54,10 @@ export function pluginRemap(entretien: Entretien): Plugin {
     state: {
       init: () => null,
       apply(tr) {
-        if (tr.docChanged) remapperAnnotations(entretien.annotations, tr.mapping)
+        if (tr.docChanged) {
+          remapperAnnotations(entretien.annotations, tr.mapping)
+          remapperAncres(entretien.ancres, tr.mapping)
+        }
         return null
       },
     },

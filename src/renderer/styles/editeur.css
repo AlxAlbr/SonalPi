@@ -1,0 +1,62 @@
+/**
+ * Style de l'ÉDITEUR (non-scoped, à dessein) — `.editeur` (le contenteditable),
+ * la gouttière des locuteurs, les blocs et les annotations sont des nœuds
+ * GÉNÉRÉS PAR PROSEMIRROR (décorations/widgets), hors du template Vue : un
+ * `<style scoped>` ne les atteindrait pas (pas de `data-v-…`) sans `:deep()`.
+ * On les garde donc dans une feuille globale dédiée. Seul `.cadre` (l'hôte
+ * <EditorContent>, rendu par Vue) reste scopé dans Entretien.vue.
+ */
+
+.editeur {
+  outline: none;
+  min-height: 300px;
+  line-height: 1.9;
+}
+
+/* Gouttière des locuteurs : nom cliquable devant le bloc (widget de décoration). */
+.editeur .gouttiere-loc {
+  display: inline-block;
+  width: 6.5rem;
+  /* même vide (pas de nom : bloc de continuation, SRT sans locuteurs), la
+   * gouttière garde une boîte cliquable — le clic-tour audio (S6) passe par elle */
+  min-height: 1em;
+  margin-right: 0.6rem;
+  padding-right: 0.4rem;
+  color: #8a6d3b;
+  font-size: 0.72rem;
+  text-align: right;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: baseline;
+  border-right: 2px solid #e0d3b8;
+}
+.editeur .gouttiere-loc:hover {
+  color: #5a4a28;
+}
+.editeur .gouttiere-loc.vide {
+  border-right-color: #eee;
+}
+/* Tours de l'INTERVIEWER (questions) — le `.qst` SonalPi complet : italique
+ * + demi-gras + gris (l'italique seul était trop discret — retour utilisateur).
+ * Plus de teinte de fond par locuteur (choix S7+ : rendu neutre). */
+.editeur .bloc-interviewer {
+  font-style: italic;
+  font-weight: 600;
+  color: #4c4c4d;
+}
+.editeur .annot {
+  border-radius: 2px;
+  padding-bottom: 4px;
+}
+
+/* Plage EN COURS DE LECTURE audio (S7, D-S14) — décoration INLINE unique du
+ * plugin lecture (le texte entre les 2 ancres encadrant l'instant courant ;
+ * un cue SRT entier aujourd'hui, un mot en word-level demain). Un voile léger :
+ * le surlignage doit rester lisible PAR-DESSUS les teintes de locuteur et les
+ * annotations. */
+.editeur .plage-lue {
+  background-color: rgba(216, 67, 21, 0.1);
+  box-shadow: inset 3px 0 0 #d84315;
+  border-radius: 2px;
+  transition: background-color 0.2s;
+}

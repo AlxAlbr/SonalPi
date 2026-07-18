@@ -23,7 +23,7 @@ function ent(
   locuteurs: Locuteur[] = [],
   valeursGen: Record<string, string> = {},
 ): EntretienFichier {
-  return { formatVersion: 1, lastModified: '', corpsTexte: {}, annotations, locuteurs, meta: { valeursGen, audioRef: null } }
+  return { formatVersion: 2, lastModified: '', corpsTexte: {}, annotations, ancres: [], locuteurs, meta: { valeursGen, audioRef: null } }
 }
 
 describe('corpus — codebook (règles pures)', () => {
@@ -104,6 +104,49 @@ describe('corpus — requêtes calculées depuis une liste d’entretiens', () =
     const m = corpus.matriceCorpus([{ id: 'e1', titre: 'T', data: e }])
     expect(m[0]).toMatchObject({ entretienId: 'e1', titre: 'T', valeursGen: { v1: 'v1m1' } })
     expect(m[0].locuteurs[0]).toMatchObject({ index: 1, valeursLoc: { v2: 'v2m1' } })
+  })
+})
+
+describe('corpus — résumé thématique (calque des cartes, parité SonalPi)', () => {
+  // Doc PM à 2 blocs de 4 caractères : contenus PM [1..5[ et [7..11[, coordonnée
+  // texte 0..8 (les frontières de blocs pèsent 0). Total = 8 caractères.
+  const doc = {
+    type: 'doc',
+    content: [
+      { type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'aaaa' }] },
+      { type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'bbbb' }] },
+    ],
+  }
+  const avecDoc = (annotations: Annotation[]): EntretienFichier => ({ ...ent(annotations), corpsTexte: doc })
+
+  test('un codage → un segment en % du texte, avec ses positions PM de bornes', () => {
+    const segs = corpus.resumeThematique(avecDoc([codage('cat_001', 1, 5)])) // bloc 1 entier
+    expect(segs).toEqual([{ deb: 0, fin: 50, pos: 1, posFin: 5, codes: ['cat_001'] }])
+  })
+
+  test('chevauchement → segments élémentaires composés ; enjamber un bloc ne pèse rien', () => {
+    // cat_001 sur x 0..4 ; cat_002 sur PM 3..9 = x 2..6 (enjambe la frontière).
+    const segs = corpus.resumeThematique(
+      avecDoc([codage('cat_001', 1, 5), codage('cat_002', 3, 9)]),
+    )
+    expect(segs).toEqual([
+      { deb: 0, fin: 25, pos: 1, posFin: 3, codes: ['cat_001'] },
+      { deb: 25, fin: 50, pos: 3, posFin: 5, codes: ['cat_001', 'cat_002'] },
+      { deb: 50, fin: 75, pos: 7, posFin: 9, codes: ['cat_002'] },
+    ])
+  })
+
+  test('deux codages adjacents de même code fusionnent ; une orpheline est exclue', () => {
+    const orpheline = { ...codage('cat_003', 2, 2), id: 'orph' } // refermée (from == to)
+    const segs = corpus.resumeThematique(
+      avecDoc([codage('cat_001', 1, 3), codage('cat_001', 3, 5), orpheline]),
+    )
+    expect(segs).toEqual([{ deb: 0, fin: 50, pos: 1, posFin: 5, codes: ['cat_001'] }])
+  })
+
+  test('texte vide ou aucun codage → aucun segment', () => {
+    expect(corpus.resumeThematique(avecDoc([]))).toEqual([])
+    expect(corpus.resumeThematique(ent([codage('cat_001', 1, 5)]))).toEqual([]) // corpsTexte vide
   })
 })
 

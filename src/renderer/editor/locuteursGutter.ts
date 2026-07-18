@@ -7,29 +7,36 @@ import type { Locuteur } from '../../shared/format'
 
 export const gouttierePluginKey = new PluginKey('sonal-locuteurs-gutter')
 
-/** Teinte très pâle par locuteur (index → angle d'or) — repère discret. */
-function tinte(index: number): string {
-  return `hsl(${(index * 137.5) % 360} 55% 96%)`
-}
-
-/** Élément de gouttière : nom du locuteur, cliquable (place le curseur dans le bloc). */
-function elementGouttiere(view: EditorView, pos: number, label: string, vide: boolean): HTMLElement {
+/** Élément de gouttière : nom du locuteur, cliquable (place le curseur dans le
+ *  bloc ; si un audio est chargé, cale AUSSI le lecteur au début du tour — S6). */
+function elementGouttiere(
+  view: EditorView,
+  pos: number,
+  label: string,
+  vide: boolean,
+  onClicTour?: (posBloc: number) => void,
+): HTMLElement {
   const el = document.createElement('span')
   el.className = 'gouttiere-loc' + (vide ? ' vide' : '')
   el.textContent = label
   el.contentEditable = 'false'
-  el.title = 'Cliquer pour se placer dans ce tour de parole'
+  el.title = 'Cliquer pour se placer dans ce tour de parole (audio : seek au début du tour)'
   el.addEventListener('mousedown', (e) => {
     e.preventDefault()
+    e.stopPropagation() // le clic-tour ne doit pas AUSSI déclencher le clic-texte (seek précis S7)
     const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, pos))
     view.dispatch(tr.scrollIntoView())
     view.focus()
+    onClicTour?.(pos - 1) // pos = début du CONTENU → -1 = position du bloc
   })
   return el
 }
 
-function construire(state: EditorState, locuteurs: Locuteur[]): DecorationSet {
+function construire(state: EditorState, locuteurs: Locuteur[], onClicTour?: (pos: number) => void): DecorationSet {
   const decos: Decoration[] = []
+  // Interviewers (ceux qui posent les questions) : leurs tours passent en
+  // italique — le pendant du « ? » SonalPi, sans teinte de fond (choix S7+).
+  const interviewers = new Set(locuteurs.filter((l) => l.interviewer).map((l) => l.index))
   let precedent: number | null | undefined = undefined
   state.doc.forEach((node, offset) => {
     if (node.type.name !== 'paragraph') {
@@ -41,17 +48,23 @@ function construire(state: EditorState, locuteurs: Locuteur[]): DecorationSet {
     // le nom que sur le 1er bloc du tour ; rien n'est stocké (MODELE_OBJET2 §4).
     const premierDuTour = loc !== precedent
     precedent = loc
-    const label = premierDuTour ? nomDeLocuteur(locuteurs, loc) : ''
+    const nom = premierDuTour ? nomDeLocuteur(locuteurs, loc) : ''
+    // Le label reprend la convention SonalPi : « Nom ? » pour l'interviewer.
+    const label = nom && loc != null && interviewers.has(loc) ? `${nom} ?` : nom
     const contentStart = offset + 1
 
     decos.push(
-      Decoration.widget(contentStart, (view) => elementGouttiere(view, contentStart, label, loc == null), {
-        side: -1,
-        key: `g:${offset}:${loc}:${label}`,
-      }),
+      Decoration.widget(
+        contentStart,
+        (view) => elementGouttiere(view, contentStart, label, loc == null, onClicTour),
+        {
+          side: -1,
+          key: `g:${offset}:${loc}:${label}`,
+        },
+      ),
     )
-    if (loc != null) {
-      decos.push(Decoration.node(offset, offset + node.nodeSize, { class: 'bloc-loc', style: `background:${tinte(loc)};` }))
+    if (loc != null && interviewers.has(loc)) {
+      decos.push(Decoration.node(offset, offset + node.nodeSize, { class: 'bloc-interviewer' }))
     }
   })
   return DecorationSet.create(state.doc, decos)
@@ -63,14 +76,17 @@ function construire(state: EditorState, locuteurs: Locuteur[]): DecorationSet {
  * émise à un renommage/ajout — les blocs référencent l'index, donc renommer ne
  * touche AUCUN bloc, seul le rendu se rafraîchit).
  */
-export function pluginGouttiere(getLocuteurs: () => Locuteur[]): Plugin {
+export function pluginGouttiere(
+  getLocuteurs: () => Locuteur[],
+  onClicTour?: (pos: number) => void,
+): Plugin {
   return new Plugin({
     key: gouttierePluginKey,
     state: {
-      init: (_config, state) => construire(state, getLocuteurs()),
+      init: (_config, state) => construire(state, getLocuteurs(), onClicTour),
       apply(tr, value, _old, newState) {
         if (tr.docChanged || tr.getMeta(gouttierePluginKey) === 'refresh') {
-          return construire(newState, getLocuteurs())
+          return construire(newState, getLocuteurs(), onClicTour)
         }
         return value.map(tr.mapping, tr.doc)
       },

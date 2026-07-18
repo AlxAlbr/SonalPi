@@ -1,4 +1,5 @@
-import { charVersPM } from './positions'
+import { charVersPM } from '../../shared/entretien/positions'
+import type { Ancre } from '../../shared/entretien/audio'
 import { importerVariables, distribuerValeurs } from './eav'
 import { parentsDepuisRangs } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
@@ -24,6 +25,15 @@ type AnnBrute =
   | { type: 'codage'; code: string; from: number; to: number }
   | { type: 'anon'; pseudo: string; etat: 'anonymise' | 'exception'; from: number; to: number }
 
+/** Un bloc en cours d'import : texte + annotations (offsets locaux) + ses cues
+ *  [de, a[ (fenêtres de texte) avec leurs bornes temporelles mesurées. */
+interface BlocImport {
+  loc: number | null
+  text: string
+  anns: AnnBrute[]
+  cues: Array<{ deb: number | null; fin: number | null; de: number; a: number }>
+}
+
 /**
  * Sas d'import (D1) : un HTML `.sonal` (natif, ou produit par un convertisseur
  * SonalPi — SRT/VTT) → charge utile SonalAsynchro (doc ProseMirror + annotations + locuteurs)
@@ -43,8 +53,9 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // EAV : var/dic → définitions de variables ; dat → valeurs distribuées (§S1).
   const variables = importerVariables(extraireJson(html, 'var-json'), extraireJson(html, 'dic-json'))
 
-  // 1) Un bloc par segment (.lblseg) : texte concaténé + annotations en offsets locaux.
-  const blocs: Array<{ loc: number | null; deb: number | null; fin: number | null; text: string; anns: AnnBrute[] }> = []
+  // 1) Un SEGMENT (.lblseg) = un cue : texte + annotations en offsets locaux +
+  //    sa fenêtre temporelle [deb, fin] (bornes mesurées, ou null).
+  const blocs: BlocImport[] = []
   for (const segNode of contenu.querySelectorAll('.lblseg')) {
     const seg = segNode as HTMLElement
     let text = ''
@@ -64,22 +75,45 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
       }
       text += t
     }
+    // data-loc="0" = « aucun locuteur » (convention SonalPi : locut[0] n'existe
+    // pas) → null au modèle, comme l'absence — sinon la fusion D-S15 collerait
+    // tous les segments sans locuteur d'un texte brut.
+    const locBrut = nombreOuNull(seg.dataset.loc)
     blocs.push({
-      loc: nombreOuNull(seg.dataset.loc),
-      deb: nombreOuNull(seg.dataset.deb),
-      fin: nombreOuNull(seg.dataset.fin),
+      loc: locBrut === 0 ? null : locBrut,
       text,
       anns,
+      cues: [{ deb: nombreOuNull(seg.dataset.deb), fin: nombreOuNull(seg.dataset.fin), de: 0, a: text.length }],
     })
   }
 
-  // 2) Doc ProseMirror : un paragraphe (« bloc » D2) par segment.
-  const longueurs = blocs.map((b) => b.text.length)
+  // 1b) FUSION DES TOURS (S7, D-S15) : les cues consécutifs d'un même locuteur
+  //     NON NUL deviennent UN paragraphe (le tour), leurs frontières survivant
+  //     en ancres internes (étape 3b) — sans perte, l'export re-découpe par
+  //     ancre. Sans locuteur → un bloc par cue (un SRT non diarisé ne devient
+  //     pas un seul pavé). Fusion d'IMPORT uniquement : D-S2 tient, aucun geste
+  //     d'édition ne fusionne.
+  const tours: BlocImport[] = []
+  for (const b of blocs) {
+    const prec = tours[tours.length - 1]
+    if (prec && b.loc != null && prec.loc === b.loc) {
+      const d = prec.text.length
+      prec.text += b.text
+      prec.anns.push(...b.anns.map((a) => ({ ...a, from: a.from + d, to: a.to + d })))
+      prec.cues.push(...b.cues.map((c) => ({ ...c, de: c.de + d, a: c.a + d })))
+    } else {
+      tours.push(b)
+    }
+  }
+
+  // 2) Doc ProseMirror : un paragraphe (« bloc » D2) par tour. Les timecodes
+  //    ne sont PLUS des attrs (S7, D-S14) : ils deviennent des ancres (étape 3b).
+  const longueurs = tours.map((b) => b.text.length)
   const corpsTexte = {
     type: 'doc',
-    content: blocs.map((b) => ({
+    content: tours.map((b) => ({
       type: 'paragraph',
-      attrs: { loc: b.loc, deb: b.deb, fin: b.fin },
+      attrs: { loc: b.loc },
       content: b.text ? [{ type: 'text', text: b.text }] : [],
     })),
   }
@@ -87,7 +121,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // 3) Annotations avec positions ProseMirror (offsets locaux → positions absolues).
   const annotations: Annotation[] = []
   let n = 0
-  blocs.forEach((b, k) => {
+  tours.forEach((b, k) => {
     for (const a of b.anns) {
       if (a.from >= a.to) continue
       const base = {
@@ -104,9 +138,34 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     }
   })
 
+  // 3b) Ancres temporelles (D-S14) : chaque borne MESURÉE de cue → {pos, t}
+  //     (deb = début du texte du cue, fin = sa fin — internes au bloc pour un
+  //     tour fusionné). Triées par pos par construction ; deux cues jointifs
+  //     (fin_i = deb_i+1, même pos, même t) ne produisent qu'UNE ancre.
+  const ancres: Ancre[] = []
+  const pousser = (a: Ancre) => {
+    const d = ancres[ancres.length - 1]
+    if (d && d.pos === a.pos && d.t === a.t) return
+    ancres.push(a)
+  }
+  tours.forEach((b, k) => {
+    for (const c of b.cues) {
+      if (c.deb != null) pousser({ pos: charVersPM(longueurs, k, c.de), t: c.deb })
+      if (c.fin != null) pousser({ pos: charVersPM(longueurs, k, c.a), t: c.fin })
+    }
+  })
+
   // 4) Locuteurs depuis tabLoc (position dans le tableau = index du locuteur).
+  //    Un « ? » dans le nom (convention SonalPi) = INTERVIEWER → drapeau au
+  //    modèle, nom nettoyé ; le « ? » est réintroduit à l'export seulement.
   const locuteurs: Locuteur[] = tabLoc
-    .map((nom, index) => ({ index, nom, valeursLoc: {}, personneRef: null }))
+    .map((nom, index) => ({
+      index,
+      nom: nom.replaceAll('?', '').trim(),
+      interviewer: nom.includes('?'),
+      valeursLoc: {},
+      personneRef: null,
+    }))
     .filter((l) => l.index > 0 && l.nom !== '')
 
   // 4b) Valeurs EAV : `l="all"` → valeursGen ; `l=index` → valeursLoc (posé ici).
@@ -119,6 +178,8 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     id: t.code,
     nom: t.nom ?? t.code,
     couleur: t.couleur || undefined,
+    // SonalPi stocke un nombre nu (24) ou '' — n'importer qu'un nombre > 0.
+    taille: Number(t.taille) > 0 ? Number(t.taille) : undefined,
     ordre: i,
     parent: parents[t.code] ?? null,
     actif: t.act !== false,
@@ -126,7 +187,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   }))
 
   return {
-    payload: { corpsTexte, annotations, locuteurs, meta: { valeursGen, audioRef: null } },
+    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null } },
     codebook,
     variables,
     legacy,

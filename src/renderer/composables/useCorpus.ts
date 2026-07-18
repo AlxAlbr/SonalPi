@@ -6,6 +6,8 @@ import type {
   CibleValeur,
   EntretienRef,
   MatriceCorpus,
+  PatchCategorie,
+  SegmentThematique,
   Variable,
 } from '../../shared/format'
 
@@ -24,8 +26,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const codebook = ref<Categorie[]>([]) // définitions triées par ordre
   const codeCourant = ref('') // thème choisi pour coder
   const usages = ref<Record<string, number>>({}) // usages par code (requête)
+  const resumes = ref<Record<string, SegmentThematique[]>>({}) // résumés thématiques (requête)
   const messageTheme = ref<string | null>(null) // ex. refus de suppression
-  const themeEnEdition = ref<string | null>(null) // thème dont on édite le nom
   const variables = ref<Variable[]>([]) // définitions EAV
   const matrice = ref<MatriceCorpus>([]) // REQUÊTE, jamais stockée
   const messageVar = ref<string | null>(null) // refus de suppression variable/modalité
@@ -40,6 +42,35 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
   function couleurHex(c: Categorie): string {
     return c.couleur || couleurHexPourCode(c.codeExport)
+  }
+  /** Taille de police STOCKÉE d'un code (px) — `undefined` = taille du texte.
+   *  Résolue par id à la projection, comme la couleur (jamais copiée à l'entretien). */
+  function tailleTheme(code: string): number | undefined {
+    return codebook.value.find((c) => c.id === code)?.taille
+  }
+  /** PEINTURE d'un segment de résumé thématique (parité SonalPi) — partagée par
+   *  les cartes Corpus et la bande du lecteur : couleurs des thèmes couvrants
+   *  empilées en DÉGRADÉ VERTICAL à bandes égales ; le BLANC (thème « sans
+   *  effet ») ne peint pas ; une pondération (taille > 16, règle SonalPi) pose
+   *  une bordure noire en bas ; rien à peindre → `masque`. */
+  function peintureSegment(codes: string[]): {
+    background?: string
+    borderBottom?: string
+    masque: boolean
+  } {
+    const couleurs = codes
+      .map((c) => couleurTrait(c))
+      .filter((c) => !/^#f{3}(f{3})?$/i.test(c) && c.toLowerCase() !== 'white')
+    const stops = couleurs.flatMap((coul, i) => [
+      `${coul} ${((i / couleurs.length) * 100).toFixed(2)}%`,
+      `${coul} ${(((i + 1) / couleurs.length) * 100).toFixed(2)}%`,
+    ])
+    const ponderation = codes.some((c) => (tailleTheme(c) ?? 0) > 16)
+    return {
+      background: stops.length ? `linear-gradient(to bottom, ${stops.join(', ')})` : undefined,
+      borderBottom: ponderation ? '3px solid #000' : undefined,
+      masque: !stops.length && !ponderation,
+    }
   }
   function nomTheme(id: string): string {
     return codebook.value.find((c) => c.id === id)?.nom ?? id
@@ -62,6 +93,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
   async function rafraichirUsages() {
     usages.value = await window.sonal.corpus.usagesParCode()
+    // Même carburant (les codages sur disque), mêmes moments de fraîcheur : le
+    // calque des cartes Corpus (résumé thématique, parité SonalPi) suit.
+    resumes.value = await window.sonal.corpus.resumesThematiques()
   }
   async function rafraichirMatrice() {
     matrice.value = await window.sonal.corpus.matrice()
@@ -79,21 +113,14 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majCodebook(res.corpus.codebook)
     codeCourant.value = res.id
   }
-  /** Renommer / recolorer / (dés)activer : édite la DÉFINITION (corpus.json) →
-   *  reflété partout en direct (l'App observe `codebook` → redessine le marquage). */
-  async function modifierTheme(id: string, patch: { nom?: string; couleur?: string; actif?: boolean }) {
+  /** Renommer / recolorer / retailler / (dés)activer : édite la DÉFINITION
+   *  (corpus.json) → reflété partout en direct (l'App observe `codebook` →
+   *  redessine le marquage). */
+  async function modifierTheme(id: string, patch: PatchCategorie) {
     majCodebook((await window.sonal.corpus.modifierCategorie(id, patch)).codebook)
   }
   async function deplacerTheme(id: string, sens: -1 | 1) {
     majCodebook((await window.sonal.corpus.deplacerCategorie(id, sens)).codebook)
-  }
-  function finRenommerTheme(id: string, evt: Event) {
-    const nom = (evt.target as HTMLInputElement).value.trim()
-    themeEnEdition.value = null
-    if (nom && nom !== nomTheme(id)) modifierTheme(id, { nom })
-  }
-  function focusChamp(el: unknown) {
-    if (el) (el as HTMLInputElement).focus()
   }
   async function supprimerTheme(id: string) {
     messageTheme.value = null
@@ -161,8 +188,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     codebook,
     codeCourant,
     usages,
+    resumes,
     messageTheme,
-    themeEnEdition,
     variables,
     matrice,
     messageVar,
@@ -171,6 +198,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     varsLoc,
     couleurTrait,
     couleurHex,
+    tailleTheme,
+    peintureSegment,
     nomTheme,
     modalitesDe,
     arbreThemes,
@@ -184,8 +213,6 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     ajouterSousTheme,
     modifierTheme,
     deplacerTheme,
-    finRenommerTheme,
-    focusChamp,
     supprimerTheme,
     // variables/modalités
     ajouterVariable,

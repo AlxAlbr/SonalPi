@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { ouvrir, coderTheme } from './util'
+import { ouvrir, coderTheme, compterAnnotations } from './util'
 
 /**
  * SMOKE e2e (étape 0) — pilote la VRAIE app Electron, pas le build : prouve que
  * (1) la fenêtre s'ouvre et l'éditeur monte avec le schéma D2 (blocs data-loc),
- * (2) coder une sélection ajoute une annotation au MODÈLE (panneau debug),
+ * (2) coder une sélection ajoute une annotation au MODÈLE (observée par ses
+ * décorations — le panneau debug est retiré depuis S5),
  * (3) le plugin de remap est câblé et tourne sur de vrais coups de clavier.
  *
  * Remplace le proxy faible « le build passe » par une preuve que la fenêtre vit.
@@ -16,8 +17,8 @@ test('la fenêtre s’ouvre, l’éditeur monte avec le schéma D2 (blocs data-l
   await expect(page.locator('.editeur')).toContainText('travail')
   await expect(page.locator('.editeur p[data-loc="1"]')).toBeVisible()
   await expect(page.locator('.editeur p[data-loc="2"]')).toBeVisible()
-  // Panneau debug présent, modèle vide au départ.
-  await expect(page.locator('.debug .vide')).toBeVisible()
+  // Aucun marquage au départ (modèle vide).
+  await expect(page.locator('.editeur .annot')).toHaveCount(0)
 
   await app.close()
 })
@@ -30,14 +31,13 @@ test('coder une sélection ajoute une annotation au modèle, la retirer l’enl�
   await ed.press('ControlOrMeta+a')
   await coderTheme(page, 'Famille') // cat_001
 
-  const lignes = page.locator('.debug li')
-  await expect(lignes).toHaveCount(1)
-  await expect(lignes.first().locator('.l1 code')).toHaveText('cat_001')
-  await expect(lignes.first().locator('.pos')).toBeVisible()
+  // Une annotation au modèle, décorée et porteuse de son code.
+  await expect.poll(() => compterAnnotations(page)).toBe(1)
+  await expect(ed.locator('.annot').first()).toHaveAttribute('title', /cat_001/)
 
-  await lignes.first().locator('.x').click()
-  await expect(page.locator('.debug li')).toHaveCount(0)
-  await expect(page.locator('.debug .vide')).toBeVisible()
+  // La retirer = re-coder la même plage (toggle D-S6 — le caret n'a pas bougé).
+  await coderTheme(page, 'Famille')
+  await expect(ed.locator('.annot')).toHaveCount(0)
 
   await app.close()
 })
@@ -54,9 +54,7 @@ test('le plugin de remap tourne dans la vraie app : une édition ne casse pas l�
   // étend la sélection vide au 1er mot → on code précisément « Karine ».
   await ed.click({ position: { x: 6, y: 14 } })
   await coderTheme(page, 'Famille')
-  const ligne = page.locator('.debug li').first()
-  await expect(ligne).toHaveCount(1)
-  await expect(ligne.locator('.extrait')).toHaveText('« Karine »')
+  await expect(ed.locator('.annot')).toHaveText('Karine')
 
   // Édite LOIN de l'annotation : caret en fin de doc (clic dans l'espace vide
   // sous le texte → fin, sans ambiguïté de sélection), puis frappe.
@@ -64,11 +62,11 @@ test('le plugin de remap tourne dans la vraie app : une édition ne casse pas l�
   await page.keyboard.type(' AJOUT')
 
   // Le texte a bien été inséré, et l'annotation « Karine » (loin devant) est
-  // intacte : le plugin a remappé sur un vrai coup de clavier sans la casser.
+  // intacte : le plugin a remappé sur un vrai coup de clavier sans la casser —
+  // toujours UNE annotation, toujours décorée (pas refermée en orpheline).
   await expect(ed).toContainText('AJOUT')
-  await expect(page.locator('.debug li')).toHaveCount(1) // pas de perte
-  await expect(ligne).not.toHaveClass(/orph/) // pas devenue orpheline
-  await expect(ligne.locator('.extrait')).toHaveText('« Karine »') // plage intacte
+  await expect.poll(() => compterAnnotations(page)).toBe(1)
+  await expect(ed.locator('.annot')).toHaveText('Karine')
 
   await app.close()
 })

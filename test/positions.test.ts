@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { Schema } from '@tiptap/pm/model'
-import { debutBloc, charVersPM, pmVersTranches } from '../src/renderer/import/positions'
+import { debutBloc, charVersPM, pmVersTranches } from '../src/shared/entretien/positions'
 
 /** Confronte le mapping PUR à un vrai doc ProseMirror : la position calculée doit
  *  résoudre exactement la sous-chaîne attendue via doc.textBetween. */

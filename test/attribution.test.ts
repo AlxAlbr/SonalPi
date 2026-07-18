@@ -10,10 +10,11 @@ import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien
 
 /**
  * S4 — « Attribuer la sélection » (commande headless). On monte le VRAI éditeur
- * TipTap (paragraph porte loc/deb/fin) + pluginRemap, on applique la transaction,
- * et on vérifie : scission aux bornes, `loc` sur les blocs couverts, invariant
- * timecodes D-S5/D-S13 (deb à gauche, fin à droite, null aux coupes), et que les
- * annotations enjambent la coupe (remap prouvé).
+ * TipTap (paragraph porte loc) + pluginRemap, on applique la transaction, et on
+ * vérifie : scission aux bornes, `loc` sur les blocs couverts, et que les
+ * annotations ET les ancres temporelles (S7, D-S14) enjambent la coupe — depuis
+ * S7, l'ex-invariant D-S5 n'est plus du code d'attribution : les ancres restent
+ * à leur position de texte, le remap fait le reste.
  */
 function creerEditeur(entretien: Entretien, content: string): Editor {
   const Remap = Extension.create({
@@ -29,12 +30,10 @@ afterEach(() => {
   editor = null
 })
 
-type Bloc = { texte: string; loc: number | null; deb: number | null; fin: number | null }
+type Bloc = { texte: string; loc: number | null }
 function blocs(ed: Editor): Bloc[] {
   const out: Bloc[] = []
-  ed.state.doc.forEach((n) =>
-    out.push({ texte: n.textContent, loc: n.attrs.loc, deb: n.attrs.deb, fin: n.attrs.fin }),
-  )
+  ed.state.doc.forEach((n) => out.push({ texte: n.textContent, loc: n.attrs.loc }))
   return out
 }
 /** Position DOC du début de `fragment` (gère les frontières de bloc, contrairement
@@ -54,81 +53,104 @@ function posDe(ed: Editor, fragment: string): number {
 /** Applique l'attribution sur la 1re occurrence de `fragment`. */
 function attribuer(ed: Editor, fragment: string, loc: number | null): void {
   const from = posDe(ed, fragment)
-  const tr = attribuerSelectionTr(ed.state, from, from + fragment.length, loc)
-  if (tr) ed.view.dispatch(tr)
+  const r = attribuerSelectionTr(ed.state, from, from + fragment.length, loc)
+  if (r) ed.view.dispatch(r.tr)
 }
 
-describe('attribuerSelectionTr — scission + loc + timecodes', () => {
-  test('sélection au milieu d’un bloc → 3 fragments ; loc au milieu ; timecodes D-S5', () => {
-    const entretien: Entretien = { annotations: [] }
-    editor = creerEditeur(entretien, '<p data-loc="1" data-deb="0" data-fin="10">AAAA BBBB CCCC</p>')
+describe('attribuerSelectionTr — scission + loc', () => {
+  test('sélection au milieu d’un bloc → 3 fragments ; loc au milieu seulement', () => {
+    const entretien: Entretien = { annotations: [], ancres: [] }
+    editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     attribuer(editor, 'BBBB', 2)
 
     expect(blocs(editor)).toEqual([
-      { texte: 'AAAA ', loc: 1, deb: 0, fin: null }, // tête : garde deb, perd fin
-      { texte: 'BBBB', loc: 2, deb: null, fin: null }, // couvert : borné par deux coupes
-      { texte: ' CCCC', loc: 1, deb: null, fin: 10 }, // queue : perd deb, garde fin
+      { texte: 'AAAA ', loc: 1 }, // tête : garde son loc
+      { texte: 'BBBB', loc: 2 }, // couvert
+      { texte: ' CCCC', loc: 1 }, // queue : garde son loc
     ])
   })
 
-  test('sélection couvrant un bloc ENTIER → aucune scission, loc posé, timecodes intacts', () => {
-    const entretien: Entretien = { annotations: [] }
-    editor = creerEditeur(entretien, '<p data-loc="1" data-deb="3" data-fin="9">AAAA BBBB</p>')
+  test('sélection couvrant un bloc ENTIER → aucune scission, loc posé', () => {
+    const entretien: Entretien = { annotations: [], ancres: [] }
+    editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB</p>')
     attribuer(editor, 'AAAA BBBB', 2)
 
-    expect(blocs(editor)).toEqual([{ texte: 'AAAA BBBB', loc: 2, deb: 3, fin: 9 }])
+    expect(blocs(editor)).toEqual([{ texte: 'AAAA BBBB', loc: 2 }])
   })
 
-  test('sélection multi-blocs → extrémités scindées, cue intérieur garde ses timecodes mesurés', () => {
-    const entretien: Entretien = { annotations: [] }
+  test('sélection multi-blocs → extrémités scindées, blocs intérieurs entiers', () => {
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(
       entretien,
-      '<p data-loc="1" data-deb="0" data-fin="5">un deux</p>' +
-        '<p data-loc="1" data-deb="5" data-fin="9">trois</p>' +
-        '<p data-loc="1" data-deb="9" data-fin="14">quatre cinq</p>',
+      '<p data-loc="1">un deux</p>' + '<p data-loc="1">trois</p>' + '<p data-loc="1">quatre cinq</p>',
     )
     // De « deux » (fin du bloc 1) à « quatre » (début du bloc 3).
     const from = posDe(editor, 'deux')
     const to = posDe(editor, 'quatre') + 'quatre'.length
-    const tr = attribuerSelectionTr(editor.state, from, to, 2)!
-    editor.view.dispatch(tr)
+    const r = attribuerSelectionTr(editor.state, from, to, 2)!
+    editor.view.dispatch(r.tr)
+    // S5 : la commande rapporte les blocs touchés avec leur ANCIEN loc (l'inverse).
+    expect(r.blocs.map((b) => b.ancien)).toEqual([1, 1, 1])
 
     expect(blocs(editor)).toEqual([
-      { texte: 'un ', loc: 1, deb: 0, fin: null }, // tête bloc 1
-      { texte: 'deux', loc: 2, deb: null, fin: 5 }, // couvert (fin mesurée du cue 1)
-      { texte: 'trois', loc: 2, deb: 5, fin: 9 }, // cue INTÉRIEUR entier : timecodes intacts
-      { texte: 'quatre', loc: 2, deb: 9, fin: null }, // couvert (deb mesuré du cue 3)
-      { texte: ' cinq', loc: 1, deb: null, fin: 14 }, // queue bloc 3
+      { texte: 'un ', loc: 1 }, // tête bloc 1
+      { texte: 'deux', loc: 2 }, // couvert
+      { texte: 'trois', loc: 2 }, // bloc intérieur entier
+      { texte: 'quatre', loc: 2 }, // couvert
+      { texte: ' cinq', loc: 1 }, // queue bloc 3
     ])
   })
 
   test('loc=null (désattribution) sur une sous-partie', () => {
-    const entretien: Entretien = { annotations: [] }
-    editor = creerEditeur(entretien, '<p data-loc="1" data-deb="0" data-fin="10">AAAA BBBB CCCC</p>')
+    const entretien: Entretien = { annotations: [], ancres: [] }
+    editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     attribuer(editor, 'BBBB', null)
-    expect(blocs(editor)[1]).toEqual({ texte: 'BBBB', loc: null, deb: null, fin: null })
+    expect(blocs(editor)[1]).toEqual({ texte: 'BBBB', loc: null })
   })
 
   test('borne au tout début du bloc → pas de tête vide (le bloc démarre couvert)', () => {
-    const entretien: Entretien = { annotations: [] }
-    editor = creerEditeur(entretien, '<p data-loc="1" data-deb="0" data-fin="10">AAAA BBBB CCCC</p>')
+    const entretien: Entretien = { annotations: [], ancres: [] }
+    editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     attribuer(editor, 'AAAA BBBB', 2) // from au tout début
     expect(blocs(editor)).toEqual([
-      { texte: 'AAAA BBBB', loc: 2, deb: 0, fin: null }, // garde deb, perd fin (coupe à droite)
-      { texte: ' CCCC', loc: 1, deb: null, fin: 10 },
+      { texte: 'AAAA BBBB', loc: 2 },
+      { texte: ' CCCC', loc: 1 },
     ])
   })
 
   test('sélection vide (from===to) → aucune transaction', () => {
-    const entretien: Entretien = { annotations: [] }
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p>AAAA</p>')
     expect(attribuerSelectionTr(editor.state, 3, 3, 2)).toBeNull()
+  })
+
+  test('les ANCRES enjambent la coupe (S7 : l’ex-D-S5 découle du remap)', () => {
+    // Un cue [0, 10] sur tout le bloc : deb au début du texte, fin à sa fin.
+    const entretien: Entretien = {
+      annotations: [],
+      ancres: [
+        { pos: 1, t: 0 },
+        { pos: 15, t: 10 }, // fin du texte « AAAA BBBB CCCC » (14 caractères)
+      ],
+    }
+    editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
+    attribuer(editor, 'BBBB', 2) // deux coupes (avant et après BBBB)
+
+    // deb reste au début de la tête ; fin suit la queue (+2 tokens par coupe).
+    // Aucune borne fabriquée, aucune perdue — c'était le rôle de l'ex-code D-S5.
+    expect(entretien.ancres).toEqual([
+      { pos: 1, t: 0 },
+      { pos: 19, t: 10 },
+    ])
+    // Reprojetées en coordonnées texte, elles encadrent toujours les 14 caractères.
+    expect(editor.state.doc.textBetween(1, 6)).toBe('AAAA ')
+    expect(editor.state.doc.textBetween(14, 19)).toBe(' CCCC')
   })
 })
 
 describe('attribuerSelectionTr — les annotations enjambent la coupe (remap)', () => {
   test('annotation exactement sur le fragment attribué → conservée', () => {
-    const entretien: Entretien = { annotations: [] }
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     const from = editor.state.doc.textContent.indexOf('BBBB') + 1
     const a = ajouterCodage(entretien, { from, to: from + 4, code: 'c1', auteur: 'moi' }, () => 'a1')!
@@ -138,7 +160,7 @@ describe('attribuerSelectionTr — les annotations enjambent la coupe (remap)', 
   })
 
   test('annotation à cheval sur une coupe → texte annoté préservé (enjambe le bloc)', () => {
-    const entretien: Entretien = { annotations: [] }
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     // Annote « AAAA BBBB », puis attribue « BBBB » → coupe DANS l'annotation.
     const a = ajouterCodage(entretien, { from: 1, to: 1 + 'AAAA BBBB'.length, code: 'c1', auteur: 'moi' }, () => 'a1')!
@@ -153,7 +175,7 @@ describe('attribuerSelectionTr — les annotations enjambent la coupe (remap)', 
 
 describe('snapBornes — ne jamais couper un mot en deux', () => {
   test('bornes en milieu de mot → élargies aux frontières de mot', () => {
-    const entretien: Entretien = { annotations: [] }
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p>Bonjour Pierre Lemaitre</p>')
     const t = editor.state.doc.textContent
     const from = t.indexOf('ierre') + 1 // milieu de « Pierre »

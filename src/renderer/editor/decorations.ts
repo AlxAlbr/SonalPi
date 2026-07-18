@@ -65,6 +65,10 @@ function hslVersHex(h: number, s: number, l: number): string {
  *  recolorer un thème se reflète en direct, sans toucher aux entretiens. */
 export type ResolveurCouleur = (code: string) => string
 
+/** Résout la taille de police (px) d'un code — la `taille` STOCKÉE du codebook
+ *  (parité SonalPi), `undefined` = taille du texte. Injecté comme la couleur. */
+export type ResolveurTaille = (code: string) => number | undefined
+
 function traitDe(a: { type: string; code?: string }, resoudre: ResolveurCouleur): string {
   return a.type === 'anon' ? 'hsl(0 0% 45%)' : resoudre(a.code ?? '')
 }
@@ -87,6 +91,7 @@ function construireDecorations(
   state: EditorState,
   entretien: Entretien,
   resoudre: ResolveurCouleur,
+  tailleDe?: ResolveurTaille,
 ): DecorationSet {
   const actives = entretien.annotations.filter((a) => !estOrpheline(a))
   if (actives.length === 0) return DecorationSet.empty
@@ -106,10 +111,19 @@ function construireDecorations(
     const souligne = couvrant
       .map((a, k) => `inset 0 ${-2 * (k + 1)}px 0 ${traitDe(a, resoudre)}`)
       .join(',')
+    // Taille de police du thème (parité SonalPi) : sur un chevauchement, la plus
+    // GRANDE l'emporte (les tailles ne s'empilent pas comme les soulignés). Comme
+    // SonalPi, une taille posée s'accompagne du GRAS (son CSS généré fait
+    // font-size + font-weight:bold ensemble).
+    const tailles = couvrant
+      .filter((a) => a.type === 'codage')
+      .map((a) => tailleDe?.(a.code ?? ''))
+      .filter((t): t is number => t != null)
+    const police = tailles.length ? `font-size:${Math.max(...tailles)}px;font-weight:bold;` : ''
     decos.push(
       Decoration.inline(segFrom, segTo, {
         class: 'annot',
-        style: `box-shadow:${souligne};`,
+        style: `box-shadow:${souligne};${police}`,
         'data-annot-count': String(couvrant.length),
         'data-annot-ids': couvrant.map((a) => a.id).join(' '),
         title: couvrant.map((a) => (a.type === 'anon' ? `anon` : a.code)).join(' + '),
@@ -125,14 +139,18 @@ function construireDecorations(
  * coder/retirer). Entre-temps il mappe ses décorations sur les éditions, comme
  * les positions du modèle — les deux restent alignés.
  */
-export function pluginDecorations(entretien: Entretien, resoudre: ResolveurCouleur): Plugin {
+export function pluginDecorations(
+  entretien: Entretien,
+  resoudre: ResolveurCouleur,
+  tailleDe?: ResolveurTaille,
+): Plugin {
   return new Plugin({
     key: decorationsPluginKey,
     state: {
-      init: (_config, state) => construireDecorations(state, entretien, resoudre),
+      init: (_config, state) => construireDecorations(state, entretien, resoudre, tailleDe),
       apply(tr, value, _oldState, newState) {
         if (tr.docChanged || tr.getMeta(decorationsPluginKey) === 'refresh') {
-          return construireDecorations(newState, entretien, resoudre)
+          return construireDecorations(newState, entretien, resoudre, tailleDe)
         }
         return value.map(tr.mapping, tr.doc)
       },

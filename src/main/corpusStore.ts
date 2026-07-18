@@ -5,9 +5,11 @@ import {
   writeFileSync,
   renameSync,
   copyFileSync,
+  readdirSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { join, extname, basename, normalize, sep } from 'node:path'
 import * as corpusModel from '../shared/corpus'
+import { migrerEntretienV1 } from '../shared/entretien/migration'
 import {
   FORMAT_VERSION,
   versionSupportee,
@@ -21,28 +23,11 @@ import {
   type PayloadEntretien,
   type ResultatSuppression,
   type ResultatSuppressionCategorie,
+  type SegmentThematique,
   type Variable,
 } from '../shared/format'
 
-/** Doc ProseMirror seed (deux blocs porteurs de leur locuteur) — sert à amorcer
- *  un corpus vide, pour garder la démo Karine des étapes 0/1 après persistance. */
-const DOC_SEED = {
-  type: 'doc',
-  content: [
-    {
-      type: 'paragraph',
-      attrs: { loc: 1, deb: null, fin: null },
-      content: [{ type: 'text', text: 'Karine habite Lyon depuis sa retraite.' }],
-    },
-    {
-      type: 'paragraph',
-      attrs: { loc: 2, deb: null, fin: null },
-      content: [{ type: 'text', text: 'Elle parle souvent de son travail passé et de sa famille.' }],
-    },
-  ],
-}
-
-const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null, deb: null, fin: null } }] }
+const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
 
 function genId(prefixe: string): string {
   return prefixe + '-' + Math.random().toString(36).slice(2, 10)
@@ -90,19 +75,30 @@ export class CorpusStore {
     if (!existsSync(this.corpusFile)) return this.amorcer()
 
     const corpus = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
+    // Migration v1→v2 (S7, D-S14) : la structure de corpus.json est inchangée,
+    // seul le numéro bouge (les timecodes migrés vivent dans les entretiens).
+    if (corpus.formatVersion === 1) {
+      corpus.formatVersion = FORMAT_VERSION
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+    }
     if (!versionSupportee(corpus.formatVersion)) {
       throw new Error(`Version de corpus non supportée : ${corpus.formatVersion}`)
     }
     return corpus
   }
 
+  /** Amorce un corpus NEUF : AUCUN entretien (la démo « Karine » a déménagé dans
+   *  les fixtures de test — S8 rév.) ; codebook = le bloc « Pondérations » par
+   *  défaut de SonalPi, aux MÊMES codes que lui (cat_001..004) : un parent SANS
+   *  effet (couleur blanche = soulignement invisible) et 3 enfants dont l'effet
+   *  est la TAILLE seule (gras inclus, décroissante 24/22/20). */
   private amorcer(): CorpusFichier {
-    const now = new Date().toISOString()
-    const idEnt = 'e1'
+    const blanc = '#ffffff'
     const codebook = {
-      cat_001: { id: 'cat_001', nom: 'Famille', ordre: 0, parent: null, actif: true, codeExport: 'cat_001' },
-      cat_002: { id: 'cat_002', nom: 'Travail', ordre: 1, parent: null, actif: true, codeExport: 'cat_002' },
-      cat_003: { id: 'cat_003', nom: 'Lieu', ordre: 2, parent: null, actif: true, codeExport: 'cat_003' },
+      cat_001: { id: 'cat_001', nom: 'Pondérations', couleur: blanc, ordre: 0, parent: null, actif: true, codeExport: 'cat_001' },
+      cat_002: { id: 'cat_002', nom: '★★★ Très important', couleur: blanc, taille: 24, ordre: 1, parent: 'cat_001', actif: true, codeExport: 'cat_002' },
+      cat_003: { id: 'cat_003', nom: '★★☆ Assez important', couleur: blanc, taille: 22, ordre: 2, parent: 'cat_001', actif: true, codeExport: 'cat_003' },
+      cat_004: { id: 'cat_004', nom: '★☆☆ Important', couleur: blanc, taille: 20, ordre: 3, parent: 'cat_001', actif: true, codeExport: 'cat_004' },
     }
     const corpus: CorpusFichier = {
       formatVersion: FORMAT_VERSION,
@@ -110,20 +106,8 @@ export class CorpusStore {
       variables: {},
       reglesAnon: {},
       personnes: {},
-      membership: { [idEnt]: { titre: 'Entretien Karine', date: null, lastModified: now } },
+      membership: {},
     }
-    const entretien: EntretienFichier = {
-      formatVersion: FORMAT_VERSION,
-      lastModified: now,
-      corpsTexte: DOC_SEED,
-      annotations: [],
-      locuteurs: [
-        { index: 1, nom: 'Enquêteur', valeursLoc: {}, personneRef: null },
-        { index: 2, nom: 'Karine', valeursLoc: {}, personneRef: null },
-      ],
-      meta: { valeursGen: {}, audioRef: null },
-    }
-    this.ecrireJsonAtomique(this.entretienFile(idEnt), entretien)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return corpus
   }
@@ -134,7 +118,13 @@ export class CorpusStore {
     const fichier = this.entretienFile(id)
     if (!existsSync(fichier)) return { ok: false, raison: 'absent' }
 
-    const data = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
+    let data = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
+    // Migration EXPLICITE v1→v2 (S7, D-S14) : deb/fin des blocs → ancres {pos, t}.
+    // Réécrite aussitôt (lastModified préservé — migrer n'est pas une édition).
+    if ((data.formatVersion as number) === 1) {
+      data = migrerEntretienV1(data as unknown as Record<string, unknown>) as unknown as EntretienFichier
+      this.ecrireJsonAtomique(fichier, data)
+    }
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
 
     const corpus = this.ouvrir()
@@ -192,6 +182,7 @@ export class CorpusStore {
       lastModified: now,
       corpsTexte: DOC_VIDE,
       annotations: [],
+      ancres: [],
       locuteurs: [],
       meta: { valeursGen: {}, audioRef: null },
     }
@@ -233,8 +224,10 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Retire du membership et déplace le fichier (+ ses `.bak`) dans `corbeille/`
-   *  — jamais d'effacement (pas de perte silencieuse). */
+  /** Retire du membership et déplace le fichier (+ ses `.bak`) ET ses médias
+   *  (`audio/<id>.*` : audio assigné + forme d'onde) dans `corbeille/` — jamais
+   *  d'effacement (pas de perte silencieuse), jamais d'orphelin sur disque (un
+   *  futur entretien de même id n'hérite d'aucun audio). */
   supprimerEntretien(id: string): CorpusFichier {
     const corpus = this.ouvrir()
     const corbeille = join(this.dir, 'corbeille')
@@ -242,6 +235,11 @@ export class CorpusStore {
     for (const suffixe of ['.json', '.json.bak1', '.json.bak2']) {
       const src = join(this.entretiensDir, id + suffixe)
       if (existsSync(src)) renameSync(src, join(corbeille, id + suffixe))
+    }
+    if (existsSync(this.audioDir)) {
+      for (const f of readdirSync(this.audioDir)) {
+        if (f.startsWith(id + '.')) renameSync(join(this.audioDir, f), join(corbeille, f))
+      }
     }
     delete corpus.membership[id]
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -298,6 +296,12 @@ export class CorpusStore {
 
   usagesParCode(): Record<string, number> {
     return corpusModel.usagesParCode(this.datas())
+  }
+
+  /** REQUÊTE : résumé thématique de chaque entretien (calque des cartes Corpus,
+   *  parité SonalPi) — segments en % du texte, jamais stockés. */
+  resumesThematiques(): Record<string, SegmentThematique[]> {
+    return corpusModel.resumesThematiques(this.chargerEntretiens())
   }
 
   /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée (politique
@@ -369,6 +373,76 @@ export class CorpusStore {
 
   matriceCorpus(): MatriceCorpus {
     return corpusModel.matriceCorpus(this.chargerEntretiens())
+  }
+
+  // ── Audio (S6) : copie dans le corpus (D-S4) + dérivés ──────────────────────
+
+  private get audioDir() {
+    return join(this.dir, 'audio')
+  }
+
+  /** Assigne un fichier audio à un entretien : COPIE dans `<corpus>/audio/`
+   *  (D-S4 : « un dossier = un corpus » reste vrai), `audioRef` RELATIF dans le
+   *  fichier entretien. Écriture ciblée comme `poserValeur` (pas de rotation
+   *  `.bak` — le corps du texte n'est pas touché), watermark membership suivi. */
+  assignerAudio(id: string, source: string): { audioRef: string } | null {
+    const f = this.entretienFile(id)
+    if (!existsSync(f) || !existsSync(source)) return null
+    const ext = extname(source).slice(1).toLowerCase() || 'mp3'
+    const rel = `audio/${id}.${ext}`
+    if (!existsSync(this.audioDir)) mkdirSync(this.audioDir, { recursive: true })
+    copyFileSync(source, join(this.dir, rel))
+
+    const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
+    data.meta.audioRef = rel
+    const now = new Date().toISOString()
+    data.lastModified = now
+    this.ecrireJsonAtomique(f, data)
+
+    const corpus = this.ouvrir()
+    if (corpus.membership[id]) {
+      corpus.membership[id].lastModified = now
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+    }
+    return { audioRef: rel }
+  }
+
+  /** Écrit le PNG de la forme d'onde (`audio/<id>.png`). C'est un DÉRIVÉ
+   *  régénérable (entorse assumée à « requête, pas cache » : le décodage audio
+   *  complet est coûteux) — hors format natif, copié avec le dossier. Un PNG
+   *  SUPPRIMÉ à la main est régénéré en fond à l'ouverture du corpus
+   *  (`regenererOndesManquantes`, sonal.ts) — c'est la migration après un
+   *  changement de rendu (ex. ex-onde verte → gris neutre). */
+  ecrireWaveform(id: string, png: Uint8Array): string {
+    if (!existsSync(this.audioDir)) mkdirSync(this.audioDir, { recursive: true })
+    const rel = `audio/${id}.png`
+    writeFileSync(join(this.dir, rel), png)
+    return rel
+  }
+
+  /** REQUÊTE : scan de `audio/` → par id d'entretien, ses fichiers { audio,
+   *  waveform } (chemins relatifs). Alimente les cartes de l'écran Corpus sans
+   *  lire les entretiens. */
+  audios(): Record<string, { audio: string | null; waveform: string | null }> {
+    const out: Record<string, { audio: string | null; waveform: string | null }> = {}
+    if (!existsSync(this.audioDir)) return out
+    for (const nom of readdirSync(this.audioDir)) {
+      const ext = extname(nom).slice(1).toLowerCase()
+      const id = basename(nom, extname(nom))
+      if (!id) continue
+      const e = (out[id] ??= { audio: null, waveform: null })
+      if (ext === 'png') e.waveform = `audio/${nom}`
+      else e.audio = `audio/${nom}`
+    }
+    return out
+  }
+
+  /** Chemin ABSOLU d'un média pour le protocole `sonal-media` — refuse tout ce
+   *  qui sort de `<corpus>/audio/` (anti-traversal) ou n'existe pas. */
+  cheminMedia(rel: string): string | null {
+    const abs = normalize(join(this.dir, rel))
+    if (!abs.startsWith(normalize(this.audioDir) + sep)) return null
+    return existsSync(abs) ? abs : null
   }
 
   /** Pose une valeur EAV dans UN entretien (D-S11 : édition depuis la table de

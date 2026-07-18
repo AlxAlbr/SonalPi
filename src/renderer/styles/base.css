@@ -1,0 +1,145 @@
+/**
+ * Socle GLOBAL assumé (non-scoped) — le vocabulaire visuel partagé par plusieurs
+ * vues. Y mettre une règle ici plutôt que la dupliquer dans chaque composant
+ * scoped ; toute classe utilisée par une SEULE vue vit dans le <style scoped> de
+ * cette vue. (Le style de l'éditeur ProseMirror est dans editeur.css.)
+ */
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  color: #1a1a1a;
+}
+
+/* Placeholder « rien à afficher » — les 4 vues s'en servent. */
+.vide {
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+/* Petit bouton d'action (Corpus, Entretien). */
+.mini {
+  font-size: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+}
+
+/* Point de reprise (D-S11 rév.) — écrans Corpus et Table de données. */
+.btn-reprise {
+  border: 1px solid #c8e0cb;
+  background: #e6f4ea;
+  color: #2e7d32;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.btn-reprise:hover {
+  background: #d9eedd;
+}
+
+/* Bouton crayon ✏️ « éditer » (cartes Corpus ; ouvre EditionThemes sur les
+   panneaux thèmes des écrans Corpus et Entretien). */
+.crayon {
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.35rem;
+}
+.crayon:hover {
+  border-color: #2e9e3f;
+}
+
+/* Bouton « supprimer » générique ✕ (Corpus, Entretien). */
+.x {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: #c33;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* Bannière de confirmation d'un acte destructif (thèmes D-S10, locuteurs,
+   entretiens — Corpus, Entretien, EditionThemes). */
+.confirm-suppr {
+  background: #fdecea;
+  color: #b3261e;
+  border: 1px solid #f3b4ad;
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8rem;
+  margin: 0.3rem 0;
+}
+.confirm-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.confirm-actions button {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+}
+.confirm-actions .danger {
+  border-color: #b3261e;
+  background: #d84315;
+  color: #fff;
+}
+
+/* Panneau latéral (Corpus, Entretien). */
+.panneau {
+  border: 1px solid #ddd;
+  border-radius: 0 8px 8px 8px;
+  padding: 0.75rem;
+  background: #fafafe;
+}
+
+/* En-tête de panneau/carte avec titre + action (Corpus, Entretien). */
+.corpus-tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.corpus-tete h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Ligne d'aide sous un titre de panneau (Corpus, Entretien). */
+.aide-thm {
+  font-size: 0.7rem;
+  color: #999;
+  margin: 0.2rem 0;
+}
+
+/* Bandeau de refus/erreur (thèmes sur Corpus, variables sur TableDonnees). */
+.msg-thm {
+  background: #fdecea;
+  color: #b3261e;
+  border: 1px solid #f3b4ad;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.78rem;
+  margin: 0.3rem 0;
+}
+
+/* Sous-titres de la fiche données EAV (Corpus, Entretien). */
+.donnees h4 {
+  margin: 0.8rem 0 0.3rem;
+  font-size: 0.82rem;
+  color: #555;
+}
+.donnees h4 small {
+  color: #aaa;
+  font-weight: 400;
+}

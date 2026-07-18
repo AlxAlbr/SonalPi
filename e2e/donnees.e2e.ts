@@ -2,25 +2,28 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, ouvrirSurCorpus, entrerCorpus, entrerEntretien, retourCorpus } from './util'
+import { lancer, ouvrirSurCorpus, entrerCorpus, entrerEntretien, entrerDonnees, retourCorpus } from './util'
 
 /**
  * ÉTAPE 6 + S2 — données (EAV) à DEUX NIVEAUX d'écran : les DÉFINITIONS de
- * variables/modalités et la MATRICE vivent à l'écran Corpus ; la SAISIE des
+ * variables/modalités et la MATRICE vivent sur la TABLE DE DONNÉES ; la SAISIE des
  * valeurs (portée entretien + portée locuteur) vit à l'écran Entretien. Invariants
  * inchangés : (1) matrice = requête juste après réouverture ; (2) valeur de portée
  * locuteur chez SON locuteur (pas de sentinelle l="all") ; (3) supprimer une
  * modalité utilisée = refus + compteur.
  */
 
-/** Crée une variable (à l'écran Corpus) avec une modalité nommée `libMod`. */
+/** Crée une variable (sur la table de données) avec une modalité `libMod`, puis
+ *  revient au Corpus (pour enchaîner l'ouverture d'un entretien). */
 async function creerVariable(page: Page, bouton: '+ entretien' | '+ locuteur', libMod: string) {
-  await page.locator('.donnees-corpus .corpus-tete .mini', { hasText: bouton }).click()
-  const li = page.locator('.donnees-corpus .liste-var > li').first()
+  await entrerDonnees(page)
+  await page.locator('.variables-def .corpus-tete .mini', { hasText: bouton }).click()
+  const li = page.locator('.variables-def .liste-var > li').first()
   await li.locator('.modalites .mini').click() // + mod
   const modInput = li.locator('.nom-mod').first()
   await modInput.fill(libMod)
   await modInput.press('Tab') // @change → renomme la modalité
+  await retourCorpus(page)
 }
 
 /** Ouvre l'onglet Données (saisie des valeurs) à l'écran Entretien. */
@@ -48,8 +51,9 @@ test('saisir une valeur (entretien) → persistée et reflétée par la matrice 
   await entrerEntretien(page2)
   await ongletDonnees(page2)
   await expect(page2.locator('.saisie-sel option:checked').first()).toHaveText('Lyon')
-  // La matrice est à l'écran Corpus.
+  // La matrice vit sur la table de données.
   await retourCorpus(page2)
+  await entrerDonnees(page2)
   await expect(page2.locator('.matrice')).toContainText('Lyon')
   await app2.close()
 })
@@ -85,10 +89,11 @@ test('supprimer une modalité utilisée est refusé (avec compteur)', async () =
   await page.locator('.saisie-sel').first().selectOption({ label: 'Lyon' })
   await expect(page.locator('.etat')).toHaveText('à jour')
 
-  // Retour Corpus : tenter de supprimer la modalité « Lyon » (utilisée) → refus.
+  // Table de données : tenter de supprimer la modalité « Lyon » (utilisée) → refus.
   await retourCorpus(page)
-  await page.locator('.donnees-corpus .liste-var > li').first().locator('.x-mod').first().click()
-  await expect(page.locator('.donnees-corpus .msg-thm')).toContainText('utilisée 1')
-  await expect(page.locator('.donnees-corpus .liste-var > li').first().locator('.mod')).toHaveCount(1)
+  await entrerDonnees(page)
+  await page.locator('.variables-def .liste-var > li').first().locator('.x-mod').first().click()
+  await expect(page.locator('.variables-def .msg-thm')).toContainText('utilisée 1')
+  await expect(page.locator('.variables-def .liste-var > li').first().locator('.mod')).toHaveCount(1)
   await app.close()
 })

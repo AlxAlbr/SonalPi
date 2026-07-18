@@ -1,10 +1,12 @@
 import { ref, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
 import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
+import { urlMedia, genererEtEcrireWaveform } from '../audio/waveform'
 import type { CorpusFichier } from '../../shared/format'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
 import { useEntretien } from './useEntretien'
+import { useAudio } from './useAudio'
 
 /**
  * ORCHESTRATION applicative (D-S12) : instancie et COUD les trois scopes (profil,
@@ -21,17 +23,127 @@ export function creerSonal() {
   let sauverEntretien: () => Promise<void> = async () => {}
   const corpus = useCorpus({ flush: () => sauverEntretien() })
 
+  // Scope AUDIO (S6) : le lecteur de l'entretien ouvert. Les trois consommateurs
+  // (LecteurAudio en haut, barre sur la forme d'onde, bloc-lu de l'éditeur) se
+  // coordonnent par cet état réactif partagé.
+  const audio = useAudio()
+
   const ent = useEntretien({
     couleurTrait: corpus.couleurTrait, // le marquage résout la couleur d'un code (corpus)
+    tailleTrait: corpus.tailleTheme, // …et sa taille de police (parité SonalPi)
     apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
     codeExtraits: () => corpus.codeCourant.value, // filtre requête Extraits (vestige D-S7)
+    nomCode: (code) => corpus.nomTheme(code), // libellés du journal S5 (noms au corpus)
+    libelleValeur: (idVar, idMod) => {
+      const v = corpus.variables.value.find((x) => x.id === idVar)
+      const nomVar = v?.lib ?? idVar
+      if (!idMod) return `${nomVar} effacée`
+      return `${nomVar} = ${v?.modalites.find((m) => m.id === idMod)?.lib ?? idMod}`
+    },
+    // S6 : clic sur la gouttière → seek au début du tour (si un audio est chargé).
+    clicTour: (posBloc) => {
+      if (!audio.url.value) return
+      const t = ent.tempsDuBloc(posBloc)
+      if (t != null) audio.seek(t)
+    },
+    // S7 : clic DANS le texte → seek au temps interpolé à cet endroit (comme
+    // SonalPi) — la barre sur la forme d'onde suit, play reprend là.
+    clicTexte: (pos) => {
+      if (!audio.url.value) return
+      const t = ent.tempsAuTexte(pos)
+      if (t != null) audio.seek(t)
+    },
+    // Double-espace dans le texte = play/pause (parité SonalPi). Ne bascule (et
+    // ne signale d'avoir agi) que si un audio est chargé.
+    basculerLecture: () => {
+      if (!audio.url.value) return false
+      audio.basculer()
+      return true
+    },
   })
   sauverEntretien = ent.sauver
 
+  // La lecture avance → le bloc lu suit (surlignage + défilement). Décharger
+  // l'audio (url null) éteint le surlignage.
+  watch(audio.position, (t) => ent.majPlageLue(audio.url.value ? t : null))
+  watch(audio.url, (u) => {
+    if (!u) ent.majPlageLue(null)
+  })
+
   // --- Navigation SonalPi : Accueil → Corpus → Entretien (+ Table de données) ---
   const vue = ref<'accueil' | 'corpus' | 'entretien' | 'donnees'>('corpus')
+
+  // --- Sélection d'un entretien DANS la vue Corpus (≠ `ouvertId` = éditeur) ---
+  // Sélectionner (clic sur la carte) montre ses métadonnées à gauche ; le crayon,
+  // lui, OUVRE l'éditeur. On lit le fichier à la sélection (requête ciblée, pas
+  // de cache) — cohérent D-S12 (le renderer ne tient pas tous les entretiens).
+  const corpusSelId = ref<string | null>(null)
+  const corpusSelMeta = ref<{ nbLocuteurs: number; nbValeurs: number; audio: boolean } | null>(null)
+  async function selectionnerCorpus(id: string) {
+    if (corpusSelId.value === id) return deselectionnerCorpus() // re-clic = fermer
+    corpusSelId.value = id
+    corpusSelMeta.value = null
+    const res = await window.sonal.corpus.lireEntretien(id)
+    if (res.ok && corpusSelId.value === id) {
+      const e = res.data
+      const nbValeurs =
+        Object.keys(e.meta.valeursGen).length +
+        e.locuteurs.reduce((s, l) => s + Object.keys(l.valeursLoc).length, 0)
+      corpusSelMeta.value = { nbLocuteurs: e.locuteurs.length, nbValeurs, audio: e.meta.audioRef != null }
+    }
+  }
+  function deselectionnerCorpus() {
+    corpusSelId.value = null
+    corpusSelMeta.value = null
+  }
   // Confirmation de suppression d'un thème DEPUIS l'entretien (D-S10, orchestration).
   const themeASupprimer = ref<{ id: string; nom: string; n: number } | null>(null)
+
+  // --- Audio (S6) : médias du corpus (requête) + chargement du lecteur ---
+  /** Scan `audio/` du corpus (id → { audio, waveform }) : alimente les cartes
+   *  de l'écran Corpus et le chargement du lecteur — REQUÊTE, pas de cache. */
+  const audiosCorpus = ref<Record<string, { audio: string | null; waveform: string | null }>>({})
+  async function rafraichirAudios() {
+    audiosCorpus.value = await window.sonal.corpus.audios()
+  }
+  /** Régénère EN FOND les ondes manquantes (dérivés régénérables). Après un
+   *  changement de RENDU (ex. ex-onde verte → gris neutre), la migration est
+   *  MANUELLE et simple : supprimer les `audio/<id>.png` → régénérés ici. */
+  async function regenererOndesManquantes() {
+    const cibles = Object.entries(audiosCorpus.value).filter(([, v]) => v.audio && !v.waveform)
+    if (cibles.length === 0) return
+    for (const [id, v] of cibles) await genererEtEcrireWaveform(id, v.audio!)
+    await rafraichirAudios()
+  }
+  /** URL affichable de la forme d'onde d'un entretien (cartes Corpus). */
+  function urlWaveform(id: string): string | null {
+    const wf = audiosCorpus.value[id]?.waveform
+    return wf ? urlMedia(wf, corpus.membership.value[id]?.lastModified ?? '') : null
+  }
+
+  /** (Re)charge le lecteur pour l'entretien ouvert : audio du modèle
+   *  (`meta.audioRef`), forme d'onde régénérée si absente (c'est un dérivé). */
+  async function majAudioEntretien(id: string) {
+    await rafraichirAudios()
+    const audioRef = ent.meta.audioRef
+    const info = audiosCorpus.value[id]
+    if (!audioRef || !info?.audio) {
+      audio.charger(null, null)
+      return
+    }
+    if (!info.waveform) {
+      const rel = await genererEtEcrireWaveform(id, audioRef)
+      if (rel) await rafraichirAudios()
+    }
+    const wf = audiosCorpus.value[id]?.waveform
+    audio.charger(urlMedia(audioRef), wf ? urlMedia(wf, Date.now()) : null)
+  }
+
+  // Quitter l'écran entretien met la lecture en PAUSE (le lecteur n'est visible
+  // que là — pas de lecture fantôme sans commandes à l'écran).
+  watch(vue, (v) => {
+    if (v !== 'entretien') audio.pause()
+  })
 
   // Le corpus met à jour `codebook` (recolorer / (dés)activer / supprimer un thème)
   // → l'entretien redessine le marquage (couplage inter-scope par OBSERVATION).
@@ -46,10 +158,15 @@ export function creerSonal() {
    *  ouvert — on change potentiellement de dossier. */
   async function appliquerCorpus(c: CorpusFichier) {
     ent.reinitialiser()
+    audio.charger(null, null) // le lecteur ne survit pas au changement de corpus
+    reprise.value = null // les ids de reprise non plus
+    deselectionnerCorpus()
     corpus.membership.value = c.membership
     corpus.majCodebook(c.codebook)
     corpus.majVariables(c.variables)
     await corpus.rafraichirUsages()
+    await rafraichirAudios()
+    void regenererOndesManquantes() // en fond : ne bloque pas l'arrivée à l'écran
   }
 
   async function chargerCorpus() {
@@ -76,10 +193,11 @@ export function creerSonal() {
   }
 
   async function retourCorpus() {
-    await ent.sauver()
+    await fermerEntretien()
     vue.value = 'corpus'
   }
-  function allerAccueil() {
+  async function allerAccueil() {
+    await fermerEntretien()
     vue.value = 'accueil'
   }
   /** Depuis l'Accueil : revenir au corpus déjà chargé (sans le relire). */
@@ -87,35 +205,73 @@ export function creerSonal() {
     vue.value = 'corpus'
   }
 
-  /** Entrer dans un entretien = le charger (scope entretien) ET basculer sur son écran. */
+  /** Entrer dans un entretien = le charger (scope entretien), charger son audio
+   *  (S6) ET basculer sur son écran. */
   async function ouvrirEntretien(id: string) {
-    if (await ent.ouvrir(id)) vue.value = 'entretien'
+    if (!(await ent.ouvrir(id))) return
+    await majAudioEntretien(id)
+    vue.value = 'entretien'
   }
 
-  async function nouvelEntretien() {
-    await ent.sauver()
-    const res = await window.sonal.corpus.creerEntretien('Nouvel entretien')
-    corpus.membership.value = res.corpus.membership
-    await ouvrirEntretien(res.id)
+  /** Ajout d'un entretien (S6 rev. — modale à la SonalPi, deux zones) :
+   *  - texte seul → import classique (sas D1) ;
+   *  - texte + audio → import PUIS assignation (copie D-S4) + forme d'onde ;
+   *  - audio seul → entretien au texte VIDE (à taper/transcrire) + audio —
+   *    c'est « ajouter un document » avec le lecteur en plus.
+   *  Ouvre l'entretien créé dans tous les cas. */
+  async function ajouterEntretien(
+    texte: { nom: string; contenu: string } | null,
+    audioChemin: string | null,
+  ) {
+    if (!texte && !audioChemin) return
+    let id: string
+    if (texte) {
+      const r = importerFichier(texte.nom, texte.contenu, (html) =>
+        new DOMParser().parseFromString(html, 'text/html'),
+      )
+      const titre = texte.nom.replace(/\.[^.]+$/, '')
+      const res = await window.sonal.corpus.importer(
+        titre,
+        { ...r.payload, legacy: r.legacy as unknown as Record<string, unknown> },
+        r.codebook,
+        r.variables,
+      )
+      corpus.membership.value = res.corpus.membership
+      corpus.majCodebook(res.corpus.codebook)
+      corpus.majVariables(res.corpus.variables)
+      id = res.id
+    } else {
+      await ent.sauver()
+      const titre = audioChemin!.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '')
+      const res = await window.sonal.corpus.creerEntretien(titre)
+      corpus.membership.value = res.corpus.membership
+      id = res.id
+    }
+    if (audioChemin) {
+      const a = await window.sonal.corpus.assignerAudio(id, audioChemin)
+      if (a) await genererEtEcrireWaveform(id, a.audioRef)
+    }
+    await ouvrirEntretien(id)
   }
 
-  async function importer() {
-    const f = await window.sonal.dialog.choisirImport()
-    if (!f) return
-    const r = importerFichier(f.nom, f.contenu, (html) =>
-      new DOMParser().parseFromString(html, 'text/html'),
-    )
-    const titre = f.nom.replace(/\.[^.]+$/, '')
-    const res = await window.sonal.corpus.importer(
-      titre,
-      { ...r.payload, legacy: r.legacy as unknown as Record<string, unknown> },
-      r.codebook,
-      r.variables,
-    )
-    corpus.membership.value = res.corpus.membership
-    corpus.majCodebook(res.corpus.codebook)
-    corpus.majVariables(res.corpus.variables)
-    await ouvrirEntretien(res.id)
+  /** « Assigner un audio… » à l'entretien sélectionné dans la vue Corpus (D-S4) :
+   *  copie dans <corpus>/audio/, audioRef relatif, forme d'onde générée. */
+  async function assignerAudioSelection() {
+    const id = corpusSelId.value
+    if (!id) return
+    const source = await window.sonal.dialog.choisirAudio()
+    if (!source) return
+    const a = await window.sonal.corpus.assignerAudio(id, source)
+    if (!a) return
+    await genererEtEcrireWaveform(id, a.audioRef)
+    await rafraichirAudios()
+    if (corpusSelMeta.value) corpusSelMeta.value = { ...corpusSelMeta.value, audio: true }
+    // Si cet entretien est OUVERT dans l'éditeur, son modèle en session doit
+    // suivre (sinon l'autosave écraserait audioRef avec l'ancien état).
+    if (ent.ouvertId.value === id) {
+      ent.meta.audioRef = a.audioRef
+      await majAudioEntretien(id)
+    }
   }
 
   async function exporter() {
@@ -138,18 +294,63 @@ export function creerSonal() {
   async function supprimer(id: string) {
     corpus.membership.value = (await window.sonal.corpus.supprimerEntretien(id)).membership
     if (ent.ouvertId.value === id) ent.reinitialiser()
+    if (reprise.value?.id === id) reprise.value = null
+    if (corpusSelId.value === id) deselectionnerCorpus()
   }
 
-  // --- Table de données éditable (D-S11) : verrou de la ligne tenue + navigation ---
-  /** Un entretien est « tenu » s'il est ouvert dans l'éditeur (mono-utilisateur :
-   *  `ouvertId`) → sa ligne est en lecture seule dans la table (D-S11). */
-  function tenu(entretienId: string): boolean {
-    return ent.ouvertId.value === entretienId
+  /** Clic sur un segment du résumé thématique d'une carte (parité SonalPi
+   *  `afficherHtmlAtPos`) : ouvre l'entretien et cale le texte sur le segment. */
+  async function ouvrirAuSegment(id: string, pos: number) {
+    await ouvrirEntretien(id)
+    ent.allerAuTexte(pos)
+  }
+
+  // --- Confirmation de suppression d'un ENTRETIEN (l'acte le plus gros — même
+  //     idiome de bannière que thèmes D-S10 et locuteurs). ---
+  const entretienASupprimer = ref<{ id: string; titre: string } | null>(null)
+  function demanderSuppressionEntretien(id: string) {
+    entretienASupprimer.value = { id, titre: corpus.membership.value[id]?.titre ?? id }
+  }
+  async function confirmerSuppressionEntretien() {
+    const cible = entretienASupprimer.value
+    if (!cible) return
+    entretienASupprimer.value = null
+    await supprimer(cible.id)
+  }
+
+  // --- Sortie d'entretien = fermeture + point de reprise (D-S11 rév.) ---
+  /** Point de reprise : le dernier entretien fermé (position audio + curseur
+   *  texte) pour le rouvrir d'un clic là où on en était. Volatil (session),
+   *  comme le journal D-S9. */
+  const reprise = ref<{ id: string; positionAudio: number; posTexte: number | null } | null>(null)
+  /** SORTIR d'un entretien (retour Corpus/Accueil, table de données) le FERME
+   *  (sauvé d'abord) en mémorisant le point de reprise. Personne n'écrit dans
+   *  un entretien ouvert ailleurs (un seul chemin d'écriture, D-S11). */
+  async function fermerEntretien() {
+    const id = ent.ouvertId.value
+    if (!id) return
+    await ent.sauver()
+    reprise.value = {
+      id,
+      positionAudio: audio.position.value,
+      posTexte: ent.editor.value?.state.selection.from ?? null,
+    }
+    ent.reinitialiser()
+    audio.charger(null, null)
   }
   async function allerDonnees() {
-    await ent.sauver() // flush l'entretien ouvert → la table lit un disque à jour
+    await fermerEntretien()
     await corpus.rafraichirMatrice()
     vue.value = 'donnees'
+  }
+  /** Rouvre l'entretien du point de reprise et se recale : curseur + défilement
+   *  texte, position audio. */
+  async function reprendre() {
+    const r = reprise.value
+    if (!r || !corpus.membership.value[r.id]) return
+    await ouvrirEntretien(r.id)
+    if (r.posTexte != null) ent.allerAuTexte(r.posTexte)
+    if (audio.url.value && r.positionAudio > 0) audio.seek(r.positionAudio)
   }
 
   // --- Suppression d'un thème DEPUIS l'entretien (D-S10 : croise corpus ↔ entretien) ---
@@ -186,8 +387,16 @@ export function creerSonal() {
     ...profil,
     ...corpus,
     ...ent,
+    audio, // scope audio S6 (objet nommé : les vues déstructurent ses refs)
+    audiosCorpus,
+    urlWaveform,
+    assignerAudioSelection,
     vue,
     themeASupprimer,
+    corpusSelId,
+    corpusSelMeta,
+    selectionnerCorpus,
+    deselectionnerCorpus,
     appliquerCorpus,
     chargerCorpus,
     choisirDossier,
@@ -196,12 +405,16 @@ export function creerSonal() {
     allerAccueil,
     ouvrirCorpusCourant,
     ouvrirEntretien,
-    nouvelEntretien,
-    importer,
+    ouvrirAuSegment,
+    ajouterEntretien,
     exporter,
     renommer,
     supprimer,
-    tenu,
+    entretienASupprimer,
+    demanderSuppressionEntretien,
+    confirmerSuppressionEntretien,
+    reprise,
+    reprendre,
     allerDonnees,
     demanderSuppressionTheme,
     confirmerSuppressionTheme,

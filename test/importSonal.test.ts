@@ -35,13 +35,17 @@ describe('import .sonal — invariants (golden)', () => {
     expect(s).toContain('retraite')
   })
 
-  test('un bloc par segment, avec attributs loc/deb/fin', () => {
+  test('un bloc par segment (attr loc) ; les timecodes deviennent des ANCRES (D-S14)', () => {
     const { payload } = importerSonal(html1, parse(html1))
     const doc = payload.corpsTexte as { content: Array<{ attrs: Record<string, unknown> }> }
     expect(doc.content.length).toBeGreaterThan(3)
-    // au moins un bloc porte un locuteur et un timecode de début.
+    // au moins un bloc porte un locuteur ; les blocs n'ont PLUS de deb/fin.
     expect(doc.content.some((b) => b.attrs.loc !== null)).toBe(true)
-    expect(doc.content.some((b) => typeof b.attrs.deb === 'number')).toBe(true)
+    expect(doc.content.every((b) => !('deb' in b.attrs) && !('fin' in b.attrs))).toBe(true)
+    // ...et les timecodes mesurés sont là, en ancres {pos, t} triées par pos.
+    expect(payload.ancres.length).toBeGreaterThan(0)
+    for (let i = 1; i < payload.ancres.length; i++)
+      expect(payload.ancres[i].pos).toBeGreaterThanOrEqual(payload.ancres[i - 1].pos)
   })
 
   test('les codages cat_XXX deviennent des annotations (cat_005 présent)', () => {
@@ -69,6 +73,13 @@ describe('import .sonal — invariants (golden)', () => {
     const cat5 = codebook.find((c) => c.id === 'cat_005')
     expect(cat5?.nom).toBe('Cat1')
     expect(cat5?.codeExport).toBe('cat_005')
+  })
+
+  test('la taille de police SonalPi est importée (nombre nu ; "" → absente)', () => {
+    const { codebook } = importerSonal(html1, parse(html1))
+    // entretien1 : cat_002 porte taille 24 ; cat_005 porte '' (pas de taille).
+    expect(codebook.find((c) => c.id === 'cat_002')?.taille).toBe(24)
+    expect(codebook.find((c) => c.id === 'cat_005')?.taille).toBeUndefined()
   })
 
   test('anon et notes restent en pass-through legacy (SUITE S1)', () => {

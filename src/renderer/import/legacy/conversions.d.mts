@@ -20,5 +20,6 @@ export function extractFichierSonal(
 
 export function convertSRT(content: string): { formatSonal: string; locuteurs: string[] } | undefined
 export function convertVTT(content: string): { formatSonal: string; locut: string[] } | undefined
+export function convertTXT(content: string, ext?: string): { formatSonal: string; locuteurs: string[] } | undefined
 export function tabSegToSonal(tabSeg: unknown[], locut?: unknown, notes?: string): string
 export function TimeToSec(hms: string): number

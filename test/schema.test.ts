@@ -29,23 +29,23 @@ afterEach(() => {
   editor = null
 })
 
-describe('schéma D2 — le bloc porte loc/deb/fin', () => {
-  test('le nœud paragraph déclare les trois attributs', () => {
-    const entretien: Entretien = { annotations: [] }
+describe('schéma D2 (rév. S7) — le bloc porte loc, et lui seul', () => {
+  test('le nœud paragraph déclare loc — les timecodes sont des ancres, plus des attrs', () => {
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p>Bonjour</p>')
     const attrs = editor.schema.nodes.paragraph.spec.attrs ?? {}
-    expect(Object.keys(attrs)).toEqual(expect.arrayContaining(['loc', 'deb', 'fin']))
+    expect(Object.keys(attrs)).toEqual(['loc'])
   })
 
   test('data-loc est parsé en attribut de bloc, et re-sérialisé', () => {
-    const entretien: Entretien = { annotations: [] }
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p data-loc="2">Salut</p>')
     expect(editor.state.doc.firstChild?.attrs.loc).toBe(2)
     expect(editor.getHTML()).toContain('data-loc="2"')
   })
 
   test('le plugin de remapping est bien monté dans l’éditeur réel', () => {
-    const entretien: Entretien = { annotations: [] }
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p>Bonjour</p>')
     expect(remapPluginKey.getState(editor.state)).not.toBeUndefined()
   })
@@ -53,7 +53,7 @@ describe('schéma D2 — le bloc porte loc/deb/fin', () => {
 
 describe('schéma D2 — le remapping tient avec le vrai schéma', () => {
   test('une insertion avant la plage décale l’annotation, l’extrait est stable', () => {
-    const entretien: Entretien = { annotations: [] }
+    const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p>Karine habite Lyon.</p>')
     const from = editor.state.doc.textContent.indexOf('Lyon') + 1
     const a = ajouterCodage(

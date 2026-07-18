@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   Categorie,
   CibleValeur,
@@ -11,6 +11,7 @@ import type {
   PayloadEntretien,
   ResultatSuppression,
   ResultatSuppressionCategorie,
+  SegmentThematique,
   Variable,
 } from '../shared/format'
 
@@ -22,6 +23,8 @@ contextBridge.exposeInMainWorld('sonal', {
     ouvrir: (): Promise<CorpusFichier> => ipcRenderer.invoke('corpus:ouvrir'),
     dossierCourant: (): Promise<DossierCorpus> => ipcRenderer.invoke('corpus:dossierCourant'),
     recents: (): Promise<DossierCorpus[]> => ipcRenderer.invoke('corpus:recents'),
+    retirerRecent: (dir: string): Promise<DossierCorpus[]> =>
+      ipcRenderer.invoke('corpus:retirerRecent', dir),
     ouvrirDossier: (dir: string): Promise<OuvertureCorpus> =>
       ipcRenderer.invoke('corpus:ouvrirDossier', dir),
     choisirDossier: (): Promise<OuvertureCorpus | null> =>
@@ -56,6 +59,8 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:supprimerCategorie', id, exceptId),
     usagesParCode: (): Promise<Record<string, number>> =>
       ipcRenderer.invoke('corpus:usagesParCode'),
+    resumesThematiques: (): Promise<Record<string, SegmentThematique[]>> =>
+      ipcRenderer.invoke('corpus:resumesThematiques'),
     compterUsagesCode: (code: string, exceptId?: string): Promise<number> =>
       ipcRenderer.invoke('corpus:compterUsagesCode', code, exceptId),
     ajouterVariable: (
@@ -74,6 +79,12 @@ contextBridge.exposeInMainWorld('sonal', {
     supprimerModalite: (idVar: string, idMod: string): Promise<ResultatSuppression> =>
       ipcRenderer.invoke('corpus:supprimerModalite', idVar, idMod),
     matrice: (): Promise<MatriceCorpus> => ipcRenderer.invoke('corpus:matrice'),
+    assignerAudio: (id: string, source: string): Promise<{ audioRef: string } | null> =>
+      ipcRenderer.invoke('corpus:assignerAudio', id, source),
+    ecrireWaveform: (id: string, png: Uint8Array): Promise<string> =>
+      ipcRenderer.invoke('corpus:ecrireWaveform', id, png),
+    audios: (): Promise<Record<string, { audio: string | null; waveform: string | null }>> =>
+      ipcRenderer.invoke('corpus:audios'),
     poserValeur: (
       entretienId: string,
       cible: CibleValeur,
@@ -83,9 +94,15 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:poserValeur', entretienId, cible, idVar, idMod),
   },
   dialog: {
-    choisirImport: (): Promise<{ nom: string; contenu: string } | null> =>
-      ipcRenderer.invoke('dialog:choisirImport'),
+    choisirTexte: (): Promise<{ nom: string; contenu: string } | null> =>
+      ipcRenderer.invoke('dialog:choisirTexte'),
+    choisirAudio: (): Promise<string | null> => ipcRenderer.invoke('dialog:choisirAudio'),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:choisirExport', nomSuggere, contenu),
+  },
+  fichier: {
+    // Chemin réel d'un File GLISSÉ-DÉPOSÉ (modale d'ajout) — `File.path` n'existe
+    // plus, seul le preload peut le résoudre (webUtils).
+    cheminDe: (f: File): string => webUtils.getPathForFile(f),
   },
 })

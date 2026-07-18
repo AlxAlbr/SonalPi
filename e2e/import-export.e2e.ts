@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus } from './util'
+import { lancer, entrerCorpus, ajouterParModale } from './util'
 
 /**
  * ÉTAPE 3 — sas d'import / export `.sonal`, dans la vraie app. Les dialogs natifs
@@ -28,18 +28,20 @@ test('importer un .sonal réel → entretien éditable + codebook fusionné, pui
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.out })
   }, { fixture: FIXTURE, out: cheminExport })
 
-  // --- IMPORT --- (l'import ouvre le nouvel entretien → bascule écran Entretien)
-  await page.locator('.corpus-tete .mini', { hasText: 'Importer' }).click()
+  // --- IMPORT --- (modale d'ajout, zone texte seule → ouvre le nouvel entretien)
+  await ajouterParModale(page, ['texte'])
 
   // Le nouvel entretien s'ouvre (texte propre à la fixture) et « entretien1 »
   // apparaît dans la liste (titre = valeur d'un <input>, d'où getByDisplayValue).
   await expect(page.locator('.editeur')).toContainText('accepté cet entretien', { timeout: 10_000 })
-  await expect(page.locator('.ents li')).toHaveCount(2) // seed + importé
-  await expect(page.locator('.ents li .titre').nth(1)).toHaveValue('entretien1')
-  // Les codages importés peuplent le modèle (cat_005 présent).
-  await expect(page.locator('.debug li code', { hasText: 'cat_005' }).first()).toBeVisible()
-  // Le codebook a fusionné : cat_005 (« Cat1 ») est dans l'onglet Thématique (clic=coder).
-  await expect(page.locator('.liste-coder .theme-nom', { hasText: /^Cat1$/ })).toHaveCount(1)
+  await expect(page.locator('.carte-ent')).toHaveCount(2) // seed + importé
+  await expect(page.locator('.carte-ent .ent-titre').nth(1)).toHaveText('entretien1')
+  // Les codages importés peuplent le modèle (cat_005 décoré dans le texte).
+  await expect(page.locator('.editeur .annot[title*="cat_005"]').first()).toBeVisible()
+  // Le codebook a fusionné : cat_008 (« Cat2 », un code de la fixture HORS seed)
+  // est dans l'onglet Thématique (clic=coder). Les codes ≤ cat_007 collisionnent
+  // avec le seed (3 démo + Pondérations) → l'existant fait foi (règle n°3).
+  await expect(page.locator('.liste-coder .theme-nom', { hasText: /^Cat2$/ })).toHaveCount(1)
 
   // --- EXPORT ---
   await page.locator('.exporter').click()

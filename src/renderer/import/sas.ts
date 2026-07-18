@@ -1,4 +1,4 @@
-import { convertSRT, convertVTT } from './legacy/conversions.mjs'
+import { convertSRT, convertVTT, convertTXT } from './legacy/conversions.mjs'
 import { importerSonal, type ResultatImport } from './importSonal'
 
 /**
@@ -23,6 +23,13 @@ export function importerFichier(
   } else if (ext === 'vtt') {
     const r = convertVTT(contenu)
     if (!r) throw new Error('VTT vide ou illisible')
+    html = r.formatSonal
+  } else if (ext === 'txt') {
+    // Transcription brute (convertisseur SonalPi : timestamps « hh:mm » et
+    // « Nom : » détectés, sinon un bloc par ligne). Manquait au sas alors que
+    // le dialogue d'import propose .txt depuis l'étape 3.
+    const r = convertTXT(contenu)
+    if (!r) throw new Error('TXT vide ou illisible')
     html = r.formatSonal
   } else {
     throw new Error(`Format non pris en charge : « .${ext} »`)

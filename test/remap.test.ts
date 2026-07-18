@@ -24,7 +24,7 @@ const schema = new Schema({
 })
 
 function creerSession(texte: string) {
-  const entretien: Entretien = { annotations: [] }
+  const entretien: Entretien = { annotations: [], ancres: [] }
   const doc = schema.node('doc', null, [schema.node('paragraph', null, [schema.text(texte)])])
   let state = EditorState.create({ doc, plugins: [history(), pluginRemap(entretien)] })
 

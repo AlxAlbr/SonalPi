@@ -1,11 +1,15 @@
 import type { Annotation } from './entretien/annotation'
+import type { Ancre } from './entretien/audio'
 
 /**
  * Contrat du FORMAT NATIF SonalAsynchro (MODELE_OBJET §3-§5). Partagé main ⇄ renderer.
  * Toute évolution de structure = bump de FORMAT_VERSION + migration explicite
  * (D6) : une version inconnue est refusée poliment, jamais lue partiellement.
+ *
+ * v2 (S7, D-S14) : les timecodes quittent les attrs de bloc (`deb`/`fin`) pour
+ * des ANCRES `{pos, t}` positionnées dans le texte (migration v1→v2 au store).
  */
-export const FORMAT_VERSION = 1
+export const FORMAT_VERSION = 2
 
 export function versionSupportee(v: unknown): boolean {
   return v === FORMAT_VERSION
@@ -15,6 +19,11 @@ export function versionSupportee(v: unknown): boolean {
 export interface Locuteur {
   index: number
   nom: string
+  /** Interviewer (celui qui pose les questions) : ses tours s'affichent en
+   *  italique. Convention SonalPi : un « ? » DANS le nom — artefact de format,
+   *  réintroduit à l'export seulement (comme `l="all"` EAV). Champ ADDITIF
+   *  optionnel : pas de bump de formatVersion. */
+  interviewer?: boolean
   valeursLoc: Record<string, string> // idVar → idMod
   personneRef: string | null
 }
@@ -24,6 +33,10 @@ export interface Categorie {
   id: string
   nom: string
   couleur?: string
+  /** Taille de police (px) appliquée aux passages codés — parité SonalPi (son
+   *  `tabThm[].taille` est un nombre nu). Champ ADDITIF optionnel : pas de bump
+   *  de formatVersion ; absent = taille du texte. */
+  taille?: number
   ordre: number
   parent: string | null
   actif: boolean
@@ -63,6 +76,8 @@ export interface EntretienFichier {
   lastModified: string
   corpsTexte: unknown // doc ProseMirror (JSON canonique)
   annotations: Annotation[]
+  /** Ancres temporelles (D-S14) : positions PM triées, temps mesurés (secondes). */
+  ancres: Ancre[]
   locuteurs: Locuteur[]
   meta: { valeursGen: Record<string, string>; audioRef: string | null }
   /** Blocs `.sonal` non encore modélisés (var/dic/dat/anon, notes), transportés
@@ -85,6 +100,7 @@ export interface CorpusFichier {
 export interface PayloadEntretien {
   corpsTexte: unknown
   annotations: Annotation[]
+  ancres: Ancre[]
   locuteurs: Locuteur[]
   meta: { valeursGen: Record<string, string>; audioRef: string | null }
   legacy?: Record<string, unknown>
@@ -102,8 +118,10 @@ export type ResultatSuppressionCategorie =
   | { ok: true; corpus: CorpusFichier }
   | { ok: false; usages: number }
 
-/** Champs modifiables d'une catégorie (renommer / recolorer / activer). */
-export type PatchCategorie = Partial<Pick<Categorie, 'nom' | 'couleur' | 'actif'>>
+/** Champs modifiables d'une catégorie (renommer / recolorer / retailler / activer).
+ *  `taille: undefined` PRÉSENT dans le patch = revenir à la taille par défaut
+ *  (le spread écrase, JSON.stringify retire la clé à l'écriture). */
+export type PatchCategorie = Partial<Pick<Categorie, 'nom' | 'couleur' | 'taille' | 'actif'>>
 
 /** Suppression refusée tant qu'utilisée (variables/modalités, comme les catégories). */
 export type ResultatSuppression =
@@ -123,6 +141,19 @@ export interface OuvertureCorpus extends DossierCorpus {
 /** Cible d'une valeur EAV posée depuis la table de données (D-S11) : la portée
  *  entretien, ou un locuteur donné (par son index). */
 export type CibleValeur = { type: 'entretien' } | { type: 'locuteur'; index: number }
+
+/** Un segment du RÉSUMÉ THÉMATIQUE d'un entretien (requête, jamais stockée) —
+ *  parité SonalPi (`resumeGraphique`) : la position est la PROPORTION DANS LE
+ *  TEXTE (pas le temps audio), en % [0..100] ; `codes` = les thèmes qui couvrent
+ *  le segment ; `pos`/`posFin` = positions PM des bornes (clic → ouvrir le texte
+ *  là ; lecteur → re-projection sur l'axe TEMPS via les ancres). */
+export interface SegmentThematique {
+  deb: number
+  fin: number
+  pos: number
+  posFin: number
+  codes: string[]
+}
 
 /** La MATRICE corpus = REQUÊTE (jamais stockée) : par entretien, ses valeurs de
  *  portée entretien + celles de ses locuteurs. Le renderer aplatit en lignes. */

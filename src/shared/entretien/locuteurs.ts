@@ -32,3 +32,10 @@ export function ajouterLocuteur(locuteurs: Locuteur[], nom: string): Locuteur {
   locuteurs.push(l)
   return l
 }
+
+/** Retire un locuteur de la liste. Les blocs qui le référencent doivent être
+ *  désattribués (loc → null) par l'appelant — le module ignore l'éditeur. */
+export function supprimerLocuteur(locuteurs: Locuteur[], index: number): void {
+  const i = locuteurs.findIndex((l) => l.index === index)
+  if (i !== -1) locuteurs.splice(i, 1)
+}

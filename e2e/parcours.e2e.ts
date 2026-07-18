@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, coderTheme } from './util'
+import { lancer, entrerCorpus, coderTheme, compterAnnotations, ajouterParModale } from './util'
 
 /**
  * ÉTAPE 7 + S2 — LE JUGE DE PAIX : le parcours complet à travers les trois écrans
@@ -25,18 +25,18 @@ test('corpus → import → coder → renommer un locuteur → saisir une donné
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.out })
   }, { fixture: FIXTURE, out: cheminExport })
 
-  // 1) IMPORT d'un .sonal réel (écran Corpus) → ouvre le nouvel entretien.
-  await page.locator('.corpus-tete .mini', { hasText: 'Importer' }).click()
+  // 1) IMPORT d'un .sonal réel (modale d'ajout) → ouvre le nouvel entretien.
+  await ajouterParModale(page, ['texte'])
   await expect(page.locator('.editeur')).toContainText('accepté cet entretien', { timeout: 10_000 })
 
   // 2) CODER un passage supplémentaire (le modèle gagne une annotation).
-  const avant = await page.locator('.debug li').count()
+  const avant = await compterAnnotations(page)
   await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
   await coderTheme(page, 'Famille')
-  await expect(page.locator('.debug li')).toHaveCount(avant + 1)
+  await expect.poll(() => compterAnnotations(page)).toBe(avant + 1)
 
   // 3) RENOMMER un locuteur (répercuté par référence).
-  await page.locator('.onglets button', { hasText: 'Locuteurs' }).click()
+  await page.locator('.onglets button', { hasText: 'Loc' }).click()
   await page.locator('.nom-loc').first().fill('TEST-LOCUTEUR')
   await page.keyboard.press('Tab')
 

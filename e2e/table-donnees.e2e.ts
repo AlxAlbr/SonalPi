@@ -2,23 +2,27 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, ouvrirSurCorpus, entrerEntretien, retourCorpus } from './util'
+import { lancer, entrerCorpus, ouvrirSurCorpus, entrerEntretien, entrerDonnees, retourCorpus } from './util'
 
 /**
- * D-S11 — la Table de données éditable. La matrice devient éditable : changer une
- * cellule écrit la valeur chez son propriétaire dans l'entretien visé (écriture
- * ciblée, jamais un cache). La ligne d'un entretien TENU (ouvert dans l'éditeur)
- * est verrouillée → la table n'écrit jamais dans un entretien ouvert.
+ * D-S11 (rév.) — la Table de données éditable. La matrice devient éditable : changer
+ * une cellule écrit la valeur chez son propriétaire dans l'entretien visé (écriture
+ * ciblée, jamais un cache). Entrer dans la table FERME (et sauvegarde) l'entretien
+ * ouvert dans l'éditeur → la table n'écrit jamais dans un entretien ouvert ; un
+ * point de reprise (bouton « Reprendre ») le rouvre d'un clic.
  */
 
-/** Crée une variable de portée entretien avec une modalité (écran Corpus). */
+/** Crée une variable de portée entretien avec une modalité (sur la table de
+ *  données), puis revient au Corpus. */
 async function creerVarEntretien(page: import('@playwright/test').Page, libMod: string) {
-  await page.locator('.donnees-corpus .corpus-tete .mini', { hasText: '+ entretien' }).click()
-  const li = page.locator('.donnees-corpus .liste-var > li').first()
+  await entrerDonnees(page)
+  await page.locator('.variables-def .corpus-tete .mini', { hasText: '+ entretien' }).click()
+  const li = page.locator('.variables-def .liste-var > li').first()
   await li.locator('.modalites .mini').click()
   const mod = li.locator('.nom-mod').first()
   await mod.fill(libMod)
   await mod.press('Tab')
+  await retourCorpus(page)
 }
 
 test('éditer une cellule dans la table écrit la valeur chez son propriétaire', async () => {
@@ -27,11 +31,10 @@ test('éditer une cellule dans la table écrit la valeur chez son propriétaire'
   const page = await app.firstWindow()
   await entrerCorpus(page)
 
-  await creerVarEntretien(page, 'Lyon')
+  await creerVarEntretien(page, 'Lyon') // crée sur la table, revient au Corpus
 
-  // Ouvrir la table (aucun entretien tenu → toutes lignes éditables).
-  await page.locator('.btn-table').click()
-  await expect(page.locator('.donnees-ecran')).toBeVisible()
+  // Ouvrir la table (toutes lignes éditables).
+  await entrerDonnees(page)
 
   // Une seule cellule éditable (la variable est de portée entretien → sur la
   // ligne entretien uniquement) : y choisir « Lyon ».
@@ -46,20 +49,26 @@ test('éditer une cellule dans la table écrit la valeur chez son propriétaire'
   await app.close()
 })
 
-test('la ligne d’un entretien ouvert est verrouillée (🔒, selects désactivés)', async () => {
+test('sortir d’un entretien le ferme ; « Reprendre » (Corpus et table) le rouvre', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-table-')
   await creerVarEntretien(page, 'Lyon')
 
-  // Ouvrir l'entretien (le « tient ») puis revenir au corpus.
+  // Ouvrir l'entretien puis en SORTIR : il est fermé, le point de reprise est
+  // proposé dès l'écran Corpus.
   await entrerEntretien(page)
   await retourCorpus(page)
+  await expect(page.locator('.corpus-ecran .btn-reprise')).toBeVisible()
+  await expect(page.locator('.corpus-ecran .btn-reprise')).toContainText('Reprendre')
 
-  // Table : la ligne du seed (entretien + ses 2 locuteurs) est marquée tenue,
-  // avec cadenas, et son select est désactivé.
-  await page.locator('.btn-table').click()
-  await expect(page.locator('.matrice.editable tr.tenu')).toHaveCount(3)
-  await expect(page.locator('.matrice.editable .cadenas')).toBeVisible()
-  await expect(page.locator('.matrice.editable select').first()).toBeDisabled()
+  // Dans la table : aucune ligne verrouillée, et la reprise est là aussi.
+  await entrerDonnees(page)
+  await expect(page.locator('.matrice.editable select').first()).toBeEnabled()
+  const reprise = page.locator('.donnees-ecran .btn-reprise')
+  await expect(reprise).toBeVisible()
+
+  // Reprendre rouvre l'entretien dans l'éditeur.
+  await reprise.click()
+  await expect(page.locator('.editeur')).toBeVisible()
 
   await app.close()
 })
