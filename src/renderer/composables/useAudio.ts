@@ -10,7 +10,15 @@ import { ref, computed } from 'vue'
  * écrans et reste observable en e2e (document.querySelector('audio')).
  */
 export function useAudio() {
+  // Une ré-instanciation (HMR en dev : App rechargée pendant une lecture) ne
+  // doit pas ORPHELINER l'élément précédent — il continuerait à jouer hors de
+  // tout contrôle (l'UI ne pilote que le nouvel élément). Inerte en prod.
+  document.querySelectorAll<HTMLAudioElement>('audio[data-sonal]').forEach((a) => {
+    a.pause()
+    a.remove()
+  })
   const el = document.createElement('audio')
+  el.dataset.sonal = ''
   el.preload = 'auto'
   el.style.display = 'none'
   document.body.appendChild(el)

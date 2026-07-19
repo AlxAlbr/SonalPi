@@ -2,7 +2,16 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, ouvrirSurCorpus, entrerEntretien, entrerDonnees, retourCorpus } from './util'
+import {
+  lancer,
+  entrerCorpus,
+  ouvrirSurCorpus,
+  entrerEntretien,
+  entrerDonnees,
+  retourCorpus,
+  ouvrirEditionVariables,
+  fermerEditionVariables,
+} from './util'
 
 /**
  * D-S11 (rév.) — la Table de données éditable. La matrice devient éditable : changer
@@ -12,16 +21,18 @@ import { lancer, entrerCorpus, ouvrirSurCorpus, entrerEntretien, entrerDonnees, 
  * point de reprise (bouton « Reprendre ») le rouvre d'un clic.
  */
 
-/** Crée une variable de portée entretien avec une modalité (sur la table de
- *  données), puis revient au Corpus. */
+/** Crée une variable de portée entretien avec une modalité (fenêtre d'édition
+ *  des variables, crayon de la table de données), puis revient au Corpus. */
 async function creerVarEntretien(page: import('@playwright/test').Page, libMod: string) {
   await entrerDonnees(page)
-  await page.locator('.variables-def .corpus-tete .mini', { hasText: '+ entretien' }).click()
-  const li = page.locator('.variables-def .liste-var > li').first()
-  await li.locator('.modalites .mini').click()
-  const mod = li.locator('.nom-mod').first()
+  await ouvrirEditionVariables(page)
+  await page.locator('.modale-vars .corpus-tete .mini', { hasText: "+ var. d'entretien" }).click()
+  const li = page.locator('.modale-vars .liste-var > li').first()
+  await li.locator('.actions-mod .mini').click()
+  const mod = li.locator('.lib-mod').first()
   await mod.fill(libMod)
   await mod.press('Tab')
+  await fermerEditionVariables(page)
   await retourCorpus(page)
 }
 

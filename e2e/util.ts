@@ -135,6 +135,19 @@ export async function fermerEditionThemes(page: Page): Promise<void> {
   await expect(page.locator('.modale-themes')).toHaveCount(0)
 }
 
+/** Ouvre la fenêtre d'ÉDITION des variables (crayon de la table de données —
+ *  même idiome que l'édition des thèmes). */
+export async function ouvrirEditionVariables(page: Page): Promise<void> {
+  await page.locator('.table-tete .crayon').click()
+  await expect(page.locator('.modale-vars')).toBeVisible()
+}
+
+/** Ferme la fenêtre d'édition des variables. */
+export async function fermerEditionVariables(page: Page): Promise<void> {
+  await page.locator('.modale-vars .fermer').click()
+  await expect(page.locator('.modale-vars')).toHaveCount(0)
+}
+
 /** Lance sur un profil neuf et ENTRE dans le 1er entretien (seed « Karine ») —
  *  pour les tests centrés éditeur (marquage, locuteurs, smoke…). */
 export async function ouvrir(prefixe = 'sonal-'): Promise<{ app: ElectronApplication; page: Page }> {

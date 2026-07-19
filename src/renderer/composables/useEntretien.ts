@@ -6,7 +6,7 @@ import { BlocAttributs } from '../editor/schema'
 import { pluginRemap } from '../editor/remap'
 import { pluginDecorations, decorationsPluginKey } from '../editor/decorations'
 import { pluginGouttiere, gouttierePluginKey } from '../editor/locuteursGutter'
-import { pluginLecture, lecturePluginKey } from '../editor/lecture'
+import { pluginLecture } from '../editor/lecture'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
 import { pluginRemapJournal } from '../editor/journalRemap'
@@ -19,13 +19,6 @@ import {
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
 import { ajouterCodage, retirerAnnotation, trouverCodage, type Entretien } from '../../shared/entretien/entretien'
 import {
-  projeterAncres,
-  plageCourante,
-  tempsAuPoint,
-  debutTour,
-  type AncreTexte,
-} from '../../shared/entretien/audio'
-import {
   enregistrer,
   annuler as annulerAuJournal,
   estApplicable,
@@ -33,6 +26,7 @@ import {
   type Journal,
 } from '../../shared/entretien/journal'
 import type { Ancre } from '../../shared/entretien/audio'
+import { useSynchroAudio } from './useSynchroAudio'
 import { resumeThematique } from '../../shared/corpus'
 import type { EntretienFichier, Locuteur, SegmentThematique } from '../../shared/format'
 import type { LegacyBlobs } from '../import/importSonal'
@@ -256,99 +250,9 @@ export function useEntretien(deps: {
       })
   }
 
-  // --- Synchro audio (S7, D-S14) : ancres projetées + plage lue ---
-  /** MÉMO de la projection des ancres en coordonnées texte (dérivation, jamais
-   *  persistée) — invalidé quand le doc change (identité du doc PM) : en lecture
-   *  sans édition, le tick reste une pure dichotomie (invariant perf D-S14). */
-  let projection: { doc: unknown; ancres: AncreTexte[] } | null = null
-  function ancresTexte(): AncreTexte[] {
-    const ed = editor.value
-    if (!ed) return []
-    if (!projection || projection.doc !== ed.state.doc) {
-      const longueurs: number[] = []
-      ed.state.doc.forEach((node) => {
-        if (node.type.name === 'paragraph') longueurs.push(node.content.size)
-      })
-      projection = { doc: ed.state.doc, ancres: projeterAncres(entretien.ancres, longueurs) }
-    }
-    return projection.ancres
-  }
-
-  /** Plage actuellement surlignée (cache d'égalité : on ne dispatch que si elle
-   *  CHANGE — le remap du plugin suit les éditions entre-temps). */
-  let plageLue: { de: number; a: number } | null = null
-  /** Cale le surlignage sur l'instant de lecture `t` (null = éteindre) et fait
-   *  défiler le texte vers la plage lue. La plage = les 2 ancres du MODÈLE qui
-   *  encadrent `t` (indices partagés avec la projection, ordre 1:1). */
-  function majPlageLue(t: number | null) {
-    const ed = editor.value
-    if (!ed) return
-    const idx = t == null ? null : plageCourante(ancresTexte(), t)
-    const plage =
-      idx == null ? null : { de: entretien.ancres[idx.g].pos, a: entretien.ancres[idx.d].pos }
-    if (plage?.de === plageLue?.de && plage?.a === plageLue?.a) return
-    plageLue = plage
-    ed.view.dispatch(ed.state.tr.setMeta(lecturePluginKey, plage))
-    if (plage) {
-      const dom = ed.view.domAtPos(plage.de).node
-      const el = dom instanceof HTMLElement ? dom : dom.parentElement
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }
-
-  /** Place le curseur à `pos` (bornée au doc) et fait défiler le texte jusque-là
-   *  (point de reprise : revenir à l'endroit du texte où on a quitté). */
-  function allerAuTexte(pos: number) {
-    const ed = editor.value
-    if (!ed) return
-    const p = Math.max(1, Math.min(pos, ed.state.doc.content.size - 1))
-    ed.commands.setTextSelection(p)
-    const dom = ed.view.domAtPos(p).node
-    const el = dom instanceof HTMLElement ? dom : dom.parentElement
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
-
-  /** Temps interpolé à la position de texte `pos` (clic DANS le texte → seek
-   *  précis, comme SonalPi). Aujourd'hui : prorata entre les 2 ancres qui
-   *  encadrent le point (D-S13) ; avec des ancres au mot, la précision suivra
-   *  toute seule. null si aucune ancre (texte sans timecodes). */
-  function tempsAuTexte(pos: number): number | null {
-    const ed = editor.value
-    if (!ed) return null
-    let x = 0
-    let xClic: number | null = null
-    ed.state.doc.forEach((node, offset) => {
-      if (node.type.name !== 'paragraph' || xClic != null) return
-      const debut = offset + 1
-      if (pos <= debut + node.content.size) {
-        xClic = x + Math.max(0, Math.min(node.content.size, pos - debut))
-      } else {
-        x += node.content.size
-      }
-    })
-    return xClic == null ? null : tempsAuPoint(ancresTexte(), xClic)
-  }
-
-  /** Temps de seek pour un clic-tour sur le bloc à `posBloc` : le temps
-   *  interpolé au DÉBUT du tour contenant ce bloc (D-S2 : tour dérivé ;
-   *  D-S13 : interpolation entre ancres si le début du tour n'en porte pas). */
-  function tempsDuBloc(posBloc: number): number | null {
-    const ed = editor.value
-    if (!ed) return null
-    const locs: (number | null)[] = []
-    const xDebuts: number[] = []
-    let k = -1
-    let x = 0
-    ed.state.doc.forEach((node, offset) => {
-      if (node.type.name !== 'paragraph') return
-      if (offset === posBloc) k = locs.length
-      locs.push((node.attrs.loc ?? null) as number | null)
-      xDebuts.push(x)
-      x += node.content.size
-    })
-    if (k < 0) return null
-    return tempsAuPoint(ancresTexte(), xDebuts[debutTour(locs, k)])
-  }
+  // --- Synchro audio (S7, D-S14) : scope dédié — le pont temps ↔ texte ---
+  const { majPlageLue, eteindre: eteindrePlageLue, allerAuTexte, tempsAuTexte, tempsDuBloc } =
+    useSynchroAudio({ editor, ancres: entretien.ancres })
 
   // --- Autosave (débounce) + persistance de l'entretien ouvert ---
   let tid: ReturnType<typeof setTimeout> | undefined
@@ -414,10 +318,8 @@ export function useEntretien(deps: {
     perime.value = res.perime
     chargement = false
     journal.entrees.length = 0 // volatil PAR entretien (D-S9)
-    // Le surlignage audio ne survit pas au changement de doc (dispatch direct :
-    // la garde d'égalité de majPlageLue ne voit pas un remplacement de doc).
-    plageLue = null
-    ed.view.dispatch(ed.state.tr.setMeta(lecturePluginKey, null))
+    // Le surlignage audio ne survit pas au changement de doc.
+    eteindrePlageLue()
     rafraichir()
     rafraichirDecorations()
     rafraichirGouttiere()
@@ -433,9 +335,7 @@ export function useEntretien(deps: {
     editor.value?.commands.setContent('<p></p>', { emitUpdate: false })
     refusFormat.value = null
     perime.value = false
-    plageLue = null
-    const ed = editor.value
-    if (ed) ed.view.dispatch(ed.state.tr.setMeta(lecturePluginKey, null))
+    eteindrePlageLue()
     rafraichir()
     rafraichirDecorations()
   }

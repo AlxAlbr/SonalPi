@@ -54,8 +54,12 @@ Serveur Nextcloud (référence)              Poste (par machine)
   dans une couche `MiroirWebDAV` (process main) : `tirer()` (pull incrémental), `publier()` (push
   d'un fichier), et le `VerrouProvider` (§4-§5). Le renderer ne voit rien de tout ça.
 - **Compte** : URL serveur + login + **mot de passe d'application** (jamais le mot de passe
-  principal), stockés via `safeStorage` d'Electron dans `userData`. Chemin distant du corpus saisi
-  ou choisi par navigation WebDAV. NB : un dossier **partagé** Nextcloud apparaît à un chemin
+  principal — révocable individuellement, et seul accepté en Basic auth WebDAV quand la 2FA est
+  active), stockés via `safeStorage` d'Electron dans `userData`. Saisie manuelle du jeton au set
+  minimum ; raffinement possible (E0 ou plus tard) : le **Login Flow v2** de Nextcloud
+  (`/index.php/login/v2` — l'app ouvre le navigateur, l'utilisateur s'authentifie, l'app reçoit un
+  mot de passe d'application généré pour elle, comme le client Desktop officiel). Chemin distant du
+  corpus saisi ou choisi par navigation WebDAV. NB : un dossier **partagé** Nextcloud apparaît à un chemin
   propre à chaque compte (`/remote.php/dav/files/<user>/…`) — la config est donc par utilisateur,
   c'est normal.
 - **Un corpus local « classique » reste possible** : `VerrouAucun` + pas de miroir = le

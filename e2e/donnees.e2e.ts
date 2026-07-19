@@ -2,7 +2,16 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, ouvrirSurCorpus, entrerCorpus, entrerEntretien, entrerDonnees, retourCorpus } from './util'
+import {
+  lancer,
+  ouvrirSurCorpus,
+  entrerCorpus,
+  entrerEntretien,
+  entrerDonnees,
+  retourCorpus,
+  ouvrirEditionVariables,
+  fermerEditionVariables,
+} from './util'
 
 /**
  * ÉTAPE 6 + S2 — données (EAV) à DEUX NIVEAUX d'écran : les DÉFINITIONS de
@@ -13,16 +22,23 @@ import { lancer, ouvrirSurCorpus, entrerCorpus, entrerEntretien, entrerDonnees, 
  * modalité utilisée = refus + compteur.
  */
 
-/** Crée une variable (sur la table de données) avec une modalité `libMod`, puis
- *  revient au Corpus (pour enchaîner l'ouverture d'un entretien). */
-async function creerVariable(page: Page, bouton: '+ entretien' | '+ locuteur', libMod: string) {
+/** Crée une variable (fenêtre d'édition des variables, crayon de la table de
+ *  données) avec une modalité `libMod`, puis revient au Corpus (pour enchaîner
+ *  l'ouverture d'un entretien). */
+async function creerVariable(
+  page: Page,
+  bouton: "+ var. d'entretien" | '+ var. de locuteur',
+  libMod: string,
+) {
   await entrerDonnees(page)
-  await page.locator('.variables-def .corpus-tete .mini', { hasText: bouton }).click()
-  const li = page.locator('.variables-def .liste-var > li').first()
-  await li.locator('.modalites .mini').click() // + mod
-  const modInput = li.locator('.nom-mod').first()
+  await ouvrirEditionVariables(page)
+  await page.locator('.modale-vars .corpus-tete .mini', { hasText: bouton }).click()
+  const li = page.locator('.modale-vars .liste-var > li').first()
+  await li.locator('.actions-mod .mini').click() // + modalité
+  const modInput = li.locator('.lib-mod').first()
   await modInput.fill(libMod)
   await modInput.press('Tab') // @change → renomme la modalité
+  await fermerEditionVariables(page)
   await retourCorpus(page)
 }
 
@@ -37,7 +53,7 @@ test('saisir une valeur (entretien) → persistée et reflétée par la matrice 
   const app1 = await lancer(dir)
   const page1 = await app1.firstWindow()
   await entrerCorpus(page1)
-  await creerVariable(page1, '+ entretien', 'Lyon') // écran Corpus
+  await creerVariable(page1, "+ var. d'entretien", 'Lyon')
   await entrerEntretien(page1) // saisie = écran Entretien
   await ongletDonnees(page1)
   await page1.locator('.saisie-sel').first().selectOption({ label: 'Lyon' })
@@ -64,7 +80,7 @@ test('une valeur de portée locuteur vit chez SON locuteur (aucun sentinelle "al
   const page = await app.firstWindow()
   await entrerCorpus(page)
 
-  await creerVariable(page, '+ locuteur', 'Femme') // écran Corpus
+  await creerVariable(page, '+ var. de locuteur', 'Femme')
   await entrerEntretien(page)
   await ongletDonnees(page)
   // Fiche du 1er locuteur → choisir « Femme ».
@@ -83,17 +99,19 @@ test('une valeur de portée locuteur vit chez SON locuteur (aucun sentinelle "al
 
 test('supprimer une modalité utilisée est refusé (avec compteur)', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-eav-')
-  await creerVariable(page, '+ entretien', 'Lyon') // écran Corpus
+  await creerVariable(page, "+ var. d'entretien", 'Lyon')
   await entrerEntretien(page)
   await ongletDonnees(page)
   await page.locator('.saisie-sel').first().selectOption({ label: 'Lyon' })
   await expect(page.locator('.etat')).toHaveText('à jour')
 
-  // Table de données : tenter de supprimer la modalité « Lyon » (utilisée) → refus.
+  // Fenêtre d'édition des variables : tenter de supprimer la modalité « Lyon »
+  // (utilisée) → refus.
   await retourCorpus(page)
   await entrerDonnees(page)
-  await page.locator('.variables-def .liste-var > li').first().locator('.x-mod').first().click()
-  await expect(page.locator('.variables-def .msg-thm')).toContainText('utilisée 1')
-  await expect(page.locator('.variables-def .liste-var > li').first().locator('.mod')).toHaveCount(1)
+  await ouvrirEditionVariables(page)
+  await page.locator('.modale-vars .liste-var > li').first().locator('.x-mod').first().click()
+  await expect(page.locator('.modale-vars .msg-thm')).toContainText('utilisée 1')
+  await expect(page.locator('.modale-vars .liste-var > li').first().locator('.lig-mod')).toHaveCount(1)
   await app.close()
 })
