@@ -4,6 +4,7 @@ import { couleurPourCode, couleurHexPourCode } from '../editor/decorations'
 import type {
   Categorie,
   CibleValeur,
+  CorpusFichier,
   EntretienRef,
   MatriceCorpus,
   PatchCategorie,
@@ -152,8 +153,23 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     }
     majVariables(r.corpus.variables)
   }
-  async function ajouterModalite(idVar: string) {
-    majVariables((await window.sonal.corpus.ajouterModalite(idVar, 'Modalité')).variables)
+  /** Statut SonalPi : privée = exclue des exports (le champ `priv` voyage déjà
+   *  dans tabVar à l'import/export — ici on ne fait que l'éditer). */
+  async function basculerPriveeVariable(id: string, priv: boolean) {
+    majVariables((await window.sonal.corpus.modifierVariable(id, { priv })).variables)
+  }
+  async function ajouterModalite(idVar: string, lib = 'Modalité') {
+    majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
+  }
+  /** Modalités pré-remplies (parité SonalPi) : ajoute le modèle en masse et
+   *  baptise la variable du nom du modèle si elle porte encore le nom par défaut. */
+  async function ajouterModalitesModele(idVar: string, nomModele: string, libs: string[]) {
+    let c: CorpusFichier | null = null
+    for (const lib of libs) c = await window.sonal.corpus.ajouterModalite(idVar, lib)
+    const v = variables.value.find((x) => x.id === idVar)
+    if (v && v.lib === 'Nouvelle variable')
+      c = await window.sonal.corpus.modifierVariable(idVar, { lib: nomModele })
+    if (c) majVariables(c.variables)
   }
   async function renommerModalite(idVar: string, idMod: string, evt: Event) {
     const lib = (evt.target as HTMLInputElement).value.trim()
@@ -180,6 +196,21 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
   function poserLoc(entretienId: string, index: number, idVar: string, idMod: string) {
     return poserValeurTable(entretienId, { type: 'locuteur', index }, idVar, idMod)
+  }
+  /** SAISIE LIBRE (parité SonalPi `definirValeur`) : trouve-ou-crée la modalité
+   *  par LIBELLÉ (code max+1 si inconnu — l'export EAV exige une entrée de
+   *  dictionnaire, une valeur hors dictionnaire serait ignorée à l'export). */
+  async function modaliteParLibelle(idVar: string, lib: string): Promise<string> {
+    const deja = modalitesDe(idVar).find((m) => m.lib === lib)
+    if (deja) return deja.id
+    majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
+    return modalitesDe(idVar).find((m) => m.lib === lib)!.id
+  }
+  async function poserGenLibelle(entretienId: string, idVar: string, lib: string) {
+    await poserGen(entretienId, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
+  }
+  async function poserLocLibelle(entretienId: string, index: number, idVar: string, lib: string) {
+    await poserLoc(entretienId, index, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
   }
 
   return {
@@ -217,12 +248,17 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     // variables/modalités
     ajouterVariable,
     renommerVariable,
+    basculerPriveeVariable,
     supprimerVariable,
     ajouterModalite,
+    ajouterModalitesModele,
     renommerModalite,
     supprimerModalite,
-    // table de données
+    // table de données / saisie libre
     poserGen,
     poserLoc,
+    poserGenLibelle,
+    poserLocLibelle,
+    modaliteParLibelle,
   }
 }
