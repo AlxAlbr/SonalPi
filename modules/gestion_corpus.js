@@ -169,8 +169,8 @@ document.getElementById('fenetreAccueil').classList.add('dnone'); // masquage de
 
   let Corpus = await window.electronAPI.getCorpus();
 
-    // si corpus distant ou gitlab, affichage du bouton rafraichir : id="btn-rafraichir"
-    if (Corpus.type == "distant" || Corpus.type == "gitlab"){  
+    // si corpus distant, affichage du bouton rafraichir : id="btn-rafraichir"
+    if (Corpus.estDistant) {
         document.getElementById('btn-rafraichir').classList.remove('dnone'); // affichage du bouton de rafraichissement
     } else {
         document.getElementById('btn-rafraichir').classList.add('dnone');
@@ -884,13 +884,10 @@ async function lireCrpSonal2(contenu){
  */
 async function sauvegarderCorpus(avecBackup = false) {
 
-// récupération du chemin d'accès au corpus
-const Corpus = await window.electronAPI.getCorpus();
-let corpusActuel = Corpus.url;  
+  // récupération du chemin d'accès au corpus
+  const Corpus = await window.electronAPI.getCorpus();
 
- // console.log('Corpus actuel:', corpusActuel);
-
-  if (!corpusActuel) {
+  if (!Corpus.url) {
     question('Aucun corpus ouvert', ['OK']);
     return { success: false, error: 'Aucun corpus ouvert' };
   }
@@ -922,28 +919,22 @@ let corpusActuel = Corpus.url;
   
   let result;
 
-  if (Corpus.type === "distant") {
+  if (Corpus.estDistant) {
     // Éviter un aller-retour réseau inutile si rien n'a changé
     if (!avecBackup && contenu === _dernierContenuCrp) {
       console.log('⏭️ .crp inchangé — écriture serveur ignorée');
       return { success: true, skipped: true };
     }
     if (avecBackup) {
-      result = await window.electronAPI.sauvegarderAvecBackup(corpusActuel, contenu);
+      result = await window.electronAPI.sauvegarderAvecBackup(Corpus.url, contenu);
     } else {
-      result = await window.electronAPI.sauvegarderSurServeur(corpusActuel, contenu);
+        // !!! Pour l'instant pour GitLab, Corpus.url est l'URL web — on reconstruit le chemin API
+        const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
+
+        result = await window.electronAPI.sauvegarderSurServeur(Corpus.url, contenu);
     }
-  } else if (Corpus.type === "gitlab") {
-    // Éviter un commit GitLab inutile si rien n'a changé
-    if (contenu === _dernierContenuCrp) {
-      console.log('⏭️ .crp inchangé — commit GitLab ignoré');
-      return { success: true, skipped: true };
-    }
-    // Pour GitLab, Corpus.url est l'URL web — on reconstruit le chemin API
-    const cheminCrp = [Corpus.folder, Corpus.fileName].filter(Boolean).join('/');
-    result = await window.electronAPI.sauvegarderSurServeur(cheminCrp, contenu);
-  } else if (Corpus.type === "local") {
-    result = await window.electronAPI.sauvegarderFichier(corpusActuel, contenu);
+  } else {
+    result = await window.electronAPI.sauvegarderFichier(Corpus.url, contenu);
   }
 
   if (!result) return { success: false, error: 'Type de corpus non reconnu' };
@@ -969,6 +960,9 @@ let corpusActuel = Corpus.url;
 async function rafraichirCorpus(silencieux = false) {
 
     const Corpus = await window.electronAPI.getCorpus();
+
+    // FIXME: fusionner avec Corpus.type == distant
+    // C'est anormal qu'il ait beaucoup plus d'actions effectuées ici que dans le cas distant (à partir de la ligne 1109)
 
     // ── Rafraîchissement GitLab ──────────────────────────────────────────────
     if (Corpus.type === "gitlab") {
@@ -1105,7 +1099,7 @@ async function rafraichirCorpus(silencieux = false) {
         return;
     }
 
-    if (Corpus.type !=="distant"){
+    if (! Corpus.estDistant) {
         return; // le rafraîchissement ne se fait que pour les corpus distants
     }
 

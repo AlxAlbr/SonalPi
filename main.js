@@ -106,17 +106,41 @@ ipcMain.handle('set-user', (_, newUser) => {
   return true;
 });
 
-// Handlers GitLab options
-ipcMain.handle('get-gitlab-user-is-owner', () => gitlabUserIsOwner);
-ipcMain.handle('get-gitlab-options', () => gitlabOptions);
-ipcMain.handle('set-gitlab-options', async (_, options) => {
-  if (!gitlabAPI) return { success: false, error: 'Pas de connexion GitLab' };
-  if (!gitlabUserIsOwner) return { success: false, error: 'Permission refusée' };
-  gitlabOptions = options;
-  return await gitlabAPI.ecrireOptions(options);
+// Handlers remote options
+ipcMain.handle('get-remote-is-owner', () => remoteAPI().isOwner());
+ipcMain.handle('get-remote-options', () => remoteAPI().getRemoteOptions());
+ipcMain.handle('set-remote-options', async (_, options) => {
+    const api = remoteAPI();
+    if (!api) return { success: false, error: 'Pas de connexion' };
+    const ok = await checkPermission('modifierOptions')
+    if (! ok) {
+        return { success: false, error: 'Permission refusée' };
+    }
+    return await remoteAPI().setRemoteOptions(options)
 });
 
- 
+const checkPermission = async (permission) => {
+    // Vérifie que l'utilisateur courant à l'autorisation d'effectuer une action
+    const api = remoteAPI();
+    const isOwner = await api.isOwner();
+    const opts = await remoteAPI().getRemoteOptions();
+
+    if (permission == 'ajouterEntretien' || permission == 'supprimerEntretien') {
+        return (! opts.restrictionAjoutSuppr || isOwner)
+    } else if (permission == 'modifierOptions') {
+        return isOwner;
+    }
+
+    // Par défaut, si on passe une permission qui n'est pas
+    // définie, on retourne false, pour ne pas laisser passer une
+    // vérification non prévue et ainsi ne pas accorder trop de
+    // droit en cas d'erreur dans le code.
+    return false;
+
+
+}
+
+ipcMain.handle('check-permission', async (_, permission) => checkPermission(permission))
 
 // ⭐ Handler pour confirmer la fin de sauvegarde avant fermeture
 ipcMain.handle('save-complete', (event) => {
@@ -506,29 +530,20 @@ ipcMain.handle('lister-recueils', async () => {
       return { success: true, files: recueils };
     }
 
-    // Corpus distant (serveur ou GitLab)
-    const api = remoteAPI();
-    if (!api) {
-      return { success: false, error: 'Pas de connexion au serveur distant.' };
+    if (Corpus.estDistant) {
+        // Corpus distant
+        const api = remoteAPI();
+        if (!api) {
+            return { success: false, error: 'Pas de connexion au serveur distant.' };
+        }
+        const result = await api.listerFichiers(Corpus.folder);
+        if (!result.success) return result;
+        const recueils = result.files.filter(f => f.name.toLowerCase().endsWith('.rcl'));
+        return { success: true, files: recueils };
     }
-
-    if (Corpus.type === 'gitlab') {
-      const allFiles = await api._listerRecursif(Corpus.folder);
-      const recueils = allFiles
-        .filter(f => f.type === 'blob' && f.name.toLowerCase().endsWith('.rcl'))
-        .map(f => ({ name: f.name, path: f.path }));
-      return { success: true, files: recueils };
-    }
-
-    // Serveur distant
-    const result = await api.listerFichiers(Corpus.folder);
-    if (!result.success) return result;
-    const recueils = result.files.filter(f => f.name.toLowerCase().endsWith('.rcl'));
-    return { success: true, files: recueils };
-
   } catch (error) {
-    console.error('❌ Erreur liste recueils:', error);
-    return { success: false, error: error.message };
+      console.error('❌ Erreur liste recueils:', error);
+      return { success: false, error: error.message };
   }
 });
 
@@ -573,29 +588,16 @@ ipcMain.handle('file:lastModified', async (_, filePath) => {
       return lastModified;
     }
 
-    // Corpus GitLab
-    if (gitlabAPI) {
-      try {
-        const lastModified = await gitlabAPI.derniereModif(filePath);
-        return lastModified;
-      } catch (err) {
-        console.log(`  ❌ GitLab: Erreur - ${err.message}`);
-        return null;
-      }
+    if (Corpus.estDistant) {
+        try {
+            const lastModified = await remoteAPI().derniereModif(filePath);
+            return lastModified;
+        } catch (err) {
+            console.log(`  ❌ ${Corpus.type}: Erreur - ${err.message}`);
+            return null;
+        }
     }
 
-    if (!serveurAPI) {
-      console.log('  ❌ Distant: Pas de connexion au serveur');
-      return null;
-    }
-
-    try {
-      const lastModified = await serveurAPI.derniereModif(filePath);
-      return lastModified;
-    } catch (err) {
-      console.log(`  ❌ Distant: Erreur - ${err.message}`);
-      return null;
-    }
   } catch (error) {
     console.error('❌ Erreur récupération dernière modif:', error);
     return null;
@@ -662,7 +664,7 @@ ipcMain.handle('sauvegarder-fichier', async (event, filePath, content) => {
 ipcMain.handle('dialog:saveFile', async (event, { filename, content, encoding }) => {
 
   // Chemin par défaut : dossier du projet local, sinon Documents
-  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+  const defaultDir = (Corpus.folder && ! Corpus.estDistant)
     ? Corpus.folder
     : app.getPath('documents');
   const defaultPath = path.join(defaultDir, filename);
@@ -700,7 +702,7 @@ ipcMain.handle('export-files-zip', async (event, fichiers, defaultName) => {
     return { success: false, error: 'Aucun fichier à exporter.' };
   }
 
-  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+  const defaultDir = (Corpus.folder && ! Corpus.estDistant)
     ? Corpus.folder
     : app.getPath('documents');
   const defaultPath = path.join(defaultDir, defaultName || 'corpus_anonymise.zip');
@@ -743,7 +745,7 @@ ipcMain.handle('open-path', async (event, filePath) => {
 });
 
 // Handler pour sauvegarder sur le serveur
-// Lit un fichier depuis le serveur distant (serveurAPI ou gitlabAPI)
+// Lit un fichier depuis le serveur distant
 ipcMain.handle('lire-fichier-serveur', async (_event, filePath) => {
   console.log('📥 Lecture fichier distant:', filePath);
 
@@ -1161,8 +1163,8 @@ async function compacterCorpus() { // fonction permettant de compacter les donn�
   // Nom par défaut basé sur le corpus, emplacement au choix
   const defaultName = Corpus.fileName
     ? Corpus.fileName.replace('.crp', '.json')
-    : 'corpus.json';
-  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+      : 'corpus.json';
+  const defaultDir = (Corpus.folder && ! Corpus.estDistant)
     ? Corpus.folder
     : app.getPath('documents');
 
@@ -1206,13 +1208,11 @@ async function archiverCorpus() {
     return null;
   }
 
-  const estDistant = Corpus.type === 'distant' || Corpus.type === 'gitlab';
-
   // Nom par défaut : même nom que le corpus + date
   const baseName = Corpus.fileName.replace('.crp', '');
   const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const defaultName = `${baseName}_${timestamp}.zip`;
-  const defaultDir = estDistant ? app.getPath('documents') : Corpus.folder;
+  const defaultDir = Corpus.estDistant ? app.getPath('documents') : Corpus.folder;
 
   // Boîte de dialogue "Enregistrer sous"
   const { canceled, filePath: dest } = await dialog.showSaveDialog(mainWindow, {
@@ -1229,8 +1229,8 @@ async function archiverCorpus() {
   const zip = new AdmZip();
   const erreurs = [];
 
-  if (estDistant) {
-    // ─── Corpus distant (serveur ou GitLab) : télécharger les fichiers via remoteAPI ─
+  if (Corpus.estDistant) {
+    // ─── Corpus distant : télécharger les fichiers via remoteAPI ─
 
     // 1. Fichier .crp : on sérialise l'état en mémoire (données courantes)
     //    tabAnon inclus (même contenu que sauvegarderCorpus) pour ne pas perdre les règles
@@ -1430,14 +1430,15 @@ async function editerEntretien(parentWindow, rgEnt, navTarget = null){
       entWindow.maximize()
 
 
-        // verrouiller le fichier sur le serveur
-      if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
+      const api = remoteAPI()
+      // verrouiller le fichier sur le serveur
+      if (Corpus.hasLock && api) {
 
         // définition de l'adresse du fichier distant
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
         //verrouillage
         try {
-          const lockResult = await remoteAPI().verrouillerFichier(adrFile);
+          const lockResult = await api.verrouillerFichier(adrFile);
           if (!lockResult.success) {
             // Erreur API ou réseau : proposer lecture seule ou annulation
             console.warn('⚠️ Verrouillage impossible :', lockResult.error);
@@ -1526,7 +1527,7 @@ async function editerEntretien(parentWindow, rgEnt, navTarget = null){
     entWindow.on('closed', () => {
        
       // déverrouiller le fichier sur le serveur
-      if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
+      if (Corpus.hasLock && remoteAPI()) {
         let adrFile = cheminEnt = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
         remoteAPI().deverrouillerFichier(adrFile);
         // Notifier mainWindow pour mettre à jour l'icône immédiatement
@@ -1583,7 +1584,7 @@ ipcMain.handle('entretien:demande-vue-corpus', async (event, payload) => {
 ipcMain.handle('entretien-locked', async (event, rgEnt) => {
   //console.log("vérification du verrouillage de l'entretien " + rgEnt + " de type " + Corpus.type)
   
-  if ((Corpus.type == "distant" || Corpus.type == "gitlab") && remoteAPI()) {
+  if (Corpus.estDistant && remoteAPI()) {
     try {
       let adrFile = [Corpus.folder, tabEnt[rgEnt].rtrPath].filter(Boolean).join('/');
       const result = await remoteAPI().verifierVerrou(adrFile);
@@ -1744,8 +1745,6 @@ const { miseàjourEntretien } = require('./modules/gestion_entretiens.js');
 
 let serveurAPI = null;
 let gitlabAPI  = null;
-let gitlabUserIsOwner = false; // true si Maintainer (40) ou Owner (50)
-let gitlabOptions = {};         // contenu de options.json
 
 /** Renvoie l'API distante active selon le type du corpus courant */
 function remoteAPI() {
@@ -1785,7 +1784,8 @@ async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = 
         baseUrl: serveurAPI.baseUrl,
         size: result.size,
         modified: result.modified,
-        type: 'distant'
+        type: 'distant',
+        hasLock: true
       };
     } catch (error) {
       console.error('❌ Erreur:', error);
@@ -1859,6 +1859,8 @@ async function ouvrirCorpusDistantAvecRetry(mainWindow, filePath, previousUrl = 
     Corpus.folder = dosspProj; 
     Corpus.content = result.content;
     Corpus.lastChange = new Date().toISOString();
+    Corpus.estDistant = true;
+    Corpus.hasLock    = true;
     Corpus.type = "distant"; 
     
     // Ajouter l'URL du corpus distant à la liste des récents
@@ -2113,11 +2115,14 @@ async function ouvrirCorpusGitLab(parentWindow, savedConfig = null, _existingCon
     const fichProj  = filePath.substring(filePath.lastIndexOf('/') + 1);
     const dosspProj = filePath.substring(0, filePath.lastIndexOf('/'));
 
-    Corpus.url        = `${instanceUrl}/${projectPath}/-/blob/main/${filePath}`;
+    Corpus.url        = gitlabAPI.filepath2url(filePath);
+    Corpus.path       = filePath;
     Corpus.fileName   = fichProj;
     Corpus.folder     = dosspProj;
     Corpus.content    = corpusContent;
     Corpus.lastChange = new Date().toISOString();
+    Corpus.estDistant = true;
+    Corpus.hasLock    = true;
     Corpus.type       = 'gitlab';
 
     // 8. Déterminer le rôle et lire les options du projet
@@ -3778,7 +3783,7 @@ ipcMain.handle('export-corpus-docx-zip', async (event, fichiers, defaultName) =>
     return { success: false, error: 'Aucun fichier à exporter.' };
   }
 
-  const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+  const defaultDir = (Corpus.folder && ! Corpus.estDistant)
     ? Corpus.folder
     : app.getPath('documents');
   const defaultPath = path.join(defaultDir, defaultName || 'corpus_docx.zip');

@@ -62,6 +62,28 @@ class GitLabAPI {
   // MÉTHODES PUBLIQUES (interface = ServeurAPI)
   // ──────────────────────────────────────────────
 
+  // Convertit une URL en filePath
+  // Sachant que  Corpus.url = `${instanceUrl}/${projectPath}/-/blob/main/${filePath}`;
+  url2filepath (url) {
+      if (url.startsWith('http')) {
+          // Looks like a URL. Convert it to a filePath
+          const items = url.split('-/blob/main/')
+          if (items.length == 2) {
+              return items[1]
+          } else {
+              console.error(`Cannot convert ${url} to filePath`)
+              return url
+          }
+      } else {
+          // A basic filePath was already given, just use it
+          return url
+      }
+  }
+
+  filepath2url (filePath) {
+        return `${this.instanceUrl}/${this.projectPath}/-/blob/main/${filePath}`;
+  }
+
   /**
    * Teste la connexion — vérifie que le token est valide et que le projet est accessible
    */
@@ -94,6 +116,11 @@ class GitLabAPI {
     }
   }
 
+  async isOwner () {
+      const role = await getMemberRole();
+      return role !== null && role >= 40;
+  }
+
   /**
    * Lit options.json à la racine du dépôt.
    * Retourne {} si le fichier est absent ou illisible.
@@ -121,6 +148,8 @@ class GitLabAPI {
    */
   async verifierExistence(filePath) {
     console.log('🔍 Vérification existence:', filePath);
+    filePath = this.url2filepath(filePath)
+    console.log(`Converted filePath ${filePath}`)
     try {
       await this._request('GET', `/repository/files/${this._encodePath(filePath)}?ref=${this.branch}`);
       console.log('   ✅ Existe');
@@ -140,6 +169,8 @@ class GitLabAPI {
    */
   async derniereModif(filePath) {
     console.log('🔍 Dernière modification:', filePath);
+    filePath = this.url2filepath(filePath)
+    console.log(`Converted filePath ${filePath}`)
     try {
       const params = new URLSearchParams({ path: filePath, ref_name: this.branch, per_page: 1 });
       const commits = await this._request('GET', `/repository/commits?${params}`);
@@ -156,8 +187,11 @@ class GitLabAPI {
    * Lit le contenu d'un fichier (texte UTF-8)
    * GitLab retourne le contenu encodé en base64
    */
-  async lireFichier(filePath) {
-    console.log('📥 Lecture:', filePath);
+    async lireFichier(filePath) {
+        // FIXME: dans l'API distant standard, on passe un Corpus.url mais les appels a gitlab doivent reconstruire plutot un chemin d'accès (Corpus.folder / Corpus.fileName) -> il faut ajouter une couche d'encodage/decodage du nom de fichier pour permettre de passer une URL de base
+        console.log(`📥 Lecture: ${filePath}`);
+        filePath = this.url2filepath(filePath)
+        console.log(`Converted filePath ${filePath}`)
     try {
       const data = await this._request(
         'GET',
@@ -211,23 +245,27 @@ class GitLabAPI {
    * Sans cette déduplication, GitLab rejetterait un commit contenant deux actions
    * sur le même fichier.
    */
-  ecrireFichier(filePath, content) {
-    return new Promise((resolve, reject) => {
-      const existant = this._writeQueue.find(e => e.filePath === filePath);
-      if (existant) {
-        // Même fichier déjà en attente : le contenu précédent est périmé, on l'écrase
-        // et on chaîne les deux promesses pour que les deux appelants soient notifiés
-        const { resolve: ancienResolve, reject: ancienReject } = existant;
-        existant.content = content;
-        existant.resolve = (result) => { ancienResolve(result); resolve(result); };
-        existant.reject  = (err)    => { ancienReject(err);    reject(err);    };
-      } else {
-        this._writeQueue.push({ filePath, content, resolve, reject });
-      }
-      clearTimeout(this._writeTimer);
-      this._writeTimer = setTimeout(() => this._flushWriteQueue(), 150);
-    });
-  }
+    ecrireFichier(filePath, content) {
+        console.log(`Écriture: ${filePath}`);
+        filePath = this.url2filepath(filePath)
+        console.log(`Converted filePath ${filePath}`)
+
+        return new Promise((resolve, reject) => {
+            const existant = this._writeQueue.find(e => e.filePath === filePath);
+            if (existant) {
+                // Même fichier déjà en attente : le contenu précédent est périmé, on l'écrase
+                // et on chaîne les deux promesses pour que les deux appelants soient notifiés
+                const { resolve: ancienResolve, reject: ancienReject } = existant;
+                existant.content = content;
+                existant.resolve = (result) => { ancienResolve(result); resolve(result); };
+                existant.reject  = (err)    => { ancienReject(err);    reject(err);    };
+            } else {
+                this._writeQueue.push({ filePath, content, resolve, reject });
+            }
+            clearTimeout(this._writeTimer);
+            this._writeTimer = setTimeout(() => this._flushWriteQueue(), 150);
+        });
+    }
 
   /**
    * Vide la file d'écriture en un seul commit Git.
@@ -349,7 +387,7 @@ class GitLabAPI {
       return true;
     } catch (error) {
       // Non bloquant : on log mais on ne fait pas échouer la connexion
-      console.warn('   ⚠️ Impossible de mettre à jour .gitattributes:', error.message);
+        console.warn('   ⚠️ Impossible de mettre à jour .gitattributes:', error.message, error);
       return false;
     }
   }
@@ -418,7 +456,7 @@ class GitLabAPI {
 
   /**
    * Liste les fichiers d'un dossier (récursif, paginé)
-   * Filtre sur .sonal et .crp uniquement
+   * Filtre sur .sonal et .crp et .rcl uniquement
    */
   async listerFichiers(dirPath) {
     console.log('📂 Liste des fichiers:', dirPath);
@@ -426,7 +464,7 @@ class GitLabAPI {
       const files = await this._listerRecursif(dirPath);
 
       const filtered = files.filter(f =>
-        f.type === 'blob' && (f.name.endsWith('.sonal') || f.name.endsWith('.crp'))
+          f.type === 'blob' && (f.name.endsWith('.sonal') || f.name.endsWith('.crp') || f.name.endsWith('.rcl'))
       );
 
       console.log(`✅ ${filtered.length} fichier(s) trouvé(s)`);
@@ -452,7 +490,10 @@ class GitLabAPI {
    * Retourne le même format que ServeurAPI.verrouillerFichier
    */
   async verrouillerFichier(filePath) {
-    console.log('🔒 Tentative de verrouillage LFS:', filePath);
+      console.log('🔒 Tentative de verrouillage LFS:', filePath);
+      filePath = this.url2filepath(filePath)
+      console.log(`Converted filePath ${filePath}`)
+
     try {
       const body = {
         path: filePath,
@@ -502,7 +543,10 @@ class GitLabAPI {
    * Cherche d'abord l'id du lock par chemin, puis le supprime
    */
   async deverrouillerFichier(filePath) {
-    console.log('🔓 Déverrouillage LFS:', filePath);
+      console.log('🔓 Déverrouillage LFS:', filePath);
+      filePath = this.url2filepath(filePath)
+      console.log(`Converted filePath ${filePath}`)
+
     try {
       // 1. Récupérer l'id du lock pour ce chemin
       const lockId = await this._trouverLockId(filePath);
@@ -538,6 +582,9 @@ class GitLabAPI {
    */
   async verifierVerrou(filePath) {
     console.log('🔍 Vérification verrou LFS:', filePath);
+      filePath = this.url2filepath(filePath)
+      console.log(`Converted filePath ${filePath}`)
+
     try {
       const params = new URLSearchParams({ path: filePath });
       const data = await this._requestLFS('GET', `/locks?${params}`);
@@ -600,8 +647,9 @@ class GitLabAPI {
    * Encode un chemin de fichier pour l'URL GitLab API
    * "dossier/fichier.sonal" → "dossier%2Ffichier.sonal"
    */
-  _encodePath(filePath) {
-    return filePath.split('/').map(encodeURIComponent).join('%2F');
+    _encodePath(filePath) {
+        // FIXME: absurdité: encodeURIComponent(filePath) fait la même chose.
+        return filePath.split('/').map(encodeURIComponent).join('%2F');
   }
 
   /**
@@ -741,6 +789,8 @@ class GitLabAPI {
    * Récupère l'id du LFS lock pour un chemin donné (null si pas de lock)
    */
   async _trouverLockId(filePath) {
+    filePath = this.url2filepath(filePath)
+    console.log(`Converted filePath ${filePath}`)
     const params = new URLSearchParams({ path: filePath });
     const data = await this._requestLFS('GET', `/locks?${params}`);
     const locks = data.locks || [];

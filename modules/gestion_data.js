@@ -1373,7 +1373,7 @@ async function validerCellGen(td, lib) {
 
     // Vérification du verrou pour les corpus distants
     const Corpus = await window.electronAPI.getCorpus();
-    if (Corpus && (Corpus.type === "distant" || Corpus.type === "gitlab")) {
+    if (Corpus && Corpus.estDistant) {
         const lockResult = await window.electronAPI.isEntretienLocked(rkEnt);
         if (lockResult && lockResult.locked === true) {
             question(`L'entretien est actuellement édité par ${lockResult.user}.\nVous ne pouvez pas le modifier pour le moment.`, ['OK']);

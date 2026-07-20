@@ -379,475 +379,477 @@
 
 <script>
 
+ ///////////////////////////////////////////////////////////////////
+ // AFFICHAGE DES PANNEAUX GAUCHE
+ ///////////////////////////////////////////////////////////////////
 
-  ///////////////////////////////////////////////////////////////////
-  // AFFICHAGE DES PANNEAUX GAUCHE
-  ///////////////////////////////////////////////////////////////////
+ var selCatCritereEt = false; // 
 
-  var selCatCritereEt = false; // 
+ function dispPanneauG(bouton, composant){
 
-  function dispPanneauG(bouton, composant){
+     // désactivation des autres boutons
+     deselBtn_g();
+     hidepanG();
 
-  // désactivation des autres boutons
-    deselBtn_g();
-    hidepanG();
+     if (typeof bouton === 'string') {
+         bouton = document.getElementById(bouton);
+     }
 
-    if (typeof bouton === 'string') {
-        bouton = document.getElementById(bouton);
-    }
-
-    if (typeof composant === 'string') {
-        cmpsnt = document.getElementById(composant);
-    }
+     if (typeof composant === 'string') {
+         cmpsnt = document.getElementById(composant);
+     }
 
 
-  
-    if (bouton) {bouton.style.opacity =1};
-    //let cmpsnt = document.getElementById(composant)
-    if (cmpsnt) {cmpsnt.classList.remove('dnone')} else (console.log("composant inconnu : "+composant))
-
-    // (dé)sactivation du surlignement 
- 
-
-    if (composant=="fond_txt"){
-       
-    }
-
-    if (composant=="fond_det"){ // afichage des détails de l'entretien
-    
      
-        
-    }
+     if (bouton) {bouton.style.opacity =1};
+     //let cmpsnt = document.getElementById(composant)
+     if (cmpsnt) {cmpsnt.classList.remove('dnone')} else (console.log("composant inconnu : "+composant))
 
-    
-    
+     // (dé)sactivation du surlignement 
+     
 
-    if ( composant=="fond_thm_corpus" ) {
-        affichListThmCrp()
+     if (composant=="fond_txt"){
+         
+     }
 
-    }  
+     if (composant=="fond_det"){ // afichage des détails de l'entretien
+         
+         
+         
+     }
 
-    if ( composant=="fond_loc" ) {
-      
+     
+     
 
-    }  
+     if ( composant=="fond_thm_corpus" ) {
+         affichListThmCrp()
 
-       if ( composant=="fond_dat" ) {
-        affichTriAPlat();
-    }  
+     }  
 
-    if ( composant=="fond_rech" ) {
-        document.getElementById("txtRech").focus();
-       
+     if ( composant=="fond_loc" ) {
+         
 
-    }
+     }  
 
-}
+     if ( composant=="fond_dat" ) {
+         affichTriAPlat();
+     }  
+
+     if ( composant=="fond_rech" ) {
+         document.getElementById("txtRech").focus();
+         
+
+     }
+
+ }
 
 
  // fonction de désélection de tous les boutons du panneau gauche 
  function deselBtn_g(){
-    const boutons_g = document.querySelectorAll('.imgbtn_g');
-    boutons_g.forEach(btn => {
-    btn.style.opacity = 0.3;
-    });
-}
+     const boutons_g = document.querySelectorAll('.imgbtn_g');
+     boutons_g.forEach(btn => {
+         btn.style.opacity = 0.3;
+     });
+ }
 
-function hidepanG(){
-    const pan_g = document.querySelectorAll('.pan-g');
-    pan_g.forEach(btn => {
-    btn.classList.add('dnone');
-    });
-}
+ function hidepanG(){
+     const pan_g = document.querySelectorAll('.pan-g');
+     pan_g.forEach(btn => {
+         btn.classList.add('dnone');
+     });
+ }
 
-  ///////////////////////////////////////////////////////////////////
-  // LISTENERS
-  ///////////////////////////////////////////////////////////////////
+ ///////////////////////////////////////////////////////////////////
+ // LISTENERS
+ ///////////////////////////////////////////////////////////////////
 
-  // Rafraîchir la page Pseudos à la fermeture d'une fenêtre entretien (si elle est ouverte)
-  if (window.electronAPI && window.electronAPI.onEntretienFerme) {
-      window.electronAPI.onEntretienFerme(async () => {
-          // La fenêtre entretien a son propre renderer (window séparé) : on ne peut pas
-          // détecter ses sauvegardes depuis ce renderer. On invalide le scan ici, au retour.
-          if (window._anonScanCache) {
-              window._anonScanStale = true;
-              window._anonIndexInverse = null;
-          }
-          if (!document.getElementById('divAnonGenPage')) return;
-          if (typeof affichAnonGen !== 'function') return;
-          await affichAnonGen();
-          if (window._lastVerifiedAnon && typeof verifierEtAfficherEtatEntite === 'function') {
-              const tabEnt = await window.electronAPI.getEnt();
-              verifierEtAfficherEtatEntite(
-                  window._lastVerifiedAnon.entite,
-                  window._lastVerifiedAnon.pseudo,
-                  tabEnt
-              );
-          }
-      });
-  }
+ // Rafraîchir la page Pseudos à la fermeture d'une fenêtre entretien (si elle est ouverte)
+ if (window.electronAPI && window.electronAPI.onEntretienFerme) {
+     window.electronAPI.onEntretienFerme(async () => {
+         // La fenêtre entretien a son propre renderer (window séparé) : on ne peut pas
+         // détecter ses sauvegardes depuis ce renderer. On invalide le scan ici, au retour.
+         if (window._anonScanCache) {
+             window._anonScanStale = true;
+             window._anonIndexInverse = null;
+         }
+         if (!document.getElementById('divAnonGenPage')) return;
+         if (typeof affichAnonGen !== 'function') return;
+         await affichAnonGen();
+         if (window._lastVerifiedAnon && typeof verifierEtAfficherEtatEntite === 'function') {
+             const tabEnt = await window.electronAPI.getEnt();
+             verifierEtAfficherEtatEntite(
+                 window._lastVerifiedAnon.entite,
+                 window._lastVerifiedAnon.pseudo,
+                 tabEnt
+             );
+         }
+     });
+ }
 
-  // Navigation entretien -> corpus : ouvrir la page Pseudos et focaliser sur l'occurrence
-  if (window.electronAPI && window.electronAPI.onOuvrirVueCorpusAnon) {
-      window.electronAPI.onOuvrirVueCorpusAnon(async (payload) => {
-          if (typeof window.focaliserOccurrenceCorpus === 'function') {
-              await window.focaliserOccurrenceCorpus(payload);
-          }
-      });
-  }
+ // Navigation entretien -> corpus : ouvrir la page Pseudos et focaliser sur l'occurrence
+ if (window.electronAPI && window.electronAPI.onOuvrirVueCorpusAnon) {
+     window.electronAPI.onOuvrirVueCorpusAnon(async (payload) => {
+         if (typeof window.focaliserOccurrenceCorpus === 'function') {
+             await window.focaliserOccurrenceCorpus(payload);
+         }
+     });
+ }
 
-  // Menu Corpus -> Exporter le corpus : ouvrir la modale d'export (format + options)
-  if (window.electronAPI && window.electronAPI.onMenuExporterCorpus) {
-      window.electronAPI.onMenuExporterCorpus(() => {
-          if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus();
-      });
-  }
+ // Menu Corpus -> Exporter le corpus : ouvrir la modale d'export (format + options)
+ if (window.electronAPI && window.electronAPI.onMenuExporterCorpus) {
+     window.electronAPI.onMenuExporterCorpus(() => {
+         if (typeof ouvrirModaleExportCorpus === 'function') ouvrirModaleExportCorpus();
+     });
+ }
 
-  // ==============================================
-  // REDIMENSIONNEMENT COLONNE GAUCHE
-  // ==============================================
+ // ==============================================
+ // REDIMENSIONNEMENT COLONNE GAUCHE
+ // ==============================================
 
-  // Sélectionner le conteneur et la ligne de redimensionnement
-  const colonneG =  document.getElementById('colonne-gauche');
-  const resizerCol = document.getElementById('ColResize');
+ // Sélectionner le conteneur et la ligne de redimensionnement
+ const colonneG =  document.getElementById('colonne-gauche');
+ const resizerCol = document.getElementById('ColResize');
 
-  // Déclarer une variable pour suivre la position de la souris
-  let isResizingC = false;
-  let lastX = 0;
+ // Déclarer une variable pour suivre la position de la souris
+ let isResizingC = false;
+ let lastX = 0;
 
-  resizerCol.addEventListener('mousedown', (e) => {
-    // Démarre le redimensionnement
-    isResizingC = true;
-    lastX = e.clientX;
-    document.body.style.cursor = 'ew-resize';  
-  
+ resizerCol.addEventListener('mousedown', (e) => {
+     // Démarre le redimensionnement
+     isResizingC = true;
+     lastX = e.clientX;
+     document.body.style.cursor = 'ew-resize';  
+     
 
-  });
+ });
 
-  document.addEventListener('mousemove', (e) => {
-    if (isResizingC) {
+ document.addEventListener('mousemove', (e) => {
+     if (isResizingC) {
 
-      
-      // Calculer la nouvelle largeur du conteneur en fonction du mouvement de la souris
-      const deltaX = e.clientX - lastX;
-      const newWidth = colonneG.offsetWidth + deltaX;
+         
+         // Calculer la nouvelle largeur du conteneur en fonction du mouvement de la souris
+         const deltaX = e.clientX - lastX;
+         const newWidth = colonneG.offsetWidth + deltaX;
 
-      
-      
-      // Appliquer la nouvelle largeur
-      colonneG.style.width = `${newWidth}px`;
-      resizerCol.style.left = `${newWidth}px`;
+         
+         
+         // Appliquer la nouvelle largeur
+         colonneG.style.width = `${newWidth}px`;
+         resizerCol.style.left = `${newWidth}px`;
 
-      // déplacer colonne droite
+         // déplacer colonne droite
 
-      let colDroite = document.getElementById('fond_ent_corpus');
-      let newWidth2 = colDroite.offsetWidth - deltaX;
-      let newLeft = colDroite.offsetLeft + deltaX;
-      //colDroite.style.marginLeft  = `${newLeft}px`;
-      colDroite.style.width = `${newWidth2}px`;
-
-
-      // Mettre à jour la position de la souris pour le prochain calcul
-      lastX = e.clientX;
-    }
-  });
-
-  document.addEventListener('mouseup', () => {
-    // Arrête le redimensionnement quand on relâche le bouton de la souris
-    isResizingC = false;
-    document.body.style.cursor = 'default'; // Rétablir le curseur par défaut
-  });
+         let colDroite = document.getElementById('fond_ent_corpus');
+         let newWidth2 = colDroite.offsetWidth - deltaX;
+         let newLeft = colDroite.offsetLeft + deltaX;
+         //colDroite.style.marginLeft  = `${newLeft}px`;
+         colDroite.style.width = `${newWidth2}px`;
 
 
-// =============================================
-// DRAG DROP de fichiers 
-// =============================================
+         // Mettre à jour la position de la souris pour le prochain calcul
+         lastX = e.clientX;
+     }
+ });
+
+ document.addEventListener('mouseup', () => {
+     // Arrête le redimensionnement quand on relâche le bouton de la souris
+     isResizingC = false;
+     document.body.style.cursor = 'default'; // Rétablir le curseur par défaut
+ });
 
 
-        const fondEnts =  document.getElementById('fond_ent_corpus');
-
-        fondEnts.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            fondEnts.classList.add('drag-over');
-        });
-
-        fondEnts.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            fondEnts.classList.remove('drag-over');
-        });
-
-        fondEnts.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            fondEnts.classList.remove('drag-over');
-
-            const files = Array.from(e.dataTransfer.files);
-    
-             
-            if (files.length > 0) {
-                selectedTextFiles = window.electronAPI.getFilePaths(files);
-                console.log('Fichiers déposés :', selectedTextFiles);
-
-                // Appeler la fonction pour ajouter les entretiens
-                ajouterPlusieursEntretiens(selectedTextFiles);
-            }
-        });
-
-    
-  // ============================================== 
-  // ajout d'un listener pour le bouton d'ajout d'entretien
-  // ==============================================
-    const btnAjout = document.getElementById('btn_ajout_ent');
-    btnAjout.addEventListener('click', () => ajouterEntretien());
-
-      // ============================================== 
-  // ajout d'un listener pour le bouton de mise à l'échelle
-  // ==============================================
-    const btnEchelle = document.getElementById('btn_echelle_ent');
-    btnEchelle.addEventListener('click', () => echelleEntretiens());
+ // =============================================
+ // DRAG DROP de fichiers 
+ // =============================================
 
 
+ const fondEnts =  document.getElementById('fond_ent_corpus');
 
-  //=============================================      
-  //listener sur le bouton editCat 
-  //=============================================
+ fondEnts.addEventListener('dragover', (e) => {
+     e.preventDefault();
+     e.stopPropagation();
+     fondEnts.classList.add('drag-over');
+ });
 
-        let editCat = document.getElementById("editCat")
+ fondEnts.addEventListener('dragleave', (e) => {
+     e.preventDefault();
+     e.stopPropagation();
+     fondEnts.classList.remove('drag-over');
+ });
 
-        editCat.addEventListener('mousedown', (event)=> {
-          window.electronAPI.afficherCategories();
+ fondEnts.addEventListener('drop', (e) => {
+     e.preventDefault();
+     e.stopPropagation();
+     fondEnts.classList.remove('drag-over');
 
-        }); 
+     const files = Array.from(e.dataTransfer.files);
+     
+     
+     if (files.length > 0) {
+         selectedTextFiles = window.electronAPI.getFilePaths(files);
+         console.log('Fichiers déposés :', selectedTextFiles);
+
+         // Appeler la fonction pour ajouter les entretiens
+         ajouterPlusieursEntretiens(selectedTextFiles);
+     }
+ });
+
+ 
+ // ============================================== 
+ // ajout d'un listener pour le bouton d'ajout d'entretien
+ // ==============================================
+ const btnAjout = document.getElementById('btn_ajout_ent');
+ btnAjout.addEventListener('click', () => ajouterEntretien());
+
+ // ============================================== 
+ // ajout d'un listener pour le bouton de mise à l'échelle
+ // ==============================================
+ const btnEchelle = document.getElementById('btn_echelle_ent');
+ btnEchelle.addEventListener('click', () => echelleEntretiens());
+
+
 
  //=============================================      
-  //listener sur le bouton activeAllCat 
-  //=============================================
+ //listener sur le bouton editCat 
+ //=============================================
 
-        let activeAllCat = document.getElementById("activeAllCat")
-        activeAllCat.addEventListener('mousedown', async (event)=>  {
-         nbActive=0; 
+ let editCat = document.getElementById("editCat")
 
-          // définition de la situation 
-          tabThm.forEach(t => {
-            if (t.act === true ){
-              nbActive++;
-            }
-          });          
+ editCat.addEventListener('mousedown', (event)=> {
+     if (window.electronAPI && window.electronAPI.afficherCategories) {
+         window.electronAPI.afficherCategories();
+     }
+ }); 
 
-          if (nbActive === tabThm.length){
-            // tout est actif, on désactive tout
-            tabThm.forEach(t => {
-              t.act = false;
-            });
-      
-          } else {
+ //=============================================      
+ //listener sur le bouton activeAllCat 
+ //=============================================
 
-            tabThm.forEach(t => {
-              t.act = true;
+ let activeAllCat = document.getElementById("activeAllCat")
+ activeAllCat.addEventListener('mousedown', async (event)=>  {
+     nbActive=0; 
 
-            });
+     // définition de la situation 
+     tabThm.forEach(t => {
+         if (t.act === true ){
+             nbActive++;
+         }
+     });          
 
-            // retrait de la condition & (impossible à réaliser avec tous les thèmes en simultané)
-              if (selCatCritereEt){
-                selCatCritereEt = false;
-                document.getElementById("selCatEt").classList.remove('btn-bleu-actif');
-              }
-          
-          }
+     if (nbActive === tabThm.length){
+         // tout est actif, on désactive tout
+         tabThm.forEach(t => {
+             t.act = false;
+         });
+         
+     } else {
 
-          await window.electronAPI.setThm(tabThm)
+         tabThm.forEach(t => {
+             t.act = true;
 
-          affichListThmCrp();
-          compterCatActifs();
-          // redessin de tous les graphs 
-          //dessinTousEntretiens();
-          affichageExtraitsCorpus(selCatCritereEt);
-          
+         });
 
-        }); 
+         // retrait de la condition & (impossible à réaliser avec tous les thèmes en simultané)
+         if (selCatCritereEt){
+             selCatCritereEt = false;
+             document.getElementById("selCatEt").classList.remove('btn-bleu-actif');
+         }
+         
+     }
 
-  //=============================================      
-  // listener sur le bouton activeAllEnt
-  //=============================================
+     await window.electronAPI.setThm(tabThm)
 
-        let activeAllEnt = document.getElementById("activeAllEnt");
-        activeAllEnt.addEventListener('mousedown', async (event) => {
-            let tabEnt = await window.electronAPI.getEnt();
-            let nbActifs = tabEnt.filter(e => e.actif !== 0).length;
-            let toutActif = (nbActifs === tabEnt.length);
+     affichListThmCrp();
+     compterCatActifs();
+     // redessin de tous les graphs 
+     //dessinTousEntretiens();
+     affichageExtraitsCorpus(selCatCritereEt);
+     
 
-            tabEnt.forEach(e => { e.actif = toutActif ? 0 : 1; });
-            await window.electronAPI.setEnt(tabEnt);
-           
+ }); 
 
-            // mise à jour du DOM
-            document.querySelectorAll('div.ligent').forEach(ligentDiv => {
-                const id = Number(ligentDiv.dataset.id);
-                const ent = tabEnt.find(e => e.id === id);
-                if (!ent) return;
-                const btn = ligentDiv.querySelector('.btn-onoff-ent');
-                if (ent.actif === 0) {
-                    ligentDiv.classList.add('ligent--inactif');
-                    if (btn) btn.classList.remove('btn-onoff-ent--actif');
-                } else {
-                    ligentDiv.classList.remove('ligent--inactif');
-                    if (btn) btn.classList.add('btn-onoff-ent--actif');
-                }
-            });
+ //=============================================      
+ // listener sur le bouton activeAllEnt
+ //=============================================
 
-            compterEntActifs();
-        });
+ let activeAllEnt = document.getElementById("activeAllEnt");
+ activeAllEnt.addEventListener('mousedown', async (event) => {
+     let tabEnt = await window.electronAPI.getEnt();
+     let nbActifs = tabEnt.filter(e => e.actif !== 0).length;
+     let toutActif = (nbActifs === tabEnt.length);
 
+     tabEnt.forEach(e => { e.actif = toutActif ? 0 : 1; });
+     await window.electronAPI.setEnt(tabEnt);
+     
 
-  //=============================================      
-  // listener sur le bouton selCatEt
-  //=============================================
+     // mise à jour du DOM
+     document.querySelectorAll('div.ligent').forEach(ligentDiv => {
+         const id = Number(ligentDiv.dataset.id);
+         const ent = tabEnt.find(e => e.id === id);
+         if (!ent) return;
+         const btn = ligentDiv.querySelector('.btn-onoff-ent');
+         if (ent.actif === 0) {
+             ligentDiv.classList.add('ligent--inactif');
+             if (btn) btn.classList.remove('btn-onoff-ent--actif');
+         } else {
+             ligentDiv.classList.remove('ligent--inactif');
+             if (btn) btn.classList.add('btn-onoff-ent--actif');
+         }
+     });
 
-        let selCatEt = document.getElementById("selCatEt");
-        selCatEt.addEventListener('mousedown', () => {
-            selCatCritereEt = !selCatCritereEt;
-            selCatEt.classList.toggle('btn-bleu-actif', selCatCritereEt);
-              affichageExtraitsCorpus(selCatCritereEt);
-        });
-
-
-  //===================================================
-  // Ecouter le signal de mise à jour des catégories
-  //===================================================
-   
-  
-          // Écouter les mises à jour
-  window.electronAPI.onUpdateCat((data) => {
-          console.log("demande de modifs reçue")
-             affichListThmCrp(data)
-    });
-
-  //=============================================      
-  // Écouter le signal de rafraîchissement du canvas
-  //=============================================
-  
-  window.electronAPI.onRefreshCanvas((rkEnt) => {
-    console.log("📊 Signal de rafraîchissement reçu pour l'entretien:", rkEnt);
-    
-    // Récupérer le HTML sauvegardé
-    window.electronAPI.getHtml(rkEnt).then((html) => {
-      if (!html) {
-        console.error("HTML non trouvé pour l'entretien:", rkEnt);
-        return;
-      }
-      
-      // Récupérer l'entretien pour trouver son ID
-      window.electronAPI.getEnt().then((tabEnt) => {
-        if (!tabEnt || !tabEnt[rkEnt]) {
-          console.error("Entretien non trouvé au rang:", rkEnt);
-          return;
-        }
-        
-        const ent = tabEnt[rkEnt];
-        
-        // Trouver le canvas correspondant
-        const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${ent.id}']`);
-        if (cnvEnt) {
-           
-          resumeGraphique(html.replace(/`/g,'')).then((tabGrphEnt) => {
-            dessinResumeGraphique(rkEnt, cnvEnt, tabGrphEnt);
-          }).catch(err => console.error("Erreur resumeGraphique:", err));
-           
-        } else {
-          console.error("Canvas introuvable pour l'entretien id:", ent.id);
-        }
-      }).catch(err => console.error("Erreur getEnt:", err));
-    }).catch(err => console.error("Erreur getHtml:", err));
-  });
+     compterEntActifs();
+ });
 
 
-  //=============================================
-  // Écouter la libération immédiate d'un verrou
-  //=============================================
-  window.electronAPI.onEntretienDeverrouille(async (rkEnt) => {
-    const tabEnt = await window.electronAPI.getEnt();
-    if (!tabEnt || !tabEnt[rkEnt]) return;
-    const btn = document.querySelector(`button[data-id="${tabEnt[rkEnt].id}"]`);
-    if (btn) { btn.classList.remove("btn-verrou"); btn.classList.add("btn-edit"); }
-    console.log("🔓 Verrou libéré pour l'entretien", rkEnt);
-  });
+ //=============================================      
+ // listener sur le bouton selCatEt
+ //=============================================
+
+ let selCatEt = document.getElementById("selCatEt");
+ selCatEt.addEventListener('mousedown', () => {
+     selCatCritereEt = !selCatCritereEt;
+     selCatEt.classList.toggle('btn-bleu-actif', selCatCritereEt);
+     affichageExtraitsCorpus(selCatCritereEt);
+ });
 
 
+ //===================================================
+ // Ecouter le signal de mise à jour des catégories
+ //===================================================
+ 
+ 
+ if (window.electronAPI && window.electronAPI.onUpdateCat) {
+     // Écouter les mises à jour
+     window.electronAPI.onUpdateCat((data) => {
+         console.log("demande de modifs reçue")
+         affichListThmCrp(data)
+     });
+ }
 
-// veille des verrous sur les entretiens + synchronisation des nouveaux entretiens (GitLab)
-let _veillEnCours = false;
-setInterval(async () => {
-    
-    if (_veillEnCours) return; // éviter les exécutions concurrentes si réseau lent
-    _veillEnCours = true;
+ //=============================================      
+ // Écouter le signal de rafraîchissement du canvas
+ //=============================================
+ 
+ if (window.electronAPI && window.electronAPI.onRefreshCanvas) {
+     window.electronAPI.onRefreshCanvas((rkEnt) => {
+         console.log("📊 Signal de rafraîchissement reçu pour l'entretien:", rkEnt);
+     
+     // Récupérer le HTML sauvegardé
+     window.electronAPI.getHtml(rkEnt).then((html) => {
+         if (!html) {
+             console.error("HTML non trouvé pour l'entretien:", rkEnt);
+             return;
+         }
+         
+         // Récupérer l'entretien pour trouver son ID
+         window.electronAPI.getEnt().then((tabEnt) => {
+             if (!tabEnt || !tabEnt[rkEnt]) {
+                 console.error("Entretien non trouvé au rang:", rkEnt);
+                 return;
+             }
+             
+             const ent = tabEnt[rkEnt];
+             
+             // Trouver le canvas correspondant
+             const cnvEnt = document.querySelector(`canvas.cnvent[data-id='${ent.id}']`);
+             if (cnvEnt) {
+                 
+                 resumeGraphique(html.replace(/`/g,'')).then((tabGrphEnt) => {
+                     dessinResumeGraphique(rkEnt, cnvEnt, tabGrphEnt);
+                 }).catch(err => console.error("Erreur resumeGraphique:", err));
+                 
+             } else {
+                 console.error("Canvas introuvable pour l'entretien id:", ent.id);
+             }
+         }).catch(err => console.error("Erreur getEnt:", err));
+     }).catch(err => console.error("Erreur getHtml:", err));
+ });
+}
 
-    try {
-        // veille tous les 30 secondes
-        console.log("Vérification des verrous sur les entretiens...");
-
-        // récupération des infos du corpus
-        let Corpus = await window.electronAPI.getCorpus();
-
-        if (!Corpus || (Corpus.type != 'distant' && Corpus.type != 'gitlab')) { return; }
-
-        // récupération des entretiens
-        let tabEnt = await window.electronAPI.getEnt();
-
-        for (let i=0; i<tabEnt.length; i++){
-            const btn = document.querySelector(`button[data-id="${tabEnt[i].id}"]`);
-            let result = await window.electronAPI.isEntretienLocked(i);
-
-            if (result && result.locked == true){ 
-
-                // entretien verrouillé par un autre utilisateur
-                console.log("L'entretien " + tabEnt[i].nom + " est verrouillé par " + result.user);
-                if (btn) { btn.classList.add("btn-verrou"); btn.classList.remove("btn-edit"); }
-
-            } else {
-
-                // entretien non verrouillé
-                if (btn) { btn.classList.remove("btn-verrou"); btn.classList.add("btn-edit"); }
-            }
-        }
-
-        console.log("Vérification des verrous terminée.");
-
-        // Pour GitLab : synchronisation silencieuse des nouveaux entretiens
-        if (Corpus.type === 'gitlab') {
-            await rafraichirCorpus(true);
-        }
-
-    } finally {
-        _veillEnCours = false;
-    }
-
-}, 30000);
+ //=============================================
+ // Écouter la libération immédiate d'un verrou
+ //=============================================
+ if (window.electronAPI && window.electronAPI.onEntretienDeverrouille) {
+     window.electronAPI.onEntretienDeverrouille(async (rkEnt) => {
+         const tabEnt = await window.electronAPI.getEnt();
+     if (!tabEnt || !tabEnt[rkEnt]) return;
+     const btn = document.querySelector(`button[data-id="${tabEnt[rkEnt].id}"]`);
+     if (btn) { btn.classList.remove("btn-verrou"); btn.classList.add("btn-edit"); }
+     console.log("🔓 Verrou libéré pour l'entretien", rkEnt);
+ });
+}
 
 
-// AFFICHAGE DE LA BOITE DE DIALOGUES
-function dialog(type, message){
+ // veille des verrous sur les entretiens + synchronisation des nouveaux entretiens
+ let _veillEnCours = false;
+ setInterval(async () => {
+     
+     if (_veillEnCours) return; // éviter les exécutions concurrentes si réseau lent
+     _veillEnCours = true;
+
+     try {
+         // veille tous les 30 secondes
+         console.log("Vérification des verrous sur les entretiens...");
+
+         // récupération des infos du corpus
+         let Corpus = await window.electronAPI.getCorpus();
+
+         if (!Corpus || !Corpus.hasLock) { return; }
+
+         // récupération des entretiens
+         let tabEnt = await window.electronAPI.getEnt();
+
+         for (let i=0; i<tabEnt.length; i++){
+             const btn = document.querySelector(`button[data-id="${tabEnt[i].id}"]`);
+             let result = await window.electronAPI.isEntretienLocked(i);
+
+             if (result && result.locked == true){ 
+
+                 // entretien verrouillé par un autre utilisateur
+                 console.log("L'entretien " + tabEnt[i].nom + " est verrouillé par " + result.user);
+                 if (btn) { btn.classList.add("btn-verrou"); btn.classList.remove("btn-edit"); }
+
+             } else {
+
+                 // entretien non verrouillé
+                 if (btn) { btn.classList.remove("btn-verrou"); btn.classList.add("btn-edit"); }
+             }
+         }
+
+         console.log("Vérification des verrous terminée.");
+
+         // Synchronisation des nouveaux entretiens
+         await rafraichirCorpus(true);
+
+     } finally {
+         _veillEnCours = false;
+     }
+
+ }, 30000);
+
+
+ // AFFICHAGE DE LA BOITE DE DIALOGUES
+ function dialog(type, message){
 
      
-    let element = document.getElementById('dlg');
-    element.style.display = "block";
-    
-    let contenu = document.getElementById('ssdlg');
+     let element = document.getElementById('dlg');
+     element.style.display = "block";
+     
+     let contenu = document.getElementById('ssdlg');
 
-    //element.classList.remove('dnone');
-
-
-    switch (type) {
+     //element.classList.remove('dnone');
 
 
-    case 'Message' :
-        contenu.style.top="25%";
-        contenu.style.width="40%";
-        contenu.style.display="flex";
-        contenu.style.flexDirection="column";
-        contenu.innerHTML = 
-            ` <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+     switch (type) {
+
+
+         case 'Message' :
+             contenu.style.top="25%";
+             contenu.style.width="40%";
+             contenu.style.display="flex";
+             contenu.style.flexDirection="column";
+             contenu.innerHTML = 
+                 ` <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
                 <img id = "logo" src="img/logoSonal.png"  alt="" style="height:40px; width:auto;">
                 <div class="close" onclick="hidedlg()" style="cursor:pointer;">✖️</div>
               </div>
@@ -858,15 +860,15 @@ function dialog(type, message){
                  <label class='btnfonction' style = "width: 20%;" onclick="hidedlg()">OK</label> 
               </div>
                  `
-        break;
+                 break;
 
 
 
-    case 'Export' :
-    contenu.style.top="25%";
-    contenu.style.height="";    
-    contenu.innerHTML = 
-        ` <div class="close" onclick="hidedlg()">✖️</div>
+         case 'Export' :
+             contenu.style.top="25%";
+             contenu.style.height="";    
+             contenu.innerHTML = 
+                 ` <div class="close" onclick="hidedlg()">✖️</div>
           <h3>  Choisissez un format d'export </h3>
             <div class="menudrlnt" id = "menuexport" onclick="hidedlg()" >
             
@@ -880,14 +882,14 @@ function dialog(type, message){
         </div>`
 
 
-    break;
+                 break;
 
-    case "Cat":
-    contenu.style.top="25%";
-    contenu.style.height="";    
+         case "Cat":
+             contenu.style.top="25%";
+             contenu.style.height="";    
 
-    conteúdo.innerHTML = 
-        ` <div class="close" onclick="hidedlg()">✖️</div>
+             conteúdo.innerHTML = 
+                 ` <div class="close" onclick="hidedlg()">✖️</div>
          <H3 id = "lblTypeModif">Ajouter une catégorie </H3>
         <div  id = "menucat"  >
             
@@ -1030,15 +1032,15 @@ function dialog(type, message){
         </div>`
 
 
-    break;
+             break;
 
-    case "comment":
+         case "comment":
 
-    console.log ("debsel "+ debSel + " finsel " + finSel    )
-    contenu.style.top="25%";
-    contenu.style.height="";    
-    contenu.innerHTML = 
-        `   
+             console.log ("debsel "+ debSel + " finsel " + finSel    )
+             contenu.style.top="25%";
+             contenu.style.height="";    
+             contenu.innerHTML = 
+                 `   
 
             <div class="close" onclick="hidedlg()">✖️</div>
             <h3 class = "menu-title-com">  Commentaire </h3>
@@ -1057,15 +1059,15 @@ function dialog(type, message){
         </div>`
 
 
-    break;
+             break;
 
-    case "Métadonnées":
-   
-    contenu.style.top="25%";
-    contenu.style.height="";  
+         case "Métadonnées":
+             
+             contenu.style.top="25%";
+             contenu.style.height="";  
 
-    contenu.innerHTML = 
-        `  
+             contenu.innerHTML = 
+                 `  
             <div class="close" onclick="hidedlg()">✖️</div>
             <H3 >Ajouter/modifier une variable </H3>
          
@@ -1192,19 +1194,19 @@ function dialog(type, message){
                            <label id = "btnValidVar" class='btnfonction btnlarge' style = "float:left; flex:3"; onclick="addVar('gen'); inventaireVars()">Valider</label> 
                          
                          </div>   
-                           `
+                                    `
 
-        document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
-        remplirCmbVar("gen");
+             document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
+             remplirCmbVar("gen");
 
-        break;   
-        
-    case "filtreCat":
-        contenu.style.top="10%";
-        contenu.style.height="80%";
+             break;   
+             
+         case "filtreCat":
+             contenu.style.top="10%";
+             contenu.style.height="80%";
 
-         contenu.innerHTML = 
-        ` 
+             contenu.innerHTML = 
+                 ` 
                 <div>
                 <div class="close" onclick="hidedlg()">✖️</div>
                 <H3>Filtrer les catégories affichées </H3>
@@ -1230,29 +1232,29 @@ function dialog(type, message){
                     </div>
                      <label id = "btnfiltreCat" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="isoleThm();hidedlg();ThmActifs()">Valider</label> 
             
-                    `
+                 `
 
-            }
-}
+     }
+ }
 
-function hidedlg(){
-    let element = document.getElementById('dlg');
-    element.style.display = "none";
-   
-}
+ function hidedlg(){
+     let element = document.getElementById('dlg');
+     element.style.display = "none";
+     
+ }
 
-// Afficher la liste des fichiers récents au chargement
-async function displayRecentFiles() {
-  const recentFiles = await window.recentFiles.getAll();
+ // Afficher la liste des fichiers récents au chargement
+ async function displayRecentFiles() {
+     const recentFiles = await window.recentFiles.getAll();
 
-  const listElement = document.getElementById('recent-files-list');
-  
-  if (recentFiles.length === 0) {
-    listElement.innerHTML = '<li>Aucun fichier récent</li>';
-    return;
-  }
+     const listElement = document.getElementById('recent-files-list');
+     
+     if (recentFiles.length === 0) {
+         listElement.innerHTML = '<li>Aucun fichier récent</li>';
+         return;
+     }
 
-  listElement.innerHTML = recentFiles.map(file => `
+     listElement.innerHTML = recentFiles.map(file => `
     <li class="recent-file-item">
       <div class="file-info"">
         <strong>${file.name}</strong>
@@ -1262,211 +1264,214 @@ async function displayRecentFiles() {
       <!-- <div onclick="removeRecentFile('${file.path}')" title="Retirer" class="btn-recent-file">✕</div> !-->
     </div>
     </li>
-  `).join('');
+     `).join('');
 
 
      await window.recentFiles.updateMenu();
+     
+     // recherche dans les thm
+     const searchInput = document.getElementById('searchInput');
+     searchInput.addEventListener('keyup', function() {
+         const query = this.value.toLowerCase();
+         const cats = document.querySelectorAll('.ligthm');
+         
+         cats.forEach(cat => {       
+             cat.classList.remove('dnone');
+             cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')
+
+             if (query == '') {
+                 return;
+             }
+
+             const text = cat.innerHTML.toLowerCase();
+             const title = cat.title.toLowerCase();
+
+
+             if ((text.includes(query) || title.includes(query)) && query !== '') {
+                 cat.classList.remove('dnone');
+
+                 if (text.includes(query)) {// surlignement (si dans texte et pas dans title)
+                     let txtInterne = cat.innerHTML.replace(/<\/a>|<a>/g, '') ;
+                     cat.innerHTML = '<a>' + highlightText(txtInterne, query) + '</a>'; 
+                 }
+
+             } else {
+                 cat.classList.add('dnone');
+                 cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')   ; // réinitialiser le contenu
+             }
+         });
+     });
+     
+
+     // Fonction pour échapper les caractères spéciaux regex
+     function escapeRegex(string) {
+         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+     }
+
+     // Fonction pour mettre en surbrillance le texte recherché
+     function highlightText(text, search) {
+         if (!search) return text;
+         const regex = new RegExp(`(${escapeRegex(search)})`, 'gi');
+         return text.replace(regex, '<mark>$1</mark>');
+     }
+
+     // Toggle du champ de recherche
+     document.getElementById('toggleSearch').addEventListener('click', () => {
+         const wrapper = document.getElementById('search-wrapper');
+         const btn = document.getElementById('toggleSearch');
+         const input = document.getElementById('searchInput');
+         const isHidden = wrapper.classList.toggle('dnone');
+         btn.classList.toggle('btn-bleu-actif', !isHidden);
+         if (!isHidden) {
+             input.focus();
+         } else {
+             input.value = '';
+             input.dispatchEvent(new Event('keyup'));
+         }
+     });
+
+     // Effacement de la recherche sans cacher le champ
+     document.getElementById('clearSearch').addEventListener('click', () => {
+         const input = document.getElementById('searchInput');
+         input.value = '';
+         input.dispatchEvent(new Event('keyup'));
+         input.focus();
+     });
+
+
+
+
+
+     // Attacher les event listeners APRÈS avoir créé le HTML
+     document.querySelectorAll('.file-info').forEach((el, index) => {
+         el.addEventListener('click', async () => {
+             const file = recentFiles[index];
+             console.log('Ouverture de:', file.path, 'Type:', file.type);
+
+             // FIXME: merge
+             if (file.type === 'gitlab') {
+                 // Ouvrir corpus GitLab avec la config pré-remplie
+                 const result = await window.electronAPI.ouvrirCorpusGitLab(file.config);
+                 if (result && result.success) {
+                     window.electronAPI.onAfficherCorpus((corpus) => {});
+                 }
+             } else if (file.type === 'remote') {
+                 // FIXME: Ca serait bien d'avoir de la cohérence entre file.type (remote/gitlab/local) et Corpus.type (distant/gitlab/local)
+                 // Cf main.js:addRemoteCorpus
+                 // Ouvrir corpus distant avec l'URL pré-remplie
+                 const result = await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', file.path);
+                 if (result && result.success) {
+                     window.electronAPI.onAfficherCorpus((corpus) => {});
+                 }
+             } else {
+                 // Ouvrir corpus local
+                 window.electronAPI.ouvrirCorpusLocal(file.path);
+             }
+         });
+     });
+
+     document.querySelectorAll('.btn-remove').forEach((btn, index) => {
+         btn.addEventListener('click', async () => {
+             await removeRecentFile(recentFiles[index].path);
+         });
+     });
+ }
  
-// recherche dans les thm
- const searchInput = document.getElementById('searchInput');
- searchInput.addEventListener('keyup', function() {
-        const query = this.value.toLowerCase();
-        const cats = document.querySelectorAll('.ligthm');
-    
-        cats.forEach(cat => {       
-            cat.classList.remove('dnone');
-            cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')
-
-            if (query == '') {
-                return;
-            }
-
-            const text = cat.innerHTML.toLowerCase();
-            const title = cat.title.toLowerCase();
+ function displayVersion() {
+     //sélection de tous les éléments avec la classe "version-label"
+     const versionLabels = document.querySelectorAll('.version-label');
+     versionLabels.forEach(label => {
+         label.textContent = version; // Assigner la version à chaque élément
+     });
+ }
 
 
-            if ((text.includes(query) || title.includes(query)) && query !== '') {
-                cat.classList.remove('dnone');
+ // Charger la liste des fichiers récents au chargement de la page
+ document.addEventListener('DOMContentLoaded', () => {
+     displayRecentFiles();
+     displayVersion();
 
-                if (text.includes(query)) {// surlignement (si dans texte et pas dans title)
-                    let txtInterne = cat.innerHTML.replace(/<\/a>|<a>/g, '') ;
-                    cat.innerHTML = '<a>' + highlightText(txtInterne, query) + '</a>'; 
-                }
+     document.getElementById('btnOuvrirCorpus').addEventListener('click', async () => {
+         const result = await window.electronAPI.ouvrirCorpusLocal();
+         if (result && result.success) {
+             mainWindow.webContents.send('afficher-corpus', result);
+         }
+     });
 
-            } else {
-                cat.classList.add('dnone');
-                cat.innerHTML = cat.innerHTML.replace(/<mark>|<\/mark>/g, '')   ; // réinitialiser le contenu
-            }
-        });
-    });
- 
+     document.getElementById('btnNouveauCorpus').addEventListener('click', async () => {
+         window.electronAPI.créerNouveauCorpus();
+     });
 
- // Fonction pour échapper les caractères spéciaux regex
-        function escapeRegex(string) {
-            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        }
-
-        // Fonction pour mettre en surbrillance le texte recherché
-        function highlightText(text, search) {
-            if (!search) return text;
-            const regex = new RegExp(`(${escapeRegex(search)})`, 'gi');
-            return text.replace(regex, '<mark>$1</mark>');
-        }
-
-        // Toggle du champ de recherche
-        document.getElementById('toggleSearch').addEventListener('click', () => {
-            const wrapper = document.getElementById('search-wrapper');
-            const btn = document.getElementById('toggleSearch');
-            const input = document.getElementById('searchInput');
-            const isHidden = wrapper.classList.toggle('dnone');
-            btn.classList.toggle('btn-bleu-actif', !isHidden);
-            if (!isHidden) {
-                input.focus();
-            } else {
-                input.value = '';
-                input.dispatchEvent(new Event('keyup'));
-            }
-        });
-
-        // Effacement de la recherche sans cacher le champ
-        document.getElementById('clearSearch').addEventListener('click', () => {
-            const input = document.getElementById('searchInput');
-            input.value = '';
-            input.dispatchEvent(new Event('keyup'));
-            input.focus();
-        });
+     document.getElementById('btnOuvrirCorpusDistant').addEventListener('click', async () => {
+         await window.electronAPI.invoke('ouvrir-corpus-distant-unifie');
+     });
+ });
 
 
+ // listener pour le bouton de compactage/décompactage des thématiques
+ document.getElementById('cmpct-all').addEventListener('click', async () => {
+     
+     tabThm = await window.electronAPI.getThm();
+     
+     //console.log("Compactage/décompactage de toutes les thématiques");
+
+     // défilement des thématiques pour vérifier la situation
+     let nbcmpct = 0;
+     
+     tabThm.forEach(t => {
+
+         if (t.cmpct === true) {
+             nbcmpct += 1;
+         }
+
+     });
+
+     // si toutes compactées, on décompacte toutes
+     if (nbcmpct === tabThm.length) {
+         tabThm.forEach(t => {
+             t.cmpct = false;
+         });
+         console.log("Décompactage de toutes les thématiques");
+     } else {
+         // sinon, on compacte toutes
+         tabThm.forEach(t => { 
+             t.cmpct = true;
+         });
+         console.log("Compactage de toutes les thématiques");
+     }
+
+     await window.electronAPI.setThm(tabThm);
+     await affichListThmCrp(tabThm);
+ });
 
 
+ function wait(message) {
+     console.log("wait")
+     document.body.style.cursor = "wait";
+     document.getElementById("processing").style.display="flex";
+     document.getElementById("processing").style.zIndex="999";
+     document.getElementsByClassName("footer")[0].style.zIndex = "1000";
+     document.getElementById("lblwait").innerText = message;
+     document.getElementById("status-bar").innerText = message;
+     document.getElementById("progress-bar").style.width = "0%";
+ }
 
-    // Attacher les event listeners APRÈS avoir créé le HTML
-  document.querySelectorAll('.file-info').forEach((el, index) => {
-    el.addEventListener('click', async () => {
-      const file = recentFiles[index];
-      console.log('Ouverture de:', file.path, 'Type:', file.type);
-      
-      if (file.type === 'gitlab') {
-        // Ouvrir corpus GitLab avec la config pré-remplie
-        const result = await window.electronAPI.ouvrirCorpusGitLab(file.config);
-        if (result && result.success) {
-          window.electronAPI.onAfficherCorpus((corpus) => {});
-        }
-      } else if (file.type === 'remote') {
-        // Ouvrir corpus distant avec l'URL pré-remplie
-        const result = await window.electronAPI.invoke('ouvrir-corpus-distant-avec-retry', file.path);
-        if (result && result.success) {
-          window.electronAPI.onAfficherCorpus((corpus) => {});
-        }
-      } else {
-        // Ouvrir corpus local
-        window.electronAPI.ouvrirCorpusLocal(file.path);
-      }
-    });
-  });
+ function endWait() {
+     console.log("end wait")
+     document.getElementById("processing").style.display="none";
+     document.body.style.cursor = "default";
+     document.getElementById("status-bar").innerText = "Prêt.";
+     document.getElementById("progress-bar").style.width = "0%";
+ }
 
-  document.querySelectorAll('.btn-remove').forEach((btn, index) => {
-    btn.addEventListener('click', async () => {
-      await removeRecentFile(recentFiles[index].path);
-    });
-  });
-}
- 
-function displayVersion() {
-//sélection de tous les éléments avec la classe "version-label"
-  const versionLabels = document.querySelectorAll('.version-label');
-  versionLabels.forEach(label => {
-    label.textContent = version; // Assigner la version à chaque élément
-  });
-}
+ function updateProgressBar(pourcentage) {
+     document.getElementById("progress-bar").style.width = pourcentage + "%";
+     document.getElementById("status-bar").innerText = "Recherche en cours... " + pourcentage + "%";
+ }
 
-
-  // Charger la liste des fichiers récents au chargement de la page
-  document.addEventListener('DOMContentLoaded', () => {
-    displayRecentFiles();
-    displayVersion();
-
-    document.getElementById('btnOuvrirCorpus').addEventListener('click', async () => {
-      const result = await window.electronAPI.ouvrirCorpusLocal();
-      if (result && result.success) {
-        mainWindow.webContents.send('afficher-corpus', result);
-      }
-    });
-
-    document.getElementById('btnNouveauCorpus').addEventListener('click', async () => {
-      window.electronAPI.créerNouveauCorpus();
-    });
-
-    document.getElementById('btnOuvrirCorpusDistant').addEventListener('click', async () => {
-      await window.electronAPI.invoke('ouvrir-corpus-distant-unifie');
-    });
-  });
-
-
-  // listener pour le bouton de compactage/décompactage des thématiques
-  document.getElementById('cmpct-all').addEventListener('click', async () => {
-    
-    tabThm = await window.electronAPI.getThm();
-    
-    //console.log("Compactage/décompactage de toutes les thématiques");
-
-    // défilement des thématiques pour vérifier la situation
-    let nbcmpct = 0;
-    
-    tabThm.forEach(t => {
-
-      if (t.cmpct === true) {
-          nbcmpct += 1;
-      }
-
-    });
-
-    // si toutes compactées, on décompacte toutes
-    if (nbcmpct === tabThm.length) {
-      tabThm.forEach(t => {
-        t.cmpct = false;
-      });
-      console.log("Décompactage de toutes les thématiques");
-    } else {
-      // sinon, on compacte toutes
-      tabThm.forEach(t => { 
-        t.cmpct = true;
-      });
-      console.log("Compactage de toutes les thématiques");
-    }
-
-    await window.electronAPI.setThm(tabThm);
-    await affichListThmCrp(tabThm);
-  });
-
-
-function wait(message) {
-console.log("wait")
-document.body.style.cursor = "wait";
-document.getElementById("processing").style.display="flex";
-document.getElementById("processing").style.zIndex="999";
-document.getElementsByClassName("footer")[0].style.zIndex = "1000";
-document.getElementById("lblwait").innerText = message;
-document.getElementById("status-bar").innerText = message;
-document.getElementById("progress-bar").style.width = "0%";
-}
-
-function endWait() {
- console.log("end wait")
- document.getElementById("processing").style.display="none";
- document.body.style.cursor = "default";
- document.getElementById("status-bar").innerText = "Prêt.";
- document.getElementById("progress-bar").style.width = "0%";
-}
-
-function updateProgressBar(pourcentage) {
- document.getElementById("progress-bar").style.width = pourcentage + "%";
- document.getElementById("status-bar").innerText = "Recherche en cours... " + pourcentage + "%";
-}
-
-function closeWaitDialog() {
- endWait();
-}
+ function closeWaitDialog() {
+     endWait();
+ }
 
 </script>
  

@@ -118,9 +118,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUser: () => ipcRenderer.invoke('get-user'),
 
   // Options GitLab (rôle + options.json)
-  getGitlabUserIsOwner: () => ipcRenderer.invoke('get-gitlab-user-is-owner'),
-  getGitlabOptions: () => ipcRenderer.invoke('get-gitlab-options'),
-  setGitlabOptions: (options) => ipcRenderer.invoke('set-gitlab-options', options),
+  getRemoteIsOwner: () => ipcRenderer.invoke('get-remote-is-owner'),
+  getRemoteOptions: () => ipcRenderer.invoke('get-remote-options'),
+  setRemoteOptions: (options) => ipcRenderer.invoke('set-remote-options', options),
+
+  // Vérifie que l'utilisateur courant à l'autorisation d'effectuer une action
+  checkPermission: (permission) => ipcRenderer.invoke('check-permission'),
 
   // Fonction pour envoyer les logs au main process (DÉSACTIVÉE)
   // log: (level, message) => ipcRenderer.invoke('log', level, message),

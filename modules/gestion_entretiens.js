@@ -20,14 +20,10 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
     // récupération du corpus
     let Corpus = await window.electronAPI.getCorpus();
 
-    // Vérification de la restriction GitLab
-    if (Corpus.type === 'gitlab') {
-        const isOwner = await window.electronAPI.getGitlabUserIsOwner();
-        const opts = await window.electronAPI.getGitlabOptions();
-        if (opts.restrictionAjoutSuppr && !isOwner) {
-            await question("Permission refusée", "Le responsable du projet a restreint l'ajout d'entretiens aux Maintainer/Owner.", ["OK"]);
-            return;
-        }
+    // Vérification de la permission d'accès
+    if (! window.electronAPI.checkPermission("ajouterEntretien")) {
+        await question("Permission refusée", "Vous n'avez pas les droits suffisants pour ajouter des entretiens.", ["OK"]);
+        return;
     }
 
     if (fichTxt == null && fichAudio == null) {
@@ -158,7 +154,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
             }
  
 
-        } else if (Corpus.type == "distant" || Corpus.type == "gitlab") {
+        } else if (Corpus.estDistant) {
 
             let cheminFichTxtA = [Corpus.folder, nomFichTxtA].filter(Boolean).join('/');
             const res = await window.electronAPI.sauvegarderSurServeur(cheminFichTxtA, fichApresConversion);
@@ -602,7 +598,7 @@ async function afficherEnt(rgDep, rgFin){
                     // récupération du corpus 
                     let Corpus = await electronAPI.getCorpus();
 
-                    if (Corpus.type == "distant" || Corpus.type == "gitlab"){
+                    if (Corpus.estDistant){
                         let result = await electronAPI.isEntretienLocked(rkEnt)
                          if (result.locked==true) {
                                     console.log("l'entretien est verrouillé par " + result.user)
@@ -1250,15 +1246,12 @@ async function afficherDetailsEnt(rk){
 
 async function retirerEnt(rk){
 
-    // Vérification de la restriction GitLab
+    // Vérification de la permission
     let CorpusRet = await window.electronAPI.getCorpus();
-    if (CorpusRet.type === 'gitlab') {
-        const isOwner = await window.electronAPI.getGitlabUserIsOwner();
-        const opts = await window.electronAPI.getGitlabOptions();
-        if (opts.restrictionAjoutSuppr && !isOwner) {
-            await question("Permission refusée", "Le responsable du projet a restreint la suppression d'entretiens aux Maintainer/Owner.", ["OK"]);
-            return;
-        }
+    // Vérification de la permission d'accès
+    if (! window.electronAPI.checkPermission("supprimerEntretien")) {
+        await question("Permission refusée", "Vous n'avez pas les droits suffisants pour supprimer des entretiens.", ["OK"]);
+        return;
     }
 
     // demande de confirmation via question 
