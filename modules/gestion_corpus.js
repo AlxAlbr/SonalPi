@@ -122,7 +122,7 @@ async function lireCorpus(fileContent){
         window.electronAPI.setEntCur(ent_cur);
 
         // Initialiser le cache du contenu sauvegardé pour éviter un commit inutile dès l'ouverture
-        _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic });
+     _dernierContenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic }, null, 2);
 
         console.log("les tableaux de données ont été chargés depuis le corpus");
         console.log("tabThm :", tabThm);
@@ -468,7 +468,7 @@ async function lireCrpSonal2(contenu){
          // définition du nom du nouveau corpus (ajout .Pi avant crp)
          let nouveauNomCrp = Corpus.url.substring(0, Corpus.url.lastIndexOf(".")) + ".Sonal_Pi.crp";   
 
-          const contenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic /*, tabDat */ });
+    const contenuCrp = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic /*, tabDat */ }, null, 2);
   
           
  
@@ -913,7 +913,7 @@ async function sauvegarderCorpus(avecBackup = false) {
   );
   await window.electronAPI.setDat(tabDatGlobal);
 
-  const contenu = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic, tabAnon, paramsAnonCorpus });
+    const contenu = JSON.stringify({ tabThm, tabEnt: tabEntSansTabAnon(tabEnt), tabVar, tabDic, tabAnon, paramsAnonCorpus }, null, 2);
   
  // console.log('💾 Sauvegarde en cours... de ' , contenu);
   
@@ -991,13 +991,13 @@ async function rafraichirCorpus(silencieux = false) {
         // Mettre à jour tabThm, tabVar et tabDic depuis le .crp distant
         if (corpusDistant.tabThm) {
             const tabThmLocal = await window.electronAPI.getThm();
-            const thmDistantStr = JSON.stringify(corpusDistant.tabThm);
-            const thmLocalStr   = JSON.stringify(tabThmLocal);
+            const thmDistantStr = JSON.stringify(corpusDistant.tabThm, null, 2);
+            const thmLocalStr   = JSON.stringify(tabThmLocal, null, 2);
             if (thmDistantStr !== thmLocalStr) {
                 // Détecter si la structure (ordre et ensemble des codes) a changé,
                 // ou seulement des propriétés comme la couleur ou le nom
-                const anciensCodes = JSON.stringify(tabThmLocal.map(t => t.code));
-                const nouveauxCodes = JSON.stringify(corpusDistant.tabThm.map(t => t.code));
+                const anciensCodes = JSON.stringify(tabThmLocal.map(t => t.code), null, 2);
+                const nouveauxCodes = JSON.stringify(corpusDistant.tabThm.map(t => t.code), null, 2);
                 const structureInchangee = anciensCodes === nouveauxCodes;
 
                 tabThm = corpusDistant.tabThm.map(t => ({ ...t, act: true, cmpct: false }));
@@ -1624,7 +1624,7 @@ async function resumeGraphique(html) {
             tabGrphEntComp.push(tabGrphEnt[i]);
         } else {
             let dernier = tabGrphEntComp[tabGrphEntComp.length -1]; 
-            if (JSON.stringify(dernier.catsThm) === JSON.stringify(tabGrphEnt[i].catsThm)){
+            if (JSON.stringify(dernier.catsThm) === JSON.stringify(tabGrphEnt[i].catsThm, null, 2)){
                 // même catégorie, on étend la largeur
                 let valprec = Number(dernier.width);
                 dernier.width = valprec + Number(tabGrphEnt[i].width);

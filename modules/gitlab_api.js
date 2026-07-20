@@ -825,7 +825,7 @@ class GitLabAPI {
 
       let bodyBuffer = null;
       if (body !== null && ['POST', 'PUT', 'DELETE'].includes(method)) {
-        bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
+          bodyBuffer = Buffer.from(JSON.stringify(body, null, 2), 'utf8');
         options.headers['Content-Type'] = 'application/vnd.git-lfs+json';
         options.headers['Content-Length'] = bodyBuffer.length;
       }
@@ -923,7 +923,7 @@ class GitLabAPI {
 
       let bodyBuffer = null;
       if (body !== null && ['POST', 'PUT', 'DELETE'].includes(method)) {
-        bodyBuffer = Buffer.from(JSON.stringify(body), 'utf8');
+          bodyBuffer = Buffer.from(JSON.stringify(body, null, 2), 'utf8');
         options.headers['Content-Type'] = 'application/json';
         options.headers['Content-Length'] = bodyBuffer.length;
       }
