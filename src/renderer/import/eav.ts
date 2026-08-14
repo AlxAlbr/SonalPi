@@ -3,10 +3,10 @@ import type { Locuteur, Variable } from '../../shared/format'
 /**
  * Mapping EAV entre le FORMAT LEGACY `.sonal` (tabVar/tabDic/tabDat, codes
  * numériques + sentinelle `l="all"`) et le MODÈLE SonalAsynchro (variables au
- * corpus, valeurs chez leur propriétaire — MODELE_OBJET2 §5, SUITE S1).
+ * corpus, valeurs chez leur propriétaire).
  *
  * Deux invariants portent tout le round-trip :
- *  1. Identités DÉTERMINISTES (règle n°3) : la variable `v=n` → id `v{n}`,
+ *  1. Identités DÉTERMINISTES : la variable `v=n` → id `v{n}`,
  *     sa modalité `m` → id `v{n}m{m}`. Deux imports du même `.sonal` produisent
  *     les mêmes ids → fusion idempotente par id, zéro doublon.
  *  2. La sentinelle `l="all"` et le champ `e` (index d'entretien) sont des

@@ -8,7 +8,7 @@ import type { Locuteur } from '../../shared/format'
 export const gouttierePluginKey = new PluginKey('sonal-locuteurs-gutter')
 
 /** Élément de gouttière : nom du locuteur, cliquable (place le curseur dans le
- *  bloc ; si un audio est chargé, cale AUSSI le lecteur au début du tour — S6). */
+ *  bloc ; si un audio est chargé, cale AUSSI le lecteur au début du tour). */
 function elementGouttiere(
   view: EditorView,
   pos: number,
@@ -23,7 +23,7 @@ function elementGouttiere(
   el.title = 'Cliquer pour se placer dans ce tour de parole (audio : seek au début du tour)'
   el.addEventListener('mousedown', (e) => {
     e.preventDefault()
-    e.stopPropagation() // le clic-tour ne doit pas AUSSI déclencher le clic-texte (seek précis S7)
+    e.stopPropagation() // le clic-tour ne doit pas AUSSI déclencher le clic-texte (seek précis)
     const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, pos))
     view.dispatch(tr.scrollIntoView())
     view.focus()
@@ -35,7 +35,7 @@ function elementGouttiere(
 function construire(state: EditorState, locuteurs: Locuteur[], onClicTour?: (pos: number) => void): DecorationSet {
   const decos: Decoration[] = []
   // Interviewers (ceux qui posent les questions) : leurs tours passent en
-  // italique — le pendant du « ? » SonalPi, sans teinte de fond (choix S7+).
+  // italique — le pendant du « ? » SonalPi, sans teinte de fond (rendu neutre).
   const interviewers = new Set(locuteurs.filter((l) => l.interviewer).map((l) => l.index))
   let precedent: number | null | undefined = undefined
   state.doc.forEach((node, offset) => {
@@ -45,7 +45,7 @@ function construire(state: EditorState, locuteurs: Locuteur[], onClicTour?: (pos
     }
     const loc = node.attrs.loc as number | null
     // Tour de parole = DÉRIVÉ (run de blocs consécutifs de même loc) : on n'affiche
-    // le nom que sur le 1er bloc du tour ; rien n'est stocké (MODELE_OBJET2 §4).
+    // le nom que sur le 1er bloc du tour ; rien n'est stocké.
     const premierDuTour = loc !== precedent
     precedent = loc
     const nom = premierDuTour ? nomDeLocuteur(locuteurs, loc) : ''

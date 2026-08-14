@@ -10,11 +10,10 @@ import {
 import { charVersPM } from '../src/shared/entretien/positions'
 import { enveloppe } from '../src/renderer/audio/enveloppe'
 
-/** S7 / D-S14 : le temps est porté par des ANCRES {pos, t} dans le texte ;
- *  l'interpolation D-S13 reste une dérivation entre ancres, au prorata du
- *  texte. Ces tests reprennent les sémantiques prouvées de S6 (cues entiers,
- *  fragments scindés, trous, dégénérés) reformulées sur les ancres, et ajoutent
- *  le garde-fou de perf (dichotomie comptée sur ~30 000 ancres). */
+/** Le temps est porté par des ANCRES {pos, t} dans le texte ; l'interpolation
+ *  reste une dérivation entre ancres, au prorata du texte. Ces tests couvrent
+ *  les sémantiques de lecture (cues entiers, fragments scindés, trous,
+ *  dégénérés) et le garde-fou de perf (dichotomie comptée sur ~30 000 ancres). */
 
 /** Ancres d'un découpage en cues : chaque cue [deb, fin] posé sur son bloc. */
 function ancresDeCues(cues: Array<{ deb: number | null; fin: number | null; longueur: number }>): {
@@ -86,7 +85,7 @@ describe('plageCourante (surlignage : les 2 ancres encadrant t)', () => {
     expect(plageX(silencieux, 5)).toEqual([10, 20]) // t = fin exacte : encore lu
   })
 
-  test('cue scindé (D-S5) : la plage est bornée par les ancres MESURÉES restantes', () => {
+  test('cue scindé : la plage est bornée par les ancres MESURÉES restantes', () => {
     // Un cue [0, 10] dont le bloc a été scindé en 5+10+5 : les ancres n'ont pas
     // bougé en texte — la plage couvre les 20 caractères entre deb et fin.
     const ancres2: AncreTexte[] = [
@@ -113,7 +112,7 @@ describe('plageCourante (surlignage : les 2 ancres encadrant t)', () => {
   })
 })
 
-describe('tempsAuPoint (interpolation D-S13 : seek clic-tour)', () => {
+describe('tempsAuPoint (interpolation entre ancres : seek clic-tour)', () => {
   test('sur une borne mesurée → son temps ; entre deux → prorata du texte', () => {
     const ancres = projection([
       { deb: 10, fin: null, longueur: 5 },
@@ -149,7 +148,7 @@ describe('tempsAuPoint (interpolation D-S13 : seek clic-tour)', () => {
   })
 })
 
-describe('debutTour (clic-tour, D-S2)', () => {
+describe('debutTour (clic-tour ; tour dérivé)', () => {
   test('le tour est le run de blocs consécutifs de même loc', () => {
     const locs = [1, 1, 2, 2, 2, 1]
     expect(debutTour(locs, 0)).toBe(0)
@@ -159,7 +158,7 @@ describe('debutTour (clic-tour, D-S2)', () => {
   })
 })
 
-describe('garde-fou perf D-S14 (~30 000 ancres : dichotomie, pas de balayage)', () => {
+describe('garde-fou perf (~30 000 ancres : dichotomie, pas de balayage)', () => {
   // Un Proxy compte les ACCÈS au tableau d'ancres : un lookup dichotomique en
   // fait O(log n), un balayage linéaire en ferait O(n) — le compteur départage.
   function compteur(ancres: AncreTexte[]): { proxy: AncreTexte[]; lus: () => number } {

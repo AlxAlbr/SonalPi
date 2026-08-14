@@ -5,10 +5,10 @@ import Corpus from './components/Corpus.vue'
 import TableDonnees from './components/TableDonnees.vue'
 import Entretien from './components/Entretien.vue'
 
-// D-S12 : App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes et les
-// PROVIDE ; chaque composant de vue les INJECTE (utiliserSonal). App ne garde que
-// l'en-tête, le fil d'Ariane et les bannières.
-const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat, perime } =
+// App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
+// corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
+// (utiliserSonal). App ne garde que l'en-tête, le fil d'Ariane et les bannières.
+const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat } =
   fournirSonal()
 </script>
 
@@ -40,10 +40,6 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     </header>
 
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
-    <div v-if="perime && vue === 'entretien'" class="banniere perime">
-      ⚠ Cet entretien semble plus ancien que ce que le corpus a enregistré
-      (fichier restauré ?). Vérifie avant d'écraser.
-    </div>
 
     <Accueil v-show="vue === 'accueil'" />
     <Corpus v-show="vue === 'corpus'" />
@@ -100,11 +96,6 @@ h1 small {
   background: #fdecea;
   color: #b3261e;
   border: 1px solid #f3b4ad;
-}
-.banniere.perime {
-  background: #fff8ec;
-  color: #b06e0f;
-  border: 1px solid #e0a03a;
 }
 /* --- Fil d'Ariane (navigation 3 écrans) --- */
 .fil {

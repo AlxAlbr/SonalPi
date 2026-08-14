@@ -15,8 +15,8 @@ import type {
   Variable,
 } from '../shared/format'
 
-// Pont du store « dossier de corpus » : le renderer ne touche JAMAIS le disque
-// directement — tout passe par le main process (MODELE_OBJET §2).
+// Pont du store « dossier de corpus » : le renderer ne touche JAMAIS le disque directement
+// tout passe par le main process .
 contextBridge.exposeInMainWorld('sonal', {
   platform: process.platform,
   corpus: {
@@ -33,8 +33,8 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:lireEntretien', id),
     ecrireEntretien: (id: string, p: PayloadEntretien): Promise<string> =>
       ipcRenderer.invoke('corpus:ecrireEntretien', id, p),
-    creerEntretien: (titre: string): Promise<{ id: string; corpus: CorpusFichier }> =>
-      ipcRenderer.invoke('corpus:creerEntretien', titre),
+    creerEntretienVide: (titre: string): Promise<{ id: string; corpus: CorpusFichier }> =>
+      ipcRenderer.invoke('corpus:creerEntretienVide', titre),
     renommerEntretien: (id: string, titre: string): Promise<CorpusFichier> =>
       ipcRenderer.invoke('corpus:renommerEntretien', id, titre),
     supprimerEntretien: (id: string): Promise<CorpusFichier> =>
@@ -57,12 +57,12 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:deplacerCategorie', id, sens),
     supprimerCategorie: (id: string, exceptId?: string): Promise<ResultatSuppressionCategorie> =>
       ipcRenderer.invoke('corpus:supprimerCategorie', id, exceptId),
-    usagesParCode: (): Promise<Record<string, number>> =>
-      ipcRenderer.invoke('corpus:usagesParCode'),
+    usagesParCategorie: (): Promise<Record<string, number>> =>
+      ipcRenderer.invoke('corpus:usagesParCategorie'),
     resumesThematiques: (): Promise<Record<string, SegmentThematique[]>> =>
       ipcRenderer.invoke('corpus:resumesThematiques'),
-    compterUsagesCode: (code: string, exceptId?: string): Promise<number> =>
-      ipcRenderer.invoke('corpus:compterUsagesCode', code, exceptId),
+    compterUsagesCategorie: (code: string, exceptId?: string): Promise<number> =>
+      ipcRenderer.invoke('corpus:compterUsagesCategorie', code, exceptId),
     ajouterVariable: (
       lib: string,
       portee: 'entretien' | 'locuteur',

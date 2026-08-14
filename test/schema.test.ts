@@ -8,9 +8,9 @@ import { Extension } from '@tiptap/core'
 import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien'
 
 /**
- * Vérifie le CONTRAT DE SCHÉMA D2 (gelé dès l'étape 0) sur le VRAI éditeur
- * TipTap (pas le schéma minimal des tests moteur) : le paragraphe = « bloc »
- * porte loc/deb/fin, et le remapping tient avec ce schéma-là.
+ * Vérifie le CONTRAT DE SCHÉMA (gelé : toute évolution = migration explicite)
+ * sur le VRAI éditeur TipTap (pas le schéma minimal des tests moteur) : le
+ * paragraphe = « bloc » porte `loc`, et le remapping tient avec ce schéma-là.
  */
 function creerEditeur(entretien: Entretien, content: string): Editor {
   const Remap = Extension.create({
@@ -29,7 +29,7 @@ afterEach(() => {
   editor = null
 })
 
-describe('schéma D2 (rév. S7) — le bloc porte loc, et lui seul', () => {
+describe('schéma — le bloc porte loc, et lui seul', () => {
   test('le nœud paragraph déclare loc — les timecodes sont des ancres, plus des attrs', () => {
     const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p>Bonjour</p>')
@@ -51,7 +51,7 @@ describe('schéma D2 (rév. S7) — le bloc porte loc, et lui seul', () => {
   })
 })
 
-describe('schéma D2 — le remapping tient avec le vrai schéma', () => {
+describe('schéma — le remapping tient avec le vrai schéma', () => {
   test('une insertion avant la plage décale l’annotation, l’extrait est stable', () => {
     const entretien: Entretien = { annotations: [], ancres: [] }
     editor = creerEditeur(entretien, '<p>Karine habite Lyon.</p>')

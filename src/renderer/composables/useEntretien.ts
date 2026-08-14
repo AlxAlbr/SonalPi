@@ -34,14 +34,15 @@ import type { LegacyBlobs } from '../import/importSonal'
 type Extrait = { id: string; texte: string; locuteurs: string[] }
 
 /**
- * Scope ENTRETIEN (D-S12) : l'ENTRETIEN OUVERT — sa vérité en session (doc
+ * Scope ENTRETIEN : l'ENTRETIEN OUVERT — sa vérité en session (doc
  * ProseMirror + annotations + locuteurs + valeurs), l'éditeur TipTap et ses
  * plugins, les gestes (coder, locuteurs, valeurs), l'autosave et le panneau debug.
  * Ne connaît PAS le corpus : ses dépendances de scope sont injectées —
  *  - `couleurTrait` : résout la couleur d'un code (scope corpus) pour le marquage ;
  *  - `apresSauvegarde` : rafraîchit les requêtes corpus après un save (orchestration) ;
- *  - `codeExtraits` : le thème filtrant la requête Extraits (vestige D-S7) ;
- *  - `nomCode` / `libelleValeur` : libellés lisibles pour le journal S5 (les noms
+ *  - `codeExtraits` : le thème filtrant la requête Extraits (plus d'UI dédiée,
+ *    la requête reste disponible pour un futur écran de recueil) ;
+ *  - `nomCode` / `libelleValeur` : libellés lisibles pour le journal (les noms
  *    de thèmes/variables vivent au corpus, le journal vit ici).
  */
 export function useEntretien(deps: {
@@ -53,10 +54,10 @@ export function useEntretien(deps: {
   codeExtraits: () => string
   nomCode: (code: string) => string
   libelleValeur: (idVar: string, idMod: string) => string
-  /** S6 : clic sur la gouttière d'un bloc → l'orchestrateur cale l'audio au
+  /** Clic sur la gouttière d'un bloc → l'orchestrateur cale l'audio au
    *  début du tour (le scope entretien ne connaît pas le lecteur). */
   clicTour?: (posBloc: number) => void
-  /** S7 : clic DANS le texte → l'orchestrateur cale l'audio au temps interpolé
+  /** Clic DANS le texte → l'orchestrateur cale l'audio au temps interpolé
    *  à cet endroit précis (comme SonalPi — la barre suit, play reprend là). */
   clicTexte?: (pos: number) => void
   /** Double-espace dans le texte = play/pause (parité SonalPi). Renvoie `true`
@@ -77,17 +78,16 @@ export function useEntretien(deps: {
   })
   const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal'>('themes')
   const hintCodage = ref<string | null>(null)
-  /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (S4 :
+  /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (
    *  « Attribuer la sélection » vs « …le bloc courant »). */
   const selectionVide = ref(true)
 
-  // --- Journal d'actions (S5) : volatil (D-S9), actions de modèle seules (D-S3) ---
+  // --- Journal d'actions : volatil (session), actions de modèle seules ---
   const journal = reactive<Journal>({ entrees: [] })
   const genIdJournal = () => 'j-' + Math.random().toString(36).slice(2, 9)
 
   // --- État de persistance de l'entretien ouvert ---
   const ouvertId = ref<string | null>(null)
-  const perime = ref(false)
   const refusFormat = ref<string | null>(null)
   const etatSauvegarde = ref<'à jour' | 'modifié' | 'sauvegarde…'>('à jour')
   let chargement = false
@@ -114,7 +114,7 @@ export function useEntretien(deps: {
     extensions: [StarterKit, BlocAttributs, MoteurExtension],
     editorProps: {
       attributes: { class: 'editeur' },
-      // Un CLIC (pas un drag de sélection) → seek audio à cet endroit (S7).
+      // Un CLIC (pas un drag de sélection) → seek audio à cet endroit.
       // On ne consomme pas l'événement : le curseur se place normalement.
       handleClick: (_view, pos) => {
         deps.clicTexte?.(pos)
@@ -163,7 +163,7 @@ export function useEntretien(deps: {
     if (ed) ed.view.dispatch(ed.state.tr.setMeta(gouttierePluginKey, 'refresh'))
   }
 
-  // --- Journal (S5) : contexte d'inverse + projection affichable ---
+  // --- Journal : contexte d'inverse + projection affichable ---
   /** Le contexte sur lequel un inverse s'applique : le modèle + l'accès aux blocs
    *  du doc (injecté ici — le module journal reste pur). */
   function ctxInverse(): CtxInverse {
@@ -211,7 +211,7 @@ export function useEntretien(deps: {
     rafraichirJournal()
   }
 
-  // --- Projections lisibles du modèle (requête Extraits D-S7 + journal S5) ---
+  // --- Projections lisibles du modèle (requête Extraits + journal) ---
   const extraits = ref<Extrait[]>([])
   /** Résumé thématique LIVE de l'entretien ouvert (calque de la bande du lecteur) :
    *  recalculé avec les autres projections — même requête pure que les cartes
@@ -225,8 +225,9 @@ export function useEntretien(deps: {
       ? resumeThematique({ corpsTexte: ed.getJSON(), annotations: entretien.annotations })
       : []
   }
-  /** Extraits du thème courant (REQUÊTE, rien de stocké ; UI retirée — D-S7, mais la
-   *  requête reste dans le code). Une annotation = UN extrait même à cheval sur blocs. */
+  /** Extraits du thème courant (REQUÊTE, rien de stocké ; l'UI a été retirée,
+   *  la requête reste disponible pour un futur écran de recueil).
+   *  Une annotation = UN extrait même à cheval sur blocs. */
   function rafraichirExtraits() {
     const ed = editor.value
     if (!ed) {
@@ -250,7 +251,7 @@ export function useEntretien(deps: {
       })
   }
 
-  // --- Synchro audio (S7, D-S14) : scope dédié — le pont temps ↔ texte ---
+  // --- Synchro audio (ancres temporelles) : scope dédié — le pont temps ↔ texte ---
   const { majPlageLue, eteindre: eteindrePlageLue, allerAuTexte, tempsAuTexte, tempsDuBloc } =
     useSynchroAudio({ editor, ancres: entretien.ancres })
 
@@ -266,7 +267,6 @@ export function useEntretien(deps: {
     if (!ouvertId.value || !editor.value) return
     etatSauvegarde.value = 'sauvegarde…'
     await window.sonal.corpus.ecrireEntretien(ouvertId.value, payloadCourant())
-    perime.value = false // on vient d'écrire → le disque n'est plus « en retard »
     etatSauvegarde.value = 'à jour'
     await deps.apresSauvegarde() // les compteurs d'usage corpus reflètent l'état sauvé
   }
@@ -315,9 +315,8 @@ export function useEntretien(deps: {
     meta.audioRef = res.data.meta.audioRef
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
-    perime.value = res.perime
     chargement = false
-    journal.entrees.length = 0 // volatil PAR entretien (D-S9)
+    journal.entrees.length = 0 // volatil PAR entretien
     // Le surlignage audio ne survit pas au changement de doc.
     eteindrePlageLue()
     rafraichir()
@@ -334,15 +333,14 @@ export function useEntretien(deps: {
     entretien.ancres.splice(0, entretien.ancres.length)
     editor.value?.commands.setContent('<p></p>', { emitUpdate: false })
     refusFormat.value = null
-    perime.value = false
     eteindrePlageLue()
     rafraichir()
     rafraichirDecorations()
   }
 
-  // --- Gestes de codage (S3 : clic sur un thème = coder la sélection) ---
+  // --- Gestes de codage (clic sur un thème = coder la sélection) ---
   /** Code la sélection courante (snap au mot) avec `code`. Sans sélection → hint,
-   *  rien codé (D-S1). Re-clic même thème / même plage = retirer (D-S6). */
+   *  rien codé (pas de codage accidentel). Re-clic même thème / même plage = retirer. */
   function coderAvec(code: string) {
     const ed = editor.value
     if (!ed) return
@@ -377,7 +375,7 @@ export function useEntretien(deps: {
     rafraichirDecorations()
     planifierSauvegarde()
   }
-  /** Retire du modèle tous les codages d'un thème (support D-S10 : suppression
+  /** Retire du modèle tous les codages d'un thème (support de la suppression
    *  d'un thème depuis l'entretien). Ne persiste pas — l'appelant orchestre le save. */
   function retirerCodagesDuCode(code: string): number {
     const cibles = entretien.annotations.filter((a) => a.type === 'codage' && a.code === code)
@@ -387,11 +385,11 @@ export function useEntretien(deps: {
     return cibles.length
   }
 
-  // --- Locuteurs (étape 4 : bloc courant ; S4 : attribuer la sélection) ---
-  /** Pose `loc`. Sélection VIDE → le bloc courant (geste étape 4). Sélection NON
-   *  VIDE → « attribuer la sélection » (S4) : scinde les blocs aux bornes (snap au
-   *  mot) et pose `loc` sur les blocs couverts ; annotations remappées, timecodes
-   *  selon D-S5/D-S13. Aucune fusion physique (D-S2). */
+  // --- Locuteurs (bloc courant, ou attribution de la sélection) ---
+  /** Pose `loc`. Sélection VIDE → le bloc courant. Sélection NON VIDE →
+   *  « attribuer la sélection » : scinde les blocs aux bornes (snap au mot) et
+   *  pose `loc` sur les blocs couverts ; annotations remappées, ancres
+   *  temporelles non déplacées par la coupe. Aucune fusion physique. */
   function attribuerLoc(loc: number | null) {
     const ed = editor.value
     if (!ed) return
@@ -447,7 +445,7 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
   /** (Dé)clare un locuteur INTERVIEWER : ses tours passent en italique (le
-   *  pendant du « ? » SonalPi). Hors journal S5 (comme + Locuteur) : l'inverse
+   *  pendant du « ? » SonalPi). Hors journal (comme + Locuteur) : l'inverse
    *  est le re-clic du même interrupteur. */
   function setInterviewer(index: number, actif: boolean) {
     const l = locuteurs.value.find((x) => x.index === index)
@@ -458,7 +456,7 @@ export function useEntretien(deps: {
   }
 
   // --- Suppression d'un locuteur (acte destructif : nom + valeurs EAV + le
-  // lien de ses blocs — confirmation in-app, comme les thèmes D-S10) ---
+  // lien de ses blocs — confirmation in-app, même idiome que les thèmes) ---
   const locuteurASupprimer = ref<{ index: number; nom: string; nbBlocs: number } | null>(null)
   function demanderSuppressionLocuteur(index: number) {
     const ed = editor.value
@@ -558,7 +556,6 @@ export function useEntretien(deps: {
     hintCodage,
     selectionVide,
     ouvertId,
-    perime,
     refusFormat,
     etatSauvegarde,
     editor,
@@ -585,7 +582,7 @@ export function useEntretien(deps: {
     rafraichir,
     rafraichirDecorations,
     resumeOuvert,
-    // synchro audio (S7)
+    // synchro audio
     majPlageLue,
     allerAuTexte,
     tempsDuBloc,

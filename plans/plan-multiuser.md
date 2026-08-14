@@ -250,6 +250,14 @@ web, forçage de verrou, édition hors ligne assumée, restauration serveur d'un
    fusion automatique proposée des annotations ; `corpsTexte` différent → choix par fichier (pas de
    merge de texte au set minimum). Divergences réelles sur `corpus.json` (renommage concurrent
    d'une même catégorie) → dialogue — « rien de tranché en silence ».
+   **Identités opaques partout** : toutes les entités créées côté app (entretiens, catégories,
+   variables, modalités) reçoivent un id aléatoire `genId('<préfixe>')` — unique *par
+   construction*, donc la création offline divergente (§4.6) ne peut pas produire de collision
+   d'id (deux `cat_005` distincts, etc.). Pour les catégories, `codeExport` (`cat_NNN`,
+   séquentiel) reste un attribut de **présentation à l'export**, jamais une identité : les
+   codebooks mélangeant ids legacy `cat_NNN` (bootstrap, imports `.sonal` anciens) et ids
+   `cat-xxxx` sont supportés ; à la fusion, une collision de `codeExport` est bénigne (affichage
+   seul) et peut être re-numérotée sans toucher aux références.
 3. **`auteur`** sur `Annotation` (champ existant) enfin alimenté par `userId` (§7) — la matière
    première de toute réconciliation lisible.
 

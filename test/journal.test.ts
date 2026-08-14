@@ -209,7 +209,7 @@ describe('journal — les inverses en attente suivent les éditions (remap)', ()
     expect(j.entrees).toHaveLength(1) // conservée, grisée
   })
 
-  test('attribution annulée après édition → l’ancien loc revient au BON bloc (scission conservée, D-S2)', () => {
+  test('attribution annulée après édition → l’ancien loc revient au BON bloc (scission conservée)', () => {
     const entretien: Entretien = { annotations: [], ancres: [] }
     const j: Journal = { entrees: [] }
     editor = creerEditeur(entretien, j, '<p data-loc="1" data-deb="0" data-fin="10">AAAA BBBB CCCC</p>')
@@ -232,6 +232,6 @@ describe('journal — les inverses en attente suivent les éditions (remap)', ()
     const locs: Array<number | null> = []
     editor.state.doc.forEach((n) => locs.push(n.attrs.loc))
     expect(locs).toEqual([1, 1, 1]) // l'ancien loc restauré…
-    expect(editor.state.doc.childCount).toBe(3) // …la scission demeure (D-S2)
+    expect(editor.state.doc.childCount).toBe(3) // …la scission demeure (jamais de fusion)
   })
 })

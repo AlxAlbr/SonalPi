@@ -3,12 +3,12 @@ import { utiliserSonal } from '../composables/sonal'
 import type { SegmentThematique } from '../../shared/format'
 
 /**
- * Lecteur audio (S6) — en HAUT de l'écran entretien, comme SonalPi :
+ * Lecteur audio — en HAUT de l'écran entretien, comme SonalPi :
  * play/pause, position, vitesse, ±5 s, puis la bande (forme d'onde PNG +
  * curseur de position + clic = seek TEMPOREL). Composant « bête » : tout
  * l'état vit dans le scope audio partagé (useAudio) — c'est la réactivité qui
  * le coordonne avec le surlignage du bloc lu, pas un composant dynamique.
- * S8 : la bande porte aussi le CALQUE du résumé thématique de l'entretien
+ * La bande porte aussi le CALQUE du résumé thématique de l'entretien
  * ouvert (live — il suit le codage), calé sur l'axe TEMPS via les ancres.
  */
 const { audio, resumeOuvert, tempsAuTexte, peintureSegment } = utiliserSonal()
@@ -48,7 +48,7 @@ function fmt(t: number): string {
 }
 
 /** Clic sur la bande = seek proportionnel au TEMPS (la bande est une image
- *  temporelle — choix S6, ≠ SonalPi qui vise une position dans le texte). */
+ *  temporelle — choix assumé, ≠ SonalPi qui vise une position dans le texte). */
 function clicBande(e: MouseEvent) {
   if (duree.value <= 0) return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -77,7 +77,7 @@ function clicBande(e: MouseEvent) {
     <div class="bande" title="Cliquer pour se déplacer dans la bande" @click="clicBande">
       <img v-if="waveformUrl" class="onde" :src="waveformUrl" alt="" draggable="false" />
       <div v-else class="onde onde-vide"></div>
-      <!-- Calque du résumé thématique (S8) : décoratif (pointer-events none —
+      <!-- Calque du résumé thématique : décoratif (pointer-events none —
            le clic sur la bande reste un seek), sous le curseur. -->
       <span
         v-for="(s, i) in resumeOuvert"

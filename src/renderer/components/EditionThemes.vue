@@ -6,7 +6,7 @@ import { utiliserSonal } from '../composables/sonal'
  * Fenêtre d'ÉDITION des thèmes (parité SonalPi : le crayon ouvre une modale, la
  * consultation reste compacte dans les panneaux). PARTAGÉE par les écrans Corpus
  * et Entretien — même modèle derrière (le codebook corpus) ; seul le `contexte`
- * change la POLITIQUE de suppression (D-S10) :
+ * change la POLITIQUE de suppression :
  *  - `corpus`   : refus si le thème est utilisé quelque part (compteur) ;
  *  - `entretien`: refus si un AUTRE entretien l'utilise ; sinon confirmation →
  *    retrait des codages de CET entretien + suppression de la définition.
@@ -78,7 +78,7 @@ onMounted(() => {
       <p v-if="messageTheme" class="msg-thm">{{ messageTheme }}</p>
       <p v-if="contexte === 'entretien' && hintCodage" class="msg-thm">{{ hintCodage }}</p>
 
-      <!-- Confirmation de suppression depuis l'entretien (acte destructif — D-S10) -->
+      <!-- Confirmation de suppression depuis l'entretien (acte destructif) -->
       <div v-if="themeASupprimer" class="confirm-suppr">
         Supprimer « {{ themeASupprimer.nom }} » ? Cela retire
         <b>{{ themeASupprimer.n }} codage(s)</b> de cet entretien — <b>irréversible</b>.

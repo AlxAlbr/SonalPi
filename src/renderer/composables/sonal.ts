@@ -9,7 +9,7 @@ import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 
 /**
- * ORCHESTRATION applicative (D-S12) : instancie et COUD les trois scopes (profil,
+ * ORCHESTRATION applicative : instancie et COUD les trois scopes (profil,
  * corpus, entretien) et porte la navigation. Créé UNE fois par l'App (`fournirSonal`),
  * `provide`/`inject` aux composants de vue → tous partagent le même éditeur et le
  * même modèle (les composables ne sont pas ré-instanciés).
@@ -23,7 +23,7 @@ export function creerSonal() {
   let sauverEntretien: () => Promise<void> = async () => {}
   const corpus = useCorpus({ flush: () => sauverEntretien() })
 
-  // Scope AUDIO (S6) : le lecteur de l'entretien ouvert. Les trois consommateurs
+  // Scope AUDIO : le lecteur de l'entretien ouvert. Les trois consommateurs
   // (LecteurAudio en haut, barre sur la forme d'onde, bloc-lu de l'éditeur) se
   // coordonnent par cet état réactif partagé.
   const audio = useAudio()
@@ -32,21 +32,21 @@ export function creerSonal() {
     couleurTrait: corpus.couleurTrait, // le marquage résout la couleur d'un code (corpus)
     tailleTrait: corpus.tailleTheme, // …et sa taille de police (parité SonalPi)
     apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
-    codeExtraits: () => corpus.codeCourant.value, // filtre requête Extraits (vestige D-S7)
-    nomCode: (code) => corpus.nomTheme(code), // libellés du journal S5 (noms au corpus)
+    codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
+    nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
       if (!idMod) return `${nomVar} effacée`
       return `${nomVar} = ${v?.modalites.find((m) => m.id === idMod)?.lib ?? idMod}`
     },
-    // S6 : clic sur la gouttière → seek au début du tour (si un audio est chargé).
+    // Clic sur la gouttière → seek au début du tour (si un audio est chargé).
     clicTour: (posBloc) => {
       if (!audio.url.value) return
       const t = ent.tempsDuBloc(posBloc)
       if (t != null) audio.seek(t)
     },
-    // S7 : clic DANS le texte → seek au temps interpolé à cet endroit (comme
+    // Clic DANS le texte → seek au temps interpolé à cet endroit (comme
     // SonalPi) — la barre sur la forme d'onde suit, play reprend là.
     clicTexte: (pos) => {
       if (!audio.url.value) return
@@ -76,7 +76,7 @@ export function creerSonal() {
   // --- Sélection d'un entretien DANS la vue Corpus (≠ `ouvertId` = éditeur) ---
   // Sélectionner (clic sur la carte) montre ses métadonnées à gauche ; le crayon,
   // lui, OUVRE l'éditeur. On lit le fichier à la sélection (requête ciblée, pas
-  // de cache) — cohérent D-S12 (le renderer ne tient pas tous les entretiens).
+  // de cache) — le renderer ne tient jamais tous les entretiens.
   const corpusSelId = ref<string | null>(null)
   const corpusSelMeta = ref<{ nbLocuteurs: number; nbValeurs: number; audio: boolean } | null>(null)
   async function selectionnerCorpus(id: string) {
@@ -96,10 +96,10 @@ export function creerSonal() {
     corpusSelId.value = null
     corpusSelMeta.value = null
   }
-  // Confirmation de suppression d'un thème DEPUIS l'entretien (D-S10, orchestration).
+  // Confirmation de suppression d'un thème DEPUIS l'entretien (orchestration).
   const themeASupprimer = ref<{ id: string; nom: string; n: number } | null>(null)
 
-  // --- Audio (S6) : médias du corpus (requête) + chargement du lecteur ---
+  // --- Audio : médias du corpus (requête) + chargement du lecteur ---
   /** Scan `audio/` du corpus (id → { audio, waveform }) : alimente les cartes
    *  de l'écran Corpus et le chargement du lecteur — REQUÊTE, pas de cache. */
   const audiosCorpus = ref<Record<string, { audio: string | null; waveform: string | null }>>({})
@@ -206,16 +206,17 @@ export function creerSonal() {
   }
 
   /** Entrer dans un entretien = le charger (scope entretien), charger son audio
-   *  (S6) ET basculer sur son écran. */
+   *  ET basculer sur son écran. */
   async function ouvrirEntretien(id: string) {
     if (!(await ent.ouvrir(id))) return
     await majAudioEntretien(id)
     vue.value = 'entretien'
   }
 
-  /** Ajout d'un entretien (S6 rev. — modale à la SonalPi, deux zones) :
-   *  - texte seul → import classique (sas D1) ;
-   *  - texte + audio → import PUIS assignation (copie D-S4) + forme d'onde ;
+  /** Ajout d'un entretien (modale à deux zones « fichier d'entretien » /
+   *  « fichier son », à la SonalPi) :
+   *  - texte seul → import classique (sas `.sonal`) ;
+   *  - texte + audio → import PUIS assignation (copie dans le corpus) + forme d'onde ;
    *  - audio seul → entretien au texte VIDE (à taper/transcrire) + audio —
    *    c'est « ajouter un document » avec le lecteur en plus.
    *  Ouvre l'entretien créé dans tous les cas. */
@@ -243,7 +244,7 @@ export function creerSonal() {
     } else {
       await ent.sauver()
       const titre = audioChemin!.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '')
-      const res = await window.sonal.corpus.creerEntretien(titre)
+      const res = await window.sonal.corpus.creerEntretienVide(titre)
       corpus.membership.value = res.corpus.membership
       id = res.id
     }
@@ -254,7 +255,7 @@ export function creerSonal() {
     await ouvrirEntretien(id)
   }
 
-  /** « Assigner un audio… » à l'entretien sélectionné dans la vue Corpus (D-S4) :
+  /** « Assigner un audio… » à l'entretien sélectionné dans la vue Corpus :
    *  copie dans <corpus>/audio/, audioRef relatif, forme d'onde générée. */
   async function assignerAudioSelection() {
     const id = corpusSelId.value
@@ -306,7 +307,7 @@ export function creerSonal() {
   }
 
   // --- Confirmation de suppression d'un ENTRETIEN (l'acte le plus gros — même
-  //     idiome de bannière que thèmes D-S10 et locuteurs). ---
+  //     idiome de bannière que thèmes et locuteurs). ---
   const entretienASupprimer = ref<{ id: string; titre: string } | null>(null)
   function demanderSuppressionEntretien(id: string) {
     entretienASupprimer.value = { id, titre: corpus.membership.value[id]?.titre ?? id }
@@ -318,14 +319,14 @@ export function creerSonal() {
     await supprimer(cible.id)
   }
 
-  // --- Sortie d'entretien = fermeture + point de reprise (D-S11 rév.) ---
+  // --- Sortie d'entretien = fermeture + point de reprise ---
   /** Point de reprise : le dernier entretien fermé (position audio + curseur
    *  texte) pour le rouvrir d'un clic là où on en était. Volatil (session),
-   *  comme le journal D-S9. */
+   *  comme le journal. */
   const reprise = ref<{ id: string; positionAudio: number; posTexte: number | null } | null>(null)
   /** SORTIR d'un entretien (retour Corpus/Accueil, table de données) le FERME
    *  (sauvé d'abord) en mémorisant le point de reprise. Personne n'écrit dans
-   *  un entretien ouvert ailleurs (un seul chemin d'écriture, D-S11). */
+   *  un entretien ouvert ailleurs (un seul chemin d'écriture). */
   async function fermerEntretien() {
     const id = ent.ouvertId.value
     if (!id) return
@@ -353,10 +354,10 @@ export function creerSonal() {
     if (audio.url.value && r.positionAudio > 0) audio.seek(r.positionAudio)
   }
 
-  // --- Suppression d'un thème DEPUIS l'entretien (D-S10 : croise corpus ↔ entretien) ---
+  // --- Suppression d'un thème DEPUIS l'entretien (croise corpus ↔ entretien) ---
   async function demanderSuppressionTheme(id: string) {
     ent.hintCodage.value = null
-    const autres = await window.sonal.corpus.compterUsagesCode(id, ent.ouvertId.value ?? undefined)
+    const autres = await window.sonal.corpus.compterUsagesCategorie(id, ent.ouvertId.value ?? undefined)
     if (autres > 0) {
       ent.hintCodage.value = `« ${corpus.nomTheme(id)} » est utilisé dans ${autres} autre(s) entretien — suppression impossible ici.`
       return
@@ -387,7 +388,7 @@ export function creerSonal() {
     ...profil,
     ...corpus,
     ...ent,
-    audio, // scope audio S6 (objet nommé : les vues déstructurent ses refs)
+    audio, // scope audio (objet nommé : les vues déstructurent ses refs)
     audiosCorpus,
     urlWaveform,
     assignerAudioSelection,

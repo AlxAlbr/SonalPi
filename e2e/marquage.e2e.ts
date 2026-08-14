@@ -2,14 +2,14 @@ import { test, expect, type Page } from '@playwright/test'
 import { ouvrir, coderTheme, compterAnnotations } from './util'
 
 /**
- * ÉTAPE 1 — le marquage devient visible (décorations projetées depuis le modèle).
+ * Le marquage devient visible (décorations projetées depuis le modèle).
  * Critères DEMARRAGE : (1) surlignage visible et qui suit l'édition ; (2) deux
  * thèmes superposés se composent ; (3) plage supprimée → orpheline (au modèle) et
  * plus de surlignage ; + le toggle « re-coder = retirer ».
  */
 
 /** Pose un caret au tout début (snap → 1er mot « Karine »), puis code en cliquant
- *  le thème dans l'onglet Thématique (S3). Thèmes seed : Famille/Travail/Lieu. */
+ *  le thème dans l'onglet Thématique . Thèmes seed : Famille/Travail/Lieu. */
 async function coderPremierMot(page: Page, nomTheme: string) {
   await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
   await coderTheme(page, nomTheme)

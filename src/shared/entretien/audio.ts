@@ -1,16 +1,18 @@
 import { debutBloc } from './positions'
 
 /**
- * Synchro audio (S7, D-S14) — le temps est porté par des ANCRES dans le texte.
+ * Synchro audio — le temps est porté par des ANCRES positionnées dans le
+ * texte, jamais par des attributs de bloc.
  *
  * Une ancre = { pos, t } : une position ProseMirror (remappée aux éditions,
  * comme les annotations — c'est la forme PERSISTÉE) + un temps MESURÉ (bornes
  * de cue SRT ; un format word-level en posera une par mot — même mécanisme,
- * seule la densité change). Jamais de temps fabriqué : l'interpolation D-S13
- * reste une DÉRIVATION à la lecture, au prorata de la longueur de texte entre
- * deux ancres (« requête, pas cache »).
+ * seule la densité change). Jamais de temps fabriqué : l'interpolation reste
+ * une DÉRIVATION à la lecture, au prorata de la longueur de texte entre deux
+ * ancres (« requête, pas cache ») — les bornes nulles laissées par une
+ * scission de bloc sont réparties linéairement entre les mesures voisines.
  *
- * Invariants de perf (D-S14, actés pour ~30 000 ancres word-level) :
+ * Invariants de perf (actés pour ~30 000 ancres word-level) :
  *  - les ancres sont des DONNÉES triées (par pos, donc par x), hors DOM ;
  *  - les lookups sont en DICHOTOMIE — aucun balayage linéaire par tick ;
  *  - hypothèse assumée : les temps sont croissants dans l'ordre du texte
@@ -118,7 +120,7 @@ export function tempsAuPoint(ancres: AncreTexte[], x: number): number | null {
 }
 
 /** Index du PREMIER bloc du tour de parole contenant le bloc `k` (le tour est
- *  DÉRIVÉ : run de blocs consécutifs de même `loc`, D-S2). */
+ *  DÉRIVÉ : run de blocs consécutifs de même `loc`, jamais stocké). */
 export function debutTour(locs: (number | null)[], k: number): number {
   let i = k
   while (i > 0 && locs[i - 1] === locs[k]) i--

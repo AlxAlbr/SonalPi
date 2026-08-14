@@ -1,7 +1,7 @@
 /**
- * Mapping offset-caractère ↔ position ProseMirror (DEMARRAGE, étape 3, point
- * d'attention). Le parseur `.sonal` raisonne en offsets caractère dans un texte
- * plat par bloc ; le modèle SonalAsynchro attend des positions ProseMirror, qui comptent
+ * Mapping offset-caractère ↔ position ProseMirror. Le parseur `.sonal` raisonne
+ * en offsets caractère dans un texte plat par bloc ; le modèle attend des
+ * positions ProseMirror, qui comptent
  * les frontières de blocs (chaque paragraphe = un token d'ouverture + son
  * contenu + un token de fermeture).
  *

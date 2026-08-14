@@ -14,7 +14,7 @@ import {
 } from './util'
 
 /**
- * D-S11 (rév.) — la Table de données éditable. La matrice devient éditable : changer
+ * La Table de données éditable. La matrice devient éditable : changer
  * une cellule écrit la valeur chez son propriétaire dans l'entretien visé (écriture
  * ciblée, jamais un cache). Entrer dans la table FERME (et sauvegarde) l'entretien
  * ouvert dans l'éditeur → la table n'écrit jamais dans un entretien ouvert ; un

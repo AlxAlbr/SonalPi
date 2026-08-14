@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test'
 import { ouvrir, coderTheme, selectionner } from './util'
 
 /**
- * ÉTAPE 4 — locuteurs. Critères DEMARRAGE : (1) attribuer le loc d'un bloc =
- * commande de domaine (transaction PM sur l'attribut, pas une retouche de texte) ;
- * (2) renommer un locuteur → répercuté sur tous ses blocs SANS toucher aux blocs
- * (référence par index) ; (3) tour de parole DÉRIVÉ (blocs consécutifs de même loc
- * groupés) ; + scission (Entrée) qui hérite le loc (D2).
+ * Locuteurs. (1) attribuer le loc d'un bloc = commande de domaine (transaction
+ * PM sur l'attribut, pas une retouche de texte) ; (2) renommer un locuteur →
+ * répercuté sur tous ses blocs SANS toucher aux blocs (référence par index) ;
+ * (3) tour de parole DÉRIVÉ (blocs consécutifs de même loc groupés) ;
+ * + scission (Entrée) qui hérite le loc.
  *
  * Seed : bloc 1 = Enquêteur (loc 1), bloc 2 = Karine (loc 2).
  */
@@ -116,7 +116,7 @@ test('S4 — attribuer la sélection scinde le bloc et pose le locuteur sur le f
   await expect(lyon).toHaveCount(1)
   await expect(lyon).toContainText('Lyon')
   await expect(lyon).not.toContainText('habite')
-  // Les fragments de tête/queue gardent l'Enquêteur (loc 1 ; aucune fusion — D-S2).
+  // Les fragments de tête/queue gardent l'Enquêteur (loc 1 ; aucune fusion).
   await expect(page.locator('.editeur p[data-loc="1"]', { hasText: 'habite' })).toHaveCount(1)
   await expect(page.locator('.editeur p[data-loc="1"]', { hasText: 'retraite' })).toHaveCount(1)
   await app.close()

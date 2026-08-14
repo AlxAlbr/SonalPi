@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ajouterParModale } from './util'
 
 /**
- * ÉTAPE 3 — sas d'import / export `.sonal`, dans la vraie app. Les dialogs natifs
+ * Sas d'import / export `.sonal`, dans la vraie app. Les dialogs natifs
  * (showOpenDialog / showSaveDialog) sont STUBBÉS via electronApp.evaluate pour
  * piloter sans interaction. Critères : import d'un `.sonal` réel → entretien
  * éditable + codebook fusionné ; export → `.sonal` réémis. (Golden import/export

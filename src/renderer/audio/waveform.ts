@@ -1,7 +1,8 @@
 import { enveloppe } from './enveloppe'
 
 /** URL d'un média du corpus, servie par le protocole `sonal-media` du main
- *  (S6 : le renderer Vite ne lit pas file://). `v` casse le cache navigateur
+ *  (en dev, le renderer Vite est en http://localhost et ne lit pas file://).
+ *  `v` casse le cache navigateur
  *  après une (ré)génération. */
 export function urlMedia(rel: string, v?: number | string): string {
   return `sonal-media://corpus/${rel}` + (v != null ? `?v=${v}` : '')

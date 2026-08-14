@@ -19,7 +19,7 @@ Très bien merci, et vous ?
 `
 
 describe('sas d’import — SRT via convertSRT (sas unique)', () => {
-  test('un .srt devient des blocs éditables + des ANCRES temporelles (D-S14)', () => {
+  test('un .srt devient des blocs éditables + des ANCRES temporelles', () => {
     const { payload } = importerFichier('entretien.srt', SRT, parse)
     const doc = payload.corpsTexte as {
       content: Array<{ content?: Array<{ text?: string }> }>
@@ -65,7 +65,7 @@ Speaker 7: Klaus, je vous revois.
       [1, 'Speaker 3'],
       [2, 'Speaker 7'],
     ])
-    // FUSION DES TOURS (D-S15) : les 2 cues consécutifs de Speaker 3 = UN bloc ;
+    // FUSION DES TOURS : les 2 cues consécutifs de Speaker 3 = UN bloc ;
     // le bloc « None » (sans locuteur) reste seul.
     expect(doc.content.map((b) => b.attrs.loc)).toEqual([null, 1, 2])
 

@@ -3,20 +3,20 @@ import { estOrpheline } from '../entretien/annotation'
 import { charVersPM, pmVersTranches } from '../entretien/positions'
 
 /**
- * Requêtes de l'agrégat Corpus — MODELE_OBJET2 §10 (« inventaires = requêtes ») :
+ * Requêtes de l'agrégat Corpus (« inventaires = requêtes ») :
  * CALCULÉES à partir d'une liste d'entretiens, JAMAIS stockées ni mises en cache.
  * L'orchestration (le store) fournit la liste lue sur disque ; le CALCUL est PUR.
  */
 
 /** Nombre d'annotations (tous entretiens) qui référencent un code de thème. */
-export function compterUsagesCode(entretiens: EntretienFichier[], code: string): number {
+export function compterUsagesCategorie(entretiens: EntretienFichier[], code: string): number {
   let n = 0
   for (const e of entretiens) for (const a of e.annotations) if (a.type === 'codage' && a.code === code) n++
   return n
 }
 
 /** Usages de TOUS les codes en un seul balayage (affichage du panneau). */
-export function usagesParCode(entretiens: EntretienFichier[]): Record<string, number> {
+export function usagesParCategorie(entretiens: EntretienFichier[]): Record<string, number> {
   const out: Record<string, number> = {}
   for (const e of entretiens)
     for (const a of e.annotations) if (a.type === 'codage' && a.code) out[a.code] = (out[a.code] ?? 0) + 1
@@ -44,7 +44,7 @@ export function compterUsagesModalite(entretiens: EntretienFichier[], idVar: str
 }
 
 /** Pose (ou efface, si `idMod` vide) une valeur EAV chez son propriétaire dans UN
- *  entretien — édition depuis la table de données (D-S11). Transform PUR ; le store
+ *  entretien — édition ciblée depuis la table de données. Transform PUR ; le store
  *  fait l'I/O. La valeur reste chez son propriétaire (`valeursGen` / `valeursLoc`),
  *  aucun nouveau lieu de stockage. Locuteur cible absent → no-op. */
 export function poserValeur(data: EntretienFichier, cible: CibleValeur, idVar: string, idMod: string): void {

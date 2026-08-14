@@ -2,10 +2,10 @@ import { test, expect, type Page } from '@playwright/test'
 import { ouvrir, coderTheme, selectionner } from './util'
 
 /**
- * S5 — journal d'actions (D-S3 : actions de modèle seules ; D-S9 : volatil).
- * Critères SUITE : (1) coder 3 passages, annuler le 1er → les 2 autres intacts ;
+ * Journal d'actions (actions de modèle seules ; volatil, jamais persisté).
+ * (1) coder 3 passages, annuler le 1er → les 2 autres intacts ;
  * (2) annuler une attribution de locuteur → l'ancien loc restauré (la scission
- * demeure — D-S2) ; (3) une entrée dont la cible a disparu est grisée.
+ * demeure — jamais de fusion) ; (3) une entrée dont la cible a disparu est grisée.
  */
 
 async function ongletJournal(page: Page) {
@@ -59,7 +59,7 @@ test('annuler une attribution de locuteur → l’ancien loc restauré, la sciss
   const entree = page.locator('.liste-journal li', { hasText: 'Locuteur attribué : Karine' })
   await entree.locator('.annuler-entree').click()
 
-  // L'ancien loc est restauré ; les 4 blocs restent (aucune fusion — D-S2).
+  // L'ancien loc est restauré ; les 4 blocs restent (aucune fusion).
   await expect(page.locator('.editeur p[data-loc="2"]', { hasText: 'Lyon' })).toHaveCount(0)
   await expect(page.locator('.editeur p')).toHaveCount(4)
   await app.close()

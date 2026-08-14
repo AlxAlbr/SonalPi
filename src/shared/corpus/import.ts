@@ -1,7 +1,8 @@
 import type { Categorie, CorpusFichier, Variable } from '../format'
 
 /**
- * Sas d'import de l'agrégat Corpus — MODELE_OBJET2 §12, règle n°3 (idempotent par id).
+ * Sas d'import de l'agrégat Corpus : le seul flux applications→définitions,
+ * idempotent par id (l'id d'import reprend le code legacy du fichier).
  * Fonction PURE ; l'I/O (lecture du `.sonal`) est faite par l'orchestration.
  */
 

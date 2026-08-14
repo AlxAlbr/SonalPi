@@ -1,31 +1,43 @@
 import type { Categorie, CorpusFichier, PatchCategorie } from '../format'
 
 /**
- * Codebook (thèmes) de l'agrégat Corpus — MODELE_OBJET2 §2. Fonctions PURES
+ * Codebook (thèmes) de l'agrégat Corpus. Fonctions PURES
  * (aucune I/O, aucun electron), séparées de leur STOCKAGE (`main/corpusStore.ts`).
  * Les transforms mutent le `CorpusFichier` qu'on leur passe (objet fraîchement lu,
  * possédé par l'appelant) et renvoient l'id créé.
  */
 
-// ── Codebook (thèmes) — MODELE_OBJET2 §2 ──────────────────────────────────────
+// ── Codebook (thèmes) ───────────────────────────────────────────────────────
 
-/** Prochain code libre `cat_NNN` : l'id EST le code d'export, jamais réutilisé
- *  (un code retiré n'est pas repris tant que le max est au-dessus — règle n°3). */
+/** Prochain code d'EXPORT libre `cat_NNN` : simple attribut de lisibilité à
+ *  l'export (PAS l'identité — c'est un id opaque injecté), jamais réutilisé
+ *  (un code retiré n'est pas repris tant que le max est au-dessus). Un
+ *  compteur suffit ici : une collision de codeExport à la fusion est bénigne
+ *  (affichage seul), contrairement à une collision d'id. */
 export function prochainCodeCategorie(codebook: Record<string, Categorie>): string {
   let max = 0
-  for (const id of Object.keys(codebook)) {
-    const m = id.match(/cat_(\d+)/)
+  for (const c of Object.values(codebook)) {
+    const m = c.codeExport.match(/cat_(\d+)/)
     if (m) max = Math.max(max, Number(m[1]))
   }
   return 'cat_' + String(max + 1).padStart(3, '0')
 }
 
-/** Ajoute une catégorie (code déterministe, ordre en fin). `parent` = racine par
- *  défaut, ou l'id d'un thème pour un sous-thème (S3, hiérarchie D-S8). Renvoie l'id. */
-export function ajouterCategorie(corpus: CorpusFichier, nom: string, parent: string | null = null): string {
-  const id = prochainCodeCategorie(corpus.codebook)
+/** Ajoute une catégorie : id OPAQUE injecté (`genId('cat')` côté store —
+ *  unique par construction, donc sûr en création offline divergente, cf.
+ *  plan-multiuser §4.6), `codeExport` séquentiel pour la lisibilité à
+ *  l'export, ordre en fin. `parent` = racine par défaut, ou l'id d'un thème
+ *  pour un sous-thème. Renvoie l'id. */
+export function ajouterCategorie(
+  corpus: CorpusFichier,
+  nom: string,
+  parent: string | null = null,
+  genId: () => string,
+): string {
+  const id = genId()
+  const codeExport = prochainCodeCategorie(corpus.codebook)
   const ordre = Object.values(corpus.codebook).reduce((m, c) => Math.max(m, c.ordre), -1) + 1
-  corpus.codebook[id] = { id, nom, ordre, parent, actif: true, codeExport: id }
+  corpus.codebook[id] = { id, nom, ordre, parent, actif: true, codeExport }
   return id
 }
 
@@ -60,7 +72,7 @@ export function retirerCategorie(corpus: CorpusFichier, id: string): void {
   delete corpus.codebook[id]
 }
 
-// ── Hiérarchie des thèmes (D-S8 : `parent` = modèle ; `rang` = artefact d'export) ──
+// ── Hiérarchie des thèmes (`parent` = modèle ; `rang` SonalPi = profondeur dérivée à l'export, reconstruite à l'import) ──
 
 /** Reconstruit `parent` depuis la séquence de profondeurs `rang` à l'import
  *  (SonalPi ne stocke que la profondeur) : le parent d'un nœud à la profondeur d =

@@ -85,7 +85,7 @@ describe('export .sonal — couleur des codages (visibilité dans SonalPi)', () 
   })
 })
 
-describe('export .sonal — un lblseg par intervalle d’ancres (S7, D-S15)', () => {
+describe('export .sonal — un lblseg par intervalle d’ancres', () => {
   test('un tour fusionné ressort re-découpé en cues ; le ré-import re-fusionne (stable)', () => {
     // Un tour (loc 1) né de la fusion de 2 cues : « Un deux. » [0→2] puis
     // « Trois quatre. » [3→5] — la frontière interne vit à la pos 10 (2 ancres).
@@ -170,7 +170,7 @@ describe('round-trip import → export → ré-import (golden : rien ne se perd)
       expect(comptesCodage(r2.payload.annotations)).toEqual(comptesCodage(r1.payload.annotations))
       expect(anonCount(r2.payload.annotations)).toBe(anonCount(r1.payload.annotations))
       expect(r2.payload.locuteurs).toEqual(r1.payload.locuteurs)
-      // Ancres (D-S14) : re-dérivées en data-deb/data-fin à l'export, relues à
+      // Ancres : re-dérivées en data-deb/data-fin à l'export, relues à
       // l'import — les timecodes mesurés survivent au round-trip.
       expect(r2.payload.ancres).toEqual(r1.payload.ancres)
     })

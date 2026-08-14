@@ -19,11 +19,11 @@ interface DocPM {
 export interface EntreeExport {
   corpsTexte: unknown
   annotations: Annotation[]
-  /** Ancres temporelles (D-S14) → re-dérivées en data-deb/data-fin par bloc. */
+  /** Ancres temporelles → re-dérivées en data-deb/data-fin par segment. */
   ancres: Ancre[]
   locuteurs: Locuteur[]
   codebook: Categorie[]
-  /** Définitions de variables du corpus → tabVar/tabDic (SUITE S1). */
+  /** Définitions de variables du corpus → tabVar/tabDic. */
   variables: Variable[]
   /** Valeurs de portée entretien → tabDat `l="all"` (les valeurs de portée
    *  locuteur viennent des `valeursLoc` de chaque locuteur). */
@@ -32,10 +32,10 @@ export interface EntreeExport {
 }
 
 /**
- * Recompose un `.sonal` auto-suffisant, ouvrable dans SonalPi (MODELE_OBJET2 §12).
+ * Recompose un `.sonal` auto-suffisant, ouvrable dans SonalPi.
  * Le TEXTE, les CODAGES/ANON et les LOCUTEURS sont reconstruits depuis le modèle ;
- * le codebook depuis le corpus ; les blocs non encore modélisés (var/dic/dat/anon,
- * notes) sont ré-émis depuis le pass-through legacy (round-trip sans perte).
+ * le codebook depuis le corpus ; les blocs non modélisés (règles d'anon, notes)
+ * sont ré-émis depuis le pass-through legacy (round-trip sans perte).
  */
 export function exporterSonal(e: EntreeExport): string {
   const doc = e.corpsTexte as DocPM
@@ -45,13 +45,13 @@ export function exporterSonal(e: EntreeExport): string {
   }))
   const longueurs = blocs.map((b) => b.text.length)
 
-  // Un .lblseg par INTERVALLE D'ANCRES (S7, D-S15) : un tour fusionné ressort
+  // Un .lblseg par INTERVALLE D'ANCRES : un tour fusionné ressort
   // re-découpé en cues avec leurs data-deb/data-fin — SonalPi garde sa
   // granularité, et le round-trip re-fusionne à l'import (stable, sans perte).
   // À une même pos peuvent vivre la FIN d'un cue et le DEB du suivant (trou) :
   // la première ancre (t min) ferme le segment de gauche, la dernière ouvre
   // celui de droite. Sans ancre interne, le bloc = un seul segment (bornes de
-  // scission vides — sémantique D-S5 du format conservée).
+  // scission vides).
   const debParPos = new Map<number, number>()
   const finParPos = new Map<number, number>()
   for (const a of e.ancres) {
@@ -151,7 +151,7 @@ export function exporterSonal(e: EntreeExport): string {
     return l ? l.nom + (l.interviewer ? '?' : '') : ''
   })
 
-  // tabThm : codebook → forme v1, en PRÉ-ORDRE avec `rang`=profondeur (D-S8) →
+  // tabThm : codebook → forme SonalPi, en PRÉ-ORDRE avec `rang`=profondeur →
   // chaque sous-thème suit son parent, la hiérarchie se relit sans perte à l'import.
   const parId = Object.fromEntries(e.codebook.map((c) => [c.id, c]))
   const tabThm = ordreThemes(parId).map(({ cat, profondeur }) => ({

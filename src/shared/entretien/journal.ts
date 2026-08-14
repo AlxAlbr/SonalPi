@@ -4,9 +4,9 @@ import { renommerLocuteur } from './locuteurs'
 import type { Locuteur } from '../format'
 
 /**
- * S5 — Journal d'actions annulables (D-S3 : actions de MODÈLE seules, la frappe
- * de texte reste sur Ctrl+Z ; D-S9 : VOLATIL, jamais persisté, vidé à l'ouverture
- * d'un entretien).
+ * Journal d'actions annulables. Seules les actions de MODÈLE y entrent
+ * (codages, locuteurs, valeurs) — la frappe de texte reste sur Ctrl+Z. Journal
+ * VOLATIL : session courante, jamais persisté, vidé à l'ouverture d'un entretien.
  *
  * L'inverse d'une action est une DONNÉE typée (jamais une closure) : on peut la
  * tester headless, vérifier son applicabilité (la cible existe encore ?) et la
@@ -19,7 +19,7 @@ import type { Locuteur } from '../format'
  * dont la plage a été supprimée se referme au remap (orpheline) → plus re-posable.
  *
  * Hors périmètre (assumé) : ajouter un locuteur (pas de suppression modélisée),
- * la suppression d'un thème (D-S10 : destructif NON réversible, pas d'entrée).
+ * la suppression d'un thème (acte destructif NON réversible → pas d'entrée).
  */
 
 /** L'inverse d'une action de modèle, prêt à être appliqué s'il est encore applicable. */
@@ -48,7 +48,7 @@ export interface Journal {
   entrees: EntreeJournal[] // la plus récente en tête, cap CAP_JOURNAL
 }
 
-/** 10 dernières actions (spec S5) — au-delà, l'entrée sort du journal (volatil). */
+/** 10 dernières actions affichées — au-delà, l'entrée sort du journal (volatil). */
 export const CAP_JOURNAL = 10
 
 /**

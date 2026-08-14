@@ -1,15 +1,16 @@
 import { Extension } from '@tiptap/core'
 
 /**
- * Contrat de schéma D2 (DEMARRAGE) — GELÉ, révisé S7 (D-S14).
+ * Schéma GELÉ : `doc › bloc{loc}`. Toute évolution = migration de format
+ * explicite (bump de FORMAT_VERSION + migration au store).
  *
- * Le « bloc » de MODELE_OBJET2 §4 = le paragraphe de ProseMirror, augmenté d'un
- * seul attribut :
+ * Le « bloc » du modèle = le paragraphe de ProseMirror, augmenté d'un seul
+ * attribut :
  *   - `loc` : id du locuteur (index par entretien) — attribut de bloc, éditable.
  *
- * Les timecodes ne sont PLUS des attrs de bloc : le temps est porté par les
+ * Les timecodes ne sont PAS des attrs de bloc : le temps est porté par les
  * ANCRES du modèle (`entretien.ancres`, positions remappées comme les
- * annotations — D-S14). Les fichiers v1 sont migrés au store.
+ * annotations). Les fichiers v1 sont migrés au store.
  *
  * On n'ajoute AUCUN mark utilisateur (gras/italique) : tout le visuel du
  * marquage vient des décorations (calque), jamais du texte.

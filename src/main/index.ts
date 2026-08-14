@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 import { CorpusStore } from './corpusStore'
 import type { Categorie, CibleValeur, PatchCategorie, PayloadEntretien, Variable } from '../shared/format'
 
-// Le protocole qui SERT les médias du corpus au renderer (S6) : en dev le
+// Le protocole qui SERT les médias du corpus au renderer : en dev le
 // renderer est en http://localhost (Vite) et ne lit pas file:// → un protocole
 // custom streame l'audio (Range) et la forme d'onde. Privilèges déclarés AVANT
 // app.ready (exigence Electron) ; `supportFetchAPI` permet au renderer de
@@ -23,6 +23,7 @@ protocol.registerSchemesAsPrivileged([
 const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'webm']
 const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 
+// png : pour la forme d'onde (renderer → main → fichier corpus/audio/<id>.png)
 const MIME: Record<string, string> = {
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
@@ -36,7 +37,7 @@ const MIME: Record<string, string> = {
   png: 'image/png',
 }
 
-// --- Réglages du profil : liste des corpus récents (S2 inc. 2) ---
+// --- Réglages du profil : liste des corpus récents ---
 interface Settings {
   recents: string[] // chemins de dossiers, le plus récent en tête
 }
@@ -67,12 +68,14 @@ function retirerRecent(dir: string): void {
   )
 }
 
-// Honore --user-data-dir aussi pour app.getPath('userData') (les e2e isolent
-// chaque test par ce switch).
+// respecte le --user-data-dir passé en ligne  de commande
+// car les tests e2e l'utilisent pour isoler chaque test 
+// et éviter qu'ils ne se gênent mutuellement
 const userDataDir = app.commandLine.getSwitchValue('user-data-dir')
 if (userDataDir) app.setPath('userData', userDataDir)
 
-function createWindow(): void {
+
+  function createWindow(): void {
   const win = new BrowserWindow({
     width: 1200,
     height: 860,
@@ -95,16 +98,16 @@ function createWindow(): void {
 }
 
 function enregistrerIpcCorpus(): void {
-  // Dossier de corpus par défaut = <profil>/corpus (les e2e l'isolent via
-  // --user-data-dir). Le `store` est MUTABLE : « Ouvrir un corpus… » le recrée
-  // sur un autre dossier (S2 inc. 2). Les handlers capturent la variable `store`
-  // (pas sa valeur) → ils voient la réaffectation sans être réenregistrés.
+  // Dossier de corpus par défaut = <profil>/corpus (les e2e l'isolent via --user-data-dir).
+  //  Le `store` est MUTABLE : « Ouvrir un corpus… » le recrée sur un autre dossier.
+  // Les handlers capturent la variable `store` (pas sa valeur) 
+  // → ils voient la réaffectation sans être réenregistrés.
   const dossierDefaut = join(app.getPath('userData'), 'corpus')
   let store = new CorpusStore(dossierDefaut)
   let dossierCourant = dossierDefaut
 
-  /** Bascule sur un autre dossier de corpus, l'ouvre (amorce si vide) et le note
-   *  dans les récents. Renvoie le contenu du corpus. */
+  /** Bascule sur un autre dossier de corpus, l'ouvre (amorce si vide)
+   * et le note dans les récents. Renvoie le contenu du corpus. */
   const changerDossier = (dir: string) => {
     store = new CorpusStore(dir)
     dossierCourant = dir
@@ -132,7 +135,7 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:ecrireEntretien', (_e, id: string, p: PayloadEntretien) =>
     store.ecrireEntretien(id, p),
   )
-  ipcMain.handle('corpus:creerEntretien', (_e, titre: string) => store.creerEntretien(titre))
+  ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) => store.creerEntretienVide(titre))
   ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
     store.renommerEntretien(id, titre),
   )
@@ -143,7 +146,7 @@ function enregistrerIpcCorpus(): void {
       store.importerEntretien(titre, payload, codebook, variables),
   )
 
-  // Codebook (thèmes, étape 5)
+  // Codebook (thèmes)
   ipcMain.handle('corpus:ajouterCategorie', (_e, nom: string, parent: string | null) =>
     store.ajouterCategorie(nom, parent),
   )
@@ -156,13 +159,13 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string) =>
     store.supprimerCategorie(id, exceptId),
   )
-  ipcMain.handle('corpus:usagesParCode', () => store.usagesParCode())
+  ipcMain.handle('corpus:usagesParCategorie', () => store.usagesParCategorie())
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
-  ipcMain.handle('corpus:compterUsagesCode', (_e, code: string, exceptId?: string) =>
-    store.compterUsagesCode(code, exceptId),
+  ipcMain.handle('corpus:compterUsagesCategorie', (_e, code: string, exceptId?: string) =>
+    store.compterUsagesCategorie(code, exceptId),
   )
 
-  // Variables & modalités (EAV, étape 6)
+  // Variables & modalités (EAV)
   ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'locuteur') =>
     store.ajouterVariable(lib, portee),
   )
@@ -181,7 +184,8 @@ function enregistrerIpcCorpus(): void {
   )
   ipcMain.handle('corpus:matrice', () => store.matriceCorpus())
 
-  // Audio (S6) : assignation (copie D-S4), forme d'onde dérivée, scan des médias.
+  // Audio : assignation (copie dans le dossier corpus), forme d'onde dérivée,
+  // scan des médias.
   ipcMain.handle('corpus:assignerAudio', (_e, id: string, source: string) =>
     store.assignerAudio(id, source),
   )
@@ -223,11 +227,11 @@ function enregistrerIpcCorpus(): void {
       store.poserValeur(entretienId, cible, idVar, idMod),
   )
 
-  // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) ; le
-  // main ne fait que LIRE/ÉCRIRE le fichier choisi. En e2e, showOpenDialog /
+  // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) le
+  // le main ne fait que LIRE/ÉCRIRE le fichier choisi. En e2e, showOpenDialog /
   // showSaveDialog sont stubbés (electronApp.evaluate) pour piloter sans dialog.
-  // Modale « Ajouter un entretien » (à la SonalPi, ajout-entretien.html) : DEUX
-  // zones — celle-ci choisit le fichier d'ENTRETIEN (contenu lu ici, parsé côté
+  // Modale « Ajouter un entretien » (à la SonalPi, ajout-entretien.html) :
+  //  DEUX zones — celle-ci choisit le fichier d'ENTRETIEN (contenu lu ici, parsé côté
   // renderer) ; la zone son passe par dialog:choisirAudio (le main ne copie
   // l'audio qu'à corpus:assignerAudio, jamais lu en mémoire).
   ipcMain.handle('dialog:choisirTexte', async () => {
@@ -238,7 +242,7 @@ function enregistrerIpcCorpus(): void {
     if (r.canceled || r.filePaths.length === 0) return null
     return { nom: basename(r.filePaths[0]), contenu: readFileSync(r.filePaths[0], 'utf8') }
   })
-  // Zone son de la modale + « Assigner un audio… » sur la fiche entretien (D-S4).
+  // Zone son de la modale + « Assigner un audio… » sur la fiche entretien.
   ipcMain.handle('dialog:choisirAudio', async () => {
     const r = await dialog.showOpenDialog({
       properties: ['openFile'],

@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import type { CorpusFichier, DossierCorpus } from '../../shared/format'
 
 /**
- * Scope PROFIL (D-S12) : le dossier de corpus courant + les récents (settings.json
+ * Scope PROFIL : le dossier de corpus courant + les récents (settings.json
  * du profil). N'ouvre PAS le corpus au modèle — il renvoie le `CorpusFichier` et
  * laisse l'orchestration (App) l'appliquer via le scope corpus. Working set minimal :
  * juste des métadonnées de dossiers, jamais de contenu d'entretien.

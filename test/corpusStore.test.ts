@@ -120,7 +120,7 @@ describe('CorpusStore — filet .bak à 2 générations, tourné PAR SESSION', (
   })
 })
 
-describe('CorpusStore — version & fraîcheur (D6)', () => {
+describe('CorpusStore — version du format natif', () => {
   test('un entretien de formatVersion inconnue est refusé (pas lu)', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
@@ -131,7 +131,7 @@ describe('CorpusStore — version & fraîcheur (D6)', () => {
     expect(store.lireEntretien('e1')).toEqual({ ok: false, raison: 'version' })
   })
 
-  test('un entretien v1 est MIGRÉ à la lecture : deb/fin des blocs → ancres (S7, D-S14)', () => {
+  test('un entretien v1 est MIGRÉ à la lecture : deb/fin des blocs → ancres {pos, t}', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     const f = join(dir, 'entretiens', 'e1.json')
@@ -181,31 +181,6 @@ describe('CorpusStore — version & fraîcheur (D6)', () => {
     writeFileSync(f, JSON.stringify(c), 'utf8')
     expect(() => store.ouvrir()).toThrow(/non supportée/)
   })
-
-  test('un entretien plus ancien que le membership est signalé périmé', () => {
-    const { store, dir } = storeNeuf()
-    store.ouvrir()
-    store.lireEntretien('e1')
-    store.ecrireEntretien('e1', payload('à jour')) // membership.lastModified avance
-
-    // Simule un fichier restauré d'une vieille sauvegarde (lastModified ancien).
-    const f = join(dir, 'entretiens', 'e1.json')
-    const data = JSON.parse(readFileSync(f, 'utf8'))
-    data.lastModified = '2000-01-01T00:00:00.000Z'
-    writeFileSync(f, JSON.stringify(data), 'utf8')
-
-    const lu = store.lireEntretien('e1')
-    expect(lu.ok && lu.perime).toBe(true)
-  })
-
-  test('à jour → non périmé', () => {
-    const { store } = storeNeuf()
-    store.ouvrir()
-    store.lireEntretien('e1')
-    store.ecrireEntretien('e1', payload('frais'))
-    const lu = store.lireEntretien('e1')
-    expect(lu.ok && lu.perime).toBe(false)
-  })
 })
 
 describe('CorpusStore — cycle de vie du membership', () => {
@@ -213,7 +188,7 @@ describe('CorpusStore — cycle de vie du membership', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
 
-    const { id } = store.creerEntretien('Nouvel entretien')
+    const { id } = store.creerEntretienVide('Nouvel entretien')
     expect(Object.keys(store.ouvrir().membership)).toContain(id)
 
     store.renommerEntretien(id, 'Renommé')
@@ -294,7 +269,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
     expect(ids).toEqual(['v1', 'v2'])
   })
 
-  test('supprimerCategorie avec exceptId EXCLUT l’entretien courant du compte (D-S10)', () => {
+  test('supprimerCategorie avec exceptId EXCLUT l’entretien courant du compte', () => {
     const { store } = storeNeuf()
     store.ouvrir()
     const codage = { id: 'a1', type: 'codage' as const, from: 0, to: 1, auteur: 'm', code: 'cat_005' }
@@ -310,14 +285,15 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
 })
 
 describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
-  test('ajouter une catégorie → prochain code libre, ordre en fin', () => {
+  test('ajouter une catégorie → id opaque, codeExport cat_NNN libre, ordre en fin', () => {
     const { store } = storeNeuf()
     store.ouvrir() // seed cat_001..007 (3 démo + bloc Pondérations)
     const { id, corpus } = store.ajouterCategorie('Émotions')
-    expect(id).toBe('cat_008')
-    expect(corpus.codebook.cat_008.nom).toBe('Émotions')
-    expect(corpus.codebook.cat_008.actif).toBe(true)
-    expect(corpus.codebook.cat_008.ordre).toBe(7)
+    expect(id).toMatch(/^cat-/)
+    expect(corpus.codebook[id].nom).toBe('Émotions')
+    expect(corpus.codebook[id].codeExport).toBe('cat_008')
+    expect(corpus.codebook[id].actif).toBe(true)
+    expect(corpus.codebook[id].ordre).toBe(7)
   })
 
   test('modifier (renommer / recolorer) édite la définition — les entretiens ne sont pas touchés', () => {
@@ -378,9 +354,9 @@ describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
       locuteurs: [],
       meta: { valeursGen: {}, audioRef: null },
     }, [])
-    expect(store.compterUsagesCode('cat_002')).toBe(2)
-    expect(store.compterUsagesCode('cat_003')).toBe(0)
-    expect(store.usagesParCode().cat_002).toBe(2)
+    expect(store.compterUsagesCategorie('cat_002')).toBe(2)
+    expect(store.compterUsagesCategorie('cat_003')).toBe(0)
+    expect(store.usagesParCategorie().cat_002).toBe(2)
   })
 
   test('supprimer est REFUSÉE si la catégorie est utilisée (avec compteur)', () => {

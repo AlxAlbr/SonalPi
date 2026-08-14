@@ -1,9 +1,10 @@
-// Déclarations minimales pour les convertisseurs SonalPi réutilisés (sas D1).
+// Déclarations minimales pour les convertisseurs SonalPi réutilisés (sas d'import :
+// tout format étranger passe par `.sonal`).
 // `formatSonal` = un HTML `.sonal` complet (#contenuText + .lblseg), directement
 // consommable par importerSonal.
 
 // Parseur SonalPi headless : ré-extrait les blocs JSON d'un `.sonal` (sert de
-// juge de paix au round-trip EAV — SUITE S1).
+// juge de paix du round-trip EAV dans les tests).
 export function extractFichierSonal(
   htmlString: string,
   doc: Document,

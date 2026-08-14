@@ -1,10 +1,11 @@
 import type { Locuteur } from '../format'
 
 /**
- * Locuteurs d'un entretien (MODELE_OBJET2 §4). Le `loc` d'un bloc RÉFÉRENCE un
- * locuteur par son `index` (numérique, par entretien — l'exception assumée à
- * l'identité opaque, MODELE_OBJET §4). Renommer = éditer l'entrée ; les blocs,
- * qui ne portent que l'index, ne sont pas touchés (référence, pas copie).
+ * Locuteurs d'un entretien. Le `loc` d'un bloc RÉFÉRENCE un locuteur par son
+ * `index` (numérique, par entretien — l'exception assumée à l'identité opaque :
+ * sous verrou il n'y a qu'un écrivain, et c'est ce que le `.sonal` référence).
+ * Renommer = éditer l'entrée ; les blocs, qui ne portent que l'index, ne sont
+ * pas touchés (référence, pas copie).
  *
  * Fonctions pures : aucun DOM, aucun ProseMirror — testables headless.
  */

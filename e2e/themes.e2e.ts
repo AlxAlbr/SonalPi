@@ -30,7 +30,7 @@ test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur
   await expect.poll(() => compterAnnotations(page)).toBe(1)
   await expect(page.locator('.etat')).toHaveText('à jour') // autosave terminé
 
-  // Retour Corpus (FERME l'entretien, D-S11 rév.), recolore cat_001 en rouge
+  // Retour Corpus (FERME l'entretien — sortir = fermer), recolore cat_001 en rouge
   // dans la fenêtre d'édition (fill dispatche input+change).
   await retourCorpus(page)
   await ouvrirEditionThemes(page)
@@ -135,7 +135,7 @@ test('une annotation à cheval sur deux blocs reste UNE entité (ids des décora
   await app.close()
 })
 
-test('créer un sous-thème → apparaît indenté sous son parent (hiérarchie D-S8)', async () => {
+test('créer un sous-thème → apparaît indenté sous son parent (hiérarchie)', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-hier-')
   await ouvrirEditionThemes(page)
 

@@ -27,7 +27,7 @@ body {
   padding: 0.15rem 0.4rem;
 }
 
-/* Point de reprise (D-S11 rév.) — écrans Corpus et Table de données. */
+/* Point de reprise — écrans Corpus et Table de données. */
 .btn-reprise {
   border: 1px solid #c8e0cb;
   background: #e6f4ea;
@@ -65,7 +65,7 @@ body {
   font-size: 0.85rem;
 }
 
-/* Bannière de confirmation d'un acte destructif (thèmes D-S10, locuteurs,
+/* Bannière de confirmation d'un acte destructif (thèmes, locuteurs,
    entretiens — Corpus, Entretien, EditionThemes). */
 .confirm-suppr {
   background: #fdecea;

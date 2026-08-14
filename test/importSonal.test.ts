@@ -35,7 +35,7 @@ describe('import .sonal — invariants (golden)', () => {
     expect(s).toContain('retraite')
   })
 
-  test('un bloc par segment (attr loc) ; les timecodes deviennent des ANCRES (D-S14)', () => {
+  test('un bloc par segment (attr loc) ; les timecodes deviennent des ANCRES', () => {
     const { payload } = importerSonal(html1, parse(html1))
     const doc = payload.corpsTexte as { content: Array<{ attrs: Record<string, unknown> }> }
     expect(doc.content.length).toBeGreaterThan(3)

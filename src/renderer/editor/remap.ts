@@ -5,9 +5,9 @@ import type { Ancre } from '../../shared/entretien/audio'
 import type { Entretien } from '../../shared/entretien/entretien'
 
 /**
- * Le remplaçant asynchrone de RelativePosition (cf. DEMARRAGE3, « L'ancrage
- * sans RelativePosition » ; risque central prouvé par test/remap.test.ts) : les
- * plages du modèle sont remappées à travers chaque transaction ProseMirror.
+ * Le cœur de l'ancrage sans CRDT : les plages du modèle sont remappées à
+ * travers chaque transaction ProseMirror (c'est ce qui fait « suivre » les
+ * annotations quand le texte bouge — couvert par test/remap.test.ts).
  *
  * Choix des bornes (le paramètre assoc du mapping) : une insertion exactement
  * SUR une borne reste HORS de la plage — taper juste avant ou juste après un
@@ -28,7 +28,7 @@ export function remapperAnnotations(annotations: Annotation[], mapping: Mapping)
 }
 
 /**
- * Ancres temporelles (S7, D-S14) : même canal que les annotations. assoc -1 :
+ * Ancres temporelles : même canal que les annotations. assoc -1 :
  * une insertion EXACTEMENT sur l'ancre la laisse en place — le texte tapé au
  * début d'un cue entre dans le cue, celui tapé à sa fin tombe après sa borne
  * (dans le trou, que l'interpolation répartit). Une suppression effondre les

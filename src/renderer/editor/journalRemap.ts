@@ -5,7 +5,7 @@ import { remapperAnnotations } from './remap'
 export const journalRemapPluginKey = new PluginKey('sonal-journal-remap')
 
 /**
- * Le pendant JOURNAL du remap des annotations (S5) : les inverses en attente
+ * Le pendant JOURNAL du remap des annotations : les inverses en attente
  * portent des positions qui doivent suivre les éditions comme le modèle —
  *  - l'annotation retirée (à re-poser) est remappée comme une annotation du
  *    modèle (même fonction, même politique de bornes) ; si son texte est

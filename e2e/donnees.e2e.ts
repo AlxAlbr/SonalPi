@@ -14,7 +14,7 @@ import {
 } from './util'
 
 /**
- * ÉTAPE 6 + S2 — données (EAV) à DEUX NIVEAUX d'écran : les DÉFINITIONS de
+ * Données (EAV) à DEUX NIVEAUX d'écran : les DÉFINITIONS de
  * variables/modalités et la MATRICE vivent sur la TABLE DE DONNÉES ; la SAISIE des
  * valeurs (portée entretien + portée locuteur) vit à l'écran Entretien. Invariants
  * inchangés : (1) matrice = requête juste après réouverture ; (2) valeur de portée

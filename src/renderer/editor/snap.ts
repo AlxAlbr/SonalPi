@@ -4,9 +4,10 @@ import type { EditorState } from '@tiptap/pm/state'
 const WORD_CHAR = /[\p{L}\p{N}_-]/u
 
 /**
- * Étend une plage [from, to[ aux frontières de mot (snap-to-mot, MODELE_OBJET2 §4).
- * N'agit que si les deux bornes sont dans le même bloc de texte ; sinon la plage
- * est renvoyée inchangée. Repris tel quel du POC2 (aucune dépendance Yjs).
+ * Étend une plage [from, to[ aux frontières de mot (snap-to-mot : le token
+ * reste la granularité de la sélection). N'agit que si les deux bornes sont
+ * dans le même bloc de texte ; sinon la plage est renvoyée inchangée.
+ * Fonction pure vis-à-vis du modèle (aucune dépendance au stockage).
  */
 export function snapToWord(
   state: EditorState,
@@ -56,7 +57,7 @@ function versFinMot(state: EditorState, pos: number): number {
 /**
  * Snappe chaque borne à sa frontière de mot INDÉPENDAMMENT — chacune dans son
  * bloc. Contrairement à `snapToWord` (qui exige les deux bornes dans un même
- * bloc), sert à l'attribution de locuteur multi-blocs (S4) : on ne coupe jamais
+ * bloc), sert à l'attribution de locuteur multi-blocs : on ne coupe jamais
  * un mot en deux, même quand la sélection enjambe plusieurs blocs.
  */
 export function snapBornes(

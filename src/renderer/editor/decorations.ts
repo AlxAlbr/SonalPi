@@ -21,7 +21,7 @@ function hueDe(code: string): number {
   return ((hash % 360) + 360) % 360
 }
 
-/** Couleur stable dérivée du code (teinte par hash) — repris du POC2. */
+/** Couleur stable dérivée du code (teinte par hash) — repli quand la catégorie n'en porte pas. */
 export function couleurPourCode(code: string): { trait: string; fond: string } {
   const hue = hueDe(code)
   return { trait: `hsl(${hue} 70% 42%)`, fond: `hsl(${hue} 70% 42% / 0.15)` }
@@ -30,9 +30,9 @@ export function couleurPourCode(code: string): { trait: string; fond: string } {
 /**
  * Même teinte, en HEX — pour l'EXPORT `.sonal` : SonalPi colore un codage via le
  * dégradé CSS `.cat_XXX` construit à partir d'une couleur HEX (`#rrggbb` + alpha).
- * SonalAsynchro ne stocke pas encore de couleur sur les catégories (étape 5) ; on synthétise
- * donc à l'export la même couleur que celle affichée, pour que le codage soit VISIBLE
- * dans SonalPi. (Une catégorie porteuse d'une couleur — ex. import — garde la sienne.)
+ * Une catégorie sans couleur stockée reçoit à l'export la même couleur
+ * synthétisée que celle affichée, pour que le codage soit VISIBLE dans SonalPi.
+ * (Une catégorie porteuse d'une couleur — ex. import — garde la sienne.)
  */
 export function couleurHexPourCode(code: string): string {
   return hslVersHex(hueDe(code), 70, 42)
@@ -61,7 +61,7 @@ function hslVersHex(h: number, s: number, l: number): string {
 }
 
 /** Résout la couleur d'un code : par défaut la teinte synthétisée. L'app fournit
- *  un résolveur qui lit la couleur STOCKÉE du codebook en priorité (étape 5) →
+ *  un résolveur qui lit la couleur STOCKÉE du codebook en priorité →
  *  recolorer un thème se reflète en direct, sans toucher aux entretiens. */
 export type ResolveurCouleur = (code: string) => string
 
@@ -77,7 +77,7 @@ function traitDe(a: { type: string; code?: string }, resoudre: ResolveurCouleur)
  * Construit les décorations à partir du MODÈLE (entretien.annotations) — PAS d'un
  * Y.Array : les positions du modèle SONT les positions ProseMirror (remappées par
  * pluginRemap). Le marquage est un calque de décorations, jamais des marks : il ne
- * coupe pas le texte (MODELE_OBJET2 §2).
+ * coupe pas le texte.
  *
  * COMPOSITION : deux annotations qui se recouvrent (même plage ou chevauchement
  * partiel) ne peuvent pas être deux décorations distinctes — ProseMirror les

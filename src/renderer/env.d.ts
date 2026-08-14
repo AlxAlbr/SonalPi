@@ -35,7 +35,7 @@ declare global {
         choisirDossier: () => Promise<OuvertureCorpus | null>
         lireEntretien: (id: string) => Promise<LectureEntretien>
         ecrireEntretien: (id: string, p: PayloadEntretien) => Promise<string>
-        creerEntretien: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
+        creerEntretienVide: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
         renommerEntretien: (id: string, titre: string) => Promise<CorpusFichier>
         supprimerEntretien: (id: string) => Promise<CorpusFichier>
         importer: (
@@ -51,9 +51,9 @@ declare global {
         modifierCategorie: (id: string, patch: PatchCategorie) => Promise<CorpusFichier>
         deplacerCategorie: (id: string, sens: -1 | 1) => Promise<CorpusFichier>
         supprimerCategorie: (id: string, exceptId?: string) => Promise<ResultatSuppressionCategorie>
-        usagesParCode: () => Promise<Record<string, number>>
+        usagesParCategorie: () => Promise<Record<string, number>>
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
-        compterUsagesCode: (code: string, exceptId?: string) => Promise<number>
+        compterUsagesCategorie: (code: string, exceptId?: string) => Promise<number>
         ajouterVariable: (
           lib: string,
           portee: 'entretien' | 'locuteur',

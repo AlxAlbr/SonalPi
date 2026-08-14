@@ -5,8 +5,8 @@ import { parentsDepuisRangs } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Categorie, Locuteur, PayloadEntretien, Variable } from '../../shared/format'
 
-/** Blocs legacy encore en pass-through : `anon` et `notes` (SUITE S1). Les EAV
- *  (var/dic/dat) sont désormais modélisées → hors de ce blob. */
+/** Blocs legacy encore en pass-through : `anon` (règles) et `notes`. Les EAV
+ *  (var/dic/dat) sont modélisées → hors de ce blob. */
 export interface LegacyBlobs {
   tabAnon: unknown
   notes: string
@@ -35,10 +35,10 @@ interface BlocImport {
 }
 
 /**
- * Sas d'import (D1) : un HTML `.sonal` (natif, ou produit par un convertisseur
+ * Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
  * SonalPi — SRT/VTT) → charge utile SonalAsynchro (doc ProseMirror + annotations + locuteurs)
- * + codebook + blocs legacy. Aucun Yjs : les offsets caractère du parseur sont
- * convertis en positions ProseMirror (positions.ts).
+ * + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
+ * en positions ProseMirror (positions.ts).
  */
 export function importerSonal(html: string, domDoc: Document): ResultatImport {
   const contenu = domDoc.getElementById('contenuText')
@@ -50,7 +50,8 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     tabAnon: extraireJson(html, 'anon-json'),
     notes: (domDoc.getElementById('txtnotes') as HTMLElement | null)?.innerHTML.trim() ?? '',
   }
-  // EAV : var/dic → définitions de variables ; dat → valeurs distribuées (§S1).
+  // EAV : var/dic → définitions de variables ; dat → valeurs distribuées chez
+  // leur propriétaire (valeursGen / valeursLoc).
   const variables = importerVariables(extraireJson(html, 'var-json'), extraireJson(html, 'dic-json'))
 
   // 1) Un SEGMENT (.lblseg) = un cue : texte + annotations en offsets locaux +
@@ -76,7 +77,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
       text += t
     }
     // data-loc="0" = « aucun locuteur » (convention SonalPi : locut[0] n'existe
-    // pas) → null au modèle, comme l'absence — sinon la fusion D-S15 collerait
+    // pas) → null au modèle, comme l'absence — sinon la fusion des tours collerait
     // tous les segments sans locuteur d'un texte brut.
     const locBrut = nombreOuNull(seg.dataset.loc)
     blocs.push({
@@ -87,12 +88,12 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     })
   }
 
-  // 1b) FUSION DES TOURS (S7, D-S15) : les cues consécutifs d'un même locuteur
-  //     NON NUL deviennent UN paragraphe (le tour), leurs frontières survivant
-  //     en ancres internes (étape 3b) — sans perte, l'export re-découpe par
-  //     ancre. Sans locuteur → un bloc par cue (un SRT non diarisé ne devient
-  //     pas un seul pavé). Fusion d'IMPORT uniquement : D-S2 tient, aucun geste
-  //     d'édition ne fusionne.
+  // 1b) FUSION DES TOURS : les cues consécutifs d'un même locuteur NON NUL
+  //     deviennent UN paragraphe (le tour), leurs frontières survivant en
+  //     ancres internes (étape 3b) — sans perte, l'export re-découpe par ancre.
+  //     Sans locuteur → un bloc par cue (un SRT non diarisé ne devient pas un
+  //     seul pavé). Fusion d'IMPORT uniquement : aucun geste d'édition ne
+  //     fusionne.
   const tours: BlocImport[] = []
   for (const b of blocs) {
     const prec = tours[tours.length - 1]
@@ -106,8 +107,8 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     }
   }
 
-  // 2) Doc ProseMirror : un paragraphe (« bloc » D2) par tour. Les timecodes
-  //    ne sont PLUS des attrs (S7, D-S14) : ils deviennent des ancres (étape 3b).
+  // 2) Doc ProseMirror : un paragraphe par tour. Les timecodes ne sont PAS des
+  //    attrs de bloc : ils deviennent des ancres (étape 3b).
   const longueurs = tours.map((b) => b.text.length)
   const corpsTexte = {
     type: 'doc',
@@ -138,7 +139,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     }
   })
 
-  // 3b) Ancres temporelles (D-S14) : chaque borne MESURÉE de cue → {pos, t}
+  // 3b) Ancres temporelles : chaque borne MESURÉE de cue → {pos, t}
   //     (deb = début du texte du cue, fin = sa fin — internes au bloc pour un
   //     tour fusionné). Triées par pos par construction ; deux cues jointifs
   //     (fin_i = deb_i+1, même pos, même t) ne produisent qu'UNE ancre.
@@ -171,8 +172,8 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // 4b) Valeurs EAV : `l="all"` → valeursGen ; `l=index` → valeursLoc (posé ici).
   const valeursGen = distribuerValeurs(extraireJson(html, 'dat-json'), locuteurs)
 
-  // 5) Codebook depuis cat-json (v1 → Categorie). La hiérarchie `parent` est
-  //    RECONSTRUITE depuis la séquence des `rang`=profondeur (SonalPi, D-S8).
+  // 5) Codebook depuis cat-json (forme SonalPi → Categorie). La hiérarchie
+  //    `parent` est RECONSTRUITE depuis la séquence des `rang`=profondeur.
   const parents = parentsDepuisRangs(tabThm.map((t) => ({ id: t.code, rang: Number(t.rang ?? 0) || 0 })))
   const codebook: Categorie[] = tabThm.map((t, i) => ({
     id: t.code,

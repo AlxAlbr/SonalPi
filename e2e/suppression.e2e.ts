@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus } from './util'
 
 /**
- * S8 rév. — supprimer un entretien depuis l'écran Corpus : le ✕ d'une carte ouvre
+ * Supprimer un entretien depuis l'écran Corpus : le ✕ d'une carte ouvre
  * une CONFIRMATION (même idiome de bannière que thèmes D-S10 et locuteurs), et la
  * suppression est une mise en `corbeille/` (le json déménage, rien n'est effacé).
  */

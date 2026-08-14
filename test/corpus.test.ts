@@ -27,25 +27,31 @@ function ent(
 }
 
 describe('corpus — codebook (règles pures)', () => {
-  test('ajouterCategorie : code déterministe cat_NNN + ordre en fin', () => {
+  test('ajouterCategorie : id opaque injecté, codeExport cat_NNN, ordre en fin', () => {
     const c = corpusVide()
-    expect(corpus.ajouterCategorie(c, 'A')).toBe('cat_001')
-    expect(corpus.ajouterCategorie(c, 'B')).toBe('cat_002')
-    expect(c.codebook['cat_002'].ordre).toBe(1)
+    let n = 0
+    const gid = () => `cat-${++n}`
+    expect(corpus.ajouterCategorie(c, 'A', null, gid)).toBe('cat-1')
+    expect(corpus.ajouterCategorie(c, 'B', null, gid)).toBe('cat-2')
+    expect(c.codebook['cat-2']).toMatchObject({ codeExport: 'cat_002', ordre: 1 })
   })
 
-  test('prochainCodeCategorie ne réutilise pas un code retiré (max + 1)', () => {
+  test('prochainCodeCategorie ne réutilise pas un codeExport retiré (max + 1)', () => {
     const c = corpusVide()
-    corpus.ajouterCategorie(c, 'A') // cat_001
-    corpus.ajouterCategorie(c, 'B') // cat_002
-    corpus.retirerCategorie(c, 'cat_001')
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid) // codeExport cat_001
+    corpus.ajouterCategorie(c, 'B', null, gid) // codeExport cat_002
+    corpus.retirerCategorie(c, a)
     expect(corpus.prochainCodeCategorie(c.codebook)).toBe('cat_003') // pas cat_001
   })
 
   test('deplacerCategorie échange l’ordre avec le voisin', () => {
     const c = corpusVide()
-    const a = corpus.ajouterCategorie(c, 'A') // ordre 0
-    const b = corpus.ajouterCategorie(c, 'B') // ordre 1
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid) // ordre 0
+    const b = corpus.ajouterCategorie(c, 'B', null, gid) // ordre 1
     corpus.deplacerCategorie(c, b, -1)
     expect(c.codebook[b].ordre).toBe(0)
     expect(c.codebook[a].ordre).toBe(1)
@@ -84,11 +90,11 @@ describe('corpus — fusion d’import (idempotent par id, règle n°3)', () => 
 })
 
 describe('corpus — requêtes calculées depuis une liste d’entretiens', () => {
-  test('compterUsagesCode / usagesParCode balaient les annotations', () => {
+  test('compterUsagesCategorie / usagesParCategorie balaient les annotations', () => {
     const e1 = ent([codage('cat_001', 0, 1), codage('cat_001', 1, 2)])
     const e2 = ent([codage('cat_002', 0, 1)])
-    expect(corpus.compterUsagesCode([e1, e2], 'cat_001')).toBe(2)
-    expect(corpus.usagesParCode([e1, e2])).toEqual({ cat_001: 2, cat_002: 1 })
+    expect(corpus.compterUsagesCategorie([e1, e2], 'cat_001')).toBe(2)
+    expect(corpus.usagesParCategorie([e1, e2])).toEqual({ cat_001: 2, cat_002: 1 })
   })
 
   test('usages variable/modalité comptent les valeurs chez leurs propriétaires', () => {
@@ -150,11 +156,13 @@ describe('corpus — résumé thématique (calque des cartes, parité SonalPi)',
   })
 })
 
-describe('corpus — hiérarchie des thèmes (D-S8)', () => {
+describe('corpus — hiérarchie des thèmes', () => {
   test('ajouterCategorie avec parent → sous-thème', () => {
     const c = corpusVide()
-    const p = corpus.ajouterCategorie(c, 'Parent')
-    const enfant = corpus.ajouterCategorie(c, 'Enfant', p)
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const p = corpus.ajouterCategorie(c, 'Parent', null, gid)
+    const enfant = corpus.ajouterCategorie(c, 'Enfant', p, gid)
     expect(c.codebook[enfant].parent).toBe(p)
   })
 
@@ -179,9 +187,11 @@ describe('corpus — hiérarchie des thèmes (D-S8)', () => {
 
   test('ordreThemes : pré-ordre (parent → enfants) + profondeur + fratrie', () => {
     const c = corpusVide()
-    const a = corpus.ajouterCategorie(c, 'A') // ordre 0
-    const b = corpus.ajouterCategorie(c, 'B') // ordre 1
-    const a1 = corpus.ajouterCategorie(c, 'A1', a) // ordre 2, enfant de A
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid) // ordre 0
+    const b = corpus.ajouterCategorie(c, 'B', null, gid) // ordre 1
+    const a1 = corpus.ajouterCategorie(c, 'A1', a, gid) // ordre 2, enfant de A
     const arbre = corpus.ordreThemes(c.codebook)
     expect(arbre.map((n) => n.cat.id)).toEqual([a, a1, b]) // A, A1 (sous A), puis B
     expect(arbre.map((n) => n.profondeur)).toEqual([0, 1, 0])
@@ -192,10 +202,12 @@ describe('corpus — hiérarchie des thèmes (D-S8)', () => {
 
   test('deplacerCategorie reste DANS la fratrie (ne traverse pas les parents)', () => {
     const c = corpusVide()
-    const a = corpus.ajouterCategorie(c, 'A')
-    corpus.ajouterCategorie(c, 'B')
-    const a1 = corpus.ajouterCategorie(c, 'A1', a)
-    const a2 = corpus.ajouterCategorie(c, 'A2', a)
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid)
+    corpus.ajouterCategorie(c, 'B', null, gid)
+    const a1 = corpus.ajouterCategorie(c, 'A1', a, gid)
+    const a2 = corpus.ajouterCategorie(c, 'A2', a, gid)
     corpus.deplacerCategorie(c, a2, -1) // A2 monte dans la fratrie {A1,A2}
     expect(c.codebook[a2].ordre).toBeLessThan(c.codebook[a1].ordre)
     // A1 est 1er de sa fratrie → monter est un no-op (ne swappe pas avec un root)
@@ -208,15 +220,17 @@ describe('corpus — hiérarchie des thèmes (D-S8)', () => {
 
   test('retirerCategorie PROMEUT les enfants au parent du supprimé (pas d’orphelin)', () => {
     const c = corpusVide()
-    const p = corpus.ajouterCategorie(c, 'P')
-    const enfant = corpus.ajouterCategorie(c, 'C', p)
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const p = corpus.ajouterCategorie(c, 'P', null, gid)
+    const enfant = corpus.ajouterCategorie(c, 'C', p, gid)
     corpus.retirerCategorie(c, p)
     expect(c.codebook[enfant].parent).toBeNull() // promu racine
     expect(c.codebook[p]).toBeUndefined()
   })
 })
 
-describe('corpus — poserValeur (édition table de données, D-S11)', () => {
+describe('corpus — poserValeur (édition table de données)', () => {
   test('portée entretien → meta.valeursGen ; idMod vide → efface', () => {
     const e = ent([], [loc(1)])
     corpus.poserValeur(e, { type: 'entretien' }, 'v1', 'v1m1')

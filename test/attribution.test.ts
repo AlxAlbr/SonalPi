@@ -9,12 +9,12 @@ import { attribuerSelectionTr } from '../src/renderer/editor/attribution'
 import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien'
 
 /**
- * S4 — « Attribuer la sélection » (commande headless). On monte le VRAI éditeur
+ * « Attribuer la sélection » (commande headless). On monte le VRAI éditeur
  * TipTap (paragraph porte loc) + pluginRemap, on applique la transaction, et on
  * vérifie : scission aux bornes, `loc` sur les blocs couverts, et que les
- * annotations ET les ancres temporelles (S7, D-S14) enjambent la coupe — depuis
- * S7, l'ex-invariant D-S5 n'est plus du code d'attribution : les ancres restent
- * à leur position de texte, le remap fait le reste.
+ * annotations ET les ancres temporelles enjambent la coupe — aucune borne nulle
+ * n'est fabriquée aux fragments : les ancres restent à leur position de texte,
+ * le remap fait le reste.
  */
 function creerEditeur(entretien: Entretien, content: string): Editor {
   const Remap = Extension.create({
@@ -124,7 +124,7 @@ describe('attribuerSelectionTr — scission + loc', () => {
     expect(attribuerSelectionTr(editor.state, 3, 3, 2)).toBeNull()
   })
 
-  test('les ANCRES enjambent la coupe (S7 : l’ex-D-S5 découle du remap)', () => {
+  test('les ANCRES enjambent la coupe (aucune borne fabriquée : le remap suffit)', () => {
     // Un cue [0, 10] sur tout le bloc : deb au début du texte, fin à sa fin.
     const entretien: Entretien = {
       annotations: [],
@@ -137,7 +137,7 @@ describe('attribuerSelectionTr — scission + loc', () => {
     attribuer(editor, 'BBBB', 2) // deux coupes (avant et après BBBB)
 
     // deb reste au début de la tête ; fin suit la queue (+2 tokens par coupe).
-    // Aucune borne fabriquée, aucune perdue — c'était le rôle de l'ex-code D-S5.
+    // Aucune borne fabriquée, aucune perdue.
     expect(entretien.ancres).toEqual([
       { pos: 1, t: 0 },
       { pos: 19, t: 10 },

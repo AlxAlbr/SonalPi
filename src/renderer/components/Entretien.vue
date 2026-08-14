@@ -10,7 +10,7 @@ import { utiliserSonal } from '../composables/sonal'
 import icoThemes from '../assets/icones/logocat.png'
 import icoLocuteurs from '../assets/icones/logoloc.png'
 import icoDonnees from '../assets/icones/logodat2.png'
-import icoJournal from '../assets/icones/journal.svg'
+import icoJournal from '../assets/icones/journal.png'
 
 const {
   codebook,
@@ -44,7 +44,8 @@ const {
 } = utiliserSonal()
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue ;
-// en contexte entretien elle porte la politique de suppression D-S10.
+// en contexte entretien elle porte la politique de suppression adaptée
+// (refus si un AUTRE entretien utilise le thème, sinon retrait des codages ici).
 const editerThemes = ref(false)
 // Idem pour les variables : le crayon de l'onglet Données ouvre la MÊME fenêtre
 // que la Table de données (créer des variables d'entretien/locuteur sans
@@ -56,7 +57,7 @@ const editerVariables = ref(false)
 // libellé saisi trouve-ou-crée sa modalité (dictionnaire corpus). Variable AVEC
 // modalités : le select garde une option « autre… » qui bascule LA ligne en
 // champ texte. La pose de la valeur passe par setValeurGen/setValeurLoc
-// (journal S5 + autosave de l'entretien ouvert).
+// (journal + autosave de l'entretien ouvert).
 const AUTRE = ' autre' // sentinelle : ne peut pas être un id de modalité
 const celluleLibre = ref<string | null>(null) // clé de LA ligne en mode texte
 const cleGen = (idVar: string) => `gen|${idVar}`
@@ -100,7 +101,7 @@ function focaliserLibre(el: unknown, cle: string) {
       <div class="grille-ent">
         <section class="centre">
           <!-- En-tête COLLANT de la colonne texte : barre d'actions puis lecteur
-               audio (S6) — reste visible quand le suivi de lecture fait défiler
+               audio — reste visible quand le suivi de lecture fait défiler
                le texte. Le lecteur ne s'affiche que si un audio est assigné. -->
           <div class="entete-centre">
             <div class="barre">
@@ -130,8 +131,8 @@ function focaliserLibre(el: unknown, cle: string) {
             </button>
           </nav>
 
-          <!-- Thématique : clic sur un thème = coder la sélection (S3). L'ÉDITION
-               (créer/renommer/couleur/taille/arbre/supprimer — D-S10) passe par le
+          <!-- Thématique : clic sur un thème = coder la sélection. L'ÉDITION
+               (créer/renommer/couleur/taille/arbre/supprimer) passe par le
                crayon → fenêtre EditionThemes partagée avec l'écran Corpus. -->
           <aside v-show="ongletDroite === 'themes'" class="panneau themes-coder">
             <div class="corpus-tete">
@@ -279,7 +280,7 @@ function focaliserLibre(el: unknown, cle: string) {
             </p>
           </aside>
 
-          <!-- Journal des actions de modèle (S5) : 10 dernières, annulation sélective. -->
+          <!-- Journal des actions de modèle : 10 dernières, annulation sélective. -->
           <aside v-show="ongletDroite === 'journal'" class="panneau journal">
             <div class="corpus-tete">
               <h3>Journal</h3>
@@ -403,7 +404,7 @@ function focaliserLibre(el: unknown, cle: string) {
 .onglets button.actif .ico-onglet {
   opacity: 1;
 }
-/* --- Onglet Thématique : clic = coder (S3) --- */
+/* --- Onglet Thématique : clic = coder --- */
 .barre-aide {
   flex: 1;
   font-size: 0.72rem;
@@ -630,7 +631,7 @@ function focaliserLibre(el: unknown, cle: string) {
 .attr.aucun {
   color: #999;
 }
-/* --- Panneau Journal (S5) --- */
+/* --- Panneau Journal --- */
 .liste-journal {
   list-style: none;
   margin: 0.3rem 0 0;

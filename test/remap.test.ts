@@ -9,9 +9,8 @@ import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien
 import { pluginRemap } from '../src/renderer/editor/remap'
 
 /**
- * MOTEUR VENDORÉ DU POC3 — vérification du risque central (annexe de robustesse
- * de SonalAsynchro : le remapping doit tenir avant qu'on empile l'UI dessus). Headless.
- * Identique aux 12 tests POC3, chemins adaptés (src/renderer/…).
+ * MOTEUR DE REMAP — vérification du risque central de l'architecture (le
+ * remapping des positions doit tenir avant qu'on empile l'UI dessus). Headless.
  */
 
 /** Schéma minimal — la vérification ne dépend d'aucun schéma riche. */
@@ -167,7 +166,7 @@ describe('remapping — structure de blocs', () => {
   })
 })
 
-describe('discipline d’architecture (DEMARRAGE garde-fou n°1 : entretien/ sans DOM)', () => {
+describe('discipline d’architecture (garde-fou : entretien/ sans DOM)', () => {
   test('src/shared/entretien/ n’importe que du local ou des types shared (jamais DOM/ProseMirror/Yjs)', () => {
     const dossier = fileURLToPath(new URL('../src/shared/entretien', import.meta.url))
     for (const fichier of readdirSync(dossier)) {

@@ -5,8 +5,8 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme } from './util'
 
 /**
- * S6 — Audio : import « un geste » (SRT + audio ensemble), copie dans le corpus
- * (D-S4), forme d'onde dérivée (PNG), lecteur en haut, synchro v1 (bloc lu
+ * Audio : import « un geste » (SRT + audio ensemble), copie dans le corpus
+ * (un dossier = un corpus), forme d'onde dérivée (PNG), lecteur en haut, synchro (plage lue
  * surligné), seek par clic-tour (gouttière) et par clic sur la bande. Fixtures
  * SYNTHÉTISÉES : un WAV PCM de 4 s (décodable par Chromium) + un SRT à 3 cues
  * alignés dessus.
@@ -56,7 +56,7 @@ function fichiersAudioDuCorpus(profil: string): string {
   return existsSync(audioDir) ? readdirSync(audioDir).join(',') : ''
 }
 
-test('S6 : import SRT+audio en un geste → copie D-S4, forme d’onde, lecture qui suit les blocs, seeks', async () => {
+test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lecture qui suit les blocs, seeks', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-audio-'))
   const srt = join(dir, 'entretien-audio.srt')
   const wav = join(dir, 'entretien-audio.wav')
@@ -83,7 +83,7 @@ test('S6 : import SRT+audio en un geste → copie D-S4, forme d’onde, lecture 
   await expect(page.locator('.editeur')).toContainText('Premier segment', { timeout: 10_000 })
   await expect(page.locator('.lecteur-audio')).toBeVisible()
 
-  // Copie dans <corpus>/audio/ (D-S4) + forme d'onde DÉRIVÉE (PNG) à côté.
+  // Copie dans <corpus>/audio/ + forme d'onde DÉRIVÉE (PNG) à côté.
   await expect.poll(() => fichiersAudioDuCorpus(dir), { timeout: 10_000 }).toContain('.wav')
   await expect.poll(() => fichiersAudioDuCorpus(dir), { timeout: 10_000 }).toContain('.png')
   await expect(page.locator('.lecteur-audio img.onde')).toBeVisible()

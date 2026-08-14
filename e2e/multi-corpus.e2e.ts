@@ -13,7 +13,7 @@ async function renommerPremier(page: import('@playwright/test').Page, nom: strin
 }
 
 /**
- * S2 inc. 2 — multi-corpus : « Ouvrir un corpus… » (openDirectory, stubbé) bascule
+ * Multi-corpus : « Ouvrir un corpus… » (openDirectory, stubbé) bascule
  * le store du main sur un autre dossier ; les récents sont mémorisés (settings.json
  * du profil) ; rouvrir un récent retrouve SON contenu (chaque dossier = un corpus).
  */

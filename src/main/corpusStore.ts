@@ -10,6 +10,17 @@ import {
 import { join, extname, basename, normalize, sep } from 'node:path'
 import * as corpusModel from '../shared/corpus'
 import { migrerEntretienV1 } from '../shared/entretien/migration'
+
+/** Pour comprendre pourquoi il y a des formats de version
+ * c'est lié à la migration v1 → v2 du fichier entretien : les timecodes quittent les attributs de bloc (`deb`/`fin` par paragraphe) pour devenir des ANCRES
+ * positionnées dans le texte (`ancres: {pos, t}[]`). Migration EXPLICITE de
+ * format : le store l'applique à la lecture d'un fichier v1 et réécrit aussitôt
+ * — jamais de lecture partielle d'une version inconnue.
+ * Voir shared/entretien/migration.ts pour la mécanique de migration.
+ * Pourra être étendu à d'autres migrations de format (ex. v2 → v3) si nécessaire
+ * et pourra être simplifier à l'avenir si on décide de ne plus supporter les anciens formats.
+ */
+
 import {
   FORMAT_VERSION,
   versionSupportee,
@@ -27,36 +38,55 @@ import {
   type Variable,
 } from '../shared/format'
 
+/** Un entretien vide est un document ProseMirror minimal (un paragraphe vide)  
+*  permet aussi de gérer le cas où l'utilisateur télécharge seulement un audio
+*  il peut alors le transcrire manuellement */
 const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
 
+
+/** Génère un id unique pour un entretien, une variable, une modalité ou une catégorie.
+ *  Le préfixe est un indicateur de type (ent/var/mod/cat) pour la lisibilité. 
+ *  Le choix a été fait de générer des ids opaques (et non séquentiels : de type +1) pour éviter les conflits lors des fusions.
+ * Math.random() génère un nombre aléatoire entre 0 (inclus) et 1 (exclus).
+ * .toString(36) Convertit le nombre en chaîne dans la base 36 (utilise les chiffres 0-9 et les lettres a-z
+ * slice(2, 10) : extrait les caractères de l'index 2 jusqu'à 9. On enlève donc le 0 du début et on conserve jusqu'à 8 caractères.
+ * ex : qf7k2abc  (n'est pas visible par l'utilisateur dans l'interface) */
 function genId(prefixe: string): string {
   return prefixe + '-' + Math.random().toString(36).slice(2, 10)
 }
 
-/**
- * Store « dossier de corpus » (MODELE_OBJET §3-§5) — la couche PERSISTANCE (Node
- * pur, aucun electron → testable headless). Les RÈGLES de corpus (id, ordre,
- * usages, matrice, fusion d'import) vivent dans `shared/corpus/` (pures) ; ici
- * on ne fait que lire → appliquer → écrire. La granularité de verrou/écriture est
- * l'entretien ; l'écriture est atomique (write-tmp-rename) ; un filet `.bak` à
- * 2 générations est tourné PAR SESSION (D6).
+/** Les RÈGLES du corpus vivent dans `shared/corpus/` (pures) ;
+ *  ICI on ne fait que lire → appliquer → écrire.
+ *  Cette classe est le point d'entrée pour toutes les opérations sur le corpus (CRUD) : 
+ * codebook, variables, modalités, entretiens, audio.
  */
 export class CorpusStore {
+
+  /** L'attribut dir contient le chemin vers le répertoire du corpus */
   private readonly dir: string
-  /** Ids dont la prochaine écriture doit tourner les `.bak` (une rotation par
-   *  session = par ouverture). Rempli à la lecture, vidé au 1er write suivant. */
+
+  /** Ids qui permettent des sauvegardes : un entretien ouvert est en session
+   * Rempli à la lecture, vidé au 1er write suivant (.bak avec rotation 1→2) 
+   * Le Set garantit l'unicité des ids. */
   private readonly rotationEnAttente = new Set<string>()
 
+  /** Instanciation de la classe CorpusStore avec le chemin du répertoire du corpus */
   constructor(dir: string) {
     this.dir = dir
   }
 
+  /** Exemple : dir = "/home/user/projets/mon_corpus"
+    * corpusFile → /home/user/projets/mon_corpus/corpus.json" */
   private get corpusFile() {
     return join(this.dir, 'corpus.json')
   }
+  
+  /** Dossier des entretiens : `<corpus>/entretiens/` */
   private get entretiensDir() {
     return join(this.dir, 'entretiens')
   }
+  
+  /** Fichier d'un entretien : `<entretiens>/id.json` */
   private entretienFile(id: string) {
     return join(this.entretiensDir, `${id}.json`)
   }
@@ -67,16 +97,20 @@ export class CorpusStore {
     renameSync(tmp, fichier) // rename atomique : un crash laisse l'ancien fichier intact
   }
 
-  /** Ouvre (ou amorce) le corpus, renvoie ses définitions + membership. */
+  /** Ouvre (ou amorce) le corpus */
   ouvrir(): CorpusFichier {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
-
+    
+    // Cas nouveau corpus traité ci dessous
     if (!existsSync(this.corpusFile)) return this.amorcer()
 
+    // CorpusFichier contient les définitions 5 blocs (codebook, variables, reglesAnon, personnes, membership)
+    // Le membership correspond à la liste des entretiens (id, titre, date, lastModified) composant le corpus
+    // +  formatVersion.  cf shared/format.ts
     const corpus = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
-    // Migration v1→v2 (S7, D-S14) : la structure de corpus.json est inchangée,
-    // seul le numéro bouge (les timecodes migrés vivent dans les entretiens).
+    
+    // Cas Migration v1→v2
     if (corpus.formatVersion === 1) {
       corpus.formatVersion = FORMAT_VERSION
       this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -87,11 +121,15 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Amorce un corpus NEUF : AUCUN entretien (la démo « Karine » a déménagé dans
-   *  les fixtures de test — S8 rév.) ; codebook = le bloc « Pondérations » par
-   *  défaut de SonalPi, aux MÊMES codes que lui (cat_001..004) : un parent SANS
-   *  effet (couleur blanche = soulignement invisible) et 3 enfants dont l'effet
-   *  est la TAILLE seule (gras inclus, décroissante 24/22/20). */
+  /** Le bloc « Pondérations » par défaut de SonalPi, aux MÊMES codes que lui (cat_001..004) 
+   *  Ces ids `cat_NNN` sont VOLONTAIREMENT figés (espace réservé, administré) :
+   *  écrits une fois à l'amorçage, jamais créés par un utilisateur, ils
+   *  garantissent que deux corpus neufs partagent le même codebook par défaut
+   *  (fusion sans doublon) et la parité d'ids avec les `.sonal` importés de
+   *  SonalPi (fusionnerImport fusionne par id — changer ces ids créerait un
+   *  doublon « Pondérations » à chaque import). Toute catégorie créée ENSUITE
+   *  passe par `genId('cat')` (id opaque, sûr en offline divergent) avec
+   *  `cat_NNN` relégué au `codeExport` — cf. plan-multiuser §6. */
   private amorcer(): CorpusFichier {
     const blanc = '#ffffff'
     const codebook = {
@@ -113,13 +151,15 @@ export class CorpusStore {
   }
 
   /** Lit un entretien. Démarre sa « session » (la prochaine écriture tournera
-   *  les `.bak`) et signale s'il est PÉRIMÉ vs le lastModified du membership. */
+   *  les `.bak`). Aucun contrôle de fraîcheur croisée fichier/membership : en
+   *  mono-utilisateur le disque EST la vérité (le retrait est aussi prévu par
+   *  le plan multi-utilisateur §4.7 — la fraîcheur y est portée par verrou/pull). */
   lireEntretien(id: string): LectureEntretien {
     const fichier = this.entretienFile(id)
     if (!existsSync(fichier)) return { ok: false, raison: 'absent' }
 
     let data = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
-    // Migration EXPLICITE v1→v2 (S7, D-S14) : deb/fin des blocs → ancres {pos, t}.
+    // Migration EXPLICITE v1→v2 : deb/fin des blocs → ancres {pos, t}.
     // Réécrite aussitôt (lastModified préservé — migrer n'est pas une édition).
     if ((data.formatVersion as number) === 1) {
       data = migrerEntretienV1(data as unknown as Record<string, unknown>) as unknown as EntretienFichier
@@ -127,16 +167,13 @@ export class CorpusStore {
     }
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
 
-    const corpus = this.ouvrir()
-    const attendu = corpus.membership[id]?.lastModified
-    const perime = attendu != null && data.lastModified < attendu
-
     this.rotationEnAttente.add(id) // ouverture = début de session
-    return { ok: true, data, perime }
+    return { ok: true, data }
   }
 
   /** Écrit un entretien (atomique + rotation `.bak` si 1re écriture de session)
-   *  et met à jour le lastModified du membership. */
+   *  et met à jour le lastModified du membership. 
+   * La classe PayloadEntretien contient les données à écrire. Elle est définie dans shared/format.ts */
   ecrireEntretien(id: string, payload: PayloadEntretien): string {
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
     const now = new Date().toISOString()
@@ -164,7 +201,7 @@ export class CorpusStore {
 
   /** `.bak1` → `.bak2`, puis copie de l'état courant → `.bak1`. Une génération
    *  par session : les `.bak` capturent l'état d'AVANT les sessions précédentes,
-   *  pas les derniers autosaves (D6). */
+   *  pas les derniers autosaves. */
   private tournerBak(id: string): void {
     const f = this.entretienFile(id)
     const b1 = f + '.bak1'
@@ -173,7 +210,11 @@ export class CorpusStore {
     if (existsSync(f)) copyFileSync(f, b1)
   }
 
-  creerEntretien(titre: string): { id: string; corpus: CorpusFichier } {
+  
+  /**
+   * utiliser pour le cas où on a seulement un audio
+   * et pas de fichier entretien, pour créer un entretien vide*/ 
+  creerEntretienVide(titre: string): { id: string; corpus: CorpusFichier } {
     const corpus = this.ouvrir()
     const id = genId('ent')
     const now = new Date().toISOString()
@@ -193,9 +234,9 @@ export class CorpusStore {
   }
 
   /**
-   * Sas d'import : crée un entretien à partir d'une charge utile importée et
-   * FUSIONNE son codebook ET ses variables dans le corpus (règle n°3, cf.
-   * `corpusModel.fusionnerImport` → double import du même `.sonal` = zéro doublon).
+   * Le parsing du ficher se fait dans sas.ts (ImporterFichier)
+   * Ici, on ne fait que créer un entretien et fusionner les métadonnées.
+   *  window.sonal.corpus.importer()  ← IPC vers main : cf preload/index.ts
    */
   importerEntretien(
     titre: string,
@@ -225,9 +266,9 @@ export class CorpusStore {
   }
 
   /** Retire du membership et déplace le fichier (+ ses `.bak`) ET ses médias
-   *  (`audio/<id>.*` : audio assigné + forme d'onde) dans `corbeille/` — jamais
-   *  d'effacement (pas de perte silencieuse), jamais d'orphelin sur disque (un
-   *  futur entretien de même id n'hérite d'aucun audio). */
+   *  (`audio/<id>.*` : audio assigné + forme d'onde) dans `corbeille/` 
+   *  jamais d'effacement (pas de perte silencieuse), jamais d'orphelin sur disque 
+   *  un futur entretien de même id n'hérite d'aucun audio. */
   supprimerEntretien(id: string): CorpusFichier {
     const corpus = this.ouvrir()
     const corbeille = join(this.dir, 'corbeille')
@@ -246,8 +287,9 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Lit tous les entretiens du membership (I/O) — le carburant des REQUÊTES
-   *  pures (usages, matrice). Un fichier absent est ignoré silencieusement. */
+  /** Lit sur disque les fichiers dont les ids sont dans le membership.
+   *  C'est ce qu'utilisent toutes les requêtes purement analytiques (usages de thèmes, matrice corpus, ...).
+   * Si un fichier est manquant, on le passe silencieusement. */
   private chargerEntretiens(): corpusModel.EntreeMatrice[] {
     const corpus = this.ouvrir()
     const out: corpusModel.EntreeMatrice[] = []
@@ -266,7 +308,7 @@ export class CorpusStore {
 
   ajouterCategorie(nom: string, parent: string | null = null): { id: string; corpus: CorpusFichier } {
     const corpus = this.ouvrir()
-    const id = corpusModel.ajouterCategorie(corpus, nom, parent)
+    const id = corpusModel.ajouterCategorie(corpus, nom, parent, () => genId('cat'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return { id, corpus }
   }
@@ -285,21 +327,25 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Usages d'un code. `exceptId` EXCLUT un entretien du compte (D-S10 : « est-il
-   *  utilisé par un AUTRE entretien ? » pour la suppression depuis l'entretien). */
-  compterUsagesCode(code: string, exceptId?: string): number {
+  /** Usages d'un catégorie.
+   * `exceptId` permet d'exclure un entretien du comptage 
+   * sert pour vérifier au moment de la suppression d'une catégorie si n'est pas utilisé ailleurs. */
+  compterUsagesCategorie(code: string, exceptId?: string): number {
     const datas = this.chargerEntretiens()
       .filter((e) => e.id !== exceptId)
       .map((e) => e.data)
-    return corpusModel.compterUsagesCode(datas, code)
+    return corpusModel.compterUsagesCategorie(datas, code)
+  }
+  
+  /** Utilise la fonction corpusModel.usagesParCategorie dans shared/corpus
+   *  voir l'import : import * as corpusModel from '../shared/corpus'
+   *  permet de compter le nombre d'usages de chaque catégorie dans l'ensemble des entretiens du corpus
+   */
+  usagesParCategorie(): Record<string, number> {
+    return corpusModel.usagesParCategorie(this.datas())
   }
 
-  usagesParCode(): Record<string, number> {
-    return corpusModel.usagesParCode(this.datas())
-  }
-
-  /** REQUÊTE : résumé thématique de chaque entretien (calque des cartes Corpus,
-   *  parité SonalPi) — segments en % du texte, jamais stockés. */
+  /** REQUÊTE : résumé thématique de chaque entretien : segments en % du texte, jamais stockés. */
   resumesThematiques(): Record<string, SegmentThematique[]> {
     return corpusModel.resumesThematiques(this.chargerEntretiens())
   }
@@ -307,7 +353,7 @@ export class CorpusStore {
   /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée (politique
    *  explicite + compteur ; pas de suppression silencieuse d'annotations). */
   supprimerCategorie(id: string, exceptId?: string): ResultatSuppressionCategorie {
-    const usages = this.compterUsagesCode(id, exceptId)
+    const usages = this.compterUsagesCategorie(id, exceptId)
     if (usages > 0) return { ok: false, usages }
     const corpus = this.ouvrir()
     corpusModel.retirerCategorie(corpus, id)
@@ -371,20 +417,46 @@ export class CorpusStore {
     return { ok: true, corpus }
   }
 
+   /**  Table de données ou chaque ligne = un entretien, chaque colonne = une variable, chaque cellule = la valeur EAV correspondante.
+    *  La matrice est construite à la volée à partir des fichiers d'entretiens.
+    *  Voir shared/corpus/requetes.ts pour la mécanique de construction de la matrice.
+  */
   matriceCorpus(): MatriceCorpus {
     return corpusModel.matriceCorpus(this.chargerEntretiens())
   }
 
-  // ── Audio (S6) : copie dans le corpus (D-S4) + dérivés ──────────────────────
+    /** Pose une valeur EAV dans UN entretien (édition ciblée depuis la table de données).
+   *  Écriture ciblée atomique, SANS rotation `.bak` (valeur scalaire,
+   *  Met à jour le watermark de fraîcheur du membership pour trop granulaire).
+   *  rester cohérent avec `ecrireEntretien`. Renvoie false si l'entretien manque. */
+  poserValeur(entretienId: string, cible: CibleValeur, idVar: string, idMod: string): boolean {
+    const f = this.entretienFile(entretienId)
+    if (!existsSync(f)) return false
+    const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
+    corpusModel.poserValeur(data, cible, idVar, idMod)
+    const now = new Date().toISOString()
+    data.lastModified = now
+    this.ecrireJsonAtomique(f, data)
+
+    const corpus = this.ouvrir()
+    if (corpus.membership[entretienId]) {
+      corpus.membership[entretienId].lastModified = now
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+    }
+    return true
+  }
+
+
+  // ── Audio : copie dans le corpus + dérivés ─────────────────────────────────
 
   private get audioDir() {
     return join(this.dir, 'audio')
   }
 
   /** Assigne un fichier audio à un entretien : COPIE dans `<corpus>/audio/`
-   *  (D-S4 : « un dossier = un corpus » reste vrai), `audioRef` RELATIF dans le
-   *  fichier entretien. Écriture ciblée comme `poserValeur` (pas de rotation
-   *  `.bak` — le corps du texte n'est pas touché), watermark membership suivi. */
+   *  `audioRef` RELATIF dans le fichier entretien
+   *  Écriture ciblée comme `poserValeur` (pas de rotation`.bak` — le corps du texte n'est pas touché)
+   */
   assignerAudio(id: string, source: string): { audioRef: string } | null {
     const f = this.entretienFile(id)
     if (!existsSync(f) || !existsSync(source)) return null
@@ -444,25 +516,5 @@ export class CorpusStore {
     if (!abs.startsWith(normalize(this.audioDir) + sep)) return null
     return existsSync(abs) ? abs : null
   }
-
-  /** Pose une valeur EAV dans UN entretien (D-S11 : édition depuis la table de
-   *  données). Écriture ciblée atomique, SANS rotation `.bak` (valeur scalaire,
-   *  trop granulaire). Met à jour le watermark de fraîcheur du membership pour
-   *  rester cohérent avec `ecrireEntretien`. Renvoie false si l'entretien manque. */
-  poserValeur(entretienId: string, cible: CibleValeur, idVar: string, idMod: string): boolean {
-    const f = this.entretienFile(entretienId)
-    if (!existsSync(f)) return false
-    const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
-    corpusModel.poserValeur(data, cible, idVar, idMod)
-    const now = new Date().toISOString()
-    data.lastModified = now
-    this.ecrireJsonAtomique(f, data)
-
-    const corpus = this.ouvrir()
-    if (corpus.membership[entretienId]) {
-      corpus.membership[entretienId].lastModified = now
-      this.ecrireJsonAtomique(this.corpusFile, corpus)
-    }
-    return true
-  }
 }
+

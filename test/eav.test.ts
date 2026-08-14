@@ -149,7 +149,7 @@ describe('EAV — round-trip GOLDEN sur les fixtures (SUITE S1 : rien ne se perd
     expect(r.payload.locuteurs.some((l) => Object.keys(l.valeursLoc).length > 0)).toBe(true)
   })
 
-  test('hiérarchie des thèmes : parent reconstruit à l’import + round-trip sans perte (D-S8)', () => {
+  test('hiérarchie des thèmes : parent reconstruit à l’import + round-trip sans perte', () => {
     const html = fixture('entretien1.sonal')
     const r1 = importerSonal(html, parse(html))
     const parents = Object.fromEntries(r1.codebook.map((c) => [c.id, c.parent]))

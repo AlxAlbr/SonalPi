@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * « + Ajouter un entretien » (S6 rev.) — LE point d'entrée unique, calqué sur la
+ * « + Ajouter un entretien » — LE point d'entrée unique, calqué sur la
  * fenêtre `ajout-entretien.html` de SonalPi : une modale à DEUX zones (fichier
  * d'entretien / fichier son), chacune cliquable (dialogue filtré) ou en
  * glisser-déposer ; Valider actif dès qu'UNE zone est remplie. Texte seul =

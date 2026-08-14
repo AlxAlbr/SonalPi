@@ -13,7 +13,7 @@ import {
 } from './util'
 
 /**
- * D-S10 (+ S8 : via la fenêtre EditionThemes) — créer / supprimer un thème DEPUIS
+ * Créer / supprimer un thème DEPUIS l'écran Entretien (via la fenêtre
  * l'écran Entretien : le crayon de l'onglet Thématique ouvre la MÊME fenêtre que
  * l'écran Corpus. Créer écrit le codebook corpus (visible partout). Supprimer :
  * refusé si un AUTRE entretien l'utilise ; sinon confirmation (acte destructif) →

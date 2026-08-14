@@ -13,7 +13,7 @@ import type {
 } from '../../shared/format'
 
 /**
- * Scope CORPUS (D-S12) : définitions (codebook, variables), membership (index
+ * Scope CORPUS : définitions (codebook, variables), membership (index
  * LÉGER — titres/dates, jamais le contenu des entretiens) et REQUÊTES corpus
  * (matrice, usages) obtenues comme projections du main. Isomorphe à `corpus.json`
  * et à `shared/corpus/`. Ne tient jamais tous les entretiens.
@@ -80,7 +80,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     return variables.value.find((v) => v.id === idVar)?.modalites ?? []
   }
   /** Le codebook aplati en PRÉ-ORDRE (parent → enfants), avec profondeur + position
-   *  de fratrie — pour l'affichage indenté et les ▲▼ bornés (hiérarchie D-S8). */
+   *  de fratrie — pour l'affichage indenté et les ▲▼ bornés dans la fratrie. */
   function arbreThemes() {
     return ordreThemes(Object.fromEntries(codebook.value.map((c) => [c.id, c])))
   }
@@ -93,7 +93,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     variables.value = Object.values(vars).sort((a, b) => a.ordre - b.ordre)
   }
   async function rafraichirUsages() {
-    usages.value = await window.sonal.corpus.usagesParCode()
+    usages.value = await window.sonal.corpus.usagesParCategorie()
     // Même carburant (les codages sur disque), mêmes moments de fraîcheur : le
     // calque des cartes Corpus (résumé thématique, parité SonalPi) suit.
     resumes.value = await window.sonal.corpus.resumesThematiques()
@@ -108,7 +108,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majCodebook(res.corpus.codebook)
     codeCourant.value = res.id
   }
-  /** Ajoute un sous-thème (enfant de `parentId`) — hiérarchie D-S8. */
+  /** Ajoute un sous-thème (enfant de `parentId`). */
   async function ajouterSousTheme(parentId: string) {
     const res = await window.sonal.corpus.ajouterCategorie('Nouveau sous-thème', parentId)
     majCodebook(res.corpus.codebook)
@@ -186,7 +186,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables(r.corpus.variables)
   }
 
-  // --- Table de données éditable (D-S11) : écriture ciblée + re-requête ---
+  // --- Table de données éditable : écriture ciblée + re-requête ---
   async function poserValeurTable(entretienId: string, cible: CibleValeur, idVar: string, idMod: string) {
     await window.sonal.corpus.poserValeur(entretienId, cible, idVar, idMod)
     await rafraichirMatrice()

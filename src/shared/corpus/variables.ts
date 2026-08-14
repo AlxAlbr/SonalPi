@@ -1,7 +1,7 @@
 import type { CorpusFichier, Variable } from '../format'
 
 /**
- * Base de données EAV de l'agrégat Corpus — MODELE_OBJET2 §5, étape 6. Le SCHÉMA
+ * Base de données EAV de l'agrégat Corpus. Le SCHÉMA
  * (variables & leurs modalités dépendantes) est une DÉFINITION portée par le corpus ;
  * les VALEURS vivent chez leur propriétaire côté entretien (cf. `corpus/requetes.ts`).
  * Fonctions PURES ; les identités opaques sont injectées via `genId` → déterministe en test.

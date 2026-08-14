@@ -11,10 +11,10 @@ import {
 } from '../../shared/entretien/audio'
 
 /**
- * SYNCHRO AUDIO de l'entretien ouvert (S7) : le pont temps ↔ texte. Projette les
- * ancres {pos, t} du modèle en coordonnées texte (D-S14), surligne et suit la
- * plage lue pendant la lecture, et interpole un temps à une position de texte
- * (clic texte / clic tour, D-S13). Ne connaît NI le lecteur audio NI la
+ * SYNCHRO AUDIO de l'entretien ouvert : le pont temps ↔ texte. Projette les
+ * ancres {pos, t} du modèle en coordonnées texte, surligne et suit la plage
+ * lue pendant la lecture, et interpole un temps à une position de texte (clic
+ * texte / clic tour). Ne connaît NI le lecteur audio NI la
  * persistance : il reçoit l'éditeur et les ancres du modèle, rend des temps et
  * pilote le surlignage via le plugin lecture.
  */
@@ -26,7 +26,7 @@ export function useSynchroAudio(deps: {
 }) {
   /** MÉMO de la projection des ancres en coordonnées texte (dérivation, jamais
    *  persistée) — invalidé quand le doc change (identité du doc PM) : en lecture
-   *  sans édition, le tick reste une pure dichotomie (invariant perf D-S14). */
+   *  sans édition, le tick reste une pure dichotomie (invariant de perf). */
   let projection: { doc: unknown; ancres: AncreTexte[] } | null = null
   function ancresTexte(): AncreTexte[] {
     const ed = deps.editor.value
@@ -85,7 +85,7 @@ export function useSynchroAudio(deps: {
 
   /** Temps interpolé à la position de texte `pos` (clic DANS le texte → seek
    *  précis, comme SonalPi). Aujourd'hui : prorata entre les 2 ancres qui
-   *  encadrent le point (D-S13) ; avec des ancres au mot, la précision suivra
+   *  encadrent le point ; avec des ancres au mot, la précision suivra
    *  toute seule. null si aucune ancre (texte sans timecodes). */
   function tempsAuTexte(pos: number): number | null {
     const ed = deps.editor.value
@@ -105,8 +105,9 @@ export function useSynchroAudio(deps: {
   }
 
   /** Temps de seek pour un clic-tour sur le bloc à `posBloc` : le temps
-   *  interpolé au DÉBUT du tour contenant ce bloc (D-S2 : tour dérivé ;
-   *  D-S13 : interpolation entre ancres si le début du tour n'en porte pas). */
+   *  interpolé au DÉBUT du tour contenant ce bloc (le tour est dérivé : run de
+   *  blocs de même loc ; interpolation entre ancres si le début du tour n'en
+   *  porte pas). */
   function tempsDuBloc(posBloc: number): number | null {
     const ed = deps.editor.value
     if (!ed) return null

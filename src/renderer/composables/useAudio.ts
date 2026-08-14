@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue'
 
 /**
- * Scope AUDIO de l'entretien ouvert (S6). Un seul <audio> caché + son état
- * RÉACTIF partagé : le lecteur (haut d'écran), la barre de position sur la
- * forme d'onde et le surlignage du bloc lu se coordonnent par cette réactivité
- * — pas de composant « dynamique », des consommateurs d'un même état (D-S12).
+ * Scope AUDIO de l'entretien ouvert. Un seul <audio> caché + son état RÉACTIF
+ * partagé : le lecteur (haut d'écran), la barre de position sur la forme d'onde
+ * et le surlignage du bloc lu se coordonnent par cette réactivité — pas de
+ * composant « dynamique », des consommateurs d'un même état.
  *
  * L'élément est attaché au <body> (invisible) : il survit aux v-show des
  * écrans et reste observable en e2e (document.querySelector('audio')).

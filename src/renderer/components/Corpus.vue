@@ -30,7 +30,7 @@ const {
   confirmerSuppressionEntretien,
   allerDonnees,
   listeEntretiens,
-  // audio (S6)
+  // audio
   urlWaveform,
   assignerAudioSelection,
 } = utiliserSonal()
@@ -117,18 +117,18 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <div class="corpus-tete">
             <h3>Entretiens</h3>
             <span class="actions-ent">
-              <!-- Point de reprise (D-S11 rév.) : rouvre le dernier entretien
+              <!-- Point de reprise : rouvre le dernier entretien
                    fermé là où on en était (texte + audio). -->
               <button v-if="reprise" class="btn-reprise" @click="reprendre">
                 ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
               </button>
-              <!-- UN seul point d'entrée (S6 rev., à la SonalPi) : la modale à deux
+              <!-- UN seul point d'entrée (à la SonalPi) : la modale à deux
                    zones couvre import texte, texte+audio, audio seul et vierge. -->
               <AjoutEntretien />
             </span>
           </div>
           <!-- Confirmation de suppression (acte destructif — mise en corbeille/,
-               même idiome de bannière que thèmes D-S10 et locuteurs). -->
+               même idiome de bannière que thèmes et locuteurs). -->
           <div v-if="entretienASupprimer" class="confirm-suppr">
             Supprimer « {{ entretienASupprimer.titre }} » ? L'entretien (et son audio) part dans
             <b>corbeille/</b> du dossier de corpus — il disparaît de l'application.
@@ -149,7 +149,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             >
               <div class="carte-corps">
                 <div class="ent-titre">{{ e.titre }}</div>
-                <!-- Forme d'onde de l'audio assigné (S6) ; sinon placeholder. Dans
+                <!-- Forme d'onde de l'audio assigné ; sinon placeholder. Dans
                      les deux cas, le CALQUE du résumé thématique (parité SonalPi)
                      se superpose : un span par segment codé, positionné en % du
                      TEXTE ; clic = ouvrir l'entretien à cet endroit. -->

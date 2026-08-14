@@ -2,18 +2,18 @@ import { test, expect } from '@playwright/test'
 import { ouvrir, coderTheme, compterAnnotations } from './util'
 
 /**
- * SMOKE e2e (étape 0) — pilote la VRAIE app Electron, pas le build : prouve que
- * (1) la fenêtre s'ouvre et l'éditeur monte avec le schéma D2 (blocs data-loc),
+ * SMOKE e2e — pilote la VRAIE app Electron, pas le build : prouve que
+ * (1) la fenêtre s'ouvre et l'éditeur monte avec le schéma gelé (blocs data-loc),
  * (2) coder une sélection ajoute une annotation au MODÈLE (observée par ses
- * décorations — le panneau debug est retiré depuis S5),
+ * décorations),
  * (3) le plugin de remap est câblé et tourne sur de vrais coups de clavier.
  *
  * Remplace le proxy faible « le build passe » par une preuve que la fenêtre vit.
  */
-test('la fenêtre s’ouvre, l’éditeur monte avec le schéma D2 (blocs data-loc)', async () => {
+test('la fenêtre s’ouvre, l’éditeur monte avec le schéma attendu (blocs data-loc)', async () => {
   const { app, page } = await ouvrir()
 
-  // Le texte seed est là, sur deux blocs porteurs de leur locuteur (attribut D2).
+  // Le texte seed est là, sur deux blocs porteurs de leur locuteur (attribut de bloc).
   await expect(page.locator('.editeur')).toContainText('travail')
   await expect(page.locator('.editeur p[data-loc="1"]')).toBeVisible()
   await expect(page.locator('.editeur p[data-loc="2"]')).toBeVisible()
@@ -35,7 +35,7 @@ test('coder une sélection ajoute une annotation au modèle, la retirer l’enl�
   await expect.poll(() => compterAnnotations(page)).toBe(1)
   await expect(ed.locator('.annot').first()).toHaveAttribute('title', /cat_001/)
 
-  // La retirer = re-coder la même plage (toggle D-S6 — le caret n'a pas bougé).
+  // La retirer = re-coder la même plage (toggle — le caret n'a pas bougé).
   await coderTheme(page, 'Famille')
   await expect(ed.locator('.annot')).toHaveCount(0)
 

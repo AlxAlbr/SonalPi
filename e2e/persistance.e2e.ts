@@ -7,9 +7,8 @@ import { lancer, entrerCorpus, entrerEntretien, coderTheme } from './util'
 /**
  * ÉTAPE 2 + S2 — persistance en dossier de corpus, à travers la navigation
  * Corpus → Entretien. Critères DEMARRAGE : (1) round-trip coder/éditer → fermer →
- * rouvrir, tout intact ; (4) version inconnue refusée, entretien plus ancien que le
- * membership signalé (fraîcheur, D6). NB : la LECTURE d'un entretien (donc le refus
- * de version / le signal de fraîcheur) ne se déclenche qu'à l'ENTRÉE dans l'entretien.
+ * rouvrir, tout intact ; (4) version inconnue refusée. NB : la LECTURE d'un entretien
+ * (donc le refus de version) ne se déclenche qu'à l'ENTRÉE dans l'entretien.
  */
 
 /** Les fichiers du corpus vivent sous <userDataDir>/corpus/… (cf. main/index.ts). */
@@ -75,33 +74,5 @@ test('un entretien de format inconnu est refusé poliment (bannière, pas d’é
   await page2.locator('.carte-ent .crayon').first().click()
   await expect(page2.locator('.banniere.refus')).toBeVisible({ timeout: 20_000 })
   await expect(page2.locator('.editeur')).not.toContainText('Karine')
-  await app2.close()
-})
-
-test('un entretien plus ancien que le membership est signalé périmé (fraîcheur D6)', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sonal-frais-'))
-
-  // 1er lancement : entrer, coder + enregistrer (fait avancer membership.lastModified).
-  const app1 = await lancer(dir)
-  const page1 = await app1.firstWindow()
-  await entrerCorpus(page1)
-  await entrerEntretien(page1)
-  await coderKarine(page1, 'Famille')
-  await page1.locator('.sauver').click()
-  await expect(page1.locator('.etat')).toHaveText('à jour')
-  await app1.close()
-
-  // Simule un fichier restauré d'une vieille sauvegarde (lastModified ancien).
-  const f = fichierEntretien(dir, 'e1')
-  const data = JSON.parse(readFileSync(f, 'utf8'))
-  data.lastModified = '2000-01-01T00:00:00.000Z'
-  writeFileSync(f, JSON.stringify(data), 'utf8')
-
-  // 2e lancement : entrer → la bannière « périmé » apparaît (pas d'écrasement silencieux).
-  const app2 = await lancer(dir)
-  const page2 = await app2.firstWindow()
-  await entrerCorpus(page2)
-  await entrerEntretien(page2)
-  await expect(page2.locator('.banniere.perime')).toBeVisible()
   await app2.close()
 })
