@@ -85,6 +85,8 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:ecrireWaveform', id, png),
     audios: (): Promise<Record<string, { audio: string | null; waveform: string | null }>> =>
       ipcRenderer.invoke('corpus:audios'),
+    verifierAudios: (): Promise<Record<string, 'ok' | 'manquant'>> =>
+      ipcRenderer.invoke('corpus:verifierAudios'),
     poserValeur: (
       entretienId: string,
       cible: CibleValeur,
@@ -94,9 +96,17 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:poserValeur', entretienId, cible, idVar, idMod),
   },
   dialog: {
-    choisirTexte: (): Promise<{ nom: string; contenu: string } | null> =>
-      ipcRenderer.invoke('dialog:choisirTexte'),
-    choisirAudio: (): Promise<string | null> => ipcRenderer.invoke('dialog:choisirAudio'),
+    /** Choisir un fichier d'entretien (contenu lu ici). `defaultPath` hinté par
+     *  la démo (racineSources) pour que le dialogue natif s'ouvre au bon endroit. */
+    choisirTexte: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
+      ipcRenderer.invoke('dialog:choisirTexte', defaultPath),
+    /** Choisir un fichier audio (chemin référencé, jamais copié). */
+    choisirAudio: (defaultPath?: string): Promise<string | null> =>
+      ipcRenderer.invoke('dialog:choisirAudio', defaultPath),
+    /** Choisir un DOSSIER pur (aucun effet de bord) — modale démo à deux dossiers
+     *  (§7.2). `kind` hinté le défaut Documents/Sonal/démo/<kind>. */
+    choisirDossier: (kind?: 'sources' | 'corpus'): Promise<string | null> =>
+      ipcRenderer.invoke('dialog:choisirDossier', kind),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:choisirExport', nomSuggere, contenu),
   },
@@ -104,5 +114,17 @@ contextBridge.exposeInMainWorld('sonal', {
     // Chemin réel d'un File GLISSÉ-DÉPOSÉ (modale d'ajout) — `File.path` n'existe
     // plus, seul le preload peut le résoudre (webUtils).
     cheminDe: (f: File): string => webUtils.getPathForFile(f),
+  },
+  demo: {
+    /** Copie UNE FOIS les sources bundled CorpusTest/ (srt/ + audio/) dans le
+     *  dossier choisi par l'utilisateur — le corpus les RÉFÉRENCE ensuite. */
+    copierSources: (racine: string): Promise<void> =>
+      ipcRenderer.invoke('demo:copierSources', racine),
+    /** Lit un fichier texte des sources (ex. 'srt/E2.srt'). */
+    lireSource: (racine: string, rel: string): Promise<{ nom: string; contenu: string }> =>
+      ipcRenderer.invoke('demo:lireSource', racine, rel),
+    /** Chemin absolu d'un média des sources (ex. 'audio/E2.mp3'). */
+    cheminAudio: (racine: string, rel: string): Promise<string> =>
+      ipcRenderer.invoke('demo:cheminAudio', racine, rel),
   },
 })

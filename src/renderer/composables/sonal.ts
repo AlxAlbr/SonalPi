@@ -1,12 +1,13 @@
 import { ref, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
 import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
-import { urlMedia, genererEtEcrireWaveform } from '../audio/waveform'
+import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
 import type { CorpusFichier } from '../../shared/format'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
+import { utiliserDemo } from './demo'
 
 /**
  * ORCHESTRATION applicative : instancie et COUD les trois scopes (profil,
@@ -100,15 +101,28 @@ export function creerSonal() {
   const themeASupprimer = ref<{ id: string; nom: string; n: number } | null>(null)
 
   // --- Audio : médias du corpus (requête) + chargement du lecteur ---
-  /** Scan `audio/` du corpus (id → { audio, waveform }) : alimente les cartes
+  /** Scan `png/` du corpus (id → { audio, waveform }) : alimente les cartes
    *  de l'écran Corpus et le chargement du lecteur — REQUÊTE, pas de cache. */
   const audiosCorpus = ref<Record<string, { audio: string | null; waveform: string | null }>>({})
   async function rafraichirAudios() {
     audiosCorpus.value = await window.sonal.corpus.audios()
   }
+  /** J3 — intégrité à l'ouverture : ids des entretiens dont l'audio RÉFÉRENCÉ
+   *  est introuvable (fichier déplacé/supprimé) — `Record<id, 'manquant'>`.
+   *  Calculé à CHAQUE `appliquerCorpus`, jamais rafraîchi en session : seul le
+   *  lecteur (§5.3) rattrape au cas par cas (ré-ouvrir le corpus rafraîchit). */
+  const audiosManquants = ref<Record<string, 'manquant'>>({})
+  /** J3 — vérifie l'existence des audios référencés (IPC batché main, cache
+   *  refsAudio) et ne retient que les 'manquant'. */
+  async function verifierIntegriteAudios(): Promise<Record<string, 'manquant'>> {
+    const res = await window.sonal.corpus.verifierAudios()
+    const manquants: Record<string, 'manquant'> = {}
+    for (const [id, s] of Object.entries(res)) if (s === 'manquant') manquants[id] = 'manquant'
+    return manquants
+  }
   /** Régénère EN FOND les ondes manquantes (dérivés régénérables). Après un
    *  changement de RENDU (ex. ex-onde verte → gris neutre), la migration est
-   *  MANUELLE et simple : supprimer les `audio/<id>.png` → régénérés ici. */
+   *  MANUELLE et simple : supprimer les `png/<id>.png` → régénérés ici. */
   async function regenererOndesManquantes() {
     const cibles = Object.entries(audiosCorpus.value).filter(([, v]) => v.audio && !v.waveform)
     if (cibles.length === 0) return
@@ -118,7 +132,7 @@ export function creerSonal() {
   /** URL affichable de la forme d'onde d'un entretien (cartes Corpus). */
   function urlWaveform(id: string): string | null {
     const wf = audiosCorpus.value[id]?.waveform
-    return wf ? urlMedia(wf, corpus.membership.value[id]?.lastModified ?? '') : null
+    return wf ? urlMediaWaveform(id, corpus.membership.value[id]?.lastModified ?? '') : null
   }
 
   /** (Re)charge le lecteur pour l'entretien ouvert : audio du modèle
@@ -136,7 +150,7 @@ export function creerSonal() {
       if (rel) await rafraichirAudios()
     }
     const wf = audiosCorpus.value[id]?.waveform
-    audio.charger(urlMedia(audioRef), wf ? urlMedia(wf, Date.now()) : null)
+    audio.charger(urlMediaAudio(audioRef), wf ? urlMediaWaveform(id, Date.now()) : null)
   }
 
   // Quitter l'écran entretien met la lecture en PAUSE (le lecteur n'est visible
@@ -166,15 +180,20 @@ export function creerSonal() {
     corpus.majVariables(c.variables)
     await corpus.rafraichirUsages()
     await rafraichirAudios()
+    audiosManquants.value = await verifierIntegriteAudios() // J3 : bandeau d'intégrité
     void regenererOndesManquantes() // en fond : ne bloque pas l'arrivée à l'écran
   }
 
   async function chargerCorpus() {
-    // Le corpus par défaut est chargé en fond (« Corpus courant » de l'Accueil est
-    // prêt), mais on ATTERRIT sur l'ACCUEIL (flux SonalPi : choisir un corpus d'abord).
-    await appliquerCorpus(await window.sonal.corpus.ouvrir())
-    await profil.majDossierCourant()
+    // Au démarrage, on charge le 1er récent s'il existe (= dernier corpus
+    // ouvert). Sinon (premier lancement) : modèle vide, on reste sur l'Accueil —
+    // l'utilisateur choisit explicitement (Mini Corpus Test ou un dossier).
+    // « Corpus courant » de l'Accueil n'est plus une carte dédiée : c'est le
+    // 1er récent (le loaded corpus est TOUJOURS le 1er récent, par construction).
     await profil.rafraichirRecents()
+    if (profil.recents.value.length > 0) {
+      await appliquerCorpus(await profil.ouvrirDossier(profil.recents.value[0].dir))
+    }
     vue.value = 'accueil'
   }
 
@@ -199,10 +218,6 @@ export function creerSonal() {
   async function allerAccueil() {
     await fermerEntretien()
     vue.value = 'accueil'
-  }
-  /** Depuis l'Accueil : revenir au corpus déjà chargé (sans le relire). */
-  function ouvrirCorpusCourant() {
-    vue.value = 'corpus'
   }
 
   /** Entrer dans un entretien = le charger (scope entretien), charger son audio
@@ -256,7 +271,7 @@ export function creerSonal() {
   }
 
   /** « Assigner un audio… » à l'entretien sélectionné dans la vue Corpus :
-   *  copie dans <corpus>/audio/, audioRef relatif, forme d'onde générée. */
+   *  référence le chemin absolu (audioRef), forme d'onde générée. */
   async function assignerAudioSelection() {
     const id = corpusSelId.value
     if (!id) return
@@ -269,6 +284,23 @@ export function creerSonal() {
     if (corpusSelMeta.value) corpusSelMeta.value = { ...corpusSelMeta.value, audio: true }
     // Si cet entretien est OUVERT dans l'éditeur, son modèle en session doit
     // suivre (sinon l'autosave écraserait audioRef avec l'ancien état).
+    if (ent.ouvertId.value === id) {
+      ent.meta.audioRef = a.audioRef
+      await majAudioEntretien(id)
+    }
+  }
+
+  /** « Assigner un audio… » à l'entretien OUVERT (depuis le lecteur — ex. quand
+   *  l'audio référencé est introuvable). Ouvre le dialogue, référence le nouveau
+   *  chemin, régénère la forme d'onde et recharge le lecteur. */
+  async function reassignerAudioEntretienOuvert() {
+    const id = ent.ouvertId.value
+    if (!id) return
+    const source = await window.sonal.dialog.choisirAudio()
+    if (!source) return
+    const a = await window.sonal.corpus.assignerAudio(id, source)
+    if (!a) return
+    await genererEtEcrireWaveform(id, a.audioRef)
     if (ent.ouvertId.value === id) {
       ent.meta.audioRef = a.audioRef
       await majAudioEntretien(id)
@@ -380,6 +412,21 @@ export function creerSonal() {
   const listeEntretiens = () =>
     Object.entries(corpus.membership.value).map(([id, ref]) => ({ id, ...ref }))
 
+  // Scope DÉMO « Mini Corpus Test » (plan-tutoriel §11-12) : construit le corpus
+  // de démo dans un dossier choisi via le vrai pipeline d'import. Dépendances
+  // injectées pour casser le cycle (demo utilise appliquerCorpus défini ci-dessus).
+  const demo = utiliserDemo({
+    appliquerCorpus,
+    majDossierCourant: profil.majDossierCourant,
+    rafraichirRecents: profil.rafraichirRecents,
+    vue,
+    membership: corpus.membership,
+    entretien: ent.entretien,
+    locuteurs: ent.locuteurs,
+    meta: ent.meta,
+    ouvertId: ent.ouvertId,
+  })
+
   onMounted(chargerCorpus)
 
   // Retour PLAT : les templates (App + composants) utilisent des noms nus. Les
@@ -390,8 +437,10 @@ export function creerSonal() {
     ...ent,
     audio, // scope audio (objet nommé : les vues déstructurent ses refs)
     audiosCorpus,
+    audiosManquants,
     urlWaveform,
     assignerAudioSelection,
+    reassignerAudioEntretienOuvert,
     vue,
     themeASupprimer,
     corpusSelId,
@@ -404,7 +453,6 @@ export function creerSonal() {
     ouvrirRecent,
     retourCorpus,
     allerAccueil,
-    ouvrirCorpusCourant,
     ouvrirEntretien,
     ouvrirAuSegment,
     ajouterEntretien,
@@ -420,6 +468,7 @@ export function creerSonal() {
     demanderSuppressionTheme,
     confirmerSuppressionTheme,
     listeEntretiens,
+    ...demo,
   }
 }
 

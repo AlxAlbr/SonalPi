@@ -67,6 +67,7 @@ declare global {
         assignerAudio: (id: string, source: string) => Promise<{ audioRef: string } | null>
         ecrireWaveform: (id: string, png: Uint8Array) => Promise<string>
         audios: () => Promise<Record<string, { audio: string | null; waveform: string | null }>>
+        verifierAudios: () => Promise<Record<string, 'ok' | 'manquant'>>
         poserValeur: (
           entretienId: string,
           cible: CibleValeur,
@@ -75,12 +76,18 @@ declare global {
         ) => Promise<boolean>
       }
       dialog: {
-        choisirTexte: () => Promise<{ nom: string; contenu: string } | null>
-        choisirAudio: () => Promise<string | null>
+        choisirTexte: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
+        choisirAudio: (defaultPath?: string) => Promise<string | null>
+        choisirDossier: (kind?: 'sources' | 'corpus') => Promise<string | null>
         choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
       }
       fichier: {
         cheminDe: (f: File) => string
+      }
+      demo: {
+        copierSources: (racine: string) => Promise<void>
+        lireSource: (racine: string, rel: string) => Promise<{ nom: string; contenu: string }>
+        cheminAudio: (racine: string, rel: string) => Promise<string>
       }
     }
   }

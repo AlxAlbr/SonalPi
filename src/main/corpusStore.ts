@@ -6,8 +6,10 @@ import {
   renameSync,
   copyFileSync,
   readdirSync,
+  statSync,
 } from 'node:fs'
-import { join, extname, basename, normalize, sep } from 'node:path'
+import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import * as corpusModel from '../shared/corpus'
 import { migrerEntretienV1 } from '../shared/entretien/migration'
 
@@ -17,8 +19,9 @@ import { migrerEntretienV1 } from '../shared/entretien/migration'
  * format : le store l'applique à la lecture d'un fichier v1 et réécrit aussitôt
  * — jamais de lecture partielle d'une version inconnue.
  * Voir shared/entretien/migration.ts pour la mécanique de migration.
- * Pourra être étendu à d'autres migrations de format (ex. v2 → v3) si nécessaire
- * et pourra être simplifier à l'avenir si on décide de ne plus supporter les anciens formats.
+ * v3 : `meta.audioRef` devient un chemin ABSOLU uniquement (audio référencé,
+ * plus copié). Migration v2→v3 : résolution des refs relatives en absolues +
+ * déplacement des PNG waveform `audio/` → `png/`.
  */
 
 import {
@@ -55,6 +58,16 @@ function genId(prefixe: string): string {
   return prefixe + '-' + Math.random().toString(36).slice(2, 10)
 }
 
+/** Normalise un chemin audio reçu d'un dialogue (assignerAudio) : certains
+ *  dialogs Linux renvoient `file://` → `fileURLToPath` ; puis `path.normalize`
+ *  pour une comparaison whitelist fiable. Le résultat est toujours un chemin
+ *  absolu natif normalisé. */
+function normaliserCheminAudio(source: string): string {
+  let p = source
+  if (p.startsWith('file:')) p = fileURLToPath(p)
+  return normalize(p)
+}
+
 /** Les RÈGLES du corpus vivent dans `shared/corpus/` (pures) ;
  *  ICI on ne fait que lire → appliquer → écrire.
  *  Cette classe est le point d'entrée pour toutes les opérations sur le corpus (CRUD) : 
@@ -64,6 +77,13 @@ export class CorpusStore {
 
   /** L'attribut dir contient le chemin vers le répertoire du corpus */
   private readonly dir: string
+
+  /** Cache en mémoire des `audioRef` (id → chemin absolu normalisé) du corpus
+   *  courant. Sert à la whitelist du protocole `abs` (`cheminMediaAbs`) ET au
+   *  remplissage de `audios()` — sans relire les N fichiers entretiens à chaque
+   *  requête Range du `<audio>`. Invalidé sur mutation (assign/supprimer/ecrire).
+   *  Recalculé paresseusement à la 1re utilisation après ouverture/mutation. */
+  private cacheRefsAudio: Map<string, string> | null = null
 
   /** Ids qui permettent des sauvegardes : un entretien ouvert est en session
    * Rempli à la lecture, vidé au 1er write suivant (.bak avec rotation 1→2) 
@@ -91,6 +111,18 @@ export class CorpusStore {
     return join(this.entretiensDir, `${id}.json`)
   }
 
+  /** Dossier des dérivés PNG (waveform) : `<corpus>/png/` (v3 ; ex-`audio/`). */
+  private get pngDir() {
+    return join(this.dir, 'png')
+  }
+
+  /** Ancien dossier audio (v2) : reliquat pour les corpus migrés (mp3 legacy
+   *  référencés en absolu vers leur emplacement existant). Les nouveaux corpus
+   *  v3 n'ont pas de dossier `audio/`. */
+  private get audioDirLegacy() {
+    return join(this.dir, 'audio')
+  }
+
   private ecrireJsonAtomique(fichier: string, obj: unknown): void {
     const tmp = fichier + '.tmp'
     writeFileSync(tmp, JSON.stringify(obj, null, 2), 'utf8')
@@ -115,10 +147,53 @@ export class CorpusStore {
       corpus.formatVersion = FORMAT_VERSION
       this.ecrireJsonAtomique(this.corpusFile, corpus)
     }
+    // Cas Migration v2→v3 : audioRef relatifs → absolus + déplacement PNG
+    // `audio/` → `png/`. Mécanique identique à v1→v2 : le store applique à la
+    // lecture et réécrit aussitôt — jamais de lecture partielle d'une version
+    // inconnue. One-shot : après migration, formatVersion === 3.
+    if (corpus.formatVersion === 2) {
+      this.migrerV2VersV3(corpus)
+    }
     if (!versionSupportee(corpus.formatVersion)) {
       throw new Error(`Version de corpus non supportée : ${corpus.formatVersion}`)
     }
     return corpus
+  }
+
+  /** Migration v2→v3 : résout chaque `audioRef` relatif en absolu, déplace les
+   *  PNG waveform `audio/` → `png/`, bump le corpus + chaque entretien à v3.
+   *  Les mp3 legacy restent dans `audio/` (référencés en absolu vers cet
+   *  emplacement — aucune recopie, aucun orphelin). */
+  private migrerV2VersV3(corpus: CorpusFichier): void {
+    if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
+    // 1. Déplacer les PNG waveform `audio/<id>.png` → `png/<id>.png`.
+    if (existsSync(this.audioDirLegacy)) {
+      for (const nom of readdirSync(this.audioDirLegacy)) {
+        if (extname(nom).slice(1).toLowerCase() !== 'png') continue
+        const src = join(this.audioDirLegacy, nom)
+        const dst = join(this.pngDir, nom)
+        if (existsSync(dst)) continue // idempotent : ne pas écraser un PNG déjà migré
+        renameSync(src, dst)
+      }
+    }
+    // 2. Résoudre chaque `audioRef` relatif en absolu + bump entretien à v3.
+    for (const id of Object.keys(corpus.membership)) {
+      const f = this.entretienFile(id)
+      if (!existsSync(f)) continue
+      const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
+      if ((data.formatVersion as number) === 2) {
+        const ref = data.meta?.audioRef
+        if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
+          data.meta.audioRef = resolve(this.dir, ref)
+        }
+        data.formatVersion = FORMAT_VERSION
+        this.ecrireJsonAtomique(f, data)
+      }
+    }
+    // 3. Bump le corpus à v3.
+    corpus.formatVersion = FORMAT_VERSION
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    this.invaliderRefsAudio() // le cache (s'il existait) est périmé
   }
 
   /** Le bloc « Pondérations » par défaut de SonalPi, aux MÊMES codes que lui (cat_001..004) 
@@ -165,6 +240,18 @@ export class CorpusStore {
       data = migrerEntretienV1(data as unknown as Record<string, unknown>) as unknown as EntretienFichier
       this.ecrireJsonAtomique(fichier, data)
     }
+    // Migration EXPLICITE v2→v3 : audioRef relatif → absolu (filet de sécurité —
+    // la migration principale a lieu dans `ouvrir()`, mais un entretien v2 peut
+    // arriver isolément, ex. copié à la main dans un corpus v3).
+    if ((data.formatVersion as number) === 2) {
+      const ref = data.meta?.audioRef
+      if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
+        data.meta.audioRef = resolve(this.dir, ref)
+      }
+      data.formatVersion = FORMAT_VERSION
+      this.ecrireJsonAtomique(fichier, data)
+      this.invaliderRefsAudio()
+    }
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
 
     this.rotationEnAttente.add(id) // ouverture = début de session
@@ -188,6 +275,10 @@ export class CorpusStore {
       this.rotationEnAttente.delete(id)
     }
     this.ecrireJsonAtomique(this.entretienFile(id), fichier)
+
+    // Le renderer peut round-triper un `audioRef` modifié → invalide le cache
+    // (sécurité ; l'invariant « muté uniquement via assignerAudio » est visé).
+    this.invaliderRefsAudio()
 
     const corpus = this.ouvrir()
     corpus.membership[id] = {
@@ -265,10 +356,10 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Retire du membership et déplace le fichier (+ ses `.bak`) ET ses médias
-   *  (`audio/<id>.*` : audio assigné + forme d'onde) dans `corbeille/` 
-   *  jamais d'effacement (pas de perte silencieuse), jamais d'orphelin sur disque 
-   *  un futur entretien de même id n'hérite d'aucun audio. */
+  /** Retire du membership et déplace le fichier (+ ses `.bak`) ET son PNG
+   *  waveform (`png/<id>.png`) dans `corbeille/` — jamais d'effacement (pas de
+   *  perte silencieuse), jamais d'orphelin sur disque. L'audio référencé
+   *  (chemin absolu externe) n'est JAMAIS touché — il n'a jamais été copié. */
   supprimerEntretien(id: string): CorpusFichier {
     const corpus = this.ouvrir()
     const corbeille = join(this.dir, 'corbeille')
@@ -277,13 +368,16 @@ export class CorpusStore {
       const src = join(this.entretiensDir, id + suffixe)
       if (existsSync(src)) renameSync(src, join(corbeille, id + suffixe))
     }
-    if (existsSync(this.audioDir)) {
-      for (const f of readdirSync(this.audioDir)) {
-        if (f.startsWith(id + '.')) renameSync(join(this.audioDir, f), join(corbeille, f))
+    // Seul le PNG dérivé (dans `png/`) est déplacé en corbeille. L'audio
+    // référencé est externe — on ne le touche jamais (§4.5 du plan).
+    if (existsSync(this.pngDir)) {
+      for (const f of readdirSync(this.pngDir)) {
+        if (f.startsWith(id + '.')) renameSync(join(this.pngDir, f), join(corbeille, f))
       }
     }
     delete corpus.membership[id]
     this.ecrireJsonAtomique(this.corpusFile, corpus)
+    this.invaliderRefsAudio()
     return corpus
   }
 
@@ -447,26 +541,21 @@ export class CorpusStore {
   }
 
 
-  // ── Audio : copie dans le corpus + dérivés ─────────────────────────────────
+  // ── Audio : référence (chemin absolu) + dérivés PNG ──────────────────────────
 
-  private get audioDir() {
-    return join(this.dir, 'audio')
-  }
-
-  /** Assigne un fichier audio à un entretien : COPIE dans `<corpus>/audio/`
-   *  `audioRef` RELATIF dans le fichier entretien
-   *  Écriture ciblée comme `poserValeur` (pas de rotation`.bak` — le corps du texte n'est pas touché)
-   */
+  /** Assigne un fichier audio à un entretien par RÉFÉRENCE (chemin absolu).
+   *  Plus de copie : le fichier d'origine est lu en streaming + forme d'onde,
+   *  jamais écrit par l'app (parité SonalPi). Le chemin stocké est normalisé
+   *  (`file://` → natif, `path.normalize`) pour une whitelist fiable (§4.2).
+   *  Écriture ciblée comme `poserValeur` (pas de rotation `.bak`). */
   assignerAudio(id: string, source: string): { audioRef: string } | null {
     const f = this.entretienFile(id)
     if (!existsSync(f) || !existsSync(source)) return null
-    const ext = extname(source).slice(1).toLowerCase() || 'mp3'
-    const rel = `audio/${id}.${ext}`
-    if (!existsSync(this.audioDir)) mkdirSync(this.audioDir, { recursive: true })
-    copyFileSync(source, join(this.dir, rel))
+    // Normaliser : certains dialogs (Linux) renvoient `file://` → natif.
+    const ref = normaliserCheminAudio(source)
 
     const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
-    data.meta.audioRef = rel
+    data.meta.audioRef = ref
     const now = new Date().toISOString()
     data.lastModified = now
     this.ecrireJsonAtomique(f, data)
@@ -476,45 +565,101 @@ export class CorpusStore {
       corpus.membership[id].lastModified = now
       this.ecrireJsonAtomique(this.corpusFile, corpus)
     }
-    return { audioRef: rel }
+    this.invaliderRefsAudio()
+    return { audioRef: ref }
   }
 
-  /** Écrit le PNG de la forme d'onde (`audio/<id>.png`). C'est un DÉRIVÉ
+  /** Écrit le PNG de la forme d'onde (`png/<id>.png`). C'est un DÉRIVÉ
    *  régénérable (entorse assumée à « requête, pas cache » : le décodage audio
    *  complet est coûteux) — hors format natif, copié avec le dossier. Un PNG
    *  SUPPRIMÉ à la main est régénéré en fond à l'ouverture du corpus
    *  (`regenererOndesManquantes`, sonal.ts) — c'est la migration après un
    *  changement de rendu (ex. ex-onde verte → gris neutre). */
   ecrireWaveform(id: string, png: Uint8Array): string {
-    if (!existsSync(this.audioDir)) mkdirSync(this.audioDir, { recursive: true })
-    const rel = `audio/${id}.png`
+    if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
+    const rel = `png/${id}.png`
     writeFileSync(join(this.dir, rel), png)
     return rel
   }
 
-  /** REQUÊTE : scan de `audio/` → par id d'entretien, ses fichiers { audio,
-   *  waveform } (chemins relatifs). Alimente les cartes de l'écran Corpus sans
-   *  lire les entretiens. */
+  /** REQUÊTE : par id d'entretien, son `audioRef` absolu (depuis le cache) et
+   *  la présence de sa forme d'onde (scan de `png/` par convention de nommage).
+   *  Alimente les cartes de l'écran Corpus + le chargement du lecteur. */
   audios(): Record<string, { audio: string | null; waveform: string | null }> {
     const out: Record<string, { audio: string | null; waveform: string | null }> = {}
-    if (!existsSync(this.audioDir)) return out
-    for (const nom of readdirSync(this.audioDir)) {
-      const ext = extname(nom).slice(1).toLowerCase()
-      const id = basename(nom, extname(nom))
-      if (!id) continue
-      const e = (out[id] ??= { audio: null, waveform: null })
-      if (ext === 'png') e.waveform = `audio/${nom}`
-      else e.audio = `audio/${nom}`
+    // Waveform : scan de `png/` par convention de nommage (le PNG est un dérivé
+    // local, jamais stocké dans l'entretien — découvert par nom).
+    if (existsSync(this.pngDir)) {
+      for (const nom of readdirSync(this.pngDir)) {
+        if (extname(nom).slice(1).toLowerCase() !== 'png') continue
+        const id = basename(nom, extname(nom))
+        if (!id) continue
+        ;(out[id] ??= { audio: null, waveform: null }).waveform = `png/${nom}`
+      }
+    }
+    // Audio : depuis le cache `refsAudio` (audioRef absolu par entretien).
+    for (const [id, ref] of this.refsAudio()) {
+      ;(out[id] ??= { audio: null, waveform: null }).audio = ref
     }
     return out
   }
 
-  /** Chemin ABSOLU d'un média pour le protocole `sonal-media` — refuse tout ce
-   *  qui sort de `<corpus>/audio/` (anti-traversal) ou n'existe pas. */
-  cheminMedia(rel: string): string | null {
-    const abs = normalize(join(this.dir, rel))
-    if (!abs.startsWith(normalize(this.audioDir) + sep)) return null
+  /** Chemin ABSOLU du PNG waveform d'un entretien, résolu PAR ID (opaque, issu
+   *  de `genId`) → `<corpus>/png/<id>.png`. L'id n'est jamais un chemin → pas de
+   *  risque de traversal. Sert au protocole `sonal-media://waveform/<id>`. */
+  cheminWaveform(id: string): string | null {
+    // Garde : l'id ne doit pas contenir de séparateur (defense en depth — `genId`
+    // produit toujours un id sûr, mais un appelant malveillant pourrait forger).
+    if (!id || id.includes(sep) || id.includes('/')) return null
+    const abs = join(this.pngDir, `${id}.png`)
     return existsSync(abs) ? abs : null
+  }
+
+  /** Chemin ABSOLU d'un audio RÉFÉRENCÉ, pour le protocole `sonal-media://abs/`.
+   *  Whitelist stricte : le chemin normalisé doit appartenir aux `audioRef`
+   *  stockées dans le corpus courant (cache `refsAudio`) + exister sur disque.
+   *  Jamais de garde par préfixe de dossier (faille : n'importe quel chemin
+   *  du disque serait servissable au renderer). */
+  cheminMediaAbs(p: string): string | null {
+    const cible = normalize(p)
+    for (const ref of this.refsAudio().values()) {
+      if (normalize(ref) === cible) return existsSync(cible) ? cible : null
+    }
+    return null
+  }
+
+  /** Vérifie l'existence des fichiers audio référencés (intégrité à l'ouverture).
+   *  Renvoie par entretien : 'ok' si le fichier existe, 'manquant' sinon (pour
+   *  les entretiens dont l'`audioRef` est non-null). Sert au bandeau §6. */
+  verifierAudios(): Record<string, 'ok' | 'manquant'> {
+    const out: Record<string, 'ok' | 'manquant'> = {}
+    for (const [id, ref] of this.refsAudio()) {
+      out[id] = existsSync(ref) ? 'ok' : 'manquant'
+    }
+    return out
+  }
+
+  /** Cache paresseux des `audioRef` (id → chemin absolu) du corpus courant.
+   *  Calculé à la 1re utilisation, invalidé sur mutation. La passe de lecture
+   *  est partagée entre `cheminMediaAbs` (whitelist) et `audios()` (audio). */
+  private refsAudio(): Map<string, string> {
+    if (this.cacheRefsAudio) return this.cacheRefsAudio
+    const out = new Map<string, string>()
+    const corpus = this.ouvrir()
+    for (const id of Object.keys(corpus.membership)) {
+      const f = this.entretienFile(id)
+      if (!existsSync(f)) continue
+      const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
+      const ref = data.meta?.audioRef
+      if (typeof ref === 'string' && ref && isAbsolute(ref)) out.set(id, ref)
+    }
+    this.cacheRefsAudio = out
+    return out
+  }
+
+  /** Invalide le cache `refsAudio` (à appeler sur toute mutation d'`audioRef`). */
+  private invaliderRefsAudio(): void {
+    this.cacheRefsAudio = null
   }
 }
 

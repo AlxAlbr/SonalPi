@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { mkdtempSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readdirSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme } from './util'
+import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme, attendreAccueil, attendreCorpus } from './util'
 
 /**
  * Audio : import « un geste » (SRT + audio ensemble), copie dans le corpus
@@ -51,7 +51,12 @@ function ecrireWav(chemin: string, secondes = 4, freqEch = 8000): void {
   writeFileSync(chemin, buf)
 }
 
-function fichiersAudioDuCorpus(profil: string): string {
+function fichiersPngDuCorpus(profil: string): string {
+  const pngDir = join(profil, 'corpus', 'png')
+  return existsSync(pngDir) ? readdirSync(pngDir).join(',') : ''
+}
+/** Vérifie qu'aucun fichier audio n'a été copié dans le corpus (modèle par référence). */
+function fichiersAudioDansCorpus(profil: string): string {
   const audioDir = join(profil, 'corpus', 'audio')
   return existsSync(audioDir) ? readdirSync(audioDir).join(',') : ''
 }
@@ -83,9 +88,10 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
   await expect(page.locator('.editeur')).toContainText('Premier segment', { timeout: 10_000 })
   await expect(page.locator('.lecteur-audio')).toBeVisible()
 
-  // Copie dans <corpus>/audio/ + forme d'onde DÉRIVÉE (PNG) à côté.
-  await expect.poll(() => fichiersAudioDuCorpus(dir), { timeout: 10_000 }).toContain('.wav')
-  await expect.poll(() => fichiersAudioDuCorpus(dir), { timeout: 10_000 }).toContain('.png')
+  // Pas de copie d'audio dans le corpus (modèle par référence) ; le PNG dérivé
+  // est dans `png/`.
+  await expect.poll(() => fichiersAudioDansCorpus(dir), { timeout: 10_000 }).toBe('')
+  await expect.poll(() => fichiersPngDuCorpus(dir), { timeout: 10_000 }).toContain('.png')
   await expect(page.locator('.lecteur-audio img.onde')).toBeVisible()
 
   // L'audio est chargé (métadonnées lues → durée connue).
@@ -231,6 +237,53 @@ test('S6 rev. : AUDIO SEUL dans la modale → entretien au texte vide (à taper)
   await app.close()
 })
 
+test('J3 : audio référencé supprimé après assignation → bandeau d’intégrité à l’ouverture, app fonctionnelle', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-integrity-'))
+  const wav = join(dir, 'integrity.wav')
+  ecrireWav(wav, 2)
+
+  const app = await lancer(dir)
+  const page = await app.firstWindow()
+  await entrerCorpus(page)
+
+  // Assigner l'audio au premier entretien (Entretien Karine) — RÉFÉRENCE, pas copie.
+  await app.evaluate(({ dialog }, args) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [args.wav] })
+  }, { wav })
+  await page.locator('.carte-ent').first().click()
+  await expect(page.locator('.meta-ent')).toBeVisible()
+  await page.locator('.assigner-audio').click()
+  await expect(page.locator('.meta-infos li', { hasText: 'Audio' })).toContainText('lié', { timeout: 10_000 })
+
+  // Supprimer le fichier SOURCE — le geste qui casse la référence.
+  rmSync(wav)
+
+  // Ré-ouvrir le corpus (Accueil → récent) → le bandeau d'intégrité apparaît.
+  await page.locator('.lien-nav', { hasText: 'Accueil' }).click()
+  await attendreAccueil(page)
+  await page.locator('.recents .recent').first().click()
+  await attendreCorpus(page)
+  await expect(page.locator('.bandeau-audio')).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator('.bandeau-audio')).toContainText('fichier(s) audio introuvable')
+  await expect(page.locator('.bandeau-audio')).toContainText('Entretien Karine')
+
+  // L'app reste FONCTIONNELLE : clic sur l'entretien du bandeau → le lecteur
+  // affiche « Audio introuvable » + ré-assignation (§5.3), le texte reste utilisable.
+  await page.locator('.bandeau-audio-ent').first().click()
+  await expect(page.locator('.editeur')).toBeVisible()
+  await expect(page.locator('.editeur')).toContainText('Karine', { timeout: 10_000 })
+  await expect(page.locator('.lecteur-erreur')).toBeVisible()
+  await expect(page.locator('.lecteur-erreur')).toContainText('Audio introuvable')
+  await expect(page.locator('.lecteur-erreur', { hasText: 'Assigner un audio' })).toBeVisible()
+
+  // L'édition reste possible (on ne crash jamais pour un média manquant).
+  await page.locator('.editeur').click()
+  await page.keyboard.type('La transcription reste utilisable.')
+  await expect(page.locator('.editeur')).toContainText('La transcription reste utilisable.')
+
+  await app.close()
+})
+
 test('S6 : « Assigner un audio » à un entretien existant → audio lié + forme d’onde sur la carte', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-audio-'))
   const wav = join(dir, 'karine.wav')
@@ -252,7 +305,7 @@ test('S6 : « Assigner un audio » à un entretien existant → audio lié + for
   // Le méta passe à « lié », la carte affiche la forme d'onde, les fichiers sont là.
   await expect(page.locator('.meta-infos li', { hasText: 'Audio' })).toContainText('lié', { timeout: 10_000 })
   await expect(page.locator('.carte-ent img.spectro').first()).toBeVisible()
-  await expect.poll(() => fichiersAudioDuCorpus(dir)).toContain('.png')
+  await expect.poll(() => fichiersPngDuCorpus(dir)).toContain('.png')
 
   // Ouvrir l'entretien : le lecteur est présent ; texte SANS timecodes → aucun
   // surlignage (indexBlocCourant sans ancre → null), pas d'erreur.

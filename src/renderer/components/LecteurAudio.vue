@@ -11,8 +11,8 @@ import type { SegmentThematique } from '../../shared/format'
  * La bande porte aussi le CALQUE du résumé thématique de l'entretien
  * ouvert (live — il suit le codage), calé sur l'axe TEMPS via les ancres.
  */
-const { audio, resumeOuvert, tempsAuTexte, peintureSegment } = utiliserSonal()
-const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, basculer, decaler, changerVitesse, seek } =
+const { audio, resumeOuvert, tempsAuTexte, peintureSegment, reassignerAudioEntretienOuvert } = utiliserSonal()
+const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
 
 /** Style d'un segment sur la BANDE : la bande est un axe TEMPOREL (le curseur y
@@ -58,7 +58,7 @@ function clicBande(e: MouseEvent) {
 </script>
 
 <template>
-  <div v-if="url" class="lecteur-audio">
+  <div v-if="url && !erreur" class="lecteur-audio">
     <div class="commandes">
       <button class="play" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
         {{ enLecture ? '⏸' : '▶' }}
@@ -87,6 +87,10 @@ function clicBande(e: MouseEvent) {
       ></span>
       <div class="curseur" :style="{ left: ratio * 100 + '%' }"></div>
     </div>
+  </div>
+  <div v-else-if="url && erreur" class="lecteur-audio lecteur-erreur">
+    <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
+    <button class="mini-lect" @click="reassignerAudioEntretienOuvert">Assigner un audio…</button>
   </div>
 </template>
 
@@ -145,6 +149,15 @@ function clicBande(e: MouseEvent) {
 .lbl-vitesse {
   min-width: 3rem;
   font-family: monospace;
+}
+.lecteur-erreur {
+  gap: 0.6rem;
+  border-color: #f3b4ad;
+  background: #fdecea;
+}
+.msg-erreur {
+  font-size: 0.82rem;
+  color: #b3261e;
 }
 /* La bande : forme d'onde + curseur de position (ratio temps/durée). */
 .bande {

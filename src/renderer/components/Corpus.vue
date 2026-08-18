@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from './EditionThemes.vue'
+import PasAPas from './PasAPas.vue'
 import { utiliserSonal } from '../composables/sonal'
 import type { SegmentThematique } from '../../shared/format'
 
@@ -33,10 +34,22 @@ const {
   // audio
   urlWaveform,
   assignerAudioSelection,
+  // J3 — intégrité : audios référencés introuvables (fichier déplacé/supprimé)
+  audiosManquants,
+  // démo pas-à-pas
+  pasAPas,
 } = utiliserSonal()
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
 const editerThemes = ref(false)
+// Onglet de la colonne gauche (plan-tutoriel §11/§14) : « Thèmes » par défaut,
+// « Pas à pas » en mode démo. Les métadonnées d'un entretien sélectionné
+// conservent leur affichage (bascule existante, hors onglet pour l'instant).
+const ongletCorpus = ref<'themes' | 'pas-a-pas'>('themes')
+// Quand le mode pas-à-pas s'active, bascule l'onglet sur « Pas à pas ».
+watch(pasAPas, (v) => {
+  if (v) ongletCorpus.value = 'pas-a-pas'
+})
 
 /** Style d'un segment du calque des cartes : position/largeur en % du TEXTE
  *  (parité SonalPi), peinture partagée `peintureSegment` (useCorpus). */
@@ -61,8 +74,19 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       </div>
 
       <div class="grille-corpus">
-        <!-- Colonne GAUCHE : bascule Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
+        <!-- Colonne GAUCHE : onglets Thèmes / Pas à pas, puis bascule
+             Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
         <aside class="colonne-g-corpus">
+          <!-- Onglets (seulement en mode pas-à-pas ; sinon Thèmes seul) -->
+          <nav v-if="pasAPas" class="onglets-corpus">
+            <button :class="{ actif: ongletCorpus === 'themes' }" @click="ongletCorpus = 'themes'">
+              Thèmes
+            </button>
+            <button :class="{ actif: ongletCorpus === 'pas-a-pas' }" @click="ongletCorpus = 'pas-a-pas'">
+              Pas à pas
+            </button>
+          </nav>
+
           <!-- Un entretien est sélectionné → ses métadonnées (nom éditable + infos) -->
           <div v-if="corpusSelId" class="panneau meta-ent">
             <div class="corpus-tete">
@@ -90,7 +114,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
           <!-- Sinon : thèmes en CONSULTATION compacte ; le crayon ouvre la fenêtre
                d'édition partagée (parité SonalPi — nom/couleur/taille/arbre). -->
-          <aside v-else class="panneau themes-corpus">
+          <aside v-else v-show="ongletCorpus === 'themes' || !pasAPas" class="panneau themes-corpus">
             <div class="corpus-tete">
               <h3>Thèmes</h3>
               <button class="crayon" title="Éditer les thèmes" @click="editerThemes = true">✏️</button>
@@ -110,6 +134,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               </li>
             </ul>
           </aside>
+
+          <!-- Pas à pas (onglet démo) : liste des étapes + spotlight global
+               (téléporté en body → visible dans n'importe quelle vue). La liste
+               est masquée selon l'onglet, le spotlight reste actif partout. -->
+          <PasAPas v-if="pasAPas" :montre-liste="ongletCorpus === 'pas-a-pas'" />
         </aside>
 
         <!-- Colonne DROITE (large) : entretiens en cartes ; à terme = spectrogramme -->
@@ -136,6 +165,24 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <button class="danger" @click="confirmerSuppressionEntretien">Supprimer</button>
               <button @click="entretienASupprimer = null">Annuler</button>
             </div>
+          </div>
+
+          <!-- J3 — INTÉGRITÉ : bandeau au-dessus des cartes si des audios
+               RÉFÉRENCÉS sont introuvables (fichier déplacé/supprimé — le
+               corpus n'est plus auto-suffisant §1.6). Calculé à l'ouverture
+               du corpus (pas de refresh en session) ; clic = ouvrir
+               l'entretien → le lecteur propose la ré-assignation (§5.3). -->
+          <div v-if="Object.keys(audiosManquants).length > 0" class="bandeau-audio" data-tour="bandeau-audio">
+            <span class="bandeau-audio-titre">
+              ⚠️ {{ Object.keys(audiosManquants).length }} fichier(s) audio introuvable(s) — déplacé(s) ou supprimé(s) ?
+            </span>
+            <ul class="bandeau-audio-liste">
+              <li v-for="id in Object.keys(audiosManquants)" :key="id">
+                <button class="bandeau-audio-ent" @click="ouvrirEntretien(id)">
+                  {{ membership[id]?.titre ?? id }}
+                </button>
+              </li>
+            </ul>
           </div>
 
           <p v-if="listeEntretiens().length === 0" class="vide">Aucun entretien — « + Ajouter un entretien ».</p>
@@ -167,7 +214,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 </div>
               </div>
               <div class="carte-actions">
-                <button class="crayon" title="Éditer l'entretien" @click.stop="ouvrirEntretien(e.id)">✏️</button>
+                <button
+                  class="crayon"
+                  data-tour="crayon-entretien"
+                  title="Éditer l'entretien"
+                  @click.stop="ouvrirEntretien(e.id)"
+                >✏️</button>
                 <button class="suppr" title="Supprimer (corbeille)" @click.stop="demanderSuppressionEntretien(e.id)">✕</button>
               </div>
             </li>
@@ -205,6 +257,27 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   gap: 1rem;
   align-items: start;
 }
+/* --- Onglets colonne gauche (Thèmes / Pas à pas) --- */
+.onglets-corpus {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+.onglets-corpus button {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: #f0f0f5;
+  padding: 0.3rem 0.2rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.onglets-corpus button.actif {
+  background: #fff;
+  font-weight: 600;
+  color: #2e7d32;
+}
 /* --- Colonne gauche : métadonnées de l'entretien sélectionné --- */
 .meta-ent .champ-nom {
   display: flex;
@@ -241,6 +314,41 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   color: #666;
 }
 /* --- Colonne droite : entretiens en cartes --- */
+/* J3 — bandeau d'intégrité (audio référencé introuvable) : informe, n'empêche
+   rien (l'app ne crash jamais pour un média manquant — contrat §5.3/§9). */
+.bandeau-audio {
+  border: 1px solid #f3b4ad;
+  background: #fdecea;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #b3261e;
+}
+.bandeau-audio-titre {
+  display: block;
+  font-weight: 600;
+}
+.bandeau-audio-liste {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.bandeau-audio-ent {
+  border: 1px solid #e0a0a0;
+  background: #fff;
+  color: #b3261e;
+  border-radius: 5px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.bandeau-audio-ent:hover {
+  border-color: #b3261e;
+}
 .cartes-ent {
   list-style: none;
   margin: 0.4rem 0 0;

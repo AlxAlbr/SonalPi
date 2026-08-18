@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
 import { join, basename, extname } from 'node:path'
-import { readFileSync, writeFileSync, createReadStream, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, createReadStream, statSync, cpSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { CorpusStore } from './corpusStore'
 import type { Categorie, CibleValeur, PatchCategorie, PayloadEntretien, Variable } from '../shared/format'
@@ -184,8 +184,8 @@ function enregistrerIpcCorpus(): void {
   )
   ipcMain.handle('corpus:matrice', () => store.matriceCorpus())
 
-  // Audio : assignation (copie dans le dossier corpus), forme d'onde dérivée,
-  // scan des médias.
+  // Audio : assignation par RÉFÉRENCE (chemin absolu, plus de copie), forme
+  // d'onde dérivée (PNG), scan des médias, vérification d'intégrité.
   ipcMain.handle('corpus:assignerAudio', (_e, id: string, source: string) =>
     store.assignerAudio(id, source),
   )
@@ -193,13 +193,29 @@ function enregistrerIpcCorpus(): void {
     store.ecrireWaveform(id, png),
   )
   ipcMain.handle('corpus:audios', () => store.audios())
+  ipcMain.handle('corpus:verifierAudios', () => store.verifierAudios())
 
-  // sonal-media://corpus/audio/<fichier> → streame depuis le dossier de corpus
-  // COURANT (le handler capture `store`, réaffecté par changerDossier). Support
-  // des requêtes Range : l'élément <audio> de Chromium en dépend pour le seek.
+  // Protocole `sonal-media` : deux hôtes par nature de ressource. Le handler
+  // capture `store` (réaffecté par changerDossier). Support des requêtes Range
+  // (l'élément <audio> de Chromium en dépend pour le seek).
+  //   sonal-media://waveform/<id>  → PNG dérivé local (résolu par id, pas de
+  //                                 traversal possible — l'id est opaque)
+  //   sonal-media://abs/<encoded>  → audio référencé externe (whitelist stricte
+  //                                 sur les audioRef stockées dans le corpus)
   protocol.handle('sonal-media', (req) => {
-    const rel = decodeURIComponent(new URL(req.url).pathname).replace(/^\/+/, '')
-    const fichier = store.cheminMedia(rel)
+    const url = new URL(req.url)
+    const hote = url.hostname
+    let fichier: string | null = null
+    if (hote === 'waveform') {
+      // L'id est opaque (genId) — on retire le `/` initial du pathname.
+      const id = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+      fichier = store.cheminWaveform(id)
+    } else if (hote === 'abs') {
+      // Chemin absolu encodé : on retire le SEUL `/` initial ajouté par URL,
+      // puis décode — pour ne pas manger la barre initiale d'un chemin POSIX.
+      const brut = url.pathname.replace(/^\//, '')
+      fichier = store.cheminMediaAbs(decodeURIComponent(brut))
+    }
     if (!fichier) return new Response('média introuvable', { status: 404 })
     const taille = statSync(fichier).size
     const entetes: Record<string, string> = {
@@ -230,12 +246,15 @@ function enregistrerIpcCorpus(): void {
   // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) le
   // le main ne fait que LIRE/ÉCRIRE le fichier choisi. En e2e, showOpenDialog /
   // showSaveDialog sont stubbés (electronApp.evaluate) pour piloter sans dialog.
+  // J4 : `defaultPath` optionnel (hinté par la démo → racineSources) pour que le
+  // dialogue natif s'ouvre là où l'utilisateur doit retrouver les fichiers (§7.4).
   // Modale « Ajouter un entretien » (à la SonalPi, ajout-entretien.html) :
   //  DEUX zones — celle-ci choisit le fichier d'ENTRETIEN (contenu lu ici, parsé côté
-  // renderer) ; la zone son passe par dialog:choisirAudio (le main ne copie
-  // l'audio qu'à corpus:assignerAudio, jamais lu en mémoire).
-  ipcMain.handle('dialog:choisirTexte', async () => {
+  // renderer) ; la zone son passe par dialog:choisirAudio (le main ne touche
+  //  l'audio qu'à corpus:assignerAudio qui le RÉFÉRENCE, jamais lu en mémoire).
+  ipcMain.handle('dialog:choisirTexte', async (_e, defaultPath?: string) => {
     const r = await dialog.showOpenDialog({
+      defaultPath,
       properties: ['openFile'],
       filters: [{ name: 'Entretien', extensions: EXT_TEXTE }],
     })
@@ -243,10 +262,27 @@ function enregistrerIpcCorpus(): void {
     return { nom: basename(r.filePaths[0]), contenu: readFileSync(r.filePaths[0], 'utf8') }
   })
   // Zone son de la modale + « Assigner un audio… » sur la fiche entretien.
-  ipcMain.handle('dialog:choisirAudio', async () => {
+  ipcMain.handle('dialog:choisirAudio', async (_e, defaultPath?: string) => {
     const r = await dialog.showOpenDialog({
+      defaultPath,
       properties: ['openFile'],
       filters: [{ name: 'Audio', extensions: EXT_AUDIO }],
+    })
+    if (r.canceled || r.filePaths.length === 0) return null
+    return r.filePaths[0]
+  })
+  // Picker de DOSSIER PUR (aucun effet de bord sur le store) — utilisé par la
+  // modale démo à deux dossiers (§7.2). `kind` hinté le défaut
+  // `Documents/Sonal/démo/<kind>` (désamortit le geste, modifiable) ; le retour
+  // est le chemin choisi, le corpus y est ensuite OUVERT via corpus:ouvrirDossier.
+  ipcMain.handle('dialog:choisirDossier', async (_e, kind?: 'sources' | 'corpus') => {
+    const defaultPath =
+      kind === undefined
+        ? undefined
+        : join(app.getPath('documents'), 'Sonal', 'démo', kind === 'sources' ? 'sources' : 'corpus')
+    const r = await dialog.showOpenDialog({
+      defaultPath,
+      properties: ['openDirectory', 'createDirectory'],
     })
     if (r.canceled || r.filePaths.length === 0) return null
     return r.filePaths[0]
@@ -259,8 +295,43 @@ function enregistrerIpcCorpus(): void {
   })
 }
 
+// ── Démo « Mini Corpus Test » : lecture des sources bundled ───────────────
+// Les sources (SRT + audio) de CorpusTest/ NE sont PAS un corpus Sonal (pas de
+// corpus.json / entretiens/) : elles sont l'AMONT du builder de démo, qui les
+// importe via le vrai pipeline (sas d'import + assignerAudio) dans un dossier
+// choisi. Le builder lui-même tourne côté renderer (l'importeur SRT y vit, avec
+// DOMParser) ; le main ne fait que LIRE ces fichiers.
+function cheminCorpusTest(): string {
+  // Dev : CorpusTest/ à la racine du projet (app.getAppPath() = cwd au lancement).
+  // Prod : copié en ressources par electron-builder (extraResources, hors asar).
+  return app.isPackaged
+    ? join(process.resourcesPath, 'CorpusTest')
+    : join(app.getAppPath(), 'CorpusTest')
+}
+
+function enregistrerIpcDemo(): void {
+  /** Copie les sources bundled `CorpusTest/` (`srt/` + `audio/`, ~13 Mo) dans le
+   *  dossier choisi par l'utilisateur — LA seule copie de tout le flow de démo
+   *  (§7.2). Idempotent (`cpSync` écrase) ; la sémantique est fichier-à-fichier
+   *  (les modifs utilisateur dans `racine` ne sont pas détruites, §7.2/§11).
+   *  Le corpus de travail RÉFÉRENCE ensuite ces fichiers (zéro copie). */
+  ipcMain.handle('demo:copierSources', (_e, racine: string) => {
+    cpSync(cheminCorpusTest(), racine, { recursive: true })
+  })
+  /** Lit un fichier texte des sources (ex. `srt/E2.srt`) → { nom, contenu }.
+   *  J4 : racine paramétrable (les sources sont matérialisées, plus bundled). */
+  ipcMain.handle('demo:lireSource', (_e, racine: string, rel: string) => {
+    const abs = join(racine, rel)
+    return { nom: basename(abs), contenu: readFileSync(abs, 'utf8') }
+  })
+  /** Chemin ABSOLU d'un média des sources (ex. `audio/E2.mp3`) — passé tel quel
+   *  à `corpus:assignerAudio` qui le RÉFÉRENCE (plus de copie). */
+  ipcMain.handle('demo:cheminAudio', (_e, racine: string, rel: string) => join(racine, rel))
+}
+
 app.whenReady().then(() => {
   enregistrerIpcCorpus()
+  enregistrerIpcDemo()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

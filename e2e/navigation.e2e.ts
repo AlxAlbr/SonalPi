@@ -17,8 +17,8 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await attendreAccueil(page)
   await expect(page.locator('.corpus-ecran')).toBeHidden()
 
-  // Accueil → Corpus (carte « Corpus courant »).
-  await page.locator('.carte.ouvrir-corpus').click()
+  // Accueil → Corpus (1er récent = corpus courant).
+  await page.locator('.recents .recent').first().click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
@@ -26,7 +26,7 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
   await expect(page.locator('.ecran.accueil')).toBeVisible()
   await expect(page.locator('.corpus-ecran')).toBeHidden()
-  await page.locator('.carte.ouvrir-corpus').click()
+  await page.locator('.recents .recent').first().click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
 
   // Corpus → Entretien (ouvrir un entretien) : l'éditeur devient visible.

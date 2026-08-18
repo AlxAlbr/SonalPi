@@ -31,12 +31,18 @@ export function useAudio() {
    *  fin pour la synchro par bloc ; la barre de position suit au même rythme. */
   const position = ref(0)
   const vitesse = ref(1)
+  /** Vrai si l'audio référencé est introuvable (fichier déplacé/supprimé).
+   *  L'événement `error` du <audio> se déclenche quand la source ne charge pas. */
+  const erreur = ref(false)
 
   el.addEventListener('timeupdate', () => (position.value = el.currentTime))
   el.addEventListener('durationchange', () => (duree.value = Number.isFinite(el.duration) ? el.duration : 0))
   el.addEventListener('play', () => (enLecture.value = true))
   el.addEventListener('pause', () => (enLecture.value = false))
   el.addEventListener('ended', () => (enLecture.value = false))
+  el.addEventListener('error', () => {
+    if (url.value) erreur.value = true // erreur de chargement (fichier manquant)
+  })
 
   /** Charge (ou décharge, u=null) l'audio de l'entretien ouvert. */
   function charger(u: string | null, waveform: string | null) {
@@ -45,6 +51,7 @@ export function useAudio() {
     waveformUrl.value = waveform
     position.value = 0
     duree.value = 0
+    erreur.value = false
     if (u) {
       el.src = u
       el.load()
@@ -85,6 +92,7 @@ export function useAudio() {
     position,
     vitesse,
     ratio,
+    erreur,
     charger,
     basculer,
     pause,

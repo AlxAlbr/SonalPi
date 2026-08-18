@@ -1,0 +1,320 @@
+﻿1
+00:00:00,000 --> 00:00:01,780
+Speaker 1: Bonjour Marc, merci de m'accueillir à La Halle.
+
+2
+00:00:02,220 --> 00:00:05,360
+Speaker 1: Pouvez-vous vous présenter et me dire ce que vous faites ici, le jeudi ?
+
+3
+00:00:05,620 --> 00:00:12,360
+Speaker 0: Oui, j'ai 46 ans et je suis cuisinier en restauration collective dans un lycée, depuis 10 ans, le service du midi.
+
+4
+00:00:13,240 --> 00:00:20,720
+Speaker 0: Et là, le jeudi soir, j'aide les enfants avec leurs devoirs, à la bibliothèque municipale, du CP au CM2.
+
+5
+00:00:21,620 --> 00:00:23,000
+Speaker 1: Et comment vous êtes arrivé ici ?
+
+6
+00:00:23,220 --> 00:00:26,480
+Speaker 0: Un poste sur la page de l'assaut, que je suivais depuis un moment.
+
+7
+00:00:27,340 --> 00:00:29,300
+Speaker 0: Ils cherchaient des gens pour les soirées de jeudi.
+
+8
+00:00:30,100 --> 00:00:32,479
+Speaker 0: Si vous avez envie d'aider les enfants, venez.
+
+9
+00:00:33,560 --> 00:00:37,800
+Speaker 0: Alors j'ai envoyé un message, et la bibliothécaire m'a rappelé quelques jours après.
+
+10
+00:00:38,580 --> 00:00:39,600
+Speaker 0: Ça fait un an maintenant.
+
+11
+00:00:40,160 --> 00:00:41,120
+Speaker 1: Vous avez arrêté les études.
+
+12
+00:00:41,160 --> 00:00:41,800
+Speaker 1: à quel âge ?
+
+13
+00:00:41,800 --> 00:00:42,460
+Speaker 0: 15 ans.
+
+14
+00:00:43,240 --> 00:00:45,200
+Speaker 0: J'ai commencé dans une boulangerie vers 16 ans.
+
+15
+00:00:45,220 --> 00:00:46,580
+Speaker 0: 10 ans là-bas.
+
+16
+00:00:47,420 --> 00:00:49,740
+Speaker 0: Ensuite, la restauration collective.
+
+17
+00:00:50,680 --> 00:00:53,200
+Speaker 0: Le regret des études ne m'a jamais complètement quitté.
+
+18
+00:00:53,880 --> 00:00:56,100
+Speaker 1: Et vos débuts ici, est-ce que ça a été facile ?
+
+19
+00:00:56,460 --> 00:00:58,260
+Speaker 0: Non, franchement, j'avais peur.
+
+20
+00:00:59,260 --> 00:01:02,540
+Speaker 0: Peur de rien y connaître, de paraître nul devant les gamins.
+
+21
+00:01:03,520 --> 00:01:09,040
+Speaker 0: La première semaine, un gamin me demande un truc, je sais pas, et je me suis senti bête.
+
+22
+00:01:09,800 --> 00:01:12,000
+Speaker 1: Et alors, comment vous avez trouvé votre place ?
+
+23
+00:01:12,120 --> 00:01:12,960
+Speaker 0: J'ai trouvé mon truc.
+
+24
+00:01:13,680 --> 00:01:15,600
+Speaker 0: J'illustre souvent les choses à la cuisine.
+
+25
+00:01:16,400 --> 00:01:17,700
+Speaker 0: Les proportions, par exemple.
+
+26
+00:01:18,340 --> 00:01:22,360
+Speaker 0: La recette est pour 4, comment on fait pour 12 ?
+
+27
+00:01:22,820 --> 00:01:23,700
+Speaker 0: Les gamins adorent.
+
+28
+00:01:24,180 --> 00:01:26,040
+Speaker 0: Ils m'appellent « chef ».
+
+29
+00:01:27,840 --> 00:01:31,240
+Speaker 0: Et là, je me suis dit, tiens, j'y arrive.
+
+30
+00:01:31,820 --> 00:01:32,140
+Speaker 1: Très bien.
+
+31
+00:01:32,360 --> 00:01:33,420
+Speaker 1: Est-ce que vous pouvez me décrire?
+
+32
+00:01:33,560 --> 00:01:34,800
+Speaker 1: une de vos soirées, là-bas ?
+
+33
+00:01:35,160 --> 00:01:36,140
+Speaker 0: On arrive vers 17h.
+
+34
+00:01:37,000 --> 00:01:38,720
+Speaker 0: Il y a en général une dizaine d'enfants.
+
+35
+00:01:39,600 --> 00:01:41,700
+Speaker 0: Il y a un petit coin lecture pour les plus petits.
+
+36
+00:01:42,720 --> 00:01:43,740
+Speaker 0: On arrête vers 19h.
+
+37
+00:01:44,520 --> 00:01:46,060
+Speaker 1: Ce sont surtout des enfants du quartier ?
+
+38
+00:01:46,400 --> 00:01:46,480
+Speaker 0: Oui.
+
+39
+00:01:47,320 --> 00:01:50,220
+Speaker 0: Les parents déposent les plus petits et reviennent les chercher.
+
+40
+00:01:51,100 --> 00:01:53,040
+Speaker 0: Les plus grands, ils viennent seuls.
+
+41
+00:01:53,500 --> 00:01:58,360
+Speaker 1: L'association, quel est son rôle exactement ?
+
+42
+00:02:04,980 --> 00:02:14,500
+Speaker 1: Et entre bénévoles, vous êtes combien, le jeudi ?
+
+43
+00:02:14,500 --> 00:02:15,740
+Speaker 0: 4 ou 5 réguliers.
+
+44
+00:02:16,620 --> 00:02:18,280
+Speaker 0: Il y a une institutrice à la retraite.
+
+45
+00:02:18,980 --> 00:02:20,280
+Speaker 0: Elle prend souvent les plus grands.
+
+46
+00:02:20,900 --> 00:02:23,080
+Speaker 0: Et deux étudiants qui viennent quand ils peuvent.
+
+47
+00:02:23,900 --> 00:02:24,320
+Speaker 0: C'est sympa.
+
+48
+00:02:25,120 --> 00:02:25,880
+Speaker 0: Il n'y a pas de pression.
+
+49
+00:02:26,780 --> 00:02:30,360
+Speaker 0: Si vous ne venez pas, personne ne dit rien tant que vous avez prévenu.
+
+50
+00:02:31,100 --> 00:02:33,260
+Speaker 1: Et pour vous, personnellement, qu'est-ce que ça a changé ?
+
+51
+00:02:33,640 --> 00:02:34,860
+Speaker 0: J'ai trouvé de la confiance.
+
+52
+00:02:35,900 --> 00:02:39,860
+Speaker 0: Il y a eu une fille qui me disait, je ne comprendrai jamais les fractions.
+
+53
+00:02:40,880 --> 00:02:43,040
+Speaker 0: Et maintenant, elle y arrive toute seule.
+
+54
+00:02:44,080 --> 00:02:44,980
+Speaker 0: Je ne m'attendais pas à ça.
+
+55
+00:02:46,660 --> 00:02:47,680
+Speaker 0: Et de la fierté aussi.
+
+56
+00:02:48,320 --> 00:02:50,580
+Speaker 0: Quand il m'appelle chef, ça fait du bien.
+
+57
+00:02:51,660 --> 00:02:53,580
+Speaker 0: Ma femme me dit que je rentre plus léger.
+
+58
+00:02:54,280 --> 00:02:57,380
+Speaker 0: Et mon fils m'a dit un jour, tu fais mieux que ma prof.
+
+59
+00:02:59,660 --> 00:03:01,540
+Speaker 1: Et la question des études, elle est née comment ?
+
+60
+00:03:02,000 --> 00:03:07,220
+Speaker 0: Un jour, Madame Fontaine m'a dit, faudrait que vous mettiez un diplôme sur ce que vous faites.
+
+61
+00:03:08,240 --> 00:03:09,740
+Speaker 0: Et depuis, j'y pense.
+
+62
+00:03:10,540 --> 00:03:12,440
+Speaker 1: Vous en avez parlé avec votre femme ?
+
+63
+00:03:12,640 --> 00:03:13,380
+Speaker 0: Oui, bien entendu.
+
+64
+00:03:14,300 --> 00:03:17,060
+Speaker 0: Elle m'a dit, vas-y, c'est pas trop tard.
+
+65
+00:03:18,080 --> 00:03:18,900
+Speaker 0: Alors je regarde.
+
+66
+00:03:19,720 --> 00:03:21,280
+Speaker 0: Il y a un centre qui fait les soirs.
+
+67
+00:03:22,180 --> 00:03:22,740
+Speaker 0: J'irai voir.
+
+68
+00:03:23,720 --> 00:03:25,980
+Speaker 0: J'ai pas encore signé, mais je regarde.
+
+69
+00:03:26,460 --> 00:03:28,280
+Speaker 1: Et pour la suite, le jeudi, ça continue ?
+
+70
+00:03:28,620 --> 00:03:28,700
+Speaker 0: Oui.
+
+71
+00:03:29,420 --> 00:03:33,380
+Speaker 0: Tant que mon dos tiendra, et tant que la salle existera.
+
+72
+00:03:34,040 --> 00:03:34,760
+Speaker 1: Un dernier mot ?
+
+73
+00:03:35,120 --> 00:03:38,600
+Speaker 0: S'il y a des gens qui se disent, je ne peux pas car j'en sais pas assez.
+
+74
+00:03:39,620 --> 00:03:41,260
+Speaker 0: En fait, ils peuvent.
+
+75
+00:03:42,200 --> 00:03:43,320
+Speaker 0: Il ne faut pas être prof.
+
+76
+00:03:44,360 --> 00:03:46,400
+Speaker 0: Les enfants, ils ne vous demandent pas ça.
+
+77
+00:03:47,540 --> 00:03:49,920
+Speaker 0: Venez un jeudi, c'est tout ce que je dirai.
+
+78
+00:03:50,520 --> 00:03:51,080
+Speaker 1: Merci Marc.
+
+79
+00:03:51,660 --> 00:03:52,280
+Speaker 0: Merci à vous.
+
+80
+00:03:53,100 --> 00:03:54,540
+Speaker 0: Ça fait plaisir aussi d'en parler.
+

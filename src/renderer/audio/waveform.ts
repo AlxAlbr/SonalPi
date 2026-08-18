@@ -1,11 +1,18 @@
 import { enveloppe } from './enveloppe'
 
-/** URL d'un média du corpus, servie par le protocole `sonal-media` du main
- *  (en dev, le renderer Vite est en http://localhost et ne lit pas file://).
- *  `v` casse le cache navigateur
- *  après une (ré)génération. */
-export function urlMedia(rel: string, v?: number | string): string {
-  return `sonal-media://corpus/${rel}` + (v != null ? `?v=${v}` : '')
+/** URL d'un audio RÉFÉRENCÉ (chemin absolu externe), servie par le protocole
+ *  `sonal-media` du main (en dev, le renderer Vite est en http://localhost et
+ *  ne lit pas file://). Le chemin est encodé dans le pathname de l'hôte `abs` ;
+ *  la whitelist côté main vérifie qu'il appartient aux `audioRef` du corpus. */
+export function urlMediaAudio(audioRef: string): string {
+  return `sonal-media://abs/${encodeURIComponent(audioRef)}`
+}
+
+/** URL du PNG waveform d'un entretien (dérivé local `<corpus>/png/<id>.png`),
+ *  servie par le protocole `sonal-media` (hôte `waveform`, résolu par id côté
+ *  main). `v` casse le cache navigateur après une (ré)génération. */
+export function urlMediaWaveform(id: string, v?: number | string): string {
+  return `sonal-media://waveform/${id}` + (v != null ? `?v=${v}` : '')
 }
 
 /**
@@ -68,7 +75,7 @@ export async function genererWaveformPng(
  *  indécodable (on n'échoue pas l'assignation pour un dérivé). */
 export async function genererEtEcrireWaveform(id: string, audioRef: string): Promise<string | null> {
   try {
-    const rep = await fetch(urlMedia(audioRef))
+    const rep = await fetch(urlMediaAudio(audioRef))
     if (!rep.ok) return null
     const png = await genererWaveformPng(await rep.arrayBuffer())
     return await window.sonal.corpus.ecrireWaveform(id, png)

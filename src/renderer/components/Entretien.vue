@@ -117,13 +117,13 @@ function focaliserLibre(el: unknown, cle: string) {
 
         <div class="colonne-droite">
           <nav class="onglets">
-            <button :class="{ actif: ongletDroite === 'themes' }" @click="ongletDroite = 'themes'">
+            <button data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" @click="ongletDroite = 'themes'">
               <img class="ico-onglet" :src="icoThemes" alt="" />Thèmes
             </button>
             <button :class="{ actif: ongletDroite === 'locuteurs' }" @click="ongletDroite = 'locuteurs'">
               <img class="ico-onglet" :src="icoLocuteurs" alt="" />Loc
             </button>
-            <button :class="{ actif: ongletDroite === 'donnees' }" @click="ongletDroite = 'donnees'">
+            <button data-tour="onglet-donnees" :class="{ actif: ongletDroite === 'donnees' }" @click="ongletDroite = 'donnees'">
               <img class="ico-onglet" :src="icoDonnees" alt="" />Données
             </button>
             <button :class="{ actif: ongletDroite === 'journal' }" @click="ongletDroite = 'journal'">

@@ -1,0 +1,400 @@
+﻿1
+00:00:00,700 --> 00:00:02,460
+Speaker 1: Alors déjà, merci beaucoup de me recevoir.
+
+2
+00:00:03,060 --> 00:00:06,920
+Speaker 1: Pour commencer, est-ce que vous pouvez vous présenter et m'expliquer ce que vous faites à la Maison des Habitants?
+
+3
+00:00:06,940 --> 00:00:07,160
+Speaker 1: ?
+
+4
+00:00:07,360 --> 00:00:08,860
+Speaker 0: Oui, alors moi c'est Fatima.
+
+5
+00:00:09,500 --> 00:00:13,040
+Speaker 0: Je suis bénévole à la Maison des Habitants, surtout pour l'aide aux devoirs.
+
+6
+00:00:13,760 --> 00:00:16,900
+Speaker 0: J'habite la résidence Sainte-Anne à Villebourg depuis bientôt 20 ans.
+
+7
+00:00:17,840 --> 00:00:19,840
+Speaker 1: Et comment est-ce que vous avez connu l'association ?
+
+8
+00:00:20,120 --> 00:00:22,300
+Speaker 0: Ben, c'est mes voisines Anne et Claire qui m'en ont parlé.
+
+9
+00:00:23,000 --> 00:00:27,560
+Speaker 0: Un jour, elles me disent « Tiens, à la Maison des Habitants, ils cherchent des gens pour aider les enfants ».
+
+10
+00:00:28,300 --> 00:00:29,420
+Speaker 0: Et moi, ça m'a tout de suite parlé.
+
+11
+00:00:29,840 --> 00:00:32,980
+Speaker 0: Parce que mon fils Lucas avait justement des soucis à l'école à l'époque.
+
+12
+00:00:33,680 --> 00:00:34,760
+Speaker 1: C'était il y a longtemps ?
+
+13
+00:00:35,080 --> 00:00:37,720
+Speaker 0: Oh, ça devait être en 2012.
+
+14
+00:00:38,200 --> 00:00:39,360
+Speaker 0: Oui, 2012.
+
+15
+00:00:39,540 --> 00:00:41,460
+Speaker 0: Parce que Lucas rentrait au collège cette année-là.
+
+16
+00:00:41,900 --> 00:00:43,240
+Speaker 0: Donc, ça fait un moment.
+
+17
+00:00:44,580 --> 00:00:46,380
+Speaker 1: Et au début, vous faisiez quoi exactement ?
+
+18
+00:00:46,980 --> 00:00:47,980
+Speaker 0: Au début, pas grand-chose.
+
+19
+00:00:48,260 --> 00:00:49,740
+Speaker 0: J'aidais juste une heure par semaine.
+
+20
+00:00:50,480 --> 00:00:52,720
+Speaker 0: Et puis, petit à petit, j'ai pris des responsabilités.
+
+21
+00:00:53,220 --> 00:00:55,780
+Speaker 0: Et maintenant, je coordonne presque toute l'aide aux devoirs.
+
+22
+00:00:56,660 --> 00:00:57,820
+Speaker 1: Vous accueillez beaucoup d'enfants ?
+
+23
+00:00:58,260 --> 00:01:00,520
+Speaker 0: On accueille à peu près une trentaine d'enfants par semaine.
+
+24
+00:01:01,180 --> 00:01:01,940
+Speaker 0: C'est beaucoup pour nous.
+
+25
+00:01:02,400 --> 00:01:04,060
+Speaker 0: Parce qu'on n'est pas nombreux comme bénévoles.
+
+26
+00:01:04,780 --> 00:01:06,980
+Speaker 1: Et ces enfants, ils viennent surtout du quartier ?
+
+27
+00:01:07,280 --> 00:01:08,780
+Speaker 0: Oui, presque tous des tilleuls.
+
+28
+00:01:09,440 --> 00:01:12,600
+Speaker 0: Il y a beaucoup de familles ici qui n'ont pas les moyens de payer du soutien scolaire.
+
+29
+00:01:13,120 --> 00:01:14,500
+Speaker 0: Alors, ces enfants, ils viennent chez nous.
+
+30
+00:01:15,080 --> 00:01:15,940
+Speaker 0: Pour eux, c'est gratuit.
+
+31
+00:01:16,780 --> 00:01:19,180
+Speaker 1: Et votre voisine Anne, elle est bénévole aussi ?
+
+32
+00:01:19,480 --> 00:01:19,560
+Speaker 0: Oui.
+
+33
+00:01:20,040 --> 00:01:21,900
+Speaker 0: Anne donne un coup de main à l'épicerie solidaire.
+
+34
+00:01:22,600 --> 00:01:23,660
+Speaker 0: On habite le même immeuble.
+
+35
+00:01:24,060 --> 00:01:27,020
+Speaker 0: Alors, on fait souvent le trajet ensemble jusqu'à la Maison des Habitants.
+
+36
+00:01:27,880 --> 00:01:30,460
+Speaker 1: Comment ça se passe concrètement, une séance d'aide aux devoirs ?
+
+37
+00:01:30,620 --> 00:01:33,420
+Speaker 1: Pouvez-vous m'en faire une description synthétique la plus claire possible?
+
+38
+00:01:33,440 --> 00:01:33,600
+Speaker 1: ?
+
+39
+00:01:34,100 --> 00:01:37,560
+Speaker 0: Alors, ils arrivent vers 16h30, après l'école.
+
+40
+00:01:38,340 --> 00:01:42,420
+Speaker 0: On les installe par petits groupes, et chaque bénévole s'occupe de deux ou trois enfants.
+
+41
+00:01:43,260 --> 00:01:47,800
+Speaker 0: On fait les devoirs, et quand ils ont fini, enfin voilà, on essaie de faire un petit jeu.
+
+42
+00:01:48,620 --> 00:01:50,620
+Speaker 1: Et l'association vous soutient bien pour ça ?
+
+43
+00:01:51,100 --> 00:01:51,160
+Speaker 0: Oui.
+
+44
+00:01:51,540 --> 00:01:53,680
+Speaker 0: Franchement, la Maison des Habitants nous donne les moyens.
+
+45
+00:01:54,400 --> 00:01:55,880
+Speaker 0: On a une salle, du matériel.
+
+46
+00:01:56,860 --> 00:01:58,760
+Speaker 0: On se bat pas mal pour qu'on ait des subventions.
+
+47
+00:01:59,520 --> 00:02:00,880
+Speaker 1: D'accord, on reviendra sur elle.
+
+48
+00:02:01,460 --> 00:02:04,320
+Speaker 0: Enfin, moi je dis ça, mais Madame Royer, elle est très présente.
+
+49
+00:02:04,620 --> 00:02:06,220
+Speaker 0: Elle connaît tous les gamins par leur prénom.
+
+50
+00:02:07,100 --> 00:02:09,919
+Speaker 1: Justement, comment vous décririez l'ambiance entre bénévoles ?
+
+51
+00:02:10,440 --> 00:02:11,260
+Speaker 0: C'est très familial.
+
+52
+00:02:11,980 --> 00:02:13,080
+Speaker 0: On est une équipe soudée.
+
+53
+00:02:13,900 --> 00:02:17,620
+Speaker 0: Bon, des fois, il y a des tensions, comme partout, mais dans l'ensemble, on s'entend bien.
+
+54
+00:02:18,340 --> 00:02:20,340
+Speaker 0: On fait même des repas ensemble de temps en temps.
+
+55
+00:02:21,080 --> 00:02:23,340
+Speaker 1: Et vous, qu'est-ce que ça vous apporte personnellement ?
+
+56
+00:02:23,860 --> 00:02:24,580
+Speaker 0: Beaucoup de choses.
+
+57
+00:02:25,180 --> 00:02:26,240
+Speaker 0: Déjà, je me sens utile.
+
+58
+00:02:27,100 --> 00:02:31,260
+Speaker 0: Et puis, voir un gamin qui galère et qui finit par avoir son brevet, ça n'a pas de prix.
+
+59
+00:02:32,220 --> 00:02:36,720
+Speaker 0: Mon fils, Lucas, d'ailleurs, il me dit souvent que je passe plus de temps avec les enfants des autres qu'avec lui.
+
+60
+00:02:37,580 --> 00:02:39,320
+Speaker 1: Est-ce qu'il y a des moments plus difficiles ?
+
+61
+00:02:40,140 --> 00:02:40,220
+Speaker 0: Oui.
+
+62
+00:02:40,700 --> 00:02:42,300
+Speaker 0: Quand on manque de bénévoles, c'est dur.
+
+63
+00:02:43,320 --> 00:02:44,520
+Speaker 0: Là, on est en sous-effectif.
+
+64
+00:02:45,520 --> 00:02:47,200
+Speaker 0: À la rentrée, on a perdu deux personnes.
+
+65
+00:02:47,620 --> 00:02:50,580
+Speaker 0: Et à Villebourg, c'est pas évident de recruter des bénévoles réguliers.
+
+66
+00:02:51,200 --> 00:02:52,000
+Speaker 0: Les gens ont leur vie.
+
+67
+00:02:52,760 --> 00:02:55,580
+Speaker 1: Vous diriez que le quartier a changé depuis que vous êtes arrivés ?
+
+68
+00:02:56,060 --> 00:02:56,300
+Speaker 0: Ah oui.
+
+69
+00:02:56,760 --> 00:02:58,040
+Speaker 0: Les filles ont beaucoup changé.
+
+70
+00:02:58,920 --> 00:02:59,760
+Speaker 0: Avant, c'était plus….
+
+71
+00:03:00,740 --> 00:03:01,260
+Speaker 0: comment dire….
+
+72
+00:03:01,920 --> 00:03:03,760
+Speaker 0: il y avait plus de commerce, plus de vie.
+
+73
+00:03:04,520 --> 00:03:06,200
+Speaker 0: Maintenant, beaucoup de gens travaillent ailleurs.
+
+74
+00:03:07,140 --> 00:03:08,760
+Speaker 0: Mais la solidarité, elle est toujours là.
+
+75
+00:03:09,220 --> 00:03:09,960
+Speaker 0: Ça, je peux le dire.
+
+76
+00:03:10,760 --> 00:03:13,120
+Speaker 1: Et l'avenir de l'association, vous le voyez comment ?
+
+77
+00:03:13,680 --> 00:03:14,800
+Speaker 0: J'espère qu'on va continuer.
+
+78
+00:03:15,520 --> 00:03:18,020
+Speaker 0: Tant que la maison des habitants existe, je serai là.
+
+79
+00:03:19,140 --> 00:03:24,580
+Speaker 0: Le souci, c'est toujours l'argent, les subventions, ou c'est jamais d'une année sur l'autre sur les auras.
+
+80
+00:03:25,340 --> 00:03:26,460
+Speaker 0: Mais bon, on fait avec.
+
+81
+00:03:27,440 --> 00:03:28,940
+Speaker 1: Un dernier mot pour conclure ?
+
+82
+00:03:29,280 --> 00:03:29,760
+Speaker 0: Juste que….
+
+83
+00:03:30,720 --> 00:03:34,740
+Speaker 0: si des gens un jour lisent cet entretien et qu'ils ont un peu de temps, qu'ils viennent.
+
+84
+00:03:35,360 --> 00:03:36,080
+Speaker 0: On a besoin de bras.
+
+85
+00:03:36,120 --> 00:03:37,800
+Speaker 0: Anne vous le dirait aussi, la maison des habitants, c'est une belle aventure.
+
+86
+00:03:37,840 --> 00:03:37,980
+Speaker 0: Vraiment.
+
+87
+00:03:38,020 --> 00:03:38,700
+Speaker 0: Merci beaucoup, Fatima.
+
+88
+00:03:38,760 --> 00:03:39,000
+Speaker 0: Merci à tous.
+
+89
+00:03:39,040 --> 00:03:39,540
+Speaker 0: Merci à tous.
+
+90
+00:03:39,580 --> 00:03:39,860
+Speaker 0: Merci à tous.
+
+91
+00:03:39,900 --> 00:03:40,160
+Speaker 0: Merci à tous.
+
+92
+00:03:40,240 --> 00:03:40,580
+Speaker 0: Merci à tous.
+
+93
+00:03:40,620 --> 00:03:40,880
+Speaker 0: Merci à tous.
+
+94
+00:03:40,920 --> 00:03:41,300
+Speaker 0: Merci à tous.
+
+95
+00:03:41,340 --> 00:03:41,660
+Speaker 1: Merci à tous.
+
+96
+00:03:41,700 --> 00:03:41,980
+Speaker 1: Merci à tous.
+
+97
+00:03:42,020 --> 00:03:42,540
+Speaker 1: Merci à tous.
+
+98
+00:03:42,580 --> 00:03:42,800
+Speaker 1: Merci à tous.
+
+99
+00:03:42,840 --> 00:03:43,120
+Speaker 1: Merci à tous.
+
+100
+00:03:43,160 --> 00:03:43,480
+Speaker 1: Merci à tous.
+

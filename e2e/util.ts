@@ -2,7 +2,7 @@
 // (le DOM n'est pas dans `lib` du tsconfig node ; `selectionner` s'exécute en
 //  contexte navigateur via page.evaluate → on tire les types DOM pour CE fichier.)
 import { expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ecrireSeedDemo } from '../test/seedDemo'
@@ -20,6 +20,15 @@ export async function lancer(userDataDir: string): Promise<ElectronApplication> 
   // démo « Karine » → écrite dans le corpus par défaut du profil AVANT le
   // lancement (un dossier pické par un test reste vierge, sauf s'il la pose).
   ecrireSeedDemo(join(userDataDir, 'corpus'))
+  // Nouveau flux Accueil (plan-tutoriel §11) : le démarrage charge le 1er récent
+  // et la carte « Corpus courant » a disparu. On pré-inscrit donc le corpus par
+  // défaut (seedé) comme récent — comme un utilisateur qui a déjà ouvert ce
+  // corpus — pour que les tests puissent y entrer depuis l'Accueil (1er récent).
+  writeFileSync(
+    join(userDataDir, 'settings.json'),
+    JSON.stringify({ recents: [join(userDataDir, 'corpus')] }, null, 2),
+    'utf8',
+  )
   return electron.launch({
     args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`],
     env: launchEnv(),
@@ -34,10 +43,11 @@ export async function attendreAccueil(page: Page): Promise<void> {
 export async function attendreCorpus(page: Page): Promise<void> {
   await expect(page.locator('.corpus-ecran')).toBeVisible({ timeout: 20_000 })
 }
-/** Depuis l'ACCUEIL (au démarrage), entre dans le corpus courant → écran Corpus. */
+/** Depuis l'ACCUEIL (au démarrage), entre dans le corpus courant (1er récent)
+ *  → écran Corpus. */
 export async function entrerCorpus(page: Page): Promise<void> {
   await attendreAccueil(page)
-  await page.locator('.carte.ouvrir-corpus').click()
+  await page.locator('.recents .recent').first().click()
   await attendreCorpus(page)
 }
 

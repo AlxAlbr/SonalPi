@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
 import { ecrireSeedDemo } from './seedDemo'
-import type { PayloadEntretien, EntretienFichier } from '../src/shared/format'
+import type { PayloadEntretien, EntretienFichier, CorpusFichier } from '../src/shared/format'
 
 /** Store sur la BASELINE de démo « Karine » (e1 + 7 thèmes) — l'ex-amorçage
  *  produit, désormais une fixture posée AVANT ouverture (S8 rév.). */
@@ -42,7 +42,7 @@ describe('CorpusStore — amorçage & round-trip', () => {
   test('un dossier VIERGE s’amorce VIDE : aucun entretien, codebook = bloc Pondérations SonalPi', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-store-vierge-'))
     const corpus = new CorpusStore(dir).ouvrir()
-    expect(corpus.formatVersion).toBe(2)
+    expect(corpus.formatVersion).toBe(3)
     expect(corpus.membership).toEqual({}) // AUCUN entretien de démo (S8 rév.)
     expect(Object.keys(corpus.codebook).sort()).toEqual(['cat_001', 'cat_002', 'cat_003', 'cat_004'])
     expect(corpus.codebook.cat_001).toMatchObject({ nom: 'Pondérations', couleur: '#ffffff', parent: null })
@@ -92,7 +92,7 @@ describe('CorpusStore — écriture atomique', () => {
     const restes = readdirSync(join(dir, 'entretiens')).filter((f) => f.endsWith('.tmp'))
     expect(restes).toEqual([])
     // (La sûreté au vrai crash repose sur l'atomicité de rename() — non simulée ici.)
-    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(2)
+    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(3)
   })
 })
 
@@ -116,7 +116,7 @@ describe('CorpusStore — filet .bak à 2 générations, tourné PAR SESSION', (
     expect(JSON.stringify(lireFichier(dir, 'entretiens/e1.json.bak1').corpsTexte)).toContain('S1-b')
     expect(JSON.stringify(lireFichier(dir, 'entretiens/e1.json.bak2').corpsTexte)).toContain('Karine')
     // Un .bak reste un entretien ouvrable (JSON valide, versionné).
-    expect(lireFichier(dir, 'entretiens/e1.json.bak1').formatVersion).toBe(2)
+    expect(lireFichier(dir, 'entretiens/e1.json.bak1').formatVersion).toBe(3)
   })
 })
 
@@ -155,7 +155,7 @@ describe('CorpusStore — version du format natif', () => {
     const lu = store.lireEntretien('e1')
     expect(lu.ok).toBe(true)
     if (lu.ok) {
-      expect(lu.data.formatVersion).toBe(2)
+      expect(lu.data.formatVersion).toBe(3)
       // « Un deux. » (8 car.) → deb pos 1, fin pos 9 ; bloc scindé (nulls) → rien ;
       // « Quatre. » (7 car.) : début de bloc 1+(2+8)+(2+6)=19, fin 26.
       expect(lu.data.ancres).toEqual([
@@ -169,7 +169,7 @@ describe('CorpusStore — version du format natif', () => {
       expect(lu.data.lastModified).toBe('2020-01-01T00:00:00.000Z') // migrer ≠ éditer
     }
     // La migration est écrite sur disque (la relecture n'a plus rien à migrer).
-    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(2)
+    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(3)
   })
 
   test('un corpus de version inconnue fait échouer l’ouverture', () => {
@@ -194,24 +194,259 @@ describe('CorpusStore — cycle de vie du membership', () => {
     store.renommerEntretien(id, 'Renommé')
     expect(store.ouvrir().membership[id].titre).toBe('Renommé')
 
-    // Un audio assigné + sa forme d'onde (dérivé) existent pour cet entretien.
-    mkdirSync(join(dir, 'audio'), { recursive: true })
-    writeFileSync(join(dir, 'audio', id + '.wav'), 'fake-audio', 'utf8')
-    writeFileSync(join(dir, 'audio', id + '.png'), 'fake-onde', 'utf8')
+    // Un audio RÉFÉRENCÉ (chemin absolu externe) + sa forme d'onde (PNG dérivé
+    // dans `png/`) existent pour cet entretien. L'audio n'est JAMAIS dans le corpus.
+    const audioExterne = join(dir, 'sources', id + '.wav')
+    mkdirSync(join(dir, 'sources'), { recursive: true })
+    writeFileSync(audioExterne, 'fake-audio', 'utf8')
+    mkdirSync(join(dir, 'png'), { recursive: true })
+    writeFileSync(join(dir, 'png', id + '.png'), 'fake-onde', 'utf8')
 
     store.supprimerEntretien(id)
     expect(Object.keys(store.ouvrir().membership)).not.toContain(id)
-    // Rien n'est effacé : le fichier ET ses médias partent en corbeille/ (pas d'orphelins).
+    // Rien n'est effacé : le fichier entretien ET le PNG dérivé partent en corbeille/.
     expect(existsSync(join(dir, 'corbeille', id + '.json'))).toBe(true)
-    expect(existsSync(join(dir, 'corbeille', id + '.wav'))).toBe(true)
     expect(existsSync(join(dir, 'corbeille', id + '.png'))).toBe(true)
-    expect(existsSync(join(dir, 'audio', id + '.wav'))).toBe(false)
+    expect(existsSync(join(dir, 'png', id + '.png'))).toBe(false)
+    // L'audio EXTERNE n'est JAMAIS touché (c'est le nouveau modèle — parité SonalPi).
+    expect(existsSync(audioExterne)).toBe(true)
   })
 
   test('lire un entretien absent est un refus typé', () => {
     const { store } = storeNeuf()
     store.ouvrir()
     expect(store.lireEntretien('inexistant')).toEqual({ ok: false, raison: 'absent' })
+  })
+})
+
+describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
+  /** Crée un WAV factice (pas décodé — juste pour existsSync) hors du corpus. */
+  function audioExterne(dir: string, nom = 'ent.wav'): string {
+    const chemin = join(dir, 'sources', nom)
+    mkdirSync(join(dir, 'sources'), { recursive: true })
+    writeFileSync(chemin, 'fake-audio', 'utf8')
+    return chemin
+  }
+
+  test('assignerAudio ne copie PAS : audioRef = chemin absolu, fichier intact', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source = audioExterne(dir, 'rec.wav')
+
+    const res = store.assignerAudio(id, source)
+    expect(res).not.toBeNull()
+    expect(res!.audioRef).toBe(source) // chemin absolu stocké tel quel
+
+    // Le fichier n'est PAS copié dans le corpus (ni `audio/`, ni `png/`).
+    expect(existsSync(join(dir, 'audio', id + '.wav'))).toBe(false)
+    expect(existsSync(join(dir, 'png', id + '.wav'))).toBe(false)
+    // Le fichier source est intact (non déplacé).
+    expect(existsSync(source)).toBe(true)
+  })
+
+  test('cheminMediaAbs : whitelist — sert un chemin référencé, refuse les autres', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source = audioExterne(dir, 'ok.wav')
+    store.assignerAudio(id, source)
+
+    // Chemin référencé → servi.
+    expect(store.cheminMediaAbs(source)).toBe(source)
+    // Chemin non référencé (même s'il existe) → refusé (404 côté protocole).
+    const intrus = join(dir, 'sources', 'intrus.wav')
+    writeFileSync(intrus, 'x', 'utf8')
+    expect(store.cheminMediaAbs(intrus)).toBeNull()
+    // Chemin qui ressemble à une ref mais ne l'est pas → refusé.
+    expect(store.cheminMediaAbs(source + '.bak')).toBeNull()
+  })
+
+  test('cheminWaveform : résolu par id (opaque), refuse un id avec séparateur', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    mkdirSync(join(dir, 'png'), { recursive: true })
+    writeFileSync(join(dir, 'png', id + '.png'), 'png', 'utf8')
+
+    expect(store.cheminWaveform(id)).toBe(join(dir, 'png', id + '.png'))
+    expect(store.cheminWaveform(id + '../x')).toBeNull() // tentative de traversal
+    expect(store.cheminWaveform('inexistant')).toBeNull()
+  })
+
+  test('cache refsAudio : invalidé par assignerAudio, la nouvelle ref est servie', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source1 = audioExterne(dir, 'a.wav')
+    const source2 = audioExterne(dir, 'b.wav')
+
+    store.assignerAudio(id, source1)
+    expect(store.cheminMediaAbs(source1)).toBe(source1)
+    // Avant la 2e assignation, source2 n'est pas whitelistée.
+    expect(store.cheminMediaAbs(source2)).toBeNull()
+
+    store.assignerAudio(id, source2) // invalide le cache
+    expect(store.cheminMediaAbs(source2)).toBe(source2)
+    // source1 n'est plus whitelistée (l'entretien pointe maintenant vers source2).
+    expect(store.cheminMediaAbs(source1)).toBeNull()
+  })
+
+  test('cache refsAudio : invalidé par supprimerEntretien', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source = audioExterne(dir, 'sup.wav')
+    store.assignerAudio(id, source)
+    expect(store.cheminMediaAbs(source)).toBe(source)
+
+    store.supprimerEntretien(id) // invalide le cache
+    expect(store.cheminMediaAbs(source)).toBeNull()
+  })
+
+  test('audios() : audio = audioRef absolu, waveform = scan de png/', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source = audioExterne(dir, 'aud.wav')
+    store.assignerAudio(id, source)
+    // Pose un PNG dérivé.
+    mkdirSync(join(dir, 'png'), { recursive: true })
+    writeFileSync(join(dir, 'png', id + '.png'), 'png', 'utf8')
+
+    const res = store.audios()
+    expect(res[id].audio).toBe(source)
+    expect(res[id].waveform).toBe(`png/${id}.png`)
+  })
+
+  test('verifierAudios : ok / manquant selon existsSync', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source = audioExterne(dir, 'ok.wav')
+    store.assignerAudio(id, source)
+
+    expect(store.verifierAudios()[id]).toBe('ok')
+    // Supprimer le fichier source → manquant.
+    writeFileSync(source, '', 'utf8') // existe toujours → ok
+    const { id: id2 } = store.creerEntretienVide('Ent2')
+    const source2 = join(dir, 'sources', 'gone.wav')
+    writeFileSync(source2, 'x', 'utf8')
+    store.assignerAudio(id2, source2)
+    // Simuler un fichier disparu (suppression du disque).
+    const fs = require('node:fs')
+    fs.unlinkSync(source2)
+    expect(store.verifierAudios()[id2]).toBe('manquant')
+  })
+})
+
+describe('CorpusStore — migration v2→v3', () => {
+  test('audioRef relatif → absolu + PNG audio/ → png/ + bump formatVersion', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-'))
+    const now = new Date().toISOString()
+    // Corpus v2 avec un entretien dont l'audio est copié dans `audio/` (legacy).
+    const corpus: CorpusFichier = {
+      formatVersion: 2,
+      codebook: {},
+      variables: {},
+      reglesAnon: {},
+      personnes: {},
+      membership: { e1: { titre: 'E1', date: null, lastModified: now } },
+    }
+    const e1: EntretienFichier = {
+      formatVersion: 2,
+      lastModified: now,
+      corpsTexte: { type: 'doc', content: [] },
+      annotations: [],
+      ancres: [],
+      locuteurs: [],
+      meta: { valeursGen: {}, audioRef: 'audio/e1.mp3' },
+    }
+    mkdirSync(join(dir, 'entretiens'), { recursive: true })
+    mkdirSync(join(dir, 'audio'), { recursive: true })
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
+    writeFileSync(join(dir, 'audio', 'e1.mp3'), 'fake-mp3', 'utf8')
+    writeFileSync(join(dir, 'audio', 'e1.png'), 'fake-png', 'utf8')
+
+    const store = new CorpusStore(dir)
+    const c = store.ouvrir() // déclenche la migration v2→v3
+
+    // Corpus bumpé à v3.
+    expect(c.formatVersion).toBe(3)
+    // audioRef résolu en absolu vers le fichier existant dans `audio/`.
+    const lu = store.lireEntretien('e1')
+    expect(lu.ok && lu.data.formatVersion).toBe(3)
+    expect(lu.ok && lu.data.meta.audioRef).toBe(join(dir, 'audio', 'e1.mp3'))
+    // Le mp3 legacy reste dans `audio/` (référencé en absolu).
+    expect(existsSync(join(dir, 'audio', 'e1.mp3'))).toBe(true)
+    // Le PNG waveform a déménagé vers `png/`.
+    expect(existsSync(join(dir, 'audio', 'e1.png'))).toBe(false)
+    expect(existsSync(join(dir, 'png', 'e1.png'))).toBe(true)
+  })
+
+  test('migration v2→v3 idempotente (re-ouvrir ne recasse rien)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-idem-'))
+    const now = new Date().toISOString()
+    const corpus: CorpusFichier = {
+      formatVersion: 2,
+      codebook: {},
+      variables: {},
+      reglesAnon: {},
+      personnes: {},
+      membership: { e1: { titre: 'E1', date: null, lastModified: now } },
+    }
+    const e1: EntretienFichier = {
+      formatVersion: 2,
+      lastModified: now,
+      corpsTexte: { type: 'doc', content: [] },
+      annotations: [],
+      ancres: [],
+      locuteurs: [],
+      meta: { valeursGen: {}, audioRef: 'audio/e1.mp3' },
+    }
+    mkdirSync(join(dir, 'entretiens'), { recursive: true })
+    mkdirSync(join(dir, 'audio'), { recursive: true })
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
+    writeFileSync(join(dir, 'audio', 'e1.mp3'), 'fake-mp3', 'utf8')
+
+    const store = new CorpusStore(dir)
+    store.ouvrir() // 1re ouverture → migration
+    store.ouvrir() // 2e ouverture → déjà v3, rien à faire
+    const lu = store.lireEntretien('e1')
+    expect(lu.ok && lu.data.formatVersion).toBe(3)
+    expect(lu.ok && lu.data.meta.audioRef).toBe(join(dir, 'audio', 'e1.mp3'))
+  })
+
+  test('audioRef null reste null après migration', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-null-'))
+    const now = new Date().toISOString()
+    const corpus: CorpusFichier = {
+      formatVersion: 2,
+      codebook: {},
+      variables: {},
+      reglesAnon: {},
+      personnes: {},
+      membership: { e1: { titre: 'E1', date: null, lastModified: now } },
+    }
+    const e1: EntretienFichier = {
+      formatVersion: 2,
+      lastModified: now,
+      corpsTexte: { type: 'doc', content: [] },
+      annotations: [],
+      ancres: [],
+      locuteurs: [],
+      meta: { valeursGen: {}, audioRef: null },
+    }
+    mkdirSync(join(dir, 'entretiens'), { recursive: true })
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'entretiens', 'e1.json'), JSON.stringify(e1, null, 2), 'utf8')
+
+    const store = new CorpusStore(dir)
+    store.ouvrir()
+    const lu = store.lireEntretien('e1')
+    expect(lu.ok && lu.data.meta.audioRef).toBeNull()
   })
 })
 

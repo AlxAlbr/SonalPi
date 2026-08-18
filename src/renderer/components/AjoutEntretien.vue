@@ -11,7 +11,12 @@ import { utiliserSonal } from '../composables/sonal'
  * vide à taper (c'est l'ex-« Ajouter un document », avec le lecteur en plus —
  * pas de création « vierge » sans aucun fichier, décision utilisateur).
  */
-const { ajouterEntretien } = utiliserSonal()
+const { ajouterEntretien, racineSources } = utiliserSonal()
+
+// J4 (§7.4) : pendant une session démo, les dialogues natifs s'ouvrent dans
+// racineSources (désamortit le geste réel de l'étape 1 du pas-à-pas) — sinon
+// ils s'ouvrent au défaut OS et l'utilisateur chercherait les sources sans
+// repère. `undefined` hors démo → comportement inchangé.
 
 const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'webm']
@@ -40,14 +45,14 @@ function fermer() {
 const ext = (nom: string) => nom.toLowerCase().split('.').pop() ?? ''
 
 async function choisirTexte() {
-  const f = await window.sonal.dialog.choisirTexte()
+  const f = await window.sonal.dialog.choisirTexte(racineSources.value ?? undefined)
   if (f) {
     texte.value = f
     message.value = null
   }
 }
 async function choisirAudio() {
-  const chemin = await window.sonal.dialog.choisirAudio()
+  const chemin = await window.sonal.dialog.choisirAudio(racineSources.value ?? undefined)
   if (chemin) {
     audioChemin.value = chemin
     audioNom.value = chemin.replace(/^.*[\\/]/, '')
@@ -94,7 +99,7 @@ async function valider() {
 </script>
 
 <template>
-  <button class="mini ajout-ent" @click="ouvrir">+ Ajouter un entretien</button>
+  <button class="mini ajout-ent" data-tour="ajouter-entretien" @click="ouvrir">+ Ajouter un entretien</button>
 
   <Teleport to="body">
     <div v-if="ouverte" class="voile-modale" @click.self="fermer">
@@ -131,6 +136,9 @@ async function valider() {
 
         <p class="aide-ajout">
           Audio seul : crée un entretien au texte vide, à transcrire dans l'éditeur.
+        </p>
+        <p v-if="audioChemin" class="note-ref-audio">
+          L'audio est <strong>référencé, pas copié</strong> : le fichier d'origine doit rester à cet endroit.
         </p>
         <p v-if="message" class="msg-ajout">{{ message }}</p>
 
@@ -213,6 +221,15 @@ async function valider() {
   margin: 0;
   font-size: 0.72rem;
   color: #999;
+}
+.note-ref-audio {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #666;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
 }
 .msg-ajout {
   margin: 0;

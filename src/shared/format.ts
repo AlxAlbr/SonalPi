@@ -9,8 +9,14 @@ import type { Ancre } from './entretien/audio'
  *
  * v2 : les timecodes ne sont plus des attributs de bloc (`deb`/`fin`) mais des
  * ANCRES `{pos, t}` positionnées dans le texte (migration v1→v2 au store).
+ *
+ * v3 : `meta.audioRef` devient un chemin ABSOLU uniquement (plus de copie
+ * dans `<corpus>/audio/` — l'audio est référencé sur place, à la SonalPi).
+ * Migration v2→v3 au store : résolution des refs relatives en absolues +
+ * déplacement des PNG waveform `audio/` → `png/`. Le type du champ ne change
+ * pas (`string | null`), c'est le domaine de valeurs qui change.
  */
-export const FORMAT_VERSION = 2
+export const FORMAT_VERSION = 3
 
 export function versionSupportee(v: unknown): boolean {
   return v === FORMAT_VERSION

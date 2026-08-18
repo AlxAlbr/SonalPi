@@ -1,24 +1,61 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import ModaleDemo from './ModaleDemo.vue'
 import { utiliserSonal } from '../composables/sonal'
+import type { ModeDemo } from '../composables/demo'
 
 const {
-  dossierCourantNom,
   recents,
   choisirDossier,
   ouvrirRecent,
-  ouvrirCorpusCourant,
   retirerRecent,
+  preparer,
+  racineSources,
+  enPreparation,
 } = utiliserSonal()
+
+// Modale à DEUX dossiers (§7.2) : lancée depuis les deux cartes démo, sauf si
+// les dossiers sont déjà connus en session (re-préparation idempotente, pas de
+// 2ᵉ modale — bascule pas-à-pas ⇄ autonomie sur le même corpus, §7.5).
+const modaleDemo = ref<ModeDemo | null>(null)
+
+function lancerPreparer(mode: ModeDemo) {
+  if (racineSources.value) void preparer(mode)
+  else modaleDemo.value = mode
+}
 </script>
 
 <template>
     <section class="ecran accueil">
       <h2>Corpus</h2>
+
+      <!-- Mini Corpus Test (plan-tutoriel §11) : deux modes côte à côte. Chacun
+           passe par la modale à deux dossiers (sources à matérialiser + corpus de
+           travail, §7.2) puis construit le corpus de démo via le vrai pipeline. -->
+      <div class="demo-bloc">
+        <h3 class="demo-titre">🎓 Mini Corpus Test</h3>
+        <div class="cartes-demo">
+          <button
+            class="carte-demo pas-a-pas"
+            :disabled="enPreparation"
+            @click="lancerPreparer('pas-a-pas')"
+          >
+            <div class="carte-titre">Découverte pas à pas</div>
+            <div class="carte-sous">Guidée, étape par étape <br> un entretien à la fois</div>
+          </button>
+          <button
+            class="carte-demo autonomie"
+            :disabled="enPreparation"
+            @click="lancerPreparer('autonomie')"
+          >
+            <div class="carte-titre">En autonomie</div>
+            <div class="carte-sous">L'ensemble du corpus <br> (4 entretiens + audio)</div>
+          </button>
+        </div>
+        <p class="demo-aide">un terrain fictif d'aide aux devoirs dans les associations.</p>
+      </div>
+
       <div class="cartes">
-        <button class="carte ouvrir-corpus" @click="ouvrirCorpusCourant">
-          <div class="carte-titre">📁 Corpus courant</div>
-          <div class="carte-sous">{{ dossierCourantNom || 'profil' }}</div>
-        </button>
         <button class="carte choisir-corpus" @click="choisirDossier">
           <div class="carte-titre">➕ Ouvrir un corpus…</div>
           <div class="carte-sous">Choisir un dossier — ou en créer un nouveau (un dossier = un corpus)</div>
@@ -39,6 +76,9 @@ const {
           >✕</button>
         </li>
       </ul>
+
+      <!-- Modale à deux dossiers (sources + corpus de travail) — §7.2 -->
+      <ModaleDemo v-if="modaleDemo" :mode="modaleDemo" @fermer="modaleDemo = null" />
     </section>
 </template>
 
@@ -50,10 +90,52 @@ const {
   font-size: 1.05rem;
   margin: 0.5rem 0;
 }
+/* --- Mini Corpus Test (§11) --- */
+.demo-bloc {
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem 0.6rem;
+  margin: 0.3rem 0 1rem;
+  background: #f8fbf9;
+}
+.demo-titre {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #2e7d32;
+  margin: 0 0 0.5rem;
+}
+.cartes-demo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+.carte-demo {
+  flex: 1 1 200px;
+  text-align: left;
+  border: 1px solid #d4e8d6;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  background: #fff;
+  cursor: pointer;
+}
+.carte-demo:hover:not(:disabled) {
+  border-color: #2e9e3f;
+  background: #f3fbf4;
+}
+.carte-demo:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.demo-aide {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: #999;
+  font-style: italic;
+}
 .cartes {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8rem;
+  gap: 0.8rem; 
 }
 .carte {
   text-align: left;
@@ -69,10 +151,12 @@ const {
   background: #f3fbf4;
 }
 .carte-titre {
+  text-align: center;
   font-size: 0.95rem;
   font-weight: 600;
 }
 .carte-sous {
+  text-align: center;
   font-size: 0.78rem;
   color: #888;
   margin-top: 0.2rem;

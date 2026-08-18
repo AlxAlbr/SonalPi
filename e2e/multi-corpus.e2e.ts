@@ -48,9 +48,10 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   // Renommer l'entretien de dirB.
   await renommerPremier(page, 'ENT-B')
 
-  // Accueil : dirB apparaît dans les récents.
+  // Accueil : dirB apparaît dans les récents (en tête ; le corpus par défaut
+  // pré-inscrit par `lancer` reste en queue).
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-  await expect(page.locator('.recents li')).toHaveCount(1)
+  await expect(page.locator('.recents li')).toHaveCount(2)
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirB))
 
   // « Ouvrir un corpus… » → dirC (VIERGE) : amorcé VIDE — aucun entretien, et le
@@ -61,9 +62,10 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   await expect(page.locator('.liste-thm-lecture li')).toHaveCount(4)
   await expect(page.locator('.liste-thm-lecture li').first()).toContainText('Pondérations')
 
-  // Accueil : dirC ET dirB en récents ; rouvrir dirB → « ENT-B » revient (round-trip).
+  // Accueil : dirC ET dirB en récents (+ le corpus par défaut) ; rouvrir dirB →
+  // « ENT-B » revient (round-trip).
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-  await expect(page.locator('.recents li')).toHaveCount(2)
+  await expect(page.locator('.recents li')).toHaveCount(3)
   await page.locator('.recents .recent', { hasText: basename(dirB) }).click()
   await attendreCorpus(page)
   await expect(page.locator('.carte-ent .ent-titre').first()).toHaveText('ENT-B')
@@ -75,7 +77,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
     .locator('.recents li', { hasText: basename(dirC) })
     .locator('.oubli-recent')
     .click()
-  await expect(page.locator('.recents li')).toHaveCount(1)
+  await expect(page.locator('.recents li')).toHaveCount(2)
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirB))
   expect(existsSync(join(dirC, 'corpus.json'))).toBe(true)
 
