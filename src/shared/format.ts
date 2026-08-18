@@ -11,7 +11,7 @@ import type { Ancre } from './entretien/audio'
  * ANCRES `{pos, t}` positionnées dans le texte (migration v1→v2 au store).
  *
  * v3 : `meta.audioRef` devient un chemin ABSOLU uniquement (plus de copie
- * dans `<corpus>/audio/` — l'audio est référencé sur place, à la SonalPi).
+ * dans `<corpus>/audio/` — l'audio est référencé sur place comme dans SonalPi).
  * Migration v2→v3 au store : résolution des refs relatives en absolues +
  * déplacement des PNG waveform `audio/` → `png/`. Le type du champ ne change
  * pas (`string | null`), c'est le domaine de valeurs qui change.
@@ -20,6 +20,50 @@ export const FORMAT_VERSION = 3
 
 export function versionSupportee(v: unknown): boolean {
   return v === FORMAT_VERSION
+}
+
+/** Mode du « Mini Corpus Test » — deux façons de construire la démo sur le
+ *  même corpus (plan-tutoriel §11.3) :
+ *  - `'pas-a-pas'` : corpus amorcé VIDE + onglet « Pas à pas » activé ;
+ *  - `'autonomie'` : les 4 entretiens + audios importés d'un coup. */
+export type ModeDemo = 'pas-a-pas' | 'autonomie'
+
+/** Mémoire démo PERSISTÉE au niveau PROFIL (`settings.json`, à côté des
+ *  `recents`) : la racine des sources matérialisées UNE fois (copiées du
+ *  `CorpusTest/` bundled) + le DOSSIER du corpus de test de CHAQUE mode, choisi
+ *  directement par l'utilisateur dans la modale (un dossier = un corpus, à la
+ *  SonalPi). Les deux corpus sont INDÉPENDANTS — jamais le même dossier (gardes
+ *  de la modale : « pas déjà un corpus », pas le dossier de l'autre mode, pas les
+ *  sources). Sert aux cartes de l'Accueil : « un clic » quand les deux dossiers
+ *  du mode existent, modale adaptative sinon (la question « où importer les
+ *  sources » est sautée quand les sources sont déjà en place). */
+export interface EtatDemo {
+  racineSources: string
+  /** Corpus de test du mode pas-à-pas (dossier choisi directement). */
+  corpusPasAPas?: string
+  /** Corpus de test du mode autonomie (dossier choisi directement). */
+  corpusAutonomie?: string
+}
+
+/** Retour de `demo:etat` : l'état mémorisé + la présence RÉELLE des dossiers
+ *  sur disque (la modale adapte ses questions ; un dossier supprimé → on
+ *  re-questionne). */
+export interface EtatDemoComplet extends EtatDemo {
+  sourcesExist: boolean
+  corpusPasAPasExist: boolean
+  corpusAutonomieExist: boolean
+}
+
+/** Marqueur `demo` de `corpus.json` : identité d'un corpus de TEST. Absent =
+ *  corpus normal (la démo n'y touche jamais — gardien plan-tutoriel §12.3).
+ *  `mode` distingue « pas-à-pas » (corpus amorcé vide + panneau guidé) de
+ *  « autonomie » (4 entretiens d'un coup) ; `racineSources` rappelle où sont
+ *  les sources (textes des étapes, defaultPath des dialogues) ; `validees` =
+ *  l'historique du parcours (étapes cochées), qui voyage avec le corpus. */
+export interface MarqueurDemo {
+  mode: ModeDemo
+  racineSources: string
+  validees?: string[]
 }
 
 
@@ -31,6 +75,10 @@ export interface CorpusFichier {
   reglesAnon: Record<string, unknown>
   personnes: Record<string, unknown>
   membership: Record<string, EntretienRef>
+  /** Marqueur de corpus de TEST (démo) — champ ADDITIF optionnel : absent pour
+   *  un corpus normal (pas de bump de version). Posé par le builder démo à la
+   *  création, mis à jour à chaque étape validée (pas-à-pas). */
+  demo?: MarqueurDemo
 }
 
 /** Un dossier de corpus (pour l'Accueil : corpus courant + récents). */

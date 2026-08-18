@@ -37,9 +37,14 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const varsLoc = () => variables.value.filter((v) => v.portee === 'locuteur')
 
   /** Couleur d'un code : couleur STOCKÉE du codebook en priorité, sinon synthétisée
-   *  (angle d'or). Recolorer un thème se reflète en direct via cette résolution. */
+   *  (angle d'or). Recolorer un thème se reflète en direct via cette résolution.
+   *  Sans couleur stockée, la teinte est dérivée du `codeExport` (identité stable
+   *  séquentielle `cat_NNN`) — PAREIL que la pastille/picker et l'export : un thème
+   *  a UNE couleur partout (avant, le repli sur l'id aléatoire donnait une teinte
+   *  différente de la pastille pour un thème neuf). */
   function couleurTrait(code: string): string {
-    return codebook.value.find((c) => c.id === code)?.couleur || couleurPourCode(code).trait
+    const cat = codebook.value.find((c) => c.id === code)
+    return cat?.couleur || couleurPourCode(cat?.codeExport ?? code).trait
   }
   function couleurHex(c: Categorie): string {
     return c.couleur || couleurHexPourCode(c.codeExport)

@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { existsSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { lancer, entrerCorpus, attendreCorpus, ecrireSeedDemo } from './util'
+import { lancer, entrerCorpus, attendreAccueil, attendreCorpus, ecrireSeedDemo } from './util'
 
 /** Renomme le 1er entretien via le panneau MÉTA (sélectionne sa carte, édite le nom). */
 async function renommerPremier(page: import('@playwright/test').Page, nom: string) {
@@ -80,6 +80,44 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   await expect(page.locator('.recents li')).toHaveCount(2)
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirB))
   expect(existsSync(join(dirC, 'corpus.json'))).toBe(true)
+
+  await app.close()
+})
+
+test('un corpus dont le dossier a été supprimé disparaît des « Récents » (et n\'est pas recréé au démarrage)', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-rec-'))
+  const dirSupprime = mkdtempSync(join(tmpdir(), 'sonal-rec-supprime-'))
+  ecrireSeedDemo(dirSupprime) // un corpus EXISTANT, ajouté aux récents en session 1
+
+  // Session 1 : ouvrir dirSupprime via « Ouvrir un corpus… » → il passe en tête
+  // des récents.
+  let app = await lancer(profil)
+  let page = await app.firstWindow()
+  await attendreAccueil(page)
+  await app.evaluate(({ dialog }, dir) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
+  }, dirSupprime)
+  await page.locator('.carte.choisir-corpus').click()
+  await attendreCorpus(page)
+  await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
+  await expect(page.locator('.recents .recent').first()).toContainText(basename(dirSupprime))
+  await app.close()
+
+  // L'utilisateur supprime le dossier du corpus à la main.
+  rmSync(dirSupprime, { recursive: true, force: true })
+
+  // Session 2 (settings PRÉSERVÉS : le récent supprimé y est encore) : au
+  // démarrage, il ne doit PLUS apparaître (filtre d'existence) — et surtout ne
+  // doit PAS être recréé silencieusement (avant le filtre, ouvrirDossier sur le
+  // 1er récent faisait un mkdirSync sur le chemin supprimé).
+  app = await lancer(profil, { preserverSettings: true })
+  page = await app.firstWindow()
+  await attendreAccueil(page)
+  const recents = await page.locator('.recents .recent').allTextContents()
+  expect(recents).not.toContain(basename(dirSupprime))
+  expect(existsSync(dirSupprime)).toBe(false) // pas de recréation fantôme
+  // Seul le corpus par défaut (seedé) reste accessible.
+  await expect(page.locator('.recents li')).toHaveCount(1)
 
   await app.close()
 })

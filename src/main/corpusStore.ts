@@ -32,6 +32,7 @@ import {
   type CorpusFichier,
   type EntretienFichier,
   type LectureEntretien,
+  type MarqueurDemo,
   type MatriceCorpus,
   type PatchCategorie,
   type PayloadEntretien,
@@ -157,6 +158,19 @@ export class CorpusStore {
     if (!versionSupportee(corpus.formatVersion)) {
       throw new Error(`Version de corpus non supportée : ${corpus.formatVersion}`)
     }
+    return corpus
+  }
+
+  /** Marque le corpus courant comme corpus de TEST (démo) — `corpus.json:
+   *  { demo: { mode, racineSources, validees } }`. Champ ADDITIF optionnel :
+   *  pas de bump de version (même statut que `taille?`/`interviewer?`). Absent
+   *  = corpus normal — la démo n'y touche jamais (gardien plan-tutoriel §12.3).
+   *  Posé par le builder à la création, mis à jour à chaque étape validée
+   *  (l'historique du pas-à-pas voyage avec le corpus). */
+  marquerDemo(marqueur: MarqueurDemo): CorpusFichier {
+    const corpus = this.ouvrir()
+    corpus.demo = marqueur
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
     return corpus
   }
 

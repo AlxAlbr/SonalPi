@@ -1,9 +1,9 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
 import { join, basename, extname } from 'node:path'
-import { readFileSync, writeFileSync, createReadStream, statSync, cpSync } from 'node:fs'
+import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { CorpusStore } from './corpusStore'
-import type { Categorie, CibleValeur, PatchCategorie, PayloadEntretien, Variable } from '../shared/format'
+import type { Categorie, CibleValeur, EtatDemo, EtatDemoComplet, MarqueurDemo, PatchCategorie, PayloadEntretien, Variable } from '../shared/format'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev le
 // renderer est en http://localhost (Vite) et ne lit pas file:// → un protocole
@@ -37,35 +37,53 @@ const MIME: Record<string, string> = {
   png: 'image/png',
 }
 
-// --- Réglages du profil : liste des corpus récents ---
+// --- Réglages du profil : liste des corpus récents + mémoire démo ---
 interface Settings {
   recents: string[] // chemins de dossiers, le plus récent en tête
+  demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois (§7.2)
 }
 function fichierSettings(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
+/** Garde de forme de l'état démo persistant (fichier potentiellement écrit à
+ *  la volée — ne pas hydrater un enregistrement partiel/corrompu). */
+function estEtatDemo(d: unknown): d is EtatDemo {
+  if (!d || typeof d !== 'object') return false
+  const o = d as Record<string, unknown>
+  return (
+    typeof o.racineSources === 'string' &&
+    (o.corpusPasAPas === undefined || typeof o.corpusPasAPas === 'string') &&
+    (o.corpusAutonomie === undefined || typeof o.corpusAutonomie === 'string')
+  )
+}
 function lireSettings(): Settings {
   try {
     const s = JSON.parse(readFileSync(fichierSettings(), 'utf8')) as Partial<Settings>
-    return { recents: Array.isArray(s.recents) ? s.recents : [] }
+    return {
+      recents: Array.isArray(s.recents) ? s.recents : [],
+      demo: estEtatDemo(s.demo) ? s.demo : undefined,
+    }
   } catch {
     return { recents: [] }
   }
 }
+/** Écrit les réglages en PRÉSERVANT les autres champs (`demo` compris) — les
+ *  deux écritures de ce fichier (récents et mémoire démo) ne se marchent pas
+ *  dessus. */
+function ecrireSettings(s: Settings): void {
+  writeFileSync(fichierSettings(), JSON.stringify(s, null, 2), 'utf8')
+}
 function ajouterRecent(dir: string): void {
-  const { recents } = lireSettings()
-  const maj = [dir, ...recents.filter((d) => d !== dir)].slice(0, 8)
-  writeFileSync(fichierSettings(), JSON.stringify({ recents: maj }, null, 2), 'utf8')
+  const s = lireSettings()
+  s.recents = [dir, ...s.recents.filter((d) => d !== dir)].slice(0, 8)
+  ecrireSettings(s)
 }
 /** Retire un RACCOURCI de la liste des récents — le dossier de corpus sur disque
  *  n'est jamais touché (l'app n'efface aucun corpus). */
 function retirerRecent(dir: string): void {
-  const { recents } = lireSettings()
-  writeFileSync(
-    fichierSettings(),
-    JSON.stringify({ recents: recents.filter((d) => d !== dir) }, null, 2),
-    'utf8',
-  )
+  const s = lireSettings()
+  s.recents = s.recents.filter((d) => d !== dir)
+  ecrireSettings(s)
 }
 
 // respecte le --user-data-dir passé en ligne  de commande
@@ -118,9 +136,20 @@ function enregistrerIpcCorpus(): void {
 
   ipcMain.handle('corpus:ouvrir', () => store.ouvrir())
   ipcMain.handle('corpus:dossierCourant', () => ({ dir: dossierCourant, nom: basename(dossierCourant) }))
-  ipcMain.handle('corpus:recents', () =>
-    lireSettings().recents.map((dir) => ({ dir, nom: basename(dir) })),
-  )
+  ipcMain.handle('corpus:recents', () => {
+    const s = lireSettings()
+    // Ne garder que les corpus dont le DOSSIER existe encore : un corpus supprimé
+    // à la main (dossier effacé) ne doit plus apparaître dans « Récents » — et au
+    // démarrage, le 1er récent ne doit pas être un dossier fantôme recréé
+    // silencieusement par ouvrirDossier (mkdirSync). Écriture de retour pour
+    // nettoyer settings.json des entrées mortes (demo préservé).
+    const vivants = s.recents.filter((dir) => existsSync(dir))
+    if (vivants.length !== s.recents.length) {
+      s.recents = vivants
+      ecrireSettings(s)
+    }
+    return vivants.map((dir) => ({ dir, nom: basename(dir) }))
+  })
   ipcMain.handle('corpus:retirerRecent', (_e, dir: string) => {
     retirerRecent(dir)
     return lireSettings().recents.map((d) => ({ dir: d, nom: basename(d) }))
@@ -194,6 +223,11 @@ function enregistrerIpcCorpus(): void {
   )
   ipcMain.handle('corpus:audios', () => store.audios())
   ipcMain.handle('corpus:verifierAudios', () => store.verifierAudios())
+  // Marqueur de corpus de TEST (`corpus.json: { demo }`) — identité + mode +
+  // sources + étapes validées. Champ additif optionnel, pas de bump (§J6).
+  ipcMain.handle('corpus:marquerDemo', (_e, marqueur: MarqueurDemo) =>
+    store.marquerDemo(marqueur),
+  )
 
   // Protocole `sonal-media` : deux hôtes par nature de ressource. Le handler
   // capture `store` (réaffecté par changerDossier). Support des requêtes Range
@@ -272,14 +306,18 @@ function enregistrerIpcCorpus(): void {
     return r.filePaths[0]
   })
   // Picker de DOSSIER PUR (aucun effet de bord sur le store) — utilisé par la
-  // modale démo à deux dossiers (§7.2). `kind` hinté le défaut
+  // modale démo à deux questions (§7.2). `kind` hinté le défaut
   // `Documents/Sonal/démo/<kind>` (désamortit le geste, modifiable) ; le retour
   // est le chemin choisi, le corpus y est ensuite OUVERT via corpus:ouvrirDossier.
+  // J6 : la 2ᵉ question est le dossier PARENT des corpus de test (`corpus`) —
+  // l'app y crée `<parent>/pas-a-pas` et `<parent>/autonomie`.
   ipcMain.handle('dialog:choisirDossier', async (_e, kind?: 'sources' | 'corpus') => {
     const defaultPath =
       kind === undefined
         ? undefined
-        : join(app.getPath('documents'), 'Sonal', 'démo', kind === 'sources' ? 'sources' : 'corpus')
+        : kind === 'sources'
+          ? join(app.getPath('documents'), 'Sonal', 'démo', 'sources')
+          : join(app.getPath('documents'), 'Sonal', 'démo')
     const r = await dialog.showOpenDialog({
       defaultPath,
       properties: ['openDirectory', 'createDirectory'],
@@ -310,12 +348,22 @@ function cheminCorpusTest(): string {
 }
 
 function enregistrerIpcDemo(): void {
+  /** Clefs des sources bundled (une par entretien de démo) — servent à la garde
+   *  de COMPLÉTUDE de `demo:copierSources`. */
+  const CLEFS_SOURCES = ['E1', 'E2', 'E3', 'E4']
+
   /** Copie les sources bundled `CorpusTest/` (`srt/` + `audio/`, ~13 Mo) dans le
    *  dossier choisi par l'utilisateur — LA seule copie de tout le flow de démo
-   *  (§7.2). Idempotent (`cpSync` écrase) ; la sémantique est fichier-à-fichier
-   *  (les modifs utilisateur dans `racine` ne sont pas détruites, §7.2/§11).
+   *  (§7.2). Idempotent par COMPLÉTUDE (problème n°1) : si les 4 sources sont
+   *  déjà matérialisées, on ne recopie PAS (~13 Mo, « une seule fois ») ; un
+   *  fichier manquant (supprimé par l'utilisateur) déclenche une recopie
+   *  auto-réparatrice fichier-à-fichier (modifs utilisateur conservées, §11).
    *  Le corpus de travail RÉFÉRENCE ensuite ces fichiers (zéro copie). */
   ipcMain.handle('demo:copierSources', (_e, racine: string) => {
+    const complet =
+      CLEFS_SOURCES.every((k) => existsSync(join(racine, 'srt', `${k}.srt`))) &&
+      CLEFS_SOURCES.every((k) => existsSync(join(racine, 'audio', `${k}.mp3`)))
+    if (complet) return
     cpSync(cheminCorpusTest(), racine, { recursive: true })
   })
   /** Lit un fichier texte des sources (ex. `srt/E2.srt`) → { nom, contenu }.
@@ -327,6 +375,38 @@ function enregistrerIpcDemo(): void {
   /** Chemin ABSOLU d'un média des sources (ex. `audio/E2.mp3`) — passé tel quel
    *  à `corpus:assignerAudio` qui le RÉFÉRENCE (plus de copie). */
   ipcMain.handle('demo:cheminAudio', (_e, racine: string, rel: string) => join(racine, rel))
+
+  /** J7 — mémoire démo PERSISTÉE (`settings.json`, niveau profil) : lit les
+   *  dossiers mémorisés (sources + corpus de CHAQUE mode) ET leur présence réelle
+   *  sur disque. `null` = jamais préparé (ou enregistrement absent/corrompu). La
+   *  modale adapte ses questions : la question « où importer les sources » est
+   *  sautée si les sources existent toujours ; idem pour le corpus du mode. */
+  ipcMain.handle('demo:etat', (): EtatDemoComplet | null => {
+    const d = lireSettings().demo
+    if (!d) return null
+    return {
+      racineSources: d.racineSources,
+      corpusPasAPas: d.corpusPasAPas,
+      corpusAutonomie: d.corpusAutonomie,
+      sourcesExist: existsSync(d.racineSources),
+      corpusPasAPasExist: !!d.corpusPasAPas && existsSync(d.corpusPasAPas),
+      corpusAutonomieExist: !!d.corpusAutonomie && existsSync(d.corpusAutonomie),
+    }
+  })
+  /** Écrit la mémoire démo en PRÉSERVANT les récents. Appelé par le builder à
+   *  chaque préparation réussie — les sources sont partagées, chaque mode a son
+   *  propre dossier de corpus (l'autre mode, s'il existe, est préservé). */
+  ipcMain.handle('demo:memoriser', (_e, demo: EtatDemo) => {
+    const s = lireSettings()
+    s.demo = demo
+    ecrireSettings(s)
+  })
+  /** Garde de la modale (J7) : le dossier choisi pour le corpus de test ne doit
+   *  PAS déjà être un corpus (corpus.json présent) — évite de réutiliser le
+   *  dossier de l'autre mode ou d'écraser un vrai corpus utilisateur. */
+  ipcMain.handle('demo:verifierCorpus', (_e, dir: string) => ({
+    dejaCorpus: existsSync(join(dir, 'corpus.json')),
+  }))
 }
 
 app.whenReady().then(() => {

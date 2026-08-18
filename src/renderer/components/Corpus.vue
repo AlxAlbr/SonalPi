@@ -194,15 +194,16 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               :class="{ selection: corpusSelId === e.id }"
               @click="selectionnerCorpus(e.id)"
             >
-              <div class="carte-corps">
-                <div class="ent-titre">{{ e.titre }}</div>
+              <div class="ent-titre" :title="e.titre">{{ e.titre }}</div>
                 <!-- Forme d'onde de l'audio assigné ; sinon placeholder. Dans
                      les deux cas, le CALQUE du résumé thématique (parité SonalPi)
                      se superpose : un span par segment codé, positionné en % du
-                     TEXTE ; clic = ouvrir l'entretien à cet endroit. -->
+                     TEXTE ; clic = ouvrir l'entretien à cet endroit. Layout
+                     SonalPi : nom À GAUCHE, onde À DROITE (les lignes empilées
+                     forment le « mur » d'ondes). -->
                 <div class="spectro-cadre">
                   <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
-                  <div v-else class="spectro-vide">pas d'audio — importe un SRT + audio, ou « Assigner un audio »</div>
+                  <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
                   <span
                     v-for="(s, i) in resumes[e.id] ?? []"
                     :key="i"
@@ -212,7 +213,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                     @click.stop="ouvrirAuSegment(e.id, s.pos)"
                   ></span>
                 </div>
-              </div>
               <div class="carte-actions">
                 <button
                   class="crayon"
@@ -359,11 +359,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .carte-ent {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 0.5rem;
   border: 1px solid #e0e0ea;
-  border-radius: 8px;
-  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
   background: #fff;
   cursor: pointer;
 }
@@ -374,65 +374,69 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-color: #2e9e3f;
   background: #f3fbf4;
 }
-.carte-corps {
-  flex: 1;
-  min-width: 0;
-}
 .ent-titre {
-  font-size: 0.9rem;
+  /* Nom À GAUCHE, largeur fixe (parité SonalPi .lbl-nom-ent 27 %) — les ondes
+     empilées forment une colonne régulière (« mur » visuel). */
+  width: 27%;
+  flex-shrink: 0;
+  font-size: 0.85rem;
   font-weight: 600;
-  margin-bottom: 0.35rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .spectro {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 46px;
-  object-fit: fill;
-  border: 1px solid #e3e8e3;
-  border-radius: 5px;
-  background: #fff;
+  height: 100%;
+  object-fit: cover; /* parité SonalPi (.ligent-img) : pas de distorsion */
 }
 /* Cadre de superposition du résumé thématique (les .xtr-graph se positionnent
-   en % de SA largeur — la même que l'onde ou le placeholder). */
+   en % de SA largeur — la même que l'onde ou le placeholder). Conteneur
+   compact à la SonalPi : 25 px de haut, dégradé vertical (creux au centre),
+   bord fin — c'est lui qui donne la profondeur au « mur » d'ondes. */
 .spectro-cadre {
   position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 25px;
+  border-radius: 3px;
+  border: 1px solid #cbcbcb;
+  background: linear-gradient(#00000040 0%, #fbf5f560 50%, #00000040 100%);
+  overflow: hidden;
 }
 .xtr-graph {
   position: absolute;
   top: 1px;
   bottom: 1px;
-  opacity: 0.45; /* translucide : l'onde reste lisible sous la couleur */
+  opacity: 0.55; /* parité SonalPi : la couleur reste celle du thème MAIS l'onde reste lisible dessous */
   cursor: pointer;
   box-sizing: border-box;
   border-radius: 2px;
 }
 .xtr-graph:hover {
-  opacity: 0.8;
+  opacity: 0.8; /* survol SonalPi : le segment s'affirme (clic = rouvrir au texte) */
+  border: 1px solid #030303;
 }
 .assigner-audio {
   margin-top: 0.6rem;
   width: 100%;
 }
 .spectro-vide {
-  height: 46px;
-  border: 1px dashed #d8d8e0;
-  border-radius: 5px;
-  background: repeating-linear-gradient(90deg, #f6f6fa 0 6px, #fafafe 6px 12px);
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.68rem;
-  color: #b3b3c0;
+  font-size: 0.66rem;
+  color: #9a9aa8;
   font-style: italic;
 }
 .carte-actions {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  gap: 0.25rem;
   align-items: center;
+  flex: none;
 }
 /* .crayon : style GLOBAL (base.css) — partagé avec l'écran Entretien. */
 .suppr {

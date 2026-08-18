@@ -305,6 +305,26 @@ npm run typecheck    # vue-tsc + tsc
 
 **Pile** : Electron + Vue 3 + TipTap/ProseMirror (sans Yjs), electron-vite, vitest, Playwright.
 
+## Limitation connue en dev : audio figé sous WSLg
+
+Sous WSLg (le WSL2 avec affichage/son intégrés), la lecture audio se fige parfois
+après ~13–20 s : le compteur n'avance plus (ou rampe à ~2 % de la vitesse),
+l'élément `<audio>` croit toujours jouer (`paused=false`, buffer plein), et ça
+ressemble à un « disque rayé ». Le gel est **intermittent** et, une fois installé,
+**rien ne le débloque** (pause/play, seek, nudge — testés).
+
+**Cause : le pont audio de WSLg lui-même** (`PulseAudioRDPSink`), pas l'app.
+Diagnostic : le même gel se reproduit dans un Electron minimal (aucun code Sonal,
+WAV en mémoire via Blob URL — ni protocole `sonal-media`, ni fichier) et dans
+SonalPi (autre codebase entière). Le protocole custom, la synchro position/
+surlignage et le lecteur sont donc sains ; sur un poste avec un vrai backend
+audio, la lecture se comporte normalement.
+
+Si le son sous WSL devenait un jour bloquant en dev : workaround connu = installer
+un serveur PulseAudio sur Windows et pointer `PULSE_SERVER=tcp:…` depuis WSL
+(contourne le pont RDP de WSLg) ; une mise à jour de WSL/Windows peut aussi
+régler le problème. À ne pas traiter comme un bug de SonalAsynchro.
+
 
 
 

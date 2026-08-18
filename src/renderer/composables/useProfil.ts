@@ -17,14 +17,15 @@ export function useProfil() {
   async function majDossierCourant() {
     dossierCourantNom.value = (await window.sonal.corpus.dossierCourant()).nom
   }
-  /** Picker de dossier → renvoie le corpus ouvert (ou null si annulé). Met à jour
-   *  le nom courant + les récents ; l'appelant applique le corpus au modèle. */
-  async function choisirDossier(): Promise<CorpusFichier | null> {
+  /** Picker de dossier → renvoie le corpus ouvert + son chemin (ou null si
+   *  annulé). Met à jour le nom courant + les récents ; l'appelant applique le
+   *  corpus au modèle (le `dir` sert à restaurer le mode démo, problème n°2). */
+  async function choisirDossier(): Promise<{ corpus: CorpusFichier; dir: string } | null> {
     const res = await window.sonal.corpus.choisirDossier()
     if (!res) return null
     dossierCourantNom.value = res.nom
     await rafraichirRecents()
-    return res.corpus
+    return { corpus: res.corpus, dir: res.dir }
   }
   /** Rouvre un corpus récent (par chemin) → renvoie son contenu. */
   async function ouvrirDossier(dir: string): Promise<CorpusFichier> {

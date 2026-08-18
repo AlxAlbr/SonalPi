@@ -21,23 +21,29 @@ const {
   etapeCouranteId,
   etapeCourante,
   validees,
+  retestInfo,
   activer,
   suivante,
-  quitterPasAPas,
+  retourCorpus,
+  vue,
 } = utiliserSonal()
 
 // --- Spotlight : position de la cible courante, recalculée à chaque frame ---
 const rect = ref<DOMRect | null>(null) // rectangle de la cible, ou null = bulle centrée
 let raf = 0
 
-const selCible = computed(() => etapeCourante.value?.cible() ?? null)
+// NOTE : la cible est lue DIRECTEMENT dans `recalc()` (à chaque frame), et non via
+// un `computed` — car `cible()` peut observer l'état du DOM (non réactif, ex. les
+// zones de la modale d'ajout). Un computed mettrait la valeur en cache tant que
+// l'étape ne change pas, figeant le spotlight sur la 1re cible. Le recalcul en
+// live (rAF) rend le parcours guidé réellement séquentiel.
 
 function recalc() {
   if (!etapeCourante.value) {
     rect.value = null
     return
   }
-  const sel = selCible.value
+  const sel = etapeCourante.value.cible()
   if (!sel) {
     rect.value = null // bulle centrée (pas de cible)
     return
@@ -90,16 +96,27 @@ const styleTrou = computed(() => {
   }
 })
 
-async function lancerAction() {
-  if (etapeCourante.value?.action) await etapeCourante.value.action()
+// Mode « PANNEAU » : la consigne de l'étape courante s'affiche SOUS les onglets
+// de l'entretien (colonne de droite) plutôt qu'en bulle flottante — la bulle
+// positionnée sous le bouton Lecture masquait le texte pendant la lecture
+// (retour utilisateur). Aucun voile ni trou dans ce mode.
+const modePanneau = computed(
+  () => etapeCourante.value?.panneau === true && vue.value === 'entretien',
+)
+
+/** « Revenir au Pas à pas » depuis le message re-test : efface le message et
+ *  retourne à la liste (écran Corpus). */
+async function revenirPasAPas() {
+  retestInfo.value = null
+  await retourCorpus()
 }
+
 </script>
 
 <template>
   <aside v-if="pasAPas" v-show="props.montreListe !== false" class="panneau pas-a-pas">
     <div class="corpus-tete">
       <h3>Pas à pas</h3>
-      <button class="mini" @click="quitterPasAPas">Quitter</button>
     </div>
     <p class="aide-pp">Suis les étapes — elles se cochent quand l'action est faite.</p>
     <ol class="liste-pp">
@@ -116,9 +133,10 @@ async function lancerAction() {
     </ol>
   </aside>
 
-  <!-- Spotlight global (téléporté en body → survit au changement de vue). -->
+  <!-- Spotlight global (téléporté en body → survit au changement de vue). En
+       mode PANNEAU (consigne sous les onglets), pas de voile ni de bulle. -->
   <Teleport to="body">
-    <template v-if="etapeCourante">
+    <template v-if="etapeCourante && !modePanneau">
       <!-- Voile plein si pas de cible (bulle centrée) ; sinon le trou crée le voile. -->
       <div v-if="!rect" class="spotlight-voile"></div>
       <div v-else class="spotlight-trou" :style="styleTrou"></div>
@@ -126,14 +144,40 @@ async function lancerAction() {
         <div class="bulle-titre">{{ etapeCourante.titre }}</div>
         <p class="bulle-texte">{{ etapeCourante.texte() }}</p>
         <div class="bulle-actions">
-          <button v-if="etapeCourante.action" class="bulle-btn primaire" @click="lancerAction">
-            {{ etapeCourante.libelleAction ?? "Charger l'entretien" }}
-          </button>
           <button class="bulle-btn" @click="etapeCouranteId = null">Plus tard</button>
           <button class="bulle-btn" @click="suivante">Suivant →</button>
         </div>
       </div>
     </template>
+  </Teleport>
+
+  <!-- Consigne « panneau » : affichée SOUS les onglets de l'entretien (ancre
+       data-tour posée dans Entretien.vue) — ne cache pas le texte. Pas de
+       bouton d'action : l'utilisateur fait le geste lui-même. -->
+  <Teleport v-if="modePanneau && etapeCourante" to='[data-tour="ancre-guide-pp"]'>
+    <div class="guide-pp">
+      <div class="guide-pp-titre">{{ etapeCourante.titre }}</div>
+      <p class="guide-pp-texte">{{ etapeCourante.texte() }}</p>
+      <div class="guide-pp-actions">
+        <button class="guide-pp-btn" @click="etapeCouranteId = null">Plus tard</button>
+        <button class="guide-pp-btn" @click="suivante">Suivant →</button>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Message « re-test » : une étape DÉJÀ validée a été rouverte → l'entretien
+       est resté ouvert, on l'annonce (texte propre à chaque étape) et on
+       propose de revenir à la liste « Pas à pas ». -->
+  <Teleport v-if="retestInfo && vue === 'entretien'" to='[data-tour="ancre-guide-pp"]'>
+    <div class="guide-pp retest">
+      <div class="guide-pp-titre">« {{ retestInfo.titre }} » déjà réalisée</div>
+      <p class="guide-pp-texte">
+        Cette étape a déjà été faite — tu peux toujours {{ retestInfo.suite }}.
+      </p>
+      <div class="guide-pp-actions">
+        <button class="guide-pp-btn" @click="revenirPasAPas">↩ Revenir au Pas à pas</button>
+      </div>
+    </div>
   </Teleport>
 </template>
 
@@ -254,9 +298,48 @@ async function lancerAction() {
   border-color: #2e9e3f;
   color: #2e7d32;
 }
-:global(.bulle-btn.primaire) {
-  border-color: #2e7d32;
-  background: #2e9e3f;
-  color: #fff;
+
+/* --- Consigne « panneau » (sous les onglets de l'entretien) --- */
+.guide-pp {
+  border: 1px solid #2e9e3f;
+  background: #f3fbf4;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.5rem;
 }
-</style>
+.guide-pp-titre {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #2e7d32;
+  margin-bottom: 0.2rem;
+}
+.guide-pp-texte {
+  font-size: 0.8rem;
+  color: #333;
+  margin: 0 0 0.5rem;
+}
+.guide-pp-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.guide-pp-btn {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}
+.guide-pp-btn:hover {
+  border-color: #2e9e3f;
+}
+/* Variante « re-test » : info déjà faite (ambre, pas verte) — l'étape est
+   cochée, l'utilisateur est revenu la voir, on propose de retourner à la liste. */
+.guide-pp.retest {
+  border-color: #e0a03a;
+  background: #fff8ec;
+}
+.guide-pp.retest .guide-pp-titre {
+  color: #8a6d3b;
+}</style>

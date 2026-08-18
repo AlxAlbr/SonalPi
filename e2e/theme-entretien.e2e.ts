@@ -23,6 +23,8 @@ import {
 
 test('créer un thème depuis l’entretien (fenêtre d’édition) → apparaît, prêt à coder', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
+  // L'entretien s'ouvre sur l'onglet Locuteurs (défaut) → on passe à Thématiques.
+  await page.locator('.onglets button', { hasText: 'Thèmes' }).click()
   await ouvrirEditionThemes(page)
   await page.locator('.modale-themes .mini', { hasText: '+ Thème' }).click()
   await expect(page.locator('.liste-thm li[data-nom="Nouveau thème"]')).toHaveCount(1)
@@ -79,6 +81,8 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   // affiché DANS la fenêtre d'édition.
   await retourCorpus(page)
   await entrerEntretien(page, 0)
+  // L'entretien s'ouvre sur l'onglet Locuteurs (défaut) → on passe à Thématiques.
+  await page.locator('.onglets button', { hasText: 'Thèmes' }).click()
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Lieu"] .x').click()
   await expect(page.locator('.modale-themes .msg-thm')).toContainText('1 autre')

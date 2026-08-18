@@ -4,47 +4,97 @@ import { utiliserSonal } from '../composables/sonal'
 import type { ModeDemo } from '../composables/demo'
 
 /**
- * Modale démo à DEUX dossiers (plan-reference-audio §7.2, façon SonalPi
- * `nouveau_corpus.html`) : les SOURCES de la démo (matérialisées une fois —
- * l'app copie le `CorpusTest/` bundled, ~13 Mo) et le CORPUS DE TRAVAIL qui les
- * RÉFÉRENCE. Composant partagé entre les deux cartes de l'Accueil.
+ * Modale démo à deux questions (plan-reference-audio §7.2, façon SonalPi
+ * `nouveau_corpus.html`), ADAPTATIVE (J7) :
+ *  - « Où voulez-vous placer les sources de la démo ? » — affichée UNIQUEMENT si
+ *    les sources ne sont pas déjà en place (mémoire persistée settings.json +
+ *    présence réelle sur disque) ; sinon une ligne rappelle où elles sont ;
+ *  - « Où voulez-vous placer CE corpus de test ? » (SINGULIER) — le dossier du
+ *    corpus du mode cliqué (pas-à-pas ou autonomie), choisi directement : un
+ *    dossier = un corpus, à la SonalPi. Affichée uniquement si le corpus de CE
+ *    mode n'est pas déjà connu.
  *
- * Gardes : les deux dossiers doivent être DISTINCTS (sinon `sources/audio/`
- * chevaucherait le `audio/` legacy du corpus) ; `defaultPath` des pickers hinté
- * `Documents/Sonal/démo/<sources|corpus>` (désamortit le geste, modifiable).
- * À la validation → `preparer(mode, { racineSources, dossierCorpus })` (zéro
- * copie d'audio dans le corpus : les entretiens référencent les sources).
+ * Gardes d'indépendance des deux corpus (J7) : le dossier choisi ne doit être ni
+ * les sources, ni le corpus de l'AUTRE mode, ni un dossier qui est DÉJÀ un corpus
+ * (corpus.json présent — on n'écrase jamais un corpus existant).
+ * `defaultPath` des pickers hinté `Documents/Sonal/démo/<…>` (modifiable).
+ * À la validation → `preparer(mode, { racineSources?, dossierCorpus? })` — seules
+ * les questions posées sont transmises, le reste vient de la mémoire persistée.
  */
 const props = defineProps<{ mode: ModeDemo }>()
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 
-const { preparer, enPreparation } = utiliserSonal()
+const {
+  preparer,
+  enPreparation,
+  racineSources,
+  sourcesPresentes,
+  corpusPasAPas,
+  corpusAutonomie,
+  corpusPasAPasPresent,
+  corpusAutonomiePresent,
+} = utiliserSonal()
 
-const racineSources = ref<string | null>(null)
-const dossierCorpus = ref<string | null>(null)
+// Réponses locales aux questions POSÉES (null tant que non choisies).
+const nouvelleSources = ref<string | null>(null)
+const nouveauCorpus = ref<string | null>(null)
 const erreur = ref<string | null>(null)
 
+const modeLib = computed(() => (props.mode === 'pas-a-pas' ? 'Pas à pas' : 'En autonomie'))
+
+// Une question est nécessaire si la réponse mémorisée manque OU n'existe plus
+// sur disque (dossier supprimé → on re-questionne).
+const besoinSources = computed(() => !racineSources.value || !sourcesPresentes.value)
+// Le corpus demandé est celui du MODE de la carte cliquée (indépendance des deux).
+const corpusConnu = computed(() =>
+  props.mode === 'pas-a-pas' ? corpusPasAPas.value : corpusAutonomie.value,
+)
+const corpusPresent = computed(() =>
+  props.mode === 'pas-a-pas' ? corpusPasAPasPresent.value : corpusAutonomiePresent.value,
+)
+const besoinCorpus = computed(() => !corpusConnu.value || !corpusPresent.value)
+
 async function choisirSources() {
-  racineSources.value = await window.sonal.dialog.choisirDossier('sources')
+  nouvelleSources.value = await window.sonal.dialog.choisirDossier('sources')
   erreur.value = null
 }
 async function choisirCorpus() {
-  dossierCorpus.value = await window.sonal.dialog.choisirDossier('corpus')
+  nouveauCorpus.value = await window.sonal.dialog.choisirDossier('corpus')
   erreur.value = null
 }
 
-const pret = computed(() => !!racineSources.value && !!dossierCorpus.value && !enPreparation.value)
+const pret = computed(() => {
+  if (enPreparation.value) return false
+  if (besoinSources.value && !nouvelleSources.value) return false
+  if (besoinCorpus.value && !nouveauCorpus.value) return false
+  return true
+})
 
 async function valider() {
-  if (!racineSources.value || !dossierCorpus.value) return
-  if (racineSources.value === dossierCorpus.value) {
+  if (!pret.value) return
+  const sources = besoinSources.value ? nouvelleSources.value : racineSources.value
+  const corpus = besoinCorpus.value ? nouveauCorpus.value : corpusConnu.value
+  // Garde 1 — les sources ne sont pas le corpus de test.
+  if (sources === corpus) {
     erreur.value =
-      'Les deux dossiers doivent être distincts — les sources ne peuvent pas être le corpus de travail.'
+      'Les deux dossiers doivent être distincts — les sources ne peuvent pas être le corpus de test.'
+    return
+  }
+  // Garde 2 — l'autre mode n'utilise pas déjà ce dossier (indépendance des deux).
+  const autre = props.mode === 'pas-a-pas' ? corpusAutonomie.value : corpusPasAPas.value
+  if (autre && corpus === autre) {
+    erreur.value = `Ce dossier est déjà le corpus « ${props.mode === 'pas-a-pas' ? 'En autonomie' : 'Pas à pas'} » — choisis un autre dossier.`
+    return
+  }
+  // Garde 3 — le dossier n'est pas DÉJÀ un corpus (on n'écrase jamais).
+  const verif = await window.sonal.demo.verifierCorpus(corpus!)
+  if (verif.dejaCorpus) {
+    erreur.value = 'Ce dossier contient déjà un corpus — choisis un dossier vide.'
     return
   }
   await preparer(props.mode, {
-    racineSources: racineSources.value,
-    dossierCorpus: dossierCorpus.value,
+    ...(besoinSources.value ? { racineSources: nouvelleSources.value! } : {}),
+    ...(besoinCorpus.value ? { dossierCorpus: nouveauCorpus.value! } : {}),
   })
   emit('fermer')
 }
@@ -56,27 +106,29 @@ async function valider() {
       <div class="modale-demo">
         <h3>🎓 Mini Corpus Test</h3>
         <p class="intro-demo">
-          Deux endroits à choisir, comme dans SonalPi : la <strong>matière
-          brute</strong> (les sources de la démo, copiées une fois chez vous) et
-          le <strong>dossier de travail</strong> (le corpus qui les référence —
-          un dossier = un corpus).
+          Le corpus « {{ modeLib }} » sera créé dans le dossier que vous indiquez
+          (les deux modes ont chacun leur corpus — ils ne se mélangent pas).
         </p>
 
-        <div class="question-demo">
+        <!-- Question 1 — sources : SAUTÉE si déjà en place (J7) -->
+        <div v-if="besoinSources" class="question-demo">
           <span class="q-lbl">1 — Où voulez-vous placer les sources de la démo ?</span>
           <button class="choisir-dossier" @click="choisirSources">
-            {{ racineSources ?? 'Choisir un dossier…' }}
+            {{ nouvelleSources ?? 'Choisir un dossier…' }}
           </button>
-          <span class="q-aide">srt/ + audio/ (~13 Mo) — copiés ici une seule fois</span>
+          <span class="q-aide">srt/ + audio/ (~13 Mo) — copiés ici une seule fois, partagés par les deux modes</span>
         </div>
+        <p v-else class="deja-place">✓ Sources déjà en place dans « {{ racineSources }} »</p>
 
-        <div class="question-demo">
-          <span class="q-lbl">2 — Où voulez-vous placer le corpus de travail ?</span>
+        <!-- Question 2 — corpus de CE mode (SINGULIER) : SAUTÉE si déjà connu (J7) -->
+        <div v-if="besoinCorpus" class="question-demo">
+          <span class="q-lbl">2 — Où voulez-vous placer ce corpus de test ?</span>
           <button class="choisir-dossier" @click="choisirCorpus">
-            {{ dossierCorpus ?? 'Choisir un dossier…' }}
+            {{ nouveauCorpus ?? 'Choisir un dossier…' }}
           </button>
-          <span class="q-aide">le corpus y est créé et ouvert</span>
+          <span class="q-aide">le corpus « {{ modeLib }} » y sera créé (dossier vide, un dossier = un corpus)</span>
         </div>
+        <p v-else class="deja-place">✓ Corpus « {{ modeLib }} » déjà en place dans « {{ corpusConnu }} »</p>
 
         <p v-if="erreur" class="msg-demo">{{ erreur }}</p>
 
@@ -148,6 +200,16 @@ async function valider() {
   font-size: 0.72rem;
   color: #999;
   font-style: italic;
+}
+.deja-place {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #2e7d32;
+  background: #eef7ef;
+  border: 1px solid #cfe8d2;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  word-break: break-all;
 }
 .msg-demo {
   margin: 0;

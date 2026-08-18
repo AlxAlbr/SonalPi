@@ -108,6 +108,7 @@ async function valider() {
 
         <div
           class="zone zone-texte"
+          data-tour="zone-texte"
           :class="{ pleine: texte, survol: survolTexte }"
           @click="choisirTexte"
           @dragover.prevent="survolTexte = true"
@@ -122,6 +123,7 @@ async function valider() {
 
         <div
           class="zone zone-audio"
+          data-tour="zone-audio"
           :class="{ pleine: audioChemin, survol: survolAudio }"
           @click="choisirAudio"
           @dragover.prevent="survolAudio = true"
@@ -144,7 +146,12 @@ async function valider() {
 
         <div class="pied-modale">
           <button class="annuler" @click="fermer">Annuler</button>
-          <button class="valider" :disabled="(!texte && !audioChemin) || enCours" @click="valider">
+          <button
+            class="valider"
+            data-tour="valider"
+            :disabled="(!texte && !audioChemin) || enCours"
+            @click="valider"
+          >
             {{ enCours ? 'Ajout…' : 'Valider' }}
           </button>
         </div>

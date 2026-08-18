@@ -390,6 +390,14 @@ Bascule pas-à-pas → autonomie sur le même corpus (plan-tutoriel §14.4) : le
 sources sont déjà en place → le builder réutilise `racineSources` (re-préparation
 idempotente, **pas de 2ᵉ modale**).
 
+> ⚠️ **OBSOLÈTE depuis J6 (§12.12) puis raffiné en J7 (§12.14)** : abandonnée sur
+> décision utilisateur — les deux modes ont chacun leur PROPRE corpus, choisi
+> directement dans la modale (un dossier = un corpus, à la SonalPi) ; ils ne se
+> mélangent jamais. Seules les sources sont partagées (copiées une fois) ; la
+> modale est adaptative (question « où importer les sources » sautée si elles
+> sont déjà en place) et l'Accueil reste « un clic » quand le corpus du mode
+> existe.
+
 ### 7.6 Tests / e2e
 
 - `demo.e2e.ts` : stubs des deux pickers (comme aujourd'hui via
@@ -835,6 +843,192 @@ cd SonalAsynchro
 npx tsc --noEmit                    # vérif types (main + renderer + shared)
 npx vitest run                      # 158 tests unitaires
 npm run build                      # build prod (requis avant e2e)
-npx playwright test                # 51 tests e2e
+npx playwright test                # 52 tests e2e
 npx playwright test e2e/audio.e2e.ts --reporter=line  # sous-ensemble
 ```
+
+### 12.9 Correctif démo « un clic + sources une seule fois » (2026-08-18)
+
+**Problème constaté par l'utilisateur** : la mémoire de la démo
+(`racineSources`/`dossierCorpus`) était de SESSION uniquement (deux `ref` dans
+`demo.ts`) → au redémarrage, les cartes de l'Accueil retombaient sur la modale à
+deux dossiers (« il me demande de recharger les sources ») et
+`demo:copierSources` recopiait les ~13 Mo à chaque préparation. Le §7.5
+(« pas de 2ᵉ modale ») supposait une session continue ; en pratique l'app est
+fermée/rouverte entre deux usages.
+
+**Correctif** :
+- **Mémoire démo PERSISTÉE au niveau profil** : `settings.json` gagne
+  `demo: { racineSources, dossierCorpus, mode }` (types partagés `EtatDemo` /
+  `ModeDemo` dans `format.ts`). Écrite à chaque préparation réussie
+  (`demo:memoriser`), relue paresseusement par `lancerPreparer` via `demo:etat` +
+  `raccrocherEtatDemo` (`demo.ts`) → « un clic » après redémarrage, pas de 2ᵉ
+  modale, bascule pas-à-pas ⇄ autonomie sur les mêmes dossiers. `ajouterRecent` /
+  `retirerRecent` préservent désormais `demo` (écritures non destructives du
+  fichier).
+- **`demo:copierSources` idempotent par COMPLÉTUDE** : ne recopie que si les 4
+  sources (`srt/Ek.srt` + `audio/Ek.mp3`) manquent — « une seule fois »
+  réellement honoré ; un fichier supprimé par l'utilisateur déclenche une
+  recopie auto-réparatrice (sémantique fichier-à-fichier conservée, §12.7).
+- **Idempotence du builder** (révélée par la re-préparation « un clic ») :
+  - autonomie : ne ré-importe PAS un entretien dont le TITRE source existe déjà
+    (`importerEntretien` crée un nouvel id → doublons E1..E4 sinon) ;
+  - pas-à-pas : ne re-crée la variable « Ville » que si absente
+    (`ajouterVariable` ne déduplique pas par libellé).
+- Le marqueur `corpus.json: { demo: true }` (plan-tutoriel §12.3) reste NON posé :
+  la mémoire démo vit au niveau PROFIL (settings.json), pas dans le corpus.
+
+Tests : **nouveau** e2e `demo.e2e.ts` « mémoire démo persistée » (2 sessions sur
+le même profil : préparation pas-à-pas via la modale → redémarrage → « En
+autonomie » d'un clic SANS modale, 4 entretiens, mode mémorisé rafraîchi en
+`autonomie`). 52/52 e2e + 158 unitaires au vert.
+
+### 12.10 Correctif « panneau Pas à pas restauré à la réouverture » (2026-08-18)
+
+**Problème constaté par l'utilisateur** : après préparation pas-à-pas, fermer
+puis rouvrir le corpus par « Récents » (ou au démarrage — le 1er récent est
+chargé automatiquement) faisait disparaître l'onglet « Pas à pas » : `pasAPas`
+n'était posé QUE par `preparer`, jamais restauré à l'ouverture d'un corpus.
+
+**Correctif** (s'appuie sur la mémoire démo persistée du §12.9) :
+- **Nouvelle** `raccrocherModeCorpus(dir)` dans `demo.ts` : si le dossier ouvert
+  EST le corpus de démo mémorisé (`etat.dossierCorpus === dir`), on hydrate
+  `racineSources`/`dossierCorpus` (textes des étapes, defaultPath des dialogues)
+  et on remonte `pasAPas = (etat.mode === 'pas-a-pas')`.
+- `appliquerCorpus(c, dir?)` (sonal.ts) prend désormais le chemin du corpus
+  ouvert (optionnel) et appelle `raccrocherModeCorpus` à la fin. Les trois
+  chemins d'ouverture le fournissent : `chargerCorpus` (1er récent, démarrage),
+  `ouvrirRecent(dir)` et `choisirDossier` (le scope profil renvoie maintenant
+  `{ corpus, dir }`). Cycle cassé par un holder réaffecté (même patron que
+  `sauverEntretien` — le scope demo est créé après `appliquerCorpus`).
+- Le mode reste une PROPRIÉTÉ du corpus démo (dossier mémorisé) : plus de
+  bouton « Quitter » dans l'onglet (retour utilisateur — le corpus est dédié au
+  pas-à-pas, le panneau reste monté tant que ce corpus est ouvert ; on quitte
+  le corpus pour sortir du guidage).
+
+Tests : **nouveau** e2e `pas-a-pas.e2e.ts` « réouverture par “Récents” » (2
+sessions : préparation → redémarrage → clic sur le 1er récent → panneau +
+onglets visibles, 3 étapes listées). 53/53 e2e + 158 unitaires au vert.
+
+### 12.11 Correctif « l'historique du pas-à-pas survit à la réouverture » (2026-08-18)
+
+**Problème constaté par l'utilisateur** : cliquer sur la carte « Découverte pas à
+pas » re-préparait et re-dérivait les étapes cochées (watch de validation),
+mais rouvrir le corpus par « Récents » affichait le panneau SANS historique —
+`validees` (les étapes validées) était de session uniquement, jamais mémorisé.
+
+**Correctif** (prolonge §12.9/§12.10, s'appuie sur l'état démo persisté) :
+- `EtatDemo` gagne `validees?: string[]` (optionnel → rétro-compatible avec les
+  settings.json écrits avant) ; `estEtatDemo` valide la forme.
+- **Nouvelle** `memoriserEtat()` (demo.ts) : persiste dossiers + mode + `validees`
+  — appelée par `preparer`, par le WATCH de validation (chaque étape cochée est
+  mémorisée, `await` → l'écriture est posée avant de continuer) et par la
+  re-dérivation.
+- **Nouvelle** `revaliderEtapes()` : re-dérive les étapes cochées depuis les
+  prédicats `fait()` (monotone, on ne décoche jamais) — à la réouverture, le
+  watch ne s'étant pas déclenché, on évalue une fois (ex. « charger » re-cochée
+  si un entretien existe déjà).
+- `preparer` (pas-à-pas) : historique VIERGE à la 1re préparation (modale,
+  `opts` fourni), RESTAURÉ depuis la mémoire persistée à la re-préparation
+  « un clic » (`opts` absent). `raccrocherModeCorpus` restaure `validees`
+  mémorisé + re-dérive ; le spotlight reste inactif (l'utilisateur clique une
+  étape pour reprendre le guidage).
+- **Bug latent corrigé au passage** : `raccrocherModeCorpus(null)` écrasait
+  `pasAPas = false` — or `dir === null` n'arrive QUE depuis `preparer`, qui pose
+  `pasAPas` juste après (le 2ᵉ `appliquerCorpus` du bloc « Ville » clobberait le
+  mode → panneau jamais monté). On ne touche plus à `pasAPas` dans ce cas ; en
+  revanche un corpus NON-démo ouvert (dir présent mais ≠ mémorisé) éteint bien
+  le panneau (le bug inverse, lui, est corrigé : ouvrir un corpus quelconque
+  après une session démo laissait le panneau monté).
+
+### 12.12 J6 — corpus de test SÉPARÉS par mode + marqueur `corpus.json` (2026-08-18)
+
+**Décision utilisateur** : la « bascule pas-à-pas → autonomie sur le même corpus »
+(§7.5, plan-tutoriel §14.4) est ABANDONNÉE — elle mélangeait les deux modes (les
+4 entretiens d'« En autonomie » arrivaient dans le corpus pas-à-pas, et un
+entretien chargé en pas-à-pas se retrouvait « dans En autonomie »). Désormais
+**chaque mode a son PROPRE corpus** ; seules les SOURCES sont partagées (copiées
+une seule fois). Le marqueur proposé par l'utilisateur est adopté.
+
+**Correctif** :
+- `CorpusFichier.demo?: MarqueurDemo` — marqueur de corpus de TEST
+  (`{ mode, racineSources, validees? }`), champ additif optionnel (pas de bump).
+  Absent = corpus normal : la démo n'y touche jamais (le gardien du
+  plan-tutoriel §12.3, « PAS posé » en §12.7, est ENFIN posé). Il remplace la
+  comparaison de chemins settings pour restaurer le mode à la réouverture.
+- `EtatDemo` devient `{ racineSources, parentCorpus }` (settings.json) — le
+  parent reçoit `<parent>/pas-a-pas` et `<parent>/autonomie` (join côté main,
+  `demo:cheminCorpus`). `demo:etat` renvoie en plus la présence réelle des
+  dossiers (`EtatDemoComplet` : la modale sait quelle question sauter).
+- `preparer(mode, opts?)` : ouvre `<parent>/<mode>`, importe (autonomie),
+  pose le marqueur (l'historique existant du même mode est conservé), applique
+  le corpus (le marqueur restaure le mode) et mémorise les chemins settings.
+- **Modale ADAPTATIVE** (ModaleDemo.vue) : la question « où importer les
+  sources » est SAUTÉE si les sources sont déjà en place (mémorisées + présentes
+  sur disque) ; idem pour « où placer les corpus de test ». L'Accueil fait
+  « un clic » si les deux dossiers existent (raccrocherEtatDemo + flags).
+- `raccrocherModeCorpus(marqueur, dir)` — lit le MARQUEUR du corpus ouvert :
+  panneau « Pas à pas » + `racineSources` + `validees` restaurés ; tout autre
+  corpus → panneau éteint.
+- `ecrireMarqueur(mode)` remplace la persistance settings de l'historique :
+  chaque étape validée met à jour le marqueur (l'historique voyage avec le
+  corpus, plus robuste).
+
+Tests : `demo.e2e.ts` réécrit (corpus `<parent>/autonomie` vs
+`<parent>/pas-a-pas`, marqueur, et **nouveau test « PAS DE MÉLANGE »** : après
+« En autonomie » d'un clic, le corpus pas-a-pas reste vide et son marqueur
+inchangé) ; `pas-a-pas.e2e.ts` adapté (l'historique se lit dans le marqueur).
+53/53 e2e + 158 unitaires au vert.
+
+> ⚠️ Rétro-compat : les `settings.json` écrits AVANT (forme `{ racineSources,
+> dossierCorpus, mode, validees }`) sont rejetés par `estEtatDemo` → la démo
+> repart de zéro (modale complète). Les anciens corpus de test (sans marqueur)
+> restent dans « Récents » comme corpus normaux — à supprimer à la main
+> (copie jetable, plan §1).
+
+### 12.13 « Récents » filtrés par existence (2026-08-18)
+
+**Problème constaté par l'utilisateur** : supprimer un corpus à la main (dossier
+effacé) le laissait apparaître dans « Récents » à la réouverture — pire : au
+redémarrage, le 1er récent fantôme était recréé silencieusement (`ouvrirDossier`
+→ `mkdirSync` sur le chemin supprimé, corpus neuf vide).
+
+**Correctif** : `corpus:recents` (main) ne renvoie plus que les dossiers qui
+EXISTENT (`existsSync`), avec écriture de retour dans settings.json quand des
+entrées mortes sont retirées (le champ `demo` est préservé). Le démarrage charge
+donc le 1er récent vivant ; un dossier supprimé n'est plus recréé.
+
+Tests : **nouveau** e2e `multi-corpus.e2e.ts` « un corpus dont le dossier a été
+supprimé disparaît des “Récents” » (session 1 : ouvrir un corpus → session 2 :
+dossier supprimé → plus dans la liste ET pas de recréation sur disque).
+54/54 e2e + 158 unitaires au vert.
+
+### 12.14 J7 — dossier de corpus choisi DIRECTEMENT par mode, modale au singulier (2026-08-18)
+
+**Décision utilisateur** : plutôt qu'un dossier PARENT avec sous-dossiers
+(`<parent>/pas-a-pas`, `<parent>/autonomie` — l'idée de §12.12), chaque mode a
+son dossier de corpus choisi DIRECTEMENT dans la modale, au SINGULIER : « Où
+voulez-vous placer ce corpus de test ? » (un dossier = un corpus, à la SonalPi,
+plus proche du geste « Ouvrir un corpus… »). Si la carte cliquée est « Pas à
+pas », c'est le corpus pas-à-pas qui est créé dans le dossier indiqué ; idem
+pour « En autonomie ». L'indépendance des deux est garantie par des GARDES.
+
+**Correctif** :
+- `EtatDemo` devient `{ racineSources, corpusPasAPas?, corpusAutonomie? }` —
+  chaque mode a sa propre entrée ; `demo:etat` renvoie la présence réelle de
+  chacune (`corpusPasAPasExist` / `corpusAutonomieExist`).
+- `preparer(mode, opts?)` : `opts.dossierCorpus` = dossier choisi dans la modale
+  (ou mémorisé pour une re-préparation « un clic ») ; `demo:memoriser` préserve
+  l'autre mode. `demo:cheminCorpus` (join parent/mode) supprimé.
+- **Modale ADAPTATIVE au singulier** : question 1 « où importer les sources »
+  sautée si les sources sont en place ; question 2 « où placer CE corpus de test »
+  posée UNIQUEMENT si le corpus du mode cliqué n'est pas encore connu/présent.
+- **Gardes d'indépendance** (ModaleDemo.vue) : le dossier choisi ne doit être ni
+  les sources, ni le corpus de l'AUTRE mode, ni un dossier DÉJÀ corpus
+  (corpus.json présent — nouveau `demo:verifierCorpus`) : on n'écrase jamais un
+  corpus existant, et les deux corpus de test ne peuvent pas partager un dossier.
+
+Tests : `demo.e2e.ts` réécrit — « deux corpus INDÉPENDANTS » : le 2e mode passe
+par la modale à UNE question (sources déjà en place), la GARDE refuse le dossier
+du 1er mode (message, aucun mélange), puis un dossier vide reçoit le 2e corpus ;
+marqueurs + settings vérifiés. 54/54 e2e + 158 unitaires au vert.

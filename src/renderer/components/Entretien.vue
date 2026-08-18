@@ -117,11 +117,13 @@ function focaliserLibre(el: unknown, cle: string) {
 
         <div class="colonne-droite">
           <nav class="onglets">
+            <!-- Locuteurs en PREMIER et par DÉFAUT : on corrige les locuteurs
+                 avant de poser les thématiques (parcours du pas-à-pas). -->
+            <button data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" @click="ongletDroite = 'locuteurs'">
+              <img class="ico-onglet" :src="icoLocuteurs" alt="" />Loc
+            </button>
             <button data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" @click="ongletDroite = 'themes'">
               <img class="ico-onglet" :src="icoThemes" alt="" />Thèmes
-            </button>
-            <button :class="{ actif: ongletDroite === 'locuteurs' }" @click="ongletDroite = 'locuteurs'">
-              <img class="ico-onglet" :src="icoLocuteurs" alt="" />Loc
             </button>
             <button data-tour="onglet-donnees" :class="{ actif: ongletDroite === 'donnees' }" @click="ongletDroite = 'donnees'">
               <img class="ico-onglet" :src="icoDonnees" alt="" />Données
@@ -179,9 +181,16 @@ function focaliserLibre(el: unknown, cle: string) {
             </div>
 
             <ul class="liste-loc">
-              <li v-for="l in locuteurs" :key="l.index">
+              <li v-for="(l, i) in locuteurs" :key="l.index">
                 <span class="idx">{{ l.index }}</span>
-                <input class="nom-loc" :value="l.nom" @change="renommerLoc(l.index, $event)" />
+                <!-- data-tour sur le 1er champ uniquement : cible de l'étape
+                     « Renommer les locuteurs » du pas-à-pas. -->
+                <input
+                  class="nom-loc"
+                  :data-tour="i === 0 ? 'nom-locuteur' : undefined"
+                  :value="l.nom"
+                  @change="renommerLoc(l.index, $event)"
+                />
                 <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
                   <input
                     type="checkbox"
@@ -302,6 +311,12 @@ function focaliserLibre(el: unknown, cle: string) {
               </li>
             </ul>
           </aside>
+
+          <!-- Ancre de la consigne « panneau » du pas-à-pas : le guide de
+               l'étape (ex. « Écouter et corriger ») s'affiche EN BAS de la
+               colonne de droite, sous le panneau de l'onglet actif — pas en
+               haut (à la place du panneau) ni en bulle flottante sur le texte. -->
+          <div data-tour="ancre-guide-pp"></div>
 
         </div>
       </div>

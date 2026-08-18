@@ -11,7 +11,10 @@ import type {
   CibleValeur,
   CorpusFichier,
   DossierCorpus,
+  EtatDemo,
+  EtatDemoComplet,
   LectureEntretien,
+  MarqueurDemo,
   MatriceCorpus,
   OuvertureCorpus,
   PatchCategorie,
@@ -64,6 +67,7 @@ declare global {
         modifierModalite: (idVar: string, idMod: string, lib: string) => Promise<CorpusFichier>
         supprimerModalite: (idVar: string, idMod: string) => Promise<ResultatSuppression>
         matrice: () => Promise<MatriceCorpus>
+        marquerDemo: (marqueur: MarqueurDemo) => Promise<CorpusFichier>
         assignerAudio: (id: string, source: string) => Promise<{ audioRef: string } | null>
         ecrireWaveform: (id: string, png: Uint8Array) => Promise<string>
         audios: () => Promise<Record<string, { audio: string | null; waveform: string | null }>>
@@ -88,6 +92,9 @@ declare global {
         copierSources: (racine: string) => Promise<void>
         lireSource: (racine: string, rel: string) => Promise<{ nom: string; contenu: string }>
         cheminAudio: (racine: string, rel: string) => Promise<string>
+        etat: () => Promise<EtatDemoComplet | null>
+        memoriser: (etat: EtatDemo) => Promise<void>
+        verifierCorpus: (dir: string) => Promise<{ dejaCorpus: boolean }>
       }
     }
   }

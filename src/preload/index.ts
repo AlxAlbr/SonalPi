@@ -4,7 +4,10 @@ import type {
   CibleValeur,
   CorpusFichier,
   DossierCorpus,
+  EtatDemo,
+  EtatDemoComplet,
   LectureEntretien,
+  MarqueurDemo,
   MatriceCorpus,
   OuvertureCorpus,
   PatchCategorie,
@@ -79,6 +82,8 @@ contextBridge.exposeInMainWorld('sonal', {
     supprimerModalite: (idVar: string, idMod: string): Promise<ResultatSuppression> =>
       ipcRenderer.invoke('corpus:supprimerModalite', idVar, idMod),
     matrice: (): Promise<MatriceCorpus> => ipcRenderer.invoke('corpus:matrice'),
+    marquerDemo: (marqueur: MarqueurDemo): Promise<CorpusFichier> =>
+      ipcRenderer.invoke('corpus:marquerDemo', marqueur),
     assignerAudio: (id: string, source: string): Promise<{ audioRef: string } | null> =>
       ipcRenderer.invoke('corpus:assignerAudio', id, source),
     ecrireWaveform: (id: string, png: Uint8Array): Promise<string> =>
@@ -126,5 +131,14 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Chemin absolu d'un média des sources (ex. 'audio/E2.mp3'). */
     cheminAudio: (racine: string, rel: string): Promise<string> =>
       ipcRenderer.invoke('demo:cheminAudio', racine, rel),
+    /** Mémoire démo persistée (settings.json) : dossiers mémorisés + présence
+     *  réelle sur disque (la modale adapte ses questions). */
+    etat: (): Promise<EtatDemoComplet | null> => ipcRenderer.invoke('demo:etat'),
+    /** Mémoire démo persistée : à appeler après chaque préparation réussie. */
+    memoriser: (etat: EtatDemo): Promise<void> => ipcRenderer.invoke('demo:memoriser', etat),
+    /** Garde de la modale : le dossier choisi pour le corpus de test ne doit pas
+     *  déjà être un corpus (corpus.json présent). */
+    verifierCorpus: (dir: string): Promise<{ dejaCorpus: boolean }> =>
+      ipcRenderer.invoke('demo:verifierCorpus', dir),
   },
 })

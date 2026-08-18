@@ -388,6 +388,11 @@ la main. **Gardien trivial** : on ne reconstruit jamais sur un dossier qui
 contient déjà du contenu non-démo — un marqueur `corpus.json: { demo: true }`
 posé à la création (la fusion d'import le préserve).
 
+> **J6 (plan-reference-audio §12.12)** : le marqueur est désormais POSÉ —
+> `corpus.json: { demo: { mode, racineSources, validees? } }` — et chaque mode a
+> son PROPRE corpus (`<parent>/pas-a-pas`, `<parent>/autonomie`) : la « bascule »
+> sur le même dossier est abandonnée, les deux corpus ne se mélangent jamais.
+
 ### 12.4 Alternative : corpus pré-construit (écartée en v1)
 
 Construire une fois pour toutes `demo/corpus/` (via un script `demo/generer.mts`
@@ -434,7 +439,7 @@ Deux parties, un seul composant :
 > « Pas à pas » dans la vue Entretien : un seul onglet dans Corpus suffit, le
 > spotlight global guident dans toutes les vues. Plus simple, moins intrusif.
 
-Chaque étape = `{ id, titre, cible, fait, texte, action? }` :
+Chaque étape = `{ id, titre, cible, fait, texte, panneau?, retest? }` :
 
 - **titre** : libellé dans la liste (ex. « Charger un entretien ») ;
 - **cible** : fonction renvoyant un sélecteur `data-tour` d'un élément à mettre en
@@ -442,35 +447,74 @@ Chaque étape = `{ id, titre, cible, fait, texte, action? }` :
   tant qu'aucun entretien ouvert, puis `onglet-themes` une fois dedans) ;
 - **fait()** : prédicat sur le modèle réactif (cf. §7 B) — l'étape se coche seule ;
 - **texte()** : le guide affiché dans la bulle (fonction → peut dépendre de l'état) ;
-- **action?** : une éventuelle **action one-click** (ex. « Faire à ma place :
-  importer Sylvie », `libelleAction` optionnel) qui appelle `importerSource('E2',
-  racineSources)` du scope démo. Cette action
-  n'instrumente pas l'UI : elle déclenche le vrai chemin métier (`importerFichier`
-  → `corpus:importer` + `corpus:assignerAudio`), l'utilisateur voit le résultat
-  dans les vraies vues. L'étape 1 pointe le VRAI bouton « + Ajouter un entretien »
-  (`cible: () => '[data-tour="ajouter-entretien"]'`) — le geste réel passe par la
-  vraie modale à deux zones, dont les dialogues natifs s'ouvrent dans
-  `racineSources` (defaultPath, plan-reference-audio §7.4).
+- **retest?** : message affiché quand l'étape, DÉJÀ validée, est rouverte (re-test)
+  — il complète « … tu peux toujours … » (les trois petits points changent donc
+  suivant les étapes : « revoir l'entretien importé », « re-écouter l'audio… »,
+  « re-renommer les locuteurs… », « ajouter ou retirer des annotations »,
+  « modifier ou compléter les valeurs saisies ») ;
+- **panneau?** : la consigne s'affiche en **panneau EN BAS de la colonne de
+  droite** de l'entretien (sous le panneau de l'onglet actif) plutôt qu'en bulle
+  flottante — la bulle positionnée sous le bouton Lecture masquait le texte
+  pendant la lecture, et la consigne en HAUT de la colonne poussait le panneau
+  (retours utilisateur). Utilisé par les étapes « Écouter et corriger » et
+  « Renommer les locuteurs » (la bulle flottante recouvrait aussi le champ du
+  2ᵉ locuteur). Dans ce mode, ni voile ni trou : un Teleport cible
+  l'ancre `data-tour="ancre-guide-pp"` posée à la FIN de la colonne dans
+  `Entretien.vue`. PAS de bouton « action » : l'utilisateur fait le geste
+  LUI-MÊME (retour utilisateur — ex. lecture : clic sur ▶ ou double-espace,
+  idéalement les deux), la consigne ne fait que le dire. Les onglets de
+  l'entretien sont ordonnés Loc → Thèmes → Données → Journal et l'entretien
+  s'ouvre sur **Locuteurs par défaut** (on corrige les locuteurs avant de poser
+  les thématiques).
+
+L'étape 1 pointe le VRAI bouton « + Ajouter un entretien »
+(`cible: () => '[data-tour="ajouter-entretien"]'`) — le geste réel passe par la
+vraie modale à deux zones, dont les dialogues natifs s'ouvrent dans
+`racineSources` (defaultPath, plan-reference-audio §7.4).
 
 Le déroulé : l'utilisateur clique une étape → la **bulle** montre le guide +
 spotlight sur `cible` (projecteur de §7 A réutilisé) → l'utilisateur fait le
-geste (dans la vraie UI ou via l'action one-click proposée) → `fait()` passe à
-vrai → l'étape se coche, la suivante s'active automatiquement (`watch` sur
-`fait()`).
+geste (dans la vraie UI) → `fait()` passe à
+vrai → l'étape se coche et le GUIDAGE S'ARRÊTE (spotlight éteint) : pas
+l'enchaînement automatique sur l'étape suivante — l'utilisateur clique lui-même
+l'étape suivante dans la liste pour la lancer (retour utilisateur : garder la
+main sur le rythme, le passage automatique surprenait). Le `watch` sur
+`fait()` coche + mémorise l'historique ET **revient à l'écran Corpus** (la liste
+« Pas à pas ») — sinon, après validation, on restait dans l'entretien, la liste
+hors d'atteinte (retour utilisateur). Seule exception : l'étape 1, où
+l'OUVERTURE automatique de l'entretien par la vraie modale repasse après le
+retour → on reste dans l'entretien fraîchement importé. Et si l'étape est DÉJÀ
+validée (re-test : l'utilisateur rouvre le crayon pour revoir une étape faite,
+ex. les locuteurs déjà renommés), l'entretien S'OUVRE et on y reste — pas de
+retour (l'étape ne change pas d'état, sinon l'entretien se serait refermé
+aussitôt), le guidage s'éteint et un PETIT MESSAGE s'affiche : « … déjà
+réalisée — tu peux toujours … » (`retest()`, le contenu change suivant les
+étapes) avec un bouton « Revenir au Pas à pas » qui ramène à la liste.
+Le message est déclenché à l'OUVERTURE de l'entretien quand une étape déjà
+validée est active — pas seulement par le prédicat : pour « Écouter et
+corriger », `texteModifie` repart à FAUX à chaque ouverture, le watch de
+validation ne le détecterait pas (pour « Renommer » au contraire, le prédicat
+est déjà vrai à l'ouverture).
 
-### 14.2 Séquence d'étapes proposée (sur E2 puis E4)
+### 14.2 Séquence d'étapes proposée (sur E1 puis E4)
 
-Démarre sur le corpus vide. Les étapes utilisent d'abord **E2 (Sylvie)** puis
-introduisent **E4 (Thomas & Yanis)** pour le cas 3 locuteurs.
+Démarre sur le corpus vide. **Mise en œuvre actuelle : 5 étapes** (`charger` →
+`corriger` → `renommer` → `coder` → `variable`), toutes sur **E1 (Fatima)** —
+choisie parce que sa 1re ligne porte une faute d'ASR idéale pour l'étape
+« Écouter et corriger » (« Maison des Habitants? ? », le point d'interrogation
+doublé en deux segments SRT). L'entretien s'ouvre sur l'onglet **Locuteurs**
+(défaut, on corrige les locuteurs avant les thèmes). Les étapes suivantes du
+tableau (2ᵉ entretien 3 locuteurs…) restent la vision complète, non encore
+implémentée.
 
 | # | Étape | Geste réel | Prédicat `fait()` |
 |---|---|---|---|
-| 1 | **Charger un entretien** | Importer E2 (SRT + audio). Le spotlight encadre le VRAI bouton « + Ajouter un entretien » ; le texte cite `racineSources` (« tes sources sont dans … ») ; one-click renommé « Faire à ma place : importer Sylvie » | `membership` contient un entretien |
-| 2 | **Corriger à l'aide de l'audio** | Lire l'audio, corriger les imperfections ASR d'E2 (ex. la salve « je suis heureuse » seg. 65-68) | le `corpsTexte` d'E2 a été édité (hash ≠ hash d'import) |
-| 3 | **Renommer les locuteurs** | `Speaker 1` → « Enquêteur·rice », `Speaker 0` → « Sylvie » | `locuteurs` d'E2 : ni l'un ni l'autre ne commence par « Speaker » |
-| 4 | **Écouter depuis le texte** | Cliquer dans le texte → le lecteur seek au temps | `audio.position > 0` déclenché par un clic texte (cf. §7 B) |
-| 5 | **Créer une première thématique et annoter** | Ouvrir le codebook, créer un thème (ex. « Sens & motivations »), coder un passage d'E2 | une annotation `codage` existe sur E2 |
-| 6 | **Saisir une variable** | Remplir p. ex. la « Ville » (texte libre) de Sylvie | `valeursLoc` de Sylvie contient la variable Ville |
+| 1 | **Charger un entretien** | Importer E1 (SRT + audio). Le spotlight encadre le VRAI bouton « + Ajouter un entretien » ; le texte cite `racineSources` (« tes sources sont dans … ») | `membership` contient un entretien |
+| 2 | **Écouter et corriger la transcription** | Ouvrir l'entretien (crayon) → la consigne devient un PANNEAU en bas de la colonne, sous le panneau de l'onglet actif (pas de bouton d'action : l'utilisateur lance la lecture LUI-MÊME, clic sur ▶ ou double-espace — la consigne cite les deux) → corriger l'ASR dans l'éditeur (ex. retirer le « ? » fautif de « Maison des Habitants? ? ») | le TEXTE de l'entretien ouvert a été édité (`texteModifie`, useEntretien) |
+| 3 | **Renommer les locuteurs** | Dans l'onglet Locuteurs (défaut), renommer les « Speaker N » : Speaker 0 → « Fatima », Speaker 1 → « Enquêteur·rice » (clic dans le champ, saisie, puis clic ailleurs/Entrée). Consigne en PANNEAU en bas de colonne — la bulle flottante recouvrait le champ du 2ᵉ locuteur | `locuteurs` de l'entretien OUVERT : plus aucun nom ne commence par « Speaker » |
+| 4 | **Créer une première thématique et annoter** | Ouvrir le codebook, créer un thème (ex. « Sens & motivations »), coder un passage | une annotation `codage` existe |
+| 5 | **Saisir une variable** | Remplir p. ex. la « Ville » (texte libre) de Fatima | `valeursLoc` de Fatima contient la variable Ville |
+| 6 | **Écouter depuis le texte** | Cliquer dans le texte → le lecteur seek au temps | `audio.position > 0` déclenché par un clic texte (cf. §7 B) |
 | 7 | **Charger un 2ᵉ entretien (3 locuteurs)** | Importer E4 (Thomas & Yanis) — même mécanique one-click | `membership` contient ≥ 2 entretiens dont un à 3 locuteurs |
 | 8 | **Attribuer un tour au bon locuteur** | Corriger la diarisation d'E4 seg. 50-52 (attribué à Thomas, contexte Yanis) en scindant/réattribuant | le tour visé d'E4 a changé de locuteur |
 | 9 | **Voir la table de données** | Ouvrir la table, constater les valeurs par entretien/locuteur | onglet Données visité |
@@ -490,11 +534,18 @@ charger, juste l'UX.
 
 ### 14.4 Sortie du mode
 
-« Quitter » l'onglet = le démonte (et éteint le spotlight) ; le corpus reste
-(il est dans le dossier choisi, rouvrable depuis « Récents »). L'utilisateur
-peut même, après avoir fini le pas-à-pas, basculer en « En autonomie » sur le
-même dossier pour récupérer les entretiens manquants (le builder est idempotent,
-§12.3).
+Il n'y a PAS de bouton « Quitter » dans l'onglet : le corpus est DÉDIÉ au
+pas-à-pas (mode posé par le marqueur démo), le panneau reste donc monté tant
+que ce corpus est ouvert. Pour sortir du guidage, l'utilisateur quitte le
+corpus (Accueil / « Récents ») ; à la réouverture, le panneau revient avec
+l'historique des étapes cochées — le mode appartient au corpus, pas à la
+session.
+
+> ⚠️ **OBSOLÈTE depuis J6/J7 (plan-reference-audio §12.12/§12.14)** : la bascule
+> « sur le même dossier » est abandonnée — « En autonomie » crée son PROPRE
+> corpus (dossier choisi directement dans la modale, au singulier), le corpus
+> pas-à-pas n'est jamais modifié. Seules les sources sont partagées (copiées une
+> fois).
 
 ## 15. Jalons révisés (évolue §8) — ÉTAT D'AVANCEMENT
 
@@ -520,11 +571,27 @@ même dossier pour récupérer les entretiens manquants (le builder est idempote
    `preparer('autonomie'|'pas-a-pas')`. *Livrable utilisateur n°1.*
 4. **J4 — pas à pas (squelette)** ✅ : [`PasAPas.vue`](../src/renderer/components/PasAPas.vue)
    (onglet Corpus + spotlight global téléporté en body) + `ongletCorpus` dans
-   [`Corpus.vue`](../src/renderer/components/Corpus.vue) + **3 étapes** implémentées
-   dans `demo.ts` (`charger`, `coder`, `variable`) avec prédicats réactifs +
-   validation auto (`watch`). `data-tour` posés : `crayon-entretien` (Corpus),
-   `onglet-themes` + `onglet-donnees` (Entretien). Test e2e :
+   [`Corpus.vue`](../src/renderer/components/Corpus.vue) + **5 étapes** implémentées
+   dans `demo.ts` (`charger`, `corriger`, `renommer`, `coder`, `variable`) avec
+   prédicats réactifs + validation auto (`watch`, sans enchaînement automatique —
+   l'utilisateur clique l'étape suivante). `data-tour` posés : `crayon-entretien`
+   (Corpus), `onglet-themes` + `onglet-donnees` + `onglet-locuteurs` +
+   `nom-locuteur` (Entretien), `lecture` (LecteurAudio). Entretien ouvert sur
+   l'onglet Locuteurs par défaut. Test e2e :
    [`e2e/pas-a-pas.e2e.ts`](../e2e/pas-a-pas.e2e.ts). *Livrable utilisateur n°2.*
+5. **J6/J7 — corpus de test SÉPARÉS par mode + marqueur `corpus.json`** ✅
+   (plan-reference-audio §12.12/§12.14) : chaque mode a son PROPRE dossier de
+   corpus, choisi DIRECTEMENT dans la modale (un dossier = un corpus, à la
+   SonalPi) — la « bascule sur le même dossier » (§14.4) est abandonnée, plus
+   aucun mélange. Marqueur `corpus.json: { demo: { mode, racineSources,
+   validees? } }` (le gardien de §12.3, jusque-là « PAS posé », est enfin posé).
+   Modale ADAPTATIVE au singulier : « où importer les sources » sautée si les
+   sources sont déjà en place ; « où placer CE corpus de test » posée seulement
+   si le corpus du mode n'est pas connu. Gardes d'indépendance : pas déjà un
+   corpus, pas le dossier de l'autre mode, pas les sources. L'historique des
+   étapes voyage avec le corpus (marqueur). Note : ce J6 n'a rien à voir avec le
+   J6 « codebook & variables pré-remplis en autonomie » (À faire ci-dessous,
+   toujours d'actualité).
 
 ### À faire
 

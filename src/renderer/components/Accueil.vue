@@ -10,17 +10,21 @@ const {
   ouvrirRecent,
   retirerRecent,
   preparer,
-  racineSources,
+  raccrocherEtatDemo,
+  pretUnClic,
   enPreparation,
 } = utiliserSonal()
 
-// Modale à DEUX dossiers (§7.2) : lancée depuis les deux cartes démo, sauf si
-// les dossiers sont déjà connus en session (re-préparation idempotente, pas de
-// 2ᵉ modale — bascule pas-à-pas ⇄ autonomie sur le même corpus, §7.5).
+// Modale à DEUX questions (§7.2, J7) : lancée depuis les cartes démo UNIQUEMENT
+// si le corpus de CE mode n'est pas déjà connu ET présent (mémoire démo persistée
+// settings.json). La modale est ADAPTATIVE : une question dont la réponse est
+// déjà connue est sautée (ex. « où importer les sources » si les sources sont
+// déjà en place). Une fois le corpus du mode créé, « un clic » suffit.
 const modaleDemo = ref<ModeDemo | null>(null)
 
-function lancerPreparer(mode: ModeDemo) {
-  if (racineSources.value) void preparer(mode)
+async function lancerPreparer(mode: ModeDemo) {
+  await raccrocherEtatDemo()
+  if (pretUnClic(mode)) void preparer(mode)
   else modaleDemo.value = mode
 }
 </script>
@@ -52,7 +56,7 @@ function lancerPreparer(mode: ModeDemo) {
             <div class="carte-sous">L'ensemble du corpus <br> (4 entretiens + audio)</div>
           </button>
         </div>
-        <p class="demo-aide">un terrain fictif d'aide aux devoirs dans les associations.</p>
+        <p class="demo-aide">Un terrain fictif d'aide aux devoirs dans les associations.</p>
       </div>
 
       <div class="cartes">
@@ -127,6 +131,7 @@ function lancerPreparer(mode: ModeDemo) {
   cursor: progress;
 }
 .demo-aide {
+  text-align: center;
   margin: 0.5rem 0 0;
   font-size: 0.72rem;
   color: #999;

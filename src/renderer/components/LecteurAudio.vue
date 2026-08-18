@@ -60,7 +60,7 @@ function clicBande(e: MouseEvent) {
 <template>
   <div v-if="url && !erreur" class="lecteur-audio">
     <div class="commandes">
-      <button class="play" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
+      <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
         {{ enLecture ? '⏸' : '▶' }}
       </button>
       <span class="temps">{{ fmt(position) }} / {{ fmt(duree) }}</span>
@@ -159,17 +159,20 @@ function clicBande(e: MouseEvent) {
   font-size: 0.82rem;
   color: #b3261e;
 }
-/* La bande : forme d'onde + curseur de position (ratio temps/durée). */
+/* La bande : forme d'onde + curseur de position (ratio temps/durée). MÊME
+   représentation que les cartes Corpus (SonalPi) : conteneur compact à dégradé
+   vertical, onde plate 800×31 — la bande reste un axe TEMPOREL plein (l'onde
+   n'est jamais rognée : `object-fit: fill`, le curseur se cale en %). */
 .bande {
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 46px;
+  height: 31px;
   cursor: pointer;
-  border: 1px solid #e3e8e3;
-  border-radius: 5px;
+  border: 1px solid #cbcbcb;
+  border-radius: 3px;
   overflow: hidden;
-  background: #fff;
+  background: linear-gradient(#00000040 0%, #fbf5f560 50%, #00000040 100%);
 }
 .onde {
   display: block;
@@ -180,7 +183,7 @@ function clicBande(e: MouseEvent) {
   pointer-events: none;
 }
 .onde-vide {
-  background: repeating-linear-gradient(90deg, #f6f6fa 0 6px, #fafafe 6px 12px);
+  background: transparent; /* le dégradé du conteneur suffit (comme les cartes) */
 }
 .curseur {
   position: absolute;
@@ -190,12 +193,14 @@ function clicBande(e: MouseEvent) {
   background: #d84315;
   pointer-events: none;
 }
-/* Segment du résumé thématique sur la bande — translucide, jamais interactif. */
+/* Segment du résumé thématique sur la bande — opacité SonalPi (0.55) : la
+   teinte du thème reste reconnaissable, l'onde reste lisible dessous.
+   Jamais interactif. */
 .xtr-bande {
   position: absolute;
   top: 1px;
   bottom: 1px;
-  opacity: 0.45;
+  opacity: 0.55;
   pointer-events: none;
   box-sizing: border-box;
   border-radius: 2px;

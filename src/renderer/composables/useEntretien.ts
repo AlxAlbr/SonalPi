@@ -76,11 +76,20 @@ export function useEntretien(deps: {
     valeursGen: {},
     audioRef: null,
   })
-  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal'>('themes')
+  // L'entretien s'ouvre sur l'onglet LOCUTEURS par défaut : on corrige les
+  // locuteurs avant de poser les thématiques (parcours du pas-à-pas).
+  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal'>('locuteurs')
   const hintCodage = ref<string | null>(null)
   /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (
    *  « Attribuer la sélection » vs « …le bloc courant »). */
   const selectionVide = ref(true)
+  /** Vrai dès que le TEXTE de l'entretien ouvert a été édité depuis son
+   *  ouverture (frappe/suppression — les attributs, ex. locuteur, ne comptent
+   *  pas : `getText()` ne change pas). Observé par le pas-à-pas (étape
+   *  « Écouter et corriger la transcription »). Volatil : repart à faux à
+   *  chaque ouverture/réinitialisation d'entretien. */
+  const texteModifie = ref(false)
+  let texteInitial = ''
 
   // --- Journal d'actions : volatil (session), actions de modèle seules ---
   const journal = reactive<Journal>({ entrees: [] })
@@ -146,7 +155,13 @@ export function useEntretien(deps: {
         return true
       },
     },
-    onUpdate: () => {
+    onUpdate: ({ editor: ed }) => {
+      // Texte réellement ÉDITÉ (pas un changement d'attribut) depuis l'ouverture
+      // → observable pour le pas-à-pas. `texteInitial !== ''` : un entretien
+      // vide (créé sans texte) ne se « modifie » pas au premier caractère tapé.
+      if (!chargement && ouvertId.value && texteInitial !== '' && ed.getText() !== texteInitial) {
+        texteModifie.value = true
+      }
       rafraichir()
       planifierSauvegarde()
     },
@@ -309,6 +324,8 @@ export function useEntretien(deps: {
     entretien.ancres.splice(0, entretien.ancres.length)
     locuteurs.value = res.data.locuteurs
     ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
+    texteInitial = ed.getText()
+    texteModifie.value = false
     for (const a of res.data.annotations) entretien.annotations.push(a)
     for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
     meta.valeursGen = { ...res.data.meta.valeursGen }
@@ -332,6 +349,8 @@ export function useEntretien(deps: {
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
     editor.value?.commands.setContent('<p></p>', { emitUpdate: false })
+    texteInitial = ''
+    texteModifie.value = false
     refusFormat.value = null
     eteindrePlageLue()
     rafraichir()
@@ -578,6 +597,7 @@ export function useEntretien(deps: {
     reinitialiser,
     sauver,
     donneesExport,
+    texteModifie,
     // rafraîchissements (l'App les déclenche après des changements corpus)
     rafraichir,
     rafraichirDecorations,

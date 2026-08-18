@@ -13,7 +13,9 @@ import { ouvrir, coderTheme, selectionner } from './util'
 
 const gouttiere = (t: string) => `.editeur .gouttiere-loc:text-is("${t}")`
 
-/** Ouvre l'onglet Locuteurs (le panneau est masqué par défaut = onglet Thèmes). */
+/** Ouvre l'onglet Locuteurs (l'entretien s'ouvre DÉJÀ dessus par défaut — les
+ *  locuteurs se corrigent avant les thèmes ; le helper reste pour revenir à
+ *  l'onglet après en avoir ouvert un autre). */
 async function ongletLocuteurs(page: import('@playwright/test').Page) {
   await page.locator('.onglets button', { hasText: 'Loc' }).click()
 }

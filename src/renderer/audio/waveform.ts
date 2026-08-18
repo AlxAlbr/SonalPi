@@ -18,14 +18,17 @@ export function urlMediaWaveform(id: string, v?: number | string): string {
 /**
  * PNG de la forme d'onde, façon SonalPi : décodage AudioContext (dans le
  * renderer — seul endroit où il est garanti), enveloppe min/max (pure,
- * `enveloppe.ts`), dessin canvas (remplissage entre les deux enveloppes +
- * traits). Pas de Web Worker : l'enveloppe est un O(n) négligeable devant le
- * décodage, lui-même déjà asynchrone.
+ * `enveloppe.ts`), dessin canvas. RATIO SonalPi (800×31, très plat — c'est ce
+ * qui fait le « mur d'ondes » de l'écran Corpus) : remplissage quasi invisible
+ * (le conteneur porte le dégradé, comme `.fond-cnv-ent` de SonalPi), seuls les
+ * deux traits d'enveloppe gris dessinent la forme. Pas de Web Worker :
+ * l'enveloppe est un O(n) négligeable devant le décodage, lui-même déjà
+ * asynchrone.
  */
 export async function genererWaveformPng(
   octets: ArrayBuffer,
-  largeur = 1200,
-  hauteur = 46,
+  largeur = 800,
+  hauteur = 31,
 ): Promise<Uint8Array> {
   const ctxAudio = new AudioContext()
   let canal: Float32Array
@@ -50,7 +53,7 @@ export async function genererWaveformPng(
   ctx.closePath()
   // Gris NEUTRE (les valeurs SonalPi) : la couleur sur l'onde est réservée au
   // calque du résumé thématique — l'onde elle-même ne doit pas encombrer.
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.06)'
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.1)' // SonalPi : quasi invisible — le dégradé vit dans le conteneur
   ctx.fill()
   ctx.strokeStyle = 'rgb(165, 165, 165)'
   ctx.lineWidth = 1

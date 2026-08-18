@@ -2,7 +2,7 @@ import { ref, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
 import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
-import type { CorpusFichier } from '../../shared/format'
+import type { CorpusFichier, MarqueurDemo } from '../../shared/format'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
 import { useEntretien } from './useEntretien'
@@ -22,6 +22,14 @@ export function creerSonal() {
   // ouvert avant un compte d'usages (`flush`), mais l'entretien est créé APRÈS le
   // corpus (il lui injecte `couleurTrait`). On route `flush` via un holder réaffecté.
   let sauverEntretien: () => Promise<void> = async () => {}
+  // Indirection pour casser le cycle (J6) : `appliquerCorpus` doit restaurer le
+  // mode démo (panneau « Pas à pas ») quand le corpus ouvert porte le MARQUEUR
+  // `demo` (corpus.json), mais le scope demo est créé APRÈS (il injecte
+  // `appliquerCorpus`). Même patron que `sauverEntretien` : holder réaffecté.
+  let raccrocherModeCorpus: (
+    marqueur: MarqueurDemo | undefined,
+    dir: string | null,
+  ) => Promise<void> = async () => {}
   const corpus = useCorpus({ flush: () => sauverEntretien() })
 
   // Scope AUDIO : le lecteur de l'entretien ouvert. Les trois consommateurs
@@ -169,8 +177,10 @@ export function creerSonal() {
 
   // --- Orchestration : coud profil ↔ corpus ↔ entretien ---
   /** Applique un corpus chargé (définitions + membership) et RÉINITIALISE l'entretien
-   *  ouvert — on change potentiellement de dossier. */
-  async function appliquerCorpus(c: CorpusFichier) {
+   *  ouvert — on change potentiellement de dossier. `dir` (optionnel) permet de
+   *  restaurer le mode démo quand le corpus ouvert est le corpus de démo (problème
+   *  n°2 — panneau « Pas à pas » après réouverture par « Récents » / démarrage). */
+  async function appliquerCorpus(c: CorpusFichier, dir?: string) {
     ent.reinitialiser()
     audio.charger(null, null) // le lecteur ne survit pas au changement de corpus
     reprise.value = null // les ids de reprise non plus
@@ -182,6 +192,7 @@ export function creerSonal() {
     await rafraichirAudios()
     audiosManquants.value = await verifierIntegriteAudios() // J3 : bandeau d'intégrité
     void regenererOndesManquantes() // en fond : ne bloque pas l'arrivée à l'écran
+    await raccrocherModeCorpus(c.demo, dir ?? null) // J6 : mode démo restauré depuis le marqueur
   }
 
   async function chargerCorpus() {
@@ -192,7 +203,8 @@ export function creerSonal() {
     // 1er récent (le loaded corpus est TOUJOURS le 1er récent, par construction).
     await profil.rafraichirRecents()
     if (profil.recents.value.length > 0) {
-      await appliquerCorpus(await profil.ouvrirDossier(profil.recents.value[0].dir))
+      const dir = profil.recents.value[0].dir
+      await appliquerCorpus(await profil.ouvrirDossier(dir), dir)
     }
     vue.value = 'accueil'
   }
@@ -200,14 +212,14 @@ export function creerSonal() {
   /** « Ouvrir un corpus… » : le scope profil bascule le store sur un autre dossier
    *  et renvoie son contenu ; on l'applique au modèle. */
   async function choisirDossier() {
-    const c = await profil.choisirDossier()
-    if (!c) return
-    await appliquerCorpus(c)
+    const r = await profil.choisirDossier()
+    if (!r) return
+    await appliquerCorpus(r.corpus, r.dir)
     vue.value = 'corpus'
   }
   /** Rouvrir un corpus récent (par son chemin). */
   async function ouvrirRecent(dir: string) {
-    await appliquerCorpus(await profil.ouvrirDossier(dir))
+    await appliquerCorpus(await profil.ouvrirDossier(dir), dir)
     vue.value = 'corpus'
   }
 
@@ -419,13 +431,19 @@ export function creerSonal() {
     appliquerCorpus,
     majDossierCourant: profil.majDossierCourant,
     rafraichirRecents: profil.rafraichirRecents,
+    retourCorpus,
     vue,
     membership: corpus.membership,
     entretien: ent.entretien,
     locuteurs: ent.locuteurs,
     meta: ent.meta,
     ouvertId: ent.ouvertId,
+    variables: corpus.variables,
+    texteModifie: ent.texteModifie,
   })
+  // Problème n°2 : branche le holder — `appliquerCorpus` restaure désormais le
+  // mode démo (panneau « Pas à pas ») quand le corpus ouvert est le corpus démo.
+  raccrocherModeCorpus = demo.raccrocherModeCorpus
 
   onMounted(chargerCorpus)
 

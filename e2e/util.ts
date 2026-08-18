@@ -15,7 +15,10 @@ function launchEnv() {
   return env as Record<string, string>
 }
 
-export async function lancer(userDataDir: string): Promise<ElectronApplication> {
+export async function lancer(
+  userDataDir: string,
+  opts?: { preserverSettings?: boolean },
+): Promise<ElectronApplication> {
   // Un corpus neuf naît VIDE (S8 rév.) ; les specs reposent sur la baseline de
   // démo « Karine » → écrite dans le corpus par défaut du profil AVANT le
   // lancement (un dossier pické par un test reste vierge, sauf s'il la pose).
@@ -24,11 +27,15 @@ export async function lancer(userDataDir: string): Promise<ElectronApplication> 
   // et la carte « Corpus courant » a disparu. On pré-inscrit donc le corpus par
   // défaut (seedé) comme récent — comme un utilisateur qui a déjà ouvert ce
   // corpus — pour que les tests puissent y entrer depuis l'Accueil (1er récent).
-  writeFileSync(
-    join(userDataDir, 'settings.json'),
-    JSON.stringify({ recents: [join(userDataDir, 'corpus')] }, null, 2),
-    'utf8',
-  )
+  // `preserverSettings` : ne pas réécrire le fichier (tests de persistance de la
+  // mémoire démo — settings.json porte aussi `demo`, §7.2).
+  if (!opts?.preserverSettings) {
+    writeFileSync(
+      join(userDataDir, 'settings.json'),
+      JSON.stringify({ recents: [join(userDataDir, 'corpus')] }, null, 2),
+      'utf8',
+    )
+  }
   return electron.launch({
     args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`],
     env: launchEnv(),
@@ -111,6 +118,24 @@ export async function compterAnnotations(page: Page): Promise<number> {
     })
     return ids.size
   })
+}
+
+/** Vérifie que le trou du spotlight chevauche réellement l'élément ciblé
+ *  (poll sur la position recalculée à chaque frame). */
+export async function spotlightSur(page: Page, selector: string): Promise<void> {
+  await expect(page.locator(selector)).toBeVisible()
+  await expect
+    .poll(async () => {
+      const t = await page.locator('.spotlight-trou').boundingBox()
+      const b = await page.locator(selector).boundingBox()
+      return !!t && !!b && !(
+        t.x + t.width < b.x ||
+        t.x > b.x + b.width ||
+        t.y + t.height < b.y ||
+        t.y > b.y + b.height
+      )
+    })
+    .toBe(true)
 }
 
 /** S6 rev. : ajoute un entretien via la MODALE « + Ajouter un entretien »
