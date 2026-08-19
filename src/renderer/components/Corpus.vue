@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from './EditionThemes.vue'
 import PasAPas from './PasAPas.vue'
 import { utiliserSonal } from '../composables/sonal'
+import { rechercherDansCorpsTexte } from '../corpus/recherche'
+import type { OccurenceRecherche, ResultatRecherche } from '../corpus/recherche'
 import type { SegmentThematique } from '../../shared/format'
+// Icônes d'onglets (parité vue Entretien) — thèmes = logocat, recherche = logosearch.
+import icoThemes from '../assets/icones/logocat.png'
+import icoRecherche from '../assets/icones/logosearch.png'
 
 const {
   // thèmes (codebook corpus) — CONSULTATION ; l'édition passe par la modale (crayon)
@@ -42,14 +47,70 @@ const {
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
 const editerThemes = ref(false)
-// Onglet de la colonne gauche : « Thèmes » par défaut, « Pas à pas » en mode
-// démo. Les métadonnées d'un entretien sélectionné conservent leur affichage
-// (bascule existante, hors onglet pour l'instant).
-const ongletCorpus = ref<'themes' | 'pas-a-pas'>('themes')
+// Onglet de la colonne gauche : « Thèmes » par défaut, « Recherche » (texte
+// plein corpus, parité SonalPi), « Pas à pas » en mode démo.
+const ongletCorpus = ref<'themes' | 'recherche' | 'pas-a-pas'>('themes')
 // Quand le mode pas-à-pas s'active, bascule l'onglet sur « Pas à pas ».
 watch(pasAPas, (v) => {
   if (v) ongletCorpus.value = 'pas-a-pas'
 })
+
+// --- ONGLET RECHERCHE : texte plein CORPUS (parité SonalPi rechercherDansCorpus) ---
+const requete = ref('')
+const motEntier = ref(false)
+const resultats = ref<ResultatRecherche[]>([])
+const enCours = ref(false)
+const message = ref('')
+/** Marqueurs pour le « mur » de waveforms (carte par entretien) : le % divisé
+ *  par l'axe caractères de chaque occurrence + le contexte affiché si on clic.
+ *  Le clic N'ouvre PAS l'entretien (subtilité SonalPi) : il reste en vue Corpus
+ *  et affiche l'extrait dans le panneau de gauche. */
+const marqueursRecherche = computed(() => {
+  const out: Record<string, Array<OccurenceRecherche>> = {}
+  for (const r of resultats.value) out[r.id] = r.occurrences
+  return out
+})
+/** L'extrait d'entretien affiché après le clic sur une barre du mur. */
+const extraitAffiche = ref<{ id: string; titre: string; pre: string; match: string; post: string; pos: number } | null>(null)
+function afficherExtrait(id: string, o: OccurenceRecherche) {
+  const r = resultats.value.find((x) => x.id === id)
+  extraitAffiche.value = { id, titre: r?.titre ?? id, pre: o.pre, match: o.match, post: o.post, pos: o.pos }
+}
+/** Lance la recherche : lit chaque entretien, extrait les occurrences (contexte
+ *  ±15 mots + position PM), groupe par entretien. Cliquer = ouvrir l'entretien. */
+async function lancerRecherche() {
+  const q = requete.value.trim()
+  if (!q) return
+  message.value = ''
+  enCours.value = true
+  resultats.value = []
+  try {
+    const res: ResultatRecherche[] = []
+    for (const e of listeEntretiens()) {
+      const lecture = await window.sonal.corpus.lireEntretien(e.id)
+      if (!lecture.ok) continue
+      const occurrences = rechercherDansCorpsTexte(lecture.data.corpsTexte, q, { motEntier: motEntier.value })
+      if (occurrences.length) res.push({ id: e.id, titre: e.titre, occurrences })
+    }
+    resultats.value = res
+    const nb = res.reduce((n, r) => n + r.occurrences.length, 0)
+    message.value = nb
+      ? `${nb} occurrence${nb > 1 ? 's' : ''} dans ${res.length} entretien${res.length > 1 ? 's' : ''}`
+      : 'Aucune occurrence trouvée.'
+  } finally {
+    enCours.value = false
+  }
+}
+function effacerRecherche() {
+  requete.value = ''
+  resultats.value = []
+  message.value = ''
+}
+/** Cliquer une occurrence → ouvrir l'entretien et cale le texte sur le match
+ *  (position PM, comme le clic sur un segment thématique). */
+function allerOccurrence(id: string, pos: number) {
+  ouvrirAuSegment(id, pos)
+}
 
 /** Style d'un segment du calque des cartes : position/largeur en % du TEXTE
  *  (parité SonalPi), peinture partagée `peintureSegment` (useCorpus). */
@@ -77,18 +138,44 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <!-- Colonne GAUCHE : onglets Thèmes / Pas à pas, puis bascule
              Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
         <aside class="colonne-g-corpus">
-          <!-- Onglets (seulement en mode pas-à-pas ; sinon Thèmes seul) -->
-          <nav v-if="pasAPas" class="onglets-corpus">
-            <button :class="{ actif: ongletCorpus === 'themes' }" @click="ongletCorpus = 'themes'">
-              Thèmes
-            </button>
-            <button :class="{ actif: ongletCorpus === 'pas-a-pas' }" @click="ongletCorpus = 'pas-a-pas'">
+          <!-- Onglets de la colonne gauche (parité vue Entretien) : Thèmes /
+               Recherche, + Pas à pas en mode démo. Toujours visibles. -->
+          <nav class="onglets-corpus">
+            <!-- En corpus DÉMO « Pas à pas », l'onglet arrive EN PREMIER (c'est
+                 l'objectif du parcours) ; sinon Thèmes puis Recherche. -->
+            <button v-if="pasAPas" :class="{ actif: ongletCorpus === 'pas-a-pas' }" @click="ongletCorpus = 'pas-a-pas'">
               Pas à pas
+            </button>
+            <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" @click="ongletCorpus = 'themes'">
+              <img class="ico-onglet-corpus" :src="icoThemes" alt="" /> Thèmes
+            </button>
+            <button :class="{ actif: ongletCorpus === 'recherche' }" title="Recherche dans le corpus" @click="ongletCorpus = 'recherche'">
+              <img class="ico-onglet-corpus" :src="icoRecherche" alt="" /> Recherche
             </button>
           </nav>
 
-          <!-- Un entretien est sélectionné → ses métadonnées (nom éditable + infos) -->
-          <div v-if="corpusSelId" class="panneau meta-ent">
+          <!-- Panneau EXtrait (clic sur une barre du mur de recherche) : reste
+               en vue Corpus, affiche le contexte de l'occurrence + un bouton pour
+               ouvrir l'entretien si besoin. Visible quel que soit l'onglet actif. -->
+          <div v-if="extraitAffiche" class="panneau extrait">
+            <div class="corpus-tete">
+              <h3>Extrait</h3>
+              <button class="mini" @click="extraitAffiche = null">✕</button>
+            </div>
+            <p class="extrait-ent">Entretien : <b>{{ extraitAffiche.titre }}</b></p>
+            <p class="extrait-texte">
+              <span class="pre">{{ extraitAffiche.pre }}</span>
+              <span class="match">{{ extraitAffiche.match }}</span>
+              <span class="post">{{ extraitAffiche.post }}</span>
+            </p>
+            <button class="mini" @click="ouvrirAuSegment(extraitAffiche.id, extraitAffiche.pos)">
+              Ouvrir l’entretien ici →
+            </button>
+          </div>
+
+          <!-- Onglet Thèmes : un entretien sélectionné → ses métadonnées (nom
+               éditable + infos), sinon la consultation des thèmes. -->
+          <div v-if="ongletCorpus === 'themes' && corpusSelId" class="panneau meta-ent">
             <div class="corpus-tete">
               <h3>Entretien</h3>
               <button class="mini" @click="deselectionnerCorpus">← Thèmes</button>
@@ -114,7 +201,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
           <!-- Sinon : thèmes en CONSULTATION compacte ; le crayon ouvre la fenêtre
                d'édition partagée (parité SonalPi — nom/couleur/taille/arbre). -->
-          <aside v-else v-show="ongletCorpus === 'themes' || !pasAPas" class="panneau themes-corpus">
+          <aside v-else-if="ongletCorpus === 'themes'" class="panneau themes-corpus">
             <div class="corpus-tete">
               <h3>Thèmes</h3>
               <button class="crayon" title="Éditer les thèmes" @click="editerThemes = true">✏️</button>
@@ -134,6 +221,49 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               </li>
             </ul>
           </aside>
+
+          <!-- Onglet Recherche : recherche plein texte sur TOUS les entretiens. -->
+          <div v-else-if="ongletCorpus === 'recherche'" class="panneau recherche">
+            <div class="corpus-tete">
+              <h3>Recherche</h3>
+            </div>
+            <p class="aide-thm">Cherche dans le texte de tous les entretiens (insensible à la casse).</p>
+            <div class="barre-recherche">
+              <input
+                class="req-recherche"
+                v-model="requete"
+                placeholder="Rechercher…"
+                @keyup.enter="lancerRecherche"
+              />
+              <button class="btn-rech" :disabled="!requete.trim() || enCours" @click="lancerRecherche">
+                {{ enCours ? '…' : 'Rechercher' }}
+              </button>
+            </div>
+            <label class="opt-recherche" :class="{ coche: motEntier }">
+              <input type="checkbox" v-model="motEntier" @change="lancerRecherche" />
+              <span class="opt-lib">Mot entier</span>
+            </label>
+            <p class="opt-info-texte">Mot entier : seuls les mots exacts comptent — « le » trouve « le », mais pas « parle ».</p>
+            <p v-if="message" class="rech-info">{{ message }}</p>
+
+            <ul v-if="resultats.length" class="liste-rech-crp">
+              <li v-for="r in resultats" :key="r.id" class="ent-rech">
+                <div class="titre-ent-rech">Entretien : <b>{{ r.titre }}</b>
+                  <span class="nb-rech">{{ r.occurrences.length }}</span>
+                </div>
+                <ul class="occ-rech">
+                  <li v-for="(o, i) in r.occurrences" :key="i">
+                    <button class="occ-rech-btn" title="Ouvrir l’entretien ici" @click="allerOccurrence(r.id, o.pos)">
+                      <span class="pre">{{ o.pre }}</span>
+                      <span class="match">{{ o.match }}</span>
+                      <span class="post">{{ o.post }}</span>
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+            <button v-if="resultats.length" class="effacer-rech" @click="effacerRecherche">✕ Effacer</button>
+          </div>
 
           <!-- Pas à pas (onglet démo) : liste des étapes + spotlight global
                (téléporté en body → visible dans n'importe quelle vue). La liste
@@ -214,6 +344,18 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                     :title="s.codes.map(nomTheme).join(' + ')"
                     @click.stop="ouvrirAuSegment(e.id, s.pos)"
                   ></span>
+                  <!-- Marqueurs de RECHERCHE : une pastille par occurrence, à son
+                       emplacement % (axe caractères, aligné sur le résumé). Clic =
+                       RESTE en vue Corpus et affiche l'extrait dans le panneau de
+                       gauche (subtilité SonalPi) — n'ouvre pas l'entretien. -->
+                  <span
+                    v-for="(m, mi) in marqueursRecherche[e.id] ?? []"
+                    :key="'m' + mi"
+                    class="occ-marqueur"
+                    :style="{ left: m.pourcent + '%' }"
+                    :title="'Afficher l’extrait — « ' + requete + ' »'"
+                    @click.stop="afficherExtrait(e.id, m)"
+                  ></span>
                 </div>
               <div class="carte-actions">
                 <button
@@ -259,7 +401,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   gap: 1rem;
   align-items: start;
 }
-/* --- Onglets colonne gauche (Thèmes / Pas à pas) --- */
+/* --- Onglets colonne gauche (Thèmes / Recherche / Pas à pas) --- */
 .onglets-corpus {
   display: flex;
   gap: 0.25rem;
@@ -267,6 +409,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .onglets-corpus button {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
   border: 1px solid #ddd;
   border-bottom: none;
   border-radius: 6px 6px 0 0;
@@ -279,6 +425,179 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   background: #fff;
   font-weight: 600;
   color: #1565c0;
+}
+.ico-onglet-corpus {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  opacity: 0.6;
+  flex: none;
+}
+.onglets-corpus button.actif .ico-onglet-corpus {
+  opacity: 1;
+}
+/* --- Onglet Recherche : recherche plein texte du corpus (parité SonalPi) --- */
+.barre-recherche {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+.req-recherche {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.82rem;
+}
+.btn-rech {
+  border: 1px solid #1565c0;
+  background: #2e73d8;
+  color: #fff;
+  border-radius: 5px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  flex: none;
+}
+.btn-rech:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.opt-recherche {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: #555;
+  cursor: pointer;
+  user-select: none;
+}
+.opt-recherche input {
+  accent-color: #2e73d8;
+  cursor: pointer;
+}
+.opt-recherche.coche .opt-lib {
+  color: #1565c0;
+  font-weight: 600;
+}
+.opt-info-texte {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: #999;
+  font-style: italic;
+}
+.rech-info {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: #666;
+}
+/* Résultats groupés par entretien (parité SonalPi .liste-rech-crp / .occurence-rech) */
+.liste-rech-crp {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ent-rech {
+  border: 1px solid #e5e5ef;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  background: #fff;
+}
+.titre-ent-rech {
+  font-size: 0.82rem;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+.nb-rech {
+  font-size: 0.7rem;
+  color: #999;
+  font-family: monospace;
+  margin-left: 0.3rem;
+}
+.occ-rech {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.occ-rech-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background: #fafafe;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.75rem;
+  color: #444;
+  cursor: pointer;
+  line-height: 1.35;
+}
+.occ-rech-btn:hover {
+  border-color: #2e73d8;
+  background: #f0f6ff;
+}
+.occ-rech-btn .match {
+  font-weight: 700;
+  color: #1565c0;
+  /* Espace VISUEL autour du match : les espaces du template sont des nœuds
+     texte réduits à des blancs, que Vue supprime en mode condense — mieux vaut
+     une marge (garantie) qu'un espace littéral (détruit à la compilation).
+     0.3em ≈ la largeur d'un espace. */
+  margin: 0 0.3em;
+}
+.effacer-rech {
+  margin-top: 0.5rem;
+  border: 1px dashed #bbb;
+  border-radius: 5px;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  width: 100%;
+}
+.effacer-rech:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
+}
+/* --- Panneau Extrait (clic sur une barre du mur de recherche) --- */
+.extrait {
+  border: 1px solid #dce4ef;
+  background: #fafdff;
+}
+.extrait-ent {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  color: #333;
+}
+.extrait-texte {
+  margin: 0.4rem 0;
+  border: 1px solid #e5e5ef;
+  border-left: 3px solid #1565c0;
+  border-radius: 4px;
+  background: #fff;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+  color: #444;
+  line-height: 1.45;
+}
+.extrait-texte .match {
+  font-weight: 700;
+  color: #1565c0;
+  background: #fff3c4;
+  padding: 0 0.15rem;
+  /* Espaces VISUEL autour du match (les espaces du template sont détruits par
+     le mode condense de Vue — marge garantie, cf. .occ-rech-btn .match). */
+  margin: 0 0.3em;
 }
 /* --- Colonne gauche : métadonnées de l'entretien sélectionné --- */
 .meta-ent .champ-nom {
@@ -393,6 +712,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   width: 100%;
   height: 100%;
   object-fit: cover; /* parité SonalPi (.ligent-img) : pas de distorsion */
+  border-radius: 3px; /* conserve le coin arrondi du cadre (overflow visible désormais) */
 }
 /* Cadre de superposition du résumé thématique (les .xtr-graph se positionnent
    en % de SA largeur — la même que l'onde ou le placeholder). Conteneur
@@ -406,7 +726,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-radius: 3px;
   border: 1px solid #cbcbcb;
   background: linear-gradient(#00000040 0%, #fbf5f560 50%, #00000040 100%);
-  overflow: hidden;
+  /* overflow VISIBLE : les marqueurs de recherche dépassent au-dessus/en dessous
+     du cadre (parité SonalPi .occurence-canvas). L'image .spectro, elle, est en
+     absolute inset:0 → ne déborde jamais ; ses coins sont arrondis par son propre
+     border-radius (ci-dessous) puisqu'on ne clippe plus ici. */
+  overflow: visible;
 }
 .xtr-graph {
   position: absolute;
@@ -420,6 +744,29 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .xtr-graph:hover {
   opacity: 0.8; /* survol SonalPi : le segment s'affirme (clic = rouvrir au texte) */
   border: 1px solid #030303;
+}
+/* Marqueur de RECHERCHE sur le « mur » d'ondes — parité SonalPi
+   .occurence-canvas : barre JAUNE vif, tour ROUGE gras, qui dépasse un peu du
+   cadre, bien visible. Centrée sur la position % de l'occurrence ; au survol,
+   elle passe au rouge et s'épaissit (comme SonalPi). */
+.occ-marqueur {
+  position: absolute;
+  top: -4px;
+  bottom: -4px; /* dépasse un peu au-dessus ET en dessous du cadre */
+  width: 4px;
+  margin-left: -2px; /* centrée sur son % */
+  background: rgb(254 255 0);
+  border: 2px solid #ff0000; /* tour gras rouge */
+  border-radius: 2px;
+  cursor: pointer;
+  z-index: 10;
+  box-sizing: border-box;
+}
+.occ-marqueur:hover {
+  background: rgb(255 0 0);
+  width: 6px;
+  margin-left: -3px;
+  box-shadow: 0 0 4px rgba(255, 0, 0, 0.5);
 }
 .assigner-audio {
   margin-top: 0.6rem;

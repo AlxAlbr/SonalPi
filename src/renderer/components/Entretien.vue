@@ -326,6 +326,9 @@ function focaliserLibre(el: unknown, cle: string) {
             <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
               <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
             </button>
+            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Anonymisation" @click="ongletDroite = 'anon'">
+              <img class="ico-onglet" :src="icoAnon" alt="Anonymisation" />
+            </button>
             <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
               <img class="ico-onglet" :src="icoThemes" alt="Thématiques" />
             </button>
@@ -334,9 +337,6 @@ function focaliserLibre(el: unknown, cle: string) {
             </button>
             <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
               <img class="ico-onglet" :src="icoJournal" alt="Journal" />
-            </button>
-            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Anonymisation" @click="ongletDroite = 'anon'">
-              <img class="ico-onglet" :src="icoAnon" alt="Anonymisation" />
             </button>
           </nav>
 
@@ -853,13 +853,22 @@ function focaliserLibre(el: unknown, cle: string) {
   font-weight: 600;
   color: #1565c0;
 }
-/* Icônes SonalPi (glyphes noirs) : adoucies sur l'onglet inactif. */
+/* Icônes SonalPi (glyphes noirs) : adoucies sur l'onglet inactif. Plus
+   grandes dans les onglets de la barre gauche (20px) — la liste d'accueil
+   garde sa taille propre (20px, cf. .liste-tours). L'onglet Anonymisation est
+   un cran plus grand (23px). */
 .ico-onglet {
-  width: 15px;
-  height: 15px;
   object-fit: contain;
   opacity: 0.55;
   flex: none;
+}
+.onglets .ico-onglet {
+  width: 20px;
+  height: 20px;
+}
+.onglets button[data-onglet="anon"] .ico-onglet {
+  width: 23px;
+  height: 23px;
 }
 .onglets button.actif .ico-onglet {
   opacity: 1;

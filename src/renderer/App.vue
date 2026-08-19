@@ -8,7 +8,7 @@ import Entretien from './components/Entretien.vue'
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
 // (utiliserSonal). App ne garde que l'en-tête, le fil d'Ariane et les bannières.
-const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat } =
+const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat, dossierCourantNom } =
   fournirSonal()
 </script>
 
@@ -26,11 +26,13 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
         <button class="lien-nav" @click="allerAccueil">Accueil</button>
         <span class="sep">›</span>
         <button class="lien-nav" :class="{ courant: vue === 'corpus' }" :disabled="vue === 'corpus'" @click="retourCorpus">
-          Corpus
+          Corpus{{ dossierCourantNom ? ' (' + dossierCourantNom + ')' : '' }}
         </button>
         <template v-if="vue === 'entretien'">
           <span class="sep">›</span>
-          <span class="lien-nav courant">{{ (ouvertId && membership[ouvertId]?.titre) || 'Entretien' }}</span>
+          <span class="lien-nav courant">
+            Entretien ({{ (ouvertId && membership[ouvertId]?.titre) || 'sans titre' }})
+          </span>
         </template>
         <template v-if="vue === 'donnees'">
           <span class="sep">›</span>

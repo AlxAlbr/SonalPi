@@ -5,6 +5,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "postinstall": "node node_modules/electron/install.js",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "test": "vitest run",
