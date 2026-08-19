@@ -6,32 +6,27 @@ export type { ModeDemo, EtatDemo }
 import type { Annotation } from '../../shared/entretien/annotation'
 
 /**
- * Scope DÉMO « Mini Corpus Test » : construit des corpus de test depuis les
- * sources bundled `CorpusTest/` (SRT + audio) dans des DOSSIERS CHOISIS, puis
- * les ouvre. Ce n'est pas un 3ᵉ type de stockage : le builder réutilise le VRAI
- * pipeline d'import (`importerFichier` → `corpus:importer` + `corpus:assignerAudio`)
- * → zéro dérive de format, la démo est produite par le même code qu'un corpus
- * utilisateur.
+ * Scope DÉMO « Mini Corpus Test » : construit puis ouvre des corpus de test,
+ * à partir des sources bundled `CorpusTest/` (SRT + audio), dans des dossiers
+ * choisis par l'utilisateur.
+ * Le builder réutilise le vrai pipeline d'import,
+ * soit `importerFichier` puis `corpus:importer` + `corpus:assignerAudio` :
+ * la démo est produite par le même code qu'un corpus utilisateur.
  *
- * Deux modes, chacun son PROPRE corpus (J7) — le dossier du corpus de chaque
- *  mode est choisi directement dans la modale (un dossier = un corpus, à la
- *  SonalPi) :
- *  - `'autonomie'` : les 4 entretiens importés + audios, codebook par défaut ;
- *  - `'pas-a-pas'` : corpus amorcé VIDE, onglet « Pas à pas » activé — les
- *    étapes remplissent le corpus une à une (via `importerSource`), guidées par
- *    un spotlight global (projecteur + bulle, plan §7 A / §14).
- * Les deux corpus ne se mélangent JAMAIS (gardes de la modale : pas déjà un
- * corpus, pas le dossier de l'autre mode, pas les sources) ; seules les SOURCES
- * sont partagées (copiées une seule fois dans `racineSources`). L'identité d'un
- * corpus de test vit dans `corpus.json: { demo: { mode, racineSources, validees
- * } }` (absent = corpus normal — la démo n'y touche jamais, gardien
- * plan-tutoriel §12.3).
+ * Deux modes, chacun son propre corpus (choisi dans la modale) :
+ *  - `'autonomie'` : les 4 entretiens importés + audios ;
+ *  - `'pas-a-pas'` : corpus amorcé vide, rempli étape par étape,
+ *    via `importerSource`, guidé par un spotlight global.
+ * Seules les sources sont partagées (copiées une seule fois).
+ * L'identité d'un corpus de test vit dans `corpus.json` :
+ * `{ demo: { mode, racineSources, validees } }` ; absent = corpus normal,
+ * la démo n'y touche jamais.
  *
- * Dépendances injectées (patron `useCorpus({ flush })`) : évite le cycle
- * (`appliquerCorpus` est défini dans `creerSonal`, qui crée ce scope).
+ * Dépendances injectées (patron `useCorpus({ flush })`),
+ * pour éviter le cycle : `appliquerCorpus` est défini dans `creerSonal`.
  */
 
-/** Clé source → titre de l'entretien importé (cf. plan-tutoriel §10). */
+/** Clé source → titre de l'entretien importé (CorpusTest/). */
 const SOURCES = ['E1', 'E2', 'E3', 'E4'] as const
 const TITRES: Record<string, string> = {
   E1: 'Fatima, du quartier à la coordination',
@@ -40,16 +35,11 @@ const TITRES: Record<string, string> = {
   E4: "Thomas & Yanis, l'aide à deux voix",
 }
 
-/** Une étape du pas-à-pas : titre dans la liste, prédicat de validation sur le
- *  modèle, cible `data-tour` (peut dépendre de l'état — ex. « crayon » tant que
- *  aucun entretien ouvert, puis « onglet thèmes »), guide affiché dans la bulle.
- *  `panneau` : la consigne s'affiche en PANNEAU sous les onglets de l'entretien
- *  plutôt qu'en bulle flottante (ne cache pas le texte). Pas de bouton
- *  « action » : l'utilisateur fait le geste LUI-MÊME (retour utilisateur —
- *  ex. pour la lecture : clic sur ▶ ou double-espace). `retest` : message
- *  affiché quand l'étape, DÉJÀ validée, est rouverte (re-test) — il complète
- *  « … l'étape a été réalisée, tu peux toujours … » (les trois petits points
- *  changent donc suivant les étapes). */
+/** Une étape du pas-à-pas : titre dans la liste, prédicat de validation du modèle,
+ *  cible `data-tour` (qui peut dépendre de l'état courant), guide dans la bulle.
+ *  `panneau` : la consigne s'affiche en panneau sous les onglets de l'entretien,
+ *  plutôt qu'en bulle flottante.
+ *  `retest` : message affiché quand une étape déjà validée est rouverte. */
 export interface EtapePasAPas {
   id: string
   titre: string
@@ -58,15 +48,20 @@ export interface EtapePasAPas {
   texte: () => string
   panneau?: boolean
   retest?: () => string
+  /** Le message « déjà réalisée » s'affiche dans la vue CORPUS (l'action de
+   *  l'étape vit dans le corpus, ex. « Charger un entretien ») — pas dans
+   *  l'entretien comme les étapes d'édition. */
+  retestCorpus?: boolean
 }
 
 export interface DepsDemo {
   appliquerCorpus: (c: CorpusFichier, dir?: string) => Promise<void>
   majDossierCourant: () => Promise<void>
   rafraichirRecents: () => Promise<void>
-  /** Retour à l'écran Corpus (ferme l'entretien, sauvegardé) — appelé APRÈS
-   *  validation d'une étape : on revient à la liste « Pas à pas » pour lancer
-   *  la suivante (sans l'enchaîner automatiquement). */
+  /** Retour à l'écran Corpus (ferme l'entretien, sauvegardé),
+   *  appelé après validation d'une étape :
+   *  on revient à la liste « Pas à pas » pour lancer la suivante,
+   *  sans l'enchaîner automatiquement. */
   retourCorpus: () => Promise<void>
   vue: Ref<'accueil' | 'corpus' | 'entretien' | 'donnees'>
   // --- pour les prédicats d'étapes (observation du modèle réactif) ---
@@ -86,14 +81,12 @@ export function utiliserDemo(deps: DepsDemo) {
   const pasAPas = ref(false)
   /** Build en cours (désactive les cartes pendant la préparation). */
   const enPreparation = ref(false)
-  /** J7 — les dossiers démo mémorisés en session PUIS PERSISTÉS (settings.json,
-   *  `demo:memoriser`) : la racine des SOURCES (copiées une seule fois, partagées
-   *  entre les deux modes) et le DOSSIER du corpus de test de CHAQUE mode, choisi
-   *  directement par l'utilisateur dans la modale (un dossier = un corpus, à la
-   *  SonalPi). Les deux corpus sont INDÉPENDANTS — jamais le même dossier (gardes
-   *  de la modale). Les refs `*Presentes` = présence réelle sur disque (demo:etat) :
-   *  l'Accueil fait « un clic » quand les deux dossiers du mode existent, la
-   *  modale adapte ses questions (sources déjà en place → question sautée). */
+  /** Les dossiers démo mémorisés en session puis persistés (`settings.json`) :
+   *  la racine des sources (copiées une seule fois et partagées),
+   *  plus le dossier du corpus de test de chaque mode.
+   *  Les refs `*Presentes` signalent la présence réelle sur disque :
+   *  l'Accueil fait « un clic » quand tout est en place,
+   *  sinon la modale adapte ses questions. */
   const racineSources = ref<string | null>(null)
   const sourcesPresentes = ref(false)
   const corpusPasAPas = ref<string | null>(null)
@@ -101,10 +94,11 @@ export function utiliserDemo(deps: DepsDemo) {
   const corpusPasAPasPresent = ref(false)
   const corpusAutonomiePresent = ref(false)
 
-  /** Importe UN entretien source (SRT + audio) via le vrai pipeline, depuis la
-   *  racine des sources matérialisées. Réutilisé par le mode autonomie (boucle)
-   *  → un seul mécanisme. L'audio y est RÉFÉRENCÉ, jamais copié (§4). Retourne
-   *  l'id créé. */
+  /** Importe un entretien source (SRT + audio) via le vrai pipeline,
+   *  depuis la racine des sources matérialisées ;
+   *  l'audio y est référencé, jamais copié.
+   *  Un seul mécanisme pour l'autonomie (boucle) et le pas-à-pas (one-click) ;
+   *  retourne l'id créé. */
   async function importerSource(k: string, racine: string): Promise<string> {
     const { nom, contenu } = await window.sonal.demo.lireSource(racine, `srt/${k}.srt`)
     const r = importerFichier(nom, contenu, (html) =>
@@ -125,16 +119,9 @@ export function utiliserDemo(deps: DepsDemo) {
     {
       id: 'charger',
       titre: 'Charger un entretien',
-      // J4 : spotlight sur le VRAI bouton « + Ajouter un entretien » (data-tour
-      // posé en J2) — le geste réel passe par la vraie modale à deux zones ;
-      // plus de bulle centrée déconnectée de l'UI (§7.4).
-      // Parcours séquentiel guidé : la cible suit l'état réel par observation du
-      // DOM (aucun partage d'état avec la modale) —
-      //   1. sur le bouton « + Ajouter un entretien » ;
-      //   2. la modale ouverte → la zone FICHIER D'ENTRETIEN (SRT) ;
-      //   3. texte chargé (présence de .zone-fichier) → la zone FICHIER SON ;
-      //   4. audio chargé → le bouton « Valider » ;
-      //   5. l'étape se coche quand l'entretien est créé (membership non vide).
+      // Spotlight sur le VRAI bouton « + Ajouter un entretien » : l'utilisateur
+      // passe par la vraie modale à deux zones. La cible suit l'état du DOM de la
+      // modale (zone fichier → zone son → Valider) pour guider pas à pas.
       cible: () => {
         if (!document.querySelector('.modale-ajout')) return '[data-tour="ajouter-entretien"]'
         if (!document.querySelector('.zone-texte .zone-fichier')) return '[data-tour="zone-texte"]'
@@ -144,30 +131,28 @@ export function utiliserDemo(deps: DepsDemo) {
       fait: () => Object.keys(deps.membership.value).length > 0,
       texte: () => {
         if (!document.querySelector('.modale-ajout')) {
-          return racineSources.value
-            ? `Tes sources sont dans « ${racineSources.value} ». Clique sur ce bouton : la petite fenêtre s'ouvre, et je te guide pour choisir tes fichiers.`
-            : "Chargeons un premier entretien (Fatima) — son SRT et son audio sont fournis. Clique sur ce bouton."
+          return `Vos sources sont dans « ${racineSources.value} ». Cliquez sur ce bouton et suivez le guide.`
         }
         if (!document.querySelector('.zone-texte .zone-fichier')) {
-          return "Dans cette zone, choisis le fichier d'entretien : clique, puis sélectionne srt/E1.srt (l'entretien de Fatima)."
+          return "Dans cette zone, choisissez le fichier de sous-titres : cliquez, puis sélectionnez srt/E1.srt"
         }
         if (!document.querySelector('.zone-audio .zone-fichier')) {
-          return "Bien ! Maintenant le fichier son : clique sur cette zone et sélectionne audio/E1.mp3."
+          return "Bien ! Maintenant le fichier son : cliquez sur cette zone et sélectionnez audio/E1.mp3."
         }
         return "Tout est prêt : clique sur « Valider » pour créer l'entretien."
       },
       retest: () => "revoir l'entretien importé (ses fichiers, son audio)",
+      // L'action de cette étape vit dans le CORPUS (ajouter un entretien) :
+      // le message « déjà réalisée » s'y affiche, pas dans l'éditeur.
+      retestCorpus: true,
     },
     {
       id: 'corriger',
       titre: 'Écouter et corriger la transcription',
-      // Depuis la liste (écran Corpus) : guider vers le crayon de la carte.
-      // Dans l'entretien, la consigne devient un PANNEAU sous les onglets
-      // (panneau: true) — pas de bulle flottante ni de trou qui cacheraient le
-      // texte pendant la lecture (retour utilisateur). PAS de bouton
-      // « Lancer la lecture » : l'utilisateur fait le geste lui-même, clic sur
-      // ▶ du lecteur OU double-espace dans le texte (idéalement les deux).
-      // L'étape se coche dès que le TEXTE est réellement édité (texteModifie).
+      // Depuis la liste : guide vers le crayon de la carte ; dans l'entretien,
+      // la consigne devient un panneau sous les onglets (pas de bulle qui
+      // cacherait le texte). L'utilisateur lance la lecture lui-même (▶ du
+      // lecteur ou double-espace). L'étape se coche dès que le texte est édité.
       cible: () => (deps.vue.value === 'entretien' ? null : '[data-tour="crayon-entretien"]'),
       fait: () => deps.texteModifie.value,
       texte: () =>
@@ -180,16 +165,10 @@ export function utiliserDemo(deps: DepsDemo) {
     {
       id: 'renommer',
       titre: 'Renommer les locuteurs',
-      // Depuis la liste (écran Corpus) : guider vers le crayon de la carte.
-      // Dans l'entretien, la consigne devient un PANNEAU en bas de la colonne
-      // (panneau: true) — la bulle flottante, positionnée sous le 1er champ,
-      // recouvrait le champ du 2ᵉ locuteur (retour utilisateur). L'onglet
-      // Locuteurs étant le DÉFAUT de l'entretien, les champs sont visibles et
-      // la consigne s'affiche sous le panneau. L'étape se coche quand plus
-      // aucun locuteur de l'entretien OUVERT ne s'appelle « Speaker N » —
-      // garde : à la réouverture (aucun entretien ouvert), locuteurs vide ne
-      // doit pas valider la chose (`[].every()` = true) ; l'historique
-      // mémorisé dans le marqueur, lui, reste restauré.
+      // Guide vers le crayon de la carte depuis la liste ; dans l'entretien,
+      // la consigne devient un panneau (la bulle recouvrait le champ d'un
+      // locuteur). L'étape se coche quand plus aucun locuteur de l'entretien
+      // ouvert ne s'appelle « Speaker N ».
       cible: () => (deps.vue.value === 'entretien' ? null : '[data-tour="crayon-entretien"]'),
       panneau: true,
       fait: () =>
@@ -205,11 +184,8 @@ export function utiliserDemo(deps: DepsDemo) {
     {
       id: 'coder',
       titre: 'Créer une thématique et annoter',
-      // Vue-CONScient : la liste des étapes vit sur l'écran Corpus, mais le
-      // geste se fait dans l'Entretien. Depuis l'étape 1 (finie → retour au
-      // Corpus), on guide d'abord vers le crayon de la carte ; dès que
-      // l'entretien est visible, le spotlight (recalculé en live) bascule sur
-      // l'onglet Thématique.
+      // Depuis la liste, on guide vers le crayon de la carte ; dans
+      // l'entretien, le spotlight bascule sur l'onglet Thématique.
       cible: () =>
         deps.vue.value === 'entretien'
           ? '[data-tour="onglet-themes"]'
@@ -243,37 +219,33 @@ export function utiliserDemo(deps: DepsDemo) {
   const etapeCouranteId = ref<string | null>(null)
   /** Ids des étapes déjà validées (cochées dans la liste). */
   const validees = ref<Set<string>>(new Set())
-  /** Message « re-test » : quand une étape DÉJÀ validée est rouverte (l'entretien
-   *  reste ouvert), on l'annonce — { titre, suite } où `suite` complète
-   *  « … tu peux toujours … » (le contenu change donc suivant les étapes).
-   *  Affiché dans l'entretien ; un bouton propose de revenir à la liste. */
-  const retestInfo = ref<{ titre: string; suite: string } | null>(null)
+  /** Message « re-test » : une étape déjà validée est rouverte ;
+   *  on l'annonce (texte propre à chaque étape) dans la vue où vit son action
+   *  — l'entretien (étapes d'édition) ou le corpus (étapes de corpus, ex.
+   *  « Charger un entretien ») — avec un bouton pour revenir à la liste. */
+  const retestInfo = ref<{ titre: string; suite: string; vue: 'corpus' | 'entretien' } | null>(null)
 
-  // Le message re-test suit la vue : quitter l'entretien l'efface (sinon il
-  // ressortirait de façon périmée à l'ouverture suivante). Et à l'OUVERTURE de
-  // l'entretien, si une étape DÉJÀ validée est active, c'est un RE-TEST — on
-  // montre le message SANS attendre le prédicat (nécessaire pour « Écouter et
-  // corriger » : son prédicat, `texteModifie`, repart à FAUX à chaque ouverture,
-  // donc le watch de validation ne peut pas le détecter — contrairement à
-  // « Renommer » dont le prédicat est déjà vrai à l'ouverture).
+  // Au changement de vue : si l'étape active est déjà validée, c'est un
+  // re-test — on affiche le message d'emblée (sans attendre le prédicat, qui
+  // peut repartir à faux à chaque ouverture), dans la vue de l'étape.
+  // Un message affiché survit tant qu'on reste dans sa vue ; il s'efface dès
+  // qu'on en sort.
   watch(deps.vue, (v) => {
-    if (v !== 'entretien') {
-      retestInfo.value = null
-      return
-    }
+    if (retestInfo.value && v !== retestInfo.value.vue) retestInfo.value = null
     const e = etapes.find((x) => x.id === etapeCouranteId.value)
-    if (e && e.retest && validees.value.has(e.id)) {
-      etapeCouranteId.value = null
-      retestInfo.value = { titre: e.titre, suite: e.retest() }
-    }
+    if (!e || !e.retest || !validees.value.has(e.id)) return
+    const vueRetest: 'corpus' | 'entretien' = e.retestCorpus ? 'corpus' : 'entretien'
+    if (v !== vueRetest) return
+    etapeCouranteId.value = null
+    retestInfo.value = { titre: e.titre, suite: e.retest(), vue: vueRetest }
   })
 
   const etapeCourante = computed(() => etapes.find((e) => e.id === etapeCouranteId.value) ?? null)
 
-  /** J6 — écrit le MARQUEUR démo du corpus courant (`corpus.json: { demo }`) :
-   *  mode + racine des sources + étapes validées. C'est l'identité du corpus de
-   *  test, et l'historique du pas-à-pas voyage avec lui (restauré à la
-   *  réouverture par « Récents » / démarrage / picker). */
+  /** Écrit le marqueur démo du corpus courant (`corpus.json: { demo }`) :
+   *  mode, racine des sources, étapes validées ;
+   *  l'historique du pas-à-pas voyage ainsi avec le corpus,
+   *  restauré à la réouverture. */
   async function ecrireMarqueur(mode: ModeDemo): Promise<void> {
     if (!racineSources.value) return
     await window.sonal.corpus.marquerDemo({
@@ -283,11 +255,12 @@ export function utiliserDemo(deps: DepsDemo) {
     })
   }
 
-  /** Re-dérive les étapes validées depuis le MODÈLE (prédicats `fait()`) : à la
-   *  réouverture d'un corpus pas-à-pas, le watch de validation ne s'est pas
-   *  déclenché (pas de changement) — on évalue une fois toutes les étapes pour
-   *  retrouver l'historique réel (ex. « charger » re-cochée si un entretien
-   *  existe déjà). Monotone : on ne décoche jamais (une étape faite le reste). */
+  /** Redérive les étapes validées depuis le modèle (prédicats `fait()`) :
+   *  à la réouverture d'un corpus pas-à-pas, le watch de validation n'a rien
+   *  détecté, puisqu'aucun état n'a changé ;
+   *  on évalue donc toutes les étapes une fois pour retrouver l'historique réel,
+   *  ex. « charger » re-cochée si un entretien existe déjà.
+   *  Monotone : on ne décoche jamais, une étape faite le reste. */
   function revaliderEtapes() {
     const v = new Set(validees.value)
     for (const e of etapes) if (e.fait()) v.add(e.id)
@@ -313,28 +286,30 @@ export function utiliserDemo(deps: DepsDemo) {
   }
 
   // Validation automatique : quand l'étape courante devient `fait()`, on la
-  // coche, mais on N'ENCHAÎNE PAS sur l'étape suivante — l'utilisateur clique
-  // l'étape suivante dans la liste pour la lancer (retour utilisateur :
-  // l'enchaînement automatique surprenait). On REVIENT à la liste « Pas à pas »
-  // (écran Corpus) pour qu'il la voie (retour utilisateur : après validation,
-  // on restait dans l'entretien, la liste était hors d'atteinte). L'HISTORIQUE
-  // est mémorisé à chaque validation (problème utilisateur : la réouverture du
-  // corpus perdait les étapes déjà faites).
+  // coche et on revient à la liste « Pas à pas » (sans enchaîner sur l'étape
+  // suivante — l'utilisateur clique lui-même la suivante). L'historique est
+  // mémorisé à chaque validation (il voyage avec le corpus).
   watch(
     () => etapeCourante.value?.fait() ?? false,
     async (faite) => {
       if (!faite || !etapeCourante.value) return
       const id = etapeCourante.value.id
       if (validees.value.has(id)) {
-        // DÉJÀ validée — l'utilisateur rouvre l'entretien pour RE-TESTER (ex.
-        // locuteurs déjà renommés) : l'étape ne « change » pas, donc pas de
-        // retour à la liste (sinon l'entretien s'ouvrait et se refermait
-        // aussitôt). On éteint seulement le guidage, on LAISSE l'entretien
-        // ouvert, et on pose le petit message « étape déjà réalisée » proposant
-        // de revenir à la liste.
+        // DÉJÀ validée — c'est un re-test : on éteint le guidage, on garde
+        // l'entretien ouvert (étapes d'édition) et on affiche le message
+        // « étape déjà réalisée » dans la vue de l'étape. Une étape de CORPUS
+        // (ex. « Charger un entretien ») se revoit au corpus : si l'import
+        // vient d'ouvrir un entretien, on y retourne d'abord.
         const e = etapeCourante.value
         etapeCouranteId.value = null
-        if (e?.retest) retestInfo.value = { titre: e.titre, suite: e.retest() }
+        if (e?.retest) {
+          if (e.retestCorpus) await deps.retourCorpus()
+          retestInfo.value = {
+            titre: e.titre,
+            suite: e.retest(),
+            vue: e.retestCorpus ? 'corpus' : 'entretien',
+          }
+        }
         return
       }
       validees.value = new Set(validees.value).add(id)
@@ -344,15 +319,13 @@ export function utiliserDemo(deps: DepsDemo) {
     },
   )
 
-  /** Prépare le corpus de test du mode demandé puis l'ouvre. J7 — chaque mode a
-   *  son PROPRE dossier de corpus, choisi directement par l'utilisateur dans la
-   *  modale (un dossier = un corpus) ; les deux ne se mélangent jamais ; seules
-   *  les SOURCES sont partagées (copiées une fois).
-   *  1. Copier les sources bundled UNE FOIS dans racineSources (idempotent) ;
-   *  2. Ouvrir/amorcer le dossier du corpus de CE mode (ouvrirDossier) ;
-   *  3. 'autonomie' : peupler avec les 4 entretiens + audios (référencés) ;
-   *  4. Poser le marqueur démo (`corpus.json`) — identité + mode + historique ;
-   *  5. Appliquer le corpus au modèle + atterrissage en vue Corpus. */
+  /** Prépare le corpus de test du mode demandé puis l'ouvre. Chaque mode a son
+   *  propre dossier (choisi dans la modale) ; seules les sources sont partagées.
+   *  1. Copier les sources bundled une fois (idempotent) ;
+   *  2. Ouvrir le dossier du corpus de ce mode ;
+   *  3. 'autonomie' : importer les 4 entretiens + leurs audios ;
+   *  4. Poser le marqueur démo (identité + historique) ;
+   *  5. Appliquer le corpus au modèle et atterrir sur la vue Corpus. */
   async function preparer(
     mode: ModeDemo,
     opts?: { racineSources?: string; dossierCorpus?: string },
@@ -400,9 +373,8 @@ export function utiliserDemo(deps: DepsDemo) {
         validees: historique,
       })
 
-      // 5. Appliquer le corpus (marqué) au modèle + atterrissage.
-      //    `appliquerCorpus(c, dir)` → `raccrocherModeCorpus(c.demo, dir)`
-      //    restaure le mode (panneau « Pas à pas ») et l'historique des étapes.
+      // 5. Appliquer le corpus (marqué) au modèle : restaure le mode (panneau
+      //    « Pas à pas ») et l'historique des étapes.
       const c = await window.sonal.corpus.ouvrir()
       await deps.appliquerCorpus(c, dossierCorpus)
       deps.vue.value = 'corpus'
@@ -430,11 +402,10 @@ export function utiliserDemo(deps: DepsDemo) {
     }
   }
 
-  /** J7 — raccroche la mémoire démo PERSISTÉE (settings.json) : hydrate les
-   *  dossiers (sources + corpus de chaque mode) et leur présence réelle sur
-   *  disque. L'Accueil décide ensuite : « un clic » si les deux dossiers du mode
-   *  existent, modale adaptative sinon (les questions déjà répondues sont sautées
-   *  — ex. « où importer les sources » si elles sont déjà en place). */
+  /** Recharge la mémoire démo persistée (settings.json) :
+   *  dossiers (sources et corpus de chaque mode) et présence réelle sur disque.
+   *  L'Accueil décide ensuite : « un clic » si tout est en place,
+   *  sinon la modale adapte ses questions. */
   async function raccrocherEtatDemo(): Promise<boolean> {
     const etat = await window.sonal.demo.etat()
     if (!etat) return false
@@ -456,13 +427,11 @@ export function utiliserDemo(deps: DepsDemo) {
     return !!racineSources.value && sourcesPresentes.value && !!corpus && present
   }
 
-  /** J6 — restaure le MODE démo à l'OUVERTURE d'un corpus, depuis le MARQUEUR du
-   *  corpus (`corpus.json: { demo }`) : le marqueur voyage avec le corpus (plus
-   *  robuste qu'une comparaison de chemins settings). Si c'est un corpus de test
-   *  'pas-a-pas', on hydrate `racineSources` (textes des étapes, defaultPath des
-   *  dialogues) + on remonte le panneau + on restaure l'historique des étapes
-   *  validées. Pour tout AUTRE corpus (marqueur absent ou mode 'autonomie'), on
-   *  éteint le panneau (sinon il resterait monté après un changement de corpus). */
+  /** Restaure le mode démo à l'ouverture d'un corpus,
+   *  à partir de son marqueur `corpus.json: { demo }`.
+   *  Pour un corpus 'pas-a-pas' : rappelle où sont les sources,
+   *  remonte le panneau et restaure l'historique des étapes validées.
+   *  Pour tout autre corpus (normal ou 'autonomie') : éteint le panneau. */
   async function raccrocherModeCorpus(
     marqueur: MarqueurDemo | undefined,
     dir: string | null,

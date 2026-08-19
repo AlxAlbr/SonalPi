@@ -40,7 +40,7 @@ const MIME: Record<string, string> = {
 // --- Réglages du profil : liste des corpus récents + mémoire démo ---
 interface Settings {
   recents: string[] // chemins de dossiers, le plus récent en tête
-  demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois (§7.2)
+  demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois
 }
 function fichierSettings(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -67,9 +67,9 @@ function lireSettings(): Settings {
     return { recents: [] }
   }
 }
-/** Écrit les réglages en PRÉSERVANT les autres champs (`demo` compris) — les
- *  deux écritures de ce fichier (récents et mémoire démo) ne se marchent pas
- *  dessus. */
+/** Écrit les réglages en PRÉSERVANT les autres champs (`demo` compris) :
+ *  les deux écritures de ce fichier, récents et mémoire démo,
+ *  ne se marchent donc pas dessus. */
 function ecrireSettings(s: Settings): void {
   writeFileSync(fichierSettings(), JSON.stringify(s, null, 2), 'utf8')
 }
@@ -224,7 +224,7 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:audios', () => store.audios())
   ipcMain.handle('corpus:verifierAudios', () => store.verifierAudios())
   // Marqueur de corpus de TEST (`corpus.json: { demo }`) — identité + mode +
-  // sources + étapes validées. Champ additif optionnel, pas de bump (§J6).
+  // sources + étapes validées. Champ additif optionnel, pas de bump de version.
   ipcMain.handle('corpus:marquerDemo', (_e, marqueur: MarqueurDemo) =>
     store.marquerDemo(marqueur),
   )
@@ -277,15 +277,16 @@ function enregistrerIpcCorpus(): void {
       store.poserValeur(entretienId, cible, idVar, idMod),
   )
 
-  // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) le
-  // le main ne fait que LIRE/ÉCRIRE le fichier choisi. En e2e, showOpenDialog /
-  // showSaveDialog sont stubbés (electronApp.evaluate) pour piloter sans dialog.
-  // J4 : `defaultPath` optionnel (hinté par la démo → racineSources) pour que le
-  // dialogue natif s'ouvre là où l'utilisateur doit retrouver les fichiers (§7.4).
+  // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser),
+  // le main ne fait que LIRE/ÉCRIRE le fichier choisi. En e2e, les dialogs
+  // sont stubbés (electronApp.evaluate) pour piloter sans dialog.
+  // `defaultPath` optionnel : pendant une session démo, le dialogue s'ouvre
+  // dans le dossier des sources (l'utilisateur y retrouve les fichiers).
   // Modale « Ajouter un entretien » (à la SonalPi, ajout-entretien.html) :
-  //  DEUX zones — celle-ci choisit le fichier d'ENTRETIEN (contenu lu ici, parsé côté
-  // renderer) ; la zone son passe par dialog:choisirAudio (le main ne touche
-  //  l'audio qu'à corpus:assignerAudio qui le RÉFÉRENCE, jamais lu en mémoire).
+  //  DEUX zones — celle-ci choisit le fichier d'ENTRETIEN (contenu lu ici,
+  //  parsé côté renderer) ; la zone son passe par dialog:choisirAudio (le
+  //  main ne touche l'audio qu'à corpus:assignerAudio, qui le RÉFÉRENCE sans
+  //  jamais le lire en mémoire).
   ipcMain.handle('dialog:choisirTexte', async (_e, defaultPath?: string) => {
     const r = await dialog.showOpenDialog({
       defaultPath,
@@ -305,12 +306,10 @@ function enregistrerIpcCorpus(): void {
     if (r.canceled || r.filePaths.length === 0) return null
     return r.filePaths[0]
   })
-  // Picker de DOSSIER PUR (aucun effet de bord sur le store) — utilisé par la
-  // modale démo à deux questions (§7.2). `kind` hinté le défaut
-  // `Documents/Sonal/démo/<kind>` (désamortit le geste, modifiable) ; le retour
-  // est le chemin choisi, le corpus y est ensuite OUVERT via corpus:ouvrirDossier.
-  // J6 : la 2ᵉ question est le dossier PARENT des corpus de test (`corpus`) —
-  // l'app y crée `<parent>/pas-a-pas` et `<parent>/autonomie`.
+  // Picker de dossier PUR (aucun effet de bord sur le store), utilisé par la
+  // modale démo. `kind` (sources | corpus) hinte le défaut
+  // `Documents/Sonal/démo/<kind>` (modifiable) ; le retour est le chemin
+  // choisi, le corpus est ensuite OUVERT via corpus:ouvrirDossier.
   ipcMain.handle('dialog:choisirDossier', async (_e, kind?: 'sources' | 'corpus') => {
     const defaultPath =
       kind === undefined
@@ -348,17 +347,16 @@ function cheminCorpusTest(): string {
 }
 
 function enregistrerIpcDemo(): void {
-  /** Clefs des sources bundled (une par entretien de démo) — servent à la garde
-   *  de COMPLÉTUDE de `demo:copierSources`. */
+  /** Clefs des sources bundled (une par entretien de démo) :
+   *  servent à la garde de complétude de `demo:copierSources`. */
   const CLEFS_SOURCES = ['E1', 'E2', 'E3', 'E4']
 
-  /** Copie les sources bundled `CorpusTest/` (`srt/` + `audio/`, ~13 Mo) dans le
-   *  dossier choisi par l'utilisateur — LA seule copie de tout le flow de démo
-   *  (§7.2). Idempotent par COMPLÉTUDE (problème n°1) : si les 4 sources sont
-   *  déjà matérialisées, on ne recopie PAS (~13 Mo, « une seule fois ») ; un
-   *  fichier manquant (supprimé par l'utilisateur) déclenche une recopie
-   *  auto-réparatrice fichier-à-fichier (modifs utilisateur conservées, §11).
-   *  Le corpus de travail RÉFÉRENCE ensuite ces fichiers (zéro copie). */
+  /** Copie les sources bundled `CorpusTest/` (`srt/` + `audio/`, ~13 Mo),
+   *  dans le dossier choisi : c'est LA seule copie du flow de démo.
+   *  Idempotent : si les 4 sources sont déjà là, on ne recopie pas ;
+   *  un fichier manquant entraîne une recopie fichier-à-fichier,
+   *  les autres étant conservés.
+   *  Le corpus de travail référence ensuite ces fichiers, zéro copie. */
   ipcMain.handle('demo:copierSources', (_e, racine: string) => {
     const complet =
       CLEFS_SOURCES.every((k) => existsSync(join(racine, 'srt', `${k}.srt`))) &&
@@ -367,7 +365,7 @@ function enregistrerIpcDemo(): void {
     cpSync(cheminCorpusTest(), racine, { recursive: true })
   })
   /** Lit un fichier texte des sources (ex. `srt/E2.srt`) → { nom, contenu }.
-   *  J4 : racine paramétrable (les sources sont matérialisées, plus bundled). */
+   *  Racine paramétrable (les sources sont matérialisées, plus bundled). */
   ipcMain.handle('demo:lireSource', (_e, racine: string, rel: string) => {
     const abs = join(racine, rel)
     return { nom: basename(abs), contenu: readFileSync(abs, 'utf8') }
@@ -376,11 +374,10 @@ function enregistrerIpcDemo(): void {
    *  à `corpus:assignerAudio` qui le RÉFÉRENCE (plus de copie). */
   ipcMain.handle('demo:cheminAudio', (_e, racine: string, rel: string) => join(racine, rel))
 
-  /** J7 — mémoire démo PERSISTÉE (`settings.json`, niveau profil) : lit les
-   *  dossiers mémorisés (sources + corpus de CHAQUE mode) ET leur présence réelle
-   *  sur disque. `null` = jamais préparé (ou enregistrement absent/corrompu). La
-   *  modale adapte ses questions : la question « où importer les sources » est
-   *  sautée si les sources existent toujours ; idem pour le corpus du mode. */
+  /** Mémoire démo persistée dans `settings.json` (niveau profil).
+   *  Lit les dossiers mémorisés et leur présence réelle sur disque ;
+   *  `null` = jamais préparé (ou enregistrement corrompu).
+   *  La modale adapte ses questions : une réponse déjà en place est sautée. */
   ipcMain.handle('demo:etat', (): EtatDemoComplet | null => {
     const d = lireSettings().demo
     if (!d) return null
@@ -393,17 +390,18 @@ function enregistrerIpcDemo(): void {
       corpusAutonomieExist: !!d.corpusAutonomie && existsSync(d.corpusAutonomie),
     }
   })
-  /** Écrit la mémoire démo en PRÉSERVANT les récents. Appelé par le builder à
-   *  chaque préparation réussie — les sources sont partagées, chaque mode a son
-   *  propre dossier de corpus (l'autre mode, s'il existe, est préservé). */
+  /** Écrit la mémoire démo en PRÉSERVANT les récents.
+   *  Appelé par le builder à chaque préparation réussie :
+   *  les sources sont partagées, chaque mode a son propre dossier de corpus,
+   *  et l'autre mode, s'il existe, est préservé. */
   ipcMain.handle('demo:memoriser', (_e, demo: EtatDemo) => {
     const s = lireSettings()
     s.demo = demo
     ecrireSettings(s)
   })
-  /** Garde de la modale (J7) : le dossier choisi pour le corpus de test ne doit
-   *  PAS déjà être un corpus (corpus.json présent) — évite de réutiliser le
-   *  dossier de l'autre mode ou d'écraser un vrai corpus utilisateur. */
+  /** Garde de la modale : on n'écrase jamais un corpus existant ;
+   *  le dossier choisi ne doit donc pas contenir de `corpus.json`,
+   *  ni être le corpus de l'autre mode. */
   ipcMain.handle('demo:verifierCorpus', (_e, dir: string) => ({
     dejaCorpus: existsSync(join(dir, 'corpus.json')),
   }))

@@ -4,22 +4,13 @@ import { utiliserSonal } from '../composables/sonal'
 import type { ModeDemo } from '../composables/demo'
 
 /**
- * Modale démo à deux questions (plan-reference-audio §7.2, façon SonalPi
- * `nouveau_corpus.html`), ADAPTATIVE (J7) :
- *  - « Où voulez-vous placer les sources de la démo ? » — affichée UNIQUEMENT si
- *    les sources ne sont pas déjà en place (mémoire persistée settings.json +
- *    présence réelle sur disque) ; sinon une ligne rappelle où elles sont ;
- *  - « Où voulez-vous placer CE corpus de test ? » (SINGULIER) — le dossier du
- *    corpus du mode cliqué (pas-à-pas ou autonomie), choisi directement : un
- *    dossier = un corpus, à la SonalPi. Affichée uniquement si le corpus de CE
- *    mode n'est pas déjà connu.
- *
- * Gardes d'indépendance des deux corpus (J7) : le dossier choisi ne doit être ni
- * les sources, ni le corpus de l'AUTRE mode, ni un dossier qui est DÉJÀ un corpus
- * (corpus.json présent — on n'écrase jamais un corpus existant).
- * `defaultPath` des pickers hinté `Documents/Sonal/démo/<…>` (modifiable).
- * À la validation → `preparer(mode, { racineSources?, dossierCorpus? })` — seules
- * les questions posées sont transmises, le reste vient de la mémoire persistée.
+ * Modale démo à deux questions : « où placer les sources de la démo » (sautée
+ * si elles sont déjà en place) et « où placer CE corpus de test » (le dossier
+ * du mode cliqué, sauté si déjà connu). Un dossier = un corpus.
+ * Gardes : ni les sources, ni le corpus de l'autre mode, ni un dossier qui est
+ * déjà un corpus (`corpus.json` présent — on n'écrase jamais). `defaultPath`
+ * des pickers hinté Documents/Sonal/démo/<…>. À la validation →
+ * `preparer(mode, { racineSources?, dossierCorpus? })`.
  */
 const props = defineProps<{ mode: ModeDemo }>()
 const emit = defineEmits<{ (e: 'fermer'): void }>()
@@ -110,7 +101,7 @@ async function valider() {
           (les deux modes ont chacun leur corpus — ils ne se mélangent pas).
         </p>
 
-        <!-- Question 1 — sources : SAUTÉE si déjà en place (J7) -->
+        <!-- Question 1 — sources : sautée si déjà en place -->
         <div v-if="besoinSources" class="question-demo">
           <span class="q-lbl">1 — Où voulez-vous placer les sources de la démo ?</span>
           <button class="choisir-dossier" @click="choisirSources">
@@ -120,7 +111,7 @@ async function valider() {
         </div>
         <p v-else class="deja-place">✓ Sources déjà en place dans « {{ racineSources }} »</p>
 
-        <!-- Question 2 — corpus de CE mode (SINGULIER) : SAUTÉE si déjà connu (J7) -->
+        <!-- Question 2 — corpus de CE mode (SINGULIER) : sautée si déjà connu -->
         <div v-if="besoinCorpus" class="question-demo">
           <span class="q-lbl">2 — Où voulez-vous placer ce corpus de test ?</span>
           <button class="choisir-dossier" @click="choisirCorpus">

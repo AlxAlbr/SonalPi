@@ -13,10 +13,9 @@ import { utiliserSonal } from '../composables/sonal'
  */
 const { ajouterEntretien, racineSources } = utiliserSonal()
 
-// J4 (§7.4) : pendant une session démo, les dialogues natifs s'ouvrent dans
-// racineSources (désamortit le geste réel de l'étape 1 du pas-à-pas) — sinon
-// ils s'ouvrent au défaut OS et l'utilisateur chercherait les sources sans
-// repère. `undefined` hors démo → comportement inchangé.
+// Pendant une session démo, les dialogues natifs s'ouvrent dans racineSources
+// (l'utilisateur y retrouve les fichiers du pas-à-pas — ex. srt/E1.srt et
+// audio/E1.mp3) ; hors démo (`undefined`), comportement inchangé : défaut OS.
 
 const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'webm']

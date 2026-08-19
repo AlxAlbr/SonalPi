@@ -108,8 +108,8 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Choisir un fichier audio (chemin référencé, jamais copié). */
     choisirAudio: (defaultPath?: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:choisirAudio', defaultPath),
-    /** Choisir un DOSSIER pur (aucun effet de bord) — modale démo à deux dossiers
-     *  (§7.2). `kind` hinté le défaut Documents/Sonal/démo/<kind>. */
+    /** Choisir un DOSSIER pur (aucun effet de bord) — modale démo à deux
+     *  dossiers. `kind` hinte le défaut Documents/Sonal/démo/<kind>. */
     choisirDossier: (kind?: 'sources' | 'corpus'): Promise<string | null> =>
       ipcRenderer.invoke('dialog:choisirDossier', kind),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>

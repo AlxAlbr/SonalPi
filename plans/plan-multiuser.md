@@ -163,6 +163,36 @@ est le scénario où ce modèle brille.
   publication en tâche de fond ; avertir si le verrou a pu périmer (§5.4) — au retour, revalider
   le verrou avant le `PUT` final.
 
+#### 4.6.1 Définitions corpus hors ligne — politique α (refus, pas de file d'attente)
+
+Le « éditer hors ligne à mes risques » du §4.6 ne couvre que le **contenu d'entretien** (flux A :
+annotations, règles *document*, locuteurs — tout ce qui s'écrit dans `entretiens/<id>.json`).
+Les **définitions corpus** (flux B : codebook, variables, `reglesAnon` de portée corpus,
+membership, création/suppression/renommage d'entretien) suivent une politique plus stricte :
+
+- **Hors ligne, toute écriture dans `corpus.json` est refusée** (commande grisée + tooltip
+  « nécessite une connexion au corpus partagé »). Cela inclut la transition de portée
+  document→corpus d'une règle anon (le cran 📁 du slider est inactif tant que le serveur est
+  injoignable), l'édition d'une règle déjà corpus, et toutes les transactions de §4.7.
+- **Pas de file d'attente ni de « compteur de changements corpus en attente »** : on n'enregistre
+  pas d'intention différée. Motivation : un différé non borné réintroduirait la fusion
+  multi-source différée que l'agrégat propre (`corpus.json` autoritaire) a précisément tuée
+  ([plan_anon.md](plan_anon.md) §2), et laisserait s'accumuler des collisions d'alias avec des
+  collègues qui poussent pendant l'absence — conflits pires au retour qu'au moment de la saisie.
+  En ligne, ce différé n'apporte rien (la transaction est ~2 allers-retours, imperceptible).
+- **Ce que l'utilisateur perd en mobilité** : promouvoir une règle au corpus. Ce qui **reste
+  fonctionnel** : la règle en portée *document* continue à anonymiser localement — rien n'est
+  bloqué côté travail, seule la promotion est reportée à la reconnexion. La transition étant un
+  acte ponctuel (règle « mûre »), le coût est marginal.
+- **Honnêteté de l'UI** : le slider affiche « corpus » (gras) **seulement après** que le serveur
+  a validé la transaction. Hors ligne, la règle reste affichée « document » — pas de mensonge.
+  L'indicateur de session (§10) ne porte ainsi que le flux A : « modifications locales non
+  publiées » — un seul compteur, une seule sémantique.
+
+> Cette politique simplifie E3 : un seul chemin pour les définitions, pas de mécanique de
+> reprise différée, pas de réconciliation I-POR-3 à rejouer au retour (la réconciliation ne se
+> produit qu'à l'ouverture et après chaque pull quand le `corpus.json` a bougé, cf. §4.8).
+
 ### 4.7 `corpus.json` : transactions courtes + désamorçage du point chaud
 
 Deux mesures :
@@ -180,6 +210,56 @@ Deux mesures :
   **par commande** (~2 allers-retours serveur, imperceptible à cette fréquence). Verrou refusé →
   « définitions en cours de modification par X ». `supprimerEntretien` exige verrou corpus **et**
   verrou de l'entretien ; côté serveur, `MOVE` vers `corbeille/` (atomique), miroir aligné au pull.
+
+### 4.8 Transactions multi-fichiers (projection des transitions de portée)
+
+WebDAV n'offre **pas de transaction cross-ressource** : un `PUT` porte sur un fichier, point.
+Or, certaines opérations touchent à la fois `corpus.json` et `entretiens/<id>.json`. Le protocole
+§4 n'en parle qu'implicitement — ce paragraphe explicite les invariants manquants, révélés par la
+projection du module Anonymisation ([plan_anon.md](plan_anon.md) E2.1) dans le régime multi-user.
+
+**Cas type : transition de portée document→corpus d'une `RegleAnon`.** Physiquement, c'est un
+*déplacement* de la règle (par id) depuis `entretiens/<id>.json.reglesAnon` vers
+`corpus.json.reglesAnon` ; les `Annotation{type:'anon', regle: id}` ne bougent pas (elles
+référencent par id). C'est donc une écriture dans **deux** fichiers.
+
+Trois invariants à poser :
+
+1. **Ordre canonique des verrous** pour toute transaction touchant `(entretien, corpus)` :
+   **verrou corpus avant verrou entretien** (toujours dans cet ordre, jamais l'inverse).
+   Sans convention, deux utilisateurs faisant l'un une transition de portée, l'autre une
+   suppression d'entretien (qui prend aussi les deux verrous), peuvent s'interbloquer. Fixer
+   l'ordre supprime la course. Symétrique de la règle classique « verrou parent avant enfant ».
+2. **Politique de publication — redondance transitoire assumée** : on publie l'entretien (sans la
+   règle) **après** la transaction corpus, pas avant. Fenêtre observable : un collègue qui pull
+   entre les deux voit `corpus.json` avec la règle **et** `entretiens/<id>.json` qui la contient
+   encore (jusqu'à la publication de l'entretien, ≤ TTL publication). C'est bénin : l'id résout
+   des deux côtés, les annotations ne pendotent jamais. Alternative écartée : publier l'entretien
+   *avant* la transaction corpus → fenêtre où la règle « n'existe plus nulle part » et où les
+   annotations deviennent pendantes (inertes, signalées) jusqu'au prochain pull. La redondance
+   transitoire est préférable à la pendancé transitoire.
+   - **Conséquence lecture** : le scan corpus (panneau Pseudos, [plan_anon.md](plan_anon.md) E2.2)
+     doit **tolérer qu'une règle soit présente des deux côtés pendant < TTL publication** — c'est
+     un état normal, pas un bug. Ne pas alerter dessus.
+3. **Réconciliation I-POR-3 après chaque pull**, pas seulement à l'ouverture de l'entretien.
+   `reconcilierPorteesDivergentesAOuverture` (SonalPi, intra-machine) devient **post-pull** en
+   multi-user : une règle corpus partageant un alias avec une règle *document* de l'entretien
+   ouvert peut **apparaître** pendant la session (un collègue l'a poussée entre deux pulls). Au
+   prochain pull `§3.2` qui ramène un `corpus.json` modifié, l'app rejoue la réconciliation sur
+   l'entretien ouvert → dialogue `resoudreConflitCorpus` (aligner / garder les deux → bascule
+   corpus). Sans ça, la règle *document* diverge silencieusement et la propre publication de
+   l'utilisateur casse I-POR-3.
+
+**Même trou pour `supprimerEntretien`** (§4.7) : `MOVE` vers `corbeille/` est atomique pour **un**
+fichier, pas pour la paire `(corpus.json, entretiens/<id>.json)`. Si le `corpus.json` (membership
+mis à jour) est publié d'abord puis le `MOVE` échoue, le corpus référence un entretien disparu —
+ou inversement. À borner par la même politique (ordre des verrous + publication corpus d'abord,
+`MOVE` ensuite, et au redémarrage un ramasse-miettes qui détecte un membership pointant vers un
+fichier absent → réparation assistée).
+
+> Formulation pour la doc : *le verrou protège un fichier à la fois ; toute opération qui touche
+> plusieurs fichiers suit un ordre fixe (corpus avant entretien) et accepte une briève
+> redondance transitoire, jamais une perte.*
 
 ## 5. Variante B — verrou par fichier à PUT conditionnel (sans plugin)
 
@@ -276,9 +356,16 @@ web, forçage de verrou, édition hors ligne assumée, restauration serveur d'un
 
 ## 8. Variante A — files_lock (raffinement recommandé quand disponible)
 
-- **Détection** : `GET /ocs/v1.php/cloud/capabilities` → clé `files.locking` (ex. `"1.0"`).
-  Présente → la variante A remplace la B pour le verrou **des fichiers de données** (le protocole
-  §4 est inchangé ; seul le `VerrouProvider` diffère).
+- **Détection automatique et transparente** : `GET /ocs/v1.php/cloud/capabilities` → clé
+  `files.locking` (ex. `"1.0"`). Présente → la variante A remplace la B pour le verrou **des
+  fichiers de données** (le protocole §4 est inchangé ; seul le `VerrouProvider` diffère). Cette
+  sonde fait partie de la **connexion** (E0, au même titre que la sonde de préconditions §5.4) :
+  elle est répétée à chaque ouverture de corpus — un admin peut installer le plugin entre deux
+  sessions, c'est gratuit (une requête, cachée pour la session). **L'utilisateur ne choisit rien** :
+  pas de checkbox, pas de question. S'il demande à voir l'état (écran Corpus → à propos du corpus),
+  message informatif : « verrouillage natif disponible / indisponible — en cas d'indisponibilité,
+  l'app utilise son propre verrou (fonctionnel, invisible dans l'UI web Nextcloud) ». C'est une
+  caractéristique du serveur, pas une préférence utilisateur ; l'app s'adapte.
 - **Primitives** (vérifiées sur le dépôt files_lock) :
 
 | Opération | Requête | Notes |
@@ -321,10 +408,10 @@ quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verr
 
 | Étape | Contenu | Dépend de |
 |---|---|---|
-| **E0 — Couche WebDAV + miroir lecture** | client WebDAV minimal (fetch Node, zéro dépendance lourde : PROPFIND/GET/PUT/DELETE/MOVE + préconditions), config compte (`safeStorage`), sonde §5.4, pull incrémental §3, écran Corpus branché sur le miroir. Livrable : *ouvrir un corpus distant en lecture seule* | — |
+| **E0 — Couche WebDAV + miroir lecture** | client WebDAV minimal (fetch Node, zéro dépendance lourde : PROPFIND/GET/PUT/DELETE/MOVE + préconditions), config compte (`safeStorage`), **sonde §5.4 + sonde capabilities §8 (détection files_lock, transparente — pas de checkbox)**, pull incrémental §3, écran Corpus branché sur le miroir. Livrable : *ouvrir un corpus distant en lecture seule* | — |
 | **E1 — Écriture sous verrou (variante B)** | `VerrouProvider` + provider PUT-conditionnel, cycle complet §4 (ouverture, publication périodique, fermeture, reprise crash), désamorçage `corpus.json` §4.7 (1ᵉʳ point), UI états + lecture seule. Livrable : *deux postes, un éditeur à la fois, zéro perte* | E0 |
-| **E2 — Variante A** | détection capabilities, provider files_lock (LOCK/UNLOCK/PROPFIND), affichage détenteur enrichi, doc admin (`lock_timeout`) | E1 |
-| **E3 — Définitions + dégradé** | transactions `corpus.json` §4.7, suppression/renommage sous double verrou, hors ligne §4.6, divergence + fusion assistée §6 | E1 |
+| **E2 — Variante A** | **provider files_lock** (LOCK/UNLOCK/PROPFIND) branché derrière le `VerrouProvider` d'E1, sélectionné automatiquement quand la sonde capabilities d'E0 dit `files.locking` présent ; affichage détenteur enrichi, doc admin (`lock_timeout`). Livrable : *même comportement qu'E1, verrou visible dans l'UI web* | E1 |
+| **E3 — Définitions + dégradé** | transactions `corpus.json` §4.7, suppression/renommage sous double verrou (ordre canonique §4.8), hors ligne §4.6 **+ politique α pour les définitions §4.6.1**, divergence + fusion assistée §6, **réconciliation I-POR-3 post-pull §4.8** | E1 |
 | **E4 — Finitions** | présence §9, badges table de données, régime audio §3.3 (« Associer l'audio local… », lecteur dégradé sans audio), réglages (cadences), doc utilisateur | E2/E3 |
 
 ## 12. Tests
@@ -339,6 +426,13 @@ quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verr
   en unitaire, client moqué (`200/423`, PROPFIND).
 - **e2e** : scénario lecture seule (« tenu par X » simulé en posant un fichier verrou) ; le vrai
   deux-instances reste un test manuel documenté.
+- **Transactions multi-fichiers §4.8** : sur le serveur WebDAV embarqué, rejouer la transition
+  document→corpus d'une `RegleAnon` pendant qu'un second client pull à mi-chemin (entre le `PUT
+  corpus.json` et la publication de l'entretien) → vérifier que (a) l'id résout des deux côtés,
+  (b) le scan ne signale pas la redondance transitoire comme un bug, (c) une règle corpus
+  partagant un alias poussée concurrente déclenche bien la réconciliation post-pull côté entretien
+  ouvert. Ces scénarios ne sont pas couverts par les tests « un fichier à la fois » et sont le
+  banc spécifique de §4.8.
 
 ## 13. Points de vigilance
 
@@ -354,6 +448,12 @@ quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verr
   (le `PUT` échoue) → corpus ouvert en lecture seule d'emblée, message net.
 - **Multi-corpus** : « ouvrir un corpus… » (piste C de BILAN) devient « corpus locaux + corpus
   distants configurés » — le sélecteur arrive naturellement avec E0.
+- **Redondance transitoire multi-fichier** (§4.8) : pendant la fenêtre entre le `PUT corpus.json`
+  et la publication de l'entretien, une règle peut exister des deux côtés. Le scan corpus
+  ([plan_anon.md](plan_anon.md) E2.2) **doit tolérer** cet état (l'id résout, les annotations ne
+  pendotent pas) et ne pas le signaler comme un conflit. À l'inverse, une annotation dont l'id
+  ne résout **nulle part** (règle supprimée concurrente) reste signalée comme pendante — c'est
+  le vrai signal à faire remonter.
 
 ## 14. Points à trancher
 

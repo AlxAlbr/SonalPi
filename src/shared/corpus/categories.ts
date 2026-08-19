@@ -11,8 +11,8 @@ import type { Categorie, CorpusFichier, PatchCategorie } from '../format'
 
 /** Prochain code d'EXPORT libre `cat_NNN` : simple attribut de lisibilité à
  *  l'export (PAS l'identité — c'est un id opaque injecté), jamais réutilisé
- *  (un code retiré n'est pas repris tant que le max est au-dessus). Un
- *  compteur suffit ici : une collision de codeExport à la fusion est bénigne
+ *  (un code retiré n'est pas repris tant que le max est au-dessus).
+ *  Un compteur suffit ici : une collision de codeExport à la fusion est bénigne
  *  (affichage seul), contrairement à une collision d'id. */
 export function prochainCodeCategorie(codebook: Record<string, Categorie>): string {
   let max = 0
@@ -23,11 +23,10 @@ export function prochainCodeCategorie(codebook: Record<string, Categorie>): stri
   return 'cat_' + String(max + 1).padStart(3, '0')
 }
 
-/** Ajoute une catégorie : id OPAQUE injecté (`genId('cat')` côté store —
- *  unique par construction, donc sûr en création offline divergente, cf.
- *  plan-multiuser §4.6), `codeExport` séquentiel pour la lisibilité à
- *  l'export, ordre en fin. `parent` = racine par défaut, ou l'id d'un thème
- *  pour un sous-thème. Renvoie l'id. */
+/** Ajoute une catégorie : id OPAQUE injecté (`genId('cat')` côté store — unique
+ *  par construction, donc sûr en création offline divergente), `codeExport`
+ *  séquentiel pour la lisibilité à l'export, ordre en fin. `parent` = racine
+ *  par défaut, ou l'id d'un thème pour un sous-thème. Renvoie l'id. */
 export function ajouterCategorie(
   corpus: CorpusFichier,
   nom: string,

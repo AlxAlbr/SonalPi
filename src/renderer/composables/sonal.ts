@@ -22,9 +22,9 @@ export function creerSonal() {
   // ouvert avant un compte d'usages (`flush`), mais l'entretien est créé APRÈS le
   // corpus (il lui injecte `couleurTrait`). On route `flush` via un holder réaffecté.
   let sauverEntretien: () => Promise<void> = async () => {}
-  // Indirection pour casser le cycle (J6) : `appliquerCorpus` doit restaurer le
-  // mode démo (panneau « Pas à pas ») quand le corpus ouvert porte le MARQUEUR
-  // `demo` (corpus.json), mais le scope demo est créé APRÈS (il injecte
+  // Indirection pour casser un cycle de dépendances : `appliquerCorpus` doit
+  // restaurer le mode démo (panneau « Pas à pas ») quand le corpus ouvert porte
+  // un marqueur `demo`, mais le scope demo est créé APRÈS (il injecte
   // `appliquerCorpus`). Même patron que `sauverEntretien` : holder réaffecté.
   let raccrocherModeCorpus: (
     marqueur: MarqueurDemo | undefined,
@@ -115,13 +115,12 @@ export function creerSonal() {
   async function rafraichirAudios() {
     audiosCorpus.value = await window.sonal.corpus.audios()
   }
-  /** J3 — intégrité à l'ouverture : ids des entretiens dont l'audio RÉFÉRENCÉ
-   *  est introuvable (fichier déplacé/supprimé) — `Record<id, 'manquant'>`.
-   *  Calculé à CHAQUE `appliquerCorpus`, jamais rafraîchi en session : seul le
-   *  lecteur (§5.3) rattrape au cas par cas (ré-ouvrir le corpus rafraîchit). */
+  /** Intégrité à l'ouverture : ids des entretiens dont l'audio référencé est
+   *  introuvable (fichier déplacé/supprimé). Calculé à chaque ouverture de
+   *  corpus, non rafraîchi en session (un ré-ouvrir rafraîchit). */
   const audiosManquants = ref<Record<string, 'manquant'>>({})
-  /** J3 — vérifie l'existence des audios référencés (IPC batché main, cache
-   *  refsAudio) et ne retient que les 'manquant'. */
+  /** Vérifie l'existence des audios référencés (IPC côté main) et ne retient
+   *  que les manquants. */
   async function verifierIntegriteAudios(): Promise<Record<string, 'manquant'>> {
     const res = await window.sonal.corpus.verifierAudios()
     const manquants: Record<string, 'manquant'> = {}
@@ -190,9 +189,9 @@ export function creerSonal() {
     corpus.majVariables(c.variables)
     await corpus.rafraichirUsages()
     await rafraichirAudios()
-    audiosManquants.value = await verifierIntegriteAudios() // J3 : bandeau d'intégrité
+    audiosManquants.value = await verifierIntegriteAudios() // bandeau d'intégrité
     void regenererOndesManquantes() // en fond : ne bloque pas l'arrivée à l'écran
-    await raccrocherModeCorpus(c.demo, dir ?? null) // J6 : mode démo restauré depuis le marqueur
+    await raccrocherModeCorpus(c.demo, dir ?? null) // restaure le mode démo (panneau « Pas à pas »)
   }
 
   async function chargerCorpus() {
@@ -243,9 +242,8 @@ export function creerSonal() {
   /** Ajout d'un entretien (modale à deux zones « fichier d'entretien » /
    *  « fichier son », à la SonalPi) :
    *  - texte seul → import classique (sas `.sonal`) ;
-   *  - texte + audio → import PUIS assignation (copie dans le corpus) + forme d'onde ;
-   *  - audio seul → entretien au texte VIDE (à taper/transcrire) + audio —
-   *    c'est « ajouter un document » avec le lecteur en plus.
+   *  - texte + audio → import puis assignation de l'audio (référence) + onde ;
+   *  - audio seul → entretien au texte VIDE (à taper/transcrire) + audio.
    *  Ouvre l'entretien créé dans tous les cas. */
   async function ajouterEntretien(
     texte: { nom: string; contenu: string } | null,
@@ -424,9 +422,9 @@ export function creerSonal() {
   const listeEntretiens = () =>
     Object.entries(corpus.membership.value).map(([id, ref]) => ({ id, ...ref }))
 
-  // Scope DÉMO « Mini Corpus Test » (plan-tutoriel §11-12) : construit le corpus
-  // de démo dans un dossier choisi via le vrai pipeline d'import. Dépendances
-  // injectées pour casser le cycle (demo utilise appliquerCorpus défini ci-dessus).
+  // Scope DÉMO « Mini Corpus Test » : construit le corpus de démo dans un
+  // dossier choisi via le vrai pipeline d'import. Dépendances injectées pour
+  // casser le cycle (demo utilise appliquerCorpus défini ci-dessus).
   const demo = utiliserDemo({
     appliquerCorpus,
     majDossierCourant: profil.majDossierCourant,
@@ -441,8 +439,8 @@ export function creerSonal() {
     variables: corpus.variables,
     texteModifie: ent.texteModifie,
   })
-  // Problème n°2 : branche le holder — `appliquerCorpus` restaure désormais le
-  // mode démo (panneau « Pas à pas ») quand le corpus ouvert est le corpus démo.
+  // Branche le holder : `appliquerCorpus` restaure désormais le mode démo
+  // (panneau « Pas à pas ») quand le corpus ouvert est un corpus démo.
   raccrocherModeCorpus = demo.raccrocherModeCorpus
 
   onMounted(chargerCorpus)

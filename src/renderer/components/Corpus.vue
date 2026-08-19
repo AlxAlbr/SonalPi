@@ -34,7 +34,7 @@ const {
   // audio
   urlWaveform,
   assignerAudioSelection,
-  // J3 — intégrité : audios référencés introuvables (fichier déplacé/supprimé)
+  // Intégrité : audios référencés introuvables (fichier déplacé/supprimé)
   audiosManquants,
   // démo pas-à-pas
   pasAPas,
@@ -42,9 +42,9 @@ const {
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
 const editerThemes = ref(false)
-// Onglet de la colonne gauche (plan-tutoriel §11/§14) : « Thèmes » par défaut,
-// « Pas à pas » en mode démo. Les métadonnées d'un entretien sélectionné
-// conservent leur affichage (bascule existante, hors onglet pour l'instant).
+// Onglet de la colonne gauche : « Thèmes » par défaut, « Pas à pas » en mode
+// démo. Les métadonnées d'un entretien sélectionné conservent leur affichage
+// (bascule existante, hors onglet pour l'instant).
 const ongletCorpus = ref<'themes' | 'pas-a-pas'>('themes')
 // Quand le mode pas-à-pas s'active, bascule l'onglet sur « Pas à pas ».
 watch(pasAPas, (v) => {
@@ -156,6 +156,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <AjoutEntretien />
             </span>
           </div>
+          <!-- Ancre du message « re-test » du pas-à-pas : pour une étape de
+               niveau CORPUS (ex. « Charger un entretien »), le message « déjà
+               réalisée » s'affiche ici — à côté des cartes d'entretiens — et
+               non dans l'éditeur. -->
+          <div data-tour="ancre-retest-pp"></div>
           <!-- Confirmation de suppression (acte destructif — mise en corbeille/,
                même idiome de bannière que thèmes et locuteurs). -->
           <div v-if="entretienASupprimer" class="confirm-suppr">
@@ -167,11 +172,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </div>
           </div>
 
-          <!-- J3 — INTÉGRITÉ : bandeau au-dessus des cartes si des audios
-               RÉFÉRENCÉS sont introuvables (fichier déplacé/supprimé — le
-               corpus n'est plus auto-suffisant §1.6). Calculé à l'ouverture
-               du corpus (pas de refresh en session) ; clic = ouvrir
-               l'entretien → le lecteur propose la ré-assignation (§5.3). -->
+          <!-- Bandeau d'intégrité : des audios référencés sont introuvables
+               (fichier déplacé/supprimé). Calculé à l'ouverture du corpus ;
+               clic = ouvrir l'entretien → le lecteur propose de ré-assigner. -->
           <div v-if="Object.keys(audiosManquants).length > 0" class="bandeau-audio" data-tour="bandeau-audio">
             <span class="bandeau-audio-titre">
               ⚠️ {{ Object.keys(audiosManquants).length }} fichier(s) audio introuvable(s) — déplacé(s) ou supprimé(s) ?
@@ -314,8 +317,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   color: #666;
 }
 /* --- Colonne droite : entretiens en cartes --- */
-/* J3 — bandeau d'intégrité (audio référencé introuvable) : informe, n'empêche
-   rien (l'app ne crash jamais pour un média manquant — contrat §5.3/§9). */
+/* Bandeau d'intégrité (audio référencé introuvable) : informe, n'empêche
+   rien — on ne bloque jamais l'app pour un média manquant. */
 .bandeau-audio {
   border: 1px solid #f3b4ad;
   background: #fdecea;

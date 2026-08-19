@@ -7,14 +7,13 @@ import type { Ancre } from './entretien/audio'
  * Toute évolution de structure = bump de FORMAT_VERSION + migration explicite :
  * une version inconnue est refusée poliment, jamais lue partiellement.
  *
- * v2 : les timecodes ne sont plus des attributs de bloc (`deb`/`fin`) mais des
- * ANCRES `{pos, t}` positionnées dans le texte (migration v1→v2 au store).
+ * v2 : les timecodes quittent les attributs de bloc (`deb`/`fin`),
+ * pour devenir des ancres `{pos, t}` positionnées dans le texte (migration v1→v2 au store).
  *
- * v3 : `meta.audioRef` devient un chemin ABSOLU uniquement (plus de copie
- * dans `<corpus>/audio/` — l'audio est référencé sur place comme dans SonalPi).
- * Migration v2→v3 au store : résolution des refs relatives en absolues +
- * déplacement des PNG waveform `audio/` → `png/`. Le type du champ ne change
- * pas (`string | null`), c'est le domaine de valeurs qui change.
+ * v3 : `meta.audioRef` devient un chemin ABSOLU uniquement — plus de copie dans `<corpus>/audio/`,
+ * l'audio est référencé sur place comme dans SonalPi.
+ * Migration v2→v3 au store : refs relatives résolues en absolues + PNG d'onde déplacés de `audio/` vers `png/`.
+ * Le type du champ ne change pas (`string | null`), c'est le domaine de valeurs qui change.
  */
 export const FORMAT_VERSION = 3
 
@@ -22,21 +21,19 @@ export function versionSupportee(v: unknown): boolean {
   return v === FORMAT_VERSION
 }
 
-/** Mode du « Mini Corpus Test » — deux façons de construire la démo sur le
- *  même corpus (plan-tutoriel §11.3) :
- *  - `'pas-a-pas'` : corpus amorcé VIDE + onglet « Pas à pas » activé ;
+// ══════════════════════════════════════════════════════════════════════════
+// Démo « Mini Corpus Test » — modes, mémoire persistée, marqueur de corpus
+// ══════════════════════════════════════════════════════════════════════════
+
+/** Mode du « Mini Corpus Test » — deux façons de construire un corpus de démo :
+ *  - `'pas-a-pas'` : corpus amorcé vide, rempli étape par étape (onglet « Pas à pas »);
  *  - `'autonomie'` : les 4 entretiens + audios importés d'un coup. */
 export type ModeDemo = 'pas-a-pas' | 'autonomie'
 
-/** Mémoire démo PERSISTÉE au niveau PROFIL (`settings.json`, à côté des
- *  `recents`) : la racine des sources matérialisées UNE fois (copiées du
- *  `CorpusTest/` bundled) + le DOSSIER du corpus de test de CHAQUE mode, choisi
- *  directement par l'utilisateur dans la modale (un dossier = un corpus, à la
- *  SonalPi). Les deux corpus sont INDÉPENDANTS — jamais le même dossier (gardes
- *  de la modale : « pas déjà un corpus », pas le dossier de l'autre mode, pas les
- *  sources). Sert aux cartes de l'Accueil : « un clic » quand les deux dossiers
- *  du mode existent, modale adaptative sinon (la question « où importer les
- *  sources » est sautée quand les sources sont déjà en place). */
+/** Mémoire démo persistée dans `settings.json` (au niveau du profil) :
+ *  la racine des sources de démo (copiées une fois depuis `CorpusTest/`),
+ *  plus le dossier du corpus de test de chaque mode.
+ *  Chaque mode a son propre corpus, indépendant. */
 export interface EtatDemo {
   racineSources: string
   /** Corpus de test du mode pas-à-pas (dossier choisi directement). */
@@ -45,27 +42,29 @@ export interface EtatDemo {
   corpusAutonomie?: string
 }
 
-/** Retour de `demo:etat` : l'état mémorisé + la présence RÉELLE des dossiers
- *  sur disque (la modale adapte ses questions ; un dossier supprimé → on
- *  re-questionne). */
+/** Retour de `demo:etat` :
+ *  l'état mémorisé + la présence réelle des dossiers sur disque,
+ *  (la modale adapte ses questions ; un dossier supprimé mène à une nouvelle question). */
 export interface EtatDemoComplet extends EtatDemo {
   sourcesExist: boolean
   corpusPasAPasExist: boolean
   corpusAutonomieExist: boolean
 }
 
-/** Marqueur `demo` de `corpus.json` : identité d'un corpus de TEST. Absent =
- *  corpus normal (la démo n'y touche jamais — gardien plan-tutoriel §12.3).
- *  `mode` distingue « pas-à-pas » (corpus amorcé vide + panneau guidé) de
- *  « autonomie » (4 entretiens d'un coup) ; `racineSources` rappelle où sont
- *  les sources (textes des étapes, defaultPath des dialogues) ; `validees` =
- *  l'historique du parcours (étapes cochées), qui voyage avec le corpus. */
+/** Marqueur `demo` de `corpus.json` : identité d'un corpus de TEST.
+ *  Absent = corpus normal (la démo n'y touche jamais).
+ *  `mode` = « pas-à-pas » ou « autonomie » ;
+ *  `racineSources` rappelle où sont les sources ;
+ *  `validees` = l'historique du parcours (étapes cochées), qui voyage avec le corpus. */
 export interface MarqueurDemo {
   mode: ModeDemo
   racineSources: string
   validees?: string[]
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// Corpus — dossier et `corpus.json` (définitions + membership)
+// ══════════════════════════════════════════════════════════════════════════
 
 /** `corpus.json` — définitions + membership. */
 export interface CorpusFichier {
@@ -75,9 +74,10 @@ export interface CorpusFichier {
   reglesAnon: Record<string, unknown>
   personnes: Record<string, unknown>
   membership: Record<string, EntretienRef>
-  /** Marqueur de corpus de TEST (démo) — champ ADDITIF optionnel : absent pour
-   *  un corpus normal (pas de bump de version). Posé par le builder démo à la
-   *  création, mis à jour à chaque étape validée (pas-à-pas). */
+  /** Marqueur de corpus de TEST (démo) — champ ADDITIF optionnel,
+   *  absent pour un corpus normal (pas de bump de version).
+   *  Posé par le builder démo quand il crée le corpus,
+   *  mis à jour ensuite à chaque étape validée (pas-à-pas). */
   demo?: MarqueurDemo
 }
 
@@ -87,23 +87,26 @@ export interface DossierCorpus {
   nom: string
 }
 
-/**  transporter l'identité du dossier en plus du contenu, dans un seul message IPC. */
+/** Transporte l'identité du dossier en plus du contenu, dans un seul message IPC. */
 export interface OuvertureCorpus extends DossierCorpus {
   corpus: CorpusFichier
 }
 
-
+// ══════════════════════════════════════════════════════════════════════════
+// Entretiens — `entretiens/<id>.json`, leurs locuteurs
+// ══════════════════════════════════════════════════════════════════════════
 
 /** Métadonnées légères de listing (le membership du corpus). */
 export interface EntretienRef {
   titre: string
   date: string | null
-  /** ISO — date du fichier entretien (watermark). Sert au cache-busting de
-   *  l'URL de la forme d'onde des cartes Corpus ; plus de contrôle de fraîcheur
-   *  croisée fichier/membership en mono-utilisateur (retiré — cf. corpusStore). */
+  /** ISO — date du fichier entretien.
+   *  Ajoutée à l'URL de la forme d'onde des cartes Corpus (`?v=lastModified`),
+   *  elle force le navigateur à recharger l'image régénérée (cache-busting).
+   *  Plus de contrôle de fraîcheur croisée fichier/membership :
+   *  inutile en mono-utilisateur — le disque est la vérité (cf. corpusStore). */
   lastModified: string
 }
-
 
 
 
@@ -117,15 +120,14 @@ export interface EntretienFichier {
   ancres: Ancre[]
   locuteurs: Locuteur[]
   meta: { valeursGen: Record<string, string>; audioRef: string | null }
-  /** Blocs `.sonal` non modélisés (règles d'anon, notes), transportés tels quels
-   *  pour un export sans perte. */
+  /** Blocs `.sonal` non modélisés (règles d'anon, notes), transportés tels quels pour un export sans perte. */
   legacy?: Record<string, unknown>
 }
 
 
 
-/** La charge utile qu'un renderer envoie pour sauver un entretien (sans les
- *  champs d'intendance formatVersion/lastModified, posés par le store). */
+/** La charge utile envoyée par le renderer pour sauver un entretien.
+ *  Sans les champs d'intendance formatVersion/lastModified, posés par le store. */
 export interface PayloadEntretien {
   corpsTexte: unknown
   annotations: Annotation[]
@@ -135,8 +137,9 @@ export interface PayloadEntretien {
   legacy?: Record<string, unknown>
 }
 
-/** Résultat de lecture d'un entretien : soit ok + données, soit un refus typé
- *  (version inconnue / fichier absent). */
+/** Résultat de lecture d'un entretien :
+ *  soit ok + données,
+ *  soit un refus typé (version inconnue / fichier absent). */
 export type LectureEntretien =
   | { ok: true; data: EntretienFichier }
   | { ok: false; raison: 'version' | 'absent' }
@@ -147,23 +150,28 @@ export type LectureEntretien =
 export interface Locuteur {
   index: number
   nom: string
-  /** Interviewer (celui qui pose les questions) : ses tours s'affichent en
-   *  italique. Convention SonalPi : un « ? » DANS le nom — artefact de format,
-   *  réintroduit à l'export seulement (comme `l="all"` EAV). Champ ADDITIF
-   *  optionnel : pas de bump de formatVersion. */
+  /** Interviewer (celui qui pose les questions) :
+   *  ses tours s'affichent en italique.
+   *  Convention SonalPi : un « ? » dans le nom — artefact de format,
+   *  réintroduit à l'export seulement (comme `l="all"` EAV).
+   *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
   interviewer?: boolean
   valeursLoc: Record<string, string> // idVar → idMod
   personneRef: string | null
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// Codebook & variables EAV — définitions au niveau du corpus
+// ══════════════════════════════════════════════════════════════════════════
 
 /** Une catégorie du codebook (une définition — elle vit au corpus, pas chez les entretiens). */
 export interface Categorie {
   id: string
   nom: string
   couleur?: string
-  /** Taille de police (px) appliquée aux passages codés — parité SonalPi (son
-   *  `tabThm[].taille` est un nombre nu). Champ ADDITIF optionnel : pas de bump
-   *  de formatVersion ; absent = taille du texte. */
+  /** Taille de police (px) appliquée aux passages codés — parité SonalPi :
+   *  son `tabThm[].taille` est un nombre nu. Champ ADDITIF optionnel,
+   *  pas de bump de formatVersion ; absent = taille du texte. */
   taille?: number
   ordre: number
   parent: string | null
@@ -178,9 +186,9 @@ export interface Modalite {
   mExport: number // code numérique d'export .sonal, pas l'identité
 }
 
-/** Variable EAV (définition → corpus). La `portee` décide où vit la VALEUR :
- *  `entretien` → meta.valeursGen ; `locuteur` → Locuteur.valeursLoc (pas de
- *  sentinelle `l="all"` dans le modèle — la valeur va chez son propriétaire). */
+/** Variable EAV (définition → corpus). La `portee` décide où vit la valeur :
+ *  à l'entretien (meta.valeursGen) ou au locuteur (Locuteur.valeursLoc) ;
+ *  pas de sentinelle `l="all"`, la valeur va chez son propriétaire. */
 export interface Variable {
   id: string
   lib: string
@@ -191,18 +199,20 @@ export interface Variable {
   modalites: Modalite[]
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// Requêtes & résultats d'opérations (jamais persistés)
+// ══════════════════════════════════════════════════════════════════════════
 
-
-
-/** Suppression d'une catégorie : refusée tant qu'elle est utilisée (compteur =
- *  requête sur les entretiens). Politique explicite, pas de suppression en cascade. */
+/** Suppression d'une catégorie : refusée tant qu'elle est utilisée,
+ *  comptage par requête sur les entretiens.
+ *  Politique explicite, pas de suppression en cascade. */
 export type ResultatSuppressionCategorie =
   | { ok: true; corpus: CorpusFichier }
   | { ok: false; usages: number }
 
-/** Champs modifiables d'une catégorie (renommer / recolorer / retailler / activer).
- *  `taille: undefined` PRÉSENT dans le patch = revenir à la taille par défaut
- *  (le spread écrase, JSON.stringify retire la clé à l'écriture). */
+/** Champs modifiables d'une catégorie : renommer, recolorer, retailler,
+ *  activer. `taille: undefined` dans le patch = revenir à la taille par défaut,
+ *  le spread écrase la valeur (JSON.stringify retire la clé). */
 export type PatchCategorie = Partial<Pick<Categorie, 'nom' | 'couleur' | 'taille' | 'actif'>>
 
 /** Suppression refusée tant qu'utilisée (variables/modalités, comme les catégories). */
@@ -211,15 +221,17 @@ export type ResultatSuppression =
   | { ok: false; usages: number }
 
 
-/** Cible d'une valeur EAV posée depuis la table de données : la portée
- *  entretien, ou un locuteur donné (par son index). */
+/** Cible d'une valeur EAV posée depuis la table de données :
+ *  la portée entretien, ou un locuteur donné (par son index). */
 export type CibleValeur = { type: 'entretien' } | { type: 'locuteur'; index: number }
 
-/** Un segment du RÉSUMÉ THÉMATIQUE d'un entretien (requête, jamais stockée) —
- *  parité SonalPi (`resumeGraphique`) : la position est la PROPORTION DANS LE
- *  TEXTE (pas le temps audio), en % [0..100] ; `codes` = les thèmes qui couvrent
- *  le segment ; `pos`/`posFin` = positions PM des bornes (clic → ouvrir le texte
- *  là ; lecteur → re-projection sur l'axe TEMPS via les ancres). */
+/** Un segment du résumé thématique d'un entretien (requête, jamais stockée),
+ *  parité SonalPi (`resumeGraphique`).
+ *  La position est une proportion dans le texte (pas le temps audio),
+ *  en % [0..100].
+ *  `codes` = les thèmes couverts ;
+ *  `pos`/`posFin` = positions PM des bornes (clic → ouvre le texte là,
+ *  lecteur → re-projection sur l'axe du temps via les ancres). */
 export interface SegmentThematique {
   deb: number
   fin: number
@@ -228,8 +240,9 @@ export interface SegmentThematique {
   codes: string[]
 }
 
-/** La MATRICE corpus = REQUÊTE (jamais stockée) : par entretien, ses valeurs de
- *  portée entretien + celles de ses locuteurs. Le renderer aplatit en lignes. */
+/** La matrice corpus = requête (jamais stockée) :
+ *  par entretien, ses valeurs de portée entretien et celles de ses locuteurs ;
+ *  le renderer aplatit le tout en lignes pour la table de données. */
 export interface MatriceEntree {
   entretienId: string
   titre: string

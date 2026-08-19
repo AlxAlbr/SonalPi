@@ -18,12 +18,10 @@ export function urlMediaWaveform(id: string, v?: number | string): string {
 /**
  * PNG de la forme d'onde, façon SonalPi : décodage AudioContext (dans le
  * renderer — seul endroit où il est garanti), enveloppe min/max (pure,
- * `enveloppe.ts`), dessin canvas. RATIO SonalPi (800×31, très plat — c'est ce
- * qui fait le « mur d'ondes » de l'écran Corpus) : remplissage quasi invisible
- * (le conteneur porte le dégradé, comme `.fond-cnv-ent` de SonalPi), seuls les
- * deux traits d'enveloppe gris dessinent la forme. Pas de Web Worker :
- * l'enveloppe est un O(n) négligeable devant le décodage, lui-même déjà
- * asynchrone.
+ * `enveloppe.ts`), dessin canvas. Le format 800×31 est très plat (c'est ce qui
+ * fait le « mur d'ondes » de l'écran Corpus) : remplissage quasi invisible (le
+ * conteneur porte le dégradé), seuls les deux traits d'enveloppe gris dessinent
+ * la forme. Pas de Web Worker : le calcul d'enveloppe est léger (O(n)).
  */
 export async function genererWaveformPng(
   octets: ArrayBuffer,
@@ -72,7 +70,7 @@ export async function genererWaveformPng(
   return new Uint8Array(await blob.arrayBuffer())
 }
 
-/** Génère et PERSISTE la forme d'onde d'un entretien (dérivé `audio/<id>.png`,
+/** Génère et PERSISTE la forme d'onde d'un entretien (dérivé `png/<id>.png`,
  *  régénérable) : octets audio récupérés par fetch sur le protocole, PNG écrit
  *  par le main. Renvoie le chemin relatif du PNG, ou null si l'audio est
  *  indécodable (on n'échoue pas l'assignation pour un dérivé). */

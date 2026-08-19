@@ -19,7 +19,7 @@ export function useProfil() {
   }
   /** Picker de dossier → renvoie le corpus ouvert + son chemin (ou null si
    *  annulé). Met à jour le nom courant + les récents ; l'appelant applique le
-   *  corpus au modèle (le `dir` sert à restaurer le mode démo, problème n°2). */
+   *  corpus au modèle (le `dir` sert à restaurer le mode démo). */
   async function choisirDossier(): Promise<{ corpus: CorpusFichier; dir: string } | null> {
     const res = await window.sonal.corpus.choisirDossier()
     if (!res) return null

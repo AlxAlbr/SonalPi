@@ -15,11 +15,11 @@ const {
   enPreparation,
 } = utiliserSonal()
 
-// Modale à DEUX questions (§7.2, J7) : lancée depuis les cartes démo UNIQUEMENT
-// si le corpus de CE mode n'est pas déjà connu ET présent (mémoire démo persistée
-// settings.json). La modale est ADAPTATIVE : une question dont la réponse est
-// déjà connue est sautée (ex. « où importer les sources » si les sources sont
-// déjà en place). Une fois le corpus du mode créé, « un clic » suffit.
+// Modale démo ADAPTATIVE : lancée depuis les cartes démo uniquement si le
+// corpus de CE mode n'est pas déjà connu et présent (mémoire démo persistée
+// settings.json). Une question déjà répondue est sautée (ex. « où importer les
+// sources » si elles sont déjà en place). Une fois le corpus du mode créé,
+// « un clic » suffit.
 const modaleDemo = ref<ModeDemo | null>(null)
 
 async function lancerPreparer(mode: ModeDemo) {
@@ -31,11 +31,11 @@ async function lancerPreparer(mode: ModeDemo) {
 
 <template>
     <section class="ecran accueil">
-      <h2>Corpus</h2>
+      <h2>Accueil</h2>
 
-      <!-- Mini Corpus Test (plan-tutoriel §11) : deux modes côte à côte. Chacun
-           passe par la modale à deux dossiers (sources à matérialiser + corpus de
-           travail, §7.2) puis construit le corpus de démo via le vrai pipeline. -->
+      <!-- Mini Corpus Test : deux modes côte à côte. Chacun choisit ses
+           dossiers (sources + corpus de travail) puis construit le corpus de
+           démo via le vrai pipeline d'import. -->
       <div class="demo-bloc">
         <h3 class="demo-titre">🎓 Mini Corpus Test</h3>
         <div class="cartes-demo">
@@ -81,7 +81,7 @@ async function lancerPreparer(mode: ModeDemo) {
         </li>
       </ul>
 
-      <!-- Modale à deux dossiers (sources + corpus de travail) — §7.2 -->
+      <!-- Modale à deux dossiers (sources + corpus de travail) -->
       <ModaleDemo v-if="modaleDemo" :mode="modaleDemo" @fermer="modaleDemo = null" />
     </section>
 </template>
@@ -94,7 +94,7 @@ async function lancerPreparer(mode: ModeDemo) {
   font-size: 1.05rem;
   margin: 0.5rem 0;
 }
-/* --- Mini Corpus Test (§11) --- */
+/* --- Mini Corpus Test --- */
 .demo-bloc {
   border: 1px solid #e0e0e0;
   border-radius: 10px;

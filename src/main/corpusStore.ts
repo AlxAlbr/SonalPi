@@ -13,15 +13,14 @@ import { fileURLToPath } from 'node:url'
 import * as corpusModel from '../shared/corpus'
 import { migrerEntretienV1 } from '../shared/entretien/migration'
 
-/** Pour comprendre pourquoi il y a des formats de version
- * c'est lié à la migration v1 → v2 du fichier entretien : les timecodes quittent les attributs de bloc (`deb`/`fin` par paragraphe) pour devenir des ANCRES
- * positionnées dans le texte (`ancres: {pos, t}[]`). Migration EXPLICITE de
- * format : le store l'applique à la lecture d'un fichier v1 et réécrit aussitôt
- * — jamais de lecture partielle d'une version inconnue.
- * Voir shared/entretien/migration.ts pour la mécanique de migration.
- * v3 : `meta.audioRef` devient un chemin ABSOLU uniquement (audio référencé,
- * plus copié). Migration v2→v3 : résolution des refs relatives en absolues +
- * déplacement des PNG waveform `audio/` → `png/`.
+/** Pourquoi des numéros de version ? Chaque évolution du format de fichier est
+ *  migrée EXPLICITEMENT à la lecture, puis le fichier est réécrit aussitôt,
+ *  sans jamais lire une version inconnue partiellement.
+ *  - v1 → v2 : les timecodes quittent les attributs de bloc (`deb`/`fin`),
+ *    pour devenir des ancres `{pos, t}` positionnées dans le texte.
+ *  - v2 → v3 : `meta.audioRef` devient un chemin ABSOLU uniquement,
+ *    l'audio est référencé, plus copié ; les PNG d'onde passent de `audio/` à `png/`.
+ *  Voir shared/entretien/migration.ts pour la mécanique de migration.
  */
 
 import {
@@ -42,27 +41,24 @@ import {
   type Variable,
 } from '../shared/format'
 
-/** Un entretien vide est un document ProseMirror minimal (un paragraphe vide)  
-*  permet aussi de gérer le cas où l'utilisateur télécharge seulement un audio
-*  il peut alors le transcrire manuellement */
+/** Un entretien vide est un document ProseMirror minimal (paragraphe vide).
+ *  Il sert aussi quand l'utilisateur télécharge seulement un audio,
+ *  qu'il transcrit ensuite manuellement. */
 const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
 
 
 /** Génère un id unique pour un entretien, une variable, une modalité ou une catégorie.
- *  Le préfixe est un indicateur de type (ent/var/mod/cat) pour la lisibilité. 
- *  Le choix a été fait de générer des ids opaques (et non séquentiels : de type +1) pour éviter les conflits lors des fusions.
- * Math.random() génère un nombre aléatoire entre 0 (inclus) et 1 (exclus).
- * .toString(36) Convertit le nombre en chaîne dans la base 36 (utilise les chiffres 0-9 et les lettres a-z
- * slice(2, 10) : extrait les caractères de l'index 2 jusqu'à 9. On enlève donc le 0 du début et on conserve jusqu'à 8 caractères.
- * ex : qf7k2abc  (n'est pas visible par l'utilisateur dans l'interface) */
+ *  Le préfixe indique le type (ent/var/mod/cat) ;
+ *  le reste est aléatoire et opaque (jamais séquentiel),
+ *  pour éviter les conflits lors des fusions. */
 function genId(prefixe: string): string {
   return prefixe + '-' + Math.random().toString(36).slice(2, 10)
 }
 
-/** Normalise un chemin audio reçu d'un dialogue (assignerAudio) : certains
- *  dialogs Linux renvoient `file://` → `fileURLToPath` ; puis `path.normalize`
- *  pour une comparaison whitelist fiable. Le résultat est toujours un chemin
- *  absolu natif normalisé. */
+/** Normalise un chemin audio reçu d'un dialogue (assignerAudio).
+ *  Certains dialogs Linux renvoient `file://`, d'où `fileURLToPath` ;
+ *  `path.normalize` rend la comparaison des chemins fiable.
+ *  Le résultat est toujours un chemin absolu natif et normalisé. */
 function normaliserCheminAudio(source: string): string {
   let p = source
   if (p.startsWith('file:')) p = fileURLToPath(p)
@@ -71,24 +67,22 @@ function normaliserCheminAudio(source: string): string {
 
 /** Les RÈGLES du corpus vivent dans `shared/corpus/` (pures) ;
  *  ICI on ne fait que lire → appliquer → écrire.
- *  Cette classe est le point d'entrée pour toutes les opérations sur le corpus (CRUD) : 
- * codebook, variables, modalités, entretiens, audio.
- */
+ *  Cette classe est le point d'entrée de toutes les opérations sur le corpus,
+ *  au sens CRUD (codebook, variables, modalités, entretiens, audio). */
 export class CorpusStore {
 
   /** L'attribut dir contient le chemin vers le répertoire du corpus */
   private readonly dir: string
 
-  /** Cache en mémoire des `audioRef` (id → chemin absolu normalisé) du corpus
-   *  courant. Sert à la whitelist du protocole `abs` (`cheminMediaAbs`) ET au
-   *  remplissage de `audios()` — sans relire les N fichiers entretiens à chaque
-   *  requête Range du `<audio>`. Invalidé sur mutation (assign/supprimer/ecrire).
-   *  Recalculé paresseusement à la 1re utilisation après ouverture/mutation. */
+  /** Cache en mémoire des chemins audio référencés du corpus courant,
+   *  id → audioRef absolu.
+   *  Évite de relire les fichiers entretiens à chaque requête média ;
+   *  invalidé à chaque mutation, recalculé paresseusement. */
   private cacheRefsAudio: Map<string, string> | null = null
 
-  /** Ids qui permettent des sauvegardes : un entretien ouvert est en session
-   * Rempli à la lecture, vidé au 1er write suivant (.bak avec rotation 1→2) 
-   * Le Set garantit l'unicité des ids. */
+  /** Ids des sauvegardes à faire : un entretien ouvert est en session.
+   *  Rempli à la lecture, vidé au 1er write suivant (.bak avec rotation 1→2).
+   *  Le Set garantit l'unicité des ids. */
   private readonly rotationEnAttente = new Set<string>()
 
   /** Instanciation de la classe CorpusStore avec le chemin du répertoire du corpus */
@@ -96,8 +90,8 @@ export class CorpusStore {
     this.dir = dir
   }
 
-  /** Exemple : dir = "/home/user/projets/mon_corpus"
-    * corpusFile → /home/user/projets/mon_corpus/corpus.json" */
+  /** Exemple : dir = "/home/user/projets/mon_corpus",
+    * corpusFile → "/home/user/projets/mon_corpus/corpus.json". */
   private get corpusFile() {
     return join(this.dir, 'corpus.json')
   }
@@ -117,9 +111,9 @@ export class CorpusStore {
     return join(this.dir, 'png')
   }
 
-  /** Ancien dossier audio (v2) : reliquat pour les corpus migrés (mp3 legacy
-   *  référencés en absolu vers leur emplacement existant). Les nouveaux corpus
-   *  v3 n'ont pas de dossier `audio/`. */
+  /** Ancien dossier audio (v2) : reliquat pour les corpus migrés, avec leurs
+   *  mp3 legacy référencés en absolu vers leur emplacement existant.
+   *  Les nouveaux corpus v3 n'ont pas de dossier `audio/`. */
   private get audioDirLegacy() {
     return join(this.dir, 'audio')
   }
@@ -135,23 +129,22 @@ export class CorpusStore {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
     
-    // Cas nouveau corpus traité ci dessous
+    // Nouveau corpus : traité plus bas.
     if (!existsSync(this.corpusFile)) return this.amorcer()
 
-    // CorpusFichier contient les définitions 5 blocs (codebook, variables, reglesAnon, personnes, membership)
-    // Le membership correspond à la liste des entretiens (id, titre, date, lastModified) composant le corpus
-    // +  formatVersion.  cf shared/format.ts
+    // `CorpusFichier` contient les 5 blocs de définitions : codebook, variables,
+    // reglesAnon, personnes, membership (voir shared/format.ts).
     const corpus = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
-    
-    // Cas Migration v1→v2
+
+    // Migration v1→v2.
     if (corpus.formatVersion === 1) {
       corpus.formatVersion = FORMAT_VERSION
       this.ecrireJsonAtomique(this.corpusFile, corpus)
     }
-    // Cas Migration v2→v3 : audioRef relatifs → absolus + déplacement PNG
-    // `audio/` → `png/`. Mécanique identique à v1→v2 : le store applique à la
-    // lecture et réécrit aussitôt — jamais de lecture partielle d'une version
-    // inconnue. One-shot : après migration, formatVersion === 3.
+    // Migration v2→v3 : audioRef relatifs → absolus, PNG `audio/` → `png/`.
+    // Même mécanique que v1→v2 : le store migre à la lecture puis réécrit aussitôt ;
+    // jamais de lecture partielle d'une version inconnue.
+    // One-shot : après migration, formatVersion === 3.
     if (corpus.formatVersion === 2) {
       this.migrerV2VersV3(corpus)
     }
@@ -161,12 +154,12 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Marque le corpus courant comme corpus de TEST (démo) — `corpus.json:
-   *  { demo: { mode, racineSources, validees } }`. Champ ADDITIF optionnel :
-   *  pas de bump de version (même statut que `taille?`/`interviewer?`). Absent
-   *  = corpus normal — la démo n'y touche jamais (gardien plan-tutoriel §12.3).
-   *  Posé par le builder à la création, mis à jour à chaque étape validée
-   *  (l'historique du pas-à-pas voyage avec le corpus). */
+  /** Marque le corpus courant comme corpus de TEST (démo) : `corpus.json:
+   *  { demo: { mode, racineSources, validees } }`.
+   *  Champ ADDITIF optionnel, donc pas de bump de version ;
+   *  un corpus normal n'a pas de marqueur, la démo n'y touche jamais.
+   *  Posé par le builder à la création, mis à jour à chaque étape validée,
+   *  l'historique du pas-à-pas voyageant avec le corpus. */
   marquerDemo(marqueur: MarqueurDemo): CorpusFichier {
     const corpus = this.ouvrir()
     corpus.demo = marqueur
@@ -174,10 +167,11 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Migration v2→v3 : résout chaque `audioRef` relatif en absolu, déplace les
-   *  PNG waveform `audio/` → `png/`, bump le corpus + chaque entretien à v3.
-   *  Les mp3 legacy restent dans `audio/` (référencés en absolu vers cet
-   *  emplacement — aucune recopie, aucun orphelin). */
+  /** Migration v2→v3 : résout chaque `audioRef` relatif en absolu ;
+   *  déplace les PNG waveform `audio/` → `png/` ;
+   *  passe le corpus et chaque entretien à v3.
+   *  Les mp3 legacy restent dans `audio/`, référencés en absolu sur place ;
+   *  aucune recopie, aucun orphelin. */
   private migrerV2VersV3(corpus: CorpusFichier): void {
     if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
     // 1. Déplacer les PNG waveform `audio/<id>.png` → `png/<id>.png`.
@@ -210,15 +204,14 @@ export class CorpusStore {
     this.invaliderRefsAudio() // le cache (s'il existait) est périmé
   }
 
-  /** Le bloc « Pondérations » par défaut de SonalPi, aux MÊMES codes que lui (cat_001..004) 
-   *  Ces ids `cat_NNN` sont VOLONTAIREMENT figés (espace réservé, administré) :
-   *  écrits une fois à l'amorçage, jamais créés par un utilisateur, ils
-   *  garantissent que deux corpus neufs partagent le même codebook par défaut
-   *  (fusion sans doublon) et la parité d'ids avec les `.sonal` importés de
-   *  SonalPi (fusionnerImport fusionne par id — changer ces ids créerait un
-   *  doublon « Pondérations » à chaque import). Toute catégorie créée ENSUITE
-   *  passe par `genId('cat')` (id opaque, sûr en offline divergent) avec
-   *  `cat_NNN` relégué au `codeExport` — cf. plan-multiuser §6. */
+  /** Le bloc « Pondérations » par défaut de SonalPi, aux mêmes codes que lui (cat_001..004).
+   *  Ces ids `cat_NNN` sont VOLONTAIREMENT figés (espace réservé, administré),
+   *  écrits une fois à l'amorçage, jamais créés par un utilisateur :
+   *  ils garantissent que deux corpus neufs partagent le même codebook par défaut,
+   *  et la parité d'ids avec les `.sonal` importés de SonalPi.
+   *  Toute catégorie créée ENSUITE passe par `genId('cat')` ;
+   *  l'id est opaque et sûr en offline divergent,
+   *  `cat_NNN` étant relégué au `codeExport`. */
   private amorcer(): CorpusFichier {
     const blanc = '#ffffff'
     const codebook = {
@@ -239,10 +232,10 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Lit un entretien. Démarre sa « session » (la prochaine écriture tournera
-   *  les `.bak`). Aucun contrôle de fraîcheur croisée fichier/membership : en
-   *  mono-utilisateur le disque EST la vérité (le retrait est aussi prévu par
-   *  le plan multi-utilisateur §4.7 — la fraîcheur y est portée par verrou/pull). */
+  /** Lit un entretien et démarre sa « session »,
+   *  la prochaine écriture fera tourner les `.bak`.
+   *  Pas de contrôle de fraîcheur croisée fichier/membership :
+   *  en mono-utilisateur, le disque est la vérité. */
   lireEntretien(id: string): LectureEntretien {
     const fichier = this.entretienFile(id)
     if (!existsSync(fichier)) return { ok: false, raison: 'absent' }
@@ -254,9 +247,10 @@ export class CorpusStore {
       data = migrerEntretienV1(data as unknown as Record<string, unknown>) as unknown as EntretienFichier
       this.ecrireJsonAtomique(fichier, data)
     }
-    // Migration EXPLICITE v2→v3 : audioRef relatif → absolu (filet de sécurité —
-    // la migration principale a lieu dans `ouvrir()`, mais un entretien v2 peut
-    // arriver isolément, ex. copié à la main dans un corpus v3).
+    // Migration v2→v3 : audioRef relatif → absolu (filet de sécurité).
+    // La migration principale a lieu dans `ouvrir()` ;
+    // ici, un entretien v2 isolé (ex. copié à la main dans un corpus v3)
+    // est rattrapé au passage.
     if ((data.formatVersion as number) === 2) {
       const ref = data.meta?.audioRef
       if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
@@ -273,8 +267,8 @@ export class CorpusStore {
   }
 
   /** Écrit un entretien (atomique + rotation `.bak` si 1re écriture de session)
-   *  et met à jour le lastModified du membership. 
-   * La classe PayloadEntretien contient les données à écrire. Elle est définie dans shared/format.ts */
+   *  et met à jour le lastModified du membership.
+   *  Les données à écrire viennent de la classe PayloadEntretien (shared/format.ts). */
   ecrireEntretien(id: string, payload: PayloadEntretien): string {
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
     const now = new Date().toISOString()
@@ -316,9 +310,8 @@ export class CorpusStore {
   }
 
   
-  /**
-   * utiliser pour le cas où on a seulement un audio
-   * et pas de fichier entretien, pour créer un entretien vide*/ 
+  /** Crée un entretien vide, pour le cas où on n'a qu'un audio
+   *  et pas de fichier entretien. */
   creerEntretienVide(titre: string): { id: string; corpus: CorpusFichier } {
     const corpus = this.ouvrir()
     const id = genId('ent')
@@ -338,11 +331,9 @@ export class CorpusStore {
     return { id, corpus }
   }
 
-  /**
-   * Le parsing du ficher se fait dans sas.ts (ImporterFichier)
-   * Ici, on ne fait que créer un entretien et fusionner les métadonnées.
-   *  window.sonal.corpus.importer()  ← IPC vers main : cf preload/index.ts
-   */
+  /** Le parsing du fichier se fait dans sas.ts (importerFichier) ;
+   *  ici, on ne fait que créer un entretien et fusionner les métadonnées.
+   *  Appelé par l'IPC `window.sonal.corpus.importer()` (cf. preload). */
   importerEntretien(
     titre: string,
     payload: PayloadEntretien,
@@ -370,10 +361,10 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Retire du membership et déplace le fichier (+ ses `.bak`) ET son PNG
-   *  waveform (`png/<id>.png`) dans `corbeille/` — jamais d'effacement (pas de
-   *  perte silencieuse), jamais d'orphelin sur disque. L'audio référencé
-   *  (chemin absolu externe) n'est JAMAIS touché — il n'a jamais été copié. */
+  /** Retire le fichier du membership et le déplace dans `corbeille/`,
+   *  avec ses `.bak` et son PNG waveform (`png/<id>.png`).
+   *  Jamais d'effacement ni d'orphelin sur disque ;
+   *  l'audio référencé n'est jamais touché, car jamais copié. */
   supprimerEntretien(id: string): CorpusFichier {
     const corpus = this.ouvrir()
     const corbeille = join(this.dir, 'corbeille')
@@ -382,8 +373,8 @@ export class CorpusStore {
       const src = join(this.entretiensDir, id + suffixe)
       if (existsSync(src)) renameSync(src, join(corbeille, id + suffixe))
     }
-    // Seul le PNG dérivé (dans `png/`) est déplacé en corbeille. L'audio
-    // référencé est externe — on ne le touche jamais (§4.5 du plan).
+    // Seul le PNG dérivé (dans `png/`) est déplacé en corbeille : l'audio
+    // référencé est externe au corpus, on ne le touche jamais.
     if (existsSync(this.pngDir)) {
       for (const f of readdirSync(this.pngDir)) {
         if (f.startsWith(id + '.')) renameSync(join(this.pngDir, f), join(corbeille, f))
@@ -396,8 +387,8 @@ export class CorpusStore {
   }
 
   /** Lit sur disque les fichiers dont les ids sont dans le membership.
-   *  C'est ce qu'utilisent toutes les requêtes purement analytiques (usages de thèmes, matrice corpus, ...).
-   * Si un fichier est manquant, on le passe silencieusement. */
+   *  C'est ce qu'utilisent toutes les requêtes analytiques (usages de thèmes,
+   *  matrice corpus…). Si un fichier est manquant, on le passe silencieusement. */
   private chargerEntretiens(): corpusModel.EntreeMatrice[] {
     const corpus = this.ouvrir()
     const out: corpusModel.EntreeMatrice[] = []
@@ -435,9 +426,8 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Usages d'un catégorie.
-   * `exceptId` permet d'exclure un entretien du comptage 
-   * sert pour vérifier au moment de la suppression d'une catégorie si n'est pas utilisé ailleurs. */
+  /** Usages d'une catégorie, `exceptId` excluant un entretien du comptage ;
+   *  sert à vérifier, à la suppression, qu'elle n'est pas utilisée ailleurs. */
   compterUsagesCategorie(code: string, exceptId?: string): number {
     const datas = this.chargerEntretiens()
       .filter((e) => e.id !== exceptId)
@@ -445,10 +435,8 @@ export class CorpusStore {
     return corpusModel.compterUsagesCategorie(datas, code)
   }
   
-  /** Utilise la fonction corpusModel.usagesParCategorie dans shared/corpus
-   *  voir l'import : import * as corpusModel from '../shared/corpus'
-   *  permet de compter le nombre d'usages de chaque catégorie dans l'ensemble des entretiens du corpus
-   */
+  /** Nombre d'usages de chaque catégorie dans l'ensemble des entretiens du
+   *  corpus (fonction `usagesParCategorie` de shared/corpus). */
   usagesParCategorie(): Record<string, number> {
     return corpusModel.usagesParCategorie(this.datas())
   }
@@ -525,18 +513,19 @@ export class CorpusStore {
     return { ok: true, corpus }
   }
 
-   /**  Table de données ou chaque ligne = un entretien, chaque colonne = une variable, chaque cellule = la valeur EAV correspondante.
-    *  La matrice est construite à la volée à partir des fichiers d'entretiens.
-    *  Voir shared/corpus/requetes.ts pour la mécanique de construction de la matrice.
-  */
+  /** Table de données : chaque ligne = un entretien, chaque colonne = une variable,
+   *  chaque cellule = la valeur EAV correspondante.
+   *  La matrice est construite à la volée à partir des fichiers d'entretiens,
+   *  mécanique détaillée dans shared/corpus/requetes.ts. */
   matriceCorpus(): MatriceCorpus {
     return corpusModel.matriceCorpus(this.chargerEntretiens())
   }
 
-    /** Pose une valeur EAV dans UN entretien (édition ciblée depuis la table de données).
-   *  Écriture ciblée atomique, SANS rotation `.bak` (valeur scalaire,
-   *  Met à jour le watermark de fraîcheur du membership pour trop granulaire).
-   *  rester cohérent avec `ecrireEntretien`. Renvoie false si l'entretien manque. */
+  /** Pose une valeur EAV dans un entretien (table de données).
+   *  Écriture ciblée atomique, sans rotation `.bak` (valeur scalaire) ;
+   *  le watermark du membership est mis à jour,
+   *  pour rester cohérent avec `ecrireEntretien`.
+   *  Renvoie false si l'entretien manque. */
   poserValeur(entretienId: string, cible: CibleValeur, idVar: string, idMod: string): boolean {
     const f = this.entretienFile(entretienId)
     if (!existsSync(f)) return false
@@ -559,8 +548,9 @@ export class CorpusStore {
 
   /** Assigne un fichier audio à un entretien par RÉFÉRENCE (chemin absolu).
    *  Plus de copie : le fichier d'origine est lu en streaming + forme d'onde,
-   *  jamais écrit par l'app (parité SonalPi). Le chemin stocké est normalisé
-   *  (`file://` → natif, `path.normalize`) pour une whitelist fiable (§4.2).
+   *  jamais écrit par l'app (parité SonalPi).
+   *  Le chemin stocké est normalisé (`file://` → natif, `path.normalize`),
+   *  pour une comparaison fiable des chemins.
    *  Écriture ciblée comme `poserValeur` (pas de rotation `.bak`). */
   assignerAudio(id: string, source: string): { audioRef: string } | null {
     const f = this.entretienFile(id)
@@ -583,12 +573,10 @@ export class CorpusStore {
     return { audioRef: ref }
   }
 
-  /** Écrit le PNG de la forme d'onde (`png/<id>.png`). C'est un DÉRIVÉ
-   *  régénérable (entorse assumée à « requête, pas cache » : le décodage audio
-   *  complet est coûteux) — hors format natif, copié avec le dossier. Un PNG
-   *  SUPPRIMÉ à la main est régénéré en fond à l'ouverture du corpus
-   *  (`regenererOndesManquantes`, sonal.ts) — c'est la migration après un
-   *  changement de rendu (ex. ex-onde verte → gris neutre). */
+  /** Écrit le PNG de la forme d'onde (`png/<id>.png`).
+   *  C'est un dérivé régénérable, hors format natif mais copié avec le dossier.
+   *  Un PNG supprimé à la main est régénéré en fond à l'ouverture du corpus,
+   *  par `regenererOndesManquantes` (sonal.ts). */
   ecrireWaveform(id: string, png: Uint8Array): string {
     if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
     const rel = `png/${id}.png`
@@ -601,8 +589,8 @@ export class CorpusStore {
    *  Alimente les cartes de l'écran Corpus + le chargement du lecteur. */
   audios(): Record<string, { audio: string | null; waveform: string | null }> {
     const out: Record<string, { audio: string | null; waveform: string | null }> = {}
-    // Waveform : scan de `png/` par convention de nommage (le PNG est un dérivé
-    // local, jamais stocké dans l'entretien — découvert par nom).
+    // Waveform : scan de `png/` par convention de nommage
+    // (le PNG est un dérivé local, jamais stocké dans l'entretien — découvert par nom).
     if (existsSync(this.pngDir)) {
       for (const nom of readdirSync(this.pngDir)) {
         if (extname(nom).slice(1).toLowerCase() !== 'png') continue
@@ -618,22 +606,22 @@ export class CorpusStore {
     return out
   }
 
-  /** Chemin ABSOLU du PNG waveform d'un entretien, résolu PAR ID (opaque, issu
-   *  de `genId`) → `<corpus>/png/<id>.png`. L'id n'est jamais un chemin → pas de
-   *  risque de traversal. Sert au protocole `sonal-media://waveform/<id>`. */
+  /** Chemin ABSOLU du PNG waveform d'un entretien, résolu par ID opaque :
+   *  l'ID vient de `genId` et mène à `<corpus>/png/<id>.png`.
+   *  L'id n'étant jamais un chemin, aucun risque de traversal ;
+   *  sert au protocole `sonal-media://waveform/<id>`. */
   cheminWaveform(id: string): string | null {
-    // Garde : l'id ne doit pas contenir de séparateur (defense en depth — `genId`
-    // produit toujours un id sûr, mais un appelant malveillant pourrait forger).
+    // Garde : l'id ne doit pas contenir de séparateur
+    // (defense en depth — `genId` produit toujours un id sûr, mais un appelant malveillant pourrait forger).
     if (!id || id.includes(sep) || id.includes('/')) return null
     const abs = join(this.pngDir, `${id}.png`)
     return existsSync(abs) ? abs : null
   }
 
-  /** Chemin ABSOLU d'un audio RÉFÉRENCÉ, pour le protocole `sonal-media://abs/`.
-   *  Whitelist stricte : le chemin normalisé doit appartenir aux `audioRef`
-   *  stockées dans le corpus courant (cache `refsAudio`) + exister sur disque.
-   *  Jamais de garde par préfixe de dossier (faille : n'importe quel chemin
-   *  du disque serait servissable au renderer). */
+  /** Chemin ABSOLU d'un audio référencé, pour le protocole `sonal-media://abs/`.
+   *  Whitelist stricte : le chemin doit appartenir aux `audioRef` stockées, dans le corpus courant, et exister sur disque.
+   *  Jamais de garde par préfixe de dossier :
+   *  n'importe quel chemin du disque serait alors serviable au renderer. */
   cheminMediaAbs(p: string): string | null {
     const cible = normalize(p)
     for (const ref of this.refsAudio().values()) {
@@ -642,9 +630,10 @@ export class CorpusStore {
     return null
   }
 
-  /** Vérifie l'existence des fichiers audio référencés (intégrité à l'ouverture).
-   *  Renvoie par entretien : 'ok' si le fichier existe, 'manquant' sinon (pour
-   *  les entretiens dont l'`audioRef` est non-null). Sert au bandeau §6. */
+  /** Vérifie l'existence des fichiers audio référencés,
+   *  pour le contrôle d'intégrité à l'ouverture.
+   *  Renvoie 'ok' ou 'manquant' pour chaque entretien à l'`audioRef` non-null ;
+   *  sert au bandeau d'intégrité de l'écran Corpus. */
   verifierAudios(): Record<string, 'ok' | 'manquant'> {
     const out: Record<string, 'ok' | 'manquant'> = {}
     for (const [id, ref] of this.refsAudio()) {
@@ -653,9 +642,10 @@ export class CorpusStore {
     return out
   }
 
-  /** Cache paresseux des `audioRef` (id → chemin absolu) du corpus courant.
-   *  Calculé à la 1re utilisation, invalidé sur mutation. La passe de lecture
-   *  est partagée entre `cheminMediaAbs` (whitelist) et `audios()` (audio). */
+  /** Cache paresseux des `audioRef` (id → chemin absolu) du corpus courant,
+   *  calculé à la première utilisation puis invalidé sur mutation.
+   *  La passe de lecture est partagée entre `cheminMediaAbs` et `audios()` :
+   *  whitelist des chemins d'une part, liste des audios d'autre part. */
   private refsAudio(): Map<string, string> {
     if (this.cacheRefsAudio) return this.cacheRefsAudio
     const out = new Map<string, string>()

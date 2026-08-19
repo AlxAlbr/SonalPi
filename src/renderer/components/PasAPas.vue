@@ -3,13 +3,13 @@ import { ref, computed, onBeforeUnmount, watch, nextTick } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Pas-à-pas (plan-tutoriel §14) : un ONGLET de la vue Corpus (liste des étapes)
- * + un SPOTLIGHT global (projecteur + bulle, téléporté en body → visible dans
- * n'importe quelle vue). L'utilisateur est guidé par la bulle ; l'étape se
- * coche quand son prédicat `fait()` passe à vrai (observation du modèle réactif).
+ * Pas-à-pas : un ONGLET de la vue Corpus (liste des étapes) + un SPOTLIGHT
+ * global (projecteur + bulle, téléporté en body → visible dans n'importe
+ * quelle vue). L'utilisateur est guidé par la bulle ; l'étape se coche quand
+ * son prédicat `fait()` passe à vrai (observation du modèle réactif).
  *
- * Le spotlight n'instrumente pas les vues : il pointe des éléments ciblés par
- * des attributs `data-tour` (getBoundingClientRect) et recalcule sa position en
+ * Le spotlight ne modifie pas les vues : il pointe des éléments ciblés par des
+ * attributs `data-tour` (getBoundingClientRect) et recalcule sa position en
  * live (rAF) — la cible peut changer selon l'état (ex. « crayon » → « onglet »
  * dès qu'un entretien est ouvert).
  */
@@ -104,12 +104,28 @@ const modePanneau = computed(
   () => etapeCourante.value?.panneau === true && vue.value === 'entretien',
 )
 
-/** « Revenir au Pas à pas » depuis le message re-test : efface le message et
- *  retourne à la liste (écran Corpus). */
+/** « Revenir au Pas à pas » depuis le message re-test (vue Entretien) :
+ *  efface le message et retourne à la liste (écran Corpus). */
 async function revenirPasAPas() {
   retestInfo.value = null
   await retourCorpus()
 }
+
+/** Ferme le message re-test. Dans l'entretien, on revient aussi à la liste
+ *  « Pas à pas » ; dans le corpus (étape de corpus), le bouton « revenir » n'a
+ *  pas de sens — on y est déjà, il suffit de fermer le message. */
+function fermerRetest() {
+  if (retestInfo.value?.vue === 'entretien') void revenirPasAPas()
+  else retestInfo.value = null
+}
+
+// Ancre de téléport du message re-test : la vue où vit l'action de l'étape
+// (ancre `ancre-guide-pp` dans l'entretien, `ancre-retest-pp` dans le corpus).
+const cibleRetest = computed(() =>
+  retestInfo.value?.vue === 'entretien'
+    ? '[data-tour="ancre-guide-pp"]'
+    : '[data-tour="ancre-retest-pp"]',
+)
 
 </script>
 
@@ -165,17 +181,25 @@ async function revenirPasAPas() {
     </div>
   </Teleport>
 
-  <!-- Message « re-test » : une étape DÉJÀ validée a été rouverte → l'entretien
-       est resté ouvert, on l'annonce (texte propre à chaque étape) et on
-       propose de revenir à la liste « Pas à pas ». -->
-  <Teleport v-if="retestInfo && vue === 'entretien'" to='[data-tour="ancre-guide-pp"]'>
+  <!-- Message « re-test » : une étape DÉJÀ validée a été rouverte → on
+       l'annonce (texte propre à chaque étape) dans la vue où vit son action :
+       l'entretien (ancre `ancre-guide-pp`, sous les onglets) pour les étapes
+       d'édition, le corpus (ancre `ancre-retest-pp`, sous le titre Entretiens)
+       pour une étape de corpus (ex. « Charger un entretien »). L'ancre cible
+       suit la vue du message ; un bouton propose de revenir à la liste. -->
+  <Teleport
+    v-if="retestInfo && retestInfo.vue === vue"
+    :to="cibleRetest"
+  >
     <div class="guide-pp retest">
       <div class="guide-pp-titre">« {{ retestInfo.titre }} » déjà réalisée</div>
       <p class="guide-pp-texte">
         Cette étape a déjà été faite — tu peux toujours {{ retestInfo.suite }}.
       </p>
       <div class="guide-pp-actions">
-        <button class="guide-pp-btn" @click="revenirPasAPas">↩ Revenir au Pas à pas</button>
+        <button class="guide-pp-btn" @click="fermerRetest">
+          {{ retestInfo.vue === 'entretien' ? '↩ Revenir au Pas à pas' : 'OK' }}
+        </button>
       </div>
     </div>
   </Teleport>
