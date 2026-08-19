@@ -13,11 +13,11 @@ import { ouvrir, coderTheme, selectionner } from './util'
 
 const gouttiere = (t: string) => `.editeur .gouttiere-loc:text-is("${t}")`
 
-/** Ouvre l'onglet Locuteurs (l'entretien s'ouvre DÉJÀ dessus par défaut — les
- *  locuteurs se corrigent avant les thèmes ; le helper reste pour revenir à
- *  l'onglet après en avoir ouvert un autre). */
+/** Ouvre l'onglet Locuteurs (l'entretien s'ouvre sur l'ACCUEIL par défaut —
+ *  les locuteurs se corrigent après la vue d'ensemble ; le helper ramène donc
+ *  toujours à l'onglet avant d'agir sur la liste). */
 async function ongletLocuteurs(page: import('@playwright/test').Page) {
-  await page.locator('.onglets button', { hasText: 'Loc' }).click()
+  await page.locator('.onglets button[data-onglet="locuteurs"]').click()
 }
 
 test('la gouttière affiche le nom du locuteur devant chaque tour', async () => {

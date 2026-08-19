@@ -44,7 +44,7 @@ async function creerVariable(
 
 /** Ouvre l'onglet Données (saisie des valeurs) à l'écran Entretien. */
 async function ongletDonnees(page: Page) {
-  await page.locator('.onglets button', { hasText: 'Données' }).click()
+  await page.locator('.onglets button[data-onglet="donnees"]').click()
 }
 
 test('saisir une valeur (entretien) → persistée et reflétée par la matrice après réouverture', async () => {

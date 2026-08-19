@@ -454,6 +454,7 @@ export function creerSonal() {
     locuteurs: ent.locuteurs,
     meta: ent.meta,
     ouvertId: ent.ouvertId,
+    ongletDroite: ent.ongletDroite,
     variables: corpus.variables,
     texteModifie: ent.texteModifie,
   })

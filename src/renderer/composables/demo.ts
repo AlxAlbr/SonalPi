@@ -70,6 +70,10 @@ export interface DepsDemo {
   locuteurs: Ref<Locuteur[]>
   meta: { valeursGen: Record<string, string> } // reactive (useEntretien)
   ouvertId: Ref<string | null>
+  /** Onglet actif de l'entretien (useEntretien) : les étapes qui vivent DANS un
+   *  panneau guident d'abord vers l'onglet à ouvrir, puis vers l'action (le
+   *  spotlight suit l'état). */
+  ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal'>
   variables: Ref<Variable[]> // définitions EAV du corpus (useCorpus)
   /** Vrai dès que le TEXTE de l'entretien ouvert a été édité depuis son
    *  ouverture (useEntretien — observé par l'étape « Écouter et corriger »). */
@@ -137,7 +141,7 @@ export function utiliserDemo(deps: DepsDemo) {
           return "Dans cette zone, choisissez le fichier de sous-titres : cliquez, puis sélectionnez srt/E1.srt"
         }
         if (!document.querySelector('.zone-audio .zone-fichier')) {
-          return "Bien ! Maintenant le fichier son : cliquez sur cette zone et sélectionnez audio/E1.mp3."
+          return "Bien ! Maintenant le fichier media : cliquez sur cette zone et sélectionnez audio/E1.mp3."
         }
         return "Tout est prêt : cliquze sur « Valider » pour créer l'entretien."
       },
@@ -177,7 +181,7 @@ export function utiliserDemo(deps: DepsDemo) {
         deps.locuteurs.value.every((l) => !l.nom.startsWith('Speaker')),
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Renomme les locuteurs dans ce panneau : Speaker 0 → « Fatima », Speaker 1 → « Enquêteur·rice » — clique dans le nom, saisis, puis clique ailleurs (ou Entrée)."
+          ? "Clique l'onglet Locuteurs (icône locuteur), puis renomme dans ce panneau : Speaker 0 → « Fatima », Speaker 1 → « Enquêteur·rice » — clique dans le nom, saisis, puis clique ailleurs (ou Entrée)."
           : "Ouvre l'entretien de Fatima : clique le crayon ✏️ de sa carte.",
       retest: () => "re-renommer les locuteurs (les noms sont déjà corrigés)",
     },
@@ -185,31 +189,37 @@ export function utiliserDemo(deps: DepsDemo) {
       id: 'coder',
       titre: 'Créer une thématique et annoter',
       // Depuis la liste, on guide vers le crayon de la carte ; dans
-      // l'entretien, le spotlight bascule sur l'onglet Thématique.
-      cible: () =>
-        deps.vue.value === 'entretien'
-          ? '[data-tour="onglet-themes"]'
-          : '[data-tour="crayon-entretien"]',
+      // l'entretien, le spotlight pointe d'abord l'onglet Thématique, puis se
+      // déplace sur le panneau des thèmes une fois l'onglet ouvert (la bulle ne
+      // bloque plus le clic sur un thème).
+      cible: () => {
+        if (deps.vue.value !== 'entretien') return '[data-tour="crayon-entretien"]'
+        return deps.ongletDroite.value === 'themes'
+          ? '.panneau.themes-coder'
+          : '[data-tour="onglet-themes"]'
+      },
       fait: () => deps.entretien.annotations.some((a) => a.type === 'codage'),
       texte: () =>
         deps.vue.value === 'entretien'
-          ? 'Sélectionne un passage du texte, puis clique un thème pour le coder (✏️ pour en créer un).'
+          ? "Clique l'onglet Thématiques (icône thème), sélectionne un passage du texte, puis clique un thème pour le coder (✏️ pour en créer un)."
           : "Ouvre l'entretien de Fatima : clique le crayon ✏️ de sa carte.",
       retest: () => "ajouter ou retirer des annotations",
     },
     {
       id: 'variable',
       titre: 'Saisir une variable',
-      cible: () =>
-        deps.vue.value === 'entretien'
-          ? '[data-tour="onglet-donnees"]'
-          : '[data-tour="crayon-entretien"]',
+      cible: () => {
+        if (deps.vue.value !== 'entretien') return '[data-tour="crayon-entretien"]'
+        return deps.ongletDroite.value === 'donnees'
+          ? '.panneau.donnees'
+          : '[data-tour="onglet-donnees"]'
+      },
       fait: () =>
         Object.keys(deps.meta.valeursGen).length > 0 ||
         deps.locuteurs.value.some((l) => Object.keys(l.valeursLoc).length > 0),
       texte: () =>
         deps.vue.value === 'entretien'
-          ? 'Remplis une valeur (ex. la Ville de Fatima, en texte libre).'
+          ? "Clique l'onglet Données (icône données), puis remplis une valeur (ex. la Ville de Fatima, en texte libre)."
           : "Ouvre l'entretien de Fatima : clique le crayon ✏️ de sa carte.",
       retest: () => "modifier ou compléter les valeurs saisies",
     },

@@ -6,12 +6,13 @@ import VideoPanel from './VideoPanel.vue'
 import EditionThemes from './EditionThemes.vue'
 import EditionVariables from './EditionVariables.vue'
 import { utiliserSonal } from '../composables/sonal'
-// Icônes d'onglets rapatriées de SonalPi (img/) ; « journal » créée dans le
-// même style (glyphe noir à plat) — SonalPi n'a pas d'équivalent.
+// Icônes d'onglets rapatriées de SonalPi (img/) ; « journal » et « maison »
+// créées dans le même style (glyphe noir à plat) — SonalPi n'a pas d'équivalent.
 import icoThemes from '../assets/icones/logocat.png'
 import icoLocuteurs from '../assets/icones/logoloc.png'
 import icoDonnees from '../assets/icones/logodat2.png'
 import icoJournal from '../assets/icones/journal.png'
+import icoMaison from '../assets/icones/maison.png'
 
 const {
   codebook,
@@ -118,21 +119,57 @@ function focaliserLibre(el: unknown, cle: string) {
              la lecture. -->
         <div class="colonne-gauche">
           <nav class="onglets">
-            <!-- Locuteurs en PREMIER et par DÉFAUT : on corrige les locuteurs
-                 avant de poser les thématiques (parcours du pas-à-pas). -->
-            <button data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" @click="ongletDroite = 'locuteurs'">
-              <img class="ico-onglet" :src="icoLocuteurs" alt="" />Loc
+            <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title) et
+                 sur le panneau d'accueil (vue d'ensemble). L'ACCUEIL vient en
+                 PREMIER et par DÉFAUT : il accueille l'utilisateur avec les
+                 conseils et la liste des autres onglets (icone + titre). -->
+            <button data-onglet="maison" :class="{ actif: ongletDroite === 'maison' }" title="Accueil" @click="ongletDroite = 'maison'">
+              <img class="ico-onglet" :src="icoMaison" alt="Accueil" />
             </button>
-            <button data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" @click="ongletDroite = 'themes'">
-              <img class="ico-onglet" :src="icoThemes" alt="" />Thèmes
+            <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
+              <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
             </button>
-            <button data-tour="onglet-donnees" :class="{ actif: ongletDroite === 'donnees' }" @click="ongletDroite = 'donnees'">
-              <img class="ico-onglet" :src="icoDonnees" alt="" />Données
+            <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
+              <img class="ico-onglet" :src="icoThemes" alt="Thématiques" />
             </button>
-            <button :class="{ actif: ongletDroite === 'journal' }" @click="ongletDroite = 'journal'">
-              <img class="ico-onglet" :src="icoJournal" alt="" />Journal
+            <button data-onglet="donnees" data-tour="onglet-donnees" :class="{ actif: ongletDroite === 'donnees' }" title="Données" @click="ongletDroite = 'donnees'">
+              <img class="ico-onglet" :src="icoDonnees" alt="Données" />
+            </button>
+            <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
+              <img class="ico-onglet" :src="icoJournal" alt="Journal" />
             </button>
           </nav>
+
+          <!-- Accueil : conseils + vue d'ensemble des onglets (icone + titre) →
+               l'utilisateur qui arrive sur l'entretien comprend d'un coup d'œil
+               ce qu'il peut faire. -->
+          <aside v-show="ongletDroite === 'maison'" class="panneau maison">
+            <div class="corpus-tete">
+              <h3>Accueil</h3>
+            </div>
+            <p class="aide-thm">
+              Raccourci : tapez DEUX FOIS sur la touche Espace dans l'éditeur
+              pour lancer puis arrêter la lecture de l'audio.
+            </p>
+            <ul class="liste-tours">
+              <li>
+                <img class="ico-onglet" :src="icoLocuteurs" alt="" />
+                <span><b>Locuteurs</b> — noms, interviewer, attribution des tours de parole.</span>
+              </li>
+              <li>
+                <img class="ico-onglet" :src="icoThemes" alt="" />
+                <span><b>Thématiques</b> — sélectionnez du texte puis cliquez un thème pour le coder.</span>
+              </li>
+              <li>
+                <img class="ico-onglet" :src="icoDonnees" alt="" />
+                <span><b>Données</b> — valeurs de l'entretien et de chaque locuteur.</span>
+              </li>
+              <li>
+                <img class="ico-onglet" :src="icoJournal" alt="" />
+                <span><b>Journal</b> — suivi et annulation des actions de la session.</span>
+              </li>
+            </ul>
+          </aside>
 
           <!-- Thématique : clic sur un thème = coder la sélection. L'ÉDITION
                (créer/renommer/couleur/taille/arbre/supprimer) passe par le
@@ -449,7 +486,8 @@ function focaliserLibre(el: unknown, cle: string) {
   top: calc(var(--entete-h) + var(--barre-h));
   z-index: 20;
   background: #fff;
-  padding-bottom: 0.1rem;
+  /* Respire au-dessus de l'éditeur (le bouton vidéo n'est pas collé au cadre). */
+  padding-bottom: 0.75rem;
 }
 .tele {
   flex: 1 1 auto;
@@ -463,6 +501,7 @@ function focaliserLibre(el: unknown, cle: string) {
   background: #fafdff;
   color: #555;
   font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
   padding: 0.2rem 0.6rem;
   margin-top: 0.1rem;
@@ -485,7 +524,7 @@ function focaliserLibre(el: unknown, cle: string) {
   border-bottom: none;
   border-radius: 6px 6px 0 0;
   background: #f0f0f5;
-  padding: 0.3rem 0.2rem;
+  padding: 0.3rem 0.1rem;
   font-size: 0.78rem;
   cursor: pointer;
 }
@@ -496,14 +535,38 @@ function focaliserLibre(el: unknown, cle: string) {
 }
 /* Icônes SonalPi (glyphes noirs) : adoucies sur l'onglet inactif. */
 .ico-onglet {
-  width: 13px;
-  height: 13px;
+  width: 15px;
+  height: 15px;
   object-fit: contain;
   opacity: 0.55;
   flex: none;
 }
 .onglets button.actif .ico-onglet {
   opacity: 1;
+}
+/* Panneau Accueil : le raccourci en tête, puis la vue d'ensemble des autres
+   onglets (icone + titre) — chaque ligne rappelle ce que fait l'onglet. */
+.liste-tours {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.liste-tours li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #e5e5ef;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  background: #fff;
+  font-size: 0.8rem;
+}
+.liste-tours li .ico-onglet {
+  width: 20px;
+  height: 20px;
 }
 /* --- Onglet Thématique : clic = coder --- */
 .barre-aide {

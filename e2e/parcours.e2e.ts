@@ -36,13 +36,13 @@ test('corpus → import → coder → renommer un locuteur → saisir une donné
   await expect.poll(() => compterAnnotations(page)).toBe(avant + 1)
 
   // 3) RENOMMER un locuteur (répercuté par référence).
-  await page.locator('.onglets button', { hasText: 'Loc' }).click()
+  await page.locator('.onglets button[data-onglet="locuteurs"]').click()
   await page.locator('.nom-loc').first().fill('TEST-LOCUTEUR')
   await page.keyboard.press('Tab')
 
   // 4) SAISIR une donnée EAV de portée entretien — la variable « Lieu » (importée)
   //    offre la modalité « MonTest » : on la choisit (fiche de CET entretien).
-  await page.locator('.onglets button', { hasText: 'Données' }).click()
+  await page.locator('.onglets button[data-onglet="donnees"]').click()
   await page.locator('.saisie-sel').first().selectOption({ label: 'MonTest' })
   await expect(page.locator('.etat')).toHaveText('à jour')
 

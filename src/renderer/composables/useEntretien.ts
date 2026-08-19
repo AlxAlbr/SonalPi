@@ -76,9 +76,9 @@ export function useEntretien(deps: {
     valeursGen: {},
     audioRef: null,
   })
-  // L'entretien s'ouvre sur l'onglet LOCUTEURS par défaut : on corrige les
-  // locuteurs avant de poser les thématiques (parcours du pas-à-pas).
-  const ongletDroite = ref<'themes' | 'locuteurs' | 'donnees' | 'journal'>('locuteurs')
+  // L'entretien s'ouvre sur l'ACCUEIL par défaut : il présente les conseils et
+  // la vue d'ensemble des autres onglets (icone + titre) avant de commencer.
+  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal'>('maison')
   const hintCodage = ref<string | null>(null)
   /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (
    *  « Attribuer la sélection » vs « …le bloc courant »). */

@@ -147,9 +147,10 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await expect(page.locator('.corpus-ecran')).toBeVisible()
 
   // --- Étape 3 : Renommer les locuteurs (lancée AU CLIC) ---
-  // L'entretien s'ouvre sur l'onglet LOCUTEURS par défaut. La consigne est un
-  // PANNEAU en bas de la colonne (la bulle flottante recouvrait le 2ᵉ champ) :
-  // aucun trou, les deux champs de nom restent accessibles.
+  // L'entretien s'ouvre sur l'ACCUEIL (vue d'ensemble + conseils) : la consigne
+  // est un PANNEAU en bas de la colonne (la bulle flottante recouvrait le 2ᵉ
+  // champ) — aucun trou, les deux champs de nom restent accessibles. Le geste
+  // commence par l'onglet Locuteurs (icone) : on le clique pour afficher la liste.
   await page.locator('.liste-pp li').nth(2).locator('.ligne-pp').click()
   await spotlightSur(page, '[data-tour="crayon-entretien"]')
   await page.locator('.carte-ent .crayon').first().click()
@@ -157,6 +158,8 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await expect(page.locator('.guide-pp')).toBeVisible()
   await expect(page.locator('.guide-pp')).toContainText('Renommer les locuteurs')
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
+  await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+  await expect(page.locator('.liste-loc')).toBeVisible()
   // Ordre d'affichage = ordre d'apparition dans le SRT : Speaker 1 (l'ingénieure,
   // qui pose les questions) est la 1re ligne, Speaker 0 (Fatima) la 2ᵉ.
   const champs = page.locator('.nom-loc')
@@ -181,7 +184,7 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   // clic seul (curseur) peut tomber sur un espace où rien ne se code ; la
   // sélection garantit l'annotation (même helper que les tests audio).
   await selectionner(page, 'me recevoir')
-  await page.locator('.onglets button', { hasText: 'Thèmes' }).click()
+  await page.locator('.onglets button[data-onglet="themes"]').click()
   await page.locator('.theme-coder').first().click()
   // Une annotation de codage existe → étape 4 cochée (guidage de nouveau arrêté)
   // et retour AUTOMATIQUE à la liste « Pas à pas ».
@@ -197,7 +200,7 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await spotlightSur(page, '[data-tour="onglet-donnees"]')
   // La cible = onglet Données. La variable « Ville » (portée locuteur, saisie
   // libre) est pré-créée par le mode pas-à-pas → champ texte par locuteur.
-  await page.locator('.onglets button', { hasText: 'Données' }).click()
+  await page.locator('.onglets button[data-onglet="donnees"]').click()
   const saisieLibre = page.locator('.panneau.donnees .saisie-libre').first()
   await expect(saisieLibre).toBeVisible({ timeout: 5_000 })
   await saisieLibre.fill('Villebourg')
