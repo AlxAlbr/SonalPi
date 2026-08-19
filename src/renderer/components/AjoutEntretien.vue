@@ -18,7 +18,9 @@ const { ajouterEntretien, racineSources } = utiliserSonal()
 // audio/E1.mp3) ; hors démo (`undefined`), comportement inchangé : défaut OS.
 
 const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
-const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'webm']
+// Zone « fichier son » : elle accepte en réalité AUDIO + VIDÉO (tout média
+// assignable) — même périmètre que le dialogue natif (EXT_MEDIA côté main).
+const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'mp4', 'm4v', 'mov', 'mkv', 'webm', 'ogv', 'avi']
 
 const ouverte = ref(false)
 const texte = ref<{ nom: string; contenu: string } | null>(null)
@@ -75,7 +77,7 @@ function deposerAudio(e: DragEvent) {
   const f = e.dataTransfer?.files[0]
   if (!f) return
   if (!EXT_AUDIO.includes(ext(f.name))) {
-    message.value = `« ${f.name} » n'est pas un fichier son (${EXT_AUDIO.map((x) => '.' + x).join(', ')}).`
+    message.value = `« ${f.name} » n'est pas un fichier audio/vidéo (${EXT_AUDIO.map((x) => '.' + x).join(', ')}).`
     return
   }
   audioChemin.value = window.sonal.fichier.cheminDe(f)
@@ -130,8 +132,8 @@ async function valider() {
           @drop.prevent="deposerAudio($event)"
         >
           <div class="zone-icone">🔊</div>
-          <div class="zone-titre">Fichier son</div>
-          <div class="zone-aide">.mp3, .wav, .ogg… — cliquer ou glisser-déposer</div>
+          <div class="zone-titre">Fichier son / vidéo</div>
+          <div class="zone-aide">.mp3, .wav, .mp4, .webm… — cliquer ou glisser-déposer</div>
           <div v-if="audioNom" class="zone-fichier">{{ audioNom }}</div>
         </div>
 
@@ -163,7 +165,7 @@ async function valider() {
 .voile-modale {
   position: fixed;
   inset: 0;
-  background: rgba(20, 25, 20, 0.45);
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -193,13 +195,13 @@ async function valider() {
 }
 .zone:hover,
 .zone.survol {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .zone.pleine {
-  border-color: #2e9e3f;
+  border-color: #2e73d8;
   border-style: solid;
-  background: #f1f8f4;
+  background: #e8f0fb;
 }
 .zone-icone {
   font-size: 1.2rem;
@@ -217,9 +219,9 @@ async function valider() {
 .zone-fichier {
   margin-top: 0.45rem;
   font-size: 0.8rem;
-  color: #2e7d32;
+  color: #1565c0;
   word-break: break-all;
-  background: #e8f5e9;
+  background: #e3f2fd;
   border-radius: 5px;
   padding: 0.25rem 0.4rem;
 }
@@ -263,8 +265,8 @@ async function valider() {
   font-size: 0.85rem;
 }
 .valider {
-  border-color: #2e7d32;
-  background: #2e9e3f;
+  border-color: #1565c0;
+  background: #2e73d8;
   color: #fff;
 }
 .valider:disabled {

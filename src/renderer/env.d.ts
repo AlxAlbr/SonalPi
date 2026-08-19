@@ -85,6 +85,10 @@ declare global {
         choisirDossier: (kind?: 'sources' | 'corpus') => Promise<string | null>
         choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
       }
+      media: {
+        lireLargeurVideo: (dir: string) => Promise<number | null>
+        ecrireLargeurVideo: (dir: string, largeur: number) => Promise<void>
+      }
       fichier: {
         cheminDe: (f: File) => string
       }

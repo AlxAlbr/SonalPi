@@ -21,6 +21,48 @@ import {
  * définition (store).
  */
 
+test('liste longue de thèmes : le panneau défile seul, on peut coder le début avec un des derniers thèmes', async () => {
+  const { app, page } = await ouvrir('sonal-ds10-liste-')
+  await page.locator('.onglets button', { hasText: 'Thèmes' }).click()
+
+  // Beaucoup de thèmes : 25 ajouts via la fenêtre d'édition (le seed en a 7) →
+  // la liste déborde largement du panneau, les derniers ajouts sont hors écran.
+  await ouvrirEditionThemes(page)
+  const ajouter = page.locator('.modale-themes .mini', { hasText: '+ Thème parent' })
+  for (let i = 0; i < 25; i++) await ajouter.click()
+  await fermerEditionThemes(page)
+  await expect(page.locator('.theme-coder')).toHaveCount(32)
+
+  // Le dernier thème créé n'est PAS visible tant que le texte n'a pas défilé :
+  // le panneau (collant) débordait sous le bord bas de la fenêtre. Ce test
+  // couvre la régression ; avant, il fallait descendre dans le texte pour le
+  // voir — les deux étaient liés.
+  await page.evaluate(() => window.scrollTo(0, 0))
+  const dernier = page.locator('.theme-coder').last()
+  await expect
+    .poll(async () => {
+      const b = await dernier.boundingBox()
+      const h = await page.evaluate(() => window.innerHeight)
+      return !!b && b.y + b.height > h
+    })
+    .toBe(true)
+
+  // Un défilement INTERNE du panneau le rend visible, sans toucher au texte :
+  // on reste au début de l'entretien.
+  await page.locator('.colonne-gauche').evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  const poche = await dernier.boundingBox()
+  expect(poche!.y + poche!.height).toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight))
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+
+  // On annote le DÉBUT de l'entretien avec ce dernier thème (clic = coder).
+  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await dernier.click()
+  await expect(page.locator('.editeur .annot')).toHaveCount(1)
+  await app.close()
+})
+
 test('créer un thème depuis l’entretien (fenêtre d’édition) → apparaît, prêt à coder', async () => {
   const { app, page } = await ouvrir('sonal-ds10-')
   // L'entretien s'ouvre sur l'onglet Locuteurs (défaut) → on passe à Thématiques.

@@ -177,8 +177,10 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await page.locator('.carte-ent .crayon').first().click()
   await expect(page.locator('.editeur')).toBeVisible()
   await spotlightSur(page, '[data-tour="onglet-themes"]')
-  // Sélectionner du texte et coder avec le 1er thème.
-  await page.locator('.editeur').click({ position: { x: 20, y: 20 } })
+  // Sélectionner du texte réel du 1er bloc puis coder avec le 1er thème — un
+  // clic seul (curseur) peut tomber sur un espace où rien ne se code ; la
+  // sélection garantit l'annotation (même helper que les tests audio).
+  await selectionner(page, 'me recevoir')
   await page.locator('.onglets button', { hasText: 'Thèmes' }).click()
   await page.locator('.theme-coder').first().click()
   // Une annotation de codage existe → étape 4 cochée (guidage de nouveau arrêté)
@@ -234,7 +236,7 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await page.locator('.carte-ent .crayon').first().click()
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 5_000 })
   await expect(page.locator('.guide-pp.retest')).toBeVisible()
-  await expect(page.locator('.guide-pp.retest')).toContainText('re-écouter')
+  await expect(page.locator('.guide-pp.retest')).toContainText('continuer à écouter')
 
   await app.close()
 })

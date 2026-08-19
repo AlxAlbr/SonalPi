@@ -139,9 +139,9 @@ export function utiliserDemo(deps: DepsDemo) {
         if (!document.querySelector('.zone-audio .zone-fichier')) {
           return "Bien ! Maintenant le fichier son : cliquez sur cette zone et sélectionnez audio/E1.mp3."
         }
-        return "Tout est prêt : clique sur « Valider » pour créer l'entretien."
+        return "Tout est prêt : cliquze sur « Valider » pour créer l'entretien."
       },
-      retest: () => "revoir l'entretien importé (ses fichiers, son audio)",
+      retest: () => "charger d'autres entretiens",
       // L'action de cette étape vit dans le CORPUS (ajouter un entretien) :
       // le message « déjà réalisée » s'y affiche, pas dans l'éditeur.
       retestCorpus: true,
@@ -157,9 +157,9 @@ export function utiliserDemo(deps: DepsDemo) {
       fait: () => deps.texteModifie.value,
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Lance la lecture — clique sur ▶ dans le lecteur, ou tape DEUX FOIS sur la touche Espace dans le texte (les deux marchent, idéalement les deux) — puis suis le texte à l'oreille. Corrige dans l'éditeur les imperfections de l'ASR, ex. le « ? ? » de la 1re ligne (Maison des Habitants)."
-          : "Ouvre l'entretien de Fatima : clique le crayon ✏️ de sa carte.",
-      retest: () => "re-écouter l'audio et retoucher la transcription",
+          ? "Lancez la lecture — cliquez sur ▶ dans le lecteur, ou tapez DEUX FOIS sur la touche Espace pour lancer, puis pour arrêter l'audio (le raccourci clavier vous fera gagner du temps). Corrigez dans l'éditeur les imperfections de la transcription, ex. le « ? ? » de la 1re ligne. Nous vous conseillons de rédiger un guide de transcription où vous pouvez consigner tout vos choix : par exemple, est-ce que je garde les négations quand le locuteur ne le dit pas, comment j'indique quand je coupe un passage..."
+          : "Ouvrez cet entretien en cliquant sur le crayon",
+      retest: () => "continuer à écouter l'audio et corriger la transcription. Mais bon, il y a ici peu d'erreurs contrairement à certains cas d'enregistements réels. L'étape de correction est essentielle pour la qualité de l'analyse. Profitez en pour prendre des notes sur des idées qui vous viennent et pour pseudonymiser si vous pensez ensuite diffuser vos entretiens. Une bonne pratique est de rédiger un guide de transcription où vous pouvez consigner tout vos choix",
       panneau: true,
     },
     {

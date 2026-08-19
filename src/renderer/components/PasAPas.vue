@@ -194,7 +194,7 @@ const cibleRetest = computed(() =>
     <div class="guide-pp retest">
       <div class="guide-pp-titre">« {{ retestInfo.titre }} » déjà réalisée</div>
       <p class="guide-pp-texte">
-        Cette étape a déjà été faite — tu peux toujours {{ retestInfo.suite }}.
+        Vous pouvez essayer de {{ retestInfo.suite }}.
       </p>
       <div class="guide-pp-actions">
         <button class="guide-pp-btn" @click="fermerRetest">
@@ -238,12 +238,12 @@ const cibleRetest = computed(() =>
   font-size: 0.85rem;
 }
 .ligne-pp:hover {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .liste-pp li.actif .ligne-pp {
-  border-color: #2e9e3f;
-  background: #f1f8f4;
+  border-color: #2e73d8;
+  background: #e8f0fb;
   font-weight: 600;
 }
 .num {
@@ -260,7 +260,7 @@ const cibleRetest = computed(() =>
   font-weight: 600;
 }
 .liste-pp li.fait .num {
-  background: #2e9e3f;
+  background: #2e73d8;
   color: #fff;
 }
 .titre-pp {
@@ -271,14 +271,14 @@ const cibleRetest = computed(() =>
 :global(.spotlight-voile) {
   position: fixed;
   inset: 0;
-  background: rgba(20, 25, 20, 0.55);
+  background: rgba(0, 0, 0, 0.55);
   z-index: 100;
 }
 :global(.spotlight-trou) {
   position: fixed;
   border-radius: 6px;
-  box-shadow: 0 0 0 9999px rgba(20, 25, 20, 0.55);
-  border: 2px solid #2e9e3f;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  border: 2px solid #2e73d8;
   pointer-events: none;
   z-index: 100;
   transition: all 0.12s ease-out;
@@ -296,7 +296,7 @@ const cibleRetest = computed(() =>
 :global(.bulle-titre) {
   font-weight: 600;
   font-size: 0.88rem;
-  color: #2e7d32;
+  color: #1565c0;
   margin-bottom: 0.2rem;
 }
 :global(.bulle-texte) {
@@ -319,14 +319,14 @@ const cibleRetest = computed(() =>
   font-size: 0.8rem;
 }
 :global(.bulle-btn:hover) {
-  border-color: #2e9e3f;
-  color: #2e7d32;
+  border-color: #2e73d8;
+  color: #1565c0;
 }
 
 /* --- Consigne « panneau » (sous les onglets de l'entretien) --- */
 .guide-pp {
-  border: 1px solid #2e9e3f;
-  background: #f3fbf4;
+  border: 1px solid #2e73d8;
+  background: #f0f6ff;
   border-radius: 8px;
   padding: 0.5rem 0.6rem;
   margin-bottom: 0.5rem;
@@ -334,7 +334,7 @@ const cibleRetest = computed(() =>
 .guide-pp-titre {
   font-weight: 600;
   font-size: 0.85rem;
-  color: #2e7d32;
+  color: #1565c0;
   margin-bottom: 0.2rem;
 }
 .guide-pp-texte {
@@ -356,9 +356,9 @@ const cibleRetest = computed(() =>
   font-size: 0.8rem;
 }
 .guide-pp-btn:hover {
-  border-color: #2e9e3f;
+  border-color: #2e73d8;
 }
-/* Variante « re-test » : info déjà faite (ambre, pas verte) — l'étape est
+/* Variante « re-test » : info déjà faite (ambre, pas bleue) — l'étape est
    cochée, l'utilisateur est revenu la voir, on propose de retourner à la liste. */
 .guide-pp.retest {
   border-color: #e0a03a;

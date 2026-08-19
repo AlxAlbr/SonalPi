@@ -82,6 +82,21 @@ export function creerSonal() {
   // --- Navigation SonalPi : Accueil → Corpus → Entretien (+ Table de données) ---
   const vue = ref<'accueil' | 'corpus' | 'entretien' | 'donnees'>('corpus')
 
+  // --- Largeur du panneau vidéo, mémorisée PAR CORPUS (settings.json) ---
+  const dossierCourantDir = ref<string | null>(null)
+  /** Applique la largeur mémorisée du corpus courant (ou laisse 0 → la
+   *  largeur par défaut sera déduite du ratio de la vidéo à sa lecture). */
+  async function chargerTailleVideo() {
+    const dir = dossierCourantDir.value
+    if (!dir) return
+    audio.definirLargeurVideo(await window.sonal.media.lireLargeurVideo(dir))
+  }
+  // Chaque réglage par − / + est persisté immédiatement (écriture légère).
+  watch(audio.largeurVideo, (w) => {
+    const dir = dossierCourantDir.value
+    if (dir && w > 0) void window.sonal.media.ecrireLargeurVideo(dir, w)
+  })
+
   // --- Sélection d'un entretien DANS la vue Corpus (≠ `ouvertId` = éditeur) ---
   // Sélectionner (clic sur la carte) montre ses métadonnées à gauche ; le crayon,
   // lui, OUVRE l'éditeur. On lit le fichier à la sélection (requête ciblée, pas
@@ -182,6 +197,8 @@ export function creerSonal() {
   async function appliquerCorpus(c: CorpusFichier, dir?: string) {
     ent.reinitialiser()
     audio.charger(null, null) // le lecteur ne survit pas au changement de corpus
+    if (dir) dossierCourantDir.value = dir
+    audio.largeurVideo.value = 0 // la taille mémorisée de l'ANCIEN corpus ne s'applique pas
     reprise.value = null // les ids de reprise non plus
     deselectionnerCorpus()
     corpus.membership.value = c.membership
@@ -191,6 +208,7 @@ export function creerSonal() {
     await rafraichirAudios()
     audiosManquants.value = await verifierIntegriteAudios() // bandeau d'intégrité
     void regenererOndesManquantes() // en fond : ne bloque pas l'arrivée à l'écran
+    void chargerTailleVideo() // largeur vidéo mémorisée pour CE corpus
     await raccrocherModeCorpus(c.demo, dir ?? null) // restaure le mode démo (panneau « Pas à pas »)
   }
 

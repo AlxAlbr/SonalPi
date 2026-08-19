@@ -138,7 +138,7 @@ async function valider() {
 .voile-modale {
   position: fixed;
   inset: 0;
-  background: rgba(20, 25, 20, 0.45);
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -156,7 +156,7 @@ async function valider() {
 }
 .modale-demo h3 {
   margin: 0;
-  color: #2e7d32;
+  color: #1565c0;
 }
 .intro-demo {
   margin: 0;
@@ -179,13 +179,13 @@ async function valider() {
   background: #fafafa;
   padding: 0.45rem 0.6rem;
   font-size: 0.8rem;
-  color: #2e7d32;
+  color: #1565c0;
   cursor: pointer;
   word-break: break-all;
 }
 .choisir-dossier:hover {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .q-aide {
   font-size: 0.72rem;
@@ -195,9 +195,9 @@ async function valider() {
 .deja-place {
   margin: 0;
   font-size: 0.8rem;
-  color: #2e7d32;
-  background: #eef7ef;
-  border: 1px solid #cfe8d2;
+  color: #1565c0;
+  background: #eef6fe;
+  border: 1px solid #c2d9f2;
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
   word-break: break-all;
@@ -228,8 +228,8 @@ async function valider() {
   font-size: 0.85rem;
 }
 .valider {
-  border-color: #2e7d32;
-  background: #2e9e3f;
+  border-color: #1565c0;
+  background: #2e73d8;
   color: #fff;
 }
 .valider:disabled {

@@ -100,12 +100,12 @@ async function lancerPreparer(mode: ModeDemo) {
   border-radius: 10px;
   padding: 0.7rem 0.8rem 0.6rem;
   margin: 0.3rem 0 1rem;
-  background: #f8fbf9;
+  background: #f4f8fd;
 }
 .demo-titre {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #2e7d32;
+  color: #1565c0;
   margin: 0 0 0.5rem;
 }
 .cartes-demo {
@@ -116,15 +116,15 @@ async function lancerPreparer(mode: ModeDemo) {
 .carte-demo {
   flex: 1 1 200px;
   text-align: left;
-  border: 1px solid #d4e8d6;
+  border: 1px solid #c9dff5;
   border-radius: 10px;
   padding: 0.8rem 1rem;
   background: #fff;
   cursor: pointer;
 }
 .carte-demo:hover:not(:disabled) {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .carte-demo:disabled {
   opacity: 0.6;
@@ -152,8 +152,8 @@ async function lancerPreparer(mode: ModeDemo) {
   min-width: 240px;
 }
 .carte:hover {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .carte-titre {
   text-align: center;
@@ -190,12 +190,12 @@ async function lancerPreparer(mode: ModeDemo) {
   cursor: pointer;
   padding: 0.2rem 0.6rem;
   font-size: 0.82rem;
-  color: #2e7d32;
+  color: #1565c0;
   flex: none;
 }
 .recent:hover {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .recent-dir {
   font-size: 0.72rem;

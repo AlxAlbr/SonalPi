@@ -198,12 +198,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               @click="selectionnerCorpus(e.id)"
             >
               <div class="ent-titre" :title="e.titre">{{ e.titre }}</div>
-                <!-- Forme d'onde de l'audio assigné ; sinon placeholder. Dans
-                     les deux cas, le CALQUE du résumé thématique (parité SonalPi)
-                     se superpose : un span par segment codé, positionné en % du
-                     TEXTE ; clic = ouvrir l'entretien à cet endroit. Layout
-                     SonalPi : nom À GAUCHE, onde À DROITE (les lignes empilées
-                     forment le « mur » d'ondes). -->
+                <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
+                     Dans les deux cas, le CALQUE du résumé thématique (parité SonalPi)se superpose :
+                      un span par segment codé, positionné en % du TEXTE ;
+                     clic = ouvrir l'entretien à cet endroit.
+                     Layout SonalPi : nom À GAUCHE, onde À DROITE (les lignes empilées forment le « mur » d'ondes). -->
                 <div class="spectro-cadre">
                   <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
                   <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
@@ -247,8 +246,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .btn-table {
   padding: 0.4rem 0.9rem;
-  border: 1px solid #2e7d32;
-  background: #2e9e3f;
+  border: 1px solid #1565c0;
+  background: #2e73d8;
   color: #fff;
   border-radius: 6px;
   cursor: pointer;
@@ -279,7 +278,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .onglets-corpus button.actif {
   background: #fff;
   font-weight: 600;
-  color: #2e7d32;
+  color: #1565c0;
 }
 /* --- Colonne gauche : métadonnées de l'entretien sélectionné --- */
 .meta-ent .champ-nom {
@@ -374,8 +373,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-color: #b9c7bb;
 }
 .carte-ent.selection {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .ent-titre {
   /* Nom À GAUCHE, largeur fixe (parité SonalPi .lbl-nom-ent 27 %) — les ondes

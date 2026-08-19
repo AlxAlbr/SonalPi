@@ -20,10 +20,14 @@ protocol.registerSchemesAsPrivileged([
   },
 ])
 
-const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'webm']
+const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac']
+const EXT_VIDEO = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'ogv', 'avi']
+// Dialogue de média : audio + vidéo (les deux peuvent être assignés à un entretien).
+const EXT_MEDIA = [...EXT_AUDIO, ...EXT_VIDEO]
 const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 
 // png : pour la forme d'onde (renderer → main → fichier corpus/audio/<id>.png)
+// Vidéo : <video> a besoin du bon Content-Type pour demuxer (mp4/webm/mov…)
 const MIME: Record<string, string> = {
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
@@ -33,14 +37,22 @@ const MIME: Record<string, string> = {
   m4a: 'audio/mp4',
   aac: 'audio/aac',
   flac: 'audio/flac',
-  webm: 'audio/webm',
   png: 'image/png',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
+  webm: 'video/webm', // peut être audio OU vidéo — le décodage sniff permettra de le savoir
+  ogv: 'video/ogg',
+  avi: 'video/x-msvideo',
 }
 
-// --- Réglages du profil : liste des corpus récents + mémoire démo ---
+// --- Réglages du profil : corpus récents + mémoire démo + largeur vidéo par corpus ---
 interface Settings {
   recents: string[] // chemins de dossiers, le plus récent en tête
   demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois
+  // Largeur (px) du panneau vidéo, mémorisée PAR CORPUS (clé = chemin du dossier).
+  largeurVideo?: Record<string, number>
 }
 function fichierSettings(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -62,6 +74,8 @@ function lireSettings(): Settings {
     return {
       recents: Array.isArray(s.recents) ? s.recents : [],
       demo: estEtatDemo(s.demo) ? s.demo : undefined,
+      largeurVideo:
+        s.largeurVideo && typeof s.largeurVideo === 'object' ? s.largeurVideo : undefined,
     }
   } catch {
     return { recents: [] }
@@ -297,14 +311,26 @@ function enregistrerIpcCorpus(): void {
     return { nom: basename(r.filePaths[0]), contenu: readFileSync(r.filePaths[0], 'utf8') }
   })
   // Zone son de la modale + « Assigner un audio… » sur la fiche entretien.
+  // En réalité le filtre couvre AUDIO + VIDÉO (les deux sont assignables).
   ipcMain.handle('dialog:choisirAudio', async (_e, defaultPath?: string) => {
     const r = await dialog.showOpenDialog({
       defaultPath,
       properties: ['openFile'],
-      filters: [{ name: 'Audio', extensions: EXT_AUDIO }],
+      filters: [{ name: 'Média (audio / vidéo)', extensions: EXT_MEDIA }],
     })
     if (r.canceled || r.filePaths.length === 0) return null
     return r.filePaths[0]
+  })
+  // Largeur du panneau vidéo, mémorisée PAR CORPUS (clé = chemin du dossier).
+  ipcMain.handle('media:lireLargeurVideo', (_e, dir: string) => {
+    const s = lireSettings()
+    const w = s.largeurVideo?.[dir]
+    return typeof w === 'number' && Number.isFinite(w) ? w : null
+  })
+  ipcMain.handle('media:ecrireLargeurVideo', (_e, dir: string, largeur: number) => {
+    const s = lireSettings()
+    s.largeurVideo = { ...(s.largeurVideo ?? {}), [dir]: largeur }
+    ecrireSettings(s)
   })
   // Picker de dossier PUR (aucun effet de bord sur le store), utilisé par la
   // modale démo. `kind` (sources | corpus) hinte le défaut

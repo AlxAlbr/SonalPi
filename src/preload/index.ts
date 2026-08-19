@@ -100,6 +100,14 @@ contextBridge.exposeInMainWorld('sonal', {
     ): Promise<boolean> =>
       ipcRenderer.invoke('corpus:poserValeur', entretienId, cible, idVar, idMod),
   },
+  media: {
+    /** Largeur (px) du panneau vidéo mémorisée pour un corpus (dir), ou null. */
+    lireLargeurVideo: (dir: string): Promise<number | null> =>
+      ipcRenderer.invoke('media:lireLargeurVideo', dir),
+    /** Mémorise la largeur du panneau vidéo pour un corpus (dir). */
+    ecrireLargeurVideo: (dir: string, largeur: number): Promise<void> =>
+      ipcRenderer.invoke('media:ecrireLargeurVideo', dir, largeur),
+  },
   dialog: {
     /** Choisir un fichier d'entretien (contenu lu ici). `defaultPath` hinté par
      *  la démo (racineSources) pour que le dialogue natif s'ouvre au bon endroit. */

@@ -10,7 +10,10 @@ import type { SegmentThematique } from '../../shared/format'
  * le coordonne avec le surlignage du bloc lu, pas un composant dynamique.
  * La bande porte aussi le CALQUE du résumé thématique de l'entretien
  * ouvert (live — il suit le codage), calé sur l'axe TEMPS via les ancres.
+ * `empile` (mode vidéo) : la bande passe SOUS les commandes au lieu d'être
+ * sur la même ligne — la place libérée à droite accueille le panneau vidéo.
  */
+const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
 const { audio, resumeOuvert, tempsAuTexte, peintureSegment, reassignerAudioEntretienOuvert } = utiliserSonal()
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
@@ -58,7 +61,7 @@ function clicBande(e: MouseEvent) {
 </script>
 
 <template>
-  <div v-if="url && !erreur" class="lecteur-audio">
+  <div v-if="url && !erreur" class="lecteur-audio" :class="{ empile: props.empile }">
     <div class="commandes">
       <button class="play" data-tour="lecture" :title="enLecture ? 'Pause' : 'Lecture'" @click="basculer">
         {{ enLecture ? '⏸' : '▶' }}
@@ -101,11 +104,23 @@ function clicBande(e: MouseEvent) {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  border: 1px solid #dfe5df;
+  border: 1px solid #dce4ef;
   border-radius: 8px;
-  background: #fbfdfb;
+  background: #fafdff;
   padding: 0.35rem 0.6rem;
   margin-bottom: 0.6rem;
+}
+/* Mode vidéo (empilé) : la bande passe sous les commandes, pleine largeur ;
+   les commandes peuvent passer à la ligne plutôt que déborder sur la vidéo. */
+.lecteur-audio.empile {
+  flex-direction: column;
+  align-items: stretch;
+}
+.lecteur-audio.empile .commandes {
+  flex-wrap: wrap;
+}
+.lecteur-audio.empile .bande {
+  width: 100%;
 }
 .commandes {
   display: flex;
@@ -116,8 +131,8 @@ function clicBande(e: MouseEvent) {
 .play {
   width: 2rem;
   height: 2rem;
-  border: 1px solid #2e7d32;
-  background: #2e9e3f;
+  border: 1px solid #1565c0;
+  background: #2e73d8;
   color: #fff;
   border-radius: 50%;
   cursor: pointer;
@@ -144,7 +159,7 @@ function clicBande(e: MouseEvent) {
   padding: 0.15rem 0.4rem;
 }
 .mini-lect:hover {
-  border-color: #2e9e3f;
+  border-color: #2e73d8;
 }
 .lbl-vitesse {
   min-width: 3rem;

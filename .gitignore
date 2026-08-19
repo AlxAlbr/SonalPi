@@ -3,5 +3,6 @@ out/
 dist/
 test-results/
 playwright-report/
+TestVideo/
 *.log
 .DS_Store

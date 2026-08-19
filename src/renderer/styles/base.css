@@ -29,16 +29,16 @@ body {
 
 /* Point de reprise — écrans Corpus et Table de données. */
 .btn-reprise {
-  border: 1px solid #c8e0cb;
-  background: #e6f4ea;
-  color: #2e7d32;
+  border: 1px solid #c3dbf5;
+  background: #e3f2fd;
+  color: #1565c0;
   border-radius: 6px;
   padding: 0.25rem 0.6rem;
   font-size: 0.8rem;
   cursor: pointer;
 }
 .btn-reprise:hover {
-  background: #d9eedd;
+  background: #c9e2f8;
 }
 
 /* Bouton crayon ✏️ « éditer » (cartes Corpus ; ouvre EditionThemes sur les
@@ -52,7 +52,7 @@ body {
   padding: 0.1rem 0.35rem;
 }
 .crayon:hover {
-  border-color: #2e9e3f;
+  border-color: #2e73d8;
 }
 
 /* Bouton « supprimer » générique ✕ (Corpus, Entretien). */

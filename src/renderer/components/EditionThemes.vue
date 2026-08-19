@@ -164,7 +164,7 @@ onMounted(() => {
 .voile {
   position: fixed;
   inset: 0;
-  background: rgba(20, 24, 20, 0.35);
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -183,7 +183,7 @@ onMounted(() => {
   max-height: 80vh;
   overflow-y: auto;
   background: #fff;
-  border: 1px solid #d8ddd8;
+  border: 1px solid #d6dce8;
   border-radius: 10px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
   padding: 0.8rem 1rem 1rem;
@@ -321,8 +321,8 @@ onMounted(() => {
   flex: none;
 }
 .mini-sous:hover {
-  border-color: #2e9e3f;
-  color: #2e7d32;
+  border-color: #2e73d8;
+  color: #1565c0;
 }
 /* .confirm-suppr/.confirm-actions : styles GLOBAUX (base.css). */
 </style>

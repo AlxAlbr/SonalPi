@@ -55,12 +55,30 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
  * styles/editeur.css ; le reste vit dans le <style scoped> de chaque vue. */
 .app {
   max-width: 1250px;
-  margin: 1.2rem auto;
+  margin: 1.2rem auto 0;
   padding: 0 1rem;
+  /* Hauteur de l'en-tête collant (fil d'Ariane / Accueil) — réutilisée par la
+     vue Entretien pour épingler sa barre d'actions juste en dessous. */
+  --entete-h: 4rem;
+}
+/* En-tête épinglé en haut de la fenêtre : toujour visible (Accueil/fil
+   d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
+.app header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: #fff;
+  box-sizing: border-box;
+  height: var(--entete-h);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-bottom: 1px solid #e5e5ef;
 }
 h1 {
-  font-size: 1.2rem;
-  margin: 0 0 0.3rem;
+  font-size: 1.1rem;
+  margin: 0;
+  line-height: 1.2;
 }
 h1 small {
   color: #999;
@@ -75,8 +93,8 @@ h1 small {
   vertical-align: middle;
 }
 .etat.à-jour {
-  background: #e6f4ea;
-  color: #2e7d32;
+  background: #e3f2fd;
+  color: #1565c0;
 }
 .etat.modifié {
   background: #fff3e0;
@@ -102,13 +120,13 @@ h1 small {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin: 0 0 1rem;
+  margin: 0.2rem 0 0;
   font-size: 0.85rem;
 }
 .lien-nav {
   border: none;
   background: none;
-  color: #2e7d32;
+  color: #1565c0;
   cursor: pointer;
   padding: 0.1rem 0.2rem;
   font-size: 0.85rem;

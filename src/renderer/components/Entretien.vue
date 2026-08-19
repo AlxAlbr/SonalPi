@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
+import VideoPanel from './VideoPanel.vue'
 import EditionThemes from './EditionThemes.vue'
 import EditionVariables from './EditionVariables.vue'
 import { utiliserSonal } from '../composables/sonal'
@@ -41,7 +42,10 @@ const {
   sauver,
   retourCorpus,
   exporter,
+  audio,
 } = utiliserSonal()
+// État partagé du scope média pour l'organisation d'écran (mode vidéo).
+const { estVideo, videoVisible, toggleVideo } = audio
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue ;
 // en contexte entretien elle porte la politique de suppression adaptée
@@ -99,23 +103,20 @@ function focaliserLibre(el: unknown, cle: string) {
 <template>
     <section class="ecran entretien-ecran">
       <div class="grille-ent">
-        <section class="centre">
-          <!-- En-tête COLLANT de la colonne texte : barre d'actions puis lecteur
-               audio — reste visible quand le suivi de lecture fait défiler
-               le texte. Le lecteur ne s'affiche que si un audio est assigné. -->
-          <div class="entete-centre">
-            <div class="barre">
-              <button class="retour" @click="retourCorpus">← Corpus</button>
-              <span class="barre-aide">Sélectionne du texte, puis clique un thème (onglet Thématique) pour le coder.</span>
-              <button class="sauver" @click="sauver">Enregistrer</button>
-              <button class="exporter" @click="exporter">Exporter .sonal</button>
-            </div>
-            <LecteurAudio />
-          </div>
-          <EditorContent :editor="editor" class="cadre" />
-        </section>
+        <!-- Ligne d'actions pleine largeur, en HAUT de l'écran : retour corpus,
+             Enregistrer, Exporter. Toute la vue ci-dessous (les deux colonnes)
+             vient sous cette barre. -->
+        <div class="barre">
+          <button class="retour" @click="retourCorpus">← Corpus</button>
+          <span class="barre-aide">Sélectionne du texte, puis clique un thème (onglet Thématique) pour le coder.</span>
+          <button class="sauver" @click="sauver">Enregistrer</button>
+          <button class="exporter" @click="exporter">Exporter .sonal</button>
+        </div>
 
-        <div class="colonne-droite">
+        <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif. Collante, à
+             défilement interne au-delà d'un écran, pour rester visible pendant
+             la lecture. -->
+        <div class="colonne-gauche">
           <nav class="onglets">
             <!-- Locuteurs en PREMIER et par DÉFAUT : on corrige les locuteurs
                  avant de poser les thématiques (parcours du pas-à-pas). -->
@@ -314,10 +315,36 @@ function focaliserLibre(el: unknown, cle: string) {
 
           <!-- Ancre de la consigne « panneau » du pas-à-pas : le guide de
                l'étape (ex. « Écouter et corriger ») s'affiche EN BAS de la
-               colonne de droite, sous le panneau de l'onglet actif — pas en
+               colonne de gauche, sous le panneau de l'onglet actif — pas en
                haut (à la place du panneau) ni en bulle flottante sur le texte. -->
           <div data-tour="ancre-guide-pp"></div>
+        </div>
 
+        <!-- Colonne DROITE : en audio, lecteur (barre d'écoute + waveform)
+             collant puis éditeur ; en vidéo, zone média épinglée (lecteur +
+             waveform EMPILÉS à gauche ‖ panneau vidéo à droite) puis éditeur
+             pleine largeur dessous. -->
+        <div class="colonne-droite">
+          <template v-if="!estVideo">
+            <div class="lecteur-ancre">
+              <LecteurAudio />
+            </div>
+            <EditorContent :editor="editor" class="cadre" />
+          </template>
+          <template v-else>
+            <div class="zone-media">
+              <div class="tele">
+                <LecteurAudio :empile="true" />
+                <!-- Ouvrir/fermer la vue vidéo : quand elle est fermée, la barre
+                     de son prend toute la largeur (pas de trou), l'audio continue. -->
+                <button class="video-toggle" :title="videoVisible ? 'Masquer la vidéo' : 'Afficher la vidéo'" @click="toggleVideo">
+                  {{ videoVisible ? '▾ Masquer la vidéo' : '▸ Afficher la vidéo' }}
+                </button>
+              </div>
+              <VideoPanel v-show="videoVisible" />
+            </div>
+            <EditorContent :editor="editor" class="cadre" />
+          </template>
         </div>
       </div>
 
@@ -329,9 +356,14 @@ function focaliserLibre(el: unknown, cle: string) {
 <style scoped>
 .grille-ent {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 320px 1fr;
   gap: 1rem;
   align-items: start;
+  grid-template-areas:
+    'barre barre'
+    'gauche droite';
+  /* Hauteur de la barre d'actions (ci-dessous), pour caler les colonnes. */
+  --barre-h: 2.4rem;
 }
 .retour {
   padding: 0.3rem 0.7rem;
@@ -340,24 +372,19 @@ function focaliserLibre(el: unknown, cle: string) {
   border-radius: 5px;
   cursor: pointer;
 }
-/* En-tête collant de la colonne texte (barre + lecteur audio) : reste visible
-   quand la fenêtre défile ; le fond masque le texte qui passe dessous. */
-.entete-centre {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #fff;
-  padding-bottom: 0.1rem;
-}
 .barre {
+  grid-area: barre;
   display: flex;
+  align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-.barre select {
-  padding: 0.3rem 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est
+     défini dans App.vue). Fond opaque pour masquer le contenu qui glisse. */
+  position: sticky;
+  top: var(--entete-h);
+  z-index: 30;
+  background: #fff;
+  height: var(--barre-h);
+  box-sizing: border-box;
 }
 .sauver,
 .exporter {
@@ -374,16 +401,75 @@ function focaliserLibre(el: unknown, cle: string) {
   padding: 0.8rem 1rem;
   background: #fff;
 }
-/* Colonne de droite collante : les onglets et le panneau restent visibles
-   pendant le défilement ; au-delà d'un écran, elle défile en interne. */
-.colonne-droite {
+/* Colonne de gauche collante : onglets + panneau, reste visible ; au-delà d'un
+   écran elle défile en interne. Ses points d'épinglage tiennent compte des
+   deux barres épinglées du dessus (en-tête app + barre d'actions). La hauteur
+   max est RÉDUITE du même décalage que `top` : sinon une liste longue (beaucoup
+   de thèmes) déborderait d'un écran sous le bord bas de la fenêtre — les
+   derniers thèmes resteraient inaccessibles tant qu'on n'a pas fait défiler le
+   texte (la colonne collante repart vers le haut). */
+.colonne-gauche {
+  grid-area: gauche;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   position: sticky;
-  top: 0;
-  max-height: 100vh;
+  top: calc(var(--entete-h) + var(--barre-h));
+  /* `top` ci-dessus vs hauteur d'écran : le panneau doit tenir entre la barre
+     d'actions et le bord bas de la fenêtre, sinon son défilement interne garde
+     les derniers éléments du panneau visibles SANS toucher au texte. Le −1rem
+     compense l'écart de la grille : à la position naturelle (page en haut) le
+     panneau s'appuie sur la ligne « barre » + son gap, soit `top` + gap. */
+  max-height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
   overflow-y: auto;
+}
+/* Colonne de droite : lecteur audio puis éditeur. Le lecteur est collant en
+   haut (fond opaque) pour rester visible pendant la lecture ; l'éditeur défile
+   dessous. */
+.colonne-droite {
+  grid-area: droite;
+  display: flex;
+  flex-direction: column;
+}
+.lecteur-ancre {
+  position: sticky;
+  top: calc(var(--entete-h) + var(--barre-h));
+  z-index: 20;
+  background: #fff;
+}
+/* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo
+   à droite. Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la
+   largeur : le lecteur (flex 1 1) prend ce que la vidéo ne prend pas, et quand on
+   réduit la vidéo, la place libérée revient à la barre de son (jamais tronquée). */
+.zone-media {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  position: sticky;
+  top: calc(var(--entete-h) + var(--barre-h));
+  z-index: 20;
+  background: #fff;
+  padding-bottom: 0.1rem;
+}
+.tele {
+  flex: 1 1 auto;
+  min-width: 260px; /* garde au lecteur une largeur confortable, la vidéo se réduit */
+}
+/* Bouton ouvrir/fermer la vue vidéo, sous la waveform — aligné à gauche, sobre. */
+.video-toggle {
+  align-self: flex-start;
+  border: 1px solid #dce4ef;
+  border-radius: 5px;
+  background: #fafdff;
+  color: #555;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.2rem 0.6rem;
+  margin-top: 0.1rem;
+}
+.video-toggle:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
 }
 .onglets {
   display: flex;
@@ -406,7 +492,7 @@ function focaliserLibre(el: unknown, cle: string) {
 .onglets button.actif {
   background: #fff;
   font-weight: 600;
-  color: #2e7d32;
+  color: #1565c0;
 }
 /* Icônes SonalPi (glyphes noirs) : adoucies sur l'onglet inactif. */
 .ico-onglet {
@@ -457,8 +543,8 @@ function focaliserLibre(el: unknown, cle: string) {
   font-size: 0.85rem;
 }
 .theme-coder:hover {
-  border-color: #2e9e3f;
-  background: #f3fbf4;
+  border-color: #2e73d8;
+  background: #f0f6ff;
 }
 .theme-coder.inactif {
   opacity: 0.45;
@@ -561,7 +647,7 @@ function focaliserLibre(el: unknown, cle: string) {
   font-size: 0.82rem;
 }
 /* Interrupteur « interviewer » : pilule compacte + « ? » (la convention SonalPi,
-   rendue cliquable). Coché → vert, tours du locuteur en italique. */
+   rendue cliquable). Coché → bleu, tours du locuteur en italique. */
 .interv {
   display: inline-flex;
   align-items: center;
@@ -593,7 +679,7 @@ function focaliserLibre(el: unknown, cle: string) {
   transition: left 0.15s;
 }
 .interv input:checked + .glisseur {
-  background: #2e9e3f;
+  background: #2e73d8;
 }
 .interv input:checked + .glisseur::after {
   left: 14px;
@@ -605,7 +691,7 @@ function focaliserLibre(el: unknown, cle: string) {
   font-style: italic;
 }
 .interv input:checked ~ .q {
-  color: #2e7d32;
+  color: #1565c0;
 }
 /* Croix de suppression d'un locuteur — même idiome discret que les thèmes. */
 .x-loc {
@@ -691,8 +777,8 @@ function focaliserLibre(el: unknown, cle: string) {
   flex: none;
 }
 .annuler-entree:hover:not(:disabled) {
-  border-color: #2e9e3f;
-  color: #2e7d32;
+  border-color: #2e73d8;
+  color: #1565c0;
 }
 .annuler-entree:disabled {
   cursor: not-allowed;
