@@ -73,7 +73,7 @@ export interface DepsDemo {
   /** Onglet actif de l'entretien (useEntretien) : les étapes qui vivent DANS un
    *  panneau guident d'abord vers l'onglet à ouvrir, puis vers l'action (le
    *  spotlight suit l'état). */
-  ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal'>
+  ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon'>
   variables: Ref<Variable[]> // définitions EAV du corpus (useCorpus)
   /** Vrai dès que le TEXTE de l'entretien ouvert a été édité depuis son
    *  ouverture (useEntretien — observé par l'étape « Écouter et corriger »). */

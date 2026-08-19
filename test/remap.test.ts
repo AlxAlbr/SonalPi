@@ -55,6 +55,21 @@ function creerSession(texte: string) {
         () => id,
       )!
     },
+    /** Pose une occurrence anon (pseudo) sur la 1re occurrence de `fragment`. */
+    anonymiser(fragment: string, pseudo: string, id = 'o1') {
+      const from = state.doc.textContent.indexOf(fragment) + 1
+      const a: Annotation = {
+        id,
+        type: 'anon',
+        from,
+        to: from + fragment.length,
+        auteur: 'max',
+        pseudo,
+        etat: 'anonymise',
+      }
+      entretien.annotations.push(a)
+      return a
+    },
   }
 }
 
@@ -163,6 +178,34 @@ describe('remapping — structure de blocs', () => {
     s.editer((tr) => tr.insertText('X', 1 + 'Alpha B'.length)) // au milieu de « Bravo »
     expect(s.texteAnnote(a1)).toBe('Alpha')
     expect(s.texteAnnote(a2)).toBe('Charlie')
+  })
+})
+
+describe('remapping — occurrences anon (même canal que les codages)', () => {
+  test('insertion AVANT une occurrence anon → elle se décale, texte et pseudo intacts', () => {
+    const s = creerSession(TEXTE)
+    const a = s.anonymiser('Pierre', 'Pseudo1')
+    s.editer((tr) => tr.insertText('Oh. ', 1))
+    expect(s.texteAnnote(a)).toBe('Pierre')
+    expect(a.pseudo).toBe('Pseudo1')
+    expect(a.from).toBe(9 + 4)
+  })
+
+  test('insertion APRÈS l’occurrence → rien ne bouge (le pseudo survit)', () => {
+    const s = creerSession(TEXTE)
+    const a = s.anonymiser('Pierre', 'Pseudo1')
+    const avant = { from: a.from, to: a.to, pseudo: a.pseudo }
+    s.editer((tr) => tr.insertText(' fils', a.to))
+    expect({ from: a.from, to: a.to, pseudo: a.pseudo }).toEqual(avant)
+    expect(s.texteAnnote(a)).toBe('Pierre')
+  })
+
+  test('suppression chevauchant le début → l’occurrence se referme sur le reste', () => {
+    const s = creerSession(TEXTE)
+    const a = s.anonymiser('Pierre Lemaitre', 'PL')
+    s.editer((tr) => tr.delete(5, 16)) // supprime « our Pierre »
+    expect(s.texteAnnote(a)).toBe('Lemaitre')
+    expect(estOrpheline(a)).toBe(false)
   })
 })
 

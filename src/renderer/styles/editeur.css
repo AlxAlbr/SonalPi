@@ -49,14 +49,45 @@
   padding-bottom: 4px;
 }
 
+/* Occurrence anonymisée : texte original BARRÉ + pseudo affiché inline juste
+ * après, entre crochets (le pseudo n'est PAS barré). Le marqueur est purement
+ * visuel (décoration, pas mark) : il ne coupe pas le texte et survit au remap.
+ * En chevauchement avec un codage, le trait coloré de celui-ci reste visible
+ * par-dessus le barré. */
+.editeur .anon {
+  text-decoration: line-through;
+  text-decoration-color: #999;
+  text-decoration-thickness: 2px;
+  color: #777;
+}
+.editeur .anon::after {
+  content: " [" attr(data-pseudo) "]";
+  /* Boîte atomique : le barré du parent ne se propage pas dans son contenu
+   *   (text-decoration ne franchit pas les inline-block, cf. CSS Text Deco).
+   *   Sans ça, le trait barrerait aussi le pseudo — text-decoration: none
+   *   sur ::after ne suffit pas (la propagation l'emporte). */
+  display: inline-block;
+  vertical-align: baseline;
+  text-decoration: none;
+  color: #1565c0;
+  font-style: normal;
+  font-weight: 600;
+}
+/* Segment de CONTINUATION d'une occurrence anon découpée par une borne interne
+ * (ex. un codage sur « York » dans « New York ») : on barre le segment mais on
+ * masque le [pseudo] (il ne s'affiche qu'à la fin de l'occurrence). */
+.editeur .anon.anon-suite::after {
+  content: none;
+}
+
 /* Plage EN COURS DE LECTURE audio — décoration INLINE unique du
  * plugin lecture (le texte entre les 2 ancres encadrant l'instant courant ;
- * un cue SRT entier aujourd'hui, un mot en word-level demain). Un voile léger :
- * le surlignage doit rester lisible PAR-DESSUS les teintes de locuteur et les
- * annotations. */
+ * un cue SRT entier aujourd'hui, un mot en word-level demain). Un voile ROUGE
+ * léger (lisible PAR-DESSUS les teintes de locuteur et les annotations), sans
+ * barre ni crochet sur les bords : le voile suffit à signaler la lecture, sans
+ * les barres rouges qui étaient envahissantes sur un passage riche en annotations. */
 .editeur .plage-lue {
   background-color: rgba(216, 67, 21, 0.1);
-  box-shadow: inset 3px 0 0 #d84315;
   border-radius: 2px;
   transition: background-color 0.2s;
 }

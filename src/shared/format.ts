@@ -110,6 +110,16 @@ export interface EntretienRef {
 
 
 
+/** Brouillon d'anonymisation : entité saisie (depuis une sélection ou la ligne
+ *  de saisie) sans occurrence posée, ou pseudo saisi sans validation. Vit dans
+ *  `entretiens/<id>.json.brouillonsAnon` (entretien-local, ce n'est PAS une
+ *  règle). Pseudo optionnel : un brouillon « entité seule » est un draft inerte.
+ *  Validé (Entrée) → les occurrences sont posées et le brouillon est consommé. */
+export interface BrouillonAnon {
+  entite: string
+  pseudo?: string
+}
+
 /** `entretiens/<id>.json` — miroir fichier de l'agrégat Entretien. */
 export interface EntretienFichier {
   formatVersion: number
@@ -120,6 +130,10 @@ export interface EntretienFichier {
   ancres: Ancre[]
   locuteurs: Locuteur[]
   meta: { valeursGen: Record<string, string>; audioRef: string | null }
+  /** Brouillons d'anonymisation entretien-locaux (pas des règles). Champ
+   *  ADDITIF optionnel : absent d'un fichier v1 non migré → normalisé en []
+   *  à l'ouverture ; pas de bump de formatVersion. */
+  brouillonsAnon?: BrouillonAnon[]
   /** Blocs `.sonal` non modélisés (règles d'anon, notes), transportés tels quels pour un export sans perte. */
   legacy?: Record<string, unknown>
 }
@@ -134,6 +148,7 @@ export interface PayloadEntretien {
   ancres: Ancre[]
   locuteurs: Locuteur[]
   meta: { valeursGen: Record<string, string>; audioRef: string | null }
+  brouillonsAnon?: BrouillonAnon[]
   legacy?: Record<string, unknown>
 }
 

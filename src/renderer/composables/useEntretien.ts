@@ -9,6 +9,17 @@ import { pluginGouttiere, gouttierePluginKey } from '../editor/locuteursGutter'
 import { pluginLecture } from '../editor/lecture'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
+import { aplatir, occurrencesDe, plageVersPM, chevauche } from '../../shared/entretien/anonymisation'
+import {
+  cleEntite,
+  trouverBrouillon,
+  ajouterBrouillon,
+  majBrouillon,
+  retirerBrouillon,
+  consommerBrouillon,
+  lignesAnonUnifiees,
+  type LigneAnon,
+} from '../../shared/entretien/brouillonsAnon'
 import { pluginRemapJournal } from '../editor/journalRemap'
 import {
   renommerLocuteur,
@@ -28,10 +39,13 @@ import {
 import type { Ancre } from '../../shared/entretien/audio'
 import { useSynchroAudio } from './useSynchroAudio'
 import { resumeThematique } from '../../shared/corpus'
-import type { EntretienFichier, Locuteur, SegmentThematique } from '../../shared/format'
+import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon } from '../../shared/format'
 import type { LegacyBlobs } from '../import/importSonal'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
+
+/** Ligne du tableau Anon : voir brouillonsAnon.ts. (Type réimporté pour le
+ *  template ; la projection vit dans le module pur.) */
 
 /**
  * Scope ENTRETIEN : l'ENTRETIEN OUVERT — sa vérité en session (doc
@@ -78,8 +92,17 @@ export function useEntretien(deps: {
   })
   // L'entretien s'ouvre sur l'ACCUEIL par défaut : il présente les conseils et
   // la vue d'ensemble des autres onglets (icone + titre) avant de commencer.
-  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal'>('maison')
+  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon'>('maison')
   const hintCodage = ref<string | null>(null)
+  // Sélection courante pour l'onglet Anon (texte + plage snappée au mot) :
+  // c'est elle qui peuple le « Nom » de la ligne de saisie. REQUÊTE, jamais
+  // stockée — recalculée au moindre déplacement du curseur.
+  const selectionAnon = ref<{ texte: string; from: number; to: number } | null>(null)
+  const hintAnon = ref<string | null>(null)
+  const lignesAnon = ref<LigneAnon[]>([])
+  // Brouillons d'anonymisation entretien-locaux (pas des règles) : entités
+  // saisies sans occurrence posée. Persistés dans entretiens/<id>.json.brouillonsAnon.
+  const brouillonsAnon = ref<BrouillonAnon[]>([])
   /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (
    *  « Attribuer la sélection » vs « …le bloc courant »). */
   const selectionVide = ref(true)
@@ -167,6 +190,18 @@ export function useEntretien(deps: {
     },
     onSelectionUpdate: ({ editor: ed }) => {
       selectionVide.value = ed.state.selection.empty
+      // Onglet Anon : on capture la sélection snappée au mot (le « Nom » à
+      // anonymiser). La snap rend l'entité propre (pas de ponctuation de bord).
+      const { from, to } = ed.state.selection
+      if (from < to) {
+        const s = snapToWord(ed.state, from, to)
+        selectionAnon.value =
+          s.from < s.to
+            ? { texte: ed.state.doc.textBetween(s.from, s.to, ' '), from: s.from, to: s.to }
+            : null
+      } else {
+        selectionAnon.value = null
+      }
     },
   })
   function rafraichirDecorations() {
@@ -235,10 +270,28 @@ export function useEntretien(deps: {
   function rafraichir() {
     rafraichirExtraits()
     rafraichirJournal() // l'annulabilité dépend du doc et des annotations
+    rafraichirLignesAnon()
     const ed = editor.value
     resumeOuvert.value = ed
       ? resumeThematique({ corpsTexte: ed.getJSON(), annotations: entretien.annotations })
       : []
+  }
+  /** Lignes du tableau Anon = fusion des brouillons (0 occurrence) et des
+   *  occurrences anon posées, une ligne par entité. L'état (brouillon/
+   *  entretien) est DÉRIVÉ. Le texte d'une occurrence se lit sur le doc
+   *  courant : si le texte est édité, l'entité suit. */
+  function rafraichirLignesAnon() {
+    const ed = editor.value
+    if (!ed) {
+      lignesAnon.value = []
+      return
+    }
+    const occurrences = entretien.annotations
+      .filter((a) => a.type === 'anon' && !estOrpheline(a))
+      .map((a) => ({ id: a.id, from: a.from, to: a.to, pseudo: a.pseudo }))
+    lignesAnon.value = lignesAnonUnifiees(brouillonsAnon.value, occurrences, (f, t) =>
+      ed.state.doc.textBetween(f, t, ' '),
+    )
   }
   /** Extraits du thème courant (REQUÊTE, rien de stocké ; l'UI a été retirée,
    *  la requête reste disponible pour un futur écran de recueil).
@@ -295,6 +348,8 @@ export function useEntretien(deps: {
       // Electron (structured clone) → on l'aplatit avant l'envoi.
       locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
       meta: JSON.parse(JSON.stringify(meta)),
+      // Même raison : brouillonsAnon.value est un proxy réactif → aplatir.
+      brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
       // legacyCourant est un ref → .value est un proxy réactif, non clonable par
       // l'IPC (structured clone) : on l'aplatit aussi.
       legacy: JSON.parse(JSON.stringify(legacyCourant.value)),
@@ -330,6 +385,7 @@ export function useEntretien(deps: {
     for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
     meta.valeursGen = { ...res.data.meta.valeursGen }
     meta.audioRef = res.data.meta.audioRef
+    brouillonsAnon.value = res.data.brouillonsAnon ?? []
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
     chargement = false
@@ -353,6 +409,9 @@ export function useEntretien(deps: {
     texteModifie.value = false
     refusFormat.value = null
     eteindrePlageLue()
+    brouillonsAnon.value = []
+    selectionAnon.value = null
+    hintAnon.value = null
     rafraichir()
     rafraichirDecorations()
   }
@@ -542,6 +601,166 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
 
+  // --- Anonymisation (occurrences + brouillons) ---
+  // Non journalisé : valider une ligne peut poser/relabeler PLUSIEURS occurrences
+  // d'un coup, ce qui ne se moule pas sur les inverses à 1 action du journal.
+  // La suppression d'une ligne (✕) reste l'inverse manuel, comme les thèmes.
+
+  /** Une entité est-elle déjà présente dans le tableau (brouillon ou occurrence) ?
+   *  Renvoie la cle de la ligne existante, ou null. Sert au composant pour
+   *  décider, à la sélection : peupler la ligne de saisie ou scroller vers
+   *  la ligne existante (pas de doublon). */
+  function entiteExisteDeja(entite: string): string | null {
+    const e = entite.trim()
+    if (!e) return null
+    const cle = cleEntite(e)
+    if (trouverBrouillon(brouillonsAnon.value, e)) return cle
+    const ed = editor.value
+    if (ed) {
+      for (const a of entretien.annotations) {
+        if (a.type !== 'anon' || estOrpheline(a)) continue
+        if (cleEntite(ed.state.doc.textBetween(a.from, a.to, ' ')) === cle) return cle
+      }
+    }
+    return null
+  }
+
+  /** Crée un brouillon (entité saisie, sans occurrence posée). No-op si l'entité
+   *  existe déjà (brouillon ou occurrence). Auto-sauvé : le brouillon survit
+   *  à un changement de ligne sans validation. Pseudo optionnel. */
+  function creerBrouillon(entite: string, pseudo?: string) {
+    const e = entite.trim()
+    if (!e || entiteExisteDeja(e)) return
+    ajouterBrouillon(brouillonsAnon.value, e, pseudo)
+    rafraichir()
+    planifierSauvegarde()
+  }
+
+  /** Met à jour le pseudo d'un brouillon existant (édition en cours de ligne
+   *  brouillon non validée). Auto-sauvé au blur du champ Pseudo. */
+  function majBrouillonLigne(entite: string, pseudo: string) {
+    majBrouillon(brouillonsAnon.value, entite, pseudo)
+    rafraichir()
+    planifierSauvegarde()
+  }
+
+  /** Valide une ligne : relabel toutes les occurrences existantes de `entite`
+   *  avec `pseudo`, et pose une occurrence anon sur chaque match du texte NON
+   *  déjà couvert. Consomme le brouillon de même entité (son travail est fini). */
+  function validerAnon(entite: string, pseudo: string) {
+    const ed = editor.value
+    if (!ed) return
+    const e = entite.trim()
+    const p = pseudo.trim()
+    if (!e) {
+      hintAnon.value = "Sélectionne d'abord un mot ou une expression dans le texte."
+      return
+    }
+    if (!p) {
+      hintAnon.value = 'Saisis un pseudo pour cette entité.'
+      return
+    }
+    hintAnon.value = null
+    const t = aplatir(ed.getJSON())
+    const matches = occurrencesDe(t.texte, e)
+      .map((pl) => plageVersPM(t, pl.from, pl.to))
+      .filter((x): x is { from: number; to: number } => x !== null)
+    const cle = cleEntite(e)
+    // Relabel les occurrences DÉJÀ posées de cette entité (même texte).
+    for (const a of entretien.annotations) {
+      if (a.type !== 'anon' || estOrpheline(a)) continue
+      if (cleEntite(ed.state.doc.textBetween(a.from, a.to, ' ')) === cle) a.pseudo = p
+    }
+    // Pose une occurrence sur chaque match. « La plus longue gagne » : un
+    // match déjà couvert EN ENTIER n'est pas re-striqué ; un match qui CONTIENT
+    // des occurrences plus courtes (ex. « New » / « York » posées à part dans
+    // « New York ») les absorbe pour re-poser l'entité comme UNE occurrence
+    // pleine. Un chevauchement partiel NON contenu reste en l'état (incluses différé).
+    const existant = entretien.annotations.filter((a) => a.type === 'anon' && !estOrpheline(a))
+    for (const m of matches) {
+      const touches = existant.filter((a) => chevauche(a, m))
+      if (touches.length === 0) {
+        entretien.annotations.push({
+          id: genId(),
+          type: 'anon',
+          from: m.from,
+          to: m.to,
+          auteur,
+          pseudo: p,
+          etat: 'anonymise',
+        })
+        continue
+      }
+      // Déjà couvert en entier par une occurrence → rien à faire (re-validation).
+      if (touches.some((a) => a.from <= m.from && a.to >= m.to)) continue
+      // Le match contient toutes les occurrences qui le touchent : on les retire
+      // puis on pose le match en une occurrence unique (la plus longue gagne).
+      if (touches.every((a) => a.from >= m.from && a.to <= m.to)) {
+        for (const a of touches) retirerAnnotation(entretien, a.id)
+        entretien.annotations.push({
+          id: genId(),
+          type: 'anon',
+          from: m.from,
+          to: m.to,
+          auteur,
+          pseudo: p,
+          etat: 'anonymise',
+        })
+      }
+    }
+    // Le brouillon a fait son travail : il est consommé.
+    consommerBrouillon(brouillonsAnon.value, e)
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+  }
+  /** Retire toutes les occurrences d'une ligne (dé-barrer). */
+  function supprimerAnon(occurrenceIds: string[]) {
+    for (const id of occurrenceIds) retirerAnnotation(entretien, id)
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+  }
+
+  /** Supprime une ligne entière : ses occurrences + son éventuel brouillon. */
+  function supprimerLigneAnon(entite: string) {
+    const cle = cleEntite(entite)
+    const ids = entretien.annotations
+      .filter(
+        (a) =>
+          a.type === 'anon' &&
+          !estOrpheline(a) &&
+          cleEntite(editor.value!.state.doc.textBetween(a.from, a.to, ' ')) === cle,
+      )
+      .map((a) => a.id)
+    for (const id of ids) retirerAnnotation(entretien, id)
+    retirerBrouillon(brouillonsAnon.value, entite)
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+  }
+
+  /** Slider de portée : change l'état d'une ligne.
+   *  brouillon → entretien : pose les occurrences (valider), consomme le brouillon.
+   *  entretien → brouillon : retire les occurrences, recrée un brouillon
+   *  (pseudo conservé) — l'entité reste saisie, prête à re-valider. */
+  function changerPorteeAnon(entite: string, cible: 'brouillon' | 'entretien') {
+    const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(entite))
+    if (!ligne) return
+    if (cible === ligne.etat) return
+    if (cible === 'entretien') {
+      validerAnon(ligne.entite, ligne.pseudo)
+    } else {
+      // entretien → brouillon : retirer les occurrences, garder l'entité en brouillon.
+      const pseudo = ligne.pseudo
+      for (const id of ligne.occurrenceIds) retirerAnnotation(entretien, id)
+      ajouterBrouillon(brouillonsAnon.value, ligne.entite, pseudo)
+      rafraichir()
+      rafraichirDecorations()
+      planifierSauvegarde()
+    }
+  }
+
   /** Données brutes de l'entretien ouvert (pour l'export .sonal, assemblé par l'App). */
   function donneesExport(): {
     corpsTexte: unknown
@@ -573,6 +792,10 @@ export function useEntretien(deps: {
     meta,
     ongletDroite,
     hintCodage,
+    selectionAnon,
+    hintAnon,
+    lignesAnon,
+    brouillonsAnon,
     selectionVide,
     ouvertId,
     refusFormat,
@@ -592,6 +815,13 @@ export function useEntretien(deps: {
     confirmerSuppressionLocuteur,
     setValeurGen,
     setValeurLoc,
+    validerAnon,
+    supprimerAnon,
+    creerBrouillon,
+    majBrouillonLigne,
+    supprimerLigneAnon,
+    changerPorteeAnon,
+    entiteExisteDeja,
     // cycle de vie / persistance
     ouvrir,
     reinitialiser,

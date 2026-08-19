@@ -106,9 +106,11 @@ function construireDecorations(
     const couvrant = actives.filter((a) => a.from <= segFrom && a.to >= segTo)
     if (couvrant.length === 0) continue
 
-    // Soulignement SEUL (pas de fond) : sur un chevauchement, les traits empilés
-    // restent lisibles par couleur, là où des fonds translucides se mélangeraient.
+    // Soulignement des CODAGES seuls (l'anon a son propre marqueur : texte
+    // barré + pseudo en ::after, cf. editeur.css). Sur un chevauchement
+    // anon+codage, le trait coloré du codage reste visible par-dessus le barré.
     const souligne = couvrant
+      .filter((a) => a.type !== 'anon')
       .map((a, k) => `inset 0 ${-2 * (k + 1)}px 0 ${traitDe(a, resoudre)}`)
       .join(',')
     // Taille de police du thème (parité SonalPi) : sur un chevauchement, la plus
@@ -120,13 +122,37 @@ function construireDecorations(
       .map((a) => tailleDe?.(a.code ?? ''))
       .filter((t): t is number => t != null)
     const police = tailles.length ? `font-size:${Math.max(...tailles)}px;font-weight:bold;` : ''
+    // Occurrences anon couvrant ce segment. Le [pseudo] ne s'affiche qu'à la
+    // BORNE DE FIN de l'occurrence, pas sur toute sa plage : si une borne interne
+    // (ex. un codage sur « York » dans « New York ») découpe l'occurrence en
+    // plusieurs segments, le pseudo ne doit se répéter qu'une fois à la fin
+    // (sinon « New »[ville] « York »[ville] au lieu de « New York »[ville]).
+    // Le barré, lui, reste continu sur toute la plage.
+    const anons = couvrant.filter((a) => a.type === 'anon')
+    const anonIci = anons.length > 0
+    const pseudos = [
+      ...new Set(
+        anons
+          .filter((a) => a.to === segTo)
+          .map((a) => a.pseudo ?? '')
+          .filter(Boolean),
+      ),
+    ]
+    // Segment de CONTINUATION : l'occurrence anon couvre ce segment mais ne s'y
+    // termine pas → on barre (classe `anon`) sans afficher de pseudo (pas de
+    // data-pseudo, et `anon-suite` neutralise le ::after du CSS).
+    const suite = anonIci && pseudos.length === 0
+    const style = [souligne ? `box-shadow:${souligne}` : '', police].filter(Boolean).join(';')
     decos.push(
       Decoration.inline(segFrom, segTo, {
-        class: 'annot',
-        style: `box-shadow:${souligne};${police}`,
+        class: anonIci ? `annot anon${suite ? ' anon-suite' : ''}` : 'annot',
+        style,
         'data-annot-count': String(couvrant.length),
         'data-annot-ids': couvrant.map((a) => a.id).join(' '),
-        title: couvrant.map((a) => (a.type === 'anon' ? `anon` : a.code)).join(' + '),
+        ...(pseudos.length ? { 'data-pseudo': pseudos.join(' / ') } : {}),
+        title: couvrant
+          .map((a) => (a.type === 'anon' ? (a.pseudo ? `anon→${a.pseudo}` : 'anon') : a.code))
+          .join(' + '),
       }),
     )
   }

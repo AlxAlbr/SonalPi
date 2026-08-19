@@ -3,8 +3,9 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { importerSonal } from '../src/renderer/import/importSonal'
-import { exporterSonal } from '../src/renderer/import/exportSonal'
+import { exporterSonal, type EntreeExport } from '../src/renderer/import/exportSonal'
 import type { Annotation } from '../src/shared/entretien/annotation'
+import type { BrouillonAnon } from '../src/shared/format'
 
 function parse(html: string): Document {
   const inerte = html
@@ -27,6 +28,32 @@ function comptesCodage(anns: Annotation[]): Record<string, number> {
 function anonCount(anns: Annotation[]): number {
   return anns.filter((a) => a.type === 'anon').length
 }
+
+describe('brouillons d’anonymisation — internes à l’entretien (étape 0)', () => {
+  test('les brouillons ne fuient pas dans le .sonal : le legacy.tabAnon sort inchangé', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const sansBrouillons = exporterSonal({
+      ...r.payload,
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    const avecBrouillons: EntreeExport & { brouillonsAnon: BrouillonAnon[] } = {
+      ...r.payload,
+      brouillonsAnon: [
+        { entite: 'Karine', pseudo: 'Marie' },
+        { entite: 'Lyon' },
+      ],
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    }
+    // La présence de brouillons ne modifie pas le .sonal : ils sont internes à
+    // SonalAsynchro jusqu'à l'étape 3, où ils rejoindront le tabAnon (portee 'brouillon').
+    expect(exporterSonal(avecBrouillons)).toBe(sansBrouillons)
+  })
+})
 
 const fixtures = ['entretien1.sonal', 'entretien2.sonal', 'entretien3.sonal']
 
@@ -155,6 +182,32 @@ describe('interviewer — le « ? » SonalPi est un artefact d’export (drapeau
       { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
       { index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null },
     ])
+  })
+})
+
+describe('round-trip anon — spans .anon, data-pseudo et exception préservés', () => {
+  test('entretien1 : pseudos « Marie » et « test », une exception, restitués à l’export puis au ré-import', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const anns = r.payload.annotations.filter((a) => a.type === 'anon')
+    // à l’import : les pseudos lus sur les data-pseudo des spans.
+    const pseudos = new Set(anns.map((a) => a.pseudo ?? ''))
+    expect(pseudos.has('Marie')).toBe(true)
+    expect(pseudos.has('test')).toBe(true)
+    expect(anns.filter((a) => a.etat === 'exception')).toHaveLength(1)
+
+    const out = exporterSonal({ ...r.payload, codebook: r.codebook, variables: r.variables, legacy: r.legacy })
+    // à l’export : les spans .anon ré-émettent data-pseudo ; l’exception sa classe.
+    expect(out).toContain('data-pseudo="Marie"')
+    expect(out).toContain('data-pseudo="test"')
+    expect(out).toContain('anon-exception')
+
+    // ré-import : pseudos (triés, multi-occurrences) et états préservés.
+    const r2 = importerSonal(out, parse(out))
+    const anns2 = r2.payload.annotations.filter((a) => a.type === 'anon')
+    expect(anns2.map((a) => a.pseudo ?? '').sort()).toEqual(anns.map((a) => a.pseudo ?? '').sort())
+    expect(anns2.filter((a) => a.etat === 'exception')).toHaveLength(1)
+    expect(anns2).toHaveLength(anns.length)
   })
 })
 

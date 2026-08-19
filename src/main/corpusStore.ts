@@ -323,6 +323,7 @@ export class CorpusStore {
       annotations: [],
       ancres: [],
       locuteurs: [],
+      brouillonsAnon: [],
       meta: { valeursGen: {}, audioRef: null },
     }
     this.ecrireJsonAtomique(this.entretienFile(id), entretien)

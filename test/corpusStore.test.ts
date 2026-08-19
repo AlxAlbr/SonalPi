@@ -74,6 +74,26 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(lu.ok && JSON.stringify(lu.data.corpsTexte)).toContain('CONTENU-MODIFIÉ')
   })
 
+  test('brouillonsAnon : écrits puis relus tels quels (champ additif, pas de bump de version)', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    store.lireEntretien('e1')
+    const p = payload('CONTENU-ANON')
+    p.brouillonsAnon = [
+      { entite: 'Karine', pseudo: 'Marie' },
+      { entite: 'Lyon' }, // entité seule : pseudo optionnel
+    ]
+    store.ecrireEntretien('e1', p)
+    const lu = store.lireEntretien('e1')
+    expect(lu.ok).toBe(true)
+    if (lu.ok) expect(lu.data.brouillonsAnon).toEqual(p.brouillonsAnon)
+    // Un entretien écrit SANS le champ (v1) → absent à la lecture : le renderer
+    // normalise en [] à l'ouverture (useEntretien) — additif, aucune migration.
+    store.ecrireEntretien('e1', payload('SANS-BROUILLONS'))
+    const lu2 = store.lireEntretien('e1')
+    expect(lu2.ok && lu2.data.brouillonsAnon).toBeUndefined()
+  })
+
   test('la liste des entretiens vient du SEUL membership (pas d’un scan)', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -13,6 +13,7 @@ import icoLocuteurs from '../assets/icones/logoloc.png'
 import icoDonnees from '../assets/icones/logodat2.png'
 import icoJournal from '../assets/icones/journal.png'
 import icoMaison from '../assets/icones/maison.png'
+import icoAnon from '../assets/icones/logoanon.png'
 
 const {
   codebook,
@@ -24,6 +25,16 @@ const {
   meta,
   ongletDroite,
   hintCodage,
+  selectionAnon,
+  hintAnon,
+  lignesAnon,
+  validerAnon,
+  supprimerAnon,
+  creerBrouillon,
+  majBrouillonLigne,
+  supprimerLigneAnon,
+  changerPorteeAnon,
+  entiteExisteDeja,
   selectionVide,
   editor,
   entreesJournal,
@@ -67,6 +78,192 @@ const AUTRE = ' autre' // sentinelle : ne peut pas être un id de modalité
 const celluleLibre = ref<string | null>(null) // clé de LA ligne en mode texte
 const cleGen = (idVar: string) => `gen|${idVar}`
 const cleLoc = (index: number, idVar: string) => `loc|${index}|${idVar}`
+
+// --- ANON : lignes de saisie (en bas du tableau, façon SonalPi) ---
+// Plusieurs lignes vides : on saisit un nom, « passe à la ligne suivante »
+// (Entrée) → le brouillon est persisté, et une nouvelle ligne vide s'ajoute si
+// besoin. Un bouton « + » sous le tableau ajoute des lignes.
+const lignesSaisie = ref<{ id: number; entite: string; pseudo: string }[]>([])
+let seqSaisie = 0
+const nouvelleLigneSaisie = () => ({ id: ++seqSaisie, entite: '', pseudo: '' })
+lignesSaisie.value = [nouvelleLigneSaisie(), nouvelleLigneSaisie()]
+// Refs par ligne (cases Nom/Pseudo) pour piloter le focus.
+const refsNom = ref<Record<number, HTMLInputElement | null>>({})
+const refsPseudo = ref<Record<number, HTMLInputElement | null>>({})
+const refNom = (id: number) => (el: unknown) => {
+  refsNom.value[id] = (el as HTMLInputElement) ?? null
+}
+const refPseudo = (id: number) => (el: unknown) => {
+  refsPseudo.value[id] = (el as HTMLInputElement) ?? null
+}
+const focusNom = (id: number) => nextTick(() => refsNom.value[id]?.focus())
+const focusPseudo = (id: number) => nextTick(() => refsPseudo.value[id]?.focus())
+
+/** Valide UNE ligne : pose les occurrences (validerAnon), vide la ligne. */
+function validerLigne(l: { id: number; entite: string; pseudo: string }) {
+  const e = l.entite.trim()
+  const p = l.pseudo.trim()
+  if (!e) {
+    hintAnon.value = "Saisis ou sélectionne d'abord un nom dans le texte."
+    return
+  }
+  if (!p) {
+    hintAnon.value = 'Saisis un pseudo pour cette entité.'
+    return
+  }
+  if (entiteExisteDeja(e)) {
+    hintAnon.value = `« ${e} » est déjà dans le tableau.`
+    scrollerVersLigne(e)
+    return
+  }
+  hintAnon.value = null
+  validerAnon(e, p)
+  l.entite = ''
+  l.pseudo = ''
+}
+/** Entrée sur le Nom (sans pseudo) → brouillon « entité seule » (draft inerte
+ *  en attendant un pseudo), puis passage à la ligne suivante (créée au besoin). */
+function brouillonDepuisLigne(l: { id: number; entite: string; pseudo: string }) {
+  const e = l.entite.trim()
+  if (!e) return
+  if (entiteExisteDeja(e)) {
+    hintAnon.value = `« ${e} » est déjà dans le tableau.`
+    scrollerVersLigne(e)
+    return
+  }
+  hintAnon.value = null
+  creerBrouillon(e, l.pseudo.trim())
+  l.entite = ''
+  l.pseudo = ''
+  const suivant = lignesSaisie.value.find((x) => x.id > l.id)
+  if (suivant) focusNom(suivant.id)
+  else {
+    const n = nouvelleLigneSaisie()
+    lignesSaisie.value.push(n)
+    focusNom(n.id)
+  }
+}
+/** Le focus quitte une ligne entièrement → auto-brouillon si un Nom est saisi
+ *  (le passage vers une autre ligne de saisie compte comme une sortie). */
+function onBlurLigne(id: number, evt: FocusEvent) {
+  const cible = evt.relatedTarget as Node | null
+  if (cible && (evt.currentTarget as HTMLElement).contains(cible)) return
+  const l = lignesSaisie.value.find((x) => x.id === id)
+  if (!l) return
+  const e = l.entite.trim()
+  if (e && !entiteExisteDeja(e)) creerBrouillon(e, l.pseudo.trim())
+  l.entite = ''
+  l.pseudo = ''
+  hintAnon.value = null
+}
+/** Pseudo d'une ligne existante édité → relabel (entretien) ou maj brouillon. */
+function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien', value: string) {
+  if (etat === 'brouillon') majBrouillonLigne(entite, value)
+  else validerAnon(entite, value)
+}
+/** Entrée sur le Pseudo d'une ligne : brouillon → valider (poser occurrences),
+ *  entretien → relabel via le change au blur. */
+function surEntreePseudoLigne(entite: string, etat: 'brouillon' | 'entretien', value: string) {
+  if (etat === 'brouillon') validerAnon(entite, value)
+  else (document.activeElement as HTMLInputElement | null)?.blur()
+}
+function scrollerVersLigne(entite: string) {
+  const cle = entite.trim().toLowerCase()
+  nextTick(() => {
+    const el = document.querySelector(`[data-cle-anon="${CSS.escape(cle)}"]`)
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  })
+}
+// La sélection dans l'éditeur peuple le Nom de la PREMIÈRE ligne de saisie vide
+// (ou en crée une). Les lignes déjà remplies sont d'abord persistées en
+// brouillon : c'est l'auto-brouillon, on peut enchaîner plusieurs entités.
+function alimenterDepuisSelection() {
+  const sel = selectionAnon.value
+  if (!sel) return
+  const texte = sel.texte.trim()
+  if (!texte) return
+  const deja = lignesSaisie.value.some((l) => l.entite.trim().toLowerCase() === texte.toLowerCase())
+  if (deja) return
+  for (const l of lignesSaisie.value) {
+    if (l.entite.trim() && !entiteExisteDeja(l.entite)) creerBrouillon(l.entite.trim(), l.pseudo.trim())
+  }
+  if (entiteExisteDeja(texte)) {
+    hintAnon.value = `« ${texte} » est déjà dans le tableau.`
+    scrollerVersLigne(texte)
+    return
+  }
+  let ligne = lignesSaisie.value.find((l) => !l.entite.trim())
+  if (!ligne) {
+    ligne = nouvelleLigneSaisie()
+    lignesSaisie.value.push(ligne)
+  }
+  ligne.entite = texte
+  ligne.pseudo = ''
+  hintAnon.value = null
+  focusPseudo(ligne.id)
+}
+
+// Le tableau Anon se remplit au RELÂCHEMENT du clic (`mouseup`), jamais
+// pendant le drag : une entité multi-mots (« New York ») n'arrive qu'une fois
+// la souris relâchée, même si on marque une pause en cours de glisser (une
+// pause ne relâche pas le bouton → rien ne se remplit).
+//
+// ProseMirror propage la sélection DOM de façon ASYNCHRONE (événement
+// `selectionchange`) : plutôt que deviner un délai fixe, on surveille
+// `selectionAnon` jusqu'à ce qu'elle soit STABLE (2 lectures égales) après le
+// relâchement, puis on remplit — on lit donc toujours la sélection FINALE,
+// jamais celle d'un état intermédiaire. Et SEULEMENT si l'onglet Anon est
+// ouvert : ailleurs, la sélection reste neutre.
+const RELACHE_STEP = 16 // ms — cadence de surveillance (un frame)
+const RELACHE_STABILITE = 2 // lectures consécutives égales → sélection figée
+const RELACHE_CAP = 250 // ms — marge pire cas (alors on remplit quand même)
+let tidRelache = 0
+function surRelache() {
+  if (ongletDroite.value !== 'anon') return
+  clearTimeout(tidRelache)
+  const signature = (s: typeof selectionAnon.value) =>
+    s ? `${s.from}|${s.to}|${s.texte}` : ''
+  let precedente = signature(selectionAnon.value)
+  let stables = 0
+  const depart = Date.now()
+  const surveiller = () => {
+    const courante = signature(selectionAnon.value)
+    if (courante === precedente) stables++
+    else {
+      precedente = courante
+      stables = 0
+    }
+    if (stables >= RELACHE_STABILITE || Date.now() - depart >= RELACHE_CAP) {
+      alimenterDepuisSelection()
+      return
+    }
+    tidRelache = window.setTimeout(surveiller, RELACHE_STEP)
+  }
+  surveiller()
+}
+// Écouteurs posés sur le DOM de l'éditeur (les deux rendus audio/vidéo passent
+// par le même viewer : un seul attach suffit), retirés au démontage.
+let domEditeur: HTMLElement | null = null
+function attacherEcouteurs(ed: typeof editor.value) {
+  if (domEditeur) {
+    domEditeur.removeEventListener('mouseup', surRelache)
+    domEditeur.removeEventListener('keyup', surRelache)
+  }
+  domEditeur = ed?.view.dom ?? null
+  if (domEditeur) {
+    domEditeur.addEventListener('mouseup', surRelache)
+    // Sélection au clavier (Maj+flèches) : peuplée à la levée de la touche.
+    domEditeur.addEventListener('keyup', surRelache)
+  }
+}
+watch(editor, attacherEcouteurs, { immediate: true })
+onBeforeUnmount(() => {
+  clearTimeout(tidRelache)
+  if (domEditeur) {
+    domEditeur.removeEventListener('mouseup', surRelache)
+    domEditeur.removeEventListener('keyup', surRelache)
+  }
+})
 
 /** Libellé affichable d'une valeur (id de modalité) — id brut si inconnu. */
 function libelleCell(idVar: string, idMod: string | undefined): string {
@@ -138,6 +335,9 @@ function focaliserLibre(el: unknown, cle: string) {
             <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
               <img class="ico-onglet" :src="icoJournal" alt="Journal" />
             </button>
+            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Anonymisation" @click="ongletDroite = 'anon'">
+              <img class="ico-onglet" :src="icoAnon" alt="Anonymisation" />
+            </button>
           </nav>
 
           <!-- Accueil : conseils + vue d'ensemble des onglets (icone + titre) →
@@ -167,6 +367,10 @@ function focaliserLibre(el: unknown, cle: string) {
               <li>
                 <img class="ico-onglet" :src="icoJournal" alt="" />
                 <span><b>Journal</b> — suivi et annulation des actions de la session.</span>
+              </li>
+              <li>
+                <img class="ico-onglet" :src="icoAnon" alt="" />
+                <span><b>Anon</b> — pseudonymiser le texte (barré + pseudo).</span>
               </li>
             </ul>
           </aside>
@@ -265,11 +469,11 @@ function focaliserLibre(el: unknown, cle: string) {
 
             <template v-if="varsGen().length">
               <h4>Valeurs · cet entretien</h4>
-              <div v-for="v in varsGen()" :key="v.id" class="saisie">
-                <span class="saisie-lib">{{ v.lib }}</span>
+              <div v-for="v in varsGen()" :key="v.id" class="saisie-eav">
+                <span class="saisie-eav-lib">{{ v.lib }}</span>
                 <input
                   v-if="v.modalites.length === 0 || celluleLibre === cleGen(v.id)"
-                  class="saisie-libre"
+                  class="saisie-eav-libre"
                   placeholder="texte libre"
                   :value="celluleLibre === cleGen(v.id) ? '' : libelleCell(v.id, meta.valeursGen[v.id])"
                   :ref="(el) => focaliserLibre(el, cleGen(v.id))"
@@ -280,7 +484,7 @@ function focaliserLibre(el: unknown, cle: string) {
                 />
                 <select
                   v-else
-                  class="saisie-sel"
+                  class="saisie-eav-sel"
                   :value="meta.valeursGen[v.id] ?? ''"
                   @change="surSelectGen(v.id, $event)"
                 >
@@ -295,11 +499,11 @@ function focaliserLibre(el: unknown, cle: string) {
               <h4>Valeurs · par locuteur</h4>
               <div v-for="l in locuteurs" :key="l.index" class="fiche-loc">
                 <div class="fiche-loc-nom">{{ l.nom }}</div>
-                <div v-for="v in varsLoc()" :key="v.id" class="saisie">
-                  <span class="saisie-lib">{{ v.lib }}</span>
+                <div v-for="v in varsLoc()" :key="v.id" class="saisie-eav">
+                  <span class="saisie-eav-lib">{{ v.lib }}</span>
                   <input
                     v-if="v.modalites.length === 0 || celluleLibre === cleLoc(l.index, v.id)"
-                    class="saisie-libre"
+                    class="saisie-eav-libre"
                     placeholder="texte libre"
                     :value="celluleLibre === cleLoc(l.index, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
                     :ref="(el) => focaliserLibre(el, cleLoc(l.index, v.id))"
@@ -310,7 +514,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   />
                   <select
                     v-else
-                    class="saisie-sel"
+                    class="saisie-eav-sel"
                     :value="l.valeursLoc[v.id] ?? ''"
                     @change="surSelectLoc(l.index, v.id, $event)"
                   >
@@ -348,6 +552,122 @@ function focaliserLibre(el: unknown, cle: string) {
                 >↩</button>
               </li>
             </ul>
+          </aside>
+
+          <!-- Anon : pseudonymisation du texte. Une ligne par entité (brouillon
+               sans occurrence, ou occurrences posées). La sélection peuple
+               la ligne de saisie ; Entrée sur le Pseudo pose les occurrences
+               (barré + [pseudo], cf. editeur.css). -->
+          <aside v-show="ongletDroite === 'anon'" class="panneau anon">
+            <div class="corpus-tete">
+              <h3>Anon</h3>
+            </div>
+            <p class="aide-thm">
+              Sélectionne un mot dans le texte ou saisis un nom ci-dessous, complète le pseudo puis Entrée : toutes les occurrences sont barrées et le pseudo s'affiche.
+            </p>
+            <p v-if="hintAnon" class="hint-codage">{{ hintAnon }}</p>
+
+            <table class="tableau-anon">
+              <thead>
+                <tr>
+                  <th class="col-entite">Nom</th>
+                  <th class="col-pseudo">Pseudo</th>
+                  <th class="col-actions">État · Occ.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="l in lignesAnon"
+                  :key="l.cle"
+                  :data-cle-anon="l.cle"
+                  class="ligne-anon"
+                  :class="`etat-${l.etat}`"
+                >
+                  <td class="col-entite">
+                    <span class="nom-anon" :title="l.entite">{{ l.entite }}</span>
+                  </td>
+                  <td class="col-pseudo">
+                    <input
+                      class="pseudo-anon"
+                      :value="l.pseudo"
+                      :placeholder="l.etat === 'brouillon' ? 'pseudo…' : ''"
+                      @keyup.enter="surEntreePseudoLigne(l.entite, l.etat, ($event.target as HTMLInputElement).value)"
+                      @change="surPseudoLigne(l.entite, l.etat, ($event.target as HTMLInputElement).value)"
+                    />
+                  </td>
+                  <td class="col-actions">
+                    <div class="actions-empile">
+                      <div class="portee-slider" :class="`portee-${l.etat}`" :title="l.etat === 'brouillon' ? 'Brouillon' : 'Entretien'">
+                        <button
+                          type="button"
+                          class="portee-cran"
+                          :class="{ actif: l.etat === 'brouillon' }"
+                          :disabled="l.etat === 'brouillon'"
+                          title="Brouillon — pas encore appliqué"
+                          @click="changerPorteeAnon(l.entite, 'brouillon')"
+                        >🚧</button>
+                        <button
+                          type="button"
+                          class="portee-cran"
+                          :class="{ actif: l.etat === 'entretien' }"
+                          :disabled="l.etat === 'entretien'"
+                          title="Entretien — occurrences posées"
+                          @click="changerPorteeAnon(l.entite, 'entretien')"
+                        >📄</button>
+                        <button
+                          type="button"
+                          class="portee-cran corpus"
+                          disabled
+                          title="Corpus — à venir (étape 3)"
+                        >🌐</button>
+                      </div>
+                      <div class="occ-action">
+                        <span v-if="l.nb > 0" class="nb-anon" :title="`${l.nb} occurrence(s) anonymisée(s)`">{{ l.nb }}</span>
+                        <button class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Lignes de saisie/draft : lignes du tableau (façon SonalPi), une
+                     entité par ligne. Entrée sur le Nom → brouillon + passage à la
+                     ligne suivante ; Entrée sur le Pseudo ou ✓ → valider. -->
+                <tr
+                  v-for="l in lignesSaisie"
+                  :key="l.id"
+                  class="ligne-anon saisie-anon"
+                  @focusout="onBlurLigne(l.id, $event)"
+                >
+                  <td class="col-entite">
+                    <input
+                      class="nom-anon saisie-anon"
+                      v-model="l.entite"
+                      placeholder="nom…"
+                      :ref="refNom(l.id)"
+                      @keydown.enter.prevent="brouillonDepuisLigne(l)"
+                    />
+                  </td>
+                  <td class="col-pseudo">
+                    <input
+                      class="pseudo-anon"
+                      v-model="l.pseudo"
+                      placeholder="pseudo…"
+                      :ref="refPseudo(l.id)"
+                      @keydown.enter.prevent="validerLigne(l)"
+                    />
+                  </td>
+                  <td class="col-actions">
+                    <button class="ok-anon" title="Anonymiser toutes les occurrences" @click="validerLigne(l)">✓</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <button
+              type="button"
+              class="ajouter-ligne-anon"
+              title="Ajouter une ligne de saisie"
+              @click="lignesSaisie.push(nouvelleLigneSaisie())"
+            >＋ Ajouter une ligne</button>
           </aside>
 
           <!-- Ancre de la consigne « panneau » du pas-à-pas : le guide de
@@ -393,7 +713,7 @@ function focaliserLibre(el: unknown, cle: string) {
 <style scoped>
 .grille-ent {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 400px 1fr;
   gap: 1rem;
   align-items: start;
   grid-template-areas:
@@ -634,18 +954,18 @@ function focaliserLibre(el: unknown, cle: string) {
   flex: 1;
 }
 /* --- Fiche données de CET entretien (saisie EAV) --- */
-.saisie {
+.saisie-eav {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   margin: 0.2rem 0;
 }
-.saisie-lib {
+.saisie-eav-lib {
   flex: 1;
   font-size: 0.8rem;
   color: #444;
 }
-.saisie-sel {
+.saisie-eav-sel {
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 0.1rem 0.3rem;
@@ -653,7 +973,7 @@ function focaliserLibre(el: unknown, cle: string) {
 }
 /* Champ texte de saisie libre (variable sans modalité, ou « autre… ») —
    même gabarit que le select pour que la ligne ne saute pas. */
-.saisie-libre {
+.saisie-eav-libre {
   flex: none;
   width: 9.5rem;
   border: 1px solid #ccc;
@@ -661,7 +981,7 @@ function focaliserLibre(el: unknown, cle: string) {
   padding: 0.1rem 0.3rem;
   font-size: 0.8rem;
 }
-.saisie-libre::placeholder {
+.saisie-eav-libre::placeholder {
   color: #bbb;
   font-style: italic;
 }
@@ -846,5 +1166,174 @@ function focaliserLibre(el: unknown, cle: string) {
 .annuler-entree:disabled {
   cursor: not-allowed;
   color: #bbb;
+}
+/* --- Panneau Anon --- */
+/* Tableau Anon : layout FIXE — le nom d'entité est borné (ellipsis au survol) et
+ * les colonnes Pseudo porte / Actions restent TOUJOURS visibles. Les largeurs
+ * viennent de la 1ʳᵉ ligne (thead) : Nom 32 %, Pseudo fixe, Actions = reste. */
+.tableau-anon {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-top: 0.3rem;
+}
+.tableau-anon th {
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #999;
+  padding: 0.2rem 0.3rem;
+  border-bottom: 1px solid #e5e5ef;
+}
+.tableau-anon td {
+  padding: 0.22rem 0.3rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #f0f0f4;
+}
+.ligne-anon td {
+  background: #fff;
+}
+.ligne-anon.etat-brouillon td {
+  background: #f3f8ff;
+}
+/* Ligne de saisie/draft : fond jaune pâle, distincte d'une ligne de données.
+ * La classe est SAISIE-ANON (pas `saisie`) : `saisie` porte un `display:flex`
+ * pour la fiche Données (EAV) qui casserait le layout du tableau en table-layout:fixed. */
+.ligne-anon.saisie-anon td {
+  background: #fffdf2;
+}
+/* Deux sous-lignes dans la colonne actions, façon SonalPi : le slider de portée
+ * sur une ligne, les occurrences + l'action (✕) sur l'autre. Le flex vit sur un
+ * div INTERNE (`.actions-empile`), PAS sur la cellule `<td>` : un `display:flex`
+ * sur un td le retire de son rôle table-cell et casse la participation de la
+ * ligne au calcul des colonnes du tableau en `table-layout:fixed`. */
+.ligne-anon .actions-empile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+.ligne-anon .occ-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+/* Bouton « + » sous le tableau : ajoute une ligne de saisie vide. */
+.ajouter-ligne-anon {
+  margin-top: 0.4rem;
+  border: 1px dashed #bbb;
+  border-radius: 5px;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  width: 100%;
+}
+.ajouter-ligne-anon:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
+}
+.col-entite {
+  width: auto; /* prend le reste → la colonne Nom respire */
+  min-width: 0;
+  overflow: hidden;
+}
+.col-pseudo {
+  width: 5.75rem;
+}
+.col-actions {
+  width: 5rem; /* juste la largeur du slider de portée (3 crans + padding) */
+  text-align: right;
+}
+.nom-anon {
+  display: block;
+  min-width: 0;
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  color: #333;
+}
+.nom-anon.saisie-anon {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  background: #fff;
+}
+.pseudo-anon {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.8rem;
+  color: #1565c0;
+  font-weight: 600;
+  background: #fff;
+}
+.pseudo-anon::placeholder {
+  color: #bbb;
+  font-weight: 400;
+}
+.nb-anon {
+  font-size: 0.7rem;
+  color: #999;
+  font-family: monospace;
+  flex: none;
+  min-width: 1rem;
+  text-align: right;
+  margin-right: 0.1rem;
+}
+/* Slider de portée 3 crans : brouillon (🚧) / entretien (📄) / corpus (🌐).
+ * Le cran corpus est présent mais INACTIF en étape 0 (disabled → grisé) ;
+ * il s'activera à l'étape 3 (règles corpus). Les 2 crans actifs : le cran
+ * courant est désactivé et mis en évidence, l'autre est cliquable (promotion). */
+.portee-slider {
+  display: inline-flex;
+  border: 1px solid #d0d0d8;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f5f5f7;
+  margin-right: 0.1rem;
+}
+.portee-cran {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.02rem 0.26rem;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  opacity: 0.45;
+}
+.portee-cran.actif {
+  opacity: 1;
+  background: #2e73d8;
+}
+.portee-cran:disabled {
+  cursor: default;
+}
+.ok-anon,
+.x-anon {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.05rem 0.32rem;
+  font-size: 0.8rem;
+  flex: none;
+}
+.ok-anon:hover {
+  border-color: #2e73d8;
+  color: #1565c0;
+}
+.x-anon {
+  color: #c33;
+  opacity: 0.55;
+}
+.ligne-anon:hover .x-anon {
+  opacity: 1;
 }
 </style>
