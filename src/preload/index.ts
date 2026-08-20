@@ -12,11 +12,13 @@ import type {
   OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
+  RegleAnon,
   ResultatSuppression,
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
 } from '../shared/format'
+import type { ScanRegle } from '../shared/corpus/scanAnon'
 
 // Pont du store « dossier de corpus » : le renderer ne touche JAMAIS le disque directement
 // tout passe par le main process .
@@ -47,8 +49,9 @@ contextBridge.exposeInMainWorld('sonal', {
       payload: PayloadEntretien,
       codebook: Categorie[],
       variables: Variable[],
+      reglesAnon?: RegleAnon[],
     ): Promise<{ id: string; corpus: CorpusFichier }> =>
-      ipcRenderer.invoke('corpus:importer', titre, payload, codebook, variables),
+      ipcRenderer.invoke('corpus:importer', titre, payload, codebook, variables, reglesAnon),
     ajouterCategorie: (
       nom: string,
       parent: string | null = null,
@@ -64,6 +67,19 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:usagesParCategorie'),
     resumesThematiques: (): Promise<Record<string, SegmentThematique[]>> =>
       ipcRenderer.invoke('corpus:resumesThematiques'),
+    reglesAnon: (): Promise<RegleAnon[]> => ipcRenderer.invoke('corpus:reglesAnon'),
+    scanAnon: (): Promise<ScanRegle[]> => ipcRenderer.invoke('corpus:scanAnon'),
+    regleAnonParEntite: (entite: string): Promise<RegleAnon | undefined> =>
+      ipcRenderer.invoke('corpus:regleAnonParEntite', entite),
+    regleAnonCreer: (entite: string, pseudos: string[]): Promise<RegleAnon> =>
+      ipcRenderer.invoke('corpus:regleAnonCreer', entite, pseudos),
+    regleAnonAjouterPseudo: (id: string, pseudo: string): Promise<RegleAnon | null> =>
+      ipcRenderer.invoke('corpus:regleAnonAjouterPseudo', id, pseudo),
+    regleAnonUtiliseeAilleurs: (id: string, exceptId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('corpus:regleAnonUtiliseeAilleurs', id, exceptId),
+    regleAnonSupprimer: (id: string): Promise<void> => ipcRenderer.invoke('corpus:regleAnonSupprimer', id),
+    appliquerRegleAnon: (entretienId: string, regleId: string): Promise<{ nb: number; titre: string }> =>
+      ipcRenderer.invoke('corpus:appliquerRegleAnon', entretienId, regleId),
     compterUsagesCategorie: (code: string, exceptId?: string): Promise<number> =>
       ipcRenderer.invoke('corpus:compterUsagesCategorie', code, exceptId),
     ajouterVariable: (

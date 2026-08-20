@@ -40,6 +40,11 @@ const {
   fermerMenuAnon,
   basculerException,
   basculerAnonymise,
+  basculerPseudoOccurrence,
+  dialoguePorteeCorpus,
+  alignerCorpus,
+  garderLesDeuxCorpus,
+  annulerDialogueCorpus,
   entiteExisteDeja,
   editor,
   entreesJournal,
@@ -267,14 +272,16 @@ function onBlurLigne(id: number, evt: FocusEvent) {
   l.pseudo = ''
   hintAnon.value = null
 }
-/** Pseudo d'une ligne existante édité → relabel (entretien) ou maj brouillon. */
-function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien', value: string) {
+/** Pseudo d'une ligne existante édité → relabel (entretien) ou maj brouillon.
+ *  Une ligne CORPUS a son pseudo dérivé de la règle : l'édition du champ est
+ *  sans effet (la bascule se fait par occurrence via le menu contextuel). */
+function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien' | 'corpus', value: string) {
   if (etat === 'brouillon') majBrouillonLigne(entite, value)
-  else validerAnon(entite, value)
+  else if (etat === 'entretien') validerAnon(entite, value)
 }
 /** Entrée sur le Pseudo d'une ligne : brouillon → valider (poser occurrences),
- *  entretien → relabel via le change au blur. */
-function surEntreePseudoLigne(entite: string, etat: 'brouillon' | 'entretien', value: string) {
+ *  entretien → relabel via le change au blur. Corpus → sans effet. */
+function surEntreePseudoLigne(entite: string, etat: 'brouillon' | 'entretien' | 'corpus', value: string) {
   if (etat === 'brouillon') validerAnon(entite, value)
   else (document.activeElement as HTMLElement | null)?.blur()
 }
@@ -761,7 +768,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   </td>
                   <td class="col-actions">
                     <div class="actions-empile">
-                      <div class="portee-slider" :class="`portee-${l.etat}`" :title="l.etat === 'brouillon' ? 'Brouillon' : 'Entretien'">
+                      <div class="portee-slider" :class="`portee-${l.etat}`" :title="l.etat === 'brouillon' ? 'Brouillon — draft local' : l.etat === 'entretien' ? 'Entretien — occurrences posées' : 'Corpus — règle partagée'">
                         <button
                           type="button"
                           class="portee-cran"
@@ -774,15 +781,17 @@ function focaliserLibre(el: unknown, cle: string) {
                           type="button"
                           class="portee-cran"
                           :class="{ actif: l.etat === 'entretien' }"
-                          :disabled="l.etat === 'entretien'"
+                          :disabled="l.etat === 'entretien' || l.etat === 'corpus'"
                           title="Entretien — occurrences posées"
                           @click="changerPorteeAnon(l.entite, 'entretien')"
                         >📄</button>
                         <button
                           type="button"
                           class="portee-cran corpus"
-                          disabled
-                          title="Corpus — à venir (étape 3)"
+                          :class="{ actif: l.etat === 'corpus' }"
+                          :disabled="l.etat === 'corpus'"
+                          title="Corpus — règle d'anonymisation partagée du corpus"
+                          @click="changerPorteeAnon(l.entite, 'corpus')"
                         >🌐</button>
                       </div>
                       <div class="occ-action">
@@ -877,10 +886,30 @@ function focaliserLibre(el: unknown, cle: string) {
         :y="menuContextuelAnon.y"
         :etat="menuContextuelAnon.etat"
         :entite="menuContextuelAnon.entite"
+        :pseudos-autres="menuContextuelAnon.pseudosAutres"
         @basculer-exception="basculerException(menuContextuelAnon.id)"
         @basculer-anonymise="basculerAnonymise(menuContextuelAnon.id)"
+        @basculer-pseudo="basculerPseudoOccurrence(menuContextuelAnon.id, $event)"
         @fermer="fermerMenuAnon"
       />
+
+      <!-- Dialogue de divergence à la poussée vers le corpus (3b) : une règle
+           existante porte des pseudos différents → Aligner / Garder les deux. -->
+      <div v-if="dialoguePorteeCorpus" class="portee-dialogue-overlay" @click.self="annulerDialogueCorpus">
+        <div class="portee-dialogue">
+          <h4>Pseudo divergent — « {{ dialoguePorteeCorpus.entite }} »</h4>
+          <p>
+            Une règle corpus existe déjà avec
+            <b>« {{ dialoguePorteeCorpus.reglePseudos.join(' / ') }} »</b> alors que cette ligne porte
+            <b>« {{ dialoguePorteeCorpus.pseudosCible.join(' / ') }} »</b>.
+          </p>
+          <div class="portee-dialogue-actions">
+            <button @click="alignerCorpus">Aligner (pseudo du corpus)</button>
+            <button @click="garderLesDeuxCorpus">Garder les deux</button>
+            <button @click="annulerDialogueCorpus">Annuler</button>
+          </div>
+        </div>
+      </div>
     </section>
 </template>
 
@@ -1629,9 +1658,8 @@ td.col-pseudo {
   text-underline-offset: 2px;
 }
 /* Slider de portée 3 crans : brouillon (🚧) / entretien (📄) / corpus (🌐).
- * Le cran corpus est présent mais INACTIF en étape 0 (disabled → grisé) ;
- * il s'activera à l'étape 3 (règles corpus). Les 2 crans actifs : le cran
- * courant est désactivé et mis en évidence, l'autre est cliquable (promotion). */
+ * Le cran corpus est ACTIF depuis l'étape 3 (règles corpus). Le cran courant
+ * est désactivé et mis en évidence, les autres sont cliquables (promotion). */
 .portee-slider {
   display: inline-flex;
   border: 1px solid #d0d0d8;
@@ -1654,6 +1682,50 @@ td.col-pseudo {
 }
 .portee-cran:disabled {
   cursor: default;
+}
+/* Dialogue de divergence de pseudo (poussée vers le corpus, 3b) */
+.portee-dialogue-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+.portee-dialogue {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  max-width: 460px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+.portee-dialogue h4 {
+  margin: 0 0 0.5rem;
+}
+.portee-dialogue p {
+  font-size: 0.85rem;
+  color: #444;
+  margin: 0 0 0.9rem;
+  line-height: 1.4;
+}
+.portee-dialogue-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.portee-dialogue-actions button {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+.portee-dialogue-actions button:first-child {
+  background: #2e73d8;
+  color: #fff;
+  border-color: #1565c0;
 }
 .ok-anon,
 .x-anon {

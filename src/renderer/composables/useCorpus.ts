@@ -8,9 +8,11 @@ import type {
   EntretienRef,
   MatriceCorpus,
   PatchCategorie,
+  RegleAnon,
   SegmentThematique,
   Variable,
 } from '../../shared/format'
+import type { ScanRegle } from '../../shared/corpus/scanAnon'
 
 /**
  * Scope CORPUS : définitions (codebook, variables), membership (index
@@ -32,6 +34,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const variables = ref<Variable[]>([]) // définitions EAV
   const matrice = ref<MatriceCorpus>([]) // REQUÊTE, jamais stockée
   const messageVar = ref<string | null>(null) // refus de suppression variable/modalité
+  // Étape 3a — règles corpus + scan anon (lecture seule) : panneau « Pseudos ».
+  const reglesAnon = ref<RegleAnon[]>([]) // corpus.json.reglesAnon
+  const scanAnon = ref<ScanRegle[]>([]) // requête scan (relit le disque)
 
   const varsGen = () => variables.value.filter((v) => v.portee === 'entretien')
   const varsLoc = () => variables.value.filter((v) => v.portee === 'locuteur')
@@ -211,6 +216,14 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
     return modalitesDe(idVar).find((m) => m.lib === lib)!.id
   }
+
+  // --- Étape 3a — règles corpus & scan (panneau « Pseudos », lecture seule) ---
+  /** Re-requête le scan : relit les règles + tous les entretiens sur disque.
+   *  À appeler à chaque ouverture du panneau (le texte peut avoir changé). */
+  async function rafraichirScanAnon() {
+    reglesAnon.value = await window.sonal.corpus.reglesAnon()
+    scanAnon.value = await window.sonal.corpus.scanAnon()
+  }
   async function poserGenLibelle(entretienId: string, idVar: string, lib: string) {
     await poserGen(entretienId, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
   }
@@ -244,6 +257,10 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables,
     rafraichirUsages,
     rafraichirMatrice,
+    // étape 3a — règles corpus & scan anon (panneau « Pseudos »)
+    reglesAnon,
+    scanAnon,
+    rafraichirScanAnon,
     // thèmes
     ajouterTheme,
     ajouterSousTheme,

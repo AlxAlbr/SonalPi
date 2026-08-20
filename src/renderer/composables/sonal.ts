@@ -43,6 +43,8 @@ export function creerSonal() {
     apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
+    reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
+    rafraichirReglesCorpus: () => corpus.rafraichirScanAnon(), // cache règles après mutation
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -279,10 +281,12 @@ export function creerSonal() {
         { ...r.payload, legacy: r.legacy as unknown as Record<string, unknown> },
         r.codebook,
         r.variables,
+        r.reglesAnon,
       )
       corpus.membership.value = res.corpus.membership
       corpus.majCodebook(res.corpus.codebook)
       corpus.majVariables(res.corpus.variables)
+      await corpus.rafraichirScanAnon()
       id = res.id
     } else {
       await ent.sauver()
@@ -342,6 +346,7 @@ export function creerSonal() {
       ...ent.donneesExport(),
       codebook: corpus.codebook.value,
       variables: corpus.variables.value,
+      reglesAnon: corpus.reglesAnon.value,
     })
     const titre = corpus.membership.value[ent.ouvertId.value]?.titre ?? 'entretien'
     await window.sonal.dialog.choisirExport(`${titre}.sonal`, html)

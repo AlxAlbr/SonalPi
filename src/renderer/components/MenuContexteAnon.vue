@@ -17,10 +17,13 @@ const props = defineProps<{
   y: number
   etat: 'anonymise' | 'exception'
   entite: string
+  /** Autres pseudos autorisés (règle multi-pseudo) pour basculer CE match. */
+  pseudosAutres: string[]
 }>()
 const emit = defineEmits<{
   (e: 'basculer-exception'): void
   (e: 'basculer-anonymise'): void
+  (e: 'basculer-pseudo', pseudo: string): void
   (e: 'fermer'): void
 }>()
 
@@ -58,8 +61,21 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
         >
           Laisser en clair (exception)
         </button>
+        <!-- Multi-pseudo (3b) : bascule CETTE occurrence vers un autre pseudo
+             autorisé par sa règle ou son ensemble déclaré (niveau entretien,
+             parité V1). Un item par pseudo, hors le courant. -->
         <button
-          v-else
+          v-for="p in pseudosAutres"
+          :key="p"
+          class="menu-anon-action"
+          role="menuitem"
+          title="Ré-anonymiser cette occurrence avec l'autre pseudo autorisé."
+          @click="emit('basculer-pseudo', p)"
+        >
+          ↺ Anonymiser plutôt comme « {{ p }} »
+        </button>
+        <button
+          v-if="etat === 'exception'"
           class="menu-anon-action"
           role="menuitem"
           title="Le texte redevient barré avec son pseudo."

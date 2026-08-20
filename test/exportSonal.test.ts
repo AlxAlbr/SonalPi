@@ -29,16 +29,10 @@ function anonCount(anns: Annotation[]): number {
   return anns.filter((a) => a.type === 'anon').length
 }
 
-describe('brouillons d’anonymisation — internes à l’entretien (étape 0)', () => {
-  test('les brouillons ne fuient pas dans le .sonal : le legacy.tabAnon sort inchangé', () => {
+describe('brouillons d’anonymisation — round-trip (étape 3b)', () => {
+  test('les brouillons sont sérialisés dans l’anon-json en portee « brouillon » (occurrences:0)', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(html, parse(html))
-    const sansBrouillons = exporterSonal({
-      ...r.payload,
-      codebook: r.codebook,
-      variables: r.variables,
-      legacy: r.legacy,
-    })
     const avecBrouillons: EntreeExport & { brouillonsAnon: BrouillonAnon[] } = {
       ...r.payload,
       brouillonsAnon: [
@@ -49,9 +43,52 @@ describe('brouillons d’anonymisation — internes à l’entretien (étape 0)'
       variables: r.variables,
       legacy: r.legacy,
     }
-    // La présence de brouillons ne modifie pas le .sonal : ils sont internes à
-    // SonalAsynchro jusqu'à l'étape 3, où ils rejoindront le tabAnon (portee 'brouillon').
-    expect(exporterSonal(avecBrouillons)).toBe(sansBrouillons)
+    const out = exporterSonal(avecBrouillons)
+    expect(out).toContain('"portee":"brouillon"')
+    expect(out).toContain('"entite":"Karine"')
+    expect(out).toContain('"remplacement":"Marie"')
+    expect(out).toContain('"occurrences":0')
+  })
+  test('sans brouillons ni règle appliquée → anon-json vide', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const out = exporterSonal({ ...r.payload, codebook: r.codebook, variables: r.variables, legacy: r.legacy })
+    expect(out).toContain('<script id="anon-json" type="application/json">')
+    expect(out).not.toContain('"portee":"brouillon"')
+  })
+})
+
+describe('export .sonal — règles corpus (portée corpus, étape 3b)', () => {
+  test('une occurrence liée à une règle corpus → entrée portee « corpus » dans l’anon-json', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const regle = { id: 'reg-1', entite: ['Karine'], pseudos: ['Claire', 'Rebecca'] }
+    const out = exporterSonal({
+      ...r.payload,
+      annotations: [
+        { id: 'a', type: 'anon' as const, from: 1, to: 7, auteur: 'moi', etat: 'anonymise' as const, pseudo: 'Claire', regle: 'reg-1' },
+      ],
+      reglesAnon: [regle],
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    expect(out).toContain('"entite":"Karine"')
+    expect(out).toContain('"remplacement":"Claire"')
+    expect(out).toContain('"remplacementAlt":"Rebecca"')
+    expect(out).toContain('"portee":"corpus"')
+  })
+  test('une règle non appliquée dans l’entretien → absente de son anon-json', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const out = exporterSonal({
+      ...r.payload,
+      reglesAnon: [{ id: 'reg-x', entite: ['Autre'], pseudos: ['A'] }],
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    expect(out).not.toContain('"entite":"Autre"')
   })
 })
 
@@ -292,4 +329,55 @@ describe('round-trip import → export → ré-import (golden : rien ne se perd)
       expect(r2.payload.ancres).toEqual(r1.payload.ancres)
     })
   }
+})
+
+describe('export .sonal — round-trip anon-json (règle corpus + brouillon survivent)', () => {
+  test('export → ré-import : une règle corpus redevient reglesAnon, un brouillon redevient brouillonAnon', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const regle = [{ id: 'reg-RT', entite: ['Karine'], pseudos: ['Claire', 'Rebecca'] }]
+    const out = exporterSonal({
+      ...r.payload,
+      annotations: [
+        { id: 'a', type: 'anon' as const, from: 1, to: 7, auteur: 'moi', etat: 'anonymise' as const, pseudo: 'Claire', regle: 'reg-RT' },
+      ],
+      reglesAnon: regle,
+      brouillonsAnon: [{ entite: 'Lyon' }],
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    const r2 = importerSonal(out, parse(out))
+    expect(r2.reglesAnon).toHaveLength(1)
+    expect(r2.reglesAnon[0].pseudos).toEqual(['Claire', 'Rebecca'])
+    expect(r2.reglesAnon[0].entite).toEqual(['Karine'])
+    expect(r2.payload.brouillonsAnon).toEqual([{ entite: 'Lyon' }])
+    // Le pass-through legacy est consommé sur l'import (tabAnon null).
+    expect(r2.legacy.tabAnon).toBeNull()
+  })
+})
+
+describe('export .sonal — round-trip RÉEL via la fixture (règles liées à l’import)', () => {
+  test('importer entretien1 → ses occurrences anon sont liées → l’export ré-émet la règle corpus', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    // La fixture porte un anon-json de règles (portee corpus) : les occurrences
+    // anon issues des spans sont donc liées à une règle → l'export les ré-émet.
+    const regles = r.reglesAnon
+    expect(regles.length).toBeGreaterThan(0)
+    // Au moins une annotation anon est liée à une règle (round-trip).
+    expect(r.payload.annotations.some((a) => a.type === 'anon' && a.regle)).toBe(true)
+    const out = exporterSonal({
+      ...r.payload,
+      reglesAnon: regles,
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    expect(out).toContain('"portee":"corpus"')
+    // Ré-import de l'export → la règle redevient reglesAnon (sans perte).
+    const r2 = importerSonal(out, parse(out))
+    expect(r2.reglesAnon.length).toBeGreaterThan(0)
+    expect(r2.payload.annotations.some((a) => a.type === 'anon' && a.regle)).toBe(true)
+  })
 })

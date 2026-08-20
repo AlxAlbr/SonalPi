@@ -716,3 +716,113 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice, étape 6)',
     expect(store.supprimerVariable(v)).toEqual({ ok: false, usages: 1 })
   })
 })
+
+describe('CorpusStore — règles corpus & scan anon (étape 3a, lecture)', () => {
+  test('scanAnon/reglesAnon : relit le disque et classe les occurrences par règle', () => {
+    const { store, dir } = storeNeuf()
+    // La baseline e1 contient « Karine habite Lyon depuis sa retraite. »
+    // → « Lyon » y apparaît une fois, non traitée.
+    expect(store.reglesAnon()).toEqual([])
+    expect(store.scanAnon()).toEqual([])
+
+    // Pose une règle corpus « Lyon » dans corpus.json (écriture directe :
+    // 3a est lecture seule, la création viendra en 3b).
+    const corpus = store.ouvrir()
+    corpus.reglesAnon.r1 = { id: 'r1', entite: ['Lyon'], pseudos: ['L1'] }
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2))
+
+    expect(store.reglesAnon()).toEqual([{ id: 'r1', entite: ['Lyon'], pseudos: ['L1'] }])
+    const [scan] = store.scanAnon()
+    expect(scan.regle.id).toBe('r1')
+    expect(scan.total).toEqual({ anon: 0, exc: 0, non: 1 })
+    expect(scan.parEntretien.e1).toEqual({ anon: 0, exc: 0, non: 1 })
+  })
+
+  test('scanAnon : une occurrence anonymisée par la règle compte « anonymisé »', () => {
+    const { store, dir } = storeNeuf()
+    const corpus = store.ouvrir()
+    corpus.reglesAnon.r2 = { id: 'r2', entite: ['Lyon'], pseudos: ['L1'] }
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2))
+    // e1 : « Karine habite Lyon depuis sa retraite. » → « Lyon » démarre à l'offset 15.
+    const e = lireFichier(dir, 'entretiens/e1.json')
+    e.annotations.push({ id: 'a', type: 'anon', from: 15, to: 19, auteur: '', etat: 'anonymise', pseudo: 'L1' })
+    writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(e, null, 2))
+
+    const [scan] = store.scanAnon()
+    expect(scan.total).toEqual({ anon: 1, exc: 0, non: 0 })
+  })
+})
+
+describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () => {
+  test('creer/réutiliser/ajouter pseudo/supprimer une règle', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    // Création
+    const r = store.regleAnonCreer('Karine', ['Marie'])
+    expect(store.regleAnonParEntite('Karine')?.id).toBe(r.id)
+    expect(store.regleAnonParEntite('karine')?.id).toBe(r.id) // insensible à la casse
+    // Garder les deux
+    store.regleAnonAjouterPseudo(r.id, 'Rebecca')
+    expect(store.regleAnonParEntite('Karine')?.pseudos).toEqual(['Marie', 'Rebecca'])
+    // Cap à 2 : un 3ᵉ refusé
+    const regle = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).reglesAnon[r.id]
+    expect(regle.pseudos).toEqual(['Marie', 'Rebecca'])
+    // Suppression
+    expect(() => store.regleAnonSupprimer(r.id)).not.toThrow()
+    expect(store.regleAnonParEntite('Karine')).toBeUndefined()
+  })
+
+  test("regleAnonUtiliseeAilleurs : vrai si un AUTRE entretien référence la règle", () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const r = store.regleAnonCreer('Karine', ['Marie'])
+    // e1 (baseline) gagne une occurrence rule-backed.
+    const e = lireFichier(dir, 'entretiens/e1.json')
+    e.annotations.push({ id: 'a', type: 'anon', from: 1, to: 7, auteur: '', etat: 'anonymise', pseudo: 'Marie', regle: r.id })
+    writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(e, null, 2))
+    // e1 lui-même exclu → faux ; un impossible autre id → vrai.
+    expect(store.regleAnonUtiliseeAilleurs(r.id, 'e1')).toBe(false)
+    expect(store.regleAnonUtiliseeAilleurs(r.id)).toBe(true)
+    expect(store.regleAnonUtiliseeAilleurs(r.id, 'autre')).toBe(true)
+  })
+
+  test('supprimerLigneAnon corpus bloqué si la règle est utilisée ailleurs', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const r = store.regleAnonCreer('Karine', ['Marie'])
+    // e1 référence la règle → elle n'est PAS isolée → suppression interdite.
+    const e = lireFichier(dir, 'entretiens/e1.json')
+    e.annotations.push({ id: 'a', type: 'anon', from: 1, to: 7, auteur: '', etat: 'anonymise', pseudo: 'Marie', regle: r.id })
+    writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(e, null, 2))
+    expect(store.regleAnonUtiliseeAilleurs(r.id, 'e2')).toBe(true)
+    // Après avoir retiré la référence de e1, la règle devient isolée.
+    e.annotations = []
+    writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(e, null, 2))
+    expect(store.regleAnonUtiliseeAilleurs(r.id, 'e2')).toBe(false)
+  })
+})
+
+describe('CorpusStore — application en masse d’une règle sur un entretien fermé (3b)', () => {
+  test('applique les occurrences « à traiter » en rule-backed, laisse les couverts', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const r = store.regleAnonCreer('Karine', ['Marie'])
+    // e1 : « Karine habite Lyon depuis sa retraite. » → 1 « Karine » à traiter.
+    const res = store.appliquerRegleAnon('e1', r.id)
+    expect(res.nb).toBe(1)
+    expect(res.titre).toBe('Entretien Karine')
+    const e = lireFichier(dir, 'entretiens/e1.json')
+    const posed = e.annotations.filter((a) => a.type === 'anon' && a.regle === r.id)
+    expect(posed).toHaveLength(1)
+    expect(posed[0].pseudo).toBe('Marie')
+    // Re-application : plus rien à traiter.
+    expect(store.appliquerRegleAnon('e1', r.id).nb).toBe(0)
+  })
+
+  test('règle inconnue ou entretien absent → 0 sans erreur', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    expect(store.appliquerRegleAnon('e1', 'reg-inconnu').nb).toBe(0)
+    expect(store.appliquerRegleAnon('absent', 'reg-inconnu').nb).toBe(0)
+  })
+})

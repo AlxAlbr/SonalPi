@@ -11,6 +11,8 @@ import {
 import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as corpusModel from '../shared/corpus'
+import type { ScanRegle } from '../shared/corpus/scanAnon'
+import * as applicationMasse from '../shared/entretien/applicationMasse'
 import { migrerEntretienV1 } from '../shared/entretien/migration'
 
 /** Pourquoi des numéros de version ? Chaque évolution du format de fichier est
@@ -38,6 +40,7 @@ import {
   type ResultatSuppression,
   type ResultatSuppressionCategorie,
   type SegmentThematique,
+  type RegleAnon,
   type Variable,
 } from '../shared/format'
 
@@ -340,6 +343,7 @@ export class CorpusStore {
     payload: PayloadEntretien,
     codebook: Categorie[],
     variables: Variable[] = [],
+    reglesAnon: RegleAnon[] = [],
   ): { id: string; corpus: CorpusFichier } {
     const corpus = this.ouvrir()
     const id = genId('ent')
@@ -348,6 +352,7 @@ export class CorpusStore {
     this.ecrireJsonAtomique(this.entretienFile(id), entretien)
 
     corpusModel.fusionnerImport(corpus, codebook, variables)
+    corpusModel.fusionnerReglesAnon(corpus, reglesAnon)
     corpus.membership[id] = { titre, date: null, lastModified: now }
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return { id, corpus }
@@ -445,6 +450,86 @@ export class CorpusStore {
   /** REQUÊTE : résumé thématique de chaque entretien : segments en % du texte, jamais stockés. */
   resumesThematiques(): Record<string, SegmentThematique[]> {
     return corpusModel.resumesThematiques(this.chargerEntretiens())
+  }
+
+  // ── Règles d'anonymisation corpus + scan (étape 3a, lecture seule) ────────
+
+  /** Les règles corpus (`corpus.json.reglesAnon`), sous forme de tableau.
+   *  En 3a (lecture) on ne fait que LIRE : aucune création possible tant que le
+   *  cran corpus du slider (3b) n'est pas activé. */
+  reglesAnon(): RegleAnon[] {
+    const corpus = this.ouvrir()
+    return Object.values(corpus.reglesAnon)
+  }
+
+  /** REQUÊTE scan anon corpus : relit TOUS les entretiens sur disque et, pour
+   *  chaque règle corpus, classe les occurrences par état (anonymisées /
+   *  exceptions / à traiter). Rien de stocké, aucun cache — le texte est relu
+   *  à chaque appel (réconciliation « un changement coincide-t-il avec une
+   *  règle ? »). */
+  scanAnon(): ScanRegle[] {
+    return corpusModel.scannerCorpus(this.reglesAnon(), this.chargerEntretiens())
+  }
+
+  // ── CRUD règles corpus (3b) : lecture → calcul PUR → écriture atomique ────
+
+  /** Règle d'une entité (insensible à la casse), ou undefined. */
+  regleAnonParEntite(entite: string): RegleAnon | undefined {
+    return corpusModel.trouverRegleParEntite(this.ouvrir(), entite)
+  }
+
+  /** Crée une règle pour une entité qui n'en a pas encore. Renvoie la règle. */
+  regleAnonCreer(entite: string, pseudos: string[]): RegleAnon {
+    const corpus = this.ouvrir()
+    const r = corpusModel.creerRegle(corpus, entite, pseudos, () => genId('reg'))
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return r
+  }
+
+  /** « Garder les deux » : ajoute un pseudo secondaire à une règle (si ≤2). */
+  regleAnonAjouterPseudo(id: string, pseudo: string): RegleAnon | null {
+    const corpus = this.ouvrir()
+    corpusModel.ajouterPseudoRegle(corpus, id, pseudo)
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus.reglesAnon[id] ?? null
+  }
+
+  /** La règle est-elle référencée par un entretien AUTRE que `exceptId` ?
+   *  (garde de suppression : on ne retire une règle que si elle est isolée). */
+  regleAnonUtiliseeAilleurs(id: string, exceptId?: string): boolean {
+    return this.chargerEntretiens().some((e) => {
+      if (e.id === exceptId) return false
+      return e.data.annotations.some((a) => a.type === 'anon' && a.regle === id)
+    })
+  }
+
+  /** Supprime une règle du corpus (l'appelant a déjà vérifié l'isolation). */
+  regleAnonSupprimer(id: string): void {
+    const corpus = this.ouvrir()
+    corpusModel.retirerRegle(corpus, id)
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+  }
+
+  /** APPLICATION EN MASSE (3b, étape 4) : pose les `OccurrenceAnon` rule-backed
+   *  d'une règle sur un entretien FERMÉ (lecture fichier → instructions PURES →
+   *  écriture atomique). Cible les « à traiter » (matchs non couverts), pseudo
+   *  primaire de la règle ; exceptions et déjà-anonymisés intacts. Renvoie le
+   *  nombre d'occurrences posées. */
+  appliquerRegleAnon(entretienId: string, regleId: string): { nb: number; titre: string } {
+    const corpus = this.ouvrir()
+    const titre = corpus.membership[entretienId]?.titre ?? entretienId
+    const regle = corpus.reglesAnon[regleId]
+    const file = this.entretienFile(entretienId)
+    if (!regle || !existsSync(file)) return { nb: 0, titre }
+    const data = JSON.parse(readFileSync(file, 'utf8')) as EntretienFichier
+    const instr = applicationMasse.instructionsAppliquerRegle(data, regle, () =>
+      'a-' + Math.random().toString(36).slice(2, 9),
+    )
+    for (const o of instr.poser) {
+      data.annotations.push({ id: o.id, type: 'anon', from: o.from, to: o.to, auteur: 'corpus', etat: 'anonymise', pseudo: o.pseudo, regle: o.regle })
+    }
+    if (instr.nb > 0) this.ecrireJsonAtomique(file, data)
+    return { nb: instr.nb, titre }
   }
 
   /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée (politique

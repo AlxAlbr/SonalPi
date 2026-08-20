@@ -39,6 +39,10 @@ const {
   // audio
   urlWaveform,
   assignerAudioSelection,
+  // étape 3a — panneau « Pseudos » du corpus (lecture seule)
+  reglesAnon,
+  scanAnon,
+  rafraichirScanAnon,
   // Intégrité : audios référencés introuvables (fichier déplacé/supprimé)
   audiosManquants,
   // démo pas-à-pas
@@ -47,6 +51,83 @@ const {
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
 const editerThemes = ref(false)
+
+// --- Étape 3a — panneau « Pseudos » du corpus (lecture seule) ---
+// Bouton dans la barre haute (comme « Ouvrir la base de données »). En 3a,
+// aucune règle corpus n'est encore créable (cran corpus inactif) → panneau vide ;
+// le scan est relancé à chaque ouverture pour révéler les changements.
+const pseudoPanel = ref(false)
+async function ouvrirPseudoPanel() {
+  await rafraichirScanAnon()
+  selectedRegleId.value = null
+  cochage.value = {}
+  messagePseudo.value = null
+  pseudoPanel.value = true
+}
+function fermerPseudo() {
+  pseudoPanel.value = false
+  selectedRegleId.value = null
+  cochage.value = {}
+}
+
+// --- Drill-down (loupe) : panneau droit, entretiens concernés + application en
+//     masse (version simplifiée SonalPi V1). Lecture seule pour une règle multi-
+//     pseudo si besoin, sinon checkbox par entretien → appliquerRegleAnon. ---
+const selectedRegleId = ref<string | null>(null)
+const cochage = ref<Record<string, boolean>>({})
+const messagePseudo = ref<string | null>(null)
+
+const scanPourRegle = computed(
+  () => scanAnon.value.find((s) => s.regle.id === selectedRegleId.value) ?? null,
+)
+function selectionnerRegle(id: string) {
+  if (selectedRegleId.value === id) {
+    selectedRegleId.value = null
+    cochage.value = {}
+    return
+  }
+  selectedRegleId.value = id
+  cochage.value = {}
+}
+/** Entretiens où la règle apparaît (depuis le scan), avec leurs compteurs. */
+function entretiensRegle() {
+  const s = scanPourRegle.value
+  if (!s) return []
+  return Object.entries(s.parEntretien).map(([id, st]) => ({
+    id,
+    titre: membership.value[id]?.titre ?? id,
+    ...st,
+  }))
+}
+function basculerCochage(id: string) {
+  cochage.value[id] = !cochage.value[id]
+}
+/** Applique la règle cochée sur les entretiens sélectionnés (fermés, atomique →
+ *  le store écrit), puis re-scanne. */
+async function appliquerMasse() {
+  const s = scanPourRegle.value
+  if (!s) return
+  const ids = Object.keys(cochage.value).filter((id) => cochage.value[id])
+  if (ids.length === 0) {
+    messagePseudo.value = 'Coche au moins un entretien à appliquer.'
+    return
+  }
+  let total = 0
+  let touches = 0
+  for (const id of ids) {
+    const r = await window.sonal.corpus.appliquerRegleAnon(id, s.regle.id)
+    total += r.nb
+    if (r.nb > 0) touches++
+  }
+  messagePseudo.value =
+    total > 0
+      ? `✓ ${total} occurrence(s) anonymisée(s) dans ${touches} entretien(s) : ${ids.map((i) => membership.value[i]?.titre ?? i).join(', ')}.`
+      : 'Aucune occurrence « à traiter » trouvée dans les entretiens cochés (tout est déjà couvert).'
+  cochage.value = {}
+  await rafraichirScanAnon()
+  // On GARDE le panneau droit ouvert (sélection) pour que le message et les
+  // compteurs rafraîchis restent visibles ; l'utilisateur referme ensuite.
+}
 // Onglet de la colonne gauche : « Thèmes » par défaut, « Recherche » (texte
 // plein corpus, parité SonalPi), « Pas à pas » en mode démo.
 const ongletCorpus = ref<'themes' | 'recherche' | 'pas-a-pas'>('themes')
@@ -132,6 +213,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       <!-- Barre haute : accès à la base de données (comme SonalPi) -->
       <div class="corpus-barre">
         <button class="btn-table" @click="allerDonnees">Ouvrir la base de données →</button>
+        <button class="btn-table" @click="ouvrirPseudoPanel">Pseudos</button>
       </div>
 
       <div class="grille-corpus">
@@ -369,6 +451,84 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </li>
           </ul>
         </section>
+      </div>
+
+      <!-- Panneau « Pseudos » du corpus (étape 3a — LECTURE SEULE) : règles
+           corpus + scan (anonymisé / exception / à traiter par entretien).
+           En 3a aucune règle n'est encore créable → état vide (infra préparée
+           pour le cran corpus de 3b). -->
+      <div v-if="pseudoPanel" class="pseudo-overlay" @click.self="fermerPseudo">
+        <div class="pseudo-panneau pseudo-deux-col">
+          <header class="pseudo-tete">
+            <h3>Pseudos <span class="pseudo-sous">— règles d'anonymisation du corpus</span></h3>
+            <button class="close" @click="fermerPseudo" title="Fermer">✕</button>
+          </header>
+
+          <div v-if="reglesAnon.length === 0" class="pseudo-vide">
+            Aucune règle d'anonymisation corpus pour l'instant.
+            <div class="pseudo-hint">
+              (La création de règles s'active via le cran « corpus » du slider, dans l'onglet Anon d'un entretien.)
+            </div>
+          </div>
+
+          <template v-else>
+            <!-- Partie GAUCHE : table des règles, avec ♂ loupe par ligne. -->
+            <div class="pseudo-gauche">
+              <table class="pseudo-table">
+                <thead>
+                  <tr><th>Entité</th><th>Pseudo</th><th>Anon.</th><th>Exc.</th><th>À anon.</th><th title="Détail par entretien"></th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="s in scanAnon" :key="s.regle.id" :class="{ sel: selectedRegleId === s.regle.id }">
+                    <td>{{ s.regle.entite.join(' / ') }}</td>
+                    <td>{{ s.regle.pseudos.join(' / ') }}</td>
+                    <td class="num anon">{{ s.total.anon }}</td>
+                    <td class="num exc">{{ s.total.exc }}</td>
+                    <td class="num non">{{ s.total.non }}</td>
+                    <td>
+                      <button class="loupe" title="Voir les entretiens concernés" @click="selectionnerRegle(s.regle.id)">🔍</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Partie DROITE : drill-down d'une règle (entretiens + masque). -->
+            <div class="pseudo-droite">
+              <div v-if="!scanPourRegle" class="pseudo-droite-vide">
+                Clique sur la loupe 🔍 d'une règle pour voir les entretiens concernés et appliquer en masse.
+              </div>
+              <template v-else>
+                <div class="pseudo-detail-tete">
+                  <b>« {{ scanPourRegle.regle.entite.join(' / ') }} »</b>
+                  <span class="pseudo-detail-pseudos">{{ scanPourRegle.regle.pseudos.join(' / ') }}</span>
+                </div>
+                <p v-if="messagePseudo" class="pseudo-message">{{ messagePseudo }}</p>
+                <ul class="pseudo-ent-list">
+                  <li v-for="e in entretiensRegle()" :key="e.id" class="pseudo-ent">
+                    <input
+                      type="checkbox"
+                      :checked="!!cochage[e.id]"
+                      :disabled="e.non === 0"
+                      :title="e.non === 0 ? 'Rien à traiter dans cet entretien' : 'Appliquer en masse la règle dans cet entretien'"
+                      @change="basculerCochage(e.id)"
+                    />
+                    <span class="pseudo-ent-titre" :title="e.titre">{{ e.titre }}</span>
+                    <span class="pseudo-ent-cpt">
+                      <span v-if="e.anon > 0" class="pseudo-cpt anon" :title="e.anon + ' anonymisée(s)'">A{{ e.anon }}</span>
+                      <span v-if="e.exc > 0" class="pseudo-cpt exc" :title="e.exc + ' exception(s)'">E{{ e.exc }}</span>
+                      <span v-if="e.non > 0" class="pseudo-cpt non" :title="e.non + ' à traiter'">à{{ e.non }}</span>
+                    </span>
+                    <button class="pseudo-ouvrir" title="Ouvrir cet entretien" @click="ouvrirEntretien(e.id)">↗</button>
+                  </li>
+                </ul>
+                <div class="pseudo-actions">
+                  <button class="pseudo-appliquer" @click="appliquerMasse">Appliquer en masse</button>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
       </div>
 
       <EditionThemes v-if="editerThemes" contexte="corpus" @fermer="editerThemes = false" />
@@ -835,4 +995,155 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   min-width: 1.1rem;
   text-align: right;
 }
+
+/* Panneau « Pseudos » du corpus (étape 3a, lecture seule) */
+.corpus-barre {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.btn-table { margin-right: 0; }
+.pseudo-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.pseudo-panneau {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  min-width: 560px;
+  max-width: 720px;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+.pseudo-deux-col {
+  min-width: 880px;
+  max-width: 1100px;
+  display: flex;
+  align-items: flex-start;
+}
+.pseudo-gauche {
+  border-right: 1px solid #eee;
+  padding-right: 1rem;
+  min-width: 320px;
+  flex: 0 0 42%;
+}
+.pseudo-droite {
+  flex: 1;
+  min-width: 320px;
+  padding-left: 1rem;
+}
+.pseudo-droite-vide {
+  color: #999;
+  font-size: 0.85rem;
+  padding: 1rem 0;
+}
+.pseudo-detail-tete {
+  font-size: 0.95rem;
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.4rem;
+}
+.pseudo-detail-pseudos {
+  color: #888;
+  font-size: 0.8rem;
+}
+.pseudo-message {
+  font-size: 0.82rem;
+  color: #2e7d32;
+  margin: 0.2rem 0 0;
+}
+.pseudo-ent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 46vh;
+  overflow: auto;
+}
+.pseudo-ent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #eee;
+  border-radius: 5px;
+  padding: 0.3rem 0.5rem;
+}
+.pseudo-ent-titre {
+  flex: 1;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pseudo-ent-cpt {
+  display: flex;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+}
+.pseudo-cpt.anon { color: #2e7d32; }
+.pseudo-cpt.exc { color: #b26a00; }
+.pseudo-cpt.non { color: #c62828; font-weight: 600; }
+.pseudo-ouvrir {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.35rem;
+}
+.pseudo-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.pseudo-appliquer {
+  border: 1px solid #1565c0;
+  background: #2e73d8;
+  color: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.82rem;
+}
+.loupe {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.pseudo-table tr.sel {
+  background: #eaf2ff;
+}
+.pseudo-tete {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.pseudo-tete h3 { margin: 0; font-size: 1.05rem; }
+.pseudo-sous { color: #888; font-weight: normal; font-size: 0.85rem; }
+.pseudo-tete .close { border: none; background: none; font-size: 1.1rem; cursor: pointer; }
+.pseudo-vide { color: #666; font-size: 0.9rem; }
+.pseudo-hint { color: #999; font-size: 0.78rem; margin-top: 0.4rem; }
+.pseudo-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.pseudo-table th, .pseudo-table td {
+  border: 1px solid #e0e0e0;
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+}
+.pseudo-table th { background: #f3f6fa; }
+.pseudo-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.pseudo-table .anon { color: #2e7d32; font-weight: 600; }
+.pseudo-table .exc { color: #b26a00; }
+.pseudo-table .non { color: #c62828; font-weight: 600; }
 </style>

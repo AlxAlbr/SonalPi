@@ -9,7 +9,8 @@
  * Ce module reste pur (pas de DOM, pas de ProseMirror) : la lecture du texte
  * d'une occurrence est injectée par l'appelant, ce qui le rend testable headless.
  */
-import type { BrouillonAnon } from '../format'
+import type { BrouillonAnon, RegleAnon } from '../format'
+import { joindrePseudos } from './pseudos'
 
 /** Clef de groupement d'une entité (insensible à la casse, normalisée). */
 export function cleEntite(entite: string): string {
@@ -79,17 +80,20 @@ export function consommerBrouillon(brouillons: BrouillonAnon[], entite: string):
 // donc si le texte est édité, l'entité suit.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type EtatLigneAnon = 'brouillon' | 'entretien'
+export type EtatLigneAnon = 'brouillon' | 'entretien' | 'corpus'
 
 export interface LigneAnon {
   /** Clef de groupement (insensible à la casse). */
   cle: string
   /** Texte d'entité courant (dérivé du doc pour une occurrence, brut pour un brouillon). */
   entite: string
-  /** Pseudo appliqué/saisi pour cette entité. */
+  /** Pseudo(s) affiché(s) — « a / b » pour une ligne multi. */
   pseudo: string
-  /** État dérivé : `entretien` si occurrences posées, sinon `brouillon`. */
+  /** État dérivé : `entretien` si occurrences posées standalone (pas de règle),
+   *  `corpus` si au moins une occurrence est liée à une règle, sinon `brouillon`. */
   etat: EtatLigneAnon
+  /** Id de la règle corpus liée (état `corpus`), sinon absent. */
+  regle?: string
   /** Nombre total d'occurrences (anonymisées + exceptions). */
   nb: number
   /** Occurrences anonymisées (barrées + [pseudo]). */
@@ -106,6 +110,8 @@ export interface OccurrenceAnonProjection {
   from: number
   to: number
   pseudo?: string
+  /** Id de la règle corpus liée (portée corpus), sinon absent (standalone). */
+  regle?: string
   /** `exception` = décision « laisser en clair » (le pseudo éventuel n'est
    *  qu'une mémoire de modèle, jamais affichée ni sérialisée — cf. plan §2.1). */
   etat?: 'anonymise' | 'exception'
@@ -123,19 +129,36 @@ export function lignesAnonUnifiees(
   brouillons: BrouillonAnon[],
   occurrences: OccurrenceAnonProjection[],
   texteEntre: (from: number, to: number) => string,
+  pseudosDeclares: Record<string, string[]> = {},
+  reglesAnon: RegleAnon[] = [],
 ): LigneAnon[] {
   const parCle = new Map<string, LigneAnon>()
-  // 1. Occurrences : une ligne `entretien` par cle, agrégeant ses occurrences.
+  // 1. Occurrences : une ligne par cle, agrégeant ses occurrences.
   for (const o of occurrences) {
     const entite = texteEntre(o.from, o.to)
     const cle = cleEntite(entite)
     let ligne = parCle.get(cle)
     if (!ligne) {
+      // Portée corpus (3b) : si une occurrence est liée à une règle, la ligne est
+      // `corpus` et affiche les pseudos de la règle (« a / b » si multi).
+      const regle = o.regle ? reglesAnon.find((r) => r.id === o.regle) : undefined
+      let etat: EtatLigneAnon = 'entretien'
+      let pseudo = o.pseudo ?? ''
+      if (regle) {
+        etat = 'corpus'
+        pseudo = joindrePseudos(regle.pseudos)
+      } else {
+        // Multi-pseudo standalone (3b) : un ensemble ≥2 déclaré prime sur le
+        // pseudo d'une occurrence pour l'AFFICHAGE « a / b ».
+        const declares = pseudosDeclares[cle]
+        if (declares && declares.length > 1) pseudo = joindrePseudos(declares)
+      }
       ligne = {
         cle,
         entite,
-        pseudo: o.pseudo ?? '',
-        etat: 'entretien',
+        pseudo,
+        etat,
+        regle: regle?.id,
         nb: 0,
         nbAnonymise: 0,
         nbException: 0,

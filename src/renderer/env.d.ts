@@ -19,11 +19,13 @@ import type {
   OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
+  RegleAnon,
   ResultatSuppression,
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
 } from '../shared/format'
+import type { ScanRegle } from '../shared/corpus/scanAnon'
 
 declare global {
   interface Window {
@@ -46,6 +48,7 @@ declare global {
           p: PayloadEntretien,
           codebook: Categorie[],
           variables: Variable[],
+          reglesAnon?: RegleAnon[],
         ) => Promise<{ id: string; corpus: CorpusFichier }>
         ajouterCategorie: (
           nom: string,
@@ -56,6 +59,14 @@ declare global {
         supprimerCategorie: (id: string, exceptId?: string) => Promise<ResultatSuppressionCategorie>
         usagesParCategorie: () => Promise<Record<string, number>>
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
+        reglesAnon: () => Promise<RegleAnon[]>
+        scanAnon: () => Promise<ScanRegle[]>
+        regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>
+        regleAnonCreer: (entite: string, pseudos: string[]) => Promise<RegleAnon>
+        regleAnonAjouterPseudo: (id: string, pseudo: string) => Promise<RegleAnon | null>
+        regleAnonUtiliseeAilleurs: (id: string, exceptId?: string) => Promise<boolean>
+        regleAnonSupprimer: (id: string) => Promise<void>
+        appliquerRegleAnon: (entretienId: string, regleId: string) => Promise<{ nb: number; titre: string }>
         compterUsagesCategorie: (code: string, exceptId?: string) => Promise<number>
         ajouterVariable: (
           lib: string,

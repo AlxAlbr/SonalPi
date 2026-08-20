@@ -27,8 +27,18 @@ export function snapToWord(
   let endOff = $to.parentOffset
 
   // Sélection vide → on encadre le mot sous le curseur.
+  const vide = startOff === endOff
   while (startOff > 0 && WORD_CHAR.test(text[startOff - 1])) startOff--
-  while (endOff < text.length && WORD_CHAR.test(text[endOff])) endOff++
+  if (vide) {
+    while (endOff < text.length && WORD_CHAR.test(text[endOff])) endOff++
+  } else {
+    // Fin : on RECULE d'abord sur les séparateurs de bord (espace/ponctuation)
+    // pour s'arrêter à la FIN du mot sélectionné — sélectionner « Thomas » + son
+    // espace → `to` pointe après l'espace, au début du mot suivant : on ne doit
+    // ni avaler ce mot ni garder l'espace. On re-étend ensuite à la frontière.
+    while (endOff > 0 && !WORD_CHAR.test(text[endOff - 1])) endOff--
+    while (endOff < text.length && WORD_CHAR.test(text[endOff])) endOff++
+  }
 
   const blockStart = from - $from.parentOffset
   return { from: blockStart + startOff, to: blockStart + endOff }

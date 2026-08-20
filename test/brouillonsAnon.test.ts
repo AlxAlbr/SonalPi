@@ -221,3 +221,55 @@ describe('consommation à la validation (Entrée → occurrences posées + broui
     expect(brouillons[0].entite).toBe('Lyon')
   })
 })
+describe('multi-pseudo (3b) — ensemble déclaré & affichage « a / b »', () => {
+  const b: BrouillonAnon[] = []
+  // Deux occurrences de « Karine » (même entité) à pseudos différents.
+  const occUnique = occurrencesDe(tPlat.texte, 'Karine')
+    .slice(0, 2)
+    .map((pl, i) => ({
+      id: `a${i}`,
+      ...plageVersPM(tPlat, pl.from, pl.to)!,
+      pseudo: i === 0 ? 'Claire' : 'Rebecca',
+      etat: 'anonymise' as const,
+    }))
+  test("un ensemble ≥2 déclaré → la ligne affiche « Claire / Rebecca »", () => {
+    const declares = { [cleEntite('Karine')]: ['Claire', 'Rebecca'] }
+    const lignes = lignesAnonUnifiees(b, occUnique, texteEntre, declares)
+    expect(lignes).toHaveLength(1)
+    expect(lignes[0].pseudo).toBe('Claire / Rebecca')
+  })
+  test('sans ensemble déclaré → repli sur le pseudo de la première occurrence', () => {
+    const lignes = lignesAnonUnifiees(b, occUnique, texteEntre)
+    expect(lignes[0].pseudo).toBe('Claire')
+  })
+  test('un ensemble mono (1 seul) → non affiché en « a / b »', () => {
+    const declares = { [cleEntite('Karine')]: ['Claire'] }
+    const lignes = lignesAnonUnifiees(b, occUnique, texteEntre, declares)
+    expect(lignes[0].pseudo).toBe('Claire')
+  })
+})
+
+describe('portée corpus (3b) — ligne liée à une règle', () => {
+  const declarations = { [cleEntite('Karine')]: ['Claire', 'Rebecca'] }
+  const occCorpus = occurrencesDe(tPlat.texte, 'Karine')
+    .slice(0, 1)
+    .map((pl, i) => ({
+      id: `c${i}`,
+      ...plageVersPM(tPlat, pl.from, pl.to)!,
+      pseudo: 'Claire',
+      etat: 'anonymise' as const,
+      regle: 'reg-1',
+    }))
+  test('une occurrence avec `regle` → ligne état corpus, pseudo = pseudos de la règle', () => {
+    const regles = [{ id: 'reg-1', entite: ['Karine'], pseudos: ['Claire', 'Rebecca'] }]
+    const lignes = lignesAnonUnifiees([], occCorpus, texteEntre, declarations, regles)
+    expect(lignes[0].etat).toBe('corpus')
+    expect(lignes[0].regle).toBe('reg-1')
+    expect(lignes[0].pseudo).toBe('Claire / Rebecca')
+  })
+  test('règle inconnue (id absent) → repli état entretien, pseudo occurrence', () => {
+    const lignes = lignesAnonUnifiees([], occCorpus, texteEntre, {}, [{ id: 'autre', entite: ['x'], pseudos: ['y'] }])
+    expect(lignes[0].etat).toBe('entretien')
+    expect(lignes[0].pseudo).toBe('Claire')
+  })
+})

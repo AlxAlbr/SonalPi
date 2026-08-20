@@ -125,6 +125,77 @@
     dans `test/importSonal.test.ts`/`exportSonal.test.ts`.
     **227/227 tests** passent, typecheck node+web OK, build OK.
 
+- **Étape 3a (4.1) — FAITE** ✅ : `RegleAnon` corpus + scan + panneau « Pseudos » LECTURE SEULE.
+  - Modèle : type `RegleAnon {id, entite[], pseudos[]}` dans `format.ts` ; `reglesAnon` retypé
+    de `Record<string, unknown>` → `Record<string, RegleAnon>` (champ déjà présent → pas de bump).
+  - Scan PUR : `shared/corpus/scanAnon.ts` (exporté par `shared/corpus/index.ts`) — `scannerCorpus`
+    relit chaque entretien (aplatit le texte, `occurrencesDe` par alias) et classe chaque occurrence
+    de l'entité : **anonymisé** (couverte par une `etat:'anonymise'` au pseudo de la règle) / **exception**
+    (couverte par une `etat:'exception'`, jamais « à traiter ») / **à traiter** (sinon). Agrége par règle
+    (`tot/anom/exc/non`) + drill-down `parEntretien`. Seules les RÈGLES corpus sont scannées ; une
+    occurrence entretien-locale marque quand même le texte (elle couvre le mot) mais ne figure pas au
+    panneau. « Incluse » (pseudo étranger) différée → comptée `non` pour la règle (compat V1 sans multi-pseudo).
+  - Store + IPC : `reglesAnon()` (lecture) et `scanAnon()` (relit le disque à chaque appel — réconciliation
+    « un changement coincide-t-il avec une règle ? ») ; `corpus:reglesAnon` / `corpus:scanAnon` exposés au preload + `env.d.ts`.
+  - `useCorpus` : `reglesAnon`/`scanAnon` + `rafraichirScanAnon()` (relancé à chaque ouverture du panneau).
+  - `Corpus.vue` : bouton **« Pseudos »** dans la barre haute (à côté de « Ouvrir la base de données ») →
+    panneau modal LECTURE SEULE (état vide : aucune règle créable tant que le cran corpus de 3b est inactif ;
+    table prête pour 3b).
+  - Tests : `test/scanAnon.test.ts` (scan pur : absences/comptages/exception/pseudo étranger/agrégation
+    multi-entretiens/multi-alias/multi-règles/vide, 9 tests) + `corpusStore.test.ts` (lecture règles + scan
+    sur disque avec occurrence anonymisée). **239/239 tests**, typecheck node+web OK, build OK.
+
+- **Étape 3b — FAIte (en cours)** ✅ : multi-pseudo ≤2 + promotions vers la portée corpus + dialogue de divergence.
+  - **Multi-pseudo** : type `RegleAnon.pseudos: string[]` (capé à 2, V1-compatible) ; helper pur `shared/entretien/pseudos.ts`
+    (`scinderPseudos` saisie « a / b », `joindrePseudos`, `ajouterPseudo`) ; mémoire fichier `pseudosDeclares?: Record<cle, string[]>`
+    (champ additif, ni règle ni partagé) pour la bascule des occurrences STANDALONE ; saisis libre scindée à la validation ;
+    bascule par occurrence dans le menu contextuel (« ↺ Anonymiser plutôt comme « X » », règle ET déclaré fichier) ;
+    affichage « Claire / Rebecca » (projection).
+  - **Store/IPC règles** : `shared/corpus/reglesAnon.ts` pur (trouver par entité, créer, ajouter pseudo=garder les deux,
+    retirer) + `corpusStore` (règlesAnon, Trouver/Créer/AjouterPseudo/UtiliseeAilleurs/Supprimer) + IPC + preload + env.d.ts.
+  - **Promotions (slider 3 crans activé)** : brouillon/entretien → corpus (crée/réutilise la règle, pose les occurrences
+    rule-backed ou relie les standalone ; dialogue « Aligner / Garder les deux / Annuler » si pseudo divergent) ;
+    corpus → entretien (DÉLIE toujours autorisé ; règle supprimée si devenue isolée, sinon reste partagée) ;
+    corpus → brouillon / ✕ (retire les occurrences + brouillon ; **BLOQUÉ + message** si la règle est utilisée ailleurs).
+    Projection `lignesAnonUnifiees` dérive l'état `corpus` (occurrence avec `regle`) et l'affiche depuis la règle.
+  - Tests : `pseudos.test.ts` (13), projection multi/corpus (`brouillonsAnon.test.ts`), CRUD règles + garde isolation
+    (`corpusStore.test.ts`). **260/260 tests**, typecheck node+web OK, build OK.
+  - Reste 3b : round-trip `.sonal` `anon-json` (régénérer depuis RegleAnon+BrouillonAnon, parser à l'import, retrait du
+    pass-through `tabAnon`) ; application en masse depuis le panneau Pseudos.
+
+- **Étape 3b — ROUND-TRIP `.sonal` FAIT** ✅ : l'`anon-json` est désormais RÉGÉNÉRÉ depuis le modèle (plus de pass-through).
+  - Export (`exportSonal.ts`) : `construireTabAnon` émet, depuis l'entretien courant — les RÈGLES CORPUS appliquées ici
+    (occurrences `regle` → `entrée {portee:'corpus', entite, remplacement: pseudos[0], remplacementAlt?: pseudos[1]}`) et les
+    BROUILLONS (`entrée {portee:'brouillon', occurrences:0}`). EntreeExport gagne `reglesAnon?`/`brouillonsAnon?` ;
+    `donneesExport` renvoie `brouillonsAnon` ; `exporter()` passe `reglesAnon` depuis `useCorpus`.
+  - Import (`importSonal.ts`) : `parserAnonJson` scinde l'`anon-json` — portee brouillon → `payload.brouillonsAnon` ;
+    portee corpus/undefined → `RegleAnon[]` (résultat d'import, id généré) ; portee document ignorée (occurrences relues des
+    spans). `legacy.tabAnon` mis à null (consommé, le pass-through est retiré).
+  - Store/import : `fusionnerReglesAnon` (corpus/import.ts) mergà dans `corpus.json.reglesAnon` (existant fait foi) ;
+    `importerEntretien` + IPC + preload + env.d.ts acceptent `reglesAnon` ; `ajouterEntretien` les passe + rafraîchit le cache.
+  - Tests : export émet brouillon+corpus, ré-import round-trip (règle→reglesAnon, brouillon→brouillonAnon, tabAnon null),
+    règle non appliquée absente. **264/264 tests**, typecheck node+web OK, build OK.
+  - Reste 3b : application en masse depuis le panneau Pseudos.
+
+- **Étape 3b — APPLICATION EN MASSE FAITE** ✅ (fin de l'étape 3).
+  - Cœur PUR `shared/entretien/applicationMasse.ts` : `instructionsAppliquerRegle` calcule les occurrences rule-backed
+    à poser sur un entretien (matchs « à traiter » non couverts par une anon, multi-alias, pseudo primaire ; exceptions et
+    déjà-anonymisés intacts — une exception ne repasse jamais « à traiter »).
+  - `corpusStore.appliquerRegleAnon(entretienId, regleId)` : lit le fichier → applique → écrit ATOMIQUEMENT (entretien
+    fermé, pas d'éditeur) → renvoie `{nb, titre}` ; IPC `corpus:appliquerRegleAnon` + preload + env.d.ts.
+  - `Corpus.vue` (panneau Pseudos refondu en DEUX colonnes, version simplifiée SonalPi V1) : table des règles à gauche avec
+    une **loupe 🔍** par ligne → panneau DROIT listant les entretiens concernés (titre + compteurs A/E/à) avec une
+    **checkbox** par entretien (désactivée si « rien à traiter ») + « Appliquer en masse » (re-scan + message) + « ↗ Ouvrir ».
+  - Tests : `test/applicationMasse.test.ts` (5) + store application en masse (2). **271/271 tests**, typecheck node+web OK, build OK.
+  - **Round-trip versé dans le flux réel** : `importSonal` LIE les occurrences anon (spans) à la règle corpus de même entité
+    (`regle: id` — sans quoi l'export, qui ne ré-émet que les règles appliquées, perdrait la règle) ; `fusionnerReglesAnon`
+    déduplique PAR ENTITÉ (une entité = une règle, l'existant fait foi — pas de doublon au ré-import).
+  - **E2E round-trip (critère de fin §4.3) FAITE** ✅ : `e2e/anonymisation.e2e.ts` — importer la fixture anonymisée (spans
+    anon + exception + anon-json corpus) → exporter → ré-importer → la règle corpus et les occurrences SURVIVENT, panneau
+    Pseudos sans doublon (même nombre de lignes, « Karine » unique). Tests headless refondus pour le flux réel
+    (`exportSonal.test.ts` : import fixture → export `"portee":"corpus"` → ré-import règles préservées).
+    **277/277 tests**, typecheck node+web OK, build OK, **e2e anonymisation + import-export OK**.
+
 ---
 
 ## 0. Périmètre

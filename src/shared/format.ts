@@ -66,12 +66,23 @@ export interface MarqueurDemo {
 // Corpus — dossier et `corpus.json` (définitions + membership)
 // ══════════════════════════════════════════════════════════════════════════
 
+/** Règle corpus = un mappage `entité → pseudo` PARTAGÉ entre entretiens
+ *  (étape 3, plan_anon_suite §4). Vit DANS `corpus.json.reglesAnon` : c'est la
+ *  SEULE vérité « règle ». Pas de `actif` (le brouillon est entretien-local, pas
+ *  un drapeau de règle). `entite[]`/`pseudos[]` gardent la forme unidimensionnelle
+ *  du futur multi-alias / multi-pseudo (différé), sans l'activer. */
+export interface RegleAnon {
+  id: string
+  entite: string[]
+  pseudos: string[]
+}
+
 /** `corpus.json` — définitions + membership. */
 export interface CorpusFichier {
   formatVersion: number
   codebook: Record<string, Categorie>
   variables: Record<string, Variable>
-  reglesAnon: Record<string, unknown>
+  reglesAnon: Record<string, RegleAnon>
   personnes: Record<string, unknown>
   membership: Record<string, EntretienRef>
   /** Marqueur de corpus de TEST (démo) — champ ADDITIF optionnel,
@@ -134,6 +145,13 @@ export interface EntretienFichier {
    *  ADDITIF optionnel : absent d'un fichier v1 non migré → normalisé en []
    *  à l'ouverture ; pas de bump de formatVersion. */
   brouillonsAnon?: BrouillonAnon[]
+  /** Mémoire fichier de l'ENSEMBLE multi-pseudo déclaré par entité (étape 3b,
+   *  multi-pseudo ≤2). Clef = `cleEntite` (insensible à la casse). Ne stocke
+   *  l'ensemble QUE quand il a ≥ 2 pseudos (mono = porté par les occurrences) ;
+   *  sert uniquement de mémoire à la bascule du menu contextuel et à l'affichage
+   *  « Claire / Rebecca » sur une ligne STANDALONE (ni une règle, ni partagé,
+   *  ni dans corpus.json). Champ ADDITIF optionnel → pas de bump. */
+  pseudosDeclares?: Record<string, string[]>
   /** Blocs `.sonal` non modélisés (règles d'anon, notes), transportés tels quels pour un export sans perte. */
   legacy?: Record<string, unknown>
 }
@@ -149,6 +167,7 @@ export interface PayloadEntretien {
   locuteurs: Locuteur[]
   meta: { valeursGen: Record<string, string>; audioRef: string | null }
   brouillonsAnon?: BrouillonAnon[]
+  pseudosDeclares?: Record<string, string[]>
   legacy?: Record<string, unknown>
 }
 

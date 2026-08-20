@@ -117,10 +117,11 @@ describe('import .sonal — invariants (golden)', () => {
     expect(codebook.find((c) => c.id === 'cat_005')?.taille).toBeUndefined()
   })
 
-  test('anon et notes restent en pass-through legacy (SUITE S1)', () => {
-    const { legacy } = importerSonal(html1, parse(html1))
-    // entretien1 porte des règles d'anon → tabAnon non vide.
-    expect(legacy.tabAnon).not.toBeNull()
+  test('anon-json : consommé — règles corpus → reglesAnon, brouillons → brouillonsAnon, tabAnon null (étape 3b)', () => {
+    const { legacy, reglesAnon, payload } = importerSonal(html1, parse(html1))
+    // entretien1 a des règles d'anon legacy (sans portee ≡ corpus) → reglesAnon.
+    expect(reglesAnon.length).toBeGreaterThan(0)
+    expect(legacy.tabAnon).toBeNull()
   })
 
   test('les variables var/dic-json entrent dans le modèle (fin du pass-through EAV)', () => {

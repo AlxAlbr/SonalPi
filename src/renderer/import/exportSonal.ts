@@ -5,7 +5,8 @@ import { exporterVariables, exporterValeurs } from './eav'
 import { ordreThemes } from '../../shared/corpus'
 import { couleurHexPourCode } from '../editor/decorations'
 import type { Annotation } from '../../shared/entretien/annotation'
-import type { Categorie, Locuteur, Variable } from '../../shared/format'
+import type { Categorie, Locuteur, Variable, RegleAnon, BrouillonAnon } from '../../shared/format'
+import { scinderPseudos } from '../../shared/entretien/pseudos'
 import type { LegacyBlobs } from './importSonal'
 
 interface BlocPM {
@@ -14,6 +15,38 @@ interface BlocPM {
 }
 interface DocPM {
   content: BlocPM[]
+}
+
+/** Une règle d'anonymisation à la forme SonalPi (`remplacement`/`remplacementAlt`). */
+function formeSonalPi(entite: string, pseudos: string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = { entite, remplacement: pseudos[0] ?? '' }
+  if (pseudos[1]) out.remplacementAlt = pseudos[1]
+  return out
+}
+
+/** Reconstruit l'`anon-json` (tabAnon SonalPi) depuis le MODÈLE, pour un round-trip
+ *  sans perte (retrait du pass-through legacy) : les RÈGLES CORPUS appliquées dans
+ *  cet entretien (occurrences `regle`) → entrées `portee:'corpus'` ; les BROUILLONS
+ *  → entrées `portee:'brouillon'`, `occurrences:0`. Les occurrences standalone
+ *  restent en spans (`data-pseudo`), pas d'entrée document nécessaire au round-trip
+ *  interne (elles se relisent des spans). */
+function construireTabAnon(e: EntreeExport): unknown[] {
+  const tab: unknown[] = []
+  const vus = new Set<string>()
+  if (e.reglesAnon) {
+    for (const a of e.annotations) {
+      if (!a.regle || vus.has(a.regle)) continue
+      const r = e.reglesAnon.find((x) => x.id === a.regle)
+      if (!r) continue
+      vus.add(a.regle)
+      tab.push({ ...formeSonalPi(r.entite[0] ?? '', r.pseudos), portee: 'corpus' })
+    }
+  }
+  for (const b of e.brouillonsAnon ?? []) {
+    const pseudos = scinderPseudos(b.pseudo ?? '')
+    tab.push({ ...formeSonalPi(b.entite, pseudos), portee: 'brouillon', occurrences: 0 })
+  }
+  return tab
 }
 
 export interface EntreeExport {
@@ -29,6 +62,11 @@ export interface EntreeExport {
    *  locuteur viennent des `valeursLoc` de chaque locuteur). */
   meta: { valeursGen: Record<string, string> }
   legacy: LegacyBlobs
+  /** Règles corpus partagées (corpus.json.reglesAnon) — les règle appliquées
+   *  dans CET entretien ressortent en entries `portee:'corpus'` de l'`anon-json`. */
+  reglesAnon?: RegleAnon[]
+  /** Brouillons d'anonymisation de CET entretien → entries `portee:'brouillon'`. */
+  brouillonsAnon?: BrouillonAnon[]
 }
 
 /**
@@ -207,7 +245,7 @@ export function exporterSonal(e: EntreeExport): string {
     tabVar,
     tabDic,
     tabDat,
-    tabAnon: e.legacy.tabAnon,
+    tabAnon: construireTabAnon(e),
     notes: e.legacy.notes,
     html,
   })

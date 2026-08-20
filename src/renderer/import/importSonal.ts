@@ -3,7 +3,9 @@ import type { Ancre } from '../../shared/entretien/audio'
 import { importerVariables, distribuerValeurs } from './eav'
 import { parentsDepuisRangs } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
-import type { Categorie, Locuteur, PayloadEntretien, Variable } from '../../shared/format'
+import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon } from '../../shared/format'
+import { scinderPseudos } from '../../shared/entretien/pseudos'
+import { cleEntite } from '../../shared/entretien/brouillonsAnon'
 
 /** Blocs legacy encore en pass-through : `anon` (règles) et `notes`. Les EAV
  *  (var/dic/dat) sont modélisées → hors de ce blob. */
@@ -18,12 +20,44 @@ export interface ResultatImport {
   codebook: Categorie[]
   /** Variables EAV extraites de var/dic-json → fusionnées dans le corpus. */
   variables: Variable[]
+  /** Règles corpus extraites de l'`anon-json` (portée corpus) → fusionnées dans
+   *  corpus.json.reglesAnon (passées au store à l'import). */
+  reglesAnon: RegleAnon[]
   legacy: LegacyBlobs
 }
 
 type AnnBrute =
   | { type: 'codage'; code: string; from: number; to: number }
-  | { type: 'anon'; pseudo: string; etat: 'anonymise' | 'exception'; from: number; to: number }
+  | { type: 'anon'; entite: string; pseudo: string; etat: 'anonymise' | 'exception'; from: number; to: number }
+
+/** Génère un id de règle corpus à l'import (les entrées SonalPi n'en portent pas). */
+function genIdRegle(): string {
+  return 'reg-' + Math.random().toString(36).slice(2, 10)
+}
+
+/** Parse l'`anon-json` SonalPi en brouillons (entretien-local) + règles corpus. */
+function parserAnonJson(json: unknown): { brouillons: BrouillonAnon[]; regles: RegleAnon[] } {
+  const brouillons: BrouillonAnon[] = []
+  const regles: RegleAnon[] = []
+  if (!Array.isArray(json)) return { brouillons, regles }
+  for (const es of json) {
+    const entite = String((es as Record<string, unknown>)?.entite ?? '').trim()
+    if (!entite) continue
+    const pseudos = [
+      String((es as Record<string, unknown>)?.remplacement ?? '').trim(),
+      String((es as Record<string, unknown>)?.remplacementAlt ?? '').trim(),
+    ].filter(Boolean)
+    const portee = (es as Record<string, unknown>)?.portee
+    if (portee === 'brouillon') {
+      brouillons.push({ entite, pseudo: pseudos.join(' / ') || undefined })
+    } else if (portee === 'corpus' || portee === undefined || portee === '') {
+      if (pseudos.length === 0) continue
+      regles.push({ id: genIdRegle(), entite: [entite], pseudos })
+    }
+    // portée 'document' (standalone) : pas d'entrée — les occurrences se relisent des spans.
+  }
+  return { brouillons, regles }
+}
 
 /** Un bloc en cours d'import : texte + annotations (offsets locaux) + ses cues
  *  [de, a[ (fenêtres de texte) avec leurs bornes temporelles mesurées. */
@@ -46,8 +80,11 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
 
   const tabLoc = (extraireJson(html, 'loc-json') as string[] | null) ?? []
   const tabThm = (extraireJson(html, 'cat-json') as CategorieV1[] | null) ?? []
+  const anonJson = extraireJson(html, 'anon-json')
+  const { brouillons, regles: reglesAnon } = parserAnonJson(anonJson)
   const legacy: LegacyBlobs = {
-    tabAnon: extraireJson(html, 'anon-json'),
+    // Consommé : brouillons→payload.brouillonsAnon, règles→ResultatImport.reglesAnon.
+    tabAnon: null,
     notes: (domDoc.getElementById('txtnotes') as HTMLElement | null)?.innerHTML.trim() ?? '',
   }
   // EAV : var/dic → définitions de variables ; dat → valeurs distribuées chez
@@ -88,9 +125,9 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
         // convention SonalPi) est CONSERVÉ en mémoire de modèle, comme la
         // bascule locale le fait : « remettre en anonymisé » peut alors
         // restituer le pseudo d'origine sans perte. Absent → mémoire vide.
-        anns.push({ type: 'anon', pseudo: frag.dataset.pseudo ?? '', etat: 'exception', from, to })
+        anns.push({ type: 'anon', entite: t, pseudo: frag.dataset.pseudo ?? '', etat: 'exception', from, to })
       } else if (frag.classList.contains('anon')) {
-        anns.push({ type: 'anon', pseudo: frag.dataset.pseudo ?? '', etat: 'anonymise', from, to })
+        anns.push({ type: 'anon', entite: t, pseudo: frag.dataset.pseudo ?? '', etat: 'anonymise', from, to })
       }
       text += t
     }
@@ -138,8 +175,15 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   }
 
   // 3) Annotations avec positions ProseMirror (offsets locaux → positions absolues).
+  //    Une occurrence anon est LIÉE à la règle corpus de même entité (round-trip
+  //    sans perte : à l'export on ne ré-émet que les règles APPLIQUÉES).
   const annotations: Annotation[] = []
   let n = 0
+  const reglePour = (entite: string) => {
+    const cle = cleEntite(entite)
+    const r = reglesAnon.find((rg) => rg.entite.some((e) => cleEntite(e) === cle))
+    return r ? r.id : undefined
+  }
   tours.forEach((b, k) => {
     for (const a of b.anns) {
       if (a.from >= a.to) continue
@@ -152,7 +196,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
       annotations.push(
         a.type === 'codage'
           ? { ...base, type: 'codage', code: a.code }
-          : { ...base, type: 'anon', pseudo: a.pseudo, etat: a.etat },
+          : { ...base, type: 'anon', pseudo: a.pseudo, etat: a.etat, regle: reglePour(a.entite) },
       )
     }
   })
@@ -221,9 +265,10 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   }))
 
   return {
-    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null } },
+    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons },
     codebook,
     variables,
+    reglesAnon,
     legacy,
   }
 }

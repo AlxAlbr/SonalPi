@@ -3,7 +3,7 @@ import { join, basename, extname } from 'node:path'
 import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { CorpusStore } from './corpusStore'
-import type { Categorie, CibleValeur, EtatDemo, EtatDemoComplet, MarqueurDemo, PatchCategorie, PayloadEntretien, Variable } from '../shared/format'
+import type { Categorie, CibleValeur, EtatDemo, EtatDemoComplet, MarqueurDemo, PatchCategorie, PayloadEntretien, RegleAnon, Variable } from '../shared/format'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev le
 // renderer est en http://localhost (Vite) et ne lit pas file:// → un protocole
@@ -185,8 +185,8 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:supprimerEntretien', (_e, id: string) => store.supprimerEntretien(id))
   ipcMain.handle(
     'corpus:importer',
-    (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[]) =>
-      store.importerEntretien(titre, payload, codebook, variables),
+    (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
+      store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
   )
 
   // Codebook (thèmes)
@@ -204,6 +204,22 @@ function enregistrerIpcCorpus(): void {
   )
   ipcMain.handle('corpus:usagesParCategorie', () => store.usagesParCategorie())
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
+  ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
+  ipcMain.handle('corpus:scanAnon', () => store.scanAnon())
+  ipcMain.handle('corpus:regleAnonParEntite', (_e, entite: string) => store.regleAnonParEntite(entite))
+  ipcMain.handle('corpus:regleAnonCreer', (_e, entite: string, pseudos: string[]) =>
+    store.regleAnonCreer(entite, pseudos),
+  )
+  ipcMain.handle('corpus:regleAnonAjouterPseudo', (_e, id: string, pseudo: string) =>
+    store.regleAnonAjouterPseudo(id, pseudo),
+  )
+  ipcMain.handle('corpus:regleAnonUtiliseeAilleurs', (_e, id: string, exceptId?: string) =>
+    store.regleAnonUtiliseeAilleurs(id, exceptId),
+  )
+  ipcMain.handle('corpus:regleAnonSupprimer', (_e, id: string) => store.regleAnonSupprimer(id))
+  ipcMain.handle('corpus:appliquerRegleAnon', (_e, entretienId: string, regleId: string) =>
+    store.appliquerRegleAnon(entretienId, regleId),
+  )
   ipcMain.handle('corpus:compterUsagesCategorie', (_e, code: string, exceptId?: string) =>
     store.compterUsagesCategorie(code, exceptId),
   )
