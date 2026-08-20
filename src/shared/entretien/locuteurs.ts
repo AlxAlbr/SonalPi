@@ -40,3 +40,90 @@ export function supprimerLocuteur(locuteurs: Locuteur[], index: number): void {
   const i = locuteurs.findIndex((l) => l.index === index)
   if (i !== -1) locuteurs.splice(i, 1)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pseudonymisation de l'ÉTIQUETTE (étape 2, plan §3.1/§3.2).
+//
+// Le pseudo est un CHAMP du locuteur (`pseudo`/`pseudoEtat`) : le rendu suit
+// par RÉFÉRENCE (le widget de gouttière, futur export) — pas de hack DOM.
+// La fonction pure ci-dessous dérive les parts d'affichage du libellé ; la
+// « suggestion » (nom matchant une règle corpus) est une REQUÊTE de l'étape 3,
+// jamais stockée — hors de cette fonction.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Parts d'affichage du libellé de tour (gouttière / exports) : PURE, testable.
+ *  - `nom` : nom réel affiché, avec « ? » pour un interviewer (convention
+ *    SonalPi, réintroduite au rendu seulement — jamais au modèle) ;
+ *  - `pseudo` : pseudonyme affiché (libellé BARRÉ + [pseudo]), ou null ;
+ *  - `refuse` : décision « ne pas pseudonymiser » persistée (libellé en clair
+ *    + ⊘).
+ *  Ordre des cas : un refus explicite prime sur le pseudo (parité SonalPi). */
+export interface LibelleGouttiere {
+  nom: string
+  pseudo: string | null
+  refuse: boolean
+  index: number
+  /** Couleur effective du NOM dans l'éditeur : choisie par l'utilisateur
+   *  (locuteur.couleur) ou auto par index (palette prédéfinie). */
+  couleur: string
+}
+
+/**
+ * Palette PRÉDÉFINIE des pastilles de locuteur (parité visuelle des pastilles
+ * de thème, mais ici auto-remplie — pas de codebook). Une couleur stable par
+ * INDEX (l'identité que les blocs référencent) : renommer un locuteur ne
+ * change pas sa couleur ; la suppression d'un locuteur fait remonter les
+ * couleurs des suivants (l'index est la seule identité du modèle).
+ */
+export const PALETTE_PASTILLES_LOCUTEURS = [
+  '#e57373', // rouge doux
+  '#64b5f6', // bleu
+  '#81c784', // vert
+  '#ffb74d', // orange
+  '#ba68c8', // violet
+  '#4dd0e1', // cyan
+  '#f06292', // rose
+  '#aed581', // vert clair
+  '#7986cb', // indigo
+  '#ffd54f', // jaune
+]
+
+/** Couleur de la pastille d'un locuteur : stable par index, dans la palette. */
+export function couleurPourLocuteur(index: number): string {
+  return PALETTE_PASTILLES_LOCUTEURS[(index - 1) % PALETTE_PASTILLES_LOCUTEURS.length] ?? PALETTE_PASTILLES_LOCUTEURS[0]
+}
+
+/** Noms affichables des couleurs de la palette (pour l'écriture du nom de la
+ *  couleur choisie — cf. tableau des locuteurs §3.3). */
+export const NOMS_COULEURS_LOCUTEURS: Record<string, string> = {
+  '#e57373': 'Rouge',
+  '#64b5f6': 'Bleu',
+  '#81c784': 'Vert',
+  '#ffb74d': 'Orange',
+  '#ba68c8': 'Violet',
+  '#4dd0e1': 'Cyan',
+  '#f06292': 'Rose',
+  '#aed581': 'Vert clair',
+  '#7986cb': 'Indigo',
+  '#ffd54f': 'Jaune',
+}
+
+/** Nom d'une couleur de la palette (« Vert » pour #81c784) — repli = le code brut. */
+export function nomDeCouleur(couleur: string): string {
+  return NOMS_COULEURS_LOCUTEURS[couleur] ?? couleur
+}
+
+export function libelleGouttiere(
+  locuteurs: Locuteur[],
+  index: number | null,
+  interviewer: boolean,
+): LibelleGouttiere {
+  if (index == null) return { nom: '', pseudo: null, refuse: false, index: -1, couleur: couleurPourLocuteur(1) }
+  const l = locuteurs.find((x) => x.index === index)
+  const nomBrut = l?.nom ?? `loc ${index}`
+  const nom = nomBrut && interviewer ? `${nomBrut} ?` : nomBrut
+  const couleur = l?.couleur ?? couleurPourLocuteur(index)
+  if (!l) return { nom, pseudo: null, refuse: false, index, couleur }
+  if (l.pseudoEtat === 'refuse') return { nom, pseudo: null, refuse: true, index, couleur }
+  return { nom, pseudo: l.pseudo || null, refuse: false, index, couleur }
+}

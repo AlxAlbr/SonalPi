@@ -121,6 +121,27 @@ describe('dérivation de l’état d’une ligne (brouillon vs entretien)', () =
     expect(l.occurrenceIds).toEqual(['a0', 'a1', 'a2'])
   })
 
+  test('compteurs scindés : une ligne mélangée compte anonymisé et exception (étape 1 §2.6)', () => {
+    const k = occurrencesKarine()
+    // 1re occurrence laissée en clair (exception), les 2 autres anonymisées.
+    const occ = [{ ...k[0], etat: 'exception' as const }, ...k.slice(1)]
+    const lignes = lignesAnonUnifiees([], occ, texteEntre)
+    expect(lignes).toHaveLength(1)
+    const l = lignes[0]
+    expect(l.nb).toBe(3)
+    expect(l.nbAnonymise).toBe(2)
+    expect(l.nbException).toBe(1)
+  })
+
+  test('une ligne TOUT-EXCEPTION reste une ligne entretien (l’état dérive des occurrences)', () => {
+    const occ = occurrencesKarine().map((o) => ({ ...o, etat: 'exception' as const }))
+    const lignes = lignesAnonUnifiees([], occ, texteEntre)
+    const l = lignes[0]
+    expect(l.etat).toBe('entretien')
+    expect(l.nbAnonymise).toBe(0)
+    expect(l.nbException).toBe(3)
+  })
+
   test('un brouillon de même entité qu’une occurrence est absorbé (entretien prime)', () => {
     const occ = occurrencesKarine()
     const lignes = lignesAnonUnifiees([{ entite: 'karine', pseudo: 'Vieux' }], occ, texteEntre)

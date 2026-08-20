@@ -207,6 +207,16 @@ describe('remapping — occurrences anon (même canal que les codages)', () => {
     expect(s.texteAnnote(a)).toBe('Lemaitre')
     expect(estOrpheline(a)).toBe(false)
   })
+
+  test('une EXCEPTION survit au remap : état et pseudo-mémoire intacts (étape 1 §2.6)', () => {
+    const s = creerSession(TEXTE)
+    const a = s.anonymiser('Pierre', 'P')
+    a.etat = 'exception' // bascule faite via le menu (option 2 : pseudo conservé)
+    s.editer((tr) => tr.insertText('Oh. ', 1)) // décale l'occurrence
+    expect(s.texteAnnote(a)).toBe('Pierre')
+    expect(a.etat).toBe('exception')
+    expect(a.pseudo).toBe('P') // la mémoire de restauration est conservée
+  })
 })
 
 describe('discipline d’architecture (garde-fou : entretien/ sans DOM)', () => {

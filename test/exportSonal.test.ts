@@ -209,6 +209,70 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(anns2.filter((a) => a.etat === 'exception')).toHaveLength(1)
     expect(anns2).toHaveLength(anns.length)
   })
+
+  test('une exception ne re-sérialise JAMAIS de data-pseudo, même avec une mémoire de modèle (étape 1 §2.6, option 2)', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const exc = r.payload.annotations.find((a) => a.etat === 'exception')
+    expect(exc).toBeDefined()
+    // Le menu contextuel (basculerException) conserve le pseudo en MÉMOIRE de
+    // modèle — il ne doit JAMAIS fuir dans le .sonal.
+    if (exc) exc.pseudo = 'Souvenir'
+    const out = exporterSonal({
+      ...r.payload,
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    // la classe est re-sérialisée…
+    expect(out).toContain('anon-exception')
+    // …jamais le pseudo.
+    expect(out).not.toContain('data-pseudo="Souvenir"')
+  })
+
+  test('libellé de tour pseudonymisé : round-trip loc-anon + data-locpseudo sans perte (étape 2 §3.4)', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const l = r.payload.locuteurs.find((x) => x.index === 1)!
+    l.pseudo = 'Chercheur'
+    l.pseudoEtat = 'confirme'
+    const out = exporterSonal({
+      ...r.payload,
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    // à l'export : le 1er segment du tour porte ligloc + loc-anon + data-locpseudo
+    expect(out).toContain('class="lblseg sautlig ligloc loc-anon"')
+    expect(out).toContain('data-locpseudo="Chercheur"')
+    // ré-import : pseudo + état retrouvés
+    const r2 = importerSonal(out, parse(out))
+    const l2 = r2.payload.locuteurs.find((x) => x.index === 1)
+    expect(l2?.pseudo).toBe('Chercheur')
+    expect(l2?.pseudoEtat).toBe('confirme')
+    // les autres marqueurs subsistent (ligloc nu sur les autres tours)
+    expect(out).toContain('class="lblseg sautlig ligloc"')
+  })
+
+  test('refus de libellé : loc-suggere-refuse à l\u2019export, JAMAIS de data-locpseudo (étape 2 §3.4)', () => {
+    const html = fixture('entretien1.sonal')
+    const r = importerSonal(html, parse(html))
+    const l = r.payload.locuteurs.find((x) => x.index === 1)!
+    l.pseudo = 'Chercheur' // mémoire conservée (option 2)…
+    l.pseudoEtat = 'refuse' // …mais refus explicite : le nom reste en clair
+    const out = exporterSonal({
+      ...r.payload,
+      codebook: r.codebook,
+      variables: r.variables,
+      legacy: r.legacy,
+    })
+    expect(out).toContain('class="lblseg sautlig ligloc loc-suggere-refuse"')
+    expect(out).not.toContain('data-locpseudo')
+    const r2 = importerSonal(out, parse(out))
+    const l2 = r2.payload.locuteurs.find((x) => x.index === 1)
+    expect(l2?.pseudoEtat).toBe('refuse')
+    expect(l2?.pseudo ?? '').toBe('') // la mémoire ne traverse pas le .sonal d'un refus
+  })
 })
 
 describe('round-trip import → export → ré-import (golden : rien ne se perd)', () => {

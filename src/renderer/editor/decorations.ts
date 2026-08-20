@@ -129,29 +129,46 @@ function construireDecorations(
     // (sinon « New »[ville] « York »[ville] au lieu de « New York »[ville]).
     // Le barré, lui, reste continu sur toute la plage.
     const anons = couvrant.filter((a) => a.type === 'anon')
-    const anonIci = anons.length > 0
+    // Occurrence ANONYMISÉE (barrée + [pseudo]) vs EXCEPTION (décision volontaire
+    // de laisser en clair — ni barré ni [pseudo], cf. §2.2). Sur un segment où
+    // une occurrence anonymisée et une exception se recouvrent, le barré
+    // l'emporte (c'est la décision de masquage qui reste visible) ; un segment
+    // couvert UNIQUEMENT par des exceptions reçoit la classe `anon-exception`.
+    const anonymiseIci = anons.some((a) => a.etat !== 'exception')
+    const exceptionSeule = anons.length > 0 && !anonymiseIci
+    // Le [pseudo] ne s'affiche qu'à la BORNE DE FIN d'une occurrence ANONYMISÉE
+    // — jamais sur une exception (le pseudo vit sur la ligne/règle, pas sur
+    // l'exception, §2.1).
     const pseudos = [
       ...new Set(
         anons
-          .filter((a) => a.to === segTo)
+          .filter((a) => a.etat !== 'exception' && a.to === segTo)
           .map((a) => a.pseudo ?? '')
           .filter(Boolean),
       ),
     ]
-    // Segment de CONTINUATION : l'occurrence anon couvre ce segment mais ne s'y
-    // termine pas → on barre (classe `anon`) sans afficher de pseudo (pas de
-    // data-pseudo, et `anon-suite` neutralise le ::after du CSS).
-    const suite = anonIci && pseudos.length === 0
+    // Segment de CONTINUATION d'une occurrence anonymisée découpée par une borne
+    // interne (ex. un codage sur « York » dans « New York ») : on barre (classe
+    // `anon`) sans afficher de pseudo (pas de data-pseudo, et `anon-suite`
+    // neutralise le ::after du CSS).
+    const suite = anonymiseIci && pseudos.length === 0
     const style = [souligne ? `box-shadow:${souligne}` : '', police].filter(Boolean).join(';')
     decos.push(
       Decoration.inline(segFrom, segTo, {
-        class: anonIci ? `annot anon${suite ? ' anon-suite' : ''}` : 'annot',
+        class: exceptionSeule
+          ? 'annot anon-exception'
+          : anonymiseIci
+            ? `annot anon${suite ? ' anon-suite' : ''}`
+            : 'annot',
         style,
         'data-annot-count': String(couvrant.length),
         'data-annot-ids': couvrant.map((a) => a.id).join(' '),
         ...(pseudos.length ? { 'data-pseudo': pseudos.join(' / ') } : {}),
         title: couvrant
-          .map((a) => (a.type === 'anon' ? (a.pseudo ? `anon→${a.pseudo}` : 'anon') : a.code))
+          .map((a) => {
+            if (a.type !== 'anon') return a.code
+            return a.etat === 'exception' ? 'exception' : a.pseudo ? `anon→${a.pseudo}` : 'anon'
+          })
           .join(' + '),
       }),
     )

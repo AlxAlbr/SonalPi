@@ -17,6 +17,9 @@
  * multi-alias/multi-pseudo (le modèle de données futur reste `string[]`).
  */
 
+import { cleEntite } from './brouillonsAnon'
+import { estOrpheline, type Annotation } from './annotation'
+
 export interface Plage {
   from: number
   to: number
@@ -31,7 +34,6 @@ function echapper(s: string): string {
 export function chevauche(a: Plage, b: Plage): boolean {
   return a.from < b.to && b.from < a.to
 }
-
 /**
  * Occurrences d'une entité dans un texte plat.
  *
@@ -127,4 +129,78 @@ export function plageVersPM(t: TextePlat, from: number, to: number): { from: num
   const pt = offsetVersPM(t, to)
   if (pf == null || pt == null) return null
   return { from: pf, to: pt }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation d'une ligne du tableau (v1, étape 1 §2.4) : relabel + pose.
+//
+// Logique extraite en PURE pour être testable headless (le couplage Vue/PM vit
+// dans useEntretien.validerAnon, qui APPLIQUE les instructions renvoyées ici).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Instructions d'application produites par une validation de ligne : rien n'est
+ *  muté ici — l'appelant (la table réactive) applique les trois listes. */
+export interface InstructionsValiderAnon {
+  /** Occurrences ANONYMISÉES de la ligne à relabeler (jamais les exceptions). */
+  relabel: Array<{ id: string; pseudo: string }>
+  /** Annotations à retirer (absorption « la plus longue gagne »). */
+  retirer: string[]
+  /** Nouvelles occurrences (etat 'anonymise') à poser. */
+  poser: Array<{ id: string; from: number; to: number; pseudo: string }>
+}
+
+/**
+ * Applique la validation d'une ligne (Entrée) :
+ *  1. Relabel — les occurrences ANONYMISÉES de la ligne reçoivent `pseudo` ;
+ *     les EXCEPTIONS gardent leur état et leur pseudo-mémoire intacts (§2.4 :
+ *     on n'écrase jamais une exception) ;
+ *  2. Pose — une occurrence est posée sur chaque match du texte NON déjà
+ *     couvert, avec les règles du v1 : déjà couvert en entier → rien ; match
+ *     contenant toutes les occurrences qui le touchent → absorption (retrait +
+ *     pose pleine) — MAIS une EXCEPTION couvrante (même partielle, même
+ *     contenue) BLOQUE la pose : le match reste en clair, rien n'est retiré
+ *     (« une exception ne repasse jamais à traiter »).
+ * PURE : lit `annotations`/`texteDe`, ne mute rien.
+ */
+export function instructionsValiderAnon(
+  annotations: Annotation[],
+  matches: Plage[],
+  cle: string,
+  pseudo: string,
+  texteDe: (from: number, to: number) => string,
+  genId: () => string,
+): InstructionsValiderAnon {
+  const existant = annotations.filter((a) => a.type === 'anon' && !estOrpheline(a))
+
+  // 1. Relabel : occurrences ANONYMISÉES de la ligne uniquement.
+  const relabel: Array<{ id: string; pseudo: string }> = []
+  for (const a of existant) {
+    if (a.etat === 'exception') continue
+    if (cleEntite(texteDe(a.from, a.to)) === cle) relabel.push({ id: a.id, pseudo })
+  }
+
+  // 2. Pose sur les matches non couverts (avec les gardes d'exception).
+  const retirer: string[] = []
+  const poser: Array<{ id: string; from: number; to: number; pseudo: string }> = []
+  for (const m of matches) {
+    const touches = existant.filter((a) => chevauche(a, m))
+    if (touches.length === 0) {
+      poser.push({ id: genId(), from: m.from, to: m.to, pseudo })
+      continue
+    }
+    // Une exception au contact du match bloque la pose ET le retrait : le match
+    // reste en clair (sa partie exceptée est mémorisée, l'autre n'est pas
+    // re-marquée — conservateur, cf. plan §2.4).
+    if (touches.some((a) => a.etat === 'exception')) continue
+    // Déjà couvert en entier par une occurrence anonymisée → rien à faire.
+    if (touches.some((a) => a.from <= m.from && a.to >= m.to)) continue
+    // Le match contient toutes les occurrences anonymisées qui le touchent :
+    // absorption (la plus longue gagne) — on retire et on pose l'entité pleine.
+    if (touches.every((a) => a.from >= m.from && a.to <= m.to)) {
+      for (const a of touches) retirer.push(a.id)
+      poser.push({ id: genId(), from: m.from, to: m.to, pseudo })
+    }
+  }
+
+  return { relabel, retirer, poser }
 }

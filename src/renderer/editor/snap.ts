@@ -44,12 +44,18 @@ function versDebutMot(state: EditorState, pos: number): number {
   return pos - ($p.parentOffset - off)
 }
 
-/** Avance une position vers la FIN du mot qui la contient (dans son bloc). */
+/** Avance une position vers la FIN du mot qui la contient (dans son bloc).
+ *  N'étend que si la position est DANS un mot (précédée d'un caractère de mot) :
+ *  si elle tombe déjà à la frontière de DÉBUT d'un mot (juste après un espace),
+ *  on la laisse — la sélection s'arrête proprement là, sans absorber le mot qui
+ *  suit (ex. sélection « Thomas, » qui ne doit pas avaler « Bonjour »). */
 function versFinMot(state: EditorState, pos: number): number {
   const $p = state.doc.resolve(pos)
   if (!$p.parent.isTextblock) return pos
   const text = $p.parent.textContent
   let off = $p.parentOffset
+  // Déjà au début d'un mot (précédé d'un séparateur) → frontière propre, on ne bouge pas.
+  if (off > 0 && !WORD_CHAR.test(text[off - 1])) return pos
   while (off < text.length && WORD_CHAR.test(text[off])) off++
   return pos + (off - $p.parentOffset)
 }

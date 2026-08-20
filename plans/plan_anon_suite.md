@@ -33,6 +33,98 @@
     SonalAsynchro — pas de sérialisation dans le `tabAnon` du `.sonal` avant
     l'étape 3. Navigation ◄ i/N ► sur les brouillons « entité seule » : différée.
 
+- **Étape 1 (2.1 → 2.6) — FAITE** ✅ : exceptions par occurrence.
+  - §2.1 Modèle : rien à migrer côté `Annotation.etat` — l'import produit déjà
+    les exceptions (span `.anon-exception`), l'export les re-sérialise (classe,
+    jamais de `data-pseudo`). **Sémantique tranchée (option 2)** : le pseudo
+    d'une exception n'est jamais sérialisé à l'export ; en modèle il est
+    conservé comme mémoire locale — qu'elle vienne de la bascule dans l'app ou
+    d'un `data-pseudo` hors-convention importé — invisible à l'écran et dans
+    le `.sonal`, pour un restore sans perte.
+  - §2.2 Rendu : `decorations.ts` distingue par `etat` — `anonymise` → classe
+    `anon` (barré + [pseudo]), `exception` → classe `anon-exception` (PAS de
+    barré, PAS de [pseudo] ::after) ; sur un segment couvrant les deux, le barré
+    l'emporte. `editeur.css` : `.editeur .anon-exception { text-decoration:
+    underline dotted #bbb }`.
+  - §2.3 Menu contextuel : plugin ProseMirror `pluginMenuAnon`
+    (`editor/menuContexteAnon.ts`) — `handleDOMEvents.contextmenu` +
+    `posAtCoords` → occurrence anon couvrante par `find` sur le modèle → choix
+    laissé à l'UI (`ouvrirMenuAnon`). Composant `MenuContexteAnon.vue`
+    (Téléporté à body, couche z=1000, fermeture clic-hors-menu / Escape) :
+    « Laisser en clair (exception) » → `basculerException(id)` (etat='exception',
+    pseudo conservé en mémoire) ; « Remettre en anonymisé » →
+    `basculerAnonymise(id)` (etat='anonymise', pseudo = mémoire de l'exception,
+    sinon pseudo de la ligne via `pseudoDeLigne`). Hors occurrence → `false`,
+    menu natif conservé.
+  - §2.4 Tweak `validerAnon` : logique extraite en fonction PURE
+    `instructionsValiderAnon` (`anonymisation.ts`) — relabel des occurrences
+    ANONYMISÉES seules (exceptions intactes), pose d'un match bloquée par une
+    exception couvrante (y compris conteneur : pas d'absorption sur une
+    exception). `useEntretien.validerAnon` applique les instructions (relabel /
+    retraits / poses) sur la table réactive.
+  - §2.5 Compteurs : la ligne du tableau affiche le compteur scindé
+    `anonymisé / exception` (`nbAnonymise` / `nbException` de la projection
+    `lignesAnonUnifiees`) ; le « à traiter » vivra avec l'étape 3.
+  - §2.6 Tests : `test/basculeAnon.test.ts` (instructionsValiderAnon : relabel
+    ne touche pas les exceptions, exception bloquante en couverture comme en
+    conteneur, absorption conservée sur l'anonymisé pur), survie de l'`etat` au
+    remap (`remap.test.ts`), conservation du `data-pseudo` hors-convention à
+    l'import (mémoire) + jamais d'émission sur les exceptions à l'export
+    (`importSonal.test.ts`/`exportSonal.test.ts`), compteurs scindés
+    (`brouillonsAnon.test.ts`). **209/209 tests** passent, typecheck node+web
+    OK, build OK.
+
+- **Étape 2 (3.1 → 3.4) — FAITE** ✅ : locuteurs / gouttière (refonte visuelle +
+  table de l'onglet + round-trip `.sonal`). Reste optionnel : le dialogue
+  « pseudonymiser aussi l'étiquette ? » à la validation d'une ligne Anon
+  (miroir SonalPi `proposerPseudoLocuteur`) — reporté à l'étape 3 (suggestion),
+  comme le plan le permet (§3.3).
+  - §3.1 Modèle : `Locuteur.pseudo?` / `Locuteur.pseudoEtat?`
+    (`'confirme' | 'refuse'`), champs ADDITIFS optionnels — pas de bump de
+    `formatVersion`. Le pseudo est porté par le LOCUTEUR (référence, pas de
+    copie dans les blocs) ; le rendu suit. Invariant de matérialisation du plan
+    (§3.1 : une règle est matérialisée si ≥ 1 occurrence OU ≥ 1 locuteur
+    confirmé) à garder pour le scan de l'étape 3.
+  - §3.2 Gouttière : libellé AU-DESSUS du bloc (layout SonalPi `.ligloc`) —
+    `locuteursGutter.ts` refait (widget `display:block` dans le contenu du
+    paragraphe, décorations seules : schéma intact, positions/remap sans
+    conséquence). Placement : 1er bloc d'un tour (comme le header « deb »
+    SonalPi) → libellé ; tour sans locuteur → gouttière vide cliquable (`.vide`) ;
+    continuations → RIEN (pas de ligne vide). Rendu du pseudo : nom BARRÉ +
+    `[pseudo]` dans un span sœur (le line-through ne se propage pas) ; refus →
+    nom en clair + ⊘. Clic-tour conservé (curseur + seek audio). `editeur.css`
+    : `.gouttiere-loc` en bloc, `.loc-nom` barré conditionnellement (class
+    `loc-anon`), `.loc-pseudo` atomic. Texte des tours étiquetés DÉCALÉ d'un
+    cran à droite (`.lbl-tour` : padding sur tout bloc d'un locuteur nommé, y
+    compris scissions Entrée ; marge négative du widget pour garder le libellé
+    à l'extrême gauche). NOM coloré : le nom s'écrit dans la couleur du locuteur
+    (choisie ou auto par index) — inline style, la pastille de la gouttière a
+    été RETIRÉE (décision utilisateur : le carré vit dans le tableau).
+  - §3.3 Onglet Locuteurs : petit TABLEAU (Couleur | Nom | Pseudo | Interv. |
+    ✕) — carré de couleur auto-rempli par index (`couleurPourLocuteur`, palette
+    prédéfinie de 10), clic → palette (Téléportée, ∅ = retour auto) →
+    `choisirCouleurLoc` pose `Locuteur.couleur` : le NOM du locuteur s'écrit
+    dans cette couleur dans l'éditeur, SANS toucher au pseudo (décision utilisateur).
+    Champ **Pseudo** + interrupteur ✓ confirmer / ⊘ refuser (parité SonalPi
+    `loc-anon`/`loc-suggere-refuse`) dans `useEntretien`
+    (`setPseudoLoc`/`setPseudoEtatLoc`/`choisirCouleurLoc`, hors journal comme
+    l'interrupteur interviewer). Pas de suggestion ici (étape 3).
+  - §3.4 Round-trip `.sonal` : marqueurs du libellé sur les `.ligloc` — IMPORT
+    (`importSonal.ts`) : `loc-anon` + `data-locpseudo` → `Locuteur.pseudo` +
+    `pseudoEtat:'confirme'` ; `loc-suggere-refuse` → `pseudoEtat:'refuse'`
+    (aucun pseudo sur un refus). EXPORT (`exportSonal.ts`) : le 1er segment du
+    1er bloc de chaque tour reçoit `ligloc` + `data-nomloc` (vrai nom) + le
+    marqueur selon l'état (`loc-anon` + `data-locpseudo` si pseudo posé non
+    refusé ; `loc-suggere-refuse` si refus). La couleur est interne à l'app et
+    ne se sérialise pas ; `data-nomloc-barre` reste un artefact de rendu SonalPi
+    (re-dérivé à son ouverture — on n'émet JAMAIS le nom réel barré).
+  - §3.5 Tests : `libelleGouttiere`/`couleurPourLocuteur`/`nomDeCouleur` (purs)
+    + DOM du libellé (happy-dom, garde « sans pseudo rien n'est barré ») dans
+    `test/locuteurs.test.ts` ; round-trip `.ligloc` (import des marqueurs,
+    export `loc-anon`/`data-locpseudo` sans perte, refus sans `data-locpseudo`)
+    dans `test/importSonal.test.ts`/`exportSonal.test.ts`.
+    **227/227 tests** passent, typecheck node+web OK, build OK.
+
 ---
 
 ## 0. Périmètre
@@ -191,9 +283,19 @@ s'enrichit de règles de portée corpus, et repart vers SonalPi sans perte.
 l'import `.sonal` produit déjà les exceptions (span `.anon-exception`), l'export
 les re-sérialise. Rien à migrer.
 
-**Sémantique à fixer** : une exception **n'est pas barrée** et **n'affiche pas
-de `[pseudo]`** — le texte reste lisible. Le `pseudo` d'une exception reste vide
-(le pseudo vit sur la règle, pas sur l'exception). On stocke l'état, rien d'autre.
+**Sémantique (tranchée en session : option 2 — mémoire locale, y compris à
+l'import)** : une exception **n'est pas barrée** et **n'affiche jamais de
+`[pseudo]`** — le texte reste lisible. Le pseudo d'une exception n'est
+**jamais sérialisé à l'EXPORT** (un span `.anon-exception` ne porte pas de
+`data-pseudo` — convention SonalPi vérifiée dans son code : SonalPi supprime
+le `data-pseudo` lui-même en posant l'exception) ; en MODÈLE il est conservé
+comme mémo locale, qu'il vienne de la bascule dans l'app (l'occurrence
+anonymisée portait son pseudo) ou d'un `data-pseudo` hors-convention présent
+sur le span importé. Cette mémo sert à « remettre en anonymisé » sans perte
+(cas de l'entité à une seule occurrence). Quand les `RegleAnon` existeront
+(étape 3), le vrai porteur du pseudo sera la règle et cette mémoire deviendra
+morte (l'exception référencera la règle par `regle`). On ne stocke jamais
+autre chose que `etat` + ce pseudo-mémoire.
 
 ### 2.2 Rendu (décorations + CSS)
 
@@ -213,22 +315,27 @@ de `[pseudo]`** — le texte reste lisible. Le `pseudo` d'une exception reste vi
   - Si le clic tombe sur une occurrence `anon` → ouvrir un menu flottant (petit
     composant Vue, positionné à l'événement) :
     - si `etat:'anonymise'` → **« Laisser en clair (exception) »** →
-      `basculerException(id)` met `etat='exception'`, vide `pseudo`.
+      `basculerException(id)` met `etat='exception'` et **conserve le pseudo
+      en mémoire de modèle** (jamais affiché, jamais exporté — option 2, cf. §2.1).
     - si `etat:'exception'` → **« Remettre en anonymisé »** →
-      `basculerAnonymise(id)` remet `etat='anonymise'`, `pseudo` = celui de la
-      ligne (règle) courante.
+      `basculerAnonymise(id)` remet `etat='anonymise'`, `pseudo` = pseudo
+      mémorisé de l'exception s'il est présent, sinon celui de la ligne
+      (règle) courante.
   - Sinon (texte non anon) → pas de menu (ou menu neutre plus tard).
 - Pas de suppression d'occurrence ici (le ✕ de la ligne reste l'acte destructif).
 
 ### 2.4 Tweak `validerAnon` (sous-étape 3 v1)
 
 Aujourd'hui `validerAnon` relabel TOUTES les occurrences de l'entité (y compris
-les exceptions) → ça remettrait un `pseudo` sur une exception. À corriger :
-- relabel **seulement** les `etat:'anonymise'` (les exceptions gardent `pseudo` vide) ;
+les exceptions) → ça écraserait la mémoire de pseudo d'une exception. À corriger
+(FAIT, §2.4) :
+- relabel **seulement** les `etat:'anonymise'` (les exceptions gardent leur état
+  et leur pseudo-mémoire intacts) ;
 - « poser nouveau » sur un match : si le match est couvert par une **exception**
-  de la même entité → **ne pas striker** (l'exception reste, le match reste en
-  clair). C'est le respect de la mémorisation : une exception ne repasse jamais
-  « à traiter ».
+  de l'entité → **ne pas striker** (l'exception reste, le match reste en
+  clair), y compris pour un match qui CONTIENT une exception (pas d'absorption
+  par-dessus une exception). C'est le respect de la mémorisation : une
+  exception ne repasse jamais « à traiter ».
 
 ### 2.5 Compteurs & tableau
 

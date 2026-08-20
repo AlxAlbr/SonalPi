@@ -183,4 +183,25 @@ describe('snapBornes — ne jamais couper un mot en deux', () => {
     const snap = snapBornes(editor.state, from, to)
     expect(editor.state.doc.textBetween(snap.from, snap.to)).toBe('Pierre Lemaitre')
   })
+
+  test('bornes finissant au DÉBUT d\'un mot (après espace) ne l\'avalent pas', () => {
+    const entretien: Entretien = { annotations: [], ancres: [] }
+    editor = creerEditeur(entretien, '<p>Bonjour Thomas, Bonjour Amandine</p>')
+    const doc = editor!.state.doc
+    // Positions DOC (pas indices de textContent) de « Thomas, » + l'espace de fin,
+    // de sorte que `to` tombe pile au début du mot qui suit (« Bonjour »).
+    let from = -1
+    let to = -1
+    doc.descendants((n, pos) => {
+      if (n.isText) {
+        const start = n.text!.indexOf('Thomas,')
+        if (start >= 0) {
+          from = pos + start
+          to = pos + start + 'Thomas,'.length + 1
+        }
+      }
+    })
+    const snap = snapBornes(editor!.state, from, to)
+    expect(doc.textBetween(snap.from, snap.to)).toBe('Thomas, ')
+  })
 })

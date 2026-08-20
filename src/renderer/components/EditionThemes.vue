@@ -230,6 +230,15 @@ onMounted(() => {
   cursor: pointer;
   flex: none;
 }
+/* Fait occuper la couleur à toute la surface (évite le « carré dans un carré »
+ * du swatch natif, identique au sélecteur de couleur des locuteurs). */
+.swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
 .nom-thm {
   flex: 1;
   min-width: 0;

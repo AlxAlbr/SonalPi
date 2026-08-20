@@ -7,9 +7,10 @@ import { pluginRemap } from '../editor/remap'
 import { pluginDecorations, decorationsPluginKey } from '../editor/decorations'
 import { pluginGouttiere, gouttierePluginKey } from '../editor/locuteursGutter'
 import { pluginLecture } from '../editor/lecture'
+import { pluginMenuAnon, type CibleMenuAnon } from '../editor/menuContexteAnon'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
-import { aplatir, occurrencesDe, plageVersPM, chevauche } from '../../shared/entretien/anonymisation'
+import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../shared/entretien/anonymisation'
 import {
   cleEntite,
   trouverBrouillon,
@@ -103,6 +104,16 @@ export function useEntretien(deps: {
   // Brouillons d'anonymisation entretien-locaux (pas des règles) : entités
   // saisies sans occurrence posée. Persistés dans entretiens/<id>.json.brouillonsAnon.
   const brouillonsAnon = ref<BrouillonAnon[]>([])
+  /** Menu contextuel d'une occurrence anon (clic droit, §2.3) — requête
+   *  VOLATILE : cible (coordonnées écran + occurrence) tant que le menu est
+   *  ouvert, sinon null. Le composant MenuContexteAnon le consomme. */
+  const menuContextuelAnon = ref<{
+    x: number
+    y: number
+    id: string
+    etat: 'anonymise' | 'exception'
+    entite: string
+  } | null>(null)
   /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (
    *  « Attribuer la sélection » vs « …le bloc courant »). */
   const selectionVide = ref(true)
@@ -134,6 +145,7 @@ export function useEntretien(deps: {
         pluginDecorations(entretien, deps.couleurTrait, deps.tailleTrait),
         pluginGouttiere(() => locuteurs.value, deps.clicTour),
         pluginLecture(),
+        pluginMenuAnon(entretien, ouvrirMenuAnon),
       ]
     },
   })
@@ -288,7 +300,7 @@ export function useEntretien(deps: {
     }
     const occurrences = entretien.annotations
       .filter((a) => a.type === 'anon' && !estOrpheline(a))
-      .map((a) => ({ id: a.id, from: a.from, to: a.to, pseudo: a.pseudo }))
+      .map((a) => ({ id: a.id, from: a.from, to: a.to, pseudo: a.pseudo, etat: a.etat }))
     lignesAnon.value = lignesAnonUnifiees(brouillonsAnon.value, occurrences, (f, t) =>
       ed.state.doc.textBetween(f, t, ' '),
     )
@@ -396,6 +408,7 @@ export function useEntretien(deps: {
     rafraichirDecorations()
     rafraichirGouttiere()
     etatSauvegarde.value = 'à jour'
+    fermerMenuAnon() // un menu ouvert pointait vers l'entretien précédent
     return true
   }
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
@@ -412,6 +425,7 @@ export function useEntretien(deps: {
     brouillonsAnon.value = []
     selectionAnon.value = null
     hintAnon.value = null
+    fermerMenuAnon()
     rafraichir()
     rafraichirDecorations()
   }
@@ -533,9 +547,80 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
 
+  // --- Pseudonymisation du LIBELLÉ (étape 2, §3.3) : le pseudo est un champ du
+  // locuteur, le rendu suit par référence (gouttière, futur export). Hors
+  // journal (comme l'interrupteur interviewer) : l'inverse est le re-clic. ---
+  /** Pose ou retire le pseudo d'un locuteur. Pseudo vidé → la décision
+   *  (confirme/refuse) repart aussi à absent (plus rien à afficher ni à
+   *  refuser). Le rendu « Nom̶ [pseudo] » suit immédiatement (rafraichirGouttiere). */
+  function setPseudoLoc(index: number, pseudo: string) {
+    const l = locuteurs.value.find((x) => x.index === index)
+    if (!l) return
+    const p = pseudo.trim()
+    if (p) l.pseudo = p
+    else {
+      delete l.pseudo
+      delete l.pseudoEtat
+    }
+    rafraichirGouttiere()
+    planifierSauvegarde()
+  }
+  /** Décision persistée de pseudonymiser (✓ « confirme ») ou non (⊘ « refuse »)
+   *  le libellé d'un locuteur — parité SonalPi `loc-anon` / `loc-suggere-refuse`.
+   *  La décision n'a de sens qu'avec un pseudo posé (garde ci-dessous). */
+  function setPseudoEtatLoc(index: number, etat: 'confirme' | 'refuse') {
+    const l = locuteurs.value.find((x) => x.index === index)
+    if (!l || !l.pseudo) return
+    l.pseudoEtat = etat
+    rafraichirGouttiere()
+    planifierSauvegarde()
+  }
+  /** Bascule la décision de pseudonymisation d'un locuteur en un seul bouton :
+   *  ✓ (confirme) ⟷ ⊘ (refuse). Un pseudo posé sans décision vaut « confirme »
+   *  (pseudonymisé), donc cliquer une 1re fois le passe en « refuse ». */
+  function basculerPseudoEtatLoc(index: number) {
+    const l = locuteurs.value.find((x) => x.index === index)
+    if (!l || !l.pseudo) return
+    l.pseudoEtat = l.pseudoEtat === 'refuse' ? 'confirme' : 'refuse'
+    rafraichirGouttiere()
+    planifierSauvegarde()
+  }
+  /** Choisit la couleur du NOM d'un locuteur (tableau §3.3) : `couleur` posée,
+   *  le nom s'écrit dans cette couleur dans l'éditeur — SANS toucher au pseudo
+   *  (la pseudonymisation du libellé reste un choix indépendant). Choix vide
+   *  (∅) → retour à l'auto par index. Hors journal (comme les interrupteurs). */
+  function choisirCouleurLoc(index: number, couleur: string) {
+    const l = locuteurs.value.find((x) => x.index === index)
+    if (!l) return
+    if (couleur) l.couleur = couleur
+    else delete l.couleur
+    rafraichirGouttiere()
+    planifierSauvegarde()
+  }
+
   // --- Suppression d'un locuteur (acte destructif : nom + valeurs EAV + le
   // lien de ses blocs — confirmation in-app, même idiome que les thèmes) ---
   const locuteurASupprimer = ref<{ index: number; nom: string; nbBlocs: number } | null>(null)
+  /** Supprime un locuteur immédiatement (sans confirmation). Utilisée telle
+   *  quelle quand le locuteur n'a AUCUN bloc attribué (rien à risque → aucune
+   *  alerte), et par `confirmerSuppressionLocuteur` après validation du cas
+   *  « il a des blocs ». */
+  function supprimerLocuteurSilencieux(index: number) {
+    const ed = editor.value
+    if (!ed) return
+    const tr = ed.state.tr
+    ed.state.doc.forEach((node, offset) => {
+      if (node.type.name === 'paragraph' && node.attrs.loc === index) {
+        tr.setNodeMarkup(offset, undefined, { ...node.attrs, loc: null })
+      }
+    })
+    if (tr.steps.length) ed.view.dispatch(tr)
+    supprimerLocuteur(locuteurs.value, index)
+    locuteurASupprimer.value = null
+    rafraichir() // des entrées de journal visant ce locuteur deviennent grisées
+    rafraichirGouttiere()
+    planifierSauvegarde()
+  }
   function demanderSuppressionLocuteur(index: number) {
     const ed = editor.value
     const l = locuteurs.value.find((x) => x.index === index)
@@ -544,27 +629,20 @@ export function useEntretien(deps: {
     ed.state.doc.forEach((node) => {
       if (node.type.name === 'paragraph' && node.attrs.loc === index) nbBlocs++
     })
+    // Aucun bloc attribué → suppression directe et SILENCIEUSE (pas d'alerte).
+    if (nbBlocs === 0) {
+      supprimerLocuteurSilencieux(index)
+      return
+    }
     locuteurASupprimer.value = { index, nom: l.nom, nbBlocs }
   }
-  /** Confirme : ses blocs passent à « aucun » (UNE transaction — le remap et le
-   *  journal la voient passer), puis l'entrée quitte la liste. Non journalisé
-   *  (non réversible, comme la suppression de thème). */
+  /** Confirme (cas « ce locuteur a des blocs ») : ils passent à « aucun », puis
+   *  l'entrée quitte la liste. Non journalisé (non réversible, comme la
+   *  suppression de thème). */
   function confirmerSuppressionLocuteur() {
-    const ed = editor.value
     const cible = locuteurASupprimer.value
-    if (!ed || !cible) return
-    const tr = ed.state.tr
-    ed.state.doc.forEach((node, offset) => {
-      if (node.type.name === 'paragraph' && node.attrs.loc === cible.index) {
-        tr.setNodeMarkup(offset, undefined, { ...node.attrs, loc: null })
-      }
-    })
-    if (tr.steps.length) ed.view.dispatch(tr)
-    supprimerLocuteur(locuteurs.value, cible.index)
-    locuteurASupprimer.value = null
-    rafraichir() // des entrées de journal visant ce locuteur deviennent grisées
-    rafraichirGouttiere()
-    planifierSauvegarde()
+    if (!cible) return
+    supprimerLocuteurSilencieux(cible.index)
   }
 
   // --- Valeurs EAV de CET entretien (chez leur propriétaire, pas de l="all") ---
@@ -666,47 +744,34 @@ export function useEntretien(deps: {
       .map((pl) => plageVersPM(t, pl.from, pl.to))
       .filter((x): x is { from: number; to: number } => x !== null)
     const cle = cleEntite(e)
-    // Relabel les occurrences DÉJÀ posées de cette entité (même texte).
-    for (const a of entretien.annotations) {
-      if (a.type !== 'anon' || estOrpheline(a)) continue
-      if (cleEntite(ed.state.doc.textBetween(a.from, a.to, ' ')) === cle) a.pseudo = p
+    // Les instructions sont calculées PUR (anonymisation.ts §2.4) puis
+    // APPLIQUÉES sur la table réactive : relabel des occurrences ANONYMISÉES
+    // seules (les exceptions gardent état + pseudo-mémoire), poses bloquées
+    // par une exception couvrante, absorption « la plus longue gagne » sur
+    // l'anonymisé pur (intacts par rapport à v1).
+    const instr = instructionsValiderAnon(
+      entretien.annotations,
+      matches,
+      cle,
+      p,
+      (f, t2) => ed.state.doc.textBetween(f, t2, ' '),
+      genId,
+    )
+    for (const r of instr.relabel) {
+      const a = entretien.annotations.find((x) => x.id === r.id)
+      if (a) a.pseudo = r.pseudo
     }
-    // Pose une occurrence sur chaque match. « La plus longue gagne » : un
-    // match déjà couvert EN ENTIER n'est pas re-striqué ; un match qui CONTIENT
-    // des occurrences plus courtes (ex. « New » / « York » posées à part dans
-    // « New York ») les absorbe pour re-poser l'entité comme UNE occurrence
-    // pleine. Un chevauchement partiel NON contenu reste en l'état (incluses différé).
-    const existant = entretien.annotations.filter((a) => a.type === 'anon' && !estOrpheline(a))
-    for (const m of matches) {
-      const touches = existant.filter((a) => chevauche(a, m))
-      if (touches.length === 0) {
-        entretien.annotations.push({
-          id: genId(),
-          type: 'anon',
-          from: m.from,
-          to: m.to,
-          auteur,
-          pseudo: p,
-          etat: 'anonymise',
-        })
-        continue
-      }
-      // Déjà couvert en entier par une occurrence → rien à faire (re-validation).
-      if (touches.some((a) => a.from <= m.from && a.to >= m.to)) continue
-      // Le match contient toutes les occurrences qui le touchent : on les retire
-      // puis on pose le match en une occurrence unique (la plus longue gagne).
-      if (touches.every((a) => a.from >= m.from && a.to <= m.to)) {
-        for (const a of touches) retirerAnnotation(entretien, a.id)
-        entretien.annotations.push({
-          id: genId(),
-          type: 'anon',
-          from: m.from,
-          to: m.to,
-          auteur,
-          pseudo: p,
-          etat: 'anonymise',
-        })
-      }
+    for (const id of instr.retirer) retirerAnnotation(entretien, id)
+    for (const o of instr.poser) {
+      entretien.annotations.push({
+        id: o.id,
+        type: 'anon',
+        from: o.from,
+        to: o.to,
+        auteur,
+        pseudo: o.pseudo,
+        etat: 'anonymise',
+      })
     }
     // Le brouillon a fait son travail : il est consommé.
     consommerBrouillon(brouillonsAnon.value, e)
@@ -761,6 +826,75 @@ export function useEntretien(deps: {
     }
   }
 
+  // --- Menu contextuel des occurrences (exceptions, §2.3) ---
+  /** Ouvre le menu flottant sur une occurrence (appelé par le plugin
+   *  `pluginMenuAnon` à chaque clic droit couvrant). L'occurrence est résolue
+   *  par le plugin ; ici on ne fait que capturer la cible pour le composant. */
+  function ouvrirMenuAnon(cible: CibleMenuAnon) {
+    const a = cible.annotation
+    const ed = editor.value
+    // Le texte d'entité se lit sur le doc courant (les positions suivent le remap).
+    const entite = ed ? ed.state.doc.textBetween(a.from, a.to, ' ') : ''
+    menuContextuelAnon.value = {
+      x: cible.x,
+      y: cible.y,
+      id: a.id,
+      etat: a.etat === 'exception' ? 'exception' : 'anonymise',
+      entite,
+    }
+  }
+  /** Ferme le menu (clic hors menu, Escape, ou après une action). */
+  function fermerMenuAnon() {
+    menuContextuelAnon.value = null
+  }
+  /** Pseudo de la LIGNE du tableau contenant l'occurrence `a` : celui d'une
+   *  autre occurrence ANONYMISÉE de même entité (le relabel de ligne), sinon
+   *  celui du brouillon courant. Vide si la ligne n'en a aucun (entité dont
+   *  toutes les occurrences sont des exceptions) — « remettre en anonymisé »
+   *  re-barre alors sans pseudo, prêt à être relabelé au tableau (§2.1 : le
+   *  pseudo vit sur la ligne/règle, pas sur l'exception). */
+  function pseudoDeLigne(a: Annotation): string {
+    const ed = editor.value
+    if (!ed) return ''
+    const cle = cleEntite(ed.state.doc.textBetween(a.from, a.to, ' '))
+    if (!cle) return ''
+    for (const autre of entretien.annotations) {
+      if (autre.type !== 'anon' || estOrpheline(autre) || autre.etat === 'exception') continue
+      if (cleEntite(ed.state.doc.textBetween(autre.from, autre.to, ' ')) === cle && autre.pseudo) {
+        return autre.pseudo
+      }
+    }
+    return trouverBrouillon(brouillonsAnon.value, cle)?.pseudo ?? ''
+  }
+  /** « Laisser en clair » : l'occurrence devient une EXCEPTION. On ne stocke
+   *  que l'état ; le pseudo éventuel reste en MODÈLE comme mémoire locale
+   *  (jamais affiché, jamais sérialisé — option 2, plan §2.1) pour que
+   *  « remettre en anonymisé » soit sans perte. Non journalisée (comme
+   *  validerAnon) ; l'inverse est le second item du menu. */
+  function basculerException(id: string) {
+    const a = entretien.annotations.find((x) => x.id === id)
+    if (!a || a.type !== 'anon' || a.etat === 'exception') return
+    a.etat = 'exception'
+    fermerMenuAnon()
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+  }
+  /** « Remettre en anonymisé » : l'exception redevient une occurrence
+   *  anonymisée. Priorité au pseudo-mémoire conservé sur l'exception (restore
+   *  sans perte), sinon au pseudo de la ligne courante (§2.3) — vide si la
+   *  ligne n'en a pas (on re-barre, l'utilisateur relabel au tableau). */
+  function basculerAnonymise(id: string) {
+    const a = entretien.annotations.find((x) => x.id === id)
+    if (!a || a.type !== 'anon' || a.etat === 'anonymise') return
+    a.etat = 'anonymise'
+    a.pseudo = a.pseudo || pseudoDeLigne(a)
+    fermerMenuAnon()
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+  }
+
   /** Données brutes de l'entretien ouvert (pour l'export .sonal, assemblé par l'App). */
   function donneesExport(): {
     corpsTexte: unknown
@@ -810,6 +944,10 @@ export function useEntretien(deps: {
     renommerLoc,
     nouveauLocuteur,
     setInterviewer,
+    setPseudoLoc,
+    setPseudoEtatLoc,
+    basculerPseudoEtatLoc,
+    choisirCouleurLoc,
     locuteurASupprimer,
     demanderSuppressionLocuteur,
     confirmerSuppressionLocuteur,
@@ -821,6 +959,10 @@ export function useEntretien(deps: {
     majBrouillonLigne,
     supprimerLigneAnon,
     changerPorteeAnon,
+    menuContextuelAnon,
+    fermerMenuAnon,
+    basculerException,
+    basculerAnonymise,
     entiteExisteDeja,
     // cycle de vie / persistance
     ouvrir,

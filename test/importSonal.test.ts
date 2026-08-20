@@ -59,6 +59,41 @@ describe('import .sonal — invariants (golden)', () => {
     expect(payload.annotations.filter((a) => a.type === 'anon').length).toBeGreaterThan(0)
   })
 
+  test('exception : un data-pseudo hors-convention est CONSERVÉ en mémoire (étape 1 §2.6, option 2)', () => {
+    // SonalPi lui-même supprime le data-pseudo en posant une exception
+    // (anon-apply.js) ; si un producteur tiers en laisse un, on le garde comme
+    // mémoire de restauration — jamais affiché, jamais ré-exporté.
+    const html = `<!DOCTYPE html><html><body>
+      <div id="contenuText">
+        <span class="lblseg sautlig" data-loc="1">
+          <span class="anon-exception" data-rk="1" data-pseudo="Mme X.">Paul</span>
+        </span>
+      </div>
+      <script id="loc-json">[]</script>
+    </body></html>`
+    const { payload } = importerSonal(html, parse(html))
+    const exc = payload.annotations.filter((a) => a.etat === 'exception')
+    expect(exc).toHaveLength(1)
+    expect(exc[0].pseudo).toBe('Mme X.')
+  })
+
+  test('libellé de tour (.ligloc) : loc-anon + data-locpseudo → Locuteur.pseudo/pseudoEtat (étape 2 §3.4)', () => {
+    const html = `<!DOCTYPE html><html><body>
+      <div id="contenuText">
+        <span class="lblseg sautlig ligloc loc-anon" data-loc="1" data-nomloc="Enquêteur" data-locpseudo="Chercheur"><span data-rk="1">Bonjour</span></span>
+        <span class="lblseg sautlig ligloc loc-suggere-refuse" data-loc="2" data-nomloc="Martin"><span data-rk="2">Salut</span></span>
+      </div>
+      <script id="loc-json">["", "Enquêteur", "Martin"]</script>
+    </body></html>`
+    const { payload } = importerSonal(html, parse(html))
+    const enqueteur = payload.locuteurs.find((x) => x.index === 1)
+    expect(enqueteur?.pseudo).toBe('Chercheur')
+    expect(enqueteur?.pseudoEtat).toBe('confirme')
+    const martin = payload.locuteurs.find((x) => x.index === 2)
+    expect(martin?.pseudoEtat).toBe('refuse')
+    expect(martin?.pseudo ?? '').toBe('') // le refus ne porte AUCUN pseudo
+  })
+
   test('les locuteurs viennent de loc-json (index + nom)', () => {
     const { payload } = importerSonal(html1, parse(html1))
     const noms = payload.locuteurs.map((l) => l.nom)

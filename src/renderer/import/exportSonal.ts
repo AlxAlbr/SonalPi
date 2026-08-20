@@ -68,7 +68,12 @@ export function exporterSonal(e: EntreeExport): string {
   let html = ''
   let rk = 1
   let sg = 0
+  // Tour de parole DÉRIVÉ (run de blocs consécutifs de même loc) : le libellé
+  // du tour n'est posé que sur le 1er bloc du run (cf. ligloc ci-dessous).
+  let locPrecedent: number | null | undefined = undefined
   blocs.forEach((b, k) => {
+    const premierDuTour = b.loc !== locPrecedent
+    locPrecedent = b.loc
     // Annotations de ce bloc, ramenées en offsets caractère locaux.
     const local = anns
       .map((a) => {
@@ -88,6 +93,26 @@ export function exporterSonal(e: EntreeExport): string {
     ].sort((x, y) => x - y)
     const jalons = [0, ...coupes, b.text.length]
     const nomloc = nomDe(b.loc)
+    // Libellé du tour (§3.4) : sur le 1er SEGMENT du 1er BLOC du run (parité
+    // SonalPi `.ligloc` « deb »). data-nomloc = le VRAI nom ; libellé
+    // pseudonymisé (pseudo posé, non refusé) → classe `loc-anon` +
+    // `data-locpseudo` ; refus explicite → `loc-suggere-refuse`. La couleur est
+    // INTERNE à l'app (aucun marqueur) ; `data-nomloc-barre` est un artefact de
+    // RENDU SonalPi, re-dérivé à l'ouverture — on ne l'émet pas (le vrai nom ne
+    // doit pas fuiter, et SonalPi le recompose).
+    const lLoc = e.locuteurs.find((x) => x.index === b.loc)
+    let ligloc = ''
+    let extraSeg = ''
+    if (premierDuTour && b.loc != null && nomloc) {
+      if (lLoc?.pseudo && lLoc.pseudoEtat !== 'refuse') {
+        ligloc = ' ligloc loc-anon'
+        extraSeg = ` data-locpseudo="${escapeAttr(lLoc.pseudo)}"`
+      } else if (lLoc?.pseudoEtat === 'refuse') {
+        ligloc = ' ligloc loc-suggere-refuse'
+      } else {
+        ligloc = ' ligloc'
+      }
+    }
 
     for (let s = 0; s < jalons.length - 1; s++) {
       const sd = jalons[s]
@@ -95,9 +120,10 @@ export function exporterSonal(e: EntreeExport): string {
       if (sd >= sf && b.text.length > 0) continue // (bloc vide : émettre quand même son segment)
 
       let segAttrs =
-        `class="lblseg sautlig" data-deb="${debParPos.get(debutPM + sd) ?? ''}"` +
+        `class="lblseg sautlig${ligloc}" data-deb="${debParPos.get(debutPM + sd) ?? ''}"` +
         ` data-fin="${finParPos.get(debutPM + sf) ?? ''}"` +
-        ` data-loc="${b.loc ?? ''}" tabindex="${rk}" data-rksg="${sg}"`
+        ` data-loc="${b.loc ?? ''}" tabindex="${rk}" data-rksg="${sg}"` +
+        extraSeg
       if (nomloc) segAttrs += ` data-nomloc="${escapeAttr(nomloc)}"`
       let seg = `<span ${segAttrs}>`
 
@@ -122,7 +148,11 @@ export function exporterSonal(e: EntreeExport): string {
           if (ann.type === 'codage' && ann.code) classes += ` ${ann.code}`
           else if (ann.type === 'anon') {
             classes += ann.etat === 'exception' ? ' anon-exception' : ' anon'
-            if (ann.pseudo) extra.push(`data-pseudo="${escapeAttr(ann.pseudo)}"`)
+            // Le pseudo n'est JAMAIS sérialisé sur une exception (plan §2.1,
+            // option 2 : il n'est qu'une mémoire de modèle, jamais affichée ni
+            // exportée) — le [pseudo] du span ne concerne que les occurrences
+            // anonymisées.
+            if (ann.pseudo && ann.etat !== 'exception') extra.push(`data-pseudo="${escapeAttr(ann.pseudo)}"`)
             extra.push('data-anon-nt="true"')
           }
         }

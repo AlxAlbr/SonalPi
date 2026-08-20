@@ -3,9 +3,11 @@ import { ref, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'v
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
+import MenuContexteAnon from './MenuContexteAnon.vue'
 import EditionThemes from './EditionThemes.vue'
 import EditionVariables from './EditionVariables.vue'
 import { utiliserSonal } from '../composables/sonal'
+import { couleurPourLocuteur } from '../../shared/entretien/locuteurs'
 // Icônes d'onglets rapatriées de SonalPi (img/) ; « journal » et « maison »
 // créées dans le même style (glyphe noir à plat) — SonalPi n'a pas d'équivalent.
 import icoThemes from '../assets/icones/logocat.png'
@@ -34,8 +36,11 @@ const {
   majBrouillonLigne,
   supprimerLigneAnon,
   changerPorteeAnon,
+  menuContextuelAnon,
+  fermerMenuAnon,
+  basculerException,
+  basculerAnonymise,
   entiteExisteDeja,
-  selectionVide,
   editor,
   entreesJournal,
   annulerEntree,
@@ -44,6 +49,10 @@ const {
   renommerLoc,
   nouveauLocuteur,
   setInterviewer,
+  setPseudoLoc,
+  setPseudoEtatLoc,
+  basculerPseudoEtatLoc,
+  choisirCouleurLoc,
   locuteurASupprimer,
   demanderSuppressionLocuteur,
   confirmerSuppressionLocuteur,
@@ -428,8 +437,8 @@ function focaliserLibre(el: unknown, cle: string) {
             <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
               <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
             </button>
-            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Anonymisation" @click="ongletDroite = 'anon'">
-              <img class="ico-onglet" :src="icoAnon" alt="Anonymisation" />
+            <button data-onglet="anon" :class="{ actif: ongletDroite === 'anon' }" title="Pseudonymisation du texte" @click="ongletDroite = 'anon'">
+              <img class="ico-onglet" :src="icoAnon" alt="Pseudonymisation du texte" />
             </button>
             <button data-onglet="themes" data-tour="onglet-themes" :class="{ actif: ongletDroite === 'themes' }" title="Thématiques" @click="ongletDroite = 'themes'">
               <img class="ico-onglet" :src="icoThemes" alt="Thématiques" />
@@ -449,14 +458,18 @@ function focaliserLibre(el: unknown, cle: string) {
             <div class="corpus-tete">
               <h3>Accueil</h3>
             </div>
-            <p class="aide-thm">
-              Raccourci : tapez DEUX FOIS sur la touche Espace dans l'éditeur
+            <p class="raccourci">
+              🎧 Raccourci : tapez <b>DEUX FOIS</b> sur la touche <b>Espace</b> dans l'éditeur
               pour lancer puis arrêter la lecture de l'audio.
             </p>
             <ul class="liste-tours">
               <li>
                 <img class="ico-onglet" :src="icoLocuteurs" alt="" />
                 <span><b>Locuteurs</b> — noms, interviewer, attribution des tours de parole.</span>
+              </li>
+              <li>
+                <img class="ico-onglet" :src="icoAnon" alt="" />
+                <span><b>Pseudonymisation du texte</b> — masquer les noms (barré + pseudo).</span>
               </li>
               <li>
                 <img class="ico-onglet" :src="icoThemes" alt="" />
@@ -469,10 +482,6 @@ function focaliserLibre(el: unknown, cle: string) {
               <li>
                 <img class="ico-onglet" :src="icoJournal" alt="" />
                 <span><b>Journal</b> — suivi et annulation des actions de la session.</span>
-              </li>
-              <li>
-                <img class="ico-onglet" :src="icoAnon" alt="" />
-                <span><b>Anon</b> — pseudonymiser le texte (barré + pseudo).</span>
               </li>
             </ul>
           </aside>
@@ -512,7 +521,6 @@ function focaliserLibre(el: unknown, cle: string) {
               <h3>Locuteurs</h3>
               <button class="mini" @click="nouveauLocuteur">+ Locuteur</button>
             </div>
-            <p class="aide-thm">Interrupteur « ? » = interviewer : ses tours (questions) s'affichent en italique.</p>
 
             <!-- Confirmation de suppression (destructif : nom + valeurs + lien des blocs) -->
             <div v-if="locuteurASupprimer" class="confirm-suppr">
@@ -524,34 +532,81 @@ function focaliserLibre(el: unknown, cle: string) {
               </div>
             </div>
 
-            <ul class="liste-loc">
-              <li v-for="(l, i) in locuteurs" :key="l.index">
-                <span class="idx">{{ l.index }}</span>
-                <!-- data-tour sur le 1er champ uniquement : cible de l'étape
-                     « Renommer les locuteurs » du pas-à-pas. -->
-                <input
-                  class="nom-loc"
-                  :data-tour="i === 0 ? 'nom-locuteur' : undefined"
-                  :value="l.nom"
-                  @change="renommerLoc(l.index, $event)"
-                />
-                <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
+            <!-- Petit tableau des locuteurs (étape 2 §3.3) : Nom | Pseudo
+                 (optionnel) | Interv. | ✕. Le pseudo posé pseudonymise les
+                 étiquettes des tours (barré + [pseudo] dans la gouttière) ;
+                 ✓ contrôle la confirmation, ⊘ le refus (libellé en clair). -->
+            <div class="tableau-loc">
+              <div class="tableau-loc-tetes">
+                <span title="Couleur du nom — cliquer pour choisir"></span>
+                <span>Nom</span>
+                <span>Pseudo (optionnel)</span>
+                <span title="Interviewer — pose les questions (tours en italique)">Interv.</span>
+              </div>
+              <ul class="liste-loc">
+                <li v-for="(l, i) in locuteurs" :key="l.index">
+                  <!-- Sélecteur de couleur du nom : défaut auto par index
+                       (palette prédéfinie) ; au clic, le sélecteur NATIF du
+                       navigateur (même mécanisme que l'édition des thèmes :
+                       TOUTES les couleurs possibles). Le nom s'écrit dans la
+                       couleur choisie dans l'éditeur, sans toucher au pseudo. -->
                   <input
-                    type="checkbox"
-                    :checked="l.interviewer ?? false"
-                    @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
+                    type="color"
+                    class="carre-couleur"
+                    :value="l.couleur ?? couleurPourLocuteur(l.index)"
+                    :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
+                    @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
                   />
-                  <span class="glisseur"></span>
-                  <span class="q">?</span>
-                </label>
-                <button class="x-loc" title="Supprimer ce locuteur" @click="demanderSuppressionLocuteur(l.index)">✕</button>
-              </li>
-            </ul>
+                  <!-- data-tour sur le 1er nom uniquement : cible de l'étape
+                       « Renommer les locuteurs » du pas-à-pas. -->
+                  <input
+                    class="nom-loc"
+                    :data-tour="i === 0 ? 'nom-locuteur' : undefined"
+                    :value="l.nom"
+                    @change="renommerLoc(l.index, $event)"
+                  />
+                  <div class="pseudo-cell">
+                    <input
+                      class="pseudo-loc"
+                      :value="l.pseudo ?? ''"
+                      placeholder="pseudo…"
+                      title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
+                      @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
+                    />
+                    <template v-if="(l.pseudo ?? '').trim()">
+                      <!-- Un seul bouton-bascule ✓ / ⊘ (économie de place dans la
+                           colonne Pseudo) : ✓ vert = pseudonymisation confirmée,
+                           ⊘ rouge = libellé en clair refusé. Un clic bascule. -->
+                      <button
+                        class="dec-pseudo"
+                        :class="l.pseudoEtat === 'refuse' ? 'refus actif' : 'actif'"
+                        :title="l.pseudoEtat === 'refuse'
+                          ? 'Libellé en clair (refusé) — cliquer pour confirmer ✓'
+                          : 'Pseudonymisation confirmée ✓ — cliquer pour refuser (⊘)'"
+                        @click="basculerPseudoEtatLoc(l.index)"
+                      >{{ l.pseudoEtat === 'refuse' ? '⊘' : '✓' }}</button>
+                    </template>
+                  </div>
+                  <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
+                    <input
+                      type="checkbox"
+                      :checked="l.interviewer ?? false"
+                      @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span class="glisseur"></span>
+                    <span class="q">?</span>
+                  </label>
+                  <button class="x-loc" title="Supprimer ce locuteur" @click="demanderSuppressionLocuteur(l.index)">✕</button>
+                </li>
+              </ul>
+            </div>
             <div class="attribuer">
-              <span class="lbl">{{ selectionVide ? 'Attribuer le bloc courant :' : 'Attribuer la sélection :' }}</span>
+              <span class="lbl">Attribuer le bloc courant ou la sélection :</span>
               <div class="boutons-loc">
                 <button v-for="l in locuteurs" :key="l.index" class="attr" @click="attribuerLoc(l.index)">
-                  {{ l.nom }}
+                  <span
+                    :style="{ color: l.couleur ?? couleurPourLocuteur(l.index) }"
+                  >{{ l.nom }}</span>
                 </button>
                 <button class="attr aucun" @click="attribuerLoc(null)">aucun</button>
               </div>
@@ -662,7 +717,13 @@ function focaliserLibre(el: unknown, cle: string) {
                (barré + [pseudo], cf. editeur.css). -->
           <aside v-show="ongletDroite === 'anon'" class="panneau anon">
             <div class="corpus-tete">
-              <h3>Anon</h3>
+              <h3>Pseudonymisation du texte</h3>
+              <button
+                type="button"
+                class="mini"
+                title="Ajouter une ligne de saisie"
+                @click="lignesSaisie.push(nouvelleLigneSaisie())"
+              >+ Ligne</button>
             </div>
             <p class="aide-thm">
               Sélectionne un mot dans le texte ou saisis un nom ci-dessous, complète le pseudo puis Entrée : toutes les occurrences sont barrées et le pseudo s'affiche.
@@ -672,7 +733,7 @@ function focaliserLibre(el: unknown, cle: string) {
             <table class="tableau-anon">
               <thead>
                 <tr>
-                  <th class="col-entite">Nom</th>
+                  <th class="col-entite">Mot ou sélection</th>
                   <th class="col-pseudo">Pseudo</th>
                   <th class="col-actions">État · Occ.</th>
                 </tr>
@@ -725,7 +786,8 @@ function focaliserLibre(el: unknown, cle: string) {
                         >🌐</button>
                       </div>
                       <div class="occ-action">
-                        <span v-if="l.nb > 0" class="nb-anon" :title="`${l.nb} occurrence(s) anonymisée(s)`">{{ l.nb }}</span>
+                        <span v-if="l.nbAnonymise > 0" class="cpt-anon" :title="`${l.nbAnonymise} occurrence(s) anonymisée(s) (barrée(s))`">⬤{{ l.nbAnonymise }}</span>
+                        <span v-if="l.nbException > 0" class="cpt-exc" :title="`${l.nbException} exception(s) laissée(s) en clair`">◌{{ l.nbException }}</span>
                         <button class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
                       </div>
                     </div>
@@ -767,12 +829,6 @@ function focaliserLibre(el: unknown, cle: string) {
                 </tr>
               </tbody>
             </table>
-            <button
-              type="button"
-              class="ajouter-ligne-anon"
-              title="Ajouter une ligne de saisie"
-              @click="lignesSaisie.push(nouvelleLigneSaisie())"
-            >＋ Ajouter une ligne</button>
           </aside>
 
           <!-- Ancre de la consigne « panneau » du pas-à-pas : le guide de
@@ -812,6 +868,19 @@ function focaliserLibre(el: unknown, cle: string) {
 
       <EditionThemes v-if="editerThemes" contexte="entretien" @fermer="editerThemes = false" />
       <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
+
+      <!-- Menu contextuel des occurrences anon (clic droit dans l'éditeur) :
+           bascule « exception ↔ anonymisé » sur l'occurrence couvrante. -->
+      <MenuContexteAnon
+        v-if="menuContextuelAnon"
+        :x="menuContextuelAnon.x"
+        :y="menuContextuelAnon.y"
+        :etat="menuContextuelAnon.etat"
+        :entite="menuContextuelAnon.entite"
+        @basculer-exception="basculerException(menuContextuelAnon.id)"
+        @basculer-anonymise="basculerAnonymise(menuContextuelAnon.id)"
+        @fermer="fermerMenuAnon"
+      />
     </section>
 </template>
 
@@ -980,9 +1049,25 @@ function focaliserLibre(el: unknown, cle: string) {
 }
 /* Panneau Accueil : le raccourci en tête, puis la vue d'ensemble des autres
    onglets (icone + titre) — chaque ligne rappelle ce que fait l'onglet. */
+/* Raccourci mis en AVANT (bandeau contrasté) pour être immédiatement repéré. */
+.raccourci {
+  background: #fff8e1;
+  border: 1px solid #e0b93a;
+  border-left: 4px solid #e0a03a;
+  color: #5c4a00;
+  border-radius: 6px;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.82rem;
+  margin: 0.2rem 0 0;
+  line-height: 1.35;
+}
+.raccourci b {
+  color: #a37000;
+}
+/* Un peu plus d'espace entre le raccourci et le détail des onglets. */
 .liste-tours {
   list-style: none;
-  margin: 0.3rem 0 0;
+  margin: 0.9rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -1118,30 +1203,124 @@ function focaliserLibre(el: unknown, cle: string) {
 }
 .liste-loc {
   list-style: none;
-  margin: 0.3rem 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
+/* Petit tableau des locuteurs : Couleur | Nom | Pseudo | Interv. | ✕ (étape
+ * 2 §3.3). La grille de colonnes est partagée entre l'en-tête et les lignes —
+ * les largeurs restent stables, le champ Nom respire (colonne 2). */
+.tableau-loc-tetes,
 .liste-loc li {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr) 7rem 2.4rem 1.2rem;
   align-items: center;
   gap: 0.4rem;
 }
-.liste-loc .idx {
-  font-size: 0.7rem;
+.tableau-loc-tetes {
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700; /* en gras (demande utilisateur) */
   color: #999;
-  font-family: monospace;
-  width: 1rem;
+  padding: 0.15rem 0.3rem;
+  border-bottom: 1px solid #e5e5ef;
+  margin-bottom: 0.25rem;
+  text-align: center; /* en-têtes centrés, comme l'onglet Pseudonymisation du texte */
+}
+.liste-loc li {
+  min-width: 0;
 }
 .nom-loc {
-  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 0.15rem 0.35rem;
   font-size: 0.82rem;
+}
+/* Sélecteur de couleur du nom : auto-rempli par index par défaut (palette
+ * prédéfinie) ; au clic, le sélecteur NATIF du navigateur (même mécanisme que
+ * l'édition des thèmes — TOUTES les couleurs possibles). Le nom du locuteur
+ * s'écrit dans cette couleur dans l'éditeur, sans toucher au pseudo. */
+.carre-couleur {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  padding: 0;
+  cursor: pointer;
+  align-self: center;
+  background: transparent;
+}
+/* Le `<input type="color">` natif dessine la couleur dans un carré interne
+ * entouré d'un liseré clair (« carré dans un carré ») : on force le swatch
+ * interne à occuper tout l'élément pour que la couleur prenne toute la place. */
+.carre-couleur::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.carre-couleur::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+.carre-couleur:hover {
+  transform: scale(1.15);
+}
+/* Cellule Pseudo : champ + décision confirmer ✓ / refuser ⊘ (le pseudo posé
+ * pseudonymise les étiquettes de ses tours — voir §3.2 pour le rendu). */
+.pseudo-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.pseudo-loc {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #e2e2ea;
+  border-radius: 4px;
+  padding: 0.08rem 0.3rem;
+  font-size: 0.7rem;
+  color: #333;
+}
+.pseudo-loc::placeholder {
+  color: #bbb;
+  font-style: italic;
+}
+.dec-pseudo {
+  flex: none;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  padding: 0 0.28rem;
+  font-size: 0.66rem;
+  line-height: 1.4;
+  cursor: pointer;
+  opacity: 0.45;
+}
+.dec-pseudo:hover {
+  opacity: 1;
+}
+.dec-pseudo.actif {
+  opacity: 1;
+  border-color: #2e73d8;
+  color: #1565c0;
+  background: #eef4ff;
+}
+.dec-pseudo.refus.actif {
+  border-color: #c33;
+  color: #c33;
+  background: #fff3f3;
+}
+.interv {
+  justify-self: center;
+}
+.x-loc {
+  justify-self: center;
 }
 /* Interrupteur « interviewer » : pilule compacte + « ? » (la convention SonalPi,
    rendue cliquable). Coché → bleu, tours du locuteur en italique. */
@@ -1204,29 +1383,38 @@ function focaliserLibre(el: unknown, cle: string) {
   opacity: 1;
 }
 .attribuer {
-  margin-top: 0.5rem;
+  margin-top: 0.9rem; /* un peu plus bas (demande utilisateur) */
   border-top: 1px solid #eee;
-  padding-top: 0.5rem;
+  padding-top: 0.7rem;
 }
 .attribuer .lbl {
   font-size: 0.75rem;
-  color: #666;
+  font-weight: 600; /* « Attribuer le bloc courant : » en gras (demande utilisateur) */
+  color: #444;
+  text-decoration: underline; /* souligné (demande utilisateur) */
+  padding-bottom: 0.35rem; /* aérer entre le libellé et les boutons */
 }
 .boutons-loc {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-top: 0.35rem;
+  gap: 0.4rem; /* un peu plus d'écart entre les rectangles (aérer) */
+  margin-top: 0.6rem; /* les rectangles descendent un peu (demande utilisateur) */
 }
 .attr {
   font-size: 0.75rem;
-  border: 1px solid #ccc;
+  font-weight: 700; /* bien visibles (demande utilisateur) */
+  border: 2px solid #000; /* contour noir net, SANS fond (demande utilisateur) */
   border-radius: 5px;
   background: #fff;
+  color: #333;
   padding: 0.15rem 0.5rem;
   cursor: pointer;
 }
+.attr:hover {
+  background: #f5f5f5;
+}
 .attr.aucun {
+  border-color: #999;
   color: #999;
 }
 /* --- Panneau Journal --- */
@@ -1293,20 +1481,22 @@ function focaliserLibre(el: unknown, cle: string) {
   border-collapse: collapse;
   margin-top: 0.3rem;
 }
-.tableau-anon th,
-.tableau-anon td {
-  border: 1px solid #d7d7e0; /* traits de tableau bien visibles (grille complète) */
-}
+/* En-têtes harmonisés sur les conventions « locuteurs » : petits, hautes
+ * (uppercase), gris, centrés — SANS fond ni traits de grille lourds. Un seul
+ * séparateur fin sous l'en-tête (comme pour le tableau des locuteurs). */
 .tableau-anon th {
-  text-align: left;
-  font-size: 0.78rem; /* un cran plus grand pour mettre le titre en valeur */
-  font-weight: 700; /* en gras */
-  color: #555; /* plus soutenu que le gris pâle d'avant */
-  padding: 0.2rem 0.3rem;
-  background: #f4f4f8;
+  text-align: center;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #999;
+  padding: 0.15rem 0.3rem;
+  background: transparent;
+  border-bottom: 1px solid #e5e5ef;
 }
 .tableau-anon td {
-  padding: 0.22rem 0.3rem;
+  padding: 0.4rem 0.5rem; /* plus d'écart entre le contour du champ et le rebord de la cellule (demande utilisateur) */
   vertical-align: middle;
 }
 .ligne-anon td {
@@ -1338,22 +1528,6 @@ function focaliserLibre(el: unknown, cle: string) {
   justify-content: center;
   gap: 0.15rem;
 }
-/* Bouton « + » sous le tableau : ajoute une ligne de saisie vide. */
-.ajouter-ligne-anon {
-  margin-top: 0.4rem;
-  border: 1px dashed #bbb;
-  border-radius: 5px;
-  background: #fff;
-  color: #666;
-  cursor: pointer;
-  padding: 0.15rem 0.5rem;
-  font-size: 0.75rem;
-  width: 100%;
-}
-.ajouter-ligne-anon:hover {
-  border-color: #2e73d8;
-  color: #1565c0;
-}
 .col-entite {
   width: auto; /* prend le reste → la colonne Nom respire */
   min-width: 0;
@@ -1367,11 +1541,6 @@ function focaliserLibre(el: unknown, cle: string) {
   text-align: center;
 }
 /* Contenu centré dans les colonnes Nom et Pseudo (pour l'essai UX). */
-.tableau-anon th.col-actions,
-.tableau-anon th.col-entite,
-.tableau-anon th.col-pseudo {
-  text-align: center;
-}
 td.col-entite,
 td.col-pseudo {
   text-align: center;
@@ -1393,16 +1562,18 @@ td.col-pseudo {
   font-size: 0.82rem;
   color: #333;
   text-align: center;
-  border: none; /* pas de contour, UX légère — même rendu que le Pseudo */
+  border: 1px solid #ccc; /* encadré façon tableau Locuteurs (harmonisation) */
+  border-radius: 4px;
   background: transparent;
-  padding: 0;
+  padding: 0.1rem 0.3rem;
 }
 /* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : textarea qui
  * enveloppe le texte sur plusieurs lignes, s'étire au contenu (field-sizing) et
  * plafonne à 5 lignes — au-delà, défilement INTERNE (on ne tronque jamais la
- * valeur d'un champ éditable, le texte complet reste modifiable). SANS contour
- * ni fond propre (UX légère) : seule la couleur de la ligne distingue saisie
- * (jaune pâle) des données (blanc/brouillon). */
+ * valeur d'un champ éditable, le texte complet reste modifiable). Encadrés comme
+ * les champs du tableau Locuteurs (contour #ccc, radius 4) pour harmoniser les
+ * deux tableaux ; le fond de la ligne (brouillon/saisie) continue de distinguer
+ * les états, le contour assure la ressemblance avec le tableau Locuteurs. */
 .nom-saisie,
 .pseudo-anon {
   display: block;
@@ -1420,8 +1591,9 @@ td.col-pseudo {
   font-size: 0.82rem;
   color: #333;
   text-align: center;
-  border: none; /* plus de contour : UX plus légère */
-  background: transparent; /* la case s'efface, seule la couleur de la ligne reste */
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: transparent;
   padding: 0.1rem 0.3rem;
 }
 /* Au focus, repère léger (sans décaler le layout) pour garder la navigation clavier visible. */
@@ -1434,13 +1606,27 @@ td.col-pseudo {
   color: #bbb;
   font-weight: 400;
 }
-.nb-anon {
+/* Compteurs scindés d'une ligne anon (étape 1 §2.5) : quantité d'occurrences
+ * ANONYMISÉES (barrées) et d'EXCEPTIONS (laissées en clair), reporter le même
+ * langage visuel que le texte : point plein bleu pour l'anonymisé, point creux
+ * gris à soulignement pointillé pour l'exception. Le « à traiter » viendra avec
+ * l'étape 3 (requête corpus). */
+.cpt-anon,
+.cpt-exc {
   font-size: 0.7rem;
-  color: #999;
   font-family: monospace;
   flex: none;
   min-width: 1rem;
   text-align: center;
+  cursor: default;
+}
+.cpt-anon {
+  color: #1565c0;
+}
+.cpt-exc {
+  color: #999;
+  text-decoration: underline dotted #bbb;
+  text-underline-offset: 2px;
 }
 /* Slider de portée 3 crans : brouillon (🚧) / entretien (📄) / corpus (🌐).
  * Le cran corpus est présent mais INACTIF en étape 0 (disabled → grisé) ;

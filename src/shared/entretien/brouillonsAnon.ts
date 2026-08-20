@@ -90,18 +90,25 @@ export interface LigneAnon {
   pseudo: string
   /** État dérivé : `entretien` si occurrences posées, sinon `brouillon`. */
   etat: EtatLigneAnon
-  /** Nombre d'occurrences anonymisées (0 pour un brouillon). */
+  /** Nombre total d'occurrences (anonymisées + exceptions). */
   nb: number
+  /** Occurrences anonymisées (barrées + [pseudo]). */
+  nbAnonymise: number
+  /** Occurrences en exception (laissées en clair, marqueur pointillé). */
+  nbException: number
   /** Ids des occurrences (vide pour un brouillon). */
   occurrenceIds: string[]
 }
 
-/** Une occurrence anonymisée vue par la projection (plage PM + pseudo). */
+/** Une occurrence anonymisée vue par la projection (plage PM + pseudo + état). */
 export interface OccurrenceAnonProjection {
   id: string
   from: number
   to: number
   pseudo?: string
+  /** `exception` = décision « laisser en clair » (le pseudo éventuel n'est
+   *  qu'une mémoire de modèle, jamais affichée ni sérialisée — cf. plan §2.1). */
+  etat?: 'anonymise' | 'exception'
 }
 
 /**
@@ -130,11 +137,15 @@ export function lignesAnonUnifiees(
         pseudo: o.pseudo ?? '',
         etat: 'entretien',
         nb: 0,
+        nbAnonymise: 0,
+        nbException: 0,
         occurrenceIds: [],
       }
       parCle.set(cle, ligne)
     }
     ligne.nb++
+    if (o.etat === 'exception') ligne.nbException++
+    else ligne.nbAnonymise++
     ligne.occurrenceIds.push(o.id)
   }
   // 2. Brouillons : une ligne `brouillon` seulement si aucune occurrence n'a
@@ -148,6 +159,8 @@ export function lignesAnonUnifiees(
       pseudo: b.pseudo ?? '',
       etat: 'brouillon',
       nb: 0,
+      nbAnonymise: 0,
+      nbException: 0,
       occurrenceIds: [],
     })
   }

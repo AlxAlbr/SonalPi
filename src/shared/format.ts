@@ -171,6 +171,20 @@ export interface Locuteur {
    *  réintroduit à l'export seulement (comme `l="all"` EAV).
    *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
   interviewer?: boolean
+  /** Pseudonymisation de l'ÉTIQUETTE du locuteur (étape 2, plan §3.1) :
+   *  `pseudo` = pseudonyme appliqué au libellé — posé, le tour s'affiche
+   *  « Nom̶ [Pseudo] » (même idiome CSS que le texte anon, cf. §3.2).
+   *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
+  pseudo?: string
+  /** Couleur du NOM du locuteur dans l'éditeur (étape 2 §3.3) : choisie dans
+   *  une palette prédéfinie depuis le tableau des locuteurs ; ABSENTE = couleur
+   *  auto par index (PALETTE_PASTILLES_LOCUTEURS). Champ ADDITIF optionnel. */
+  couleur?: string
+  /** Décision persistée sur la pseudonymisation du libellé (parité SonalPi
+   *  `loc-anon` / `loc-suggere-refuse`) : `'confirme'` (pseudo affiché) ou
+   *  `'refuse'` (libellé en clair + ⊘). Absent = aucune décision (rien — le
+   *  « suggéré » de l'étape 3 est une REQUÊTE, jamais stockée). */
+  pseudoEtat?: 'confirme' | 'refuse'
   valeursLoc: Record<string, string> // idVar → idMod
   personneRef: string | null
 }

@@ -57,8 +57,21 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // 1) Un SEGMENT (.lblseg) = un cue : texte + annotations en offsets locaux +
   //    sa fenêtre temporelle [deb, fin] (bornes mesurées, ou null).
   const blocs: BlocImport[] = []
+  // Marqueurs de libellé des tours (§3.4) : un .lblseg.ligloc porte le libellé
+  // du tour — pseudonymisé (loc-anon + data-locpseudo) ou refusé
+  // (loc-suggere-refuse) → Locuteur.pseudo / pseudoEtat.
+  const labelsLoc = new Map<number, { pseudo: string } | { refuse: true }>()
   for (const segNode of contenu.querySelectorAll('.lblseg')) {
     const seg = segNode as HTMLElement
+    const lig = seg.classList.contains('ligloc')
+    const locIdx = nombreOuNull(seg.dataset.loc)
+    if (lig && locIdx != null && locIdx > 0) {
+      if (seg.classList.contains('loc-anon') && seg.dataset.locpseudo) {
+        labelsLoc.set(locIdx, { pseudo: seg.dataset.locpseudo })
+      } else if (seg.classList.contains('loc-suggere-refuse')) {
+        labelsLoc.set(locIdx, { refuse: true })
+      }
+    }
     let text = ''
     const anns: AnnBrute[] = []
     for (const fragNode of seg.querySelectorAll('span[data-rk]')) {
@@ -70,6 +83,11 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
         if (/^cat_\d+$/.test(cls)) anns.push({ type: 'codage', code: cls, from, to })
       }
       if (frag.classList.contains('anon-exception')) {
+        // §2.1 (option 2) : une exception ne ré-émet JAMAIS de data-pseudo à
+        // l'export — mais un éventuel `data-pseudo` du producteur (hors
+        // convention SonalPi) est CONSERVÉ en mémoire de modèle, comme la
+        // bascule locale le fait : « remettre en anonymisé » peut alors
+        // restituer le pseudo d'origine sans perte. Absent → mémoire vide.
         anns.push({ type: 'anon', pseudo: frag.dataset.pseudo ?? '', etat: 'exception', from, to })
       } else if (frag.classList.contains('anon')) {
         anns.push({ type: 'anon', pseudo: frag.dataset.pseudo ?? '', etat: 'anonymise', from, to })
@@ -171,6 +189,21 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
 
   // 4b) Valeurs EAV : `l="all"` → valeursGen ; `l=index` → valeursLoc (posé ici).
   const valeursGen = distribuerValeurs(extraireJson(html, 'dat-json'), locuteurs)
+
+  // 4c) Marqueurs de libellé du .ligloc (§3.4) → Locuteur.pseudo / pseudoEtat :
+  //     pseudonymisé (loc-anon + data-locpseudo) → « confirme » ; refus explicite
+  //     (loc-suggere-refuse) → « refuse ». Parité SonalPi ; le « ? » interviewer
+  //     vient du tabLoc (4), jamais des marqueurs.
+  for (const l of locuteurs) {
+    const label = labelsLoc.get(l.index)
+    if (!label) continue
+    if ('pseudo' in label && label.pseudo !== '') {
+      l.pseudo = label.pseudo
+      l.pseudoEtat = 'confirme'
+    } else if ('refuse' in label) {
+      l.pseudoEtat = 'refuse'
+    }
+  }
 
   // 5) Codebook depuis cat-json (forme SonalPi → Categorie). La hiérarchie
   //    `parent` est RECONSTRUITE depuis la séquence des `rang`=profondeur.

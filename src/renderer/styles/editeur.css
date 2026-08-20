@@ -13,28 +13,57 @@
   line-height: 1.9;
 }
 
-/* Gouttière des locuteurs : nom cliquable devant le bloc (widget de décoration). */
+/* Gouttière des locuteurs (refonte étape 2, §3.2) : le nom passe AU-DESSUS du
+ * bloc (layout SonalPi .ligloc) — barré + [pseudo] sans décaler le texte, qui
+ * démarre pleine largeur dessous. Le widget est BLOC (sa propre ligne) ; le
+ * clic-tour (curseur + seek audio au début du tour) reste porté par le libellé.
+ * Seul le 1er bloc d'un tour porte le libellé (les continuations n'ont RIEN :
+ * pas de ligne vide entre paragraphes d'un même tour). */
 .editeur .gouttiere-loc {
-  display: inline-block;
-  width: 6.5rem;
-  /* même vide (pas de nom : bloc de continuation, SRT sans locuteurs), la
-   * gouttière garde une boîte cliquable — le clic-tour audio passe par elle */
-  min-height: 1em;
-  margin-right: 0.6rem;
-  padding-right: 0.4rem;
+  display: block;
   color: #8a6d3b;
-  font-size: 0.72rem;
-  text-align: right;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.45rem 0 0.2rem;
+  margin-bottom: 0.05rem;
+  border-bottom: 1px solid #e6d9bf;
   cursor: pointer;
   user-select: none;
-  vertical-align: baseline;
-  border-right: 2px solid #e0d3b8;
 }
 .editeur .gouttiere-loc:hover {
   color: #5a4a28;
 }
+/* Tour SANS locuteur (loc null) : gouttière vide cliquable, même hauteur que
+ * le libellé (slot de clic-tour), sans bordure. */
 .editeur .gouttiere-loc.vide {
-  border-right-color: #eee;
+  min-height: 1.3em;
+  border-bottom-color: transparent;
+  cursor: default;
+}
+/* Nom réel pseudonymisé : BARRÉ — uniquement quand un pseudo est AFFICHÉ
+ * (class loc-anon posée sur le widget, parité SonalPi) — le [pseudo] vit dans
+ * un span SŒUR (le line-through du nom ne se propage pas à un span frère ;
+ * l'atomicité inline-block du pseudo le protège aussi du bord, cf. astuce
+ * .anon::after). La COULEUR du nom vient du locuteur (inline style, §3.3) :
+ * choisie dans la palette ou auto par index. Sans pseudo, aucun barré. */
+.editeur .gouttiere-loc.loc-anon .loc-nom {
+  text-decoration: line-through;
+  text-decoration-color: #999;
+  text-decoration-thickness: 2px;
+}
+.editeur .gouttiere-loc .loc-pseudo {
+  display: inline-block;
+  margin-left: 0.35rem;
+  color: #1565c0;
+  font-weight: 600;
+  text-decoration: none;
+}
+/* Refus explicite de pseudonymiser le libellé : nom en clair + ⊘ discret. */
+.editeur .gouttiere-loc .loc-refus {
+  display: inline-block;
+  margin-left: 0.3rem;
+  opacity: 0.55;
 }
 /* Tours de l'INTERVIEWER (questions) — le `.qst` SonalPi complet : italique
  * + demi-gras + gris (l'italique seul était trop discret — retour utilisateur).
@@ -43,6 +72,19 @@
   font-style: italic;
   font-weight: 600;
   color: #4c4c4d;
+}
+/* Tour ÉTIQUETÉ (étape 2 §3.2) : TOUT bloc d'un locuteur nommé garde le
+ * retrait — le TEXTE démarre un cran à droite du nom ; le libellé, lui, reste
+ * à l'extrême gauche via la marge négative du widget (il vit dans le
+ * content-box du paragraphe, la marge le ramène dans le padding). Un retour à
+ * la ligne (scission Entrée) ou un enchaînement de blocs du même tour ne
+ * réaligne donc jamais le texte à gauche. Un tour sans locuteur (gouttière
+ * vide) reste à pleine largeur. */
+.editeur p.lbl-tour {
+  padding-left: 0.9rem;
+}
+.editeur p.lbl-tour > .gouttiere-loc {
+  margin-left: -0.9rem;
 }
 .editeur .annot {
   border-radius: 2px;
@@ -78,6 +120,15 @@
  * masque le [pseudo] (il ne s'affiche qu'à la fin de l'occurrence). */
 .editeur .anon.anon-suite::after {
   content: none;
+}
+
+/* EXCEPTION (décision « laisser en clair ») : PAS de barré, PAS de [pseudo] — le
+ * texte reste lisible. Marqueur discret pour que l'utilisateur sache que c'est
+ * TRAÇÉ (et que l'anonymisation ne le re-capturera pas, cf. §2.4) : léger
+ * soulignement pointillé gris, distinguable du texte brut. */
+.editeur .anon-exception {
+  text-decoration: underline dotted #bbb;
+  text-underline-offset: 3px;
 }
 
 /* Plage EN COURS DE LECTURE audio — décoration INLINE unique du
