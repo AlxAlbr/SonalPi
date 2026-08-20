@@ -1293,18 +1293,21 @@ function focaliserLibre(el: unknown, cle: string) {
   border-collapse: collapse;
   margin-top: 0.3rem;
 }
+.tableau-anon th,
+.tableau-anon td {
+  border: 1px solid #d7d7e0; /* traits de tableau bien visibles (grille complète) */
+}
 .tableau-anon th {
   text-align: left;
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: #999;
+  font-size: 0.78rem; /* un cran plus grand pour mettre le titre en valeur */
+  font-weight: 700; /* en gras */
+  color: #555; /* plus soutenu que le gris pâle d'avant */
   padding: 0.2rem 0.3rem;
-  border-bottom: 1px solid #e5e5ef;
+  background: #f4f4f8;
 }
 .tableau-anon td {
   padding: 0.22rem 0.3rem;
   vertical-align: middle;
-  border-bottom: 1px solid #f0f0f4;
 }
 .ligne-anon td {
   background: #fff;
@@ -1363,13 +1366,21 @@ function focaliserLibre(el: unknown, cle: string) {
   width: 5rem; /* juste la largeur du slider de portée (3 crans + padding) */
   text-align: center;
 }
-.tableau-anon th.col-actions {
+/* Contenu centré dans les colonnes Nom et Pseudo (pour l'essai UX). */
+.tableau-anon th.col-actions,
+.tableau-anon th.col-entite,
+.tableau-anon th.col-pseudo {
+  text-align: center;
+}
+td.col-entite,
+td.col-pseudo {
   text-align: center;
 }
 /* Étiquette Nom des lignes existantes : texte MULTI-LIGNES (enveloppe sur
  * plusieurs lignes dans sa colonne), plafonné à 5 lignes. Un très long nom est
  * d'abord raccourci « début…fin » (majNomsAnon) ; le clamp CSS reste un
- * garde-fou si la colonne était plus étroite (zooms petits). */
+ * garde-fou si la colonne était plus étroite (zooms petits). Même rendu que le
+ * Pseudo — texte noir, sans contour — pour l'essai UX de cohérence visuelle. */
 .nom-anon {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1381,13 +1392,17 @@ function focaliserLibre(el: unknown, cle: string) {
   min-width: 0;
   font-size: 0.82rem;
   color: #333;
-  border: none;
+  text-align: center;
+  border: none; /* pas de contour, UX légère — même rendu que le Pseudo */
   background: transparent;
+  padding: 0;
 }
 /* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : textarea qui
  * enveloppe le texte sur plusieurs lignes, s'étire au contenu (field-sizing) et
  * plafonne à 5 lignes — au-delà, défilement INTERNE (on ne tronque jamais la
- * valeur d'un champ éditable, le texte complet reste modifiable). */
+ * valeur d'un champ éditable, le texte complet reste modifiable). SANS contour
+ * ni fond propre (UX légère) : seule la couleur de la ligne distingue saisie
+ * (jaune pâle) des données (blanc/brouillon). */
 .nom-saisie,
 .pseudo-anon {
   display: block;
@@ -1400,22 +1415,20 @@ function focaliserLibre(el: unknown, cle: string) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.25;
-  min-height: calc(1.25em + 0.2rem * 2 + 2px); /* une ligne au minimum (champ vide) */
-  max-height: calc(1.25em * 5 + 0.2rem * 2 + 2px); /* 5 lignes max */
+  min-height: calc(1.25em + 0.2rem * 2); /* une ligne au minimum (champ vide) */
+  max-height: calc(1.25em * 5 + 0.2rem * 2); /* 5 lignes max */
   font-size: 0.82rem;
   color: #333;
-  border-radius: 4px;
+  text-align: center;
+  border: none; /* plus de contour : UX plus légère */
+  background: transparent; /* la case s'efface, seule la couleur de la ligne reste */
   padding: 0.1rem 0.3rem;
 }
-.nom-saisie {
-  border: 1px solid #ddd;
-  background: #fff;
-}
-.pseudo-anon {
-  border: 1px solid #ccc;
-  background: #fff;
-  font-weight: 600;
-  color: #1565c0;
+/* Au focus, repère léger (sans décaler le layout) pour garder la navigation clavier visible. */
+.nom-saisie:focus,
+.pseudo-anon:focus {
+  outline: 1px solid #2e73d8;
+  outline-offset: 1px;
 }
 .pseudo-anon::placeholder {
   color: #bbb;
