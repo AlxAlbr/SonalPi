@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -87,17 +87,119 @@ const lignesSaisie = ref<{ id: number; entite: string; pseudo: string }[]>([])
 let seqSaisie = 0
 const nouvelleLigneSaisie = () => ({ id: ++seqSaisie, entite: '', pseudo: '' })
 lignesSaisie.value = [nouvelleLigneSaisie(), nouvelleLigneSaisie()]
-// Refs par ligne (cases Nom/Pseudo) pour piloter le focus.
-const refsNom = ref<Record<number, HTMLInputElement | null>>({})
-const refsPseudo = ref<Record<number, HTMLInputElement | null>>({})
+// Refs par ligne (cases Nom/Pseudo) pour piloter le focus. Ce sont des
+// <textarea> (multi-lignes) depuis que les champs enveloppent le texte.
+const refsNom = ref<Record<number, HTMLTextAreaElement | null>>({})
+const refsPseudo = ref<Record<number, HTMLTextAreaElement | null>>({})
 const refNom = (id: number) => (el: unknown) => {
-  refsNom.value[id] = (el as HTMLInputElement) ?? null
+  refsNom.value[id] = (el as HTMLTextAreaElement) ?? null
 }
 const refPseudo = (id: number) => (el: unknown) => {
-  refsPseudo.value[id] = (el as HTMLInputElement) ?? null
+  refsPseudo.value[id] = (el as HTMLTextAreaElement) ?? null
 }
 const focusNom = (id: number) => nextTick(() => refsNom.value[id]?.focus())
 const focusPseudo = (id: number) => nextTick(() => refsPseudo.value[id]?.focus())
+
+/** Nom d'entité à l'écran : texte complet tant qu'il tient dans le bloc de 5
+ *  lignes de la colonne Nom (mesuré par un probe clone ATTACHÉ au DOM — même
+ *  largeur/police que la colonne → robuste au zoom/DPI) ; sinon, raccourci
+ *  « début…fin ». Le titre garde le texte complet au survol. L'affichage est
+ *  stocké DANS LE MODÈLE (affichagesNoms), pas muté sur le DOM : Vue reste
+ *  propriétaire du texte interpolé et ne peut pas l'écraser. */
+let largeurColonneAnon = 0
+/** Mesure la hauteur réelle d'un texte enveloppé dans la colonne Nom (5 lignes
+ *  max en CSS ; ici sans clamp pour connaître le besoin naturel avant raccourci). */
+function mesurerNomAnon(plein: string) {
+  const probe = document.createElement('span')
+  probe.className = 'nom-anon'
+  const s = probe.style
+  s.visibility = 'hidden'
+  s.position = 'absolute'
+  s.left = '-9999px'
+  s.top = '0'
+  s.display = 'block' /* empêche le -webkit-box du clamp dans la mesure */
+  if (!largeurColonneAnon) {
+    const ref = document.querySelector<HTMLElement>('.tableau-anon .nom-anon')
+    largeurColonneAnon = ref ? parseFloat(getComputedStyle(ref).width) : 149
+  }
+  s.width = largeurColonneAnon + 'px' // même largeur de colonne que le vrai span
+  s.webkitLineClamp = 'unset'
+  s.maxHeight = 'none'
+  s.overflow = 'visible'
+  probe.textContent = plein
+  document.body.appendChild(probe) // DOIT être dans le DOM pour mesurer le wrap
+  const h = probe.getBoundingClientRect().height
+  const lh = parseFloat(getComputedStyle(probe).lineHeight) || 16.4
+  probe.remove()
+  return { h, lh, lignes: h / lh }
+}
+/** Raccourci « début…fin » d'un nom qui dépasse la largeur de la colonne : on
+ *  garde des MOTS ENTIERS du début et de la fin (jamais de coupe en plein mot),
+ *  joints par « … », puis on réduit mot à mot tant que ça ne tient pas dans les
+ *  5 lignes de la colonne. */
+function raccourciMots(plein: string, hMax: number) {
+  const { h, lh } = mesurerNomAnon(plein)
+  const lignes = h / lh
+  const budget = Math.max(6, Math.floor((plein.length / lignes) * 5) - 4) // chars tenables en 5 lignes
+  const mots = plein.split(/\s+/)
+  const demi = Math.floor(budget / 2)
+  const debut: string[] = []
+  const fin: string[] = []
+  let lenD = 0
+  let lenF = 0
+  let i = 0
+  let j = mots.length - 1
+  // Mots du début (dans l'ordre) tant qu'ils tiennent dans la moitié du budget.
+  while (i <= j && lenD + mots[i].length + (debut.length ? 1 : 0) <= demi) {
+    lenD += mots[i].length + (debut.length ? 1 : 0)
+    debut.push(mots[i++])
+  }
+  // Mots de la fin (en partant du dernier) tant qu'ils tiennent dans l'autre moitié.
+  while (i <= j && lenF + mots[j].length + (fin.length ? 1 : 0) <= demi) {
+    lenF += mots[j].length + (fin.length ? 1 : 0)
+    fin.unshift(mots[j--])
+  }
+  // Un seul mot plus large que 5 lignes : on ne peut pas couper de mot → on
+  // laisse le clamp CSS tronquer avec « … » en fin de 5e ligne.
+  if (!debut.length && !fin.length) return plein
+  const compose = () =>
+    (debut.length ? debut.join(' ') : '') + (debut.length && fin.length ? ' … ' : '') + fin.join(' ')
+  let affiche = compose()
+  // Garde-fou : réduit mot à mot (du côté le plus long) tant que le raccourci
+  // dépasse encore les 5 lignes mesurées.
+  let it = 0
+  while (it++ < 30 && mesurerNomAnon(affiche).h > hMax) {
+    if (debut.length > fin.length) {
+      lenD -= debut.pop()!.length + 1
+    } else if (fin.length) {
+      lenF -= fin.shift()!.length + 1
+    } else break
+    affiche = compose()
+  }
+  return affiche.length >= plein.length ? plein : affiche
+}
+const affichagesNoms = ref<Record<string, string>>({})
+function majNomsAnon() {
+  if (!lignesAnon.value.length) return
+  const suiv = { ...affichagesNoms.value }
+  for (const l of lignesAnon.value) {
+    const plein = l.entite
+    if (!plein.length) {
+      suiv[l.cle] = plein
+      continue
+    }
+    const { lh } = mesurerNomAnon(plein)
+    const hMax = lh * 5 /* 5 lignes max */
+    suiv[l.cle] = mesurerNomAnon(plein).h > hMax ? raccourciMots(plein, hMax) : plein
+  }
+  affichagesNoms.value = suiv
+}
+watch(lignesAnon, majNomsAnon, { deep: true })
+onMounted(() => {
+  majNomsAnon()
+  window.addEventListener('resize', majNomsAnon)
+})
+onUnmounted(() => window.removeEventListener('resize', majNomsAnon))
 
 /** Valide UNE ligne : pose les occurrences (validerAnon), vide la ligne. */
 function validerLigne(l: { id: number; entite: string; pseudo: string }) {
@@ -165,7 +267,7 @@ function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien', value: 
  *  entretien → relabel via le change au blur. */
 function surEntreePseudoLigne(entite: string, etat: 'brouillon' | 'entretien', value: string) {
   if (etat === 'brouillon') validerAnon(entite, value)
-  else (document.activeElement as HTMLInputElement | null)?.blur()
+  else (document.activeElement as HTMLElement | null)?.blur()
 }
 function scrollerVersLigne(entite: string) {
   const cle = entite.trim().toLowerCase()
@@ -584,16 +686,17 @@ function focaliserLibre(el: unknown, cle: string) {
                   :class="`etat-${l.etat}`"
                 >
                   <td class="col-entite">
-                    <span class="nom-anon" :title="l.entite">{{ l.entite }}</span>
+                    <span class="nom-anon" :title="l.entite">{{ affichagesNoms[l.cle] ?? l.entite }}</span>
                   </td>
                   <td class="col-pseudo">
-                    <input
+                    <textarea
                       class="pseudo-anon"
+                      rows="1"
                       :value="l.pseudo"
                       :placeholder="l.etat === 'brouillon' ? 'pseudo…' : ''"
-                      @keyup.enter="surEntreePseudoLigne(l.entite, l.etat, ($event.target as HTMLInputElement).value)"
-                      @change="surPseudoLigne(l.entite, l.etat, ($event.target as HTMLInputElement).value)"
-                    />
+                      @keydown.enter.prevent="surEntreePseudoLigne(l.entite, l.etat, ($event.target as HTMLTextAreaElement).value)"
+                      @change="surPseudoLigne(l.entite, l.etat, ($event.target as HTMLTextAreaElement).value)"
+                    ></textarea>
                   </td>
                   <td class="col-actions">
                     <div class="actions-empile">
@@ -639,22 +742,24 @@ function focaliserLibre(el: unknown, cle: string) {
                   @focusout="onBlurLigne(l.id, $event)"
                 >
                   <td class="col-entite">
-                    <input
-                      class="nom-anon saisie-anon"
+                    <textarea
+                      class="nom-saisie"
+                      rows="1"
                       v-model="l.entite"
                       placeholder="nom…"
                       :ref="refNom(l.id)"
                       @keydown.enter.prevent="brouillonDepuisLigne(l)"
-                    />
+                    ></textarea>
                   </td>
                   <td class="col-pseudo">
-                    <input
+                    <textarea
                       class="pseudo-anon"
+                      rows="1"
                       v-model="l.pseudo"
                       placeholder="pseudo…"
                       :ref="refPseudo(l.id)"
                       @keydown.enter.prevent="validerLigne(l)"
-                    />
+                    ></textarea>
                   </td>
                   <td class="col-actions">
                     <button class="ok-anon" title="Anonymiser toutes les occurrences" @click="validerLigne(l)">✓</button>
@@ -1179,7 +1284,9 @@ function focaliserLibre(el: unknown, cle: string) {
 /* --- Panneau Anon --- */
 /* Tableau Anon : layout FIXE — le nom d'entité est borné (ellipsis au survol) et
  * les colonnes Pseudo porte / Actions restent TOUJOURS visibles. Les largeurs
- * viennent de la 1ʳᵉ ligne (thead) : Nom 32 %, Pseudo fixe, Actions = reste. */
+ * viennent de la 1ʳᵉ ligne (thead) : Nom = reste (auto), Pseudo fixe (large,
+ * le Nom se réduit d'autant), Actions fixe. Les inputs de saisie sont calés à
+ * 100 % de leur colonne (box-sizing) pour ne jamais déborder de leur cellule. */
 .tableau-anon {
   width: 100%;
   table-layout: fixed;
@@ -1219,12 +1326,13 @@ function focaliserLibre(el: unknown, cle: string) {
 .ligne-anon .actions-empile {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center; /* centré dans la colonne État·Occ. */
   gap: 0.15rem;
 }
 .ligne-anon .occ-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.15rem;
 }
 /* Bouton « + » sous le tableau : ajoute une ligne de saisie vide. */
@@ -1249,39 +1357,65 @@ function focaliserLibre(el: unknown, cle: string) {
   overflow: hidden;
 }
 .col-pseudo {
-  width: 5.75rem;
+  width: 7.25rem; /* pseudo porte : un cran plus large → la colonne Nom (reste) se réduit d'autant */
 }
 .col-actions {
   width: 5rem; /* juste la largeur du slider de portée (3 crans + padding) */
-  text-align: right;
+  text-align: center;
 }
+.tableau-anon th.col-actions {
+  text-align: center;
+}
+/* Étiquette Nom des lignes existantes : texte MULTI-LIGNES (enveloppe sur
+ * plusieurs lignes dans sa colonne), plafonné à 5 lignes. Un très long nom est
+ * d'abord raccourci « début…fin » (majNomsAnon) ; le clamp CSS reste un
+ * garde-fou si la colonne était plus étroite (zooms petits). */
 .nom-anon {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+  overflow-wrap: anywhere; /* coupe les mots très longs */
+  white-space: normal;
+  line-height: 1.25;
   min-width: 0;
   font-size: 0.82rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #333;
   border: none;
   background: transparent;
-  color: #333;
 }
-.nom-anon.saisie-anon {
-  border: 1px solid #ddd;
+/* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : textarea qui
+ * enveloppe le texte sur plusieurs lignes, s'étire au contenu (field-sizing) et
+ * plafonne à 5 lignes — au-delà, défilement INTERNE (on ne tronque jamais la
+ * valeur d'un champ éditable, le texte complet reste modifiable). */
+.nom-saisie,
+.pseudo-anon {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  field-sizing: content;
+  resize: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  min-height: calc(1.25em + 0.2rem * 2 + 2px); /* une ligne au minimum (champ vide) */
+  max-height: calc(1.25em * 5 + 0.2rem * 2 + 2px); /* 5 lignes max */
+  font-size: 0.82rem;
+  color: #333;
   border-radius: 4px;
   padding: 0.1rem 0.3rem;
+}
+.nom-saisie {
+  border: 1px solid #ddd;
   background: #fff;
 }
 .pseudo-anon {
-  width: 100%;
-  box-sizing: border-box;
   border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0.1rem 0.3rem;
-  font-size: 0.8rem;
-  color: #1565c0;
-  font-weight: 600;
   background: #fff;
+  font-weight: 600;
+  color: #1565c0;
 }
 .pseudo-anon::placeholder {
   color: #bbb;
@@ -1293,8 +1427,7 @@ function focaliserLibre(el: unknown, cle: string) {
   font-family: monospace;
   flex: none;
   min-width: 1rem;
-  text-align: right;
-  margin-right: 0.1rem;
+  text-align: center;
 }
 /* Slider de portée 3 crans : brouillon (🚧) / entretien (📄) / corpus (🌐).
  * Le cran corpus est présent mais INACTIF en étape 0 (disabled → grisé) ;
@@ -1306,7 +1439,6 @@ function focaliserLibre(el: unknown, cle: string) {
   border-radius: 10px;
   overflow: hidden;
   background: #f5f5f7;
-  margin-right: 0.1rem;
 }
 .portee-cran {
   border: none;

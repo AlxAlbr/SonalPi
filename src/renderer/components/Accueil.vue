@@ -56,7 +56,7 @@ async function lancerPreparer(mode: ModeDemo) {
             <div class="carte-sous">L'ensemble du corpus <br> (4 entretiens + audio)</div>
           </button>
         </div>
-        <p class="demo-aide">Un terrain fictif d'aide aux devoirs dans les associations.</p>
+        <p class="demo-aide">Un terrain fictif sur l'aide aux devoirs dans les associations.</p>
       </div>
 
       <div class="cartes">
