@@ -22,14 +22,23 @@ Un mini-terrain qualitatif crédible, choisi pour exercer TOUTES les fonctionnal
 récits riches à coder, plusieurs locuteurs, profils sociologiques variés, trois
 associations différentes (enquête SHS sur le bénévolat d'aide aux devoirs).
 
-### 2.1 Les trois entretiens (personnages fictifs)
+### 2.1 Les entretiens (personnages fictifs)
+
+> **Nommage des corpus** : chaque entretien de la démo porte un nom COURT et
+> NEUTRE — un numéro + un qualificatif du rôle/parcours (`1Coordinatrice`,
+> `2Catholique`, `3Cuisinier`, `4Etudiants`). Pas de prénom ni de phrase :
+> (a) les étapes se réfèrent au contenu, pas à une personne ; (b) montrer des
+> prénoms en titre dans une démo qui TRAITE de pseudonymisation enseignerait le
+> mauvais réflexe. Les prénoms (Fatima, Sylvie, Marc, Thomas…) n'existent que
+> DANS les transcriptions — c'est la matière à pseudonymiser (étape « Renommer
+> les locuteurs », onglet Anonymisation).
 
 Mise en cadre : une enquête SHS sur le bénévolat d'aide aux devoirs, menée dans
 trois associations différentes — un centre de quartier à inspiration chrétienne, une
 bibliothèque municipale, une asso étudiante de soutien scolaire ; trois villes, trois
 façons d'entrer dans le bénévolat.
 
-Trois profils, trois trajectoires (le fichier `corpus/txt/E1.txt` fait office de
+Trois profils, trois trajectoires (le fichier `corpus/txt/1Coordinatrice.txt` fait office de
 référence de ton, de rythme et de trame interrogative) :
 
 - **Sylvie** (58 ans, ancienne cadre en retraite anticipée, « Le Relais Sainte-Claire »
@@ -48,15 +57,15 @@ référence de ton, de rythme et de trame interrogative) :
   des cours et de la théorie, et il veut valoriser cette expérience au concours —
   mais son implication reste très occasionnelle.
 
-| # | Titre | Locuteurs | Ce que ça démontre |
-|---|-------|-----------|--------------------|
-| E2 | « Sylvie, l'annonce dans le journal » | Enquêteur·rice + Sylvie (58 ans, ancienne cadre) | Récit long, émotion, sens, regret — matière à codage fin |
-| E3 | « Marc, du four à la craie » | Enquêteur·rice + Marc (46 ans, cuisinier) | Arc de transformation (peur → confiance → projet d'études) ; PCS ouvrière |
-| E4 | « Thomas & Yanis, l'aide aux devoirs à deux voix » | Enquêteur·rice + Thomas (21 ans, étudiant en prépa concours) + Yanis (22 ans, étudiant bénévole) | **3 locuteurs** : attribution des tours, variables par locuteur ; désaccord sur la valeur d'un engagement « à la carte » |
+| # = titre | Locuteurs | Ce que ça démontre |
+|---|---|---|
+| 2Catholique | Enquêteur·rice + Sylvie (58 ans, ancienne cadre) | Récit long, émotion, sens, regret — matière à codage fin |
+| 3Cuisinier | Enquêteur·rice + Marc (46 ans, cuisinier) | Arc de transformation (peur → confiance → projet d'études) ; PCS ouvrière |
+| 4Etudiants | Enquêteur·rice + Thomas (21 ans, étudiant en prépa concours) + Yanis (22 ans, étudiant bénévole) | **3 locuteurs** : attribution des tours, variables par locuteur ; désaccord sur la valeur d'un engagement « à la carte » |
 
 Calibrage : 10–14 tours de parole par entretien, 400–600 mots (≈ 3–4 min d'audio TTS).
 Chaque entretien contient au moins : un passage émouvant, un passage technique
-(déroulement concret d'une séance), un désaccord ou une nuance (E3 : Thomas et Yanis
+(déroulement concret d'une séance), un désaccord ou une nuance (4Etudiants : Thomas et Yanis
 n'ont pas la même lecture d'un engagement occasionnel — parfait pour montrer le
 codage par locuteur et les valeurs divergentes).
 
@@ -99,7 +108,7 @@ Deux conséquences ASSUMÉES de ce choix :
   `SPEAKER_01`…) : il reste un mapping étiquette → personnage à poser dans le
   générateur §5 (trivial : l'ordre de première prise de parole est connu par le
   script source, et une vérification manuelle sur 3 entretiens courts suffit).
-  Pour E3, on peut volontairement livrer l'attribution incomplète (un des deux
+  Pour 3Cuisinier, on peut volontairement livrer l'attribution incomplète (un des deux
   étudiants non mappé) puisque c'est un exercice du parcours guidé.
 
 ## 5. Fabrication du dossier corpus (fixture)
@@ -153,15 +162,15 @@ l'étape se coche toute seule quand l'utilisateur a réellement fait l'action. E
 
 | Étape (dans la démo) | Prédicat observé |
 |----------------------|------------------|
-| « Ouvre l'entretien de Thomas & Yanis » | `ouvertId === <id E3>` |
-| « Attribue ce tour à Thomas » | tour N de E3 attribué |
-| « Code ce passage avec “Sens & motivations” » | une annotation `codage` de ce code apparaît sur E3 |
-| « Renomme le locuteur » | `locuteurs[1].nom !== 'Thomas'` |
-| « Remplis la ville en texte libre » | `valeursLoc` de Thomas contient la variable Ville |
+| « Ouvre l'entretien 4Etudiants » | `ouvertId === <id 4Etudiants>` |
+| « Attribue ce tour au bon locuteur » | tour N de 4Etudiants attribué |
+| « Code ce passage avec “Sens & motivations” » | une annotation `codage` de ce code apparaît sur 4Etudiants |
+| « Renomme le locuteur » | aucun locuteur ne commence plus par « Speaker » |
+| « Remplis la ville en texte libre » | `valeursLoc` d'un locuteur contient la variable Ville |
 | « Passe le filtre sur “locuteurs” » | (étape UI pure — reste un « suivant » manuel) |
 | « Écoute depuis un clic dans le texte » | `audio.position > 0` |
 
-Ordre du parcours : Accueil → Corpus (cartes, résumé thématique) → Entretien E3
+Ordre du parcours : Accueil → Corpus (cartes, résumé thématique) → Entretien 4Etudiants
 (locuteurs → codage → audio) → fenêtre thèmes → Table de données (variables, saisie
 libre, filtres) → export `.sonal`.
 
@@ -183,7 +192,7 @@ libre, filtres) → export `.sonal`.
   le test e2e (§6) absorbent le choc ; c'est l'argument décisif pour le script contre
   le corpus fait main.
 - **Poids de l'app** : 3 × 3–4 min de mp3 mono ≈ 6–9 Mo — acceptable ; sinon qualité
-  TTS réduite ou 2 entretiens audio sur 3 (E1 sans audio montre aussi ce cas réel).
+  TTS réduite ou 2 entretiens audio sur 4 (un entretien sans audio montrerait aussi ce cas réel).
 - **Contenu pris pour vrai** : mention « personnages et voix synthétiques » affichée
   dans la démo elle-même (pas seulement dans la doc).
 
@@ -196,28 +205,28 @@ build) :
 
 ```
 CorpusTest/
-  srt/   E1.srt E2.srt E3.srt E4.srt
-  audio/ E1.mp3 E2.mp3 E3.mp3 E4.mp3
+  srt/   1Coordinatrice.srt 2Catholique.srt 3Cuisinier.srt 4Etudiants.srt
+  audio/ 1Coordinatrice.mp3 2Catholique.mp3 3Cuisinier.mp3 4Etudiants.mp3
 ```
 
 Conséquence : §3 (production TTS→STT) et §4 (transcription) sont **faits** — les
-sources existent. Et **E1 n'est plus seulement une « référence de ton »** (§2.1) :
+sources existent. Et **1Coordinatrice n'est plus seulement une « référence de ton »** (§2.1) :
 c'est un 4ᵉ entretien à part entière (Fatima). Le mini-terrain passe donc à
 **4 entretiens**. Les étiquettes de diarisation sont cohérentes sur les 4 fichiers
 (`Speaker 1` = enquêteur·rice, `Speaker 0` = personne interviewée ; `Speaker 2` =
-Yanis dans E4) → le mapping étiquette→personnage (§4) est trivial et uniforme.
+Yanis dans 4Etudiants) → le mapping étiquette→personnage (§4) est trivial et uniforme.
 
-| # | Titre proposé | Locuteurs | Association / lieu | Particularité pour la démo |
-|---|---|---|---|---|
-| E1 | « Fatima, du quartier à la coordination » | Enquêteur·rice + Fatima | Maison des Habitants, Villebourg | 2 locuteurs ; bonne entrée (parcours simple) |
-| E2 | « Sylvie, l'annonce dans le journal » | Enquêteur·rice + Sylvie | Le Relais Sainte-Claire, Villebourg | 2 locuteurs ; récit émotionnel |
-| E3 | « Marc, du four à la craie » | Enquêteur·rice + Marc | La Halle aux Savoirs, Valmont | 2 locuteurs ; arc peur→confiance |
-| E4 | « Thomas & Yanis, l'aide à deux voix » | Enquêteur·rice + Thomas + Yanis | La Passerelle, Séran | **3 locuteurs** ; désaccord de diarisation (seg. 50-52 attribué à Thomas alors que le contexte le donne à Yanis) |
+| # = titre | Locuteurs | Association / lieu | Particularité pour la démo |
+|---|---|---|---|
+| 1Coordinatrice | Enquêteur·rice + Fatima | Maison des Habitants, Villebourg | 2 locuteurs ; bonne entrée (parcours simple) |
+| 2Catholique | Enquêteur·rice + Sylvie | Le Relais Sainte-Claire, Villebourg | 2 locuteurs ; récit émotionnel |
+| 3Cuisinier | Enquêteur·rice + Marc | La Halle aux Savoirs, Valmont | 2 locuteurs ; arc peur→confiance |
+| 4Etudiants | Enquêteur·rice + Thomas + Yanis | La Passerelle, Séran | **3 locuteurs** ; désaccord de diarisation (seg. 50-52 attribué à Thomas alors que le contexte le donne à Yanis) |
 
 **Imperfections ASR assumées** (matière première de l'étape « Corriger à l'aide de
-l'audio ») : E1 traîne une salve de « Merci à tous » répétés (seg. 88-100) ; E2
-répète « je suis heureuse » (seg. 65-68) ; E3 lit « assaut » pour « asso » et
-laisse une question sans réponse (seg. 41) ; E4 casse la casse (« la passerelle »)
+l'audio ») : 1Coordinatrice traîne une salve de « Merci à tous » répétés (seg. 88-100) ; 2Catholique
+répète « je suis heureuse » (seg. 65-68) ; 3Cuisinier lit « assaut » pour « asso » et
+laisse une question sans réponse (seg. 41) ; 4Etudiants casse la casse (« la passerelle »)
 et contient la confusion de locuteur ci-dessus. Rien à corriger dans les sources :
 ce sont les imperfections réelles qu'un utilisateur de Sonal retrouve dans toute
 transcription auto.
@@ -337,7 +346,7 @@ parce que l'importeur SRT y vit, avec `DOMParser`) :
 
 ```ts
 demo:lireSource(rel)    // { nom, contenu } pour un .srt bundled (main lit le fichier)
-demo:cheminAudio(rel)   // chemin absolu d'un .mp3 bundled (ex. 'audio/E2.mp3')
+demo:cheminAudio(rel)   // chemin absolu d'un .mp3 bundled (ex. 'audio/2Catholique.mp3')
 ```
 
 Le chemin audio absolu renvoyé par `demo:cheminAudio` est passé tel quel à
@@ -360,7 +369,7 @@ l'IPC existante `corpus:assignerAudio` (qui copie dans `<corpus>/audio/`).
 2. `corpus:ouvrirDossier(dossierCorpus)` — amorce `corpus.json` minimal + bloc
    `Pondérations` si neuf ; le `store` main pointe dessus. (Rien à faire de plus
    pour `mode === 'pas-a-pas'` — on s'arrête ici.)
-3. **Si `mode === 'autonomie'`** — pour chaque `E1..E4` :
+3. **Si `mode === 'autonomie'`** — pour chaque `1Coordinatrice..4Etudiants` :
    - `demo:lireSource(racineSources, 'srt/Ek.srt')` → `importerFichier(nom, contenu,
      DOMParser)` → `payload` + `codebook` + `variables` (les SRT nuls ne portent
      **ni** thèmes **ni** variables : `convertSRT` n'embarque que `loc-json`) ;
@@ -496,10 +505,10 @@ corriger », `texteModifie` repart à FAUX à chaque ouverture, le watch de
 validation ne le détecterait pas (pour « Renommer » au contraire, le prédicat
 est déjà vrai à l'ouverture).
 
-### 14.2 Séquence d'étapes proposée (sur E1 puis E4)
+### 14.2 Séquence d'étapes proposée (sur 1Coordinatrice puis 4Etudiants)
 
 Démarre sur le corpus vide. **Mise en œuvre actuelle : 5 étapes** (`charger` →
-`corriger` → `renommer` → `coder` → `variable`), toutes sur **E1 (Fatima)** —
+`corriger` → `renommer` → `coder` → `variable`), toutes sur **1Coordinatrice (Fatima)** —
 choisie parce que sa 1re ligne porte une faute d'ASR idéale pour l'étape
 « Écouter et corriger » (« Maison des Habitants? ? », le point d'interrogation
 doublé en deux segments SRT). L'entretien s'ouvre sur l'onglet **Locuteurs**
@@ -509,14 +518,14 @@ implémentée.
 
 | # | Étape | Geste réel | Prédicat `fait()` |
 |---|---|---|---|
-| 1 | **Charger un entretien** | Importer E1 (SRT + audio). Le spotlight encadre le VRAI bouton « + Ajouter un entretien » ; le texte cite `racineSources` (« tes sources sont dans … ») | `membership` contient un entretien |
+| 1 | **Charger un entretien** | Importer 1Coordinatrice (SRT + audio). Le spotlight encadre le VRAI bouton « + Ajouter un entretien » ; le texte cite `racineSources` (« tes sources sont dans … ») | `membership` contient un entretien |
 | 2 | **Écouter et corriger la transcription** | Ouvrir l'entretien (crayon) → la consigne devient un PANNEAU en bas de la colonne, sous le panneau de l'onglet actif (pas de bouton d'action : l'utilisateur lance la lecture LUI-MÊME, clic sur ▶ ou double-espace — la consigne cite les deux) → corriger l'ASR dans l'éditeur (ex. retirer le « ? » fautif de « Maison des Habitants? ? ») | le TEXTE de l'entretien ouvert a été édité (`texteModifie`, useEntretien) |
 | 3 | **Renommer les locuteurs** | Dans l'onglet Locuteurs (défaut), renommer les « Speaker N » : Speaker 0 → « Fatima », Speaker 1 → « Enquêteur·rice » (clic dans le champ, saisie, puis clic ailleurs/Entrée). Consigne en PANNEAU en bas de colonne — la bulle flottante recouvrait le champ du 2ᵉ locuteur | `locuteurs` de l'entretien OUVERT : plus aucun nom ne commence par « Speaker » |
 | 4 | **Créer une première thématique et annoter** | Ouvrir le codebook, créer un thème (ex. « Sens & motivations »), coder un passage | une annotation `codage` existe |
 | 5 | **Saisir une variable** | Remplir p. ex. la « Ville » (texte libre) de Fatima | `valeursLoc` de Fatima contient la variable Ville |
 | 6 | **Écouter depuis le texte** | Cliquer dans le texte → le lecteur seek au temps | `audio.position > 0` déclenché par un clic texte (cf. §7 B) |
-| 7 | **Charger un 2ᵉ entretien (3 locuteurs)** | Importer E4 (Thomas & Yanis) — même mécanique one-click | `membership` contient ≥ 2 entretiens dont un à 3 locuteurs |
-| 8 | **Attribuer un tour au bon locuteur** | Corriger la diarisation d'E4 seg. 50-52 (attribué à Thomas, contexte Yanis) en scindant/réattribuant | le tour visé d'E4 a changé de locuteur |
+| 7 | **Charger un 2ᵉ entretien (3 locuteurs)** | Importer 4Etudiants (l'entretien à 3 locuteurs) — même mécanique one-click | `membership` contient ≥ 2 entretiens dont un à 3 locuteurs |
+| 8 | **Attribuer un tour au bon locuteur** | Corriger la diarisation de 4Etudiants seg. 50-52 (attribué à Thomas, contexte Yanis) en scindant/réattribuant | le tour visé de 4Etudiants a changé de locuteur |
 | 9 | **Voir la table de données** | Ouvrir la table, constater les valeurs par entretien/locuteur | onglet Données visité |
 
 Les étapes 1 et 7 illustrent les deux visages de l'import. Les étapes 2 et 8
@@ -557,7 +566,7 @@ session.
 
 ### Fait ✅
 
-1. **J1 — contenu** ✅ : `CorpusTest/` livré (4 entretiens E1–E4, SRT + audio,
+1. **J1 — contenu** ✅ : `CorpusTest/` livré (4 entretiens 1Coordinatrice–4Etudiants, SRT + audio,
    §10). Codebook/variables « sur papier » (§2.2/2.3) **non encore figés**
    (servira en J6).
 2. **J2 — builder** ✅ : [`composables/demo.ts`](../src/renderer/composables/demo.ts)
@@ -598,17 +607,17 @@ session.
 5. **J5 — pas à pas (complet)** : ajouter les **6 étapes manquantes** au tableau
    `etapes` de `demo.ts` (les 3 actuelles = étapes 1, 5, 6 de la séquence §14.2).
    Manquent :
-   - **2. Corriger à l'aide de l'audio** — prédicat : `corpsTexte` d'E2 édité
+   - **2. Corriger à l'aide de l'audio** — prédicat : `corpsTexte` de 2Catholique édité
      (hash ≠ hash d'import). NB : il faut un hash d'import de référence — à
      implémenter (ex. stocker à l'ouverture dans l'entretien, ou comparer une
      empreinte du `corpsTexte` initial vs courant).
-   - **3. Renommer les locuteurs** — prédicat : aucun locuteur d'E2 ne commence
+   - **3. Renommer les locuteurs** — prédicat : aucun locuteur de 2Catholique ne commence
      par « Speaker ».
    - **4. Écouter depuis le texte** — prédicat : `audio.position > 0` déclenché
      par un clic texte (dépendance : exposer `audio.position` au scope `demo`).
-   - **7. Charger un 2ᵉ entretien (E4, 3 locuteurs)** — action one-click
-     `importerSource('E4')` ; prédicat : ≥ 2 entretiens dont un à 3 locuteurs.
-   - **8. Attribuer un tour au bon locuteur** — prédicat : le tour visé d'E4
+   - **7. Charger un 2ᵉ entretien (4Etudiants, 3 locuteurs)** — action one-click
+     `importerSource('4Etudiants')` ; prédicat : ≥ 2 entretiens dont un à 3 locuteurs.
+   - **8. Attribuer un tour au bon locuteur** — prédicat : le tour visé de 4Etudiants
      (seg. 50-52) a changé de locuteur (nécessite de repérer le bloc par son
      contenu « Non, ce n'est pas vraiment pour le concours »).
    - **9. Voir la table de données** — prédicat : onglet Données / écran données

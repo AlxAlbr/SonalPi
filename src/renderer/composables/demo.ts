@@ -26,14 +26,14 @@ import type { Annotation } from '../../shared/entretien/annotation'
  * pour éviter le cycle : `appliquerCorpus` est défini dans `creerSonal`.
  */
 
-/** Clé source → titre de l'entretien importé (CorpusTest/). */
-const SOURCES = ['E1', 'E2', 'E3', 'E4'] as const
-const TITRES: Record<string, string> = {
-  E1: 'Fatima, du quartier à la coordination',
-  E2: "Sylvie, l'annonce dans le journal",
-  E3: 'Marc, du four à la craie',
-  E4: "Thomas & Yanis, l'aide à deux voix",
-}
+// Les 4 entretiens du corpus démo et leurs fichiers sources : `CorpusTest/`
+// (srt/ + audio/) est copié TEL QUEL dans le dossier choisi par l'utilisateur,
+// et chaque clé ci-dessous EST le nom de fichier et le TITRE de l'entretien.
+// Nommage VOLONTAIREMENT sobre : un numéro + un qualificatif NEUTRE du
+// rôle/parcours, sans prénom ni phrase — (a) les étapes se réfèrent au contenu,
+// pas à une personne ; (b) montrer des prénoms dans une démo qui TRAITE de
+// pseudonymisation enseignerait le mauvais réflexe.
+const SOURCES = ['1Coordinatrice', '2Catholique', '3Cuisinier', '4Etudiants'] as const
 
 /** Une étape du pas-à-pas : titre dans la liste, prédicat de validation du modèle,
  *  cible `data-tour` (qui peut dépendre de l'état courant), guide dans la bulle.
@@ -48,10 +48,21 @@ export interface EtapePasAPas {
   texte: () => string
   panneau?: boolean
   retest?: () => string
-  /** Le message « déjà réalisée » s'affiche dans la vue CORPUS (l'action de
+  /** Message « déjà réalisée » s'affiche dans la vue CORPUS (l'action de
    *  l'étape vit dans le corpus, ex. « Charger un entretien ») — pas dans
    *  l'entretien comme les étapes d'édition. */
   retestCorpus?: boolean
+  /** Message de FIN d'étape : après validation, un petit texte de félicitation
+   *  + la proposition d'enchaîner sur l'étape suivante (elle commence souvent
+   *  par rouvrir le même entretien). Par défaut, la validation RENVOIE à l'écran
+   *  Corpus, où le message s'affiche (sous les cartes). */
+  fini?: () => string
+  /** `finiEnEntretien` : après validation d'une étape d'ÉDITION, on RESTE dans
+   *  l'entretien (on ne renvoie pas au Corpus) et le message de fin s'affiche
+   *  SOUS les onglets, avec un bouton pour revenir à la liste « Pas à pas ».
+   *  L'utilisateur peut ainsi continuer s'il le souhaite (ex. ré-écouter
+   *  l'audio) plutôt que d'être ramené brutalement à l'écran Corpus. */
+  finiEnEntretien?: boolean
 }
 
 export interface DepsDemo {
@@ -78,6 +89,11 @@ export interface DepsDemo {
   /** Vrai dès que le TEXTE de l'entretien ouvert a été édité depuis son
    *  ouverture (useEntretien — observé par l'étape « Écouter et corriger »). */
   texteModifie: Ref<boolean>
+  /** Audios référencés par entretien (scan `png/` + audioRef, rafraîchi à
+   *  l'ouverture du corpus et après un import avec audio — sonal.ts).
+   *  L'étape « Charger un entretien » l'utilise : 1Coordinatrice n'est « fait »
+   *  que si SON audio est bien référencé. */
+  audiosCorpus: Ref<Record<string, { audio: string | null; waveform: string | null }>>
 }
 
 export function utiliserDemo(deps: DepsDemo) {
@@ -108,7 +124,7 @@ export function utiliserDemo(deps: DepsDemo) {
     const r = importerFichier(nom, contenu, (html) =>
       new DOMParser().parseFromString(html, 'text/html'),
     )
-    const imp = await window.sonal.corpus.importer(TITRES[k] ?? k, r.payload, r.codebook, r.variables)
+    const imp = await window.sonal.corpus.importer(k, r.payload, r.codebook, r.variables)
     const audio = await window.sonal.demo.cheminAudio(racine, `audio/${k}.mp3`)
     await window.sonal.corpus.assignerAudio(imp.id, audio)
     return imp.id
@@ -132,16 +148,29 @@ export function utiliserDemo(deps: DepsDemo) {
         if (!document.querySelector('.zone-audio .zone-fichier')) return '[data-tour="zone-audio"]'
         return '[data-tour="valider"]'
       },
-      fait: () => Object.keys(deps.membership.value).length > 0,
+      // L'étape n'est « faite » que si l'entretien chargé est bien
+      // « 1Coordinatrice » **ET** référence son audio (1Coordinatrice.mp3) :
+      // tout le reste du parcours est construit sur SON contenu (le « ? »
+      // doublé de la 1ʳᵉ ligne, les locuteurs/enquêteur·rice, le passage « me
+      // recevoir ») et l'étape 2 démarre par une ÉCOUTE. Un 1Coordinatrice
+      // importé SANS audio (texte seul — permis hors pas-à-pas) ne satisfait
+      // pas l'étape ; lui assigner un audio (carte → « Assigner un audio ») la
+      // valide alors automatiquement. La modale d'ajout refuse par ailleurs
+      // tout autre geste tant que l'étape n'est pas validée (garde
+      // `verifierChargementEtape1`).
+      fait: () =>
+        Object.entries(deps.membership.value).some(
+          ([id, r]) => r.titre === '1Coordinatrice' && deps.audiosCorpus.value[id]?.audio != null,
+        ),
       texte: () => {
         if (!document.querySelector('.modale-ajout')) {
-          return `Vos sources sont dans « ${racineSources.value} ». Cliquez sur ce bouton et suivez le guide.`
+          return `Vos sources sont dans « ${racineSources.value} ». Cliquez sur le bouton ci-dessus et suivez le guide.`
         }
         if (!document.querySelector('.zone-texte .zone-fichier')) {
-          return "Dans cette zone, choisissez le fichier de sous-titres : cliquez, puis sélectionnez srt/E1.srt"
+          return "Dans cette zone, choisissez le fichier de sous-titres : cliquez, puis sélectionnez srt/1Coordinatrice.srt"
         }
         if (!document.querySelector('.zone-audio .zone-fichier')) {
-          return "Bien ! Maintenant le fichier media : cliquez sur cette zone et sélectionnez audio/E1.mp3."
+          return "Bien ! Maintenant le fichier media : cliquez sur cette zone et sélectionnez audio/1Coordinatrice.mp3."
         }
         return "Tout est prêt : cliquze sur « Valider » pour créer l'entretien."
       },
@@ -149,6 +178,13 @@ export function utiliserDemo(deps: DepsDemo) {
       // L'action de cette étape vit dans le CORPUS (ajouter un entretien) :
       // le message « déjà réalisée » s'y affiche, pas dans l'éditeur.
       retestCorpus: true,
+      // Fin d'étape : félicitations + ouverture immédiate OU enchaînement —
+      // l'étape suivante commence elle aussi par ouvrir cet entretien.
+      fini: () =>
+        "Et voilà : c'est fait, votre premier entretien est chargé dans le corpus. " +
+        "Vous pouvez l'ouvrir tout de suite en cliquant sur le crayon de sa carte " +
+        "— ou bien enchaîner sur l'étape suivante, qui commencera elle aussi par " +
+        "vous faire ouvrir cet entretien.",
     },
     {
       id: 'corriger',
@@ -165,6 +201,14 @@ export function utiliserDemo(deps: DepsDemo) {
           : "Ouvrez cet entretien en cliquant sur le crayon",
       retest: () => "continuer à écouter l'audio et corriger la transcription. Mais bon, il y a ici peu d'erreurs contrairement à certains cas d'enregistements réels. L'étape de correction est essentielle pour la qualité de l'analyse. Profitez en pour prendre des notes sur des idées qui vous viennent et pour pseudonymiser si vous pensez ensuite diffuser vos entretiens. Une bonne pratique est de rédiger un guide de transcription où vous pouvez consigner tout vos choix",
       panneau: true,
+      fini: () =>
+        "Votre transcription est corrigée (le raccourci double-espace pour lancer/arrêter l'audio est pratique). " +
+        "Prochaine étape : renommer les locuteurs de cet entretien.",
+      // On RESTE dans l'entretien après la correction (pas de retour brutal au
+      // Corpus) : l'utilisateur peut continuer à écouter/corriger s'il le veut ;
+      // le message de fin s'affiche sous les onglets avec un bouton pour revenir
+      // à la liste « Pas à pas ».
+      finiEnEntretien: true,
     },
     {
       id: 'renommer',
@@ -182,8 +226,12 @@ export function utiliserDemo(deps: DepsDemo) {
       texte: () =>
         deps.vue.value === 'entretien'
           ? "Clique l'onglet Locuteurs (icône locuteur), puis renomme dans ce panneau : Speaker 0 → « Fatima », Speaker 1 → « Enquêteur·rice » — clique dans le nom, saisis, puis clique ailleurs (ou Entrée)."
-          : "Ouvre l'entretien de Fatima : clique le crayon ✏️ de sa carte.",
+          : "Ouvre l'entretien 1Coordinatrice : clique le crayon ✏️ de sa carte.",
       retest: () => "re-renommer les locuteurs (les noms sont déjà corrigés)",
+      fini: () =>
+        "Les locuteurs ont un vrai nom — Fatima et l'enquêteur·rice sont identifiables, " +
+        "et vous avez pseudonymisé le corpus à la fois. Prochaine étape : créer une " +
+        "thématique et annoter un passage.",
     },
     {
       id: 'coder',
@@ -202,8 +250,11 @@ export function utiliserDemo(deps: DepsDemo) {
       texte: () =>
         deps.vue.value === 'entretien'
           ? "Clique l'onglet Thématiques (icône thème), sélectionne un passage du texte, puis clique un thème pour le coder (✏️ pour en créer un)."
-          : "Ouvre l'entretien de Fatima : clique le crayon ✏️ de sa carte.",
+          : "Ouvre l'entretien 1Coordinatrice : clique le crayon ✏️ de sa carte.",
       retest: () => "ajouter ou retirer des annotations",
+      fini: () =>
+        "Première annotation posée : le passage est codé avec une thématique. " +
+        "Prochaine étape : saisir une variable.",
     },
     {
       id: 'variable',
@@ -219,9 +270,13 @@ export function utiliserDemo(deps: DepsDemo) {
         deps.locuteurs.value.some((l) => Object.keys(l.valeursLoc).length > 0),
       texte: () =>
         deps.vue.value === 'entretien'
-          ? "Clique l'onglet Données (icône données), puis remplis une valeur (ex. la Ville de Fatima, en texte libre)."
-          : "Ouvre l'entretien de Fatima : clique le crayon ✏️ de sa carte.",
+          ? "Clique l'onglet Données (icône données), puis remplis une valeur (ex. le lieu de l'entretien, en texte libre)."
+          : "Ouvre l'entretien 1Coordinatrice : clique le crayon ✏️ de sa carte.",
       retest: () => "modifier ou compléter les valeurs saisies",
+      fini: () =>
+        "Variable saisie ! Vous avez parcouru tout le circuit — importer, corriger, " +
+        "pseudonymiser, coder et documenter vos entretiens. Votre corpus est prêt " +
+        "pour l'analyse.",
     },
   ]
 
@@ -234,6 +289,21 @@ export function utiliserDemo(deps: DepsDemo) {
    *  — l'entretien (étapes d'édition) ou le corpus (étapes de corpus, ex.
    *  « Charger un entretien ») — avec un bouton pour revenir à la liste. */
   const retestInfo = ref<{ titre: string; suite: string; vue: 'corpus' | 'entretien' } | null>(null)
+  /** Message « fin d'étape » : après validation d'une étape, on est revenu à
+   *  l'écran Corpus et on affiche un petit texte de félicitation + la
+   *  proposition d'enchaîner sur l'étape suivante (ou de fermer si c'était la
+   *  dernière). `prochaineId`/`prochaineTitre` alimentent le bouton du message. */
+  const finiInfo = ref<{
+    titre: string
+    suite: string
+    prochaineId: string | null
+    prochaineTitre: string | null
+    /** Vue où afficher le message : 'corpus' pour les étapes de corpus (on y est
+     *  déjà revenu), 'entretien' pour les étapes d'édition qui y RESTENT (ex.
+     *  « Écouter et corriger ») — l'utilisateur peut continuer puis revenir à la
+     *  liste via le bouton du message. */
+    vue: 'corpus' | 'entretien'
+  } | null>(null)
 
   // Au changement de vue : si l'étape active est déjà validée, c'est un
   // re-test — on affiche le message d'emblée (sans attendre le prédicat, qui
@@ -242,6 +312,11 @@ export function utiliserDemo(deps: DepsDemo) {
   // qu'on en sort.
   watch(deps.vue, (v) => {
     if (retestInfo.value && v !== retestInfo.value.vue) retestInfo.value = null
+    // Le message de fin d'étape, lui, SURVIT aux changements de vue (la
+    // visibilité est pilotée par le v-if du Teleport au Corpus) : il peut y
+    // avoir une course asynchrone (ex. la vraie modale qui ouvre l'entretien
+    // après l'import) — on ne veut pas perdre les félicitations. Il s'efface
+    // quand on enchaîne sur l'étape suivante ou qu'on le ferme.
     const e = etapes.find((x) => x.id === etapeCouranteId.value)
     if (!e || !e.retest || !validees.value.has(e.id)) return
     const vueRetest: 'corpus' | 'entretien' = e.retestCorpus ? 'corpus' : 'entretien'
@@ -283,16 +358,8 @@ export function utiliserDemo(deps: DepsDemo) {
   /** Active une étape (clic dans la liste) : démarre son spotlight. */
   function activer(id: string) {
     retestInfo.value = null // une activation neuve efface l'éventuel message re-test
+    finiInfo.value = null // … ainsi que le message de fin d'étape affiché au corpus
     etapeCouranteId.value = id
-  }
-
-  /** Étape suivante (depuis la bulle). */
-  function suivante() {
-    if (!etapeCourante.value) return
-    const i = etapes.findIndex((e) => e.id === etapeCourante.value!.id)
-    const s = etapes[i + 1]
-    if (s) etapeCouranteId.value = s.id
-    else etapeCouranteId.value = null
   }
 
   // Validation automatique : quand l'étape courante devient `fait()`, on la
@@ -325,9 +392,72 @@ export function utiliserDemo(deps: DepsDemo) {
       validees.value = new Set(validees.value).add(id)
       etapeCouranteId.value = null // guidage arrêté ; l'utilisateur relance la suite
       await ecrireMarqueur(pasAPas.value ? 'pas-a-pas' : 'autonomie')
-      await deps.retourCorpus()
+      const e = etapes.find((x) => x.id === id)
+      const s = etapes[etapes.findIndex((x) => x.id === id) + 1]
+      // Une étape d'ÉDITION (`finiEnEntretien`, ex. « Écouter et corriger ») ne
+      // renvoie PAS au Corpus : on reste dans l'entretien où l'utilisateur peut
+      // continuer s'il le souhaite, et le message de fin s'y affiche (sous les
+      // onglets) avec un bouton pour revenir à la liste « Pas à pas ». Les autres
+      // (étapes de corpus) reviennent à l'écran Corpus comme avant.
+      const resterEnEntretien = !!e?.finiEnEntretien
+      if (!resterEnEntretien) await deps.retourCorpus()
+      // Fin d'étape : on félicite et on propose la suite — « ouvrir l'entretien
+      // (crayon) ou enchaîner sur l'étape suivante » — pour que l'utilisateur ne
+      // reste jamais sans savoir quoi faire.
+      if (e?.fini) {
+        finiInfo.value = {
+          titre: `« ${e.titre} » : terminé ✓`,
+          suite: e.fini(),
+          prochaineId: s?.id ?? null,
+          prochaineTitre: s?.titre ?? null,
+          vue: resterEnEntretien ? 'entretien' : 'corpus',
+        }
+      } else {
+        finiInfo.value = null
+      }
     },
   )
+
+  /** Garde de l'étape « Charger un entretien » (pas-à-pas) : tant que l'étape
+   *  1 n'est PAS validée, la modale d'ajout n'accepte que `srt/1Coordinatrice.srt`
+   *  + `audio/1Coordinatrice.mp3` — toute la suite du parcours (le « ? » doublé
+   *  de la 1re ligne pour corriger, les locuteurs/enquêteur·rice, le passage
+   *  « me recevoir » à coder…) est construite sur le contenu de CET entretien.
+   *  Retourne un message d'erreur à afficher dans la modale, ou null si les
+   *  fichiers sont les bons. Une fois l'étape validée (re-test « charger
+   *  d'autres entretiens »), la garde se lève : 2Catholique…4Etudiants
+   *  s'importent librement dans le même corpus, et hors pas-à-pas elle n'existe
+   *  pas.
+   *  Le titre de l'entretien importé = nom du fichier SRT (préfixe numérique
+   *  compris) ; on vérifie donc les noms des fichiers choisis (et leur
+   *  présence : l'étape demande les DEUX, texte ET audio). */
+  function verifierChargementEtape1(nomTexte: string | null, cheminAudio: string | null): string | null {
+    // Le garde vaut pour le MODE pas-à-pas entier (spotlight en cours ou non —
+    // réouverture par « Récents », « Arrêter », …), pas seulement pendant le
+    // guidage : un 1Coordinatrice sans audio ne doit jamais pouvoir satisfaire
+    // l'étape.
+    if (!pasAPas.value || validees.value.has('charger')) return null
+    const base = (p: string | null) => p?.replace(/^.*[\\/]/, '') ?? null
+    if (base(nomTexte) !== '1Coordinatrice.srt' || base(cheminAudio) !== '1Coordinatrice.mp3') {
+      return (
+        "Pour cette étape du pas-à-pas, merci de choisir exactement « srt/1Coordinatrice.srt » puis « audio/1Coordinatrice.mp3 » : " +
+        'la suite du parcours (corriger, renommer, coder) est construite sur cet entretien.' +
+        " Une fois l'étape validée, vous pourrez charger librement les autres entretiens (2Catholique…4Etudiants)."
+      )
+    }
+    return null
+  }
+
+  /** Faut-il que la modale d'ajout ouvre l'entretien créé ? Pendant le geste
+   *  GUIDÉ de l'étape « Charger un entretien » (premier passage comme re-test),
+   *  NON : on reste au Corpus pour que la validation affiche son message
+   *  « étape terminée ✓ » (ou « déjà réalisée ») — l'ouverture automatique
+   *  gagnerait la course et l'entretien s'ouvrirait à la place du message ;
+   *  c'est l'étape suivante qui ouvrira l'entretien. Partout ailleurs, oui :
+   *  comportement SonalPi, l'import ouvre l'entretien. */
+  function ouvrirApresImport(): boolean {
+    return etapeCouranteId.value !== 'charger'
+  }
 
   /** Prépare le corpus de test du mode demandé puis l'ouvre. Chaque mode a son
    *  propre dossier (choisi dans la modale) ; seules les sources sont partagées.
@@ -362,13 +492,14 @@ export function utiliserDemo(deps: DepsDemo) {
 
       // 3. Mode autonomie : peupler avec les 4 entretiens + audios.
       //    Idempotent : on ne ré-importe PAS un entretien dont le TITRE source
-      //    existe déjà — sinon la re-préparation dupliquerait E1..E4.
+      //    existe déjà — sinon la re-préparation dupliquerait
+      //    1Coordinatrice…4Etudiants.
       if (mode === 'autonomie') {
         const titresExistants = new Set(Object.values(res.corpus.membership).map((m) => m.titre))
         for (const k of SOURCES) {
-          if (titresExistants.has(TITRES[k] ?? k)) continue
+          if (titresExistants.has(k)) continue
           await importerSource(k, racineSources.value)
-          titresExistants.add(TITRES[k] ?? k)
+          titresExistants.add(k)
         }
       }
 
@@ -480,7 +611,9 @@ export function utiliserDemo(deps: DepsDemo) {
     etapeCourante,
     validees,
     retestInfo,
+    finiInfo,
     activer,
-    suivante,
+    verifierChargementEtape1,
+    ouvrirApresImport,
   }
 }

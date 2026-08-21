@@ -56,7 +56,7 @@ test('saisir une valeur (entretien) → persistée et reflétée par la matrice 
   await creerVariable(page1, "+ var. d'entretien", 'Lyon')
   await entrerEntretien(page1) // saisie = écran Entretien
   await ongletDonnees(page1)
-  await page1.locator('.saisie-sel').first().selectOption({ label: 'Lyon' })
+  await page1.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
   await expect(page1.locator('.etat')).toHaveText('à jour')
   await app1.close()
 
@@ -66,7 +66,7 @@ test('saisir une valeur (entretien) → persistée et reflétée par la matrice 
   await entrerCorpus(page2)
   await entrerEntretien(page2)
   await ongletDonnees(page2)
-  await expect(page2.locator('.saisie-sel option:checked').first()).toHaveText('Lyon')
+  await expect(page2.locator('.saisie-eav-sel option:checked').first()).toHaveText('Lyon')
   // La matrice vit sur la table de données.
   await retourCorpus(page2)
   await entrerDonnees(page2)
@@ -84,7 +84,7 @@ test('une valeur de portée locuteur vit chez SON locuteur (aucun sentinelle "al
   await entrerEntretien(page)
   await ongletDonnees(page)
   // Fiche du 1er locuteur → choisir « Femme ».
-  await page.locator('.fiche-loc').first().locator('.saisie-sel').first().selectOption({ label: 'Femme' })
+  await page.locator('.fiche-loc').first().locator('.saisie-eav-sel').first().selectOption({ label: 'Femme' })
   await expect(page.locator('.etat')).toHaveText('à jour')
 
   // Le fichier entretien : la valeur est sous le locuteur, PAS au niveau entretien.
@@ -102,7 +102,7 @@ test('supprimer une modalité utilisée est refusé (avec compteur)', async () =
   await creerVariable(page, "+ var. d'entretien", 'Lyon')
   await entrerEntretien(page)
   await ongletDonnees(page)
-  await page.locator('.saisie-sel').first().selectOption({ label: 'Lyon' })
+  await page.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
   await expect(page.locator('.etat')).toHaveText('à jour')
 
   // Fenêtre d'édition des variables : tenter de supprimer la modalité « Lyon »

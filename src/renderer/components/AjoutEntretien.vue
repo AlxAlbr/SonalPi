@@ -11,11 +11,11 @@ import { utiliserSonal } from '../composables/sonal'
  * vide à taper (c'est l'ex-« Ajouter un document », avec le lecteur en plus —
  * pas de création « vierge » sans aucun fichier, décision utilisateur).
  */
-const { ajouterEntretien, racineSources } = utiliserSonal()
+const { ajouterEntretien, racineSources, verifierChargementEtape1, ouvrirApresImport } = utiliserSonal()
 
 // Pendant une session démo, les dialogues natifs s'ouvrent dans racineSources
-// (l'utilisateur y retrouve les fichiers du pas-à-pas — ex. srt/E1.srt et
-// audio/E1.mp3) ; hors démo (`undefined`), comportement inchangé : défaut OS.
+// (l'utilisateur y retrouve les fichiers du pas-à-pas — ex. srt/1Coordinatrice.srt et
+// audio/1Coordinatrice.mp3) ; hors démo (`undefined`), comportement inchangé : défaut OS.
 
 const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 // Zone « fichier son » : elle accepte en réalité AUDIO + VIDÉO (tout média
@@ -87,9 +87,22 @@ function deposerAudio(e: DragEvent) {
 
 async function valider() {
   if (enCours.value) return
+  // Garde pas-à-pas (étape « Charger un entretien ») : tant que l'étape active
+  // n'est pas validée, seuls srt/1Coordinatrice.srt + audio/1Coordinatrice.mp3
+  // sont acceptés — la suite
+  // du parcours (corriger, renommer, coder) est construite sur cet entretien.
+  // Erreurs affichées dans la modale, aucun entretien créé.
+  const refus = verifierChargementEtape1(texte.value?.nom ?? null, audioChemin.value)
+  if (refus) {
+    message.value = refus
+    return
+  }
   enCours.value = true
   try {
-    await ajouterEntretien(texte.value, audioChemin.value)
+    // Pendant le geste guidé de l'étape 1 du pas-à-pas, on n'ouvre PAS
+    // l'entretien : la validation affiche « étape terminée » au Corpus (c'est
+    // l'étape suivante qui ouvrira l'entretien).
+    await ajouterEntretien(texte.value, audioChemin.value, { ouvrir: ouvrirApresImport() })
     fermer()
   } catch (err) {
     message.value = err instanceof Error ? err.message : String(err)

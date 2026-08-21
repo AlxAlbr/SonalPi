@@ -22,14 +22,29 @@ const {
   etapeCourante,
   validees,
   retestInfo,
+  finiInfo,
   activer,
-  suivante,
   retourCorpus,
   vue,
 } = utiliserSonal()
 
-// --- Spotlight : position de la cible courante, recalculée à chaque frame ---
-const rect = ref<DOMRect | null>(null) // rectangle de la cible, ou null = bulle centrée
+// --- Spotlight : état de la cible de l'étape courante, recalculé à chaque frame ---
+// L'état de la cible détermine ce qu'on affiche — trois cas, explicitement :
+//  - 'visible' : la cible est présente et à l'écran → trou + bulle calée dessus ;
+//  - 'absente' : l'étape n'a aucun point d'ancrage (cible() → null, élément
+//    introuvable) → voile plein + bulle centrée (le geste se fait sur
+//    l'interface, volontairement masquée) ;
+//  - 'cachee' : la cible existe mais dans une AUTRE vue — les écrans restent
+//    montés en `v-show` (le DOM existe, `display:none`) → GUIDAGE EN PAUSE
+//    SILENCIEUSE, aucune bulle : l'utilisateur a quitté l'écran de l'action
+//    (ex. Accueil, Table de données), on ne le poursuit pas — il revient de
+//    lui-même. La garde getClientRects() est indispensable : sur un élément
+//    caché, getBoundingClientRect() renvoie des ZÉROS, ce qui collerait la
+//    bulle en haut à gauche (bug observé). Au retour sur l'écran de l'action,
+//    le spotlight reprend seul (recalcule en live).
+const cible = ref<{ etat: 'visible'; rect: DOMRect } | { etat: 'absente' } | { etat: 'cachee' }>({
+  etat: 'absente',
+})
 let raf = 0
 
 // NOTE : la cible est lue DIRECTEMENT dans `recalc()` (à chaque frame), et non via
@@ -39,17 +54,24 @@ let raf = 0
 // live (rAF) rend le parcours guidé réellement séquentiel.
 
 function recalc() {
-  if (!etapeCourante.value) {
-    rect.value = null
+  const e = etapeCourante.value
+  if (!e) {
+    cible.value = { etat: 'absente' }
     return
   }
-  const sel = etapeCourante.value.cible()
-  if (!sel) {
-    rect.value = null // bulle centrée (pas de cible)
+  const sel = e.cible()
+  const el = sel ? document.querySelector(sel) : null
+  if (!el) {
+    // Absent du DOM (ou étape sans cible) → aucune ancre : voile + bulle centrée.
+    cible.value = { etat: 'absente' }
     return
   }
-  const el = document.querySelector(sel)
-  rect.value = el ? (el as HTMLElement).getBoundingClientRect() : null
+  if ((el as HTMLElement).getClientRects().length === 0) {
+    // Présent mais dans une vue masquée (v-show) → guidage en pause (voir ci-dessus).
+    cible.value = { etat: 'cachee' }
+    return
+  }
+  cible.value = { etat: 'visible', rect: (el as HTMLElement).getBoundingClientRect() }
 }
 
 function boucle() {
@@ -67,7 +89,7 @@ watch(etapeCouranteId, (id) => {
     })
   } else {
     cancelAnimationFrame(raf)
-    rect.value = null
+    cible.value = { etat: 'absente' }
   }
 })
 
@@ -75,10 +97,10 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
 
 // Position de la bulle : sous la cible si possible, sinon au-dessus, sinon centrée.
 const styleBulle = computed(() => {
-  if (!rect.value) {
+  if (cible.value.etat !== 'visible') {
     return { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
   }
-  const r = rect.value
+  const r = cible.value.rect
   const sous = r.bottom + 220 < window.innerHeight
   const top = sous ? `${r.bottom + 12}px` : `${r.top - 12 - 180}px`
   return { left: `${r.left}px`, top, transform: 'none' }
@@ -86,8 +108,8 @@ const styleBulle = computed(() => {
 
 // Style du « trou » (spotlight) : positionné sur la cible, voile par box-shadow.
 const styleTrou = computed(() => {
-  if (!rect.value) return { display: 'none' }
-  const r = rect.value
+  if (cible.value.etat !== 'visible') return { display: 'none' }
+  const r = cible.value.rect
   return {
     left: `${r.left - 6}px`,
     top: `${r.top - 6}px`,
@@ -119,10 +141,35 @@ function fermerRetest() {
   else retestInfo.value = null
 }
 
+/** « Enchaîner » depuis le message de fin d'étape : on efface le message puis
+ *  on lance la prochaine étape (son spotlight commence par faire ouvrir
+ *  l'entretien — le geste reste réel). */
+function enchainFini() {
+  const id = finiInfo.value?.prochaineId
+  finiInfo.value = null
+  if (id) activer(id)
+}
+
+/** « Revenir aux étapes du pas à pas » depuis le message de fin d'étape affiché
+ *  DANS l'entretien : efface le message et retourne à la liste (écran Corpus). */
+async function revenirFini() {
+  finiInfo.value = null
+  await retourCorpus()
+}
+
 // Ancre de téléport du message re-test : la vue où vit l'action de l'étape
 // (ancre `ancre-guide-pp` dans l'entretien, `ancre-retest-pp` dans le corpus).
 const cibleRetest = computed(() =>
   retestInfo.value?.vue === 'entretien'
+    ? '[data-tour="ancre-guide-pp"]'
+    : '[data-tour="ancre-retest-pp"]',
+)
+
+// Ancre de téléport du message de fin d'étape : la vue où vit l'étape validée —
+// l'entretien (ancre `ancre-guide-pp`, sous les onglets) pour une étape d'édition
+// `finiEnEntretien`, le corpus (ancre `ancre-retest-pp`, sous les cartes) sinon.
+const cibleFini = computed(() =>
+  finiInfo.value?.vue === 'entretien'
     ? '[data-tour="ancre-guide-pp"]'
     : '[data-tour="ancre-retest-pp"]',
 )
@@ -150,18 +197,24 @@ const cibleRetest = computed(() =>
   </aside>
 
   <!-- Spotlight global (téléporté en body → survit au changement de vue). En
-       mode PANNEAU (consigne sous les onglets), pas de voile ni de bulle. -->
+       mode PANNEAU (consigne sous les onglets), pas de voile ni de bulle. Et si
+       la cible est dans une AUTRE vue (état 'cachee', ex. l'utilisateur est
+       parti sur l'Accueil ou la Table de données), on ne montre RIEN — pause
+       silencieuse : le spotlight reprend seul quand on revient sur l'écran de
+       l'action. -->
   <Teleport to="body">
-    <template v-if="etapeCourante && !modePanneau">
-      <!-- Voile plein si pas de cible (bulle centrée) ; sinon le trou crée le voile. -->
-      <div v-if="!rect" class="spotlight-voile"></div>
+    <template v-if="etapeCourante && !modePanneau && cible.etat !== 'cachee'">
+      <!-- Voile plein si aucune cible (bulle centrée) ; sinon trou + bulle sur la cible. -->
+      <div v-if="cible.etat === 'absente'" class="spotlight-voile"></div>
       <div v-else class="spotlight-trou" :style="styleTrou"></div>
       <div class="spotlight-bulle" :style="styleBulle">
         <div class="bulle-titre">{{ etapeCourante.titre }}</div>
         <p class="bulle-texte">{{ etapeCourante.texte() }}</p>
         <div class="bulle-actions">
-          <button class="bulle-btn" @click="etapeCouranteId = null">Plus tard</button>
-          <button class="bulle-btn" @click="suivante">Suivant →</button>
+          <!-- Pas de « Suivant » : l'utilisateur fait le geste sur l'interface
+               lui-même (le guide ne l'enchaîne pas). Un seul petit « Arrêter »
+               discret pour quitter le guidage. -->
+          <button class="bulle-btn arreter" @click="etapeCouranteId = null">Arrêter</button>
         </div>
       </div>
     </template>
@@ -169,14 +222,14 @@ const cibleRetest = computed(() =>
 
   <!-- Consigne « panneau » : affichée SOUS les onglets de l'entretien (ancre
        data-tour posée dans Entretien.vue) — ne cache pas le texte. Pas de
-       bouton d'action : l'utilisateur fait le geste lui-même. -->
+       bouton d'action : l'utilisateur fait le geste lui-même ; seul un petit
+       « Arrêter » discret permet de quitter le guidage. -->
   <Teleport v-if="modePanneau && etapeCourante" to='[data-tour="ancre-guide-pp"]'>
     <div class="guide-pp">
       <div class="guide-pp-titre">{{ etapeCourante.titre }}</div>
       <p class="guide-pp-texte">{{ etapeCourante.texte() }}</p>
       <div class="guide-pp-actions">
-        <button class="guide-pp-btn" @click="etapeCouranteId = null">Plus tard</button>
-        <button class="guide-pp-btn" @click="suivante">Suivant →</button>
+        <button class="guide-pp-btn arreter" @click="etapeCouranteId = null">Arrêter</button>
       </div>
     </div>
   </Teleport>
@@ -200,6 +253,34 @@ const cibleRetest = computed(() =>
         <button class="guide-pp-btn" @click="fermerRetest">
           {{ retestInfo.vue === 'entretien' ? '↩ Revenir au Pas à pas' : 'OK' }}
         </button>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Message « fin d'étape » : après validation. Selon l'étape :
+       - étapes de CORPUS (ex. « Charger un entretien ») → on est revenu à
+         l'écran Corpus, le message s'affiche sous les cartes (ancre `ancre-retest-pp`) ;
+       - étapes d'ÉDITION `finiEnEntretien` (ex. « Écouter et corriger ») → on
+         RESTE dans l'entretien, le message s'affiche SOUS les onglets (ancre
+         `ancre-guide-pp`) avec un bouton pour revenir à la liste « Pas à pas »,
+         pour que l'utilisateur puisse continuer s'il le souhaite.
+       Classe `fini-pp` DISTINCTE de `guide-pp` (les tests comptent `.guide-pp`). -->
+  <Teleport
+    v-if="finiInfo && finiInfo.vue === vue"
+    :to="cibleFini"
+  >
+    <div class="fini-pp">
+      <div class="fini-pp-titre">{{ finiInfo.titre }}</div>
+      <p class="fini-pp-texte">{{ finiInfo.suite }}</p>
+      <div class="fini-pp-actions">
+        <button v-if="finiInfo.prochaineId" class="fini-pp-btn" @click="enchainFini">
+          Étape suivante : {{ finiInfo.prochaineTitre }} →
+        </button>
+        <template v-if="finiInfo.vue === 'entretien'">
+          <button class="fini-pp-btn revenir" @click="revenirFini">↩ Revenir aux étapes du pas à pas</button>
+          <button class="fini-pp-btn discret" @click="finiInfo = null" title="Continuer dans l'entretien">OK</button>
+        </template>
+        <button v-else class="fini-pp-btn" @click="finiInfo = null">OK</button>
       </div>
     </div>
   </Teleport>
@@ -307,8 +388,9 @@ const cibleRetest = computed(() =>
 :global(.bulle-actions) {
   display: flex;
   gap: 0.4rem;
-  justify-content: flex-end;
+  justify-content: center;
   flex-wrap: wrap;
+  margin-top: 0.3rem;
 }
 :global(.bulle-btn) {
   border: 1px solid #ccc;
@@ -321,6 +403,19 @@ const cibleRetest = computed(() =>
 :global(.bulle-btn:hover) {
   border-color: #2e73d8;
   color: #1565c0;
+}
+/* « Arrêter » : petit et discret — la consigne fuit les boutons d'action,
+   l'utilisateur doit cliquer sur l'interface, pas sur le guide. */
+:global(.bulle-btn.arreter) {
+  border: none;
+  background: transparent;
+  color: #99a;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+}
+:global(.bulle-btn.arreter:hover) {
+  color: #667;
+  text-decoration: underline;
 }
 
 /* --- Consigne « panneau » (sous les onglets de l'entretien) --- */
@@ -346,6 +441,8 @@ const cibleRetest = computed(() =>
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.2rem;
 }
 .guide-pp-btn {
   border: 1px solid #ccc;
@@ -358,6 +455,18 @@ const cibleRetest = computed(() =>
 .guide-pp-btn:hover {
   border-color: #2e73d8;
 }
+/* « Arrêter » (panneau) : petit et discret, en bas — même logique que la bulle. */
+.guide-pp-btn.arreter {
+  border: none;
+  background: transparent;
+  color: #99a;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+}
+.guide-pp-btn.arreter:hover {
+  color: #667;
+  text-decoration: underline;
+}
 /* Variante « re-test » : info déjà faite (ambre, pas bleue) — l'étape est
    cochée, l'utilisateur est revenu la voir, on propose de retourner à la liste. */
 .guide-pp.retest {
@@ -366,4 +475,65 @@ const cibleRetest = computed(() =>
 }
 .guide-pp.retest .guide-pp-titre {
   color: #8a6d3b;
+}
+
+/* --- Message de FIN d'étape (écran Corpus, ancre `ancre-retest-pp`) ---
+   Variante « bravo » (verte, pas ambre) : l'étape vient d'être validée,
+   l'utilisateur est félicité et peut enchaîner sur l'étape suivante. */
+.fini-pp {
+  border: 1px solid #2e8b57;
+  background: #f0faf4;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.5rem;
+}
+.fini-pp-titre {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #1d7a44;
+  margin-bottom: 0.2rem;
+}
+.fini-pp-texte {
+  font-size: 0.8rem;
+  color: #333;
+  margin: 0 0 0.5rem;
+}
+.fini-pp-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.fini-pp-btn {
+  border: 1px solid #2e8b57;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  color: #1d7a44;
+}
+.fini-pp-btn:hover {
+  background: #e6f6ec;
+}
+/* Bouton « revenir aux étapes » (message de fin dans l'entretien) : même gabarit
+   vert mais fond blanc neutre — action secondaire face à « Étape suivante ». */
+.fini-pp-btn.revenir {
+  border-color: #2e8b57;
+  background: #fff;
+}
+.fini-pp-btn.revenir:hover {
+  background: #e6f6ec;
+}
+/* « OK » discret (message de fin dans l'entretien) : ferme le message et
+   continue à travailler dans l'entretien, sans retour au Pas à pas. */
+.fini-pp-btn.discret {
+  border: none;
+  background: transparent;
+  color: #7a9d88;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.4rem;
+}
+.fini-pp-btn.discret:hover {
+  color: #1d7a44;
+  text-decoration: underline;
 }</style>

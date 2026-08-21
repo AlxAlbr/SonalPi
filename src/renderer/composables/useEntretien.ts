@@ -217,11 +217,18 @@ export function useEntretien(deps: {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      // Texte réellement ÉDITÉ (pas un changement d'attribut) depuis l'ouverture
-      // → observable pour le pas-à-pas. `texteInitial !== ''` : un entretien
-      // vide (créé sans texte) ne se « modifie » pas au premier caractère tapé.
-      if (!chargement && ouvertId.value && texteInitial !== '' && ed.getText() !== texteInitial) {
-        texteModifie.value = true
+      // Texte réellement ÉDITÉ depuis l'ouverture → observable pour le pas-à-pas
+      // (l'étape « Écouter et corriger la transcription »). On compare à l'état
+      // INITIAL (pas au précédent) mais on REMET à faux quand le texte redevient
+      // identique à l'ouverture : le double-espace lecture/pause insère PUIS
+      // retire une espace au même endroit (une seule « frappe ») — le texte
+      // revient à son état d'ouverture, donc une simple commande de lecture ne
+      // doit PAS compter comme une correction. Seule une modification qui RESTE
+      // (différente de l'initial) valide l'étape.
+      // `texteInitial !== ''` : un entretien vide (créé sans texte) ne se
+      // « modifie » pas au premier caractère tapé.
+      if (!chargement && ouvertId.value) {
+        texteModifie.value = texteInitial !== '' && ed.getText() !== texteInitial
       }
       rafraichir()
       planifierSauvegarde()

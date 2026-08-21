@@ -91,7 +91,7 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
       canceled: false,
       filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
     })
-  }, { srt: join(dirSources, 'srt', 'E1.srt'), mp3: join(dirSources, 'audio', 'E1.mp3') })
+  }, { srt: join(dirSources, 'srt', '1Coordinatrice.srt'), mp3: join(dirSources, 'audio', '1Coordinatrice.mp3') })
 
   // Parcours séquentiel guidé : une fois la modale ouverte, le spotlight quitte
   // le bouton puis pointe successivement la zone FICHIER D'ENTRETIEN (SRT), la
@@ -107,20 +107,30 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await expect(page.locator('.zone-audio .zone-fichier')).toBeVisible()
   await spotlightSur(page, '[data-tour="valider"]')
   await page.locator('.modale-ajout .valider').click()
-  // Fatima est chargée (membership non vide), l'entretien s'ouvre avec son audio
-  // (la vraie modale ouvre l'entretien automatiquement → on est déjà dans l'éditeur).
+  // Le corpus 1Coordinatrice est chargé (membership non vide), l'étape 1 se coche et le guidage
+  // s'ARRÊTE (pas d'enchaînement automatique). Nouveau comportement (retour
+  // utilisateur) : l'import guidé n'ouvre PAS l'entretien — on reste au Corpus
+  // où le message « étape terminée ✓ » s'affiche sous les cartes, c'est l'étape
+  // 2 qui ouvrira l'entretien (elle commence par le crayon de la carte).
   await expect(page.locator('.carte-ent')).toHaveCount(1)
-  await expect(page.locator('.editeur')).toBeVisible()
-  await expect(page.locator('.lecteur-audio')).toBeVisible()
-  // L'étape 1 est cochée, mais le guidage s'ARRÊTE — PAS d'enchaînement
-  // automatique : l'utilisateur clique l'étape 2 dans la liste pour la lancer.
+  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.locator('.editeur')).not.toBeVisible()
+  await expect(page.locator('.fini-pp')).toBeVisible()
+  await expect(page.locator('.fini-pp .fini-pp-titre')).toContainText('terminé')
+  await expect(page.locator('.fini-pp .fini-pp-btn').first()).toContainText(
+    'Étape suivante : Écouter et corriger la transcription',
+  )
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
 
   // --- Étape 2 : Écouter et corriger la transcription (lancée AU CLIC) ---
-  // La liste vit sur l'écran Corpus : on y revient, on clique l'étape 2 → le
-  // spotlight guide d'abord vers le crayon de la carte de Fatima.
-  await retourCorpus(page)
+  // On est déjà au Corpus : on clique l'étape 2 → le spotlight guide d'abord
+  // vers le crayon de la carte 1Coordinatrice.
+  // Vérification explicite : l'entretien chargé à l'étape 1 est bien 1Coordinatrice (le
+  // titre de la carte = nom du fichier SRT choisi : 1Coordinatrice.srt → « 1Coordinatrice ») — toute la
+  // suite du parcours (le « ? » doublé, Fatima, « me recevoir ») est construite
+  // sur ce contenu.
+  await expect(page.locator('.carte-ent .ent-titre')).toHaveText('1Coordinatrice')
   await page.locator('.liste-pp li').nth(1).locator('.ligne-pp').click()
   await spotlightSur(page, '[data-tour="crayon-entretien"]')
   // Ouvrir l'entretien → la consigne devient un PANNEAU sous les onglets (plus
@@ -133,18 +143,26 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await expect(page.locator('.guide-pp')).toContainText('DEUX FOIS sur la touche Espace')
   await expect(page.locator('.guide-pp .action')).toHaveCount(0)
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
-  // Le geste réel : clic sur le ▶ du lecteur (l'audio E1 est chargé), puis
+  // Le geste réel : clic sur le ▶ du lecteur (l'audio 1Coordinatrice est chargé), puis
   // correction — l'ASR a doublé le point d'interrogation de la 1re ligne
   // (« Maison des Habitants? ? ») — on retire le « ? » fautif.
   await page.locator('.lecteur-audio .play').click()
   await selectionner(page, 'Habitants?')
   await page.keyboard.type('Habitants')
-  // Le texte a été édité → étape 2 cochée, le panneau disparaît. Retour
-  // AUTOMATIQUE à la liste « Pas à pas » (écran Corpus) — l'étape 3 se lance au
-  // clic (jamais d'enchaînement automatique).
+  // Le texte a été édité → étape 2 cochée, la consigne-panneau disparaît.
+  // Nouveau comportement (retour utilisateur) : on RESTE dans l'entretien après
+  // la correction — pas de retour automatique à l'écran Corpus. Le message
+  // « terminé » s'affiche SOUS les onglets, avec un bouton pour revenir à la
+  // liste « Pas à pas » (l'utilisateur peut continuer à écouter s'il le veut).
   await expect(page.locator('.liste-pp li').nth(1)).toHaveClass(/fait/, { timeout: 5_000 })
   await expect(page.locator('.guide-pp')).toHaveCount(0)
+  await expect(page.locator('.fini-pp')).toBeVisible()
+  await expect(page.locator('.corpus-ecran')).not.toBeVisible()
+  // Le bouton « Revenir aux étapes du pas à pas » ramène à la liste (et efface
+  // le message) ; l'étape 3 se lance au clic (jamais d'enchaînement automatique).
+  await page.locator('.fini-pp .fini-pp-btn.revenir').click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.locator('.fini-pp')).toHaveCount(0)
 
   // --- Étape 3 : Renommer les locuteurs (lancée AU CLIC) ---
   // L'entretien s'ouvre sur l'ACCUEIL (vue d'ensemble + conseils) : la consigne
@@ -201,7 +219,7 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   // La cible = onglet Données. La variable « Ville » (portée locuteur, saisie
   // libre) est pré-créée par le mode pas-à-pas → champ texte par locuteur.
   await page.locator('.onglets button[data-onglet="donnees"]').click()
-  const saisieLibre = page.locator('.panneau.donnees .saisie-libre').first()
+  const saisieLibre = page.locator('.panneau.donnees .saisie-eav-libre').first()
   await expect(saisieLibre).toBeVisible({ timeout: 5_000 })
   await saisieLibre.fill('Villebourg')
   await saisieLibre.press('Enter')
@@ -264,15 +282,25 @@ test('pas-à-pas : l’étape 1 par le geste RÉEL — la vraie modale « + Ajou
       canceled: false,
       filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
     })
-  }, { srt: join(dirSources, 'srt', 'E1.srt'), mp3: join(dirSources, 'audio', 'E1.mp3') })
+  }, { srt: join(dirSources, 'srt', '1Coordinatrice.srt'), mp3: join(dirSources, 'audio', '1Coordinatrice.mp3') })
   await ajouterParModale(page, ['texte', 'audio'])
 
   // Même prédicat : entretien créé (titre = nom du fichier), étape 1 cochée.
   await expect(page.locator('.carte-ent')).toHaveCount(1)
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
-  // L'entretien s'ouvre (la vraie modale) avec son lecteur (audio RÉFÉRENCÉ).
-  await expect(page.locator('.editeur')).toBeVisible()
-  await expect(page.locator('.lecteur-audio')).toBeVisible()
+  // On RESTE au Corpus (l'import guidé n'ouvre pas l'entretien — c'est l'étape
+  // suivante qui l'ouvrira) : le message « étape terminée ✓ » s'affiche sous
+  // les cartes, avec un bouton pour enchaîner.
+  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  await expect(page.locator('.editeur')).not.toBeVisible()
+  await expect(page.locator('.fini-pp')).toBeVisible()
+  await expect(page.locator('.fini-pp .fini-pp-titre')).toContainText('terminé')
+  await expect(page.locator('.fini-pp .fini-pp-btn').first()).toContainText(
+    'Étape suivante : Écouter et corriger la transcription',
+  )
+
+  // Le lecteur n'est PAS monté : l'entretien n'a pas été ouvert.
+  await expect(page.locator('.lecteur-audio')).toHaveCount(0)
 
   await app.close()
 })
@@ -283,7 +311,7 @@ test('réouverture par « Récents » : le panneau ET l\'historique des étapes 
   const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-recent-corpus-'))
   const corpusDir = dirCorpus
 
-  // 1re session : préparation pas-à-pas + ÉTAPE 1 faite (Fatima importée via la
+  // 1re session : préparation pas-à-pas + ÉTAPE 1 faite (1Coordinatrice importée via la
   // vraie modale — les dialogues FICHIER pointent vers les sources).
   let app = await lancer(profil)
   let page = await app.firstWindow()
@@ -296,7 +324,7 @@ test('réouverture par « Récents » : le panneau ET l\'historique des étapes 
       canceled: false,
       filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
     })
-  }, { srt: join(dirSources, 'srt', 'E1.srt'), mp3: join(dirSources, 'audio', 'E1.mp3') })
+  }, { srt: join(dirSources, 'srt', '1Coordinatrice.srt'), mp3: join(dirSources, 'audio', '1Coordinatrice.mp3') })
   await ajouterParModale(page, ['texte', 'audio'])
   await expect(page.locator('.carte-ent')).toHaveCount(1)
   await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
@@ -332,6 +360,131 @@ test('réouverture par « Récents » : le panneau ET l\'historique des étapes 
   await expect(page.locator('.liste-pp li').nth(3)).not.toHaveClass(/fait/)
   await expect(page.locator('.liste-pp li').nth(4)).not.toHaveClass(/fait/)
   await expect(page.locator('.spotlight-trou')).toHaveCount(0)
+
+  await app.close()
+})
+
+test('pas-à-pas : l’étape 1 EXIGE l’audio 1Coordinatrice.mp3 — 1Coordinatrice.srt seul est refusé, même après « Arrêter »', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-pp-audio-'))
+  const dirSources = mkdtempSync(join(tmpdir(), 'sonal-pp-audio-sources-'))
+  const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-audio-corpus-'))
+  const app = await lancer(profil)
+  const page = await app.firstWindow()
+  await attendreAccueil(page)
+
+  await preparerPasAPas(app, page, dirSources, dirCorpus)
+
+  // 1er essai : 1Coordinatrice.srt SEUL (aucun audio choisi) — la garde exige les DEUX
+  // fichiers : refus dans la modale, aucun entretien créé, étape pas cochée.
+  await app.evaluate(({ dialog }, arg) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [arg] })
+  }, join(dirSources, 'srt', '1Coordinatrice.srt'))
+  await page.locator('.ajout-ent').click()
+  await page.locator('.zone-texte').click()
+  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('1Coordinatrice.srt')
+  await page.locator('.modale-ajout .valider').click()
+  await expect(page.locator('.modale-ajout')).toBeVisible()
+  await expect(page.locator('.msg-ajout')).toContainText('1Coordinatrice.mp3')
+  await expect(page.locator('.carte-ent')).toHaveCount(0)
+  await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
+  await page.locator('.modale-ajout .annuler').click()
+
+  // 2e essai, APRÈS « Arrêter » (guidage coupé — c'était le trou : la garde ne
+  // jouait que pendant le spotlight). La garde vaut pour le MODE pas-à-pas tant
+  // que l'étape n'est pas validée : toujours refusé, toujours rien.
+  await page.locator('.bulle-btn.arreter').click()
+  await expect(page.locator('.spotlight-trou')).toHaveCount(0)
+  await page.locator('.ajout-ent').click()
+  await page.locator('.zone-texte').click()
+  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('1Coordinatrice.srt')
+  await page.locator('.modale-ajout .valider').click()
+  await expect(page.locator('.modale-ajout')).toBeVisible()
+  await expect(page.locator('.msg-ajout')).toContainText('1Coordinatrice.mp3')
+  await expect(page.locator('.carte-ent')).toHaveCount(0)
+
+  // 3e essai : 1Coordinatrice.srt + 1Coordinatrice.mp3 cette fois — l'import passe, la carte apparaît.
+  // Le guidage étant arrêté, l'étape ne se coche que quand on la relance
+  // (la validation observe l'étape COURANTE) : un clic la valide aussitôt.
+  await app.evaluate(({ dialog }, args) => {
+    const fichiers = [args.srt, args.mp3]
+    let i = 0
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
+    })
+  }, { srt: join(dirSources, 'srt', '1Coordinatrice.srt'), mp3: join(dirSources, 'audio', '1Coordinatrice.mp3') })
+  await page.locator('.zone-texte').click()
+  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('1Coordinatrice.srt')
+  await page.locator('.zone-audio').click()
+  await expect(page.locator('.zone-audio .zone-fichier')).toContainText('1Coordinatrice.mp3')
+  await page.locator('.modale-ajout .valider').click()
+  await expect(page.locator('.carte-ent')).toHaveCount(1)
+  // Guidage arrêté → l'import a OUVERT l'entretien (comportement normal hors
+  // geste guidé) : on revient au Corpus pour relancer l'étape.
+  await retourCorpus(page)
+  await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
+  await page.locator('.liste-pp li').first().locator('.ligne-pp').click()
+  await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
+
+  await app.close()
+})
+
+test('pas-à-pas : l’étape 1 REFUSE un fichier autre que 1Coordinatrice (garde), puis 1Coordinatrice passe', async () => {
+  const profil = mkdtempSync(join(tmpdir(), 'sonal-pp-garde-'))
+  const dirSources = mkdtempSync(join(tmpdir(), 'sonal-pp-garde-sources-'))
+  const dirCorpus = mkdtempSync(join(tmpdir(), 'sonal-pp-garde-corpus-'))
+  const app = await lancer(profil)
+  const page = await app.firstWindow()
+  await attendreAccueil(page)
+
+  await preparerPasAPas(app, page, dirSources, dirCorpus)
+  await expect(page.locator('.spotlight-trou')).toBeVisible()
+
+  // 1er essai : on « se trompe » de fichier — les dialogues de la modale
+  // renvoient 2Catholique (un AUTRE entretien), pas 1Coordinatrice : l'ajout doit être REFUSÉ (message dans la
+  // modale, aucun entretien créé, étape 1 toujours pas cochée) — la suite du
+  // parcours est construite sur le contenu d'1Coordinatrice.
+  await app.evaluate(({ dialog }, args) => {
+    const fichiers = [args.srt, args.mp3]
+    let i = 0
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
+    })
+  }, { srt: join(dirSources, 'srt', '2Catholique.srt'), mp3: join(dirSources, 'audio', '2Catholique.mp3') })
+  await page.locator('.ajout-ent').click()
+  await page.locator('.zone-texte').click()
+  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('2Catholique.srt')
+  await page.locator('.zone-audio').click()
+  await expect(page.locator('.zone-audio .zone-fichier')).toContainText('2Catholique.mp3')
+  await page.locator('.modale-ajout .valider').click()
+  await expect(page.locator('.modale-ajout')).toBeVisible()
+  await expect(page.locator('.msg-ajout')).toContainText('1Coordinatrice.srt')
+  await expect(page.locator('.msg-ajout')).toContainText('1Coordinatrice.mp3')
+  await expect(page.locator('.carte-ent')).toHaveCount(0)
+  await expect(page.locator('.liste-pp li').first()).not.toHaveClass(/fait/)
+
+  // 2e essai : 1Coordinatrice cette fois (re-stub des dialogues) — la modale est restée
+  // ouverte, on re-clique les zones pour remplacer les fichiers choisis
+  await app.evaluate(({ dialog }, args) => {
+    const fichiers = [args.srt, args.mp3]
+    let i = 0
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
+    })
+  }, { srt: join(dirSources, 'srt', '1Coordinatrice.srt'), mp3: join(dirSources, 'audio', '1Coordinatrice.mp3') })
+  await page.locator('.zone-texte').click()
+  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('1Coordinatrice.srt')
+  await page.locator('.zone-audio').click()
+  await expect(page.locator('.zone-audio .zone-fichier')).toContainText('1Coordinatrice.mp3')
+  await page.locator('.modale-ajout .valider').click()
+
+  // 1Coordinatrice est chargé : entretien créé (titre de la carte = « 1Coordinatrice », nom du fichier
+  // SRT choisi), l'étape 1 se coche.
+  await expect(page.locator('.carte-ent')).toHaveCount(1)
+  await expect(page.locator('.carte-ent .ent-titre')).toHaveText('1Coordinatrice')
+  await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
 
   await app.close()
 })

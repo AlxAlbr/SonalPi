@@ -264,10 +264,14 @@ export function creerSonal() {
    *  - texte seul → import classique (sas `.sonal`) ;
    *  - texte + audio → import puis assignation de l'audio (référence) + onde ;
    *  - audio seul → entretien au texte VIDE (à taper/transcrire) + audio.
-   *  Ouvre l'entretien créé dans tous les cas. */
+   *  Ouvre l'entretien créé dans tous les cas — SAUF si `opts.ouvrir === false`
+   *  (geste guidé de l'étape 1 du pas-à-pas : on reste au Corpus pour afficher
+   *  le message « étape terminée », l'ouverture ferait la course avec la
+   *  validation). */
   async function ajouterEntretien(
     texte: { nom: string; contenu: string } | null,
     audioChemin: string | null,
+    opts: { ouvrir?: boolean } = {},
   ) {
     if (!texte && !audioChemin) return
     let id: string
@@ -298,8 +302,11 @@ export function creerSonal() {
     if (audioChemin) {
       const a = await window.sonal.corpus.assignerAudio(id, audioChemin)
       if (a) await genererEtEcrireWaveform(id, a.audioRef)
+      // Rafraîchit le scan des audios : l'étape 1 du pas-à-pas vérifie par
+      // entretien que SON audio est bien référencé avant de se valider.
+      await rafraichirAudios()
     }
-    await ouvrirEntretien(id)
+    if (opts.ouvrir !== false) await ouvrirEntretien(id)
   }
 
   /** « Assigner un audio… » à l'entretien sélectionné dans la vue Corpus :
@@ -462,6 +469,7 @@ export function creerSonal() {
     ongletDroite: ent.ongletDroite,
     variables: corpus.variables,
     texteModifie: ent.texteModifie,
+    audiosCorpus,
   })
   // Branche le holder : `appliquerCorpus` restaure désormais le mode démo
   // (panneau « Pas à pas ») quand le corpus ouvert est un corpus démo.
