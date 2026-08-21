@@ -224,10 +224,11 @@ test('S6 rev. : AUDIO SEUL dans la modale → entretien au texte vide (à taper)
   await expect(page.locator('.zone-audio .zone-fichier')).toContainText('a-transcrire.wav')
   await page.locator('.modale-ajout .valider').click()
 
-  // Entretien créé (titre = nom du fichier son), ouvert, lecteur présent.
+  // Entretien créé (titre = nom du fichier son), ouvert, lecteur présent. Le fil
+  // d'Ariane affiche « Entretien (titre) » : on vérifie que le TITRE y figure.
   await expect(page.locator('.editeur')).toBeVisible()
   await expect(page.locator('.lecteur-audio')).toBeVisible()
-  await expect(page.locator('.fil .lien-nav.courant')).toHaveText('a-transcrire')
+  await expect(page.locator('.fil .lien-nav.courant')).toContainText('a-transcrire')
 
   // On peut TAPER la transcription directement (c'est un document ordinaire).
   await page.locator('.editeur').click()

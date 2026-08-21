@@ -133,7 +133,7 @@ contextBridge.exposeInMainWorld('sonal', {
      *  dossier choisi par l'utilisateur — le corpus les RÉFÉRENCE ensuite. */
     copierSources: (racine: string): Promise<void> =>
       ipcRenderer.invoke('demo:copierSources', racine),
-    /** Lit un fichier texte des sources (ex. 'srt/E2.srt'). */
+    /** Lit un fichier texte des sources (ex. 'srt/1Coordinatrice.srt'). */
     lireSource: (racine: string, rel: string): Promise<{ nom: string; contenu: string }> =>
       ipcRenderer.invoke('demo:lireSource', racine, rel),
     /** Chemin absolu d'un média des sources (ex. 'audio/E2.mp3'). */

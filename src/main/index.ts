@@ -390,7 +390,7 @@ function enregistrerIpcDemo(): void {
     if (complet) return
     cpSync(cheminCorpusTest(), racine, { recursive: true })
   })
-  /** Lit un fichier texte des sources (ex. `srt/E2.srt`) → { nom, contenu }.
+  /** Lit un fichier texte des sources (ex. `srt/1Coordinatrice.srt`) → { nom, contenu }.
    *  Racine paramétrable (les sources sont matérialisées, plus bundled). */
   ipcMain.handle('demo:lireSource', (_e, racine: string, rel: string) => {
     const abs = join(racine, rel)
