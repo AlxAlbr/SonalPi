@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, exists
 import { Readable } from 'node:stream'
 import { CorpusStore } from './corpusStore'
 import { ClientWebDAV } from './webdav/client'
-import { profilerServeur } from './webdav/sondes'
+import { profilerServeur, sonderFilesLock } from './webdav/sondes'
 import { MiroirWebDAV } from './miroir'
 import { coffreReel, type ConfigCorpusDistant } from './distant/coffre'
 import { SessionsDEntretien } from './distant/sessions'
@@ -184,6 +184,10 @@ function enregistrerIpcCorpus(): void {
   // Sessions d'écriture du corpus distant actif (E1) : verrous, battements,
   // publications. Null tant qu'aucun corpus distant n'est ouvert.
   let sessions: SessionsDEntretien | null = null
+  // Variante de verrou du corpus distant actif (§8) : true = files_lock natif
+  // (sonde capabilities), false/absent = PUT conditionnel. Mesurée À CHAQUE
+  // ouverture — un admin peut installer le plugin entre deux sessions.
+  let verrouNatif = false
   // Identité de session (§7) : machineId stable par poste (généré une fois,
   // stocké dans le profil) ; sessionId aléatoire par lancement d'app (voir
   // SESSION_ID plus bas) — un verrou n'est jamais hérité d'une session précédente.
@@ -206,6 +210,7 @@ function enregistrerIpcCorpus(): void {
     store = new CorpusStore(dir)
     store.lectureSeule = false // corpus local : écritures permises
     sessions = null // corpus local : plus de verrous ni publications
+    verrouNatif = false
     miroirActif = null // corpus local : plus de pull
     dossierCourant = dir
     const corpus = store.ouvrir() // amorce si le dossier est neuf
@@ -262,6 +267,7 @@ function enregistrerIpcCorpus(): void {
     store = new CorpusStore(dir)
     store.lectureSeule = false // corpus local : écritures permises
     sessions = null
+    verrouNatif = false
     miroirActif = null
     dossierCourant = dir
     let corpus = store.ouvrir() // amorce si neuf
@@ -409,6 +415,7 @@ function enregistrerIpcCorpus(): void {
     if (miroirActif?.id === id) {
       miroirActif = null
       sessions = null
+      verrouNatif = false
     }
     coffre.oublier(id)
     return coffre.lister().map(sansSecret)
@@ -458,8 +465,7 @@ function enregistrerIpcCorpus(): void {
     })
     const dirMiroir = join(app.getPath('userData'), 'miroirs', id)
     const miroir = new MiroirWebDAV(client, dirMiroir)
-    const tirage = await miroir.tirer()
-    // Garde : un dossier distant SANS corpus.json ne doit pas être amorcé
+    const tirage = await miroir.tirer()    // Garde : un dossier distant SANS corpus.json ne doit pas être amorcé
     // localement (l'amorce écrirait dans un miroir en lecture seule).
     if (!existsSync(join(dirMiroir, 'corpus.json'))) {
       throw new Error(
@@ -472,11 +478,20 @@ function enregistrerIpcCorpus(): void {
     store.lectureSeule = true
     dossierCourant = dirMiroir
     miroirActif = { id, miroir }
+    // Variante de verrou (§8) : re-sonde des capabilities à CHAQUE ouverture
+    // (une requête — un admin peut installer files_lock entre deux sessions).
+    // L'utilisateur ne choisit rien ; le protocole s'adapte.
+    verrouNatif = await sonderFilesLock(config.urlServeur, {
+      utilisateur: config.utilisateur,
+      motDePasse,
+    })
     sessions = new SessionsDEntretien(
       client,
       miroir,
       () => ({ userId: config.utilisateur, machineId, sessionId: SESSION_ID }),
       (idRetire) => store.revoquerEcritureEntretien(idRetire),
+      undefined,
+      { verrouNatif },
     )
     const corpus = store.ouvrir()
     return {
@@ -491,7 +506,8 @@ function enregistrerIpcCorpus(): void {
   /** « Actualiser » / pull doux : null si le corpus courant est local.
    *  Les fichiers SOUS NOTRE verrou sont exclus du pull (le miroir n'écrase
    *  jamais une copie de travail en session — la divergence passe par If-Match,
-   *  §6). Les verrous sont enrichis de leur contenu pour les badges. */
+   *  §6). Les verrous sont enrichis pour les badges : scan `verrous/` (B) ou
+   *  PROPFIND files_lock sur `entretiens/` (A). */
   ipcMain.handle('distant:tirer', async (): Promise<ResultatTiragePublic | null> => {
     if (!miroirActif) return null
     const exclus = sessions ? sessions.idsTenus().map((id) => `entretiens/${id}.json`) : []
@@ -499,9 +515,12 @@ function enregistrerIpcCorpus(): void {
     return {
       telecharges: t.telecharges,
       corbeille: t.corbeille,
-      verrous: sessions
-        ? await sessions.etatVerrousPublics(t.verrous)
-        : t.verrous.map(({ chemin, etag }) => ({ chemin, etag, contenu: null })),
+      verrous:
+        sessions && verrouNatif
+          ? await sessions.etatVerrousPublicsNatifs()
+          : sessions
+            ? await sessions.etatVerrousPublics(t.verrous)
+            : t.verrous.map(({ chemin, etag }) => ({ chemin, etag, contenu: null })),
       date: t.date,
     }
   })
@@ -547,6 +566,7 @@ function enregistrerIpcCorpus(): void {
     store = new CorpusStore(req.dossier)
     store.lectureSeule = false // corpus local : écritures permises
     sessions = null
+    verrouNatif = false
     miroirActif = null
     dossierCourant = req.dossier
     const corpus = store.migrerDepuisV1(

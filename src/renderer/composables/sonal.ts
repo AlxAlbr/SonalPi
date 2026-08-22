@@ -283,12 +283,16 @@ export function creerSonal() {
   //    Corpus vient du SERVEUR (scan verrous/ à chaque pull), pas d'une
   //    déduction. Clé = id d'entretien.
   const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
-  /** Absorbe les verrous vus au pull (ou à l'ouverture) dans les badges. */
+  /** Absorbe les verrous vus au pull (ou à l'ouverture) dans les badges. Les
+   *  deux conventions de chemin sont acceptées : `verrous/<id>.lock.json`
+   *  (variante B) et `entretiens/<id>.json` (variante A — le PROPFIND
+   *  files_lock porte sur les fichiers de données eux-mêmes, §8). */
   function absorberVerrous(entrees: { chemin: string; contenu: EtatVerrouPublic | null }[]) {
     const suivant: Record<string, EtatVerrouPublic> = {}
     for (const e of entrees) {
       if (!e.contenu) continue
-      const m = /^verrous\/(.+)\.lock\.json$/.exec(e.chemin)
+      let m = /^verrous\/(.+)\.lock\.json$/.exec(e.chemin)
+      if (!m) m = /^entretiens\/(.+)\.json$/.exec(e.chemin)
       if (m) suivant[m[1]] = e.contenu
     }
     badgesVerrous.value = suivant

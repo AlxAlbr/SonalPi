@@ -26,6 +26,8 @@ import {
   type ContenuVerrou,
 } from '../verrous/types'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
+import { ProviderFilesLock } from '../verrous/providerFilesLock'
+import type { VerrouProvider } from '../verrous/types'
 import type { EntreeVerrouPublic } from '../../shared/distant'
 
 export interface IdentiteSession {
@@ -45,7 +47,9 @@ export type EtatSession =
   | { etat: 'degrade' }
 
 interface SessionInterne {
-  provider: ProviderPutConditionnel
+  /** Le provider DE CETTE session — variante B ou A (§8) : le protocole ne
+   *  connaît que le contrat `VerrouProvider` (invariant §15.2). */
+  provider: VerrouProvider
   cheminVerrou: string
   etagServeur: string | null // ETag du FICHIER entretien côté serveur (garde de publication)
   sale: boolean
@@ -53,6 +57,26 @@ interface SessionInterne {
 }
 
 const CHEMIN_ENTRETIEN = (id: string) => `entretiens/${id}.json`
+
+/** Id d'entretien porté par un chemin VERROUILLÉ — les deux conventions de
+ *  variante (`entretiens/<id>.json` en A, `verrous/<id>.lock.json` en B). */
+function idDe(cheminVerrou: string): string | null {
+  const m = /^verrous\/(.+)\.lock\.json$/.exec(cheminVerrou)
+  if (m) return m[1]
+  const n = /^entretiens\/(.+)\.json$/.exec(cheminVerrou)
+  return n ? n[1] : null
+}
+
+/** Options de construction : quelle VARIANTE de verrou (plan §8). La variante
+ *  est choisie par le main d'après la sonde capabilities — jamais demandée à
+ *  l'utilisateur. Le protocole §4 est identique ; seuls le provider et le
+ *  chemin verrouillé diffèrent (fichier annexe en B, fichier de données en A).
+ */
+export interface OptionsSessions {
+  /** true = variante A (files_lock sur `entretiens/<id>.json`) ; false/absent
+   *  = variante B (PUT conditionnel sur `verrous/<id>.lock.json`). */
+  verrouNatif?: boolean
+}
 
 export class SessionsDEntretien {
   private readonly sessions = new Map<string, SessionInterne>()
@@ -65,7 +89,20 @@ export class SessionsDEntretien {
     /** Notifications vers le renderer (poll côté UI en attendant E4). */
     private readonly onRetrogradation?: (id: string) => void,
     private readonly onPublication?: (id: string, date: string) => void,
+    private readonly options: OptionsSessions = {},
   ) {}
+
+  /** Chemin VERROUILLÉ pour un entretien — le seul point où les variantes
+   *  diffèrent physiquement (§8) : fichier annexe (B) ou fichier de données (A). */
+  private cheminVerrouDe(id: string): string {
+    return this.options.verrouNatif ? CHEMIN_ENTRETIEN(id) : `verrous/${id}.lock.json`
+  }
+
+  private fabriquerProvider(): VerrouProvider {
+    return this.options.verrouNatif
+      ? new ProviderFilesLock(this.client, this.identite)
+      : new ProviderPutConditionnel(this.client, this.identite)
+  }
 
   /** Ouvre une session d'écriture : verrou + GET serveur + garde. Idempotent
    *  pour un id déjà tenu par nous (réouverture de la même session). */
@@ -73,14 +110,16 @@ export class SessionsDEntretien {
     const existante = this.sessions.get(id)
     if (existante) return { etat: 'a-nous', dernierPubli: existante.dernierPubli, sale: existante.sale }
 
-    // Un seul provider partagé (il mémorise les ETags par chemin), identité
-    // propre à CETTE ouverture d'app.
-    const provider = new ProviderPutConditionnel(this.client, this.identite)
-    const chemin = `verrous/${id}.lock.json`
+    // Un provider PAR session d'écriture ; la variante vient des options (§8).
+    const provider = this.fabriquerProvider()
+    const chemin = this.cheminVerrouDe(id)
     const acquisition = await provider.acquerir(chemin)
     if (!acquisition.ok) {
       return { etat: 'tenu-par-autrui', tenuPar: acquisition.tenuPar }
     }
+    // Variante A : consigner le verrou au JOURNAL LOCAL (les orphelins ne sont
+    // pas détectables serveur — files_lock n'enregistre ni machine ni session).
+    if (this.options.verrouNatif) this.journalAjouter(id)
 
     // La version d'APRÈS-verrou fait foi : GET serveur écrit dans le miroir
     // (pas de confiance à notre copie locale potentiellement périmée, §4.1).
@@ -126,7 +165,7 @@ export class SessionsDEntretien {
     const cheminFichier = CHEMIN_ENTRETIEN(id)
     const contenu = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8')
     try {
-      const nouveauEtag = await s.provider['client'].putTexte(
+      const nouveauEtag = await this.client.putTexte(
         cheminFichier,
         contenu,
         s.etagServeur ? { ifMatch: s.etagServeur } : {},
@@ -169,6 +208,7 @@ export class SessionsDEntretien {
     } catch {
       /* serveur injoignable : orphelin > TTL, nettoyage §5.3 à l'ouverture */
     }
+    if (this.options.verrouNatif) this.journalRetirer(id)
     this.sessions.delete(id)
     if (this.sessions.size === 0) this.arreterMinuteur()
   }
@@ -238,6 +278,9 @@ export class SessionsDEntretien {
       /* rien à mettre de côté */
     }
     this.revoquerEcriture?.(id)
+    // Variante A : le verrou natif a été PERDU — sortir l'id du journal (on ne
+    // le propose plus comme orphelin à reprendre : il appartient à autrui).
+    if (this.options.verrouNatif) this.journalRetirer(id)
     this.sessions.delete(id)
     if (this.sessions.size === 0) this.arreterMinuteur()
     this.onRetrogradation?.(id)
@@ -251,11 +294,16 @@ export class SessionsDEntretien {
   }
 
   /** Liste des verrous orphelins (crash sans libération) — matière du dialogue
-   *  « reprendre / abandonner » (§4.5). Un orphelin = verrou de NOTRE machine
-   *  mais d'une AUTRE session (sessionId aléatoire par lancement : un verrou
-   *  n'est jamais hérité).
+   *  « reprendre / abandonner » (§4.5).
+   *  Variante B : un orphelin = verrou de NOTRE machine mais d'une AUTRE
+   *  session (sessionId aléatoire par lancement : un verrou n'est jamais
+   *  hérité) — détection par lecture des fichiers `verrous/`.
+   *  Variante A : le serveur n'enregistre ni machine ni session → détection
+   *  par le JOURNAL LOCAL des verrous tenus (tenu à jour à ouvrir/fermer),
+   *  croisé avec l'état réel du serveur (encore verrouillé ?).
    */
   async orphelins(): Promise<{ cheminVerrou: string; id: string; verrou: ContenuVerrou }[]> {
+    if (this.options.verrouNatif) return await this.orphelinsNatifs()
     const out: { cheminVerrou: string; id: string; verrou: ContenuVerrou }[] = []
     try {
       const liste = await this.client.propfind('verrous')
@@ -276,12 +324,50 @@ export class SessionsDEntretien {
     return out
   }
 
+  /** Orphelins VARIANTE A : entrées du journal local dont le fichier est
+   *  ENCORE verrouillé côté serveur (sinon : libéré entre-temps — entrée
+   *  purgée silencieusement). Le détenteur affiché est l'utilisateur Nextcloud
+   *  de notre propre identité (le serveur ne sait pas plus). */
+  private async orphelinsNatifs(): Promise<{
+    cheminVerrou: string
+    id: string
+    verrou: ContenuVerrou
+  }[]> {
+    const out: { cheminVerrou: string; id: string; verrou: ContenuVerrou }[] = []
+    for (const [id, acquiredAt] of Object.entries(this.lireJournal())) {
+      const cheminFichier = CHEMIN_ENTRETIEN(id)
+      let etat = null
+      try {
+        etat = await this.client.etatVerrouNatif(cheminFichier)
+      } catch {
+        continue // réseau : retenter au prochain passage
+      }
+      if (!etat || !etat.verrouille) {
+        this.journalRetirer(id) // déjà libéré (fermeture propre ? nettoyage admin ?)
+        continue
+      }
+      out.push({
+        cheminVerrou: cheminFichier,
+        id,
+        verrou: {
+          userId: etat.owner || this.identite().userId,
+          machineId: this.identite().machineId,
+          sessionId: '', // non enregistré côté serveur en variante A
+          acquiredAt,
+          refreshedAt: acquiredAt,
+          ttl: etat.timeout && etat.timeout > 0 ? etat.timeout : 3600,
+        },
+      })
+    }
+    return out
+  }
+
   /** Abandon explicite d'un orphelin (choix « abandonner » du dialogue §4.5) :
    *  déverrouille SANS publier — la copie locale du miroir reste en place et
    *  repartira en divergence si elle resurgit plus tard (§6).
    */
   async abandonnerOrphelin(cheminVerrou: string): Promise<void> {
-    await this.supprimerVerrouOrphelin(cheminVerrou)
+    await this.libererVerrouOrphelin(cheminVerrou)
   }
 
   /** Reprise d'un orphelin (choix « reprendre et publier » du dialogue §4.5) :
@@ -289,11 +375,12 @@ export class SessionsDEntretien {
    *  le serveur PUIS le verrou libéré — l'ordre invariant §4.4 s'applique ici
    *  aussi. Personne n'a pu écrire entre-temps sans contourner le verrou ; la
    *  garde If-Match couvre ce résidu (412 → divergence, on ne publie pas).
+   *  `cheminVerrou` = le chemin VERROUILLÉ, qui dépend de la variante
+   *  (`entretiens/<id>.json` en A, `verrous/<id>.lock.json` en B).
    */
   async reprendreOrphelin(cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> {
-    const m = /^verrous\/(.+)\.lock\.json$/.exec(cheminVerrou)
-    if (!m) return { ok: false, raison: 'chemin invalide' }
-    const id = m[1]
+    const id = idDe(cheminVerrou)
+    if (!id) return { ok: false, raison: 'chemin invalide' }
     const cheminFichier = CHEMIN_ENTRETIEN(id)
     let contenu: string
     try {
@@ -325,19 +412,75 @@ export class SessionsDEntretien {
       }
       throw e // réseau : l'orphelin reste en place, retenter plus tard
     }
-    await this.supprimerVerrouOrphelin(cheminVerrou)
+    await this.libererVerrouOrphelin(cheminVerrou)
     return { ok: true }
   }
 
-  /** DELETE d'un verrou dont nous ne détenons PAS l'ETag en mémoire (orphelin) :
-   *  observation puis suppression conditionnelle — tolérante (déjà parti ?). */
-  private async supprimerVerrouOrphelin(cheminVerrou: string): Promise<void> {
+  /** Libération d'un verrou orphelin, selon la variante du chemin : UNLOCK
+   *  natif (A) ou DELETE conditionnel du fichier annexe (B). Purge ensuite le
+   *  journal local si l'id y figure (variante A).
+   */
+  private async libererVerrouOrphelin(cheminVerrou: string): Promise<void> {
+    if (this.options.verrouNatif) {
+      try {
+        await this.client.deverrouiller(cheminVerrou)
+      } catch (e) {
+        if (!(e instanceof ErreurHttp && (e.statut === 412 || e.statut === 404))) throw e
+      }
+      const id = idDe(cheminVerrou)
+      if (id) this.journalRetirer(id)
+      return
+    }
+    // Variante B : DELETE d'un verrou dont nous ne détenons PAS l'ETag en
+    // mémoire — observation puis suppression conditionnelle (déjà parti ?).
     const etag = await this.etagServeurDe(cheminVerrou)
     try {
       await this.client.supprimer(cheminVerrou, etag ?? undefined)
     } catch (e) {
       if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
     }
+  }
+
+  /* ── Journal LOCAL des verrous natifs tenus (variante A, §8) ──────────────
+   * files_lock n'expose que l'UTILISATEUR détenteur — ni machine ni session.
+   * Pour retrouver nos orphelins après un crash, chaque acquisition native
+   * est consignée ici (`sessions/.verrous-natifs.json`, local pur), retirée à
+   * la fermeture/libération. Format : { id: acquiredAt ISO }.
+   * ─────────────────────────────────────────────────────────────────────────*/
+  private get fichierJournal(): string {
+    return join(this.miroir.dirLocal, 'sessions', '.verrous-natifs.json')
+  }
+
+  private lireJournal(): Record<string, string> {
+    try {
+      const j = JSON.parse(readFileSync(this.fichierJournal, 'utf8')) as Record<string, unknown>
+      if (j && typeof j === 'object') {
+        return Object.fromEntries(
+          Object.entries(j).filter(([, v]) => typeof v === 'string'),
+        ) as Record<string, string>
+      }
+    } catch {
+      /* absent/corrompu → journal vide */
+    }
+    return {}
+  }
+
+  private ecrireJournal(j: Record<string, string>): void {
+    mkdirSync(dirname(this.fichierJournal), { recursive: true })
+    writeFileSync(this.fichierJournal, JSON.stringify(j, null, 2), 'utf8')
+  }
+
+  private journalAjouter(id: string): void {
+    const j = this.lireJournal()
+    j[id] = new Date().toISOString()
+    this.ecrireJournal(j)
+  }
+
+  private journalRetirer(id: string): void {
+    const j = this.lireJournal()
+    if (!(id in j)) return
+    delete j[id]
+    this.ecrireJournal(j)
   }
 
   /** ETag serveur courant d'un fichier, observé par PROPFIND. */
@@ -374,6 +517,39 @@ export class SessionsDEntretien {
         /* illisible/injoignable : badge omis */
       }
       out.push({ chemin, etag, contenu })
+    }
+    return out
+  }
+
+  /** Badges VARIANTE A (§3.1/§8) : le PROPFIND files_lock sur `entretiens/`
+   *  donne l'état « tenu par X » SUR LES FICHIERS DE DONNÉES EUX-MÊMES — pas
+   *  de dossier `verrous/` à scanner. Une seule requête pour tout le corpus.
+   *  Les entretiens dont NOUS tenons la session sont omis (on ne se badge pas
+   *  soi-même) ; les autres verrous du même utilisateur (autre session/poste)
+   *  restent affichés — c'est une information vraie.
+   */
+  async etatVerrousPublicsNatifs(): Promise<EntreeVerrouPublic[]> {
+    const tenus = new Set(this.idsTenus())
+    let carte: Record<string, import('../webdav/client').EtatVerrouNatif>
+    try {
+      carte = await this.client.etatsVerrouxDossier('entretiens')
+    } catch {
+      return [] // serveur injoignable : badges absents ce cycle, jamais devinés
+    }
+    const out: EntreeVerrouPublic[] = []
+    for (const [nom, e] of Object.entries(carte)) {
+      if (!e.verrouille) continue
+      const id = nom.replace(/\.json$/, '')
+      if (tenus.has(id)) continue
+      out.push({
+        chemin: `entretiens/${nom}`,
+        etag: null,
+        contenu: {
+          userId: e.owner || this.identite().userId,
+          machineId: '',
+          acquiredAt: e.time ? new Date(e.time * 1000).toISOString() : new Date().toISOString(),
+        },
+      })
     }
     return out
   }

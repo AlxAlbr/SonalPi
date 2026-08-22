@@ -22,6 +22,7 @@ import { ClientWebDAV } from '../../src/main/webdav/client'
 import { profilerServeur } from '../../src/main/webdav/sondes'
 import { MiroirWebDAV } from '../../src/main/miroir'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
+import { ProviderFilesLock } from '../../src/main/verrous/providerFilesLock'
 
 const BASE = 'http://localhost:8080' // pile A : NC31 + files_lock
 const BASE_B = 'http://localhost:8081' // pile B : NC29 SANS files_lock
@@ -213,5 +214,58 @@ describe.skipIf(!serveurPret)('Verrous variante B — pile A (NC31 + files_lock)
 describe.skipIf(!serveurBPret)('Verrous variante B — pile B (NC29 sans plugin)', () => {
   it('cycle acquisition → battement → refus d\u2019un tiers → libération', { timeout: 30_000 }, async () => {
     await cycleVerrouComplet(BASE_B)
+  })
+})
+
+// ── Verrous VARIANTE A (files_lock) contre la pile A RÉELLE (plan §8) ───────
+// Le verrou porte sur LE FICHIER DE DONNÉES lui-même ; le serveur l'impose
+// (PUT d'un tiers → 423) et l'expose aux PROPFIND (props nc:). C'est ce que
+// seul le vrai Nextcloud peut prouver.
+describe.skipIf(!serveurPret)('Verrous variante A (files_lock) — pile A réelle', () => {
+  it('cycle acquisition → refus/imposition d\u2019un tiers → battement → libération → état libre', { timeout: 60_000 }, async () => {
+    const cheminFichier = 'sonde/files-lock-contrat.json'
+    const clientMax = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: MAX })
+    // Fichier de données à verrouiller (le LOCK sur absent renvoie 500 côté
+    // files_lock — toujours créer avant).
+    await clientMax.creerDossier('sonde')
+    await clientMax.putTexte(cheminFichier, '{"banc":true}', { ifNoneMatch: '*' }).catch(() => {})
+
+    const pMax = new ProviderFilesLock(clientMax, () => ({
+      userId: 'max', machineId: 'banc-contrat', sessionId: 's-BANC-A',
+    }))
+
+    // Auto-nettoyage : libérer tout verrou résiduel d'un passage interrompu.
+    await pMax.liberer(cheminFichier)
+
+    // Libre → acquis ; état visible par un tiers.
+    expect(await pMax.etat(cheminFichier)).toBeNull()
+    expect((await pMax.acquerir(cheminFichier)).ok).toBe(true)
+
+    // Olivier voit le détenteur (via SON chemin de partage)…
+    const clientOlivier = new ClientWebDAV({ baseUrl: CORPUS_OLIVIER, identifiants: OLIVIER })
+    const pOlivier = new ProviderFilesLock(clientOlivier, () => ({
+      userId: 'olivier', machineId: 'banc-autre', sessionId: 's-AUTRE-A',
+    }))
+    const etat = await pOlivier.etat(cheminFichier)
+    expect(etat).toMatchObject({ userId: 'max' })
+    expect(etat!.acquiredAt).toBeTruthy()
+
+    // …est REFUSÉ au LOCK (423 avec détenteur)…
+    const refus = await pOlivier.acquerir(cheminFichier)
+    expect(refus.ok).toBe(false)
+    if (!refus.ok) expect(refus.tenuPar?.userId).toBe('max')
+    // …et IMPOSÉ par le serveur sur ses écritures (le filet §6.1 devient mort).
+    await expect(
+      clientOlivier.putTexte(cheminFichier, '{"contourné":true}'),
+    ).rejects.toMatchObject({ statut: 423 })
+
+    // Battement (re-LOCK même user = renouvellement, vérifié réel).
+    expect((await pMax.battre(cheminFichier)).ok).toBe(true)
+
+    // Libération idempotente puis retour à libre.
+    await pMax.liberer(cheminFichier)
+    await pMax.liberer(cheminFichier)
+    expect(await pMax.etat(cheminFichier)).toBeNull()
+    await clientMax.supprimer(cheminFichier).catch(() => {}) // nettoyage
   })
 })

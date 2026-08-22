@@ -59,6 +59,19 @@ export interface OptionsPut {
 
 export type ImplementationFetch = typeof fetch
 
+/** État du verrou NATIF d'un fichier (props files_lock, plan §8) — la forme
+ *  brute du serveur ; le provider la traduit en `ContenuVerrou`. */
+export interface EtatVerrouNatif {
+  verrouille: boolean
+  /** Identifiant Nextcloud du détenteur ('' si libre). */
+  owner: string
+  displayname: string
+  /** Unix SECONDES (convention files_lock), null si inconnu. */
+  time: number | null
+  /** Durée annoncée en secondes (0 = n'expire jamais). */
+  timeout: number | null
+}
+
 /** En-tête d'authentification Basic (seule forme acceptée en WebDAV quand la
  *  2FA est active, avec un mot de passe d'application). */
 function enteteAuth(identifiants: Identifiants): string {
@@ -194,6 +207,112 @@ export class ClientWebDAV {
       if (!(e instanceof ErreurHttp && e.statut === 405)) throw e
     }
   }
+
+  /* ── Verrou natif files_lock (variante A, plan §8) ───────────────────────
+   * Contrat vérifié contre Nextcloud réel (pile A) :
+   *   LOCK + X-User-Lock:1   → 200 obtenu (re-LOCK même user = battement,
+   *                             renouvelle) / 423 tenu par un autre user
+   *   UNLOCK + X-User-Lock:1 → 200 libéré / 423 tenu par autrui / 412 pas
+   *                             verrouillé
+   *   Le serveur IMPOSE le verrou : PUT/DELETE d'un tiers → 423 (le filet
+   *   §6.1 ne devrait plus jamais se déclencher en variante A).
+   *   La lecture d'un tiers reste libre (GET 200) ; le détenteur publie
+   *   normalement (PUT même user → 2xx).
+   * ─────────────────────────────────────────────────────────────────────────*/
+
+  /** LOCK « user owned manual lock » (type 0). 423 → ErreurHttp typée. */
+  async verrouiller(chemin: string): Promise<void> {
+    const corps = `<?xml version="1.0" encoding="utf-8"?>
+<d:lockinfo xmlns:d="DAV:">
+  <d:lockscope><d:exclusive/></d:lockscope>
+  <d:locktype><d:write/></d:locktype>
+</d:lockinfo>`
+    await this.requete('LOCK', chemin, {
+      entetes: { 'X-User-Lock': '1', Depth: '0', 'Content-Type': 'application/xml' },
+      corps,
+      statutsOk: [200],
+    })
+  }
+
+  /** UNLOCK du verrou de L'UTILISATEUR authentifié (pas besoin de token avec
+   *  X-User-Lock — vérifié réel). Tolérant : 412 (pas verrouillé) est ok. */
+  async deverrouiller(chemin: string): Promise<void> {
+    await this.requete('UNLOCK', chemin, {
+      entetes: { 'X-User-Lock': '1' },
+      statutsOk: [200, 204],
+    })
+  }
+
+  /** État du verrou natif d'une ressource, observé par PROPFIND Depth:0
+   *  (propriétés ns `http://nextcloud.org/ns`). null = libre/absent. */
+  async etatVerrouNatif(chemin: string): Promise<EtatVerrouNatif | null> {
+    const corps = `<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
+  <d:prop>
+    <nc:lock/>
+    <nc:lock-owner/>
+    <nc:lock-owner-displayname/>
+    <nc:lock-time/>
+    <nc:lock-timeout/>
+  </d:prop>
+</d:propfind>`
+    let xml: string
+    try {
+      const reponse = await this.requete('PROPFIND', chemin, {
+        entetes: { Depth: '0', 'Content-Type': 'application/xml' },
+        corps,
+        statutsOk: [207],
+      })
+      xml = await reponse.text()
+    } catch (e) {
+      if (e instanceof ErreurHttp && e.statut === 404) return null
+      throw e
+    }
+    return analyserEtatVerrouNatif(xml)
+  }
+
+  /** État verrou natif de TOUT UN DOSSIER (Depth:1) — matière des badges en
+   *  variante A : une seule requête pour tous les entretiens. Retourne un
+   *  chemin relatif → état (les fichiers libres ne figurent PAS dans la
+   *  carte). Les entrées dossiers sont exclues.
+   */
+  async etatsVerrouxDossier(dossierRelatif: string): Promise<Record<string, EtatVerrouNatif>> {
+    const corps = `<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
+  <d:prop>
+    <nc:lock/>
+    <nc:lock-owner/>
+    <nc:lock-owner-displayname/>
+    <nc:lock-time/>
+    <nc:lock-timeout/>
+  </d:prop>
+</d:propfind>`
+    const reponse = await this.requete('PROPFIND', dossierRelatif, {
+      entetes: { Depth: '1', 'Content-Type': 'application/xml' },
+      corps,
+      statutsOk: [207],
+    })
+    const xml = await reponse.text()
+    // Même relativisation que `propfind` : hrefs absolus → chemins relatifs à
+    // la racine du corpus.
+    const cheminRacine = decodeURIComponent(new URL(this.config.baseUrl).pathname).replace(
+      /^\/+|\/+$/g,
+      '',
+    )
+    const cible = [cheminRacine, dossierRelatif].filter(Boolean).join('/')
+    const sorties: Record<string, EtatVerrouNatif> = {}
+    for (const bloc of xml.match(/<(?:[\w.-]+:)?response\b[\s\S]*?<\/(?:[\w.-]+:)?response>/gi) ?? []) {
+      const hrefBrut = /<(?:[\w.-]+:)?href(?:\s[^>]*)?>([^<]*)<\/(?:[\w.-]+:)?href>/i.exec(bloc)?.[1]
+      if (!hrefBrut) continue
+      let chemin = decodeURIComponent(hrefBrut.split('?')[0]).replace(/\/+$/, '')
+      chemin = chemin.replace(/^\//, '')
+      if (!chemin.startsWith(`${cible}/`)) continue // la collection elle-même
+      const relatif = chemin.slice(cible.length + 1)
+      const etat = analyserEtatVerrouNatif(bloc)
+      if (etat) sorties[relatif] = etat // les libres ne sont pas retenus
+    }
+    return sorties
+  }
 }
 
 /** Normalise un ETag : Nextcloud (comme beaucoup de serveurs) encadre la valeur
@@ -255,4 +374,31 @@ export function analyserMultistatus(xml: string): EntreePropfind[] {
     })
   }
   return sorties
+}
+
+/** Analyse l'état verrou natif d'un PROPFIND files_lock. Le mini-parseur suit
+ *  la même discipline que `analyserMultistatus` : on cherche les éléments par
+ *  nom LOCAL (n'importe quel préfixe), tolérant aux attributs d'espace de noms
+ *  et à la mise en forme du serveur. Absence/videsse de `<nc:lock>` = libre. */
+export function analyserEtatVerrouNatif(xml: string): EtatVerrouNatif | null {
+  // La réponse peut être une erreur sabre (<d:error>) : pas d'état.
+  if (!/<\w+:?multistatus/i.test(xml)) return null
+  const texteDe = (local: string): string | null => {
+    const m = new RegExp(`<[^>]*:?${local}(?:\\s[^>]*)?>([^<]*)<`, 'i').exec(xml)
+    return m ? m[1].trim() : null
+  }
+  const lockBrut = texteDe('lock')
+  const owner = texteDe('lock-owner') ?? ''
+  const displayname = texteDe('lock-owner-displayname') ?? ''
+  const timeBrut = texteDe('lock-time')
+  const timeoutBrut = texteDe('lock-timeout')
+  // Attention : « lock-owner » matche aussi « lock-owner-displayname » —
+  // texteDe renvoie la PREMIÈRE occurrence ; ordonner les tests en conséquence.
+  const time = timeBrut !== null && timeBrut !== '' ? Number(timeBrut) : null
+  const timeout = timeoutBrut !== null && timeoutBrut !== '' ? Number(timeoutBrut) : null
+  const verrouille =
+    (lockBrut !== null && lockBrut !== '0' && lockBrut !== '') ||
+    (owner !== '' && lockBrut === null)
+  if (!verrouille) return null
+  return { verrouille: true, owner, displayname, time, timeout }
 }

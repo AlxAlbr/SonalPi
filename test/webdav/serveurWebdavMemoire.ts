@@ -17,16 +17,31 @@ interface Entree {
   etag: string
 }
 
+/** Verrou natif posé sur un fichier (émulation files_lock, variante A) — le
+ *  détenteur est l'UTILISATEUR authentifié (comme le vrai plugin). */
+interface VerrouNatif {
+  utilisateur: string
+  time: number
+  timeout: number
+}
+
 export class ServeurWebDAVMemoire {
   /** Chemins ABSOLUS serveur (`/remote.php/dav/files/max/MonCorpus/corpus.json`). */
   private readonly entrees = new Map<string, Entree>()
+  private readonly verrousNatifs = new Map<string, VerrouNatif>()
   private compteurEtag = 0
 
   readonly racineDav = '/remote.php/dav/files/max/MonCorpus'
   readonly baseUrl = `http://serveur.test${this.racineDav}`
   readonly identifiants = { utilisateur: 'max', motDePasse: 'app-pass-1234' }
+  /** Comptes supplémentaires (simulation multi-utilisateurs : refus d'un
+   *  tiers, imposition du verrou natif…) — clé = utilisateur. */
+  private readonly comptes: Record<string, string>
 
-  constructor() {
+  /** `comptes` : paires utilisateur→motDePasse acceptées en plus de max
+   *  (ex. { olivier: 'pass-oli' }) pour les scénarios à deux utilisateurs. */
+  constructor(comptes: Record<string, string> = {}) {
+    this.comptes = comptes
     this.dossier(this.racineDav)
     this.dossier(`${this.racineDav}/entretiens`)
   }
@@ -63,6 +78,25 @@ export class ServeurWebDAVMemoire {
     return `etag-${String(this.compteurEtag).padStart(4, '0')}`
   }
 
+  /** Manipulations DIRECTES des verrous natifs (préparation de scénarios :
+   *  simuler qu'un tiers a pris/relâché le verrou sans passer par le client). */
+  poserVerrouDirect(cheminRelatif: string, utilisateur: string): void {
+    this.verrousNatifs.set(this.absolu(cheminRelatif), {
+      utilisateur,
+      time: Math.floor(Date.now() / 1000),
+      timeout: 300,
+    })
+  }
+
+  oterVerrouDirect(cheminRelatif: string): void {
+    this.verrousNatifs.delete(this.absolu(cheminRelatif))
+  }
+
+  verrouNatifDe(cheminRelatif: string): { utilisateur: string } | undefined {
+    const v = this.verrousNatifs.get(this.absolu(cheminRelatif))
+    return v ? { utilisateur: v.utilisateur } : undefined
+  }
+
   private erreur(statut: number): Response {
     return new Response(`erreur ${statut}`, { status: statut })
   }
@@ -71,7 +105,8 @@ export class ServeurWebDAVMemoire {
     const auth = requete.headers.get('Authorization')
     if (!auth?.startsWith('Basic ')) return this.erreur(401)
     const [u, p] = Buffer.from(auth.slice(6), 'base64').toString('utf8').split(':')
-    return u === this.identifiants.utilisateur && p === this.identifiants.motDePasse
+    const motDePasseAttendu = u === this.identifiants.utilisateur ? this.identifiants.motDePasse : this.comptes[u]
+    return motDePasseAttendu !== undefined && p === motDePasseAttendu
       ? null
       : this.erreur(401)
   }
@@ -99,11 +134,15 @@ export class ServeurWebDAVMemoire {
       }
       case 'PUT': {
         const corps = await requete.text()
+        const refusVerrou = this.verifierVerrouNatif(requete, chemin)
+        if (refusVerrou) return refusVerrou
         return this.put(corps, requete, chemin)
       }
       case 'DELETE': {
         const e = this.entrees.get(chemin)
         if (!e || e.contenu === undefined) return this.erreur(404)
+        const refusVerrou = this.verifierVerrouNatif(requete, chemin)
+        if (refusVerrou) return refusVerrou
         const refus = this.verifierIfMatch(requete, e.etag)
         if (refus) return refus
         this.entrees.delete(chemin)
@@ -116,6 +155,10 @@ export class ServeurWebDAVMemoire {
       }
       case 'MOVE':
         return this.move(requete, chemin)
+      case 'LOCK':
+        return this.lock(requete, chemin)
+      case 'UNLOCK':
+        return this.unlock(requete, chemin)
       case 'PROPFIND':
         return this.propfind(chemin)
       default:
@@ -148,6 +191,15 @@ export class ServeurWebDAVMemoire {
     return propre === etagCourant ? null : this.erreur(412)
   }
 
+  /** IMPOSITION du verrou natif (comme files_lock réel, vérifié pile A) :
+   *  PUT/DELETE d'un utilisateur autre que le détenteur → 423 ; lecture et
+   *  écriture du DÉTENTEUR restent libres. */
+  private verifierVerrouNatif(requete: Request, chemin: string): Response | null {
+    const v = this.verrousNatifs.get(chemin)
+    if (!v) return null
+    return v.utilisateur === this.utilisateurDe(requete) ? null : this.erreur(423)
+  }
+
   private move(requete: Request, source: string): Response {
     const e = this.entrees.get(source)
     if (!e) return this.erreur(404)
@@ -162,7 +214,45 @@ export class ServeurWebDAVMemoire {
     return new Response(null, { status: 201 })
   }
 
-  /** Multistatus 207 avec hrefs ABSOLUS encodés (comme Nextcloud). */
+  /** LOCK « user owned » (émulation du contrat réel vérifié pile A) : 200
+   *  obtenu ou renouvelé (re-LOCK même user = battement), 423 tenu par un
+   *  AUTRE utilisateur, 404 fichier absent (le vrai renvoie 500 NotFoundException
+   *  — on est plus propre ici, les tests ne verrouillent jamais l'absent). */
+  private lock(requete: Request, chemin: string): Response {
+    const e = this.entrees.get(chemin)
+    if (!e || e.contenu === undefined) return this.erreur(404)
+    const utilisateur = this.utilisateurDe(requete)
+    const existant = this.verrousNatifs.get(chemin)
+    if (existant && existant.utilisateur !== utilisateur) return this.erreur(423)
+    this.verrousNatifs.set(chemin, {
+      utilisateur,
+      time: Math.floor(Date.now() / 1000),
+      timeout: 300,
+    })
+    return new Response(null, {
+      status: 200,
+      headers: { 'Lock-Token': `<opaquelocktoken:${this.compteurEtag}-${Date.now()}>` },
+    })
+  }
+
+  /** UNLOCK : 412 pas verrouillé, 423 tenu par autrui, 204 libéré. */
+  private unlock(requete: Request, chemin: string): Response {
+    const existant = this.verrousNatifs.get(chemin)
+    if (!existant) return this.erreur(412)
+    if (existant.utilisateur !== this.utilisateurDe(requete)) return this.erreur(423)
+    this.verrousNatifs.delete(chemin)
+    return new Response(null, { status: 204 })
+  }
+
+  private utilisateurDe(requete: Request): string {
+    const auth = requete.headers.get('Authorization') ?? ''
+    try {
+      return Buffer.from(auth.slice(6), 'base64').toString('utf8').split(':')[0]
+    } catch {
+      return ''
+    }
+  }
+
   private propfind(cheminDossier: string): Response {
     const cible = cheminDossier.replace(/\/+$/, '')
     const enfants = [...this.entrees.entries()]
@@ -173,16 +263,23 @@ export class ServeurWebDAVMemoire {
     const bloc = ([p, e]: [string, Entree]): string => {
       const href = p.split('/').map(encodeURIComponent).join('/')
       const estDossier = e.contenu === undefined
+      const verrou = !estDossier ? this.verrousNatifs.get(p) : undefined
+      const propsVerrou = verrou
+        ? `<nc:lock>1</nc:lock><nc:lock-owner>${verrou.utilisateur}</nc:lock-owner>` +
+          `<nc:lock-owner-displayname>${verrou.utilisateur}</nc:lock-owner-displayname>` +
+          `<nc:lock-time>${verrou.time}</nc:lock-time><nc:lock-timeout>${verrou.timeout}</nc:lock-timeout>`
+        : ''
       return `<d:response>
   <d:href>${href}${estDossier ? '/' : ''}</d:href>
   <d:propstat><d:prop>
     ${estDossier ? '<d:resourcetype><d:collection/></d:resourcetype>' : '<d:resourcetype/>'}
     ${e.contenu !== undefined ? `<d:getetag>"${e.etag}"</d:getetag>` : ''}
+    ${propsVerrou}
   </d:prop></d:propstat>
 </d:response>`
     }
     const xml = `<?xml version="1.0" encoding="utf-8"?>
-<d:multistatus xmlns:d="DAV:">${enfants.map(bloc).join('\n')}</d:multistatus>`
+<d:multistatus xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">${enfants.map(bloc).join('\n')}</d:multistatus>`
     return new Response(xml, { status: 207, headers: { 'Content-Type': 'application/xml' } })
   }
 }
