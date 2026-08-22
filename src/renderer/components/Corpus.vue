@@ -55,6 +55,7 @@ const {
   lectureSeule,
   // E1 : badges de verrou fiables (état « tenu par X » venant du serveur)
   badgeVerrou,
+  presencesSur,
 } = utiliserSonal()
 
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
@@ -464,6 +465,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 <span v-if="badgeVerrou(e.id)" class="badge-verrou"
                       :title="`Verrou tenu par ${badgeVerrou(e.id)!.userId} depuis ${heureDe(badgeVerrou(e.id)!.acquiredAt)} — ouverture en lecture seule.`">
                   🔒 {{ badgeVerrou(e.id)!.userId }}
+                </span>
+                <!-- Présence (E4 §9) : « consulté par X » — informatif, JAMAIS
+                     décisionnel (la décision, c'est le verrou ci-dessus). -->
+                <span v-for="p in presencesSur(e.id)" :key="p.machineId"
+                      class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">
+                  👁 {{ p.userId }}
                 </span>
               </div>
                 <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
@@ -949,6 +956,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .carte-ent .badge-verrou {
   flex-shrink: 0; /* le badge ne se fait pas manger par l'ellipse du titre */
+}
+.badge-presence {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  padding: 0 0.4rem;
+  border-radius: 8px;
+  background: #e2ecff;
+  color: #1d4fa1;
 }
 .spectro {
   position: absolute;

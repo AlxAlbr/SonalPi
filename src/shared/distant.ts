@@ -70,7 +70,19 @@ export interface ResultatTiragePublic {
   telecharges: string[]
   corbeille: string[]
   verrous: EntreeVerrouPublic[]
+  /** Présences vivantes des autres postes (§9, E4) — informatif, jamais
+   *  décisionnel. Absent si corpus local. */
+  presences?: PresencePublic[]
   date: string
+}
+
+/** Présence informative (§9, E4) : qui consulte quoi, SANS valeur décisionnelle
+ *  (la décision, c'est le verrou). Une présence > 10 min est morte (filtrée). */
+export interface PresencePublic {
+  userId: string
+  machineId: string
+  entretienOuvert: string | null
+  refreshedAt: string // ISO
 }
 
 /** Verrou orphelin détecté à l'ouverture du corpus (§4.5 — crash sans
@@ -81,4 +93,14 @@ export interface OrphelinDistant {
   userId: string
   machineId: string
   acquiredAt: string // ISO
+}
+
+/** Une copie de DIVERGENCE mise de côté (§6, rétrogradation d'une publication
+ *  412) — matière du dialogue de fusion assistée (E3b). Le contenu ne traverse
+ *  le pont que sur demande explicite (`lireDivergence`). */
+export interface DivergenceDistante {
+  chemin: string // « sessions/<id>.divergence-<sessionId>.json » (relatif miroir)
+  id: string // id de l'entretien concerné
+  sessionId: string // session d'écriture qui a subi la rétrogradation
+  date: string // ISO (mtime de la copie — affichage « copie du JJ/MM HH:MM »)
 }

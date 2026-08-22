@@ -20,7 +20,7 @@ export interface ConfigCorpusDistant {
   id: string
   urlServeur: string // racine DAV du corpus, sans barre finale
   utilisateur: string
-  motDePasseChiffre: string // base64, produit par safeStorage
+  motDePasseChiffre: string // préfixé `ss:` (trousseau) ou `b64:` (repli) + base64
 }
 
 interface FichierComptes {
@@ -98,13 +98,31 @@ export function idDeCorpus(urlServeur: string): string {
   return Buffer.from(urlServeur.replace(/\/+$/, ''), 'utf8').toString('base64url').slice(0, 32)
 }
 
-/** Coffre pré-branché sur le vrai `safeStorage` (appelé depuis le main). */
+/** Coffre pré-branché sur le vrai `safeStorage` (appelé depuis le main).
+ *
+ *  REPLI DOCUMENTÉ : sans trousseau système (Linux sans gnome-keyring/kwallet,
+ *  WSLg, certains conteneurs), `safeStorage` est indisponible — on ne bloque
+ *  pas l'application pour autant. Le secret est alors OBFUSQUÉ en base64.
+ *  Chaque valeur est AUTO-DESCRITIVE (`ss:` = chiffrement trousseau, `b64:` =
+ *  repli) : le déchiffrement suit le préfixe, donc un compte enregistré quand
+ *  le trousseau était là reste lisible même s'il disparaît ensuite (et
+ *  réciproquement) ; les valeurs sans préfixe sont l'héritage d'avant E4 et
+ *  partent du principe safeStorage. */
 export function coffreReel(dirUserData: string): CoffreComptes {
   // eslint-disable-next-line @typescript-eslint/no-var-requires -- import paresseux : ce module n'est chargé que dans Electron
   const { safeStorage } = require('electron') as typeof import('electron')
   const chiffreur: Chiffreur = {
-    chiffre: (clair) => safeStorage.encryptString(clair).toString('base64'),
-    dechiffre: (chiffre) => safeStorage.decryptString(Buffer.from(chiffre, 'base64')),
+    chiffre: (clair) =>
+      safeStorage.isEncryptionAvailable()
+        ? 'ss:' + safeStorage.encryptString(clair).toString('base64')
+        : 'b64:' + Buffer.from(clair, 'utf8').toString('base64'),
+    dechiffre: (chiffre) =>
+      chiffre.startsWith('ss:')
+        ? safeStorage.decryptString(Buffer.from(chiffre.slice(3), 'base64'))
+        : chiffre.startsWith('b64:')
+          ? Buffer.from(chiffre.slice(4), 'base64').toString('utf8')
+          : // Héritage (pré-E4, sans préfixe) : chiffré par safeStorage.
+            safeStorage.decryptString(Buffer.from(chiffre, 'base64')),
   }
   return new CoffreComptes(join(dirUserData, 'comptes-distant.json'), chiffreur)
 }

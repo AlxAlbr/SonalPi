@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import App from './App.vue'
+import { installerErreursGlobales } from './erreurs'
 import './styles/base.css'
 import './styles/editeur.css'
 
@@ -7,5 +8,9 @@ import './styles/editeur.css'
 // naviguer la fenêtre vers le fichier (comportement Chromium par défaut).
 window.addEventListener('dragover', (e) => e.preventDefault())
 window.addEventListener('drop', (e) => e.preventDefault())
+
+// Bannière globale (E3) : les rejets IPC non catchés (refus de verrou, hors
+// ligne, divergence §4.7) s'affichent au lieu de mourir dans la console.
+installerErreursGlobales()
 
 createApp(App).mount('#app')

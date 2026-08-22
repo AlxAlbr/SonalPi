@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { fournirSonal } from './composables/sonal'
+import { erreurGlobale, effacerErreurGlobale } from './erreurs'
 import Accueil from './components/Accueil.vue'
 import Corpus from './components/Corpus.vue'
 import TableDonnees from './components/TableDonnees.vue'
 import Entretien from './components/Entretien.vue'
 import RepriseCrash from './components/RepriseCrash.vue'
+import DivergenceCopie from './components/DivergenceCopie.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
 // (utiliserSonal). App ne garde que l'en-tête, le fil d'Ariane et les bannières.
 const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat, dossierCourantNom } =
-  fournirSonal()
-</script>
+  fournirSonal()</script>
 
 
 <template>
@@ -44,6 +45,13 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
 
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
 
+    <!-- Bannière globale (E3) : rejets IPC non catchés (verrou refusé, hors
+         ligne, divergence §4.7). Fermable ; toute nouvelle erreur remplace. -->
+    <div v-if="erreurGlobale" class="banniere refus">
+      <span>{{ erreurGlobale }}</span>
+      <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
+    </div>
+
     <Accueil v-show="vue === 'accueil'" />
     <Corpus v-show="vue === 'corpus'" />
     <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
@@ -53,6 +61,10 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <!-- Reprise crash (§4.5) : orphelins détectés à l'ouverture d'un corpus
          distant — téléporté, ne s'affiche QUE si la liste est non vide. -->
     <RepriseCrash />
+
+    <!-- Fusion assistée (§6) : copie de divergence proposée à la réouverture
+         de l'entretien concerné. -->
+    <DivergenceCopie />
   </main>
 </template>
 
@@ -121,6 +133,16 @@ h1 small {
   background: #fdecea;
   color: #b3261e;
   border: 1px solid #f3b4ad;
+}
+.banniere .fermer {
+  float: right;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
 }
 /* --- Fil d'Ariane (navigation 3 écrans) --- */
 .fil {

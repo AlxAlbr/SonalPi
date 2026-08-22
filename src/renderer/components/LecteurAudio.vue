@@ -14,7 +14,8 @@ import type { SegmentThematique } from '../../shared/format'
  * sur la même ligne — la place libérée à droite accueille le panneau vidéo.
  */
 const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
-const { audio, resumeOuvert, tempsAuTexte, peintureSegment, reassignerAudioEntretienOuvert } = utiliserSonal()
+const { audio, resumeOuvert, tempsAuTexte, peintureSegment, reassignerAudioEntretienOuvert, associerAudioEntretienOuvert, idDistantCourant } =
+  utiliserSonal()
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
 
@@ -92,8 +93,18 @@ function clicBande(e: MouseEvent) {
     </div>
   </div>
   <div v-else-if="url && erreur" class="lecteur-audio lecteur-erreur">
-    <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
-    <button class="mini-lect" @click="reassignerAudioEntretienOuvert">Assigner un audio…</button>
+    <!-- §3.3 (E4) : en corpus distant, l'audioRef partagée pointe chez le poste
+         qui a assigné — chaque poste associe SON fichier local (référence,
+         jamais de copie, jamais d'écriture au JSON partagé). En local, le
+         geste reste la ré-assignation classique. -->
+    <template v-if="idDistantCourant">
+      <span class="msg-erreur">🔊 Audio absent de ce poste — il vit sur la machine qui l'a assigné.</span>
+      <button class="mini-lect" @click="associerAudioEntretienOuvert">Associer l'audio local…</button>
+    </template>
+    <template v-else>
+      <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
+      <button class="mini-lect" @click="reassignerAudioEntretienOuvert">Assigner un audio…</button>
+    </template>
   </div>
 </template>
 

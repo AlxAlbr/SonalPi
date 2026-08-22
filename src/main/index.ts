@@ -15,6 +15,8 @@ import { profilerServeur, sonderFilesLock } from './webdav/sondes'
 import { MiroirWebDAV } from './miroir'
 import { coffreReel, type ConfigCorpusDistant } from './distant/coffre'
 import { SessionsDEntretien } from './distant/sessions'
+import { TransactionsCorpus } from './distant/transactions'
+import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
@@ -184,6 +186,12 @@ function enregistrerIpcCorpus(): void {
   // Sessions d'écriture du corpus distant actif (E1) : verrous, battements,
   // publications. Null tant qu'aucun corpus distant n'est ouvert.
   let sessions: SessionsDEntretien | null = null
+  // Transactions de définitions (E3, plan §4.7/§4.8) : verrou corpus → GET
+  // frais → mutation → PUT If-Match. Null en corpus local (mutation directe).
+  let transactions: TransactionsCorpus | null = null
+  // Présence (E4, plan §9) : « ce poste consulte tel entretien » — informatif,
+  // JAMAIS décisionnel. Null en corpus local.
+  let presence: PresenceDistante | null = null
   // Variante de verrou du corpus distant actif (§8) : true = files_lock natif
   // (sonde capabilities), false/absent = PUT conditionnel. Mesurée À CHAQUE
   // ouverture — un admin peut installer le plugin entre deux sessions.
@@ -210,6 +218,9 @@ function enregistrerIpcCorpus(): void {
     store = new CorpusStore(dir)
     store.lectureSeule = false // corpus local : écritures permises
     sessions = null // corpus local : plus de verrous ni publications
+    transactions = null // corpus local : mutations directes (pas de transaction)
+    presence?.arreter() // corpus local : plus de battement de présence
+    presence = null
     verrouNatif = false
     miroirActif = null // corpus local : plus de pull
     dossierCourant = dir
@@ -267,6 +278,9 @@ function enregistrerIpcCorpus(): void {
     store = new CorpusStore(dir)
     store.lectureSeule = false // corpus local : écritures permises
     sessions = null
+    transactions = null
+    presence?.arreter()
+    presence = null
     verrouNatif = false
     miroirActif = null
     dossierCourant = dir
@@ -277,6 +291,14 @@ function enregistrerIpcCorpus(): void {
   })
   // Session id aléatoire PAR LANCEMENT (portée du bloc corpus entier).
   const SESSION_ID = `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
+  /** Exécute une mutation de DÉFINITIONS (flux B, plan §10) : transaction
+   *  complète en corpus distant (verrou corpus → GET frais → mutation → PUT
+   *  If-Match, §4.7), écriture directe du store en local. Les refus
+   *  (`ErreurTransaction`) remontent à la bannière renderer via l'exception IPC. */
+  function executerDefinitions<T>(fn: () => T): Promise<T> | T {
+    return transactions ? transactions.executer(fn) : fn()
+  }
 
   /** Ouverture d'un entretien : en corpus DISTANT, tente d'abord le VERROU
    *  (§4.1). Acquis → écriture permise pour ce fichier (flux A) ; refusé →
@@ -323,29 +345,41 @@ function enregistrerIpcCorpus(): void {
     sessions?.noterSale(id) // publication périodique / finale s'en occuperont
     return now
   })
-  ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) => store.creerEntretienVide(titre))
-  ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
-    store.renommerEntretien(id, titre),
+  ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) =>
+    executerDefinitions(() => store.creerEntretienVide(titre)),
   )
-  ipcMain.handle('corpus:supprimerEntretien', (_e, id: string) => store.supprimerEntretien(id))
+  ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
+    executerDefinitions(() => store.renommerEntretien(id, titre)),
+  )
+  /** Suppression : DOUBLE VERROU distant (corpus PUIS entretien, ordre canonique
+   *  §4.8 — publication corpus d'abord, MOVE serveur ensuite) ; directe en local.
+   *  Défense en profondeur : si NOUS tenions encore la session de cet entretien,
+   *  la fermer d'abord (publication puis libération, ordre invariant §4.4) —
+   *  sinon ce serait notre propre verrou qui bloquerait la suppression. */
+  ipcMain.handle('corpus:supprimerEntretien', async (_e, id: string) => {
+    if (!transactions) return store.supprimerEntretien(id)
+    await sessions?.fermer(id)
+    store.revoquerEcritureEntretien(id)
+    return transactions.supprimerEntretien(id)
+  })
   ipcMain.handle(
     'corpus:importer',
     (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
-      store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
+      executerDefinitions(() => store.importerEntretien(titre, payload, codebook, variables, reglesAnon)),
   )
 
-  // Codebook (thèmes)
+  // Codebook (thèmes) — flux B : sous transaction en distant (§4.7)
   ipcMain.handle('corpus:ajouterCategorie', (_e, nom: string, parent: string | null) =>
-    store.ajouterCategorie(nom, parent),
+    executerDefinitions(() => store.ajouterCategorie(nom, parent)),
   )
   ipcMain.handle('corpus:modifierCategorie', (_e, id: string, patch: PatchCategorie) =>
-    store.modifierCategorie(id, patch),
+    executerDefinitions(() => store.modifierCategorie(id, patch)),
   )
   ipcMain.handle('corpus:deplacerCategorie', (_e, id: string, sens: -1 | 1) =>
-    store.deplacerCategorie(id, sens),
+    executerDefinitions(() => store.deplacerCategorie(id, sens)),
   )
   ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string) =>
-    store.supprimerCategorie(id, exceptId),
+    executerDefinitions(() => store.supprimerCategorie(id, exceptId)),
   )
   ipcMain.handle('corpus:usagesParCategorie', () => store.usagesParCategorie())
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
@@ -353,15 +387,17 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:scanAnon', () => store.scanAnon())
   ipcMain.handle('corpus:regleAnonParEntite', (_e, entite: string) => store.regleAnonParEntite(entite))
   ipcMain.handle('corpus:regleAnonCreer', (_e, entite: string, pseudos: string[]) =>
-    store.regleAnonCreer(entite, pseudos),
+    executerDefinitions(() => store.regleAnonCreer(entite, pseudos)),
   )
   ipcMain.handle('corpus:regleAnonAjouterPseudo', (_e, id: string, pseudo: string) =>
-    store.regleAnonAjouterPseudo(id, pseudo),
+    executerDefinitions(() => store.regleAnonAjouterPseudo(id, pseudo)),
   )
   ipcMain.handle('corpus:regleAnonUtiliseeAilleurs', (_e, id: string, exceptId?: string) =>
     store.regleAnonUtiliseeAilleurs(id, exceptId),
   )
-  ipcMain.handle('corpus:regleAnonSupprimer', (_e, id: string) => store.regleAnonSupprimer(id))
+  ipcMain.handle('corpus:regleAnonSupprimer', (_e, id: string) =>
+    executerDefinitions(() => store.regleAnonSupprimer(id)),
+  )
   ipcMain.handle('corpus:appliquerRegleAnon', (_e, entretienId: string, regleId: string) =>
     store.appliquerRegleAnon(entretienId, regleId),
   )
@@ -369,22 +405,24 @@ function enregistrerIpcCorpus(): void {
     store.compterUsagesCategorie(code, exceptId),
   )
 
-  // Variables & modalités (EAV)
+  // Variables & modalités (EAV) — définitions : flux B, sous transaction distant
   ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'locuteur') =>
-    store.ajouterVariable(lib, portee),
+    executerDefinitions(() => store.ajouterVariable(lib, portee)),
   )
   ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Variable>) =>
-    store.modifierVariable(id, patch),
+    executerDefinitions(() => store.modifierVariable(id, patch)),
   )
-  ipcMain.handle('corpus:supprimerVariable', (_e, id: string) => store.supprimerVariable(id))
+  ipcMain.handle('corpus:supprimerVariable', (_e, id: string) =>
+    executerDefinitions(() => store.supprimerVariable(id)),
+  )
   ipcMain.handle('corpus:ajouterModalite', (_e, idVar: string, lib: string) =>
-    store.ajouterModalite(idVar, lib),
+    executerDefinitions(() => store.ajouterModalite(idVar, lib)),
   )
   ipcMain.handle('corpus:modifierModalite', (_e, idVar: string, idMod: string, lib: string) =>
-    store.modifierModalite(idVar, idMod, lib),
+    executerDefinitions(() => store.modifierModalite(idVar, idMod, lib)),
   )
   ipcMain.handle('corpus:supprimerModalite', (_e, idVar: string, idMod: string) =>
-    store.supprimerModalite(idVar, idMod),
+    executerDefinitions(() => store.supprimerModalite(idVar, idMod)),
   )
   ipcMain.handle('corpus:matrice', () => store.matriceCorpus())
 
@@ -397,6 +435,14 @@ function enregistrerIpcCorpus(): void {
   })
   ipcMain.handle('corpus:ecrireWaveform', (_e, id: string, png: Uint8Array) =>
     store.ecrireWaveform(id, png),
+  )
+
+  /** « Associer l'audio local… » (§3.3, E4) : RÉFÉRENCE un fichier présent sur
+   *  CE poste pour un entretien dont l'audioRef partagée n'y pointe nulle part.
+   *  Association machine-local (`audio-locaux.json`), sans copie ni écriture
+   *  au JSON/serveur — chaque poste résout chez lui. */
+  ipcMain.handle('corpus:associerAudioLocal', (_e, id: string, source: string) =>
+    store.associerAudioLocal(id, source),
   )
   ipcMain.handle('corpus:audios', () => store.audios())
   ipcMain.handle('corpus:verifierAudios', () => store.verifierAudios())
@@ -415,6 +461,9 @@ function enregistrerIpcCorpus(): void {
     if (miroirActif?.id === id) {
       miroirActif = null
       sessions = null
+      transactions = null
+      presence?.arreter()
+      presence = null
       verrouNatif = false
     }
     coffre.oublier(id)
@@ -493,6 +542,23 @@ function enregistrerIpcCorpus(): void {
       undefined,
       { verrouNatif },
     )
+    // Transactions de définitions (E3 §4.7/§4.8) — mêmes dépendances que les
+    // sessions ; le store est visé PAR APPEL (il peut être réaffecté ensuite).
+    transactions = new TransactionsCorpus(
+      client,
+      miroir,
+      () => store,
+      () => ({ userId: config.utilisateur, machineId, sessionId: SESSION_ID }),
+      { verrouNatif },
+    )
+    // Présence (E4 §9) : battement 60 s tant que le corpus distant est ouvert.
+    presence?.arreter()
+    presence = new PresenceDistante(client, () => ({
+      userId: config.utilisateur,
+      machineId,
+      sessionId: SESSION_ID,
+    }))
+    presence.demarrer()
     const corpus = store.ouvrir()
     return {
       dir: dirMiroir,
@@ -521,6 +587,7 @@ function enregistrerIpcCorpus(): void {
           : sessions
             ? await sessions.etatVerrousPublics(t.verrous)
             : t.verrous.map(({ chemin, etag }) => ({ chemin, etag, contenu: null })),
+      presences: presence ? await presence.lister() : undefined,
       date: t.date,
     }
   })
@@ -559,6 +626,30 @@ function enregistrerIpcCorpus(): void {
     await sessions.abandonnerOrphelin(cheminVerrou)
   })
 
+  /* ── E4 : présence (§9) ─────────────────────────────────────────────── */
+
+  /** Le renderer signale l'entretien qu'il ouvre/ferme — la présence est
+   *  publiée immédiatement (sans attendre le prochain battement). */
+  ipcMain.handle('distant:noterEntretienOuvert', (_e, id: string | null) => {
+    if (!presence) return
+    void presence.noterEntretienOuvert(id)
+  })
+
+  /* ── E3b : copies de divergence (§6, fusion assistée) ─────────────────── */
+
+  /** Les copies mises de côté par les rétrogradations (publication 412). */
+  ipcMain.handle('distant:listerDivergences', () =>
+    sessions ? sessions.listerDivergences() : [],
+  )
+  /** Contenu d'une copie (null = absente/corrompue/chemin invalide). */
+  ipcMain.handle('distant:lireDivergence', (_e, chemin: string) =>
+    sessions ? sessions.lireDivergence(chemin) : null,
+  )
+  /** Jette une copie — choix EXPLICITE du dialogue, jamais automatique. */
+  ipcMain.handle('distant:supprimerDivergence', (_e, chemin: string) => {
+    sessions?.supprimerDivergence(chemin)
+  })
+
   /** Migration SonalPi V1 → V2 — EXÉCUTION : crée le corpus V2 dans le dossier
    *  dédié (nom + meta.sourceV1 + fusion), ajoute aux récents et BASCULE le
    *  store dessus (même mécanique que changerDossier). */
@@ -566,6 +657,9 @@ function enregistrerIpcCorpus(): void {
     store = new CorpusStore(req.dossier)
     store.lectureSeule = false // corpus local : écritures permises
     sessions = null
+    transactions = null
+    presence?.arreter()
+    presence = null
     verrouNatif = false
     miroirActif = null
     dossierCourant = req.dossier

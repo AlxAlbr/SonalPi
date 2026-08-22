@@ -37,7 +37,7 @@ export async function lancer(
     )
   }
   return electron.launch({
-    args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`],
+    args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`, '--password-store=basic'],
     env: launchEnv(),
   })
 }

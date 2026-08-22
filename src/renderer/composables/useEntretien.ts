@@ -42,6 +42,9 @@ import type { Ancre } from '../../shared/entretien/audio'
 import { useSynchroAudio } from './useSynchroAudio'
 import { resumeThematique } from '../../shared/corpus'
 import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon } from '../../shared/format'
+import { FORMAT_VERSION } from '../../shared/format'
+import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
+import { detecterDivergencesPortee } from '../../shared/entretien/anon/reconciliation'
 import type { LegacyBlobs } from '../import/importSonal'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
@@ -1025,6 +1028,78 @@ export function useEntretien(deps: {
     dialoguePorteeCorpus.value = null
   }
 
+  /* ── Réconciliation I-POR-3 POST-PULL (plan-multiuser §4.8 point 3) ───────
+   * En multi-user, une règle corpus régentant une entité déjà travaillée
+   * localement peut APPARAÎTRE pendant la session (un collègue l'a poussée
+   * entre deux pulls). Au prochain tirage qui ramène un corpus.json modifié,
+   * l'orchestrateur appelle ceci : mêmes décisions que le dialogue de
+   * promotion (« Aligner / Garder les deux »), jamais de divergence silencieuse.
+   * ───────────────────────────────────────────────────────────────────────*/
+  /** Divergences déjà proposées cette session — « annuler » n'est pas un refus
+   * définitif mais on ne re-dérange pas l'utilisateur à chaque pull. */
+  const divergencesIgnorees = new Set<string>()
+  /** Détecte et ouvre le dialogue pour la PREMIÈRE divergence trouvée.
+   *  Renvoie le nombre de divergences détectées (0 = rien à signaler). */
+  function detecterDivergencesPostTirage(): number {
+    if (!editor.value || dialoguePorteeCorpus.value) return 0 // dialogue déjà ouvert
+    const divergences = detecterDivergencesPortee(lignesAnon.value, deps.reglesAnon()).filter(
+      (d) => !divergencesIgnorees.has(`${d.regleId}|${cleEntite(d.entite)}`),
+    )
+    const premiere = divergences[0]
+    if (!premiere) return 0
+    divergencesIgnorees.add(`${premiere.regleId}|${cleEntite(premiere.entite)}`)
+    dialoguePorteeCorpus.value = {
+      entite: premiere.entite,
+      pseudosCible: premiere.pseudosLocaux,
+      regleExistanteId: premiere.regleId,
+      reglePseudos: premiere.reglePseudos,
+      cas: premiere.cas,
+    }
+    return divergences.length
+  }
+
+  /* ── Fusion assistée §6 (copie de divergence → modèle ouvert) ────────────
+   * Une copie mise de côté par une rétrogradation (publication 412) est
+   * proposée à la fusion à la RÉOUVERTURE de l'entretien (verrou frais,
+   * contenu courant = version serveur). Union par id — le courant gagne ;
+   * garde préalable : corpsTexte identiques (sinon pas de merge, choix only).
+   * ───────────────────────────────────────────────────────────────────────*/
+  /** La fusion automatique est-elle proposable pour cette copie ? */
+  function fusionPossible(copie: EntretienFichier): boolean {
+    return corpsIdentiques(editor.value ? editor.value.getJSON() : null, copie.corpsTexte)
+  }
+  /** Applique les apports de la copie dans le modèle ouvert puis sauvegarde.
+   *  Renvoie le bilan (nombre d'éléments apportés par la copie). */
+  async function absorberFusion(copie: EntretienFichier): Promise<{
+    annotations: number
+    ancres: number
+    locuteurs: number
+    valeurs: number
+  }> {
+    const courant: EntretienFichier = {
+      formatVersion: FORMAT_VERSION,
+      lastModified: new Date().toISOString(),
+      corpsTexte: editor.value ? editor.value.getJSON() : {},
+      annotations: JSON.parse(JSON.stringify(entretien.annotations)),
+      ancres: [...entretien.ancres],
+      locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
+      meta: { valeursGen: { ...meta.valeursGen }, audioRef: meta.audioRef },
+      brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
+      pseudosDeclares: JSON.parse(JSON.stringify(pseudosDeclares.value)),
+    }
+    const { fusion, ajouts } = fusionnerEntretiens(courant, copie)
+    entretien.annotations = fusion.annotations
+    entretien.ancres = fusion.ancres
+    locuteurs.value = fusion.locuteurs
+    Object.assign(meta.valeursGen, fusion.meta.valeursGen)
+    brouillonsAnon.value = fusion.brouillonsAnon ?? []
+    pseudosDeclares.value = fusion.pseudosDeclares ?? {}
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+    return ajouts
+  }
+
   /** Brouillon → Corpus : pose les occurrences rule-backed (comme une
    *  validation, mais liée à la règle) puis consomme le brouillon. */
   function poserCorpusDepuisBrouillon(ligne: LigneAnon, regleId: string, pseudo: string) {
@@ -1267,6 +1342,9 @@ export function useEntretien(deps: {
     alignerCorpus,
     garderLesDeuxCorpus,
     annulerDialogueCorpus,
+    detecterDivergencesPostTirage,
+    fusionPossible,
+    absorberFusion,
     entiteExisteDeja,
     // cycle de vie / persistance
     ouvrir,

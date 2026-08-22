@@ -3,7 +3,7 @@
 Réécriture du cœur de **SonalPi** pour essayer de simplifier le fonctionnement et le code.
 Version de test de la réécriture en V2.
 
-> 📄 **Vous venez de SonalPi V1 ?** → [Passer de SonalPi V1 à la V2 (guide de migration)](docs/migration-v1.md)
+> 📄 **Vous venez de SonalPi V1 ?** → [Passer de SonalPi V1 à la V2 (guide de migration)](docs/user/migration-v1.md)
 
 ## En bref
 
@@ -41,5 +41,5 @@ npm run typecheck    # vue-tsc + tsc
 
 | Public | Doc |
 |---|---|
-| Utilisateur | [Migration SonalPi V1 → V2](docs/migration-v1.md) |
+| Utilisateur | [Migration SonalPi V1 → V2](docs/user/migration-v1.md) |
 | Développeur | [Documentation développeur](docs/dev/README.md) |

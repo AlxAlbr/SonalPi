@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
@@ -357,6 +357,67 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
 
     store.supprimerEntretien(id) // invalide le cache
     expect(store.cheminMediaAbs(source)).toBeNull()
+  })
+
+  /* ── §3.3 (E4) : association audio MACHINE-LOCALE sur un poste distant ── */
+
+  test('associerAudioLocal : RÉFÉRENCE sans copier, ne touche PAS au JSON partagé', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const sourceOriginale = audioExterne(dir, 'poste-a.wav')
+    store.assignerAudio(id, sourceOriginale)
+    // Simule l'AUTRE poste : le fichier référencé n'existe pas ici.
+    rmSync(sourceOriginale)
+
+    const fichierLocal = audioExterne(dir, 'poste-b.m4a')
+    const res = store.associerAudioLocal(id, fichierLocal)
+    expect(res).not.toBeNull()
+    expect(res!.audioRef).toBe(fichierLocal)
+
+    // Pas de COPIE (parité assignerAudio) ; la source est intacte.
+    expect(existsSync(join(dir, 'audio'))).toBe(false)
+    expect(existsSync(fichierLocal)).toBe(true)
+    // Le JSON PARTAGÉ n'a pas bougé : il pointe toujours chez le poste A.
+    const data = JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8')) as {
+      meta: { audioRef: string }
+    }
+    expect(data.meta.audioRef).toBe(sourceOriginale)
+    // L'association vit dans le fichier machine-local.
+    const locaux = JSON.parse(readFileSync(join(dir, 'audio-locaux.json'), 'utf8')) as Record<string, string>
+    expect(locaux[id]).toBe(fichierLocal)
+  })
+
+  test('retombée locale §3.3 : verifierAudios/audios()/cheminMediaAbs résolvent le fichier local', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const sourceDistante = audioExterne(dir, 'chez-max.wav')
+    store.assignerAudio(id, sourceDistante)
+    rmSync(sourceDistante) // ce fichier n'existe pas SUR NOTRE poste
+
+    // Sans association locale : manquant, média refusé.
+    expect(store.verifierAudios()[id]).toBe('manquant')
+    expect(store.cheminMediaAbs(sourceDistante)).toBeNull()
+
+    const fichierLocal = audioExterne(dir, 'chez-moi.wav')
+    store.associerAudioLocal(id, fichierLocal)
+
+    // La retombée fait tout redescendre comme si l'audio était là :
+    expect(store.verifierAudios()[id]).toBe('ok')
+    expect(store.audios()[id]?.audio).toBe(fichierLocal)
+    // La requête porte LA REF PARTAGÉE → sert le fichier EFFECTIF local.
+    expect(store.cheminMediaAbs(sourceDistante)).toBe(fichierLocal)
+    // Et elle peut aussi porter directement le chemin local (génération d'onde).
+    expect(store.cheminMediaAbs(fichierLocal)).toBe(fichierLocal)
+  })
+
+  test('associerAudioLocal : source inexistante → null, rien écrit', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    expect(store.associerAudioLocal(id, join(dir, 'nulle-part.wav'))).toBeNull()
+    expect(existsSync(join(dir, 'audio-locaux.json'))).toBe(false)
   })
 
   test('audios() : audio = audioRef absolu, waveform = scan de png/', () => {

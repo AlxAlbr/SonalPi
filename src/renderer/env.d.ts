@@ -30,6 +30,7 @@ import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from 
 import type {
   CompteDistantPublic,
   DemandeConnexion,
+  DivergenceDistante,
   OrphelinDistant,
   OuvertureDistante,
   ResultatConnexion,
@@ -97,6 +98,7 @@ declare global {
         marquerDemo: (marqueur: MarqueurDemo) => Promise<CorpusFichier>
         assignerAudio: (id: string, source: string) => Promise<{ audioRef: string } | null>
         ecrireWaveform: (id: string, png: Uint8Array) => Promise<string>
+        associerAudioLocal: (id: string, source: string) => Promise<{ audioRef: string } | null>
         audios: () => Promise<Record<string, { audio: string | null; waveform: string | null }>>
         verifierAudios: () => Promise<Record<string, 'ok' | 'manquant'>>
         poserValeur: (
@@ -120,6 +122,12 @@ declare global {
         orphelins: () => Promise<OrphelinDistant[] | null>
         reprendreOrphelin: (cheminVerrou: string) => Promise<{ ok: boolean; raison?: string }>
         abandonnerOrphelin: (cheminVerrou: string) => Promise<void>
+        listerDivergences: () => Promise<DivergenceDistante[]>
+        lireDivergence: (chemin: string) => Promise<unknown>
+        supprimerDivergence: (chemin: string) => Promise<void>
+        /** Présence (E4 §9) : signale l'entretien ouvert sur CE poste (null =
+         *  aucun / retour à l'écran Corpus). Best effort côté main. */
+        noterEntretienOuvert: (id: string | null) => Promise<void>
         oublier: (id: string) => Promise<CompteDistantPublic[]>
       }
       media: {

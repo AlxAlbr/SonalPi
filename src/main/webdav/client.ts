@@ -243,6 +243,13 @@ export class ClientWebDAV {
     })
   }
 
+  /** MKCOL : crée une COLLECTION (dossier). Un PUT WebDAV ne crée jamais les
+   *  parents (409 Conflict sur serveur réel) — les dossiers techniques
+   *  (`presence/`…) doivent être créés explicitement. 405 = existe déjà. */
+  async mkcol(cheminRelatif: string): Promise<void> {
+    await this.requete('MKCOL', cheminRelatif, { statutsOk: [201, 405] })
+  }
+
   /** État du verrou natif d'une ressource, observé par PROPFIND Depth:0
    *  (propriétés ns `http://nextcloud.org/ns`). null = libre/absent. */
   async etatVerrouNatif(chemin: string): Promise<EtatVerrouNatif | null> {
@@ -381,8 +388,11 @@ export function analyserMultistatus(xml: string): EntreePropfind[] {
  *  nom LOCAL (n'importe quel préfixe), tolérant aux attributs d'espace de noms
  *  et à la mise en forme du serveur. Absence/videsse de `<nc:lock>` = libre. */
 export function analyserEtatVerrouNatif(xml: string): EtatVerrouNatif | null {
-  // La réponse peut être une erreur sabre (<d:error>) : pas d'état.
-  if (!/<\w+:?multistatus/i.test(xml)) return null
+  // PAS de garde « multistatus » ici : la fonction est appelée soit sur le
+  // document complet (etatVerrouNatif), soit PAR BLOC <d:response>
+  // (etatsVerrouxDossier) — un bloc ne porte pas la balise racine. Une erreur
+  // sabre (<d:error>) ne contient de toute façon aucun élément lock →
+  // verrouille=false → null, ce qui rend le garde redondant.
   const texteDe = (local: string): string | null => {
     const m = new RegExp(`<[^>]*:?${local}(?:\\s[^>]*)?>([^<]*)<`, 'i').exec(xml)
     return m ? m[1].trim() : null

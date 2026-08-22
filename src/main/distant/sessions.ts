@@ -16,7 +16,7 @@
  * s'abonne) ; le renderer reste par ailleurs libre de consulter `etat()`.
  */
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { MiroirWebDAV } from '../miroir'
 import { ClientWebDAV, ErreurHttp } from '../webdav/client'
@@ -29,6 +29,7 @@ import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { VerrouProvider } from '../verrous/types'
 import type { EntreeVerrouPublic } from '../../shared/distant'
+import type { EntretienFichier } from '../../shared/format'
 
 export interface IdentiteSession {
   userId: string
@@ -291,6 +292,54 @@ export class SessionsDEntretien {
    *  exclusions (le miroir n'écrase jamais une copie de travail sous verrou). */
   idsTenus(): string[] {
     return [...this.sessions.keys()]
+  }
+
+  /* ── Copies de DIVERGENCE (§6, fusion assistée E3b) ─────────────────────
+   * Une rétrogradation (publication 412) met la copie locale de côté hors
+   * serveur : `sessions/<id>.divergence-<sessionId>.json`. Elle n'est ni
+   * perdue ni publiée en silence — listée ici pour le dialogue de fusion.
+   * ───────────────────────────────────────────────────────────────────────*/
+
+  private readonly REGEX_DIVERGENCE = /^sessions\/([^/]+)\.divergence-([^/]+)\.json$/
+
+  /** Les copies de divergence de CE POSTE (toutes sessions confondues). */
+  listerDivergences(): { chemin: string; id: string; sessionId: string; date: string }[] {
+    const dossier = join(this.miroir.dirLocal, 'sessions')
+    try {
+      return readdirSync(dossier)
+        .map((nom) => this.REGEX_DIVERGENCE.exec(`sessions/${nom}`))
+        .filter((m): m is RegExpExecArray => !!m)
+        .map((m) => ({
+          chemin: `sessions/${m[1]}.divergence-${m[2]}.json`,
+          id: m[1],
+          sessionId: m[2],
+          date: statSync(join(this.miroir.dirLocal, m[0])).mtime.toISOString(),
+        }))
+        .sort((a, b) => (a.date < b.date ? -1 : 1))
+    } catch {
+      return [] // pas encore de dossier sessions : aucune divergence
+    }
+  }
+
+  /** Contenu d'une copie de divergence (null = absente/corrompue). Le chemin
+   *  est validé contre la convention ci-dessus — jamais de traversal. */
+  lireDivergence(chemin: string): EntretienFichier | null {
+    if (!this.REGEX_DIVERGENCE.test(chemin)) return null
+    try {
+      return JSON.parse(readFileSync(join(this.miroir.dirLocal, chemin), 'utf8')) as EntretienFichier
+    } catch {
+      return null
+    }
+  }
+
+  /** Jette une copie (choix explicite du dialogue — jamais automatique). */
+  supprimerDivergence(chemin: string): void {
+    if (!this.REGEX_DIVERGENCE.test(chemin)) return
+    try {
+      unlinkSync(join(this.miroir.dirLocal, chemin))
+    } catch {
+      /* déjà partie : idempotent */
+    }
   }
 
   /** Liste des verrous orphelins (crash sans libération) — matière du dialogue

@@ -170,6 +170,66 @@ describe('Rétrogradation (§5.2)', () => {
   })
 })
 
+/* ── E3b : copies de divergence — lister / lire / supprimer (§6) ────────────*/
+
+describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
+  it("après rétrogradation : la copie est listée, lisible puis supprimable", async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    // Édition locale : ce qui sera mis de côté doit être NOTRE version.
+    const avantRetrogradation = JSON.parse(readFileSync(b.fichierLocal, 'utf8')) as Record<string, unknown>
+    avantRetrogradation.lastModified = 'travail-local-max'
+    writeFileSync(b.fichierLocal, JSON.stringify(avantRetrogradation))
+    // Oliviers force le verrou de max → tic de battement → rétrogradation.
+    const clientOlivier = new ClientWebDAV(
+      { baseUrl: b.serveur.baseUrl, identifiants: b.serveur.identifiants },
+      b.serveur.fetch,
+    )
+    const pOlivier = new ProviderPutConditionnel(clientOlivier, () => ({
+      userId: 'olivier',
+      machineId: 'poste-2',
+      sessionId: 's-OLI',
+    }))
+    await pOlivier.forcer(`verrous/${ID}.lock.json`)
+    b.sessions.noterSale(ID)
+    await b.sessions.tic()
+
+    // La copie existe et est correctement nommée/idéntifiée.
+    const divergences = b.sessions.listerDivergences()
+    expect(divergences).toHaveLength(1)
+    expect(divergences[0].chemin).toBe(`sessions/${ID}.divergence-s-1.json`)
+    expect(divergences[0].id).toBe(ID)
+    expect(divergences[0].sessionId).toBe('s-1')
+    expect(divergences[0].date).toBeTruthy()
+
+    // Lecture : c'est bien la copie locale mise de côté (pas la version serveur).
+    expect(b.sessions.lireDivergence(divergences[0].chemin)).toEqual(avantRetrogradation)
+
+    // Chemins invalides (traversal / convention absente) → rejetés.
+    expect(b.sessions.lireDivergence('sessions/../../etc.passwd.json')).toBeNull()
+    expect(b.sessions.lireDivergence('entretiens/nimporte.json')).toBeNull()
+    // Suppression d'un chemin invalide : no-op silencieux.
+    b.sessions.supprimerDivergence('sessions/../../etc.passwd.json')
+    expect(b.sessions.listerDivergences()).toHaveLength(1)
+
+    // Choix explicite du dialogue : jeter la copie (idempotent).
+    b.sessions.supprimerDivergence(divergences[0].chemin)
+    expect(b.sessions.listerDivergences()).toHaveLength(0)
+    expect(existsSync(join(b.dirMiroir, divergences[0].chemin))).toBe(false)
+    b.sessions.supprimerDivergence(divergences[0].chemin) // déjà partie : ok
+  })
+
+  it('sans rétrogradation : aucune divergence listée', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    await b.sessions.fermer(ID)
+    expect(b.sessions.listerDivergences()).toEqual([])
+    expect(b.sessions.lireDivergence(`sessions/${ID}.divergence-s-1.json`)).toBeNull()
+  })
+})
+
 /* ── E1 finition : pull sous verrou, badges, reprise crash (§4.5) ───────────*/
 
 describe('Pull et exclusions de session (E1)', () => {

@@ -139,7 +139,7 @@ La V2 au contraire **partitionne** : les *définitions* vivent une seule fois da
 ## 5. Découpage en étapes
 
 > **État** : E0 → E3 implémentées (lecture+aperçu, mapping définitions, entretiens+audio,
-> création corpus+UI). **E4 reporté** (chantier anon — voir note) ; **E5 fait** (docs/migration-v1.md).
+> création corpus+UI). **E4 reporté** (chantier anon — voir note) ; **E5 fait** (docs/user/migration-v1.md).
 
 Chaque étape est indépendante, testable, et fusionnable seule.
 
@@ -150,7 +150,7 @@ Chaque étape est indépendante, testable, et fusionnable seule.
 | **E2 — Entretiens + audio** ✅ | `migrer:lireSonal` (résolution rtrPath + encodage), `mapperEntretiensV1`, boucle d'import via `importSonal.ts` (définitions à vide — Q7), `audioPath` → `audioRef` absolu, `meta.sourceV1.rtrPath`, Q1b (`.sonal` manquant → entretien vide + audio) | `src/main/index.ts`, `src/shared/corpus/migrationCrp.ts`, `src/renderer/composables/sonal.ts` | unitaires + e2e (`.sonal` réel + WAV, Q7, Q1b), comparaison fixtures |
 | **E3 — Création du corpus + UI** ✅ | Modale `MigrationCorpus.vue` (aperçu + choix dossier dédié + gardes dejaCorpus/démo/non-vide), `migrerDepuisV1` (nom + `meta.sourceV1`, jamais le bloc défaut — `amorcer()` réservé aux corpus neufs), écriture, ajout aux récents, ouverture | `src/main/corpusStore.ts`, `src/renderer/components/MigrationCorpus.vue`, `Accueil.vue`, `sonal.ts` (wrap IPC), `format.ts` (`nom`, `meta.sourceV1` — additifs, pas de bump Q6) | e2e (stub des dialogs, multi-crp, gardes, aperçu, flux complet avec entretiens) |
 | **E4 — `tabAnon` → `reglesAnon`** ⏳ reporté au chantier anon | Inventaire des settings pseudo du `.crp` (`paramsAnonCorpus` : motsLiaison, thematiques, prioriteValidation), mapping `tabAnon` (porte en plus `thematique` PER/LOC/ORG/DAT) → modèle V2 | à définir avec le plan anon (`plan_anon_fin.md`, futur `paramsAnon` + catégorie de règle) | — |
-| **E5 — Documentation** ✅ | Page utilisateur « Passer de SonalPi V1 à la V2 » (flux, consignes, ce qui n'est pas migré) | `docs/migration-v1.md` + lien README | — |
+| **E5 — Documentation** ✅ | Page utilisateur « Passer de SonalPi V1 à la V2 » (flux, consignes, ce qui n'est pas migré) | `docs/user/migration-v1.md` + lien README | — |
 
 ---
 

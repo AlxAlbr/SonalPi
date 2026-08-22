@@ -122,7 +122,8 @@ async function oublier(id: string) {
           <p class="note-secret">
             Jamais votre mot de passe principal : créez un mot de passe d'application
             dans Nextcloud (Paramètres → Sécurité). Il est chiffré par le trousseau de
-            votre système, jamais stocké en clair.
+            votre système (simple obfuscation si le poste n'en a pas), jamais stocké
+            en clair.
           </p>
         </template>
         <div v-else class="connecte">

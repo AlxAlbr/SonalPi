@@ -3,7 +3,7 @@ import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
 import type { CorpusFichier, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
-import type { EtatVerrouPublic, OrphelinDistant } from '../../shared/distant'
+import type { EtatVerrouPublic, OrphelinDistant, PresencePublic } from '../../shared/distant'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
@@ -48,7 +48,7 @@ export function creerSonal() {
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirScanAnon(), // cache règles après mutation
     lectureSeule: () => lectureSeule.value, // définitions (flux B) : grisage permanent avant E3
-    entretienEditable: () => !lectureSeule.value || !ent.verrouAutrui.value, // contenu (flux A) : selon le verrou
+    entretienEditable: () => !lectureSeule.value && !ent.verrouAutrui.value, // contenu (flux A) : ni hors ligne, ni verrou à autrui
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -269,6 +269,7 @@ export function creerSonal() {
   async function ouvrirCorpusDistant(id: string) {
     const r = await window.sonal.distant.ouvrir(id)
     idDistantCourant.value = r.distant.id // active la zone de synchro + le pull doux
+    enLigne.value = true // l'ouverture vient de réussir (pull inclus)
     dernierTirage.value = new Date().toISOString() // le main vient de tirer
     absorberVerrous(r.verrous) // badges fiables du premier pull (§3.1)
     profil.dossierCourantNom.value = r.nom
@@ -302,6 +303,20 @@ export function creerSonal() {
     return badgesVerrous.value[id] ?? null
   }
 
+  // ── Présence (E4 §9) : « ouvert par Olivier » — informatif, JAMAIS
+  //    décisionnel. La liste vient du tirage (filtrée côté main : périmées
+  //    et notre propre poste exclus).
+  const presences = ref<PresencePublic[]>([])
+  /** Absorbe les présences d'un tirage (absentes en local → liste vide). */
+  function absorberPresences(liste?: PresencePublic[]) {
+    presences.value = liste ?? []
+  }
+  /** Les autres postes qui CONSULTENT cet entretien (sans forcément tenir le
+   *  verrou). Vide le plus souvent — c'est le but : ne parler que si utile. */
+  function presencesSur(id: string): PresencePublic[] {
+    return presences.value.filter((p) => p.entretienOuvert === id)
+  }
+
   // ── Reprise crash (§4.5) : orphelins proposés au dialogue ────────────────
   const orphelinsDistants = ref<OrphelinDistant[]>([])
   /** « Reprendre et publier » : publie la copie locale puis libère ; rafraîchit
@@ -326,20 +341,29 @@ export function creerSonal() {
   const idDistantCourant = ref<string | null>(null) // null = corpus local
   const dernierTirage = ref<string | null>(null) // horodatage affiché (« copie de HH:MM »)
   const tirageEnCours = ref(false)
+  /** Connectivité OBSERVÉE (E3, politique α §4.6.1) : le pull est la sonde.
+   *  Un tirage réussi → en ligne ; un échec silencieux (minuterie) → hors
+   *  ligne : les gestes flux B sont grisés (« nécessite une connexion »),
+   *  l'édition locale des entretiens sous verrou continue (flux A). */
+  const enLigne = ref(true)
   /** Retour au LOCAL : les états du distant tombent (badges, orphelins,
    *  horodatage). Appelé par chaque changement de corpus vers un dossier local. */
   function quitterDistant() {
     idDistantCourant.value = null
     dernierTirage.value = null
     badgesVerrous.value = {}
+    presences.value = []
     orphelinsDistants.value = []
     statutSession.value = { etat: 'aucune' }
     publiErreur.value = null
+    divergenceProposee.value = null
+    enLigne.value = true // redevient pertinent au prochain corpus distant
   }
-  /** E0 lecture seule (choix produit) : le miroir n'a ni verrou ni publication
-   *  avant E1 — on refuse donc TOUTE écriture, côté UI (grisage + bandeau) ET
-   *  côté main (garde `CorpusStore.lectureSeule`). */
-  const lectureSeule = computed(() => idDistantCourant.value !== null)
+  /** E3 (politique α §4.6.1) : en distant, les définitions (flux B) exigent la
+   *  connexion — hors ligne, lecture seule pour le flux B seulement ; le flux A
+   *  (contenu d'un entretien sous NOTRE verrou) reste éditable. Avant E3,
+   *  `idDistantCourant` seul suffisait (lecture seule stricte E0). */
+  const lectureSeule = computed(() => idDistantCourant.value !== null && !enLigne.value)
 
   /** Tire le miroir et absorbe TOUJOURS l'état des verrous (badges fiables).
    *  Si le contenu a changé côté serveur :
@@ -359,8 +383,16 @@ export function creerSonal() {
         idDistantCourant.value = null
         return false
       }
+      enLigne.value = true // le serveur a répondu : connectivité rétablie
       dernierTirage.value = t.date
       absorberVerrous(t.verrous)
+      absorberPresences(t.presences)
+      // I-POR-3 post-pull (§4.8) : un collègue a poussé des règles corpus ?
+      // Rejouer la réconciliation sur l'entretien OUVERT (même dialogue que
+      // la promotion — jamais de divergence silencieuse).
+      if (t.telecharges.includes('corpus.json') && ent.ouvertId.value) {
+        ent.detecterDivergencesPostTirage()
+      }
       if (t.telecharges.length > 0 || t.corbeille.length > 0) {
         if (ent.ouvertId.value) {
           await rafraichirCorpusSansFermer()
@@ -371,6 +403,7 @@ export function creerSonal() {
       return true
     } catch (e) {
       if (!silencieux) throw e
+      enLigne.value = false // minuterie : panne réseau → politique α (flux B verrouillé)
       return false
     } finally {
       tirageEnCours.value = false
@@ -505,19 +538,78 @@ export function creerSonal() {
 
   async function retourCorpus() {
     await fermerEntretien()
+    if (idDistantCourant.value) void window.sonal.distant.noterEntretienOuvert(null)
     vue.value = 'corpus'
   }
   async function allerAccueil() {
     await fermerEntretien()
+    if (idDistantCourant.value) void window.sonal.distant.noterEntretienOuvert(null)
     vue.value = 'accueil'
   }
 
   /** Entrer dans un entretien = le charger (scope entretien), charger son audio
-   *  ET basculer sur son écran. */
+   *  ET basculer sur son écran. En distant : proposer au passage la FUSION d'une
+   *  éventuelle copie de divergence (§6 — mise de côté par une rétrogradation). */
   async function ouvrirEntretien(id: string) {
     if (!(await ent.ouvrir(id))) return
+    // Présence §9 : les autres postes verront « ouvert par nous ». Best effort.
+    if (idDistantCourant.value) void window.sonal.distant.noterEntretienOuvert(id)
+    await proposerFusionDivergence(id)
     await majAudioEntretien(id)
     vue.value = 'entretien'
+  }
+
+  /* ── Fusion assistée §6 (copie de divergence à la réouverture) ────────── */
+  /** Copie proposée au dialogue (null = rien à proposer / déjà traité).
+   *  Le contenu est lu UNE fois ; `fusionnable` = garde « texte identique ».
+   *  Types : contenu = EntretienFichier brut du main (validation défensive au
+   *  moment de l'usage). */
+  const divergenceProposee = ref<{
+    chemin: string
+    date: string
+    contenu: unknown
+    fusionnable: boolean
+  } | null>(null)
+  async function proposerFusionDivergence(id: string) {
+    divergenceProposee.value = null
+    if (!idDistantCourant.value) return
+    const liste = await window.sonal.distant.listerDivergences()
+    const copie = liste.filter((d) => d.id === id).at(-1) // la plus RÉCENTE
+    if (!copie) return
+    const contenu = (await window.sonal.distant.lireDivergence(copie.chemin)) as
+      | Parameters<typeof ent.fusionPossible>[0]
+      | null
+    if (!contenu) return
+    divergenceProposee.value = {
+      chemin: copie.chemin,
+      date: copie.date,
+      contenu,
+      fusionnable: ent.fusionPossible(contenu),
+    }
+  }
+  /** « Fusionner » : applique les apports de la copie au modèle ouvert puis
+   *  jette la copie (elle est absorbée — pas de doublon à la prochaine fois). */
+  async function confirmerFusion() {
+    const d = divergenceProposee.value
+    if (!d || !d.fusionnable) return
+    await ent.absorberFusion(d.contenu as Parameters<typeof ent.absorberFusion>[0])
+    await window.sonal.distant.supprimerDivergence(d.chemin)
+    divergenceProposee.value = null
+  }
+  /** Même garde que l'éditeur (flux A) : le dialogue de fusion n'active
+   *  « Fusionner » que si l'entretien ouvert est réellement éditable. */
+  const entretienEditable = computed(() => !lectureSeule.value && !ent.verrouAutrui.value)
+
+  /** « Jeter » : la copie est abandonnée explicitement (jamais automatique). */
+  async function jeterDivergence() {
+    const d = divergenceProposee.value
+    if (!d) return
+    await window.sonal.distant.supprimerDivergence(d.chemin)
+    divergenceProposee.value = null
+  }
+  /** « Plus tard » : la copie reste en place, re-proposée à la prochaine ouverture. */
+  function plusTardDivergence() {
+    divergenceProposee.value = null
   }
 
   /** Ajout d'un entretien (modale à deux zones « fichier d'entretien » /
@@ -592,7 +684,8 @@ export function creerSonal() {
 
   /** « Assigner un audio… » à l'entretien OUVERT (depuis le lecteur — ex. quand
    *  l'audio référencé est introuvable). Ouvre le dialogue, référence le nouveau
-   *  chemin, régénère la forme d'onde et recharge le lecteur. */
+   *  chemin, régénère la forme d'onde et recharge le lecteur.
+   *  LOCAL uniquement : écrit la ref partagée (sous garde store). */
   async function reassignerAudioEntretienOuvert() {
     const id = ent.ouvertId.value
     if (!id) return
@@ -605,6 +698,24 @@ export function creerSonal() {
       ent.meta.audioRef = a.audioRef
       await majAudioEntretien(id)
     }
+  }
+
+  /** « Associer l'audio local… » (§3.3, E4) : en corpus DISTANT, l'audioRef
+   *  partagée pointe chez le poste qui a assigné ; on RÉFÉRENCE ici un fichier
+   *  de NOTRE machine (parité assignerAudio : jamais de copie) dans une
+   *  association machine-locale — PAS dans le JSON partagé : écrire notre
+   *  chemin absolu déclencherait des publications en cascade entre postes.
+   *  L'onde est régénérée (dérivé local) et le lecteur rechargé. */
+  async function associerAudioEntretienOuvert() {
+    const id = ent.ouvertId.value
+    if (!id) return
+    const source = await window.sonal.dialog.choisirAudio()
+    if (!source) return
+    const a = await window.sonal.corpus.associerAudioLocal(id, source)
+    if (!a) return
+    await genererEtEcrireWaveform(id, a.audioRef)
+    if (ent.ouvertId.value === id) await majAudioEntretien(id)
+    audiosManquants.value = await verifierIntegriteAudios()
   }
 
   async function exporter() {
@@ -626,8 +737,12 @@ export function creerSonal() {
   }
 
   async function supprimer(id: string) {
+    // Fermer D'ABORD l'entretien s'il est ouvert : en distant, notre propre
+    // session tient le verrou que la suppression doit acquérir (double verrou
+    // §4.8) — et fermer publie puis libère dans l'ordre invariant §4.4,
+    // jamais d'orphelin.
+    if (ent.ouvertId.value === id) await fermerEntretien()
     corpus.membership.value = (await window.sonal.corpus.supprimerEntretien(id)).membership
-    if (ent.ouvertId.value === id) ent.reinitialiser()
     if (reprise.value?.id === id) reprise.value = null
     if (corpusSelId.value === id) deselectionnerCorpus()
   }
@@ -663,7 +778,13 @@ export function creerSonal() {
   async function fermerEntretien() {
     const id = ent.ouvertId.value
     if (!id) return
-    await ent.sauver()
+    // Sauvegarde SEULEMENT si nous avons le droit d'écrire : en lecture seule
+    // (verrou à autrui / hors ligne), rien n'a pu changer — écrire ferait
+    // rejeter par la garde du store et bloquerait la sortie (bug E4 : le
+    // scénario visible à deux postes a attrapé un blocage « sauvegarde… »).
+    const peutEcrire =
+      !idDistantCourant.value || (!lectureSeule.value && !ent.verrouAutrui.value)
+    if (peutEcrire) await ent.sauver()
     // Corpus distant : publication finale PUIS libération du verrou (§4.4 —
     // l'ordre est l'invariant central ; le main ne libère jamais sur un contenu
     // non parti). Sans effet en corpus local.
@@ -761,6 +882,7 @@ export function creerSonal() {
     urlWaveform,
     assignerAudioSelection,
     reassignerAudioEntretienOuvert,
+    associerAudioEntretienOuvert,
     vue,
     themeASupprimer,
     corpusSelId,
@@ -778,8 +900,11 @@ export function creerSonal() {
     tirageEnCours,
     actualiserDistant,
     lectureSeule,
+    enLigne,
     badgesVerrous,
     badgeVerrou,
+    presences,
+    presencesSur,
     orphelinsDistants,
     reprendreOrphelin,
     abandonnerOrphelin,
@@ -790,6 +915,11 @@ export function creerSonal() {
     retourCorpus,
     allerAccueil,
     ouvrirEntretien,
+    entretienEditable,
+    divergenceProposee,
+    confirmerFusion,
+    jeterDivergence,
+    plusTardDivergence,
     ouvrirAuSegment,
     ajouterEntretien,
     exporter,

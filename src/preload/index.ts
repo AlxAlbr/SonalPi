@@ -22,6 +22,7 @@ import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type {
   CompteDistantPublic,
   DemandeConnexion,
+  DivergenceDistante,
   OrphelinDistant,
   OuvertureDistante,
   ResultatConnexion,
@@ -133,6 +134,10 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:assignerAudio', id, source),
     ecrireWaveform: (id: string, png: Uint8Array): Promise<string> =>
       ipcRenderer.invoke('corpus:ecrireWaveform', id, png),
+    /** « Associer l'audio local… » (§3.3, E4) : référence un fichier de CE
+     *  poste pour un entretien dont l'audioRef partagée n'y pointe nulle part. */
+    associerAudioLocal: (id: string, source: string): Promise<{ audioRef: string } | null> =>
+      ipcRenderer.invoke('corpus:associerAudioLocal', id, source),
     audios: (): Promise<Record<string, { audio: string | null; waveform: string | null }>> =>
       ipcRenderer.invoke('corpus:audios'),
     verifierAudios: (): Promise<Record<string, 'ok' | 'manquant'>> =>
@@ -160,6 +165,16 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Choix « abandonner » : déverrouille SANS publier. */
     abandonnerOrphelin: (cheminVerrou: string): Promise<void> =>
       ipcRenderer.invoke('distant:abandonnerOrphelin', cheminVerrou),
+    /** Copies de divergence mises de côté (§6, fusion assistée E3b). */
+    listerDivergences: (): Promise<DivergenceDistante[]> =>
+      ipcRenderer.invoke('distant:listerDivergences'),
+    lireDivergence: (chemin: string): Promise<unknown> =>
+      ipcRenderer.invoke('distant:lireDivergence', chemin),
+    supprimerDivergence: (chemin: string): Promise<void> =>
+      ipcRenderer.invoke('distant:supprimerDivergence', chemin),
+    /** Présence (E4 §9) : signale l'entretien ouvert sur CE poste. */
+    noterEntretienOuvert: (id: string | null): Promise<void> =>
+      ipcRenderer.invoke('distant:noterEntretienOuvert', id),
     oublier: (id: string): Promise<CompteDistantPublic[]> =>
       ipcRenderer.invoke('distant:oublier', id),
   },

@@ -109,6 +109,12 @@ export interface CorpusFichier {
    *  Posé par le builder démo quand il crée le corpus,
    *  mis à jour ensuite à chaque étape validée (pas-à-pas). */
   demo?: MarqueurDemo
+  /** Rôles & permissions (plan-multiuser.md §14 point 7, invariant 5 §15) :
+   *  champ RÉSERVÉ dès E3 — la logique produit viendra plus tard, le champ
+   *  voyage déjà pour éviter une migration. userId Nextcloud → rôle
+   *  (vocabulaire réservé : 'propriétaire' | 'editeur' | 'lecteur').
+   *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
+  roles?: Record<string, string>
 }
 
 /** Un dossier de corpus (pour l'Accueil : corpus courant + récents). */

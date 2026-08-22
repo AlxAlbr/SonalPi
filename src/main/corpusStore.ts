@@ -798,9 +798,55 @@ export class CorpusStore {
         ;(out[id] ??= { audio: null, waveform: null }).waveform = `png/${nom}`
       }
     }
-    // Audio : depuis le cache `refsAudio` (audioRef absolu par entretien).
-    for (const [id, ref] of this.refsAudio()) {
+    // Audio : depuis la résolution EFFECTIVE (ref partagée ou retombée locale
+    // §3.3 — un poste qui a associé son fichier travaille comme les autres).
+    for (const [id, ref] of this.audiosResolus()) {
       ;(out[id] ??= { audio: null, waveform: null }).audio = ref
+    }
+    return out
+  }
+
+  /* ── Audio LOCAL sur un poste distant (§3.3, E4) ────────────────────────
+   *  `meta.audioRef` est un chemin absolu DU POSTE QUI A ASSIGNÉ : chez les
+   *  autres, le fichier est manquant. « Associer l'audio local… » RÉFÉRENCE
+   *  le fichier là où il est (parité assignerAudio : jamais de copie) dans
+   *  `<corpus>/audio-locaux.json` — fichier MACHINE-LOCAL, jamais poussé
+   *  (le miroir ne fait que tirer), donc aucune écriture en cascade des
+   *  audioRef entre postes. La résolution retombe dessus quand la ref du
+   *  JSON ne pointe nulle part ici. */
+
+  private cheminAudiosLocaux(): string {
+    return join(this.dir, 'audio-locaux.json')
+  }
+
+  private lireAudiosLocaux(): Record<string, string> {
+    try {
+      return JSON.parse(readFileSync(this.cheminAudiosLocaux(), 'utf8')) as Record<string, string>
+    } catch {
+      return {} // absent/corrompu : aucune association locale
+    }
+  }
+
+  /** Associe UN FICHIER LOCAL à un entretien, sans copie ni écriture partagée.
+   *  Retourne le chemin enregistré (null = source inexistante). */
+  associerAudioLocal(id: string, source: string): { audioRef: string } | null {
+    const ref = normaliserCheminAudio(source)
+    if (!existsSync(ref)) return null
+    const locaux = this.lireAudiosLocaux()
+    locaux[id] = ref
+    writeFileSync(this.cheminAudiosLocaux(), JSON.stringify(locaux, null, 2), 'utf8')
+    this.invaliderRefsAudio()
+    return { audioRef: ref }
+  }
+
+  /** id → chemin EFFECTIF de l'audio sur CE poste : la ref partagée si son
+   *  fichier existe ici, sinon la retombée locale (§3.3). Les entrées sans
+   *  aucune piste restent absentes de la carte. */
+  private audiosResolus(): Map<string, string> {
+    const locaux = this.lireAudiosLocaux()
+    const out = new Map<string, string>()
+    for (const [id, ref] of this.refsAudio()) {
+      out.set(id, existsSync(ref) ? ref : locaux[id] ?? ref)
     }
     return out
   }
@@ -823,8 +869,18 @@ export class CorpusStore {
    *  n'importe quel chemin du disque serait alors serviable au renderer. */
   cheminMediaAbs(p: string): string | null {
     const cible = normalize(p)
-    for (const ref of this.refsAudio().values()) {
-      if (normalize(ref) === cible) return existsSync(cible) ? cible : null
+    const locaux = this.lireAudiosLocaux()
+    for (const [id, ref] of this.refsAudio()) {
+      if (normalize(ref) === cible) {
+        // La requête porte LA REF PARTAGÉE : servir le fichier EFFECTIF de ce
+        // poste (retombée locale §3.3 si le fichier d'origine n'y est pas).
+        const effectif = this.audiosResolus().get(id) ?? ref
+        return existsSync(effectif) ? effectif : null
+      }
+      // La requête peut aussi porter directement le chemin local associé
+      // (l'onde est générée depuis la résolution effective).
+      const loc = locaux[id]
+      if (loc && normalize(loc) === cible) return existsSync(cible) ? cible : null
     }
     return null
   }
@@ -835,7 +891,7 @@ export class CorpusStore {
    *  sert au bandeau d'intégrité de l'écran Corpus. */
   verifierAudios(): Record<string, 'ok' | 'manquant'> {
     const out: Record<string, 'ok' | 'manquant'> = {}
-    for (const [id, ref] of this.refsAudio()) {
+    for (const [id, ref] of this.audiosResolus()) {
       out[id] = existsSync(ref) ? 'ok' : 'manquant'
     }
     return out
