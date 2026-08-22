@@ -17,7 +17,7 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
   <main class="app">
     <header>
       <h1>
-        SonalAsynchro — 
+        SonalPiTestV2 — 
         <span class="etat" :class="etatSauvegarde.replace('…', '').replace(' ', '-')">
           {{ etatSauvegarde }}
         </span>

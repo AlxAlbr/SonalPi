@@ -10,8 +10,8 @@ import { pluginLecture } from '../editor/lecture'
 import { pluginMenuAnon, type CibleMenuAnon } from '../editor/menuContexteAnon'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
-import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../shared/entretien/anonymisation'
-import { scinderPseudos } from '../../shared/entretien/pseudos'
+import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../shared/entretien/anon/anonymisation'
+import { scinderPseudos } from '../../shared/entretien/anon/pseudos'
 import {
   cleEntite,
   trouverBrouillon,
@@ -21,7 +21,7 @@ import {
   consommerBrouillon,
   lignesAnonUnifiees,
   type LigneAnon,
-} from '../../shared/entretien/brouillonsAnon'
+} from '../../shared/entretien/anon/brouillonsAnon'
 import { pluginRemapJournal } from '../editor/journalRemap'
 import {
   renommerLocuteur,
@@ -88,6 +88,12 @@ export function useEntretien(deps: {
    *  « garder les deux », déliage/suppression) — injecté par l'orchestrateur
    *  pour que la projection des lignes reflète la règle fraîche. */
   rafraichirReglesCorpus?: () => Promise<void>
+  /** Corpus distant : lecture seule des DÉFINITIONS (flux B, grisage permanent
+   *  avant E3). L'éditeur suit `entretienEditable`, pas ce drapeau. */
+  lectureSeule?: () => boolean
+  /** L'entretien ouvert est-il éditable ? (corpus local : toujours ; distant :
+   *  seulement si NOUS tenons son verrou — état renvoyé par lireEntretien.) */
+  entretienEditable?: () => boolean
 }) {
   const auteur = 'moi'
   const genId = () => 'a-' + Math.random().toString(36).slice(2, 9)
@@ -179,6 +185,10 @@ export function useEntretien(deps: {
   // un caractère — c'est la 2ᵉ espace rapprochée qui sert de commande de lecture.
   const SEUIL_DOUBLE_ESPACE = 300 // ms
   let derniereEspace = 0
+  /** Verrou tenu par autrui sur l'entretien OUVERT (null sinon) — alimente le
+   *  bandeau « tenu par X depuis HH:MM » (plan §4.1/§10). */
+  const verrouAutrui = ref<{ userId: string; machineId: string; acquiredAt: string } | null>(null)
+
   const editor = useEditor({
     content: '<p></p>',
     extensions: [StarterKit, BlocAttributs, MoteurExtension],
@@ -440,6 +450,11 @@ export function useEntretien(deps: {
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
     chargement = false
+    // Éditable ssi le contenu nous appartient : en corpus distant,
+    // lireEntretien a tenté le verrou — un `verrouTenuParAutrui` présent =
+    // refus = lecture seule avec détenteur affiché (plan §4.1).
+    verrouAutrui.value = res.verrouTenuParAutrui ?? null
+    editor.value?.setEditable(deps.entretienEditable ? deps.entretienEditable() : !deps.lectureSeule?.())
     journal.entrees.length = 0 // volatil PAR entretien
     // Le surlignage audio ne survit pas au changement de doc.
     eteindrePlageLue()
@@ -453,6 +468,7 @@ export function useEntretien(deps: {
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
   function reinitialiser() {
     ouvertId.value = null
+    verrouAutrui.value = null
     journal.entrees.length = 0
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
@@ -1217,6 +1233,7 @@ export function useEntretien(deps: {
     refusFormat,
     etatSauvegarde,
     editor,
+    verrouAutrui, // état du verrou de l'entretien ouvert (bandeau lecture seule)
     entreesJournal,
     annulerEntree,
     // gestes

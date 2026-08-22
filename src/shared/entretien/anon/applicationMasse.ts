@@ -12,9 +12,9 @@
  * PURE : lit `EntretienFichier` + `RegleAnon`, ne mute rien — testable headless.
  */
 
-import type { EntretienFichier, RegleAnon } from '../format'
-import { aplatir, occurrencesDe, plageVersPM } from '../entretien/anonymisation'
-import { estOrpheline } from '../entretien/annotation'
+import type { EntretienFichier, RegleAnon } from '../../format'
+import { aplatir, occurrencesDe, plageVersPM } from './anonymisation'
+import { estOrpheline } from '../annotation'
 
 /** Instructions d'application en masse (rien n'est muté ici). */
 export interface InstructionsMasse {

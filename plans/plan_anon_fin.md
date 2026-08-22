@@ -1,6 +1,6 @@
 # Anonymisation — finitions & parité V1 (plan_anon_fin)
 
-> Plan **final** de rattrapage de la pseudonymisation dans **SonalAsynchro (V2)**,
+> Plan **final** de rattrapage de la pseudonymisation dans **SonalPiTestV2 (V2)**,
 > pour atteindre la parité fonctionnelle de **SonalPi V1** sur le périmètre *cœur*
 > (compteurs + navigation, panneau corps « Pseudos », multi-alias + incluses,
 > paramètres). Il s'appuie sur tout ce qui est déjà acquis dans
@@ -343,3 +343,37 @@ round-trip, comme dans `plan_anon_suite`.
   module V1 `anon-export-document.js`) et, plus largement, tout export de
   l'anonymisation **hors** du flux `.sonal`. À traiter dans un plan ultérieur
   (nécessite `extraireTexteAnonymiseDepuisSpans`-équivalent en V2, hors périmètre ici).
+
+---
+
+## 9. Finir plan-migration.md (E4 — `tabAnon` du `.crp`)
+
+> Le chantier migration V1 → V2 (`plans/plan-migration.md`) est implémenté —
+> **E0 à E3 + E5 fait** (lecture/aperçu, mapping définitions, entretiens+audio,
+> création corpus+UI, documentation). Sa dernière étape **E4** (« `tabAnon` →
+> `reglesAnon` ») a été **volontairement reportée ici** (décision Q3(b) du plan
+> migration) : le mapping du `tabAnon` corpus et de ses settings dépend du
+> modèle anon V2 de CE plan. **Blocage de fin de chantier : fermer E4.**
+
+### Inventaire (fait côté migration, vérifié sur corpus réel TestAnon)
+
+| Élément du `.crp` V1 | État en V2 | Ce qui manque → à livrer ici |
+|---|---|---|
+| Règles `tabAnon` **portées par les `.sonal`** (`anon-json`) | ✅ déjà migrées par E2 (dédupliquées par `cleEntite` dans `corpus.json.reglesAnon`) | rien |
+| Règle `tabAnon` **sans occurrence dans un `.sonal`** (ex. `ejdieji→njjjj`) | — | mapping `tabAnon` → règle V2 (`entite[0]`, `pseudos[0..1]` = `remplacement`/`remplacementAlt`) ; `fusionnerReglesAnon` rend la fusion idempotente pour les entités déjà importées |
+| `thematique` d'une règle (PER/LOC/ORG/DAT) | — | `RegleAnon.categorie?` (étape 4c, §5) — **attention** : si l'entité existe déjà via un `.sonal`, la catégorie du `.crp` doit être *rapportée* (update), pas filtrée par la déduplication |
+| `paramsAnonCorpus` (motsLiaison, `thematiques{actif,liste}`, prioriteValidation) | — | `ParamsAnon` (étape 4, §5) — import depuis le `.crp` à l'ouverture du chantier |
+| warning « règles d'anonymisation non migrées » dans la modale de migration | — | à remplacer par le mapping E4 (Q3(b) révoqué) |
+
+### Enchâssement & validation
+
+- S'appuie sur l'**étape 4** de CE plan (`paramsAnon` + `RegleAnon.categorie?`,
+  additifs, pas de bump) → à faire **en fin d'étape 4** (au plus tard après 4c),
+  ou en livrable dédié branché sur 4c.
+- La forme du mapping est celle de `parserAnonJson` (`importSonal.ts`) — même
+  shape `{entite, remplacement, remplacementAlt}` que l'`anon-json` ; à partager
+  dans `shared/` si le parseur du `.crp` doit le réutiliser (`migrationCrp.ts`).
+- Validation : corpus réel V1 (TestAnon — `ejdieji→njjjj` seul ajout, les autres
+  déjà importés ; `Maison des Habitants` cat. ORG, `Speaker 1` cat. LOC) + e2e
+  `migrer:executer` étendu + round-trip `.sonal` (critère étape 4 du §6 : la
+  catégorie d'une règle corpus survit export/import).

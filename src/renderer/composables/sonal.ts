@@ -1,8 +1,9 @@
-import { ref, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
+import { ref, computed, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
 import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
-import type { CorpusFichier, MarqueurDemo } from '../../shared/format'
+import type { CorpusFichier, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
+import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
 import { useEntretien } from './useEntretien'
@@ -45,6 +46,8 @@ export function creerSonal() {
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirScanAnon(), // cache règles après mutation
+    lectureSeule: () => lectureSeule.value, // définitions (flux B) : grisage permanent avant E3
+    entretienEditable: () => !lectureSeule.value || !ent.verrouAutrui.value, // contenu (flux A) : selon le verrou
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -220,6 +223,10 @@ export function creerSonal() {
     // l'utilisateur choisit explicitement (Mini Corpus Test ou un dossier).
     // « Corpus courant » de l'Accueil n'est plus une carte dédiée : c'est le
     // 1er récent (le loaded corpus est TOUJOURS le 1er récent, par construction).
+    // Les récents ne contiennent que des dossiers LOCAUX → pas de pull au
+    // démarrage ; un corpus distant se rouvre via « Corpus distant… ».
+    idDistantCourant.value = null
+    dernierTirage.value = null
     await profil.rafraichirRecents()
     if (profil.recents.value.length > 0) {
       const dir = profil.recents.value[0].dir
@@ -233,13 +240,150 @@ export function creerSonal() {
   async function choisirDossier() {
     const r = await profil.choisirDossier()
     if (!r) return
+    idDistantCourant.value = null
+    dernierTirage.value = null
+    await appliquerCorpus(r.corpus, r.dir)
+    vue.value = 'corpus'
+  }
+  /** « Nouveau corpus… » : crée un corpus NEUF (avec son `nom` de projet) dans le
+   *  dossier choisi — ou OUVRE l'existant si le dossier en contient déjà un (on
+   *  n'écrase jamais, son nom fait foi). C'est le pendant création de `choisirDossier`. */
+  async function creerNouveauCorpus(dir: string, nom: string) {
+    const r = await window.sonal.corpus.creerNouveau(dir, nom)
+    profil.dossierCourantNom.value = r.nom
+    idDistantCourant.value = null
+    dernierTirage.value = null
     await appliquerCorpus(r.corpus, r.dir)
     vue.value = 'corpus'
   }
   /** Rouvrir un corpus récent (par son chemin). */
   async function ouvrirRecent(dir: string) {
+    idDistantCourant.value = null
+    dernierTirage.value = null
     await appliquerCorpus(await profil.ouvrirDossier(dir), dir)
     vue.value = 'corpus'
+  }
+
+  /** « Corpus distant… » (plan-multiuser.md E0, lecture seule) : tire le
+   *  miroir du compte configuré puis bascule le store dessus — le renderer
+   *  reçoit exactement la même forme qu'une ouverture locale, il ne sait PAS
+   *  qu'un serveur existe (invariant §15.1). Échec réseau → exception IPC,
+   *  l'app reste sur le corpus courant (l'appelant affiche l'erreur). */
+  async function ouvrirCorpusDistant(id: string) {
+    const r = await window.sonal.distant.ouvrir(id)
+    idDistantCourant.value = r.distant.id // active la zone de synchro + le pull doux
+    dernierTirage.value = new Date().toISOString() // le main vient de tirer
+    profil.dossierCourantNom.value = r.nom
+    await appliquerCorpus(r.corpus, r.dir)
+    vue.value = 'corpus'
+  }
+
+  // ── Corpus distant : « Actualiser » + minuterie douce (plan §3.2 et §10) ──
+  // Le déclencheur est le PULL — pas un watcher fichier : après un tirage, une
+  // re-requête suffit (les vues corpus sont sans cache). Minuterie douce ~60 s
+  // quand l'écran Corpus est affiché ; « Actualiser » force à la demande.
+  const idDistantCourant = ref<string | null>(null) // null = corpus local
+  const dernierTirage = ref<string | null>(null) // horodatage affiché (« copie de HH:MM »)
+  const tirageEnCours = ref(false)
+  /** E0 lecture seule (choix produit) : le miroir n'a ni verrou ni publication
+   *  avant E1 — on refuse donc TOUTE écriture, côté UI (grisage + bandeau) ET
+   *  côté main (garde `CorpusStore.lectureSeule`). */
+  const lectureSeule = computed(() => idDistantCourant.value !== null)
+
+  /** Tire le miroir et, si quelque chose a changé côté serveur, ré-applique le
+   *  corpus au modèle. `silencieux` (minuterie) : une panne réseau ne crie pas —
+   *  on garde la copie locale datée, le prochain tick réessaiera.
+   *  Retourne false si le corpus courant est local (rien à tirer). */
+  async function actualiserDistant(silencieux = false): Promise<boolean> {
+    if (!idDistantCourant.value || tirageEnCours.value) return false
+    tirageEnCours.value = true
+    try {
+      const t = await window.sonal.distant.tirer()
+      if (!t) {
+        idDistantCourant.value = null
+        return false
+      }
+      dernierTirage.value = t.date
+      if (t.telecharges.length > 0 || t.corbeille.length > 0) {
+        await appliquerCorpus(await window.sonal.corpus.ouvrir(), dossierCourantDir.value ?? undefined)
+      }
+      return true
+    } catch (e) {
+      if (!silencieux) throw e
+      return false
+    } finally {
+      tirageEnCours.value = false
+    }
+  }
+
+  /** La minuterie ne vit que sur l'écran Corpus d'un corpus distant (le composant
+   *  reste monté sous v-show → condition dans le tick, pas au montage). */
+  setInterval(() => {
+    if (vue.value === 'corpus' && idDistantCourant.value) void actualiserDistant(true)
+  }, 60_000)
+
+  /** Migration SonalPi V1 → V2 (plan-migration E3 + E2) : exécute la création
+   *  du corpus V2 (le renderer orchestre — E0 aperçu, E1 définitions —, le main
+   *  écrit + ouvre + ajoute aux récents), applique le corpus au modèle, puis
+   *  IMPORTE les entretiens V1 (lecture des .Sonal + audio, E2). Même geste de
+   *  profil que `ouvrirDossier` (nom courant + récents). */
+  async function migrerDepuisV1(req: DemandeMigration, tabEntV1?: CrpV1Entretien[]) {
+    const r = await window.sonal.migrer.executer(req)
+    profil.dossierCourantNom.value = r.nom
+    await profil.rafraichirRecents()
+    idDistantCourant.value = null
+    dernierTirage.value = null
+    await appliquerCorpus(r.corpus, r.dir)
+    // E2 — entretiens : chaque `tabEnt[]` V1 → un entretien V2.
+    for (const e of mapperEntretiensV1(tabEntV1)) await importerEntretienV1(req.cheminCrp, e)
+    await rafraichirAudios()
+    vue.value = 'corpus'
+  }
+
+  /** Entretien VIDE (Q1b : .sonal absent ou illisible) — même doc que le store. */
+  const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
+
+  /** Crée un entretien V2 depuis un `tabEnt[]` V1 (E2, plan §3.1) : lit le
+   *  `.sonal` (rtrPath relatif au dossier du .crp, résolu par le main) via le
+   *  pipeline `importSonal.ts` (MÊME format de fichier), y pose `audioRef`
+   *  (audioPath V1 absolu — déjà au format v3, référence pas de copie) et la
+   *  trace `meta.sourceV1.rtrPath`.
+   *  Q7 : DÉFINITIONS à vide — le codebook/variables du .crp ont déjà été
+   *  écrits par E3 et font foi ; les copies divergentes d'un .sonal ne les
+   *  touchent pas. Seules les RÈGLES du .sonal (anon-json) sont reprises,
+   *  comme à l'import normal (les annotations y sont liées — round-trip).
+   *  Q1b : .sonal absent/illisible → entretien VIDE avec juste l'audio. */
+  async function importerEntretienV1(cheminCrp: string, e: EntretienV1Import) {
+    let payload: PayloadEntretien | null = null
+    let reglesAnon: RegleAnon[] | undefined
+    const lu = await window.sonal.migrer.lireSonal(cheminCrp, e.rtrPath)
+    if (lu) {
+      try {
+        const r = importerFichier(lu.nom, lu.contenu, (html) =>
+          new DOMParser().parseFromString(html, 'text/html'),
+        )
+        payload = {
+          ...r.payload,
+          meta: { ...r.payload.meta, audioRef: e.audioRef, sourceV1: { rtrPath: e.rtrPath } },
+        }
+        reglesAnon = r.reglesAnon
+      } catch {
+        payload = null // .sonal illisible → Q1b (entretien vide + audio)
+      }
+    }
+    if (!payload) {
+      payload = {
+        corpsTexte: DOC_VIDE,
+        annotations: [],
+        ancres: [],
+        locuteurs: [],
+        meta: { valeursGen: {}, audioRef: e.audioRef, sourceV1: { rtrPath: e.rtrPath } },
+        brouillonsAnon: [],
+      }
+    }
+    const res = await window.sonal.corpus.importer(e.titre, payload, [], [], reglesAnon)
+    corpus.membership.value = res.corpus.membership
+    await corpus.rafraichirScanAnon()
   }
 
   async function retourCorpus() {
@@ -403,6 +547,17 @@ export function creerSonal() {
     const id = ent.ouvertId.value
     if (!id) return
     await ent.sauver()
+    // Corpus distant : publication finale PUIS libération du verrou (§4.4 —
+    // l'ordre est l'invariant central ; le main ne libère jamais sur un contenu
+    // non parti). Sans effet en corpus local.
+    if (idDistantCourant.value) {
+      try {
+        await window.sonal.corpus.fermerEntretien(id)
+      } catch {
+        /* serveur injoignable : le verrou reste tenu côté serveur, reprise au
+           prochain passage — jamais de perte locale */
+      }
+    }
     reprise.value = {
       id,
       positionAudio: audio.position.value,
@@ -498,7 +653,15 @@ export function creerSonal() {
     appliquerCorpus,
     chargerCorpus,
     choisirDossier,
+    creerNouveauCorpus,
     ouvrirRecent,
+    ouvrirCorpusDistant,
+    idDistantCourant,
+    dernierTirage,
+    tirageEnCours,
+    actualiserDistant,
+    lectureSeule,
+    migrerDepuisV1,
     retourCorpus,
     allerAccueil,
     ouvrirEntretien,

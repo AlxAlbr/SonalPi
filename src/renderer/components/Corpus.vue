@@ -47,6 +47,12 @@ const {
   audiosManquants,
   // démo pas-à-pas
   pasAPas,
+  // E0 corpus distant : synchro (barre haute) + lecture seule (grisage)
+  idDistantCourant,
+  dernierTirage,
+  tirageEnCours,
+  actualiserDistant,
+  lectureSeule,
 } = utiliserSonal()
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
@@ -192,6 +198,16 @@ function effacerRecherche() {
 function allerOccurrence(id: string, pos: number) {
   ouvrirAuSegment(id, pos)
 }
+/** Libellé de l'onglet actif, pour le bouton retour « ← … » du panneau
+ *  métadonnées (affiché quel que soit l'onglet dès qu'un entretien est
+ *  sélectionné). */
+const libelleOnglet = computed(() =>
+  ongletCorpus.value === 'recherche'
+    ? 'Recherche'
+    : ongletCorpus.value === 'pas-a-pas'
+      ? 'Pas à pas'
+      : 'Thèmes',
+)
 
 /** Style d'un segment du calque des cartes : position/largeur en % du TEXTE
  *  (parité SonalPi), peinture partagée `peintureSegment` (useCorpus). */
@@ -255,18 +271,22 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </button>
           </div>
 
-          <!-- Onglet Thèmes : un entretien sélectionné → ses métadonnées (nom
-               éditable + infos), sinon la consultation des thèmes. -->
-          <div v-if="ongletCorpus === 'themes' && corpusSelId" class="panneau meta-ent">
+          <!-- Entretien sélectionné → ses métadonnées (nom éditable + infos).
+               Indépendant de l'onglet actif : visible sur Thèmes, Recherche et
+               Pas à pas ; le bouton retour referme la sélection et rend son
+               panneau à l'onglet en cours. -->
+          <div v-if="corpusSelId" class="panneau meta-ent">
             <div class="corpus-tete">
               <h3>Entretien</h3>
-              <button class="mini" @click="deselectionnerCorpus">← Thèmes</button>
+              <button class="mini" @click="deselectionnerCorpus">← {{ libelleOnglet }}</button>
             </div>
             <label class="champ-nom">
               <span class="champ-lbl">Nom</span>
               <input
                 class="titre-meta"
                 :value="membership[corpusSelId]?.titre"
+                :disabled="lectureSeule"
+                title="lecture seule (corpus distant)"
                 @change="renommer(corpusSelId, $event)"
               />
             </label>
@@ -286,7 +306,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <aside v-else-if="ongletCorpus === 'themes'" class="panneau themes-corpus">
             <div class="corpus-tete">
               <h3>Thèmes</h3>
-              <button class="crayon" title="Éditer les thèmes" @click="editerThemes = true">✏️</button>
+              <button v-if="!lectureSeule" class="crayon" title="Éditer les thèmes" @click="editerThemes = true">✏️</button>
             </div>
             <p class="aide-thm">Le codage se fait au niveau des entretiens</p>
             <p v-if="codebook.length === 0" class="vide">Aucun thème — ✏️ pour en créer.</p>
@@ -364,8 +384,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
               </button>
               <!-- UN seul point d'entrée (à la SonalPi) : la modale à deux
-                   zones couvre import texte, texte+audio, audio seul et vierge. -->
-              <AjoutEntretien />
+                   zones couvre import texte, texte+audio, audio seul et vierge.
+                   Masqué en corpus distant (E0 lecture seule). -->
+              <AjoutEntretien v-if="!lectureSeule" />
             </span>
           </div>
           <!-- Ancre du message « re-test » du pas-à-pas : pour une étape de
@@ -446,7 +467,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   title="Éditer l'entretien"
                   @click.stop="ouvrirEntretien(e.id)"
                 >✏️</button>
-                <button class="suppr" title="Supprimer (corbeille)" @click.stop="demanderSuppressionEntretien(e.id)">✕</button>
+                <button class="suppr" v-if="!lectureSeule" title="Supprimer (corbeille)" @click.stop="demanderSuppressionEntretien(e.id)">✕</button>
               </div>
             </li>
           </ul>
@@ -1001,6 +1022,21 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+.sync-zone {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sync-etat {
+  font-size: 0.75rem;
+  color: #607d8b;
+}
+.sync-erreur {
+  font-size: 0.75rem;
+  color: #b3261e;
+  cursor: help;
 }
 .btn-table { margin-right: 0; }
 .pseudo-overlay {

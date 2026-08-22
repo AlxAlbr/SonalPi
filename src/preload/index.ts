@@ -19,6 +19,14 @@ import type {
   Variable,
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import type {
+  CompteDistantPublic,
+  DemandeConnexion,
+  OuvertureDistante,
+  ResultatConnexion,
+  ResultatTiragePublic,
+} from '../shared/distant'
+import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 
 // Pont du store « dossier de corpus » : le renderer ne touche JAMAIS le disque directement
 // tout passe par le main process .
@@ -34,8 +42,23 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:ouvrirDossier', dir),
     choisirDossier: (): Promise<OuvertureCorpus | null> =>
       ipcRenderer.invoke('corpus:choisirDossier'),
+    /** Vérifie si un dossier est DÉJÀ un corpus (modale « Nouveau corpus… »). */
+    verifierNouveau: (dir: string): Promise<{ dejaCorpus: boolean }> =>
+      ipcRenderer.invoke('corpus:verifierNouveau', dir),
+    /** « Nouveau corpus » : crée (ou ouvre) et bascule le store dessus. */
+    creerNouveau: (dir: string, nom: string): Promise<OuvertureCorpus> =>
+      ipcRenderer.invoke('corpus:creerNouveau', dir, nom),
     lireEntretien: (id: string): Promise<LectureEntretien> =>
       ipcRenderer.invoke('corpus:lireEntretien', id),
+    /** Corpus distant : fermer la session (publication finale puis libération
+     *  du verrou, §4.4). Sans effet en corpus local. */
+    fermerEntretien: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke('corpus:fermerEntretien', id),
+    /** État de session distant (poll UI) pour un entretien ouvert. */
+    etatSession: (
+      id: string,
+    ): Promise<{ etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }> =>
+      ipcRenderer.invoke('distant:etatSession', id),
     ecrireEntretien: (id: string, p: PayloadEntretien): Promise<string> =>
       ipcRenderer.invoke('corpus:ecrireEntretien', id, p),
     creerEntretienVide: (titre: string): Promise<{ id: string; corpus: CorpusFichier }> =>
@@ -116,6 +139,16 @@ contextBridge.exposeInMainWorld('sonal', {
     ): Promise<boolean> =>
       ipcRenderer.invoke('corpus:poserValeur', entretienId, cible, idVar, idMod),
   },
+  distant: {
+    /** Comptes distants configurés — JAMAIS de secret dans le retour. */
+    lister: (): Promise<CompteDistantPublic[]> => ipcRenderer.invoke('distant:lister'),
+    connecter: (params: DemandeConnexion): Promise<ResultatConnexion> =>
+      ipcRenderer.invoke('distant:connecter', params),
+    ouvrir: (id: string): Promise<OuvertureDistante> => ipcRenderer.invoke('distant:ouvrir', id),
+    tirer: (): Promise<ResultatTiragePublic | null> => ipcRenderer.invoke('distant:tirer'),
+    oublier: (id: string): Promise<CompteDistantPublic[]> =>
+      ipcRenderer.invoke('distant:oublier', id),
+  },
   media: {
     /** Largeur (px) du panneau vidéo mémorisée pour un corpus (dir), ou null. */
     lireLargeurVideo: (dir: string): Promise<number | null> =>
@@ -143,6 +176,26 @@ contextBridge.exposeInMainWorld('sonal', {
     // Chemin réel d'un File GLISSÉ-DÉPOSÉ (modale d'ajout) — `File.path` n'existe
     // plus, seul le preload peut le résoudre (webUtils).
     cheminDe: (f: File): string => webUtils.getPathForFile(f),
+  },
+  migrer: {
+    /** Choix d'un `.crp` SonalPi V1 : dialogue + lecture + analyse (aperçu). */
+    choisirCrp: (): Promise<{ chemin: string; analyse: AnalyseCrp } | null> =>
+      ipcRenderer.invoke('migrer:choisirCrp'),
+    /** Choix du dossier DÉDIÉ, pré-rempli Documents/Sonal/<nom>. */
+    choisirDossier: (nom: string): Promise<string | null> =>
+      ipcRenderer.invoke('migrer:choisirDossier', nom),
+    /** Garde « on n'écrase jamais ». */
+    verifierDossier: (dir: string): Promise<VerificationDossierMigration> =>
+      ipcRenderer.invoke('migrer:verifierDossier', dir),
+    /** Crée le corpus V2 dans le dossier dédié et l'OUVRE. */
+    executer: (req: DemandeMigration): Promise<OuvertureCorpus> =>
+      ipcRenderer.invoke('migrer:executer', req),
+    /** Lit le `.Sonal` d'un entretien V1. */
+    lireSonal: (
+      cheminCrp: string,
+      rtrPath: string | null,
+    ): Promise<{ nom: string; contenu: string } | null> =>
+      ipcRenderer.invoke('migrer:lireSonal', cheminCrp, rtrPath),
   },
   demo: {
     /** Copie UNE FOIS les sources bundled CorpusTest/ (srt/ + audio/) dans le

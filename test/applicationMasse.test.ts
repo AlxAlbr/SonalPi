@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { instructionsAppliquerRegle } from '../src/shared/entretien/applicationMasse'
+import { instructionsAppliquerRegle } from '../src/shared/entretien/anon'
 import type { EntretienFichier, RegleAnon } from '../src/shared/format'
 import type { Annotation } from '../src/shared/entretien/annotation'
 

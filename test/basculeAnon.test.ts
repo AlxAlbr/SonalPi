@@ -4,7 +4,7 @@ import {
   aplatir,
   occurrencesDe,
   plageVersPM,
-} from '../src/shared/entretien/anonymisation'
+} from '../src/shared/entretien/anon'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /**

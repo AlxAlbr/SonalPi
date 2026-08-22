@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { dirname, join, normalize } from 'node:path'
 import { EditorState, type Transaction } from '@tiptap/pm/state'
 import { Schema } from '@tiptap/pm/model'
 import { history, undo, redo } from '@tiptap/pm/history'
@@ -220,15 +221,35 @@ describe('remapping — occurrences anon (même canal que les codages)', () => {
 })
 
 describe('discipline d’architecture (garde-fou : entretien/ sans DOM)', () => {
-  test('src/shared/entretien/ n’importe que du local ou des types shared (jamais DOM/ProseMirror/Yjs)', () => {
-    const dossier = fileURLToPath(new URL('../src/shared/entretien', import.meta.url))
-    for (const fichier of readdirSync(dossier)) {
-      const source = readFileSync(`${dossier}/${fichier}`, 'utf8')
+  test('src/shared/entretien/ n’importe que du local (récursif) ou des types shared — jamais DOM/ProseMirror/Yjs', () => {
+    const racine = fileURLToPath(new URL('../src/shared', import.meta.url))
+    const dossier = join(racine, 'entretien')
+    // Parcourt le dossier RÉCURSIVEMENT (depuis le sous-dossier anon/, un import
+    // '../../format' reste DANS src/shared — la règle est « ne jamais sortir du
+    // package shared », pas « interdire ../.. »).
+    const fichiers: string[] = []
+    const parcourir = (d: string) => {
+      for (const f of readdirSync(d)) {
+        const abs = join(d, f)
+        if (statSync(abs).isDirectory()) parcourir(abs)
+        else if (f.endsWith('.ts')) fichiers.push(abs)
+      }
+    }
+    parcourir(dossier)
+    for (const sourcePath of fichiers) {
+      const source = readFileSync(sourcePath, 'utf8')
       const imports = [...source.matchAll(/^import .* from '([^']+)'/gm)].map((m) => m[1])
-      // Autorisé : même dossier (./) ou un cran vers shared (../format, ../corpus) ;
-      // JAMAIS s'échapper de shared/ (../../) ni un package (DOM, ProseMirror, Yjs, Vue…).
       for (const spec of imports) {
-        expect(spec, `${fichier} importe ${spec}`).toMatch(/^(\.\/|\.\.\/[^.])/)
+        // Résout l'import contre le fichier qui le porte et vérifie que le
+        // résultat reste DANS src/shared/ (jamais un package ni ailleurs).
+        const cible = spec.startsWith('.')
+          ? normalize(join(dirname(sourcePath), spec))
+          : spec
+        expect(spec, `${sourcePath} importe ${spec}`).toMatch(/^\./)
+        expect(
+          cible.startsWith(racine),
+          `${sourcePath} s'échappe de src/shared via ${spec} → ${cible}`,
+        ).toBe(true)
       }
       expect(source).not.toMatch(/\b(document|window)\./)
     }

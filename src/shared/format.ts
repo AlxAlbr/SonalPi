@@ -2,7 +2,7 @@ import type { Annotation } from './entretien/annotation'
 import type { Ancre } from './entretien/audio'
 
 /**
- * Contrat du FORMAT NATIF SonalAsynchro (docs/MODELE_OBJET.md, partie II).
+ * Contrat du FORMAT NATIF SonalPiTestV2 (docs/dev/modele-objet.md).
  * Partagé main ⇄ renderer.
  * Toute évolution de structure = bump de FORMAT_VERSION + migration explicite :
  * une version inconnue est refusée poliment, jamais lue partiellement.
@@ -43,8 +43,11 @@ export interface EtatDemo {
 }
 
 /** Retour de `demo:etat` :
- *  l'état mémorisé + la présence réelle des dossiers sur disque,
- *  (la modale adapte ses questions ; un dossier supprimé mène à une nouvelle question). */
+ *  l'état mémorisé + la présence RÉELLE sur disque — les sources seulement si
+ *  les 8 fichiers (4 SRT + 4 MP3) sont là ; un corpus de test seulement si
+ *  son `corpus.json` porte le marqueur `demo` DU MODE (un squelette amorcé
+ *  vide à l'ouverture d'un dossier sans corpus ne compte pas).
+ *  (la modale adapte ses questions ; un dossier supprimé/vidé mène à une nouvelle question). */
 export interface EtatDemoComplet extends EtatDemo {
   sourcesExist: boolean
   corpusPasAPasExist: boolean
@@ -77,6 +80,17 @@ export interface RegleAnon {
   pseudos: string[]
 }
 
+/** Trace d'une migration SonalPi V1 → V2 (plan-migration.md D2) : l'identité
+ *  vient du `.crp` (nom + dateCreation) et le pont vers le fichier d'origine
+ *  est son chemin absolu. Champ ADDITIF optionnel → pas de bump (Q6, précédent
+ *  du champ `demo`). E2 y ajoutera la trace par entretien (`rtrPath`). */
+export interface SourceV1 {
+  /** Chemin absolu du `.crp` migré. */
+  cheminCrp: string
+  /** `dateCreation` portée par le `.crp` (nouveauCorpus), sinon null. */
+  dateCreation: string | null
+}
+
 /** `corpus.json` — définitions + membership. */
 export interface CorpusFichier {
   formatVersion: number
@@ -85,6 +99,11 @@ export interface CorpusFichier {
   reglesAnon: Record<string, RegleAnon>
   personnes: Record<string, unknown>
   membership: Record<string, EntretienRef>
+  /** Identité du PROJET (D2) : stocké DANS corpus.json — survit au renommage du
+   *  dossier, sert à l'affichage. Champ ADDITIF optionnel (pas de bump, Q6). */
+  nom?: string
+  /** Trace d'origine — champ ADDITIF optionnel (pas de bump, Q6). */
+  meta?: { sourceV1?: SourceV1 }
   /** Marqueur de corpus de TEST (démo) — champ ADDITIF optionnel,
    *  absent pour un corpus normal (pas de bump de version).
    *  Posé par le builder démo quand il crée le corpus,
@@ -131,6 +150,17 @@ export interface BrouillonAnon {
   pseudo?: string
 }
 
+/** Métadonnées d'un entretien V2 : valeurs EAV de portée entretien + référence
+ *  audio absolue (v3) + trace de migration V1 (sourceV1.rtrPath, E2).
+ *  Champ ADDITIF optionnel pour la trace → pas de bump de formatVersion. */
+export interface MetaEntretien {
+  valeursGen: Record<string, string> // idVar → idMod (portée entretien)
+  audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio
+  /** Chemin RELATIF du `.sonal` V1 d'origine au dossier du `.crp` (E2) —
+   *  trace seule, jamais utilisé pour relire. */
+  sourceV1?: { rtrPath: string | null }
+}
+
 /** `entretiens/<id>.json` — miroir fichier de l'agrégat Entretien. */
 export interface EntretienFichier {
   formatVersion: number
@@ -140,7 +170,7 @@ export interface EntretienFichier {
   /** Ancres temporelles : positions PM triées, temps MESURÉS (secondes) — le reste est dérivé. */
   ancres: Ancre[]
   locuteurs: Locuteur[]
-  meta: { valeursGen: Record<string, string>; audioRef: string | null }
+  meta: MetaEntretien
   /** Brouillons d'anonymisation entretien-locaux (pas des règles). Champ
    *  ADDITIF optionnel : absent d'un fichier v1 non migré → normalisé en []
    *  à l'ouverture ; pas de bump de formatVersion. */
@@ -165,7 +195,7 @@ export interface PayloadEntretien {
   annotations: Annotation[]
   ancres: Ancre[]
   locuteurs: Locuteur[]
-  meta: { valeursGen: Record<string, string>; audioRef: string | null }
+  meta: MetaEntretien
   brouillonsAnon?: BrouillonAnon[]
   pseudosDeclares?: Record<string, string[]>
   legacy?: Record<string, unknown>
@@ -175,8 +205,22 @@ export interface PayloadEntretien {
  *  soit ok + données,
  *  soit un refus typé (version inconnue / fichier absent). */
 export type LectureEntretien =
-  | { ok: true; data: EntretienFichier }
+  | {
+      ok: true
+      data: EntretienFichier
+      /** Corpus distant uniquement : présent quand l'ouverture est REFUSÉE en
+       *  écriture (verrou tenu par autrui) → lecture seule avec détenteur.
+       *  Champ ADDITIF optionnel, pas de bump. */
+      verrouTenuParAutrui?: VerrouTenuParAutrui
+    }
   | { ok: false; raison: 'version' | 'absent' }
+
+/** Qui tient le verrou — version affichable, sans détails techniques. */
+export interface VerrouTenuParAutrui {
+  userId: string
+  machineId: string
+  acquiredAt: string
+}
 
 
 

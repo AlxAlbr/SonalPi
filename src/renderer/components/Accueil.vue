@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import ModaleDemo from './ModaleDemo.vue'
+import MigrationCorpus from './MigrationCorpus.vue'
+import NouveauCorpus from './NouveauCorpus.vue'
+import CorpusDistant from './CorpusDistant.vue'
 import { utiliserSonal } from '../composables/sonal'
 import type { ModeDemo } from '../composables/demo'
 
@@ -21,6 +24,13 @@ const {
 // sources » si elles sont déjà en place). Une fois le corpus du mode créé,
 // « un clic » suffit.
 const modaleDemo = ref<ModeDemo | null>(null)
+// Modale de migration SonalPi V1 → V2 : le `.crp` est analysé (aperçu) avant
+// toute écriture ; le corpus V2 naît dans un dossier DÉDIÉ (gardes incluses).
+const modaleMigration = ref(false)
+// Modale « Nouveau corpus… » : choisir un dossier + donner un nom de projet.
+const modaleNouveau = ref(false)
+// Modale « Corpus distant… » : comptes configurés + connexion Nextcloud (E0).
+const modaleDistant = ref(false)
 
 async function lancerPreparer(mode: ModeDemo) {
   await raccrocherEtatDemo()
@@ -59,11 +69,28 @@ async function lancerPreparer(mode: ModeDemo) {
         <p class="demo-aide">Un terrain fictif sur l'aide aux devoirs dans les associations.</p>
       </div>
 
-      <div class="cartes">
-        <button class="carte choisir-corpus" @click="choisirDossier">
-          <div class="carte-titre">➕ Ouvrir un corpus…</div>
-          <div class="carte-sous">Choisir un dossier — ou en créer un nouveau (un dossier = un corpus)</div>
-        </button>
+      <!-- Ouvrir / migrer un corpus : les deux actions GROUPÉES dans une même
+           carte, comme Mini Corpus Test (un titre + deux sous-cartes). -->
+      <div class="corpus-bloc">
+        <h3 class="corpus-titre">📁 Vos corpus</h3>
+        <div class="cartes-demo">
+          <button class="carte-demo nouveau-corpus" @click="modaleNouveau = true">
+            <div class="carte-titre">➕ Nouveau corpus…</div>
+            <div class="carte-sous">Choisir un dossier et lui donner un nom de projet</div>
+          </button>
+          <button class="carte-demo ouvrir-corpus" @click="choisirDossier">
+            <div class="carte-titre">📂 Ouvrir un corpus…</div>
+            <div class="carte-sous">Choisir un dossier existant (un dossier = un corpus)</div>
+          </button>
+          <button class="carte-demo distant-corpus" @click="modaleDistant = true">
+            <div class="carte-titre">☁️ Corpus distant…</div>
+            <div class="carte-sous">Ouvrir un corpus partagé sur Nextcloud (lecture seule, expérimental)</div>
+          </button>
+          <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
+            <div class="carte-titre">🚚 Migrer un corpus SonalPi (V1)…</div>
+            <div class="carte-sous">Test provisoire — notes, commentaires et anonymisation non encore repris</div>
+          </button>
+        </div>
       </div>
       <h3 class="recents-titre">Récents</h3>
       <p v-if="recents.length === 0" class="vide">Aucun corpus récent.</p>
@@ -83,6 +110,15 @@ async function lancerPreparer(mode: ModeDemo) {
 
       <!-- Modale à deux dossiers (sources + corpus de travail) -->
       <ModaleDemo v-if="modaleDemo" :mode="modaleDemo" @fermer="modaleDemo = null" />
+
+      <!-- Modale de migration SonalPi V1 → V2 (aperçu → dossier dédié → exécution) -->
+      <MigrationCorpus v-if="modaleMigration" @fermer="modaleMigration = false" />
+
+      <!-- Modale « Nouveau corpus… » (choisir un dossier + donner un nom) -->
+      <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />
+
+      <!-- Modale « Corpus distant… » (comptes Nextcloud + connexion, E0) -->
+      <CorpusDistant v-if="modaleDistant" @fermer="modaleDistant = false" />
     </section>
 </template>
 
@@ -137,23 +173,19 @@ async function lancerPreparer(mode: ModeDemo) {
   color: #999;
   font-style: italic;
 }
-.cartes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.8rem; 
-}
-.carte {
-  text-align: left;
-  border: 1px solid #ddd;
+/* --- Ouvrir / migrer un corpus (groupé, comme Mini Corpus Test) --- */
+.corpus-bloc {
+  border: 1px solid #e0e0e0;
   border-radius: 10px;
-  padding: 0.9rem 1.1rem;
-  background: #fafafe;
-  cursor: pointer;
-  min-width: 240px;
+  padding: 0.7rem 0.8rem 0.6rem;
+  margin: 0 0 1rem;
+  background: #f7f8fb;
 }
-.carte:hover {
-  border-color: #2e73d8;
-  background: #f0f6ff;
+.corpus-titre {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #37474f;
+  margin: 0 0 0.5rem;
 }
 .carte-titre {
   text-align: center;

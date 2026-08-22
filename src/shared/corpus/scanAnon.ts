@@ -17,7 +17,7 @@
  */
 
 import type { EntretienFichier, RegleAnon } from '../format'
-import { aplatir, occurrencesDe, plageVersPM, type Plage, type TextePlat } from '../entretien/anonymisation'
+import { aplatir, occurrencesDe, plageVersPM, type Plage, type TextePlat } from '../entretien/anon'
 import { estOrpheline } from '../entretien/annotation'
 
 /** Compteurs d'état d'une entité pour une règle (textes agrégés ou par entretien). */

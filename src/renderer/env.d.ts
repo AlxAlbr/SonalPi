@@ -26,6 +26,14 @@ import type {
   Variable,
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type {
+  CompteDistantPublic,
+  DemandeConnexion,
+  OuvertureDistante,
+  ResultatConnexion,
+  ResultatTiragePublic,
+} from '../shared/distant'
 
 declare global {
   interface Window {
@@ -33,12 +41,18 @@ declare global {
       platform: string
       corpus: {
         ouvrir: () => Promise<CorpusFichier>
-        dossierCourant: () => Promise<DossierCorpus>
+        dossierCourant: () => Promise<DossierCorpus & { distant: string | null }>
         recents: () => Promise<DossierCorpus[]>
         retirerRecent: (dir: string) => Promise<DossierCorpus[]>
         ouvrirDossier: (dir: string) => Promise<OuvertureCorpus>
         choisirDossier: () => Promise<OuvertureCorpus | null>
+        verifierNouveau: (dir: string) => Promise<{ dejaCorpus: boolean }>
+        creerNouveau: (dir: string, nom: string) => Promise<OuvertureCorpus>
         lireEntretien: (id: string) => Promise<LectureEntretien>
+        fermerEntretien: (id: string) => Promise<boolean>
+        etatSession: (
+          id: string,
+        ) => Promise<{ etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }>
         ecrireEntretien: (id: string, p: PayloadEntretien) => Promise<string>
         creerEntretienVide: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
         renommerEntretien: (id: string, titre: string) => Promise<CorpusFichier>
@@ -93,8 +107,15 @@ declare global {
       dialog: {
         choisirTexte: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
         choisirAudio: (defaultPath?: string) => Promise<string | null>
-        choisirDossier: (kind?: 'sources' | 'corpus') => Promise<string | null>
+        choisirDossier: (kind?: 'sources' | 'corpus' | 'projet') => Promise<string | null>
         choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
+      }
+      distant: {
+        lister: () => Promise<CompteDistantPublic[]>
+        connecter: (params: DemandeConnexion) => Promise<ResultatConnexion>
+        ouvrir: (id: string) => Promise<OuvertureDistante>
+        tirer: () => Promise<ResultatTiragePublic | null>
+        oublier: (id: string) => Promise<CompteDistantPublic[]>
       }
       media: {
         lireLargeurVideo: (dir: string) => Promise<number | null>
@@ -102,6 +123,16 @@ declare global {
       }
       fichier: {
         cheminDe: (f: File) => string
+      }
+      migrer: {
+        choisirCrp: () => Promise<{ chemin: string; analyse: AnalyseCrp } | null>
+        choisirDossier: (nom: string) => Promise<string | null>
+        verifierDossier: (dir: string) => Promise<VerificationDossierMigration>
+        executer: (req: DemandeMigration) => Promise<OuvertureCorpus>
+        lireSonal: (
+          cheminCrp: string,
+          rtrPath: string | null,
+        ) => Promise<{ nom: string; contenu: string } | null>
       }
       demo: {
         copierSources: (racine: string) => Promise<void>

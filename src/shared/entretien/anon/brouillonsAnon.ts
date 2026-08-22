@@ -9,7 +9,7 @@
  * Ce module reste pur (pas de DOM, pas de ProseMirror) : la lecture du texte
  * d'une occurrence est injectée par l'appelant, ce qui le rend testable headless.
  */
-import type { BrouillonAnon, RegleAnon } from '../format'
+import type { BrouillonAnon, RegleAnon } from '../../format'
 import { joindrePseudos } from './pseudos'
 
 /** Clef de groupement d'une entité (insensible à la casse, normalisée). */

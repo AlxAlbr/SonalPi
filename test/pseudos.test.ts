@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { scinderPseudos, joindrePseudos, estMultiPseudo, ajouterPseudo, MAX_PSEUDOS } from '../src/shared/entretien/pseudos'
+import { scinderPseudos, joindrePseudos, estMultiPseudo, ajouterPseudo, MAX_PSEUDOS } from '../src/shared/entretien/anon'
 
 describe('scinderPseudos — saisie libre « a / b »', () => {
   test('saisie simple sans séparateur → un seul pseudo', () => {

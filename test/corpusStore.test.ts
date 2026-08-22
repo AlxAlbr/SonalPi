@@ -3,6 +3,8 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
+import { mapperDefinitions } from '../src/shared/corpus/migrationCrp'
+import { analyserCrp } from '../src/shared/corpus/migrationCrp'
 import { ecrireSeedDemo } from './seedDemo'
 import type { PayloadEntretien, EntretienFichier, CorpusFichier } from '../src/shared/format'
 
@@ -51,6 +53,17 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(enfants.map((c) => c.parent)).toEqual(['cat_001', 'cat_001', 'cat_001'])
     expect(enfants.map((c) => c.taille)).toEqual([24, 22, 20]) // l'effet = la taille seule
     expect(enfants.every((c) => c.couleur === '#ffffff')).toBe(true) // soulignement invisible
+  })
+
+  test('poserNom pose le `nom` de projet et le persiste (indépendant du dossier)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-store-nom-'))
+    const store = new CorpusStore(dir)
+    expect(store.ouvrir().nom).toBeUndefined() // un corpus neuf n'a pas de nom
+    const corpus = store.poserNom('Enquête 2024')
+    expect(corpus.nom).toBe('Enquête 2024')
+    // persisté dans corpus.json, et survit à une réouverture
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).nom).toBe('Enquête 2024')
+    expect(new CorpusStore(dir).ouvrir().nom).toBe('Enquête 2024')
   })
 
   test('la baseline de démo des tests reste lisible par le store (fixture partagée unit/e2e)', () => {
@@ -204,6 +217,28 @@ describe('CorpusStore — version du format natif', () => {
 })
 
 describe('CorpusStore — cycle de vie du membership', () => {
+  test('le fichier d’entretien porte le NOM D’ORIGINE (SRT/audio) + un code aléatoire', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+
+    // Import SRT : le titre = nom du fichier sans extension → il nomme le fichier.
+    const a = store.importerEntretien('1-Coordinatrice', payload('X')).id
+    expect(a).toMatch(/^1-Coordinatrice_[a-z0-9]+$/)
+    expect(existsSync(join(dir, 'entretiens', a + '.json'))).toBe(true)
+
+    // Audio seul : on garde le nom de l'AUDIO.
+    const b = store.creerEntretienVide('entretienQ2audio').id
+    expect(b).toMatch(/^entretienQ2audio_[a-z0-9]+$/)
+    expect(existsSync(join(dir, 'entretiens', b + '.json'))).toBe(true)
+
+    // Le titre AFFICHÉ reste le nom d'origine (espaces/accents préservés),
+    // seuls les caractères interdits sont assainis pour l'id (espaces et /
+    // → tirets, que l'on compacte).
+    const c = store.importerEntretien('Été 2024 / session 1', payload('Y')).id
+    expect(c).toMatch(/^Été-2024-session-1_[a-z0-9]+$/)
+    expect(store.ouvrir().membership[c].titre).toBe('Été 2024 / session 1')
+  })
+
   test('créer, renommer, supprimer (vers corbeille, pas d’effacement)', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
@@ -555,7 +590,7 @@ describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     // Un entretien qui référence cat_001 par id.
-    store.importerEntretien('E', {
+    const { id: ent } = store.importerEntretien('E', {
       corpsTexte: { type: 'doc', content: [] },
       annotations: [{ id: 'a', type: 'codage', from: 1, to: 3, auteur: 'x', code: 'cat_001' }],
       ancres: [],
@@ -569,7 +604,6 @@ describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
     expect(corpus.codebook.cat_001.nom).toBe('Famille élargie')
     expect(corpus.codebook.cat_001.couleur).toBe('#0331ff')
     // L'entretien n'a PAS changé : il porte toujours l'id cat_001, pas le libellé.
-    const ent = Object.keys(store.ouvrir().membership).find((k) => k.startsWith('ent'))!
     const data = store.lireEntretien(ent)
     expect(data.ok && data.data.annotations[0].code).toBe('cat_001')
   })
@@ -824,5 +858,108 @@ describe('CorpusStore — application en masse d’une règle sur un entretien f
     store.ouvrir()
     expect(store.appliquerRegleAnon('e1', 'reg-inconnu').nb).toBe(0)
     expect(store.appliquerRegleAnon('absent', 'reg-inconnu').nb).toBe(0)
+  })
+})
+
+describe('CorpusStore — migration SonalPi V1 → V2 (E3 : migrerDepuisV1)', () => {
+  /** Un .crp V1 (E0) → définitions mappées (E1) → store sur le dossier dédié. */
+  function definitionsDepuisFixture() {
+    const crp = readFileSync(join(process.cwd(), 'test/fixtures/corpusV1.crp'), 'utf8')
+    const a = analyserCrp(crp, 'MonCorpus.crp')
+    if (!a.ok) throw new Error('fixture invalide')
+    return { apercu: a.apercu, ...mapperDefinitions(a.apercu.raw) }
+  }
+
+  test('crée corpus.json avec nom + meta.sourceV1 + définitions (pas le bloc par défaut)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-migre-'))
+    const { apercu, codebook, variables } = definitionsDepuisFixture()
+    const corpus = new CorpusStore(dir).migrerDepuisV1(
+      apercu.nom,
+      { cheminCrp: '/home/user/MonCorpus.crp', dateCreation: apercu.dateCreation },
+      codebook,
+      variables,
+    )
+    expect(corpus.formatVersion).toBe(3)
+    expect(corpus.nom).toBe('MonCorpus')
+    expect(corpus.meta?.sourceV1).toEqual({
+      cheminCrp: '/home/user/MonCorpus.crp',
+      dateCreation: null, // le .crp sauvé n'a pas de dateCreation
+    })
+    // Définitions du .crp (Q7), RIEN du bloc Pondérations par défaut de l'amorçage.
+    expect(Object.keys(corpus.codebook).sort()).toEqual([
+      'cat_001', 'cat_002', 'cat_003', 'cat_004', 'cat_005', 'cat_006',
+    ])
+    expect(Object.keys(corpus.variables).sort()).toEqual(['v1', 'v2', 'v3'])
+    expect(corpus.membership).toEqual({})
+
+    // Lisible à l'ouverture : ouvrir() ne ré-amorce pas (corpus.json présent).
+    const relu = new CorpusStore(dir).ouvrir()
+    expect(relu.nom).toBe('MonCorpus')
+    expect(relu.meta?.sourceV1?.cheminCrp).toBe('/home/user/MonCorpus.crp')
+    // Structure sur disque : corpus.json + entretiens/ (png/ créés plus tard).
+    expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(dir, 'entretiens'))).toBe(true)
+  })
+
+  test('refuse (throw) un dossier qui est DÉJÀ un corpus — on n’écrase jamais', () => {
+    const { dir } = storeNeuf() // baseline démo déjà écrit dans dir
+    const { codebook, variables } = definitionsDepuisFixture()
+    expect(() =>
+      new CorpusStore(dir).migrerDepuisV1('X', { cheminCrp: '/x.crp', dateCreation: null }, codebook, variables),
+    ).toThrow(/déjà un corpus/)
+  })
+
+  test('re-migrer le même .crp vers un AUTRE dossier est le cas multi-crp (un .crp → un dossier)', async () => {
+    const { apercu, codebook, variables } = definitionsDepuisFixture()
+    const d1 = mkdtempSync(join(tmpdir(), 'sonal-migre1-'))
+    const d2 = mkdtempSync(join(tmpdir(), 'sonal-migre2-'))
+    const c1 = new CorpusStore(d1).migrerDepuisV1(apercu.nom, { cheminCrp: '/a.crp', dateCreation: null }, codebook, variables)
+    const c2 = new CorpusStore(d2).migrerDepuisV1(apercu.nom, { cheminCrp: '/a.crp', dateCreation: null }, codebook, variables)
+    expect(c1.nom).toBe(c2.nom)
+    expect(Object.keys(c2.codebook)).toHaveLength(6)
+    // Idempotence de la FUSION : re-fusionner les mêmes définitions ne change rien.
+    // (la garde « on n'écrase jamais » interdit de ré-appeler migrerDepuisV1 sur d1)
+    expect(() => new CorpusStore(d1).migrerDepuisV1(apercu.nom, { cheminCrp: '/a.crp', dateCreation: null }, codebook, variables)).toThrow()
+  })
+})
+
+describe('CorpusStore — garde lectureSeule (E0 corpus distant)', () => {
+  /** Store de démo en mode « miroir distant » (E0 : pas encore de verrou ni
+   *  de publication → toute écriture refusée, cf. plan-multiuser.md). */
+  function storeRo() {
+    const s = storeNeuf()
+    s.store.lectureSeule = true
+    return s
+  }
+
+  test('les lectures restent possibles', () => {
+    const { store } = storeRo()
+    expect(() => store.ouvrir()).not.toThrow()
+    expect(Object.keys(store.ouvrir().membership).length).toBeGreaterThan(0)
+  })
+
+  test('toute écriture est refusée avec un message clair', () => {
+    const { store } = storeRo()
+    const [id] = Object.keys(store.ouvrir().membership)
+    expect(() => store.ecrireEntretien(id, payload('x'))).toThrow(/verrou n'est pas tenu/)
+    expect(() => store.poserNom('nouveau nom')).toThrow(/lecture seule/)
+    expect(() => store.creerEntretienVide('nouveau')).toThrow(/lecture seule/)
+    expect(() => store.renommerEntretien(id, 'titre')).toThrow(/lecture seule/)
+    expect(() => store.supprimerEntretien(id)).toThrow(/lecture seule/)
+    expect(() => store.ajouterCategorie('thème')).toThrow(/lecture seule/)
+    expect(() => store.ajouterVariable('var', 'entretien')).toThrow(/lecture seule/)
+    expect(() => store.regleAnonCreer('ACME', ['A.'])).toThrow(/lecture seule/)
+    expect(() => store.marquerDemo({ mode: 'pas-a-pas', racineSources: '/x', validees: [] })).toThrow(/lecture seule/)
+    // Rien n'a bougé sur disque.
+    const { store: temoin } = storeNeuf()
+    void temoin
+    expect(store.ouvrir()).toEqual(new CorpusStore(store['dir']).ouvrir())
+  })
+
+  test('le flag est par instance : un nouveau store local écrit normalement', () => {
+    const { dir } = storeRo()
+    const local = new CorpusStore(dir) // défaut : false
+    expect(() => local.poserNom('local again')).not.toThrow()
+    expect(local.ouvrir().nom).toBe('local again')
   })
 })

@@ -6,7 +6,7 @@ import {
   offsetVersPM,
   plageVersPM,
   type TextePlat,
-} from '../src/shared/entretien/anonymisation'
+} from '../src/shared/entretien/anon'
 import { debutBloc } from '../src/shared/entretien/positions'
 
 /**

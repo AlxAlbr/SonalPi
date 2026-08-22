@@ -8,8 +8,8 @@ import {
   consommerBrouillon,
   lignesAnonUnifiees,
   type LigneAnon,
-} from '../src/shared/entretien/brouillonsAnon'
-import { aplatir, occurrencesDe, plageVersPM } from '../src/shared/entretien/anonymisation'
+} from '../src/shared/entretien/anon'
+import { aplatir, occurrencesDe, plageVersPM } from '../src/shared/entretien/anon'
 import type { BrouillonAnon } from '../src/shared/format'
 
 /**

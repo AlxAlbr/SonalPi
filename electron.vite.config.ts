@@ -1,7 +1,7 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 
-// SonalAsynchro : pas de Yjs → pas de dedupe particulier (contraste avec POC2).
+// SonalPiTestV2 : pas de Yjs → pas de dedupe particulier (contraste avec POC2).
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],

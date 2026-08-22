@@ -1,4 +1,4 @@
-# Plan migration V1 → V2 (SonalPi `.crp` → corpus SonalAsynchro)
+# Plan migration V1 → V2 (SonalPi `.crp` → corpus SonalPiTestV2)
 
 > Faire entrer les corpus **SonalPi V1** dans la V2, en préservant l'identité du projet
 > (son nom) et son contenu (thèmes, variables, entretiens, audio, données).
@@ -138,16 +138,19 @@ La V2 au contraire **partitionne** : les *définitions* vivent une seule fois da
 
 ## 5. Découpage en étapes
 
+> **État** : E0 → E3 implémentées (lecture+aperçu, mapping définitions, entretiens+audio,
+> création corpus+UI). **E4 reporté** (chantier anon — voir note) ; **E5 fait** (docs/migration-v1.md).
+
 Chaque étape est indépendante, testable, et fusionnable seule.
 
 | Étape | Contenu | Fichiers principaux | Tests |
 |---|---|---|---|
-| **E0 — Lecture + aperçu** | IPC `migrer:choisirCrp` (dialog + lecture + encodage), parseur `.crp` **pur** (fonctions pures, sans I/O), retour d'aperçu `{nom, dateCreation, nbEntretiens, themes, variables, reglesAnon}` | `src/main/index.ts`, nouveau `src/shared/corpus/migrationCrp.ts` (parseur pur) | unitaires du parseur (JSON V1 réel + windows-1252) |
-| **E1 — Mapping codebook/variables** | `tabThm`/`tabVar`/`tabDic` → `codebook`/`variables` (réutilise `fusionnerImport` de `shared/corpus/import.ts` si pertinent) | `shared/corpus/migrationCrp.ts` | unitaires (parité `cat_NNN`, `taille ''`, `priv` string→bool, `champ gen/loc`) |
-| **E2 — Entretiens + audio** | Lecture des `.Sonal` (IPC lecture, comme `demo:lireSource`), conversion via `importSonal.ts`, `audioPath` → `audioRef` absolu, `meta.sourceV1` | `src/renderer/import/`, `src/main/index.ts` | unitaires + comparaison d'un `.Sonal` V1 réel |
-| **E3 — Création du corpus + UI** | Modale de migration (aperçu + choix dossier dédié + gardes), `corpusStore.amorcer` accepte `nom`/`meta.sourceV1`, écriture, ajout aux récents, ouverture | `src/main/corpusStore.ts`, nouvelle `src/renderer/components/MigrationCorpus.vue`, `Accueil.vue`, `useProfil.ts`/`sonal.ts` (wrap IPC) | e2e (stub des dialogs, multi-crp, gardes, aperçu) |
-| **E4 — `tabAnon` → `reglesAnon`** (optionnel, chantier séparé) | Inventaire des settings pseudo du `.crp`, mapping vers le modèle V2 (portée, exceptions) | à définir avec le plan anon | — |
-| **E5 — Documentation** | Page utilisateur : « Passer de SonalPi V1 à la V2 » (flux, consignes, ce qui n'est pas migré) | `README.md` ou doc dédiée | — |
+| **E0 — Lecture + aperçu** ✅ | IPC `migrer:choisirCrp` (dialog + lecture + encodage), parseur `.crp` **pur** (fonctions pures, sans I/O), retour d'aperçu `{nom, dateCreation, nbEntretiens, themes, variables, reglesAnon}` | `src/main/index.ts`, `src/main/encodage.ts`, `src/shared/corpus/migrationCrp.ts` (parseur pur) | unitaires du parseur (fixtures + windows-1252) |
+| **E1 — Mapping codebook/variables** ✅ | `tabThm`/`tabVar`/`tabDic` → `codebook`/`variables` (`mapperCodebook`/`mapperVariables`/`mapperDefinitions` ; `importerVariables` partagé via `shared/corpus/eav.ts`, `parentsDepuisRangs` ; fusion via `fusionnerImport`) | `shared/corpus/migrationCrp.ts`, `shared/corpus/eav.ts` | unitaires (parité `cat_NNN`, hiérarchie, suppressions V1 préservées, `taille ''`, `priv` string→bool, `champ gen/loc`, Q7) |
+| **E2 — Entretiens + audio** ✅ | `migrer:lireSonal` (résolution rtrPath + encodage), `mapperEntretiensV1`, boucle d'import via `importSonal.ts` (définitions à vide — Q7), `audioPath` → `audioRef` absolu, `meta.sourceV1.rtrPath`, Q1b (`.sonal` manquant → entretien vide + audio) | `src/main/index.ts`, `src/shared/corpus/migrationCrp.ts`, `src/renderer/composables/sonal.ts` | unitaires + e2e (`.sonal` réel + WAV, Q7, Q1b), comparaison fixtures |
+| **E3 — Création du corpus + UI** ✅ | Modale `MigrationCorpus.vue` (aperçu + choix dossier dédié + gardes dejaCorpus/démo/non-vide), `migrerDepuisV1` (nom + `meta.sourceV1`, jamais le bloc défaut — `amorcer()` réservé aux corpus neufs), écriture, ajout aux récents, ouverture | `src/main/corpusStore.ts`, `src/renderer/components/MigrationCorpus.vue`, `Accueil.vue`, `sonal.ts` (wrap IPC), `format.ts` (`nom`, `meta.sourceV1` — additifs, pas de bump Q6) | e2e (stub des dialogs, multi-crp, gardes, aperçu, flux complet avec entretiens) |
+| **E4 — `tabAnon` → `reglesAnon`** ⏳ reporté au chantier anon | Inventaire des settings pseudo du `.crp` (`paramsAnonCorpus` : motsLiaison, thematiques, prioriteValidation), mapping `tabAnon` (porte en plus `thematique` PER/LOC/ORG/DAT) → modèle V2 | à définir avec le plan anon (`plan_anon_fin.md`, futur `paramsAnon` + catégorie de règle) | — |
+| **E5 — Documentation** ✅ | Page utilisateur « Passer de SonalPi V1 à la V2 » (flux, consignes, ce qui n'est pas migré) | `docs/migration-v1.md` + lien README | — |
 
 ---
 

@@ -1,8 +1,21 @@
 import type { Locuteur, Variable } from '../../shared/format'
+// Le cœur du mapping (ids déterministes + importerVariables) vit dans le
+// `shared` (une seule vérité pour `.sonal` ET `.crp` — migrationCrp.ts).
+// Ré-exporté ici pour compat : l'import `.sonal` et les tests consomment
+// `importerVariables` depuis ./eav.
+import {
+  idVar,
+  idMod,
+  asArray,
+  importerVariables,
+  type VarLegacy,
+  type DicLegacy,
+} from '../../shared/corpus/eav'
+export { importerVariables }
 
 /**
  * Mapping EAV entre le FORMAT LEGACY `.sonal` (tabVar/tabDic/tabDat, codes
- * numériques + sentinelle `l="all"`) et le MODÈLE SonalAsynchro (variables au
+ * numériques + sentinelle `l="all"`) et le MODÈLE SonalPiTestV2 (variables au
  * corpus, valeurs chez leur propriétaire).
  *
  * Deux invariants portent tout le round-trip :
@@ -14,19 +27,6 @@ import type { Locuteur, Variable } from '../../shared/format'
  *     Le modèle ne connaît que « valeur de portée entretien / de portée locuteur ».
  */
 
-/** Une entrée `var-json` : définition de variable côté `.sonal`. */
-interface VarLegacy {
-  v: number
-  lib: string
-  champ: 'gen' | 'loc'
-  priv: string | boolean
-}
-/** Une entrée `dic-json` : une modalité `(v,m)` d'une variable. */
-interface DicLegacy {
-  v: number
-  m: number
-  lib: string
-}
 /** Une entrée `dat-json` : une valeur appliquée. `l="all"` = portée entretien,
  *  `l=index` = portée du locuteur d'index donné. `e` = index d'entretien (artefact). */
 interface DatLegacy {
@@ -34,41 +34,6 @@ interface DatLegacy {
   v: number
   l: 'all' | number
   m: number
-}
-
-const idVar = (v: number): string => `v${v}`
-const idMod = (v: number, m: number): string => `v${v}m${m}`
-
-function asArray<T>(x: unknown): T[] {
-  return Array.isArray(x) ? (x as T[]) : []
-}
-
-/**
- * `tabVar` + `tabDic` → définitions de variables modélisées. La modalité `m=0`
- * (souvent vide dans SonalPi) est conservée telle quelle : une valeur peut y
- * pointer, et le round-trip doit la réémettre. Modalité orpheline (variable
- * absente de `tabVar`) : ignorée.
- */
-export function importerVariables(tabVar: unknown, tabDic: unknown): Variable[] {
-  const parId = new Map<string, Variable>()
-  asArray<VarLegacy>(tabVar).forEach((rv, ordre) => {
-    const id = idVar(rv.v)
-    parId.set(id, {
-      id,
-      lib: rv.lib ?? '',
-      portee: rv.champ === 'gen' ? 'entretien' : 'locuteur',
-      priv: rv.priv === true || rv.priv === 'true',
-      ordre,
-      vExport: rv.v,
-      modalites: [],
-    })
-  })
-  for (const rm of asArray<DicLegacy>(tabDic)) {
-    const v = parId.get(idVar(rm.v))
-    if (!v) continue
-    v.modalites.push({ id: idMod(rm.v, rm.m), lib: rm.lib ?? '', mExport: rm.m })
-  }
-  return [...parId.values()]
 }
 
 /**

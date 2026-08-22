@@ -1,4 +1,4 @@
-import { cleEntite } from '../entretien/brouillonsAnon'
+import { cleEntite } from '../entretien/anon'
 import type { Categorie, CorpusFichier, RegleAnon, Variable } from '../format'
 
 /**

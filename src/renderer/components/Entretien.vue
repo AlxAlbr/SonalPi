@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
@@ -69,7 +69,13 @@ const {
   retourCorpus,
   exporter,
   audio,
+  lectureSeule, // définitions (flux B) : grisage permanent avant E3
+  verrouAutrui, // verrou de l'entretien ouvert (tenu par autrui ?)
 } = utiliserSonal()
+
+// Lecture seule du CONTENU (flux A) : l'entretien ouvert est figé ssi son
+// verrou est tenu par autrui. Les définitions suivent `lectureSeule`.
+const roContenu = computed(() => verrouAutrui.value !== null)
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
 
@@ -418,6 +424,12 @@ function focaliserLibre(el: unknown, cle: string) {
 
 <template>
     <section class="ecran entretien-ecran">
+      <!-- Corpus distant : bandeau si le verrou de CET entretien est tenu
+           par autrui (§4.1 — qui, depuis quand). -->
+      <div v-if="verrouAutrui" class="banniere-ro">
+        🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b>
+        depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}.
+      </div>
       <div class="grille-ent">
         <!-- Ligne d'actions pleine largeur, en HAUT de l'écran : retour corpus,
              Enregistrer, Exporter. Toute la vue ci-dessous (les deux colonnes)
@@ -425,7 +437,7 @@ function focaliserLibre(el: unknown, cle: string) {
         <div class="barre">
           <button class="retour" @click="retourCorpus">← Corpus</button>
           <span class="barre-aide">Sélectionne du texte, puis clique un thème (onglet Thématique) pour le coder.</span>
-          <button class="sauver" @click="sauver">Enregistrer</button>
+          <button v-if="!roContenu" class="sauver" @click="sauver">Enregistrer</button>
           <button class="exporter" @click="exporter">Exporter .sonal</button>
         </div>
 
@@ -499,7 +511,7 @@ function focaliserLibre(el: unknown, cle: string) {
           <aside v-show="ongletDroite === 'themes'" class="panneau themes-coder">
             <div class="corpus-tete">
               <h3>Thématiques</h3>
-              <button class="crayon" title="Éditer les thèmes" @click="editerThemes = true">✏️</button>
+              <button v-if="!lectureSeule" class="crayon" title="Éditer les thèmes" @click="editerThemes = true">✏️</button>
             </div>
             <p class="aide-thm">Sélectionne du texte, puis clique un thème pour le coder (re-clic = retirer).</p>
             <p v-if="hintCodage" class="hint-codage">{{ hintCodage }}</p>
@@ -511,6 +523,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   class="theme-coder"
                   :class="{ inactif: !n.cat.actif }"
                   :style="{ marginLeft: n.profondeur * 1.1 + 'rem' }"
+                  :disabled="roContenu"
                   @click="coderAvec(n.cat.id)"
                 >
                   <span class="pastille" :style="{ background: couleurHex(n.cat) }"></span>
@@ -526,7 +539,7 @@ function focaliserLibre(el: unknown, cle: string) {
           <aside v-show="ongletDroite === 'locuteurs'" class="panneau">
             <div class="corpus-tete">
               <h3>Locuteurs</h3>
-              <button class="mini" @click="nouveauLocuteur">+ Locuteur</button>
+              <button v-if="!roContenu" class="mini" @click="nouveauLocuteur">+ Locuteur</button>
             </div>
 
             <!-- Confirmation de suppression (destructif : nom + valeurs + lien des blocs) -->
@@ -562,6 +575,7 @@ function focaliserLibre(el: unknown, cle: string) {
                     class="carre-couleur"
                     :value="l.couleur ?? couleurPourLocuteur(l.index)"
                     :title="`Couleur du nom — choisir (actuelle : ${l.couleur ?? 'automatique'})`"
+                    :disabled="roContenu"
                     @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
                   />
                   <!-- data-tour sur le 1er nom uniquement : cible de l'étape
@@ -570,6 +584,7 @@ function focaliserLibre(el: unknown, cle: string) {
                     class="nom-loc"
                     :data-tour="i === 0 ? 'nom-locuteur' : undefined"
                     :value="l.nom"
+                    :disabled="roContenu"
                     @change="renommerLoc(l.index, $event)"
                   />
                   <div class="pseudo-cell">
@@ -578,6 +593,7 @@ function focaliserLibre(el: unknown, cle: string) {
                       :value="l.pseudo ?? ''"
                       placeholder="pseudo…"
                       title="Pseudonymise les étiquettes de ce locuteur (Nom̶ [pseudo])"
+                      :disabled="roContenu"
                       @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
                     />
                     <template v-if="(l.pseudo ?? '').trim()">
@@ -590,7 +606,7 @@ function focaliserLibre(el: unknown, cle: string) {
                         :title="l.pseudoEtat === 'refuse'
                           ? 'Libellé en clair (refusé) — cliquer pour confirmer ✓'
                           : 'Pseudonymisation confirmée ✓ — cliquer pour refuser (⊘)'"
-                        @click="basculerPseudoEtatLoc(l.index)"
+                        v-if="!roContenu" @click="basculerPseudoEtatLoc(l.index)"
                       >{{ l.pseudoEtat === 'refuse' ? '⊘' : '✓' }}</button>
                     </template>
                   </div>
@@ -598,24 +614,25 @@ function focaliserLibre(el: unknown, cle: string) {
                     <input
                       type="checkbox"
                       :checked="l.interviewer ?? false"
+                      :disabled="roContenu"
                       @change="setInterviewer(l.index, ($event.target as HTMLInputElement).checked)"
                     />
                     <span class="glisseur"></span>
                     <span class="q">?</span>
                   </label>
-                  <button class="x-loc" title="Supprimer ce locuteur" @click="demanderSuppressionLocuteur(l.index)">✕</button>
+                  <button v-if="!roContenu" class="x-loc" title="Supprimer ce locuteur" @click="demanderSuppressionLocuteur(l.index)">✕</button>
                 </li>
               </ul>
             </div>
             <div class="attribuer">
               <span class="lbl">Attribuer le bloc courant ou la sélection :</span>
               <div class="boutons-loc">
-                <button v-for="l in locuteurs" :key="l.index" class="attr" @click="attribuerLoc(l.index)">
+                <button v-for="l in locuteurs" :key="l.index" class="attr" :disabled="roContenu" @click="attribuerLoc(l.index)">
                   <span
                     :style="{ color: l.couleur ?? couleurPourLocuteur(l.index) }"
                   >{{ l.nom }}</span>
                 </button>
-                <button class="attr aucun" @click="attribuerLoc(null)">aucun</button>
+                <button class="attr aucun" :disabled="roContenu" @click="attribuerLoc(null)">aucun</button>
               </div>
             </div>
           </aside>
@@ -628,7 +645,7 @@ function focaliserLibre(el: unknown, cle: string) {
           <aside v-show="ongletDroite === 'donnees'" class="panneau donnees">
             <div class="corpus-tete">
               <h3>Données</h3>
-              <button class="crayon" title="Éditer les variables (nom, statut, modalités)" @click="editerVariables = true">✏️</button>
+              <button v-if="!roContenu" class="crayon" title="Éditer les variables (nom, statut, modalités)" @click="editerVariables = true">✏️</button>
             </div>
 
             <template v-if="varsGen().length">
@@ -639,6 +656,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   v-if="v.modalites.length === 0 || celluleLibre === cleGen(v.id)"
                   class="saisie-eav-libre"
                   placeholder="texte libre"
+                  :disabled="roContenu"
                   :value="celluleLibre === cleGen(v.id) ? '' : libelleCell(v.id, meta.valeursGen[v.id])"
                   :ref="(el) => focaliserLibre(el, cleGen(v.id))"
                   @keyup.enter="($event.target as HTMLInputElement).blur()"
@@ -649,6 +667,7 @@ function focaliserLibre(el: unknown, cle: string) {
                 <select
                   v-else
                   class="saisie-eav-sel"
+                  :disabled="roContenu"
                   :value="meta.valeursGen[v.id] ?? ''"
                   @change="surSelectGen(v.id, $event)"
                 >
@@ -669,6 +688,7 @@ function focaliserLibre(el: unknown, cle: string) {
                     v-if="v.modalites.length === 0 || celluleLibre === cleLoc(l.index, v.id)"
                     class="saisie-eav-libre"
                     placeholder="texte libre"
+                    :disabled="roContenu"
                     :value="celluleLibre === cleLoc(l.index, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
                     :ref="(el) => focaliserLibre(el, cleLoc(l.index, v.id))"
                     @keyup.enter="($event.target as HTMLInputElement).blur()"
@@ -679,6 +699,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   <select
                     v-else
                     class="saisie-eav-sel"
+                    :disabled="roContenu"
                     :value="l.valeursLoc[v.id] ?? ''"
                     @change="surSelectLoc(l.index, v.id, $event)"
                   >
@@ -712,6 +733,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   class="annuler-entree"
                   :disabled="!e.annulable"
                   :title="e.annulable ? 'Annuler cette action' : 'Non annulable — la cible a disparu'"
+                  v-if="!roContenu"
                   @click="annulerEntree(e.id)"
                 >↩</button>
               </li>
@@ -729,6 +751,7 @@ function focaliserLibre(el: unknown, cle: string) {
                 type="button"
                 class="mini"
                 title="Ajouter une ligne de saisie"
+                v-if="!roContenu"
                 @click="lignesSaisie.push(nouvelleLigneSaisie())"
               >+ Ligne</button>
             </div>
@@ -762,6 +785,7 @@ function focaliserLibre(el: unknown, cle: string) {
                       rows="1"
                       :value="l.pseudo"
                       :placeholder="l.etat === 'brouillon' ? 'pseudo…' : ''"
+                      :disabled="roContenu"
                       @keydown.enter.prevent="surEntreePseudoLigne(l.entite, l.etat, ($event.target as HTMLTextAreaElement).value)"
                       @change="surPseudoLigne(l.entite, l.etat, ($event.target as HTMLTextAreaElement).value)"
                     ></textarea>
@@ -773,7 +797,7 @@ function focaliserLibre(el: unknown, cle: string) {
                           type="button"
                           class="portee-cran"
                           :class="{ actif: l.etat === 'brouillon' }"
-                          :disabled="l.etat === 'brouillon'"
+                          :disabled="roContenu || l.etat === 'brouillon'"
                           title="Brouillon — pas encore appliqué"
                           @click="changerPorteeAnon(l.entite, 'brouillon')"
                         >🚧</button>
@@ -781,7 +805,7 @@ function focaliserLibre(el: unknown, cle: string) {
                           type="button"
                           class="portee-cran"
                           :class="{ actif: l.etat === 'entretien' }"
-                          :disabled="l.etat === 'entretien' || l.etat === 'corpus'"
+                          :disabled="roContenu || l.etat === 'entretien' || l.etat === 'corpus'"
                           title="Entretien — occurrences posées"
                           @click="changerPorteeAnon(l.entite, 'entretien')"
                         >📄</button>
@@ -789,7 +813,7 @@ function focaliserLibre(el: unknown, cle: string) {
                           type="button"
                           class="portee-cran corpus"
                           :class="{ actif: l.etat === 'corpus' }"
-                          :disabled="l.etat === 'corpus'"
+                          :disabled="roContenu || l.etat === 'corpus'"
                           title="Corpus — règle d'anonymisation partagée du corpus"
                           @click="changerPorteeAnon(l.entite, 'corpus')"
                         >🌐</button>
@@ -797,7 +821,7 @@ function focaliserLibre(el: unknown, cle: string) {
                       <div class="occ-action">
                         <span v-if="l.nbAnonymise > 0" class="cpt-anon" :title="`${l.nbAnonymise} occurrence(s) anonymisée(s) (barrée(s))`">⬤{{ l.nbAnonymise }}</span>
                         <span v-if="l.nbException > 0" class="cpt-exc" :title="`${l.nbException} exception(s) laissée(s) en clair`">◌{{ l.nbException }}</span>
-                        <button class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
+                        <button v-if="!roContenu" class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
                       </div>
                     </div>
                   </td>
@@ -1747,5 +1771,16 @@ td.col-pseudo {
 }
 .ligne-anon:hover .x-anon {
   opacity: 1;
+}
+
+/* E0 corpus distant — bandeau de lecture seule au-dessus de la grille. */
+.banniere-ro {
+  background: #fff8e6;
+  color: #8a6d1a;
+  border: 1px solid #ecd9a0;
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
 }
 </style>

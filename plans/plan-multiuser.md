@@ -1,4 +1,4 @@
-# Plan multi-utilisateur — SonalAsynchro (architecture hybride miroir local + WebDAV)
+# Plan multi-utilisateur — SonalPiTestV2 (architecture hybride miroir local + WebDAV)
 
 > Incarnation de l'étape « Multi-utilisateur (verrous) » différée depuis [DEMARRAGE.md](../DEMARRAGE.md)
 > (piste C de [BILAN.md](../BILAN.md)), dans le cadre posé par [MODELE_OBJET.md](MODELE_OBJET.md) :
@@ -14,12 +14,74 @@
 > (variante A) ou non (variante B) — les deux sont **atomiques**, car c'est le serveur qui tranche.
 > L'ancien protocole « dossier synchronisé » est relégué en annexe pour les transports non-WebDAV.
 >
-> **Révision (2026-08)** : passe « portabilité des backends » (§15). Le plan reste écrit pour
-> Nextcloud — c'est le backend d'atterrissage — mais la séparation qu'il pose ne doit pas le
-> verrouiller. Ce que la V1 (serveur autogéré + GitLab, puis tentative d'unification webdav en
-> branche) a enseigné sur les backends — invariants, pièges, coutures — est consigné au §15 et
-> dans l'annexe. Les étapes E0-E4 sont inchangées ; on y ajoute seulement deux actes à faible
-> coût (profil de capacités dès E0, champ réservé pour les rôles — §15.2/§15.6).
+> **Révision (2026-08)** : passe « portabilité des backends ». Le plan reste écrit pour
+> Nextcloud — c'est le backend d'atterrissage, seul visé par cette itération — mais la séparation
+> qu'il pose ne doit pas le verrouiller : la leçon V1 (`corpus.type == 'distant'` testé à quinze
+> endroits) est condensée en invariants de couture (§15), opposables en revue. Les étapes E0-E4
+> sont inchangées ; on y ajoute seulement deux actes à faible coût (sondes de capacités dès E0,
+> champ réservé pour les rôles — §14 points 6 et 7).
+
+---
+
+## ⏳ État d'avancement — où en sommes-nous (mise à jour au fil de l'eau)
+
+**Décisions tranchées depuis la rédaction :**
+
+- **§14.5** : publication périodique **activée par défaut**, réglable, contournable par
+  « Publier maintenant ».
+- **Badges de verrou fiables** : `verrous/` ajouté au PROPFIND du pull (§3.1) — l'état « tenu par X »
+  en vue Corpus vient du serveur, pas de la présence (qui reste informative seule).
+- **Lecture seule E0 effective (choix produit)** : tant qu'E1 n'existe pas, un corpus distant est
+  ouvert EN LECTURE SEULE STRICTE — garde dure côté main (`CorpusStore.lectureSeule` refuse toute
+  écriture) + grisage UI écran par écran. Ce grisage transitoire sera remplacé en E1+ par
+  l'étiquetage des gestes par flux (§10, table A/B).
+- **§15 compressé** en cinq invariants de couture opposables en revue (plus bas).
+
+**Mise en œuvre (code) :**
+
+| Étape | État |
+|---|---|
+| E0 — couche WebDAV + sondes + miroir + coffre + IPC + UI connexion/ouverture + « Actualiser »/pull doux + lecture seule | ✅ implémenté et testé contre serveur embarqué |
+| E0 — validation contre Nextcloud réel | ✅ **FAITE (2026-08)** : **DEUX piles Docker**, validées par contrat-nextcloud.test.ts (9/9) — pile **A** NC31+files_lock (:8080, sonde dit `filesLock: true` → variante A) et pile **B** NC29 sans plugin (:8081, sonde dit `filesLock: false` → variante B) : la détection de capacités est prouvée DANS LES DEUX SENS (§15.2). Sondes §5.4 OK, pull réel OK, partage bi-comptes au chemin propre à chacun OK. Leçons du contrat réel : (1) un utilisateur valide ne voyant pas le dossier d'un autre reçoit **404** (existence masquée), pas 401 ; (2) l'endpoint OCS v1 enveloppe ses données dans `ocs.data.capabilities` — la sonde initiale lisait à la racine et aurait raté files_lock partout : **bug attrapé par le banc, pas en production** (§15.5 vérifié) |
+| E1 — écriture sous verrou variante B (`VerrouProvider`, cycle §4, publication, reprise crash) | 🚧 **cœur implémenté** : contrat `VerrouProvider` + `ProviderPutConditionnel` (§5) testés unitairement et contre les DEUX piles réelles ; couche session `SessionsDEntretien` (§4) : acquisition à l'ouverture (refus → lecture seule avec détenteur affiché), GET d'après-verrou, battement 60 s → rétrogradation avec copie de divergence locale, publication périodique 5 min sous garde If-Match, fermeture dans l'ordre invariant publier-puis-déverrouiller (§4.4), garde store PAR ENTRETIEN (flux A écrivable sous notre verrou, flux B toujours bloqué avant E3) ; désamorçage §4.7 fait (plus de toucher au membership à chaque save) ; renderer câblé (éditeur éditable selon le verrou, bandeau « 🔒 tenu par X depuis HH:MM », fermeture = publier+libérer). **Reste** : bouton « Publier maintenant » + statut de session à l'écran, dialogue de reprise crash (détection des orphelins déjà en place côté main), pull doux des badges verrous |
+| E2 (files_lock) / E3 / E4 | ❌ non commencés |
+
+**Socle Docker Nextcloud de test (2 comptes) — À LANCER DANS UN TERMINAL À PART**
+
+Le premier démarrage télécharge l'image Nextcloud complète (~1,5 Go) puis initialise le serveur
+(2-5 min). Pour pré-télécharger l'image AVANT de lancer (recommandé si la connexion est lente) :
+
+```bash
+docker compose -f docker/compose.yml pull   # téléchargement de l'image seule (peut prendre du temps)
+```
+
+Puis le socle proprement dit (`nc:up` télécharge aussi l'image tout seul si elle manque ; le
+provisionneur est idempotent et peut être relancé sans risque) :
+
+Pile **A** — NC31 + files_lock, http://localhost:8080 :
+
+```bash
+npm run nc:up          # lance les conteneurs + initialisation Nextcloud (1er up : patienter)
+npm run nc:provision   # crée max & olivier, files_lock, corpus partagé /MonCorpus (idempotent)
+npm run nc:down        # pour arrêter ; nc:clean = reset complet (supprime les volumes)
+```
+
+Pile **B** — NC29 SANS files_lock (image déjà présente localement), http://localhost:8081 :
+
+```bash
+npm run nc-b:up          # démarre ; NE JAMAIS y installer files_lock (c'est le cas « sans plugin »)
+npm run nc-b:provision   # mêmes comptes + corpus partagé (idempotent)
+npm run nc-b:down        # arrêt ; nc-b:clean = reset complet
+```
+
+Puis `npm test` active automatiquement les deux bancs quand les piles répondent.
+Comptes identiques sur les deux piles : `max` / `max-max-1234` (propriétaire),
+`olivier` / `olivier-olivier-5678` (partagé), UI web `admin` / `admin-admin-1`.
+En E1+, chaque scénario multi-utilisateur sera rejoué contre les DEUX piles
+(variante A contre A, variante B contre B).
+Détail : [../docker/compose.yml](../docker/compose.yml), [../docker/provisionner.sh](../docker/provisionner.sh),
+test de contrat : [../test/webdav/contrat-nextcloud.test.ts](../test/webdav/contrat-nextcloud.test.ts)
+(skippé automatiquement si le conteneur ne répond pas).
 
 ---
 
@@ -77,10 +139,15 @@ Serveur Nextcloud (référence)              Poste (par machine)
 ### 3.1 Pull incrémental
 
 À l'ouverture du corpus (et sur « Actualiser », et avant toute acquisition de verrou) :
-`PROPFIND Depth: 1` sur `MonCorpus/` et `entretiens/` → `getetag` par fichier, comparés au
-`.manifeste.json` local → `GET` des seuls fichiers changés, suppression locale des disparus
-(déplacés vers une corbeille du miroir, jamais effacés). Les JSON sont petits : le pull complet
-d'un corpus de 50 entretiens reste sous la seconde sur un lien correct.
+`PROPFIND Depth: 1` sur `MonCorpus/`, `entretiens/` **et `verrous/`** → `getetag` par fichier,
+comparés au `.manifeste.json` local → `GET` des seuls fichiers changés, suppression locale des
+disparus (déplacés vers une corbeille du miroir, jamais effacés). Les JSON sont petits : le pull
+complet d'un corpus de 50 entretiens reste sous la seconde sur un lien correct.
+
+Le scan de `verrous/` alimente les **badges de verrou fiables** en vue Corpus (cartes et table de
+données) : « tenu par X » y est l'état réel du serveur, pas une déduction de la présence (qui,
+elle, ne couvre que « consulte sans verrou » et peut périmer). En variante A, le PROPFIND files_lock
+(§8) donne la même information sur les fichiers de données eux-mêmes.
 
 ### 3.2 Fraîcheur des vues
 
@@ -410,12 +477,27 @@ quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verr
 - **Statut de session** dans l'entretien ouvert : publié / non publié depuis HH:MM + « Publier
   maintenant » ; indicateur hors-ligne.
 - Écran Corpus : horodatage du dernier pull + « Actualiser ».
+- **Étiquetage des gestes par flux (leçon E0).** La mise en œuvre de la lecture seule E0 a montré
+  que le grisage « verrou tenu par autrui » (E1) ne peut pas être décidé ÉCRAN par écran : les
+  définitions corpus restent éditables DEPUIS une vue entretien (crayon thèmes/variables, cran 🌐
+  du slider anon, dialogue de portée corpus). Tout geste d'écriture est donc étiqueté par le
+  fichier qu'il touche et le verrou qu'il exige :
+
+  | Geste | Fichier touché | Verrou requis |
+  |---|---|---|
+  | coder/retirer, locuteurs, ancres, valeurs EAV, annotations anon *document*, brouillons | `entretiens/<id>.json` | **A** — verrou de l'entretien (§4.1) |
+  | codebook, variables (définitions), règles corpus, membership, cran 🌐, suppression/renommage d'entretien | `corpus.json` (+ l'entretien pour les transitions de portée) | **B** — transaction courte §4.7 (ordre canonique §4.8) |
+
+  En E1+, un geste est grisé ssi son verrou requis n'est pas tenu (ou, pour B, hors connexion —
+  politique α §4.6.1), JAMAIS parce que « l'écran serait en lecture seule » : c'est le verrou qui
+  parle, pas la vue. La lecture seule E0 en est le cas dégénéré — aucun verrou disponible — et son
+  grisage transitoire, écran par écran, sera remplacé par cette étiquette.
 
 ## 11. Étapes de mise en œuvre (chacune livrable et testable)
 
 | Étape | Contenu | Dépend de |
 |---|---|---|
-| **E0 — Couche WebDAV + miroir lecture** | client WebDAV minimal (fetch Node, zéro dépendance lourde : PROPFIND/GET/PUT/DELETE/MOVE + préconditions), config compte (`safeStorage`), **sonde §5.4 + sonde capabilities §8 (détection files_lock, transparente — pas de checkbox)**, pull incrémental §3, écran Corpus branché sur le miroir. Livrable : *ouvrir un corpus distant en lecture seule* | — |
+| **E0 — Couche WebDAV + miroir lecture** | client WebDAV minimal (fetch Node, zéro dépendance lourde : PROPFIND/GET/PUT/DELETE/MOVE + préconditions), config compte (`safeStorage`), **sonde §5.4 + sonde capabilities §8 (détection files_lock, transparente — pas de checkbox)**, pull incrémental §3, écran Corpus branché sur le miroir. Livrable : *ouvrir un corpus distant en lecture seule*. **✅ Implémenté** (lecture seule stricte incluse) — reste la validation contre le Nextcloud réel (socle Docker, cf. état d'avancement en tête) | — |
 | **E1 — Écriture sous verrou (variante B)** | `VerrouProvider` + provider PUT-conditionnel, cycle complet §4 (ouverture, publication périodique, fermeture, reprise crash), désamorçage `corpus.json` §4.7 (1ᵉʳ point), UI états + lecture seule. Livrable : *deux postes, un éditeur à la fois, zéro perte* | E0 |
 | **E2 — Variante A** | **provider files_lock** (LOCK/UNLOCK/PROPFIND) branché derrière le `VerrouProvider` d'E1, sélectionné automatiquement quand la sonde capabilities d'E0 dit `files.locking` présent ; affichage détenteur enrichi, doc admin (`lock_timeout`). Livrable : *même comportement qu'E1, verrou visible dans l'UI web* | E1 |
 | **E3 — Définitions + dégradé** | transactions `corpus.json` §4.7, suppression/renommage sous double verrou (ordre canonique §4.8), hors ligne §4.6 **+ politique α pour les définitions §4.6.1**, divergence + fusion assistée §6, **réconciliation I-POR-3 post-pull §4.8** | E1 |
@@ -469,127 +551,45 @@ quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verr
 2. **« Éditer hors ligne à mes risques »** : offert dès E3 ou lecture seule d'abord ?
 3. **Fusion assistée** : périmètre de l'automatique (annotations seules ?) — sur cas réels en E3.
 4. **`userId`** : login Nextcloud d'office (simple, cohérent avec files_lock) ou libre ?
-5. **Publication périodique** : activée par défaut (recommandé) ou opt-in ?
-6. **Portabilité** : acter le profil de capacités (§15.2) comme partie de la connexion dès E0
-   (coût quasi nul, une requête de plus à la configuration) — oui/non ?
-7. **Rôles & permissions (§15.6)** : réserver le champ dans `corpus.json` dès E3 ; le modèle de
-   rôles complet (qui peut quoi) est-il au périmètre de cette itération ou d'une suivante ?
+5. ~~**Publication périodique** : activée par défaut ou opt-in ?~~ **Tranché (2026-08)** :
+   **activée par défaut** (recommandation suivie) ; réglable dans les paramètres, et contournable à
+   tout instant par « Publier maintenant ».
+6. **Capacités** : acter que les sondes (§5.4 + capabilities §8) font partie de la connexion dès
+   E0 (coût quasi nul, une requête de plus à la configuration) — oui/non ?
+7. **Rôles & permissions** (invariant 5, §15) : réserver le champ dans `corpus.json` dès E3 ; le
+   modèle de rôles complet (qui peut quoi) est-il au périmètre de cette itération ou d'une suivante ?
 
 ---
 
-## 15. Portabilité des backends — ce que la conception Nextcloud ne doit pas verrouiller
+## 15. Invariants de couture — ce que la conception Nextcloud ne doit pas verrouiller
 
-> Le plan est écrit pour WebDAV ; il ne doit pas *verrouiller* l'architecture sur Nextcloud. Cette
-> section pose, en concepts, ce que la réflexion V1 sur les backends (serveur autogéré, GitLab,
-> puis tentative d'unification webdav, branche `webdav` de SonalPi) a enseigné — non pas en code
-> à importer, mais en invariants à garantir dès la conception, avant même que le deuxième backend
-> existe. Règle d'usage : chaque étape E0-E4 doit pouvoir être relue contre §15.2 ; ce que le plan
-> décrit n'est jamais que l'*instance WebDAV* d'un schéma plus général.
+> Le plan est écrit pour Nextcloud/WebDAV — le backend d'atterrissage, **seul visé par cette
+> itération**. Ce que la V1 a appris (serveur autogéré + GitLab, puis tentative d'unification
+> webdav : `corpus.type == 'distant'` testé à quinze endroits, formats filtrés par transport,
+> abstractions jamais testées contre un même contrat) tient en cinq règles, opposables en revue
+> de chaque étape E0-E4. Pas un chapitre de réflexion : des critères d'acceptation.
 
-### 15.1 Trois primitives, pas un backend
+1. **Le domaine et le renderer ignorent le backend.** Ils ne connaissent que : source autoritaire
+   (« serveur »), copie de travail locale (le « miroir »), verrous, sessions, publication.
+   `CorpusStore` opère sur la copie locale, point — toute la nouveauté tient dans la couche
+   main-process au-dessus de son I/O.
+2. **Le code teste des capacités, jamais un type de transport.** Pas de flag `estDistant`, pas de
+   dispatch par type : les sondes de connexion (préconditions §5.4, capabilities files_lock §8)
+   disent au protocole §4 ce qu'il peut faire.
+3. **Les formats partagés sont la seule interopérabilité.** `corpus.json` et
+   `entretiens/<id>.json` ne subissent aucune transformation imposée par le backend (encodage,
+   pointeur, conversion URL↔chemin, filtre d'extension) ; les normalisations éventuelles restent à
+   la frontière de la couche transport.
+4. **Une abstraction est testée, pas espérée.** Le serveur WebDAV embarqué des tests (§12) fait
+   office de banc : tout client du `VerrouProvider` et de la couche miroir y passe sans connaître
+   l'identité du backend — c'est ce qui a manqué à V1.
+5. **Les rôles sont de la logique produit, pas du backend** : stockés dans `corpus.json` (champ
+   réservé dès E3, §14 point 7) ; le backend ne fournit que « qui suis-je » et « puis-je écrire
+   cette ressource ».
 
-Tout backend se réduit à trois capacités orthogonales. Le piège historique de V1 était de les
-confondre dans une seule couche (« API distante ») : les conversions URL↔chemin, les filtres
-d'extension (.sonal/.crp/.rcl) et les pointeurs LFS sont toutes des fuites de la couche transport
-dans le domaine.
-
-1. **Transport** — comment les octets voyagent : HTTP/WebDAV (ce plan), dépôt Git (GitLab V1),
-   montage réseau (SMB/NFS), système de fichiers local.
-2. **Atomicité / exclusion** — quelle primitive garantit « un seul écrivain » et « pas
-   d'écrasement » : PUT conditionnel (`If-None-Match`/`If-Match`, WebDAV), verrou natif
-   (`files_lock`), `O_EXCL` (montage), ref update atomique (Git), LFS lock (GitLab V1).
-3. **Ancrage de fraîcheur / identité de version** — ce qui permet de comparer deux versions :
-   ETag, hash de contenu, SHA de commit, (mtime+taille en dernier recours).
-
-Le `VerrouProvider` du plan est déjà la bonne couture pour (2) ; la couche miroir pour (1). Il
-manque une explicitation de (3) : **l'ancrage de fraîcheur est une donnée du contrat de backend**, pas un
-postulat WebDAV. Toute la mécanique de §4.6 (« comparer à la version de départ ») et des filets §6
-(`If-Match`) n'est qu'une instanciation de (3).
-
-### 15.2 Profil de capacités (le contrat de backend)
-
-À la configuration d'un corpus partagé, le backend public son profil — c'est la généralisation des
-deux sondes : préconditions §5.4 et capabilities files_lock §8. Le protocole de session (§4) ne
-dépend que de ces capacités, **jamais du nom du backend** — la leçon V1 des flags `estDistant`/
-`hasLock` : le code métier teste des capacités, pas des noms de transports.
-
-| Capacité | Valeurs possibles | Impact sur le protocole |
-|---|---|---|
-| Test-and-set atomique | préconditions HTTP / LOCK natif / `O_EXCL` / ref Git / **aucune** | Détermine la variante de verrou ; « aucune » → lecture seule ou dégradé probabiliste (annexe) |
-| Ancrage de fraîcheur | ETag / hash / SHA / mtime+taille | Base du « comparer à la version de départ » (§4.6) et du garde de publication |
-| Verrou imposé par le serveur | oui (`files_lock`) / non (conventionnel) | Les filets §6 sont probables ou seulement théoriques |
-| Travail hors ligne possible | oui (Git, local) / oui avec cache (WebDAV, ce plan) / non | Portée réelle du §4.6 ; le plan la *construit*, ne la postule pas |
-| Règles de nommage imposées | oui / non | S'il y en a, la couche normalise à la frontière, jamais dans le domaine (§15.4) |
-
-Sonde §5.4 étendue : pour chaque capacité, un test réel sur le serveur cible, à la connexion
-(E0), répétable. Un backend qui ment sur son profil est refusé ou dégradé — comme V1 refusait (trop
-tard) un GitLab sans LFS.
-
-### 15.3 Le miroir : réponse générale au « réseau optionnel »
-
-Le plan justifie le miroir contre la latence du client desktop Nextcloud ; c'est trop étroit.
-Conceptuellement, le miroir est la réponse à la question « que se passe-t-il si le réseau n'est
-pas là ? ». Le schéma général est : **source autoritaire + copie de travail locale + cycle
-d'écriture sous primitive atomique** — chaque backend en est une instance :
-
-- WebDAV : pull incrémental par ETags (ce plan §3).
-- Dépôt Git (GitLab V1) : le miroir est un clone local ; le cycle devient verrou → fetch → travail
-  local → commit + push → déverrouillage, avec la même « version de départ » (le merge est ancré
-  sur une base, pas sur une horloge).
-- Montage local : pas de miroir, la copie de travail est le système de fichiers.
-
-Conséquence de vocabulaire à acter dès E0 pour ne pas coupler la conception à WebDAV :
-« miroir » → **copie de travail locale**, « serveur » → **source autoritaire**. Le plan peut
-continuer à dire « miroir » ; la documentation et le code s'appuient sur les termes génériques.
-
-### 15.4 La couture : où l'abstraction passe (et ne passe pas)
-
-Ce que V1 a appris  : **quand la couture est mal placée, le code se remplit de
-cas particuliers backend**. Invariants à écrire noir sur blanc, et à faire vérifier par la revue de
-chaque étape :
-
-1. **Le domaine et le renderer ignorent le backend.** Ils ne connaissent que source autoritaire,
-   copie locale, verrous, sessions, publication. (Le plan le dit déjà pour le renderer ; l'étendre
-   au `CorpusStore` : il opère sur la copie locale, point.)
-2. **Les formats partagés sont indépendants du backend.** `corpus.json` et `entretiens/<id>.json`
-   sont la seule interopérabilité ; un backend n'impose jamais une transformation de format visible
-   du domaine (base64, pointeurs, chemins encodés). V1 devait convertir URL↔chemin et filtrer
-   .sonal/.crp/.rcl : tout cela disparaît si la couche backend normalise à la frontière.
-3. **Pas de dispatch par type dans la logique métier.** V1 testait `Corpus.type == 'distant' ||
-   'gitlab'` à quinze endroits ; les capacités du §15.2 remplacent les tests de type.
-4. **Une interface annoncée doit être implémentée et testée sur chaque backend.** Le critère
-   d'acceptation d'une abstraction n'est pas qu'elle « ressemble » à générique, c'est que chaque
-   backend réel passe le même banc (§15.5).
-
-### 15.5 La portabilité est une propriété testée, pas un espoir
-
-La sonde §5.4 est l'embryon d'un **banc de conformité** : un même jeu de tests fonctionnels
-(lire, écrire, verrouiller, battement, forçage, pull, publier, merger), joué contre tout backend
-candidat **sans connaître son identité**. C'est ce qui a manqué à V1 : serveur et GitLab n'ont
-jamais été testés contre un même contrat, d'où leurs divergences de comportement. Concrètement :
-extraire le serveur WebDAV embarqué de §12 en un **harness de conformité** ; le banc devient la
-porte d'entrée de tout backend futur — et si GitLab revenait, il y passerait à son tour.
-
-### 15.6 Rôles et permissions : une couche produit, pas backend
-
-V1 avait conçu un modèle de rôles (Maintainer/Owner/Developer, `options.json`, restriction
-d'ajout/suppression d'entretiens) que ce plan ne couvre pas : le membership existe, les rôles non.
-Positionnement portable : les rôles sont de la **logique produit**, stockée dans `corpus.json` ;
-le backend ne fournit que deux primitives — « qui suis-je » et « puis-je écrire cette ressource ».
-Nextcloud les fournit (login, files_lock owner), un dépôt Git les approxime (droits de branche),
-SMB pas du tout : le provider normalise. Ne pas attendre le deuxième backend pour réserver au moins
-le champ dans `corpus.json` (point 7 du §14) — c'est le seul vrai angle mort hérité de V1, et le
-moins cher à prévoir maintenant.
-
-### 15.7 Discipline de déploiement : une abstraction d'abord, un backend à la fois
-
-Le message de commit V1 le dit mieux que nous : *« webdav n'est pas encore abordé, il faut d'abord
-vérifier/stabiliser cette API »*. La séquence gagnante est : **stabiliser la séparation, puis
-brancher le backend** — jamais l'inverse. Concrètement pour V2 : on ne construit pas le deuxième
-backend maintenant ; on construit la séparation qui rendra le deuxième backend une affaire de
-`provider` + banc de conformité, et non une refonte du protocole. Le plan la respecte déjà
-(E0-E2 : un seul backend, abstractions posées d'abord) ; cette section la rend explicite et
-opposable en revue.
+La séquence reste celle de V1 corrigée : **stabiliser la séparation avec UN backend, puis
+brancher un second** (affaire de provider + banc, pas de refonte du protocole). Pour un transport
+futur sans primitives atomiques (GitLab, Syncthing, SMB), les replis sont consignés en annexe.
 
 ---
 
@@ -604,7 +604,7 @@ Hors Nextcloud, l'hybride ne s'applique pas ; trois replis, portés par la même
 - **Dépôt Git (GitLab/gitea, cf. V1)** : le test-and-set est le **ref update atomique** ; le verrou
   devient un état du serveur d'API (LFS lock V1) ou une branche de coordination, et l'ancrage de
   fraîcheur est le **SHA du dernier commit touchant le fichier** (« version de départ » du §4.6 =
-  base du merge). La copie de travail locale est le clone (§15.3). Le reste du cycle §4
+  base du merge). La copie de travail locale est le clone. Le reste du cycle §4
   s'applique tel quel ; c'est le second candidat naturel quand Nextcloud ne convient pas.
 - **Dossier à synchronisation opportuniste** (Syncthing, Drive) : aucune primitive atomique →
   protocole probabiliste de la v1 de ce plan : revendications à nom unique

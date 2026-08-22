@@ -12,7 +12,7 @@ import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'no
 import { fileURLToPath } from 'node:url'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
-import * as applicationMasse from '../shared/entretien/applicationMasse'
+import { instructionsAppliquerRegle } from '../shared/entretien/anon'
 import { migrerEntretienV1 } from '../shared/entretien/migration'
 
 /** Pourquoi des numéros de version ? Chaque évolution du format de fichier est
@@ -40,6 +40,7 @@ import {
   type ResultatSuppression,
   type ResultatSuppressionCategorie,
   type SegmentThematique,
+  type SourceV1,
   type RegleAnon,
   type Variable,
 } from '../shared/format'
@@ -56,6 +57,23 @@ const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: nul
  *  pour éviter les conflits lors des fusions. */
 function genId(prefixe: string): string {
   return prefixe + '-' + Math.random().toString(36).slice(2, 10)
+}
+
+/** Identifiant d'entretien : `<slug du titre>_<code aléatoire>`. Le slug rend
+ *  le dossier `entretiens/` lisible (« on retrouve le nom SRT/audio d'origine ») ;
+ *  le code aléatoire préserve l'unicité (et la future synchro multi-utilisateur).
+ *  Le titre (nom de fichier SRT ou audio, sans extension) est assaini — jamais de
+ *  séparateur de chemin résiduel, donc pas de traversée (l'id mène à `<id>.json`). */
+function genIdEntretien(titre: string): string {
+  const code = Math.random().toString(36).slice(2, 10)
+  const slug =
+    (titre || 'entretien')
+      .replace(/[\\/:*?"<>|]/g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^[-.]+|[-.]+$/g, '')
+      .slice(0, 60) || 'entretien'
+  return `${slug}_${code}`
 }
 
 /** Normalise un chemin audio reçu d'un dialogue (assignerAudio).
@@ -87,6 +105,43 @@ export class CorpusStore {
    *  Rempli à la lecture, vidé au 1er write suivant (.bak avec rotation 1→2).
    *  Le Set garantit l'unicité des ids. */
   private readonly rotationEnAttente = new Set<string>()
+
+  /** Garde E0 corpus distant (plan-multiuser.md) : quand le store pointe un
+   *  MIROIR sans couche verrou/publication (E1), toute écriture est REFUSÉE —
+   *  sinon deux postes divergeraient silencieusement. Défense en profondeur :
+   *  l'UI grise déjà les gestes, ici on garantit le reste. Les dérivés locaux
+   *  purs (PNG waveform, §3.3) restent permis. */
+  lectureSeule = false
+
+  private verifierEcriture(): void {
+    if (this.lectureSeule) {
+      throw new Error(
+        'Corpus distant ouvert en lecture seule : la modification partagée sous verrou arrive avec la prochaine étape.',
+      )
+    }
+  }
+
+  /** E1 — exception PAR ENTRETIEN : quand le corpus distant est en lecture
+   *  seule (définitions = flux B, toujours bloquées avant E3), le contenu des
+   *  entretiens DONT NOUS TENONS le verrou reste écrivable (flux A, §10).
+   *  La couche session pose/retire l'id ici à l'acquisition/libération. */
+  private readonly ecrituresAutorisees = new Set<string>()
+
+  autoriserEcritureEntretien(id: string): void {
+    this.ecrituresAutorisees.add(id)
+  }
+
+  revoquerEcritureEntretien(id: string): void {
+    this.ecrituresAutorisees.delete(id)
+  }
+
+  private verifierEcritureEntretien(id: string): void {
+    if (!this.lectureSeule) return // corpus local : tout est permis
+    if (this.ecrituresAutorisees.has(id)) return // notre verrou tient
+    throw new Error(
+      `Entretien non modifiable : le verrou n'est pas tenu par cette session${this.ecrituresAutorisees.size ? '' : ''}.`,
+    )
+  }
 
   /** Instanciation de la classe CorpusStore avec le chemin du répertoire du corpus */
   constructor(dir: string) {
@@ -157,6 +212,18 @@ export class CorpusStore {
     return corpus
   }
 
+  /** Pose (ou remplace) le `nom` de PROJET du corpus (D2) et persiste. Le nom
+   *  est indépendant du dossier (il survit au renommage du dossier) ; les
+   *  consommateurs l'affichent en priorité, avec repli sur le basename du
+   *  dossier quand il est absent (corpus anciens sans nom). */
+  poserNom(nom: string): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    corpus.nom = nom
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
+  }
+
   /** Marque le corpus courant comme corpus de TEST (démo) : `corpus.json:
    *  { demo: { mode, racineSources, validees } }`.
    *  Champ ADDITIF optionnel, donc pas de bump de version ;
@@ -164,6 +231,7 @@ export class CorpusStore {
    *  Posé par le builder à la création, mis à jour à chaque étape validée,
    *  l'historique du pas-à-pas voyageant avec le corpus. */
   marquerDemo(marqueur: MarqueurDemo): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpus.demo = marqueur
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -235,6 +303,40 @@ export class CorpusStore {
     return corpus
   }
 
+  /** Crée un corpus V2 DANS un dossier dédié, à partir d'une migration
+   *  SonalPi V1 (plan-migration.md E3). Contrairement à `amorcer()`, on
+   *  n'écrit PAS le bloc Pondérations par défaut : la source de vérité des
+   *  définitions est le `.crp` (Q7) — on fusionne exactement ce qu'E1 a mappé.
+   *  Le dossier a été vérifié par la garde (`migrer:verifierDossier`) ; en
+   *  défense en profondeur on REFUSE ici tout corpus.json existant
+   *  (« on n'écrase jamais », plan §8). Les entretiens (lecture des .Sonal +
+   *  audio) sont l'étape E2 — elle se branche après cette création. */
+  migrerDepuisV1(
+    nom: string,
+    sourceV1: SourceV1,
+    codebook: Categorie[],
+    variables: Variable[],
+  ): CorpusFichier {
+    if (existsSync(this.corpusFile)) {
+      throw new Error('Le dossier contient déjà un corpus — la garde a été contournée.')
+    }
+    mkdirSync(this.dir, { recursive: true })
+    mkdirSync(this.entretiensDir, { recursive: true })
+    const corpus: CorpusFichier = {
+      formatVersion: FORMAT_VERSION,
+      codebook: {},
+      variables: {},
+      reglesAnon: {},
+      personnes: {},
+      membership: {},
+      nom,
+      meta: { sourceV1 },
+    }
+    corpusModel.fusionnerImport(corpus, codebook, variables)
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
+  }
+
   /** Lit un entretien et démarre sa « session »,
    *  la prochaine écriture fera tourner les `.bak`.
    *  Pas de contrôle de fraîcheur croisée fichier/membership :
@@ -273,6 +375,7 @@ export class CorpusStore {
    *  et met à jour le lastModified du membership.
    *  Les données à écrire viennent de la classe PayloadEntretien (shared/format.ts). */
   ecrireEntretien(id: string, payload: PayloadEntretien): string {
+    this.verifierEcritureEntretien(id)
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
     const now = new Date().toISOString()
     const fichier: EntretienFichier = {
@@ -291,13 +394,11 @@ export class CorpusStore {
     // (sécurité ; l'invariant « muté uniquement via assignerAudio » est visé).
     this.invaliderRefsAudio()
 
-    const corpus = this.ouvrir()
-    corpus.membership[id] = {
-      titre: corpus.membership[id]?.titre ?? id,
-      date: corpus.membership[id]?.date ?? null,
-      lastModified: now,
-    }
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    // §4.7 (désamorçage, 1er point) : PLUS de mise à jour du membership ici.
+    // Réécrire corpus.json à chaque autosave obligeait, en distant, à prendre
+    // aussi le verrou corpus à chaque fermeture d'entretien. Le membership
+    // n'est écrit que par création / import / renommage / suppression ; le
+    // `lastModified` affiché est dérivé du fichier entretien lui-même.
     return now
   }
 
@@ -313,11 +414,13 @@ export class CorpusStore {
   }
 
   
-  /** Crée un entretien vide, pour le cas où on n'a qu'un audio
-   *  et pas de fichier entretien. */
+  /** Crée un entretien vide (cas où on n'a qu'un AUDIO, pas de fichier
+   *  entretien). Le `titre` = nom du fichier audio sans extension : il nomme le
+   *  fichier sur disque (« nom d'origine_code ») ET sert de titre affiché. */
   creerEntretienVide(titre: string): { id: string; corpus: CorpusFichier } {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
-    const id = genId('ent')
+    const id = genIdEntretien(titre)
     const now = new Date().toISOString()
     const entretien: EntretienFichier = {
       formatVersion: FORMAT_VERSION,
@@ -341,12 +444,13 @@ export class CorpusStore {
   importerEntretien(
     titre: string,
     payload: PayloadEntretien,
-    codebook: Categorie[],
+    codebook: Categorie[] = [],
     variables: Variable[] = [],
     reglesAnon: RegleAnon[] = [],
   ): { id: string; corpus: CorpusFichier } {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
-    const id = genId('ent')
+    const id = genIdEntretien(titre)
     const now = new Date().toISOString()
     const entretien: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: now, ...payload }
     this.ecrireJsonAtomique(this.entretienFile(id), entretien)
@@ -359,6 +463,7 @@ export class CorpusStore {
   }
 
   renommerEntretien(id: string, titre: string): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     if (corpus.membership[id]) {
       corpus.membership[id].titre = titre
@@ -372,6 +477,7 @@ export class CorpusStore {
    *  Jamais d'effacement ni d'orphelin sur disque ;
    *  l'audio référencé n'est jamais touché, car jamais copié. */
   supprimerEntretien(id: string): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     const corbeille = join(this.dir, 'corbeille')
     if (!existsSync(corbeille)) mkdirSync(corbeille, { recursive: true })
@@ -412,6 +518,7 @@ export class CorpusStore {
   // ── Codebook (thèmes) — lire → appliquer (shared/corpus) → écrire ───────────
 
   ajouterCategorie(nom: string, parent: string | null = null): { id: string; corpus: CorpusFichier } {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     const id = corpusModel.ajouterCategorie(corpus, nom, parent, () => genId('cat'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -419,6 +526,7 @@ export class CorpusStore {
   }
 
   modifierCategorie(id: string, patch: PatchCategorie): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpusModel.modifierCategorie(corpus, id, patch)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -426,6 +534,7 @@ export class CorpusStore {
   }
 
   deplacerCategorie(id: string, sens: -1 | 1): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpusModel.deplacerCategorie(corpus, id, sens)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -480,6 +589,7 @@ export class CorpusStore {
 
   /** Crée une règle pour une entité qui n'en a pas encore. Renvoie la règle. */
   regleAnonCreer(entite: string, pseudos: string[]): RegleAnon {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     const r = corpusModel.creerRegle(corpus, entite, pseudos, () => genId('reg'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -488,6 +598,7 @@ export class CorpusStore {
 
   /** « Garder les deux » : ajoute un pseudo secondaire à une règle (si ≤2). */
   regleAnonAjouterPseudo(id: string, pseudo: string): RegleAnon | null {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpusModel.ajouterPseudoRegle(corpus, id, pseudo)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -505,6 +616,7 @@ export class CorpusStore {
 
   /** Supprime une règle du corpus (l'appelant a déjà vérifié l'isolation). */
   regleAnonSupprimer(id: string): void {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpusModel.retirerRegle(corpus, id)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -516,13 +628,14 @@ export class CorpusStore {
    *  primaire de la règle ; exceptions et déjà-anonymisés intacts. Renvoie le
    *  nombre d'occurrences posées. */
   appliquerRegleAnon(entretienId: string, regleId: string): { nb: number; titre: string } {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     const titre = corpus.membership[entretienId]?.titre ?? entretienId
     const regle = corpus.reglesAnon[regleId]
     const file = this.entretienFile(entretienId)
     if (!regle || !existsSync(file)) return { nb: 0, titre }
     const data = JSON.parse(readFileSync(file, 'utf8')) as EntretienFichier
-    const instr = applicationMasse.instructionsAppliquerRegle(data, regle, () =>
+    const instr = instructionsAppliquerRegle(data, regle, () =>
       'a-' + Math.random().toString(36).slice(2, 9),
     )
     for (const o of instr.poser) {
@@ -535,6 +648,7 @@ export class CorpusStore {
   /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée (politique
    *  explicite + compteur ; pas de suppression silencieuse d'annotations). */
   supprimerCategorie(id: string, exceptId?: string): ResultatSuppressionCategorie {
+    this.verifierEcriture()
     const usages = this.compterUsagesCategorie(id, exceptId)
     if (usages > 0) return { ok: false, usages }
     const corpus = this.ouvrir()
@@ -546,6 +660,7 @@ export class CorpusStore {
   // ── Variables & modalités (EAV) — lire → appliquer → écrire ─────────────────
 
   ajouterVariable(lib: string, portee: 'entretien' | 'locuteur'): { id: string; corpus: CorpusFichier } {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     const id = corpusModel.ajouterVariable(corpus, lib, portee, () => genId('var'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -553,6 +668,7 @@ export class CorpusStore {
   }
 
   modifierVariable(id: string, patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpusModel.modifierVariable(corpus, id, patch)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -560,6 +676,7 @@ export class CorpusStore {
   }
 
   ajouterModalite(idVar: string, lib: string): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpusModel.ajouterModalite(corpus, idVar, lib, () => genId('mod'))
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -567,6 +684,7 @@ export class CorpusStore {
   }
 
   modifierModalite(idVar: string, idMod: string, lib: string): CorpusFichier {
+    this.verifierEcriture()
     const corpus = this.ouvrir()
     corpusModel.modifierModalite(corpus, idVar, idMod, lib)
     this.ecrireJsonAtomique(this.corpusFile, corpus)
@@ -582,6 +700,7 @@ export class CorpusStore {
   }
 
   supprimerVariable(id: string): ResultatSuppression {
+    this.verifierEcriture()
     const usages = this.compterUsagesVariable(id)
     if (usages > 0) return { ok: false, usages }
     const corpus = this.ouvrir()
@@ -591,6 +710,7 @@ export class CorpusStore {
   }
 
   supprimerModalite(idVar: string, idMod: string): ResultatSuppression {
+    this.verifierEcriture()
     const usages = this.compterUsagesModalite(idVar, idMod)
     if (usages > 0) return { ok: false, usages }
     const corpus = this.ouvrir()
@@ -613,6 +733,7 @@ export class CorpusStore {
    *  pour rester cohérent avec `ecrireEntretien`.
    *  Renvoie false si l'entretien manque. */
   poserValeur(entretienId: string, cible: CibleValeur, idVar: string, idMod: string): boolean {
+    this.verifierEcritureEntretien(entretienId)
     const f = this.entretienFile(entretienId)
     if (!existsSync(f)) return false
     const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
@@ -620,12 +741,7 @@ export class CorpusStore {
     const now = new Date().toISOString()
     data.lastModified = now
     this.ecrireJsonAtomique(f, data)
-
-    const corpus = this.ouvrir()
-    if (corpus.membership[entretienId]) {
-      corpus.membership[entretienId].lastModified = now
-      this.ecrireJsonAtomique(this.corpusFile, corpus)
-    }
+    // §4.7 : plus de toucher au membership ici (voir ecrireEntretien).
     return true
   }
 
@@ -639,6 +755,7 @@ export class CorpusStore {
    *  pour une comparaison fiable des chemins.
    *  Écriture ciblée comme `poserValeur` (pas de rotation `.bak`). */
   assignerAudio(id: string, source: string): { audioRef: string } | null {
+    this.verifierEcritureEntretien(id)
     const f = this.entretienFile(id)
     if (!existsSync(f) || !existsSync(source)) return null
     // Normaliser : certains dialogs (Linux) renvoient `file://` → natif.
@@ -650,12 +767,8 @@ export class CorpusStore {
     data.lastModified = now
     this.ecrireJsonAtomique(f, data)
 
-    const corpus = this.ouvrir()
-    if (corpus.membership[id]) {
-      corpus.membership[id].lastModified = now
-      this.ecrireJsonAtomique(this.corpusFile, corpus)
-    }
     this.invaliderRefsAudio()
+    // §4.7 : plus de toucher au membership ici (voir ecrireEntretien).
     return { audioRef: ref }
   }
 

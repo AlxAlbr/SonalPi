@@ -4,8 +4,8 @@ import { importerVariables, distribuerValeurs } from './eav'
 import { parentsDepuisRangs } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon } from '../../shared/format'
-import { scinderPseudos } from '../../shared/entretien/pseudos'
-import { cleEntite } from '../../shared/entretien/brouillonsAnon'
+import { scinderPseudos } from '../../shared/entretien/anon'
+import { cleEntite } from '../../shared/entretien/anon'
 
 /** Blocs legacy encore en pass-through : `anon` (règles) et `notes`. Les EAV
  *  (var/dic/dat) sont modélisées → hors de ce blob. */
@@ -70,7 +70,7 @@ interface BlocImport {
 
 /**
  * Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
- * SonalPi — SRT/VTT) → charge utile SonalAsynchro (doc ProseMirror + annotations + locuteurs)
+ * SonalPi — SRT/VTT) → charge utile SonalPiTestV2 (doc ProseMirror + annotations + locuteurs)
  * + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
  * en positions ProseMirror (positions.ts).
  */

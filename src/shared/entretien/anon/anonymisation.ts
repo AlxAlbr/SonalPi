@@ -18,7 +18,7 @@
  */
 
 import { cleEntite } from './brouillonsAnon'
-import { estOrpheline, type Annotation } from './annotation'
+import { estOrpheline, type Annotation } from '../annotation'
 
 export interface Plage {
   from: number

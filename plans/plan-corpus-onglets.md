@@ -97,7 +97,7 @@ Au `renommerLoc` / à la création d'un locuteur ([locuteurs.ts](../src/shared/e
   naturel** de l'anonymisation corpus.
 - **Round-trip `.sonal`** : le legacy n'a pas de personnes → export : rien à émettre (les
   étiquettes locales suffisent) ; import : rien à lire. Aucune contrainte de parité — c'est un
-  champ purement SonalAsynchro, additif, pas de bump de `formatVersion`.
+  champ purement SonalPiTestV2, additif, pas de bump de `formatVersion`.
 - **Bascule Yjs** : `personnes` suit le traitement standard des définitions corpus (id opaque
   déjà conforme) ; `personneRef` est une référence par id, rien à coudre.
 

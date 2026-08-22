@@ -30,7 +30,7 @@
     (export identique avec/sans brouillons) dans `exportSonal.test.ts`.
     **187/187 tests** passent, typecheck node+web OK, build OK.
   - Limite v1 assumée (plan §0.3) : les brouillons restent internes à
-    SonalAsynchro — pas de sérialisation dans le `tabAnon` du `.sonal` avant
+    SonalPiTestV2 — pas de sérialisation dans le `tabAnon` du `.sonal` avant
     l'étape 3. Navigation ◄ i/N ► sur les brouillons « entité seule » : différée.
 
 - **Étape 1 (2.1 → 2.6) — FAITE** ✅ : exceptions par occurrence.
@@ -312,7 +312,7 @@ s'enrichit de règles de portée corpus, et repart vers SonalPi sans perte.
   aucune double vérité — ce n'est pas une règle).
 - **Différé** : la navigation/loupe ◄ i/N ► sur les brouillons « entité seule »
   (post-3) ; la sérialisation des brouillons dans le `.sonal` — en étape 0 les
-  brouillons sont **internes à SonalAsynchro** (survivent par le fichier
+  brouillons sont **internes à SonalPiTestV2** (survivent par le fichier
   entretien, ne fuient pas dans le `tabAnon` legacy).
 
   **Stockage SonalPi (à considérer pour l'import/export étape 3)** : les

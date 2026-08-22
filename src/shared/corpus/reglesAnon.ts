@@ -8,7 +8,7 @@
  */
 
 import type { CorpusFichier, RegleAnon } from '../format'
-import { cleEntite } from '../entretien/brouillonsAnon'
+import { cleEntite } from '../entretien/anon'
 
 /** Trouve la règle d'une entité (insensible à la casse sur les alias `entite[]`). */
 export function trouverRegleParEntite(corpus: CorpusFichier, entite: string): RegleAnon | undefined {

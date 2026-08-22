@@ -1,0 +1,56 @@
+# Nextcloud local de TEST — le « backend réel » du banc de conformité
+# (plan-multiuser.md §12, invariant §15.4). Lié à localhost uniquement :
+# rien n'est exposé au réseau.
+#
+# Usage :
+#   npm run nc:up          # démarre (1er up : ~2-5 min d'initialisation)
+#   npm run nc:provision   # crée les comptes + le corpus partagé (idempotent)
+#   npm run nc:down        # arrête (les données persistent dans les volumes)
+#   npm run nc:clean       # arrête ET supprime volumes (reset complet)
+#
+# Comptes créés par le provisionneur :
+#   admin    / admin-admin-1     (administration occ via UI)
+#   max      / max-max-1234      (propriétaire du corpus partagé)
+#   olivier  / olivier-olivier-5678  (invité au partage)
+#
+# Corpus partagé : /MonCorpus chez max, partagé en lecture/écriture avec
+# olivier → chacun y accède à SON chemin DAV (/remote.php/dav/files/<user>/…),
+# conformément au plan §2 (« la config est par utilisateur, c'est normal »).
+
+name: sonal-nc-a
+
+services:
+  db:
+    image: mariadb:11
+    restart: no
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    environment:
+      MYSQL_ROOT_PASSWORD: sonal-root-1
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: sonal-db-1
+
+  app:
+    image: nextcloud:31-apache
+    restart: no
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - db
+    environment:
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: admin-admin-1
+      MYSQL_HOST: db
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: sonal-db-1
+      # Confiance localhost pour l'API provisioning/WebDAV sans avertissement.
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost 127.0.0.1
+      PHP_MEMORY_LIMIT: 512M
+    volumes:
+      - nextcloud-data:/var/www/html/data
+      - nextcloud-html:/var/www/html
+
+volumes:
+  nextcloud-data:
+  nextcloud-html:

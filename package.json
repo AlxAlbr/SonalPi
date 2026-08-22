@@ -1,7 +1,7 @@
 {
-  "name": "sonal-asynchro",
+  "name": "sonalpitestv2",
   "version": "0.1.0",
-  "description": "SonalAsynchro — set minimum SonalPi : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
+  "description": "SonalPiTestV2 — set minimum SonalPi : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -10,7 +10,16 @@
     "start": "electron-vite preview",
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "nc:up": "docker compose -f docker/compose.yml up -d",
+    "nc:provision": "bash docker/provisionner.sh",
+    "nc:down": "docker compose -f docker/compose.yml down",
+    "nc:logs": "docker compose -f docker/compose.yml logs -f app",
+    "nc:clean": "docker compose -f docker/compose.yml down -v",
+    "nc-b:up": "docker compose -f docker/compose-b.yml up -d",
+    "nc-b:provision": "COMPOSE_FILE=compose-b.yml BASE=http://localhost:8081 SANS_LOCK=1 bash docker/provisionner.sh",
+    "nc-b:down": "docker compose -f docker/compose-b.yml down",
+    "nc-b:clean": "docker compose -f docker/compose-b.yml down -v"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +41,8 @@
     "@tiptap/pm": "^3.26.0",
     "@tiptap/starter-kit": "^3.26.0",
     "@tiptap/vue-3": "^3.26.0",
+    "chardet": "^2.2.0",
+    "iconv-lite": "^0.6.3",
     "vue": "^3.5.35"
   }
 }

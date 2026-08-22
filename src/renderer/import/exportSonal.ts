@@ -6,7 +6,7 @@ import { ordreThemes } from '../../shared/corpus'
 import { couleurHexPourCode } from '../editor/decorations'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Categorie, Locuteur, Variable, RegleAnon, BrouillonAnon } from '../../shared/format'
-import { scinderPseudos } from '../../shared/entretien/pseudos'
+import { scinderPseudos } from '../../shared/entretien/anon'
 import type { LegacyBlobs } from './importSonal'
 
 interface BlocPM {
