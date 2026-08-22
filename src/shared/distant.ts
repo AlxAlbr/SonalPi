@@ -34,6 +34,13 @@ export type ResultatConnexion =
   | { ok: true; compte: CompteDistantPublic; profil: ProfilCapacites }
   | { ok: false; note: string }
 
+/** Création d'un nouveau corpus distant : mêmes identifiants que la connexion
+ *  plus le nom de projet. Le compte n'est enregistré au coffre qu'après une
+ *  publication réussie (rien de semi-créé). */
+export interface DemandeCreationDistante extends DemandeConnexion {
+  nomProjet: string
+}
+
 /** Ouverture d'un corpus distant : le corpus vient du MIROIR local
  *  (`userData/miroirs/<id>`) fraîchement tiré — le renderer ne sait pas
  *  faire la différence avec un corpus local, c'est voulu (invariant §15.1).

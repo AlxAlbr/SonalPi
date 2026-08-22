@@ -17,6 +17,19 @@ src/
 `shared/` est la frontière **technique** (code commun aux deux process Electron) ; `corpus/` et
 `entretien/` sont les frontières **du domaine**. Ne pas confondre les deux découpages.
 
+### Où placer un module dans `shared/` ?
+
+Deux niveaux, avec une règle simple :
+
+| Niveau | Contenu | Exemples |
+|---|---|---|
+| Racine de `shared/` (`format.ts`, `distant.ts`) | Les **contrats** : sérialisation versionnée, types du pont IPC — consommés des deux process et à cheval sur plusieurs concepts | `CorpusFichier`, `EntreeRecent`, `DemandeConnexion` |
+| Sous-dossier d'agrégat (`corpus/`, `entretien/`) | Les **opérations pures d'un agrégat**, un fichier par concept | `categories.ts`, `fusion.ts`, `squelette.ts` |
+
+Test rapide : si le fichier n'est consommé que pour UN agrégat (ou n'en produit le contenu),
+il va dans le sous-dossier ; s'il est un contrat partagé entre agrégats ou entre process,
+il reste à la racine.
+
 ## Les process Electron
 
 | Process | Rôle |

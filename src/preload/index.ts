@@ -4,6 +4,7 @@ import type {
   CibleValeur,
   CorpusFichier,
   DossierCorpus,
+  EntreeRecent,
   EtatDemo,
   EtatDemoComplet,
   LectureEntretien,
@@ -18,6 +19,7 @@ import type {
   SegmentThematique,
   Variable,
 } from '../shared/format'
+import type { DemandeCreationDistante } from '../shared/distant'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type {
   CompteDistantPublic,
@@ -37,9 +39,10 @@ contextBridge.exposeInMainWorld('sonal', {
   corpus: {
     ouvrir: (): Promise<CorpusFichier> => ipcRenderer.invoke('corpus:ouvrir'),
     dossierCourant: (): Promise<DossierCorpus> => ipcRenderer.invoke('corpus:dossierCourant'),
-    recents: (): Promise<DossierCorpus[]> => ipcRenderer.invoke('corpus:recents'),
-    retirerRecent: (dir: string): Promise<DossierCorpus[]> =>
-      ipcRenderer.invoke('corpus:retirerRecent', dir),
+    recents: (): Promise<EntreeRecent[]> => ipcRenderer.invoke('corpus:recents'),
+    retirerRecent: (
+      entree: { type: 'distant'; id: string } | { type: 'local'; dir: string },
+    ): Promise<boolean> => ipcRenderer.invoke('corpus:retirerRecent', entree),
     ouvrirDossier: (dir: string): Promise<OuvertureCorpus> =>
       ipcRenderer.invoke('corpus:ouvrirDossier', dir),
     choisirDossier: (): Promise<OuvertureCorpus | null> =>
@@ -155,6 +158,11 @@ contextBridge.exposeInMainWorld('sonal', {
     lister: (): Promise<CompteDistantPublic[]> => ipcRenderer.invoke('distant:lister'),
     connecter: (params: DemandeConnexion): Promise<ResultatConnexion> =>
       ipcRenderer.invoke('distant:connecter', params),
+    /** Création directe d'un corpus distant : publie le squelette sur le
+     *  serveur puis enregistre le compte. L'appelant enchaîne sur
+     *  `ouvrir(compte.id)` — créer = ouvrir, comme en local. */
+    creer: (params: DemandeCreationDistante): Promise<ResultatConnexion> =>
+      ipcRenderer.invoke('distant:creer', params),
     ouvrir: (id: string): Promise<OuvertureDistante> => ipcRenderer.invoke('distant:ouvrir', id),
     tirer: (): Promise<ResultatTiragePublic | null> => ipcRenderer.invoke('distant:tirer'),
     /** Verrous orphelins (crash sans libération, §4.5). Null si corpus local. */

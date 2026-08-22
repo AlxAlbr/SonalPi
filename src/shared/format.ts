@@ -123,6 +123,13 @@ export interface DossierCorpus {
   nom: string
 }
 
+/** Une entrée des « Récents » — taguée local/distant : un récent distant
+ *  rouvre via `distant:ouvrir(id)` et jamais son chemin miroir en tant que
+ *  dossier local (sinon le cycle verrou/publie est contourné). */
+export type EntreeRecent =
+  | ({ type: 'local' } & DossierCorpus)
+  | { type: 'distant'; id: string; nom: string; url: string }
+
 /** Transporte l'identité du dossier en plus du contenu, dans un seul message IPC. */
 export interface OuvertureCorpus extends DossierCorpus {
   corpus: CorpusFichier

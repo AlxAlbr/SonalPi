@@ -1,10 +1,9 @@
 /**
- * Serveur WebDAV EMBARQUÉ dans les tests — le banc de conformité du plan
- * (plan-multiuser.md §12). Il honore les préconditions HTTP (`If-None-Match:*`,
- * `If-Match`), expose des ETags et répond en multistatus 207 : tout ce que le
- * protocole exige d'un serveur. Les tests l'utilisent SANS connaître son
- * identité au-delà de ce contrat (invariant §15.4 : une abstraction est testée,
- * pas espérée ; si GitLab revenait, il passerait ce même banc).
+ * Serveur WebDAV embarqué dans les tests : le banc de conformité. Il honore
+ * les préconditions HTTP (`If-None-Match:*`, `If-Match`), expose des ETags et
+ * répond en multistatus 207 : tout ce que le protocole exige d'un serveur.
+ * Les tests l'utilisent sans connaître son identité au-delà de ce contrat
+ * (une abstraction est testée, pas espérée).
  *
  * Implémentation : une Map en mémoire derrière un `fetch` injectable — aucun
  * réseau, aucune dépendance.
@@ -32,6 +31,9 @@ export class ServeurWebDAVMemoire {
   private compteurEtag = 0
 
   readonly racineDav = '/remote.php/dav/files/max/MonCorpus'
+  /** Branche compte du serveur émulé : préfixe minimal accepté par le fetch
+   *  (le publieur peut y créer la chaîne menant à un NOUVEAU dossier corpus). */
+  readonly racineCompte = '/remote.php'
   readonly baseUrl = `http://serveur.test${this.racineDav}`
   readonly identifiants = { utilisateur: 'max', motDePasse: 'app-pass-1234' }
   /** Comptes supplémentaires (simulation multi-utilisateurs : refus d'un
@@ -121,7 +123,12 @@ export class ServeurWebDAVMemoire {
     if (nonAutorise) return nonAutorise
 
     const chemin = decodeURIComponent(new URL(requete.url).pathname)
-    if (!chemin.startsWith(`${this.racineDav}`)) return this.erreur(404)
+    // Zone autorisée = la branche DAV du compte (`/remote.php/…`) et non plus
+    // seulement la racine du corpus : le publieur y crée la chaîne de dossiers
+    // menant à un NOUVEAU dossier corpus.
+    if (!chemin.startsWith(this.racineDav)) {
+      if (!chemin.startsWith(this.racineCompte)) return this.erreur(404)
+    }
 
     switch (requete.method) {
       case 'GET': {
@@ -166,7 +173,7 @@ export class ServeurWebDAVMemoire {
     }
   }
 
-  /** Le cœur du test-and-set (plan §5.1) : le serveur tranche. */
+  /** Le cœur du test-and-set : le serveur tranche. */
   private put(corps: string, requete: Request, chemin: string): Response {
     const existante = this.entrees.get(chemin)
     if (requete.headers.get('If-None-Match') === '*' && existante) {

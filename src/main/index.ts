@@ -10,7 +10,7 @@ import { join, basename, extname, dirname } from 'node:path'
 import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync, readdirSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { CorpusStore } from './corpusStore'
-import { ClientWebDAV } from './webdav/client'
+import { ClientWebDAV, ErreurHttp } from './webdav/client'
 import { profilerServeur, sonderFilesLock } from './webdav/sondes'
 import { MiroirWebDAV } from './miroir'
 import { coffreReel, type ConfigCorpusDistant } from './distant/coffre'
@@ -20,13 +20,27 @@ import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
-import type { Categorie, CibleValeur, EtatDemo, EtatDemoComplet, MarqueurDemo, PatchCategorie, PayloadEntretien, RegleAnon, Variable } from '../shared/format'
+import type {
+  Categorie,
+  CibleValeur,
+  EntreeRecent,
+  EtatDemo,
+  EtatDemoComplet,
+  MarqueurDemo,
+  PatchCategorie,
+  PayloadEntretien,
+  RegleAnon,
+  Variable,
+} from '../shared/format'
 import type {
   DemandeConnexion,
+  DemandeCreationDistante,
   OrphelinDistant,
   OuvertureDistante,
+  ResultatConnexion,
   ResultatTiragePublic,
 } from '../shared/distant'
+import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev le
 // renderer est en http://localhost (Vite) et ne lit pas file:// → un protocole
@@ -73,6 +87,10 @@ const MIME: Record<string, string> = {
 // --- Réglages du profil : corpus récents + mémoire démo + largeur vidéo par corpus ---
 interface Settings {
   recents: string[] // chemins de dossiers, le plus récent en tête
+  /** Ids de comptes distants ouverts récemment. Séparés des locaux : la
+   *  réouverture d'un récent distant passe par `distant:ouvrir(id)`, jamais
+   *  par le chemin miroir (le cycle verrou/publie serait contourné). */
+  recentsDistant?: string[]
   demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois
   // Largeur (px) du panneau vidéo, mémorisée PAR CORPUS (clé = chemin du dossier).
   largeurVideo?: Record<string, number>
@@ -120,6 +138,12 @@ function ajouterRecent(dir: string): void {
 function retirerRecent(dir: string): void {
   const s = lireSettings()
   s.recents = s.recents.filter((d) => d !== dir)
+  ecrireSettings(s)
+}
+/** Mémorise l'ouverture d'un corpus distant dans les récents (id de compte). */
+function ajouterRecentDistant(id: string): void {
+  const s = lireSettings()
+  s.recentsDistant = [id, ...(s.recentsDistant ?? []).filter((d) => d !== id)].slice(0, 8)
   ecrireSettings(s)
 }
 
@@ -176,7 +200,7 @@ function enregistrerIpcCorpus(): void {
   let store = new CorpusStore(dossierDefaut)
   let dossierCourant = dossierDefaut
 
-  // ── Corpus distant (plan-multiuser.md E0/E1) ───────────────────────────────
+  // ── Corpus distant : connexion, création et ouverture ─────────────────
   // La connexion mesure le profil du serveur par sondes RÉELLES (préconditions
   // §5.4 + capabilities files_lock §8) AVANT d'enregistrer quoi que ce soit ;
   // un serveur qui ment est refusé. Le secret (mot de passe d'application)
@@ -241,7 +265,7 @@ function enregistrerIpcCorpus(): void {
       distant: miroirActif?.id ?? null,
     }
   })
-  ipcMain.handle('corpus:recents', () => {
+  ipcMain.handle('corpus:recents', (): EntreeRecent[] => {
     const s = lireSettings()
     // Ne garder que les corpus dont le DOSSIER existe encore : un corpus supprimé
     // à la main (dossier effacé) ne doit plus apparaître dans « Récents » — et au
@@ -253,11 +277,44 @@ function enregistrerIpcCorpus(): void {
       s.recents = vivants
       ecrireSettings(s)
     }
-    return vivants.map((dir) => ({ dir, nom: basename(dir) }))
+    // Récents distants : fraîcheur = le compte existe toujours au coffre
+    // (équivalent du existsSync local). Le nom vient du miroir (`corpus.json`)
+    // si présent, sinon du dernier segment de l'URL. JAMAIS le chemin miroir
+    // n'est exposé comme dossier local.
+    const comptes = new Map(coffre.lister().map((c) => [c.id, c]))
+    const distants = (s.recentsDistant ?? []).filter((id) => comptes.has(id))
+    if (distants.length !== (s.recentsDistant ?? []).length) {
+      s.recentsDistant = distants
+      ecrireSettings(s)
+    }
+    return [
+      ...distants.map((id): EntreeRecent => {
+        const c = comptes.get(id)!
+        let nom = basename(c.urlServeur)
+        try {
+          const miroirCorpus = JSON.parse(
+            readFileSync(join(app.getPath('userData'), 'miroirs', id, 'corpus.json'), 'utf8'),
+          ) as { nom?: string }
+          if (miroirCorpus.nom) nom = miroirCorpus.nom
+        } catch {
+          /* pas encore de miroir (corpus créé mais jamais rouvert depuis ici) → URL */
+        }
+        return { type: 'distant', id, nom, url: c.urlServeur }
+      }),
+      ...vivants.map((dir): EntreeRecent => ({ type: 'local', dir, nom: basename(dir) })),
+    ]
   })
-  ipcMain.handle('corpus:retirerRecent', (_e, dir: string) => {
-    retirerRecent(dir)
-    return lireSettings().recents.map((d) => ({ dir: d, nom: basename(d) }))
+  /** Retire un RACCOURCI des récents (local OU distant — ne touche jamais aux
+   *  données : ni le dossier disque, ni le serveur, ni le miroir). */
+  ipcMain.handle('corpus:retirerRecent', (_e, entree: EntreeRecent) => {
+    if (entree.type === 'distant') {
+      const s = lireSettings()
+      s.recentsDistant = (s.recentsDistant ?? []).filter((id) => id !== entree.id)
+      ecrireSettings(s)
+    } else {
+      retirerRecent(entree.dir)
+    }
+    return true
   })
   ipcMain.handle('corpus:ouvrirDossier', (_e, dir: string) => changerDossier(dir))
   ipcMain.handle('corpus:choisirDossier', async () => {
@@ -455,6 +512,20 @@ function enregistrerIpcCorpus(): void {
   // ── Corpus distant : connexion et ouverture (E0) ──────────────────────────
   const sansSecret = ({ motDePasseChiffre: _s, ...c }: ConfigCorpusDistant) => c
 
+  /** Nettoyage best effort après refus de création : supprime la FEUILLE que
+   *  nous venons de créer (dossiers vides sans corpus — jamais un dossier
+   *  préexistant de l'utilisateur). */
+  async function publierNettoyage(baseUrl: string, identifiants: { utilisateur: string; motDePasse: string }): Promise<void> {
+    try {
+      const u = new URL(baseUrl)
+      const segments = u.pathname.split('/').filter(Boolean)
+      const parent = [u.origin, ...segments.slice(0, -1)].join('/')
+      await new ClientWebDAV({ baseUrl: parent, identifiants }).supprimer(segments[segments.length - 1])
+    } catch {
+      /* best effort : des dossiers vides restants sont sans danger */
+    }
+  }
+
   ipcMain.handle('distant:lister', () => coffre.lister().map(sansSecret))
 
   ipcMain.handle('distant:oublier', (_e, id: string) => {
@@ -493,6 +564,51 @@ function enregistrerIpcCorpus(): void {
       ok: true as const,
       compte: sansSecret(config),
       profil: { preconditions: profil.preconditions, filesLock: profil.filesLock },
+    }
+  })
+
+  /** Création directe d'un corpus distant : profilage du serveur, publication
+   *  du squelette construit en mémoire, puis enregistrement du compte. La
+   *  publication est gardée par If-None-Match côté publieur : jamais
+   *  d'écrasement d'un corpus existant. L'OUVERTURE reste l'apanage de
+   *  `distant:ouvrir` — le renderer enchaîne dessus immédiatement (même
+   *  comportement que le local : créer = atterrir sur l'écran Corpus). */
+  ipcMain.handle('distant:creer', async (_e, params: DemandeCreationDistante): Promise<ResultatConnexion> => {
+    const baseUrl = params.urlServeur.trim().replace(/\/+$/, '')
+    const identifiants = { utilisateur: params.utilisateur.trim(), motDePasse: params.motDePasse }
+    try {
+      // 1. Chaîne de dossiers D'ABORD : la sonde de préconditions écrit dans
+      //    la cible et échouerait si le dossier n'existait pas encore.
+      const publieur = new PublieurCorpus({ baseUrl, identifiants })
+      const { feuilleCreee } = await publieur.preparerRacine()
+      // 2. Préconditions réelles, mesurées sur une cible qui existe désormais.
+      const profil = await profilerServeur(new ClientWebDAV({ baseUrl, identifiants }))
+      if (!profil.preconditions) {
+        // Refus → nettoyage de la feuille SI nous venons de la créer (on ne
+        // touche jamais un dossier préexistant de l'utilisateur).
+        if (feuilleCreee) await publierNettoyage(baseUrl, identifiants)
+        return {
+          ok: false as const,
+          note:
+            profil.notes?.join(' ; ') ??
+            'Le serveur ignore les préconditions HTTP (If-Match / If-None-Match) : aucun verrou fiable possible.',
+        }
+      }
+      // 3. Publication puis enregistrement EN DERNIER : un échec réseau ou
+      //    un « déjà corpus » ne laisse aucun compte fantôme.
+      await publieur.publierSquelette(params.nomProjet.trim())
+      const config = coffre.enregistrer({ urlServeur: baseUrl, utilisateur: params.utilisateur, motDePasse: params.motDePasse })
+      return {
+        ok: true as const,
+        compte: sansSecret(config),
+        profil: { preconditions: profil.preconditions, filesLock: profil.filesLock },
+      }
+    } catch (e) {
+      if (e instanceof ErreurDejaCorpus) return { ok: false as const, note: e.message }
+      if (e instanceof ErreurHttp) {
+        return { ok: false as const, note: `Publication impossible (HTTP ${e.statut}) — serveur injoignable ou droits insuffisants.` }
+      }
+      throw e
     }
   })
 
@@ -560,6 +676,7 @@ function enregistrerIpcCorpus(): void {
     }))
     presence.demarrer()
     const corpus = store.ouvrir()
+    ajouterRecentDistant(id) // le corpus distant rejoint les Récents 🌐
     return {
       dir: dirMiroir,
       nom: corpus.nom ?? basename(config.urlServeur),
@@ -866,7 +983,7 @@ function enregistrerIpcDemo(): void {
   }))
 }
 
-// ── Migration SonalPi V1 → V2 (plan-migration.md, E0 : lecture + aperçu) ──
+// ── Migration SonalPi V1 → V2 : lecture et aperçu d'un `.crp` ──
 // Choix d'un `.crp` : dialogue natif (filtre crp), lecture + détection
 // d'encodage (chardet + iconv-lite, comme la V1 — `src/main/encodage.ts`),
 // puis analyse PUR côté `shared/corpus/migrationCrp.ts`. À ce stade le main ne

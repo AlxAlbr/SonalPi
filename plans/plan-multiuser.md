@@ -86,6 +86,44 @@ Détail : [../docker/compose.yml](../docker/compose.yml), [../docker/provisionne
 test de contrat : [../test/webdav/contrat-nextcloud.test.ts](../test/webdav/contrat-nextcloud.test.ts)
 (skippé automatiquement si le conteneur ne répond pas).
 
+### Démo VISIBLE à deux postes (voir E4)
+
+Deux instances Electron réelles (fenêtres côte à côte : Max à gauche, Olivier à droite).
+Même scénario et mêmes assertions pour les DEUX RYTHMES — seule la mise en scène change :
+
+```bash
+npm run test:e2e                          # suite e2e complète : ce scénario y tourne en mode EFFICACE (~40 s)
+DEMO_PAUSE_MS=4000 npm run test:multiuser # MODE DÉMO : bandeaux 🎬 narrés + pauses d'observation (≈ 2 min)
+DEMO_PAUSE_MS=8000 npm run test:multiuser # démo au rythme calme, pour commenter
+```
+
+⚠️ **PIÈGE npm — la variable DOIT précéder la commande.** Écrire la variable
+APRÈS `npm run` ne fonctionne PAS :
+
+```bash
+npm run test:multiuser DEMO_PAUSE_MS=4000   # ❌ SILENCIEUSEMENT IGNORÉ
+```
+
+npm NE convertit PAS les arguments suffixés en variables d'environnement :
+`process.env.DEMO_PAUSE_MS` reste indéfini, le script bascule en mode EFFICACE
+et la démo tourne sans bandeaux 🎬 ni pauses, sans aucune erreur. La variable
+doit être préfixée à la ligne de commande (le shell la place alors dans l'env) :
+
+```bash
+DEMO_PAUSE_MS=4000 npm run test:multiuser   # ✅
+```
+
+(Filet de sécurité : le test logue un avertissement ⚠️ s'il détecte
+`DEMO_PAUSE_MS` dans les argv npm sans que la variable soit dans l'env.)
+
+Notes :
+- le mode démo est un OPT-IN (`DEMO_PAUSE_MS`) : la suite de test n'est jamais ralentie ;
+- lancer SANS xvfb pour voir les fenêtres (WSLg les affiche nativement) ;
+- si les fenêtres se superposent quand même chez vous, vérifier la sortie du test :
+  chaque placement logue `🪟 fenêtre gauche/droite` avec les bornes DEMANDÉES et APPLIQUÉES
+  (un gestionnaire de fenêtres entêté peut re-déplacer après coup — les bornes sont
+  ré-affirmées à +1,5 s) ;
+
 ---
 
 ## 1. Pourquoi l'hybride (ce que le modèle checkout/checkin dissout)
@@ -510,7 +548,7 @@ quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verr
 | **E1 — Écriture sous verrou (variante B)** | `VerrouProvider` + provider PUT-conditionnel, cycle complet §4 (ouverture, publication périodique, fermeture, reprise crash), désamorçage `corpus.json` §4.7 (1ᵉʳ point), UI états + lecture seule. Livrable : *deux postes, un éditeur à la fois, zéro perte*. **✅ Implémenté et validé contre les deux piles réelles** | E0 |
 | **E2 — Variante A** | **provider files_lock** (LOCK/UNLOCK/PROPFIND) branché derrière le `VerrouProvider` d'E1, sélectionné automatiquement quand la sonde capabilities d'E0 dit `files.locking` présent ; affichage détenteur enrichi, doc admin (`lock_timeout`). Livrable : *même comportement qu'E1, verrou visible dans l'UI web*. **✅ Implémenté et validé contre la pile A réelle** | E1 |
 | **E3 — Définitions + dégradé** | transactions `corpus.json` §4.7, suppression/renommage sous double verrou (ordre canonique §4.8), hors ligne §4.6 **+ politique α pour les définitions §4.6.1**, divergence + fusion assistée §6, **réconciliation I-POR-3 post-pull §4.8** | E1 |
-| **E4 — Finitions** | ✅ **FAITE (2026-08)** : **présence §9** — `PresenceDistante` (`src/main/distant/presence.ts`) : PUT `presence/<user>-<machine>.json` toutes les 60 s + immédiat à l'ouverture/fermeture d'entretien (IPC `distant:noterEntretienOuvert`), lecture = filtrage des périmées > 10 min et de notre poste, 404/corrompu/réseau → liste vide jamais une erreur ; présences livrées par le tirage (`ResultatTiragePublic.presences`). **Badges table de données** — 👁 « ouvert par X » sur cartes Corpus ET lignes entretien de la TableDonnées (à côté du badge 🔒 existant) ; règle d'or respectée : la présence décrit, le verrou décide. **Régime audio §3.3** — lecteur dégradé avec message net en distant + « **Associer l'audio local…** » : RÉFÉRENCE le fichier là où il est (parité assignerAudio v3, jamais de copie) dans `<corpus>/audio-locaux.json` machine-local jamais poussé (décision 2026-08, remplace la copie miroir initialement prévue) ; résolution effective `audiosResolus()` branchée dans `audios()/verifierAudios()/cheminMediaAbs()` (la requête portant la ref partagée sert le fichier effectif local), onde régénérée automatiquement. **Réglages des cadences : HORS PÉRIMÈTRE** (voir note). **Doc utilisateur ET développeur** : `docs/user/multi-utilisateur.md` (nouveau sous-dossier `docs/user/` dédié à la doc utilisateur — badges, divergence/fusion, crash, hors ligne, audio) + `docs/dev/multi-utilisateur.md` (carte du code ancrée aux tests, référencée depuis le sommaire dev). Tests : présence ×3 sur le banc embarqué, audio-local ×3 dans corpusStore.test.ts ; typecheck propre, 408/408. **Démo VISIBLE à deux postes (E4)** : `e2e/multi-utilisateur.e2e.ts` (`npm run test:multiuser`, fenêtres Electron réelles côte à côte contre la pile A) — connexion des deux comptes, verrou + frappe de max, badges 🔒 et 👁 vus par olivier, lecture seule avec bandeau nominatif, publication finale + libération, édition d'olivier, les DEUX contributions réunies chez max. **CINQ BUGS RÉELS attrapés par cette démo seule (§15.5 vérifié encore)** : (1) `analyserEtatVerrouNatif` appelé PAR BLOC exigeait `<multistatus>` absent des blocs → badges variante A TOUJOURS vides en dossier (les scénarios précédents ne testaient que le mono-fichier) ; (2) PUT `presence/` sans collection parente = 409 Conflict avalé par le best-effort → aucune présence publiée sur serveur réel (MKCOL ajouté ; les bancs mémoire créent les dossiers implicitement) ; (3) `safeStorage` indisponible sans trousseau système (WSLg…) → connexion distante IMPOSSIBLE, repli obfuscation étiqueté `ss:`/`b64:` auto-descriptif dans le coffre ; (4) `fermerEntretien` sauvait MÊME en lecture seule → garde du store rejetait, état « sauvegarde… » bloquant, sortie d'entretien impossible pour le poste non-détenteur ; (5) garde `entretienEditable` en OU logique au lieu de ET → éditeur restait éditable malgré verrou à autrui | E2/E3 |
+| **E4 — Finitions** | ✅ **FAITE (2026-08)** : **présence §9** — `PresenceDistante` (`src/main/distant/presence.ts`) : PUT `presence/<user>-<machine>.json` toutes les 60 s + immédiat à l'ouverture/fermeture d'entretien (IPC `distant:noterEntretienOuvert`), lecture = filtrage des périmées > 10 min et de notre poste, 404/corrompu/réseau → liste vide jamais une erreur ; présences livrées par le tirage (`ResultatTiragePublic.presences`). **Badges table de données** — 👁 « ouvert par X » sur cartes Corpus ET lignes entretien de la TableDonnées (à côté du badge 🔒 existant) ; sur écran étroit, le badge du titre pouvant être tronqué, le CRAYON de la carte DEVIENT 🔒 quand l'entretien est tenu par autrui (tooltip au survol : qui ? depuis quand ? lecture seule — le clic ouvre quand même) ; règle d'or respectée : la présence décrit, le verrou décide. **Régime audio §3.3** — lecteur dégradé avec message net en distant + « **Associer l'audio local…** » : RÉFÉRENCE le fichier là où il est (parité assignerAudio v3, jamais de copie) dans `<corpus>/audio-locaux.json` machine-local jamais poussé (décision 2026-08, remplace la copie miroir initialement prévue) ; résolution effective `audiosResolus()` branchée dans `audios()/verifierAudios()/cheminMediaAbs()` (la requête portant la ref partagée sert le fichier effectif local), onde régénérée automatiquement. **Réglages des cadences : HORS PÉRIMÈTRE** (voir note). **Doc utilisateur ET développeur** : `docs/user/multi-utilisateur.md` (nouveau sous-dossier `docs/user/` dédié à la doc utilisateur — badges, divergence/fusion, crash, hors ligne, audio) + `docs/dev/multi-utilisateur.md` (carte du code ancrée aux tests, référencée depuis le sommaire dev). Tests : présence ×3 sur le banc embarqué, audio-local ×3 dans corpusStore.test.ts ; typecheck propre, 408/408. **Démo VISIBLE à deux postes (E4)** : `e2e/multi-utilisateur.e2e.ts` (`npm run test:multiuser`, fenêtres Electron réelles CÔTE À CÔTE — moitié gauche/droite de l'écran, sinon superposition — contre la pile A) — connexion des deux comptes, verrou + frappe de max, badges 🔒 et 👁 vus par olivier, lecture seule avec bandeau nominatif, publication finale + libération, édition d'olivier, les DEUX contributions réunies chez max. **CINQ BUGS RÉELS attrapés par cette démo seule (§15.5 vérifié encore)** : (1) `analyserEtatVerrouNatif` appelé PAR BLOC exigeait `<multistatus>` absent des blocs → badges variante A TOUJOURS vides en dossier (les scénarios précédents ne testaient que le mono-fichier) ; (2) PUT `presence/` sans collection parente = 409 Conflict avalé par le best-effort → aucune présence publiée sur serveur réel (MKCOL ajouté ; les bancs mémoire créent les dossiers implicitement) ; (3) `safeStorage` indisponible sans trousseau système (WSLg…) → connexion distante IMPOSSIBLE, repli obfuscation étiqueté `ss:`/`b64:` auto-descriptif dans le coffre ; (4) `fermerEntretien` sauvait MÊME en lecture seule → garde du store rejetait, état « sauvegarde… » bloquant, sortie d'entretien impossible pour le poste non-détenteur ; (5) garde `entretienEditable` en OU logique au lieu de ET → éditeur restait éditable malgré verrou à autrui ; (6) **SIXIÈME bug (2026-02, mode démo uniquement)** : `editor.setEditable(false)` à l'ouverture sous verrou d'autrui émet une transaction TipTap SANS `docChanged`, mais `onUpdate` programmait quand même l'autosave → 600 ms plus tard la garde du main rejetait (« Entretien non modifiable : le verrou n'est pas tenu par cette session. ») et la bannière globale d'erreur RESTAIT à l'écran alors que le verrou avait depuis disparu chez olivier — invisible au rythme efficace (la pause s'achève avant l'échéance du debounce), nette aux pauses démo ; correctif : `onUpdate` ne programme la sauvegarde que si `transaction.docChanged` | E2/E3 |
 
 **Note E4 (2026-08, arbitrages)** :
 - **Doc développeur au périmètre** : la doc multi-utilisateur ne visera pas que les

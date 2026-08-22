@@ -11,6 +11,7 @@ import type {
   CibleValeur,
   CorpusFichier,
   DossierCorpus,
+  EntreeRecent,
   EtatDemo,
   EtatDemoComplet,
   LectureEntretien,
@@ -30,6 +31,7 @@ import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from 
 import type {
   CompteDistantPublic,
   DemandeConnexion,
+  DemandeCreationDistante,
   DivergenceDistante,
   OrphelinDistant,
   OuvertureDistante,
@@ -44,8 +46,10 @@ declare global {
       corpus: {
         ouvrir: () => Promise<CorpusFichier>
         dossierCourant: () => Promise<DossierCorpus & { distant: string | null }>
-        recents: () => Promise<DossierCorpus[]>
-        retirerRecent: (dir: string) => Promise<DossierCorpus[]>
+        recents: () => Promise<EntreeRecent[]>
+        retirerRecent: (
+          entree: { type: 'distant'; id: string } | { type: 'local'; dir: string },
+        ) => Promise<boolean>
         ouvrirDossier: (dir: string) => Promise<OuvertureCorpus>
         choisirDossier: () => Promise<OuvertureCorpus | null>
         verifierNouveau: (dir: string) => Promise<{ dejaCorpus: boolean }>
@@ -117,6 +121,7 @@ declare global {
       distant: {
         lister: () => Promise<CompteDistantPublic[]>
         connecter: (params: DemandeConnexion) => Promise<ResultatConnexion>
+        creer: (params: DemandeCreationDistante) => Promise<ResultatConnexion>
         ouvrir: (id: string) => Promise<OuvertureDistante>
         tirer: () => Promise<ResultatTiragePublic | null>
         orphelins: () => Promise<OrphelinDistant[] | null>

@@ -3,11 +3,11 @@ import { ref, computed } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Modale « Nouveau corpus… » — créer un corpus V2 en choisissant un DOSSIER
- * et en indiquant un NOM de projet, comme la migration (et SonalPi V1).
- * Le `nom` est indépendant du dossier : il vit dans `corpus.json.nom` (D2) et
- * survit au renommage du dossier. Une fois choisi, si le dossier contient déjà
- * un corpus, on l'OUVRE simplement (on n'écrase jamais — son nom fait foi).
+ * Modale « Nouveau corpus local » — créer un corpus en choisissant un dossier
+ * et en indiquant un nom de projet. Le `nom` est indépendant du dossier : il
+ * vit dans `corpus.json.nom` et survit au renommage du dossier. Une fois
+ * choisi, si le dossier contient déjà un corpus, on l'ouvre simplement (on
+ * n'écrase jamais — son nom fait foi).
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const { creerNouveauCorpus } = utiliserSonal()
@@ -72,7 +72,7 @@ async function valider() {
   <Teleport to="body">
     <div class="voile-modale" @click.self="emit('fermer')">
       <div class="modale-nouveau">
-        <h3>➕ Nouveau corpus…</h3>
+        <h3>➕ Nouveau corpus local</h3>
         <p class="intro">
           Créez un corpus V2 dans un <b>dossier dédié</b> en lui donnant un
           <b>nom de projet</b> — indépendant de son dossier (il survivra au

@@ -18,10 +18,12 @@ Il existe exactement quatre façons d'arrêter sur l'écran Corpus :
 
 | Chemin | Point d'entrée renderer | Store main | Amorce si absent ? |
 |---|---|---|---|
-| Démarrage (1ᵉʳ récent) | `chargerCorpus()` — `sonal.ts`, branché sur `onMounted` | `corpus:ouvrirDossier` | **oui** |
-| « Ouvrir un corpus… » (dialog) | `choisirDossier()` — `sonal.ts` | `corpus:ouvrirDossier` | **oui** |
-| Clic sur un récent | `ouvrirRecent()` — `sonal.ts` | `corpus:ouvrirDossier` | **oui** |
+| Démarrage (1ᵉʳ récent **local**) | `chargerCorpus()` — `sonal.ts`, branché sur `onMounted` | `corpus:ouvrirDossier` | **oui** |
+| « Ouvrir un corpus local » (dialog) | `choisirDossier()` — `sonal.ts` | `corpus:ouvrirDossier` | **oui** |
+| Clic sur un récent 🌐 ou local | `ouvrirRecent()` — `sonal.ts`, branché par type (D8) | `distant:ouvrir` / `corpus:ouvrirDossier` | distant : non (garde `corpus.json`) |
 | Cartes démo (« un clic » ou modale) | `preparer()` — `composables/demo.ts` | `demo:copierSources` + `corpus:ouvrirDossier` | oui (étape 2) |
+| ☁️ Ouvrir un corpus distant | modale `CorpusDistant.vue` → `ouvrirCorpusDistant(id)` | `distant:ouvrir` (miroir) | non — refuse sans `corpus.json` |
+| ☁️ Nouveau corpus distant | assistant `NouveauCorpusDistant.vue` → `creerCorpusDistant()` | `distant:creer` puis `distant:ouvrir` | côté serveur (§7) |
 
 Point commun : **toutes** passent par `CorpusStore.ouvrir()` (`src/main/corpusStore.ts`),
 qui amorce si besoin, migre si besoin (`formatVersion`), puis rend le modèle.
@@ -136,3 +138,56 @@ Scénario réel ayant motivé ce document et trois correctifs :
 Correctifs résultants (chercher ces symboles avant de refactorer) :
 `sourcesCompletes()` (présence par fichiers), `corpusTestPresent()` (présence par
 marqueur), garde squelette-vide dans `demo:verifierCorpus`.
+
+## 7. La branche distante : créer et rouvrir un corpus sur serveur
+
+L'accueil oppose deux mondes (solo / équipe), et la création distante existe :
+un corpus peut naître directement sur le serveur. Points de couture :
+
+### 7.1 Création directe (`distant:creer`)
+
+L'utilisateur donne URL DAV cible + identifiants + nom de projet. L'ordre des opérations
+N'EST PAS négociable — chaque inversion a été piégée par les bancs Docker :
+
+1. `PublieurCorpus.preparerRacine()` — repère le plus long PRÉFIXE EXISTANT par
+   PROPFIND descendant, puis MKCOL des segments manquants parent-d'abord.
+   *Pourquoi pas un MKCOL par segment depuis l'origine ?* Les préfixes techniques
+   Nextcloud (`remote.php`, `dav`…) ne sont pas adressables : 404/500 imprévisibles.
+   *Pourquoi avant la sonde ?* La sonde de préconditions écrit `sonde/` DANS la cible :
+   409 si le dossier n'existe pas encore (piégé par le banc Docker réel).
+2. `profilerServeur()` — préconditions mesurées sur une cible qui existe désormais ;
+   refus → nettoyage best effort de la feuille SI nous venons de la créer
+   (`feuilleCreee`, jamais un dossier préexistant de l'utilisateur).
+3. `publierSquelette(nom)` — dossiers techniques (`entretiens/`, `verrous/`,
+   `presence/`, `corbeille/`) + PUT `corpus.json` sous `If-None-Match: *` : c'est le
+   serveur qui tranche les courses de création bi-poste ; 412 → `ErreurDejaCorpus`,
+   rien n'est jamais écrasé.
+4. `coffre.enregistrer()` en DERNIER — un échec réseau ou 412 ne laisse aucun compte
+   fantôme dans « comptes configurés ».
+5. Le renderer enchaîne sur `ouvrirCorpusDistant(id)` : **créer = ouvrir**, comme le
+   local. Le squelette vient de `src/shared/squelette.ts` — partagé avec
+   `CorpusStore.amorcer()`, donc un corpus né distant a EXACTEMENT le codebook d'un
+   corpus né local (testé par équivalence stricte).
+
+### 7.2 Les récents tagués (D8)
+
+`EntreeRecent` (`shared/format.ts`) : `{type:'local', dir, nom}` ou
+`{type:'distant', id, nom, url}`. Règles :
+
+- Un récent 🌐 se rouvre via `distant:ouvrir(id)` — **JAMAIS** son chemin miroir en
+  tant que dossier local (le cycle verrou/publie serait contourné sans le savoir).
+- Fraîcheur distante = compte toujours au coffre (équivalent du `existsSync` local) ;
+  le nom affiché vient du miroir si présent, sinon du dernier segment d'URL.
+- Au démarrage, les distants sont SAUTÉS : pas de réseau bloquant au lancement.
+
+### 7.3 Ce que l'app ne fait PAS
+
+- Elle ne partage pas le dossier aux collègues : c'est un geste Nextcloud du créateur
+  (voir [la doc utilisateur](../user/corpus-distant.md)). Conséquence structurelle :
+  Nextcloud monte le partage chez l'invité sous le BASENAME du dossier, jamais dans le
+  chemin imbriqué d'origine — d'où une URL DAV « propre à chaque compte » dans le coffre.
+- Elle ne crée pas de verrou à la naissance : le corpus naît complet en un PUT gardé ;
+  la première transaction concurrente suit le protocole §8 de plan-multiuser.md.
+
+Bancs : `test/webdav/publication.test.ts` (mémoire), `publication-nextcloud.test.ts`
+(piles Docker A et B, skipIf absentes).

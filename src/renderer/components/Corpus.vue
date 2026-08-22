@@ -61,6 +61,14 @@ const {
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+/** Infobulle du bouton crayon/verrou d'une carte : si l'entretien est tenu par
+ *  autrui, le détail (qui ? depuis quand ? conséquence) ; sinon le geste normal. */
+const titreCrayon = (id: string): string => {
+  const v = badgeVerrou(id)
+  return v
+    ? `Verrou tenu par ${v.userId} depuis ${heureDe(v.acquiredAt)} — ouverture en lecture seule.`
+    : 'Éditer l’entretien'
+}
 /** « Actualiser » : tire le miroir à la demande (les erreurs crient — ce n'est
  *  pas la minuterie silencieuse). */
 async function actualiser() {
@@ -503,12 +511,17 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   ></span>
                 </div>
               <div class="carte-actions">
+                <!-- §10 : si l'entretien est verrouillé par autrui, le CRAYON
+                     devient VERROU (visible même sur un écran étroit où le
+                     badge du titre est tronqué) ; le détail — qui ? depuis
+                     quand ? — passe en tooltip au survol. Le clic ouvre
+                     toujours, en lecture seule. -->
                 <button
                   class="crayon"
                   data-tour="crayon-entretien"
-                  title="Éditer l'entretien"
+                  :title="titreCrayon(e.id)"
                   @click.stop="ouvrirEntretien(e.id)"
-                >✏️</button>
+                >{{ badgeVerrou(e.id) ? '🔒' : '✏️' }}</button>
                 <button class="suppr" v-if="!lectureSeule" title="Supprimer (corbeille)" @click.stop="demanderSuppressionEntretien(e.id)">✕</button>
               </div>
             </li>

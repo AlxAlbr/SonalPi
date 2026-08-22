@@ -1,7 +1,8 @@
 # Travailler à plusieurs sur un corpus distant
 
 Ce guide décrit le fonctionnement multi-utilisateur de SonalPiTestV2 quand un corpus est ouvert
-en **distant** (serveur Nextcloud/WebDAV). Il complète [la migration V1](../migration-v1.md).
+en **distant** (serveur Nextcloud/WebDAV). Pour CRÉER un corpus directement sur le serveur et
+le partager à l'équipe, voir [corpus-distant.md](corpus-distant.md). Il complète [la migration V1](migration-v1.md).
 
 ## Le principe en trois phrases
 

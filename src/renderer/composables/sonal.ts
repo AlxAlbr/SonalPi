@@ -2,7 +2,7 @@ import { ref, computed, watch, onMounted, provide, inject, type InjectionKey } f
 import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
-import type { CorpusFichier, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
+import type { CorpusFichier, EntreeRecent, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
 import type { EtatVerrouPublic, OrphelinDistant, PresencePublic } from '../../shared/distant'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
@@ -219,18 +219,18 @@ export function creerSonal() {
   }
 
   async function chargerCorpus() {
-    // Au démarrage, on charge le 1er récent s'il existe (= dernier corpus
-    // ouvert). Sinon (premier lancement) : modèle vide, on reste sur l'Accueil —
+    // Au démarrage, on charge le 1er récent LOCAL s'il existe (= dernier corpus
+    // local ouvert). Sinon (premier lancement) : modèle vide, on reste sur l'Accueil —
     // l'utilisateur choisit explicitement (Mini Corpus Test ou un dossier).
     // « Corpus courant » de l'Accueil n'est plus une carte dédiée : c'est le
     // 1er récent (le loaded corpus est TOUJOURS le 1er récent, par construction).
-    // Les récents ne contiennent que des dossiers LOCAUX → pas de pull au
-    // démarrage ; un corpus distant se rouvre via « Corpus distant… ».
+    // Les récents DISTANTS sont volontairement sautés au démarrage : pas de
+    // réseau bloquant au lancement — un distant se rouvre d'un clic via Récents.
     quitterDistant()
     await profil.rafraichirRecents()
-    if (profil.recents.value.length > 0) {
-      const dir = profil.recents.value[0].dir
-      await appliquerCorpus(await profil.ouvrirDossier(dir), dir)
+    const premierLocal = profil.recents.value.find((r) => r.type === 'local')
+    if (premierLocal && premierLocal.type === 'local') {
+      await appliquerCorpus(await profil.ouvrirDossier(premierLocal.dir), premierLocal.dir)
     }
     vue.value = 'accueil'
   }
@@ -254,18 +254,24 @@ export function creerSonal() {
     await appliquerCorpus(r.corpus, r.dir)
     vue.value = 'corpus'
   }
-  /** Rouvrir un corpus récent (par son chemin). */
-  async function ouvrirRecent(dir: string) {
+  /** Rouvrir un corpus récent, local par son chemin ou distant par
+   *  `distant:ouvrir(id)` (JAMAIS le chemin miroir en local : le cycle
+   *  verrou/publie serait contourné). */
+  async function ouvrirRecent(entree: EntreeRecent) {
+    if (entree.type === 'distant') {
+      await ouvrirCorpusDistant(entree.id)
+      return
+    }
     quitterDistant()
-    await appliquerCorpus(await profil.ouvrirDossier(dir), dir)
+    await appliquerCorpus(await profil.ouvrirDossier(entree.dir), entree.dir)
     vue.value = 'corpus'
   }
 
-  /** « Corpus distant… » (plan-multiuser.md E0, lecture seule) : tire le
-   *  miroir du compte configuré puis bascule le store dessus — le renderer
-   *  reçoit exactement la même forme qu'une ouverture locale, il ne sait PAS
-   *  qu'un serveur existe (invariant §15.1). Échec réseau → exception IPC,
-   *  l'app reste sur le corpus courant (l'appelant affiche l'erreur). */
+  /** « Ouvrir un corpus distant » : tire le miroir du compte configuré puis
+   *  bascule le store dessus — le renderer reçoit exactement la même forme
+   *  qu'une ouverture locale, il ne sait pas qu'un serveur existe. Échec
+   *  réseau → exception IPC, l'app reste sur le corpus courant (l'appelant
+   *  affiche l'erreur). */
   async function ouvrirCorpusDistant(id: string) {
     const r = await window.sonal.distant.ouvrir(id)
     idDistantCourant.value = r.distant.id // active la zone de synchro + le pull doux
@@ -278,6 +284,24 @@ export function creerSonal() {
     // dialogue propose reprendre/abandonner ; « plus tard » garde l'état.
     orphelinsDistants.value = (await window.sonal.distant.orphelins()) ?? []
     vue.value = 'corpus'
+  }
+
+  /** Création directe d'un corpus distant : publie le squelette sur le
+   *  serveur puis OUVRE immédiatement — même comportement que le local :
+   *  créer = atterrir sur l'écran Corpus. La publication côté main est
+   *  idempotente ; un échec lève (l'appelant affiche), le corpus courant
+   *  reste en place. */
+  async function creerCorpusDistant(params: {
+    urlServeur: string
+    utilisateur: string
+    motDePasse: string
+    nomProjet: string
+  }) {
+    const r = await window.sonal.distant.creer(params)
+    if (!r.ok) throw new Error(r.note)
+    await profil.rafraichirRecents() // le nouveau corpus rejoint les « Récents 🌐 »
+    await ouvrirCorpusDistant(r.compte.id) // tirage du miroir + bascule + écran Corpus
+    return r.compte
   }
 
   // ── Badges de verrou fiables (§3.1/§10) : l'état « tenu par X » en vue
@@ -473,10 +497,9 @@ export function creerSonal() {
     await rafraichirStatutSession()
   }
 
-  /** Migration SonalPi V1 → V2 (plan-migration E3 + E2) : exécute la création
-   *  du corpus V2 (le renderer orchestre — E0 aperçu, E1 définitions —, le main
-   *  écrit + ouvre + ajoute aux récents), applique le corpus au modèle, puis
-   *  IMPORTE les entretiens V1 (lecture des .Sonal + audio, E2). Même geste de
+  /** Migration SonalPi V1 → V2 : exécute la création du corpus V2 (le main
+   *  écrit, ouvre et ajoute aux récents), applique le corpus au modèle, puis
+   *  IMPORTE les entretiens V1 (lecture des .Sonal + audio). Même geste de
    *  profil que `ouvrirDossier` (nom courant + récents). */
   async function migrerDepuisV1(req: DemandeMigration, tabEntV1?: CrpV1Entretien[]) {
     const r = await window.sonal.migrer.executer(req)
@@ -893,6 +916,7 @@ export function creerSonal() {
     chargerCorpus,
     choisirDossier,
     creerNouveauCorpus,
+    creerCorpusDistant,
     ouvrirRecent,
     ouvrirCorpusDistant,
     idDistantCourant,

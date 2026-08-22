@@ -14,6 +14,7 @@ import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import { instructionsAppliquerRegle } from '../shared/entretien/anon'
 import { migrerEntretienV1 } from '../shared/entretien/migration'
+import { squeletteCorpus } from '../shared/corpus/squelette'
 
 /** Pourquoi des numéros de version ? Chaque évolution du format de fichier est
  *  migrée EXPLICITEMENT à la lecture, puis le fichier est réécrit aussitôt,
@@ -106,10 +107,10 @@ export class CorpusStore {
    *  Le Set garantit l'unicité des ids. */
   private readonly rotationEnAttente = new Set<string>()
 
-  /** Garde E0 corpus distant (plan-multiuser.md) : quand le store pointe un
-   *  MIROIR sans couche verrou/publication (E1), toute écriture est REFUSÉE —
-   *  sinon deux postes divergeraient silencieusement. Défense en profondeur :
-   *  l'UI grise déjà les gestes, ici on garantit le reste. Les dérivés locaux
+  /** Garde corpus distant : quand le store pointe un miroir sans couche
+   *  verrou/publication active, toute écriture est refusée — sinon deux
+   *  postes divergeraient silencieusement. Défense en profondeur : l'UI grise
+   *  déjà les gestes, ici on garantit le reste. Les dérivés locaux
    *  purs (PNG waveform, §3.3) restent permis. */
   lectureSeule = false
 
@@ -284,29 +285,17 @@ export class CorpusStore {
    *  l'id est opaque et sûr en offline divergent,
    *  `cat_NNN` étant relégué au `codeExport`. */
   private amorcer(): CorpusFichier {
-    const blanc = '#ffffff'
-    const codebook = {
-      cat_001: { id: 'cat_001', nom: 'Pondérations', couleur: blanc, ordre: 0, parent: null, actif: true, codeExport: 'cat_001' },
-      cat_002: { id: 'cat_002', nom: '★★★ Très important', couleur: blanc, taille: 24, ordre: 1, parent: 'cat_001', actif: true, codeExport: 'cat_002' },
-      cat_003: { id: 'cat_003', nom: '★★☆ Assez important', couleur: blanc, taille: 22, ordre: 2, parent: 'cat_001', actif: true, codeExport: 'cat_003' },
-      cat_004: { id: 'cat_004', nom: '★☆☆ Important', couleur: blanc, taille: 20, ordre: 3, parent: 'cat_001', actif: true, codeExport: 'cat_004' },
-    }
-    const corpus: CorpusFichier = {
-      formatVersion: FORMAT_VERSION,
-      codebook,
-      variables: {},
-      reglesAnon: {},
-      personnes: {},
-      membership: {},
-    }
+    // Squelette partagé avec la création distante : un seul codebook par
+    // défaut, deux lieux d'écriture (disque local / serveur).
+    const corpus = squeletteCorpus()
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return corpus
   }
 
   /** Crée un corpus V2 DANS un dossier dédié, à partir d'une migration
-   *  SonalPi V1 (plan-migration.md E3). Contrairement à `amorcer()`, on
-   *  n'écrit PAS le bloc Pondérations par défaut : la source de vérité des
-   *  définitions est le `.crp` (Q7) — on fusionne exactement ce qu'E1 a mappé.
+   *  SonalPi V1. Contrairement à `amorcer()`, on n'écrit PAS le bloc
+   *  Pondérations par défaut : la source de vérité des définitions est le
+   *  `.crp` — on fusionne exactement ce que la lecture a mappé.
    *  Le dossier a été vérifié par la garde (`migrer:verifierDossier`) ; en
    *  défense en profondeur on REFUSE ici tout corpus.json existant
    *  (« on n'écrase jamais », plan §8). Les entretiens (lecture des .Sonal +

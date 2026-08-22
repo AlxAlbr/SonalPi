@@ -4,13 +4,13 @@ import { utiliserSonal } from '../composables/sonal'
 import type { CompteDistantPublic, ProfilCapacites } from '../../shared/distant'
 
 /**
- * Modale « Corpus distant… » (plan-multiuser.md E0) — deux volets :
- *  1. les comptes déjà configurés : ouvrir (tire le miroir, lecture seule)
- *     ou oublier (le miroir local n'est jamais effacé) ;
- *  2. la connexion : URL DAV du corpus + login + MOT DE PASSE D'APPLICATION
- *     (jamais le principal — cf. plan §2). La connexion mesure les sondes
- *     sur le serveur RÉEL AVANT d'enregistrer quoi que ce soit ; un serveur
- *     qui ignore les préconditions est refusé avec le motif.
+ * Modale « Ouvrir un corpus distant » — deux volets :
+ *  1. les comptes déjà configurés : ouvrir (tire le miroir) ou oublier (le
+ *     miroir local n'est jamais effacé) ;
+ *  2. la connexion : URL DAV du corpus + login + mot de passe d'application
+ *     (jamais le principal). La connexion mesure les sondes sur le serveur
+ *     réel avant d'enregistrer quoi que ce soit ; un serveur qui ignore les
+ *     préconditions est refusé avec le motif.
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const { ouvrirCorpusDistant } = utiliserSonal()
@@ -75,7 +75,7 @@ async function oublier(id: string) {
   <Teleport to="body">
     <div class="voile-modale" @click.self="emit('fermer')">
       <div class="modale-distant">
-        <h3>☁️ Corpus distant (Nextcloud)</h3>
+        <h3>☁️ Ouvrir un corpus distant (Nextcloud)</h3>
         <p class="intro">
           Le corpus vit sur le serveur ; l'app en garde une <b>copie locale</b> et se
           synchronise à l'ouverture et sur « Actualiser ». <b>Lecture seule</b> pour

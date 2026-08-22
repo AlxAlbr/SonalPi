@@ -229,7 +229,7 @@ export function useEntretien(deps: {
         return true
       },
     },
-    onUpdate: ({ editor: ed }) => {
+    onUpdate: ({ editor: ed, transaction }) => {
       // Texte réellement ÉDITÉ depuis l'ouverture → observable pour le pas-à-pas
       // (l'étape « Écouter et corriger la transcription »). On compare à l'état
       // INITIAL (pas au précédent) mais on REMET à faux quand le texte redevient
@@ -244,6 +244,15 @@ export function useEntretien(deps: {
         texteModifie.value = texteInitial !== '' && ed.getText() !== texteInitial
       }
       rafraichir()
+      // Seule une transaction qui CHANGE LE DOCUMENT programme une écriture :
+      // `setEditable` (passage en lecture seule à l'ouverture sous verrou
+      // d'autrui) émet une transaction SANS docChanged — si on programmmait
+      // quand même la sauvegarde, elle partait 600 ms plus tard, la garde du
+      // main la rejetait (« verrou non tenu par cette session ») et la bannière
+      // globale d'erreur restait affichée pendant toute la suite du scénario
+      // (attrapé par la démo visible E4 ; visible seulement aux rythmes lents,
+      // la pause efficace s'achève avant l'échéance du debounce).
+      if (!transaction.docChanged) return
       planifierSauvegarde()
     },
     onSelectionUpdate: ({ editor: ed }) => {

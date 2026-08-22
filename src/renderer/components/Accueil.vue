@@ -4,6 +4,7 @@ import ModaleDemo from './ModaleDemo.vue'
 import MigrationCorpus from './MigrationCorpus.vue'
 import NouveauCorpus from './NouveauCorpus.vue'
 import CorpusDistant from './CorpusDistant.vue'
+import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
 import { utiliserSonal } from '../composables/sonal'
 import type { ModeDemo } from '../composables/demo'
 
@@ -29,8 +30,11 @@ const modaleDemo = ref<ModeDemo | null>(null)
 const modaleMigration = ref(false)
 // Modale « Nouveau corpus… » : choisir un dossier + donner un nom de projet.
 const modaleNouveau = ref(false)
-// Modale « Corpus distant… » : comptes configurés + connexion Nextcloud (E0).
+// Modale « Ouvrir un corpus distant » : comptes configurés + connexion Nextcloud (E0).
 const modaleDistant = ref(false)
+// Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur
+// puis ouverture immédiate.
+const modaleNouveauDistant = ref(false)
 
 async function lancerPreparer(mode: ModeDemo) {
   await raccrocherEtatDemo()
@@ -69,41 +73,69 @@ async function lancerPreparer(mode: ModeDemo) {
         <p class="demo-aide">Un terrain fictif sur l'aide aux devoirs dans les associations.</p>
       </div>
 
-      <!-- Ouvrir / migrer un corpus : les deux actions GROUPÉES dans une même
-           carte, comme Mini Corpus Test (un titre + deux sous-cartes). -->
+      <!-- Vos corpus : deux mondes distincts.
+           Ligne locale = le geste du solitaire ; ligne équipe (fond teinté) =
+           Nextcloud. Les sous-titres portent l'intention (« en solo », « à
+           plusieurs »), pas la technique. La migration V1 vit en dehors, dans
+           sa propre rubrique : action exceptionnelle et
+           provisoire ≠ cycle de vie d'un corpus. -->
       <div class="corpus-bloc">
         <h3 class="corpus-titre">📁 Vos corpus</h3>
+        <!-- Ligne LOCALE -->
         <div class="cartes-demo">
           <button class="carte-demo nouveau-corpus" @click="modaleNouveau = true">
-            <div class="carte-titre">➕ Nouveau corpus…</div>
-            <div class="carte-sous">Choisir un dossier et lui donner un nom de projet</div>
+            <div class="carte-titre">➕ Nouveau corpus local</div>
+            <div class="carte-sous">Travail en solo,<br>sur ce poste</div>
           </button>
           <button class="carte-demo ouvrir-corpus" @click="choisirDossier">
-            <div class="carte-titre">📂 Ouvrir un corpus…</div>
-            <div class="carte-sous">Choisir un dossier existant (un dossier = un corpus)</div>
+            <div class="carte-titre">📂 Ouvrir un corpus local</div>
+            <div class="carte-sous">Choisir un dossier existant<br>(un dossier = un corpus)</div>
+          </button>
+        </div>
+        <!-- Ligne ÉQUIPE (séparée visuellement : un solitaire ne clique pas
+             par curiosité dans un parcours serveur qu'il ne veut pas). -->
+        <h3 class="corpus-titre equipe-titre">☁️ En équipe (Nextcloud)</h3>
+        <div class="cartes-demo equipe-ligne">
+          <!-- Publie le squelette sur le serveur puis ouvre aussitôt :
+               même comportement que la création locale. -->
+          <button class="carte-demo nouveau-corpus-distant" @click="modaleNouveauDistant = true">
+            <div class="carte-titre">☁️ Nouveau corpus distant</div>
+            <div class="carte-sous">Travail à plusieurs — le corpus vivra sur<br>votre serveur Nextcloud</div>
           </button>
           <button class="carte-demo distant-corpus" @click="modaleDistant = true">
-            <div class="carte-titre">☁️ Corpus distant…</div>
-            <div class="carte-sous">Ouvrir un corpus partagé sur Nextcloud (lecture seule, expérimental)</div>
+            <div class="carte-titre">☁️ Ouvrir un corpus distant</div>
+            <div class="carte-sous">Ouvrir un corpus partagé<br>sur un serveur Nextcloud</div>
           </button>
+        </div>
+      </div>
+
+      <!-- Migration V1 : action EXCEPTIONNELLE et provisoire → sa propre
+           rubrique au style « chantier » (bordure pointillée), au-dessus des Récents. -->
+      <div class="migration-bloc">
+        <h3 class="migration-titre">🚧 Migrer depuis SonalPi V1</h3>
+        <div class="cartes-demo">
           <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
             <div class="carte-titre">🚚 Migrer un corpus SonalPi (V1)…</div>
             <div class="carte-sous">Test provisoire — notes, commentaires et anonymisation non encore repris</div>
           </button>
         </div>
       </div>
+
       <h3 class="recents-titre">Récents</h3>
       <p v-if="recents.length === 0" class="vide">Aucun corpus récent.</p>
       <ul class="recents">
-        <li v-for="r in recents" :key="r.dir">
-          <button class="recent" @click="ouvrirRecent(r.dir)">{{ r.nom }}</button>
-          <span class="recent-dir">{{ r.dir }}</span>
-          <!-- Retire le RACCOURCI seulement : le dossier sur disque n'est pas touché
-               (l'app ne détruit jamais un corpus — ça se fait dans l'explorateur). -->
+        <li v-for="r in recents" :key="r.type === 'distant' ? `d-${r.id}` : r.dir">
+          <button class="recent" @click="ouvrirRecent(r)">
+            <span v-if="r.type === 'distant'" title="Corpus distant (serveur)">🌐</span>
+            {{ r.nom }}
+          </button>
+          <span class="recent-dir">{{ r.type === 'distant' ? r.url : r.dir }}</span>
+          <!-- Retire le RACCOURCI seulement : ni le dossier disque, ni le
+               miroir, ni le serveur ne sont touchés. -->
           <button
             class="x oubli-recent"
-            title="Retirer de la liste (ne supprime rien sur disque)"
-            @click="retirerRecent(r.dir)"
+            title="Retirer de la liste (ne supprime rien)"
+            @click="retirerRecent(r)"
           >✕</button>
         </li>
       </ul>
@@ -117,8 +149,11 @@ async function lancerPreparer(mode: ModeDemo) {
       <!-- Modale « Nouveau corpus… » (choisir un dossier + donner un nom) -->
       <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />
 
-      <!-- Modale « Corpus distant… » (comptes Nextcloud + connexion, E0) -->
+      <!-- Modale « Ouvrir un corpus distant » (comptes Nextcloud + connexion, E0) -->
       <CorpusDistant v-if="modaleDistant" @fermer="modaleDistant = false" />
+
+      <!-- Assistant « Nouveau corpus distant » : créer directement sur le serveur -->
+      <NouveauCorpusDistant v-if="modaleNouveauDistant" @fermer="modaleNouveauDistant = false" />
     </section>
 </template>
 
@@ -197,6 +232,32 @@ async function lancerPreparer(mode: ModeDemo) {
   font-size: 0.78rem;
   color: #888;
   margin-top: 0.2rem;
+}
+/* Sous-titre de la ligne équipe : même idiome que les titres de bloc,
+   teinté nuage pour marquer la frontière locale/équipe. */
+.equipe-titre {
+  color: #0277bd;
+  margin-top: 0.6rem;
+}
+.equipe-ligne {
+  border: 1px solid #dceefb;
+  background: #f4f9fd;
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+/* --- Migration V1 : rubrique propre au-dessus des Récents --- */
+.migration-bloc {
+  border: 1px dashed #d7ccc8;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem 0.6rem;
+  margin: 0 0 1rem;
+  background: #faf6f4;
+}
+.migration-titre {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #8d6e63;
+  margin: 0 0 0.5rem;
 }
 .recents-titre {
   font-size: 0.9rem;
