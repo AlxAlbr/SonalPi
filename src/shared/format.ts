@@ -330,6 +330,26 @@ export type ResultatSuppression =
  *  la portée entretien, ou un locuteur donné (par son index). */
 export type CibleValeur = { type: 'entretien' } | { type: 'locuteur'; index: number }
 
+/** Un item du LOT « modifier en lot » (plan-lot-table-donnees.md §4) : UNE
+ *  valeur EAV à poser dans UN entretien. v1 : cible entretien uniquement
+ *  (portée locuteur hors périmètre — les locuteurs diffèrent d'un entretien
+ *  à l'autre). */
+export interface ItemLotValeur {
+  entretienId: string
+  cible: CibleValeur
+  idVar: string
+  /** '' = effacer la valeur (même sémantique que `poserValeur`). */
+  idMod: string
+}
+
+/** Retour du lot : succès PAR ENTRETIEN (regroupés — un seul cycle par fichier
+ *  même si plusieurs valeurs), échecs NOMMÉS (raison affichable telle quelle).
+ *  Un échec ponctuel ne bloque jamais les autres entretiens du lot. */
+export interface ResultatLotValeur {
+  succes: string[]
+  echecs: { id: string; raison: string }[]
+}
+
 /** Un segment du résumé thématique d'un entretien (requête, jamais stockée),
  *  parité SonalPi (`resumeGraphique`).
  *  La position est une proportion dans le texte (pas le temps audio),

@@ -65,9 +65,10 @@ export async function entrerEntretien(page: Page, nth = 0): Promise<void> {
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
 }
 
-/** Depuis l'écran Corpus, ouvre la table de données (base de données). */
+/** Depuis l'écran Corpus, ouvre la table de données (base de données).
+ *  (`hasText` : le bouton « Pseudos » porte aussi la classe `.btn-table`.) */
 export async function entrerDonnees(page: Page): Promise<void> {
-  await page.locator('.btn-table').click()
+  await page.locator('.btn-table', { hasText: 'base de données' }).click()
   await expect(page.locator('.donnees-ecran')).toBeVisible({ timeout: 20_000 })
 }
 

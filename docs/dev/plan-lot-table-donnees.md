@@ -1,6 +1,7 @@
 # Plan — Saisie des valeurs en corpus distant : bouton par ligne + lot par colonne
 
-Statut : proposition (à valider avant implémentation).
+Statut : **RÉALISÉ** (phases 1 à 5 — voir `docs/dev/multi-utilisateur.md` § « Écriture de
+valeurs sans session » ; scénario e2e n° 3 dans `e2e/multi-utilisateur.e2e.ts`).
 Périmètre visé : `src/renderer/components/TableDonnees.vue`, `src/main/distant/transactions.ts`,
 `src/main/index.ts` (IPC), `src/renderer/composables/{sonal,useCorpus}.ts`, e2e + tests contrat.
 
@@ -158,6 +159,10 @@ Phase 1 petite (renderer seul) · Phase 2 moyenne (protocole + tests contrat) ·
 Phase 3 moyenne (UI) · Phase 4 petite-moyenne (e2e) · Phase 5 petite.
 
 ## 10. Et après ? — l'enchaînement naturel vers la saisie par cellule
+
+> Réalisé : voir `plan-saisie-cellule-table.md` (statut RÉALISÉ — décisions
+> produit tranchées : le lot ⇊ est conservé ; Entrée = valide + descend la
+> colonne).
 
 Le lot n'est pas un cul-de-sac : il construit le primitif qui rendra la saisie
 par cellule facile. La progression se fait en trois étapes cumulatives :

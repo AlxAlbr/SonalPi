@@ -29,11 +29,17 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { ClientWebDAV, ErreurHttp } from '../webdav/client'
 import type { MiroirWebDAV } from '../miroir'
 import type { CorpusStore } from '../corpusStore'
+import * as corpusModel from '../../shared/corpus'
 import type { IdentiteSession } from './sessions'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { ContenuVerrou, VerrouProvider } from '../verrous/types'
-import type { CorpusFichier } from '../../shared/format'
+import type {
+  CorpusFichier,
+  EntretienFichier,
+  ItemLotValeur,
+  ResultatLotValeur,
+} from '../../shared/format'
 
 /** Chemin VERROUILLÉ pour les transactions de définitions — TOUJOURS variante
  *  B (fichier annexe), cf. plan §8. */
@@ -57,6 +63,12 @@ export interface OptionsTransactions {
    *  = PUT conditionnel sur `verrous/<id>.lock.json`. Le verrou corpus, lui,
    *  est TOUJOURS en B (§8). */
   verrouNatif?: boolean
+  /** Accès MINIMAL à la couche session — défense en profondeur du lot de
+   *  valeurs (plan-lot-table-donnees.md §4.2) : si un entretien visé est
+   *  OUVERT CHEZ NOUS (impossible depuis la table aujourd'hui, qui ferme toute
+   *  session), on écrit par le chemin existant (`poserValeur` garde levée +
+   *  `noterSale`) au lieu d'une auto-concurrence de verrous. */
+  getSessions?: () => { idsTenus(): string[]; noterSale(id: string): void } | null
 }
 
 export class TransactionsCorpus {
@@ -198,6 +210,108 @@ export class TransactionsCorpus {
     }
   }
 
+  /* ── Lot de valeurs — un verrou court PAR ENTRETIEN (plan-lot-table-donnees §4) */
+
+  /** Modification en lot des valeurs EAV (table de données, colonne) : le lot
+   *  ne touche PAS `corpus.json` (pas de verrou corpus) — UN cycle par
+   *  ENTRETIEN : verrou court → GET frais → PUT If-Match → libérer (le motif
+   *  §4.7 appliqué au fichier entretien). Exécution séquentielle ; tout échec
+   *  ponctuel (entretien ouvert entre-temps par autrui, divergence 412,
+   *  réseau) est signalé nommément SANS bloquer les autres entretiens du lot.
+   *  Le miroir est écrit THROUGH (même contenu que le serveur) → la matrice
+   *  locale est fraîche sans pull complet, le prochain tirage devient no-op.
+   *  JAMAIS de verrou global : un lot long ne doit pas geler le corpus. */
+  async poserValeurLot(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
+    const succes: string[] = []
+    const echecs: { id: string; raison: string }[] = []
+    // Regrouper par entretien : UN verrou et UN aller-retour serveur même si
+    // plusieurs valeurs demandées pour le même fichier (v1 : 1 variable → 1 item).
+    const parEntretien = new Map<string, ItemLotValeur[]>()
+    for (const item of items) {
+      const liste = parEntretien.get(item.entretienId) ?? []
+      liste.push(item)
+      parEntretien.set(item.entretienId, liste)
+    }
+    const sessions = this.options.getSessions?.() ?? null
+    for (const [id, lot] of parEntretien) {
+      try {
+        if (sessions?.idsTenus().includes(id)) {
+          // Session À NOUS sur cet id (défense en profondeur, cf. options) :
+          // chemin existant — la publication suivra la session (`noterSale`),
+          // jamais un second verrou sur un fichier déjà à nous.
+          const store = this.getStore()
+          const gardePrecedente = store.lectureSeule
+          store.lectureSeule = false
+          try {
+            for (const item of lot)
+              if (!store.poserValeur(item.entretienId, item.cible, item.idVar, item.idMod))
+                throw new ErreurTransaction(`« ${item.entretienId} » est introuvable dans le corpus.`)
+          } finally {
+            store.lectureSeule = gardePrecedente
+          }
+          sessions.noterSale(id)
+        } else {
+          await this.poserValeurHorsSession(id, lot)
+        }
+        succes.push(id)
+      } catch (e) {
+        echecs.push({ id, raison: classifier(e).message })
+      }
+    }
+    return { succes, echecs }
+  }
+
+  /** Le cycle d'UN entretien hors session : acquerir → GET frais → mutation
+   *  pure locale → PUT If-Match → écriture THROUGH du miroir, `liberer`
+   *  TOUJOURS en `finally` (y compris sur échec). Divergence 412 ou réseau :
+   *  exception propagée à l'appelant (échec nommé, miroir NON modifié — il
+   *  n'est écrit qu'après un PUT réussi). Pas de retry v1 : l'utilisateur
+   *  relance le lot. */
+  private async poserValeurHorsSession(id: string, lot: ItemLotValeur[]): Promise<void> {
+    const provider = this.providerPourEntretien()
+    const cheminVerrou = this.cheminVerrouEntretien(id)
+    const acquisition = await provider.acquerir(cheminVerrou)
+    if (!acquisition.ok) {
+      throw new ErreurTransaction(
+        `« ${id} » est ouvert par ${acquisition.tenuPar?.userId ?? 'un autre utilisateur'} — impossible de le modifier tant que cette session tient.`,
+      )
+    }
+    try {
+      const cheminFichier = CHEMIN_ENTRETIEN(id)
+      // La version d'APRÈS-verrou fait foi (§4.7) : GET frais du SERVEUR,
+      // jamais confiance à la copie miroir (périmée possible).
+      const etagServeur = await this.etagServeurDe(cheminFichier)
+      let brut: string
+      if (etagServeur) brut = await this.client.getTexte(cheminFichier)
+      else
+        brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir
+      const data = JSON.parse(brut) as EntretienFichier
+      // Mutation pure locale — parité `store.poserValeur`, sans toucher au
+      // membership (§4.7).
+      for (const item of lot) corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)
+      data.lastModified = new Date().toISOString()
+      const contenu = JSON.stringify(data, null, 2)
+      // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
+      const nouveauEtag = await this.client.putTexte(
+        cheminFichier,
+        contenu,
+        etagServeur ? { ifMatch: etagServeur } : {},
+      )
+      const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? etagServeur ?? ''
+      // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en
+      // local (écriture atomique, même utilitaire que le store) — la matrice
+      // est fraîche sans pull complet.
+      const abs = join(this.miroir.dirLocal, cheminFichier)
+      mkdirSync(dirname(abs), { recursive: true })
+      const tmp = `${abs}.tmp`
+      writeFileSync(tmp, contenu, 'utf8')
+      renameSync(tmp, abs)
+      if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
+    } finally {
+      await provider.liberer(cheminVerrou).catch(() => {})
+    }
+  }
+
   /* ── Aides internes ──────────────────────────────────────────────────────── */
 
   /** GET frais de `corpus.json` si le serveur n'est plus la version du
@@ -253,6 +367,31 @@ export class TransactionsCorpus {
     const entree = (await this.client.propfind(dossier)).find((x) => x.chemin === nom)
     return entree?.etag ?? null
   }
+}
+
+/* ── Lot de valeurs en corpus LOCAL (plan-lot-table-donnees §4.5) ─────────*/
+
+/** Pas de transaction ni de garde en local (aucune couche session) : boucle
+ *  directe du store, MÊMES résultats qu'en distant — succès par entretien,
+ *  échecs nommés, un échec ne bloque jamais les autres. */
+export async function poserValeurLotLocal(
+  store: CorpusStore,
+  items: ItemLotValeur[],
+): Promise<ResultatLotValeur> {
+  const succes: string[] = []
+  const echecs: { id: string; raison: string }[] = []
+  const ids = [...new Set(items.map((i) => i.entretienId))]
+  for (const id of ids) {
+    try {
+      for (const item of items.filter((i) => i.entretienId === id))
+        if (!store.poserValeur(item.entretienId, item.cible, item.idVar, item.idMod))
+          throw new Error(`« ${id} » est introuvable dans le corpus.`)
+      succes.push(id)
+    } catch (e) {
+      echecs.push({ id, raison: classifier(e).message })
+    }
+  }
+  return { succes, echecs }
 }
 
 /* ── Classification des échecs (messages §4.6.1 / §4.7) ──────────────────────*/

@@ -6,6 +6,7 @@ import type {
   CibleValeur,
   CorpusFichier,
   EntretienRef,
+  ItemLotValeur,
   MatriceCorpus,
   PatchCategorie,
   RegleAnon,
@@ -197,15 +198,28 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
 
   // --- Table de données éditable : écriture ciblée + re-requête ---
-  async function poserValeurTable(entretienId: string, cible: CibleValeur, idVar: string, idMod: string) {
-    await window.sonal.corpus.poserValeur(entretienId, cible, idVar, idMod)
-    await rafraichirMatrice()
+  /** plan-saisie-cellule-table.md §3-§4 : valider UNE cellule = le primitif du
+   *  lot avec UN item (verrou court → GET frais → PUT If-Match → miroir
+   *  écrit-through ; en local, poserValeurLotLocal — mêmes résultats). Renvoie
+   *  la raison NOMINATIVE du refus éventuel (null = succès) pour l'erreur
+   *  inline de la cellule ; les rejets IPC (réseau…) ne sont PAS catchés : ils
+   *  remontent à la bannière globale (erreurs.ts), comme pour le lot. */
+  async function validerCelluleTable(
+    entretienId: string,
+    cible: CibleValeur,
+    idVar: string,
+    idMod: string,
+  ): Promise<string | null> {
+    const r = await window.sonal.corpus.poserValeurLot([{ entretienId, cible, idVar, idMod }])
+    if (r.echecs.length > 0) return r.echecs[0].raison
+    await rafraichirMatrice() // miroir fraîchi par le lot → re-requête suffit
+    return null
   }
-  function poserGen(entretienId: string, idVar: string, idMod: string) {
-    return poserValeurTable(entretienId, { type: 'entretien' }, idVar, idMod)
+  async function poserGen(entretienId: string, idVar: string, idMod: string) {
+    return validerCelluleTable(entretienId, { type: 'entretien' }, idVar, idMod)
   }
-  function poserLoc(entretienId: string, index: number, idVar: string, idMod: string) {
-    return poserValeurTable(entretienId, { type: 'locuteur', index }, idVar, idMod)
+  async function poserLoc(entretienId: string, index: number, idVar: string, idMod: string) {
+    return validerCelluleTable(entretienId, { type: 'locuteur', index }, idVar, idMod)
   }
   /** SAISIE LIBRE (parité SonalPi `definirValeur`) : trouve-ou-crée la modalité
    *  par LIBELLÉ (code max+1 si inconnu — l'export EAV exige une entrée de
@@ -216,6 +230,12 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
     return modalitesDe(idVar).find((m) => m.lib === lib)!.id
   }
+  /** LOT « modifier en lot » (plan-lot-table-donnees.md §4-§5) : une valeur
+   *  appliquée à plusieurs entretiens — verrou court par entretien côté main ;
+   *  échecs nommés, un échec ne bloque jamais les autres. */
+  function poserValeurLot(items: ItemLotValeur[]) {
+    return window.sonal.corpus.poserValeurLot(items)
+  }
 
   // --- Étape 3a — règles corpus & scan (panneau « Pseudos », lecture seule) ---
   /** Re-requête le scan : relit les règles + tous les entretiens sur disque.
@@ -225,10 +245,10 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     scanAnon.value = await window.sonal.corpus.scanAnon()
   }
   async function poserGenLibelle(entretienId: string, idVar: string, lib: string) {
-    await poserGen(entretienId, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
+    return poserGen(entretienId, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
   }
   async function poserLocLibelle(entretienId: string, index: number, idVar: string, lib: string) {
-    await poserLoc(entretienId, index, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
+    return poserLoc(entretienId, index, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
   }
 
   return {
@@ -282,5 +302,6 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     poserGenLibelle,
     poserLocLibelle,
     modaliteParLibelle,
+    poserValeurLot,
   }
 }

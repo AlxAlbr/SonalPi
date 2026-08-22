@@ -20,8 +20,8 @@
  * Olivier ouvre la BASE DE DONNÉES (Table de données) au niveau Corpus :
  *   - elle reste ACCESSIBLE et interactive (jamais lecture seule) ;
  *   - la colonne « Ville » y apparaît après Actualiser (définitions partagées) ;
- *   - la LIGNE de l'entretien verrouillé par max REFUSE l'écriture (garde
- *     dure côté main : bannière « non modifiable ») — la valeur ne parte pas ;
+ *   - la LIGNE de l'entretien verrouillé par max est NON ÉDITABLE (garde
+ *     par ligne, plan-saisie-cellule-table.md §4 : cellules désactivées) ;
  *   - dès que le verrou change de mains, la MÊME saisie passe (via l'onglet
  *     Donnée de l'Entretien, seul écran où le verrou autorise d'écrire) et la
  *     table la montre au prochain tirage.
@@ -30,6 +30,23 @@
  * bandeau en haut d'écran (« Max ouvre le corpus… ») et les deux fenêtres
  * sont placées CÔTE À CÔTE (moitié gauche / moitié droite de l'écran — sinon
  * elles se superposent).
+ *
+ * TROISIÈME scénario (plan-lot-table-donnees.md §6) : écriture de valeurs SANS
+ * session, les deux gestes. Un SECOND entretien est amorcé pour avoir deux
+ * lignes cibles. Max ouvre l'entretien 1 (verrou). Olivier lance le LOT sur la
+ * colonne « Ville » : l'entretien LIBRE est modifié, celui de max est REFUSÉ
+ * nommément (« ouvert par max ») — sans bloquer le reste du lot. Max referme ;
+ * Olivier utilise alors le BOUTON LIGNE « Saisir… » : il atterrit sur l'onglet
+ * Donnée de CET entretien, saisit sa valeur, publiée à la fermeture (§4.4).
+ *
+ * QUATRIÈME scénario (plan-saisie-cellule-table.md §6) : saisie par CELLULE
+ * avec garde PAR LIGNE. Max crée « Ville » puis referme ; Olivier ouvre la
+ * table (deux lignes libres, cellules actives). Max REPREND le verrou dans le
+ * dos d'Olivier (badges pas encore à jour) : l'édition de la cellule verrouillée
+ * est REFUSÉE EN INLINE (bord rouge + raison « ouvert par max ») sans bloquer
+ * la suite ; l'autre ligne passe, Shift+Entrée remonte la colonne.
+ * Actualiser révèle alors le badge 🔒 et désactive SA ligne (garde par ligne) ;
+ * dès que le verrou change de mains, la MÊME cellule accepte la valeur.
  *
  * DEUX RYTHMES, même scénario et mêmes ASSERTIONS :
  *   - SUITE DE TEST (`npm run test:e2e`) : mode EFFICACE par défaut — pauses
@@ -52,6 +69,7 @@ const BASE = 'http://localhost:8080' // pile A : NC31 + files_lock (variante A)
 const MAX = { utilisateur: 'max', motDePasse: 'max-max-1234' }
 const OLIVIER = { utilisateur: 'olivier', motDePasse: 'olivier-olivier-5678' }
 const ID = 'ent-demo-multi'
+const ID2 = 'ent-demo-multi-2' // second entretien : deux lignes cibles pour le lot
 /** MODE DÉMO : actif seulement si DEMO_PAUSE_MS > 0. Sans variable (suite de
  *  test), le scénario tourne en mode EFFICACE : mêmes gestes et mêmes
  *  assertions, pauses minimales, pas de bandeaux ni de frappe ralentie. */
@@ -152,6 +170,7 @@ function corpusInitial(): string {
     personnes: {},
     membership: {
       [ID]: { titre: 'Entretien partagé', date: null, lastModified: '2026-01-01T00:00:00Z' },
+      [ID2]: { titre: 'Entretien bis', date: null, lastModified: '2026-01-01T00:00:00Z' },
     },
   }
   return JSON.stringify(c, null, 2)
@@ -183,7 +202,9 @@ async function amorcer(): Promise<{ original: string | null }> {
   }
   await c.putTexte('corpus.json', corpusInitial())
   await c.putTexte(`entretiens/${ID}.json`, entretienInitial())
+  await c.putTexte(`entretiens/${ID2}.json`, entretienInitial())
   await c.supprimer(`verrous/${ID}.lock.json`).catch(() => {})
+  await c.supprimer(`verrous/${ID2}.lock.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID}.json`).catch(() => {})
   // Présences résiduelles d'un passage antérieur : encore fraîches (< 10 min)
   // elles produiraient des badges fantômes. Purge best effort.
@@ -199,8 +220,11 @@ async function nettoyer(original: string | null): Promise<void> {
   if (original !== null) await c.putTexte('corpus.json', original).catch(() => {})
   else await c.supprimer('corpus.json').catch(() => {})
   await c.supprimer(`entretiens/${ID}.json`).catch(() => {})
+  await c.supprimer(`entretiens/${ID2}.json`).catch(() => {})
   await c.supprimer(`verrous/${ID}.lock.json`).catch(() => {})
+  await c.supprimer(`verrous/${ID2}.lock.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID}.json`).catch(() => {})
+  await c.deverrouiller(`entretiens/${ID2}.json`).catch(() => {})
 }
 
 /* ── Gestes UI ──────────────────────────────────────────────────────────────*/
@@ -390,7 +414,7 @@ async function attendreDefinitionServeur(frag: string): Promise<void> {
   await expect
     .poll(() => clientMax().getTexte('corpus.json').then((t) => t?.includes(frag)), {
       timeout: 20_000,
-      interval: 200,
+      intervals: [200],
     })
     .toBe(true)
 }
@@ -473,21 +497,19 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     await expect(pOli.locator('.matrice th', { hasText: 'Ville' })).toBeVisible({ timeout: 20_000 })
     // Le composant Corpus reste MONTÉ (v-show) → restreindre à l'écran table.
     await expect(pOli.locator('.donnees-ecran .badge-verrou', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
-    // Pas de lecture seule : la cellule reste ACTIVE (seul hors ligne la grise).
-    await expect(pOli.locator('.matrice.editable select').first()).toBeEnabled()
 
-    /* 4. Olivier tente d'écrire sur LA LIGNE VERROUILLÉE : refus visible
-     *    (garde dure côté main → bannière globale) et valeur absente du
-     *    serveur. */
-    console.log('④ Olivier tente de remplir la ligne verrouillée : refus…')
-    await narrer(pOli, 'Il choisit « Lyon » sur la ligne tenue par max…')
-    await pOli.locator('.matrice.editable select').first().selectOption({ label: 'Lyon' })
-    await expect(pOli.locator('.banniere.refus', { hasText: 'non modifiable' })).toBeVisible({ timeout: 20_000 })
-    await pause(pOli, '⛔ Refusé : cette ligne est sous le verrou de max…')
+    /* 4. La ligne verrouillée est NON ÉDITABLE : garde PAR LIGNE
+     *    (plan-saisie-cellule-table.md §4) — les cellules de la ligne tenue
+     *    par max sont désactivées, impossible même de TENTER l'écriture.
+     *    (Avant la saisie par cellule, la cellule restait active et le refus
+     *     venait du main sous forme de bannière.) */
+    console.log('④ La ligne verrouillée est désactivée (garde par ligne)…')
+    await narrer(pOli, 'La ligne tenue par max est GRISÉE : impossible de la modifier.')
+    await expect(pOli.locator('.matrice.editable select').first()).toBeDisabled({ timeout: 20_000 })
     const brutRefus = await clientMax().getTexte(`entretiens/${ID}.json`)
     if (brutRefus === null) throw new Error('entretien introuvable côté serveur')
     const valeursRefus = JSON.parse(brutRefus) as { meta: { valeursGen: Record<string, string> } }
-    expect(Object.keys(valeursRefus.meta.valeursGen)).toHaveLength(0) // rien n'est parti
+    expect(Object.keys(valeursRefus.meta.valeursGen)).toHaveLength(0) // rien n'a pu partir
 
     /* 5. Max referme (verrou rendu) ; Olivier ouvre À SON TOUR : la MÊME
      *    saisie passe maintenant — depuis l'onglet Donnée de l'Entretien
@@ -519,6 +541,271 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     await narrer(pOli, '✅ Variable partagée, ligne verrouillée protégée, table toujours consultable.')
     if (DEMO) await pOli.waitForTimeout(5000) // temps de regarder les fenêtres
     await testInfo.attach('fin', { body: 'scénario variable/verrou table OK', contentType: 'text/plain' })
+  } finally {
+    await appMax.close()
+    await appOlivier.close()
+    await nettoyer(original)
+  }
+})
+
+/* ── Scénario 3 : LOT par colonne + saisie par LIGNE (plan-lot-table-donnees §6) */
+
+/** Crée la variable d'entretien « Ville » (+ modalité « Lyon ») depuis l'onglet
+ *  Donnée de l'entretien OUVERT (mêmes gestes et mêmes barrières serveur que le
+ *  scénario 2 — les transactions de définitions se disputent sinon le verrou). */
+async function creerVariableVille(page: Page): Promise<void> {
+  await page.locator('.onglets button[data-onglet="donnees"]').click()
+  await page.locator('.panneau.donnees .crayon').click()
+  await expect(page.locator('.modale-vars')).toBeVisible({ timeout: 20_000 })
+  await page.locator('.modale-vars .corpus-tete .mini', { hasText: "+ var. d'entretien" }).click()
+  const varLi = page.locator('.modale-vars .liste-var > li').first()
+  await varLi.locator('.nom-var').fill('Ville')
+  await varLi.locator('.nom-var').press('Enter')
+  await attendreDefinitionServeur('"Ville"')
+  await varLi.locator('.actions-mod .mini').click()
+  const moda = varLi.locator('.lib-mod').first()
+  await moda.fill('Lyon')
+  await moda.press('Tab')
+  await attendreDefinitionServeur('"Lyon"')
+  await page.locator('.modale-vars .fermer').click()
+  await expect(page.locator('.modale-vars')).toHaveCount(0)
+}
+
+test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis saisie par LIGNE « Saisir… »', async ({ }, testInfo) => {
+  test.setTimeout(DEMO ? 600_000 : 240_000)
+  if (!(await pret())) {
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    test.skip(true, 'pile Docker non disponible')
+  }
+
+  const { original } = await amorcer()
+  const dirMax = mkdtempSync(join(tmpdir(), 'demo-lot-max-'))
+  const dirOlivier = mkdtempSync(join(tmpdir(), 'demo-lot-oli-'))
+  console.log('🚀 Lancement des deux postes…')
+  const appMax = await lancer(dirMax)
+  const appOlivier = await lancer(dirOlivier)
+  try {
+    const pMax = await appMax.firstWindow()
+    const pOli = await appOlivier.firstWindow()
+    await placerFenetre(appMax, 'gauche')
+    await placerFenetre(appOlivier, 'droite')
+    await pause(pMax, "Ici, c'est l'écran de Max")
+    await pause(pOli, "Ici, c'est l'écran d'Olivier")
+
+    /* 1. Connexion des deux postes (mêmes gestes que les scénarios 1–2). */
+    console.log('① Connexion des deux postes…')
+    await connecterEtOuvrir(pMax, 'Max', `${BASE}/remote.php/dav/files/max/MonCorpus`, MAX.utilisateur, MAX.motDePasse)
+    await connecterEtOuvrir(pOli, 'Olivier', `${BASE}/remote.php/dav/files/olivier/MonCorpus`, OLIVIER.utilisateur, OLIVIER.motDePasse)
+    for (const [nom, p] of [
+      ['max', pMax],
+      ['olivier', pOli],
+    ] as const) {
+      p.on('pageerror', (e) => console.log(`⚠️ [${nom}] pageerror:`, e.message))
+      p.on('console', (m) => {
+        if (m.type() === 'error' || m.text().includes('🧵'))
+          console.log(`⚠️ [${nom}] console.${m.type()}:`, m.text())
+      })
+    }
+
+    /* 2. Max ouvre l'entretien 1 (verrou acquis) et crée la variable « Ville ». */
+    console.log("② Max ouvre l'entretien et crée la variable « Ville » sous verrou…")
+    await pause(pMax, "Max ouvre l'entretien : le VERROU lui est accordé…")
+    await ouvrirEntretien(pMax)
+    await narrer(pMax, "Il crée la variable d'entretien « Ville » (modalité « Lyon »)…")
+    await creerVariableVille(pMax)
+    const corpusApresVar = await clientMax().getTexte('corpus.json')
+    if (!corpusApresVar?.includes('"Ville"')) throw new Error('variable « Ville » absente du serveur')
+
+    /* 3. Olivier ouvre la base de données et lance le LOT sur « Ville ». */
+    console.log("③ Olivier lance le lot sur la colonne « Ville »…")
+    await narrer(pOli, 'Olivier actualise puis ouvre la base de données…')
+    await ouvrirBaseDonnees(pOli)
+    await expect(pOli.locator('.matrice th', { hasText: 'Ville' })).toBeVisible({ timeout: 20_000 })
+    // Deux lignes cibles (amorcer a créé un second entretien), dont une 🔒 max.
+    await expect(pOli.locator('.donnees-ecran .badge-verrou', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
+    await pause(pOli, 'Deux entretiens — dont un verrouillé par max. Il lance le LOT sur « Ville »…')
+    await pOli.locator('.matrice th', { hasText: 'Ville' }).locator('.lot-var').click()
+    await expect(pOli.locator('.modale-lot')).toBeVisible({ timeout: 20_000 })
+    await expect(pOli.locator('.modale-lot .liste-cibles li')).toHaveCount(2)
+    await pOli.locator('.modale-lot select').selectOption({ label: 'Lyon' })
+    await narrer(pOli, 'Il choisit « Lyon » et applique à TOUT LE LOT…')
+    await pOli.locator('.modale-lot .valider').click()
+
+    /* Récap : 1 modifié, 1 REFUSÉ nommément — sans bloquer le reste du lot. */
+    console.log('   → récap attendu : ID2 modifié, ID refusé (« ouvert par max »)')
+    await expect(pOli.locator('.modale-lot .recap-ok')).toContainText('1 entretien(s) modifié(s)', { timeout: 30_000 })
+    await expect(pOli.locator('.modale-lot .liste-echecs')).toContainText('Entretien partagé')
+    await expect(pOli.locator('.modale-lot .liste-echecs')).toContainText('max')
+    await pause(pOli, '⛔ L\u2019entretien de max est refusé nommément — l\u2019autre est passé quand même.')
+    // Vérifications SERVEUR : ID2 modifié, ID intact, verrou d'ID TOUJOURS tenu.
+    const id2 = JSON.parse((await clientMax().getTexte(`entretiens/${ID2}.json`))!) as { meta: { valeursGen: Record<string, string> } }
+    expect(Object.keys(id2.meta.valeursGen)).toHaveLength(1)
+    const id1 = JSON.parse((await clientMax().getTexte(`entretiens/${ID}.json`))!) as { meta: { valeursGen: Record<string, string> } }
+    expect(Object.keys(id1.meta.valeursGen)).toHaveLength(0)
+    expect((await clientMax().etatVerrouNatif(`entretiens/${ID}.json`))?.verrouille).toBeTruthy()
+    await pOli.locator('.modale-lot .valider').click() // Fermer
+
+    /* Filtre « lignes sans valeur » (plan-saisie-cellule-table §10) : à cet
+     * instant ID est sans valeur mais 🔒 max, ID2 porte déjà « Lyon » → le
+     * filtre ne cible RIEN et affiche les 2 exclus avec leur raison. */
+    console.log('   → filtre « sans valeur » : 0 cible (1 verrouillé + 1 déjà valué)')
+    await pOli.locator('.matrice th', { hasText: 'Ville' }).locator('.lot-var').click()
+    const mf = pOli.locator('.modale-lot')
+    await expect(mf).toBeVisible({ timeout: 20_000 })
+    await mf.locator('.filtre-sans-valeur input').check()
+    await expect(mf.locator('.liste-cibles li:not(.aucune-cible)')).toHaveCount(0)
+    await expect(mf.locator('.liste-ignores li')).toHaveCount(2)
+    await expect(mf.locator('.liste-ignores')).toContainText('max')
+    await expect(mf.locator('.liste-ignores')).toContainText('valeur déjà présente')
+    await mf.locator('.fermer').click() // ✕ — on n'applique rien
+    await expect(pOli.locator('.modale-lot')).toHaveCount(0)
+
+    /* 4. Max referme ; Olivier utilise le BOUTON LIGNE « Saisir… » de l'ID. */
+    console.log(`④ Max referme ; Olivier saisit via le bouton ligne de ${ID}…`)
+    await narrer(pMax, 'Max referme : publication finale PUIS verrou rendu…')
+    await retourAuCorpus(pMax)
+    await narrer(pOli, 'Olivier actualise : plus de badge, il essaie le bouton « Saisir… »…')
+    await retourAuCorpus(pOli)
+    await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
+    await expect(pOli.locator('.badge-verrou')).toHaveCount(0, { timeout: 20_000 })
+    await ouvrirBaseDonnees(pOli)
+    await pOli.locator('.matrice tbody tr', { hasText: 'Entretien partagé' }).locator('.aller-saisie').click()
+    await expect(pOli.locator('.editeur')).toBeVisible({ timeout: 20_000 })
+    await expect(pOli.locator('.panneau.donnees')).toBeVisible()
+    await narrer(pOli, 'Atterri sur l\u2019ONGLET DONNÉE de cet entretien — il saisit « Lyon »…')
+    await pOli.locator('.saisie-eav-sel').first().selectOption({ label: 'Lyon' })
+    await narrer(pOli, 'Olivier referme : la valeur part avec la publication finale…')
+    await retourAuCorpus(pOli)
+    const apres = JSON.parse((await clientMax().getTexte(`entretiens/${ID}.json`))!) as { meta: { valeursGen: Record<string, string> } }
+    expect(Object.keys(apres.meta.valeursGen)).toHaveLength(1)
+
+    /* 5. La table montre TOUT après Actualiser. */
+    console.log('⑤ La table montre les deux valeurs après Actualiser…')
+    await ouvrirBaseDonnees(pOli)
+    await expect(pOli.locator('.matrice')).toContainText('Lyon', { timeout: 20_000 })
+    await narrer(pOli, '✅ Lot par colonne ET saisie par ligne — zéro écrasement, refus nominatif.')
+    if (DEMO) await pOli.waitForTimeout(5000)
+    await testInfo.attach('fin', { body: 'scénario lot/saisie OK', contentType: 'text/plain' })
+  } finally {
+    await appMax.close()
+    await appOlivier.close()
+    await nettoyer(original)
+  }
+})
+
+/* ── Scénario 4 : saisie par CELLULE (plan-saisie-cellule-table.md §6) ─────*/
+
+test('démo visible : saisie par CELLULE — refus inline nominatif, garde par ligne, Shift+Entrée remonte', async ({ }, testInfo) => {
+  test.setTimeout(DEMO ? 600_000 : 240_000)
+  if (!(await pret())) {
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    test.skip(true, 'pile Docker non disponible')
+  }
+
+  const { original } = await amorcer()
+  const dirMax = mkdtempSync(join(tmpdir(), 'demo-cell-max-'))
+  const dirOlivier = mkdtempSync(join(tmpdir(), 'demo-cell-oli-'))
+  console.log('🚀 Lancement des deux postes…')
+  const appMax = await lancer(dirMax)
+  const appOlivier = await lancer(dirOlivier)
+  try {
+    const pMax = await appMax.firstWindow()
+    const pOli = await appOlivier.firstWindow()
+    await placerFenetre(appMax, 'gauche')
+    await placerFenetre(appOlivier, 'droite')
+    await pause(pMax, "Ici, c'est l'écran de Max")
+    await pause(pOli, "Ici, c'est l'écran d'Olivier")
+
+    /* 1. Connexion des deux postes (mêmes gestes que les scénarios 1–3). */
+    console.log('① Connexion des deux postes…')
+    await connecterEtOuvrir(pMax, 'Max', `${BASE}/remote.php/dav/files/max/MonCorpus`, MAX.utilisateur, MAX.motDePasse)
+    await connecterEtOuvrir(pOli, 'Olivier', `${BASE}/remote.php/dav/files/olivier/MonCorpus`, OLIVIER.utilisateur, OLIVIER.motDePasse)
+
+    /* 2. Max crée la variable « Ville » puis REFERME (verrou rendu). */
+    console.log('② Max crée la variable « Ville » sous verrou puis referme…')
+    await pause(pMax, "Max ouvre l'entretien et crée la variable « Ville »…")
+    await ouvrirEntretien(pMax)
+    await creerVariableVille(pMax)
+    await narrer(pMax, 'Il referme : définitions publiées, verrou rendu…')
+    await retourAuCorpus(pMax)
+
+    /* 3. Olivier ouvre la table : deux lignes LIBRES — cellules actives,
+     *    badges absents (son dernier tirage ne connaît aucun verrou). */
+    console.log('③ Olivier ouvre la table — deux lignes libres, cellules actives…')
+    await ouvrirBaseDonnees(pOli)
+    await expect(pOli.locator('.matrice th', { hasText: 'Ville' })).toBeVisible({ timeout: 20_000 })
+    const sels = pOli.locator('.matrice.editable td.cell-val select') // une seule colonne → 2 cellules
+    await expect(sels).toHaveCount(2)
+    await expect(pOli.locator('.badge-verrou')).toHaveCount(0)
+    await pause(pOli, 'Deux lignes libres. Pendant ce temps, max REPREND le verrou…')
+
+    /* 4. Max reprend le verrou DANS LE DOS d'Olivier (badges périmés). */
+    await ouvrirEntretien(pMax)
+
+    /* 5. Olivier édite la cellule verrouillée → REFUS INLINE nominatif. */
+    console.log('⑤ Olivier édite la cellule verrouillée → refus inline nominatif…')
+    const lignePartage = pOli.locator('.matrice tbody tr', { hasText: 'Entretien partagé' })
+    await lignePartage.locator('select').selectOption({ label: 'Lyon' })
+    await narrer(pOli, '⛔ Refus INLINE : bord rouge + raison (« ouvert par max ») — sans bloquer la suite.')
+    const cellErr = lignePartage.locator('.cell-erreur')
+    await expect(cellErr).toBeVisible({ timeout: 30_000 })
+    await expect(cellErr).toHaveAttribute('title', /max/)
+
+    /* 6. Olivier édite l'AUTRE ligne (libre) : succès — Shift+Entrée remonte. */
+    console.log("⑥ Olivier édite l'autre ligne : succès — Shift+Entrée remonte la colonne…")
+    const ligneBis = pOli.locator('.matrice tbody tr', { hasText: 'Entretien bis' })
+    await ligneBis.locator('select').selectOption({ label: 'Lyon' })
+    // Le commit part en arrière-plan ; on attend sa trace SERVEUR avant de
+    // naviguer (un re-rendu suit le rafraîchissement de la matrice).
+    await expect
+      .poll(async () => {
+        const t = await clientMax().getTexte(`entretiens/${ID2}.json`)
+        return Object.keys(JSON.parse(t!).meta.valeursGen).length
+      }, { timeout: 30_000 })
+      .toBe(1)
+    await ligneBis.locator('select').focus()
+    await pOli.keyboard.press('Shift+Enter')
+    const indiceFocus = () =>
+      sels.evaluateAll((els) => els.findIndex((e) => e === document.activeElement))
+    expect(await indiceFocus()).toBe(0) // remonté sur la ligne du haut
+
+    /* Vérifications SERVEUR : ID2 écrit, ID intact, verrou TOUJOURS tenu. */
+    const id1 = JSON.parse((await clientMax().getTexte(`entretiens/${ID}.json`))!) as {
+      meta: { valeursGen: Record<string, string> }
+    }
+    expect(Object.keys(id1.meta.valeursGen)).toHaveLength(0)
+    expect((await clientMax().etatVerrouNatif(`entretiens/${ID}.json`))?.verrouille).toBeTruthy()
+
+    /* 7. Actualiser : badge 🔒 révélé, SA ligne devient non éditable. */
+    console.log('⑦ Actualiser : badge 🔒 max et SA ligne désactivée (garde par ligne)…')
+    await narrer(pOli, 'Après Actualiser : badge 🔒 et SA ligne est désactivée.')
+    await retourAuCorpus(pOli)
+    await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
+    // Deux badges 🔒 max coexistent à l'écran Corpus (carte + ligne) : .first().
+    await expect(pOli.locator('.badge-verrou', { hasText: 'max' }).first()).toBeVisible({ timeout: 20_000 })
+    await ouvrirBaseDonnees(pOli)
+    await expect(lignePartage.locator('select')).toBeDisabled({ timeout: 20_000 })
+    await pause(pOli, 'La ligne de max est verrouillée : impossible même de cliquer.')
+
+    /* 8. Max referme ; Olivier actualise, RE-saisit la MÊME cellule : ça passe. */
+    console.log('⑧ Max referme ; Olivier resaisit la même cellule : succès…')
+    await narrer(pMax, 'Max referme : publication finale PUIS verrou rendu…')
+    await retourAuCorpus(pMax)
+    await retourAuCorpus(pOli)
+    await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
+    await expect(pOli.locator('.badge-verrou')).toHaveCount(0, { timeout: 20_000 })
+    await ouvrirBaseDonnees(pOli)
+    await narrer(pOli, 'Le verrou a changé de mains : la MÊME cellule accepte « Lyon »…')
+    await lignePartage.locator('select').selectOption({ label: 'Lyon' })
+    await expect
+      .poll(async () => {
+        const t = await clientMax().getTexte(`entretiens/${ID}.json`)
+        return Object.keys(JSON.parse(t!).meta.valeursGen).length
+      }, { timeout: 30_000 })
+      .toBe(1)
+    await narrer(pOli, '✅ Saisie par cellule : refus inline nommé, garde par ligne, zéro écrasement.')
+    if (DEMO) await pOli.waitForTimeout(5000)
+    await testInfo.attach('fin', { body: 'scénario saisie par cellule OK', contentType: 'text/plain' })
   } finally {
     await appMax.close()
     await appOlivier.close()

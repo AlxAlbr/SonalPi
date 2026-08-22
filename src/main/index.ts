@@ -15,7 +15,7 @@ import { profilerServeur, sonderFilesLock } from './webdav/sondes'
 import { MiroirWebDAV } from './miroir'
 import { coffreReel, type ConfigCorpusDistant } from './distant/coffre'
 import { SessionsDEntretien } from './distant/sessions'
-import { TransactionsCorpus } from './distant/transactions'
+import { TransactionsCorpus, poserValeurLotLocal } from './distant/transactions'
 import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
@@ -26,6 +26,7 @@ import type {
   EntreeRecent,
   EtatDemo,
   EtatDemoComplet,
+  ItemLotValeur,
   MarqueurDemo,
   PatchCategorie,
   PayloadEntretien,
@@ -665,7 +666,12 @@ function enregistrerIpcCorpus(): void {
       miroir,
       () => store,
       () => ({ userId: config.utilisateur, machineId, sessionId: SESSION_ID }),
-      { verrouNatif },
+      {
+        verrouNatif,
+        // Défense en profondeur du lot (plan-lot-table-donnees.md §4.2) :
+        // un entretien OUVERT chez nous passe par le chemin session existant.
+        getSessions: () => sessions,
+      },
     )
     // Présence (E4 §9) : battement 60 s tant que le corpus distant est ouvert.
     presence?.arreter()
@@ -839,6 +845,12 @@ function enregistrerIpcCorpus(): void {
       if (ok) sessions?.noterSale(entretienId)
       return ok
     },
+  )
+  // Lot « modifier en lot » (plan-lot-table-donnees.md §4) : distant →
+  // transactions (verrou court par entretien, échecs nommés) ; local → boucle
+  // directe du store. Mêmes résultats dans les deux modes.
+  ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) =>
+    transactions ? transactions.poserValeurLot(items) : poserValeurLotLocal(store, items),
   )
 
   // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser),

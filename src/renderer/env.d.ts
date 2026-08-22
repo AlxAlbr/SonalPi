@@ -14,6 +14,7 @@ import type {
   EntreeRecent,
   EtatDemo,
   EtatDemoComplet,
+  ItemLotValeur,
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
@@ -21,6 +22,7 @@ import type {
   PatchCategorie,
   PayloadEntretien,
   RegleAnon,
+  ResultatLotValeur,
   ResultatSuppression,
   ResultatSuppressionCategorie,
   SegmentThematique,
@@ -111,6 +113,7 @@ declare global {
           idVar: string,
           idMod: string,
         ) => Promise<boolean>
+        poserValeurLot: (items: ItemLotValeur[]) => Promise<ResultatLotValeur>
       }
       dialog: {
         choisirTexte: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>

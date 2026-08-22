@@ -80,6 +80,45 @@ Hors ligne : politique α — les gestes flux B exigent la connexion (refus imm�
 l'édition des entretiens sous verrou continue (flux A). C'est le computed `lectureSeule`
 (`composables/sonal.ts`) observé par l'UI, alimenté par le pull (le pull EST la sonde réseau).
 
+## Écriture de valeurs sans session — le lot par entretien (plan-lot-table-donnees.md)
+
+La table de données propose trois gestes d'écriture qui ne passent NI par une session
+d'écriture, NI par `corpus.json` :
+
+1. **Par ligne** (`allerSaisieDonnees`, renderer seul) : ouvrir l'entretien sur son onglet
+   Donnée — le cycle verrou existant §4.1/§4.4 fait tout le travail.
+2. **Par colonne** (`TransactionsCorpus.poserValeurLot`) : le lot ne touche pas `corpus.json`
+   (jamais de verrou corpus, jamais de verrou global) — UN cycle court par ENTRETIEN :
+   acquerir → GET frais → mutation pure (`corpusModel.poserValeur` + `lastModified`, sans
+   toucher au membership) → PUT If-Match → écriture THROUGH du MIROIR (même contenu que le
+   serveur : la matrice est fraîche sans pull complet, le prochain tirage devient no-op),
+   `liberer` TOUJOURS en `finally`. Exécution séquentielle ; tout échec ponctuel (refus de
+   verrou nominatif, divergence 412 sans retry v1, réseau) est signalé nommément dans le
+   retour IPC `{ succes: string[]; echecs: { id, raison }[] }` SANS bloquer les autres
+   entretiens du lot. Défense en profondeur : si un entretien visé était ouvert CHEZ NOUS
+   (impossible depuis la table aujourd'hui, mais l'option `getSessions` le couvre),
+   l'écriture passe par le chemin session existant (`poserValeur` + `noterSale`). En corpus
+   local, la branche `poserValeurLotLocal` boucle directement sur le store (garde inexistante).
+   La modale propose un filtre « lignes sans valeur » (aide au ciblage 100 % renderer :
+   matrice + badges ; les exclus restent affichés grisés avec leur raison).
+   La présence 👁 n'est JAMAIS décisionnelle : un entretien seulement consulté peut être
+   modifié par le lot.
+3. **Par cellule** (`validerCelluleTable` dans `useCorpus.ts`) : la saisie directe dans la
+   grille réutilise EXACTEMENT le primitif du lot avec UN item — verrou court, GET frais,
+   PUT If-Match, miroir written-through, mêmes résultats en local (`poserValeurLotLocal`).
+   Garde PAR LIGNE côté renderer (`tableLigneEditable` : tout badge 🔒 est autrui dans la
+   table, qui ne tient jamais de session) → les cellules des lignes verrouillées sont
+   désactivées. Un refus transactionnel (verrou pris entre-temps, divergence 412) revient
+   en ERREUR INLINE sur LA cellule (bord rouge + tooltip nominatif), sans bloquer les
+   autres ; les rejets IPC (réseau) remontent à la bannière globale. Navigation clavier :
+   modèle pur `src/renderer/tableNavigation.ts` (grille des cellules éditables + voisine
+   dans 4 sens — Entrée/Shift+Entrée bas/haut en sautant lignes sans cellule et lignes 🔒,
+   Tab/Shift+Tab droite/gauche), focus immédiat sans attendre le réseau, commits
+   sérialisés par entretien (file renderer, jamais d'auto-concurrence 412). Note
+   Chromium : sur un `<select>` fermé, le keyup d'Entrée est avalé → keydown sans
+   preventDefault. Scénario e2e n° 4 (`multi-utilisateur.e2e.ts`).
+   (Remplace l'ancien comportement « cellule active + refus par bannière du main ».)
+
 ## Divergence & fusion assistée (§6, E3b)
 
 Une publication 412 signifie : quelqu'un a écrit derrière le verrou. Chaîne complète :
@@ -128,7 +167,7 @@ est manquant — c'est normal et attendu :
 |---|---|
 | Verrous, sessions, reprise crash (serveur WebDAV embarqué) | `test/webdav/session.test.ts` |
 | Contrat Nextcloud réel (piles Docker A et B) | `test/webdav/contrat-nextcloud.test.ts` |
-| Transactions de définitions | `test/webdav/transactions.test.ts` |
+| Transactions de définitions + lot de valeurs | `test/webdav/transactions.test.ts` |
 | Scénario deux postes (E3a, piles réelles) | `test/webdav/scenario-deux-postes.test.ts` |
 | Scénario divergence→fusion (E3b, piles réelles) | `test/webdav/scenario-e3b-divergence.test.ts` |
 | Fusion/réconciliation purs | `test/e3b-fusion-reconciliation.test.ts` |
@@ -137,4 +176,6 @@ est manquant — c'est normal et attendu :
 
 Les piles Docker se lancent avec `npm run nc:up` (A, :8080) et `npm run nc-b:up` (B, :8081) +
 provision ; les tests contre elles s'activent automatiquement quand elles répondent
-(`fileParallelism: false` — les bancs partagent l'état serveur).
+(`fileParallelism: false` — les bancs partagent l'état serveur). Le scénario visible à
+deux postes n° 3 (lot par colonne + saisie par ligne, plan-lot-table-donnees.md §6) vit dans
+`e2e/multi-utilisateur.e2e.ts`.

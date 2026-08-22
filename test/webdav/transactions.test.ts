@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
@@ -220,5 +220,188 @@ describe('Suppression d\u2019entretien — double verrou §4.7/§4.8', () => {
     const txEspion = new TransactionsCorpus(clientEspion, miroir, () => store, IDENTITE_MAX)
     await txEspion.supprimerEntretien('e1')
     expect(ordre).toEqual(['corpus', 'entretien'])
+  })
+})
+
+/* ── Lot de valeurs — un verrou court PAR ENTRETIEN (plan-lot-table-donnees §4) */
+
+import { ErreurHttp } from '../../src/main/webdav/client'
+import { poserValeurLotLocal } from '../../src/main/distant/transactions'
+import type { ItemLotValeur } from '../../src/shared/format'
+
+/** Deux items de lot : UNE valeur « Ville = Lyon » pour e1 et e2. */
+function lotDeux(): ItemLotValeur[] {
+  return [
+    { entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'var_ville', idMod: 'mod_lyon' },
+    { entretienId: 'e2', cible: { type: 'entretien' }, idVar: 'var_ville', idMod: 'mod_lyon' },
+  ]
+}
+
+describe('Lot de valeurs — distant (verrou court par entretien)', () => {
+  it('lot de 2 libres → 2 succès, fichiers serveur ET miroir à jour, verrous libérés', async () => {
+    const { serveur, miroir, tx } = await banc()
+    serveur.poser('entretiens/e2.json', entretienE1())
+    await miroir.tirer() // le second entretien rejoint le miroir
+
+    const r = await tx.poserValeurLot(lotDeux())
+    expect(r.succes.sort()).toEqual(['e1', 'e2'])
+    expect(r.echecs).toEqual([])
+
+    for (const id of ['e1', 'e2']) {
+      // Le SERVEUR porte la valeur…
+      const cote = JSON.parse(serveur.contenuDe(`entretiens/${id}.json`)!) as {
+        meta: { valeursGen: Record<string, string> }
+      }
+      expect(cote.meta.valeursGen.var_ville).toBe('mod_lyon')
+      // …et le MIROIR AUSSI (écriture through → prochain pull no-op).
+      const local = JSON.parse(
+        readFileSync(join(miroir.dirLocal, `entretiens/${id}.json`), 'utf8'),
+      ) as { meta: { valeursGen: Record<string, string> } }
+      expect(local.meta.valeursGen.var_ville).toBe('mod_lyon')
+      // Le verrou court est LIBÉRÉ (un tiers peut prendre son tour).
+      expect(serveur.contenuDe(`verrous/${id}.lock.json`)).toBeUndefined()
+    }
+  })
+
+  it('lot à UN item de portée LOCUTEUR → serveur ET miroir à jour (plan-saisie-cellule-table §4.3)', async () => {
+    const { serveur, miroir, tx } = await banc()
+    // Un entretien AVEC un locuteur, posé sur le serveur APRÈS le tirage du
+    // miroir : le GET frais post-verrou fait foi (§4.7) — la valeur partira
+    // du contenu SERVEUR, pas de la copie miroir périmée.
+    const avecLoc = JSON.parse(entretienE1()) as {
+      locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]
+    }
+    avecLoc.locuteurs.push({ index: 0, nom: 'Marie', valeursLoc: {} })
+    serveur.poser('entretiens/e1.json', JSON.stringify(avecLoc))
+
+    const r = await tx.poserValeurLot([
+      {
+        entretienId: 'e1',
+        cible: { type: 'locuteur', index: 0 },
+        idVar: 'var_ville',
+        idMod: 'mod_lyon',
+      },
+    ])
+    expect(r.succes).toEqual(['e1'])
+    expect(r.echecs).toEqual([])
+
+    // La valeur est chez son PROPRIÉTAIRE (valeursLoc du locuteur), jamais
+    // dans valeursGen ; serveur ET miroir à jour ; verrou libéré.
+    const attendu = (json: string) => {
+      const e = JSON.parse(json) as {
+        meta: { valeursGen: Record<string, string> }
+        locuteurs: { index: number; valeursLoc: Record<string, string> }[]
+      }
+      expect(e.locuteurs[0].valeursLoc.var_ville).toBe('mod_lyon')
+      expect(e.meta.valeursGen.var_ville).toBeUndefined()
+    }
+    attendu(serveur.contenuDe('entretiens/e1.json')!)
+    attendu(readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8'))
+    expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it('un entretien tenu par autrui → échec NOMINATIF, l\u2019autre réussit quand même', async () => {
+    const { serveur, clientOlivier, miroir, tx } = await banc()
+    serveur.poser('entretiens/e2.json', entretienE1())
+    await miroir.tirer()
+    const pOlivier = new ProviderPutConditionnel(clientOlivier, IDENTITE_OLIVIER)
+    await pOlivier.acquerir('verrous/e1.lock.json')
+
+    const r = await tx.poserValeurLot(lotDeux())
+    expect(r.succes).toEqual(['e2']) // l'échec ne bloque PAS le reste du lot
+    expect(r.echecs).toHaveLength(1)
+    expect(r.echecs[0].id).toBe('e1')
+    expect(r.echecs[0].raison).toContain('olivier')
+
+    // e2 est modifié côté serveur ; e1 est INTACT ; le verrou d'olivier tient.
+    const e2 = JSON.parse(serveur.contenuDe('entretiens/e2.json')!) as {
+      meta: { valeursGen: Record<string, string> }
+    }
+    expect(e2.meta.valeursGen.var_ville).toBe('mod_lyon')
+    const e1 = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as {
+      meta: { valeursGen: Record<string, string> }
+    }
+    expect(e1.meta.valeursGen.var_ville).toBeUndefined()
+    expect(await pOlivier.etat('verrous/e1.lock.json')).not.toBeNull()
+  })
+
+  it('divergence 412 → échec « divergence », miroir NON modifié pour cet item, verrou libéré', async () => {
+    const { serveur, clientMax, miroir, tx } = await banc()
+    // Simulation déterministe : notre PUT ENTRETIEN échoue en 412 (le serveur
+    // a changé sous nos pieds — contournement du verrou). Les autres PUT
+    // (verrous…) passent normalement.
+    const reel = clientMax.putTexte.bind(clientMax)
+    clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e1.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+    const miroirAvant = readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8')
+
+    const r = await tx.poserValeurLot([
+      { entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'var_ville', idMod: 'mod_lyon' },
+    ])
+    expect(r.succes).toEqual([])
+    expect(r.echecs).toHaveLength(1)
+    expect(r.echecs[0].raison).toMatch(/divergence/i)
+    // Rien n'a été écrasé côté serveur ; le MIROIR n'a pas bougé (il n'est
+    // écrit qu'après un PUT réussi) ; le verrou est reparti (finally).
+    const e1 = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as {
+      meta: { valeursGen: Record<string, string> }
+    }
+    expect(e1.meta.valeursGen.var_ville).toBeUndefined()
+    expect(readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8')).toBe(miroirAvant)
+    expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it('session à nous (défense en profondeur) : chemin store + noterSale, pas de verrou parallèle', async () => {
+    const { serveur, clientMax, miroir, store, tx } = await banc()
+    const tenus: string[] = []
+    const sales: string[] = []
+    const txSessions = new TransactionsCorpus(clientMax, miroir, () => store, IDENTITE_MAX, {
+      getSessions: () => ({
+        idsTenus: () => tenus,
+        noterSale: (id) => sales.push(id),
+      }),
+    })
+    void tx // la banc standard n'a pas de getSessions : on n'utilise qu'elle pour l'infra
+    tenus.push('e1') // comme si l'entretien était OUVERT CHEZ NOUS
+
+    const r = await txSessions.poserValeurLot([
+      { entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'var_ville', idMod: 'mod_lyon' },
+    ])
+    expect(r.succes).toEqual(['e1'])
+    expect(sales).toEqual(['e1']) // la publication suivra la session existante
+    // Chemin STORE : la copie locale (= miroir) porte la valeur…
+    const local = JSON.parse(
+      readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8'),
+    ) as { meta: { valeursGen: Record<string, string> } }
+    expect(local.meta.valeursGen.var_ville).toBe('mod_lyon')
+    // …mais RIEN n'est parti au serveur par le lot (la session publiera), et
+    // aucun verrou d'entretien n'a été pris en parallèle.
+    const e1 = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as {
+      meta: { valeursGen: Record<string, string> }
+    }
+    expect(e1.meta.valeursGen.var_ville).toBeUndefined()
+    expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+})
+
+describe('Lot de valeurs — corpus LOCAL (boucle directe du store)', () => {
+  it('valeurs posées chez leur propriétaire ; introuvable signalé sans bloquer les autres', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-lot-local-'))
+    const store = new CorpusStore(dir)
+    store.ouvrir() // amorce corpus vide
+    writeFileSync(join(dir, 'entretiens', 'e1.json'), entretienE1(), 'utf8')
+
+    const r = await poserValeurLotLocal(store, [
+      { entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'var_ville', idMod: 'mod_lyon' },
+      { entretienId: 'e9', cible: { type: 'entretien' }, idVar: 'var_ville', idMod: 'mod_lyon' },
+    ])
+    expect(r.succes).toEqual(['e1']) // l'inconnu ne bloque pas le connu
+    expect(r.echecs.map((e) => e.id)).toEqual(['e9'])
+    const data = JSON.parse(readFileSync(join(dir, 'entretiens', 'e1.json'), 'utf8')) as {
+      meta: { valeursGen: Record<string, string> }
+    }
+    expect(data.meta.valeursGen.var_ville).toBe('mod_lyon')
   })
 })

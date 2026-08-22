@@ -389,6 +389,15 @@ export function creerSonal() {
    *  `idDistantCourant` seul suffisait (lecture seule stricte E0). */
   const lectureSeule = computed(() => idDistantCourant.value !== null && !enLigne.value)
 
+  /** plan-saisie-cellule-table.md §4 : garde de la Table de données PAR LIGNE.
+   *  Dans la table on ne tient JAMAIS de session (y entrer ferme toute session
+   *  d'écriture), donc tout badge 🔒 est nécessairement autrui → ligne non
+   *  éditable. Ne pas confondre avec `entretienEditable`, propre à l'écran
+   *  Entretien ouvert. */
+  function tableLigneEditable(id: string): boolean {
+    return !lectureSeule.value && !badgeVerrou(id)
+  }
+
   /** Tire le miroir et absorbe TOUJOURS l'état des verrous (badges fiables).
    *  Si le contenu a changé côté serveur :
    *   - aucun entretien ouvert → ré-application complète (comme E0) ;
@@ -777,6 +786,18 @@ export function creerSonal() {
     ent.allerAuTexte(pos)
   }
 
+  /** « Saisir… » depuis la Table de données (plan-lot-table-donnees.md §3) :
+   *  ouvre CET entretien directement sur son onglet Donnée. Le cycle verrou
+   *  existant fait tout le travail : entretien libre → verrou accordé à
+   *  l'ouverture, saisie permise ; ouvert par autrui → lecture seule avec
+   *  bandeau nominatif (comportement existant). Aucun nouveau protocole —
+   *  `ouvrirEntretien` suffit ; on force juste l'onglet quand l'ouverture a
+   *  réussi (lecture seule comprise : les champs y sont grisés). */
+  async function allerSaisieDonnees(id: string) {
+    await ouvrirEntretien(id)
+    if (ent.ouvertId.value === id) ent.ongletDroite.value = 'donnees'
+  }
+
   // --- Confirmation de suppression d'un ENTRETIEN (l'acte le plus gros — même
   //     idiome de bannière que thèmes et locuteurs). ---
   const entretienASupprimer = ref<{ id: string; titre: string } | null>(null)
@@ -924,6 +945,7 @@ export function creerSonal() {
     tirageEnCours,
     actualiserDistant,
     lectureSeule,
+    tableLigneEditable,
     enLigne,
     badgesVerrous,
     badgeVerrou,
@@ -945,6 +967,7 @@ export function creerSonal() {
     jeterDivergence,
     plusTardDivergence,
     ouvrirAuSegment,
+    allerSaisieDonnees,
     ajouterEntretien,
     exporter,
     renommer,

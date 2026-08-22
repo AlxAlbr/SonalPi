@@ -6,10 +6,12 @@ import type {
   DossierCorpus,
   EntreeRecent,
   EtatDemo,
+  ItemLotValeur,
   EtatDemoComplet,
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
+  ResultatLotValeur,
   OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
@@ -152,6 +154,11 @@ contextBridge.exposeInMainWorld('sonal', {
       idMod: string,
     ): Promise<boolean> =>
       ipcRenderer.invoke('corpus:poserValeur', entretienId, cible, idVar, idMod),
+    /** Lot « modifier en lot » (plan-lot-table-donnees.md §4) : une valeur
+     *  appliquée à plusieurs entretiens — verrou court par entretien côté
+     *  main ; échecs nommés, un échec ne bloque jamais les autres. */
+    poserValeurLot: (items: ItemLotValeur[]): Promise<ResultatLotValeur> =>
+      ipcRenderer.invoke('corpus:poserValeurLot', items),
   },
   distant: {
     /** Comptes distants configurés — JAMAIS de secret dans le retour. */
