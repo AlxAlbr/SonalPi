@@ -19,7 +19,12 @@ import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { Categorie, CibleValeur, EtatDemo, EtatDemoComplet, MarqueurDemo, PatchCategorie, PayloadEntretien, RegleAnon, Variable } from '../shared/format'
-import type { DemandeConnexion, OuvertureDistante, ResultatTiragePublic } from '../shared/distant'
+import type {
+  DemandeConnexion,
+  OrphelinDistant,
+  OuvertureDistante,
+  ResultatTiragePublic,
+} from '../shared/distant'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev le
 // renderer est en http://localhost (Vite) et ne lit pas file:// → un protocole
@@ -438,7 +443,8 @@ function enregistrerIpcCorpus(): void {
   /** Ouvre un corpus distant EN LECTURE contrôlée (E1) : tire le miroir puis
    *  bascule le store dessus ; chaque entretien s'ouvre ensuite SOUS VERROU
    *  (corpus:lireEntretien). Échec réseau → exception IPC, le corpus local
-   *  courant reste en place. */
+   *  courant reste en place. Le pull d'ouverture livre aussi l'état des
+   *  verrous (badges fiables §3.1, sans second aller-retour). */
   ipcMain.handle('distant:ouvrir', async (_e, id: string): Promise<OuvertureDistante> => {
     const config = coffre.lister().find((c) => c.id === id)
     if (!config) throw new Error('Compte distant inconnu')
@@ -452,7 +458,7 @@ function enregistrerIpcCorpus(): void {
     })
     const dirMiroir = join(app.getPath('userData'), 'miroirs', id)
     const miroir = new MiroirWebDAV(client, dirMiroir)
-    await miroir.tirer()
+    const tirage = await miroir.tirer()
     // Garde : un dossier distant SANS corpus.json ne doit pas être amorcé
     // localement (l'amorce écrirait dans un miroir en lecture seule).
     if (!existsSync(join(dirMiroir, 'corpus.json'))) {
@@ -478,14 +484,60 @@ function enregistrerIpcCorpus(): void {
       nom: corpus.nom ?? basename(config.urlServeur),
       corpus,
       distant: { id, urlServeur: config.urlServeur, utilisateur: config.utilisateur },
+      verrous: await sessions.etatVerrousPublics(tirage.verrous),
     }
   })
 
-  /** « Actualiser » / pull doux : null si le corpus courant est local. */
+  /** « Actualiser » / pull doux : null si le corpus courant est local.
+   *  Les fichiers SOUS NOTRE verrou sont exclus du pull (le miroir n'écrase
+   *  jamais une copie de travail en session — la divergence passe par If-Match,
+   *  §6). Les verrous sont enrichis de leur contenu pour les badges. */
   ipcMain.handle('distant:tirer', async (): Promise<ResultatTiragePublic | null> => {
     if (!miroirActif) return null
-    const t = await miroirActif.miroir.tirer()
-    return { telecharges: t.telecharges, corbeille: t.corbeille, verrous: t.verrous, date: t.date }
+    const exclus = sessions ? sessions.idsTenus().map((id) => `entretiens/${id}.json`) : []
+    const t = await miroirActif.miroir.tirer(exclus)
+    return {
+      telecharges: t.telecharges,
+      corbeille: t.corbeille,
+      verrous: sessions
+        ? await sessions.etatVerrousPublics(t.verrous)
+        : t.verrous.map(({ chemin, etag }) => ({ chemin, etag, contenu: null })),
+      date: t.date,
+    }
+  })
+
+  /* ── E1 finition : publication manuelle + reprise crash + badges ───────── */
+
+  /** « Publier maintenant » (§4.3) : PUT If-Match sous verrou toujours tenu. */
+  ipcMain.handle('distant:publierEntretien', async (_e, id: string) => {
+    if (!sessions) return { ok: false as const, raison: 'aucune session' }
+    return sessions.publier(id)
+  })
+
+  /** Orphelins détectables (verrous de NOTRE machine, autre session) — matière
+   *  du dialogue de reprise crash §4.5. Null si corpus local. */
+  ipcMain.handle('distant:orphelins', async (): Promise<OrphelinDistant[] | null> => {
+    if (!sessions) return null
+    const liste = await sessions.orphelins()
+    return liste.map(({ cheminVerrou, id, verrou }) => ({
+      cheminVerrou,
+      id,
+      userId: verrou.userId,
+      machineId: verrou.machineId,
+      acquiredAt: verrou.acquiredAt,
+    }))
+  })
+
+  /** Choix « reprendre et publier » du dialogue §4.5. */
+  ipcMain.handle('distant:reprendreOrphelin', async (_e, cheminVerrou: string) => {
+    if (!sessions) return { ok: false as const, raison: 'aucun corpus distant' }
+    return sessions.reprendreOrphelin(cheminVerrou)
+  })
+
+  /** Choix « abandonner » (déverrouille sans publier) du dialogue §4.5. */
+  ipcMain.handle('distant:abandonnerOrphelin', async (_e, cheminVerrou: string) => {
+    if (!sessions) return
+    await sessions.abandonnerOrphelin(cheminVerrou)
   })
 
   /** Migration SonalPi V1 → V2 — EXÉCUTION : crée le corpus V2 dans le dossier

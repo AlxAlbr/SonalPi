@@ -26,6 +26,7 @@ import {
   type ContenuVerrou,
 } from '../verrous/types'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
+import type { EntreeVerrouPublic } from '../../shared/distant'
 
 export interface IdentiteSession {
   userId: string
@@ -243,18 +244,27 @@ export class SessionsDEntretien {
   }
   revoquerEcriture?: (id: string) => void
 
-  /** Liste des verrous orphelins (crash sans libération) — reprise/abandon
-   *  proposés à l'utilisateur à l'ouverture du corpus (§4.5, E1 minimal :
-   *  détection + abandon ; le dialogue complet vient avec l'UI des états). */
-  async orphelins(): Promise<ContenuVerrou[]> {
-    const out: ContenuVerrou[] = []
+  /** Ids des entretiens DONT NOUS tenons le verrou — passés au pull comme
+   *  exclusions (le miroir n'écrase jamais une copie de travail sous verrou). */
+  idsTenus(): string[] {
+    return [...this.sessions.keys()]
+  }
+
+  /** Liste des verrous orphelins (crash sans libération) — matière du dialogue
+   *  « reprendre / abandonner » (§4.5). Un orphelin = verrou de NOTRE machine
+   *  mais d'une AUTRE session (sessionId aléatoire par lancement : un verrou
+   *  n'est jamais hérité).
+   */
+  async orphelins(): Promise<{ cheminVerrou: string; id: string; verrou: ContenuVerrou }[]> {
+    const out: { cheminVerrou: string; id: string; verrou: ContenuVerrou }[] = []
     try {
       const liste = await this.client.propfind('verrous')
       for (const e of liste.filter((x) => !x.dossier && x.chemin.endsWith('.lock.json'))) {
         try {
           const v = JSON.parse(await this.client.getTexte(`verrous/${e.chemin}`)) as ContenuVerrou
           if (v.machineId === this.identite().machineId && v.sessionId !== this.identite().sessionId) {
-            out.push(v)
+            const m = /^verrous\/(.+)\.lock\.json$/.exec(`verrous/${e.chemin}`)
+            if (m) out.push({ cheminVerrou: `verrous/${e.chemin}`, id: m[1], verrou: v })
           }
         } catch {
           /* illisible : ignoré */
@@ -266,12 +276,67 @@ export class SessionsDEntretien {
     return out
   }
 
-  /** Abandon explicite d'un orphelin (choix « abandonner » du dialogue §4.5). */
+  /** Abandon explicite d'un orphelin (choix « abandonner » du dialogue §4.5) :
+   *  déverrouille SANS publier — la copie locale du miroir reste en place et
+   *  repartira en divergence si elle resurgit plus tard (§6).
+   */
   async abandonnerOrphelin(cheminVerrou: string): Promise<void> {
+    await this.supprimerVerrouOrphelin(cheminVerrou)
+  }
+
+  /** Reprise d'un orphelin (choix « reprendre et publier » du dialogue §4.5) :
+   *  la copie locale du miroir (dernier autosave avant crash) est publiée sur
+   *  le serveur PUIS le verrou libéré — l'ordre invariant §4.4 s'applique ici
+   *  aussi. Personne n'a pu écrire entre-temps sans contourner le verrou ; la
+   *  garde If-Match couvre ce résidu (412 → divergence, on ne publie pas).
+   */
+  async reprendreOrphelin(cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> {
+    const m = /^verrous\/(.+)\.lock\.json$/.exec(cheminVerrou)
+    if (!m) return { ok: false, raison: 'chemin invalide' }
+    const id = m[1]
+    const cheminFichier = CHEMIN_ENTRETIEN(id)
+    let contenu: string
     try {
-      await this.client.supprimer(cheminVerrou)
+      contenu = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8')
+    } catch {
+      return { ok: false, raison: 'pas de copie locale' }
+    }
+    const etagConnu = this.miroir.etagDistant(cheminFichier) // dernière version que NOUS avons publiée
+    const etagActuel = await this.etagServeurDe(cheminFichier)
+    // Garde §4.5 : si le serveur ne porte plus la version publiée avant le
+    // crash, quelqu'un a écrit DERRIÈRE le verrou (UI web) — divergence, on
+    // ne publie pas et on ne libère pas : l'utilisateur tranche.
+    if (etagConnu && etagActuel && etagConnu !== etagActuel) {
+      return { ok: false, raison: 'divergence' }
+    }
+    try {
+      const nouveauEtag = await this.client.putTexte(
+        cheminFichier,
+        contenu,
+        etagActuel ? { ifMatch: etagActuel } : {},
+      )
+      const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? ''
+      if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
     } catch (e) {
-      if (!(e instanceof ErreurHttp && e.statut === 404)) throw e
+      if (e instanceof ErreurHttp && e.statut === 412) {
+        // Le fichier a changé derrière le verrou (contournement pendant le
+        // crash) : ne PAS écraser — la copie locale reste dans le miroir.
+        return { ok: false, raison: 'divergence' }
+      }
+      throw e // réseau : l'orphelin reste en place, retenter plus tard
+    }
+    await this.supprimerVerrouOrphelin(cheminVerrou)
+    return { ok: true }
+  }
+
+  /** DELETE d'un verrou dont nous ne détenons PAS l'ETag en mémoire (orphelin) :
+   *  observation puis suppression conditionnelle — tolérante (déjà parti ?). */
+  private async supprimerVerrouOrphelin(cheminVerrou: string): Promise<void> {
+    const etag = await this.etagServeurDe(cheminVerrou)
+    try {
+      await this.client.supprimer(cheminVerrou, etag ?? undefined)
+    } catch (e) {
+      if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
     }
   }
 
@@ -281,6 +346,36 @@ export class SessionsDEntretien {
     const nom = cheminRelatif.slice(cheminRelatif.lastIndexOf('/') + 1)
     const entree = (await this.client.propfind(dossier)).find((e) => e.chemin === nom)
     return entree?.etag ?? null
+  }
+
+  /** État PUBLIC des fichiers verrou vus au pull (badges fiables §3.1/§10) :
+   *  chaque verrou est lu et décodé ; ceux de NOTRE propre session sont omis
+   *  (on édite ces entretiens soi-même — un badge n'apporte rien). Un fichier
+   *  illisible → contenu null (badge omis, jamais deviné).
+   */
+  async etatVerrousPublics(
+    chemins: { chemin: string; etag: string | null }[],
+  ): Promise<EntreeVerrouPublic[]> {
+    const notreSession = this.identite().sessionId
+    const out: EntreeVerrouPublic[] = []
+    for (const { chemin, etag } of chemins) {
+      let contenu: EntreeVerrouPublic['contenu'] = null
+      try {
+        const v = JSON.parse(await this.client.getTexte(chemin)) as Partial<ContenuVerrou>
+        if (
+          typeof v.userId === 'string' &&
+          typeof v.sessionId === 'string' &&
+          typeof v.acquiredAt === 'string' &&
+          v.sessionId !== notreSession
+        ) {
+          contenu = { userId: v.userId, machineId: v.machineId ?? '', acquiredAt: v.acquiredAt }
+        }
+      } catch {
+        /* illisible/injoignable : badge omis */
+      }
+      out.push({ chemin, etag, contenu })
+    }
+    return out
   }
 
   /** Écriture locale atomique d'un contenu serveur fraîchement tiré. */

@@ -71,7 +71,15 @@ const {
   audio,
   lectureSeule, // définitions (flux B) : grisage permanent avant E3
   verrouAutrui, // verrou de l'entretien ouvert (tenu par autrui ?)
+  // E1 : statut de session (publication) + « Publier maintenant »
+  statutSession,
+  publiErreur,
+  publierMaintenant,
 } = utiliserSonal()
+
+// Heure locale courte d'un horodatage ISO (« HH:MM »).
+const heureDe = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
 // Lecture seule du CONTENU (flux A) : l'entretien ouvert est figé ssi son
 // verrou est tenu par autrui. Les définitions suivent `lectureSeule`.
@@ -437,6 +445,17 @@ function focaliserLibre(el: unknown, cle: string) {
         <div class="barre">
           <button class="retour" @click="retourCorpus">← Corpus</button>
           <span class="barre-aide">Sélectionne du texte, puis clique un thème (onglet Thématique) pour le coder.</span>
+          <!-- Corpus distant, session à nous : statut de publication (§4.3/§10)
+               + « Publier maintenant ». En lecture seule (verrou autrui) : rien
+               à publier, le bandeau 🔒 au-dessus parle déjà. -->
+          <template v-if="statutSession.etat === 'a-nous'">
+            <span v-if="publiErreur" class="statut-session divergence">⚠️ {{ publiErreur }}</span>
+            <span v-else-if="statutSession.sale" class="statut-session sale" title="Publication périodique toutes les 5 min ; le bouton force à la demande.">
+              ● modifications non publiées<template v-if="statutSession.dernierPubli"> depuis {{ heureDe(statutSession.dernierPubli) }}</template>
+            </span>
+            <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
+            <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
+          </template>
           <button v-if="!roContenu" class="sauver" @click="sauver">Enregistrer</button>
           <button class="exporter" @click="exporter">Exporter .sonal</button>
         </div>
@@ -977,6 +996,35 @@ function focaliserLibre(el: unknown, cle: string) {
   background: #fff;
   border-radius: 5px;
   cursor: pointer;
+}
+/* E1 — statut de session (publication) dans la barre d'actions */
+.statut-session {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: #555;
+}
+.statut-session.sale {
+  color: #a05a00;
+}
+.statut-session.publie {
+  color: #2e7d32;
+}
+.statut-session.divergence {
+  color: #b3261e;
+  max-width: 34rem;
+  white-space: normal;
+  line-height: 1.25;
+}
+.publier-maintenant {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #2e7d32;
+  color: #2e7d32;
+  background: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.publier-maintenant:hover {
+  background: #edf7ee;
 }
 /* Hôte <EditorContent> (le contenteditable ProseMirror est stylé dans editeur.css). */
 .cadre {

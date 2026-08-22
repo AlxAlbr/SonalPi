@@ -4,6 +4,7 @@ import Accueil from './components/Accueil.vue'
 import Corpus from './components/Corpus.vue'
 import TableDonnees from './components/TableDonnees.vue'
 import Entretien from './components/Entretien.vue'
+import RepriseCrash from './components/RepriseCrash.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
@@ -48,6 +49,10 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
     <Entretien v-show="vue === 'entretien'" />
     <TableDonnees v-show="vue === 'donnees'" />
+
+    <!-- Reprise crash (§4.5) : orphelins détectés à l'ouverture d'un corpus
+         distant — téléporté, ne s'affiche QUE si la liste est non vide. -->
+    <RepriseCrash />
   </main>
 </template>
 

@@ -36,15 +36,49 @@ export type ResultatConnexion =
 
 /** Ouverture d'un corpus distant : le corpus vient du MIROIR local
  *  (`userData/miroirs/<id>`) fraîchement tiré — le renderer ne sait pas
- *  faire la différence avec un corpus local, c'est voulu (invariant §15.1). */
+ *  faire la différence avec un corpus local, c'est voulu (invariant §15.1).
+ *  Le pull d'ouverture livre aussi l'état des verrous (badges fiables §3.1,
+ *  sans second aller-retour).
+ */
 export interface OuvertureDistante extends OuvertureCorpus {
   distant: CompteDistantPublic
+  verrous: EntreeVerrouPublic[]
+}
+
+/** État PUBLIC d'un fichier verrou — ce que l'UI affiche (« tenu par X depuis
+ *  HH:MM », §10). Aucun champ de protocole (sessionId, ttl) ne traverse le pont.
+ */
+export interface EtatVerrouPublic {
+  userId: string
+  machineId: string
+  acquiredAt: string // ISO
+}
+
+/** Une entrée `verrous/` vue au pull, avec son contenu décodé (null = fichier
+ *  illisible/corrompu — badge omis, jamais deviné). Les verrous de NOTRE
+ *  propre session sont filtrés côté main : un badge « tenu par moi » sur la
+ *  carte que je suis en train d'éditer n'apporte rien.
+ */
+export interface EntreeVerrouPublic {
+  chemin: string // « verrous/<id>.lock.json »
+  etag: string | null
+  contenu: EtatVerrouPublic | null
 }
 
 /** Résultat d'un tirage (pull incrémental §3.1). */
 export interface ResultatTiragePublic {
   telecharges: string[]
   corbeille: string[]
-  verrous: { chemin: string; etag: string | null }[]
+  verrous: EntreeVerrouPublic[]
   date: string
+}
+
+/** Verrou orphelin détecté à l'ouverture du corpus (§4.5 — crash sans
+ *  libération) : proposé au dialogue « reprendre / abandonner ». */
+export interface OrphelinDistant {
+  cheminVerrou: string // « verrous/<id>.lock.json »
+  id: string // id de l'entretien (extrait du chemin)
+  userId: string
+  machineId: string
+  acquiredAt: string // ISO
 }

@@ -53,7 +53,23 @@ const {
   tirageEnCours,
   actualiserDistant,
   lectureSeule,
+  // E1 : badges de verrou fiables (état « tenu par X » venant du serveur)
+  badgeVerrou,
 } = utiliserSonal()
+
+/** Heure locale courte d'un horodatage ISO (« HH:MM »). */
+const heureDe = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+/** « Actualiser » : tire le miroir à la demande (les erreurs crient — ce n'est
+ *  pas la minuterie silencieuse). */
+async function actualiser() {
+  try {
+    await actualiserDistant(false)
+  } catch {
+    /* l'échec criant est traité comme un pull doux raté pour l'instant :
+       le badge horodaté reste sur la dernière synchro réussie */
+  }
+}
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
 const editerThemes = ref(false)
@@ -230,6 +246,17 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       <div class="corpus-barre">
         <button class="btn-table" @click="allerDonnees">Ouvrir la base de données →</button>
         <button class="btn-table" @click="ouvrirPseudoPanel">Pseudos</button>
+        <!-- Corpus distant : horodatage du dernier pull + « Actualiser » (§10).
+             Le pull rafraîchit AUSSI les badges 🔒 (scan verrous/ §3.1) — c'est
+             le même geste, pas une seconde commande. -->
+        <span v-if="idDistantCourant" class="synchro-zone">
+          <span class="dernier-tirage" title="Copie locale synchronisée avec le serveur">
+            ☁ dernière synchro {{ heureDe(dernierTirage) }}
+          </span>
+          <button class="btn-table" :disabled="tirageEnCours" @click="actualiser">
+            {{ tirageEnCours ? '…' : '⟳ Actualiser' }}
+          </button>
+        </span>
       </div>
 
       <div class="grille-corpus">
@@ -430,7 +457,15 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               :class="{ selection: corpusSelId === e.id }"
               @click="selectionnerCorpus(e.id)"
             >
-              <div class="ent-titre" :title="e.titre">{{ e.titre }}</div>
+              <div class="ent-titre" :title="e.titre">{{ e.titre }}
+                <!-- Badge de verrou fiable (§3.1/§10) : « tenu par X » vient du
+                     SERVEUR (scan verrous/ au pull), jamais d'une déduction.
+                     Notre propre session n'est pas badgée (filtrée côté main). -->
+                <span v-if="badgeVerrou(e.id)" class="badge-verrou"
+                      :title="`Verrou tenu par ${badgeVerrou(e.id)!.userId} depuis ${heureDe(badgeVerrou(e.id)!.acquiredAt)} — ouverture en lecture seule.`">
+                  🔒 {{ badgeVerrou(e.id)!.userId }}
+                </span>
+              </div>
                 <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
                      Dans les deux cas, le CALQUE du résumé thématique (parité SonalPi)se superpose :
                       un span par segment codé, positionné en % du TEXTE ;
@@ -565,7 +600,32 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .corpus-barre {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
   margin-bottom: 0.8rem;
+}
+/* E1 — zone de synchro du corpus distant (horodatage + Actualiser) : pousse le
+   reste de la barre à gauche, reste discrète. */
+.synchro-zone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+.dernier-tirage {
+  font-size: 0.8rem;
+  color: #555;
+}
+.badge-verrou {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #6d4c00;
+  background: #fff3cd;
+  border: 1px solid #e6cf8b;
+  border-radius: 999px;
+  padding: 0 0.45em;
 }
 .btn-table {
   padding: 0.4rem 0.9rem;
@@ -886,6 +946,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.carte-ent .badge-verrou {
+  flex-shrink: 0; /* le badge ne se fait pas manger par l'ellipse du titre */
 }
 .spectro {
   position: absolute;

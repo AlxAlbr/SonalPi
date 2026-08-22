@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
@@ -26,12 +26,16 @@ function banc() {
     serveur.fetch,
   )
   const miroir = new MiroirWebDAV(client, dirMiroir)
-  const identite: IdentiteSession = { userId: 'max', machineId: 'poste-1', sessionId: 's-1' }
+  const identite: { value: IdentiteSession } = {
+    value: { userId: 'max', machineId: 'poste-1', sessionId: 's-1' },
+  }
   const retrogrades: string[] = []
+  /** Identité MUTABLE : les tests de reprise crash changent le sessionId
+   *  (relancement d'app) sans reconstruire le banc. */
   const sessions = new SessionsDEntretien(
     client,
     miroir,
-    () => ({ ...identite }),
+    () => ({ ...identite.value }),
     (id) => retrogrades.push(id),
   )
   return {
@@ -41,6 +45,7 @@ function banc() {
     miroir,
     dirMiroir,
     retrogrades,
+    identite,
     fichierLocal: join(dirMiroir, 'entretiens', `${ID}.json`),
     verrou: () => serveur.contenuDe(`verrous/${ID}.lock.json`),
     etatVerrou: () => serveur.etagDe(`verrous/${ID}.lock.json`),
@@ -162,5 +167,128 @@ describe('Rétrogradation (§5.2)', () => {
     expect(b.retrogrades).toEqual([ID])
     expect(existsSync(join(b.dirMiroir, 'sessions'))).toBe(true)
     expect(b.sessions.etat(ID).etat).toBe('aucune')
+  })
+})
+
+/* ── E1 finition : pull sous verrou, badges, reprise crash (§4.5) ───────────*/
+
+describe('Pull et exclusions de session (E1)', () => {
+  it('le pull n\'écrase JAMAIS la copie de travail d\'un fichier sous notre verrou', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    // Édition locale (autosave) : le miroir avance du serveur…
+    const localModifie = JSON.stringify({ lastModified: 'local-en-cours', texte: 'moi' })
+    writeFileSync(b.fichierLocal, localModifie)
+    // …pendant ce temps, quelqu'un écrase le fichier via l'UI web.
+    b.serveur.poser(`entretiens/${ID}.json`, '{ "contourné": true }')
+    // Pull AVEC exclusion (comme distant:tirer côté main) : intouchable.
+    const t = await b.miroir.tirer([`entretiens/${ID}.json`])
+    expect(t.telecharges).toEqual([])
+    expect(readFileSync(b.fichierLocal, 'utf8')).toBe(localModifie)
+    // Pull SANS exclusion (comportement E0) : écraserait — c'est précisément
+    // ce que la couche session interdit pendant une session.
+  })
+})
+
+describe('Badges de verrou fiables (§3.1)', () => {
+  it("état public des verrous : contenu décodé, NOTRE session omise, illisible → null", async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    // Un verrou tenu par OLIVIER (autre machine/session)…
+    const clientOlivier = new ClientWebDAV(
+      { baseUrl: b.serveur.baseUrl, identifiants: b.serveur.identifiants },
+      b.serveur.fetch,
+    )
+    const pOlivier = new ProviderPutConditionnel(clientOlivier, () => ({
+      userId: 'olivier', machineId: 'poste-2', sessionId: 's-OLI',
+    }))
+    await pOlivier.acquerir(`verrous/${ID}.lock.json`)
+    // …et un verrou à NOUS (même sessionId que l'identité courante).
+    b.serveur.poser(
+      `verrous/autre.lock.json`,
+      JSON.stringify({
+        userId: 'max', machineId: 'poste-1', sessionId: 's-1',
+        acquiredAt: '2026-01-01T00:00:00Z', refreshedAt: '2026-01-01T00:00:00Z', ttl: 300,
+      }),
+    )
+    // Et un fichier corrompu.
+    b.serveur.poser(`verrous/casse.lock.json`, '{ pas du json')
+    const liste = await b.client.propfind('verrous')
+    const entrees = liste
+      .filter((e) => !e.dossier && e.chemin.endsWith('.lock.json'))
+      .map((e) => ({ chemin: `verrous/${e.chemin}`, etag: e.etag }))
+    const publics = await b.sessions.etatVerrousPublics(entrees)
+    const parNom = Object.fromEntries(publics.map((p) => [p.chemin, p.contenu]))
+    expect(parNom[`verrous/${ID}.lock.json`]).toMatchObject({ userId: 'olivier' })
+    expect(parNom['verrous/autre.lock.json']).toBeNull() // NOTRE session → pas de badge
+    expect(parNom['verrous/casse.lock.json']).toBeNull() // illisible → jamais deviné
+  })
+})
+
+describe('Reprise après crash (§4.5)', () => {
+  /** Simule le crash : ouverture avec sessionId s-CRASH, puis « relancement »
+   *  (l'identité courante passe à s-NOUVELLE). Le verrou reste posé. */
+  async function crash(b: ReturnType<typeof banc>) {
+    b.identite.value = { userId: 'max', machineId: 'poste-1', sessionId: 's-CRASH' }
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    b.sessions.noterSale(ID)
+    await b.sessions.publier(ID) // publication périodique avant le crash
+    // Édition locale APRÈS la dernière publication, puis crash sans fermeture.
+    const nonPublie = JSON.stringify({ lastModified: 'jamais-publié', texte: 'travail perdu ?' })
+    writeFileSync(b.fichierLocal, nonPublie)
+    b.identite.value = { userId: 'max', machineId: 'poste-1', sessionId: 's-NOUVELLE' }
+  }
+
+  it('détection : un verrou de NOTRE machine mais d\'UNE AUTRE session est orphelin', async () => {
+    const b = banc()
+    await crash(b)
+    const o = await b.sessions.orphelins()
+    expect(o).toHaveLength(1)
+    expect(o[0].id).toBe(ID)
+    expect(o[0].verrou.sessionId).toBe('s-CRASH')
+    // Le verrou est TOUJOURS tenu côté serveur.
+    expect(b.verrou()).toBeTruthy()
+  })
+
+  it('« reprendre et publier » : publie la copie locale PUIS libère (ordre §4.4)', async () => {
+    const b = banc()
+    await crash(b)
+    const o = await b.sessions.orphelins()
+    const r = await b.sessions.reprendreOrphelin(o[0].cheminVerrou)
+    expect(r.ok).toBe(true)
+    // Le travail local non publié est bien parti sur le serveur…
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toContain('jamais-publié')
+    // …et le verrou est libéré.
+    expect(b.verrou()).toBeUndefined()
+    // Plus rien à reprendre.
+    expect(await b.sessions.orphelins()).toHaveLength(0)
+  })
+
+  it('« abandonner » : libère SANS publier (la copie locale reste dans le miroir)', async () => {
+    const b = banc()
+    await crash(b)
+    const o = await b.sessions.orphelins()
+    await b.sessions.abandonnerOrphelin(o[0].cheminVerrou)
+    expect(b.verrou()).toBeUndefined()
+    // Rien n'a été publié : le serveur garde la dernière version publiée.
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).not.toContain('jamais-publié')
+    // La copie locale reste au miroir (matière à divergence future, §6).
+    expect(readFileSync(b.fichierLocal, 'utf8')).toContain('jamais-publié')
+  })
+
+  it('reprise avec contournement (412) : on ne publie PAS, le verrou reste', async () => {
+    const b = banc()
+    await crash(b)
+    // Quelqu'un a écrit via l'UI web PENDANT le crash.
+    b.serveur.poser(`entretiens/${ID}.json`, '{ "écrit derrière le verrou": true }')
+    const o = await b.sessions.orphelins()
+    const r = await b.sessions.reprendreOrphelin(o[0].cheminVerrou)
+    expect(r.ok).toBe(false)
+    expect(r.raison).toBe('divergence')
+    // Ni écrasement serveur ni libération : l'utilisateur tranche ensuite.
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toContain('derrière le verrou')
+    expect(b.verrou()).toBeTruthy()
   })
 })

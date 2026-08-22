@@ -3,6 +3,7 @@ import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
 import type { CorpusFichier, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
+import type { EtatVerrouPublic, OrphelinDistant } from '../../shared/distant'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
@@ -225,8 +226,7 @@ export function creerSonal() {
     // 1er récent (le loaded corpus est TOUJOURS le 1er récent, par construction).
     // Les récents ne contiennent que des dossiers LOCAUX → pas de pull au
     // démarrage ; un corpus distant se rouvre via « Corpus distant… ».
-    idDistantCourant.value = null
-    dernierTirage.value = null
+    quitterDistant()
     await profil.rafraichirRecents()
     if (profil.recents.value.length > 0) {
       const dir = profil.recents.value[0].dir
@@ -240,8 +240,7 @@ export function creerSonal() {
   async function choisirDossier() {
     const r = await profil.choisirDossier()
     if (!r) return
-    idDistantCourant.value = null
-    dernierTirage.value = null
+    quitterDistant()
     await appliquerCorpus(r.corpus, r.dir)
     vue.value = 'corpus'
   }
@@ -251,15 +250,13 @@ export function creerSonal() {
   async function creerNouveauCorpus(dir: string, nom: string) {
     const r = await window.sonal.corpus.creerNouveau(dir, nom)
     profil.dossierCourantNom.value = r.nom
-    idDistantCourant.value = null
-    dernierTirage.value = null
+    quitterDistant()
     await appliquerCorpus(r.corpus, r.dir)
     vue.value = 'corpus'
   }
   /** Rouvrir un corpus récent (par son chemin). */
   async function ouvrirRecent(dir: string) {
-    idDistantCourant.value = null
-    dernierTirage.value = null
+    quitterDistant()
     await appliquerCorpus(await profil.ouvrirDossier(dir), dir)
     vue.value = 'corpus'
   }
@@ -273,9 +270,49 @@ export function creerSonal() {
     const r = await window.sonal.distant.ouvrir(id)
     idDistantCourant.value = r.distant.id // active la zone de synchro + le pull doux
     dernierTirage.value = new Date().toISOString() // le main vient de tirer
+    absorberVerrous(r.verrous) // badges fiables du premier pull (§3.1)
     profil.dossierCourantNom.value = r.nom
     await appliquerCorpus(r.corpus, r.dir)
+    // Reprise crash (§4.5) : des verrous orphelins de NOTRE machine ? Le
+    // dialogue propose reprendre/abandonner ; « plus tard » garde l'état.
+    orphelinsDistants.value = (await window.sonal.distant.orphelins()) ?? []
     vue.value = 'corpus'
+  }
+
+  // ── Badges de verrou fiables (§3.1/§10) : l'état « tenu par X » en vue
+  //    Corpus vient du SERVEUR (scan verrous/ à chaque pull), pas d'une
+  //    déduction. Clé = id d'entretien.
+  const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
+  /** Absorbe les verrous vus au pull (ou à l'ouverture) dans les badges. */
+  function absorberVerrous(entrees: { chemin: string; contenu: EtatVerrouPublic | null }[]) {
+    const suivant: Record<string, EtatVerrouPublic> = {}
+    for (const e of entrees) {
+      if (!e.contenu) continue
+      const m = /^verrous\/(.+)\.lock\.json$/.exec(e.chemin)
+      if (m) suivant[m[1]] = e.contenu
+    }
+    badgesVerrous.value = suivant
+  }
+  /** Détenteur du verrou d'un entretien (null = libre ou inconnu). */
+  function badgeVerrou(id: string): EtatVerrouPublic | null {
+    return badgesVerrous.value[id] ?? null
+  }
+
+  // ── Reprise crash (§4.5) : orphelins proposés au dialogue ────────────────
+  const orphelinsDistants = ref<OrphelinDistant[]>([])
+  /** « Reprendre et publier » : publie la copie locale puis libère ; rafraîchit
+   *  ensuite (notre publication a changé le serveur, et le badge doit tomber). */
+  async function reprendreOrphelin(cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> {
+    const r = await window.sonal.distant.reprendreOrphelin(cheminVerrou)
+    orphelinsDistants.value = orphelinsDistants.value.filter((o) => o.cheminVerrou !== cheminVerrou)
+    if (r.ok) await actualiserDistant(true)
+    return r
+  }
+  /** « Abandonner » : déverrouille sans publier (copie locale conservée). */
+  async function abandonnerOrphelin(cheminVerrou: string): Promise<void> {
+    await window.sonal.distant.abandonnerOrphelin(cheminVerrou)
+    orphelinsDistants.value = orphelinsDistants.value.filter((o) => o.cheminVerrou !== cheminVerrou)
+    await actualiserDistant(true)
   }
 
   // ── Corpus distant : « Actualiser » + minuterie douce (plan §3.2 et §10) ──
@@ -285,14 +322,29 @@ export function creerSonal() {
   const idDistantCourant = ref<string | null>(null) // null = corpus local
   const dernierTirage = ref<string | null>(null) // horodatage affiché (« copie de HH:MM »)
   const tirageEnCours = ref(false)
+  /** Retour au LOCAL : les états du distant tombent (badges, orphelins,
+   *  horodatage). Appelé par chaque changement de corpus vers un dossier local. */
+  function quitterDistant() {
+    idDistantCourant.value = null
+    dernierTirage.value = null
+    badgesVerrous.value = {}
+    orphelinsDistants.value = []
+    statutSession.value = { etat: 'aucune' }
+    publiErreur.value = null
+  }
   /** E0 lecture seule (choix produit) : le miroir n'a ni verrou ni publication
    *  avant E1 — on refuse donc TOUTE écriture, côté UI (grisage + bandeau) ET
    *  côté main (garde `CorpusStore.lectureSeule`). */
   const lectureSeule = computed(() => idDistantCourant.value !== null)
 
-  /** Tire le miroir et, si quelque chose a changé côté serveur, ré-applique le
-   *  corpus au modèle. `silencieux` (minuterie) : une panne réseau ne crie pas —
-   *  on garde la copie locale datée, le prochain tick réessaiera.
+  /** Tire le miroir et absorbe TOUJOURS l'état des verrous (badges fiables).
+   *  Si le contenu a changé côté serveur :
+   *   - aucun entretien ouvert → ré-application complète (comme E0) ;
+   *   - un entretien OUVERT → rafraîchissement SANS fermer la session
+   *     (l'éditeur reste monté ; le fichier sous notre verrou n'a pas pu être
+   *     écrasé par le pull — exclusion §3.1/E1).
+   *  `silencieux` (minuterie) : une panne réseau ne crie pas — on garde la
+   *  copie locale datée, le prochain tick réessaiera.
    *  Retourne false si le corpus courant est local (rien à tirer). */
   async function actualiserDistant(silencieux = false): Promise<boolean> {
     if (!idDistantCourant.value || tirageEnCours.value) return false
@@ -304,8 +356,13 @@ export function creerSonal() {
         return false
       }
       dernierTirage.value = t.date
+      absorberVerrous(t.verrous)
       if (t.telecharges.length > 0 || t.corbeille.length > 0) {
-        await appliquerCorpus(await window.sonal.corpus.ouvrir(), dossierCourantDir.value ?? undefined)
+        if (ent.ouvertId.value) {
+          await rafraichirCorpusSansFermer()
+        } else {
+          await appliquerCorpus(await window.sonal.corpus.ouvrir(), dossierCourantDir.value ?? undefined)
+        }
       }
       return true
     } catch (e) {
@@ -316,11 +373,68 @@ export function creerSonal() {
     }
   }
 
+  /** Rafraîchit définitions + membership depuis le miroir SANS toucher à
+   *  l'entretien ouvert (pas de `ent.reinitialiser`, pas de coupure audio) —
+   *  un collègue a publié pendant notre session : ses changements suivent,
+   *  notre édition continue (E1). */
+  async function rafraichirCorpusSansFermer() {
+    const c = await window.sonal.corpus.ouvrir()
+    corpus.membership.value = c.membership
+    corpus.majCodebook(c.codebook)
+    corpus.majVariables(c.variables)
+    await corpus.rafraichirUsages()
+    await rafraichirAudios()
+  }
+
   /** La minuterie ne vit que sur l'écran Corpus d'un corpus distant (le composant
    *  reste monté sous v-show → condition dans le tick, pas au montage). */
   setInterval(() => {
     if (vue.value === 'corpus' && idDistantCourant.value) void actualiserDistant(true)
   }, 60_000)
+
+  // ── E1 : statut de la session d'écriture de l'entretien ouvert ────────────
+  // Poll doux (5 s) tant qu'un entretien est ouvert en corpus distant ;
+  // l'état vient du main (`SessionsDEntretien.etat`) : sale ? dernier publi ?
+  type EtatSessionPublic = { etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }
+  const statutSession = ref<EtatSessionPublic>({ etat: 'aucune' })
+  /** Message d'échec de publication (divergence §6) affiché près du statut. */
+  const publiErreur = ref<string | null>(null)
+  async function rafraichirStatutSession() {
+    const id = ent.ouvertId.value
+    if (!id || !idDistantCourant.value) {
+      statutSession.value = { etat: 'aucune' }
+      return
+    }
+    try {
+      statutSession.value = await window.sonal.corpus.etatSession(id)
+    } catch {
+      /* le main n'a plus de corpus distant : statut inchangé */
+    }
+  }
+  setInterval(() => {
+    if (vue.value === 'entretien' && idDistantCourant.value) void rafraichirStatutSession()
+  }, 5_000)
+  watch([ent.ouvertId, idDistantCourant], () => void rafraichirStatutSession())
+
+  /** « Publier maintenant » (§4.3) : sauve d'abord l'autosave éventuel, puis PUT
+   *  If-Match sous verrou toujours tenu. Divergence → message net, JAMAIS
+   *  d'écrasement (la copie locale a été mise de côté côté main). */
+  async function publierMaintenant(): Promise<void> {
+    const id = ent.ouvertId.value
+    if (!id || !idDistantCourant.value) return
+    await ent.sauver()
+    publiErreur.value = null
+    try {
+      const r = await window.sonal.corpus.publierEntretien(id)
+      if (!r.ok && r.raison === 'divergence') {
+        publiErreur.value =
+          'Le serveur a changé pendant notre session (contournement du verrou). Vos modifications ont été mises de côté localement — rien n’a été écrasé.'
+      }
+    } catch {
+      publiErreur.value = 'Serveur injoignable — réessayez « Publier maintenant ».'
+    }
+    await rafraichirStatutSession()
+  }
 
   /** Migration SonalPi V1 → V2 (plan-migration E3 + E2) : exécute la création
    *  du corpus V2 (le renderer orchestre — E0 aperçu, E1 définitions —, le main
@@ -331,8 +445,7 @@ export function creerSonal() {
     const r = await window.sonal.migrer.executer(req)
     profil.dossierCourantNom.value = r.nom
     await profil.rafraichirRecents()
-    idDistantCourant.value = null
-    dernierTirage.value = null
+    quitterDistant()
     await appliquerCorpus(r.corpus, r.dir)
     // E2 — entretiens : chaque `tabEnt[]` V1 → un entretien V2.
     for (const e of mapperEntretiensV1(tabEntV1)) await importerEntretienV1(req.cheminCrp, e)
@@ -661,6 +774,14 @@ export function creerSonal() {
     tirageEnCours,
     actualiserDistant,
     lectureSeule,
+    badgesVerrous,
+    badgeVerrou,
+    orphelinsDistants,
+    reprendreOrphelin,
+    abandonnerOrphelin,
+    statutSession,
+    publiErreur,
+    publierMaintenant,
     migrerDepuisV1,
     retourCorpus,
     allerAccueil,

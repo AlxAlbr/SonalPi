@@ -22,6 +22,7 @@ import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type {
   CompteDistantPublic,
   DemandeConnexion,
+  OrphelinDistant,
   OuvertureDistante,
   ResultatConnexion,
   ResultatTiragePublic,
@@ -59,6 +60,11 @@ contextBridge.exposeInMainWorld('sonal', {
       id: string,
     ): Promise<{ etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }> =>
       ipcRenderer.invoke('distant:etatSession', id),
+    /** « Publier maintenant » (§4.3) : PUT If-Match sous verrou toujours tenu.
+     *  { ok: false, raison: 'divergence' } = le serveur a changé sous nos pieds
+     *  (§6) — la copie locale a été mise de côté, JAMAIS écrasée. */
+    publierEntretien: (id: string): Promise<{ ok: boolean; raison?: string }> =>
+      ipcRenderer.invoke('distant:publierEntretien', id),
     ecrireEntretien: (id: string, p: PayloadEntretien): Promise<string> =>
       ipcRenderer.invoke('corpus:ecrireEntretien', id, p),
     creerEntretienVide: (titre: string): Promise<{ id: string; corpus: CorpusFichier }> =>
@@ -146,6 +152,14 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('distant:connecter', params),
     ouvrir: (id: string): Promise<OuvertureDistante> => ipcRenderer.invoke('distant:ouvrir', id),
     tirer: (): Promise<ResultatTiragePublic | null> => ipcRenderer.invoke('distant:tirer'),
+    /** Verrous orphelins (crash sans libération, §4.5). Null si corpus local. */
+    orphelins: (): Promise<OrphelinDistant[] | null> => ipcRenderer.invoke('distant:orphelins'),
+    /** Choix « reprendre et publier » : publie la copie locale PUIS libère. */
+    reprendreOrphelin: (cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> =>
+      ipcRenderer.invoke('distant:reprendreOrphelin', cheminVerrou),
+    /** Choix « abandonner » : déverrouille SANS publier. */
+    abandonnerOrphelin: (cheminVerrou: string): Promise<void> =>
+      ipcRenderer.invoke('distant:abandonnerOrphelin', cheminVerrou),
     oublier: (id: string): Promise<CompteDistantPublic[]> =>
       ipcRenderer.invoke('distant:oublier', id),
   },

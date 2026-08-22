@@ -69,8 +69,15 @@ export class MiroirWebDAV {
   }
 
   /** Pull incrémental §3.1. Déterministe et idempotent : deux tirages sans
-   *  changement serveur ne re-téléchargent rien. */
-  async tirer(): Promise<ResultatTirage> {
+   *  changement serveur ne re-téléchargent rien.
+   *  `exclus` : chemins relatifs à NE PAS toucher (ni téléchargement ni
+   *  corbeille) — la couche session y passe les fichiers SOUS NOTRE verrou
+   *  (E1) : une édition hors app (UI web) ne doit jamais écraser notre copie
+   *  de travail pendant la session ; la divergence sera tranchée par If-Match
+   *  à la publication (§6), pas par un pull sauvage.
+   */
+  async tirer(exclus: string[] = []): Promise<ResultatTirage> {
+    const horsJeu = new Set(exclus)
     if (!existsSync(this.dirLocal)) mkdirSync(this.dirLocal, { recursive: true })
     const manifeste = this.lireManifeste()
 
@@ -100,6 +107,7 @@ export class MiroirWebDAV {
     for (const entree of candidats) {
       if (!entree.etag) continue // serveur sans ETag : anomalie à signaler, on ne devine pas
       if (manifeste.etags[entree.chemin] === entree.etag) continue
+      if (horsJeu.has(entree.chemin)) continue // sous notre verrou : intouchable (E1)
       const contenu = await this.client.getTexte(entree.chemin)
       this.ecrireLocal(entree.chemin, contenu)
       manifeste.etags[entree.chemin] = entree.etag
@@ -111,6 +119,7 @@ export class MiroirWebDAV {
     const cheminsDistant = new Set(candidats.map((c) => c.chemin))
     for (const chemin of Object.keys(manifeste.etags)) {
       if (cheminsDistant.has(chemin)) continue
+      if (horsJeu.has(chemin)) continue // sous notre verrou : le garder chez nous
       const src = join(this.dirLocal, chemin)
       if (!existsSync(src)) {
         delete manifeste.etags[chemin]

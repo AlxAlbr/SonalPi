@@ -30,6 +30,7 @@ import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from 
 import type {
   CompteDistantPublic,
   DemandeConnexion,
+  OrphelinDistant,
   OuvertureDistante,
   ResultatConnexion,
   ResultatTiragePublic,
@@ -53,6 +54,7 @@ declare global {
         etatSession: (
           id: string,
         ) => Promise<{ etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }>
+        publierEntretien: (id: string) => Promise<{ ok: boolean; raison?: string }>
         ecrireEntretien: (id: string, p: PayloadEntretien) => Promise<string>
         creerEntretienVide: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
         renommerEntretien: (id: string, titre: string) => Promise<CorpusFichier>
@@ -115,6 +117,9 @@ declare global {
         connecter: (params: DemandeConnexion) => Promise<ResultatConnexion>
         ouvrir: (id: string) => Promise<OuvertureDistante>
         tirer: () => Promise<ResultatTiragePublic | null>
+        orphelins: () => Promise<OrphelinDistant[] | null>
+        reprendreOrphelin: (cheminVerrou: string) => Promise<{ ok: boolean; raison?: string }>
+        abandonnerOrphelin: (cheminVerrou: string) => Promise<void>
         oublier: (id: string) => Promise<CompteDistantPublic[]>
       }
       media: {
