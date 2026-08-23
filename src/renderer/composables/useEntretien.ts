@@ -105,7 +105,11 @@ export function useEntretien(deps: {
   const entretien = reactive<Entretien>({ annotations: [], ancres: [] })
   const locuteurs = ref<Locuteur[]>([])
   const legacyCourant = ref<LegacyBlobs>({ tabAnon: null, notes: '' })
-  const meta = reactive<{ valeursGen: Record<string, string>; audioRef: string | null }>({
+  const meta = reactive<{
+    valeursGen: Record<string, string>
+    audioRef: string | null
+    audioDistant?: { chemin: string } | null // plan-audio-distant.md D1 — transporté tel quel par payloadCourant
+  }>({
     valeursGen: {},
     audioRef: null,
   })
@@ -457,6 +461,7 @@ export function useEntretien(deps: {
     for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
     meta.valeursGen = { ...res.data.meta.valeursGen }
     meta.audioRef = res.data.meta.audioRef
+    meta.audioDistant = res.data.meta.audioDistant ?? null
     brouillonsAnon.value = res.data.brouillonsAnon ?? []
     pseudosDeclares.value = { ...(res.data.pseudosDeclares ?? {}) }
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
@@ -1092,7 +1097,11 @@ export function useEntretien(deps: {
       annotations: JSON.parse(JSON.stringify(entretien.annotations)),
       ancres: [...entretien.ancres],
       locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
-      meta: { valeursGen: { ...meta.valeursGen }, audioRef: meta.audioRef },
+      meta: {
+        valeursGen: { ...meta.valeursGen },
+        audioRef: meta.audioRef,
+        audioDistant: meta.audioDistant ?? undefined,
+      },
       brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
       pseudosDeclares: JSON.parse(JSON.stringify(pseudosDeclares.value)),
     }

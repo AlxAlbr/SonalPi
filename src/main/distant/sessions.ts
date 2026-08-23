@@ -223,6 +223,50 @@ export class SessionsDEntretien {
     return { etat: 'a-nous', dernierPubli: s.dernierPubli, sale: s.sale }
   }
 
+  /** Désignation audio distante sur un entretien FERMÉ (plan-audio-distant.md
+   *  D4) — micro-session : verrou → GET serveur (la version d'après-verrou fait
+   *  foi) → pose de `meta.audioDistant` → publier → fermer. L'ordre et les
+   *  gardes sont EXACTEMENT ceux d'une session normale ; aucun nouveau canal
+   *  protocole. Un entretien OUVERT chez nous passe par le modèle en session
+   *  (l'appelant renderer le sait et ne vient pas ici). */
+  async designerAudio(
+    id: string,
+    cheminAudio: string,
+  ): Promise<{ ok: boolean; raison?: string }> {
+    // Une session peut EXISTER sans éditeur ouvert : la simple SÉLECTION d'une
+    // carte au Corpus lit le fichier via lireEntretien, qui acquiert le verrou.
+    // L'appelant renderer garantit que l'entretien n'est pas OUVERT dans
+    // l'éditeur (dans ce cas il passe par son modèle en session) — réutiliser
+    // la session est donc sûr : aucun état non publié à clobber, le fichier
+    // miroir local EST la base publiée.
+    if (!this.sessions.has(id)) {
+      const ouverture = await this.ouvrir(id)
+      if (ouverture.etat !== 'a-nous') {
+        return { ok: false, raison: 'tenu-par-autrui' }
+      }
+    }
+    try {
+      const cheminFichier = CHEMIN_ENTRETIEN(id)
+      const abs = join(this.miroir.dirLocal, cheminFichier)
+      const data = JSON.parse(readFileSync(abs, 'utf8')) as EntretienFichier
+      // Normalisation défensive : un fichier sans meta (vieux banc, écriture
+      // partielle) ne doit pas faire échouer la désignation.
+      data.meta ??= { valeursGen: {}, audioRef: null }
+      data.meta.audioDistant = { chemin: cheminAudio }
+      data.lastModified = new Date().toISOString()
+      // Même discipline d'écriture que ecrireLocalFichier : atomique.
+      const tmp = `${abs}.tmp`
+      writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8')
+      renameSync(tmp, abs)
+      this.noterSale(id)
+      const r = await this.publier(id)
+      if (!r.ok) return r // divergence : la session est déjà partie (dégradée)
+      return { ok: true }
+    } finally {
+      await this.fermer(id).catch(() => {}) // réseau : orphelin > reprise §4.5
+    }
+  }
+
   /* ── Minuterie unique : battements + publications périodiques ────────────*/
 
   private demarrerMinuteur(): void {

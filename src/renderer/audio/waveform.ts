@@ -1,4 +1,5 @@
 import { enveloppe } from './enveloppe'
+import { extensionDe, EXT_VIDEO, TAILLE_MAX_MEDIA } from '../../shared/media'
 
 /** URL d'un audio RÉFÉRENCÉ (chemin absolu externe), servie par le protocole
  *  `sonal-media` du main (en dev, le renderer Vite est en http://localhost et
@@ -73,11 +74,28 @@ export async function genererWaveformPng(
 /** Génère et PERSISTE la forme d'onde d'un entretien (dérivé `png/<id>.png`,
  *  régénérable) : octets audio récupérés par fetch sur le protocole, PNG écrit
  *  par le main. Renvoie le chemin relatif du PNG, ou null si l'audio est
- *  indécodable (on n'échoue pas l'assignation pour un dérivé). */
+ *  indécodable (on n'échoue pas l'assignation pour un dérivé).
+ *
+ *  Deux sauts assumés (analyse complète dans plans/reflexion-ffmpeg.md) :
+ *  - VIDÉO (`EXT_VIDEO`) : pas de waveform — le décodage exigerait de charger
+ *    tout le conteneur en mémoire du renderer pour n'en lire que la piste
+ *    audio ; l'extraction ffmpeg est l'option documentée, au backlog tant que
+ *    personne ne réclame la waveform vidéo. Le panneau vidéo a déjà son
+ *    retour visuel (l'image).
+ *  - FICHIER ÉNORME (> TAILLE_MAX_MEDIA) : filet de sécurité identique pour
+ *    un média hors liste — on ne sature pas le poste pour un dérivé. */
 export async function genererEtEcrireWaveform(id: string, audioRef: string): Promise<string | null> {
+  if (EXT_VIDEO.includes(extensionDe(audioRef))) return null
   try {
     const rep = await fetch(urlMediaAudio(audioRef))
     if (!rep.ok) return null
+    const taille = Number(rep.headers.get('content-length') ?? '0')
+    if (taille > TAILLE_MAX_MEDIA) {
+      console.info(
+        `Forme d’onde sautée : média trop volumineux (${Math.round(taille / (1024 * 1024))} Mo).`,
+      )
+      return null
+    }
     const png = await genererWaveformPng(await rep.arrayBuffer())
     return await window.sonal.corpus.ecrireWaveform(id, png)
   } catch (e) {

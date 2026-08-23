@@ -3,7 +3,7 @@ import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
 import type { CorpusFichier, EntreeRecent, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
-import type { EtatVerrouPublic, OrphelinDistant, PresencePublic } from '../../shared/distant'
+import type { EtatVerrouPublic, OrphelinDistant, PresencePublic, ProgressionTransfert } from '../../shared/distant'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
@@ -278,6 +278,7 @@ export function creerSonal() {
     enLigne.value = true // l'ouverture vient de réussir (pull inclus)
     dernierTirage.value = new Date().toISOString() // le main vient de tirer
     absorberVerrous(r.verrous) // badges fiables du premier pull (§3.1)
+    audiosInaccessibles.value = r.inaccessibles ?? [] // audios désignés non rapatriés
     profil.dossierCourantNom.value = r.nom
     await appliquerCorpus(r.corpus, r.dir)
     // Reprise crash (§4.5) : des verrous orphelins de NOTRE machine ? Le
@@ -365,6 +366,19 @@ export function creerSonal() {
   const idDistantCourant = ref<string | null>(null) // null = corpus local
   const dernierTirage = ref<string | null>(null) // horodatage affiché (« copie de HH:MM »)
   const tirageEnCours = ref(false)
+  /** Progression du transfert binaire EN COURS : rapatriement au tirage ou
+   *  téléversement depuis la modale — le dernier événement IPC reçu. Null =
+   *  aucun transfert (l'étiquette affiche alors le geste, pas la progression). */
+  const progressionDistant = ref<ProgressionTransfert | null>(null)
+  window.sonal.distant.surProgression((p) => {
+    progressionDistant.value = p
+  })
+  /** Pourcentage affichable (null si taille inconnue ou hors transfert). */
+  const pourcentageProgression = computed(() => {
+    const p = progressionDistant.value
+    if (!p || !p.total) return null
+    return Math.min(100, Math.round((p.octets / p.total) * 100))
+  })
   /** Connectivité OBSERVÉE (E3, politique α §4.6.1) : le pull est la sonde.
    *  Un tirage réussi → en ligne ; un échec silencieux (minuterie) → hors
    *  ligne : les gestes flux B sont grisés (« nécessite une connexion »),
@@ -420,6 +434,9 @@ export function creerSonal() {
       dernierTirage.value = t.date
       absorberVerrous(t.verrous)
       absorberPresences(t.presences)
+      // plan-audio-distant.md §3 : audios désignés NON rapatriés au tirage
+      // (403 droits, 404, réseau) — matière de l'étiquette du lecteur.
+      audiosInaccessibles.value = t.inaccessibles ?? []
       // I-POR-3 post-pull (§4.8) : un collègue a poussé des règles corpus ?
       // Rejouer la réconciliation sur l'entretien OUVERT (même dialogue que
       // la promotion — jamais de divergence silencieuse).
@@ -440,6 +457,7 @@ export function creerSonal() {
       return false
     } finally {
       tirageEnCours.value = false
+      progressionDistant.value = null // plus de transfert → l'UI ré-affiche le geste
     }
   }
 
@@ -750,6 +768,87 @@ export function creerSonal() {
     audiosManquants.value = await verifierIntegriteAudios()
   }
 
+  // ── État de l'audio désigné, à côté de la barre de lecture (A5) ──────────
+  /** Derniers échecs de rapatriement (plan-audio-distant.md D3) — croisés avec
+   *  la désignation de l'entretien ouvert pour distinguer « pas encore ici »
+   *  de « bloqué par les droits ». */
+  const audiosInaccessibles = ref<{ chemin: string; raison: string }[]>([])
+
+  /** État EFFECTIF de l'audio de l'entretien ouvert (corpus distant seul) :
+   *  ok (jouable ici) · distant (désigné, copie pas encore téléchargée) ·
+   *  inaccessible (le serveur refuse — message explicatif + réessai) ·
+   *  sans-objet (corpus local, ou gestes existants déjà couverts par le
+   *  lecteur : erreur de chargement, aucun audio). */
+  const etatAudioOuvert = computed(() => {
+    const id = ent.ouvertId.value
+    if (!id || !idDistantCourant.value) return { etat: 'sans-objet' as const }
+    if (audiosCorpus.value[id]?.audio) return { etat: 'ok' as const }
+    const d = ent.meta.audioDistant
+    if (!d) return { etat: 'hors-designation' as const }
+    const inc = audiosInaccessibles.value.find((i) => i.chemin === d.chemin)
+    return inc ? { etat: 'inaccessible' as const, raison: inc.raison } : { etat: 'distant' as const }
+  })
+
+  /** « Rapatrier maintenant » / « Réessayer » : tirage immédiat (silencieux —
+   *  un échec réseau garde l'état affiché) puis rechargement du lecteur. */
+  async function rapatrierAudioMaintenant() {
+    await actualiserDistant(true)
+    await rafraichirAudios()
+    if (ent.ouvertId.value) await majAudioEntretien(ent.ouvertId.value)
+  }
+
+  /** A5 — création en corpus DISTANT avec audio Nextcloud : on crée
+   *  l'entretien vide d'abord (transaction définitions), la modale de
+   *  désignation fait le reste. Retourne l'id, ou null si refus. */
+  async function creerEntretienVideDistant(titre: string): Promise<string | null> {
+    if (!titre.trim()) return null
+    const res = await window.sonal.corpus.creerEntretienVide(titre.trim())
+    corpus.membership.value = res.corpus.membership
+    await rafraichirAudios()
+    return res.id
+  }
+
+  // ── Désignation audio distante (plan-audio-distant.md A3) ─────────────
+  /** Entretien cible de la modale « Désigner dans Nextcloud… » (null = fermée). */
+  const designationAudioId = ref<string | null>(null)
+
+  function ouvrirDesignationAudio(id: string) {
+    designationAudioId.value = id
+  }
+
+  function fermerDesignationAudio() {
+    designationAudioId.value = null
+  }
+
+  /** Confirmation de la modale : pose `meta.audioDistant` sur l'entretien cible.
+   *  Deux chemins (D4) — entretien OUVERT chez nous : le modèle en session
+   *  porte le champ, `sauver()` + publication périodique font le reste ;
+   *  entretien FERMÉ : micro-session côté main (`designerAudio`). Puis tirage
+   *  immédiat pour rapatrier la copie miroir et rafraîchir vues + lecteur. */
+  async function confirmerDesignationAudio(chemin: string): Promise<void> {
+    const id = designationAudioId.value
+    if (!id) return
+    if (ent.ouvertId.value === id) {
+      ent.meta.audioDistant = { chemin }
+      await ent.sauver()
+      designationAudioId.value = null
+      await majAudioEntretien(id)
+    } else {
+      const r = await window.sonal.distant.designerAudio(id, chemin)
+      if (!r.ok) {
+        // tenu-par-autrui / divergence : la modale reste ouverte avec la raison
+        // affichée — jamais d'écrasement silencieux.
+        throw new Error(r.raison ?? 'refus')
+      }
+      designationAudioId.value = null
+    }
+    // La copie miroir suit au prochain pull — on le déclenche tout de suite
+    // (silencieux : un échec réseau n'annule PAS la désignation, déjà publiée).
+    await actualiserDistant(true)
+    await rafraichirAudios()
+    audiosManquants.value = await verifierIntegriteAudios()
+  }
+
   async function exporter() {
     if (!ent.ouvertId.value || !ent.editor.value) return
     await ent.sauver()
@@ -927,6 +1026,13 @@ export function creerSonal() {
     assignerAudioSelection,
     reassignerAudioEntretienOuvert,
     associerAudioEntretienOuvert,
+    designationAudioId,
+    ouvrirDesignationAudio,
+    fermerDesignationAudio,
+    confirmerDesignationAudio,
+    etatAudioOuvert,
+    rapatrierAudioMaintenant,
+    creerEntretienVideDistant,
     vue,
     themeASupprimer,
     corpusSelId,
@@ -943,6 +1049,8 @@ export function creerSonal() {
     idDistantCourant,
     dernierTirage,
     tirageEnCours,
+    progressionDistant,
+    pourcentageProgression,
     actualiserDistant,
     lectureSeule,
     tableLigneEditable,

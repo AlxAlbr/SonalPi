@@ -52,8 +52,7 @@ function banc() {
   }
 }
 
-describe('Ouverture de session (§4.1)', () => {
-  it('verrou libre : acquis, le contenu SERVEUR est tiré dans le miroir', async () => {
+describe('Ouverture de session (§4.1)', () => {  it('verrou libre : acquis, le contenu SERVEUR est tiré dans le miroir', async () => {
     const b = banc()
     // Contenu local périmé avant ouverture…
     await b.miroir.tirer()
@@ -75,6 +74,57 @@ describe('Ouverture de session (§4.1)', () => {
     await autres.ouvrir(ID)
     const r = await b.sessions.ouvrir(ID)
     expect(r).toMatchObject({ etat: 'tenu-par-autrui', tenuPar: { userId: 'olivier' } })
+  })
+})
+
+describe('Désignation audio distante — micro-session (plan-audio-distant.md D4)', () => {
+  it('entretien FERMÉ : pose meta.audioDistant, publie, libère le verrou', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    expect(b.verrou()).toBeUndefined()
+
+    const r = await b.sessions.designerAudio(ID, 'audios/e1.mp3')
+    expect(r.ok).toBe(true)
+    // Le serveur porte la désignation…
+    const serveur = JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!) as {
+      meta?: { audioDistant?: { chemin: string } }
+    }
+    expect(serveur.meta?.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+    // …et le verrou a bien été LIBÉRÉ (micro-session complète).
+    expect(b.verrou()).toBeUndefined()
+    // La copie locale du miroir aussi (elle servira au prochain pull audio).
+    const local = JSON.parse(readFileSync(b.fichierLocal, 'utf8')) as {
+      meta?: { audioDistant?: { chemin: string } }
+    }
+    expect(local.meta?.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+  })
+
+  it('session déjà tenue (lecture de sélection au Corpus) : réutilisée, désignation publiée', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID) // ex. acquise par la lecture de sélection
+
+    const r = await b.sessions.designerAudio(ID, 'audios/e1.mp3')
+    expect(r.ok).toBe(true)
+    const serveur = JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!) as {
+      meta?: { audioDistant?: { chemin: string } }
+    }
+    expect(serveur.meta?.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+  })
+
+  it('verrou tenu par autrui : refus sans toucher ni serveur ni miroir', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    const autres = new SessionsDEntretien(b.client, b.miroir, () => ({
+      userId: 'olivier',
+      machineId: 'poste-2',
+      sessionId: 's-AUTRE',
+    }))
+    await autres.ouvrir(ID)
+
+    const r = await b.sessions.designerAudio(ID, 'audios/e1.mp3')
+    expect(r).toMatchObject({ ok: false, raison: 'tenu-par-autrui' })
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).not.toContain('audioDistant')
   })
 })
 

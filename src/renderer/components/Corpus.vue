@@ -39,6 +39,7 @@ const {
   // audio
   urlWaveform,
   assignerAudioSelection,
+  ouvrirDesignationAudio,
   // étape 3a — panneau « Pseudos » du corpus (lecture seule)
   reglesAnon,
   scanAnon,
@@ -335,6 +336,15 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <button class="mini assigner-audio" @click="assignerAudioSelection">
               {{ corpusSelMeta?.audio ? 'Remplacer l’audio…' : 'Assigner un audio…' }}
             </button>
+            <!-- Distant uniquement : lier un audio qui VIT sur le serveur
+                 (plan-audio-distant.md A3) — copie miroir chez chaque membre. -->
+            <button
+              v-if="idDistantCourant && corpusSelId"
+              class="mini assigner-audio"
+              @click="ouvrirDesignationAudio(corpusSelId)"
+            >
+              {{ corpusSelMeta?.audio ? 'Redésigner dans le Nextcloud…' : 'Désigner dans le Nextcloud…' }}
+            </button>
           </div>
 
           <!-- Sinon : thèmes en CONSULTATION compacte ; le crayon ouvre la fenêtre
@@ -446,7 +456,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                clic = ouvrir l'entretien → le lecteur propose de ré-assigner. -->
           <div v-if="Object.keys(audiosManquants).length > 0" class="bandeau-audio" data-tour="bandeau-audio">
             <span class="bandeau-audio-titre">
-              ⚠️ {{ Object.keys(audiosManquants).length }} fichier(s) audio introuvable(s) — déplacé(s) ou supprimé(s) ?
+              ⚠️ {{ Object.keys(audiosManquants).length }} fichier(s) média introuvable(s) — déplacé(s) ou supprimé(s) ?
             </span>
             <ul class="bandeau-audio-liste">
               <li v-for="id in Object.keys(audiosManquants)" :key="id">

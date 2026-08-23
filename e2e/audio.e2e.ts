@@ -107,15 +107,20 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
   await expect(page.locator('.editeur .plage-lue')).toContainText('Deuxième segment')
 
   // --- S7 : CLIC dans le texte → la tête de lecture se cale au temps interpolé
-  // à cet endroit (comme SonalPi) — cliquer dans le cue 2 tombe dans [1, 2.5].
-  await page.locator('.editeur p').nth(1).click()
+  // à cet endroit (comme SonalPi) — cliquer DANS LE TEXTE du cue 2 (pas au
+  // centre de la boîte : au-delà de la fin de ligne, ProseMirror résout la
+  // position sur la frontière suivante → seek au deb du cue 3, invariant voulu).
+  await page.locator('.editeur p').nth(1).click({ position: { x: 30, y: 14 } })
   const tClic = await page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).currentTime)
   expect(tClic).toBeGreaterThanOrEqual(1)
   expect(tClic).toBeLessThanOrEqual(2.5)
   await expect(page.locator('.editeur .plage-lue')).toContainText('Deuxième segment')
 
   // --- S7 : ÉDITER pendant la lecture — les ancres sont remappées comme les
-  // annotations, le surlignage reste sur le MÊME texte (une seule décoration).
+  //  annotations, le surlignage reste sur le MÊME texte (une seule décoration).
+//  Le caret va en FIN de ligne avant la frappe (le clic ci-dessus l'a posé
+//  au milieu d'un mot) — l'insertion reste DANS le cue surligné.
+  await page.keyboard.press('End')
   await page.keyboard.type('Ajout en cours de lecture. ')
   await expect(page.locator('.editeur')).toContainText('Ajout en cours de lecture.')
   await expect(page.locator('.editeur .plage-lue')).toHaveCount(1)
@@ -265,7 +270,7 @@ test('J3 : audio référencé supprimé après assignation → bandeau d’inté
   await page.locator('.recents .recent').first().click()
   await attendreCorpus(page)
   await expect(page.locator('.bandeau-audio')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('.bandeau-audio')).toContainText('fichier(s) audio introuvable')
+  await expect(page.locator('.bandeau-audio')).toContainText('fichier(s) média introuvable')
   await expect(page.locator('.bandeau-audio')).toContainText('Entretien Karine')
 
   // L'app reste FONCTIONNELLE : clic sur l'entretien du bandeau → le lecteur

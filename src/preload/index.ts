@@ -29,6 +29,7 @@ import type {
   DivergenceDistante,
   OrphelinDistant,
   OuvertureDistante,
+  ProgressionTransfert,
   ResultatConnexion,
   ResultatTiragePublic,
 } from '../shared/distant'
@@ -172,8 +173,35 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('distant:creer', params),
     ouvrir: (id: string): Promise<OuvertureDistante> => ipcRenderer.invoke('distant:ouvrir', id),
     tirer: (): Promise<ResultatTiragePublic | null> => ipcRenderer.invoke('distant:tirer'),
+    /** Navigation du sélecteur « Désigner dans Nextcloud… » (plan-audio-distant.md
+     *  §3). Null si corpus local ; dossiers d'abord. */
+    listerDossier: (
+      dossier: string,
+    ): Promise<{ entrees: { nom: string; dossier: boolean }[] } | null> =>
+      ipcRenderer.invoke('distant:listerDossier', dossier),
+    /** Désignation audio distante sur un entretien FERMÉ (micro-session D4). */
+    designerAudio: (
+      id: string,
+      cheminAudio: string,
+    ): Promise<{ ok: boolean; raison?: string; tenuPar?: string }> =>
+      ipcRenderer.invoke('distant:designerAudio', id, cheminAudio),
+    /** Téléversement d'un fichier LOCAL vers le serveur (D5) : le main lit le
+     *  fichier (le renderer ne touche jamais au disque) et l'envoie avec la
+     *  garde anti-écrasement. { raison:'existe', suggere } en cas de collision. */
+    televerserAudio: (
+      sourceLocale: string,
+      cheminCible: string,
+    ): Promise<{ ok: boolean; raison?: string; suggere?: string }> =>
+      ipcRenderer.invoke('distant:televerserAudio', sourceLocale, cheminCible),
     /** Verrous orphelins (crash sans libération, §4.5). Null si corpus local. */
     orphelins: (): Promise<OrphelinDistant[] | null> => ipcRenderer.invoke('distant:orphelins'),
+    /** Progression des transferts binaires (rapatriements du tirage et
+     *  téléversements). Renvoie la fonction de désabonnement. */
+    surProgression: (cb: (p: ProgressionTransfert) => void): (() => void) => {
+      const ecouteur = (_e: Electron.IpcRendererEvent, p: ProgressionTransfert): void => cb(p)
+      ipcRenderer.on('distant:progression', ecouteur)
+      return () => ipcRenderer.removeListener('distant:progression', ecouteur)
+    },
     /** Choix « reprendre et publier » : publie la copie locale PUIS libère. */
     reprendreOrphelin: (cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> =>
       ipcRenderer.invoke('distant:reprendreOrphelin', cheminVerrou),

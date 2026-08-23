@@ -828,14 +828,30 @@ export class CorpusStore {
     return { audioRef: ref }
   }
 
-  /** id → chemin EFFECTIF de l'audio sur CE poste : la ref partagée si son
-   *  fichier existe ici, sinon la retombée locale (§3.3). Les entrées sans
-   *  aucune piste restent absentes de la carte. */
+  /** id → chemin EFFECTIF de l'audio sur CE poste (plan-audio-distant.md D2) :
+   *  1. la désignation distante dont la copie miroir est présente (vérité
+   *     partagée, une fois téléchargée) ;
+   *  2. la ref partagée si son fichier existe ici (poste assigneur) ;
+   *  3. la retombée locale §3.3 (`audio-locaux.json`).
+   *  Les ids sans aucune piste restent absents de la carte. */
   private audiosResolus(): Map<string, string> {
     const locaux = this.lireAudiosLocaux()
+    const distants = this.refsAudioDistants()
     const out = new Map<string, string>()
     for (const [id, ref] of this.refsAudio()) {
+      const copie = distants.get(id)
+      if (copie && existsSync(join(this.dir, copie.chemin))) {
+        out.set(id, join(this.dir, copie.chemin))
+        continue
+      }
       out.set(id, existsSync(ref) ? ref : locaux[id] ?? ref)
+    }
+    // Désignation SANS audioRef (création directe en distant) : la seule piste
+    // partagée est le fichier serveur — on ne retient que si sa copie est là.
+    for (const [id, copie] of distants) {
+      if (this.refsAudio().has(id)) continue
+      const abs = join(this.dir, copie.chemin)
+      if (existsSync(abs)) out.set(id, abs)
     }
     return out
   }
@@ -859,17 +875,23 @@ export class CorpusStore {
   cheminMediaAbs(p: string): string | null {
     const cible = normalize(p)
     const locaux = this.lireAudiosLocaux()
+    const resolus = this.audiosResolus()
     for (const [id, ref] of this.refsAudio()) {
-      if (normalize(ref) === cible) {
-        // La requête porte LA REF PARTAGÉE : servir le fichier EFFECTIF de ce
-        // poste (retombée locale §3.3 si le fichier d'origine n'y est pas).
-        const effectif = this.audiosResolus().get(id) ?? ref
+      // La requête porte LA REF PARTAGÉE : servir le fichier EFFECTIF de ce
+      // poste (copie miroir d'une désignation, retombée locale §3.2…).
+      const effectif = resolus.get(id) ?? ref
+      if (
+        normalize(ref) === cible ||
+        normalize(effectif) === cible ||
+        (locaux[id] && normalize(locaux[id]) === cible)
+      ) {
         return existsSync(effectif) ? effectif : null
       }
-      // La requête peut aussi porter directement le chemin local associé
-      // (l'onde est générée depuis la résolution effective).
-      const loc = locaux[id]
-      if (loc && normalize(loc) === cible) return existsSync(cible) ? cible : null
+    }
+    // Désignation sans audioRef : la seule ref stockée est le chemin miroir.
+    for (const [id, effectif] of resolus) {
+      if (this.refsAudio().has(id)) continue
+      if (normalize(effectif) === cible) return existsSync(effectif) ? effectif : null
     }
     return null
   }
@@ -902,6 +924,27 @@ export class CorpusStore {
       if (typeof ref === 'string' && ref && isAbsolute(ref)) out.set(id, ref)
     }
     this.cacheRefsAudio = out
+    return out
+  }
+
+  /** Désignations distantes (id → meta.audioDistant), relues À CHAQUE appel :
+   *  contrairement aux `audioRef`, elles arrivent par le PULL du miroir — une
+   *  écriture extérieure au store qu'aucun appel métier n'invalide, donc pas
+   *  de cache ici (fichiers petits, fréquence faible). */
+  private refsAudioDistants(): Map<string, { chemin: string }> {
+    const out = new Map<string, { chemin: string }>()
+    const corpus = this.ouvrir()
+    for (const id of Object.keys(corpus.membership)) {
+      const f = this.entretienFile(id)
+      if (!existsSync(f)) continue
+      try {
+        const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
+        const d = data.meta?.audioDistant
+        if (d && typeof d.chemin === 'string' && d.chemin) out.set(id, { chemin: d.chemin })
+      } catch {
+        /* fichier illisible : pas de désignation retenue */
+      }
+    }
     return out
   }
 

@@ -169,6 +169,12 @@ export interface BrouillonAnon {
 export interface MetaEntretien {
   valeursGen: Record<string, string> // idVar → idMod (portée entretien)
   audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio
+  /** Fichier audio désigné DANS le Nextcloud (plan-audio-distant.md D1) :
+   *  chemin RELATIF à la racine du corpus serveur — n'importe où dans l'arbre,
+   *  c'est la désignation qui porte l'information, pas un dossier. Le miroir
+   *  télécharge ce fichier à chaque tirage ; champ ADDITIF optionnel,
+   *  absent des fichiers existants → pas de bump de formatVersion. */
+  audioDistant?: { chemin: string }
   /** Chemin RELATIF du `.sonal` V1 d'origine au dossier du `.crp` (E2) —
    *  trace seule, jamais utilisé pour relire. */
   sourceV1?: { rtrPath: string | null }

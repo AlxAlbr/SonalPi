@@ -7,6 +7,7 @@ import TableDonnees from './components/TableDonnees.vue'
 import Entretien from './components/Entretien.vue'
 import RepriseCrash from './components/RepriseCrash.vue'
 import DivergenceCopie from './components/DivergenceCopie.vue'
+import DesignationAudioDistante from './components/DesignationAudioDistante.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
@@ -65,6 +66,10 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <!-- Fusion assistée (§6) : copie de divergence proposée à la réouverture
          de l'entretien concerné. -->
     <DivergenceCopie />
+
+    <!-- Désignation audio distante (plan-audio-distant.md A3) : navigation
+         Nextcloud + micro-session — ne s'affiche que si demandée. -->
+    <DesignationAudioDistante />
   </main>
 </template>
 

@@ -38,10 +38,12 @@ import type {
   DemandeCreationDistante,
   OrphelinDistant,
   OuvertureDistante,
+  ProgressionTransfert,
   ResultatConnexion,
   ResultatTiragePublic,
 } from '../shared/distant'
 import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
+import { EXT_MEDIA } from '../shared/media'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev le
 // renderer est en http://localhost (Vite) et ne lit pas file:// → un protocole
@@ -57,12 +59,6 @@ protocol.registerSchemesAsPrivileged([
     privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true },
   },
 ])
-
-const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac']
-const EXT_VIDEO = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'ogv', 'avi']
-// Dialogue de média : audio + vidéo (les deux peuvent être assignés à un entretien).
-const EXT_MEDIA = [...EXT_AUDIO, ...EXT_VIDEO]
-const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 
 // png : pour la forme d'onde (renderer → main → fichier corpus/audio/<id>.png)
 // Vidéo : <video> a besoin du bon Content-Type pour demuxer (mp4/webm/mov…)
@@ -84,6 +80,15 @@ const MIME: Record<string, string> = {
   ogv: 'video/ogg',
   avi: 'video/x-msvideo',
 }
+
+/** Content-Type d'un média pour le téléversement (best effort —
+ *  plan-audio-distant.md D5) : la table MIME ci-dessus, défaut octet-stream.
+ *  Couvre AUDIO ET VIDÉO — le nom historique reste par économie de churn. */
+function typeMimeAudio(chemin: string): string {
+  const ext = extname(chemin).slice(1).toLowerCase()
+  return MIME[ext] ?? 'application/octet-stream'
+}
+const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 
 // --- Réglages du profil : corpus récents + mémoire démo + largeur vidéo par corpus ---
 interface Settings {
@@ -630,7 +635,14 @@ function enregistrerIpcCorpus(): void {
       identifiants: { utilisateur: config.utilisateur, motDePasse },
     })
     const dirMiroir = join(app.getPath('userData'), 'miroirs', id)
-    const miroir = new MiroirWebDAV(client, dirMiroir)
+    // Progression des rapatriements : relayée à toutes les fenêtres —
+    // l'étiquette du lecteur affiche l'avancement.
+    const surProgression = (p: ProgressionTransfert): void => {
+      for (const w of BrowserWindow.getAllWindows()) {
+        w.webContents.send('distant:progression', p)
+      }
+    }
+    const miroir = new MiroirWebDAV(client, dirMiroir, surProgression)
     const tirage = await miroir.tirer()    // Garde : un dossier distant SANS corpus.json ne doit pas être amorcé
     // localement (l'amorce écrirait dans un miroir en lecture seule).
     if (!existsSync(join(dirMiroir, 'corpus.json'))) {
@@ -689,6 +701,7 @@ function enregistrerIpcCorpus(): void {
       corpus,
       distant: { id, urlServeur: config.urlServeur, utilisateur: config.utilisateur },
       verrous: await sessions.etatVerrousPublics(tirage.verrous),
+      inaccessibles: tirage.inaccessibles.length > 0 ? tirage.inaccessibles : undefined,
     }
   })
 
@@ -711,11 +724,69 @@ function enregistrerIpcCorpus(): void {
             ? await sessions.etatVerrousPublics(t.verrous)
             : t.verrous.map(({ chemin, etag }) => ({ chemin, etag, contenu: null })),
       presences: presence ? await presence.lister() : undefined,
+      inaccessibles: t.inaccessibles.length > 0 ? t.inaccessibles : undefined,
       date: t.date,
     }
   })
 
   /* ── E1 finition : publication manuelle + reprise crash + badges ───────── */
+
+  /** Navigation du sélecteur « Désigner dans Nextcloud… » (plan-audio-distant.md
+   *  §3) : PROPFIND Depth:1 d'un dossier du corpus, entrées triées (dossiers
+   *  d'abord). Null si corpus local ; erreur typée si dossier inaccessible. */
+  ipcMain.handle('distant:listerDossier', async (_e, dossier: string) => {
+    if (!miroirActif) return null
+    const entrees = await miroirActif.miroir.listerDossier(dossier)
+    return { entrees }
+  })
+
+  /** Désignation audio (D4) : micro-session si l'entretien est FERMÉ —
+   *  l'appelant renderer ne vient ici que dans ce cas (un entretien ouvert en
+   *  session passe par son modèle). Le chemin est RELATIF à la racine corpus. */
+  ipcMain.handle('distant:designerAudio', async (_e, id: string, cheminAudio: string) => {
+    if (!sessions) return { ok: false as const, raison: 'corpus-local' }
+    return sessions.designerAudio(id, cheminAudio)
+  })
+
+  /** Téléversement d'un fichier LOCAL vers le Nextcloud (plan-audio-distant.md
+   *  D5). Le renderer ne touche jamais au disque : c'est le main qui lit le
+   *  fichier choisi par dialogue — lu EN FLUX vers le PUT
+   *  (`televerserFichier` avec un chemin), donc sans limite de taille mémoire.
+   *  La DÉSIGNATION reste un geste séparé du renderer (même chemin que pour un
+   *  fichier déjà présent). */
+  ipcMain.handle(
+    'distant:televerserAudio',
+    async (_e, sourceLocale: string, cheminCible: string) => {
+      if (!miroirActif) return { ok: false as const, raison: 'corpus-local' }
+      // Existence/lisibilité vérifiée TÔT pour distinguer « fichier illisible »
+      // d'un échec réseau pendant l'envoi.
+      try {
+        statSync(sourceLocale)
+      } catch {
+        return { ok: false as const, raison: 'lecture-impossible' }
+      }
+      try {
+        return await miroirActif.miroir.televerserFichier(
+          cheminCible,
+          sourceLocale,
+          typeMimeAudio(cheminCible),
+          (octets, total) => {
+            for (const w of BrowserWindow.getAllWindows()) {
+              w.webContents.send('distant:progression', {
+                sens: 'televersement',
+                chemin: cheminCible,
+                octets,
+                total,
+              } satisfies ProgressionTransfert)
+            }
+          },
+        )
+      } catch (e) {
+        if (e instanceof ErreurHttp) return { ok: false as const, raison: String(e.statut) }
+        return { ok: false as const, raison: 'reseau' }
+      }
+    },
+  )
 
   /** « Publier maintenant » (§4.3) : PUT If-Match sous verrou toujours tenu. */
   ipcMain.handle('distant:publierEntretien', async (_e, id: string) => {

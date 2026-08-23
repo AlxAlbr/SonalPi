@@ -14,8 +14,22 @@ import type { SegmentThematique } from '../../shared/format'
  * sur la même ligne — la place libérée à droite accueille le panneau vidéo.
  */
 const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
-const { audio, resumeOuvert, tempsAuTexte, peintureSegment, reassignerAudioEntretienOuvert, associerAudioEntretienOuvert, idDistantCourant } =
-  utiliserSonal()
+const {
+  audio,
+  resumeOuvert,
+  tempsAuTexte,
+  peintureSegment,
+  reassignerAudioEntretienOuvert,
+  associerAudioEntretienOuvert,
+  ouvrirDesignationAudio,
+  etatAudioOuvert,
+  rapatrierAudioMaintenant,
+  idDistantCourant,
+  ouvertId,
+  tirageEnCours,
+  progressionDistant,
+  pourcentageProgression,
+} = utiliserSonal()
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
 
@@ -92,6 +106,32 @@ function clicBande(e: MouseEvent) {
       <div class="curseur" :style="{ left: ratio * 100 + '%' }"></div>
     </div>
   </div>
+  <div v-else-if="etatAudioOuvert.etat === 'distant' || etatAudioOuvert.etat === 'inaccessible'" class="lecteur-audio lecteur-etat">
+    <!-- plan-audio-distant.md A5 : l'état de l'audio DÉSIGNÉ, à côté de la
+         barre de lecture — le bon moment UX (on vient ici pour écouter).
+         distant = copie pas encore téléchargée ; inaccessible = le serveur
+         refuse le GET (droits) — message explicatif + réessai. -->
+    <template v-if="etatAudioOuvert.etat === 'distant'">
+      <!-- Pendant le rapatriement, le geste devient progression (octets si
+           le serveur n'expose pas la taille). -->
+      <span v-if="tirageEnCours && progressionDistant?.sens === 'rapatriement'" class="msg-etat">
+        ⏳ Rapatriement de « {{ progressionDistant.chemin }} »…
+        {{ pourcentageProgression !== null ? `${pourcentageProgression} %` : 'en cours' }}
+      </span>
+      <template v-else>
+        <span class="msg-etat">🔊 Média désigné sur le Nextcloud — pas encore sur ce poste.</span>
+        <button class="mini-lect" @click="rapatrierAudioMaintenant">🔄 Rapatrier maintenant</button>
+      </template>
+    </template>
+    <template v-else>
+      <span class="msg-etat">
+        🔒 Média désigné mais inaccessible depuis ce poste (droits insuffisants) —
+        demandez l'accès au propriétaire du fichier ; il sera récupéré
+dès que les droits seront ouverts.
+      </span>
+      <button class="mini-lect" @click="rapatrierAudioMaintenant">Réessayer</button>
+    </template>
+  </div>
   <div v-else-if="url && erreur" class="lecteur-audio lecteur-erreur">
     <!-- §3.3 (E4) : en corpus distant, l'audioRef partagée pointe chez le poste
          qui a assigné — chaque poste associe SON fichier local (référence,
@@ -100,6 +140,15 @@ function clicBande(e: MouseEvent) {
     <template v-if="idDistantCourant">
       <span class="msg-erreur">🔊 Audio absent de ce poste — il vit sur la machine qui l'a assigné.</span>
       <button class="mini-lect" @click="associerAudioEntretienOuvert">Associer l'audio local…</button>
+      <!-- plan-audio-distant.md A3 : ou lier le fichier PARTAGÉ du serveur —
+           la copie miroir arrivera chez tous au prochain tirage. -->
+      <button
+        v-if="ouvertId"
+        class="mini-lect"
+        @click="ouvrirDesignationAudio(ouvertId)"
+      >
+        Désigner dans le Nextcloud…
+      </button>
     </template>
     <template v-else>
       <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
@@ -180,6 +229,17 @@ function clicBande(e: MouseEvent) {
   gap: 0.6rem;
   border-color: #f3b4ad;
   background: #fdecea;
+}
+/* État de l'audio désigné (distant / inaccessible) : informatif, pas une
+   erreur — teinte neutre (plan-audio-distant.md A5). */
+.lecteur-etat {
+  gap: 0.6rem;
+  border-color: #c9d8ef;
+  background: #eef3fb;
+}
+.msg-etat {
+  font-size: 0.82rem;
+  color: #2b4a75;
 }
 .msg-erreur {
   font-size: 0.82rem;

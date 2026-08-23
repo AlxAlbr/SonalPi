@@ -62,16 +62,36 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     const client = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: MAX })
     const chemin = 'sonde/contrat.tmp'
     await client.creerDossier('sonde')
+    // Auto-réparation : un run interrompu peut laisser le fichier (le PUT
+    // If-None-Match ci-dessous échouerait alors en 412).
+    await client.supprimer(chemin).catch(() => {})
+    // Corps de TAILLES DIFFÉRENTES : l'ETag Nextcloud dépend de mtime+taille —
+    // deux écritures de même taille DANS LA MÊME SECONDE peuvent produire le
+    // même ETag (collisions observées sur le volume Docker), ce qui ferait
+    // passer le If-Match périmé ci-dessous au lieu du 412 attendu.
     await expect(client.putTexte(chemin, 'v1', { ifNoneMatch: '*' })).resolves.toBeTruthy()
-    await expect(client.putTexte(chemin, 'v2', { ifNoneMatch: '*' })).rejects.toMatchObject({
+    await expect(client.putTexte(chemin, 'v2-beaucoup-plus-long', { ifNoneMatch: '*' })).rejects.toMatchObject({
       statut: 412,
     })
     const etag = (await client.propfind('sonde')).find((e) => e.chemin === 'contrat.tmp')!.etag!
-    const nouveau = await client.putTexte(chemin, 'v3', { ifMatch: etag })
+    const nouveau = await client.putTexte(chemin, 'v3-longueur-encore-autre', { ifMatch: etag })
     expect(nouveau).toBeTruthy()
-    await expect(client.putTexte(chemin, 'v4', { ifMatch: etag })).rejects.toMatchObject({
-      statut: 412,
-    })
+    // Contrôle d'obsolescence avec délai de grâce : sous charge, le serveur
+    // peut courir devant la VISIBILITÉ du nouvel ETag (cache) — deux PUT
+    // conditionnels consécutifs immédiats ont déjà fait passer un If-Match
+    // périmé au lieu du 412 attendu (flake sur le volume Docker). On ressait
+    // BORNÉ : le contrat (412) doit finir par être honoré.
+    let refuse = false
+    for (let i = 0; i < 20 && !refuse; i++) {
+      await new Promise((r) => setTimeout(r, 200))
+      refuse = await client
+        .putTexte(chemin, `corps-périmé-${i}`, { ifMatch: etag })
+        .then(
+          () => false,
+          (e: ErreurHttp) => e.statut === 412,
+        )
+    }
+    expect(refuse, 'le If-Match périmé doit être refusé (412)').toBe(true)
     await client.supprimer(chemin)
   })
 

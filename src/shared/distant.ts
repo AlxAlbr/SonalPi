@@ -34,6 +34,16 @@ export type ResultatConnexion =
   | { ok: true; compte: CompteDistantPublic; profil: ProfilCapacites }
   | { ok: false; note: string }
 
+/** Progression d'un transfert binaire : émise périodiquement par le main
+ *  pendant le pull miroir (« rapatriement ») et le téléversement. `total`
+ *  null si le serveur n'expose pas la taille. */
+export interface ProgressionTransfert {
+  sens: 'rapatriement' | 'televersement'
+  chemin: string // relatif au corpus (cible serveur dans les deux cas)
+  octets: number // transférés depuis le début de CE fichier
+  total: number | null
+}
+
 /** Création d'un nouveau corpus distant : mêmes identifiants que la connexion
  *  plus le nom de projet. Le compte n'est enregistré au coffre qu'après une
  *  publication réussie (rien de semi-créé). */
@@ -50,6 +60,10 @@ export interface DemandeCreationDistante extends DemandeConnexion {
 export interface OuvertureDistante extends OuvertureCorpus {
   distant: CompteDistantPublic
   verrous: EntreeVerrouPublic[]
+  /** Audios désignés non rapatriés par le pull d'ouverture (plan-audio-distant.md
+   *  D3 : 403/404/réseau) — alimente l'étiquette du lecteur dès l'arrivée.
+   *  Champ optionnel : absent si rien à signaler. */
+  inaccessibles?: { chemin: string; raison: string }[]
 }
 
 /** État PUBLIC d'un fichier verrou — ce que l'UI affiche (« tenu par X depuis
@@ -77,6 +91,11 @@ export interface ResultatTiragePublic {
   telecharges: string[]
   corbeille: string[]
   verrous: EntreeVerrouPublic[]
+  /** Audios désignés (meta.audioDistant, plan-audio-distant.md D3) dont la
+   *  récupération a échoué (403/404/réseau) — matière des badges « audio
+   *  inaccessible ». Non bloquant : le prochain tirage re-tentera. Absent si
+   *  corpus local ou rien à signaler. */
+  inaccessibles?: { chemin: string; raison: string }[]
   /** Présences vivantes des autres postes (§9, E4) — informatif, jamais
    *  décisionnel. Absent si corpus local. */
   presences?: PresencePublic[]

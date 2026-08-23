@@ -37,6 +37,7 @@ import type {
   DivergenceDistante,
   OrphelinDistant,
   OuvertureDistante,
+  ProgressionTransfert,
   ResultatConnexion,
   ResultatTiragePublic,
 } from '../shared/distant'
@@ -127,7 +128,25 @@ declare global {
         creer: (params: DemandeCreationDistante) => Promise<ResultatConnexion>
         ouvrir: (id: string) => Promise<OuvertureDistante>
         tirer: () => Promise<ResultatTiragePublic | null>
+        /** Navigation du sélecteur « Désigner dans Nextcloud… ». Null si
+         *  corpus local ; dossiers d'abord. */
+        listerDossier: (
+          dossier: string,
+        ) => Promise<{ entrees: { nom: string; dossier: boolean }[] } | null>
+        /** Désignation audio distante sur un entretien FERMÉ (micro-session D4). */
+        designerAudio: (
+          id: string,
+          cheminAudio: string,
+        ) => Promise<{ ok: boolean; raison?: string; tenuPar?: string }>
+        /** Téléversement d'un fichier LOCAL vers le serveur (D5). */
+        televerserAudio: (
+          sourceLocale: string,
+          cheminCible: string,
+        ) => Promise<{ ok: boolean; raison?: string; suggere?: string }>
         orphelins: () => Promise<OrphelinDistant[] | null>
+        /** Progression des transferts binaires (rapatriements du tirage et
+         *  téléversements). Renvoie la fonction de désabonnement. */
+        surProgression: (cb: (p: ProgressionTransfert) => void) => () => void
         reprendreOrphelin: (cheminVerrou: string) => Promise<{ ok: boolean; raison?: string }>
         abandonnerOrphelin: (cheminVerrou: string) => Promise<void>
         listerDivergences: () => Promise<DivergenceDistante[]>

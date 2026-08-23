@@ -12,6 +12,43 @@
  * (invariant §15.4 — banc de conformité).
  */
 
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from 'node:fs'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+
+/** Callback de progression d'un transfert binaire (B3) : octets cumulés et
+ *  total connu (null sinon). Appelé au plus toutes les ~100 ms + à la fin. */
+export type SurProgression = (octets: number, total: number | null) => void
+
+/** Transform qui compte les octets traversants et signale la progression
+ *  sans ralentir le pipe (throttle temporel — les chunks peuvent être nombreux). */
+function compteurProgression(surProgression: SurProgression, total: number | null): Transform {
+  let cumul = 0
+  let dernierEnvoi = 0
+  return new Transform({
+    transform(chunk, _enc, suite) {
+      cumul += chunk.length
+      const maintenant = Date.now()
+      if (maintenant - dernierEnvoi >= 100) {
+        dernierEnvoi = maintenant
+        surProgression(cumul, total)
+      }
+      suite(null, chunk)
+    },
+    flush(suite) {
+      surProgression(cumul, total) // 100 % — l'appelant ferme sa barre dessus
+      suite()
+    },
+  })
+}
+
 /** Identifiants d'un compte distant. Le mot de passe est un MOT DE PASSE
  *  D'APPLICATION Nextcloud (jamais le principal — cf. plan §2 « Compte »). */
 export interface Identifiants {
@@ -34,6 +71,10 @@ export interface EntreePropfind {
   chemin: string // relatif à la racine du corpus, sans barre initiale
   etag: string | null // null = le serveur n'expose pas d'ETag (anomalie signalable)
   dossier: boolean
+  /** Taille en octets (`getcontentlength`) — undefined si absente (dossier ou
+   *  serveur avare). Sert à la progression des transferts
+   *  (voir `compteurProgression`). */
+  taille?: number
 }
 
 /** Erreur HTTP typée par statut : les décisions du protocole (412 = verrou
@@ -98,6 +139,8 @@ export class ClientWebDAV {
     options: {
       entetes?: Record<string, string>
       corps?: BodyInit | null
+      /** Requis par fetch quand le corps est un flux (PUT streamé). */
+      duplex?: 'half'
       /** Statuts considérés normaux (pas d'exception). */
       statutsOk?: number[]
     } = {},
@@ -109,6 +152,7 @@ export class ClientWebDAV {
         ...options.entetes,
       },
       body: options.corps ?? undefined,
+      ...(options.duplex ? { duplex: options.duplex } : {}),
     })
     const ok = options.statutsOk ?? [200, 201, 204]
     if (!ok.includes(reponse.status)) {
@@ -126,6 +170,7 @@ export class ClientWebDAV {
   <d:prop>
     <d:getetag/>
     <d:resourcetype/>
+    <d:getcontentlength/>
   </d:prop>
 </d:propfind>`
     const reponse = await this.requete('PROPFIND', dossierRelatif, {
@@ -165,6 +210,37 @@ export class ClientWebDAV {
     return new Uint8Array(await reponse.arrayBuffer())
   }
 
+  /** GET d'un fichier binaire ÉCRIT EN FLUX vers un chemin local ABSOLU :
+   *  le corps HTTP est pipé sur disque par chunks — la mémoire du poste ne
+   *  porte JAMAIS le fichier entier, quelle que soit sa taille (vidéos).
+   *  Écriture atomique (`<destination>.tmp` puis rename), même discipline que
+   *  le store ; le `.tmp` est nettoyé si le transfert échoue en cours de route. */
+  async getBinaireFichier(
+    chemin: string,
+    destination: string,
+    surProgression?: SurProgression,
+  ): Promise<void> {
+    const reponse = await this.requete('GET', chemin)
+    if (!reponse.body) throw new ErreurHttp(0, `GET ${chemin} → corps vide`)
+    // Total si le serveur l'expose (Nextcloud le fait) — sinon progression
+    // indéterminée : l'UI affiche les octets seuls.
+    const tailleBrute = Number(reponse.headers.get('content-length') ?? '')
+    const total = Number.isFinite(tailleBrute) && tailleBrute > 0 ? tailleBrute : null
+    const tmp = `${destination}.tmp`
+    try {
+      const fluxCompteur = surProgression ? compteurProgression(surProgression, total) : null
+      await pipeline(
+        Readable.fromWeb(reponse.body as unknown as import('node:stream/web').ReadableStream),
+        ...(fluxCompteur ? [fluxCompteur] : []),
+        createWriteStream(tmp),
+      )
+      renameSync(tmp, destination)
+    } catch (e) {
+      if (existsSync(tmp)) rmSync(tmp)
+      throw e
+    }
+  }
+
   /** PUT avec préconditions optionnelles. Renvoie l'ETag de la nouvelle
    *  version si le serveur en expose un (Nextcloud le fait sur les PUT),
    *  sinon null — l'appelant (publication §4.3) doit alors re-PROPFIND. */
@@ -174,6 +250,67 @@ export class ClientWebDAV {
     if (options.ifNoneMatch === '*') entetes['If-None-Match'] = '*'
     entetes['Content-Type'] = options.contentType ?? 'application/json; charset=utf-8'
     const reponse = await this.requete('PUT', chemin, { entetes, corps: contenu })
+    const etag = reponse.headers.get('etag') ?? reponse.headers.get('ETag')
+    return etag ? retirerGuillemets(etag) : null
+  }
+
+  /** PUT binaire — miroir exact de `putTexte` (plan-audio-distant.md D5) :
+   *  les audios téléversés ne sont pas du texte. Mêmes préconditions, même
+   *  contrat de retour (ETag de la nouvelle version ou null). */
+  async putBinaire(
+    chemin: string,
+    contenu: Uint8Array,
+    options: OptionsPut = {},
+  ): Promise<string | null> {
+    const entetes: Record<string, string> = {}
+    if (options.ifMatch) entetes['If-Match'] = `"${retirerGuillemets(options.ifMatch)}"`
+    if (options.ifNoneMatch === '*') entetes['If-None-Match'] = '*'
+    entetes['Content-Type'] = options.contentType ?? 'application/octet-stream'
+    const reponse = await this.requete('PUT', chemin, {
+      entetes,
+      // Vue typée sur le buffer : évite une copie, satisfait BodyInit.
+      corps: contenu as unknown as BodyInit,
+    })
+    const etag = reponse.headers.get('etag') ?? reponse.headers.get('ETag')
+    return etag ? retirerGuillemets(etag) : null
+  }
+
+  /** PUT d'un fichier LOCAL lu EN FLUX : miroir de `getBinaireFichier` — le
+   *  fichier source est pipé vers le corps HTTP par chunks, jamais chargé en
+   *  mémoire entière (téléversement de vidéos). Mêmes préconditions et même
+   *  contrat de retour que `putBinaire`. Pour les fichiers dépassant les
+   *  limites de l'instance Nextcloud, voir plan-chunking.md (upload segmenté,
+   *  non implémenté à ce jour). */
+  async putFichier(
+    chemin: string,
+    sourceLocale: string,
+    options: OptionsPut = {},
+    surProgression?: SurProgression,
+  ): Promise<string | null> {
+    const entetes: Record<string, string> = {}
+    if (options.ifMatch) entetes['If-Match'] = `"${retirerGuillemets(options.ifMatch)}"`
+    if (options.ifNoneMatch === '*') entetes['If-None-Match'] = '*'
+    entetes['Content-Type'] = options.contentType ?? 'application/octet-stream'
+    // Total connu d'avance : c'est la taille du fichier source.
+    let total: number | null = null
+    try {
+      total = statSync(sourceLocale).size
+    } catch {
+      /* l'échec de lecture remontera par le flux */
+    }
+    const fluxLecture = createReadStream(sourceLocale)
+    const fluxCompteur = surProgression ? compteurProgression(surProgression, total) : null
+    const corps = Readable.toWeb(
+      fluxCompteur ? fluxLecture.pipe(fluxCompteur) : fluxLecture,
+    ) as unknown as BodyInit
+    const reponse = await this.requete('PUT', chemin, {
+      entetes,
+      // Readable Node → ReadableStream web ; `duplex: 'half'` est exigé par
+      // fetch quand le corps est un flux (le client écrit sans lire la réponse
+      // en même temps).
+      corps,
+      duplex: 'half',
+    })
     const etag = reponse.headers.get('etag') ?? reponse.headers.get('ETag')
     return etag ? retirerGuillemets(etag) : null
   }
@@ -374,10 +511,13 @@ export function analyserMultistatus(xml: string): EntreePropfind[] {
     chemin = chemin.replace(/^\//, '')
     const dossier = /<(?:[\w.-]+:)?collection\s*\/?>/i.test(bloc)
     const etagBrut = valeurBalise(bloc, 'getetag')
+    const tailleBrute = valeurBalise(bloc, 'getcontentlength')
+    const taille = tailleBrute !== null && /^\d+$/.test(tailleBrute.trim()) ? Number(tailleBrute.trim()) : undefined
     sorties.push({
       chemin,
       etag: etagBrut ? retirerGuillemets(etagBrut) : null,
       dossier,
+      ...(taille !== undefined ? { taille } : {}),
     })
   }
   return sorties

@@ -12,8 +12,14 @@
 import type { ImplementationFetch } from '../src/main/webdav/client'
 
 interface Entree {
-  contenu?: string // absent = dossier
+  contenu?: string // absent = fichier binaire ou dossier ; voir `dossier`/`binaire`
   etag: string
+  /** Marqueur explicite de DOSSIER (MKCOL). Ne PAS déduire de `contenu ===
+   *  undefined` : un PUT binaire stocke des octets sans `contenu` (B2). */
+  dossier?: boolean
+  /** Octets bruts d'un PUT non décodable en UTF-8 (putBinaire, D5). Quand
+   *  présent, GET renvoie CES octets et `contenu` est ignoré. */
+  binaire?: Uint8Array
 }
 
 /** Verrou natif posé sur un fichier (émulation files_lock, variante A) — le
@@ -54,6 +60,12 @@ export class ServeurWebDAVMemoire {
     this.entrees.set(this.absolu(cheminRelatif), { contenu, etag })
   }
 
+  /** Amorce d'un fichier BINAIRE (octets bruts — jamais décodés en texte). */
+  poserBinaire(cheminRelatif: string, octets: Uint8Array): void {
+    const etag = this.prochainEtag()
+    this.entrees.set(this.absolu(cheminRelatif), { binaire: octets, etag })
+  }
+
   /** Amorce d'un dossier (équivalent MKCOL) pour la préparation des scénarios. */
   creerDossierRelatif(cheminRelatif: string): void {
     this.dossier(this.absolu(cheminRelatif))
@@ -61,6 +73,11 @@ export class ServeurWebDAVMemoire {
 
   etagDe(cheminRelatif: string): string | undefined {
     return this.entrees.get(this.absolu(cheminRelatif))?.etag
+  }
+
+  /** Octets bruts d'un fichier stocké binairement (PUT streamé/non-UTF-8). */
+  binaireDe(cheminRelatif: string): Uint8Array | undefined {
+    return this.entrees.get(this.absolu(cheminRelatif))?.binaire
   }
 
   contenuDe(cheminRelatif: string): string | undefined {
@@ -72,7 +89,7 @@ export class ServeurWebDAVMemoire {
   }
 
   private dossier(absolu: string): void {
-    this.entrees.set(absolu.replace(/\/+$/, ''), { etag: this.prochainEtag() })
+    this.entrees.set(absolu.replace(/\/+$/, ''), { etag: this.prochainEtag(), dossier: true })
   }
 
   private prochainEtag(): string {
@@ -133,17 +150,28 @@ export class ServeurWebDAVMemoire {
     switch (requete.method) {
       case 'GET': {
         const e = this.entrees.get(chemin)
-        if (!e || e.contenu === undefined) return this.erreur(404)
-        return new Response(e.contenu, {
+        if (!e || e.dossier || (e.contenu === undefined && !e.binaire)) return this.erreur(404)
+        const corps = e.binaire ?? e.contenu!
+        const taille = e.binaire ? e.binaire.length : Buffer.byteLength(e.contenu!, 'utf8')
+        return new Response(corps, {
           status: 200,
-          headers: { ETag: `"${e.etag}"`, 'Content-Type': 'application/json' },
+          headers: { ETag: `"${e.etag}"`, 'Content-Type': 'application/json', 'Content-Length': String(taille) },
         })
       }
       case 'PUT': {
-        const corps = await requete.text()
+        // Octets BRUTS : un PUT binaire ne doit pas être détruit par un décodage
+        // texte. Si le corps est de l'UTF-8 valide on stocke la chaîne (comportement
+        // historique des tests texte), sinon on garde les octets.
+        const octets = new Uint8Array(await requete.arrayBuffer())
+        let corps: string | undefined
+        try {
+          corps = new TextDecoder('utf-8', { fatal: true }).decode(octets)
+        } catch {
+          corps = undefined
+        }
         const refusVerrou = this.verifierVerrouNatif(requete, chemin)
         if (refusVerrou) return refusVerrou
-        return this.put(corps, requete, chemin)
+        return this.put(corps, requete, chemin, corps === undefined ? octets : undefined)
       }
       case 'DELETE': {
         const e = this.entrees.get(chemin)
@@ -174,19 +202,19 @@ export class ServeurWebDAVMemoire {
   }
 
   /** Le cœur du test-and-set : le serveur tranche. */
-  private put(corps: string, requete: Request, chemin: string): Response {
+  private put(corps: string | undefined, requete: Request, chemin: string, binaire?: Uint8Array): Response {
     const existante = this.entrees.get(chemin)
     if (requete.headers.get('If-None-Match') === '*' && existante) {
       return this.erreur(412) // création exclusive refusée : déjà présent
     }
-    if (existante && existante.contenu !== undefined) {
+    if (existante && (existante.contenu !== undefined || existante.binaire)) {
       const refus = this.verifierIfMatch(requete, existante.etag)
       if (refus) return refus
-    } else if (existante && existante.contenu === undefined) {
+    } else if (existante && existante.dossier) {
       return this.erreur(409) // PUT sur un dossier
     }
     const etag = this.prochainEtag()
-    this.entrees.set(chemin, { contenu: corps, etag })
+    this.entrees.set(chemin, { contenu: corps, binaire, etag })
     return new Response(null, { status: existante ? 204 : 201, headers: { ETag: `"${etag}"` } })
   }
 
@@ -269,7 +297,7 @@ export class ServeurWebDAVMemoire {
 
     const bloc = ([p, e]: [string, Entree]): string => {
       const href = p.split('/').map(encodeURIComponent).join('/')
-      const estDossier = e.contenu === undefined
+      const estDossier = e.dossier === true
       const verrou = !estDossier ? this.verrousNatifs.get(p) : undefined
       const propsVerrou = verrou
         ? `<nc:lock>1</nc:lock><nc:lock-owner>${verrou.utilisateur}</nc:lock-owner>` +
@@ -280,7 +308,8 @@ export class ServeurWebDAVMemoire {
   <d:href>${href}${estDossier ? '/' : ''}</d:href>
   <d:propstat><d:prop>
     ${estDossier ? '<d:resourcetype><d:collection/></d:resourcetype>' : '<d:resourcetype/>'}
-    ${e.contenu !== undefined ? `<d:getetag>"${e.etag}"</d:getetag>` : ''}
+    ${!estDossier ? `<d:getetag>"${e.etag}"</d:getetag>` : ''}
+    ${!estDossier ? `<d:getcontentlength>${e.binaire ? e.binaire.length : e.contenu!.length}</d:getcontentlength>` : ''}
     ${propsVerrou}
   </d:prop></d:propstat>
 </d:response>`
