@@ -187,7 +187,8 @@ N'EST PAS négociable — chaque inversion a été piégée par les bancs Docker
   Nextcloud monte le partage chez l'invité sous le BASENAME du dossier, jamais dans le
   chemin imbriqué d'origine — d'où une URL DAV « propre à chaque compte » dans le coffre.
 - Elle ne crée pas de verrou à la naissance : le corpus naît complet en un PUT gardé ;
-  la première transaction concurrente suit le protocole §8 de plan-multiuser.md.
+  en cas de création concurrente, le serveur n'accepte qu'un seul PUT (précondition),
+  le perdant reçoit un refus net (« corpus déjà existant »).
 
 Bancs : `test/webdav/publication.test.ts` (mémoire), `publication-nextcloud.test.ts`
 (piles Docker A et B, skipIf absentes).

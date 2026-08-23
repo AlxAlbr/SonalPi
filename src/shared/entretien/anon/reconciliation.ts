@@ -16,6 +16,7 @@
 
 import type { RegleAnon } from '../../format'
 import { scinderPseudos } from './pseudos'
+import { parserAliases } from './alias'
 import type { LigneAnon } from './brouillonsAnon'
 
 /** Une divergence de portée détectée après un tirage. */
@@ -63,10 +64,13 @@ export function detecterDivergencesPortee(
   return sorties
 }
 
-/** La règle corpus qui régit cette entité (comparaison insensible à la casse :
- *  une règle peut déclarer plusieurs graphies d'entité dans son tableau). */
+/** La règle corpus qui régit cette entité (PARTAGE d'alias : la cle de la
+ *  ligne — ou l'un des aliases de son groupe — peut être portée par la règle). */
 function trouverReglePourEntite(regles: RegleAnon[], cle: string): RegleAnon | undefined {
-  return regles.find((r) => r.entite.some((e) => e.toLowerCase() === cle.toLowerCase()))
+  const cles = new Set(cle.toLowerCase().split('/'))
+  return regles.find((r) =>
+    r.entite.some((e) => parserAliases(e).some((a) => cles.has(a.toLowerCase()))),
+  )
 }
 
 /** Mêmes pseudos (insensible à la casse, ordre indifférent). */

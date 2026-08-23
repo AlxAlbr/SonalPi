@@ -2,9 +2,9 @@
 
 Cette page décrit l'architecture du mode **corpus distant** (WebDAV / Nextcloud) : comment deux
 postes éditent le même corpus sans jamais s'écraser, ce que chaque fichier du dossier distant
-signifie, et où vit chaque pièce dans le code. La spécification complète, avec les scénarios qui
-la motivent, est [plans/encours/plan-multiuser.md](../../plans/encours/plan-multiuser.md) — cette page est la
-**carte vers le code**, pas une re-spécification.
+signifie, et où vit chaque pièce dans le code. Cette page est la **carte vers le code**, pas une
+re-spécification ; les cas limites restant à couvrir par les tests sont listés dans
+[plans/encours/plan-multiuser-finition.md](../../plans/encours/plan-multiuser-finition.md).
 
 ## La topologie en une phrase
 

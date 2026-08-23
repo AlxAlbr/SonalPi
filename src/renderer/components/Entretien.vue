@@ -30,6 +30,12 @@ const {
   selectionAnon,
   hintAnon,
   lignesAnon,
+  hitsAAnonymiserParCle,
+  rafraichirCompteursAAAnonymiser,
+  reperageAnon,
+  demarrerReperage,
+  naviguerReperage,
+  arreterReperage,
   validerAnon,
   supprimerAnon,
   creerBrouillon,
@@ -108,6 +114,12 @@ const cleGen = (idVar: string) => `gen|${idVar}`
 const cleLoc = (index: number, idVar: string) => `loc|${index}|${idVar}`
 
 // --- ANON : lignes de saisie (en bas du tableau, façon SonalPi) ---
+// Compteur « à anonymiser » d'une ligne : longueur de la requête (hits PM)
+// recalculée par le composable à l'ouverture de l'onglet, au ⟳ et après chaque
+// geste anon. 0 ou ligne absente → compteur masqué.
+function nbAAAnonymiser(cle: string): number {
+  return hitsAAnonymiserParCle.value[cle]?.length ?? 0
+}
 // Plusieurs lignes vides : on saisit un nom, « passe à la ligne suivante »
 // (Entrée) → le brouillon est persisté, et une nouvelle ligne vide s'ajoute si
 // besoin. Un bouton « + » sous le tableau ajoute des lignes.
@@ -766,16 +778,25 @@ function focaliserLibre(el: unknown, cle: string) {
           <aside v-show="ongletDroite === 'anon'" class="panneau anon">
             <div class="corpus-tete">
               <h3>Pseudonymisation du texte</h3>
-              <button
-                type="button"
-                class="mini"
-                title="Ajouter une ligne de saisie"
-                v-if="!roContenu"
-                @click="lignesSaisie.push(nouvelleLigneSaisie())"
-              >+ Ligne</button>
+              <div class="tete-actions">
+                <button
+                  type="button"
+                  class="mini"
+                  title="Recalculer les compteurs (à anonymiser)"
+                  @click="rafraichirCompteursAAAnonymiser()"
+                >⟳</button>
+                <button
+                  type="button"
+                  class="mini"
+                  title="Ajouter une ligne de saisie"
+                  v-if="!roContenu"
+                  @click="lignesSaisie.push(nouvelleLigneSaisie())"
+                >+ Ligne</button>
+              </div>
             </div>
             <p class="aide-thm">
               Sélectionne un mot dans le texte ou saisis un nom ci-dessous, complète le pseudo puis Entrée : toutes les occurrences sont barrées et le pseudo s'affiche.
+              Plusieurs graphies d'un même nom : sépare-les par « / » (ex. Lyon/Lyons). Multi-pseudo : « Claire / Rebecca » dans Pseudo, puis clic droit sur une occurrence pour basculer.
             </p>
             <p v-if="hintAnon" class="hint-codage">{{ hintAnon }}</p>
 
@@ -838,9 +859,60 @@ function focaliserLibre(el: unknown, cle: string) {
                         >🌐</button>
                       </div>
                       <div class="occ-action">
-                        <span v-if="l.nbAnonymise > 0" class="cpt-anon" :title="`${l.nbAnonymise} occurrence(s) anonymisée(s) (barrée(s))`">⬤{{ l.nbAnonymise }}</span>
-                        <span v-if="l.nbException > 0" class="cpt-exc" :title="`${l.nbException} exception(s) laissée(s) en clair`">◌{{ l.nbException }}</span>
-                        <button v-if="!roContenu" class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
+                        <!-- Widget de navigation ◄ i/N ► (loupe) tant qu'un
+                             repérage est actif sur CETTE ligne. -->
+                        <span v-if="reperageAnon?.cle === l.cle" class="reperage-nav" :class="`rep-${reperageAnon.categorie}`">
+                          <button type="button" class="rep-btn" title="Occurrence précédente" @click="naviguerReperage(-1)">◄</button>
+                          <span class="rep-pos">{{ reperageAnon.index + 1 }}/{{ reperageAnon.hits.length }}</span>
+                          <button type="button" class="rep-btn" title="Occurrence suivante" @click="naviguerReperage(1)">►</button>
+                          <button type="button" class="rep-btn rep-close" title="Terminer le repérage" @click="arreterReperage()">✕</button>
+                        </span>
+                        <template v-else>
+                          <template v-if="(l.variantes?.length ?? 0) > 1">
+                            <span
+                              v-for="v in l.variantes"
+                              :key="v.pseudo"
+                              class="cpt-variante"
+                            >{{ v.pseudo }}&nbsp;<button
+                                v-if="v.nbAnonymise > 0"
+                                type="button"
+                                class="cpt-btn cpt-anon"
+                                :title="`Repérer les ${v.nbAnonymise} occurrence(s) anonymisée(s) « ${v.pseudo} »`"
+                                @click="demarrerReperage(l.cle, 'anonymise', v.pseudo)"
+                              >{{ v.nbAnonymise }}</button><button
+                                v-if="v.nbException > 0"
+                                type="button"
+                                class="cpt-btn cpt-exc"
+                                :title="`Repérer les ${v.nbException} exception(s) « ${v.pseudo} »`"
+                                @click="demarrerReperage(l.cle, 'exception', v.pseudo)"
+                              >{{ v.nbException }}</button></span>
+                          </template>
+                          <template v-else>
+                            <button
+                              v-if="l.nbAnonymise > 0"
+                              type="button"
+                              class="cpt-btn cpt-anon"
+                              :title="`Repérer les ${l.nbAnonymise} occurrence(s) anonymisée(s)`"
+                              @click="demarrerReperage(l.cle, 'anonymise')"
+                            >{{ l.nbAnonymise }}</button>
+                            <button
+                              v-if="l.nbException > 0"
+                              type="button"
+                              class="cpt-btn cpt-exc"
+                              :title="`Repérer les ${l.nbException} exception(s)`"
+                              @click="demarrerReperage(l.cle, 'exception')"
+                            >{{ l.nbException }}</button>
+                          </template>
+                          <button
+                            v-if="nbAAAnonymiser(l.cle) > 0"
+                            type="button"
+                            class="cpt-btn cpt-aanon"
+                            :title="`Repérer les ${nbAAAnonymiser(l.cle)} occurrence(s) à anonymiser`"
+                            @click="demarrerReperage(l.cle, 'a-anonymiser')"
+                          >À {{ nbAAAnonymiser(l.cle) }}</button>
+                        </template>
+                        <!-- Emplacement réservé : exposant « +N incluse(s) » (chevauchements de règles). -->
+                        <button v-if="!roContenu && reperageAnon?.cle !== l.cle" class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
                       </div>
                     </div>
                   </td>
@@ -1624,9 +1696,11 @@ function focaliserLibre(el: unknown, cle: string) {
   gap: 0.15rem;
 }
 .ligne-anon .occ-action {
-  display: inline-flex;
+  /* Empilement VERTICAL : en multi-pseudo ou avec exceptions, chaque compteur
+   * (ou chip de variante) passe à la ligne pour tenir dans la colonne étroite. */
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 0.15rem;
 }
 .col-entite {
@@ -1708,25 +1782,110 @@ td.col-pseudo {
   font-weight: 400;
 }
 /* Compteurs scindés d'une ligne anon : quantité d'occurrences ANONYMISÉES
- * (barrées) et d'EXCEPTIONS (laissées en clair). Même langage visuel que le
- * texte : point plein bleu pour l'anonymisé, point creux gris à soulignement
- * pointillé pour l'exception. */
-.cpt-anon,
-.cpt-exc {
+ * (barrées) et d'EXCEPTIONS (laissées en clair). Palette SonalPi V1 : les
+ * badges ronds colorés (.cpt-btn ci-dessous) portent la couleur de chaque état. */
+/* Groupe de boutons d'en-tête du panneau anon (⟳ + « + Ligne »). */
+.tete-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+/* Compteurs cliquables (repérage ◄ i/N ►) : BADGES RONDS colorés, palette
+ * SonalPi V1 — vert #15c095 = anonymisé, gris #555 = exception, orange
+ * #ff9800 = à anonymiser. Chiffre blanc sur la couleur, comme V1. */
+.cpt-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: bold;
+  font-family: inherit;
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cpt-btn.cpt-anon {
+  background: #15c095;
+}
+.cpt-btn.cpt-exc {
+  background: #555;
+}
+.cpt-btn.cpt-aanon {
+  background: #ff9800;
+}
+.cpt-variante .cpt-btn {
+  font-size: 0.62rem;
+  width: 1rem;
+  height: 1rem;
+}
+/* Widget de navigation entre occurrences (état actif d'un compteur). */
+.reperage-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex: none;
+}
+.rep-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: #1565c0;
+  padding: 0 0.15rem;
+}
+/* Le compteur i/N et ses flèches reprennent la COULEUR de la catégorie
+ * naviguée (palette V1) : vert = anonymisées, gris = exceptions, orange = à
+ * anonymiser — la navigation reste lisible sans retourner aux badges. */
+.rep-anonymise .rep-btn,
+.rep-anonymise .rep-pos {
+  color: #15c095;
+}
+.rep-exception .rep-btn,
+.rep-exception .rep-pos {
+  color: #555;
+}
+.rep-a-anonymiser .rep-btn,
+.rep-a-anonymiser .rep-pos {
+  color: #ff9800;
+}
+.rep-close {
+  color: #999 !important;
+}
+.rep-pos {
   font-size: 0.7rem;
   font-family: monospace;
-  flex: none;
-  min-width: 1rem;
-  text-align: center;
-  cursor: default;
-}
-.cpt-anon {
   color: #1565c0;
+  font-weight: bold;
+  min-width: 2rem;
+  text-align: center;
 }
-.cpt-exc {
-  color: #999;
-  text-decoration: underline dotted #bbb;
-  text-underline-offset: 2px;
+/* Compteur « à anonymiser » : occurrences présentes dans le texte mais pas
+ * encore traitées (requête recalculée à l'ouverture, au ⟳ et après chaque
+ * geste anon) — badge orange V1 (.cpt-btn.cpt-aanon). */
+/* Compteurs PAR VARIANTE (multi-pseudo) : une puce par pseudo, libellé + ses
+ * deux compteurs ; empilement lisible dans la colonne étroite. */
+.cpt-variante {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.68rem;
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #444;
+}
+.cpt-variante b,
+.cpt-variante i {
+  font-style: normal;
+  font-family: monospace;
 }
 /* Slider de portée 3 crans : brouillon (🚧) / entretien (📄) / corpus (🌐).
  * Le cran corpus active les règles corpus. Le cran courant est désactivé et

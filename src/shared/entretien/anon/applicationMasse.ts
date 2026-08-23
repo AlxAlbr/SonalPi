@@ -14,6 +14,7 @@
 
 import type { EntretienFichier, RegleAnon } from '../../format'
 import { aplatir, occurrencesDe, plageVersPM } from './anonymisation'
+import { parserAliases } from './alias'
 import { estOrpheline } from '../annotation'
 
 /** Instructions d'application en masse (rien n'est muté ici). */
@@ -39,7 +40,7 @@ export function instructionsAppliquerRegle(
   const existantes = entretien.annotations.filter(
     (a) => a.type === 'anon' && !estOrpheline(a),
   )
-  for (const alias of regle.entite) {
+  for (const alias of regle.entite.flatMap((e) => parserAliases(e))) {
     for (const m of occurrencesDe(plat.texte, alias)) {
       const pm = plageVersPM(plat, m.from, m.to)
       if (!pm) continue

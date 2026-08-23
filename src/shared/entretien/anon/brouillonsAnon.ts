@@ -11,19 +11,28 @@
  */
 import type { BrouillonAnon, RegleAnon } from '../../format'
 import { joindrePseudos } from './pseudos'
+import { parserAliases } from './alias'
 
-/** Clef de groupement d'une entité (insensible à la casse, normalisée). */
+/** Clef de GROUPEMENT d'une entité multi-alias : aliases normalisés (trim +
+ *  minuscules) triés et joints par `/` — « Lyon/Lyons » et « Lyons/Lyon »
+ *  donnent la même cle. Pour un alias seul, identique à trim + minuscules. */
 export function cleEntite(entite: string): string {
-  return entite.trim().toLowerCase()
+  return parserAliases(entite)
+    .map((a) => a.toLowerCase())
+    .sort()
+    .join('/')
 }
 
-/** Trouve un brouillon pour cette entité (insensible à la casse), ou undefined. */
+/** Trouve un brouillon pour cette entité : partage d'ALIAS (un groupe
+ *  « Lyon/Lyons » répond aussi pour « Lyons »), ou undefined. */
 export function trouverBrouillon(
   brouillons: BrouillonAnon[],
   entite: string,
 ): BrouillonAnon | undefined {
-  const cle = cleEntite(entite)
-  return brouillons.find((b) => cleEntite(b.entite) === cle)
+  const cles = new Set(parserAliases(entite).map((a) => a.toLowerCase()))
+  return brouillons.find((b) =>
+    parserAliases(b.entite).some((a) => cles.has(a.toLowerCase())),
+  )
 }
 
 /** Ajoute un brouillon (sans doublon de cle). Renvoie le brouillon créé ou
@@ -100,8 +109,20 @@ export interface LigneAnon {
   nbAnonymise: number
   /** Occurrences en exception (laissées en clair, marqueur pointillé). */
   nbException: number
+  /** Compteurs PAR VARIANTE de pseudo (multi-pseudo) : une entrée par pseudo
+   *  appliqué ou déclaré. Mono-pseudo → une seule entrée ; occurrences sans
+   *  pseudo → absentes des variantes (elles restent dans les totaux). */
+  variantes: VarianteAnon[]
   /** Ids des occurrences (vide pour un brouillon). */
   occurrenceIds: string[]
+}
+
+/** Compteurs d'une variante de pseudo d'une ligne multi-pseudo. */
+export interface VarianteAnon {
+  /** Pseudo de la variante (tel qu'affiché — première casse rencontrée). */
+  pseudo: string
+  nbAnonymise: number
+  nbException: number
 }
 
 /** Une occurrence anonymisée vue par la projection (plage PM + pseudo + état). */
@@ -133,10 +154,35 @@ export function lignesAnonUnifiees(
   reglesAnon: RegleAnon[] = [],
 ): LigneAnon[] {
   const parCle = new Map<string, LigneAnon>()
-  // 1. Occurrences : une ligne par cle, agrégeant ses occurrences.
+  // Compteurs par variante : cle → (pseudo minuscule → compteurs), rempli au
+  // fil des occurrences puis ordonné selon les pseudos DÉCLARÉS (règle corpus
+  // ou ensemble fichier) — les variantes jamais appliquées restent visibles à 0.
+  const variantesParCle = new Map<string, Map<string, VarianteAnon>>()
+  // Groupe multi-alias DÉCLARÉ : cle d'alias → cle du groupe, et cle du groupe
+  // → forme affichable (« Lyon/Lyons »). Les occurrences dont le texte matche
+  // un alias rejoignent la ligne du GROUPE, pas une ligne à part.
+  const groupeParAlias = new Map<string, string>()
+  const formeGroupe = new Map<string, string>()
+  for (const b of brouillons) {
+    const g = cleEntite(b.entite)
+    for (const a of parserAliases(b.entite)) groupeParAlias.set(a.toLowerCase(), g)
+    formeGroupe.set(g, b.entite)
+  }
+  for (const r of reglesAnon) {
+    const g = cleEntite(r.entite.join('/'))
+    for (const e of r.entite) {
+      for (const a of parserAliases(e)) groupeParAlias.set(a.toLowerCase(), g)
+    }
+    if (!formeGroupe.has(g)) formeGroupe.set(g, r.entite.join('/'))
+  }
+  // 1. Occurrences : une ligne par groupe d'entité, agrégeant ses occurrences.
+  //    Le texte de l'occurrence est résolu à son groupe déclaré s'il en a un
+  //    (occurrence « Lyons » → ligne « Lyon/Lyons ») ; sinon il fait ligne propre.
   for (const o of occurrences) {
-    const entite = texteEntre(o.from, o.to)
-    const cle = cleEntite(entite)
+    const texte = texteEntre(o.from, o.to)
+    const cleOcc = cleEntite(texte)
+    const cle = groupeParAlias.get(cleOcc) ?? cleOcc
+    const entite = formeGroupe.get(cle) ?? texte
     let ligne = parCle.get(cle)
     if (!ligne) {
       // Portée corpus : si une occurrence est liée à une règle, la ligne est
@@ -162,6 +208,7 @@ export function lignesAnonUnifiees(
         nb: 0,
         nbAnonymise: 0,
         nbException: 0,
+        variantes: [],
         occurrenceIds: [],
       }
       parCle.set(cle, ligne)
@@ -169,6 +216,15 @@ export function lignesAnonUnifiees(
     ligne.nb++
     if (o.etat === 'exception') ligne.nbException++
     else ligne.nbAnonymise++
+    if (o.pseudo?.trim()) {
+      const parPseudo = variantesParCle.get(cle) ?? new Map<string, VarianteAnon>()
+      const k = o.pseudo.trim().toLowerCase()
+      const v = parPseudo.get(k) ?? { pseudo: o.pseudo.trim(), nbAnonymise: 0, nbException: 0 }
+      if (o.etat === 'exception') v.nbException++
+      else v.nbAnonymise++
+      parPseudo.set(k, v)
+      variantesParCle.set(cle, parPseudo)
+    }
     ligne.occurrenceIds.push(o.id)
   }
   // 2. Brouillons : une ligne `brouillon` seulement si aucune occurrence n'a
@@ -184,8 +240,30 @@ export function lignesAnonUnifiees(
       nb: 0,
       nbAnonymise: 0,
       nbException: 0,
+      variantes: [],
       occurrenceIds: [],
     })
+  }
+  // 3. Variantes ordonnées : d'abord l'ordre DÉCLARÉ (règle corpus liée, sinon
+  //    ensemble déclaré du fichier), puis les pseudos rencontrés non déclarés.
+  for (const [cle, ligne] of parCle) {
+    const parPseudo = variantesParCle.get(cle)
+    if (!parPseudo || parPseudo.size === 0) continue
+    const declares = (
+      reglesAnon.find((r) => r.id === ligne.regle)?.pseudos ?? pseudosDeclares[cle] ?? []
+    )
+    const ordonnee: VarianteAnon[] = []
+    for (const p of declares) {
+      const v = parPseudo.get(p.toLowerCase())
+      if (v) {
+        ordonnee.push(v)
+        parPseudo.delete(p.toLowerCase())
+      } else {
+        ordonnee.push({ pseudo: p, nbAnonymise: 0, nbException: 0 })
+      }
+    }
+    ordonnee.push(...parPseudo.values())
+    ligne.variantes = ordonnee
   }
   return [...parCle.values()]
 }

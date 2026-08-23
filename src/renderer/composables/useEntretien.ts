@@ -1,4 +1,4 @@
-import { ref, reactive, onBeforeUnmount } from 'vue'
+import { ref, reactive, watch, onBeforeUnmount } from 'vue'
 import { Extension } from '@tiptap/core'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -8,10 +8,13 @@ import { pluginDecorations, decorationsPluginKey } from '../editor/decorations'
 import { pluginGouttiere, gouttierePluginKey } from '../editor/locuteursGutter'
 import { pluginLecture } from '../editor/lecture'
 import { pluginMenuAnon, type CibleMenuAnon } from '../editor/menuContexteAnon'
+import { pluginReperage, reperagePluginKey } from '../editor/reperage'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
 import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../shared/entretien/anon/anonymisation'
+import { hitsAAAnonymiser, hitsDeCategorie, type HitAAAnonymiser } from '../../shared/entretien/anon/compteursAnon'
 import { scinderPseudos } from '../../shared/entretien/anon/pseudos'
+import { parserAliases } from '../../shared/entretien/anon/alias'
 import {
   cleEntite,
   trouverBrouillon,
@@ -123,6 +126,126 @@ export function useEntretien(deps: {
   const selectionAnon = ref<{ texte: string; from: number; to: number } | null>(null)
   const hintAnon = ref<string | null>(null)
   const lignesAnon = ref<LigneAnon[]>([])
+  /** Hits « à anonymiser » par cle de ligne — REQUÊTE recalculée à l'affichage
+   *  de l'onglet, au clic « ⟳ » et après chaque geste anon (pas à chaque
+   *  frappe : le compteur peut être brièvement en retard sur le texte). */
+  const hitsAAnonymiserParCle = ref<Record<string, HitAAAnonymiser[]>>({})
+  function rafraichirCompteursAAAnonymiser() {
+    const ed = editor.value
+    if (!ed) {
+      hitsAAnonymiserParCle.value = {}
+      return
+    }
+    const corpsTexte = ed.getJSON()
+    const texteDe = (f: number, t: number) => ed.state.doc.textBetween(f, t, ' ')
+    const out: Record<string, HitAAAnonymiser[]> = {}
+    for (const l of lignesAnon.value) {
+      const aliases = parserAliases(l.entite)
+      const hits = hitsAAAnonymiser(
+        corpsTexte,
+        aliases,
+        entretien.annotations,
+        [l.cle, ...aliases.map((a) => cleEntite(a))],
+        texteDe,
+      )
+      if (hits.length) out[l.cle] = hits
+    }
+    hitsAAnonymiserParCle.value = out
+  }
+  // À l'ouverture de l'onglet anon (et à sa réouverture) : compteurs frais.
+  watch(ongletDroite, (v) => {
+    if (v === 'anon') rafraichirCompteursAAAnonymiser()
+  })
+
+  // --- Repérage ◄ i/N ► (loupe) — navigation NON destructive entre occurrences ---
+  /** Repérage en cours sur une ligne : catégorie navigable (+ variante de
+   *  pseudo éventuelle), liste des hits PM triés et index courant. */
+  const reperageAnon = ref<{
+    cle: string
+    categorie: 'anonymise' | 'exception' | 'a-anonymiser'
+    variante?: string
+    hits: HitAAAnonymiser[]
+    index: number
+  } | null>(null)
+  /** Cale l'éditeur sur le hit courant : sélection de la plage (sans aucun
+   *  marquage), décoration transitoire « hit » + scroll centré. */
+  function calerSurHitCourant() {
+    const ed = editor.value
+    const r = reperageAnon.value
+    if (!ed || !r || r.hits.length === 0) return
+    const hit = r.hits[r.index]
+    ed.commands.setTextSelection({ from: hit.from, to: hit.to })
+    ed.view.dispatch(ed.state.tr.setMeta(reperagePluginKey, { de: hit.from, a: hit.to }))
+    const dom = ed.view.domAtPos(hit.from).node
+    const el = dom instanceof HTMLElement ? dom : dom.parentElement
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  /** Recalcule les hits du repérage EN COURS (après une action qui a changé le
+   *  modèle) ; index borné à la nouvelle liste, repérage arrêté si vide. */
+  function rafraichirReperage() {
+    const r = reperageAnon.value
+    if (!r) return
+    const hits = hitsDuRepere(r)
+    if (hits.length === 0) {
+      arreterReperage()
+      return
+    }
+    r.hits = hits
+    if (r.index >= hits.length) r.index = hits.length - 1
+    calerSurHitCourant()
+  }
+  function hitsDuRepere(r: { cle: string; categorie: 'anonymise' | 'exception' | 'a-anonymiser'; variante?: string }): HitAAAnonymiser[] {
+    const ed = editor.value
+    if (!ed) return []
+    if (r.categorie === 'a-anonymiser') {
+      const aliases = parserAliases(entiteDeCle(r.cle))
+      return hitsAAAnonymiser(
+        ed.getJSON(),
+        aliases,
+        entretien.annotations,
+        [r.cle, ...aliases.map((a) => cleEntite(a))],
+        (f, t) => ed.state.doc.textBetween(f, t, ' '),
+      )
+    }
+    return hitsDeCategorie(entretien.annotations, r.cle, r.categorie, (f, t) => ed.state.doc.textBetween(f, t, ' '), r.variante)
+  }
+  /** Texte d'entité d'une cle : celui de la ligne projetée (suit le doc). */
+  function entiteDeCle(cle: string): string {
+    return lignesAnon.value.find((l) => l.cle === cle)?.entite ?? ''
+  }
+  /** Démarre (ou bascule) le repérage d'une catégorie de compteur. Un second
+   *  clic sur la même catégorie l'arrête. */
+  function demarrerReperage(cle: string, categorie: 'anonymise' | 'exception' | 'a-anonymiser', variante?: string) {
+    const meme =
+      reperageAnon.value &&
+      reperageAnon.value.cle === cle &&
+      reperageAnon.value.categorie === categorie &&
+      reperageAnon.value.variante?.toLowerCase() === variante?.toLowerCase()
+    if (meme) {
+      arreterReperage()
+      return
+    }
+    const hits = hitsDuRepere({ cle, categorie, variante })
+    if (hits.length === 0) {
+      hintAnon.value = "Aucune occurrence trouvée pour cette ligne."
+      return
+    }
+    reperageAnon.value = { cle, categorie, variante, hits, index: 0 }
+    calerSurHitCourant()
+  }
+  /** Pas de navigation ◄ / ► (modulo, comme V1). */
+  function naviguerReperage(sens: number) {
+    const r = reperageAnon.value
+    if (!r || r.hits.length === 0) return
+    r.index = (r.index + sens + r.hits.length) % r.hits.length
+    calerSurHitCourant()
+  }
+  /** Stoppe le repérage et efface la décoration transitoire. */
+  function arreterReperage() {
+    reperageAnon.value = null
+    const ed = editor.value
+    if (ed) ed.view.dispatch(ed.state.tr.setMeta(reperagePluginKey, null))
+  }
   // Brouillons d'anonymisation entretien-locaux (pas des règles) : entités
   // saisies sans occurrence posée. Persistés dans entretiens/<id>.json.brouillonsAnon.
   const brouillonsAnon = ref<BrouillonAnon[]>([])
@@ -184,6 +307,7 @@ export function useEntretien(deps: {
         pluginDecorations(entretien, deps.couleurTrait, deps.tailleTrait),
         pluginGouttiere(() => locuteurs.value, deps.clicTour),
         pluginLecture(),
+        pluginReperage(),
         pluginMenuAnon(entretien, ouvrirMenuAnon),
       ]
     },
@@ -327,6 +451,8 @@ export function useEntretien(deps: {
       rafraichir()
       rafraichirDecorations()
       rafraichirGouttiere()
+      rafraichirCompteursAAAnonymiser()
+      rafraichirReperage()
       planifierSauvegarde()
     }
     rafraichirJournal()
@@ -757,20 +883,48 @@ export function useEntretien(deps: {
   // d'un coup, ce qui ne se moule pas sur les inverses à 1 action du journal.
   // La suppression d'une ligne (✕) reste l'inverse manuel, comme les thèmes.
 
+  /** Clefs d'appartenance d'une ligne : sa cle de groupe PLUS chaque alias
+   *  (une occurrence « Lyons » appartient à la ligne « Lyon/Lyons »). */
+  function clesDeLigne(ligne: LigneAnon): Set<string> {
+    const s = new Set<string>([ligne.cle.toLowerCase()])
+    for (const a of parserAliases(ligne.entite)) s.add(cleEntite(a))
+    if (ligne.regle) {
+      const r = deps.reglesAnon().find((x) => x.id === ligne.regle)
+      for (const e of r?.entite ?? []) {
+        for (const a of parserAliases(e)) s.add(cleEntite(a))
+      }
+    }
+    return s
+  }
+  /** L'annotation appartient-elle à cette ligne (par alias du texte courant) ? */
+  function annotationDeLigne(a: Annotation, ligne: LigneAnon): boolean {
+    return clesDeLigne(ligne).has(lineCle(a))
+  }
   /** Une entité est-elle déjà présente dans le tableau (brouillon ou occurrence) ?
    *  Renvoie la cle de la ligne existante, ou null. Sert au composant pour
    *  décider, à la sélection : peupler la ligne de saisie ou scroller vers
-   *  la ligne existante (pas de doublon). */
+   *  la ligne existante (pas de doublon). Partage d'ALIAS : sélectionner
+   *  « Lyons » quand « Lyon/Lyons » existe → ligne existante. */
   function entiteExisteDeja(entite: string): string | null {
     const e = entite.trim()
     if (!e) return null
-    const cle = cleEntite(e)
-    if (trouverBrouillon(brouillonsAnon.value, e)) return cle
+    const brouillon = trouverBrouillon(brouillonsAnon.value, e)
+    if (brouillon) return cleEntite(brouillon.entite)
+    const clesSaisie = new Set(parserAliases(e).map((a) => a.toLowerCase()))
+    // Parmi les lignes projetées (groupes déclarés inclus).
+    for (const l of lignesAnon.value) {
+      for (const a of parserAliases(l.entite)) {
+        if (clesSaisie.has(a.toLowerCase())) return l.cle
+      }
+      for (const a of cleEntite(l.entite).split('/')) {
+        if (clesSaisie.has(a)) return l.cle
+      }
+    }
     const ed = editor.value
     if (ed) {
       for (const a of entretien.annotations) {
         if (a.type !== 'anon' || estOrpheline(a)) continue
-        if (cleEntite(ed.state.doc.textBetween(a.from, a.to, ' ')) === cle) return cle
+        if (clesSaisie.has(cleEntite(ed.state.doc.textBetween(a.from, a.to, ' ')))) return cleEntite(e)
       }
     }
     return null
@@ -813,7 +967,10 @@ export function useEntretien(deps: {
     }
     hintAnon.value = null
     const t = aplatir(ed.getJSON())
-    const matches = occurrencesDe(t.texte, e)
+    // Multi-alias : la saisie « Lyon/Lyons » matche chaque graphie.
+    const aliases = parserAliases(e)
+    const matches = aliases
+      .flatMap((a) => occurrencesDe(t.texte, a))
       .map((pl) => plageVersPM(t, pl.from, pl.to))
       .filter((x): x is { from: number; to: number } => x !== null)
     const cle = cleEntite(e)
@@ -833,7 +990,7 @@ export function useEntretien(deps: {
     const instr = instructionsValiderAnon(
       entretien.annotations,
       matches,
-      cle,
+      aliases.map((a) => cleEntite(a)),
       applique,
       (f, t2) => ed.state.doc.textBetween(f, t2, ' '),
       genId,
@@ -858,6 +1015,8 @@ export function useEntretien(deps: {
     consommerBrouillon(brouillonsAnon.value, e)
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
   /** Retire toutes les occurrences d'une ligne (dé-barrer). */
@@ -865,6 +1024,8 @@ export function useEntretien(deps: {
     for (const id of occurrenceIds) retirerAnnotation(entretien, id)
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
 
@@ -874,6 +1035,8 @@ export function useEntretien(deps: {
   async function supprimerLigneAnon(entite: string) {
     const cle = cleEntite(entite)
     const ligne = lignesAnon.value.find((l) => l.cle === cle)
+    if (!ligne) return
+    const clesLigne = clesDeLigne(ligne)
     if (ligne?.etat === 'corpus' && ligne.regle) {
       const ailleurs = await window.sonal.corpus.regleAnonUtiliseeAilleurs(ligne.regle, ouvertId.value ?? undefined)
       if (ailleurs) {
@@ -888,7 +1051,7 @@ export function useEntretien(deps: {
         (a) =>
           a.type === 'anon' &&
           !estOrpheline(a) &&
-          cleEntite(editor.value!.state.doc.textBetween(a.from, a.to, ' ')) === cle,
+          clesLigne.has(cleEntite(editor.value!.state.doc.textBetween(a.from, a.to, ' '))),
       )
       .map((a) => a.id)
     for (const id of ids) retirerAnnotation(entretien, id)
@@ -896,6 +1059,8 @@ export function useEntretien(deps: {
     delete pseudosDeclares.value[cle]
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
 
@@ -949,7 +1114,7 @@ export function useEntretien(deps: {
         a.type === 'anon' &&
         !estOrpheline(a) &&
         a.etat !== 'exception' &&
-        lineCle(a) === ligne.cle &&
+        annotationDeLigne(a, ligne) &&
         !!a.pseudo,
     )
     if (occ) return [occ.pseudo!]
@@ -1015,7 +1180,7 @@ export function useEntretien(deps: {
       poserCorpusDepuisBrouillon(ligne, regleId, pseudoAppli ?? ligne.pseudo.split(' / ')[0])
     } else {
       for (const a of entretien.annotations) {
-        if (a.type === 'anon' && lineCle(a) === ligne.cle) {
+        if (a.type === 'anon' && annotationDeLigne(a, ligne)) {
           a.regle = regleId
           if (pseudoAppli && a.etat !== 'exception') a.pseudo = pseudoAppli
         }
@@ -1025,6 +1190,8 @@ export function useEntretien(deps: {
     await deps.rafraichirReglesCorpus?.()
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
 
@@ -1137,13 +1304,15 @@ export function useEntretien(deps: {
   function poserCorpusDepuisBrouillon(ligne: LigneAnon, regleId: string, pseudo: string) {
     const ed = editor.value!
     const t = aplatir(ed.getJSON())
-    const matches = occurrencesDe(t.texte, ligne.entite)
+    const aliases = parserAliases(ligne.entite)
+    const matches = aliases
+      .flatMap((a) => occurrencesDe(t.texte, a))
       .map((pl) => plageVersPM(t, pl.from, pl.to))
       .filter((x): x is { from: number; to: number } => x !== null)
     const instr = instructionsValiderAnon(
       entretien.annotations,
       matches,
-      ligne.cle,
+      aliases.map((a) => cleEntite(a)),
       pseudo,
       (f, t2) => ed.state.doc.textBetween(f, t2, ' '),
       genId,
@@ -1166,12 +1335,14 @@ export function useEntretien(deps: {
     const regleId = ligne.regle!
     const ailleurs = await window.sonal.corpus.regleAnonUtiliseeAilleurs(regleId, ouvertId.value ?? undefined)
     for (const a of entretien.annotations) {
-      if (a.type === 'anon' && lineCle(a) === ligne.cle) delete a.regle
+      if (a.type === 'anon' && annotationDeLigne(a, ligne)) delete a.regle
     }
     if (!ailleurs) await window.sonal.corpus.regleAnonSupprimer(regleId)
     await deps.rafraichirReglesCorpus?.()
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
 
@@ -1190,6 +1361,8 @@ export function useEntretien(deps: {
     await deps.rafraichirReglesCorpus?.()
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
 
@@ -1266,6 +1439,8 @@ export function useEntretien(deps: {
     fermerMenuAnon()
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
   /** « Remettre en anonymisé » : l'exception redevient une occurrence
@@ -1280,6 +1455,8 @@ export function useEntretien(deps: {
     fermerMenuAnon()
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
 
@@ -1295,6 +1472,8 @@ export function useEntretien(deps: {
     fermerMenuAnon()
     rafraichir()
     rafraichirDecorations()
+    rafraichirCompteursAAAnonymiser()
+    rafraichirReperage()
     planifierSauvegarde()
   }
 
@@ -1334,6 +1513,12 @@ export function useEntretien(deps: {
     selectionAnon,
     hintAnon,
     lignesAnon,
+    hitsAAnonymiserParCle,
+    rafraichirCompteursAAAnonymiser,
+    reperageAnon,
+    demarrerReperage,
+    naviguerReperage,
+    arreterReperage,
     brouillonsAnon,
     selectionVide,
     ouvertId,

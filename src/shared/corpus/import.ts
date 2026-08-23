@@ -1,4 +1,4 @@
-import { cleEntite } from '../entretien/anon'
+import { parserAliases, regleEnCollisionAlias } from '../entretien/anon'
 import type { Categorie, CorpusFichier, RegleAnon, Variable } from '../format'
 
 /**
@@ -19,14 +19,31 @@ export function fusionnerImport(
 }
 
 /** Fusionne les règles corpus importées (anon-json portée corpus) dans le
- *  corpus **sans doublon d'entité** (l'existant fait foi — une entité = une
- *  règle, parité V1 ; un double import d'un même `.sonal` n'ajoute rien). */
+ *  corpus en respectant « un alias = un pseudo » : une règle entrante qui ne
+ *  touche aucune règle existante est ajoutée telle quelle ; un double import
+ *  du même `.sonal` n'ajoute rien ; et si l'entrant PARTAGE seulement certains
+ *  alias avec des règles existantes, il est ÉCLATÉ — les alias libres restent
+ *  libres et deviennent une règle à part (parité V1 « garder les alias
+ *  libres »), les alias déjà gouvernés restant où ils sont. */
 export function fusionnerReglesAnon(corpus: CorpusFichier, regles: RegleAnon[]): void {
   for (const r of regles) {
-    const deja = Object.values(corpus.reglesAnon).some((ex) =>
-      ex.entite.some((e) => r.entite.some((re) => cleEntite(e) === cleEntite(re))),
-    )
-    if (deja) continue
-    corpus.reglesAnon[r.id] = r
+    const existantes = Object.values(corpus.reglesAnon)
+    // Alias de l'entrant déjà gouvernés par une règle existante → retirés.
+    const occupes = new Set<string>()
+    for (const e of r.entite) {
+      for (const a of parserAliases(e)) {
+        if (regleEnCollisionAlias(a, existantes)) occupes.add(a.toLowerCase())
+      }
+    }
+    const libres: string[] = []
+    for (const e of r.entite) {
+      for (const a of parserAliases(e)) {
+        if (!occupes.has(a.toLowerCase()) && !libres.some((x) => x.toLowerCase() === a.toLowerCase())) {
+          libres.push(a)
+        }
+      }
+    }
+    if (libres.length === 0) continue // tout l'entrant est déjà gouverné : rien à ajouter
+    corpus.reglesAnon[r.id] = { ...r, entite: libres }
   }
 }

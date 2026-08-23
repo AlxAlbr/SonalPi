@@ -1,4 +1,4 @@
-# Pile B du socle de test — Nextcloud SANS files_lock (plan-multiuser.md §12).
+# Pile B du socle de test — Nextcloud SANS files_lock.
 # Réutilise l'image nextcloud:29-apache DÉJÀ PRÉSENTE localement (zéro
 # téléchargement) ; ne sert qu'à valider que la sonde de capacités dit bien
 # « files_lock ABSENT » et que la variante B (PUT conditionnel) couvre tout.
@@ -7,7 +7,7 @@
 #
 # Comptes identiques à la pile A : max/max-max-1234, olivier/olivier-olivier-5678,
 # corpus partagé /MonCorpus. NE JAMAIS installer files_lock ici : cette pile EST
-# le cas « capacités restreintes » du banc (invariant §15.2).
+# le cas « capacités restreintes » du banc.
 
 name: sonal-nc-b
 

@@ -1,6 +1,5 @@
-# Nextcloud local de TEST — le « backend réel » du banc de conformité
-# (plan-multiuser.md §12, invariant §15.4). Lié à localhost uniquement :
-# rien n'est exposé au réseau.
+# Nextcloud local de TEST — le « backend réel » du banc de conformité WebDAV.
+# Lié à localhost uniquement : rien n'est exposé au réseau.
 #
 # Usage :
 #   npm run nc:up          # démarre (1er up : ~2-5 min d'initialisation)

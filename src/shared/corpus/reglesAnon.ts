@@ -8,13 +8,15 @@
  */
 
 import type { CorpusFichier, RegleAnon } from '../format'
-import { cleEntite } from '../entretien/anon'
+import { parserAliases } from '../entretien/anon'
 
-/** Trouve la règle d'une entité (insensible à la casse sur les alias `entite[]`). */
+/** Trouve la règle régnant sur cette entité : PARTAGE d'au moins un alias
+ *  (un groupe « Lyon/Lyons » répond aussi pour « Lyon » seul — deux règles
+ *  partageant un alias re-pseudonymiseraient les mêmes occurrences). */
 export function trouverRegleParEntite(corpus: CorpusFichier, entite: string): RegleAnon | undefined {
-  const cle = cleEntite(entite)
+  const cles = new Set(parserAliases(entite).map((a) => a.toLowerCase()))
   for (const r of Object.values(corpus.reglesAnon)) {
-    if (r.entite.some((e) => cleEntite(e) === cle)) return r
+    if (r.entite.some((e) => parserAliases(e).some((a) => cles.has(a.toLowerCase())))) return r
   }
   return undefined
 }
@@ -31,7 +33,11 @@ export function trouverRegleParEntite(corpus: CorpusFichier, entite: string): Re
 export function creerRegle(corpus: CorpusFichier, entite: string, pseudos: string[], genId: () => string): RegleAnon {
   const existante = trouverRegleParEntite(corpus, entite)
   if (existante) return existante
-  const r: RegleAnon = { id: genId(), entite: [entite.trim()], pseudos: pseudos.filter((p) => p.trim() !== '') }
+  const r: RegleAnon = {
+    id: genId(),
+    entite: parserAliases(entite), // saisie « Lyon/Lyons » → groupe d'alias
+    pseudos: pseudos.filter((p) => p.trim() !== ''),
+  }
   corpus.reglesAnon[r.id] = r
   return r
 }

@@ -165,18 +165,20 @@ export interface InstructionsValiderAnon {
 export function instructionsValiderAnon(
   annotations: Annotation[],
   matches: Plage[],
-  cle: string,
+  cles: string | string[],
   pseudo: string,
   texteDe: (from: number, to: number) => string,
   genId: () => string,
 ): InstructionsValiderAnon {
+  const ensemble = new Set((Array.isArray(cles) ? cles : [cles]).map((k) => k.toLowerCase()))
   const existant = annotations.filter((a) => a.type === 'anon' && !estOrpheline(a))
 
-  // 1. Relabel : occurrences ANONYMISÉES de la ligne uniquement.
+  // 1. Relabel : occurrences ANONYMISÉES de la ligne uniquement (une
+  //    occurrence appartient à la ligne si SA cle fait partie des aliases).
   const relabel: Array<{ id: string; pseudo: string }> = []
   for (const a of existant) {
     if (a.etat === 'exception') continue
-    if (cleEntite(texteDe(a.from, a.to)) === cle) relabel.push({ id: a.id, pseudo })
+    if (ensemble.has(cleEntite(texteDe(a.from, a.to)))) relabel.push({ id: a.id, pseudo })
   }
 
   // 2. Pose sur les matches non couverts (avec les gardes d'exception).

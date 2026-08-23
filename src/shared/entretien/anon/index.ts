@@ -8,6 +8,8 @@
  * précis — jamais par ce barrel (pas de cycle).
  */
 export * from './anonymisation'
+export * from './alias'
 export * from './brouillonsAnon'
+export * from './compteursAnon'
 export * from './pseudos'
 export * from './applicationMasse'

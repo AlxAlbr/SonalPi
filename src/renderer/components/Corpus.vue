@@ -1253,9 +1253,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   gap: 0.3rem;
   font-size: 0.72rem;
 }
-.pseudo-cpt.anon { color: #2e7d32; }
-.pseudo-cpt.exc { color: #b26a00; }
-.pseudo-cpt.non { color: #c62828; font-weight: 600; }
+.pseudo-cpt.anon { color: #15c095; font-weight: 600; }
+.pseudo-cpt.exc { color: #555; }
+.pseudo-cpt.non { color: #ff9800; font-weight: 600; }
 .pseudo-cpt.verrou { color: #555; font-weight: 600; }
 .pseudo-ouvrir {
   border: 1px solid #ccc;
@@ -1306,7 +1306,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .pseudo-table th { background: #f3f6fa; }
 .pseudo-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-.pseudo-table .anon { color: #2e7d32; font-weight: 600; }
-.pseudo-table .exc { color: #b26a00; }
-.pseudo-table .non { color: #c62828; font-weight: 600; }
+/* Palette SonalPi V1 : vert = anonymisé, gris = exception, orange = à traiter
+ * (mêmes couleurs que les badges ronds du panneau entretien). */
+.pseudo-table .anon { color: #15c095; font-weight: 600; }
+.pseudo-table .exc { color: #555; }
+.pseudo-table .non { color: #ff9800; font-weight: 600; }
 </style>

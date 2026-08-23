@@ -18,6 +18,7 @@
 
 import type { EntretienFichier, RegleAnon } from '../format'
 import { aplatir, occurrencesDe, plageVersPM, type Plage, type TextePlat } from '../entretien/anon'
+import { parserAliases } from '../entretien/anon/alias'
 import { estOrpheline } from '../entretien/annotation'
 
 /** Compteurs d'état d'une entité pour une règle (textes agrégés ou par entretien). */
@@ -79,7 +80,7 @@ export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]):
       const plat = aplatir(ent.data.corpsTexte)
       const st: StatutScan = { anon: 0, exc: 0, non: 0 }
       let touche = false
-      for (const alias of regle.entite) {
+      for (const alias of regle.entite.flatMap((e) => parserAliases(e))) {
         for (const m of occurrencesDe(plat.texte, alias)) {
           touche = true
           const e = classerOccurrence(ent.data.annotations, plat, m, pseudos)

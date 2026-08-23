@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Provisionnement du Nextcloud de test (plan-multiuser.md §12) — IDEMPOTENT :
+# Provisionnement du Nextcloud de test — IDEMPOTENT :
 # chaque étape vérifie avant d'agir, le script peut être relancé sans dommage.
 #
 #   1. Attendre que Nextcloud soit prêt (le 1er démarrage installe longtemps)
 #   2. Créer les comptes max et olivier
-#   3. Activer files_lock + verrou natif avec timeout (plan §8)
+#   3. Activer files_lock + verrou natif avec timeout
 #   4. Créer /MonCorpus chez max, y semer un corpus.json minimal (v3)
 #   5. Partager MonCorpus avec olivier (lecture/écriture)
 set -euo pipefail
