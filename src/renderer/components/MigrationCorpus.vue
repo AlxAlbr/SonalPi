@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
-import { mapperDefinitions, type ApercuCrp, type VerificationDossierMigration } from '../../shared/corpus/migrationCrp'
+import { mapperDefinitions, mapperTabAnon, mapperParamsAnon, type ApercuCrp, type VerificationDossierMigration } from '../../shared/corpus/migrationCrp'
 
 /**
  * Modale de migration SonalPi V1 → V2.
@@ -87,8 +87,12 @@ async function migrer() {
   enCours.value = true
   erreur.value = null
   try {
-    // Le `.crp` est la source de vérité des définitions.
+    // Le `.crp` est la source de vérité des définitions — ET de l'anonymisation
+    // corpus (E4) : règles `tabAnon` (thématique → catégorie comprise) et
+    // `paramsAnonCorpus` → `paramsAnon`.
     const { codebook, variables } = mapperDefinitions(apercu.value.raw)
+    let n = 0
+    const genId = () => `reg-crp-${++n}`
     await migrerDepuisV1(
       {
         nom: apercu.value.nom,
@@ -97,6 +101,8 @@ async function migrer() {
         dossier: dossier.value,
         codebook,
         variables,
+        reglesAnon: mapperTabAnon(apercu.value.raw.tabAnon, genId),
+        paramsAnon: mapperParamsAnon(apercu.value.raw.paramsAnonCorpus),
       },
       apercu.value.raw.tabEnt ?? [], // entretiens à importer (.Sonal + audio)
     )

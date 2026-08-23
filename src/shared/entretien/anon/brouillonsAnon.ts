@@ -109,6 +109,9 @@ export interface LigneAnon {
   nbAnonymise: number
   /** Occurrences en exception (laissées en clair, marqueur pointillé). */
   nbException: number
+  /** Occurrences INCLUSES : posées ici mais recouvertes par une entité plus
+   *  large (masquées à l'écran, comptées nulle part) — exposant « +N ». */
+  nbIncluse: number
   /** Compteurs PAR VARIANTE de pseudo (multi-pseudo) : une entrée par pseudo
    *  appliqué ou déclaré. Mono-pseudo → une seule entrée ; occurrences sans
    *  pseudo → absentes des variantes (elles restent dans les totaux). */
@@ -152,6 +155,9 @@ export function lignesAnonUnifiees(
   texteEntre: (from: number, to: number) => string,
   pseudosDeclares: Record<string, string[]> = {},
   reglesAnon: RegleAnon[] = [],
+  /** Prédicat d'inclusion (injecté) : l'occurrence est recouverte par une
+   *  annotation d'une AUTRE entité plus large → exclue des compteurs. */
+  estIncluse?: (o: OccurrenceAnonProjection) => boolean,
 ): LigneAnon[] {
   const parCle = new Map<string, LigneAnon>()
   // Compteurs par variante : cle → (pseudo minuscule → compteurs), rempli au
@@ -208,10 +214,17 @@ export function lignesAnonUnifiees(
         nb: 0,
         nbAnonymise: 0,
         nbException: 0,
+        nbIncluse: 0,
         variantes: [],
         occurrenceIds: [],
       }
       parCle.set(cle, ligne)
+    }
+    if (estIncluse?.(o)) {
+      // Absorbée par une entité plus large : ni anonymisée, ni exception,
+      // ni à anonymiser — elle ne monte que dans l'exposant « +N incluse(s) ».
+      ligne.nbIncluse++
+      continue
     }
     ligne.nb++
     if (o.etat === 'exception') ligne.nbException++
@@ -240,6 +253,7 @@ export function lignesAnonUnifiees(
       nb: 0,
       nbAnonymise: 0,
       nbException: 0,
+      nbIncluse: 0,
       variantes: [],
       occurrenceIds: [],
     })

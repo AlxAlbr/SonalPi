@@ -36,9 +36,24 @@ export function pluginMenuAnon(entretien: Entretien, ouvrir: (cible: CibleMenuAn
           // [from, to[. Un clic sur le caractère final donne une position
           // strictement inférieure à `to` (le caret se place avant le
           // caractère) → la borne droite est exclue, pas de débordement sur le
-          // texte qui suit.
+          // texte qui suit. Les INCLUSES (contenues dans une annotation plus
+          // longue) sont écartées : pas d'action directe sur ce qui est masqué,
+          // le clic retombe sur l'annotation englobante.
           const couvrante = entretien.annotations.find(
-            (a) => a.type === 'anon' && !estOrpheline(a) && a.from <= pos.pos && pos.pos < a.to,
+            (a) =>
+              a.type === 'anon' &&
+              !estOrpheline(a) &&
+              a.from <= pos.pos &&
+              pos.pos < a.to &&
+              !entretien.annotations.some(
+                (y) =>
+                  y.type === 'anon' &&
+                  !estOrpheline(y) &&
+                  y.id !== a.id &&
+                  y.from <= a.from &&
+                  a.to <= y.to &&
+                  y.to - y.from > a.to - a.from,
+              ),
           )
           if (!couvrante) return false
           // Notre menu remplace le menu natif UNIQUEMENT ici.

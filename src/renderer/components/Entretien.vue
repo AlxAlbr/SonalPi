@@ -31,6 +31,7 @@ const {
   hintAnon,
   lignesAnon,
   hitsAAnonymiserParCle,
+  inclusesParCle,
   rafraichirCompteursAAAnonymiser,
   reperageAnon,
   demarrerReperage,
@@ -42,6 +43,10 @@ const {
   majBrouillonLigne,
   supprimerLigneAnon,
   changerPorteeAnon,
+  validerAvecPriorite,
+  categorieDeLigne,
+  categoriserLigne,
+  thematiquesActives,
   menuContextuelAnon,
   fermerMenuAnon,
   basculerException,
@@ -51,6 +56,9 @@ const {
   alignerCorpus,
   garderLesDeuxCorpus,
   annulerDialogueCorpus,
+  suggestionLiaison,
+  accepterSuggestionLiaison,
+  refuserSuggestionLiaison,
   entiteExisteDeja,
   editor,
   entreesJournal,
@@ -119,6 +127,14 @@ const cleLoc = (index: number, idVar: string) => `loc|${index}|${idVar}`
 // geste anon. 0 ou ligne absente → compteur masqué.
 function nbAAAnonymiser(cle: string): number {
   return hitsAAnonymiserParCle.value[cle]?.length ?? 0
+}
+// Tooltip de l'exposant d'incluses : wording V1 (« plus N absorbée(s)… », jamais
+// « dont »), avec les entités absorbantes distinctes.
+function tooltipIncluses(cle: string): string {
+  const n = lignesAnon.value.find((l) => l.cle === cle)?.nbIncluse ?? 0
+  const pars = inclusesParCle.value[cle] ?? []
+  const qui = pars.length ? ` par « ${pars.join('», « ')}»` : ''
+  return `plus ${n} absorbée(s)${qui} (non comptée(s) ici)`
 }
 // Plusieurs lignes vides : on saisit un nom, « passe à la ligne suivante »
 // (Entrée) → le brouillon est persisté, et une nouvelle ligne vide s'ajoute si
@@ -241,8 +257,10 @@ onMounted(() => {
 })
 onUnmounted(() => window.removeEventListener('resize', majNomsAnon))
 
-/** Valide UNE ligne : pose les occurrences (validerAnon), vide la ligne. */
-function validerLigne(l: { id: number; entite: string; pseudo: string }) {
+/** Valide UNE ligne : pose les occurrences (validerAnon), vide la ligne.
+ *  `majuscule` (Entrée clavier uniquement) route vers la priorité de portée
+ *  (étape 4a) au lieu du comportement historique du bouton ✓ (entretien). */
+function validerLigne(l: { id: number; entite: string; pseudo: string }, majuscule?: boolean) {
   const e = l.entite.trim()
   const p = l.pseudo.trim()
   if (!e) {
@@ -259,9 +277,19 @@ function validerLigne(l: { id: number; entite: string; pseudo: string }) {
     return
   }
   hintAnon.value = null
-  validerAnon(e, p)
+  if (majuscule === undefined) {
+    // Bouton ✓ : comportement historique (pose au niveau entretien).
+    validerAnon(e, p)
+    l.entite = ''
+    l.pseudo = ''
+    return
+  }
+  // Entrée/Maj+Entrée : créer le brouillon puis appliquer la portée routée
+  // par la priorité de validation (étape 4a).
+  creerBrouillon(e, p)
   l.entite = ''
   l.pseudo = ''
+  void validerAvecPriorite(e, majuscule)
 }
 /** Entrée sur le Nom (sans pseudo) → brouillon « entité seule » (draft inerte
  *  en attendant un pseudo), puis passage à la ligne suivante (créée au besoin). */
@@ -305,11 +333,22 @@ function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien' | 'corpu
   if (etat === 'brouillon') majBrouillonLigne(entite, value)
   else if (etat === 'entretien') validerAnon(entite, value)
 }
-/** Entrée sur le Pseudo d'une ligne : brouillon → valider (poser occurrences),
+/** Entrée sur le Pseudo d'une ligne existante : brouillon → valider selon la
+ *  priorité (Entrée = portée prioritaire, Maj+Entrée = l'autre, étape 4a),
  *  entretien → relabel via le change au blur. Corpus → sans effet. */
-function surEntreePseudoLigne(entite: string, etat: 'brouillon' | 'entretien' | 'corpus', value: string) {
-  if (etat === 'brouillon') validerAnon(entite, value)
-  else (document.activeElement as HTMLElement | null)?.blur()
+function surEntreePseudoLigne(
+  entite: string,
+  etat: 'brouillon' | 'entretien' | 'corpus',
+  value: string,
+  majuscule: boolean,
+) {
+  if (etat === 'brouillon') {
+    // Synchroniser le brouillon avec la saisie avant de router (le changement
+    // de portée lit le pseudo du brouillon, pas le champ).
+    const v = value.trim()
+    if (v) majBrouillonLigne(entite, v)
+    void validerAvecPriorite(entite, majuscule)
+  } else (document.activeElement as HTMLElement | null)?.blur()
 }
 function scrollerVersLigne(entite: string) {
   const cle = entite.trim().toLowerCase()
@@ -826,7 +865,7 @@ function focaliserLibre(el: unknown, cle: string) {
                       :value="l.pseudo"
                       :placeholder="l.etat === 'brouillon' ? 'pseudo…' : ''"
                       :disabled="roContenu"
-                      @keydown.enter.prevent="surEntreePseudoLigne(l.entite, l.etat, ($event.target as HTMLTextAreaElement).value)"
+                      @keydown.enter.prevent="surEntreePseudoLigne(l.entite, l.etat, ($event.target as HTMLTextAreaElement).value, $event.shiftKey)"
                       @change="surPseudoLigne(l.entite, l.etat, ($event.target as HTMLTextAreaElement).value)"
                     ></textarea>
                   </td>
@@ -858,6 +897,19 @@ function focaliserLibre(el: unknown, cle: string) {
                           @click="changerPorteeAnon(l.entite, 'corpus')"
                         >🌐</button>
                       </div>
+                      <!-- Thématique (4c) : badge-sélecteur sur les lignes CORPUS
+                           quand le réglage est activé au panneau Pseudos. -->
+                      <select
+                        v-if="l.etat === 'corpus' && thematiquesActives.length"
+                        class="cat-select"
+                        :value="categorieDeLigne(l.entite)"
+                        title="Thématique de l'entité"
+                        :disabled="roContenu || lectureSeule"
+                        @change="categoriserLigne(l.entite, ($event.target as HTMLSelectElement).value)"
+                      >
+                        <option value="">—</option>
+                        <option v-for="t in thematiquesActives" :key="t" :value="t">{{ t }}</option>
+                      </select>
                       <div class="occ-action">
                         <!-- Widget de navigation ◄ i/N ► (loupe) tant qu'un
                              repérage est actif sur CETTE ligne. -->
@@ -911,6 +963,13 @@ function focaliserLibre(el: unknown, cle: string) {
                             @click="demarrerReperage(l.cle, 'a-anonymiser')"
                           >À {{ nbAAAnonymiser(l.cle) }}</button>
                         </template>
+                        <!-- Incluses : exposant non cliquable — absorbées par une
+                             entité plus large, le clic retombe sur la règle large. -->
+                        <span
+                          v-if="l.nbIncluse > 0"
+                          class="cpt-incl"
+                          :title="tooltipIncluses(l.cle)"
+                        >+{{ l.nbIncluse }}</span>
                         <!-- Emplacement réservé : exposant « +N incluse(s) » (chevauchements de règles). -->
                         <button v-if="!roContenu && reperageAnon?.cle !== l.cle" class="x-anon" title="Supprimer cette ligne" @click="supprimerLigneAnon(l.entite)">✕</button>
                       </div>
@@ -944,7 +1003,7 @@ function focaliserLibre(el: unknown, cle: string) {
                       v-model="l.pseudo"
                       placeholder="pseudo…"
                       :ref="refPseudo(l.id)"
-                      @keydown.enter.prevent="validerLigne(l)"
+                      @keydown.enter.prevent="validerLigne(l, $event.shiftKey)"
                     ></textarea>
                   </td>
                   <td class="col-actions">
@@ -1022,6 +1081,24 @@ function focaliserLibre(el: unknown, cle: string) {
             <button @click="alignerCorpus">Aligner (pseudo du corpus)</button>
             <button @click="garderLesDeuxCorpus">Garder les deux</button>
             <button @click="annulerDialogueCorpus">Annuler</button>
+          </div>
+        </div>
+      </div>
+      <!-- Suggestion d'entité-cœur (mots de liaison) : à la validation
+           d'une entité à affixe (« à Lyon »), proposer aussi la règle générale
+           (« Lyon »), à la même portée. Jamais automatique : Oui crée la
+           règle, Non ne crée rien et ne mémorise aucun refus. -->
+      <div v-if="suggestionLiaison" class="portee-dialogue-overlay">
+        <div class="portee-dialogue">
+          <h4>Pseudonymiser aussi : « {{ suggestionLiaison.entiteCoeur }} » ?</h4>
+          <p>
+            Vous venez de valider une entité commençant par un mot de liaison.
+            Créer aussi la règle générale <b>« {{ suggestionLiaison.entiteCoeur }} »</b>
+            (pseudo proposé : « {{ suggestionLiaison.pseudoCoeur }} »)&nbsp;?
+          </p>
+          <div class="portee-dialogue-actions">
+            <button @click="accepterSuggestionLiaison">Oui</button>
+            <button @click="refuserSuggestionLiaison">Non</button>
           </div>
         </div>
       </div>
@@ -1823,6 +1900,15 @@ td.col-pseudo {
   font-size: 0.62rem;
   width: 1rem;
   height: 1rem;
+}
+/* Exposant d'incluses : « +N » discret après les badges — absorbées par une
+ * entité plus large, non comptées, non navigables (tooltip pour le détail). */
+.cpt-incl {
+  font-size: 0.62rem;
+  color: #999;
+  font-style: italic;
+  cursor: help;
+  line-height: 1;
 }
 /* Widget de navigation entre occurrences (état actif d'un compteur). */
 .reperage-nav {

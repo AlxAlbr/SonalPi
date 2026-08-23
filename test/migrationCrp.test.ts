@@ -2,7 +2,7 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { encode } from 'iconv-lite'
-import { analyserCrp, VERSIONS_CRP_SUPPORTEES, mapperCodebook, mapperVariables, mapperDefinitions, mapperEntretiensV1 } from '../src/shared/corpus/migrationCrp'
+import { analyserCrp, VERSIONS_CRP_SUPPORTEES, mapperCodebook, mapperVariables, mapperDefinitions, mapperEntretiensV1, mapperTabAnon, mapperParamsAnon } from '../src/shared/corpus/migrationCrp'
 import { fusionnerImport } from '../src/shared/corpus/import'
 import { decoderCrp } from '../src/main/encodage'
 import type { CorpusFichier } from '../src/shared/format'
@@ -362,5 +362,50 @@ describe('mapperEntretiensV1 (tabEnt[] → données d’import)', () => {
   test('tabEnt absent → liste vide (corpus sans entretien)', () => {
     expect(mapperEntretiensV1(undefined)).toEqual([])
     expect(mapperEntretiensV1(null)).toEqual([])
+  })
+})
+
+describe('E4 — mapping tabAnon + paramsAnonCorpus du .crp', () => {
+  test('tabAnon → règles V2 : thématique → catégorie, remplacementAlt → 2ᵉ pseudo, entrées vides ignorées', () => {
+    let n = 0
+    const regles = mapperTabAnon(
+      [
+        { entite: 'Émilie', remplacement: 'Claire' },
+        { entite: 'Mairie', remplacement: 'Mairie de quartier', thematique: 'ORG' },
+        { entite: 'Enquêteur', remplacement: 'Énola', remplacementAlt: 'Camille', thematique: 'LOC' },
+        { entite: '   ', remplacement: 'X' }, // sans entité : ignoré
+      ],
+      () => `reg-crp-${++n}`,
+    )
+    expect(regles).toHaveLength(3)
+    expect(regles[0]).toEqual({ id: 'reg-crp-1', entite: ['Émilie'], pseudos: ['Claire'] })
+    expect('categorie' in regles[0]).toBe(false)
+    expect(regles[1].categorie).toBe('ORG')
+    expect(regles[2].pseudos).toEqual(['Énola', 'Camille'])
+    expect(regles[2].categorie).toBe('LOC')
+    // Absent / non-tableau → vide (jamais d'exception).
+    expect(mapperTabAnon(undefined, () => 'i')).toEqual([])
+  })
+
+  test('paramsAnonCorpus → ParamsAnon : lecture défensive champ à champ', () => {
+    expect(
+      mapperParamsAnon({
+        motsLiaison: ['à', 'de'],
+        motsLiaisonActif: false,
+        thematiques: { actif: true, liste: ['PER'] },
+        prioriteValidation: 'entretien',
+      }),
+    ).toEqual({
+      prioriteValidation: 'entretien',
+      motsLiaison: { actif: false, liste: ['à', 'de'] },
+      thematiques: { actif: true, liste: ['PER'] },
+    })
+    // Absent → priorité par défaut, champs optionnels omis.
+    expect(mapperParamsAnon(undefined)).toEqual({ prioriteValidation: 'corpus' })
+    // Valeur inconnue → défaut ; liste thématiques absente → défauts V1.
+    expect(mapperParamsAnon({ prioriteValidation: 'bizarre' }).prioriteValidation).toBe('corpus')
+    expect(mapperParamsAnon({ thematiques: { actif: true } }).thematiques?.liste).toEqual([
+      'PER', 'LOC', 'ORG', 'DAT',
+    ])
   })
 })

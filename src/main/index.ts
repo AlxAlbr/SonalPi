@@ -33,6 +33,7 @@ import type {
   PayloadEntretien,
   RegleAnon,
   Variable,
+  ParamsAnon,
 } from '../shared/format'
 import type {
   DemandeConnexion,
@@ -471,6 +472,16 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:regleAnonSupprimer', (_e, id: string) =>
     executerDefinitions(() => store.regleAnonSupprimer(id)),
   )
+  // Paramètres de pseudonymisation (étape 4) : lecture directe, écriture sous
+  // transaction de définitions (corpus.json est un fichier partagé).
+  ipcMain.handle('corpus:paramsAnonLire', () => store.lireParamsAnon())
+  ipcMain.handle('corpus:paramsAnonEcrire', (_e, params: ParamsAnon) =>
+    executerDefinitions(() => store.ecrireParamsAnon(params)),
+  )
+  // Thématique d'une règle (4c) : mutation de corpus.json sous transaction.
+  ipcMain.handle('corpus:regleAnonCategoriser', (_e, id: string, categorie: string | null) =>
+    executerDefinitions(() => store.regleAnonCategoriser(id, categorie)),
+  )
   ipcMain.handle('corpus:appliquerRegleAnonLot', (_e, cibles: CibleRegleAnon[]) =>
     transactions ? transactions.appliquerRegleLot(cibles) : appliquerRegleLotLocal(store, cibles),
   )
@@ -875,6 +886,8 @@ function enregistrerIpcCorpus(): void {
       { cheminCrp: req.cheminCrp, dateCreation: req.dateCreation },
       req.codebook,
       req.variables,
+      req.reglesAnon,
+      req.paramsAnon,
     )
     ajouterRecent(req.dossier)
     return { dir: req.dossier, nom: corpus.nom ?? basename(req.dossier), corpus }

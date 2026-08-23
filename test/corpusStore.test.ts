@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
+import { fusionnerReglesAnon } from '../src/shared/corpus/import'
 import { mapperDefinitions } from '../src/shared/corpus/migrationCrp'
 import { analyserCrp } from '../src/shared/corpus/migrationCrp'
 import { creerRegle } from '../src/shared/corpus/reglesAnon'
@@ -831,8 +832,8 @@ describe('CorpusStore — règles corpus & scan anon (lecture)', () => {
     expect(store.reglesAnon()).toEqual([{ id: 'r1', entite: ['Lyon'], pseudos: ['L1'] }])
     const [scan] = store.scanAnon()
     expect(scan.regle.id).toBe('r1')
-    expect(scan.total).toEqual({ anon: 0, exc: 0, non: 1 })
-    expect(scan.parEntretien.e1).toEqual({ anon: 0, exc: 0, non: 1 })
+    expect(scan.total).toEqual({ anon: 0, exc: 0, non: 1, incl: +0 })
+    expect(scan.parEntretien.e1).toEqual({ anon: 0, exc: 0, non: 1, incl: +0 })
   })
 
   test('scanAnon : une occurrence anonymisée par la règle compte « anonymisé »', () => {
@@ -846,7 +847,7 @@ describe('CorpusStore — règles corpus & scan anon (lecture)', () => {
     writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(e, null, 2))
 
     const [scan] = store.scanAnon()
-    expect(scan.total).toEqual({ anon: 1, exc: 0, non: 0 })
+    expect(scan.total).toEqual({ anon: 1, exc: 0, non: 0, incl: +0 })
   })
 })
 
@@ -854,16 +855,16 @@ describe('ajusterScanApresApplication — compteurs ajustés sans re-scan', () =
   const scan: ScanRegle[] = [
     {
       regle: { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] },
-      total: { anon: 3, exc: 1, non: 5 },
+      total: { anon: 3, exc: 1, non: 5, incl: +0 },
       parEntretien: {
-        e1: { anon: 2, exc: 0, non: 3 },
-        e2: { anon: 1, exc: 1, non: 2 },
+        e1: { anon: 2, exc: 0, non: 3, incl: +0 },
+        e2: { anon: 1, exc: 1, non: 2, incl: +0 },
       },
     },
     {
       regle: { id: 'reg-2', entite: ['Lyon'], pseudos: ['Ville'] },
-      total: { anon: 0, exc: 0, non: 4 },
-      parEntretien: { e1: { anon: 0, exc: 0, non: 4 } },
+      total: { anon: 0, exc: 0, non: 4, incl: +0 },
+      parEntretien: { e1: { anon: 0, exc: 0, non: 4, incl: +0 } },
     },
   ]
 
@@ -872,9 +873,9 @@ describe('ajusterScanApresApplication — compteurs ajustés sans re-scan', () =
       { id: 'e1', nb: 2 },
       { id: 'e2', nb: 1 },
     ])
-    expect(r[0].parEntretien.e1).toEqual({ anon: 4, exc: 0, non: 1 })
-    expect(r[0].parEntretien.e2).toEqual({ anon: 2, exc: 1, non: 1 })
-    expect(r[0].total).toEqual({ anon: 6, exc: 1, non: 2 })
+    expect(r[0].parEntretien.e1).toEqual({ anon: 4, exc: 0, non: 1, incl: +0 })
+    expect(r[0].parEntretien.e2).toEqual({ anon: 2, exc: 1, non: 1, incl: +0 })
+    expect(r[0].total).toEqual({ anon: 6, exc: 1, non: 2, incl: +0 })
     expect(r[1]).toBe(scan[1]) // règle non visée : inchangée (même référence)
   })
 
@@ -883,8 +884,8 @@ describe('ajusterScanApresApplication — compteurs ajustés sans re-scan', () =
       { id: 'e2', nb: 99 },
       { id: 'e9', nb: 3 }, // absent du scan : ignoré.
     ])
-    expect(r[0].parEntretien.e2).toEqual({ anon: 3, exc: 1, non: 0 })
-    expect(r[0].total).toEqual({ anon: 5, exc: 1, non: 3 })
+    expect(r[0].parEntretien.e2).toEqual({ anon: 3, exc: 1, non: 0, incl: +0 })
+    expect(r[0].total).toEqual({ anon: 5, exc: 1, non: 3, incl: +0 })
   })
 
   test('ne mute pas le scan d\'origine', () => {
@@ -1093,5 +1094,87 @@ describe('CorpusStore — garde lectureSeule (E0 corpus distant)', () => {
     const local = new CorpusStore(dir) // défaut : false
     expect(() => local.poserNom('local again')).not.toThrow()
     expect(local.ouvrir().nom).toBe('local again')
+  })
+})
+
+describe('CorpusStore — paramètres de pseudonymisation (étape 4a)', () => {
+  test('absents → défauts (priorité corpus, motsLiaison actifs) ; écriture persistée et relue', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const defauts = store.lireParamsAnon()
+    expect(defauts.prioriteValidation).toBe('corpus')
+    expect(defauts.motsLiaison?.actif).toBe(true)
+    expect(defauts.motsLiaison?.liste.length).toBeGreaterThan(0)
+    const ecrit = store.ecrireParamsAnon({
+      prioriteValidation: 'entretien',
+      motsLiaison: { actif: false, liste: ['à', 'de'] },
+    })
+    expect(ecrit.prioriteValidation).toBe('entretien')
+    expect(ecrit.motsLiaison).toEqual({ actif: false, liste: ['à', 'de'] })
+    // Persisté dans corpus.json (relecture par un nouveau store).
+    const relu = new CorpusStore(dir).lireParamsAnon()
+    expect(relu.prioriteValidation).toBe('entretien')
+    expect(relu.motsLiaison?.actif).toBe(false)
+  })
+})
+
+describe('CorpusStore — thématiques d\u2019entités (étape 4c)', () => {
+  test('défauts désactivés avec liste PER/LOC/ORG/DAT ; assignation et retrait de catégorie', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const thematiques = store.lireParamsAnon().thematiques!
+    expect(thematiques.actif).toBe(false)
+    expect(thematiques.liste).toEqual(['PER', 'LOC', 'ORG', 'DAT'])
+    // Assignation : la règle porte sa catégorie (persistée).
+    const { regle: r } = store.regleAnonCreer('Mairie de Lyon', ['Mairie'])
+    const maj = store.regleAnonCategoriser(r.id, 'ORG')
+    expect(maj?.categorie).toBe('ORG')
+    // Retrait : le champ disparaît.
+    const retire = store.regleAnonCategoriser(r.id, null)
+    expect(retire?.categorie).toBeUndefined()
+    expect('categorie' in (retire ?? {})).toBe(false)
+    // Règle inconnue → null sans erreur.
+    expect(store.regleAnonCategoriser('inconnue', 'PER')).toBeNull()
+  })
+})
+
+describe('CorpusStore — E4 : tabAnon + paramsAnonCorpus écrits à la création', () => {
+  test('règles du .crp (catégories comprises) + params persistés ; import .sonal idempotent', async () => {
+    const { mapperTabAnon, mapperParamsAnon } = await import('../src/shared/corpus/migrationCrp')
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-e4-'))
+    const crp = readFileSync(join(process.cwd(), 'test/fixtures/corpusV1.crp'), 'utf8')
+    const a = analyserCrp(crp, 'MonCorpus.crp')
+    if (!a.ok) throw new Error('fixture invalide')
+    const { apercu } = a
+    let n = 0
+    const regles = mapperTabAnon(apercu.raw.tabAnon, () => `reg-crp-${++n}`)
+    const paramsAnon = mapperParamsAnon(apercu.raw.paramsAnonCorpus)
+
+    const corpus = new CorpusStore(dir).migrerDepuisV1(
+      apercu.nom,
+      { cheminCrp: '/m/MonCorpus.crp', dateCreation: null },
+      [],
+      [],
+      regles,
+      paramsAnon,
+    )
+    // Les 3 règles du .crp sont là, catégories et double pseudo compris.
+    expect(Object.keys(corpus.reglesAnon)).toHaveLength(3)
+    const mairie = Object.values(corpus.reglesAnon).find((r) => r.entite[0] === 'Maison des Habitants')
+    expect(mairie?.categorie).toBe('ORG')
+    const enq = Object.values(corpus.reglesAnon).find((r) => r.entite[0] === 'Enquêteur')
+    expect(enq?.pseudos).toEqual(['Énola', 'Camille'])
+    expect(enq?.categorie).toBe('LOC')
+    // Paramètres : priorité + thématiques actives (venus du .crp).
+    expect(corpus.paramsAnon?.prioriteValidation).toBe('corpus')
+    expect(corpus.paramsAnon?.thematiques?.actif).toBe(true)
+
+    // Doctrine V1 « le global gagne » : un .sonal ré-important la même entité
+    // est dédupliqué par alias — la règle .crp (et sa catégorie) reste seule.
+    fusionnerReglesAnon(corpus, [{ id: 'reg-sonal-1', entite: ['Enquêteur'], pseudos: ['Autre'] }])
+    const enqueteur = Object.values(corpus.reglesAnon).filter((r) => r.entite.includes('Enquêteur'))
+    expect(enqueteur).toHaveLength(1)
+    expect(enqueteur[0].id).toMatch(/^reg-crp-/)
+    expect(enqueteur[0].categorie).toBe('LOC')
   })
 })

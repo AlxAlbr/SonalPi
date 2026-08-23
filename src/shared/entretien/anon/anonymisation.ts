@@ -139,12 +139,10 @@ export function plageVersPM(t: TextePlat, from: number, to: number): { from: num
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Instructions d'application produites par une validation de ligne : rien n'est
- *  muté ici — l'appelant (la table réactive) applique les trois listes. */
+ *  muté ici — l'appelant (la table réactive) applique les deux listes. */
 export interface InstructionsValiderAnon {
   /** Occurrences ANONYMISÉES de la ligne à relabeler (jamais les exceptions). */
   relabel: Array<{ id: string; pseudo: string }>
-  /** Annotations à retirer (absorption « la plus longue gagne »). */
-  retirer: string[]
   /** Nouvelles occurrences (etat 'anonymise') à poser. */
   poser: Array<{ id: string; from: number; to: number; pseudo: string }>
 }
@@ -155,11 +153,12 @@ export interface InstructionsValiderAnon {
  *     les EXCEPTIONS gardent leur état et leur pseudo-mémoire intacts
  *     (on n'écrase jamais une exception) ;
  *  2. Pose — une occurrence est posée sur chaque match du texte NON déjà
- *     couvert, avec les règles du v1 : déjà couvert en entier → rien ; match
- *     contenant toutes les occurrences qui le touchent → absorption (retrait +
- *     pose pleine) — MAIS une EXCEPTION couvrante (même partielle, même
- *     contenue) BLOQUE la pose : le match reste en clair, rien n'est retiré
- *     (« une exception ne repasse jamais à traiter »).
+ *     couvert. Une EXCEPTION au contact du match bloque la pose (le match
+ *     reste en clair — « une exception ne repasse jamais à traiter »).
+ *     Un match contenant des occurrences ANONYMISÉES plus étroites les
+ *     CONSERVE : elles deviennent « incluses » (masquées par la plus large,
+ *     comptées nulle part) et réapparaîtront telles quelles au retrait de
+ *     celle-ci — la restauration est gratuite car rien n'est détruit.
  * PURE : lit `annotations`/`texteDe`, ne mute rien.
  */
 export function instructionsValiderAnon(
@@ -181,8 +180,7 @@ export function instructionsValiderAnon(
     if (ensemble.has(cleEntite(texteDe(a.from, a.to)))) relabel.push({ id: a.id, pseudo })
   }
 
-  // 2. Pose sur les matches non couverts (avec les gardes d'exception).
-  const retirer: string[] = []
+  // 2. Pose sur les matches non couverts (avec la garde d'exception).
   const poser: Array<{ id: string; from: number; to: number; pseudo: string }> = []
   for (const m of matches) {
     const touches = existant.filter((a) => chevauche(a, m))
@@ -190,19 +188,19 @@ export function instructionsValiderAnon(
       poser.push({ id: genId(), from: m.from, to: m.to, pseudo })
       continue
     }
-    // Une exception au contact du match bloque la pose ET le retrait : le match
-    // reste en clair (sa partie exceptée est mémorisée, l'autre n'est pas
-    // re-marquée — comportement conservateur).
+    // Une exception au contact du match bloque la pose : le match reste en
+    // clair (sa partie exceptée est mémorisée, l'autre n'est pas re-marquée —
+    // comportement conservateur).
     if (touches.some((a) => a.etat === 'exception')) continue
     // Déjà couvert en entier par une occurrence anonymisée → rien à faire.
     if (touches.some((a) => a.from <= m.from && a.to >= m.to)) continue
-    // Le match contient toutes les occurrences anonymisées qui le touchent :
-    // absorption (la plus longue gagne) — on retire et on pose l'entité pleine.
+    // Le match contient des occurrences anonymisées plus étroites (de cette
+    // entité ou d'une autre) : on pose l'entité pleine PAR-DESSUS, sans rien
+    // retirer — les étroites deviennent des incluses masquées.
     if (touches.every((a) => a.from >= m.from && a.to <= m.to)) {
-      for (const a of touches) retirer.push(a.id)
       poser.push({ id: genId(), from: m.from, to: m.to, pseudo })
     }
   }
 
-  return { relabel, retirer, poser }
+  return { relabel, poser }
 }

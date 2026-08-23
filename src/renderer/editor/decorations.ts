@@ -96,6 +96,24 @@ function construireDecorations(
   const actives = entretien.annotations.filter((a) => !estOrpheline(a))
   if (actives.length === 0) return DecorationSet.empty
 
+  // Incluses (chevauchement de règles) : une annotation anon CONTENUE dans une
+  // autre PLUS LONGE est masquée — le rendu ne voit que la plus large (pas de
+  // barré ni de [pseudo] pour l'interne). Elle reste dans le modèle : au retrait
+  // de l'englobante, elle réapparaît telle quelle (restauration gratuite).
+  const masquee = new Set<string>()
+  for (const x of actives) {
+    if (x.type !== 'anon') continue
+    const englobee = actives.some(
+      (y) =>
+        y.type === 'anon' &&
+        y.id !== x.id &&
+        y.from <= x.from &&
+        x.to <= y.to &&
+        y.to - y.from > x.to - x.from,
+    )
+    if (englobee) masquee.add(x.id)
+  }
+
   // Bornes élémentaires : toutes les extrémités, triées et dédupliquées.
   const bornes = [...new Set(actives.flatMap((a) => [a.from, a.to]))].sort((x, y) => x - y)
 
@@ -128,7 +146,7 @@ function construireDecorations(
     // plusieurs segments, le pseudo ne doit se répéter qu'une fois à la fin
     // (sinon « New »[ville] « York »[ville] au lieu de « New York »[ville]).
     // Le barré, lui, reste continu sur toute la plage.
-    const anons = couvrant.filter((a) => a.type === 'anon')
+    const anons = couvrant.filter((a) => a.type === 'anon' && !masquee.has(a.id))
     // Occurrence ANONYMISÉE (barrée + [pseudo]) vs EXCEPTION (décision volontaire
     // de laisser en clair — ni barrée ni [pseudo]). Sur un segment où
     // une occurrence anonymisée et une exception se recouvrent, le barré
@@ -161,10 +179,16 @@ function construireDecorations(
             ? `annot anon${suite ? ' anon-suite' : ''}`
             : 'annot',
         style,
-        'data-annot-count': String(couvrant.length),
-        'data-annot-ids': couvrant.map((a) => a.id).join(' '),
+        // Les incluses masquées ne figurent ni dans le comptage ni dans le
+        // titre : le segment se présente comme si elles n'existaient pas.
+        'data-annot-count': String(couvrant.filter((a) => !masquee.has(a.id)).length),
+        'data-annot-ids': couvrant
+          .filter((a) => !masquee.has(a.id))
+          .map((a) => a.id)
+          .join(' '),
         ...(pseudos.length ? { 'data-pseudo': pseudos.join(' / ') } : {}),
         title: couvrant
+          .filter((a) => !masquee.has(a.id))
           .map((a) => {
             if (a.type !== 'anon') return a.code
             return a.etat === 'exception' ? 'exception' : a.pseudo ? `anon→${a.pseudo}` : 'anon'

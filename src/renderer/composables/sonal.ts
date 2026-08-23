@@ -3,6 +3,7 @@ import { importerFichier } from '../import/sas'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
 import type { CorpusFichier, EntreeRecent, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
+import { paramsAnonDefaut, MOTS_LIAISON_DEFAUT } from '../../shared/format'
 import type { EtatVerrouPublic, OrphelinDistant, PresencePublic, ProgressionTransfert } from '../../shared/distant'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
@@ -47,6 +48,16 @@ export function creerSonal() {
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirScanAnon(), // cache règles après mutation
+    prioriteAnon: () => corpus.paramsAnon.value.prioriteValidation, // étape 4a : portée d'Entrée
+    // Mots de liaison : suggestion d'entité-cœur à la validation d'une entité à affixe.
+    motsLiaison: () =>
+      corpus.paramsAnon.value.motsLiaison ?? { actif: true, liste: [...MOTS_LIAISON_DEFAUT] },
+    thematiques: () =>
+      corpus.paramsAnon.value.thematiques ?? { actif: false, liste: ['PER', 'LOC', 'ORG', 'DAT'] }, // 4c
+    categoriserRegle: async (id, cat) => {
+      await window.sonal.corpus.regleAnonCategoriser(id, cat)
+      await corpus.rafraichirScanAnon() // la projection des lignes relit la règle fraîche
+    },
     lectureSeule: () => lectureSeule.value, // définitions : grisage permanent en distant
     entretienEditable: () => !lectureSeule.value && !ent.verrouAutrui.value, // ni hors ligne, ni verrou à autrui
     libelleValeur: (idVar, idMod) => {
@@ -210,6 +221,7 @@ export function creerSonal() {
     corpus.membership.value = c.membership
     corpus.majCodebook(c.codebook)
     corpus.majVariables(c.variables)
+    corpus.paramsAnon.value = { ...paramsAnonDefaut(), ...(c.paramsAnon ?? {}) }
     await corpus.rafraichirUsages()
     await rafraichirAudios()
     audiosManquants.value = await verifierIntegriteAudios() // bandeau d'intégrité
@@ -468,6 +480,7 @@ export function creerSonal() {
     corpus.membership.value = c.membership
     corpus.majCodebook(c.codebook)
     corpus.majVariables(c.variables)
+    corpus.paramsAnon.value = { ...paramsAnonDefaut(), ...(c.paramsAnon ?? {}) }
     await corpus.rafraichirUsages()
     await rafraichirAudios()
   }

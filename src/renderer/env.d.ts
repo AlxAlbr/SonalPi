@@ -29,6 +29,7 @@ import type {
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
+  ParamsAnon,
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
@@ -93,6 +94,9 @@ declare global {
         regleAnonUtiliseeAilleurs: (id: string, exceptId?: string) => Promise<boolean>
         regleAnonSupprimer: (id: string) => Promise<void>
         appliquerRegleAnonLot: (cibles: CibleRegleAnon[]) => Promise<ResultatLotAnon>
+        paramsAnonLire: () => Promise<ParamsAnon>
+        paramsAnonEcrire: (params: ParamsAnon) => Promise<ParamsAnon>
+        regleAnonCategoriser: (id: string, categorie: string | null) => Promise<RegleAnon | null>
         compterUsagesCategorie: (code: string, exceptId?: string) => Promise<number>
         ajouterVariable: (
           lib: string,

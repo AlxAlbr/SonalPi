@@ -12,7 +12,9 @@ import type {
   RegleAnon,
   SegmentThematique,
   Variable,
+  ParamsAnon,
 } from '../../shared/format'
+import { paramsAnonDefaut } from '../../shared/format'
 import type { ScanRegle } from '../../shared/corpus/scanAnon'
 
 /**
@@ -38,6 +40,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   // Étape 3a — règles corpus + scan anon (lecture seule) : panneau « Pseudos ».
   const reglesAnon = ref<RegleAnon[]>([]) // corpus.json.reglesAnon
   const scanAnon = ref<ScanRegle[]>([]) // requête scan (relit le disque)
+  // Étape 4a — paramètres anon (corpus.json.paramsAnon, défauts si absents).
+  const paramsAnon = ref<ParamsAnon>(paramsAnonDefaut())
 
   const varsGen = () => variables.value.filter((v) => v.portee === 'entretien')
   const varsLoc = () => variables.value.filter((v) => v.portee === 'locuteur')
@@ -244,6 +248,10 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     reglesAnon.value = await window.sonal.corpus.reglesAnon()
     scanAnon.value = await window.sonal.corpus.scanAnon()
   }
+  /** Écrit les paramètres anon (IPC transactionné) et reflète localement. */
+  async function majParamsAnon(params: ParamsAnon) {
+    paramsAnon.value = await window.sonal.corpus.paramsAnonEcrire(params)
+  }
   async function poserGenLibelle(entretienId: string, idVar: string, lib: string) {
     return poserGen(entretienId, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
   }
@@ -281,6 +289,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     reglesAnon,
     scanAnon,
     rafraichirScanAnon,
+    paramsAnon,
+    majParamsAnon,
     // thèmes
     ajouterTheme,
     ajouterSousTheme,

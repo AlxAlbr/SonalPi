@@ -12,7 +12,7 @@ import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'no
 import { fileURLToPath } from 'node:url'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
-import { instructionsAppliquerRegle } from '../shared/entretien/anon'
+import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 
@@ -44,6 +44,8 @@ import {
   type SourceV1,
   type RegleAnon,
   type Variable,
+  type ParamsAnon,
+  paramsAnonDefaut,
 } from '../shared/format'
 
 /** Un entretien vide est un document ProseMirror minimal (paragraphe vide).
@@ -306,6 +308,8 @@ export class CorpusStore {
     sourceV1: SourceV1,
     codebook: Categorie[],
     variables: Variable[],
+    reglesAnonV1?: RegleAnon[],
+    paramsAnon?: ParamsAnon,
   ): CorpusFichier {
     if (existsSync(this.corpusFile)) {
       throw new Error('Le dossier contient déjà un corpus — la garde a été contournée.')
@@ -323,6 +327,14 @@ export class CorpusStore {
       meta: { sourceV1 },
     }
     corpusModel.fusionnerImport(corpus, codebook, variables)
+    // E4 : le `tabAnon` du .crp devient des règles corpus, écrites AVANT les
+    // imports `.sonal` (doctrine V1 : le global du corpus gagne — la dédup
+    // par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal`
+    // idempotent et la catégorie/thématique du .crp reste sur la règle).
+    for (const r of reglesAnonV1 ?? []) {
+      if (!corpus.reglesAnon[r.id]) corpus.reglesAnon[r.id] = r
+    }
+    if (paramsAnon) corpus.paramsAnon = paramsAnon
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return corpus
   }
@@ -617,12 +629,63 @@ export class CorpusStore {
     this.ecrireJsonAtomique(this.corpusFile, corpus)
   }
 
-  /** APPLICATION EN MASSE (3b, étape 4) : pose les `OccurrenceAnon` rule-backed
-   *  d'une règle sur un entretien FERMÉ (lecture fichier → instructions PURES →
-   *  écriture atomique). Cible les « à traiter » (matchs non couverts), pseudo
-   *  primaire de la règle ; exceptions et déjà-anonymisés intacts. Renvoie le
-   *  nombre d'occurrences posées. */
-  appliquerRegleAnon(entretienId: string, regleId: string): { nb: number; titre: string } {
+  /** Paramètres de pseudonymisation (étape 4) : lecture tolérante (absence
+   *  ou champ manquant → défauts, fusion imbriquée pour motsLiaison),
+   *  écriture complète sous garde d'écriture. */
+  lireParamsAnon(): ParamsAnon {
+    const corpus = this.ouvrir()
+    const defauts = paramsAnonDefaut()
+    return {
+      ...defauts,
+      ...(corpus.paramsAnon ?? {}),
+      motsLiaison: { ...defauts.motsLiaison!, ...(corpus.paramsAnon?.motsLiaison ?? {}) },
+      thematiques: { ...defauts.thematiques!, ...(corpus.paramsAnon?.thematiques ?? {}) },
+    }
+  }
+
+  ecrireParamsAnon(params: ParamsAnon): ParamsAnon {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    const defauts = paramsAnonDefaut()
+    corpus.paramsAnon = {
+      ...defauts,
+      ...params,
+      motsLiaison: { ...defauts.motsLiaison!, ...(params.motsLiaison ?? {}) },
+      thematiques: { ...defauts.thematiques!, ...(params.thematiques ?? {}) },
+    }
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus.paramsAnon
+  }
+
+  /** Assigne (ou retire, `null`) la thématique d'une règle (étape 4c).
+   *  Renvoie la règle mise à jour, ou null si inconnue. */
+  regleAnonCategoriser(id: string, categorie: string | null): RegleAnon | null {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    const regle = corpus.reglesAnon[id]
+    if (!regle) return null
+    if (categorie) regle.categorie = categorie
+    else delete regle.categorie
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return regle
+  }
+
+  /** APPLICATION EN MASSE / VALIDATION DU DIFF (étape 2) : applique sur un
+   *  entretien FERMÉ les changements de la vue vérification (lecture fichier →
+   *  instructions PURES → écriture atomique). `plages` restreint les POSES aux
+   *  seules occurrences cochées ; `retirer`/`exception`/`retirerException`
+   *  portent le diff façon V1 (« Valider »). Renvoie le nombre total de
+   *  changements écrits. */
+  appliquerRegleAnon(
+    entretienId: string,
+    regleId: string,
+    cible?: {
+      plages?: { from: number; to: number }[]
+      retirer?: { from: number; to: number }[]
+      exception?: { from: number; to: number }[]
+      retirerException?: { from: number; to: number }[]
+    },
+  ): { nb: number; titre: string } {
     this.verifierEcriture()
     const corpus = this.ouvrir()
     const titre = corpus.membership[entretienId]?.titre ?? entretienId
@@ -633,11 +696,20 @@ export class CorpusStore {
     const instr = instructionsAppliquerRegle(data, regle, () =>
       'a-' + Math.random().toString(36).slice(2, 9),
     )
-    for (const o of instr.poser) {
+    const poser = poserDansPlages(instr.poser, cible?.plages)
+    const nbDiff = appliquerDiffAnon(
+      data.annotations,
+      regle.id,
+      cible?.retirer,
+      cible?.exception,
+      cible?.retirerException,
+    )
+    for (const o of poser) {
       data.annotations.push({ id: o.id, type: 'anon', from: o.from, to: o.to, auteur: 'corpus', etat: 'anonymise', pseudo: o.pseudo, regle: o.regle })
     }
-    if (instr.nb > 0) this.ecrireJsonAtomique(file, data)
-    return { nb: instr.nb, titre }
+    const nb = nbDiff + poser.length
+    if (nb > 0) this.ecrireJsonAtomique(file, data)
+    return { nb, titre }
   }
 
   /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée (politique

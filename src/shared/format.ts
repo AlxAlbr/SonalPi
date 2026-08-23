@@ -78,6 +78,10 @@ export interface RegleAnon {
   id: string
   entite: string[]
   pseudos: string[]
+  /** Thématique de l'entité (étape 4c, opt-in) — PER/LOC/ORG/DAT ou libre.
+   *  Champ ADDITIF optionnel ; vit sur la règle corpus (corpus.json),
+   *  ne voyage PAS dans les `.sonal`. */
+  categorie?: string
 }
 
 /** Trace d'une migration SonalPi V1 → V2 : l'identité vient du `.crp`
@@ -114,6 +118,54 @@ export interface CorpusFichier {
    *  (vocabulaire réservé : 'propriétaire' | 'editeur' | 'lecteur').
    *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
   roles?: Record<string, string>
+  /** Paramètres de pseudonymisation (étape 4) — champ ADDITIF optionnel
+   *  (pas de bump). Absent = défauts (`prioriteValidation: 'corpus'`).
+   *  CORPUS-ONLY : ne fuit jamais dans le `.sonal` d'un entretien. */
+  paramsAnon?: ParamsAnon
+}
+
+/** Paramètres partagés de pseudonymisation (niveau corpus).
+ *  `prioriteValidation` : portée appliquée par ENTRÉE sur la validation d'une
+ *  ligne du tableau anon ; Maj+Entrée applique l'autre portée.
+ *  Défaut : 'corpus' (parité V1).
+ *  `motsLiaison` : liste partagée + interrupteur. À la validation d'une
+ *  entité à affixe (« à Lyon »), l'interrupteur active la suggestion de
+ *  l'entité-cœur (« Lyon ») — détection dans entretien/anon/liaison.ts. */
+export interface ParamsAnon {
+  prioriteValidation: 'corpus' | 'entretien'
+  motsLiaison?: MotsLiaisonParams
+  /** Thématiques d'entités (4c) — DÉSACTIVÉES par défaut (parité V1). */
+  thematiques?: ThematiquesParams
+}
+
+/** Interrupteur + liste des mots de liaison / articles (parité V1
+ *  `MOTS_LIAISON_DEFAUT`, interrupteur ACTIVÉ par défaut). */
+export interface MotsLiaisonParams {
+  actif: boolean
+  liste: string[]
+}
+
+/** Thématiques/catégories d'entités (parité V1 `getThematiques` :
+ *  DESACTIVÉES par défaut, liste libre PER/LOC/ORG/DAT). */
+export interface ThematiquesParams {
+  actif: boolean
+  liste: string[]
+}
+
+/** Mots de liaison par défaut (parité V1 `anon-detection.js`). */
+export const MOTS_LIAISON_DEFAUT = ['à', 'de', 'd', 'du', 'des', 'au', 'aux', 'en', 'chez', 'dans', 'sur', 'pour']
+
+/** Thématiques par défaut (parité V1 `THEMES_DEFAUT`). */
+export const THEMATIQUES_DEFAUT = ['PER', 'LOC', 'ORG', 'DAT']
+
+/** Défauts des paramètres anon (absence de `paramsAnon` dans corpus.json,
+ *  champs manquants après un ajout futur — lecture tolérante). */
+export function paramsAnonDefaut(): ParamsAnon {
+  return {
+    prioriteValidation: 'corpus',
+    motsLiaison: { actif: true, liste: [...MOTS_LIAISON_DEFAUT] },
+    thematiques: { actif: false, liste: [...THEMATIQUES_DEFAUT] },
+  }
 }
 
 /** Un dossier de corpus (pour l'Accueil : corpus courant + récents). */
@@ -355,10 +407,20 @@ export interface ResultatLotValeur {
 }
 
 /** Cible du lot d'application en masse d'une règle d'anonymisation :
- *  un entretien fermé, plus la règle à y poser. */
+ *  un entretien fermé, plus la règle à y poser. `plages` (optionnel) restreint
+ *  l'application aux SEULES occurrences cochées de la vue vérification
+ *  (positions PM) ; absent → toutes les occurrences « à traiter ».
+ *  Diff complet façon V1 (« Valider ») : `retirer` dé-pseudonymise des
+ *  occurrences déjà anonymisées, `exception` pose une exception (ne pas
+ *  anonymiser), `retirerException` la retire (l'occurrence redevient
+ *  « à traiter ») — chaque liste porte des positions PM exactes. */
 export interface CibleRegleAnon {
   entretienId: string
   regleId: string
+  plages?: { from: number; to: number }[]
+  retirer?: { from: number; to: number }[]
+  exception?: { from: number; to: number }[]
+  retirerException?: { from: number; to: number }[]
 }
 
 /** Retour du lot d'anonymisation en masse (même politique que

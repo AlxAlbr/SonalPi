@@ -15,7 +15,8 @@
  * entretiens/audio, `tabAnon`).
  */
 
-import type { Categorie, Variable } from '../format'
+import type { Categorie, Variable, RegleAnon, ParamsAnon } from '../format'
+import { THEMATIQUES_DEFAUT } from '../format'
 import { parentsDepuisRangs } from './categories'
 import { importerVariables } from './eav'
 
@@ -317,6 +318,64 @@ export function mapperDefinitions(crp: CrpV1): { codebook: Categorie[]; variable
   }
 }
 
+// ── Mapping de l'ANONYMISATION (E4) ───────────────────────────────────────
+// Le `tabAnon` du .crp et ses settings deviennent des règles V2 + `paramsAnon`.
+// Importés AVANT les règles des `.sonal` (doctrine V1 : le global du corpus
+// gagne) — la déduplication par alias de `fusionnerReglesAnon` rend ensuite
+// l'import `.sonal` idempotent, la catégorie du .crp restant sur la règle.
+
+/** `tabAnon[]` → règles V2. `entite[0]`, pseudos = [remplacement,
+ *  remplacementAlt?] (vides filtrés), `thematique` → `categorie`. Les entrées
+ *  sans entité sont ignorées. `genId` injecté. */
+export function mapperTabAnon(tabAnon: unknown, genId: () => string): RegleAnon[] {
+  if (!Array.isArray(tabAnon)) return []
+  const out: RegleAnon[] = []
+  for (const r of tabAnon as CrpV1RegleAnon[]) {
+    const entite = (r?.entite ?? '').trim()
+    if (!entite) continue
+    const pseudos = [r?.remplacement, r?.remplacementAlt]
+      .map((p) => (typeof p === 'string' ? p.trim() : ''))
+      .filter((p) => p !== '')
+    const thematique = typeof r?.thematique === 'string' ? r.thematique.trim() : ''
+    out.push({
+      id: genId(),
+      entite: [entite],
+      pseudos,
+      ...(thematique ? { categorie: thematique } : {}),
+    })
+  }
+  return out
+}
+
+/** `paramsAnonCorpus` V1 → `ParamsAnon` V2 : lecture défensive champ à champ
+ *  ({motsLiaison[], motsLiaisonActif, thematiques{actif,liste},
+ *  prioriteValidation}) ; absent/malformé → priorité par défaut, champs
+ *  optionnels omis (les défauts V2 s'appliqueront à la lecture). */
+export function mapperParamsAnon(raw: unknown): ParamsAnon {
+  if (!raw || typeof raw !== 'object') return { prioriteValidation: 'corpus' }
+  const p = raw as Record<string, unknown>
+  const out: ParamsAnon = { prioriteValidation: 'corpus' }
+  if (Array.isArray(p.motsLiaison)) {
+    const liste = p.motsLiaison.filter((m): m is string => typeof m === 'string' && m.trim() !== '')
+    out.motsLiaison = { actif: p.motsLiaisonActif !== false, liste }
+  }
+  const th = p.thematiques
+  if (th && typeof th === 'object') {
+    const liste = Array.isArray((th as Record<string, unknown>).liste)
+      ? ((th as Record<string, unknown>).liste as unknown[]).filter(
+          (m): m is string => typeof m === 'string' && m.trim() !== '',
+        )
+      : [...THEMATIQUES_DEFAUT]
+    out.thematiques = { actif: !!(th as Record<string, unknown>).actif, liste }
+  }
+  if (p.prioriteValidation === 'corpus' || p.prioriteValidation === 'entretien') {
+    out.prioriteValidation = p.prioriteValidation
+  } else {
+    out.prioriteValidation = 'corpus' // défaut V2 (absent ou valeur inconnue)
+  }
+  return out
+}
+
 // ── Mapping des ENTRETIENS ─────────────────────────────────────────────────
 // `tabEnt[]` → les données V2 à créer par entretien. La RÉSOLUTION du chemin
 // du `.sonal` (rtrPath RELATIF au dossier du .crp) et la lecture sont faites
@@ -382,4 +441,10 @@ export interface DemandeMigration {
   codebook: Categorie[]
   /** Variables migrées. */
   variables: Variable[]
+  /** Règles `tabAnon` du .crp mappées (E4) — importées à la CRÉATION,
+   *  avant les règles des `.sonal` (le global du corpus gagne, parité V1). */
+  reglesAnon?: RegleAnon[]
+  /** Paramètres de pseudonymisation du .crp (E4) — `paramsAnonCorpus` V1
+   *  mappé vers `ParamsAnon` V2. */
+  paramsAnon?: ParamsAnon
 }

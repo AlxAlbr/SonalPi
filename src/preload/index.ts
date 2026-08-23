@@ -22,6 +22,7 @@ import type {
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
+  ParamsAnon,
 } from '../shared/format'
 import type { DemandeCreationDistante } from '../shared/distant'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
@@ -118,6 +119,11 @@ contextBridge.exposeInMainWorld('sonal', {
     regleAnonSupprimer: (id: string): Promise<void> => ipcRenderer.invoke('corpus:regleAnonSupprimer', id),
     appliquerRegleAnonLot: (cibles: CibleRegleAnon[]): Promise<ResultatLotAnon> =>
       ipcRenderer.invoke('corpus:appliquerRegleAnonLot', cibles),
+    paramsAnonLire: (): Promise<ParamsAnon> => ipcRenderer.invoke('corpus:paramsAnonLire'),
+    paramsAnonEcrire: (params: ParamsAnon): Promise<ParamsAnon> =>
+      ipcRenderer.invoke('corpus:paramsAnonEcrire', params),
+    regleAnonCategoriser: (id: string, categorie: string | null): Promise<RegleAnon | null> =>
+      ipcRenderer.invoke('corpus:regleAnonCategoriser', id, categorie),
     compterUsagesCategorie: (code: string, exceptId?: string): Promise<number> =>
       ipcRenderer.invoke('corpus:compterUsagesCategorie', code, exceptId),
     ajouterVariable: (

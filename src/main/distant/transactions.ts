@@ -34,7 +34,7 @@ import type { IdentiteSession } from './sessions'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { ContenuVerrou, VerrouProvider } from '../verrous/types'
-import { instructionsAppliquerRegle } from '../../shared/entretien/anon'
+import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../../shared/entretien/anon'
 import type {
   CorpusFichier,
   EntretienFichier,
@@ -330,13 +330,23 @@ export class TransactionsCorpus {
     const succes: ResultatLotAnon['succes'] = []
     const echecs: ResultatLotAnon['echecs'] = []
     // Dédupliquer par entretien : UN verrou et UN aller-retour serveur,
-    // même si la sélection contient des doublons.
-    const parEntretien = new Map<string, string>()
-    for (const c of cibles) if (!parEntretien.has(c.entretienId)) parEntretien.set(c.entretienId, c.regleId)
+    // même si la sélection contient des doublons ; les plages du diff
+    // (poses cochées, retraits, exceptions) sont FUSIONNÉES.
+    const parEntretien = new Map<string, CibleRegleAnon>()
+    for (const c of cibles) {
+      const v = parEntretien.get(c.entretienId)
+      if (!v) {
+        parEntretien.set(c.entretienId, { ...c })
+      } else {
+        for (const k of ['plages', 'retirer', 'exception', 'retirerException'] as const) {
+          if (c[k]?.length) v[k] = [...(v[k] ?? []), ...c[k]]
+        }
+      }
+    }
     const sessions = this.options.getSessions?.() ?? null
-    for (const [id, regleId] of parEntretien) {
+    for (const [id, cible] of parEntretien) {
       try {
-        const { regle, titre } = this.regleEtTitre(regleId, id)
+        const { regle, titre } = this.regleEtTitre(cible.regleId, id)
         if (sessions?.idsTenus().includes(id)) {
           // Session À NOUS sur cet id : chemin existant ; la publication
           // suivra la session (`noterSale`). Jamais un second verrou sur un
@@ -346,14 +356,14 @@ export class TransactionsCorpus {
           store.lectureSeule = false
           let nb: number
           try {
-            nb = store.appliquerRegleAnon(id, regleId).nb
+            nb = store.appliquerRegleAnon(id, cible.regleId, cible).nb
           } finally {
             store.lectureSeule = gardePrecedente
           }
           sessions.noterSale(id)
           succes.push({ id, nb, titre })
         } else {
-          const nb = await this.appliquerRegleHorsSession(id, regle)
+          const nb = await this.appliquerRegleHorsSession(id, regle, cible)
           succes.push({ id, nb, titre })
         }
       } catch (e) {
@@ -380,7 +390,11 @@ export class TransactionsCorpus {
    *  Refus de verrou / divergence 412 / réseau : exception propagée à
    *  l'appelant (échec nommé, miroir NON modifié).
    *  Rien à poser → aucun PUT, aucun `lastModified` touché. */
-  private async appliquerRegleHorsSession(id: string, regle: RegleAnon): Promise<number> {
+  private async appliquerRegleHorsSession(
+    id: string,
+    regle: RegleAnon,
+    cible: CibleRegleAnon,
+  ): Promise<number> {
     const provider = this.providerPourEntretien()
     const cheminVerrou = this.cheminVerrouEntretien(id)
     const acquisition = await provider.acquerir(cheminVerrou)
@@ -400,8 +414,16 @@ export class TransactionsCorpus {
         brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir.
       const data = JSON.parse(brut) as EntretienFichier
       const instr = instructionsAppliquerRegle(data, regle, () => 'a-' + Math.random().toString(36).slice(2, 9))
-      if (instr.nb === 0) return 0
-      for (const o of instr.poser) {
+      const poser = poserDansPlages(instr.poser, cible.plages)
+      const nbDiff = appliquerDiffAnon(
+        data.annotations,
+        regle.id,
+        cible.retirer,
+        cible.exception,
+        cible.retirerException,
+      )
+      if (poser.length === 0 && nbDiff === 0) return 0
+      for (const o of poser) {
         data.annotations.push({
           id: o.id,
           type: 'anon',
@@ -430,7 +452,7 @@ export class TransactionsCorpus {
       writeFileSync(tmp, contenu, 'utf8')
       renameSync(tmp, abs)
       if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
-      return instr.nb
+      return poser.length + nbDiff
     } finally {
       await provider.liberer(cheminVerrou).catch(() => {})
     }
@@ -535,7 +557,7 @@ export async function appliquerRegleLotLocal(
     if (vues.has(c.entretienId)) continue
     vues.add(c.entretienId)
     try {
-      const r = store.appliquerRegleAnon(c.entretienId, c.regleId)
+      const r = store.appliquerRegleAnon(c.entretienId, c.regleId, c)
       succes.push({ id: c.entretienId, nb: r.nb, titre: r.titre })
     } catch (e) {
       echecs.push({ id: c.entretienId, raison: classifier(e).message })

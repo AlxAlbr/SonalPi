@@ -1,4 +1,4 @@
-import { ref, reactive, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { Extension } from '@tiptap/core'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -12,7 +12,7 @@ import { pluginReperage, reperagePluginKey } from '../editor/reperage'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
 import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../shared/entretien/anon/anonymisation'
-import { hitsAAAnonymiser, hitsDeCategorie, type HitAAAnonymiser } from '../../shared/entretien/anon/compteursAnon'
+import { hitsAAAnonymiser, hitsDeCategorie, hitsIncluses, type HitAAAnonymiser } from '../../shared/entretien/anon/compteursAnon'
 import { scinderPseudos } from '../../shared/entretien/anon/pseudos'
 import { parserAliases } from '../../shared/entretien/anon/alias'
 import {
@@ -44,10 +44,11 @@ import {
 import type { Ancre } from '../../shared/entretien/audio'
 import { useSynchroAudio } from './useSynchroAudio'
 import { resumeThematique } from '../../shared/corpus'
-import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon } from '../../shared/format'
+import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams } from '../../shared/format'
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
 import { detecterDivergencesPortee } from '../../shared/entretien/anon/reconciliation'
+import { suggestionCoeur } from '../../shared/entretien/anon/liaison'
 import type { LegacyBlobs } from '../import/importSonal'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
@@ -94,6 +95,18 @@ export function useEntretien(deps: {
    *  « garder les deux », déliage/suppression) — injecté par l'orchestrateur
    *  pour que la projection des lignes reflète la règle fraîche. */
   rafraichirReglesCorpus?: () => Promise<void>
+  /** Priorité de validation (étape 4a, corpus.json.paramsAnon) : la portée
+   *  qu'applique ENTRÉE sur une ligne du tableau ; Maj+Entrée fait l'inverse. */
+  prioriteAnon: () => 'corpus' | 'entretien'
+  /** Réglage mots de liaison (corpus.json.paramsAnon.motsLiaison) :
+   *  suggestion d'entité-cœur à la validation (« à Lyon » → proposer « Lyon »).
+   *  Absent → aucune proposition (tests PUR). */
+  motsLiaison?: () => MotsLiaisonParams
+  /** Thématiques d'entités (4c) — réglage courant (actif + liste). */
+  thematiques?: () => { actif: boolean; liste: string[] }
+  /** Assigne/retire la catégorie d'une règle corpus puis rafraîchit le
+   *  cache des règles (injection orchestrateur, écriture transactionnée). */
+  categoriserRegle?: (regleId: string, categorie: string | null) => Promise<void>
   /** Corpus distant : lecture seule des DÉFINITIONS (grisage permanent).
    *  L'éditeur suit `entretienEditable`, pas ce drapeau. */
   lectureSeule?: () => boolean
@@ -130,6 +143,10 @@ export function useEntretien(deps: {
    *  de l'onglet, au clic « ⟳ » et après chaque geste anon (pas à chaque
    *  frappe : le compteur peut être brièvement en retard sur le texte). */
   const hitsAAnonymiserParCle = ref<Record<string, HitAAAnonymiser[]>>({})
+  /** Incluses par cle de ligne : entités absorbantes distinctes — l'effectif
+   *  « +N » vient de la projection (`ligne.nbIncluse`). REQUÊTE recalculée
+   *  avec les autres compteurs. */
+  const inclusesParCle = ref<Record<string, string[]>>({})
   function rafraichirCompteursAAAnonymiser() {
     const ed = editor.value
     if (!ed) {
@@ -139,18 +156,17 @@ export function useEntretien(deps: {
     const corpsTexte = ed.getJSON()
     const texteDe = (f: number, t: number) => ed.state.doc.textBetween(f, t, ' ')
     const out: Record<string, HitAAAnonymiser[]> = {}
+    const incl: Record<string, string[]> = {}
     for (const l of lignesAnon.value) {
       const aliases = parserAliases(l.entite)
-      const hits = hitsAAAnonymiser(
-        corpsTexte,
-        aliases,
-        entretien.annotations,
-        [l.cle, ...aliases.map((a) => cleEntite(a))],
-        texteDe,
-      )
+      const cles = [l.cle, ...aliases.map((a) => cleEntite(a))]
+      const hits = hitsAAAnonymiser(corpsTexte, aliases, entretien.annotations, cles, texteDe)
       if (hits.length) out[l.cle] = hits
+      const abs = hitsIncluses(corpsTexte, aliases, entretien.annotations, cles, texteDe)
+      if (abs.length) incl[l.cle] = [...new Set(abs.map((h) => h.par))]
     }
     hitsAAnonymiserParCle.value = out
+    inclusesParCle.value = incl
   }
   // À l'ouverture de l'onglet anon (et à sa réouverture) : compteurs frais.
   watch(ongletDroite, (v) => {
@@ -486,12 +502,28 @@ export function useEntretien(deps: {
     const occurrences = entretien.annotations
       .filter((a) => a.type === 'anon' && !estOrpheline(a))
       .map((a) => ({ id: a.id, from: a.from, to: a.to, pseudo: a.pseudo, etat: a.etat, regle: a.regle }))
+    // Prédicat d'inclusion : une occurrence recouverte en entier par une
+    // annotation anon d'une AUTRE entité plus longue est masquée (incluse).
+    const texteDePM = (f: number, t: number) => ed.state.doc.textBetween(f, t, ' ')
+    const estIncluse = (o: { from: number; to: number }) => {
+      const cleOcc = cleEntite(texteDePM(o.from, o.to))
+      return entretien.annotations.some(
+        (y) =>
+          y.type === 'anon' &&
+          !estOrpheline(y) &&
+          y.from <= o.from &&
+          o.to <= y.to &&
+          y.to - y.from > o.to - o.from &&
+          cleEntite(texteDePM(y.from, y.to)) !== cleOcc,
+      )
+    }
     lignesAnon.value = lignesAnonUnifiees(
       brouillonsAnon.value,
       occurrences,
-      (f, t) => ed.state.doc.textBetween(f, t, ' '),
+      texteDePM,
       pseudosDeclares.value,
       deps.reglesAnon(),
+      estIncluse,
     )
   }
   /** Extraits du thème courant (REQUÊTE, rien de stocké ; l'UI a été retirée,
@@ -624,6 +656,7 @@ export function useEntretien(deps: {
     pseudosDeclares.value = {}
     selectionAnon.value = null
     hintAnon.value = null
+    suggestionLiaison.value = null
     fermerMenuAnon()
     rafraichir()
     rafraichirDecorations()
@@ -949,6 +982,49 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
 
+  // --- Suggestion d'entité-cœur (mots de liaison) ---
+  /** Suggestion courante (null = rien à proposer / déjà traitée). Une seule
+   *  modale à la fois : une nouvelle validation remplace une suggestion non
+   *  traitée ; « Non » ne mémorise rien. */
+  const suggestionLiaison = ref<{
+    entiteCoeur: string
+    pseudoCoeur: string
+    portee: 'entretien' | 'corpus'
+  } | null>(null)
+
+  /** Après une validation RÉUSSIE : calcule l'entité-cœur éventuelle (« à Lyon »
+   *  validé → proposer « Lyon ») à la MÊME portée que la validation effective.
+   *  La décision est PURE (liaison.ts) — réglage, invariants multi-alias/
+   *  multi-pseudo, règle-cœur déjà existante ; ici on ne porte que le résultat
+   *  à la modale. */
+  function proposerCoeur(entite: string, pseudo: string, portee: 'entretien' | 'corpus') {
+    const det = suggestionCoeur(
+      deps.motsLiaison?.(),
+      entite,
+      pseudo,
+      lignesAnon.value.map((l) => l.cle),
+    )
+    if (!det) return
+    suggestionLiaison.value = { ...det, portee }
+  }
+
+  /** « Oui » : crée la règle-cœur au même niveau que l'affixée, par le geste
+   *  standard (brouillon puis chemin de portée). Les occurrences de « Lyon »
+   *  présentes dans le texte sont posées par ce geste — les chevauchements
+   *  suivent le moteur existant (« le large absorbe l'étroit »). */
+  async function accepterSuggestionLiaison() {
+    const s = suggestionLiaison.value
+    if (!s) return
+    suggestionLiaison.value = null
+    creerBrouillon(s.entiteCoeur, s.pseudoCoeur)
+    await changerPorteeAnon(s.entiteCoeur, s.portee)
+  }
+
+  /** « Non » : rien n'est créé, aucun refus mémorisé. */
+  function refuserSuggestionLiaison() {
+    suggestionLiaison.value = null
+  }
+
   /** Valide une ligne : relabel toutes les occurrences existantes de `entite`
    *  avec `pseudo`, et pose une occurrence anon sur chaque match du texte NON
    *  déjà couvert. Consomme le brouillon de même entité (son travail est fini). */
@@ -999,7 +1075,6 @@ export function useEntretien(deps: {
       const a = entretien.annotations.find((x) => x.id === r.id)
       if (a) a.pseudo = r.pseudo
     }
-    for (const id of instr.retirer) retirerAnnotation(entretien, id)
     for (const o of instr.poser) {
       entretien.annotations.push({
         id: o.id,
@@ -1018,6 +1093,8 @@ export function useEntretien(deps: {
     rafraichirCompteursAAAnonymiser()
     rafraichirReperage()
     planifierSauvegarde()
+    // Validation réussie → suggérer l'entité-cœur éventuelle (mots de liaison).
+    proposerCoeur(e, p, 'entretien')
   }
   /** Retire toutes les occurrences d'une ligne (dé-barrer). */
   function supprimerAnon(occurrenceIds: string[]) {
@@ -1102,6 +1179,38 @@ export function useEntretien(deps: {
     }
   }
 
+  /** Étape 4a — validation d'une ligne par ENTRÉE : applique la portée
+   *  prioritaire (paramsAnon.prioriteValidation, défaut « corpus »), Maj+Entrée
+   *  l'autre portée. La ligne doit exister (brouillon ou entretien ; une ligne
+   *  corpus est déjà au-delà). Le slider 3 crans reste le geste explicite. */
+  async function validerAvecPriorite(entite: string, majuscule: boolean) {
+    const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(entite))
+    if (!ligne || ligne.etat === 'corpus') return
+    const prio = deps.prioriteAnon()
+    const cible = (
+      majuscule ? (prio === 'corpus' ? 'entretien' : 'corpus') : prio
+    ) as 'brouillon' | 'entretien' | 'corpus'
+    if (cible === ligne.etat) return
+    await changerPorteeAnon(ligne.entite, cible)
+  }
+
+  /** Étape 4c — catégorie de la règle corpus liée à une ligne (badge). */
+  function categorieDeLigne(entite: string): string {
+    const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(entite))
+    if (!ligne?.regle) return ''
+    return deps.reglesAnon().find((r) => r.id === ligne.regle)?.categorie ?? ''
+  }
+  /** Étape 4c — assigne/retire la catégorie d'une ligne CORPUS (badge). */
+  async function categoriserLigne(entite: string, categorie: string) {
+    const ligne = lignesAnon.value.find((l) => l.cle === cleEntite(entite))
+    if (!ligne?.regle || !deps.categoriserRegle) return
+    await deps.categoriserRegle(ligne.regle, categorie || null)
+  }
+  /** Liste des catégories actives (vide = réglage désactivé → badge masqué). */
+  const thematiquesActives = computed(() =>
+    deps.thematiques?.().actif ? deps.thematiques().liste : [],
+  )
+
   /** Pseudos « cible » d'une ligne à pousser au corpus : l'ensemble déclaré
    *  (a/b) s'il existe, sinon le pseudo d'une occurrence ANONYMISÉE DE CETTE
    *  LIGNE (on filtre par cle AVANT de choisir — sinon `find` prendrait la
@@ -1130,6 +1239,12 @@ export function useEntretien(deps: {
    *  pseudos identiques → réutilise ; sinon → dialogue de divergence. */
   async function promouvoirCorpus(ligne: LigneAnon) {
     const cas: 'brouillon' | 'fichier' = ligne.etat === 'brouillon' ? 'brouillon' : 'fichier'
+    // Pseudo SAISI pour cette ligne (base de la détection 4b-B) : celui du
+    // brouillon ; en fichier, il sera relu sur les occurrences plus bas.
+    const pseudoSaisi =
+      cas === 'brouillon'
+        ? trouverBrouillon(brouillonsAnon.value, ligne.entite)?.pseudo ?? ligne.pseudo
+        : ''
     const pseudosCible =
       cas === 'brouillon'
         ? scinderPseudos(trouverBrouillon(brouillonsAnon.value, ligne.entite)?.pseudo ?? ligne.pseudo)
@@ -1159,6 +1274,8 @@ export function useEntretien(deps: {
         return
       }
       await appliquerCorpus(ligne, res.regle.id, cas, undefined)
+      // Validation corpus réussie → suggérer l'entité-cœur éventuelle.
+      proposerCoeur(ligne.entite, cas === 'brouillon' ? pseudoSaisi : pseudosCible.join(' / '), 'corpus')
       return
     }
     // Divergence → dialogue.
@@ -1321,7 +1438,6 @@ export function useEntretien(deps: {
       const a = entretien.annotations.find((x) => x.id === r.id)
       if (a) { a.pseudo = r.pseudo; a.regle = regleId }
     }
-    for (const id of instr.retirer) retirerAnnotation(entretien, id)
     for (const o of instr.poser) {
       entretien.annotations.push({ id: o.id, type: 'anon', from: o.from, to: o.to, auteur, pseudo: o.pseudo, etat: 'anonymise', regle: regleId })
     }
@@ -1514,6 +1630,7 @@ export function useEntretien(deps: {
     hintAnon,
     lignesAnon,
     hitsAAnonymiserParCle,
+    inclusesParCle,
     rafraichirCompteursAAAnonymiser,
     reperageAnon,
     demarrerReperage,
@@ -1550,6 +1667,10 @@ export function useEntretien(deps: {
     majBrouillonLigne,
     supprimerLigneAnon,
     changerPorteeAnon,
+    validerAvecPriorite,
+    categorieDeLigne,
+    categoriserLigne,
+    thematiquesActives,
     menuContextuelAnon,
     fermerMenuAnon,
     basculerException,
@@ -1559,6 +1680,9 @@ export function useEntretien(deps: {
     alignerCorpus,
     garderLesDeuxCorpus,
     annulerDialogueCorpus,
+    suggestionLiaison,
+    accepterSuggestionLiaison,
+    refuserSuggestionLiaison,
     detecterDivergencesPostTirage,
     fusionPossible,
     absorberFusion,
