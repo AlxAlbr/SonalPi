@@ -59,7 +59,7 @@ contextBridge.exposeInMainWorld('sonal', {
     lireEntretien: (id: string): Promise<LectureEntretien> =>
       ipcRenderer.invoke('corpus:lireEntretien', id),
     /** Corpus distant : fermer la session (publication finale puis libération
-     *  du verrou, §4.4). Sans effet en corpus local. */
+     *  du verrou). Sans effet en corpus local. */
     fermerEntretien: (id: string): Promise<boolean> =>
       ipcRenderer.invoke('corpus:fermerEntretien', id),
     /** État de session distant (poll UI) pour un entretien ouvert. */
@@ -67,9 +67,9 @@ contextBridge.exposeInMainWorld('sonal', {
       id: string,
     ): Promise<{ etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }> =>
       ipcRenderer.invoke('distant:etatSession', id),
-    /** « Publier maintenant » (§4.3) : PUT If-Match sous verrou toujours tenu.
-     *  { ok: false, raison: 'divergence' } = le serveur a changé sous nos pieds
-     *  (§6) — la copie locale a été mise de côté, JAMAIS écrasée. */
+    /** « Publier maintenant » : PUT If-Match sous verrou toujours tenu.
+     *  { ok: false, raison: 'divergence' } = le serveur a changé sous nos pieds :
+     *  la copie locale a été mise de côté, JAMAIS écrasée. */
     publierEntretien: (id: string): Promise<{ ok: boolean; raison?: string }> =>
       ipcRenderer.invoke('distant:publierEntretien', id),
     ecrireEntretien: (id: string, p: PayloadEntretien): Promise<string> =>
@@ -140,8 +140,8 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:assignerAudio', id, source),
     ecrireWaveform: (id: string, png: Uint8Array): Promise<string> =>
       ipcRenderer.invoke('corpus:ecrireWaveform', id, png),
-    /** « Associer l'audio local… » (§3.3, E4) : référence un fichier de CE
-     *  poste pour un entretien dont l'audioRef partagée n'y pointe nulle part. */
+    /** « Associer l'audio local… » : référence un fichier de CE poste pour un
+     *  entretien dont l'audioRef partagée n'y pointe nulle part. */
     associerAudioLocal: (id: string, source: string): Promise<{ audioRef: string } | null> =>
       ipcRenderer.invoke('corpus:associerAudioLocal', id, source),
     audios: (): Promise<Record<string, { audio: string | null; waveform: string | null }>> =>
@@ -155,9 +155,9 @@ contextBridge.exposeInMainWorld('sonal', {
       idMod: string,
     ): Promise<boolean> =>
       ipcRenderer.invoke('corpus:poserValeur', entretienId, cible, idVar, idMod),
-    /** Lot « modifier en lot » (plan-lot-table-donnees.md §4) : une valeur
-     *  appliquée à plusieurs entretiens — verrou court par entretien côté
-     *  main ; échecs nommés, un échec ne bloque jamais les autres. */
+    /** Lot « modifier en lot » : une valeur appliquée à plusieurs entretiens
+     *  — verrou court par entretien côté main ; échecs nommés, un échec ne
+     *  bloque jamais les autres. */
     poserValeurLot: (items: ItemLotValeur[]): Promise<ResultatLotValeur> =>
       ipcRenderer.invoke('corpus:poserValeurLot', items),
   },
@@ -173,8 +173,8 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('distant:creer', params),
     ouvrir: (id: string): Promise<OuvertureDistante> => ipcRenderer.invoke('distant:ouvrir', id),
     tirer: (): Promise<ResultatTiragePublic | null> => ipcRenderer.invoke('distant:tirer'),
-    /** Navigation du sélecteur « Désigner dans Nextcloud… » (plan-audio-distant.md
-     *  §3). Null si corpus local ; dossiers d'abord. */
+    /** Navigation du sélecteur « Désigner dans Nextcloud… » : PROPFIND Depth:1
+     *  d'un dossier du corpus. Null si corpus local ; dossiers d'abord. */
     listerDossier: (
       dossier: string,
     ): Promise<{ entrees: { nom: string; dossier: boolean }[] } | null> =>
@@ -193,7 +193,7 @@ contextBridge.exposeInMainWorld('sonal', {
       cheminCible: string,
     ): Promise<{ ok: boolean; raison?: string; suggere?: string }> =>
       ipcRenderer.invoke('distant:televerserAudio', sourceLocale, cheminCible),
-    /** Verrous orphelins (crash sans libération, §4.5). Null si corpus local. */
+    /** Verrous orphelins d'un crash sans libération. Null si corpus local. */
     orphelins: (): Promise<OrphelinDistant[] | null> => ipcRenderer.invoke('distant:orphelins'),
     /** Progression des transferts binaires (rapatriements du tirage et
      *  téléversements). Renvoie la fonction de désabonnement. */
@@ -208,14 +208,14 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Choix « abandonner » : déverrouille SANS publier. */
     abandonnerOrphelin: (cheminVerrou: string): Promise<void> =>
       ipcRenderer.invoke('distant:abandonnerOrphelin', cheminVerrou),
-    /** Copies de divergence mises de côté (§6, fusion assistée E3b). */
+    /** Copies de divergence mises de côté (fusion assistée). */
     listerDivergences: (): Promise<DivergenceDistante[]> =>
       ipcRenderer.invoke('distant:listerDivergences'),
     lireDivergence: (chemin: string): Promise<unknown> =>
       ipcRenderer.invoke('distant:lireDivergence', chemin),
     supprimerDivergence: (chemin: string): Promise<void> =>
       ipcRenderer.invoke('distant:supprimerDivergence', chemin),
-    /** Présence (E4 §9) : signale l'entretien ouvert sur CE poste. */
+    /** Présence : signale l'entretien ouvert sur CE poste. */
     noterEntretienOuvert: (id: string | null): Promise<void> =>
       ipcRenderer.invoke('distant:noterEntretienOuvert', id),
     oublier: (id: string): Promise<CompteDistantPublic[]> =>

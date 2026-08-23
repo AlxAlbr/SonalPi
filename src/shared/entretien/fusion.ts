@@ -1,5 +1,5 @@
 /**
- * FUSION ASSISTÉE d'une copie de DIVERGENCE (plan-multiuser.md §6, étape E3b).
+ * FUSION ASSISTÉE d'une copie de DIVERGENCE.
  *
  * Quand une publication finit en 412 (contournement du verrou : édition via
  * l'UI web, forçage), la couche session met la copie locale de côté hors
@@ -7,7 +7,7 @@
  * copie n'est ni perdue ni publiée en silence : ce module fournit les
  * décisions PURES du dialogue qui la propose à la réconciliation.
  *
- * Politique §6.2 : les charges utiles sont largement fusionnables par
+ * Politique : les charges utiles sont largement fusionnables par
  * construction — annotations/ancres par id opaque, locuteurs par index,
  * valeurs EAV par clef, brouillons par entité. MAIS le texte ne se fusionne
  * pas : `corpsTexte` identique → fusion automatique proposée ; différent →

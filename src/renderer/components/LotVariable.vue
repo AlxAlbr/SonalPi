@@ -4,13 +4,13 @@ import { utiliserSonal } from '../composables/sonal'
 import type { ItemLotValeur } from '../../shared/format'
 
 /**
- * Modale « Modifier en lot » (plan-lot-table-donnees.md §5) : pour UNE variable
+ * Modale « Modifier en lot » : pour UNE variable
  * de portée ENTRETIEN, choisir UNE valeur et l'appliquer à tous les entretiens.
  * Côté main, un verrou court par entretien tranche au moment de l'exécution :
  * tout refus ponctuel (entretien ouvert entre-temps par autrui, divergence…)
  * revient NOMMÉMENT dans le récapitulatif, sans jamais bloquer les autres
  * entretiens du lot. Les badges 🔒/👁 de la liste sont purement informatifs —
- * la décision reste celle du serveur (présence 👁 jamais décisionnelle, §8).
+ * la décision reste celle du serveur (la présence 👁 n'est jamais décisionnelle).
  */
 const props = defineProps<{ idVar: string }>()
 const emit = defineEmits<{ fermer: [] }>()
@@ -53,12 +53,11 @@ const ciblesToutes = computed(() =>
   Object.entries(membership.value).map(([id, ref]) => ({ id, titre: ref.titre })),
 )
 
-/** plan-saisie-cellule-table.md §10 — filtre « lignes sans valeur » : aide au
- *  ciblage 100 % RENDERER (matrice + badges, zéro protocole) ; la décision
- *  reste celle du serveur au moment de l'exécution, le récap nominatif fait
- *  foi. Désactivé par défaut (parité avec le comportement historique du lot :
- *  tout le membership est ciblé). Les exclus restent AFFICHÉS, grisés avec
- *  leur raison — informatif, jamais caché (parité §8 du plan précédent). */
+/** Filtre « lignes sans valeur » : aide au ciblage 100 % RENDERER
+ *  (matrice + badges, zéro protocole) ; la décision reste celle du serveur au
+ *  moment de l'exécution, le récap nominatif fait foi. Désactivé par défaut :
+ *  tout le membership est ciblé. Les exclus restent AFFICHÉS, grisés avec leur
+ *  raison — informatif, jamais caché. */
 const sansValeurSeulement = ref(false)
 const ciblesFiltrees = computed(() => {
   if (!sansValeurSeulement.value)
@@ -137,8 +136,8 @@ async function appliquer() {
           </select>
         </div>
 
-        <!-- Filtre « lignes sans valeur » (plan-saisie-cellule-table §10) :
-             aide au ciblage locale — les exclus restent affichés ci-dessous. -->
+        <!-- Filtre « lignes sans valeur » : aide au ciblage locale — les
+             exclus restent affichés ci-dessous. -->
         <label class="filtre-sans-valeur">
           <input type="checkbox" v-model="sansValeurSeulement" />
           Seulement les entretiens <strong>sans valeur</strong>
@@ -252,8 +251,8 @@ async function appliquer() {
   color: #555;
   margin: 0.5rem 0 0.2rem;
 }
-/* plan-saisie-cellule-table §10 : filtre « lignes sans valeur » + liste des
-   exclus (informatifs, jamais cachés). */
+/* Filtre « lignes sans valeur » + liste des exclus (informatifs,
+   jamais cachés). */
 .filtre-sans-valeur {
   display: flex;
   align-items: center;
@@ -298,7 +297,7 @@ async function appliquer() {
 .liste-cibles li:last-child {
   border-bottom: none;
 }
-/* Badges : même sémantique visuelle que ceux de la table (§9/§10). */
+/* Badges : même sémantique visuelle que ceux de la table. */
 .badge-verrou,
 .badge-presence {
   font-size: 0.68rem;

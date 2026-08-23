@@ -17,7 +17,7 @@ interface Entree {
   /** Marqueur explicite de DOSSIER (MKCOL). Ne PAS déduire de `contenu ===
    *  undefined` : un PUT binaire stocke des octets sans `contenu` (B2). */
   dossier?: boolean
-  /** Octets bruts d'un PUT non décodable en UTF-8 (putBinaire, D5). Quand
+  /** Octets bruts d'un PUT non décodable en UTF-8 (`putBinaire`). Quand
    *  présent, GET renvoie CES octets et `contenu` est ignoré. */
   binaire?: Uint8Array
 }
@@ -218,7 +218,7 @@ export class ServeurWebDAVMemoire {
     return new Response(null, { status: existante ? 204 : 201, headers: { ETag: `"${etag}"` } })
   }
 
-  /** Garde de publication (§6.1) : mauvais ETag → 412, jamais d'écrasement. */
+  /** Garde de publication : mauvais ETag → 412, jamais d'écrasement. */
   private verifierIfMatch(requete: Request, etagCourant: string): Response | null {
     const attendu = requete.headers.get('If-Match')
     if (attendu === null) return null

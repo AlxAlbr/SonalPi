@@ -240,7 +240,7 @@ transcription auto.
 
 ### 11.1 Disposition
 
-`[Accueil.vue](../src/renderer/components/Accueil.vue)` gagne une **première
+`[Accueil.vue](../../src/renderer/components/Accueil.vue)` gagne une **première
 ligne** au-dessus des cartes existantes :
 
 ```
@@ -322,7 +322,7 @@ de Sonal.
 > un dossier pré-construit vers `<profil>/corpus-demo`*, on *construit depuis les
 > sources vers un dossier choisi*.
 >
-> **Mise à jour (voir [plan-reference-audio](plan-reference-audio.md) §7)** : le
+> **Mise à jour (voir plan reference-audio, §7)** : le
 > builder reçoit **deux** racines choisies par l'utilisateur dans une modale à
 > deux questions — le dossier de **travail** du corpus **et** le dossier des
 > **sources** de démo, où l'app copie une fois les sources bundled
@@ -569,25 +569,25 @@ session.
 1. **J1 — contenu** ✅ : `CorpusTest/` livré (4 entretiens 1Coordinatrice–4Etudiants, SRT + audio,
    §10). Codebook/variables « sur papier » (§2.2/2.3) **non encore figés**
    (servira en J6).
-2. **J2 — builder** ✅ : [`composables/demo.ts`](../src/renderer/composables/demo.ts)
+2. **J2 — builder** ✅ : [`composables/demo.ts`](../../src/renderer/composables/demo.ts)
    (`utiliserDemo` : `preparer(mode)`, `importerSource(k)`) + IPC main
-   `demo:lireSource` / `demo:cheminAudio` ([`main/index.ts`](../src/main/index.ts)
-   `cheminCorpusTest()`). Test e2e : [`e2e/demo.e2e.ts`](../e2e/demo.e2e.ts)
+   `demo:lireSource` / `demo:cheminAudio` ([`main/index.ts`](../../src/main/index.ts)
+   `cheminCorpusTest()`). Test e2e : [`e2e/demo.e2e.ts`](../../e2e/demo.e2e.ts)
    (les 2 modes). **Bonus non prévu** : carte « Corpus courant » retirée de
    l'Accueil + `chargerCorpus` charge le 1er récent (cf. §11.1).
 3. **J3 — Accueil** ✅ : ligne « Mini Corpus Test » + 2 cartes dans
-   [`Accueil.vue`](../src/renderer/components/Accueil.vue), branchées sur
+   [`Accueil.vue`](../../src/renderer/components/Accueil.vue), branchées sur
    `preparer('autonomie'|'pas-a-pas')`. *Livrable utilisateur n°1.*
-4. **J4 — pas à pas (squelette)** ✅ : [`PasAPas.vue`](../src/renderer/components/PasAPas.vue)
+4. **J4 — pas à pas (squelette)** ✅ : [`PasAPas.vue`](../../src/renderer/components/PasAPas.vue)
    (onglet Corpus + spotlight global téléporté en body) + `ongletCorpus` dans
-   [`Corpus.vue`](../src/renderer/components/Corpus.vue) + **5 étapes** implémentées
+   [`Corpus.vue`](../../src/renderer/components/Corpus.vue) + **5 étapes** implémentées
    dans `demo.ts` (`charger`, `corriger`, `renommer`, `coder`, `variable`) avec
    prédicats réactifs + validation auto (`watch`, sans enchaînement automatique —
    l'utilisateur clique l'étape suivante). `data-tour` posés : `crayon-entretien`
    (Corpus), `onglet-themes` + `onglet-donnees` + `onglet-locuteurs` +
    `nom-locuteur` (Entretien), `lecture` (LecteurAudio). Entretien ouvert sur
    l'onglet Locuteurs par défaut. Test e2e :
-   [`e2e/pas-a-pas.e2e.ts`](../e2e/pas-a-pas.e2e.ts). *Livrable utilisateur n°2.*
+   [`e2e/pas-a-pas.e2e.ts`](../../e2e/pas-a-pas.e2e.ts). *Livrable utilisateur n°2.*
 5. **J6/J7 — corpus de test SÉPARÉS par mode + marqueur `corpus.json`** ✅
    (plan-reference-audio §12.12/§12.14) : chaque mode a son PROPRE dossier de
    corpus, choisi DIRECTEMENT dans la modale (un dossier = un corpus, à la
@@ -632,7 +632,7 @@ session.
 ## 16. Risques & garde-fous (complète §9)
 
 - **Dérive builder/importeur** ✅ : le builder réutilise `importerFichier` → aucun
-  format parallèle. Test e2e [`demo.e2e.ts`](../e2e/demo.e2e.ts) : « En autonomie »
+  format parallèle. Test e2e [`demo.e2e.ts`](../../e2e/demo.e2e.ts) : « En autonomie »
   produit bien 4 entretiens avec audio (garde-fou §6 original).
 - **Coût du build au clic** : 4 imports + 4 copies audio + formes d'onde en fond.
   Si ressenti lent → spinner + build en fond avant l'atterrissage (on peut amorcer
@@ -648,6 +648,6 @@ session.
   dossier réel.
 - **Contenu pris pour vrai** ✅ (partiel) : une mention statique « Personnages et
   voix synthétiques — un terrain fictif d'aide aux devoirs » est affichée en
-  permanence sous les cartes de l'Accueil ([`Accueil.vue`](../src/renderer/components/Accueil.vue)).
+  permanence sous les cartes de l'Accueil ([`Accueil.vue`](../../src/renderer/components/Accueil.vue)).
   Le « bandeau une fois au premier atterrissage » (§13) **n'est pas** implémenté
   — la mention statique suffit en pratique.

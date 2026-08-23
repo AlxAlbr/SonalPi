@@ -49,7 +49,7 @@ describe('modèle locuteurs (pur)', () => {
   })
 })
 
-describe('libelleGouttiere — pseudonymisation de l\u2019étiquette (étape 2 §3.2)', () => {
+describe('libelleGouttiere — pseudonymisation de l\u2019étiquette', () => {
   test('nom seul, pas de pseudo → nom en clair, rien d\u2019autre', () => {
     expect(libelleGouttiere(locs(), 1, false)).toEqual({
       nom: 'Enquêteur',
@@ -146,7 +146,7 @@ describe('couleurPourLocuteur — pastille auto-remplie (palette prédéfinie, s
   })
 })
 
-describe('construireLibelleGouttiere — DOM du libellé (étape 2 §3.2, garde anti-régression)', () => {
+describe('construireLibelleGouttiere — DOM du libellé (garde anti-régression)', () => {
   test('sans pseudo : nom EN CLAIR, classe loc-anon ABSENTE (rien n\u2019est barré)', () => {
     const el = construireLibelleGouttiere(
       { nom: 'Karine', pseudo: null, refuse: false, index: 2, couleur: couleurPourLocuteur(2) },

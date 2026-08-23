@@ -33,7 +33,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
   [donnees.md § 1](donnees.md#1-dom--objet-en-mémoire).
 - **Pour toucher au fonctionnement distant** (verrous, sessions, transactions,
   divergence/fusion, présence) : [multi-utilisateur.md](multi-utilisateur.md), avec la
-  spécification complète dans [plans/plan-multiuser.md](../../plans/plan-multiuser.md).
+  spécification complète dans [plans/encours/plan-multiuser.md](../../plans/encours/plan-multiuser.md).
 - **Pour toucher à la création/ouverture d'un corpus distant** (publication,
   récents tagués, assistant) : [ouverture-corpus.md § 7](ouverture-corpus.md#7-la-branche-distante-créer-et-rouvrir-un-corpus-sur-serveur).
 - **Pour ajouter une sauvegarde / un format** : [donnees.md § 2](donnees.md#2-objet-mémoire--fichier)

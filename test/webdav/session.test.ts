@@ -1,7 +1,7 @@
 /**
- * Tests de la SESSION d'écriture (plan-multiuser.md §4) contre le serveur
+ * Tests de la SESSION d'écriture contre le serveur
  * WebDAV embarqué : acquisition/refus, publication sous garde If-Match,
- * ordre publier-puis-déverrouiller (§4.4), battement raté → rétrogradation.
+ * ordre publier-puis-déverrouiller, battement raté → rétrogradation.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -52,7 +52,7 @@ function banc() {
   }
 }
 
-describe('Ouverture de session (§4.1)', () => {  it('verrou libre : acquis, le contenu SERVEUR est tiré dans le miroir', async () => {
+describe('Ouverture de session', () => {  it('verrou libre : acquis, le contenu SERVEUR est tiré dans le miroir', async () => {
     const b = banc()
     // Contenu local périmé avant ouverture…
     await b.miroir.tirer()
@@ -77,7 +77,7 @@ describe('Ouverture de session (§4.1)', () => {  it('verrou libre : acquis, le 
   })
 })
 
-describe('Désignation audio distante — micro-session (plan-audio-distant.md D4)', () => {
+describe('Désignation audio distante — micro-session', () => {
   it('entretien FERMÉ : pose meta.audioDistant, publie, libère le verrou', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -128,7 +128,7 @@ describe('Désignation audio distante — micro-session (plan-audio-distant.md D
   })
 })
 
-describe('Publication (§4.3)', () => {
+describe('Publication', () => {
   it('publie le contenu local avec garde If-Match et note le nouvel ETag', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -172,7 +172,7 @@ describe('Publication (§4.3)', () => {
   })
 })
 
-describe('Fermeture — ordre invariant publier PUIS déverrouiller (§4.4)', () => {
+describe('Fermeture — ordre invariant publier PUIS déverrouiller', () => {
   it('contenu sale : publication finale puis libération du verrou', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -195,7 +195,7 @@ describe('Fermeture — ordre invariant publier PUIS déverrouiller (§4.4)', ()
   })
 })
 
-describe('Rétrogradation (§5.2)', () => {
+describe('Rétrogradation', () => {
   it('battement raté après forçage : callback + copie de divergence locale', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -220,7 +220,7 @@ describe('Rétrogradation (§5.2)', () => {
   })
 })
 
-/* ── E3b : copies de divergence — lister / lire / supprimer (§6) ────────────*/
+/* ── Copies de divergence : lister / lire / supprimer ───────────────────*/
 
 describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
   it("après rétrogradation : la copie est listée, lisible puis supprimable", async () => {
@@ -280,9 +280,9 @@ describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
   })
 })
 
-/* ── E1 finition : pull sous verrou, badges, reprise crash (§4.5) ───────────*/
+/* ── Pull sous verrou, badges, reprise crash ─────────────────────────*/
 
-describe('Pull et exclusions de session (E1)', () => {
+describe('Pull et exclusions de session', () => {
   it('le pull n\'écrase JAMAIS la copie de travail d\'un fichier sous notre verrou', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -296,12 +296,12 @@ describe('Pull et exclusions de session (E1)', () => {
     const t = await b.miroir.tirer([`entretiens/${ID}.json`])
     expect(t.telecharges).toEqual([])
     expect(readFileSync(b.fichierLocal, 'utf8')).toBe(localModifie)
-    // Pull SANS exclusion (comportement E0) : écraserait — c'est précisément
+    // Pull SANS exclusion (lecture seule, sans verrous) : écraserait — c'est précisément
     // ce que la couche session interdit pendant une session.
   })
 })
 
-describe('Badges de verrou fiables (§3.1)', () => {
+describe('Badges de verrou fiables', () => {
   it("état public des verrous : contenu décodé, NOTRE session omise, illisible → null", async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -336,7 +336,7 @@ describe('Badges de verrou fiables (§3.1)', () => {
   })
 })
 
-describe('Reprise après crash (§4.5)', () => {
+describe('Reprise après crash', () => {
   /** Simule le crash : ouverture avec sessionId s-CRASH, puis « relancement »
    *  (l'identité courante passe à s-NOUVELLE). Le verrou reste posé. */
   async function crash(b: ReturnType<typeof banc>) {
@@ -362,7 +362,7 @@ describe('Reprise après crash (§4.5)', () => {
     expect(b.verrou()).toBeTruthy()
   })
 
-  it('« reprendre et publier » : publie la copie locale PUIS libère (ordre §4.4)', async () => {
+  it('« reprendre et publier » : publie la copie locale PUIS libère', async () => {
     const b = banc()
     await crash(b)
     const o = await b.sessions.orphelins()
@@ -384,7 +384,7 @@ describe('Reprise après crash (§4.5)', () => {
     expect(b.verrou()).toBeUndefined()
     // Rien n'a été publié : le serveur garde la dernière version publiée.
     expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).not.toContain('jamais-publié')
-    // La copie locale reste au miroir (matière à divergence future, §6).
+    // La copie locale reste au miroir (matière à divergence future).
     expect(readFileSync(b.fichierLocal, 'utf8')).toContain('jamais-publié')
   })
 

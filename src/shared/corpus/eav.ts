@@ -5,7 +5,7 @@ import type { Variable } from '../format'
  * ET `.crp` (`tabVar`/`tabDic`, MÊME format) — et le MODÈLE SonalPiTestV2.
  * Partagé entre l'import `.sonal` (`renderer/import/eav.ts`, qui le ré-exporte)
  * et la migration `.crp` (`shared/corpus/migrationCrp.ts`) : UNE seule source
- * de vérité pour le contrat (plan-migration.md E1, parité eav.ts).
+ * de vérité pour le contrat, en parité avec le `eav.ts` historique.
  *
  * Deux invariants portent tout le round-trip :
  *  1. Identités DÉTERMINISTES : la variable `v=n` → id `v{n}`,

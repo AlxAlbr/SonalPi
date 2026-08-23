@@ -348,7 +348,7 @@ round-trip, comme dans `plan_anon_suite`.
 
 ## 9. Finir plan-migration.md (E4 — `tabAnon` du `.crp`)
 
-> Le chantier migration V1 → V2 (`plans/plan-migration.md`) est implémenté —
+> Le chantier migration V1 → V2 (`plans/encours/plan-migration.md`) est implémenté —
 > **E0 à E3 + E5 fait** (lecture/aperçu, mapping définitions, entretiens+audio,
 > création corpus+UI, documentation). Sa dernière étape **E4** (« `tabAnon` →
 > `reglesAnon` ») a été **volontairement reportée ici** (décision Q3(b) du plan

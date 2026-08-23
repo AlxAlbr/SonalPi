@@ -1,12 +1,12 @@
 /**
- * La PRÉSENCE (plan-multiuser.md §9, étape E4 — best effort).
+ * La PRÉSENCE (best effort).
  *
  * `presence/<userId>-<machineId>.json` (`{ userId, machineId, entretienOuvert,
  * refreshedAt }`), `PUT` toutes les 60 s, entrées > 10 min considérées mortes.
  * Purement INFORMATIF : badges « ouvert par Olivier » sur les cartes et les
  * lignes de la table de données. JAMAIS utilisé pour décider — la décision,
- * c'est le verrou (§4). En variante A, l'essentiel (qui tient quoi) vient déjà
- * du PROPFIND files_lock ; la présence n'ajoute que « consulte sans verrou ».
+ * c'est le verrou. En variante files_lock, l'essentiel (qui tient quoi) vient
+ * déjà du PROPFIND ; la présence n'ajoute que « consulte sans verrou ».
  *
  * Le dossier `presence/` est exclu du contenu par le miroir
  * (`DOSSIERS_HORS_CONTENU`) : rien ne transite dans la copie locale, on lit le
@@ -19,7 +19,7 @@ import type { ClientWebDAV } from '../webdav/client'
 import type { IdentiteSession } from './sessions'
 import type { PresencePublic } from '../../shared/distant'
 
-/** Période du battement de présence (= §9 : 60 s). */
+/** Période du battement de présence : 60 s. */
 export const PERIODE_PRESENCE_MS = 60_000
 /** Au-delà, une présence est morte (poste éteint sans nettoyage possible —
  *  il n'y a rien à libérer, contrairement à un verrou). */
@@ -68,8 +68,8 @@ export class PresenceDistante {
   /** Le dossier `presence/` n'existe pas sur un serveur vierge — et un PUT
    *  WebDAV ne crée JAMAIS les collections parents (409 Conflict). On le crée
    *  une fois par session ; 405 (= existe déjà) et consorts sont tolérés.
-   *  Bug réel attrapé par le scénario visible E4 : les bancs mémoire créent
-   *  les dossiers implicitement, les serveurs réels non. */
+   *  Les bancs mémoire créent les dossiers implicitement, les serveurs réels
+   *  non. */
   private collectionPrete = false
   private async assurerCollection(): Promise<void> {
     if (this.collectionPrete) return
@@ -97,7 +97,7 @@ export class PresenceDistante {
         }),
       )
     } catch {
-      /* réseau : tant pis, best effort (§9) */
+      /* réseau : tant pis, best effort */
     }
   }
 
@@ -140,7 +140,7 @@ export class PresenceDistante {
           refreshedAt: p.refreshedAt,
         })
       } catch {
-        /* fichier illisible/corrompu : ignoré (best effort §9) */
+        /* fichier illisible/corrompu : ignoré (best effort) */
       }
     }
     return vivantes

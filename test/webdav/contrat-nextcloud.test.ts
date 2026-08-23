@@ -1,17 +1,17 @@
 /**
  * Banc de conformité contre le Nextcloud DOCKER réel (docker/compose.yml) —
- * plan-multiuser.md §12, invariant §15.4 : l'abstraction est testée contre un
+ * Invariant du projet : l'abstraction est testée contre un
  * backend qui n'a pas été écrit pour elle.
  *
  * SKIPPÉ AUTOMATIQUEMENT si le conteneur ne répond pas :
  *   npm run nc:up && npm run nc:provision   → puis npm test
  *
  * Ce que ce banc vérifie (et que le serveur mémoire NE PEUT PAS prouver) :
- *   - les préconditions HTTP réelles de Nextcloud (sonde §5.4),
- *   - la détection files_lock par capabilities (§8),
+ *   - les préconditions HTTP réelles de Nextcloud (sonde dédiée),
+ *   - la détection files_lock par capabilities,
  *   - la forme des PROPFIND/ETags réels (relativisation du client),
  *   - le pull incrémental du miroir sur un vrai serveur,
- *   - le chemin DAV propre à chaque compte pour un dossier PARTAGÉ (plan §2).
+ *   - le chemin DAV propre à chaque compte pour un dossier PARTAGÉ.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -40,12 +40,12 @@ const serveurPret: boolean = await pret(BASE)
 const serveurBPret: boolean = await pret(BASE_B)
 
 describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
-  it('la sonde §5.4 passe : les préconditions HTTP réelles sont honorées', { timeout: 30_000 }, async () => {
+  it('la sonde passe : les préconditions HTTP réelles sont honorées', { timeout: 30_000 }, async () => {
     const client = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: MAX })
     const profil = await profilerServeur(client)
     expect(profil.preconditions, profil.notes?.join(' ; ')).toBe(true)
     // files_lock est installé et actif sur la pile A → la sonde DOIT le voir :
-    // c'est elle qui choisira la variante A du verrou à l'ouverture (§8).
+    // c'est elle qui choisira la variante A du verrou à l'ouverture.
     expect(profil.filesLock).toBe(true)
   })
 
@@ -95,7 +95,7 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     await client.supprimer(chemin)
   })
 
-  it('le miroir tire le corpus réel (pull incrémental §3.1)', { timeout: 30_000 }, async () => {
+  it('le miroir tire le corpus réel (pull incrémental)', { timeout: 30_000 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'miroir-nc-'))
     const miroir = new MiroirWebDAV(
       new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: MAX }),
@@ -110,7 +110,7 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     expect(second.telecharges).toEqual([])
   })
 
-  it('un dossier partagé apparaît au chemin propre à CHAQUE compte (plan §2)', { timeout: 30_000 }, async () => {
+  it('un dossier partagé apparaît au chemin propre à CHAQUE compte', { timeout: 30_000 }, async () => {
     // olivier voit le même corpus.json via SON chemin DAV — sans connaître max.
     const client = new ClientWebDAV({ baseUrl: CORPUS_OLIVIER, identifiants: OLIVIER })
     const entrees = await client.propfind('')
@@ -153,7 +153,7 @@ describe.skipIf(!serveurBPret)('Contrat Nextcloud réel — pile B SANS files_lo
     expect(profil.filesLock).toBe(false)
   })
 
-  it('le miroir tire le corpus réel de la pile B (pull incrémental §3.1)', { timeout: 30_000 }, async () => {
+  it('le miroir tire le corpus réel de la pile B (pull incrémental)', { timeout: 30_000 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'miroir-ncb-'))
     const miroir = new MiroirWebDAV(
       new ClientWebDAV({ baseUrl: `${BASE_B}/remote.php/dav/files/max/MonCorpus`, identifiants: MAX }),
@@ -180,7 +180,7 @@ if (serveurPret) {
   })
 }
 
-// ── Verrous variante B contre les serveurs RÉELS (plan §5) ──────────────────
+// ── Verrous variante B contre les serveurs RÉELS ──────────────────
 // Le protocole à PUT conditionnel doit se comporter IDENTIQUEMENT sur la pile
 // A (avec files_lock) et la pile B (sans) : le verrou conventionnel ne suppose
 // rien du plugin. Chaque describe ci-dessous rejoue le même scénario.
@@ -237,7 +237,7 @@ describe.skipIf(!serveurBPret)('Verrous variante B — pile B (NC29 sans plugin)
   })
 })
 
-// ── Verrous VARIANTE A (files_lock) contre la pile A RÉELLE (plan §8) ───────
+// ── Verrous VARIANTE A (files_lock) contre la pile A RÉELLE ───────
 // Le verrou porte sur LE FICHIER DE DONNÉES lui-même ; le serveur l'impose
 // (PUT d'un tiers → 423) et l'expose aux PROPFIND (props nc:). C'est ce que
 // seul le vrai Nextcloud peut prouver.
@@ -274,7 +274,7 @@ describe.skipIf(!serveurPret)('Verrous variante A (files_lock) — pile A réell
     const refus = await pOlivier.acquerir(cheminFichier)
     expect(refus.ok).toBe(false)
     if (!refus.ok) expect(refus.tenuPar?.userId).toBe('max')
-    // …et IMPOSÉ par le serveur sur ses écritures (le filet §6.1 devient mort).
+    // …et IMPOSÉ par le serveur sur ses écritures (ce filet devient mort).
     await expect(
       clientOlivier.putTexte(cheminFichier, '{"contourné":true}'),
     ).rejects.toMatchObject({ statut: 423 })

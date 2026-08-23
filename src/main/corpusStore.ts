@@ -109,9 +109,9 @@ export class CorpusStore {
 
   /** Garde corpus distant : quand le store pointe un miroir sans couche
    *  verrou/publication active, toute écriture est refusée — sinon deux
-   *  postes divergeraient silencieusement. Défense en profondeur : l'UI grise
-   *  déjà les gestes, ici on garantit le reste. Les dérivés locaux
-   *  purs (PNG waveform, §3.3) restent permis. */
+   *  postes divergeraient silencieusement.
+   *  Défense en profondeur : l'UI grise déjà les gestes, ici on garantit le
+   *  reste. Les dérivés locaux purs (PNG waveform) restent permis. */
   lectureSeule = false
 
   private verifierEcriture(): void {
@@ -122,10 +122,10 @@ export class CorpusStore {
     }
   }
 
-  /** E1 — exception PAR ENTRETIEN : quand le corpus distant est en lecture
-   *  seule (définitions = flux B, toujours bloquées avant E3), le contenu des
-   *  entretiens DONT NOUS TENONS le verrou reste écrivable (flux A, §10).
-   *  La couche session pose/retire l'id ici à l'acquisition/libération. */
+  /** Exception PAR ENTRETIEN : quand le corpus distant est en lecture seule
+   *  (les définitions partagées restent bloquées), le contenu des entretiens
+   *  DONT NOUS TENONS le verrou reste écrivable.
+   *  La couche session pose/retire l'id ici, à l'acquisition/libération. */
   private readonly ecrituresAutorisees = new Set<string>()
 
   autoriserEcritureEntretien(id: string): void {
@@ -154,12 +154,12 @@ export class CorpusStore {
   private get corpusFile() {
     return join(this.dir, 'corpus.json')
   }
-  
+
   /** Dossier des entretiens : `<corpus>/entretiens/` */
   private get entretiensDir() {
     return join(this.dir, 'entretiens')
   }
-  
+
   /** Fichier d'un entretien : `<entretiens>/id.json` */
   private entretienFile(id: string) {
     return join(this.entretiensDir, `${id}.json`)
@@ -187,7 +187,7 @@ export class CorpusStore {
   ouvrir(): CorpusFichier {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
-    
+
     // Nouveau corpus : traité plus bas.
     if (!existsSync(this.corpusFile)) return this.amorcer()
 
@@ -213,9 +213,9 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Pose (ou remplace) le `nom` de PROJET du corpus (D2) et persiste. Le nom
-   *  est indépendant du dossier (il survit au renommage du dossier) ; les
-   *  consommateurs l'affichent en priorité, avec repli sur le basename du
+  /** Pose (ou remplace) le `nom` de PROJET du corpus et persiste.
+   *  Le nom est indépendant du dossier (il survit au renommage du dossier) ;
+   *  les consommateurs l'affichent en priorité, avec repli sur le basename du
    *  dossier quand il est absent (corpus anciens sans nom). */
   poserNom(nom: string): CorpusFichier {
     this.verifierEcriture()
@@ -295,11 +295,12 @@ export class CorpusStore {
   /** Crée un corpus V2 DANS un dossier dédié, à partir d'une migration
    *  SonalPi V1. Contrairement à `amorcer()`, on n'écrit PAS le bloc
    *  Pondérations par défaut : la source de vérité des définitions est le
-   *  `.crp` — on fusionne exactement ce que la lecture a mappé.
+   *  `.crp`, on fusionne exactement ce que la lecture a mappé.
    *  Le dossier a été vérifié par la garde (`migrer:verifierDossier`) ; en
-   *  défense en profondeur on REFUSE ici tout corpus.json existant
-   *  (« on n'écrase jamais », plan §8). Les entretiens (lecture des .Sonal +
-   *  audio) sont l'étape E2 — elle se branche après cette création. */
+   *  défense en profondeur, on REFUSE ici tout corpus.json existant (« on
+   *  n'écrase jamais »).
+   *  La lecture des entretiens (.Sonal + audio) se branche après cette
+   *  création. */
   migrerDepuisV1(
     nom: string,
     sourceV1: SourceV1,
@@ -383,10 +384,10 @@ export class CorpusStore {
     // (sécurité ; l'invariant « muté uniquement via assignerAudio » est visé).
     this.invaliderRefsAudio()
 
-    // §4.7 (désamorçage, 1er point) : PLUS de mise à jour du membership ici.
-    // Réécrire corpus.json à chaque autosave obligeait, en distant, à prendre
-    // aussi le verrou corpus à chaque fermeture d'entretien. Le membership
-    // n'est écrit que par création / import / renommage / suppression ; le
+    // Le membership n'est PAS réécrit ici : en distant, écrire corpus.json à
+    // chaque autosave imposerait de prendre aussi le verrou corpus à chaque
+    // fermeture d'entretien.
+    // Il n'est écrit que par création / import / renommage / suppression ; le
     // `lastModified` affiché est dérivé du fichier entretien lui-même.
     return now
   }
@@ -402,7 +403,7 @@ export class CorpusStore {
     if (existsSync(f)) copyFileSync(f, b1)
   }
 
-  
+
   /** Crée un entretien vide (cas où on n'a qu'un AUDIO, pas de fichier
    *  entretien). Le `titre` = nom du fichier audio sans extension : il nomme le
    *  fichier sur disque (« nom d'origine_code ») ET sert de titre affiché. */
@@ -538,7 +539,7 @@ export class CorpusStore {
       .map((e) => e.data)
     return corpusModel.compterUsagesCategorie(datas, code)
   }
-  
+
   /** Nombre d'usages de chaque catégorie dans l'ensemble des entretiens du
    *  corpus (fonction `usagesParCategorie` de shared/corpus). */
   usagesParCategorie(): Record<string, number> {
@@ -730,7 +731,7 @@ export class CorpusStore {
     const now = new Date().toISOString()
     data.lastModified = now
     this.ecrireJsonAtomique(f, data)
-    // §4.7 : plus de toucher au membership ici (voir ecrireEntretien).
+    // Membership inchangé ici (voir ecrireEntretien).
     return true
   }
 
@@ -757,7 +758,7 @@ export class CorpusStore {
     this.ecrireJsonAtomique(f, data)
 
     this.invaliderRefsAudio()
-    // §4.7 : plus de toucher au membership ici (voir ecrireEntretien).
+    // Membership inchangé ici (voir ecrireEntretien).
     return { audioRef: ref }
   }
 
@@ -788,21 +789,22 @@ export class CorpusStore {
       }
     }
     // Audio : depuis la résolution EFFECTIVE (ref partagée ou retombée locale
-    // §3.3 — un poste qui a associé son fichier travaille comme les autres).
+    // — un poste qui a associé son fichier travaille comme les autres).
     for (const [id, ref] of this.audiosResolus()) {
       ;(out[id] ??= { audio: null, waveform: null }).audio = ref
     }
     return out
   }
 
-  /* ── Audio LOCAL sur un poste distant (§3.3, E4) ────────────────────────
+  /* ── Audio LOCAL sur un poste distant ────────────────────────────────────
    *  `meta.audioRef` est un chemin absolu DU POSTE QUI A ASSIGNÉ : chez les
-   *  autres, le fichier est manquant. « Associer l'audio local… » RÉFÉRENCE
-   *  le fichier là où il est (parité assignerAudio : jamais de copie) dans
-   *  `<corpus>/audio-locaux.json` — fichier MACHINE-LOCAL, jamais poussé
-   *  (le miroir ne fait que tirer), donc aucune écriture en cascade des
-   *  audioRef entre postes. La résolution retombe dessus quand la ref du
-   *  JSON ne pointe nulle part ici. */
+   *  autres, le fichier est manquant.
+   *  « Associer l'audio local… » RÉFÉRENCE le fichier là où il est (parité
+   *  assignerAudio : jamais de copie) dans `<corpus>/audio-locaux.json` —
+   *  fichier MACHINE-LOCAL, jamais poussé (le miroir ne fait que tirer) :
+   *  aucune écriture en cascade des audioRef entre postes.
+   *  La résolution retombe dessus quand la ref du JSON ne pointe nulle part
+   *  ici. */
 
   private cheminAudiosLocaux(): string {
     return join(this.dir, 'audio-locaux.json')
@@ -828,11 +830,11 @@ export class CorpusStore {
     return { audioRef: ref }
   }
 
-  /** id → chemin EFFECTIF de l'audio sur CE poste (plan-audio-distant.md D2) :
+  /** id → chemin EFFECTIF de l'audio sur CE poste, ordre de priorité :
    *  1. la désignation distante dont la copie miroir est présente (vérité
    *     partagée, une fois téléchargée) ;
    *  2. la ref partagée si son fichier existe ici (poste assigneur) ;
-   *  3. la retombée locale §3.3 (`audio-locaux.json`).
+   *  3. la retombée locale (`audio-locaux.json`).
    *  Les ids sans aucune piste restent absents de la carte. */
   private audiosResolus(): Map<string, string> {
     const locaux = this.lireAudiosLocaux()
@@ -878,7 +880,7 @@ export class CorpusStore {
     const resolus = this.audiosResolus()
     for (const [id, ref] of this.refsAudio()) {
       // La requête porte LA REF PARTAGÉE : servir le fichier EFFECTIF de ce
-      // poste (copie miroir d'une désignation, retombée locale §3.2…).
+      // poste (copie miroir d'une désignation, retombée locale…).
       const effectif = resolus.get(id) ?? ref
       if (
         normalize(ref) === cible ||

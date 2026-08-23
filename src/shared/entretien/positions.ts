@@ -1,7 +1,7 @@
 /**
  * Mapping offset-caractère ↔ position ProseMirror.
  * Le parseur `.sonal` raisonne en offsets caractère dans un texte plat par bloc ;
- * le modèle attend des positions ProseMirror, qui comptent  les frontières de blocs 
+ * le modèle attend des positions ProseMirror, qui comptent les frontières de blocs
  * (chaque paragraphe = un token d'ouverture + son  contenu + un token de fermeture).
  *
  * Pour des blocs de longueurs de texte `longueurs` :

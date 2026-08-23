@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 
 /**
- * Menu contextuel des occurrences anon (étape 1, §2.3) : petit menu flottant
+ * Menu contextuel des occurrences anon : petit menu flottant
  * positionné à l'événement (clic droit dans l'éditeur, sur une occurrence).
  * Une seule action selon l'état courant de l'occurrence :
  *  - `anonymise` → « Laisser en clair (exception) » (basculerException) ;

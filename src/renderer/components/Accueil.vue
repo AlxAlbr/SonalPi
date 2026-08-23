@@ -30,7 +30,7 @@ const modaleDemo = ref<ModeDemo | null>(null)
 const modaleMigration = ref(false)
 // Modale « Nouveau corpus… » : choisir un dossier + donner un nom de projet.
 const modaleNouveau = ref(false)
-// Modale « Ouvrir un corpus distant » : comptes configurés + connexion Nextcloud (E0).
+// Modale « Ouvrir un corpus distant » : comptes configurés + connexion Nextcloud.
 const modaleDistant = ref(false)
 // Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur
 // puis ouverture immédiate.
@@ -149,7 +149,7 @@ async function lancerPreparer(mode: ModeDemo) {
       <!-- Modale « Nouveau corpus… » (choisir un dossier + donner un nom) -->
       <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />
 
-      <!-- Modale « Ouvrir un corpus distant » (comptes Nextcloud + connexion, E0) -->
+      <!-- Modale « Ouvrir un corpus distant » (comptes Nextcloud + connexion) -->
       <CorpusDistant v-if="modaleDistant" @fermer="modaleDistant = false" />
 
       <!-- Assistant « Nouveau corpus distant » : créer directement sur le serveur -->

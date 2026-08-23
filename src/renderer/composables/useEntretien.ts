@@ -91,8 +91,8 @@ export function useEntretien(deps: {
    *  « garder les deux », déliage/suppression) — injecté par l'orchestrateur
    *  pour que la projection des lignes reflète la règle fraîche. */
   rafraichirReglesCorpus?: () => Promise<void>
-  /** Corpus distant : lecture seule des DÉFINITIONS (flux B, grisage permanent
-   *  avant E3). L'éditeur suit `entretienEditable`, pas ce drapeau. */
+  /** Corpus distant : lecture seule des DÉFINITIONS (grisage permanent).
+   *  L'éditeur suit `entretienEditable`, pas ce drapeau. */
   lectureSeule?: () => boolean
   /** L'entretien ouvert est-il éditable ? (corpus local : toujours ; distant :
    *  seulement si NOUS tenons son verrou — état renvoyé par lireEntretien.) */
@@ -108,7 +108,7 @@ export function useEntretien(deps: {
   const meta = reactive<{
     valeursGen: Record<string, string>
     audioRef: string | null
-    audioDistant?: { chemin: string } | null // plan-audio-distant.md D1 — transporté tel quel par payloadCourant
+    audioDistant?: { chemin: string } | null // transporté tel quel par payloadCourant
   }>({
     valeursGen: {},
     audioRef: null,
@@ -130,7 +130,7 @@ export function useEntretien(deps: {
   // quand une entité standalone en déclare ≥2 (3b multi-pseudo). Persistée dans
   // entretiens/<id>.json.pseudosDeclares (ni une règle, ni partagé).
   const pseudosDeclares = ref<Record<string, string[]>>({})
-  /** Menu contextuel d'une occurrence anon (clic droit, §2.3) — requête
+  /** Menu contextuel d'une occurrence anon (clic droit) — requête
    *  VOLATILE : cible (coordonnées écran + occurrence) tant que le menu est
    *  ouvert, sinon null. Le composant MenuContexteAnon le consomme. */
   const menuContextuelAnon = ref<{
@@ -193,7 +193,7 @@ export function useEntretien(deps: {
   const SEUIL_DOUBLE_ESPACE = 300 // ms
   let derniereEspace = 0
   /** Verrou tenu par autrui sur l'entretien OUVERT (null sinon) — alimente le
-   *  bandeau « tenu par X depuis HH:MM » (plan §4.1/§10). */
+   *  bandeau « tenu par X depuis HH:MM ». */
   const verrouAutrui = ref<{ userId: string; machineId: string; acquiredAt: string } | null>(null)
 
   const editor = useEditor({
@@ -254,8 +254,8 @@ export function useEntretien(deps: {
       // quand même la sauvegarde, elle partait 600 ms plus tard, la garde du
       // main la rejetait (« verrou non tenu par cette session ») et la bannière
       // globale d'erreur restait affichée pendant toute la suite du scénario
-      // (attrapé par la démo visible E4 ; visible seulement aux rythmes lents,
-      // la pause efficace s'achève avant l'échéance du debounce).
+      // (scénario visible seulement aux rythmes lents : la pause efficace
+      // s'achève avant l'échéance du debounce).
       if (!transaction.docChanged) return
       planifierSauvegarde()
     },
@@ -469,7 +469,7 @@ export function useEntretien(deps: {
     chargement = false
     // Éditable ssi le contenu nous appartient : en corpus distant,
     // lireEntretien a tenté le verrou — un `verrouTenuParAutrui` présent =
-    // refus = lecture seule avec détenteur affiché (plan §4.1).
+    // refus = lecture seule avec détenteur affiché.
     verrouAutrui.value = res.verrouTenuParAutrui ?? null
     editor.value?.setEditable(deps.entretienEditable ? deps.entretienEditable() : !deps.lectureSeule?.())
     journal.entrees.length = 0 // volatil PAR entretien
@@ -620,7 +620,7 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
 
-  // --- Pseudonymisation du LIBELLÉ (étape 2, §3.3) : le pseudo est un champ du
+  // --- Pseudonymisation du LIBELLÉ : le pseudo est un champ du
   // locuteur, le rendu suit par référence (gouttière, futur export). Hors
   // journal (comme l'interrupteur interviewer) : l'inverse est le re-clic. ---
   /** Pose ou retire le pseudo d'un locuteur. Pseudo vidé → la décision
@@ -658,7 +658,7 @@ export function useEntretien(deps: {
     rafraichirGouttiere()
     planifierSauvegarde()
   }
-  /** Choisit la couleur du NOM d'un locuteur (tableau §3.3) : `couleur` posée,
+  /** Choisit la couleur du NOM d'un locuteur (tableau des couleurs) : `couleur` posée,
    *  le nom s'écrit dans cette couleur dans l'éditeur — SANS toucher au pseudo
    *  (la pseudonymisation du libellé reste un choix indépendant). Choix vide
    *  (∅) → retour à l'auto par index. Hors journal (comme les interrupteurs). */
@@ -825,7 +825,7 @@ export function useEntretien(deps: {
     if (declares.length >= 2) pseudosDeclares.value[cle] = declares
     else delete pseudosDeclares.value[cle]
     const applique = declares[0] || p
-    // Les instructions sont calculées PUR (anonymisation.ts §2.4) puis
+    // Les instructions sont calculées PUR (anonymisation.ts) puis
     // APPLIQUÉES sur la table réactive : relabel des occurrences ANONYMISÉES
     // seules (les exceptions gardent état + pseudo-mémoire), poses bloquées
     // par une exception couvrante, absorption « la plus longue gagne » sur
@@ -1042,7 +1042,7 @@ export function useEntretien(deps: {
     dialoguePorteeCorpus.value = null
   }
 
-  /* ── Réconciliation I-POR-3 POST-PULL (plan-multiuser §4.8 point 3) ───────
+  /* ── Réconciliation POST-PULL ───────────────────────────────────────────
    * En multi-user, une règle corpus régentant une entité déjà travaillée
    * localement peut APPARAÎTRE pendant la session (un collègue l'a poussée
    * entre deux pulls). Au prochain tirage qui ramène un corpus.json modifié,
@@ -1072,7 +1072,7 @@ export function useEntretien(deps: {
     return divergences.length
   }
 
-  /* ── Fusion assistée §6 (copie de divergence → modèle ouvert) ────────────
+  /* ── Fusion assistée (copie de divergence → modèle ouvert) ──────────────
    * Une copie mise de côté par une rétrogradation (publication 412) est
    * proposée à la fusion à la RÉOUVERTURE de l'entretien (verrou frais,
    * contenu courant = version serveur). Union par id — le courant gagne ;
@@ -1179,7 +1179,7 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
 
-  // --- Menu contextuel des occurrences (exceptions, §2.3) ---
+  // --- Menu contextuel des occurrences (exceptions) ---
   /** Ouvre le menu flottant sur une occurrence (appelé par le plugin
    *  `pluginMenuAnon` à chaque clic droit couvrant). L'occurrence est résolue
    *  par le plugin ; ici on ne fait que capturer la cible pour le composant. */
@@ -1225,8 +1225,8 @@ export function useEntretien(deps: {
    *  autre occurrence ANONYMISÉE de même entité (le relabel de ligne), sinon
    *  celui du brouillon courant. Vide si la ligne n'en a aucun (entité dont
    *  toutes les occurrences sont des exceptions) — « remettre en anonymisé »
-   *  re-barre alors sans pseudo, prêt à être relabelé au tableau (§2.1 : le
-   *  pseudo vit sur la ligne/règle, pas sur l'exception). */
+   *  re-barre alors sans pseudo, prêt à être relabelé au tableau (le pseudo
+   *  vit sur la ligne/règle, pas sur l'exception). */
   function pseudoDeLigne(a: Annotation): string {
     const ed = editor.value
     if (!ed) return ''
@@ -1242,7 +1242,7 @@ export function useEntretien(deps: {
   }
   /** « Laisser en clair » : l'occurrence devient une EXCEPTION. On ne stocke
    *  que l'état ; le pseudo éventuel reste en MODÈLE comme mémoire locale
-   *  (jamais affiché, jamais sérialisé — option 2, plan §2.1) pour que
+   *  (jamais affiché, jamais sérialisé) pour que
    *  « remettre en anonymisé » soit sans perte. Non journalisée (comme
    *  validerAnon) ; l'inverse est le second item du menu. */
   function basculerException(id: string) {
@@ -1256,7 +1256,7 @@ export function useEntretien(deps: {
   }
   /** « Remettre en anonymisé » : l'exception redevient une occurrence
    *  anonymisée. Priorité au pseudo-mémoire conservé sur l'exception (restore
-   *  sans perte), sinon au pseudo de la ligne courante (§2.3) — vide si la
+   *  sans perte), sinon au pseudo de la ligne courante — vide si la
    *  ligne n'en a pas (on re-barre, l'utilisateur relabel au tableau). */
   function basculerAnonymise(id: string) {
     const a = entretien.annotations.find((x) => x.id === id)

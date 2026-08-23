@@ -209,10 +209,10 @@ describe('remapping — occurrences anon (même canal que les codages)', () => {
     expect(estOrpheline(a)).toBe(false)
   })
 
-  test('une EXCEPTION survit au remap : état et pseudo-mémoire intacts (étape 1 §2.6)', () => {
+  test('une EXCEPTION survit au remap : état et pseudo-mémoire intacts', () => {
     const s = creerSession(TEXTE)
     const a = s.anonymiser('Pierre', 'P')
-    a.etat = 'exception' // bascule faite via le menu (option 2 : pseudo conservé)
+    a.etat = 'exception' // bascule faite via le menu (le pseudo reste posé)
     s.editer((tr) => tr.insertText('Oh. ', 1)) // décale l'occurrence
     expect(s.texteAnnote(a)).toBe('Pierre')
     expect(a.etat).toBe('exception')

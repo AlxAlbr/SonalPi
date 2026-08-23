@@ -1,5 +1,5 @@
 /**
- * Tests des TRANSACTIONS DE DÉFINITIONS (plan-multiuser.md §4.7/§4.8, étape E3)
+ * Tests des TRANSACTIONS DE DÉFINITIONS
  * contre le serveur WebDAV embarqué : verrou corpus → GET frais → mutation →
  * PUT If-Match → libération ; suppression sous DOUBLE verrou (ordre canonique
  * corpus-avant-entretien, publication corpus puis MOVE) ; refus d'un tiers,
@@ -86,7 +86,7 @@ async function banc(): Promise<Banc> {
   const miroir = new MiroirWebDAV(clientMax, mkdtempSync(join(tmpdir(), 'sonal-tx-')))
   await miroir.tirer()
   const store = new CorpusStore(miroir.dirLocal)
-  store.lectureSeule = true // garde E3 : levée PAR la transaction seulement
+  store.lectureSeule = true // garde : levée PAR la transaction seulement
   const tx = new TransactionsCorpus(clientMax, miroir, () => store, IDENTITE_MAX)
   return { serveur, clientMax, clientOlivier, miroir, store, tx }
 }
@@ -95,7 +95,7 @@ function corpusServeur(serveur: ServeurWebDAVMemoire): CorpusFichier {
   return JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
 }
 
-describe('Transaction générique §4.7', () => {
+describe('Transaction générique', () => {
   it('chemin heureux : mutation locale publiée sur le serveur, verrou libéré, garde restaurée', async () => {
     const { serveur, store, tx } = await banc()
     const r = await tx.executer(() => store.ajouterCategorie('Thèmes à nous', null))
@@ -170,7 +170,7 @@ describe('Transaction générique §4.7', () => {
   })
 })
 
-describe('Suppression d\u2019entretien — double verrou §4.7/§4.8', () => {
+describe('Suppression d\u2019entretien — double verrou', () => {
   it('chemin heureux : membership publié D\u2019ABORD, MOVE serveur ENSUITE, les deux verrous libérés', async () => {
     const { serveur, tx, store } = await banc()
     await tx.supprimerEntretien('e1')
@@ -198,7 +198,7 @@ describe('Suppression d\u2019entretien — double verrou §4.7/§4.8', () => {
     expect(await pOlivier.etat('verrous/e1.lock.json')).not.toBeNull()
   })
 
-  it('l\u2019ordre canonique tient : le verrou CORPUS est pris avant le verrou ENTRETIEN (§4.8)', async () => {
+  it('l\u2019ordre canonique tient : le verrou CORPUS est pris avant le verrou ENTRETIEN)', async () => {
     const { serveur, miroir, store } = await banc()
     const ordre: string[] = []
     // Espion : note l'ordre réel des acquisitions de verrou par NOTRE session.
@@ -223,7 +223,7 @@ describe('Suppression d\u2019entretien — double verrou §4.7/§4.8', () => {
   })
 })
 
-/* ── Lot de valeurs — un verrou court PAR ENTRETIEN (plan-lot-table-donnees §4) */
+/* ── Lot de valeurs — un verrou court PAR ENTRETIEN */
 
 import { ErreurHttp } from '../../src/main/webdav/client'
 import { poserValeurLotLocal } from '../../src/main/distant/transactions'
@@ -263,10 +263,10 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     }
   })
 
-  it('lot à UN item de portée LOCUTEUR → serveur ET miroir à jour (plan-saisie-cellule-table §4.3)', async () => {
+  it('lot à UN item de portée LOCUTEUR → serveur ET miroir à jour', async () => {
     const { serveur, miroir, tx } = await banc()
     // Un entretien AVEC un locuteur, posé sur le serveur APRÈS le tirage du
-    // miroir : le GET frais post-verrou fait foi (§4.7) — la valeur partira
+    // miroir : le GET frais post-verrou fait foi — la valeur partira
     // du contenu SERVEUR, pas de la copie miroir périmée.
     const avecLoc = JSON.parse(entretienE1()) as {
       locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]

@@ -13,7 +13,7 @@ export interface CibleMenuAnon {
 }
 
 /**
- * Menu contextuel des occurrences anon (étape 1, §2.3) : un clic DROIT sur une
+ * Menu contextuel des occurrences anon : un clic DROIT sur une
  * occurrence ouvre un menu flottant (bascule exception ↔ anonymisé, portée par
  * l'UI). Le plugin ne décide RIEN : il résout l'occurrence couvrante — find sur
  * le modèle, les positions anon SONT les positions ProseMirror (remappées par

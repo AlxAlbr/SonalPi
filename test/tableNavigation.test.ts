@@ -1,8 +1,7 @@
 /**
- * Modèle PUR de navigation clavier de la table de données
- * (plan-saisie-cellule-table.md §5) : construction de la grille des cellules
- * éditables dans l'ordre visuel + voisine dans les quatre sens. Sans DOM —
- * le câblage focus/scroll est testé par les e2e.
+ * Modèle PUR de navigation clavier de la table de données : construction de
+ * la grille des cellules éditables dans l'ordre visuel + voisine dans les
+ * quatre sens. Sans DOM — le câblage focus/scroll est testé par les e2e.
  */
 import { describe, expect, it } from 'vitest'
 import { celluleVoisine, cleGen, cleLoc, grilleCellules } from '../src/renderer/tableNavigation'

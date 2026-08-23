@@ -1,15 +1,16 @@
 /**
  * Sondes de connexion — le « profil de capacités » du backend, mesuré sur le
- * serveur RÉEL à la configuration d'un corpus distant (E0), et répété à chaque
- * ouverture (un admin peut installer files_lock entre deux sessions — plan §8).
+ * serveur RÉEL à la configuration d'un corpus distant, et répété à chaque
+ * ouverture (un admin peut installer files_lock entre deux sessions).
  *
  * Deux sondes :
- *  1. Préconditions HTTP (§5.4) : le contrat dont dépend la variante B du
- *     verrou. Un serveur qui échoue est REFUSÉ pour le verrou conditionnel.
- *  2. Capabilities Nextcloud (§8) : présence du plugin `files_lock` → variante
- *     A. Absence d'info ou serveur non-Nextcloud → variante B, sans erreur.
+ *  1. Préconditions HTTP : le contrat dont dépend la variante PUT conditionnel
+ *     du verrou. Un serveur qui échoue est REFUSÉ pour le verrou conditionnel.
+ *  2. Capabilities Nextcloud : présence du plugin `files_lock` → variante
+ *     files_lock. Absence d'info ou serveur non-Nextcloud → verrou conditionnel,
+ *     sans erreur.
  *
- * Invariant §15.2 : le protocole de session dépendra de ces capacités mesurées,
+ * Le protocole de session dépend de ces capacités mesurées,
  * jamais du nom du backend.
  */
 
@@ -25,7 +26,7 @@ export interface ProfilCapacites {
   notes?: string[]
 }
 
-/** Sonde §5.4 : séquence réelle contre un fichier jetable dans le dossier
+/** Sonde des préconditions : séquence réelle contre un fichier jetable dans le dossier
  *  fourni (`sonde/` à la racine du corpus). Toute l'arithmétique du test-and-set
  *  tient dans ces quatre attentes :
  *   - PUT If-None-Match:* sur absent        → 201
@@ -74,10 +75,10 @@ export const sonderPreconditions = async (
   }
 }
 
-/** Sonde §8 : capabilities Nextcloud (`/ocs/v1.php/cloud/capabilities`),
+/** Sonde capabilities Nextcloud (`/ocs/v1.php/cloud/capabilities`),
  *  format JSON, authentifié comme le reste. `files.locking` présent → la
- *  variante A est disponible. Tout échec ici N'EST PAS bloquant : on retombe
- *  en variante B (c'est exactement sa raison d'être). */
+ *  variante files_lock est disponible. Tout échec ici N'EST PAS bloquant : on
+ *  retombe en verrou conditionnel (c'est exactement sa raison d'être). */
 export const sonderFilesLock = async (
   baseUrl: string,
   identifiants: { utilisateur: string; motDePasse: string },
@@ -115,8 +116,8 @@ export const sonderFilesLock = async (
   }
 }
 
-/** Les deux sondes ensemble — c'est CE profil que la connexion stockera et que
- *  le protocole consultera (§14 point 6 tranché oui : dès E0). */
+/** Les deux sondes ensemble — c'est CE profil que la connexion stocke et que
+ *  le protocole consulte à chaque ouverture. */
 export async function profilerServeur(client: ClientWebDAV): Promise<ProfilCapacites> {
   const notes: string[] = []
   const preconditions = await sonderPreconditions(client)

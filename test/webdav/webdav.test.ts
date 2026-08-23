@@ -1,5 +1,5 @@
 /**
- * Banc de conformité WebDAV (plan-multiuser.md §12) : le client, les sondes et
+ * Banc de conformité WebDAV : le client, les sondes et
  * le miroir joués contre le serveur embarqué, SANS autre hypothèse sur lui que
  * le contrat (préconditions, ETags, multistatus).
  */
@@ -35,7 +35,7 @@ function clientSur(serveur: ServeurWebDAVMemoire): ClientWebDAV {
   )
 }
 
-/** Store de résolution audio (plan-audio-distant.md D2) : seed démo (e1), sur
+/** Store de résolution audio : seed démo (e1), sur
  *  lequel les tests écrivent ensuite refs/désignations directement sur disque
  *  (le miroir écrit lui aussi hors du store). */
 function storeAudio(): { store: CorpusStore; dir: string } {
@@ -51,7 +51,7 @@ function ecrireEntretien(dir: string, meta: EntretienFichier['meta']): void {
   writeFileSync(f, JSON.stringify(data), 'utf8')
 }
 
-describe('CorpusStore — résolution EFFECTIVE des audios désignés (D2)', () => {
+describe('CorpusStore — résolution EFFECTIVE des audios désignés', () => {
   test('priorité 1 : désignation distante dont la copie miroir est là → elle gagne', () => {
     const refLocale = join(tmpdir(), `chez-assigneur-${Math.random().toString(36).slice(2)}.mp3`)
     writeFileSync(refLocale, 'REF', 'utf8')
@@ -68,7 +68,7 @@ describe('CorpusStore — résolution EFFECTIVE des audios désignés (D2)', () 
     expect(audios.e1?.audio).toBe(join(dir, 'audios', 'e1.mp3'))
   })
 
-  test('copie pas encore téléchargée : retombée locale §3.3 (continuité de travail)', () => {
+  test('copie pas encore téléchargée : retombée locale (continuité de travail)', () => {
     const refLocale = join(tmpdir(), `associe-localement-${Math.random().toString(36).slice(2)}.mp3`)
     writeFileSync(refLocale, 'LOCAL', 'utf8')
     const { store, dir } = storeAudio()
@@ -141,7 +141,7 @@ describe('ClientWebDAV — contrat de préconditions', () => {
     const etag = serveur.etagDe('entretiens/e1.json')!
     // DELETE avec mauvais ETag refusé…
     await expect(client.supprimer('entretiens/e1.json', 'faux')).rejects.toMatchObject({ statut: 412 })
-    // …puis MOVE vers corbeille/ (suppression §4.7), destination occupée refusée.
+    // …puis MOVE vers corbeille/ (suppression), destination occupée refusée.
     serveur.poser('corbeille/e1.json', 'ancien')
     await expect(client.deplacer('entretiens/e1.json', 'corbeille/e1.json')).rejects.toMatchObject({
       statut: 412,
@@ -213,7 +213,7 @@ describe('analyserMultistatus — mini-parseur XML borné', () => {
 })
 
 describe('Sondes — profil de capacités mesuré sur le serveur réel', () => {
-  it('un serveur correct passe la sonde §5.4 ; files_lock absent → variante B', async () => {
+  it('un serveur correct passe la sonde de préconditions ; files_lock absent → variante B', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const profil = await profilerServeur(clientSur(serveur))
     expect(profil.preconditions).toBe(true)
@@ -239,7 +239,7 @@ describe('Sondes — profil de capacités mesuré sur le serveur réel', () => {
   })
 })
 
-describe('MiroirWebDAV — pull incrémental §3.1', () => {
+describe('MiroirWebDAV — pull incrémental', () => {
   function miroirSur(serveur: ServeurWebDAVMemoire): { miroir: MiroirWebDAV; dir: string } {
     const dir = mkdtempSync(join(tmpdir(), 'miroir-test-'))
     return { miroir: new MiroirWebDAV(clientSur(serveur), dir), dir }
@@ -323,7 +323,7 @@ describe('MiroirWebDAV — pull incrémental §3.1', () => {
   })
 })
 
-describe('MiroirWebDAV — audios désignés (plan-audio-distant.md D3)', () => {
+describe('MiroirWebDAV — audios désignés', () => {
   function miroirSur(serveur: ServeurWebDAVMemoire): { miroir: MiroirWebDAV; dir: string } {
     const dir = mkdtempSync(join(tmpdir(), 'miroir-audio-'))
     return { miroir: new MiroirWebDAV(clientSur(serveur), dir), dir }
@@ -455,7 +455,7 @@ describe('MiroirWebDAV — audios désignés (plan-audio-distant.md D3)', () => 
   })
 })
 
-describe('Téléversement — putBinaire + garde anti-écrasement (plan-audio-distant.md D5)', () => {
+describe('Téléversement — putBinaire + garde anti-écrasement', () => {
   function miroirSur(serveur: ServeurWebDAVMemoire): { miroir: MiroirWebDAV; dir: string } {
     const dir = mkdtempSync(join(tmpdir(), 'miroir-tel-'))
     return { miroir: new MiroirWebDAV(clientSur(serveur), dir), dir }

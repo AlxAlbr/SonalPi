@@ -4,15 +4,15 @@ import { utiliserSonal } from '../composables/sonal'
 import { mapperDefinitions, type ApercuCrp, type VerificationDossierMigration } from '../../shared/corpus/migrationCrp'
 
 /**
- * Modale de migration SonalPi V1 → V2 (plan-migration.md E2.2 / E3).
+ * Modale de migration SonalPi V1 → V2.
  * Trois temps, aucun effet de bord avant la validation finale :
- *  1. choix du `.crp` (E0 : dialogue + lecture + encodage dans le main,
+ *  1. choix du `.crp` (dialogue + lecture + encodage dans le main,
  *     analyse PURE côté shared) → APERÇU (nom, date, nb d'entretiens, thèmes,
  *     variables, règles d'anonymisation) ;
  *  2. choix du DOSSIER DÉDIÉ (pré-rempli Documents/Sonal/<nom>) avec la garde
  *     « on n'écrase jamais » (dejaCorpus / démo refusés ; un dossier non vide
  *     sans corpus.json demande un avertissement confirmé) ;
- *  3. MIGRATION : définitions mappées (E1) → `migrer:executer` écrit le corpus
+ *  3. MIGRATION : définitions mappées → `migrer:executer` écrit le corpus
  *     V2 (nom + meta.sourceV1), l'ajoute aux récents et l'ouvre.
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
@@ -87,7 +87,7 @@ async function migrer() {
   enCours.value = true
   erreur.value = null
   try {
-    // E1 : le `.crp` est la source de vérité des définitions (Q7).
+    // Le `.crp` est la source de vérité des définitions.
     const { codebook, variables } = mapperDefinitions(apercu.value.raw)
     await migrerDepuisV1(
       {
@@ -98,7 +98,7 @@ async function migrer() {
         codebook,
         variables,
       },
-      apercu.value.raw.tabEnt ?? [], // E2 : entretiens à importer (.Sonal + audio)
+      apercu.value.raw.tabEnt ?? [], // entretiens à importer (.Sonal + audio)
     )
     emit('fermer')
   } catch (e) {
@@ -266,7 +266,7 @@ async function migrer() {
   opacity: 0.6;
   cursor: not-allowed;
 }
-/* Aperçu E0 */
+/* Aperçu */
 .apercu-crp {
   border: 1px solid #d7e3f2;
   border-radius: 8px;

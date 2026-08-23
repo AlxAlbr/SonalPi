@@ -29,7 +29,7 @@ function anonCount(anns: Annotation[]): number {
   return anns.filter((a) => a.type === 'anon').length
 }
 
-describe('brouillons d’anonymisation — round-trip (étape 3b)', () => {
+describe('brouillons d’anonymisation — round-trip', () => {
   test('les brouillons sont sérialisés dans l’anon-json en portee « brouillon » (occurrences:0)', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(html, parse(html))
@@ -58,7 +58,7 @@ describe('brouillons d’anonymisation — round-trip (étape 3b)', () => {
   })
 })
 
-describe('export .sonal — règles corpus (portée corpus, étape 3b)', () => {
+describe('export .sonal — règles corpus (portée corpus)', () => {
   test('une occurrence liée à une règle corpus → entrée portee « corpus » dans l’anon-json', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(html, parse(html))
@@ -247,7 +247,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(anns2).toHaveLength(anns.length)
   })
 
-  test('une exception ne re-sérialise JAMAIS de data-pseudo, même avec une mémoire de modèle (étape 1 §2.6, option 2)', () => {
+  test('une exception ne re-sérialise JAMAIS de data-pseudo, même avec une mémoire de modèle', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(html, parse(html))
     const exc = r.payload.annotations.find((a) => a.etat === 'exception')
@@ -267,7 +267,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(out).not.toContain('data-pseudo="Souvenir"')
   })
 
-  test('libellé de tour pseudonymisé : round-trip loc-anon + data-locpseudo sans perte (étape 2 §3.4)', () => {
+  test('libellé de tour pseudonymisé : round-trip loc-anon + data-locpseudo sans perte', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(html, parse(html))
     const l = r.payload.locuteurs.find((x) => x.index === 1)!
@@ -291,11 +291,11 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(out).toContain('class="lblseg sautlig ligloc"')
   })
 
-  test('refus de libellé : loc-suggere-refuse à l\u2019export, JAMAIS de data-locpseudo (étape 2 §3.4)', () => {
+  test('refus de libellé : loc-suggere-refuse à l\u2019export, JAMAIS de data-locpseudo', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(html, parse(html))
     const l = r.payload.locuteurs.find((x) => x.index === 1)!
-    l.pseudo = 'Chercheur' // mémoire conservée (option 2)…
+    l.pseudo = 'Chercheur' // mémoire conservée (pseudo maintenu)…
     l.pseudoEtat = 'refuse' // …mais refus explicite : le nom reste en clair
     const out = exporterSonal({
       ...r.payload,

@@ -198,8 +198,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
 
   // --- Table de données éditable : écriture ciblée + re-requête ---
-  /** plan-saisie-cellule-table.md §3-§4 : valider UNE cellule = le primitif du
-   *  lot avec UN item (verrou court → GET frais → PUT If-Match → miroir
+  /** Valider UNE cellule = le primitif du lot avec UN item (verrou court →
+   *  GET frais → PUT If-Match → miroir
    *  écrit-through ; en local, poserValeurLotLocal — mêmes résultats). Renvoie
    *  la raison NOMINATIVE du refus éventuel (null = succès) pour l'erreur
    *  inline de la cellule ; les rejets IPC (réseau…) ne sont PAS catchés : ils
@@ -230,7 +230,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
     return modalitesDe(idVar).find((m) => m.lib === lib)!.id
   }
-  /** LOT « modifier en lot » (plan-lot-table-donnees.md §4-§5) : une valeur
+  /** LOT « modifier en lot » : une valeur
    *  appliquée à plusieurs entretiens — verrou court par entretien côté main ;
    *  échecs nommés, un échec ne bloque jamais les autres. */
   function poserValeurLot(items: ItemLotValeur[]) {
@@ -277,7 +277,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables,
     rafraichirUsages,
     rafraichirMatrice,
-    // étape 3a — règles corpus & scan anon (panneau « Pseudos »)
+    // règles corpus & scan anon (panneau « Pseudos »)
     reglesAnon,
     scanAnon,
     rafraichirScanAnon,

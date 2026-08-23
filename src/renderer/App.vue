@@ -20,7 +20,7 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
   <main class="app">
     <header>
       <h1>
-        SonalPiTestV2 — 
+        SonalPiTestV2 —
         <span class="etat" :class="etatSauvegarde.replace('…', '').replace(' ', '-')">
           {{ etatSauvegarde }}
         </span>
@@ -46,8 +46,9 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
 
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
 
-    <!-- Bannière globale (E3) : rejets IPC non catchés (verrou refusé, hors
-         ligne, divergence §4.7). Fermable ; toute nouvelle erreur remplace. -->
+    <!-- Bannière globale : rejets IPC non catchés (verrou refusé, hors
+         ligne, divergence détectée). Fermable ; toute nouvelle erreur
+         remplace la précédente. -->
     <div v-if="erreurGlobale" class="banniere refus">
       <span>{{ erreurGlobale }}</span>
       <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
@@ -59,15 +60,15 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <Entretien v-show="vue === 'entretien'" />
     <TableDonnees v-show="vue === 'donnees'" />
 
-    <!-- Reprise crash (§4.5) : orphelins détectés à l'ouverture d'un corpus
+    <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus
          distant — téléporté, ne s'affiche QUE si la liste est non vide. -->
     <RepriseCrash />
 
-    <!-- Fusion assistée (§6) : copie de divergence proposée à la réouverture
+    <!-- Fusion assistée : copie de divergence proposée à la réouverture
          de l'entretien concerné. -->
     <DivergenceCopie />
 
-    <!-- Désignation audio distante (plan-audio-distant.md A3) : navigation
+    <!-- Désignation audio distante : navigation
          Nextcloud + micro-session — ne s'affiche que si demandée. -->
     <DesignationAudioDistante />
   </main>

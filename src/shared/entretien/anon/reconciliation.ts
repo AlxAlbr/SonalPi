@@ -1,6 +1,6 @@
 /**
- * RÉCONCILIATION I-POR-3 POST-PULL (plan-multiuser.md §4.8 point 3) —
- * la projection multi-utilisateur du dialogue de portée (plan_anon_suite §4).
+ * RÉCONCILIATION POST-PULL — la projection multi-utilisateur du dialogue de
+ * portée (règles corpus vs lignes d'entretien).
  *
  * En V2, une règle ne vit qu'au corpus ; l'entretien porte des brouillons et
  * des occurrences standalone (« portée entretien »). En multi-user, une règle
@@ -35,7 +35,7 @@ export interface DivergencePortee {
  *  Les lignes déjà liées au corpus (`etat === 'corpus'`) sont ignorées : elles
  *  ont déjà résolu leur divergence. Ordre déterministe : celui des lignes.
  *
- *  NB : la redondance transitoire §4.8 (règle présente des deux côtés < TTL)
+ *  NB : la redondance transitoire (règle présente des deux côtés < TTL)
  *  n'est PAS une divergence — justement parce qu'une ligne déjà liée ne
  *  déclenche rien ici.
  */

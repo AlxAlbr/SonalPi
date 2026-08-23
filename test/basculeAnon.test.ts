@@ -8,12 +8,12 @@ import {
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /**
- * Bascule exception ↔ anonymisé (étape 1, §2.4) — le moteur de la validation
+ * Bascule exception ↔ anonymisé — le moteur de la validation
  * d'une ligne, extrait en PURE (`instructionsValiderAnon`) pour être testable :
  * le couplage Vue/PM de useEntretien.validerAnon ne fait qu'APPLIQUER les
  * instructions (relabel / retraits / poses) sur la table réactive.
  *
- * Règles garanties ici (option 2, plan §2.1) :
+ * Règles garanties ici :
  *  - le relabel ne touche JAMAIS une exception (état + pseudo-mémoire intacts) ;
  *  - une exception couvrante (entière ou contenue) BLOQUE la pose et le retrait
  *    du match : une exception ne repasse jamais « à traiter ».
@@ -43,7 +43,7 @@ function ann(opts: {
   return { id: `a${++seq}`, type: 'anon', auteur: 'max', ...opts }
 }
 
-describe('instructionsValiderAnon — relabel (§2.4 : jamais les exceptions)', () => {
+describe('instructionsValiderAnon — relabel (jamais les exceptions)', () => {
   test('relabel les occurrences ANONYMISÉES de la ligne, PAS les exceptions', () => {
     const p1 = paul(0)
     const p2 = paul(1)
@@ -68,7 +68,7 @@ describe('instructionsValiderAnon — relabel (§2.4 : jamais les exceptions)', 
   })
 })
 
-describe('instructionsValiderAnon — une exception bloque la pose (§2.4)', () => {
+describe('instructionsValiderAnon — une exception bloque la pose', () => {
   test('exception couvrant ENTIÈREMENT le match → pas de pose, pas de retrait', () => {
     const p = paul(0)
     const annotations = [ann({ ...p, pseudo: 'X', etat: 'exception' })]

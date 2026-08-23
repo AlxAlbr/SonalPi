@@ -1,7 +1,7 @@
 # Plan onglets Corpus — vision long terme
 
 > La vue Corpus est aujourd'hui un écran unique (thèmes en consultation + cartes d'entretiens,
-> [Corpus.vue](../src/renderer/components/Corpus.vue)) plus un écran séparé « base de données ».
+> [Corpus.vue](../../src/renderer/components/Corpus.vue)) plus un écran séparé « base de données ».
 > Cible : lui donner une **navigation par onglets**, pendant de la colonne droite de la vue
 > Entretien (Thèmes / Loc / Données / Journal). Ce plan est un plan d'**idées à long terme** :
 > il précise surtout l'onglet **Personnes** (activation de la décision D4) et l'onglet
@@ -14,15 +14,15 @@
 
 | Onglet | Contenu | Ancrage existant |
 |---|---|---|
-| **Accueil** | la vue Corpus actuelle (thèmes en consultation + cartes d'entretiens) | [Corpus.vue](../src/renderer/components/Corpus.vue), renommage |
+| **Accueil** | la vue Corpus actuelle (thèmes en consultation + cartes d'entretiens) | [Corpus.vue](../../src/renderer/components/Corpus.vue), renommage |
 | **Personnes** | identités transverses aux entretiens (pendant corpus de « Loc ») | `corpus.json.personnes` + `Locuteur.personneRef` — **déjà dans le modèle** (D4, « sans UI ») |
 | **Thématique** | l'**atelier du codebook** : fusion/scission de thèmes (IA en assistance), qualité du codage, accord inter-codeurs | à créer — voir §4 |
-| **Données** | la matrice EAV, aujourd'hui écran séparé | [TableDonnees](../src/renderer/components/TableDonnees.vue), `vue === 'donnees'` descend en onglet |
-| **Anon** | règles de portée corpus, scan, application en masse | = panneau « Pseudos » d'[E2.2 du plan anon](plan_anon.md) — ce plan-ci lui donne juste son emplacement |
+| **Données** | la matrice EAV, aujourd'hui écran séparé | [TableDonnees](../../src/renderer/components/TableDonnees.vue), `vue === 'donnees'` descend en onglet |
+| **Anon** | règles de portée corpus, scan, application en masse | = panneau « Pseudos » d'E2.2 du plan anon — ce plan-ci lui donne juste son emplacement |
 
-Squelette : même patron que la nav `ongletDroite` d'[Entretien.vue](../src/renderer/components/Entretien.vue)
+Squelette : même patron que la nav `ongletDroite` d'[Entretien.vue](../../src/renderer/components/Entretien.vue)
 (`ongletCorpus: 'accueil' | 'personnes' | 'thematique' | 'donnees' | 'anon'`). L'état
-`vue === 'donnees'` de [sonal.ts](../src/renderer/composables/sonal.ts) disparaît au profit de
+`vue === 'donnees'` de [sonal.ts](../../src/renderer/composables/sonal.ts) disparaît au profit de
 `vue === 'corpus'` + onglet ; `rafraichirMatrice()` se déclenche à l'activation de l'onglet
 (comportement actuel d'`allerDonnees` conservé).
 
@@ -47,7 +47,7 @@ en silence** (principe repris du plan anon).
   ```
 
   Identité opaque (règle n°3), comme les catégories.
-- `Locuteur.personneRef: string | null` ([format.ts](../src/shared/format.ts:28)) : le lien.
+- `Locuteur.personneRef: string | null` ([format.ts](../../src/shared/format.ts:28)) : le lien.
   Un locuteur référence **au plus une** personne ; une personne est référencée par **au plus un
   locuteur par entretien** (invariant : deux locuteurs d'un même entretien ne sont pas la même
   personne — garde à la liaison, dialogue si l'utilisateur insiste… non : refus simple, c'est
@@ -61,7 +61,7 @@ en silence** (principe repris du plan anon).
 
 ### 3.2 Le dialogue au nommage
 
-Au `renommerLoc` / à la création d'un locuteur ([locuteurs.ts](../src/shared/entretien/locuteurs.ts)) :
+Au `renommerLoc` / à la création d'un locuteur ([locuteurs.ts](../../src/shared/entretien/locuteurs.ts)) :
 
 1. Requête : le nom canonique matche-t-il une **personne** existante, ou le nom d'un **locuteur
    d'un autre entretien** encore sans personne ?
@@ -147,7 +147,7 @@ ou rejette ; à la validation seulement, les commandes de domaine écrivent.
   sont pas codés X » (audit de complétude).
 - **Sensibilité des données — la règle** : les entretiens sont des données sensibles.
   **Ollama local par défaut** ; un modèle **externe** n'est autorisé que sur le texte
-  **pseudonymisé** — le pipeline d'[anonymisation](plan_anon.md) devient le *sas de sortie vers
+  **pseudonymisé** — le pipeline d'anonymisation devient le *sas de sortie vers
   l'IA*, ce qui est une raison de plus de le faire tôt. Configuration (endpoint, modèle) au
   niveau profil utilisateur, jamais dans le corpus partagé.
 - **Précédent à examiner** : QualCoder a intégré une assistance IA au codage (portée par kaixxx,
@@ -157,7 +157,7 @@ ou rejette ; à la validation seulement, les commandes de domaine écrivent.
 ### 4.3 Fonctions voisines du même onglet
 
 - **Accord inter-codeurs** : `Annotation.auteur` existe déjà
-  ([annotation.ts](../src/shared/entretien/annotation.ts:13)), et [plan-multiuser](plan-multiuser.md)
+  ([annotation.ts](../../src/shared/entretien/annotation.ts:13)), et [plan-multiuser](../encours/plan-multiuser.md)
   est posé. Vue de comparaison des codages de deux auteurs sur le même entretien (divergences,
   réconciliation, éventuellement un kappa) — fonction classique de NVivo/MAXQDA, et le débouché
   naturel du « second codeur » IA.
@@ -169,14 +169,14 @@ ou rejette ; à la validation seulement, les commandes de domaine écrivent.
 
 ## 5. Onglet Données
 
-Déplacement pur : l'écran `donnees` ([App.vue](../src/renderer/App.vue:52)) devient le contenu de
+Déplacement pur : l'écran `donnees` ([App.vue](../../src/renderer/App.vue:52)) devient le contenu de
 l'onglet ; `allerDonnees` devient « aller à l'onglet ». Le composant TableDonnees ne change pas.
 À terme, l'onglet est le lieu naturel des colonnes « personne » (nom de la personne liée à côté
 du locuteur) une fois §3 fait.
 
 ## 6. Onglet Anon
 
-Rien à concevoir ici : le contenu est le panneau « Pseudos » d'[E2.2 du plan anon](plan_anon.md)
+Rien à concevoir ici : le contenu est le panneau « Pseudos » d'E2.2 du plan anon
 (table des règles corpus, scan, drill-down, application en masse). Ce plan fixe seulement son
 emplacement (un onglet, pas un panneau flottant) et la synergie §3.4 (entrée depuis Personnes).
 
@@ -205,13 +205,13 @@ emplacement (un onglet, pas un panneau flottant) et la synergie §3.4 (entrée d
    Données = déplacement §5).
 2. **Personnes** (§3) — le modèle est prêt (D4), la valeur est immédiate et ouvre l'entrée
    anonymisation (§3.4).
-3. **Anon** — au rythme du [plan anon](plan_anon.md) (E2 suppose E1 stable) ; l'onglet peut
+3. **Anon** — au rythme du plan anon (E2 suppose E1 stable) ; l'onglet peut
    exister avant, vide avec renvoi.
 4. **Thématique — atelier sans IA** : fusion (§4.1), candidats automatiques, santé du codage
    (§4.3) — tout est requêtes + une commande de domaine, aucune dépendance nouvelle.
 5. **Thématique — IA** : scission assistée puis second codeur (§4.2), Ollama local d'abord ;
    le sas « externe via pseudonymisation » suppose l'anon corpus (étape 3).
-6. **Accord inter-codeurs** — quand [plan-multiuser](plan-multiuser.md) rendra le cas réel
+6. **Accord inter-codeurs** — quand [plan-multiuser](../encours/plan-multiuser.md) rendra le cas réel
    fréquent (la vue peut naître avant, alimentée par le second codeur IA).
 
 ---

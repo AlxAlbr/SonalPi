@@ -1,8 +1,8 @@
 # Anonymisation — suite (étapes 1 → 3)
 
-> Suite de [plan-anon-debut.md](plan-anon-debut.md) (v1 terminée : onglet « Anon »
+> Suite de plan-anon-debut (v1 terminée : onglet « Anon »
 > entretien, occurrences, barré+`[pseudo]`, round-trip `.sonal`). On reprend la
-> trajectoire de [plan_anon.md](plan_anon.md) (étape 2 du modèle) **sans** le
+> trajectoire de plan_anon (étape 2 du modèle) **sans** le
 > multi-alias, le multi-pseudo ni les incluses — différés indéfiniment ici.
 
 ---
@@ -224,7 +224,7 @@
 Trois concepts, **deux seuls nouveaux types** :
 
 - **OccurrenceAnon** = décision sur une plage de texte. **Ce n'est PAS un type
-  nouveau** : c'est l'`Annotation` existante ([annotation.ts](../src/shared/entretien/annotation.ts))
+  nouveau** : c'est l'`Annotation` existante ([annotation.ts](../../src/shared/entretien/annotation.ts))
   filtrée par `type === 'anon'`, qui porte déjà `pseudo`, `etat`
   (`'anonymise' | 'exception'`) et `regle?` (id). Vit dans
   `entretiens/<id>.json` (annotations). En v1 on l'utilise déjà telle quelle ;
@@ -276,7 +276,7 @@ s'enrichit de règles de portée corpus, et repart vers SonalPi sans perte.
 
 ### 0.1 Modèle
 
-- **`BrouillonAnon`** `{entite, pseudo?}` dans [format.ts](../src/shared/format.ts)
+- **`BrouillonAnon`** `{entite, pseudo?}` dans [format.ts](../../src/shared/format.ts)
   + champ additif `brouillonsAnon: BrouillonAnon[]` dans
   `EntretienFichier`/`PayloadEntretien`. **Pas de bump** de `formatVersion`.
   Pseudo optionnel (« entité seule » — sa navigation ◄ i/N ► viendra plus
@@ -452,7 +452,7 @@ interface Locuteur {
 
 ### 3.2 Refonte gouttière (le point risqué)
 
-Aujourd'hui ([locuteursGutter.ts](../src/renderer/editor/locuteursGutter.ts)) :
+Aujourd'hui ([locuteursGutter.ts](../../src/renderer/editor/locuteursGutter.ts)) :
 le nom est une décoration `inline-block` de largeur fixe **à gauche du bloc,
 même ligne**. Pour barrer le nom + afficher `[pseudo]` sans décaler le texte,
 il faut le nom **au-dessus du bloc** (layout SonalPi `.ligloc`) :
@@ -492,9 +492,9 @@ Le texte du tour commence ici, pleine largeur…
 
 - **Import** : les marqueurs SonalPi sur les `.ligloc`
   (`loc-anon` / `data-locpseudo` / `loc-suggere-refuse`) → `Locuteur.pseudo` /
-  `pseudoEtat`. À ajouter à [importSonal.ts](../src/renderer/import/importSonal.ts).
+  `pseudoEtat`. À ajouter à [importSonal.ts](../../src/renderer/import/importSonal.ts).
 - **Export** : re-sérialiser ces marqueurs sur les `.lblseg.ligloc` à partir de
-  `Locuteur.pseudo`/`pseudoEtat`. À ajouter à [exportSonal.ts](../src/renderer/import/exportSonal.ts).
+  `Locuteur.pseudo`/`pseudoEtat`. À ajouter à [exportSonal.ts](../../src/renderer/import/exportSonal.ts).
 
 ### 3.5 Tests (headless)
 
@@ -544,7 +544,7 @@ différé). Contrairement à SonalPi I-POR-3, rien à réconcilier à l'ouvertur
 
 ### 4.1 Étape 3a — `RegleAnon` corpus + scan + panneau lecture
 
-- **Type** `RegleAnon` dans [format.ts](../src/shared/format.ts) :
+- **Type** `RegleAnon` dans [format.ts](../../src/shared/format.ts) :
   ```ts
   interface RegleAnon { id: string; entite: string[]; pseudos: string[] }
   ```
@@ -563,7 +563,7 @@ différé). Contrairement à SonalPi I-POR-3, rien à réconcilier à l'ouvertur
   entretien — appliqué (OccurrenceAnon rule-backed couvrante) / exception /
   à traiter (match non couvert). Badges par état. **Pas de marquage** dans le
   texte des entretiens non ouverts. **Pas de cache** (mémoïsation volatile).
-- **Panneau « Pseudos » dans [Corpus.vue](../src/renderer/components/Corpus.vue)** :
+- **Panneau « Pseudos » dans [Corpus.vue](../../src/renderer/components/Corpus.vue)** :
   table des règles corpus (entité, pseudo, compteurs globaux par état),
   drill-down par entretien avec contexte. **Lecture seule en 3a**. Les
   brouillons n'y figurent pas (entretien-local).

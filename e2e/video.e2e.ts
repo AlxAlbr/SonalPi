@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ajouterParModale, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * Vidéo (plan-video) : import d'un entretien avec un média VIDÉO (webm) + son
+ * Vidéo : import d'un entretien avec un média VIDÉO (webm) + son
  * SRT → l'écran bascule en MODE VIDÉO (zone média épinglée : lecteur+waveform
  * EMPILÉS à gauche ‖ panneau vidéo à droite, éditeur dessous), la synchro reste
  * calée sur les ancres, le double-espace play/pause agit sur la vidéo, la

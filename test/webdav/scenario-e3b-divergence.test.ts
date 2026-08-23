@@ -1,5 +1,5 @@
 /**
- * SCÉNARIO E3b contre les Nextcloud DOCKER réels (plan-multiuser.md §6) —
+ * SCÉNARIO de divergence/fusion contre les Nextcloud DOCKER réels —
  * le cycle complet de la DIVERGENCE à la FUSION assistée, à deux postes :
  *
  *   Poste MAX tient le verrou entretien et travaille localement ; un TIERS
@@ -9,14 +9,14 @@
  *
  *   1. l'API copies de divergence liste/lit la copie (= la version LOCALE,
  *      jamais celle du serveur) ;
- *   2. la FUSION §6 : le texte est identique des deux côtés → fusion
+ *   2. la FUSION : le texte est identique des deux côtés → fusion
  *      automatique proposée — les apports de la copie (annotation de max)
  *      rejoignent la version serveur (qui porte celle du tiers) — JAMAIS de
  *      merge de texte, JAMAIS d'écrasement ;
  *   3. reprise sous verrou (après « Abandonner » sur le verrou résiduel de la
  *      session dégradée), publication de la fusion → le serveur porte LES
  *      DEUX annotations ; copie jetée explicitement ;
- *   4. réconciliation I-POR-3 POST-PULL (§4.8 point 3) : une règle corpus
+ *   4. réconciliation POST-PULL : une règle corpus
  *      poussée par olivier PENDANT la session apparaît au prochain tirage —
  *      la ligne locale (brouillon « St-Anne ») diverge de la règle (« HSA »)
  *      → détectée, matière du dialogue « Aligner / Garder les deux ».
@@ -74,7 +74,7 @@ function corpusInitial(): string {
 }
 
 /** Texte IDENTIQUE dans toutes les versions — c'est la garde de la fusion
- *  automatique (§6.2 : on ne fusionne jamais deux textes différents). */
+ *  automatique : on ne fusionne jamais deux textes différents. */
 const CORPS = {
   type: 'doc',
   content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Bonjour Hopital Saint-Anne.' }] }],
@@ -181,7 +181,7 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     expect((await sessions.ouvrir(ID)).etat).toBe('a-nous')
 
     // 1. Édition locale de max : une annotation anon + un brouillon + une
-    //    valeur EAV. Le TEXTE ne bouge pas (garde de fusion §6.2).
+    //    valeur EAV. Le TEXTE ne bouge pas (garde de fusion).
     writeFichierLocal(max.miroir.dirLocal, entretien({
       annotations: [{ id: 'anno-max', type: 'anon', from: 2, to: 21, auteur: 'max', pseudo: 'St-Anne' }],
       brouillonsAnon: [{ entite: 'Hopital Saint-Anne', pseudo: 'St-Anne' }],
@@ -191,7 +191,7 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
 
     // 2. CONTOURNEMENT DU VERROU par le tiers (« UI web ») :
     //    - variante A : le filet files_lock rend la mort — l'écriture du
-    //      tiers sous NOTRE verrou est REFUSÉE 423 (contrat E2) ; il faut
+    //      tiers sous NOTRE verrou est REFUSÉE 423 ; il faut
     //      d'abord que le verrou saute (déverrouillage admin forcé),
     //    - variante B : rien n'empêche l'écriture directe.
     const clientOlivier = new ClientWebDAV({
@@ -213,7 +213,7 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     expect(retrogrades).toEqual([ID])
     expect(sessions.etat(ID).etat).toBe('aucune')
 
-    // 4. L'API copies de divergence (§6) : la copie existe, identifiée, et
+    // 4. L'API copies de divergence : la copie existe, identifiée, et
     //    son contenu est LA VERSION LOCALE de max (pas celle du serveur).
     const copies = sessions.listerDivergences()
     expect(copies).toHaveLength(1)
@@ -222,7 +222,7 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     expect(copie.annotations.map((a) => a.id)).toEqual(['anno-max'])
     expect(copie.meta.valeursGen['var-lieu']).toBe('mod-max')
 
-    // 5. FUSION §6 : tirer la version serveur (celle du tiers), vérifier la
+    // 5. FUSION : tirer la version serveur (celle du tiers), vérifier la
     //    garde « même texte », fusionner — les apports de la copie s'ajoutent,
     //    ceux du serveur sont conservés. JAMAIS d'écrasement.
     await max.miroir.tirer()
@@ -235,7 +235,7 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     expect(fusion.annotations.map((a) => a.id).sort()).toEqual(['anno-max', 'anno-olivier'])
 
     // 6. REPRISE sous verrou : le verrou résiduel de la session dégradée est
-    //    d'abord ABANDONNÉ (choix du dialogue §4.5), puis ré-acquis.
+    //    d'abord ABANDONNÉ (choix du dialogue de reprise), puis ré-acquis.
     const cheminVerrou = verrouNatif ? `entretiens/${ID}.json` : `verrous/${ID}.lock.json`
     await sessions.abandonnerOrphelin(cheminVerrou)
     expect((await sessions.ouvrir(ID)).etat).toBe('a-nous')
@@ -252,7 +252,7 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     sessions.supprimerDivergence(copies[0].chemin)
     expect(sessions.listerDivergences()).toEqual([])
 
-    // 9. Fermeture dans l'ordre invariant §4.4 : plus aucun verrou résiduel.
+    // 9. Fermeture dans l'ordre invariant : plus aucun verrou résiduel.
     await sessions.fermer(ID)
     if (verrouNatif) {
       expect(await max.client.etatVerrouNatif(`entretiens/${ID}.json`)).toBeNull()
@@ -260,12 +260,12 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
       await expect(max.client.getTexte(`verrous/${ID}.lock.json`)).rejects.toMatchObject({ statut: 404 })
     }
 
-    /* ── Réconciliation I-POR-3 POST-PULL (§4.8 point 3) ───────────────────*/
+    /* ── Réconciliation POST-PULL ─────────────────────────────────────────*/
     // Les lignes locales sont calculées AVANT le tirage (règles absentes).
     const lignesAvantPull = lignesAnonUnifiees(copie.brouillonsAnon ?? [], [], () => '', {}, [])
     expect(lignesAvantPick(lignesAvantPull)).toBe(true)
 
-    // Oliviers pousse une RÈGLE CORPUS pendant la session (transaction §4.7).
+    // Oliviers pousse une RÈGLE CORPUS pendant la session (transaction).
     const olivier = creerPoste(davOlivier, OLIVIER, 's-OLI-E3B', verrouNatif)
     await olivier.miroir.tirer()
     const regle = await olivier.tx.executer(() =>

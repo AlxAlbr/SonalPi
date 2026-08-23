@@ -113,7 +113,7 @@ export interface OccurrenceAnonProjection {
   /** Id de la règle corpus liée (portée corpus), sinon absent (standalone). */
   regle?: string
   /** `exception` = décision « laisser en clair » (le pseudo éventuel n'est
-   *  qu'une mémoire de modèle, jamais affichée ni sérialisée — cf. plan §2.1). */
+   *  qu'une mémoire de modèle, jamais affichée ni sérialisée). */
   etat?: 'anonymise' | 'exception'
 }
 
@@ -139,7 +139,7 @@ export function lignesAnonUnifiees(
     const cle = cleEntite(entite)
     let ligne = parCle.get(cle)
     if (!ligne) {
-      // Portée corpus (3b) : si une occurrence est liée à une règle, la ligne est
+      // Portée corpus : si une occurrence est liée à une règle, la ligne est
       // `corpus` et affiche les pseudos de la règle (« a / b » si multi).
       const regle = o.regle ? reglesAnon.find((r) => r.id === o.regle) : undefined
       let etat: EtatLigneAnon = 'entretien'
@@ -148,7 +148,7 @@ export function lignesAnonUnifiees(
         etat = 'corpus'
         pseudo = joindrePseudos(regle.pseudos)
       } else {
-        // Multi-pseudo standalone (3b) : un ensemble ≥2 déclaré prime sur le
+        // Multi-pseudo standalone : un ensemble ≥2 déclaré prime sur le
         // pseudo d'une occurrence pour l'AFFICHAGE « a / b ».
         const declares = pseudosDeclares[cle]
         if (declares && declares.length > 1) pseudo = joindrePseudos(declares)

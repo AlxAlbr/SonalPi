@@ -47,8 +47,8 @@ export function creerSonal() {
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirScanAnon(), // cache règles après mutation
-    lectureSeule: () => lectureSeule.value, // définitions (flux B) : grisage permanent avant E3
-    entretienEditable: () => !lectureSeule.value && !ent.verrouAutrui.value, // contenu (flux A) : ni hors ligne, ni verrou à autrui
+    lectureSeule: () => lectureSeule.value, // définitions : grisage permanent en distant
+    entretienEditable: () => !lectureSeule.value && !ent.verrouAutrui.value, // ni hors ligne, ni verrou à autrui
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -277,11 +277,11 @@ export function creerSonal() {
     idDistantCourant.value = r.distant.id // active la zone de synchro + le pull doux
     enLigne.value = true // l'ouverture vient de réussir (pull inclus)
     dernierTirage.value = new Date().toISOString() // le main vient de tirer
-    absorberVerrous(r.verrous) // badges fiables du premier pull (§3.1)
+    absorberVerrous(r.verrous) // badges fiables dès le premier pull
     audiosInaccessibles.value = r.inaccessibles ?? [] // audios désignés non rapatriés
     profil.dossierCourantNom.value = r.nom
     await appliquerCorpus(r.corpus, r.dir)
-    // Reprise crash (§4.5) : des verrous orphelins de NOTRE machine ? Le
+    // Verrous orphelins de NOTRE machine (crash sans libération) ? Le
     // dialogue propose reprendre/abandonner ; « plus tard » garde l'état.
     orphelinsDistants.value = (await window.sonal.distant.orphelins()) ?? []
     vue.value = 'corpus'
@@ -305,14 +305,14 @@ export function creerSonal() {
     return r.compte
   }
 
-  // ── Badges de verrou fiables (§3.1/§10) : l'état « tenu par X » en vue
-  //    Corpus vient du SERVEUR (scan verrous/ à chaque pull), pas d'une
-  //    déduction. Clé = id d'entretien.
+  // ── Badges de verrou fiables : l'état « tenu par X » en vue Corpus
+  //    vient du SERVEUR (scan verrous/ à chaque pull), pas d'une déduction.
+  //    Clé = id d'entretien.
   const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
   /** Absorbe les verrous vus au pull (ou à l'ouverture) dans les badges. Les
    *  deux conventions de chemin sont acceptées : `verrous/<id>.lock.json`
    *  (variante B) et `entretiens/<id>.json` (variante A — le PROPFIND
-   *  files_lock porte sur les fichiers de données eux-mêmes, §8). */
+   *  files_lock porte sur les fichiers de données eux-mêmes). */
   function absorberVerrous(entrees: { chemin: string; contenu: EtatVerrouPublic | null }[]) {
     const suivant: Record<string, EtatVerrouPublic> = {}
     for (const e of entrees) {
@@ -328,9 +328,9 @@ export function creerSonal() {
     return badgesVerrous.value[id] ?? null
   }
 
-  // ── Présence (E4 §9) : « ouvert par Olivier » — informatif, JAMAIS
-  //    décisionnel. La liste vient du tirage (filtrée côté main : périmées
-  //    et notre propre poste exclus).
+  // ── Présence : « ouvert par Olivier » — informatif, JAMAIS décisionnel.
+  //    La liste vient du tirage (filtrée côté main : périmées et notre propre
+  //    poste exclus).
   const presences = ref<PresencePublic[]>([])
   /** Absorbe les présences d'un tirage (absentes en local → liste vide). */
   function absorberPresences(liste?: PresencePublic[]) {
@@ -342,7 +342,7 @@ export function creerSonal() {
     return presences.value.filter((p) => p.entretienOuvert === id)
   }
 
-  // ── Reprise crash (§4.5) : orphelins proposés au dialogue ────────────────
+  // ── Reprise crash : orphelins proposés au dialogue ──────────────────────
   const orphelinsDistants = ref<OrphelinDistant[]>([])
   /** « Reprendre et publier » : publie la copie locale puis libère ; rafraîchit
    *  ensuite (notre publication a changé le serveur, et le badge doit tomber). */
@@ -359,7 +359,7 @@ export function creerSonal() {
     await actualiserDistant(true)
   }
 
-  // ── Corpus distant : « Actualiser » + minuterie douce (plan §3.2 et §10) ──
+  // ── Corpus distant : « Actualiser » + minuterie douce ───────────────────
   // Le déclencheur est le PULL — pas un watcher fichier : après un tirage, une
   // re-requête suffit (les vues corpus sont sans cache). Minuterie douce ~60 s
   // quand l'écran Corpus est affiché ; « Actualiser » force à la demande.
@@ -379,10 +379,10 @@ export function creerSonal() {
     if (!p || !p.total) return null
     return Math.min(100, Math.round((p.octets / p.total) * 100))
   })
-  /** Connectivité OBSERVÉE (E3, politique α §4.6.1) : le pull est la sonde.
-   *  Un tirage réussi → en ligne ; un échec silencieux (minuterie) → hors
-   *  ligne : les gestes flux B sont grisés (« nécessite une connexion »),
-   *  l'édition locale des entretiens sous verrou continue (flux A). */
+  /** Connectivité OBSERVÉE : le pull est la sonde. Un tirage réussi → en
+   *  ligne ; un échec silencieux (minuterie) → hors ligne : les gestes sur les
+   *  définitions sont grisés (« nécessite une connexion »), l'édition locale
+   *  des entretiens sous verrou continue. */
   const enLigne = ref(true)
   /** Retour au LOCAL : les états du distant tombent (badges, orphelins,
    *  horodatage). Appelé par chaque changement de corpus vers un dossier local. */
@@ -397,27 +397,25 @@ export function creerSonal() {
     divergenceProposee.value = null
     enLigne.value = true // redevient pertinent au prochain corpus distant
   }
-  /** E3 (politique α §4.6.1) : en distant, les définitions (flux B) exigent la
-   *  connexion — hors ligne, lecture seule pour le flux B seulement ; le flux A
-   *  (contenu d'un entretien sous NOTRE verrou) reste éditable. Avant E3,
-   *  `idDistantCourant` seul suffisait (lecture seule stricte E0). */
+  /** En distant HORS LIGNE, lecture seule pour les DÉFINITIONS seulement :
+   *  le contenu d'un entretien sous NOTRE verrou reste éditable. En ligne,
+   *  tout est éditable selon ses gardes propres. */
   const lectureSeule = computed(() => idDistantCourant.value !== null && !enLigne.value)
 
-  /** plan-saisie-cellule-table.md §4 : garde de la Table de données PAR LIGNE.
-   *  Dans la table on ne tient JAMAIS de session (y entrer ferme toute session
-   *  d'écriture), donc tout badge 🔒 est nécessairement autrui → ligne non
-   *  éditable. Ne pas confondre avec `entretienEditable`, propre à l'écran
-   *  Entretien ouvert. */
+  /** Garde de la Table de données PAR LIGNE. Dans la table on ne tient JAMAIS
+   *  de session (y entrer ferme toute session d'écriture), donc tout badge 🔒
+   *  est nécessairement autrui → ligne non éditable. Ne pas confondre avec
+   *  `entretienEditable`, propre à l'écran Entretien ouvert. */
   function tableLigneEditable(id: string): boolean {
     return !lectureSeule.value && !badgeVerrou(id)
   }
 
   /** Tire le miroir et absorbe TOUJOURS l'état des verrous (badges fiables).
    *  Si le contenu a changé côté serveur :
-   *   - aucun entretien ouvert → ré-application complète (comme E0) ;
+   *   - aucun entretien ouvert → ré-application complète ;
    *   - un entretien OUVERT → rafraîchissement SANS fermer la session
    *     (l'éditeur reste monté ; le fichier sous notre verrou n'a pas pu être
-   *     écrasé par le pull — exclusion §3.1/E1).
+   *     écrasé par le pull).
    *  `silencieux` (minuterie) : une panne réseau ne crie pas — on garde la
    *  copie locale datée, le prochain tick réessaiera.
    *  Retourne false si le corpus courant est local (rien à tirer). */
@@ -434,12 +432,12 @@ export function creerSonal() {
       dernierTirage.value = t.date
       absorberVerrous(t.verrous)
       absorberPresences(t.presences)
-      // plan-audio-distant.md §3 : audios désignés NON rapatriés au tirage
+      // Audios désignés NON rapatriés au tirage
       // (403 droits, 404, réseau) — matière de l'étiquette du lecteur.
       audiosInaccessibles.value = t.inaccessibles ?? []
-      // I-POR-3 post-pull (§4.8) : un collègue a poussé des règles corpus ?
-      // Rejouer la réconciliation sur l'entretien OUVERT (même dialogue que
-      // la promotion — jamais de divergence silencieuse).
+      // Un collègue a poussé des règles corpus ? Rejouer la réconciliation
+      // sur l'entretien OUVERT (même dialogue que la promotion — jamais de
+      // divergence silencieuse).
       if (t.telecharges.includes('corpus.json') && ent.ouvertId.value) {
         ent.detecterDivergencesPostTirage()
       }
@@ -453,7 +451,7 @@ export function creerSonal() {
       return true
     } catch (e) {
       if (!silencieux) throw e
-      enLigne.value = false // minuterie : panne réseau → politique α (flux B verrouillé)
+      enLigne.value = false // minuterie : panne réseau → définitions verrouillées
       return false
     } finally {
       tirageEnCours.value = false
@@ -464,7 +462,7 @@ export function creerSonal() {
   /** Rafraîchit définitions + membership depuis le miroir SANS toucher à
    *  l'entretien ouvert (pas de `ent.reinitialiser`, pas de coupure audio) —
    *  un collègue a publié pendant notre session : ses changements suivent,
-   *  notre édition continue (E1). */
+   *  notre édition continue. */
   async function rafraichirCorpusSansFermer() {
     const c = await window.sonal.corpus.ouvrir()
     corpus.membership.value = c.membership
@@ -480,12 +478,12 @@ export function creerSonal() {
     if (vue.value === 'corpus' && idDistantCourant.value) void actualiserDistant(true)
   }, 60_000)
 
-  // ── E1 : statut de la session d'écriture de l'entretien ouvert ────────────
+  // ── Statut de la session d'écriture de l'entretien ouvert ───────────────
   // Poll doux (5 s) tant qu'un entretien est ouvert en corpus distant ;
   // l'état vient du main (`SessionsDEntretien.etat`) : sale ? dernier publi ?
   type EtatSessionPublic = { etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }
   const statutSession = ref<EtatSessionPublic>({ etat: 'aucune' })
-  /** Message d'échec de publication (divergence §6) affiché près du statut. */
+  /** Message d'échec de publication (divergence) affiché près du statut. */
   const publiErreur = ref<string | null>(null)
   async function rafraichirStatutSession() {
     const id = ent.ouvertId.value
@@ -504,7 +502,7 @@ export function creerSonal() {
   }, 5_000)
   watch([ent.ouvertId, idDistantCourant], () => void rafraichirStatutSession())
 
-  /** « Publier maintenant » (§4.3) : sauve d'abord l'autosave éventuel, puis PUT
+  /** « Publier maintenant » : sauve d'abord l'autosave éventuel, puis PUT
    *  If-Match sous verrou toujours tenu. Divergence → message net, JAMAIS
    *  d'écrasement (la copie locale a été mise de côté côté main). */
   async function publierMaintenant(): Promise<void> {
@@ -534,7 +532,7 @@ export function creerSonal() {
     await profil.rafraichirRecents()
     quitterDistant()
     await appliquerCorpus(r.corpus, r.dir)
-    // E2 — entretiens : chaque `tabEnt[]` V1 → un entretien V2.
+    // Migration V1 : chaque `tabEnt[]` → un entretien.
     for (const e of mapperEntretiensV1(tabEntV1)) await importerEntretienV1(req.cheminCrp, e)
     await rafraichirAudios()
     vue.value = 'corpus'
@@ -543,16 +541,16 @@ export function creerSonal() {
   /** Entretien VIDE (Q1b : .sonal absent ou illisible) — même doc que le store. */
   const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
 
-  /** Crée un entretien V2 depuis un `tabEnt[]` V1 (E2, plan §3.1) : lit le
-   *  `.sonal` (rtrPath relatif au dossier du .crp, résolu par le main) via le
-   *  pipeline `importSonal.ts` (MÊME format de fichier), y pose `audioRef`
-   *  (audioPath V1 absolu — déjà au format v3, référence pas de copie) et la
-   *  trace `meta.sourceV1.rtrPath`.
-   *  Q7 : DÉFINITIONS à vide — le codebook/variables du .crp ont déjà été
-   *  écrits par E3 et font foi ; les copies divergentes d'un .sonal ne les
-   *  touchent pas. Seules les RÈGLES du .sonal (anon-json) sont reprises,
-   *  comme à l'import normal (les annotations y sont liées — round-trip).
-   *  Q1b : .sonal absent/illisible → entretien VIDE avec juste l'audio. */
+  /** Crée un entretien depuis un `tabEnt[]` V1 : lit le `.sonal` (rtrPath
+   *  relatif au dossier du .crp, résolu par le main) via le pipeline
+   *  `importSonal.ts` (MÊME format de fichier), y pose `audioRef` (audioPath
+   *  V1 absolu — déjà au format v3, référence pas de copie) et la trace
+   *  `meta.sourceV1.rtrPath`.
+   *  DÉFINITIONS à vide : le codebook/variables du .crp font déjà foi ; les
+   *  copies divergentes d'un .sonal ne les touchent pas. Seules les RÈGLES du
+   *  .sonal (anon-json) sont reprises, comme à l'import normal (les
+   *  annotations y sont liées — round-trip). Un .sonal absent ou illisible →
+   *  entretien VIDE avec juste l'audio. */
   async function importerEntretienV1(cheminCrp: string, e: EntretienV1Import) {
     let payload: PayloadEntretien | null = null
     let reglesAnon: RegleAnon[] | undefined
@@ -599,17 +597,17 @@ export function creerSonal() {
 
   /** Entrer dans un entretien = le charger (scope entretien), charger son audio
    *  ET basculer sur son écran. En distant : proposer au passage la FUSION d'une
-   *  éventuelle copie de divergence (§6 — mise de côté par une rétrogradation). */
+   *  éventuelle copie de divergence (mise de côté par une rétrogradation). */
   async function ouvrirEntretien(id: string) {
     if (!(await ent.ouvrir(id))) return
-    // Présence §9 : les autres postes verront « ouvert par nous ». Best effort.
+    // Présence : les autres postes verront « ouvert par nous ». Best effort.
     if (idDistantCourant.value) void window.sonal.distant.noterEntretienOuvert(id)
     await proposerFusionDivergence(id)
     await majAudioEntretien(id)
     vue.value = 'entretien'
   }
 
-  /* ── Fusion assistée §6 (copie de divergence à la réouverture) ────────── */
+  /* ── Fusion assistée (copie de divergence à la réouverture) ──────────── */
   /** Copie proposée au dialogue (null = rien à proposer / déjà traité).
    *  Le contenu est lu UNE fois ; `fusionnable` = garde « texte identique ».
    *  Types : contenu = EntretienFichier brut du main (validation défensive au
@@ -646,8 +644,8 @@ export function creerSonal() {
     await window.sonal.distant.supprimerDivergence(d.chemin)
     divergenceProposee.value = null
   }
-  /** Même garde que l'éditeur (flux A) : le dialogue de fusion n'active
-   *  « Fusionner » que si l'entretien ouvert est réellement éditable. */
+  /** Même garde que l'éditeur : le dialogue de fusion n'active « Fusionner »
+   *  que si l'entretien ouvert est réellement éditable. */
   const entretienEditable = computed(() => !lectureSeule.value && !ent.verrouAutrui.value)
 
   /** « Jeter » : la copie est abandonnée explicitement (jamais automatique). */
@@ -750,9 +748,9 @@ export function creerSonal() {
     }
   }
 
-  /** « Associer l'audio local… » (§3.3, E4) : en corpus DISTANT, l'audioRef
-   *  partagée pointe chez le poste qui a assigné ; on RÉFÉRENCE ici un fichier
-   *  de NOTRE machine (parité assignerAudio : jamais de copie) dans une
+  /** « Associer l'audio local… » : en corpus DISTANT, l'audioRef partagée
+   *  pointe chez le poste qui a assigné ; on RÉFÉRENCE ici un fichier de
+   *  NOTRE machine (parité assignerAudio : jamais de copie) dans une
    *  association machine-locale — PAS dans le JSON partagé : écrire notre
    *  chemin absolu déclencherait des publications en cascade entre postes.
    *  L'onde est régénérée (dérivé local) et le lecteur rechargé. */
@@ -768,8 +766,8 @@ export function creerSonal() {
     audiosManquants.value = await verifierIntegriteAudios()
   }
 
-  // ── État de l'audio désigné, à côté de la barre de lecture (A5) ──────────
-  /** Derniers échecs de rapatriement (plan-audio-distant.md D3) — croisés avec
+  // ── État du média désigné, à côté de la barre de lecture ───────────────
+  /** Derniers échecs de rapatriement — croisés avec
    *  la désignation de l'entretien ouvert pour distinguer « pas encore ici »
    *  de « bloqué par les droits ». */
   const audiosInaccessibles = ref<{ chemin: string; raison: string }[]>([])
@@ -797,9 +795,9 @@ export function creerSonal() {
     if (ent.ouvertId.value) await majAudioEntretien(ent.ouvertId.value)
   }
 
-  /** A5 — création en corpus DISTANT avec audio Nextcloud : on crée
-   *  l'entretien vide d'abord (transaction définitions), la modale de
-   *  désignation fait le reste. Retourne l'id, ou null si refus. */
+  /** Création en corpus DISTANT avec média Nextcloud : on crée l'entretien
+   *  vide d'abord (transaction définitions), la modale de désignation fait le
+   *  reste. Retourne l'id, ou null si refus. */
   async function creerEntretienVideDistant(titre: string): Promise<string | null> {
     if (!titre.trim()) return null
     const res = await window.sonal.corpus.creerEntretienVide(titre.trim())
@@ -808,7 +806,7 @@ export function creerSonal() {
     return res.id
   }
 
-  // ── Désignation audio distante (plan-audio-distant.md A3) ─────────────
+  // ── Désignation audio distante ─────────────────────────────────────────
   /** Entretien cible de la modale « Désigner dans Nextcloud… » (null = fermée). */
   const designationAudioId = ref<string | null>(null)
 
@@ -821,10 +819,10 @@ export function creerSonal() {
   }
 
   /** Confirmation de la modale : pose `meta.audioDistant` sur l'entretien cible.
-   *  Deux chemins (D4) — entretien OUVERT chez nous : le modèle en session
-   *  porte le champ, `sauver()` + publication périodique font le reste ;
-   *  entretien FERMÉ : micro-session côté main (`designerAudio`). Puis tirage
-   *  immédiat pour rapatrier la copie miroir et rafraîchir vues + lecteur. */
+   *  Entretien OUVERT chez nous : le modèle en session porte le champ,
+   *  `sauver()` + publication périodique font le reste ; entretien FERMÉ :
+   *  micro-session côté main (`designerAudio`). Puis tirage immédiat pour
+   *  rapatrier la copie miroir et rafraîchir vues + lecteur. */
   async function confirmerDesignationAudio(chemin: string): Promise<void> {
     const id = designationAudioId.value
     if (!id) return
@@ -869,9 +867,9 @@ export function creerSonal() {
 
   async function supprimer(id: string) {
     // Fermer D'ABORD l'entretien s'il est ouvert : en distant, notre propre
-    // session tient le verrou que la suppression doit acquérir (double verrou
-    // §4.8) — et fermer publie puis libère dans l'ordre invariant §4.4,
-    // jamais d'orphelin.
+    // session tient le verrou que la suppression doit acquérir (double verrou)
+    // — et fermer publie puis libère dans l'ordre invariant, jamais
+    // d'orphelin.
     if (ent.ouvertId.value === id) await fermerEntretien()
     corpus.membership.value = (await window.sonal.corpus.supprimerEntretien(id)).membership
     if (reprise.value?.id === id) reprise.value = null
@@ -885,13 +883,12 @@ export function creerSonal() {
     ent.allerAuTexte(pos)
   }
 
-  /** « Saisir… » depuis la Table de données (plan-lot-table-donnees.md §3) :
-   *  ouvre CET entretien directement sur son onglet Donnée. Le cycle verrou
-   *  existant fait tout le travail : entretien libre → verrou accordé à
-   *  l'ouverture, saisie permise ; ouvert par autrui → lecture seule avec
-   *  bandeau nominatif (comportement existant). Aucun nouveau protocole —
-   *  `ouvrirEntretien` suffit ; on force juste l'onglet quand l'ouverture a
-   *  réussi (lecture seule comprise : les champs y sont grisés). */
+  /** « Saisir… » depuis la Table de données : ouvre CET entretien directement
+   *  sur son onglet Donnée. Le cycle verrou existant fait tout le travail :
+   *  entretien libre → verrou accordé à l'ouverture, saisie permise ; ouvert
+   *  par autrui → lecture seule avec bandeau nominatif. Aucun nouveau
+   *  protocole — `ouvrirEntretien` suffit ; on force juste l'onglet quand
+   *  l'ouverture a réussi (lecture seule comprise : les champs y sont grisés). */
   async function allerSaisieDonnees(id: string) {
     await ouvrirEntretien(id)
     if (ent.ouvertId.value === id) ent.ongletDroite.value = 'donnees'
@@ -923,14 +920,13 @@ export function creerSonal() {
     if (!id) return
     // Sauvegarde SEULEMENT si nous avons le droit d'écrire : en lecture seule
     // (verrou à autrui / hors ligne), rien n'a pu changer — écrire ferait
-    // rejeter par la garde du store et bloquerait la sortie (bug E4 : le
-    // scénario visible à deux postes a attrapé un blocage « sauvegarde… »).
+    // rejeter par la garde du store et bloquerait la sortie.
     const peutEcrire =
       !idDistantCourant.value || (!lectureSeule.value && !ent.verrouAutrui.value)
     if (peutEcrire) await ent.sauver()
-    // Corpus distant : publication finale PUIS libération du verrou (§4.4 —
-    // l'ordre est l'invariant central ; le main ne libère jamais sur un contenu
-    // non parti). Sans effet en corpus local.
+    // Corpus distant : publication finale PUIS libération du verrou —
+    // l'ordre est l'invariant central ; le main ne libère jamais sur un
+    // contenu non parti. Sans effet en corpus local.
     if (idDistantCourant.value) {
       try {
         await window.sonal.corpus.fermerEntretien(id)

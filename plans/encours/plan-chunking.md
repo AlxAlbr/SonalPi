@@ -1,9 +1,9 @@
 # Plan chunking — téléversement segmenté sans dépendance
 
-> Suite du travail « média distant » (plan-audio-distant.md + streaming B1/B2,
-> progression B3 — désormais intégrés). Ce plan couvre le SEUL reste ouvert :
-> l'upload des très gros fichiers quand les limites serveur s'en mêlent
-> (ex-étape B5 d'un plan vidéo aujourd'hui absorbé ici).
+> Suite du travail « média distant » intégré (désignation Nextcloud, tirage
+> miroir sélectif, streaming download/upload, progression IPC). Ce plan couvre
+> le SEUL reste ouvert : l'upload des très gros fichiers quand les limites
+> serveur s'en mêlent.
 
 ## 0. Déclenchement et décision structurante
 
@@ -47,8 +47,8 @@ Propriétés utiles :
 - l'échec du chunk k n'invalide pas les chunks 1..k−1 : reprise native en
   re-émettant CE chunk seul (le dossier de transfert persiste côté serveur) ;
 - le MOVE d'assemblage accepte nos préconditions habituelles (If-Match sur la
-  destination → la garde anti-écrasement D5 du plan audio s'applique telle
-  quelle).
+  destination → la garde anti-écrasement existante (PROPFIND de la destination
+  + suggestion suffixée) s'applique telle quelle avant tout envoi) ;
 
 ## D2 — API dans `client.ts` (pas ailleurs)
 

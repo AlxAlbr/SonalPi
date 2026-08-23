@@ -4,7 +4,7 @@ import { utiliserSonal } from '../composables/sonal'
 import { estMedia, extensionDe, EXT_VIDEO } from '../../shared/media'
 
 /**
- * Modale « Désigner dans le Nextcloud… » (plan-audio-distant.md A3) : lier un
+ * Modale « Désigner dans le Nextcloud… » : lier un
  * entretien à un fichier MÉDIA (audio OU vidéo) QUI VIT SUR LE SERVEUR.
  * Navigation par dossiers (PROPFIND Depth:1 côté main — `distant:listerDossier`),
  * `audios/` proposé comme point d'entrée quand il existe. Les fichiers hors
@@ -12,8 +12,9 @@ import { estMedia, extensionDe, EXT_VIDEO } from '../../shared/media'
  * — désigner un PDF ne ferait que remplir les miroirs d'un fichier illisible.
  *
  * La désignation est une ÉCRITURE PARTAGÉE : elle passe par le protocole de
- * session (micro-session D4 si l'entretien est fermé). Un refus (verrou tenu
- * par autrui) reste affiché dans la modale — jamais d'écrasement silencieux.
+ * session (micro-session dédiée si l'entretien est fermé). Un refus
+ * (verrou tenu par autrui) reste affiché dans la modale — jamais d'écrasement
+ * silencieux.
  */
 const { designationAudioId, fermerDesignationAudio, confirmerDesignationAudio, membership, progressionDistant, pourcentageProgression } =
   utiliserSonal()
@@ -98,7 +99,7 @@ async function confirmer() {
   }
 }
 
-/* ── Téléversement (plan-audio-distant.md D5) ───────────────────────────
+/* ── Téléversement ──────────────────────────────────────────────────────
  *  « ➕ Téléverser un fichier de ce poste… » : dialogue natif → PUT vers le
  *  dossier COURANT de la navigation (`audios/` par défaut — créé s'il manque)
  *  → désignation dans la foulée (un seul geste pour l'utilisateur). Collision
@@ -215,7 +216,7 @@ async function choisirEtTeleverser(nomForce?: string) {
               </button>
             </li>
           </template>
-          <!-- plan-audio-distant.md D5 : envoyer un fichier LOCAL vers le
+          <!-- Envoyer un fichier LOCAL vers le
                dossier courant, puis désignation automatique. -->
           <li class="televerser">
             <button class="item ajouter" :disabled="enTeleversement" @click="choisirEtTeleverser()">

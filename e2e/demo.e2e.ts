@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { lancer, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * Mini Corpus Test (plan-tutoriel §11-12, plan-reference-audio §7, J7) : depuis
+ * Mini Corpus Test : depuis
  * l'Accueil, les cartes passent par la MODALE ADAPTATIVE puis construisent le
  * corpus de test via le vrai pipeline d'import. Chaque mode a son PROPRE dossier
  * de corpus, choisi DIRECTEMENT par l'utilisateur (un dossier = un corpus) :
@@ -17,7 +17,7 @@ import { lancer, attendreAccueil, attendreCorpus } from './util'
  * sont partagées (copiées une fois). Le marqueur `corpus.json: { demo: { mode,
  * racineSources, validees } }` identifie un corpus de test (absent = corpus normal).
  *
- * Modèle par RÉFÉRENCE (§4) : les sources sont copiées UNE fois dans le dossier
+ * Modèle par RÉFÉRENCE : les sources sont copiées UNE fois dans le dossier
  * choisi (demo:copierSources) ; le corpus RÉFÉRENCE leurs fichiers — aucune
  * copie d'audio dans le corpus (seuls les PNG d'onde dans png/).
  */

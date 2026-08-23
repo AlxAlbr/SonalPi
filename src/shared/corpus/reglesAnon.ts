@@ -1,5 +1,5 @@
 /**
- * Règles corpus (`RegleAnon`) — cœur PUR (3b, plan_anon_suite §4.2/§4.3).
+ * Règles corpus (`RegleAnon`) — cœur PUR : aucune I/O, aucune dépendance UI.
  *
  * La règle est la SEULE vérité « entité → pseudos » partagée au corpus
  * (`corpus.json.reglesAnon`). Le store ne fait que lire → appliquer → écrire ;

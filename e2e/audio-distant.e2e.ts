@@ -1,5 +1,5 @@
 /**
- * SCÉNARIO E2E — AUDIO DISTANT (plan-audio-distant.md, A1→A5) sur la pile
+ * SCÉNARIO E2E — AUDIO DISTANT sur la pile
  * Nextcloud Docker (pile A, :8080). Deux instances Electron réelles :
  *
  *   1. MAX ouvre le corpus distant, sélectionne « Entretien partagé » et
@@ -14,7 +14,7 @@
  *   3. OLIVIER ouvre « Entretien sans son », dont la désignation pointe vers
  *      un fichier ABSENT du serveur : le pull l'a signalé inaccessible et le
  *      LECTEUR affiche l'étiquette d'état explicative (« 🔒 … droits ») avec
- *      son bouton « Réessayer » (A5).
+ *      son bouton « Réessayer ».
  *
  * Skippé si la pile ne répond pas (`npm run nc:up && npm run nc:provision`).
  */

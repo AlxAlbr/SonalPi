@@ -2,7 +2,7 @@
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Dialogue de FUSION ASSISTÉE (plan-multiuser.md §6, E3b) — proposé à la
+ * Dialogue de FUSION ASSISTÉE — proposé à la
  * RÉOUVERTURE d'un entretien dont une publication avait fini en divergence
  * (412 : contournement du verrou). La copie mise de côté n'a jamais été ni
  * perdue ni publiée en silence ; trois choix :

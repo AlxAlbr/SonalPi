@@ -133,12 +133,12 @@ declare global {
         listerDossier: (
           dossier: string,
         ) => Promise<{ entrees: { nom: string; dossier: boolean }[] } | null>
-        /** Désignation audio distante sur un entretien FERMÉ (micro-session D4). */
+        /** Désignation audio distante sur un entretien FERMÉ (micro-session). */
         designerAudio: (
           id: string,
           cheminAudio: string,
         ) => Promise<{ ok: boolean; raison?: string; tenuPar?: string }>
-        /** Téléversement d'un fichier LOCAL vers le serveur (D5). */
+        /** Téléversement d'un fichier LOCAL vers le serveur. */
         televerserAudio: (
           sourceLocale: string,
           cheminCible: string,
@@ -152,7 +152,7 @@ declare global {
         listerDivergences: () => Promise<DivergenceDistante[]>
         lireDivergence: (chemin: string) => Promise<unknown>
         supprimerDivergence: (chemin: string) => Promise<void>
-        /** Présence (E4 §9) : signale l'entretien ouvert sur CE poste (null =
+        /** Présence : signale l'entretien ouvert sur CE poste (null =
          *  aucun / retour à l'écran Corpus). Best effort côté main. */
         noterEntretienOuvert: (id: string | null) => Promise<void>
         oublier: (id: string) => Promise<CompteDistantPublic[]>

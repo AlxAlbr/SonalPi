@@ -359,7 +359,7 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
     expect(store.cheminMediaAbs(source)).toBeNull()
   })
 
-  /* ── §3.3 (E4) : association audio MACHINE-LOCALE sur un poste distant ── */
+  /* ── Association audio MACHINE-LOCALE sur un poste distant ── */
 
   test('associerAudioLocal : RÉFÉRENCE sans copier, ne touche PAS au JSON partagé', () => {
     const { store, dir } = storeNeuf()
@@ -388,7 +388,7 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
     expect(locaux[id]).toBe(fichierLocal)
   })
 
-  test('retombée locale §3.3 : verifierAudios/audios()/cheminMediaAbs résolvent le fichier local', () => {
+  test('retombée locale : verifierAudios/audios()/cheminMediaAbs résolvent le fichier local', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     const { id } = store.creerEntretienVide('Ent')
@@ -635,7 +635,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
   })
 })
 
-describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
+describe('CorpusStore — CRUD du codebook (thèmes)', () => {
   test('ajouter une catégorie → id opaque, codeExport cat_NNN libre, ordre en fin', () => {
     const { store } = storeNeuf()
     store.ouvrir() // seed cat_001..007 (3 démo + bloc Pondérations)
@@ -732,7 +732,7 @@ describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
   })
 })
 
-describe('CorpusStore — EAV (variables/modalités/valeurs/matrice, étape 6)', () => {
+describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
   /** Entretien avec une valeur gen et une valeur loc (par leur propriétaire). */
   const entretienAvecValeurs = (varGen: string, modGen: string, varLoc: string, modLoc: string) => ({
     corpsTexte: { type: 'doc', content: [] },
@@ -812,7 +812,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice, étape 6)',
   })
 })
 
-describe('CorpusStore — règles corpus & scan anon (étape 3a, lecture)', () => {
+describe('CorpusStore — règles corpus & scan anon (lecture)', () => {
   test('scanAnon/reglesAnon : relit le disque et classe les occurrences par règle', () => {
     const { store, dir } = storeNeuf()
     // La baseline e1 contient « Karine habite Lyon depuis sa retraite. »
@@ -922,8 +922,8 @@ describe('CorpusStore — application en masse d’une règle sur un entretien f
   })
 })
 
-describe('CorpusStore — migration SonalPi V1 → V2 (E3 : migrerDepuisV1)', () => {
-  /** Un .crp V1 (E0) → définitions mappées (E1) → store sur le dossier dédié. */
+describe('CorpusStore — migration SonalPi V1 → V2 (migrerDepuisV1)', () => {
+  /** Un `.crp` V1 → définitions mappées → store sur le dossier dédié. */
   function definitionsDepuisFixture() {
     const crp = readFileSync(join(process.cwd(), 'test/fixtures/corpusV1.crp'), 'utf8')
     const a = analyserCrp(crp, 'MonCorpus.crp')
@@ -985,8 +985,8 @@ describe('CorpusStore — migration SonalPi V1 → V2 (E3 : migrerDepuisV1)', ()
 })
 
 describe('CorpusStore — garde lectureSeule (E0 corpus distant)', () => {
-  /** Store de démo en mode « miroir distant » (E0 : pas encore de verrou ni
-   *  de publication → toute écriture refusée, cf. plan-multiuser.md). */
+  /** Store de démo en mode « miroir distant » (lecture seule : pas encore de verrou ni
+   *  de publication → toute écriture refusée). */
   function storeRo() {
     const s = storeNeuf()
     s.store.lectureSeule = true

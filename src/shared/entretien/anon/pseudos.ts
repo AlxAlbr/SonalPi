@@ -1,5 +1,5 @@
 /**
- * Multi-pseudo ≤2 — cœur PUR (3b, plan_anon_suite §4.3).
+ * Multi-pseudo ≤2 — cœur PUR : aucune I/O, aucune dépendance UI.
  *
  * Une `RegleAnon` peut porter DEUX pseudos pour une même entité (parité V1
  * SonalPi : `remplacement` + `remplacementAlt`, capé à 2 — le round-trip `.sonal`

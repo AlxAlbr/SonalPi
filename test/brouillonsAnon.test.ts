@@ -13,7 +13,7 @@ import { aplatir, occurrencesDe, plageVersPM } from '../src/shared/entretien/ano
 import type { BrouillonAnon } from '../src/shared/format'
 
 /**
- * Brouillons d'anonymisation (pur) — étape 0 : le draft entretien-local.
+ * Brouillons d'anonymisation (pur) — le draft est entretien-local.
  * Un brouillon est une entité saisie SANS occurrence posée ; ce n'est PAS une
  * règle. Validé (Entrée) → occurrences posées + brouillon consommé.
  * Headless : le lecteur de texte (`texteEntre`) est injecté.
@@ -121,7 +121,7 @@ describe('dérivation de l’état d’une ligne (brouillon vs entretien)', () =
     expect(l.occurrenceIds).toEqual(['a0', 'a1', 'a2'])
   })
 
-  test('compteurs scindés : une ligne mélangée compte anonymisé et exception (étape 1 §2.6)', () => {
+  test('compteurs scindés : une ligne mélangée compte anonymisé et exception', () => {
     const k = occurrencesKarine()
     // 1re occurrence laissée en clair (exception), les 2 autres anonymisées.
     const occ = [{ ...k[0], etat: 'exception' as const }, ...k.slice(1)]

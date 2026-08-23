@@ -8,10 +8,10 @@ import { decoderCrp } from '../src/main/encodage'
 import type { CorpusFichier } from '../src/shared/format'
 
 /**
- * E0 — lecture + aperçu du `.crp` SonalPi V1 (plan-migration.md §5).
+ * Lecture + aperçu du `.crp` SonalPi V1.
  * Le parseur est PUR (`shared/corpus/migrationCrp.ts`) ; le décodage
  * d'encodage vit dans le main (`src/main/encodage.ts`, chardet + iconv-lite
- * comme la V1, Q2). Ici : parse du JSON V1 réel (fixtures + windows-1252),
+ * comme la V1). Ici : parse du JSON V1 réel (fixtures + windows-1252),
  * gardes d'entrée (version inconnue / JSON invalide / structure), normalisations
  * défensives (taille '', couleurs '', priv string, champ gen/loc).
  */
@@ -39,7 +39,7 @@ describe('analyserCrp — corpus V1 SAVÉ (sans nom/dateCreation/version, comme 
     expect(themes[0]).toEqual({ nom: 'Pondérations', couleur: null, taille: null })
     // ★★★ Très important : taille 24 préservée
     expect(themes[1]).toEqual({ nom: '★★★ Très important', couleur: null, taille: 24 })
-    // Thème principal : hex préservé tel quel (E1 normalisera si besoin, Q4)
+    // Thème principal : hex préservé tel quel
     expect(themes[4]).toEqual({ nom: 'Thème principal', couleur: '#0331ff', taille: null })
   })
 
@@ -52,27 +52,27 @@ describe('analyserCrp — corpus V1 SAVÉ (sans nom/dateCreation/version, comme 
     expect(variables[2]).toEqual({ lib: 'diplôme', portee: 'entretien', priv: true })
   })
 
-  test('règles d’anon : aperçu {entite, remplacement} (E4 fera le mapping)', () => {
+  test('règles d’anon : aperçu {entite, remplacement}', () => {
     if (!analyse.ok) return
     const { reglesAnon } = analyse.apercu
     expect(reglesAnon).toHaveLength(3)
     expect(reglesAnon[0]).toEqual({ entite: 'Émilie', remplacement: 'Claire' })
-    // thematique / remplacementAlt existent dans le .crp mais hors aperçu (E4)
+    // thematique / remplacementAlt existent dans le .crp mais hors aperçu
     expect(reglesAnon[1]).toEqual({ entite: 'Maison des Habitants', remplacement: 'Maison de quartier' })
   })
 
-  test('les données V1 BRUTES voyagent (matière de E1/E2/E4)', () => {
+  test('les données V1 BRUTES voyagent telles quelles', () => {
     if (!analyse.ok) return
     const { raw } = analyse.apercu
     expect(raw.tabEnt).toHaveLength(3)
-    // rtrPath relatif, audioPath ABSOLU (déjà au format v3, E2)
+    // rtrPath relatif, audioPath ABSOLU (déjà au format v3)
     expect(raw.tabEnt![1].rtrPath).toBe('entretien2.sonal')
     expect(raw.tabEnt![1].audioPath).toBe('/home/user/Corpus/Source/audio/E1.mp3')
     expect(raw.tabEnt![1].imgPath).toBe('E1.png')
     // tabDic sans lib ({v:1,m:0} existe en réel) et tabDat avec l='all'
     expect(raw.tabDic![0]).toEqual({ v: 1, m: 0 })
     expect(raw.tabDat![2]).toEqual({ e: '2', v: 2, l: 'all', m: 1 })
-    // settings pseudo persistés (E4) préservés tels quels
+    // settings pseudo persistés tels quels
     expect(raw.paramsAnonCorpus).toMatchObject({ prioriteValidation: 'corpus' })
   })
 })
@@ -135,7 +135,7 @@ describe('analyserCrp — refus propres (jamais d’exception)', () => {
     expect(analyse.message).toContain('.crp illisible')
   })
 
-  test('version inconnue → raison "version" (garde d’entrée, plan §3)', () => {
+  test('version inconnue → raison "version" (garde d’entrée)', () => {
     const analyse = analyserCrp(JSON.stringify({ version: '9.9', tabEnt: [] }), 'futur.crp')
     expect(analyse).toMatchObject({ ok: false, raison: 'version' })
     if (analyse.ok) return
@@ -173,9 +173,9 @@ describe('analyserCrp — refus propres (jamais d’exception)', () => {
   })
 })
 
-// ── E1 — mapping tabThm/tabVar/tabDic → codebook/variables V2 (plan §3) ──
+// ── Mapping tabThm/tabVar/tabDic → codebook/variables V2 ──
 
-describe('E1 — mapperCodebook (tabThm → Categorie[], parité cat_NNN)', () => {
+describe('mapperCodebook (tabThm → Categorie[], parité cat_NNN)', () => {
   // tabThm du corpusV1.crp : Pondérations(rang 0) + 3 pondérations(rang 1) +
   // Thème principal(rang 0) + Sous-thème(rang 1, sous « Thème principal »).
   const analyse = analyserCrp(fixture('corpusV1.crp'), 'x.crp')
@@ -247,7 +247,7 @@ describe('E1 — mapperCodebook (tabThm → Categorie[], parité cat_NNN)', () =
     })
   })
 
-describe('E1 — mapperVariables (tabVar/tabDic → Variable[], champ gen/loc + priv string)', () => {
+describe('mapperVariables (tabVar/tabDic → Variable[], champ gen/loc + priv string)', () => {
   const analyse = analyserCrp(fixture('corpusV1.crp'), 'x.crp')
   const raw = analyse.ok ? analyse.apercu.raw : null
   const variables = raw ? mapperVariables(raw.tabVar, raw.tabDic) : []
@@ -281,7 +281,7 @@ describe('E1 — mapperVariables (tabVar/tabDic → Variable[], champ gen/loc + 
   })
 })
 
-describe('E1 — mapperDefinitions + fusionnerImport (contrat de E3)', () => {
+describe('mapperDefinitions + fusionnerImport', () => {
   test('définitions du .crp fusionnées dans un corpus V2 neuf, idempotent', () => {
     const analyse = analyserCrp(fixture('corpusV1.crp'), 'x.crp')
     if (!analyse.ok) throw new Error('fixture invalide')
@@ -328,9 +328,9 @@ describe('E1 — mapperDefinitions + fusionnerImport (contrat de E3)', () => {
   })
 })
 
-// ── E2 — mapping des entretiens (tabEnt[] → titre/rtrPath/audioRef) ──
+// ── Mapping des entretiens (tabEnt[] → titre/rtrPath/audioRef) ──
 
-describe('E2 — mapperEntretiensV1 (tabEnt[] → données d’import, Q1)', () => {
+describe('mapperEntretiensV1 (tabEnt[] → données d’import)', () => {
   const analyse = analyserCrp(fixture('corpusV1.crp'), 'x.crp')
   const raw = analyse.ok ? analyse.apercu.raw : null
   const entrees = raw ? mapperEntretiensV1(raw.tabEnt) : []

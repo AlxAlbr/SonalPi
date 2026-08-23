@@ -1,8 +1,8 @@
 /**
  * Tests des fonctions PURES de E3b :
- *   - fusion.ts : fusion assistée d'une copie de divergence (§6) — union par
+ *   - fusion.ts : fusion assistée d'une copie de divergence — union par
  *     id, le courant gagne, garde « corpsTexte identique » ;
- *   - anon/reconciliation.ts : détection I-POR-3 post-pull (§4.8) — table de
+ *   - anon/reconciliation.ts : détection post-pull — table de
  *     vérité brouillon/standalone/corpus × règles corpus.
  */
 
@@ -51,7 +51,7 @@ describe('corpsIdentiques — la garde de la fusion automatique', () => {
   })
 })
 
-describe('fusionnerEntretiens — §6.2 : union par id, le courant gagne', () => {
+describe('fusionnerEntretiens — union par id, le courant gagne', () => {
   it('les apports de la copie s\u2019ajoutent ; rien d\u2019existant n\u2019est modifié', () => {
     const courant = entretien({
       annotations: [
@@ -113,7 +113,7 @@ describe('fusionnerEntretiens — §6.2 : union par id, le courant gagne', () =>
   })
 })
 
-describe('detecterDivergencesPortee — I-POR-3 post-pull (§4.8)', () => {
+describe('detecterDivergencesPortee — détection post-pull', () => {
   const REGLES = [{ id: 'reg-1', entite: ['Hopital Saint-Anne'], pseudos: ['HSA'] }]
 
   it('brouillon local avec pseudo divergent → divergence « brouillon »', () => {

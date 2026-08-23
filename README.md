@@ -43,3 +43,15 @@ npm run typecheck    # vue-tsc + tsc
 |---|---|
 | Utilisateur | [Migration SonalPi V1 → V2](docs/user/migration-v1.md) |
 | Développeur | [Documentation développeur](docs/dev/README.md) |
+
+## Plans (`plans/`)
+
+Le dossier `plans/` range les documents de travail en trois catégories :
+
+- **`plans/encours/`** — les plans prévus d'être réalisés à court terme :
+  découpés en étapes, ils guident l'implémentation en cours ou imminente.
+- **`plans/choix/`** — les propositions qui demandent un arbitrage pour une
+  vision à plus moyen terme : options posées, décision pas encore prise.
+- **`plans/reflexion/`** — les réflexions apparues en cours d'implémentation
+  sur certains sujets : analyse d'un problème, options et conséquences, sans
+  engagement de réalisation.

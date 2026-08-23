@@ -5,13 +5,13 @@ import { join } from 'node:path'
 import { lancer, attendreAccueil, attendreCorpus, ajouterParModale, retourCorpus, selectionner, spotlightSur } from './util'
 
 /**
- * Pas-à-pas (plan-tutoriel §14, plan-reference-audio §7.4) : depuis l'Accueil,
+ * Pas-à-pas : depuis l'Accueil,
  * « Découverte pas à pas » passe par la modale à deux dossiers puis démarre sur
  * un corpus vide + active l'onglet « Pas à pas » avec un spotlight. Les 5 étapes
  * se valident en observant le modèle réactif.
  *
- * L'étape 1 pointe le VRAI bouton « + Ajouter un entretien » (data-tour posé en
- * J2) : la bulle se cale à côté. Le geste RÉEL passe par la vraie modale à deux
+ * L'étape 1 pointe le VRAI bouton « + Ajouter un entretien » (attribut
+ * data-tour posé sur le bouton lui-même) : la bulle se cale à côté. Le geste RÉEL passe par la vraie modale à deux
  * zones (srt puis audio) — il valide le prédicat (membership non vide).
  */
 
@@ -61,7 +61,7 @@ test('pas-à-pas : charger, corriger, coder, saisir une variable', async () => {
   await preparerPasAPas(app, page, dirSources, dirCorpus)
 
   // L'étape 1 encadre le VRAI bouton « + Ajouter un entretien » (spotlight-trou
-  // qui chevauche le bouton — §7.4 : le geste réel est le vrai bouton).
+  // qui chevauche le bouton — le geste réel est le vrai bouton).
   await expect(page.locator('.spotlight-trou')).toBeVisible()
   await expect(page.locator('[data-tour="ajouter-entretien"]')).toBeVisible()
   // Poll : la position du trou est recalculée à chaque frame (transition 0,12 s) —
@@ -335,7 +335,7 @@ test('réouverture par « Récents » : le panneau ET l\'historique des étapes 
     .toContain('charger')
   await app.close()
 
-  // L'historique est PERSISTÉ dans le marqueur du corpus (J6) : l'étape
+  // L'historique est PERSISTÉ dans le marqueur du corpus : l'étape
   // « charger » est mémorisée avec le mode pas-a-pas.
   const marqueur = JSON.parse(readFileSync(join(corpusDir, 'corpus.json'), 'utf8')).demo
   expect(marqueur.mode).toBe('pas-a-pas')

@@ -91,7 +91,7 @@ test('« Saisir… » ouvre l’entretien directement sur son onglet Donnée', a
 
   await entrerDonnees(page)
 
-  // Le bouton de LIGNE ouvre CET entretien sur son onglet Donnée (plan §3) :
+  // Le bouton de LIGNE ouvre CET entretien sur son onglet Donnée :
   // cycle verrou ordinaire — ici libre → saisie permise.
   await page.locator('.matrice .aller-saisie').first().click()
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 10_000 })
@@ -163,7 +163,7 @@ test('« modifier en lot » applique UNE valeur à tous les entretiens (corpus l
   )
   expect(labels).toEqual(['Lyon', 'Lyon'])
 
-  // Filtre « lignes sans valeur » (plan-saisie-cellule-table §10) : réouverture
+  // Filtre « lignes sans valeur » : réouverture
   // de la modale — les DEUX lignes portent désormais une valeur, donc le filtre
   // ne cible plus personne ; décoché, tout redevient ciblable.
   await page.locator('.matrice th .lot-var').first().click()
@@ -210,7 +210,7 @@ function poserSecondEntretien(dir: string) {
 test('navigation clavier : Entrée descend la colonne en sautant les lignes locuteur ; Shift+Entrée remonte', async () => {
   // Deux entretiens ; le seed e1 porte DEUX locuteurs (index 1 et 2) → entre
   // les deux lignes entretien s'intercalent deux lignes SANS cellule dans la
-  // colonne « Ville » : la descente doit les TRAVERSER (plan §5).
+  // colonne « Ville » : la descente doit les TRAVERSER.
   const dir = mkdtempSync(join(tmpdir(), 'sonal-nav-'))
   poserSecondEntretien(dir)
 

@@ -11,7 +11,7 @@
 ## 1. Contexte : du raccourci Ctrl+Espace à la transcription vocale
 
 1. Le geste « double-espace → play/pause » (hérité de SonalPi) a été testé en **Ctrl+Espace**
-   dans l'éditeur ([useEntretien.ts](../src/renderer/composables/useEntretien.ts)) puis **annulé**
+   dans l'éditeur ([useEntretien.ts](../../src/renderer/composables/useEntretien.ts)) puis **annulé**
    (test seulement, choix non définitif).
 2. L'essai de **Murmure** (STT locale, raccourci Ctrl+Espace) a montré l'intérêt d'une dictée
    vocale directe dans l'app — et ses limites (voir §2).
@@ -19,7 +19,7 @@
    + un modèle Parakeet, pour une **transcription au fur et à mesure** (streaming).
 
 Cible produit potentielle : le cas « **audio seul → entretien au texte vide à taper** »
-(déjà couvert par l'E2E [S6 rev.](../e2e/audio.e2e.ts)) et, plus largement, dicter un
+(déjà couvert par l'E2E [S6 rev.](../../e2e/audio.e2e.ts)) et, plus largement, dicter un
 entretien dans l'éditeur avec le micro, structure de document respectée (blocs, locuteurs).
 
 ## 2. Murmure : ce que c'est, et pourquoi c'est du bricolage
@@ -113,7 +113,7 @@ un atout de portabilité que l'intégration STT bouscule différemment selon le 
   robuste.
 - **Insertion dans le document** : chaque énoncé devient un **bloc/tour** (avec timestamp ?),
   insertion au curseur ou en fin, locuteur courant — le modèle d'ancres existe déjà
-  ([useEntretien.ts](../src/renderer/composables/useEntretien.ts)).
+  ([useEntretien.ts](../../src/renderer/composables/useEntretien.ts)).
 - **Enregistrement audio** : pour pouvoir réécouter, il faut aussi **sauver le WAV du micro**
   → il devient l'`audioRef` de l'entretien (le cas « audio seul » du S6 rev. existe déjà).
 - **Distribution** : + 700 Mo à 1 Go de modèle — téléchargé au premier lancement ou embarqué

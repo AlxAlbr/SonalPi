@@ -1,5 +1,5 @@
 /**
- * Tests de la couche VERROU (plan-multiuser.md §5) contre le serveur WebDAV
+ * Tests de la couche VERROU contre le serveur WebDAV
  * embarqué : test-and-set atomique, battement/preuve de vie, détection de
  * forçage, péremption (horloges décalées), forçage concurrent.
  */
@@ -24,7 +24,7 @@ function providerSur(
   )
 }
 
-describe('Acquisition — test-and-set atomique (§5.1)', () => {
+describe('Acquisition — test-and-set atomique', () => {
   it('premier demandeur : ok avec un ETag de garde', async () => {
     const p = providerSur(new ServeurWebDAVMemoire())
     const r = await p.acquerir(CHEMIN)
@@ -47,7 +47,7 @@ describe('Acquisition — test-and-set atomique (§5.1)', () => {
     }
   })
 
-  it('le contenu posé porte l\u2019identité complète (§7)', async () => {
+  it('le contenu posé porte l\u2019identité complète', async () => {
     const serveur = new ServeurWebDAVMemoire()
     await providerSur(serveur).acquerir(CHEMIN)
     const brut = JSON.parse(serveur.contenuDe(CHEMIN)!) as ContenuVerrou
@@ -61,7 +61,7 @@ describe('Acquisition — test-and-set atomique (§5.1)', () => {
   })
 })
 
-describe('Battement — preuve de vie ET détection de forçage (§5.2)', () => {
+describe('Battement — preuve de vie ET détection de forçage', () => {
   it('battement normal : ok, refreshedAt avance', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const p = providerSur(serveur)
@@ -122,7 +122,7 @@ describe('Libération et état', () => {
   })
 })
 
-describe('Forçage — verrou PÉRIMÉ uniquement, course entre forçeurs (§5.2/§5.3)', () => {
+describe('Forçage — verrou PÉRIMÉ uniquement, course entre forçeurs', () => {
   it('forcer un verrou absent équivaut à acquérir', async () => {
     const p = providerSur(new ServeurWebDAVMemoire())
     const r = await p.forcer(CHEMIN)
@@ -146,7 +146,7 @@ describe('Forçage — verrou PÉRIMÉ uniquement, course entre forçeurs (§5.2
   })
 })
 
-describe('Péremption — fonctions pures, horloges décalées ±10 min (§5.3)', () => {
+describe('Péremption — fonctions pures, horloges décalées ±10 min', () => {
   const base = contenuVerrou(
     { userId: 'x', machineId: 'm', sessionId: 's' },
     300,

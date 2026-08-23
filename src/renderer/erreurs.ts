@@ -1,12 +1,11 @@
 /**
- * BANNIÈRE GLOBALE D'ERREURS (E3) — filet de sécurité pour les rejets IPC non
- * catchés : avant E3 les gestes flux B ne pouvaient échouer qu'en local ; avec
- * les transactions §4.7, un refus de verrou (« définitions en cours de
- * modification par X »), une coupure réseau ou une divergence 412 remontent
- * comme exception IPC depuis le main. Les chemins critiques (suppression,
- * publication) affichent déjà leurs propres messages ciblés ; tout AUTRE rejet
- * atterrit ici plutôt que de disparaître dans la console — « rien de tranché
- * ni perdu en silence ».
+ * BANNIÈRE GLOBALE D'ERREURS — filet de sécurité pour les rejets IPC non
+ * catchés : un refus de verrou (« définitions en cours de modification par
+ * X »), une coupure réseau ou une divergence 412 remontent comme exception
+ * IPC depuis le main. Les chemins critiques (suppression, publication)
+ * affichent déjà leurs propres messages ciblés ; tout AUTRE rejet atterrit ici
+ * plutôt que de disparaître dans la console — « rien de tranché ni perdu en
+ * silence ».
  */
 
 import { ref } from 'vue'

@@ -16,18 +16,18 @@ const {
   membership,
   reprise,
   reprendre,
-  lectureSeule, // E0 corpus distant : définitions grisées hors ligne (flux B)
-  tableLigneEditable, // plan-saisie-cellule-table.md §4 : garde PAR LIGNE (badge 🔒 = autrui)
-  badgeVerrou, // E4 §9/§10 : badges « par ligne » — informatifs
+  lectureSeule, // corpus distant : définitions grisées hors ligne
+  tableLigneEditable, // garde PAR LIGNE : badge 🔒 = verrou tenu par autrui
+  badgeVerrou, // badges « par ligne » — informatifs
   presencesSur,
-  allerSaisieDonnees, // plan-lot-table-donnees.md §3 : « Saisir… » par LIGNE
+  allerSaisieDonnees, // « Saisir… » par LIGNE d'entretien
 } = utiliserSonal()
 
 // La fenêtre d'édition des variables (crayon, parité SonalPi — même idiome que
 // EditionThemes) : la grille ci-dessous reste une pure SAISIE plein écran.
 const editerVariables = ref(false)
 
-// plan-lot-table-donnees.md §5 : modale « Modifier en lot » ouverte depuis le
+// Modale « Modifier en lot », ouverte depuis le
 // <th> d'une variable de portée ENTRETIEN (id de la variable, null = fermée).
 const lotVarId = ref<string | null>(null)
 
@@ -55,7 +55,7 @@ const variablesVisibles = computed(() => {
 // valeurs tapées ont peuplé le dictionnaire.
 const AUTRE = ' autre' // sentinelle : ne peut pas être un id de modalité
 const celluleLibre = ref<string | null>(null) // clé de LA cellule en mode texte
-// plan-saisie-cellule-table.md §4 : erreur INLINE par cellule — la raison
+// Erreur INLINE par cellule — la raison
 // nominative du refus (verrou tenu par autrui, divergence 412…) marque LA
 // cellule (bord rouge + tooltip), sans jamais bloquer la saisie ailleurs ;
 // effacée au focus suivant. Les rejets IPC (réseau…) ne passent PAS ici :
@@ -86,7 +86,7 @@ function surSelectLoc(entId: string, index: number, idVar: string, evt: Event) {
   if (val === AUTRE) celluleLibre.value = cleLoc(entId, index, idVar)
   else void surValidationLoc(entId, index, idVar, val)
 }
-/** Commit d'une cellule (plan §4) : le primitif du lot à UN item tourne en
+/** Commit d'une cellule : le primitif du lot à UN item tourne en
  *  arrière-plan ; seul le refus TRANSACTIONNEL revient ici (erreur inline).
  *  Un rejet IPC (réseau) n'est pas catché → bannière globale. */
 async function surValidationGen(entId: string, idVar: string, val: string) {
@@ -116,7 +116,7 @@ function focaliserLibre(el: unknown, cle: string) {
     el.focus()
 }
 
-// --- NAVIGATION CLAVIER (plan-saisie-cellule-table.md §5) ---
+// --- NAVIGATION CLAVIER ---
 // Registre de focus : chaque cellule rendue (select ou input libre)
 // s'enregistre sous SA clé ; la grille pure (tableNavigation.ts) dit où
 // aller, ce registre dit COMMENT (focus + scrollIntoView).
@@ -135,7 +135,7 @@ const grille = computed(() =>
   }),
 )
 /** Focus immédiat sur la voisine — le commit éventuel part déjà en
- *  arrière-plan (§4), la navigation n'attend JAMAIS le réseau. Retour false
+ *  arrière-plan, la navigation n'attend JAMAIS le réseau. Retour false
  *  = pas de cible : l'appelant laisse Tab/Entrée natifs reprendre. */
 function naviguer(cle: string, sens: SensNav): boolean {
   const cible = celluleVoisine(grille.value, cle, sens)
@@ -183,7 +183,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
         </button>
       </div>
 
-      <!-- plan-saisie-cellule-table §5 : légende clavier sur UNE ligne, entre
+      <!-- Légende clavier sur UNE ligne, entre
            le titre et la grille (masquée hors édition : cellules grisées). -->
       <p v-if="!lectureSeule && variablesVisibles.length > 0" class="aide-clavier">
         <span><kbd>Tab</kbd> droite · <kbd>⇧Tab</kbd> gauche</span>
@@ -204,8 +204,8 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
               <th v-for="v in variablesVisibles" :key="v.id">
                 <span v-if="v.priv" title="Variable privée — exclue des exports">🔒</span>
                 {{ v.lib }} <small>({{ v.portee === 'entretien' ? 'ent' : 'loc' }})</small>
-                <!-- plan-lot-table-donnees.md §5 : lot sur les entretiens non
-                     ouverts — portée entretien uniquement (v1), jamais hors ligne. -->
+                <!-- Lot sur les entretiens non ouverts — portée entretien uniquement,
+                     jamais hors ligne. -->
                 <button v-if="v.portee === 'entretien' && !lectureSeule" class="lot-var"
                         title="Modifier en lot pour tous les entretiens non ouverts"
                         @click="lotVarId = v.id">⇊</button>
@@ -216,13 +216,13 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
             <template v-for="e in matrice" :key="e.entretienId">
               <tr>
                 <td class="ligne-ent">📄 {{ e.titre }}
-                  <!-- E4 §9/§10 : verrou par ligne (décision = verrou) +
-                       présence (« ouvert par X », jamais décisionnel). -->
+                  <!-- Verrou par ligne (décision = verrou) + présence
+                       (« ouvert par X », jamais décisionnel). -->
                   <span v-if="badgeVerrou(e.entretienId)" class="badge-verrou"
                         :title="`Verrou tenu par ${badgeVerrou(e.entretienId)!.userId} — ouverture en lecture seule.`">🔒 {{ badgeVerrou(e.entretienId)!.userId }}</span>
                   <span v-for="p in presencesSur(e.entretienId)" :key="p.machineId"
                         class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">👁 {{ p.userId }}</span>
-                  <!-- plan-lot-table-donnees.md §3 : ouvrir CET entretien sur son
+                  <!-- Ouvrir CET entretien sur son
                        onglet Donnée — le verrou existant tranche (libre → saisie,
                        tenu ailleurs → lecture seule 🔒). Masqué hors ligne. -->
                   <button v-if="!lectureSeule" class="aller-saisie"
@@ -318,7 +318,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* E4 §9/§10 : badges « par ligne — même sémantique que les cartes Corpus
+/* Badges « par ligne » — même sémantique que les cartes Corpus
    (verrou = décision ; présence = purement informatif, jamais décisionnel). */
 .badge-verrou,
 .badge-presence {
@@ -336,7 +336,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   background: #e2ecff;
   color: #1d4fa1;
 }
-/* plan-lot-table-donnees.md §3 : bouton « Saisir… » de la ligne entretien —
+/* Bouton « Saisir… » de la ligne entretien —
    même gabarit discret que les badges, à la suite. */
 .aller-saisie {
   font-size: 0.72rem;
@@ -352,7 +352,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 .aller-saisie:hover {
   background: #e2ecff;
 }
-/* plan-lot-table-donnees.md §5 : bouton de COLONNE « modifier en lot » —
+/* Bouton de COLONNE « modifier en lot » —
    discret, dans l'en-tête, à côté du libellé. */
 .lot-var {
   border: none;
@@ -373,7 +373,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   margin: 0;
   flex: 1;
 }
-/* plan-saisie-cellule-table §5 : légende clavier — UNE ligne compacte. */
+/* Légende clavier — UNE ligne compacte. */
 .aide-clavier {
   display: flex;
   gap: 1.1rem;
@@ -486,7 +486,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   color: #bbb;
   font-style: italic;
 }
-/* plan-saisie-cellule-table.md §4 : erreur INLINE — refus nominatif (verrou
+/* Erreur INLINE — refus nominatif (verrou
    autrui, divergence…) marqué sur LA cellule, sans bloquer les autres. */
 .cell-erreur {
   border-color: #d9534f !important;

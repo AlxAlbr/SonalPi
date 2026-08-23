@@ -81,8 +81,8 @@ const MIME: Record<string, string> = {
   avi: 'video/x-msvideo',
 }
 
-/** Content-Type d'un média pour le téléversement (best effort —
- *  plan-audio-distant.md D5) : la table MIME ci-dessus, défaut octet-stream.
+/** Content-Type d'un média pour le téléversement (best effort) : la table
+ *  MIME ci-dessus, défaut octet-stream.
  *  Couvre AUDIO ET VIDÉO — le nom historique reste par économie de churn. */
 function typeMimeAudio(chemin: string): string {
   const ext = extname(chemin).slice(1).toLowerCase()
@@ -169,7 +169,7 @@ function montrerSauver(e: IpcMainInvokeEvent, options: SaveDialogOptions): Promi
 }
 
 // respecte le --user-data-dir passé en ligne  de commande
-// car les tests e2e l'utilisent pour isoler chaque test 
+// car les tests e2e l'utilisent pour isoler chaque test
 // et éviter qu'ils ne se gênent mutuellement
 const userDataDir = app.commandLine.getSwitchValue('user-data-dir')
 if (userDataDir) app.setPath('userData', userDataDir)
@@ -200,35 +200,39 @@ if (userDataDir) app.setPath('userData', userDataDir)
 function enregistrerIpcCorpus(): void {
   // Dossier de corpus par défaut = <profil>/corpus (les e2e l'isolent via --user-data-dir).
   //  Le `store` est MUTABLE : « Ouvrir un corpus… » le recrée sur un autre dossier.
-  // Les handlers capturent la variable `store` (pas sa valeur) 
+  // Les handlers capturent la variable `store` (pas sa valeur)
   // → ils voient la réaffectation sans être réenregistrés.
   const dossierDefaut = join(app.getPath('userData'), 'corpus')
   let store = new CorpusStore(dossierDefaut)
   let dossierCourant = dossierDefaut
 
   // ── Corpus distant : connexion, création et ouverture ─────────────────
-  // La connexion mesure le profil du serveur par sondes RÉELLES (préconditions
-  // §5.4 + capabilities files_lock §8) AVANT d'enregistrer quoi que ce soit ;
-  // un serveur qui ment est refusé. Le secret (mot de passe d'application)
-  // vit chiffré dans le coffre (safeStorage) et ne remonte jamais au renderer.
+  // La connexion mesure le profil du serveur par sondes RÉELLES
+  // (préconditions PUT + capabilities files_lock), AVANT d'enregistrer quoi
+  // que ce soit ; un serveur qui ment est refusé.
+  // Le secret (mot de passe d'application) vit chiffré dans le coffre
+  // (safeStorage), et ne remonte jamais au renderer.
   const coffre = coffreReel(app.getPath('userData'))
   let miroirActif: { id: string; miroir: MiroirWebDAV } | null = null
-  // Sessions d'écriture du corpus distant actif (E1) : verrous, battements,
-  // publications. Null tant qu'aucun corpus distant n'est ouvert.
+  // Sessions d'écriture du corpus distant actif : verrous, battements,
+  // publications.
+  // Null tant qu'aucun corpus distant n'est ouvert.
   let sessions: SessionsDEntretien | null = null
-  // Transactions de définitions (E3, plan §4.7/§4.8) : verrou corpus → GET
-  // frais → mutation → PUT If-Match. Null en corpus local (mutation directe).
+  // Transactions de définitions : verrou corpus, GET frais, mutation,
+  // PUT If-Match. Null en corpus local (mutation directe).
   let transactions: TransactionsCorpus | null = null
-  // Présence (E4, plan §9) : « ce poste consulte tel entretien » — informatif,
+  // Présence : « ce poste consulte tel entretien » — informatif,
   // JAMAIS décisionnel. Null en corpus local.
   let presence: PresenceDistante | null = null
-  // Variante de verrou du corpus distant actif (§8) : true = files_lock natif
-  // (sonde capabilities), false/absent = PUT conditionnel. Mesurée À CHAQUE
-  // ouverture — un admin peut installer le plugin entre deux sessions.
+  // Variante de verrou du corpus distant actif : true = files_lock natif
+  // (sonde capabilities), false/absent = PUT conditionnel.
+  // Mesurée À CHAQUE ouverture — un admin peut installer le plugin entre deux
+  // sessions.
   let verrouNatif = false
-  // Identité de session (§7) : machineId stable par poste (généré une fois,
-  // stocké dans le profil) ; sessionId aléatoire par lancement d'app (voir
-  // SESSION_ID plus bas) — un verrou n'est jamais hérité d'une session précédente.
+  // Identité de session : machineId stable par poste (généré une fois,
+  // stocké dans le profil) ; sessionId aléatoire par lancement d'app
+  // (voir SESSION_ID plus bas).
+  // Un verrou n'est jamais hérité d'une session précédente.
   const fichierMachineId = join(app.getPath('userData'), 'machine-id')
   const machineId = (() => {
     try {
@@ -261,8 +265,8 @@ function enregistrerIpcCorpus(): void {
 
   ipcMain.handle('corpus:ouvrir', () => store.ouvrir())
   /** Indicateur pour l'UI : le corpus courant est-il un miroir distant ?
-   *  (`distant` = id du compte, null = corpus local — invariant §15.1 : une
-   *  capacité signalée, jamais un type de transport dispatché.) */
+   *  (`distant` = id du compte ; null = corpus local.)
+   *  Une capacité signalée, jamais un type de transport dispatché. */
   ipcMain.handle('corpus:dossierCourant', () => {
     const corpus = store.ouvrir()
     return {
@@ -355,17 +359,19 @@ function enregistrerIpcCorpus(): void {
   // Session id aléatoire PAR LANCEMENT (portée du bloc corpus entier).
   const SESSION_ID = `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
-  /** Exécute une mutation de DÉFINITIONS (flux B, plan §10) : transaction
-   *  complète en corpus distant (verrou corpus → GET frais → mutation → PUT
-   *  If-Match, §4.7), écriture directe du store en local. Les refus
-   *  (`ErreurTransaction`) remontent à la bannière renderer via l'exception IPC. */
+  /** Exécute une mutation de DÉFINITIONS : transaction complète en corpus
+   *  distant (verrou corpus, GET frais, mutation, PUT If-Match), écriture
+   *  directe du store en local.
+   *  Les refus (`ErreurTransaction`) remontent à la bannière renderer via
+   *  l'exception IPC. */
   function executerDefinitions<T>(fn: () => T): Promise<T> | T {
     return transactions ? transactions.executer(fn) : fn()
   }
 
-  /** Ouverture d'un entretien : en corpus DISTANT, tente d'abord le VERROU
-   *  (§4.1). Acquis → écriture permise pour ce fichier (flux A) ; refusé →
-   *  lecture seule avec détenteur affiché. En corpus local : inchangé. */
+  /** Ouverture d'un entretien : en corpus DISTANT, tente d'abord le VERROU.
+   *  Acquis → écriture permise pour ce fichier ;
+   *  refusé → lecture seule avec détenteur affiché.
+   *  En corpus local : inchangé. */
   ipcMain.handle('corpus:lireEntretien', async (_e, id: string) => {
     if (!sessions) return store.lireEntretien(id)
     const etat = await sessions.ouvrir(id)
@@ -390,8 +396,9 @@ function enregistrerIpcCorpus(): void {
     return store.lireEntretien(id)
   })
 
-  /** Fermeture §4.4 : publication finale PUIS libération (ordre invariant).
-   *  Appelé par le renderer quand il quitte l'entretien ; sans effet local. */
+  /** Fermeture : publication finale PUIS libération (ordre invariant).
+   *  Appelé par le renderer quand il quitte l'entretien ; sans effet local.
+   */
   ipcMain.handle('corpus:fermerEntretien', async (_e, id: string) => {
     if (sessions) await sessions.fermer(id)
     store.revoquerEcritureEntretien(id)
@@ -414,11 +421,13 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
     executerDefinitions(() => store.renommerEntretien(id, titre)),
   )
-  /** Suppression : DOUBLE VERROU distant (corpus PUIS entretien, ordre canonique
-   *  §4.8 — publication corpus d'abord, MOVE serveur ensuite) ; directe en local.
-   *  Défense en profondeur : si NOUS tenions encore la session de cet entretien,
-   *  la fermer d'abord (publication puis libération, ordre invariant §4.4) —
-   *  sinon ce serait notre propre verrou qui bloquerait la suppression. */
+  /** Suppression : DOUBLE VERROU distant (corpus PUIS entretien, ordre
+   *  canonique — publication corpus d'abord, MOVE serveur ensuite) ;
+   *  directe en local.
+   *  Défense en profondeur : si NOUS tenions encore la session de cet
+   *  entretien, la fermer d'abord (publication puis libération, ordre
+   *  invariant) — sinon ce serait notre propre verrou qui bloquerait la
+   *  suppression. */
   ipcMain.handle('corpus:supprimerEntretien', async (_e, id: string) => {
     if (!transactions) return store.supprimerEntretien(id)
     await sessions?.fermer(id)
@@ -431,7 +440,7 @@ function enregistrerIpcCorpus(): void {
       executerDefinitions(() => store.importerEntretien(titre, payload, codebook, variables, reglesAnon)),
   )
 
-  // Codebook (thèmes) — flux B : sous transaction en distant (§4.7)
+  // Codebook (thèmes) — définitions : sous transaction en distant
   ipcMain.handle('corpus:ajouterCategorie', (_e, nom: string, parent: string | null) =>
     executerDefinitions(() => store.ajouterCategorie(nom, parent)),
   )
@@ -468,7 +477,7 @@ function enregistrerIpcCorpus(): void {
     store.compterUsagesCategorie(code, exceptId),
   )
 
-  // Variables & modalités (EAV) — définitions : flux B, sous transaction distant
+  // Variables & modalités (EAV) — définitions : sous transaction distant
   ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'locuteur') =>
     executerDefinitions(() => store.ajouterVariable(lib, portee)),
   )
@@ -500,8 +509,8 @@ function enregistrerIpcCorpus(): void {
     store.ecrireWaveform(id, png),
   )
 
-  /** « Associer l'audio local… » (§3.3, E4) : RÉFÉRENCE un fichier présent sur
-   *  CE poste pour un entretien dont l'audioRef partagée n'y pointe nulle part.
+  /** « Associer l'audio local… » : RÉFÉRENCE un fichier présent sur CE poste,
+   *  pour un entretien dont l'audioRef partagée n'y pointe nulle part.
    *  Association machine-local (`audio-locaux.json`), sans copie ni écriture
    *  au JSON/serveur — chaque poste résout chez lui. */
   ipcMain.handle('corpus:associerAudioLocal', (_e, id: string, source: string) =>
@@ -515,7 +524,7 @@ function enregistrerIpcCorpus(): void {
     store.marquerDemo(marqueur),
   )
 
-  // ── Corpus distant : connexion et ouverture (E0) ──────────────────────────
+  // ── Corpus distant : connexion et ouverture ──────────────────────────────
   const sansSecret = ({ motDePasseChiffre: _s, ...c }: ConfigCorpusDistant) => c
 
   /** Nettoyage best effort après refus de création : supprime la FEUILLE que
@@ -618,11 +627,12 @@ function enregistrerIpcCorpus(): void {
     }
   })
 
-  /** Ouvre un corpus distant EN LECTURE contrôlée (E1) : tire le miroir puis
+  /** Ouvre un corpus distant EN LECTURE contrôlée : tire le miroir puis
    *  bascule le store dessus ; chaque entretien s'ouvre ensuite SOUS VERROU
-   *  (corpus:lireEntretien). Échec réseau → exception IPC, le corpus local
-   *  courant reste en place. Le pull d'ouverture livre aussi l'état des
-   *  verrous (badges fiables §3.1, sans second aller-retour). */
+   *  (corpus:lireEntretien).
+   *  Échec réseau → exception IPC ; le corpus local courant reste en place.
+   *  Le pull d'ouverture livre aussi l'état des verrous (badges fiables),
+   *  sans second aller-retour. */
   ipcMain.handle('distant:ouvrir', async (_e, id: string): Promise<OuvertureDistante> => {
     const config = coffre.lister().find((c) => c.id === id)
     if (!config) throw new Error('Compte distant inconnu')
@@ -651,12 +661,13 @@ function enregistrerIpcCorpus(): void {
       )
     }
     store = new CorpusStore(dirMiroir)
-    // Définitions (flux B) TOUJOURS en lecture seule avant E3 ; le contenu des
-    // entretiens (flux A) devient écrivable fichier par fichier sous verrou.
+    // Définitions partagées TOUJOURS en lecture seule à l'ouverture ;
+    // le contenu des entretiens devient écrivable fichier par fichier,
+    // sous verrou.
     store.lectureSeule = true
     dossierCourant = dirMiroir
     miroirActif = { id, miroir }
-    // Variante de verrou (§8) : re-sonde des capabilities à CHAQUE ouverture
+    // Variante de verrou : re-sonde des capabilities à CHAQUE ouverture
     // (une requête — un admin peut installer files_lock entre deux sessions).
     // L'utilisateur ne choisit rien ; le protocole s'adapte.
     verrouNatif = await sonderFilesLock(config.urlServeur, {
@@ -671,8 +682,8 @@ function enregistrerIpcCorpus(): void {
       undefined,
       { verrouNatif },
     )
-    // Transactions de définitions (E3 §4.7/§4.8) — mêmes dépendances que les
-    // sessions ; le store est visé PAR APPEL (il peut être réaffecté ensuite).
+    // Transactions de définitions — mêmes dépendances que les sessions ;
+    // le store est visé PAR APPEL (il peut être réaffecté ensuite).
     transactions = new TransactionsCorpus(
       client,
       miroir,
@@ -680,12 +691,12 @@ function enregistrerIpcCorpus(): void {
       () => ({ userId: config.utilisateur, machineId, sessionId: SESSION_ID }),
       {
         verrouNatif,
-        // Défense en profondeur du lot (plan-lot-table-donnees.md §4.2) :
+        // Défense en profondeur du lot :
         // un entretien OUVERT chez nous passe par le chemin session existant.
         getSessions: () => sessions,
       },
     )
-    // Présence (E4 §9) : battement 60 s tant que le corpus distant est ouvert.
+    // Présence : battement 60 s tant que le corpus distant est ouvert.
     presence?.arreter()
     presence = new PresenceDistante(client, () => ({
       userId: config.utilisateur,
@@ -706,10 +717,11 @@ function enregistrerIpcCorpus(): void {
   })
 
   /** « Actualiser » / pull doux : null si le corpus courant est local.
-   *  Les fichiers SOUS NOTRE verrou sont exclus du pull (le miroir n'écrase
-   *  jamais une copie de travail en session — la divergence passe par If-Match,
-   *  §6). Les verrous sont enrichis pour les badges : scan `verrous/` (B) ou
-   *  PROPFIND files_lock sur `entretiens/` (A). */
+   *  Les fichiers SOUS NOTRE verrou sont exclus du pull — le miroir n'écrase
+   *  jamais une copie de travail en session ; la divergence passe par If-Match
+   *  à la publication.
+   *  Les verrous sont enrichis pour les badges : scan `verrous/`, ou PROPFIND
+   *  files_lock sur `entretiens/`. */
   ipcMain.handle('distant:tirer', async (): Promise<ResultatTiragePublic | null> => {
     if (!miroirActif) return null
     const exclus = sessions ? sessions.idsTenus().map((id) => `entretiens/${id}.json`) : []
@@ -729,18 +741,18 @@ function enregistrerIpcCorpus(): void {
     }
   })
 
-  /* ── E1 finition : publication manuelle + reprise crash + badges ───────── */
+  /* ── Publication manuelle + reprise crash + badges ────────────────────── */
 
-  /** Navigation du sélecteur « Désigner dans Nextcloud… » (plan-audio-distant.md
-   *  §3) : PROPFIND Depth:1 d'un dossier du corpus, entrées triées (dossiers
-   *  d'abord). Null si corpus local ; erreur typée si dossier inaccessible. */
+  /** Navigation du sélecteur « Désigner dans Nextcloud… » : PROPFIND Depth:1
+   *  d'un dossier du corpus, entrées triées (dossiers d'abord). Null si corpus
+   *  local ; erreur typée si dossier inaccessible. */
   ipcMain.handle('distant:listerDossier', async (_e, dossier: string) => {
     if (!miroirActif) return null
     const entrees = await miroirActif.miroir.listerDossier(dossier)
     return { entrees }
   })
 
-  /** Désignation audio (D4) : micro-session si l'entretien est FERMÉ —
+  /** Désignation audio : micro-session si l'entretien est FERMÉ —
    *  l'appelant renderer ne vient ici que dans ce cas (un entretien ouvert en
    *  session passe par son modèle). Le chemin est RELATIF à la racine corpus. */
   ipcMain.handle('distant:designerAudio', async (_e, id: string, cheminAudio: string) => {
@@ -748,8 +760,8 @@ function enregistrerIpcCorpus(): void {
     return sessions.designerAudio(id, cheminAudio)
   })
 
-  /** Téléversement d'un fichier LOCAL vers le Nextcloud (plan-audio-distant.md
-   *  D5). Le renderer ne touche jamais au disque : c'est le main qui lit le
+  /** Téléversement d'un fichier LOCAL vers le Nextcloud. Le renderer ne
+   *  touche jamais au disque : c'est le main qui lit le
    *  fichier choisi par dialogue — lu EN FLUX vers le PUT
    *  (`televerserFichier` avec un chemin), donc sans limite de taille mémoire.
    *  La DÉSIGNATION reste un geste séparé du renderer (même chemin que pour un
@@ -788,14 +800,14 @@ function enregistrerIpcCorpus(): void {
     },
   )
 
-  /** « Publier maintenant » (§4.3) : PUT If-Match sous verrou toujours tenu. */
+  /** « Publier maintenant » : PUT If-Match sous verrou toujours tenu. */
   ipcMain.handle('distant:publierEntretien', async (_e, id: string) => {
     if (!sessions) return { ok: false as const, raison: 'aucune session' }
     return sessions.publier(id)
   })
 
   /** Orphelins détectables (verrous de NOTRE machine, autre session) — matière
-   *  du dialogue de reprise crash §4.5. Null si corpus local. */
+   *  du dialogue de reprise crash. Null si corpus local. */
   ipcMain.handle('distant:orphelins', async (): Promise<OrphelinDistant[] | null> => {
     if (!sessions) return null
     const liste = await sessions.orphelins()
@@ -808,19 +820,19 @@ function enregistrerIpcCorpus(): void {
     }))
   })
 
-  /** Choix « reprendre et publier » du dialogue §4.5. */
+  /** Choix « reprendre et publier » du dialogue de reprise crash. */
   ipcMain.handle('distant:reprendreOrphelin', async (_e, cheminVerrou: string) => {
     if (!sessions) return { ok: false as const, raison: 'aucun corpus distant' }
     return sessions.reprendreOrphelin(cheminVerrou)
   })
 
-  /** Choix « abandonner » (déverrouille sans publier) du dialogue §4.5. */
+  /** Choix « abandonner » (déverrouille sans publier) du dialogue de reprise crash. */
   ipcMain.handle('distant:abandonnerOrphelin', async (_e, cheminVerrou: string) => {
     if (!sessions) return
     await sessions.abandonnerOrphelin(cheminVerrou)
   })
 
-  /* ── E4 : présence (§9) ─────────────────────────────────────────────── */
+  /* ── Présence ────────────────────────────────────────────────────────── */
 
   /** Le renderer signale l'entretien qu'il ouvre/ferme — la présence est
    *  publiée immédiatement (sans attendre le prochain battement). */
@@ -829,7 +841,7 @@ function enregistrerIpcCorpus(): void {
     void presence.noterEntretienOuvert(id)
   })
 
-  /* ── E3b : copies de divergence (§6, fusion assistée) ─────────────────── */
+  /* ── Copies de divergence (fusion assistée) ──────────────────────────── */
 
   /** Les copies mises de côté par les rétrogradations (publication 412). */
   ipcMain.handle('distant:listerDivergences', () =>
@@ -917,9 +929,9 @@ function enregistrerIpcCorpus(): void {
       return ok
     },
   )
-  // Lot « modifier en lot » (plan-lot-table-donnees.md §4) : distant →
-  // transactions (verrou court par entretien, échecs nommés) ; local → boucle
-  // directe du store. Mêmes résultats dans les deux modes.
+  // Lot « modifier en lot » : distant → transactions (verrou court par
+  // entretien, échecs nommés) ; local → boucle directe du store. Mêmes
+  // résultats dans les deux modes.
   ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) =>
     transactions ? transactions.poserValeurLot(items) : poserValeurLotLocal(store, items),
   )
@@ -1083,7 +1095,7 @@ function enregistrerIpcMigration(): void {
     return { chemin, analyse: analyserCrp(contenu, basename(chemin)) }
   })
   /** Choix du dossier DÉDIÉ à la migration (openDirectory + createDirectory),
-   *  PRÉ-REMPLI `Documents/Sonal/<nom>` — le nom du corpus (D2), modifiable. */
+   *  PRÉ-REMPLI `Documents/Sonal/<nom>` — le nom du corpus, modifiable. */
   ipcMain.handle('migrer:choisirDossier', async (e, nom: string) => {
     const defaultPath = join(app.getPath('documents'), 'Sonal', nom)
     const r = await montrerOuvrir(e, {
@@ -1113,7 +1125,7 @@ function enregistrerIpcMigration(): void {
     }
     return { ok: true, nonVide }
   })
-  /** Lit le `.Sonal` d'un entretien V1 (E2). `null` = absent/manquant. */
+  /** Lit le `.Sonal` d'un entretien V1. `null` = absent/manquant. */
   ipcMain.handle('migrer:lireSonal', (_e, cheminCrp: string, rtrPath: string | null) => {
     if (!rtrPath) return null
     const abs = join(dirname(cheminCrp), rtrPath)

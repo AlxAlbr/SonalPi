@@ -1,5 +1,5 @@
 /**
- * Application EN MASSE d'une règle corpus sur un entretien FERMÉ (3b, étape 4).
+ * Application EN MASSE d'une règle corpus sur un entretien FERMÉ.
  *
  * Depuis le panneau « Pseudos » du corpus, on coche des entretiens et on pose
  * les `OccurrenceAnon` rule-backed (« à traiter » → anonymisées avec le pseudo

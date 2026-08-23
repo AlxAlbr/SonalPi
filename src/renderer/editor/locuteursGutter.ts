@@ -8,7 +8,7 @@ import type { Locuteur } from '../../shared/format'
 export const gouttierePluginKey = new PluginKey('sonal-locuteurs-gutter')
 
 /**
- * Élément de gouttière (refonte étape 2, §3.2) : le libellé passe AU-DESSUS du
+ * Élément de gouttière : le libellé passe AU-DESSUS du
  * bloc (layout SonalPi `.ligloc`) — c'est ce qui permet de barrer le nom et
  * d'afficher `[pseudo]` SANS décaler le texte du tour, qui démarre pleine
  * largeur dessous. Le widget reste UNE DÉCORATION dans le contenu du paragraphe
@@ -46,7 +46,7 @@ export function construireLibelleGouttiere(lib: LibelleGouttiere, vide: boolean)
     const nom = document.createElement('span')
     nom.className = 'loc-nom'
     nom.textContent = lib.nom
-    // Le NOM s'écrit dans la couleur du locuteur (§3.3) : choisie dans la
+    // Le NOM s'écrit dans la couleur du locuteur : choisie dans la
     // palette (tableau) ou auto par index — l'identité visuelle suit partout.
     nom.style.color = lib.couleur
     el.appendChild(nom)

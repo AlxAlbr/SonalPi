@@ -1,18 +1,18 @@
 /**
- * Variante A du verrou — files_lock natif Nextcloud (plan-multiuser.md §8).
- * Sélectionnée AUTOMATIQUEMENT quand la sonde capabilities d'E0 dit
- * `files.locking` présent : l'utilisateur ne choisit rien (§8). Derrière le
- * même contrat `VerrouProvider` que la variante B — le protocole de session
- * (§4) est inchangé, seul le provider diffère (invariant §15.2).
+ * Variante A du verrou — files_lock natif Nextcloud.
+ * Sélectionnée AUTOMATIQUEMENT quand la sonde capabilities dit
+ * `files.locking` présent : l'utilisateur ne choisit rien. Derrière le
+ * même contrat `VerrouProvider` que la variante PUT conditionnel — le
+ * protocole de session est inchangé, seul le provider diffère.
  *
  * Différences de nature avec la variante B :
  *   - le verrou porte sur LE FICHIER DE DONNÉES lui-même
  *     (`entretiens/<id>.json`), pas sur un fichier annexe dans `verrous/` ;
  *   - il est VISIBLE dans l'UI web Nextcloud (cadenas) et IMPOSÉ par le
- *     serveur (PUT/DELETE d'un tiers → 423, vérifié réel) — le filet §6.1 ne
- *     devrait plus jamais se déclencher ;
- *   - l'identité du détenteur est l'utilisateur NEXTCLOUD, pas notre sessionId
- *     (§7) : deux sessions du MÊME user sur deux postes ne sont pas distinguées
+ *     serveur (PUT/DELETE d'un tiers → 423, vérifié réel) — la reprise après
+ *     écrasement ne devrait plus jamais se déclencher ;
+ *   - l'identité du détenteur est l'utilisateur NEXTCLOUD, pas notre sessionId :
+ *     deux sessions du MÊME user sur deux postes ne sont pas distinguées
  *     par le serveur. D'où la garde d'acquisition ci-dessous (refus si déjà
  *     verrouillé, même par « nous ») et le JOURNAL LOCAL des verrous tenus
  *     (couche session) pour la détection des orphelins après crash.
@@ -32,13 +32,13 @@ import type {
 
 /** TTL affiché/décisionnel quand le serveur n'annonce pas de timeout
  *  (`lock-timeout: 0` = n'expire jamais — défaut files_lock). La péremption
- *  côté app reste calculable via `lock-time` (plan §8). */
+ *  côté app reste calculable via `lock-time`. */
 const TTL_PAR_DEFAUT_S = 3600
 
 export class ProviderFilesLock implements VerrouProvider {
   constructor(
     private readonly client: ClientWebDAV,
-    /** Notre identité (§7) — sert au contenu affiché ; le serveur, lui,
+    /** Notre identité — sert au contenu affiché ; le serveur, lui,
      *  n'enregistre que l'utilisateur Nextcloud. */
     private readonly identite: () => { userId: string; machineId: string; sessionId: string },
   ) {}
@@ -92,7 +92,7 @@ export class ProviderFilesLock implements VerrouProvider {
     const iso = brut.time ? new Date(brut.time * 1000).toISOString() : new Date().toISOString()
     return {
       userId: brut.owner || this.identite().userId,
-      machineId: '', // le serveur ne connaît pas les machines (§7)
+      machineId: '', // le serveur ne connaît pas les machines
       sessionId: '', // ni les sessions — voir journal local pour les orphelins
       acquiredAt: iso,
       refreshedAt: iso,

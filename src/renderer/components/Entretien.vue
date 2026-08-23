@@ -69,9 +69,9 @@ const {
   retourCorpus,
   exporter,
   audio,
-  lectureSeule, // définitions (flux B) : grisage permanent avant E3
+  lectureSeule, // corpus en lecture seule : tout l'éditeur est grisé
   verrouAutrui, // verrou de l'entretien ouvert (tenu par autrui ?)
-  // E1 : statut de session (publication) + « Publier maintenant »
+  // Statut de la session d'écriture (publication) + « Publier maintenant »
   statutSession,
   publiErreur,
   publierMaintenant,
@@ -81,8 +81,8 @@ const {
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
-// Lecture seule du CONTENU (flux A) : l'entretien ouvert est figé ssi son
-// verrou est tenu par autrui. Les définitions suivent `lectureSeule`.
+// Lecture seule du CONTENU : l'entretien ouvert est figé ssi son verrou est
+// tenu par autrui. Les définitions suivent `lectureSeule`.
 const roContenu = computed(() => verrouAutrui.value !== null)
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
@@ -433,7 +433,7 @@ function focaliserLibre(el: unknown, cle: string) {
 <template>
     <section class="ecran entretien-ecran">
       <!-- Corpus distant : bandeau si le verrou de CET entretien est tenu
-           par autrui (§4.1 — qui, depuis quand). -->
+           par autrui (qui, depuis quand). -->
       <div v-if="verrouAutrui" class="banniere-ro">
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b>
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}.
@@ -445,9 +445,9 @@ function focaliserLibre(el: unknown, cle: string) {
         <div class="barre">
           <button class="retour" @click="retourCorpus">← Corpus</button>
           <span class="barre-aide">Sélectionne du texte, puis clique un thème (onglet Thématique) pour le coder.</span>
-          <!-- Corpus distant, session à nous : statut de publication (§4.3/§10)
-               + « Publier maintenant ». En lecture seule (verrou autrui) : rien
-               à publier, le bandeau 🔒 au-dessus parle déjà. -->
+          <!-- Corpus distant, session à nous : statut de publication
+               + « Publier maintenant ». En lecture seule (verrou autrui) :
+               rien à publier, le bandeau 🔒 au-dessus parle déjà. -->
           <template v-if="statutSession.etat === 'a-nous'">
             <span v-if="publiErreur" class="statut-session divergence">⚠️ {{ publiErreur }}</span>
             <span v-else-if="statutSession.sale" class="statut-session sale" title="Publication périodique toutes les 5 min ; le bouton force à la demande.">
@@ -571,7 +571,7 @@ function focaliserLibre(el: unknown, cle: string) {
               </div>
             </div>
 
-            <!-- Petit tableau des locuteurs (étape 2 §3.3) : Nom | Pseudo
+            <!-- Petit tableau des locuteurs : Nom | Pseudo
                  (optionnel) | Interv. | ✕. Le pseudo posé pseudonymise les
                  étiquettes des tours (barré + [pseudo] dans la gouttière) ;
                  ✓ contrôle la confirmation, ⊘ le refus (libellé en clair). -->
@@ -997,7 +997,7 @@ function focaliserLibre(el: unknown, cle: string) {
   border-radius: 5px;
   cursor: pointer;
 }
-/* E1 — statut de session (publication) dans la barre d'actions */
+/* Statut de session (publication) dans la barre d'actions */
 .statut-session {
   font-size: 0.8rem;
   white-space: nowrap;
@@ -1310,8 +1310,8 @@ function focaliserLibre(el: unknown, cle: string) {
   flex-direction: column;
   gap: 0.3rem;
 }
-/* Petit tableau des locuteurs : Couleur | Nom | Pseudo | Interv. | ✕ (étape
- * 2 §3.3). La grille de colonnes est partagée entre l'en-tête et les lignes —
+/* Petit tableau des locuteurs : Couleur | Nom | Pseudo | Interv. | ✕.
+ * La grille de colonnes est partagée entre l'en-tête et les lignes —
  * les largeurs restent stables, le champ Nom respire (colonne 2). */
 .tableau-loc-tetes,
 .liste-loc li {
@@ -1371,7 +1371,7 @@ function focaliserLibre(el: unknown, cle: string) {
   transform: scale(1.15);
 }
 /* Cellule Pseudo : champ + décision confirmer ✓ / refuser ⊘ (le pseudo posé
- * pseudonymise les étiquettes de ses tours — voir §3.2 pour le rendu). */
+ * pseudonymise les étiquettes de ses tours, rendues barrées + [pseudo]). */
 .pseudo-cell {
   display: flex;
   align-items: center;
@@ -1707,11 +1707,10 @@ td.col-pseudo {
   color: #bbb;
   font-weight: 400;
 }
-/* Compteurs scindés d'une ligne anon (étape 1 §2.5) : quantité d'occurrences
- * ANONYMISÉES (barrées) et d'EXCEPTIONS (laissées en clair), reporter le même
- * langage visuel que le texte : point plein bleu pour l'anonymisé, point creux
- * gris à soulignement pointillé pour l'exception. Le « à traiter » viendra avec
- * l'étape 3 (requête corpus). */
+/* Compteurs scindés d'une ligne anon : quantité d'occurrences ANONYMISÉES
+ * (barrées) et d'EXCEPTIONS (laissées en clair). Même langage visuel que le
+ * texte : point plein bleu pour l'anonymisé, point creux gris à soulignement
+ * pointillé pour l'exception. */
 .cpt-anon,
 .cpt-exc {
   font-size: 0.7rem;
@@ -1730,8 +1729,8 @@ td.col-pseudo {
   text-underline-offset: 2px;
 }
 /* Slider de portée 3 crans : brouillon (🚧) / entretien (📄) / corpus (🌐).
- * Le cran corpus est ACTIF depuis l'étape 3 (règles corpus). Le cran courant
- * est désactivé et mis en évidence, les autres sont cliquables (promotion). */
+ * Le cran corpus active les règles corpus. Le cran courant est désactivé et
+ * mis en évidence, les autres sont cliquables (promotion). */
 .portee-slider {
   display: inline-flex;
   border: 1px solid #d0d0d8;
@@ -1821,7 +1820,7 @@ td.col-pseudo {
   opacity: 1;
 }
 
-/* E0 corpus distant — bandeau de lecture seule au-dessus de la grille. */
+/* Corpus distant — bandeau de lecture seule au-dessus de la grille. */
 .banniere-ro {
   background: #fff8e6;
   color: #8a6d1a;

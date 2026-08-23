@@ -1,10 +1,11 @@
 /**
- * Tests de la VARIANTE A — files_lock natif (plan-multiuser.md §8) contre le
+ * Tests de la VARIANTE A — files_lock natif — contre le
  * serveur WebDAV embarqué (qui émule le contrat vérifié sur la pile réelle :
  * LOCK/UNLOCK + X-User-Lock, 200/423/412, imposition du verrou aux tiers,
  * props nc: dans les PROPFIND).
  *
- * Ce que E2 doit prouver ici : même comportement que E1 (cycle §4 complet,
+ * Ce que cette variante doit prouver ici : le même comportement que la
+ * variante B (cycle complet,
  * zéro perte), avec un verrou qui porte sur LE FICHIER DE DONNÉES lui-même
  * et une détection d'orphelins par JOURNAL LOCAL (le serveur ne connaît ni
  * machine ni session).
@@ -67,7 +68,7 @@ function banc() {
   }
 }
 
-describe('Provider files_lock (§8)', () => {
+describe('Provider files_lock', () => {
   it('acquisition → état → battement → libération ; refus atomique d\u2019un tiers', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -107,7 +108,7 @@ describe('Provider files_lock (§8)', () => {
   })
 })
 
-describe('Session en variante A — cycle §4 inchangé', () => {
+describe('Session en variante A — cycle inchangé', () => {
   it('ouverture pose le verrou NATIF sur entretiens/<id>.json ; fermeture le libère', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -115,7 +116,7 @@ describe('Session en variante A — cycle §4 inchangé', () => {
     expect(r.etat).toBe('a-nous')
     // Verrou visible côté serveur, détenu par max…
     expect(b.verrouNatif()).toMatchObject({ utilisateur: 'max' })
-    // …consigné au journal local (détection des orphelins §8)…
+    // …consigné au journal local (détection des orphelins)…
     expect(Object.keys(JSON.parse(readFileSync(b.journal(), 'utf8')))).toContain(ID)
     // …et la publication du détenteur passe (imposée seulement aux TIERS).
     b.sessions.noterSale(ID)
@@ -159,13 +160,13 @@ describe('Session en variante A — cycle §4 inchangé', () => {
     b.serveur.poserVerrouDirect(`entretiens/${ID}.json`, 'olivier')
     await b.sessions.tic()
     expect(b.retrogrades).toEqual([ID])
-    // Copie locale mise de côté (divergence §6) et session retirée.
+    // Copie locale mise de côté (divergence) et session retirée.
     expect(b.sessions.etat(ID).etat).toBe('aucune')
     expect(readFileSync(b.journal(), 'utf8')).not.toContain(ID)
   })
 })
 
-describe('Orphelins en variante A — détection par journal local (§4.5/§8)', () => {
+describe('Orphelins en variante A — détection par journal local', () => {
   async function crash(b: ReturnType<typeof banc>) {
     b.identite.value = { userId: 'max', machineId: 'poste-1', sessionId: 's-CRASH' }
     await b.miroir.tirer()
@@ -196,7 +197,7 @@ describe('Orphelins en variante A — détection par journal local (§4.5/§8)',
     expect(readFileSync(b.journal(), 'utf8')).not.toContain(ID)
   })
 
-  it('« reprendre et publier » : publie la copie locale PUIS libère (ordre §4.4)', async () => {
+  it('« reprendre et publier » : publie la copie locale PUIS libère', async () => {
     const b = banc()
     await crash(b)
     const o = await b.sessions.orphelins()

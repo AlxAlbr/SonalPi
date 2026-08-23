@@ -39,7 +39,7 @@ même façon (`../../SonalPi/…`). Fichiers utiles pour confirmer le format `.c
 
 ### 2.1 Entrée
 
-Carte **« Migrer un corpus SonalPi (V1)… »** sur l'[Accueil](../src/renderer/components/Accueil.vue),
+Carte **« Migrer un corpus SonalPi (V1)… »** sur l'[Accueil](../../src/renderer/components/Accueil.vue),
 à côté de « Ouvrir un corpus… ». Éventuellement un rappel au premier lancement
 (si un dossier V1 est détecté — optionnel, à discuter).
 

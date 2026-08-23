@@ -1,7 +1,7 @@
 /**
  * Coffre du compte distant — URL serveur + login + MOT DE PASSE D'APPLICATION
  * (jamais le principal : révocable individuellement, seul accepté en Basic
- * auth quand la 2FA est active — plan §2 « Compte »).
+ * auth quand la 2FA est active).
  *
  * Le secret est chiffré via `safeStorage` d'Electron (clé du trousseau OS) ;
  * le fichier sur disque ne contient jamais le mot de passe en clair.
@@ -14,7 +14,7 @@ import { join } from 'node:path'
 
 /** Un corpus distant configuré. `cheminDistant` est saisi ou choisi par
  *  navigation WebDAV ; il est PROPRIE À CHAQUE COMPTE (un partage Nextcloud
- *  apparaît à `/remote.php/dav/files/<user>/…` — plan §2). */
+ *  apparaît à `/remote.php/dav/files/<user>/…`). */
 export interface ConfigCorpusDistant {
   /** Id stable du corpus distant (dérivé du chemin, ex. encodage base64url). */
   id: string
@@ -106,8 +106,8 @@ export function idDeCorpus(urlServeur: string): string {
  *  Chaque valeur est AUTO-DESCRITIVE (`ss:` = chiffrement trousseau, `b64:` =
  *  repli) : le déchiffrement suit le préfixe, donc un compte enregistré quand
  *  le trousseau était là reste lisible même s'il disparaît ensuite (et
- *  réciproquement) ; les valeurs sans préfixe sont l'héritage d'avant E4 et
- *  partent du principe safeStorage. */
+ *  réciproquement) ; les valeurs sans préfixe sont l'héritage d'une ancienne
+ *  version du format et partent du principe safeStorage. */
 export function coffreReel(dirUserData: string): CoffreComptes {
   // eslint-disable-next-line @typescript-eslint/no-var-requires -- import paresseux : ce module n'est chargé que dans Electron
   const { safeStorage } = require('electron') as typeof import('electron')
@@ -121,7 +121,8 @@ export function coffreReel(dirUserData: string): CoffreComptes {
         ? safeStorage.decryptString(Buffer.from(chiffre.slice(3), 'base64'))
         : chiffre.startsWith('b64:')
           ? Buffer.from(chiffre.slice(4), 'base64').toString('utf8')
-          : // Héritage (pré-E4, sans préfixe) : chiffré par safeStorage.
+          : // Héritage d'une ancienne version du format (sans préfixe) :
+            // chiffré par safeStorage.
             safeStorage.decryptString(Buffer.from(chiffre, 'base64')),
   }
   return new CoffreComptes(join(dirUserData, 'comptes-distant.json'), chiffreur)

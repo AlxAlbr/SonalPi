@@ -1,17 +1,17 @@
 /**
- * Le contrat de VERROU (plan-multiuser.md §4-§6) — ce que tout backend doit
+ * Le contrat de VERROU — ce que tout backend doit
  * fournir pour garantir « un écrivain à la fois ». Le protocole de session ne
- * connaît que cette interface, JAMAIS la variante concrète (invariant §15 :
- * capacités, pas types de transport).
+ * connaît que cette interface, JAMAIS la variante concrète (capacités, pas
+ * types de transport).
  *
- * Deux implémentations prévues :
- *  - ProviderPutConditionnel (§5, variante B) : verrous/<id>.lock.json créé par
+ * Deux implémentations :
+ *  - ProviderPutConditionnel : verrous/<id>.lock.json créé par
  *    PUT If-None-Match:* — marche sur tout serveur WebDAV correct ;
- *  - ProviderFilesLock (§8, variante A, E2) : LOCK/UNLOCK natifs Nextcloud.
+ *  - ProviderFilesLock : LOCK/UNLOCK natifs Nextcloud.
  */
 
-/** Le contenu du fichier verrou (variante B) — l'état que l'UI affiche
- *  (« tenu par X depuis HH:MM »). Identité = §7 : userId affichable,
+/** Le contenu du fichier verrou (variante PUT conditionnel) — l'état que l'UI affiche
+ *  (« tenu par X depuis HH:MM »). Identité : userId affichable,
  *  machineId généré, sessionId ALÉATOIRE PAR OUVERTURE (un verrou n'est jamais
  *  hérité d'une session précédente). */
 export interface ContenuVerrou {
@@ -20,7 +20,7 @@ export interface ContenuVerrou {
   sessionId: string
   acquiredAt: string // ISO
   refreshedAt: string // ISO
-  /** Durée de vie annoncée, en SECONDES (défaut plan §5.3 : 300). */
+  /** Durée de vie annoncée, en SECONDES (défaut : 300). */
   ttl: number
 }
 
@@ -31,7 +31,7 @@ export type ResultatAcquisition =
 
 export interface ResultatBattement {
   /** false = NOTRE verrou a été repris par quelqu'un d'autre (détection de
-   *  forçage §5.2) → l'appelant doit se rétrograder en lecture seule. */
+   *  forçage) → l'appelant doit se rétrograder en lecture seule. */
   ok: boolean
   etag?: string
 }
@@ -52,15 +52,15 @@ export interface VerrouProvider {
 }
 
 /* ── Décisions de péremption — fonctions PURES, table de vérité testée ──────
- * Les horloges n'ont besoin d'être justes qu'à la MINUTE près (plan §1) :
+ * Les horloges n'ont besoin d'être justes qu'à la MINUTE près :
  * marge de dérive généreuse, décisions grossières uniquement.
  * ──────────────────────────────────────────────────────────────────────────*/
 
-/** Marge de dérive horloge (s) : TTL + marge avant de déclarer périmé (§5.3). */
+/** Marge de dérive horloge (s) : TTL + marge avant de déclarer périmé. */
 export const MARGE_DERIVE_S = 120
-/** Battement toutes les 60 s (§5.3). */
+/** Battement toutes les 60 s. */
 export const PERIODE_BATTEMENT_MS = 60_000
-/** Publication périodique par défaut : 5 min (tranché §14.5 : activée). */
+/** Publication périodique par défaut : 5 min. */
 export const PERIODE_PUBLICATION_MS = 300_000
 
 /** Un verrou est PÉRIMÉ si refreshedAt + ttl + marge < maintenant.

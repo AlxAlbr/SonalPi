@@ -42,13 +42,13 @@ export function supprimerLocuteur(locuteurs: Locuteur[], index: number): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Pseudonymisation de l'ÉTIQUETTE (étape 2, plan §3.1/§3.2).
+// Pseudonymisation de l'ÉTIQUETTE du locuteur.
 //
 // Le pseudo est un CHAMP du locuteur (`pseudo`/`pseudoEtat`) : le rendu suit
 // par RÉFÉRENCE (le widget de gouttière, futur export) — pas de hack DOM.
 // La fonction pure ci-dessous dérive les parts d'affichage du libellé ; la
-// « suggestion » (nom matchant une règle corpus) est une REQUÊTE de l'étape 3,
-// jamais stockée — hors de cette fonction.
+// « suggestion » (nom matchant une règle corpus) est une REQUÊTE, jamais
+// stockée — hors de cette fonction.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Parts d'affichage du libellé de tour (gouttière / exports) : PURE, testable.
@@ -94,7 +94,7 @@ export function couleurPourLocuteur(index: number): string {
 }
 
 /** Noms affichables des couleurs de la palette (pour l'écriture du nom de la
- *  couleur choisie — cf. tableau des locuteurs §3.3). */
+ *  couleur choisie depuis le tableau des locuteurs). */
 export const NOMS_COULEURS_LOCUTEURS: Record<string, string> = {
   '#e57373': 'Rouge',
   '#64b5f6': 'Bleu',

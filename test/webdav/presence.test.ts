@@ -1,5 +1,5 @@
 /**
- * Tests de la PRÉSENCE (plan-multiuser.md §9, E4) contre le serveur WebDAV
+ * Tests de la PRÉSENCE contre le serveur WebDAV
  * embarqué : publication périodique « qui consulte quoi », filtrage des
  * périmées (> 10 min) et de notre propre poste, robustesse best effort
  * (dossier absent, fichier corrompu). La présence est JAMAIS décisionnelle :
@@ -27,7 +27,7 @@ function banc() {
   return { serveur, client, dirMiroir }
 }
 
-describe('PresenceDistante (§9, E4)', () => {
+describe('PresenceDistante', () => {
   it('battre publie NOTRE présence ; lister exclut notre poste', async () => {
     const b = banc()
     const p = new PresenceDistante(b.client, () => ({

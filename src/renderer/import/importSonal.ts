@@ -94,7 +94,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // 1) Un SEGMENT (.lblseg) = un cue : texte + annotations en offsets locaux +
   //    sa fenêtre temporelle [deb, fin] (bornes mesurées, ou null).
   const blocs: BlocImport[] = []
-  // Marqueurs de libellé des tours (§3.4) : un .lblseg.ligloc porte le libellé
+  // Marqueurs de libellé des tours (.lblseg.ligloc) : chacun porte le libellé
   // du tour — pseudonymisé (loc-anon + data-locpseudo) ou refusé
   // (loc-suggere-refuse) → Locuteur.pseudo / pseudoEtat.
   const labelsLoc = new Map<number, { pseudo: string } | { refuse: true }>()
@@ -120,7 +120,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
         if (/^cat_\d+$/.test(cls)) anns.push({ type: 'codage', code: cls, from, to })
       }
       if (frag.classList.contains('anon-exception')) {
-        // §2.1 (option 2) : une exception ne ré-émet JAMAIS de data-pseudo à
+        // Une exception ne ré-émet JAMAIS de data-pseudo à
         // l'export — mais un éventuel `data-pseudo` du producteur (hors
         // convention SonalPi) est CONSERVÉ en mémoire de modèle, comme la
         // bascule locale le fait : « remettre en anonymisé » peut alors
@@ -145,7 +145,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
 
   // 1b) FUSION DES TOURS : les cues consécutifs d'un même locuteur NON NUL
   //     deviennent UN paragraphe (le tour), leurs frontières survivant en
-  //     ancres internes (étape 3b) — sans perte, l'export re-découpe par ancre.
+  //     ancres internes (3b) — sans perte, l'export re-découpe par ancre.
   //     Sans locuteur → un bloc par cue (un SRT non diarisé ne devient pas un
   //     seul pavé). Fusion d'IMPORT uniquement : aucun geste d'édition ne
   //     fusionne.
@@ -163,7 +163,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   }
 
   // 2) Doc ProseMirror : un paragraphe par tour. Les timecodes ne sont PAS des
-  //    attrs de bloc : ils deviennent des ancres (étape 3b).
+  //    attrs de bloc : ils deviennent des ancres (3b).
   const longueurs = tours.map((b) => b.text.length)
   const corpsTexte = {
     type: 'doc',
@@ -234,7 +234,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // 4b) Valeurs EAV : `l="all"` → valeursGen ; `l=index` → valeursLoc (posé ici).
   const valeursGen = distribuerValeurs(extraireJson(html, 'dat-json'), locuteurs)
 
-  // 4c) Marqueurs de libellé du .ligloc (§3.4) → Locuteur.pseudo / pseudoEtat :
+  // 4c) Marqueurs de libellé du .ligloc → Locuteur.pseudo / pseudoEtat :
   //     pseudonymisé (loc-anon + data-locpseudo) → « confirme » ; refus explicite
   //     (loc-suggere-refuse) → « refuse ». Parité SonalPi ; le « ? » interviewer
   //     vient du tabLoc (4), jamais des marqueurs.

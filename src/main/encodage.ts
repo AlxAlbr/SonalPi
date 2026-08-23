@@ -2,9 +2,8 @@ import chardet from 'chardet'
 import { decode } from 'iconv-lite'
 
 /**
- * Décodage d'un fichier texte SonalPi V1 (`.crp`, `.Sonal`…) — parité V1
- * (main.js ~v.1699 : `chardet` + `iconv-lite`, Q2 du plan-migration).
- * Un `.crp` mal décodé corrompt les accents partout (plan §8) : on réplique
+ * Décodage d'un fichier texte SonalPi V1 (`.crp`, `.Sonal`…).
+ * Un `.crp` mal décodé corrompt les accents partout : on réplique
  * EXACTEMENT la logique V1 — détection `chardet` ; windows-1252 si détecté
  * ISO-8859-1/windows-1252, UTF-8 sinon.
  *

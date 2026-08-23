@@ -130,7 +130,7 @@ function construireDecorations(
     // Le barré, lui, reste continu sur toute la plage.
     const anons = couvrant.filter((a) => a.type === 'anon')
     // Occurrence ANONYMISÉE (barrée + [pseudo]) vs EXCEPTION (décision volontaire
-    // de laisser en clair — ni barré ni [pseudo], cf. §2.2). Sur un segment où
+    // de laisser en clair — ni barrée ni [pseudo]). Sur un segment où
     // une occurrence anonymisée et une exception se recouvrent, le barré
     // l'emporte (c'est la décision de masquage qui reste visible) ; un segment
     // couvert UNIQUEMENT par des exceptions reçoit la classe `anon-exception`.
@@ -138,7 +138,7 @@ function construireDecorations(
     const exceptionSeule = anons.length > 0 && !anonymiseIci
     // Le [pseudo] ne s'affiche qu'à la BORNE DE FIN d'une occurrence ANONYMISÉE
     // — jamais sur une exception (le pseudo vit sur la ligne/règle, pas sur
-    // l'exception, §2.1).
+    // l'exception).
     const pseudos = [
       ...new Set(
         anons

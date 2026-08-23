@@ -5,13 +5,12 @@ import { join } from 'node:path'
 import { lancer, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * E3 — migration SonalPi V1 → V2 (plan-migration.md §5) : le flux COMPLET.
- * Un `.crp` V1 (choisi via dialogue natif) → APERÇU (E0) → dossier DÉDIÉ avec
+ * Migration SonalPi V1 → V2 : le flux COMPLET.
+ * Un `.crp` V1 (choisi via dialogue natif) → APERÇU → dossier DÉDIÉ avec
  * gardes (on n'écrase jamais : corpus.json refusé, démo refusé, dossier non
- * vide sans corpus.json = avertissement à confirmer) → exécution (E1/E3) :
+ * vide sans corpus.json = avertissement à confirmer) → exécution :
  * corpus V2 écrit (nom + meta.sourceV1 + codebook/variables), ouvert, ajouté
- * aux récents. Le contenu des entretiens (.Sonal) est l'étape E2 — hors de ce
- * spec. Les dialogues natifs sont stubbés (electronApp.evaluate) : le choix du
+ * aux récents. Le contenu des entretiens (.Sonal) est hors de ce spec. Les dialogues natifs sont stubbés (electronApp.evaluate) : le choix du
  * `.crp` (filtre crp) renvoie le chemin du fixture, le choix du dossier
  * (openDirectory, sans filtre) le dossier cible de l'appel.
  *
@@ -112,7 +111,7 @@ function lireEntretien(dirCorpus: string, id: string): Record<string, any> {
   return JSON.parse(readFileSync(join(dirCorpus, 'entretiens', `${id}.json`), 'utf8'))
 }
 
-test('E3+E2 : flux complet — .crp → aperçu → dossier dédié → corpus V2 ouvert, entretiens .Sonal+audio migrés', async () => {
+test('flux complet — .crp → aperçu → dossier dédié → corpus V2 ouvert, entretiens .Sonal+audio migrés', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-'))
   const { cheminCrp, audioPath } = ecrireCorpusV1(profil)
   const dirCible = join(profil, 'MonCorpus') // dossier dédié, VIDE
@@ -126,7 +125,7 @@ test('E3+E2 : flux complet — .crp → aperçu → dossier dédié → corpus V
   await page.locator('.carte-demo.migrer-corpus').click()
   await expect(page.locator('.modale-migration')).toBeVisible()
 
-  // Étape 1 — .crp → APERÇU (E0) : identité + compteurs, avant toute écriture.
+  // Étape 1 — .crp → APERÇU : identité + compteurs, avant toute écriture.
   await page.locator('.modale-migration .choisir-crp').click()
   await expect(page.locator('.modale-migration .apercu-nom')).toHaveText('MonCorpus') // repli nom de fichier
   await expect(page.locator('.modale-migration .apercu-date')).toContainText('3 entretien')
@@ -144,7 +143,7 @@ test('E3+E2 : flux complet — .crp → aperçu → dossier dédié → corpus V
   await expect(page.locator('.modale-migration')).toHaveCount(0)
   await expect(page.locator('.fil')).toContainText('MonCorpus')
 
-  // E2 — les 3 entretiens du .crp sont migrés (cartes sur l'écran Corpus).
+  // Les 3 entretiens du .crp sont migrés (cartes sur l'écran Corpus).
   await expect(page.locator('.carte-ent')).toHaveCount(3)
 
   // ── SUR DISQUE ────────────────────────────────────────────────────────────
@@ -197,7 +196,7 @@ test('E3+E2 : flux complet — .crp → aperçu → dossier dédié → corpus V
   await app.close()
 })
 
-test('E3 : gardes « on n’écrase jamais » — corpus.json refusé, corpus démo refusé', async () => {
+test('gardes « on n’écrase jamais » — corpus.json refusé, corpus démo refusé', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-garde-'))
   const cheminCrp = ecrireCrp(profil, 'MonCorpus.crp', 'corpusV1.crp')
 
@@ -241,7 +240,7 @@ test('E3 : gardes « on n’écrase jamais » — corpus.json refusé, corpus d�
   await app.close()
 })
 
-test('E3 : dossier non vide SANS corpus.json → avertissement à confirmer avant de migrer', async () => {
+test('dossier non vide SANS corpus.json → avertissement à confirmer avant de migrer', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-nonvide-'))
   const cheminCrp = ecrireCrp(profil, 'MonCorpus.crp', 'corpusV1.crp')
   const dirCible = join(profil, 'MonCorpus')
@@ -272,7 +271,7 @@ test('E3 : dossier non vide SANS corpus.json → avertissement à confirmer avan
   await app.close()
 })
 
-test('E3 : un `.crp` illisible est refusé dans la modale (raison typée, rien d’écrit)', async () => {
+test('un `.crp` illisible est refusé dans la modale (raison typée, rien d’écrit)', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-refus-'))
   const cheminMoche = join(profil, 'moche.crp')
   writeFileSync(cheminMoche, '{ pas du json', 'utf8')
@@ -293,7 +292,7 @@ test('E3 : un `.crp` illisible est refusé dans la modale (raison typée, rien d
   await app.close()
 })
 
-test('E3 : multi-crp — un `.crp` → UN dossier dédié (D3), deux migrations indépendantes', async () => {
+test('multi-crp — un `.crp` → UN dossier dédié, deux migrations indépendantes', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-multi-'))
   const crpA = ecrireCrp(profil, 'A.crp', 'corpusV1.crp')
   const crpB = ecrireCrp(profil, 'B.crp', 'corpusV1-nouveau.crp')

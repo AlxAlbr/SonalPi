@@ -1,16 +1,15 @@
 /**
- * La SESSION D'ÉCRITURE d'un entretien distant (plan-multiuser.md §4) —
+ * La SESSION D'ÉCRITURE d'un entretien distant —
  * le cycle complet :
  *
  *   ouvrir  : acquerir le verrou → GET du fichier SERVEUR (la version
  *             d'après-verrou fait foi) → mémoriser son ETag (garde de publication)
  *   écrire  : autosave local (miroir) uniquement — session marquée « sale »
- *   battre  : toutes les 60 s, preuve de vie ; échec → RÉTROGRADATION (§5.2)
+ *   battre  : toutes les 60 s, preuve de vie ; échec → RÉTROGRADATION
  *   publier : toutes les 5 min si sale + « Publier maintenant » — PUT If-Match
- *             <etag serveur> sous verrou TOUJOURS tenu (§4.3)
+ *             <etag serveur> sous verrou TOUJOURS tenu
  *   fermer  : publication finale PUIS déverrouillage — l'ordre est l'invariant
- *             central du protocole (§4.4 : un verrou ne se libère jamais sur un
- *             contenu non publié)
+ *             central (un verrou ne se libère jamais sur un contenu non publié)
  *
  * La rétrogradation et les publications sont signalées par callback (l'UI
  * s'abonne) ; le renderer reste par ailleurs libre de consulter `etat()`.
@@ -44,12 +43,12 @@ export type EtatSession =
   /** Refus d'acquisition : lecture seule avec détenteur affichable. */
   | { etat: 'tenu-par-autrui'; tenuPar: ContenuVerrou | null }
   /** Notre verrou a été repris/perdu au battement : contenu figé en lecture,
-   *  modifications locales à sauvegarder à part (divergence E3). */
+   *  modifications locales à sauvegarder à part (copie de divergence). */
   | { etat: 'degrade' }
 
 interface SessionInterne {
-  /** Le provider DE CETTE session — variante B ou A (§8) : le protocole ne
-   *  connaît que le contrat `VerrouProvider` (invariant §15.2). */
+  /** Le provider DE CETTE session : le protocole ne connaît que le contrat
+   *  `VerrouProvider`, jamais la variante concrète. */
   provider: VerrouProvider
   cheminVerrou: string
   etagServeur: string | null // ETag du FICHIER entretien côté serveur (garde de publication)
@@ -68,10 +67,10 @@ function idDe(cheminVerrou: string): string | null {
   return n ? n[1] : null
 }
 
-/** Options de construction : quelle VARIANTE de verrou (plan §8). La variante
+/** Options de construction : quelle VARIANTE de verrou. La variante
  *  est choisie par le main d'après la sonde capabilities — jamais demandée à
- *  l'utilisateur. Le protocole §4 est identique ; seuls le provider et le
- *  chemin verrouillé diffèrent (fichier annexe en B, fichier de données en A).
+ *  l'utilisateur. Le protocole est identique ; seuls le provider et le
+ *  chemin verrouillé diffèrent (fichier annexe ou fichier de données).
  */
 export interface OptionsSessions {
   /** true = variante A (files_lock sur `entretiens/<id>.json`) ; false/absent
@@ -87,14 +86,14 @@ export class SessionsDEntretien {
     private readonly client: ClientWebDAV,
     private readonly miroir: MiroirWebDAV,
     private readonly identite: () => IdentiteSession,
-    /** Notifications vers le renderer (poll côté UI en attendant E4). */
+    /** Notifications vers le renderer. */
     private readonly onRetrogradation?: (id: string) => void,
     private readonly onPublication?: (id: string, date: string) => void,
     private readonly options: OptionsSessions = {},
   ) {}
 
   /** Chemin VERROUILLÉ pour un entretien — le seul point où les variantes
-   *  diffèrent physiquement (§8) : fichier annexe (B) ou fichier de données (A). */
+   *  diffèrent physiquement : fichier annexe ou fichier de données. */
   private cheminVerrouDe(id: string): string {
     return this.options.verrouNatif ? CHEMIN_ENTRETIEN(id) : `verrous/${id}.lock.json`
   }
@@ -111,7 +110,7 @@ export class SessionsDEntretien {
     const existante = this.sessions.get(id)
     if (existante) return { etat: 'a-nous', dernierPubli: existante.dernierPubli, sale: existante.sale }
 
-    // Un provider PAR session d'écriture ; la variante vient des options (§8).
+    // Un provider PAR session d'écriture ; la variante vient des options.
     const provider = this.fabriquerProvider()
     const chemin = this.cheminVerrouDe(id)
     const acquisition = await provider.acquerir(chemin)
@@ -123,7 +122,7 @@ export class SessionsDEntretien {
     if (this.options.verrouNatif) this.journalAjouter(id)
 
     // La version d'APRÈS-verrou fait foi : GET serveur écrit dans le miroir
-    // (pas de confiance à notre copie locale potentiellement périmée, §4.1).
+    // (pas de confiance à notre copie locale potentiellement périmée).
     const cheminFichier = CHEMIN_ENTRETIEN(id)
     let etagServeur = await this.etagServeurDe(cheminFichier)
     if (etagServeur) {
@@ -156,8 +155,8 @@ export class SessionsDEntretien {
     }
   }
 
-  /** Publication §4.3 : PUT If-Match sous verrou toujours tenu.
-   *  412 → divergence (§6) : copie locale mise de côté, session dégradée ;
+  /** Publication : PUT If-Match sous verrou toujours tenu.
+   *  412 → divergence : copie locale mise de côté, session dégradée ;
    *  JAMAIS d'écrasement silencieux. */
   async publier(id: string): Promise<{ ok: boolean; raison?: string }> {
     const s = this.sessions.get(id)
@@ -188,7 +187,7 @@ export class SessionsDEntretien {
     }
   }
 
-  /** Fermeture §4.4 : publication finale PUIS libération — JAMAIS l'inverse.
+  /** Fermeture : publication finale PUIS libération — JAMAIS l'inverse.
    *  Échec RÉSEAU de la publication → le verrou RESTE tenu (le contenu n'est
    *  pas parti ; retenter « Publier » puis refermer). DIVERGENCE (412) → la
    *  dégradation a déjà mis la copie locale de côté et retiré la session :
@@ -207,7 +206,7 @@ export class SessionsDEntretien {
     try {
       await s.provider.liberer(s.cheminVerrou)
     } catch {
-      /* serveur injoignable : orphelin > TTL, nettoyage §5.3 à l'ouverture */
+      /* serveur injoignable : orphelin, nettoyé au prochain nettoyage d'ouverture */
     }
     if (this.options.verrouNatif) this.journalRetirer(id)
     this.sessions.delete(id)
@@ -223,8 +222,8 @@ export class SessionsDEntretien {
     return { etat: 'a-nous', dernierPubli: s.dernierPubli, sale: s.sale }
   }
 
-  /** Désignation audio distante sur un entretien FERMÉ (plan-audio-distant.md
-   *  D4) — micro-session : verrou → GET serveur (la version d'après-verrou fait
+  /** Désignation audio distante sur un entretien FERMÉ — micro-session :
+   *  verrou → GET serveur (la version d'après-verrou fait
    *  foi) → pose de `meta.audioDistant` → publier → fermer. L'ordre et les
    *  gardes sont EXACTEMENT ceux d'une session normale ; aucun nouveau canal
    *  protocole. Un entretien OUVERT chez nous passe par le modèle en session
@@ -263,7 +262,7 @@ export class SessionsDEntretien {
       if (!r.ok) return r // divergence : la session est déjà partie (dégradée)
       return { ok: true }
     } finally {
-      await this.fermer(id).catch(() => {}) // réseau : orphelin > reprise §4.5
+      await this.fermer(id).catch(() => {}) // réseau : verrou orphelin, repris au dialogue
     }
   }
 
@@ -304,8 +303,8 @@ export class SessionsDEntretien {
     }
   }
 
-  /** Rétrogradation (§5.2) : notre verrou a été repris. Le contenu local est
-   *  mis de côté hors serveur (divergence, §6) ; la session disparaît —
+  /** Rétrogradation : notre verrou a été repris. Le contenu local est
+   *  mis de côté hors serveur (copie de divergence) ; la session disparaît —
    *  l'entretien redevient NON éditable (garde store retirée). */
   private async degrader(id: string): Promise<void> {
     const s = this.sessions.get(id)
@@ -338,7 +337,7 @@ export class SessionsDEntretien {
     return [...this.sessions.keys()]
   }
 
-  /* ── Copies de DIVERGENCE (§6, fusion assistée E3b) ─────────────────────
+  /* ── Copies de DIVERGENCE (fusion assistée) ─────────────────────────────
    * Une rétrogradation (publication 412) met la copie locale de côté hors
    * serveur : `sessions/<id>.divergence-<sessionId>.json`. Elle n'est ni
    * perdue ni publiée en silence — listée ici pour le dialogue de fusion.
@@ -387,7 +386,7 @@ export class SessionsDEntretien {
   }
 
   /** Liste des verrous orphelins (crash sans libération) — matière du dialogue
-   *  « reprendre / abandonner » (§4.5).
+   *  « reprendre / abandonner ».
    *  Variante B : un orphelin = verrou de NOTRE machine mais d'une AUTRE
    *  session (sessionId aléatoire par lancement : un verrou n'est jamais
    *  hérité) — détection par lecture des fichiers `verrous/`.
@@ -455,21 +454,21 @@ export class SessionsDEntretien {
     return out
   }
 
-  /** Abandon explicite d'un orphelin (choix « abandonner » du dialogue §4.5) :
+  /** Abandon explicite d'un orphelin (choix « abandonner » du dialogue) :
    *  déverrouille SANS publier — la copie locale du miroir reste en place et
-   *  repartira en divergence si elle resurgit plus tard (§6).
+   *  repartira en divergence si elle resurgit plus tard.
    */
   async abandonnerOrphelin(cheminVerrou: string): Promise<void> {
     await this.libererVerrouOrphelin(cheminVerrou)
   }
 
-  /** Reprise d'un orphelin (choix « reprendre et publier » du dialogue §4.5) :
+  /** Reprise d'un orphelin (choix « reprendre et publier » du dialogue) :
    *  la copie locale du miroir (dernier autosave avant crash) est publiée sur
-   *  le serveur PUIS le verrou libéré — l'ordre invariant §4.4 s'applique ici
-   *  aussi. Personne n'a pu écrire entre-temps sans contourner le verrou ; la
-   *  garde If-Match couvre ce résidu (412 → divergence, on ne publie pas).
-   *  `cheminVerrou` = le chemin VERROUILLÉ, qui dépend de la variante
-   *  (`entretiens/<id>.json` en A, `verrous/<id>.lock.json` en B).
+   *  le serveur PUIS le verrou libéré — l'ordre publication-avant-libération
+   *  s'applique ici aussi. Personne n'a pu écrire entre-temps sans contourner
+   *  le verrou ; la garde If-Match couvre ce résidu (412 → divergence, on ne
+   *  publie pas). `cheminVerrou` = le chemin VERROUILLÉ, qui dépend de la
+   *  variante (fichier de données en files_lock, fichier annexe sinon).
    */
   async reprendreOrphelin(cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> {
     const id = idDe(cheminVerrou)
@@ -483,9 +482,9 @@ export class SessionsDEntretien {
     }
     const etagConnu = this.miroir.etagDistant(cheminFichier) // dernière version que NOUS avons publiée
     const etagActuel = await this.etagServeurDe(cheminFichier)
-    // Garde §4.5 : si le serveur ne porte plus la version publiée avant le
-    // crash, quelqu'un a écrit DERRIÈRE le verrou (UI web) — divergence, on
-    // ne publie pas et on ne libère pas : l'utilisateur tranche.
+    // Garde : si le serveur ne porte plus la version publiée avant le crash,
+    // quelqu'un a écrit DERRIÈRE le verrou (UI web) — divergence, on ne publie
+    // pas et on ne libère pas : l'utilisateur tranche.
     if (etagConnu && etagActuel && etagConnu !== etagActuel) {
       return { ok: false, raison: 'divergence' }
     }
@@ -534,7 +533,7 @@ export class SessionsDEntretien {
     }
   }
 
-  /* ── Journal LOCAL des verrous natifs tenus (variante A, §8) ──────────────
+  /* ── Journal LOCAL des verrous natifs tenus ───────────────────────────
    * files_lock n'expose que l'UTILISATEUR détenteur — ni machine ni session.
    * Pour retrouver nos orphelins après un crash, chaque acquisition native
    * est consignée ici (`sessions/.verrous-natifs.json`, local pur), retirée à
@@ -584,7 +583,7 @@ export class SessionsDEntretien {
     return entree?.etag ?? null
   }
 
-  /** État PUBLIC des fichiers verrou vus au pull (badges fiables §3.1/§10) :
+  /** État PUBLIC des fichiers verrou vus au pull (badges fiables) :
    *  chaque verrou est lu et décodé ; ceux de NOTRE propre session sont omis
    *  (on édite ces entretiens soi-même — un badge n'apporte rien). Un fichier
    *  illisible → contenu null (badge omis, jamais deviné).
@@ -614,7 +613,7 @@ export class SessionsDEntretien {
     return out
   }
 
-  /** Badges VARIANTE A (§3.1/§8) : le PROPFIND files_lock sur `entretiens/`
+  /** Badges files_lock : le PROPFIND sur `entretiens/`
    *  donne l'état « tenu par X » SUR LES FICHIERS DE DONNÉES EUX-MÊMES — pas
    *  de dossier `verrous/` à scanner. Une seule requête pour tout le corpus.
    *  Les entretiens dont NOUS tenons la session sont omis (on ne se badge pas

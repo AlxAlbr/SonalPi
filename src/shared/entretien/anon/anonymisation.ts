@@ -5,11 +5,11 @@
  * QUE du texte plat et des plages. Aucun DOM, aucun ProseMirror → testable
  * headless. L'intégration éditeur (positions PM, décorations) s'appuie dessus.
  *
- * Distinction fondamentale (cf. plan-anon-debut.md §1) :
+ * Distinction fondamentale :
  *  - une **OccurrenceAnon** = une décision sur une plage de texte, vit dans
  *    `Annotation{type:'anon'}` (entretien) ;
  *  - une **RegleAnon** = un mappage entité→pseudo partagé, vit au corpus
- *    (étape 2, pas ici).
+ *    au corpus (pas ici).
  *
  * En v1, l'onglet Anon ne fait que des occurrences : on matche une entité à la
  * validation, on pose une occurrence par match non déjà couvert. Pas de règle
@@ -132,7 +132,7 @@ export function plageVersPM(t: TextePlat, from: number, to: number): { from: num
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Validation d'une ligne du tableau (v1, étape 1 §2.4) : relabel + pose.
+// Validation d'une ligne du tableau (v1) : relabel + pose.
 //
 // Logique extraite en PURE pour être testable headless (le couplage Vue/PM vit
 // dans useEntretien.validerAnon, qui APPLIQUE les instructions renvoyées ici).
@@ -152,8 +152,8 @@ export interface InstructionsValiderAnon {
 /**
  * Applique la validation d'une ligne (Entrée) :
  *  1. Relabel — les occurrences ANONYMISÉES de la ligne reçoivent `pseudo` ;
- *     les EXCEPTIONS gardent leur état et leur pseudo-mémoire intacts (§2.4 :
- *     on n'écrase jamais une exception) ;
+ *     les EXCEPTIONS gardent leur état et leur pseudo-mémoire intacts
+ *     (on n'écrase jamais une exception) ;
  *  2. Pose — une occurrence est posée sur chaque match du texte NON déjà
  *     couvert, avec les règles du v1 : déjà couvert en entier → rien ; match
  *     contenant toutes les occurrences qui le touchent → absorption (retrait +
@@ -190,7 +190,7 @@ export function instructionsValiderAnon(
     }
     // Une exception au contact du match bloque la pose ET le retrait : le match
     // reste en clair (sa partie exceptée est mémorisée, l'autre n'est pas
-    // re-marquée — conservateur, cf. plan §2.4).
+    // re-marquée — comportement conservateur).
     if (touches.some((a) => a.etat === 'exception')) continue
     // Déjà couvert en entier par une occurrence anonymisée → rien à faire.
     if (touches.some((a) => a.from <= m.from && a.to >= m.to)) continue

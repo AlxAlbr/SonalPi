@@ -1,7 +1,7 @@
 # Plan multi-utilisateur — SonalPiTestV2 (architecture hybride miroir local + WebDAV)
 
-> Incarnation de l'étape « Multi-utilisateur (verrous) » différée depuis [DEMARRAGE.md](../DEMARRAGE.md)
-> (piste C de [BILAN.md](../BILAN.md)), dans le cadre posé par [MODELE_OBJET.md](MODELE_OBJET.md) :
+> Incarnation de l'étape « Multi-utilisateur (verrous) » différée depuis le document de démarrage du projet
+> (piste C du bilan), dans le cadre posé par le modèle d'objet :
 > concurrence = **verrou par fichier, un écrivain à la fois**.
 >
 > **Révision (2026-07-19)** : la première version de ce plan faisait travailler l'app directement
@@ -82,8 +82,8 @@ Comptes identiques sur les deux piles : `max` / `max-max-1234` (propriétaire),
 `olivier` / `olivier-olivier-5678` (partagé), UI web `admin` / `admin-admin-1`.
 En E1+, chaque scénario multi-utilisateur sera rejoué contre les DEUX piles
 (variante A contre A, variante B contre B).
-Détail : [../docker/compose.yml](../docker/compose.yml), [../docker/provisionner.sh](../docker/provisionner.sh),
-test de contrat : [../test/webdav/contrat-nextcloud.test.ts](../test/webdav/contrat-nextcloud.test.ts)
+Détail : [../docker/compose.yml](../../docker/compose.yml), [../docker/provisionner.sh](../../docker/provisionner.sh),
+test de contrat : [../test/webdav/contrat-nextcloud.test.ts](../../test/webdav/contrat-nextcloud.test.ts)
 (skippé automatiquement si le conteneur ne répond pas).
 
 ### Démo VISIBLE à deux postes (voir E4)
@@ -200,7 +200,7 @@ publication §4.3).
 ### 3.3 Audio et forme d'onde : entièrement locaux
 
 Le coloriage thématique de la forme d'onde n'est **pas dans le PNG** : le PNG est l'enveloppe
-neutre ([waveform.ts](../src/renderer/audio/waveform.ts)), et les couleurs sont un **calque**
+neutre ([waveform.ts](../../src/renderer/audio/waveform.ts)), et les couleurs sont un **calque**
 dérivé par requête (`resumesThematiques` : annotations de l'entretien + couleurs du codebook) —
 deux ingrédients qui voyagent **déjà** dans `entretiens/<id>.json` et `corpus.json`. La bande
 coloriée s'affiche donc chez tous **sans rien partager de plus** : il suffit que chaque poste ait
@@ -241,7 +241,7 @@ son affaire). D'où :
 
 ### 4.2 Pendant la session
 
-- **Autosave inchangé** (600 ms, [useEntretien.ts:359](../src/renderer/composables/useEntretien.ts#L359)) :
+- **Autosave inchangé** (600 ms, [useEntretien.ts:359](../../src/renderer/composables/useEntretien.ts#L359)) :
   il n'écrit que le miroir local — aucune contrainte réseau, aucun churn serveur.
 - **Battement du verrou** : rafraîchissement périodique (§5.3/§6.3) pour que les autres voient un
   verrou « vivant ».
@@ -298,7 +298,7 @@ membership, création/suppression/renommage d'entretien) suivent une politique p
 - **Pas de file d'attente ni de « compteur de changements corpus en attente »** : on n'enregistre
   pas d'intention différée. Motivation : un différé non borné réintroduirait la fusion
   multi-source différée que l'agrégat propre (`corpus.json` autoritaire) a précisément tuée
-  ([plan_anon.md](plan_anon.md) §2), et laisserait s'accumuler des collisions d'alias avec des
+  (plan anon, §2), et laisserait s'accumuler des collisions d'alias avec des
   collègues qui poussent pendant l'absence — conflits pires au retour qu'au moment de la saisie.
   En ligne, ce différé n'apporte rien (la transaction est ~2 allers-retours, imperceptible).
 - **Ce que l'utilisateur perd en mobilité** : promouvoir une règle au corpus. Ce qui **reste
@@ -319,7 +319,7 @@ membership, création/suppression/renommage d'entretien) suivent une politique p
 Deux mesures :
 
 - **Désamorçage (préalable, vaut aussi pour le mono-utilisateur)** :
-  [corpusStore.ts:155-162](../src/main/corpusStore.ts#L155-L162) réécrit `corpus.json`
+  [corpusStore.ts:155-162](../../src/main/corpusStore.ts#L155-L162) réécrit `corpus.json`
   (`membership.lastModified`) à **chaque** sauvegarde d'entretien. En hybride, publier un entretien
   obligerait donc à prendre aussi le verrou corpus à chaque fermeture. Correctif :
   `ecrireEntretien`/`poserValeur`/`assignerAudio` ne touchent plus `corpus.json` ; le
@@ -337,7 +337,7 @@ Deux mesures :
 WebDAV n'offre **pas de transaction cross-ressource** : un `PUT` porte sur un fichier, point.
 Or, certaines opérations touchent à la fois `corpus.json` et `entretiens/<id>.json`. Le protocole
 §4 n'en parle qu'implicitement — ce paragraphe explicite les invariants manquants, révélés par la
-projection du module Anonymisation ([plan_anon.md](plan_anon.md) E2.1) dans le régime multi-user.
+projection du module Anonymisation (E2.1) dans le régime multi-user.
 
 **Cas type : transition de portée document→corpus d'une `RegleAnon`.** Physiquement, c'est un
 *déplacement* de la règle (par id) depuis `entretiens/<id>.json.reglesAnon` vers
@@ -359,7 +359,7 @@ Trois invariants à poser :
    *avant* la transaction corpus → fenêtre où la règle « n'existe plus nulle part » et où les
    annotations deviennent pendantes (inertes, signalées) jusqu'au prochain pull. La redondance
    transitoire est préférable à la pendancé transitoire.
-   - **Conséquence lecture** : le scan corpus (panneau Pseudos, [plan_anon.md](plan_anon.md) E2.2)
+   - **Conséquence lecture** : le scan corpus (panneau Pseudos, plan anon E2.2)
      doit **tolérer qu'une règle soit présente des deux côtés pendant < TTL publication** — c'est
      un état normal, pas un bug. Ne pas alerter dessus.
 3. **Réconciliation I-POR-3 après chaque pull**, pas seulement à l'ouverture de l'entretien.
@@ -447,7 +447,7 @@ web, forçage de verrou, édition hors ligne assumée, restauration serveur d'un
 2. **Fusion assistée** : les charges utiles sont largement fusionnables par construction —
    annotations/ancres/locuteurs par id, valeurs EAV par (cible, idVar), `corpus.json` en `Record`
    par id (mécanique `fusionnerImport` existante,
-   [corpusStore.ts:212](../src/main/corpusStore.ts#L212)). Politique : `corpsTexte` identique →
+   [corpusStore.ts:212](../../src/main/corpusStore.ts#L212)). Politique : `corpsTexte` identique →
    fusion automatique proposée des annotations ; `corpsTexte` différent → choix par fichier (pas de
    merge de texte au set minimum). Divergences réelles sur `corpus.json` (renommage concurrent
    d'une même catégorie) → dialogue — « rien de tranché en silence ».
@@ -511,7 +511,7 @@ web, forçage de verrou, édition hors ligne assumée, restauration serveur d'un
 
 `presence/<userId>-<machineId>.json` (`{ userId, entretienOuvert?, refreshedAt }`), `PUT` toutes
 les 60 s, purge > 10 min. Purement informatif : badges « ouvert par Olivier » sur les cartes et les
-lignes de la table de données (le « verrou par ligne » anticipé par D-S11 de [SUITE.md](../SUITE.md)).
+lignes de la table de données (le « verrou par ligne » anticipé par D-S11 du document SUITE).
 Jamais utilisé pour décider — la décision, c'est le verrou. En variante A, l'essentiel (qui tient
 quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verrou ».
 
@@ -600,7 +600,7 @@ quoi) vient déjà du PROPFIND ; la présence n'ajoute que « consulte sans verr
   distants configurés » — le sélecteur arrive naturellement avec E0.
 - **Redondance transitoire multi-fichier** (§4.8) : pendant la fenêtre entre le `PUT corpus.json`
   et la publication de l'entretien, une règle peut exister des deux côtés. Le scan corpus
-  ([plan_anon.md](plan_anon.md) E2.2) **doit tolérer** cet état (l'id résout, les annotations ne
+  (plan anon, E2.2) **doit tolérer** cet état (l'id résout, les annotations ne
   pendotent pas) et ne pas le signaler comme un conflit. À l'inverse, une annotation dont l'id
   ne résout **nulle part** (règle supprimée concurrente) reste signalée comme pendante — c'est
   le vrai signal à faire remonter.

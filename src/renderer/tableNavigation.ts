@@ -1,12 +1,12 @@
 /**
- * NAVIGATION CLAVIER DE LA TABLE DE DONNÉES (plan-saisie-cellule-table.md §5) :
+ * NAVIGATION CLAVIER DE LA TABLE DE DONNÉES :
  * modèle de déplacement PUR, testable sans DOM. À partir de la matrice, des
  * variables visibles et du filtre de portée, calcule la GRILLE des cellules
  * éditables dans l'ordre VISUEL (lignes × colonnes), puis la voisine d'une
  * cellule dans un des quatre sens (Entrée/Shift+Entrée = bas/haut,
  * Tab/Shift+Tab = droite/gauche).
  *
- * Règles de saut (§2 du plan) :
+ * Règles de saut :
  *  - une colonne n'a de cellule que sur les lignes de SA portée → les lignes
  *    sans cellule (locuteurs sous une colonne entretien, séparateurs
  *    entretien sous une colonne locuteur) sont traversées sans s'arrêter ;

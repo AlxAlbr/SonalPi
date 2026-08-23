@@ -1,16 +1,19 @@
 /**
- * Le miroir — copie de travail locale d'un corpus distant (plan §2-§3).
+ * Le miroir — copie de travail locale d'un corpus distant.
  *
  * Le corpus de référence vit sur le serveur ; le miroir vit dans
- * `userData/miroirs/<corpusId>/` — JAMAIS dans une zone synchronisée par un
- * client desktop (piège n°1, plan §13). `CorpusStore` opère sur ce dossier
- * exactement comme sur un corpus local : toute la nouveauté tient ICI, dans la
- * couche main-process au-dessus de son I/O (invariant §15.1).
+ * `userData/miroirs/<corpusId>/`, JAMAIS dans une zone synchronisée par un
+ * client desktop (une synchro externe écraserait la copie).
  *
- * E0 = lecture seule : `tirer()` fait le pull incrémental par ETags (§3.1) —
- * PROPFIND Depth:1 sur la racine, `entretiens/` ET `verrous/` (badges fiables,
- * décision 2026-08), comparaison au `.manifeste.json` local, GET des seuls
- * fichiers changés, disparus déplacés en corbeille du miroir (jamais effacés).
+ * `CorpusStore` opère sur ce dossier exactement comme sur un corpus local ;
+ * toute la nouveauté tient ICI, dans la couche main-process au-dessus de son
+ * I/O.
+ *
+ * `tirer()` fait le pull incrémental par ETags : PROPFIND Depth:1 sur la
+ * racine, sur `entretiens/` et sur `verrous/` (badges fiables), comparaison
+ * au `.manifeste.json` local, GET des seuls fichiers changés.
+ * Les fichiers disparus côté serveur partent en corbeille du miroir (jamais
+ * effacés).
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
@@ -18,9 +21,9 @@ import { join, dirname } from 'node:path'
 import { ClientWebDAV, ErreurHttp, type EntreePropfind, type SurProgression } from './webdav/client'
 import type { ProgressionTransfert } from '../shared/distant'
 
-/** Dossiers distants qui ne sont PAS du contenu du corpus : protocole et
- *  corbeille serveur. Le miroir ne les télécharge pas comme contenu ; seul
- *  `verrous/` est scanné pour ses métadonnées (ETags → badges). */
+/** Dossiers distants qui ne sont PAS du contenu du corpus (protocole et
+ *  corbeille serveur) : le miroir ne les télécharge pas comme contenu.
+ *  Seul `verrous/` est scanné pour ses métadonnées (ETags → badges). */
 const DOSSIERS_HORS_CONTENU = ['verrous', 'presence', 'corbeille', 'sonde']
 
 /** Le manifeste : mémoire des ETags VUS. Local pur (`userData`), jamais
@@ -36,27 +39,29 @@ export interface ResultatTirage {
   telecharges: string[]
   /** Fichiers disparus côté serveur, déplacés vers la corbeille du miroir. */
   corbeille: string[]
-  /** Entrées verrou vues au pull (chemin relatif « verrous/<id>.lock.json » +
-   *  ETag) — matière première des badges §10 en attendant E1. */
+  /** Entrées verrou vues au pull : chemin relatif
+   *  (« verrous/<id>.lock.json »), avec ETag.
+   *  Matière première des badges de verrou du corpus. */
   verrous: { chemin: string; etag: string | null }[]
   /** Audios désignés (meta.audioDistant) dont la récupération a ÉCHOUÉ
-   *  (403 droits insuffisants, 404 disparu, réseau) — plan-audio-distant.md D3.
-   *  JAMAIS bloquants : leur ETag n'est pas noté au manifeste, le prochain
-   *  tirage re-tentera automatiquement (droits ouverts plus tard → rattrapage). */
+   *  (403 droits insuffisants, 404 disparu, réseau).
+   *  JAMAIS bloquants : leur ETag n'est pas noté au manifeste.
+   *  Le prochain tirage re-tentera automatiquement (droits ouverts plus tard,
+   *  rattrapage sans action). */
   inaccessibles: { chemin: string; raison: string }[]
-  /** Date du tirage (pour l'UI : « copie du JJ/MM HH:MM », §4.6). */
+  /** Date du tirage (pour l'UI : « copie du JJ/MM HH:MM »). */
   date: string
 }
 
 export class MiroirWebDAV {
   constructor(
     private readonly client: ClientWebDAV,
-    /** Public en lecture : la couche session lit/écrit les fichiers du miroir
+    /** Public en lecture : la couche session lit/écrit les fichiers du miroir,
      *  et y range les copies de divergence (sessions/). */
     public readonly dirLocal: string,
-    /** Progression des transferts binaires (relais IPC `distant:progression`) :
-     *  émise pendant les rapatriements du tirage. Le main la relaie aux
-     *  fenêtres. */
+    /** Progression des transferts binaires (relais IPC
+     *  `distant:progression`), émise pendant les rapatriements du tirage.
+     *  Le main la relaie aux fenêtres. */
     private readonly surProgression?: (p: ProgressionTransfert) => void,
   ) {}
 
@@ -78,13 +83,15 @@ export class MiroirWebDAV {
     writeFileSync(this.fichierManifeste, JSON.stringify(m, null, 2), 'utf8')
   }
 
-  /** Pull incrémental §3.1. Déterministe et idempotent : deux tirages sans
+  /** Pull incrémental, déterministe et idempotent : deux tirages sans
    *  changement serveur ne re-téléchargent rien.
-   *  `exclus` : chemins relatifs à NE PAS toucher (ni téléchargement ni
-   *  corbeille) — la couche session y passe les fichiers SOUS NOTRE verrou
-   *  (E1) : une édition hors app (UI web) ne doit jamais écraser notre copie
-   *  de travail pendant la session ; la divergence sera tranchée par If-Match
-   *  à la publication (§6), pas par un pull sauvage.
+   *
+   *  `exclus` : chemins relatifs à NE PAS toucher, ni téléchargement ni
+   *  corbeille. La couche session y passe les fichiers SOUS NOTRE verrou :
+   *  une édition hors app (UI web) ne doit jamais écraser notre copie de
+   *  travail pendant la session.
+   *  La divergence sera tranchée par If-Match à la publication, pas par un
+   *  pull sauvage.
    */
   async tirer(exclus: string[] = []): Promise<ResultatTirage> {
     const horsJeu = new Set(exclus)
@@ -92,8 +99,8 @@ export class MiroirWebDAV {
     const manifeste = this.lireManifeste()
 
     // 1. Inventaire distant : racine (corpus.json + dossiers) et entretiens/.
-    //    Les entrées sont relativisées contre la RACINE du corpus (chemins
-    //    « corpus.json », « entretiens/e1.json ») — convention de tout le module.
+    //    Les entrées sont relativisées contre la RACINE du corpus
+    //    (« corpus.json », « entretiens/e1.json »), convention du module.
     const racine = await this.client.propfind('')
     let entretiens: EntreePropfind[] = []
     if (racine.some((e) => e.dossier && e.chemin === 'entretiens')) {
@@ -117,18 +124,19 @@ export class MiroirWebDAV {
     for (const entree of candidats) {
       if (!entree.etag) continue // serveur sans ETag : anomalie à signaler, on ne devine pas
       if (manifeste.etags[entree.chemin] === entree.etag) continue
-      if (horsJeu.has(entree.chemin)) continue // sous notre verrou : intouchable (E1)
+      if (horsJeu.has(entree.chemin)) continue // sous notre verrou : intouchable
       const contenu = await this.client.getTexte(entree.chemin)
       this.ecrireLocal(entree.chemin, contenu)
       manifeste.etags[entree.chemin] = entree.etag
       telecharges.push(entree.chemin)
     }
 
-    // 4. Disparus côté serveur → corbeille du miroir (jamais effacés, §3.1).
-    //    Les audios désignés (ci-dessous) sont ajoutés au jeu conservé : ils ne
-    //    figurent pas dans l'inventaire JSON et partiraient sinon en corbeille
-    //    à CHAQUE tirage. Une désignation retirée ne les y laisse plus — c'est
-    //    exactement le rattrapage voulu.
+    // 4. Disparus côté serveur → corbeille du miroir (jamais effacés).
+    //    Les audios désignés (ci-dessous) sont ajoutés au jeu conservé :
+    //    ils ne figurent pas dans l'inventaire JSON et partiraient sinon en
+    //    corbeille à CHAQUE tirage.
+    //    Une désignation retirée ne les y laisse plus — c'est exactement le
+    //    rattrapage voulu.
     const corbeille: string[] = []
     const designations = this.designationsAudio()
     const cheminsDistant = new Set([...candidats.map((c) => c.chemin), ...designations])
@@ -158,10 +166,10 @@ export class MiroirWebDAV {
         .map((v) => ({ chemin: `verrous/${v.chemin}`, etag: v.etag }))
     }
 
-    // 6. Audios désignés (plan-audio-distant.md D3) : pull SÉLECTIF piloté par
-    //    les meta.audioDistant des entretiens LOCAUX (le pull texte vient de
-    //    les rafraîchir). Un échec n'empêche ni le reste des audios ni le
-    //    résultat global ; sans note d'ETag, le prochain tirage re-tentera.
+    // 6. Audios désignés : pull SÉLECTIF piloté par les meta.audioDistant des
+    //    entretiens LOCAUX (le pull texte vient de les rafraîchir).
+    //    Un échec n'empêche ni le reste des audios ni le résultat global ;
+    //    sans note d'ETag, le prochain tirage re-tentera.
     const inaccessibles: ResultatTirage['inaccessibles'] = []
     for (const chemin of designations) {
       try {
@@ -170,9 +178,9 @@ export class MiroirWebDAV {
         if (!entree) throw new ErreurHttp(404, `${chemin} absent du serveur`)
         if (entree.etag === null) throw new ErreurHttp(404, `${chemin} sans ETag serveur`)
         if (manifeste.etags[chemin] === entree.etag) continue
-        // Download STREAMÉ vers le disque : aucune limite de taille — la
-        // mémoire du poste ne porte jamais le fichier entier (vidéos de
-        // plusieurs Go incluses).
+        // Download STREAMÉ vers le disque : aucune limite de taille ;
+        // la mémoire du poste ne porte jamais le fichier entier,
+        // vidéos de plusieurs Go incluses.
         const abs = join(this.dirLocal, chemin)
         mkdirSync(dirname(abs), { recursive: true })
         await this.client.getBinaireFichier(chemin, abs, (octets, total) =>
@@ -202,8 +210,8 @@ export class MiroirWebDAV {
   }
 
   /** Miroir binaire d'`ecrireLocal` (les audios désignés ne sont pas du texte).
-   *  NB : le chemin nominal du pull est désormais le download streamé
-   *  (`getBinaireFichier`, B1) ; cette variante mémoire reste pour des écritures
+   *  NB : le chemin nominal du pull est le download streamé
+   *  (`getBinaireFichier`) ; cette variante mémoire reste pour des écritures
    *  locales d'un contenu déjà en main. */
   private ecrireLocalBinaire(cheminRelatif: string, contenu: Uint8Array): void {
     const abs = join(this.dirLocal, cheminRelatif)
@@ -213,11 +221,12 @@ export class MiroirWebDAV {
     renameSync(tmp, abs)
   }
 
-  /* ── Audios désignés (plan-audio-distant.md D1/D3) ──────────────────────
+  /* ── Audios désignés ───────────────────────────────────────────────────
    *  Le miroir lit les entretiens LOCAUX (le pull texte vient de les mettre
-   *  à jour) pour savoir quels fichiers audio rapporter : la désignation
-   *  porte l'information, pas un dossier. Lecture défensive : un JSON
-   *  illisible ne doit jamais faire échouer le tirage. */
+   *  à jour) pour savoir quels fichiers audio rapporter.
+   *  La désignation porte l'information, pas un dossier.
+   *  Lecture défensive : un JSON illisible ne doit jamais faire échouer le
+   *  tirage. */
 
   /** Chemins RELATIFS désignés par les entretiens locaux, dédoublonnés et
    *  assainis (relatifs purs — pas de remontée `..`, pas d'absolu). */
@@ -259,11 +268,12 @@ export class MiroirWebDAV {
     return entrees.find((e) => e.chemin === nom) ?? null
   }
 
-  /* ── Garde-fou de publication (E1) ────────────────────────────────────────
-   * Le manifeste est la mémoire des ETags SERVEUR vus. La publication d'un
-   * fichier en a besoin comme garde If-Match (« je publie SI le serveur porte
-   * encore la version que j'ai tirée »), et doit le METTRE À JOUR après un PUT
-   * réussi — sinon le prochain pull retéléchargerait notre propre publication.
+  /* ── Garde-fou de publication ─────────────────────────────────────────────
+   * Le manifeste est la mémoire des ETags SERVEUR vus.
+   * La publication d'un fichier en a besoin comme garde If-Match (« je publie
+   * SI le serveur porte encore la version que j'ai tirée »), et doit le
+   * METTRE À JOUR après un PUT réussi — sinon le prochain pull
+   * retéléchargerait notre propre publication.
    * ──────────────────────────────────────────────────────────────────────────*/
 
   /** ETag serveur connu pour un chemin relatif (null = jamais vu). */
@@ -280,13 +290,13 @@ export class MiroirWebDAV {
   }
 
   /** Chemin local du miroir pour un chemin relatif du corpus — c'est là que
-   *  `CorpusStore` sera pointé (E0 : lecture ; E1 : écriture sous verrou). */
+   *  `CorpusStore` sera pointé (lecture ; écriture sous verrou). */
   cheminLocal(cheminRelatif: string): string {
     return join(this.dirLocal, cheminRelatif)
   }
 
-  /** Navigation du sélecteur de fichiers (plan-audio-distant.md §3) : entrées
-   *  ENFANTS d'un dossier, dossiers d'abord puis fichiers, tri alphabétique.
+  /** Navigation du sélecteur de fichiers : entrées ENFANTS d'un dossier,
+   *  dossiers d'abord puis fichiers, tri alphabétique.
    *  Le garde anti-traversal est le même que pour les désignations — on ne
    *  liste jamais au-dessus de la racine du corpus. */
   async listerDossier(
@@ -303,22 +313,23 @@ export class MiroirWebDAV {
       )
   }
 
-  /* ── Téléversement (plan-audio-distant.md D5) ────────────────────────────
+  /* ── Téléversement ────────────────────────────────────────────────────────
    *  Un PUT WebDAV vers un chemin existant REMPLACE silencieusement le
-   *  fichier serveur (contrairement à l'UI web qui propose de renommer) —
+   *  fichier serveur (contrairement à l'UI web, qui propose de renommer) —
    *  deux collègues envoyant des enregistrements homonymes s'écraseraient
-   *  mutuellement sans le savoir. D'où la garde : existence vérifiée AVANT
-   *  le PUT, suggestion de suffixe en cas de collision. Ni blocage sec, ni
-   *  perte silencieuse. Pas de chunking v1 : une erreur réseau/limite
-   *  serveur remonte telle quelle à l'appelant. */
+   *  mutuellement sans le savoir.
+   *  D'où la garde : existence vérifiée AVANT le PUT, suggestion de suffixe
+   *  en cas de collision. Ni blocage sec, ni perte silencieuse.
+   *  Pas de chunking v1 : une erreur réseau/limite serveur remonte telle
+   *  quelle à l'appelant. */
 
-  /** Téléverse un fichier vers `cheminCible` (relatif au corpus). La source
-   *  est soit des octets déjà en main (`Uint8Array`, tests), soit — cas
-   *  nominal — le CHEMIN d'un fichier local lu EN FLUX (`putFichier`) :
+  /** Téléverse un fichier vers `cheminCible` (relatif au corpus).
+   *  La source est soit des octets déjà en main (`Uint8Array`, tests), soit —
+   *  cas nominal — le CHEMIN d'un fichier local lu EN FLUX (`putFichier`) :
    *  mémoire bornée quelle que soit la taille.
-   *  Les dossiers parents manquants sont créés (MKCOL par segment). En cas de
-   *  collision, renvoie { ok:false, raison:'existe', suggere } où `suggeré`
-   *  est le premier nom libre `<base>-2`, `-3`… dans le même dossier. */
+   *  Les dossiers parents manquants sont créés (MKCOL par segment).
+   *  En cas de collision, renvoie { ok:false, raison:'existe', suggere }, où
+   *  `suggeré` est le premier nom libre `<base>-2`, `-3`… du même dossier. */
   async televerserFichier(
     cheminCible: string,
     contenu: Uint8Array | string,

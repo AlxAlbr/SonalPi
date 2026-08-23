@@ -1,5 +1,5 @@
 /**
- * Agrégat **Corpus** (docs/dev/modele-objet.md §1) — surface publique. Un fichier
+ * Agrégat **Corpus** (docs/dev/modele-objet.md) — surface publique. Un fichier
  * par concept du modèle objet :
  *   • categories.ts — codebook + hiérarchie des thèmes
  *   • variables.ts  — base de données EAV (variables/modalités)

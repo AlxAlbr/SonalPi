@@ -1,27 +1,27 @@
 /**
- * TRANSACTIONS DE DÉFINITIONS corpus (plan-multiuser.md §4.7 + §4.8, étape E3).
+ * TRANSACTIONS DE DÉFINITIONS corpus.
  *
  * Le « point chaud » `corpus.json` (codebook, variables, règles anon de portée
  * corpus, membership, création/suppression/renommage d'entretien) est écrit par
  * des transactions COURTES : verrou corpus → GET frais → transform local pur →
  * PUT If-Match → déverrouillage (~2 allers-retours serveur par commande).
  *
- * Politique α (§4.6.1) : HORS LIGNE, toute écriture dans `corpus.json` est
- * REFUSÉE — pas de file d'attente ni de différé : la transaction échoue avec
- * un message net et le corpus local reste intact.
+ * Politique hors ligne : toute écriture dans `corpus.json` est REFUSÉE — pas
+ * de file d'attente ni de différé : la transaction échoue avec un message net
+ * et le corpus local reste intact.
  *
- * Le verrou corpus est TOUJOURS en variante B (`verrous/corpus.lock.json`,
- * PUT conditionnel) même quand files_lock est disponible — plan §8 dernier
- * point : les transactions courtes n'ont rien à gagner du verrou visible web,
- * un seul code de plus haut niveau suffit. Le verrou ENTRETIEN (suppression
- * sous double verrou, ordre canonique corpus-avant-entretien §4.8) suit,
- * lui, la variante mesurée à l'ouverture (§8).
+ * Le verrou corpus est TOUJOURS en variante PUT conditionnel
+ * (`verrous/corpus.lock.json`) même quand files_lock est disponible : les
+ * transactions courtes n'ont rien à gagner du verrou visible web, un seul code
+ * de plus haut niveau suffit. Le verrou ENTRETIEN (suppression sous double
+ * verrou, ordre canonique corpus-avant-entretien) suit, lui, la variante
+ * mesurée à l'ouverture.
  *
- * Ordre canonique des verrous pour `supprimerEntretien` (§4.8 invariant 1) :
+ * Ordre canonique des verrous pour `supprimerEntretien` :
  * verrou CORPUS d'abord, verrou ENTRETIEN ensuite ; libération en ordre INVERSE.
- * Politique de publication (§4.8 invariant 2) : publication corpus PUIS MOVE
- * serveur de l'entretien vers `corbeille/` — briève redondance transitoire
- * assumée, jamais de membership pointant un fichier disparu sans trace.
+ * Politique de publication : publication corpus PUIS MOVE serveur de
+ * l'entretien vers `corbeille/` — briève redondance transitoire assumée,
+ * jamais de membership pointant un fichier disparu sans trace.
  */
 
 import { dirname, join } from 'node:path'
@@ -41,8 +41,8 @@ import type {
   ResultatLotValeur,
 } from '../../shared/format'
 
-/** Chemin VERROUILLÉ pour les transactions de définitions — TOUJOURS variante
- *  B (fichier annexe), cf. plan §8. */
+/** Chemin VERROUILLÉ pour les transactions de définitions — TOUJOURS le
+ *  fichier annexe (PUT conditionnel). */
 const CHEMIN_VERROU_CORPUS = 'verrous/corpus.lock.json'
 const CHEMIN_CORPUS = 'corpus.json'
 const CHEMIN_ENTRETIEN = (id: string) => `entretiens/${id}.json`
@@ -59,12 +59,12 @@ export class ErreurTransaction extends Error {
 
 export interface OptionsTransactions {
   /** true = le verrou ENTRETIEN de `supprimerEntretien` passe par files_lock
-   *  natif (variante A, chemin = le fichier de données lui-même) ; false/absent
-   *  = PUT conditionnel sur `verrous/<id>.lock.json`. Le verrou corpus, lui,
-   *  est TOUJOURS en B (§8). */
+   *  natif (chemin = le fichier de données lui-même) ; false/absent = PUT
+   *  conditionnel sur `verrous/<id>.lock.json`. Le verrou corpus, lui, reste
+   *  TOUJOURS en PUT conditionnel. */
   verrouNatif?: boolean
   /** Accès MINIMAL à la couche session — défense en profondeur du lot de
-   *  valeurs (plan-lot-table-donnees.md §4.2) : si un entretien visé est
+   *  valeurs : si un entretien visé est
    *  OUVERT CHEZ NOUS (impossible depuis la table aujourd'hui, qui ferme toute
    *  session), on écrit par le chemin existant (`poserValeur` garde levée +
    *  `noterSale`) au lieu d'une auto-concurrence de verrous. */
@@ -82,7 +82,7 @@ export class TransactionsCorpus {
     private readonly options: OptionsTransactions = {},
   ) {}
 
-  /* ── Transaction générique §4.7 ────────────────────────────────────────────*/
+  /* ── Transaction générique ─────────────────────────────────────────────────*/
 
   /** Exécute une mutation locale de définitions SOUS transaction complète :
    *  verrou corpus → GET frais si divergence manifeste → mutation (garde
@@ -104,8 +104,8 @@ export class TransactionsCorpus {
       if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
       verrouTenu = true
 
-      // La version d'APRÈS-verrou fait foi (§4.7) : si le serveur porte autre
-      // chose que notre miroir, on télécharge AVANT de muter — jamais de
+      // La version d'APRÈS-verrou fait foi : si le serveur porte autre chose
+      // que notre miroir, on télécharge AVANT de muter — jamais de
       // transformation posée sur une copie périmée.
       const etagServeur = await this.rafraichirCorpusLocal()
 
@@ -134,15 +134,15 @@ export class TransactionsCorpus {
     }
   }
 
-  /* ── Suppression d'entretien — double verrou §4.7/§4.8 ────────────────────*/
+  /* ── Suppression d'entretien — double verrou ──────────────────────────────*/
 
-  /** Supprime un entretien distant sous DOUBLE verrou, ordre canonique §4.8 :
-   *  1. verrou CORPUS (variante B),
+  /** Supprime un entretien distant sous DOUBLE verrou, ordre canonique :
+   *  1. verrou CORPUS (PUT conditionnel),
    *  2. GET frais de corpus.json,
-   *  3. verrou ENTRETIEN (variante selon §8) ;
+   *  3. verrou ENTRETIEN (variante mesurée à l'ouverture) ;
    *  puis mutation locale (membership + fichiers locaux en corbeille miroir),
    *  publication corpus (PUT If-Match) D'ABORD, MOVE serveur `entretiens/<id>.json
-   *  → corbeille/<id>.json` ENSUITE (§4.8 invariant 2) ; libération en ordre
+   *  → corbeille/<id>.json` ENSUITE ; libération en ordre
    *  inverse (entretien puis corpus).
    *
    *  Pré-requis côté appelant : aucune SESSION d'écriture ne doit rester ouverte
@@ -179,11 +179,11 @@ export class TransactionsCorpus {
         } finally {
           store.lectureSeule = gardePrecedente
         }
-        // Publication corpus D'ABORD (§4.8) : le membership à jour part avant
+        // Publication corpus D'ABORD : le membership à jour part avant
         // la disparition du fichier — briève redondance, jamais l'inverse.
         await this.publierCorpus(etagServeur)
         // MOVE serveur ENSUITE (atomique). Un échec ici laisse un entretien
-        // orphelin CÔTÉ SERVEUR (ramasse-miettes futur, §4.8) — signalé net.
+        // orphelin CÔTÉ SERVEUR (à ramasser plus tard) — signalé net.
         await this.client.creerDossier('corbeille')
         try {
           await this.client.deplacer(CHEMIN_ENTRETIEN(id), `corbeille/${id}.json`)
@@ -210,12 +210,13 @@ export class TransactionsCorpus {
     }
   }
 
-  /* ── Lot de valeurs — un verrou court PAR ENTRETIEN (plan-lot-table-donnees §4) */
+  /* ── Lot de valeurs — un verrou court PAR ENTRETIEN ───────────────────*/
 
   /** Modification en lot des valeurs EAV (table de données, colonne) : le lot
    *  ne touche PAS `corpus.json` (pas de verrou corpus) — UN cycle par
-   *  ENTRETIEN : verrou court → GET frais → PUT If-Match → libérer (le motif
-   *  §4.7 appliqué au fichier entretien). Exécution séquentielle ; tout échec
+   *  ENTRETIEN : verrou court → GET frais → PUT If-Match → libérer (le même
+   *  motif que les définitions, appliqué au fichier entretien). Exécution
+   *  séquentielle ; tout échec
    *  ponctuel (entretien ouvert entre-temps par autrui, divergence 412,
    *  réseau) est signalé nommément SANS bloquer les autres entretiens du lot.
    *  Le miroir est écrit THROUGH (même contenu que le serveur) → la matrice
@@ -278,7 +279,7 @@ export class TransactionsCorpus {
     }
     try {
       const cheminFichier = CHEMIN_ENTRETIEN(id)
-      // La version d'APRÈS-verrou fait foi (§4.7) : GET frais du SERVEUR,
+      // La version d'APRÈS-verrou fait foi : GET frais du SERVEUR,
       // jamais confiance à la copie miroir (périmée possible).
       const etagServeur = await this.etagServeurDe(cheminFichier)
       let brut: string
@@ -287,7 +288,7 @@ export class TransactionsCorpus {
         brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir
       const data = JSON.parse(brut) as EntretienFichier
       // Mutation pure locale — parité `store.poserValeur`, sans toucher au
-      // membership (§4.7).
+      // membership.
       for (const item of lot) corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
@@ -347,7 +348,7 @@ export class TransactionsCorpus {
     if (etagFinal) this.miroir.noterEtagPublie(CHEMIN_CORPUS, etagFinal)
   }
 
-  /** Provider du verrou ENTRETIEN selon la variante mesurée à l'ouverture (§8). */
+  /** Provider du verrou ENTRETIEN selon la variante mesurée à l'ouverture. */
   private providerPourEntretien(): VerrouProvider {
     return this.options.verrouNatif
       ? new ProviderFilesLock(this.client, this.identite)
@@ -369,7 +370,7 @@ export class TransactionsCorpus {
   }
 }
 
-/* ── Lot de valeurs en corpus LOCAL (plan-lot-table-donnees §4.5) ─────────*/
+/* ── Lot de valeurs en corpus LOCAL ──────────────────────────────────────*/
 
 /** Pas de transaction ni de garde en local (aucune couche session) : boucle
  *  directe du store, MÊMES résultats qu'en distant — succès par entretien,
@@ -394,7 +395,7 @@ export async function poserValeurLotLocal(
   return { succes, echecs }
 }
 
-/* ── Classification des échecs (messages §4.6.1 / §4.7) ──────────────────────*/
+/* ── Classification des échecs en messages utilisateur ───────────────────────*/
 
 function messageRefusDefinitions(tenuPar: ContenuVerrou | null): string {
   return `Définitions en cours de modification par ${tenuPar?.userId ?? 'un autre utilisateur'} — réessayez dans un instant.`
@@ -416,8 +417,8 @@ function classifier(e: unknown): Error {
     }
     return new ErreurTransaction(`Le serveur a refusé l'opération (${e.statut}).`)
   }
-  // fetch réseau : TypeError (« fetch failed »…) — politique α §4.6.1 :
-  // pas de différé, un refus explicite. Toute AUTRE erreur (refus de domaine
+  // fetch réseau : TypeError (« fetch failed »…) — pas de différé,
+  // un refus explicite. Toute AUTRE erreur (refus de domaine
   // levé par la mutation, fichier local corrompu…) traverse INCHANGÉE —
   // on ne déguise jamais un refus métier en panne réseau.
   if (e instanceof TypeError) {

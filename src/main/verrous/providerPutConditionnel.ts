@@ -1,10 +1,17 @@
 /**
- * Variante B du verrou — PUT conditionnel (plan-multiuser.md §5).
- * Marche sur TOUT serveur WebDAV honorant les préconditions (sonde §5.4) :
- * le test-and-set est le serveur, pas nous — deux demandes simultanées,
- * exactement une reçoit 201.
+ * Variante B du verrou — PUT conditionnel.
+ * Marche sur TOUT serveur WebDAV honorant les préconditions (vérifié par sonde
+ * à l'ouverture du corpus) : le test-and-set est le serveur, pas nous — deux
+ * demandes simultanées, exactement une reçoit 201.
  *
- * Opérations (§5.2) :
+ * Opérations :
+ *   Acquérir : PUT verrous/<id>.lock.json + If-None-Match:* → 201 obtenu / 412 tenu
+ *   Battre   : même fichier, contenu rafraîchi + If-Match <NOTRE etag mémorisé>
+ *              → le battement est à la fois preuve de vie ET détection de
+ *              forçage (412 = quelqu'un nous a repris le verrou → rétrogradation)
+ *   Libérer  : DELETE + If-Match (idempotent côté app)
+ *   Forcer   : DELETE If-Match <etag observé> puis PUT If-None-Match:* — chaque
+ *              étape atomique ; deux forçages simultanés → un seul gagne.
  *   Acquérir : PUT verrous/<id>.lock.json + If-None-Match:* → 201 obtenu / 412 tenu
  *   Battre   : même fichier, contenu rafraîchi + If-Match <NOTRE etag mémorisé>
  *              → le battement est à la fois preuve de vie ET détection de
@@ -28,7 +35,7 @@ import type {
 } from './types'
 import { estLeNousMeme } from './types'
 
-/** Fabrique le contenu d'un verrou pour notre session (§7). */
+/** Fabrique le contenu d'un verrou pour notre session. */
 export function contenuVerrou(
   identite: { userId: string; machineId: string; sessionId: string },
   ttlS = 300,
@@ -94,7 +101,7 @@ export class ProviderPutConditionnel implements VerrouProvider {
       return { ok: true, etag }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
-        // Notre verrou a été FORCÉ entre-temps (détection §5.2, ≤ période de battement).
+        // Notre verrou a été FORCÉ entre-temps, détecté au battement suivant.
         this.etags.delete(cheminVerrou)
         return { ok: false }
       }
@@ -104,7 +111,7 @@ export class ProviderPutConditionnel implements VerrouProvider {
 
   async liberer(cheminVerrou: string): Promise<void> {
     const etag = this.etags.get(cheminVerrou)
-    if (!etag) return // jamais détenu / déjà libéré : idempotent (§5.2)
+    if (!etag) return // jamais détenu / déjà libéré : idempotent
     try {
       await this.client.supprimer(cheminVerrou, etag)
       this.etags.delete(cheminVerrou)
@@ -178,7 +185,7 @@ export class ProviderPutConditionnel implements VerrouProvider {
 }
 
 /** Décodage défensif d'un fichier verrou : un JSON partiellement conforme est
- *  traité comme « libre » — le nettoyage des orphelins (>24 h, §5.3) s'occupe
+ *  traité comme « libre » — le nettoyage des orphelins périmés (>24 h) s'occupe
  *  des résidus, jamais la couche session. */
 function analyserContenu(brut: string): ContenuVerrou | null {
   try {

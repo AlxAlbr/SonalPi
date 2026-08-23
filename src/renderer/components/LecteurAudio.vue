@@ -107,7 +107,7 @@ function clicBande(e: MouseEvent) {
     </div>
   </div>
   <div v-else-if="etatAudioOuvert.etat === 'distant' || etatAudioOuvert.etat === 'inaccessible'" class="lecteur-audio lecteur-etat">
-    <!-- plan-audio-distant.md A5 : l'état de l'audio DÉSIGNÉ, à côté de la
+    <!-- L'état du média DÉSIGNÉ, à côté de la
          barre de lecture — le bon moment UX (on vient ici pour écouter).
          distant = copie pas encore téléchargée ; inaccessible = le serveur
          refuse le GET (droits) — message explicatif + réessai. -->
@@ -133,15 +133,15 @@ dès que les droits seront ouverts.
     </template>
   </div>
   <div v-else-if="url && erreur" class="lecteur-audio lecteur-erreur">
-    <!-- §3.3 (E4) : en corpus distant, l'audioRef partagée pointe chez le poste
-         qui a assigné — chaque poste associe SON fichier local (référence,
-         jamais de copie, jamais d'écriture au JSON partagé). En local, le
-         geste reste la ré-assignation classique. -->
+    <!-- En corpus distant, l'audioRef partagée pointe chez le poste qui a
+         assigné — chaque poste associe SON fichier local (référence, jamais de
+         copie, jamais d'écriture au JSON partagé). En local, le geste reste la
+         ré-assignation classique. -->
     <template v-if="idDistantCourant">
       <span class="msg-erreur">🔊 Audio absent de ce poste — il vit sur la machine qui l'a assigné.</span>
       <button class="mini-lect" @click="associerAudioEntretienOuvert">Associer l'audio local…</button>
-      <!-- plan-audio-distant.md A3 : ou lier le fichier PARTAGÉ du serveur —
-           la copie miroir arrivera chez tous au prochain tirage. -->
+      <!-- Ou lier le fichier PARTAGÉ du serveur — la copie miroir
+           arrivera chez tous au prochain tirage. -->
       <button
         v-if="ouvertId"
         class="mini-lect"
@@ -231,7 +231,7 @@ dès que les droits seront ouverts.
   background: #fdecea;
 }
 /* État de l'audio désigné (distant / inaccessible) : informatif, pas une
-   erreur — teinte neutre (plan-audio-distant.md A5). */
+   erreur — teinte neutre. */
 .lecteur-etat {
   gap: 0.6rem;
   border-color: #c9d8ef;

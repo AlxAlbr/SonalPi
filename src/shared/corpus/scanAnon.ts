@@ -1,5 +1,5 @@
 /**
- * Scan ANONYMISATION au niveau du CORPUS (étape 3a, plan_anon_suite §4.1).
+ * Scan ANONYMISATION au niveau du CORPUS.
  *
  * Pour chaque RÈGLE corpus (`RegleAnon`), on relit le texte de chaque entretien
  * et on classe les occurrences de l'entité : déjà anonymisées / en exception /

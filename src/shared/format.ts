@@ -69,21 +69,20 @@ export interface MarqueurDemo {
 // Corpus — dossier et `corpus.json` (définitions + membership)
 // ══════════════════════════════════════════════════════════════════════════
 
-/** Règle corpus = un mappage `entité → pseudo` PARTAGÉ entre entretiens
- *  (étape 3, plan_anon_suite §4). Vit DANS `corpus.json.reglesAnon` : c'est la
- *  SEULE vérité « règle ». Pas de `actif` (le brouillon est entretien-local, pas
- *  un drapeau de règle). `entite[]`/`pseudos[]` gardent la forme unidimensionnelle
- *  du futur multi-alias / multi-pseudo (différé), sans l'activer. */
+/** Règle corpus = un mappage `entité → pseudo` PARTAGÉ entre entretiens.
+ *  Vit DANS `corpus.json.reglesAnon` : c'est la SEULE vérité « règle ». Pas de
+ *  `actif` (le brouillon est entretien-local, pas un drapeau de règle).
+ *  `entite[]`/`pseudos[]` gardent la forme unidimensionnelle du futur
+ *  multi-alias / multi-pseudo (différé), sans l'activer. */
 export interface RegleAnon {
   id: string
   entite: string[]
   pseudos: string[]
 }
 
-/** Trace d'une migration SonalPi V1 → V2 (plan-migration.md D2) : l'identité
- *  vient du `.crp` (nom + dateCreation) et le pont vers le fichier d'origine
- *  est son chemin absolu. Champ ADDITIF optionnel → pas de bump (Q6, précédent
- *  du champ `demo`). E2 y ajoutera la trace par entretien (`rtrPath`). */
+/** Trace d'une migration SonalPi V1 → V2 : l'identité vient du `.crp`
+ *  (nom + dateCreation) et le pont vers le fichier d'origine est son chemin
+ *  absolu. Champ ADDITIF optionnel → pas de bump de formatVersion. */
 export interface SourceV1 {
   /** Chemin absolu du `.crp` migré. */
   cheminCrp: string
@@ -99,19 +98,19 @@ export interface CorpusFichier {
   reglesAnon: Record<string, RegleAnon>
   personnes: Record<string, unknown>
   membership: Record<string, EntretienRef>
-  /** Identité du PROJET (D2) : stocké DANS corpus.json — survit au renommage du
-   *  dossier, sert à l'affichage. Champ ADDITIF optionnel (pas de bump, Q6). */
+  /** Identité du PROJET : stockée DANS corpus.json — survit au renommage du
+   *  dossier, sert à l'affichage. Champ ADDITIF optionnel (pas de bump). */
   nom?: string
-  /** Trace d'origine — champ ADDITIF optionnel (pas de bump, Q6). */
+  /** Trace d'origine — champ ADDITIF optionnel (pas de bump). */
   meta?: { sourceV1?: SourceV1 }
   /** Marqueur de corpus de TEST (démo) — champ ADDITIF optionnel,
    *  absent pour un corpus normal (pas de bump de version).
    *  Posé par le builder démo quand il crée le corpus,
    *  mis à jour ensuite à chaque étape validée (pas-à-pas). */
   demo?: MarqueurDemo
-  /** Rôles & permissions (plan-multiuser.md §14 point 7, invariant 5 §15) :
-   *  champ RÉSERVÉ dès E3 — la logique produit viendra plus tard, le champ
-   *  voyage déjà pour éviter une migration. userId Nextcloud → rôle
+  /** Rôles & permissions — champ RÉSERVÉ : la logique produit viendra plus
+   *  tard, mais le champ voyage déjà pour éviter une migration.
+   *  userId Nextcloud → rôle
    *  (vocabulaire réservé : 'propriétaire' | 'editeur' | 'lecteur').
    *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
   roles?: Record<string, string>
@@ -164,18 +163,18 @@ export interface BrouillonAnon {
 }
 
 /** Métadonnées d'un entretien V2 : valeurs EAV de portée entretien + référence
- *  audio absolue (v3) + trace de migration V1 (sourceV1.rtrPath, E2).
+ *  audio absolue (v3) + trace de migration V1 (sourceV1.rtrPath).
  *  Champ ADDITIF optionnel pour la trace → pas de bump de formatVersion. */
 export interface MetaEntretien {
   valeursGen: Record<string, string> // idVar → idMod (portée entretien)
   audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio
-  /** Fichier audio désigné DANS le Nextcloud (plan-audio-distant.md D1) :
+  /** Fichier média désigné DANS le Nextcloud :
    *  chemin RELATIF à la racine du corpus serveur — n'importe où dans l'arbre,
    *  c'est la désignation qui porte l'information, pas un dossier. Le miroir
    *  télécharge ce fichier à chaque tirage ; champ ADDITIF optionnel,
    *  absent des fichiers existants → pas de bump de formatVersion. */
   audioDistant?: { chemin: string }
-  /** Chemin RELATIF du `.sonal` V1 d'origine au dossier du `.crp` (E2) —
+  /** Chemin RELATIF du `.sonal` V1 d'origine au dossier du `.crp` —
    *  trace seule, jamais utilisé pour relire. */
   sourceV1?: { rtrPath: string | null }
 }
@@ -194,8 +193,8 @@ export interface EntretienFichier {
    *  ADDITIF optionnel : absent d'un fichier v1 non migré → normalisé en []
    *  à l'ouverture ; pas de bump de formatVersion. */
   brouillonsAnon?: BrouillonAnon[]
-  /** Mémoire fichier de l'ENSEMBLE multi-pseudo déclaré par entité (étape 3b,
-   *  multi-pseudo ≤2). Clef = `cleEntite` (insensible à la casse). Ne stocke
+  /** Mémoire fichier de l'ENSEMBLE multi-pseudo déclaré par entité
+   *  (multi-pseudo ≤2). Clef = `cleEntite` (insensible à la casse). Ne stocke
    *  l'ensemble QUE quand il a ≥ 2 pseudos (mono = porté par les occurrences) ;
    *  sert uniquement de mémoire à la bascule du menu contextuel et à l'affichage
    *  « Claire / Rebecca » sur une ligne STANDALONE (ni une règle, ni partagé,
@@ -253,19 +252,19 @@ export interface Locuteur {
    *  réintroduit à l'export seulement (comme `l="all"` EAV).
    *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
   interviewer?: boolean
-  /** Pseudonymisation de l'ÉTIQUETTE du locuteur (étape 2, plan §3.1) :
+  /** Pseudonymisation de l'ÉTIQUETTE du locuteur :
    *  `pseudo` = pseudonyme appliqué au libellé — posé, le tour s'affiche
-   *  « Nom̶ [Pseudo] » (même idiome CSS que le texte anon, cf. §3.2).
+   *  « Nom̶ [Pseudo] » (même idiome CSS que le texte anon).
    *  Champ ADDITIF optionnel : pas de bump de formatVersion. */
   pseudo?: string
-  /** Couleur du NOM du locuteur dans l'éditeur (étape 2 §3.3) : choisie dans
+  /** Couleur du NOM du locuteur dans l'éditeur : choisie dans
    *  une palette prédéfinie depuis le tableau des locuteurs ; ABSENTE = couleur
    *  auto par index (PALETTE_PASTILLES_LOCUTEURS). Champ ADDITIF optionnel. */
   couleur?: string
   /** Décision persistée sur la pseudonymisation du libellé (parité SonalPi
    *  `loc-anon` / `loc-suggere-refuse`) : `'confirme'` (pseudo affiché) ou
    *  `'refuse'` (libellé en clair + ⊘). Absent = aucune décision (rien — le
-   *  « suggéré » de l'étape 3 est une REQUÊTE, jamais stockée). */
+   *  « suggéré » est une REQUÊTE, jamais stockée). */
   pseudoEtat?: 'confirme' | 'refuse'
   valeursLoc: Record<string, string> // idVar → idMod
   personneRef: string | null
@@ -336,10 +335,9 @@ export type ResultatSuppression =
  *  la portée entretien, ou un locuteur donné (par son index). */
 export type CibleValeur = { type: 'entretien' } | { type: 'locuteur'; index: number }
 
-/** Un item du LOT « modifier en lot » (plan-lot-table-donnees.md §4) : UNE
- *  valeur EAV à poser dans UN entretien. v1 : cible entretien uniquement
- *  (portée locuteur hors périmètre — les locuteurs diffèrent d'un entretien
- *  à l'autre). */
+/** Un item du LOT « modifier en lot » : UNE valeur EAV à poser dans UN
+ *  entretien. v1 : cible entretien uniquement (portée locuteur hors périmètre —
+ *  les locuteurs diffèrent d'un entretien à l'autre). */
 export interface ItemLotValeur {
   entretienId: string
   cible: CibleValeur

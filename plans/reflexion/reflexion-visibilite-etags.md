@@ -2,7 +2,8 @@
 
 > Document de **réflexion**, pas un plan d'exécution — sur le modèle de
 > [reflexion-stt.md](reflexion-stt.md). Il cadre un **risque potentiel** découvert
-> incidemment pendant l'itération audio distant ([plan-audio-distant.md](plan-audio-distant.md)) :
+> incidemment pendant l'itération « audio distant » (téléversement + tirage miroir
+> des médias désignés) :
 > contre le Nextcloud **réel** du banc Docker, deux écritures conditionnelles consécutives
 > sur le MÊME fichier peuvent courir devant la visibilité de l'ETag — un `If-Match`
 > pourtant périmé a été observé ACCEPTÉ au lieu du 412 attendu.
@@ -21,7 +22,7 @@
 
 ## 1. Origine : un flocon dans le banc de contrat
 
-Pendant l'itération audio distant, [contrat-nextcloud.test.ts](../test/webdav/contrat-nextcloud.test.ts)
+Pendant l'itération audio distant, [contrat-nextcloud.test.ts](../../test/webdav/contrat-nextcloud.test.ts)
 (« cycle PUT If-None-Match / If-Match / DELETE ») a flaké environ **une fois sur trois**
 contre la pile A (`:8080`, NC31 + files_lock). Deux causes distinctes ont été trouvées :
 

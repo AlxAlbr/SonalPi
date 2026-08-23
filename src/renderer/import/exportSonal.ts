@@ -131,7 +131,7 @@ export function exporterSonal(e: EntreeExport): string {
     ].sort((x, y) => x - y)
     const jalons = [0, ...coupes, b.text.length]
     const nomloc = nomDe(b.loc)
-    // Libellé du tour (§3.4) : sur le 1er SEGMENT du 1er BLOC du run (parité
+    // Libellé du tour : sur le 1er SEGMENT du 1er BLOC du run (parité
     // SonalPi `.ligloc` « deb »). data-nomloc = le VRAI nom ; libellé
     // pseudonymisé (pseudo posé, non refusé) → classe `loc-anon` +
     // `data-locpseudo` ; refus explicite → `loc-suggere-refuse`. La couleur est
@@ -186,10 +186,9 @@ export function exporterSonal(e: EntreeExport): string {
           if (ann.type === 'codage' && ann.code) classes += ` ${ann.code}`
           else if (ann.type === 'anon') {
             classes += ann.etat === 'exception' ? ' anon-exception' : ' anon'
-            // Le pseudo n'est JAMAIS sérialisé sur une exception (plan §2.1,
-            // option 2 : il n'est qu'une mémoire de modèle, jamais affichée ni
-            // exportée) — le [pseudo] du span ne concerne que les occurrences
-            // anonymisées.
+            // Le pseudo n'est JAMAIS sérialisé sur une exception : il n'est
+            // qu'une mémoire de modèle, jamais affichée ni exportée — le
+            // [pseudo] du span ne concerne que les occurrences anonymisées.
             if (ann.pseudo && ann.etat !== 'exception') extra.push(`data-pseudo="${escapeAttr(ann.pseudo)}"`)
             extra.push('data-anon-nt="true"')
           }

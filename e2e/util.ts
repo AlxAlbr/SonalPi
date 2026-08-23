@@ -23,12 +23,12 @@ export async function lancer(
   // démo « Karine » → écrite dans le corpus par défaut du profil AVANT le
   // lancement (un dossier pické par un test reste vierge, sauf s'il la pose).
   ecrireSeedDemo(join(userDataDir, 'corpus'))
-  // Nouveau flux Accueil (plan-tutoriel §11) : le démarrage charge le 1er récent
+  // Nouveau flux Accueil : le démarrage charge le 1er récent
   // et la carte « Corpus courant » a disparu. On pré-inscrit donc le corpus par
   // défaut (seedé) comme récent — comme un utilisateur qui a déjà ouvert ce
   // corpus — pour que les tests puissent y entrer depuis l'Accueil (1er récent).
   // `preserverSettings` : ne pas réécrire le fichier (tests de persistance de la
-  // mémoire démo — settings.json porte aussi `demo`, §7.2).
+  // mémoire démo — settings.json porte aussi `demo`).
   if (!opts?.preserverSettings) {
     writeFileSync(
       join(userDataDir, 'settings.json'),

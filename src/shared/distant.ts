@@ -1,12 +1,11 @@
 /**
- * Types partagés main ⇄ renderer pour les corpus distants (plan-multiuser.md
- * E0). Types purs uniquement — aucune logique, aucun secret : le mot de passe
+ * Types partagés main ⇄ renderer pour les corpus distants. Types purs uniquement — aucune logique, aucun secret : le mot de passe
  * d'application ne traverse JAMAIS le pont IPC vers le renderer.
  */
 
 import type { OuvertureCorpus } from './format'
 
-/** Profil de capacités mesuré par les sondes de connexion (plan §5.4/§8). */
+/** Profil de capacités mesuré par les sondes de connexion. */
 export interface ProfilCapacites {
   /** Préconditions HTTP honorées (test-and-set possible → variante B). */
   preconditions: boolean
@@ -53,21 +52,21 @@ export interface DemandeCreationDistante extends DemandeConnexion {
 
 /** Ouverture d'un corpus distant : le corpus vient du MIROIR local
  *  (`userData/miroirs/<id>`) fraîchement tiré — le renderer ne sait pas
- *  faire la différence avec un corpus local, c'est voulu (invariant §15.1).
- *  Le pull d'ouverture livre aussi l'état des verrous (badges fiables §3.1,
+ *  faire la différence avec un corpus local : c'est voulu.
+ *  Le pull d'ouverture livre aussi l'état des verrous (badges fiables,
  *  sans second aller-retour).
  */
 export interface OuvertureDistante extends OuvertureCorpus {
   distant: CompteDistantPublic
   verrous: EntreeVerrouPublic[]
-  /** Audios désignés non rapatriés par le pull d'ouverture (plan-audio-distant.md
-   *  D3 : 403/404/réseau) — alimente l'étiquette du lecteur dès l'arrivée.
+  /** Audios désignés non rapatriés par le pull d'ouverture (403/404/réseau)
+   *  — alimente l'étiquette du lecteur dès l'arrivée.
    *  Champ optionnel : absent si rien à signaler. */
   inaccessibles?: { chemin: string; raison: string }[]
 }
 
 /** État PUBLIC d'un fichier verrou — ce que l'UI affiche (« tenu par X depuis
- *  HH:MM », §10). Aucun champ de protocole (sessionId, ttl) ne traverse le pont.
+ *  HH:MM »). Aucun champ de protocole (sessionId, ttl) ne traverse le pont.
  */
 export interface EtatVerrouPublic {
   userId: string
@@ -86,23 +85,23 @@ export interface EntreeVerrouPublic {
   contenu: EtatVerrouPublic | null
 }
 
-/** Résultat d'un tirage (pull incrémental §3.1). */
+/** Résultat d'un tirage (pull incrémental par ETags). */
 export interface ResultatTiragePublic {
   telecharges: string[]
   corbeille: string[]
   verrous: EntreeVerrouPublic[]
-  /** Audios désignés (meta.audioDistant, plan-audio-distant.md D3) dont la
+  /** Audios désignés (meta.audioDistant) dont la
    *  récupération a échoué (403/404/réseau) — matière des badges « audio
    *  inaccessible ». Non bloquant : le prochain tirage re-tentera. Absent si
    *  corpus local ou rien à signaler. */
   inaccessibles?: { chemin: string; raison: string }[]
-  /** Présences vivantes des autres postes (§9, E4) — informatif, jamais
-   *  décisionnel. Absent si corpus local. */
+  /** Présences vivantes des autres postes — informatif, jamais décisionnel.
+   *  Absent si corpus local. */
   presences?: PresencePublic[]
   date: string
 }
 
-/** Présence informative (§9, E4) : qui consulte quoi, SANS valeur décisionnelle
+/** Présence informative : qui consulte quoi, SANS valeur décisionnelle
  *  (la décision, c'est le verrou). Une présence > 10 min est morte (filtrée). */
 export interface PresencePublic {
   userId: string
@@ -111,8 +110,8 @@ export interface PresencePublic {
   refreshedAt: string // ISO
 }
 
-/** Verrou orphelin détecté à l'ouverture du corpus (§4.5 — crash sans
- *  libération) : proposé au dialogue « reprendre / abandonner ». */
+/** Verrou orphelin détecté à l'ouverture du corpus (crash sans libération),
+ *  proposé au dialogue « reprendre / abandonner ». */
 export interface OrphelinDistant {
   cheminVerrou: string // « verrous/<id>.lock.json »
   id: string // id de l'entretien (extrait du chemin)
@@ -121,8 +120,8 @@ export interface OrphelinDistant {
   acquiredAt: string // ISO
 }
 
-/** Une copie de DIVERGENCE mise de côté (§6, rétrogradation d'une publication
- *  412) — matière du dialogue de fusion assistée (E3b). Le contenu ne traverse
+/** Une copie de DIVERGENCE mise de côté après une rétrogradation de
+ *  publication 412 — matière du dialogue de fusion assistée. Le contenu ne traverse
  *  le pont que sur demande explicite (`lireDivergence`). */
 export interface DivergenceDistante {
   chemin: string // « sessions/<id>.divergence-<sessionId>.json » (relatif miroir)

@@ -40,7 +40,7 @@ const {
   urlWaveform,
   assignerAudioSelection,
   ouvrirDesignationAudio,
-  // étape 3a — panneau « Pseudos » du corpus (lecture seule)
+  // Panneau « Pseudos » du corpus (lecture seule)
   reglesAnon,
   scanAnon,
   rafraichirScanAnon,
@@ -48,13 +48,13 @@ const {
   audiosManquants,
   // démo pas-à-pas
   pasAPas,
-  // E0 corpus distant : synchro (barre haute) + lecture seule (grisage)
+  // Corpus distant : synchro (barre haute) + lecture seule (grisage)
   idDistantCourant,
   dernierTirage,
   tirageEnCours,
   actualiserDistant,
   lectureSeule,
-  // E1 : badges de verrou fiables (état « tenu par X » venant du serveur)
+  // Badges de verrou fiables (état « tenu par X » venant du serveur)
   badgeVerrou,
   presencesSur,
 } = utiliserSonal()
@@ -256,9 +256,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       <div class="corpus-barre">
         <button class="btn-table" @click="allerDonnees">Ouvrir la base de données →</button>
         <button class="btn-table" @click="ouvrirPseudoPanel">Pseudos</button>
-        <!-- Corpus distant : horodatage du dernier pull + « Actualiser » (§10).
-             Le pull rafraîchit AUSSI les badges 🔒 (scan verrous/ §3.1) — c'est
-             le même geste, pas une seconde commande. -->
+        <!-- Corpus distant : horodatage du dernier pull + « Actualiser ».
+             Le pull rafraîchit AUSSI les badges 🔒 — c'est le même geste,
+             pas une seconde commande. -->
         <span v-if="idDistantCourant" class="synchro-zone">
           <span class="dernier-tirage" title="Copie locale synchronisée avec le serveur">
             ☁ dernière synchro {{ heureDe(dernierTirage) }}
@@ -337,7 +337,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               {{ corpusSelMeta?.audio ? 'Remplacer l’audio…' : 'Assigner un audio…' }}
             </button>
             <!-- Distant uniquement : lier un audio qui VIT sur le serveur
-                 (plan-audio-distant.md A3) — copie miroir chez chaque membre. -->
+                 copie miroir chez chaque membre. -->
             <button
               v-if="idDistantCourant && corpusSelId"
               class="mini assigner-audio"
@@ -431,7 +431,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               </button>
               <!-- UN seul point d'entrée (à la SonalPi) : la modale à deux
                    zones couvre import texte, texte+audio, audio seul et vierge.
-                   Masqué en corpus distant (E0 lecture seule). -->
+                   Masqué en corpus distant (lecture seule). -->
               <AjoutEntretien v-if="!lectureSeule" />
             </span>
           </div>
@@ -477,14 +477,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               @click="selectionnerCorpus(e.id)"
             >
               <div class="ent-titre" :title="e.titre">{{ e.titre }}
-                <!-- Badge de verrou fiable (§3.1/§10) : « tenu par X » vient du
+                <!-- Badge de verrou fiable : « tenu par X » vient du
                      SERVEUR (scan verrous/ au pull), jamais d'une déduction.
                      Notre propre session n'est pas badgée (filtrée côté main). -->
                 <span v-if="badgeVerrou(e.id)" class="badge-verrou"
                       :title="`Verrou tenu par ${badgeVerrou(e.id)!.userId} depuis ${heureDe(badgeVerrou(e.id)!.acquiredAt)} — ouverture en lecture seule.`">
                   🔒 {{ badgeVerrou(e.id)!.userId }}
                 </span>
-                <!-- Présence (E4 §9) : « consulté par X » — informatif, JAMAIS
+                <!-- Présence : « consulté par X » — informatif, JAMAIS
                      décisionnel (la décision, c'est le verrou ci-dessus). -->
                 <span v-for="p in presencesSur(e.id)" :key="p.machineId"
                       class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">
@@ -521,7 +521,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   ></span>
                 </div>
               <div class="carte-actions">
-                <!-- §10 : si l'entretien est verrouillé par autrui, le CRAYON
+                <!-- Si l'entretien est verrouillé par autrui, le CRAYON
                      devient VERROU (visible même sur un écran étroit où le
                      badge du titre est tronqué) ; le détail — qui ? depuis
                      quand ? — passe en tooltip au survol. Le clic ouvre
@@ -539,7 +539,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </section>
       </div>
 
-      <!-- Panneau « Pseudos » du corpus (étape 3a — LECTURE SEULE) : règles
+      <!-- Panneau « Pseudos » du corpus (LECTURE SEULE) : règles
            corpus + scan (anonymisé / exception / à traiter par entretien).
            En 3a aucune règle n'est encore créable → état vide (infra préparée
            pour le cran corpus de 3b). -->
@@ -634,7 +634,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   gap: 0.6rem;
   margin-bottom: 0.8rem;
 }
-/* E1 — zone de synchro du corpus distant (horodatage + Actualiser) : pousse le
+/* Zone de synchro du corpus distant (horodatage + Actualiser) : pousse le
    reste de la barre à gauche, reste discrète. */
 .synchro-zone {
   display: inline-flex;
@@ -1118,7 +1118,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   text-align: right;
 }
 
-/* Panneau « Pseudos » du corpus (étape 3a, lecture seule) */
+/* Panneau « Pseudos » du corpus (lecture seule) */
 .corpus-barre {
   display: flex;
   gap: 0.5rem;

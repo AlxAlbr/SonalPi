@@ -1,5 +1,5 @@
 /**
- * SCÉNARIO À DEUX POSTES contre les Nextcloud DOCKER réels (plan §12, E3a) —
+ * SCÉNARIO À DEUX POSTES contre les Nextcloud DOCKER réels —
  * la répétition générale « deux chercheuses, un corpus » :
  *
  *   Poste MAX (propriétaire) et poste OLIVIER (partagé, SON propre chemin DAV),
@@ -7,12 +7,12 @@
  *   exactement ce que feraient deux instances de l'app.
  *
  *   1. les deux postes tirent le miroir ;
- *   2. max publie une définition sous transaction §4.7 ;
+ *   2. max publie une définition sous transaction ;
  *   3. olivier tire PUIS publie la sienne : le GET frais absorbe la version
  *      de max — les deux thèmes coexistent, JAMAIS d'écrasement ;
  *   4. verrou corpus tenu par max → la transaction d'olivier est REFUSÉE
  *      avec son nom (« définitions en cours de modification par max ») ;
- *   5. suppression d'entretien sous DOUBLE verrou §4.8 : refusée tant que
+ *   5. suppression d'entretien sous DOUBLE verrou : refusée tant que
  *      olivier tient l'entretien, puis réussie — membership publié d'abord,
  *      MOVE vers corbeille/ ensuite, les deux verrous rendus.
  *
@@ -169,7 +169,7 @@ async function corpusServeur(base: string): Promise<CorpusFichier> {
 }
 
 /** LA TRAME commune — identique sur les deux piles, seule la variante du
- *  verrou entretien diffère (§8 : le protocole s'adapte, l'utilisateur ne
+ *  verrou entretien diffère (le protocole s'adapte, l'utilisateur ne
  *  choisit rien). */
 async function jouerScenarioDeuxPostes(base: string, verrouNatif: boolean): Promise<void> {
   const davMax = `${base}/remote.php/dav/files/max/MonCorpus`
@@ -183,7 +183,7 @@ async function jouerScenarioDeuxPostes(base: string, verrouNatif: boolean): Prom
     await max.miroir.tirer()
     await olivier.miroir.tirer()
 
-    // 2. MAX publie une définition sous transaction §4.7 (~2 aller-retours).
+    // 2. MAX publie une définition sous transaction (~2 aller-retours).
     const catMax = await max.tx.executer(() => max.store.ajouterCategorie('Thème de Max', null))
     let c = await corpusServeur(base)
     expect(c.codebook[catMax.id]?.nom).toBe('Thème de Max')
@@ -215,7 +215,7 @@ async function jouerScenarioDeuxPostes(base: string, verrouNatif: boolean): Prom
     expect(c.nom).toBe('Scénario deux postes') // rien n'a bougé
     await pVerrouLong.liberer('verrous/corpus.lock.json')
 
-    // 5. SUPPRESSION sous double verrou (§4.7/§4.8), ordre canonique :
+    // 5. SUPPRESSION sous double verrou, ordre canonique :
     //    a) olivier tient le verrou ENTRETIEN → max est refusé, corpus intact ;
     const pTiers = providerTiersEntretien(olivier, base, verrouNatif)
     expect((await pTiers.acquerir(cheminVerrouEntretien(verrouNatif))).ok).toBe(true)

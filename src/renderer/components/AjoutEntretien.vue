@@ -39,7 +39,7 @@ const message = ref<string | null>(null)
 const survolTexte = ref(false)
 const survolAudio = ref(false)
 const enCours = ref(false)
-/** A5 (distant) : titre du nouvel entretien créé pour désigner son audio NC. */
+/** Titre du nouvel entretien distant créé pour désigner son média NC. */
 const titreNc = ref('')
 
 /** Créer un entretien VIDE dont l'audio vivra sur le Nextcloud : la création
@@ -188,7 +188,7 @@ async function valider() {
         </p>
         <p v-if="message" class="msg-ajout">{{ message }}</p>
 
-        <!-- plan-audio-distant.md A5 : en corpus distant, l'audio peut vivre
+        <!-- En corpus distant, l'audio peut vivre
              sur le serveur dès la création — entretien vide puis désignation. -->
         <div v-if="idDistantCourant" class="bloc-nc">
           <div class="sep-nc">— ou —</div>
@@ -291,7 +291,7 @@ async function valider() {
   font-size: 0.72rem;
   color: #999;
 }
-/* A5 — bloc « Audio sur le Nextcloud » (corpus distant uniquement). */
+/* Bloc « Audio sur le Nextcloud » (corpus distant uniquement). */
 .bloc-nc {
   margin-top: 0.75rem;
   padding-top: 0.5rem;

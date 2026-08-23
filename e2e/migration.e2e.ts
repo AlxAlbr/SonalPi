@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * J5 — migration v2→v3 SILENCIEUSE à l'ouverture (plan-reference-audio §8) :
+ * Migration v2→v3 SILENCIEUSE à l'ouverture :
  * un corpus v2 (copies relatives : `audioRef: 'audio/e1.wav'` + PNG waveform
  * dans `audio/`) est écrit sur disque AVANT le lancement. À l'ouverture, le
  * store résout chaque `audioRef` relatif en ABSOLU (vers l'emplacement legacy),

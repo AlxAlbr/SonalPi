@@ -1,15 +1,14 @@
 /**
  * Client WebDAV minimal — zéro dépendance lourde (fetch Node, présent dans le
- * main process Electron ≥ 28). Le périmètre est EXACTEMENT celui du protocole
- * du plan multi-utilisateur (plan-multiuser.md E0) :
+ * main process Electron ≥ 28). Périmètre strict :
  *   PROPFIND / GET / PUT / DELETE / MOVE + préconditions (`If-Match`,
  *   `If-None-Match: *`) — rien de plus. Toute la couche miroir et les sondes
- *   passent par ici ; le renderer ne voit jamais cet objet (invariant §15.1 :
- *   le domaine ignore le backend).
+ *   passent par ici ; le renderer ne voit jamais cet objet (le domaine ignore
+ *   le backend).
  *
  * L'implémentation de `fetch` est INJECTABLE : les tests branchent un serveur
  * WebDAV embarqué (ou un double) sans connaître l'identité du backend
- * (invariant §15.4 — banc de conformité).
+ * (banc de conformité).
  */
 
 import {
@@ -50,7 +49,8 @@ function compteurProgression(surProgression: SurProgression, total: number | nul
 }
 
 /** Identifiants d'un compte distant. Le mot de passe est un MOT DE PASSE
- *  D'APPLICATION Nextcloud (jamais le principal — cf. plan §2 « Compte »). */
+ *  D'APPLICATION Nextcloud (jamais le principal : seul accepté en Basic auth
+ *  quand la 2FA est active). */
 export interface Identifiants {
   utilisateur: string
   motDePasse: string
@@ -90,8 +90,8 @@ export class ErreurHttp extends Error {
   }
 }
 
-/** Options de PUT conditionnel : exactement les deux préconditions utilisées
- *  par le protocole (test-and-set §5.1 et garde de publication §6.1). */
+/** Options de PUT conditionnel : exactement les deux préconditions du
+ *  protocole (test-and-set à la création et garde de publication). */
 export interface OptionsPut {
   ifMatch?: string // garde de publication : publier SEUL si la version serveur est celle-ci
   ifNoneMatch?: '*' // test-and-set : ne créer que si la ressource N'EXISTE pas
@@ -100,7 +100,7 @@ export interface OptionsPut {
 
 export type ImplementationFetch = typeof fetch
 
-/** État du verrou NATIF d'un fichier (props files_lock, plan §8) — la forme
+/** État du verrou NATIF d'un fichier (props files_lock) — la forme
  *  brute du serveur ; le provider la traduit en `ContenuVerrou`. */
 export interface EtatVerrouNatif {
   verrouille: boolean
@@ -121,7 +121,7 @@ function enteteAuth(identifiants: Identifiants): string {
 
 export class ClientWebDAV {
   constructor(
-    /** Public en lecture : les sondes (§8) remontent l'URL racine du site pour
+    /** Public en lecture : les sondes remontent l'URL racine du site pour
      *  interroger les capabilities, sans dupliquer la config. */
     public readonly config: ConfigWebDAV,
     private readonly faireRequete: ImplementationFetch = fetch,
@@ -203,8 +203,8 @@ export class ClientWebDAV {
     return reponse.text()
   }
 
-  /** GET d'un fichier binaire (réservé aux futurs besoins ; le protocole ne
-   *  fait transiter QUE du JSON — plan §3.3). */
+  /** GET d'un fichier binaire EN MÉMOIRE (réservé aux petits fichiers ; les
+   *  gros passent par `getBinaireFichier`, streamé vers le disque). */
   async getBinaire(chemin: string): Promise<Uint8Array> {
     const reponse = await this.requete('GET', chemin)
     return new Uint8Array(await reponse.arrayBuffer())
@@ -243,7 +243,7 @@ export class ClientWebDAV {
 
   /** PUT avec préconditions optionnelles. Renvoie l'ETag de la nouvelle
    *  version si le serveur en expose un (Nextcloud le fait sur les PUT),
-   *  sinon null — l'appelant (publication §4.3) doit alors re-PROPFIND. */
+   *  sinon null — l'appelant doit alors re-PROPFIND. */
   async putTexte(chemin: string, contenu: string, options: OptionsPut = {}): Promise<string | null> {
     const entetes: Record<string, string> = {}
     if (options.ifMatch) entetes['If-Match'] = `"${retirerGuillemets(options.ifMatch)}"`
@@ -254,7 +254,7 @@ export class ClientWebDAV {
     return etag ? retirerGuillemets(etag) : null
   }
 
-  /** PUT binaire — miroir exact de `putTexte` (plan-audio-distant.md D5) :
+  /** PUT binaire — miroir exact de `putTexte` :
    *  les audios téléversés ne sont pas du texte. Mêmes préconditions, même
    *  contrat de retour (ETag de la nouvelle version ou null). */
   async putBinaire(
@@ -278,9 +278,7 @@ export class ClientWebDAV {
   /** PUT d'un fichier LOCAL lu EN FLUX : miroir de `getBinaireFichier` — le
    *  fichier source est pipé vers le corps HTTP par chunks, jamais chargé en
    *  mémoire entière (téléversement de vidéos). Mêmes préconditions et même
-   *  contrat de retour que `putBinaire`. Pour les fichiers dépassant les
-   *  limites de l'instance Nextcloud, voir plan-chunking.md (upload segmenté,
-   *  non implémenté à ce jour). */
+   *  contrat de retour que `putBinaire`. */
   async putFichier(
     chemin: string,
     sourceLocale: string,
@@ -315,15 +313,15 @@ export class ClientWebDAV {
     return etag ? retirerGuillemets(etag) : null
   }
 
-  /** DELETE conditionnel (libération de verrou §5.2 : idempotent côté app). */
+  /** DELETE conditionnel (libération de verrou : idempotent côté app). */
   async supprimer(chemin: string, ifMatch?: string): Promise<void> {
     const entetes: Record<string, string> = {}
     if (ifMatch) entetes['If-Match'] = `"${retirerGuillemets(ifMatch)}"`
     await this.requete('DELETE', chemin, { entetes })
   }
 
-  /** MOVE vers une destination RELATIVE à la même racine (suppression §4.7 :
-   *  `MOVE entretiens/<id>.json → corbeille/<id>.json`, atomique). */
+  /** MOVE vers une destination RELATIVE à la même racine (ex. mise à la
+   *  corbeille : `MOVE entretiens/<id>.json → corbeille/<id>.json`, atomique). */
   async deplacer(source: string, destination: string, ecraser = false): Promise<void> {
     await this.requete('MOVE', source, {
       entetes: {
@@ -345,14 +343,13 @@ export class ClientWebDAV {
     }
   }
 
-  /* ── Verrou natif files_lock (variante A, plan §8) ───────────────────────
+  /* ── Verrou natif files_lock ─────────────────────────────────────────────
    * Contrat vérifié contre Nextcloud réel (pile A) :
    *   LOCK + X-User-Lock:1   → 200 obtenu (re-LOCK même user = battement,
    *                             renouvelle) / 423 tenu par un autre user
    *   UNLOCK + X-User-Lock:1 → 200 libéré / 423 tenu par autrui / 412 pas
    *                             verrouillé
-   *   Le serveur IMPOSE le verrou : PUT/DELETE d'un tiers → 423 (le filet
-   *   §6.1 ne devrait plus jamais se déclencher en variante A).
+   *   Le serveur IMPOSE le verrou : PUT/DELETE d'un tiers → 423.
    *   La lecture d'un tiers reste libre (GET 200) ; le détenteur publie
    *   normalement (PUT même user → 2xx).
    * ─────────────────────────────────────────────────────────────────────────*/

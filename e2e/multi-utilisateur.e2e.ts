@@ -1,5 +1,5 @@
 /**
- * SCÉNARIO VISIBLE à deux postes (E4 — avant vrais utilisateurs) : DEUX
+ * SCÉNARIO VISIBLE à deux postes : DEUX
  * instances Electron réelles (poste MAX et poste OLIVIER) ouvrent le MÊME
  * corpus distant sur la pile Nextcloud Docker (pile A, :8080), et le cycle
  * complet du mode multi-utilisateur se déroule SOUS VOS YEUX :
@@ -16,12 +16,12 @@
  * Le fichier porte un SECOND scénario (même mécanique de narration) :
  * « démo visible : métadonnées sous verrou ». Max crée une VARIABLE
  * d'entretien (« Ville » / modalité « Lyon ») depuis l'ONGLET DONNÉE de
- * l'Entretien — publié aussitôt par la transaction de définitions (§4.7).
+ * l'Entretien — publié aussitôt par la transaction de définitions.
  * Olivier ouvre la BASE DE DONNÉES (Table de données) au niveau Corpus :
  *   - elle reste ACCESSIBLE et interactive (jamais lecture seule) ;
  *   - la colonne « Ville » y apparaît après Actualiser (définitions partagées) ;
  *   - la LIGNE de l'entretien verrouillé par max est NON ÉDITABLE (garde
- *     par ligne, plan-saisie-cellule-table.md §4 : cellules désactivées) ;
+ *     par ligne, cellules désactivées) ;
  *   - dès que le verrou change de mains, la MÊME saisie passe (via l'onglet
  *     Donnée de l'Entretien, seul écran où le verrou autorise d'écrire) et la
  *     table la montre au prochain tirage.
@@ -31,15 +31,15 @@
  * sont placées CÔTE À CÔTE (moitié gauche / moitié droite de l'écran — sinon
  * elles se superposent).
  *
- * TROISIÈME scénario (plan-lot-table-donnees.md §6) : écriture de valeurs SANS
+ * TROISIÈME scénario : écriture de valeurs SANS
  * session, les deux gestes. Un SECOND entretien est amorcé pour avoir deux
  * lignes cibles. Max ouvre l'entretien 1 (verrou). Olivier lance le LOT sur la
  * colonne « Ville » : l'entretien LIBRE est modifié, celui de max est REFUSÉ
  * nommément (« ouvert par max ») — sans bloquer le reste du lot. Max referme ;
  * Olivier utilise alors le BOUTON LIGNE « Saisir… » : il atterrit sur l'onglet
- * Donnée de CET entretien, saisit sa valeur, publiée à la fermeture (§4.4).
+ * Donnée de CET entretien, saisit sa valeur, publiée à la fermeture.
  *
- * QUATRIÈME scénario (plan-saisie-cellule-table.md §6) : saisie par CELLULE
+ * QUATRIÈME scénario : saisie par CELLULE
  * avec garde PAR LIGNE. Max crée « Ville » puis referme ; Olivier ouvre la
  * table (deux lignes libres, cellules actives). Max REPREND le verrou dans le
  * dos d'Olivier (badges pas encore à jour) : l'édition de la cellule verrouillée
@@ -262,8 +262,8 @@ async function ouvrirEntretien(page: Page, nth = 0): Promise<void> {
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
 }
 
-/** Retour au Corpus via le fil d'Ariane (= fermeture de session : publication
- *  finale PUIS libération du verrou, §4.4). */
+/** Retour au Corpus via le fil d'Ariane (= fermeture de session :
+ *  publication finale PUIS libération du verrou). */
 async function retourAuCorpus(page: Page): Promise<void> {
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
   await attendreCorpus(page)
@@ -340,7 +340,7 @@ test('démo visible : deux postes, un verrou, zéro écrasement', async ({ }, te
     await expect(pOli.locator('.badge-presence', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
     await pause(pOli, 'Olivier VOIT le verrou 🔒 de max ET sa présence 👁 (« ouvert par »)…')
     // Écran étroit : le badge du titre peut être tronqué — le CRAYON devient
-    // verrou, l'explication passe au tooltip (§10).
+    // verrou, l'explication passe au tooltip.
     await expect(pOli.locator('.carte-ent .crayon').first()).toHaveText('🔒', { timeout: 20_000 })
     await narrer(pOli, "Olivier ouvre l'entretien malgré tout…")
     await ouvrirEntretien(pOli)
@@ -351,7 +351,7 @@ test('démo visible : deux postes, un verrou, zéro écrasement', async ({ }, te
     await pause(pOli, 'Lecture seule avec bandeau nominatif — et le texte de Max n’est pas encore publié…')
     await retourAuCorpus(pOli)
 
-    /* 4. Max retourne au Corpus : publication FINALE puis libération (§4.4). */
+    /* 4. Max retourne au Corpus : publication FINALE puis libération. */
     console.log('④ Max ferme : publication finale + libération du verrou…')
     const copies = await clientMax().propfind('sessions').catch(() => [] as { chemin: string }[])
     if (copies.length > 0) console.log('⚠️ copies de divergence déjà là:', JSON.stringify(copies))
@@ -459,7 +459,7 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
 
     /* 2. Max ouvre l'entretien (verrou acquis) puis crée une VARIABLE
      *    D'ENTRETIEN depuis l'onglet Donnée : la transaction de définitions
-     *    (§4.7) publie corpus.json IMMÉDIATEMENT, sans attendre la fermeture. */
+     *    publie corpus.json IMMÉDIATEMENT, sans attendre la fermeture. */
     console.log("② Max crée une variable d'entretien depuis l'onglet Donnée…")
     await pause(pMax, "Max ouvre l'entretien : le VERROU lui est accordé…")
     await ouvrirEntretien(pMax)
@@ -478,11 +478,11 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     await moda.fill('Lyon')
     await moda.press('Tab') // blur → renommage publié (promesse NON attendue)
     // Barrières serveur : chaque définition doit être PUBLIÉE avant le geste
-    // suivant, sinon les transactions se disputent le verrou corpus (§4.7).
+    // suivant, sinon les transactions se disputent le verrou corpus.
     await attendreDefinitionServeur('"Lyon"')
     await pMax.locator('.modale-vars .fermer').click()
     await expect(pMax.locator('.modale-vars')).toHaveCount(0)
-    // Vérification SERVEUR : les définitions sont déjà partagées (flux B, §4.7).
+    // Vérification SERVEUR : les définitions sont déjà partagées (flux B).
     const corpusServeur = await clientMax().getTexte('corpus.json')
     if (!corpusServeur?.includes('"Ville"'))
       throw new Error('variable « Ville » absente du corpus.json serveur après création')
@@ -498,9 +498,9 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     // Le composant Corpus reste MONTÉ (v-show) → restreindre à l'écran table.
     await expect(pOli.locator('.donnees-ecran .badge-verrou', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
 
-    /* 4. La ligne verrouillée est NON ÉDITABLE : garde PAR LIGNE
-     *    (plan-saisie-cellule-table.md §4) — les cellules de la ligne tenue
-     *    par max sont désactivées, impossible même de TENTER l'écriture.
+    /* 4. La ligne verrouillée est NON ÉDITABLE : garde PAR LIGNE —
+     *    les cellules de la ligne tenue par max sont désactivées,
+     *    impossible même de TENTER l'écriture.
      *    (Avant la saisie par cellule, la cellule restait active et le refus
      *     venait du main sous forme de bannière.) */
     console.log('④ La ligne verrouillée est désactivée (garde par ligne)…')
@@ -514,7 +514,7 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     /* 5. Max referme (verrou rendu) ; Olivier ouvre À SON TOUR : la MÊME
      *    saisie passe maintenant — depuis l'onglet Donnée de l'Entretien
      *    (seul écran où le verrou autorise d'écrire), et part à la fermeture
-     *    (publication finale §4.4). */
+     *    (publication finale). */
     console.log('⑤ Max referme ; Olivier prend le verrou et saisit la valeur…')
     await narrer(pMax, 'Max referme : publication finale PUIS verrou rendu…')
     await retourAuCorpus(pMax)
@@ -548,7 +548,7 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
   }
 })
 
-/* ── Scénario 3 : LOT par colonne + saisie par LIGNE (plan-lot-table-donnees §6) */
+/* ── Scénario 3 : LOT par colonne + saisie par LIGNE ──────────────────────*/
 
 /** Crée la variable d'entretien « Ville » (+ modalité « Lyon ») depuis l'onglet
  *  Donnée de l'entretien OUVERT (mêmes gestes et mêmes barrières serveur que le
@@ -645,7 +645,7 @@ test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis sa
     expect((await clientMax().etatVerrouNatif(`entretiens/${ID}.json`))?.verrouille).toBeTruthy()
     await pOli.locator('.modale-lot .valider').click() // Fermer
 
-    /* Filtre « lignes sans valeur » (plan-saisie-cellule-table §10) : à cet
+    /* Filtre « lignes sans valeur » : à cet
      * instant ID est sans valeur mais 🔒 max, ID2 porte déjà « Lyon » → le
      * filtre ne cible RIEN et affiche les 2 exclus avec leur raison. */
     console.log('   → filtre « sans valeur » : 0 cible (1 verrouillé + 1 déjà valué)')
@@ -693,7 +693,7 @@ test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis sa
   }
 })
 
-/* ── Scénario 4 : saisie par CELLULE (plan-saisie-cellule-table.md §6) ─────*/
+/* ── Scénario 4 : saisie par CELLULE ─────────────────────────────────*/
 
 test('démo visible : saisie par CELLULE — refus inline nominatif, garde par ligne, Shift+Entrée remonte', async ({ }, testInfo) => {
   test.setTimeout(DEMO ? 600_000 : 240_000)

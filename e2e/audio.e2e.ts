@@ -274,7 +274,7 @@ test('J3 : audio référencé supprimé après assignation → bandeau d’inté
   await expect(page.locator('.bandeau-audio')).toContainText('Entretien Karine')
 
   // L'app reste FONCTIONNELLE : clic sur l'entretien du bandeau → le lecteur
-  // affiche « Audio introuvable » + ré-assignation (§5.3), le texte reste utilisable.
+  // affiche « Audio introuvable » + ré-assignation, le texte reste utilisable.
   await page.locator('.bandeau-audio-ent').first().click()
   await expect(page.locator('.editeur')).toBeVisible()
   await expect(page.locator('.editeur')).toContainText('Karine', { timeout: 10_000 })

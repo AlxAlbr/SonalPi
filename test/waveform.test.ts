@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 describe('genererEtEcrireWaveform — sauts sans coût', () => {
-  it('VIDÉO : aucun fetch, null silencieux (D3 option 1)', async () => {
+  it('VIDÉO : aucun fetch, null silencieux', async () => {
     const fetchDouble = vi.fn()
     vi.stubGlobal('fetch', fetchDouble)
 

@@ -1,5 +1,5 @@
 /**
- * Migration SonalPi V1 → V2 — parseur `.crp` (plan-migration.md, E0).
+ * Migration SonalPi V1 → V2 — parseur `.crp`.
  *
  * FONCTIONS PURES : aucune I/O, aucun electron. Le main ne fait que LIRE le
  * fichier (avec détection d'encodage, `src/main/encodage.ts`) ; TOUT le travail
@@ -8,11 +8,11 @@
  * Le `.crp` est un JSON aux types POUR LE MOINS VARIABLES (la V1 écrit tantôt
  * des nombres, tantôt des chaînes — `taille`, `rang`, `act`, `priv`) : le
  * parseur est donc défensif — il ne plante jamais sur une bizarrerie, il
- * normalise (E0 = aperçu, E1 = mapping V2).
+ * normalise.
  *
  * Sortie : un APERÇU (ce que la modale de migration affichera) + les données
- * V1 brutes (matière des étapes suivantes : E1 codebook/variables, E2
- * entretiens/audio, E4 `tabAnon`).
+ * V1 brutes (matière du mapping vers le modèle V2 : codebook/variables,
+ * entretiens/audio, `tabAnon`).
  */
 
 import type { Categorie, Variable } from '../format'
@@ -99,20 +99,20 @@ export interface CrpV1 {
   tabDic?: CrpV1Dic[]
   tabDat?: CrpV1Dat[]
   tabAnon?: CrpV1RegleAnon[]
-  /** Settings pseudo persistés dans le `.crp` (main.js ~v.206) — inventoriés en E4. */
+  /** Settings de pseudonymisation persistés dans le `.crp` (main.js ~v.206). */
   paramsAnonCorpus?: unknown
 }
 
-/** Liste blanche des versions `.crp` connues (garde d'entrée, plan §3).
+/** Liste blanche des versions `.crp` connues (garde d'entrée).
  *  La V1 n'écrit `version` ('1.0') qu'à la CRÉATION ; un corpus ré-enregistré
  *  n'a pas le champ → absent = legacy accepté, valeur inconnue = refus propre. */
 export const VERSIONS_CRP_SUPPORTEES: readonly string[] = ['1.0'] as const
 
-// ── Aperçu (E0) ───────────────────────────────────────────────────────────
+// ── Aperçu ──────────────────────────────────────────────────────────────
 
 export interface ApercuTheme {
   nom: string
-  couleur: string | null // '' ou absent → null (E1 normalisera en hex, Q4)
+  couleur: string | null // '' ou absent → null (normalisé en hex plus tard)
   taille: number | null // '' → null (le défaut V2), nombre nu préservé
 }
 
@@ -129,15 +129,16 @@ export interface ApercuRegleAnon {
 
 /** Ce que la modale de migration affichera avant toute écriture. */
 export interface ApercuCrp {
-  /** Identité du projet (D2) : `nom` du `.crp`, sinon basename sans extension. */
+  /** Identité du projet : `nom` du `.crp`, sinon basename sans extension. */
   nom: string
   dateCreation: string | null
   nbEntretiens: number
   themes: ApercuTheme[]
   variables: ApercuVariable[]
   reglesAnon: ApercuRegleAnon[]
-  /** Données V1 BRUTES — matière des étapes suivantes (E1 codebook/variables,
-   *  E2 entretiens/audio, E4 tabAnon). Lues une seule fois, transportées ici. */
+  /** Données V1 BRUTES — matière du mapping vers le modèle V2
+   *  (codebook/variables, entretiens/audio, tabAnon). Lues une seule fois,
+   *  transportées ici. */
   raw: CrpV1
 }
 
@@ -174,7 +175,7 @@ function objets(v: unknown): Record<string, unknown>[] {
   return Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : []
 }
 
-// ── Analyse (E0) ──────────────────────────────────────────────────────────
+// ── Analyse ─────────────────────────────────────────────────────────────
 
 /**
  * Analyse un `.crp` V1 (contenu DÉJÀ décodé en UTF-8 — l'encodage est géré par
@@ -213,7 +214,7 @@ export function analyserCrp(contenu: string, nomFichier?: string): AnalyseCrp {
     return { ok: false, raison: 'structure', message: 'champ tabEnt manquant ou invalide dans le .crp' }
   }
 
-  // Identité (D2) : `nom` du .crp, sinon repli sur le nom de fichier, sinon neutre.
+  // Identité : `nom` du .crp, sinon repli sur le nom de fichier, sinon neutre.
   let nom = ''
   if (typeof crp.nom === 'string') nom = crp.nom.trim()
   if (nom === '' && nomFichier) nom = nomFichier.replace(/\.[^.]+$/, '').trim()
@@ -254,7 +255,7 @@ export function analyserCrp(contenu: string, nomFichier?: string): AnalyseCrp {
   }
 }
 
-// ── Mapping vers le modèle V2 (E1, plan §3) ───────────────────────────────
+// ── Mapping vers le modèle V2 ───────────────────────────────────────────
 // `tabThm`/`tabVar`/`tabDic` → `codebook`/`variables`, prêts à être FUSIONNÉS
 // dans le corpus V2 via `fusionnerImport` (shared/corpus/import.ts). Parité
 // avec l'import `.sonal` : importSonal.ts step 5 construit le codebook avec
@@ -262,7 +263,7 @@ export function analyserCrp(contenu: string, nomFichier?: string): AnalyseCrp {
 // c'est le MÊME format legacy → mêmes ids déterministes (`cat_NNN`, v{n}/v{n}m{m}),
 // fusion idempotente, zéro doublon.
 //
-// Règle §3.2 (Q7) : on ne lit QUE le niveau CORPUS du `.crp` (ces fonctions
+// On ne lit QUE le niveau CORPUS du `.crp` (ces fonctions
 // reçoivent `crp.tabThm`/`tabVar`/`tabDic`) — jamais les copies embarquées de
 // chaque `tabEnt[]`, qui peuvent DÉRIVER des définitions. Le `.crp` fait foi.
 
@@ -273,7 +274,7 @@ function normaliserTaillePonderation(t: unknown): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined
 }
 
-/** `tabThm` (`.crp`) → codebook V2 (`Categorie[]`). Mapping (plan §3) :
+/** `tabThm` (`.crp`) → codebook V2 (`Categorie[]`). Mapping :
  *  `code→id` ET `codeExport` (parité `cat_NNN`), `nom`, `couleur` (hex — `''`
  *  → `undefined`, le défaut V2, Q4), `taille` (nombre nu ou `''` → `undefined`),
  *  `rang→parent` (hiérarchie RECONSTRUITE depuis la séquence des profondeurs,
@@ -307,8 +308,8 @@ export function mapperVariables(tabVar: unknown, tabDic: unknown): Variable[] {
   return importerVariables(tabVar, tabDic)
 }
 
-/** Définitions V2 complètes depuis un `.crp` brut (matière de E3 : on amorce
- *  le corpus V2, puis `fusionnerImport(corpus, codebook, variables)`). */
+/** Définitions V2 complètes depuis un `.crp` brut (matière de la création :
+ *  on amorce le corpus V2, puis `fusionnerImport(corpus, codebook, variables)`). */
 export function mapperDefinitions(crp: CrpV1): { codebook: Categorie[]; variables: Variable[] } {
   return {
     codebook: mapperCodebook(crp.tabThm),
@@ -316,7 +317,7 @@ export function mapperDefinitions(crp: CrpV1): { codebook: Categorie[]; variable
   }
 }
 
-// ── Mapping des ENTRETIENS (E2, plan §3.1) ─────────────────────────────────
+// ── Mapping des ENTRETIENS ─────────────────────────────────────────────────
 // `tabEnt[]` → les données V2 à créer par entretien. La RÉSOLUTION du chemin
 // du `.sonal` (rtrPath RELATIF au dossier du .crp) et la lecture sont faites
 // par le main (`migrer:lireSonal`) ; `audioPath` V1 est déjà ABSOLU (ou '').
@@ -333,7 +334,7 @@ export interface EntretienV1Import {
   audioRef: string | null
 }
 
-/** `tabEnt[]` (`crp.tabEnt`) → liste des entretiens à créer (E2). Défensif :
+/** `tabEnt[]` (`crp.tabEnt`) → liste des entretiens à créer. Défensif :
  *  un `nom`/`rtrPath`/`audioPath` manquant ou vide est normalisé (jamais
  *  d'exception), cohérent avec Q1 (b) — un corpus V2 doit refléter le corpus
  *  V1, l'audio suffit si le .sonal manque. */
@@ -352,22 +353,22 @@ export function mapperEntretiensV1(tabEnt: unknown): EntretienV1Import[] {
   })
 }
 
-// ── Contrat E3 (création du corpus + gardes) ──────────────────────────────
-// La vérification du dossier DÉDIÉ (on n'écrase jamais, plan §2.2) et la
+// ── Création du corpus + gardes ───────────────────────────────────────
+// La vérification du dossier DÉDIÉ (on n'écrase jamais) et la
 // demande d'exécution transitent par ces types (partagés main ⇄ renderer).
 
 /** Résultat de la garde `migrer:verifierDossier` :
  *  - `ok` — dossier libre : `nonVide` avertit que des fichiers NON LIÉS y
  *    resteront (le corpus V2 y pose corpus.json + entretiens/ + png/) ;
  *  - `ok:false` — refus : `dejaCorpus` (un corpus.json y vit déjà) ou `demo`
- *    (c'est le corpus d'un mode démo — l'autre garde du plan). */
+ *    (c'est le corpus d'un mode démo — l'autre refus possible). */
 export type VerificationDossierMigration =
   | { ok: true; nonVide: boolean }
   | { ok: false; raison: 'dejaCorpus' | 'demo' }
 
-/** Demande d'exécution de `migrer:executer` : le renderer (qui orchestre, D4)
- *  fournit l'identité (D2), la trace sourceV1 et les DÉFINITIONS déjà mappées
- *  (E1) ; le main écrit le corpus V2, l'ajoute aux récents et l'ouvre. */
+/** Demande d'exécution de `migrer:executer` : le renderer (qui orchestre)
+ *  fournit l'identité, la trace sourceV1 et les DÉFINITIONS déjà mappées ;
+ *  le main écrit le corpus V2, l'ajoute aux récents et l'ouvre. */
 export interface DemandeMigration {
   /** Identité du projet (corpus.json.nom). */
   nom: string
@@ -377,8 +378,8 @@ export interface DemandeMigration {
   dateCreation: string | null
   /** Dossier DÉDIÉ au corpus V2 (déjà vérifié par la garde). */
   dossier: string
-  /** Codebook migré (E1). */
+  /** Codebook migré. */
   codebook: Categorie[]
-  /** Variables migrées (E1). */
+  /** Variables migrées. */
   variables: Variable[]
 }
