@@ -832,8 +832,8 @@ function focaliserLibre(el: unknown, cle: string) {
                           type="button"
                           class="portee-cran corpus"
                           :class="{ actif: l.etat === 'corpus' }"
-                          :disabled="roContenu || l.etat === 'corpus'"
-                          title="Corpus — règle d'anonymisation partagée du corpus"
+                          :disabled="roContenu || l.etat === 'corpus' || lectureSeule"
+                          :title="lectureSeule ? 'Nécessite une connexion au corpus partagé' : 'Corpus — règle d’anonymisation partagée du corpus'"
                           @click="changerPorteeAnon(l.entite, 'corpus')"
                         >🌐</button>
                       </div>

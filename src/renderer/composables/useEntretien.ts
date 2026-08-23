@@ -978,8 +978,22 @@ export function useEntretien(deps: {
       existante.pseudos.length === pseudosCible.length &&
       pseudosCible.every((p) => existante.pseudos.some((q) => q.toLowerCase() === p.toLowerCase()))
     if (!existante || memesPseudos) {
-      const regleId = existante ? existante.id : (await window.sonal.corpus.regleAnonCreer(ligne.entite, pseudosCible)).id
-      await appliquerCorpus(ligne, regleId, cas, undefined)
+      const res = await window.sonal.corpus.regleAnonCreer(ligne.entite, pseudosCible)
+      // Course multi-user : la transaction peut révéler une règle posée par
+      // un collègue depuis notre dernier pull (données locales périmées).
+      // Même traitement que « existante » ci-dessus : pseudos identiques →
+      // on relie ; divergents → dialogue Aligner / Garder les deux.
+      if (res.existait && !memesPseudos) {
+        dialoguePorteeCorpus.value = {
+          entite: ligne.entite,
+          pseudosCible,
+          regleExistanteId: res.regle.id,
+          reglePseudos: res.regle.pseudos,
+          cas,
+        }
+        return
+      }
+      await appliquerCorpus(ligne, res.regle.id, cas, undefined)
       return
     }
     // Divergence → dialogue.

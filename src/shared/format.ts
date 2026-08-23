@@ -354,6 +354,22 @@ export interface ResultatLotValeur {
   echecs: { id: string; raison: string }[]
 }
 
+/** Cible du lot d'application en masse d'une règle d'anonymisation :
+ *  un entretien fermé, plus la règle à y poser. */
+export interface CibleRegleAnon {
+  entretienId: string
+  regleId: string
+}
+
+/** Retour du lot d'anonymisation en masse (même politique que
+ *  `ResultatLotValeur`).
+ *  Chaque succès porte le nombre d'occurrences posées ;
+ *  l'UI ajuste ses compteurs avec ces chiffres, sans re-scan. */
+export interface ResultatLotAnon {
+  succes: { id: string; nb: number; titre: string }[]
+  echecs: { id: string; raison: string }[]
+}
+
 /** Un segment du résumé thématique d'un entretien (requête, jamais stockée),
  *  parité SonalPi (`resumeGraphique`).
  *  La position est une proportion dans le texte (pas le temps audio),

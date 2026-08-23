@@ -47,9 +47,7 @@ async function lancerPreparer(mode: ModeDemo) {
     <section class="ecran accueil">
       <h2>Accueil</h2>
 
-      <!-- Mini Corpus Test : deux modes côte à côte. Chacun choisit ses
-           dossiers (sources + corpus de travail) puis construit le corpus de
-           démo via le vrai pipeline d'import. -->
+      <!-- Mini Corpus Test avec deux modes : découverte (pas à pas) ou autonomie -->
       <div class="demo-bloc">
         <h3 class="demo-titre">🎓 Mini Corpus Test</h3>
         <div class="cartes-demo">
@@ -59,7 +57,7 @@ async function lancerPreparer(mode: ModeDemo) {
             @click="lancerPreparer('pas-a-pas')"
           >
             <div class="carte-titre">Découverte pas à pas</div>
-            <div class="carte-sous">Guidée, étape par étape <br> un entretien à la fois</div>
+            <div class="carte-sous">Guidée, étape par étape</div>
           </button>
           <button
             class="carte-demo autonomie"
@@ -67,55 +65,46 @@ async function lancerPreparer(mode: ModeDemo) {
             @click="lancerPreparer('autonomie')"
           >
             <div class="carte-titre">En autonomie</div>
-            <div class="carte-sous">L'ensemble du corpus <br> (4 entretiens + audio)</div>
+            <div class="carte-sous">Petit corpus (4 audios + srt)</div>
           </button>
         </div>
         <p class="demo-aide">Un terrain fictif sur l'aide aux devoirs dans les associations.</p>
       </div>
 
-      <!-- Vos corpus : deux mondes distincts.
-           Ligne locale = le geste du solitaire ; ligne équipe (fond teinté) =
-           Nextcloud. Les sous-titres portent l'intention (« en solo », « à
-           plusieurs »), pas la technique. La migration V1 vit en dehors, dans
-           sa propre rubrique : action exceptionnelle et
-           provisoire ≠ cycle de vie d'un corpus. -->
+      <!-- Bloc "Vos corpus avec division : local (solo) et distant (collectif) -->
       <div class="corpus-bloc">
         <h3 class="corpus-titre">📁 Vos corpus</h3>
         <!-- Ligne LOCALE -->
         <div class="cartes-demo">
           <button class="carte-demo nouveau-corpus" @click="modaleNouveau = true">
             <div class="carte-titre">➕ Nouveau corpus local</div>
-            <div class="carte-sous">Travail en solo,<br>sur ce poste</div>
+            <div class="carte-sous">Travail en solo,<br>sur votre poste</div>
           </button>
           <button class="carte-demo ouvrir-corpus" @click="choisirDossier">
             <div class="carte-titre">📂 Ouvrir un corpus local</div>
             <div class="carte-sous">Choisir un dossier existant<br>(un dossier = un corpus)</div>
           </button>
         </div>
-        <!-- Ligne ÉQUIPE (séparée visuellement : un solitaire ne clique pas
-             par curiosité dans un parcours serveur qu'il ne veut pas). -->
-        <h3 class="corpus-titre equipe-titre">☁️ En équipe (Nextcloud)</h3>
+
         <div class="cartes-demo equipe-ligne">
           <!-- Publie le squelette sur le serveur puis ouvre aussitôt :
                même comportement que la création locale. -->
           <button class="carte-demo nouveau-corpus-distant" @click="modaleNouveauDistant = true">
             <div class="carte-titre">☁️ Nouveau corpus distant</div>
-            <div class="carte-sous">Travail à plusieurs — le corpus vivra sur<br>votre serveur Nextcloud</div>
+            <div class="carte-sous">Travail à plusieurs <br>sur un serveur Nextcloud</div>
           </button>
           <button class="carte-demo distant-corpus" @click="modaleDistant = true">
             <div class="carte-titre">☁️ Ouvrir un corpus distant</div>
-            <div class="carte-sous">Ouvrir un corpus partagé<br>sur un serveur Nextcloud</div>
           </button>
         </div>
       </div>
 
-      <!-- Migration V1 : action EXCEPTIONNELLE et provisoire → sa propre
-           rubrique au style « chantier » (bordure pointillée), au-dessus des Récents. -->
+      <!-- Migration V1 : A terme, ne sera plus une rubrique si le test de cette V2 abouti -->
       <div class="migration-bloc">
-        <h3 class="migration-titre">🚧 Migrer depuis SonalPi V1</h3>
+        <h3 class="migration-titre">🚧 Migration V1 vers V2 </h3>
         <div class="cartes-demo">
           <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
-            <div class="carte-titre">🚚 Migrer un corpus SonalPi (V1)…</div>
+            <div class="carte-titre">Tester V2 tout en gardant le contenu lié à V1 intact</div>
             <div class="carte-sous">Test provisoire — notes, commentaires et anonymisation non encore repris</div>
           </button>
         </div>
@@ -130,8 +119,8 @@ async function lancerPreparer(mode: ModeDemo) {
             {{ r.nom }}
           </button>
           <span class="recent-dir">{{ r.type === 'distant' ? r.url : r.dir }}</span>
-          <!-- Retire le RACCOURCI seulement : ni le dossier disque, ni le
-               miroir, ni le serveur ne sont touchés. -->
+          <!-- Retire le RACCOURCI seulement : ni le dossier disque,
+               ni le miroir, ni le serveur ne sont touchés. -->
           <button
             class="x oubli-recent"
             title="Retirer de la liste (ne supprime rien)"

@@ -268,9 +268,10 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     // Oliviers pousse une RÈGLE CORPUS pendant la session (transaction).
     const olivier = creerPoste(davOlivier, OLIVIER, 's-OLI-E3B', verrouNatif)
     await olivier.miroir.tirer()
-    const regle = await olivier.tx.executer(() =>
+    const resultat = await olivier.tx.executer(() =>
       olivier.store.regleAnonCreer('Hopital Saint-Anne', ['HSA']),
     )
+    const regle = resultat.regle
     expect(regle.pseudos).toContain('HSA')
 
     // Au prochain tirage de max, la règle apparaît : la ligne locale

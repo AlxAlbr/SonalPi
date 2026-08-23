@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
 import { mapperDefinitions } from '../src/shared/corpus/migrationCrp'
 import { analyserCrp } from '../src/shared/corpus/migrationCrp'
+import { creerRegle } from '../src/shared/corpus/reglesAnon'
+import { ajusterScanApresApplication, type ScanRegle } from '../src/shared/corpus/scanAnon'
 import { ecrireSeedDemo } from './seedDemo'
 import type { PayloadEntretien, EntretienFichier, CorpusFichier } from '../src/shared/format'
 
@@ -848,12 +850,56 @@ describe('CorpusStore — règles corpus & scan anon (lecture)', () => {
   })
 })
 
+describe('ajusterScanApresApplication — compteurs ajustés sans re-scan', () => {
+  const scan: ScanRegle[] = [
+    {
+      regle: { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] },
+      total: { anon: 3, exc: 1, non: 5 },
+      parEntretien: {
+        e1: { anon: 2, exc: 0, non: 3 },
+        e2: { anon: 1, exc: 1, non: 2 },
+      },
+    },
+    {
+      regle: { id: 'reg-2', entite: ['Lyon'], pseudos: ['Ville'] },
+      total: { anon: 0, exc: 0, non: 4 },
+      parEntretien: { e1: { anon: 0, exc: 0, non: 4 } },
+    },
+  ]
+
+  test('déplace « à traiter » vers « anonymisé » pour la règle visée seulement', () => {
+    const r = ajusterScanApresApplication(scan, 'reg-1', [
+      { id: 'e1', nb: 2 },
+      { id: 'e2', nb: 1 },
+    ])
+    expect(r[0].parEntretien.e1).toEqual({ anon: 4, exc: 0, non: 1 })
+    expect(r[0].parEntretien.e2).toEqual({ anon: 2, exc: 1, non: 1 })
+    expect(r[0].total).toEqual({ anon: 6, exc: 1, non: 2 })
+    expect(r[1]).toBe(scan[1]) // règle non visée : inchangée (même référence)
+  })
+
+  test('borné : nb supérieur au compteur ne produit jamais de négatif ; id absent ignoré', () => {
+    const r = ajusterScanApresApplication(scan, 'reg-1', [
+      { id: 'e2', nb: 99 },
+      { id: 'e9', nb: 3 }, // absent du scan : ignoré.
+    ])
+    expect(r[0].parEntretien.e2).toEqual({ anon: 3, exc: 1, non: 0 })
+    expect(r[0].total).toEqual({ anon: 5, exc: 1, non: 3 })
+  })
+
+  test('ne mute pas le scan d\'origine', () => {
+    const avant = JSON.stringify(scan)
+    ajusterScanApresApplication(scan, 'reg-1', [{ id: 'e1', nb: 1 }])
+    expect(JSON.stringify(scan)).toBe(avant)
+  })
+})
+
 describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () => {
   test('creer/réutiliser/ajouter pseudo/supprimer une règle', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     // Création
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     expect(store.regleAnonParEntite('Karine')?.id).toBe(r.id)
     expect(store.regleAnonParEntite('karine')?.id).toBe(r.id) // insensible à la casse
     // Garder les deux
@@ -867,10 +913,35 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
     expect(store.regleAnonParEntite('Karine')).toBeUndefined()
   })
 
+  test("regleAnonCreer est défensive : une entité qui a déjà une règle n'en obtient PAS une seconde", () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const premiere = store.regleAnonCreer('Karine', ['Marie'])
+    expect(premiere.existait).toBe(false)
+    // Re-création (autre casse, autres pseudos) → la règle existante revient
+    // intacte, `existait` signale le cas, aucun doublon sur disque.
+    const seconde = store.regleAnonCreer('KARINE', ['Autre'])
+    expect(seconde.existait).toBe(true)
+    expect(seconde.regle.id).toBe(premiere.regle.id)
+    expect(seconde.regle.pseudos).toEqual(['Marie']) // pas touchée.
+    const regles = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).reglesAnon
+    expect(Object.keys(regles)).toHaveLength(1)
+  })
+
+  test('creerRegle (pur) renvoie la règle existante sans muter le corpus', () => {
+    const { store } = storeNeuf()
+    const corpus = store.ouvrir() // copie fraîche, reglesAnon vide.
+    creerRegle(corpus, 'Karine', ['Marie'], () => 'reg-1')
+    const avant = JSON.stringify(corpus.reglesAnon)
+    const r = creerRegle(corpus, 'karine', ['Autre'], () => 'reg-2')
+    expect(r.id).toBe('reg-1')
+    expect(JSON.stringify(corpus.reglesAnon)).toBe(avant) // aucune mutation.
+  })
+
   test("regleAnonUtiliseeAilleurs : vrai si un AUTRE entretien référence la règle", () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     // e1 (baseline) gagne une occurrence rule-backed.
     const e = lireFichier(dir, 'entretiens/e1.json')
     e.annotations.push({ id: 'a', type: 'anon', from: 1, to: 7, auteur: '', etat: 'anonymise', pseudo: 'Marie', regle: r.id })
@@ -884,7 +955,7 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
   test('supprimerLigneAnon corpus bloqué si la règle est utilisée ailleurs', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     // e1 référence la règle → elle n'est PAS isolée → suppression interdite.
     const e = lireFichier(dir, 'entretiens/e1.json')
     e.annotations.push({ id: 'a', type: 'anon', from: 1, to: 7, auteur: '', etat: 'anonymise', pseudo: 'Marie', regle: r.id })
@@ -901,7 +972,7 @@ describe('CorpusStore — application en masse d’une règle sur un entretien f
   test('applique les occurrences « à traiter » en rule-backed, laisse les couverts', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     // e1 : « Karine habite Lyon depuis sa retraite. » → 1 « Karine » à traiter.
     const res = store.appliquerRegleAnon('e1', r.id)
     expect(res.nb).toBe(1)

@@ -577,13 +577,18 @@ export class CorpusStore {
     return corpusModel.trouverRegleParEntite(this.ouvrir(), entite)
   }
 
-  /** Crée une règle pour une entité qui n'en a pas encore. Renvoie la règle. */
-  regleAnonCreer(entite: string, pseudos: string[]): RegleAnon {
+  /** Crée une règle pour une entité.
+   *  Défensive : si la transaction révèle une règle déjà posée par un collègue
+   *  (données fraîches du GET d'après-verrou), elle est réutilisée.
+   *  `existait: true` signale ce cas à l'UI,
+   *  qui ouvre son dialogue Aligner / Garder les deux. */
+  regleAnonCreer(entite: string, pseudos: string[]): { regle: RegleAnon; existait: boolean } {
     this.verifierEcriture()
     const corpus = this.ouvrir()
+    const existante = corpusModel.trouverRegleParEntite(corpus, entite)
     const r = corpusModel.creerRegle(corpus, entite, pseudos, () => genId('reg'))
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
-    return r
+    if (!existante) this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return { regle: r, existait: !!existante }
   }
 
   /** « Garder les deux » : ajoute un pseudo secondaire à une règle (si ≤2). */

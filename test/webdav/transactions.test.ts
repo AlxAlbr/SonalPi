@@ -226,7 +226,8 @@ describe('Suppression d\u2019entretien — double verrou', () => {
 /* ── Lot de valeurs — un verrou court PAR ENTRETIEN */
 
 import { ErreurHttp } from '../../src/main/webdav/client'
-import { poserValeurLotLocal } from '../../src/main/distant/transactions'
+import { poserValeurLotLocal, appliquerRegleLotLocal } from '../../src/main/distant/transactions'
+import type { CibleRegleAnon } from '../../src/shared/format'
 import type { ItemLotValeur } from '../../src/shared/format'
 
 /** Deux items de lot : UNE valeur « Ville = Lyon » pour e1 et e2. */
@@ -383,6 +384,151 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     }
     expect(e1.meta.valeursGen.var_ville).toBeUndefined()
     expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+})
+
+/* ── Lot d'anonymisation en masse (verrou court par entretien) ───────────────*/
+
+/** Un entretien dont le texte contient « Karine » deux fois. */
+function entretienKarine(): string {
+  return JSON.stringify({
+    formatVersion: FORMAT_VERSION,
+    lastModified: '2026-01-01T00:00:00Z',
+    corpsTexte: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Bonjour Karine ici.' }] },
+        { type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Et Karine encore.' }] },
+      ],
+    },
+    annotations: [],
+    ancres: [],
+    locuteurs: [],
+    brouillonsAnon: [],
+    meta: { valeursGen: {}, audioRef: null },
+  })
+}
+
+/** Banc standard + une règle corpus « Karine → Marie » + e2 posé sur serveur,
+ *  miroir re-tiré (l'état que verrait le panneau Pseudos). */
+async function bancAnon() {
+  const b = await banc()
+  const c = JSON.parse(b.serveur.contenuDe('corpus.json')!) as CorpusFichier
+  c.reglesAnon['reg-1'] = { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] }
+  c.membership.e2 = { titre: 'Entretien deux', date: null, lastModified: '2026-01-01T00:00:00Z' }
+  b.serveur.poser('corpus.json', JSON.stringify(c, null, 2))
+  b.serveur.poser('entretiens/e2.json', entretienKarine())
+  await b.miroir.tirer()
+  return b
+}
+
+const LOT_ANON: CibleRegleAnon[] = [
+  { entretienId: 'e1', regleId: 'reg-1' },
+  { entretienId: 'e2', regleId: 'reg-1' },
+]
+
+describe("Lot d'anonymisation en masse — distant (verrou court par entretien)", () => {
+  it('lot de 2 libres → occurrences posées côté serveur ET miroir, verrous libérés', async () => {
+    // e1 (baseline) n'a pas de texte « Karine » → 0 occurrence mais succès ;
+    // e2 en porte deux → les deux sont couvertes.
+    const { serveur, miroir, tx } = await bancAnon()
+
+    const r = await tx.appliquerRegleLot(LOT_ANON)
+    expect(r.echecs).toEqual([])
+    expect(r.succes.map((x) => [x.id, x.nb]).sort()).toEqual([
+      ['e1', 0],
+      ['e2', 2],
+    ])
+
+    const cote = JSON.parse(serveur.contenuDe('entretiens/e2.json')!) as {
+      annotations: { type: string; pseudo?: string; regle?: string }[]
+    }
+    expect(cote.annotations.filter((a) => a.type === 'anon')).toHaveLength(2)
+    expect(cote.annotations.every((a) => a.pseudo === 'Marie' && a.regle === 'reg-1')).toBe(true)
+    const local = JSON.parse(
+      readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8'),
+    ) as { annotations: unknown[] }
+    expect(local.annotations).toHaveLength(2) // écriture THROUGH.
+    expect(serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
+  })
+
+  it("un entretien tenu par autrui → échec NOMINATIF, l'autre réussit", async () => {
+    const { serveur, clientOlivier, tx } = await bancAnon()
+    const pOlivier = new ProviderPutConditionnel(clientOlivier, IDENTITE_OLIVIER)
+    await pOlivier.acquerir('verrous/e2.lock.json')
+
+    const r = await tx.appliquerRegleLot(LOT_ANON)
+    expect(r.succes.map((x) => x.id)).toEqual(['e1'])
+    expect(r.echecs).toHaveLength(1)
+    expect(r.echecs[0].id).toBe('e2')
+    expect(r.echecs[0].raison).toContain('olivier')
+    // e2 intact côté serveur ; le verrou d'olivier tient toujours.
+    const e2 = JSON.parse(serveur.contenuDe('entretiens/e2.json')!) as { annotations: unknown[] }
+    expect(e2.annotations).toHaveLength(0)
+    expect(await pOlivier.etat('verrous/e2.lock.json')).not.toBeNull()
+  })
+
+  it('divergence 412 → échec « divergence », miroir NON modifié, verrou libéré', async () => {
+    const { clientMax, miroir, tx } = await bancAnon()
+    const reel = clientMax.putTexte.bind(clientMax)
+    clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e2.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+    const avant = readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')
+
+    const r = await tx.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1' }])
+    expect(r.succes).toEqual([])
+    expect(r.echecs[0].raison).toMatch(/divergence/i)
+    expect(readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')).toBe(avant)
+  })
+
+  it('session à nous : chemin store + noterSale, pas de verrou parallèle', async () => {
+    const { serveur, clientMax, miroir, store, tx } = await bancAnon()
+    const tenus: string[] = ['e2']
+    const sales: string[] = []
+    const txSessions = new TransactionsCorpus(clientMax, miroir, () => store, IDENTITE_MAX, {
+      getSessions: () => ({ idsTenus: () => tenus, noterSale: (id) => sales.push(id) }),
+    })
+
+    const r = await txSessions.appliquerRegleLot([{ entretienId: 'e2', regleId: 'reg-1' }])
+    expect(r.succes.map((x) => [x.id, x.nb])).toEqual([['e2', 2]])
+    expect(sales).toEqual(['e2']) // la publication suivra la session existante.
+    // Chemin STORE : le fichier local porte les annotations…
+    const local = JSON.parse(readFileSync(join(miroir.dirLocal, 'entretiens/e2.json'), 'utf8')) as {
+      annotations: unknown[]
+    }
+    expect(local.annotations).toHaveLength(2)
+    // …mais RIEN n'est parti au serveur par le lot, aucun verrou parallèle.
+    const e2 = JSON.parse(serveur.contenuDe('entretiens/e2.json')!) as { annotations: unknown[] }
+    expect(e2.annotations).toHaveLength(0)
+    expect(serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
+  })
+})
+
+describe("Lot d'anonymisation en masse — corpus LOCAL (boucle directe du store)", () => {
+  it('occurrences posées ; doublons dédupliqués ; rien à traiter → succès à 0', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-anon-local-'))
+    const store = new CorpusStore(dir)
+    const corpus = store.ouvrir()
+    corpus.reglesAnon['reg-1'] = { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] }
+    writeFileSync(join(dir, 'corpus.json'), JSON.stringify(corpus, null, 2), 'utf8')
+    writeFileSync(join(dir, 'entretiens', 'e1.json'), entretienKarine(), 'utf8')
+
+    const r = await appliquerRegleLotLocal(store, [
+      { entretienId: 'e1', regleId: 'reg-1' },
+      { entretienId: 'e1', regleId: 'reg-1' }, // doublon : un seul cycle.
+      { entretienId: 'e9', regleId: 'reg-inconnu' }, // absent : succès à 0 (contrat store)
+    ])
+    expect(r.succes).toEqual([
+      { id: 'e1', nb: 2, titre: expect.any(String) },
+      { id: 'e9', nb: 0, titre: 'e9' },
+    ])
+    expect(r.echecs).toEqual([])
+    const data = JSON.parse(readFileSync(join(dir, 'entretiens', 'e1.json'), 'utf8')) as {
+      annotations: { type: string; pseudo?: string }[]
+    }
+    expect(data.annotations.filter((a) => a.type === 'anon')).toHaveLength(2)
   })
 })
 

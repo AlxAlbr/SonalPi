@@ -98,3 +98,37 @@ export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]):
   }
   return out
 }
+
+/* ── Ajustement des compteurs après application en masse ────────────────────*/
+
+/** Déplace les occurrences posées par une application en masse du compteur
+ *  « à traiter » vers « anonymisées », sans re-scan.
+ *  Le lot renvoie le nombre d'occurrences réellement posées par entretien,
+ *  et les fichiers locaux sont déjà à jour (écriture THROUGH).
+ *  PURE : renvoie un nouveau tableau, ne mute rien.
+ *  L'affichage reste ainsi cohérent jusqu'au prochain pull. */
+export function ajusterScanApresApplication(
+  scan: ScanRegle[],
+  regleId: string,
+  succes: { id: string; nb: number }[],
+): ScanRegle[] {
+  const posees = new Map<string, number>()
+  for (const x of succes) posees.set(x.id, (posees.get(x.id) ?? 0) + Math.max(0, x.nb))
+  return scan.map((s) => {
+    if (s.regle.id !== regleId) return s
+    let deplace = 0
+    const parEntretien: Record<string, StatutScan> = {}
+    for (const [id, st] of Object.entries(s.parEntretien)) {
+      const copie = { ...st }
+      const nb = posees.get(id)
+      if (nb) {
+        const n = Math.min(nb, copie.non) // borné : jamais de compteur négatif
+        copie.non -= n
+        copie.anon += n
+        deplace += n
+      }
+      parEntretien[id] = copie
+    }
+    return { ...s, parEntretien, total: { ...s.total, anon: s.total.anon + deplace, non: s.total.non - deplace } }
+  })
+}

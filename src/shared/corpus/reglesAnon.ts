@@ -19,9 +19,18 @@ export function trouverRegleParEntite(corpus: CorpusFichier, entite: string): Re
   return undefined
 }
 
-/** Crée une règle (l'entité n'a PAS encore de règle) et la persiste dans le
- *  corpus (mutation). `genId` injecté (comme les autres CRUD du corpus). */
+/** Crée une règle et la persiste dans le corpus (mutation) ; `genId` est
+ *  injecté (comme pour les autres CRUD du corpus).
+ *
+ *  Défensive multi-utilisateur : si une règle gouverne déjà cette entité dans
+ *  les données fraîches, elle est renvoyée telle quelle, sans mutation.
+ *  Une seule règle par entité, donc jamais de doublon — même quand un
+ *  collègue vient de poser sa version depuis un autre poste.
+ *  L'appelant distingue les deux cas via sa propre lecture préalable
+ *  (cf. `CorpusStore.regleAnonCreer`). */
 export function creerRegle(corpus: CorpusFichier, entite: string, pseudos: string[], genId: () => string): RegleAnon {
+  const existante = trouverRegleParEntite(corpus, entite)
+  if (existante) return existante
   const r: RegleAnon = { id: genId(), entite: [entite.trim()], pseudos: pseudos.filter((p) => p.trim() !== '') }
   corpus.reglesAnon[r.id] = r
   return r

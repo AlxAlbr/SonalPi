@@ -15,13 +15,14 @@ import { profilerServeur, sonderFilesLock } from './webdav/sondes'
 import { MiroirWebDAV } from './miroir'
 import { coffreReel, type ConfigCorpusDistant } from './distant/coffre'
 import { SessionsDEntretien } from './distant/sessions'
-import { TransactionsCorpus, poserValeurLotLocal } from './distant/transactions'
+import { TransactionsCorpus, poserValeurLotLocal, appliquerRegleLotLocal } from './distant/transactions'
 import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
   Categorie,
+  CibleRegleAnon,
   CibleValeur,
   EntreeRecent,
   EtatDemo,
@@ -470,8 +471,8 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:regleAnonSupprimer', (_e, id: string) =>
     executerDefinitions(() => store.regleAnonSupprimer(id)),
   )
-  ipcMain.handle('corpus:appliquerRegleAnon', (_e, entretienId: string, regleId: string) =>
-    store.appliquerRegleAnon(entretienId, regleId),
+  ipcMain.handle('corpus:appliquerRegleAnonLot', (_e, cibles: CibleRegleAnon[]) =>
+    transactions ? transactions.appliquerRegleLot(cibles) : appliquerRegleLotLocal(store, cibles),
   )
   ipcMain.handle('corpus:compterUsagesCategorie', (_e, code: string, exceptId?: string) =>
     store.compterUsagesCategorie(code, exceptId),

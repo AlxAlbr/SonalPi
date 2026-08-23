@@ -7,11 +7,13 @@ import type {
   EntreeRecent,
   EtatDemo,
   ItemLotValeur,
+  CibleRegleAnon,
   EtatDemoComplet,
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
   ResultatLotValeur,
+  ResultatLotAnon,
   OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
@@ -107,15 +109,15 @@ contextBridge.exposeInMainWorld('sonal', {
     scanAnon: (): Promise<ScanRegle[]> => ipcRenderer.invoke('corpus:scanAnon'),
     regleAnonParEntite: (entite: string): Promise<RegleAnon | undefined> =>
       ipcRenderer.invoke('corpus:regleAnonParEntite', entite),
-    regleAnonCreer: (entite: string, pseudos: string[]): Promise<RegleAnon> =>
+    regleAnonCreer: (entite: string, pseudos: string[]): Promise<{ regle: RegleAnon; existait: boolean }> =>
       ipcRenderer.invoke('corpus:regleAnonCreer', entite, pseudos),
     regleAnonAjouterPseudo: (id: string, pseudo: string): Promise<RegleAnon | null> =>
       ipcRenderer.invoke('corpus:regleAnonAjouterPseudo', id, pseudo),
     regleAnonUtiliseeAilleurs: (id: string, exceptId?: string): Promise<boolean> =>
       ipcRenderer.invoke('corpus:regleAnonUtiliseeAilleurs', id, exceptId),
     regleAnonSupprimer: (id: string): Promise<void> => ipcRenderer.invoke('corpus:regleAnonSupprimer', id),
-    appliquerRegleAnon: (entretienId: string, regleId: string): Promise<{ nb: number; titre: string }> =>
-      ipcRenderer.invoke('corpus:appliquerRegleAnon', entretienId, regleId),
+    appliquerRegleAnonLot: (cibles: CibleRegleAnon[]): Promise<ResultatLotAnon> =>
+      ipcRenderer.invoke('corpus:appliquerRegleAnonLot', cibles),
     compterUsagesCategorie: (code: string, exceptId?: string): Promise<number> =>
       ipcRenderer.invoke('corpus:compterUsagesCategorie', code, exceptId),
     ajouterVariable: (

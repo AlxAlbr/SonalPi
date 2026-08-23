@@ -15,6 +15,7 @@ import type {
   EtatDemo,
   EtatDemoComplet,
   ItemLotValeur,
+  CibleRegleAnon,
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
@@ -23,6 +24,7 @@ import type {
   PayloadEntretien,
   RegleAnon,
   ResultatLotValeur,
+  ResultatLotAnon,
   ResultatSuppression,
   ResultatSuppressionCategorie,
   SegmentThematique,
@@ -86,11 +88,11 @@ declare global {
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
         regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>
-        regleAnonCreer: (entite: string, pseudos: string[]) => Promise<RegleAnon>
+        regleAnonCreer: (entite: string, pseudos: string[]) => Promise<{ regle: RegleAnon; existait: boolean }>
         regleAnonAjouterPseudo: (id: string, pseudo: string) => Promise<RegleAnon | null>
         regleAnonUtiliseeAilleurs: (id: string, exceptId?: string) => Promise<boolean>
         regleAnonSupprimer: (id: string) => Promise<void>
-        appliquerRegleAnon: (entretienId: string, regleId: string) => Promise<{ nb: number; titre: string }>
+        appliquerRegleAnonLot: (cibles: CibleRegleAnon[]) => Promise<ResultatLotAnon>
         compterUsagesCategorie: (code: string, exceptId?: string) => Promise<number>
         ajouterVariable: (
           lib: string,

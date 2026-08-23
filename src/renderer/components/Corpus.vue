@@ -7,6 +7,7 @@ import { utiliserSonal } from '../composables/sonal'
 import { rechercherDansCorpsTexte } from '../corpus/recherche'
 import type { OccurenceRecherche, ResultatRecherche } from '../corpus/recherche'
 import type { SegmentThematique } from '../../shared/format'
+import { ajusterScanApresApplication } from '../../shared/corpus/scanAnon'
 // Icônes d'onglets (parité vue Entretien) — thèmes = logocat, recherche = logosearch.
 import icoThemes from '../assets/icones/logocat.png'
 import icoRecherche from '../assets/icones/logosearch.png'
@@ -103,8 +104,7 @@ function fermerPseudo() {
 }
 
 // --- Drill-down (loupe) : panneau droit, entretiens concernés + application en
-//     masse (version simplifiée SonalPi V1). Lecture seule pour une règle multi-
-//     pseudo si besoin, sinon checkbox par entretien → appliquerRegleAnon. ---
+//     masse (checkbox par entretien → lot sous verrou court par fichier). ---
 const selectedRegleId = ref<string | null>(null)
 const cochage = ref<Record<string, boolean>>({})
 const messagePseudo = ref<string | null>(null)
@@ -134,8 +134,12 @@ function entretiensRegle() {
 function basculerCochage(id: string) {
   cochage.value[id] = !cochage.value[id]
 }
-/** Applique la règle cochée sur les entretiens sélectionnés (fermés, atomique →
- *  le store écrit), puis re-scanne. */
+/** Applique la règle cochée sur les entretiens sélectionnés (fermés).
+ *  En distant, le lot passe par des transactions courtes par entretien :
+ *  un entretien verrouillé par autrui est refusé nommément,
+ *  sans bloquer les autres.
+ *  Compteurs ajustés localement avec les chiffres appliqués, pas de re-scan
+ *  (les fichiers sont à jour grâce aux écritures du lot). */
 async function appliquerMasse() {
   const s = scanPourRegle.value
   if (!s) return
@@ -144,19 +148,28 @@ async function appliquerMasse() {
     messagePseudo.value = 'Coche au moins un entretien à appliquer.'
     return
   }
-  let total = 0
-  let touches = 0
-  for (const id of ids) {
-    const r = await window.sonal.corpus.appliquerRegleAnon(id, s.regle.id)
-    total += r.nb
-    if (r.nb > 0) touches++
+  const res = await window.sonal.corpus.appliquerRegleAnonLot(
+    ids.map((id) => ({ entretienId: id, regleId: s.regle.id })),
+  )
+  const total = res.succes.reduce((t, x) => t + x.nb, 0)
+  const touches = res.succes.filter((x) => x.nb > 0)
+  const parties: string[] = []
+  if (total > 0) {
+    parties.push(
+      `✓ ${total} occurrence(s) anonymisée(s) dans ${touches.length} entretien(s) : ` +
+        touches.map((x) => membership.value[x.id]?.titre ?? x.id).join(', ') + '.',
+    )
   }
-  messagePseudo.value =
-    total > 0
-      ? `✓ ${total} occurrence(s) anonymisée(s) dans ${touches} entretien(s) : ${ids.map((i) => membership.value[i]?.titre ?? i).join(', ')}.`
-      : 'Aucune occurrence « à traiter » trouvée dans les entretiens cochés (tout est déjà couvert).'
+  for (const e of res.echecs) {
+    parties.push(`✗ ${membership.value[e.id]?.titre ?? e.id} : ${e.raison}`)
+  }
+  if (parties.length === 0) {
+    messagePseudo.value = 'Aucune occurrence « à traiter » trouvée dans les entretiens cochés (tout est déjà couvert).'
+  } else {
+    messagePseudo.value = parties.join(' ')
+  }
+  scanAnon.value = ajusterScanApresApplication(scanAnon.value, s.regle.id, res.succes)
   cochage.value = {}
-  await rafraichirScanAnon()
   // On GARDE le panneau droit ouvert (sélection) pour que le message et les
   // compteurs rafraîchis restent visibles ; l'utilisateur referme ensuite.
 }
@@ -595,11 +608,18 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                     <input
                       type="checkbox"
                       :checked="!!cochage[e.id]"
-                      :disabled="e.non === 0"
-                      :title="e.non === 0 ? 'Rien à traiter dans cet entretien' : 'Appliquer en masse la règle dans cet entretien'"
+                      :disabled="e.non === 0 || !!badgeVerrou(e.id)"
+                      :title="
+                        e.non === 0
+                          ? 'Rien à traiter dans cet entretien'
+                          : badgeVerrou(e.id)
+                            ? `Verrou tenu par ${badgeVerrou(e.id)!.userId} — application impossible tant que cette session tient`
+                            : 'Appliquer en masse la règle dans cet entretien'
+                      "
                       @change="basculerCochage(e.id)"
                     />
                     <span class="pseudo-ent-titre" :title="e.titre">{{ e.titre }}</span>
+                    <span v-if="badgeVerrou(e.id)" class="pseudo-cpt verrou" :title="`Verrou tenu par ${badgeVerrou(e.id)!.userId}`">🔒 {{ badgeVerrou(e.id)!.userId }}</span>
                     <span class="pseudo-ent-cpt">
                       <span v-if="e.anon > 0" class="pseudo-cpt anon" :title="e.anon + ' anonymisée(s)'">A{{ e.anon }}</span>
                       <span v-if="e.exc > 0" class="pseudo-cpt exc" :title="e.exc + ' exception(s)'">E{{ e.exc }}</span>
@@ -609,7 +629,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   </li>
                 </ul>
                 <div class="pseudo-actions">
-                  <button class="pseudo-appliquer" @click="appliquerMasse">Appliquer en masse</button>
+                  <button
+                    class="pseudo-appliquer"
+                    :disabled="lectureSeule"
+                    :title="lectureSeule ? 'Nécessite une connexion au corpus partagé' : 'Poser le pseudo de la règle sur les occurrences « à traiter » des entretiens cochés'"
+                    @click="appliquerMasse"
+                  >Appliquer en masse</button>
                 </div>
               </template>
             </div>
@@ -1231,6 +1256,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .pseudo-cpt.anon { color: #2e7d32; }
 .pseudo-cpt.exc { color: #b26a00; }
 .pseudo-cpt.non { color: #c62828; font-weight: 600; }
+.pseudo-cpt.verrou { color: #555; font-weight: 600; }
 .pseudo-ouvrir {
   border: 1px solid #ccc;
   border-radius: 4px;

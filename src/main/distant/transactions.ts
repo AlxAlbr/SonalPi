@@ -34,11 +34,15 @@ import type { IdentiteSession } from './sessions'
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { ContenuVerrou, VerrouProvider } from '../verrous/types'
+import { instructionsAppliquerRegle } from '../../shared/entretien/anon'
 import type {
   CorpusFichier,
   EntretienFichier,
   ItemLotValeur,
   ResultatLotValeur,
+  CibleRegleAnon,
+  ResultatLotAnon,
+  RegleAnon,
 } from '../../shared/format'
 
 /** Chemin VERROUILLÉ pour les transactions de définitions — TOUJOURS le
@@ -313,6 +317,125 @@ export class TransactionsCorpus {
     }
   }
 
+  /* ── Anonymisation en masse — un verrou court PAR ENTRETIEN ────────────*/
+
+
+  /** Application EN MASSE d'une règle anon sur des entretiens FERMÉS.
+   *  Le même motif que `poserValeurLot` : UN cycle par fichier (verrou court,
+   *  GET frais du serveur, instructions pures, PUT If-Match), exécution
+   *  séquentielle, échec nommé sans bloquer les autres entretiens du lot.
+   *  Un entretien OUVERT chez nous passe par le chemin session existant
+   *  (défense en profondeur, cf. `poserValeurLot`). */
+  async appliquerRegleLot(cibles: CibleRegleAnon[]): Promise<ResultatLotAnon> {
+    const succes: ResultatLotAnon['succes'] = []
+    const echecs: ResultatLotAnon['echecs'] = []
+    // Dédupliquer par entretien : UN verrou et UN aller-retour serveur,
+    // même si la sélection contient des doublons.
+    const parEntretien = new Map<string, string>()
+    for (const c of cibles) if (!parEntretien.has(c.entretienId)) parEntretien.set(c.entretienId, c.regleId)
+    const sessions = this.options.getSessions?.() ?? null
+    for (const [id, regleId] of parEntretien) {
+      try {
+        const { regle, titre } = this.regleEtTitre(regleId, id)
+        if (sessions?.idsTenus().includes(id)) {
+          // Session À NOUS sur cet id : chemin existant ; la publication
+          // suivra la session (`noterSale`). Jamais un second verrou sur un
+          // fichier déjà à nous.
+          const store = this.getStore()
+          const gardePrecedente = store.lectureSeule
+          store.lectureSeule = false
+          let nb: number
+          try {
+            nb = store.appliquerRegleAnon(id, regleId).nb
+          } finally {
+            store.lectureSeule = gardePrecedente
+          }
+          sessions.noterSale(id)
+          succes.push({ id, nb, titre })
+        } else {
+          const nb = await this.appliquerRegleHorsSession(id, regle)
+          succes.push({ id, nb, titre })
+        }
+      } catch (e) {
+        echecs.push({ id, raison: classifier(e).message })
+      }
+    }
+    return { succes, echecs }
+  }
+
+  /** Règle + titre lus sur le corpus LOCAL (miroir).
+   *  La règle affichée dans le panneau est celle qu'on applique ;
+   *  le GET frais porte sur le fichier ENTRETIEN seul,
+   *  qui est le seul verrouillé par ce cycle. */
+  private regleEtTitre(regleId: string, entretienId: string): { regle: RegleAnon; titre: string } {
+    const corpus = this.getStore().ouvrir()
+    const regle = corpus.reglesAnon[regleId]
+    if (!regle) throw new ErreurTransaction('La règle n\u2019existe plus — actualisez le corpus puis recommencez.')
+    return { regle, titre: corpus.membership[entretienId]?.titre ?? entretienId }
+  }
+
+  /** Le cycle d'UN entretien hors session : acquerir, GET frais, instructions
+   *  pures, PUT If-Match, écriture THROUGH du miroir ; `liberer` TOUJOURS en
+   *  `finally` (même sur échec).
+   *  Refus de verrou / divergence 412 / réseau : exception propagée à
+   *  l'appelant (échec nommé, miroir NON modifié).
+   *  Rien à poser → aucun PUT, aucun `lastModified` touché. */
+  private async appliquerRegleHorsSession(id: string, regle: RegleAnon): Promise<number> {
+    const provider = this.providerPourEntretien()
+    const cheminVerrou = this.cheminVerrouEntretien(id)
+    const acquisition = await provider.acquerir(cheminVerrou)
+    if (!acquisition.ok) {
+      throw new ErreurTransaction(
+        `ouvert par ${acquisition.tenuPar?.userId ?? 'un autre utilisateur'} — impossible de l'anonymiser tant que cette session tient.`,
+      )
+    }
+    try {
+      const cheminFichier = CHEMIN_ENTRETIEN(id)
+      // La version d'APRÈS-verrou fait foi : GET frais du SERVEUR,
+      // jamais confiance à la copie miroir (périmée possible).
+      const etagServeur = await this.etagServeurDe(cheminFichier)
+      let brut: string
+      if (etagServeur) brut = await this.client.getTexte(cheminFichier)
+      else
+        brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir.
+      const data = JSON.parse(brut) as EntretienFichier
+      const instr = instructionsAppliquerRegle(data, regle, () => 'a-' + Math.random().toString(36).slice(2, 9))
+      if (instr.nb === 0) return 0
+      for (const o of instr.poser) {
+        data.annotations.push({
+          id: o.id,
+          type: 'anon',
+          from: o.from,
+          to: o.to,
+          auteur: 'corpus',
+          etat: 'anonymise',
+          pseudo: o.pseudo,
+          regle: o.regle,
+        })
+      }
+      data.lastModified = new Date().toISOString()
+      const contenu = JSON.stringify(data, null, 2)
+      // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
+      const nouveauEtag = await this.client.putTexte(
+        cheminFichier,
+        contenu,
+        etagServeur ? { ifMatch: etagServeur } : {},
+      )
+      const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? etagServeur ?? ''
+      // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en
+      // local ; compteurs et prochains scans sont à jour sans pull complet.
+      const abs = join(this.miroir.dirLocal, cheminFichier)
+      mkdirSync(dirname(abs), { recursive: true })
+      const tmp = `${abs}.tmp`
+      writeFileSync(tmp, contenu, 'utf8')
+      renameSync(tmp, abs)
+      if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
+      return instr.nb
+    } finally {
+      await provider.liberer(cheminVerrou).catch(() => {})
+    }
+  }
+
   /* ── Aides internes ──────────────────────────────────────────────────────── */
 
   /** GET frais de `corpus.json` si le serveur n'est plus la version du
@@ -390,6 +513,32 @@ export async function poserValeurLotLocal(
       succes.push(id)
     } catch (e) {
       echecs.push({ id, raison: classifier(e).message })
+    }
+  }
+  return { succes, echecs }
+}
+
+/* ── Lot d'anonymisation en masse en corpus LOCAL ────────────────────────────*/
+
+/** Pas de transaction ni de garde en local (aucune couche session) :
+ *  boucle directe du store, avec les MÊMES résultats qu'en distant.
+ *  Succès par entretien avec occurrences posées ; échecs nommés ;
+ *  un échec ne bloque jamais les autres entretiens du lot. */
+export async function appliquerRegleLotLocal(
+  store: CorpusStore,
+  cibles: CibleRegleAnon[],
+): Promise<ResultatLotAnon> {
+  const succes: ResultatLotAnon['succes'] = []
+  const echecs: ResultatLotAnon['echecs'] = []
+  const vues = new Set<string>()
+  for (const c of cibles) {
+    if (vues.has(c.entretienId)) continue
+    vues.add(c.entretienId)
+    try {
+      const r = store.appliquerRegleAnon(c.entretienId, c.regleId)
+      succes.push({ id: c.entretienId, nb: r.nb, titre: r.titre })
+    } catch (e) {
+      echecs.push({ id: c.entretienId, raison: classifier(e).message })
     }
   }
   return { succes, echecs }
