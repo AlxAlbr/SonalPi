@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { detecterAffixeLiaison, suggestionCoeur } from '../src/shared/entretien/anon/liaison'
+import { detecterAffixeLiaison, suggestionCoeur } from '../src/shared/entretien/anon/motsLiaison'
 import {
   aplatir,
   occurrencesDe,

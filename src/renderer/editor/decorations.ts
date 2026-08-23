@@ -147,6 +147,10 @@ function construireDecorations(
     // (sinon « New »[ville] « York »[ville] au lieu de « New York »[ville]).
     // Le barré, lui, reste continu sur toute la plage.
     const anons = couvrant.filter((a) => a.type === 'anon' && !masquee.has(a.id))
+    // Commentaires couvrant ce segment : teinte de fond propre (le marqueur
+    // « il y a un commentaire ici », visible même quand la marge est cachée —
+    // fenêtre étroite), en plus du souligné des codages.
+    const commenteIci = couvrant.some((a) => a.type === 'commentaire')
     // Occurrence ANONYMISÉE (barrée + [pseudo]) vs EXCEPTION (décision volontaire
     // de laisser en clair — ni barrée ni [pseudo]). Sur un segment où
     // une occurrence anonymisée et une exception se recouvrent, le barré
@@ -170,7 +174,13 @@ function construireDecorations(
     // `anon`) sans afficher de pseudo (pas de data-pseudo, et `anon-suite`
     // neutralise le ::after du CSS).
     const suite = anonymiseIci && pseudos.length === 0
-    const style = [souligne ? `box-shadow:${souligne}` : '', police].filter(Boolean).join(';')
+    const style = [
+      souligne ? `box-shadow:${souligne}` : '',
+      police,
+      commenteIci ? 'background-color:rgba(255, 213, 79, 0.18)' : '',
+    ]
+      .filter(Boolean)
+      .join(';')
     decos.push(
       Decoration.inline(segFrom, segTo, {
         class: exceptionSeule
@@ -190,8 +200,9 @@ function construireDecorations(
         title: couvrant
           .filter((a) => !masquee.has(a.id))
           .map((a) => {
-            if (a.type !== 'anon') return a.code
-            return a.etat === 'exception' ? 'exception' : a.pseudo ? `anon→${a.pseudo}` : 'anon'
+            if (a.type === 'anon') return a.etat === 'exception' ? 'exception' : a.pseudo ? `anon→${a.pseudo}` : 'anon'
+            if (a.type === 'commentaire') return `💬 ${a.auteur || 'sans auteur'} : ${(a.texte ?? '').slice(0, 80)}`
+            return a.code
           })
           .join(' + '),
       }),

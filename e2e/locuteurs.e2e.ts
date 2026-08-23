@@ -11,7 +11,9 @@ import { ouvrir, coderTheme, selectionner } from './util'
  * Seed : bloc 1 = Enquêteur (loc 1), bloc 2 = Karine (loc 2).
  */
 
-const gouttiere = (t: string) => `.editeur .gouttiere-loc:text-is("${t}")`
+// Le nom vit dans le SPAN enfant (.loc-nom, porteur de la couleur) :
+// :text-is ne remonte pas au parent, on cible donc l'enfant.
+const gouttiere = (t: string) => `.editeur .gouttiere-loc:has(> .loc-nom:text-is("${t}"))`
 
 /** Ouvre l'onglet Locuteurs (l'entretien s'ouvre sur l'ACCUEIL par défaut —
  *  les locuteurs se corrigent après la vue d'ensemble ; le helper ramène donc
@@ -107,7 +109,7 @@ test('S4 — attribuer la sélection scinde le bloc et pose le locuteur sur le f
 
   // Le bouton devient dynamique : « …la sélection » (sélection non vide) — sert
   // aussi de barrière : PM a synchronisé la sélection dans son état.
-  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer la sélection :')
+  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer le bloc courant ou la sélection :')
 
   await page.locator('.boutons-loc .attr', { hasText: 'Karine' }).click()
 
@@ -131,14 +133,14 @@ test('S4 — un passage codé survit à la scission par attribution (annotation 
 
   // Code « Lyon » (thème Lieu) → décoration présente.
   await selectionner(page, 'Lyon')
-  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer la sélection :')
+  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer le bloc courant ou la sélection :')
   await coderTheme(page, 'Lieu')
   await expect(ed.locator('.annot')).toHaveText('Lyon')
 
   // Attribue « Lyon » à Karine : le bloc est scindé autour du passage codé.
   await selectionner(page, 'Lyon')
   await ongletLocuteurs(page)
-  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer la sélection :')
+  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer le bloc courant ou la sélection :')
   await page.locator('.boutons-loc .attr', { hasText: 'Karine' }).click()
 
   // Le codage tient : toujours surligné sur « Lyon », dans un bloc désormais loc 2.

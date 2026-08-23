@@ -7,7 +7,8 @@ import { pluginRemap } from '../editor/remap'
 import { pluginDecorations, decorationsPluginKey } from '../editor/decorations'
 import { pluginGouttiere, gouttierePluginKey } from '../editor/locuteursGutter'
 import { pluginLecture } from '../editor/lecture'
-import { pluginMenuAnon, type CibleMenuAnon } from '../editor/menuContexteAnon'
+import { pluginMenuContexte, type CibleMenuContexte } from '../editor/menuContexte'
+import { pluginCommentairesMarge } from '../editor/commentairesMarge'
 import { pluginReperage, reperagePluginKey } from '../editor/reperage'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
@@ -33,7 +34,7 @@ import {
   nomDeLocuteur,
 } from '../../shared/entretien/locuteurs'
 import { estOrpheline, type Annotation } from '../../shared/entretien/annotation'
-import { ajouterCodage, retirerAnnotation, trouverCodage, type Entretien } from '../../shared/entretien/entretien'
+import { ajouterCodage, retirerAnnotation, trouverCodage, ajouterCommentaire, modifierCommentaire, type Entretien } from '../../shared/entretien/entretien'
 import {
   enregistrer,
   annuler as annulerAuJournal,
@@ -48,7 +49,7 @@ import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, Regl
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
 import { detecterDivergencesPortee } from '../../shared/entretien/anon/reconciliation'
-import { suggestionCoeur } from '../../shared/entretien/anon/liaison'
+import { suggestionCoeur } from '../../shared/entretien/anon/motsLiaison'
 import type { LegacyBlobs } from '../import/importSonal'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
@@ -269,18 +270,25 @@ export function useEntretien(deps: {
   // quand une entité standalone en déclare ≥2 (3b multi-pseudo). Persistée dans
   // entretiens/<id>.json.pseudosDeclares (ni une règle, ni partagé).
   const pseudosDeclares = ref<Record<string, string[]>>({})
-  /** Menu contextuel d'une occurrence anon (clic droit) — requête
-   *  VOLATILE : cible (coordonnées écran + occurrence) tant que le menu est
-   *  ouvert, sinon null. Le composant MenuContexteAnon le consomme. */
-  const menuContextuelAnon = ref<{
+  /** Menu contextuel de l'éditeur (clic droit) — requête VOLATILE : la vue
+   *  à montrer tant que le menu est ouvert, sinon null. Consommé par le
+   *  composant MenuContexte : sections anon / codages / commentaires. */
+  const menuContextuel = ref<{
     x: number
     y: number
-    id: string
-    etat: 'anonymise' | 'exception'
-    entite: string
-    /** Autres pseudos autorisés par la règle (multi-pseudo >1), hors le pseudo
-     *  courant, pour l'occurrence — vide si mono-pseudo/standalone. */
-    pseudosAutres: string[]
+    anon: { id: string; etat: 'anonymise' | 'exception'; entite: string; pseudosAutres: string[] } | null
+    codages: { id: string; libelle: string }[]
+    commentaires: { id: string; auteur: string; extrait: string }[]
+    peutCommenter: boolean
+  } | null>(null)
+  /** Modale d'un commentaire (création ET édition) : null = fermée. `id`
+   *  null = création sur [from,to[ ; sinon édition du commentaire existant. */
+  const editionCommentaire = ref<{
+    id: string | null
+    from: number
+    to: number
+    auteur: string
+    texte: string
   } | null>(null)
   /** Dialogue de divergence à la poussée vers le corpus (3b) : une règle
    *  existante porte des pseudos différents de l'entité qu'on pousse → proposer
@@ -324,7 +332,8 @@ export function useEntretien(deps: {
         pluginGouttiere(() => locuteurs.value, deps.clicTour),
         pluginLecture(),
         pluginReperage(),
-        pluginMenuAnon(entretien, ouvrirMenuAnon),
+        pluginMenuContexte(entretien, ouvrirMenuContexte),
+        pluginCommentairesMarge(entretien, editerCommentaire),
       ]
     },
   })
@@ -637,7 +646,8 @@ export function useEntretien(deps: {
     rafraichirDecorations()
     rafraichirGouttiere()
     etatSauvegarde.value = 'à jour'
-    fermerMenuAnon() // un menu ouvert pointait vers l'entretien précédent
+    fermerMenu() // un menu ouvert pointait vers l'entretien précédent
+    editionCommentaire.value = null
     return true
   }
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
@@ -657,7 +667,8 @@ export function useEntretien(deps: {
     selectionAnon.value = null
     hintAnon.value = null
     suggestionLiaison.value = null
-    fermerMenuAnon()
+    fermerMenu()
+    editionCommentaire.value = null
     rafraichir()
     rafraichirDecorations()
   }
@@ -994,7 +1005,7 @@ export function useEntretien(deps: {
 
   /** Après une validation RÉUSSIE : calcule l'entité-cœur éventuelle (« à Lyon »
    *  validé → proposer « Lyon ») à la MÊME portée que la validation effective.
-   *  La décision est PURE (liaison.ts) — réglage, invariants multi-alias/
+   *  La décision est PURE (motsLiaison.ts) — réglage, invariants multi-alias/
    *  multi-pseudo, règle-cœur déjà existante ; ici on ne porte que le résultat
    *  à la modale. */
   function proposerCoeur(entite: string, pseudo: string, portee: 'entretien' | 'corpus') {
@@ -1482,47 +1493,75 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
 
-  // --- Menu contextuel des occurrences (exceptions) ---
-  /** Ouvre le menu flottant sur une occurrence (appelé par le plugin
-   *  `pluginMenuAnon` à chaque clic droit couvrant). L'occurrence est résolue
-   *  par le plugin ; ici on ne fait que capturer la cible pour le composant. */
-  function ouvrirMenuAnon(cible: CibleMenuAnon) {
-    const a = cible.annotation
+  // --- Menu contextuel de l'éditeur (anon, codages, commentaires) ---
+  /** Ouvre le menu flottant sur la cible résolue par le plugin
+   *  `pluginMenuContexte` (appelé à chaque clic droit consommé) : ici on
+   *  transforme les annotations brutes en VUE pour le composant MenuContexte. */
+  function ouvrirMenuContexte(cible: CibleMenuContexte) {
     const ed = editor.value
-    // Le texte d'entité se lit sur le doc courant (les positions suivent le remap).
-    const entite = ed ? ed.state.doc.textBetween(a.from, a.to, ' ') : ''
-    // Multi-pseudo (3b) : les AUTRES pseudos autorisés pour CETTE occurrence.
+    const texteDe = (f: number, t: number) => (ed ? ed.state.doc.textBetween(f, t, ' ') : '')
+    // Section anon : entité + AUTRES pseudos autorisés (multi-pseudo 3b).
     // Priorité à la règle (occurrence rule-backed, portée corpus) ; sinon à
     // l'ensemble déclaré au niveau fichier (`pseudosDeclares`, occurrence
     // standalone). Vide si mono-pseudo → pas d'item de bascule.
-    let pseudosAutres: string[] = []
-    const cle = cleEntite(entite)
-    if (a.regle) {
-      const regle = deps.reglesAnon().find((r) => r.id === a.regle)
-      if (regle && regle.pseudos.length > 1 && a.pseudo) {
+    let anon: { id: string; etat: 'anonymise' | 'exception'; entite: string; pseudosAutres: string[] } | null = null
+    if (cible.anon) {
+      const a = cible.anon
+      const entite = texteDe(a.from, a.to)
+      let pseudosAutres: string[] = []
+      const cle = cleEntite(entite)
+      if (a.regle) {
+        const regle = deps.reglesAnon().find((r) => r.id === a.regle)
+        if (regle && regle.pseudos.length > 1 && a.pseudo) {
+          const bas = (p: string) => p.toLowerCase()
+          pseudosAutres = regle.pseudos.filter((p) => bas(p) !== bas(a.pseudo!))
+        }
+      } else if (a.pseudo) {
+        const declares = pseudosDeclares.value[cle]
         const bas = (p: string) => p.toLowerCase()
-        const courant = bas(a.pseudo)
-        pseudosAutres = regle.pseudos.filter((p) => bas(p) !== courant)
+        if (declares && declares.length > 1 && declares.some((p) => bas(p) === bas(a.pseudo!))) {
+          pseudosAutres = declares.filter((p) => bas(p) !== bas(a.pseudo!))
+        }
       }
-    } else if (a.pseudo) {
-      const declares = pseudosDeclares.value[cle]
-      const bas = (p: string) => p.toLowerCase()
-      if (declares && declares.length > 1 && declares.some((p) => bas(p) === bas(a.pseudo!))) {
-        pseudosAutres = declares.filter((p) => bas(p) !== bas(a.pseudo!))
+      anon = {
+        id: a.id,
+        etat: a.etat === 'exception' ? 'exception' : 'anonymise',
+        entite,
+        pseudosAutres,
       }
     }
-    menuContextuelAnon.value = {
+    // Sections codages / commentaires : libellés lisibles + dédoublonnage des
+    // codages par thème (plusieurs annotations du même code sous le clic = un
+    // seul item ; le retrait visera la plus large).
+    const vus = new Set<string>()
+    const codages: { id: string; libelle: string }[] = []
+    for (const c of [...cible.codages].sort((x, y) => y.to - y.from - (x.to - x.from))) {
+      if (vus.has(c.code ?? '')) continue
+      vus.add(c.code ?? '')
+      codages.push({ id: c.id, libelle: deps.nomCode(c.code ?? '') })
+    }
+    const commentaires = cible.commentaires.map((c) => ({
+      id: c.id,
+      auteur: c.auteur,
+      extrait: `${c.auteur || 'sans auteur'} : ${(c.texte ?? '').slice(0, 60)}`,
+    }))
+    menuContextuel.value = {
       x: cible.x,
       y: cible.y,
-      id: a.id,
-      etat: a.etat === 'exception' ? 'exception' : 'anonymise',
-      entite,
-      pseudosAutres,
+      anon,
+      codages,
+      commentaires,
+      peutCommenter: cible.plageCommenter != null,
     }
+    plageCommenterCourante.value = cible.plageCommenter
   }
+  /** Plage à commenter capturée à l'ouverture du menu (sélection ou bornes de
+   *  l'annotation sous le clic) — consommée par le geste « Commenter ». */
+  const plageCommenterCourante = ref<{ from: number; to: number } | null>(null)
   /** Ferme le menu (clic hors menu, Escape, ou après une action). */
-  function fermerMenuAnon() {
-    menuContextuelAnon.value = null
+  function fermerMenu() {
+    menuContextuel.value = null
+    plageCommenterCourante.value = null
   }
   /** Pseudo de la LIGNE du tableau contenant l'occurrence `a` : celui d'une
    *  autre occurrence ANONYMISÉE de même entité (le relabel de ligne), sinon
@@ -1552,7 +1591,7 @@ export function useEntretien(deps: {
     const a = entretien.annotations.find((x) => x.id === id)
     if (!a || a.type !== 'anon' || a.etat === 'exception') return
     a.etat = 'exception'
-    fermerMenuAnon()
+    fermerMenu()
     rafraichir()
     rafraichirDecorations()
     rafraichirCompteursAAAnonymiser()
@@ -1568,7 +1607,7 @@ export function useEntretien(deps: {
     if (!a || a.type !== 'anon' || a.etat === 'anonymise') return
     a.etat = 'anonymise'
     a.pseudo = a.pseudo || pseudoDeLigne(a)
-    fermerMenuAnon()
+    fermerMenu()
     rafraichir()
     rafraichirDecorations()
     rafraichirCompteursAAAnonymiser()
@@ -1585,11 +1624,104 @@ export function useEntretien(deps: {
     if (!a || a.type !== 'anon') return
     if ((a.pseudo || '').toLowerCase() === pseudo.toLowerCase()) return
     a.pseudo = pseudo
-    fermerMenuAnon()
+    fermerMenu()
     rafraichir()
     rafraichirDecorations()
     rafraichirCompteursAAAnonymiser()
     rafraichirReperage()
+    planifierSauvegarde()
+  }
+
+  // --- Commentaires en marge (poser, éditer, supprimer, retirer un codage) ---
+
+  /** Ouvre la modale en CRÉATION sur une plage (appelé par le menu contextuel ;
+   *  l'auteur est pré-rempli avec le dernier signataire mémorisé). */
+  async function commenterPlage(from: number, to: number) {
+    const ed = editor.value
+    if (!ed || from >= to) return
+    const snappe = snapToWord(ed.state, from, to)
+    if (snappe.from >= snappe.to) return
+    fermerMenu()
+    editionCommentaire.value = {
+      id: null,
+      from: snappe.from,
+      to: snappe.to,
+      auteur: await window.sonal.profil.signataire(),
+      texte: '',
+    }
+  }
+  /** « Commenter » depuis le menu contextuel : reprend la plage capturée à
+   *  l'ouverture (sélection ou annotation sous le clic). */
+  function commenterDepuisMenu() {
+    const p = plageCommenterCourante.value
+    if (p) void commenterPlage(p.from, p.to)
+  }
+  /** Ouvre la modale en ÉDITION sur le commentaire `id` (clic carte ou menu). */
+  function editerCommentaire(id: string) {
+    const a = entretien.annotations.find((x) => x.id === id)
+    if (!a || a.type !== 'commentaire') return
+    fermerMenu()
+    editionCommentaire.value = { id, from: a.from, to: a.to, auteur: a.auteur ?? '', texte: a.texte ?? '' }
+  }
+  /** Ferme la modale sans rien toucher. */
+  function fermerEditionCommentaire() {
+    editionCommentaire.value = null
+  }
+  /** Valide la modale : pose ou réécrit le commentaire, journalise, mémorise
+   *  le signataire et sauvegarde — le même sillage que les codages. */
+  async function validerCommentaire(auteur: string, texte: string) {
+    const e = editionCommentaire.value
+    if (!e || !texte.trim()) return
+    await window.sonal.profil.memoriserSignataire(auteur)
+    if (e.id) {
+      const a = entretien.annotations.find((x) => x.id === e.id)
+      if (!a || a.type !== 'commentaire') return
+      const avant = { auteur: a.auteur, texte: a.texte ?? '' }
+      if (!modifierCommentaire(entretien, e.id, { auteur, texte })) return
+      enregistrer(
+        journal,
+        'Commentaire modifié',
+        { type: 'editerAnnotation', annotationId: e.id, ...avant },
+        genIdJournal,
+      )
+    } else {
+      const c = ajouterCommentaire(entretien, { from: e.from, to: e.to, auteur, texte }, genId)
+      if (c)
+        enregistrer(journal, 'Commentaire posé', { type: 'retirerAnnotation', annotationId: c.id }, genIdJournal)
+    }
+    editionCommentaire.value = null
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+  }
+  /** Supprime le commentaire `id` (depuis la modale d'édition). L'objet retiré
+   *  survit dans l'entrée : journalRemap continue à le remapper. */
+  function supprimerCommentaire(id: string) {
+    const a = entretien.annotations.find((x) => x.id === id)
+    if (!a || a.type !== 'commentaire') return
+    retirerAnnotation(entretien, id)
+    enregistrer(journal, 'Commentaire supprimé', { type: 'reposerAnnotation', annotation: { ...a } }, genIdJournal)
+    editionCommentaire.value = null
+    fermerMenu()
+    rafraichir()
+    rafraichirDecorations()
+    planifierSauvegarde()
+  }
+  /** Retire UN codage sans resélectionner (menu contextuel, parité V1) :
+   *  même sillage que le toggle « re-clic = retirer » de coderAvec. */
+  function retirerCodageMenu(id: string) {
+    const a = entretien.annotations.find((x) => x.id === id)
+    if (!a || a.type !== 'codage') return
+    retirerAnnotation(entretien, id)
+    enregistrer(
+      journal,
+      `Codage retiré : ${deps.nomCode(a.code ?? '')}`,
+      { type: 'reposerAnnotation', annotation: { ...a } },
+      genIdJournal,
+    )
+    fermerMenu()
+    rafraichir()
+    rafraichirDecorations()
     planifierSauvegarde()
   }
 
@@ -1671,8 +1803,16 @@ export function useEntretien(deps: {
     categorieDeLigne,
     categoriserLigne,
     thematiquesActives,
-    menuContextuelAnon,
-    fermerMenuAnon,
+    menuContextuel,
+    fermerMenu,
+    editionCommentaire,
+    commenterPlage,
+    commenterDepuisMenu,
+    editerCommentaire,
+    fermerEditionCommentaire,
+    validerCommentaire,
+    supprimerCommentaire,
+    retirerCodageMenu,
     basculerException,
     basculerAnonymise,
     basculerPseudoOccurrence,

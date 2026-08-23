@@ -49,7 +49,7 @@ test('annuler une attribution de locuteur → l’ancien loc restauré, la sciss
   // Attribuer « Lyon » (sous-partie du bloc 1, loc 1) à Karine → scission, loc 2.
   await selectionner(page, 'Lyon')
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
-  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer la sélection :')
+  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer le bloc courant ou la sélection :')
   await page.locator('.boutons-loc .attr', { hasText: 'Karine' }).click()
   await expect(page.locator('.editeur p')).toHaveCount(4)
   await expect(page.locator('.editeur p[data-loc="2"]', { hasText: 'Lyon' })).toHaveCount(1)

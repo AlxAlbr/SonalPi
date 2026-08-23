@@ -102,6 +102,9 @@ interface Settings {
   demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois
   // Largeur (px) du panneau vidéo, mémorisée PAR CORPUS (clé = chemin du dossier).
   largeurVideo?: Record<string, number>
+  /** Dernier signataire d'un commentaire (pré-remplissage de la modale,
+   *  parité SonalPi — pas d'identité, juste une mémoire locale). */
+  signataire?: string
 }
 function fichierSettings(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -125,6 +128,7 @@ function lireSettings(): Settings {
       demo: estEtatDemo(s.demo) ? s.demo : undefined,
       largeurVideo:
         s.largeurVideo && typeof s.largeurVideo === 'object' ? s.largeurVideo : undefined,
+      signataire: typeof s.signataire === 'string' ? s.signataire : undefined,
     }
   } catch {
     return { recents: [] }
@@ -989,6 +993,13 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('media:ecrireLargeurVideo', (_e, dir: string, largeur: number) => {
     const s = lireSettings()
     s.largeurVideo = { ...(s.largeurVideo ?? {}), [dir]: largeur }
+    ecrireSettings(s)
+  })
+  // Dernier signataire des commentaires (settings.json, niveau profil).
+  ipcMain.handle('profil:lireSignataire', () => lireSettings().signataire ?? '')
+  ipcMain.handle('profil:memoriserSignataire', (_e, nom: string) => {
+    const s = lireSettings()
+    s.signataire = typeof nom === 'string' ? nom.trim() : ''
     ecrireSettings(s)
   })
   // Picker de dossier PUR (aucun effet de bord sur le store), utilisé par la

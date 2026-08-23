@@ -28,6 +28,9 @@ export type Inverse =
   | { type: 'retirerAnnotation'; annotationId: string }
   /** Inverse de « retirer » : re-poser l'objet retiré (remappé en continu par journalRemap). */
   | { type: 'reposerAnnotation'; annotation: Annotation }
+  /** Inverse de « éditer un commentaire » : restaurer l'auteur et le texte
+   *  d'avant (pas de position : la plage ne bouge pas, l'id suffit). */
+  | { type: 'editerAnnotation'; annotationId: string; auteur: string; texte: string }
   /** Inverse d'« attribuer » : restaurer le loc de chaque bloc touché (positions remappées). */
   | { type: 'restaurerLocs'; blocs: Array<{ pos: number; loc: number | null }> }
   /** Inverse de « renommer un locuteur » : reposer l'ancien nom. */
@@ -94,6 +97,8 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
         !estOrpheline(inverse.annotation) &&
         !ctx.entretien.annotations.some((a) => a.id === inverse.annotation.id)
       )
+    case 'editerAnnotation':
+      return ctx.entretien.annotations.some((a) => a.id === inverse.annotationId)
     case 'restaurerLocs':
       return !!ctx.blocs && inverse.blocs.every((b) => ctx.blocs!.locDe(b.pos) !== undefined)
     case 'renommerLocuteur':
@@ -115,6 +120,13 @@ export function appliquerInverse(inverse: Inverse, ctx: CtxInverse): boolean {
     case 'reposerAnnotation':
       ctx.entretien.annotations.push(inverse.annotation)
       return true
+    case 'editerAnnotation': {
+      const a = ctx.entretien.annotations.find((x) => x.id === inverse.annotationId)
+      if (!a || a.type !== 'commentaire') return false
+      a.auteur = inverse.auteur
+      a.texte = inverse.texte
+      return true
+    }
     case 'restaurerLocs':
       for (const b of inverse.blocs) ctx.blocs!.poserLoc(b.pos, b.loc)
       return true

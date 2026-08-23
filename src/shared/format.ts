@@ -130,7 +130,7 @@ export interface CorpusFichier {
  *  Défaut : 'corpus' (parité V1).
  *  `motsLiaison` : liste partagée + interrupteur. À la validation d'une
  *  entité à affixe (« à Lyon »), l'interrupteur active la suggestion de
- *  l'entité-cœur (« Lyon ») — détection dans entretien/anon/liaison.ts. */
+ *  l'entité-cœur (« Lyon ») — détection dans entretien/anon/motsLiaison.ts. */
 export interface ParamsAnon {
   prioriteValidation: 'corpus' | 'entretien'
   motsLiaison?: MotsLiaisonParams

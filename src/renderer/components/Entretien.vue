@@ -3,7 +3,8 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
-import MenuContexteAnon from './MenuContexteAnon.vue'
+import MenuContexte from './MenuContexte.vue'
+import EditionCommentaire from './EditionCommentaire.vue'
 import EditionThemes from './EditionThemes.vue'
 import EditionVariables from './EditionVariables.vue'
 import { utiliserSonal } from '../composables/sonal'
@@ -47,11 +48,18 @@ const {
   categorieDeLigne,
   categoriserLigne,
   thematiquesActives,
-  menuContextuelAnon,
-  fermerMenuAnon,
+  menuContextuel,
+  fermerMenu,
   basculerException,
   basculerAnonymise,
   basculerPseudoOccurrence,
+  editionCommentaire,
+  commenterDepuisMenu,
+  editerCommentaire,
+  fermerEditionCommentaire,
+  validerCommentaire,
+  supprimerCommentaire,
+  retirerCodageMenu,
   dialoguePorteeCorpus,
   alignerCorpus,
   garderLesDeuxCorpus,
@@ -1052,19 +1060,35 @@ function focaliserLibre(el: unknown, cle: string) {
       <EditionThemes v-if="editerThemes" contexte="entretien" @fermer="editerThemes = false" />
       <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
 
-      <!-- Menu contextuel des occurrences anon (clic droit dans l'éditeur) :
-           bascule « exception ↔ anonymisé » sur l'occurrence couvrante. -->
-      <MenuContexteAnon
-        v-if="menuContextuelAnon"
-        :x="menuContextuelAnon.x"
-        :y="menuContextuelAnon.y"
-        :etat="menuContextuelAnon.etat"
-        :entite="menuContextuelAnon.entite"
-        :pseudos-autres="menuContextuelAnon.pseudosAutres"
-        @basculer-exception="basculerException(menuContextuelAnon.id)"
-        @basculer-anonymise="basculerAnonymise(menuContextuelAnon.id)"
-        @basculer-pseudo="basculerPseudoOccurrence(menuContextuelAnon.id, $event)"
-        @fermer="fermerMenuAnon"
+      <!-- Menu contextuel de l'éditeur (clic droit) : sections anon
+           (exception ↔ anonymisé, multi-pseudo), codages couvrants (retrait
+           sans resélectionner) et commentaires (créer / éditer). -->
+      <MenuContexte
+        v-if="menuContextuel"
+        :x="menuContextuel.x"
+        :y="menuContextuel.y"
+        :anon="menuContextuel.anon"
+        :codages="menuContextuel.codages"
+        :commentaires="menuContextuel.commentaires"
+        :peut-commenter="menuContextuel.peutCommenter"
+        @basculer-exception="basculerException(menuContextuel.anon!.id)"
+        @basculer-anonymise="basculerAnonymise(menuContextuel.anon!.id)"
+        @basculer-pseudo="basculerPseudoOccurrence(menuContextuel.anon!.id, $event)"
+        @retirer-codage="retirerCodageMenu"
+        @commenter="commenterDepuisMenu"
+        @editer-commentaire="editerCommentaire"
+        @fermer="fermerMenu"
+      />
+
+      <!-- Modale d'un commentaire (création/édition/suppression). -->
+      <EditionCommentaire
+        v-if="editionCommentaire"
+        :id="editionCommentaire.id"
+        :auteur-initial="editionCommentaire.auteur"
+        :texte-initial="editionCommentaire.texte"
+        @valider="validerCommentaire"
+        @supprimer="supprimerCommentaire(editionCommentaire!.id!)"
+        @fermer="fermerEditionCommentaire"
       />
 
       <!-- Dialogue de divergence à la poussée vers le corpus (3b) : une règle

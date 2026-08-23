@@ -237,6 +237,12 @@ contextBridge.exposeInMainWorld('sonal', {
     ecrireLargeurVideo: (dir: string, largeur: number): Promise<void> =>
       ipcRenderer.invoke('media:ecrireLargeurVideo', dir, largeur),
   },
+  profil: {
+    /** Dernier signataire des commentaires (settings.json du profil). */
+    signataire: (): Promise<string> => ipcRenderer.invoke('profil:lireSignataire'),
+    memoriserSignataire: (nom: string): Promise<void> =>
+      ipcRenderer.invoke('profil:memoriserSignataire', nom),
+  },
   dialog: {
     /** Choisir un fichier d'entretien (contenu lu ici). `defaultPath` hinté par
      *  la démo (racineSources) pour que le dialogue natif s'ouvre au bon endroit. */

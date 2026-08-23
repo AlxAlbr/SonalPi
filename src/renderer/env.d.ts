@@ -167,6 +167,10 @@ declare global {
         lireLargeurVideo: (dir: string) => Promise<number | null>
         ecrireLargeurVideo: (dir: string, largeur: number) => Promise<void>
       }
+      profil: {
+        signataire: () => Promise<string>
+        memoriserSignataire: (nom: string) => Promise<void>
+      }
       fichier: {
         cheminDe: (f: File) => string
       }
