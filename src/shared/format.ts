@@ -122,6 +122,10 @@ export interface CorpusFichier {
    *  (pas de bump). Absent = défauts (`prioriteValidation: 'corpus'`).
    *  CORPUS-ONLY : ne fuit jamais dans le `.sonal` d'un entretien. */
   paramsAnon?: ParamsAnon
+  /** Catégories de note : typologie partagée par tout le corpus (comme le
+   *  codebook). Champ ADDITIF optionnel : absent d'un corpus existant →
+   *  normalisé en bacs par défaut à la lecture ; pas de bump. */
+  categoriesNote?: NoteCategory[]
 }
 
 /** Paramètres partagés de pseudonymisation (niveau corpus).
@@ -252,6 +256,9 @@ export interface EntretienFichier {
    *  « Claire / Rebecca » sur une ligne STANDALONE (ni une règle, ni partagé,
    *  ni dans corpus.json). Champ ADDITIF optionnel → pas de bump. */
   pseudosDeclares?: Record<string, string[]>
+  /** Notes structurées de l'entretien (corps + surlignages + rang). Champ
+   *  ADDITIF optionnel, normalisé en [] à l'ouverture ; pas de bump. */
+  notes?: Note[]
   /** Blocs `.sonal` non modélisés (règles d'anon, notes), transportés tels quels pour un export sans perte. */
   legacy?: Record<string, unknown>
 }
@@ -268,7 +275,32 @@ export interface PayloadEntretien {
   meta: MetaEntretien
   brouillonsAnon?: BrouillonAnon[]
   pseudosDeclares?: Record<string, string[]>
+  notes?: Note[]
   legacy?: Record<string, unknown>
+}
+
+/** Catégorie de note : définition au niveau CORPUS (comme une catégorie du
+ *  codebook), référencée par les notes de tous les entretiens.
+ *  Le `corps` d'une note est stocké en HTML sanitisé (texte échappé +
+ *  balises `<mark>` pour les passages importants). */
+export interface NoteCategory {
+  id: string
+  nom: string
+  couleur: string
+}
+
+/** Note d'entretien : corps HTML sanitisé + surlignages `<mark>`, ordre par
+ *  `rang` (manuel, « après la dernière » = max+1). `date` null = pas de date
+ *  (cas du bac « générale » migré depuis la V1). */
+export interface Note {
+  id: string
+  categorieId: string
+  date: string | null
+  statut: 'prive' | 'public'
+  corps: string
+  rang: number
+  creeLe: string
+  modifieLe: string | null
 }
 
 /** Résultat de lecture d'un entretien :

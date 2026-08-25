@@ -460,6 +460,25 @@ function enregistrerIpcCorpus(): void {
     executerDefinitions(() => store.supprimerCategorie(id, exceptId)),
   )
   ipcMain.handle('corpus:usagesParCategorie', () => store.usagesParCategorie())
+
+  // Catégories de note (définitions corpus) : lecture simple, mutations sous
+  // transaction comme les autres définitions.
+  ipcMain.handle('corpus:categoriesNote', () => store.categoriesNote())
+  ipcMain.handle('corpus:ajouterCategorieNote', (_e, nom: string, couleur: string) =>
+    executerDefinitions(() => store.ajouterCategorieNote(nom, couleur)),
+  )
+  ipcMain.handle('corpus:renommerCategorieNote', (_e, id: string, nom: string) =>
+    executerDefinitions(() => store.renommerCategorieNote(id, nom)),
+  )
+  ipcMain.handle('corpus:majCouleurCategorieNote', (_e, id: string, couleur: string) =>
+    executerDefinitions(() => store.majCouleurCategorieNote(id, couleur)),
+  )
+  ipcMain.handle('corpus:supprimerCategorieNote', (_e, id: string) =>
+    executerDefinitions(() => store.supprimerCategorieNote(id)),
+  )
+  ipcMain.handle('corpus:compterUsagesCategorieNote', (_e, id: string) =>
+    store.compterUsagesCategorieNote(id),
+  )
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
   ipcMain.handle('corpus:scanAnon', () => store.scanAnon())

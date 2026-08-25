@@ -45,8 +45,14 @@ import {
   type RegleAnon,
   type Variable,
   type ParamsAnon,
+  type NoteCategory,
   paramsAnonDefaut,
 } from '../shared/format'
+import {
+  normaliserCategoriesNote,
+  genIdCategorieNote,
+  compterUsagesCategorieNote,
+} from '../shared/entretien/notes'
 
 /** Un entretien vide est un document ProseMirror minimal (paragraphe vide).
  *  Il sert aussi quand l'utilisateur télécharge seulement un audio,
@@ -556,6 +562,70 @@ export class CorpusStore {
    *  corpus (fonction `usagesParCategorie` de shared/corpus). */
   usagesParCategorie(): Record<string, number> {
     return corpusModel.usagesParCategorie(this.datas())
+  }
+
+  // ── Catégories de note (définitions corpus) — lire → muter → écrire ───────
+  /** Les catégories de note du corpus (`corpus.json.categoriesNote`),
+   *  normalisées : un corpus existant sans le champ obtient les bacs par défaut. */
+  categoriesNote(): NoteCategory[] {
+    const c = this.ouvrir()
+    return normaliserCategoriesNote(c.categoriesNote)
+  }
+
+  ajouterCategorieNote(nom: string, couleur: string): { id: string; corpus: CorpusFichier } {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    const liste = normaliserCategoriesNote(corpus.categoriesNote)
+    const id = genIdCategorieNote()
+    liste.push({ id, nom: nom.trim() || 'note', couleur: couleur || '#9e9e9e' })
+    corpus.categoriesNote = liste
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return { id, corpus }
+  }
+
+  renommerCategorieNote(id: string, nom: string): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    const liste = normaliserCategoriesNote(corpus.categoriesNote)
+    const c = liste.find((x) => x.id === id)
+    if (c) {
+      c.nom = nom.trim() || c.nom
+      corpus.categoriesNote = liste
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+    }
+    return corpus
+  }
+
+  majCouleurCategorieNote(id: string, couleur: string): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    const liste = normaliserCategoriesNote(corpus.categoriesNote)
+    const c = liste.find((x) => x.id === id)
+    if (c) {
+      c.couleur = couleur || c.couleur
+      corpus.categoriesNote = liste
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+    }
+    return corpus
+  }
+
+  /** Usages d'une catégorie de note : notes de TOUS les entretiens qui la
+   *  référencent (scan des fichiers, comme `compterUsagesCategorie`). */
+  compterUsagesCategorieNote(id: string): number {
+    return compterUsagesCategorieNote(this.datas(), id)
+  }
+
+  /** Supprime une catégorie de note — REFUSÉE tant qu'une note l'utilise
+   *  (parité thèmes : pas de suppression en cascade). */
+  supprimerCategorieNote(id: string): ResultatSuppressionCategorie {
+    this.verifierEcriture()
+    const usages = this.compterUsagesCategorieNote(id)
+    if (usages > 0) return { ok: false, usages }
+    const corpus = this.ouvrir()
+    const liste = normaliserCategoriesNote(corpus.categoriesNote).filter((x) => x.id !== id)
+    corpus.categoriesNote = liste
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return { ok: true, corpus }
   }
 
   /** REQUÊTE : résumé thématique de chaque entretien : segments en % du texte, jamais stockés. */

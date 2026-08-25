@@ -45,12 +45,19 @@ import {
 import type { Ancre } from '../../shared/entretien/audio'
 import { useSynchroAudio } from './useSynchroAudio'
 import { resumeThematique } from '../../shared/corpus'
-import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams } from '../../shared/format'
+import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, Note } from '../../shared/format'
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
 import { detecterDivergencesPortee } from '../../shared/entretien/anon/reconciliation'
 import { suggestionCoeur } from '../../shared/entretien/anon/motsLiaison'
 import type { LegacyBlobs } from '../import/importSonal'
+import {
+  genIdNote,
+  normaliserNotes,
+  prochainRang,
+  renumeroterRangs,
+} from '../../shared/entretien/notes'
+import { sanitiserCorpsNote, corpsNoteEnTexte, lireLiensNote, ATTR_LIENS_NOTE } from '../notes/sanitiser'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
 
@@ -78,6 +85,12 @@ export function useEntretien(deps: {
   codeExtraits: () => string
   nomCode: (code: string) => string
   libelleValeur: (idVar: string, idMod: string) => string
+  /** Catégories de note (définitions corpus) : nom d'une catégorie depuis
+   *  son id (les notesEnTexte l'affichent) et id par défaut du formulaire de
+   *  création. Injection orchestrateur — le scope entretien ne porte plus la
+   *  typologie, elle vit au corpus. */
+  nomCategorieNote: (id: string) => string
+  categorieNoteDefaut: () => string
   /** Clic sur la gouttière d'un bloc → l'orchestrateur cale l'audio au
    *  début du tour (le scope entretien ne connaît pas le lecteur). */
   clicTour?: (posBloc: number) => void
@@ -122,6 +135,9 @@ export function useEntretien(deps: {
   const entretien = reactive<Entretien>({ annotations: [], ancres: [] })
   const locuteurs = ref<Locuteur[]>([])
   const legacyCourant = ref<LegacyBlobs>({ tabAnon: null, notes: '' })
+  // Notes structurées de l'entretien (normalisées à l'ouverture : un fichier
+  // non migré obtient []). Leurs CATÉGORIES vivent au corpus (deps).
+  const notes = ref<Note[]>([])
   const meta = reactive<{
     valeursGen: Record<string, string>
     audioRef: string | null
@@ -132,7 +148,7 @@ export function useEntretien(deps: {
   })
   // L'entretien s'ouvre sur l'ACCUEIL par défaut : il présente les conseils et
   // la vue d'ensemble des autres onglets (icone + titre) avant de commencer.
-  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon'>('maison')
+  const ongletDroite = ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>('maison')
   const hintCodage = ref<string | null>(null)
   // Sélection courante pour l'onglet Anon (texte + plage snappée au mot) :
   // c'est elle qui peuple le « Nom » de la ligne de saisie. REQUÊTE, jamais
@@ -593,6 +609,7 @@ export function useEntretien(deps: {
       // Même raison : brouillonsAnon.value est un proxy réactif → aplatir.
       brouillonsAnon: JSON.parse(JSON.stringify(brouillonsAnon.value)),
       pseudosDeclares: JSON.parse(JSON.stringify(pseudosDeclares.value)),
+      notes: JSON.parse(JSON.stringify(notes.value)),
       // legacyCourant est un ref → .value est un proxy réactif, non clonable par
       // l'IPC (structured clone) : on l'aplatit aussi.
       legacy: JSON.parse(JSON.stringify(legacyCourant.value)),
@@ -631,6 +648,7 @@ export function useEntretien(deps: {
     meta.audioDistant = res.data.meta.audioDistant ?? null
     brouillonsAnon.value = res.data.brouillonsAnon ?? []
     pseudosDeclares.value = { ...(res.data.pseudosDeclares ?? {}) }
+    notes.value = normaliserNotes(res.data.notes)
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
     chargement = false
@@ -664,6 +682,7 @@ export function useEntretien(deps: {
     eteindrePlageLue()
     brouillonsAnon.value = []
     pseudosDeclares.value = {}
+    notes.value = []
     selectionAnon.value = null
     hintAnon.value = null
     suggestionLiaison.value = null
@@ -886,6 +905,218 @@ export function useEntretien(deps: {
     const cible = locuteurASupprimer.value
     if (!cible) return
     supprimerLocuteurSilencieux(cible.index)
+  }
+
+  // --- Notes d'entretien (typologie locale + corps HTML sanitisé + rang) ---
+  //  Hors journal (comme + Locuteur) : un geste de note ne remonte pas dans
+  //  l'historique d'annulation. Chaque mutation planifie la sauvegarde.
+  /** Brouillon de note en cours de création/édition : la modale garde le
+   *  formulaire (corps contenteditable + méta) tant que l'utilisateur n'a pas
+   *  validé ou annulé. `null` = modale fermée. */
+  interface BrouillonNote {
+    id: string | null // null = création, sinon note éditée
+    categorieId: string
+    date: string | null
+    statut: 'prive' | 'public'
+    corps: string // HTML du contenteditable (brut, sanitisé à la validation)
+    rang: number
+  }
+  const brouillonNote = ref<BrouillonNote | null>(null)
+
+  /** Ouvre le formulaire de création d'une note. Par défaut : première
+   *  catégorie du corpus (via deps), date du jour, privée, rang « après la
+   *  dernière ». */
+  function ajouterNote() {
+    brouillonNote.value = reactive<BrouillonNote>({
+      id: null,
+      categorieId: deps.categorieNoteDefaut(),
+      date: new Date().toISOString().slice(0, 10),
+      statut: 'prive',
+      corps: '',
+      rang: prochainRang(notes.value),
+    })
+  }
+
+  /** Ouvre le formulaire d'édition d'une note existante (pré-rempli). */
+  function editerNote(id: string) {
+    const n = notes.value.find((x) => x.id === id)
+    if (!n) return
+    brouillonNote.value = reactive<BrouillonNote>({
+      id: n.id,
+      categorieId: n.categorieId,
+      date: n.date,
+      statut: n.statut,
+      corps: n.corps,
+      rang: n.rang,
+    })
+  }
+
+  /** Valide le brouillon : sanitarise le corps, pose/écrit la note, ferme la
+   *  modale. En édition, le `rang` est conservé ; en création, le rang choisi
+   *  est appliqué tel quel (défaut = après la dernière). */
+  function validerNote() {
+    const b = brouillonNote.value
+    if (!b) return
+    const doc = document
+    const corps = sanitiserCorpsNote(b.corps, doc)
+    if (b.id) {
+      const cible = notes.value.find((x) => x.id === b.id)
+      if (cible) {
+        cible.categorieId = b.categorieId
+        cible.date = b.date
+        cible.statut = b.statut
+        cible.corps = corps
+        cible.modifieLe = new Date().toISOString()
+      }
+    } else {
+      notes.value.push({
+        id: genIdNote(),
+        categorieId: b.categorieId,
+        date: b.date,
+        statut: b.statut,
+        corps,
+        rang: b.rang,
+        creeLe: new Date().toISOString(),
+        modifieLe: null,
+      })
+    }
+    brouillonNote.value = null
+    planifierSauvegarde()
+  }
+
+  /** Ferme le formulaire sans rien écrire. */
+  function annulerNote() {
+    brouillonNote.value = null
+  }
+
+  /** Supprime une note (sans confirmation : acte non destructeur pour le
+   *  texte de l'entretien — la note est indépendante). */
+  function supprimerNote(id: string) {
+    const i = notes.value.findIndex((x) => x.id === id)
+    if (i < 0) return
+    notes.value.splice(i, 1)
+    notes.value = renumeroterRangs(notes.value)
+    planifierSauvegarde()
+  }
+
+  /** Réordonne les notes par glisser-déposer : le tableau fourni donne le
+   *  nouvel ordre des ids ; les rangs sont renumérotés denses. */
+  function reordonnerNotes(idsDansLordre: string[]) {
+    const ordre = new Map(idsDansLordre.map((id, i) => [id, i]))
+    notes.value = renumeroterRangs(
+      notes.value.slice().sort((a, b) => (ordre.get(a.id) ?? 0) - (ordre.get(b.id) ?? 0)),
+    )
+    planifierSauvegarde()
+  }
+
+  /** Toggle `<mark>` sur la sélection courante du contenteditable de note :
+   *  enveloppe la sélection, ou la dégage si elle est déjà entièrement marquée.
+   *  Impérieux d'utiliser l'API Selection sur l'élément donné (la modale peut
+   *  en héberger plusieurs). */
+  function marquerPassage(el: HTMLElement) {
+    const sel = document.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+    const range = sel.getRangeAt(0)
+    if (range.collapsed) return
+    if (!el.contains(range.commonAncestorContainer)) return
+    // Si la sélection est déjà dans un <mark>, on retire celui-ci (toggle).
+    const parent = range.commonAncestorContainer.nodeType === 3
+      ? range.commonAncestorContainer.parentElement
+      : (range.commonAncestorContainer as HTMLElement)
+    const markParent = parent?.closest('mark')
+    if (markParent && el.contains(markParent)) {
+      const parentMark = markParent.parentElement!
+      while (markParent.firstChild) parentMark.insertBefore(markParent.firstChild, markParent)
+      parentMark.removeChild(markParent)
+      return
+    }
+    // Sinon : envelopper la sélection d'un <mark>.
+    try {
+      range.surroundContents(document.createElement('mark'))
+    } catch {
+      // surroundContents échoue sur une sélection à cheval sur plusieurs
+      //  noeuds : on extrait le contenu et le réinjecte enveloppé.
+      const frag = range.extractContents()
+      const mark = document.createElement('mark')
+      mark.appendChild(frag)
+      range.insertNode(mark)
+    }
+  }
+
+  // --- Liaison des passages importants aux commentaires ---
+  //  Un `<mark>` du corps d'une note peut porter les ids des commentaires qui
+  //  l'éclairent (attribut data-liens). La liaison se pose au clic droit sur le
+  //  passage dans la fenêtre d'édition ; une référence vers un commentaire
+  //  supprimé reste en place (référence pendante, comme les annotations) et se
+  //  délie depuis le même menu.
+  /** Commentaires liaisables de l'entretien (hors orphelines). */
+  const commentairesPourLiaison = computed(() =>
+    entretien.annotations
+      .filter((a) => a.type === 'commentaire' && !estOrpheline(a))
+      .map((a) => ({ id: a.id, auteur: a.auteur, texte: a.texte ?? '' })),
+  )
+  /** État du menu de liaison : position + liens COURANTS au moment de
+   *  l'ouverture (le mark visé vit à part, non réactif). */
+  const menuLiensNote = ref<{ x: number; y: number; liens: string[] } | null>(null)
+  let markLie: HTMLElement | null = null
+  let zoneLiee: HTMLElement | null = null
+  /** Clic droit dans le corps d'une note : si la cible est un passage
+   *  important (`<mark>`), on ouvre le menu de liaison et on avale le menu
+   *  natif ; sinon on laisse le comportement par défaut du contenteditable. */
+  function ouvrirMenuLiensNote(e: MouseEvent, zone: HTMLElement) {
+    const cible = e.target as HTMLElement | null
+    const mark = cible?.closest('mark')
+    if (!mark || !zone.contains(mark)) return
+    e.preventDefault()
+    markLie = mark
+    zoneLiee = zone
+    menuLiensNote.value = { x: e.clientX, y: e.clientY, liens: lireLiensNote(mark) }
+  }
+  function fermerMenuLiensNote() {
+    menuLiensNote.value = null
+    markLie = null
+    zoneLiee = null
+  }
+  /** Pose ou retire un id de commentaire sur le mark visé puis reporte le HTML
+   *  courant dans le brouillon (le contenu du contenteditable reste la source). */
+  function basculerLienNote(idAnnotation: string, lie: boolean) {
+    if (!markLie || !zoneLiee || !brouillonNote.value) return
+    const courants = lireLiensNote(markLie)
+    const suivants = lie
+      ? [...new Set([...courants, idAnnotation])]
+      : courants.filter((x) => x !== idAnnotation)
+    if (suivants.length > 0) markLie.setAttribute(ATTR_LIENS_NOTE, suivants.join(' '))
+    else markLie.removeAttribute(ATTR_LIENS_NOTE)
+    brouillonNote.value.corps = zoneLiee.innerHTML
+  }
+  function lierCommentaireNote(idAnnotation: string) {
+    basculerLienNote(idAnnotation, true)
+    fermerMenuLiensNote()
+  }
+  function delierCommentaireNote(idAnnotation: string) {
+    basculerLienNote(idAnnotation, false)
+    fermerMenuLiensNote()
+  }
+
+  // --- Catégories de note : définitions au CORPUS (useCorpus). Le scope
+  //  entretien n'en porte plus que la résolution par deps (nom + défaut). ---
+
+  /** Vue « expand » : concaténation plain text de toutes les notes (tri par
+   *  rang), préfixées par [catégorie · date · statut] ; passages importants
+   *  marqués ▸…◊. Renvoie une chaîne brute (pas d'HTML). */
+  function notesEnTexte(): string {
+    const doc = document
+    return notes.value
+      .slice()
+      .sort((a, b) => a.rang - b.rang)
+      .map((n) => {
+        const cat = deps.nomCategorieNote(n.categorieId)
+        const date = n.date ?? 'sans date'
+        const statut = n.statut === 'public' ? 'public' : 'privé'
+        const corps = corpsNoteEnTexte(n.corps, doc)
+        return `[${cat} · ${date} · ${statut}]\n${corps}`
+      })
+      .join('\n\n')
   }
 
   // --- Valeurs EAV de CET entretien (chez leur propriétaire, pas de l="all") ---
@@ -1734,6 +1965,7 @@ export function useEntretien(deps: {
     meta: { valeursGen: Record<string, string> }
     legacy: LegacyBlobs
     brouillonsAnon: BrouillonAnon[]
+    notes: Note[]
   } {
     return {
       corpsTexte: editor.value!.getJSON(),
@@ -1743,6 +1975,7 @@ export function useEntretien(deps: {
       meta: { valeursGen: meta.valeursGen },
       legacy: legacyCourant.value,
       brouillonsAnon: brouillonsAnon.value,
+      notes: notes.value,
     }
   }
 
@@ -1769,6 +2002,8 @@ export function useEntretien(deps: {
     naviguerReperage,
     arreterReperage,
     brouillonsAnon,
+    notes,
+    brouillonNote,
     selectionVide,
     ouvertId,
     refusFormat,
@@ -1793,6 +2028,21 @@ export function useEntretien(deps: {
     confirmerSuppressionLocuteur,
     setValeurGen,
     setValeurLoc,
+    // notes d'entretien
+    ajouterNote,
+    editerNote,
+    validerNote,
+    annulerNote,
+    supprimerNote,
+    reordonnerNotes,
+    marquerPassage,
+    notesEnTexte,
+    commentairesPourLiaison,
+    menuLiensNote,
+    ouvrirMenuLiensNote,
+    fermerMenuLiensNote,
+    lierCommentaireNote,
+    delierCommentaireNote,
     validerAnon,
     supprimerAnon,
     creerBrouillon,

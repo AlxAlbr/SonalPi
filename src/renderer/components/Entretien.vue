@@ -4,6 +4,7 @@ import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
+import MenuLiensNote from './MenuLiensNote.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
 import EditionThemes from './EditionThemes.vue'
 import EditionVariables from './EditionVariables.vue'
@@ -15,6 +16,7 @@ import icoThemes from '../assets/icones/logocat.png'
 import icoLocuteurs from '../assets/icones/logoloc.png'
 import icoDonnees from '../assets/icones/logodat2.png'
 import icoJournal from '../assets/icones/journal.png'
+import icoNotes from '../assets/icones/logonotes2.png'
 import icoMaison from '../assets/icones/maison.png'
 import icoAnon from '../assets/icones/logoanon.png'
 
@@ -93,6 +95,32 @@ const {
   audio,
   lectureSeule, // corpus en lecture seule : tout l'éditeur est grisé
   verrouAutrui, // verrou de l'entretien ouvert (tenu par autrui ?)
+  // Notes d'entretien (notes + corps + rang ; les CATÉGORIES viennent du corpus).
+  notes,
+  brouillonNote,
+  ajouterNote,
+  editerNote,
+  validerNote,
+  annulerNote,
+  supprimerNote,
+  reordonnerNotes,
+  marquerPassage,
+  notesEnTexte,
+  menuLiensNote,
+  commentairesPourLiaison,
+  ouvrirMenuLiensNote,
+  fermerMenuLiensNote,
+  lierCommentaireNote,
+  delierCommentaireNote,
+  // Catégories de note : définitions au CORPUS — gestes asynchrones (IPC).
+  categoriesNote,
+  messageCategorieNote,
+  nomCategorieNote,
+  couleurCategorieNote,
+  ajouterCategorieNote,
+  renommerCategorieNote,
+  majCouleurCategorieNote,
+  supprimerCategorieNote,
   // Statut de la session d'écriture (publication) + « Publier maintenant »
   statutSession,
   publiErreur,
@@ -117,6 +145,100 @@ const editerThemes = ref(false)
 // que la Table de données (créer des variables d'entretien/locuteur sans
 // repasser par l'écran Corpus).
 const editerVariables = ref(false)
+
+// --- Notes d'entretien (état local de la vue) ---
+// Vue active de l'onglet Notes : cartes (défaut) ou texte concaténé (expand).
+const vueNotes = ref<'cartes' | 'texte'>('cartes')
+// Zone d'édition du corps (contenteditable) : on y pose le HTML initial au
+// ouverture du brouillon, et on relit son innerHTML à la volée pour suivre
+//  le surlignage `<mark>` pendant la frappe.
+const zoneCorpsNote = ref<HTMLElement | null>(null)
+// Bascule d'un volet « catégories » (gérer les types de note : nom + couleur).
+const voletCategoriesNote = ref(false)
+// Création de catégorie depuis le select « autre… » du formulaire de note :
+//  mini-modale inline (nom + couleur), façon « trouver-ou-créer ».
+const creationCategorie = ref<{ nom: string; couleur: string } | null>(null)
+
+// Brouillon de note : on SYNC le contenteditable au montage du formulaire.
+//  Quand la modale s'ouvre, on attend le rendu puis on pose le HTML initial.
+watch(
+  () => brouillonNote.value?.id ?? 'new',
+  () => {
+    nextTick(() => {
+      if (zoneCorpsNote.value && brouillonNote.value) {
+        zoneCorpsNote.value.innerHTML = brouillonNote.value.corps || ''
+      }
+    })
+  },
+)
+
+// Suit la frappe dans le contenteditable : reporte le HTML courant vers le
+//  brouillon (le surlignage est ainsi conservé à la validation).
+function onSaisieCorpsNote() {
+  if (brouillonNote.value && zoneCorpsNote.value) {
+    brouillonNote.value.corps = zoneCorpsNote.value.innerHTML
+  }
+}
+
+// Clic droit dans le corps d'une note : sur un passage important, ouvre le
+//  menu de liaison aux commentaires (le composable avale le menu natif) ;
+//  ailleurs, le menu natif du contenteditable reste disponible.
+function onContextmenuCorpsNote(e: MouseEvent) {
+  if (zoneCorpsNote.value) ouvrirMenuLiensNote(e, zoneCorpsNote.value)
+}
+
+// Ouvre la mini-modale « autre… » pour créer une catégorie (trouver-ou-créer).
+function ouvrirCreationCategorie() {
+  creationCategorie.value = { nom: '', couleur: '#ffb74d' }
+}
+// Ajoute une catégorie depuis le champ « nouvelle catégorie… » du volet : si
+//  le libellé est non vide, on crée (nom + couleur par défaut) puis on vide le
+//  champ. Aucune sélection du brouillon : ce champ vit dans le volet cat.
+async function onAjoutCategorieInput(e: Event) {
+  const v = (e.target as HTMLInputElement).value.trim()
+  if (!v) return
+  await ajouterCategorieNote(v, '#ffb74d')
+  ;(e.target as HTMLInputElement).value = ''
+}
+// Valide la création : pose la catégorie (IPC → async), la sélectionne dans
+//  le brouillon, ferme la mini-modale.
+async function validerCreationCategorie() {
+  const c = creationCategorie.value
+  if (!c || !c.nom.trim()) return
+  const id = await ajouterCategorieNote(c.nom, c.couleur)
+  if (brouillonNote.value) brouillonNote.value.categorieId = id
+  creationCategorie.value = null
+}
+
+// Notes triées par rang (ordre d'affichage par défaut de la vue cartes).
+const notesTriees = computed(() => notes.value.slice().sort((a, b) => a.rang - b.rang))
+
+// Libellé court d'une date : « JJ/MM/AAAA » ou « sans date ».
+const dateLibelle = (d: string | null) =>
+  d ? new Date(d + 'T00:00').toLocaleDateString('fr-FR') : 'sans date'
+
+// Corps d'une note, ou un placeholder si vide (v-html : le corps est sanitisé).
+const corpsOuVide = (n: { corps: string }) => n.corps || '<span class="vide">(note vide)</span>'
+
+// Chaîne de la vue « expand » (précalculée : le composable relit le DOM).
+const texteExpand = computed(() => (ongletDroite.value === 'notes' ? notesEnTexte() : ''))
+
+// Réordonnancement par glisser-déposer : on PERMET le drag des cartes et on
+//  reconstruit l'ordre des ids au drop. Simple natif (dragstart/dragover/drop).
+let idNoteGlissee: string | null = null
+function onDragStartNote(id: string) {
+  idNoteGlissee = id
+}
+function onDropNote(cibleId: string) {
+  if (!idNoteGlissee || idNoteGlissee === cibleId) return
+  const ordre = notesTriees.value.map((n) => n.id)
+  const from = ordre.indexOf(idNoteGlissee)
+  const to = ordre.indexOf(cibleId)
+  if (from < 0 || to < 0) return
+  ordre.splice(to, 0, ordre.splice(from, 1)[0])
+  reordonnerNotes(ordre)
+  idNoteGlissee = null
+}
 
 // --- SAISIE LIBRE (même motif que TableDonnees) ---
 // Variable SANS modalité : la ligne est un champ texte permanent — chaque
@@ -546,6 +668,9 @@ function focaliserLibre(el: unknown, cle: string) {
             <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
               <img class="ico-onglet" :src="icoJournal" alt="Journal" />
             </button>
+            <button data-onglet="notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
+              <img class="ico-onglet" :src="icoNotes" alt="Notes" />
+            </button>
           </nav>
 
           <!-- Accueil : conseils + vue d'ensemble des onglets (icone + titre) →
@@ -575,6 +700,10 @@ function focaliserLibre(el: unknown, cle: string) {
               <li>
                 <img class="ico-onglet" :src="icoDonnees" alt="" />
                 <span><b>Données</b> — valeurs de l'entretien et de chaque locuteur.</span>
+              </li>
+              <li>
+                <img class="ico-onglet" :src="icoNotes" alt="" />
+                <span><b>Notes</b> — notes structurées (post-collecte, résumé, réflexion…) avec surlignage des passages importants.</span>
               </li>
               <li>
                 <img class="ico-onglet" :src="icoJournal" alt="" />
@@ -817,6 +946,184 @@ function focaliserLibre(el: unknown, cle: string) {
               </li>
             </ul>
           </aside>
+
+          <!-- Notes : notes structurées (catégorie + date + statut + corps
+               surlignable). Vue cartes par défaut, ou texte concaténé (expand).
+               Création/édition par modale inline ; catégories gérées dans un
+               sous-volet (nom + couleur, comme les locuteurs). -->
+          <aside v-show="ongletDroite === 'notes'" class="panneau notes">
+            <div class="corpus-tete">
+              <h3>Notes</h3>
+              <div class="notes-outils">
+                <button class="mini"
+                  :class="{ actif: vueNotes === 'cartes' }"
+                  title="Vue cartes"
+                  @click="vueNotes = 'cartes'">🃏</button>
+                <button class="mini"
+                  :class="{ actif: vueNotes === 'texte' }"
+                  title="Vue texte (toutes les notes à la suite)"
+                  @click="vueNotes = 'texte'">📄</button>
+                <button v-if="!roContenu" class="mini"
+                  :class="{ actif: voletCategoriesNote }"
+                  title="Gérer les catégories de note"
+                  @click="voletCategoriesNote = !voletCategoriesNote">⚙</button>
+              </div>
+              <button v-if="!roContenu" class="mini" @click="ajouterNote">+ Note</button>
+            </div>
+
+            <!-- Volet catégories : nom + couleur, façon locuteurs.
+                 Définitions au CORPUS : les gestes passent par l'IPC. -->
+            <div v-if="voletCategoriesNote" class="volet-categories-note">
+              <p v-if="messageCategorieNote" class="msg-thm">{{ messageCategorieNote }}</p>
+              <div class="tableau-loc tetes-courtes">
+                <span title="Couleur"></span>
+                <span>Nom</span>
+                <span></span>
+              </div>
+              <ul class="liste-loc">
+                <li v-for="c in categoriesNote" :key="c.id">
+                  <input type="color" class="carre-couleur"
+                    :value="c.couleur"
+                    :disabled="roContenu"
+                    @change="majCouleurCategorieNote(c.id, ($event.target as HTMLInputElement).value)"
+                  />
+                  <input class="nom-loc"
+                    :value="c.nom"
+                    :disabled="roContenu"
+                    @change="renommerCategorieNote(c.id, ($event.target as HTMLInputElement).value)"
+                  />
+                  <button v-if="!roContenu" class="x-loc" title="Supprimer cette catégorie"
+                    @click="supprimerCategorieNote(c.id)">✕</button>
+                </li>
+                <li v-if="!roContenu">
+                  <span class="plus-couleur">＋</span>
+                  <input class="nom-loc" placeholder="nouvelle catégorie…"
+                    @change="onAjoutCategorieInput($event)"
+                  />
+                </li>
+              </ul>
+            </div>
+
+            <!-- Vue cartes : une carte par note, triée par rang. -->
+            <div v-if="vueNotes === 'cartes'" class="notes-cartes">
+              <p v-if="notes.length === 0" class="vide">Aucune note — « + Note » pour en créer une.</p>
+              <article v-for="n in notesTriees" :key="n.id" class="carte-note"
+                :draggable="!roContenu"
+                @dragstart="onDragStartNote(n.id)"
+                @dragover.prevent
+                @drop="onDropNote(n.id)"
+              >
+                <header class="carte-note-tete">
+                  <span class="pastille-cat" :style="{ background: couleurCategorieNote(n.categorieId) }"></span>
+                  <span class="nom-cat">{{ nomCategorieNote(n.categorieId) }}</span>
+                  <span class="date-cat">{{ dateLibelle(n.date) }}</span>
+                  <span class="statut-cat" :class="n.statut">{{ n.statut === 'public' ? 'public' : 'privé' }}</span>
+                  <span v-if="!roContenu" class="carte-note-actions">
+                    <button class="mini" title="Éditer" @click="editerNote(n.id)">✎</button>
+                    <button class="mini danger" title="Supprimer" @click="supprimerNote(n.id)">✕</button>
+                  </span>
+                </header>
+                <!-- v-html : le `corps` est sanitisé (texte échappé + <mark>)
+                     côté composable à la validation → sûr. -->
+                <div class="corps-note" v-html="corpsOuVide(n)"></div>
+              </article>
+            </div>
+
+            <!-- Vue texte : concaténation plain text (expand), format V1. -->
+            <pre v-else class="notes-texte">{{ texteExpand || '(aucune note)' }}</pre>
+          </aside>
+
+          <!-- Formulaire de note (modale inline) : corps contenteditable +
+               méta (catégorie, date, statut). Ouvert par + Note ou éditer.
+               Teleport vers <body> : la colonne gauche est sticky (contexte
+               d'empilement), l'éditeur serait sinon peint PAR-DESSUS la
+               modale quel que soit son z-index. -->
+          <Teleport to="body">
+          <div v-if="brouillonNote" class="modale-note">
+            <div class="modale-note-fond" @click="annulerNote"></div>
+            <div class="modale-note-fenetre">
+              <div class="corpus-tete">
+                <h3>{{ brouillonNote.id ? 'Éditer la note' : 'Nouvelle note' }}</h3>
+                <button class="mini" title="Fermer" @click="annulerNote">✕</button>
+              </div>
+              <div class="modale-note-corps">
+                <!-- Corps : contenteditable. Le surlignage des passages
+                     importants y est visible (bouton « Marquer » enveloppe la
+                     sélection d'un <mark>). -->
+                <div
+                  ref="zoneCorpsNote"
+                  class="zone-corps-note"
+                  contenteditable="true"
+                  data-placeholder="Votre note… (sélectionnez un passage puis ✏ pour le marquer)"
+                  @input="onSaisieCorpsNote"
+                  @contextmenu="onContextmenuCorpsNote"
+                ></div>
+                <div class="barre-outils-note">
+                  <button class="mini" title="Marquer le passage sélectionné (toggle)"
+                    @click="zoneCorpsNote && marquerPassage(zoneCorpsNote)">✏ Marquer</button>
+                </div>
+                <div class="modale-note-meta">
+                  <label class="champ-note">
+                    <span>Catégorie</span>
+                    <select v-model="brouillonNote.categorieId">
+                      <option v-for="c in categoriesNote" :key="c.id" :value="c.id">{{ c.nom }}</option>
+                      <option value=" autre">autre…</option>
+                    </select>
+                    <button v-if="brouillonNote.categorieId === ' autre'" class="mini" @click="ouvrirCreationCategorie">＋ Créer</button>
+                  </label>
+                  <label class="champ-note">
+                    <span>Date</span>
+                    <input type="date" v-model="brouillonNote.date" />
+                    <button v-if="brouillonNote.date" class="mini" title="Pas de date" @click="brouillonNote.date = null">✕</button>
+                  </label>
+                  <label class="champ-note">
+                    <span>Statut</span>
+                    <select v-model="brouillonNote.statut">
+                      <option value="prive">privé</option>
+                      <option value="public">public</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div class="modale-note-pied">
+                <button class="principal" @click="validerNote">Valider</button>
+                <button @click="annulerNote">Annuler</button>
+              </div>
+            </div>
+
+            <!-- Mini-modale créer une catégorie (trouver-ou-créer). -->
+            <div v-if="creationCategorie" class="sous-modale-categorie">
+              <div class="sous-modale-fond" @click="creationCategorie = null"></div>
+              <div class="sous-modale-fenetre">
+                <h4>Nouvelle catégorie</h4>
+                <label class="champ-note">
+                  <span>Nom</span>
+                  <input v-model="creationCategorie.nom" placeholder="ex. synthèse" @keyup.enter="validerCreationCategorie" />
+                </label>
+                <label class="champ-note">
+                  <span>Couleur</span>
+                  <input type="color" v-model="creationCategorie.couleur" />
+                </label>
+                <div class="modale-note-pied">
+                  <button class="principal" @click="validerCreationCategorie">Créer</button>
+                  <button @click="creationCategorie = null">Annuler</button>
+                </div>
+              </div>
+            </div>
+            <!-- Menu de liaison d'un passage important aux commentaires
+                 (clic droit sur un `<mark>` du corps, cf. onContextmenuCorpsNote). -->
+            <MenuLiensNote
+              v-if="menuLiensNote && brouillonNote"
+              :x="menuLiensNote.x"
+              :y="menuLiensNote.y"
+              :commentaires="commentairesPourLiaison"
+              :liens="menuLiensNote.liens"
+              @lier="lierCommentaireNote"
+              @delier="delierCommentaireNote"
+              @fermer="fermerMenuLiensNote"
+            />
+          </div>
+          </Teleport>
 
           <!-- Anon : pseudonymisation du texte. Une ligne par entité (brouillon
                sans occurrence, ou occurrences posées). La sélection peuple
@@ -2099,4 +2406,211 @@ td.col-pseudo {
   font-size: 0.8rem;
   margin-bottom: 0.5rem;
 }
+
+/* --- Notes --- */
+.notes-outils {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+.notes-outils .mini.actif {
+  background: #e8eefc;
+  border-color: #6485d6;
+}
+/* Volet catégories : mini-tableau nom + couleur (mêmes classes que locuteurs). */
+.volet-categories-note {
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed #d8d8d8;
+}
+.tetes-courtes span:nth-child(3) { width: 1.5rem; }
+.plus-couleur {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  color: #8a8a8a;
+}
+
+/* Vue cartes : empilement vertical, carte = bloc léger. */
+.notes-cartes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.carte-note {
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  background: #fbfbfd;
+  cursor: grab;
+}
+.carte-note:active { cursor: grabbing; }
+.carte-note-tete {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #555;
+  margin-bottom: 0.3rem;
+  flex-wrap: wrap;
+}
+.pastille-cat {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.nom-cat { font-weight: 600; color: #222; }
+.date-cat { color: #777; }
+.statut-cat {
+  font-size: 0.68rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 10px;
+  border: 1px solid #d0d0d0;
+}
+.statut-cat.prive { background: #f3f3f3; color: #777; }
+.statut-cat.public { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+.carte-note-actions { margin-left: auto; display: flex; gap: 0.2rem; }
+.corps-note {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.corps-note mark {
+  background: none;
+  font-weight: bold;
+  padding: 0;
+}
+/* Passage important relié à au moins un commentaire (data-liens porté par le
+   `<mark>` et conservé par le sanitisé) : souligné pour le distinguer. */
+.corps-note mark[data-liens],
+.zone-corps-note mark[data-liens] {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Vue texte (expand) : bloc préformaté, une note par bloc. */
+.notes-texte {
+  font-family: inherit;
+  font-size: 0.83rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  line-height: 1.45;
+  color: #333;
+}
+
+/* Modale de création/édition de note. */
+.modale-note {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+}
+.modale-note-fond {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+.modale-note-fenetre {
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  width: min(560px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+.modale-note-corps {
+  padding: 0.7rem 1rem;
+  overflow-y: auto;
+}
+.zone-corps-note {
+  min-height: 7rem;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  outline: none;
+}
+.zone-corps-note:focus { border-color: #6485d6; }
+.zone-corps-note:empty::before {
+  content: attr(data-placeholder);
+  color: #aaa;
+}
+.zone-corps-note mark {
+  background: none;
+  font-weight: bold;
+  padding: 0;
+}
+.barre-outils-note {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.4rem 0;
+}
+.modale-note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.3rem;
+}
+.champ-note {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+.champ-note span { min-width: 3.5rem; }
+.champ-note select,
+.champ-note input[type='date'],
+.champ-note input[type='text'] {
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.modale-note-pied {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid #eee;
+}
+.modale-note-pied .principal {
+  background: #6485d6;
+  color: #fff;
+  border-color: #6485d6;
+}
+
+/* Sous-modale créer une catégorie. */
+.sous-modale-categorie {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+}
+.sous-modale-fond {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+}
+.sous-modale-fenetre {
+  position: relative;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 0.8rem 1rem;
+  width: min(340px, 88vw);
+}
+.sous-modale-fenetre h4 { margin: 0 0 0.5rem; }
+.sous-modale-fenetre .champ-note { margin-bottom: 0.4rem; }
 </style>

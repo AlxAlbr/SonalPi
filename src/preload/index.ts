@@ -12,6 +12,7 @@ import type {
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
+  NoteCategory,
   ResultatLotValeur,
   ResultatLotAnon,
   OuvertureCorpus,
@@ -104,6 +105,21 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:supprimerCategorie', id, exceptId),
     usagesParCategorie: (): Promise<Record<string, number>> =>
       ipcRenderer.invoke('corpus:usagesParCategorie'),
+    // Catégories de note (définitions corpus)
+    categoriesNote: (): Promise<NoteCategory[]> => ipcRenderer.invoke('corpus:categoriesNote'),
+    ajouterCategorieNote: (
+      nom: string,
+      couleur: string,
+    ): Promise<{ id: string; corpus: CorpusFichier }> =>
+      ipcRenderer.invoke('corpus:ajouterCategorieNote', nom, couleur),
+    renommerCategorieNote: (id: string, nom: string): Promise<CorpusFichier> =>
+      ipcRenderer.invoke('corpus:renommerCategorieNote', id, nom),
+    majCouleurCategorieNote: (id: string, couleur: string): Promise<CorpusFichier> =>
+      ipcRenderer.invoke('corpus:majCouleurCategorieNote', id, couleur),
+    supprimerCategorieNote: (id: string): Promise<ResultatSuppressionCategorie> =>
+      ipcRenderer.invoke('corpus:supprimerCategorieNote', id),
+    compterUsagesCategorieNote: (id: string): Promise<number> =>
+      ipcRenderer.invoke('corpus:compterUsagesCategorieNote', id),
     resumesThematiques: (): Promise<Record<string, SegmentThematique[]>> =>
       ipcRenderer.invoke('corpus:resumesThematiques'),
     reglesAnon: (): Promise<RegleAnon[]> => ipcRenderer.invoke('corpus:reglesAnon'),

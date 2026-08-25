@@ -19,6 +19,7 @@ import type {
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
+  NoteCategory,
   OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
@@ -85,6 +86,15 @@ declare global {
         deplacerCategorie: (id: string, sens: -1 | 1) => Promise<CorpusFichier>
         supprimerCategorie: (id: string, exceptId?: string) => Promise<ResultatSuppressionCategorie>
         usagesParCategorie: () => Promise<Record<string, number>>
+        categoriesNote: () => Promise<NoteCategory[]>
+        ajouterCategorieNote: (
+          nom: string,
+          couleur: string,
+        ) => Promise<{ id: string; corpus: CorpusFichier }>
+        renommerCategorieNote: (id: string, nom: string) => Promise<CorpusFichier>
+        majCouleurCategorieNote: (id: string, couleur: string) => Promise<CorpusFichier>
+        supprimerCategorieNote: (id: string) => Promise<ResultatSuppressionCategorie>
+        compterUsagesCategorieNote: (id: string) => Promise<number>
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>

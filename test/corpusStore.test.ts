@@ -735,6 +735,82 @@ describe('CorpusStore — CRUD du codebook (thèmes)', () => {
   })
 })
 
+describe('CorpusStore — catégories de note (définitions corpus)', () => {
+  /** Entretien avec des notes référençant la catégorie donnée. */
+  const entretienAvecNotes = (...categorieIds: string[]) => ({
+    corpsTexte: { type: 'doc', content: [] },
+    annotations: [],
+    ancres: [],
+    locuteurs: [],
+    meta: { valeursGen: {}, audioRef: null },
+    notes: categorieIds.map((categorieId, i) => ({
+      id: `note_${i}`,
+      categorieId,
+      date: null,
+      statut: 'prive' as const,
+      corps: 'texte',
+      rang: i,
+      creeLe: '',
+      modifieLe: null,
+    })),
+  })
+
+  test('un corpus sans le champ lit les bacs par défaut ; ajouter persiste dans corpus.json', () => {
+    const { store, dir } = storeNeuf()
+    expect(store.categoriesNote().map((c) => c.id)).toEqual([
+      'ncat_postcollecte', 'ncat_resume', 'ncat_reflexion', 'ncat_generale',
+    ])
+    const { id, corpus } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    expect(id).toMatch(/^ncat_/)
+    expect(corpus.categoriesNote!.find((c) => c.id === id)?.nom).toBe('synthèse')
+    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    expect(surDisque.categoriesNote!.find((c) => c.id === id)).toBeDefined()
+  })
+
+  test('renommer / recolorer éditent la DÉFINITION au corpus', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    let liste = store.renommerCategorieNote(id, 'bilan').categoriesNote!
+    expect(liste.find((c) => c.id === id)?.nom).toBe('bilan')
+    liste = store.majCouleurCategorieNote(id, '#ffffff').categoriesNote!
+    expect(liste.find((c) => c.id === id)?.couleur).toBe('#ffffff')
+  })
+
+  test('compterUsagesCategorieNote scanne les notes de tous les entretiens', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    store.importerEntretien('E1', entretienAvecNotes(id, 'ncat_generale'), [])
+    store.importerEntretien('E2', entretienAvecNotes(id), [])
+    expect(store.compterUsagesCategorieNote(id)).toBe(2)
+    expect(store.compterUsagesCategorieNote('ncat_generale')).toBe(1)
+  })
+
+  test('supprimer une catégorie SANS note référente réussit et persiste', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    const r = store.supprimerCategorieNote(id)
+    expect(r.ok).toBe(true)
+    expect(store.categoriesNote().find((c) => c.id === id)).toBeUndefined()
+  })
+
+  test('suppression REFUSÉE si une note (n\'importe quel entretien) référence la catégorie', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    const { id: e1 } = store.importerEntretien('E1', entretienAvecNotes(id), [])
+    expect(store.supprimerCategorieNote(id)).toEqual({ ok: false, usages: 1 })
+    // Le refus n'a rien changé : la catégorie est toujours là.
+    expect(store.categoriesNote().find((c) => c.id === id)).toBeDefined()
+    // Une fois la note retirée (écriture de l'entretien sans note), la
+    // suppression passe.
+    store.ecrireEntretien(e1, entretienAvecNotes())
+    expect(store.supprimerCategorieNote(id).ok).toBe(true)
+  })
+})
+
 describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
   /** Entretien avec une valeur gen et une valeur loc (par leur propriétaire). */
   const entretienAvecValeurs = (varGen: string, modGen: string, varLoc: string, modLoc: string) => ({

@@ -3,9 +3,11 @@ import type { Ancre } from '../../shared/entretien/audio'
 import { importerVariables, distribuerValeurs } from './eav'
 import { parentsDepuisRangs } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
-import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon } from '../../shared/format'
+import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon, Note } from '../../shared/format'
 import { scinderPseudos } from '../../shared/entretien/anon'
 import { cleEntite } from '../../shared/entretien/anon'
+import { genIdNote } from '../../shared/entretien/notes'
+import { echapperTexte } from '../notes/sanitiser'
 
 /** Blocs legacy encore en pass-through : `anon` (règles) et `notes`. Les EAV
  *  (var/dic/dat) sont modélisées → hors de ce blob. */
@@ -82,11 +84,37 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   const tabThm = (extraireJson(html, 'cat-json') as CategorieV1[] | null) ?? []
   const anonJson = extraireJson(html, 'anon-json')
   const { brouillons, regles: reglesAnon } = parserAnonJson(anonJson)
+  // Notes V1 : un `<textarea>` de texte libre. On lit son contenu texte
+  //  (textContent — robuste en DOM de test comme navigateur ; la V1 stockait
+  //  une chaîne brute). On migre ce contenu en une note « générale » (bac
+  //  récupérant le libre, sans date) ; `legacy.notes` conserve aussi la chaîne
+  //  brute pour un futur export sans perte.
+  const elNotes = domDoc.getElementById('txtnotes')
+  const notesV1 = (elNotes?.textContent ?? '').trim()
   const legacy: LegacyBlobs = {
     // Consommé : brouillons→payload.brouillonsAnon, règles→ResultatImport.reglesAnon.
     tabAnon: null,
-    notes: (domDoc.getElementById('txtnotes') as HTMLElement | null)?.innerHTML.trim() ?? '',
+    notes: notesV1,
   }
+  // Catégories de note : elles vivent au CORPUS (bacs par défaut normalisés
+  //  à la lecture de corpus.json) — l'entretien importé n'en porte pas. La
+  //  note migrée référence le bac « générale » (id stable d'un bac par défaut).
+  // Une seule note migre le texte V1 : bac « générale », pas de date, privée.
+  //  Le `corps` est échappé (HTML sanitisé, sans <mark> : le libre V1 n'en a pas).
+  const notes: Note[] = notesV1
+    ? [
+        {
+          id: genIdNote(),
+          categorieId: 'ncat_generale',
+          date: null,
+          statut: 'prive',
+          corps: echapperTexte(notesV1),
+          rang: 0,
+          creeLe: new Date().toISOString(),
+          modifieLe: null,
+        },
+      ]
+    : []
   // EAV : var/dic → définitions de variables ; dat → valeurs distribuées chez
   // leur propriétaire (valeursGen / valeursLoc).
   const variables = importerVariables(extraireJson(html, 'var-json'), extraireJson(html, 'dic-json'))
@@ -265,7 +293,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   }))
 
   return {
-    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons },
+    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons, notes },
     codebook,
     variables,
     reglesAnon,

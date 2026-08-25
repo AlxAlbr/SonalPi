@@ -46,6 +46,10 @@ export function creerSonal() {
     apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
+    // Catégories de note : définitions au corpus, résolues ici pour le scope
+    // entretien (nom affichable + défaut du formulaire de création).
+    nomCategorieNote: (id) => corpus.nomCategorieNote(id),
+    categorieNoteDefaut: () => corpus.categorieNoteDefaut(),
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirScanAnon(), // cache règles après mutation
     prioriteAnon: () => corpus.paramsAnon.value.prioriteValidation, // étape 4a : portée d'Entrée
@@ -221,6 +225,7 @@ export function creerSonal() {
     corpus.membership.value = c.membership
     corpus.majCodebook(c.codebook)
     corpus.majVariables(c.variables)
+    corpus.majCategoriesNote(c.categoriesNote)
     corpus.paramsAnon.value = { ...paramsAnonDefaut(), ...(c.paramsAnon ?? {}) }
     await corpus.rafraichirUsages()
     await rafraichirAudios()
@@ -480,6 +485,7 @@ export function creerSonal() {
     corpus.membership.value = c.membership
     corpus.majCodebook(c.codebook)
     corpus.majVariables(c.variables)
+    corpus.majCategoriesNote(c.categoriesNote)
     corpus.paramsAnon.value = { ...paramsAnonDefaut(), ...(c.paramsAnon ?? {}) }
     await corpus.rafraichirUsages()
     await rafraichirAudios()
@@ -704,6 +710,7 @@ export function creerSonal() {
       corpus.membership.value = res.corpus.membership
       corpus.majCodebook(res.corpus.codebook)
       corpus.majVariables(res.corpus.variables)
+      corpus.majCategoriesNote(res.corpus.categoriesNote)
       await corpus.rafraichirScanAnon()
       id = res.id
     } else {

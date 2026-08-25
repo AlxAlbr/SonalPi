@@ -8,6 +8,7 @@ import type {
   EntretienRef,
   ItemLotValeur,
   MatriceCorpus,
+  NoteCategory,
   PatchCategorie,
   RegleAnon,
   SegmentThematique,
@@ -15,6 +16,7 @@ import type {
   ParamsAnon,
 } from '../../shared/format'
 import { paramsAnonDefaut } from '../../shared/format'
+import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import type { ScanRegle } from '../../shared/corpus/scanAnon'
 
 /**
@@ -42,6 +44,11 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const scanAnon = ref<ScanRegle[]>([]) // requête scan (relit le disque)
   // Étape 4a — paramètres anon (corpus.json.paramsAnon, défauts si absents).
   const paramsAnon = ref<ParamsAnon>(paramsAnonDefaut())
+  // Catégories de note (définitions corpus, comme le codebook). Un corpus
+  // existant sans le champ obtient les bacs par défaut en mémoire ; ils ne
+  // sont écrits sur disque qu'au premier geste d'édition.
+  const categoriesNote = ref<NoteCategory[]>(normaliserCategoriesNote())
+  const messageCategorieNote = ref<string | null>(null) // ex. refus de suppression
 
   const varsGen = () => variables.value.filter((v) => v.portee === 'entretien')
   const varsLoc = () => variables.value.filter((v) => v.portee === 'locuteur')
@@ -90,6 +97,24 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
   function nomTheme(id: string): string {
     return codebook.value.find((c) => c.id === id)?.nom ?? id
+  }
+  /** Nom d'une catégorie de note depuis son id (fallback « générale » : utile
+   *  tant que le corpus n'est pas chargé ou après une suppression). */
+  function nomCategorieNote(id: string): string {
+    return categoriesNote.value.find((c) => c.id === id)?.nom ?? 'générale'
+  }
+  /** Couleur d'une catégorie de note depuis son id (fallback gris). */
+  function couleurCategorieNote(id: string): string {
+    return categoriesNote.value.find((c) => c.id === id)?.couleur ?? '#9e9e9e'
+  }
+  /** Id de la première catégorie (défaut du formulaire de création de note). */
+  function categorieNoteDefaut(): string {
+    return categoriesNote.value[0]?.id ?? 'ncat_generale'
+  }
+  /** Applique la liste du corpus (normalisée à la lecture — même chemin que
+   *  `majCodebook`, appelée par l'orchestrateur à chaque chargement). */
+  function majCategoriesNote(brutes?: NoteCategory[] | null) {
+    categoriesNote.value = normaliserCategoriesNote(brutes)
   }
   function modalitesDe(idVar: string) {
     return variables.value.find((v) => v.id === idVar)?.modalites ?? []
@@ -148,6 +173,35 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     }
     majCodebook(r.corpus.codebook)
     if (codeCourant.value === id) codeCourant.value = codebook.value[0]?.id ?? ''
+  }
+
+  // --- Catégories de note (définitions corpus, gestes IPC) ---
+  /** Ajoute une catégorie et renvoie son id (trouver-ou-créer : « autre… »
+   *  crée puis sélectionne dans le formulaire de note). */
+  async function ajouterCategorieNote(nom: string, couleur: string): Promise<string> {
+    const r = await window.sonal.corpus.ajouterCategorieNote(nom, couleur)
+    majCategoriesNote(r.corpus.categoriesNote)
+    return r.id
+  }
+  async function renommerCategorieNote(id: string, nom: string) {
+    majCategoriesNote((await window.sonal.corpus.renommerCategorieNote(id, nom)).categoriesNote)
+  }
+  async function majCouleurCategorieNote(id: string, couleur: string) {
+    majCategoriesNote((await window.sonal.corpus.majCouleurCategorieNote(id, couleur)).categoriesNote)
+  }
+  /** Suppression REFUSÉE si une note (n'importe quel entretien du corpus)
+   *  référence la catégorie — message affiché, comme les thèmes. */
+  async function supprimerCategorieNote(id: string): Promise<string | null> {
+    messageCategorieNote.value = null
+    await opts.flush() // les notes de l'entretien ouvert doivent être sur disque pour le compte
+    const r = await window.sonal.corpus.supprimerCategorieNote(id)
+    if (!r.ok) {
+      messageCategorieNote.value =
+        `« ${nomCategorieNote(id)} » est utilisée ${r.usages}× — retire-la d'abord de tes notes.`
+      return null
+    }
+    majCategoriesNote(r.corpus.categoriesNote)
+    return id
   }
 
   // --- Variables & modalités (EAV) ---
@@ -291,6 +345,17 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     rafraichirScanAnon,
     paramsAnon,
     majParamsAnon,
+    // catégories de note (définitions corpus)
+    categoriesNote,
+    messageCategorieNote,
+    majCategoriesNote,
+    nomCategorieNote,
+    couleurCategorieNote,
+    categorieNoteDefaut,
+    ajouterCategorieNote,
+    renommerCategorieNote,
+    majCouleurCategorieNote,
+    supprimerCategorieNote,
     // thèmes
     ajouterTheme,
     ajouterSousTheme,
