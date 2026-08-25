@@ -3,9 +3,10 @@ import type { Note, NoteCategory } from '../format'
 /**
  * Notes d'entretien : typologie des catégories (définitions CORPUS, nom +
  * couleur) et notes structurées (corps HTML sanitisé, rang manuel). Le
- * `corps` est du HTML restreint : texte échappé + balises `<mark>` pour les
- * passages importants. La sanitzation proprement dite vit côté renderer
- * (parseur DOM) ; ce module est pur et partagé.
+ * `corps` est du HTML restreint : texte échappé + balises `<mark>` (passages
+ * importants) et `<em>` (passages liés à un commentaire). La sanitization
+ * proprement dite vit côté renderer (parseur DOM) ; ce module est pur et
+ * partagé.
  */
 
 /** Catégories par défaut d'un corpus sans `categoriesNote`.
@@ -50,6 +51,7 @@ export function normaliserNotes(n?: Note[] | null): Note[] {
   return n.map((x) => ({
     id: String(x.id ?? ''),
     categorieId: String(x.categorieId ?? '') || 'ncat_generale',
+    titre: String(x.titre ?? ''),
     date: x.date ?? null,
     statut: x.statut === 'public' ? 'public' : 'prive',
     corps: String(x.corps ?? ''),

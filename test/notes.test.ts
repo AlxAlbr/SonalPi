@@ -14,7 +14,13 @@ import {
   sanitiserCorpsNote,
   corpsNoteEnTexte,
   echapperTexte,
+  surlignerHtml,
   lireLiensNote,
+  libelleRefCommentaire,
+  corpsAvecRefsCommentaires,
+  decoreRefsCommentaires,
+  pruneRefsCommentaires,
+  CLASSE_REF_NOTE,
   ATTR_LIENS_NOTE,
 } from '../src/renderer/notes/sanitiser'
 import { importerSonal } from '../src/renderer/import/importSonal'
@@ -47,9 +53,10 @@ describe('notes — normalisation', () => {
   })
   test('normalisation robuste d\'une note dégénérée', () => {
     const [n] = normaliserNotes([
-      { id: 'n1', categorieId: '', date: undefined, statut: 'public', corps: undefined, rang: 'x' } as unknown as Note,
+      { id: 'n1', categorieId: '', titre: undefined, date: undefined, statut: 'public', corps: undefined, rang: 'x' } as unknown as Note,
     ])
     expect(n.categorieId).toBe('ncat_generale')
+    expect(n.titre).toBe('') // ancien fichier sans titre → chaîne vide
     expect(n.date).toBeNull()
     expect(n.statut).toBe('public')
     expect(n.corps).toBe('')
@@ -70,9 +77,9 @@ describe('notes — normalisation', () => {
 
 describe('notes — rangs', () => {
   const notes: Note[] = [
-    { id: 'a', categorieId: 'ncat_generale', date: null, statut: 'prive', corps: '', rang: 2, creeLe: '', modifieLe: null },
-    { id: 'b', categorieId: 'ncat_generale', date: null, statut: 'prive', corps: '', rang: 0, creeLe: '', modifieLe: null },
-    { id: 'c', categorieId: 'ncat_generale', date: null, statut: 'prive', corps: '', rang: 1, creeLe: '', modifieLe: null },
+    { id: 'a', categorieId: 'ncat_generale', titre: '', date: null, statut: 'prive', corps: '', rang: 2, creeLe: '', modifieLe: null },
+    { id: 'b', categorieId: 'ncat_generale', titre: '', date: null, statut: 'prive', corps: '', rang: 0, creeLe: '', modifieLe: null },
+    { id: 'c', categorieId: 'ncat_generale', titre: '', date: null, statut: 'prive', corps: '', rang: 1, creeLe: '', modifieLe: null },
   ]
   test('prochainRang = max + 1 (0 si vide)', () => {
     expect(prochainRang(notes)).toBe(3)
@@ -141,6 +148,148 @@ describe('sanitiser — liaison passages importants ↔ commentaires', () => {
     expect(lireLiensNote(d.body.querySelector('mark')!)).toEqual(['a-b', 'a-c'])
     const d2 = parse('<mark>nu</mark>')
     expect(lireLiensNote(d2.body.querySelector('mark')!)).toEqual([])
+  })
+  test('un <em> est conservé, avec ou sans liens valides', () => {
+    expect(sanitiserCorpsNote('<em>voix du terrain</em>', doc()))
+      .toBe('<em>voix du terrain</em>')
+    expect(sanitiserCorpsNote(`<em ${ATTR_LIENS_NOTE}="a-xyz">lié</em>`, doc()))
+      .toBe(`<em ${ATTR_LIENS_NOTE}="a-xyz">lié</em>`)
+  })
+  test('un <em> porteur d\'attributs étrangers est nettoyé', () => {
+    expect(sanitiserCorpsNote('<em style="color:red" onclick="x()">t</em>', doc()))
+      .toBe('<em>t</em>')
+  })
+  test('les passages vides mark OU em disparaissent', () => {
+    expect(sanitiserCorpsNote('a<mark></mark>b<em> </em>c', doc())).toBe('abc')
+  })
+  test('imbrication mark/em survit à la sanitisation', () => {
+    expect(sanitiserCorpsNote('<mark>important <em>et lié</em></mark>', doc()))
+      .toBe('<mark>important <em>et lié</em></mark>')
+  })
+})
+
+describe('références de commentaires dans les cartes', () => {
+  const commentaires = new Map([
+    ['a-1', { auteur: 'alice', texte: 'un début de commentaire assez long pour être tronqué ici oui' }],
+    ['a-2', { auteur: '', texte: 'court' }],
+  ])
+  const resolver = (id: string) => commentaires.get(id) ?? null
+
+  test('libelleRefCommentaire tronque et nomme « sans auteur » si vide', () => {
+    expect(libelleRefCommentaire('alice', 'court')).toBe('alice : court')
+    expect(libelleRefCommentaire('', 'x'.repeat(50)).endsWith('…')).toBe(true)
+    expect(libelleRefCommentaire('', 'court').startsWith('sans auteur')).toBe(true)
+  })
+
+  test('une référence [auteur : début…] suit chaque passage lié résolu', () => {
+    const s = corpsAvecRefsCommentaires(
+      `avant <em ${ATTR_LIENS_NOTE}="a-1">lié</em> après`,
+      doc(),
+      resolver,
+    )
+    expect(s).toContain('</em> <span class="ref-note-commentaire" data-ref="a-1" contenteditable="false">')
+    expect(s).toContain('[alice : un début de commentaire assez long pour …]</span> après')
+  })
+
+  test('plusieurs liens sur un passage → autant de références', () => {
+    const s = corpsAvecRefsCommentaires(
+      `<em ${ATTR_LIENS_NOTE}="a-1 a-2">lié</em>`,
+      doc(),
+      resolver,
+    )
+    expect(s.match(/ref-note-commentaire/g)).toHaveLength(2)
+    expect(s).toContain('[sans auteur : court]')
+  })
+
+  test('un id non résolu (commentaire supprimé) ne produit pas de référence', () => {
+    const s = corpsAvecRefsCommentaires(
+      `<em ${ATTR_LIENS_NOTE}="a-perdu">lié</em>`,
+      doc(),
+      resolver,
+    )
+    expect(s).not.toContain('ref-note-commentaire')
+    // Le passage reste tel quel (la carte affiche un em lié sans référence).
+    expect(s).toBe(`<em ${ATTR_LIENS_NOTE}="a-perdu">lié</em>`)
+  })
+
+  test('un corps sans attribut de liaison est rendu tel quel', () => {
+    expect(corpsAvecRefsCommentaires('<mark>gras</mark>', doc(), resolver)).toBe('<mark>gras</mark>')
+  })
+})
+
+describe('références dans la zone d\'édition (décor vivant)', () => {
+  const commentaires = new Map([['a-1', { auteur: 'alice', texte: 'un commentaire' }]])
+  const resolver = (id: string) => commentaires.get(id) ?? null
+
+  function conteneur(html: string): HTMLElement {
+    const d = doc()
+    const c = d.createElement('div')
+    c.innerHTML = html
+    return c
+  }
+
+  test('decoreRefsCommentaires pose les refs après chaque passage lié', () => {
+    const c = conteneur(`<p><em ${ATTR_LIENS_NOTE}="a-1">lié</em> suite</p>`)
+    decoreRefsCommentaires(c, document, resolver)
+    const ref = c.querySelector(`.${CLASSE_REF_NOTE}`)
+    expect(ref?.textContent).toBe('[alice : un commentaire]')
+    expect(ref?.getAttribute('contenteditable')).toBe('false')
+    expect(ref?.previousElementSibling?.textContent).toBe('lié')
+  })
+
+  test('decoreRefsCommentaires reconstruit sans dupliquer', () => {
+    const c = conteneur(`<em ${ATTR_LIENS_NOTE}="a-1">lié</em>`)
+    decoreRefsCommentaires(c, document, resolver)
+    decoreRefsCommentaires(c, document, resolver)
+    expect(c.querySelectorAll(`.${CLASSE_REF_NOTE}`)).toHaveLength(1)
+  })
+
+  test('pruneRefsCommentaires retire les refs au lien disparu, garde les autres', () => {
+    const c = conteneur(
+      `<em ${ATTR_LIENS_NOTE}="a-1">lié</em><span class="${CLASSE_REF_NOTE}" data-ref="a-1">[alice]</span>` +
+      `<span class="${CLASSE_REF_NOTE}" data-ref="a-perdu">[fantôme]</span>`,
+    )
+    pruneRefsCommentaires(c)
+    const restantes = c.querySelectorAll(`.${CLASSE_REF_NOTE}`)
+    expect(restantes).toHaveLength(1)
+    expect(restantes[0].getAttribute('data-ref')).toBe('a-1')
+  })
+
+  test('le sanitisé JETTE entièrement les spans de référence (jamais sauvegardés)', () => {
+    const s = sanitiserCorpsNote(
+      `<em ${ATTR_LIENS_NOTE}="a-1">lié</em><span class="${CLASSE_REF_NOTE}" data-ref="a-1">[alice : un commentaire]</span> suite`,
+      doc(),
+    )
+    expect(s).toBe(`<em ${ATTR_LIENS_NOTE}="a-1">lié</em> suite`)
+  })
+})
+
+describe('surlignerHtml — surbrillance de la recherche', () => {
+  test('requête vide → HTML inchangé', () => {
+    expect(surlignerHtml('<mark>a</mark>', '  ', doc())).toBe('<mark>a</mark>')
+  })
+  test('une occurrence est enveloppée d\'un span .surbrillance-note', () => {
+    const s = surlignerHtml('du texte important ici', 'important', doc())
+    expect(s).toBe('du texte <span class="surbrillance-note">important</span> ici')
+  })
+  test('insensible à la casse, toutes les occurrences', () => {
+    const s = surlignerHtml('Abc abc ABC', 'abc', doc())
+    expect(s.match(/surbrillance-note/g)).toHaveLength(3)
+    expect(s).toContain('>Abc</span>')
+  })
+  test('le texte hors correspondances est préservé tel quel', () => {
+    expect(surlignerHtml('a &lt;b&gt; cible fin', 'cible', doc()))
+      .toBe('a &lt;b&gt; <span class="surbrillance-note">cible</span> fin')
+  })
+  test('les balises de passage survivent au surlignage', () => {
+    const s = surlignerHtml('<mark>passage</mark> et em <em>lié</em>', 'li', doc())
+    expect(s).toBe('<mark>passage</mark> et em <em><span class="surbrillance-note">li</span>é</em>')
+  })
+  test('jamais de correspondance dans un attribut ou un nom de balise', () => {
+    // « em » apparaît dans le nom de balise et dans l'id de lien, mais seul
+    //  le TEXTE (débute par « em ») est surligné.
+    const s = surlignerHtml(`<em ${ATTR_LIENS_NOTE}="a-em">empêché</em>`, 'em', doc())
+    expect(s).toBe(`<em ${ATTR_LIENS_NOTE}="a-em"><span class="surbrillance-note">em</span>pêché</em>`)
   })
 })
 

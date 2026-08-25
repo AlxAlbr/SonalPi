@@ -63,6 +63,31 @@ export function deplacerCategorie(corpus: CorpusFichier, id: string, sens: -1 | 
   }
 }
 
+/** Change le PARENT d'une catégorie dans l'arbre du codebook (`null` = racine).
+ *  Refus silencieux si la cible est la catégorie elle-même ou un de ses
+ *  descendants : une branche ne peut pas devenir son propre ancêtre. La catégorie
+ *  arrive en fin de sa nouvelle fratrie ; ses enfants restent accrochés à elle,
+ *  et les codages suivent sans bouger (référence par id). */
+export function migrerCategorie(
+  corpus: CorpusFichier,
+  id: string,
+  nouveauParent: string | null,
+): void {
+  const cat = corpus.codebook[id]
+  if (!cat) return
+  if (nouveauParent != null) {
+    const cible = corpus.codebook[nouveauParent]
+    if (!cible || nouveauParent === id) return
+    let p = cible.parent
+    while (p != null) {
+      if (p === id) return // descendant de la catégorie migrée
+      p = corpus.codebook[p]?.parent ?? null
+    }
+  }
+  cat.parent = nouveauParent
+  cat.ordre = Object.values(corpus.codebook).reduce((m, c) => Math.max(m, c.ordre), -1) + 1
+}
+
 /** Retire une catégorie du codebook et PROMEUT ses enfants au parent du supprimé
  *  (pas d'orphelins). La POLITIQUE refus-si-utilisée est décidée par l'orchestration. */
 export function retirerCategorie(corpus: CorpusFichier, id: string): void {

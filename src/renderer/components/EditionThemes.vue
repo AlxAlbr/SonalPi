@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
@@ -24,6 +24,7 @@ const {
   ajouterSousTheme,
   modifierTheme,
   deplacerTheme,
+  migrerTheme,
   supprimerTheme,
   themeASupprimer,
   demanderSuppressionTheme,
@@ -54,6 +55,37 @@ function supprimer(id: string) {
   else demanderSuppressionTheme(id)
 }
 
+// --- Migration d'un thème sous un nouveau parent ---
+// ▲▼ ne réordonnent que DANS la fratrie ; le ⤵ change l'emplacement du thème
+// dans l'arbre (sous un autre thème parent, ou à la racine).
+const migrationDe = ref<string | null>(null)
+const migrationVers = ref('') // '' = racine
+
+/** Ouvre le choix de destination pour le thème `id`. */
+function demanderMigration(id: string) {
+  migrationDe.value = id
+  const cat = arbreThemes().find((n) => n.cat.id === id)?.cat
+  migrationVers.value = cat?.parent ?? ''
+}
+/** Destinations possibles : la racine + tous les thèmes SAUF le thème migré et
+ *  ses descendants (une branche ne peut pas devenir son propre ancêtre). */
+function destinationsDe(id: string): { id: string; nom: string }[] {
+  const arbre = arbreThemes()
+  const i = arbre.findIndex((n) => n.cat.id === id)
+  if (i < 0) return []
+  const prof = arbre[i].profondeur
+  const exclus = new Set<string>([id])
+  for (let j = i + 1; j < arbre.length && arbre[j].profondeur > prof; j++) exclus.add(arbre[j].cat.id)
+  return arbre
+    .filter((n) => !exclus.has(n.cat.id))
+    .map((n) => ({ id: n.cat.id, nom: '\u00A0'.repeat(n.profondeur * 2) + n.cat.nom }))
+}
+function confirmerMigration() {
+  if (!migrationDe.value) return
+  migrerTheme(migrationDe.value, migrationVers.value || null)
+  migrationDe.value = null
+}
+
 onMounted(() => {
   // Repartir propre (pas de message d'un passage précédent) + compteurs frais.
   messageTheme.value = null
@@ -72,7 +104,7 @@ onMounted(() => {
       </div>
       <p class="aide-thm">
         Nom, couleur, taille de police des passages codés · « + enfant » pour un sous-thème · ▲▼ pour
-        déplacer dans l'arbre
+        déplacer dans la fratrie · ⤵ pour changer de thème parent
       </p>
 
       <p v-if="messageTheme" class="msg-thm">{{ messageTheme }}</p>
@@ -85,6 +117,19 @@ onMounted(() => {
         <div class="confirm-actions">
           <button class="danger" @click="confirmerSuppressionTheme">Supprimer</button>
           <button @click="themeASupprimer = null">Annuler</button>
+        </div>
+      </div>
+
+      <!-- Choix de la destination d'une migration (⤵ d'une ligne) -->
+      <div v-if="migrationDe" class="confirm-suppr">
+        Déplacer « {{ arbreThemes().find((n) => n.cat.id === migrationDe)?.cat.nom }} » sous :
+        <select v-model="migrationVers" class="dest-migration">
+          <option value="">— racine du codebook —</option>
+          <option v-for="d in destinationsDe(migrationDe)" :key="d.id" :value="d.id">{{ d.nom }}</option>
+        </select>
+        <div class="confirm-actions">
+          <button @click="confirmerMigration">Déplacer</button>
+          <button @click="migrationDe = null">Annuler</button>
         </div>
       </div>
 
@@ -103,6 +148,7 @@ onMounted(() => {
         <button class="mini-sous fantome">+ enfant</button>
         <button class="fleche fantome">▲</button>
         <button class="fleche fantome">▼</button>
+        <button class="fleche migrer fantome">⤵</button>
         <button class="x fantome">✕</button>
       </div>
       <ul class="liste-thm">
@@ -153,6 +199,13 @@ onMounted(() => {
           <button class="fleche" title="Descendre" :disabled="n.dernier" @click="deplacerTheme(n.cat.id, 1)">
             ▼
           </button>
+          <button
+            class="fleche migrer"
+            title="Déplacer sous un autre thème parent (ou à la racine)"
+            @click="demanderMigration(n.cat.id)"
+          >
+            ⤵
+          </button>
           <button class="x" title="Supprimer" @click="supprimer(n.cat.id)">✕</button>
         </li>
       </ul>
@@ -191,6 +244,12 @@ onMounted(() => {
 /* .corpus-tete/.mini/.aide-thm/.msg-thm/.vide/.x : styles GLOBAUX (base.css). */
 .corpus-tete {
   gap: 0.5rem;
+}
+/* Les deux boutons de création ressortent en GRAS : ce sont les gestes premiers
+ * de la fenêtre (nouveau thème racine / nouveau sous-thème). */
+.corpus-tete .mini,
+.mini-sous {
+  font-weight: bold;
 }
 .corpus-tete h3 {
   flex: 1;
@@ -319,6 +378,10 @@ onMounted(() => {
   color: #ddd;
   cursor: default;
 }
+/* ⤵ plus gros que ▲▼ : c'est un geste moins évident, on le rend repérable. */
+.fleche.migrer {
+  font-size: 0.95rem;
+}
 .mini-sous {
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -332,6 +395,10 @@ onMounted(() => {
 .mini-sous:hover {
   border-color: #2e73d8;
   color: #1565c0;
+}
+.dest-migration {
+  margin-left: 0.4rem;
+  max-width: 100%;
 }
 /* .confirm-suppr/.confirm-actions : styles GLOBAUX (base.css). */
 </style>

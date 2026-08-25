@@ -106,6 +106,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
         {
           id: genIdNote(),
           categorieId: 'ncat_generale',
+          titre: '',
           date: null,
           statut: 'prive',
           corps: echapperTexte(notesV1),

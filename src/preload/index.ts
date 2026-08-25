@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.invoke('corpus:modifierCategorie', id, patch),
     deplacerCategorie: (id: string, sens: -1 | 1): Promise<CorpusFichier> =>
       ipcRenderer.invoke('corpus:deplacerCategorie', id, sens),
+    migrerCategorie: (id: string, nouveauParent: string | null): Promise<CorpusFichier> =>
+      ipcRenderer.invoke('corpus:migrerCategorie', id, nouveauParent),
     supprimerCategorie: (id: string, exceptId?: string): Promise<ResultatSuppressionCategorie> =>
       ipcRenderer.invoke('corpus:supprimerCategorie', id, exceptId),
     usagesParCategorie: (): Promise<Record<string, number>> =>

@@ -56,6 +56,35 @@ describe('corpus — codebook (règles pures)', () => {
     expect(c.codebook[b].ordre).toBe(0)
     expect(c.codebook[a].ordre).toBe(1)
   })
+
+  test('migrerCategorie change le parent et arrive en fin de fratrie ; les enfants suivent', () => {
+    const c = corpusVide()
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid)
+    const b = corpus.ajouterCategorie(c, 'B', null, gid)
+    const a1 = corpus.ajouterCategorie(c, 'A1', a, gid)
+    corpus.migrerCategorie(c, a1, b)
+    expect(c.codebook[a1].parent).toBe(b)
+    expect(c.codebook[a1].ordre).toBeGreaterThan(c.codebook[b].ordre) // fin de la fratrie de B
+    // Migration à la racine.
+    corpus.migrerCategorie(c, a1, null)
+    expect(c.codebook[a1].parent).toBeNull()
+  })
+
+  test('migrerCategorie refuse un descendant (cycle) ou une cible inconnue', () => {
+    const c = corpusVide()
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid)
+    const a1 = corpus.ajouterCategorie(c, 'A1', a, gid)
+    const a2 = corpus.ajouterCategorie(c, 'A2', a1, gid)
+    const avant = { ...c.codebook[a] }
+    corpus.migrerCategorie(c, a, a2) // a2 descend d'a → refusé
+    corpus.migrerCategorie(c, a, a) // soi-même → refusé
+    corpus.migrerCategorie(c, a, 'inconnu') // cible absente → refusé
+    expect(c.codebook[a]).toMatchObject(avant)
+  })
 })
 
 describe('corpus — variables/modalités (id opaque injecté)', () => {

@@ -69,6 +69,10 @@ export type ResolveurCouleur = (code: string) => string
  *  (parité SonalPi), `undefined` = taille du texte. Injecté comme la couleur. */
 export type ResolveurTaille = (code: string) => number | undefined
 
+/** Résout le NOM lisible d'un code (libellé du thème au codebook) — pour les
+ *  infobulles des passages codés, à la place de l'id brut (`cat-…`). */
+export type ResolveurNom = (code: string) => string
+
 function traitDe(a: { type: string; code?: string }, resoudre: ResolveurCouleur): string {
   return a.type === 'anon' ? 'hsl(0 0% 45%)' : resoudre(a.code ?? '')
 }
@@ -92,6 +96,7 @@ function construireDecorations(
   entretien: Entretien,
   resoudre: ResolveurCouleur,
   tailleDe?: ResolveurTaille,
+  nomDe?: ResolveurNom,
 ): DecorationSet {
   const actives = entretien.annotations.filter((a) => !estOrpheline(a))
   if (actives.length === 0) return DecorationSet.empty
@@ -114,23 +119,76 @@ function construireDecorations(
     if (englobee) masquee.add(x.id)
   }
 
-  // Bornes élémentaires : toutes les extrémités, triées et dédupliquées.
-  const bornes = [...new Set(actives.flatMap((a) => [a.from, a.to]))].sort((x, y) => x - y)
+  // Bornes élémentaires : toutes les extrémités d'annotations, plus les bornes
+  // de contenu des paragraphes (un segment ne doit pas chevaucher deux
+  // paragraphes : chaque segment relève d'UN paragraphe pour la hauteur des
+  // barres, cf. ci-dessous). Triées et dédupliquées.
+  const codages = actives.filter((a) => a.type === 'codage')
+  const bornesBrutes = [...new Set(actives.flatMap((a) => [a.from, a.to]))]
+
+  // Par paragraphe : nombre MAXIMAL de codages couvrant un même point. Cette
+  // valeur réserve la MÊME hauteur de barres (padding-bas) à tous les segments
+  // du paragraphe : un sous-passage codé une fois de plus ne décale pas les
+  // barres de ses voisins, qui restent continues et alignées.
+  const paragraphes: { debut: number; fin: number; maxCodages: number }[] = []
+  state.doc.forEach((node, offset) => {
+    if (node.type.name !== 'paragraph') return
+    const debut = offset + 1
+    const fin = offset + node.nodeSize
+    const points = new Set<number>([debut])
+    for (const c of codages) {
+      if (c.from > debut && c.from < fin) points.add(c.from)
+      if (c.to > debut && c.to < fin) points.add(c.to)
+    }
+    let max = 0
+    for (const p of points) {
+      const n = codages.filter((c) => c.from <= p && p < c.to).length
+      if (n > max) max = n
+    }
+    paragraphes.push({ debut, fin, maxCodages: max })
+    bornesBrutes.push(debut, fin)
+  })
+  const bornes = [...new Set(bornesBrutes)].sort((x, y) => x - y)
 
   const decos: Decoration[] = []
+  let iparagraphe = 0
   for (let i = 0; i < bornes.length - 1; i++) {
     const segFrom = bornes[i]
     const segTo = bornes[i + 1]
+    while (iparagraphe < paragraphes.length && paragraphes[iparagraphe].fin <= segFrom) iparagraphe++
+    const paragraphe = paragraphes[iparagraphe]
     const couvrant = actives.filter((a) => a.from <= segFrom && a.to >= segTo)
     if (couvrant.length === 0) continue
 
     // Soulignement des CODAGES seuls (l'anon a son propre marqueur : texte
-    // barré + pseudo en ::after, cf. editeur.css). Sur un chevauchement
-    // anon+codage, le trait coloré du codage reste visible par-dessus le barré.
-    const souligne = couvrant
-      .filter((a) => a.type !== 'anon')
-      .map((a, k) => `inset 0 ${-2 * (k + 1)}px 0 ${traitDe(a, resoudre)}`)
-      .join(',')
+    // barré + pseudo en ::after, cf. editeur.css ; un commentaire n'a que sa
+    // teinte de fond, pas de souligné).
+    // Dès qu'un codage du paragraphe se superpose à un autre, TOUT le
+    // paragraphe passe au DÉGRADÉ à arrêts : barres de 2px par thème,
+    // séparées de 1px, posées sous le texte — avec un padding-bas UNIFORME
+    // (celui du max du paragraphe) pour que les barres restent alignées
+    // d'un segment à l'autre, même quand un sous-passage porte un codage
+    // de plus. Un dégradé à une seule teinte rend comme la box-shadow.
+    const codagesIci = couvrant.filter((a) => a.type === 'codage')
+    const nbBarres = paragraphe ? paragraphe.maxCodages : codagesIci.length
+    const stylesCodage: string[] = []
+    if (nbBarres > 1) {
+      const arrets: string[] = []
+      codagesIci.forEach((a, k) => {
+        arrets.push(`${traitDe(a, resoudre)} ${3 * k}px ${3 * k + 2}px`)
+        if (k < codagesIci.length - 1)
+          arrets.push(`transparent ${3 * k + 2}px ${3 * k + 3}px`)
+      })
+      // Au-delà du DERNIER arrêt, un dégradé prolonge sa dernière couleur :
+      // sans cet arrêt final transparent, la dernière teinte surlignerait
+      // tout le passage au lieu de rester une barre sous le texte.
+      arrets.push(`transparent ${3 * (codagesIci.length - 1) + 2}px`)
+      stylesCodage.push(`background-image:linear-gradient(to top, ${arrets.join(',')})`)
+      stylesCodage.push(`padding-bottom:${4 + 3 * (nbBarres - 1)}px`)
+    } else if (codagesIci.length === 1) {
+      stylesCodage.push(`box-shadow:inset 0 -2px 0 ${traitDe(codagesIci[0], resoudre)}`)
+    }
+    const marqueCodages = stylesCodage.join(';')
     // Taille de police du thème (parité SonalPi) : sur un chevauchement, la plus
     // GRANDE l'emporte (les tailles ne s'empilent pas comme les soulignés). Comme
     // SonalPi, une taille posée s'accompagne du GRAS (son CSS généré fait
@@ -175,7 +233,7 @@ function construireDecorations(
     // neutralise le ::after du CSS).
     const suite = anonymiseIci && pseudos.length === 0
     const style = [
-      souligne ? `box-shadow:${souligne}` : '',
+      marqueCodages,
       police,
       commenteIci ? 'background-color:rgba(255, 213, 79, 0.18)' : '',
     ]
@@ -202,7 +260,7 @@ function construireDecorations(
           .map((a) => {
             if (a.type === 'anon') return a.etat === 'exception' ? 'exception' : a.pseudo ? `anon→${a.pseudo}` : 'anon'
             if (a.type === 'commentaire') return `💬 ${a.auteur || 'sans auteur'} : ${(a.texte ?? '').slice(0, 80)}`
-            return a.code
+            return nomDe?.(a.code ?? '') || a.code
           })
           .join(' + '),
       }),
@@ -221,14 +279,15 @@ export function pluginDecorations(
   entretien: Entretien,
   resoudre: ResolveurCouleur,
   tailleDe?: ResolveurTaille,
+  nomDe?: ResolveurNom,
 ): Plugin {
   return new Plugin({
     key: decorationsPluginKey,
     state: {
-      init: (_config, state) => construireDecorations(state, entretien, resoudre, tailleDe),
+      init: (_config, state) => construireDecorations(state, entretien, resoudre, tailleDe, nomDe),
       apply(tr, value, _oldState, newState) {
         if (tr.docChanged || tr.getMeta(decorationsPluginKey) === 'refresh') {
-          return construireDecorations(newState, entretien, resoudre, tailleDe)
+          return construireDecorations(newState, entretien, resoudre, tailleDe, nomDe)
         }
         return value.map(tr.mapping, tr.doc)
       },

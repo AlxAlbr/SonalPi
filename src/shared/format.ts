@@ -289,12 +289,15 @@ export interface NoteCategory {
   couleur: string
 }
 
-/** Note d'entretien : corps HTML sanitisé + surlignages `<mark>`, ordre par
- *  `rang` (manuel, « après la dernière » = max+1). `date` null = pas de date
- *  (cas du bac « générale » migré depuis la V1). */
+/** Note d'entretien : corps HTML sanitisé + passages `<mark>` (importants,
+ *  gras) et `<em>` (liés à un commentaire, italique), ordre par `rang`
+ *  (manuel, « après la dernière » = max+1). `date` null = pas de date (cas du
+ *  bac « générale » migré depuis la V1). `titre` optionnel : affiché seul en
+ *  vue cartes à la place d'un extrait du corps. */
 export interface Note {
   id: string
   categorieId: string
+  titre: string
   date: string | null
   statut: 'prive' | 'public'
   corps: string

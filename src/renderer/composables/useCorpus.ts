@@ -163,6 +163,12 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function deplacerTheme(id: string, sens: -1 | 1) {
     majCodebook((await window.sonal.corpus.deplacerCategorie(id, sens)).codebook)
   }
+  /** Change le PARENT d'un thème (migration dans l'arbre) : sous un autre thème
+   *  ou à la racine. Ses enfants restent accrochés à lui, ses codages suivent
+   *  sans bouger (référence par id). */
+  async function migrerTheme(id: string, parentId: string | null) {
+    majCodebook((await window.sonal.corpus.migrerCategorie(id, parentId)).codebook)
+  }
   async function supprimerTheme(id: string) {
     messageTheme.value = null
     await opts.flush() // les codages de l'entretien ouvert doivent être sur disque pour le compte
@@ -361,6 +367,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     ajouterSousTheme,
     modifierTheme,
     deplacerTheme,
+    migrerTheme,
     supprimerTheme,
     // variables/modalités
     ajouterVariable,

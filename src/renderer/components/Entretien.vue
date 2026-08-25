@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount, type Directive } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
 import MenuLiensNote from './MenuLiensNote.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
+import {
+  ATTR_LIENS_NOTE,
+  corpsAvecRefsCommentaires,
+  corpsNoteEnTexte,
+  decoreRefsCommentaires,
+  echapperTexte,
+  pruneRefsCommentaires,
+  surlignerHtml,
+} from '../notes/sanitiser'
 import EditionThemes from './EditionThemes.vue'
 import EditionVariables from './EditionVariables.vue'
 import { utiliserSonal } from '../composables/sonal'
@@ -102,25 +111,28 @@ const {
   editerNote,
   validerNote,
   annulerNote,
+  avertissementNote,
+  ecrireCorpsNote,
+  ecrireTitreNote,
+  enregistrerSyncZoneHorsModale,
   supprimerNote,
   reordonnerNotes,
   marquerPassage,
-  notesEnTexte,
   menuLiensNote,
   commentairesPourLiaison,
+  resolverCommentaires,
+  lierPassage,
   ouvrirMenuLiensNote,
   fermerMenuLiensNote,
   lierCommentaireNote,
   delierCommentaireNote,
+  allerAuCommentaire,
   // Catégories de note : définitions au CORPUS — gestes asynchrones (IPC).
   categoriesNote,
-  messageCategorieNote,
   nomCategorieNote,
   couleurCategorieNote,
   ajouterCategorieNote,
-  renommerCategorieNote,
   majCouleurCategorieNote,
-  supprimerCategorieNote,
   // Statut de la session d'écriture (publication) + « Publier maintenant »
   statutSession,
   publiErreur,
@@ -151,54 +163,78 @@ const editerVariables = ref(false)
 const vueNotes = ref<'cartes' | 'texte'>('cartes')
 // Zone d'édition du corps (contenteditable) : on y pose le HTML initial au
 // ouverture du brouillon, et on relit son innerHTML à la volée pour suivre
-//  le surlignage `<mark>` pendant la frappe.
+//  les passages `<mark>` pendant la frappe.
 const zoneCorpsNote = ref<HTMLElement | null>(null)
-// Bascule d'un volet « catégories » (gérer les types de note : nom + couleur).
-const voletCategoriesNote = ref(false)
 // Création de catégorie depuis le select « autre… » du formulaire de note :
 //  mini-modale inline (nom + couleur), façon « trouver-ou-créer ».
 const creationCategorie = ref<{ nom: string; couleur: string } | null>(null)
 
+// Toute variation de catégorie dans le brouillon efface l'avertissement.
+watch(
+  () => brouillonNote.value?.categorieId,
+  () => {
+    avertissementNote.value = ''
+  },
+)
+
 // Brouillon de note : on SYNC le contenteditable au montage du formulaire.
-//  Quand la modale s'ouvre, on attend le rendu puis on pose le HTML initial.
+//  Quand la modale s'ouvre, on attend le rendu puis on pose le HTML initial,
+//  décoré des références `[auteur : début…]` après chaque passage lié (spans
+//  non éditables, retirés du corps à la sauvegarde par le sanitisé).
 watch(
   () => brouillonNote.value?.id ?? 'new',
   () => {
     nextTick(() => {
       if (zoneCorpsNote.value && brouillonNote.value) {
         zoneCorpsNote.value.innerHTML = brouillonNote.value.corps || ''
+        decoreRefsCommentaires(zoneCorpsNote.value, document, resolverCommentaires)
       }
     })
   },
 )
 
 // Suit la frappe dans le contenteditable : reporte le HTML courant vers le
-//  brouillon (le surlignage est ainsi conservé à la validation).
+//  brouillon (les passages `<mark>`/`<em>` sont ainsi conservés à la
+//  validation) et retire les références dont le lien a disparu.
 function onSaisieCorpsNote() {
   if (brouillonNote.value && zoneCorpsNote.value) {
+    pruneRefsCommentaires(zoneCorpsNote.value)
     brouillonNote.value.corps = zoneCorpsNote.value.innerHTML
   }
 }
 
-// Clic droit dans le corps d'une note : sur un passage important, ouvre le
-//  menu de liaison aux commentaires (le composable avale le menu natif) ;
-//  ailleurs, le menu natif du contenteditable reste disponible.
+// Bouton ✏ de la modale : toggle `<mark>` puis report explicite vers le
+//  brouillon (un geste DOM programmatique ne déclenche pas d'événement input,
+//  une validation immédiate perdrait sinon le marquage).
+function marquerDansModale() {
+  if (!zoneCorpsNote.value) return
+  marquerPassage(zoneCorpsNote.value)
+  if (brouillonNote.value) brouillonNote.value.corps = zoneCorpsNote.value.innerHTML
+}
+
+// Clic droit dans le corps d'une note : sur un passage important ou lié,
+//  ouvre le menu de liaison aux commentaires (le composable avale le menu
+//  natif) ; ailleurs, le menu natif du contenteditable reste disponible.
 function onContextmenuCorpsNote(e: MouseEvent) {
   if (zoneCorpsNote.value) ouvrirMenuLiensNote(e, zoneCorpsNote.value)
+}
+
+// Corps d'une carte note décoré des références aux commentaires liés :
+//  après chaque passage italique lié, « [alice : début…] » (cf. sanitiser).
+function corpsAvecRefs(n: { corps: string }): string {
+  return corpsAvecRefsCommentaires(corpsOuVide(n), document, resolverCommentaires)
+}
+
+// Clic sur une référence de commentaire (carte OU zone d'édition) : cale
+//  l'éditeur sur la zone commentée (sélection + flash + scroll centré).
+function clicRefCommentaire(e: MouseEvent) {
+  const ref = (e.target as HTMLElement | null)?.closest('[data-ref]')
+  if (ref) allerAuCommentaire(ref.getAttribute('data-ref')!)
 }
 
 // Ouvre la mini-modale « autre… » pour créer une catégorie (trouver-ou-créer).
 function ouvrirCreationCategorie() {
   creationCategorie.value = { nom: '', couleur: '#ffb74d' }
-}
-// Ajoute une catégorie depuis le champ « nouvelle catégorie… » du volet : si
-//  le libellé est non vide, on crée (nom + couleur par défaut) puis on vide le
-//  champ. Aucune sélection du brouillon : ce champ vit dans le volet cat.
-async function onAjoutCategorieInput(e: Event) {
-  const v = (e.target as HTMLInputElement).value.trim()
-  if (!v) return
-  await ajouterCategorieNote(v, '#ffb74d')
-  ;(e.target as HTMLInputElement).value = ''
 }
 // Valide la création : pose la catégorie (IPC → async), la sélectionne dans
 //  le brouillon, ferme la mini-modale.
@@ -213,6 +249,79 @@ async function validerCreationCategorie() {
 // Notes triées par rang (ordre d'affichage par défaut de la vue cartes).
 const notesTriees = computed(() => notes.value.slice().sort((a, b) => a.rang - b.rang))
 
+// Recherche parmi les notes : filtre les cartes ET les blocs de la feuille
+//  sur le titre, la catégorie et le corps (insensible à la casse), plus des
+//  filtres par catégorie et par statut. Fermer le volet réinitialise tout.
+const voletRechercheNotes = ref(false)
+const filtreNotes = ref('')
+const filtreCategorie = ref('') // '' = toutes catégories
+const filtreStatut = ref<'' | 'prive' | 'public'>('') // '' = tous statuts
+const filtrePassage = ref<'' | 'mark' | 'lien'>('') // '' = tous passages
+const rechercheActive = computed(
+  () =>
+    !!(
+      filtreNotes.value.trim() ||
+      filtreCategorie.value ||
+      filtreStatut.value ||
+      filtrePassage.value
+    ),
+)
+function basculerRechercheNotes() {
+  voletRechercheNotes.value = !voletRechercheNotes.value
+  if (!voletRechercheNotes.value) reinitialiserRechercheNotes()
+}
+function reinitialiserRechercheNotes() {
+  filtreNotes.value = ''
+  filtreCategorie.value = ''
+  filtreStatut.value = ''
+  filtrePassage.value = ''
+}
+const notesAffichees = computed(() => {
+  const q = filtreNotes.value.trim().toLowerCase()
+  return notesTriees.value.filter((n) => {
+    if (filtreCategorie.value && n.categorieId !== filtreCategorie.value) return false
+    if (filtreStatut.value && n.statut !== filtreStatut.value) return false
+    // Passages : « mark » = contient un passage important ; « lien » = au
+    //  moins un passage lié à un commentaire (attribut porteur d'ids).
+    if (filtrePassage.value === 'mark' && !n.corps.includes('<mark')) return false
+    if (filtrePassage.value === 'lien' && !n.corps.includes(ATTR_LIENS_NOTE)) return false
+    if (!q) return true
+    return [n.titre, nomCategorieNote(n.categorieId), corpsNoteEnTexte(n.corps, document)].some((t) =>
+      t.toLowerCase().includes(q),
+    )
+  })
+})
+
+// Copie des notes AFFICHÉES (filtres compris) dans le presse-papier, au
+//  format texte de la feuille. L'icône passe à ✓ une seconde et demie.
+const notesCopiees = ref(false)
+let minuteurCopie: ReturnType<typeof setTimeout> | null = null
+async function copierNotes() {
+  const texte = notesAffichees.value
+    .map((n) => {
+      const titre = n.titre ? `${n.titre}\n` : ''
+      return `[${nomCategorieNote(n.categorieId)} · ${dateLibelle(n.date)} · ${n.statut === 'public' ? 'public' : 'privé'}]\n${titre}${corpsNoteEnTexte(n.corps, document)}`
+    })
+    .join('\n\n')
+  try {
+    await navigator.clipboard.writeText(texte)
+    notesCopiees.value = true
+    if (minuteurCopie) clearTimeout(minuteurCopie)
+    minuteurCopie = setTimeout(() => {
+      notesCopiees.value = false
+    }, 1500)
+  } catch {
+    // Presse-papier indisponible : silencieux, l'utilisateur réessaiera.
+  }
+}
+
+// Surbrillance de la recherche : HTML sûr (texte échappé ou déjà sanitisé)
+//  décoré de spans .surbrillance-note autour des occurrences.
+const titreAvecHits = (titre: string) => surlignerHtml(echapperTexte(titre), filtreNotes.value, document)
+function corpsAvecRefsEtHits(n: { corps: string }): string {
+  return surlignerHtml(corpsAvecRefs(n), filtreNotes.value, document)
+}
+
 // Libellé court d'une date : « JJ/MM/AAAA » ou « sans date ».
 const dateLibelle = (d: string | null) =>
   d ? new Date(d + 'T00:00').toLocaleDateString('fr-FR') : 'sans date'
@@ -220,8 +329,116 @@ const dateLibelle = (d: string | null) =>
 // Corps d'une note, ou un placeholder si vide (v-html : le corps est sanitisé).
 const corpsOuVide = (n: { corps: string }) => n.corps || '<span class="vide">(note vide)</span>'
 
-// Chaîne de la vue « expand » (précalculée : le composable relit le DOM).
-const texteExpand = computed(() => (ongletDroite.value === 'notes' ? notesEnTexte() : ''))
+// --- Édition EN FEUILLE (vue texte) : chaque note s'édite sur place —
+//  en-tête (catégorie · date · statut) figé, contenu éditable comme dans la
+//  modale (passages <mark>/<em>, références cliquables). Chaque frappe est
+//  sanitisée puis écrite dans la note. La feuille est éditive DÈS son
+//  affichage : pas de mode lecture séparé.
+const editionFeuille = computed(() => vueNotes.value === 'texte')
+// Racine de la vue feuille et bloc actif (dernier bloc focusé : cible des
+//  boutons ✏ / 🔗). Le Map est hors réactivité (éléments DOM vivants).
+const feuilleEl = ref<HTMLElement | null>(null)
+const blocsFeuille = new Map<string, HTMLElement>()
+const blocActifId = ref<string | null>(null)
+
+// Pose le HTML décoré (références `[auteur : début…]`) dans un bloc, avec
+//  surbrillance des occurrences trouvées le cas échéant.
+function decorerBlocFeuille(id: string, zone: HTMLElement) {
+  const n = notes.value.find((x) => x.id === id)
+  if (!n) return
+  zone.innerHTML = surlignerHtml(
+    corpsAvecRefsCommentaires(n.corps, document, resolverCommentaires),
+    filtreNotes.value,
+    document,
+  )
+}
+
+// Décoration d'un bloc à sa CRÉATION dans le DOM (directive) : couvre tous
+//  les remontages — ouverture de la feuille, ajout de note, retour d'un bloc
+//  masqué puis révélé par les filtres — sans toucher aux blocs déjà vivants
+//  (le curseur est préservé pendant la frappe).
+const vDecoreBloc: Directive<HTMLElement, string> = {
+  mounted: (el, binding) => decorerBlocFeuille(binding.value, el),
+}
+// Changement de recherche : on redécore les blocs visibles pour rafraîchir la
+//  surbrillance (les blocs eux-mêmes ne se remontent pas). JAMAIS pendant la
+//  frappe dans un bloc (le contenteditable reste la source).
+function peuplerFeuille() {
+  const racine = feuilleEl.value
+  if (!racine) return
+  for (const zone of Array.from(racine.querySelectorAll<HTMLElement>('.corps-notes-texte'))) {
+    const id = zone.getAttribute('data-note-id')
+    if (id) decorerBlocFeuille(id, zone)
+  }
+}
+watch(filtreNotes, () => {
+  if (vueNotes.value === 'texte') nextTick(peuplerFeuille)
+})
+
+// Saisie dans un bloc : retire les références orphelines puis écrit le corps
+//  sanitisé dans la note (copie : le curseur ne bouge pas).
+function onSaisieBlocFeuille(id: string) {
+  const zone = blocsFeuille.get(id)
+  if (!zone) return
+  pruneRefsCommentaires(zone)
+  ecrireCorpsNote(id, zone.innerHTML)
+}
+
+// La feuille enregistre sa synchronisation auprès du composable : les gestes
+//  de liaison (bouton 🔗, menu contextuel) y reportent leurs changements tant
+//  que la modale est fermée.
+enregistrerSyncZoneHorsModale((zone) => {
+  for (const [id, el] of blocsFeuille) {
+    if (el === zone) {
+      onSaisieBlocFeuille(id)
+      return
+    }
+  }
+})
+onBeforeUnmount(() => enregistrerSyncZoneHorsModale(null))
+
+function blocActif(): HTMLElement | null {
+  const el = blocActifId.value ? blocsFeuille.get(blocActifId.value) : null
+  // Un élément détaché (note supprimée depuis) ne doit jamais être visé.
+  return el && el.isConnected ? el : null
+}
+// Focus d'un bloc : il devient la cible des outils d'édition.
+function onFocusBloc(id: string, e: FocusEvent) {
+  blocActifId.value = id
+  blocsFeuille.set(id, e.currentTarget as HTMLElement)
+}
+// Bloc visé par les outils ✏ / 🔗 : celui qui contient la SÉLECTION
+//  courante (source de vérité — le suivi de focus peut pointer un élément
+//  périmé après un remontage de blocs).
+function blocDeSelection(): HTMLElement | null {
+  const sel = document.getSelection()
+  const noeud = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).commonAncestorContainer : null
+  const el = noeud?.nodeType === 3 ? noeud.parentElement : (noeud as HTMLElement | null)
+  return (el?.closest('.corps-notes-texte') as HTMLElement | null) ?? null
+}
+function blocCible(): { zone: HTMLElement; id: string } | null {
+  const zone = blocDeSelection() ?? blocActif()
+  const id = zone?.getAttribute('data-note-id') ?? null
+  return zone && id ? { zone, id } : null
+}
+// Bouton ✏ : toggle `<mark>` sur la sélection du bloc visé, puis synchro
+//  explicite (un geste DOM programmatique ne déclenche pas d'input).
+function marquerDansFeuille() {
+  const cible = blocCible()
+  if (!cible) return
+  marquerPassage(cible.zone)
+  onSaisieBlocFeuille(cible.id)
+}
+// Bouton 🔗 : enveloppe la sélection d'un `<em>` et ouvre le menu de liaison
+//  (la resynchronisation passe par enregistrerSyncZoneHorsModale).
+function lierDansFeuille(e: MouseEvent) {
+  const cible = blocCible()
+  if (cible) lierPassage(e, cible.zone)
+}
+// Clic droit dans un bloc : menu de liaison si la cible est un passage.
+function onContextmenuBlocFeuille(e: MouseEvent) {
+  ouvrirMenuLiensNote(e, e.currentTarget as HTMLElement)
+}
 
 // Réordonnancement par glisser-déposer : on PERMET le drag des cartes et on
 //  reconstruit l'ordre des ids au drop. Simple natif (dragstart/dragover/drop).
@@ -649,9 +866,13 @@ function focaliserLibre(el: unknown, cle: string) {
             <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title) et
                  sur le panneau d'accueil (vue d'ensemble). L'ACCUEIL vient en
                  PREMIER et par DÉFAUT : il accueille l'utilisateur avec les
-                 conseils et la liste des autres onglets (icone + titre). -->
+                 conseils et la liste des autres onglets (icone + titre). Les
+                 NOTES suivent en DEUXIÈME. -->
             <button data-onglet="maison" :class="{ actif: ongletDroite === 'maison' }" title="Accueil" @click="ongletDroite = 'maison'">
               <img class="ico-onglet" :src="icoMaison" alt="Accueil" />
+            </button>
+            <button data-onglet="notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
+              <img class="ico-onglet" :src="icoNotes" alt="Notes" />
             </button>
             <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
               <img class="ico-onglet" :src="icoLocuteurs" alt="Locuteurs" />
@@ -668,9 +889,6 @@ function focaliserLibre(el: unknown, cle: string) {
             <button data-onglet="journal" :class="{ actif: ongletDroite === 'journal' }" title="Journal" @click="ongletDroite = 'journal'">
               <img class="ico-onglet" :src="icoJournal" alt="Journal" />
             </button>
-            <button data-onglet="notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
-              <img class="ico-onglet" :src="icoNotes" alt="Notes" />
-            </button>
           </nav>
 
           <!-- Accueil : conseils + vue d'ensemble des onglets (icone + titre) →
@@ -686,6 +904,10 @@ function focaliserLibre(el: unknown, cle: string) {
             </p>
             <ul class="liste-tours">
               <li>
+                <img class="ico-onglet" :src="icoNotes" alt="" />
+                <span><b>Notes</b> — notes structurées (post-collecte, résumé, réflexion…) ; mettez un passage en GRAS (important) ou en ITALIQUE lié à un commentaire.</span>
+              </li>
+              <li>
                 <img class="ico-onglet" :src="icoLocuteurs" alt="" />
                 <span><b>Locuteurs</b> — noms, interviewer, attribution des tours de parole.</span>
               </li>
@@ -700,10 +922,6 @@ function focaliserLibre(el: unknown, cle: string) {
               <li>
                 <img class="ico-onglet" :src="icoDonnees" alt="" />
                 <span><b>Données</b> — valeurs de l'entretien et de chaque locuteur.</span>
-              </li>
-              <li>
-                <img class="ico-onglet" :src="icoNotes" alt="" />
-                <span><b>Notes</b> — notes structurées (post-collecte, résumé, réflexion…) avec surlignage des passages importants.</span>
               </li>
               <li>
                 <img class="ico-onglet" :src="icoJournal" alt="" />
@@ -961,53 +1179,53 @@ function focaliserLibre(el: unknown, cle: string) {
                   @click="vueNotes = 'cartes'">🃏</button>
                 <button class="mini"
                   :class="{ actif: vueNotes === 'texte' }"
-                  title="Vue texte (toutes les notes à la suite)"
+                  title="Vue feuille (toutes les notes à la suite, éditables)"
                   @click="vueNotes = 'texte'">📄</button>
-                <button v-if="!roContenu" class="mini"
-                  :class="{ actif: voletCategoriesNote }"
-                  title="Gérer les catégories de note"
-                  @click="voletCategoriesNote = !voletCategoriesNote">⚙</button>
+                <button class="mini"
+                  :class="{ actif: voletRechercheNotes }"
+                  title="Rechercher et filtrer les notes"
+                  @click="basculerRechercheNotes">🔍</button>
+                <button class="mini" :disabled="notes.length === 0"
+                  :title="notesCopiees ? 'Copié !' : 'Copier les notes affichées dans le presse-papier'"
+                  @click="copierNotes">{{ notesCopiees ? '✓' : '📋' }}</button>
               </div>
               <button v-if="!roContenu" class="mini" @click="ajouterNote">+ Note</button>
             </div>
 
-            <!-- Volet catégories : nom + couleur, façon locuteurs.
-                 Définitions au CORPUS : les gestes passent par l'IPC. -->
-            <div v-if="voletCategoriesNote" class="volet-categories-note">
-              <p v-if="messageCategorieNote" class="msg-thm">{{ messageCategorieNote }}</p>
-              <div class="tableau-loc tetes-courtes">
-                <span title="Couleur"></span>
-                <span>Nom</span>
-                <span></span>
+            <!-- Volet recherche (deux lignes pour ne pas déborder) :
+                 texte libre + compteur, puis filtres catégorie / statut /
+                 passages (important, lié à un commentaire). -->
+            <div v-if="voletRechercheNotes" class="volet-recherche-notes">
+              <div class="ligne-recherche">
+                <input v-model="filtreNotes" placeholder="Rechercher dans les notes…" />
+                <span class="compte-notes" title="Notes affichées / total">{{ notesAffichees.length }}/{{ notes.length }}</span>
+                <button class="mini" title="Effacer la recherche et les filtres"
+                  @click="reinitialiserRechercheNotes">✕</button>
               </div>
-              <ul class="liste-loc">
-                <li v-for="c in categoriesNote" :key="c.id">
-                  <input type="color" class="carre-couleur"
-                    :value="c.couleur"
-                    :disabled="roContenu"
-                    @change="majCouleurCategorieNote(c.id, ($event.target as HTMLInputElement).value)"
-                  />
-                  <input class="nom-loc"
-                    :value="c.nom"
-                    :disabled="roContenu"
-                    @change="renommerCategorieNote(c.id, ($event.target as HTMLInputElement).value)"
-                  />
-                  <button v-if="!roContenu" class="x-loc" title="Supprimer cette catégorie"
-                    @click="supprimerCategorieNote(c.id)">✕</button>
-                </li>
-                <li v-if="!roContenu">
-                  <span class="plus-couleur">＋</span>
-                  <input class="nom-loc" placeholder="nouvelle catégorie…"
-                    @change="onAjoutCategorieInput($event)"
-                  />
-                </li>
-              </ul>
+              <div class="ligne-recherche">
+                <select v-model="filtreCategorie" class="filtre-categorie" title="Filtrer par catégorie">
+                  <option value="">Toutes catégories</option>
+                  <option v-for="c in categoriesNote" :key="c.id" :value="c.id">{{ c.nom }}</option>
+                </select>
+                <select v-model="filtreStatut" class="filtre-statut" title="Filtrer par statut">
+                  <option value="">Tous statuts</option>
+                  <option value="prive">privé</option>
+                  <option value="public">public</option>
+                </select>
+                <select v-model="filtrePassage" class="filtre-passage" title="Filtrer par passage">
+                  <option value="">Tous passages</option>
+                  <option value="mark">avec passage important</option>
+                  <option value="lien">lié à un commentaire</option>
+                </select>
+              </div>
             </div>
 
             <!-- Vue cartes : une carte par note, triée par rang. -->
             <div v-if="vueNotes === 'cartes'" class="notes-cartes">
-              <p v-if="notes.length === 0" class="vide">Aucune note — « + Note » pour en créer une.</p>
-              <article v-for="n in notesTriees" :key="n.id" class="carte-note"
+              <p v-if="notesAffichees.length === 0" class="vide">
+                {{ rechercheActive ? 'Aucune note ne correspond.' : 'Aucune note — « + Note » pour en créer une.' }}
+              </p>
+              <article v-for="n in notesAffichees" :key="n.id" class="carte-note"
                 :draggable="!roContenu"
                 @dragstart="onDragStartNote(n.id)"
                 @dragover.prevent
@@ -1015,7 +1233,7 @@ function focaliserLibre(el: unknown, cle: string) {
               >
                 <header class="carte-note-tete">
                   <span class="pastille-cat" :style="{ background: couleurCategorieNote(n.categorieId) }"></span>
-                  <span class="nom-cat">{{ nomCategorieNote(n.categorieId) }}</span>
+                  <span class="nom-cat" :style="{ color: couleurCategorieNote(n.categorieId) }">{{ nomCategorieNote(n.categorieId) }}</span>
                   <span class="date-cat">{{ dateLibelle(n.date) }}</span>
                   <span class="statut-cat" :class="n.statut">{{ n.statut === 'public' ? 'public' : 'privé' }}</span>
                   <span v-if="!roContenu" class="carte-note-actions">
@@ -1023,14 +1241,52 @@ function focaliserLibre(el: unknown, cle: string) {
                     <button class="mini danger" title="Supprimer" @click="supprimerNote(n.id)">✕</button>
                   </span>
                 </header>
-                <!-- v-html : le `corps` est sanitisé (texte échappé + <mark>)
-                     côté composable à la validation → sûr. -->
-                <div class="corps-note" v-html="corpsOuVide(n)"></div>
+                <!-- v-html sûr : titre échappé ou corps sanitisé, puis
+                     surlignage des occurrences au DOM. Sans titre : aperçu
+                     borné par CSS (.apercu-note) ; avec titre : le titre seul. -->
+                <div v-if="n.titre" class="titre-note" v-html="titreAvecHits(n.titre)"></div>
+                <div v-else class="corps-note apercu-note" v-html="corpsAvecRefsEtHits(n)" @click="clicRefCommentaire"></div>
               </article>
             </div>
 
-            <!-- Vue texte : concaténation plain text (expand), format V1. -->
-            <pre v-else class="notes-texte">{{ texteExpand || '(aucune note)' }}</pre>
+            <!-- Vue feuille : toutes les notes à la suite, ÉDITABLES par
+                 défaut. En-tête (catégorie · date · statut) figé ; contenu
+                 éditable sur place (même passages <mark>/<em> que dans la
+                 modale, sauvegarde à chaque frappe). -->
+            <div v-else ref="feuilleEl" class="notes-texte">
+              <p v-if="notesAffichees.length === 0" class="vide">
+                {{ rechercheActive ? 'Aucune note ne correspond.' : '(aucune note)' }}
+              </p>
+              <div v-if="!roContenu && notesAffichees.length > 0" class="barre-outils-note">
+                <button class="mini" title="Mettre en gras le passage sélectionné (passage important, toggle)"
+                  @click="marquerDansFeuille">✏ Marquer comme important</button>
+                <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
+                  @click="lierDansFeuille($event)">🔗 Lier à un commentaire</button>
+              </div>
+              <article v-for="n in notesAffichees" :key="n.id" class="bloc-notes-texte">
+                <!-- En-tête à la couleur de la catégorie (même teinte que
+                     la pastille des cartes). -->
+                <!-- En-tête harmonisé avec les cartes : catégorie à sa
+                     couleur (en gras), date et statut grisés. -->
+                <span class="tete-notes-texte">[<span class="cat-notes-texte" :style="{ color: couleurCategorieNote(n.categorieId) }">{{ nomCategorieNote(n.categorieId) }}</span><span class="meta-notes-texte"> · {{ dateLibelle(n.date) }} · {{ n.statut === 'public' ? 'public' : 'privé' }}</span>]</span>
+                <!-- Le titre s'édite en place quand la feuille est en édition. -->
+                <input v-if="editionFeuille && !roContenu" class="titre-feuille" :value="n.titre"
+                  placeholder="(sans titre)"
+                  @change="ecrireTitreNote(n.id, ($event.target as HTMLInputElement).value)"
+                />
+                <span v-else-if="n.titre" class="titre-note" v-html="titreAvecHits(n.titre)"></span>
+                <div class="corps-notes-texte"
+                  v-decore-bloc="n.id"
+                  :data-note-id="n.id"
+                  :contenteditable="editionFeuille && !roContenu ? 'true' : 'false'"
+                  data-placeholder="Votre note… (sélectionnez un passage puis ✏ pour le marquer)"
+                  @focusin="onFocusBloc(n.id, $event)"
+                  @input="onSaisieBlocFeuille(n.id)"
+                  @contextmenu="onContextmenuBlocFeuille"
+                  @click="clicRefCommentaire"
+                ></div>
+              </article>
+            </div>
           </aside>
 
           <!-- Formulaire de note (modale inline) : corps contenteditable +
@@ -1047,9 +1303,16 @@ function focaliserLibre(el: unknown, cle: string) {
                 <button class="mini" title="Fermer" @click="annulerNote">✕</button>
               </div>
               <div class="modale-note-corps">
-                <!-- Corps : contenteditable. Le surlignage des passages
-                     importants y est visible (bouton « Marquer » enveloppe la
-                     sélection d'un <mark>). -->
+                <!-- Titre optionnel : affiché seul en vue cartes à la place
+                     d'un aperçu du corps. Vide = aperçu du corps tronqué. -->
+                <label class="champ-note champ-titre-note">
+                  <span>Titre (optionnel)</span>
+                  <input type="text" v-model="brouillonNote.titre" placeholder="ex. hypothèse centrale" />
+                </label>
+                <!-- Corps : contenteditable. Les passages y sont visibles :
+                     « Marquer comme important » enveloppe la sélection d'un
+                     <mark> (gras), « Lier à un commentaire » d'un <em> (italique,
+                     lié aux commentaires). -->
                 <div
                   ref="zoneCorpsNote"
                   class="zone-corps-note"
@@ -1057,11 +1320,17 @@ function focaliserLibre(el: unknown, cle: string) {
                   data-placeholder="Votre note… (sélectionnez un passage puis ✏ pour le marquer)"
                   @input="onSaisieCorpsNote"
                   @contextmenu="onContextmenuCorpsNote"
+                  @click="clicRefCommentaire"
                 ></div>
                 <div class="barre-outils-note">
-                  <button class="mini" title="Marquer le passage sélectionné (toggle)"
-                    @click="zoneCorpsNote && marquerPassage(zoneCorpsNote)">✏ Marquer</button>
+                  <button class="mini" title="Mettre en gras le passage sélectionné (passage important, toggle)"
+                    @click="marquerDansModale">✏ Marquer comme important</button>
+                  <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
+                    @click="zoneCorpsNote && lierPassage($event, zoneCorpsNote)">🔗 Lier à un commentaire</button>
                 </div>
+                <!-- Avertissement (ex. « autre… » non créé au moment de la
+                     validation) : visible au-dessus des méta. -->
+                <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
                 <div class="modale-note-meta">
                   <label class="champ-note">
                     <span>Catégorie</span>
@@ -1069,7 +1338,19 @@ function focaliserLibre(el: unknown, cle: string) {
                       <option v-for="c in categoriesNote" :key="c.id" :value="c.id">{{ c.nom }}</option>
                       <option value=" autre">autre…</option>
                     </select>
-                    <button v-if="brouillonNote.categorieId === ' autre'" class="mini" @click="ouvrirCreationCategorie">＋ Créer</button>
+                    <!-- Carré couleur : recolore la catégorie choisie (déf.
+                         corpus, partagée par tous les entretiens). Sur
+                         « autre… », il ouvre la mini-modale de création à la
+                         place de l'ancien bouton ＋ Créer. -->
+                    <input v-if="brouillonNote.categorieId !== ' autre'" type="color"
+                      class="carre-couleur"
+                      :value="couleurCategorieNote(brouillonNote.categorieId)"
+                      :title="`Couleur de la catégorie « ${nomCategorieNote(brouillonNote.categorieId)} »`"
+                      @change="majCouleurCategorieNote(brouillonNote.categorieId, ($event.target as HTMLInputElement).value)"
+                    />
+                    <button v-else type="button" class="carre-couleur carre-creation"
+                      title="Nouvelle catégorie (nom + couleur)"
+                      @click="ouvrirCreationCategorie">＋</button>
                   </label>
                   <label class="champ-note">
                     <span>Date</span>
@@ -1105,15 +1386,18 @@ function focaliserLibre(el: unknown, cle: string) {
                   <input type="color" v-model="creationCategorie.couleur" />
                 </label>
                 <div class="modale-note-pied">
-                  <button class="principal" @click="validerCreationCategorie">Créer</button>
+                  <button class="principal" :disabled="!creationCategorie.nom.trim()" title="Donnez un nom à la catégorie"
+                    @click="validerCreationCategorie">Créer</button>
                   <button @click="creationCategorie = null">Annuler</button>
                 </div>
               </div>
             </div>
-            <!-- Menu de liaison d'un passage important aux commentaires
-                 (clic droit sur un `<mark>` du corps, cf. onContextmenuCorpsNote). -->
-            <MenuLiensNote
-              v-if="menuLiensNote && brouillonNote"
+          </div>
+          <!-- Menu de liaison d'un passage aux commentaires (clic droit
+               ou bouton 🔗) : frère DE LA MODALE dans le Teleport — monté
+               dès que menuLiensNote est posé, modale ouverte ou non (feuille). -->
+          <MenuLiensNote
+              v-if="menuLiensNote"
               :x="menuLiensNote.x"
               :y="menuLiensNote.y"
               :commentaires="commentairesPourLiaison"
@@ -1122,7 +1406,6 @@ function focaliserLibre(el: unknown, cle: string) {
               @delier="delierCommentaireNote"
               @fermer="fermerMenuLiensNote"
             />
-          </div>
           </Teleport>
 
           <!-- Anon : pseudonymisation du texte. Une ligne par entité (brouillon
@@ -2417,20 +2700,27 @@ td.col-pseudo {
   background: #e8eefc;
   border-color: #6485d6;
 }
-/* Volet catégories : mini-tableau nom + couleur (mêmes classes que locuteurs). */
-.volet-categories-note {
-  margin-bottom: 0.6rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px dashed #d8d8d8;
+/* Icônes des outils de notes : un cran plus grandes que le .mini global. */
+.notes-outils .mini {
+  font-size: 0.95rem;
+  padding: 0.1rem 0.35rem;
 }
-.tetes-courtes span:nth-child(3) { width: 1.5rem; }
-.plus-couleur {
+/* Cartes et feuille : légèrement décalées à gauche (écart accru avec les
+   outils suivants). */
+.notes-outils .mini:nth-child(1) { margin-left: -0.3rem; }
+.notes-outils .mini:nth-child(2) { margin-right: 0.35rem; }
+/* Carré « création » de catégorie (mode « autre… ») : même format que le
+   carré couleur, il ouvre la mini-modale nom + couleur. */
+.carre-creation {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.8rem;
-  color: #8a8a8a;
+  background: #ffb74d;
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1;
 }
+.carre-creation:hover { filter: brightness(0.95); }
 
 /* Vue cartes : empilement vertical, carte = bloc léger. */
 .notes-cartes {
@@ -2479,28 +2769,164 @@ td.col-pseudo {
   white-space: pre-wrap;
   word-break: break-word;
 }
-.corps-note mark {
+/* Titre de carte (note titrée) : mis en évidence, il remplace le corps. */
+.titre-note {
+  font-size: 0.9rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+/* Aperçu d'une note SANS titre : le corps complet est rendu (références de
+   commentaires cliquables conservées) mais borné à UNE ligne, pour que
+   plusieurs cartes tiennent à l'écran. */
+.apercu-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+.champ-titre-note input {
+  flex: 1;
+}
+/* Passages de note : le contenu du contenteditable (et celui injecté par
+   v-html) ne porte pas l'attribut de scope → :deep() obligatoire, sinon les
+   règles ne s'appliquent jamais. */
+.corps-note :deep(mark),
+.zone-corps-note :deep(mark),
+.corps-notes-texte :deep(mark) {
   background: none;
   font-weight: bold;
   padding: 0;
 }
-/* Passage important relié à au moins un commentaire (data-liens porté par le
-   `<mark>` et conservé par le sanitisé) : souligné pour le distinguer. */
-.corps-note mark[data-liens],
-.zone-corps-note mark[data-liens] {
+/* Passage lié à au moins un commentaire : `<em>` italique porteur de
+   data-liens (conservé par le sanitisé). L'italique vient du navigateur ; on
+   le rappelle juste pour être explicite dans les trois zones (cartes,
+   modale, feuille). */
+.corps-note :deep(em),
+.zone-corps-note :deep(em),
+.corps-notes-texte :deep(em) {
+  font-style: italic;
+}
+/* Référence à un commentaire, insérée après un passage lié — dans les cartes
+   comme dans la zone d'édition (span contenteditable=false) : petit lien
+   cliquable qui cale l'éditeur sur la zone commentée. */
+.corps-note :deep(.ref-note-commentaire),
+.zone-corps-note :deep(.ref-note-commentaire),
+.corps-notes-texte :deep(.ref-note-commentaire) {
+  color: #1565c0;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.corps-note :deep(.ref-note-commentaire:hover),
+.zone-corps-note :deep(.ref-note-commentaire:hover),
+.corps-notes-texte :deep(.ref-note-commentaire:hover) {
   text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
-/* Vue texte (expand) : bloc préformaté, une note par bloc. */
+/* Volet recherche : filtre les cartes et la feuille, sur deux lignes
+   (saisie + compteur, puis filtres) pour rester dans le panneau. */
+.volet-recherche-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0 0 0.5rem;
+}
+.ligne-recherche {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  /* Retour à la ligne dès que les libellés ne tiennent plus : chaque filtre
+     garde une largeur minimale (son flex-basis) au lieu de se compresser. */
+  flex-wrap: wrap;
+}
+.ligne-recherche input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.ligne-recherche select {
+  min-width: 0;
+  padding: 0.25rem 0.3rem;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+/* Répartition de la ligne de filtres : les noms de catégories sont les plus
+   longs à afficher, ils prennent la plus grande part ; les valeurs de statut
+   (« privé »/« public ») tiennent sur peu de place. Le flex-basis sert de
+   largeur minimale : en dessous, le sélecteur passe à la ligne (wrap). */
+.ligne-recherche .filtre-categorie { flex: 2 1 10rem; }
+.ligne-recherche .filtre-passage { flex: 1.4 1 9rem; }
+.ligne-recherche .filtre-statut { flex: 1 1 6rem; }
+.compte-notes {
+  font-size: 0.75rem;
+  color: #777;
+  white-space: nowrap;
+}
+/* Occurrence trouvée : fond jaune pâle, dans les cartes comme dans la
+   feuille (span décoratif injecté par v-html/innerHTML : :deep()
+   obligatoire, il ne porte pas l'attribut de scope). Aplati par le sanitisé
+   à la sauvegarde. */
+:deep(.surbrillance-note) {
+  background: #fff3a6;
+  border-radius: 2px;
+}
+
+/* Vue texte (feuille) : une note par bloc, cliquable pour éditer. */
 .notes-texte {
-  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.bloc-notes-texte {
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+}
+.tete-notes-texte {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #777;
+}
+/* Harmonisation avec les cartes : nom de catégorie coloré (inline) et
+   méta (date, statut) grises non grasses. */
+.meta-notes-texte {
+  color: #777;
+  font-weight: 400;
+}
+.corps-notes-texte {
+  display: block;
   font-size: 0.83rem;
   white-space: pre-wrap;
   word-break: break-word;
-  margin: 0;
   line-height: 1.45;
   color: #333;
+}
+/* Corps de bloc éditable : même convention que la zone de la modale. */
+.corps-notes-texte[contenteditable='true'] {
+  outline: none;
+}
+.corps-notes-texte[contenteditable='true']:focus {
+  background: #f7f8fc;
+  box-shadow: inset 0 -1px 0 #6485d6;
+}
+.corps-notes-texte:empty::before {
+  content: attr(data-placeholder);
+  color: #aaa;
+}
+/* Titre édité en place : champ transparent, seule la mise en gras le
+   distingue du corps. */
+.titre-feuille {
+  display: block;
+  width: 100%;
+  border: none;
+  padding: 0.05rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: none;
+  outline: none;
 }
 
 /* Modale de création/édition de note. */
@@ -2544,21 +2970,35 @@ td.col-pseudo {
   content: attr(data-placeholder);
   color: #aaa;
 }
-.zone-corps-note mark {
-  background: none;
-  font-weight: bold;
-  padding: 0;
-}
 .barre-outils-note {
   display: flex;
   gap: 0.3rem;
   margin: 0.4rem 0;
+}
+/* Barre d'outils de la FEUILLE : collante en tête du panneau défilant
+   (.colonne-gauche), sinon elle disparaît sous les notes au scroll et les
+   boutons ✏ / 🔗 deviennent inaccessibles. Fond opaque pour masquer les
+   notes qui défilent dessous. */
+.notes-texte .barre-outils-note {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fff;
+  margin: 0;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #ececf2;
 }
 .modale-note-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem;
   margin-top: 0.3rem;
+}
+/* Avertissement bloquant de la modale (catégorie « autre… » non créée). */
+.msg-avert {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: #b3261e;
 }
 .champ-note {
   display: flex;

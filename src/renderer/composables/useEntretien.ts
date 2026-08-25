@@ -57,7 +57,13 @@ import {
   prochainRang,
   renumeroterRangs,
 } from '../../shared/entretien/notes'
-import { sanitiserCorpsNote, corpsNoteEnTexte, lireLiensNote, ATTR_LIENS_NOTE } from '../notes/sanitiser'
+import {
+  sanitiserCorpsNote,
+  corpsNoteEnTexte,
+  lireLiensNote,
+  decoreRefsCommentaires,
+  ATTR_LIENS_NOTE,
+} from '../notes/sanitiser'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
 
@@ -344,7 +350,7 @@ export function useEntretien(deps: {
       return [
         pluginRemap(entretien),
         pluginRemapJournal(journal),
-        pluginDecorations(entretien, deps.couleurTrait, deps.tailleTrait),
+        pluginDecorations(entretien, deps.couleurTrait, deps.tailleTrait, deps.nomCode),
         pluginGouttiere(() => locuteurs.value, deps.clicTour),
         pluginLecture(),
         pluginReperage(),
@@ -916,20 +922,26 @@ export function useEntretien(deps: {
   interface BrouillonNote {
     id: string | null // null = création, sinon note éditée
     categorieId: string
+    titre: string // optionnel : vu seul en vue cartes à la place de l'extrait
     date: string | null
     statut: 'prive' | 'public'
     corps: string // HTML du contenteditable (brut, sanitisé à la validation)
     rang: number
   }
   const brouillonNote = ref<BrouillonNote | null>(null)
+  // Avertissement affiché dans la modale (ex. catégorie « autre… » non
+  //  créée au moment de la validation). Vide = pas d'avertissement.
+  const avertissementNote = ref('')
 
   /** Ouvre le formulaire de création d'une note. Par défaut : première
    *  catégorie du corpus (via deps), date du jour, privée, rang « après la
    *  dernière ». */
   function ajouterNote() {
+    avertissementNote.value = ''
     brouillonNote.value = reactive<BrouillonNote>({
       id: null,
       categorieId: deps.categorieNoteDefaut(),
+      titre: '',
       date: new Date().toISOString().slice(0, 10),
       statut: 'prive',
       corps: '',
@@ -941,9 +953,11 @@ export function useEntretien(deps: {
   function editerNote(id: string) {
     const n = notes.value.find((x) => x.id === id)
     if (!n) return
+    avertissementNote.value = ''
     brouillonNote.value = reactive<BrouillonNote>({
       id: n.id,
       categorieId: n.categorieId,
+      titre: n.titre,
       date: n.date,
       statut: n.statut,
       corps: n.corps,
@@ -957,12 +971,22 @@ export function useEntretien(deps: {
   function validerNote() {
     const b = brouillonNote.value
     if (!b) return
+    // « autre… » n'est pas une catégorie : tant qu'elle n'est pas créée
+    //  (bouton ＋) ou remplacée par un vrai choix, on bloque la validation.
+    if (b.categorieId === ' autre') {
+      avertissementNote.value =
+        'Choisissez une catégorie dans la liste, ou créez la vôtre avec le bouton ＋.'
+      return
+    }
+    avertissementNote.value = ''
     const doc = document
+    const titre = b.titre.trim()
     const corps = sanitiserCorpsNote(b.corps, doc)
     if (b.id) {
       const cible = notes.value.find((x) => x.id === b.id)
       if (cible) {
         cible.categorieId = b.categorieId
+        cible.titre = titre
         cible.date = b.date
         cible.statut = b.statut
         cible.corps = corps
@@ -972,6 +996,7 @@ export function useEntretien(deps: {
       notes.value.push({
         id: genIdNote(),
         categorieId: b.categorieId,
+        titre,
         date: b.date,
         statut: b.statut,
         corps,
@@ -987,6 +1012,31 @@ export function useEntretien(deps: {
   /** Ferme le formulaire sans rien écrire. */
   function annulerNote() {
     brouillonNote.value = null
+  }
+
+  // Écriture DIRECTE d'une note, hors modale (édition dans la vue feuille) :
+  // chaque frappe est sanitisee puis posee, et la sauvegarde planifiee.
+  /** Écrit le corps d'une note depuis une zone d'édition vivante : on
+   *  sanitarise une COPIE (le contenteditable reste la source, le curseur ne
+   *  bouge pas) et on ne pose que si le résultat change. */
+  function ecrireCorpsNote(id: string, htmlBrut: string) {
+    const cible = notes.value.find((x) => x.id === id)
+    if (!cible) return
+    const corps = sanitiserCorpsNote(htmlBrut, document)
+    if (corps === cible.corps) return
+    cible.corps = corps
+    cible.modifieLe = new Date().toISOString()
+    planifierSauvegarde()
+  }
+  /** Écrit le titre d'une note (trim ; vide = pas de titre). */
+  function ecrireTitreNote(id: string, titre: string) {
+    const cible = notes.value.find((x) => x.id === id)
+    if (!cible) return
+    const t = titre.trim()
+    if (t === cible.titre) return
+    cible.titre = t
+    cible.modifieLe = new Date().toISOString()
+    planifierSauvegarde()
   }
 
   /** Supprime une note (sans confirmation : acte non destructeur pour le
@@ -1009,46 +1059,63 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
 
-  /** Toggle `<mark>` sur la sélection courante du contenteditable de note :
-   *  enveloppe la sélection, ou la dégage si elle est déjà entièrement marquée.
-   *  Impérieux d'utiliser l'API Selection sur l'élément donné (la modale peut
-   *  en héberger plusieurs). */
-  function marquerPassage(el: HTMLElement) {
+  /** Enveloppe la sélection d'un élément de la balise donnée, renvoie l'élément
+   *  créé (null si la sélection est vide ou hors de la zone). */
+  function envelopperSelection(el: HTMLElement, balise: string): HTMLElement | null {
     const sel = document.getSelection()
-    if (!sel || sel.rangeCount === 0) return
+    if (!sel || sel.rangeCount === 0) return null
     const range = sel.getRangeAt(0)
-    if (range.collapsed) return
-    if (!el.contains(range.commonAncestorContainer)) return
-    // Si la sélection est déjà dans un <mark>, on retire celui-ci (toggle).
-    const parent = range.commonAncestorContainer.nodeType === 3
-      ? range.commonAncestorContainer.parentElement
-      : (range.commonAncestorContainer as HTMLElement)
-    const markParent = parent?.closest('mark')
-    if (markParent && el.contains(markParent)) {
-      const parentMark = markParent.parentElement!
-      while (markParent.firstChild) parentMark.insertBefore(markParent.firstChild, markParent)
-      parentMark.removeChild(markParent)
-      return
-    }
-    // Sinon : envelopper la sélection d'un <mark>.
+    if (range.collapsed) return null
+    if (!el.contains(range.commonAncestorContainer)) return null
+    const cree = document.createElement(balise)
     try {
-      range.surroundContents(document.createElement('mark'))
+      range.surroundContents(cree)
     } catch {
       // surroundContents échoue sur une sélection à cheval sur plusieurs
       //  noeuds : on extrait le contenu et le réinjecte enveloppé.
       const frag = range.extractContents()
-      const mark = document.createElement('mark')
-      mark.appendChild(frag)
-      range.insertNode(mark)
+      cree.appendChild(frag)
+      range.insertNode(cree)
     }
+    return cree
+  }
+  /** Déballe un passage : ses enfants remontent à sa place, lui disparaît. */
+  function deballer(passage: Element) {
+    const parent = passage.parentElement!
+    while (passage.firstChild) parent.insertBefore(passage.firstChild, passage)
+    parent.removeChild(passage)
+  }
+  /** Ancêtre passage (`<mark>` ou `<em>`) d'un noeud, s'il est dans la zone. */
+  function passageAncetre(noeud: Node | null, zone: HTMLElement): HTMLElement | null {
+    const el = noeud?.nodeType === 3
+      ? noeud.parentElement
+      : (noeud as HTMLElement | null)
+    const passage = (el?.closest('mark, em') as HTMLElement | null) ?? null
+    return passage && zone.contains(passage) ? passage : null
+  }
+  /** Toggle « Marquer comme important » : enveloppe la sélection courante du
+   *  contenteditable de note d'un `<mark>` (rendu en gras), ou le retire si la
+   *  sélection est déjà dans un mark. Impérieux d'utiliser l'API Selection sur
+   *  l'élément donné (la modale peut en héberger plusieurs). */
+  function marquerPassage(el: HTMLElement) {
+    const sel = document.getSelection()
+    if (!sel || sel.rangeCount === 0) return
+    // Si la sélection est déjà dans un <mark>, on retire celui-ci (toggle).
+    const markParent = passageAncetre(sel.getRangeAt(0).commonAncestorContainer, el)
+    if (markParent && markParent.tagName.toLowerCase() === 'mark') {
+      deballer(markParent)
+      return
+    }
+    envelopperSelection(el, 'mark')
   }
 
-  // --- Liaison des passages importants aux commentaires ---
-  //  Un `<mark>` du corps d'une note peut porter les ids des commentaires qui
-  //  l'éclairent (attribut data-liens). La liaison se pose au clic droit sur le
-  //  passage dans la fenêtre d'édition ; une référence vers un commentaire
-  //  supprimé reste en place (référence pendante, comme les annotations) et se
-  //  délie depuis le même menu.
+  // --- Liaison des passages aux commentaires ---
+  //  Un `<em>` du corps d'une note porte les ids des commentaires qui
+  //  l'éclairent (attribut data-liens) et se rend en italique : italique =
+  //  lié. La liaison se pose par le bouton « Lier… » (enveloppe la sélection
+  //  puis ouvre le menu) ou au clic droit sur un passage existant ; une
+  //  référence vers un commentaire supprimé reste en place (référence
+  //  pendante, comme les annotations) et se délie depuis le même menu.
   /** Commentaires liaisables de l'entretien (hors orphelines). */
   const commentairesPourLiaison = computed(() =>
     entretien.annotations
@@ -1056,38 +1123,84 @@ export function useEntretien(deps: {
       .map((a) => ({ id: a.id, auteur: a.auteur, texte: a.texte ?? '' })),
   )
   /** État du menu de liaison : position + liens COURANTS au moment de
-   *  l'ouverture (le mark visé vit à part, non réactif). */
+   *  l'ouverture (le passage visé vit à part, non réactif). */
   const menuLiensNote = ref<{ x: number; y: number; liens: string[] } | null>(null)
-  let markLie: HTMLElement | null = null
+  let passageLie: HTMLElement | null = null
   let zoneLiee: HTMLElement | null = null
+  function ouvrirMenuSur(passage: HTMLElement, zone: HTMLElement, e: MouseEvent) {
+    passageLie = passage
+    zoneLiee = zone
+    menuLiensNote.value = { x: e.clientX, y: e.clientY, liens: lireLiensNote(passage) }
+  }
+  /** Bouton « Lier… » : enveloppe la sélection d'un `<em>` puis ouvre le menu
+   *  de liaison dessus. Si la sélection est déjà dans un `<em>`, le menu
+   *  s'ouvre directement (gestion des liens existants). */
+  function lierPassage(e: MouseEvent, zone: HTMLElement) {
+    const sel = document.getSelection()
+    const existant = sel
+      ? passageAncetre(sel.getRangeAt(0)?.commonAncestorContainer ?? null, zone)
+      : null
+    if (existant && existant.tagName.toLowerCase() === 'em') {
+      ouvrirMenuSur(existant, zone, e)
+      return
+    }
+    const em = envelopperSelection(zone, 'em')
+    if (!em) return
+    if (brouillonNote.value) brouillonNote.value.corps = zone.innerHTML
+    else syncZoneHorsModale?.(zone)
+    ouvrirMenuSur(em, zone, e)
+  }
   /** Clic droit dans le corps d'une note : si la cible est un passage
-   *  important (`<mark>`), on ouvre le menu de liaison et on avale le menu
+   *  (`<mark>` ou `<em>`), on ouvre le menu de liaison et on avale le menu
    *  natif ; sinon on laisse le comportement par défaut du contenteditable. */
   function ouvrirMenuLiensNote(e: MouseEvent, zone: HTMLElement) {
     const cible = e.target as HTMLElement | null
-    const mark = cible?.closest('mark')
-    if (!mark || !zone.contains(mark)) return
+    const passage = cible ? passageAncetre(cible, zone) : null
+    if (!passage) return
     e.preventDefault()
-    markLie = mark
-    zoneLiee = zone
-    menuLiensNote.value = { x: e.clientX, y: e.clientY, liens: lireLiensNote(mark) }
+    ouvrirMenuSur(passage, zone, e)
   }
   function fermerMenuLiensNote() {
     menuLiensNote.value = null
-    markLie = null
+    passageLie = null
     zoneLiee = null
   }
-  /** Pose ou retire un id de commentaire sur le mark visé puis reporte le HTML
-   *  courant dans le brouillon (le contenu du contenteditable reste la source). */
+  /** Pose ou retire un id de commentaire sur le passage visé puis reporte le
+   *  HTML courant dans le brouillon (le contenteditable reste la source).
+   *  Retirer le dernier lien d'un `<em>` le déballe : italique = lié, un em
+   *  sans lien n'a pas de sens. Un `<mark>` reste en place (il reste un
+   *  passage important même délié). */
   function basculerLienNote(idAnnotation: string, lie: boolean) {
-    if (!markLie || !zoneLiee || !brouillonNote.value) return
-    const courants = lireLiensNote(markLie)
+    if (!passageLie || !zoneLiee) return
+    const courants = lireLiensNote(passageLie)
     const suivants = lie
       ? [...new Set([...courants, idAnnotation])]
       : courants.filter((x) => x !== idAnnotation)
-    if (suivants.length > 0) markLie.setAttribute(ATTR_LIENS_NOTE, suivants.join(' '))
-    else markLie.removeAttribute(ATTR_LIENS_NOTE)
-    brouillonNote.value.corps = zoneLiee.innerHTML
+    if (suivants.length > 0) {
+      passageLie.setAttribute(ATTR_LIENS_NOTE, suivants.join(' '))
+    } else {
+      passageLie.removeAttribute(ATTR_LIENS_NOTE)
+      if (passageLie.tagName.toLowerCase() === 'em') deballer(passageLie)
+    }
+    // Les références `[auteur : début…]` suivent dans la zone d'édition.
+    decoreRefsCommentaires(zoneLiee, document, resolverCommentaires)
+    if (brouillonNote.value) brouillonNote.value.corps = zoneLiee.innerHTML
+    else syncZoneHorsModale?.(zoneLiee)
+  }
+
+  // Zone d'édition HORS modale (vue feuille) : la vue enregistre une fonction
+  // qui écrit le HTML courant de la zone dans la note qu'elle édite ; les
+  // gestes de liaison ci-dessus y reportent leurs changements quand la modale
+  // est fermée (sinon, priorité au brouillon de la modale).
+  let syncZoneHorsModale: ((zone: HTMLElement) => void) | null = null
+  function enregistrerSyncZoneHorsModale(f: ((zone: HTMLElement) => void) | null) {
+    syncZoneHorsModale = f
+  }
+  /** Résout un id de commentaire vers son libellé (les orphelines sont hors
+   *  liste → pas de référence pour un commentaire supprimé). */
+  function resolverCommentaires(id: string): { auteur: string; texte: string } | null {
+    const c = commentairesPourLiaison.value.find((x) => x.id === id)
+    return c ? { auteur: c.auteur, texte: c.texte } : null
   }
   function lierCommentaireNote(idAnnotation: string) {
     basculerLienNote(idAnnotation, true)
@@ -1096,6 +1209,21 @@ export function useEntretien(deps: {
   function delierCommentaireNote(idAnnotation: string) {
     basculerLienNote(idAnnotation, false)
     fermerMenuLiensNote()
+  }
+
+  /** Cale l'éditeur sur la zone commentée : sélection de la plage de
+   *  l'annotation + décoration transitoire « hit » (repérage) + scroll centré.
+   *  Utilisé par les références cliquables des notes liées. */
+  function allerAuCommentaire(idAnnotation: string) {
+    const ed = editor.value
+    if (!ed) return
+    const a = entretien.annotations.find((x) => x.id === idAnnotation)
+    if (!a || a.type !== 'commentaire' || estOrpheline(a)) return
+    ed.commands.setTextSelection({ from: a.from, to: a.to })
+    ed.view.dispatch(ed.state.tr.setMeta(reperagePluginKey, { de: a.from, a: a.to }))
+    const dom = ed.view.domAtPos(a.from).node
+    const el = dom instanceof HTMLElement ? dom : dom.parentElement
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
   // --- Catégories de note : définitions au CORPUS (useCorpus). Le scope
@@ -1113,8 +1241,9 @@ export function useEntretien(deps: {
         const cat = deps.nomCategorieNote(n.categorieId)
         const date = n.date ?? 'sans date'
         const statut = n.statut === 'public' ? 'public' : 'privé'
+        const titre = n.titre ? `${n.titre}\n` : ''
         const corps = corpsNoteEnTexte(n.corps, doc)
-        return `[${cat} · ${date} · ${statut}]\n${corps}`
+        return `[${cat} · ${date} · ${statut}]\n${titre}${corps}`
       })
       .join('\n\n')
   }
@@ -2033,16 +2162,23 @@ export function useEntretien(deps: {
     editerNote,
     validerNote,
     annulerNote,
+    avertissementNote,
+    ecrireCorpsNote,
+    ecrireTitreNote,
+    enregistrerSyncZoneHorsModale,
     supprimerNote,
     reordonnerNotes,
     marquerPassage,
     notesEnTexte,
     commentairesPourLiaison,
     menuLiensNote,
+    lierPassage,
     ouvrirMenuLiensNote,
     fermerMenuLiensNote,
     lierCommentaireNote,
     delierCommentaireNote,
+    allerAuCommentaire,
+    resolverCommentaires,
     validerAnon,
     supprimerAnon,
     creerBrouillon,

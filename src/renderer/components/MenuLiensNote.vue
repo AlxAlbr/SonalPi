@@ -2,12 +2,13 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 
 /**
- * Menu contextuel d'un passage important d'une note : clic droit sur un
- * `<mark>` dans la fenêtre d'édition → lier ou délier le passage à un
- * commentaire de l'entretien. Un commentaire déjà lié propose la déliaison ;
- * une liaison vers un commentaire supprimé reste listée pour pouvoir être
- * retirée (référence pendante). Même idiome que MenuContexte : couche plein
- * écran qui ferme au clic hors menu, Escape aussi, Téléport vers <body>.
+ * Menu contextuel d'un passage de note (`<mark>` important ou `<em>` lié) :
+ * clic droit dans la fenêtre d'édition ou bouton « Lier… » → lier ou délier le
+ * passage à un commentaire de l'entretien. Un commentaire déjà lié propose la
+ * déliaison ; une liaison vers un commentaire supprimé reste listée pour
+ * pouvoir être retirée (référence pendante). Même idiome que MenuContexte :
+ * couche plein écran qui ferme au clic hors menu, Escape aussi, Téléport vers
+ * <body>.
  */
 export interface CommentaireLiaison {
   id: string
@@ -65,7 +66,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
         @mousedown.stop
         @contextmenu.stop
       >
-        <span class="menu-titre">Passage important</span>
+        <span class="menu-titre">Lier ce passage…</span>
 
         <!-- Liaisons possibles : chaque commentaire non encore lié. -->
         <button

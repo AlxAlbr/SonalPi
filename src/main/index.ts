@@ -456,6 +456,9 @@ function enregistrerIpcCorpus(): void {
   ipcMain.handle('corpus:deplacerCategorie', (_e, id: string, sens: -1 | 1) =>
     executerDefinitions(() => store.deplacerCategorie(id, sens)),
   )
+  ipcMain.handle('corpus:migrerCategorie', (_e, id: string, nouveauParent: string | null) =>
+    executerDefinitions(() => store.migrerCategorie(id, nouveauParent)),
+  )
   ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string) =>
     executerDefinitions(() => store.supprimerCategorie(id, exceptId)),
   )

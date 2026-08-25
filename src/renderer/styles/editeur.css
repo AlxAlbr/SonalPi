@@ -91,16 +91,20 @@
   padding-bottom: 4px;
 }
 
-/* Occurrence anonymisée : texte original BARRÉ + pseudo affiché inline juste
- * après, entre crochets (le pseudo n'est PAS barré). Le marqueur est purement
- * visuel (décoration, pas mark) : il ne coupe pas le texte et survit au remap.
- * En chevauchement avec un codage, le trait coloré de celui-ci reste visible
- * par-dessus le barré. */
+/* Occurrence anonymisée : texte original BARRÉ en bleu ciel + pseudo affiché
+ * inline juste après, entre crochets (le pseudo n'est PAS barré), sur fond
+ * bleu ciel léger (même teinte que les exceptions : tout ce qui touche à la
+ * pseudonymisation se lit dans cette famille de couleur). Le marqueur est
+ * purement visuel (décoration, pas mark) : il ne coupe pas le texte et survit
+ * au remap. En chevauchement avec un codage, le trait coloré de celui-ci reste
+ * visible par-dessus. */
 .editeur .anon {
   text-decoration: line-through;
-  text-decoration-color: #999;
+  /* Trait bleu ciel clair, même famille que le fond et le [pseudo]. */
+  text-decoration-color: #45a7d6;
   text-decoration-thickness: 2px;
-  color: #777;
+  color: #2e8fc0;
+  background-color: rgba(135, 206, 235, 0.35);
 }
 .editeur .anon::after {
   content: " [" attr(data-pseudo) "]";
@@ -124,12 +128,12 @@
 
 /* EXCEPTION (décision « laisser en clair ») : PAS de barré, PAS de [pseudo] — le
  * texte reste lisible. Marqueur discret pour que l'utilisateur sache que c'est
- * TRAÇÉ (et que l'anonymisation ne le re-capturera pas, cf. §2.4) : fond
- * orangé léger (parité SonalPi V1 `.anon-exception`), distinguable du texte
- * brut et du barré gris des occurrences anonymisées. */
+ * TRAÇÉ (et que l'anonymisation ne le re-capturera pas) : fond bleu ciel léger,
+ * distinguable du texte brut, du barré gris des occurrences anonymisées et du
+ * jaune pâle des commentaires. */
 .editeur .anon-exception {
   text-decoration: none;
-  background-color: rgba(255, 200, 100, 0.25);
+  background-color: rgba(135, 206, 235, 0.35);
 }
 
 /* Plage EN COURS DE LECTURE audio — décoration INLINE unique du

@@ -84,6 +84,7 @@ declare global {
         ) => Promise<{ id: string; corpus: CorpusFichier }>
         modifierCategorie: (id: string, patch: PatchCategorie) => Promise<CorpusFichier>
         deplacerCategorie: (id: string, sens: -1 | 1) => Promise<CorpusFichier>
+        migrerCategorie: (id: string, nouveauParent: string | null) => Promise<CorpusFichier>
         supprimerCategorie: (id: string, exceptId?: string) => Promise<ResultatSuppressionCategorie>
         usagesParCategorie: () => Promise<Record<string, number>>
         categoriesNote: () => Promise<NoteCategory[]>

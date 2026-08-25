@@ -97,7 +97,11 @@ function construire(
     if (node.type.name !== 'paragraph') return
     const debutContenu = offset + 1
     const finContenu = offset + node.nodeSize
-    const ici = commentaires.filter((a) => a.from < finContenu && a.to > debutContenu)
+    const ici = commentaires
+      .filter((a) => a.from < finContenu && a.to > debutContenu)
+      // Empilement par POSITION DANS LE TEXTE, pas par ordre d'édition :
+      // éditer un commentaire ancien ne le fait pas sauter en fin de colonne.
+      .sort((a, b) => a.from - b.from || a.to - b.to)
     if (ici.length === 0) return
 
     decos.push(Decoration.node(offset, offset + node.nodeSize, { class: 'p-commente' }))

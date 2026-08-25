@@ -746,6 +746,7 @@ describe('CorpusStore — catégories de note (définitions corpus)', () => {
     notes: categorieIds.map((categorieId, i) => ({
       id: `note_${i}`,
       categorieId,
+      titre: '',
       date: null,
       statut: 'prive' as const,
       corps: 'texte',

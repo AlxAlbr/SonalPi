@@ -549,6 +549,14 @@ export class CorpusStore {
     return corpus
   }
 
+  migrerCategorie(id: string, nouveauParent: string | null): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    corpusModel.migrerCategorie(corpus, id, nouveauParent)
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
+  }
+
   /** Usages d'une catégorie, `exceptId` excluant un entretien du comptage ;
    *  sert à vérifier, à la suppression, qu'elle n'est pas utilisée ailleurs. */
   compterUsagesCategorie(code: string, exceptId?: string): number {
