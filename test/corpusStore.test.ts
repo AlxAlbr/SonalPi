@@ -369,6 +369,36 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
     expect(store.cheminMediaAbs(source1)).toBeNull()
   })
 
+  test('effacerAudio : audioRef null, onde dérivée supprimée, association locale oubliée — le texte reste', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source = audioExterne(dir, 'rec.wav')
+    store.assignerAudio(id, source)
+    store.associerAudioLocal(id, source) // association machine-locale (distant)
+    const png = join(dir, 'png', id + '.png')
+    mkdirSync(join(dir, 'png'), { recursive: true })
+    writeFileSync(png, 'png', 'utf8')
+    expect(store.audios()[id]).toMatchObject({ audio: source, waveform: 'png/' + id + '.png' })
+    expect(JSON.parse(readFileSync(join(dir, 'audio-locaux.json'), 'utf8'))[id]).toBe(source)
+
+    store.effacerAudio(id)
+
+    // Plus de ref ni d'onde pour cet entretien.
+    expect(store.audios()[id]).toBeUndefined()
+    expect(store.cheminMediaAbs(source)).toBeNull() // plus whitelistée
+    expect(existsSync(png)).toBe(false)
+    // Association locale oubliée (pas d'orphelin qui « ré-associerait »).
+    const locaux = JSON.parse(readFileSync(join(dir, 'audio-locaux.json'), 'utf8'))
+    expect(locaux[id]).toBeUndefined()
+    // Le texte n'est pas touché, seul le média est retiré.
+    const lu = store.lireEntretien(id)
+    if (lu.ok) {
+      expect(lu.data.meta.audioRef).toBeNull()
+      expect(JSON.stringify(lu.data.corpsTexte)).not.toBe('')
+    }
+  })
+
   test('cache refsAudio : invalidé par supprimerEntretien', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()

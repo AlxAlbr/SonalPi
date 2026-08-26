@@ -12,6 +12,7 @@ import type {
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
+  ModeleEAV,
   NoteCategory,
   ResultatLotValeur,
   ResultatLotAnon,
@@ -192,6 +193,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:marquerDemo', marqueur),
     assignerAudio: (id: string, source: string): Promise<{ audioRef: string } | null> =>
       invoquer('corpus:assignerAudio', id, source),
+    /** Détache l'audio d'un entretien (ref + onde dérivée) — le texte reste. */
+    effacerAudio: (id: string): Promise<{ audioRef: null }> => invoquer('corpus:effacerAudio', id),
     ecrireWaveform: (id: string, png: Uint8Array): Promise<string> =>
       invoquer('corpus:ecrireWaveform', id, png),
     /** « Associer l'audio local… » : référence un fichier de CE poste pour un
@@ -294,6 +297,9 @@ contextBridge.exposeInMainWorld('sonal', {
      *  la démo (racineSources) pour que le dialogue natif s'ouvre au bon endroit. */
     choisirTexte: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirTexte', defaultPath),
+    /** Choisir une transcription chronométrée (SRT/VTT) — « Assigner un srt… ». */
+    choisirSrt: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
+      invoquer('dialog:choisirSrt', defaultPath),
     /** Choisir un fichier audio (chemin référencé, jamais copié). */
     choisirAudio: (defaultPath?: string): Promise<string | null> =>
       invoquer('dialog:choisirAudio', defaultPath),
@@ -303,6 +309,15 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('dialog:choisirDossier', kind),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
       invoquer('dialog:choisirExport', nomSuggere, contenu),
+    /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */
+    choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
+      invoquer('dialog:choisirJson', defaultPath),
+  },
+  modeles: {
+    /** Registre « Mes modèles » du profil (settings.json), partagé entre corpus. */
+    lire: (): Promise<ModeleEAV[]> => invoquer('modeles:lire'),
+    /** Ajoute (ou remplace, par nom insensible à la casse) un modèle IMPORTÉ. */
+    ajouter: (modele: ModeleEAV): Promise<ModeleEAV[]> => invoquer('modeles:ajouter', modele),
   },
   fichier: {
     // Chemin réel d'un File GLISSÉ-DÉPOSÉ (modale d'ajout) — `File.path` n'existe

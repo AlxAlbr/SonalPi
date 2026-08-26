@@ -29,7 +29,7 @@ async function creerVarEntretien(page: import('@playwright/test').Page, libMod: 
   await ouvrirEditionVariables(page)
   await page.locator('.modale-vars .corpus-tete .mini', { hasText: "+ var. d'entretien" }).click()
   const li = page.locator('.modale-vars .liste-var > li').first()
-  await li.locator('.actions-mod .mini').click()
+  await li.locator('.mini', { hasText: '+ modalité' }).click()
   const mod = li.locator('.lib-mod').first()
   await mod.fill(libMod)
   await mod.press('Tab')
@@ -85,21 +85,16 @@ test('sortir d’un entretien le ferme ; « Reprendre » (Corpus et table) le ro
   await app.close()
 })
 
-test('« Saisir… » ouvre l’entretien directement sur son onglet Donnée', async () => {
+test('« Saisir… » n’apparaît qu’en corpus distant (local : grille directement éditable)', async () => {
   const { app, page } = await ouvrirSurCorpus('sonal-saisie-')
   await creerVarEntretien(page, 'Lyon')
 
   await entrerDonnees(page)
 
-  // Le bouton de LIGNE ouvre CET entretien sur son onglet Donnée :
-  // cycle verrou ordinaire — ici libre → saisie permise.
-  await page.locator('.matrice .aller-saisie').first().click()
-  await expect(page.locator('.editeur')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('.panneau.donnees')).toBeVisible()
-
-  // Le retour Corpus fonctionne (fermeture + point de reprise).
-  await retourCorpus(page)
-  await expect(page.locator('.corpus-ecran')).toBeVisible()
+  // En corpus local, la grille est directement éditable : le bouton de ligne
+  // (uniquement pour les corpus distants) ne doit pas exister.
+  await expect(page.locator('.matrice .aller-saisie')).toHaveCount(0)
+  await expect(page.locator('.matrice.editable select').first()).toBeEnabled()
 
   await app.close()
 })
@@ -224,7 +219,7 @@ test('navigation clavier : Entrée descend la colonne en sautant les lignes locu
   await expect(sel).toHaveCount(2)
   // La légende clavier est affichée au-dessus de la grille (une seule ligne).
   await expect(page.locator('.aide-clavier')).toBeVisible()
-  await expect(page.locator('.aide-clavier kbd')).toHaveCount(6)
+  await expect(page.locator('.aide-clavier kbd')).toHaveCount(5)
 
   // Saisie sur e1 PUIS Entrée : le commit part ET le focus descend sur e2.
   await sel.nth(0).selectOption({ label: 'Lyon' })

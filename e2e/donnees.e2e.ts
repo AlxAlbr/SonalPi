@@ -34,7 +34,7 @@ async function creerVariable(
   await ouvrirEditionVariables(page)
   await page.locator('.modale-vars .corpus-tete .mini', { hasText: bouton }).click()
   const li = page.locator('.modale-vars .liste-var > li').first()
-  await li.locator('.actions-mod .mini').click() // + modalité
+  await li.locator('.mini', { hasText: '+ modalité' }).click() // + modalité
   const modInput = li.locator('.lib-mod').first()
   await modInput.fill(libMod)
   await modInput.press('Tab') // @change → renomme la modalité

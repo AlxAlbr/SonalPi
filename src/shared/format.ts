@@ -417,6 +417,15 @@ export type ResultatSuppressionCategorie =
  *  le spread écrase la valeur (JSON.stringify retire la clé). */
 export type PatchCategorie = Partial<Pick<Categorie, 'nom' | 'couleur' | 'taille' | 'actif'>>
 
+/** Modèle de modalités réutilisable : un nom et la liste des libellés. Porté par
+ *  le registre du profil (settings.json, « Mes modèles » de l'éditeur de
+ *  variables) ; un modèle s'exporte/importe en JSON pour passer d'une machine
+ *  à l'autre. Les modèles INTÉGRÉS (Sexe, Âge, PCS…) restent du code, en dur. */
+export interface ModeleEAV {
+  nom: string
+  modalites: string[]
+}
+
 /** Suppression refusée tant qu'utilisée (variables/modalités, comme les catégories). */
 export type ResultatSuppression =
   | { ok: true; corpus: CorpusFichier }

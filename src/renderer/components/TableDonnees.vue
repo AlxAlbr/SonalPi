@@ -20,7 +20,8 @@ const {
   tableLigneEditable, // garde PAR LIGNE : badge 🔒 = verrou tenu par autrui
   badgeVerrou, // badges « par ligne » — informatifs
   presencesSur,
-  allerSaisieDonnees, // « Saisir… » par LIGNE d'entretien
+  idDistantCourant, // null = corpus local (grille directement éditable)
+  allerSaisieDonnees, // « Saisir… » par LIGNE d'entretien (corpus distant)
 } = utiliserSonal()
 
 // La fenêtre d'édition des variables (crayon, parité SonalPi — même idiome que
@@ -188,7 +189,6 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
       <p v-if="!lectureSeule && variablesVisibles.length > 0" class="aide-clavier">
         <span><kbd>Tab</kbd> droite · <kbd>⇧Tab</kbd> gauche</span>
         <span><kbd>Entrée</kbd> descendre · <kbd>⇧Entrée</kbd> remonter</span>
-        <span><kbd>Échap</kbd> annuler</span>
         <span><kbd>⇊</kbd> changement par lot</span>
       </p>
 
@@ -200,15 +200,21 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
         <table class="matrice editable">
           <thead>
             <tr>
-              <th>Ligne</th>
-              <th v-for="v in variablesVisibles" :key="v.id">
-                <span v-if="v.priv" title="Variable privée — exclue des exports">🔒</span>
-                {{ v.lib }} <small>({{ v.portee === 'entretien' ? 'ent' : 'loc' }})</small>
-                <!-- Lot sur les entretiens non ouverts — portée entretien uniquement,
-                     jamais hors ligne. -->
-                <button v-if="v.portee === 'entretien' && !lectureSeule" class="lot-var"
-                        title="Modifier en lot pour tous les entretiens non ouverts"
-                        @click="lotVarId = v.id">⇊</button>
+              <th></th>
+              <th v-for="v in variablesVisibles" :key="v.id" :class="'col-' + v.portee">
+                <span class="titre-var">
+                  <span v-if="v.priv" title="Variable privée — exclue des exports">🔒</span>
+                  {{ v.lib }}
+                </span>
+                <!-- Portée puis lot (entretien uniquement) sur une DEUXIÈME
+                     ligne, sous le libellé : « (ent)⇊ ». -->
+                <span class="portee-var">
+                  <small>({{ v.portee === 'entretien' ? 'ent' : 'loc' }})</small>
+                  <!-- Lot sur les entretiens non ouverts — jamais hors ligne. -->
+                  <button v-if="v.portee === 'entretien' && !lectureSeule" class="lot-var"
+                          title="Modifier en lot pour tous les entretiens non ouverts"
+                          @click="lotVarId = v.id">⇊</button>
+                </span>
               </th>
             </tr>
           </thead>
@@ -222,10 +228,11 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
                         :title="`Verrou tenu par ${badgeVerrou(e.entretienId)!.userId} — ouverture en lecture seule.`">🔒 {{ badgeVerrou(e.entretienId)!.userId }}</span>
                   <span v-for="p in presencesSur(e.entretienId)" :key="p.machineId"
                         class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">👁 {{ p.userId }}</span>
-                  <!-- Ouvrir CET entretien sur son
+                  <!-- Corpus DISTANT uniquement : ouvrir CET entretien sur son
                        onglet Donnée — le verrou existant tranche (libre → saisie,
-                       tenu ailleurs → lecture seule 🔒). Masqué hors ligne. -->
-                  <button v-if="!lectureSeule" class="aller-saisie"
+                       tenu ailleurs → lecture seule 🔒). En local, la grille est
+                       directement éditable, le bouton n'a pas lieu d'être. -->
+                  <button v-if="idDistantCourant && !lectureSeule" class="aller-saisie"
                           title="Ouvrir cet entretien sur l'onglet Donnée pour saisir ses valeurs"
                           @click="allerSaisieDonnees(e.entretienId)">Saisir…</button>
                 </td>
@@ -448,7 +455,6 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 .matrice td {
   border: 1px solid #e5e5ef;
   padding: 0.2rem 0.4rem;
-  text-align: left;
   white-space: nowrap;
 }
 .matrice th {
@@ -456,14 +462,30 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   position: sticky;
   top: 0;
   z-index: 1;
+  text-align: center; /* en-têtes centrés, comme l'onglet Pseudonymisation */
 }
-.ligne-ent td {
-  font-weight: 600;
+/* Couleurs des colonnes par portée — reprise de l'onglet Données de
+   l'entretien (et des badges ent/loc d'EditionVariables) : variable
+   d'entretien en bleu-violet, variable de locuteur en marron. */
+.matrice th.col-entretien {
+  color: #5c6bc0;
+}
+.matrice th.col-locuteur {
+  color: #8a6d3b;
+}
+.ligne-ent {
+  font-weight: 600; /* nom de l'entretien en gras */
   background: #fafafe;
+}
+/* En-tête de variable sur DEUX lignes : libellé en haut,
+   portée « (ent) » / « (loc) » et bouton ⇊ en dessous. */
+.matrice th .titre-var,
+.matrice th .portee-var {
+  display: block;
 }
 .ligne-loc td:first-child {
   padding-left: 0.9rem;
-  color: #8a6d3b;
+  color: #000; /* nom du locuteur en noir, comme l'onglet Données (fiche-loc) */
 }
 .matrice.editable td.cell-val {
   padding: 0.1rem 0.2rem;

@@ -473,7 +473,7 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     await varLi.locator('.nom-var').fill('Ville')
     await varLi.locator('.nom-var').press('Enter') // blur → renommage publié (promesse NON attendue)
     await attendreDefinitionServeur('"Ville"') // barrière : renommage terminé côté serveur
-    await varLi.locator('.actions-mod .mini').click() // + modalité
+    await varLi.locator('.mini', { hasText: '+ modalité' }).click() // + modalité
     const moda = varLi.locator('.lib-mod').first()
     await moda.fill('Lyon')
     await moda.press('Tab') // blur → renommage publié (promesse NON attendue)
@@ -562,7 +562,7 @@ async function creerVariableVille(page: Page): Promise<void> {
   await varLi.locator('.nom-var').fill('Ville')
   await varLi.locator('.nom-var').press('Enter')
   await attendreDefinitionServeur('"Ville"')
-  await varLi.locator('.actions-mod .mini').click()
+  await varLi.locator('.mini', { hasText: '+ modalité' }).click()
   const moda = varLi.locator('.lib-mod').first()
   await moda.fill('Lyon')
   await moda.press('Tab')

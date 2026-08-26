@@ -1,9 +1,7 @@
 # SonalPiTestV2
 
-Réécriture du cœur de **SonalPi** pour essayer de simplifier le fonctionnement et le code.
-Version de test de la réécriture en V2.
+Réécriture en cours  du cœur de **SonalPi** pour essayer de simplifier le fonctionnement et le code.
 
-> 📄 **Vous venez de SonalPi V1 ?** → [Passer de SonalPi V1 à la V2 (guide de migration)](docs/user/migration-v1.md)
 
 ## En bref
 
@@ -21,6 +19,18 @@ Version de test de la réécriture en V2.
 
 Les détails techniques (modèle d'objet, représentations des données, architecture, développement)
 sont dans la **[documentation développeur](docs/dev/README.md)**.
+
+## Nouveautés
+
+- beaucoup de test unit et e2e : permet de dev en étant sur que ce qu'on fait ne casse pas d'autres fonctionnalités
+- essai corpus pédagogique : parcours Pas à Pas reste à construire 
+- possible travail sur vidéo normalement
+- garde la précision des timestamps (ne sont pas réduit au tour de parole)
+- Onglet note à pris du grade
+- ajout d'un journal d'actions avec possibilité de revenir en arrière
+- Travail sur webdav Nextcloud avancé : à tester
+
+Les moins : beaucoup de choses restent à tester (pas encore fait de build)
 
 ## Démarrer
 

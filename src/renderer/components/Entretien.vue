@@ -1118,7 +1118,7 @@ function focaliserLibre(el: unknown, cle: string) {
             </div>
 
             <template v-if="varsGen().length">
-              <h4>Valeurs · cet entretien</h4>
+              <h4 class="h4-ent">Valeurs · cet entretien</h4>
               <div v-for="v in varsGen()" :key="v.id" class="saisie-eav">
                 <span class="saisie-eav-lib">{{ v.lib }}</span>
                 <input
@@ -1148,7 +1148,7 @@ function focaliserLibre(el: unknown, cle: string) {
             </template>
 
             <template v-if="varsLoc().length && locuteurs.length">
-              <h4>Valeurs · par locuteur</h4>
+              <h4 class="h4-loc">Valeurs · par locuteur</h4>
               <div v-for="l in locuteurs" :key="l.index" class="fiche-loc">
                 <div class="fiche-loc-nom">{{ l.nom }}</div>
                 <div v-for="v in varsLoc()" :key="v.id" class="saisie-eav">
@@ -2166,6 +2166,15 @@ function focaliserLibre(el: unknown, cle: string) {
 .fiche-loc-nom {
   font-size: 0.78rem;
   font-weight: 600;
+  color: #000;
+}
+/* Couleurs des en-têtes « Valeurs… » alignées sur les badges ent/loc
+   (créés dans EditionVariables), pour raccorder visuellement la fiche
+   données aux variables qu'elle détaille. */
+.h4-ent {
+  color: #5c6bc0;
+}
+.h4-loc {
   color: #8a6d3b;
 }
 /* --- Panneau Locuteurs --- */

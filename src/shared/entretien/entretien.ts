@@ -100,3 +100,19 @@ export function modifierCommentaire(
 export function annotationsDeType(entretien: Entretien, type: AnnotationType): Annotation[] {
   return entretien.annotations.filter((a) => a.type === type)
 }
+
+/** Texte brut d'un corps ProseMirror (schéma gelé doc › paragraph{loc} › text).
+ *  Sert aux gardes « contenu déjà présent » — ex. l'assignation d'un SRT
+ *  remplace la transcription et ne doit pas écraser en silence. */
+export function texteDuCorps(corpsTexte: unknown): string {
+  const doc = corpsTexte as
+    | { content?: Array<{ content?: Array<{ text?: string }> }> }
+    | null
+    | undefined
+  if (!doc?.content) return ''
+  let texte = ''
+  for (const bloc of doc.content) {
+    for (const noeud of bloc.content ?? []) texte += noeud.text ?? ''
+  }
+  return texte
+}

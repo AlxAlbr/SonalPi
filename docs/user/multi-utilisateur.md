@@ -70,10 +70,12 @@ même quand aucun entretien n'est ouvert chez vous :
   Si le verrou arrive entre-temps (ou divergence réseau), LA cellule passe en bord rouge avec
   la raison nominative au survol (« ouvert par max… ») — jamais de blocage du reste de la
   saisie. Corpus local comme distant.
-- **« Saisir… » (bouton de ligne)** : ouvre CET entretien directement sur son onglet Donnée.
-  Le verrou ordinaire s'applique — entretien libre, vous pouvez saisir ; entretien déjà ouvert
-  par un collègue, il s'ouvre en lecture seule avec son bandeau nominatif. La valeur part sur
-  le serveur à la fermeture de l'entretien.
+- **« Saisir… » (bouton de ligne, corpus distant)** : ouvre CET entretien directement sur son
+  onglet Donnée. Le verrou ordinaire s'applique — entretien libre, vous pouvez saisir ;
+  entretien déjà ouvert par un collègue, il s'ouvre en lecture seule avec son bandeau
+  nominatif. La valeur part sur le serveur à la fermeture de l'entretien. En corpus **local**,
+  le bouton n'apparaît pas : la grille y est directement éditable, le détour par l'entretien
+  n'a pas d'intérêt.
 - **« ⇊ » (bouton de colonne, variables d'entretien)** : « modifier en lot ». Vous choisissez
   UNE valeur et elle est appliquée à tous les entretiens non ouverts, l'un après l'autre,
   avec un verrou bref par entretien (quelques millisecondes). Un entretien ouvert entre-temps

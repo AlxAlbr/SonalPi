@@ -8,6 +8,7 @@ import type {
   EntretienRef,
   ItemLotValeur,
   MatriceCorpus,
+  ModeleEAV,
   NoteCategory,
   PatchCategorie,
   RegleAnon,
@@ -39,6 +40,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const variables = ref<Variable[]>([]) // définitions EAV
   const matrice = ref<MatriceCorpus>([]) // REQUÊTE, jamais stockée
   const messageVar = ref<string | null>(null) // refus de suppression variable/modalité
+  // Registre « Mes modèles » (niveau profil, settings.json) : les modèles
+  // IMPORTÉS par l'utilisateur, proposés dans « modèles… » à côté des intégrés.
+  const modelesUtilisateur = ref<ModeleEAV[]>([])
   // Étape 3a — règles corpus + scan anon (lecture seule) : panneau « Pseudos ».
   const reglesAnon = ref<RegleAnon[]>([]) // corpus.json.reglesAnon
   const scanAnon = ref<ScanRegle[]>([]) // requête scan (relit le disque)
@@ -222,8 +226,10 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
 
   // --- Variables & modalités (EAV) ---
-  async function ajouterVariable(portee: 'entretien' | 'locuteur') {
-    majVariables((await window.sonal.corpus.ajouterVariable('Nouvelle variable', portee)).corpus.variables)
+  async function ajouterVariable(portee: 'entretien' | 'locuteur'): Promise<string> {
+    const r = await window.sonal.corpus.ajouterVariable('Nouvelle variable', portee)
+    majVariables(r.corpus.variables)
+    return r.id // pour l'auto-focus de la ligne neuve (même geste que les thèmes)
   }
   async function renommerVariable(id: string, evt: Event) {
     const lib = (evt.target as HTMLInputElement).value.trim()
@@ -260,6 +266,32 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function renommerModalite(idVar: string, idMod: string, evt: Event) {
     const lib = (evt.target as HTMLInputElement).value.trim()
     if (lib) majVariables((await window.sonal.corpus.modifierModalite(idVar, idMod, lib)).variables)
+  }
+
+  // --- Modèles de modalités réutilisables (« Mes modèles », niveau profil) ---
+  async function lireModelesUtilisateur(): Promise<void> {
+    modelesUtilisateur.value = await window.sonal.modeles.lire()
+  }
+  /** Import d'un modèle depuis un JSON choisi : lit, valide, ajoute au registre
+   *  (remplacement si le nom existe déjà) puis rafraîchit la liste locale.
+   *  Renvoie un message pour l'UI (succès ou erreur de format). */
+  async function importerModeleUtilisateur(): Promise<string | null> {
+    const f = await window.sonal.dialog.choisirJson()
+    if (!f) return null // dialogue annulé : pas de message
+    try {
+      const brut = JSON.parse(f.contenu) as unknown
+      if (!brut || typeof brut !== 'object') return 'Fichier de modèle invalide (objet attendu).'
+      const o = brut as Record<string, unknown>
+      const nom = typeof o.nom === 'string' ? o.nom.trim() : ''
+      const libs = Array.isArray(o.modalites) ? o.modalites.map((m) => (typeof m === 'string' ? m.trim() : '')) : []
+      if (!nom) return 'Modèle sans nom — déclarez « nom » dans le JSON.'
+      if (libs.length === 0 || libs.some((lib) => !lib))
+        return 'Modèle sans modalités — « modalites » doit être une liste de textes non vides.'
+      modelesUtilisateur.value = await window.sonal.modeles.ajouter({ nom, modalites: libs })
+      return `Modèle « ${nom} » importé (${libs.length} modalités).`
+    } catch {
+      return 'Fichier de modèle invalide — JSON mal formé.'
+    }
   }
   async function supprimerModalite(idVar: string, idMod: string) {
     messageVar.value = null
@@ -390,6 +422,10 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     ajouterModalitesModele,
     renommerModalite,
     supprimerModalite,
+    // modèles de modalités réutilisables (« Mes modèles », niveau profil)
+    modelesUtilisateur,
+    lireModelesUtilisateur,
+    importerModeleUtilisateur,
     // table de données / saisie libre
     poserGen,
     poserLoc,

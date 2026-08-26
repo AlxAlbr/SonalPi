@@ -55,18 +55,21 @@ function basculerRepli(id: string) {
 // UX de création : le thème neuf est AUTO-FOCUSÉ et son texte présélectionné,
 // pour nommer directement sans effacer « Nouveau thème/sous-thème ».
 const nouveauId = ref<string | null>(null)
+// Registre des champs nom RENDUS (rempli à chaque rendu, vidé au démontage) :
+// l'arbre se rafraîchit avant que creerTheme pose nouveauId, donc le focus se
+// pose APRÈS nextTick, sur l'élément déjà présent — jamais au montage.
+const champsNom = new Map<string, HTMLInputElement>()
+function noterChampNom(el: HTMLInputElement | null, id: string) {
+  if (el) champsNom.set(id, el)
+  else champsNom.delete(id)
+}
 async function creerTheme(estEnfant: boolean, parentId?: string) {
   const id = estEnfant ? await ajouterSousTheme(parentId!) : await ajouterTheme()
   nouveauId.value = id
   await nextTick() // attendre que la ligne (le champ nom) soit rendue
-}
-/** Par :ref sur le champ nom : focus + sélection totale si c'est le thème neuf. */
-function focusSiNouveau(el: HTMLInputElement | null, id: string) {
-  if (el && nouveauId.value === id) {
-    el.focus()
-    el.select()
-    nouveauId.value = null // une seule fois
-  }
+  const el = champsNom.get(id)
+  if (el) el.focus() // le @focus du champ sélectionne le texte
+  nouveauId.value = null
 }
 
 function renommer(id: string, evt: Event) {
@@ -207,7 +210,7 @@ onMounted(() => {
           />
           <input
             class="nom-thm"
-            :ref="(el) => focusSiNouveau(el as HTMLInputElement | null, n.cat.id)"
+            :ref="(el) => noterChampNom(el as HTMLInputElement | null, n.cat.id)"
             :value="n.cat.nom"
             @focus="($event.target as HTMLInputElement).select()"
             @keyup.enter="($event.target as HTMLInputElement).blur()"

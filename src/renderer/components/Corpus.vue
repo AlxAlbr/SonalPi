@@ -47,6 +47,12 @@ const {
   urlWaveform,
   assignerAudioSelection,
   ouvrirDesignationAudio,
+  // audio : détacher / remplacer / assigner un SRT (panneau métadonnées)
+  effacerAudioSelection,
+  demanderSrt,
+  confirmerSrt,
+  srtASurEcrire,
+  srtMessage,
   // Panneau « Pseudos » du corpus (lecture seule)
   reglesAnon,
   scanAnon,
@@ -621,8 +627,62 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><span>Locuteurs</span><b>{{ corpusSelMeta.nbLocuteurs }}</b></li>
               <li><span>Valeurs saisies</span><b>{{ corpusSelMeta.nbValeurs }}</b></li>
               <li><span>Audio</span><b>{{ corpusSelMeta.audio ? 'lié' : '—' }}</b></li>
+              <li><span>Srt</span><b>{{ corpusSelMeta.srt ? 'lié' : '—' }}</b></li>
             </ul>
             <p v-else class="vide">Lecture…</p>
+            <!-- Actions de l'entretien sélectionné (parité V1 : en fin de
+                 panneau — la confirmation réutilise le bandeau commun). -->
+            <button
+              class="mini suppr-meta"
+              :disabled="!metaEditables(corpusSelId)"
+              :title="titreChampMeta(corpusSelId)"
+              @click="demanderSuppressionEntretien(corpusSelId)"
+            >❌ Supprimer cet entretien du corpus</button>
+            <!-- Audio : sans audio un seul geste (assigner) ; avec audio, deux
+                 gestes côte à côte — effacer (rouge, détache le média) et
+                 remplacer. Le texte reste dans les deux cas. -->
+            <div v-if="corpusSelMeta?.audio" class="audio-actions">
+              <button
+                class="mini audio-effacer"
+                :disabled="!metaEditables(corpusSelId)"
+                :title="titreChampMeta(corpusSelId)"
+                @click="effacerAudioSelection"
+              >Effacer l'audio</button>
+              <button class="mini assigner-audio" :disabled="!metaEditables(corpusSelId)" @click="assignerAudioSelection">
+                Remplacer l'audio…
+              </button>
+            </div>
+            <button v-else class="mini assigner-audio" :disabled="!metaEditables(corpusSelId)" @click="assignerAudioSelection">
+              Assigner un audio…
+            </button>
+            <!-- Transcription : tant qu'aucun SRT n'est assigné, on peut en
+                 importer un — le contenu d'éditeur est remplacé (bannière de
+                 confirmation si l'éditeur en porte déjà). -->
+            <button
+              v-if="corpusSelMeta && !corpusSelMeta.srt"
+              class="mini assigner-srt"
+              :disabled="!metaEditables(corpusSelId)"
+              :title="titreChampMeta(corpusSelId)"
+              @click="demanderSrt"
+            >Assigner un srt…</button>
+            <p v-if="srtMessage" class="srt-err">{{ srtMessage }}</p>
+            <div v-if="srtASurEcrire" class="confirm-suppr srt-confirm">
+              L'éditeur contient déjà du texte : assigner un SRT remplacera le contenu existant.
+              <div class="confirm-actions">
+                <button class="danger" @click="confirmerSrt">Remplacer le contenu</button>
+                <button @click="srtASurEcrire = null">Annuler</button>
+              </div>
+            </div>
+            <!-- Distant uniquement : lier un audio qui VIT sur le serveur
+                 copie miroir chez chaque membre. -->
+            <button
+              v-if="idDistantCourant && corpusSelId"
+              class="mini assigner-audio"
+              :disabled="!metaEditables(corpusSelId)"
+              @click="ouvrirDesignationAudio(corpusSelId)"
+            >
+              {{ corpusSelMeta?.audio ? 'Redésigner dans le Nextcloud…' : 'Désigner dans le Nextcloud…' }}
+            </button>
             <!-- Variables du corpus pour CET entretien, en LECTURE SEULE
                  (parité V1 : l'édition des valeurs passe par la table de
                  données / l'onglet Données de l'entretien). -->
@@ -642,27 +702,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 </div>
               </div>
             </div>
-            <!-- Bouton de retrait du corpus (parité V1 : en fin de panneau).
-                 La confirmation réutilise le bandeau commun des cartes. -->
-            <button
-              class="mini suppr-meta"
-              :disabled="!metaEditables(corpusSelId)"
-              :title="titreChampMeta(corpusSelId)"
-              @click="demanderSuppressionEntretien(corpusSelId)"
-            >❌ Supprimer cet entretien du corpus</button>
-            <button class="mini assigner-audio" :disabled="!metaEditables(corpusSelId)" @click="assignerAudioSelection">
-              {{ corpusSelMeta?.audio ? 'Remplacer l’audio…' : 'Assigner un audio…' }}
-            </button>
-            <!-- Distant uniquement : lier un audio qui VIT sur le serveur
-                 copie miroir chez chaque membre. -->
-            <button
-              v-if="idDistantCourant && corpusSelId"
-              class="mini assigner-audio"
-              :disabled="!metaEditables(corpusSelId)"
-              @click="ouvrirDesignationAudio(corpusSelId)"
-            >
-              {{ corpusSelMeta?.audio ? 'Redésigner dans le Nextcloud…' : 'Désigner dans le Nextcloud…' }}
-            </button>
           </div>
 
           <!-- Sinon : thèmes en CONSULTATION compacte ; le crayon ouvre la fenêtre
@@ -885,38 +924,44 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <!-- Paramètres (étape 4a/4b-A) : priorité de validation + mots de liaison. -->
           <div v-if="parametresOuverts" class="pseudo-params">
             <b>Priorité de validation</b>
-            <label><input v-model="prioriteLocale" type="radio" value="corpus" /> Corpus — Entrée crée la règle partagée, Maj+Entrée reste sur l'entretien</label>
-            <label><input v-model="prioriteLocale" type="radio" value="entretien" /> Entretien — Entrée pose dans l'entretien courant, Maj+Entrée pousse au corpus</label>
-            <p class="pseudo-params-hint">
-              Décide quelle portée la touche Entrée applique sur une ligne du tableau anon d'un entretien.
-            </p>
-            <b class="pseudo-params-titre">Mots de liaison et articles</b>
-            <label><input v-model="motsLiaisonActif" type="checkbox" @change="committerMotsLiaison" /> Activer la détection (« à Lyon » → proposer « Lyon »)</label>
-            <template v-if="motsLiaisonActif">
-              <input
-                v-model="motsLiaisonListe"
-                type="text"
-                class="pseudo-params-liste"
-                placeholder="à, de, du, au, chez…"
-                @change="committerMotsLiaison"
-              />
-              <p class="pseudo-params-hint">Mots séparés par des espaces ou des virgules. La proposition à la validation arrive avec le livrable dédié.</p>
-            </template>
-            <b class="pseudo-params-titre">Thématiques d'entités</b>
-            <label><input v-model="thematiquesActif" type="checkbox" @change="committerThematiques" /> Activer les catégories (PER, LOC…)</label>
-            <template v-if="thematiquesActif">
-              <input
-                v-model="thematiquesListeTexte"
-                type="text"
-                class="pseudo-params-liste"
-                placeholder="PER, LOC, ORG, DAT"
-                @change="committerThematiques"
-              />
+            <div class="pseudo-params-bloc">
+              <label><input v-model="prioriteLocale" type="radio" value="corpus" /> Corpus — Entrée crée la règle partagée, Maj+Entrée reste sur l'entretien</label>
+              <label><input v-model="prioriteLocale" type="radio" value="entretien" /> Entretien — Entrée pose dans l'entretien courant, Maj+Entrée pousse au corpus</label>
               <p class="pseudo-params-hint">
-                Catégories séparées par des espaces ou des virgules. Dans la recherche,
-                saisir exactement un nom de catégorie filtre le tableau dessus.
+                Décide quelle portée la touche Entrée applique sur une ligne du tableau anon d'un entretien.
               </p>
-            </template>
+            </div>
+            <b class="pseudo-params-titre">Mots de liaison et articles</b>
+            <div class="pseudo-params-bloc">
+              <label><input v-model="motsLiaisonActif" type="checkbox" @change="committerMotsLiaison" /> Activer la détection (« à Lyon » → proposer « Lyon »)</label>
+              <template v-if="motsLiaisonActif">
+                <input
+                  v-model="motsLiaisonListe"
+                  type="text"
+                  class="pseudo-params-liste"
+                  placeholder="à, de, du, au, chez…"
+                  @change="committerMotsLiaison"
+                />
+                <p class="pseudo-params-hint">Mots séparés par des espaces ou des virgules. La proposition à la validation arrive avec le livrable dédié.</p>
+              </template>
+            </div>
+            <b class="pseudo-params-titre">Thématiques d'entités</b>
+            <div class="pseudo-params-bloc">
+              <label><input v-model="thematiquesActif" type="checkbox" @change="committerThematiques" /> Activer les catégories (PER, LOC…)</label>
+              <template v-if="thematiquesActif">
+                <input
+                  v-model="thematiquesListeTexte"
+                  type="text"
+                  class="pseudo-params-liste"
+                  placeholder="PER, LOC, ORG, DAT"
+                  @change="committerThematiques"
+                />
+                <p class="pseudo-params-hint">
+                  Catégories séparées par des espaces ou des virgules. Dans la recherche,
+                  saisir exactement un nom de catégorie filtre le tableau dessus.
+                </p>
+              </template>
+            </div>
           </div>
 
           <div v-if="reglesAnon.length === 0" class="pseudo-vide">
@@ -1581,6 +1626,45 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   margin-top: 0.6rem;
   width: 100%;
 }
+/* Ligne « audio » du panneau méta : les deux gestes se côtoient —
+   Effacer (rouge) à gauche, Remplacer à droite. */
+.audio-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+.audio-actions .mini {
+  flex: 1;
+}
+.audio-actions .assigner-audio {
+  margin-top: 0;
+  width: auto;
+}
+/* « Effacer l'audio » : acte destructif (le média est détaché) — rouge. */
+.audio-effacer {
+  color: #b00020;
+  border-color: #e0b4b4;
+}
+.audio-effacer:hover:not(:disabled) {
+  border-color: #b00020;
+  background: #fdecea;
+}
+/* Bannière de confirmation « le SRT écrase le texte » : même idiome que la
+   suppression, posée sous les boutons. */
+.srt-confirm {
+  margin-top: 0.5rem;
+}
+.srt-err {
+  margin: 0.4rem 0 0;
+  color: #b3261e;
+  font-size: 0.78rem;
+}
+/* Bouton « Assigner un srt… » : même gabarit que l'audio, monté de 0.6rem
+   comme les autres gestes du panneau. */
+.assigner-srt {
+  margin-top: 0.6rem;
+  width: 100%;
+}
 .spectro-vide {
   height: 100%;
   display: flex;
@@ -2027,6 +2111,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   align-items: center;
   gap: 0.45rem;
   cursor: pointer;
+}
+.pseudo-params-bloc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-left: 0.9rem; /* retrait du contenu sous son titre */
 }
 .pseudo-params-hint {
   margin: 0.15rem 0 0;

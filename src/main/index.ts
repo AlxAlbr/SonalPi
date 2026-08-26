@@ -29,6 +29,7 @@ import type {
   EtatDemoComplet,
   ItemLotValeur,
   MarqueurDemo,
+  ModeleEAV,
   OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
@@ -106,6 +107,10 @@ interface Settings {
   /** Dernier signataire d'un commentaire (pré-remplissage de la modale,
    *  parité SonalPi — pas d'identité, juste une mémoire locale). */
   signataire?: string
+  /** Registre des modèles IMPORTÉS par l'utilisateur (« Mes modèles », partagés
+   *  entre tous les corpus — niveau profil, comme signataire). Les modèles
+   *  intégrés restent du code ; ici on ne garde que ce qui a été importé. */
+  modelesUtilisateur?: ModeleEAV[]
 }
 function fichierSettings(): string {
   return join(app.getPath('userData'), 'settings.json')
@@ -121,6 +126,21 @@ function estEtatDemo(d: unknown): d is EtatDemo {
     (o.corpusAutonomie === undefined || typeof o.corpusAutonomie === 'string')
   )
 }
+/** Garde de forme du registre des modèles (fichier de settings potentiellement
+ *  écrit à la volée — ne pas hydrater un enregistrement partiel/corrompu). */
+function estListeModeles(d: unknown): d is ModeleEAV[] {
+  return (
+    Array.isArray(d) &&
+    d.every(
+      (m): m is ModeleEAV =>
+        !!m &&
+        typeof m === 'object' &&
+        typeof (m as ModeleEAV).nom === 'string' &&
+        Array.isArray((m as ModeleEAV).modalites) &&
+        (m as ModeleEAV).modalites.every((lib) => typeof lib === 'string'),
+    )
+  )
+}
 function lireSettings(): Settings {
   try {
     const s = JSON.parse(readFileSync(fichierSettings(), 'utf8')) as Partial<Settings>
@@ -130,6 +150,7 @@ function lireSettings(): Settings {
       largeurVideo:
         s.largeurVideo && typeof s.largeurVideo === 'object' ? s.largeurVideo : undefined,
       signataire: typeof s.signataire === 'string' ? s.signataire : undefined,
+      modelesUtilisateur: estListeModeles(s.modelesUtilisateur) ? s.modelesUtilisateur : undefined,
     }
   } catch {
     return { recents: [] }
@@ -560,6 +581,11 @@ function enregistrerIpcCorpus(): void {
   // d'onde dérivée (PNG), scan des médias, vérification d'intégrité.
   ipcMain.handle('corpus:assignerAudio', (_e, id: string, source: string) => {
     const r = store.assignerAudio(id, source)
+    if (r) sessions?.noterSale(id)
+    return r
+  })
+  ipcMain.handle('corpus:effacerAudio', (_e, id: string) => {
+    const r = store.effacerAudio(id)
     if (r) sessions?.noterSale(id)
     return r
   })
@@ -1015,6 +1041,17 @@ function enregistrerIpcCorpus(): void {
     if (r.canceled || r.filePaths.length === 0) return null
     return { nom: basename(r.filePaths[0]), contenu: readFileSync(r.filePaths[0], 'utf8') }
   })
+  // « Assigner un srt… » (vue Corpus) : le dialogue n'accepte QUE des
+  // transcriptions chronométrées (SRT/VTT) — l'entretien recevra texte + ancres.
+  ipcMain.handle('dialog:choisirSrt', async (e, defaultPath?: string) => {
+    const r = await montrerOuvrir(e, {
+      defaultPath,
+      properties: ['openFile'],
+      filters: [{ name: 'Sous-titres (SRT / VTT)', extensions: ['srt', 'vtt'] }],
+    })
+    if (r.canceled || r.filePaths.length === 0) return null
+    return { nom: basename(r.filePaths[0]), contenu: readFileSync(r.filePaths[0], 'utf8') }
+  })
   // Zone son de la modale + « Assigner un audio… » sur la fiche entretien.
   // En réalité le filtre couvre AUDIO + VIDÉO (les deux sont assignables).
   ipcMain.handle('dialog:choisirAudio', async (e, defaultPath?: string) => {
@@ -1067,6 +1104,33 @@ function enregistrerIpcCorpus(): void {
     if (r.canceled || !r.filePath) return null
     writeFileSync(r.filePath, contenu, 'utf8')
     return r.filePath
+  })
+  // Import d'un MODÈLE de modalités (« Importer un modèle… » dans l'éditeur de
+  // variables) : le dialogue n'accepte qu'un JSON, lu ici (même gabarit que
+  // dialog:choisirTexte). La validation du contenu se fait côté renderer.
+  ipcMain.handle('dialog:choisirJson', async (e, defaultPath?: string) => {
+    const r = await montrerOuvrir(e, {
+      defaultPath,
+      properties: ['openFile'],
+      filters: [{ name: 'Modèle de modalités (JSON)', extensions: ['json'] }],
+    })
+    if (r.canceled || r.filePaths.length === 0) return null
+    return { nom: basename(r.filePaths[0]), contenu: readFileSync(r.filePaths[0], 'utf8') }
+  })
+  // Registre « Mes modèles » (niveau profil, settings.json). La liste ne se
+  // construit qu'à la lecture ; le dédoublonnage par nom (insensible à la
+  // casse) vit à l'ajout — un ré-import met simplement le modèle à jour.
+  ipcMain.handle('modeles:lire', (): ModeleEAV[] => lireSettings().modelesUtilisateur ?? [])
+  ipcMain.handle('modeles:ajouter', (_e, modele: ModeleEAV): ModeleEAV[] => {
+    const s = lireSettings()
+    const liste = [...(s.modelesUtilisateur ?? [])]
+    const cle = (nom: string) => nom.trim().toLowerCase()
+    const i = liste.findIndex((m) => cle(m.nom) === cle(modele.nom))
+    if (i >= 0) liste[i] = modele
+    else liste.push(modele)
+    s.modelesUtilisateur = liste
+    ecrireSettings(s)
+    return liste
   })
 }
 

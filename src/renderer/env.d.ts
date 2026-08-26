@@ -19,6 +19,7 @@ import type {
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
+  ModeleEAV,
   NoteCategory,
   OuvertureCorpus,
   PatchCategorie,
@@ -122,6 +123,7 @@ declare global {
         matrice: () => Promise<MatriceCorpus>
         marquerDemo: (marqueur: MarqueurDemo) => Promise<CorpusFichier>
         assignerAudio: (id: string, source: string) => Promise<{ audioRef: string } | null>
+        effacerAudio: (id: string) => Promise<{ audioRef: null }>
         ecrireWaveform: (id: string, png: Uint8Array) => Promise<string>
         associerAudioLocal: (id: string, source: string) => Promise<{ audioRef: string } | null>
         audios: () => Promise<Record<string, { audio: string | null; waveform: string | null }>>
@@ -136,9 +138,16 @@ declare global {
       }
       dialog: {
         choisirTexte: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
+        choisirSrt: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
         choisirAudio: (defaultPath?: string) => Promise<string | null>
         choisirDossier: (kind?: 'sources' | 'corpus' | 'projet') => Promise<string | null>
         choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
+        choisirJson: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
+      }
+      /** Registre « Mes modèles » du profil (settings.json), partagé entre corpus. */
+      modeles: {
+        lire: () => Promise<ModeleEAV[]>
+        ajouter: (modele: ModeleEAV) => Promise<ModeleEAV[]>
       }
       distant: {
         lister: () => Promise<CompteDistantPublic[]>

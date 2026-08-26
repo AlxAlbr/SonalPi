@@ -7,6 +7,7 @@ import {
   copyFileSync,
   readdirSync,
   statSync,
+  unlinkSync,
 } from 'node:fs'
 import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -941,6 +942,37 @@ export class CorpusStore {
     this.invaliderRefsAudio()
     // Membership inchangé ici (voir ecrireEntretien).
     return { audioRef: ref }
+  }
+
+  /** Détache l'audio d'un entretien : `meta.audioRef` → null, désignation
+   *  distante et association machine-locale oubliées, forme d'onde dérivée
+   *  supprimée. Le texte reste — seul le média est retiré (parité
+   *  « Assigner un audio » : la référence, jamais le fichier source). */
+  effacerAudio(id: string): { audioRef: null } {
+    this.verifierEcritureEntretien(id)
+    const f = this.entretienFile(id)
+    if (!existsSync(f)) return { audioRef: null }
+    const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
+    data.meta.audioRef = null
+    delete data.meta.audioDistant
+    data.lastModified = new Date().toISOString()
+    this.ecrireJsonAtomique(f, data)
+
+    // Association machine-locale (`audio-locaux.json`) : la ref n'existe plus.
+    const locaux = this.lireAudiosLocaux()
+    if (locaux[id]) {
+      delete locaux[id]
+      writeFileSync(this.cheminAudiosLocaux(), JSON.stringify(locaux, null, 2), 'utf8')
+    }
+
+    // Dérivé PNG : supprimé (régénérable — jamais de reliquat sans source).
+    if (existsSync(this.pngDir)) {
+      for (const nom of readdirSync(this.pngDir)) {
+        if (nom.startsWith(id + '.')) unlinkSync(join(this.pngDir, nom))
+      }
+    }
+    this.invaliderRefsAudio()
+    return { audioRef: null }
   }
 
   /** Écrit le PNG de la forme d'onde (`png/<id>.png`).

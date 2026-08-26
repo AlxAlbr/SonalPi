@@ -1,9 +1,11 @@
 import { ref, computed, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
 import { importerFichier } from '../import/sas'
+import type { ResultatImport } from '../import/importSonal'
 import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
-import type { CorpusFichier, EntreeRecent, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
+import type { CorpusFichier, EntreeRecent, EntretienFichier, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
 import { paramsAnonDefaut, MOTS_LIAISON_DEFAUT } from '../../shared/format'
+import { texteDuCorps } from '../../shared/entretien/entretien'
 import { squeletteCorpus } from '../../shared/corpus/squelette'
 import { detailsVariablesEntretien, type BlocLocuteur, type LigneValeur } from '../../shared/corpus/variables'
 import { infoGlobale } from '../erreurs'
@@ -134,8 +136,27 @@ export function creerSonal() {
     nbLocuteurs: number
     nbValeurs: number
     audio: boolean
+    /** Transcription chronométrée présente (ancres d'un SRT/VTT importé) —
+     *  le bouton « Assigner un srt… » se masque quand c'est le cas. */
+    srt: boolean
     generales: LigneValeur[]
     parLocuteur: BlocLocuteur[]
+  }
+  /** Détails AFFICHABLES depuis le fichier lu d'un entretien (partagé entre
+   *  la sélection et le rafraîchissement après mutation). */
+  function detailsDepuisLecture(data: EntretienFichier): DetailsVariables {
+    const details = detailsVariablesEntretien(corpus.variables.value, data)
+    const nbValeurs =
+      Object.keys(data.meta.valeursGen).length +
+      data.locuteurs.reduce((s, l) => s + Object.keys(l.valeursLoc).length, 0)
+    return {
+      nbLocuteurs: data.locuteurs.length,
+      nbValeurs,
+      audio: data.meta.audioRef != null,
+      srt: (data.ancres?.length ?? 0) > 0,
+      generales: details.generales,
+      parLocuteur: details.parLocuteur,
+    }
   }
   const corpusSelMeta = ref<DetailsVariables | null>(null)
   async function selectionnerCorpus(id: string) {
@@ -146,18 +167,16 @@ export function creerSonal() {
     if (res.ok && corpusSelId.value === id) {
       // Panneau métadonnées (lecture seule) : compteurs + variables résolues,
       // comme le panneau « Détails de l'entretien » de SonalPi V1.
-      const details = detailsVariablesEntretien(corpus.variables.value, res.data)
-      const nbValeurs =
-        Object.keys(res.data.meta.valeursGen).length +
-        res.data.locuteurs.reduce((s, l) => s + Object.keys(l.valeursLoc).length, 0)
-      corpusSelMeta.value = {
-        nbLocuteurs: res.data.locuteurs.length,
-        nbValeurs,
-        audio: res.data.meta.audioRef != null,
-        generales: details.generales,
-        parLocuteur: details.parLocuteur,
-      }
+      corpusSelMeta.value = detailsDepuisLecture(res.data)
     }
+  }
+  /** Recalcule le panneau de l'entretien sélectionné après une mutation
+   *  (audio effacé, SRT assigné…) — ne bascule pas la sélection. */
+  async function rafraichirMetaSelection() {
+    const id = corpusSelId.value
+    if (!id) return
+    const res = await window.sonal.corpus.lireEntretien(id)
+    if (res.ok && corpusSelId.value === id) corpusSelMeta.value = detailsDepuisLecture(res.data)
   }
   function deselectionnerCorpus() {
     corpusSelId.value = null
@@ -780,6 +799,92 @@ export function creerSonal() {
     }
   }
 
+  /** « Effacer l'audio » (panneau métadonnées) : détache le média référencé.
+   *  Ref partagée, désignation distante, association locale et forme d'onde
+   *  dérivée : tout part, le texte reste. Entretien ouvert : son modèle en
+   *  session suit, sinon un autosave en file écrirait l'ancien état. */
+  async function effacerAudioSelection() {
+    const id = corpusSelId.value
+    if (!id) return
+    if (ent.ouvertId.value === id) {
+      ent.meta.audioRef = null
+      ent.meta.audioDistant = null
+      await ent.sauver() // vide la file d'autosave (le retrait va être écrit)
+    }
+    await window.sonal.corpus.effacerAudio(id)
+    await rafraichirAudios()
+    audiosManquants.value = await verifierIntegriteAudios()
+    await rafraichirMetaSelection()
+    if (ent.ouvertId.value === id) await majAudioEntretien(id)
+  }
+
+  /** « Assigner un srt… » (panneau métadonnées) : importe une transcription,
+   *  dont le contenu remplace l'éditeur (texte + ancres + locuteurs).
+   *  Si l'éditeur porte déjà du texte, on demande confirmation d'abord :
+   *  jamais d'écrasement silencieux. */
+  const srtASurEcrire = ref<string | null>(null)
+  const srtMessage = ref<string | null>(null)
+  async function demanderSrt() {
+    const id = corpusSelId.value
+    if (!id) return
+    // Un texte tapé en session doit compter dans la garde, sinon un contenu
+    // non sauvé serait ignoré. On vide la file d'autosave avant la lecture.
+    if (ent.ouvertId.value === id) await ent.sauver()
+    const lecture = await window.sonal.corpus.lireEntretien(id)
+    if (!lecture.ok) return
+    srtMessage.value = null
+    if (texteDuCorps(lecture.data.corpsTexte).trim() !== '') {
+      srtASurEcrire.value = id // la bannière demande confirmation.
+      return
+    }
+    await importerSrtDans(id)
+  }
+  function confirmerSrt() {
+    const id = srtASurEcrire.value
+    srtASurEcrire.value = null
+    if (id) void importerSrtDans(id)
+  }
+  /** Importe le SRT choisi : la transcription de l'entretien est remplacée.
+   *  Les données saisies AUTOUR sont préservées (valeurs EAV, notes,
+   *  brouillons anon et legacy). On remplace le texte, pas les méta. */
+  async function importerSrtDans(id: string) {
+    const fichier = await window.sonal.dialog.choisirSrt(demo.racineSources.value ?? undefined)
+    if (!fichier) return
+    let importe: ResultatImport
+    try {
+      importe = importerFichier(fichier.nom, fichier.contenu, (html) =>
+        new DOMParser().parseFromString(html, 'text/html'),
+      )
+    } catch (err) {
+      srtMessage.value = err instanceof Error ? err.message : String(err)
+      return
+    }
+    srtMessage.value = null
+    const ouvert = ent.ouvertId.value === id
+    if (ouvert) await ent.sauver() // un autosave en file écrirait l'ancienne transcription.
+    const lecture = await window.sonal.corpus.lireEntretien(id)
+    if (!lecture.ok) return
+    try {
+      await window.sonal.corpus.ecrireEntretien(id, {
+        corpsTexte: importe.payload.corpsTexte,
+        annotations: importe.payload.annotations,
+        ancres: importe.payload.ancres,
+        locuteurs: importe.payload.locuteurs,
+        meta: lecture.data.meta,
+        notes: lecture.data.notes,
+        brouillonsAnon: lecture.data.brouillonsAnon,
+        pseudosDeclares: lecture.data.pseudosDeclares,
+        legacy: lecture.data.legacy,
+      })
+    } catch (err) {
+      srtMessage.value = err instanceof Error ? err.message : String(err)
+      return
+    }
+    // Session ouverte : recharger depuis le disque (le contenu a changé).
+    if (ouvert) await ent.ouvrir(id)
+    await rafraichirMetaSelection()
+  }
+
   /** « Assigner un audio… » à l'entretien OUVERT (depuis le lecteur — ex. quand
    *  l'audio référencé est introuvable). Ouvre le dialogue, référence le nouveau
    *  chemin, régénère la forme d'onde et recharge le lecteur.
@@ -1103,6 +1208,11 @@ export function creerSonal() {
     audiosManquants,
     urlWaveform,
     assignerAudioSelection,
+    effacerAudioSelection,
+    demanderSrt,
+    confirmerSrt,
+    srtASurEcrire,
+    srtMessage,
     reassignerAudioEntretienOuvert,
     associerAudioEntretienOuvert,
     designationAudioId,
