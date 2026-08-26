@@ -2622,7 +2622,7 @@ td.col-pseudo {
 }
 /* Compteur « à anonymiser » : occurrences présentes dans le texte mais pas
  * encore traitées (requête recalculée à l'ouverture, au ⟳ et après chaque
- * geste anon) — badge orange V1 (.cpt-btn.cpt-aanon). */
+ * geste anon) — badge orange SonalPi V1 (.cpt-btn.cpt-aanon). */
 /* Compteurs PAR VARIANTE (multi-pseudo) : une puce par pseudo, libellé + ses
  * deux compteurs ; empilement lisible dans la colonne étroite. */
 .cpt-variante {

@@ -44,14 +44,14 @@ le motif §4.7 appliqué au fichier entretien). Tout échec ponctuel (entretien
 ouvert entre-temps par autrui, divergence 412, réseau) est **signalé
 nommément** dans un récapitulatif, sans bloquer les autres entretiens du lot.
 
-### Hors périmètre v1 (décisions explicites)
+### Hors périmètre de l'itération 1 (décisions explicites)
 
-- **Portée locuteur** : pas de lot v1 (les locuteurs diffèrent d'un entretien à
+- **Portée locuteur** : pas de lot en itération 1 (les locuteurs diffèrent d'un entretien à
   l'autre ; il faudrait choisir « quel locuteur » par entretien). Le bouton
   ligne couvre ce besoin au cas par cas.
 - Les cellules restent non éditables en distant (pas de saisie cellule par
   cellule) — c'est le contournement volontaire de la complexité initiale.
-- Pas de « vider la valeur » en v1 (poser `—` = valeur vide suffira si trivial ;
+- Pas de « vider la valeur » en itération 1 (poser `—` = valeur vide suffira si trivial ;
   sinon report).
 
 ## 3. Phase 1 — Bouton ligne « Saisir… » (renderer seul, petit)
@@ -77,7 +77,7 @@ Nouvelle méthode `TransactionsCorpus.poserValeurLot(lot)` — le lot ne touche
 **pas** corpus.json (pas de verrou corpus) : un cycle par ENTRETIEN.
 
 1. **Regrouper** les items par `entretienId` (un seul verrou/aller-retour par
-   entretien même si plusieurs valeurs demandées — v1 : 1 variable, donc 1 item).
+   entretien même si plusieurs valeurs demandées — itération 1 : 1 variable, donc 1 item).
 2. **Cas « session à nous »** : si `sessions` tient déjà l'id (impossible depuis
    la table aujourd'hui, mais défense en profondeur), écrire via le chemin
    existant (`store.poserValeur` garde levée + `noterSale`) — pas de verrou.
@@ -88,7 +88,7 @@ Nouvelle méthode `TransactionsCorpus.poserValeurLot(lot)` — le lot ne touche
    - GET frais de `entretiens/<id>.json` (+ ETag observé, motif `etatEtag`) ;
    - mutation pure locale via `corpusModel.poserValeur(data, cible, idVar, idMod)`
      + `lastModified` (parité `store.poserValeur`, sans toucher au membership) ;
-   - PUT **If-Match** ; 412 → échec « divergence », continuer (pas de retry v1) ;
+   - PUT **If-Match** ; 412 → échec « divergence », continuer (pas de retry en itération 1) ;
    - écrire le MÊME contenu dans le fichier du MIROIR local (écriture atomique,
      même utilitaire que le store) → la matrice est fraîche sans pull complet ;
    - `liberer` en `finally` (toujours, y compris sur échec).
@@ -146,7 +146,7 @@ Dans `multi-utilisateur.e2e.ts`, même mécanique narration/DEMO_PAUSE_MS :
 |---|---|
 | Verrou global au lot | REFUSÉ : verrou PAR entretien, jamais global (un lot long ne doit pas geler le corpus) |
 | Battement/TTL | Inutile : verrou tenu quelques centaines de ms par entretien |
-| Divergence 412 | Échec signalé, pas de retry auto (v1) — l'utilisateur relance le lot |
+| Divergence 412 | Échec signalé, pas de retry auto (itération 1) — l'utilisateur relance le lot |
 | Entretien ouvert CHEZ NOUS | Chemin session existant (garde + noterSale), jamais d'auto-concurrence |
 | Cohérence miroir | Écriture through (même contenu serveur + miroir) → matrice fraîche, pull suivant no-op |
 | Presence 👁 | Jamais décisionnelle : le lot peut modifier un entretien seulement consulté |

@@ -276,7 +276,7 @@ export function useEntretien(deps: {
     reperageAnon.value = { cle, categorie, variante, hits, index: 0 }
     calerSurHitCourant()
   }
-  /** Pas de navigation ◄ / ► (modulo, comme V1). */
+  /** Pas de navigation ◄ / ► (modulo, comme SonalPi V1). */
   function naviguerReperage(sens: number) {
     const r = reperageAnon.value
     if (!r || r.hits.length === 0) return
@@ -1511,7 +1511,7 @@ export function useEntretien(deps: {
     // APPLIQUÉES sur la table réactive : relabel des occurrences ANONYMISÉES
     // seules (les exceptions gardent état + pseudo-mémoire), poses bloquées
     // par une exception couvrante, absorption « la plus longue gagne » sur
-    // l'anonymisé pur (intacts par rapport à v1).
+    // l'anonymisé pur (intacts par rapport à l'itération 1).
     const instr = instructionsValiderAnon(
       entretien.annotations,
       matches,
@@ -2145,7 +2145,7 @@ export function useEntretien(deps: {
     rafraichirDecorations()
     planifierSauvegarde()
   }
-  /** Retire UN codage sans resélectionner (menu contextuel, parité V1) :
+  /** Retire UN codage sans resélectionner (menu contextuel, parité SonalPi V1) :
    *  même sillage que le toggle « re-clic = retirer » de coderAvec. */
   function retirerCodageMenu(id: string) {
     const a = entretien.annotations.find((x) => x.id === id)

@@ -225,7 +225,7 @@ export class TransactionsCorpus {
     const succes: string[] = []
     const echecs: { id: string; raison: string }[] = []
     // Regrouper par entretien :
-    // UN verrou et UN aller-retour serveur même si plusieurs valeurs demandées pour le même fichier (v1 :
+    // UN verrou et UN aller-retour serveur même si plusieurs valeurs demandées pour le même fichier (itération 1 :
     // 1 variable → 1 item).
     const parEntretien = new Map<string, ItemLotValeur[]>()
     for (const item of items) {
@@ -266,7 +266,7 @@ export class TransactionsCorpus {
    *  PUT If-Match → écriture THROUGH du miroir,
    *  `liberer` TOUJOURS en `finally` (y compris sur échec). Divergence 412 ou réseau :
    *  exception propagée à l'appelant (échec nommé, miroir NON modifié —
-   *  il n'est écrit qu'après un PUT réussi). Pas de retry v1 : l'utilisateur relance le lot. */
+   *  il n'est écrit qu'après un PUT réussi). Pas de retry (itération 1) : l'utilisateur relance le lot. */
   private async poserValeurHorsSession(id: string, lot: ItemLotValeur[]): Promise<void> {
     const provider = this.providerPourEntretien()
     const cheminVerrou = this.cheminVerrouEntretien(id)

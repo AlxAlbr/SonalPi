@@ -10,7 +10,7 @@ import { Extension } from '@tiptap/core'
  *
  * Les timecodes ne sont PAS des attrs de bloc : le temps est porté par les
  * ANCRES du modèle (`entretien.ancres`, positions remappées comme les
- * annotations). Les fichiers v1 sont migrés au store.
+ * annotations). Les fichiers formatVersion 1 sont migrés au store.
  *
  * On n'ajoute AUCUN mark utilisateur (gras/italique) : tout le visuel du
  * marquage vient des décorations (calque), jamais du texte.

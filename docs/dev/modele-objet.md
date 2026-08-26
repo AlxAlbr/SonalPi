@@ -1,6 +1,6 @@
 # Modèle objet — vue à 3 niveaux
 
-> Ce document décrit le modèle d'objet de **SonalPiTestV2**, recalé sur le **code actuel**.
+> Ce document décrit le modèle d'objet de **SonalTau**, recalé sur le **code actuel**.
 > Il reprend la structure « vue à 3 niveaux » des premières réflexions (POC `MODELE_OBJET.md`) :
 > une **vue d'ensemble** stable, puis des **sous-schémas par préoccupation** (un diagramme et un
 > ancrage code chacun), puis des **notes en prose**. Contrairement à SonalPi V1, le modèle est
@@ -18,9 +18,9 @@
 
 > **Ce qui s'est effondré depuis SonalPi V1.** Le code actuel a **supprimé** une grande partie de
 > la complexité que le doc initial devait documenter : la **double tenue** EAV local↔corpus
-> (v2 : une seule vérité par donnée), la **triple tenue** d'anonymisation (règle ↔ occurrence ↔
-> cache corpus), les **fragments** coupés par le marquage (v2 : plages de positions ProseMirror),
-> et l'`Extrait` (v2 : une **requête**). Chaque sous-schéma ci-dessous le constate au passage.
+> (SonalTau : une seule vérité par donnée), la **triple tenue** d'anonymisation (règle ↔ occurrence ↔
+> cache corpus), les **fragments** coupés par le marquage (SonalTau : plages de positions ProseMirror),
+> et l'`Extrait` (SonalTau : une **requête**). Chaque sous-schéma ci-dessous le constate au passage.
 
 ---
 
@@ -444,7 +444,7 @@ classDiagram
   de l'étape 3, jamais stockée. Rendu par dérivation pure `libelleGouttiere`
   (`entretien/locuteurs.ts`). Ordre des cas : un **refus explicite prime** sur le pseudo.
   L'interface ne propose plus la bascule confirmer/refuser : poser un pseudo pseudonymise
-  directement les étiquettes. Le champ `pseudoEtat` survit pour la **parité fichiers V1** :
+  directement les étiquettes. Le champ `pseudoEtat` survit pour la **parité fichiers SonalPi V1** :
   un refus importé d'un `.sonal` reste honoré au rendu, mais il n'est plus saisissable ici.
 - **Couleur** : choisie (palette définie `PALETTE_PASTILLES_LOCUTEURS`) ou **auto par index** ;
   stable car l'index est l'identité.
@@ -590,8 +590,8 @@ classDiagram
   « deux graphies → un pseudo » est couvert par les **alias** `entite[]` (§6), système généraliste
   pour personnes *comme* lieux/organisations. `Personne` ne serait qu'une **identité de locuteur**
   trans-entretien (interopérabilité CAQDAS, longitudinal).
-- **Non implémenté dans V2** : le **Recueil** (§6 de l'ancien doc — collecte d'`ItemRecueil`),
-  le **Storage multi-backend** (factory Local/Serveur/GitLab/Nextcloud : V2 ne persiste qu'en local,
+- **Non implémenté dans SonalTau** : le **Recueil** (§6 de l'ancien doc — collecte d'`ItemRecueil`),
+  le **Storage multi-backend** (factory Local/Serveur/GitLab/Nextcloud : SonalTau ne persiste qu'en local,
   cf. §9), et le contenu de `Personne`.
 - **Frontière `shared/` pure** : tout ce qui est modélisé ici vit sous `src/shared/` comme
   fonctions **pures**. Un test **garde-fou** — « discipline d'architecture » dans `test/remap.test.ts`
@@ -629,7 +629,7 @@ src/shared/
     journal.ts              journal d'actions annulables                 (§8)
     locuteurs.ts            locuteurs (dont pseudo/pseudoEtat/couleur)   (§7)
     notes.ts                notes d'entretien (catégories, rangs)         (§10)
-    migration.ts            migration v1→v2 des entretiens
+    migration.ts            migration formatVersion 1→2 des entretiens
     anon/                   ── domaine anonymisation ──                  (§6)
       anonymisation.ts        moteur (texte plat, plages)
       applicationMasse.ts     application en masse (entretien fermé)

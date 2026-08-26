@@ -914,7 +914,7 @@ function enregistrerIpcCorpus(): void {
     sessions?.supprimerDivergence(chemin)
   })
 
-  /** Migration SonalPi V1 → V2, EXÉCUTION : crée le corpus V2 dans le dossier dédié,
+  /** Migration SonalPi V1 → SonalTau, EXÉCUTION : crée le corpus SonalTau dans le dossier dédié,
    *  l'ajoute aux récents, et BASCULE le store dessus (même mécanique que changerDossier). */
   ipcMain.handle('migrer:executer', (_e, req: DemandeMigration) => {
     store = new CorpusStore(req.dossier)
@@ -1177,7 +1177,7 @@ function enregistrerIpcDemo(): void {
 }
 
 // --- Migration SonalPi V1 → V2 : lecture et aperçu d'un `.crp` ---
-// Choix d'un `.crp` : dialogue natif (filtre crp), lecture + détection d'encodage (chardet + iconv-lite, comme la V1 — `src/main/encodage.ts`) ;
+// Choix d'un `.crp` : dialogue natif (filtre crp), lecture + détection d'encodage (chardet + iconv-lite, comme SonalPi V1 — `src/main/encodage.ts`) ;
 // puis analyse PUR côté `shared/corpus/migrationCrp.ts`. À ce stade, le main ne fait que LIRE ;
 // l'aperçu est affiché avant toute écriture.
 function enregistrerIpcMigration(): void {

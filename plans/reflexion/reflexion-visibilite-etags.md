@@ -38,10 +38,10 @@ même si celle-ci l'aggrave vraisemblablement (trois écritures dans la même se
 Séquence exacte du test :
 
 ```
-PUT v1  If-None-Match:*      → 201, etag E1
-PUT v2  If-None-Match:*      → 412 (déjà présent)            ✓ contrat honoré
-PUT v3  If-Match:E1          → 204/201, renvoie E2           ✓ contrat honoré
-PUT v4  If-Match:E1 (périmé) → ATTENDU 412 — parfois ACCEPTÉ ✗ (le serveur
+PUT (rév. 1)  If-None-Match:*      → 201, etag E1
+PUT (rév. 2)  If-None-Match:*      → 412 (déjà présent)            ✓ contrat honoré
+PUT (rév. 3)  If-Match:E1          → 204/201, renvoie E2           ✓ contrat honoré
+PUT (rév. 4)  If-Match:E1 (périmé) → ATTENDU 412 — parfois ACCEPTÉ ✗ (le serveur
                                compare encore contre E1)
 ```
 

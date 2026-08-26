@@ -9,7 +9,7 @@
  *   - chaque bloc pèse `2 + len` (open + contenu + close).
  *
  *  Vit dans shared/ (arithmétique pure, aucune dépendance ProseMirror) :
- *  la migration v1→v2 du store (main) et l'import/export (renderer) s'en servent.
+ *  la migration formatVersion 1→2 du store (main) et l'import/export (renderer) s'en servent.
  */
 
 /** Position PM du début du CONTENU du bloc k (avant son 1er caractère). */

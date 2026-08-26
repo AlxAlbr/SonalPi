@@ -38,6 +38,15 @@ Règles concrètes :
 En résumé : si un commentaire ne survit pas à la suppression des plans, il ne
  doit pas être dans le code.
 
+## Vocabulaire des versions
+
+- **Jamais « v1/v2 » nu** ; toujours qualifier la dimension (détails : `docs/dev/versions.md`).
+- **SonalPi** (ou « SonalPi V1 ») désigne TOUJOURS l'ancien produit de `Vscode/SonalPi` —
+  son mapping legacy, ses fichiers `.crp`/`.sonal`, ses conventions d'encodage.
+- **SonalTau** désigne CE projet ; le sigle « V2 » pour le produit n'existe plus.
+- **formatVersion** : version du format natif (numéro, migrations explicites au store).
+- **itération** : tranche de fonctionnalité ; **release** : semver de `package.json`.
+
 ## Tests : ne retéléchargez JAMAIS les images Docker
 
 Les images et volumes Nextcloud des bancs (`docker/compose-*.yml`) sont déjà en place :

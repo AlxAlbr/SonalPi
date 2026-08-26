@@ -143,7 +143,7 @@ describe('corpus — détails variables d’un entretien (panneau métadonnées,
     const d = detailsVariablesEntretien(definitions(), {
       meta: { valeursGen: { v1: 'inconnu' } }, // idMod sans définition → pas de valeur affichée
       locuteurs: [
-        { nom: 'Enquêteur ?', valeursLoc: { v2: 'v2m1' } }, // interviewer : exclu (parité V1)
+        { nom: 'Enquêteur ?', valeursLoc: { v2: 'v2m1' } }, // interviewer : exclu (parité SonalPi V1)
         { nom: 'Karine', valeursLoc: {} },
       ],
     })

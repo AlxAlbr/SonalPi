@@ -61,7 +61,7 @@ test('le panneau méta affiche les variables résolues et porte la suppression',
 
   // Variables par locuteur : un bloc « Karine » (Sexe = F) ; l'enquêteur du
   // seed (ni flaggé interviewer ni « ? ») a AUSSI un bloc, aux valeurs vides
-  // (parité V1 : seuls les interviewers marqués sont exclus).
+  // (parité SonalPi V1 : seuls les interviewers marqués sont exclus).
   await expect(page2.locator('.meta-vars h4', { hasText: 'Karine' })).toBeVisible()
   const blocKarine = page2.locator('.meta-vars .bloc-loc', { hasText: 'Karine' })
   await expect(blocKarine.locator('.ligne-var', { hasText: 'Sexe' }).locator('.val-var')).toHaveText('F')

@@ -15,7 +15,7 @@ export { importerVariables }
 
 /**
  *  Mapping EAV entre le FORMAT LEGACY `.sonal` (tabVar/tabDic/tabDat, codes
- *  numériques + sentinelle `l="all"`) et le MODÈLE SonalPiTestV2 (variables au
+ *  numériques + sentinelle `l="all"`) et le MODÈLE SonalTau (variables au
  *  corpus, valeurs chez leur propriétaire).
  *
  *  Deux invariants portent tout le round-trip :

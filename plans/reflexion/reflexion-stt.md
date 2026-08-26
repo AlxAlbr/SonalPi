@@ -1,7 +1,7 @@
-# Réflexion STT — transcription vocale au fil de l'eau dans SonalPiTestV2
+# Réflexion STT — transcription vocale au fil de l'eau dans SonalTau
 
 > Document de **réflexion**, pas un plan d'exécution : il synthétise une exploration sur la
-> faisabilité d'une transcription vocale **locale et au fil de l'eau** dans SonalPiTestV2
+> faisabilité d'une transcription vocale **locale et au fil de l'eau** dans SonalTau
 > (dicter un entretien dans l'éditeur), en partant du test du raccourci Ctrl+Espace et de
 > l'essai de l'app Murmure. Aucun code n'a été modifié ; les repos Murmure et parakeet.cpp
 > ont été clonés en lecture seule dans `/tmp` pour analyse.
@@ -81,7 +81,7 @@ en GGUF par le projet ([mudler/parakeet-cpp-gguf](https://huggingface.co/mudler/
 
 ## 5. Deux chemins d'intégration (et leur complexité)
 
-Contexte : SonalPiTestV2 est **100 % JS/TS, zéro module natif** (Electron + Vue + TipTap) —
+Contexte : SonalTau est **100 % JS/TS, zéro module natif** (Electron + Vue + TipTap) —
 un atout de portabilité que l'intégration STT bouscule différemment selon le chemin choisi.
 
 ### Chemin A — CLI sous-processus (le plus simple)

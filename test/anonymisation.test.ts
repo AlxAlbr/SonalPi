@@ -10,7 +10,7 @@ import {
 import { debutBloc } from '../src/shared/entretien/positions'
 
 /**
- *  Moteur d'anonymisation (pur) — couvre les cas v1 : occurrence simple, casse,
+ *  Moteur d'anonymisation (pur) — couvre les cas de l'itération 1 : occurrence simple, casse,
  *  frontières de mot, ponctuation de bord, et le pont texte plat ↔ positions PM.
  *  Headless, aucun DOM ni ProseMirror.
  */

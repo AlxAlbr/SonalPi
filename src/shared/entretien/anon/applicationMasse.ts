@@ -66,14 +66,14 @@ export function poserDansPlages(
 }
 
 /** Applique le DIFF de validation de la vue vérification sur les annotations
- *  d'un entretien FERMÉ (façon V1 « Valider ») : retraits d'exceptions,
+ *  d'un entretien FERMÉ (façon SonalPi V1 « Valider ») : retraits d'exceptions,
  *  dé-pseudonymisations, exceptions posées. Les POSES ne passent pas ici :
  *  elles viennent des instructions de la règle (`instructionsAppliquerRegle`).
  *  Une exception posée sur une occurrence déjà anonymisée par la MÊME règle
  *  bascule son état (le pseudo reste en mémoire pour un retour arrière) ;
  *  sinon une annotation `exception` est créée. Retirer une exception SUPPRIME
  *  l'annotation : l'occurrence redevient « à traiter ». Mute `annotations`
- *  en place et renvoie le nombre de changements. Ordre V1 : les exceptions
+ *  en place et renvoie le nombre de changements. Ordre SonalPi V1 : les exceptions
  *  sont retirées AVANT tout le reste. PURE vis-à-vis du disque. */
 export function appliquerDiffAnon(
   annotations: Annotation[],

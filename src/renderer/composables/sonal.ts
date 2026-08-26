@@ -105,7 +105,7 @@ export function creerSonal() {
     if (!u) ent.majPlageLue(null)
   })
 
-  // --- Navigation SonalPi : Accueil → Corpus → Entretien (+ Table de données) ---
+  // --- Navigation : Accueil → Corpus → Entretien (+ Table de données) ---
   const vue = ref<'accueil' | 'corpus' | 'entretien' | 'donnees'>('corpus')
 
   // --- Largeur du panneau vidéo, mémorisée PAR CORPUS (settings.json) ---
@@ -576,7 +576,7 @@ export function creerSonal() {
     await rafraichirStatutSession()
   }
 
-  /** Migration SonalPi V1 → V2 : exécute la création du corpus V2, le main écrit, ouvre et ajoute aux récents.
+  /** Migration SonalPi V1 → SonalTau : exécute la création du corpus SonalTau, le main écrit, ouvre et ajoute aux récents.
    *  Applique le corpus au modèle, puis IMPORTE les entretiens V1 (lecture des .Sonal + audio).
    *  Même geste de profil que `ouvrirDossier` (nom courant + récents). */
   async function migrerDepuisV1(req: DemandeMigration, tabEntV1?: CrpV1Entretien[]) {
@@ -585,7 +585,7 @@ export function creerSonal() {
     await profil.rafraichirRecents()
     quitterDistant()
     await appliquerCorpus(r.corpus, r.dir)
-    // Migration V1 : chaque `tabEnt[]` → un entretien.
+    // Migration SonalPi V1 : chaque `tabEnt[]` → un entretien.
     for (const e of mapperEntretiensV1(tabEntV1)) await importerEntretienV1(req.cheminCrp, e)
     await rafraichirAudios()
     vue.value = 'corpus'

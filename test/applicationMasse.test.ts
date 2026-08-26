@@ -84,7 +84,7 @@ describe('poserDansPlages — application ciblée (occurrences cochées)', () =>
 })
 
 import { appliquerDiffAnon } from '../src/shared/entretien/anon/applicationMasse'
-describe('appliquerDiffAnon — validation du diff façon V1 (« Valider »)', () => {
+describe('appliquerDiffAnon — validation du diff façon SonalPi V1 (« Valider »)', () => {
   const anon = (id: string, from: number, to: number, etat?: 'anonymise' | 'exception'): Annotation => ({
     id,
     type: 'anon',
@@ -122,7 +122,7 @@ describe('appliquerDiffAnon — validation du diff façon V1 (« Valider »)', (
     expect(n).toBe(1)
     expect(anns).toHaveLength(0)
   })
-  test('ordre V1 : retrait d exception AVANT dé-pseudonymisation, aucune interaction entre règles', () => {
+  test('ordre SonalPi V1 : retrait d exception AVANT dé-pseudonymisation, aucune interaction entre règles', () => {
     const anns = [anon('a', 0, 4, 'exception'), anon('b', 8, 12), anon('c', 20, 24, 'exception')]
     // c porte une AUTRE règle : intouchable.
     ;(anns[2] as Annotation).regle = 'autre'

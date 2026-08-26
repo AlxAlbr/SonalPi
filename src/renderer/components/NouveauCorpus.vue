@@ -74,7 +74,7 @@ async function valider() {
       <div class="modale-nouveau">
         <h3>➕ Nouveau corpus local</h3>
         <p class="intro">
-          Créez un corpus V2 dans un <b>dossier dédié</b> en lui donnant un
+          Créez un corpus SonalTau dans un <b>dossier dédié</b> en lui donnant un
           <b>nom de projet</b> — indépendant de son dossier (il survivra au
           renommage du dossier).
         </p>

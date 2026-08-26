@@ -97,7 +97,7 @@ describe('dérivation de l’état d’une ligne (brouillon vs entretien)', () =
     return occurrencesDe(tPlat.texte, 'Karine').map((pl, i) => ({
       id: `a${i}`,
       ...plageVersPM(tPlat, pl.from, pl.to)!,
-      pseudo: 'Marie', // le pseudo est porté par l'occurrence (standalone, v1)
+      pseudo: 'Marie', // le pseudo est porté par l'occurrence (standalone, SonalPi V1)
     }))
   }
 

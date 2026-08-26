@@ -88,8 +88,8 @@ function ecrireCorpusV1(profil: string): { cheminCrp: string; audioPath: string 
     tabEnt: Array<Record<string, unknown>>
   }
   // L'utilisateur a SUPPRIMÉ « ★☆☆ Important » (cat_004) en V1 : le .crp ne le
-  // porte plus → la V2 ne doit pas le recréer (le bloc Pondérations par défaut
-  // n'est écrit que pour un corpus V2 NEUF, jamais en migration).
+  // porte plus → SonalTau ne doit pas le recréer (le bloc Pondérations par défaut
+  // n'est écrit que pour un corpus SonalTau NEUF, jamais en migration).
   crp.tabThm = crp.tabThm.filter((t) => t.code !== 'cat_004')
   // Raccourcit à 3 entretiens ciblant les fichiers présents / absent (Q1b).
   crp.tabEnt = [
@@ -106,12 +106,12 @@ function lireCorpus(dir: string): Record<string, unknown> {
   return JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))
 }
 
-/** Lit un entretien du corpus migré (sous dossier V2). */
+/** Lit un entretien du corpus migré (sous dossier SonalTau). */
 function lireEntretien(dirCorpus: string, id: string): Record<string, any> {
   return JSON.parse(readFileSync(join(dirCorpus, 'entretiens', `${id}.json`), 'utf8'))
 }
 
-test('flux complet — .crp → aperçu → dossier dédié → corpus V2 ouvert, entretiens .Sonal+audio migrés', async () => {
+test('flux complet — .crp → aperçu → dossier dédié → corpus SonalTau ouvert, entretiens .Sonal+audio migrés', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-'))
   const { cheminCrp, audioPath } = ecrireCorpusV1(profil)
   const dirCible = join(profil, 'MonCorpus') // dossier dédié, VIDE
@@ -137,7 +137,7 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus V2 ouvert
   await expect(page.locator('.modale-migration .avertir-non-vide')).toHaveCount(0)
   await expect(page.locator('.modale-migration .valider')).toBeEnabled()
 
-  // Étape 3 — migrer → le corpus V2 s'ouvre (écran Corpus), la modale ferme.
+  // Étape 3 — migrer → le corpus SonalTau s'ouvre (écran Corpus), la modale ferme.
   await page.locator('.modale-migration .valider').click()
   await attendreCorpus(page)
   await expect(page.locator('.modale-migration')).toHaveCount(0)
@@ -207,7 +207,7 @@ test('gardes « on n’écrase jamais » — corpus.json refusé, corpus démo r
   const profil = mkdtempSync(join(tmpdir(), 'sonal-v1migr-garde-'))
   const cheminCrp = ecrireCrp(profil, 'MonCorpus.crp', 'corpusV1.crp')
 
-  // dirA : DÉJÀ un corpus V2 (corpus.json) ; dirB : corpus d'un mode démo.
+  // dirA : DÉJÀ un corpus SonalTau (corpus.json) ; dirB : corpus d'un mode démo.
   const dirA = join(profil, 'deja')
   mkdirSync(dirA, { recursive: true })
   writeFileSync(
@@ -271,7 +271,7 @@ test('dossier non vide SANS corpus.json → avertissement à confirmer avant de 
 
   await page.locator('.modale-migration .valider').click()
   await attendreCorpus(page)
-  // Le fichier non lié est resté ; le corpus V2 a posé corpus.json à côté.
+  // Le fichier non lié est resté ; le corpus SonalTau a posé corpus.json à côté.
   expect(existsSync(join(dirCible, 'notes.txt'))).toBe(true)
   expect(existsSync(join(dirCible, 'corpus.json'))).toBe(true)
 
@@ -329,7 +329,7 @@ test('multi-crp — un `.crp` → UN dossier dédié, deux migrations indépenda
   await page.locator('.modale-migration .valider').click()
   await attendreCorpus(page)
 
-  // Deux corpus V2 indépendants : A = repli nom de fichier, B = nom du .crp.
+  // Deux corpus SonalTau indépendants : A = repli nom de fichier, B = nom du .crp.
   expect(lireCorpus(dirA).nom).toBe('A')
   expect(lireCorpus(dirB).nom).toBe('Mon Projet de Recherche')
   expect((lireCorpus(dirB).meta as Record<string, unknown>)).toEqual({

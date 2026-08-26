@@ -43,4 +43,4 @@ audio, la lecture se comporte normalement.
 Si le son sous WSL devenait un jour bloquant en dev : workaround connu = installer
 un serveur PulseAudio sur Windows et pointer `PULSE_SERVER=tcp:…` depuis WSL
 (contourne le pont RDP de WSLg) ; une mise à jour de WSL/Windows peut aussi
-régler le problème. À ne pas traiter comme un bug de SonalPiTestV2.
+régler le problème. À ne pas traiter comme un bug de SonalTau.

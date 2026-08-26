@@ -4,7 +4,7 @@
 > local ? Y a-t-il une extraction de l'audio ?
 >
 > Réponse courte : **non, il n'y a aucune extraction**. Et c'est un choix qu'on
-> assume désormais (v1) ; ce document garde la trace de l'analyse au cas où le
+> assume désormais (release initiale) ; ce document garde la trace de l'analyse au cas où le
 > besoin produit reviendrait.
 
 ## Comment ça marche aujourd'hui
@@ -20,7 +20,7 @@ Le coût, en revanche, est réel : le fichier complet transite par la RAM du
 renderer même pour n'en lire que l'audio. Une vidéo typique d'entretien filmé
 (500 Mo – 4 Go) rend ce chemin irrationnel.
 
-## Décision v1 : pas de waveform sur vidéo
+## Décision (release initiale) : pas de waveform sur vidéo
 
 Saut systématique dès que l'extension est dans `EXT_VIDEO` (test AVANT tout
 fetch), plus un filet mémoire `TAILLE_MAX_MEDIA` pour un média hors liste :
@@ -74,7 +74,7 @@ le décodage des audios exotiques que `decodeAudioData` peine parfois à ouvrir
    Non-bloquant en usage interne ; contraignant si l'app est distribuée un jour
    (ffmpeg existe en LGPL mais pas via ces builds).
 4. **Dégradation gracieuse obligatoire** : binaire absent ou téléchargement raté
-   → fallback « pas de waveform » (comportement v1), JAMAIS d'échec
+   → fallback « pas de waveform » (comportement actuel), JAMAIS d'échec
    d'assignation ni de tirage — la waveform reste un dérivé optionnel.
 
 ### Alternative écartée

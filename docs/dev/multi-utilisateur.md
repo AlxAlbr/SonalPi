@@ -93,7 +93,7 @@ d'écriture, NI par `corpus.json` :
    toucher au membership) → PUT If-Match → écriture THROUGH du MIROIR (même contenu que le
    serveur : la matrice est fraîche sans pull complet, le prochain tirage devient no-op),
    `liberer` TOUJOURS en `finally`. Exécution séquentielle ; tout échec ponctuel (refus de
-   verrou nominatif, divergence 412 sans retry v1, réseau) est signalé nommément dans le
+   verrou nominatif, divergence 412 sans retry (itération 1), réseau) est signalé nommément dans le
    retour IPC `{ succes: string[]; echecs: { id, raison }[] }` SANS bloquer les autres
    entretiens du lot. Défense en profondeur : si un entretien visé était ouvert CHEZ NOUS
    (impossible depuis la table aujourd'hui, mais l'option `getSessions` le couvre),

@@ -8,7 +8,7 @@ import { lancer, entrerCorpus } from './util'
  *  Supprimer un entretien depuis l'écran Corpus : le bouton « ❌ Supprimer »
  *  du panneau métadonnées ouvre une confirmation —
  *  même idiome de bannière que thèmes D-S10 et locuteurs.
- *  Parité V1 : les cartes n'ont pas de croix.
+ *  Parité SonalPi V1 : les cartes n'ont pas de croix.
  *  La suppression est une mise en `corbeille/` (le json déménage, rien n'est effacé).
  */
 

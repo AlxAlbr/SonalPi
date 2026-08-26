@@ -337,7 +337,7 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Garde « on n'écrase jamais ». */
     verifierDossier: (dir: string): Promise<VerificationDossierMigration> =>
       invoquer('migrer:verifierDossier', dir),
-    /** Crée le corpus V2 dans le dossier dédié et l'OUVRE. */
+    /** Crée le corpus SonalTau dans le dossier dédié et l'OUVRE. */
     executer: (req: DemandeMigration): Promise<OuvertureCorpus> =>
       invoquer('migrer:executer', req),
     /** Lit le `.Sonal` d'un entretien V1. */

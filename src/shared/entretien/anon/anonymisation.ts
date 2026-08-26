@@ -1,5 +1,5 @@
 /**
- *  Anonymisation — cœur PUR du niveau entretien (v1).
+ *  Anonymisation — cœur PUR du niveau entretien (itération 1).
  *
  *  On anonymise des **occurrences** d'une entité dans le texte ; on ne manipule
  *  QUE du texte plat et des plages. Aucun DOM, aucun ProseMirror → testable
@@ -11,7 +11,7 @@
  *   - une **RegleAnon** = un mappage entité→pseudo partagé, vit au corpus
  *     au corpus (pas ici).
  *
- *  En v1, l'onglet Anon ne fait que des occurrences : on matche une entité à la
+ *  En itération 1, l'onglet Anon ne fait que des occurrences : on matche une entité à la
  *  validation, on pose une occurrence par match non déjà couvert. Pas de règle
  *  persistée, pas de « à traiter » en temps réel, pas d'incluses, pas de
  *  multi-alias/multi-pseudo (le modèle de données futur reste `string[]`).
@@ -134,7 +134,7 @@ export function plageVersPM(t: TextePlat, from: number, to: number): { from: num
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Validation d'une ligne du tableau (v1) : relabel + pose.
+// Validation d'une ligne du tableau (itération 1) : relabel + pose.
 //
 // Logique extraite en PURE pour être testable headless ;
 // le couplage Vue/PM vit dans useEntretien.validerAnon, qui APPLIQUE les instructions renvoyées ici.

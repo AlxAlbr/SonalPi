@@ -99,7 +99,7 @@ export const sonderFilesLock = async (
     })
     if (!reponse.ok) return false
     const donnees = (await reponse.json()) as {
-      // OCS v1 enveloppe la charge utile : { ocs: { meta, data: { capabilities } } }.
+      // Le protocole OCS v1 (Nextcloud) enveloppe la charge utile : { ocs: { meta, data: { capabilities } } }.
       ocs?: { data?: { capabilities?: { files?: { locking?: boolean | string | number } } } }
       capabilities?: { files?: { locking?: boolean | string | number } }
     }

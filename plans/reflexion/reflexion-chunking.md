@@ -34,7 +34,7 @@ a été envisagée puis écartée :
 La librairie garde une valeur : **référence d'implémentation** pour vérifier nos
 hypothèses (noms de chunks, en-têtes, erreurs serveur) sans la dépendre.
 
-## 2. Protocole envisagé (Nextcloud chunking v2, dans notre client)
+## 2. Protocole envisagé (protocole chunking v2 de Nextcloud, dans notre client)
 
 ```text
 1. POST/PUT MKCOL  /remote.php/dav/uploads/<user>/<transferId>/   (dossier de transfert)
@@ -122,5 +122,5 @@ ne connaît pas la stratégie.
 1. Seuil de bascule PUT simple ↔ chunks : fixe (10 Mo × marge) ou sondé auprès
    de l'instance (capacités) ? À décider au moment de C2, défaut conservateur.
 2. Faut-il exposer la reprise inter-session (transfert coupé à la fermeture de
-   l'app, repris plus tard via le même transferId) ? Probablement hors v1 — le
+   l'app, repris plus tard via le même transferId) ? Probablement hors de l'itération 1 — le
    ré-upload intégral reste acceptable tant que le cas est rare.

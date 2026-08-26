@@ -14,16 +14,16 @@ import { fileURLToPath } from 'node:url'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
-import { migrerEntretienV1 } from '../shared/entretien/migration'
+import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 
 /** Pourquoi des numéros de version ?
  *  Chaque évolution du format de fichier est migrée EXPLICITEMENT à la lecture.
  *  Le fichier est ensuite réécrit aussitôt, sans jamais lire une version inconnue
  *  partiellement.
- *  - v1 → v2 : les timecodes quittent les attributs de bloc (`deb`/`fin`),
+ *  - formatVersion 1 → 2 : les timecodes quittent les attributs de bloc (`deb`/`fin`),
  *    pour devenir des ancres `{pos, t}` positionnées dans le texte.
- *  - v2 → v3 : `meta.audioRef` devient un chemin ABSOLU uniquement,
+ *  - formatVersion 2 → 3 : `meta.audioRef` devient un chemin ABSOLU uniquement,
  *    l'audio est référencé, plus copié ; les PNG d'onde passent de `audio/` à `png/`.
  *  Voir shared/entretien/migration.ts pour la mécanique de migration.
  */
@@ -185,7 +185,7 @@ export class CorpusStore {
     return join(this.dir, 'png')
   }
 
-  /** Ancien dossier audio (v2) : reliquat pour les corpus migrés.
+  /** Ancien dossier audio (formatVersion 2) : reliquat pour les corpus migrés.
    *  Les mp3 legacy y sont référencés en absolu vers leur emplacement existant ;
    *  les nouveaux corpus v3 n'ont pas de dossier `audio/`. */
   private get audioDirLegacy() {
@@ -228,17 +228,17 @@ export class CorpusStore {
     // reglesAnon, personnes, membership (voir shared/format.ts).
     const corpus = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
 
-    // Migration v1→v2.
+    // Migration formatVersion 1→2.
     if (corpus.formatVersion === 1) {
       corpus.formatVersion = FORMAT_VERSION
       this.ecrireJsonAtomique(this.corpusFile, corpus)
     }
-    // Migration v2→v3 : audioRef relatifs → absolus, PNG `audio/` → `png/`.
-    // Même mécanique que v1→v2 : le store migre à la lecture puis réécrit aussitôt ;
+    // Migration formatVersion 2→3 : audioRef relatifs → absolus, PNG `audio/` → `png/`.
+    // Même mécanique que formatVersion 1→2 : le store migre à la lecture puis réécrit aussitôt ;
     // jamais de lecture partielle d'une version inconnue.
     // One-shot : après migration, formatVersion === 3.
     if (corpus.formatVersion === 2) {
-      this.migrerV2VersV3(corpus)
+      this.migrerFormatV2Vers3(corpus)
     }
     if (!versionSupportee(corpus.formatVersion)) {
       throw new Error(`Version de corpus non supportée : ${corpus.formatVersion}`)
@@ -272,12 +272,12 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Migration v2→v3 : résout chaque `audioRef` relatif en absolu ;
+  /** Migration formatVersion 2→3 : résout chaque `audioRef` relatif en absolu ;
    *  déplace les PNG waveform `audio/` → `png/` ;
    *  passe le corpus et chaque entretien à v3.
    *  Les mp3 legacy restent dans `audio/`, référencés en absolu sur place ;
    *  aucune recopie, aucun orphelin. */
-  private migrerV2VersV3(corpus: CorpusFichier): void {
+  private migrerFormatV2Vers3(corpus: CorpusFichier): void {
     if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
     // 1. Déplacer les PNG waveform `audio/<id>.png` → `png/<id>.png`.
     if (existsSync(this.audioDirLegacy)) {
@@ -325,7 +325,7 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Crée un corpus V2 DANS un dossier dédié, à partir d'une migration SonalPi V1.
+  /** Crée un corpus SonalTau DANS un dossier dédié, à partir d'une migration SonalPi V1.
    *  Contrairement à `amorcer()`, on n'écrit PAS le bloc « Pondérations ».
    *  La source de vérité des définitions est le `.crp`, on fusionne exactement ce que la lecture a mappé.
    *  Le dossier a déjà été vérifié par la garde (`migrer:verifierDossier`).
@@ -356,7 +356,7 @@ export class CorpusStore {
     }
     corpusModel.fusionnerImport(corpus, codebook, variables)
     // E4 : le `tabAnon` du .crp devient des règles corpus, écrites AVANT les imports `.sonal`.
-    // Doctrine V1 : le global du corpus gagne.
+    // Doctrine SonalPi V1 : le global du corpus gagne.
     // La dédup par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal` idempotent.
     // La catégorie/thématique du .crp reste sur la règle.
     for (const r of reglesAnonV1 ?? []) {
@@ -376,15 +376,15 @@ export class CorpusStore {
     if (!existsSync(fichier)) return { ok: false, raison: 'absent' }
 
     let data = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
-    // Migration EXPLICITE v1→v2 : deb/fin des blocs → ancres {pos, t}.
+    // Migration EXPLICITE formatVersion 1→2 : deb/fin des blocs → ancres {pos, t}.
     // Réécrite aussitôt (lastModified préservé — migrer n'est pas une édition).
     if ((data.formatVersion as number) === 1) {
-      data = migrerEntretienV1(data as unknown as Record<string, unknown>) as unknown as EntretienFichier
+      data = migrerEntretienFormatV1(data as unknown as Record<string, unknown>) as unknown as EntretienFichier
       this.ecrireJsonAtomique(fichier, data)
     }
-    // Migration v2→v3 : audioRef relatif → absolu (filet de sécurité).
+    // Migration formatVersion 2→3 : audioRef relatif → absolu (filet de sécurité).
     // La migration principale a lieu dans `ouvrir()` ;
-    // ici, un entretien v2 isolé (ex. copié à la main dans un corpus v3)
+    // ici, un entretien formatVersion 2 isolé (ex. copié à la main dans un corpus formatVersion 3)
     // est rattrapé au passage.
     if ((data.formatVersion as number) === 2) {
       const ref = data.meta?.audioRef
@@ -767,7 +767,7 @@ export class CorpusStore {
   }
 
   /** APPLICATION EN MASSE / VALIDATION DU DIFF (étape 2) : applique sur un entretien FERMÉ les changements de la vue vérification (lecture fichier → instructions PURES → écriture atomique).
-   *  `plages` restreint les POSES aux seules occurrences cochées ; `retirer`, `exception` et `retirerException` portent le diff façon V1 (« Valider »).
+   *  `plages` restreint les POSES aux seules occurrences cochées ; `retirer`, `exception` et `retirerException` portent le diff façon SonalPi V1 (« Valider »).
    *  Renvoie le nombre total de changements écrits. */
   appliquerRegleAnon(
     entretienId: string,

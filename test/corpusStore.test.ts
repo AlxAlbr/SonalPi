@@ -103,7 +103,7 @@ describe('CorpusStore — amorçage & round-trip', () => {
     const lu = store.lireEntretien('e1')
     expect(lu.ok).toBe(true)
     if (lu.ok) expect(lu.data.brouillonsAnon).toEqual(p.brouillonsAnon)
-    // Un entretien écrit SANS le champ (v1) → absent à la lecture : le renderer
+    // Un entretien écrit SANS le champ (formatVersion 1) → absent à la lecture : le renderer
     // normalise en [] à l'ouverture (useEntretien) — additif, aucune migration.
     store.ecrireEntretien('e1', payload('SANS-BROUILLONS'))
     const lu2 = store.lireEntretien('e1')
@@ -186,11 +186,11 @@ describe('CorpusStore — version du format natif', () => {
     expect(store.lireEntretien('e1')).toEqual({ ok: false, raison: 'version' })
   })
 
-  test('un entretien v1 est MIGRÉ à la lecture : deb/fin des blocs → ancres {pos, t}', () => {
+  test('un entretien formatVersion 1 est MIGRÉ à la lecture : deb/fin des blocs → ancres {pos, t}', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     const f = join(dir, 'entretiens', 'e1.json')
-    const v1 = {
+    const donneesFormatV1 = {
       formatVersion: 1,
       lastModified: '2020-01-01T00:00:00.000Z',
       corpsTexte: {
@@ -205,7 +205,7 @@ describe('CorpusStore — version du format natif', () => {
       locuteurs: [],
       meta: { valeursGen: {}, audioRef: null },
     }
-    writeFileSync(f, JSON.stringify(v1), 'utf8')
+    writeFileSync(f, JSON.stringify(donneesFormatV1), 'utf8')
 
     const lu = store.lireEntretien('e1')
     expect(lu.ok).toBe(true)
@@ -508,11 +508,11 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
   })
 })
 
-describe('CorpusStore — migration v2→v3', () => {
+describe('CorpusStore — migration formatVersion 2→3', () => {
   test('audioRef relatif → absolu + PNG audio/ → png/ + bump formatVersion', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-'))
     const now = new Date().toISOString()
-    // Corpus v2 avec un entretien dont l'audio est copié dans `audio/` (legacy).
+    // Corpus formatVersion 2 avec un entretien dont l'audio est copié dans `audio/` (legacy).
     const corpus: CorpusFichier = {
       formatVersion: 2,
       codebook: {},
@@ -538,9 +538,9 @@ describe('CorpusStore — migration v2→v3', () => {
     writeFileSync(join(dir, 'audio', 'e1.png'), 'fake-png', 'utf8')
 
     const store = new CorpusStore(dir)
-    const c = store.ouvrir() // déclenche la migration v2→v3
+    const c = store.ouvrir() // déclenche la migration formatVersion 2→3
 
-    // Corpus bumpé à v3.
+    // Corpus bumpé à formatVersion 3.
     expect(c.formatVersion).toBe(3)
     // audioRef résolu en absolu vers le fichier existant dans `audio/`.
     const lu = store.lireEntretien('e1')
@@ -553,7 +553,7 @@ describe('CorpusStore — migration v2→v3', () => {
     expect(existsSync(join(dir, 'png', 'e1.png'))).toBe(true)
   })
 
-  test('migration v2→v3 idempotente (re-ouvrir ne recasse rien)', () => {
+  test('migration formatVersion 2→3 idempotente (re-ouvrir ne recasse rien)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-migr-idem-'))
     const now = new Date().toISOString()
     const corpus: CorpusFichier = {
@@ -1295,7 +1295,7 @@ describe('CorpusStore — E4 : tabAnon + paramsAnonCorpus écrits à la créatio
     expect(corpus.paramsAnon?.prioriteValidation).toBe('corpus')
     expect(corpus.paramsAnon?.thematiques?.actif).toBe(true)
 
-    // Doctrine V1 « le global gagne » : un .sonal ré-important la même entité
+    // Doctrine SonalPi V1 « le global gagne » : un .sonal ré-important la même entité
     // est dédupliqué par alias — la règle .crp (et sa catégorie) reste seule.
     fusionnerReglesAnon(corpus, [{ id: 'reg-sonal-1', entite: ['Enquêteur'], pseudos: ['Autre'] }])
     const enqueteur = Object.values(corpus.reglesAnon).filter((r) => r.entite.includes('Enquêteur'))

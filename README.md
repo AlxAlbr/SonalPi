@@ -1,4 +1,4 @@
-# SonalPiTestV2
+# SonalTau
 
 Réécriture en cours  du cœur de **SonalPi** pour essayer de simplifier le fonctionnement et le code.
 
@@ -51,8 +51,9 @@ npm run typecheck    # vue-tsc + tsc
 
 | Public | Doc |
 |---|---|
-| Utilisateur | [Migration SonalPi V1 → V2](docs/user/migration-v1.md) |
+| Utilisateur | [Migration SonalPi V1 → SonalTau](docs/user/migration-v1.md) |
 | Développeur | [Documentation développeur](docs/dev/README.md) |
+| Vocabulaire | [Versions : SonalPi V1 / SonalTau / formatVersion / itération / release](docs/dev/versions.md) |
 
 ## Plans (`plans/`)
 

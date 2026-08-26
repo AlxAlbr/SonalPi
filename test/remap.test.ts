@@ -169,7 +169,7 @@ describe('remapping — structure de blocs', () => {
     const a = s.coder('Pierre Lemaitre')
     s.editer((tr) => tr.split(a.from + 'Pierre '.length)) // Entrée entre « Pierre » et « Lemaitre »
     expect(s.doc.childCount).toBe(2)
-    expect(s.texteAnnote(a)).toBe('Pierre Lemaitre') // invariant v2 : le codage enjambe
+    expect(s.texteAnnote(a)).toBe('Pierre Lemaitre') // invariant SonalTau : le codage enjambe
   })
 
   test('deux annotations remappées indépendamment', () => {

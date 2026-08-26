@@ -4,7 +4,7 @@ import { utiliserSonal } from '../composables/sonal'
 import { mapperDefinitions, mapperTabAnon, mapperParamsAnon, type ApercuCrp, type VerificationDossierMigration } from '../../shared/corpus/migrationCrp'
 
 /**
- *  Modale de migration SonalPi V1 → V2.
+ *  Modale de migration SonalPi V1 → SonalTau.
  *  Trois temps, aucun effet de bord avant la validation finale :
  *  1. choix du `.crp` (dialogue + lecture + encodage dans le main,
  *     analyse PURE côté shared) → APERÇU (nom, date, nb d'entretiens, thèmes,
@@ -13,7 +13,7 @@ import { mapperDefinitions, mapperTabAnon, mapperParamsAnon, type ApercuCrp, typ
  *     « on n'écrase jamais » (dejaCorpus / démo refusés ; un dossier non vide
  *     sans corpus.json demande un avertissement confirmé) ;
  *  3. MIGRATION : définitions mappées → `migrer:executer` écrit le corpus
- *     V2 (nom + meta.sourceV1), l'ajoute aux récents et l'ouvre.
+ *     SonalTau (nom + meta.sourceV1), l'ajoute aux récents et l'ouvre.
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const { migrerDepuisV1 } = utiliserSonal()
@@ -66,7 +66,7 @@ async function choisirDossier() {
     if (!verif.value.ok) {
       erreur.value =
         verif.value.raison === 'demo'
-          ? 'Ce dossier est le corpus d’un mode démo — passe en V2 dans un dossier dédié.'
+          ? 'Ce dossier est le corpus d’un mode démo — passe en SonalTau dans un dossier dédié.'
           : 'Ce dossier contient déjà un corpus — choisis un dossier dédié (on n’écrase jamais).'
     }
   } catch (e) {
@@ -119,8 +119,8 @@ async function migrer() {
       <div class="modale-migration">
         <h3>🚚 Migrer un corpus SonalPi (V1)…</h3>
         <p class="intro">
-          Votre corpus `.crp` est lu, puis recréé en V2 dans un <b>dossier dédié</b> :
-          rien n’est écrit tant que vous n’avez pas validé, et l’ancien dossier V1
+          Votre corpus `.crp` est lu, puis recréé en SonalTau dans un <b>dossier dédié</b> :
+          rien n’est écrit tant que vous n’avez pas validé, et l’ancien dossier SonalPi (V1)
           n’est jamais touché.
         </p>
         <!-- Tout le contenu effectif V1 est migré (texte + codages, audio,
@@ -179,7 +179,7 @@ async function migrer() {
           </button>
           <label v-if="verif?.ok && verif.nonVide" class="avertir-non-vide">
             <input v-model="avertiNonVide" type="checkbox" :disabled="enCours" />
-            Je comprends : ce dossier contient des fichiers non liés — ils resteront, la V2 y pose
+            Je comprends : ce dossier contient des fichiers non liés — ils resteront, SonalTau y pose
             corpus.json + entretiens/ + png/.
           </label>
         </div>
@@ -189,7 +189,7 @@ async function migrer() {
         <div class="pied-modale">
           <button class="annuler" :disabled="enCours" @click="emit('fermer')">Annuler</button>
           <button class="valider" :disabled="!pret" @click="migrer">
-            {{ enCours ? 'Migration…' : 'Migrer vers la V2' }}
+            {{ enCours ? 'Migration…' : 'Migrer vers SonalTau' }}
           </button>
         </div>
       </div>

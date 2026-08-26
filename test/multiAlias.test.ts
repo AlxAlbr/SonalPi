@@ -5,11 +5,11 @@ import type { RegleAnon } from '../src/shared/format'
 
 /**
  *  Multi-alias (pur) — « Lyon/Lyons » = UNE entité portant deux graphies.
- *  Parité V1 : séparateur `/`, clés canoniques au niveau ALIAS, collision
+ *  Parité SonalPi V1 : séparateur `/`, clés canoniques au niveau ALIAS, collision
  *  « un alias = un pseudo ».
  */
 
-describe('parserAliases (parité V1 parseAliases)', () => {
+describe('parserAliases (parité SonalPi V1 parseAliases)', () => {
   test('scinde sur / ± espaces, trim, sans vide', () => {
     expect(parserAliases('Lyon/Lyons')).toEqual(['Lyon', 'Lyons'])
     expect(parserAliases('Lyon / Lyons')).toEqual(['Lyon', 'Lyons'])

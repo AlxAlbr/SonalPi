@@ -99,7 +99,7 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
     .poll(() => page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).duration))
     .toBeGreaterThan(3)
 
-  // --- Synchro v1 : caler la lecture au milieu du cue 2 → SON bloc est surligné.
+  // --- Synchro (itération 1) : caler la lecture au milieu du cue 2 → SON bloc est surligné.
   await page.evaluate(() => {
     ;(document.querySelector('audio') as HTMLAudioElement).currentTime = 1.8
   })

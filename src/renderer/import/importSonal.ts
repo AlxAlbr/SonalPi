@@ -88,7 +88,7 @@ interface BlocImport {
 
 /**
  *  Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
- *  SonalPi — SRT/VTT) → charge utile SonalPiTestV2 (doc ProseMirror + annotations + locuteurs)
+ *  SonalPi — SRT/VTT) → charge utile SonalTau (doc ProseMirror + annotations + locuteurs)
  *  + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
  *  en positions ProseMirror (positions.ts).
  */

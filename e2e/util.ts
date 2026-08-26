@@ -41,7 +41,7 @@ export async function lancer(
   })
 }
 
-/** L'app atterrit sur l'ACCUEIL (flux SonalPi). */
+/** L'app atterrit sur l'ACCUEIL (flux SonalTau). */
 export async function attendreAccueil(page: Page): Promise<void> {
   await expect(page.locator('.ecran.accueil')).toBeVisible({ timeout: 20_000 })
 }

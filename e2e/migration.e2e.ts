@@ -5,13 +5,13 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, attendreAccueil, attendreCorpus } from './util'
 
 /**
- *  Migration v2→v3 SILENCIEUSE à l'ouverture :
- *  un corpus v2 (copies relatives : `audioRef: 'audio/e1.wav'` + PNG waveform
+ *  Migration formatVersion 2→3 SILENCIEUSE à l'ouverture :
+ *  un corpus formatVersion 2 (copies relatives : `audioRef: 'audio/e1.wav'` + PNG waveform
  *  dans `audio/`) est écrit sur disque AVANT le lancement. À l'ouverture, le
  *  store résout chaque `audioRef` relatif en ABSOLU (vers l'emplacement legacy),
- *  déplace les PNG `audio/` → `png/` et bumpe corpus + entretiens à v3 — sans
+ *  déplace les PNG `audio/` → `png/` et bumpe corpus + entretiens à formatVersion 3 — sans
  *  aucune copie ni recopie. Couvert en unitaire (`corpusStore.test.ts`) ; ici on
- *  vérifie le geste RÉEL : l'app ouvre un corpus v2 sans broncher et le lecteur
+ *  vérifie le geste RÉEL : l'app ouvre un corpus formatVersion 2 sans broncher et le lecteur
  *  joue l'audio référencé (whitelist `cheminMediaAbs` sur le chemin migré).
  */
 
@@ -46,12 +46,12 @@ const PNG_1PX = Buffer.from(
   'base64',
 )
 
-test('J5 : corpus v2 (copies relatives) → migration v3 silencieuse à l’ouverture, audio jouable', async () => {
+test('J5 : corpus formatVersion 2 (copies relatives) → migration formatVersion 3 silencieuse à l’ouverture, audio jouable', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-migr-e2e-'))
   const dirCorpus = join(profil, 'corpus') // le corpus par défaut du profil (lancer le charge en 1er récent)
   const now = new Date().toISOString()
 
-  // Corpus v2 écrit AVANT le lancement — l'écriture du seed démo est idempotente
+  // Corpus formatVersion 2 écrit AVANT le lancement — l'écriture du seed démo est idempotente
   // (elle ne touche pas à un corpus.json existant), le profil démarre donc dessus.
   mkdirSync(join(dirCorpus, 'entretiens'), { recursive: true })
   mkdirSync(join(dirCorpus, 'audio'), { recursive: true })
@@ -83,7 +83,7 @@ test('J5 : corpus v2 (copies relatives) → migration v3 silencieuse à l’ouve
             {
               type: 'paragraph',
               attrs: { loc: 1 },
-              content: [{ type: 'text', text: 'Un entretien v2 à migrer.' }],
+              content: [{ type: 'text', text: 'Un entretien formatVersion 2 à migrer.' }],
             },
           ],
         },
@@ -104,7 +104,7 @@ test('J5 : corpus v2 (copies relatives) → migration v3 silencieuse à l’ouve
   const page = await app.firstWindow()
   await entrerCorpus(page)
 
-  // L'app a ouvert le corpus v2 sans broncher : la carte du legacy est là.
+  // L'app a ouvert le corpus formatVersion 2 sans broncher : la carte du legacy est là.
   await expect(page.locator('.carte-ent .ent-titre')).toContainText('Entretien Legacy')
 
   // --- Migration vérifiée SUR DISQUE (silencieuse, une fois) ---
@@ -125,7 +125,7 @@ test('J5 : corpus v2 (copies relatives) → migration v3 silencieuse à l’ouve
   // la forme d'onde (png/) est servie. ---
   await page.locator('.carte-ent .crayon').click()
   await expect(page.locator('.editeur')).toBeVisible()
-  await expect(page.locator('.editeur')).toContainText('Un entretien v2 à migrer.')
+  await expect(page.locator('.editeur')).toContainText('Un entretien formatVersion 2 à migrer.')
   await expect(page.locator('.lecteur-audio')).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => (document.querySelector('audio') as HTMLAudioElement).duration))

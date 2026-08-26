@@ -2,15 +2,15 @@ import type { Annotation } from './entretien/annotation'
 import type { Ancre } from './entretien/audio'
 
 /**
- *  Contrat du FORMAT NATIF SonalPiTestV2 (docs/dev/modele-objet.md).
+ *  Contrat du FORMAT NATIF SonalTau (docs/dev/modele-objet.md).
  *  Partagé main ⇄ renderer.
  *  Toute évolution de structure = bump de FORMAT_VERSION + migration explicite :
  *  une version inconnue est refusée, jamais lue à moitié.
  *
- *  v2 : les timecodes quittent les attributs de bloc (`deb`/`fin`) et deviennent
+ *  formatVersion 2 : les timecodes quittent les attributs de bloc (`deb`/`fin`) et deviennent
  *  des ancres `{pos, t}` positionnées dans le texte (migration au store).
  *
- *  v3 : `meta.audioRef` devient un chemin ABSOLU uniquement — l'audio est
+ *  formatVersion 3 : `meta.audioRef` devient un chemin ABSOLU uniquement — l'audio est
  *  référencé sur place, plus de copie dans `<corpus>/audio/`. Migration au
  *  store : refs relatives résolues en absolues, PNG d'onde déplacés vers `png/`.
  */
@@ -72,7 +72,7 @@ export interface RegleAnon {
   categorie?: string
 }
 
-/** Trace d'une migration SonalPi V1 → V2 : identité du `.crp` (nom + dateCreation), et chemin absolu vers le fichier d'origine, en mémoire.
+/** Trace d'une migration SonalPi V1 → SonalTau : identité du `.crp` (nom + dateCreation), et chemin absolu vers le fichier d'origine, en mémoire.
  *  Champ ADDITIF optionnel. */
 export interface SourceV1 {
   /** Chemin absolu du `.crp` migré. */
@@ -183,7 +183,7 @@ export interface BrouillonAnon {
   pseudo?: string
 }
 
-/** Métadonnées d'un entretien : valeurs EAV de portée entretien, référence audio (absolue, v3), et trace de migration V1 — champ ADDITIF optionnel, sans bump de formatVersion. */
+/** Métadonnées d'un entretien : valeurs EAV de portée entretien, référence audio (absolue, formatVersion 3), et trace de migration V1 — champ ADDITIF optionnel, sans bump de formatVersion. */
 export interface MetaEntretien {
   valeursGen: Record<string, string> // idVar → idMod (portée entretien)
   audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio

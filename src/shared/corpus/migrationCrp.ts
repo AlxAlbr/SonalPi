@@ -319,7 +319,7 @@ export function mapperDefinitions(crp: CrpV1): { codebook: Categorie[]; variable
 
 // ── Mapping de l'ANONYMISATION (E4)
 // ─────────────────────────────────────── Le `tabAnon` du .crp et ses settings deviennent des règles V2 + `paramsAnon`.
-// Importés AVANT les règles des `.sonal` (doctrine V1 : le global du corpus gagne) —
+// Importés AVANT les règles des `.sonal` (doctrine SonalPi V1 : le global du corpus gagne) —
 // la déduplication par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal` idempotent,
 // la catégorie du .crp restant sur la règle.
 

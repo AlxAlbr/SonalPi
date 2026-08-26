@@ -1,7 +1,7 @@
 {
-  "name": "sonalpitestv2",
-  "version": "0.1.0",
-  "description": "SonalPiTestV2 — set minimum SonalPi : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
+  "name": "sonaltau",
+  "version": "0.2.0",
+  "description": "SonalTau — set minimum SonalPi : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

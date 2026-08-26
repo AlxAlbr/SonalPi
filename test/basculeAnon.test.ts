@@ -91,7 +91,7 @@ describe('instructionsValiderAnon — une exception bloque la pose', () => {
   })
 })
 
-describe('instructionsValiderAnon — pose sur les matches libres (v1 intact)', () => {
+describe('instructionsValiderAnon — pose sur les matches libres (itération 1 intact)', () => {
   test('match non couvert → pose une occurrence (pseudo + id généré)', () => {
     const p = paul(1) // 2e « Paul », libre
     let n = 0

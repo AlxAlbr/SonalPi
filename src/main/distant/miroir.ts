@@ -312,7 +312,7 @@ export class MiroirWebDAV {
    *  mutuellement sans le savoir.
    *  D'où la garde : existence vérifiée AVANT le PUT, suggestion de suffixe
    *  en cas de collision. Ni blocage sec, ni perte silencieuse.
-   *  Pas de chunking v1 : une erreur réseau/limite serveur remonte telle
+   *  Pas de chunking (itération 1) : une erreur réseau/limite serveur remonte telle
    *  quelle à l'appelant. */
 
   /** Téléverse un fichier vers `cheminCible` (relatif au corpus).

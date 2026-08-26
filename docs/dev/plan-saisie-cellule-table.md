@@ -121,7 +121,7 @@ cellule que sur les lignes de SA portée. La descente saute donc :
    sur le MÊME fichier ne doivent jamais se croiser (sinon risque 412 par
    auto-concurrence).
 5. Vider la valeur : poser « — » (`idMod = ''`) marche déjà via le select ;
-   rien de dédié en v1 (parité avec le lot).
+   rien de dédié en itération 1 (parité avec le lot).
 
 ## 6. Phase 3 — e2e
 
@@ -156,7 +156,7 @@ cellule que sur les lignes de SA portée. La descente saute donc :
 | Deux commits rapprochés sur le MÊME entretien | File d'attente renderer par `entretienId` (auto-concurrence interdite → sinon 412 contre soi-même) |
 | Attente réseau avant déplacement du focus | REFUSÉ : focus immédiat, transaction en arrière-plan, erreur inline a posteriori |
 | Ligne verrouillée 🔒 | cellules désactivées (visuellement évident), la descente les SAUTE — le lot reste le bon outil quand il y en a beaucoup |
-| Divergence 412 (autrui écrit entre notre GET et PUT) | échec inline nommé, pas de retry v1 — l'utilisateur resaisit la cellule (parité lot) |
+| Divergence 412 (autrui écrit entre notre GET et PUT) | échec inline nommé, pas de retry (itération 1) — l'utilisateur resaisit la cellule (parité lot) |
 | Refus unitaire vs bannière | refus de cellule = inline rouge + tooltip ; bannière `erreurs.ts` réservée aux erreurs IPC/réseau globales |
 | Tab natif | repris : il faut naviguer cellule éditable → cellule éditable, pas cellule → badge/bouton |
 | Shift+Entrée (remonter) | FAIT en phase 2 (§5) : symétrique du défaut Excel, gratuit via la liste plate |
@@ -186,7 +186,7 @@ valeurs déjà saisies.
 1. **Cibles filtrées** : partir de la liste actuelle (`Object.entries(membership)`)
    et n'y garder que les entretiens où `matrice` ne porte pas de valeur pour
    `idVar` (côté renderer, purement local — la matrice est déjà requêtée ;
-   penser au cas locuteur : v1 = portée entretien uniquement, comme le lot).
+   penser au cas locuteur : itération 1 = portée entretien uniquement, comme le lot).
 2. **Exclusion des verrouillés 🔒** : retrancher aussi ceux dont le badge
    `badgeVerrou(id)` est non nul (corpus distant) — ils seraient de toute
    façon refusés nommément ; les exclure en amont rend le compteur
@@ -205,4 +205,4 @@ valeurs déjà saisies.
 5. Tests : extension du scénario 3 e2e (un entretien avec valeur, un sans,
    un tenu par autrui → le lot filtré ne touche que le sans-valeur libre) +
    test contrat léger si un paramètre de filtrage descendait côté main
-   (v1 : NON — filtrage 100 % renderer, zéro protocole).
+   (itération 1 : NON — filtrage 100 % renderer, zéro protocole).
