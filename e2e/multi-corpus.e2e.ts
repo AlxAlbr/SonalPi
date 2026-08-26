@@ -40,7 +40,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
 
   // Accueil → « Ouvrir un corpus… » → dirB (existant, avec son propre contenu).
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
-  await page.locator('.carte.choisir-corpus').click()
+  await page.locator('.carte-demo.ouvrir-corpus').click()
   await attendreCorpus(page)
   // Corpus isolé : SON « Entretien Karine », PAS « ENT-DEFAUT ».
   await expect(page.locator('.carte-ent')).toHaveCount(1)
@@ -56,7 +56,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
 
   // « Ouvrir un corpus… » → dirC (VIERGE) : amorcé VIDE — aucun entretien, et le
   // codebook par défaut = le bloc Pondérations SonalPi (parent + 3 enfants).
-  await page.locator('.carte.choisir-corpus').click()
+  await page.locator('.carte-demo.ouvrir-corpus').click()
   await attendreCorpus(page)
   await expect(page.locator('.carte-ent')).toHaveCount(0)
   await expect(page.locator('.liste-thm-lecture li')).toHaveCount(4)
@@ -97,7 +97,7 @@ test('un corpus dont le dossier a été supprimé disparaît des « Récents » 
   await app.evaluate(({ dialog }, dir) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
   }, dirSupprime)
-  await page.locator('.carte.choisir-corpus').click()
+  await page.locator('.carte-demo.ouvrir-corpus').click()
   await attendreCorpus(page)
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirSupprime))

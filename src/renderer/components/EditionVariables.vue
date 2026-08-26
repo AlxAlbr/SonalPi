@@ -1,23 +1,26 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Fenêtre d'ÉDITION des variables (parité SonalPi : « Ajouter/modifier une
- * variable » — le crayon ouvre une modale, la Table de données reste une grille
- * de SAISIE plein écran). On y définit la STRUCTURE de la base :
+ * Fenêtre d'ÉDITION des variables : « Ajouter/modifier une variable » — le
+ * crayon ouvre une modale, la Table de données reste une grille de SAISIE plein
+ * écran. On y définit la STRUCTURE de la base :
  *  - portée (entretien / locuteur) — fixée à la création : la VALEUR vit chez
  *    son propriétaire (meta.valeursGen ou Locuteur.valeursLoc), en changer
  *    orphelinerait les valeurs posées ;
- *  - statut publique/privée (SonalPi : privée = exclue des exports) ;
- *  - modalités (le dictionnaire), à la main ou via un MODÈLE pré-rempli
- *    (sexe, âge, PCS… — les listes de SonalPi `ajoutListeModas`).
+ *  - statut publique/privée (privée = exclue des exports) ;
+ *  - modalités (le dictionnaire), à la main, via un MODÈLE pré-rempli (intégré
+ *    ou importé — « Mes modèles »), ou par export/import d'un fichier JSON.
  */
 defineEmits<{ fermer: [] }>()
 
 const {
   variables,
   messageVar,
+  modelesUtilisateur,
+  lireModelesUtilisateur,
+  importerModeleUtilisateur,
   ajouterVariable,
   renommerVariable,
   basculerPriveeVariable,
@@ -28,7 +31,9 @@ const {
   supprimerModalite,
 } = utiliserSonal()
 
-/** Modèles de modalités pré-remplies — listes SonalPi (gestion_data.js). */
+/** Modèles de modalités pré-remplies INTÉGRÉS. Les modèles IMPORTÉS vivent à
+ *  part (`modelesUtilisateur`, registre du profil) et sont proposés dans le
+ *  même sélecteur. */
 const MODELES: { cle: string; nom: string; libs: string[] }[] = [
   { cle: 'sexe', nom: 'Sexe', libs: ['Homme', 'Femme', 'Autre'] },
   {
@@ -98,14 +103,85 @@ const MODELES: { cle: string; nom: string; libs: string[] }[] = [
 
 function appliquerModele(idVar: string, evt: Event) {
   const sel = evt.target as HTMLSelectElement
-  const modele = MODELES.find((m) => m.cle === sel.value)
+  const modele = modelesTous.value.find((m) => m.cle === sel.value)
   sel.value = '' // le select reste une COMMANDE (« modèles… »), pas un état
   if (modele) ajouterModalitesModele(idVar, modele.nom, modele.libs)
+}
+
+/** Modèles proposés au sélecteur : les INTÉGRÉS et les IMPORTÉS (registre du
+ *  profil) normalisés sur le même gabarit — les importés portent une clé
+ *  `user:…` (jamais de collision avec les clés intégrées). */
+const modelesTous = computed(() => [
+  ...MODELES.map((m) => ({ cle: m.cle, nom: m.nom, libs: m.libs, perso: false })),
+  ...modelesUtilisateur.value.map((m) => ({
+    cle: `user:${m.nom}`,
+    nom: m.nom,
+    libs: m.modalites,
+    perso: true,
+  })),
+])
+const modelesIntegres = computed(() => modelesTous.value.filter((m) => !m.perso))
+const modelesPerso = computed(() => modelesTous.value.filter((m) => m.perso))
+
+// UX de création : la variable neuve est AUTO-FOCUSÉE et son texte
+// présélectionné, pour nommer directement sans effacer « Nouvelle variable ».
+const nouveauId = ref<string | null>(null)
+// Registre des champs nom RENDUS (rempli à chaque rendu, vidé au démontage) :
+// la liste se rafraîchit avant que creerVariable pose nouveauId, donc le focus
+// se pose APRÈS nextTick, sur l'élément déjà présent — jamais au montage.
+const champsNom = new Map<string, HTMLInputElement>()
+function noterChampNom(el: HTMLInputElement | null, id: string) {
+  if (el) champsNom.set(id, el)
+  else champsNom.delete(id)
+}
+async function creerVariable(portee: 'entretien' | 'locuteur') {
+  const id = await ajouterVariable(portee)
+  nouveauId.value = id
+  await nextTick() // attendre que la ligne (le champ nom) soit rendue
+  const el = champsNom.get(id)
+  if (el) el.focus() // le @focus du champ sélectionne le texte
+  nouveauId.value = null
+}
+
+// Export d'un modèle : formulaire inline (nom du modèle) dans la ligne du bas.
+const exportPour = ref<string | null>(null) // id de la variable en cours d'export
+const nomExport = ref('')
+function commencerExport(idVar: string) {
+  exportPour.value = idVar
+  const v = variables.value.find((x) => x.id === idVar)
+  nomExport.value = v?.lib || ''
+  // Focus APRÈS le rendu du formulaire (nextTick) — le clic sur le bouton a
+  // prêté le focus au bouton lui-même, le champ doit le reprendre.
+  void nextTick(() => document.getElementById('nom-export')?.focus())
+}
+function annulerExport() {
+  exportPour.value = null
+}
+async function confirmerExport() {
+  const v = variables.value.find((x) => x.id === exportPour.value)
+  const nom = nomExport.value.trim()
+  if (!v || !nom) return
+  annulerExport()
+  const contenu = JSON.stringify(
+    { nom, modalites: v.modalites.map((m) => m.lib) },
+    null,
+    2,
+  )
+  // Écrit le fichier choisi ; renvoie le chemin ou null si annulé (pas d'erreur).
+  await window.sonal.dialog.choisirExport(`${nom}.json`, contenu)
+}
+
+/** Import GLOBAL (« Importer un modèle… ») : dialogue JSON → registre du profil
+ *  (remplacement par nom) → message de retour dans la ligne du haut. */
+async function importerModele() {
+  const msg = await importerModeleUtilisateur()
+  if (msg) messageVar.value = msg
 }
 
 onMounted(() => {
   // Repartir propre (pas de message de refus d'un passage précédent).
   messageVar.value = null
+  void lireModelesUtilisateur()
 })
 </script>
 
@@ -114,17 +190,20 @@ onMounted(() => {
     <div class="modale-vars">
       <div class="corpus-tete">
         <h3>Édition des variables</h3>
-        <button class="mini" title="Variable d'entretien (une valeur par entretien)" @click="ajouterVariable('entretien')">
+        <button class="mini" title="Créer une variable d'entretien (une valeur par entretien)" @click="creerVariable('entretien')">
           + var. d'entretien
         </button>
-        <button class="mini" title="Variable de locuteur (une valeur par locuteur)" @click="ajouterVariable('locuteur')">
+        <button class="mini" title="Créer une variable de locuteur (une valeur par locuteur)" @click="creerVariable('locuteur')">
           + var. de locuteur
+        </button>
+        <button class="mini" title="Importer un modèle de modalités (JSON) dans « Mes modèles »" @click="importerModele()">
+          ⬆ Importer un modèle…
         </button>
         <button class="fermer" title="Fermer" @click="$emit('fermer')">✕</button>
       </div>
       <p class="aide-thm">
         Nom, statut (publique = visible dans les exports), modalités · « modèles… » pré-remplit les
-        modalités (sexe, âge, PCS…) · sans modalité, la variable se saisit en texte libre dans la table
+        modalités (intégrés ou importés) · sans modalité, la variable se saisit en texte libre dans la table
       </p>
 
       <p v-if="messageVar" class="msg-thm">{{ messageVar }}</p>
@@ -143,10 +222,26 @@ onMounted(() => {
             >{{ v.portee === 'entretien' ? 'ent' : 'loc' }}</span>
             <input
               class="nom-var"
+              :ref="(el) => noterChampNom(el as HTMLInputElement | null, v.id)"
               :value="v.lib"
+              :title="v.lib"
+              @focus="($event.target as HTMLInputElement).select()"
               @keyup.enter="($event.target as HTMLInputElement).blur()"
               @change="renommerVariable(v.id, $event)"
             />
+            <select
+              class="modeles"
+              title="Ajouter les modalités d'un modèle pré-rempli (intégré ou importé)"
+              @change="appliquerModele(v.id, $event)"
+            >
+              <option value="" selected>modèles…</option>
+              <optgroup label="Intégrés">
+                <option v-for="m in modelesIntegres" :key="m.cle" :value="m.cle">{{ m.nom }}</option>
+              </optgroup>
+              <optgroup v-if="modelesPerso.length" label="Mes modèles">
+                <option v-for="m in modelesPerso" :key="m.cle" :value="m.cle">{{ m.nom }}</option>
+              </optgroup>
+            </select>
             <button
               class="statut"
               :class="{ privee: v.priv }"
@@ -175,10 +270,24 @@ onMounted(() => {
           </ul>
           <div class="actions-mod">
             <button class="mini" @click="ajouterModalite(v.id)">+ modalité</button>
-            <select class="modeles" title="Ajouter les modalités d'un modèle pré-rempli" @change="appliquerModele(v.id, $event)">
-              <option value="" selected>modèles…</option>
-              <option v-for="m in MODELES" :key="m.cle" :value="m.cle">{{ m.nom }}</option>
-            </select>
+            <button
+              class="mini export"
+              title="Exporter le nom et les modalités de cette variable comme modèle (JSON)"
+              :disabled="v.modalites.length === 0"
+              @click="commencerExport(v.id)"
+            >⤓ Exporter ce  modèle</button>
+            <span v-if="exportPour === v.id" class="export-form">
+              <label for="nom-export">Nom du modèle :</label>
+              <input
+                id="nom-export"
+                v-model="nomExport"
+                placeholder="ex. Niveau d'études"
+                @keyup.enter="confirmerExport()"
+                @keyup.esc="annulerExport()"
+              />
+              <button class="mini" @click="confirmerExport()">Exporter</button>
+              <button class="mini" @click="annulerExport()">Annuler</button>
+            </span>
           </div>
         </li>
       </ul>
@@ -215,6 +324,7 @@ onMounted(() => {
 /* .corpus-tete/.mini/.aide-thm/.msg-thm/.vide/.x : styles GLOBAUX (base.css). */
 .corpus-tete {
   gap: 0.5rem;
+  flex-wrap: wrap; /* l'en-tête porte désormais 3 boutons + le titre */
 }
 .corpus-tete h3 {
   flex: 1;
@@ -259,15 +369,21 @@ onMounted(() => {
 .portee.locuteur {
   background: #8a6d3b;
 }
+/* Nom de la variable : largeur RÉDUITE pour laisser la place au sélecteur
+ * « modèles… » qui suit — un nom trop long se TRONQUE (ellipsis, supporté par
+ * Chromium sur les inputs) et s'affiche en entier au survol (title) ou au
+ * focus (sélection). */
 .nom-var {
-  flex: 1;
+  flex: 1 1 6rem;
   min-width: 0;
+  max-width: 13rem;
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 0.15rem 0.35rem;
   font-size: 0.82rem;
+  text-overflow: ellipsis;
 }
-/* Statut publique/privée (SonalPi) : bascule à deux états. */
+/* Statut publique/privée : bascule à deux états. */
 .statut {
   flex: none;
   border: 1px solid #ccc;
@@ -291,8 +407,8 @@ onMounted(() => {
   color: #999;
   font-style: italic;
 }
-/* Modalités en LIGNES (code d'export + libellé), comme le dictionnaire SonalPi —
-   les libellés longs (PCS…) ont la place, contrairement à des puces. */
+/* Modalités en LIGNES (code d'export + libellé) : les libellés longs (PCS…)
+   ont la place, contrairement à des puces. */
 .liste-mod {
   list-style: none;
   margin: 0.35rem 0 0;
@@ -334,9 +450,14 @@ onMounted(() => {
 .actions-mod {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin: 0.3rem 0 0 1.3rem;
 }
+/* Le sélecteur « modèles… » vit dans la ligne du haut, à côté du nom : il ne
+ * pousse pas le reste de la ligne (flex: none) et reste plafonné à la largeur
+ * de « Age en classes de 10 » (le plus long des intégrés) — au-delà, le select
+ * tronque le libellé choisi. */
 .modeles {
   border: 1px solid #ccc;
   border-radius: 5px;
@@ -344,6 +465,30 @@ onMounted(() => {
   padding: 0.1rem 0.2rem;
   color: #666;
   background: #fff;
-  max-width: 12rem;
+  flex: none;
+  min-width: 7rem;
+  max-width: 10.5rem;
+}
+/* Export d'un modèle : bouton grisé sans modalités, formulaire inline qui prend
+ * la place du bouton le temps de la saisie (Entrée = exporter, Échap = quitter). */
+.mini.export:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.export-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.export-form label {
+  font-size: 0.72rem;
+  color: #666;
+}
+.export-form input {
+  width: 11rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.75rem;
 }
 </style>

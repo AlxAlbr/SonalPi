@@ -11,22 +11,22 @@ import {
 } from '../../shared/entretien/audio'
 
 /**
- * SYNCHRO AUDIO de l'entretien ouvert : le pont temps ↔ texte. Projette les
- * ancres {pos, t} du modèle en coordonnées texte, surligne et suit la plage
- * lue pendant la lecture, et interpole un temps à une position de texte (clic
- * texte / clic tour). Ne connaît NI le lecteur audio NI la
- * persistance : il reçoit l'éditeur et les ancres du modèle, rend des temps et
- * pilote le surlignage via le plugin lecture.
+ *  SYNCHRO AUDIO de l'entretien ouvert : le pont temps ↔ texte. Projette les
+ *  ancres {pos, t} du modèle en coordonnées texte, surligne et suit la plage
+ *  lue pendant la lecture, et interpole un temps à une position de texte (clic
+ *  texte / clic tour). Ne connaît NI le lecteur audio NI la
+ *  persistance : il reçoit l'éditeur et les ancres du modèle, rend des temps et
+ *  pilote le surlignage via le plugin lecture.
  */
 export function useSynchroAudio(deps: {
   editor: Ref<Editor | undefined>
-  /** Les ancres du MODÈLE — le tableau réactif lui-même (toujours muté par
-   *  splice/push, jamais réaffecté : l'identité tient toute la session). */
+  /** Les ancres du MODÈLE, le tableau réactif lui-même (toujours muté par splice/push) :
+   *  jamais réaffecté, l'identité tient toute la session. */
   ancres: Ancre[]
 }) {
-  /** MÉMO de la projection des ancres en coordonnées texte (dérivation, jamais
-   *  persistée) — invalidé quand le doc change (identité du doc PM) : en lecture
-   *  sans édition, le tick reste une pure dichotomie (invariant de perf). */
+  /** MÉMO de la projection des ancres en coordonnées texte, jamais persistée :
+   *  invalidée quand le doc change (identité du doc PM). En lecture sans
+   *  édition, le tick reste une pure dichotomie (invariant de perf). */
   let projection: { doc: unknown; ancres: AncreTexte[] } | null = null
   function ancresTexte(): AncreTexte[] {
     const ed = deps.editor.value
@@ -41,12 +41,14 @@ export function useSynchroAudio(deps: {
     return projection.ancres
   }
 
-  /** Plage actuellement surlignée (cache d'égalité : on ne dispatch que si elle
-   *  CHANGE — le remap du plugin suit les éditions entre-temps). */
+  /** Plage actuellement surlignée (cache d'égalité : on ne dispatch que si elle CHANGE —
+   *  le remap du plugin suit les éditions entre-temps). */
   let plageLue: { de: number; a: number } | null = null
-  /** Cale le surlignage sur l'instant de lecture `t` (null = éteindre) et fait
-   *  défiler le texte vers la plage lue. La plage = les 2 ancres du MODÈLE qui
-   *  encadrent `t` (indices partagés avec la projection, ordre 1:1). */
+  /** Cale le surlignage sur l'instant de lecture `t` (null = éteindre),
+   *  et fait défiler le texte vers la plage lue.
+   *  La plage = les 2 ancres du MODÈLE qui encadrent `t` (indices partagés avec la
+   *  projection, ordre 1:1).
+   */
   function majPlageLue(t: number | null) {
     const ed = deps.editor.value
     if (!ed) return
@@ -71,8 +73,8 @@ export function useSynchroAudio(deps: {
     if (ed) ed.view.dispatch(ed.state.tr.setMeta(lecturePluginKey, null))
   }
 
-  /** Place le curseur à `pos` (bornée au doc) et fait défiler le texte jusque-là
-   *  (point de reprise : revenir à l'endroit du texte où on a quitté). */
+  /** Place le curseur à `pos` (bornée au doc) et fait défiler le texte jusque-là —
+   *  point de reprise, pour revenir à l'endroit du texte où on a quitté. */
   function allerAuTexte(pos: number) {
     const ed = deps.editor.value
     if (!ed) return
@@ -83,10 +85,10 @@ export function useSynchroAudio(deps: {
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  /** Temps interpolé à la position de texte `pos` (clic DANS le texte → seek
-   *  précis, comme SonalPi). Aujourd'hui : prorata entre les 2 ancres qui
-   *  encadrent le point ; avec des ancres au mot, la précision suivra
-   *  toute seule. null si aucune ancre (texte sans timecodes). */
+  /** Temps interpolé à la position de texte `pos` (clic DANS le texte → seek précis, comme SonalPi).
+   *  Aujourd'hui : prorata entre les 2 ancres qui encadrent le point ; avec des
+   *  ancres au mot, la précision suivra toute seule. null si aucune ancre
+   *  (texte sans timecodes). */
   function tempsAuTexte(pos: number): number | null {
     const ed = deps.editor.value
     if (!ed) return null
@@ -104,10 +106,11 @@ export function useSynchroAudio(deps: {
     return xClic == null ? null : tempsAuPoint(ancresTexte(), xClic)
   }
 
-  /** Temps de seek pour un clic-tour sur le bloc à `posBloc` : le temps
-   *  interpolé au DÉBUT du tour contenant ce bloc (le tour est dérivé : run de
-   *  blocs de même loc ; interpolation entre ancres si le début du tour n'en
-   *  porte pas). */
+  /** Temps de seek pour un clic-tour sur le bloc à `posBloc` :
+   *  le temps interpolé au DÉBUT du tour contenant ce bloc (le tour est dérivé :
+   *  run de blocs de même loc ; interpolation entre ancres si le début du tour
+   *  n'en porte pas).
+   */
   function tempsDuBloc(posBloc: number): number | null {
     const ed = deps.editor.value
     if (!ed) return null

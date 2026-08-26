@@ -6,15 +6,15 @@ export type PlageLue = { de: number; a: number } | null
 export const lecturePluginKey = new PluginKey<PlageLue>('sonal-lecture')
 
 /**
- * Surlignage de la PLAGE en cours de lecture audio. État = la plage PM
- * [de, a] entre les deux ancres encadrant l'instant courant (ou null), poussée
- * par setMeta — c'est l'orchestrateur qui suit `currentTime` et dérive la plage
- * (fonctions pures de shared/entretien/audio) ; le plugin ne fait que décorer.
- * UNE SEULE décoration inline à la fois (invariant de perf — jamais une
- * décoration par ancre) ; avec des ancres au cue elle couvre le
- * texte du cue, avec des ancres au mot elle suivra le mot. La plage est
- * REMAPPÉE sur les éditions (assoc -1, comme les ancres du modèle) — le
- * surlignage suit le texte qui bouge entre deux ticks.
+ *  Surlignage de la PLAGE en cours de lecture audio. État = la plage PM
+ *  [de, a] entre les deux ancres encadrant l'instant courant (ou null), poussée
+ *  par setMeta — c'est l'orchestrateur qui suit `currentTime` et dérive la plage
+ *  (fonctions pures de shared/entretien/audio) ; le plugin ne fait que décorer.
+ *  UNE SEULE décoration inline à la fois (invariant de perf — jamais une
+ *  décoration par ancre) ; avec des ancres au cue elle couvre le
+ *  texte du cue, avec des ancres au mot elle suivra le mot. La plage est
+ *  REMAPPÉE sur les éditions (assoc -1, comme les ancres du modèle) — le
+ *  surlignage suit le texte qui bouge entre deux ticks.
  */
 export function pluginLecture(): Plugin<PlageLue> {
   return new Plugin<PlageLue>({

@@ -59,10 +59,10 @@ describe('import .sonal — invariants (golden)', () => {
     expect(payload.annotations.filter((a) => a.type === 'anon').length).toBeGreaterThan(0)
   })
 
-  test('exception : un data-pseudo hors-convention est CONSERVÉ en mémoire (étape 1 §2.6, option 2)', () => {
-    // SonalPi lui-même supprime le data-pseudo en posant une exception
-    // (anon-apply.js) ; si un producteur tiers en laisse un, on le garde comme
-    // mémoire de restauration — jamais affiché, jamais ré-exporté.
+  test('exception : un data-pseudo hors-convention est CONSERVÉ en mémoire', () => {
+    // SonalPi lui-même supprime le data-pseudo en posant une exception (anon-apply.js) ;
+    // si un producteur tiers en laisse un, on le garde comme mémoire de restauration ;
+    // jamais affiché, jamais ré-exporté.
     const html = `<!DOCTYPE html><html><body>
       <div id="contenuText">
         <span class="lblseg sautlig" data-loc="1">
@@ -77,7 +77,7 @@ describe('import .sonal — invariants (golden)', () => {
     expect(exc[0].pseudo).toBe('Mme X.')
   })
 
-  test('libellé de tour (.ligloc) : loc-anon + data-locpseudo → Locuteur.pseudo/pseudoEtat (étape 2 §3.4)', () => {
+  test('libellé de tour (.ligloc) : loc-anon + data-locpseudo → Locuteur.pseudo/pseudoEtat', () => {
     const html = `<!DOCTYPE html><html><body>
       <div id="contenuText">
         <span class="lblseg sautlig ligloc loc-anon" data-loc="1" data-nomloc="Enquêteur" data-locpseudo="Chercheur"><span data-rk="1">Bonjour</span></span>
@@ -99,7 +99,7 @@ describe('import .sonal — invariants (golden)', () => {
     const noms = payload.locuteurs.map((l) => l.nom)
     expect(noms).toContain('Interwiever1')
     expect(noms).toContain('Interwievé1')
-    // l'index 0 (vide) est exclu
+    // l'index 0 (vide) est exclu.
     expect(payload.locuteurs.every((l) => l.index > 0)).toBe(true)
   })
 
@@ -117,7 +117,7 @@ describe('import .sonal — invariants (golden)', () => {
     expect(codebook.find((c) => c.id === 'cat_005')?.taille).toBeUndefined()
   })
 
-  test('anon-json : consommé — règles corpus → reglesAnon, brouillons → brouillonsAnon, tabAnon null (étape 3b)', () => {
+  test('anon-json : consommé — règles corpus → reglesAnon, brouillons → brouillonsAnon, tabAnon null', () => {
     const { legacy, reglesAnon, payload } = importerSonal(html1, parse(html1))
     // entretien1 a des règles d'anon legacy (sans portee ≡ corpus) → reglesAnon.
     expect(reglesAnon.length).toBeGreaterThan(0)

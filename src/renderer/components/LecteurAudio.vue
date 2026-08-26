@@ -3,25 +3,40 @@ import { utiliserSonal } from '../composables/sonal'
 import type { SegmentThematique } from '../../shared/format'
 
 /**
- * Lecteur audio — en HAUT de l'écran entretien, comme SonalPi :
- * play/pause, position, vitesse, ±5 s, puis la bande (forme d'onde PNG +
- * curseur de position + clic = seek TEMPOREL). Composant « bête » : tout
- * l'état vit dans le scope audio partagé (useAudio) — c'est la réactivité qui
- * le coordonne avec le surlignage du bloc lu, pas un composant dynamique.
- * La bande porte aussi le CALQUE du résumé thématique de l'entretien
- * ouvert (live — il suit le codage), calé sur l'axe TEMPS via les ancres.
- * `empile` (mode vidéo) : la bande passe SOUS les commandes au lieu d'être
- * sur la même ligne — la place libérée à droite accueille le panneau vidéo.
+ *  Lecteur audio — en HAUT de l'écran entretien : play/pause, position, vitesse,
+ *  ±5 s, puis la bande (forme d'onde PNG + curseur de position + clic = seek
+ *  TEMPOREL). Composant « bête » : tout l'état vit dans le scope audio partagé
+ *  (useAudio) — c'est la réactivité qui le coordonne avec le surlignage du bloc
+ *  lu, pas une logique de composant. La bande porte aussi le CALQUE du résumé
+ *  thématique de l'entretien ouvert (live — il suit le codage) ; il est calé sur
+ *  l'axe TEMPS via les ancres. `empile` (mode vidéo) : la bande passe SOUS les
+ *  commandes au lieu d'être sur la même ligne — la place libérée à droite
+ *  accueille le panneau vidéo.
  */
 const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
-const { audio, resumeOuvert, tempsAuTexte, peintureSegment, reassignerAudioEntretienOuvert } = utiliserSonal()
+const {
+  audio,
+  resumeOuvert,
+  tempsAuTexte,
+  peintureSegment,
+  reassignerAudioEntretienOuvert,
+  associerAudioEntretienOuvert,
+  ouvrirDesignationAudio,
+  etatAudioOuvert,
+  rapatrierAudioMaintenant,
+  idDistantCourant,
+  ouvertId,
+  tirageEnCours,
+  progressionDistant,
+  pourcentageProgression,
+} = utiliserSonal()
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
 
-/** Style d'un segment sur la BANDE : la bande est un axe TEMPOREL (le curseur y
- *  vit) → les bornes texte du segment sont re-projetées en temps via les ancres
- *  (`tempsAuTexte`) ; sans ancre (texte sans timecodes), repli en % du texte —
- *  l'approximation SonalPi. Peinture partagée avec les cartes Corpus. */
+/** Style d'un segment sur la BANDE : la bande est un axe TEMPOREL (le curseur
+ *  y vit) → les bornes texte du segment sont re-projetées en temps via les
+ *  ancres (`tempsAuTexte`) ; sans ancre (texte sans timecodes), repli en % du
+ *  texte. Peinture partagée avec les cartes Corpus. */
 function styleSegmentBande(s: SegmentThematique): Record<string, string> {
   const p = peintureSegment(s.codes)
   let deb = s.deb
@@ -50,8 +65,8 @@ function fmt(t: number): string {
   return (h > 0 ? h + ':' : '') + mm + ':' + String(s).padStart(2, '0')
 }
 
-/** Clic sur la bande = seek proportionnel au TEMPS (la bande est une image
- *  temporelle — choix assumé, ≠ SonalPi qui vise une position dans le texte). */
+/** Clic sur la bande = seek proportionnel au TEMPS : la bande est une image
+ *  temporelle, pas un référentiel texte. */
 function clicBande(e: MouseEvent) {
   if (duree.value <= 0) return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -91,9 +106,54 @@ function clicBande(e: MouseEvent) {
       <div class="curseur" :style="{ left: ratio * 100 + '%' }"></div>
     </div>
   </div>
+  <div v-else-if="etatAudioOuvert.etat === 'distant' || etatAudioOuvert.etat === 'inaccessible'" class="lecteur-audio lecteur-etat">
+    <!-- L'état du média DÉSIGNÉ, à côté de la
+         barre de lecture — le bon moment UX (on vient ici pour écouter).
+         distant = copie pas encore téléchargée ; inaccessible = le serveur
+         refuse le GET (droits) — message explicatif + réessai. -->
+    <template v-if="etatAudioOuvert.etat === 'distant'">
+      <!-- Pendant le rapatriement, le geste devient progression (octets si
+           le serveur n'expose pas la taille). -->
+      <span v-if="tirageEnCours && progressionDistant?.sens === 'rapatriement'" class="msg-etat">
+        ⏳ Rapatriement de « {{ progressionDistant.chemin }} »…
+        {{ pourcentageProgression !== null ? `${pourcentageProgression} %` : 'en cours' }}
+      </span>
+      <template v-else>
+        <span class="msg-etat">🔊 Média désigné sur le Nextcloud — pas encore sur ce poste.</span>
+        <button class="mini-lect" @click="rapatrierAudioMaintenant">🔄 Rapatrier maintenant</button>
+      </template>
+    </template>
+    <template v-else>
+      <span class="msg-etat">
+        🔒 Média désigné mais inaccessible depuis ce poste (droits insuffisants) —
+        demandez l'accès au propriétaire du fichier ; il sera récupéré
+dès que les droits seront ouverts.
+      </span>
+      <button class="mini-lect" @click="rapatrierAudioMaintenant">Réessayer</button>
+    </template>
+  </div>
   <div v-else-if="url && erreur" class="lecteur-audio lecteur-erreur">
-    <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
-    <button class="mini-lect" @click="reassignerAudioEntretienOuvert">Assigner un audio…</button>
+    <!-- En corpus distant, l'audioRef partagée pointe chez le poste qui a
+         assigné — chaque poste associe SON fichier local (référence, jamais de
+         copie, jamais d'écriture au JSON partagé). En local, le geste reste la
+         ré-assignation classique. -->
+    <template v-if="idDistantCourant">
+      <span class="msg-erreur">🔊 Audio absent de ce poste — il vit sur la machine qui l'a assigné.</span>
+      <button class="mini-lect" @click="associerAudioEntretienOuvert">Associer l'audio local…</button>
+      <!-- Ou lier le fichier PARTAGÉ du serveur — la copie miroir
+           arrivera chez tous au prochain tirage. -->
+      <button
+        v-if="ouvertId"
+        class="mini-lect"
+        @click="ouvrirDesignationAudio(ouvertId)"
+      >
+        Désigner dans le Nextcloud…
+      </button>
+    </template>
+    <template v-else>
+      <span class="msg-erreur">🔊 Audio introuvable — le fichier a peut-être été déplacé.</span>
+      <button class="mini-lect" @click="reassignerAudioEntretienOuvert">Assigner un audio…</button>
+    </template>
   </div>
 </template>
 
@@ -170,14 +230,25 @@ function clicBande(e: MouseEvent) {
   border-color: #f3b4ad;
   background: #fdecea;
 }
+/* État de l'audio désigné (distant / inaccessible) : informatif, pas une
+   erreur — teinte neutre. */
+.lecteur-etat {
+  gap: 0.6rem;
+  border-color: #c9d8ef;
+  background: #eef3fb;
+}
+.msg-etat {
+  font-size: 0.82rem;
+  color: #2b4a75;
+}
 .msg-erreur {
   font-size: 0.82rem;
   color: #b3261e;
 }
 /* La bande : forme d'onde + curseur de position (ratio temps/durée). MÊME
-   représentation que les cartes Corpus (SonalPi) : conteneur compact à dégradé
-   vertical, onde plate 800×31 — la bande reste un axe TEMPOREL plein (l'onde
-   n'est jamais rognée : `object-fit: fill`, le curseur se cale en %). */
+   représentation que les cartes Corpus : conteneur compact à dégradé vertical,
+   onde plate 800×31 — la bande reste un axe TEMPOREL plein (l'onde n'est
+   jamais rognée : `object-fit: fill`, le curseur se cale en %). */
 .bande {
   position: relative;
   flex: 1;
@@ -208,9 +279,9 @@ function clicBande(e: MouseEvent) {
   background: #d84315;
   pointer-events: none;
 }
-/* Segment du résumé thématique sur la bande — opacité SonalPi (0.55) : la
-   teinte du thème reste reconnaissable, l'onde reste lisible dessous.
-   Jamais interactif. */
+/* Segment du résumé thématique sur la bande — opacité 0.55 : la teinte du
+   thème reste reconnaissable, l'onde reste lisible dessous. Jamais
+   interactif. */
 .xtr-bande {
   position: absolute;
   top: 1px;

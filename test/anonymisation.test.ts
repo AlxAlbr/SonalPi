@@ -6,13 +6,13 @@ import {
   offsetVersPM,
   plageVersPM,
   type TextePlat,
-} from '../src/shared/entretien/anonymisation'
+} from '../src/shared/entretien/anon'
 import { debutBloc } from '../src/shared/entretien/positions'
 
 /**
- * Moteur d'anonymisation (pur) — couvre les cas v1 : occurrence simple, casse,
- * frontières de mot, ponctuation de bord, et le pont texte plat ↔ positions PM.
- * Headless, aucun DOM ni ProseMirror.
+ *  Moteur d'anonymisation (pur) — couvre les cas v1 : occurrence simple, casse,
+ *  frontières de mot, ponctuation de bord, et le pont texte plat ↔ positions PM.
+ *  Headless, aucun DOM ni ProseMirror.
  */
 
 describe('occurrencesDe', () => {
@@ -44,17 +44,17 @@ describe('occurrencesDe', () => {
   })
 
   test('entité multi-mots (ponctuation interne conservée)', () => {
-    // « New York » reste un match insécable ; la frontière de mot porte sur
-    // le premier et le dernier caractère de l'entité.
+    // « New York » reste un match insécable ;
+    // la frontière de mot porte sur le premier et le dernier caractère de l'entité.
     expect(occurrencesDe('à New York, puis ailleurs', 'New York')).toEqual([
       { from: 2, to: 10 },
     ])
   })
 
   test('expression multi-mots : UNE plage par occurrence, jamais scindée par mot', () => {
-    // Le moteur matche « New York » comme une seule unité — c'est la POSITION
-    // au modèle qui peut ensuite la couper (ex. annotations « New » + « York »
-    // posées séparément), pas le matcher lui-même.
+    // Le moteur matche « New York » comme une seule unité.
+    // La POSITION au modèle peut ensuite la couper, comme des annotations « New »
+    // et « York » posées séparément ; jamais le matcher lui-même.
     const r = occurrencesDe('New York, puis New York à la fin', 'New York')
     expect(r).toEqual([
       { from: 0, to: 8 },
@@ -127,9 +127,9 @@ describe('adaptateur texte plat ↔ positions PM', () => {
       texte: ' Lyon\nLyon ', // blocs vides autour : juste pour isoler le test plat
       blocs: [{ debut: 1, longueur: 4 }, { debut: 7, longueur: 4 }],
     }
-    // L'entité « Lyon\nLyon » (entité de texte plat contenant un saut) n'existe
-    // pas dans une saisie réelle ; on vérifie surtout qu'un mot ne se SYNTHÉTISE
-    // pas à la jonction : ici « Lyon » reste deux occurrences distinctes.
+    // L'entité « Lyon\nLyon » (texte plat contenant un saut) n'existe pas dans une saisie réelle.
+    // On vérifie surtout qu'un mot ne se synthétise pas à la jonction ;
+    // ici « Lyon » reste deux occurrences distinctes.
     expect(occurrencesDe(t.texte, 'Lyon')).toEqual([
       { from: 1, to: 5 },
       { from: 6, to: 10 },

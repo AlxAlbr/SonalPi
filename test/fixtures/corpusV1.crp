@@ -1,0 +1,104 @@
+{
+  "tabThm": [
+    { "code": "cat_001", "couleur": "", "nom": "Pondérations", "taille": "", "cmpct": false, "rang": "0", "act": true },
+    { "code": "cat_002", "couleur": "", "nom": "★★★ Très important", "taille": 24, "cmpct": false, "rang": "1", "act": true },
+    { "code": "cat_003", "couleur": "", "nom": "★★☆ Assez important", "taille": 22, "cmpct": false, "rang": "1", "act": true },
+    { "code": "cat_004", "couleur": "", "nom": "★☆☆ Important", "taille": 20, "cmpct": false, "rang": "1", "act": true },
+    { "nom": "Thème principal", "code": "cat_005", "couleur": "#0331ff", "taille": "", "rang": "0", "act": true, "cmpct": false },
+    { "nom": "Sous-thème", "code": "cat_006", "couleur": "#42a5f5", "taille": "", "rang": "1", "act": true, "cmpct": false }
+  ],
+  "tabEnt": [
+    {
+      "id": 1,
+      "notes": "",
+      "tabLoc": ["", "Enquêteur", "Émilie"],
+      "nom": "entretien1",
+      "hms": "00:00:00",
+      "tabThm": [],
+      "rtrPath": "entretien1.sonal",
+      "audioPath": "",
+      "imgPath": "",
+      "tabVar": [
+        { "v": 1, "lib": "sexe", "champ": "loc", "priv": "false" },
+        { "v": 2, "lib": "PCS", "champ": "gen", "priv": "false" }
+      ],
+      "tabDic": [
+        { "v": 1, "m": 0 },
+        { "v": 1, "m": 1, "lib": "Homme" },
+        { "v": 1, "m": 2, "lib": "Femme" },
+        { "v": 2, "m": 0, "lib": "" }
+      ],
+      "tabDat": [
+        { "e": "1", "v": 1, "l": "1", "m": 2 },
+        { "e": "1", "v": 1, "l": "2", "m": 2 }
+      ],
+      "lastModified": "2026-07-07T14:01:21.093Z",
+      "fileSize": "0.02 Mo",
+      "lastAccess": "2026-07-17T10:23:00.141Z"
+    },
+    {
+      "id": 2,
+      "notes": "entretien avec audio référencé",
+      "tabLoc": ["", "Émilie", "Enquêteur"],
+      "nom": "entretien2",
+      "hms": "00:00:00",
+      "tabThm": [],
+      "rtrPath": "entretien2.sonal",
+      "audioPath": "/home/user/Corpus/Source/audio/E1.mp3",
+      "imgPath": "E1.png",
+      "tabVar": [],
+      "tabDic": [],
+      "tabDat": [],
+      "lastModified": "2026-07-07T13:36:33.457Z",
+      "fileSize": "0.01 Mo",
+      "lastAccess": "2026-07-17T10:23:00.156Z"
+    },
+    {
+      "id": 3,
+      "notes": "",
+      "tabLoc": ["", "Speaker 1", "Speaker 2"],
+      "nom": "entretien3",
+      "hms": "00:00:00",
+      "tabThm": [],
+      "rtrPath": "entretien3.sonal",
+      "audioPath": "",
+      "imgPath": "",
+      "tabVar": [],
+      "tabDic": [],
+      "tabDat": [],
+      "lastModified": "2026-07-07T13:36:37.856Z",
+      "fileSize": "0.00 Mo",
+      "lastAccess": "2026-07-17T10:23:00.164Z"
+    }
+  ],
+  "tabVar": [
+    { "v": 1, "lib": "sexe", "champ": "loc", "priv": "false" },
+    { "v": 2, "lib": "PCS", "champ": "gen", "priv": "false" },
+    { "v": 3, "lib": "diplôme", "champ": "gen", "priv": "true" }
+  ],
+  "tabDic": [
+    { "v": 1, "m": 0 },
+    { "v": 1, "m": 1, "lib": "Homme" },
+    { "v": 1, "m": 2, "lib": "Femme" },
+    { "v": 1, "m": 3, "lib": "Autre" },
+    { "v": 2, "m": 0, "lib": "" },
+    { "v": 3, "m": 0, "lib": "" },
+    { "v": 3, "m": 1, "lib": "Sans diplôme" },
+    { "v": 3, "m": 2, "lib": "Bac" }
+  ],
+  "tabDat": [
+    { "e": "1", "v": 1, "l": "1", "m": 2 },
+    { "e": "1", "v": 1, "l": "2", "m": 2 },
+    { "e": "2", "v": 2, "l": "all", "m": 1 }
+  ],
+  "tabAnon": [
+    { "entite": "Émilie", "remplacement": "Claire" },
+    { "entite": "Maison des Habitants", "remplacement": "Maison de quartier", "thematique": "ORG" },
+    { "entite": "Enquêteur", "remplacement": "Énola", "thematique": "LOC", "remplacementAlt": "Camille" }
+  ],
+  "paramsAnonCorpus": {
+    "motsLiaison": ["à", "de", "d", "du", "des", "au", "aux", "en", "chez", "dans", "sur", "pour"],
+    "thematiques": { "actif": true, "liste": ["PER", "LOC", "ORG", "DAT"] },
+    "prioriteValidation": "corpus"
+  }
+}

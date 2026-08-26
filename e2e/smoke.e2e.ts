@@ -2,13 +2,13 @@ import { test, expect } from '@playwright/test'
 import { ouvrir, coderTheme, compterAnnotations } from './util'
 
 /**
- * SMOKE e2e — pilote la VRAIE app Electron, pas le build : prouve que
- * (1) la fenêtre s'ouvre et l'éditeur monte avec le schéma gelé (blocs data-loc),
- * (2) coder une sélection ajoute une annotation au MODÈLE (observée par ses
- * décorations),
- * (3) le plugin de remap est câblé et tourne sur de vrais coups de clavier.
+ *  SMOKE e2e — pilote la VRAIE app Electron, pas le build : prouve que
+ *  (1) la fenêtre s'ouvre et l'éditeur monte avec le schéma gelé (blocs data-loc),
+ *  (2) coder une sélection ajoute une annotation au MODÈLE (observée par ses
+ *  décorations),
+ *  (3) le plugin de remap est câblé et tourne sur de vrais coups de clavier.
  *
- * Remplace le proxy faible « le build passe » par une preuve que la fenêtre vit.
+ *  Remplace le proxy faible « le build passe » par une preuve que la fenêtre vit.
  */
 test('la fenêtre s’ouvre, l’éditeur monte avec le schéma attendu (blocs data-loc)', async () => {
   const { app, page } = await ouvrir()
@@ -31,9 +31,10 @@ test('coder une sélection ajoute une annotation au modèle, la retirer l’enl�
   await ed.press('ControlOrMeta+a')
   await coderTheme(page, 'Famille') // cat_001
 
-  // Une annotation au modèle, décorée et porteuse de son code.
+  // Une annotation au modèle, décorée et porteuse du NOM du thème
+  // (le titre affiche le libellé résolu au codebook, pas le code brut).
   await expect.poll(() => compterAnnotations(page)).toBe(1)
-  await expect(ed.locator('.annot').first()).toHaveAttribute('title', /cat_001/)
+  await expect(ed.locator('.annot').first()).toHaveAttribute('title', 'Famille')
 
   // La retirer = re-coder la même plage (toggle — le caret n'a pas bougé).
   await coderTheme(page, 'Famille')

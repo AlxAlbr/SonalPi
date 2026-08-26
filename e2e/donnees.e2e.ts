@@ -14,17 +14,16 @@ import {
 } from './util'
 
 /**
- * Données (EAV) à DEUX NIVEAUX d'écran : les DÉFINITIONS de
- * variables/modalités et la MATRICE vivent sur la TABLE DE DONNÉES ; la SAISIE des
- * valeurs (portée entretien + portée locuteur) vit à l'écran Entretien. Invariants
- * inchangés : (1) matrice = requête juste après réouverture ; (2) valeur de portée
- * locuteur chez SON locuteur (pas de sentinelle l="all") ; (3) supprimer une
- * modalité utilisée = refus + compteur.
+ *  Données (EAV) à DEUX NIVEAUX d'écran : les DÉFINITIONS de
+ *  variables/modalités et la MATRICE vivent sur la TABLE DE DONNÉES ; la SAISIE des
+ *  valeurs (portée entretien + portée locuteur) vit à l'écran Entretien. Invariants
+ *  inchangés : (1) matrice = requête juste après réouverture ; (2) valeur de portée
+ *  locuteur chez SON locuteur (pas de sentinelle l="all") ; (3) supprimer une
+ *  modalité utilisée = refus + compteur.
  */
 
-/** Crée une variable (fenêtre d'édition des variables, crayon de la table de
- *  données) avec une modalité `libMod`, puis revient au Corpus (pour enchaîner
- *  l'ouverture d'un entretien). */
+/** Crée une variable via la fenêtre d'édition des variables (crayon de la table de données),
+ *  avec une modalité `libMod`, puis revient au Corpus (pour enchaîner l'ouverture d'un entretien). */
 async function creerVariable(
   page: Page,
   bouton: "+ var. d'entretien" | '+ var. de locuteur',
@@ -34,7 +33,7 @@ async function creerVariable(
   await ouvrirEditionVariables(page)
   await page.locator('.modale-vars .corpus-tete .mini', { hasText: bouton }).click()
   const li = page.locator('.modale-vars .liste-var > li').first()
-  await li.locator('.actions-mod .mini').click() // + modalité
+  await li.locator('.mini', { hasText: '+ modalité' }).click() // + modalité
   const modInput = li.locator('.lib-mod').first()
   await modInput.fill(libMod)
   await modInput.press('Tab') // @change → renomme la modalité

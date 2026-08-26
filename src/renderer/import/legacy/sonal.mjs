@@ -1,15 +1,13 @@
 // Domaine : lecture ET écriture du fichier .sonal (Entretien).
 //
-// LECTURE (parseSonal & co) : lecteur canonique des invariants observables d'un
-// .sonal, via DOM (createElement('div') + innerHTML + querySelectorAll('.lblseg')
-// + .closest() + .dataset). `doc` = `document` réel dans le renderer ; un document
-// jsdom dans les tests.
+// LECTURE (parseSonal & co) : lecteur canonique des invariants observables d'un .sonal,
+// via DOM (createElement('div') + innerHTML + querySelectorAll('.lblseg') + .closest()
+// + .dataset). `doc` = `document` réel dans le renderer ; un document jsdom dans les tests.
 //
-// ÉCRITURE (serializeSonal) : sérialisation pure (assemblage de chaîne, sans DOM)
-// du .sonal, port fidèle de gestion_fichiers.js:sauvHtml (+ exportThmcss, ici
-// paramétré par `cssFromCodebook(tabThm)` au lieu du global). Le renderer pourra
-// y déléguer (tranche 2) ; en attendant, golden + round-trip parse(serialize)
-// servent de filet de sécurité sur la sauvegarde.
+// ÉCRITURE (serializeSonal) : sérialisation pure (assemblage de chaîne, sans DOM) du .sonal,
+// port fidèle de gestion_fichiers.js:sauvHtml (+ exportThmcss, ici paramétré par `cssFromCodebook(tabThm)` au lieu du global).
+// Le renderer pourra y déléguer (tranche 2),
+// en attendant, golden + round-trip parse(serialize) servent de filet de sécurité sur la sauvegarde.
 //
 // Voir docs/FORMATS.md §2.
 
@@ -63,9 +61,9 @@ export function codages(html, doc) {
 }
 
 /**
- * Anon : préserve l'asymétrie à 3 états (MODELE_OBJET §5).
- *   type 'anon' / 'anon-exception' ; le 3e état (présent-non-anonymisé) n'a pas
- *   de span dédié et est donc absent de cette liste (documenté par omission).
+ *  Anon : préserve l'asymétrie à 3 états (MODELE_OBJET §5).
+ *  type 'anon' / 'anon-exception' ; le 3e état (présent-non-anonymisé) n'a pas
+ *  de span dédié et est donc absent de cette liste (documenté par omission).
  */
 export function anon(html, doc) {
   const root = buildRoot(html, doc);
@@ -116,8 +114,8 @@ export function parseSonal(html, doc) {
 // ── Écriture (.sonal) ────────────────────────────────────────────────────────
 
 /**
- * CSS du codebook (classes .cat_XXX). Port fidèle de thematisation.js:exportThmcss,
- * paramétré par `tabThm` (au lieu du global). Pur.
+ *  CSS du codebook (classes .cat_XXX). Port fidèle de thematisation.js:exportThmcss,
+ *  paramétré par `tabThm` (au lieu du global). Pur.
  */
 export function cssFromCodebook(tabThm = []) {
   var chaineCss = `<style>
@@ -158,12 +156,12 @@ export function cssFromCodebook(tabThm = []) {
 }
 
 /**
- * Sérialise un .sonal complet (HTML). Port fidèle de gestion_fichiers.js:sauvHtml.
- * Pur, sans DOM. L'ordre et la structure (blocs <script> loc/cat/var/dic/dat/anon,
- * notes, #contenuText) sont l'invariant de format à préserver (cf. FORMATS.md §2).
+ *  Sérialise un .sonal complet (HTML). Port fidèle de gestion_fichiers.js:sauvHtml.
+ *  Pur, sans DOM. L'ordre et la structure (blocs <script> loc/cat/var/dic/dat/anon,
+ *  notes, #contenuText) sont l'invariant de format à préserver (cf. FORMATS.md §2).
  *
- * @param {{tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon}} parts
- * @returns {string} le contenu .sonal
+ *  @param {{tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon}} parts
+ *  @returns {string} le contenu .sonal
  */
 export function serializeSonal({ tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon } = {}) {
   var contenuHtml = `

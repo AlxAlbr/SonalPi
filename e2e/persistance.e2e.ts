@@ -5,10 +5,11 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, entrerEntretien, coderTheme } from './util'
 
 /**
- * ÉTAPE 2 + S2 — persistance en dossier de corpus, à travers la navigation
- * Corpus → Entretien. Critères DEMARRAGE : (1) round-trip coder/éditer → fermer →
- * rouvrir, tout intact ; (4) version inconnue refusée. NB : la LECTURE d'un entretien
- * (donc le refus de version) ne se déclenche qu'à l'ENTRÉE dans l'entretien.
+ *  ÉTAPE 2 + S2 — persistance en dossier de corpus, à travers la navigation
+ *  Corpus → Entretien. Critères DEMARRAGE : (1) round-trip coder/éditer → fermer →
+ *  rouvrir, tout intact ; (4) version inconnue refusée. NB : la LECTURE d'un
+ *  entretien (donc le refus de version) ne se déclenche qu'à l'ENTRÉE dans
+ *  l'entretien.
  */
 
 /** Les fichiers du corpus vivent sous <userDataDir>/corpus/… (cf. main/index.ts). */

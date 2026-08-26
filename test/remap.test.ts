@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { dirname, join, normalize } from 'node:path'
 import { EditorState, type Transaction } from '@tiptap/pm/state'
 import { Schema } from '@tiptap/pm/model'
 import { history, undo, redo } from '@tiptap/pm/history'
@@ -9,8 +10,8 @@ import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien
 import { pluginRemap } from '../src/renderer/editor/remap'
 
 /**
- * MOTEUR DE REMAP — vérification du risque central de l'architecture (le
- * remapping des positions doit tenir avant qu'on empile l'UI dessus). Headless.
+ *  MOTEUR DE REMAP — vérification du risque central de l'architecture (le
+ *  remapping des positions doit tenir avant qu'on empile l'UI dessus). Headless.
  */
 
 /** Schéma minimal — la vérification ne dépend d'aucun schéma riche. */
@@ -208,10 +209,10 @@ describe('remapping — occurrences anon (même canal que les codages)', () => {
     expect(estOrpheline(a)).toBe(false)
   })
 
-  test('une EXCEPTION survit au remap : état et pseudo-mémoire intacts (étape 1 §2.6)', () => {
+  test('une EXCEPTION survit au remap : état et pseudo-mémoire intacts', () => {
     const s = creerSession(TEXTE)
     const a = s.anonymiser('Pierre', 'P')
-    a.etat = 'exception' // bascule faite via le menu (option 2 : pseudo conservé)
+    a.etat = 'exception' // bascule faite via le menu (le pseudo reste posé)
     s.editer((tr) => tr.insertText('Oh. ', 1)) // décale l'occurrence
     expect(s.texteAnnote(a)).toBe('Pierre')
     expect(a.etat).toBe('exception')
@@ -220,15 +221,35 @@ describe('remapping — occurrences anon (même canal que les codages)', () => {
 })
 
 describe('discipline d’architecture (garde-fou : entretien/ sans DOM)', () => {
-  test('src/shared/entretien/ n’importe que du local ou des types shared (jamais DOM/ProseMirror/Yjs)', () => {
-    const dossier = fileURLToPath(new URL('../src/shared/entretien', import.meta.url))
-    for (const fichier of readdirSync(dossier)) {
-      const source = readFileSync(`${dossier}/${fichier}`, 'utf8')
+  test('src/shared/entretien/ n’importe que du local (récursif) ou des types shared — jamais DOM/ProseMirror/Yjs', () => {
+    const racine = fileURLToPath(new URL('../src/shared', import.meta.url))
+    const dossier = join(racine, 'entretien')
+    // Parcourt le dossier RÉCURSIVEMENT (depuis le sous-dossier anon/, un import
+    // '../../format' reste DANS src/shared — la règle est « ne jamais sortir du
+    // package shared », pas « interdire ../.. »).
+    const fichiers: string[] = []
+    const parcourir = (d: string) => {
+      for (const f of readdirSync(d)) {
+        const abs = join(d, f)
+        if (statSync(abs).isDirectory()) parcourir(abs)
+        else if (f.endsWith('.ts')) fichiers.push(abs)
+      }
+    }
+    parcourir(dossier)
+    for (const sourcePath of fichiers) {
+      const source = readFileSync(sourcePath, 'utf8')
       const imports = [...source.matchAll(/^import .* from '([^']+)'/gm)].map((m) => m[1])
-      // Autorisé : même dossier (./) ou un cran vers shared (../format, ../corpus) ;
-      // JAMAIS s'échapper de shared/ (../../) ni un package (DOM, ProseMirror, Yjs, Vue…).
       for (const spec of imports) {
-        expect(spec, `${fichier} importe ${spec}`).toMatch(/^(\.\/|\.\.\/[^.])/)
+        // Résout l'import contre le fichier qui le porte et vérifie que le
+        // résultat reste DANS src/shared/ (jamais un package ni ailleurs).
+        const cible = spec.startsWith('.')
+          ? normalize(join(dirname(sourcePath), spec))
+          : spec
+        expect(spec, `${sourcePath} importe ${spec}`).toMatch(/^\./)
+        expect(
+          cible.startsWith(racine),
+          `${sourcePath} s'échappe de src/shared via ${spec} → ${cible}`,
+        ).toBe(true)
       }
       expect(source).not.toMatch(/\b(document|window)\./)
     }

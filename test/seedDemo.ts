@@ -3,16 +3,16 @@ import { join } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
 
 /**
- * Seed de DÉMO « Karine » — l'EX-amorçage produit, retiré du store (S8 rév. :
- * un corpus neuf naît VIDE, avec le seul bloc Pondérations). Les tests unitaires
- * (`storeNeuf`) et e2e (`lancer`) écrivent cette baseline dans le dossier de
- * corpus AVANT d'ouvrir le store / de lancer l'app : 1 entretien `e1` à deux
- * blocs, 3 thèmes de démo (Famille/Travail/Lieu) + le bloc Pondérations
- * (cat_004..007) — les ids/contenus historiques dont dépendent les specs.
+ *  Seed de DÉMO « Karine » — l'EX-amorçage produit, retiré du store (S8 rév. :
+ *  un corpus neuf naît VIDE, avec le seul bloc Pondérations). Les tests unitaires
+ *  (`storeNeuf`) et e2e (`lancer`) écrivent cette baseline dans le dossier de
+ *  corpus AVANT d'ouvrir le store / de lancer l'app : 1 entretien `e1` à deux
+ *  blocs, 3 thèmes de démo (Famille/Travail/Lieu) + le bloc Pondérations
+ *  (cat_004..007) — les ids/contenus historiques dont dépendent les specs.
  */
 export function ecrireSeedDemo(dirCorpus: string): void {
-  // IDEMPOTENT : ne JAMAIS écraser un corpus existant — les tests de persistance
-  // relancent l'app sur le même dossier et doivent retrouver leur état.
+  // IDEMPOTENT : ne JAMAIS écraser un corpus existant — les tests de persistance relancent l'app sur le même dossier,
+  // et doivent retrouver leur état.
   if (existsSync(join(dirCorpus, 'corpus.json'))) return
   const now = new Date().toISOString()
   const blanc = '#ffffff'

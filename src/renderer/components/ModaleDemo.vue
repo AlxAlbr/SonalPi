@@ -4,13 +4,13 @@ import { utiliserSonal } from '../composables/sonal'
 import type { ModeDemo } from '../composables/demo'
 
 /**
- * Modale démo à deux questions : « où placer les sources de la démo » (sautée
- * si elles sont déjà en place) et « où placer CE corpus de test » (le dossier
- * du mode cliqué, sauté si déjà connu). Un dossier = un corpus.
- * Gardes : ni les sources, ni le corpus de l'autre mode, ni un dossier qui est
- * déjà un corpus (`corpus.json` présent — on n'écrase jamais). `defaultPath`
- * des pickers hinté Documents/Sonal/démo/<…>. À la validation →
- * `preparer(mode, { racineSources?, dossierCorpus? })`.
+ *  Modale démo à deux questions : « où placer les sources de la démo » (sautée
+ *  si elles sont déjà en place) et « où placer CE corpus de test » (le dossier
+ *  du mode cliqué, sauté si déjà connu). Un dossier = un corpus.
+ *  Gardes : ni les sources, ni le corpus de l'autre mode, ni un dossier qui est
+ *  déjà un corpus (`corpus.json` présent — on n'écrase jamais). `defaultPath`
+ *  des pickers hinté Documents/Sonal/démo/<…>. À la validation →
+ *  `preparer(mode, { racineSources?, dossierCorpus? })`.
  */
 const props = defineProps<{ mode: ModeDemo }>()
 const emit = defineEmits<{ (e: 'fermer'): void }>()
@@ -33,8 +33,8 @@ const erreur = ref<string | null>(null)
 
 const modeLib = computed(() => (props.mode === 'pas-a-pas' ? 'Pas à pas' : 'En autonomie'))
 
-// Une question est nécessaire si la réponse mémorisée manque OU n'existe plus
-// sur disque (dossier supprimé → on re-questionne).
+// Une question est nécessaire si la réponse mémorisée manque OU n'existe plus sur disque (dossier supprimé →
+// on re-questionne).
 const besoinSources = computed(() => !racineSources.value || !sourcesPresentes.value)
 // Le corpus demandé est celui du MODE de la carte cliquée (indépendance des deux).
 const corpusConnu = computed(() =>

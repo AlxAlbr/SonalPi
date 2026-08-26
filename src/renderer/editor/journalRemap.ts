@@ -5,8 +5,8 @@ import { remapperAnnotations } from './remap'
 export const journalRemapPluginKey = new PluginKey('sonal-journal-remap')
 
 /**
- * Le pendant JOURNAL du remap des annotations : les inverses en attente
- * portent des positions qui doivent suivre les éditions comme le modèle —
+ *  Le pendant JOURNAL du remap des annotations : les inverses en attente
+ *  portent des positions qui doivent suivre les éditions comme le modèle —
  *  - l'annotation retirée (à re-poser) est remappée comme une annotation du
  *    modèle (même fonction, même politique de bornes) ; si son texte est
  *    supprimé, elle se referme → orpheline → l'entrée devient « non annulable » ;
@@ -14,8 +14,8 @@ export const journalRemapPluginKey = new PluginKey('sonal-journal-remap')
  *    disparaît (fusion, suppression), la position ne résout plus un paragraphe
  *    → « non annulable » (vérifié à l'annulation, jamais appliqué à moitié).
  *
- * NB : `setNodeMarkup` (l'application d'un restaurerLocs) ne déplace aucune
- * position → les entrées encore en attente ne sont pas perturbées.
+ *  NB : `setNodeMarkup` (l'application d'un restaurerLocs) ne déplace aucune
+ *  position → les entrées encore en attente ne sont pas perturbées.
  */
 export function pluginRemapJournal(journal: Journal): Plugin {
   return new Plugin({

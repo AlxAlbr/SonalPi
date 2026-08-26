@@ -1,19 +1,20 @@
 import type { Categorie, CorpusFichier, PatchCategorie } from '../format'
 
 /**
- * Codebook (thèmes) de l'agrégat Corpus. Fonctions PURES
- * (aucune I/O, aucun electron), séparées de leur STOCKAGE (`main/corpusStore.ts`).
- * Les transforms mutent le `CorpusFichier` qu'on leur passe (objet fraîchement lu,
- * possédé par l'appelant) et renvoient l'id créé.
+ *  Codebook (thèmes) de l'agrégat Corpus. Fonctions PURES (aucune I/O, aucun
+ *  electron), séparées de leur STOCKAGE (`main/corpusStore.ts`).
+ *  Les transforms mutent le `CorpusFichier` qu'on leur passe (objet fraîchement
+ *  lu, possédé par l'appelant) et renvoient l'id créé.
  */
 
 // ── Codebook (thèmes) ───────────────────────────────────────────────────────
 
-/** Prochain code d'EXPORT libre `cat_NNN` : simple attribut de lisibilité à
- *  l'export (PAS l'identité — c'est un id opaque injecté), jamais réutilisé
- *  (un code retiré n'est pas repris tant que le max est au-dessus).
- *  Un compteur suffit ici : une collision de codeExport à la fusion est bénigne
- *  (affichage seul), contrairement à une collision d'id. */
+/** Prochain code d'EXPORT libre `cat_NNN` ;
+ *  simple attribut de lisibilité à l'export (PAS l'identité — c'est un id
+ *  opaque injecté), jamais réutilisé (un code retiré n'est pas repris tant que
+ *  le max est au-dessus). Un compteur suffit ici : une collision de codeExport
+ *  à la fusion est bénigne (affichage seul), contrairement à une collision
+ *  d'id. */
 export function prochainCodeCategorie(codebook: Record<string, Categorie>): string {
   let max = 0
   for (const c of Object.values(codebook)) {
@@ -23,8 +24,8 @@ export function prochainCodeCategorie(codebook: Record<string, Categorie>): stri
   return 'cat_' + String(max + 1).padStart(3, '0')
 }
 
-/** Ajoute une catégorie : id OPAQUE injecté (`genId('cat')` côté store — unique
- *  par construction, donc sûr en création offline divergente), `codeExport`
+/** Ajoute une catégorie ; id OPAQUE injecté (`genId('cat')` côté store,
+ *  unique par construction, donc sûr en création offline divergente), codeExport
  *  séquentiel pour la lisibilité à l'export, ordre en fin. `parent` = racine
  *  par défaut, ou l'id d'un thème pour un sous-thème. Renvoie l'id. */
 export function ajouterCategorie(
@@ -40,14 +41,16 @@ export function ajouterCategorie(
   return id
 }
 
-/** Renommer / recolorer / (dés)activer — édite la DÉFINITION. Les entretiens
- *  référencent par id → aucun n'est touché (le cœur de l'archi par-référence). */
+/** Renommer / recolorer / (dés)activer : édite la DÉFINITION.
+ *  Les entretiens référencent par id → aucun n'est touché (le cœur de l'archi
+ *  par-référence). */
 export function modifierCategorie(corpus: CorpusFichier, id: string, patch: PatchCategorie): void {
   if (corpus.codebook[id]) corpus.codebook[id] = { ...corpus.codebook[id], ...patch }
 }
 
-/** Réordonne DANS LA FRATRIE (mêmes `parent`) : échange l'`ordre` avec le voisin
- *  frère (sens = -1 haut / +1 bas ; borné aux extrémités de la fratrie). */
+/** Réordonne DANS LA FRATRIE (mêmes `parent`).
+ *  Échange l'`ordre` avec le voisin frère (sens = -1 haut / +1 bas ; borné aux
+ *  extrémités de la fratrie). */
 export function deplacerCategorie(corpus: CorpusFichier, id: string, sens: -1 | 1): void {
   const cat = corpus.codebook[id]
   if (!cat) return
@@ -63,8 +66,34 @@ export function deplacerCategorie(corpus: CorpusFichier, id: string, sens: -1 | 
   }
 }
 
-/** Retire une catégorie du codebook et PROMEUT ses enfants au parent du supprimé
- *  (pas d'orphelins). La POLITIQUE refus-si-utilisée est décidée par l'orchestration. */
+/** Change le PARENT d'une catégorie dans l'arbre du codebook (`null` = racine).
+ *  Refus silencieux si la cible est la catégorie elle-même ou un de ses
+ *  descendants : une branche ne peut pas devenir son propre ancêtre. La catégorie
+ *  arrive en fin de sa nouvelle fratrie ; ses enfants restent accrochés à elle,
+ *  et les codages suivent sans bouger (référence par id). */
+export function migrerCategorie(
+  corpus: CorpusFichier,
+  id: string,
+  nouveauParent: string | null,
+): void {
+  const cat = corpus.codebook[id]
+  if (!cat) return
+  if (nouveauParent != null) {
+    const cible = corpus.codebook[nouveauParent]
+    if (!cible || nouveauParent === id) return
+    let p = cible.parent
+    while (p != null) {
+      if (p === id) return // descendant de la catégorie migrée
+      p = corpus.codebook[p]?.parent ?? null
+    }
+  }
+  cat.parent = nouveauParent
+  cat.ordre = Object.values(corpus.codebook).reduce((m, c) => Math.max(m, c.ordre), -1) + 1
+}
+
+/** Retire une catégorie du codebook, et PROMEUT ses enfants au parent du supprimé ;
+ *  pas d'orphelins. La POLITIQUE refus-si-utilisée est décidée par
+ *  l'orchestration. */
 export function retirerCategorie(corpus: CorpusFichier, id: string): void {
   const parent = corpus.codebook[id]?.parent ?? null
   for (const c of Object.values(corpus.codebook)) if (c.parent === id) c.parent = parent
@@ -73,9 +102,10 @@ export function retirerCategorie(corpus: CorpusFichier, id: string): void {
 
 // ── Hiérarchie des thèmes (`parent` = modèle ; `rang` SonalPi = profondeur dérivée à l'export, reconstruite à l'import) ──
 
-/** Reconstruit `parent` depuis la séquence de profondeurs `rang` à l'import
- *  (SonalPi ne stocke que la profondeur) : le parent d'un nœud à la profondeur d =
- *  le dernier nœud rencontré à d-1. Gère N niveaux ; profondeur sans parent → racine. */
+/** Reconstruit `parent` depuis la séquence de profondeurs `rang`.
+ *  À l'import, SonalPi ne stocke que la profondeur : le parent d'un nœud à la
+ *  profondeur d = le dernier nœud rencontré à d-1 ; Gère N niveaux ; profondeur
+ *  sans parent → racine. */
 export function parentsDepuisRangs(sequence: { id: string; rang: number }[]): Record<string, string | null> {
   const parent: Record<string, string | null> = {}
   const dernierParProfondeur: string[] = [] // index = profondeur → id du dernier vu
@@ -93,6 +123,8 @@ export interface NoeudTheme {
   profondeur: number
   premier: boolean // 1er de sa fratrie (▲ désactivé)
   dernier: boolean // dernier de sa fratrie (▼ désactivé)
+  /** A-t-il au moins un enfant direct ? (affiche/masque l'icône de repli.) */
+  aEnfants: boolean
 }
 
 /** Aplatit le codebook en **pré-ordre** (parent puis ses enfants, récursif ;
@@ -110,10 +142,34 @@ export function ordreThemes(codebook: Record<string, Categorie>): NoeudTheme[] {
   const visiter = (parent: string | null, profondeur: number) => {
     const fratrie = enfants(parent)
     fratrie.forEach((cat, i) => {
-      out.push({ cat, profondeur, premier: i === 0, dernier: i === fratrie.length - 1 })
+      out.push({
+        cat,
+        profondeur,
+        premier: i === 0,
+        dernier: i === fratrie.length - 1,
+        aEnfants: enfants(cat.id).length > 0,
+      })
       visiter(cat.id, profondeur + 1)
     })
   }
   visiter(null, 0)
+  return out
+}
+
+/** Filtrage d'AFFICHAGE pour le repli des sous-thèmes (état de Vue) ;
+ *  jamais persisté : à partir du pré-ordre complet, retire les DESCENDANTS des
+ *  catégories repliées (la catégorie repliée elle-même reste visible). La pile
+ *  `profondeurReplie` suffit dans un pré-ordre : tant qu'un nœud est plus profond
+ *  que la dernière catégorie repliée rencontrée, il est masqué ; à la sortie du
+ *  sous-arbre (profondeur ≤), on re-évalue. Ne touche pas au modèle. */
+export function visiblesThemes(arbre: NoeudTheme[], replies: ReadonlySet<string>): NoeudTheme[] {
+  const out: NoeudTheme[] = []
+  let profondeurReplie = -1
+  for (const n of arbre) {
+    if (profondeurReplie >= 0 && n.profondeur > profondeurReplie) continue
+    profondeurReplie = -1
+    out.push(n)
+    if (n.aEnfants && replies.has(n.cat.id)) profondeurReplie = n.profondeur
+  }
   return out
 }

@@ -3,9 +3,11 @@ import type { Ancre } from '../../shared/entretien/audio'
 import { importerVariables, distribuerValeurs } from './eav'
 import { parentsDepuisRangs } from '../../shared/corpus'
 import type { Annotation } from '../../shared/entretien/annotation'
-import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon } from '../../shared/format'
-import { scinderPseudos } from '../../shared/entretien/pseudos'
-import { cleEntite } from '../../shared/entretien/brouillonsAnon'
+import type { Categorie, Locuteur, PayloadEntretien, Variable, BrouillonAnon, RegleAnon, Note } from '../../shared/format'
+import { scinderPseudos } from '../../shared/entretien/anon'
+import { cleEntite } from '../../shared/entretien/anon'
+import { genIdNote } from '../../shared/entretien/notes'
+import { echapperTexte } from '../notes/sanitiser'
 
 /** Blocs legacy encore en pass-through : `anon` (règles) et `notes`. Les EAV
  *  (var/dic/dat) sont modélisées → hors de ce blob. */
@@ -30,6 +32,22 @@ type AnnBrute =
   | { type: 'codage'; code: string; from: number; to: number }
   | { type: 'anon'; entite: string; pseudo: string; etat: 'anonymise' | 'exception'; from: number; to: number }
 
+/** Commentaire V1 en cours d'import : ouvert au fragment portant `data-obs`,
+ *  fermé au fragment final (voir fermetures ci-dessous). Coordonnées PRÉ-fusion
+ *  (index de bloc brut + offset caractère local) — remappées après la fusion des
+ *  tours, comme les autres annotations. */
+interface CommentaireImport {
+  auteur: string
+  texte: string
+  blocDebut: number
+  offDebut: number
+  blocFin: number
+  /** Offset de fin (null = encore ouvert) ; par défaut = fin du bloc. */
+  offFin: number | null
+  /** Convention « data-finobs = data-rk du fragment final » : déclarée à
+   *  l'ouverture, résolue quand on rencontre ce rk. */
+  finRk: string | null
+}
 /** Génère un id de règle corpus à l'import (les entrées SonalPi n'en portent pas). */
 function genIdRegle(): string {
   return 'reg-' + Math.random().toString(36).slice(2, 10)
@@ -69,10 +87,10 @@ interface BlocImport {
 }
 
 /**
- * Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
- * SonalPi — SRT/VTT) → charge utile SonalAsynchro (doc ProseMirror + annotations + locuteurs)
- * + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
- * en positions ProseMirror (positions.ts).
+ *  Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
+ *  SonalPi — SRT/VTT) → charge utile SonalPiTestV2 (doc ProseMirror + annotations + locuteurs)
+ *  + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
+ *  en positions ProseMirror (positions.ts).
  */
 export function importerSonal(html: string, domDoc: Document): ResultatImport {
   const contenu = domDoc.getElementById('contenuText')
@@ -82,11 +100,38 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   const tabThm = (extraireJson(html, 'cat-json') as CategorieV1[] | null) ?? []
   const anonJson = extraireJson(html, 'anon-json')
   const { brouillons, regles: reglesAnon } = parserAnonJson(anonJson)
+  // Notes V1 : un `<textarea>` de texte libre. On lit son contenu texte
+  //  (textContent — robuste en DOM de test comme navigateur ; la V1 stockait
+  //  une chaîne brute). On migre ce contenu en une note « générale » (bac
+  //  récupérant le libre, sans date) ; `legacy.notes` conserve aussi la chaîne
+  //  brute pour un futur export sans perte.
+  const elNotes = domDoc.getElementById('txtnotes')
+  const notesV1 = (elNotes?.textContent ?? '').trim()
   const legacy: LegacyBlobs = {
     // Consommé : brouillons→payload.brouillonsAnon, règles→ResultatImport.reglesAnon.
     tabAnon: null,
-    notes: (domDoc.getElementById('txtnotes') as HTMLElement | null)?.innerHTML.trim() ?? '',
+    notes: notesV1,
   }
+  // Catégories de note : elles vivent au CORPUS (bacs par défaut normalisés
+  //  à la lecture de corpus.json) — l'entretien importé n'en porte pas. La
+  //  note migrée référence le bac « générale » (id stable d'un bac par défaut).
+  // Une seule note migre le texte V1 : bac « générale », pas de date, privée.
+  //  Le `corps` est échappé (HTML sanitisé, sans <mark> : le libre V1 n'en a pas).
+  const notes: Note[] = notesV1
+    ? [
+        {
+          id: genIdNote(),
+          categorieId: 'ncat_generale',
+          titre: '',
+          date: null,
+          statut: 'prive',
+          corps: echapperTexte(notesV1),
+          rang: 0,
+          creeLe: new Date().toISOString(),
+          modifieLe: null,
+        },
+      ]
+    : []
   // EAV : var/dic → définitions de variables ; dat → valeurs distribuées chez
   // leur propriétaire (valeursGen / valeursLoc).
   const variables = importerVariables(extraireJson(html, 'var-json'), extraireJson(html, 'dic-json'))
@@ -94,12 +139,21 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // 1) Un SEGMENT (.lblseg) = un cue : texte + annotations en offsets locaux +
   //    sa fenêtre temporelle [deb, fin] (bornes mesurées, ou null).
   const blocs: BlocImport[] = []
-  // Marqueurs de libellé des tours (§3.4) : un .lblseg.ligloc porte le libellé
+  // Marqueurs de libellé des tours (.lblseg.ligloc) : chacun porte le libellé
   // du tour — pseudonymisé (loc-anon + data-locpseudo) ou refusé
   // (loc-suggere-refuse) → Locuteur.pseudo / pseudoEtat.
   const labelsLoc = new Map<number, { pseudo: string } | { refuse: true }>()
+  // Commentaires V1 (data-obs/data-auth/data-finobs) : collectés à travers les
+  // segments, remappés après la fusion des tours. Deux conventions de FIN
+  // coexistent dans les fichiers V1 : `data-finobs` = le data-rk du fragment
+  // final (déclaré au fragment d'ouverture), ou un simple marqueur posé sur ce
+  // fragment final. Les deux lectures sont couvertes (fermeture par égalité de
+  // rk, puis par présence du marqueur) ; sans fin, le commentaire se termine
+  // au bout de son bloc.
+  const commentaires: CommentaireImport[] = []
   for (const segNode of contenu.querySelectorAll('.lblseg')) {
     const seg = segNode as HTMLElement
+    const iB = blocs.length // index FUTUR du bloc de ce segment
     const lig = seg.classList.contains('ligloc')
     const locIdx = nombreOuNull(seg.dataset.loc)
     if (lig && locIdx != null && locIdx > 0) {
@@ -120,7 +174,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
         if (/^cat_\d+$/.test(cls)) anns.push({ type: 'codage', code: cls, from, to })
       }
       if (frag.classList.contains('anon-exception')) {
-        // §2.1 (option 2) : une exception ne ré-émet JAMAIS de data-pseudo à
+        // Une exception ne ré-émet JAMAIS de data-pseudo à
         // l'export — mais un éventuel `data-pseudo` du producteur (hors
         // convention SonalPi) est CONSERVÉ en mémoire de modèle, comme la
         // bascule locale le fait : « remettre en anonymisé » peut alors
@@ -128,6 +182,35 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
         anns.push({ type: 'anon', entite: t, pseudo: frag.dataset.pseudo ?? '', etat: 'exception', from, to })
       } else if (frag.classList.contains('anon')) {
         anns.push({ type: 'anon', entite: t, pseudo: frag.dataset.pseudo ?? '', etat: 'anonymise', from, to })
+      }
+      // Commentaires : ouverture (data-obs) et fermetures éventuelles sur CE
+      // fragment. L'ordre importe : l'ouverture d'abord, puis la fermeture par
+      // égalité de rk (couvre le commentaire d'un seul fragment, dont le finRk
+      // vaut son propre rk), puis le marqueur nu (ne s'applique jamais au
+      // fragment qui VIENT d'ouvrir).
+      if (frag.dataset.obs != null) {
+        commentaires.push({
+          auteur: (frag.dataset.auth ?? '').trim(),
+          texte: frag.dataset.obs.trim(),
+          blocDebut: iB,
+          offDebut: from,
+          blocFin: iB,
+          offFin: null,
+          finRk: frag.dataset.finobs?.trim() || null,
+        })
+      }
+      for (const c of commentaires) {
+        if (c.offFin == null && c.finRk != null && c.finRk === (frag.dataset.rk ?? '')) {
+          c.offFin = to
+          c.blocFin = iB
+        }
+      }
+      if (frag.dataset.finobs != null && frag.dataset.obs == null) {
+        const ouvert = [...commentaires].reverse().find((c) => c.offFin == null)
+        if (ouvert) {
+          ouvert.offFin = to
+          ouvert.blocFin = iB
+        }
       }
       text += t
     }
@@ -145,25 +228,36 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
 
   // 1b) FUSION DES TOURS : les cues consécutifs d'un même locuteur NON NUL
   //     deviennent UN paragraphe (le tour), leurs frontières survivant en
-  //     ancres internes (étape 3b) — sans perte, l'export re-découpe par ancre.
+  //     ancres internes (3b) — sans perte, l'export re-découpe par ancre.
   //     Sans locuteur → un bloc par cue (un SRT non diarisé ne devient pas un
   //     seul pavé). Fusion d'IMPORT uniquement : aucun geste d'édition ne
   //     fusionne.
   const tours: BlocImport[] = []
+  // Destination de chaque bloc BRUT dans la liste fusionnée : index du tour +
+  // décalage d'offset — sert à remapper les commentaires ouverts/fermés de
+  // part et d'autre d'une frontière de fusion.
+  const destParBloc: Array<{ tour: number; decalage: number }> = []
   for (const b of blocs) {
     const prec = tours[tours.length - 1]
     if (prec && b.loc != null && prec.loc === b.loc) {
       const d = prec.text.length
+      destParBloc.push({ tour: tours.length - 1, decalage: d })
       prec.text += b.text
       prec.anns.push(...b.anns.map((a) => ({ ...a, from: a.from + d, to: a.to + d })))
       prec.cues.push(...b.cues.map((c) => ({ ...c, de: c.de + d, a: c.a + d })))
     } else {
+      destParBloc.push({ tour: tours.length, decalage: 0 })
       tours.push(b)
     }
   }
+  // Commentaires encore ouverts en bout de fichier : ils se terminent au bout
+  // de leur dernier bloc connu (fichier tronqué, finobs absent).
+  for (const c of commentaires) {
+    if (c.offFin == null) c.offFin = blocs[c.blocFin]?.text.length ?? 0
+  }
 
   // 2) Doc ProseMirror : un paragraphe par tour. Les timecodes ne sont PAS des
-  //    attrs de bloc : ils deviennent des ancres (étape 3b).
+  //    attrs de bloc : ils deviennent des ancres (3b).
   const longueurs = tours.map((b) => b.text.length)
   const corpsTexte = {
     type: 'doc',
@@ -201,6 +295,26 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     }
   })
 
+  // 3bis) Commentaires V1 : remappés en coordonnées de tours FUSIONNÉS (les
+  //    bornes peuvent encadrer une fusion), avec l'auteur d'origine sinon « import »
+  //    (même convention que les autres annotations importées).
+  for (const c of commentaires) {
+    const dd = destParBloc[c.blocDebut]
+    const df = destParBloc[c.blocFin]
+    if (!dd || !df || c.offFin == null) continue
+    const from = charVersPM(longueurs, dd.tour, c.offDebut + dd.decalage)
+    const to = charVersPM(longueurs, df.tour, c.offFin + df.decalage)
+    if (from >= to) continue
+    annotations.push({
+      id: `import-${n++}`,
+      type: 'commentaire',
+      from,
+      to,
+      auteur: c.auteur || 'import',
+      texte: c.texte,
+    })
+  }
+
   // 3b) Ancres temporelles : chaque borne MESURÉE de cue → {pos, t}
   //     (deb = début du texte du cue, fin = sa fin — internes au bloc pour un
   //     tour fusionné). Triées par pos par construction ; deux cues jointifs
@@ -234,7 +348,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // 4b) Valeurs EAV : `l="all"` → valeursGen ; `l=index` → valeursLoc (posé ici).
   const valeursGen = distribuerValeurs(extraireJson(html, 'dat-json'), locuteurs)
 
-  // 4c) Marqueurs de libellé du .ligloc (§3.4) → Locuteur.pseudo / pseudoEtat :
+  // 4c) Marqueurs de libellé du .ligloc → Locuteur.pseudo / pseudoEtat :
   //     pseudonymisé (loc-anon + data-locpseudo) → « confirme » ; refus explicite
   //     (loc-suggere-refuse) → « refuse ». Parité SonalPi ; le « ? » interviewer
   //     vient du tabLoc (4), jamais des marqueurs.
@@ -265,7 +379,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   }))
 
   return {
-    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons },
+    payload: { corpsTexte, annotations, ancres, locuteurs, meta: { valeursGen, audioRef: null }, brouillonsAnon: brouillons, notes },
     codebook,
     variables,
     reglesAnon,

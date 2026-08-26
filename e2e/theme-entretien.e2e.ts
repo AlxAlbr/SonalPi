@@ -13,12 +13,12 @@ import {
 } from './util'
 
 /**
- * Créer / supprimer un thème DEPUIS l'écran Entretien (via la fenêtre
- * l'écran Entretien : le crayon de l'onglet Thématique ouvre la MÊME fenêtre que
- * l'écran Corpus. Créer écrit le codebook corpus (visible partout). Supprimer :
- * refusé si un AUTRE entretien l'utilise ; sinon confirmation (acte destructif) →
- * retrait des codages de CET entretien (modèle=vérité) + suppression de la
- * définition (store).
+ *  Créer / supprimer un thème DEPUIS l'écran Entretien (via la fenêtre
+ *  d'édition : le crayon de l'onglet Thématique ouvre la MÊME fenêtre que
+ *  l'écran Corpus. Créer écrit le codebook corpus (visible partout). Supprimer :
+ *  refusé si un AUTRE entretien l'utilise ; sinon confirmation (acte destructif) →
+ *  retrait des codages de CET entretien (modèle = vérité) + suppression de la
+ *  définition (store).
  */
 
 test('liste longue de thèmes : le panneau défile seul, on peut coder le début avec un des derniers thèmes', async () => {
@@ -34,9 +34,9 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
   await expect(page.locator('.theme-coder')).toHaveCount(32)
 
   // Le dernier thème créé n'est PAS visible tant que le texte n'a pas défilé :
-  // le panneau (collant) débordait sous le bord bas de la fenêtre. Ce test
-  // couvre la régression ; avant, il fallait descendre dans le texte pour le
-  // voir — les deux étaient liés.
+  // le panneau (collant) débordait sous le bord bas de la fenêtre.
+  // Ce test couvre la régression ; avant, il fallait descendre dans le texte pour le voir —
+  // les deux étaient liés.
   await page.evaluate(() => window.scrollTo(0, 0))
   const dernier = page.locator('.theme-coder').last()
   await expect
@@ -119,8 +119,8 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.etat')).toHaveText('à jour')
 
-  // Retour, rouvrir e1 (1er de la liste), tenter de supprimer « Lieu » → refus
-  // affiché DANS la fenêtre d'édition.
+  // Retour, rouvrir e1 (1er de la liste), tenter de supprimer « Lieu » :
+  // refus affiché DANS la fenêtre d'édition.
   await retourCorpus(page)
   await entrerEntretien(page, 0)
   // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.
@@ -131,5 +131,93 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   // Pas de confirmation ouverte, le thème est toujours là.
   await expect(page.locator('.confirm-suppr')).toHaveCount(0)
   await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveCount(1)
+  await app.close()
+})
+
+test('thème inactif : marquage masqué dans l\'éditeur et codage refusé', async () => {
+  const { app, page } = await ouvrir('sonal-ds10-')
+
+  // Coder « Lieu » sur « Karine » → souligné affiché.
+  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await coderTheme(page, 'Lieu')
+  await expect(page.locator('.editeur .annot')).toHaveCount(1)
+
+  // Décocher « Lieu » (passer en passif) dans la fenêtre d'édition.
+  await ouvrirEditionThemes(page)
+  const caseActif = page.locator('.liste-thm li[data-nom="Lieu"] .actif input')
+  await caseActif.setChecked(false)
+  await expect(page.locator('.liste-thm li[data-nom="Lieu"]')).toHaveClass(/inactif/)
+  await fermerEditionThemes(page)
+
+  // Le souligné du thème inactif disparaît de l'éditeur.
+  await expect(page.locator('.editeur .annot')).toHaveCount(0)
+
+  // Tenter de re-coder avec le thème inactif → refus avec hint, rien posé.
+  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await page.locator('.editeur').press('ControlOrMeta+a')
+  await coderTheme(page, 'Lieu')
+  await expect(page.locator('.hint-codage')).toContainText('Thème inactif')
+  await expect(page.locator('.editeur .annot')).toHaveCount(0)
+  await app.close()
+})
+
+test('clic droit sur un thème : bascule actif ↔ passif sans ouvrir l\'édition', async () => {
+  const { app, page } = await ouvrir('sonal-ds10-')
+
+  // Coder « Lieu » → souligné affiché.
+  await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
+  await coderTheme(page, 'Lieu')
+  await expect(page.locator('.editeur .annot')).toHaveCount(1)
+
+  // Clic droit sur « Lieu » → menu « Passer en passif » ; l'activer masque le marquage.
+  await page.locator('.theme-coder', { hasText: 'Lieu' }).click({ button: 'right' })
+  await expect(page.locator('.menu-thm')).toContainText('Passer en passif')
+  await page.locator('.menu-thm-action').click()
+  await expect(page.locator('.editeur .annot')).toHaveCount(0)
+  await expect(page.locator('.theme-coder', { hasText: 'Lieu' })).toHaveClass(/inactif/)
+
+  // Clic droit → « Passer en actif » ; le réactiver remet le marquage.
+  await page.locator('.theme-coder', { hasText: 'Lieu' }).click({ button: 'right' })
+  await expect(page.locator('.menu-thm')).toContainText('Passer en actif')
+  await page.locator('.menu-thm-action').click()
+  await expect(page.locator('.editeur .annot')).toHaveCount(1)
+  await app.close()
+})
+
+test('panneau Thématiques : replier/déplier une catégorie à enfants', async () => {
+  const { app, page } = await ouvrir('sonal-ds10-')
+  await page.locator('.onglets button[data-onglet="themes"]').click()
+
+  // « Pondérations » a des enfants (★★★ …) → icône de repli ; l'enfant est visible.
+  const pond = page.locator('.theme-coder', { hasText: 'Pondérations' })
+  await expect(pond.locator('.depliant')).toHaveCount(1)
+  const enfant = page.locator('.theme-coder', { hasText: 'Très important' })
+  await expect(enfant).toHaveCount(1)
+
+  // Replier → l'enfant disparaît de la liste de codage (sans rien coder).
+  await pond.locator('.depliant').click()
+  await expect(enfant).toHaveCount(0)
+  await expect(page.locator('.editeur .annot')).toHaveCount(0) // pas de codage posé
+
+  // Déplier → il réapparaît.
+  await pond.locator('.depliant').click()
+  await expect(enfant).toHaveCount(1)
+  await app.close()
+})
+
+test('créer un thème : le champ nom est auto-focusé et présélectionné', async () => {
+  const { app, page } = await ouvrir('sonal-ds10-')
+  await page.locator('.onglets button[data-onglet="themes"]').click()
+  await ouvrirEditionThemes(page)
+
+  // « + Thème parent » → le champ nom du nouveau thème reçoit le focus.
+  await page.locator('.modale-themes .mini', { hasText: '+ Thème parent' }).click()
+  const nom = page.locator('.liste-thm li[data-nom="Nouveau thème"] .nom-thm')
+  await expect(nom).toBeFocused()
+
+  // Présélectionné : taper REPLACE « Nouveau thème » sans rien effacer.
+  await page.keyboard.type('Loisirs')
+  await nom.press('Enter')
+  await expect(page.locator('.liste-thm li[data-nom="Loisirs"]')).toHaveCount(1)
   await app.close()
 })

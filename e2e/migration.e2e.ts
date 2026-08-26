@@ -5,14 +5,14 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * J5 — migration v2→v3 SILENCIEUSE à l'ouverture (plan-reference-audio §8) :
- * un corpus v2 (copies relatives : `audioRef: 'audio/e1.wav'` + PNG waveform
- * dans `audio/`) est écrit sur disque AVANT le lancement. À l'ouverture, le
- * store résout chaque `audioRef` relatif en ABSOLU (vers l'emplacement legacy),
- * déplace les PNG `audio/` → `png/` et bumpe corpus + entretiens à v3 — sans
- * aucune copie ni recopie. Couvert en unitaire (`corpusStore.test.ts`) ; ici on
- * vérifie le geste RÉEL : l'app ouvre un corpus v2 sans broncher et le lecteur
- * joue l'audio référencé (whitelist `cheminMediaAbs` sur le chemin migré).
+ *  Migration v2→v3 SILENCIEUSE à l'ouverture :
+ *  un corpus v2 (copies relatives : `audioRef: 'audio/e1.wav'` + PNG waveform
+ *  dans `audio/`) est écrit sur disque AVANT le lancement. À l'ouverture, le
+ *  store résout chaque `audioRef` relatif en ABSOLU (vers l'emplacement legacy),
+ *  déplace les PNG `audio/` → `png/` et bumpe corpus + entretiens à v3 — sans
+ *  aucune copie ni recopie. Couvert en unitaire (`corpusStore.test.ts`) ; ici on
+ *  vérifie le geste RÉEL : l'app ouvre un corpus v2 sans broncher et le lecteur
+ *  joue l'audio référencé (whitelist `cheminMediaAbs` sur le chemin migré).
  */
 
 /** WAV PCM 16 bits mono 8 kHz (décodable par Chromium) — 1 s. */

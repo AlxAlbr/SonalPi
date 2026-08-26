@@ -1,0 +1,125 @@
+/**
+ *  Types partagés main ⇄ renderer pour les corpus distants. Types purs uniquement — aucune logique, aucun secret : le mot de passe
+ *  d'application ne traverse JAMAIS le pont IPC vers le renderer.
+ */
+
+import type { OuvertureCorpus } from './format'
+
+/** Profil de capacités mesuré par les sondes de connexion. */
+export interface ProfilCapacites {
+  /** Préconditions HTTP honorées (test-and-set possible → variante B). */
+  preconditions: boolean
+  /** Plugin files_lock détecté (variante A). */
+  filesLock: boolean
+  notes?: string[]
+}
+
+/** Compte distant tel que vu du renderer : JAMAIS de champ secret ici. */
+export interface CompteDistantPublic {
+  id: string
+  urlServeur: string
+  utilisateur: string
+}
+
+export interface DemandeConnexion {
+  /** Racine DAV du corpus, ex. https://nuage.exemple.org/remote.php/dav/files/max/MonCorpus */
+  urlServeur: string
+  utilisateur: string
+  /** Mot de passe d'APPLICATION Nextcloud (jamais le principal). */
+  motDePasse: string
+}
+
+export type ResultatConnexion =
+  | { ok: true; compte: CompteDistantPublic; profil: ProfilCapacites }
+  | { ok: false; note: string }
+
+/** Progression d'un transfert binaire :
+ *  émise périodiquement par le main pendant le pull miroir (« rapatriement ») et le téléversement.
+ *  `total` null si le serveur n'expose pas la taille. */
+export interface ProgressionTransfert {
+  sens: 'rapatriement' | 'televersement'
+  chemin: string // relatif au corpus (cible serveur dans les deux cas)
+  octets: number // transférés depuis le début de CE fichier
+  total: number | null
+}
+
+/** Création d'un nouveau corpus distant :
+ *  mêmes identifiants que la connexion plus le nom de projet.
+ *  Le compte n'est enregistré au coffre qu'après une publication réussie (rien de semi-créé). */
+export interface DemandeCreationDistante extends DemandeConnexion {
+  nomProjet: string
+}
+
+/** Ouverture d'un corpus distant : le corpus vient du MIROIR local (`userData/miroirs/<id>`)
+ *  fraîchement tiré — le renderer ne sait pas faire la différence avec un corpus local :
+ *  c'est voulu. Le pull d'ouverture livre aussi l'état des verrous (badges fiables,
+ *  sans second aller-retour). */
+export interface OuvertureDistante extends OuvertureCorpus {
+  distant: CompteDistantPublic
+  verrous: EntreeVerrouPublic[]
+  /** Audios désignés non rapatriés par le pull d'ouverture (403/404/réseau)
+   *  — alimente l'étiquette du lecteur dès l'arrivée.
+   *  Champ optionnel : absent si rien à signaler. */
+  inaccessibles?: { chemin: string; raison: string }[]
+}
+
+/** État PUBLIC d'un fichier verrou — ce que l'UI affiche (« tenu par X depuis HH:MM »).
+ *  Aucun champ de protocole (sessionId, ttl) ne traverse le pont. */
+export interface EtatVerrouPublic {
+  userId: string
+  machineId: string
+  acquiredAt: string // ISO
+}
+
+/** Une entrée `verrous/` vue au pull, avec son contenu décodé (null = fichier illisible/corrompu —
+ *  badge omis, jamais deviné). Les verrous de NOTRE propre session sont filtrés côté main :
+ *  un badge « tenu par moi » sur la carte que je suis en train d'éditer n'apporte rien. */
+export interface EntreeVerrouPublic {
+  chemin: string // « verrous/<id>.lock.json »
+  etag: string | null
+  contenu: EtatVerrouPublic | null
+}
+
+/** Résultat d'un tirage (pull incrémental par ETags). */
+export interface ResultatTiragePublic {
+  telecharges: string[]
+  corbeille: string[]
+  verrous: EntreeVerrouPublic[]
+  /** Audios désignés (meta.audioDistant) dont la récupération a échoué (403/404/réseau) —
+   *  matière des badges « audio inaccessible ». Non bloquant : le prochain tirage re-tentera.
+   *  Absent si corpus local ou rien à signaler. */
+  inaccessibles?: { chemin: string; raison: string }[]
+  /** Présences vivantes des autres postes — informatif, jamais décisionnel.
+   *  Absent si corpus local. */
+  presences?: PresencePublic[]
+  date: string
+}
+
+/** Présence informative : qui consulte quoi, SANS valeur décisionnelle (la décision,
+ *  c'est le verrou). Une présence > 10 min est morte (filtrée). */
+export interface PresencePublic {
+  userId: string
+  machineId: string
+  entretienOuvert: string | null
+  refreshedAt: string // ISO
+}
+
+/** Verrou orphelin détecté à l'ouverture du corpus (crash sans libération),
+ *  proposé au dialogue « reprendre / abandonner ». */
+export interface OrphelinDistant {
+  cheminVerrou: string // « verrous/<id>.lock.json »
+  id: string // id de l'entretien (extrait du chemin)
+  userId: string
+  machineId: string
+  acquiredAt: string // ISO
+}
+
+/** Une copie de DIVERGENCE mise de côté après une rétrogradation de publication 412 —
+ *  matière du dialogue de fusion assistée.
+ *  Le contenu ne traverse le pont que sur demande explicite (`lireDivergence`). */
+export interface DivergenceDistante {
+  chemin: string // « sessions/<id>.divergence-<sessionId>.json » (relatif miroir)
+  id: string // id de l'entretien concerné
+  sessionId: string // session d'écriture qui a subi la rétrogradation
+  date: string // ISO (mtime de la copie — affichage « copie du JJ/MM HH:MM »)
+}

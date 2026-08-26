@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
+import { visiblesThemes } from '../../shared/corpus/categories'
 
 /**
- * Fenêtre d'ÉDITION des thèmes (parité SonalPi : le crayon ouvre une modale, la
- * consultation reste compacte dans les panneaux). PARTAGÉE par les écrans Corpus
- * et Entretien — même modèle derrière (le codebook corpus) ; seul le `contexte`
- * change la POLITIQUE de suppression :
+ *  Fenêtre d'ÉDITION des thèmes : le crayon ouvre une modale, la consultation
+ *  reste compacte dans les panneaux. PARTAGÉE par les écrans Corpus et
+ *  Entretien — même modèle (le codebook corpus) ; seul le `contexte` change la
+ *  POLITIQUE de suppression :
  *  - `corpus`   : refus si le thème est utilisé quelque part (compteur) ;
  *  - `entretien`: refus si un AUTRE entretien l'utilise ; sinon confirmation →
  *    retrait des codages de CET entretien + suppression de la définition.
@@ -24,6 +25,7 @@ const {
   ajouterSousTheme,
   modifierTheme,
   deplacerTheme,
+  migrerTheme,
   supprimerTheme,
   themeASupprimer,
   demanderSuppressionTheme,
@@ -31,12 +33,43 @@ const {
   rafraichirUsages,
 } = utiliserSonal()
 
-/** Taille par défaut du texte de l'éditeur (px) : `.editeur` ne fixe pas de
- *  font-size → hérite du 16px navigateur. Affichée comme choix « par défaut »
- *  du sélecteur (valeur '' → pas de taille stockée). */
+/** Taille par défaut du texte de l'éditeur (px) : `.editeur` ne fixe pas de `font-size` →
+ *  hérite du 16px navigateur. Affichée comme choix « par défaut » du sélecteur
+ *  (valeur '' → pas de taille stockée). */
 const TAILLE_TEXTE = 16
-/** Autres tailles proposées (px) — l'éventail SonalPi, sans le défaut. */
+/** Autres tailles proposées (px), sans la taille par défaut. */
 const TAILLES = [12, 14, 18, 20, 22, 24, 28, 32]
+
+// Repli des sous-thèmes : état de VUE local (jamais persisté, sans effet multi-utilisateur).
+// La catégorie repliée reste visible, seuls ses descendants sont masqués à l'affichage via visiblesThemes.
+const replies = ref<Set<string>>(new Set())
+const arbreVisible = computed(() => visiblesThemes(arbreThemes(), replies.value))
+function basculerRepli(id: string) {
+  const s = new Set(replies.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  replies.value = s
+}
+
+// UX de création : le thème neuf est AUTO-FOCUSÉ et son texte présélectionné,
+// pour nommer directement sans effacer « Nouveau thème/sous-thème ».
+const nouveauId = ref<string | null>(null)
+// Registre des champs nom RENDUS (rempli à chaque rendu, vidé au démontage) :
+// l'arbre se rafraîchit avant que creerTheme pose nouveauId, donc le focus se pose APRÈS nextTick,
+// sur l'élément déjà présent — jamais au montage.
+const champsNom = new Map<string, HTMLInputElement>()
+function noterChampNom(el: HTMLInputElement | null, id: string) {
+  if (el) champsNom.set(id, el)
+  else champsNom.delete(id)
+}
+async function creerTheme(estEnfant: boolean, parentId?: string) {
+  const id = estEnfant ? await ajouterSousTheme(parentId!) : await ajouterTheme()
+  nouveauId.value = id
+  await nextTick() // attendre que la ligne (le champ nom) soit rendue
+  const el = champsNom.get(id)
+  if (el) el.focus() // le @focus du champ sélectionne le texte
+  nouveauId.value = null
+}
 
 function renommer(id: string, evt: Event) {
   const nom = (evt.target as HTMLInputElement).value.trim()
@@ -44,14 +77,44 @@ function renommer(id: string, evt: Event) {
 }
 function changerTaille(id: string, evt: Event) {
   const v = (evt.target as HTMLSelectElement).value
-  // '' = « Aa » → taille: undefined PRÉSENT dans le patch = retour à la taille
-  // du texte (le spread écrase, la clé disparaît à l'écriture).
+  // '' = « Aa » → taille: undefined PRÉSENT dans le patch = retour à la taille du texte (le spread écrase, la clé disparaît à l'écriture).
   modifierTheme(id, { taille: v ? Number(v) : undefined })
 }
 /** ✕ : la politique dépend du contexte (voir en-tête). */
 function supprimer(id: string) {
   if (props.contexte === 'corpus') supprimerTheme(id)
   else demanderSuppressionTheme(id)
+}
+
+// --- Migration d'un thème sous un nouveau parent ---
+// ▲▼ ne réordonnent que DANS la fratrie ; le ⤵ change l'emplacement du thème dans l'arbre (sous un autre thème parent,
+// ou à la racine).
+const migrationDe = ref<string | null>(null)
+const migrationVers = ref('') // '' = racine
+
+/** Ouvre le choix de destination pour le thème `id`. */
+function demanderMigration(id: string) {
+  migrationDe.value = id
+  const cat = arbreThemes().find((n) => n.cat.id === id)?.cat
+  migrationVers.value = cat?.parent ?? ''
+}
+/** Destinations possibles : la racine + tous les thèmes SAUF le thème migré et ses descendants.
+ *  Une branche ne peut pas devenir son propre ancêtre. */
+function destinationsDe(id: string): { id: string; nom: string }[] {
+  const arbre = arbreThemes()
+  const i = arbre.findIndex((n) => n.cat.id === id)
+  if (i < 0) return []
+  const prof = arbre[i].profondeur
+  const exclus = new Set<string>([id])
+  for (let j = i + 1; j < arbre.length && arbre[j].profondeur > prof; j++) exclus.add(arbre[j].cat.id)
+  return arbre
+    .filter((n) => !exclus.has(n.cat.id))
+    .map((n) => ({ id: n.cat.id, nom: '\u00A0'.repeat(n.profondeur * 2) + n.cat.nom }))
+}
+function confirmerMigration() {
+  if (!migrationDe.value) return
+  migrerTheme(migrationDe.value, migrationVers.value || null)
+  migrationDe.value = null
 }
 
 onMounted(() => {
@@ -67,12 +130,12 @@ onMounted(() => {
     <div class="modale-themes">
       <div class="corpus-tete">
         <h3>Édition des thèmes</h3>
-        <button class="mini" title="Ajouter un thème à la racine" @click="ajouterTheme">+ Thème parent</button>
+        <button class="mini" title="Ajouter un thème à la racine" @click="creerTheme(false)">+ Thème parent</button>
         <button class="fermer" title="Fermer" @click="$emit('fermer')">✕</button>
       </div>
       <p class="aide-thm">
         Nom, couleur, taille de police des passages codés · « + enfant » pour un sous-thème · ▲▼ pour
-        déplacer dans l'arbre
+        déplacer dans la fratrie · ⤵ pour changer de thème parent
       </p>
 
       <p v-if="messageTheme" class="msg-thm">{{ messageTheme }}</p>
@@ -88,13 +151,26 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- Choix de la destination d'une migration (⤵ d'une ligne) -->
+      <div v-if="migrationDe" class="confirm-suppr">
+        Déplacer « {{ arbreThemes().find((n) => n.cat.id === migrationDe)?.cat.nom }} » sous :
+        <select v-model="migrationVers" class="dest-migration">
+          <option value="">— racine du codebook —</option>
+          <option v-for="d in destinationsDe(migrationDe)" :key="d.id" :value="d.id">{{ d.nom }}</option>
+        </select>
+        <div class="confirm-actions">
+          <button @click="confirmerMigration">Déplacer</button>
+          <button @click="migrationDe = null">Annuler</button>
+        </div>
+      </div>
+
       <p v-if="arbreThemes().length === 0" class="vide">Aucun thème — clique « + Thème parent ».</p>
 
-      <!-- En-tête de colonnes : les clones .fantome sont les MÊMES éléments qu'une
-           ligne (boutons, input) — largeurs identiques par construction (un span
-           n'a ni le padding ni la police par défaut d'un bouton) → chaque intitulé
-           tombe pile au-dessus de sa colonne. -->
+      <!-- En-tête de colonnes : les clones .fantome sont les MÊMES éléments qu'une ligne (boutons, input),
+           largeurs identiques par construction (un span n'a ni le padding ni la police par défaut d'un bouton) → chaque
+           intitulé tombe pile au-dessus de sa colonne. -->
       <div v-if="arbreThemes().length" class="entete-liste" aria-hidden="true">
+        <span class="depliant fantome"></span>
         <input type="color" class="swatch fantome" />
         <span class="entete-lbl entete-nom">thème</span>
         <span class="entete-lbl entete-aa" title="Taille de police des passages codés (16 = taille du texte)">Aa</span>
@@ -103,16 +179,26 @@ onMounted(() => {
         <button class="mini-sous fantome">+ enfant</button>
         <button class="fleche fantome">▲</button>
         <button class="fleche fantome">▼</button>
+        <button class="fleche migrer fantome">⤵</button>
         <button class="x fantome">✕</button>
       </div>
       <ul class="liste-thm">
         <li
-          v-for="n in arbreThemes()"
+          v-for="n in arbreVisible"
           :key="n.cat.id"
           :class="{ inactif: !n.cat.actif }"
           :style="{ paddingLeft: n.profondeur * 1.1 + 'rem' }"
           :data-nom="n.cat.nom"
         >
+          <button
+            v-if="n.aEnfants"
+            class="depliant"
+            :title="replies.has(n.cat.id) ? 'Replier les sous-thèmes' : 'Déplier les sous-thèmes'"
+            @click="basculerRepli(n.cat.id)"
+          >
+            {{ replies.has(n.cat.id) ? '▸' : '▾' }}
+          </button>
+          <span v-else class="depliant fantome"></span>
           <input
             type="color"
             class="swatch"
@@ -121,7 +207,9 @@ onMounted(() => {
           />
           <input
             class="nom-thm"
+            :ref="(el) => noterChampNom(el as HTMLInputElement | null, n.cat.id)"
             :value="n.cat.nom"
+            @focus="($event.target as HTMLInputElement).select()"
             @keyup.enter="($event.target as HTMLInputElement).blur()"
             @change="renommer(n.cat.id, $event)"
           />
@@ -144,7 +232,7 @@ onMounted(() => {
               @change="modifierTheme(n.cat.id, { actif: ($event.target as HTMLInputElement).checked })"
             />
           </label>
-          <button class="mini-sous" title="Ajouter un sous-thème (enfant de celui-ci)" @click="ajouterSousTheme(n.cat.id)">
+          <button class="mini-sous" title="Ajouter un sous-thème (enfant de celui-ci)" @click="creerTheme(true, n.cat.id)">
             + enfant
           </button>
           <button class="fleche" title="Monter" :disabled="n.premier" @click="deplacerTheme(n.cat.id, -1)">
@@ -152,6 +240,13 @@ onMounted(() => {
           </button>
           <button class="fleche" title="Descendre" :disabled="n.dernier" @click="deplacerTheme(n.cat.id, 1)">
             ▼
+          </button>
+          <button
+            class="fleche migrer"
+            title="Déplacer sous un autre thème parent (ou à la racine)"
+            @click="demanderMigration(n.cat.id)"
+          >
+            ⤵
           </button>
           <button class="x" title="Supprimer" @click="supprimer(n.cat.id)">✕</button>
         </li>
@@ -192,6 +287,11 @@ onMounted(() => {
 .corpus-tete {
   gap: 0.5rem;
 }
+/* Les deux boutons de création ressortent en GRAS : ce sont les gestes premiers de la fenêtre (nouveau thème racine / nouveau sous-thème). */
+.corpus-tete .mini,
+.mini-sous {
+  font-weight: bold;
+}
 .corpus-tete h3 {
   flex: 1;
 }
@@ -218,8 +318,20 @@ onMounted(() => {
   border-radius: 5px;
   padding: 0.1rem 0.15rem;
 }
+/* Icône de repli d'un parent : largeur FIXE partagée avec son fantôme d'en-tête (l'alignement des colonnes en dépend),
+   bouton discret sans bords. */
+.depliant {
+  width: 1.4rem;
+  flex: none;
+  border: none;
+  background: none;
+  color: #777;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
 .liste-thm li.inactif {
-  opacity: 0.5;
+  opacity: 0.3;
 }
 .swatch {
   width: 22px;
@@ -255,8 +367,7 @@ onMounted(() => {
   flex: none;
   width: 3.2rem; /* fixe : l'en-tête « Aa » se cale sur cette colonne */
 }
-/* En-tête de colonnes : même flex/gap qu'une ligne ; les clones .fantome
-   réservent les largeurs, seul « Aa » est visible. */
+/* En-tête de colonnes : même flex/gap qu'une ligne ; les clones .fantome réservent les largeurs, seul « Aa » est visible. */
 .entete-liste {
   display: flex;
   align-items: center;
@@ -319,6 +430,10 @@ onMounted(() => {
   color: #ddd;
   cursor: default;
 }
+/* ⤵ plus gros que ▲▼ : c'est un geste moins évident, on le rend repérable. */
+.fleche.migrer {
+  font-size: 0.95rem;
+}
 .mini-sous {
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -332,6 +447,10 @@ onMounted(() => {
 .mini-sous:hover {
   border-color: #2e73d8;
   color: #1565c0;
+}
+.dest-migration {
+  margin-left: 0.4rem;
+  max-width: 100%;
 }
 /* .confirm-suppr/.confirm-actions : styles GLOBAUX (base.css). */
 </style>

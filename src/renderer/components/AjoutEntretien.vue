@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
+import { EXT_MEDIA } from '../../shared/media'
 
 /**
- * « + Ajouter un entretien » — LE point d'entrée unique, calqué sur la
- * fenêtre `ajout-entretien.html` de SonalPi : une modale à DEUX zones (fichier
- * d'entretien / fichier son), chacune cliquable (dialogue filtré) ou en
- * glisser-déposer ; Valider actif dès qu'UNE zone est remplie. Texte seul =
- * import ; texte+audio = import + assignation ; audio seul = entretien au texte
- * vide à taper (c'est l'ex-« Ajouter un document », avec le lecteur en plus —
- * pas de création « vierge » sans aucun fichier, décision utilisateur).
+ * « + Ajouter un entretien » — LE point d'entrée unique : une modale à DEUX
+ * zones (fichier d'entretien / fichier son), chacune cliquable (dialogue
+ * filtré) ou en glisser-déposer ; Valider actif dès qu'UNE zone est remplie.
+ * Texte seul = import ; texte+audio = import + assignation ; audio seul =
+ * entretien au texte vide à taper (pas de création « vierge » sans fichier).
  */
-const { ajouterEntretien, racineSources, verifierChargementEtape1, ouvrirApresImport } = utiliserSonal()
+const {
+  ajouterEntretien,
+  racineSources,
+  verifierChargementEtape1,
+  verifierChargementEtape2,
+  ouvrirApresImport,
+  idDistantCourant,
+  creerEntretienVideDistant,
+  ouvrirDesignationAudio,
+} = utiliserSonal()
 
 // Pendant une session démo, les dialogues natifs s'ouvrent dans racineSources
 // (l'utilisateur y retrouve les fichiers du pas-à-pas — ex. srt/1Coordinatrice.srt et
@@ -19,8 +27,8 @@ const { ajouterEntretien, racineSources, verifierChargementEtape1, ouvrirApresIm
 
 const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 // Zone « fichier son » : elle accepte en réalité AUDIO + VIDÉO (tout média
-// assignable) — même périmètre que le dialogue natif (EXT_MEDIA côté main).
-const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'mp4', 'm4v', 'mov', 'mkv', 'webm', 'ogv', 'avi']
+// assignable) — source UNIQUE partagée avec le dialogue natif côté main.
+const EXT_AUDIO = EXT_MEDIA
 
 const ouverte = ref(false)
 const texte = ref<{ nom: string; contenu: string } | null>(null)
@@ -30,12 +38,33 @@ const message = ref<string | null>(null)
 const survolTexte = ref(false)
 const survolAudio = ref(false)
 const enCours = ref(false)
+/** Titre du nouvel entretien distant créé pour désigner son média NC. */
+const titreNc = ref('')
+
+/** Créer un entretien VIDE dont l'audio vivra sur le Nextcloud : la création
+ *  passe par la transaction définitions ; la modale de désignation s'ouvre
+ *  ensuite (choisir un fichier serveur OU téléverser depuis ce poste). */
+async function creerAvecAudioNc() {
+  if (enCours.value || !titreNc.value.trim()) return
+  enCours.value = true
+  try {
+    const id = await creerEntretienVideDistant(titreNc.value)
+    if (!id) return
+    fermer()
+    ouvrirDesignationAudio(id)
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    enCours.value = false
+  }
+}
 
 function ouvrir() {
   texte.value = null
   audioChemin.value = null
   audioNom.value = null
   message.value = null
+  titreNc.value = ''
   enCours.value = false
   ouverte.value = true
 }
@@ -89,12 +118,19 @@ async function valider() {
   if (enCours.value) return
   // Garde pas-à-pas (étape « Charger un entretien ») : tant que l'étape active
   // n'est pas validée, seuls srt/1Coordinatrice.srt + audio/1Coordinatrice.mp3
-  // sont acceptés — la suite
-  // du parcours (corriger, renommer, coder) est construite sur cet entretien.
-  // Erreurs affichées dans la modale, aucun entretien créé.
+  // sont acceptés — la suite du parcours (notes à chaud, renommer, coder) est
+  // construite sur cet entretien. Erreurs affichées dans la modale, aucun
+  // entretien créé.
   const refus = verifierChargementEtape1(texte.value?.nom ?? null, audioChemin.value)
   if (refus) {
     message.value = refus
+    return
+  }
+  // Garde de l'étape 2 (audio seul, sans SRT) : tant qu'elle n'est pas
+  // validée, la zone texte doit rester vide et l'audio être audio/2RetraiteAnticipee.mp3.
+  const refus2 = verifierChargementEtape2(texte.value?.nom ?? null, audioChemin.value)
+  if (refus2) {
+    message.value = refus2
     return
   }
   enCours.value = true
@@ -157,6 +193,24 @@ async function valider() {
           L'audio est <strong>référencé, pas copié</strong> : le fichier d'origine doit rester à cet endroit.
         </p>
         <p v-if="message" class="msg-ajout">{{ message }}</p>
+
+        <!-- En corpus distant, l'audio peut vivre
+             sur le serveur dès la création — entretien vide puis désignation. -->
+        <div v-if="idDistantCourant" class="bloc-nc">
+          <div class="sep-nc">— ou —</div>
+          <div class="ligne-nc">
+            <input
+              v-model="titreNc"
+              class="champ-titre"
+              placeholder="Titre du nouvel entretien"
+              @keyup.enter="creerAvecAudioNc"
+            />
+            <button class="valider secondaire" :disabled="!titreNc.trim() || enCours" @click="creerAvecAudioNc">
+              Audio sur le Nextcloud…
+            </button>
+          </div>
+          <p class="aide-nc">Crée un entretien au texte vide, puis choisissez (ou téléversez) son audio dans le Nextcloud.</p>
+        </div>
 
         <div class="pied-modale">
           <button class="annuler" @click="fermer">Annuler</button>
@@ -243,6 +297,39 @@ async function valider() {
   font-size: 0.72rem;
   color: #999;
 }
+/* Bloc « Audio sur le Nextcloud » (corpus distant uniquement). */
+.bloc-nc {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #ddd;
+}
+.sep-nc {
+  text-align: center;
+  font-size: 0.72rem;
+  color: #999;
+  margin-bottom: 0.4rem;
+}
+.ligne-nc {
+  display: flex;
+  gap: 0.5rem;
+}
+.champ-titre {
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+}
+.valider.secondaire {
+  background: #eef3fb;
+  color: #2b4a75;
+  border: 1px solid #c9d8ef;
+}
+.aide-nc {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  color: #2b4a75;
+}
 .note-ref-audio {
   margin: 0;
   font-size: 0.72rem;
@@ -287,5 +374,11 @@ async function valider() {
   background: #e6e6e6;
   color: #999;
   cursor: not-allowed;
+}
+/* Point d'entrée principal de la vue Corpus : plus visible que les
+   boutons .mini génériques (gras, un peu plus grand). */
+.ajout-ent {
+  font-size: 0.88rem;
+  padding: 0.28rem 0.65rem;
 }
 </style>

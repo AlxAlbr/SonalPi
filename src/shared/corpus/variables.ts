@@ -1,10 +1,10 @@
 import type { CorpusFichier, Variable } from '../format'
 
 /**
- * Base de données EAV de l'agrégat Corpus. Le SCHÉMA
- * (variables & leurs modalités dépendantes) est une DÉFINITION portée par le corpus ;
- * les VALEURS vivent chez leur propriétaire côté entretien (cf. `corpus/requetes.ts`).
- * Fonctions PURES ; les identités opaques sont injectées via `genId` → déterministe en test.
+ *  Base de données EAV de l'agrégat Corpus. Le SCHÉMA
+ *  (variables & leurs modalités dépendantes) est une DÉFINITION portée par le corpus ;
+ *  les VALEURS vivent chez leur propriétaire côté entretien (cf. `corpus/requetes.ts`).
+ *  Fonctions PURES ; les identités opaques sont injectées via `genId` → déterministe en test.
  */
 
 /** Prochain code d'export numérique (max + 1) pour variable ou modalité. */
@@ -64,4 +64,52 @@ export function modifierModalite(corpus: CorpusFichier, idVar: string, idMod: st
 export function retirerModalite(corpus: CorpusFichier, idVar: string, idMod: string): void {
   const v = corpus.variables[idVar]
   if (v) v.modalites = v.modalites.filter((m) => m.id !== idMod)
+}
+
+// ── Lecture des valeurs d'un entretien (panneau métadonnées) ─────────────
+
+/** Une ligne affichable :
+ *  le libellé de la variable et la valeur de l'entretien (libellé de la modalité pointée,
+ *  ou null si pas de valeur). */
+export interface LigneValeur {
+  id: string
+  lib: string
+  valeur: string | null
+}
+
+/** Une section « locuteur » : son nom et ses variables de portée locuteur. */
+export interface BlocLocuteur {
+  nom: string
+  lignes: LigneValeur[]
+}
+
+/** Résout les valeurs EAV d'un entretien pour AFFICHAGE (lecture seule) :
+ *  variables générales d'une part, bloc par locuteur d'autre part.
+ *  Les définitions viennent du corpus,
+ *  les valeurs de `meta.valeursGen` et des `valeursLoc` de chaque locuteur ;
+ *  une valeur sans définition est ignorée. Parité SonalPi V1 : les locuteurs interviewers (« ? »)
+ *  ne portent pas de bloc de variables. */
+export function detailsVariablesEntretien(
+  definitions: Variable[],
+  entretien: { meta: { valeursGen: Record<string, string> }; locuteurs: { nom: string; interviewer?: boolean; valeursLoc: Record<string, string> }[] },
+): { generales: LigneValeur[]; parLocuteur: BlocLocuteur[] } {
+  const libMod = (idVar: string, idMod: string | undefined): string | null => {
+    if (!idMod) return null
+    return definitions.find((v) => v.id === idVar)?.modalites.find((m) => m.id === idMod)?.lib ?? null
+  }
+  const tri = (a: Variable, b: Variable) => a.ordre - b.ordre
+  const generales: LigneValeur[] = definitions
+    .filter((v) => v.portee === 'entretien')
+    .sort(tri)
+    .map((v) => ({ id: v.id, lib: v.lib, valeur: libMod(v.id, entretien.meta.valeursGen[v.id]) }))
+  const parLocuteur: BlocLocuteur[] = entretien.locuteurs
+    .filter((l) => !l.interviewer && !l.nom.includes('?'))
+    .map((l) => ({
+      nom: l.nom,
+      lignes: definitions
+        .filter((v) => v.portee === 'locuteur')
+        .sort(tri)
+        .map((v) => ({ id: v.id, lib: v.lib, valeur: libMod(v.id, l.valeursLoc[v.id]) })),
+    }))
+  return { generales, parLocuteur }
 }

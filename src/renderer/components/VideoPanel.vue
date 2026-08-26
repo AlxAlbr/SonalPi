@@ -3,12 +3,12 @@ import { ref, onMounted, watch } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Panneau vidéo du mode vidéo de l'écran Entretien.
- * Il n'est pas un nouveau lecteur : il ADOPTE l'élément `<video>` créé par le
- * scope média (l'horloge du mode vidéo) en le déplaçant dans son conteneur —
- * une seule horloge, jamais deux, donc une synchro exacte avec le texte.
- * Porte les boutons − / + (largeur) et un avertissement si la forme d'onde n'a
- * pas pu être générée (le texte reste synchro, seule la bande est sans onde).
+ *  Panneau vidéo du mode vidéo de l'écran Entretien.
+ *  Il n'est pas un nouveau lecteur : il ADOPTE l'élément `<video>` créé par le
+ *  scope média (l'horloge du mode vidéo) en le déplaçant dans son conteneur —
+ *  une seule horloge, jamais deux, donc une synchro exacte avec le texte.
+ *  Porte les boutons − / + (largeur) et un avertissement si la forme d'onde n'a
+ *  pas pu être générée (le texte reste synchro, seule la bande est sans onde).
  */
 const { audio } = utiliserSonal()
 const { elVideo, estVideo, videoW, videoH, largeurVideo, agrandirVideo, reduireVideo, waveformUrl } =
@@ -16,8 +16,8 @@ const { elVideo, estVideo, videoW, videoH, largeurVideo, agrandirVideo, reduireV
 
 const conteneur = ref<HTMLDivElement | null>(null)
 
-/** Décale l'élément vidéo (créé par le scope, accroché au body) dans le panneau
- *  et le rend visible. `appendChild` DÉPLACE le nœud : c'est le même élément. */
+/** Décale l'élément vidéo (créé par le scope, accroché au body) dans le panneau,
+ *  puis le rend visible. `appendChild` DÉPLACE le nœud : c'est le même élément. */
 function adopter() {
   const hote = conteneur.value
   const v = elVideo.value
@@ -70,8 +70,8 @@ watch([largeurVideo, estVideo, videoW, videoH], () => majTaille())
   /* Se réduit si le lecteur audio a besoin de place (clé du partage de largeur). */
   flex: 0 1 auto;
 }
-/* Conteneur qui reçoit l'élément <video> adopté : sa largeur et son ratio
-   (4:3, 16:9…) sont pilotés par le script ; la vidéo le remplit en contain. */
+/* Conteneur qui reçoit l'élément <video> adopté : sa largeur et son ratio,
+   pilotés par le script (4:3, 16:9…) ; la vidéo le remplit en contain. */
 .conteneur-video {
   background: #000;
   border: 1px solid #333;

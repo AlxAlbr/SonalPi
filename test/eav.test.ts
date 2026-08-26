@@ -53,7 +53,7 @@ describe('EAV — importerVariables (tabVar/tabDic → modèle, ids déterminist
     const vars = importerVariables(tabVar, tabDic)
     expect(vars[0].modalites.map((m) => m.id)).toEqual(['v1m0', 'v1m1'])
     expect(vars[1].modalites.find((m) => m.lib === 'Femme')?.mExport).toBe(2)
-    // pas de variable v9 créée par une modalité orpheline
+    // pas de variable v9 créée par une modalité orpheline.
     expect(vars.find((v) => v.id === 'v9')).toBeUndefined()
   })
 

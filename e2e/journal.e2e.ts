@@ -2,10 +2,10 @@ import { test, expect, type Page } from '@playwright/test'
 import { ouvrir, coderTheme, selectionner } from './util'
 
 /**
- * Journal d'actions (actions de modèle seules ; volatil, jamais persisté).
- * (1) coder 3 passages, annuler le 1er → les 2 autres intacts ;
- * (2) annuler une attribution de locuteur → l'ancien loc restauré (la scission
- * demeure — jamais de fusion) ; (3) une entrée dont la cible a disparu est grisée.
+ *  Journal d'actions (actions de modèle seules ; volatil, jamais persisté).
+ *  (1) coder 3 passages, annuler le 1er → les 2 autres intacts ;
+ *  (2) annuler une attribution de locuteur → l'ancien loc restauré (la scission
+ *  demeure — jamais de fusion) ; (3) une entrée dont la cible a disparu est grisée.
  */
 
 async function ongletJournal(page: Page) {
@@ -49,7 +49,7 @@ test('annuler une attribution de locuteur → l’ancien loc restauré, la sciss
   // Attribuer « Lyon » (sous-partie du bloc 1, loc 1) à Karine → scission, loc 2.
   await selectionner(page, 'Lyon')
   await page.locator('.onglets button[data-onglet="locuteurs"]').click()
-  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer la sélection :')
+  await expect(page.locator('.attribuer .lbl')).toHaveText('Attribuer le bloc courant ou la sélection :')
   await page.locator('.boutons-loc .attr', { hasText: 'Karine' }).click()
   await expect(page.locator('.editeur p')).toHaveCount(4)
   await expect(page.locator('.editeur p[data-loc="2"]', { hasText: 'Lyon' })).toHaveCount(1)

@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { fournirSonal } from './composables/sonal'
+import { erreurGlobale, effacerErreurGlobale, infoGlobale, effacerInfoGlobale } from './erreurs'
 import Accueil from './components/Accueil.vue'
 import Corpus from './components/Corpus.vue'
 import TableDonnees from './components/TableDonnees.vue'
 import Entretien from './components/Entretien.vue'
+import RepriseCrash from './components/RepriseCrash.vue'
+import DivergenceCopie from './components/DivergenceCopie.vue'
+import DesignationAudioDistante from './components/DesignationAudioDistante.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
-// corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
-// (utiliserSonal). App ne garde que l'en-tête, le fil d'Ariane et les bannières.
+// corpus, entretien) et les PROVIDE ;
+// chaque composant de vue les INJECTE (utiliserSonal).
+// App ne garde que l'en-tête, le fil d'Ariane et les bannières.
 const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat, dossierCourantNom } =
   fournirSonal()
 </script>
@@ -17,7 +22,7 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
   <main class="app">
     <header>
       <h1>
-        SonalAsynchro — 
+        SonalPiTestV2 —
         <span class="etat" :class="etatSauvegarde.replace('…', '').replace(' ', '-')">
           {{ etatSauvegarde }}
         </span>
@@ -43,28 +48,55 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
 
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
 
+    <!-- Bannière globale : rejets IPC non catchés (verrou refusé,
+         hors ligne, divergence détectée). Fermable ; toute nouvelle erreur
+         remplace la précédente. -->
+    <div v-if="erreurGlobale" class="banniere refus">
+      <span>{{ erreurGlobale }}</span>
+      <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
+    </div>
+
+    <!-- Bannière jumelle, ton info : événements rattrapés par l'app (ex.
+         bascule automatique après suppression du dossier du corpus courant). -->
+    <div v-if="infoGlobale" class="banniere info">
+      <span>{{ infoGlobale }}</span>
+      <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
+    </div>
+
     <Accueil v-show="vue === 'accueil'" />
     <Corpus v-show="vue === 'corpus'" />
     <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
     <Entretien v-show="vue === 'entretien'" />
     <TableDonnees v-show="vue === 'donnees'" />
+
+    <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
+         téléporté, ne s'affiche QUE si la liste est non vide. -->
+    <RepriseCrash />
+
+    <!-- Fusion assistée : copie de divergence proposée à la réouverture de l'entretien concerné. -->
+    <DivergenceCopie />
+
+    <!-- Désignation audio distante : navigation Nextcloud + micro-session ;
+         ne s'affiche que si demandée. -->
+    <DesignationAudioDistante />
   </main>
 </template>
 
 <style scoped>
-/* COQUILLE uniquement : en-tête, fil d'Ariane, bannières. La typographie de base
- * et le vocabulaire partagé sont dans styles/base.css ; l'éditeur dans
- * styles/editeur.css ; le reste vit dans le <style scoped> de chaque vue. */
+/* COQUILLE uniquement : en-tête, fil d'Ariane, bannières.
+ * La typographie de base et le vocabulaire partagé sont dans styles/base.css ;
+ * l'éditeur dans styles/editeur.css ;
+ * le reste vit dans le <style scoped> de chaque vue. */
 .app {
   max-width: 1250px;
   margin: 1.2rem auto 0;
   padding: 0 1rem;
-  /* Hauteur de l'en-tête collant (fil d'Ariane / Accueil) — réutilisée par la
-     vue Entretien pour épingler sa barre d'actions juste en dessous. */
+  /* Hauteur de l'en-tête collant (fil d'Ariane / Accueil) ;
+     elle sert à épingler la barre d'actions de la vue Entretien, juste en dessous. */
   --entete-h: 4rem;
 }
-/* En-tête épinglé en haut de la fenêtre : toujour visible (Accueil/fil
-   d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
+/* En-tête épinglé en haut de la fenêtre : toujours visible (Accueil,
+   fil d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
 .app header {
   position: sticky;
   top: 0;
@@ -116,6 +148,21 @@ h1 small {
   background: #fdecea;
   color: #b3261e;
   border: 1px solid #f3b4ad;
+}
+.banniere.info {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border: 1px solid #c3dbf5;
+}
+.banniere .fermer {
+  float: right;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
 }
 /* --- Fil d'Ariane (navigation 3 écrans) --- */
 .fil {

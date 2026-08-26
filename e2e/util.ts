@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
-// (le DOM n'est pas dans `lib` du tsconfig node ; `selectionner` s'exécute en
-//  contexte navigateur via page.evaluate → on tire les types DOM pour CE fichier.)
+// (le DOM n'est pas dans `lib` du tsconfig node ; `selectionner` s'exécute en contexte navigateur via page.evaluate →
+//  on tire les types DOM pour CE fichier.)
 import { expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -19,16 +19,15 @@ export async function lancer(
   userDataDir: string,
   opts?: { preserverSettings?: boolean },
 ): Promise<ElectronApplication> {
-  // Un corpus neuf naît VIDE (S8 rév.) ; les specs reposent sur la baseline de
-  // démo « Karine » → écrite dans le corpus par défaut du profil AVANT le
-  // lancement (un dossier pické par un test reste vierge, sauf s'il la pose).
+  // Un corpus neuf naît VIDE (S8 rév.) ; les specs reposent sur la baseline de démo « Karine »,
+  // écrite dans le corpus par défaut du profil AVANT le lancement (un dossier pické par un test reste vierge,
+  // sauf s'il la pose).
   ecrireSeedDemo(join(userDataDir, 'corpus'))
-  // Nouveau flux Accueil (plan-tutoriel §11) : le démarrage charge le 1er récent
-  // et la carte « Corpus courant » a disparu. On pré-inscrit donc le corpus par
-  // défaut (seedé) comme récent — comme un utilisateur qui a déjà ouvert ce
-  // corpus — pour que les tests puissent y entrer depuis l'Accueil (1er récent).
-  // `preserverSettings` : ne pas réécrire le fichier (tests de persistance de la
-  // mémoire démo — settings.json porte aussi `demo`, §7.2).
+  // Nouveau flux Accueil : le démarrage charge le 1er récent, et la carte « Corpus courant » a disparu.
+  // On pré-inscrit donc le corpus par défaut (seedé) comme récent — comme un utilisateur qui a déjà ouvert ce corpus —
+  // pour que les tests puissent y entrer depuis l'Accueil (1er récent).
+  // `preserverSettings` : ne pas réécrire le fichier (tests de persistance de la mémoire démo —
+  // settings.json porte aussi `demo`).
   if (!opts?.preserverSettings) {
     writeFileSync(
       join(userDataDir, 'settings.json'),
@@ -37,7 +36,7 @@ export async function lancer(
     )
   }
   return electron.launch({
-    args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`],
+    args: ['.', '--no-sandbox', `--user-data-dir=${userDataDir}`, '--password-store=basic'],
     env: launchEnv(),
   })
 }
@@ -65,9 +64,10 @@ export async function entrerEntretien(page: Page, nth = 0): Promise<void> {
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
 }
 
-/** Depuis l'écran Corpus, ouvre la table de données (base de données). */
+/** Depuis l'écran Corpus, ouvre la table de données (base de données).
+ *  (`hasText` : le bouton « Pseudos » porte aussi la classe `.btn-table`.) */
 export async function entrerDonnees(page: Page): Promise<void> {
-  await page.locator('.btn-table').click()
+  await page.locator('.btn-table', { hasText: 'base de données' }).click()
   await expect(page.locator('.donnees-ecran')).toBeVisible({ timeout: 20_000 })
 }
 
@@ -77,9 +77,9 @@ export async function retourCorpus(page: Page): Promise<void> {
   await attendreCorpus(page)
 }
 
-/** Pose une VRAIE sélection sur la 1re occurrence de `phrase` dans l'éditeur
- *  (Range DOM → ProseMirror synchronise son état sur `selectionchange`). Plus
- *  fiable que dblclick pour viser un mot précis dans un bloc. */
+/** Pose une VRAIE sélection sur la 1re occurrence de `phrase`,
+ *  dans l'éditeur (Range DOM → ProseMirror synchronise son état sur `selectionchange`).
+ *  Plus fiable que dblclick pour viser un mot précis dans un bloc. */
 export async function selectionner(page: Page, phrase: string): Promise<void> {
   await page.evaluate((p) => {
     const ed = document.querySelector('.editeur') as HTMLElement | null
@@ -102,11 +102,10 @@ export async function selectionner(page: Page, phrase: string): Promise<void> {
   }, phrase)
 }
 
-/** Nombre d'ANNOTATIONS observables = ids UNIQUES portés par les décorations
- *  (`data-annot-ids`) — plusieurs segments `.annot` peuvent porter la même
- *  annotation (à cheval sur des blocs, chevauchements). Les orphelines ne sont
- *  pas décorées (couvertes par les unitaires remap). Remplace le panneau debug
- *  comme fenêtre d'observation du modèle (retiré après S5). */
+/** Nombre d'ANNOTATIONS observables = ids UNIQUES portés par les décorations (`data-annot-ids`) ;
+ *  plusieurs segments `.annot` peuvent porter la même annotation (à cheval sur des blocs, chevauchements).
+ *  Les orphelines ne sont pas décorées (couvertes par les unitaires remap).
+ *  Remplace le panneau debug comme fenêtre d'observation du modèle (retiré après S5). */
 export async function compterAnnotations(page: Page): Promise<number> {
   return page.evaluate(() => {
     const ids = new Set<string>()
@@ -120,8 +119,7 @@ export async function compterAnnotations(page: Page): Promise<number> {
   })
 }
 
-/** Vérifie que le trou du spotlight chevauche réellement l'élément ciblé
- *  (poll sur la position recalculée à chaque frame). */
+/** Vérifie que le trou du spotlight chevauche réellement l'élément ciblé (poll sur la position recalculée à chaque frame). */
 export async function spotlightSur(page: Page, selector: string): Promise<void> {
   await expect(page.locator(selector)).toBeVisible()
   await expect
@@ -150,15 +148,15 @@ export async function ajouterParModale(page: Page, zones: Array<'texte' | 'audio
   await page.locator('.modale-ajout .valider').click()
 }
 
-/** S3 : code la sélection courante avec un thème, en cliquant dessus dans l'onglet
- *  Thématique (le geste « clic = coder »). La sélection doit être posée AVANT. */
+/** S3 : code la sélection courante avec un thème, en cliquant dessus dans l'onglet Thématique (le geste « clic = coder »). La sélection doit être posée AVANT.
+ *  */
 export async function coderTheme(page: Page, nomTheme: string): Promise<void> {
   await page.locator('.onglets button[data-onglet="themes"]').click()
   await page.locator('.theme-coder', { hasText: nomTheme }).click()
 }
 
-/** S8 : ouvre la fenêtre d'ÉDITION des thèmes (crayon du panneau thèmes — écran
- *  Corpus ou onglet Thématique de l'Entretien, selon l'écran affiché). */
+/** S8 : ouvre la fenêtre d'ÉDITION des thèmes (crayon du panneau thèmes — écran Corpus ou onglet Thématique de l'Entretien,
+ *  selon l'écran affiché). */
 export async function ouvrirEditionThemes(page: Page): Promise<void> {
   await page.locator('.panneau .crayon:visible').first().click()
   await expect(page.locator('.modale-themes')).toBeVisible()
@@ -192,8 +190,8 @@ export async function ouvrir(prefixe = 'sonal-'): Promise<{ app: ElectronApplica
   return { app, page }
 }
 
-/** Lance sur un profil neuf et RESTE sur l'écran Corpus — pour les tests centrés
- *  corpus (thèmes CRUD, variables, matrice). */
+/** Lance sur un profil neuf et RESTE sur l'écran Corpus — pour les tests centrés corpus (thèmes CRUD, variables,
+ *  matrice). */
 export async function ouvrirSurCorpus(
   prefixe = 'sonal-',
 ): Promise<{ app: ElectronApplication; page: Page }> {

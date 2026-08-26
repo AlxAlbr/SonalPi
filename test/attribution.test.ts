@@ -9,12 +9,12 @@ import { attribuerSelectionTr } from '../src/renderer/editor/attribution'
 import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien'
 
 /**
- * « Attribuer la sélection » (commande headless). On monte le VRAI éditeur
- * TipTap (paragraph porte loc) + pluginRemap, on applique la transaction, et on
- * vérifie : scission aux bornes, `loc` sur les blocs couverts, et que les
- * annotations ET les ancres temporelles enjambent la coupe — aucune borne nulle
- * n'est fabriquée aux fragments : les ancres restent à leur position de texte,
- * le remap fait le reste.
+ *  « Attribuer la sélection » (commande headless). On monte le VRAI éditeur
+ *  TipTap (paragraph porte loc) + pluginRemap, on applique la transaction, et on
+ *  vérifie : scission aux bornes, `loc` sur les blocs couverts, et que les
+ *  annotations ET les ancres temporelles enjambent la coupe — aucune borne nulle
+ *  n'est fabriquée aux fragments : les ancres restent à leur position de texte,
+ *  le remap fait le reste.
  */
 function creerEditeur(entretien: Entretien, content: string): Editor {
   const Remap = Extension.create({
@@ -36,8 +36,9 @@ function blocs(ed: Editor): Bloc[] {
   ed.state.doc.forEach((n) => out.push({ texte: n.textContent, loc: n.attrs.loc }))
   return out
 }
-/** Position DOC du début de `fragment` (gère les frontières de bloc, contrairement
- *  à textContent.indexOf qui ignore les tokens de bloc). -1 si absent. */
+/** Position DOC du début de `fragment`. Gère les frontières de bloc,
+ *  contrairement à textContent.indexOf qui ignore les tokens de bloc.
+ *  -1 si absent. */
 function posDe(ed: Editor, fragment: string): number {
   let found = -1
   ed.state.doc.descendants((node, pos) => {

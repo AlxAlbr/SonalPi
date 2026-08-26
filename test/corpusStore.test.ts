@@ -1,8 +1,13 @@
 import { describe, test, expect } from 'vitest'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
+import { fusionnerReglesAnon } from '../src/shared/corpus/import'
+import { mapperDefinitions } from '../src/shared/corpus/migrationCrp'
+import { analyserCrp } from '../src/shared/corpus/migrationCrp'
+import { creerRegle } from '../src/shared/corpus/reglesAnon'
+import { ajusterScanApresApplication, type ScanRegle } from '../src/shared/corpus/scanAnon'
 import { ecrireSeedDemo } from './seedDemo'
 import type { PayloadEntretien, EntretienFichier, CorpusFichier } from '../src/shared/format'
 
@@ -53,6 +58,17 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(enfants.every((c) => c.couleur === '#ffffff')).toBe(true) // soulignement invisible
   })
 
+  test('poserNom pose le `nom` de projet et le persiste (indépendant du dossier)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-store-nom-'))
+    const store = new CorpusStore(dir)
+    expect(store.ouvrir().nom).toBeUndefined() // un corpus neuf n'a pas de nom
+    const corpus = store.poserNom('Enquête 2024')
+    expect(corpus.nom).toBe('Enquête 2024')
+    // persisté dans corpus.json, et survit à une réouverture
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).nom).toBe('Enquête 2024')
+    expect(new CorpusStore(dir).ouvrir().nom).toBe('Enquête 2024')
+  })
+
   test('la baseline de démo des tests reste lisible par le store (fixture partagée unit/e2e)', () => {
     const { store } = storeNeuf()
     const corpus = store.ouvrir()
@@ -100,6 +116,25 @@ describe('CorpusStore — amorçage & round-trip', () => {
     // Un fichier .json parasite dans entretiens/ ne doit PAS apparaître.
     writeFileSync(join(dir, 'entretiens', 'zzz-orphelin.json'), '{}', 'utf8')
     expect(Object.keys(store.ouvrir().membership)).toEqual(['e1'])
+  })
+})
+
+describe('CorpusStore — corpus courant supprimé sur disque', () => {
+  test('après ouverture, un corpus.json disparu lève CORPUS_SUPPRIME et ne laisse aucun squelette', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir() // premier ouvert : le corpus existe → amorçage consommé
+    rmSync(dir, { recursive: true }) // suppression EXTERIEURE (geste utilisateur)
+    expect(() => store.ouvrir()).toThrowError(/CORPUS_SUPPRIME/)
+    expect(existsSync(dir)).toBe(false) // aucune recréation silencieuse du dossier
+  })
+
+  test('un NOUVEAU store sur un dossier dont le corpus a disparu ré-amorce (nouveau choix explicite)', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    rmSync(join(dir, 'corpus.json'))
+    expect(() => store.ouvrir()).toThrowError(/CORPUS_SUPPRIME/)
+    // Re-choisir ce dossier dans l'app = nouveau store = nouvel amorçage permis.
+    expect(new CorpusStore(dir).ouvrir().membership).toEqual({})
   })
 })
 
@@ -204,6 +239,28 @@ describe('CorpusStore — version du format natif', () => {
 })
 
 describe('CorpusStore — cycle de vie du membership', () => {
+  test('le fichier d’entretien porte le NOM D’ORIGINE (SRT/audio) + un code aléatoire', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+
+    // Import SRT : le titre = nom du fichier sans extension → il nomme le fichier.
+    const a = store.importerEntretien('1-Coordinatrice', payload('X')).id
+    expect(a).toMatch(/^1-Coordinatrice_[a-z0-9]+$/)
+    expect(existsSync(join(dir, 'entretiens', a + '.json'))).toBe(true)
+
+    // Audio seul : on garde le nom de l'AUDIO.
+    const b = store.creerEntretienVide('entretienQ2audio').id
+    expect(b).toMatch(/^entretienQ2audio_[a-z0-9]+$/)
+    expect(existsSync(join(dir, 'entretiens', b + '.json'))).toBe(true)
+
+    // Le titre AFFICHÉ reste le nom d'origine (espaces/accents préservés),
+    // seuls les caractères interdits sont assainis pour l'id (espaces et /
+    // → tirets, que l'on compacte).
+    const c = store.importerEntretien('Été 2024 / session 1', payload('Y')).id
+    expect(c).toMatch(/^Été-2024-session-1_[a-z0-9]+$/)
+    expect(store.ouvrir().membership[c].titre).toBe('Été 2024 / session 1')
+  })
+
   test('créer, renommer, supprimer (vers corbeille, pas d’effacement)', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
@@ -312,6 +369,36 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
     expect(store.cheminMediaAbs(source1)).toBeNull()
   })
 
+  test('effacerAudio : audioRef null, onde dérivée supprimée, association locale oubliée — le texte reste', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const source = audioExterne(dir, 'rec.wav')
+    store.assignerAudio(id, source)
+    store.associerAudioLocal(id, source) // association machine-locale (distant)
+    const png = join(dir, 'png', id + '.png')
+    mkdirSync(join(dir, 'png'), { recursive: true })
+    writeFileSync(png, 'png', 'utf8')
+    expect(store.audios()[id]).toMatchObject({ audio: source, waveform: 'png/' + id + '.png' })
+    expect(JSON.parse(readFileSync(join(dir, 'audio-locaux.json'), 'utf8'))[id]).toBe(source)
+
+    store.effacerAudio(id)
+
+    // Plus de ref ni d'onde pour cet entretien.
+    expect(store.audios()[id]).toBeUndefined()
+    expect(store.cheminMediaAbs(source)).toBeNull() // plus whitelistée
+    expect(existsSync(png)).toBe(false)
+    // Association locale oubliée (pas d'orphelin qui « ré-associerait »).
+    const locaux = JSON.parse(readFileSync(join(dir, 'audio-locaux.json'), 'utf8'))
+    expect(locaux[id]).toBeUndefined()
+    // Le texte n'est pas touché, seul le média est retiré.
+    const lu = store.lireEntretien(id)
+    if (lu.ok) {
+      expect(lu.data.meta.audioRef).toBeNull()
+      expect(JSON.stringify(lu.data.corpsTexte)).not.toBe('')
+    }
+  })
+
   test('cache refsAudio : invalidé par supprimerEntretien', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
@@ -322,6 +409,67 @@ describe('CorpusStore — audio par RÉFÉRENCE (v3)', () => {
 
     store.supprimerEntretien(id) // invalide le cache
     expect(store.cheminMediaAbs(source)).toBeNull()
+  })
+
+  /* ── Association audio MACHINE-LOCALE sur un poste distant ── */
+
+  test('associerAudioLocal : RÉFÉRENCE sans copier, ne touche PAS au JSON partagé', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const sourceOriginale = audioExterne(dir, 'poste-a.wav')
+    store.assignerAudio(id, sourceOriginale)
+    // Simule l'AUTRE poste : le fichier référencé n'existe pas ici.
+    rmSync(sourceOriginale)
+
+    const fichierLocal = audioExterne(dir, 'poste-b.m4a')
+    const res = store.associerAudioLocal(id, fichierLocal)
+    expect(res).not.toBeNull()
+    expect(res!.audioRef).toBe(fichierLocal)
+
+    // Pas de COPIE (parité assignerAudio) ; la source est intacte.
+    expect(existsSync(join(dir, 'audio'))).toBe(false)
+    expect(existsSync(fichierLocal)).toBe(true)
+    // Le JSON PARTAGÉ n'a pas bougé : il pointe toujours chez le poste A.
+    const data = JSON.parse(readFileSync(join(dir, 'entretiens', `${id}.json`), 'utf8')) as {
+      meta: { audioRef: string }
+    }
+    expect(data.meta.audioRef).toBe(sourceOriginale)
+    // L'association vit dans le fichier machine-local.
+    const locaux = JSON.parse(readFileSync(join(dir, 'audio-locaux.json'), 'utf8')) as Record<string, string>
+    expect(locaux[id]).toBe(fichierLocal)
+  })
+
+  test('retombée locale : verifierAudios/audios()/cheminMediaAbs résolvent le fichier local', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    const sourceDistante = audioExterne(dir, 'chez-max.wav')
+    store.assignerAudio(id, sourceDistante)
+    rmSync(sourceDistante) // ce fichier n'existe pas SUR NOTRE poste
+
+    // Sans association locale : manquant, média refusé.
+    expect(store.verifierAudios()[id]).toBe('manquant')
+    expect(store.cheminMediaAbs(sourceDistante)).toBeNull()
+
+    const fichierLocal = audioExterne(dir, 'chez-moi.wav')
+    store.associerAudioLocal(id, fichierLocal)
+
+    // La retombée fait tout redescendre comme si l'audio était là :
+    expect(store.verifierAudios()[id]).toBe('ok')
+    expect(store.audios()[id]?.audio).toBe(fichierLocal)
+    // La requête porte LA REF PARTAGÉE → sert le fichier EFFECTIF local.
+    expect(store.cheminMediaAbs(sourceDistante)).toBe(fichierLocal)
+    // Et elle peut aussi porter directement le chemin local (génération d'onde).
+    expect(store.cheminMediaAbs(fichierLocal)).toBe(fichierLocal)
+  })
+
+  test('associerAudioLocal : source inexistante → null, rien écrit', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.creerEntretienVide('Ent')
+    expect(store.associerAudioLocal(id, join(dir, 'nulle-part.wav'))).toBeNull()
+    expect(existsSync(join(dir, 'audio-locaux.json'))).toBe(false)
   })
 
   test('audios() : audio = audioRef absolu, waveform = scan de png/', () => {
@@ -539,7 +687,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
   })
 })
 
-describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
+describe('CorpusStore — CRUD du codebook (thèmes)', () => {
   test('ajouter une catégorie → id opaque, codeExport cat_NNN libre, ordre en fin', () => {
     const { store } = storeNeuf()
     store.ouvrir() // seed cat_001..007 (3 démo + bloc Pondérations)
@@ -555,7 +703,7 @@ describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     // Un entretien qui référence cat_001 par id.
-    store.importerEntretien('E', {
+    const { id: ent } = store.importerEntretien('E', {
       corpsTexte: { type: 'doc', content: [] },
       annotations: [{ id: 'a', type: 'codage', from: 1, to: 3, auteur: 'x', code: 'cat_001' }],
       ancres: [],
@@ -569,7 +717,6 @@ describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
     expect(corpus.codebook.cat_001.nom).toBe('Famille élargie')
     expect(corpus.codebook.cat_001.couleur).toBe('#0331ff')
     // L'entretien n'a PAS changé : il porte toujours l'id cat_001, pas le libellé.
-    const ent = Object.keys(store.ouvrir().membership).find((k) => k.startsWith('ent'))!
     const data = store.lireEntretien(ent)
     expect(data.ok && data.data.annotations[0].code).toBe('cat_001')
   })
@@ -637,7 +784,84 @@ describe('CorpusStore — CRUD du codebook (thèmes, étape 5)', () => {
   })
 })
 
-describe('CorpusStore — EAV (variables/modalités/valeurs/matrice, étape 6)', () => {
+describe('CorpusStore — catégories de note (définitions corpus)', () => {
+  /** Entretien avec des notes référençant la catégorie donnée. */
+  const entretienAvecNotes = (...categorieIds: string[]) => ({
+    corpsTexte: { type: 'doc', content: [] },
+    annotations: [],
+    ancres: [],
+    locuteurs: [],
+    meta: { valeursGen: {}, audioRef: null },
+    notes: categorieIds.map((categorieId, i) => ({
+      id: `note_${i}`,
+      categorieId,
+      titre: '',
+      date: null,
+      statut: 'prive' as const,
+      corps: 'texte',
+      rang: i,
+      creeLe: '',
+      modifieLe: null,
+    })),
+  })
+
+  test('un corpus sans le champ lit les bacs par défaut ; ajouter persiste dans corpus.json', () => {
+    const { store, dir } = storeNeuf()
+    expect(store.categoriesNote().map((c) => c.id)).toEqual([
+      'ncat_postcollecte', 'ncat_resume', 'ncat_reflexion', 'ncat_generale',
+    ])
+    const { id, corpus } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    expect(id).toMatch(/^ncat_/)
+    expect(corpus.categoriesNote!.find((c) => c.id === id)?.nom).toBe('synthèse')
+    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    expect(surDisque.categoriesNote!.find((c) => c.id === id)).toBeDefined()
+  })
+
+  test('renommer / recolorer éditent la DÉFINITION au corpus', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    let liste = store.renommerCategorieNote(id, 'bilan').categoriesNote!
+    expect(liste.find((c) => c.id === id)?.nom).toBe('bilan')
+    liste = store.majCouleurCategorieNote(id, '#ffffff').categoriesNote!
+    expect(liste.find((c) => c.id === id)?.couleur).toBe('#ffffff')
+  })
+
+  test('compterUsagesCategorieNote scanne les notes de tous les entretiens', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    store.importerEntretien('E1', entretienAvecNotes(id, 'ncat_generale'), [])
+    store.importerEntretien('E2', entretienAvecNotes(id), [])
+    expect(store.compterUsagesCategorieNote(id)).toBe(2)
+    expect(store.compterUsagesCategorieNote('ncat_generale')).toBe(1)
+  })
+
+  test('supprimer une catégorie SANS note référente réussit et persiste', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    const r = store.supprimerCategorieNote(id)
+    expect(r.ok).toBe(true)
+    expect(store.categoriesNote().find((c) => c.id === id)).toBeUndefined()
+  })
+
+  test('suppression REFUSÉE si une note (n\'importe quel entretien) référence la catégorie', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const { id } = store.ajouterCategorieNote('synthèse', '#0331ff')
+    const { id: e1 } = store.importerEntretien('E1', entretienAvecNotes(id), [])
+    expect(store.supprimerCategorieNote(id)).toEqual({ ok: false, usages: 1 })
+    // Le refus n'a rien changé : la catégorie est toujours là.
+    expect(store.categoriesNote().find((c) => c.id === id)).toBeDefined()
+    // Une fois la note retirée (écriture de l'entretien sans note), la
+    // suppression passe.
+    store.ecrireEntretien(e1, entretienAvecNotes())
+    expect(store.supprimerCategorieNote(id).ok).toBe(true)
+  })
+})
+
+describe('CorpusStore — EAV (variables/modalités/valeurs/matrice)', () => {
   /** Entretien avec une valeur gen et une valeur loc (par leur propriétaire). */
   const entretienAvecValeurs = (varGen: string, modGen: string, varLoc: string, modLoc: string) => ({
     corpsTexte: { type: 'doc', content: [] },
@@ -717,7 +941,7 @@ describe('CorpusStore — EAV (variables/modalités/valeurs/matrice, étape 6)',
   })
 })
 
-describe('CorpusStore — règles corpus & scan anon (étape 3a, lecture)', () => {
+describe('CorpusStore — règles corpus & scan anon (lecture)', () => {
   test('scanAnon/reglesAnon : relit le disque et classe les occurrences par règle', () => {
     const { store, dir } = storeNeuf()
     // La baseline e1 contient « Karine habite Lyon depuis sa retraite. »
@@ -734,8 +958,8 @@ describe('CorpusStore — règles corpus & scan anon (étape 3a, lecture)', () =
     expect(store.reglesAnon()).toEqual([{ id: 'r1', entite: ['Lyon'], pseudos: ['L1'] }])
     const [scan] = store.scanAnon()
     expect(scan.regle.id).toBe('r1')
-    expect(scan.total).toEqual({ anon: 0, exc: 0, non: 1 })
-    expect(scan.parEntretien.e1).toEqual({ anon: 0, exc: 0, non: 1 })
+    expect(scan.total).toEqual({ anon: 0, exc: 0, non: 1, incl: +0 })
+    expect(scan.parEntretien.e1).toEqual({ anon: 0, exc: 0, non: 1, incl: +0 })
   })
 
   test('scanAnon : une occurrence anonymisée par la règle compte « anonymisé »', () => {
@@ -749,7 +973,51 @@ describe('CorpusStore — règles corpus & scan anon (étape 3a, lecture)', () =
     writeFileSync(join(dir, 'entretiens/e1.json'), JSON.stringify(e, null, 2))
 
     const [scan] = store.scanAnon()
-    expect(scan.total).toEqual({ anon: 1, exc: 0, non: 0 })
+    expect(scan.total).toEqual({ anon: 1, exc: 0, non: 0, incl: +0 })
+  })
+})
+
+describe('ajusterScanApresApplication — compteurs ajustés sans re-scan', () => {
+  const scan: ScanRegle[] = [
+    {
+      regle: { id: 'reg-1', entite: ['Karine'], pseudos: ['Marie'] },
+      total: { anon: 3, exc: 1, non: 5, incl: +0 },
+      parEntretien: {
+        e1: { anon: 2, exc: 0, non: 3, incl: +0 },
+        e2: { anon: 1, exc: 1, non: 2, incl: +0 },
+      },
+    },
+    {
+      regle: { id: 'reg-2', entite: ['Lyon'], pseudos: ['Ville'] },
+      total: { anon: 0, exc: 0, non: 4, incl: +0 },
+      parEntretien: { e1: { anon: 0, exc: 0, non: 4, incl: +0 } },
+    },
+  ]
+
+  test('déplace « à traiter » vers « anonymisé » pour la règle visée seulement', () => {
+    const r = ajusterScanApresApplication(scan, 'reg-1', [
+      { id: 'e1', nb: 2 },
+      { id: 'e2', nb: 1 },
+    ])
+    expect(r[0].parEntretien.e1).toEqual({ anon: 4, exc: 0, non: 1, incl: +0 })
+    expect(r[0].parEntretien.e2).toEqual({ anon: 2, exc: 1, non: 1, incl: +0 })
+    expect(r[0].total).toEqual({ anon: 6, exc: 1, non: 2, incl: +0 })
+    expect(r[1]).toBe(scan[1]) // règle non visée : inchangée (même référence)
+  })
+
+  test('borné : nb supérieur au compteur ne produit jamais de négatif ; id absent ignoré', () => {
+    const r = ajusterScanApresApplication(scan, 'reg-1', [
+      { id: 'e2', nb: 99 },
+      { id: 'e9', nb: 3 }, // absent du scan : ignoré.
+    ])
+    expect(r[0].parEntretien.e2).toEqual({ anon: 3, exc: 1, non: 0, incl: +0 })
+    expect(r[0].total).toEqual({ anon: 5, exc: 1, non: 3, incl: +0 })
+  })
+
+  test('ne mute pas le scan d\'origine', () => {
+    const avant = JSON.stringify(scan)
+    ajusterScanApresApplication(scan, 'reg-1', [{ id: 'e1', nb: 1 }])
+    expect(JSON.stringify(scan)).toBe(avant)
   })
 })
 
@@ -758,7 +1026,7 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
     const { store, dir } = storeNeuf()
     store.ouvrir()
     // Création
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     expect(store.regleAnonParEntite('Karine')?.id).toBe(r.id)
     expect(store.regleAnonParEntite('karine')?.id).toBe(r.id) // insensible à la casse
     // Garder les deux
@@ -772,10 +1040,35 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
     expect(store.regleAnonParEntite('Karine')).toBeUndefined()
   })
 
+  test("regleAnonCreer est défensive : une entité qui a déjà une règle n'en obtient PAS une seconde", () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const premiere = store.regleAnonCreer('Karine', ['Marie'])
+    expect(premiere.existait).toBe(false)
+    // Re-création (autre casse, autres pseudos) → la règle existante revient
+    // intacte, `existait` signale le cas, aucun doublon sur disque.
+    const seconde = store.regleAnonCreer('KARINE', ['Autre'])
+    expect(seconde.existait).toBe(true)
+    expect(seconde.regle.id).toBe(premiere.regle.id)
+    expect(seconde.regle.pseudos).toEqual(['Marie']) // pas touchée.
+    const regles = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).reglesAnon
+    expect(Object.keys(regles)).toHaveLength(1)
+  })
+
+  test('creerRegle (pur) renvoie la règle existante sans muter le corpus', () => {
+    const { store } = storeNeuf()
+    const corpus = store.ouvrir() // copie fraîche, reglesAnon vide.
+    creerRegle(corpus, 'Karine', ['Marie'], () => 'reg-1')
+    const avant = JSON.stringify(corpus.reglesAnon)
+    const r = creerRegle(corpus, 'karine', ['Autre'], () => 'reg-2')
+    expect(r.id).toBe('reg-1')
+    expect(JSON.stringify(corpus.reglesAnon)).toBe(avant) // aucune mutation.
+  })
+
   test("regleAnonUtiliseeAilleurs : vrai si un AUTRE entretien référence la règle", () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     // e1 (baseline) gagne une occurrence rule-backed.
     const e = lireFichier(dir, 'entretiens/e1.json')
     e.annotations.push({ id: 'a', type: 'anon', from: 1, to: 7, auteur: '', etat: 'anonymise', pseudo: 'Marie', regle: r.id })
@@ -789,7 +1082,7 @@ describe('CorpusStore — CRUD règles corpus & garde d’isolation (3b)', () =>
   test('supprimerLigneAnon corpus bloqué si la règle est utilisée ailleurs', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     // e1 référence la règle → elle n'est PAS isolée → suppression interdite.
     const e = lireFichier(dir, 'entretiens/e1.json')
     e.annotations.push({ id: 'a', type: 'anon', from: 1, to: 7, auteur: '', etat: 'anonymise', pseudo: 'Marie', regle: r.id })
@@ -806,7 +1099,7 @@ describe('CorpusStore — application en masse d’une règle sur un entretien f
   test('applique les occurrences « à traiter » en rule-backed, laisse les couverts', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
-    const r = store.regleAnonCreer('Karine', ['Marie'])
+    const { regle: r } = store.regleAnonCreer('Karine', ['Marie'])
     // e1 : « Karine habite Lyon depuis sa retraite. » → 1 « Karine » à traiter.
     const res = store.appliquerRegleAnon('e1', r.id)
     expect(res.nb).toBe(1)
@@ -824,5 +1117,190 @@ describe('CorpusStore — application en masse d’une règle sur un entretien f
     store.ouvrir()
     expect(store.appliquerRegleAnon('e1', 'reg-inconnu').nb).toBe(0)
     expect(store.appliquerRegleAnon('absent', 'reg-inconnu').nb).toBe(0)
+  })
+})
+
+describe('CorpusStore — migration SonalPi V1 → V2 (migrerDepuisV1)', () => {
+  /** Un `.crp` V1 → définitions mappées → store sur le dossier dédié. */
+  function definitionsDepuisFixture() {
+    const crp = readFileSync(join(process.cwd(), 'test/fixtures/corpusV1.crp'), 'utf8')
+    const a = analyserCrp(crp, 'MonCorpus.crp')
+    if (!a.ok) throw new Error('fixture invalide')
+    return { apercu: a.apercu, ...mapperDefinitions(a.apercu.raw) }
+  }
+
+  test('crée corpus.json avec nom + meta.sourceV1 + définitions (pas le bloc par défaut)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-migre-'))
+    const { apercu, codebook, variables } = definitionsDepuisFixture()
+    const corpus = new CorpusStore(dir).migrerDepuisV1(
+      apercu.nom,
+      { cheminCrp: '/home/user/MonCorpus.crp', dateCreation: apercu.dateCreation },
+      codebook,
+      variables,
+    )
+    expect(corpus.formatVersion).toBe(3)
+    expect(corpus.nom).toBe('MonCorpus')
+    expect(corpus.meta?.sourceV1).toEqual({
+      cheminCrp: '/home/user/MonCorpus.crp',
+      dateCreation: null, // le .crp sauvé n'a pas de dateCreation
+    })
+    // Définitions du .crp (Q7), RIEN du bloc Pondérations par défaut de l'amorçage.
+    expect(Object.keys(corpus.codebook).sort()).toEqual([
+      'cat_001', 'cat_002', 'cat_003', 'cat_004', 'cat_005', 'cat_006',
+    ])
+    expect(Object.keys(corpus.variables).sort()).toEqual(['v1', 'v2', 'v3'])
+    expect(corpus.membership).toEqual({})
+
+    // Lisible à l'ouverture : ouvrir() ne ré-amorce pas (corpus.json présent).
+    const relu = new CorpusStore(dir).ouvrir()
+    expect(relu.nom).toBe('MonCorpus')
+    expect(relu.meta?.sourceV1?.cheminCrp).toBe('/home/user/MonCorpus.crp')
+    // Structure sur disque : corpus.json + entretiens/ (png/ créés plus tard).
+    expect(existsSync(join(dir, 'corpus.json'))).toBe(true)
+    expect(existsSync(join(dir, 'entretiens'))).toBe(true)
+  })
+
+  test('refuse (throw) un dossier qui est DÉJÀ un corpus — on n’écrase jamais', () => {
+    const { dir } = storeNeuf() // baseline démo déjà écrit dans dir
+    const { codebook, variables } = definitionsDepuisFixture()
+    expect(() =>
+      new CorpusStore(dir).migrerDepuisV1('X', { cheminCrp: '/x.crp', dateCreation: null }, codebook, variables),
+    ).toThrow(/déjà un corpus/)
+  })
+
+  test('re-migrer le même .crp vers un AUTRE dossier est le cas multi-crp (un .crp → un dossier)', async () => {
+    const { apercu, codebook, variables } = definitionsDepuisFixture()
+    const d1 = mkdtempSync(join(tmpdir(), 'sonal-migre1-'))
+    const d2 = mkdtempSync(join(tmpdir(), 'sonal-migre2-'))
+    const c1 = new CorpusStore(d1).migrerDepuisV1(apercu.nom, { cheminCrp: '/a.crp', dateCreation: null }, codebook, variables)
+    const c2 = new CorpusStore(d2).migrerDepuisV1(apercu.nom, { cheminCrp: '/a.crp', dateCreation: null }, codebook, variables)
+    expect(c1.nom).toBe(c2.nom)
+    expect(Object.keys(c2.codebook)).toHaveLength(6)
+    // Idempotence de la FUSION : re-fusionner les mêmes définitions ne change rien.
+    // (la garde « on n'écrase jamais » interdit de ré-appeler migrerDepuisV1 sur d1)
+    expect(() => new CorpusStore(d1).migrerDepuisV1(apercu.nom, { cheminCrp: '/a.crp', dateCreation: null }, codebook, variables)).toThrow()
+  })
+})
+
+describe('CorpusStore — garde lectureSeule (E0 corpus distant)', () => {
+  /** Store de démo en mode « miroir distant » (lecture seule : pas encore de verrou ni
+   *  de publication → toute écriture refusée). */
+  function storeRo() {
+    const s = storeNeuf()
+    s.store.lectureSeule = true
+    return s
+  }
+
+  test('les lectures restent possibles', () => {
+    const { store } = storeRo()
+    expect(() => store.ouvrir()).not.toThrow()
+    expect(Object.keys(store.ouvrir().membership).length).toBeGreaterThan(0)
+  })
+
+  test('toute écriture est refusée avec un message clair', () => {
+    const { store } = storeRo()
+    const [id] = Object.keys(store.ouvrir().membership)
+    expect(() => store.ecrireEntretien(id, payload('x'))).toThrow(/verrou n'est pas tenu/)
+    expect(() => store.poserNom('nouveau nom')).toThrow(/lecture seule/)
+    expect(() => store.creerEntretienVide('nouveau')).toThrow(/lecture seule/)
+    expect(() => store.renommerEntretien(id, 'titre')).toThrow(/lecture seule/)
+    expect(() => store.supprimerEntretien(id)).toThrow(/lecture seule/)
+    expect(() => store.ajouterCategorie('thème')).toThrow(/lecture seule/)
+    expect(() => store.ajouterVariable('var', 'entretien')).toThrow(/lecture seule/)
+    expect(() => store.regleAnonCreer('ACME', ['A.'])).toThrow(/lecture seule/)
+    expect(() => store.marquerDemo({ mode: 'pas-a-pas', racineSources: '/x', validees: [] })).toThrow(/lecture seule/)
+    // Rien n'a bougé sur disque.
+    const { store: temoin } = storeNeuf()
+    void temoin
+    expect(store.ouvrir()).toEqual(new CorpusStore(store['dir']).ouvrir())
+  })
+
+  test('le flag est par instance : un nouveau store local écrit normalement', () => {
+    const { dir } = storeRo()
+    const local = new CorpusStore(dir) // défaut : false
+    expect(() => local.poserNom('local again')).not.toThrow()
+    expect(local.ouvrir().nom).toBe('local again')
+  })
+})
+
+describe('CorpusStore — paramètres de pseudonymisation (étape 4a)', () => {
+  test('absents → défauts (priorité corpus, motsLiaison actifs) ; écriture persistée et relue', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    const defauts = store.lireParamsAnon()
+    expect(defauts.prioriteValidation).toBe('corpus')
+    expect(defauts.motsLiaison?.actif).toBe(true)
+    expect(defauts.motsLiaison?.liste.length).toBeGreaterThan(0)
+    const ecrit = store.ecrireParamsAnon({
+      prioriteValidation: 'entretien',
+      motsLiaison: { actif: false, liste: ['à', 'de'] },
+    })
+    expect(ecrit.prioriteValidation).toBe('entretien')
+    expect(ecrit.motsLiaison).toEqual({ actif: false, liste: ['à', 'de'] })
+    // Persisté dans corpus.json (relecture par un nouveau store).
+    const relu = new CorpusStore(dir).lireParamsAnon()
+    expect(relu.prioriteValidation).toBe('entretien')
+    expect(relu.motsLiaison?.actif).toBe(false)
+  })
+})
+
+describe('CorpusStore — thématiques d\u2019entités (étape 4c)', () => {
+  test('défauts désactivés avec liste PER/LOC/ORG/DAT ; assignation et retrait de catégorie', () => {
+    const { store } = storeNeuf()
+    store.ouvrir()
+    const thematiques = store.lireParamsAnon().thematiques!
+    expect(thematiques.actif).toBe(false)
+    expect(thematiques.liste).toEqual(['PER', 'LOC', 'ORG', 'DAT'])
+    // Assignation : la règle porte sa catégorie (persistée).
+    const { regle: r } = store.regleAnonCreer('Mairie de Lyon', ['Mairie'])
+    const maj = store.regleAnonCategoriser(r.id, 'ORG')
+    expect(maj?.categorie).toBe('ORG')
+    // Retrait : le champ disparaît.
+    const retire = store.regleAnonCategoriser(r.id, null)
+    expect(retire?.categorie).toBeUndefined()
+    expect('categorie' in (retire ?? {})).toBe(false)
+    // Règle inconnue → null sans erreur.
+    expect(store.regleAnonCategoriser('inconnue', 'PER')).toBeNull()
+  })
+})
+
+describe('CorpusStore — E4 : tabAnon + paramsAnonCorpus écrits à la création', () => {
+  test('règles du .crp (catégories comprises) + params persistés ; import .sonal idempotent', async () => {
+    const { mapperTabAnon, mapperParamsAnon } = await import('../src/shared/corpus/migrationCrp')
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-e4-'))
+    const crp = readFileSync(join(process.cwd(), 'test/fixtures/corpusV1.crp'), 'utf8')
+    const a = analyserCrp(crp, 'MonCorpus.crp')
+    if (!a.ok) throw new Error('fixture invalide')
+    const { apercu } = a
+    let n = 0
+    const regles = mapperTabAnon(apercu.raw.tabAnon, () => `reg-crp-${++n}`)
+    const paramsAnon = mapperParamsAnon(apercu.raw.paramsAnonCorpus)
+
+    const corpus = new CorpusStore(dir).migrerDepuisV1(
+      apercu.nom,
+      { cheminCrp: '/m/MonCorpus.crp', dateCreation: null },
+      [],
+      [],
+      regles,
+      paramsAnon,
+    )
+    // Les 3 règles du .crp sont là, catégories et double pseudo compris.
+    expect(Object.keys(corpus.reglesAnon)).toHaveLength(3)
+    const mairie = Object.values(corpus.reglesAnon).find((r) => r.entite[0] === 'Maison des Habitants')
+    expect(mairie?.categorie).toBe('ORG')
+    const enq = Object.values(corpus.reglesAnon).find((r) => r.entite[0] === 'Enquêteur')
+    expect(enq?.pseudos).toEqual(['Énola', 'Camille'])
+    expect(enq?.categorie).toBe('LOC')
+    // Paramètres : priorité + thématiques actives (venus du .crp).
+    expect(corpus.paramsAnon?.prioriteValidation).toBe('corpus')
+    expect(corpus.paramsAnon?.thematiques?.actif).toBe(true)
+
+    // Doctrine V1 « le global gagne » : un .sonal ré-important la même entité
+    // est dédupliqué par alias — la règle .crp (et sa catégorie) reste seule.
+    fusionnerReglesAnon(corpus, [{ id: 'reg-sonal-1', entite: ['Enquêteur'], pseudos: ['Autre'] }])
+    const enqueteur = Object.values(corpus.reglesAnon).filter((r) => r.entite.includes('Enquêteur'))
+    expect(enqueteur).toHaveLength(1)
+    expect(enqueteur[0].id).toMatch(/^reg-crp-/)
+    expect(enqueteur[0].categorie).toBe('LOC')
   })
 })

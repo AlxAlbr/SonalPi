@@ -8,15 +8,15 @@ import {
   consommerBrouillon,
   lignesAnonUnifiees,
   type LigneAnon,
-} from '../src/shared/entretien/brouillonsAnon'
-import { aplatir, occurrencesDe, plageVersPM } from '../src/shared/entretien/anonymisation'
+} from '../src/shared/entretien/anon'
+import { aplatir, occurrencesDe, plageVersPM } from '../src/shared/entretien/anon'
 import type { BrouillonAnon } from '../src/shared/format'
 
 /**
- * Brouillons d'anonymisation (pur) — étape 0 : le draft entretien-local.
- * Un brouillon est une entité saisie SANS occurrence posée ; ce n'est PAS une
- * règle. Validé (Entrée) → occurrences posées + brouillon consommé.
- * Headless : le lecteur de texte (`texteEntre`) est injecté.
+ *  Brouillons d'anonymisation (pur) — le draft est entretien-local.
+ *  Un brouillon est une entité saisie SANS occurrence posée ; ce n'est PAS une
+ *  règle. Validé (Entrée) → occurrences posées + brouillon consommé.
+ *  Headless : le lecteur de texte (`texteEntre`) est injecté.
  */
 
 function brouillonsDeDebut(): BrouillonAnon[] {
@@ -83,8 +83,8 @@ const debutsFlat: number[] = []
     acc += b.longueur + 1
   }
 }
-/** Lit le texte d'une plage PM via le TEXTE PLAT, par bloc (même décodage
- *  que l'adaptateur réel) : offset plat = début plat du bloc + offset PM relatif. */
+/** Lit le texte d'une plage PM via le TEXTE PLAT, par bloc (même décodage que l'adaptateur réel) :
+ *  offset plat = début plat du bloc + offset PM relatif. */
 function texteEntre(f: number, t: number): string {
   const k = tPlat.blocs.findIndex((b) => f >= b.debut && t <= b.debut + b.longueur)
   const of = f - tPlat.blocs[k].debut
@@ -121,7 +121,7 @@ describe('dérivation de l’état d’une ligne (brouillon vs entretien)', () =
     expect(l.occurrenceIds).toEqual(['a0', 'a1', 'a2'])
   })
 
-  test('compteurs scindés : une ligne mélangée compte anonymisé et exception (étape 1 §2.6)', () => {
+  test('compteurs scindés : une ligne mélangée compte anonymisé et exception', () => {
     const k = occurrencesKarine()
     // 1re occurrence laissée en clair (exception), les 2 autres anonymisées.
     const occ = [{ ...k[0], etat: 'exception' as const }, ...k.slice(1)]
@@ -246,6 +246,97 @@ describe('multi-pseudo (3b) — ensemble déclaré & affichage « a / b »', () 
     const declares = { [cleEntite('Karine')]: ['Claire'] }
     const lignes = lignesAnonUnifiees(b, occUnique, texteEntre, declares)
     expect(lignes[0].pseudo).toBe('Claire')
+  })
+})
+
+describe('compteurs par variante (étape 1a) — scission multi-pseudo', () => {
+  const b: BrouillonAnon[] = []
+  // Trois occurrences : Claire ×2 (dont une exception), Rebecca ×1.
+  const occ = occurrencesDe(tPlat.texte, 'Karine').map((pl, i) => ({
+    id: `a${i}`,
+    ...plageVersPM(tPlat, pl.from, pl.to)!,
+    pseudo: i === 2 ? 'Rebecca' : 'Claire',
+    etat: i === 1 ? ('exception' as const) : ('anonymise' as const),
+  }))
+  test('les compteurs sont scindés par variante, dans l\u2019ordre DÉCLARÉ', () => {
+    const declares = { [cleEntite('Karine')]: ['Claire', 'Rebecca'] }
+    const lignes = lignesAnonUnifiees(b, occ, texteEntre, declares)
+    expect(lignes[0].variantes).toEqual([
+      { pseudo: 'Claire', nbAnonymise: 1, nbException: 1 },
+      { pseudo: 'Rebecca', nbAnonymise: 1, nbException: 0 },
+    ])
+  })
+  test('une variante déclarée JAMAIS appliquée reste visible à zéro', () => {
+    const declares = { [cleEntite('Karine')]: ['Claire', 'Rebecca', 'Zoé'] }
+    const lignes = lignesAnonUnifiees(b, occ.slice(0, 1), texteEntre, declares)
+    expect(lignes[0].variantes).toEqual([
+      { pseudo: 'Claire', nbAnonymise: 1, nbException: 0 },
+      { pseudo: 'Rebecca', nbAnonymise: 0, nbException: 0 },
+      { pseudo: 'Zoé', nbAnonymise: 0, nbException: 0 },
+    ])
+  })
+  test('mono-pseudo : une seule variante, totaux inchangés', () => {
+    const occMono = occ.map((o) => ({ ...o, pseudo: 'Claire', etat: 'anonymise' as const }))
+    const lignes = lignesAnonUnifiees(b, occMono, texteEntre, { [cleEntite('Karine')]: ['Claire'] })
+    expect(lignes[0].variantes).toEqual([{ pseudo: 'Claire', nbAnonymise: 3, nbException: 0 }])
+    expect(lignes[0].nbAnonymise).toBe(3)
+  })
+  test('regroupement INSENSIBLE à la casse (première casse rencontrée affichée)', () => {
+    const occMelange = [
+      { ...occ[0], pseudo: 'claire', etat: 'anonymise' as const },
+      { ...occ[1], pseudo: 'Claire', etat: 'anonymise' as const },
+    ]
+    const lignes = lignesAnonUnifiees(b, occMelange, texteEntre)
+    expect(lignes[0].variantes).toEqual([{ pseudo: 'claire', nbAnonymise: 2, nbException: 0 }])
+  })
+  test('un brouillon → variantes vides (rien d\u2019appliqué)', () => {
+    const lignes = lignesAnonUnifiees([{ entite: 'Lyon', pseudo: 'L' }], [], texteEntre)
+    expect(lignes[0].variantes).toEqual([])
+  })
+})
+
+describe('multi-alias (3a) — une ligne par GROUPE de graphies', () => {
+  test('une occurrence « Lyons » rejoint la ligne du groupe « Lyon/Lyons »', () => {
+    const pl = occurrencesDe(tPlat.texte, 'Lyon')[0]
+    const pm = plageVersPM(tPlat, pl.from, pl.to)!
+    // Le texte de l'occurrence est « Lyon » ; le groupe déclaré porte « Lyon » et « Lyons ».
+    const lignes = lignesAnonUnifiees(
+      [{ entite: 'Lyon/Lyons', pseudo: 'Ville' }],
+      [{ id: 'o1', ...pm, pseudo: 'Ville', etat: 'anonymise' as const }],
+      texteEntre,
+    )
+    expect(lignes).toHaveLength(1)
+    expect(lignes[0].entite).toBe('Lyon/Lyons') // forme du groupe affichée
+    expect(lignes[0].etat).toBe('entretien')
+    expect(lignes[0].nb).toBe(1)
+  })
+
+  test('un brouillon groupe et une occurrence isolée d\u2019un AUTRE alias = deux lignes', () => {
+    const pl = occurrencesDe(tPlat.texte, 'Karine')[0]
+    const pm = plageVersPM(tPlat, pl.from, pl.to)!
+    const lignes = lignesAnonUnifiees(
+      [{ entite: 'Lyon/Lyons', pseudo: 'Ville' }],
+      [{ id: 'o1', ...pm, pseudo: 'P', etat: 'anonymise' as const }],
+      texteEntre,
+    )
+    expect(lignes.map((l) => l.entite).sort()).toEqual(['Karine', 'Lyon/Lyons'])
+  })
+
+  test('règle corpus multi-alias : les occurrences de chaque alias sont liées', () => {
+    const regles = [{ id: 'reg-lyon', entite: ['Lyon', 'Lyons'], pseudos: ['Ville'] }]
+    const pls = occurrencesDe(tPlat.texte, 'Lyon').map((pl) => plageVersPM(tPlat, pl.from, pl.to)!)
+    const occ = pls.map((pm, i) => ({
+      id: `l${i}`,
+      ...pm,
+      pseudo: 'Ville',
+      etat: 'anonymise' as const,
+      regle: 'reg-lyon',
+    }))
+    const lignes = lignesAnonUnifiees([], occ, texteEntre, {}, regles)
+    expect(lignes).toHaveLength(1)
+    expect(lignes[0].etat).toBe('corpus')
+    expect(lignes[0].entite).toBe('Lyon/Lyons')
+    expect(lignes[0].nb).toBe(2)
   })
 })
 

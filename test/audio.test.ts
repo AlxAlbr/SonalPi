@@ -10,10 +10,9 @@ import {
 import { charVersPM } from '../src/shared/entretien/positions'
 import { enveloppe } from '../src/renderer/audio/enveloppe'
 
-/** Le temps est porté par des ANCRES {pos, t} dans le texte ; l'interpolation
- *  reste une dérivation entre ancres, au prorata du texte. Ces tests couvrent
- *  les sémantiques de lecture (cues entiers, fragments scindés, trous,
- *  dégénérés) et le garde-fou de perf (dichotomie comptée sur ~30 000 ancres). */
+/** Le temps est porté par des ANCRES {pos, t} dans le texte ; l'interpolation reste une dérivation entre ancres, au prorata du texte.
+ *  Ces tests couvrent les sémantiques de lecture (cues entiers, fragments scindés, trous, dégénérés)
+ *  et le garde-fou de perf (dichotomie comptée sur ~30 000 ancres). */
 
 /** Ancres d'un découpage en cues : chaque cue [deb, fin] posé sur son bloc. */
 function ancresDeCues(cues: Array<{ deb: number | null; fin: number | null; longueur: number }>): {
@@ -86,8 +85,8 @@ describe('plageCourante (surlignage : les 2 ancres encadrant t)', () => {
   })
 
   test('cue scindé : la plage est bornée par les ancres MESURÉES restantes', () => {
-    // Un cue [0, 10] dont le bloc a été scindé en 5+10+5 : les ancres n'ont pas
-    // bougé en texte — la plage couvre les 20 caractères entre deb et fin.
+    // Un cue [0, 10] dont le bloc a été scindé en 5+10+5 : les ancres n'ont pas bougé en texte,
+    // la plage couvre les 20 caractères entre deb et fin.
     const ancres2: AncreTexte[] = [
       { x: 0, t: 0 },
       { x: 20, t: 10 },
@@ -159,8 +158,8 @@ describe('debutTour (clic-tour ; tour dérivé)', () => {
 })
 
 describe('garde-fou perf (~30 000 ancres : dichotomie, pas de balayage)', () => {
-  // Un Proxy compte les ACCÈS au tableau d'ancres : un lookup dichotomique en
-  // fait O(log n), un balayage linéaire en ferait O(n) — le compteur départage.
+  // Un Proxy compte les ACCÈS au tableau d'ancres : un lookup dichotomique en fait O(log n),
+  // un balayage linéaire en ferait O(n) — le compteur départage.
   function compteur(ancres: AncreTexte[]): { proxy: AncreTexte[]; lus: () => number } {
     let n = 0
     const proxy = new Proxy(ancres, {

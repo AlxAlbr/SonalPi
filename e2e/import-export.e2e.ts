@@ -5,11 +5,11 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ajouterParModale } from './util'
 
 /**
- * Sas d'import / export `.sonal`, dans la vraie app. Les dialogs natifs
- * (showOpenDialog / showSaveDialog) sont STUBBÉS via electronApp.evaluate pour
- * piloter sans interaction. Critères : import d'un `.sonal` réel → entretien
- * éditable + codebook fusionné ; export → `.sonal` réémis. (Golden import/export
- * détaillé en unitaire ; réouverture dans SonalPi = test manuel, cf. PARITE.md.)
+ *  Sas d'import / export `.sonal`, dans la vraie app. Les dialogs natifs
+ *  (showOpenDialog / showSaveDialog) sont STUBBÉS via electronApp.evaluate pour
+ *  piloter sans interaction. Critères : import d'un `.sonal` réel → entretien
+ *  éditable + codebook fusionné ; export → `.sonal` réémis. (Golden import/export
+ *  détaillé en unitaire ; réouverture dans SonalPi = test manuel, cf. PARITE.md.)
  */
 
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')
@@ -36,11 +36,14 @@ test('importer un .sonal réel → entretien éditable + codebook fusionné, pui
   await expect(page.locator('.editeur')).toContainText('accepté cet entretien', { timeout: 10_000 })
   await expect(page.locator('.carte-ent')).toHaveCount(2) // seed + importé
   await expect(page.locator('.carte-ent .ent-titre').nth(1)).toHaveText('entretien1')
-  // Les codages importés peuplent le modèle (cat_005 décoré dans le texte).
-  await expect(page.locator('.editeur .annot[title*="cat_005"]').first()).toBeVisible()
+  // Les codages importés peuplent le modèle : les passages cat_005 du fixture sont décorés ;
+  // leur titre affiche le NOM résolu au codebook du corpus.
+  // (l'existant fait foi — cat_005 du seed « ★★★ Très important », pas « Cat1 »).
+  await expect(page.locator('.editeur .annot[title="★★★ Très important"]').first()).toBeVisible()
   // Le codebook a fusionné : cat_008 (« Cat2 », un code de la fixture HORS seed)
-  // est dans l'onglet Thématique (clic=coder). Les codes ≤ cat_007 collisionnent
-  // avec le seed (3 démo + Pondérations) → l'existant fait foi (règle n°3).
+  // est dans l'onglet Thématique (clic=coder).
+  // Les codes ≤ cat_007 collisionnent avec le seed (3 démo + Pondérations) :
+  // l'existant fait foi (règle n°3).
   await expect(page.locator('.liste-coder .theme-nom', { hasText: /^Cat2$/ })).toHaveCount(1)
 
   // --- EXPORT ---

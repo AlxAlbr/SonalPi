@@ -1,24 +1,24 @@
-// Conversions d'import : transforment un contenu de fichier (chaîne) en structure
-// (tableau de segments → HTML « format Sonal »), ou extraient les données d'un
-// fichier .sonal déjà formé. Logique PURE (chaîne → structure) : aucun DOM vivant,
-// IPC ou fs. Importable en Node (tests) comme dans le renderer (via domain/index.mjs).
+// Conversions d'import : transforment un contenu de fichier (chaîne) en structure Sonal.
+// Deux métiers : tableau de segments → HTML « format Sonal », ou extraction des données d'un .sonal déjà formé.
+// Logique PURE (chaîne → structure) : aucun DOM vivant, IPC ou fs ; importable en Node (tests)
+// comme dans le renderer (via domain/index.mjs).
 //
-// Contenu : tous les convertisseurs purs (TXT/SRT/VTT/JSON/PURGE → format Sonal),
-// leurs helpers (tabSegToSonal, Phrasifier, convertSpeaker, TimeToSec) et
-// extractFichierSonal. Restent côté renderer (par nature) : la fusion corpus
-// (`fusionTab*`, mutation d'état via IPC) et HTMLTOTABSEG (lit le DOM vivant).
+// Contenu : tous les convertisseurs purs (TXT/SRT/VTT/JSON/PURGE → format Sonal), leurs helpers (tabSegToSonal,
+// Phrasifier, convertSpeaker, TimeToSec), et extractFichierSonal.
+// Restent côté renderer (par nature) : la fusion corpus (`fusionTab*`, mutation d'état via IPC),
+// et HTMLTOTABSEG (lit le DOM vivant).
 //
 // ⚠️ Différences assumées avec les ex-fonctions du renderer (non-régression visée) :
-//  - les globaux implicites (`s`, `lignesFich`, `seg_cur`, `cases`) deviennent des
-//    locales `let` (obligatoire : un module ESM est en strict mode) ;
-//  - `convertPURGE` ne fait plus l'effet de bord `seg_cur = …` : il **retourne**
-//    `segCourant`, à charge de l'appelant renderer de l'appliquer ;
-//  - `extractFichierSonal` reçoit le `doc` parsé en argument (comme sonal.mjs) au
-//    lieu d'instancier `new DOMParser()` lui-même → testable en Node.
-
+//  - les globaux implicites (`s`, `lignesFich`, `seg_cur`, `cases`) deviennent des locales `let`,
+//    ce qui est obligatoire : un module ESM est en strict mode ;
+//  - `convertPURGE` ne fait plus l'effet de bord `seg_cur = …` : il **retourne** `segCourant`,
+//    à charge de l'appelant renderer de l'appliquer ;
+//  - `extractFichierSonal` reçoit le `doc` parsé en argument (comme sonal.mjs),
+//    au lieu d'instancier `new DOMParser()` lui-même → testable en Node.
+//
 // Génère le HTML « format Sonal » à partir d'un tableau de segments.
-// tabSeg[s] = [ _, deb, fin, loc, texte, sel, _ ]. `notes` est accepté pour
-// compatibilité de signature mais non inséré (comportement d'origine conservé).
+// tabSeg[s] = [ _, deb, fin, loc, texte, sel, _ ] ; `notes` est accepté pour compatibilité,
+// mais non inséré (comportement d'origine conservé).
 export function tabSegToSonal(tabSeg, locut, notes) {
 
   let html = `
@@ -35,7 +35,7 @@ export function tabSegToSonal(tabSeg, locut, notes) {
 
 <body>`;
 
-  // ajout éventuel des locuteurs
+  // Ajout éventuel des locuteurs.
   if (locut && locut.length > 1) {
     const locJSON = JSON.stringify(locut, null);
     html += `
@@ -55,7 +55,7 @@ export function tabSegToSonal(tabSeg, locut, notes) {
 
   for (let s = 0; s < tabSeg.length; s++) {
 
-    // création des spans internes
+    // Création des spans internes.
     if (!tabSeg[s][4] || tabSeg[s][4].length == 0 || tabSeg[s][4].trim() === "") { continue; }
 
     html += `<span class="lblseg sautlig"
@@ -86,28 +86,27 @@ export function tabSegToSonal(tabSeg, locut, notes) {
 }
 
 // Convertit un fichier PURGE en « format Sonal ».
-// Renvoie `{ formatSonal, segCourant }` (segCourant = position atteinte lue en
-// ligne 2 du .purge ; l'ancien code l'écrivait dans le global `seg_cur`).
-// Renvoie `undefined` si le contenu est vide (comportement d'origine).
+// Renvoie `{ formatSonal, segCourant }` : la position atteinte, lue à la ligne 2 du .purge ;
+// l'ancien code l'écrivait dans le global `seg_cur` (effet de bord supprimé).
 export function convertPURGE(content) {
 
   if (!content || content.length < 1) { return; }
 
-  // split du texte par lignes \n
+  // split du texte par lignes \n.
   const lignesFich = content.split("\n");
   const nblig = lignesFich.length;
 
   // récupération des locuteurs (première ligne)
   const locut = lignesFich[0].split("\t");
 
-  // récupération du segment courant (seconde ligne) → ex-effet de bord `seg_cur`
+  // Récupération du segment courant (seconde ligne) → ex-effet de bord `seg_cur`.
   let lig = lignesFich[1].split("\t");
   const segCourant = lig[1];
 
   // récupération de la vitesse de lecture (troisième ligne)
   lig = lignesFich[2].split("\t");
 
-  // récupération des notes
+  // Récupération des notes.
   let debutSegments = 0;
   let debutMemo = 0;
   let notes = "";
@@ -118,7 +117,7 @@ export function convertPURGE(content) {
     if (s >= debutMemo) { notes = notes + lignesFich[s] + " \r\n"; } // ajout de la ligne aux notes
   }
 
-  // suppression des premières lignes puis importation des segments en masse
+  // Suppression des premières lignes puis importation des segments en masse.
   lignesFich.splice(0, debutSegments);
 
   const nbseg = lignesFich.length;
@@ -157,7 +156,7 @@ export function extractFichierSonal(htmlString, doc) {
     if (match) {
       let content = '';
       try {
-        // Nettoyage
+        // Nettoyage.
         content = match[1]
           .replace(/\s+/g, ' ')           // Normaliser les espaces
           .replace(/,\s*,+/g, ',')        // Supprimer virgules multiples
@@ -179,10 +178,10 @@ export function extractFichierSonal(htmlString, doc) {
           }
         })();
 
-        // Retirer les accolades externes si elles encadrent un tableau/objet
+        // Retirer les accolades externes si elles encadrent un tableau/objet.
         if (content.startsWith('{') && content.endsWith('}')) {
           let inner = content.slice(1, -1).trim();
-          // Si le contenu interne est un tableau ou objet valide
+          // Si le contenu interne est un tableau ou objet valide.
           if (inner.startsWith('[') || inner.startsWith('{')) {
             content = inner;
           }
@@ -214,9 +213,8 @@ export function extractFichierSonal(htmlString, doc) {
   return { tabLoc, tabThm, tabVar, tabDic, tabDat, notes, html, tabAnon };
 }
 
-// Regroupe les segments en phrases : fusionne tout segment ne se terminant pas par
-// une ponctuation forte (. ? !) avec le suivant. Mute tabSeg en place et le renvoie.
-// Pur : l'ancien rafraîchissement UI `affSegments(0)` est laissé au renderer.
+// Regroupe les segments en phrases : fusionne tout segment sans ponctuation forte finale (. ? !),
+// avec le suivant. Mute tabSeg en place, puis le renvoie ; l'ancien rafraîchissement UI (`affSegments(0)`) est laissé au renderer.
 export function Phrasifier(tabSeg) {
   const finPhrase = new Set(['.', '?', '!']);
 
@@ -239,9 +237,9 @@ export function Phrasifier(tabSeg) {
   return tabSeg;
 }
 
-// Extrait les locuteurs « Speaker N » d'un tableau de segments (issu d'un SRT/VTT) :
-// affecte le locuteur, retire le préfixe « Speaker N » du texte, et nettoie les
-// « Speaker i: » intempestifs. Mute tabSeg en place ; renvoie { tabSeg, locut }.
+// Extrait les locuteurs « Speaker N » d'un tableau de segments (issu d'un SRT/VTT) : affecte le locuteur,
+// retire le préfixe « Speaker N » du texte, et nettoie les « Speaker i: » intempestifs ;
+// mute tabSeg en place, puis renvoie { tabSeg, locut }.
 // Pur : l'ancien stash window.tabLocImport / setTabLoc (déjà commenté) est supprimé.
 //
 // ⚠️ Corrections assumées par rapport à SonalPi (bugs constatés à l'import) :
@@ -275,7 +273,7 @@ export function convertSpeaker(tabSeg) {
       tabSeg[s][4] = txt.slice(m[0].length); // suppression du préfixe "Speaker N: "
     }
 
-    // suppression des "Speaker i:" intempestifs dans le corps du texte
+    // Suppression des « Speaker i: » intempestifs dans le corps du texte.
     tabSeg[s][4] = tabSeg[s][4].replace(/Speaker\s+\d+\s*:/g, "");
   }
 
@@ -283,10 +281,9 @@ export function convertSpeaker(tabSeg) {
 }
 
 // ── Convertisseurs de formats d'import ────────────────────────────
-// Tous PURS : chaîne (ou tableau JSON) → { formatSonal, locuteurs } (ou { tabSeg,
-// locut } pour JSON, forme d'origine conservée). L'ancien `window.tabLocImport`
-// est supprimé : les locuteurs sont RENVOYÉS. Dépendances internes au module :
-// TimeToSec, convertSpeaker, tabSegToSonal.
+// Tous PURS : chaîne (ou tableau JSON) → { formatSonal, locuteurs }, ou { tabSeg, locut } pour JSON.
+// Forme d'origine conservée ; l'ancien `window.tabLocImport` est supprimé : les locuteurs sont RENVOYÉS.
+// Dépendances internes au module : TimeToSec, convertSpeaker, tabSegToSonal.
 
 // "HH:MM:SS,ms" (ou "MM:SS") → secondes. Pur.
 export function TimeToSec(time) {
@@ -359,7 +356,7 @@ export function convertSRT(content) {
     }
   }
 
-  // trimage des portions de texte
+  // Trimage des portions de texte.
   for (let s = 0; s < tabSeg.length; s++) {
     if (!tabSeg[s][4] || tabSeg[s][4].trim() === "") { continue; }
     tabSeg[s][4] = tabSeg[s][4].trim() + " "; // espace final de séparation
@@ -418,7 +415,7 @@ export function convertVTT(content) {
 
       let lignetxt = ligne.replace(/\r?\n|\r/, "");
 
-      // 1. balise <v Nom>
+      // 1. Balise <v Nom>.
       const vTagMatch = lignetxt.match(/^<v\s+([^>]+)>/);
       if (vTagMatch) {
         const nomLoc = vTagMatch[1].trim();
@@ -426,7 +423,7 @@ export function convertVTT(content) {
         tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
         lignetxt = lignetxt.replace(/^<v\s+[^>]+>/, "");
       }
-      // 2. préfixe "Speaker N" (numérotation du fichier conservée, cf. convertSpeaker)
+      // 2. Préfixe « Speaker N » (numérotation du fichier conservée, cf. convertSpeaker).
       else if (/^Speaker\s+\d+/.test(lignetxt)) {
         const m = lignetxt.match(/^Speaker\s+(\d+)\s*:?\s*/);
         const nomLoc = "Speaker " + m[1];
@@ -434,7 +431,7 @@ export function convertVTT(content) {
         tabSeg[rgSeg][3] = locut.indexOf(nomLoc);
         lignetxt = lignetxt.slice(m[0].length);
       }
-      // 3. préfixe "None:" (diarisation sans locuteur identifié) → pas de locuteur
+      // 3. Préfixe « None: » (diarisation sans locuteur identifié) → pas de locuteur.
       else if (/^None\s*:/.test(lignetxt)) {
         lignetxt = lignetxt.replace(/^None\s*:\s*/, "");
       }

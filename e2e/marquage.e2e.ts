@@ -45,13 +45,19 @@ test('deux thèmes sur la même plage se composent (annotations superposées)', 
 
   // Modèle : deux codages (deux ids distincts sur la même plage).
   await expect.poll(() => compterAnnotations(page)).toBe(2)
-  // Rendu : UN segment couvrant « Karine », porteur des DEUX codages empilés
-  // (fonds superposés + deux soulignés) → composition visible.
+  // Rendu : UN segment couvrant « Karine », porteur des DEUX codages empilés.
+  // Le chevauchement passe le paragraphe au DÉGRADÉ à arrêts : une barre de
+  // 2px par thème sous le texte, séparées par du transparent, avec un
+  // padding-bas élargi (4px + 3px par barre additionnelle → 7px pour deux).
   const annot = ed.locator('.annot')
   await expect(annot).toHaveText('Karine')
   await expect(annot).toHaveAttribute('data-annot-count', '2')
   const style = (await annot.getAttribute('style')) ?? ''
-  expect((style.match(/inset/g) ?? []).length).toBe(2) // deux soulignés empilés
+  // (le navigateur normalise le style inline : espaces après « : » et couleurs
+  //  résolues en rgb())
+  expect(style).toMatch(/background-image:\s*linear-gradient\(to top,/)
+  expect((style.match(/transparent/g) ?? []).length).toBe(3) // séparateur entre barres + arrêt final
+  expect(style).toMatch(/padding-bottom:\s*7px/) // 4 + 3 × (2 − 1)
 
   await app.close()
 })

@@ -1,0 +1,13 @@
+{
+  "nom": "Mon Projet de Recherche",
+  "dateCreation": "2026-05-01T10:00:00.000Z",
+  "version": "1.0",
+  "tabEnt": [],
+  "tabThm": [
+    { "code": "cat_001", "couleur": "", "nom": "Pondérations", "taille": "", "cmpct": "false", "rang": "0", "act": "true" },
+    { "code": "cat_002", "couleur": "", "nom": "★★★ Très important", "taille": 24, "cmpct": "false", "rang": "1", "act": "true" }
+  ],
+  "tabVar": [],
+  "tabDic": [],
+  "tabDat": []
+}
