@@ -1,19 +1,19 @@
 /**
- * Scan ANONYMISATION au niveau du CORPUS.
+ *  Scan ANONYMISATION au niveau du CORPUS.
  *
- * Pour chaque RÈGLE corpus (`RegleAnon`), on relit le texte de chaque entretien
- * et on classe les occurrences de l'entité : déjà anonymisées / en exception /
- * à traiter. C'est une REQUÊTE (rien de stocké, aucun cache) : le texte est
- * relu à chaque ouverture du panneau « Pseudos », pour révéler les changements
- * qui « coincident » avec une règle.
+ *  Pour chaque RÈGLE corpus (`RegleAnon`), on relit le texte de chaque
+ *  entretien et on classe les occurrences de l'entité : déjà anonymisées /
+ *  en exception / à traiter. C'est une REQUÊTE (rien de stocké, aucun cache) :
+ *  le texte est relu à chaque ouverture du panneau « Pseudos », pour révéler
+ *  les changements qui « coincident » avec une règle.
  *
- * Seules les RÈGLES corpus sont scannées. Les occurrences entretien-locales
- * (standalone, 2ᵉ cran du slider) ne figurent pas dans le panneau corpus, mais
- * elles marquent quand même le texte (une occurrence déjà posée couvre le mot,
- * même si elle ne vient pas d'une règle).
+ *  Seules les RÈGLES corpus sont scannées. Les occurrences entretien-locales
+ *  (standalone, 2ᵉ cran du slider) ne figurent pas dans le panneau corpus,
+ *  mais elles marquent quand même le texte (une occurrence déjà posée couvre
+ *  le mot, même si elle ne vient pas d'une règle).
  *
- * PURE : lit `EntretienFichier` (corpsTexte + annotations) et `RegleAnon`, ne
- * mute rien, aucune I/O — testable headless.
+ *  PURE : lit `EntretienFichier` (corpsTexte + annotations) et `RegleAnon`, ne
+ *  mute rien, aucune I/O — testable headless.
  */
 
 import type { EntretienFichier, RegleAnon } from '../format'
@@ -54,9 +54,9 @@ function anonCouvrantDebut(annotations: EntretienFichier['annotations'], debutPM
   return annotations.filter((a) => a.type === 'anon' && !estOrpheline(a) && a.from <= debutPM && debutPM < a.to)
 }
 
-/** Texte plat couvert par une plage PM : les annotations vivent sur le même
- *  doc que les matchs, on re-projette leur plage sur le texte aplati pour
- *  savoir QUELLE entité elles couvrent (comparaison par texte, pas par pseudo). */
+/** Texte plat couvert par une plage PM. Les annotations vivent sur le même doc que les matchs ;
+ *  on re-projette leur plage sur le texte aplati pour savoir QUELLE entité elles couvrent,
+ *  par comparaison du texte, pas du pseudo. */
 function textePM(plat: TextePlat, from: number, to: number): string {
   let platDebut = 0
   let a: number | null = null
@@ -92,31 +92,30 @@ function classerOccurrence(
   if (couvrants.some((a) => a.etat === 'exception')) return 'exc'
   const anon = couvrants.find((a) => a.etat === 'anonymise')
   if (!anon) return 'non'
-  // Même entité que la règle ? Parité avec le compteur entretien : on compare
-  // le TEXTE recouvert par l'annotation (cleEntite), pas seulement son pseudo —
-  // un pseudo venu d'une expérimentation multi-pseudo ou d'un ancien libellé
-  // ne doit pas déclasser une occurrence pourtant anonymisée. Le pseudo reste
-  // accepté en secours (annotation posée par une règle au libellé différent).
+  // Même entité que la règle ? Parité avec le compteur entretien.
+  // On compare le TEXTE recouvert par l'annotation (cleEntite), pas seulement son pseudo.
+  // Un pseudo venu d'une expérimentation multi-pseudo ou d'un ancien libellé,
+  // ne doit pas déclasser une occurrence pourtant anonymisée.
+  // Le pseudo reste accepté en secours (annotation posée par une règle au libellé différent).
   if (clesRegle.has(cleEntite(textePM(plat, anon.from, anon.to)).toLowerCase())) return 'anon'
   if (pseudos.some((p) => (p || '').toLowerCase() === (anon.pseudo || '').toLowerCase())) return 'anon'
-  // Entité étrangère : INCLUSE seulement si l'annotation ENGLOBE strictement le
-  // match (entité plus large) ; à périmètre égal c'est la même entité sous un
-  // autre libellé → « non » (à traiter).
+  // Entité étrangère : INCLUSE seulement si l'annotation ENGLOBE strictement le match (entité plus large) ;
+  // à périmètre égal, c'est la même entité sous un autre libellé → « non » (à traiter).
   const englobe = anon.to - anon.from > t.to - t.from
   return englobe ? 'incl' : 'non'
 }
 
 /**
- * Scan du corpus : pour chaque règle, agrège les occurrences par état sur
- * l'ensemble des entretiens fournis (déjà lus sur disque par l'appelant).
+ *  Scan du corpus : pour chaque règle, agrège les occurrences par état sur
+ *  l'ensemble des entretiens fournis (déjà lus sur disque par l'appelant).
  *
- * Comptage par les DONNÉES pour l'état stocké : les anonymisées et exceptions
- * sont des annotations — on les compte directement (l'entité est reconnue au
- * texte qu'elles couvrent, jamais au pseudo porté). Le TEXTE n'est parcouru
- * que pour la requête « à anonymiser » (matchs sans annotation) et les
- * incluses (matchs absorbés par une entité plus large) : un utilisateur qui
- * édite fait émerger de nouvelles occurrences à traiter, le reste vit dans
- * les annotations.
+ *  Comptage par les DONNÉES pour l'état stocké : les anonymisées et exceptions
+ *  sont des annotations — on les compte directement (l'entité est reconnue au
+ *  texte qu'elles couvrent, jamais au pseudo porté). Le TEXTE n'est parcouru
+ *  que pour la requête « à anonymiser » (matchs sans annotation) et les
+ *  incluses (matchs absorbés par une entité plus large) : un utilisateur qui
+ *  édite fait émerger de nouvelles occurrences à traiter, le reste vit dans
+ *  les annotations.
  */
 export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]): ScanRegle[] {
   const out: ScanRegle[] = []
@@ -133,8 +132,8 @@ export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]):
       const st: StatutScan = { anon: 0, exc: 0, non: 0, incl: 0 }
       let touche = false
 
-      // 1. ÉTAT STOCKÉ : anonymisées et exceptions se comptent depuis les
-      //    annotations, sans déduction ni dépendance au pseudo porté.
+      // 1. ÉTAT STOCKÉ : anonymisées et exceptions se comptent depuis les annotations,
+      //    sans déduction ni dépendance au pseudo porté.
       for (const a of vivantes) {
         if (!clesRegle.has(cleEntite(textePM(plat, a.from, a.to)).toLowerCase())) continue
         touche = true
@@ -174,7 +173,7 @@ export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]):
 
 /* ── Scan DÉTAILLÉ d'une règle (vue vérification du panneau corpus) ─────────*/
 
-/** Une occurrence vue par la vérification corpus : position PM, état et
+/** Occurrence vue par la vérification corpus : position PM, état,
  *  contexte lisible « avant / match / après » (parité accordéon V1). */
 export interface OccurrenceScan {
   from: number
@@ -188,9 +187,9 @@ export interface OccurrenceScan {
   apres: string
 }
 
-/** Détaille TOUTES les occurrences d'une règle dans un entretien, avec leur
- *  état et leur contexte. C'est la même classification que le scan agrégé,
- *  affichée occurrence par occurrence. PURE : ne lit rien sur disque. */
+/** Décompte les occurrences d'une règle dans un entretien, avec leur état et contexte.
+ *  Même classification que le scan agrégé, affichée occurrence par occurrence.
+ *  PURE : ne lit rien sur disque. */
 export function scannerRegleDetaille(
   regle: RegleAnon,
   entretien: EntretienScan,
@@ -217,8 +216,8 @@ export function scannerRegleDetaille(
 
 /* ── Ajustement des compteurs après application en masse ────────────────────*/
 
-/** Déplace les occurrences posées par une application en masse du compteur
- *  « à traiter » vers « anonymisées », sans re-scan.
+/** Déplace vers « anonymisées » les occurrences posées par application en masse,
+ *  sans re-scan, depuis le compteur « à traiter ».
  *  Le lot renvoie le nombre d'occurrences réellement posées par entretien,
  *  et les fichiers locaux sont déjà à jour (écriture THROUGH).
  *  PURE : renvoie un nouveau tableau, ne mute rien.

@@ -5,16 +5,16 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ajouterParModale, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * Vidéo : import d'un entretien avec un média VIDÉO (webm) + son
- * SRT → l'écran bascule en MODE VIDÉO (zone média épinglée : lecteur+waveform
- * EMPILÉS à gauche ‖ panneau vidéo à droite, éditeur dessous), la synchro reste
- * calée sur les ancres, le double-espace play/pause agit sur la vidéo, la
- * largeur du panneau se règle par − / + et se MÉMORISE par corpus.
+ *  Vidéo : import d'un entretien avec un média VIDÉO (webm) + son
+ *  SRT → l'écran bascule en MODE VIDÉO (zone média épinglée : lecteur+waveform
+ *  EMPILÉS à gauche ‖ panneau vidéo à droite, éditeur dessous), la synchro reste
+ *  calée sur les ancres, le double-espace play/pause agit sur la vidéo, la
+ *  largeur du panneau se règle par − / + et se MÉMORISE par corpus.
  *
- * Fixture : `TestVideo/seance.webm` (générée avec ffmpeg : VP9+Opus, index Cues
- * présent → seekable) + un SRT produit PAR LE TEST, aligné sur ses 8 s — même
- * esprit que le WAV synthétisé des tests audio. Si le fichier est absent, le
- * test est sauté (pas d'échec de la suite).
+ *  Fixture : `TestVideo/seance.webm` (générée avec ffmpeg : VP9+Opus, index Cues
+ *  présent → seekable) + un SRT produit PAR LE TEST, aligné sur ses 8 s — même
+ *  esprit que le WAV synthétisé des tests audio. Si le fichier est absent, le
+ *  test est sauté (pas d'échec de la suite).
  */
 
 const VIDEO = join(__dirname, '..', 'TestVideo', 'seance.webm')
@@ -74,8 +74,8 @@ test('vidéo : import SRT+webm → mode vidéo (zone média + panneau), synchro,
   }, { srt, webm })
   await ajouterParModale(page, ['texte', 'audio'])
 
-  // L'entretien s'ouvre ; l'écran est en MODE VIDÉO (colonne de gauche pleine
-  // hauteur conservée, zone média vidéo à droite).
+  // L'entretien s'ouvre ; l'écran est en MODE VIDÉO (colonne de gauche pleine hauteur conservée,
+  // zone média vidéo à droite).
   await expect(page.locator('.editeur')).toContainText('Premier bloc vidéo', { timeout: 10_000 })
   await expect(page.locator('.colonne-gauche .onglets')).toBeVisible()
   await expect(page.locator('.zone-media')).toBeVisible()
@@ -130,9 +130,10 @@ test('vidéo : import SRT+webm → mode vidéo (zone média + panneau), synchro,
   await expect.poll(() => largeurPanneau(page)).toBeLessThan(w1)
   await expect.poll(() => largeurPanneau(page)).toBe(w0)
 
-  // --- Ouvrir/fermer la vue vidéo (bouton sous la waveform) : à la fermeture
-  // le panneau disparaît (le lecteur prend la largeur), l'élément vidéo reste
-  // monté ; à la réouverture il est toujours là. L'audio, lui, ne s'arrête pas.
+  // --- Ouvrir/fermer la vue vidéo (bouton sous la waveform) :
+  // à la fermeture, le panneau disparaît (le lecteur prend la largeur),
+  // l'élément vidéo reste monté ; à la réouverture, il est toujours là.
+  // L'audio, lui, ne s'arrête pas.
   const boutonToggle = page.locator('.video-toggle')
   await boutonToggle.click()
   await expect(page.locator('.panneau-video')).toBeHidden()

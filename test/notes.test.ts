@@ -286,8 +286,8 @@ describe('surlignerHtml — surbrillance de la recherche', () => {
     expect(s).toBe('<mark>passage</mark> et em <em><span class="surbrillance-note">li</span>é</em>')
   })
   test('jamais de correspondance dans un attribut ou un nom de balise', () => {
-    // « em » apparaît dans le nom de balise et dans l'id de lien, mais seul
-    //  le TEXTE (débute par « em ») est surligné.
+    // « em » apparaît dans le nom de balise et dans l'id de lien ; seul le
+    //  TEXTE (débute par « em ») est surligné.
     const s = surlignerHtml(`<em ${ATTR_LIENS_NOTE}="a-em">empêché</em>`, 'em', doc())
     expect(s).toBe(`<em ${ATTR_LIENS_NOTE}="a-em"><span class="surbrillance-note">em</span>pêché</em>`)
   })

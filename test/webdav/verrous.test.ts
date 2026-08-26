@@ -1,7 +1,7 @@
 /**
- * Tests de la couche VERROU contre le serveur WebDAV
- * embarqué : test-and-set atomique, battement/preuve de vie, détection de
- * forçage, péremption (horloges décalées), forçage concurrent.
+ *  Tests de la couche VERROU contre le serveur WebDAV
+ *  embarqué : test-and-set atomique, battement/preuve de vie, détection de
+ *  forçage, péremption (horloges décalées), forçage concurrent.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -184,8 +184,8 @@ describe('Régression — acquérir → battre → libérer (leçon du contrat r
     const b = await p.battre(CHEMIN)
     expect(b.ok).toBe(true)
     await p.liberer(CHEMIN)
-    // Sans mise à jour de la garde au battement, le DELETE échouait en 412
-    // (avalé par l'idempotence) et le verrou restait posé pour toujours.
+    // Sans mise à jour de la garde au battement, le DELETE échouait en 412 (avalé par l'idempotence),
+    // et le verrou restait posé pour toujours.
     await expect(p.etat(CHEMIN)).resolves.toBeNull()
   })
 })

@@ -1,14 +1,14 @@
 /**
- * Client WebDAV minimal — zéro dépendance lourde (fetch Node, présent dans le
- * main process Electron ≥ 28). Périmètre strict :
+ *  Client WebDAV minimal — zéro dépendance lourde (fetch Node, présent dans
+ *  le main process Electron ≥ 28). Périmètre strict :
  *   PROPFIND / GET / PUT / DELETE / MOVE + préconditions (`If-Match`,
  *   `If-None-Match: *`) — rien de plus. Toute la couche miroir et les sondes
  *   passent par ici ; le renderer ne voit jamais cet objet (le domaine ignore
  *   le backend).
  *
- * L'implémentation de `fetch` est INJECTABLE : les tests branchent un serveur
- * WebDAV embarqué (ou un double) sans connaître l'identité du backend
- * (banc de conformité).
+ *  L'implémentation de `fetch` est INJECTABLE : les tests branchent un serveur
+ *  WebDAV embarqué (ou un double) sans connaître l'identité du backend
+ *  (banc de conformité).
  */
 
 import {
@@ -22,11 +22,12 @@ import {
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-/** Callback de progression d'un transfert binaire (B3) : octets cumulés et
- *  total connu (null sinon). Appelé au plus toutes les ~100 ms + à la fin. */
+/** Callback de progression d'un transfert binaire (B3) :
+ *  octets cumulés et total connu (null sinon), appelé au plus toutes les
+ *  ~100 ms, puis à la fin. */
 export type SurProgression = (octets: number, total: number | null) => void
 
-/** Transform qui compte les octets traversants et signale la progression
+/** Transform qui compte les octets traversants et signale la progression,
  *  sans ralentir le pipe (throttle temporel — les chunks peuvent être nombreux). */
 function compteurProgression(surProgression: SurProgression, total: number | null): Transform {
   let cumul = 0
@@ -48,9 +49,9 @@ function compteurProgression(surProgression: SurProgression, total: number | nul
   })
 }
 
-/** Identifiants d'un compte distant. Le mot de passe est un MOT DE PASSE
- *  D'APPLICATION Nextcloud (jamais le principal : seul accepté en Basic auth
- *  quand la 2FA est active). */
+/** Identifiants d'un compte distant ;
+ *  le mot de passe est un mot de passe d'application Nextcloud, jamais le
+ *  principal (seul accepté en Basic auth quand la 2FA est active). */
 export interface Identifiants {
   utilisateur: string
   motDePasse: string
@@ -59,8 +60,9 @@ export interface Identifiants {
 /** Configuration d'un client : racine DAV du corpus (ex.
  *  `https://nuage.exemple.org/remote.php/dav/files/max/MonCorpus`). */
 export interface ConfigWebDAV {
-  /** URL de base, SANS barre finale. Tous les chemins passés aux méthodes sont
-   *  RELATIFS à cette racine (« corpus.json », « entretiens/e1.json »…). */
+  /** URL de base, SANS barre finale ;
+   *  tous les chemins passés aux méthodes sont RELATIFS à cette racine
+   *  (« corpus.json », « entretiens/e1.json »…). */
   baseUrl: string
   identifiants: Identifiants
 }
@@ -71,15 +73,15 @@ export interface EntreePropfind {
   chemin: string // relatif à la racine du corpus, sans barre initiale
   etag: string | null // null = le serveur n'expose pas d'ETag (anomalie signalable)
   dossier: boolean
-  /** Taille en octets (`getcontentlength`) — undefined si absente (dossier ou
-   *  serveur avare). Sert à la progression des transferts
-   *  (voir `compteurProgression`). */
+  /** Taille en octets (`getcontentlength`) ;
+   *  undefined si absente (dossier ou serveur avare) ;
+   *  sert à la progression des transferts (voir `compteurProgression`). */
   taille?: number
 }
 
-/** Erreur HTTP typée par statut : les décisions du protocole (412 = verrou
- *  contourné / test-and-set perdu, 423 = tenu, 404 = absent…) portent sur CE
- *  nombre, jamais sur un message. */
+/** Erreur HTTP typée par statut ;
+ *  les décisions du protocole (412 = verrou contourné / test-and-set perdu,
+ *  423 = tenu, 404 = absent…) portent sur CE nombre, jamais sur un message. */
 export class ErreurHttp extends Error {
   constructor(
     public readonly statut: number,
@@ -90,8 +92,8 @@ export class ErreurHttp extends Error {
   }
 }
 
-/** Options de PUT conditionnel : exactement les deux préconditions du
- *  protocole (test-and-set à la création et garde de publication). */
+/** Options de PUT conditionnel : exactement les deux préconditions du protocole,
+ *  test-and-set à la création et garde de publication. */
 export interface OptionsPut {
   ifMatch?: string // garde de publication : publier SEUL si la version serveur est celle-ci
   ifNoneMatch?: '*' // test-and-set : ne créer que si la ressource N'EXISTE pas
@@ -100,8 +102,8 @@ export interface OptionsPut {
 
 export type ImplementationFetch = typeof fetch
 
-/** État du verrou NATIF d'un fichier (props files_lock) — la forme
- *  brute du serveur ; le provider la traduit en `ContenuVerrou`. */
+/** État du verrou NATIF d'un fichier (props files_lock) ;
+ *  c'est la forme brute du serveur, le provider la traduit en `ContenuVerrou`. */
 export interface EtatVerrouNatif {
   verrouille: boolean
   /** Identifiant Nextcloud du détenteur ('' si libre). */
@@ -113,16 +115,16 @@ export interface EtatVerrouNatif {
   timeout: number | null
 }
 
-/** En-tête d'authentification Basic (seule forme acceptée en WebDAV quand la
- *  2FA est active, avec un mot de passe d'application). */
+/** En-tête d'authentification Basic : seule forme acceptée en WebDAV,
+ *  quand la 2FA est active, avec un mot de passe d'application. */
 function enteteAuth(identifiants: Identifiants): string {
   return 'Basic ' + Buffer.from(`${identifiants.utilisateur}:${identifiants.motDePasse}`).toString('base64')
 }
 
 export class ClientWebDAV {
   constructor(
-    /** Public en lecture : les sondes remontent l'URL racine du site pour
-     *  interroger les capabilities, sans dupliquer la config. */
+    /** Public en lecture : les sondes remontent l'URL racine du site,
+     *  pour interroger les capabilities sans dupliquer la config. */
     public readonly config: ConfigWebDAV,
     private readonly faireRequete: ImplementationFetch = fetch,
   ) {}
@@ -179,9 +181,9 @@ export class ClientWebDAV {
       statutsOk: [207],
     })
     const xml = await reponse.text()
-    // Les `href` du multistatus sont des chemins SERVEUR absolus ; on les
-    // relativise contre le chemin de la collection interrogée (baseUrl +
-    // dossier), décodés tous les deux pour une comparaison stable.
+    // Les `href` du multistatus sont des chemins SERVEUR absolus ;
+    // on les relativise contre le chemin de la collection interrogée (baseUrl + dossier),
+    // décodés tous les deux pour une comparaison stable.
     const cheminRacine = decodeURIComponent(new URL(this.config.baseUrl).pathname).replace(
       /^\/+|\/+$/g,
       '',
@@ -189,8 +191,8 @@ export class ClientWebDAV {
     const cible = [cheminRacine, dossierRelatif].filter(Boolean).join('/')
     return analyserMultistatus(xml)
       .filter((e) => e.chemin === cible || e.chemin.startsWith(`${cible}/`))
-      // La collection interrogée elle-même est exclue : seules ses entrées
-      // enfants reviennent, en chemins RELATIFS à la racine du corpus.
+      // La collection interrogée elle-même est exclue ;
+      // seules ses entrées enfants reviennent, en chemins relatifs à la racine du corpus.
       .filter((e) => e.chemin !== cible)
       .map((e) => ({ ...e, chemin: e.chemin.slice(cible.length + 1) }))
       .sort((a, b) => (a.chemin < b.chemin ? -1 : 1))
@@ -203,8 +205,8 @@ export class ClientWebDAV {
     return reponse.text()
   }
 
-  /** GET d'un fichier binaire EN MÉMOIRE (réservé aux petits fichiers ; les
-   *  gros passent par `getBinaireFichier`, streamé vers le disque). */
+  /** GET d'un fichier binaire EN MÉMOIRE (réservé aux petits fichiers ;
+   *  les gros passent par `getBinaireFichier`, streamé vers le disque). */
   async getBinaire(chemin: string): Promise<Uint8Array> {
     const reponse = await this.requete('GET', chemin)
     return new Uint8Array(await reponse.arrayBuffer())
@@ -222,8 +224,8 @@ export class ClientWebDAV {
   ): Promise<void> {
     const reponse = await this.requete('GET', chemin)
     if (!reponse.body) throw new ErreurHttp(0, `GET ${chemin} → corps vide`)
-    // Total si le serveur l'expose (Nextcloud le fait) — sinon progression
-    // indéterminée : l'UI affiche les octets seuls.
+    // Total si le serveur l'expose (Nextcloud le fait) ;
+    // sinon progression indéterminée : l'UI affiche les octets seuls.
     const tailleBrute = Number(reponse.headers.get('content-length') ?? '')
     const total = Number.isFinite(tailleBrute) && tailleBrute > 0 ? tailleBrute : null
     const tmp = `${destination}.tmp`
@@ -241,9 +243,10 @@ export class ClientWebDAV {
     }
   }
 
-  /** PUT avec préconditions optionnelles. Renvoie l'ETag de la nouvelle
-   *  version si le serveur en expose un (Nextcloud le fait sur les PUT),
-   *  sinon null — l'appelant doit alors re-PROPFIND. */
+  /** PUT avec préconditions optionnelles.
+   *  Renvoie l'ETag de la nouvelle version si le serveur en expose un
+   *  (Nextcloud le fait sur les PUT), sinon null — l'appelant doit alors
+   *  re-PROPFIND. */
   async putTexte(chemin: string, contenu: string, options: OptionsPut = {}): Promise<string | null> {
     const entetes: Record<string, string> = {}
     if (options.ifMatch) entetes['If-Match'] = `"${retirerGuillemets(options.ifMatch)}"`
@@ -275,8 +278,8 @@ export class ClientWebDAV {
     return etag ? retirerGuillemets(etag) : null
   }
 
-  /** PUT d'un fichier LOCAL lu EN FLUX : miroir de `getBinaireFichier` — le
-   *  fichier source est pipé vers le corps HTTP par chunks, jamais chargé en
+  /** PUT d'un fichier LOCAL lu EN FLUX : miroir de `getBinaireFichier` ;
+   *  le fichier source est pipé vers le corps HTTP par chunks, jamais chargé en
    *  mémoire entière (téléversement de vidéos). Mêmes préconditions et même
    *  contrat de retour que `putBinaire`. */
   async putFichier(
@@ -303,9 +306,9 @@ export class ClientWebDAV {
     ) as unknown as BodyInit
     const reponse = await this.requete('PUT', chemin, {
       entetes,
-      // Readable Node → ReadableStream web ; `duplex: 'half'` est exigé par
-      // fetch quand le corps est un flux (le client écrit sans lire la réponse
-      // en même temps).
+      // Readable Node → ReadableStream web ;
+      // `duplex: 'half'` est exigé par fetch quand le corps est un flux,
+      // le client écrivant sans lire la réponse en même temps.
       corps,
       duplex: 'half',
     })
@@ -320,8 +323,8 @@ export class ClientWebDAV {
     await this.requete('DELETE', chemin, { entetes })
   }
 
-  /** MOVE vers une destination RELATIVE à la même racine (ex. mise à la
-   *  corbeille : `MOVE entretiens/<id>.json → corbeille/<id>.json`, atomique). */
+  /** MOVE vers une destination RELATIVE à la même racine (ex. mise à la corbeille :
+   *  `MOVE entretiens/<id>.json → corbeille/<id>.json`, atomique). */
   async deplacer(source: string, destination: string, ecraser = false): Promise<void> {
     await this.requete('MOVE', source, {
       entetes: {
@@ -332,9 +335,9 @@ export class ClientWebDAV {
     })
   }
 
-  /** MKCOL (création de dossier) — sert à l'amorce distante du corpus et au
-   *  dossier `verrous/`. 405 (existe déjà) est toléré : l'appel crée ce dont
-   *  il a besoin sans vérifier avant. */
+  /** MKCOL (création de dossier) — sert à l'amorce distante du corpus,
+   *  et au dossier `verrous/`. 405 (existe déjà) est toléré : l'appel crée ce
+   *  dont il a besoin sans vérifier avant. */
   async creerDossier(chemin: string): Promise<void> {
     try {
       await this.requete('MKCOL', chemin, { statutsOk: [201] })
@@ -368,8 +371,8 @@ export class ClientWebDAV {
     })
   }
 
-  /** UNLOCK du verrou de L'UTILISATEUR authentifié (pas besoin de token avec
-   *  X-User-Lock — vérifié réel). Tolérant : 412 (pas verrouillé) est ok. */
+  /** UNLOCK du verrou de L'UTILISATEUR authentifié (pas besoin de token avec X-User-Lock,
+   *  vérifié réel). Tolérant : 412 (pas verrouillé) est ok. */
   async deverrouiller(chemin: string): Promise<void> {
     await this.requete('UNLOCK', chemin, {
       entetes: { 'X-User-Lock': '1' },
@@ -377,15 +380,16 @@ export class ClientWebDAV {
     })
   }
 
-  /** MKCOL : crée une COLLECTION (dossier). Un PUT WebDAV ne crée jamais les
-   *  parents (409 Conflict sur serveur réel) — les dossiers techniques
-   *  (`presence/`…) doivent être créés explicitement. 405 = existe déjà. */
+  /** MKCOL : crée une COLLECTION (dossier).
+   *  Un PUT WebDAV ne crée jamais les parents (409 Conflict sur serveur réel) —
+   *  les dossiers techniques (`presence/`…) doivent être créés explicitement.
+   *  405 = existe déjà. */
   async mkcol(cheminRelatif: string): Promise<void> {
     await this.requete('MKCOL', cheminRelatif, { statutsOk: [201, 405] })
   }
 
-  /** État du verrou natif d'une ressource, observé par PROPFIND Depth:0
-   *  (propriétés ns `http://nextcloud.org/ns`). null = libre/absent. */
+  /** État du verrou natif d'une ressource, observé par PROPFIND Depth:0 ;
+   *  propriétés ns `http://nextcloud.org/ns`. null = libre/absent. */
   async etatVerrouNatif(chemin: string): Promise<EtatVerrouNatif | null> {
     const corps = `<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
@@ -412,10 +416,10 @@ export class ClientWebDAV {
     return analyserEtatVerrouNatif(xml)
   }
 
-  /** État verrou natif de TOUT UN DOSSIER (Depth:1) — matière des badges en
-   *  variante A : une seule requête pour tous les entretiens. Retourne un
-   *  chemin relatif → état (les fichiers libres ne figurent PAS dans la
-   *  carte). Les entrées dossiers sont exclues.
+  /** État verrou natif de TOUT UN DOSSIER (Depth:1) ;
+   *  matière des badges en variante A : une seule requête pour tous les
+   *  entretiens. Retourne un chemin relatif → état, les fichiers libres ne
+   *  figurent PAS dans la carte. Les entrées dossiers sont exclues.
    */
   async etatsVerrouxDossier(dossierRelatif: string): Promise<Record<string, EtatVerrouNatif>> {
     const corps = `<?xml version="1.0" encoding="utf-8"?>
@@ -434,8 +438,8 @@ export class ClientWebDAV {
       statutsOk: [207],
     })
     const xml = await reponse.text()
-    // Même relativisation que `propfind` : hrefs absolus → chemins relatifs à
-    // la racine du corpus.
+    // Même relativisation que `propfind` : hrefs absolus → chemins relatifs,
+    // alignés sur la racine du corpus.
     const cheminRacine = decodeURIComponent(new URL(this.config.baseUrl).pathname).replace(
       /^\/+|\/+$/g,
       '',
@@ -456,9 +460,10 @@ export class ClientWebDAV {
   }
 }
 
-/** Normalise un ETag : Nextcloud (comme beaucoup de serveurs) encadre la valeur
- *  de guillemets doubles dans les en-têtes ; les comparaisons de manifeste
- *  exigent une forme canonique sans guillemets. */
+/** Normalise un ETag ;
+ *  Nextcloud (comme beaucoup de serveurs) encadre la valeur entre guillemets
+ *  doubles dans les en-têtes ; les comparaisons de manifeste exigent une forme
+ *  canonique sans guillemets. */
 export function retirerGuillemets(etag: string): string {
   return etag.replace(/^"|"$/g, '')
 }
@@ -483,8 +488,8 @@ function decoderXml(s: string): string {
     .replace(/&amp;/g, '&')
 }
 
-/** Extrait la valeur textuelle de la première balise dont le nom local vaut
- *  `nomLocal`, quel que soit le préfixe d'espace de noms. */
+/** Extrait la valeur textuelle de la première balise dont le nom local vaut `nomLocal`,
+ *  quel que soit le préfixe d'espace de noms. */
 function valeurBalise(bloc: string, nomLocal: string): string | null {
   const re = new RegExp(`<[^>]*:?${nomLocal}(?:\\s[^>]*)?>([\\s\\S]*?)</[^>]*:?${nomLocal}`, 'i')
   const m = re.exec(bloc)
@@ -501,8 +506,9 @@ export function analyserMultistatus(xml: string): EntreePropfind[] {
     const hrefBrut = valeurBalise(bloc, 'href')
     if (hrefBrut === null) continue
     // Le href est URL-encodé et ABSOLU (path) chez la plupart des serveurs ;
-    // on ne garde que le dernier segment de chemin utile : la comparaison se
-    // fait par suffixe contre la racine connue de l'appelant (voir plus bas).
+    // on ne garde que le dernier segment de chemin utile,
+    // la comparaison se faisant par suffixe contre la racine connue de l'appelant,
+    // comme détaillé plus bas.
     let chemin = decodeURIComponent(hrefBrut.split('?')[0])
     chemin = chemin.replace(/\/+$/, '') // collections avec barre finale
     chemin = chemin.replace(/^\//, '')
@@ -520,15 +526,17 @@ export function analyserMultistatus(xml: string): EntreePropfind[] {
   return sorties
 }
 
-/** Analyse l'état verrou natif d'un PROPFIND files_lock. Le mini-parseur suit
- *  la même discipline que `analyserMultistatus` : on cherche les éléments par
- *  nom LOCAL (n'importe quel préfixe), tolérant aux attributs d'espace de noms
- *  et à la mise en forme du serveur. Absence/videsse de `<nc:lock>` = libre. */
+/** Analyse l'état verrou natif d'un PROPFIND files_lock.
+ *  Le mini-parseur suit la même discipline que `analyserMultistatus` : on
+ *  cherche les éléments par nom LOCAL (n'importe quel préfixe), tolérant aux
+ *  attributs d'espace de noms et à la mise en forme du serveur.
+ *  Absence/videsse de `<nc:lock>` = libre. */
 export function analyserEtatVerrouNatif(xml: string): EtatVerrouNatif | null {
-  // PAS de garde « multistatus » ici : la fonction est appelée soit sur le
-  // document complet (etatVerrouNatif), soit PAR BLOC <d:response>
-  // (etatsVerrouxDossier) — un bloc ne porte pas la balise racine. Une erreur
-  // sabre (<d:error>) ne contient de toute façon aucun élément lock →
+  // PAS de garde « multistatus » ici.
+  // La fonction est appelée soit sur le document complet (etatVerrouNatif),
+  // soit PAR BLOC <d:response> (etatsVerrouxDossier) ;
+  // un bloc ne porte pas la balise racine, et une erreur sabre (<d:error>)
+  // ne contient aucun élément lock.
   // verrouille=false → null, ce qui rend le garde redondant.
   const texteDe = (local: string): string | null => {
     const m = new RegExp(`<[^>]*:?${local}(?:\\s[^>]*)?>([^<]*)<`, 'i').exec(xml)

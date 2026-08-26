@@ -5,11 +5,11 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ajouterParModale, selectionner, coderTheme, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * Audio : import « un geste » (SRT + audio ensemble), copie dans le corpus
- * (un dossier = un corpus), forme d'onde dérivée (PNG), lecteur en haut, synchro (plage lue
- * surligné), seek par clic-tour (gouttière) et par clic sur la bande. Fixtures
- * SYNTHÉTISÉES : un WAV PCM de 4 s (décodable par Chromium) + un SRT à 3 cues
- * alignés dessus.
+ *  Audio : import « un geste » (SRT + audio ensemble), copie dans le corpus
+ *  (un dossier = un corpus), forme d'onde dérivée (PNG), lecteur en haut, synchro (plage lue
+ *  surligné), seek par clic-tour (gouttière) et par clic sur la bande. Fixtures
+ *  SYNTHÉTISÉES : un WAV PCM de 4 s (décodable par Chromium) + un SRT à 3 cues
+ *  alignés dessus.
  */
 
 const SRT = `1

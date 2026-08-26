@@ -3,13 +3,13 @@ import { ref, onMounted, nextTick, computed } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Fenêtre d'ÉDITION des variables (parité SonalPi : « Ajouter/modifier une
- * variable » — le crayon ouvre une modale, la Table de données reste une grille
- * de SAISIE plein écran). On y définit la STRUCTURE de la base :
+ * Fenêtre d'ÉDITION des variables : « Ajouter/modifier une variable » — le
+ * crayon ouvre une modale, la Table de données reste une grille de SAISIE plein
+ * écran. On y définit la STRUCTURE de la base :
  *  - portée (entretien / locuteur) — fixée à la création : la VALEUR vit chez
  *    son propriétaire (meta.valeursGen ou Locuteur.valeursLoc), en changer
  *    orphelinerait les valeurs posées ;
- *  - statut publique/privée (SonalPi : privée = exclue des exports) ;
+ *  - statut publique/privée (privée = exclue des exports) ;
  *  - modalités (le dictionnaire), à la main, via un MODÈLE pré-rempli (intégré
  *    ou importé — « Mes modèles »), ou par export/import d'un fichier JSON.
  */
@@ -31,9 +31,9 @@ const {
   supprimerModalite,
 } = utiliserSonal()
 
-/** Modèles de modalités pré-remplies INTÉGRÉS — listes SonalPi
- *  (gestion_data.js). Les modèles IMPORTÉS vivent à part (`modelesUtilisateur`,
- *  registre du profil) et sont proposés dans le même sélecteur. */
+/** Modèles de modalités pré-remplies INTÉGRÉS. Les modèles IMPORTÉS vivent à
+ *  part (`modelesUtilisateur`, registre du profil) et sont proposés dans le
+ *  même sélecteur. */
 const MODELES: { cle: string; nom: string; libs: string[] }[] = [
   { cle: 'sexe', nom: 'Sexe', libs: ['Homme', 'Femme', 'Autre'] },
   {
@@ -110,7 +110,7 @@ function appliquerModele(idVar: string, evt: Event) {
 
 /** Modèles proposés au sélecteur : les INTÉGRÉS et les IMPORTÉS (registre du
  *  profil) normalisés sur le même gabarit — les importés portent une clé
- *  `user:…` (distincte des clés intégrées, jamais de collision). */
+ *  `user:…` (jamais de collision avec les clés intégrées). */
 const modelesTous = computed(() => [
   ...MODELES.map((m) => ({ cle: m.cle, nom: m.nom, libs: m.libs, perso: false })),
   ...modelesUtilisateur.value.map((m) => ({
@@ -383,7 +383,7 @@ onMounted(() => {
   font-size: 0.82rem;
   text-overflow: ellipsis;
 }
-/* Statut publique/privée (SonalPi) : bascule à deux états. */
+/* Statut publique/privée : bascule à deux états. */
 .statut {
   flex: none;
   border: 1px solid #ccc;
@@ -407,8 +407,8 @@ onMounted(() => {
   color: #999;
   font-style: italic;
 }
-/* Modalités en LIGNES (code d'export + libellé), comme le dictionnaire SonalPi —
-   les libellés longs (PCS…) ont la place, contrairement à des puces. */
+/* Modalités en LIGNES (code d'export + libellé) : les libellés longs (PCS…)
+   ont la place, contrairement à des puces. */
 .liste-mod {
   list-style: none;
   margin: 0.35rem 0 0;

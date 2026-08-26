@@ -4,7 +4,7 @@ import { utiliserSonal } from '../composables/sonal'
 import type { CompteDistantPublic, ProfilCapacites } from '../../shared/distant'
 
 /**
- * Modale « Ouvrir un corpus distant » — deux volets :
+ *  Modale « Ouvrir un corpus distant » — deux volets :
  *  1. les comptes déjà configurés : ouvrir (tire le miroir) ou oublier (le
  *     miroir local n'est jamais effacé) ;
  *  2. la connexion : URL DAV du corpus + login + mot de passe d'application

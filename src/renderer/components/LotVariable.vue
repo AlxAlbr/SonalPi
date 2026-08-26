@@ -4,13 +4,13 @@ import { utiliserSonal } from '../composables/sonal'
 import type { ItemLotValeur } from '../../shared/format'
 
 /**
- * Modale « Modifier en lot » : pour UNE variable
- * de portée ENTRETIEN, choisir UNE valeur et l'appliquer à tous les entretiens.
- * Côté main, un verrou court par entretien tranche au moment de l'exécution :
- * tout refus ponctuel (entretien ouvert entre-temps par autrui, divergence…)
- * revient NOMMÉMENT dans le récapitulatif, sans jamais bloquer les autres
- * entretiens du lot. Les badges 🔒/👁 de la liste sont purement informatifs —
- * la décision reste celle du serveur (la présence 👁 n'est jamais décisionnelle).
+ *  Modale « Modifier en lot » : pour UNE variable
+ *  de portée ENTRETIEN, choisir UNE valeur et l'appliquer à tous les entretiens.
+ *  Côté main, un verrou court par entretien tranche au moment de l'exécution :
+ *  tout refus ponctuel (entretien ouvert entre-temps par autrui, divergence…)
+ *  revient NOMMÉMENT dans le récapitulatif, sans jamais bloquer les autres
+ *  entretiens du lot. Les badges 🔒/👁 de la liste sont purement informatifs —
+ *  la décision reste celle du serveur (la présence 👁 n'est jamais décisionnelle).
  */
 const props = defineProps<{ idVar: string }>()
 const emit = defineEmits<{ fermer: [] }>()
@@ -30,8 +30,8 @@ const {
 const variable = computed(() => variables.value.find((v) => v.id === props.idVar))
 
 // Choix de LA valeur appliquée à tout le lot — même idiome que les cellules :
-// select des modalités + « autre… » qui bascule en champ texte. « — » = effacer
-// (poser '' supprime la valeur chez le propriétaire).
+// select des modalités + « autre… » qui bascule en champ texte.
+// « — » = effacer (poser '' supprime la valeur chez le propriétaire).
 const AUTRE = ' autre' // sentinelle : ne peut pas être un id de modalité
 const choix = ref('')
 const libre = ref(false)
@@ -47,17 +47,16 @@ function surSelect(evt: Event) {
   }
 }
 
-/** Les cibles = TOUS les entretiens du membership ; le tri suit l'ordre du
- *  corpus (membership), comme les lignes de la table. */
+/** Les cibles = TOUS les entretiens du membership ; le tri suit l'ordre du corpus (membership), comme les lignes de la table. */
 const ciblesToutes = computed(() =>
   Object.entries(membership.value).map(([id, ref]) => ({ id, titre: ref.titre })),
 )
 
-/** Filtre « lignes sans valeur » : aide au ciblage 100 % RENDERER
- *  (matrice + badges, zéro protocole) ; la décision reste celle du serveur au
- *  moment de l'exécution, le récap nominatif fait foi. Désactivé par défaut :
- *  tout le membership est ciblé. Les exclus restent AFFICHÉS, grisés avec leur
- *  raison — informatif, jamais caché. */
+/** Filtre « lignes sans valeur » : aide au ciblage 100 % RENDERER (matrice + badges,
+ *  zéro protocole). La décision reste celle du serveur au moment de l'exécution,
+ *  et le récap nominatif fait foi. Désactivé par défaut : tout le membership
+ *  est ciblé. Les exclus restent AFFICHÉS, grisés avec leur raison —
+ *  informatif, jamais caché. */
 const sansValeurSeulement = ref(false)
 const ciblesFiltrees = computed(() => {
   if (!sansValeurSeulement.value)
@@ -84,9 +83,9 @@ async function appliquer() {
   if (occupe.value || recap.value) return
   occupe.value = true
   try {
-    // Saisie libre → trouve-ou-crée la modalité par LIBELLÉ (parité cellules) ;
-    // champ vide = effacer (''). Une erreur IPC (réseau…) remonte à la bannière
-    // globale (erreurs.ts) — le finally rend le bouton.
+    // Saisie libre → trouve-ou-crée la modalité par LIBELLÉ (comme les cellules) ;
+    // champ vide = effacer ('').
+    // Une erreur IPC (réseau…) remonte à la bannière globale (erreurs.ts) : le finally rend le bouton.
     const idMod = libre.value
       ? libelleLibre.value.trim()
         ? await modaliteParLibelle(props.idVar, libelleLibre.value.trim())
@@ -136,8 +135,8 @@ async function appliquer() {
           </select>
         </div>
 
-        <!-- Filtre « lignes sans valeur » : aide au ciblage locale — les
-             exclus restent affichés ci-dessous. -->
+        <!-- Filtre « lignes sans valeur » : aide au ciblage locale ;
+             les exclus restent affichés ci-dessous. -->
         <label class="filtre-sans-valeur">
           <input type="checkbox" v-model="sansValeurSeulement" />
           Seulement les entretiens <strong>sans valeur</strong>

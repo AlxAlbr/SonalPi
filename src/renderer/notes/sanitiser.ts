@@ -1,25 +1,24 @@
 /**
- * Sanitisation du `corps` d'une note : un contenteditable produit de l'HTML
- * arbitraire (frappe, collage), on ne conserve QUE le texte et deux balises de
- * passage : `<mark>` (passage important, rendu en gras) et `<em>` (passage lié
- * à un commentaire, rendu en italique). Le reste est aplati en texte : on ne
- * perd jamais le contenu tapé, mais tout formatage parasite est supprimé. Le
- * résultat est sûr pour un `v-html` (texte échappé, seules ces balises
- * survivent).
+ *  Sanitisation du `corps` d'une note : un contenteditable produit de l'HTML
+ *  arbitraire (frappe, collage), on ne conserve QUE le texte et deux balises de
+ *  passage : `<mark>` (passage important, rendu en gras) et `<em>` (passage lié
+ *  à un commentaire, rendu en italique). Le reste est aplati en texte : on ne
+ *  perd jamais le contenu tapé, mais tout formatage parasite est supprimé. Le
+ *  résultat est sûr pour un `v-html` (texte échappé, seules ces balises
+ *  survivent).
  */
 
 /** Balises de passage autorisées dans un corps de note. */
 const BALISES_PASSAGE = new Set(['mark', 'em'])
 
-/** Attribut d'un passage (`<mark>` ou `<em>`) listant les ids des commentaires
- *  qui lui sont liés (séparés par des espaces). Un lien est une référence
- *  pendante : si le commentaire disparaît, l'id reste porté jusqu'à déliaison
- *  manuelle. */
+/** Attribut d'un passage (`<mark>` ou `<em>`) listant les ids des commentaires liés,
+ *  séparés par des espaces. Un lien est une référence pendante : si le
+ *  commentaire disparaît, l'id reste porté jusqu'à déliaison manuelle. */
 export const ATTR_LIENS_NOTE = 'data-liens'
 
-/** Un id de commentaire liaisible : court, alphanumérique (format des ids
- *  d'annotation). Tout attribut dont une partie ne passe pas ce filtre est
- *  rejeté : jamais de valeur étrangère injectée dans le `v-html`. */
+/** Un id de commentaire liaisible : court, alphanumérique (format des ids d'annotation).
+ *  Tout attribut dont une partie ne passe pas ce filtre est rejeté : jamais de valeur
+ *  étrangère injectée dans le `v-html`. */
 const MOTIF_ID_ANNOTATION = /^[a-zA-Z0-9_-]{1,64}$/
 
 /** Lit les ids de commentaires liés à un passage, validés et dédupliqués. */
@@ -44,17 +43,16 @@ export function echapperTexte(s: string): string {
     .replaceAll('>', '&gt;')
 }
 
-/** Aplatit un sous-arbre DOM en HTML sanitisé : texte échappé + passages
- *  (`<mark>`, `<em>`). Tout autre élément devient son contenu texte (perte du
- *  tag, pas du texte). */
+/** Aplatit un sous-arbre DOM en HTML sanitisé : texte échappé + passages (`<mark>`, `<em>`).
+ *  Tout autre élément devient son contenu texte (perte du tag, pas du texte). */
 function serialiser(noeud: Node, out: string[]): void {
   for (const enfant of Array.from(noeud.childNodes)) {
     if (enfant.nodeType === 3 /* Node.TEXT_NODE */) {
       out.push(echapperTexte(enfant.textContent ?? ''))
     } else if (enfant.nodeType === 1 /* Node.ELEMENT_NODE */) {
       const el = enfant as Element
-      // Références décoratives (spans insérés dans la zone d'édition) : on
-      // les JETTE entièrement — jamais de texte de référence dans le corps.
+      // Références décoratives (spans insérés dans la zone d'édition) :
+      // on les JETTE entièrement — jamais de texte de référence dans le corps.
       if (el.classList.contains(CLASSE_REF_NOTE)) continue
       const balise = el.tagName.toLowerCase()
       if (BALISES_PASSAGE.has(balise)) {
@@ -66,8 +64,8 @@ function serialiser(noeud: Node, out: string[]): void {
       } else {
         // Élément non autorisé : on garde son contenu, on jette le tag.
         serialiser(el, out)
-        // Un <br> ou un <div> de contenteditable marque une coupure de ligne
-        // → on rétablit un saut de ligne pour ne pas coller les blocs.
+        // Un <br> ou un <div> de contenteditable marque une coupure de ligne :
+        // on rétablit un saut de ligne pour ne pas coller les blocs.
         if (el.tagName.toLowerCase() === 'br' || /^div$/i.test(el.tagName)) {
           out.push('\n')
         }
@@ -96,14 +94,12 @@ export function libelleRefCommentaire(auteur: string, texte: string): string {
   return `${qui} : ${debut}`
 }
 
-/** Classe des spans de référence `[auteur : début…]` : présents en affichage
- *  (cartes) ET dans la zone d'édition (non éditables), toujours jetés à la
- *  sauvegarde. */
+/** Classe des spans de référence `[auteur : début…]` : présents en affichage (cartes)
+ *  et dans la zone d'édition (non éditables), toujours jetés à la sauvegarde. */
 export const CLASSE_REF_NOTE = 'ref-note-commentaire'
 
-/** Retire les références dont le lien n'existe plus (passage délié ou
- *  supprimé pendant la frappe). Ne touche à rien sinon : appelable à chaque
- *  saisie sans casser la position du curseur. */
+/** Retire les références dont le lien n'existe plus (passage délié ou supprimé pendant la frappe).
+ *  Ne touche à rien sinon : appelable à chaque saisie sans casser la position du curseur. */
 export function pruneRefsCommentaires(conteneur: Element): void {
   for (const ref of Array.from(conteneur.querySelectorAll(`.${CLASSE_REF_NOTE}`))) {
     const id = ref.getAttribute('data-ref')
@@ -114,11 +110,11 @@ export function pruneRefsCommentaires(conteneur: Element): void {
   }
 }
 
-/** Décore un conteneur VIVANT (copie d'affichage ou contenteditable de la
- *  modale) : reconstruit toutes les références après leur passage lié —
- *  `[alice : début…]`, avec `data-ref` = id du commentaire. Les ids non
- *  résolus (commentaire supprimé) sont ignorés. Les spans sont construits au
- *  DOM (textContent) et posés contenteditable=false dans l'éditeur. */
+/** Décore un conteneur VIVANT (copie d'affichage ou contenteditable de la modale) :
+ *  reconstruit toutes les références après leur passage lié — `[alice : début…]`,
+ *  avec `data-ref` = id du commentaire. Les ids non résolus (commentaire supprimé)
+ *  sont ignorés. Les spans sont construits au DOM (textContent) et posés
+ *  contenteditable=false dans l'éditeur. */
 export function decoreRefsCommentaires(
   conteneur: HTMLElement,
   doc: Document,
@@ -156,8 +152,8 @@ export function corpsAvecRefsCommentaires(
   return conteneur.innerHTML
 }
 
-/** Surligne les occurrences de la requête dans le TEXTE d'un HTML sanitisé
- *  (insensible à la casse) : chaque occurrence est enveloppée d'un
+/** Surligne les occurrences de la requête dans le TEXTE d'un HTML sanitisé,
+ *  insensible à la casse : chaque occurrence est enveloppée d'un
  *  `<span class="surbrillance-note">`, construit au DOM — jamais de
  *  correspondance injectée dans une balise ni un attribut. Renvoie le HTML
  *  inchangé si la requête est vide. */

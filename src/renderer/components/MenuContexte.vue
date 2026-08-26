@@ -2,18 +2,17 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 
 /**
- * Menu contextuel GÉNÉRIQUE de l'éditeur : petit menu flottant positionné à
- * l'événement (clic droit dans l'éditeur). Les sections ne s'affichent QUE si
- * la cible en contient :
+ *  Menu contextuel GÉNÉRIQUE de l'éditeur : petit menu flottant positionné à
+ *  l'événement (clic droit dans l'éditeur). Les sections ne s'affichent QUE si
+ *  la cible en contient :
  *  - occurrence anon → « exception ↔ anonymisé » (+ bascule multi-pseudo) ;
- *  - codages couvrants → un item de retrait PAR thème (sans resélectionner,
- *    parité V1) ;
+ *  - codages couvrants → un item de retrait PAR thème (sans resélectionner) ;
  *  - plage disponible → « Commenter » ; commentaires couvrants → un item
- *    d'édition par commentaire.
+ *  d'édition par commentaire.
  *
- * Une couche transparente plein écran intercepte le clic (gauche OU droit)
- * hors du menu → fermer ; Escape ferme aussi. Le menu est Téléporté à body :
- * aucun conteneur de la grille (colonnes collantes, overflow) ne le rogne.
+ *  Une couche transparente plein écran intercepte le clic (gauche OU droit)
+ *  hors du menu → fermer ; Escape ferme aussi. Le menu est Téléporté à body :
+ *  aucun conteneur de la grille (colonnes collantes, overflow) ne le rogne.
  */
 export interface ItemCodage {
   id: string
@@ -57,9 +56,8 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
 
 <template>
   <Teleport to="body">
-    <!-- Couche plein écran : un clic (ou clic droit) hors du menu ferme. Le
-         menu lui-même stoppe la propagation ('stop') : un clic sur un bouton
-         ne ferme pas AVANT l'action. -->
+    <!-- Couche plein écran : un clic (ou clic droit) hors du menu ferme.
+         Le menu lui-même stoppe la propagation ('stop') : un clic sur un bouton ne ferme pas AVANT l'action. -->
     <div
       class="menu-ctx-couche"
       @mousedown.prevent.stop="emit('fermer')"
@@ -106,7 +104,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           </button>
         </template>
 
-        <!-- Section CODAGES : retirer un thème sans resélectionner (parité V1). -->
+        <!-- Section CODAGES : retirer un thème sans resélectionner. -->
         <button
           v-for="c in codages"
           :key="c.id"

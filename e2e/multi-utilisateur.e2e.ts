@@ -1,60 +1,60 @@
 /**
- * SCÉNARIO VISIBLE à deux postes : DEUX
- * instances Electron réelles (poste MAX et poste OLIVIER) ouvrent le MÊME
- * corpus distant sur la pile Nextcloud Docker (pile A, :8080), et le cycle
- * complet du mode multi-utilisateur se déroule SOUS VOS YEUX :
+ *  SCÉNARIO VISIBLE à deux postes : DEUX
+ *  instances Electron réelles (poste MAX et poste OLIVIER) ouvrent le MÊME
+ *  corpus distant sur la pile Nextcloud Docker (pile A, :8080), et le cycle
+ *  complet du mode multi-utilisateur se déroule SOUS VOS YEUX :
  *
- *   1. chaque poste se connecte au serveur (« Corpus distant… ») et ouvre ;
- *   2. Max ouvre l'entretien (verrou acquis) et tape une phrase ;
- *   3. Olivier actualise : il VOIT le badge 🔒 max et le badge 👁 max
- *      (« ouvert par ») ; il ouvre l'entretien en LECTURE SEULE (bandeau) ;
- *   4. Max retourne au Corpus : publication finale + verrou libéré ;
- *   5. Olivier re-vérifie : plus de badge — il ouvre, édite à son tour,
- *      publie en fermant ;
- *   6. Max re-tire : il lit les DEUX phrases — le travail d'Olivier est là.
+ *  1. chaque poste se connecte au serveur (« Corpus distant… ») et ouvre ;
+ *  2. Max ouvre l'entretien (verrou acquis) et tape une phrase ;
+ *  3. Olivier actualise : il VOIT le badge 🔒 max et le badge 👁 max
+ *  (« ouvert par ») ; il ouvre l'entretien en LECTURE SEULE (bandeau) ;
+ *  4. Max retourne au Corpus : publication finale + verrou libéré ;
+ *  5. Olivier re-vérifie : plus de badge — il ouvre, édite à son tour,
+ *  publie en fermant ;
+ *  6. Max re-tire : il lit les DEUX phrases — le travail d'Olivier est là.
  *
- * Le fichier porte un SECOND scénario (même mécanique de narration) :
- * « démo visible : métadonnées sous verrou ». Max crée une VARIABLE
- * d'entretien (« Ville » / modalité « Lyon ») depuis l'ONGLET DONNÉE de
- * l'Entretien — publié aussitôt par la transaction de définitions.
- * Olivier ouvre la BASE DE DONNÉES (Table de données) au niveau Corpus :
- *   - elle reste ACCESSIBLE et interactive (jamais lecture seule) ;
- *   - la colonne « Ville » y apparaît après Actualiser (définitions partagées) ;
- *   - la LIGNE de l'entretien verrouillé par max est NON ÉDITABLE (garde
- *     par ligne, cellules désactivées) ;
- *   - dès que le verrou change de mains, la MÊME saisie passe (via l'onglet
- *     Donnée de l'Entretien, seul écran où le verrou autorise d'écrire) et la
- *     table la montre au prochain tirage.
+ *  Le fichier porte un SECOND scénario (même mécanique de narration) :
+ *  « démo visible : métadonnées sous verrou ». Max crée une VARIABLE
+ *  d'entretien (« Ville » / modalité « Lyon ») depuis l'ONGLET DONNÉE de
+ *  l'Entretien — publié aussitôt par la transaction de définitions.
+ *  Olivier ouvre la BASE DE DONNÉES (Table de données) au niveau Corpus :
+ *  - elle reste ACCESSIBLE et interactive (jamais lecture seule) ;
+ *  - la colonne « Ville » y apparaît après Actualiser (définitions partagées) ;
+ *  - la LIGNE de l'entretien verrouillé par max est NON ÉDITABLE (garde
+ *  par ligne, cellules désactivées) ;
+ *  - dès que le verrou change de mains, la MÊME saisie passe (via l'onglet
+ *  Donnée de l'Entretien, seul écran où le verrou autorise d'écrire) et la
+ *  table la montre au prochain tirage.
  *
- * MISE EN SCÈNE (mode démo UNIQUEMENT) : chaque fenêtre est NARRÉE par un
- * bandeau en haut d'écran (« Max ouvre le corpus… ») et les deux fenêtres
- * sont placées CÔTE À CÔTE (moitié gauche / moitié droite de l'écran — sinon
- * elles se superposent).
+ *  MISE EN SCÈNE (mode démo UNIQUEMENT) : chaque fenêtre est NARRÉE par un
+ *  bandeau en haut d'écran (« Max ouvre le corpus… ») et les deux fenêtres
+ *  sont placées CÔTE À CÔTE (moitié gauche / moitié droite de l'écran — sinon
+ *  elles se superposent).
  *
- * TROISIÈME scénario : écriture de valeurs SANS
- * session, les deux gestes. Un SECOND entretien est amorcé pour avoir deux
- * lignes cibles. Max ouvre l'entretien 1 (verrou). Olivier lance le LOT sur la
- * colonne « Ville » : l'entretien LIBRE est modifié, celui de max est REFUSÉ
- * nommément (« ouvert par max ») — sans bloquer le reste du lot. Max referme ;
- * Olivier utilise alors le BOUTON LIGNE « Saisir… » : il atterrit sur l'onglet
- * Donnée de CET entretien, saisit sa valeur, publiée à la fermeture.
+ *  TROISIÈME scénario : écriture de valeurs SANS
+ *  session, les deux gestes. Un SECOND entretien est amorcé pour avoir deux
+ *  lignes cibles. Max ouvre l'entretien 1 (verrou). Olivier lance le LOT sur la
+ *  colonne « Ville » : l'entretien LIBRE est modifié, celui de max est REFUSÉ
+ *  nommément (« ouvert par max ») — sans bloquer le reste du lot. Max referme ;
+ *  Olivier utilise alors le BOUTON LIGNE « Saisir… » : il atterrit sur l'onglet
+ *  Donnée de CET entretien, saisit sa valeur, publiée à la fermeture.
  *
- * QUATRIÈME scénario : saisie par CELLULE
- * avec garde PAR LIGNE. Max crée « Ville » puis referme ; Olivier ouvre la
- * table (deux lignes libres, cellules actives). Max REPREND le verrou dans le
- * dos d'Olivier (badges pas encore à jour) : l'édition de la cellule verrouillée
- * est REFUSÉE EN INLINE (bord rouge + raison « ouvert par max ») sans bloquer
- * la suite ; l'autre ligne passe, Shift+Entrée remonte la colonne.
- * Actualiser révèle alors le badge 🔒 et désactive SA ligne (garde par ligne) ;
- * dès que le verrou change de mains, la MÊME cellule accepte la valeur.
+ *  QUATRIÈME scénario : saisie par CELLULE
+ *  avec garde PAR LIGNE. Max crée « Ville » puis referme ; Olivier ouvre la
+ *  table (deux lignes libres, cellules actives). Max REPREND le verrou dans le
+ *  dos d'Olivier (badges pas encore à jour) : l'édition de la cellule verrouillée
+ *  est REFUSÉE EN INLINE (bord rouge + raison « ouvert par max ») sans bloquer
+ *  la suite ; l'autre ligne passe, Shift+Entrée remonte la colonne.
+ *  Actualiser révèle alors le badge 🔒 et désactive SA ligne (garde par ligne) ;
+ *  dès que le verrou change de mains, la MÊME cellule accepte la valeur.
  *
- * DEUX RYTHMES, même scénario et mêmes ASSERTIONS :
- *   - SUITE DE TEST (`npm run test:e2e`) : mode EFFICACE par défaut — pauses
- *     minimales, pas de narration, frappe instantanée (~40 s) ;
- *   - DÉMO (`DEMO_PAUSE_MS=4000 npm run test:multiuser`) : bandeaux de
- *     narration, pauses d'observation, frappe visible — à regarder sans xvfb.
- *   Réglage fin : DEMO_PAUSE_MS=8000 pour un rythme encore plus calme.
- * Skippé si la pile ne répond pas (`npm run nc:up && npm run nc:provision`).
+ *  DEUX RYTHMES, même scénario et mêmes ASSERTIONS :
+ *  - SUITE DE TEST (`npm run test:e2e`) : mode EFFICACE par défaut — pauses
+ *  minimales, pas de narration, frappe instantanée (~40 s) ;
+ *  - DÉMO (`DEMO_PAUSE_MS=4000 npm run test:multiuser`) : bandeaux de
+ *  narration, pauses d'observation, frappe visible — à regarder sans xvfb.
+ *  Réglage fin : DEMO_PAUSE_MS=8000 pour un rythme encore plus calme.
+ *  Skippé si la pile ne répond pas (`npm run nc:up && npm run nc:provision`).
  */
 
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -304,7 +304,7 @@ test('démo visible : deux postes, un verrou, zéro écrasement', async ({ }, te
     await pause(pOli, "Ici, c'est l'écran d'Olivier")
 
     /* 1. Les deux postes se connectent au même serveur, chacun SON compte
-     *    (son chemin DAV propre), et ouvrent le corpus distant. */
+     *  (son chemin DAV propre), et ouvrent le corpus distant. */
     console.log('① Connexion des deux postes…')
     await connecterEtOuvrir(pMax, 'Max', `${BASE}/remote.php/dav/files/max/MonCorpus`, MAX.utilisateur, MAX.motDePasse)
     await connecterEtOuvrir(pOli, 'Olivier', `${BASE}/remote.php/dav/files/olivier/MonCorpus`, OLIVIER.utilisateur, OLIVIER.motDePasse)
@@ -332,16 +332,16 @@ test('démo visible : deux postes, un verrou, zéro écrasement', async ({ }, te
     await pMax.waitForTimeout(PAUSE)
 
     /* 3. Olivier actualise : badges 🔒 (verrou) ET 👁 (présence) visibles ;
-     *    l'ouverture passe en LECTURE SEULE avec bandeau nominatif. */
+     *  l'ouverture passe en LECTURE SEULE avec bandeau nominatif. */
     console.log("③ Olivier voit 🔒 max et 👁 max, puis l'ouvre en lecture seule…")
     await narrer(pOli, 'Olivier clique « Actualiser » pour voir l’état du serveur…')
     await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
     await expect(pOli.locator('.badge-verrou', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
     await expect(pOli.locator('.badge-presence', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
     await pause(pOli, 'Olivier VOIT le verrou 🔒 de max ET sa présence 👁 (« ouvert par »)…')
-    // Écran étroit : le badge du titre peut être tronqué — le CRAYON devient
-    // verrou, l'explication passe au tooltip.
-    await expect(pOli.locator('.carte-ent .crayon').first()).toHaveText('🔒', { timeout: 20_000 })
+    // Écran étroit : le badge du titre peut être tronqué —
+    // le CRAYON devient verrou, l'explication passe au tooltip.
+await expect(pOli.locator('.carte-ent .crayon').first()).toHaveText('🔒', { timeout: 20_000 })
     await narrer(pOli, "Olivier ouvre l'entretien malgré tout…")
     await ouvrirEntretien(pOli)
     await expect(pOli.locator('.banniere-ro')).toContainText('max', { timeout: 20_000 })
@@ -458,8 +458,8 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     }
 
     /* 2. Max ouvre l'entretien (verrou acquis) puis crée une VARIABLE
-     *    D'ENTRETIEN depuis l'onglet Donnée : la transaction de définitions
-     *    publie corpus.json IMMÉDIATEMENT, sans attendre la fermeture. */
+     *  D'ENTRETIEN depuis l'onglet Donnée : la transaction de définitions
+     *  publie corpus.json IMMÉDIATEMENT, sans attendre la fermeture. */
     console.log("② Max crée une variable d'entretien depuis l'onglet Donnée…")
     await pause(pMax, "Max ouvre l'entretien : le VERROU lui est accordé…")
     await ouvrirEntretien(pMax)
@@ -477,9 +477,9 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     const moda = varLi.locator('.lib-mod').first()
     await moda.fill('Lyon')
     await moda.press('Tab') // blur → renommage publié (promesse NON attendue)
-    // Barrières serveur : chaque définition doit être PUBLIÉE avant le geste
-    // suivant, sinon les transactions se disputent le verrou corpus.
-    await attendreDefinitionServeur('"Lyon"')
+    // Barrières serveur : chaque définition doit être PUBLIÉE avant le geste suivant,
+    // sinon les transactions se disputent le verrou corpus.
+await attendreDefinitionServeur('"Lyon"')
     await pMax.locator('.modale-vars .fermer').click()
     await expect(pMax.locator('.modale-vars')).toHaveCount(0)
     // Vérification SERVEUR : les définitions sont déjà partagées (flux B).
@@ -488,8 +488,8 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
       throw new Error('variable « Ville » absente du corpus.json serveur après création')
 
     /* 3. Olivier ouvre la BASE DE DONNÉES : elle reste ACCESSIBLE et
-     *    interactive (jamais lecture seule), la colonne « Ville » est là,
-     *    mais la ligne de l'entretien porte le badge 🔒 max. */
+     *  interactive (jamais lecture seule), la colonne « Ville » est là,
+     *  mais la ligne de l'entretien porte le badge 🔒 max. */
     console.log('③ Olivier ouvre la base de données : colonne là, ligne verrouillée…')
     await narrer(pOli, 'Olivier actualise puis ouvre la base de données (Table de données)…')
     await ouvrirBaseDonnees(pOli)
@@ -499,10 +499,10 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     await expect(pOli.locator('.donnees-ecran .badge-verrou', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
 
     /* 4. La ligne verrouillée est NON ÉDITABLE : garde PAR LIGNE —
-     *    les cellules de la ligne tenue par max sont désactivées,
-     *    impossible même de TENTER l'écriture.
-     *    (Avant la saisie par cellule, la cellule restait active et le refus
-     *     venait du main sous forme de bannière.) */
+     *  les cellules de la ligne tenue par max sont désactivées,
+     *  impossible même de TENTER l'écriture.
+     *  (Avant la saisie par cellule, la cellule restait active et le refus
+     *  venait du main sous forme de bannière.) */
     console.log('④ La ligne verrouillée est désactivée (garde par ligne)…')
     await narrer(pOli, 'La ligne tenue par max est GRISÉE : impossible de la modifier.')
     await expect(pOli.locator('.matrice.editable select').first()).toBeDisabled({ timeout: 20_000 })
@@ -512,9 +512,9 @@ test('démo visible : MÉTADONNÉES sous verrou — variable d’entretien, tabl
     expect(Object.keys(valeursRefus.meta.valeursGen)).toHaveLength(0) // rien n'a pu partir
 
     /* 5. Max referme (verrou rendu) ; Olivier ouvre À SON TOUR : la MÊME
-     *    saisie passe maintenant — depuis l'onglet Donnée de l'Entretien
-     *    (seul écran où le verrou autorise d'écrire), et part à la fermeture
-     *    (publication finale). */
+     *  saisie passe maintenant — depuis l'onglet Donnée de l'Entretien
+     *  (seul écran où le verrou autorise d'écrire), et part à la fermeture
+     *  (publication finale). */
     console.log('⑤ Max referme ; Olivier prend le verrou et saisit la valeur…')
     await narrer(pMax, 'Max referme : publication finale PUIS verrou rendu…')
     await retourAuCorpus(pMax)
@@ -646,8 +646,8 @@ test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis sa
     await pOli.locator('.modale-lot .valider').click() // Fermer
 
     /* Filtre « lignes sans valeur » : à cet
-     * instant ID est sans valeur mais 🔒 max, ID2 porte déjà « Lyon » → le
-     * filtre ne cible RIEN et affiche les 2 exclus avec leur raison. */
+     *  instant ID est sans valeur mais 🔒 max, ID2 porte déjà « Lyon » → le
+     *  filtre ne cible RIEN et affiche les 2 exclus avec leur raison. */
     console.log('   → filtre « sans valeur » : 0 cible (1 verrouillé + 1 déjà valué)')
     await pOli.locator('.matrice th', { hasText: 'Ville' }).locator('.lot-var').click()
     const mf = pOli.locator('.modale-lot')
@@ -730,7 +730,7 @@ test('démo visible : saisie par CELLULE — refus inline nominatif, garde par l
     await retourAuCorpus(pMax)
 
     /* 3. Olivier ouvre la table : deux lignes LIBRES — cellules actives,
-     *    badges absents (son dernier tirage ne connaît aucun verrou). */
+     *  badges absents (son dernier tirage ne connaît aucun verrou). */
     console.log('③ Olivier ouvre la table — deux lignes libres, cellules actives…')
     await ouvrirBaseDonnees(pOli)
     await expect(pOli.locator('.matrice th', { hasText: 'Ville' })).toBeVisible({ timeout: 20_000 })
@@ -755,9 +755,9 @@ test('démo visible : saisie par CELLULE — refus inline nominatif, garde par l
     console.log("⑥ Olivier édite l'autre ligne : succès — Shift+Entrée remonte la colonne…")
     const ligneBis = pOli.locator('.matrice tbody tr', { hasText: 'Entretien bis' })
     await ligneBis.locator('select').selectOption({ label: 'Lyon' })
-    // Le commit part en arrière-plan ; on attend sa trace SERVEUR avant de
-    // naviguer (un re-rendu suit le rafraîchissement de la matrice).
-    await expect
+    // Le commit part en arrière-plan ;
+    // on attend sa trace SERVEUR, avant de naviguer (un re-rendu suit le rafraîchissement de la matrice).
+await expect
       .poll(async () => {
         const t = await clientMax().getTexte(`entretiens/${ID2}.json`)
         return Object.keys(JSON.parse(t!).meta.valeursGen).length
@@ -846,7 +846,7 @@ test('démo visible : PANNEAU MÉTA sous verrou — nom/suppression grisés chez
     await ouvrirEntretien(pMax)
 
     /* 3. Olivier actualise, sélectionne la carte : le panneau méta est
-     *    ENTIEREMENT grisé (nom, boutons audio, suppression) avec l'infobulle nominative. */
+     *  ENTIEREMENT grisé (nom, boutons audio, suppression) avec l'infobulle nominative. */
     console.log("③ Olivier voit le panneau méta en lecture seule (« ouvert par max »)…")
     await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
     await expect(pOli.locator('.badge-verrou', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })

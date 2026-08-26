@@ -4,8 +4,8 @@ import { utiliserSonal } from '../composables/sonal'
 import { mapperDefinitions, mapperTabAnon, mapperParamsAnon, type ApercuCrp, type VerificationDossierMigration } from '../../shared/corpus/migrationCrp'
 
 /**
- * Modale de migration SonalPi V1 → V2.
- * Trois temps, aucun effet de bord avant la validation finale :
+ *  Modale de migration SonalPi V1 → V2.
+ *  Trois temps, aucun effet de bord avant la validation finale :
  *  1. choix du `.crp` (dialogue + lecture + encodage dans le main,
  *     analyse PURE côté shared) → APERÇU (nom, date, nb d'entretiens, thèmes,
  *     variables, règles d'anonymisation) ;
@@ -49,8 +49,8 @@ async function choisirCrp() {
     cheminCrp.value = r.chemin
     apercu.value = r.analyse.apercu
   } catch (e) {
-    // Un échec IPC ne doit pas rester SILENCIEUX (une erreur de préload ou de
-    // main sans handler donne un rejet — l'afficher plutôt que « rien »).
+    // Un échec IPC ne doit pas rester SILENCIEUX (une erreur de préload ou de main sans handler donne un rejet —
+    // l'afficher plutôt que « rien »).
     erreurCrp.value = e instanceof Error ? e.message : 'Échec de la lecture du .crp.'
   }
 }
@@ -87,9 +87,8 @@ async function migrer() {
   enCours.value = true
   erreur.value = null
   try {
-    // Le `.crp` est la source de vérité des définitions — ET de l'anonymisation
-    // corpus (E4) : règles `tabAnon` (thématique → catégorie comprise) et
-    // `paramsAnonCorpus` → `paramsAnon`.
+    // Le `.crp` est la source de vérité des définitions — ET de l'anonymisation corpus (E4) :
+    // règles `tabAnon` (thématique → catégorie comprise) et `paramsAnonCorpus` → `paramsAnon`.
     const { codebook, variables } = mapperDefinitions(apercu.value.raw)
     let n = 0
     const genId = () => `reg-crp-${++n}`

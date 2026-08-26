@@ -1,13 +1,13 @@
 /**
- * Brouillons d'anonymisation — cœur PUR du niveau entretien.
+ *  Brouillons d'anonymisation — cœur PUR du niveau entretien.
  *
- * Un `BrouillonAnon` est une entité saisie (depuis une sélection ou la ligne
- * de saisie du tableau) sans occurrence posée. Ce n'est PAS une règle : il vit
- * à l'entretien, n'est pas partagé au corpus. Validé (Entrée), il est consommé
- * et des `OccurrenceAnon` (annotations `type:'anon'`) sont posées à sa place.
+ *  Un `BrouillonAnon` est une entité saisie (depuis une sélection ou la ligne
+ *  de saisie du tableau) sans occurrence posée. Ce n'est PAS une règle : il vit
+ *  à l'entretien, n'est pas partagé au corpus. Validé (Entrée), il est consommé
+ *  et des `OccurrenceAnon` (annotations `type:'anon'`) sont posées à sa place.
  *
- * Ce module reste pur (pas de DOM, pas de ProseMirror) : la lecture du texte
- * d'une occurrence est injectée par l'appelant, ce qui le rend testable headless.
+ *  Ce module reste pur (pas de DOM, pas de ProseMirror) : la lecture du texte
+ *  d'une occurrence est injectée par l'appelant, ce qui le rend testable headless.
  */
 import type { BrouillonAnon, RegleAnon } from '../../format'
 import { joindrePseudos } from './pseudos'
@@ -142,12 +142,12 @@ export interface OccurrenceAnonProjection {
 }
 
 /**
- * Construit les lignes du tableau : une par entité, fusion brouillons +
- * occurrences. Les occurrences d'une même entité sont groupées (état
- * `entretien`) ; un brouillon sans occurrence devient une ligne `brouillon`.
+ *  Construit les lignes du tableau : une par entité, fusion brouillons +
+ *  occurrences. Les occurrences d'une même entité sont groupées (état
+ *  `entretien`) ; un brouillon sans occurrence devient une ligne `brouillon`.
  *
- * Le texte d'une occurrence est lu via `texteEntre` (injecté) : la fonction
- * reste pure, le doc est l'affaire de l'appelant.
+ *  Le texte d'une occurrence est lu via `texteEntre` (injecté) : la fonction
+ *  reste pure, le doc est l'affaire de l'appelant.
  */
 export function lignesAnonUnifiees(
   brouillons: BrouillonAnon[],

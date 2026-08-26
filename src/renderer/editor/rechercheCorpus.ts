@@ -1,23 +1,23 @@
 import { Node, Schema } from '@tiptap/pm/model'
 
 /**
- * Recherche de texte dans le CORPUS (onglet « Recherche » de la vue Corpus),
- * parité SonalPi `rechercherDansCorpus`. Fonctions PURES (aucun DOM ni disque).
+ *  Recherche de texte dans le CORPUS (onglet « Recherche » de la vue Corpus),
+ *  parité SonalPi `rechercherDansCorpus`. Fonctions PURES (aucun DOM ni disque).
  *
- * Chaque entretien est stocké comme un document ProseMirror (`EntretienFichier.
- * corpsTexte`, schéma gelé `doc › paragraph{loc} › text`). On le parse avec un
- * schéma MINIMAL miroir exact, on parcourt les paragraphes, on cherche la
- * requête (insensible à la casse), et on produit pour chaque occurrence un
- * contexte ±15 mots (le match en gras) et la POSITION ProseMirror du début du
- * match — position directement navigable via `ouvrirAuSegment`/`allerAuTexte`.
+ *  Chaque entretien est stocké comme un document ProseMirror (`EntretienFichier.
+ *  corpsTexte`, schéma gelé `doc › paragraph{loc} › text`). On le parse avec un
+ *  schéma MINIMAL miroir exact, on parcourt les paragraphes, on cherche la
+ *  requête (insensible à la casse), et on produit pour chaque occurrence un
+ *  contexte ±15 mots (le match en gras) et la POSITION ProseMirror du début du
+ *  match — position directement navigable via `ouvrirAuSegment`/`allerAuTexte`.
  */
 
 export interface OccurenceRecherche {
   /** Position ProseMirror du début du match (navigable via allerAuTexte). */
   pos: number
-  /** Position du match sur l'Axe TEXTE, en % [0..100] de la longueur totale
-   *  (frontières de bloc = 0) — même convention que `resumeThematique`, donc
-   *  les marqueurs s'alignent sur le calque thématique des cartes. */
+  /** Position du match sur l'Axe TEXTE, en % [0..100] de la longueur totale,
+   *  les frontières de bloc valant 0 — même convention que `resumeThematique`,
+   *  donc les marqueurs s'alignent sur le calque thématique des cartes. */
   pourcent: number
   /** Contexte AVANT le match (≤ CONTEXTE_MOTS mots). */
   pre: string
@@ -33,8 +33,8 @@ export interface ResultatRecherche {
   occurrences: OccurenceRecherche[]
 }
 
-/** Options de recherche. `motEntier` : le match doit être borné par des
- *  caractères NON-mots des deux côtés — « le » trouve « le », pas « parle ». */
+/** Options de recherche. `motEntier` : le match doit être borné par des caractères NON-mots,
+ *  des deux côtés — « le » trouve « le », pas « parle ». */
 export interface OptionsRecherche {
   motEntier?: boolean
 }
@@ -72,8 +72,8 @@ function decouperMots(texte: string): Mot[] {
 }
 
 /**
- * Cherche `requete` dans un corps de texte ProseMirror. Renvoie les occurrences
- * (contexte + position PM), l'ordre du document. Vide si le doc est illisible.
+ *  Cherche `requete` dans un corps de texte ProseMirror. Renvoie les occurrences
+ *  (contexte + position PM), l'ordre du document. Vide si le doc est illisible.
  */
 export function rechercherDansCorpsTexte(
   corpsTexte: unknown,
@@ -91,9 +91,9 @@ export function rechercherDansCorpsTexte(
     return []
   }
 
-  // Axe caractères : longueurs par paragraphe, total et cumulés. Convention
-  // IDENTIQUE à resumeThematique (frontières de bloc pèsent 0) — les marqueurs
-  // se calent exactement sur le même axe que le résumé thématique des cartes.
+  // Axe caractères : longueurs par paragraphe, total et cumulés.
+  // Convention IDENTIQUE à resumeThematique (frontières de bloc pèsent 0) —
+  // les marqueurs se calent exactement sur l'axe de ce résumé thématique.
   const longueurs: number[] = []
   for (let k = 0; k < doc.childCount; k++) longueurs.push(doc.child(k).textContent.length)
   const total = longueurs.reduce((s, l) => s + l, 0)
@@ -107,14 +107,13 @@ export function rechercherDansCorpsTexte(
     }
   }
 
-  // Frontières de mot requises → le 1ᵉʳ et le dernier caractère du match ne
-  // doivent pas être accolés à un caractère de mot (début/fin de paragraphe ok).
+  // Frontières de mot requises → le 1ᵉʳ et le dernier caractère du match ne doivent pas être accolés à un caractère de mot (début/fin de paragraphe ok).
   const motEntier = !!opts.motEntier
   const dansMot = (c: string | undefined) => !!c && MOT_CHAR.test(c)
 
   const occ: OccurenceRecherche[] = []
-  // Position PM du 1er caractère du paragraphe k : le 1er vaut 1, chaque
-  // paragraphe pèse ensuite 2 + len (open + contenu + close).
+  // Position PM du 1er caractère du paragraphe k :
+  // le 1er vaut 1, chaque paragraphe pèse ensuite 2 + len (open + contenu + close).
   let blockStart = 1
   for (let k = 0; k < doc.childCount; k++) {
     const texte = doc.child(k).textContent

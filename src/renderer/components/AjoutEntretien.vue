@@ -4,18 +4,17 @@ import { utiliserSonal } from '../composables/sonal'
 import { EXT_MEDIA } from '../../shared/media'
 
 /**
- * « + Ajouter un entretien » — LE point d'entrée unique, calqué sur la
- * fenêtre `ajout-entretien.html` de SonalPi : une modale à DEUX zones (fichier
- * d'entretien / fichier son), chacune cliquable (dialogue filtré) ou en
- * glisser-déposer ; Valider actif dès qu'UNE zone est remplie. Texte seul =
- * import ; texte+audio = import + assignation ; audio seul = entretien au texte
- * vide à taper (c'est l'ex-« Ajouter un document », avec le lecteur en plus —
- * pas de création « vierge » sans aucun fichier, décision utilisateur).
+ * « + Ajouter un entretien » — LE point d'entrée unique : une modale à DEUX
+ * zones (fichier d'entretien / fichier son), chacune cliquable (dialogue
+ * filtré) ou en glisser-déposer ; Valider actif dès qu'UNE zone est remplie.
+ * Texte seul = import ; texte+audio = import + assignation ; audio seul =
+ * entretien au texte vide à taper (pas de création « vierge » sans fichier).
  */
 const {
   ajouterEntretien,
   racineSources,
   verifierChargementEtape1,
+  verifierChargementEtape2,
   ouvrirApresImport,
   idDistantCourant,
   creerEntretienVideDistant,
@@ -119,12 +118,19 @@ async function valider() {
   if (enCours.value) return
   // Garde pas-à-pas (étape « Charger un entretien ») : tant que l'étape active
   // n'est pas validée, seuls srt/1Coordinatrice.srt + audio/1Coordinatrice.mp3
-  // sont acceptés — la suite
-  // du parcours (corriger, renommer, coder) est construite sur cet entretien.
-  // Erreurs affichées dans la modale, aucun entretien créé.
+  // sont acceptés — la suite du parcours (notes à chaud, renommer, coder) est
+  // construite sur cet entretien. Erreurs affichées dans la modale, aucun
+  // entretien créé.
   const refus = verifierChargementEtape1(texte.value?.nom ?? null, audioChemin.value)
   if (refus) {
     message.value = refus
+    return
+  }
+  // Garde de l'étape 2 (audio seul, sans SRT) : tant qu'elle n'est pas
+  // validée, la zone texte doit rester vide et l'audio être audio/2RetraiteAnticipee.mp3.
+  const refus2 = verifierChargementEtape2(texte.value?.nom ?? null, audioChemin.value)
+  if (refus2) {
+    message.value = refus2
     return
   }
   enCours.value = true

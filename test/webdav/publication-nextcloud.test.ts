@@ -1,13 +1,13 @@
 /**
- * Banc de conformité de la PUBLICATION contre le Nextcloud DOCKER réel — même
- * discipline que contrat-nextcloud.test.ts : l'abstraction est testée contre un
- * backend qui n'a pas été écrit pour elle.
+ *  Banc de conformité de la PUBLICATION contre le Nextcloud DOCKER réel — même
+ *  discipline que contrat-nextcloud.test.ts : l'abstraction est testée contre un
+ *  backend qui n'a pas été écrit pour elle.
  *
- * SKIPPÉ AUTOMATIQUEMENT si les piles ne répondent pas :
+ *  SKIPPÉ AUTOMATIQUEMENT si les piles ne répondent pas :
  *   npm run nc:up && npm run nc:provision      (pile A : NC31 + files_lock)
  *   npm run nc-b:up && npm run nc-b:provision  (pile B : NC29 sans files_lock)
  *
- * Ce que le serveur mémoire ne peut pas prouver ici :
+ *  Ce que le serveur mémoire ne peut pas prouver ici :
  *   - la chaîne de MKCOL réelle (un MKCOL Nextcloud refuse sans parent → 409,
  *     et les préfixes techniques ne sont pas adressables du tout),
  *   - la garde If-None-Match:* réelle sur un PUT concurrent,

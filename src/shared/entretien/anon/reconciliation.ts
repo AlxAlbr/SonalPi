@@ -1,17 +1,17 @@
 /**
- * RÉCONCILIATION POST-PULL — la projection multi-utilisateur du dialogue de
- * portée (règles corpus vs lignes d'entretien).
+ *  RÉCONCILIATION POST-PULL — la projection multi-utilisateur du dialogue de
+ *  portée (règles corpus vs lignes d'entretien).
  *
- * En V2, une règle ne vit qu'au corpus ; l'entretien porte des brouillons et
- * des occurrences standalone (« portée entretien »). En multi-user, une règle
- * corpus partageant l'entité d'une ligne locale peut APPARAÎTRE PENDANT notre
- * session (un collègue l'a poussée entre deux pulls) : au prochain pull qui
- * ramène un `corpus.json` modifié, on détecte ces divergences de pseudo et on
- * ouvre LE MÊME dialogue qu'à la promotion (« Aligner / Garder les deux ») —
- * jamais de divergence silencieuse.
+ *  En V2, une règle ne vit qu'au corpus ; l'entretien porte des brouillons et
+ *  des occurrences standalone (« portée entretien »). En multi-user, une règle
+ *  corpus partageant l'entité d'une ligne locale peut APPARAÎTRE PENDANT notre
+ *  session (un collègue l'a poussée entre deux pulls) : au prochain pull qui
+ *  ramène un `corpus.json` modifié, on détecte ces divergences de pseudo et on
+ *  ouvre LE MÊME dialogue qu'à la promotion (« Aligner / Garder les deux ») —
+ *  jamais de divergence silencieuse.
  *
- * Fonctions PURES, table de vérité testée : la couche renderer ne fait que
- * projeter ses `LigneAnon` ici et brancher le résultat sur le dialogue.
+ *  Fonctions PURES, table de vérité testée : la couche renderer ne fait que
+ *  projeter ses `LigneAnon` ici et brancher le résultat sur le dialogue.
  */
 
 import type { RegleAnon } from '../../format'
@@ -31,10 +31,10 @@ export interface DivergencePortee {
   reglePseudos: string[]
 }
 
-/** Détecte les lignes locales (brouillon OU occurrences standalone) dont
- *  l'entité est désormais régie par une règle corpus aux pseudos différents.
- *  Les lignes déjà liées au corpus (`etat === 'corpus'`) sont ignorées : elles
- *  ont déjà résolu leur divergence. Ordre déterministe : celui des lignes.
+/** Détecte les lignes locales (brouillon OU occurrences standalone)
+ *  dont l'entité est désormais régie par une règle corpus aux pseudos différents.
+ *  Les lignes déjà liées au corpus (`etat === 'corpus'`) sont ignorées :
+ *  elles ont déjà résolu leur divergence. Ordre déterministe : celui des lignes.
  *
  *  NB : la redondance transitoire (règle présente des deux côtés < TTL)
  *  n'est PAS une divergence — justement parce qu'une ligne déjà liée ne
@@ -64,8 +64,8 @@ export function detecterDivergencesPortee(
   return sorties
 }
 
-/** La règle corpus qui régit cette entité (PARTAGE d'alias : la cle de la
- *  ligne — ou l'un des aliases de son groupe — peut être portée par la règle). */
+/** La règle corpus qui régit cette entité (PARTAGE d'alias : la cle de la ligne —
+ *  ou l'un des aliases de son groupe — peut être portée par la règle). */
 function trouverReglePourEntite(regles: RegleAnon[], cle: string): RegleAnon | undefined {
   const cles = new Set(cle.toLowerCase().split('/'))
   return regles.find((r) =>

@@ -1,12 +1,12 @@
 /**
- * Banc de conformité contre le Nextcloud DOCKER réel (docker/compose.yml) —
- * Invariant du projet : l'abstraction est testée contre un
- * backend qui n'a pas été écrit pour elle.
+ *  Banc de conformité contre le Nextcloud DOCKER réel (docker/compose.yml) —
+ *  Invariant du projet : l'abstraction est testée contre un
+ *  backend qui n'a pas été écrit pour elle.
  *
- * SKIPPÉ AUTOMATIQUEMENT si le conteneur ne répond pas :
+ *  SKIPPÉ AUTOMATIQUEMENT si le conteneur ne répond pas :
  *   npm run nc:up && npm run nc:provision   → puis npm test
  *
- * Ce que ce banc vérifie (et que le serveur mémoire NE PEUT PAS prouver) :
+ *  Ce que ce banc vérifie (et que le serveur mémoire NE PEUT PAS prouver) :
  *   - les préconditions HTTP réelles de Nextcloud (sonde dédiée),
  *   - la détection files_lock par capabilities,
  *   - la forme des PROPFIND/ETags réels (relativisation du client),
@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
 import { profilerServeur } from '../../src/main/webdav/sondes'
-import { MiroirWebDAV } from '../../src/main/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../../src/main/verrous/providerFilesLock'
 
@@ -62,13 +62,12 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     const client = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: MAX })
     const chemin = 'sonde/contrat.tmp'
     await client.creerDossier('sonde')
-    // Auto-réparation : un run interrompu peut laisser le fichier (le PUT
-    // If-None-Match ci-dessous échouerait alors en 412).
+    // Auto-réparation : un run interrompu peut laisser le fichier.
+    // Le PUT If-None-Match ci-dessous échouerait alors en 412.
     await client.supprimer(chemin).catch(() => {})
-    // Corps de TAILLES DIFFÉRENTES : l'ETag Nextcloud dépend de mtime+taille —
-    // deux écritures de même taille DANS LA MÊME SECONDE peuvent produire le
-    // même ETag (collisions observées sur le volume Docker), ce qui ferait
-    // passer le If-Match périmé ci-dessous au lieu du 412 attendu.
+    // Corps de TAILLES DIFFÉRENTES : l'ETag Nextcloud dépend de mtime+taille.
+    // Deux écritures de même taille DANS LA MÊME SECONDE peuvent produire le même ETag (collisions observées sur le volume Docker) ;
+    // ce qui ferait passer le If-Match périmé ci-dessous au lieu du 412 attendu.
     await expect(client.putTexte(chemin, 'v1', { ifNoneMatch: '*' })).resolves.toBeTruthy()
     await expect(client.putTexte(chemin, 'v2-beaucoup-plus-long', { ifNoneMatch: '*' })).rejects.toMatchObject({
       statut: 412,
@@ -76,11 +75,9 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     const etag = (await client.propfind('sonde')).find((e) => e.chemin === 'contrat.tmp')!.etag!
     const nouveau = await client.putTexte(chemin, 'v3-longueur-encore-autre', { ifMatch: etag })
     expect(nouveau).toBeTruthy()
-    // Contrôle d'obsolescence avec délai de grâce : sous charge, le serveur
-    // peut courir devant la VISIBILITÉ du nouvel ETag (cache) — deux PUT
-    // conditionnels consécutifs immédiats ont déjà fait passer un If-Match
-    // périmé au lieu du 412 attendu (flake sur le volume Docker). On ressait
-    // BORNÉ : le contrat (412) doit finir par être honoré.
+    // Contrôle d'obsolescence avec délai de grâce : sous charge, le serveur peut courir devant la VISIBILITÉ du nouvel ETag (cache).
+    // Deux PUT conditionnels consécutifs immédiats ont déjà fait passer un If-Match périmé au lieu du 412 attendu (flake sur le volume Docker).
+    // On ressait BORNÉ : le contrat (412) doit finir par être honoré.
     let refuse = false
     for (let i = 0; i < 20 && !refuse; i++) {
       await new Promise((r) => setTimeout(r, 200))
@@ -115,9 +112,8 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     const client = new ClientWebDAV({ baseUrl: CORPUS_OLIVIER, identifiants: OLIVIER })
     const entrees = await client.propfind('')
     expect(entrees.find((e) => e.chemin === 'corpus.json')).toBeDefined()
-    // Et l'isolation entre comptes est réelle : les identifiants d'olivier
-    // (VALIDES) ne voient pas /max/… → 404, Nextcloud ne révèle pas l'existence
-    // (401 serait réservé à des identifiants invalides — vérifié juste après).
+    // Et l'isolation entre comptes est réelle : les identifiants d'olivier (VALIDES) ne voient pas /max/… → 404.
+    // Nextcloud ne révèle pas l'existence ; 401 serait réservé à des identifiants invalides (vérifié juste après).
     const croise = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: OLIVIER })
     await expect(croise.propfind('')).rejects.toMatchObject({ statut: 404 })
     const faux = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: { utilisateur: 'olivier', motDePasse: 'faux' } })
@@ -125,7 +121,7 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
   })
 })
 
-// Garde : si le conteneur tourne mais n'est pas provisionné, dire pourquoi
+// Garde : si le conteneur tourne mais n'est pas provisionné, dire pourquoi,
 // plutôt que laisser un skip silencieux masquer une config cassée.
 if (serveurPret) {
   describe('Contrat Nextcloud — garde de provisionnement', () => {
@@ -164,7 +160,7 @@ describe.skipIf(!serveurBPret)('Contrat Nextcloud réel — pile B SANS files_lo
   })
 })
 
-// Garde : si une pile tourne mais n'est pas provisionnée, dire pourquoi
+// Garde : si une pile tourne mais n'est pas provisionnée, dire pourquoi,
 // plutôt que laisser un skip silencieux masquer une config cassée.
 if (serveurPret) {
   describe('Contrat Nextcloud — garde de provisionnement (pile A)', () => {
@@ -181,9 +177,9 @@ if (serveurPret) {
 }
 
 // ── Verrous variante B contre les serveurs RÉELS ──────────────────
-// Le protocole à PUT conditionnel doit se comporter IDENTIQUEMENT sur la pile
-// A (avec files_lock) et la pile B (sans) : le verrou conventionnel ne suppose
-// rien du plugin. Chaque describe ci-dessous rejoue le même scénario.
+// Le protocole à PUT conditionnel doit se comporter IDENTIQUEMENT sur la pile A (avec files_lock) et la pile B (sans).
+// Le verrou conventionnel ne suppose rien du plugin.
+// Chaque describe ci-dessous rejoue le même scénario.
 
 async function cycleVerrouComplet(base: string): Promise<void> {
   const client = new ClientWebDAV({
@@ -197,8 +193,8 @@ async function cycleVerrouComplet(base: string): Promise<void> {
   }))
   const chemin = 'verrous/contrat.lock.json'
   await client.creerDossier('verrous')
-  // Auto-nettoyage : un passage antérieur interrompu peut laisser un verrou
-  // (le banc doit être relançable sans intervention manuelle).
+  // Auto-nettoyage : un passage antérieur interrompu peut laisser un verrou.
+  // Le banc doit être relançable sans intervention manuelle.
   try {
     await client.supprimer(chemin)
   } catch {
@@ -238,15 +234,14 @@ describe.skipIf(!serveurBPret)('Verrous variante B — pile B (NC29 sans plugin)
 })
 
 // ── Verrous VARIANTE A (files_lock) contre la pile A RÉELLE ───────
-// Le verrou porte sur LE FICHIER DE DONNÉES lui-même ; le serveur l'impose
-// (PUT d'un tiers → 423) et l'expose aux PROPFIND (props nc:). C'est ce que
-// seul le vrai Nextcloud peut prouver.
+// Le verrou porte sur LE FICHIER DE DONNÉES lui-même. Le serveur l'impose (PUT d'un tiers → 423) et l'expose aux PROPFIND (props nc:).
+// C'est ce que seul le vrai Nextcloud peut prouver.
 describe.skipIf(!serveurPret)('Verrous variante A (files_lock) — pile A réelle', () => {
   it('cycle acquisition → refus/imposition d\u2019un tiers → battement → libération → état libre', { timeout: 60_000 }, async () => {
     const cheminFichier = 'sonde/files-lock-contrat.json'
     const clientMax = new ClientWebDAV({ baseUrl: CORPUS_MAX, identifiants: MAX })
-    // Fichier de données à verrouiller (le LOCK sur absent renvoie 500 côté
-    // files_lock — toujours créer avant).
+    // Fichier de données à verrouiller : le LOCK sur absent renvoie 500 côté files_lock,
+    // donc toujours créer le fichier avant.
     await clientMax.creerDossier('sonde')
     await clientMax.putTexte(cheminFichier, '{"banc":true}', { ifNoneMatch: '*' }).catch(() => {})
 

@@ -21,14 +21,14 @@ import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import type { ScanRegle } from '../../shared/corpus/scanAnon'
 
 /**
- * Scope CORPUS : définitions (codebook, variables), membership (index
- * LÉGER — titres/dates, jamais le contenu des entretiens) et REQUÊTES corpus
- * (matrice, usages) obtenues comme projections du main. Isomorphe à `corpus.json`
- * et à `shared/corpus/`. Ne tient jamais tous les entretiens.
+ *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
+ *  titres/dates, jamais le contenu des entretiens) et REQUÊTES corpus (matrice,
+ *  usages) obtenues comme projections du main. Isomorphe à `corpus.json` et à
+ *  `shared/corpus/` ; ne tient jamais tous les entretiens.
  *
- * `flush` (injecté) : demande à l'orchestration de sauver l'entretien ouvert avant
- * un compte d'usages (les codages/valeurs doivent être sur disque) — dépendance de
- * scope déclarée sans connaître l'éditeur.
+ *  `flush` (injecté) : demande à l'orchestration de sauver l'entretien ouvert
+ *  avant un compte d'usages (les codages/valeurs doivent être sur disque) —
+ *  dépendance de scope déclarée sans connaître l'éditeur.
  */
 export function useCorpus(opts: { flush: () => Promise<void> }) {
   const membership = ref<Record<string, EntretienRef>>({})
@@ -40,29 +40,29 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const variables = ref<Variable[]>([]) // définitions EAV
   const matrice = ref<MatriceCorpus>([]) // REQUÊTE, jamais stockée
   const messageVar = ref<string | null>(null) // refus de suppression variable/modalité
-  // Registre « Mes modèles » (niveau profil, settings.json) : les modèles
-  // IMPORTÉS par l'utilisateur, proposés dans « modèles… » à côté des intégrés.
+  // Registre « Mes modèles » (niveau profil, settings.json) : les modèles IMPORTÉS par l'utilisateur,
+  // proposés dans « modèles… » à côté des intégrés.
   const modelesUtilisateur = ref<ModeleEAV[]>([])
   // Étape 3a — règles corpus + scan anon (lecture seule) : panneau « Pseudos ».
   const reglesAnon = ref<RegleAnon[]>([]) // corpus.json.reglesAnon
   const scanAnon = ref<ScanRegle[]>([]) // requête scan (relit le disque)
   // Étape 4a — paramètres anon (corpus.json.paramsAnon, défauts si absents).
   const paramsAnon = ref<ParamsAnon>(paramsAnonDefaut())
-  // Catégories de note (définitions corpus, comme le codebook). Un corpus
-  // existant sans le champ obtient les bacs par défaut en mémoire ; ils ne
-  // sont écrits sur disque qu'au premier geste d'édition.
+  // Catégories de note (définitions corpus, comme le codebook).
+  // Un corpus existant sans le champ obtient les bacs par défaut en mémoire ;
+  // ils ne sont écrits sur disque qu'au premier geste d'édition.
   const categoriesNote = ref<NoteCategory[]>(normaliserCategoriesNote())
   const messageCategorieNote = ref<string | null>(null) // ex. refus de suppression
 
   const varsGen = () => variables.value.filter((v) => v.portee === 'entretien')
   const varsLoc = () => variables.value.filter((v) => v.portee === 'locuteur')
 
-  /** Couleur d'un code : couleur STOCKÉE du codebook en priorité, sinon synthétisée
-   *  (angle d'or). Recolorer un thème se reflète en direct via cette résolution.
-   *  Sans couleur stockée, la teinte est dérivée du `codeExport` (identité stable
-   *  séquentielle `cat_NNN`) — PAREIL que la pastille/picker et l'export : un thème
-   *  a UNE couleur partout (avant, le repli sur l'id aléatoire donnait une teinte
-   *  différente de la pastille pour un thème neuf). */
+  /** Couleur d'un code : couleur STOCKÉE du codebook en priorité,
+   *  sinon synthétisée (angle d'or).
+   *  Recolorer un thème se reflète en direct via cette résolution.
+   *  Sans couleur stockée, la teinte est dérivée du `codeExport` (identité stable séquentielle `cat_NNN`) —
+   *  PAREIL que la pastille/picker et l'export : un thème a UNE couleur partout (avant, le repli sur l'id aléatoire donnait une teinte différente de la pastille pour un thème neuf).
+   */
   function couleurTrait(code: string): string {
     const cat = codebook.value.find((c) => c.id === code)
     return cat?.couleur || couleurPourCode(cat?.codeExport ?? code).trait
@@ -75,24 +75,21 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   function tailleTheme(code: string): number | undefined {
     return codebook.value.find((c) => c.id === code)?.taille
   }
-  /** Un code est-il ACTIF (définition du codebook) ? Absent du codebook → actif
-   *  (référence pendante inerte, traitée comme un thème ordinaire). Sert au scope
-   *  entretien pour filtrer le marquage et bloquer le codage des thèmes inactifs. */
+  /** Un code est-il ACTIF (définition du codebook) ? Absent du codebook → actif (référence pendante inerte, traitée comme un thème ordinaire).
+   *  Sert au scope entretien pour filtrer le marquage et bloquer le codage des thèmes inactifs. */
   function estCodeActif(code: string): boolean {
     return codebook.value.find((c) => c.id === code)?.actif ?? true
   }
-  /** PEINTURE d'un segment de résumé thématique (parité SonalPi) — partagée par
-   *  les cartes Corpus et la bande du lecteur : couleurs des thèmes couvrants
-   *  empilées en DÉGRADÉ VERTICAL à bandes égales ; le BLANC (thème « sans
-   *  effet ») ne peint pas ; une pondération (taille > 16, règle SonalPi) pose
-   *  une bordure noire en bas ; rien à peindre → `masque`. */
+  /** PEINTURE d'un segment de résumé thématique (parité SonalPi) — partagée par les cartes Corpus et la bande du lecteur :
+   *  couleurs des thèmes couvrants empilées en DÉGRADÉ VERTICAL à bandes égales ; le BLANC (thème « sans effet ») ne peint pas ;
+   *  une pondération (taille > 16, règle SonalPi) pose une bordure noire en bas ; rien à peindre → `masque`. */
   function peintureSegment(codes: string[]): {
     background?: string
     borderBottom?: string
     masque: boolean
   } {
-    // Un thème inactif est « sans effet » (cohérence avec l'éditeur) : il ne
-    // peint ni couleur ni pondération sur les cartes et la bande du lecteur.
+    // Un thème inactif est « sans effet » (cohérence avec l'éditeur) : il ne peint ni couleur ni pondération,
+    // sur les cartes et la bande du lecteur.
     const actifs = codes.filter((c) => estCodeActif(c))
     const couleurs = actifs
       .map((c) => couleurTrait(c))
@@ -111,8 +108,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   function nomTheme(id: string): string {
     return codebook.value.find((c) => c.id === id)?.nom ?? id
   }
-  /** Nom d'une catégorie de note depuis son id (fallback « générale » : utile
-   *  tant que le corpus n'est pas chargé ou après une suppression). */
+  /** Nom d'une catégorie de note depuis son id (fallback « générale » :
+   *  utile tant que le corpus n'est pas chargé ou après une suppression). */
   function nomCategorieNote(id: string): string {
     return categoriesNote.value.find((c) => c.id === id)?.nom ?? 'générale'
   }
@@ -124,16 +121,16 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   function categorieNoteDefaut(): string {
     return categoriesNote.value[0]?.id ?? 'ncat_generale'
   }
-  /** Applique la liste du corpus (normalisée à la lecture — même chemin que
-   *  `majCodebook`, appelée par l'orchestrateur à chaque chargement). */
+  /** Applique la liste du corpus (normalisée à la lecture —
+   *  même chemin que `majCodebook`, appelée par l'orchestrateur à chaque chargement). */
   function majCategoriesNote(brutes?: NoteCategory[] | null) {
     categoriesNote.value = normaliserCategoriesNote(brutes)
   }
   function modalitesDe(idVar: string) {
     return variables.value.find((v) => v.id === idVar)?.modalites ?? []
   }
-  /** Le codebook aplati en PRÉ-ORDRE (parent → enfants), avec profondeur + position
-   *  de fratrie — pour l'affichage indenté et les ▲▼ bornés dans la fratrie. */
+  /** Le codebook aplati en PRÉ-ORDRE (parent → enfants), avec profondeur + position de fratrie —
+   *  pour l'affichage indenté et les ▲▼ bornés dans la fratrie. */
   function arbreThemes() {
     return ordreThemes(Object.fromEntries(codebook.value.map((c) => [c.id, c])))
   }
@@ -147,8 +144,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
   async function rafraichirUsages() {
     usages.value = await window.sonal.corpus.usagesParCategorie()
-    // Même carburant (les codages sur disque), mêmes moments de fraîcheur : le
-    // calque des cartes Corpus (résumé thématique, parité SonalPi) suit.
+    // Même carburant (les codages sur disque), mêmes moments de fraîcheur :
+    // le calque des cartes Corpus (résumé thématique, parité SonalPi) suit.
     resumes.value = await window.sonal.corpus.resumesThematiques()
   }
   async function rafraichirMatrice() {
@@ -169,8 +166,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     codeCourant.value = res.id
     return res.id
   }
-  /** Renommer / recolorer / retailler / (dés)activer : édite la DÉFINITION
-   *  (corpus.json) → reflété partout en direct (l'App observe `codebook` →
+  /** Renommer / recolorer / retailler / (dés)activer :
+   *  édite la DÉFINITION (corpus.json) → reflété partout en direct (l'App observe `codebook` →
    *  redessine le marquage). */
   async function modifierTheme(id: string, patch: PatchCategorie) {
     majCodebook((await window.sonal.corpus.modifierCategorie(id, patch)).codebook)
@@ -178,9 +175,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function deplacerTheme(id: string, sens: -1 | 1) {
     majCodebook((await window.sonal.corpus.deplacerCategorie(id, sens)).codebook)
   }
-  /** Change le PARENT d'un thème (migration dans l'arbre) : sous un autre thème
-   *  ou à la racine. Ses enfants restent accrochés à lui, ses codages suivent
-   *  sans bouger (référence par id). */
+  /** Change le PARENT d'un thème (migration dans l'arbre) :
+   *  sous un autre thème ou à la racine. Ses enfants restent accrochés à lui,
+   *  ses codages suivent sans bouger (référence par id). */
   async function migrerTheme(id: string, parentId: string | null) {
     majCodebook((await window.sonal.corpus.migrerCategorie(id, parentId)).codebook)
   }
@@ -245,16 +242,16 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     }
     majVariables(r.corpus.variables)
   }
-  /** Statut SonalPi : privée = exclue des exports (le champ `priv` voyage déjà
-   *  dans tabVar à l'import/export — ici on ne fait que l'éditer). */
+  /** Statut SonalPi : privée = exclue des exports (le champ `priv` voyage déjà dans tabVar à l'import/export —
+   *  ici on ne fait que l'éditer). */
   async function basculerPriveeVariable(id: string, priv: boolean) {
     majVariables((await window.sonal.corpus.modifierVariable(id, { priv })).variables)
   }
   async function ajouterModalite(idVar: string, lib = 'Modalité') {
     majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
   }
-  /** Modalités pré-remplies (parité SonalPi) : ajoute le modèle en masse et
-   *  baptise la variable du nom du modèle si elle porte encore le nom par défaut. */
+  /** Modalités pré-remplies (parité SonalPi) : ajoute le modèle en masse et baptise la variable du nom du modèle,
+   *  si elle porte encore le nom par défaut. */
   async function ajouterModalitesModele(idVar: string, nomModele: string, libs: string[]) {
     let c: CorpusFichier | null = null
     for (const lib of libs) c = await window.sonal.corpus.ajouterModalite(idVar, lib)
@@ -272,8 +269,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function lireModelesUtilisateur(): Promise<void> {
     modelesUtilisateur.value = await window.sonal.modeles.lire()
   }
-  /** Import d'un modèle depuis un JSON choisi : lit, valide, ajoute au registre
-   *  (remplacement si le nom existe déjà) puis rafraîchit la liste locale.
+  /** Import d'un modèle depuis un JSON choisi : lit, valide, ajoute au registre (remplacement si le nom existe déjà),
+   *  puis rafraîchit la liste locale.
    *  Renvoie un message pour l'UI (succès ou erreur de format). */
   async function importerModeleUtilisateur(): Promise<string | null> {
     const f = await window.sonal.dialog.choisirJson()
@@ -328,17 +325,16 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function poserLoc(entretienId: string, index: number, idVar: string, idMod: string) {
     return validerCelluleTable(entretienId, { type: 'locuteur', index }, idVar, idMod)
   }
-  /** SAISIE LIBRE (parité SonalPi `definirValeur`) : trouve-ou-crée la modalité
-   *  par LIBELLÉ (code max+1 si inconnu — l'export EAV exige une entrée de
-   *  dictionnaire, une valeur hors dictionnaire serait ignorée à l'export). */
+  /** SAISIE LIBRE (parité SonalPi `definirValeur`) : trouve-ou-crée la modalité par LIBELLÉ (code max+1 si inconnu —
+   *  l'export EAV exige une entrée de dictionnaire, une valeur hors dictionnaire serait ignorée à l'export). */
   async function modaliteParLibelle(idVar: string, lib: string): Promise<string> {
     const deja = modalitesDe(idVar).find((m) => m.lib === lib)
     if (deja) return deja.id
     majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
     return modalitesDe(idVar).find((m) => m.lib === lib)!.id
   }
-  /** LOT « modifier en lot » : une valeur
-   *  appliquée à plusieurs entretiens — verrou court par entretien côté main ;
+  /** LOT « modifier en lot » : une valeur appliquée à plusieurs entretiens —
+   *  verrou court par entretien côté main ;
    *  échecs nommés, un échec ne bloque jamais les autres. */
   function poserValeurLot(items: ItemLotValeur[]) {
     return window.sonal.corpus.poserValeurLot(items)

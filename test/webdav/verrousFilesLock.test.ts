@@ -1,14 +1,14 @@
 /**
- * Tests de la VARIANTE A — files_lock natif — contre le
- * serveur WebDAV embarqué (qui émule le contrat vérifié sur la pile réelle :
- * LOCK/UNLOCK + X-User-Lock, 200/423/412, imposition du verrou aux tiers,
- * props nc: dans les PROPFIND).
+ *  Tests de la VARIANTE A — files_lock natif — contre le
+ *  serveur WebDAV embarqué (qui émule le contrat vérifié sur la pile réelle :
+ *  LOCK/UNLOCK + X-User-Lock, 200/423/412, imposition du verrou aux tiers,
+ *  props nc: dans les PROPFIND).
  *
- * Ce que cette variante doit prouver ici : le même comportement que la
- * variante B (cycle complet,
- * zéro perte), avec un verrou qui porte sur LE FICHIER DE DONNÉES lui-même
- * et une détection d'orphelins par JOURNAL LOCAL (le serveur ne connaît ni
- * machine ni session).
+ *  Ce que cette variante doit prouver ici : le même comportement que la
+ *  variante B (cycle complet,
+ *  zéro perte), avec un verrou qui porte sur LE FICHIER DE DONNÉES lui-même
+ *  et une détection d'orphelins par JOURNAL LOCAL (le serveur ne connaît ni
+ *  machine ni session).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -16,7 +16,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import {
   SessionsDEntretien,
   type IdentiteSession,
@@ -221,8 +221,8 @@ describe('Orphelins en variante A — détection par journal local', () => {
   it('divergence pendant le crash : reprise REFUSÉE, ni écrasement ni libération', async () => {
     const b = banc()
     await crash(b)
-    // Quelqu'un a écrit DERRIÈRE le verrou (contournement) : le manifeste porte
-    // l'ETag de NOTRE dernière publication, le serveur porte autre chose.
+    // Quelqu'un a écrit DERRIÈRE le verrou (contournement) : le manifeste porte l'ETag de NOTRE dernière publication,
+    // le serveur porte autre chose.
     b.serveur.poser(`entretiens/${ID}.json`, '{ "écrit derrière le verrou": true }')
     const o = await b.sessions.orphelins()
     const r = await b.sessions.reprendreOrphelin(o[0].cheminVerrou)

@@ -1,24 +1,24 @@
 /**
- * Sondes de connexion — le « profil de capacités » du backend, mesuré sur le
- * serveur RÉEL à la configuration d'un corpus distant, et répété à chaque
- * ouverture (un admin peut installer files_lock entre deux sessions).
+ *  Sondes de connexion — le « profil de capacités » du backend, mesuré sur le
+ *  serveur RÉEL à la configuration d'un corpus distant, et répété à chaque
+ *  ouverture (un admin peut installer files_lock entre deux sessions).
  *
- * Deux sondes :
+ *  Deux sondes :
  *  1. Préconditions HTTP : le contrat dont dépend la variante PUT conditionnel
- *     du verrou. Un serveur qui échoue est REFUSÉ pour le verrou conditionnel.
+ *  du verrou. Un serveur qui échoue est REFUSÉ pour le verrou conditionnel.
  *  2. Capabilities Nextcloud : présence du plugin `files_lock` → variante
- *     files_lock. Absence d'info ou serveur non-Nextcloud → verrou conditionnel,
- *     sans erreur.
+ *  files_lock. Absence d'info ou serveur non-Nextcloud → verrou conditionnel,
+ *  sans erreur.
  *
- * Le protocole de session dépend de ces capacités mesurées,
- * jamais du nom du backend.
+ *  Le protocole de session dépend de ces capacités mesurées,
+ *  jamais du nom du backend.
  */
 
 import { ClientWebDAV, ErreurHttp, retirerGuillemets } from './client'
 
 export interface ProfilCapacites {
-  /** Test-and-set atomique par préconditions : `PUT If-None-Match: *` refuse un
-   *  second create + `If-Match` garde une publication. Base de la variante B. */
+  /** Test-and-set atomique par préconditions : `PUT If-None-Match: *` refuse un second create,
+   *  et `If-Match` garde une publication. Base de la variante B. */
   preconditions: boolean
   /** Verrou natif files_lock détecté (variante A). */
   filesLock: boolean
@@ -26,14 +26,13 @@ export interface ProfilCapacites {
   notes?: string[]
 }
 
-/** Sonde des préconditions : séquence réelle contre un fichier jetable dans le dossier
- *  fourni (`sonde/` à la racine du corpus). Toute l'arithmétique du test-and-set
- *  tient dans ces quatre attentes :
- *   - PUT If-None-Match:* sur absent        → 201
- *   - même PUT (fichier présent désormais)  → 412
- *   - PUT If-Match <bon etag>               → 2xx
- *   - PUT If-Match <mauvais etag>           → 412
- * Le DELETE final laisse le dossier propre. */
+/** Sonde des préconditions : séquence réelle contre un fichier jetable dans le dossier fourni (`sonde/` à la racine du corpus).
+ *  Toute l'arithmétique du test-and-set tient dans ces quatre attentes :
+ *  - PUT If-None-Match:* sur absent        → 201
+ *  - même PUT (fichier présent désormais)  → 412
+ *  - PUT If-Match <bon etag>               → 2xx
+ *  - PUT If-Match <mauvais etag>           → 412
+ *  Le DELETE final laisse le dossier propre. */
 export const sonderPreconditions = async (
   client: ClientWebDAV,
 ): Promise<{ ok: boolean; note?: string }> => {
@@ -49,8 +48,7 @@ export const sonderPreconditions = async (
     } catch (e) {
       if (!(e instanceof ErreurHttp && e.statut === 412)) throw e
     }
-    // 3. Garde If-Match : récupérer l'ETag courant… (les entrées du PROPFIND
-    //    sont relatives au dossier interrogé)
+    // 3. Garde If-Match : récupérer l'ETag courant… (les entrées du PROPFIND sont relatives au dossier interrogé).
     const entrees = await client.propfind('sonde')
     const etag = entrees.find((e) => e.chemin === 'capacites.tmp')?.etag
     if (!etag) return { ok: false, note: 'ETag non exposé par le serveur (PROPFIND)' }
@@ -85,8 +83,8 @@ export const sonderFilesLock = async (
   faireRequete: typeof fetch = fetch,
 ): Promise<boolean> => {
   try {
-    // La racine DAV est .../remote.php/dav/files/<user>/<corpus> ; les
-    // capabilities vivent à la racine du site : on remonte avant /remote.php/.
+    // La racine DAV est .../remote.php/dav/files/<user>/<corpus> ;
+    // les capabilities vivent à la racine du site : on remonte avant /remote.php/.
     const u = new URL(baseUrl)
     const i = u.pathname.indexOf('/remote.php/')
     const racineSite = i > 0 ? u.pathname.slice(0, i) : ''
@@ -108,16 +106,16 @@ export const sonderFilesLock = async (
     const fichiers =
       donnees.ocs?.data?.capabilities?.files ?? donnees.capabilities?.files
     const locking = fichiers?.locking
-    // Nextcloud expose "1" (string), 1, ou true selon les versions — tout le
-    // reste (absent, "0", 0, false) signifie « plugin absent ».
+    // Nextcloud expose "1" (string), 1, ou true selon les versions —
+    // tout le reste (absent, "0", 0, false) signifie « plugin absent ».
     return !!locking && locking !== '0' && locking !== 0
   } catch {
     return false
   }
 }
 
-/** Les deux sondes ensemble — c'est CE profil que la connexion stocke et que
- *  le protocole consulte à chaque ouverture. */
+/** Les deux sondes ensemble — c'est CE profil que la connexion stocke,
+ *  et que le protocole consulte à chaque ouverture. */
 export async function profilerServeur(client: ClientWebDAV): Promise<ProfilCapacites> {
   const notes: string[] = []
   const preconditions = await sonderPreconditions(client)

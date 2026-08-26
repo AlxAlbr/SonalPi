@@ -1,11 +1,11 @@
 /**
- * BANNIÈRE GLOBALE D'ERREURS — filet de sécurité pour les rejets IPC non
- * catchés : un refus de verrou (« définitions en cours de modification par
- * X »), une coupure réseau ou une divergence 412 remontent comme exception
- * IPC depuis le main. Les chemins critiques (suppression, publication)
- * affichent déjà leurs propres messages ciblés ; tout AUTRE rejet atterrit ici
- * plutôt que de disparaître dans la console — « rien de tranché ni perdu en
- * silence ».
+ *  BANNIÈRE GLOBALE D'ERREURS — filet de sécurité pour les rejets IPC non
+ *  catchés : un refus de verrou (« définitions en cours de modification par
+ *  X »), une coupure réseau ou une divergence 412 remontent comme exception
+ *  IPC depuis le main. Les chemins critiques (suppression, publication)
+ *  affichent déjà leurs propres messages ciblés ; tout AUTRE rejet atterrit ici
+ *  plutôt que de disparaître dans la console — « rien de tranché ni perdu en
+ *  silence ».
  */
 
 import { ref } from 'vue'
@@ -14,8 +14,8 @@ import { ref } from 'vue'
 export const erreurGlobale = ref<string | null>(null)
 
 /** Bannière jumelle, ton INFORMATIONNEL : événements rattrapés par l'app
- *  (ex. bascule automatique après suppression du dossier du corpus courant).
- *  Fermable comme son pendant erreur. */
+ *  (ex. bascule automatique après suppression du dossier du corpus courant) ;
+ *  fermable comme son pendant erreur. */
 export const infoGlobale = ref<string | null>(null)
 
 export function effacerErreurGlobale(): void {

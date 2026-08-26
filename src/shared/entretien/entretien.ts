@@ -2,10 +2,10 @@ import type { Annotation, AnnotationType } from './annotation'
 import type { Ancre } from './audio'
 
 /**
- * L'agrégat Entretien. Il porte les annotations et les ancres temporelles —
- * deux familles de positions remappées par l'éditeur ; le corps-texte vit dans
- * l'éditeur ProseMirror. Ces commandes sont pures : aucun accès au DOM ni au
- * disque (le modèle est la vérité, l'éditeur n'en est que la projection).
+ *  L'agrégat Entretien. Il porte les annotations et les ancres temporelles —
+ *  deux familles de positions remappées par l'éditeur ; le corps-texte vit dans
+ *  l'éditeur ProseMirror. Ces commandes sont pures : aucun accès au DOM ni au
+ *  disque (le modèle est la vérité, l'éditeur n'en est que la projection).
  */
 export interface Entretien {
   annotations: Annotation[]
@@ -13,9 +13,9 @@ export interface Entretien {
 }
 
 /**
- * Pose un codage sur la plage [from, to[ (positions ProseMirror, déjà snappées
- * au mot par la couche éditeur). Renvoie l'annotation créée, ou null si la plage
- * est vide.
+ *  Pose un codage sur la plage [from, to[ (positions ProseMirror, déjà
+ *  snappées au mot par la couche éditeur). Renvoie l'annotation créée, ou
+ *  null si la plage est vide.
  */
 export function ajouterCodage(
   entretien: Entretien,
@@ -42,8 +42,9 @@ export function retirerAnnotation(entretien: Entretien, id: string): void {
 }
 
 /**
- * Cherche un codage exactement sur la plage [from, to[ avec ce `code` (requête
- * de lecture) — support du geste « re-coder la même sélection = retirer » (toggle).
+ *  Cherche un codage exactement sur la plage [from, to[ avec ce `code`
+ *  (requête de lecture) — support du geste « re-coder la même sélection =
+ *  retirer » (toggle).
  */
 export function trouverCodage(
   entretien: Entretien,
@@ -55,11 +56,11 @@ export function trouverCodage(
 }
 
 /**
- * Pose un commentaire sur la plage [from, to[ (positions ProseMirror). Un
- * commentaire EST une annotation autonome (type « commentaire », texte +
- * auteur) : pas de lien vers un codage — le clic droit sur un codage copie
- * simplement ses bornes. Renvoie l'annotation créée, ou null si la plage est
- * vide ou le texte vide.
+ *  Pose un commentaire sur la plage [from, to[ (positions ProseMirror). Un
+ *  commentaire EST une annotation autonome (type « commentaire », texte +
+ *  auteur) ; pas de lien vers un codage — le clic droit sur un codage copie
+ *  simplement ses bornes. Renvoie l'annotation créée, ou null si la plage est
+ *  vide ou le texte vide.
  */
 export function ajouterCommentaire(
   entretien: Entretien,
@@ -80,8 +81,9 @@ export function ajouterCommentaire(
   return annotation
 }
 
-/** Réécrit le texte et/ou l'auteur d'un commentaire existant. Renvoie false si
- *  l'id ne désigne pas un commentaire, ou si le texte devient vide. */
+/** Réécrit le texte et/ou l'auteur d'un commentaire existant.
+ *  Renvoie false si l'id ne désigne pas un commentaire, ou si le texte devient
+ *  vide. */
 export function modifierCommentaire(
   entretien: Entretien,
   id: string,

@@ -5,15 +5,17 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus } from './util'
 
 /**
- * Supprimer un entretien depuis l'écran Corpus : le bouton « ❌ Supprimer »
- * du PANNEAU MÉTADONNÉES (parité V1 — les cartes n'ont pas de croix) ouvre
- * une CONFIRMATION (même idiome de bannière que thèmes D-S10 et locuteurs), et la
- * suppression est une mise en `corbeille/` (le json déménage, rien n'est effacé).
+ *  Supprimer un entretien depuis l'écran Corpus : le bouton « ❌ Supprimer »
+ *  du panneau métadonnées ouvre une confirmation —
+ *  même idiome de bannière que thèmes D-S10 et locuteurs.
+ *  Parité V1 : les cartes n'ont pas de croix.
+ *  La suppression est une mise en `corbeille/` (le json déménage, rien n'est effacé).
  */
 
-/** Sélectionne la carte (si le panneau n'est pas déjà ouvert) puis demande
- *  la suppression depuis le panneau. Un clic sur une carte DÉJÀ sélectionnée
- *  la désélectionnerait (re-clic = fermer). */
+/** Sélectionne la carte (si le panneau n'est pas déjà ouvert),
+ *  puis demande la suppression depuis le panneau.
+ *  Un clic sur une carte DÉJÀ sélectionnée la désélectionnerait (re-clic = fermer).
+ */
 async function demanderSuppression(page: import('@playwright/test').Page) {
   const panneau = page.locator('.meta-ent')
   if (!(await panneau.isVisible().catch(() => false))) {

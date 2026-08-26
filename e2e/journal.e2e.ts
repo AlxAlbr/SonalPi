@@ -2,10 +2,10 @@ import { test, expect, type Page } from '@playwright/test'
 import { ouvrir, coderTheme, selectionner } from './util'
 
 /**
- * Journal d'actions (actions de modèle seules ; volatil, jamais persisté).
- * (1) coder 3 passages, annuler le 1er → les 2 autres intacts ;
- * (2) annuler une attribution de locuteur → l'ancien loc restauré (la scission
- * demeure — jamais de fusion) ; (3) une entrée dont la cible a disparu est grisée.
+ *  Journal d'actions (actions de modèle seules ; volatil, jamais persisté).
+ *  (1) coder 3 passages, annuler le 1er → les 2 autres intacts ;
+ *  (2) annuler une attribution de locuteur → l'ancien loc restauré (la scission
+ *  demeure — jamais de fusion) ; (3) une entrée dont la cible a disparu est grisée.
  */
 
 async function ongletJournal(page: Page) {

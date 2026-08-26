@@ -8,12 +8,12 @@ import { decoderCrp } from '../src/main/encodage'
 import type { CorpusFichier } from '../src/shared/format'
 
 /**
- * Lecture + aperçu du `.crp` SonalPi V1.
- * Le parseur est PUR (`shared/corpus/migrationCrp.ts`) ; le décodage
- * d'encodage vit dans le main (`src/main/encodage.ts`, chardet + iconv-lite
- * comme la V1). Ici : parse du JSON V1 réel (fixtures + windows-1252),
- * gardes d'entrée (version inconnue / JSON invalide / structure), normalisations
- * défensives (taille '', couleurs '', priv string, champ gen/loc).
+ *  Lecture + aperçu du `.crp` SonalPi V1.
+ *  Le parseur est PUR (`shared/corpus/migrationCrp.ts`) ; le décodage
+ *  d'encodage vit dans le main (`src/main/encodage.ts`, chardet + iconv-lite
+ *  comme la V1). Ici : parse du JSON V1 réel (fixtures + windows-1252),
+ *  gardes d'entrée (version inconnue / JSON invalide / structure), normalisations
+ *  défensives (taille '', couleurs '', priv string, champ gen/loc).
  */
 
 function fixture(nom: string): string {
@@ -35,11 +35,11 @@ describe('analyserCrp — corpus V1 SAVÉ (sans nom/dateCreation/version, comme 
     if (!analyse.ok) return
     const { themes } = analyse.apercu
     expect(themes).toHaveLength(6)
-    // Pondérations : couleur '' → null, taille '' → null
+    // Pondérations : couleur '' → null, taille '' → null.
     expect(themes[0]).toEqual({ nom: 'Pondérations', couleur: null, taille: null })
-    // ★★★ Très important : taille 24 préservée
+    // ★★★ Très important : taille 24 préservée.
     expect(themes[1]).toEqual({ nom: '★★★ Très important', couleur: null, taille: 24 })
-    // Thème principal : hex préservé tel quel
+    // Thème principal : hex préservé tel quel.
     expect(themes[4]).toEqual({ nom: 'Thème principal', couleur: '#0331ff', taille: null })
   })
 
@@ -57,7 +57,7 @@ describe('analyserCrp — corpus V1 SAVÉ (sans nom/dateCreation/version, comme 
     const { reglesAnon } = analyse.apercu
     expect(reglesAnon).toHaveLength(3)
     expect(reglesAnon[0]).toEqual({ entite: 'Émilie', remplacement: 'Claire' })
-    // thematique / remplacementAlt existent dans le .crp mais hors aperçu
+    // thematique / remplacementAlt existent dans le .crp mais hors aperçu.
     expect(reglesAnon[1]).toEqual({ entite: 'Maison des Habitants', remplacement: 'Maison de quartier' })
   })
 
@@ -72,7 +72,7 @@ describe('analyserCrp — corpus V1 SAVÉ (sans nom/dateCreation/version, comme 
     // tabDic sans lib ({v:1,m:0} existe en réel) et tabDat avec l='all'
     expect(raw.tabDic![0]).toEqual({ v: 1, m: 0 })
     expect(raw.tabDat![2]).toEqual({ e: '2', v: 2, l: 'all', m: 1 })
-    // settings pseudo persistés tels quels
+    // settings pseudo persistés tels quels.
     expect(raw.paramsAnonCorpus).toMatchObject({ prioriteValidation: 'corpus' })
   })
 })
@@ -176,7 +176,7 @@ describe('analyserCrp — refus propres (jamais d’exception)', () => {
 // ── Mapping tabThm/tabVar/tabDic → codebook/variables V2 ──
 
 describe('mapperCodebook (tabThm → Categorie[], parité cat_NNN)', () => {
-  // tabThm du corpusV1.crp : Pondérations(rang 0) + 3 pondérations(rang 1) +
+  // tabThm du corpusV1.crp : Pondérations(rang 0) + 3 pondérations(rang 1),
   // Thème principal(rang 0) + Sous-thème(rang 1, sous « Thème principal »).
   const analyse = analyserCrp(fixture('corpusV1.crp'), 'x.crp')
     const tabThm = analyse.ok ? analyse.apercu.raw.tabThm : []
@@ -230,16 +230,17 @@ describe('mapperCodebook (tabThm → Categorie[], parité cat_NNN)', () => {
 
     test('un thème Pondérations supprimé en V1 est ABSENT du codebook V2 (même arbre)', () => {
       // L'utilisateur a supprimé Pondérations (cat_001) et ★☆☆ (cat_004) en V1 :
-      // tabThm ne les porte plus. La migration n'en recrée AUCUN (pas le bloc
-      // défaut de `amorcer()` ; `mapperCodebook` suit tabThm à la lettre).
+      // tabThm ne les porte plus.
+      // La migration n'en recrée AUCUN (pas le bloc défaut de `amorcer()` ;
+      // `mapperCodebook` suit tabThm à la lettre).
       const codebook2 = mapperCodebook([
         { code: 'cat_002', couleur: '', nom: '★★★ Très important', taille: 24, rang: '0', act: true },
         { code: 'cat_005', couleur: '#0331ff', nom: 'Thème principal', taille: '', rang: '0', act: true },
         { code: 'cat_006', couleur: '#42a5f5', nom: 'Sous-thème', taille: '', rang: '1', act: true },
       ])
       expect(codebook2.map((c) => c.id)).toEqual(['cat_002', 'cat_005', 'cat_006'])
-      // Sous-thème reste sous Thème principal (la hiérarchie ne dépend pas des
-      // cat_001..004 réservés) ; les racines restent racines.
+      // Sous-thème reste sous Thème principal (la hiérarchie ne dépend pas des cat_001..004 réservés).
+      // Les racines restent racines.
       expect(codebook2.map((c) => c.parent)).toEqual([null, null, 'cat_005'])
       // ordre compacté (position dans le tableau V1), codeExport = id.
       expect(codebook2.map((c) => c.ordre)).toEqual([0, 1, 2])
@@ -312,8 +313,8 @@ describe('mapperDefinitions + fusionnerImport', () => {
   })
 
   test('les copies embarquées des entretiens ne sont PAS lues (Q7 : le .crp fait foi)', () => {
-    // Un tabEnt DOMMAGEABLE (copie divergente) ne doit pas contaminer les
-    // définitions : mapperDefinitions ne consulte que les tableaux du corpus.
+    // Un tabEnt DOMMAGEABLE (copie divergente) ne doit pas contaminer les définitions :
+    // mapperDefinitions ne consulte que les tableaux du corpus.
     const analyse = analyserCrp(
       JSON.stringify({
         tabEnt: [{ id: 1, nom: 'x', rtrPath: 'x.sonal', tabVar: [{ v: 99, lib: 'contaminé', champ: 'gen', priv: 'false' }] }],

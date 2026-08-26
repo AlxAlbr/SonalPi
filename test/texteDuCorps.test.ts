@@ -1,9 +1,8 @@
 import { describe, test, expect } from 'vitest'
 import { texteDuCorps } from '../src/shared/entretien/entretien'
 
-/** Garde « contenu déjà présent » : l'assignation d'un SRT remplace la
- *  transcription d'un entretien — elle doit demander confirmation si l'éditeur
- *  porte déjà du texte, jamais écraser en silence. */
+/** Garde « contenu déjà présent » : l'assignation d'un SRT remplace la transcription d'un entretien ;
+ *  elle demande confirmation si l'éditeur porte déjà du texte, jamais d'écrasement en silence. */
 describe('texteDuCorps — extraction du texte d’un corps ProseMirror', () => {
   test('doc avec paragraphes → texte brut concaténé (dans l’ordre des blocs)', () => {
     const doc = {

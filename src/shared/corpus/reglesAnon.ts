@@ -1,10 +1,10 @@
 /**
- * Règles corpus (`RegleAnon`) — cœur PUR : aucune I/O, aucune dépendance UI.
+ *  Règles corpus (`RegleAnon`) — cœur PUR : aucune I/O, aucune dépendance UI.
  *
- * La règle est la SEULE vérité « entité → pseudos » partagée au corpus
- * (`corpus.json.reglesAnon`). Le store ne fait que lire → appliquer → écrire ;
- * le calcul (trouver par entité, créer, réutiliser, garder les deux, retirer,
- * comptage d'usage) vit ICI, pur et testable headless.
+ *  La règle est la SEULE vérité « entité → pseudos » partagée au corpus
+ *  (`corpus.json.reglesAnon`). Le store ne fait que lire → appliquer → écrire ;
+ *  le calcul (trouver par entité, créer, réutiliser, garder les deux, retirer,
+ *  comptage d'usage) vit ICI, pur et testable headless.
  */
 
 import type { CorpusFichier, RegleAnon } from '../format'

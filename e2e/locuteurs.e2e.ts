@@ -2,13 +2,13 @@ import { test, expect } from '@playwright/test'
 import { ouvrir, coderTheme, selectionner } from './util'
 
 /**
- * Locuteurs. (1) attribuer le loc d'un bloc = commande de domaine (transaction
- * PM sur l'attribut, pas une retouche de texte) ; (2) renommer un locuteur →
- * répercuté sur tous ses blocs SANS toucher aux blocs (référence par index) ;
- * (3) tour de parole DÉRIVÉ (blocs consécutifs de même loc groupés) ;
- * + scission (Entrée) qui hérite le loc.
+ *  Locuteurs. (1) attribuer le loc d'un bloc = commande de domaine (transaction
+ *  PM sur l'attribut, pas une retouche de texte) ; (2) renommer un locuteur →
+ *  répercuté sur tous ses blocs SANS toucher aux blocs (référence par index) ;
+ *  (3) tour de parole DÉRIVÉ (blocs consécutifs de même loc groupés) ;
+ *  + scission (Entrée) qui hérite le loc.
  *
- * Seed : bloc 1 = Enquêteur (loc 1), bloc 2 = Karine (loc 2).
+ *  Seed : bloc 1 = Enquêteur (loc 1), bloc 2 = Karine (loc 2).
  */
 
 // Le nom vit dans le SPAN enfant (.loc-nom, porteur de la couleur) :

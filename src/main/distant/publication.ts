@@ -1,16 +1,16 @@
 /**
- * Publication initiale d'un corpus distant : créer un corpus DIRECTEMENT sur
- * le serveur Nextcloud.
+ *  Publication initiale d'un corpus distant : créer un corpus DIRECTEMENT sur
+ *  le serveur Nextcloud.
  *
- * Le squelette est construit en mémoire (`squeletteCorpus`, partagé avec
- * l'amorce locale) et posé directement sur le serveur ; le miroir local
- * n'apparaît qu'ensuite, créé par le tirage de l'ouverture. Aucun fichier
- * temporaire, donc aucune fenêtre de crash avec temporaire orphelin ; une
- * reprise après échec réseau est naturellement idempotente.
+ *  Le squelette est construit en mémoire (`squeletteCorpus`, partagé avec
+ *  l'amorce locale) et posé directement sur le serveur ; le miroir local
+ *  n'apparaît qu'ensuite, créé par le tirage de l'ouverture. Aucun fichier
+ *  temporaire, donc aucune fenêtre de crash avec temporaire orphelin ; une
+ *  reprise après échec réseau est naturellement idempotente.
  *
- * Le renderer ne voit jamais cette classe : il ne connaît que l'IPC
- * `distant:creer`. Les tests la branchent sur un serveur WebDAV via le fetch
- * injectable.
+ *  Le renderer ne voit jamais cette classe : il ne connaît que l'IPC
+ *  `distant:creer`. Les tests la branchent sur un serveur WebDAV via le fetch
+ *  injectable.
  */
 
 import {

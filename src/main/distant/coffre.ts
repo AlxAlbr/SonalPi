@@ -1,12 +1,12 @@
 /**
- * Coffre du compte distant — URL serveur + login + MOT DE PASSE D'APPLICATION
- * (jamais le principal : révocable individuellement, seul accepté en Basic
- * auth quand la 2FA est active).
+ *  Coffre du compte distant — URL serveur + login + MOT DE PASSE D'APPLICATION
+ *  (jamais le principal : révocable individuellement, seul accepté en Basic
+ *  auth quand la 2FA est active).
  *
- * Le secret est chiffré via `safeStorage` d'Electron (clé du trousseau OS) ;
- * le fichier sur disque ne contient jamais le mot de passe en clair.
- * Les primitives de chiffrement sont INJECTABLES pour les tests (hors Electron,
- * safeStorage n'existe pas) — la logique reste testée telle quelle.
+ *  Le secret est chiffré via `safeStorage` d'Electron (clé du trousseau OS) ;
+ *  le fichier sur disque ne contient jamais le mot de passe en clair.
+ *  Les primitives de chiffrement sont INJECTABLES pour les tests (hors Electron,
+ *  safeStorage n'existe pas) — la logique reste testée telle quelle.
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'

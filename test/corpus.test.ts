@@ -5,9 +5,10 @@ import type { CorpusFichier, EntretienFichier, Locuteur } from '../src/shared/fo
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /**
- * Règles PURES de corpus (shared/corpus.ts) — testées SANS dossier temporaire :
- * c'est le gain de la séparation règles/stockage. Le comportement disque reste
- * couvert par corpusStore.test.ts (qui délègue désormais à ces fonctions).
+ *  Règles PURES de corpus (shared/corpus.ts) — testées SANS dossier
+ *  temporaire : c'est le gain de la séparation règles/stockage. Le comportement
+ *  disque reste couvert par corpusStore.test.ts (qui délègue désormais à ces
+ *  fonctions).
  */
 
 function corpusVide(): CorpusFichier {
@@ -187,8 +188,8 @@ describe('corpus — requêtes calculées depuis une liste d’entretiens', () =
 })
 
 describe('corpus — résumé thématique (calque des cartes, parité SonalPi)', () => {
-  // Doc PM à 2 blocs de 4 caractères : contenus PM [1..5[ et [7..11[, coordonnée
-  // texte 0..8 (les frontières de blocs pèsent 0). Total = 8 caractères.
+  // Doc PM à 2 blocs de 4 caractères, contenus PM [1..5[ et [7..11[ ;
+  // coordonnée texte 0..8 (les frontières de blocs pèsent 0), total = 8 caractères.
   const doc = {
     type: 'doc',
     content: [
@@ -249,7 +250,7 @@ describe('corpus — hiérarchie des thèmes', () => {
         { id: 'b1', rang: 1 },
       ]),
     ).toEqual({ a: null, a1: 'a', a2: 'a', b: null, b1: 'b' })
-    // profondeur 2 : petit-enfant rattaché au bon niveau
+    // profondeur 2 : petit-enfant rattaché au bon niveau.
     expect(corpus.parentsDepuisRangs([
       { id: 'r', rang: 0 },
       { id: 'c', rang: 1 },

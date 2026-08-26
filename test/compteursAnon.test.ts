@@ -5,9 +5,9 @@ import { cleEntite } from '../src/shared/entretien/anon/brouillonsAnon'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /**
- * Compteur « à anonymiser » (pur) — requête : occurrences du texte de
- * l'entité NON couvertes par une annotation anon de cette même entité
- * (anonymisée ou exception). Headless : le lecteur de texte est injecté.
+ *  Compteur « à anonymiser » (pur) — requête : occurrences du texte de
+ *  l'entité NON couvertes par une annotation anon de cette même entité
+ *  (anonymisée ou exception). Headless : le lecteur de texte est injecté.
  */
 
 /** Doc PM minimal : deux paragraphes. */

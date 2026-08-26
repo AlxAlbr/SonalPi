@@ -23,7 +23,7 @@ test('debug verrou max', async () => {
   await expect(p.locator('.modale-distant .comptes')).toBeVisible({ timeout: 15000 })
   await p.locator('.modale-distant .mini.ouvrir').first().click()
   await expect(p.locator('.corpus-ecran')).toBeVisible({ timeout: 20000 })
-  // Ouvre l'entretien
+  // Ouvre l'entretien.
   await p.locator('.carte-ent .crayon').first().click()
   await expect(p.locator('.editeur')).toBeVisible({ timeout: 20000 })
   const banniere = await p.locator('.banniere-ro').count()

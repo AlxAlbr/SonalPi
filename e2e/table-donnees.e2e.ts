@@ -15,15 +15,15 @@ import {
 import { ecrireSeedDemo } from '../test/seedDemo'
 
 /**
- * La Table de données éditable. La matrice devient éditable : changer
- * une cellule écrit la valeur chez son propriétaire dans l'entretien visé (écriture
- * ciblée, jamais un cache). Entrer dans la table FERME (et sauvegarde) l'entretien
- * ouvert dans l'éditeur → la table n'écrit jamais dans un entretien ouvert ; un
- * point de reprise (bouton « Reprendre ») le rouvre d'un clic.
+ *  La Table de données éditable. La matrice devient éditable : changer
+ *  une cellule écrit la valeur chez son propriétaire dans l'entretien visé (écriture
+ *  ciblée, jamais un cache). Entrer dans la table FERME (et sauvegarde) l'entretien
+ *  ouvert dans l'éditeur → la table n'écrit jamais dans un entretien ouvert ; un
+ *  point de reprise (bouton « Reprendre ») le rouvre d'un clic.
  */
 
-/** Crée une variable de portée entretien avec une modalité (fenêtre d'édition
- *  des variables, crayon de la table de données), puis revient au Corpus. */
+/** Crée une variable de portée entretien avec une modalité (fenêtre d'édition des variables,
+ *  crayon de la table de données), puis revient au Corpus. */
 async function creerVarEntretien(page: import('@playwright/test').Page, libMod: string) {
   await entrerDonnees(page)
   await ouvrirEditionVariables(page)
@@ -48,8 +48,8 @@ test('éditer une cellule dans la table écrit la valeur chez son propriétaire'
   // Ouvrir la table (toutes lignes éditables).
   await entrerDonnees(page)
 
-  // Une seule cellule éditable (la variable est de portée entretien → sur la
-  // ligne entretien uniquement) : y choisir « Lyon ».
+  // Une seule cellule éditable (la variable est de portée entretien →
+  // sur la ligne entretien uniquement) : y choisir « Lyon ».
   await page.locator('.matrice.editable select').first().selectOption({ label: 'Lyon' })
 
   // Persisté sur disque, chez le propriétaire (meta.valeursGen du seed e1).
@@ -65,8 +65,8 @@ test('sortir d’un entretien le ferme ; « Reprendre » (Corpus et table) le ro
   const { app, page } = await ouvrirSurCorpus('sonal-table-')
   await creerVarEntretien(page, 'Lyon')
 
-  // Ouvrir l'entretien puis en SORTIR : il est fermé, le point de reprise est
-  // proposé dès l'écran Corpus.
+  // Ouvrir l'entretien puis en SORTIR : il est fermé,
+  // le point de reprise est proposé dès l'écran Corpus.
   await entrerEntretien(page)
   await retourCorpus(page)
   await expect(page.locator('.corpus-ecran .btn-reprise')).toBeVisible()
@@ -91,8 +91,8 @@ test('« Saisir… » n’apparaît qu’en corpus distant (local : grille direc
 
   await entrerDonnees(page)
 
-  // En corpus local, la grille est directement éditable : le bouton de ligne
-  // (uniquement pour les corpus distants) ne doit pas exister.
+  // En corpus local, la grille est directement éditable :
+  // le bouton de ligne (uniquement pour les corpus distants) ne doit pas exister.
   await expect(page.locator('.matrice .aller-saisie')).toHaveCount(0)
   await expect(page.locator('.matrice.editable select').first()).toBeEnabled()
 
@@ -100,8 +100,8 @@ test('« Saisir… » n’apparaît qu’en corpus distant (local : grille direc
 })
 
 test('« modifier en lot » applique UNE valeur à tous les entretiens (corpus local)', async () => {
-  // Deux entretiens dans le corpus (le seed n'en a qu'un) : le second est posé
-  // AVANT le lancement — le seed est idempotent, il ne touchera à rien.
+  // Deux entretiens dans le corpus (le seed n'en a qu'un) : le second est posé AVANT le lancement —
+  // le seed est idempotent, il ne touchera à rien.
   const dir = mkdtempSync(join(tmpdir(), 'sonal-lot-'))
   ecrireSeedDemo(join(dir, 'corpus'))
   const c = JSON.parse(readFileSync(join(dir, 'corpus', 'corpus.json'), 'utf8')) as {
@@ -158,9 +158,9 @@ test('« modifier en lot » applique UNE valeur à tous les entretiens (corpus l
   )
   expect(labels).toEqual(['Lyon', 'Lyon'])
 
-  // Filtre « lignes sans valeur » : réouverture
-  // de la modale — les DEUX lignes portent désormais une valeur, donc le filtre
-  // ne cible plus personne ; décoché, tout redevient ciblable.
+  // Filtre « lignes sans valeur » : réouverture de la modale —
+  // les DEUX lignes portent désormais une valeur, donc le filtre ne cible plus personne ; décoché,
+  // tout redevient ciblable.
   await page.locator('.matrice th .lot-var').first().click()
   const m2 = page.locator('.modale-lot')
   await expect(m2).toBeVisible()
@@ -178,8 +178,8 @@ test('« modifier en lot » applique UNE valeur à tous les entretiens (corpus l
   await app.close()
 })
 
-/** Pose un SECOND entretien (e2) dans le corpus AVANT lancement — le seed est
- *  idempotent et n'en contient qu'un (parité du test lot ci-dessus). */
+/** Pose un SECOND entretien (e2) dans le corpus AVANT lancement —
+ *  le seed est idempotent et n'en contient qu'un (parité du test lot ci-dessus). */
 function poserSecondEntretien(dir: string) {
   ecrireSeedDemo(join(dir, 'corpus'))
   const c = JSON.parse(readFileSync(join(dir, 'corpus', 'corpus.json'), 'utf8')) as {
@@ -203,9 +203,9 @@ function poserSecondEntretien(dir: string) {
 }
 
 test('navigation clavier : Entrée descend la colonne en sautant les lignes locuteur ; Shift+Entrée remonte', async () => {
-  // Deux entretiens ; le seed e1 porte DEUX locuteurs (index 1 et 2) → entre
-  // les deux lignes entretien s'intercalent deux lignes SANS cellule dans la
-  // colonne « Ville » : la descente doit les TRAVERSER.
+  // Deux entretiens ; le seed e1 porte DEUX locuteurs (index 1 et 2) →
+  // entre les deux lignes entretien s'intercalent deux lignes SANS cellule dans la colonne « Ville »
+  // : la descente doit les TRAVERSER.
   const dir = mkdtempSync(join(tmpdir(), 'sonal-nav-'))
   poserSecondEntretien(dir)
 

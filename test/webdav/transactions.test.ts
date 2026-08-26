@@ -1,9 +1,9 @@
 /**
- * Tests des TRANSACTIONS DE DÉFINITIONS
- * contre le serveur WebDAV embarqué : verrou corpus → GET frais → mutation →
- * PUT If-Match → libération ; suppression sous DOUBLE verrou (ordre canonique
- * corpus-avant-entretien, publication corpus puis MOVE) ; refus d'un tiers,
- * divergence 412, hors ligne.
+ *  Tests des TRANSACTIONS DE DÉFINITIONS
+ *  contre le serveur WebDAV embarqué : verrou corpus → GET frais → mutation →
+ *  PUT If-Match → libération ; suppression sous DOUBLE verrou (ordre canonique
+ *  corpus-avant-entretien, publication corpus puis MOVE) ; refus d'un tiers,
+ *  divergence 412, hors ligne.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { TransactionsCorpus } from '../../src/main/distant/transactions'
@@ -68,9 +68,9 @@ interface Banc {
   tx: TransactionsCorpus
 }
 
-/** Banc standard : serveur amorcé (corpus + entretien e1), miroir tiré une
- *  fois, store en LECTURE SEULE (comme à l'ouverture distante), transactions
- *  branchées dessus. Deux clients : max (nous) et olivier (tiers). */
+/** Banc standard : serveur amorcé (corpus + entretien e1), miroir tiré une fois,
+ *  store en LECTURE SEULE (comme à l'ouverture distante), transactions branchées dessus.
+ *  Deux clients : max (nous) et olivier (tiers). */
 async function banc(): Promise<Banc> {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' })
   serveur.poser('corpus.json', corpusInitial())
@@ -119,8 +119,8 @@ describe('Transaction générique', () => {
 
   it('GET frais : une publication concurrente AVANT la transaction est absorbée, pas écrasée', async () => {
     const { serveur, store, tx } = await banc()
-    // Un collègue publie directement (autre poste) : notre manifeste périmé ne
-    // doit PAS servir de base à la mutation.
+    // Un collègue publie directement (autre poste) :
+    // notre manifeste périmé ne doit PAS servir de base à la mutation.
     const concurrent = JSON.parse(corpusInitial()) as CorpusFichier
     concurrent.nom = 'Version du collègue'
     serveur.poser('corpus.json', JSON.stringify(concurrent))
@@ -132,8 +132,8 @@ describe('Transaction générique', () => {
 
   it('divergence 412 : un PUT concurrent juste avant le nôtre → refus NET, jamais d\u2019écrasement', async () => {
     const { serveur, clientOlivier, miroir, store } = await banc()
-    // Middleware : au moment où NOTRE PUT corpus.json part, un collègue pousse
-    // sa version — notre garde If-Match ne correspond plus → 412 garanti.
+    // Middleware : au moment où NOTRE PUT corpus.json part, un collègue pousse sa version —
+    // notre garde If-Match ne correspond plus → 412 garanti.
     const clientInstrumente = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       async (entree, init) => {
@@ -266,9 +266,9 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
 
   it('lot à UN item de portée LOCUTEUR → serveur ET miroir à jour', async () => {
     const { serveur, miroir, tx } = await banc()
-    // Un entretien AVEC un locuteur, posé sur le serveur APRÈS le tirage du
-    // miroir : le GET frais post-verrou fait foi — la valeur partira
-    // du contenu SERVEUR, pas de la copie miroir périmée.
+    // Un entretien AVEC un locuteur, posé sur le serveur APRÈS le tirage du miroir :
+    // le GET frais post-verrou fait foi — la valeur partira du contenu SERVEUR,
+    // pas de la copie miroir périmée.
     const avecLoc = JSON.parse(entretienE1()) as {
       locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]
     }
@@ -286,8 +286,8 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     expect(r.succes).toEqual(['e1'])
     expect(r.echecs).toEqual([])
 
-    // La valeur est chez son PROPRIÉTAIRE (valeursLoc du locuteur), jamais
-    // dans valeursGen ; serveur ET miroir à jour ; verrou libéré.
+    // La valeur est chez son PROPRIÉTAIRE (valeursLoc du locuteur), jamais dans valeursGen ;
+    // serveur ET miroir à jour ; verrou libéré.
     const attendu = (json: string) => {
       const e = JSON.parse(json) as {
         meta: { valeursGen: Record<string, string> }
@@ -328,9 +328,9 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
 
   it('divergence 412 → échec « divergence », miroir NON modifié pour cet item, verrou libéré', async () => {
     const { serveur, clientMax, miroir, tx } = await banc()
-    // Simulation déterministe : notre PUT ENTRETIEN échoue en 412 (le serveur
-    // a changé sous nos pieds — contournement du verrou). Les autres PUT
-    // (verrous…) passent normalement.
+    // Simulation déterministe :
+    // notre PUT ENTRETIEN échoue en 412 (le serveur a changé sous nos pieds —
+    // contournement du verrou). Les autres PUT (verrous…) passent normalement.
     const reel = clientMax.putTexte.bind(clientMax)
     clientMax.putTexte = async (chemin, contenu, options) => {
       if (chemin === 'entretiens/e1.json') throw new ErreurHttp(412, 'simulation divergence')
@@ -344,8 +344,9 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     expect(r.succes).toEqual([])
     expect(r.echecs).toHaveLength(1)
     expect(r.echecs[0].raison).toMatch(/divergence/i)
-    // Rien n'a été écrasé côté serveur ; le MIROIR n'a pas bougé (il n'est
-    // écrit qu'après un PUT réussi) ; le verrou est reparti (finally).
+    // Rien n'a été écrasé côté serveur ;
+    // le MIROIR n'a pas bougé (il n'est écrit qu'après un PUT réussi) ;
+    // le verrou est reparti (finally).
     const e1 = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as {
       meta: { valeursGen: Record<string, string> }
     }
@@ -377,8 +378,8 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
       readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8'),
     ) as { meta: { valeursGen: Record<string, string> } }
     expect(local.meta.valeursGen.var_ville).toBe('mod_lyon')
-    // …mais RIEN n'est parti au serveur par le lot (la session publiera), et
-    // aucun verrou d'entretien n'a été pris en parallèle.
+    // …mais RIEN n'est parti au serveur par le lot (la session publiera),
+    // et aucun verrou d'entretien n'a été pris en parallèle.
     const e1 = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as {
       meta: { valeursGen: Record<string, string> }
     }

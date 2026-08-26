@@ -1,12 +1,12 @@
 /**
- * Serveur WebDAV embarqué dans les tests : le banc de conformité. Il honore
- * les préconditions HTTP (`If-None-Match:*`, `If-Match`), expose des ETags et
- * répond en multistatus 207 : tout ce que le protocole exige d'un serveur.
- * Les tests l'utilisent sans connaître son identité au-delà de ce contrat
- * (une abstraction est testée, pas espérée).
+ *  Serveur WebDAV embarqué dans les tests : le banc de conformité. Il honore
+ *  les préconditions HTTP (`If-None-Match:*`, `If-Match`), expose des ETags et
+ *  répond en multistatus 207 : tout ce que le protocole exige d'un serveur.
+ *  Les tests l'utilisent sans connaître son identité au-delà de ce contrat
+ *  (une abstraction est testée, pas espérée).
  *
- * Implémentation : une Map en mémoire derrière un `fetch` injectable — aucun
- * réseau, aucune dépendance.
+ *  Implémentation : une Map en mémoire derrière un `fetch` injectable — aucun
+ *  réseau, aucune dépendance.
  */
 
 import type { ImplementationFetch } from '../src/main/webdav/client'
@@ -14,16 +14,16 @@ import type { ImplementationFetch } from '../src/main/webdav/client'
 interface Entree {
   contenu?: string // absent = fichier binaire ou dossier ; voir `dossier`/`binaire`
   etag: string
-  /** Marqueur explicite de DOSSIER (MKCOL). Ne PAS déduire de `contenu ===
-   *  undefined` : un PUT binaire stocke des octets sans `contenu` (B2). */
+  /** Marqueur explicite de DOSSIER (MKCOL) :
+   *  Ne PAS déduire de `contenu === undefined` : un PUT binaire stocke des octets sans `contenu` (B2). */
   dossier?: boolean
-  /** Octets bruts d'un PUT non décodable en UTF-8 (`putBinaire`). Quand
-   *  présent, GET renvoie CES octets et `contenu` est ignoré. */
+  /** Octets bruts d'un PUT non décodable en UTF-8 (`putBinaire`).
+   *  Quand présent, GET renvoie CES octets et `contenu` est ignoré. */
   binaire?: Uint8Array
 }
 
-/** Verrou natif posé sur un fichier (émulation files_lock, variante A) — le
- *  détenteur est l'UTILISATEUR authentifié (comme le vrai plugin). */
+/** Verrou natif posé sur un fichier (émulation files_lock, variante A) :
+ *  le détenteur est l'UTILISATEUR authentifié (comme le vrai plugin). */
 interface VerrouNatif {
   utilisateur: string
   time: number
@@ -37,17 +37,16 @@ export class ServeurWebDAVMemoire {
   private compteurEtag = 0
 
   readonly racineDav = '/remote.php/dav/files/max/MonCorpus'
-  /** Branche compte du serveur émulé : préfixe minimal accepté par le fetch
-   *  (le publieur peut y créer la chaîne menant à un NOUVEAU dossier corpus). */
+  /** Branche compte du serveur émulé :
+   *  préfixe minimal accepté par le fetch (le publieur peut y créer la chaîne menant à un NOUVEAU dossier corpus). */
   readonly racineCompte = '/remote.php'
   readonly baseUrl = `http://serveur.test${this.racineDav}`
   readonly identifiants = { utilisateur: 'max', motDePasse: 'app-pass-1234' }
-  /** Comptes supplémentaires (simulation multi-utilisateurs : refus d'un
-   *  tiers, imposition du verrou natif…) — clé = utilisateur. */
+  /** Comptes supplémentaires (simulation multi-utilisateurs : refus d'un tiers, imposition du verrou natif…) —
+   *  clé = utilisateur. */
   private readonly comptes: Record<string, string>
 
-  /** `comptes` : paires utilisateur→motDePasse acceptées en plus de max
-   *  (ex. { olivier: 'pass-oli' }) pour les scénarios à deux utilisateurs. */
+  /** `comptes` : paires utilisateur→motDePasse acceptées en plus de max (ex. { olivier: 'pass-oli' }) pour les scénarios à deux utilisateurs. */
   constructor(comptes: Record<string, string> = {}) {
     this.comptes = comptes
     this.dossier(this.racineDav)
@@ -140,9 +139,8 @@ export class ServeurWebDAVMemoire {
     if (nonAutorise) return nonAutorise
 
     const chemin = decodeURIComponent(new URL(requete.url).pathname)
-    // Zone autorisée = la branche DAV du compte (`/remote.php/…`) et non plus
-    // seulement la racine du corpus : le publieur y crée la chaîne de dossiers
-    // menant à un NOUVEAU dossier corpus.
+    // Zone autorisée = la branche DAV du compte (`/remote.php/…`) et non plus seulement la racine du corpus :
+    // le publieur y crée la chaîne de dossiers menant à un NOUVEAU dossier corpus.
     if (!chemin.startsWith(this.racineDav)) {
       if (!chemin.startsWith(this.racineCompte)) return this.erreur(404)
     }
@@ -159,9 +157,9 @@ export class ServeurWebDAVMemoire {
         })
       }
       case 'PUT': {
-        // Octets BRUTS : un PUT binaire ne doit pas être détruit par un décodage
-        // texte. Si le corps est de l'UTF-8 valide on stocke la chaîne (comportement
-        // historique des tests texte), sinon on garde les octets.
+        // Octets BRUTS : un PUT binaire ne doit pas être détruit par un décodage texte.
+        // Si le corps est de l'UTF-8 valide on stocke la chaîne (comportement historique des tests texte),
+        // sinon on garde les octets.
         const octets = new Uint8Array(await requete.arrayBuffer())
         let corps: string | undefined
         try {
@@ -249,8 +247,8 @@ export class ServeurWebDAVMemoire {
     return new Response(null, { status: 201 })
   }
 
-  /** LOCK « user owned » (émulation du contrat réel vérifié pile A) : 200
-   *  obtenu ou renouvelé (re-LOCK même user = battement), 423 tenu par un
+  /** LOCK « user owned » (émulation du contrat réel vérifié pile A) :
+   *  200 obtenu ou renouvelé (re-LOCK même user = battement), 423 tenu par un
    *  AUTRE utilisateur, 404 fichier absent (le vrai renvoie 500 NotFoundException
    *  — on est plus propre ici, les tests ne verrouillent jamais l'absent). */
   private lock(requete: Request, chemin: string): Response {

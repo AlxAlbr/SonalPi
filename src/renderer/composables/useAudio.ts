@@ -1,24 +1,23 @@
 import { ref, computed } from 'vue'
 
 /**
- * Scope MÉDIA de l'entretien ouvert. Un unique moyen de lecture (audio OU vidéo)
- * + son état RÉACTIF partagé : le lecteur (haut d'écran), la barre de position sur
- * la forme d'onde et le surlignage du bloc lu se coordonnent par cette réactivité.
+ *  Scope MÉDIA de l'entretien ouvert. Un unique moyen de lecture (audio OU vidéo)
+ *  + son état RÉACTIF partagé : le lecteur (haut d'écran), la barre de position sur
+ *  la forme d'onde et le surlignage du bloc lu se coordonnent par cette réactivité.
  *
- * Deux éléments cohabitent, choisis selon le NATURE du média :
+ *  Deux éléments cohabitent, choisis selon le NATURE du média :
  *  - `<audio data-sonal>` caché : le cas audio actuel (inchangé — les e2e le
- *    retrouvent par `document.querySelector('audio')`) ;
+ *  retrouvent par `document.querySelector('audio')`) ;
  *  - `<video data-sonal>` : les formats potentiellement vidéo (mp4, webm, mov…).
- *    C'est lui l'horloge en mode vidéo, et le panneau vidéo l'ADOPTE pour
- *    l'afficher (même élément, jamais deux horloges → synchro exacte).
- * La présence d'une piste image se décide au `loadedmetadata` (`videoWidth > 0`),
- * l'extension ne servant qu'à choisir le bon élément au chargement (le format
- * webm peut n'être que l'audio).
+ *  C'est lui l'horloge en mode vidéo, et le panneau vidéo l'ADOPTE pour
+ *  l'afficher (même élément, jamais deux horloges → synchro exacte).
+ *  La présence d'une piste image se décide au `loadedmetadata` (`videoWidth > 0`),
+ *  l'extension ne servant qu'à choisir le bon élément au chargement (le format
+ *  webm peut n'être que l'audio).
  */
 export function useAudio() {
-  // Une ré-instanciation (HMR en dev : App rechargée pendant une lecture) ne
-  // doit pas ORPHELINER les éléments précédents — ils continueraient à jouer hors
-  // de tout contrôle. Inerte en prod.
+  // Une ré-instanciation (HMR en dev : App rechargée pendant une lecture) ne doit pas ORPHELINER les éléments précédents —
+  // ils continueraient à jouer hors de tout contrôle. Inerte en prod.
   document.querySelectorAll<HTMLMediaElement>('audio[data-sonal],video[data-sonal]').forEach((a) => {
     a.pause()
     a.remove()
@@ -34,26 +33,25 @@ export function useAudio() {
   const waveformUrl = ref<string | null>(null)
   const enLecture = ref(false)
   const duree = ref(0)
-  /** Position suivie sur `timeupdate` (~4 Hz, comme SonalPi) — largement assez
-   *  fin pour la synchro par bloc ; la barre de position suit au même rythme. */
+  /** Position suivie sur `timeupdate` (~4 Hz, comme SonalPi) — largement assez fin pour la synchro par bloc ;
+   *  la barre de position suit au même rythme. */
   const position = ref(0)
   const vitesse = ref(1)
   /** Vrai si le média référencé est introuvable (fichier déplacé/supprimé). */
   const erreur = ref(false)
-  /** Vrai quand le média a une piste IMAGE (une vidéo). Décidé au chargement de
-   *  métadonnées (`videoWidth > 0`) ; guide l'organisation d'écran vidéo. */
+  /** Vrai quand le média a une piste IMAGE (une vidéo). Décidé au chargement des métadonnées (`videoWidth > 0`) ;
+   *  guide l'organisation d'écran vidéo. */
   const estVideo = ref(false)
   /** Dimensions intrinsèques de la vidéo (pour en déduire le ratio 4:3, 16:9…). */
   const videoW = ref(0)
   const videoH = ref(0)
   /** L'élément `<video>` du mode vidéo — adopté et affiché par le panneau vidéo. */
   const elVideo = ref<HTMLVideoElement | null>(null)
-  /** Largeur (px) du panneau vidéo. 0 = pas encore fixé (défaut déduit du ratio
-   *  à la première lecture de métadonnées, ou valeur mémorisée par corpus). */
+  /** Largeur (px) du panneau vidéo. 0 = pas encore fixé (défaut déduit du ratio à la première lecture de métadonnées,
+   *  ou valeur mémorisée par corpus). */
   const largeurVideo = ref(0)
-  /** Visibilité du panneau vidéo (bouton sous la waveform). Le lecteur a toute
-   *  la largeur quand la vidéo est fermée ; l'élément vidéo reste monté (la
-   *  lecture audio continue en arrière-plan). Préférence de SESSION. */
+  /** Visibilité du panneau vidéo (bouton sous la waveform). Le lecteur a toute la largeur quand la vidéo est fermée ;
+   *  l'élément vidéo reste monté (la lecture audio continue en arrière-plan). Préférence de SESSION. */
   const videoVisible = ref(true)
   function toggleVideo() {
     videoVisible.value = !videoVisible.value
@@ -81,8 +79,8 @@ export function useAudio() {
   function extDe(u: string): string {
     return u.split(/[?#]/)[0].split('.').pop()?.toLowerCase() ?? ''
   }
-  /** Un fichier vidéo de 1280×720 affiché à hauteur cible ~380 px donne une
-   *  largeur proportionnelle à son ratio — on s'adapte d'office à 4:3, 16:9… */
+  /** Un fichier vidéo de 1280×720 affiché à hauteur cible ~380 px donne une largeur proportionnelle à son ratio —
+   *  on s'adapte d'office à 4:3, 16:9… */
   function largeurParDefaut():
     | number
     | null {
@@ -94,9 +92,9 @@ export function useAudio() {
     return Math.max(LARGEUR_MIN, Math.min(LARGEUR_MAX, w))
   }
 
-  /** Charge (ou décharge, u=null) le média de l'entretien ouvert. Crée le bon
-   *  élément (audio/vidéo) selon l'extension ; `estVideo` n'est tranché qu'aux
-   *  métadonnées (un webm peut n'être que de l'audio). */
+  /** Charge (ou décharge, u=null) le média de l'entretien ouvert.
+   *  Crée le bon élément selon l'extension (audio/vidéo) ; `estVideo` n'est tranché qu'aux métadonnées,
+   *  un webm pouvant n'être que de l'audio. */
   function charger(u: string | null, waveform: string | null) {
     elCourant.pause()
     url.value = u
@@ -109,9 +107,9 @@ export function useAudio() {
     videoH.value = 0
     if (u && EXT_VIDEO.has(extDe(u))) {
       // Mode potentiellement vidéo : (re)crée un <video>, adopte-le comme horloge.
-      // `estVideo` est posé OPTIMISTE dès le chargement (le panneau s'affiche
-      // tout de suite) ; `loadedmetadata` le tranche au plus juste (un webm peut
-      // n'être que de l'audio → on rebascule sur l'organisation audio).
+      // `estVideo` est posé OPTIMISTE dès le chargement, le panneau s'affiche tout de suite ;
+      // `loadedmetadata` le tranche au plus juste (un webm peut n'être que de l'audio,
+      // on rebascule alors sur l'organisation audio).
       estVideo.value = true
       if (!elVideo.value) {
         const v = document.createElement('video')

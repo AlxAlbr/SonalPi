@@ -10,8 +10,9 @@ import DivergenceCopie from './components/DivergenceCopie.vue'
 import DesignationAudioDistante from './components/DesignationAudioDistante.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
-// corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
-// (utiliserSonal). App ne garde que l'en-tête, le fil d'Ariane et les bannières.
+// corpus, entretien) et les PROVIDE ;
+// chaque composant de vue les INJECTE (utiliserSonal).
+// App ne garde que l'en-tête, le fil d'Ariane et les bannières.
 const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat, dossierCourantNom } =
   fournirSonal()
 </script>
@@ -47,8 +48,8 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
 
     <div v-if="refusFormat" class="banniere refus">{{ refusFormat }}</div>
 
-    <!-- Bannière globale : rejets IPC non catchés (verrou refusé, hors
-         ligne, divergence détectée). Fermable ; toute nouvelle erreur
+    <!-- Bannière globale : rejets IPC non catchés (verrou refusé,
+         hors ligne, divergence détectée). Fermable ; toute nouvelle erreur
          remplace la précédente. -->
     <div v-if="erreurGlobale" class="banniere refus">
       <span>{{ erreurGlobale }}</span>
@@ -68,34 +69,34 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <Entretien v-show="vue === 'entretien'" />
     <TableDonnees v-show="vue === 'donnees'" />
 
-    <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus
-         distant — téléporté, ne s'affiche QUE si la liste est non vide. -->
+    <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
+         téléporté, ne s'affiche QUE si la liste est non vide. -->
     <RepriseCrash />
 
-    <!-- Fusion assistée : copie de divergence proposée à la réouverture
-         de l'entretien concerné. -->
+    <!-- Fusion assistée : copie de divergence proposée à la réouverture de l'entretien concerné. -->
     <DivergenceCopie />
 
-    <!-- Désignation audio distante : navigation
-         Nextcloud + micro-session — ne s'affiche que si demandée. -->
+    <!-- Désignation audio distante : navigation Nextcloud + micro-session ;
+         ne s'affiche que si demandée. -->
     <DesignationAudioDistante />
   </main>
 </template>
 
 <style scoped>
-/* COQUILLE uniquement : en-tête, fil d'Ariane, bannières. La typographie de base
- * et le vocabulaire partagé sont dans styles/base.css ; l'éditeur dans
- * styles/editeur.css ; le reste vit dans le <style scoped> de chaque vue. */
+/* COQUILLE uniquement : en-tête, fil d'Ariane, bannières.
+ * La typographie de base et le vocabulaire partagé sont dans styles/base.css ;
+ * l'éditeur dans styles/editeur.css ;
+ * le reste vit dans le <style scoped> de chaque vue. */
 .app {
   max-width: 1250px;
   margin: 1.2rem auto 0;
   padding: 0 1rem;
-  /* Hauteur de l'en-tête collant (fil d'Ariane / Accueil) — réutilisée par la
-     vue Entretien pour épingler sa barre d'actions juste en dessous. */
+  /* Hauteur de l'en-tête collant (fil d'Ariane / Accueil) ;
+     elle sert à épingler la barre d'actions de la vue Entretien, juste en dessous. */
   --entete-h: 4rem;
 }
-/* En-tête épinglé en haut de la fenêtre : toujour visible (Accueil/fil
-   d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
+/* En-tête épinglé en haut de la fenêtre : toujours visible (Accueil,
+   fil d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
 .app header {
   position: sticky;
   top: 0;

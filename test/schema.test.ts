@@ -8,9 +8,9 @@ import { Extension } from '@tiptap/core'
 import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien'
 
 /**
- * Vérifie le CONTRAT DE SCHÉMA (gelé : toute évolution = migration explicite)
- * sur le VRAI éditeur TipTap (pas le schéma minimal des tests moteur) : le
- * paragraphe = « bloc » porte `loc`, et le remapping tient avec ce schéma-là.
+ *  Vérifie le CONTRAT DE SCHÉMA (gelé : toute évolution = migration explicite)
+ *  sur le VRAI éditeur TipTap (pas le schéma minimal des tests moteur) : le
+ *  paragraphe = « bloc » porte `loc`, et le remapping tient avec ce schéma-là.
  */
 function creerEditeur(entretien: Entretien, content: string): Editor {
   const Remap = Extension.create({

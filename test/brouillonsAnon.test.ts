@@ -13,10 +13,10 @@ import { aplatir, occurrencesDe, plageVersPM } from '../src/shared/entretien/ano
 import type { BrouillonAnon } from '../src/shared/format'
 
 /**
- * Brouillons d'anonymisation (pur) — le draft est entretien-local.
- * Un brouillon est une entité saisie SANS occurrence posée ; ce n'est PAS une
- * règle. Validé (Entrée) → occurrences posées + brouillon consommé.
- * Headless : le lecteur de texte (`texteEntre`) est injecté.
+ *  Brouillons d'anonymisation (pur) — le draft est entretien-local.
+ *  Un brouillon est une entité saisie SANS occurrence posée ; ce n'est PAS une
+ *  règle. Validé (Entrée) → occurrences posées + brouillon consommé.
+ *  Headless : le lecteur de texte (`texteEntre`) est injecté.
  */
 
 function brouillonsDeDebut(): BrouillonAnon[] {
@@ -83,8 +83,8 @@ const debutsFlat: number[] = []
     acc += b.longueur + 1
   }
 }
-/** Lit le texte d'une plage PM via le TEXTE PLAT, par bloc (même décodage
- *  que l'adaptateur réel) : offset plat = début plat du bloc + offset PM relatif. */
+/** Lit le texte d'une plage PM via le TEXTE PLAT, par bloc (même décodage que l'adaptateur réel) :
+ *  offset plat = début plat du bloc + offset PM relatif. */
 function texteEntre(f: number, t: number): string {
   const k = tPlat.blocs.findIndex((b) => f >= b.debut && t <= b.debut + b.longueur)
   const of = f - tPlat.blocs[k].debut

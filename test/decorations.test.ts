@@ -8,9 +8,9 @@ import type { Entretien } from '../src/shared/entretien/entretien'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /**
- * Soulignés multi-codages : barres empilées avec écart, hauteur RÉSERVÉE au
- * niveau du paragraphe (un sous-passage codé une fois de plus ne décale pas
- * les barres de ses voisins), arrêt final transparent du dégradé.
+ *  Soulignés multi-codages : barres empilées avec écart, hauteur RÉSERVÉE au
+ *  niveau du paragraphe (un sous-passage codé une fois de plus ne décale pas
+ *  les barres de ses voisins), arrêt final transparent du dégradé.
  */
 
 const schema = new Schema({
@@ -77,16 +77,18 @@ describe('décorations — soulignés multi-codages', () => {
   })
 
   test('sous-passage codé une fois de plus → hauteur uniforme sur le paragraphe', () => {
-    // A et B sur [1,7], C en sous-passage [3,5] : trois segments, TOUS avec le
-    // padding du max du paragraphe (3 barres → 10px), pour des barres alignées.
+    // A et B sur [1,7], C en sous-passage [3,5] :
+    // trois segments, TOUS avec le padding du max du paragraphe (3 barres → 10px),
+    // pour des barres alignées.
     const s = styles(etat([codage('a', 1, 7), codage('b', 1, 7), codage('c', 3, 5)]))
     expect(s).toHaveLength(3)
     for (const style of s) {
       expect(style).toContain('padding-bottom:10px')
       expect(style).toContain('transparent') // jamais de couleur qui déborde en surlignage
     }
-    // Segment du sous-passage : trois barres ; les deux barres y gardent leur
-    // profondeur d'origine (0-2 et 3-5), la troisième s'empile en dessous.
+    // Segment du sous-passage : trois barres ;
+    // les deux barres y gardent leur profondeur d'origine (0-2 et 3-5),
+    // la troisième s'empile en dessous.
     const milieu = s[1]
     expect(milieu).toContain('couleur(a) 0px 2px')
     expect(milieu).toContain('couleur(b) 3px 5px')

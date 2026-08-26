@@ -5,11 +5,11 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ecrireSeedDemo } from './util'
 
 /**
- * Panneau métadonnées — gestes AUDIO de la vue Corpus :
+ *  Panneau métadonnées — gestes AUDIO de la vue Corpus :
  *  - avec un audio : DEUX boutons côte à côte — « Effacer l'audio » (rouge,
- *    détache le média, le texte reste) et « Remplacer l'audio » ;
+ *  détache le média, le texte reste) et « Remplacer l'audio » ;
  *  - sans SRT : bouton « Assigner un srt… » — si l'éditeur porte déjà du
- *    texte, une bannière demande confirmation (jamais d'écrasement silencieux).
+ *  texte, une bannière demande confirmation (jamais d'écrasement silencieux).
  */
 
 /** SRT minimalist à assigner (2 cues — produit des ancres temporelles). */

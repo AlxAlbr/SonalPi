@@ -1,6 +1,6 @@
 /**
- * SCÉNARIO À DEUX POSTES contre les Nextcloud DOCKER réels —
- * la répétition générale « deux chercheuses, un corpus » :
+ *  SCÉNARIO À DEUX POSTES contre les Nextcloud DOCKER réels —
+ *  la répétition générale « deux chercheuses, un corpus » :
  *
  *   Poste MAX (propriétaire) et poste OLIVIER (partagé, SON propre chemin DAV),
  *   chacun avec son MIROIR local distinct, son store et ses transactions —
@@ -16,9 +16,9 @@
  *      olivier tient l'entretien, puis réussie — membership publié d'abord,
  *      MOVE vers corbeille/ ensuite, les deux verrous rendus.
  *
- * Joué contre LA MÊME trame sur la pile A (files_lock → variante A pour le
- * verrou ENTRETIEN) ET la pile B (sans plugin → variante B). Skippé si une
- * pile ne répond pas (npm run nc:up / nc-b:up + nc(:b):provision).
+ *  Joué contre LA MÊME trame sur la pile A (files_lock → variante A pour le
+ *  verrou ENTRETIEN) ET la pile B (sans plugin → variante B). Skippé si une
+ *  pile ne répond pas (npm run nc:up / nc-b:up + nc(:b):provision).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -26,7 +26,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../../src/main/verrous/providerFilesLock'
@@ -104,8 +104,8 @@ function creerPoste(baseUrlDav: string, identifiants: { utilisateur: string; mot
   return { client, miroir, store, tx }
 }
 
-/** Prépare l'état serveur et nettoie les résidus d'un passage antérieur
- *  (le scénario doit pouvoir être rejoué sans intervention manuelle). */
+/** Prépare l'état serveur et nettoie les résidus d'un passage antérieur.
+ *  Le scénario doit pouvoir être rejoué sans intervention manuelle. */
 async function amorcerServeur(base: string): Promise<{ original: string | null }> {
   const client = new ClientWebDAV({
     baseUrl: `${base}/remote.php/dav/files/max/MonCorpus`,
@@ -168,9 +168,7 @@ async function corpusServeur(base: string): Promise<CorpusFichier> {
   return JSON.parse(await client.getTexte('corpus.json')) as CorpusFichier
 }
 
-/** LA TRAME commune — identique sur les deux piles, seule la variante du
- *  verrou entretien diffère (le protocole s'adapte, l'utilisateur ne
- *  choisit rien). */
+/** LA TRAME commune — identique sur les deux piles, seule la variante du verrou entretien diffère. Le protocole s'adapte, l'utilisateur ne choisit rien. */
 async function jouerScenarioDeuxPostes(base: string, verrouNatif: boolean): Promise<void> {
   const davMax = `${base}/remote.php/dav/files/max/MonCorpus`
   const davOlivier = `${base}/remote.php/dav/files/olivier/MonCorpus`
@@ -188,9 +186,8 @@ async function jouerScenarioDeuxPostes(base: string, verrouNatif: boolean): Prom
     let c = await corpusServeur(base)
     expect(c.codebook[catMax.id]?.nom).toBe('Thème de Max')
 
-    // 3. OLIVIER tire puis publie SA définition : le GET frais de sa
-    //    transaction absorbe la publication de max — coexistence, jamais
-    //    d'écrasement (c'est TOUT le point des transactions courtes).
+    // 3. OLIVIER tire puis publie SA définition : le GET frais de sa transaction absorbe la publication de max,
+    //    sans écrasement — c'est TOUT le point des transactions courtes.
     await olivier.miroir.tirer()
     const catOlivier = await olivier.tx.executer(() =>
       olivier.store.ajouterCategorie("Thème d'Olivier", null),
@@ -202,8 +199,8 @@ async function jouerScenarioDeuxPostes(base: string, verrouNatif: boolean): Prom
     await max.miroir.tirer()
     expect(max.store.ouvrir().codebook[catOlivier.id]).toBeDefined()
 
-    // 4. VERROU CORPUS tenu par max (session longue simulée) → la transaction
-    //    d'olivier est REFUSÉE NOMINATIVEMENT, rien ne part en cachette.
+    // 4. VERROU CORPUS tenu par max (session longue simulée) → la transaction d'olivier est REFUSÉE NOMINATIVEMENT,
+    //    rien ne part en cachette.
     const pVerrouLong = new ProviderPutConditionnel(max.client, () => ({
       userId: 'max',
       machineId: 'poste-max',
@@ -222,8 +219,8 @@ async function jouerScenarioDeuxPostes(base: string, verrouNatif: boolean): Prom
     await expect(max.tx.supprimerEntretien('ent-deux-postes')).rejects.toThrow(/olivier/)
     c = await corpusServeur(base)
     expect(c.membership['ent-deux-postes']).toBeDefined()
-    //    b) olivier libère → max supprime : membership publié D'ABORD, MOVE
-    //       serveur ENSUITE, les DEUX verrous rendus.
+    //    b) olivier libère → max supprime : membership publié D'ABORD,
+    //       MOVE serveur ENSUITE, puis les DEUX verrous rendus.
     await pTiers.liberer(cheminVerrouEntretien(verrouNatif))
     await max.tx.supprimerEntretien('ent-deux-postes')
     c = await corpusServeur(base)

@@ -1,22 +1,22 @@
 /**
- * SCÉNARIO E2E — AUDIO DISTANT sur la pile
- * Nextcloud Docker (pile A, :8080). Deux instances Electron réelles :
+ *  SCÉNARIO E2E — AUDIO DISTANT sur la pile
+ *  Nextcloud Docker (pile A, :8080). Deux instances Electron réelles :
  *
- *   1. MAX ouvre le corpus distant, sélectionne « Entretien partagé » et
- *      DÉSIGNE son audio dans le Nextcloud : la modale s'ouvre, il
- *      TÉLÉVERSE un fichier de son poste (« ➕ Téléverser… », dialogue natif
- *      simulé) — le fichier part sur le serveur ET l'entretien est désigné
- *      (micro-session, un seul geste) ;
- *      → assertions SERVEUR : `audios/demo-chant.mp3` présent,
- *        `entretiens/<ID>.json` porte `meta.audioDistant` ;
- *   2. OLIVIER ouvre le même corpus : le PULL rapatrie l'audio désigné dans
- *      SON miroir local (`userData/miroirs/<id>/…`) — asserté sur disque ;
- *   3. OLIVIER ouvre « Entretien sans son », dont la désignation pointe vers
- *      un fichier ABSENT du serveur : le pull l'a signalé inaccessible et le
- *      LECTEUR affiche l'étiquette d'état explicative (« 🔒 … droits ») avec
- *      son bouton « Réessayer ».
+ *  1. MAX ouvre le corpus distant, sélectionne « Entretien partagé » et
+ *  DÉSIGNE son audio dans le Nextcloud : la modale s'ouvre, il
+ *  TÉLÉVERSE un fichier de son poste (« ➕ Téléverser… », dialogue natif
+ *  simulé) — le fichier part sur le serveur ET l'entretien est désigné
+ *  (micro-session, un seul geste) ;
+ *  → assertions SERVEUR : `audios/demo-chant.mp3` présent,
+ *  `entretiens/<ID>.json` porte `meta.audioDistant` ;
+ *  2. OLIVIER ouvre le même corpus : le PULL rapatrie l'audio désigné dans
+ *  SON miroir local (`userData/miroirs/<id>/…`) — asserté sur disque ;
+ *  3. OLIVIER ouvre « Entretien sans son », dont la désignation pointe vers
+ *  un fichier ABSENT du serveur : le pull l'a signalé inaccessible et le
+ *  LECTEUR affiche l'étiquette d'état explicative (« 🔒 … droits ») avec
+ *  son bouton « Réessayer ».
  *
- * Skippé si la pile ne répond pas (`npm run nc:up && npm run nc:provision`).
+ *  Skippé si la pile ne répond pas (`npm run nc:up && npm run nc:provision`).
  */
 
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
@@ -191,8 +191,8 @@ test('audio distant : téléverser+désigner chez max, pull miroir chez olivier,
     await connecterEtOuvrir(pMax, URL_MAX, MAX.utilisateur, MAX.motDePasse)
 
     /* 2. Il sélectionne « Entretien partagé » puis désigne son audio :
-     *    modale de navigation ➕ Téléverser (dialogue simulé) → PUT serveur +
-     *    désignation publiée, en un seul geste. */
+     *  modale de navigation ➕ Téléverser (dialogue simulé) → PUT serveur +
+     *  désignation publiée, en un seul geste. */
     await pause(pMax, 'Max sélectionne l’entretien partagé…')
     await pMax.locator('.carte-ent', { hasText: 'Entretien partagé' }).click()
     await expect(pMax.locator('.panneau.meta-ent')).toBeVisible({ timeout: 10_000 })
@@ -226,7 +226,7 @@ test('audio distant : téléverser+désigner chez max, pull miroir chez olivier,
     await pause(pMax, 'Fichier sur le serveur ✓, entretien désigné ✓')
 
     /* 3. OLIVIER ouvre le MÊME corpus : le pull d'ouverture rapatrie l'audio
-     *    désigné dans SON miroir local — asserté sur disque. */
+     *  désigné dans SON miroir local — asserté sur disque. */
     console.log('③ Olivier ouvre : l’audio doit rejoindre son miroir…')
     appOlivier = await lancer(dirOlivier)
     const pOli = await appOlivier.firstWindow()
@@ -241,7 +241,7 @@ test('audio distant : téléverser+désigner chez max, pull miroir chez olivier,
     await pause(pOli, 'La copie locale d’Olivier est arrivée ✓')
 
     /* 4. « Entretien sans son » : désignation vers un fichier ABSENT — le
-     *    lecteur montre l'état INACCESSIBLE avec message explicatif. */
+     *  lecteur montre l'état INACCESSIBLE avec message explicatif. */
     await pause(pOli, 'Olivier ouvre l’entretien dont l’audio est introuvable côté serveur…')
     await pOli.locator('.carte-ent', { hasText: 'Entretien sans son' }).locator('.crayon').click()
     await expect(pOli.locator('.editeur')).toBeVisible({ timeout: 20_000 })

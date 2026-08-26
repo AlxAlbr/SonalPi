@@ -1,9 +1,9 @@
 /**
- * Tests de la PUBLICATION INITIALE d'un corpus distant contre le serveur
- * WebDAV embarqué : squelette posé sur une cible neuve, garde If-None-Match
- * (« déjà un corpus », y compris en course bi-poste), reprise idempotente
- * après échec réseau mi-parcours, et équivalence stricte entre le squelette
- * distant et l'amorce locale (même codebook par défaut).
+ *  Tests de la PUBLICATION INITIALE d'un corpus distant contre le serveur
+ *  WebDAV embarqué : squelette posé sur une cible neuve, garde If-None-Match
+ *  (« déjà un corpus », y compris en course bi-poste), reprise idempotente
+ *  après échec réseau mi-parcours, et équivalence stricte entre le squelette
+ *  distant et l'amorce locale (même codebook par défaut).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -16,9 +16,10 @@ import { CorpusStore } from '../../src/main/corpusStore'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 
-/** Un publieur pointant SOUS la racine du banc : `/…/MonCorpus/<sous>/<corpus>`
- *  n'existe PAS à l'amorce du banc — exactement le cas d'usage « l'utilisateur
- *  vise un dossier à créer ». Exerce aussi `assurerRacine` (chaîne de MKCOL). */
+/** Un publieur pointant SOUS la racine du banc :
+ *  `/…/MonCorpus/<sous>/<corpus>` n'existe PAS à l'amorce du banc —
+ *  exactement le cas d'usage « l'utilisateur vise un dossier à créer ».
+ *  Exerce aussi `assurerRacine` (chaîne de MKCOL). */
 function publieurVersSousDossier(serveur: ServeurWebDAVMemoire, chemin = '/Equipe/MonNouveau') {
   return new PublieurCorpus(
     {
@@ -100,8 +101,8 @@ describe('PublieurCorpus.publierSquelette', () => {
       'network down',
     )
 
-    // Reprise : fetch normal, MKCOL 405 tolérés, PUT aboutit — l'état laissé
-    // par l'échec n'est JAMAIS bloquant (aucun « semi-corpus » verrouillé).
+    // Reprise : fetch normal, MKCOL 405 tolérés, PUT aboutit —
+    // l'état laissé par l'échec n'est JAMAIS bloquant (aucun « semi-corpus » verrouillé).
     couper = false
     await new PublieurCorpus(config, serveur.fetch).publierSquelette('Reprise après échec')
     const clientCible = new ClientWebDAV(config, serveur.fetch)

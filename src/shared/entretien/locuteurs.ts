@@ -1,13 +1,13 @@
 import type { Locuteur } from '../format'
 
 /**
- * Locuteurs d'un entretien. Le `loc` d'un bloc RÉFÉRENCE un locuteur par son
- * `index` (numérique, par entretien — l'exception assumée à l'identité opaque :
- * sous verrou il n'y a qu'un écrivain, et c'est ce que le `.sonal` référence).
- * Renommer = éditer l'entrée ; les blocs, qui ne portent que l'index, ne sont
- * pas touchés (référence, pas copie).
+ *  Locuteurs d'un entretien. Le `loc` d'un bloc RÉFÉRENCE un locuteur par son
+ *  `index` (numérique, par entretien — l'exception assumée à l'identité
+ *  opaque : sous verrou il n'y a qu'un écrivain, et c'est ce que le `.sonal`
+ *  référence). Renommer = éditer l'entrée ; les blocs, qui ne portent que
+ *  l'index, ne sont pas touchés (référence, pas copie).
  *
- * Fonctions pures : aucun DOM, aucun ProseMirror — testables headless.
+ *  Fonctions pures : aucun DOM, aucun ProseMirror — testables headless.
  */
 
 /** Nom d'un locuteur par index (fallback lisible si inconnu / non attribué). */
@@ -34,8 +34,9 @@ export function ajouterLocuteur(locuteurs: Locuteur[], nom: string): Locuteur {
   return l
 }
 
-/** Retire un locuteur de la liste. Les blocs qui le référencent doivent être
- *  désattribués (loc → null) par l'appelant — le module ignore l'éditeur. */
+/** Retire un locuteur de la liste.
+ *  Les blocs qui le référencent doivent être désattribués (loc → null)
+ *  par l'appelant — le module ignore l'éditeur. */
 export function supprimerLocuteur(locuteurs: Locuteur[], index: number): void {
   const i = locuteurs.findIndex((l) => l.index === index)
   if (i !== -1) locuteurs.splice(i, 1)
@@ -44,11 +45,10 @@ export function supprimerLocuteur(locuteurs: Locuteur[], index: number): void {
 // ─────────────────────────────────────────────────────────────────────────────
 // Pseudonymisation de l'ÉTIQUETTE du locuteur.
 //
-// Le pseudo est un CHAMP du locuteur (`pseudo`/`pseudoEtat`) : le rendu suit
-// par RÉFÉRENCE (le widget de gouttière, futur export) — pas de hack DOM.
-// La fonction pure ci-dessous dérive les parts d'affichage du libellé ; la
-// « suggestion » (nom matchant une règle corpus) est une REQUÊTE, jamais
-// stockée — hors de cette fonction.
+// Le pseudo est un CHAMP du locuteur (`pseudo`/`pseudoEtat`) : le rendu suit par RÉFÉRENCE (le widget de gouttière,
+// futur export) — pas de hack DOM.
+// La fonction pure ci-dessous dérive les parts d'affichage du libellé ;
+// la « suggestion » (nom matchant une règle corpus) est une REQUÊTE, jamais stockée — hors de cette fonction.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Parts d'affichage du libellé de tour (gouttière / exports) : PURE, testable.
@@ -63,17 +63,17 @@ export interface LibelleGouttiere {
   pseudo: string | null
   refuse: boolean
   index: number
-  /** Couleur effective du NOM dans l'éditeur : choisie par l'utilisateur
-   *  (locuteur.couleur) ou auto par index (palette prédéfinie). */
+  /** Couleur effective du NOM dans l'éditeur : choisie par l'utilisateur (locuteur.couleur),
+   *  ou auto par index (palette prédéfinie). */
   couleur: string
 }
 
 /**
- * Palette PRÉDÉFINIE des pastilles de locuteur (parité visuelle des pastilles
- * de thème, mais ici auto-remplie — pas de codebook). Une couleur stable par
- * INDEX (l'identité que les blocs référencent) : renommer un locuteur ne
- * change pas sa couleur ; la suppression d'un locuteur fait remonter les
- * couleurs des suivants (l'index est la seule identité du modèle).
+ *  Palette PRÉDÉFINIE des pastilles de locuteur (parité visuelle des pastilles
+ *  de thème, mais ici auto-remplie — pas de codebook). Une couleur stable par
+ *  INDEX (l'identité que les blocs référencent) : renommer un locuteur ne
+ *  change pas sa couleur ; la suppression d'un locuteur fait remonter les
+ *  couleurs des suivants (l'index est la seule identité du modèle).
  */
 export const PALETTE_PASTILLES_LOCUTEURS = [
   '#e57373', // rouge doux
@@ -93,8 +93,9 @@ export function couleurPourLocuteur(index: number): string {
   return PALETTE_PASTILLES_LOCUTEURS[(index - 1) % PALETTE_PASTILLES_LOCUTEURS.length] ?? PALETTE_PASTILLES_LOCUTEURS[0]
 }
 
-/** Noms affichables des couleurs de la palette (pour l'écriture du nom de la
- *  couleur choisie depuis le tableau des locuteurs). */
+/** Noms affichables des couleurs de la palette,
+ *  pour l'écriture du nom de la couleur choisie depuis le tableau des locuteurs.
+ */
 export const NOMS_COULEURS_LOCUTEURS: Record<string, string> = {
   '#e57373': 'Rouge',
   '#64b5f6': 'Bleu',

@@ -1,10 +1,10 @@
 /**
- * Multi-pseudo ≤2 — cœur PUR : aucune I/O, aucune dépendance UI.
+ *  Multi-pseudo ≤2 — cœur PUR : aucune I/O, aucune dépendance UI.
  *
- * Une `RegleAnon` peut porter DEUX pseudos pour une même entité (parité V1
- * SonalPi : `remplacement` + `remplacementAlt`, capé à 2 — le round-trip `.sonal`
- * ne sait pas sérialiser plus). On reste sur `string[]` dans le modèle, bridée
- * à 2, et on définit ici la normalisation entrée ↔ affichage.
+ *  Une `RegleAnon` peut porter DEUX pseudos pour une même entité (parité V1
+ *  SonalPi : `remplacement` + `remplacementAlt`, capé à 2 — le round-trip `.sonal`
+ *  ne sait pas sérialiser plus). On reste sur `string[]` dans le modèle, bridée
+ *  à 2, et on définit ici la normalisation entrée ↔ affichage.
  */
 
 /** Séparateur d'affichage / de saisie libre entre deux pseudos. */
@@ -14,10 +14,10 @@ export const SEP_PSEUDOS = ' / '
 export const MAX_PSEUDOS = 2
 
 /**
- * Scinde une saisie libre « Claire / Rebecca » (séparateur `/` ± espaces) en
- * pseudos normalisés : trim, sans doublon (insensible à la casse), capés à 2.
- * Une saisie sans `/` → liste d'un seul pseudo. Renvoie toujours ≥ 1 élément
- * si `saisie` n'est pas vide, sinon [].
+ *  Scinde une saisie libre « Claire / Rebecca » (séparateur `/` ± espaces) en
+ *  pseudos normalisés : trim, sans doublon (insensible à la casse), capés à 2.
+ *  Une saisie sans `/` → liste d'un seul pseudo. Renvoie toujours ≥ 1 élément
+ *  si `saisie` n'est pas vide, sinon [].
  */
 export function scinderPseudos(saisie: string): string[] {
   const brut = saisie.trim()
@@ -46,9 +46,9 @@ export function estMultiPseudo(pseudos: string[]): boolean {
 }
 
 /**
- * Fusionne un pseudo candidat dans une liste existante (retourne un NOUVEAU
- * tableau) : si déjà présent (insensible à la casse) → inchangé ; sinon ajouté
- * si la liste est sous le cap (≤2). C'est le « Garder les deux » de la V1.
+ *  Fusionne un pseudo candidat dans une liste existante (retourne un NOUVEAU
+ *  tableau) : si déjà présent (insensible à la casse) → inchangé ; sinon ajouté
+ *  si la liste est sous le cap (≤2). C'est le « Garder les deux » de la V1.
  */
 export function ajouterPseudo(pseudos: string[], pseudo: string): string[] {
   const p = pseudo.trim()

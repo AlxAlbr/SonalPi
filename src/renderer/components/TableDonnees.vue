@@ -24,20 +24,18 @@ const {
   allerSaisieDonnees, // « Saisir… » par LIGNE d'entretien (corpus distant)
 } = utiliserSonal()
 
-// La fenêtre d'édition des variables (crayon, parité SonalPi — même idiome que
-// EditionThemes) : la grille ci-dessous reste une pure SAISIE plein écran.
+// La fenêtre d'édition des variables (crayon).
+// La grille ci-dessous reste une pure SAISIE plein écran.
 const editerVariables = ref(false)
 
-// Modale « Modifier en lot », ouverte depuis le
-// <th> d'une variable de portée ENTRETIEN (id de la variable, null = fermée).
+// Modale « Modifier en lot » : id de la variable de portée ENTRETIEN.
+// Ouverte depuis le <th> de la variable (null = fermée).
 const lotVarId = ref<string | null>(null)
 
-// --- Filtre de portée + regroupement (parité SonalPi) ---
-// Colonnes REGROUPÉES : toutes les variables d'entretien d'abord, puis toutes
-// celles de locuteur (ordre SonalPi), chaque groupe dans l'ordre du corpus.
-// Filtre « entretien » : les lignes locuteurs disparaissent (aucune cellule à y
-// saisir) ; filtre « locuteur » : les lignes entretien RESTENT (ce sont les
-// séparateurs qui rendent la grille lisible).
+// --- Filtre de portée + regroupement ---
+// Colonnes REGROUPÉES : variables d'entretien d'abord, puis de locuteur.
+// Filtre « entretien » : les lignes locuteurs disparaissent.
+// Filtre « locuteur » : les lignes entretien RESTENT ; ce sont les séparateurs qui rendent la grille lisible.
 const filtrePortee = ref<'toutes' | 'entretien' | 'locuteur'>('toutes')
 const variablesVisibles = computed(() => {
   const groupees = [
@@ -48,19 +46,16 @@ const variablesVisibles = computed(() => {
   return groupees.filter((v) => v.portee === filtrePortee.value)
 })
 
-// --- SAISIE LIBRE (parité SonalPi) ---
-// Variable SANS modalité : la cellule est un champ texte permanent — chaque
-// libellé saisi trouve-ou-crée sa modalité (dictionnaire). Variable AVEC
-// modalités : le select garde une option « autre… » qui bascule LA cellule en
-// champ texte — la colonne reste donc en saisie libre même une fois que les
-// valeurs tapées ont peuplé le dictionnaire.
+// --- SAISIE LIBRE ---
+// Variable SANS modalité : cellule en champ texte permanent.
+// Chaque libellé saisi trouve-ou-crée sa modalité (dictionnaire).
+// Variable AVEC modalités : le select garde une option « autre… »,
+// qui bascule LA cellule en champ texte.
 const AUTRE = ' autre' // sentinelle : ne peut pas être un id de modalité
 const celluleLibre = ref<string | null>(null) // clé de LA cellule en mode texte
-// Erreur INLINE par cellule — la raison
-// nominative du refus (verrou tenu par autrui, divergence 412…) marque LA
-// cellule (bord rouge + tooltip), sans jamais bloquer la saisie ailleurs ;
-// effacée au focus suivant. Les rejets IPC (réseau…) ne passent PAS ici :
-// ils remontent à la bannière globale (unhandledrejection, erreurs.ts).
+// Erreur INLINE par cellule : le refus (verrou tenu par autrui, divergence 412…)
+// marque LA cellule (bord rouge + tooltip), sans bloquer la saisie ailleurs ;
+// effacée au focus suivant. Les rejets IPC (réseau…) remontent à la bannière globale (unhandledrejection, erreurs.ts).
 const erreursCellules = ref<Record<string, string>>({})
 function noterErreurCellule(cle: string, raison: string | null) {
   if (raison) erreursCellules.value[cle] = raison
@@ -87,8 +82,7 @@ function surSelectLoc(entId: string, index: number, idVar: string, evt: Event) {
   if (val === AUTRE) celluleLibre.value = cleLoc(entId, index, idVar)
   else void surValidationLoc(entId, index, idVar, val)
 }
-/** Commit d'une cellule : le primitif du lot à UN item tourne en
- *  arrière-plan ; seul le refus TRANSACTIONNEL revient ici (erreur inline).
+/** Commit d'une cellule : seul le refus TRANSACTIONNEL revient ici, en erreur inline.
  *  Un rejet IPC (réseau) n'est pas catché → bannière globale. */
 async function surValidationGen(entId: string, idVar: string, val: string) {
   noterErreurCellule(cleGen(entId, idVar), await poserGen(entId, idVar, val))
@@ -110,17 +104,16 @@ function surLibreLoc(entId: string, index: number, idVar: string, evt: Event) {
     (r) => noterErreurCellule(cle, r),
   )
 }
-/** Focus du champ texte OUVERT via « autre… » (les champs permanents, dont la
- *  clé ne matche pas, ne volent jamais le focus). */
+/** Focus du champ texte OUVERT via « autre… ».
+ *  Les champs permanents, dont la clé ne matche pas, ne volent jamais le focus. */
 function focaliserLibre(el: unknown, cle: string) {
   if (el instanceof HTMLInputElement && celluleLibre.value === cle && document.activeElement !== el)
     el.focus()
 }
 
 // --- NAVIGATION CLAVIER ---
-// Registre de focus : chaque cellule rendue (select ou input libre)
-// s'enregistre sous SA clé ; la grille pure (tableNavigation.ts) dit où
-// aller, ce registre dit COMMENT (focus + scrollIntoView).
+// Registre de focus : chaque cellule rendue (select ou input libre) s'enregistre sous SA clé ;
+// la grille pure (tableNavigation.ts) dit où aller, ce registre dit COMMENT (focus + scrollIntoView).
 const refsCellules = new Map<string, HTMLElement>()
 function refCellule(el: unknown, cle: string) {
   if (el instanceof HTMLElement) refsCellules.set(cle, el)
@@ -135,9 +128,9 @@ const grille = computed(() =>
     editable: (id) => tableLigneEditable(id),
   }),
 )
-/** Focus immédiat sur la voisine — le commit éventuel part déjà en
- *  arrière-plan, la navigation n'attend JAMAIS le réseau. Retour false
- *  = pas de cible : l'appelant laisse Tab/Entrée natifs reprendre. */
+/** Focus immédiat sur la voisine. Le commit éventuel part déjà en arrière-plan :
+ *  la navigation n'attend JAMAIS le réseau. Retour false = pas de cible,
+ *  l'appelant laisse Tab/Entrée natifs reprendre. */
 function naviguer(cle: string, sens: SensNav): boolean {
   const cible = celluleVoisine(grille.value, cle, sens)
   if (!cible) return false
@@ -147,15 +140,16 @@ function naviguer(cle: string, sens: SensNav): boolean {
   el.scrollIntoView({ block: 'nearest' })
   return true
 }
-/** Entrée sur champ texte libre : valider (blur → change → commit) PUIS
- *  descendre ; Shift+Entrée : remonter. */
+/** Entrée sur champ texte libre : valider (blur → change → commit), puis descendre.
+ *  Shift+Entrée : remonter. */
 function entreeInput(cle: string, evt: KeyboardEvent) {
   ;(evt.target as HTMLInputElement).blur()
   naviguer(cle, evt.shiftKey ? 'haut' : 'bas')
 }
-/** Entrée sur select : descendre. En keydown SANS preventDefault — Chromium
- *  avale le keyup des selects (déroulant fermé), et preventDefault empêcherait
- *  le déroulant ouvert de se fermer normalement. Shift+Entrée : remonter. */
+/** Entrée sur select : descendre.
+ *  En keydown SANS preventDefault, Chromium avale le keyup des selects (déroulant fermé) ;
+ *  preventDefault empêcherait le déroulant ouvert de se fermer normalement.
+ *  Shift+Entrée : remonter. */
 function entreeSelect(cle: string, evt: KeyboardEvent) {
   naviguer(cle, evt.shiftKey ? 'haut' : 'bas')
 }
@@ -184,8 +178,8 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
         </button>
       </div>
 
-      <!-- Légende clavier sur UNE ligne, entre
-           le titre et la grille (masquée hors édition : cellules grisées). -->
+      <!-- Légende clavier sur UNE ligne, entre le titre et la grille.
+           Masquée hors édition (cellules grisées). -->
       <p v-if="!lectureSeule && variablesVisibles.length > 0" class="aide-clavier">
         <span><kbd>Tab</kbd> droite · <kbd>⇧Tab</kbd> gauche</span>
         <span><kbd>Entrée</kbd> descendre · <kbd>⇧Entrée</kbd> remonter</span>
@@ -206,8 +200,8 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
                   <span v-if="v.priv" title="Variable privée — exclue des exports">🔒</span>
                   {{ v.lib }}
                 </span>
-                <!-- Portée puis lot (entretien uniquement) sur une DEUXIÈME
-                     ligne, sous le libellé : « (ent)⇊ ». -->
+                <!-- Portée puis lot (entretien uniquement) sur une deuxième ligne,
+                     sous le libellé : « (ent)⇊ ». -->
                 <span class="portee-var">
                   <small>({{ v.portee === 'entretien' ? 'ent' : 'loc' }})</small>
                   <!-- Lot sur les entretiens non ouverts — jamais hors ligne. -->
@@ -222,16 +216,15 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
             <template v-for="e in matrice" :key="e.entretienId">
               <tr>
                 <td class="ligne-ent">📄 {{ e.titre }}
-                  <!-- Verrou par ligne (décision = verrou) + présence
-                       (« ouvert par X », jamais décisionnel). -->
+                  <!-- Verrou par ligne (décision = verrou) et présence.
+                       (« Ouvert par X », jamais décisionnel.) -->
                   <span v-if="badgeVerrou(e.entretienId)" class="badge-verrou"
                         :title="`Verrou tenu par ${badgeVerrou(e.entretienId)!.userId} — ouverture en lecture seule.`">🔒 {{ badgeVerrou(e.entretienId)!.userId }}</span>
                   <span v-for="p in presencesSur(e.entretienId)" :key="p.machineId"
                         class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">👁 {{ p.userId }}</span>
-                  <!-- Corpus DISTANT uniquement : ouvrir CET entretien sur son
-                       onglet Donnée — le verrou existant tranche (libre → saisie,
-                       tenu ailleurs → lecture seule 🔒). En local, la grille est
-                       directement éditable, le bouton n'a pas lieu d'être. -->
+                  <!-- Corpus DISTANT uniquement : ouvrir CET entretien sur son onglet Donnée.
+                       Le verrou existant tranche : libre → saisie, tenu ailleurs → lecture seule 🔒.
+                       En local, la grille est directement éditable, le bouton n'a pas lieu d'être. -->
                   <button v-if="idDistantCourant && !lectureSeule" class="aller-saisie"
                           title="Ouvrir cet entretien sur l'onglet Donnée pour saisir ses valeurs"
                           @click="allerSaisieDonnees(e.entretienId)">Saisir…</button>
@@ -325,8 +318,8 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* Badges « par ligne » — même sémantique que les cartes Corpus
-   (verrou = décision ; présence = purement informatif, jamais décisionnel). */
+/* Badges « par ligne » — même sémantique que les cartes Corpus.
+   Verrou = décision ; présence = purement informatif, jamais décisionnel. */
 .badge-verrou,
 .badge-presence {
   font-size: 0.72rem;
@@ -401,8 +394,8 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   background: #f6f8fc;
   color: #333;
 }
-/* Plein écran (parité SonalPi) : l'écran occupe la hauteur restante de la
-   fenêtre, la grille défile DANS son cadre (en-tête de colonnes collant). */
+/* Plein écran : la grille occupe la hauteur restante de la fenêtre,
+   et défile dans son cadre (en-tête de colonnes collant). */
 .donnees-ecran {
   max-width: 100%;
   display: flex;
@@ -464,9 +457,9 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   z-index: 1;
   text-align: center; /* en-têtes centrés, comme l'onglet Pseudonymisation */
 }
-/* Couleurs des colonnes par portée — reprise de l'onglet Données de
-   l'entretien (et des badges ent/loc d'EditionVariables) : variable
-   d'entretien en bleu-violet, variable de locuteur en marron. */
+/* Couleurs des colonnes par portée, comme l'onglet Données de l'entretien :
+   variable d'entretien en bleu-violet, variable de locuteur en marron,
+   reprise aussi par les badges ent/loc d'EditionVariables. */
 .matrice th.col-entretien {
   color: #5c6bc0;
 }
@@ -508,8 +501,8 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
   color: #bbb;
   font-style: italic;
 }
-/* Erreur INLINE — refus nominatif (verrou
-   autrui, divergence…) marqué sur LA cellule, sans bloquer les autres. */
+/* Erreur INLINE — refus nominatif (verrou autrui, divergence…) :
+   marqué sur LA cellule, sans bloquer les autres. */
 .cell-erreur {
   border-color: #d9534f !important;
   background: #fff5f5;

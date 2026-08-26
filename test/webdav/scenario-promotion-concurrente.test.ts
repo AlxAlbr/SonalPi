@@ -1,18 +1,18 @@
 /**
- * SCÉNARIO de PROMOTION CONCURRENTE d'une entité vers le corpus,
- * contre les Nextcloud DOCKER réels.
+ *  SCÉNARIO de PROMOTION CONCURRENTE d'une entité vers le corpus,
+ *  contre les Nextcloud DOCKER réels.
  *
- *   Max pousse « Hopital Saint-Anne » vers le corpus (transaction).
- *   OLIVIER, qui n'a PAS re-tiré depuis, pousse LA MÊME entité depuis son
- *   poste : sa transaction voit la règle de Max dans le GET frais
- *   d'après-verrou, et elle la RÉUTILISE au lieu d'en créer une seconde
- *   (`existait: true`). Le serveur ne porte JAMAIS deux règles pour la même
- *   entité ; l'UI ouvrira son dialogue Aligner / Garder les deux sur ce
- *   signal.
+ *  Max pousse « Hopital Saint-Anne » vers le corpus (transaction).
+ *  OLIVIER, qui n'a PAS re-tiré depuis, pousse LA MÊME entité depuis son
+ *  poste : sa transaction voit la règle de Max dans le GET frais
+ *  d'après-verrou, et elle la RÉUTILISE au lieu d'en créer une seconde
+ *  (`existait: true`). Le serveur ne porte JAMAIS deux règles pour la même
+ *  entité ; l'UI ouvrira son dialogue Aligner / Garder les deux sur ce
+ *  signal.
  *
- * Joué contre LA MÊME trame sur la pile A (files_lock) ET la pile B (sans
- * plugin) ; le verrou CORPUS est toujours en PUT conditionnel.
- * Skippé si une pile ne répond pas (npm run nc:up / nc-b:up).
+ *  Joué contre LA MÊME trame sur la pile A (files_lock) ET la pile B (sans
+ *  plugin). Le verrou CORPUS est toujours en PUT conditionnel.
+ *  Skippé si une pile ne répond pas (npm run nc:up / nc-b:up).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -20,7 +20,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { TransactionsCorpus } from '../../src/main/distant/transactions'
 import type { IdentiteSession } from '../../src/main/distant/sessions'
@@ -104,9 +104,9 @@ async function jouerPromotionConcurrente(base: string): Promise<void> {
   const resMax = await max.tx.executer(() => max.store.regleAnonCreer(ENTITE, ['HSA']))
   expect(resMax.existait).toBe(false)
 
-  // Olivier promeut LA MÊME entité SANS pull intermédiaire (miroir périmé ;
-  // sa lecture locale dirait « aucune règle ») : la transaction réutilise
-  // celle de Max, jamais de doublon.
+  // Olivier promeut LA MÊME entité sans pull intermédiaire (miroir périmé ;
+  // sa lecture locale dirait « aucune règle »).
+  // La transaction réutilise la règle de Max, jamais de doublon.
   const resOlivier = await olivier.tx.executer(() => olivier.store.regleAnonCreer(ENTITE, ['St-Anne']))
   expect(resOlivier.existait).toBe(true)
   expect(resOlivier.regle.id).toBe(resMax.regle.id)

@@ -3,15 +3,15 @@ import { utiliserSonal } from '../composables/sonal'
 import type { SegmentThematique } from '../../shared/format'
 
 /**
- * Lecteur audio — en HAUT de l'écran entretien, comme SonalPi :
- * play/pause, position, vitesse, ±5 s, puis la bande (forme d'onde PNG +
- * curseur de position + clic = seek TEMPOREL). Composant « bête » : tout
- * l'état vit dans le scope audio partagé (useAudio) — c'est la réactivité qui
- * le coordonne avec le surlignage du bloc lu, pas un composant dynamique.
- * La bande porte aussi le CALQUE du résumé thématique de l'entretien
- * ouvert (live — il suit le codage), calé sur l'axe TEMPS via les ancres.
- * `empile` (mode vidéo) : la bande passe SOUS les commandes au lieu d'être
- * sur la même ligne — la place libérée à droite accueille le panneau vidéo.
+ *  Lecteur audio — en HAUT de l'écran entretien : play/pause, position, vitesse,
+ *  ±5 s, puis la bande (forme d'onde PNG + curseur de position + clic = seek
+ *  TEMPOREL). Composant « bête » : tout l'état vit dans le scope audio partagé
+ *  (useAudio) — c'est la réactivité qui le coordonne avec le surlignage du bloc
+ *  lu, pas une logique de composant. La bande porte aussi le CALQUE du résumé
+ *  thématique de l'entretien ouvert (live — il suit le codage) ; il est calé sur
+ *  l'axe TEMPS via les ancres. `empile` (mode vidéo) : la bande passe SOUS les
+ *  commandes au lieu d'être sur la même ligne — la place libérée à droite
+ *  accueille le panneau vidéo.
  */
 const props = withDefaults(defineProps<{ empile?: boolean }>(), { empile: false })
 const {
@@ -33,10 +33,10 @@ const {
 const { url, waveformUrl, enLecture, duree, position, vitesse, ratio, erreur, basculer, decaler, changerVitesse, seek } =
   audio
 
-/** Style d'un segment sur la BANDE : la bande est un axe TEMPOREL (le curseur y
- *  vit) → les bornes texte du segment sont re-projetées en temps via les ancres
- *  (`tempsAuTexte`) ; sans ancre (texte sans timecodes), repli en % du texte —
- *  l'approximation SonalPi. Peinture partagée avec les cartes Corpus. */
+/** Style d'un segment sur la BANDE : la bande est un axe TEMPOREL (le curseur
+ *  y vit) → les bornes texte du segment sont re-projetées en temps via les
+ *  ancres (`tempsAuTexte`) ; sans ancre (texte sans timecodes), repli en % du
+ *  texte. Peinture partagée avec les cartes Corpus. */
 function styleSegmentBande(s: SegmentThematique): Record<string, string> {
   const p = peintureSegment(s.codes)
   let deb = s.deb
@@ -65,8 +65,8 @@ function fmt(t: number): string {
   return (h > 0 ? h + ':' : '') + mm + ':' + String(s).padStart(2, '0')
 }
 
-/** Clic sur la bande = seek proportionnel au TEMPS (la bande est une image
- *  temporelle — choix assumé, ≠ SonalPi qui vise une position dans le texte). */
+/** Clic sur la bande = seek proportionnel au TEMPS : la bande est une image
+ *  temporelle, pas un référentiel texte. */
 function clicBande(e: MouseEvent) {
   if (duree.value <= 0) return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -246,9 +246,9 @@ dès que les droits seront ouverts.
   color: #b3261e;
 }
 /* La bande : forme d'onde + curseur de position (ratio temps/durée). MÊME
-   représentation que les cartes Corpus (SonalPi) : conteneur compact à dégradé
-   vertical, onde plate 800×31 — la bande reste un axe TEMPOREL plein (l'onde
-   n'est jamais rognée : `object-fit: fill`, le curseur se cale en %). */
+   représentation que les cartes Corpus : conteneur compact à dégradé vertical,
+   onde plate 800×31 — la bande reste un axe TEMPOREL plein (l'onde n'est
+   jamais rognée : `object-fit: fill`, le curseur se cale en %). */
 .bande {
   position: relative;
   flex: 1;
@@ -279,9 +279,9 @@ dès que les droits seront ouverts.
   background: #d84315;
   pointer-events: none;
 }
-/* Segment du résumé thématique sur la bande — opacité SonalPi (0.55) : la
-   teinte du thème reste reconnaissable, l'onde reste lisible dessous.
-   Jamais interactif. */
+/* Segment du résumé thématique sur la bande — opacité 0.55 : la teinte du
+   thème reste reconnaissable, l'onde reste lisible dessous. Jamais
+   interactif. */
 .xtr-bande {
   position: absolute;
   top: 1px;

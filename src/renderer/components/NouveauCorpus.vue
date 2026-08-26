@@ -3,11 +3,11 @@ import { ref, computed } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Modale « Nouveau corpus local » — créer un corpus en choisissant un dossier
- * et en indiquant un nom de projet. Le `nom` est indépendant du dossier : il
- * vit dans `corpus.json.nom` et survit au renommage du dossier. Une fois
- * choisi, si le dossier contient déjà un corpus, on l'ouvre simplement (on
- * n'écrase jamais — son nom fait foi).
+ *  Modale « Nouveau corpus local » — créer un corpus en choisissant un dossier
+ *  et en indiquant un nom de projet. Le `nom` est indépendant du dossier : il
+ *  vit dans `corpus.json.nom` et survit au renommage du dossier. Une fois
+ *  choisi, si le dossier contient déjà un corpus, on l'ouvre simplement (on
+ *  n'écrase jamais — son nom fait foi).
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const { creerNouveauCorpus } = utiliserSonal()
@@ -33,9 +33,9 @@ async function choisirDossier() {
   dossier.value = d
   nom.value = basename(d)
   verifie.value = false
-  // La garde « déjà un corpus » est BEST-EFFORT : si elle échoue (IPC non
-  // répondu), on laisse `creerNouveau` (côté main) trancher — le bouton ne
-  // doit JAMAIS rester bloqué grisé. `finaly` garantit `verifie = true`.
+  // La garde « déjà un corpus » est BEST-EFFORT :
+  // si elle échoue (IPC non répondu), on laisse `creerNouveau` (côté main) trancher ;
+  // le bouton ne doit JAMAIS rester bloqué grisé. `finaly` garantit `verifie = true`.
   try {
     const v = await window.sonal.corpus.verifierNouveau(d)
     dejaCorpus.value = v.dejaCorpus

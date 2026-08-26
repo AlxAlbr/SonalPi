@@ -9,9 +9,9 @@ import {
 import type { MotsLiaisonParams } from '../src/shared/format'
 
 /**
- * Mots de liaison / articles (4b-B) : à la validation d'une entité à affixe
- * (« à Lyon »), proposer l'entité-cœur (« Lyon ») avec son pseudo rogner.
- * Deux couches testées ici :
+ *  Mots de liaison / articles (4b-B) : à la validation d'une entité à affixe
+ *  (« à Lyon »), proposer l'entité-cœur (« Lyon ») avec son pseudo rogner.
+ *  Deux couches testées ici :
  *  - la DÉTECTION pure (`detecterAffixeLiaison`) : affixe en tête, cœur non
  *    vide et capitalisé, pseudo rogner du même geste ;
  *  - la DÉCISION complète (`suggestionCoeur`) : réglage, invariants
@@ -162,8 +162,8 @@ describe('scénario utilisateur — acceptation puis règle plus large (incluses
       { id: 'n3', from: deLyon.from, to: deLyon.to, pseudo: 'd’une grande ville' },
     ])
     expect(r.relabel).toEqual([])
-    // Et la suggestion ne se serait PAS reproduite : « Lyon » existe déjà
-    // parmi les lignes (couvert par suggestionCoeur, testé ci-dessus).
+    // Et la suggestion ne se serait PAS reproduite : « Lyon »
+    // existe déjà parmi les lignes (couvert par suggestionCoeur, testé ci-dessus).
   })
 
   test('l’exception sur « Lyon » bloque au contraire TOUTE pose de « de Lyon »', () => {

@@ -4,22 +4,26 @@ import { renommerLocuteur } from './locuteurs'
 import type { Locuteur } from '../format'
 
 /**
- * Journal d'actions annulables. Seules les actions de MODÈLE y entrent
- * (codages, locuteurs, valeurs) — la frappe de texte reste sur Ctrl+Z. Journal
- * VOLATIL : session courante, jamais persisté, vidé à l'ouverture d'un entretien.
+ *  Journal d'actions annulables. Seules les actions de MODÈLE y entrent
+ *  (codages, locuteurs, valeurs) — la frappe de texte reste sur Ctrl+Z. Journal
+ *  VOLATIL : session courante, jamais persisté, vidé à l'ouverture d'un
+ *  entretien.
  *
- * L'inverse d'une action est une DONNÉE typée (jamais une closure) : on peut la
- * tester headless, vérifier son applicabilité (la cible existe encore ?) et la
- * remapper. Car les inverses portent des positions qui doivent SUIVRE les
- * éditions, comme le modèle : l'annotation retirée (à re-poser) et les positions
- * de blocs (dont il faut restaurer le `loc`) sont remappées en continu par
- * `editor/journalRemap.ts` — le pendant journal du remap des annotations.
+ *  L'inverse d'une action est une DONNÉE typée (jamais une closure) ; on peut
+ *  la tester headless, vérifier son applicabilité (la cible existe encore ?) et
+ *  la remapper. Car les inverses portent des positions qui doivent SUIVRE les
+ *  éditions, comme le modèle : l'annotation retirée (à re-poser) et les
+ *  positions de blocs (dont il faut restaurer le `loc`) sont remappées en
+ *  continu par `editor/journalRemap.ts` — le pendant journal du remap des
+ *  annotations.
  *
- * « Cible disparue → grisée » découle du même mécanisme : une annotation fantôme
- * dont la plage a été supprimée se referme au remap (orpheline) → plus re-posable.
+ *  « Cible disparue → grisée » découle du même mécanisme : une annotation
+ *  fantôme dont la plage a été supprimée se referme au remap (orpheline) →
+ *  plus re-posable.
  *
- * Hors périmètre (assumé) : ajouter un locuteur (pas de suppression modélisée),
- * la suppression d'un thème (acte destructif NON réversible → pas d'entrée).
+ *  Hors périmètre (assumé) : ajouter un locuteur (pas de suppression
+ *  modélisée), la suppression d'un thème (acte destructif NON réversible → pas
+ *  d'entrée).
  */
 
 /** L'inverse d'une action de modèle, prêt à être appliqué s'il est encore applicable. */
@@ -28,8 +32,9 @@ export type Inverse =
   | { type: 'retirerAnnotation'; annotationId: string }
   /** Inverse de « retirer » : re-poser l'objet retiré (remappé en continu par journalRemap). */
   | { type: 'reposerAnnotation'; annotation: Annotation }
-  /** Inverse de « éditer un commentaire » : restaurer l'auteur et le texte
-   *  d'avant (pas de position : la plage ne bouge pas, l'id suffit). */
+  /** Inverse de « éditer un commentaire » ;
+   *  restaurer l'auteur et le texte d'avant, sans position (la plage ne bouge
+   *  pas, l'id suffit). */
   | { type: 'editerAnnotation'; annotationId: string; auteur: string; texte: string }
   /** Inverse d'« attribuer » : restaurer le loc de chaque bloc touché (positions remappées). */
   | { type: 'restaurerLocs'; blocs: Array<{ pos: number; loc: number | null }> }
@@ -55,10 +60,11 @@ export interface Journal {
 export const CAP_JOURNAL = 10
 
 /**
- * Le contexte sur lequel un inverse s'applique : le modèle de l'entretien ouvert.
- * `blocs` est INJECTÉ par la couche éditeur (résolution/écriture d'un `loc` à une
- * position du doc — le module reste pur, aucun ProseMirror ici) ; `locDe` renvoie
- * `undefined` si la position ne résout plus un bloc (cible disparue).
+ *  Le contexte sur lequel un inverse s'applique : le modèle de l'entretien
+ *  ouvert. `blocs` est INJECTÉ par la couche éditeur (résolution/écriture
+ *  d'un `loc` à une position du doc — le module reste pur, aucun ProseMirror
+ *  ici) ; `locDe` renvoie `undefined` si la position ne résout plus un bloc
+ *  (cible disparue).
  */
 export interface CtxInverse {
   entretien: Entretien
@@ -84,8 +90,8 @@ export function enregistrer(
   return entree
 }
 
-/** L'inverse est-il encore applicable (sa cible existe toujours) ? Sinon l'entrée
- *  est grisée « non annulable » — jamais appliquée à moitié. */
+/** L'inverse est-il encore applicable (sa cible existe toujours) ?
+ *  Sinon l'entrée est grisée « non annulable » — jamais appliquée à moitié. */
 export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
   switch (inverse.type) {
     case 'retirerAnnotation':
@@ -109,8 +115,8 @@ export function estApplicable(inverse: Inverse, ctx: CtxInverse): boolean {
   }
 }
 
-/** Applique l'inverse (mutation du modèle). Renvoie false sans RIEN toucher si
- *  la cible a disparu. */
+/** Applique l'inverse (mutation du modèle).
+ *  Renvoie false sans RIEN toucher si la cible a disparu. */
 export function appliquerInverse(inverse: Inverse, ctx: CtxInverse): boolean {
   if (!estApplicable(inverse, ctx)) return false
   switch (inverse.type) {
@@ -146,8 +152,9 @@ export function appliquerInverse(inverse: Inverse, ctx: CtxInverse): boolean {
   }
 }
 
-/** Annule une entrée : applique son inverse puis la retire du journal. Si la
- *  cible a disparu, ne touche à rien et renvoie false (l'entrée reste, grisée). */
+/** Annule une entrée : applique son inverse puis la retire du journal.
+ *  Si la cible a disparu, ne touche à rien et renvoie false (l'entrée reste,
+ *  grisée). */
 export function annuler(journal: Journal, id: string, ctx: CtxInverse): boolean {
   const i = journal.entrees.findIndex((e) => e.id === id)
   if (i === -1) return false

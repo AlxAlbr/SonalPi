@@ -2,13 +2,13 @@ import { test, expect } from '@playwright/test'
 import { ouvrir, coderTheme, compterAnnotations } from './util'
 
 /**
- * SMOKE e2e — pilote la VRAIE app Electron, pas le build : prouve que
- * (1) la fenêtre s'ouvre et l'éditeur monte avec le schéma gelé (blocs data-loc),
- * (2) coder une sélection ajoute une annotation au MODÈLE (observée par ses
- * décorations),
- * (3) le plugin de remap est câblé et tourne sur de vrais coups de clavier.
+ *  SMOKE e2e — pilote la VRAIE app Electron, pas le build : prouve que
+ *  (1) la fenêtre s'ouvre et l'éditeur monte avec le schéma gelé (blocs data-loc),
+ *  (2) coder une sélection ajoute une annotation au MODÈLE (observée par ses
+ *  décorations),
+ *  (3) le plugin de remap est câblé et tourne sur de vrais coups de clavier.
  *
- * Remplace le proxy faible « le build passe » par une preuve que la fenêtre vit.
+ *  Remplace le proxy faible « le build passe » par une preuve que la fenêtre vit.
  */
 test('la fenêtre s’ouvre, l’éditeur monte avec le schéma attendu (blocs data-loc)', async () => {
   const { app, page } = await ouvrir()

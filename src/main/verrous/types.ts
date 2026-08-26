@@ -1,19 +1,19 @@
 /**
- * Le contrat de VERROU — ce que tout backend doit
- * fournir pour garantir « un écrivain à la fois ». Le protocole de session ne
- * connaît que cette interface, JAMAIS la variante concrète (capacités, pas
- * types de transport).
+ *  Le contrat de VERROU — ce que tout backend doit
+ *  fournir pour garantir « un écrivain à la fois ». Le protocole de session ne
+ *  connaît que cette interface, JAMAIS la variante concrète (capacités, pas
+ *  types de transport).
  *
- * Deux implémentations :
+ *  Deux implémentations :
  *  - ProviderPutConditionnel : verrous/<id>.lock.json créé par
  *    PUT If-None-Match:* — marche sur tout serveur WebDAV correct ;
  *  - ProviderFilesLock : LOCK/UNLOCK natifs Nextcloud.
  */
 
-/** Le contenu du fichier verrou (variante PUT conditionnel) — l'état que l'UI affiche
- *  (« tenu par X depuis HH:MM »). Identité : userId affichable,
- *  machineId généré, sessionId ALÉATOIRE PAR OUVERTURE (un verrou n'est jamais
- *  hérité d'une session précédente). */
+/** Le contenu du fichier verrou (variante PUT conditionnel) —
+ *  l'état que l'UI affiche (« tenu par X depuis HH:MM »). Identité : userId affichable,
+ *  machineId généré,
+ *  sessionId ALÉATOIRE PAR OUVERTURE (un verrou n'est jamais hérité d'une session précédente). */
 export interface ContenuVerrou {
   userId: string
   machineId: string
@@ -30,31 +30,30 @@ export type ResultatAcquisition =
   | { ok: false; tenuPar: ContenuVerrou | null }
 
 export interface ResultatBattement {
-  /** false = NOTRE verrou a été repris par quelqu'un d'autre (détection de
-   *  forçage) → l'appelant doit se rétrograder en lecture seule. */
+  /** false = NOTRE verrou a été repris par quelqu'un d'autre (détection de forçage) →
+   *  l'appelant doit se rétrograder en lecture seule. */
   ok: boolean
   etag?: string
 }
 
-/** L'interface commune aux deux variantes. `cheminVerrou` est relatif à la
- *  racine DAV (« verrous/ent-abc.lock.json »). */
+/** L'interface commune aux deux variantes.
+ *  `cheminVerrou` est relatif à la racine DAV (« verrous/ent-abc.lock.json »). */
 export interface VerrouProvider {
   /** Test-and-set atomique : exactement UN des deux demandeurs reçoit ok. */
   acquerir(cheminVerrou: string): Promise<ResultatAcquisition>
   /** Preuve de vie ET détection de forçage en un seul appel. */
   battre(cheminVerrou: string): Promise<ResultatBattement>
-  /** Libération conditionnelle (idempotent côté app : un échec 412 signifie
-   *  qu'on ne détient déjà plus — rien à faire). */
+  /** Libération conditionnelle (idempotent côté app :
+   *  un échec 412 signifie qu'on ne détient déjà plus — rien à faire). */
   liberer(cheminVerrou: string): Promise<void>
-  /** Qui tient le verrou (null = libre). Sert à l'UI au refus d'acquisition
-   *  et aux badges. */
+  /** Qui tient le verrou (null = libre). Sert à l'UI au refus d'acquisition et aux badges. */
   etat(cheminVerrou: string): Promise<ContenuVerrou | null>
 }
 
 /* ── Décisions de péremption — fonctions PURES, table de vérité testée ──────
- * Les horloges n'ont besoin d'être justes qu'à la MINUTE près :
- * marge de dérive généreuse, décisions grossières uniquement.
- * ──────────────────────────────────────────────────────────────────────────*/
+ *  Les horloges n'ont besoin d'être justes qu'à la MINUTE près :
+ *  marge de dérive généreuse, décisions grossières uniquement.
+ *  ──────────────────────────────────────────────────────────────────────────*/
 
 /** Marge de dérive horloge (s) : TTL + marge avant de déclarer périmé. */
 export const MARGE_DERIVE_S = 120
@@ -70,8 +69,8 @@ export function estPerime(v: ContenuVerrou, maintenantMs: number): boolean {
   return maintenantMs > limite
 }
 
-/** Le verrou observé appartient-il à NOTRE session ? (sessionId aléatoire par
- *  ouverture : même user + même machine mais autre session = AUTRE.) */
+/** Le verrou observé appartient-il à NOTRE session ? (sessionId aléatoire par ouverture :
+ *  même user + même machine mais autre session = AUTRE.) */
 export function estLeNousMeme(v: ContenuVerrou, sessionId: string): boolean {
   return v.sessionId === sessionId
 }

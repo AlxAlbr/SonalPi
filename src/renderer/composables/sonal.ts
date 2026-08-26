@@ -18,31 +18,30 @@ import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
 
 /**
- * ORCHESTRATION applicative : instancie et COUD les trois scopes (profil,
- * corpus, entretien) et porte la navigation. Créé UNE fois par l'App (`fournirSonal`),
- * `provide`/`inject` aux composants de vue → tous partagent le même éditeur et le
- * même modèle (les composables ne sont pas ré-instanciés).
+ *  ORCHESTRATION applicative : instancie et COUD les trois scopes (profil,
+ *  corpus, entretien) et porte la navigation. Créé UNE fois par l'App (`fournirSonal`),
+ *  `provide`/`inject` aux composants de vue → tous partagent le même éditeur et le
+ *  même modèle (les composables ne sont pas ré-instanciés).
  */
 export function creerSonal() {
   const profil = useProfil()
 
-  // Indirection pour casser le cycle : le scope corpus doit sauver l'entretien
-  // ouvert avant un compte d'usages (`flush`), mais l'entretien est créé APRÈS le
-  // corpus (il lui injecte `couleurTrait`). On route `flush` via un holder réaffecté.
+  // Indirection pour casser le cycle : le scope corpus doit sauver l'entretien ouvert avant un compte d'usages (`flush`),
+  // mais l'entretien est créé APRÈS le corpus, qui lui injecte `couleurTrait` ; on route `flush` via un holder réaffecté.
   let sauverEntretien: () => Promise<void> = async () => {}
-  // Indirection pour casser un cycle de dépendances : `appliquerCorpus` doit
-  // restaurer le mode démo (panneau « Pas à pas ») quand le corpus ouvert porte
-  // un marqueur `demo`, mais le scope demo est créé APRÈS (il injecte
-  // `appliquerCorpus`). Même patron que `sauverEntretien` : holder réaffecté.
+  // Indirection pour casser un cycle de dépendances :
+  //     `appliquerCorpus` doit restaurer le mode démo (panneau « Pas à pas ») quand le corpus ouvert porte un marqueur `demo`,
+  //     mais le scope demo est créé APRÈS (il injecte `appliquerCorpus`).
+  //     Même patron que `sauverEntretien` : holder réaffecté.
   let raccrocherModeCorpus: (
     marqueur: MarqueurDemo | undefined,
     dir: string | null,
   ) => Promise<void> = async () => {}
   const corpus = useCorpus({ flush: () => sauverEntretien() })
 
-  // Scope AUDIO : le lecteur de l'entretien ouvert. Les trois consommateurs
-  // (LecteurAudio en haut, barre sur la forme d'onde, bloc-lu de l'éditeur) se
-  // coordonnent par cet état réactif partagé.
+  // Scope AUDIO : le lecteur de l'entretien ouvert.
+  // Les trois consommateurs (LecteurAudio en haut, barre sur la forme d'onde, bloc-lu de l'éditeur)
+  // se coordonnent par cet état réactif partagé.
   const audio = useAudio()
 
   const ent = useEntretien({
@@ -53,8 +52,7 @@ export function creerSonal() {
     apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
-    // Catégories de note : définitions au corpus, résolues ici pour le scope
-    // entretien (nom affichable + défaut du formulaire de création).
+    // Catégories de note : définitions au corpus, résolues ici pour le scope entretien (nom affichable + défaut du formulaire de création).
     nomCategorieNote: (id) => corpus.nomCategorieNote(id),
     categorieNoteDefaut: () => corpus.categorieNoteDefaut(),
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
@@ -83,15 +81,15 @@ export function creerSonal() {
       const t = ent.tempsDuBloc(posBloc)
       if (t != null) audio.seek(t)
     },
-    // Clic DANS le texte → seek au temps interpolé à cet endroit (comme
-    // SonalPi) — la barre sur la forme d'onde suit, play reprend là.
+    // Clic DANS le texte → seek au temps interpolé à cet endroit,
+    // la barre sur la forme d'onde suit, play reprend là.
     clicTexte: (pos) => {
       if (!audio.url.value) return
       const t = ent.tempsAuTexte(pos)
       if (t != null) audio.seek(t)
     },
-    // Double-espace dans le texte = play/pause (parité SonalPi). Ne bascule (et
-    // ne signale d'avoir agi) que si un audio est chargé.
+    // Double-espace dans le texte = play/pause. Ne bascule (et ne signale d'avoir
+    // agi) que si un audio est chargé.
     basculerLecture: () => {
       if (!audio.url.value) return false
       audio.basculer()
@@ -100,8 +98,8 @@ export function creerSonal() {
   })
   sauverEntretien = ent.sauver
 
-  // La lecture avance → le bloc lu suit (surlignage + défilement). Décharger
-  // l'audio (url null) éteint le surlignage.
+  // La lecture avance → le bloc lu suit (surlignage + défilement).
+  // Décharger l'audio (url null) éteint le surlignage.
   watch(audio.position, (t) => ent.majPlageLue(audio.url.value ? t : null))
   watch(audio.url, (u) => {
     if (!u) ent.majPlageLue(null)
@@ -112,8 +110,8 @@ export function creerSonal() {
 
   // --- Largeur du panneau vidéo, mémorisée PAR CORPUS (settings.json) ---
   const dossierCourantDir = ref<string | null>(null)
-  /** Applique la largeur mémorisée du corpus courant (ou laisse 0 → la
-   *  largeur par défaut sera déduite du ratio de la vidéo à sa lecture). */
+  /** Applique la largeur mémorisée du corpus courant.
+   *  Laisse 0 → la largeur par défaut sera déduite du ratio de la vidéo à sa lecture. */
   async function chargerTailleVideo() {
     const dir = dossierCourantDir.value
     if (!dir) return
@@ -126,12 +124,10 @@ export function creerSonal() {
   })
 
   // --- Sélection d'un entretien DANS la vue Corpus (≠ `ouvertId` = éditeur) ---
-  // Sélectionner (clic sur la carte) montre ses métadonnées à gauche ; le crayon,
-  // lui, OUVRE l'éditeur. On lit le fichier à la sélection (requête ciblée, pas
-  // de cache) — le renderer ne tient jamais tous les entretiens.
+  // Sélectionner (clic sur la carte) montre ses métadonnées à gauche ; le crayon, lui, OUVRE l'éditeur.
+  // On lit le fichier à la sélection (requête ciblée, pas de cache) : le renderer ne tient jamais tous les entretiens.
   const corpusSelId = ref<string | null>(null)
-  /** Panneau métadonnées de l'entretien sélectionné : compteurs + variables
-   *  résolues pour AFFICHAGE (lecture seule, parité « Détails » V1). */
+  /** Panneau métadonnées de l'entretien sélectionné : compteurs + variables résolues pour AFFICHAGE, lecture seule. */
   interface DetailsVariables {
     nbLocuteurs: number
     nbValeurs: number
@@ -142,8 +138,8 @@ export function creerSonal() {
     generales: LigneValeur[]
     parLocuteur: BlocLocuteur[]
   }
-  /** Détails AFFICHABLES depuis le fichier lu d'un entretien (partagé entre
-   *  la sélection et le rafraîchissement après mutation). */
+  /** Détails AFFICHABLES depuis le fichier lu d'un entretien.
+   *  Partagé entre la sélection et le rafraîchissement après mutation. */
   function detailsDepuisLecture(data: EntretienFichier): DetailsVariables {
     const details = detailsVariablesEntretien(corpus.variables.value, data)
     const nbValeurs =
@@ -170,8 +166,8 @@ export function creerSonal() {
       corpusSelMeta.value = detailsDepuisLecture(res.data)
     }
   }
-  /** Recalcule le panneau de l'entretien sélectionné après une mutation
-   *  (audio effacé, SRT assigné…) — ne bascule pas la sélection. */
+  /** Recalcule le panneau de l'entretien sélectionné après une mutation,
+   *  sans basculer la sélection. */
   async function rafraichirMetaSelection() {
     const id = corpusSelId.value
     if (!id) return
@@ -186,27 +182,25 @@ export function creerSonal() {
   const themeASupprimer = ref<{ id: string; nom: string; n: number } | null>(null)
 
   // --- Audio : médias du corpus (requête) + chargement du lecteur ---
-  /** Scan `png/` du corpus (id → { audio, waveform }) : alimente les cartes
-   *  de l'écran Corpus et le chargement du lecteur — REQUÊTE, pas de cache. */
+  /** Scan `png/` du corpus (id → { audio, waveform }) : alimente les cartes de l'écran Corpus.
+   *  REQUÊTE, pas de cache. */
   const audiosCorpus = ref<Record<string, { audio: string | null; waveform: string | null }>>({})
   async function rafraichirAudios() {
     audiosCorpus.value = await window.sonal.corpus.audios()
   }
-  /** Intégrité à l'ouverture : ids des entretiens dont l'audio référencé est
-   *  introuvable (fichier déplacé/supprimé). Calculé à chaque ouverture de
-   *  corpus, non rafraîchi en session (un ré-ouvrir rafraîchit). */
+  /** Intégrité à l'ouverture : ids des entretiens dont l'audio référencé est introuvable.
+   *  Calculé à chaque ouverture de corpus, non rafraîchi en session (un ré-ouvrir rafraîchit). */
   const audiosManquants = ref<Record<string, 'manquant'>>({})
-  /** Vérifie l'existence des audios référencés (IPC côté main) et ne retient
-   *  que les manquants. */
+  /** Vérifie l'existence des audios référencés (IPC côté main) et ne retient que les manquants. */
   async function verifierIntegriteAudios(): Promise<Record<string, 'manquant'>> {
     const res = await window.sonal.corpus.verifierAudios()
     const manquants: Record<string, 'manquant'> = {}
     for (const [id, s] of Object.entries(res)) if (s === 'manquant') manquants[id] = 'manquant'
     return manquants
   }
-  /** Régénère EN FOND les ondes manquantes (dérivés régénérables). Après un
-   *  changement de RENDU (ex. ex-onde verte → gris neutre), la migration est
-   *  MANUELLE et simple : supprimer les `png/<id>.png` → régénérés ici. */
+  /** Régénère EN FOND les ondes manquantes (dérivés régénérables).
+   *  Après un changement de rendu (ex. ex-onde verte → gris neutre), la migration est manuelle :
+   *  supprimer les `png/<id>.png` → régénérés ici. */
   async function regenererOndesManquantes() {
     const cibles = Object.entries(audiosCorpus.value).filter(([, v]) => v.audio && !v.waveform)
     if (cibles.length === 0) return
@@ -237,8 +231,8 @@ export function creerSonal() {
     audio.charger(urlMediaAudio(audioRef), wf ? urlMediaWaveform(id, Date.now()) : null)
   }
 
-  // Quitter l'écran entretien met la lecture en PAUSE (le lecteur n'est visible
-  // que là — pas de lecture fantôme sans commandes à l'écran).
+  // Quitter l'écran entretien met la lecture en PAUSE : le lecteur n'est visible
+  // que là, pas de lecture fantôme sans commandes à l'écran.
   watch(vue, (v) => {
     if (v !== 'entretien') audio.pause()
   })
@@ -252,10 +246,9 @@ export function creerSonal() {
   })
 
   // --- Orchestration : coud profil ↔ corpus ↔ entretien ---
-  /** Applique un corpus chargé (définitions + membership) et RÉINITIALISE l'entretien
-   *  ouvert — on change potentiellement de dossier. `dir` (optionnel) permet de
-   *  restaurer le mode démo quand le corpus ouvert est le corpus de démo (problème
-   *  n°2 — panneau « Pas à pas » après réouverture par « Récents » / démarrage). */
+  /** Applique un corpus chargé (définitions + membership) et RÉINITIALISE l'entretien ouvert,
+   *  on change potentiellement de dossier.
+   *  `dir` (optionnel) permet de restaurer le mode démo quand le corpus ouvert est le corpus de démo. */
   async function appliquerCorpus(c: CorpusFichier, dir?: string) {
     ent.reinitialiser()
     audio.charger(null, null) // le lecteur ne survit pas au changement de corpus
@@ -277,13 +270,13 @@ export function creerSonal() {
   }
 
   async function chargerCorpus() {
-    // Au démarrage, on charge le 1er récent LOCAL s'il existe (= dernier corpus
-    // local ouvert). Sinon (premier lancement) : modèle vide, on reste sur l'Accueil —
-    // l'utilisateur choisit explicitement (Mini Corpus Test ou un dossier).
+    // Au démarrage, on charge le 1er récent LOCAL s'il existe (= dernier corpus local ouvert).
+    // Sinon (premier lancement) : modèle vide, on reste sur l'Accueil — l'utilisateur
+    // choisit explicitement (Mini Corpus Test ou un dossier).
     // « Corpus courant » de l'Accueil n'est plus une carte dédiée : c'est le
     // 1er récent (le loaded corpus est TOUJOURS le 1er récent, par construction).
-    // Les récents DISTANTS sont volontairement sautés au démarrage : pas de
-    // réseau bloquant au lancement — un distant se rouvre d'un clic via Récents.
+    // Les récents DISTANTS sont volontairement sautés au démarrage : pas de réseau
+    // bloquant au lancement — un distant se rouvre d'un clic via Récents.
     quitterDistant()
     await profil.rafraichirRecents()
     const premierLocal = profil.recents.value.find((r) => r.type === 'local')
@@ -293,8 +286,8 @@ export function creerSonal() {
     vue.value = 'accueil'
   }
 
-  /** « Ouvrir un corpus… » : le scope profil bascule le store sur un autre dossier
-   *  et renvoie son contenu ; on l'applique au modèle. */
+  /** « Ouvrir un corpus… » : le scope profil bascule le store sur un autre dossier,
+   *  renvoie son contenu ; on l'applique au modèle. */
   async function choisirDossier() {
     const r = await profil.choisirDossier()
     if (!r) return
@@ -302,9 +295,9 @@ export function creerSonal() {
     await appliquerCorpus(r.corpus, r.dir)
     vue.value = 'corpus'
   }
-  /** « Nouveau corpus… » : crée un corpus NEUF (avec son `nom` de projet) dans le
-   *  dossier choisi — ou OUVRE l'existant si le dossier en contient déjà un (on
-   *  n'écrase jamais, son nom fait foi). C'est le pendant création de `choisirDossier`. */
+  /** « Nouveau corpus… » : crée un corpus NEUF (avec son `nom` de projet) dans le dossier choisi.
+   *  Ouvre l'existant si le dossier en contient déjà un (on n'écrase jamais, son nom fait foi).
+   *  C'est le pendant création de `choisirDossier`. */
   async function creerNouveauCorpus(dir: string, nom: string) {
     const r = await window.sonal.corpus.creerNouveau(dir, nom)
     profil.dossierCourantNom.value = r.nom
@@ -312,9 +305,8 @@ export function creerSonal() {
     await appliquerCorpus(r.corpus, r.dir)
     vue.value = 'corpus'
   }
-  /** Rouvrir un corpus récent, local par son chemin ou distant par
-   *  `distant:ouvrir(id)` (JAMAIS le chemin miroir en local : le cycle
-   *  verrou/publie serait contourné). */
+  /** Rouvrir un corpus récent, local par son chemin ou distant par `distant:ouvrir(id)`.
+   *  JAMAIS le chemin miroir en local : le cycle verrou/publie serait contourné. */
   async function ouvrirRecent(entree: EntreeRecent) {
     if (entree.type === 'distant') {
       await ouvrirCorpusDistant(entree.id)
@@ -339,17 +331,15 @@ export function creerSonal() {
     audiosInaccessibles.value = r.inaccessibles ?? [] // audios désignés non rapatriés
     profil.dossierCourantNom.value = r.nom
     await appliquerCorpus(r.corpus, r.dir)
-    // Verrous orphelins de NOTRE machine (crash sans libération) ? Le
-    // dialogue propose reprendre/abandonner ; « plus tard » garde l'état.
+    // Verrous orphelins de NOTRE machine (crash sans libération) ?
+    // Le dialogue propose reprendre/abandonner ; « plus tard » garde l'état.
     orphelinsDistants.value = (await window.sonal.distant.orphelins()) ?? []
     vue.value = 'corpus'
   }
 
-  /** Création directe d'un corpus distant : publie le squelette sur le
-   *  serveur puis OUVRE immédiatement — même comportement que le local :
-   *  créer = atterrir sur l'écran Corpus. La publication côté main est
-   *  idempotente ; un échec lève (l'appelant affiche), le corpus courant
-   *  reste en place. */
+  /** Création directe d'un corpus distant : publie le squelette sur le serveur puis OUVRE immédiatement,
+   *  même comportement que le local : créer = atterrir sur l'écran Corpus.
+   *  La publication côté main est idempotente ; un échec lève (l'appelant affiche), le corpus courant reste en place. */
   async function creerCorpusDistant(params: {
     urlServeur: string
     utilisateur: string
@@ -364,13 +354,12 @@ export function creerSonal() {
   }
 
   // ── Badges de verrou fiables : l'état « tenu par X » en vue Corpus
-  //    vient du SERVEUR (scan verrous/ à chaque pull), pas d'une déduction.
-  //    Clé = id d'entretien.
+  //    vient du SERVEUR (scan verrous/ à chaque pull), pas d'une déduction ;
+  //    clé = id d'entretien.
   const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
-  /** Absorbe les verrous vus au pull (ou à l'ouverture) dans les badges. Les
-   *  deux conventions de chemin sont acceptées : `verrous/<id>.lock.json`
-   *  (variante B) et `entretiens/<id>.json` (variante A — le PROPFIND
-   *  files_lock porte sur les fichiers de données eux-mêmes). */
+  /** Absorbe les verrous vus au pull (ou à l'ouverture) dans les badges.
+   *  Les deux conventions de chemin sont acceptées : `verrous/<id>.lock.json` (variante B)
+   *  et `entretiens/<id>.json` (variante A, le PROPFIND files_lock porte sur les fichiers de données eux-mêmes). */
   function absorberVerrous(entrees: { chemin: string; contenu: EtatVerrouPublic | null }[]) {
     const suivant: Record<string, EtatVerrouPublic> = {}
     for (const e of entrees) {
@@ -394,16 +383,16 @@ export function creerSonal() {
   function absorberPresences(liste?: PresencePublic[]) {
     presences.value = liste ?? []
   }
-  /** Les autres postes qui CONSULTENT cet entretien (sans forcément tenir le
-   *  verrou). Vide le plus souvent — c'est le but : ne parler que si utile. */
+  /** Les autres postes qui CONSULTENT cet entretien, sans forcément tenir le verrou.
+   *  Vide le plus souvent — c'est le but : ne parler que si utile. */
   function presencesSur(id: string): PresencePublic[] {
     return presences.value.filter((p) => p.entretienOuvert === id)
   }
 
   // ── Reprise crash : orphelins proposés au dialogue ──────────────────────
   const orphelinsDistants = ref<OrphelinDistant[]>([])
-  /** « Reprendre et publier » : publie la copie locale puis libère ; rafraîchit
-   *  ensuite (notre publication a changé le serveur, et le badge doit tomber). */
+  /** « Reprendre et publier » : publie la copie locale puis libère.
+   *  Rafraîchit ensuite : notre publication a changé le serveur, et le badge doit tomber. */
   async function reprendreOrphelin(cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> {
     const r = await window.sonal.distant.reprendreOrphelin(cheminVerrou)
     orphelinsDistants.value = orphelinsDistants.value.filter((o) => o.cheminVerrou !== cheminVerrou)
@@ -418,15 +407,15 @@ export function creerSonal() {
   }
 
   // ── Corpus distant : « Actualiser » + minuterie douce ───────────────────
-  // Le déclencheur est le PULL — pas un watcher fichier : après un tirage, une
-  // re-requête suffit (les vues corpus sont sans cache). Minuterie douce ~60 s
-  // quand l'écran Corpus est affiché ; « Actualiser » force à la demande.
+  // Le déclencheur est le PULL, pas un watcher fichier : après un tirage, une
+  // re-requête suffit (les vues corpus sont sans cache).
+  // Minuterie douce ~60 s quand l'écran Corpus est affiché ; « Actualiser » force à la demande.
   const idDistantCourant = ref<string | null>(null) // null = corpus local
   const dernierTirage = ref<string | null>(null) // horodatage affiché (« copie de HH:MM »)
   const tirageEnCours = ref(false)
-  /** Progression du transfert binaire EN COURS : rapatriement au tirage ou
-   *  téléversement depuis la modale — le dernier événement IPC reçu. Null =
-   *  aucun transfert (l'étiquette affiche alors le geste, pas la progression). */
+  /** Progression du transfert binaire EN COURS : rapatriement au tirage ou téléversement depuis la modale,
+   *  dernier événement IPC reçu.
+   *  Null = aucun transfert (l'étiquette affiche alors le geste, pas la progression). */
   const progressionDistant = ref<ProgressionTransfert | null>(null)
   window.sonal.distant.surProgression((p) => {
     progressionDistant.value = p
@@ -437,13 +426,13 @@ export function creerSonal() {
     if (!p || !p.total) return null
     return Math.min(100, Math.round((p.octets / p.total) * 100))
   })
-  /** Connectivité OBSERVÉE : le pull est la sonde. Un tirage réussi → en
-   *  ligne ; un échec silencieux (minuterie) → hors ligne : les gestes sur les
-   *  définitions sont grisés (« nécessite une connexion »), l'édition locale
-   *  des entretiens sous verrou continue. */
+  /** Connectivité OBSERVÉE : le pull est la sonde.
+   *  Un tirage réussi → en ligne ; un échec silencieux (minuterie) → hors ligne.
+   *  Les gestes sur les définitions sont alors grisés (« nécessite une connexion »),
+   *  l'édition locale des entretiens sous verrou continue. */
   const enLigne = ref(true)
-  /** Retour au LOCAL : les états du distant tombent (badges, orphelins,
-   *  horodatage). Appelé par chaque changement de corpus vers un dossier local. */
+  /** Retour au LOCAL : les états du distant tombent (badges, orphelins, horodatage).
+   *  Appelé par chaque changement de corpus vers un dossier local. */
   function quitterDistant() {
     idDistantCourant.value = null
     dernierTirage.value = null
@@ -456,22 +445,20 @@ export function creerSonal() {
     enLigne.value = true // redevient pertinent au prochain corpus distant
   }
   /** En distant HORS LIGNE, lecture seule pour les DÉFINITIONS seulement :
-   *  le contenu d'un entretien sous NOTRE verrou reste éditable. En ligne,
-   *  tout est éditable selon ses gardes propres. */
+   *  le contenu d'un entretien sous NOTRE verrou reste éditable.
+   *  En ligne, tout est éditable selon ses gardes propres. */
   const lectureSeule = computed(() => idDistantCourant.value !== null && !enLigne.value)
 
-  /** Garde de la Table de données PAR LIGNE. Dans la table on ne tient JAMAIS
-   *  de session (y entrer ferme toute session d'écriture), donc tout badge 🔒
-   *  est nécessairement autrui → ligne non éditable. Ne pas confondre avec
-   *  `entretienEditable`, propre à l'écran Entretien ouvert. */
+  /** Garde de la Table de données PAR LIGNE.
+   *  Dans la table on ne tient JAMAIS de session (y entrer ferme toute session d'écriture), donc tout badge 🔒 est nécessairement autrui.
+   *  Ne pas confondre avec `entretienEditable`, propre à l'écran Entretien ouvert. */
   function tableLigneEditable(id: string): boolean {
     return !lectureSeule.value && !badgeVerrou(id)
   }
 
   /** Garde des MÉTADONNÉES du panneau Corpus (nom, date, boutons audio).
-   *  Badge serveur présent = entretien tenu par QUELQU'UN D'AUTRE ⇒ panneau en
-   *  lecture seule (règle d'UI : l'intégrité repose sur les écritures
-   *  transactionnelles, pas sur ce grisage). */
+   *  Badge serveur présent = entretien tenu par QUELQU'UN D'AUTRE : panneau en lecture seule.
+   *  Règle d'UI : l'intégrité repose sur les écritures transactionnelles, pas sur ce grisage. */
   function metaEditables(id: string): boolean {
     return !lectureSeule.value && !badgeVerrou(id)
   }
@@ -498,12 +485,12 @@ export function creerSonal() {
       dernierTirage.value = t.date
       absorberVerrous(t.verrous)
       absorberPresences(t.presences)
-      // Audios désignés NON rapatriés au tirage
-      // (403 droits, 404, réseau) — matière de l'étiquette du lecteur.
+      // Audios désignés NON rapatriés au tirage (403 droits, 404, réseau),
+      // matière de l'étiquette du lecteur.
       audiosInaccessibles.value = t.inaccessibles ?? []
       // Un collègue a poussé des règles corpus ? Rejouer la réconciliation
-      // sur l'entretien OUVERT (même dialogue que la promotion — jamais de
-      // divergence silencieuse).
+      // sur l'entretien OUVERT (même dialogue que la promotion), jamais de
+      // divergence silencieuse.
       if (t.telecharges.includes('corpus.json') && ent.ouvertId.value) {
         ent.detecterDivergencesPostTirage()
       }
@@ -525,10 +512,9 @@ export function creerSonal() {
     }
   }
 
-  /** Rafraîchit définitions + membership depuis le miroir SANS toucher à
-   *  l'entretien ouvert (pas de `ent.reinitialiser`, pas de coupure audio) —
-   *  un collègue a publié pendant notre session : ses changements suivent,
-   *  notre édition continue. */
+  /** Rafraîchit définitions + membership depuis le miroir SANS toucher à l'entretien ouvert,
+   *  pas de `ent.reinitialiser`, pas de coupure audio.
+   *  Un collègue a publié pendant notre session : ses changements suivent, notre édition continue. */
   async function rafraichirCorpusSansFermer() {
     const c = await window.sonal.corpus.ouvrir()
     corpus.membership.value = c.membership
@@ -540,8 +526,8 @@ export function creerSonal() {
     await rafraichirAudios()
   }
 
-  /** La minuterie ne vit que sur l'écran Corpus d'un corpus distant (le composant
-   *  reste monté sous v-show → condition dans le tick, pas au montage). */
+  /** La minuterie ne vit que sur l'écran Corpus d'un corpus distant :
+   *  le composant reste monté sous v-show → condition dans le tick, pas au montage. */
   setInterval(() => {
     if (vue.value === 'corpus' && idDistantCourant.value) void actualiserDistant(true)
   }, 60_000)
@@ -590,10 +576,9 @@ export function creerSonal() {
     await rafraichirStatutSession()
   }
 
-  /** Migration SonalPi V1 → V2 : exécute la création du corpus V2 (le main
-   *  écrit, ouvre et ajoute aux récents), applique le corpus au modèle, puis
-   *  IMPORTE les entretiens V1 (lecture des .Sonal + audio). Même geste de
-   *  profil que `ouvrirDossier` (nom courant + récents). */
+  /** Migration SonalPi V1 → V2 : exécute la création du corpus V2, le main écrit, ouvre et ajoute aux récents.
+   *  Applique le corpus au modèle, puis IMPORTE les entretiens V1 (lecture des .Sonal + audio).
+   *  Même geste de profil que `ouvrirDossier` (nom courant + récents). */
   async function migrerDepuisV1(req: DemandeMigration, tabEntV1?: CrpV1Entretien[]) {
     const r = await window.sonal.migrer.executer(req)
     profil.dossierCourantNom.value = r.nom
@@ -609,16 +594,11 @@ export function creerSonal() {
   /** Entretien VIDE (Q1b : .sonal absent ou illisible) — même doc que le store. */
   const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
 
-  /** Crée un entretien depuis un `tabEnt[]` V1 : lit le `.sonal` (rtrPath
-   *  relatif au dossier du .crp, résolu par le main) via le pipeline
-   *  `importSonal.ts` (MÊME format de fichier), y pose `audioRef` (audioPath
-   *  V1 absolu — déjà au format v3, référence pas de copie) et la trace
-   *  `meta.sourceV1.rtrPath`.
-   *  DÉFINITIONS à vide : le codebook/variables du .crp font déjà foi ; les
-   *  copies divergentes d'un .sonal ne les touchent pas. Seules les RÈGLES du
-   *  .sonal (anon-json) sont reprises, comme à l'import normal (les
-   *  annotations y sont liées — round-trip). Un .sonal absent ou illisible →
-   *  entretien VIDE avec juste l'audio. */
+  /** Crée un entretien depuis un `tabEnt[]` V1 : lit le `.sonal` via le pipeline `importSonal.ts`,
+   *  y pose `audioRef` (déjà au format v3, référence pas de copie) et la trace `meta.sourceV1.rtrPath`.
+   *  DÉFINITIONS à vide : le codebook/variables du .crp font déjà foi, les copies divergentes d'un .sonal ne les touchent pas.
+   *  Seules les RÈGLES du .sonal (anon-json) sont reprises, comme à l'import normal (les annotations y sont liées, round-trip).
+   *  Un .sonal absent ou illisible → entretien VIDE avec juste l'audio. */
   async function importerEntretienV1(cheminCrp: string, e: EntretienV1Import) {
     let payload: PayloadEntretien | null = null
     let reglesAnon: RegleAnon[] | undefined
@@ -703,8 +683,8 @@ export function creerSonal() {
       fusionnable: ent.fusionPossible(contenu),
     }
   }
-  /** « Fusionner » : applique les apports de la copie au modèle ouvert puis
-   *  jette la copie (elle est absorbée — pas de doublon à la prochaine fois). */
+  /** « Fusionner » : applique les apports de la copie au modèle ouvert puis jette la copie,
+   *  elle est absorbée — pas de doublon à la prochaine fois. */
   async function confirmerFusion() {
     const d = divergenceProposee.value
     if (!d || !d.fusionnable) return
@@ -728,15 +708,12 @@ export function creerSonal() {
     divergenceProposee.value = null
   }
 
-  /** Ajout d'un entretien (modale à deux zones « fichier d'entretien » /
-   *  « fichier son », à la SonalPi) :
-   *  - texte seul → import classique (sas `.sonal`) ;
-   *  - texte + audio → import puis assignation de l'audio (référence) + onde ;
-   *  - audio seul → entretien au texte VIDE (à taper/transcrire) + audio.
-   *  Ouvre l'entretien créé dans tous les cas — SAUF si `opts.ouvrir === false`
-   *  (geste guidé de l'étape 1 du pas-à-pas : on reste au Corpus pour afficher
-   *  le message « étape terminée », l'ouverture ferait la course avec la
-   *  validation). */
+  /** Ajout d'un entretien (modale à deux zones « fichier d'entretien » / « fichier son »).
+   *  Texte seul → import classique (sas `.sonal`) ; texte + audio → import puis assignation de l'audio ;
+   *  audio seul → entretien au texte VIDE (à taper/transcrire) + audio.
+   *  Ouvre l'entretien créé dans tous les cas, SAUF si `opts.ouvrir === false`
+   *  (geste guidé de l'étape 1 du pas-à-pas : on reste au Corpus pour afficher le message « étape terminée »,
+   *  l'ouverture ferait la course avec la validation). */
   async function ajouterEntretien(
     texte: { nom: string; contenu: string } | null,
     audioChemin: string | null,
@@ -792,7 +769,7 @@ export function creerSonal() {
     await rafraichirAudios()
     if (corpusSelMeta.value) corpusSelMeta.value = { ...corpusSelMeta.value, audio: true }
     // Si cet entretien est OUVERT dans l'éditeur, son modèle en session doit
-    // suivre (sinon l'autosave écraserait audioRef avec l'ancien état).
+    // suivre : sinon l'autosave écraserait audioRef avec l'ancien état.
     if (ent.ouvertId.value === id) {
       ent.meta.audioRef = a.audioRef
       await majAudioEntretien(id)
@@ -800,9 +777,8 @@ export function creerSonal() {
   }
 
   /** « Effacer l'audio » (panneau métadonnées) : détache le média référencé.
-   *  Ref partagée, désignation distante, association locale et forme d'onde
-   *  dérivée : tout part, le texte reste. Entretien ouvert : son modèle en
-   *  session suit, sinon un autosave en file écrirait l'ancien état. */
+   *  Ref partagée, désignation distante, association locale et forme d'onde dérivée : tout part, le texte reste.
+   *  Entretien ouvert : son modèle en session suit, sinon un autosave en file écrirait l'ancien état. */
   async function effacerAudioSelection() {
     const id = corpusSelId.value
     if (!id) return
@@ -818,10 +794,9 @@ export function creerSonal() {
     if (ent.ouvertId.value === id) await majAudioEntretien(id)
   }
 
-  /** « Assigner un srt… » (panneau métadonnées) : importe une transcription,
+  /** « Assigner un srt… » (panneau métadonnées) : importe une transcription
    *  dont le contenu remplace l'éditeur (texte + ancres + locuteurs).
-   *  Si l'éditeur porte déjà du texte, on demande confirmation d'abord :
-   *  jamais d'écrasement silencieux. */
+   *  Si l'éditeur porte déjà du texte, on demande confirmation d'abord : jamais d'écrasement silencieux. */
   const srtASurEcrire = ref<string | null>(null)
   const srtMessage = ref<string | null>(null)
   async function demanderSrt() {
@@ -885,9 +860,8 @@ export function creerSonal() {
     await rafraichirMetaSelection()
   }
 
-  /** « Assigner un audio… » à l'entretien OUVERT (depuis le lecteur — ex. quand
-   *  l'audio référencé est introuvable). Ouvre le dialogue, référence le nouveau
-   *  chemin, régénère la forme d'onde et recharge le lecteur.
+  /** « Assigner un audio… » à l'entretien OUVERT (depuis le lecteur, ex. audio référencé introuvable).
+   *  Ouvre le dialogue, référence le nouveau chemin, régénère la forme d'onde et recharge le lecteur.
    *  LOCAL uniquement : écrit la ref partagée (sous garde store). */
   async function reassignerAudioEntretienOuvert() {
     const id = ent.ouvertId.value
@@ -903,11 +877,9 @@ export function creerSonal() {
     }
   }
 
-  /** « Associer l'audio local… » : en corpus DISTANT, l'audioRef partagée
-   *  pointe chez le poste qui a assigné ; on RÉFÉRENCE ici un fichier de
-   *  NOTRE machine (parité assignerAudio : jamais de copie) dans une
-   *  association machine-locale — PAS dans le JSON partagé : écrire notre
-   *  chemin absolu déclencherait des publications en cascade entre postes.
+  /** « Associer l'audio local… » : en corpus DISTANT, l'audioRef partagée pointe chez le poste qui a assigné.
+   *  On RÉFÉRENCE ici un fichier de NOTRE machine (jamais de copie) dans une association machine-locale,
+   *  PAS dans le JSON partagé : écrire notre chemin absolu déclencherait des publications en cascade entre postes.
    *  L'onde est régénérée (dérivé local) et le lecteur rechargé. */
   async function associerAudioEntretienOuvert() {
     const id = ent.ouvertId.value
@@ -922,16 +894,14 @@ export function creerSonal() {
   }
 
   // ── État du média désigné, à côté de la barre de lecture ───────────────
-  /** Derniers échecs de rapatriement — croisés avec
-   *  la désignation de l'entretien ouvert pour distinguer « pas encore ici »
-   *  de « bloqué par les droits ». */
+  /** Derniers échecs de rapatriement, croisés avec la désignation de l'entretien ouvert
+   *  pour distinguer « pas encore ici » de « bloqué par les droits ». */
   const audiosInaccessibles = ref<{ chemin: string; raison: string }[]>([])
 
   /** État EFFECTIF de l'audio de l'entretien ouvert (corpus distant seul) :
    *  ok (jouable ici) · distant (désigné, copie pas encore téléchargée) ·
-   *  inaccessible (le serveur refuse — message explicatif + réessai) ·
-   *  sans-objet (corpus local, ou gestes existants déjà couverts par le
-   *  lecteur : erreur de chargement, aucun audio). */
+   *  inaccessible (le serveur refuse, message explicatif + réessai) ·
+   *  sans-objet (corpus local). */
   const etatAudioOuvert = computed(() => {
     const id = ent.ouvertId.value
     if (!id || !idDistantCourant.value) return { etat: 'sans-objet' as const }
@@ -942,17 +912,17 @@ export function creerSonal() {
     return inc ? { etat: 'inaccessible' as const, raison: inc.raison } : { etat: 'distant' as const }
   })
 
-  /** « Rapatrier maintenant » / « Réessayer » : tirage immédiat (silencieux —
-   *  un échec réseau garde l'état affiché) puis rechargement du lecteur. */
+  /** « Rapatrier maintenant » / « Réessayer » : tirage immédiat, silencieux,
+   *  un échec réseau garde l'état affiché, puis rechargement du lecteur. */
   async function rapatrierAudioMaintenant() {
     await actualiserDistant(true)
     await rafraichirAudios()
     if (ent.ouvertId.value) await majAudioEntretien(ent.ouvertId.value)
   }
 
-  /** Création en corpus DISTANT avec média Nextcloud : on crée l'entretien
-   *  vide d'abord (transaction définitions), la modale de désignation fait le
-   *  reste. Retourne l'id, ou null si refus. */
+  /** Création en corpus DISTANT avec média Nextcloud : on crée l'entretien vide
+   *  d'abord (transaction définitions), la modale de désignation fait le reste.
+   *  Retourne l'id, ou null si refus. */
   async function creerEntretienVideDistant(titre: string): Promise<string | null> {
     if (!titre.trim()) return null
     const res = await window.sonal.corpus.creerEntretienVide(titre.trim())
@@ -995,8 +965,8 @@ export function creerSonal() {
       }
       designationAudioId.value = null
     }
-    // La copie miroir suit au prochain pull — on le déclenche tout de suite
-    // (silencieux : un échec réseau n'annule PAS la désignation, déjà publiée).
+    // La copie miroir suit au prochain pull — on le déclenche tout de suite.
+    // Silencieux : un échec réseau n'annule PAS la désignation, déjà publiée.
     await actualiserDistant(true)
     await rafraichirAudios()
     audiosManquants.value = await verifierIntegriteAudios()
@@ -1022,28 +992,25 @@ export function creerSonal() {
 
   async function supprimer(id: string) {
     // Fermer D'ABORD l'entretien s'il est ouvert : en distant, notre propre
-    // session tient le verrou que la suppression doit acquérir (double verrou)
-    // — et fermer publie puis libère dans l'ordre invariant, jamais
-    // d'orphelin.
+    // session tient le verrou que la suppression doit acquérir (double verrou),
+    // et fermer publie puis libère dans l'ordre invariant, jamais d'orphelin.
     if (ent.ouvertId.value === id) await fermerEntretien()
     corpus.membership.value = (await window.sonal.corpus.supprimerEntretien(id)).membership
     if (reprise.value?.id === id) reprise.value = null
     if (corpusSelId.value === id) deselectionnerCorpus()
   }
 
-  /** Clic sur un segment du résumé thématique d'une carte (parité SonalPi
-   *  `afficherHtmlAtPos`) : ouvre l'entretien et cale le texte sur le segment. */
+  /** Clic sur un segment du résumé thématique d'une carte : ouvre l'entretien
+   *  et cale le texte sur le segment. */
   async function ouvrirAuSegment(id: string, pos: number) {
     await ouvrirEntretien(id)
     ent.allerAuTexte(pos)
   }
 
-  /** « Saisir… » depuis la Table de données : ouvre CET entretien directement
-   *  sur son onglet Donnée. Le cycle verrou existant fait tout le travail :
-   *  entretien libre → verrou accordé à l'ouverture, saisie permise ; ouvert
-   *  par autrui → lecture seule avec bandeau nominatif. Aucun nouveau
-   *  protocole — `ouvrirEntretien` suffit ; on force juste l'onglet quand
-   *  l'ouverture a réussi (lecture seule comprise : les champs y sont grisés). */
+  /** « Saisir… » depuis la Table de données : ouvre CET entretien directement sur son onglet Donnée.
+   *  Le cycle verrou existant fait tout le travail : entretien libre → verrou accordé à l'ouverture, saisie permise ;
+   *  ouvert par autrui → lecture seule avec bandeau nominatif. Aucun nouveau protocole,
+   *  `ouvrirEntretien` suffit ; on force juste l'onglet quand l'ouverture a réussi. */
   async function allerSaisieDonnees(id: string) {
     await ouvrirEntretien(id)
     if (ent.ouvertId.value === id) ent.ongletDroite.value = 'donnees'
@@ -1063,13 +1030,12 @@ export function creerSonal() {
   }
 
   // --- Sortie d'entretien = fermeture + point de reprise ---
-  /** Point de reprise : le dernier entretien fermé (position audio + curseur
-   *  texte) pour le rouvrir d'un clic là où on en était. Volatil (session),
-   *  comme le journal. */
+  /** Point de reprise : le dernier entretien fermé (position audio + curseur texte)
+   *  pour le rouvrir d'un clic là où on en était. Volatil (session), comme le journal. */
   const reprise = ref<{ id: string; positionAudio: number; posTexte: number | null } | null>(null)
-  /** SORTIR d'un entretien (retour Corpus/Accueil, table de données) le FERME
-   *  (sauvé d'abord) en mémorisant le point de reprise. Personne n'écrit dans
-   *  un entretien ouvert ailleurs (un seul chemin d'écriture). */
+  /** SORTIR d'un entretien (retour Corpus/Accueil, table de données) le FERME,
+   *  sauvé d'abord, en mémorisant le point de reprise.
+   *  Personne n'écrit dans un entretien ouvert ailleurs (un seul chemin d'écriture). */
   async function fermerEntretien() {
     const id = ent.ouvertId.value
     if (!id) return
@@ -1103,8 +1069,8 @@ export function creerSonal() {
     await corpus.rafraichirMatrice()
     vue.value = 'donnees'
   }
-  /** Rouvre l'entretien du point de reprise et se recale : curseur + défilement
-   *  texte, position audio. */
+  /** Rouvre l'entretien du point de reprise et se recale :
+   *  curseur + défilement texte, position audio. */
   async function reprendre() {
     const r = reprise.value
     if (!r || !corpus.membership.value[r.id]) return
@@ -1139,9 +1105,9 @@ export function creerSonal() {
   const listeEntretiens = () =>
     Object.entries(corpus.membership.value).map(([id, ref]) => ({ id, ...ref }))
 
-  // Scope DÉMO « Mini Corpus Test » : construit le corpus de démo dans un
-  // dossier choisi via le vrai pipeline d'import. Dépendances injectées pour
-  // casser le cycle (demo utilise appliquerCorpus défini ci-dessus).
+  // Scope DÉMO « Mini Corpus Test » : construit le corpus de démo dans un dossier choisi
+  // via le vrai pipeline d'import.
+  // Dépendances injectées pour casser le cycle (demo utilise appliquerCorpus défini ci-dessus).
   const demo = utiliserDemo({
     appliquerCorpus,
     majDossierCourant: profil.majDossierCourant,
@@ -1155,16 +1121,18 @@ export function creerSonal() {
     ouvertId: ent.ouvertId,
     ongletDroite: ent.ongletDroite,
     variables: corpus.variables,
-    texteModifie: ent.texteModifie,
+    notes: ent.notes,
     audiosCorpus,
+    corpusSelId,
+    corpusSelMeta,
   })
   // Branche le holder : `appliquerCorpus` restaure désormais le mode démo
   // (panneau « Pas à pas ») quand le corpus ouvert est un corpus démo.
   raccrocherModeCorpus = demo.raccrocherModeCorpus
 
-  // Un appel quelconque vient de révéler que le dossier du corpus courant a
-  // été supprimé sur disque (sentinelle CORPUS_SUPPRIME) : le main a DÉJÀ
-  // basculé sur le récent vivant suivant (ou rendu null s'il n'y en a plus).
+  // Un appel quelconque vient de révéler que le dossier du corpus courant a été
+  // supprimé sur disque (sentinelle CORPUS_SUPPRIME) : le main a DÉJÀ basculé
+  // sur le récent vivant suivant (ou rendu null s'il n'y en a plus).
   // On aligne le modèle et on EXPLIQUE la bascule — ni le store ni l'UI ne
   // recréent jamais un corpus fantôme en silence.
   // Plusieurs appels peuvent échouer en même temps : la PREMIÈRE notification
@@ -1189,7 +1157,7 @@ export function creerSonal() {
         infoGlobale.value =
           "Le dossier du corpus courant a été supprimé sur disque ; aucun autre corpus récent n'existe."
       }
-      vue.value = 'accueil' // l'entretien ouvert (s'il y en avait un) appartient à l'ancien corpus
+      vue.value = 'accueil' // l'entretien ouvert appartient à l'ancien corpus
     } finally {
       basculeEnCours = false
     }
@@ -1197,8 +1165,8 @@ export function creerSonal() {
 
   onMounted(chargerCorpus)
 
-  // Retour PLAT : les templates (App + composants) utilisent des noms nus. Les
-  // wrappers d'orchestration (choisirDossier/ouvrirRecent) écrasent les bruts du profil.
+  // Retour PLAT : les templates (App + composants) utilisent des noms nus ;
+  // les wrappers d'orchestration (choisirDossier/ouvrirRecent) écrasent les bruts du profil.
   return {
     ...profil,
     ...corpus,

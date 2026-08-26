@@ -5,10 +5,10 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, ajouterParModale, retourCorpus } from './util'
 
 /**
- * E2E round-trip ANONYMISATION : importer un `.sonal`
- * SonalPi anonymisé (spans anon + exception + anon-json de règles corpus) →
- * l'exporter → le ré-importer → les règles corpus SURVIVENT sans doublon
- * (texte + exceptions + règles, sans perte), dans la vraie app.
+ *  E2E round-trip ANONYMISATION : importer un `.sonal`
+ *  SonalPi anonymisé (spans anon + exception + anon-json de règles corpus) →
+ *  l'exporter → le ré-importer → les règles corpus SURVIVENT sans doublon
+ *  (texte + exceptions + règles, sans perte), dans la vraie app.
  */
 
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')

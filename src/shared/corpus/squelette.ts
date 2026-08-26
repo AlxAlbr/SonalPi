@@ -1,19 +1,17 @@
 /**
- * Squelette d'un NOUVEAU corpus V2 — partagé par la création LOCALE
- * (`CorpusStore.amorcer`) et la création DISTANTE
- * (`PublieurCorpus.publierSquelette`), pour que les deux chemins produisent
- * exactement le même codebook par défaut.
+ *  Squelette d'un NOUVEAU corpus V2 — partagé par la création LOCALE
+ *  (`CorpusStore.amorcer`) et la création DISTANTE
+ *  (`PublieurCorpus.publierSquelette`), pour que les deux chemins produisent
+ *  exactement le même codebook par défaut.
  *
- * Fonction pure : aucun accès disque ni réseau ; l'appelant écrit lui-même
- * le résultat (sur disque ou sur le serveur).
+ *  Fonction pure : aucun accès disque ni réseau ; l'appelant écrit lui-même
+ *  le résultat (sur disque ou sur le serveur).
  */
 
 import { FORMAT_VERSION, type CorpusFichier } from '../format'
 
-/** Un corpus V2 vierge : le codebook par défaut (les 4 catégories
- *  Pondérations), tous les autres blocs vides. `nom` est le nom de projet ;
- *  il est absent pour une amorce locale nue, qui le reçoit ensuite par
- *  `poserNom`. */
+/** Un corpus V2 vierge : le codebook par défaut (les 4 catégories Pondérations), tous les autres blocs vides. `nom` est le nom de projet ;
+ *  il est absent pour une amorce locale nue, qui le reçoit ensuite par `poserNom`. */
 export function squeletteCorpus(nom?: string): CorpusFichier {
   const blanc = '#ffffff'
   const codebook = {

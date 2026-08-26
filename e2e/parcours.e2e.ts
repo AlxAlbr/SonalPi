@@ -5,10 +5,11 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, coderTheme, compterAnnotations, ajouterParModale } from './util'
 
 /**
- * LE JUGE DE PAIX : le parcours complet à travers les trois écrans
- * (Corpus → Entretien), sur un entretien réel. Prouve que les pièces (navigation,
- * import, édition, locuteurs, données à 2 niveaux, export) COMPOSENT sans se casser.
- * La réouverture dans SonalPi reste manuelle (PARITE.md).
+ *  LE JUGE DE PAIX : le parcours complet à travers les trois écrans
+ *  (Corpus → Entretien), sur un entretien réel. Prouve que les pièces
+ *  (navigation, import, édition, locuteurs, données à 2 niveaux, export)
+ *  COMPOSENT sans se casser. La réouverture dans SonalPi reste manuelle
+ *  (PARITE.md).
  */
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')
 

@@ -14,11 +14,11 @@ import {
 export { importerVariables }
 
 /**
- * Mapping EAV entre le FORMAT LEGACY `.sonal` (tabVar/tabDic/tabDat, codes
- * numériques + sentinelle `l="all"`) et le MODÈLE SonalPiTestV2 (variables au
- * corpus, valeurs chez leur propriétaire).
+ *  Mapping EAV entre le FORMAT LEGACY `.sonal` (tabVar/tabDic/tabDat, codes
+ *  numériques + sentinelle `l="all"`) et le MODÈLE SonalPiTestV2 (variables au
+ *  corpus, valeurs chez leur propriétaire).
  *
- * Deux invariants portent tout le round-trip :
+ *  Deux invariants portent tout le round-trip :
  *  1. Identités DÉTERMINISTES : la variable `v=n` → id `v{n}`,
  *     sa modalité `m` → id `v{n}m{m}`. Deux imports du même `.sonal` produisent
  *     les mêmes ids → fusion idempotente par id, zéro doublon.
@@ -37,10 +37,10 @@ interface DatLegacy {
 }
 
 /**
- * `tabDat` → valeurs distribuées chez leur propriétaire. Renvoie les valeurs de
- * portée entretien (`l="all"`) et POSE en place les `valeursLoc` des locuteurs
- * (`l=index`). Une valeur dont le locuteur cible n'existe pas est ignorée
- * (entrée incohérente ; on ne fabrique pas de locuteur fantôme).
+ *  `tabDat` → valeurs distribuées chez leur propriétaire. Renvoie les valeurs de
+ *  portée entretien (`l="all"`) et POSE en place les `valeursLoc` des locuteurs
+ *  (`l=index`). Une valeur dont le locuteur cible n'existe pas est ignorée
+ *  (entrée incohérente ; on ne fabrique pas de locuteur fantôme).
  */
 export function distribuerValeurs(
   tabDat: unknown,
@@ -78,10 +78,10 @@ export function exporterVariables(variables: Variable[]): { tabVar: VarLegacy[];
 }
 
 /**
- * Valeurs modélisées → `tabDat`. La sentinelle `l="all"` et le champ `e` sont
- * RÉINTRODUITS ICI (jamais dans le modèle). `e="1"` : le `.sonal` exporté est
- * autonome (un entretien) ; SonalPi réattribue l'index à l'import dans un corpus.
- * Une valeur pointant une variable/modalité inconnue du corpus est ignorée.
+ *  Valeurs modélisées → `tabDat`. La sentinelle `l="all"` et le champ `e` sont
+ *  RÉINTRODUITS ICI (jamais dans le modèle). `e="1"` : le `.sonal` exporté est
+ *  autonome (un entretien) ; SonalPi réattribue l'index à l'import dans un corpus.
+ *  Une valeur pointant une variable/modalité inconnue du corpus est ignorée.
  */
 export function exporterValeurs(
   valeursGen: Record<string, string>,

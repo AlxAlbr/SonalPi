@@ -10,8 +10,8 @@ import { ajouterCodage, type Entretien } from '../src/shared/entretien/entretien
 import { pluginRemap } from '../src/renderer/editor/remap'
 
 /**
- * MOTEUR DE REMAP — vérification du risque central de l'architecture (le
- * remapping des positions doit tenir avant qu'on empile l'UI dessus). Headless.
+ *  MOTEUR DE REMAP — vérification du risque central de l'architecture (le
+ *  remapping des positions doit tenir avant qu'on empile l'UI dessus). Headless.
  */
 
 /** Schéma minimal — la vérification ne dépend d'aucun schéma riche. */

@@ -3,9 +3,9 @@ import { estOrpheline } from '../entretien/annotation'
 import { charVersPM, pmVersTranches } from '../entretien/positions'
 
 /**
- * Requêtes de l'agrégat Corpus (« inventaires = requêtes ») :
- * CALCULÉES à partir d'une liste d'entretiens, JAMAIS stockées ni mises en cache.
- * L'orchestration (le store) fournit la liste lue sur disque ; le CALCUL est PUR.
+ *  Requêtes de l'agrégat Corpus (« inventaires = requêtes ») :
+ *  CALCULÉES à partir d'une liste d'entretiens, JAMAIS stockées ni mises en cache.
+ *  L'orchestration (le store) fournit la liste lue sur disque ; le CALCUL est PUR.
  */
 
 /** Nombre d'annotations (tous entretiens) qui référencent un code de thème. */
@@ -43,9 +43,9 @@ export function compterUsagesModalite(entretiens: EntretienFichier[], idVar: str
   return n
 }
 
-/** Pose (ou efface, si `idMod` vide) une valeur EAV chez son propriétaire dans UN
- *  entretien — édition ciblée depuis la table de données. Transform PUR ; le store
- *  fait l'I/O. La valeur reste chez son propriétaire (`valeursGen` / `valeursLoc`),
+/** Pose (ou efface, si `idMod` vide) une valeur EAV chez son propriétaire dans UN entretien —
+ *  édition ciblée depuis la table de données. Transform PUR ; le store fait l'I/O.
+ *  La valeur reste chez son propriétaire (`valeursGen` / `valeursLoc`),
  *  aucun nouveau lieu de stockage. Locuteur cible absent → no-op. */
 export function poserValeur(data: EntretienFichier, cible: CibleValeur, idVar: string, idMod: string): void {
   const valeurs =
@@ -71,12 +71,12 @@ function longueursDoc(corpsTexte: unknown): number[] {
 }
 
 /**
- * RÉSUMÉ THÉMATIQUE d'un entretien — parité SonalPi (`resumeGraphique`) : les
- * codages projetés sur l'axe du TEXTE (coordonnée caractère cumulée, les
- * frontières de blocs pèsent 0), en % de la longueur totale. Balayage des bornes
- * en segments élémentaires (comme les décorations de l'éditeur) : un segment
- * porte TOUS les codes qui le couvrent (chevauchements composés), les segments
- * adjacents de mêmes codes fusionnent. Orphelines exclues. REQUÊTE pure.
+ *  RÉSUMÉ THÉMATIQUE d'un entretien — parité SonalPi (`resumeGraphique`) : les
+ *  codages projetés sur l'axe du TEXTE (coordonnée caractère cumulée, les
+ *  frontières de blocs pèsent 0), en % de la longueur totale. Balayage des bornes
+ *  en segments élémentaires (comme les décorations de l'éditeur) : un segment
+ *  porte TOUS les codes qui le couvrent (chevauchements composés), les segments
+ *  adjacents de mêmes codes fusionnent. Orphelines exclues. REQUÊTE pure.
  */
 export function resumeThematique(
   data: Pick<EntretienFichier, 'corpsTexte' | 'annotations'>,
@@ -148,8 +148,8 @@ export function resumesThematiques(entrees: EntreeMatrice[]): Record<string, Seg
   return Object.fromEntries(entrees.map(({ id, data }) => [id, resumeThematique(data)]))
 }
 
-/** MATRICE corpus = REQUÊTE : valeurs lues chez leurs propriétaires (ligne
- *  entretien via valeursGen + lignes locuteurs via valeursLoc). Jamais un cache. */
+/** MATRICE corpus = REQUÊTE : valeurs lues chez leurs propriétaires, ligne entretien via valeursGen + lignes locuteurs via valeursLoc.
+ *  Jamais un cache. */
 export function matriceCorpus(entrees: EntreeMatrice[]): MatriceCorpus {
   return entrees.map(({ id, titre, data }) => ({
     entretienId: id,

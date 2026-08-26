@@ -1,14 +1,12 @@
-/** Extensions et seuils MÉDIA — partagés main ↔ renderer (cas vidéo du plan
- *  audio distant). Source unique : le dialogue natif (main), la modale de
- *  désignation Nextcloud (renderer) et la waveform (renderer) doivent voir
- *  exactement le même périmètre « média assignable ». */
+/** Extensions et seuils MÉDIA — partagés main ↔ renderer (cas vidéo du plan audio distant).
+ *  Source unique : le dialogue natif (main), la modale de désignation Nextcloud (renderer)
+ *  et la waveform (renderer) doivent voir le même périmètre « média assignable ». */
 
 export const EXT_AUDIO = ['mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac']
 
 export const EXT_VIDEO = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'ogv', 'avi']
 
-/** Audio + vidéo : les deux sont assignables à un entretien (audioRef /
- *  audioDistant portent indifféremment l'un ou l'autre). */
+/** Audio + vidéo : les deux sont assignables à un entretien (audioRef / audioDistant portent indifféremment l'un ou l'autre). */
 export const EXT_MEDIA = [...EXT_AUDIO, ...EXT_VIDEO]
 
 /** Extension d'un nom/chemin de fichier, sans point, en minuscules ('' si aucune). */
@@ -24,9 +22,9 @@ export function estMedia(nom: string): boolean {
 }
 
 /**
- * Seuil mémoire pour la GÉNÉRATION DE WAVEFORM uniquement (renderer : fetch
- * complet + decodeAudioData). Les transferts réseau ne sont pas concernés :
- * download ET upload sont STREAMÉS (`getBinaireFichier` / `putFichier`),
- * sans limite de taille.
+ *  Seuil mémoire pour la GÉNÉRATION DE WAVEFORM uniquement (renderer : fetch
+ *  complet + decodeAudioData). Les transferts réseau ne sont pas concernés :
+ *  download ET upload sont STREAMÉS (`getBinaireFichier` / `putFichier`),
+ *  sans limite de taille.
  */
 export const TAILLE_MAX_MEDIA = 512 * 1024 * 1024 // 512 Mo

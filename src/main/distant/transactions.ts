@@ -1,33 +1,33 @@
 /**
- * TRANSACTIONS DE DÉFINITIONS corpus.
+ *  TRANSACTIONS DE DÉFINITIONS corpus.
  *
- * Le « point chaud » `corpus.json` (codebook, variables, règles anon de portée
- * corpus, membership, création/suppression/renommage d'entretien) est écrit par
- * des transactions COURTES : verrou corpus → GET frais → transform local pur →
- * PUT If-Match → déverrouillage (~2 allers-retours serveur par commande).
+ *  Le « point chaud » `corpus.json` (codebook, variables, règles anon de portée
+ *  corpus, membership, création/suppression/renommage d'entretien) est écrit par
+ *  des transactions COURTES : verrou corpus → GET frais → transform local pur →
+ *  PUT If-Match → déverrouillage (~2 allers-retours serveur par commande).
  *
- * Politique hors ligne : toute écriture dans `corpus.json` est REFUSÉE — pas
- * de file d'attente ni de différé : la transaction échoue avec un message net
- * et le corpus local reste intact.
+ *  Politique hors ligne : toute écriture dans `corpus.json` est REFUSÉE — pas
+ *  de file d'attente ni de différé : la transaction échoue avec un message net
+ *  et le corpus local reste intact.
  *
- * Le verrou corpus est TOUJOURS en variante PUT conditionnel
- * (`verrous/corpus.lock.json`) même quand files_lock est disponible : les
- * transactions courtes n'ont rien à gagner du verrou visible web, un seul code
- * de plus haut niveau suffit. Le verrou ENTRETIEN (suppression sous double
- * verrou, ordre canonique corpus-avant-entretien) suit, lui, la variante
- * mesurée à l'ouverture.
+ *  Le verrou corpus est TOUJOURS en variante PUT conditionnel
+ *  (`verrous/corpus.lock.json`) même quand files_lock est disponible : les
+ *  transactions courtes n'ont rien à gagner du verrou visible web, un seul code
+ *  de plus haut niveau suffit. Le verrou ENTRETIEN (suppression sous double
+ *  verrou, ordre canonique corpus-avant-entretien) suit, lui, la variante
+ *  mesurée à l'ouverture.
  *
- * Ordre canonique des verrous pour `supprimerEntretien` :
- * verrou CORPUS d'abord, verrou ENTRETIEN ensuite ; libération en ordre INVERSE.
- * Politique de publication : publication corpus PUIS MOVE serveur de
- * l'entretien vers `corbeille/` — briève redondance transitoire assumée,
- * jamais de membership pointant un fichier disparu sans trace.
+ *  Ordre canonique des verrous pour `supprimerEntretien` :
+ *  verrou CORPUS d'abord, verrou ENTRETIEN ensuite ; libération en ordre INVERSE.
+ *  Politique de publication : publication corpus PUIS MOVE serveur de
+ *  l'entretien vers `corbeille/` — briève redondance transitoire assumée,
+ *  jamais de membership pointant un fichier disparu sans trace.
  */
 
 import { dirname, join } from 'node:path'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { ClientWebDAV, ErreurHttp } from '../webdav/client'
-import type { MiroirWebDAV } from '../miroir'
+import type { MiroirWebDAV } from './miroir'
 import type { CorpusStore } from '../corpusStore'
 import * as corpusModel from '../../shared/corpus'
 import type { IdentiteSession } from './sessions'
@@ -45,14 +45,15 @@ import type {
   RegleAnon,
 } from '../../shared/format'
 
-/** Chemin VERROUILLÉ pour les transactions de définitions — TOUJOURS le
- *  fichier annexe (PUT conditionnel). */
+/** Chemin VERROUILLÉ pour les transactions de définitions —
+ *  TOUJOURS le fichier annexe (PUT conditionnel). */
 const CHEMIN_VERROU_CORPUS = 'verrous/corpus.lock.json'
 const CHEMIN_CORPUS = 'corpus.json'
 const CHEMIN_ENTRETIEN = (id: string) => `entretiens/${id}.json`
 
-/** Erreur porteur d'un MESSAGE UTILISATEUR (français, affichable tel quel par
- *  la bannière renderer). Les refus de domaine du store (catégorie utilisée…)
+/** Erreur porteur d'un MESSAGE UTILISATEUR (français,
+ *  affichable tel quel par la bannière renderer).
+ *  Les refus de domaine du store (catégorie utilisée…)
  *  restent des Error ordinaires et traversent inchangés. */
 export class ErreurTransaction extends Error {
   constructor(message: string) {
@@ -62,16 +63,15 @@ export class ErreurTransaction extends Error {
 }
 
 export interface OptionsTransactions {
-  /** true = le verrou ENTRETIEN de `supprimerEntretien` passe par files_lock
-   *  natif (chemin = le fichier de données lui-même) ; false/absent = PUT
-   *  conditionnel sur `verrous/<id>.lock.json`. Le verrou corpus, lui, reste
-   *  TOUJOURS en PUT conditionnel. */
+  /** true = le verrou ENTRETIEN de `supprimerEntretien` passe par files_lock natif (chemin = le fichier de données lui-même)
+   *  ; false/absent = PUT conditionnel sur `verrous/<id>.lock.json`. Le verrou corpus, lui,
+   *  reste TOUJOURS en PUT conditionnel. */
   verrouNatif?: boolean
-  /** Accès MINIMAL à la couche session — défense en profondeur du lot de
-   *  valeurs : si un entretien visé est
-   *  OUVERT CHEZ NOUS (impossible depuis la table aujourd'hui, qui ferme toute
-   *  session), on écrit par le chemin existant (`poserValeur` garde levée +
-   *  `noterSale`) au lieu d'une auto-concurrence de verrous. */
+  /** Accès MINIMAL à la couche session — défense en profondeur du lot de valeurs :
+   *  si un entretien visé est OUVERT CHEZ NOUS (impossible depuis la table aujourd'hui,
+   *  qui ferme toute session),
+   *  on écrit par le chemin existant (`poserValeur` garde levée + `noterSale`)
+   *  au lieu d'une auto-concurrence de verrous. */
   getSessions?: () => { idsTenus(): string[]; noterSale(id: string): void } | null
 }
 
@@ -79,8 +79,8 @@ export class TransactionsCorpus {
   constructor(
     private readonly client: ClientWebDAV,
     private readonly miroir: MiroirWebDAV,
-    /** Le store courant — capturé PAR APPEL : « Ouvrir un corpus… » réaffecte
-     *  le store du main, la couche transaction doit toujours viser le dernier. */
+    /** Le store courant — capturé PAR APPEL : « Ouvrir un corpus… » réaffecte le store du main,
+     *  la couche transaction doit toujours viser le dernier. */
     private readonly getStore: () => CorpusStore,
     private readonly identite: () => IdentiteSession,
     private readonly options: OptionsTransactions = {},
@@ -88,10 +88,9 @@ export class TransactionsCorpus {
 
   /* ── Transaction générique ─────────────────────────────────────────────────*/
 
-  /** Exécute une mutation locale de définitions SOUS transaction complète :
-   *  verrou corpus → GET frais si divergence manifeste → mutation (garde
-   *  lecture seule levée pendant l'appel, remise après) → PUT If-Match →
-   *  libération (toujours, y compris sur échec).
+  /** Exécute une mutation locale de définitions SOUS transaction complète : verrou corpus →
+   *  GET frais si divergence manifeste → mutation (garde lecture seule levée pendant l'appel,
+   *  remise après) → PUT If-Match → libération (toujours, y compris sur échec).
    *
    *  La mutation est SYNCHRONE : elle lit `store.ouvrir()` (le fichier local
    *  fraîchement tiré à l'étape précédente) et réécrit le miroir ; c'est le
@@ -108,9 +107,8 @@ export class TransactionsCorpus {
       if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
       verrouTenu = true
 
-      // La version d'APRÈS-verrou fait foi : si le serveur porte autre chose
-      // que notre miroir, on télécharge AVANT de muter — jamais de
-      // transformation posée sur une copie périmée.
+      // La version d'APRÈS-verrou fait foi : si le serveur porte autre chose que notre miroir,
+      // on télécharge AVANT de muter — jamais de transformation posée sur une copie périmée.
       const etagServeur = await this.rafraichirCorpusLocal()
 
       const store = this.getStore()
@@ -127,9 +125,9 @@ export class TransactionsCorpus {
       return resultat
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
-        // Divergence : notre mutation locale n'a PAS été publiée — ré-absorber
-        // la version serveur dans le miroir (best effort) pour ne pas laisser
-        // à l'écran une mutation fantôme que le prochain pull effacerait.
+        // Divergence : notre mutation locale n'a PAS été publiée —
+        // ré-absorber la version serveur dans le miroir (best effort)
+        // pour ne pas laisser à l'écran une mutation fantôme que le prochain pull effacerait.
         await this.rafraichirCorpusLocal().catch(() => {})
       }
       throw classifier(e)
@@ -140,14 +138,12 @@ export class TransactionsCorpus {
 
   /* ── Suppression d'entretien — double verrou ──────────────────────────────*/
 
-  /** Supprime un entretien distant sous DOUBLE verrou, ordre canonique :
-   *  1. verrou CORPUS (PUT conditionnel),
-   *  2. GET frais de corpus.json,
-   *  3. verrou ENTRETIEN (variante mesurée à l'ouverture) ;
+  /** Supprime un entretien distant sous DOUBLE verrou, ordre canonique : 1.
+   *  verrou CORPUS (PUT conditionnel), 2. GET frais de corpus.json, 3.
+   *  verrou ENTRETIEN (variante mesurée à l'ouverture) ;
    *  puis mutation locale (membership + fichiers locaux en corbeille miroir),
-   *  publication corpus (PUT If-Match) D'ABORD, MOVE serveur `entretiens/<id>.json
-   *  → corbeille/<id>.json` ENSUITE ; libération en ordre
-   *  inverse (entretien puis corpus).
+   *  publication corpus (PUT If-Match) D'ABORD, MOVE serveur `entretiens/<id>.json →
+   *  corbeille/<id>.json` ENSUITE ; libération en ordre inverse (entretien puis corpus).
    *
    *  Pré-requis côté appelant : aucune SESSION d'écriture ne doit rester ouverte
    *  chez NOUS pour cet id (le renderer ferme l'entretien avant de demander la
@@ -173,8 +169,9 @@ export class TransactionsCorpus {
 
       let corpus: CorpusFichier
       try {
-        // Mutation locale : retire le membership et déplace json/.bak/png vers
-        // la corbeille DU MIROIR (local pur — le store opère sur sa copie).
+        // Mutation locale :
+        // retire le membership et déplace json/.bak/png vers la corbeille DU MIROIR (local pur —
+        // le store opère sur sa copie).
         const store = this.getStore()
         const gardePrecedente = store.lectureSeule
         store.lectureSeule = false
@@ -183,11 +180,11 @@ export class TransactionsCorpus {
         } finally {
           store.lectureSeule = gardePrecedente
         }
-        // Publication corpus D'ABORD : le membership à jour part avant
-        // la disparition du fichier — briève redondance, jamais l'inverse.
+        // Publication corpus D'ABORD : le membership à jour part avant la disparition du fichier —
+        // briève redondance, jamais l'inverse.
         await this.publierCorpus(etagServeur)
-        // MOVE serveur ENSUITE (atomique). Un échec ici laisse un entretien
-        // orphelin CÔTÉ SERVEUR (à ramasser plus tard) — signalé net.
+        // MOVE serveur ENSUITE (atomique).
+        // Un échec ici laisse un entretien orphelin CÔTÉ SERVEUR (à ramasser plus tard) — signalé net.
         await this.client.creerDossier('corbeille')
         try {
           await this.client.deplacer(CHEMIN_ENTRETIEN(id), `corbeille/${id}.json`)
@@ -197,9 +194,8 @@ export class TransactionsCorpus {
             'Le membership a été mis à jour mais le fichier entretien n\u2019a pas pu être archivé sur le serveur — il sera récupéré au prochain passage.',
           )
         }
-        // Le manifeste liste encore l'ancien chemin : le prochain pull voit
-        // la disparition côté serveur et purge simplement l'entrée (le fichier
-        // local est déjà parti en corbeille du miroir via le store).
+        // Le manifeste liste encore l'ancien chemin :
+        // le prochain pull voit la disparition côté serveur et purge simplement l'entrée (le fichier local est déjà parti en corbeille du miroir via le store).
       } finally {
         await providerEntretien.liberer(cheminVerrou).catch(() => {})
       }
@@ -216,21 +212,21 @@ export class TransactionsCorpus {
 
   /* ── Lot de valeurs — un verrou court PAR ENTRETIEN ───────────────────*/
 
-  /** Modification en lot des valeurs EAV (table de données, colonne) : le lot
-   *  ne touche PAS `corpus.json` (pas de verrou corpus) — UN cycle par
-   *  ENTRETIEN : verrou court → GET frais → PUT If-Match → libérer (le même
-   *  motif que les définitions, appliqué au fichier entretien). Exécution
-   *  séquentielle ; tout échec
-   *  ponctuel (entretien ouvert entre-temps par autrui, divergence 412,
-   *  réseau) est signalé nommément SANS bloquer les autres entretiens du lot.
-   *  Le miroir est écrit THROUGH (même contenu que le serveur) → la matrice
-   *  locale est fraîche sans pull complet, le prochain tirage devient no-op.
+  /** Modification en lot des valeurs EAV (table de données, colonne) :
+   *  le lot ne touche PAS `corpus.json` (pas de verrou corpus) — UN cycle par ENTRETIEN :
+   *  verrou court → GET frais → PUT If-Match → libérer (le même motif que les définitions,
+   *  appliqué au fichier entretien). Exécution séquentielle ;
+   *  tout échec ponctuel (entretien ouvert entre-temps par autrui, divergence 412, réseau)
+   *  est signalé nommément SANS bloquer les autres entretiens du lot.
+   *  Le miroir est écrit THROUGH (même contenu que le serveur) →
+   *  la matrice locale est fraîche sans pull complet, le prochain tirage devient no-op.
    *  JAMAIS de verrou global : un lot long ne doit pas geler le corpus. */
   async poserValeurLot(items: ItemLotValeur[]): Promise<ResultatLotValeur> {
     const succes: string[] = []
     const echecs: { id: string; raison: string }[] = []
-    // Regrouper par entretien : UN verrou et UN aller-retour serveur même si
-    // plusieurs valeurs demandées pour le même fichier (v1 : 1 variable → 1 item).
+    // Regrouper par entretien :
+    // UN verrou et UN aller-retour serveur même si plusieurs valeurs demandées pour le même fichier (v1 :
+    // 1 variable → 1 item).
     const parEntretien = new Map<string, ItemLotValeur[]>()
     for (const item of items) {
       const liste = parEntretien.get(item.entretienId) ?? []
@@ -266,12 +262,11 @@ export class TransactionsCorpus {
     return { succes, echecs }
   }
 
-  /** Le cycle d'UN entretien hors session : acquerir → GET frais → mutation
-   *  pure locale → PUT If-Match → écriture THROUGH du miroir, `liberer`
-   *  TOUJOURS en `finally` (y compris sur échec). Divergence 412 ou réseau :
-   *  exception propagée à l'appelant (échec nommé, miroir NON modifié — il
-   *  n'est écrit qu'après un PUT réussi). Pas de retry v1 : l'utilisateur
-   *  relance le lot. */
+  /** Le cycle d'UN entretien hors session : acquerir → GET frais → mutation pure locale →
+   *  PUT If-Match → écriture THROUGH du miroir,
+   *  `liberer` TOUJOURS en `finally` (y compris sur échec). Divergence 412 ou réseau :
+   *  exception propagée à l'appelant (échec nommé, miroir NON modifié —
+   *  il n'est écrit qu'après un PUT réussi). Pas de retry v1 : l'utilisateur relance le lot. */
   private async poserValeurHorsSession(id: string, lot: ItemLotValeur[]): Promise<void> {
     const provider = this.providerPourEntretien()
     const cheminVerrou = this.cheminVerrouEntretien(id)
@@ -291,8 +286,7 @@ export class TransactionsCorpus {
       else
         brut = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8') // cas dégénéré : absent du serveur, partir du miroir
       const data = JSON.parse(brut) as EntretienFichier
-      // Mutation pure locale — parité `store.poserValeur`, sans toucher au
-      // membership.
+      // Mutation pure locale — parité `store.poserValeur`, sans toucher au membership.
       for (const item of lot) corpusModel.poserValeur(data, item.cible, item.idVar, item.idMod)
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
@@ -303,9 +297,8 @@ export class TransactionsCorpus {
         etagServeur ? { ifMatch: etagServeur } : {},
       )
       const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? etagServeur ?? ''
-      // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en
-      // local (écriture atomique, même utilitaire que le store) — la matrice
-      // est fraîche sans pull complet.
+      // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en local (écriture atomique,
+      // même utilitaire que le store) — la matrice est fraîche sans pull complet.
       const abs = join(this.miroir.dirLocal, cheminFichier)
       mkdirSync(dirname(abs), { recursive: true })
       const tmp = `${abs}.tmp`
@@ -321,17 +314,17 @@ export class TransactionsCorpus {
 
 
   /** Application EN MASSE d'une règle anon sur des entretiens FERMÉS.
-   *  Le même motif que `poserValeurLot` : UN cycle par fichier (verrou court,
-   *  GET frais du serveur, instructions pures, PUT If-Match), exécution
-   *  séquentielle, échec nommé sans bloquer les autres entretiens du lot.
-   *  Un entretien OUVERT chez nous passe par le chemin session existant
-   *  (défense en profondeur, cf. `poserValeurLot`). */
+   *  Le même motif que `poserValeurLot` : UN cycle par fichier (verrou court, GET frais du serveur,
+   *  instructions pures, PUT If-Match), exécution séquentielle,
+   *  échec nommé sans bloquer les autres entretiens du lot.
+   *  Un entretien OUVERT chez nous passe par le chemin session existant (défense en profondeur, cf.
+   *  `poserValeurLot`). */
   async appliquerRegleLot(cibles: CibleRegleAnon[]): Promise<ResultatLotAnon> {
     const succes: ResultatLotAnon['succes'] = []
     const echecs: ResultatLotAnon['echecs'] = []
     // Dédupliquer par entretien : UN verrou et UN aller-retour serveur,
-    // même si la sélection contient des doublons ; les plages du diff
-    // (poses cochées, retraits, exceptions) sont FUSIONNÉES.
+    // même si la sélection contient des doublons ; les plages du diff (poses cochées, retraits,
+    // exceptions) sont FUSIONNÉES.
     const parEntretien = new Map<string, CibleRegleAnon>()
     for (const c of cibles) {
       const v = parEntretien.get(c.entretienId)
@@ -348,9 +341,8 @@ export class TransactionsCorpus {
       try {
         const { regle, titre } = this.regleEtTitre(cible.regleId, id)
         if (sessions?.idsTenus().includes(id)) {
-          // Session À NOUS sur cet id : chemin existant ; la publication
-          // suivra la session (`noterSale`). Jamais un second verrou sur un
-          // fichier déjà à nous.
+          // Session À NOUS sur cet id : chemin existant ; la publication suivra la session (`noterSale`).
+          // Jamais un second verrou sur un fichier déjà à nous.
           const store = this.getStore()
           const gardePrecedente = store.lectureSeule
           store.lectureSeule = false
@@ -384,12 +376,10 @@ export class TransactionsCorpus {
     return { regle, titre: corpus.membership[entretienId]?.titre ?? entretienId }
   }
 
-  /** Le cycle d'UN entretien hors session : acquerir, GET frais, instructions
-   *  pures, PUT If-Match, écriture THROUGH du miroir ; `liberer` TOUJOURS en
-   *  `finally` (même sur échec).
-   *  Refus de verrou / divergence 412 / réseau : exception propagée à
-   *  l'appelant (échec nommé, miroir NON modifié).
-   *  Rien à poser → aucun PUT, aucun `lastModified` touché. */
+  /** Le cycle d'UN entretien hors session : acquerir, GET frais, instructions pures, PUT If-Match,
+   *  écriture THROUGH du miroir ; `liberer` TOUJOURS en `finally` (même sur échec).
+   *  Refus de verrou / divergence 412 / réseau : exception propagée à l'appelant (échec nommé,
+   *  miroir NON modifié). Rien à poser → aucun PUT, aucun `lastModified` touché. */
   private async appliquerRegleHorsSession(
     id: string,
     regle: RegleAnon,
@@ -444,8 +434,8 @@ export class TransactionsCorpus {
         etagServeur ? { ifMatch: etagServeur } : {},
       )
       const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? etagServeur ?? ''
-      // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en
-      // local ; compteurs et prochains scans sont à jour sans pull complet.
+      // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en local ;
+      // compteurs et prochains scans sont à jour sans pull complet.
       const abs = join(this.miroir.dirLocal, cheminFichier)
       mkdirSync(dirname(abs), { recursive: true })
       const tmp = `${abs}.tmp`
@@ -460,8 +450,8 @@ export class TransactionsCorpus {
 
   /* ── Aides internes ──────────────────────────────────────────────────────── */
 
-  /** GET frais de `corpus.json` si le serveur n'est plus la version du
-   *  manifeste ; renvoie l'ETag serveur OBSERVÉ (garde If-Match du PUT final).
+  /** GET frais de `corpus.json` si le serveur n'est plus la version du manifeste ;
+   *  renvoie l'ETag serveur OBSERVÉ (garde If-Match du PUT final).
    *  null = fichier absent du serveur (cas dégénéré : première publication). */
   private async rafraichirCorpusLocal(): Promise<string | null> {
     const etatServeur = await this.etagServeurDe(CHEMIN_CORPUS)
@@ -517,9 +507,9 @@ export class TransactionsCorpus {
 
 /* ── Lot de valeurs en corpus LOCAL ──────────────────────────────────────*/
 
-/** Pas de transaction ni de garde en local (aucune couche session) : boucle
- *  directe du store, MÊMES résultats qu'en distant — succès par entretien,
- *  échecs nommés, un échec ne bloque jamais les autres. */
+/** Pas de transaction ni de garde en local (aucune couche session) : boucle directe du store,
+ *  MÊMES résultats qu'en distant — succès par entretien, échecs nommés,
+ *  un échec ne bloque jamais les autres. */
 export async function poserValeurLotLocal(
   store: CorpusStore,
   items: ItemLotValeur[],
@@ -572,9 +562,9 @@ function messageRefusDefinitions(tenuPar: ContenuVerrou | null): string {
   return `Définitions en cours de modification par ${tenuPar?.userId ?? 'un autre utilisateur'} — réessayez dans un instant.`
 }
 
-/** Traduit les échecs techniques en messages utilisateur ; laisse passer tels
- *  quels les refus de domaine (Error simple levée PAR la mutation) et les
- *  ErreurTransaction déjà formulées. */
+/** Traduit les échecs techniques en messages utilisateur ;
+ *  laisse passer tels quels les refus de domaine (Error simple levée PAR la mutation)
+ *  et les ErreurTransaction déjà formulées. */
 function classifier(e: unknown): Error {
   if (e instanceof ErreurTransaction) return e
   if (e instanceof ErreurHttp) {
@@ -588,10 +578,9 @@ function classifier(e: unknown): Error {
     }
     return new ErreurTransaction(`Le serveur a refusé l'opération (${e.statut}).`)
   }
-  // fetch réseau : TypeError (« fetch failed »…) — pas de différé,
-  // un refus explicite. Toute AUTRE erreur (refus de domaine
-  // levé par la mutation, fichier local corrompu…) traverse INCHANGÉE —
-  // on ne déguise jamais un refus métier en panne réseau.
+  // fetch réseau : TypeError (« fetch failed »…) — pas de différé, un refus explicite.
+  // Toute AUTRE erreur (refus de domaine levé par la mutation, fichier local corrompu…)
+  // traverse INCHANGÉE — on ne déguise jamais un refus métier en panne réseau.
   if (e instanceof TypeError) {
     return new ErreurTransaction(
       'Serveur injoignable — les modifications partagées nécessitent une connexion au corpus distant.',

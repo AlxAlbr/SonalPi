@@ -1,13 +1,13 @@
 /**
- * Compteur « à anonymiser » — requête PURE du niveau entretien.
+ *  Compteur « à anonymiser » — requête PURE du niveau entretien.
  *
- * Pour une ligne du tableau (une entité), liste les occurrences de l'entité
- * dans le texte qui ne sont couvertes par AUCUNE annotation anon de cette
- * même entité (ni anonymisée, ni exception). Rien n'est stocké : on relit le
- * doc à chaque calcul, l'affichage reste donc une requête.
+ *  Pour une ligne du tableau (une entité), liste les occurrences de l'entité
+ *  dans le texte qui ne sont couvertes par AUCUNE annotation anon de cette
+ *  même entité (ni anonymisée, ni exception). Rien n'est stocké : on relit le
+ *  doc à chaque calcul, l'affichage reste donc une requête.
  *
- * Une annotation d'une AUTRE entité ne bloque pas le comptage (les
- * chevauchements inter-règles sont le sujet des « incluses », traités à part).
+ *  Une annotation d'une AUTRE entité ne bloque pas le comptage (les
+ *  chevauchements inter-règles sont le sujet des « incluses », traités à part).
  */
 import type { Annotation } from '../annotation'
 import { estOrpheline } from '../annotation'
@@ -17,23 +17,21 @@ import { cleEntite } from './brouillonsAnon'
 /** Catégorie navigable d'un compteur : état posé (par variante) ou requête. */
 export type CategorieReperage = 'anonymise' | 'exception' | 'a-anonymiser'
 
-/** Un hit « à anonymiser », en positions ProseMirror (cohérent avec les
- *  annotations et le curseur). */
+/** Un hit « à anonymiser », en positions ProseMirror (cohérent avec les annotations et le curseur). */
 export interface HitAAAnonymiser {
   from: number
   to: number
 }
 
-/** Une occurrence INCLUSE : présente dans le texte mais recouverte par une
- *  annotation anon d'une AUTRE entité (plus large). Non comptée, non navigable,
- *  non actionnable — le clic retombe sur la règle large. */
+/** Une occurrence INCLUSE : présente dans le texte mais recouverte par une annotation anon d'une AUTRE entité.
+ *  Non comptée, non navigable, non actionnable — le clic retombe sur la règle large. */
 export interface HitIncluse extends HitAAAnonymiser {
   /** Texte de l'entité absorbante (pour le tooltip « absorbée(s) par … »). */
   par: string
 }
 
 /**
- * Classe les matches des alias contre les annotations vivantes du doc :
+ *  Classe les matches des alias contre les annotations vivantes du doc :
  *  - non couvert → « à anonymiser » ;
  *  - recouvert en entier par une annotation d'une AUTRE entité → incluse ;
  *  - couvert par une annotation de la MÊME ligne (anonymisée ou exception) →
@@ -73,12 +71,12 @@ function classerMatches(
 }
 
 /**
- * Liste les hits « à anonymiser » de la ligne : occurrences présentes dans le
- * texte et pas encore traitées par la ligne ELLE-MÊME, hors incluses (matches
- * absorbés par une entité plus large — voir `hitsIncluses`).
+ *  Liste les hits « à anonymiser » de la ligne : occurrences présentes dans le
+ *  texte et pas encore traitées par la ligne ELLE-MÊME, hors incluses (matches
+ *  absorbés par une entité plus large — voir `hitsIncluses`).
  *
- * `texteDe` lit le texte d'une plage PM sur le doc courant (injecté) : la
- * fonction reste pure et testable headless.
+ *  `texteDe` lit le texte d'une plage PM sur le doc courant (injecté) : la
+ *  fonction reste pure et testable headless.
  */
 export function hitsAAAnonymiser(
   corpsTexte: unknown,
@@ -90,9 +88,8 @@ export function hitsAAAnonymiser(
   return classerMatches(corpsTexte, alias, annotations, clesDeLigne, texteDe).aAnonymiser
 }
 
-/** Liste les incluses de la ligne : matches recouverts par une entité plus
- *  large. Rien n'est stocké — au retrait de l'absorbante, elles redeviennent
- *  de simples hits « à anonymiser ». */
+/** Liste les incluses de la ligne : matches recouverts par une entité plus large.
+ *  Rien n'est stocké : au retrait de l'absorbante, elles redeviennent de simples hits « à anonymiser ». */
 export function hitsIncluses(
   corpsTexte: unknown,
   alias: string[],
@@ -104,11 +101,11 @@ export function hitsIncluses(
 }
 
 /**
- * Liste les occurrences NAVIGABLES d'une catégorie POSÉE pour la ligne `cle`,
- * en positions PM triées : annotations anonymisées ou exceptions (filtrées par
- * variante de pseudo si donnée). Sans effet sur le modèle — le repérage est
- * non destructif. La catégorie « à anonymiser » vient de `hitsAAAnonymiser`
- * (requête sur le doc courant, pilotée par le composable).
+ *  Liste les occurrences NAVIGABLES d'une catégorie POSÉE pour la ligne `cle`,
+ *  en positions PM triées : annotations anonymisées ou exceptions (filtrées par
+ *  variante de pseudo si donnée). Sans effet sur le modèle — le repérage est
+ *  non destructif. La catégorie « à anonymiser » vient de `hitsAAAnonymiser`
+ *  (requête sur le doc courant, pilotée par le composable).
  */
 export function hitsDeCategorie(
   annotations: Annotation[],

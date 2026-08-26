@@ -2,10 +2,10 @@
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Dialogue de FUSION ASSISTÉE — proposé à la
- * RÉOUVERTURE d'un entretien dont une publication avait fini en divergence
- * (412 : contournement du verrou). La copie mise de côté n'a jamais été ni
- * perdue ni publiée en silence ; trois choix :
+ *  Dialogue de FUSION ASSISTÉE — proposé à la
+ *  RÉOUVERTURE d'un entretien dont une publication avait fini en divergence
+ *  (412 : contournement du verrou). La copie mise de côté n'a jamais été ni
+ *  perdue ni publiée en silence ; trois choix :
  *   « Fusionner »   : les apports de la copie (annotations, ancres, locuteurs,
  *                     valeurs) rejoignent le modèle ouvert — UNIQUEMENT si le
  *                     texte est identique des deux côtés (sinon pas de merge) ;

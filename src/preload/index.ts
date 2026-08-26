@@ -41,11 +41,11 @@ import type {
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import { CORPUS_SUPPRIME } from '../shared/format'
 
-// Invocation IPC avec garde « corpus courant supprimé » : tout appel qui
-// échoue avec la sentinelle CORPUS_SUPPRIME déclenche la bascule du main vers
-// le récent vivant suivant (`corpus:apresSuppression`), prévient les
-// abonnés (surSuppressionCourant), puis LAISSE PASSER l'erreur — l'opération
-// visait l'ancien corpus, elle ne doit pas s'exécuter sur le nouveau.
+// Invocation IPC avec garde « corpus courant supprimé » :
+// tout appel qui échoue avec la sentinelle CORPUS_SUPPRIME déclenche une bascule.
+// Le main bascule vers le récent vivant suivant (`corpus:apresSuppression`),
+// prévient les abonnés (surSuppressionCourant), puis LAISSE PASSER l'erreur ;
+// l'opération visait l'ancien corpus, elle ne doit pas s'exécuter sur le nouveau.
 const ecoutesSuppression: ((r: OuvertureCorpus | null) => void)[] = []
 function invoquer<T>(canal: string, ...args: unknown[]): Promise<T> {
   return ipcRenderer.invoke(canal, ...args).catch((err: unknown) => {
@@ -58,14 +58,14 @@ function invoquer<T>(canal: string, ...args: unknown[]): Promise<T> {
   }) as Promise<T>
 }
 
-// Pont du store « dossier de corpus » : le renderer ne touche JAMAIS le disque directement
-// tout passe par le main process .
+// Pont du store « dossier de corpus » : le renderer ne touche JAMAIS le disque directement ;
+// tout passe par le main process.
 contextBridge.exposeInMainWorld('sonal', {
   platform: process.platform,
   corpus: {
-    /** S'abonner aux bascules « corpus courant supprimé sur disque ». Le
-     *  paramètre est le nouveau courant (`OuvertureCorpus`), ou null si aucun
-     *  récent vivant — l'UI repart d'un état vide. Renvoie le désabonnement. */
+    /** S'abonner aux bascules « corpus courant supprimé sur disque ».
+     *  Le paramètre est le nouveau courant (`OuvertureCorpus`), ou null si
+     *  aucun récent vivant — l'UI repart d'un état vide. Renvoie le désabonnement. */
     surSuppressionCourant: (cb: (r: OuvertureCorpus | null) => void): (() => void) => {
       ecoutesSuppression.push(cb)
       return () => {
@@ -91,8 +91,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:creerNouveau', dir, nom),
     lireEntretien: (id: string): Promise<LectureEntretien> =>
       invoquer('corpus:lireEntretien', id),
-    /** Corpus distant : fermer la session (publication finale puis libération
-     *  du verrou). Sans effet en corpus local. */
+    /** Corpus distant : fermer la session (publication finale + libération du verrou).
+     *  Sans effet en corpus local. */
     fermerEntretien: (id: string): Promise<boolean> =>
       invoquer('corpus:fermerEntretien', id),
     /** État de session distant (poll UI) pour un entretien ouvert. */
@@ -197,8 +197,8 @@ contextBridge.exposeInMainWorld('sonal', {
     effacerAudio: (id: string): Promise<{ audioRef: null }> => invoquer('corpus:effacerAudio', id),
     ecrireWaveform: (id: string, png: Uint8Array): Promise<string> =>
       invoquer('corpus:ecrireWaveform', id, png),
-    /** « Associer l'audio local… » : référence un fichier de CE poste pour un
-     *  entretien dont l'audioRef partagée n'y pointe nulle part. */
+    /** « Associer l'audio local… » : référence un fichier de CE poste,
+     *  pour un entretien dont l'audioRef partagée n'y pointe nulle part. */
     associerAudioLocal: (id: string, source: string): Promise<{ audioRef: string } | null> =>
       invoquer('corpus:associerAudioLocal', id, source),
     audios: (): Promise<Record<string, { audio: string | null; waveform: string | null }>> =>
@@ -212,9 +212,9 @@ contextBridge.exposeInMainWorld('sonal', {
       idMod: string,
     ): Promise<boolean> =>
       invoquer('corpus:poserValeur', entretienId, cible, idVar, idMod),
-    /** Lot « modifier en lot » : une valeur appliquée à plusieurs entretiens
-     *  — verrou court par entretien côté main ; échecs nommés, un échec ne
-     *  bloque jamais les autres. */
+    /** Lot « modifier en lot » : une valeur appliquée à plusieurs entretiens ;
+     *  verrou court par entretien côté main, échecs nommés, un échec ne bloque
+     *  jamais les autres. */
     poserValeurLot: (items: ItemLotValeur[]): Promise<ResultatLotValeur> =>
       invoquer('corpus:poserValeurLot', items),
   },
@@ -223,15 +223,16 @@ contextBridge.exposeInMainWorld('sonal', {
     lister: (): Promise<CompteDistantPublic[]> => invoquer('distant:lister'),
     connecter: (params: DemandeConnexion): Promise<ResultatConnexion> =>
       invoquer('distant:connecter', params),
-    /** Création directe d'un corpus distant : publie le squelette sur le
-     *  serveur puis enregistre le compte. L'appelant enchaîne sur
-     *  `ouvrir(compte.id)` — créer = ouvrir, comme en local. */
+    /** Création directe d'un corpus distant : publie le squelette sur le serveur,
+     *  puis enregistre le compte. L'appelant enchaîne sur `ouvrir(compte.id)` —
+     *  créer = ouvrir, comme en local. */
     creer: (params: DemandeCreationDistante): Promise<ResultatConnexion> =>
       invoquer('distant:creer', params),
     ouvrir: (id: string): Promise<OuvertureDistante> => invoquer('distant:ouvrir', id),
     tirer: (): Promise<ResultatTiragePublic | null> => invoquer('distant:tirer'),
-    /** Navigation du sélecteur « Désigner dans Nextcloud… » : PROPFIND Depth:1
-     *  d'un dossier du corpus. Null si corpus local ; dossiers d'abord. */
+    /** Navigation du sélecteur « Désigner dans Nextcloud… » ;
+     *  PROPFIND Depth:1 d'un dossier du corpus ; null si corpus local ;
+     *  dossiers d'abord. */
     listerDossier: (
       dossier: string,
     ): Promise<{ entrees: { nom: string; dossier: boolean }[] } | null> =>
@@ -242,9 +243,10 @@ contextBridge.exposeInMainWorld('sonal', {
       cheminAudio: string,
     ): Promise<{ ok: boolean; raison?: string; tenuPar?: string }> =>
       invoquer('distant:designerAudio', id, cheminAudio),
-    /** Téléversement d'un fichier LOCAL vers le serveur (D5) : le main lit le
-     *  fichier (le renderer ne touche jamais au disque) et l'envoie avec la
-     *  garde anti-écrasement. { raison:'existe', suggere } en cas de collision. */
+    /** Téléversement d'un fichier LOCAL vers le serveur (D5) :
+     *  le main lit le fichier et l'envoie avec la garde anti-écrasement,
+     *  jamais le renderer ne touche au disque.
+     *  { raison:'existe', suggere } en cas de collision. */
     televerserAudio: (
       sourceLocale: string,
       cheminCible: string,
@@ -252,7 +254,7 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('distant:televerserAudio', sourceLocale, cheminCible),
     /** Verrous orphelins d'un crash sans libération. Null si corpus local. */
     orphelins: (): Promise<OrphelinDistant[] | null> => invoquer('distant:orphelins'),
-    /** Progression des transferts binaires (rapatriements du tirage et
+    /** Progression des transferts binaires (rapatriements du tirage,
      *  téléversements). Renvoie la fonction de désabonnement. */
     surProgression: (cb: (p: ProgressionTransfert) => void): (() => void) => {
       const ecouteur = (_e: Electron.IpcRendererEvent, p: ProgressionTransfert): void => cb(p)
@@ -293,8 +295,9 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('profil:memoriserSignataire', nom),
   },
   dialog: {
-    /** Choisir un fichier d'entretien (contenu lu ici). `defaultPath` hinté par
-     *  la démo (racineSources) pour que le dialogue natif s'ouvre au bon endroit. */
+    /** Choisir un fichier d'entretien (contenu lu ici).
+     *  `defaultPath` est hinté par la démo (racineSources) pour que le dialogue
+     *  natif s'ouvre au bon endroit. */
     choisirTexte: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirTexte', defaultPath),
     /** Choisir une transcription chronométrée (SRT/VTT) — « Assigner un srt… ». */
@@ -303,8 +306,8 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Choisir un fichier audio (chemin référencé, jamais copié). */
     choisirAudio: (defaultPath?: string): Promise<string | null> =>
       invoquer('dialog:choisirAudio', defaultPath),
-    /** Choisir un DOSSIER pur (aucun effet de bord) — modale démo à deux
-     *  dossiers. `kind` hinte le défaut Documents/Sonal/démo/<kind>. */
+    /** Choisir un DOSSIER pur (aucun effet de bord) — modale démo à deux dossiers ;
+     *  `kind` hinte le défaut Documents/Sonal/démo/<kind>. */
     choisirDossier: (kind?: 'sources' | 'corpus'): Promise<string | null> =>
       invoquer('dialog:choisirDossier', kind),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
@@ -320,8 +323,8 @@ contextBridge.exposeInMainWorld('sonal', {
     ajouter: (modele: ModeleEAV): Promise<ModeleEAV[]> => invoquer('modeles:ajouter', modele),
   },
   fichier: {
-    // Chemin réel d'un File GLISSÉ-DÉPOSÉ (modale d'ajout) — `File.path` n'existe
-    // plus, seul le preload peut le résoudre (webUtils).
+    // Chemin réel d'un File GLISSÉ-DÉPOSÉ (modale d'ajout) ;
+    // `File.path` n'existe plus, seul le preload peut le résoudre (webUtils).
     cheminDe: (f: File): string => webUtils.getPathForFile(f),
   },
   migrer: {
@@ -345,8 +348,9 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('migrer:lireSonal', cheminCrp, rtrPath),
   },
   demo: {
-    /** Copie UNE FOIS les sources bundled CorpusTest/ (srt/ + audio/) dans le
-     *  dossier choisi par l'utilisateur — le corpus les RÉFÉRENCE ensuite. */
+    /** Copie UNE FOIS les sources bundled CorpusTest/ (srt/ + audio/) ;
+     *  elles arrivent dans le dossier choisi par l'utilisateur,
+     *  puis le corpus les RÉFÉRENCE. */
     copierSources: (racine: string): Promise<void> =>
       invoquer('demo:copierSources', racine),
     /** Lit un fichier texte des sources (ex. 'srt/1Coordinatrice.srt'). */
@@ -355,13 +359,13 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Chemin absolu d'un média des sources (ex. 'audio/E2.mp3'). */
     cheminAudio: (racine: string, rel: string): Promise<string> =>
       invoquer('demo:cheminAudio', racine, rel),
-    /** Mémoire démo persistée (settings.json) : dossiers mémorisés + présence
-     *  réelle sur disque (la modale adapte ses questions). */
+    /** Mémoire démo persistée (settings.json) : dossiers mémorisés,
+     *  plus présence réelle sur disque (la modale adapte ses questions). */
     etat: (): Promise<EtatDemoComplet | null> => invoquer('demo:etat'),
     /** Mémoire démo persistée : à appeler après chaque préparation réussie. */
     memoriser: (etat: EtatDemo): Promise<void> => invoquer('demo:memoriser', etat),
-    /** Garde de la modale : le dossier choisi pour le corpus de test ne doit pas
-     *  déjà être un corpus (corpus.json présent). */
+    /** Garde de la modale : le dossier choisi pour le corpus de test ;
+     *  il ne doit pas déjà être un corpus (corpus.json présent). */
     verifierCorpus: (dir: string): Promise<{ dejaCorpus: boolean }> =>
       invoquer('demo:verifierCorpus', dir),
   },

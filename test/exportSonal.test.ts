@@ -151,8 +151,8 @@ describe('export .sonal — couleur des codages (visibilité dans SonalPi)', () 
 
 describe('export .sonal — un lblseg par intervalle d’ancres', () => {
   test('un tour fusionné ressort re-découpé en cues ; le ré-import re-fusionne (stable)', () => {
-    // Un tour (loc 1) né de la fusion de 2 cues : « Un deux. » [0→2] puis
-    // « Trois quatre. » [3→5] — la frontière interne vit à la pos 10 (2 ancres).
+    // Un tour (loc 1) né de la fusion de 2 cues : « Un deux. » [0→2] puis « Trois quatre. » [3→5] —
+    // la frontière interne vit à la pos 10 (2 ancres).
     const entree = {
       corpsTexte: {
         type: 'doc',
@@ -175,16 +175,15 @@ describe('export .sonal — un lblseg par intervalle d’ancres', () => {
     }
     const out = exporterSonal(entree)
 
-    // SonalPi garde sa granularité : 2 segments, chacun avec SES timecodes
-    // (la 1re ancre de la frontière ferme le cue 1, la dernière ouvre le cue 2).
+    // SonalPi garde sa granularité : 2 segments, chacun avec SES timecodes (la 1re ancre de la frontière ferme le cue 1,
+    // la dernière ouvre le cue 2).
     const segs = Array.from(parse(out).querySelectorAll('.lblseg')) as HTMLElement[]
     expect(segs.map((s) => [s.dataset.deb, s.dataset.fin, s.dataset.loc])).toEqual([
       ['0', '2', '1'],
       ['3', '5', '1'],
     ])
 
-    // Ré-import : les 2 cues de même loc se RE-fusionnent — texte, bloc unique
-    // et ancres identiques (round-trip canonique).
+    // Ré-import : les 2 cues de même loc se RE-fusionnent — texte, bloc unique et ancres identiques (round-trip canonique).
     const r = importerSonal(out, parse(out))
     const doc = r.payload.corpsTexte as { content: Array<{ attrs: { loc: number | null } }> }
     expect(doc.content.length).toBe(1)
@@ -252,8 +251,8 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     const r = importerSonal(html, parse(html))
     const exc = r.payload.annotations.find((a) => a.etat === 'exception')
     expect(exc).toBeDefined()
-    // Le menu contextuel (basculerException) conserve le pseudo en MÉMOIRE de
-    // modèle — il ne doit JAMAIS fuir dans le .sonal.
+    // Le menu contextuel (basculerException) conserve le pseudo en MÉMOIRE de modèle —
+    // il ne doit JAMAIS fuir dans le .sonal.
     if (exc) exc.pseudo = 'Souvenir'
     const out = exporterSonal({
       ...r.payload,
@@ -279,10 +278,10 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
       variables: r.variables,
       legacy: r.legacy,
     })
-    // à l'export : le 1er segment du tour porte ligloc + loc-anon + data-locpseudo
+    // à l'export : le 1er segment du tour porte ligloc + loc-anon + data-locpseudo.
     expect(out).toContain('class="lblseg sautlig ligloc loc-anon"')
     expect(out).toContain('data-locpseudo="Chercheur"')
-    // ré-import : pseudo + état retrouvés
+    // ré-import : pseudo + état retrouvés.
     const r2 = importerSonal(out, parse(out))
     const l2 = r2.payload.locuteurs.find((x) => x.index === 1)
     expect(l2?.pseudo).toBe('Chercheur')
@@ -324,8 +323,8 @@ describe('round-trip import → export → ré-import (golden : rien ne se perd)
       expect(comptesCodage(r2.payload.annotations)).toEqual(comptesCodage(r1.payload.annotations))
       expect(anonCount(r2.payload.annotations)).toBe(anonCount(r1.payload.annotations))
       expect(r2.payload.locuteurs).toEqual(r1.payload.locuteurs)
-      // Ancres : re-dérivées en data-deb/data-fin à l'export, relues à
-      // l'import — les timecodes mesurés survivent au round-trip.
+      // Ancres : re-dérivées en data-deb/data-fin à l'export, relues à l'import —
+      // les timecodes mesurés survivent au round-trip.
       expect(r2.payload.ancres).toEqual(r1.payload.ancres)
     })
   }
@@ -361,8 +360,7 @@ describe('export .sonal — round-trip RÉEL via la fixture (règles liées à l
   test('importer entretien1 → ses occurrences anon sont liées → l’export ré-émet la règle corpus', () => {
     const html = fixture('entretien1.sonal')
     const r = importerSonal(html, parse(html))
-    // La fixture porte un anon-json de règles (portee corpus) : les occurrences
-    // anon issues des spans sont donc liées à une règle → l'export les ré-émet.
+    // La fixture porte un anon-json de règles (portee corpus) : les occurrences anon issues des spans sont donc liées à une règle → l'export les ré-émet.
     const regles = r.reglesAnon
     expect(regles.length).toBeGreaterThan(0)
     // Au moins une annotation anon est liée à une règle (round-trip).

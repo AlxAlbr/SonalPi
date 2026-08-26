@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, watch, nextTick } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
+import type { EtapePasAPas } from '../composables/demo'
 
 /**
- * Pas-à-pas : un ONGLET de la vue Corpus (liste des étapes) + un SPOTLIGHT
- * global (projecteur + bulle, téléporté en body → visible dans n'importe
- * quelle vue). L'utilisateur est guidé par la bulle ; l'étape se coche quand
- * son prédicat `fait()` passe à vrai (observation du modèle réactif).
- *
- * Le spotlight ne modifie pas les vues : il pointe des éléments ciblés par des
- * attributs `data-tour` (getBoundingClientRect) et recalcule sa position en
- * live (rAF) — la cible peut changer selon l'état (ex. « crayon » → « onglet »
- * dès qu'un entretien est ouvert).
+ *  Pas-à-pas : un ONGLET de la vue Corpus (liste des étapes) + un SPOTLIGHT
+ *  global (projecteur + bulle, téléporté en body → visible dans toutes les
+ *  vues). L'utilisateur est guidé par la bulle ; l'étape se coche quand son
+ *  prédicat `fait()` passe à vrai (observation du modèle réactif).
+ *  Le spotlight ne modifie pas les vues : il pointe des éléments ciblés par
+ *  `data-tour` et recalcule sa position en live (rAF) — la cible peut changer
+ *  selon l'état (ex. « crayon » → « onglet » dès qu'un entretien est ouvert).
  */
 const props = defineProps<{ montreListe?: boolean }>()
 
@@ -29,29 +28,20 @@ const {
 } = utiliserSonal()
 
 // --- Spotlight : état de la cible de l'étape courante, recalculé à chaque frame ---
-// L'état de la cible détermine ce qu'on affiche — trois cas, explicitement :
-//  - 'visible' : la cible est présente et à l'écran → trou + bulle calée dessus ;
-//  - 'absente' : l'étape n'a aucun point d'ancrage (cible() → null, élément
-//    introuvable) → voile plein + bulle centrée (le geste se fait sur
-//    l'interface, volontairement masquée) ;
-//  - 'cachee' : la cible existe mais dans une AUTRE vue — les écrans restent
-//    montés en `v-show` (le DOM existe, `display:none`) → GUIDAGE EN PAUSE
-//    SILENCIEUSE, aucune bulle : l'utilisateur a quitté l'écran de l'action
-//    (ex. Accueil, Table de données), on ne le poursuit pas — il revient de
-//    lui-même. La garde getClientRects() est indispensable : sur un élément
-//    caché, getBoundingClientRect() renvoie des ZÉROS, ce qui collerait la
-//    bulle en haut à gauche (bug observé). Au retour sur l'écran de l'action,
-//    le spotlight reprend seul (recalcule en live).
+// Trois états : 'visible' (trou + bulle calée sur la cible) ;
+// 'absente' (aucun point d'ancrage) → voile plein + bulle centrée, le geste se fait sur l'interface masquée ;
+// 'cachee' (cible dans une AUTRE vue montée en `v-show`) → guidage EN PAUSE, aucune bulle,
+// on ne poursuit pas l'utilisateur qui a quitté l'écran de l'action.
+// Sur un élément caché, getBoundingClientRect() renvoie des zéros (bulle collée en haut à gauche) →
+// garde getClientRects(). Au retour sur l'écran, le spotlight reprend seul.
 const cible = ref<{ etat: 'visible'; rect: DOMRect } | { etat: 'absente' } | { etat: 'cachee' }>({
   etat: 'absente',
 })
 let raf = 0
 
-// NOTE : la cible est lue DIRECTEMENT dans `recalc()` (à chaque frame), et non via
-// un `computed` — car `cible()` peut observer l'état du DOM (non réactif, ex. les
-// zones de la modale d'ajout). Un computed mettrait la valeur en cache tant que
-// l'étape ne change pas, figeant le spotlight sur la 1re cible. Le recalcul en
-// live (rAF) rend le parcours guidé réellement séquentiel.
+// NOTE : la cible est lue DANS `recalc()` (à chaque frame), pas via un `computed`.
+// `cible()` observe l'état du DOM (non réactif, ex. les zones de la modale d'ajout).
+// Un computed cacherait la valeur tant que l'étape ne change pas. Le spotlight figerait la 1ʳᵉ cible.
 
 function recalc() {
   const e = etapeCourante.value
@@ -118,13 +108,22 @@ const styleTrou = computed(() => {
   }
 })
 
-// Mode « PANNEAU » : la consigne de l'étape courante s'affiche SOUS les onglets
-// de l'entretien (colonne de droite) plutôt qu'en bulle flottante — la bulle
-// positionnée sous le bouton Lecture masquait le texte pendant la lecture
-// (retour utilisateur). Aucun voile ni trou dans ce mode.
+// Mode « PANNEAU » :
+// la consigne s'affiche SOUS les onglets de l'entretien (colonne de droite),
+// plutôt qu'en bulle flottante. Aucun voile ni trou.
 const modePanneau = computed(
   () => etapeCourante.value?.panneau === true && vue.value === 'entretien',
 )
+
+// --- Liste des étapes ---
+/** Étape verrouillée tant que son prérequis (`requiere`) n'est pas validé. */
+function bloquee(e: EtapePasAPas): boolean {
+  return !!e.requiere && !validees.value.has(e.requiere)
+}
+/** Titre d'une étape par id — pour le tooltip « faites d'abord… » des cadenas. */
+function titreEtape(id: string): string {
+  return etapes.find((x) => x.id === id)?.titre ?? id
+}
 
 /** « Revenir au Pas à pas » depuis le message re-test (vue Entretien) :
  *  efface le message et retourne à la liste (écran Corpus). */
@@ -133,32 +132,33 @@ async function revenirPasAPas() {
   await retourCorpus()
 }
 
-/** Ferme le message re-test. Dans l'entretien, on revient aussi à la liste
- *  « Pas à pas » ; dans le corpus (étape de corpus), le bouton « revenir » n'a
- *  pas de sens — on y est déjà, il suffit de fermer le message. */
+/** Ferme le message re-test. Dans l'entretien, on revient aussi à la liste « Pas à pas » ;
+ *  dans le corpus (étape de corpus), le bouton « revenir » n'a pas de sens —
+ *  on y est déjà, il suffit de fermer le message. */
 function fermerRetest() {
   if (retestInfo.value?.vue === 'entretien') void revenirPasAPas()
   else retestInfo.value = null
 }
 
-/** « Enchaîner » depuis le message de fin d'étape : on efface le message puis
- *  on lance la prochaine étape (son spotlight commence par faire ouvrir
- *  l'entretien — le geste reste réel). */
+/** « Enchaîner » depuis le message de fin d'étape : on efface le message,
+ *  puis on lance la prochaine étape ; son spotlight commence par faire ouvrir l'entretien —
+ *  le geste reste réel. */
 function enchainFini() {
   const id = finiInfo.value?.prochaineId
   finiInfo.value = null
   if (id) activer(id)
 }
 
-/** « Revenir aux étapes du pas à pas » depuis le message de fin d'étape affiché
- *  DANS l'entretien : efface le message et retourne à la liste (écran Corpus). */
+/** « Revenir aux étapes du pas à pas » depuis le message de fin d'étape affiché DANS l'entretien :
+ *  efface le message et retourne à la liste (écran Corpus). */
 async function revenirFini() {
   finiInfo.value = null
   await retourCorpus()
 }
 
-// Ancre de téléport du message re-test : la vue où vit l'action de l'étape
-// (ancre `ancre-guide-pp` dans l'entretien, `ancre-retest-pp` dans le corpus).
+// Ancre de téléport du message re-test :
+// la vue où vit l'action de l'étape (ancre `ancre-guide-pp` dans l'entretien,
+// `ancre-retest-pp` dans le corpus).
 const cibleRetest = computed(() =>
   retestInfo.value?.vue === 'entretien'
     ? '[data-tour="ancre-guide-pp"]'
@@ -166,8 +166,8 @@ const cibleRetest = computed(() =>
 )
 
 // Ancre de téléport du message de fin d'étape : la vue où vit l'étape validée —
-// l'entretien (ancre `ancre-guide-pp`, sous les onglets) pour une étape d'édition
-// `finiEnEntretien`, le corpus (ancre `ancre-retest-pp`, sous les cartes) sinon.
+// l'entretien (ancre `ancre-guide-pp`, sous les onglets) pour une étape `finiEnEntretien`,
+// le corpus (ancre `ancre-retest-pp`, sous les cartes) sinon.
 const cibleFini = computed(() =>
   finiInfo.value?.vue === 'entretien'
     ? '[data-tour="ancre-guide-pp"]'
@@ -186,44 +186,50 @@ const cibleFini = computed(() =>
       <li
         v-for="(e, i) in etapes"
         :key="e.id"
-        :class="{ fait: validees.has(e.id), actif: etapeCouranteId === e.id }"
+        :class="{ fait: validees.has(e.id), actif: etapeCouranteId === e.id, bloquee: bloquee(e) }"
       >
-        <button class="ligne-pp" @click="activer(e.id)">
-          <span class="num">{{ validees.has(e.id) ? '✓' : i + 1 }}</span>
+        <!-- Étapes séquencées :
+             un prérequis non validé désactive le bouton (ex. 2b sans 2a, ou 3+ sans l'étape 1). -->
+        <button
+          class="ligne-pp"
+          :disabled="bloquee(e)"
+          :title="bloquee(e) ? `Faites d'abord « ${titreEtape(e.requiere!)} »` : undefined"
+          @click="activer(e.id)"
+        >
+          <span class="num">{{ validees.has(e.id) ? '✓' : (e.numCle ?? i + 1) }}</span>
           <span class="titre-pp">{{ e.titre }}</span>
         </button>
       </li>
     </ol>
   </aside>
 
-  <!-- Spotlight global (téléporté en body → survit au changement de vue). En
-       mode PANNEAU (consigne sous les onglets), pas de voile ni de bulle. Et si
-       la cible est dans une AUTRE vue (état 'cachee', ex. l'utilisateur est
-       parti sur l'Accueil ou la Table de données), on ne montre RIEN — pause
-       silencieuse : le spotlight reprend seul quand on revient sur l'écran de
-       l'action. -->
+  <!-- Spotlight global (téléporté en body → survit au changement de vue).
+       En mode PANNEAU (consigne sous les onglets), pas de voile ni de bulle —
+       sauf avec `panneauAvecTrou`, où le TROU seul reste affiché pour pointer la cible (ex. les champs d'une modale guidés un à un, la bulle les masquerait).
+       Et si la cible est dans une AUTRE vue (état 'cachee', ex. l'utilisateur est parti sur l'Accueil ou la Table de données),
+       on ne montre RIEN — pause silencieuse : le spotlight reprend seul quand on revient
+       sur l'écran de l'action. -->
   <Teleport to="body">
-    <template v-if="etapeCourante && !modePanneau && cible.etat !== 'cachee'">
-      <!-- Voile plein si aucune cible (bulle centrée) ; sinon trou + bulle sur la cible. -->
-      <div v-if="cible.etat === 'absente'" class="spotlight-voile"></div>
+    <template v-if="etapeCourante && cible.etat !== 'cachee' && (!modePanneau || etapeCourante.panneauAvecTrou)">
+      <!-- Voile plein (bulle centrée) hors mode panneau uniquement. -->
+      <div v-if="cible.etat === 'absente' && !modePanneau" class="spotlight-voile"></div>
       <div v-else class="spotlight-trou" :style="styleTrou"></div>
-      <div class="spotlight-bulle" :style="styleBulle">
+      <div v-if="!modePanneau" class="spotlight-bulle" :style="styleBulle">
         <div class="bulle-titre">{{ etapeCourante.titre }}</div>
         <p class="bulle-texte">{{ etapeCourante.texte() }}</p>
         <div class="bulle-actions">
-          <!-- Pas de « Suivant » : l'utilisateur fait le geste sur l'interface
-               lui-même (le guide ne l'enchaîne pas). Un seul petit « Arrêter »
-               discret pour quitter le guidage. -->
+          <!-- Pas de « Suivant » :
+               l'utilisateur fait le geste sur l'interface lui-même (le guide ne l'enchaîne pas),
+               avec un seul petit « Arrêter » discret pour quitter le guidage. -->
           <button class="bulle-btn arreter" @click="etapeCouranteId = null">Arrêter</button>
         </div>
       </div>
     </template>
   </Teleport>
 
-  <!-- Consigne « panneau » : affichée SOUS les onglets de l'entretien (ancre
-       data-tour posée dans Entretien.vue) — ne cache pas le texte. Pas de
-       bouton d'action : l'utilisateur fait le geste lui-même ; seul un petit
-       « Arrêter » discret permet de quitter le guidage. -->
+  <!-- Consigne « panneau » : affichée SOUS les onglets de l'entretien (ancre data-tour posée dans Entretien.vue) —
+       ne cache pas le texte. Pas de bouton d'action : l'utilisateur fait le geste lui-même ;
+       seul un petit « Arrêter » discret permet de quitter le guidage. -->
   <Teleport v-if="modePanneau && etapeCourante" to='[data-tour="ancre-guide-pp"]'>
     <div class="guide-pp">
       <div class="guide-pp-titre">{{ etapeCourante.titre }}</div>
@@ -234,12 +240,11 @@ const cibleFini = computed(() =>
     </div>
   </Teleport>
 
-  <!-- Message « re-test » : une étape DÉJÀ validée a été rouverte → on
-       l'annonce (texte propre à chaque étape) dans la vue où vit son action :
-       l'entretien (ancre `ancre-guide-pp`, sous les onglets) pour les étapes
-       d'édition, le corpus (ancre `ancre-retest-pp`, sous le titre Entretiens)
-       pour une étape de corpus (ex. « Charger un entretien »). L'ancre cible
-       suit la vue du message ; un bouton propose de revenir à la liste. -->
+  <!-- Message « re-test » : une étape DÉJÀ validée a été rouverte → on l'annonce (texte propre à chaque étape)
+       dans la vue où vit son action :
+       l'entretien (ancre `ancre-guide-pp`, sous les onglets) pour les étapes d'édition,
+       le corpus (ancre `ancre-retest-pp`, sous le titre Entretiens) pour une étape de corpus (ex. « Charger un entretien »).
+       L'ancre cible suit la vue du message ; un bouton propose de revenir à la liste. -->
   <Teleport
     v-if="retestInfo && retestInfo.vue === vue"
     :to="cibleRetest"
@@ -260,10 +265,10 @@ const cibleFini = computed(() =>
   <!-- Message « fin d'étape » : après validation. Selon l'étape :
        - étapes de CORPUS (ex. « Charger un entretien ») → on est revenu à
          l'écran Corpus, le message s'affiche sous les cartes (ancre `ancre-retest-pp`) ;
-       - étapes d'ÉDITION `finiEnEntretien` (ex. « Écouter et corriger ») → on
-         RESTE dans l'entretien, le message s'affiche SOUS les onglets (ancre
-         `ancre-guide-pp`) avec un bouton pour revenir à la liste « Pas à pas »,
-         pour que l'utilisateur puisse continuer s'il le souhaite.
+       - étapes d'ÉDITION `finiEnEntretien` (ex. « Prendre des notes à
+         chaud ») → on reste dans l'entretien, le message s'affiche sous les
+         onglets (ancre `ancre-guide-pp`) avec un bouton pour revenir à la liste
+         « Pas à pas », pour que l'utilisateur puisse continuer s'il le souhaite.
        Classe `fini-pp` DISTINCTE de `guide-pp` (les tests comptent `.guide-pp`). -->
   <Teleport
     v-if="finiInfo && finiInfo.vue === vue"
@@ -321,6 +326,17 @@ const cibleFini = computed(() =>
 .ligne-pp:hover {
   border-color: #2e73d8;
   background: #f0f6ff;
+}
+/* Étape verrouillée par un prérequis (ex. 2b sans 2a) : grisée, non cliquable,
+   sans effet de survol. Le tooltip explique ce qu'il faut faire d'abord. */
+.ligne-pp:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: #e5e5ef;
+}
+.ligne-pp:disabled:hover {
+  border-color: #e5e5ef;
+  background: #fff;
 }
 .liste-pp li.actif .ligne-pp {
   border-color: #2e73d8;
@@ -467,8 +483,8 @@ const cibleFini = computed(() =>
   color: #667;
   text-decoration: underline;
 }
-/* Variante « re-test » : info déjà faite (ambre, pas bleue) — l'étape est
-   cochée, l'utilisateur est revenu la voir, on propose de retourner à la liste. */
+/* Variante « re-test » : info déjà faite (ambre, pas bleue) — l'étape est cochée.
+   L'utilisateur est revenu la voir, on propose de retourner à la liste. */
 .guide-pp.retest {
   border-color: #e0a03a;
   background: #fff8ec;
@@ -515,8 +531,8 @@ const cibleFini = computed(() =>
 .fini-pp-btn:hover {
   background: #e6f6ec;
 }
-/* Bouton « revenir aux étapes » (message de fin dans l'entretien) : même gabarit
-   vert mais fond blanc neutre — action secondaire face à « Étape suivante ». */
+/* Bouton « revenir aux étapes » (message de fin dans l'entretien) :
+   même gabarit vert mais fond blanc neutre — action secondaire face à « Étape suivante ». */
 .fini-pp-btn.revenir {
   border-color: #2e8b57;
   background: #fff;
@@ -524,8 +540,8 @@ const cibleFini = computed(() =>
 .fini-pp-btn.revenir:hover {
   background: #e6f6ec;
 }
-/* « OK » discret (message de fin dans l'entretien) : ferme le message et
-   continue à travailler dans l'entretien, sans retour au Pas à pas. */
+/* « OK » discret (message de fin dans l'entretien) : ferme le message,
+   et continue à travailler dans l'entretien, sans retour au Pas à pas. */
 .fini-pp-btn.discret {
   border: none;
   background: transparent;

@@ -16,14 +16,13 @@ interface RechercheEtat {
   actif: number
 }
 
-/** Trouve toutes les occurrences d'une chaîne dans le document (insensible à la
- *  casse, sensible aux accents). Renvoie des plages PM triées par position. */
+/** Trouve toutes les occurrences d'une chaîne dans le document (insensible à la casse, sensible aux accents).
+ *  Renvoie des plages PM triées par position. */
 export function trouverOccurrences(doc: PMNode, requete: string): OccurrenceRecherche[] {
   const q = requete.toLowerCase()
   if (!q) return []
   // Concaténation du texte du document avec une carte index → position PM :
-  // chaque caractère du texte connu par sa position dans le doc. Un séparateur
-  // (position NaN) est inséré entre blocs pour interdire les matches à cheval.
+  // chaque caractère du texte connu par sa position dans le doc. Un séparateur (position NaN) est inséré entre blocs pour interdire les matches à cheval.
   let texte = ''
   const positions: number[] = []
   doc.descendants((node, position) => {
@@ -49,11 +48,10 @@ export function trouverOccurrences(doc: PMNode, requete: string): OccurrenceRech
 }
 
 /**
- * Surlignage des occurrences de la recherche/remplacement (Ctrl+F). État =
- * liste des plages + index courant, poussés par setMeta par le composable ;
- * le plugin ne fait que décorer (`.recherche-hit`, et `.recherche-hit-active`
- * pour l'occurrence courante), sans jamais toucher au modèle. Les plages sont
- * REMAPPÉES sur les éditions pour suivre le texte qui bouge.
+ *  Surlignage des occurrences de la recherche/remplacement (Ctrl+F). État = liste des plages + index courant,
+ *  poussés par setMeta par le composable ; le plugin ne fait que décorer (`.recherche-hit`, et
+ *  `.recherche-hit-active` pour l'occurrence courante), sans jamais toucher au modèle.
+ *  Les plages sont REMAPPÉES sur les éditions pour suivre le texte qui bouge.
  */
 export function pluginRecherche(): Plugin<RechercheEtat> {
   return new Plugin<RechercheEtat>({

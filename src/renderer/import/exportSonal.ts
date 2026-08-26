@@ -24,12 +24,13 @@ function formeSonalPi(entite: string, pseudos: string[]): Record<string, unknown
   return out
 }
 
-/** Reconstruit l'`anon-json` (tabAnon SonalPi) depuis le MODÈLE, pour un round-trip
- *  sans perte (retrait du pass-through legacy) : les RÈGLES CORPUS appliquées dans
- *  cet entretien (occurrences `regle`) → entrées `portee:'corpus'` ; les BROUILLONS
- *  → entrées `portee:'brouillon'`, `occurrences:0`. Les occurrences standalone
- *  restent en spans (`data-pseudo`), pas d'entrée document nécessaire au round-trip
- *  interne (elles se relisent des spans). */
+/** Reconstruit l'`anon-json` (tabAnon SonalPi) depuis le MODÈLE,
+ *  pour un round-trip sans perte (retrait du pass-through legacy) : les RÈGLES
+ *  CORPUS appliquées dans cet entretien (occurrences `regle`) → entrées
+ *  `portee:'corpus'` ; les BROUILLONS → entrées `portee:'brouillon'`,
+ *  `occurrences:0`. Les occurrences standalone restent en spans (`data-pseudo`),
+ *  pas d'entrée document nécessaire au round-trip interne (elles se relisent
+ *  des spans). */
 function construireTabAnon(e: EntreeExport): unknown[] {
   const tab: unknown[] = []
   const vus = new Set<string>()
@@ -58,22 +59,22 @@ export interface EntreeExport {
   codebook: Categorie[]
   /** Définitions de variables du corpus → tabVar/tabDic. */
   variables: Variable[]
-  /** Valeurs de portée entretien → tabDat `l="all"` (les valeurs de portée
-   *  locuteur viennent des `valeursLoc` de chaque locuteur). */
+  /** Valeurs de portée entretien → tabDat `l="all"` (les valeurs de portée locuteur viennent des `valeursLoc` de chaque locuteur). */
   meta: { valeursGen: Record<string, string> }
   legacy: LegacyBlobs
-  /** Règles corpus partagées (corpus.json.reglesAnon) — les règle appliquées
-   *  dans CET entretien ressortent en entries `portee:'corpus'` de l'`anon-json`. */
+  /** Règles corpus partagées (corpus.json.reglesAnon).
+   *  Les règles appliquées dans CET entretien ressortent en entries
+   *  `portee:'corpus'` de l'`anon-json`. */
   reglesAnon?: RegleAnon[]
   /** Brouillons d'anonymisation de CET entretien → entries `portee:'brouillon'`. */
   brouillonsAnon?: BrouillonAnon[]
 }
 
 /**
- * Recompose un `.sonal` auto-suffisant, ouvrable dans SonalPi.
- * Le TEXTE, les CODAGES/ANON et les LOCUTEURS sont reconstruits depuis le modèle ;
- * le codebook depuis le corpus ; les blocs non modélisés (règles d'anon, notes)
- * sont ré-émis depuis le pass-through legacy (round-trip sans perte).
+ *  Recompose un `.sonal` auto-suffisant, ouvrable dans SonalPi.
+ *  Le TEXTE, les CODAGES/ANON et les LOCUTEURS sont reconstruits depuis le modèle ;
+ *  le codebook depuis le corpus ; les blocs non modélisés (règles d'anon, notes)
+ *  sont ré-émis depuis le pass-through legacy (round-trip sans perte).
  */
 export function exporterSonal(e: EntreeExport): string {
   const doc = e.corpsTexte as DocPM
@@ -83,13 +84,11 @@ export function exporterSonal(e: EntreeExport): string {
   }))
   const longueurs = blocs.map((b) => b.text.length)
 
-  // Un .lblseg par INTERVALLE D'ANCRES : un tour fusionné ressort
-  // re-découpé en cues avec leurs data-deb/data-fin — SonalPi garde sa
-  // granularité, et le round-trip re-fusionne à l'import (stable, sans perte).
+  // Un .lblseg par INTERVALLE D'ANCRES : un tour fusionné ressort re-découpé en cues avec leurs data-deb/data-fin —
+  // SonalPi garde sa granularité, et le round-trip re-fusionne à l'import (stable, sans perte).
   // À une même pos peuvent vivre la FIN d'un cue et le DEB du suivant (trou) :
-  // la première ancre (t min) ferme le segment de gauche, la dernière ouvre
-  // celui de droite. Sans ancre interne, le bloc = un seul segment (bornes de
-  // scission vides).
+  // la première ancre (t min) ferme le segment de gauche, la dernière ouvre celui de droite.
+  // Sans ancre interne, le bloc = un seul segment (bornes de scission vides).
   const debParPos = new Map<number, number>()
   const finParPos = new Map<number, number>()
   for (const a of e.ancres) {
@@ -100,9 +99,10 @@ export function exporterSonal(e: EntreeExport): string {
   for (let k = 0, p = debutBloc(longueurs, 0); k < longueurs.length; p += 2 + longueurs[k], k++)
     debuts.push(p)
   const anns = e.annotations.filter((a) => a.to > a.from)
-  // Commentaires : le fragment D'OUVERTURE porte data-obs/data-auth, le fragment
-  // FINAL porte data-finobs (= son propre data-rk — lisible à la fois comme
-  // référence de rk et comme marqueur de fin). Clés « bloc:offset » locales.
+  // Commentaires : le fragment D'OUVERTURE porte data-obs/data-auth ;
+  // le fragment FINAL porte data-finobs (= son propre data-rk),
+  // lisible à la fois comme référence de rk et comme marqueur de fin.
+  // Clés « bloc:offset » locales.
   const obsDebut = new Map<string, Annotation>()
   const finsObs = new Set<string>()
   for (const a of anns) {
@@ -120,8 +120,8 @@ export function exporterSonal(e: EntreeExport): string {
   let html = ''
   let rk = 1
   let sg = 0
-  // Tour de parole DÉRIVÉ (run de blocs consécutifs de même loc) : le libellé
-  // du tour n'est posé que sur le 1er bloc du run (cf. ligloc ci-dessous).
+  // Tour de parole DÉRIVÉ (run de blocs consécutifs de même loc) :
+  // le libellé du tour n'est posé que sur le 1er bloc du run (cf. ligloc ci-dessous).
   let locPrecedent: number | null | undefined = undefined
   blocs.forEach((b, k) => {
     const premierDuTour = b.loc !== locPrecedent
@@ -145,13 +145,12 @@ export function exporterSonal(e: EntreeExport): string {
     ].sort((x, y) => x - y)
     const jalons = [0, ...coupes, b.text.length]
     const nomloc = nomDe(b.loc)
-    // Libellé du tour : sur le 1er SEGMENT du 1er BLOC du run (parité
-    // SonalPi `.ligloc` « deb »). data-nomloc = le VRAI nom ; libellé
-    // pseudonymisé (pseudo posé, non refusé) → classe `loc-anon` +
-    // `data-locpseudo` ; refus explicite → `loc-suggere-refuse`. La couleur est
-    // INTERNE à l'app (aucun marqueur) ; `data-nomloc-barre` est un artefact de
-    // RENDU SonalPi, re-dérivé à l'ouverture — on ne l'émet pas (le vrai nom ne
-    // doit pas fuiter, et SonalPi le recompose).
+    // Libellé du tour : sur le 1er SEGMENT du 1er BLOC du run (parité SonalPi `.ligloc` « deb »).
+    // data-nomloc = le VRAI nom ; libellé pseudonymisé (pseudo posé, non refusé)
+    // → classe `loc-anon` + `data-locpseudo` ; refus explicite → `loc-suggere-refuse`.
+    // La couleur est INTERNE à l'app (aucun marqueur).
+    // `data-nomloc-barre` est un artefact de RENDU SonalPi, re-dérivé à l'ouverture ;
+    // on ne l'émet pas (le vrai nom ne doit pas fuiter, et SonalPi le recompose).
     const lLoc = e.locuteurs.find((x) => x.index === b.loc)
     let ligloc = ''
     let extraSeg = ''
@@ -200,9 +199,9 @@ export function exporterSonal(e: EntreeExport): string {
           if (ann.type === 'codage' && ann.code) classes += ` ${ann.code}`
           else if (ann.type === 'anon') {
             classes += ann.etat === 'exception' ? ' anon-exception' : ' anon'
-            // Le pseudo n'est JAMAIS sérialisé sur une exception : il n'est
-            // qu'une mémoire de modèle, jamais affichée ni exportée — le
-            // [pseudo] du span ne concerne que les occurrences anonymisées.
+            // Le pseudo n'est JAMAIS sérialisé sur une exception.
+            // Il n'est qu'une mémoire de modèle, jamais affichée ni exportée,
+            // et le [pseudo] du span ne concerne que les occurrences anonymisées.
             if (ann.pseudo && ann.etat !== 'exception') extra.push(`data-pseudo="${escapeAttr(ann.pseudo)}"`)
             extra.push('data-anon-nt="true"')
           }

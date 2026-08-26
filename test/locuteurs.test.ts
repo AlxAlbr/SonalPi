@@ -37,7 +37,7 @@ describe('modèle locuteurs (pur)', () => {
     const l = locs()
     renommerLocuteur(l, 2, 'K.')
     expect(l.find((x) => x.index === 2)?.nom).toBe('K.')
-    // l'index (ce que les blocs référencent) est intact
+    // l'index (ce que les blocs référencent) est intact.
     expect(l.map((x) => x.index)).toEqual([1, 2])
   })
 
@@ -189,7 +189,7 @@ describe('construireLibelleGouttiere — DOM du libellé (garde anti-régression
     )
     const nom = el.querySelector<HTMLElement>('.loc-nom')
     expect(nom?.style.color).toBe(couleurPourLocuteur(2))
-    // couleur CHOISIE (ex. vert) : le nom s\u2019écrit en vert
+    // couleur CHOISIE (ex. vert) : le nom s\u2019écrit en vert.
     const choisi = construireLibelleGouttiere(
       { nom: 'Martin', pseudo: null, refuse: false, index: 3, couleur: PALETTE_PASTILLES_LOCUTEURS[3] },
       false,
@@ -197,7 +197,7 @@ describe('construireLibelleGouttiere — DOM du libellé (garde anti-régression
     expect(choisi.querySelector<HTMLElement>('.loc-nom')?.style.color).toBe(PALETTE_PASTILLES_LOCUTEURS[3])
     // pas de texte ajouté : la concaténation du widget reste « Karine »
     expect(el.textContent).toBe('Karine')
-    // gouttière vide : pas de nom, pas de couleur
+    // gouttière vide : pas de nom, pas de couleur.
     const vide = construireLibelleGouttiere({ nom: '', pseudo: null, refuse: false, index: -1, couleur: '' }, true)
     expect(vide.querySelector('.loc-nom')).toBeNull()
   })

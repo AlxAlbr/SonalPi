@@ -8,11 +8,11 @@ import { scannerCorpus, type EntretienScan } from '../src/shared/corpus/scanAnon
 import type { EntretienFichier } from '../src/shared/format'
 
 /**
- * Incluses (chevauchement de règles) — « le large absorbe l'étroit » :
- * une occurrence recouverte par une annotation d'une AUTRE entité plus large
- * est masquée : ni anonymisée, ni exception, ni à anonymiser. Elle ne monte
- * que dans l'exposant « +N » et réapparaît telle quelle au retrait de la
- * large (rien n'est détruit — restauration gratuite).
+ *  Incluses (chevauchement de règles) — « le large absorbe l'étroit » :
+ *  une occurrence recouverte par une annotation d'une AUTRE entité plus large
+ *  est masquée : ni anonymisée, ni exception, ni à anonymiser. Elle ne monte
+ *  que dans l'exposant « +N » et réapparaît telle quelle au retrait de la
+ *  large (rien n'est détruit — restauration gratuite).
  */
 
 // Texte : « Marie » (étroit) ⊂ « Sainte Marie » (large).

@@ -438,13 +438,6 @@ export function useEntretien(deps: {
   /** Sélection courante vide ? Pilote le libellé du bouton d'attribution (
    *  « Attribuer la sélection » vs « …le bloc courant »). */
   const selectionVide = ref(true)
-  /** Vrai dès que le TEXTE de l'entretien ouvert a été édité depuis son
-   *  ouverture (frappe/suppression — les attributs, ex. locuteur, ne comptent
-   *  pas : `getText()` ne change pas). Observé par le pas-à-pas (étape
-   *  « Écouter et corriger la transcription »). Volatil : repart à faux à
-   *  chaque ouverture/réinitialisation d'entretien. */
-  const texteModifie = ref(false)
-  let texteInitial = ''
 
   // --- Journal d'actions : volatil (session), actions de modèle seules ---
   const journal = reactive<Journal>({ entrees: [] })
@@ -518,20 +511,7 @@ export function useEntretien(deps: {
         return true
       },
     },
-    onUpdate: ({ editor: ed, transaction }) => {
-      // Texte réellement ÉDITÉ depuis l'ouverture → observable pour le pas-à-pas
-      // (l'étape « Écouter et corriger la transcription »). On compare à l'état
-      // INITIAL (pas au précédent) mais on REMET à faux quand le texte redevient
-      // identique à l'ouverture : le double-espace lecture/pause insère PUIS
-      // retire une espace au même endroit (une seule « frappe ») — le texte
-      // revient à son état d'ouverture, donc une simple commande de lecture ne
-      // doit PAS compter comme une correction. Seule une modification qui RESTE
-      // (différente de l'initial) valide l'étape.
-      // `texteInitial !== ''` : un entretien vide (créé sans texte) ne se
-      // « modifie » pas au premier caractère tapé.
-      if (!chargement && ouvertId.value) {
-        texteModifie.value = texteInitial !== '' && ed.getText() !== texteInitial
-      }
+    onUpdate: ({ transaction }) => {
       rafraichir()
       // Boîte recherche/remplacement ouverte : les occurrences suivent le texte.
       if (transaction.docChanged && rechercheOuverte.value) recalculerRecherche()
@@ -761,8 +741,6 @@ export function useEntretien(deps: {
     entretien.ancres.splice(0, entretien.ancres.length)
     locuteurs.value = res.data.locuteurs
     ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
-    texteInitial = ed.getText()
-    texteModifie.value = false
     for (const a of res.data.annotations) entretien.annotations.push(a)
     for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
     meta.valeursGen = { ...res.data.meta.valeursGen }
@@ -798,8 +776,6 @@ export function useEntretien(deps: {
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
     editor.value?.commands.setContent('<p></p>', { emitUpdate: false })
-    texteInitial = ''
-    texteModifie.value = false
     refusFormat.value = null
     eteindrePlageLue()
     brouillonsAnon.value = []
@@ -2339,7 +2315,6 @@ export function useEntretien(deps: {
     reinitialiser,
     sauver,
     donneesExport,
-    texteModifie,
     // rafraîchissements (l'App les déclenche après des changements corpus)
     rafraichir,
     rafraichirDecorations,

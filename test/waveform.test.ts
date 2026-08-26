@@ -1,9 +1,7 @@
 /**
- * Waveform — dérivé local optionnel : les SAUTS assumés ne doivent jamais
- * coûter un fetch ni une erreur (analyse complète : plans/reflexion-ffmpeg.md).
- *
- * Les chemins nominaux (décodage AudioContext + canvas) exigent un navigateur ;
- * ce banc ne teste que les décisions de court-circuit, observables en Node.
+ *  Waveform — dérivé local optionnel : les SAUTS assumés ne doivent jamais coûter un fetch ni une erreur (l'analyse complète vit hors de ce banc).
+ *  Les chemins nominaux (décodage AudioContext + canvas) exigent un navigateur ;
+ *  ce banc ne teste que les décisions de court-circuit, observables en Node.
  */
 
 import { describe, expect, it, vi, afterEach } from 'vitest'
@@ -26,8 +24,8 @@ describe('genererEtEcrireWaveform — sauts sans coût', () => {
   })
 
   it('AUDIO au-delà du seuil mémoire : content-length lu, corps JAMAIS absorbé', async () => {
-    // Le stub répond ok avec un en-tête de taille au-delà du seuil ; si le
-    // code consommait le corps, il échouerait (body null) ou saturerait.
+    // Le stub répond ok avec un en-tête de taille au-delà du seuil ;
+    // si le code consommait le corps, il échouerait (body null) ou saturerait.
     const rep = new Response(null, {
       status: 200,
       headers: { 'content-length': String(TAILLE_MAX_MEDIA + 1) },
@@ -40,9 +38,9 @@ describe('genererEtEcrireWaveform — sauts sans coût', () => {
   })
 
   it('AUDIO de taille raisonnable : la génération est tentée (fetch émis)', async () => {
-    // Corps minuscule non décodable : la génération échouera APRÈS le fetch
-    // (pas d'AudioContext en Node) → null, mais le fetch DOIT avoir eu lieu :
-    // c'est lui qu'on observe ici, pas le décodage.
+    // Corps minuscule non décodable : la génération échouera APRÈS le fetch ;
+    // pas d'AudioContext en Node → null, mais le fetch DOIT avoir eu lieu.
+    // C'est lui qu'on observe ici, pas le décodage.
     const fetchDouble = vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
     vi.stubGlobal('fetch', fetchDouble)
 

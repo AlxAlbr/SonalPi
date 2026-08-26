@@ -10,12 +10,11 @@ import { visiblesThemes } from '../../shared/corpus/categories'
 import type { OccurenceRecherche, ResultatRecherche } from '../editor/rechercheCorpus'
 import type { SegmentThematique, CibleRegleAnon } from '../../shared/format'
 import { scannerRegleDetaille, type OccurrenceScan } from '../../shared/corpus/scanAnon'
-// Icônes d'onglets (parité vue Entretien) — thèmes = logocat, recherche = logosearch,
-// données/pseudos = les mêmes que les onglets « Données » et « Pseudonymisation ».
-import icoThemes from '../assets/icones/logocat.png'
-import icoRecherche from '../assets/icones/logosearch.png'
-import icoDonnees from '../assets/icones/logodat2.png'
-import icoAnon from '../assets/icones/logoanon.png'
+// Icônes des onglets, partagées avec la vue Entretien.
+import icoThemes from '../assets/icones/themes.png'
+import icoRecherche from '../assets/icones/recherche.png'
+import icoDonnees from '../assets/icones/donnees.png'
+import icoAnon from '../assets/icones/anon.png'
 
 const {
   // thèmes (codebook corpus) — CONSULTATION ; l'édition passe par la modale (crayon)
@@ -28,7 +27,7 @@ const {
   modifierTheme,
   resumes,
   ouvrirAuSegment,
-  // entretiens (membership) + sélection Corpus
+  // entretiens (membership) + sélection Corpus.
   membership,
   reprise,
   reprendre,
@@ -43,7 +42,7 @@ const {
   confirmerSuppressionEntretien,
   allerDonnees,
   listeEntretiens,
-  // audio
+  // audio.
   urlWaveform,
   assignerAudioSelection,
   ouvrirDesignationAudio,
@@ -59,7 +58,7 @@ const {
   rafraichirScanAnon,
   // Intégrité : audios référencés introuvables (fichier déplacé/supprimé)
   audiosManquants,
-  // démo pas-à-pas
+  // démo pas-à-pas.
   pasAPas,
   // Corpus distant : synchro (barre haute) + lecture seule (grisage)
   idDistantCourant,
@@ -87,16 +86,17 @@ function titreChampMeta(id: string): string {
     ? `Ouvert par ${v.userId} — lecture seule.`
     : 'lecture seule (corpus distant)'
 }
-/** Infobulle du bouton crayon/verrou d'une carte : si l'entretien est tenu par
- *  autrui, le détail (qui ? depuis quand ? conséquence) ; sinon le geste normal. */
+/** Infobulle du bouton crayon/verrou d'une carte ;
+ *  si l'entretien est tenu par autrui, le détail (qui ? depuis quand ?
+ *  conséquence) ; sinon le geste normal. */
 const titreCrayon = (id: string): string => {
   const v = badgeVerrou(id)
   return v
     ? `Verrou tenu par ${v.userId} depuis ${heureDe(v.acquiredAt)} — ouverture en lecture seule.`
     : 'Éditer l’entretien'
 }
-/** « Actualiser » : tire le miroir à la demande (les erreurs crient — ce n'est
- *  pas la minuterie silencieuse). */
+/** « Actualiser » : tire le miroir à la demande ;
+ *  les erreurs crient, ce n'est pas la minuterie silencieuse. */
 async function actualiser() {
   try {
     await actualiserDistant(false)
@@ -106,10 +106,10 @@ async function actualiser() {
   }
 }
 
-// La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
+// La fenêtre d'édition des thèmes (crayon) — locale à la vue.
 const editerThemes = ref(false)
-// Menu contextuel d'un THÈME (actif ↔ passif sans ouvrir l'édition), sur la
-// consultation du Corpus comme sur le panneau Entretien.
+// Menu contextuel d'un THÈME (actif ↔ passif sans ouvrir l'édition),
+// sur la consultation du Corpus comme sur le panneau Entretien.
 const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
 /** Ouvre le menu au clic droit sur un thème (masqué en lecture seule). */
 function ouvrirMenuTheme(cat: { id: string; nom: string; actif: boolean }, evt: MouseEvent) {
@@ -122,8 +122,9 @@ function basculerActifTheme() {
   if (m) modifierTheme(m.id, { actif: !m.actif })
   menuTheme.value = null
 }
-// Repli des sous-thèmes dans la consultation : état de VUE local (jamais
-// persisté, indépendant par écran) — les catégories repliées restent visibles.
+// Repli des sous-thèmes dans la consultation : état de VUE local,
+// jamais persisté, indépendant par écran ;
+// les catégories repliées restent visibles.
 const repliesThemes = ref<Set<string>>(new Set())
 const arbreVisible = computed(() => visiblesThemes(arbreThemes(), repliesThemes.value))
 function basculerRepli(id: string) {
@@ -156,8 +157,8 @@ function fermerPseudo() {
   selectedRegleId.value = null
 }
 
-// --- Drill-down (loupe) façon SonalPi V1 : accordéons par entretien, badges
-//     d'état, occurrences détaillées avec contexte, cases d'état + exceptions,
+// --- Drill-down (loupe) : accordéons par entretien, badges d'état,
+//     occurrences détaillées avec contexte, cases d'état + exceptions,
 //     et validation du diff (lot sous verrou court par fichier). ---
 const selectedRegleId = ref<string | null>(null)
 const messagePseudo = ref<string | null>(null)
@@ -220,14 +221,14 @@ function occurrencesDe(id: string): OccurrenceScan[] {
   return details.value[id] ?? []
 }
 
-// État ÉDITABLE par occurrence (parité V1) : la case reflète l'ÉTAT
+// État ÉDITABLE par occurrence : la case reflète l'ÉTAT,
 // (cochée = anonymisée, décochée = à traiter), le 🚫 marque une exception ;
-// les modifications restent LOCALES jusqu'à « Valider ». Cle « from:to ».
+// les modifications restent LOCALES jusqu'à « Valider », clé « from:to ».
 const cochees = ref<Record<string, Record<string, boolean>>>({})
 const exceptions = ref<Record<string, Record<string, boolean>>>({})
 const cleOcc = (o: { from: number; to: number }) => `${o.from}:${o.to}`
-/** Initialise l'état éditable d'un entretien depuis son scan détaillé
- *  (les incluses n'y figurent pas : non modifiables). */
+/** Initialise l'état éditable d'un entretien depuis son scan détaillé ;
+ *  les incluses n'y figurent pas (non modifiables). */
 function initEtatEnt(id: string) {
   const c: Record<string, boolean> = {}
   const x: Record<string, boolean> = {}
@@ -239,8 +240,8 @@ function initEtatEnt(id: string) {
   cochees.value[id] = c
   exceptions.value[id] = x
 }
-/** État VISUEL d'une occurrence : suit les modifications locales, pas le
- *  dernier scan (couleurs, gras du match, affichage du pseudo). */
+/** État VISUEL d'une occurrence : suit les modifications locales,
+ *  pas le dernier scan (couleurs, gras du match, affichage du pseudo). */
 function etatOcc(id: string, o: OccurrenceScan): OccurrenceScan['etat'] {
   if (o.etat === 'incl') return 'incl'
   if (exceptions.value[id]?.[cleOcc(o)]) return 'exc'
@@ -257,7 +258,7 @@ function basculerCoche(id: string, o: OccurrenceScan) {
 function enException(id: string, o: OccurrenceScan): boolean {
   return etatOcc(id, o) === 'exc'
 }
-/** 🚫 droit : demande l'exception (la case se décoche — parité V1). */
+/** 🚫 droit : demande l'exception (la case se décoche). */
 function demanderException(id: string, o: OccurrenceScan) {
   ;(exceptions.value[id] ??= {})[cleOcc(o)] = true
   ;(cochees.value[id] ??= {})[cleOcc(o)] = false
@@ -266,8 +267,9 @@ function demanderException(id: string, o: OccurrenceScan) {
 function retirerException(id: string, o: OccurrenceScan) {
   ;(exceptions.value[id] ??= {})[cleOcc(o)] = false
 }
-/** Case-tout de l'en-tête : coché quand TOUTES les occurrences modifiables
- *  sont cochées ; un clic coche/décoche tout (les exceptions restent posées). */
+/** Case-tout de l'en-tête ;
+ *  coché quand toutes les occurrences modifiables sont cochées, un clic
+ *  coche/décoche tout (les exceptions restent posées). */
 function entToutCoche(id: string): boolean {
   const c = cochees.value[id]
   if (!c) return false
@@ -280,8 +282,8 @@ function toutCocherEnt(id: string) {
   const cible = !entToutCoche(id)
   for (const k of Object.keys(c)) c[k] = cible
 }
-/** L'entretien est « tout traité » si aucune occurrence n'est à traiter
- *  (parité V1 : les incluses comptent comme traitées). */
+/** L'entretien est « tout traité » si aucune occurrence n'est à traiter,
+ *  les incluses comptant comme traitées. */
 function entToutTraite(anon: number, exc: number, incl: number, non: number): boolean {
   return anon + exc + incl > 0 && non === 0
 }
@@ -341,13 +343,14 @@ async function categoriser(regleId: string, categorie: string) {
   await rafraichirScanAnon()
 }
 
-// --- Filtre / recherche d'entité dans la table des règles (parité V1) ---
+// --- Filtre / recherche d'entité dans la table des règles ---
 const filtreRegle = ref('')
 const scanFiltre = computed(() => {
   const q = filtreRegle.value.trim().toLowerCase()
   if (!q) return scanAnon.value
-  // Recherche par catégorie (4c) : si la saisie correspond EXACTEMENT à un
-  // nom de catégorie active, on bascule en filtre par catégorie.
+  // Recherche par catégorie (4c) :
+  // si la saisie correspond EXACTEMENT à un nom de catégorie active,
+  // on bascule en filtre par catégorie.
   const exact = thematiquesListe.value.find((c) => c.toLowerCase() === q)
   if (exact) return scanAnon.value.filter((s) => s.regle.categorie === exact)
   return scanAnon.value.filter(
@@ -357,9 +360,9 @@ const scanFiltre = computed(() => {
   )
 })
 // --- Largeur du panneau gauche : auto-fit sur la largeur NATURELLE de la
-//     table des règles (parité V1) — bornée pour garder le détail lisible à
-//     droite. La mesure se fait hors flux : la table est étirée à 100 % de sa
-//     colonne, on lit sa largeur idéale puis on restitue l'étirement.
+//     table des règles — bornée pour garder le détail lisible à droite ;
+//     la mesure se fait hors flux : la table est étirée à 100 % de sa colonne,
+//     on lit sa largeur idéale, puis on restitue l'étirement.
 const tableRegles = ref<HTMLTableElement | null>(null)
 const largeurGauche = ref('42%')
 function ajusterLargeurGauche() {
@@ -385,26 +388,25 @@ watch(scanAnon, async () => {
   ajusterLargeurGauche()
 })
 
-/** État global d'une règle : ✓ tout traité / orange à traiter (les incluses
- *  comptent comme traitées — parité V1). */
+/** État global d'une règle : ✓ tout traité / orange à traiter ;
+ *  les incluses comptent comme traitées. */
 function etatRegle(s: { total: { anon: number; exc: number; incl: number; non: number } }): 'ok' | 'todo' {
   return s.total.non === 0 ? 'ok' : 'todo'
 }
-/** « Valider » (façon V1) : compare l'état éditable de chaque occurrence au
- *  dernier scan et transmet le DIFF par entretien — poses (cases cochées),
- *  retraits (dé-pseudonymiser), exceptions posées/retirées. En distant, le
- *  lot passe par des transactions courtes par entretien : un entretien
- *  verrouillé par autrui est refusé nommément, sans bloquer les autres.
- *  Scan et détails sont rechargés après coup (le diff peut retirer autant
- *  que poser, un ajustement local serait fragile). */
+/** « Valider » : compare l'état éditable de chaque occurrence au dernier scan,
+ *  et transmet le DIFF par entretien — poses (cases cochées), retraits
+ *  (dé-pseudonymiser), exceptions posées/retirées. En distant, le lot passe
+ *  par des transactions courtes par entretien ; un entretien verrouillé par
+ *  autrui est refusé nommément, sans bloquer les autres. Scan et détails sont
+ *  rechargés après coup (le diff peut retirer autant que poser). */
 async function valider() {
   const s = scanPourRegle.value
   if (!s) return
   let nbPoses = 0, nbRetires = 0, nbExcAjout = 0, nbExcRetire = 0
   const cibles: CibleRegleAnon[] = []
   for (const [id, rows] of Object.entries(details.value)) {
-    // Sans état initialisé (entretien jamais déplié, détails périmés), on ne
-    // déduit RIEN : tout y paraîtrait « à traiter » → retraits fantômes.
+    // Sans état initialisé (entretien jamais déplié, détails périmés),
+    // on ne déduit RIEN : tout y paraîtrait « à traiter » → retraits fantômes.
     if (!cochees.value[id]) continue
     const plages: { from: number; to: number }[] = []
     const retirer: { from: number; to: number }[] = []
@@ -456,24 +458,24 @@ async function valider() {
     initEtatEnt(id)
   }
 }
-// Onglet de la colonne gauche : « Thèmes » par défaut, « Recherche » (texte
-// plein corpus, parité SonalPi), « Pas à pas » en mode démo.
+// Onglet de la colonne gauche : « Thèmes » par défaut, « Recherche »
+// (texte plein corpus), « Pas à pas » en mode démo.
 const ongletCorpus = ref<'themes' | 'recherche' | 'pas-a-pas'>('themes')
 // Quand le mode pas-à-pas s'active, bascule l'onglet sur « Pas à pas ».
 watch(pasAPas, (v) => {
   if (v) ongletCorpus.value = 'pas-a-pas'
 })
 
-// --- ONGLET RECHERCHE : texte plein CORPUS (parité SonalPi rechercherDansCorpus) ---
+// --- ONGLET RECHERCHE : texte plein CORPUS ---
 const requete = ref('')
 const motEntier = ref(false)
 const resultats = ref<ResultatRecherche[]>([])
 const enCours = ref(false)
 const message = ref('')
-/** Marqueurs pour le « mur » de waveforms (carte par entretien) : le % divisé
- *  par l'axe caractères de chaque occurrence + le contexte affiché si on clic.
- *  Le clic N'ouvre PAS l'entretien (subtilité SonalPi) : il reste en vue Corpus
- *  et affiche l'extrait dans le panneau de gauche. */
+/** Marqueurs pour le « mur » de waveforms (carte par entretien) :
+ *  le % divisé par l'axe caractères de chaque occurrence, + le contexte
+ *  affiché si on clic. Le clic N'ouvre PAS l'entretien : il reste en vue
+ *  Corpus et affiche l'extrait dans le panneau de gauche. */
 const marqueursRecherche = computed(() => {
   const out: Record<string, Array<OccurenceRecherche>> = {}
   for (const r of resultats.value) out[r.id] = r.occurrences
@@ -485,8 +487,9 @@ function afficherExtrait(id: string, o: OccurenceRecherche) {
   const r = resultats.value.find((x) => x.id === id)
   extraitAffiche.value = { id, titre: r?.titre ?? id, pre: o.pre, match: o.match, post: o.post, pos: o.pos }
 }
-/** Lance la recherche : lit chaque entretien, extrait les occurrences (contexte
- *  ±15 mots + position PM), groupe par entretien. Cliquer = ouvrir l'entretien. */
+/** Lance la recherche : lit chaque entretien et extrait ses occurrences,
+ *  avec contexte ±15 mots + position PM, puis groupe par entretien.
+ *  Cliquer = ouvrir l'entretien. */
 async function lancerRecherche() {
   const q = requete.value.trim()
   if (!q) return
@@ -515,14 +518,13 @@ function effacerRecherche() {
   resultats.value = []
   message.value = ''
 }
-/** Cliquer une occurrence → ouvrir l'entretien et cale le texte sur le match
- *  (position PM, comme le clic sur un segment thématique). */
+/** Cliquer une occurrence → ouvrir l'entretien et cale le texte sur le match,
+ *  position PM (comme le clic sur un segment thématique). */
 function allerOccurrence(id: string, pos: number) {
   ouvrirAuSegment(id, pos)
 }
-/** Libellé de l'onglet actif, pour le bouton retour « ← … » du panneau
- *  métadonnées (affiché quel que soit l'onglet dès qu'un entretien est
- *  sélectionné). */
+/** Libellé de l'onglet actif, pour le bouton retour « ← … » du panneau métadonnées,
+ *  affiché quel que soit l'onglet dès qu'un entretien est sélectionné. */
 const libelleOnglet = computed(() =>
   ongletCorpus.value === 'recherche'
     ? 'Recherche'
@@ -531,8 +533,8 @@ const libelleOnglet = computed(() =>
       : 'Thèmes',
 )
 
-/** Style d'un segment du calque des cartes : position/largeur en % du TEXTE
- *  (parité SonalPi), peinture partagée `peintureSegment` (useCorpus). */
+/** Style d'un segment du calque des cartes : position/largeur en % du TEXTE,
+ *  peinture partagée `peintureSegment` (useCorpus). */
 function styleSegment(s: SegmentThematique): Record<string, string> {
   const p = peintureSegment(s.codes)
   const style: Record<string, string> = {
@@ -548,7 +550,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
 <template>
     <section class="ecran corpus-ecran">
-      <!-- Barre haute : accès à la base de données (comme SonalPi) -->
+      <!-- Barre haute : accès à la base de données -->
       <div class="corpus-barre">
         <button class="btn-table" @click="allerDonnees"><img class="btn-ico" :src="icoDonnees" alt="" /> Base de données</button>
         <button class="btn-table" @click="ouvrirPseudoPanel"><img class="btn-ico" :src="icoAnon" alt="" /> Pseudos</button>
@@ -566,14 +568,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       </div>
 
       <div class="grille-corpus">
-        <!-- Colonne GAUCHE : onglets Thèmes / Pas à pas, puis bascule
-             Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
+        <!-- Colonne GAUCHE : onglets Thèmes / Pas à pas,
+             puis bascule Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
         <aside class="colonne-g-corpus">
-          <!-- Onglets de la colonne gauche (parité vue Entretien) : Thèmes /
-               Recherche, + Pas à pas en mode démo. Toujours visibles. -->
+          <!-- Onglets de la colonne gauche : Thèmes / Recherche,
+               + Pas à pas en mode démo, toujours visibles. -->
           <nav class="onglets-corpus">
-            <!-- En corpus DÉMO « Pas à pas », l'onglet arrive EN PREMIER (c'est
-                 l'objectif du parcours) ; sinon Thèmes puis Recherche. -->
+            <!-- En corpus DÉMO « Pas à pas », l'onglet arrive EN PREMIER,
+                 c'est l'objectif du parcours ; sinon Thèmes puis Recherche. -->
             <button v-if="pasAPas" :class="{ actif: ongletCorpus === 'pas-a-pas' }" @click="ongletCorpus = 'pas-a-pas'">
               Pas à pas
             </button>
@@ -585,9 +587,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </button>
           </nav>
 
-          <!-- Panneau EXtrait (clic sur une barre du mur de recherche) : reste
-               en vue Corpus, affiche le contexte de l'occurrence + un bouton pour
-               ouvrir l'entretien si besoin. Visible quel que soit l'onglet actif. -->
+          <!-- Panneau EXtrait (clic sur une barre du mur de recherche) :
+               reste en vue Corpus, affiche le contexte de l'occurrence ;
+               bouton pour ouvrir l'entretien si besoin.
+               Visible quel que soit l'onglet actif. -->
           <div v-if="extraitAffiche" class="panneau extrait">
             <div class="corpus-tete">
               <h3>Extrait</h3>
@@ -630,17 +633,17 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><span>Srt</span><b>{{ corpusSelMeta.srt ? 'lié' : '—' }}</b></li>
             </ul>
             <p v-else class="vide">Lecture…</p>
-            <!-- Actions de l'entretien sélectionné (parité V1 : en fin de
-                 panneau — la confirmation réutilise le bandeau commun). -->
+            <!-- Actions de l'entretien sélectionné, en fin de panneau ;
+                 la confirmation réutilise le bandeau commun. -->
             <button
               class="mini suppr-meta"
               :disabled="!metaEditables(corpusSelId)"
               :title="titreChampMeta(corpusSelId)"
               @click="demanderSuppressionEntretien(corpusSelId)"
             >❌ Supprimer cet entretien du corpus</button>
-            <!-- Audio : sans audio un seul geste (assigner) ; avec audio, deux
-                 gestes côte à côte — effacer (rouge, détache le média) et
-                 remplacer. Le texte reste dans les deux cas. -->
+            <!-- Audio : sans audio un seul geste (assigner) ;
+                 avec audio, deux gestes côte à côte — effacer (rouge, détache le média)
+                 et remplacer. Le texte reste dans les deux cas. -->
             <div v-if="corpusSelMeta?.audio" class="audio-actions">
               <button
                 class="mini audio-effacer"
@@ -655,9 +658,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <button v-else class="mini assigner-audio" :disabled="!metaEditables(corpusSelId)" @click="assignerAudioSelection">
               Assigner un audio…
             </button>
-            <!-- Transcription : tant qu'aucun SRT n'est assigné, on peut en
-                 importer un — le contenu d'éditeur est remplacé (bannière de
-                 confirmation si l'éditeur en porte déjà). -->
+            <!-- Transcription : tant qu'aucun SRT n'est assigné,
+                 on peut en importer un — le contenu d'éditeur est remplacé
+                 (bannière de confirmation si l'éditeur en porte déjà). -->
             <button
               v-if="corpusSelMeta && !corpusSelMeta.srt"
               class="mini assigner-srt"
@@ -673,8 +676,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 <button @click="srtASurEcrire = null">Annuler</button>
               </div>
             </div>
-            <!-- Distant uniquement : lier un audio qui VIT sur le serveur
-                 copie miroir chez chaque membre. -->
+            <!-- Distant uniquement : lier un audio qui vit sur le serveur ;
+                 la copie miroir vit chez chaque membre. -->
             <button
               v-if="idDistantCourant && corpusSelId"
               class="mini assigner-audio"
@@ -683,9 +686,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             >
               {{ corpusSelMeta?.audio ? 'Redésigner dans le Nextcloud…' : 'Désigner dans le Nextcloud…' }}
             </button>
-            <!-- Variables du corpus pour CET entretien, en LECTURE SEULE
-                 (parité V1 : l'édition des valeurs passe par la table de
-                 données / l'onglet Données de l'entretien). -->
+            <!-- Variables du corpus pour CET entretien, en LECTURE SEULE ;
+                 l'édition des valeurs passe par la table de données / l'onglet
+                 Données de l'entretien. -->
             <div v-if="corpusSelMeta" class="meta-vars">
               <template v-if="corpusSelMeta.generales.length">
                 <h4>Variables générales</h4>
@@ -704,8 +707,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </div>
           </div>
 
-          <!-- Sinon : thèmes en CONSULTATION compacte ; le crayon ouvre la fenêtre
-               d'édition partagée (parité SonalPi — nom/couleur/taille/arbre). -->
+          <!-- Sinon : thèmes en CONSULTATION compacte ;
+               le crayon ouvre la fenêtre d'édition partagée (nom/couleur/taille/arbre). -->
           <aside v-else-if="ongletCorpus === 'themes'" class="panneau themes-corpus">
             <div class="corpus-tete">
               <h3>Thèmes</h3>
@@ -780,9 +783,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <button v-if="resultats.length" class="effacer-rech" @click="effacerRecherche">✕ Effacer</button>
           </div>
 
-          <!-- Pas à pas (onglet démo) : liste des étapes + spotlight global
-               (téléporté en body → visible dans n'importe quelle vue). La liste
-               est masquée selon l'onglet, le spotlight reste actif partout. -->
+          <!-- Pas à pas (onglet démo) : liste des étapes + spotlight global,
+               téléporté en body → visible dans n'importe quelle vue.
+               La liste est masquée selon l'onglet, le spotlight reste actif. -->
           <PasAPas v-if="pasAPas" :montre-liste="ongletCorpus === 'pas-a-pas'" />
         </aside>
 
@@ -791,21 +794,21 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <div class="corpus-tete">
             <h3>Entretiens</h3>
             <span class="actions-ent">
-              <!-- Point de reprise : rouvre le dernier entretien
-                   fermé là où on en était (texte + audio). -->
+              <!-- Point de reprise : rouvre le dernier entretien fermé,
+                   là où on en était (texte + audio). -->
               <button v-if="reprise" class="btn-reprise" @click="reprendre">
                 ↩ Reprendre « {{ membership[reprise.id]?.titre }} »
               </button>
-              <!-- UN seul point d'entrée (à la SonalPi) : la modale à deux
-                   zones couvre import texte, texte+audio, audio seul et vierge.
+              <!-- UN seul point d'entrée : la modale à deux zones,
+                   couvrant import texte, texte+audio, audio seul et vierge.
                    Masqué en corpus distant (lecture seule). -->
               <AjoutEntretien v-if="!lectureSeule" />
             </span>
           </div>
-          <!-- Ancre du message « re-test » du pas-à-pas : pour une étape de
-               niveau CORPUS (ex. « Charger un entretien »), le message « déjà
-               réalisée » s'affiche ici — à côté des cartes d'entretiens — et
-               non dans l'éditeur. -->
+          <!-- Ancre du message « re-test » du pas-à-pas :
+               pour une étape de niveau CORPUS (ex. « Charger un entretien »),
+               le message « déjà réalisée » s'affiche ici, à côté des cartes,
+               et non dans l'éditeur. -->
           <div data-tour="ancre-retest-pp"></div>
           <!-- Confirmation de suppression (acte destructif — mise en corbeille/,
                même idiome de bannière que thèmes et locuteurs). -->
@@ -818,8 +821,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </div>
           </div>
 
-          <!-- Bandeau d'intégrité : des audios référencés sont introuvables
-               (fichier déplacé/supprimé). Calculé à l'ouverture du corpus ;
+          <!-- Bandeau d'intégrité : des audios référencés sont introuvables,
+               fichier déplacé/supprimé. Calculé à l'ouverture du corpus ;
                clic = ouvrir l'entretien → le lecteur propose de ré-assigner. -->
           <div v-if="Object.keys(audiosManquants).length > 0" class="bandeau-audio" data-tour="bandeau-audio">
             <span class="bandeau-audio-titre">
@@ -840,29 +843,31 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               v-for="e in listeEntretiens()"
               :key="e.id"
               class="carte-ent"
+              :data-tour="'carte-' + e.titre"
               :class="{ selection: corpusSelId === e.id }"
               @click="selectionnerCorpus(e.id)"
             >
               <div class="ent-titre" :title="e.titre">{{ e.titre }}
-                <!-- Badge de verrou fiable : « tenu par X » vient du
-                     SERVEUR (scan verrous/ au pull), jamais d'une déduction.
+                <!-- Badge de verrou fiable : « tenu par X » vient du SERVEUR,
+                     scan verrous/ au pull, jamais d'une déduction.
                      Notre propre session n'est pas badgée (filtrée côté main). -->
                 <span v-if="badgeVerrou(e.id)" class="badge-verrou"
                       :title="`Verrou tenu par ${badgeVerrou(e.id)!.userId} depuis ${heureDe(badgeVerrou(e.id)!.acquiredAt)} — ouverture en lecture seule.`">
                   🔒 {{ badgeVerrou(e.id)!.userId }}
                 </span>
-                <!-- Présence : « consulté par X » — informatif, JAMAIS
-                     décisionnel (la décision, c'est le verrou ci-dessus). -->
+                <!-- Présence : « consulté par X » — informatif, JAMAIS décisionnel,
+                     la décision, c'est le verrou ci-dessus. -->
                 <span v-for="p in presencesSur(e.id)" :key="p.machineId"
                       class="badge-presence" :title="`Consulté par ${p.userId} (autre poste)`">
                   👁 {{ p.userId }}
                 </span>
               </div>
                 <!-- Forme d'onde de l'audio assigné ; sinon placeholder.
-                     Dans les deux cas, le CALQUE du résumé thématique (parité SonalPi)se superpose :
-                      un span par segment codé, positionné en % du TEXTE ;
-                     clic = ouvrir l'entretien à cet endroit.
-                     Layout SonalPi : nom À GAUCHE, onde À DROITE (les lignes empilées forment le « mur » d'ondes). -->
+                     Dans les deux cas, le CALQUE du résumé thématique se
+                     superpose : un span par segment codé, positionné en % du
+                     TEXTE ; clic = ouvrir l'entretien à cet endroit.
+                     Layout : nom À GAUCHE, onde À DROITE (les lignes empilées
+                     forment le « mur » d'ondes). -->
                 <div class="spectro-cadre">
                   <img v-if="urlWaveform(e.id)" class="spectro" :src="urlWaveform(e.id)!" alt="" draggable="false" />
                   <div v-else class="spectro-vide" title="Importe un SRT + audio, ou « Assigner un audio »">pas d'audio</div>
@@ -874,10 +879,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                     :title="s.codes.map(nomTheme).join(' + ')"
                     @click.stop="ouvrirAuSegment(e.id, s.pos)"
                   ></span>
-                  <!-- Marqueurs de RECHERCHE : une pastille par occurrence, à son
-                       emplacement % (axe caractères, aligné sur le résumé). Clic =
-                       RESTE en vue Corpus et affiche l'extrait dans le panneau de
-                       gauche (subtilité SonalPi) — n'ouvre pas l'entretien. -->
+                  <!-- Marqueurs de RECHERCHE : une pastille par occurrence,
+                       à son emplacement % (axe caractères, aligné sur le résumé).
+                       Clic = RESTE en vue Corpus et affiche l'extrait dans le panneau de gauche,
+                       mais n'ouvre pas l'entretien. -->
                   <span
                     v-for="(m, mi) in marqueursRecherche[e.id] ?? []"
                     :key="'m' + mi"
@@ -888,13 +893,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                   ></span>
                 </div>
               <div class="carte-actions">
-                <!-- Si l'entretien est verrouillé par autrui, le CRAYON
-                     devient VERROU (visible même sur un écran étroit où le
-                     badge du titre est tronqué) ; le détail — qui ? depuis
-                     quand ? — passe en tooltip au survol. Le clic ouvre
-                     toujours, en lecture seule.
-                     La SUPPRESSION ne vit pas sur la carte : elle a migré dans
-                     le panneau métadonnées (parité V1). -->
+                <!-- Si l'entretien est verrouillé par autrui, le CRAYON devient VERROU,
+                     visible même sur un écran étroit où le badge du titre est tronqué.
+                     Le détail (qui ? depuis quand ?) passe en tooltip au survol ;
+                     le clic ouvre toujours, en lecture seule.
+                     La SUPPRESSION ne vit pas sur la carte :
+                     elle vit dans le panneau métadonnées. -->
                 <button
                   class="crayon"
                   data-tour="crayon-entretien"
@@ -907,10 +911,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         </section>
       </div>
 
-      <!-- Panneau « Pseudos » du corpus (LECTURE SEULE) : règles
-           corpus + scan (anonymisé / exception / à traiter par entretien).
-           En 3a aucune règle n'est encore créable → état vide (infra préparée
-           pour le cran corpus de 3b). -->
+      <!-- Panneau « Pseudos » du corpus (LECTURE SEULE) :
+           règles corpus + scan (anonymisé / exception / à traiter par entretien).
+           En 3a aucune règle n'est encore créable → état vide,
+           infra préparée pour le cran corpus de 3b. -->
       <div v-if="pseudoPanel" class="pseudo-overlay" @click.self="fermerPseudo">
         <div class="pseudo-panneau pseudo-deux-col" :style="{ '--pseudo-gauche-w': largeurGauche }">
           <header class="pseudo-tete">
@@ -980,7 +984,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                 type="search"
                 :placeholder="thematiquesListe.length ? 'Rechercher une entité, un pseudo ou une catégorie…' : 'Rechercher une entité ou un pseudo…'"
               />
-              <!-- Compteur de règles affichées / total (parité V1, barre de filtrage). -->
+              <!-- Compteur de règles affichées / total (barre de filtrage). -->
               <div class="pseudo-compteur">
                 {{ scanFiltre.length }}<template v-if="scanFiltre.length !== scanAnon.length"> / {{ scanAnon.length }}</template>
                 règle(s)
@@ -1041,7 +1045,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                     class="acc"
                     :class="entToutTraite(e.anon, e.exc, e.incl, e.non) ? 'acc-ok' : 'acc-todo'"
                   >
-                    <!-- En-tête d'accordéon (façon V1) : coche-tout, titre, badges, flèche -->
+                    <!-- En-tête d'accordéon : coche-tout, titre, badges, flèche -->
                     <div class="acc-tete" @click="basculerDepli(e.id)">
                       <input
                         type="checkbox"
@@ -1065,9 +1069,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                       <span class="acc-fleche" :class="{ ouvert: deplie === e.id }">▼</span>
                     </div>
 
-                    <!-- Contenu déplié : forme ARBORESCENTE (les passages sont
-                         décalés sous l'entretien qui les porte) ; chaque ligne
-                         porte une case d'ÉTAT façon V1 + le 🚫 d'exception. -->
+                    <!-- Contenu déplié : forme ARBORESCENTE,
+                         les passages sont décalés sous l'entretien qui les porte ;
+                         chaque ligne porte une case d'ÉTAT + le 🚫 d'exception. -->
                     <div v-if="deplie === e.id" class="occ-list">
                       <div
                         v-for="o in occurrencesDe(e.id)"
@@ -1103,7 +1107,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                         <span class="occ-texte">
                           <span class="ctx">{{ o.avant }}</span><b>{{ o.match }}</b><span v-if="etatOcc(e.id, o) === 'anon'" class="occ-pseudo">[{{ scanPourRegle.regle.pseudos[0] }}]</span><span v-if="o.etat === 'incl'" class="occ-note">(incluse)</span><span class="ctx">{{ o.apres }}</span>
                         </span>
-                        <!-- 🚫 droit : disponible seulement si la case est cochée (parité V1). -->
+                        <!-- 🚫 droit : disponible seulement si la case est cochée. -->
                         <button
                           v-if="o.etat !== 'incl' && estCochee(e.id, o)"
                           class="occ-exc-btn"
@@ -1236,7 +1240,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .onglets-corpus button.actif .ico-onglet-corpus {
   opacity: 1;
 }
-/* --- Onglet Recherche : recherche plein texte du corpus (parité SonalPi) --- */
+/* --- Onglet Recherche : recherche plein texte du corpus --- */
 .barre-recherche {
   display: flex;
   gap: 0.35rem;
@@ -1293,7 +1297,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   font-size: 0.78rem;
   color: #666;
 }
-/* Résultats groupés par entretien (parité SonalPi .liste-rech-crp / .occurence-rech) */
+/* Résultats groupés par entretien. */
 .liste-rech-crp {
   list-style: none;
   margin: 0.4rem 0 0;
@@ -1416,7 +1420,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   padding: 0.3rem 0.4rem;
   font-size: 0.9rem;
 }
-/* Variables de l'entretien (lecture seule, parité V1) : sections titrées,
+/* Variables de l'entretien (lecture seule) : sections titrées,
    lignes libellé → valeur ; défilement si la liste est longue. */
 .meta-vars {
   margin-top: 0.6rem;
@@ -1453,7 +1457,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   color: #bbb;
   font-weight: 400;
 }
-/* Retrait du corpus depuis le panneau (parité V1 : croix en fin de panneau). */
+/* Retrait du corpus depuis le panneau (croix en fin de panneau). */
 .suppr-meta {
   margin-top: 0.7rem;
   color: #b00020;
@@ -1539,7 +1543,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   background: #f0f6ff;
 }
 .ent-titre {
-  /* Nom À GAUCHE, largeur fixe (parité SonalPi .lbl-nom-ent 27 %) — les ondes
+  /* Nom À GAUCHE, largeur fixe (27 %) — les ondes
      empilées forment une colonne régulière (« mur » visuel). */
   width: 27%;
   flex-shrink: 0;
@@ -1565,13 +1569,13 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover; /* parité SonalPi (.ligent-img) : pas de distorsion */
+  object-fit: cover; /* pas de distorsion */
   border-radius: 3px; /* conserve le coin arrondi du cadre (overflow visible désormais) */
 }
 /* Cadre de superposition du résumé thématique (les .xtr-graph se positionnent
    en % de SA largeur — la même que l'onde ou le placeholder). Conteneur
-   compact à la SonalPi : 25 px de haut, dégradé vertical (creux au centre),
-   bord fin — c'est lui qui donne la profondeur au « mur » d'ondes. */
+   compact : 25 px de haut, dégradé vertical (creux au centre), bord fin —
+   c'est lui qui donne la profondeur au « mur » d'ondes. */
 .spectro-cadre {
   position: relative;
   flex: 1;
@@ -1581,28 +1585,27 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border: 1px solid #cbcbcb;
   background: linear-gradient(#00000040 0%, #fbf5f560 50%, #00000040 100%);
   /* overflow VISIBLE : les marqueurs de recherche dépassent au-dessus/en dessous
-     du cadre (parité SonalPi .occurence-canvas). L'image .spectro, elle, est en
-     absolute inset:0 → ne déborde jamais ; ses coins sont arrondis par son propre
-     border-radius (ci-dessous) puisqu'on ne clippe plus ici. */
+     du cadre. L'image .spectro, elle, est en absolute inset:0 → ne déborde
+     jamais ; ses coins sont arrondis par son propre border-radius (ci-dessous)
+     puisqu'on ne clippe plus ici. */
   overflow: visible;
 }
 .xtr-graph {
   position: absolute;
   top: 1px;
   bottom: 1px;
-  opacity: 0.55; /* parité SonalPi : la couleur reste celle du thème MAIS l'onde reste lisible dessous */
+  opacity: 0.55; /* la couleur reste celle du thème, l'onde reste lisible dessous */
   cursor: pointer;
   box-sizing: border-box;
   border-radius: 2px;
 }
 .xtr-graph:hover {
-  opacity: 0.8; /* survol SonalPi : le segment s'affirme (clic = rouvrir au texte) */
+  opacity: 0.8; /* au survol, le segment s'affirme (clic = rouvrir au texte) */
   border: 1px solid #030303;
 }
-/* Marqueur de RECHERCHE sur le « mur » d'ondes — parité SonalPi
-   .occurence-canvas : barre JAUNE vif, tour ROUGE gras, qui dépasse un peu du
-   cadre, bien visible. Centrée sur la position % de l'occurrence ; au survol,
-   elle passe au rouge et s'épaissit (comme SonalPi). */
+/* Marqueur de RECHERCHE sur le « mur » d'ondes : barre JAUNE vif, tour ROUGE
+   gras, qui dépasse un peu du cadre, bien visible. Centrée sur la position %
+   de l'occurrence ; au survol, elle passe au rouge et s'épaissit. */
 .occ-marqueur {
   position: absolute;
   top: -4px;
@@ -1786,7 +1789,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-radius: 8px;
   padding: 1rem 1.2rem;
   /* Bornes RELATIVES à la fenêtre : jamais de débordement inatteignable.
-   * Les deux COLONNES défilent indépendamment (façon V1), pas le panneau :
+   * Les deux COLONNES défilent indépendamment, pas le panneau :
    * l'en-tête et les actions restent en place. */
   width: min(1100px, 94vw);
   max-height: 90vh;
@@ -1881,7 +1884,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   gap: 0.3rem;
   font-size: 0.72rem;
 }
-/* Recherche d'entité dans la table des règles (parité V1). */
+/* Recherche d'entité dans la table des règles. */
 .pseudo-recherche {
   width: 100%;
   padding: 0.3rem 0.5rem;
@@ -1890,14 +1893,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   margin-bottom: 0.4rem;
   font-size: 0.82rem;
 }
-/* Compteur « N / M règle(s) » sous la recherche (parité V1). */
+/* Compteur « N / M règle(s) » sous la recherche. */
 .pseudo-compteur {
   font-size: 0.75rem;
   color: #888;
   margin-bottom: 0.4rem;
   white-space: nowrap;
 }
-/* Pastille d'état d'une règle : ✓ tout traité / ! à traiter (fond V1). */
+/* Pastille d'état d'une règle : ✓ tout traité / ! à traiter. */
 .pseudo-table .etat { text-align: center; }
 .pastille {
   display: inline-flex;
@@ -1919,8 +1922,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   cursor: help;
 }
 
-/* Accordéons par entretien (parité V1) : fond vert = tout traité,
- * orange = à traiter ; badges ronds aux couleurs des états. */
+/* Accordéons par entretien : fond vert = tout traité, orange = à traiter ;
+ * badges ronds aux couleurs des états. */
 .acc { border-bottom: 1px solid #eee; }
 .acc-tete {
   display: flex;
@@ -1971,9 +1974,9 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 }
 .acc-fleche.ouvert { transform: rotate(180deg); }
 
-/* Occurrences détaillées : forme ARBORESCENTE (décalage sous l'entretien,
- * parité V1), contexte avant/après gris, match en gras. Les états suivent
- * les modifications locales jusqu'à « Valider ». */
+/* Occurrences détaillées : forme ARBORESCENTE (décalage sous l'entretien),
+ * contexte avant/après gris, match en gras. Les états suivent les
+ * modifications locales jusqu'à « Valider ». */
 .occ-list {
   background: #fafafa;
   padding: 0.4rem 0.6rem;
@@ -1994,7 +1997,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 .occ-incl .ctx, .occ-exc .ctx { color: #bbb; }
 .occ-incl b, .occ-exc b { font-weight: normal; color: #888; }
 .occ-pseudo { color: #1565c0; }
-/* Exception (active ou demandée) : fond gris clair arrondi (parité V1). */
+/* Exception (active ou demandée) : fond gris clair arrondi. */
 .occ.occ-exc { background: #f5f5f5; border-radius: 4px; }
 /* Icône 🚫 à gauche : clic = RETIRER l'exception. */
 .occ-exc-toggle {
@@ -2070,8 +2073,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   cursor: pointer;
 }
 .cell-actions { white-space: nowrap; }
-/* Couleur des LIGNES de règles (parité V1) : vert = tout traité (anonymisé
- * ou exception), orange = il reste des occurrences à anonymiser. */
+/* Couleur des LIGNES de règles : vert = tout traité (anonymisé ou exception),
+ * orange = il reste des occurrences à anonymiser. */
 .pseudo-table tr.ok { background: #e8f5e9; }
 .pseudo-table tr.todo { background: #fff3e0; }
 .pseudo-table tr.sel {
@@ -2140,7 +2143,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   padding: 0.3rem 0.6rem;
   text-align: left;
 }
-/* En-tête épinglé en haut du défilement de la table (parité V1 : th sticky). */
+/* En-tête épinglé en haut du défilement de la table (th sticky). */
 .pseudo-table th {
   background: #f3f6fa;
   position: sticky;
@@ -2148,12 +2151,12 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   z-index: 1;
 }
 /* Entité : les groupes d'alias longs enroulent au lieu de comprimer les
- * compteurs ; Pseudo garde une largeur minimale lisible (parité V1). */
+ * compteurs ; Pseudo garde une largeur minimale lisible. */
 .pseudo-table .cell-entite { overflow-wrap: anywhere; }
 .pseudo-table .cell-pseudo { min-width: 120px; }
 .pseudo-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-/* Palette SonalPi V1 : vert = anonymisé, gris = exception, orange = à traiter
- * (mêmes couleurs que les badges ronds du panneau entretien). */
+/* Palette : vert = anonymisé, gris = exception, orange = à traiter (mêmes
+ * couleurs que les badges ronds du panneau entretien). */
 .pseudo-table .anon { color: #15c095; font-weight: 600; }
 .pseudo-table .exc { color: #555; font-weight: 600; }
 .pseudo-table .non { color: #ff9800; font-weight: 600; }

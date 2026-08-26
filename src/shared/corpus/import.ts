@@ -2,13 +2,13 @@ import { parserAliases, regleEnCollisionAlias } from '../entretien/anon'
 import type { Categorie, CorpusFichier, RegleAnon, Variable } from '../format'
 
 /**
- * Sas d'import de l'agrégat Corpus : le seul flux applications→définitions,
- * idempotent par id (l'id d'import reprend le code legacy du fichier).
- * Fonction PURE ; l'I/O (lecture du `.sonal`) est faite par l'orchestration.
+ *  Sas d'import de l'agrégat Corpus : le seul flux applications→définitions,
+ *  idempotent par id (l'id d'import reprend le code legacy du fichier).
+ *  Fonction PURE ; l'I/O (lecture du `.sonal`) est faite par l'orchestration.
  */
 
-/** Fusionne codebook + variables importés dans le corpus (par id ; l'existant
- *  fait foi → double import du même `.sonal` = zéro doublon). */
+/** Fusionne codebook + variables importés dans le corpus, par id ;
+ *  l'existant fait foi (double import du même `.sonal` = zéro doublon). */
 export function fusionnerImport(
   corpus: CorpusFichier,
   codebook: Categorie[],
@@ -18,8 +18,8 @@ export function fusionnerImport(
   for (const v of variables) if (!corpus.variables[v.id]) corpus.variables[v.id] = v
 }
 
-/** Fusionne les règles corpus importées (anon-json portée corpus) dans le
- *  corpus en respectant « un alias = un pseudo » : une règle entrante qui ne
+/** Fusionne les règles corpus importées (anon-json portée corpus) dans le corpus,
+ *  en respectant « un alias = un pseudo » : une règle entrante qui ne
  *  touche aucune règle existante est ajoutée telle quelle ; un double import
  *  du même `.sonal` n'ajoute rien ; et si l'entrant PARTAGE seulement certains
  *  alias avec des règles existantes, il est ÉCLATÉ — les alias libres restent

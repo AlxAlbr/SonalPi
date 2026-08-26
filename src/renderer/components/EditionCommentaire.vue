@@ -2,11 +2,11 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 
 /**
- * Modale d'un commentaire en marge (création ET édition — même fenêtre) :
- * auteur pré-rempli (dernier signataire mémorisé) + texte. Idiome voile+modale
- * des autres fenêtres (EditionThemes…) ; l'édition EN PLACE dans la carte est
- * écartée (contenteditable dans un widget ProseMirror = conflits de focus).
- * « Supprimer » n'existe qu'en édition.
+ *  Modale d'un commentaire en marge (création ET édition — même fenêtre) :
+ *  auteur pré-rempli (dernier signataire mémorisé) + texte. Idiome voile+modale
+ *  des autres fenêtres (EditionThemes…) ; l'édition EN PLACE dans la carte est
+ *  écartée (contenteditable dans un widget ProseMirror = conflits de focus).
+ *  « Supprimer » n'existe qu'en édition.
  */
 const props = defineProps<{
   /** null = création ; sinon id du commentaire édité. */
@@ -24,8 +24,8 @@ const auteur = ref(props.auteurInitial)
 const texte = ref(props.texteInitial)
 const champTexte = ref<HTMLTextAreaElement | null>(null)
 
-// Le contenu est figé à l'ouverture (les props ne changent pas pendant la vie
-// de la modale) — watch défensif si le composant est réutilisé ouverte.
+// Le contenu est figé à l'ouverture (les props ne changent pas pendant la vie de la modale) ;
+// watch défensif si le composant est réutilisé ouvert.
 watch(
   () => [props.auteurInitial, props.texteInitial],
   ([a, t]) => {

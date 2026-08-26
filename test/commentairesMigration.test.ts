@@ -88,8 +88,8 @@ describe('import des commentaires V1 (.sonal)', () => {
     const r = importerSonal(html, parse(html))
     const cs = commentairesDe(r.payload.annotations)
     expect(cs).toHaveLength(1)
-    // Les deux premiers segments ont fusionné en UN bloc : le commentaire
-    // couvre du début de « Karine » à la fin de « habite Lyon. ».
+    // Les deux premiers segments ont fusionné en UN bloc :
+    // le commentaire couvre du début de « Karine » à la fin de « habite Lyon. ».
     const doc = r.payload.corpsTexte as { content: Array<{ attrs: { loc: number | null }; content?: Array<{ text?: string }> }> }
     expect(doc.content.length).toBe(2)
     const t = doc.content[0].content?.map((n) => n.text).join('') ?? ''
@@ -122,8 +122,8 @@ describe('export des commentaires (.sonal) et aller-retour', () => {
     const out = exporterSonal(entree)
     expect(out).toMatch(/data-obs="passage clé"/)
     expect(out).toMatch(/data-auth="Alice"/)
-    // Le fragment final porte finobs = SON rk ; ici le dernier fragment est rk=1+2 tokens… on
-    // vérifie juste qu'un data-finobs est émis dans le segment.
+    // Le fragment final porte finobs = SON rk ;
+    // ici le dernier fragment est rk=1+2 tokens… on vérifie juste qu'un data-finobs est émis dans le segment.
     expect(out).toMatch(/data-finobs="\d+"/)
   })
 

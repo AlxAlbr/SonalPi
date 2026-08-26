@@ -1,11 +1,11 @@
 /**
- * Variante A du verrou — files_lock natif Nextcloud.
- * Sélectionnée AUTOMATIQUEMENT quand la sonde capabilities dit
- * `files.locking` présent : l'utilisateur ne choisit rien. Derrière le
- * même contrat `VerrouProvider` que la variante PUT conditionnel — le
- * protocole de session est inchangé, seul le provider diffère.
+ *  Variante A du verrou — files_lock natif Nextcloud.
+ *  Sélectionnée AUTOMATIQUEMENT quand la sonde capabilities dit
+ *  `files.locking` présent : l'utilisateur ne choisit rien. Derrière le
+ *  même contrat `VerrouProvider` que la variante PUT conditionnel — le
+ *  protocole de session est inchangé, seul le provider diffère.
  *
- * Différences de nature avec la variante B :
+ *  Différences de nature avec la variante B :
  *   - le verrou porte sur LE FICHIER DE DONNÉES lui-même
  *     (`entretiens/<id>.json`), pas sur un fichier annexe dans `verrous/` ;
  *   - il est VISIBLE dans l'UI web Nextcloud (cadenas) et IMPOSÉ par le
@@ -17,7 +17,7 @@
  *     verrouillé, même par « nous ») et le JOURNAL LOCAL des verrous tenus
  *     (couche session) pour la détection des orphelins après crash.
  *
- * Contrat vérifié contre le Nextcloud réel (pile A, 2026-08) :
+ *  Contrat vérifié contre le Nextcloud réel (pile A, 2026-08) :
  *   LOCK + X-User-Lock:1   → 200 / 423 ; re-LOCK même user = battement (200)
  *   UNLOCK + X-User-Lock:1 → 200 libéré / 423 autrui / 412 pas verrouillé
  */
@@ -30,9 +30,9 @@ import type {
   VerrouProvider,
 } from './types'
 
-/** TTL affiché/décisionnel quand le serveur n'annonce pas de timeout
- *  (`lock-timeout: 0` = n'expire jamais — défaut files_lock). La péremption
- *  côté app reste calculable via `lock-time`. */
+/** TTL affiché/décisionnel quand le serveur n'annonce pas de timeout.
+ *  `lock-timeout: 0` = n'expire jamais (défaut files_lock).
+ *  La péremption côté app reste calculable via `lock-time`. */
 const TTL_PAR_DEFAUT_S = 3600
 
 export class ProviderFilesLock implements VerrouProvider {
@@ -43,10 +43,9 @@ export class ProviderFilesLock implements VerrouProvider {
     private readonly identite: () => { userId: string; machineId: string; sessionId: string },
   ) {}
 
-  /** Test-and-set : refus si le fichier est DÉJÀ verrouillé — y compris par le
-   *  même utilisateur Nextcloud via une AUTRE session/poste (le serveur ne
-   *  distingue pas ; c'est notre garde qui protège le mono-écrivain intra-
-   *  utilisateur). Puis LOCK atomique ; 423 = perdu la course. */
+  /** Test-and-set : refus si le fichier est DÉJÀ verrouillé, y compris par le même utilisateur Nextcloud via une AUTRE session/poste.
+   *  Le serveur ne distingue pas ; notre garde protège le mono-écrivain intra-utilisateur.
+   *  Puis LOCK atomique ; 423 = perdu la course. */
   async acquerir(cheminVerrou: string): Promise<ResultatAcquisition> {
     const dejaLa = await this.etat(cheminVerrou)
     if (dejaLa) return { ok: false, tenuPar: dejaLa }
@@ -61,8 +60,8 @@ export class ProviderFilesLock implements VerrouProvider {
     }
   }
 
-  /** Battement = re-LOCK (renouvelle `lock-time`, vérifié réel). Échec → le
-   *  verrou n'est plus le nôtre (libéré/repris) → rétrogradation. */
+  /** Battement = re-LOCK (renouvelle `lock-time`, vérifié réel).
+   *  Échec → le verrou n'est plus le nôtre (libéré/repris) → rétrogradation. */
   async battre(cheminVerrou: string): Promise<ResultatBattement> {
     try {
       await this.client.verrouiller(cheminVerrou)

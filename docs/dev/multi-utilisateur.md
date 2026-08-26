@@ -25,7 +25,7 @@ garde anti-écrasement, LOCK natif quand files_lock est installé) et d'une disc
 | `sessions/.verrous-natifs.json`, `sessions/<id>.divergence-<session>.json` | journal local (variante A), copies de divergence | `SessionsDEntretien` |
 
 NB : `sessions/` et `presence/` sont **hors contenu** (`DOSSIERS_HORS_CONTENU` dans
-`miroir.ts`) — le miroir ne les télécharge pas.
+`distant/miroir.ts`) — le miroir ne les télécharge pas.
 
 ## Les deux variantes de verrou (§8) — un contrat, deux providers
 

@@ -3,17 +3,18 @@ import { ref, computed } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Assistant « Nouveau corpus distant… » : créer un corpus directement sur le
- * serveur Nextcloud, pour celui qui sait d'emblée qu'il travaillera à
- * plusieurs.
+ *  Assistant « Nouveau corpus distant… » : créer un corpus directement sur le
+ *  serveur Nextcloud, pour celui qui sait d'emblée qu'il travaillera à
+ *  plusieurs.
  *
- * Deux champs + les identifiants, dans la même logique que la création locale :
- * le « dossier » est l'URL DAV du futur dossier du corpus, le nom devient
- * `corpus.json.nom`. Le chemin cible résolu est affiché avant publication,
- * pour éviter de créer au mauvais endroit. La publication est gardée par
- * If-None-Match côté main : si un corpus existe déjà à cet emplacement, refus
- * net sans rien écraser. En cas de succès, le corpus s'ouvre aussitôt (miroir
- * tiré + écran Corpus) — même comportement que la création locale.
+ *  Deux champs + les identifiants, dans la même logique que la création
+ *  locale : le « dossier » est l'URL DAV du futur dossier du corpus, le nom
+ *  devient `corpus.json.nom`. Le chemin cible résolu est affiché avant
+ *  publication, pour éviter de créer au mauvais endroit. La publication est
+ *  gardée par If-None-Match côté main : si un corpus existe déjà à cet
+ *  emplacement, refus net sans rien écraser. En cas de succès, le corpus
+ *  s'ouvre aussitôt (miroir tiré + écran Corpus) — même comportement que la
+ *  création locale.
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const { creerCorpusDistant } = utiliserSonal()
@@ -27,8 +28,8 @@ const erreur = ref<string | null>(null)
 
 /** URL nettoyée (sans barre finale) — celle que le serveur verra réellement. */
 const urlPropre = computed(() => urlServeur.value.trim().replace(/\/+$/, ''))
-/** Chemin cible affiché à l'utilisateur avant publication, pour éviter de
- *  créer au mauvais endroit. */
+/** Chemin cible affiché à l'utilisateur avant publication,
+ *  pour éviter de créer au mauvais endroit. */
 const cibleAffichee = computed(() => {
   if (!urlPropre.value) return null
   try {
@@ -78,8 +79,8 @@ async function creer() {
           est tenue sur ce poste, synchronisée automatiquement.
         </p>
 
-        <!-- 1 — le dossier CIBLE sur le serveur (équivalent distant du choix de
-             dossier local) + identifiants -->
+        <!-- 1 — le dossier CIBLE sur le serveur,
+             équivalent distant du choix de dossier local + identifiants -->
         <div class="question">
           <span class="q-lbl">1 — Emplacement du futur corpus sur le serveur</span>
           <input

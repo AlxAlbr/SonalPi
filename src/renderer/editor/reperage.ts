@@ -6,11 +6,11 @@ export type PlageReperage = { de: number; a: number } | null
 export const reperagePluginKey = new PluginKey<PlageReperage>('sonal-reperage-anon')
 
 /**
- * Surlignage TRANSITOIRE de l'occurrence courante en repérage anon (loupe
- * ◄ i/N ►). État = la plage PM [de, a] poussée par setMeta par le composable ;
- * le plugin ne fait que décorer (classe `.reperage-hit`), sans jamais toucher
- * au modèle — le repérage est non destructif. La plage est REMAPPÉE sur les
- * éditions (assoc -1, comme la plage lue) pour suivre le texte qui bouge.
+ *  Surlignage TRANSITOIRE de l'occurrence courante en repérage anon (loupe
+ *  ◄ i/N ►). État = la plage PM [de, a] poussée par setMeta par le composable ;
+ *  le plugin ne fait que décorer (classe `.reperage-hit`), sans jamais toucher
+ *  au modèle — le repérage est non destructif. La plage est REMAPPÉE sur les
+ *  éditions (assoc -1, comme la plage lue) pour suivre le texte qui bouge.
  */
 export function pluginReperage(): Plugin<PlageReperage> {
   return new Plugin<PlageReperage>({

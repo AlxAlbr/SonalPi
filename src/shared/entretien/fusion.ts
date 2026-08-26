@@ -1,25 +1,25 @@
 /**
- * FUSION ASSISTÉE d'une copie de DIVERGENCE.
+ *  FUSION ASSISTÉE d'une copie de DIVERGENCE.
  *
- * Quand une publication finit en 412 (contournement du verrou : édition via
- * l'UI web, forçage), la couche session met la copie locale de côté hors
- * serveur (`sessions/<id>.divergence-<sessionId>.json`) et rétrograde. La
- * copie n'est ni perdue ni publiée en silence : ce module fournit les
- * décisions PURES du dialogue qui la propose à la réconciliation.
+ *  Quand une publication finit en 412 (contournement du verrou : édition via
+ *  l'UI web, forçage), la couche session met la copie locale de côté hors
+ *  serveur (`sessions/<id>.divergence-<sessionId>.json`) et rétrograde. La
+ *  copie n'est ni perdue ni publiée en silence : ce module fournit les
+ *  décisions PURES du dialogue qui la propose à la réconciliation.
  *
- * Politique : les charges utiles sont largement fusionnables par
- * construction — annotations/ancres par id opaque, locuteurs par index,
- * valeurs EAV par clef, brouillons par entité. MAIS le texte ne se fusionne
- * pas : `corpsTexte` identique → fusion automatique proposée ; différent →
- * choix explicite (garder de côté / jeter), jamais de merge de texte.
+ *  Politique : les charges utiles sont largement fusionnables par
+ *  construction — annotations/ancres par id opaque, locuteurs par index,
+ *  valeurs EAV par clef, brouillons par entité. MAIS le texte ne se fusionne
+ *  pas : `corpsTexte` identique → fusion automatique proposée ; différent →
+ *  choix explicite (garder de côté / jeter), jamais de merge de texte.
  */
 
 import type { EntretienFichier } from '../format'
 import { cleEntite } from './anon/brouillonsAnon'
 
-/** Les deux textes sont-ils identiques (doc ProseMirror canonique) ? Garde de
- *  la fusion automatique : des positions `from/to` valables chez nous le sont
- *  partout — sinon, aucune garantie, on ne fusionne pas les annotations. */
+/** Les deux textes sont-ils identiques (doc ProseMirror canonique) ?
+ *  Garde de la fusion automatique : des positions `from/to` valables chez nous le sont partout —
+ *  sinon, aucune garantie, on ne fusionne pas les annotations. */
 export function corpsIdentiques(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
@@ -30,9 +30,9 @@ export interface BilanFusion {
 }
 
 /** Fusionne LA COPIE DE DIVERGENCE dans la version courante (celle du serveur,
- *  fraîchement obtenue sous notre verrou) : union par id, le courant gagne les
- *  conflits — rien de déjà présent n'est modifié, seuls les apports de la
- *  copie s'ajoutent. Retourne un NOUVEAU fichier ; les entrées ne bougent pas.
+ *  fraîchement obtenue sous notre verrou) : union par id, le courant gagne les conflits —
+ *  rien de déjà présent n'est modifié, seuls les apports de la copie s'ajoutent.
+ *  Retourne un NOUVEAU fichier ; les entrées ne bougent pas.
  *
  *  Pré-requis (vérifier `corpsIdentiques` AVANT) : même texte → mêmes
  *  positions, les annotations rapatriées restent calées.

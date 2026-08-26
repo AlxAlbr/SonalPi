@@ -1,33 +1,33 @@
 /**
- * Le miroir — copie de travail locale d'un corpus distant.
+ *  Le miroir — copie de travail locale d'un corpus distant.
  *
- * Le corpus de référence vit sur le serveur ; le miroir vit dans
- * `userData/miroirs/<corpusId>/`, JAMAIS dans une zone synchronisée par un
- * client desktop (une synchro externe écraserait la copie).
+ *  Le corpus de référence vit sur le serveur ; le miroir vit dans
+ *  `userData/miroirs/<corpusId>/`, JAMAIS dans une zone synchronisée par un
+ *  client desktop (une synchro externe écraserait la copie).
  *
- * `CorpusStore` opère sur ce dossier exactement comme sur un corpus local ;
- * toute la nouveauté tient ICI, dans la couche main-process au-dessus de son
- * I/O.
+ *  `CorpusStore` opère sur ce dossier exactement comme sur un corpus local ;
+ *  toute la nouveauté tient ICI, dans la couche main-process au-dessus de son
+ *  I/O.
  *
- * `tirer()` fait le pull incrémental par ETags : PROPFIND Depth:1 sur la
- * racine, sur `entretiens/` et sur `verrous/` (badges fiables), comparaison
- * au `.manifeste.json` local, GET des seuls fichiers changés.
- * Les fichiers disparus côté serveur partent en corbeille du miroir (jamais
- * effacés).
+ *  `tirer()` fait le pull incrémental par ETags : PROPFIND Depth:1 sur la
+ *  racine, sur `entretiens/` et sur `verrous/` (badges fiables), comparaison
+ *  au `.manifeste.json` local, GET des seuls fichiers changés.
+ *  Les fichiers disparus côté serveur partent en corbeille du miroir (jamais
+ *  effacés).
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
-import { ClientWebDAV, ErreurHttp, type EntreePropfind, type SurProgression } from './webdav/client'
-import type { ProgressionTransfert } from '../shared/distant'
+import { ClientWebDAV, ErreurHttp, type EntreePropfind, type SurProgression } from '../webdav/client'
+import type { ProgressionTransfert } from '../../shared/distant'
 
-/** Dossiers distants qui ne sont PAS du contenu du corpus (protocole et
- *  corbeille serveur) : le miroir ne les télécharge pas comme contenu.
+/** Dossiers distants qui ne sont PAS du contenu du corpus (protocole et corbeille serveur).
+ *  Le miroir ne les télécharge pas comme contenu.
  *  Seul `verrous/` est scanné pour ses métadonnées (ETags → badges). */
 const DOSSIERS_HORS_CONTENU = ['verrous', 'presence', 'corbeille', 'sonde']
 
-/** Le manifeste : mémoire des ETags VUS. Local pur (`userData`), jamais
- *  téléversé — c'est l'état de la copie, pas une donnée du corpus. */
+/** Le manifeste : mémoire des ETags VUS, local pur (`userData`).
+ *  Jamais téléversé — c'est l'état de la copie, pas une donnée du corpus. */
 interface Manifeste {
   formatVersion: 1
   /** chemin relatif → ETag canonique (sans guillemets). */
@@ -39,12 +39,10 @@ export interface ResultatTirage {
   telecharges: string[]
   /** Fichiers disparus côté serveur, déplacés vers la corbeille du miroir. */
   corbeille: string[]
-  /** Entrées verrou vues au pull : chemin relatif
-   *  (« verrous/<id>.lock.json »), avec ETag.
-   *  Matière première des badges de verrou du corpus. */
+  /** Entrées verrou vues au pull : chemin relatif (« verrous/<id>.lock.json »),
+   *  avec ETag. Matière première des badges de verrou du corpus. */
   verrous: { chemin: string; etag: string | null }[]
-  /** Audios désignés (meta.audioDistant) dont la récupération a ÉCHOUÉ
-   *  (403 droits insuffisants, 404 disparu, réseau).
+  /** Audios désignés (meta.audioDistant) dont la récupération a ÉCHOUÉ (403 droits insuffisants, 404 disparu, réseau).
    *  JAMAIS bloquants : leur ETag n'est pas noté au manifeste.
    *  Le prochain tirage re-tentera automatiquement (droits ouverts plus tard,
    *  rattrapage sans action). */
@@ -59,8 +57,7 @@ export class MiroirWebDAV {
     /** Public en lecture : la couche session lit/écrit les fichiers du miroir,
      *  et y range les copies de divergence (sessions/). */
     public readonly dirLocal: string,
-    /** Progression des transferts binaires (relais IPC
-     *  `distant:progression`), émise pendant les rapatriements du tirage.
+    /** Progression des transferts binaires, relais IPC `distant:progression`, émise pendant les rapatriements du tirage.
      *  Le main la relaie aux fenêtres. */
     private readonly surProgression?: (p: ProgressionTransfert) => void,
   ) {}
@@ -83,8 +80,7 @@ export class MiroirWebDAV {
     writeFileSync(this.fichierManifeste, JSON.stringify(m, null, 2), 'utf8')
   }
 
-  /** Pull incrémental, déterministe et idempotent : deux tirages sans
-   *  changement serveur ne re-téléchargent rien.
+  /** Pull incrémental, déterministe et idempotent : deux tirages sans changement serveur ne re-téléchargent rien.
    *
    *  `exclus` : chemins relatifs à NE PAS toucher, ni téléchargement ni
    *  corbeille. La couche session y passe les fichiers SOUS NOTRE verrou :
@@ -99,8 +95,8 @@ export class MiroirWebDAV {
     const manifeste = this.lireManifeste()
 
     // 1. Inventaire distant : racine (corpus.json + dossiers) et entretiens/.
-    //    Les entrées sont relativisées contre la RACINE du corpus
-    //    (« corpus.json », « entretiens/e1.json »), convention du module.
+    //    Les entrées sont relativisées contre la RACINE du corpus (« corpus.json », « entretiens/e1.json »),
+    //    convention du module.
     const racine = await this.client.propfind('')
     let entretiens: EntreePropfind[] = []
     if (racine.some((e) => e.dossier && e.chemin === 'entretiens')) {
@@ -133,10 +129,8 @@ export class MiroirWebDAV {
 
     // 4. Disparus côté serveur → corbeille du miroir (jamais effacés).
     //    Les audios désignés (ci-dessous) sont ajoutés au jeu conservé :
-    //    ils ne figurent pas dans l'inventaire JSON et partiraient sinon en
-    //    corbeille à CHAQUE tirage.
-    //    Une désignation retirée ne les y laisse plus — c'est exactement le
-    //    rattrapage voulu.
+    //    ils ne figurent pas dans l'inventaire JSON et partiraient sinon en corbeille à CHAQUE tirage.
+    //    Une désignation retirée ne les y laisse plus : c'est exactement le rattrapage voulu.
     const corbeille: string[] = []
     const designations = this.designationsAudio()
     const cheminsDistant = new Set([...candidats.map((c) => c.chemin), ...designations])
@@ -166,8 +160,8 @@ export class MiroirWebDAV {
         .map((v) => ({ chemin: `verrous/${v.chemin}`, etag: v.etag }))
     }
 
-    // 6. Audios désignés : pull SÉLECTIF piloté par les meta.audioDistant des
-    //    entretiens LOCAUX (le pull texte vient de les rafraîchir).
+    // 6. Audios désignés : pull SÉLECTIF piloté par les meta.audioDistant des entretiens LOCAUX.
+    //    Le pull texte vient de les rafraîchir.
     //    Un échec n'empêche ni le reste des audios ni le résultat global ;
     //    sans note d'ETag, le prochain tirage re-tentera.
     const inaccessibles: ResultatTirage['inaccessibles'] = []
@@ -199,8 +193,7 @@ export class MiroirWebDAV {
     return { telecharges, corbeille, verrous, inaccessibles, date: new Date().toISOString() }
   }
 
-  /** Écriture locale atomique (même discipline que CorpusStore : un crash
-   *  laisse l'ancien fichier intact). */
+  /** Écriture locale atomique, même discipline que CorpusStore : un crash laisse l'ancien fichier intact. */
   private ecrireLocal(cheminRelatif: string, contenu: string): void {
     const abs = join(this.dirLocal, cheminRelatif)
     mkdirSync(dirname(abs), { recursive: true })
@@ -228,8 +221,8 @@ export class MiroirWebDAV {
    *  Lecture défensive : un JSON illisible ne doit jamais faire échouer le
    *  tirage. */
 
-  /** Chemins RELATIFS désignés par les entretiens locaux, dédoublonnés et
-   *  assainis (relatifs purs — pas de remontée `..`, pas d'absolu). */
+  /** Chemins RELATIFS désignés par les entretiens locaux, dédoublonnés et assainis.
+   *  Relatifs purs : pas de remontée `..`, pas d'absolu. */
   private designationsAudio(): string[] {
     const out = new Set<string>()
     const dirEntretiens = join(this.dirLocal, 'entretiens')
@@ -249,17 +242,17 @@ export class MiroirWebDAV {
     return [...out].sort()
   }
 
-  /** Garde anti-traversal : un chemin de désignation doit rester SOUS la
-   *  racine du corpus (relatif pur, segments normaux). */
+  /** Garde anti-traversal : un chemin de désignation doit rester SOUS la racine du corpus.
+   *  Relatif pur, segments normaux. */
   private cheminSurEstSain(chemin: string): boolean {
     if (!chemin || chemin.startsWith('/') || chemin.includes('\\')) return false
     if (chemin.endsWith('.json')) return false // double emploi avec le pull texte
     return !chemin.split('/').some((s) => s === '' || s === '.' || s === '..')
   }
 
-  /** Entrée SERVEUR d'UN fichier précis (ETag + taille) : PROPFIND Depth:1 du
-   *  dossier parent, puis entrée du basename. Null si le fichier est absent
-   *  côté serveur. */
+  /** Entrée serveur d'un fichier précis (ETag + taille).
+   *  PROPFIND Depth:1 du dossier parent, puis entrée du basename.
+   *  Null si le fichier est absent côté serveur. */
   private async entreeDistanteFichier(cheminRelatif: string): Promise<EntreePropfind | null> {
     const i = cheminRelatif.lastIndexOf('/')
     const dossier = i === -1 ? '' : cheminRelatif.slice(0, i)
@@ -269,28 +262,27 @@ export class MiroirWebDAV {
   }
 
   /* ── Garde-fou de publication ─────────────────────────────────────────────
-   * Le manifeste est la mémoire des ETags SERVEUR vus.
-   * La publication d'un fichier en a besoin comme garde If-Match (« je publie
-   * SI le serveur porte encore la version que j'ai tirée »), et doit le
-   * METTRE À JOUR après un PUT réussi — sinon le prochain pull
-   * retéléchargerait notre propre publication.
-   * ──────────────────────────────────────────────────────────────────────────*/
+   *  Le manifeste est la mémoire des ETags SERVEUR vus.
+   *  La publication d'un fichier en a besoin comme garde If-Match (« je publie
+   *  SI le serveur porte encore la version que j'ai tirée »), et doit le
+   *  METTRE À JOUR après un PUT réussi — sinon le prochain pull
+   *  retéléchargerait notre propre publication.
+   *  ──────────────────────────────────────────────────────────────────────────*/
 
   /** ETag serveur connu pour un chemin relatif (null = jamais vu). */
   etagDistant(cheminRelatif: string): string | null {
     return this.lireManifeste().etags[cheminRelatif] ?? null
   }
 
-  /** Note l'ETag post-publication (sans toucher au fichier local : il EST
-   *  déjà la version serveur après un PUT réussi). */
+  /** Note l'ETag post-publication, sans toucher au fichier local : il est déjà la version serveur après un PUT réussi. */
   noterEtagPublie(cheminRelatif: string, etag: string): void {
     const m = this.lireManifeste()
     m.etags[cheminRelatif] = etag
     this.ecrireManifeste(m)
   }
 
-  /** Chemin local du miroir pour un chemin relatif du corpus — c'est là que
-   *  `CorpusStore` sera pointé (lecture ; écriture sous verrou). */
+  /** Chemin local du miroir pour un chemin relatif du corpus.
+   *  C'est là que `CorpusStore` sera pointé (lecture ; écriture sous verrou). */
   cheminLocal(cheminRelatif: string): string {
     return join(this.dirLocal, cheminRelatif)
   }

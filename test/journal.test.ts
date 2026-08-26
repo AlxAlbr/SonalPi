@@ -19,10 +19,10 @@ import {
 } from '../src/shared/entretien/journal'
 
 /**
- * S5 — journal d'actions annulables. Partie 1 : les INVERSES purs (headless strict,
- * aucun éditeur). Partie 2 : le REMAP du journal sur le vrai éditeur TipTap —
- * les inverses en attente suivent les éditions comme le modèle (annotation
- * fantôme re-posée au bon endroit, loc restauré au bon bloc, cible disparue → grisée).
+ *  S5 — journal d'actions annulables. Partie 1 : les INVERSES purs (headless strict,
+ *  aucun éditeur). Partie 2 : le REMAP du journal sur le vrai éditeur TipTap —
+ *  les inverses en attente suivent les éditions comme le modèle (annotation
+ *  fantôme re-posée au bon endroit, loc restauré au bon bloc, cible disparue → grisée).
  */
 
 const genId = (() => {

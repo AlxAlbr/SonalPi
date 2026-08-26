@@ -4,17 +4,17 @@ import { utiliserSonal } from '../composables/sonal'
 import { estMedia, extensionDe, EXT_VIDEO } from '../../shared/media'
 
 /**
- * Modale « Désigner dans le Nextcloud… » : lier un
- * entretien à un fichier MÉDIA (audio OU vidéo) QUI VIT SUR LE SERVEUR.
- * Navigation par dossiers (PROPFIND Depth:1 côté main — `distant:listerDossier`),
- * `audios/` proposé comme point d'entrée quand il existe. Les fichiers hors
- * périmètre média (`EXT_MEDIA` partagée) sont visibles mais NON sélectionnables
- * — désigner un PDF ne ferait que remplir les miroirs d'un fichier illisible.
+ *  Modale « Désigner dans le Nextcloud… » : lier un
+ *  entretien à un fichier MÉDIA (audio OU vidéo) QUI VIT SUR LE SERVEUR.
+ *  Navigation par dossiers (PROPFIND Depth:1 côté main — `distant:listerDossier`),
+ *  `audios/` proposé comme point d'entrée quand il existe. Les fichiers hors
+ *  périmètre média (`EXT_MEDIA` partagée) sont visibles mais NON sélectionnables
+ *  — désigner un PDF ne ferait que remplir les miroirs d'un fichier illisible.
  *
- * La désignation est une ÉCRITURE PARTAGÉE : elle passe par le protocole de
- * session (micro-session dédiée si l'entretien est fermé). Un refus
- * (verrou tenu par autrui) reste affiché dans la modale — jamais d'écrasement
- * silencieux.
+ *  La désignation est une ÉCRITURE PARTAGÉE : elle passe par le protocole de
+ *  session (micro-session dédiée si l'entretien est fermé). Un refus
+ *  (verrou tenu par autrui) reste affiché dans la modale — jamais d'écrasement
+ *  silencieux.
  */
 const { designationAudioId, fermerDesignationAudio, confirmerDesignationAudio, membership, progressionDistant, pourcentageProgression } =
   utiliserSonal()
@@ -55,8 +55,8 @@ async function lister(d: string): Promise<{ nom: string; dossier: boolean }[] | 
   }
 }
 
-// À chaque ouverture : partir de `audios/` si le corpus en a un (convention
-// de rangement par défaut), sinon de la racine.
+// À chaque ouverture : partir de `audios/` si le corpus en a un (convention de rangement par défaut),
+// sinon de la racine.
 watch(designationAudioId, async (id) => {
   if (!id) return
   selection.value = null
@@ -111,8 +111,7 @@ function baseNom(chemin: string): string {
   return chemin.split(/[\\/]/).pop() ?? chemin
 }
 
-/** Icône par nature de fichier (cas vidéo du plan audio distant) : 🎬 vidéo,
- *  🔊 audio, 📄 hors périmètre (non sélectionnable). */
+/** Icône par nature de fichier : 🎬 vidéo, 🔊 audio, 📄 hors périmètre (non sélectionnable). */
 function iconeFichier(nom: string): string {
   if (!estMedia(nom)) return '📄'
   return EXT_VIDEO.includes(extensionDe(nom)) ? '🎬' : '🔊'
@@ -132,8 +131,8 @@ const libelleTeleverser = computed(() => {
 })
 
 async function choisirEtTeleverser(nomForce?: string) {
-  // Reprise après collision : on réutilise le MÊME fichier local sous le nom
-  // suggéré ; sinon dialogue natif et nom d'origine.
+  // Reprise après collision : on réutilise le MÊME fichier local sous le nom suggéré ;
+  // sinon dialogue natif et nom d'origine.
   const source =
     nomForce && televersement.value ? televersement.value.source : await window.sonal.dialog.choisirAudio()
   if (!source) return
@@ -169,8 +168,7 @@ async function choisirEtTeleverser(nomForce?: string) {
         : `Fichier envoyé, mais désignation refusée (${raison}) — réessayez.`
   } finally {
     enTeleversement.value = false
-    // Le transfert est fini (succès ou échec) : plus d'événement IPC ne
-    // viendra — on efface la progression affichée.
+    // Le transfert est fini (succès ou échec) : plus d'événement IPC ne viendra — on efface la progression affichée.
     progressionDistant.value = null
   }
 }
@@ -202,8 +200,8 @@ async function choisirEtTeleverser(nomForce?: string) {
               <button class="item dossier" @click="ouvrirDossier(e.nom)">📁 {{ e.nom }}</button>
             </li>
             <li v-else-if="!estMedia(e.nom)" class="hors-media">
-              <!-- Hors périmètre média : visible mais NON désignable — le miroir
-                   le téléchargerait pour rien, le lecteur ne saurait le lire. -->
+              <!-- Hors périmètre média : visible mais NON désignable —
+                   le miroir le téléchargerait pour rien, le lecteur ne saurait le lire. -->
               <span class="item hors-media-item">📄 {{ e.nom }}</span>
             </li>
             <li v-else>
@@ -216,8 +214,8 @@ async function choisirEtTeleverser(nomForce?: string) {
               </button>
             </li>
           </template>
-          <!-- Envoyer un fichier LOCAL vers le
-               dossier courant, puis désignation automatique. -->
+          <!-- Envoyer un fichier LOCAL vers le dossier courant,
+               puis désignation automatique. -->
           <li class="televerser">
             <button class="item ajouter" :disabled="enTeleversement" @click="choisirEtTeleverser()">
               {{ libelleTeleverser }}

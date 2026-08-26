@@ -8,15 +8,15 @@ import {
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /**
- * Bascule exception ↔ anonymisé — le moteur de la validation
- * d'une ligne, extrait en PURE (`instructionsValiderAnon`) pour être testable :
- * le couplage Vue/PM de useEntretien.validerAnon ne fait qu'APPLIQUER les
- * instructions (relabel / retraits / poses) sur la table réactive.
+ *  Bascule exception ↔ anonymisé — le moteur de la validation d'une ligne,
+ *  extrait en PURE (`instructionsValiderAnon`) pour être testable :
+ *  le couplage Vue/PM de useEntretien.validerAnon ne fait qu'APPLIQUER les
+ *  instructions (relabel / retraits / poses) sur la table réactive.
  *
- * Règles garanties ici :
- *  - le relabel ne touche JAMAIS une exception (état + pseudo-mémoire intacts) ;
- *  - une exception couvrante (entière ou contenue) BLOQUE la pose et le retrait
- *    du match : une exception ne repasse jamais « à traiter ».
+ *  Règles garanties ici :
+ *   - le relabel ne touche JAMAIS une exception (état + pseudo-mémoire intacts) ;
+ *   - une exception couvrante (entière ou contenue) BLOQUE la pose et le retrait
+ *     du match : une exception ne repasse jamais « à traiter ».
  */
 
 const TEXTE = 'Paul vient, Paul part.'
@@ -54,7 +54,7 @@ describe('instructionsValiderAnon — relabel (jamais les exceptions)', () => {
     const r = instructionsValiderAnon(annotations, [], 'paul', 'Z', texteEntre, () => 'n')
     expect(r.relabel).toEqual([{ id: annotations[0].id, pseudo: 'Z' }]) // seule l'anonymisée
     expect(r.poser).toEqual([])
-    // rien ne touche l'exception : état et pseudo-mémoire restent intacts
+    // rien ne touche l'exception : état et pseudo-mémoire restent intacts.
     expect(annotations[1].etat).toBe('exception')
     expect(annotations[1].pseudo).toBe('Y')
   })

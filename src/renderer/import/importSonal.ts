@@ -87,10 +87,10 @@ interface BlocImport {
 }
 
 /**
- * Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
- * SonalPi — SRT/VTT) → charge utile SonalPiTestV2 (doc ProseMirror + annotations + locuteurs)
- * + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
- * en positions ProseMirror (positions.ts).
+ *  Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
+ *  SonalPi — SRT/VTT) → charge utile SonalPiTestV2 (doc ProseMirror + annotations + locuteurs)
+ *  + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
+ *  en positions ProseMirror (positions.ts).
  */
 export function importerSonal(html: string, domDoc: Document): ResultatImport {
   const contenu = domDoc.getElementById('contenuText')

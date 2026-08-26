@@ -1,23 +1,23 @@
 /**
- * La SESSION D'ÉCRITURE d'un entretien distant —
- * le cycle complet :
+ *  La SESSION D'ÉCRITURE d'un entretien distant —
+ *  le cycle complet :
  *
- *   ouvrir  : acquerir le verrou → GET du fichier SERVEUR (la version
- *             d'après-verrou fait foi) → mémoriser son ETag (garde de publication)
- *   écrire  : autosave local (miroir) uniquement — session marquée « sale »
- *   battre  : toutes les 60 s, preuve de vie ; échec → RÉTROGRADATION
- *   publier : toutes les 5 min si sale + « Publier maintenant » — PUT If-Match
- *             <etag serveur> sous verrou TOUJOURS tenu
- *   fermer  : publication finale PUIS déverrouillage — l'ordre est l'invariant
- *             central (un verrou ne se libère jamais sur un contenu non publié)
+ *  ouvrir  : acquerir le verrou → GET du fichier SERVEUR (la version
+ *  d'après-verrou fait foi) → mémoriser son ETag (garde de publication)
+ *  écrire  : autosave local (miroir) uniquement — session marquée « sale »
+ *  battre  : toutes les 60 s, preuve de vie ; échec → RÉTROGRADATION
+ *  publier : toutes les 5 min si sale + « Publier maintenant » — PUT If-Match
+ *  <etag serveur> sous verrou TOUJOURS tenu
+ *  fermer  : publication finale PUIS déverrouillage — l'ordre est l'invariant
+ *  central (un verrou ne se libère jamais sur un contenu non publié)
  *
- * La rétrogradation et les publications sont signalées par callback (l'UI
- * s'abonne) ; le renderer reste par ailleurs libre de consulter `etat()`.
+ *  La rétrogradation et les publications sont signalées par callback (l'UI
+ *  s'abonne) ; le renderer reste par ailleurs libre de consulter `etat()`.
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { join, dirname } from 'node:path'
-import { MiroirWebDAV } from '../miroir'
+import { MiroirWebDAV } from './miroir'
 import { ClientWebDAV, ErreurHttp } from '../webdav/client'
 import {
   PERIODE_BATTEMENT_MS,
@@ -117,12 +117,12 @@ export class SessionsDEntretien {
     if (!acquisition.ok) {
       return { etat: 'tenu-par-autrui', tenuPar: acquisition.tenuPar }
     }
-    // Variante A : consigner le verrou au JOURNAL LOCAL (les orphelins ne sont
-    // pas détectables serveur — files_lock n'enregistre ni machine ni session).
+    // Variante A : consigner le verrou au JOURNAL LOCAL ; les orphelins ne sont pas détectables serveur.
+    // Files_lock n'enregistre ni machine ni session.
     if (this.options.verrouNatif) this.journalAjouter(id)
 
-    // La version d'APRÈS-verrou fait foi : GET serveur écrit dans le miroir
-    // (pas de confiance à notre copie locale potentiellement périmée).
+    // La version d'APRÈS-verrou fait foi : GET serveur écrit dans le miroir ;
+    // aucune confiance à notre copie locale potentiellement périmée.
     const cheminFichier = CHEMIN_ENTRETIEN(id)
     let etagServeur = await this.etagServeurDe(cheminFichier)
     if (etagServeur) {
@@ -130,8 +130,8 @@ export class SessionsDEntretien {
       this.ecrireLocalFichier(join(this.miroir.dirLocal, cheminFichier), contenu)
       this.miroir.noterEtagPublie(cheminFichier, etagServeur)
     } else {
-      // Fichier inconnu du manifeste (créé hors pull ?) : garde nulle → la
-      // première publication se fera sans If-Match (création/réécriture franche).
+      // Fichier inconnu du manifeste (créé hors pull ?) : garde nulle → la première publication,
+      // sans If-Match, se fera en création/réécriture franche.
       etagServeur = null
     }
 
@@ -232,12 +232,11 @@ export class SessionsDEntretien {
     id: string,
     cheminAudio: string,
   ): Promise<{ ok: boolean; raison?: string }> {
-    // Une session peut EXISTER sans éditeur ouvert : la simple SÉLECTION d'une
-    // carte au Corpus lit le fichier via lireEntretien, qui acquiert le verrou.
-    // L'appelant renderer garantit que l'entretien n'est pas OUVERT dans
-    // l'éditeur (dans ce cas il passe par son modèle en session) — réutiliser
-    // la session est donc sûr : aucun état non publié à clobber, le fichier
-    // miroir local EST la base publiée.
+    // Une session peut EXISTER sans éditeur ouvert : la simple SÉLECTION d'une carte au Corpus,
+    // via lireEntretien, lit le fichier et acquiert le verrou.
+    // L'appelant renderer garantit que l'entretien n'est pas OUVERT dans l'éditeur ;
+    // dans ce cas il passe par son modèle en session. Réutiliser la session est donc sûr :
+    // aucun état non publié à clobber ; le fichier miroir local EST la base publiée.
     if (!this.sessions.has(id)) {
       const ouverture = await this.ouvrir(id)
       if (ouverture.etat !== 'a-nous') {
@@ -248,8 +247,8 @@ export class SessionsDEntretien {
       const cheminFichier = CHEMIN_ENTRETIEN(id)
       const abs = join(this.miroir.dirLocal, cheminFichier)
       const data = JSON.parse(readFileSync(abs, 'utf8')) as EntretienFichier
-      // Normalisation défensive : un fichier sans meta (vieux banc, écriture
-      // partielle) ne doit pas faire échouer la désignation.
+      // Normalisation défensive : un fichier sans meta (vieux banc, écriture partielle)
+      // ne doit pas faire échouer la désignation.
       data.meta ??= { valeursGen: {}, audioRef: null }
       data.meta.audioDistant = { chemin: cheminAudio }
       data.lastModified = new Date().toISOString()
@@ -322,8 +321,8 @@ export class SessionsDEntretien {
       /* rien à mettre de côté */
     }
     this.revoquerEcriture?.(id)
-    // Variante A : le verrou natif a été PERDU — sortir l'id du journal (on ne
-    // le propose plus comme orphelin à reprendre : il appartient à autrui).
+    // Variante A : le verrou natif a été PERDU — sortir l'id du journal ; on ne le propose plus comme orphelin à reprendre :
+    // il appartient à autrui.
     if (this.options.verrouNatif) this.journalRetirer(id)
     this.sessions.delete(id)
     if (this.sessions.size === 0) this.arreterMinuteur()
@@ -338,10 +337,10 @@ export class SessionsDEntretien {
   }
 
   /* ── Copies de DIVERGENCE (fusion assistée) ─────────────────────────────
-   * Une rétrogradation (publication 412) met la copie locale de côté hors
-   * serveur : `sessions/<id>.divergence-<sessionId>.json`. Elle n'est ni
-   * perdue ni publiée en silence — listée ici pour le dialogue de fusion.
-   * ───────────────────────────────────────────────────────────────────────*/
+   *  Une rétrogradation (publication 412) met la copie locale de côté hors
+   *  serveur : `sessions/<id>.divergence-<sessionId>.json`. Elle n'est ni
+   *  perdue ni publiée en silence — listée ici pour le dialogue de fusion.
+   *  ───────────────────────────────────────────────────────────────────────*/
 
   private readonly REGEX_DIVERGENCE = /^sessions\/([^/]+)\.divergence-([^/]+)\.json$/
 
@@ -482,9 +481,8 @@ export class SessionsDEntretien {
     }
     const etagConnu = this.miroir.etagDistant(cheminFichier) // dernière version que NOUS avons publiée
     const etagActuel = await this.etagServeurDe(cheminFichier)
-    // Garde : si le serveur ne porte plus la version publiée avant le crash,
-    // quelqu'un a écrit DERRIÈRE le verrou (UI web) — divergence, on ne publie
-    // pas et on ne libère pas : l'utilisateur tranche.
+    // Garde : si le serveur ne porte plus la version publiée avant le crash, quelqu'un a écrit DERRIÈRE le verrou (UI web),
+    // c'est une divergence — on ne publie pas, on ne libère pas : l'utilisateur tranche.
     if (etagConnu && etagActuel && etagConnu !== etagActuel) {
       return { ok: false, raison: 'divergence' }
     }
@@ -498,8 +496,8 @@ export class SessionsDEntretien {
       if (etagFinal) this.miroir.noterEtagPublie(cheminFichier, etagFinal)
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
-        // Le fichier a changé derrière le verrou (contournement pendant le
-        // crash) : ne PAS écraser — la copie locale reste dans le miroir.
+        // Le fichier a changé derrière le verrou (contournement pendant le crash) : ne PAS écraser ;
+        // la copie locale reste dans le miroir.
         return { ok: false, raison: 'divergence' }
       }
       throw e // réseau : l'orphelin reste en place, retenter plus tard
@@ -523,8 +521,8 @@ export class SessionsDEntretien {
       if (id) this.journalRetirer(id)
       return
     }
-    // Variante B : DELETE d'un verrou dont nous ne détenons PAS l'ETag en
-    // mémoire — observation puis suppression conditionnelle (déjà parti ?).
+    // Variante B : DELETE d'un verrou dont nous ne détenons PAS l'ETag en mémoire —
+    // observation puis suppression conditionnelle (déjà parti ?).
     const etag = await this.etagServeurDe(cheminVerrou)
     try {
       await this.client.supprimer(cheminVerrou, etag ?? undefined)

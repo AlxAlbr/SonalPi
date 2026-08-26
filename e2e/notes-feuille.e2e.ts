@@ -5,13 +5,13 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, entrerEntretien, selectionner } from './util'
 
 /**
- * Liaison d'un passage d'une note de la FEUILLE à un commentaire : création
- * d'un commentaire dans l'éditeur, puis (onglet Notes, vue feuille)
- * sélection dans le bloc → bouton 🔗 → le menu propose le commentaire ; au
- * choix, le passage est lié (`<em>` + référence) dans la note.
+ *  Liaison d'un passage d'une note de la FEUILLE à un commentaire : création
+ *  d'un commentaire dans l'éditeur, puis (onglet Notes, vue feuille)
+ *  sélection dans le bloc → bouton 🔗 → le menu propose le commentaire ; au
+ *  choix, le passage est lié (`<em>` + référence) dans la note.
  *
- * Régression : le menu de liaison était jadis rendu DANS le sous-arbre de la
- * modale (v-if brouillonNote) — invisible donc depuis la feuille.
+ *  Régression : le menu de liaison était jadis rendu DANS le sous-arbre de la
+ *  modale (v-if brouillonNote), invisible donc depuis la feuille.
  */
 
 async function clicDroitSelection(page: Page) {

@@ -19,20 +19,18 @@ const {
   enPreparation,
 } = utiliserSonal()
 
-// Modale démo ADAPTATIVE : lancée depuis les cartes démo uniquement si le
-// corpus de CE mode n'est pas déjà connu et présent (mémoire démo persistée
-// settings.json). Une question déjà répondue est sautée (ex. « où importer les
-// sources » si elles sont déjà en place). Une fois le corpus du mode créé,
-// « un clic » suffit.
+// Modale démo ADAPTATIVE : lancée depuis les cartes démo uniquement si le corpus de CE mode n'est pas déjà connu et présent —
+// mémoire démo persistée settings.json. Une question déjà répondue est sautée (ex. « où importer les sources », si elles sont déjà en place).
+// Une fois le corpus du mode créé, « un clic » suffit.
 const modaleDemo = ref<ModeDemo | null>(null)
-// Modale de migration SonalPi V1 → V2 : le `.crp` est analysé (aperçu) avant
-// toute écriture ; le corpus V2 naît dans un dossier DÉDIÉ (gardes incluses).
+// Modale de migration SonalPi V1 → V2 : le `.crp` est analysé (aperçu),
+// avant toute écriture ; le corpus V2 naît dans un dossier DÉDIÉ (gardes incluses).
 const modaleMigration = ref(false)
 // Modale « Nouveau corpus… » : choisir un dossier + donner un nom de projet.
 const modaleNouveau = ref(false)
 // Modale « Ouvrir un corpus distant » : comptes configurés + connexion Nextcloud.
 const modaleDistant = ref(false)
-// Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur
+// Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur,
 // puis ouverture immédiate.
 const modaleNouveauDistant = ref(false)
 
@@ -99,7 +97,6 @@ async function lancerPreparer(mode: ModeDemo) {
         </div>
       </div>
 
-      <!-- Migration V1 : A terme, ne sera plus une rubrique si le test de cette V2 abouti -->
       <div class="migration-bloc">
         <h3 class="migration-titre">🚧 Migration V1 vers V2 </h3>
         <div class="cartes-demo">

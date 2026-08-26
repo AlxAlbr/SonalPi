@@ -1,7 +1,8 @@
 /**
- * Modèle PUR de navigation clavier de la table de données : construction de
- * la grille des cellules éditables dans l'ordre visuel + voisine dans les
- * quatre sens. Sans DOM — le câblage focus/scroll est testé par les e2e.
+ *  Modèle PUR de navigation clavier de la table de données :
+ *  la grille des cellules éditables est construite dans l'ordre visuel,
+ *  et la voisine dans chaque sens.
+ *  Sans DOM, le câblage focus/scroll est testé par les e2e.
  */
 import { describe, expect, it } from 'vitest'
 import { celluleVoisine, cleGen, cleLoc, grilleCellules } from '../src/renderer/tableNavigation'
@@ -34,7 +35,7 @@ describe('grilleCellules', () => {
     // Locuteurs de e1 (colonne age seule)
     expect(g[1]).toEqual([null, cleLoc('e1', 0, 'age')])
     expect(g[2]).toEqual([null, cleLoc('e1', 1, 'age')])
-    // Ligne e2 puis son locuteur
+    // Ligne e2 puis son locuteur.
     expect(g[3]).toEqual([cleGen('e2', 'ville'), null])
     expect(g[4]).toEqual([null, cleLoc('e2', 0, 'age')])
   })

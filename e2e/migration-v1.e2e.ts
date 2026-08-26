@@ -5,17 +5,17 @@ import { join } from 'node:path'
 import { lancer, attendreAccueil, attendreCorpus } from './util'
 
 /**
- * Migration SonalPi V1 → V2 : le flux COMPLET.
- * Un `.crp` V1 (choisi via dialogue natif) → APERÇU → dossier DÉDIÉ avec
- * gardes (on n'écrase jamais : corpus.json refusé, démo refusé, dossier non
- * vide sans corpus.json = avertissement à confirmer) → exécution :
- * corpus V2 écrit (nom + meta.sourceV1 + codebook/variables), ouvert, ajouté
- * aux récents. Le contenu des entretiens (.Sonal) est hors de ce spec. Les dialogues natifs sont stubbés (electronApp.evaluate) : le choix du
- * `.crp` (filtre crp) renvoie le chemin du fixture, le choix du dossier
- * (openDirectory, sans filtre) le dossier cible de l'appel.
+ *  Migration SonalPi V1 → V2 : le flux COMPLET.
+ *  Un `.crp` V1 (choisi via dialogue natif) → APERÇU → dossier DÉDIÉ avec
+ *  gardes (on n'écrase jamais : corpus.json refusé, démo refusé, dossier non
+ *  vide sans corpus.json = avertissement à confirmer) → exécution :
+ *  corpus V2 écrit (nom + meta.sourceV1 + codebook/variables), ouvert, ajouté
+ *  aux récents. Le contenu des entretiens (.Sonal) est hors de ce spec. Les dialogues natifs sont stubbés (electronApp.evaluate) : le choix du
+ *  `.crp` (filtre crp) renvoie le chemin du fixture, le choix du dossier
+ *  (openDirectory, sans filtre) le dossier cible de l'appel.
  *
- * Fixture : test/fixtures/corpusV1.crp (corpus V1 réel sauvé, sans
- * nom/dateCreation — 3 entretiens, 6 thèmes, 3 variables, 3 règles anon).
+ *  Fixture : test/fixtures/corpusV1.crp (corpus V1 réel sauvé, sans
+ *  nom/dateCreation — 3 entretiens, 6 thèmes, 3 variables, 3 règles anon).
  */
 
 /** Stub des DIALOGS de la modale de migration : `.crp` (filtre crp) → chemin

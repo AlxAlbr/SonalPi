@@ -17,9 +17,10 @@ import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '
 import { migrerEntretienV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 
-/** Pourquoi des numéros de version ? Chaque évolution du format de fichier est
- *  migrée EXPLICITEMENT à la lecture, puis le fichier est réécrit aussitôt,
- *  sans jamais lire une version inconnue partiellement.
+/** Pourquoi des numéros de version ?
+ *  Chaque évolution du format de fichier est migrée EXPLICITEMENT à la lecture.
+ *  Le fichier est ensuite réécrit aussitôt, sans jamais lire une version inconnue
+ *  partiellement.
  *  - v1 → v2 : les timecodes quittent les attributs de bloc (`deb`/`fin`),
  *    pour devenir des ancres `{pos, t}` positionnées dans le texte.
  *  - v2 → v3 : `meta.audioRef` devient un chemin ABSOLU uniquement,
@@ -70,11 +71,12 @@ function genId(prefixe: string): string {
   return prefixe + '-' + Math.random().toString(36).slice(2, 10)
 }
 
-/** Identifiant d'entretien : `<slug du titre>_<code aléatoire>`. Le slug rend
- *  le dossier `entretiens/` lisible (« on retrouve le nom SRT/audio d'origine ») ;
- *  le code aléatoire préserve l'unicité (et la future synchro multi-utilisateur).
- *  Le titre (nom de fichier SRT ou audio, sans extension) est assaini — jamais de
- *  séparateur de chemin résiduel, donc pas de traversée (l'id mène à `<id>.json`). */
+/** Identifiant d'entretien : `<slug du titre>_<code aléatoire>`.
+ *  Le slug rend le dossier `entretiens/` lisible (« on retrouve le nom SRT/audio d'origine »).
+ *  Le code aléatoire préserve l'unicité (et la future synchro multi-utilisateur).
+ *  Le titre (nom de fichier SRT ou audio, sans extension) est assaini,
+ *  sans jamais laisser de séparateur de chemin résiduel : pas de traversée possible.
+ *  L'id mène toujours à `<id>.json`. */
 function genIdEntretien(titre: string): string {
   const code = Math.random().toString(36).slice(2, 10)
   const slug =
@@ -117,18 +119,15 @@ export class CorpusStore {
    *  Le Set garantit l'unicité des ids. */
   private readonly rotationEnAttente = new Set<string>()
 
-  /** Garde corpus distant : quand le store pointe un miroir sans couche
-   *  verrou/publication active, toute écriture est refusée — sinon deux
-   *  postes divergeraient silencieusement.
-   *  Défense en profondeur : l'UI grise déjà les gestes, ici on garantit le
-   *  reste. Les dérivés locaux purs (PNG waveform) restent permis. */
+  /** Garde corpus distant : quand le store pointe un miroir sans couche verrou/publication active, toute écriture est refusée,
+   *  sinon deux postes divergeraient silencieusement.
+   *  Défense en profondeur : l'UI grise déjà les gestes, ici on garantit le reste.
+   *  Les dérivés locaux purs (PNG waveform) restent permis. */
   lectureSeule = false
 
-  /** Amorçage encore permis pour CE store ? Vrai à la création (le dossier
-   *  vient d'être choisi explicitement — neuf ou vide) puis faux dès qu'un
-   *  corpus existe. Si `corpus.json` disparaît ensuite (dossier supprimé à
-   *  l'extérieur de l'app), `ouvrir()` lève CORPUS_SUPPRIME au lieu de
-   *  recréer un corpus fantôme en silence. */
+  /** Amorçage encore permis pour CE store ? Vrai à la création (le dossier vient d'être choisi explicitement, neuf ou vide),
+   *  puis faux dès qu'un corpus existe.
+   *  Si `corpus.json` disparaît ensuite (dossier supprimé à l'extérieur de l'app), `ouvrir()` lève CORPUS_SUPPRIME au lieu de recréer un corpus fantôme en silence. */
   private amortissable = true
 
   private verifierEcriture(): void {
@@ -139,9 +138,8 @@ export class CorpusStore {
     }
   }
 
-  /** Exception PAR ENTRETIEN : quand le corpus distant est en lecture seule
-   *  (les définitions partagées restent bloquées), le contenu des entretiens
-   *  DONT NOUS TENONS le verrou reste écrivable.
+  /** Exception PAR ENTRETIEN : quand le corpus distant est en lecture seule (les définitions partagées restent bloquées),
+   *  le contenu des entretiens DONT NOUS TENONS le verrou reste écrivable.
    *  La couche session pose/retire l'id ici, à l'acquisition/libération. */
   private readonly ecrituresAutorisees = new Set<string>()
 
@@ -167,7 +165,7 @@ export class CorpusStore {
   }
 
   /** Exemple : dir = "/home/user/projets/mon_corpus",
-    * corpusFile → "/home/user/projets/mon_corpus/corpus.json". */
+    *  corpusFile → "/home/user/projets/mon_corpus/corpus.json". */
   private get corpusFile() {
     return join(this.dir, 'corpus.json')
   }
@@ -187,9 +185,9 @@ export class CorpusStore {
     return join(this.dir, 'png')
   }
 
-  /** Ancien dossier audio (v2) : reliquat pour les corpus migrés, avec leurs
-   *  mp3 legacy référencés en absolu vers leur emplacement existant.
-   *  Les nouveaux corpus v3 n'ont pas de dossier `audio/`. */
+  /** Ancien dossier audio (v2) : reliquat pour les corpus migrés.
+   *  Les mp3 legacy y sont référencés en absolu vers leur emplacement existant ;
+   *  les nouveaux corpus v3 n'ont pas de dossier `audio/`. */
   private get audioDirLegacy() {
     return join(this.dir, 'audio')
   }
@@ -320,22 +318,19 @@ export class CorpusStore {
    *  l'id est opaque et sûr en offline divergent,
    *  `cat_NNN` étant relégué au `codeExport`. */
   private amorcer(): CorpusFichier {
-    // Squelette partagé avec la création distante : un seul codebook par
-    // défaut, deux lieux d'écriture (disque local / serveur).
+    // Squelette partagé avec la création distante : un seul codebook par défaut.
+    // Deux lieux d'écriture possibles : disque local / serveur.
     const corpus = squeletteCorpus()
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return corpus
   }
 
-  /** Crée un corpus V2 DANS un dossier dédié, à partir d'une migration
-   *  SonalPi V1. Contrairement à `amorcer()`, on n'écrit PAS le bloc
-   *  Pondérations par défaut : la source de vérité des définitions est le
-   *  `.crp`, on fusionne exactement ce que la lecture a mappé.
-   *  Le dossier a été vérifié par la garde (`migrer:verifierDossier`) ; en
-   *  défense en profondeur, on REFUSE ici tout corpus.json existant (« on
-   *  n'écrase jamais »).
-   *  La lecture des entretiens (.Sonal + audio) se branche après cette
-   *  création. */
+  /** Crée un corpus V2 DANS un dossier dédié, à partir d'une migration SonalPi V1.
+   *  Contrairement à `amorcer()`, on n'écrit PAS le bloc « Pondérations ».
+   *  La source de vérité des définitions est le `.crp`, on fusionne exactement ce que la lecture a mappé.
+   *  Le dossier a déjà été vérifié par la garde (`migrer:verifierDossier`).
+   *  En défense en profondeur, on REFUSE ici tout corpus.json existant, on n'écrase jamais.
+   *  La lecture des entretiens (.Sonal + audio) se branche après cette création. */
   migrerDepuisV1(
     nom: string,
     sourceV1: SourceV1,
@@ -360,10 +355,10 @@ export class CorpusStore {
       meta: { sourceV1 },
     }
     corpusModel.fusionnerImport(corpus, codebook, variables)
-    // E4 : le `tabAnon` du .crp devient des règles corpus, écrites AVANT les
-    // imports `.sonal` (doctrine V1 : le global du corpus gagne — la dédup
-    // par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal`
-    // idempotent et la catégorie/thématique du .crp reste sur la règle).
+    // E4 : le `tabAnon` du .crp devient des règles corpus, écrites AVANT les imports `.sonal`.
+    // Doctrine V1 : le global du corpus gagne.
+    // La dédup par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal` idempotent.
+    // La catégorie/thématique du .crp reste sur la règle.
     for (const r of reglesAnonV1 ?? []) {
       if (!corpus.reglesAnon[r.id]) corpus.reglesAnon[r.id] = r
     }
@@ -425,21 +420,19 @@ export class CorpusStore {
     }
     this.ecrireJsonAtomique(this.entretienFile(id), fichier)
 
-    // Le renderer peut round-triper un `audioRef` modifié → invalide le cache
-    // (sécurité ; l'invariant « muté uniquement via assignerAudio » est visé).
+    // Le renderer peut round-triper un `audioRef` modifié ; on invalide le cache.
+    // Sécurité : l'invariant « muté uniquement via assignerAudio » est visé.
     this.invaliderRefsAudio()
 
-    // Le membership n'est PAS réécrit ici : en distant, écrire corpus.json à
-    // chaque autosave imposerait de prendre aussi le verrou corpus à chaque
-    // fermeture d'entretien.
-    // Il n'est écrit que par création / import / renommage / suppression ; le
-    // `lastModified` affiché est dérivé du fichier entretien lui-même.
+    // Le membership n'est PAS réécrit ici.
+    // En distant, écrire corpus.json à chaque autosave imposerait de prendre aussi le verrou corpus à chaque fermeture d'entretien.
+    // Il n'est écrit que par création, import, renommage ou suppression.
+    // Le `lastModified` affiché est dérivé du fichier entretien lui-même.
     return now
   }
 
-  /** `.bak1` → `.bak2`, puis copie de l'état courant → `.bak1`. Une génération
-   *  par session : les `.bak` capturent l'état d'AVANT les sessions précédentes,
-   *  pas les derniers autosaves. */
+  /** `.bak1` → `.bak2`, puis copie de l'état courant → `.bak1`.
+   *  Une génération par session : les `.bak` capturent l'état d'AVANT les sessions précédentes, pas les derniers autosaves. */
   private tournerBak(id: string): void {
     const f = this.entretienFile(id)
     const b1 = f + '.bak1'
@@ -449,9 +442,9 @@ export class CorpusStore {
   }
 
 
-  /** Crée un entretien vide (cas où on n'a qu'un AUDIO, pas de fichier
-   *  entretien). Le `titre` = nom du fichier audio sans extension : il nomme le
-   *  fichier sur disque (« nom d'origine_code ») ET sert de titre affiché. */
+  /** Crée un entretien vide (cas où on n'a qu'un AUDIO, pas de fichier entretien).
+   *  Le `titre` est le nom du fichier audio sans extension ; il nomme le fichier sur disque (« nom d'origine_code »).
+   *  Le même `titre` sert d'affichage. */
   creerEntretienVide(titre: string): { id: string; corpus: CorpusFichier } {
     this.verifierEcriture()
     const corpus = this.ouvrir()
@@ -520,8 +513,8 @@ export class CorpusStore {
       const src = join(this.entretiensDir, id + suffixe)
       if (existsSync(src)) renameSync(src, join(corbeille, id + suffixe))
     }
-    // Seul le PNG dérivé (dans `png/`) est déplacé en corbeille : l'audio
-    // référencé est externe au corpus, on ne le touche jamais.
+    // Seul le PNG dérivé (dans `png/`) est déplacé en corbeille :
+    // l'audio référencé est externe au corpus, on ne le touche jamais.
     if (existsSync(this.pngDir)) {
       for (const f of readdirSync(this.pngDir)) {
         if (f.startsWith(id + '.')) renameSync(join(this.pngDir, f), join(corbeille, f))
@@ -593,8 +586,8 @@ export class CorpusStore {
     return corpusModel.compterUsagesCategorie(datas, code)
   }
 
-  /** Nombre d'usages de chaque catégorie dans l'ensemble des entretiens du
-   *  corpus (fonction `usagesParCategorie` de shared/corpus). */
+  /** Nombre d'usages de chaque catégorie dans l'ensemble des entretiens du corpus.
+   *  Fonction `usagesParCategorie` de shared/corpus. */
   usagesParCategorie(): Record<string, number> {
     return corpusModel.usagesParCategorie(this.datas())
   }
@@ -644,14 +637,14 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Usages d'une catégorie de note : notes de TOUS les entretiens qui la
-   *  référencent (scan des fichiers, comme `compterUsagesCategorie`). */
+  /** Usages d'une catégorie de note : notes de TOUS les entretiens qui la référencent.
+   *  Scan des fichiers, comme `compterUsagesCategorie`. */
   compterUsagesCategorieNote(id: string): number {
     return compterUsagesCategorieNote(this.datas(), id)
   }
 
-  /** Supprime une catégorie de note — REFUSÉE tant qu'une note l'utilise
-   *  (parité thèmes : pas de suppression en cascade). */
+  /** Supprime une catégorie de note — REFUSÉE tant qu'une note l'utilise.
+   *  Parité thèmes : pas de suppression en cascade. */
   supprimerCategorieNote(id: string): ResultatSuppressionCategorie {
     this.verifierEcriture()
     const usages = this.compterUsagesCategorieNote(id)
@@ -678,11 +671,10 @@ export class CorpusStore {
     return Object.values(corpus.reglesAnon)
   }
 
-  /** REQUÊTE scan anon corpus : relit TOUS les entretiens sur disque et, pour
-   *  chaque règle corpus, classe les occurrences par état (anonymisées /
-   *  exceptions / à traiter). Rien de stocké, aucun cache — le texte est relu
-   *  à chaque appel (réconciliation « un changement coincide-t-il avec une
-   *  règle ? »). */
+  /** REQUÊTE scan anon corpus : relit TOUS les entretiens sur disque et, pour chaque règle corpus,
+   *  classe les occurrences par état (anonymisées, exceptions, à traiter).
+   *  Rien de stocké, aucun cache — le texte est relu à chaque appel.
+   *  Réconciliation : « un changement coincide-t-il avec une règle ? ». */
   scanAnon(): ScanRegle[] {
     return corpusModel.scannerCorpus(this.reglesAnon(), this.chargerEntretiens())
   }
@@ -734,9 +726,8 @@ export class CorpusStore {
     this.ecrireJsonAtomique(this.corpusFile, corpus)
   }
 
-  /** Paramètres de pseudonymisation (étape 4) : lecture tolérante (absence
-   *  ou champ manquant → défauts, fusion imbriquée pour motsLiaison),
-   *  écriture complète sous garde d'écriture. */
+  /** Paramètres de pseudonymisation (étape 4) : lecture tolérante (absence ou champ manquant → défauts,
+   *  fusion imbriquée pour motsLiaison), écriture complète sous garde d'écriture. */
   lireParamsAnon(): ParamsAnon {
     const corpus = this.ouvrir()
     const defauts = paramsAnonDefaut()
@@ -775,12 +766,9 @@ export class CorpusStore {
     return regle
   }
 
-  /** APPLICATION EN MASSE / VALIDATION DU DIFF (étape 2) : applique sur un
-   *  entretien FERMÉ les changements de la vue vérification (lecture fichier →
-   *  instructions PURES → écriture atomique). `plages` restreint les POSES aux
-   *  seules occurrences cochées ; `retirer`/`exception`/`retirerException`
-   *  portent le diff façon V1 (« Valider »). Renvoie le nombre total de
-   *  changements écrits. */
+  /** APPLICATION EN MASSE / VALIDATION DU DIFF (étape 2) : applique sur un entretien FERMÉ les changements de la vue vérification (lecture fichier → instructions PURES → écriture atomique).
+   *  `plages` restreint les POSES aux seules occurrences cochées ; `retirer`, `exception` et `retirerException` portent le diff façon V1 (« Valider »).
+   *  Renvoie le nombre total de changements écrits. */
   appliquerRegleAnon(
     entretienId: string,
     regleId: string,
@@ -817,8 +805,8 @@ export class CorpusStore {
     return { nb, titre }
   }
 
-  /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée (politique
-   *  explicite + compteur ; pas de suppression silencieuse d'annotations). */
+  /** Supprime une catégorie — REFUSÉE tant qu'elle est utilisée.
+   *  Politique explicite + compteur, pas de suppression silencieuse d'annotations. */
   supprimerCategorie(id: string, exceptId?: string): ResultatSuppressionCategorie {
     this.verifierEcriture()
     const usages = this.compterUsagesCategorie(id, exceptId)
@@ -944,10 +932,9 @@ export class CorpusStore {
     return { audioRef: ref }
   }
 
-  /** Détache l'audio d'un entretien : `meta.audioRef` → null, désignation
-   *  distante et association machine-locale oubliées, forme d'onde dérivée
-   *  supprimée. Le texte reste — seul le média est retiré (parité
-   *  « Assigner un audio » : la référence, jamais le fichier source). */
+  /** Détache l'audio d'un entretien : `meta.audioRef` → null, désignation distante et association machine-locale oubliées.
+   *  Forme d'onde dérivée supprimée ; le texte reste, seul le média est retiré.
+   *  Parité « Assigner un audio » : on retire la référence, jamais le fichier source. */
   effacerAudio(id: string): { audioRef: null } {
     this.verifierEcritureEntretien(id)
     const f = this.entretienFile(id)
@@ -986,13 +973,12 @@ export class CorpusStore {
     return rel
   }
 
-  /** REQUÊTE : par id d'entretien, son `audioRef` absolu (depuis le cache) et
-   *  la présence de sa forme d'onde (scan de `png/` par convention de nommage).
+  /** REQUÊTE : par id d'entretien, son `audioRef` absolu (depuis le cache) et la présence de sa forme d'onde.
    *  Alimente les cartes de l'écran Corpus + le chargement du lecteur. */
   audios(): Record<string, { audio: string | null; waveform: string | null }> {
     const out: Record<string, { audio: string | null; waveform: string | null }> = {}
-    // Waveform : scan de `png/` par convention de nommage
-    // (le PNG est un dérivé local, jamais stocké dans l'entretien — découvert par nom).
+    // Waveform : scan de `png/` par convention de nommage,
+    // le PNG est un dérivé local découvert par nom, jamais stocké dans l'entretien.
     if (existsSync(this.pngDir)) {
       for (const nom of readdirSync(this.pngDir)) {
         if (extname(nom).slice(1).toLowerCase() !== 'png') continue
@@ -1001,8 +987,8 @@ export class CorpusStore {
         ;(out[id] ??= { audio: null, waveform: null }).waveform = `png/${nom}`
       }
     }
-    // Audio : depuis la résolution EFFECTIVE (ref partagée ou retombée locale
-    // — un poste qui a associé son fichier travaille comme les autres).
+    // Audio : depuis la résolution EFFECTIVE, ref partagée ou retombée locale.
+    // Un poste qui a associé son fichier travaille comme les autres.
     for (const [id, ref] of this.audiosResolus()) {
       ;(out[id] ??= { audio: null, waveform: null }).audio = ref
     }
@@ -1061,8 +1047,8 @@ export class CorpusStore {
       }
       out.set(id, existsSync(ref) ? ref : locaux[id] ?? ref)
     }
-    // Désignation SANS audioRef (création directe en distant) : la seule piste
-    // partagée est le fichier serveur — on ne retient que si sa copie est là.
+    // Désignation SANS audioRef (création directe en distant) : la seule piste partagée est le fichier serveur.
+    // On ne retient que si sa copie est là.
     for (const [id, copie] of distants) {
       if (this.refsAudio().has(id)) continue
       const abs = join(this.dir, copie.chemin)
@@ -1076,8 +1062,8 @@ export class CorpusStore {
    *  L'id n'étant jamais un chemin, aucun risque de traversal ;
    *  sert au protocole `sonal-media://waveform/<id>`. */
   cheminWaveform(id: string): string | null {
-    // Garde : l'id ne doit pas contenir de séparateur
-    // (defense en depth — `genId` produit toujours un id sûr, mais un appelant malveillant pourrait forger).
+    // Garde : l'id ne doit pas contenir de séparateur.
+    // Defense en profondeur — `genId` produit toujours un id sûr, mais un appelant malveillant pourrait forger.
     if (!id || id.includes(sep) || id.includes('/')) return null
     const abs = join(this.pngDir, `${id}.png`)
     return existsSync(abs) ? abs : null
@@ -1092,8 +1078,8 @@ export class CorpusStore {
     const locaux = this.lireAudiosLocaux()
     const resolus = this.audiosResolus()
     for (const [id, ref] of this.refsAudio()) {
-      // La requête porte LA REF PARTAGÉE : servir le fichier EFFECTIF de ce
-      // poste (copie miroir d'une désignation, retombée locale…).
+      // La requête porte LA REF PARTAGÉE : servir le fichier EFFECTIF de ce poste,
+      // copie miroir d'une désignation ou retombée locale.
       const effectif = resolus.get(id) ?? ref
       if (
         normalize(ref) === cible ||

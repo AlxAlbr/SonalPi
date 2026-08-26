@@ -1,6 +1,6 @@
 /**
- * SCÉNARIO d'APPLICATION EN MASSE à deux postes, contre les Nextcloud DOCKER
- * réels (la couture multi-user du panneau Pseudos).
+ *  SCÉNARIO d'APPLICATION EN MASSE à deux postes, contre les Nextcloud DOCKER
+ *  réels (la couture multi-user du panneau Pseudos).
  *
  *   Max applique une règle corpus en masse sur trois entretiens fermés.
  *   OLIVIER tient le verrou de l'un d'eux et y a déjà posé SA propre
@@ -9,9 +9,9 @@
  *   et les occurrences posées en masse COEXISTENT avec l'annotation
  *   d'olivier — jamais d'écrasement.
  *
- * Le verrou ENTRETIEN suit la variante mesurée à l'ouverture :
- * variante A contre la pile A (files_lock), variante B contre la pile B.
- * Skippé si une pile ne répond pas (npm run nc:up / nc-b:up).
+ *  Le verrou ENTRETIEN suit la variante mesurée à l'ouverture :
+ *  variante A contre la pile A (files_lock), variante B contre la pile B.
+ *  Skippé si une pile ne répond pas (npm run nc:up / nc-b:up).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -19,7 +19,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { TransactionsCorpus } from '../../src/main/distant/transactions'
 import type { IdentiteSession } from '../../src/main/distant/sessions'
@@ -125,8 +125,7 @@ async function jouerMasseDeuxPostes(base: string, verrouNatif: boolean): Promise
   await max.miroir.tirer()
   await olivier.miroir.tirer()
 
-  // Olivier prend le verrou de e3 et y pose SA propre annotation (session de
-  // travail simulée : écriture sous verrou avec If-Match).
+  // Olivier prend le verrou de e3 et y pose SA propre annotation (session de travail simulée : écriture sous verrou avec If-Match).
   // L'annotation porte sur « Bonjour »,
   // sans chevaucher les occurrences « Karine » visées par la règle.
   const pOlivier = verrouNatif
@@ -155,8 +154,8 @@ async function jouerMasseDeuxPostes(base: string, verrouNatif: boolean): Promise
   expect(res.echecs[0].id).toBe('e3')
   expect(res.echecs[0].raison).toContain('olivier')
 
-  // Côté serveur : e1/e2 portent les occurrences de la masse ; l'annotation
-  // d'olivier sur e3 est intacte, aucune occurrence de masse n'y est posée.
+  // Côté serveur : e1/e2 portent les occurrences de la masse. L'annotation
+  // d'olivier sur e3 est intacte ; aucune occurrence de masse n'y est posée.
   const lireAnnotations = async (id: string) =>
     (JSON.parse(await max.client.getTexte(`entretiens/${id}.json`)) as EntretienFichier).annotations.filter(
       (a) => a.type === 'anon',
@@ -173,8 +172,7 @@ async function jouerMasseDeuxPostes(base: string, verrouNatif: boolean): Promise
   expect(res2.succes).toEqual([{ id: 'e3', nb: 2, titre: 'Entretien trois' }])
   expect(res2.echecs).toEqual([])
 
-  // COEXISTENCE finale sur e3 : l'annotation d'olivier + les DEUX posées en
-  // masse ; rien n'a été écrasé par le second passage.
+  // COEXISTENCE finale sur e3 : l'annotation d'olivier + les DEUX posées en masse ; rien n'a été écrasé par le second passage.
   const e3Final = await lireAnnotations('e3')
   expect(e3Final).toHaveLength(3)
   expect(e3Final.filter((a) => a.auteur === 'olivier')).toHaveLength(1)

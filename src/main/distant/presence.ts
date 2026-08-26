@@ -1,18 +1,18 @@
 /**
- * La PRÉSENCE (best effort).
+ *  La PRÉSENCE (best effort).
  *
- * `presence/<userId>-<machineId>.json` (`{ userId, machineId, entretienOuvert,
- * refreshedAt }`), `PUT` toutes les 60 s, entrées > 10 min considérées mortes.
- * Purement INFORMATIF : badges « ouvert par Olivier » sur les cartes et les
- * lignes de la table de données. JAMAIS utilisé pour décider — la décision,
- * c'est le verrou. En variante files_lock, l'essentiel (qui tient quoi) vient
- * déjà du PROPFIND ; la présence n'ajoute que « consulte sans verrou ».
+ *  `presence/<userId>-<machineId>.json` (`{ userId, machineId, entretienOuvert,
+ *  refreshedAt }`), `PUT` toutes les 60 s, entrées > 10 min considérées mortes.
+ *  Purement INFORMATIF : badges « ouvert par Olivier » sur les cartes et les
+ *  lignes de la table de données. JAMAIS utilisé pour décider — la décision,
+ *  c'est le verrou. En variante files_lock, l'essentiel (qui tient quoi) vient
+ *  déjà du PROPFIND ; la présence n'ajoute que « consulte sans verrou ».
  *
- * Le dossier `presence/` est exclu du contenu par le miroir
- * (`DOSSIERS_HORS_CONTENU`) : rien ne transite dans la copie locale, on lit le
- * serveur directement. Purge « > 10 min » = FILTRAGE à la lecture (on ne
- * supprime pas les fichiers des autres) ; nos propres fichiers sont écrasés à
- * chaque battement.
+ *  Le dossier `presence/` est exclu du contenu par le miroir
+ *  (`DOSSIERS_HORS_CONTENU`) : rien ne transite dans la copie locale, on lit le
+ *  serveur directement. Purge « > 10 min » = FILTRAGE à la lecture (on ne
+ *  supprime pas les fichiers des autres) ; nos propres fichiers sont écrasés à
+ *  chaque battement.
  */
 
 import type { ClientWebDAV } from '../webdav/client'

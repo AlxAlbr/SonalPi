@@ -9,21 +9,21 @@ import { decorationsPluginKey } from './decorations'
 export const commentairesPluginKey = new PluginKey('sonal-commentaires-marge')
 
 /**
- * Marge des commentaires : chaque PARAGRAPHE intersectant au moins un
- * commentaire reçoit une colonne de cartes (décoration de nœud `p-commente` +
- * UN widget par tour), empilées dans l'ordre du texte. Alignement AU TOUR PRÈS,
- * pas au passage près : zéro mesure DOM, zéro collision — l'empilement est le
- * flux normal de la colonne (même idiome que la gouttière locuteurs).
+ *  Marge des commentaires : chaque PARAGRAPHE intersectant au moins un
+ *  commentaire reçoit une colonne de cartes (décoration de nœud `p-commente` +
+ *  UN widget par tour), empilées dans l'ordre du texte. Alignement AU TOUR PRÈS,
+ *  pas au passage près : zéro mesure DOM, zéro collision — l'empilement est le
+ *  flux normal de la colonne (même idiome que la gouttière locuteurs).
  *
- * Survol croisé carte ↔ plage : l'état (« quels commentaires sont survolés »)
- * passe par une MÉTA de transaction et se lit À LA CONSTRUCTION des
- * décorations — JAMAIS par mutation directe du DOM généré (une classe posée en
- * dehors de PM serait une « mutation inattendue » : PM redessinerait le
- * widget, ce qui re-déclencherait le survol… boucle infinie de redraws).
+ *  Survol croisé carte ↔ plage : l'état (« quels commentaires sont survolés »)
+ *  passe par une MÉTA de transaction et se lit À LA CONSTRUCTION des
+ *  décorations — JAMAIS par mutation directe du DOM généré (une classe posée en
+ *  dehors de PM serait une « mutation inattendue » : PM redessinerait le
+ *  widget, ce qui re-déclencherait le survol… boucle infinie de redraws).
  *
- * Le clic sur une carte ouvre l'édition (callback `editer`, branché par la
- * couche Vue). Les cartes sont `contenteditable=false` : jamais de curseur
- * dans un widget ProseMirror.
+ *  Le clic sur une carte ouvre l'édition (callback `editer`, branché par la
+ *  couche Vue). Les cartes sont `contenteditable=false` : jamais de curseur
+ *  dans un widget ProseMirror.
  */
 
 /** Commentaires visibles d'un entretien (les orphelines ne s'affichent pas). */
@@ -31,8 +31,8 @@ function commentairesVisibles(entretien: Entretien): Annotation[] {
   return entretien.annotations.filter((a) => a.type === 'commentaire' && !estOrpheline(a))
 }
 
-/** Carte d'un commentaire : auteur + extrait ; clic = éditer, survol =
- *  surligner la plage dans le texte (via la méta, pas le DOM direct).
+/** Carte d'un commentaire : auteur + extrait ;
+ *  clic = éditer, survol = surligner la plage dans le texte (via la méta, pas le DOM direct).
  *  Exportée pour être testable headless. */
 export function construireCarteCommentaire(
   a: Pick<Annotation, 'id' | 'auteur' | 'texte'>,
@@ -53,8 +53,8 @@ export function construireCarteCommentaire(
   carte.title = `${a.auteur || 'Sans auteur'} : ${a.texte ?? ''}`
   carte.appendChild(qui)
   carte.appendChild(quoi)
-  // Mousedown avalé : le clic sur une carte ne doit ni déplacer le curseur ni
-  // déclencher le seek audio du clic-texte.
+  // Mousedown avalé : le clic sur une carte ne doit ni déplacer le curseur,
+  // ni déclencher le seek audio du clic-texte.
   carte.addEventListener('mousedown', (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -105,8 +105,8 @@ function construire(
     if (ici.length === 0) return
 
     decos.push(Decoration.node(offset, offset + node.nodeSize, { class: 'p-commente' }))
-    // La clé embarque contenu, texte ET état de survol : une édition comme un
-    // survol doivent reconstruire la colonne (sinon DOM périmé).
+    // La clé embarque contenu, texte ET état de survol :
+    // une édition comme un survol doivent reconstruire la colonne (sinon DOM périmé).
     const cle = `c:${offset}:${survolSet.size}:${ici
       .map((a) => `${a.id}:${a.auteur}:${a.texte}:${survolSet.has(a.id) ? 1 : 0}`)
       .join('|')}`
@@ -125,10 +125,10 @@ function construire(
 }
 
 /**
- * Plugin de la marge. Se reconstruit quand le doc change OU qu'un « refresh »
- * passe (le sien ou celui des décorations : toute mutation du modèle — poser,
- * éditer, supprimer un commentaire — repasse par rafraichirDecorations) OU que
- * l'état de survol change.
+ *  Plugin de la marge. Se reconstruit quand le doc change OU qu'un « refresh »
+ *  passe (le sien ou celui des décorations : toute mutation du modèle — poser,
+ *  éditer, supprimer un commentaire — repasse par rafraichirDecorations) OU que
+ *  l'état de survol change.
  */
 export function pluginCommentairesMarge(entretien: Entretien, editer: (id: string) => void): Plugin {
   /** Survol → méta (PM reste maître du DOM ; cf. note d'en-tête). Dédoublonné :
@@ -172,8 +172,8 @@ export function pluginCommentairesMarge(entretien: Entretien, editer: (id: strin
         return this.getState(state)?.decos ?? DecorationSet.empty
       },
       handleDOMEvents: {
-        // Sens TEXTE → CARTE : le curseur entre sur un segment annoté, on
-        // surligne les cartes des commentaires qui le couvrent (via méta).
+        // Sens TEXTE → CARTE : le curseur entre sur un segment annoté,
+        // on surligne les cartes des commentaires qui le couvrent (via méta).
         mouseover(view, event) {
           const cible = event.target as HTMLElement | null
           const ids = cible?.closest?.('[data-annot-ids]')?.getAttribute('data-annot-ids')

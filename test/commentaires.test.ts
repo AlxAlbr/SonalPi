@@ -94,7 +94,7 @@ describe('journal des commentaires', () => {
     const k = ajouterCodage(entretien, { from: 1, to: 4, code: 'cat_001', auteur: 'moi' }, genId)!
     const inv = { type: 'editerAnnotation' as const, annotationId: k.id, auteur: 'X', texte: 'Y' }
     // L'id existe → applicable en apparence ; mais l'application refuse de
-    // réécrire un non-commentaire et ne touche à rien.
+    // réécrire un non-commentaire, et ne touche à rien.
     expect(estApplicable(inv, ctx(entretien))).toBe(true)
     expect(appliquerInverse(inv, ctx(entretien))).toBe(false)
     expect(k.code).toBe('cat_001')

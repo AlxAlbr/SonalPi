@@ -1,9 +1,9 @@
 /**
- * Tests de la PRÉSENCE contre le serveur WebDAV
- * embarqué : publication périodique « qui consulte quoi », filtrage des
- * périmées (> 10 min) et de notre propre poste, robustesse best effort
- * (dossier absent, fichier corrompu). La présence est JAMAIS décisionnelle :
- * ces tests ne vérifient qu'UNE chose — elle dit la vérité sur les autres.
+ *  Tests de la PRÉSENCE contre le serveur WebDAV
+ *  embarqué : publication périodique « qui consulte quoi », filtrage des
+ *  périmées (> 10 min) et de notre propre poste, robustesse best effort
+ *  (dossier absent, fichier corrompu). La présence est JAMAIS décisionnelle :
+ *  ces tests ne vérifient qu'UNE chose — elle dit la vérité sur les autres.
  */
 
 import { describe, expect, it } from 'vitest'

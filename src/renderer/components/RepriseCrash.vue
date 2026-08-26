@@ -3,15 +3,15 @@ import { ref, computed } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
- * Dialogue de REPRISE APRÈS CRASH — listé à l'ouverture d'un corpus distant :
- * verrous orphelins de NOTRE machine (crash sans libération). Trois choix par
- * orphelin :
- *   « Reprendre et publier » : la copie locale (dernier autosave) est publiée,
- *     PUIS le verrou est libéré — cet ordre est un invariant ;
- *   « Abandonner » : déverrouille SANS publier (la copie locale reste dans le
- *     miroir et repartira en divergence si elle resurgit) ;
- *   « Plus tard » : rien — le verrou reste tenu, personne ne peut écraser
- *     entre-temps (c'est le scénario où ce modèle brille).
+ *  Dialogue de REPRISE APRÈS CRASH — listé à l'ouverture d'un corpus distant :
+ *  verrous orphelins de NOTRE machine (crash sans libération). Trois choix par
+ *  orphelin :
+ *  « Reprendre et publier » : la copie locale (dernier autosave) est publiée,
+ *  PUIS le verrou est libéré — cet ordre est un invariant ;
+ *  « Abandonner » : déverrouille SANS publier (la copie locale reste dans le
+ *  miroir et repartira en divergence si elle resurgit) ;
+ *  « Plus tard » : rien — le verrou reste tenu, personne ne peut écraser
+ *  entre-temps (c'est le scénario où ce modèle brille).
  */
 const { orphelinsDistants, membership, reprendreOrphelin, abandonnerOrphelin } = utiliserSonal()
 

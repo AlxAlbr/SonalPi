@@ -21,15 +21,14 @@ import EditionVariables from './EditionVariables.vue'
 import { utiliserSonal } from '../composables/sonal'
 import { couleurPourLocuteur } from '../../shared/entretien/locuteurs'
 import { visiblesThemes } from '../../shared/corpus/categories'
-// Icônes d'onglets rapatriées de SonalPi (img/) ; « journal » et « maison »
-// créées dans le même style (glyphe noir à plat) — SonalPi n'a pas d'équivalent.
-import icoThemes from '../assets/icones/logocat.png'
-import icoLocuteurs from '../assets/icones/logoloc.png'
-import icoDonnees from '../assets/icones/logodat2.png'
+// Icônes des onglets (glyphe noir à plat).
+import icoThemes from '../assets/icones/themes.png'
+import icoLocuteurs from '../assets/icones/locuteurs.png'
+import icoDonnees from '../assets/icones/donnees.png'
 import icoJournal from '../assets/icones/journal.png'
-import icoNotes from '../assets/icones/logonotes2.png'
+import icoNotes from '../assets/icones/notes.png'
 import icoMaison from '../assets/icones/maison.png'
-import icoAnon from '../assets/icones/logoanon.png'
+import icoAnon from '../assets/icones/anon.png'
 
 const {
   codebook,
@@ -155,8 +154,8 @@ const {
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
-// Lecture seule du CONTENU : l'entretien ouvert est figé ssi son verrou est
-// tenu par autrui. Les définitions suivent `lectureSeule`.
+// Lecture seule du CONTENU : l'entretien ouvert est figé ssi son verrou est tenu par autrui ;
+// les définitions suivent `lectureSeule`.
 const roContenu = computed(() => verrouAutrui.value !== null)
 
 // Compteur « i/N » de la boîte recherche/remplacement (vide sans requête).
@@ -168,9 +167,9 @@ const compteRecherche = computed(() => {
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
 
-// La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue ;
-// en contexte entretien elle porte la politique de suppression adaptée
-// (refus si un AUTRE entretien utilise le thème, sinon retrait des codages ici).
+// La fenêtre d'édition des thèmes (crayon), locale à la vue ; en contexte entretien,
+// elle porte la politique de suppression adaptée :
+// refus si un AUTRE entretien utilise le thème, sinon retrait des codages ici.
 const editerThemes = ref(false)
 // Menu contextuel d'un THÈME du panneau (actif ↔ passif sans ouvrir l'édition).
 const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
@@ -195,17 +194,15 @@ function basculerRepli(id: string) {
   else s.add(id)
   repliesThemes.value = s
 }
-// Idem pour les variables : le crayon de l'onglet Données ouvre la MÊME fenêtre
-// que la Table de données (créer des variables d'entretien/locuteur sans
-// repasser par l'écran Corpus).
+// Idem pour les variables : le crayon de l'onglet Données ouvre la MÊME fenêtre que la Table de données,
+// pour créer des variables d'entretien/locuteur sans repasser par l'écran Corpus.
 const editerVariables = ref(false)
 
 // --- Notes d'entretien (état local de la vue) ---
 // Vue active de l'onglet Notes : cartes (défaut) ou texte concaténé (expand).
 const vueNotes = ref<'cartes' | 'texte'>('cartes')
-// Zone d'édition du corps (contenteditable) : on y pose le HTML initial au
-// ouverture du brouillon, et on relit son innerHTML à la volée pour suivre
-//  les passages `<mark>` pendant la frappe.
+// Zone d'édition du corps (contenteditable) : on y pose le HTML initial à l'ouverture du brouillon,
+// et on relit son innerHTML à la volée pour suivre les passages `<mark>` pendant la frappe.
 const zoneCorpsNote = ref<HTMLElement | null>(null)
 // Création de catégorie depuis le select « autre… » du formulaire de note :
 //  mini-modale inline (nom + couleur), façon « trouver-ou-créer ».
@@ -221,8 +218,8 @@ watch(
 
 // Brouillon de note : on SYNC le contenteditable au montage du formulaire.
 //  Quand la modale s'ouvre, on attend le rendu puis on pose le HTML initial,
-//  décoré des références `[auteur : début…]` après chaque passage lié (spans
-//  non éditables, retirés du corps à la sauvegarde par le sanitisé).
+//  décoré des références `[auteur : début…]` après chaque passage lié.
+//  Les spans sont non éditables, et retirés du corps à la sauvegarde par le sanitisé.
 watch(
   () => brouillonNote.value?.id ?? 'new',
   () => {
@@ -235,9 +232,9 @@ watch(
   },
 )
 
-// Suit la frappe dans le contenteditable : reporte le HTML courant vers le
-//  brouillon (les passages `<mark>`/`<em>` sont ainsi conservés à la
-//  validation) et retire les références dont le lien a disparu.
+// Suit la frappe dans le contenteditable : reporte le HTML courant vers le brouillon ;
+//  les passages `<mark>`/`<em>` sont ainsi conservés à la validation,
+//  et les références dont le lien a disparu sont retirées.
 function onSaisieCorpsNote() {
   if (brouillonNote.value && zoneCorpsNote.value) {
     pruneRefsCommentaires(zoneCorpsNote.value)
@@ -245,9 +242,9 @@ function onSaisieCorpsNote() {
   }
 }
 
-// Bouton ✏ de la modale : toggle `<mark>` puis report explicite vers le
-//  brouillon (un geste DOM programmatique ne déclenche pas d'événement input,
-//  une validation immédiate perdrait sinon le marquage).
+// Bouton ✏ de la modale : toggle `<mark>`, puis report explicite vers le brouillon ;
+//  un geste DOM programmatique ne déclenche pas d'événement input,
+//  et une validation immédiate perdrait sinon le marquage.
 function marquerDansModale() {
   if (!zoneCorpsNote.value) return
   marquerPassage(zoneCorpsNote.value)
@@ -255,8 +252,8 @@ function marquerDansModale() {
 }
 
 // Clic droit dans le corps d'une note : sur un passage important ou lié,
-//  ouvre le menu de liaison aux commentaires (le composable avale le menu
-//  natif) ; ailleurs, le menu natif du contenteditable reste disponible.
+//  ouvre le menu de liaison aux commentaires (le composable avale le menu natif) ;
+//  ailleurs, le menu natif du contenteditable reste disponible.
 function onContextmenuCorpsNote(e: MouseEvent) {
   if (zoneCorpsNote.value) ouvrirMenuLiensNote(e, zoneCorpsNote.value)
 }
@@ -267,8 +264,8 @@ function corpsAvecRefs(n: { corps: string }): string {
   return corpsAvecRefsCommentaires(corpsOuVide(n), document, resolverCommentaires)
 }
 
-// Clic sur une référence de commentaire (carte OU zone d'édition) : cale
-//  l'éditeur sur la zone commentée (sélection + flash + scroll centré).
+// Clic sur une référence de commentaire (carte OU zone d'édition) :
+//  cale l'éditeur sur la zone commentée (sélection + flash + scroll centré).
 function clicRefCommentaire(e: MouseEvent) {
   const ref = (e.target as HTMLElement | null)?.closest('[data-ref]')
   if (ref) allerAuCommentaire(ref.getAttribute('data-ref')!)
@@ -278,8 +275,8 @@ function clicRefCommentaire(e: MouseEvent) {
 function ouvrirCreationCategorie() {
   creationCategorie.value = { nom: '', couleur: '#ffb74d' }
 }
-// Valide la création : pose la catégorie (IPC → async), la sélectionne dans
-//  le brouillon, ferme la mini-modale.
+// Valide la création : pose la catégorie (IPC → async), la sélectionne dans le brouillon,
+// puis ferme la mini-modale.
 async function validerCreationCategorie() {
   const c = creationCategorie.value
   if (!c || !c.nom.trim()) return
@@ -291,9 +288,9 @@ async function validerCreationCategorie() {
 // Notes triées par rang (ordre d'affichage par défaut de la vue cartes).
 const notesTriees = computed(() => notes.value.slice().sort((a, b) => a.rang - b.rang))
 
-// Recherche parmi les notes : filtre les cartes ET les blocs de la feuille
-//  sur le titre, la catégorie et le corps (insensible à la casse), plus des
-//  filtres par catégorie et par statut. Fermer le volet réinitialise tout.
+// Recherche parmi les notes : filtre les cartes ET les blocs de la feuille sur le titre,
+//  la catégorie et le corps (insensible à la casse), plus des filtres par catégorie et par statut.
+//  Fermer le volet réinitialise tout.
 const voletRechercheNotes = ref(false)
 const filtreNotes = ref('')
 const filtreCategorie = ref('') // '' = toutes catégories
@@ -323,8 +320,8 @@ const notesAffichees = computed(() => {
   return notesTriees.value.filter((n) => {
     if (filtreCategorie.value && n.categorieId !== filtreCategorie.value) return false
     if (filtreStatut.value && n.statut !== filtreStatut.value) return false
-    // Passages : « mark » = contient un passage important ; « lien » = au
-    //  moins un passage lié à un commentaire (attribut porteur d'ids).
+    // Passages : « mark » = contient un passage important ;
+    // « lien » = au moins un passage lié à un commentaire (attribut porteur d'ids).
     if (filtrePassage.value === 'mark' && !n.corps.includes('<mark')) return false
     if (filtrePassage.value === 'lien' && !n.corps.includes(ATTR_LIENS_NOTE)) return false
     if (!q) return true
@@ -334,8 +331,8 @@ const notesAffichees = computed(() => {
   })
 })
 
-// Copie des notes AFFICHÉES (filtres compris) dans le presse-papier, au
-//  format texte de la feuille. L'icône passe à ✓ une seconde et demie.
+// Copie des notes AFFICHÉES (filtres compris) dans le presse-papier, au format texte de la feuille ;
+//  l'icône passe à ✓ une seconde et demie.
 const notesCopiees = ref(false)
 let minuteurCopie: ReturnType<typeof setTimeout> | null = null
 async function copierNotes() {
@@ -372,19 +369,20 @@ const dateLibelle = (d: string | null) =>
 const corpsOuVide = (n: { corps: string }) => n.corps || '<span class="vide">(note vide)</span>'
 
 // --- Édition EN FEUILLE (vue texte) : chaque note s'édite sur place —
-//  en-tête (catégorie · date · statut) figé, contenu éditable comme dans la
-//  modale (passages <mark>/<em>, références cliquables). Chaque frappe est
-//  sanitisée puis écrite dans la note. La feuille est éditive DÈS son
-//  affichage : pas de mode lecture séparé.
+//  en-tête (catégorie · date · statut) figé, contenu éditable comme dans la modale,
+//  avec passages <mark>/<em> et références cliquables. Chaque frappe est sanitisée,
+//  puis écrite dans la note. La feuille est éditive DÈS son affichage ;
+//  pas de mode lecture séparé.
 const editionFeuille = computed(() => vueNotes.value === 'texte')
-// Racine de la vue feuille et bloc actif (dernier bloc focusé : cible des
-//  boutons ✏ / 🔗). Le Map est hors réactivité (éléments DOM vivants).
+// Racine de la vue feuille et bloc actif :
+//  le bloc focusé en dernier est la cible des boutons ✏ / 🔗.
+//  Le Map est hors réactivité (éléments DOM vivants).
 const feuilleEl = ref<HTMLElement | null>(null)
 const blocsFeuille = new Map<string, HTMLElement>()
 const blocActifId = ref<string | null>(null)
 
-// Pose le HTML décoré (références `[auteur : début…]`) dans un bloc, avec
-//  surbrillance des occurrences trouvées le cas échéant.
+// Pose le HTML décoré (références `[auteur : début…]`) dans un bloc,
+//  avec surbrillance des occurrences trouvées le cas échéant.
 function decorerBlocFeuille(id: string, zone: HTMLElement) {
   const n = notes.value.find((x) => x.id === id)
   if (!n) return
@@ -395,16 +393,16 @@ function decorerBlocFeuille(id: string, zone: HTMLElement) {
   )
 }
 
-// Décoration d'un bloc à sa CRÉATION dans le DOM (directive) : couvre tous
-//  les remontages — ouverture de la feuille, ajout de note, retour d'un bloc
-//  masqué puis révélé par les filtres — sans toucher aux blocs déjà vivants
-//  (le curseur est préservé pendant la frappe).
+// Décoration d'un bloc à sa CRÉATION dans le DOM (directive) :
+//  couvre tous les remontages — ouverture de la feuille, ajout de note,
+//  retour d'un bloc masqué puis révélé par les filtres ;
+//  ne touche pas aux blocs déjà vivants (le curseur est préservé pendant la frappe).
 const vDecoreBloc: Directive<HTMLElement, string> = {
   mounted: (el, binding) => decorerBlocFeuille(binding.value, el),
 }
-// Changement de recherche : on redécore les blocs visibles pour rafraîchir la
-//  surbrillance (les blocs eux-mêmes ne se remontent pas). JAMAIS pendant la
-//  frappe dans un bloc (le contenteditable reste la source).
+// Changement de recherche : on redécore les blocs visibles pour rafraîchir la surbrillance,
+//  sans remonter les blocs eux-mêmes. JAMAIS pendant la frappe dans un bloc,
+//  le contenteditable reste la source.
 function peuplerFeuille() {
   const racine = feuilleEl.value
   if (!racine) return
@@ -417,8 +415,7 @@ watch(filtreNotes, () => {
   if (vueNotes.value === 'texte') nextTick(peuplerFeuille)
 })
 
-// Saisie dans un bloc : retire les références orphelines puis écrit le corps
-//  sanitisé dans la note (copie : le curseur ne bouge pas).
+// Saisie dans un bloc : retire les références orphelines, puis écrit le corps sanitisé dans la note ; le curseur ne bouge pas.
 function onSaisieBlocFeuille(id: string) {
   const zone = blocsFeuille.get(id)
   if (!zone) return
@@ -426,9 +423,9 @@ function onSaisieBlocFeuille(id: string) {
   ecrireCorpsNote(id, zone.innerHTML)
 }
 
-// La feuille enregistre sa synchronisation auprès du composable : les gestes
-//  de liaison (bouton 🔗, menu contextuel) y reportent leurs changements tant
-//  que la modale est fermée.
+// La feuille enregistre sa synchronisation auprès du composable :
+//  tant que la modale est fermée, les gestes de liaison (bouton 🔗, menu contextuel)
+//  y reportent leurs changements.
 enregistrerSyncZoneHorsModale((zone) => {
   for (const [id, el] of blocsFeuille) {
     if (el === zone) {
@@ -449,9 +446,8 @@ function onFocusBloc(id: string, e: FocusEvent) {
   blocActifId.value = id
   blocsFeuille.set(id, e.currentTarget as HTMLElement)
 }
-// Bloc visé par les outils ✏ / 🔗 : celui qui contient la SÉLECTION
-//  courante (source de vérité — le suivi de focus peut pointer un élément
-//  périmé après un remontage de blocs).
+// Bloc visé par les outils ✏ / 🔗 : celui qui contient la SÉLECTION courante.
+//  Source de vérité — le suivi de focus peut pointer un élément périmé après un remontage de blocs.
 function blocDeSelection(): HTMLElement | null {
   const sel = document.getSelection()
   const noeud = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).commonAncestorContainer : null
@@ -463,16 +459,16 @@ function blocCible(): { zone: HTMLElement; id: string } | null {
   const id = zone?.getAttribute('data-note-id') ?? null
   return zone && id ? { zone, id } : null
 }
-// Bouton ✏ : toggle `<mark>` sur la sélection du bloc visé, puis synchro
-//  explicite (un geste DOM programmatique ne déclenche pas d'input).
+// Bouton ✏ : toggle `<mark>` sur la sélection du bloc visé, puis synchro explicite ;
+//  un geste DOM programmatique ne déclenche pas d'input.
 function marquerDansFeuille() {
   const cible = blocCible()
   if (!cible) return
   marquerPassage(cible.zone)
   onSaisieBlocFeuille(cible.id)
 }
-// Bouton 🔗 : enveloppe la sélection d'un `<em>` et ouvre le menu de liaison
-//  (la resynchronisation passe par enregistrerSyncZoneHorsModale).
+// Bouton 🔗 : enveloppe la sélection d'un `<em>` et ouvre le menu de liaison —
+//  la resynchronisation passe par enregistrerSyncZoneHorsModale.
 function lierDansFeuille(e: MouseEvent) {
   const cible = blocCible()
   if (cible) lierPassage(e, cible.zone)
@@ -482,8 +478,8 @@ function onContextmenuBlocFeuille(e: MouseEvent) {
   ouvrirMenuLiensNote(e, e.currentTarget as HTMLElement)
 }
 
-// Réordonnancement par glisser-déposer : on PERMET le drag des cartes et on
-//  reconstruit l'ordre des ids au drop. Simple natif (dragstart/dragover/drop).
+// Réordonnancement par glisser-déposer : drag des cartes permis, ids réordonnés au drop.
+//  Simple natif (dragstart/dragover/drop).
 let idNoteGlissee: string | null = null
 function onDragStartNote(id: string) {
   idNoteGlissee = id
@@ -500,40 +496,37 @@ function onDropNote(cibleId: string) {
 }
 
 // --- SAISIE LIBRE (même motif que TableDonnees) ---
-// Variable SANS modalité : la ligne est un champ texte permanent — chaque
-// libellé saisi trouve-ou-crée sa modalité (dictionnaire corpus). Variable AVEC
-// modalités : le select garde une option « autre… » qui bascule LA ligne en
-// champ texte. La pose de la valeur passe par setValeurGen/setValeurLoc
-// (journal + autosave de l'entretien ouvert).
+// Variable SANS modalité : la ligne est un champ texte permanent, chaque libellé saisi trouve-ou-crée sa modalité (dictionnaire corpus).
+// Variable AVEC modalités : le select garde une option « autre… », qui bascule LA ligne en champ texte.
+// La pose de la valeur passe par setValeurGen/setValeurLoc (journal + autosave de l'entretien ouvert).
 const AUTRE = ' autre' // sentinelle : ne peut pas être un id de modalité
 const celluleLibre = ref<string | null>(null) // clé de LA ligne en mode texte
 const cleGen = (idVar: string) => `gen|${idVar}`
 const cleLoc = (index: number, idVar: string) => `loc|${index}|${idVar}`
 
-// --- ANON : lignes de saisie (en bas du tableau, façon SonalPi) ---
-// Compteur « à anonymiser » d'une ligne : longueur de la requête (hits PM)
-// recalculée par le composable à l'ouverture de l'onglet, au ⟳ et après chaque
-// geste anon. 0 ou ligne absente → compteur masqué.
+// --- ANON : lignes de saisie (en bas du tableau) ---
+// Compteur « à anonymiser » d'une ligne : longueur de la requête (hits PM),
+// recalculée par le composable à l'ouverture de l'onglet, au ⟳ et après chaque geste anon.
+// 0 ou ligne absente → compteur masqué.
 function nbAAAnonymiser(cle: string): number {
   return hitsAAnonymiserParCle.value[cle]?.length ?? 0
 }
-// Tooltip de l'exposant d'incluses : wording V1 (« plus N absorbée(s)… », jamais
-// « dont »), avec les entités absorbantes distinctes.
+// Tooltip de l'exposant d'incluses : « plus N absorbée(s)… », jamais « dont »,
+// avec les entités absorbantes distinctes.
 function tooltipIncluses(cle: string): string {
   const n = lignesAnon.value.find((l) => l.cle === cle)?.nbIncluse ?? 0
   const pars = inclusesParCle.value[cle] ?? []
   const qui = pars.length ? ` par « ${pars.join('», « ')}»` : ''
   return `plus ${n} absorbée(s)${qui} (non comptée(s) ici)`
 }
-// Plusieurs lignes vides : on saisit un nom, « passe à la ligne suivante »
-// (Entrée) → le brouillon est persisté, et une nouvelle ligne vide s'ajoute si
-// besoin. Un bouton « + » sous le tableau ajoute des lignes.
+// Plusieurs lignes vides : on saisit un nom, « passe à la ligne suivante » (Entrée) ;
+// le brouillon est persisté, et une nouvelle ligne vide s'ajoute si besoin.
+// Un bouton « + » sous le tableau ajoute des lignes.
 const lignesSaisie = ref<{ id: number; entite: string; pseudo: string }[]>([])
 let seqSaisie = 0
 const nouvelleLigneSaisie = () => ({ id: ++seqSaisie, entite: '', pseudo: '' })
 lignesSaisie.value = [nouvelleLigneSaisie(), nouvelleLigneSaisie()]
-// Refs par ligne (cases Nom/Pseudo) pour piloter le focus. Ce sont des
-// <textarea> (multi-lignes) depuis que les champs enveloppent le texte.
+// Refs par ligne (cases Nom/Pseudo) pour piloter le focus, en <textarea> multi-lignes depuis que les champs enveloppent le texte.
 const refsNom = ref<Record<number, HTMLTextAreaElement | null>>({})
 const refsPseudo = ref<Record<number, HTMLTextAreaElement | null>>({})
 const refNom = (id: number) => (el: unknown) => {
@@ -545,15 +538,14 @@ const refPseudo = (id: number) => (el: unknown) => {
 const focusNom = (id: number) => nextTick(() => refsNom.value[id]?.focus())
 const focusPseudo = (id: number) => nextTick(() => refsPseudo.value[id]?.focus())
 
-/** Nom d'entité à l'écran : texte complet tant qu'il tient dans le bloc de 5
- *  lignes de la colonne Nom (mesuré par un probe clone ATTACHÉ au DOM — même
- *  largeur/police que la colonne → robuste au zoom/DPI) ; sinon, raccourci
- *  « début…fin ». Le titre garde le texte complet au survol. L'affichage est
- *  stocké DANS LE MODÈLE (affichagesNoms), pas muté sur le DOM : Vue reste
- *  propriétaire du texte interpolé et ne peut pas l'écraser. */
+/** Nom d'entité à l'écran : texte complet tant qu'il tient dans les 5 lignes de la colonne Nom,
+ *  mesuré par un probe clone ATTACHÉ au DOM (même largeur/police que la colonne,
+ *  robuste au zoom/DPI) ; sinon, raccourci « début…fin ». L'affichage est stocké
+ *  DANS LE MODÈLE (affichagesNoms), pas muté sur le DOM : Vue reste propriétaire
+ *  du texte interpolé. */
 let largeurColonneAnon = 0
-/** Mesure la hauteur réelle d'un texte enveloppé dans la colonne Nom (5 lignes
- *  max en CSS ; ici sans clamp pour connaître le besoin naturel avant raccourci). */
+/** Mesure la hauteur réelle d'un texte enveloppé dans la colonne Nom (5 lignes max en CSS) ;
+ *  ici sans clamp pour connaître le besoin naturel avant raccourci. */
 function mesurerNomAnon(plein: string) {
   const probe = document.createElement('span')
   probe.className = 'nom-anon'
@@ -578,10 +570,9 @@ function mesurerNomAnon(plein: string) {
   probe.remove()
   return { h, lh, lignes: h / lh }
 }
-/** Raccourci « début…fin » d'un nom qui dépasse la largeur de la colonne : on
- *  garde des MOTS ENTIERS du début et de la fin (jamais de coupe en plein mot),
- *  joints par « … », puis on réduit mot à mot tant que ça ne tient pas dans les
- *  5 lignes de la colonne. */
+/** Raccourci « début…fin » d'un nom trop large : on garde des MOTS ENTIERS du début et de la fin,
+ *  jamais de coupe en plein mot ; joints par « … », on réduit mot à mot tant que
+ *  ça ne tient pas dans les 5 lignes. */
 function raccourciMots(plein: string, hMax: number) {
   const { h, lh } = mesurerNomAnon(plein)
   const lignes = h / lh
@@ -604,14 +595,12 @@ function raccourciMots(plein: string, hMax: number) {
     lenF += mots[j].length + (fin.length ? 1 : 0)
     fin.unshift(mots[j--])
   }
-  // Un seul mot plus large que 5 lignes : on ne peut pas couper de mot → on
-  // laisse le clamp CSS tronquer avec « … » en fin de 5e ligne.
+  // Un seul mot plus large que 5 lignes : impossible de couper un mot ; on laisse le clamp CSS tronquer avec « … » en fin de 5e ligne.
   if (!debut.length && !fin.length) return plein
   const compose = () =>
     (debut.length ? debut.join(' ') : '') + (debut.length && fin.length ? ' … ' : '') + fin.join(' ')
   let affiche = compose()
-  // Garde-fou : réduit mot à mot (du côté le plus long) tant que le raccourci
-  // dépasse encore les 5 lignes mesurées.
+  // Garde-fou : réduit mot à mot (du côté le plus long) tant que le raccourci dépasse encore les 5 lignes mesurées.
   let it = 0
   while (it++ < 30 && mesurerNomAnon(affiche).h > hMax) {
     if (debut.length > fin.length) {
@@ -646,9 +635,9 @@ onMounted(() => {
 })
 onUnmounted(() => window.removeEventListener('resize', majNomsAnon))
 
-/** Valide UNE ligne : pose les occurrences (validerAnon), vide la ligne.
- *  `majuscule` (Entrée clavier uniquement) route vers la priorité de portée
- *  (étape 4a) au lieu du comportement historique du bouton ✓ (entretien). */
+/** Valide UNE ligne : pose les occurrences (validerAnon) et vide la ligne.
+ *  `majuscule` (Entrée) route vers la priorité de portée (étape 4a) ; le
+ *  bouton ✓ valide directement au niveau entretien. */
 function validerLigne(l: { id: number; entite: string; pseudo: string }, majuscule?: boolean) {
   const e = l.entite.trim()
   const p = l.pseudo.trim()
@@ -667,21 +656,20 @@ function validerLigne(l: { id: number; entite: string; pseudo: string }, majuscu
   }
   hintAnon.value = null
   if (majuscule === undefined) {
-    // Bouton ✓ : comportement historique (pose au niveau entretien).
+    // Bouton ✓ : valide directement au niveau entretien.
     validerAnon(e, p)
     l.entite = ''
     l.pseudo = ''
     return
   }
-  // Entrée/Maj+Entrée : créer le brouillon puis appliquer la portée routée
-  // par la priorité de validation (étape 4a).
+  // Entrée/Maj+Entrée : créer le brouillon puis appliquer la portée routée par la priorité de validation (étape 4a).
   creerBrouillon(e, p)
   l.entite = ''
   l.pseudo = ''
   void validerAvecPriorite(e, majuscule)
 }
-/** Entrée sur le Nom (sans pseudo) → brouillon « entité seule » (draft inerte
- *  en attendant un pseudo), puis passage à la ligne suivante (créée au besoin). */
+/** Entrée sur le Nom (sans pseudo) → brouillon « entité seule » (draft inerte en attendant un pseudo),
+ *  puis passage à la ligne suivante (créée au besoin). */
 function brouillonDepuisLigne(l: { id: number; entite: string; pseudo: string }) {
   const e = l.entite.trim()
   if (!e) return
@@ -702,8 +690,8 @@ function brouillonDepuisLigne(l: { id: number; entite: string; pseudo: string })
     focusNom(n.id)
   }
 }
-/** Le focus quitte une ligne entièrement → auto-brouillon si un Nom est saisi
- *  (le passage vers une autre ligne de saisie compte comme une sortie). */
+/** Le focus quitte une ligne entièrement → auto-brouillon si un Nom est saisi ;
+ *  le passage vers une autre ligne de saisie compte comme une sortie. */
 function onBlurLigne(id: number, evt: FocusEvent) {
   const cible = evt.relatedTarget as Node | null
   if (cible && (evt.currentTarget as HTMLElement).contains(cible)) return
@@ -722,9 +710,9 @@ function surPseudoLigne(entite: string, etat: 'brouillon' | 'entretien' | 'corpu
   if (etat === 'brouillon') majBrouillonLigne(entite, value)
   else if (etat === 'entretien') validerAnon(entite, value)
 }
-/** Entrée sur le Pseudo d'une ligne existante : brouillon → valider selon la
- *  priorité (Entrée = portée prioritaire, Maj+Entrée = l'autre, étape 4a),
- *  entretien → relabel via le change au blur. Corpus → sans effet. */
+/** Entrée sur le Pseudo d'une ligne existante : brouillon → valider selon la priorité ;
+ *  Entrée = portée prioritaire, Maj+Entrée = l'autre (étape 4a), entretien → relabel
+ *  via le change au blur. Corpus → sans effet. */
 function surEntreePseudoLigne(
   entite: string,
   etat: 'brouillon' | 'entretien' | 'corpus',
@@ -732,8 +720,7 @@ function surEntreePseudoLigne(
   majuscule: boolean,
 ) {
   if (etat === 'brouillon') {
-    // Synchroniser le brouillon avec la saisie avant de router (le changement
-    // de portée lit le pseudo du brouillon, pas le champ).
+    // Synchroniser le brouillon avec la saisie avant de router (le changement de portée lit le pseudo du brouillon, pas le champ).
     const v = value.trim()
     if (v) majBrouillonLigne(entite, v)
     void validerAvecPriorite(entite, majuscule)
@@ -746,9 +733,9 @@ function scrollerVersLigne(entite: string) {
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   })
 }
-// La sélection dans l'éditeur peuple le Nom de la PREMIÈRE ligne de saisie vide
-// (ou en crée une). Les lignes déjà remplies sont d'abord persistées en
-// brouillon : c'est l'auto-brouillon, on peut enchaîner plusieurs entités.
+// La sélection dans l'éditeur peuple le Nom de la PREMIÈRE ligne de saisie vide (ou en crée une).
+// Les lignes déjà remplies sont d'abord persistées en brouillon :
+// c'est l'auto-brouillon, on peut enchaîner plusieurs entités.
 function alimenterDepuisSelection() {
   const sel = selectionAnon.value
   if (!sel) return
@@ -775,17 +762,12 @@ function alimenterDepuisSelection() {
   focusPseudo(ligne.id)
 }
 
-// Le tableau Anon se remplit au RELÂCHEMENT du clic (`mouseup`), jamais
-// pendant le drag : une entité multi-mots (« New York ») n'arrive qu'une fois
-// la souris relâchée, même si on marque une pause en cours de glisser (une
-// pause ne relâche pas le bouton → rien ne se remplit).
-//
-// ProseMirror propage la sélection DOM de façon ASYNCHRONE (événement
-// `selectionchange`) : plutôt que deviner un délai fixe, on surveille
-// `selectionAnon` jusqu'à ce qu'elle soit STABLE (2 lectures égales) après le
-// relâchement, puis on remplit — on lit donc toujours la sélection FINALE,
-// jamais celle d'un état intermédiaire. Et SEULEMENT si l'onglet Anon est
-// ouvert : ailleurs, la sélection reste neutre.
+// Le tableau Anon se remplit au RELÂCHEMENT du clic (`mouseup`), jamais pendant le drag :
+// une entité multi-mots (« New York ») n'arrive qu'une fois la souris relâchée.
+// ProseMirror propage la sélection DOM de façon ASYNCHRONE (`selectionchange`) :
+// plutôt que deviner un délai fixe, on surveille `selectionAnon`, en attendant deux lectures consécutives égales après le relâchement.
+// On lit donc la sélection FINALE, jamais un état intermédiaire.
+// Et seulement si l'onglet Anon est ouvert ; ailleurs, la sélection reste neutre.
 const RELACHE_STEP = 16 // ms — cadence de surveillance (un frame)
 const RELACHE_STABILITE = 2 // lectures consécutives égales → sélection figée
 const RELACHE_CAP = 250 // ms — marge pire cas (alors on remplit quand même)
@@ -813,8 +795,8 @@ function surRelache() {
   }
   surveiller()
 }
-// Écouteurs posés sur le DOM de l'éditeur (les deux rendus audio/vidéo passent
-// par le même viewer : un seul attach suffit), retirés au démontage.
+// Écouteurs posés sur le DOM de l'éditeur, retirés au démontage.
+// Les deux rendus audio/vidéo passent par le même viewer : un seul attach suffit.
 let domEditeur: HTMLElement | null = null
 function attacherEcouteurs(ed: typeof editor.value) {
   if (domEditeur) {
@@ -862,8 +844,8 @@ async function surLibreLoc(index: number, idVar: string, evt: Event) {
   const lib = (evt.target as HTMLInputElement).value.trim()
   setValeurLoc(index, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
 }
-/** Focus du champ texte OUVERT via « autre… » (les champs permanents, dont la
- *  clé ne matche pas, ne volent jamais le focus). */
+/** Focus du champ texte OUVERT via « autre… ».
+ *  Les champs permanents (clé non matcheuse) ne volent jamais le focus. */
 function focaliserLibre(el: unknown, cle: string) {
   if (el instanceof HTMLInputElement && celluleLibre.value === cle && document.activeElement !== el)
     el.focus()
@@ -872,8 +854,8 @@ function focaliserLibre(el: unknown, cle: string) {
 
 <template>
     <section class="ecran entretien-ecran">
-      <!-- Corpus distant : bandeau si le verrou de CET entretien est tenu
-           par autrui (qui, depuis quand). -->
+      <!-- Corpus distant : bandeau quand le verrou de CET entretien est tenu par autrui ;
+           le bandeau dit qui, et depuis quand. -->
       <div v-if="verrouAutrui" class="banniere-ro">
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b>
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}.
@@ -885,9 +867,9 @@ function focaliserLibre(el: unknown, cle: string) {
         <div class="barre">
           <button class="retour" @click="retourCorpus">← Corpus</button>
           <span class="barre-aide">Sélectionne du texte, puis clique un thème (onglet Thématique) pour le coder.</span>
-          <!-- Corpus distant, session à nous : statut de publication
-               + « Publier maintenant ». En lecture seule (verrou autrui) :
-               rien à publier, le bandeau 🔒 au-dessus parle déjà. -->
+          <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
+               En lecture seule (verrou autrui) : rien à publier,
+               le bandeau 🔒 au-dessus parle déjà. -->
           <template v-if="statutSession.etat === 'a-nous'">
             <span v-if="publiErreur" class="statut-session divergence">⚠️ {{ publiErreur }}</span>
             <span v-else-if="statutSession.sale" class="statut-session sale" title="Publication périodique toutes les 5 min ; le bouton force à la demande.">
@@ -900,20 +882,20 @@ function focaliserLibre(el: unknown, cle: string) {
           <button class="exporter" @click="exporter">Exporter .sonal</button>
         </div>
 
-        <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif. Collante, à
-             défilement interne au-delà d'un écran, pour rester visible pendant
-             la lecture. -->
+        <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif ;
+             collante, à défilement interne au-delà d'un écran,
+             pour rester visible pendant la lecture. -->
         <div class="colonne-gauche">
           <nav class="onglets">
-            <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title) et
-                 sur le panneau d'accueil (vue d'ensemble). L'ACCUEIL vient en
-                 PREMIER et par DÉFAUT : il accueille l'utilisateur avec les
-                 conseils et la liste des autres onglets (icone + titre). Les
-                 NOTES suivent en DEUXIÈME. -->
+            <!-- Onglets réduits à l'ICONE : le titre apparaît au survol (title),
+                 et sur le panneau d'accueil (vue d'ensemble).
+                 L'ACCUEIL vient en PREMIER et par DÉFAUT : accueil de l'utilisateur,
+                 conseils et liste des autres onglets (icone + titre).
+                 Les NOTES suivent en DEUXIÈME. -->
             <button data-onglet="maison" :class="{ actif: ongletDroite === 'maison' }" title="Accueil" @click="ongletDroite = 'maison'">
               <img class="ico-onglet" :src="icoMaison" alt="Accueil" />
             </button>
-            <button data-onglet="notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
+            <button data-onglet="notes" data-tour="onglet-notes" :class="{ actif: ongletDroite === 'notes' }" title="Notes" @click="ongletDroite = 'notes'">
               <img class="ico-onglet" :src="icoNotes" alt="Notes" />
             </button>
             <button data-onglet="locuteurs" data-tour="onglet-locuteurs" :class="{ actif: ongletDroite === 'locuteurs' }" title="Locuteurs" @click="ongletDroite = 'locuteurs'">
@@ -976,9 +958,9 @@ function focaliserLibre(el: unknown, cle: string) {
             </ul>
           </aside>
 
-          <!-- Thématique : clic sur un thème = coder la sélection. L'ÉDITION
-               (créer/renommer/couleur/taille/arbre/supprimer) passe par le
-               crayon → fenêtre EditionThemes partagée avec l'écran Corpus. -->
+          <!-- Thématique : clic sur un thème = coder la sélection.
+               L'ÉDITION (créer/renommer/couleur/taille/arbre/supprimer) passe par le crayon,
+               vers la fenêtre EditionThemes partagée avec l'écran Corpus. -->
           <aside v-show="ongletDroite === 'themes'" class="panneau themes-coder">
             <div class="corpus-tete">
               <h3>Thématiques</h3>
@@ -1009,8 +991,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   </span>
                   <span v-else class="depliant depliant-masque"></span>
                   <span class="pastille" :style="{ background: couleurHex(n.cat) }"></span>
-                  <!-- Taille de police UNIFORME (décision utilisateur : la taille
-                       d'un thème ne s'applique qu'au marquage dans le texte). -->
+                  <!-- Taille de police UNIFORME : la taille d'un thème ne s'applique qu'au marquage dans le texte. -->
                   <span class="theme-nom">{{ n.cat.nom }}</span>
                   <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">{{ usages[n.cat.id] ?? 0 }}</span>
                 </button>
@@ -1035,9 +1016,9 @@ function focaliserLibre(el: unknown, cle: string) {
               </div>
             </div>
 
-            <!-- Petit tableau des locuteurs : Nom | Pseudo
-                 (optionnel) | Interv. | ✕. Le pseudo posé pseudonymise les
-                 étiquettes des tours (barré + [pseudo] dans la gouttière). -->
+            <!-- Petit tableau des locuteurs : Nom | Pseudo (optionnel) | Interv. | ✕.
+                 Le pseudo posé pseudonymise les étiquettes des tours ;
+                 barré + [pseudo] dans la gouttière. -->
             <div class="tableau-loc">
               <div class="tableau-loc-tetes">
                 <span title="Couleur du nom — cliquer pour choisir"></span>
@@ -1047,11 +1028,10 @@ function focaliserLibre(el: unknown, cle: string) {
               </div>
               <ul class="liste-loc">
                 <li v-for="(l, i) in locuteurs" :key="l.index">
-                  <!-- Sélecteur de couleur du nom : défaut auto par index
-                       (palette prédéfinie) ; au clic, le sélecteur NATIF du
-                       navigateur (même mécanisme que l'édition des thèmes :
-                       TOUTES les couleurs possibles). Le nom s'écrit dans la
-                       couleur choisie dans l'éditeur, sans toucher au pseudo. -->
+                  <!-- Sélecteur de couleur du nom : défaut auto par index (palette prédéfinie) ;
+                       au clic, le sélecteur NATIF du navigateur (même mécanisme que l'édition des thèmes,
+                       TOUTES les couleurs possibles).
+                       Le nom s'écrit dans la couleur choisie dans l'éditeur, sans toucher au pseudo. -->
                   <input
                     type="color"
                     class="carre-couleur"
@@ -1060,8 +1040,7 @@ function focaliserLibre(el: unknown, cle: string) {
                     :disabled="roContenu"
                     @change="choisirCouleurLoc(l.index, ($event.target as HTMLInputElement).value)"
                   />
-                  <!-- data-tour sur le 1er nom uniquement : cible de l'étape
-                       « Renommer les locuteurs » du pas-à-pas. -->
+                  <!-- data-tour sur le 1er nom uniquement : cible de l'étape « Renommer les locuteurs » du pas-à-pas. -->
                   <input
                     class="nom-loc"
                     :data-tour="i === 0 ? 'nom-locuteur' : undefined"
@@ -1106,11 +1085,10 @@ function focaliserLibre(el: unknown, cle: string) {
             </div>
           </aside>
 
-          <!-- Données de CET entretien : saisie des valeurs (2 niveaux : entretien +
-               locuteur), même saisie libre que la Table de données (« autre… »,
-               variable sans modalité = champ texte). Le crayon ouvre la fenêtre
-               EditionVariables partagée (créer/éditer des variables sans repasser
-               par l'écran Corpus) ; la matrice complète reste à la Table. -->
+          <!-- Données de CET entretien : saisie des valeurs (2 niveaux : entretien + locuteur),
+               même saisie libre que la Table de données (« autre… », variable sans modalité = champ texte).
+               Le crayon ouvre la fenêtre EditionVariables partagée (créer/éditer des variables sans repasser par l'écran Corpus) ;
+               la matrice complète reste à la Table. -->
           <aside v-show="ongletDroite === 'donnees'" class="panneau donnees">
             <div class="corpus-tete">
               <h3>Données</h3>
@@ -1209,10 +1187,10 @@ function focaliserLibre(el: unknown, cle: string) {
             </ul>
           </aside>
 
-          <!-- Notes : notes structurées (catégorie + date + statut + corps
-               surlignable). Vue cartes par défaut, ou texte concaténé (expand).
-               Création/édition par modale inline ; catégories gérées dans un
-               sous-volet (nom + couleur, comme les locuteurs). -->
+          <!-- Notes : notes structurées (catégorie + date + statut + corps surlignable).
+               Vue cartes par défaut, ou texte concaténé (expand).
+               Création/édition par modale inline.
+               Catégories gérées dans un sous-volet (nom + couleur, comme les locuteurs). -->
           <aside v-show="ongletDroite === 'notes'" class="panneau notes">
             <div class="corpus-tete">
               <h3>Notes</h3>
@@ -1233,7 +1211,7 @@ function focaliserLibre(el: unknown, cle: string) {
                   :title="notesCopiees ? 'Copié !' : 'Copier les notes affichées dans le presse-papier'"
                   @click="copierNotes">{{ notesCopiees ? '✓' : '📋' }}</button>
               </div>
-              <button v-if="!roContenu" class="mini" @click="ajouterNote">+ Note</button>
+              <button v-if="!roContenu" class="mini" data-tour="creer-note" @click="ajouterNote">+ Note</button>
             </div>
 
             <!-- Volet recherche (deux lignes pour ne pas déborder) :
@@ -1285,18 +1263,16 @@ function focaliserLibre(el: unknown, cle: string) {
                     <button class="mini danger" title="Supprimer" @click="supprimerNote(n.id)">✕</button>
                   </span>
                 </header>
-                <!-- v-html sûr : titre échappé ou corps sanitisé, puis
-                     surlignage des occurrences au DOM. Sans titre : aperçu
-                     borné par CSS (.apercu-note) ; avec titre : le titre seul. -->
+                <!-- v-html sûr : titre échappé ou corps sanitisé, puis surlignage des occurrences au DOM.
+                     Sans titre : aperçu borné par CSS (.apercu-note) ; avec titre, le titre seul. -->
                 <div v-if="n.titre" class="titre-note" v-html="titreAvecHits(n.titre)"></div>
                 <div v-else class="corps-note apercu-note" v-html="corpsAvecRefsEtHits(n)" @click="clicRefCommentaire"></div>
               </article>
             </div>
 
-            <!-- Vue feuille : toutes les notes à la suite, ÉDITABLES par
-                 défaut. En-tête (catégorie · date · statut) figé ; contenu
-                 éditable sur place (même passages <mark>/<em> que dans la
-                 modale, sauvegarde à chaque frappe). -->
+            <!-- Vue feuille : toutes les notes à la suite, ÉDITABLES par défaut ;
+                 en-tête (catégorie · date · statut) figé.
+                 Contenu éditable sur place (passages <mark>/<em>, sauvegarde à chaque frappe). -->
             <div v-else ref="feuilleEl" class="notes-texte">
               <p v-if="notesAffichees.length === 0" class="vide">
                 {{ rechercheActive ? 'Aucune note ne correspond.' : '(aucune note)' }}
@@ -1308,10 +1284,8 @@ function focaliserLibre(el: unknown, cle: string) {
                   @click="lierDansFeuille($event)">🔗 Lier à un commentaire</button>
               </div>
               <article v-for="n in notesAffichees" :key="n.id" class="bloc-notes-texte">
-                <!-- En-tête à la couleur de la catégorie (même teinte que
-                     la pastille des cartes). -->
-                <!-- En-tête harmonisé avec les cartes : catégorie à sa
-                     couleur (en gras), date et statut grisés. -->
+                <!-- En-tête à la couleur de la catégorie, même teinte que la pastille des cartes. -->
+                <!-- En-tête harmonisé avec les cartes : catégorie à sa couleur (en gras), date et statut grisés. -->
                 <span class="tete-notes-texte">[<span class="cat-notes-texte" :style="{ color: couleurCategorieNote(n.categorieId) }">{{ nomCategorieNote(n.categorieId) }}</span><span class="meta-notes-texte"> · {{ dateLibelle(n.date) }} · {{ n.statut === 'public' ? 'public' : 'privé' }}</span>]</span>
                 <!-- Le titre s'édite en place quand la feuille est en édition. -->
                 <input v-if="editionFeuille && !roContenu" class="titre-feuille" :value="n.titre"
@@ -1333,11 +1307,10 @@ function focaliserLibre(el: unknown, cle: string) {
             </div>
           </aside>
 
-          <!-- Formulaire de note (modale inline) : corps contenteditable +
-               méta (catégorie, date, statut). Ouvert par + Note ou éditer.
-               Teleport vers <body> : la colonne gauche est sticky (contexte
-               d'empilement), l'éditeur serait sinon peint PAR-DESSUS la
-               modale quel que soit son z-index. -->
+          <!-- Formulaire de note (modale inline) : corps contenteditable + méta (catégorie, date, statut).
+               Ouvert par + Note ou éditer.
+               Teleport vers <body> : la colonne gauche est sticky (contexte d'empilement),
+               sinon l'éditeur serait peint PAR-DESSUS la modale quel que soit son z-index. -->
           <Teleport to="body">
           <div v-if="brouillonNote" class="modale-note">
             <div class="modale-note-fond" @click="annulerNote"></div>
@@ -1347,8 +1320,7 @@ function focaliserLibre(el: unknown, cle: string) {
                 <button class="mini" title="Fermer" @click="annulerNote">✕</button>
               </div>
               <div class="modale-note-corps">
-                <!-- Titre optionnel : affiché seul en vue cartes à la place
-                     d'un aperçu du corps. Vide = aperçu du corps tronqué. -->
+                <!-- Titre optionnel : affiché seul en vue cartes à la place d'un aperçu du corps ; vide = aperçu du corps tronqué. -->
                 <label class="champ-note champ-titre-note">
                   <span>Titre (optionnel)</span>
                   <input type="text" v-model="brouillonNote.titre" placeholder="ex. hypothèse centrale" />
@@ -1372,8 +1344,8 @@ function focaliserLibre(el: unknown, cle: string) {
                   <button class="mini" title="Lier le passage sélectionné à un commentaire (italique)"
                     @click="zoneCorpsNote && lierPassage($event, zoneCorpsNote)">🔗 Lier à un commentaire</button>
                 </div>
-                <!-- Avertissement (ex. « autre… » non créé au moment de la
-                     validation) : visible au-dessus des méta. -->
+                <!-- Avertissement (ex. « autre… » non créé au moment de la validation) :
+                     visible au-dessus des méta. -->
                 <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
                 <div class="modale-note-meta">
                   <label class="champ-note">
@@ -1437,9 +1409,9 @@ function focaliserLibre(el: unknown, cle: string) {
               </div>
             </div>
           </div>
-          <!-- Menu de liaison d'un passage aux commentaires (clic droit
-               ou bouton 🔗) : frère DE LA MODALE dans le Teleport — monté
-               dès que menuLiensNote est posé, modale ouverte ou non (feuille). -->
+          <!-- Menu de liaison d'un passage aux commentaires (clic droit ou bouton 🔗) :
+               frère DE LA MODALE dans le Teleport — monté dès que menuLiensNote est posé,
+               modale ouverte ou non (feuille). -->
           <MenuLiensNote
               v-if="menuLiensNote"
               :x="menuLiensNote.x"
@@ -1452,10 +1424,9 @@ function focaliserLibre(el: unknown, cle: string) {
             />
           </Teleport>
 
-          <!-- Anon : pseudonymisation du texte. Une ligne par entité (brouillon
-               sans occurrence, ou occurrences posées). La sélection peuple
-               la ligne de saisie ; Entrée sur le Pseudo pose les occurrences
-               (barré + [pseudo], cf. editeur.css). -->
+          <!-- Anon : pseudonymisation du texte, une ligne par entité (brouillon sans occurrence ou occurrences posées) ;
+               la sélection peuple la ligne de saisie.
+               Entrée sur le Pseudo pose les occurrences (barré + [pseudo], cf. editeur.css). -->
           <aside v-show="ongletDroite === 'anon'" class="panneau anon">
             <div class="corpus-tete">
               <h3>Pseudonymisation du texte</h3>
@@ -1539,8 +1510,7 @@ function focaliserLibre(el: unknown, cle: string) {
                           @click="changerPorteeAnon(l.entite, 'corpus')"
                         >🌐</button>
                       </div>
-                      <!-- Thématique (4c) : badge-sélecteur sur les lignes CORPUS
-                           quand le réglage est activé au panneau Pseudos. -->
+                      <!-- Thématique (4c) : badge-sélecteur sur les lignes CORPUS quand le réglage est activé au panneau Pseudos. -->
                       <select
                         v-if="l.etat === 'corpus' && thematiquesActives.length"
                         class="cat-select"
@@ -1553,8 +1523,7 @@ function focaliserLibre(el: unknown, cle: string) {
                         <option v-for="t in thematiquesActives" :key="t" :value="t">{{ t }}</option>
                       </select>
                       <div class="occ-action">
-                        <!-- Widget de navigation ◄ i/N ► (loupe) tant qu'un
-                             repérage est actif sur CETTE ligne. -->
+                        <!-- Widget de navigation ◄ i/N ► (loupe), tant qu'un repérage est actif sur CETTE ligne. -->
                         <span v-if="reperageAnon?.cle === l.cle" class="reperage-nav" :class="`rep-${reperageAnon.categorie}`">
                           <button type="button" class="rep-btn" title="Occurrence précédente" @click="naviguerReperage(-1)">◄</button>
                           <span class="rep-pos">{{ reperageAnon.index + 1 }}/{{ reperageAnon.hits.length }}</span>
@@ -1605,8 +1574,8 @@ function focaliserLibre(el: unknown, cle: string) {
                             @click="demarrerReperage(l.cle, 'a-anonymiser')"
                           >À {{ nbAAAnonymiser(l.cle) }}</button>
                         </template>
-                        <!-- Incluses : exposant non cliquable — absorbées par une
-                             entité plus large, le clic retombe sur la règle large. -->
+                        <!-- Incluses : exposant non cliquable, et absorbées par une entité plus large ;
+                             le clic retombe sur la règle large. -->
                         <span
                           v-if="l.nbIncluse > 0"
                           class="cpt-incl"
@@ -1619,9 +1588,9 @@ function focaliserLibre(el: unknown, cle: string) {
                   </td>
                 </tr>
 
-                <!-- Lignes de saisie/draft : lignes du tableau (façon SonalPi), une
-                     entité par ligne. Entrée sur le Nom → brouillon + passage à la
-                     ligne suivante ; Entrée sur le Pseudo ou ✓ → valider. -->
+                <!-- Lignes de saisie/draft : une entité par ligne ;
+                     Entrée sur le Nom → brouillon + passage à la ligne suivante ;
+                     Entrée sur le Pseudo ou ✓ → valider. -->
                 <tr
                   v-for="l in lignesSaisie"
                   :key="l.id"
@@ -1656,10 +1625,9 @@ function focaliserLibre(el: unknown, cle: string) {
             </table>
           </aside>
 
-          <!-- Ancre de la consigne « panneau » du pas-à-pas : le guide de
-               l'étape (ex. « Écouter et corriger ») s'affiche EN BAS de la
-               colonne de gauche, sous le panneau de l'onglet actif — pas en
-               haut (à la place du panneau) ni en bulle flottante sur le texte. -->
+          <!-- Ancre de la consigne « panneau » du pas-à-pas : le guide de l'étape (ex. « Prendre des notes à chaud »)
+               s'affiche EN BAS de la colonne de gauche, sous le panneau de l'onglet actif.
+               Pas en haut, ni en bulle flottante sur le texte. -->
           <div data-tour="ancre-guide-pp"></div>
         </div>
 
@@ -1678,8 +1646,7 @@ function focaliserLibre(el: unknown, cle: string) {
             <div class="zone-media">
               <div class="tele">
                 <LecteurAudio :empile="true" />
-                <!-- Ouvrir/fermer la vue vidéo : quand elle est fermée, la barre
-                     de son prend toute la largeur (pas de trou), l'audio continue. -->
+                <!-- Ouvrir/fermer la vue vidéo : quand elle est fermée, la barre de son prend toute la largeur (pas de trou), l'audio continue. -->
                 <button class="video-toggle" :title="videoVisible ? 'Masquer la vidéo' : 'Afficher la vidéo'" @click="toggleVideo">
                   {{ videoVisible ? '▾ Masquer la vidéo' : '▸ Afficher la vidéo' }}
                 </button>
@@ -1703,10 +1670,10 @@ function focaliserLibre(el: unknown, cle: string) {
       />
       <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
 
-      <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas
-           à droite, visible quel que soit le défilement du texte. Entrée =
-           occurrence suivante, Échap ferme ; le remplacement est masqué si le
-           verrou d'autrui fige l'entretien (roContenu). -->
+      <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas à droite,
+           visible quel que soit le défilement du texte. Entrée = occurrence suivante,
+           Échap ferme ; le remplacement est masqué si le verrou d'autrui fige
+           l'entretien (roContenu). -->
       <div v-if="rechercheOuverte" class="barre-recherche">
         <div class="ligne-recherche">
           <input
@@ -1733,9 +1700,9 @@ function focaliserLibre(el: unknown, cle: string) {
         </div>
       </div>
 
-      <!-- Menu contextuel de l'éditeur (clic droit) : sections anon
-           (exception ↔ anonymisé, multi-pseudo), codages couvrants (retrait
-           sans resélectionner) et commentaires (créer / éditer). -->
+      <!-- Menu contextuel de l'éditeur (clic droit) : sections anon,
+           codages couvrants (retrait sans resélectionner) et commentaires
+           (créer / éditer). -->
       <MenuContexte
         v-if="menuContextuel"
         :x="menuContextuel.x"
@@ -1764,8 +1731,8 @@ function focaliserLibre(el: unknown, cle: string) {
         @fermer="fermerEditionCommentaire"
       />
 
-      <!-- Dialogue de divergence à la poussée vers le corpus (3b) : une règle
-           existante porte des pseudos différents → Aligner / Garder les deux. -->
+      <!-- Dialogue de divergence à la poussée vers le corpus :
+           une règle existante porte des pseudos différents → Aligner / Garder les deux. -->
       <div v-if="dialoguePorteeCorpus" class="portee-dialogue-overlay" @click.self="annulerDialogueCorpus">
         <div class="portee-dialogue">
           <h4>Pseudo divergent — « {{ dialoguePorteeCorpus.entite }} »</h4>
@@ -1781,10 +1748,9 @@ function focaliserLibre(el: unknown, cle: string) {
           </div>
         </div>
       </div>
-      <!-- Suggestion d'entité-cœur (mots de liaison) : à la validation
-           d'une entité à affixe (« à Lyon »), proposer aussi la règle générale
-           (« Lyon »), à la même portée. Jamais automatique : Oui crée la
-           règle, Non ne crée rien et ne mémorise aucun refus. -->
+      <!-- Suggestion d'entité-cœur (mots de liaison) : à la validation d'une entité à affixe (« à Lyon »),
+           proposer aussi la règle générale (« Lyon »), à la même portée.
+           Jamais automatique : Oui crée la règle ; Non ne crée rien, et ne mémorise aucun refus. -->
       <div v-if="suggestionLiaison" class="portee-dialogue-overlay">
         <div class="portee-dialogue">
           <h4>Pseudonymiser aussi : « {{ suggestionLiaison.entiteCoeur }} » ?</h4>
@@ -1826,8 +1792,8 @@ function focaliserLibre(el: unknown, cle: string) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est
-     défini dans App.vue). Fond opaque pour masquer le contenu qui glisse. */
+  /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est défini dans App.vue).
+     Fond opaque pour masquer le contenu qui glisse. */
   position: sticky;
   top: var(--entete-h);
   z-index: 30;
@@ -1879,13 +1845,11 @@ function focaliserLibre(el: unknown, cle: string) {
   padding: 0.8rem 1rem;
   background: #fff;
 }
-/* Colonne de gauche collante : onglets + panneau, reste visible ; au-delà d'un
-   écran elle défile en interne. Ses points d'épinglage tiennent compte des
-   deux barres épinglées du dessus (en-tête app + barre d'actions). La hauteur
-   max est RÉDUITE du même décalage que `top` : sinon une liste longue (beaucoup
-   de thèmes) déborderait d'un écran sous le bord bas de la fenêtre — les
-   derniers thèmes resteraient inaccessibles tant qu'on n'a pas fait défiler le
-   texte (la colonne collante repart vers le haut). */
+/* Colonne de gauche collante : onglets + panneau, reste visible ; au-delà d'un écran, elle défile en interne.
+   Ses points d'épinglage tiennent compte des deux barres épinglées du dessus (en-tête app + barre d'actions).
+   La hauteur max est RÉDUITE du même décalage que `top` :
+   sinon une liste longue (beaucoup de thèmes) déborderait sous le bord bas de la fenêtre,
+   et les derniers thèmes resteraient inaccessibles tant que le texte n'a pas défilé (la colonne collante repart vers le haut). */
 .colonne-gauche {
   grid-area: gauche;
   display: flex;
@@ -1893,17 +1857,16 @@ function focaliserLibre(el: unknown, cle: string) {
   gap: 0.5rem;
   position: sticky;
   top: calc(var(--entete-h) + var(--barre-h));
-  /* `top` ci-dessus vs hauteur d'écran : le panneau doit tenir entre la barre
-     d'actions et le bord bas de la fenêtre, sinon son défilement interne garde
-     les derniers éléments du panneau visibles SANS toucher au texte. Le −1rem
-     compense l'écart de la grille : à la position naturelle (page en haut) le
-     panneau s'appuie sur la ligne « barre » + son gap, soit `top` + gap. */
+  /* `top` ci-dessus vs hauteur d'écran : le panneau doit tenir entre la barre d'actions et le bord bas de la fenêtre,
+     sinon son défilement interne garde les derniers éléments visibles SANS toucher au texte.
+     Le −1rem compense l'écart de la grille ; à la position naturelle (page en haut),
+     le panneau s'appuie sur la ligne « barre » + son gap, soit `top` + gap. */
   max-height: calc(100vh - var(--entete-h) - var(--barre-h) - 1rem);
   overflow-y: auto;
 }
-/* Colonne de droite : lecteur audio puis éditeur. Le lecteur est collant en
-   haut (fond opaque) pour rester visible pendant la lecture ; l'éditeur défile
-   dessous. */
+/* Colonne de droite : lecteur audio puis éditeur.
+   Le lecteur est collant en haut (fond opaque), pour rester visible pendant la lecture ;
+   l'éditeur défile dessous. */
 .colonne-droite {
   grid-area: droite;
   display: flex;
@@ -1915,10 +1878,10 @@ function focaliserLibre(el: unknown, cle: string) {
   z-index: 20;
   background: #fff;
 }
-/* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo
-   à droite. Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la
-   largeur : le lecteur (flex 1 1) prend ce que la vidéo ne prend pas, et quand on
-   réduit la vidéo, la place libérée revient à la barre de son (jamais tronquée). */
+/* Zone média du MODE VIDÉO : lecteur+waveform empilés à gauche ‖ panneau vidéo à droite.
+   Collante comme le lecteur audio. Les deux colonnes SE PARTAGENT la largeur :
+   le lecteur (flex 1 1) prend ce que la vidéo ne prend pas, et quand on réduit la vidéo,
+   la place libérée revient à la barre de son (jamais tronquée). */
 .zone-media {
   display: flex;
   align-items: flex-start;
@@ -1974,10 +1937,9 @@ function focaliserLibre(el: unknown, cle: string) {
   font-weight: 600;
   color: #1565c0;
 }
-/* Icônes SonalPi (glyphes noirs) : adoucies sur l'onglet inactif. Plus
-   grandes dans les onglets de la barre gauche (20px) — la liste d'accueil
-   garde sa taille propre (20px, cf. .liste-tours). L'onglet Anonymisation est
-   un cran plus grand (23px). */
+/* Icônes des onglets (glyphes noirs), adoucies sur l'onglet inactif.
+   Plus grandes dans la barre gauche (20px) ; la liste d'accueil garde sa taille propre (20px, cf. .liste-tours).
+   L'onglet Anonymisation est un cran plus grand (23px). */
 .ico-onglet {
   object-fit: contain;
   opacity: 0.55;
@@ -1994,8 +1956,8 @@ function focaliserLibre(el: unknown, cle: string) {
 .onglets button.actif .ico-onglet {
   opacity: 1;
 }
-/* Panneau Accueil : le raccourci en tête, puis la vue d'ensemble des autres
-   onglets (icone + titre) — chaque ligne rappelle ce que fait l'onglet. */
+/* Panneau Accueil : le raccourci en tête, puis la vue d'ensemble des autres onglets (icone + titre),
+   chaque ligne rappelant ce que fait l'onglet. */
 /* Raccourci mis en AVANT (bandeau contrasté) pour être immédiatement repéré. */
 .raccourci {
   background: #fff8e1;
@@ -2071,9 +2033,8 @@ function focaliserLibre(el: unknown, cle: string) {
   cursor: pointer;
   font-size: 0.85rem;
 }
-/* Icône de repli d'un parent dans le panneau : même liseré que l'édition des
-   thèmes ; `-masque` réserve la place (largeur égale) sur les feuilles pour
-   que la pastille reste alignée. */
+/* Icône de repli d'un parent dans le panneau : même liseré que l'édition des thèmes ;
+   `-masque` réserve la place (largeur égale) sur les feuilles, pour que la pastille reste alignée. */
 .depliant {
   width: 1.1rem;
   flex: none;
@@ -2132,6 +2093,7 @@ function focaliserLibre(el: unknown, cle: string) {
   align-items: center;
   gap: 0.4rem;
   margin: 0.2rem 0;
+  padding-left: 0.9rem; /* décalé sous le titre « Valeurs… » */
 }
 .saisie-eav-lib {
   flex: 1;
@@ -2162,15 +2124,16 @@ function focaliserLibre(el: unknown, cle: string) {
   border-top: 1px dashed #eee;
   padding-top: 0.3rem;
   margin-top: 0.3rem;
+  padding-left: 0.9rem; /* niveau locuteur ; les saisies imbriquées
+                           (saisie-eav) gagnent un second retrait */
 }
 .fiche-loc-nom {
   font-size: 0.78rem;
   font-weight: 600;
   color: #000;
 }
-/* Couleurs des en-têtes « Valeurs… » alignées sur les badges ent/loc
-   (créés dans EditionVariables), pour raccorder visuellement la fiche
-   données aux variables qu'elle détaille. */
+/* Couleurs des en-têtes « Valeurs… » alignées sur les badges ent/loc (créés dans EditionVariables),
+   pour raccorder visuellement la fiche données aux variables qu'elle détaille. */
 .h4-ent {
   color: #5c6bc0;
 }
@@ -2193,8 +2156,8 @@ function focaliserLibre(el: unknown, cle: string) {
   gap: 0.3rem;
 }
 /* Petit tableau des locuteurs : Couleur | Nom | Pseudo | Interv. | ✕.
- * La grille de colonnes est partagée entre l'en-tête et les lignes —
- * les largeurs restent stables, le champ Nom respire (colonne 2). */
+ *  La grille de colonnes est partagée entre l'en-tête et les lignes —
+ *  les largeurs restent stables, le champ Nom respire (colonne 2). */
 .tableau-loc-tetes,
 .liste-loc li {
   display: grid;
@@ -2225,10 +2188,10 @@ function focaliserLibre(el: unknown, cle: string) {
   padding: 0.15rem 0.35rem;
   font-size: 0.82rem;
 }
-/* Sélecteur de couleur du nom : auto-rempli par index par défaut (palette
- * prédéfinie) ; au clic, le sélecteur NATIF du navigateur (même mécanisme que
- * l'édition des thèmes — TOUTES les couleurs possibles). Le nom du locuteur
- * s'écrit dans cette couleur dans l'éditeur, sans toucher au pseudo. */
+/* Sélecteur de couleur du nom : auto-rempli par index par défaut (palette prédéfinie) ;
+ *  au clic, le sélecteur NATIF du navigateur (même mécanisme que l'édition des thèmes :
+ *  TOUTES les couleurs possibles). Le nom du locuteur s'écrit dans cette couleur
+ *  dans l'éditeur, sans toucher au pseudo. */
 .carre-couleur {
   width: 1rem;
   height: 1rem;
@@ -2239,9 +2202,9 @@ function focaliserLibre(el: unknown, cle: string) {
   align-self: center;
   background: transparent;
 }
-/* Le `<input type="color">` natif dessine la couleur dans un carré interne
- * entouré d'un liseré clair (« carré dans un carré ») : on force le swatch
- * interne à occuper tout l'élément pour que la couleur prenne toute la place. */
+/* Le `<input type="color">` natif dessine la couleur dans un carré interne,
+ *  entouré d'un liseré clair (« carré dans un carré ») : on force le swatch
+ *  interne à occuper tout l'élément, pour que la couleur prenne toute la place. */
 .carre-couleur::-webkit-color-swatch-wrapper {
   padding: 0;
 }
@@ -2252,8 +2215,8 @@ function focaliserLibre(el: unknown, cle: string) {
 .carre-couleur:hover {
   transform: scale(1.15);
 }
-/* Cellule Pseudo : champ + décision confirmer ✓ / refuser ⊘ (le pseudo posé
- * pseudonymise les étiquettes de ses tours, rendues barrées + [pseudo]). */
+/* Cellule Pseudo : champ + décision confirmer ✓ / refuser ⊘ ; le pseudo posé
+ *  pseudonymise les étiquettes de ses tours, rendues barrées + [pseudo]. */
 .pseudo-cell {
   display: flex;
   align-items: center;
@@ -2280,8 +2243,8 @@ function focaliserLibre(el: unknown, cle: string) {
 .x-loc {
   justify-self: center;
 }
-/* Interrupteur « interviewer » : pilule compacte + « ? » (la convention SonalPi,
-   rendue cliquable). Coché → bleu, tours du locuteur en italique. */
+/* Interrupteur « interviewer » : pilule compacte + « ? », rendue cliquable.
+   Coché → bleu, tours du locuteur en italique. */
 .interv {
   display: inline-flex;
   align-items: center;
@@ -2469,11 +2432,11 @@ function focaliserLibre(el: unknown, cle: string) {
 .ligne-anon.saisie-anon td {
   background: #fffdf2;
 }
-/* Deux sous-lignes dans la colonne actions, façon SonalPi : le slider de portée
- * sur une ligne, les occurrences + l'action (✕) sur l'autre. Le flex vit sur un
- * div INTERNE (`.actions-empile`), PAS sur la cellule `<td>` : un `display:flex`
- * sur un td le retire de son rôle table-cell et casse la participation de la
- * ligne au calcul des colonnes du tableau en `table-layout:fixed`. */
+/* Deux sous-lignes dans la colonne actions : le slider de portée sur une ligne,
+ * les occurrences + l'action (✕) sur l'autre. Le flex vit sur un div INTERNE
+ * (`.actions-empile`), PAS sur la cellule `<td>` : un `display:flex` sur un td
+ * le retire de son rôle table-cell et casse le calcul des colonnes du tableau
+ * en `table-layout:fixed`. */
 .ligne-anon .actions-empile {
   display: flex;
   flex-direction: column;
@@ -2509,7 +2472,7 @@ td.col-pseudo {
  * plusieurs lignes dans sa colonne), plafonné à 5 lignes. Un très long nom est
  * d'abord raccourci « début…fin » (majNomsAnon) ; le clamp CSS reste un
  * garde-fou si la colonne était plus étroite (zooms petits). Même rendu que le
- * Pseudo — texte noir, sans contour — pour l'essai UX de cohérence visuelle. */
+ * Pseudo — texte noir, sans contour. */
 .nom-anon {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -2528,12 +2491,10 @@ td.col-pseudo {
   padding: 0.1rem 0.3rem;
 }
 /* Champs de saisie (case Nom des lignes du bas, Pseudo partout) : textarea qui
- * enveloppe le texte sur plusieurs lignes, s'étire au contenu (field-sizing) et
- * plafonne à 5 lignes — au-delà, défilement INTERNE (on ne tronque jamais la
- * valeur d'un champ éditable, le texte complet reste modifiable). Encadrés comme
- * les champs du tableau Locuteurs (contour #ccc, radius 4) pour harmoniser les
- * deux tableaux ; le fond de la ligne (brouillon/saisie) continue de distinguer
- * les états, le contour assure la ressemblance avec le tableau Locuteurs. */
+ * enveloppe le texte, s'étire au contenu (field-sizing) et plafonne à 5 lignes —
+ * au-delà, défilement INTERNE (on ne tronque jamais la valeur d'un champ
+ * éditable). Encadrés comme les champs du tableau Locuteurs (contour #ccc,
+ * radius 4) ; le fond de la ligne continue de distinguer les états. */
 .nom-saisie,
 .pseudo-anon {
   display: block;
@@ -2566,18 +2527,18 @@ td.col-pseudo {
   color: #bbb;
   font-weight: 400;
 }
-/* Compteurs scindés d'une ligne anon : quantité d'occurrences ANONYMISÉES
- * (barrées) et d'EXCEPTIONS (laissées en clair). Palette SonalPi V1 : les
- * badges ronds colorés (.cpt-btn ci-dessous) portent la couleur de chaque état. */
+/* Compteurs scindés d'une ligne anon : occurrences ANONYMISÉES (barrées) et
+ * EXCEPTIONS (laissées en clair). Les badges ronds colorés (.cpt-btn ci-dessous)
+ * portent la couleur de chaque état. */
 /* Groupe de boutons d'en-tête du panneau anon (⟳ + « + Ligne »). */
 .tete-actions {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
 }
-/* Compteurs cliquables (repérage ◄ i/N ►) : BADGES RONDS colorés, palette
- * SonalPi V1 — vert #15c095 = anonymisé, gris #555 = exception, orange
- * #ff9800 = à anonymiser. Chiffre blanc sur la couleur, comme V1. */
+/* Compteurs cliquables (repérage ◄ i/N ►) : BADGES RONDS colorés — vert
+ * #15c095 = anonymisé, gris #555 = exception, orange #ff9800 = à anonymiser.
+ * Chiffre blanc sur la couleur. */
 .cpt-btn {
   border: none;
   background: transparent;
@@ -2634,8 +2595,8 @@ td.col-pseudo {
   padding: 0 0.15rem;
 }
 /* Le compteur i/N et ses flèches reprennent la COULEUR de la catégorie
- * naviguée (palette V1) : vert = anonymisées, gris = exceptions, orange = à
- * anonymiser — la navigation reste lisible sans retourner aux badges. */
+ * naviguée : vert = anonymisées, gris = exceptions, orange = à anonymiser —
+ * la navigation reste lisible sans retourner aux badges. */
 .rep-anonymise .rep-btn,
 .rep-anonymise .rep-pos {
   color: #15c095;
@@ -2707,7 +2668,7 @@ td.col-pseudo {
 .portee-cran:disabled {
   cursor: default;
 }
-/* Dialogue de divergence de pseudo (poussée vers le corpus, 3b) */
+/* Dialogue de divergence de pseudo (poussée vers le corpus) */
 .portee-dialogue-overlay {
   position: fixed;
   inset: 0;

@@ -4,10 +4,10 @@ import { utiliserSonal } from '../composables/sonal'
 import { visiblesThemes } from '../../shared/corpus/categories'
 
 /**
- * Fenêtre d'ÉDITION des thèmes (parité SonalPi : le crayon ouvre une modale, la
- * consultation reste compacte dans les panneaux). PARTAGÉE par les écrans Corpus
- * et Entretien — même modèle derrière (le codebook corpus) ; seul le `contexte`
- * change la POLITIQUE de suppression :
+ *  Fenêtre d'ÉDITION des thèmes : le crayon ouvre une modale, la consultation
+ *  reste compacte dans les panneaux. PARTAGÉE par les écrans Corpus et
+ *  Entretien — même modèle (le codebook corpus) ; seul le `contexte` change la
+ *  POLITIQUE de suppression :
  *  - `corpus`   : refus si le thème est utilisé quelque part (compteur) ;
  *  - `entretien`: refus si un AUTRE entretien l'utilise ; sinon confirmation →
  *    retrait des codages de CET entretien + suppression de la définition.
@@ -33,16 +33,15 @@ const {
   rafraichirUsages,
 } = utiliserSonal()
 
-/** Taille par défaut du texte de l'éditeur (px) : `.editeur` ne fixe pas de
- *  font-size → hérite du 16px navigateur. Affichée comme choix « par défaut »
- *  du sélecteur (valeur '' → pas de taille stockée). */
+/** Taille par défaut du texte de l'éditeur (px) : `.editeur` ne fixe pas de `font-size` →
+ *  hérite du 16px navigateur. Affichée comme choix « par défaut » du sélecteur
+ *  (valeur '' → pas de taille stockée). */
 const TAILLE_TEXTE = 16
-/** Autres tailles proposées (px) — l'éventail SonalPi, sans le défaut. */
+/** Autres tailles proposées (px), sans la taille par défaut. */
 const TAILLES = [12, 14, 18, 20, 22, 24, 28, 32]
 
-// Repli des sous-thèmes : état de VUE local (jamais persisté, sans effet
-// multi-utilisateur). La catégorie repliée reste visible, seuls ses descendants
-// sont masqués à l'affichage via visiblesThemes.
+// Repli des sous-thèmes : état de VUE local (jamais persisté, sans effet multi-utilisateur).
+// La catégorie repliée reste visible, seuls ses descendants sont masqués à l'affichage via visiblesThemes.
 const replies = ref<Set<string>>(new Set())
 const arbreVisible = computed(() => visiblesThemes(arbreThemes(), replies.value))
 function basculerRepli(id: string) {
@@ -56,8 +55,8 @@ function basculerRepli(id: string) {
 // pour nommer directement sans effacer « Nouveau thème/sous-thème ».
 const nouveauId = ref<string | null>(null)
 // Registre des champs nom RENDUS (rempli à chaque rendu, vidé au démontage) :
-// l'arbre se rafraîchit avant que creerTheme pose nouveauId, donc le focus se
-// pose APRÈS nextTick, sur l'élément déjà présent — jamais au montage.
+// l'arbre se rafraîchit avant que creerTheme pose nouveauId, donc le focus se pose APRÈS nextTick,
+// sur l'élément déjà présent — jamais au montage.
 const champsNom = new Map<string, HTMLInputElement>()
 function noterChampNom(el: HTMLInputElement | null, id: string) {
   if (el) champsNom.set(id, el)
@@ -78,8 +77,7 @@ function renommer(id: string, evt: Event) {
 }
 function changerTaille(id: string, evt: Event) {
   const v = (evt.target as HTMLSelectElement).value
-  // '' = « Aa » → taille: undefined PRÉSENT dans le patch = retour à la taille
-  // du texte (le spread écrase, la clé disparaît à l'écriture).
+  // '' = « Aa » → taille: undefined PRÉSENT dans le patch = retour à la taille du texte (le spread écrase, la clé disparaît à l'écriture).
   modifierTheme(id, { taille: v ? Number(v) : undefined })
 }
 /** ✕ : la politique dépend du contexte (voir en-tête). */
@@ -89,8 +87,8 @@ function supprimer(id: string) {
 }
 
 // --- Migration d'un thème sous un nouveau parent ---
-// ▲▼ ne réordonnent que DANS la fratrie ; le ⤵ change l'emplacement du thème
-// dans l'arbre (sous un autre thème parent, ou à la racine).
+// ▲▼ ne réordonnent que DANS la fratrie ; le ⤵ change l'emplacement du thème dans l'arbre (sous un autre thème parent,
+// ou à la racine).
 const migrationDe = ref<string | null>(null)
 const migrationVers = ref('') // '' = racine
 
@@ -100,8 +98,8 @@ function demanderMigration(id: string) {
   const cat = arbreThemes().find((n) => n.cat.id === id)?.cat
   migrationVers.value = cat?.parent ?? ''
 }
-/** Destinations possibles : la racine + tous les thèmes SAUF le thème migré et
- *  ses descendants (une branche ne peut pas devenir son propre ancêtre). */
+/** Destinations possibles : la racine + tous les thèmes SAUF le thème migré et ses descendants.
+ *  Une branche ne peut pas devenir son propre ancêtre. */
 function destinationsDe(id: string): { id: string; nom: string }[] {
   const arbre = arbreThemes()
   const i = arbre.findIndex((n) => n.cat.id === id)
@@ -168,10 +166,9 @@ onMounted(() => {
 
       <p v-if="arbreThemes().length === 0" class="vide">Aucun thème — clique « + Thème parent ».</p>
 
-      <!-- En-tête de colonnes : les clones .fantome sont les MÊMES éléments qu'une
-           ligne (boutons, input) — largeurs identiques par construction (un span
-           n'a ni le padding ni la police par défaut d'un bouton) → chaque intitulé
-           tombe pile au-dessus de sa colonne. -->
+      <!-- En-tête de colonnes : les clones .fantome sont les MÊMES éléments qu'une ligne (boutons, input),
+           largeurs identiques par construction (un span n'a ni le padding ni la police par défaut d'un bouton) → chaque
+           intitulé tombe pile au-dessus de sa colonne. -->
       <div v-if="arbreThemes().length" class="entete-liste" aria-hidden="true">
         <span class="depliant fantome"></span>
         <input type="color" class="swatch fantome" />
@@ -290,8 +287,7 @@ onMounted(() => {
 .corpus-tete {
   gap: 0.5rem;
 }
-/* Les deux boutons de création ressortent en GRAS : ce sont les gestes premiers
- * de la fenêtre (nouveau thème racine / nouveau sous-thème). */
+/* Les deux boutons de création ressortent en GRAS : ce sont les gestes premiers de la fenêtre (nouveau thème racine / nouveau sous-thème). */
 .corpus-tete .mini,
 .mini-sous {
   font-weight: bold;
@@ -322,8 +318,8 @@ onMounted(() => {
   border-radius: 5px;
   padding: 0.1rem 0.15rem;
 }
-/* Icône de repli d'un parent : largeur FIXE partagée avec son fantôme d'en-tête
-   (l'alignement des colonnes en dépend), bouton discret sans bords. */
+/* Icône de repli d'un parent : largeur FIXE partagée avec son fantôme d'en-tête (l'alignement des colonnes en dépend),
+   bouton discret sans bords. */
 .depliant {
   width: 1.4rem;
   flex: none;
@@ -371,8 +367,7 @@ onMounted(() => {
   flex: none;
   width: 3.2rem; /* fixe : l'en-tête « Aa » se cale sur cette colonne */
 }
-/* En-tête de colonnes : même flex/gap qu'une ligne ; les clones .fantome
-   réservent les largeurs, seul « Aa » est visible. */
+/* En-tête de colonnes : même flex/gap qu'une ligne ; les clones .fantome réservent les largeurs, seul « Aa » est visible. */
 .entete-liste {
   display: flex;
   align-items: center;

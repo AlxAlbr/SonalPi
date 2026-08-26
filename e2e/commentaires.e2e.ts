@@ -5,15 +5,16 @@ import { join } from 'node:path'
 import { lancer, entrerCorpus, entrerEntretien, coderTheme, compterAnnotations, selectionner } from './util'
 
 /**
- * Commentaires en marge (plan-comment) : clic droit → « Commenter » → modale
- * (auteur + texte) → carte en marge sur le tour commenté ; édition et
- * suppression par la même modale (clic carte) ; retrait d'un codage SANS
- * resélectionner (clic droit sur le passage codé) ; persistance au rechargement.
+ *  Commentaires en marge (plan-comment) : clic droit → « Commenter » → modale
+ *  (auteur + texte) → carte en marge sur le tour commenté ; édition et
+ *  suppression par la même modale (clic carte) ; retrait d'un codage SANS
+ *  resélectionner (clic droit sur le passage codé) ; persistance au
+ *  rechargement.
  */
 
-/** Clic droit AU CENTRE de la sélection courante — un clic droit DANS la
- *  sélection la conserve (comportement Chromium) ; hors d'elle, elle est vidée
- *  avant que le handler ne lise l'état. */
+/** Clic droit AU CENTRE de la sélection courante ;
+ *  un clic droit DANS la sélection la conserve (comportement Chromium) ;
+ *  hors d'elle, elle est vidée avant que le handler ne lise l'état. */
 async function clicDroitSelection(page: Page) {
   const centre = await page.evaluate(() => {
     const r = window.getSelection()!.getRangeAt(0).getBoundingClientRect()

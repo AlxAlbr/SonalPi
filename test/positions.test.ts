@@ -2,8 +2,8 @@ import { describe, test, expect } from 'vitest'
 import { Schema } from '@tiptap/pm/model'
 import { debutBloc, charVersPM, pmVersTranches } from '../src/shared/entretien/positions'
 
-/** Confronte le mapping PUR à un vrai doc ProseMirror : la position calculée doit
- *  résoudre exactement la sous-chaîne attendue via doc.textBetween. */
+/** Confronte le mapping PUR à un vrai doc ProseMirror :
+ *  la position calculée doit résoudre exactement la sous-chaîne attendue via doc.textBetween. */
 const schema = new Schema({
   nodes: { doc: { content: 'paragraph+' }, paragraph: { content: 'text*' }, text: {} },
 })
@@ -59,7 +59,7 @@ describe('mapping char ↔ ProseMirror', () => {
     const textes = ['abc', 'def']
     const doc = docDe(textes)
     const L = textes.map((t) => t.length)
-    // du milieu du bloc 0 au milieu du bloc 1
+    // Du milieu du bloc 0 au milieu du bloc 1.
     const from = charVersPM(L, 0, 1) // avant 'b'
     const to = charVersPM(L, 1, 2) // avant 'f'
     const tr = pmVersTranches(L, from, to)

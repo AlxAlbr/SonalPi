@@ -60,9 +60,9 @@ describe('import .sonal — invariants (golden)', () => {
   })
 
   test('exception : un data-pseudo hors-convention est CONSERVÉ en mémoire', () => {
-    // SonalPi lui-même supprime le data-pseudo en posant une exception
-    // (anon-apply.js) ; si un producteur tiers en laisse un, on le garde comme
-    // mémoire de restauration — jamais affiché, jamais ré-exporté.
+    // SonalPi lui-même supprime le data-pseudo en posant une exception (anon-apply.js) ;
+    // si un producteur tiers en laisse un, on le garde comme mémoire de restauration ;
+    // jamais affiché, jamais ré-exporté.
     const html = `<!DOCTYPE html><html><body>
       <div id="contenuText">
         <span class="lblseg sautlig" data-loc="1">
@@ -99,7 +99,7 @@ describe('import .sonal — invariants (golden)', () => {
     const noms = payload.locuteurs.map((l) => l.nom)
     expect(noms).toContain('Interwiever1')
     expect(noms).toContain('Interwievé1')
-    // l'index 0 (vide) est exclu
+    // l'index 0 (vide) est exclu.
     expect(payload.locuteurs.every((l) => l.index > 0)).toBe(true)
   })
 

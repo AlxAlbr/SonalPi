@@ -1,7 +1,7 @@
 /**
- * Banc de conformité WebDAV : le client, les sondes et
- * le miroir joués contre le serveur embarqué, SANS autre hypothèse sur lui que
- * le contrat (préconditions, ETags, multistatus).
+ *  Banc de conformité WebDAV : le client, les sondes et le miroir joués
+ *  contre le serveur embarqué, SANS autre hypothèse sur lui que le contrat
+ *  (préconditions, ETags, multistatus).
  */
 
 import { describe, expect, it, test } from 'vitest'
@@ -21,7 +21,7 @@ import {
   analyserMultistatus,
 } from '../../src/main/webdav/client'
 import { profilerServeur, sonderPreconditions } from '../../src/main/webdav/sondes'
-import { MiroirWebDAV } from '../../src/main/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import { CoffreComptes, idDeCorpus, type Chiffreur } from '../../src/main/distant/coffre'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 import { CorpusStore } from '../../src/main/corpusStore'
@@ -35,9 +35,9 @@ function clientSur(serveur: ServeurWebDAVMemoire): ClientWebDAV {
   )
 }
 
-/** Store de résolution audio : seed démo (e1), sur
- *  lequel les tests écrivent ensuite refs/désignations directement sur disque
- *  (le miroir écrit lui aussi hors du store). */
+/** Store de résolution audio : seed démo (e1) ;
+ *  les tests écrivent ensuite refs/désignations directement sur disque,
+ *  et le miroir écrit lui aussi hors du store. */
 function storeAudio(): { store: CorpusStore; dir: string } {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-audio-distant-'))
   ecrireSeedDemo(dir)
@@ -206,8 +206,9 @@ describe('analyserMultistatus — mini-parseur XML borné', () => {
 </d:multistatus>`
     const sorties = analyserMultistatus(xml)
     expect(sorties.find((e) => e.chemin === 'dav/corpus/grosse.mp4')?.taille).toBe(1_073_741_824)
-    // Absente (serveur avare) → undefined : la garde du miroir ne doit pas
-    // refuser un fichier dont la taille est simplement inconnue.
+    // Absente (serveur avare) → undefined ;
+    // la garde du miroir ne doit pas refuser un fichier,
+    // dont la taille est simplement inconnue.
     expect(sorties.find((e) => e.chemin === 'dav/corpus/sans-taille.mp3')?.taille).toBeUndefined()
   })
 })
@@ -389,8 +390,8 @@ describe('MiroirWebDAV — audios désignés', () => {
     const { miroir, dir } = miroirSur(serveur)
     await miroir.tirer()
 
-    // Un autre poste a retiré la désignation ; le pull texte local reflète
-    // déjà son JSON (on simule en écrivant directement la copie miroir).
+    // Un autre poste a retiré la désignation ; le pull texte local reflète déjà son JSON.
+    // On simule en écrivant directement la copie miroir.
     writeFileSync(
       miroir.cheminLocal('entretiens/e1.json'),
       JSON.stringify({ meta: {} }),
@@ -413,8 +414,9 @@ describe('MiroirWebDAV — audios désignés', () => {
     expect(premier.inaccessibles).toEqual([{ chemin: 'audios/e1.mp3', raison: '404' }])
     expect(existsSync(join(dir, 'audios/e1.mp3'))).toBe(false)
 
-    // Les droits « s'ouvrent » (ou le fichier arrive) : le prochain tirage
-    // re-tente tout seul — l'ETag n'avait PAS été noté au manifeste.
+    // Les droits « s'ouvrent » (ou le fichier arrive) :
+    // le prochain tirage re-tente tout seul ;
+    // l'ETag n'avait PAS été noté au manifeste.
     serveur.creerDossierRelatif('audios')
     serveur.poser('audios/e1.mp3', 'ARRIVE-PLUS-TARD')
     const second = await miroir.tirer()
@@ -440,8 +442,8 @@ describe('MiroirWebDAV — audios désignés', () => {
   it('download STREAMÉ : un gros binaire désigné arrive INTACT sur disque', async () => {
     const serveur = new ServeurWebDAVMemoire()
     amorcerAvecDesignation(serveur)
-    // Octets aléatoires non décodables en UTF-8 (le serveur mémoire les garde
-    // binaires) — 1,5 Mo suffit à traverser plusieurs chunks du pipeline.
+    // Octets aléatoires non décodables en UTF-8 (le serveur mémoire les garde binaires) ;
+    // 1,5 Mo suffit à traverser plusieurs chunks du pipeline.
     const gros = new Uint8Array(randomBytes(1_500_000))
     serveur.poserBinaire('audios/e1.mp3', gros)
     const { miroir, dir } = miroirSur(serveur)
@@ -515,8 +517,8 @@ describe('Téléversement — putBinaire + garde anti-écrasement', () => {
     serveur.creerDossierRelatif('audios')
     const { miroir } = miroirSur(serveur)
 
-    // Source locale binaire (non décodable UTF-8) — le chemin est passé, pas
-    // les octets : c'est le PUT qui lit le fichier en flux.
+    // Source locale binaire (non décodable UTF-8) — le chemin est passé, pas les octets ;
+    // c'est le PUT qui lit le fichier en flux.
     const sourceLocale = join(mkdtempSync(join(tmpdir(), 'source-video-')), 'entretien.mp4')
     const octets = new Uint8Array(randomBytes(1_000_000))
     writeFileSync(sourceLocale, octets)

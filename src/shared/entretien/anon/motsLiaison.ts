@@ -1,19 +1,19 @@
 /**
- * Mots de liaison / articles — détection PURE de l'entité-cœur (4b-B).
+ *  Mots de liaison / articles — détection PURE de l'entité-cœur (4b-B).
  *
- * Quand l'utilisateur valide une entité à affixe (« à Lyon »), on peut lui
- * proposer de créer AUSSI la règle générale (« Lyon »). La suggestion n'est
- * JAMAIS automatique : elle est portée à la modale, « Non » ne crée rien.
+ *  Quand l'utilisateur valide une entité à affixe (« à Lyon »), on peut lui
+ *  proposer de créer AUSSI la règle générale (« Lyon »). La suggestion n'est
+ *  JAMAIS automatique : elle est portée à la modale, « Non » ne crée rien.
  *
- * L'affixe est reconnue en TÊTE de l'entité uniquement (un ou plusieurs mots
- * de liaison consécutifs) : « à Lyon » ✓, « Maison des Habitants » ✗ (le mot
- * de liaison est interne). Deux garde-fous : il doit rester un cœur non vide,
- * et le premier mot du cœur doit être capitalisé (un nom propre) — sinon pas
- * de proposition (« de fait » ne propose rien).
+ *  L'affixe est reconnue en TÊTE de l'entité uniquement (un ou plusieurs mots
+ *  de liaison consécutifs) : « à Lyon » ✓, « Maison des Habitants » ✗ (le mot
+ *  de liaison est interne). Deux garde-fous : il doit rester un cœur non vide,
+ *  et le premier mot du cœur doit être capitalisé (un nom propre) — sinon pas
+ *  de proposition (« de fait » ne propose rien).
  *
- * Le pseudo suit le même rognage en tête : « dans une grande ville » →
- * « une grande ville » (seuls les tokens DE LA LISTE sont rognés ; l'élision
- * « d'une » n'est PAS reconnue comme affixe — choix assumé, on reste simple).
+ *  Le pseudo suit le même rognage en tête : « dans une grande ville » →
+ *  « une grande ville » (seuls les tokens DE LA LISTE sont rognés ; l'élision
+ *  « d'une » n'est PAS reconnue comme affixe — choix assumé, on reste simple).
  */
 
 import type { MotsLiaisonParams } from '../../format'
@@ -38,9 +38,9 @@ function tokeniser(s: string): string[] {
 }
 
 /**
- * Détecte l'entité-cœur d'une entité à affixe. Renvoie null s'il n'y a rien
- * à proposer : pas d'affixe en tête, cœur vide ou non capitalisé.
- * PURE : aucune consultation des réglages — la liste est passée en paramètre.
+ *  Détecte l'entité-cœur d'une entité à affixe. Renvoie null s'il n'y a rien
+ *  à proposer : pas d'affixe en tête, cœur vide ou non capitalisé.
+ *  PURE : aucune consultation des réglages — la liste est passée en paramètre.
  */
 export function detecterAffixeLiaison(
   entite: string,
@@ -59,8 +59,7 @@ export function detecterAffixeLiaison(
   return { entiteCoeur: coeur, pseudoCoeur: rognerAffixePseudo(pseudo, liaison) }
 }
 
-/** Pseudo-cœur : même rognage en tête que l'entité ; jamais vide (si tout le
- *  pseudo est des mots de liaison, il est repris tel quel). */
+/** Pseudo-cœur : même rognage en tête que l'entité, jamais vide — si tout le pseudo est des mots de liaison, il est repris tel quel. */
 function rognerAffixePseudo(pseudo: string, liaison: Set<string>): string {
   const tokens = tokeniser(pseudo)
   let tete = 0
@@ -70,8 +69,8 @@ function rognerAffixePseudo(pseudo: string, liaison: Set<string>): string {
 }
 
 /**
- * Décision complète de suggestion, telle qu'appelée après une validation
- * réussie. Renvoie null (pas de modale) si :
+ *  Décision complète de suggestion, telle qu'appelée après une validation
+ *  réussie. Renvoie null (pas de modale) si :
  *  - le réglage est absent, désactivé ou à liste vide ;
  *  - l'entité est multi-alias ou le pseudo multi-pseudo (invariant I2 :
  *    l'affixe ne se combine ni avec l'un ni avec l'autre) ;
@@ -92,9 +91,9 @@ export function suggestionCoeur(
   const det = detecterAffixeLiaison(entite, pseudo, reglage.liste)
   if (!det) return null
   const cleCoeur = cleEntite(det.entiteCoeur)
-  // Une ligne existante COUVRE le cœur dès que l'un de ses aliases le désigne :
-  // un groupe « Lyon/Lyons » matche déjà « Lyon » — créer la règle-cœur
-  // ferait doublon avec lui.
+  // Une ligne existante COUVRE le cœur dès que l'un de ses aliases le désigne.
+  // Un groupe « Lyon/Lyons » matche déjà « Lyon ».
+  // Créer la règle-cœur ferait doublon avec lui.
   const existe = clesExistantes.some((c) =>
     c.toLowerCase().split('/').includes(cleCoeur),
   )

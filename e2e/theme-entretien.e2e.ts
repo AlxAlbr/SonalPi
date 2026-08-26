@@ -13,12 +13,12 @@ import {
 } from './util'
 
 /**
- * Créer / supprimer un thème DEPUIS l'écran Entretien (via la fenêtre
- * l'écran Entretien : le crayon de l'onglet Thématique ouvre la MÊME fenêtre que
- * l'écran Corpus. Créer écrit le codebook corpus (visible partout). Supprimer :
- * refusé si un AUTRE entretien l'utilise ; sinon confirmation (acte destructif) →
- * retrait des codages de CET entretien (modèle=vérité) + suppression de la
- * définition (store).
+ *  Créer / supprimer un thème DEPUIS l'écran Entretien (via la fenêtre
+ *  d'édition : le crayon de l'onglet Thématique ouvre la MÊME fenêtre que
+ *  l'écran Corpus. Créer écrit le codebook corpus (visible partout). Supprimer :
+ *  refusé si un AUTRE entretien l'utilise ; sinon confirmation (acte destructif) →
+ *  retrait des codages de CET entretien (modèle = vérité) + suppression de la
+ *  définition (store).
  */
 
 test('liste longue de thèmes : le panneau défile seul, on peut coder le début avec un des derniers thèmes', async () => {
@@ -34,9 +34,9 @@ test('liste longue de thèmes : le panneau défile seul, on peut coder le début
   await expect(page.locator('.theme-coder')).toHaveCount(32)
 
   // Le dernier thème créé n'est PAS visible tant que le texte n'a pas défilé :
-  // le panneau (collant) débordait sous le bord bas de la fenêtre. Ce test
-  // couvre la régression ; avant, il fallait descendre dans le texte pour le
-  // voir — les deux étaient liés.
+  // le panneau (collant) débordait sous le bord bas de la fenêtre.
+  // Ce test couvre la régression ; avant, il fallait descendre dans le texte pour le voir —
+  // les deux étaient liés.
   await page.evaluate(() => window.scrollTo(0, 0))
   const dernier = page.locator('.theme-coder').last()
   await expect
@@ -119,8 +119,8 @@ test('supprimer depuis l’entretien un thème utilisé par un AUTRE entretien �
   await coderTheme(page, 'Lieu')
   await expect(page.locator('.etat')).toHaveText('à jour')
 
-  // Retour, rouvrir e1 (1er de la liste), tenter de supprimer « Lieu » → refus
-  // affiché DANS la fenêtre d'édition.
+  // Retour, rouvrir e1 (1er de la liste), tenter de supprimer « Lieu » :
+  // refus affiché DANS la fenêtre d'édition.
   await retourCorpus(page)
   await entrerEntretien(page, 0)
   // L'entretien s'ouvre sur l'ACCUEIL (défaut) → on passe à Thématiques.

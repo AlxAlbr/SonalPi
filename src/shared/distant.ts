@@ -1,6 +1,6 @@
 /**
- * Types partagés main ⇄ renderer pour les corpus distants. Types purs uniquement — aucune logique, aucun secret : le mot de passe
- * d'application ne traverse JAMAIS le pont IPC vers le renderer.
+ *  Types partagés main ⇄ renderer pour les corpus distants. Types purs uniquement — aucune logique, aucun secret : le mot de passe
+ *  d'application ne traverse JAMAIS le pont IPC vers le renderer.
  */
 
 import type { OuvertureCorpus } from './format'
@@ -33,9 +33,9 @@ export type ResultatConnexion =
   | { ok: true; compte: CompteDistantPublic; profil: ProfilCapacites }
   | { ok: false; note: string }
 
-/** Progression d'un transfert binaire : émise périodiquement par le main
- *  pendant le pull miroir (« rapatriement ») et le téléversement. `total`
- *  null si le serveur n'expose pas la taille. */
+/** Progression d'un transfert binaire :
+ *  émise périodiquement par le main pendant le pull miroir (« rapatriement ») et le téléversement.
+ *  `total` null si le serveur n'expose pas la taille. */
 export interface ProgressionTransfert {
   sens: 'rapatriement' | 'televersement'
   chemin: string // relatif au corpus (cible serveur dans les deux cas)
@@ -43,19 +43,17 @@ export interface ProgressionTransfert {
   total: number | null
 }
 
-/** Création d'un nouveau corpus distant : mêmes identifiants que la connexion
- *  plus le nom de projet. Le compte n'est enregistré au coffre qu'après une
- *  publication réussie (rien de semi-créé). */
+/** Création d'un nouveau corpus distant :
+ *  mêmes identifiants que la connexion plus le nom de projet.
+ *  Le compte n'est enregistré au coffre qu'après une publication réussie (rien de semi-créé). */
 export interface DemandeCreationDistante extends DemandeConnexion {
   nomProjet: string
 }
 
-/** Ouverture d'un corpus distant : le corpus vient du MIROIR local
- *  (`userData/miroirs/<id>`) fraîchement tiré — le renderer ne sait pas
- *  faire la différence avec un corpus local : c'est voulu.
- *  Le pull d'ouverture livre aussi l'état des verrous (badges fiables,
- *  sans second aller-retour).
- */
+/** Ouverture d'un corpus distant : le corpus vient du MIROIR local (`userData/miroirs/<id>`)
+ *  fraîchement tiré — le renderer ne sait pas faire la différence avec un corpus local :
+ *  c'est voulu. Le pull d'ouverture livre aussi l'état des verrous (badges fiables,
+ *  sans second aller-retour). */
 export interface OuvertureDistante extends OuvertureCorpus {
   distant: CompteDistantPublic
   verrous: EntreeVerrouPublic[]
@@ -65,20 +63,17 @@ export interface OuvertureDistante extends OuvertureCorpus {
   inaccessibles?: { chemin: string; raison: string }[]
 }
 
-/** État PUBLIC d'un fichier verrou — ce que l'UI affiche (« tenu par X depuis
- *  HH:MM »). Aucun champ de protocole (sessionId, ttl) ne traverse le pont.
- */
+/** État PUBLIC d'un fichier verrou — ce que l'UI affiche (« tenu par X depuis HH:MM »).
+ *  Aucun champ de protocole (sessionId, ttl) ne traverse le pont. */
 export interface EtatVerrouPublic {
   userId: string
   machineId: string
   acquiredAt: string // ISO
 }
 
-/** Une entrée `verrous/` vue au pull, avec son contenu décodé (null = fichier
- *  illisible/corrompu — badge omis, jamais deviné). Les verrous de NOTRE
- *  propre session sont filtrés côté main : un badge « tenu par moi » sur la
- *  carte que je suis en train d'éditer n'apporte rien.
- */
+/** Une entrée `verrous/` vue au pull, avec son contenu décodé (null = fichier illisible/corrompu —
+ *  badge omis, jamais deviné). Les verrous de NOTRE propre session sont filtrés côté main :
+ *  un badge « tenu par moi » sur la carte que je suis en train d'éditer n'apporte rien. */
 export interface EntreeVerrouPublic {
   chemin: string // « verrous/<id>.lock.json »
   etag: string | null
@@ -90,10 +85,9 @@ export interface ResultatTiragePublic {
   telecharges: string[]
   corbeille: string[]
   verrous: EntreeVerrouPublic[]
-  /** Audios désignés (meta.audioDistant) dont la
-   *  récupération a échoué (403/404/réseau) — matière des badges « audio
-   *  inaccessible ». Non bloquant : le prochain tirage re-tentera. Absent si
-   *  corpus local ou rien à signaler. */
+  /** Audios désignés (meta.audioDistant) dont la récupération a échoué (403/404/réseau) —
+   *  matière des badges « audio inaccessible ». Non bloquant : le prochain tirage re-tentera.
+   *  Absent si corpus local ou rien à signaler. */
   inaccessibles?: { chemin: string; raison: string }[]
   /** Présences vivantes des autres postes — informatif, jamais décisionnel.
    *  Absent si corpus local. */
@@ -101,8 +95,8 @@ export interface ResultatTiragePublic {
   date: string
 }
 
-/** Présence informative : qui consulte quoi, SANS valeur décisionnelle
- *  (la décision, c'est le verrou). Une présence > 10 min est morte (filtrée). */
+/** Présence informative : qui consulte quoi, SANS valeur décisionnelle (la décision,
+ *  c'est le verrou). Une présence > 10 min est morte (filtrée). */
 export interface PresencePublic {
   userId: string
   machineId: string
@@ -120,9 +114,9 @@ export interface OrphelinDistant {
   acquiredAt: string // ISO
 }
 
-/** Une copie de DIVERGENCE mise de côté après une rétrogradation de
- *  publication 412 — matière du dialogue de fusion assistée. Le contenu ne traverse
- *  le pont que sur demande explicite (`lireDivergence`). */
+/** Une copie de DIVERGENCE mise de côté après une rétrogradation de publication 412 —
+ *  matière du dialogue de fusion assistée.
+ *  Le contenu ne traverse le pont que sur demande explicite (`lireDivergence`). */
 export interface DivergenceDistante {
   chemin: string // « sessions/<id>.divergence-<sessionId>.json » (relatif miroir)
   id: string // id de l'entretien concerné
