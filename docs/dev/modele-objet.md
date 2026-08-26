@@ -13,8 +13,8 @@
 | Niveau | Contenu | Section |
 |---|---|---|
 | **1 — Vue d'ensemble** | les **agrégats**, le patron à 3 étages et la colonne vertébrale du texte | §1, §2 — court et stable |
-| **2 — Sous-schémas par préoccupation** | un cluster cohérent, sa logique, son lien avec les fichiers | §3 à §9 — un diagramme chacun |
-| **3 — Notes en prose** | asymétries, non-implementé, carte code ↔ modèle | §10, §11 |
+| **2 — Sous-schémas par préoccupation** | un cluster cohérent, sa logique, son lien avec les fichiers | §3 à §10 — un diagramme chacun |
+| **3 — Notes en prose** | asymétries, non-implémenté, carte code ↔ modèle | §11, §12 |
 
 > **Ce qui s'est effondré depuis SonalPi V1.** Le code actuel a **supprimé** une grande partie de
 > la complexité que le doc initial devait documenter : la **double tenue** EAV local↔corpus
@@ -443,9 +443,12 @@ classDiagram
   décisions **persistées** ; la **suggestion** (nom matchant une règle corpus) est une **requête**
   de l'étape 3, jamais stockée. Rendu par dérivation pure `libelleGouttiere`
   (`entretien/locuteurs.ts`). Ordre des cas : un **refus explicite prime** sur le pseudo.
+  L'interface ne propose plus la bascule confirmer/refuser : poser un pseudo pseudonymise
+  directement les étiquettes. Le champ `pseudoEtat` survit pour la **parité fichiers V1** :
+  un refus importé d'un `.sonal` reste honoré au rendu, mais il n'est plus saisissable ici.
 - **Couleur** : choisie (palette définie `PALETTE_PASTILLES_LOCUTEURS`) ou **auto par index** ;
   stable car l'index est l'identité.
-- **`personneRef`** : pointe vers `Personne` (corpus) — **non implémenté** (voir §10).
+- **`personneRef`** : pointe vers `Personne` (corpus) — **non implémenté** (voir §11).
 
 **Code** : `src/shared/entretien/locuteurs.ts`, type `Locuteur` dans `src/shared/format.ts`.
 
@@ -534,7 +537,45 @@ classDiagram
 
 # Niveau 3 — Notes en prose
 
-## 10. Notes de cadrage
+## 10. Notes d'entretien
+
+> **Cadrage.** Les notes vivent HORS du texte : contrairement aux annotations (§3), elles ne
+> portent aucune position ProseMirror. Une note est un court document autonome rattaché à une
+> catégorie définie au CORPUS (même logique que le codebook : définitions partagées, usages
+> dans les entretiens).
+
+```mermaid
+classDiagram
+    class Note {
+        +string id
+        +string categorieId «→ NoteCategory.id (corpus)»
+        +string titre? «affiché seul en vue cartes»
+        +string corps «HTML sanitisé : texte échappé + <mark>/<em>»
+        +number rang «ordre manuel, défaut = max + 1»
+        +string? date
+    }
+    NoteCategory "1" o-- "*" Note : categorieId
+```
+
+- **Le corps est stocké en HTML sanitisé** — c'est LE contrat du format (`format.ts`) : texte
+  échappé, seules `<mark>` (passage important, gras) et `<em>` (lié à un commentaire, italique)
+  survivent, avec leurs attributs de liaison aux commentaires. Tout le reste de la frappe ou du
+  collage est aplati en texte : on ne perd jamais le contenu, jamais le formatage parasite.
+- **L'hygiène HTML est un module renderer** (`renderer/notes/sanitiser.ts`), pas du domaine pur :
+  il parse le HTML via le DOM et nettoie des conteneurs VIVANTS (contenteditable en cours de
+  frappe). C'est l'exemple type du fragment qui n'est ni modèle pur (`shared/`), ni composant —
+  voir [architecture.md](architecture.md), « Où placer un module dans le renderer ? ».
+- **Les références de commentaire ne sont jamais persistées** : les spans `[auteur : début…]`
+  affichés sont reconstruits à l'affichage depuis les liens (`data-liens`) et jetés à la
+  sauvegarde.
+- **Ordre = `rang` manuel** (« après la dernière » = max + 1), réordonnancement manuel.
+- **Catégories au corpus** : CRUD + comptages d'usage (politique « refus si utilisée ») dans
+  `shared/corpus/categories.ts` (§5).
+
+**Code** : `src/shared/entretien/notes.ts` (modèle pur), `src/renderer/notes/sanitiser.ts`
+(hygiène HTML), types `Note` / `NoteCategory` dans `src/shared/format.ts`.
+
+## 11. Notes de cadrage
 
 - **Asymétrie Catégorie ↔ Locuteur** (§5 vs §7) : la **catégorie** descend au **texte** (par
   positions, un codage peut enjamber des blocs) ; le **locuteur** reste au **bloc** — lui *crée* une
@@ -556,7 +597,7 @@ classDiagram
   fonctions **pures**. Un test **garde-fou** — « discipline d'architecture » dans `test/remap.test.ts`
   — vérifie mécaniquement que `src/shared/entretien/` n'importe jamais le DOM/ProseMirror.
 
-## 11. Carte code ↔ modèle
+## 12. Carte code ↔ modèle
 
 Le domaine a **deux agrégats** et la structure du code les reflète directement — un dossier par
 agrégat, un fichier par concept :
@@ -587,6 +628,7 @@ src/shared/
     entretien.ts            commandes d'annotation (coder/retirer)       (§3)
     journal.ts              journal d'actions annulables                 (§8)
     locuteurs.ts            locuteurs (dont pseudo/pseudoEtat/couleur)   (§7)
+    notes.ts                notes d'entretien (catégories, rangs)         (§10)
     migration.ts            migration v1→v2 des entretiens
     anon/                   ── domaine anonymisation ──                  (§6)
       anonymisation.ts        moteur (texte plat, plages)

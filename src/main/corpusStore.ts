@@ -47,6 +47,7 @@ import {
   type ParamsAnon,
   type NoteCategory,
   paramsAnonDefaut,
+  CORPUS_SUPPRIME,
 } from '../shared/format'
 import {
   normaliserCategoriesNote,
@@ -122,6 +123,13 @@ export class CorpusStore {
    *  reste. Les dérivés locaux purs (PNG waveform) restent permis. */
   lectureSeule = false
 
+  /** Amorçage encore permis pour CE store ? Vrai à la création (le dossier
+   *  vient d'être choisi explicitement — neuf ou vide) puis faux dès qu'un
+   *  corpus existe. Si `corpus.json` disparaît ensuite (dossier supprimé à
+   *  l'extérieur de l'app), `ouvrir()` lève CORPUS_SUPPRIME au lieu de
+   *  recréer un corpus fantôme en silence. */
+  private amortissable = true
+
   private verifierEcriture(): void {
     if (this.lectureSeule) {
       throw new Error(
@@ -191,13 +199,31 @@ export class CorpusStore {
     renameSync(tmp, fichier) // rename atomique : un crash laisse l'ancien fichier intact
   }
 
-  /** Ouvre (ou amorce) le corpus */
+  /** Ouvre (ou amorce) le corpus.
+   *  L'amorçage n'a lieu qu'une fois par store, au moment où le dossier est
+   *  CHOISI ; ensuite, un `corpus.json` absent signifie « supprimé sur
+   *  disque » → erreur sentinelle CORPUS_SUPPRIME, jamais de recréation
+   *  silencieuse. La garde précède toute création de dossier : un corpus
+   *  supprimé ne laisse pas de squelette derrière lui. */
   ouvrir(): CorpusFichier {
+    if (!existsSync(this.corpusFile)) {
+      if (!this.amortissable) {
+        throw new Error(
+          `${CORPUS_SUPPRIME}: le dossier du corpus courant a été supprimé sur disque.`,
+        )
+      }
+    } else {
+      this.amortissable = false // un corpus existant est ouvert : plus jamais d'amorçage implicite
+    }
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
 
     // Nouveau corpus : traité plus bas.
-    if (!existsSync(this.corpusFile)) return this.amorcer()
+    if (!existsSync(this.corpusFile)) {
+      const amorce = this.amorcer()
+      this.amortissable = false // même un corpus qu'on vient d'amorcer ne se ré-amorce pas
+      return amorce
+    }
 
     // `CorpusFichier` contient les 5 blocs de définitions : codebook, variables,
     // reglesAnon, personnes, membership (voir shared/format.ts).

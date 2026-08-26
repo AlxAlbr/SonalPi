@@ -441,7 +441,7 @@ test('pas-à-pas : l’étape 1 REFUSE un fichier autre que 1Coordinatrice (gard
   await expect(page.locator('.spotlight-trou')).toBeVisible()
 
   // 1er essai : on « se trompe » de fichier — les dialogues de la modale
-  // renvoient 2Catholique (un AUTRE entretien), pas 1Coordinatrice : l'ajout doit être REFUSÉ (message dans la
+  // renvoient 2RetraiteAnticipee (un AUTRE entretien), pas 1Coordinatrice : l'ajout doit être REFUSÉ (message dans la
   // modale, aucun entretien créé, étape 1 toujours pas cochée) — la suite du
   // parcours est construite sur le contenu d'1Coordinatrice.
   await app.evaluate(({ dialog }, args) => {
@@ -451,12 +451,12 @@ test('pas-à-pas : l’étape 1 REFUSE un fichier autre que 1Coordinatrice (gard
       canceled: false,
       filePaths: [fichiers[Math.min(i++, fichiers.length - 1)]],
     })
-  }, { srt: join(dirSources, 'srt', '2Catholique.srt'), mp3: join(dirSources, 'audio', '2Catholique.mp3') })
+  }, { srt: join(dirSources, 'srt', '2RetraiteAnticipee.srt'), mp3: join(dirSources, 'audio', '2RetraiteAnticipee.mp3') })
   await page.locator('.ajout-ent').click()
   await page.locator('.zone-texte').click()
-  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('2Catholique.srt')
+  await expect(page.locator('.zone-texte .zone-fichier')).toContainText('2RetraiteAnticipee.srt')
   await page.locator('.zone-audio').click()
-  await expect(page.locator('.zone-audio .zone-fichier')).toContainText('2Catholique.mp3')
+  await expect(page.locator('.zone-audio .zone-fichier')).toContainText('2RetraiteAnticipee.mp3')
   await page.locator('.modale-ajout .valider').click()
   await expect(page.locator('.modale-ajout')).toBeVisible()
   await expect(page.locator('.msg-ajout')).toContainText('1Coordinatrice.srt')

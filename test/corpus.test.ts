@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import * as corpus from '../src/shared/corpus'
+import { detailsVariablesEntretien } from '../src/shared/corpus/variables'
 import type { CorpusFichier, EntretienFichier, Locuteur } from '../src/shared/format'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
@@ -104,6 +105,49 @@ describe('corpus — variables/modalités (id opaque injecté)', () => {
     corpus.ajouterModalite(c, v, 'F', () => 'mod-2')
     expect(c.variables[v].modalites.map((m) => m.mExport)).toEqual([1, 2])
     expect(c.variables[v].modalites[1]).toMatchObject({ id: 'mod-2', lib: 'F' })
+  })
+})
+
+describe('corpus — détails variables d’un entretien (panneau métadonnées, lecture seule)', () => {
+  /** Définitions : « Lieu » (entretien), « Sexe » puis « Âge » (locuteur). */
+  function definitions() {
+    return [
+      { id: 'v1', lib: 'Lieu', portee: 'entretien' as const, priv: false, ordre: 0, vExport: 1,
+        modalites: [{ id: 'v1m1', lib: 'Lyon', mExport: 1 }, { id: 'v1m2', lib: 'Paris', mExport: 2 }] },
+      { id: 'v2', lib: 'Sexe', portee: 'locuteur' as const, priv: false, ordre: 1, vExport: 2,
+        modalites: [{ id: 'v2m1', lib: 'H', mExport: 1 }, { id: 'v2m2', lib: 'F', mExport: 2 }] },
+      { id: 'v3', lib: 'Âge', portee: 'locuteur' as const, priv: false, ordre: 2, vExport: 3,
+        modalites: [] },
+    ]
+  }
+
+  test('résout les libellés de modalités et respecte l’ordre des définitions', () => {
+    const d = detailsVariablesEntretien(definitions(), {
+      meta: { valeursGen: { v1: 'v1m2' } },
+      locuteurs: [
+        { nom: 'Karine', valeursLoc: { v2: 'v2m2' } },
+      ],
+    })
+    expect(d.generales.map((l) => [l.lib, l.valeur])).toEqual([['Lieu', 'Paris']])
+    expect(d.parLocuteur).toHaveLength(1)
+    expect(d.parLocuteur[0].nom).toBe('Karine')
+    // Les deux variables locuteurs, dans l'ordre ; « Âge » n'a pas de valeur.
+    expect(d.parLocuteur[0].lignes.map((l) => [l.lib, l.valeur])).toEqual([
+      ['Sexe', 'F'],
+      ['Âge', null],
+    ])
+  })
+
+  test('les interviewers (« ? ») n’ont pas de bloc ; une valeur orpheline est ignorée', () => {
+    const d = detailsVariablesEntretien(definitions(), {
+      meta: { valeursGen: { v1: 'inconnu' } }, // idMod sans définition → pas de valeur affichée
+      locuteurs: [
+        { nom: 'Enquêteur ?', valeursLoc: { v2: 'v2m1' } }, // interviewer : exclu (parité V1)
+        { nom: 'Karine', valeursLoc: {} },
+      ],
+    })
+    expect(d.generales[0].valeur).toBeNull()
+    expect(d.parLocuteur.map((b) => b.nom)).toEqual(['Karine'])
   })
 })
 
@@ -227,6 +271,35 @@ describe('corpus — hiérarchie des thèmes', () => {
     expect(arbre[0]).toMatchObject({ premier: true, dernier: false }) // A : 1er root, pas dernier
     expect(arbre[1]).toMatchObject({ premier: true, dernier: true }) // A1 : enfant unique
     expect(arbre[2]).toMatchObject({ dernier: true }) // B : dernier root
+  })
+
+  test('ordreThemes : aEnfants reflète la présence d\'enfants directs', () => {
+    const c = corpusVide()
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid)
+    corpus.ajouterCategorie(c, 'A1', a, gid) // A a un enfant direct
+    corpus.ajouterCategorie(c, 'B', null, gid) // B n'en a pas
+    const arbre = corpus.ordreThemes(c.codebook)
+    expect(arbre.find((x) => x.cat.id === a)?.aEnfants).toBe(true)
+    expect(arbre.find((x) => x.cat.nom === 'B')?.aEnfants).toBe(false)
+  })
+
+  test('visiblesThemes : masque les descendants d\'une catégorie repliée (racine gardée)', () => {
+    const c = corpusVide()
+    let n = 0
+    const gid = () => `cat-${++n}`
+    const a = corpus.ajouterCategorie(c, 'A', null, gid)
+    const a1 = corpus.ajouterCategorie(c, 'A1', a, gid)
+    const a11 = corpus.ajouterCategorie(c, 'A11', a1, gid) // petit-fils de A
+    const b = corpus.ajouterCategorie(c, 'B', null, gid)
+    const arbre = corpus.ordreThemes(c.codebook)
+    // Replier A → A reste, A1 et A11 disparaissent ; B (à plat) reste.
+    expect(corpus.visiblesThemes(arbre, new Set([a])).map((x) => x.cat.id)).toEqual([a, b])
+    // Replier A1 → seul A11 est masqué.
+    expect(corpus.visiblesThemes(arbre, new Set([a1])).map((x) => x.cat.id)).toEqual([a, a1, b])
+    // Rien de replié → tout est visible.
+    expect(corpus.visiblesThemes(arbre, new Set()).map((x) => x.cat.id)).toEqual([a, a1, a11, b])
   })
 
   test('deplacerCategorie reste DANS la fratrie (ne traverse pas les parents)', () => {

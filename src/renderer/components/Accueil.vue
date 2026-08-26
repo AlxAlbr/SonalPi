@@ -105,7 +105,7 @@ async function lancerPreparer(mode: ModeDemo) {
         <div class="cartes-demo">
           <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
             <div class="carte-titre">Tester V2 tout en gardant le contenu lié à V1 intact</div>
-            <div class="carte-sous">Test provisoire — notes, commentaires et anonymisation non encore repris</div>
+            <div class="carte-sous">Migration locale — l’ancien dossier V1 reste intact, tout le contenu est repris</div>
           </button>
         </div>
       </div>

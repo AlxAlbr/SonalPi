@@ -4,6 +4,7 @@ import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
+import MenuTheme from './MenuTheme.vue'
 import MenuLiensNote from './MenuLiensNote.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
 import {
@@ -19,6 +20,7 @@ import EditionThemes from './EditionThemes.vue'
 import EditionVariables from './EditionVariables.vue'
 import { utiliserSonal } from '../composables/sonal'
 import { couleurPourLocuteur } from '../../shared/entretien/locuteurs'
+import { visiblesThemes } from '../../shared/corpus/categories'
 // Icônes d'onglets rapatriées de SonalPi (img/) ; « journal » et « maison »
 // créées dans le même style (glyphe noir à plat) — SonalPi n'a pas d'équivalent.
 import icoThemes from '../assets/icones/logocat.png'
@@ -35,6 +37,8 @@ const {
   varsLoc,
   couleurHex,
   arbreThemes,
+  modifierTheme,
+  usages,
   locuteurs,
   meta,
   ongletDroite,
@@ -49,6 +53,16 @@ const {
   demarrerReperage,
   naviguerReperage,
   arreterReperage,
+  // Recherche / remplacement (Ctrl+F)
+  rechercheOuverte,
+  rechercheTexte,
+  remplacementTexte,
+  occurrencesRecherche,
+  indexRecherche,
+  fermerRecherche,
+  naviguerRecherche,
+  remplacerOccurrenceCourante,
+  remplacerTout,
   validerAnon,
   supprimerAnon,
   creerBrouillon,
@@ -88,8 +102,6 @@ const {
   nouveauLocuteur,
   setInterviewer,
   setPseudoLoc,
-  setPseudoEtatLoc,
-  basculerPseudoEtatLoc,
   choisirCouleurLoc,
   locuteurASupprimer,
   demanderSuppressionLocuteur,
@@ -146,6 +158,13 @@ const heureDe = (iso: string | null | undefined) =>
 // Lecture seule du CONTENU : l'entretien ouvert est figé ssi son verrou est
 // tenu par autrui. Les définitions suivent `lectureSeule`.
 const roContenu = computed(() => verrouAutrui.value !== null)
+
+// Compteur « i/N » de la boîte recherche/remplacement (vide sans requête).
+const compteRecherche = computed(() => {
+  if (!rechercheTexte.value.trim()) return ''
+  const n = occurrencesRecherche.value.length
+  return n === 0 ? '0/0' : `${indexRecherche.value + 1}/${n}`
+})
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
 
@@ -153,6 +172,29 @@ const { estVideo, videoVisible, toggleVideo } = audio
 // en contexte entretien elle porte la politique de suppression adaptée
 // (refus si un AUTRE entretien utilise le thème, sinon retrait des codages ici).
 const editerThemes = ref(false)
+// Menu contextuel d'un THÈME du panneau (actif ↔ passif sans ouvrir l'édition).
+const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
+/** Ouvre le menu au clic droit sur un thème (masqué en lecture seule). */
+function ouvrirMenuTheme(cat: { id: string; nom: string; actif: boolean }, evt: MouseEvent) {
+  if (lectureSeule.value) return
+  menuTheme.value = { id: cat.id, nom: cat.nom, x: evt.clientX, y: evt.clientY, actif: cat.actif }
+}
+/** Bascule actif → passif (ou l'inverse), puis ferme le menu. */
+function basculerActifTheme() {
+  const m = menuTheme.value
+  if (m) modifierTheme(m.id, { actif: !m.actif })
+  menuTheme.value = null
+}
+// Repli des sous-thèmes dans le panneau : état de VUE local (jamais persisté,
+// indépendant par écran), les catégories repliées restent visibles.
+const repliesThemes = ref<Set<string>>(new Set())
+const arbreVisible = computed(() => visiblesThemes(arbreThemes(), repliesThemes.value))
+function basculerRepli(id: string) {
+  const s = new Set(repliesThemes.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  repliesThemes.value = s
+}
 // Idem pour les variables : le crayon de l'onglet Données ouvre la MÊME fenêtre
 // que la Table de données (créer des variables d'entretien/locuteur sans
 // repasser par l'écran Corpus).
@@ -902,6 +944,10 @@ function focaliserLibre(el: unknown, cle: string) {
               🎧 Raccourci : tapez <b>DEUX FOIS</b> sur la touche <b>Espace</b> dans l'éditeur
               pour lancer puis arrêter la lecture de l'audio.
             </p>
+            <p class="raccourci">
+              🔍 Raccourci : dans l'éditeur, <b>Ctrl+F</b> ouvre la recherche
+              et le remplacement dans la transcription.
+            </p>
             <ul class="liste-tours">
               <li>
                 <img class="ico-onglet" :src="icoNotes" alt="" />
@@ -943,18 +989,30 @@ function focaliserLibre(el: unknown, cle: string) {
 
             <p v-if="codebook.length === 0" class="vide">Aucun thème — ✏️ pour en créer.</p>
             <ul class="liste-coder">
-              <li v-for="n in arbreThemes()" :key="n.cat.id" class="ligne-coder">
+              <li v-for="n in arbreVisible" :key="n.cat.id" class="ligne-coder">
                 <button
                   class="theme-coder"
                   :class="{ inactif: !n.cat.actif }"
                   :style="{ marginLeft: n.profondeur * 1.1 + 'rem' }"
                   :disabled="roContenu"
                   @click="coderAvec(n.cat.id)"
+                  @contextmenu.prevent="ouvrirMenuTheme(n.cat, $event)"
                 >
+                  <span
+                    v-if="n.aEnfants"
+                    class="depliant"
+                    role="button"
+                    :title="repliesThemes.has(n.cat.id) ? 'Replier les sous-thèmes' : 'Déplier les sous-thèmes'"
+                    @click.stop="basculerRepli(n.cat.id)"
+                  >
+                    {{ repliesThemes.has(n.cat.id) ? '▸' : '▾' }}
+                  </span>
+                  <span v-else class="depliant depliant-masque"></span>
                   <span class="pastille" :style="{ background: couleurHex(n.cat) }"></span>
                   <!-- Taille de police UNIFORME (décision utilisateur : la taille
                        d'un thème ne s'applique qu'au marquage dans le texte). -->
                   <span class="theme-nom">{{ n.cat.nom }}</span>
+                  <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">{{ usages[n.cat.id] ?? 0 }}</span>
                 </button>
               </li>
             </ul>
@@ -979,8 +1037,7 @@ function focaliserLibre(el: unknown, cle: string) {
 
             <!-- Petit tableau des locuteurs : Nom | Pseudo
                  (optionnel) | Interv. | ✕. Le pseudo posé pseudonymise les
-                 étiquettes des tours (barré + [pseudo] dans la gouttière) ;
-                 ✓ contrôle la confirmation, ⊘ le refus (libellé en clair). -->
+                 étiquettes des tours (barré + [pseudo] dans la gouttière). -->
             <div class="tableau-loc">
               <div class="tableau-loc-tetes">
                 <span title="Couleur du nom — cliquer pour choisir"></span>
@@ -1021,19 +1078,6 @@ function focaliserLibre(el: unknown, cle: string) {
                       :disabled="roContenu"
                       @change="setPseudoLoc(l.index, ($event.target as HTMLInputElement).value)"
                     />
-                    <template v-if="(l.pseudo ?? '').trim()">
-                      <!-- Un seul bouton-bascule ✓ / ⊘ (économie de place dans la
-                           colonne Pseudo) : ✓ vert = pseudonymisation confirmée,
-                           ⊘ rouge = libellé en clair refusé. Un clic bascule. -->
-                      <button
-                        class="dec-pseudo"
-                        :class="l.pseudoEtat === 'refuse' ? 'refus actif' : 'actif'"
-                        :title="l.pseudoEtat === 'refuse'
-                          ? 'Libellé en clair (refusé) — cliquer pour confirmer ✓'
-                          : 'Pseudonymisation confirmée ✓ — cliquer pour refuser (⊘)'"
-                        v-if="!roContenu" @click="basculerPseudoEtatLoc(l.index)"
-                      >{{ l.pseudoEtat === 'refuse' ? '⊘' : '✓' }}</button>
-                    </template>
                   </div>
                   <label class="interv" :title="`${l.nom} pose les questions (interviewer) — tours en italique`">
                     <input
@@ -1648,7 +1692,46 @@ function focaliserLibre(el: unknown, cle: string) {
       </div>
 
       <EditionThemes v-if="editerThemes" contexte="entretien" @fermer="editerThemes = false" />
+      <MenuTheme
+        v-if="menuTheme"
+        :x="menuTheme.x"
+        :y="menuTheme.y"
+        :nom="menuTheme.nom"
+        :actif="menuTheme.actif"
+        @basculer="basculerActifTheme"
+        @fermer="menuTheme = null"
+      />
       <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
+
+      <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas
+           à droite, visible quel que soit le défilement du texte. Entrée =
+           occurrence suivante, Échap ferme ; le remplacement est masqué si le
+           verrou d'autrui fige l'entretien (roContenu). -->
+      <div v-if="rechercheOuverte" class="barre-recherche">
+        <div class="ligne-recherche">
+          <input
+            id="champ-recherche"
+            v-model="rechercheTexte"
+            placeholder="Rechercher…"
+            @keydown.enter.prevent="naviguerRecherche(1)"
+            @keydown.escape="fermerRecherche"
+          />
+          <span class="compte">{{ compteRecherche }}</span>
+          <button title="Occurrence précédente" :disabled="!occurrencesRecherche.length" @click="naviguerRecherche(-1)">‹</button>
+          <button title="Occurrence suivante (Entrée)" :disabled="!occurrencesRecherche.length" @click="naviguerRecherche(1)">›</button>
+          <button class="fermer" title="Fermer (Échap)" @click="fermerRecherche">✕</button>
+        </div>
+        <div v-if="!roContenu" class="ligne-remplacement">
+          <input
+            v-model="remplacementTexte"
+            placeholder="Remplacer par…"
+            @keydown.enter.prevent="remplacerOccurrenceCourante"
+            @keydown.escape="fermerRecherche"
+          />
+          <button :disabled="!occurrencesRecherche.length || indexRecherche < 0" title="Remplacer l'occurrence courante" @click="remplacerOccurrenceCourante">Remplacer</button>
+          <button :disabled="!occurrencesRecherche.length" title="Remplacer toutes les occurrences (une seule annulation Ctrl+Z)" @click="remplacerTout">Tout</button>
+        </div>
+      </div>
 
       <!-- Menu contextuel de l'éditeur (clic droit) : sections anon
            (exception ↔ anonymisé, multi-pseudo), codages couvrants (retrait
@@ -1978,7 +2061,7 @@ function focaliserLibre(el: unknown, cle: string) {
 .theme-coder {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.3rem;
   width: 100%;
   text-align: left;
   border: 1px solid #e5e5ef;
@@ -1988,12 +2071,38 @@ function focaliserLibre(el: unknown, cle: string) {
   cursor: pointer;
   font-size: 0.85rem;
 }
+/* Icône de repli d'un parent dans le panneau : même liseré que l'édition des
+   thèmes ; `-masque` réserve la place (largeur égale) sur les feuilles pour
+   que la pastille reste alignée. */
+.depliant {
+  width: 1.1rem;
+  flex: none;
+  border: none;
+  background: none;
+  color: #777;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
+.depliant-masque {
+  visibility: hidden;
+}
+.depliant:hover {
+  color: #1565c0;
+}
+/* Compteur de codages (corpus) d'un thème, collé à droite du nom. */
+.usage {
+  font-size: 0.68rem;
+  color: #888;
+  font-family: monospace;
+  flex: none;
+}
 .theme-coder:hover {
   border-color: #2e73d8;
   background: #f0f6ff;
 }
 .theme-coder.inactif {
-  opacity: 0.45;
+  opacity: 0.3;
 }
 .pastille {
   width: 12px;
@@ -2003,6 +2112,7 @@ function focaliserLibre(el: unknown, cle: string) {
   border: 1px solid rgba(0, 0, 0, 0.15);
 }
 .theme-nom {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2154,31 +2264,6 @@ function focaliserLibre(el: unknown, cle: string) {
 .pseudo-loc::placeholder {
   color: #bbb;
   font-style: italic;
-}
-.dec-pseudo {
-  flex: none;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fff;
-  padding: 0 0.28rem;
-  font-size: 0.66rem;
-  line-height: 1.4;
-  cursor: pointer;
-  opacity: 0.45;
-}
-.dec-pseudo:hover {
-  opacity: 1;
-}
-.dec-pseudo.actif {
-  opacity: 1;
-  border-color: #2e73d8;
-  color: #1565c0;
-  background: #eef4ff;
-}
-.dec-pseudo.refus.actif {
-  border-color: #c33;
-  color: #c33;
-  background: #fff3f3;
 }
 .interv {
   justify-self: center;
@@ -3053,4 +3138,60 @@ td.col-pseudo {
 }
 .sous-modale-fenetre h4 { margin: 0 0 0.5rem; }
 .sous-modale-fenetre .champ-note { margin-bottom: 0.4rem; }
+
+/* --- Boîte recherche/remplacement (Ctrl+F) --------------------------------
+ * Flottante en bas à droite de la fenêtre : visible quel que soit le
+ * défilement du texte, sans recouvrir le lecteur audio ni les onglets. */
+.barre-recherche {
+  position: fixed;
+  bottom: 0.8rem;
+  right: 0.8rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 0.5rem;
+}
+.ligne-recherche,
+.ligne-remplacement {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.barre-recherche input {
+  width: 13rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.85rem;
+}
+.barre-recherche .compte {
+  min-width: 2.6rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #666;
+  white-space: nowrap;
+}
+.barre-recherche button {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.8rem;
+}
+.barre-recherche button:hover:not(:disabled) {
+  background: #eef4ff;
+}
+.barre-recherche button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.barre-recherche .fermer {
+  color: #888;
+}
 </style>

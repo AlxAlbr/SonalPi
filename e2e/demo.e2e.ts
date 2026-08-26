@@ -82,7 +82,7 @@ test('« En autonomie » : corpus créé dans le dossier choisi, sources copiée
   await expect(page.locator('.carte-ent')).toHaveCount(4)
   await expect(page.locator('.carte-ent .ent-titre')).toContainText([
     '1Coordinatrice',
-    '2Catholique',
+    '2RetraiteAnticipee',
     '3Cuisinier',
     '4Etudiants',
   ])
@@ -90,10 +90,10 @@ test('« En autonomie » : corpus créé dans le dossier choisi, sources copiée
   // (i) Les sources sont COPIÉES dans le dossier choisi (srt/ + audio/ intacts).
   await expect
     .poll(() => readdirSync(join(dirSources, 'srt')).sort())
-    .toEqual(['1Coordinatrice.srt', '2Catholique.srt', '3Cuisinier.srt', '4Etudiants.srt'])
+    .toEqual(['1Coordinatrice.srt', '2RetraiteAnticipee.srt', '3Cuisinier.srt', '4Etudiants.srt'])
   await expect
     .poll(() => readdirSync(join(dirSources, 'audio')).sort())
-    .toEqual(['1Coordinatrice.mp3', '2Catholique.mp3', '3Cuisinier.mp3', '4Etudiants.mp3'])
+    .toEqual(['1Coordinatrice.mp3', '2RetraiteAnticipee.mp3', '3Cuisinier.mp3', '4Etudiants.mp3'])
 
   // (ii) AUCUNE copie d'audio dans le corpus — seuls les PNG d'onde dans png/.
   const audioDuCorpus = () =>
@@ -110,7 +110,7 @@ test('« En autonomie » : corpus créé dans le dossier choisi, sources copiée
     .map((n) => JSON.parse(readFileSync(join(dirCorpus, 'entretiens', n), 'utf8')).meta.audioRef)
     .sort()
   expect(refs).toEqual(
-    ['1Coordinatrice', '2Catholique', '3Cuisinier', '4Etudiants'].map((k) => join(dirSources, 'audio', `${k}.mp3`)).sort(),
+    ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants'].map((k) => join(dirSources, 'audio', `${k}.mp3`)).sort(),
   )
 
   // (iv) Le corpus de test est MARQUÉ (mode 'autonomie' + sources).

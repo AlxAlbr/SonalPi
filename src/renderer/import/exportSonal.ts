@@ -100,6 +100,20 @@ export function exporterSonal(e: EntreeExport): string {
   for (let k = 0, p = debutBloc(longueurs, 0); k < longueurs.length; p += 2 + longueurs[k], k++)
     debuts.push(p)
   const anns = e.annotations.filter((a) => a.to > a.from)
+  // Commentaires : le fragment D'OUVERTURE porte data-obs/data-auth, le fragment
+  // FINAL porte data-finobs (= son propre data-rk — lisible à la fois comme
+  // référence de rk et comme marqueur de fin). Clés « bloc:offset » locales.
+  const obsDebut = new Map<string, Annotation>()
+  const finsObs = new Set<string>()
+  for (const a of anns) {
+    if (a.type !== 'commentaire') continue
+    const trs = pmVersTranches(longueurs, a.from, a.to)
+    if (trs.length === 0) continue
+    const t0 = trs[0]
+    const tn = trs[trs.length - 1]
+    obsDebut.set(`${t0.bloc}:${t0.debut}`, a) // la première gagne
+    finsObs.add(`${tn.bloc}:${tn.fin}`) // la dernière gagne
+  }
   const nomDe = (loc: number | null) =>
     loc == null ? null : (e.locuteurs.find((l) => l.index === loc)?.nom ?? null)
 
@@ -193,6 +207,14 @@ export function exporterSonal(e: EntreeExport): string {
             extra.push('data-anon-nt="true"')
           }
         }
+        // Commentaires portés par ce fragment : ouverture (il commence la plage)
+        // et/ou fin (il la termine — data-finobs = SON rk courant).
+        const obs = obsDebut.get(`${k}:${fs}`)
+        if (obs) {
+          extra.push(`data-obs="${escapeAttr(obs.texte ?? '')}"`)
+          extra.push(`data-auth="${escapeAttr(obs.auteur)}"`)
+        }
+        if (finsObs.has(`${k}:${fe}`)) extra.push(`data-finobs="${rk}"`)
         const elements = fragText.match(/[\wÀ-ÿ]+|[^\w\s]|[\s]+/g) ?? []
         const attrs = [
           `class="${classes.trim()}"`,

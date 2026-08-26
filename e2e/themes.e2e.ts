@@ -52,7 +52,8 @@ test('cliquer un thème dans l’onglet Thématique code la sélection (clic = c
   // Sélection (caret au début → snap « Karine »), puis clic sur « Travail » (cat_002).
   await page.locator('.editeur').click({ position: { x: 6, y: 14 } })
   await coderTheme(page, 'Travail')
-  await expect(page.locator('.editeur .annot').first()).toHaveAttribute('title', /cat_002/)
+  // Le titre de l'annotation porte le NOM du thème (résolu au codebook).
+  await expect(page.locator('.editeur .annot').first()).toHaveAttribute('title', 'Travail')
   await app.close()
 })
 

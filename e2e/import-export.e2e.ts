@@ -36,8 +36,10 @@ test('importer un .sonal réel → entretien éditable + codebook fusionné, pui
   await expect(page.locator('.editeur')).toContainText('accepté cet entretien', { timeout: 10_000 })
   await expect(page.locator('.carte-ent')).toHaveCount(2) // seed + importé
   await expect(page.locator('.carte-ent .ent-titre').nth(1)).toHaveText('entretien1')
-  // Les codages importés peuplent le modèle (cat_005 décoré dans le texte).
-  await expect(page.locator('.editeur .annot[title*="cat_005"]').first()).toBeVisible()
+  // Les codages importés peuplent le modèle : les passages cat_005 du fixture
+  // sont décorés ; leur titre affiche le NOM résolu au codebook du corpus
+  // (l'existant fait foi — cat_005 du seed « ★★★ Très important », pas « Cat1 »).
+  await expect(page.locator('.editeur .annot[title="★★★ Très important"]').first()).toBeVisible()
   // Le codebook a fusionné : cat_008 (« Cat2 », un code de la fixture HORS seed)
   // est dans l'onglet Thématique (clic=coder). Les codes ≤ cat_007 collisionnent
   // avec le seed (3 démo + Pondérations) → l'existant fait foi (règle n°3).

@@ -369,4 +369,10 @@ async function valider() {
   color: #999;
   cursor: not-allowed;
 }
+/* Point d'entrée principal de la vue Corpus : plus visible que les
+   boutons .mini génériques (gras, un peu plus grand). */
+.ajout-ent {
+  font-size: 0.88rem;
+  padding: 0.28rem 0.65rem;
+}
 </style>

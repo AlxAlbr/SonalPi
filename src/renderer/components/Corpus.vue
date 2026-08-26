@@ -2,15 +2,20 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from './EditionThemes.vue'
+import MenuTheme from './MenuTheme.vue'
 import PasAPas from './PasAPas.vue'
 import { utiliserSonal } from '../composables/sonal'
-import { rechercherDansCorpsTexte } from '../corpus/recherche'
-import type { OccurenceRecherche, ResultatRecherche } from '../corpus/recherche'
+import { rechercherDansCorpsTexte } from '../editor/rechercheCorpus'
+import { visiblesThemes } from '../../shared/corpus/categories'
+import type { OccurenceRecherche, ResultatRecherche } from '../editor/rechercheCorpus'
 import type { SegmentThematique, CibleRegleAnon } from '../../shared/format'
 import { scannerRegleDetaille, type OccurrenceScan } from '../../shared/corpus/scanAnon'
-// Icônes d'onglets (parité vue Entretien) — thèmes = logocat, recherche = logosearch.
+// Icônes d'onglets (parité vue Entretien) — thèmes = logocat, recherche = logosearch,
+// données/pseudos = les mêmes que les onglets « Données » et « Pseudonymisation ».
 import icoThemes from '../assets/icones/logocat.png'
 import icoRecherche from '../assets/icones/logosearch.png'
+import icoDonnees from '../assets/icones/logodat2.png'
+import icoAnon from '../assets/icones/logoanon.png'
 
 const {
   // thèmes (codebook corpus) — CONSULTATION ; l'édition passe par la modale (crayon)
@@ -20,6 +25,7 @@ const {
   peintureSegment,
   nomTheme,
   arbreThemes,
+  modifierTheme,
   resumes,
   ouvrirAuSegment,
   // entretiens (membership) + sélection Corpus
@@ -60,12 +66,21 @@ const {
   majParamsAnon,
   // Badges de verrou fiables (état « tenu par X » venant du serveur)
   badgeVerrou,
+  metaEditables,
   presencesSur,
 } = utiliserSonal()
 
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+/** Infobulle des champs du panneau méta : si l'entretien est tenu par autrui,
+ *  on explique pourquoi tout est grisé (même vocabulaire que les badges 🔒). */
+function titreChampMeta(id: string): string {
+  const v = badgeVerrou(id)
+  return v
+    ? `Ouvert par ${v.userId} — lecture seule.`
+    : 'lecture seule (corpus distant)'
+}
 /** Infobulle du bouton crayon/verrou d'une carte : si l'entretien est tenu par
  *  autrui, le détail (qui ? depuis quand ? conséquence) ; sinon le geste normal. */
 const titreCrayon = (id: string): string => {
@@ -87,6 +102,30 @@ async function actualiser() {
 
 // La fenêtre d'édition des thèmes (crayon, parité SonalPi) — locale à la vue.
 const editerThemes = ref(false)
+// Menu contextuel d'un THÈME (actif ↔ passif sans ouvrir l'édition), sur la
+// consultation du Corpus comme sur le panneau Entretien.
+const menuTheme = ref<{ id: string; nom: string; x: number; y: number; actif: boolean } | null>(null)
+/** Ouvre le menu au clic droit sur un thème (masqué en lecture seule). */
+function ouvrirMenuTheme(cat: { id: string; nom: string; actif: boolean }, evt: MouseEvent) {
+  if (lectureSeule.value) return
+  menuTheme.value = { id: cat.id, nom: cat.nom, x: evt.clientX, y: evt.clientY, actif: cat.actif }
+}
+/** Bascule actif → passif (ou l'inverse), puis ferme le menu. */
+function basculerActifTheme() {
+  const m = menuTheme.value
+  if (m) modifierTheme(m.id, { actif: !m.actif })
+  menuTheme.value = null
+}
+// Repli des sous-thèmes dans la consultation : état de VUE local (jamais
+// persisté, indépendant par écran) — les catégories repliées restent visibles.
+const repliesThemes = ref<Set<string>>(new Set())
+const arbreVisible = computed(() => visiblesThemes(arbreThemes(), repliesThemes.value))
+function basculerRepli(id: string) {
+  const s = new Set(repliesThemes.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  repliesThemes.value = s
+}
 
 // --- Étape 3a — panneau « Pseudos » du corpus (lecture seule) ---
 // Bouton dans la barre haute (comme « Ouvrir la base de données »). En 3a,
@@ -505,8 +544,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
     <section class="ecran corpus-ecran">
       <!-- Barre haute : accès à la base de données (comme SonalPi) -->
       <div class="corpus-barre">
-        <button class="btn-table" @click="allerDonnees">Ouvrir la base de données →</button>
-        <button class="btn-table" @click="ouvrirPseudoPanel">Pseudos</button>
+        <button class="btn-table" @click="allerDonnees"><img class="btn-ico" :src="icoDonnees" alt="" /> Base de données</button>
+        <button class="btn-table" @click="ouvrirPseudoPanel"><img class="btn-ico" :src="icoAnon" alt="" /> Pseudos</button>
         <!-- Corpus distant : horodatage du dernier pull + « Actualiser ».
              Le pull rafraîchit AUSSI les badges 🔒 — c'est le même geste,
              pas une seconde commande. -->
@@ -573,8 +612,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <input
                 class="titre-meta"
                 :value="membership[corpusSelId]?.titre"
-                :disabled="lectureSeule"
-                title="lecture seule (corpus distant)"
+                :disabled="!metaEditables(corpusSelId)"
+                :title="titreChampMeta(corpusSelId)"
                 @change="renommer(corpusSelId, $event)"
               />
             </label>
@@ -584,7 +623,34 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><span>Audio</span><b>{{ corpusSelMeta.audio ? 'lié' : '—' }}</b></li>
             </ul>
             <p v-else class="vide">Lecture…</p>
-            <button class="mini assigner-audio" @click="assignerAudioSelection">
+            <!-- Variables du corpus pour CET entretien, en LECTURE SEULE
+                 (parité V1 : l'édition des valeurs passe par la table de
+                 données / l'onglet Données de l'entretien). -->
+            <div v-if="corpusSelMeta" class="meta-vars">
+              <template v-if="corpusSelMeta.generales.length">
+                <h4>Variables générales</h4>
+                <div v-for="l in corpusSelMeta.generales" :key="l.id" class="ligne-var">
+                  <span class="lbl-var" :title="l.lib">{{ l.lib }}</span>
+                  <span class="val-var" :class="{ vide: !l.valeur }">{{ l.valeur ?? '—' }}</span>
+                </div>
+              </template>
+              <div v-for="loc in corpusSelMeta.parLocuteur" :key="loc.nom" class="bloc-loc">
+                <h4>{{ loc.nom }}</h4>
+                <div v-for="l in loc.lignes" :key="l.id" class="ligne-var">
+                  <span class="lbl-var" :title="l.lib">{{ l.lib }}</span>
+                  <span class="val-var" :class="{ vide: !l.valeur }">{{ l.valeur ?? '—' }}</span>
+                </div>
+              </div>
+            </div>
+            <!-- Bouton de retrait du corpus (parité V1 : en fin de panneau).
+                 La confirmation réutilise le bandeau commun des cartes. -->
+            <button
+              class="mini suppr-meta"
+              :disabled="!metaEditables(corpusSelId)"
+              :title="titreChampMeta(corpusSelId)"
+              @click="demanderSuppressionEntretien(corpusSelId)"
+            >❌ Supprimer cet entretien du corpus</button>
+            <button class="mini assigner-audio" :disabled="!metaEditables(corpusSelId)" @click="assignerAudioSelection">
               {{ corpusSelMeta?.audio ? 'Remplacer l’audio…' : 'Assigner un audio…' }}
             </button>
             <!-- Distant uniquement : lier un audio qui VIT sur le serveur
@@ -592,6 +658,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <button
               v-if="idDistantCourant && corpusSelId"
               class="mini assigner-audio"
+              :disabled="!metaEditables(corpusSelId)"
               @click="ouvrirDesignationAudio(corpusSelId)"
             >
               {{ corpusSelMeta?.audio ? 'Redésigner dans le Nextcloud…' : 'Désigner dans le Nextcloud…' }}
@@ -609,11 +676,21 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <p v-if="codebook.length === 0" class="vide">Aucun thème — ✏️ pour en créer.</p>
             <ul class="liste-thm-lecture">
               <li
-                v-for="n in arbreThemes()"
+                v-for="n in arbreVisible"
                 :key="n.cat.id"
                 :class="{ inactif: !n.cat.actif }"
                 :style="{ paddingLeft: n.profondeur * 1.1 + 'rem' }"
+                @contextmenu.prevent="ouvrirMenuTheme(n.cat, $event)"
               >
+                <button
+                  v-if="n.aEnfants"
+                  class="depliant"
+                  :title="repliesThemes.has(n.cat.id) ? 'Replier les sous-thèmes' : 'Déplier les sous-thèmes'"
+                  @click.stop="basculerRepli(n.cat.id)"
+                >
+                  {{ repliesThemes.has(n.cat.id) ? '▸' : '▾' }}
+                </button>
+                <span v-else class="depliant depliant-masque"></span>
                 <span class="pastille" :style="{ background: couleurHex(n.cat) }"></span>
                 <span class="nom-thm-lecture">{{ n.cat.nom }}</span>
                 <span class="usage" :title="`${usages[n.cat.id] ?? 0} codage(s)`">{{ usages[n.cat.id] ?? 0 }}</span>
@@ -776,14 +853,15 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                      devient VERROU (visible même sur un écran étroit où le
                      badge du titre est tronqué) ; le détail — qui ? depuis
                      quand ? — passe en tooltip au survol. Le clic ouvre
-                     toujours, en lecture seule. -->
+                     toujours, en lecture seule.
+                     La SUPPRESSION ne vit pas sur la carte : elle a migré dans
+                     le panneau métadonnées (parité V1). -->
                 <button
                   class="crayon"
                   data-tour="crayon-entretien"
                   :title="titreCrayon(e.id)"
                   @click.stop="ouvrirEntretien(e.id)"
                 >{{ badgeVerrou(e.id) ? '🔒' : '✏️' }}</button>
-                <button class="suppr" v-if="!lectureSeule" title="Supprimer (corbeille)" @click.stop="demanderSuppressionEntretien(e.id)">✕</button>
               </div>
             </li>
           </ul>
@@ -1007,6 +1085,15 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       </div>
 
       <EditionThemes v-if="editerThemes" contexte="corpus" @fermer="editerThemes = false" />
+      <MenuTheme
+        v-if="menuTheme"
+        :x="menuTheme.x"
+        :y="menuTheme.y"
+        :nom="menuTheme.nom"
+        :actif="menuTheme.actif"
+        @basculer="basculerActifTheme"
+        @fermer="menuTheme = null"
+      />
     </section>
 </template>
 
@@ -1021,7 +1108,10 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   justify-content: flex-end;
   align-items: center;
   gap: 0.6rem;
-  margin-bottom: 0.8rem;
+  /* Respiration sous la barre : le bouton « + Ajouter un entretien »
+     (en-tête de la colonne Entretiens) reste bien détaché des boutons
+     « Base de données » / « Pseudos » qui sont juste au-dessus. */
+  margin-bottom: 2.2rem;
 }
 /* Zone de synchro du corpus distant (horodatage + Actualiser) : pousse le
    reste de la barre à gauche, reste discrète. */
@@ -1054,6 +1144,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.85rem;
+}
+/* Icône dans un bouton de la barre haute : calée sur le texte. */
+.btn-ico {
+  height: 1em;
+  vertical-align: -0.15em;
 }
 .grille-corpus {
   display: grid;
@@ -1276,6 +1371,49 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   padding: 0.3rem 0.4rem;
   font-size: 0.9rem;
 }
+/* Variables de l'entretien (lecture seule, parité V1) : sections titrées,
+   lignes libellé → valeur ; défilement si la liste est longue. */
+.meta-vars {
+  margin-top: 0.6rem;
+  max-height: 40vh;
+  overflow-y: auto;
+  border-top: 1px dashed #ddd;
+  padding-top: 0.3rem;
+}
+.meta-vars h4 {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.8rem;
+  color: #1565c0;
+}
+.ligne-var {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px dashed #eee;
+}
+.lbl-var {
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.val-var {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.val-var.vide {
+  color: #bbb;
+  font-weight: 400;
+}
+/* Retrait du corpus depuis le panneau (parité V1 : croix en fin de panneau). */
+.suppr-meta {
+  margin-top: 0.7rem;
+  color: #b00020;
+  border-color: #e0b4b4;
+}
 .meta-infos {
   list-style: none;
   margin: 0.6rem 0 0;
@@ -1481,8 +1619,26 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   gap: 0.4rem;
   padding: 0.15rem 0.15rem;
 }
+/* Icône de repli d'un parent dans la consultation : `-masque` réserve la place
+   (largeur égale) sur les feuilles pour que la pastille reste alignée. */
+.depliant {
+  width: 1.4rem;
+  flex: none;
+  border: none;
+  background: none;
+  color: #777;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
+.depliant-masque {
+  visibility: hidden;
+}
+.depliant:hover {
+  color: #1565c0;
+}
 .liste-thm-lecture li.inactif {
-  opacity: 0.5;
+  opacity: 0.3;
 }
 .pastille {
   width: 12px;

@@ -33,7 +33,7 @@ import type { Annotation } from '../../shared/entretien/annotation'
 // rôle/parcours, sans prénom ni phrase — (a) les étapes se réfèrent au contenu,
 // pas à une personne ; (b) montrer des prénoms dans une démo qui TRAITE de
 // pseudonymisation enseignerait le mauvais réflexe.
-const SOURCES = ['1Coordinatrice', '2Catholique', '3Cuisinier', '4Etudiants'] as const
+const SOURCES = ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants'] as const
 
 /** Une étape du pas-à-pas : titre dans la liste, prédicat de validation du modèle,
  *  cible `data-tour` (qui peut dépendre de l'état courant), guide dans la bulle.
@@ -425,7 +425,7 @@ export function utiliserDemo(deps: DepsDemo) {
    *  « me recevoir » à coder…) est construite sur le contenu de CET entretien.
    *  Retourne un message d'erreur à afficher dans la modale, ou null si les
    *  fichiers sont les bons. Une fois l'étape validée (re-test « charger
-   *  d'autres entretiens »), la garde se lève : 2Catholique…4Etudiants
+   *  d'autres entretiens »), la garde se lève : 2RetraiteAnticipee…4Etudiants
    *  s'importent librement dans le même corpus, et hors pas-à-pas elle n'existe
    *  pas.
    *  Le titre de l'entretien importé = nom du fichier SRT (préfixe numérique
@@ -442,7 +442,7 @@ export function utiliserDemo(deps: DepsDemo) {
       return (
         "Pour cette étape du pas-à-pas, merci de choisir exactement « srt/1Coordinatrice.srt » puis « audio/1Coordinatrice.mp3 » : " +
         'la suite du parcours (corriger, renommer, coder) est construite sur cet entretien.' +
-        " Une fois l'étape validée, vous pourrez charger librement les autres entretiens (2Catholique…4Etudiants)."
+        " Une fois l'étape validée, vous pourrez charger librement les autres entretiens (2RetraiteAnticipee…4Etudiants)."
       )
     }
     return null

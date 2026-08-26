@@ -154,6 +154,17 @@
   outline: 1px solid #f0c000;
   border-radius: 2px;
 }
+/* Occurrences de la recherche/remplacement (Ctrl+F) : orange pâle pour toutes,
+ * orange soutenu pour l'occurrence courante (navigation ◄ i/N ►). */
+.editeur .recherche-hit {
+  background: #ffe0b2;
+  border-radius: 2px;
+}
+.editeur .recherche-hit-active {
+  background: #ffb74d;
+  outline: 1px solid #ef8f00;
+  border-radius: 2px;
+}
 
 /* --- Commentaires en marge (plugin commentairesMarge) ---------------------
  * Un tour commenté reçoit une COLONNE de cartes (widget absolu à droite du

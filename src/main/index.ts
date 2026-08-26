@@ -29,6 +29,7 @@ import type {
   EtatDemoComplet,
   ItemLotValeur,
   MarqueurDemo,
+  OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
   RegleAnon,
@@ -283,12 +284,13 @@ function enregistrerIpcCorpus(): void {
   })
   ipcMain.handle('corpus:recents', (): EntreeRecent[] => {
     const s = lireSettings()
-    // Ne garder que les corpus dont le DOSSIER existe encore : un corpus supprimé
-    // à la main (dossier effacé) ne doit plus apparaître dans « Récents » — et au
-    // démarrage, le 1er récent ne doit pas être un dossier fantôme recréé
-    // silencieusement par ouvrirDossier (mkdirSync). Écriture de retour pour
-    // nettoyer settings.json des entrées mortes (demo préservé).
-    const vivants = s.recents.filter((dir) => existsSync(dir))
+    // Ne garder que les corpus dont le DOSSIER existe encore ET contient
+    // toujours un corpus.json : un corpus supprimé à la main (dossier effacé,
+    // ou simplement vidé de son corpus.json) ne doit plus apparaître dans
+    // « Récents » — et au démarrage, le 1ᵉʳ récent ne doit pas être ré-amorcé
+    // en silence. Écriture de retour pour nettoyer settings.json des entrées
+    // mortes (demo préservé).
+    const vivants = s.recents.filter((dir) => existsSync(join(dir, 'corpus.json')))
     if (vivants.length !== s.recents.length) {
       s.recents = vivants
       ecrireSettings(s)
@@ -333,6 +335,24 @@ function enregistrerIpcCorpus(): void {
     return true
   })
   ipcMain.handle('corpus:ouvrirDossier', (_e, dir: string) => changerDossier(dir))
+
+  /** Le corpus courant a été supprimé sur disque (sentinelle CORPUS_SUPPRIME,
+   *  interceptée côté preload) : bascule sur le PREMIER récent local encore
+   *  vivant et contenant un corpus.json (« le suivant devient courant », et
+   *  ainsi de suite). Purge au passage les récents morts. Renvoie le nouveau
+   *  courant, ou null s'il n'en reste aucun — le renderer repart d'un état
+   *  vide (comme un premier lancement). */
+  ipcMain.handle('corpus:apresSuppression', (): OuvertureCorpus | null => {
+    const s = lireSettings()
+    const vivants = s.recents.filter((d) => existsSync(join(d, 'corpus.json')))
+    if (vivants.length !== s.recents.length) {
+      s.recents = vivants
+      ecrireSettings(s)
+    }
+    const suivant = vivants[0]
+    if (!suivant) return null
+    return changerDossier(suivant)
+  })
   ipcMain.handle('corpus:choisirDossier', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     if (r.canceled || r.filePaths.length === 0) return null
@@ -1066,8 +1086,9 @@ function cheminCorpusTest(): string {
 
 function enregistrerIpcDemo(): void {
   /** Clefs des sources bundled (une par entretien de démo) :
-   *  servent à la garde de complétude de `demo:copierSources`. */
-  const CLEFS_SOURCES = ['E1', 'E2', 'E3', 'E4']
+   *  servent à la garde de complétude de `demo:copierSources`.
+   *  Une clef EST le nom de fichier source (sans extension). */
+  const CLEFS_SOURCES = ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants']
 
   /** Copie les sources bundled `CorpusTest/` (`srt/` + `audio/`, ~13 Mo),
    *  dans le dossier choisi : c'est LA seule copie du flow de démo.

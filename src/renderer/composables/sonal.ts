@@ -4,6 +4,9 @@ import { exporterSonal } from '../import/exportSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../audio/waveform'
 import type { CorpusFichier, EntreeRecent, MarqueurDemo, PayloadEntretien, RegleAnon } from '../../shared/format'
 import { paramsAnonDefaut, MOTS_LIAISON_DEFAUT } from '../../shared/format'
+import { squeletteCorpus } from '../../shared/corpus/squelette'
+import { detailsVariablesEntretien, type BlocLocuteur, type LigneValeur } from '../../shared/corpus/variables'
+import { infoGlobale } from '../erreurs'
 import type { EtatVerrouPublic, OrphelinDistant, PresencePublic, ProgressionTransfert } from '../../shared/distant'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
@@ -43,6 +46,8 @@ export function creerSonal() {
   const ent = useEntretien({
     couleurTrait: corpus.couleurTrait, // le marquage résout la couleur d'un code (corpus)
     tailleTrait: corpus.tailleTheme, // …et sa taille de police (parité SonalPi)
+    // Un thème inactif est masqué du marquage et refusé au codage (scope entretien).
+    estCodeActif: corpus.estCodeActif,
     apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
@@ -123,18 +128,35 @@ export function creerSonal() {
   // lui, OUVRE l'éditeur. On lit le fichier à la sélection (requête ciblée, pas
   // de cache) — le renderer ne tient jamais tous les entretiens.
   const corpusSelId = ref<string | null>(null)
-  const corpusSelMeta = ref<{ nbLocuteurs: number; nbValeurs: number; audio: boolean } | null>(null)
+  /** Panneau métadonnées de l'entretien sélectionné : compteurs + variables
+   *  résolues pour AFFICHAGE (lecture seule, parité « Détails » V1). */
+  interface DetailsVariables {
+    nbLocuteurs: number
+    nbValeurs: number
+    audio: boolean
+    generales: LigneValeur[]
+    parLocuteur: BlocLocuteur[]
+  }
+  const corpusSelMeta = ref<DetailsVariables | null>(null)
   async function selectionnerCorpus(id: string) {
     if (corpusSelId.value === id) return deselectionnerCorpus() // re-clic = fermer
     corpusSelId.value = id
     corpusSelMeta.value = null
     const res = await window.sonal.corpus.lireEntretien(id)
     if (res.ok && corpusSelId.value === id) {
-      const e = res.data
+      // Panneau métadonnées (lecture seule) : compteurs + variables résolues,
+      // comme le panneau « Détails de l'entretien » de SonalPi V1.
+      const details = detailsVariablesEntretien(corpus.variables.value, res.data)
       const nbValeurs =
-        Object.keys(e.meta.valeursGen).length +
-        e.locuteurs.reduce((s, l) => s + Object.keys(l.valeursLoc).length, 0)
-      corpusSelMeta.value = { nbLocuteurs: e.locuteurs.length, nbValeurs, audio: e.meta.audioRef != null }
+        Object.keys(res.data.meta.valeursGen).length +
+        res.data.locuteurs.reduce((s, l) => s + Object.keys(l.valeursLoc).length, 0)
+      corpusSelMeta.value = {
+        nbLocuteurs: res.data.locuteurs.length,
+        nbValeurs,
+        audio: res.data.meta.audioRef != null,
+        generales: details.generales,
+        parLocuteur: details.parLocuteur,
+      }
     }
   }
   function deselectionnerCorpus() {
@@ -424,6 +446,14 @@ export function creerSonal() {
    *  est nécessairement autrui → ligne non éditable. Ne pas confondre avec
    *  `entretienEditable`, propre à l'écran Entretien ouvert. */
   function tableLigneEditable(id: string): boolean {
+    return !lectureSeule.value && !badgeVerrou(id)
+  }
+
+  /** Garde des MÉTADONNÉES du panneau Corpus (nom, date, boutons audio).
+   *  Badge serveur présent = entretien tenu par QUELQU'UN D'AUTRE ⇒ panneau en
+   *  lecture seule (règle d'UI : l'intégrité repose sur les écritures
+   *  transactionnelles, pas sur ce grisage). */
+  function metaEditables(id: string): boolean {
     return !lectureSeule.value && !badgeVerrou(id)
   }
 
@@ -1027,6 +1057,39 @@ export function creerSonal() {
   // (panneau « Pas à pas ») quand le corpus ouvert est un corpus démo.
   raccrocherModeCorpus = demo.raccrocherModeCorpus
 
+  // Un appel quelconque vient de révéler que le dossier du corpus courant a
+  // été supprimé sur disque (sentinelle CORPUS_SUPPRIME) : le main a DÉJÀ
+  // basculé sur le récent vivant suivant (ou rendu null s'il n'y en a plus).
+  // On aligne le modèle et on EXPLIQUE la bascule — ni le store ni l'UI ne
+  // recréent jamais un corpus fantôme en silence.
+  // Plusieurs appels peuvent échouer en même temps : la PREMIÈRE notification
+  // déclenche la bascule UI, les suivantes sont ignorées (idempotent).
+  let basculeEnCours = false
+  window.sonal.corpus.surSuppressionCourant(async (suivant) => {
+    if (basculeEnCours) return
+    basculeEnCours = true
+    try {
+      quitterDistant() // la bascule du main est toujours LOCALE : plus de miroir actif
+      if (suivant) {
+        await appliquerCorpus(suivant.corpus, suivant.dir)
+        await profil.majDossierCourant()
+        infoGlobale.value =
+          'Le dossier du corpus courant a été supprimé sur disque — ' +
+          `le corpus « ${suivant.nom} » devient le corpus courant.`
+      } else {
+        // Aucun récent vivant : état vide, comme un premier lancement.
+        await appliquerCorpus(squeletteCorpus())
+        dossierCourantDir.value = null
+        profil.dossierCourantNom.value = ''
+        infoGlobale.value =
+          "Le dossier du corpus courant a été supprimé sur disque ; aucun autre corpus récent n'existe."
+      }
+      vue.value = 'accueil' // l'entretien ouvert (s'il y en avait un) appartient à l'ancien corpus
+    } finally {
+      basculeEnCours = false
+    }
+  })
+
   onMounted(chargerCorpus)
 
   // Retour PLAT : les templates (App + composants) utilisent des noms nus. Les
@@ -1070,6 +1133,7 @@ export function creerSonal() {
     actualiserDistant,
     lectureSeule,
     tableLigneEditable,
+    metaEditables,
     enLigne,
     badgesVerrous,
     badgeVerrou,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
+import { visiblesThemes } from '../../shared/corpus/categories'
 
 /**
  * Fenêtre d'ÉDITION des thèmes (parité SonalPi : le crayon ouvre une modale, la
@@ -38,6 +39,35 @@ const {
 const TAILLE_TEXTE = 16
 /** Autres tailles proposées (px) — l'éventail SonalPi, sans le défaut. */
 const TAILLES = [12, 14, 18, 20, 22, 24, 28, 32]
+
+// Repli des sous-thèmes : état de VUE local (jamais persisté, sans effet
+// multi-utilisateur). La catégorie repliée reste visible, seuls ses descendants
+// sont masqués à l'affichage via visiblesThemes.
+const replies = ref<Set<string>>(new Set())
+const arbreVisible = computed(() => visiblesThemes(arbreThemes(), replies.value))
+function basculerRepli(id: string) {
+  const s = new Set(replies.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  replies.value = s
+}
+
+// UX de création : le thème neuf est AUTO-FOCUSÉ et son texte présélectionné,
+// pour nommer directement sans effacer « Nouveau thème/sous-thème ».
+const nouveauId = ref<string | null>(null)
+async function creerTheme(estEnfant: boolean, parentId?: string) {
+  const id = estEnfant ? await ajouterSousTheme(parentId!) : await ajouterTheme()
+  nouveauId.value = id
+  await nextTick() // attendre que la ligne (le champ nom) soit rendue
+}
+/** Par :ref sur le champ nom : focus + sélection totale si c'est le thème neuf. */
+function focusSiNouveau(el: HTMLInputElement | null, id: string) {
+  if (el && nouveauId.value === id) {
+    el.focus()
+    el.select()
+    nouveauId.value = null // une seule fois
+  }
+}
 
 function renommer(id: string, evt: Event) {
   const nom = (evt.target as HTMLInputElement).value.trim()
@@ -99,7 +129,7 @@ onMounted(() => {
     <div class="modale-themes">
       <div class="corpus-tete">
         <h3>Édition des thèmes</h3>
-        <button class="mini" title="Ajouter un thème à la racine" @click="ajouterTheme">+ Thème parent</button>
+        <button class="mini" title="Ajouter un thème à la racine" @click="creerTheme(false)">+ Thème parent</button>
         <button class="fermer" title="Fermer" @click="$emit('fermer')">✕</button>
       </div>
       <p class="aide-thm">
@@ -140,6 +170,7 @@ onMounted(() => {
            n'a ni le padding ni la police par défaut d'un bouton) → chaque intitulé
            tombe pile au-dessus de sa colonne. -->
       <div v-if="arbreThemes().length" class="entete-liste" aria-hidden="true">
+        <span class="depliant fantome"></span>
         <input type="color" class="swatch fantome" />
         <span class="entete-lbl entete-nom">thème</span>
         <span class="entete-lbl entete-aa" title="Taille de police des passages codés (16 = taille du texte)">Aa</span>
@@ -153,12 +184,21 @@ onMounted(() => {
       </div>
       <ul class="liste-thm">
         <li
-          v-for="n in arbreThemes()"
+          v-for="n in arbreVisible"
           :key="n.cat.id"
           :class="{ inactif: !n.cat.actif }"
           :style="{ paddingLeft: n.profondeur * 1.1 + 'rem' }"
           :data-nom="n.cat.nom"
         >
+          <button
+            v-if="n.aEnfants"
+            class="depliant"
+            :title="replies.has(n.cat.id) ? 'Replier les sous-thèmes' : 'Déplier les sous-thèmes'"
+            @click="basculerRepli(n.cat.id)"
+          >
+            {{ replies.has(n.cat.id) ? '▸' : '▾' }}
+          </button>
+          <span v-else class="depliant fantome"></span>
           <input
             type="color"
             class="swatch"
@@ -167,7 +207,9 @@ onMounted(() => {
           />
           <input
             class="nom-thm"
+            :ref="(el) => focusSiNouveau(el as HTMLInputElement | null, n.cat.id)"
             :value="n.cat.nom"
+            @focus="($event.target as HTMLInputElement).select()"
             @keyup.enter="($event.target as HTMLInputElement).blur()"
             @change="renommer(n.cat.id, $event)"
           />
@@ -190,7 +232,7 @@ onMounted(() => {
               @change="modifierTheme(n.cat.id, { actif: ($event.target as HTMLInputElement).checked })"
             />
           </label>
-          <button class="mini-sous" title="Ajouter un sous-thème (enfant de celui-ci)" @click="ajouterSousTheme(n.cat.id)">
+          <button class="mini-sous" title="Ajouter un sous-thème (enfant de celui-ci)" @click="creerTheme(true, n.cat.id)">
             + enfant
           </button>
           <button class="fleche" title="Monter" :disabled="n.premier" @click="deplacerTheme(n.cat.id, -1)">
@@ -277,8 +319,20 @@ onMounted(() => {
   border-radius: 5px;
   padding: 0.1rem 0.15rem;
 }
+/* Icône de repli d'un parent : largeur FIXE partagée avec son fantôme d'en-tête
+   (l'alignement des colonnes en dépend), bouton discret sans bords. */
+.depliant {
+  width: 1.4rem;
+  flex: none;
+  border: none;
+  background: none;
+  color: #777;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
 .liste-thm li.inactif {
-  opacity: 0.5;
+  opacity: 0.3;
 }
 .swatch {
   width: 22px;

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { fournirSonal } from './composables/sonal'
-import { erreurGlobale, effacerErreurGlobale } from './erreurs'
+import { erreurGlobale, effacerErreurGlobale, infoGlobale, effacerInfoGlobale } from './erreurs'
 import Accueil from './components/Accueil.vue'
 import Corpus from './components/Corpus.vue'
 import TableDonnees from './components/TableDonnees.vue'
@@ -13,7 +13,8 @@ import DesignationAudioDistante from './components/DesignationAudioDistante.vue'
 // corpus, entretien) et les PROVIDE ; chaque composant de vue les INJECTE
 // (utiliserSonal). App ne garde que l'en-tête, le fil d'Ariane et les bannières.
 const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat, dossierCourantNom } =
-  fournirSonal()</script>
+  fournirSonal()
+</script>
 
 
 <template>
@@ -52,6 +53,13 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <div v-if="erreurGlobale" class="banniere refus">
       <span>{{ erreurGlobale }}</span>
       <button class="fermer" title="Fermer" @click="effacerErreurGlobale">×</button>
+    </div>
+
+    <!-- Bannière jumelle, ton info : événements rattrapés par l'app (ex.
+         bascule automatique après suppression du dossier du corpus courant). -->
+    <div v-if="infoGlobale" class="banniere info">
+      <span>{{ infoGlobale }}</span>
+      <button class="fermer" title="Fermer" @click="effacerInfoGlobale">×</button>
     </div>
 
     <Accueil v-show="vue === 'accueil'" />
@@ -139,6 +147,11 @@ h1 small {
   background: #fdecea;
   color: #b3261e;
   border: 1px solid #f3b4ad;
+}
+.banniere.info {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border: 1px solid #c3dbf5;
 }
 .banniere .fermer {
   float: right;

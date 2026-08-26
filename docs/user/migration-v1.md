@@ -57,22 +57,19 @@ modale de migration.
   charge bien l'audio (le bandeau d'intégrité du corpus signale les références
   manquantes).
 
-## 4. Ce qui n'est PAS migré (1ʳᵉ itération)
+## 4. Ce qui n'est PAS migré
 
-> ⚠️ **Migration provisoire (test).** À ce stade, trois contenus ne sont pas
-> encore repris : les **notes**, les **commentaires** et l'**anonymisation**
-> (règles / paramètres). Ci-dessous le détail.
-
-La migration actuelle couvre le contenu **effectif** des entretiens et les
-définitions du corpus. Quelques éléments sont volontairement **hors périmètre** :
+La migration couvre tout le contenu effectif des entretiens et les définitions
+du corpus : texte + codages, audio, thèmes, variables EAV, **notes** (`txtnotes`
+→ note « générale », la chaîne brute restant en `legacy.notes` sans perte),
+**anonymisation** (règles `tabAnon` → `reglesAnon`, y compris les règles isolées
+sans occurrence dans un `.sonal`, leur `thematique` → `categorie`, et les
+réglages `paramsAnonCorpus` → `paramsAnon`) et **commentaires** posés sur le
+texte (spans `data-obs` / `data-auth` / `data-finobs` → annotations
+`Annotation{type:'commentaire'}`). Ne restent hors périmètre que :
 
 | Élément V1 | Statut | Pourquoi |
 |---|---|---|
-| **Notes** d'entretien (champ `txtnotes`) | **non reprises** | Passées en `legacy` brut (export sans perte), pas modélisées dans V2 pour l'instant |
-| **Commentaires** posés sur le texte (`data-obs` / `data-auth` / `data-finobs`) | **non repris** | Non convertis en `Annotation{type:'commentaire'}` à l'import — attendent le chantier commentaire |
-| Règles d'anonymisation **au niveau corpus** du `.crp` (`tabAnon`) **sans occurrence dans un `.sonal`** | **non migrées** | Les marquages déjà appliqués sur le texte sont migrés ; une règle corpus isolée (ex. une entité jamais rencontrée dans le texte) attend le chantier anon |
-| `thematique` d'une règle (PER / LOC / ORG / DAT) | non migrée | Le modèle V2 ne porte pas encore cette catégorie (voir chantier anon) |
-| Réglages `paramsAnonCorpus` (mots de liaison, liste des thématiques, priorité de validation) | non migrés | Modélisés dans le chantier anon (futur champ `paramsAnon` de `corpus.json`) |
 | Corpus **distants** (GitLab / serveur) en V1 | hors périmètre | Migration locale uniquement |
 | Archives / export `.zip` V1 | hors périmètre | À étudier plus tard |
 | Migration **inverse** V2 → V1 | hors périmètre | — |

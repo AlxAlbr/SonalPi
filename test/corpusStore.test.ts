@@ -119,6 +119,25 @@ describe('CorpusStore — amorçage & round-trip', () => {
   })
 })
 
+describe('CorpusStore — corpus courant supprimé sur disque', () => {
+  test('après ouverture, un corpus.json disparu lève CORPUS_SUPPRIME et ne laisse aucun squelette', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir() // premier ouvert : le corpus existe → amorçage consommé
+    rmSync(dir, { recursive: true }) // suppression EXTERIEURE (geste utilisateur)
+    expect(() => store.ouvrir()).toThrowError(/CORPUS_SUPPRIME/)
+    expect(existsSync(dir)).toBe(false) // aucune recréation silencieuse du dossier
+  })
+
+  test('un NOUVEAU store sur un dossier dont le corpus a disparu ré-amorce (nouveau choix explicite)', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    rmSync(join(dir, 'corpus.json'))
+    expect(() => store.ouvrir()).toThrowError(/CORPUS_SUPPRIME/)
+    // Re-choisir ce dossier dans l'app = nouveau store = nouvel amorçage permis.
+    expect(new CorpusStore(dir).ouvrir().membership).toEqual({})
+  })
+})
+
 describe('CorpusStore — écriture atomique', () => {
   test('aucun .tmp ne subsiste après écriture, et le contenu est valide', () => {
     const { store, dir } = storeNeuf()

@@ -812,3 +812,76 @@ test('démo visible : saisie par CELLULE — refus inline nominatif, garde par l
     await nettoyer(original)
   }
 })
+
+/* ── Scénario 5 : PANNEAU MÉTA sous verrou ───────────────────────────────*/
+/** Le panneau métadonnées de la vue Corpus (nom + boutons audio + suppression)
+ *  passe en lecture seule dès que l'entretien est tenu par autrui (badge
+ *  serveur), et redevient éditable au pull suivant la libération. */
+test('démo visible : PANNEAU MÉTA sous verrou — nom/suppression grisés chez autrui, rendus à la libération', async ({ }, testInfo) => {
+  test.setTimeout(DEMO ? 600_000 : 240_000)
+  if (!(await pret())) {
+    console.log('⏭ Pile A (:8080) absente — lancer `npm run nc:up && npm run nc:provision`')
+    test.skip(true, 'pile Docker non disponible')
+  }
+
+  const { original } = await amorcer()
+  const dirMax = mkdtempSync(join(tmpdir(), 'demo-meta-max-'))
+  const dirOlivier = mkdtempSync(join(tmpdir(), 'demo-meta-oli-'))
+  console.log('🚀 Lancement des deux postes…')
+  const appMax = await lancer(dirMax)
+  const appOlivier = await lancer(dirOlivier)
+  try {
+    const pMax = await appMax.firstWindow()
+    const pOli = await appOlivier.firstWindow()
+    await placerFenetre(appMax, 'gauche')
+    await placerFenetre(appOlivier, 'droite')
+
+    /* 1. Connexion des deux postes. */
+    console.log('① Connexion des deux postes…')
+    await connecterEtOuvrir(pMax, 'Max', `${BASE}/remote.php/dav/files/max/MonCorpus`, MAX.utilisateur, MAX.motDePasse)
+    await connecterEtOuvrir(pOli, 'Olivier', `${BASE}/remote.php/dav/files/olivier/MonCorpus`, OLIVIER.utilisateur, OLIVIER.motDePasse)
+
+    /* 2. Max ouvre l'entretien : le verrou est à lui. */
+    console.log("② Max ouvre l'entretien (verrou)…")
+    await ouvrirEntretien(pMax)
+
+    /* 3. Olivier actualise, sélectionne la carte : le panneau méta est
+     *    ENTIEREMENT grisé (nom, boutons audio, suppression) avec l'infobulle nominative. */
+    console.log("③ Olivier voit le panneau méta en lecture seule (« ouvert par max »)…")
+    await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
+    await expect(pOli.locator('.badge-verrou', { hasText: 'max' })).toBeVisible({ timeout: 20_000 })
+    await pOli.locator('.carte-ent').first().click()
+    await expect(pOli.locator('.meta-ent')).toBeVisible()
+    const nomOli = pOli.locator('.meta-ent .titre-meta')
+    const supprOli = pOli.locator('.meta-ent .suppr-meta')
+    await expect(nomOli).toBeDisabled({ timeout: 20_000 })
+    await expect(supprOli).toBeDisabled()
+    await expect(nomOli).toHaveAttribute('title', /Ouvert par max/)
+    await expect(pOli.locator('.meta-ent .assigner-audio').first()).toBeDisabled()
+    await pause(pOli, "Panneau grisé : l'entretien est ouvert par max — rien n'est modifiable ici…")
+
+    /* 4. Max referme : publication finale puis libération du verrou. */
+    console.log('④ Max referme : verrou rendu…')
+    await narrer(pMax, 'Max retourne au corpus : publication finale PUIS verrou rendu…')
+    await retourAuCorpus(pMax)
+
+    /* 5. Olivier re-tire : plus de badge → le panneau s'éveille à nouveau. */
+    console.log("⑤ Olivier actualise : panneau éditable à nouveau…")
+    await narrer(pOli, 'Olivier actualise : le verrou a disparu — le panneau redevient éditable…')
+    await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
+    await expect(pOli.locator('.badge-verrou')).toHaveCount(0, { timeout: 20_000 })
+    // Le tirage a ramené des fichiers : ré-application complète du corpus,
+    // qui désélectionne la carte — on rouvre le panneau méta.
+    await pOli.locator('.carte-ent').first().click()
+    await expect(pOli.locator('.meta-ent')).toBeVisible({ timeout: 20_000 })
+    await expect(nomOli).toBeEnabled({ timeout: 20_000 })
+    await expect(supprOli).toBeEnabled()
+    await narrer(pOli, '✅ Même règle multi-utilisateur pour tout le panneau.')
+    if (DEMO) await pOli.waitForTimeout(5000)
+    await testInfo.attach('fin', { body: 'scénario panneau méta sous verrou OK', contentType: 'text/plain' })
+  } finally {
+    await appMax.close()
+    await appOlivier.close()
+    await nettoyer(original)
+  }
+})

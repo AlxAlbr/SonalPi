@@ -71,6 +71,12 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   function tailleTheme(code: string): number | undefined {
     return codebook.value.find((c) => c.id === code)?.taille
   }
+  /** Un code est-il ACTIF (définition du codebook) ? Absent du codebook → actif
+   *  (référence pendante inerte, traitée comme un thème ordinaire). Sert au scope
+   *  entretien pour filtrer le marquage et bloquer le codage des thèmes inactifs. */
+  function estCodeActif(code: string): boolean {
+    return codebook.value.find((c) => c.id === code)?.actif ?? true
+  }
   /** PEINTURE d'un segment de résumé thématique (parité SonalPi) — partagée par
    *  les cartes Corpus et la bande du lecteur : couleurs des thèmes couvrants
    *  empilées en DÉGRADÉ VERTICAL à bandes égales ; le BLANC (thème « sans
@@ -81,14 +87,17 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     borderBottom?: string
     masque: boolean
   } {
-    const couleurs = codes
+    // Un thème inactif est « sans effet » (cohérence avec l'éditeur) : il ne
+    // peint ni couleur ni pondération sur les cartes et la bande du lecteur.
+    const actifs = codes.filter((c) => estCodeActif(c))
+    const couleurs = actifs
       .map((c) => couleurTrait(c))
       .filter((c) => !/^#f{3}(f{3})?$/i.test(c) && c.toLowerCase() !== 'white')
     const stops = couleurs.flatMap((coul, i) => [
       `${coul} ${((i / couleurs.length) * 100).toFixed(2)}%`,
       `${coul} ${(((i + 1) / couleurs.length) * 100).toFixed(2)}%`,
     ])
-    const ponderation = codes.some((c) => (tailleTheme(c) ?? 0) > 16)
+    const ponderation = actifs.some((c) => (tailleTheme(c) ?? 0) > 16)
     return {
       background: stops.length ? `linear-gradient(to bottom, ${stops.join(', ')})` : undefined,
       borderBottom: ponderation ? '3px solid #000' : undefined,
@@ -143,16 +152,18 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   }
 
   // --- Thèmes (codebook) ---
-  async function ajouterTheme() {
+  async function ajouterTheme(): Promise<string> {
     const res = await window.sonal.corpus.ajouterCategorie('Nouveau thème')
     majCodebook(res.corpus.codebook)
     codeCourant.value = res.id
+    return res.id
   }
   /** Ajoute un sous-thème (enfant de `parentId`). */
-  async function ajouterSousTheme(parentId: string) {
+  async function ajouterSousTheme(parentId: string): Promise<string> {
     const res = await window.sonal.corpus.ajouterCategorie('Nouveau sous-thème', parentId)
     majCodebook(res.corpus.codebook)
     codeCourant.value = res.id
+    return res.id
   }
   /** Renommer / recolorer / retailler / (dés)activer : édite la DÉFINITION
    *  (corpus.json) → reflété partout en direct (l'App observe `codebook` →
@@ -336,6 +347,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     couleurTrait,
     couleurHex,
     tailleTheme,
+    estCodeActif,
     peintureSegment,
     nomTheme,
     modalitesDe,

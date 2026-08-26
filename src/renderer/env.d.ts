@@ -51,6 +51,7 @@ declare global {
     sonal: {
       platform: string
       corpus: {
+        surSuppressionCourant: (cb: (r: OuvertureCorpus | null) => void) => () => void
         ouvrir: () => Promise<CorpusFichier>
         dossierCourant: () => Promise<DossierCorpus & { distant: string | null }>
         recents: () => Promise<EntreeRecent[]>

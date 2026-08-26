@@ -190,6 +190,11 @@ export interface OuvertureCorpus extends DossierCorpus {
   corpus: CorpusFichier
 }
 
+/** Préfixe sentinelle de l'erreur levée quand le dossier du corpus courant a
+ *  été supprimé sur disque en cours de session : le store refuse de le
+ *  ré-amorcer en silence, le renderer bascule alors sur un autre récent. */
+export const CORPUS_SUPPRIME = 'CORPUS_SUPPRIME'
+
 // ══════════════════════════════════════════════════════════════════════════
 // Entretiens — `entretiens/<id>.json`, leurs locuteurs
 // ══════════════════════════════════════════════════════════════════════════

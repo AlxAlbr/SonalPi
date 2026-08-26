@@ -13,8 +13,17 @@ import { ref } from 'vue'
 /** Message affiché par la bannière App (null = rien à afficher). */
 export const erreurGlobale = ref<string | null>(null)
 
+/** Bannière jumelle, ton INFORMATIONNEL : événements rattrapés par l'app
+ *  (ex. bascule automatique après suppression du dossier du corpus courant).
+ *  Fermable comme son pendant erreur. */
+export const infoGlobale = ref<string | null>(null)
+
 export function effacerErreurGlobale(): void {
   erreurGlobale.value = null
+}
+
+export function effacerInfoGlobale(): void {
+  infoGlobale.value = null
 }
 
 /** Nettoie un message d'exception IPC Electron pour l'affichage :

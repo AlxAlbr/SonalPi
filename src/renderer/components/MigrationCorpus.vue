@@ -124,12 +124,9 @@ async function migrer() {
           rien n’est écrit tant que vous n’avez pas validé, et l’ancien dossier V1
           n’est jamais touché.
         </p>
-        <div class="provisoire">
-          ⚠️ <b>Migration provisoire (test).</b> Ne sont pas encore repris à ce stade :
-          les <b>notes</b>, les <b>commentaires</b> et l’<b>anonymisation</b>
-          (règles / paramètres). Thèmes, variables, texte + codages et audio, eux,
-          sont migrés.
-        </div>
+        <!-- Tout le contenu effectif V1 est migré (texte + codages, audio,
+             thèmes, variables EAV, notes, anonymisation, commentaires) ; les
+             seules exclusions restent hors périmètre (corpus distants, zip). -->
 
         <!-- 1 — choix du .crp + aperçu -->
         <div class="question">
@@ -231,15 +228,6 @@ async function migrer() {
   margin: 0;
   font-size: 0.8rem;
   color: #555;
-}
-/* Avertissement : migration provisoire, ce qui n'est pas encore repris */
-.provisoire {
-  font-size: 0.78rem;
-  color: #8a6d1a;
-  background: #fdf8e6;
-  border: 1px solid #ecd9a0;
-  border-radius: 6px;
-  padding: 0.45rem 0.55rem;
 }
 .question {
   display: flex;

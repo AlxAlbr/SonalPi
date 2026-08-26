@@ -158,10 +158,17 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus V2 ouvert
     'cat_001', 'cat_002', 'cat_003', 'cat_005', 'cat_006',
   ])
   expect(Object.keys(corpus.variables as Record<string, unknown>).sort()).toEqual(['v1', 'v2', 'v3'])
-  // Les règles du .sonal (anon-json) sont reprises (liées aux annotations) :
-  // entretien1.sonal porte 3 règles (Karine→Marie, pas→test, réforme→test2),
-  // entretien3.sonal (fixture entretien2) n'en porte aucune.
-  expect(Object.keys(corpus.reglesAnon as Record<string, unknown>)).toHaveLength(3)
+  // Règles du corpus migré — E4 : les règles GLOBALES du .crp (Émilie,
+  // Maison des Habitants, Enquêteur) sont écrites à la création, puis
+  // l'import d'entretien1.sonal ajoute les SIENNES (Karine→Marie, pas→test,
+  // réforme→test2) ; entretien3 n'en porte aucune. Entités disjointes →
+  // les deux jeux coexistent (la dédup par alias ne fusionne qu'une entité
+  // partagée, le global du .crp restant seul sinon).
+  const regles = Object.values(corpus.reglesAnon as Record<string, { entite: string[] }>)
+  expect(regles).toHaveLength(6)
+  expect(regles.flatMap((r) => r.entite)).toEqual(
+    expect.arrayContaining(['Émilie', 'Maison des Habitants', 'Enquêteur', 'Karine', 'pas', 'réforme']),
+  )
 
   const membres = corpus.membership as Record<string, { titre: string }>
   const ids = Object.keys(membres)

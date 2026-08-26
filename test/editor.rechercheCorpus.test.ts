@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rechercherDansCorpsTexte } from '../src/renderer/corpus/recherche'
+import { rechercherDansCorpsTexte } from '../src/renderer/editor/rechercheCorpus'
 
 const corps = {
   type: 'doc',

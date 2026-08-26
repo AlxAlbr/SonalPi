@@ -32,6 +32,22 @@ type AnnBrute =
   | { type: 'codage'; code: string; from: number; to: number }
   | { type: 'anon'; entite: string; pseudo: string; etat: 'anonymise' | 'exception'; from: number; to: number }
 
+/** Commentaire V1 en cours d'import : ouvert au fragment portant `data-obs`,
+ *  fermé au fragment final (voir fermetures ci-dessous). Coordonnées PRÉ-fusion
+ *  (index de bloc brut + offset caractère local) — remappées après la fusion des
+ *  tours, comme les autres annotations. */
+interface CommentaireImport {
+  auteur: string
+  texte: string
+  blocDebut: number
+  offDebut: number
+  blocFin: number
+  /** Offset de fin (null = encore ouvert) ; par défaut = fin du bloc. */
+  offFin: number | null
+  /** Convention « data-finobs = data-rk du fragment final » : déclarée à
+   *  l'ouverture, résolue quand on rencontre ce rk. */
+  finRk: string | null
+}
 /** Génère un id de règle corpus à l'import (les entrées SonalPi n'en portent pas). */
 function genIdRegle(): string {
   return 'reg-' + Math.random().toString(36).slice(2, 10)
@@ -127,8 +143,17 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // du tour — pseudonymisé (loc-anon + data-locpseudo) ou refusé
   // (loc-suggere-refuse) → Locuteur.pseudo / pseudoEtat.
   const labelsLoc = new Map<number, { pseudo: string } | { refuse: true }>()
+  // Commentaires V1 (data-obs/data-auth/data-finobs) : collectés à travers les
+  // segments, remappés après la fusion des tours. Deux conventions de FIN
+  // coexistent dans les fichiers V1 : `data-finobs` = le data-rk du fragment
+  // final (déclaré au fragment d'ouverture), ou un simple marqueur posé sur ce
+  // fragment final. Les deux lectures sont couvertes (fermeture par égalité de
+  // rk, puis par présence du marqueur) ; sans fin, le commentaire se termine
+  // au bout de son bloc.
+  const commentaires: CommentaireImport[] = []
   for (const segNode of contenu.querySelectorAll('.lblseg')) {
     const seg = segNode as HTMLElement
+    const iB = blocs.length // index FUTUR du bloc de ce segment
     const lig = seg.classList.contains('ligloc')
     const locIdx = nombreOuNull(seg.dataset.loc)
     if (lig && locIdx != null && locIdx > 0) {
@@ -158,6 +183,35 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
       } else if (frag.classList.contains('anon')) {
         anns.push({ type: 'anon', entite: t, pseudo: frag.dataset.pseudo ?? '', etat: 'anonymise', from, to })
       }
+      // Commentaires : ouverture (data-obs) et fermetures éventuelles sur CE
+      // fragment. L'ordre importe : l'ouverture d'abord, puis la fermeture par
+      // égalité de rk (couvre le commentaire d'un seul fragment, dont le finRk
+      // vaut son propre rk), puis le marqueur nu (ne s'applique jamais au
+      // fragment qui VIENT d'ouvrir).
+      if (frag.dataset.obs != null) {
+        commentaires.push({
+          auteur: (frag.dataset.auth ?? '').trim(),
+          texte: frag.dataset.obs.trim(),
+          blocDebut: iB,
+          offDebut: from,
+          blocFin: iB,
+          offFin: null,
+          finRk: frag.dataset.finobs?.trim() || null,
+        })
+      }
+      for (const c of commentaires) {
+        if (c.offFin == null && c.finRk != null && c.finRk === (frag.dataset.rk ?? '')) {
+          c.offFin = to
+          c.blocFin = iB
+        }
+      }
+      if (frag.dataset.finobs != null && frag.dataset.obs == null) {
+        const ouvert = [...commentaires].reverse().find((c) => c.offFin == null)
+        if (ouvert) {
+          ouvert.offFin = to
+          ouvert.blocFin = iB
+        }
+      }
       text += t
     }
     // data-loc="0" = « aucun locuteur » (convention SonalPi : locut[0] n'existe
@@ -179,16 +233,27 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   //     seul pavé). Fusion d'IMPORT uniquement : aucun geste d'édition ne
   //     fusionne.
   const tours: BlocImport[] = []
+  // Destination de chaque bloc BRUT dans la liste fusionnée : index du tour +
+  // décalage d'offset — sert à remapper les commentaires ouverts/fermés de
+  // part et d'autre d'une frontière de fusion.
+  const destParBloc: Array<{ tour: number; decalage: number }> = []
   for (const b of blocs) {
     const prec = tours[tours.length - 1]
     if (prec && b.loc != null && prec.loc === b.loc) {
       const d = prec.text.length
+      destParBloc.push({ tour: tours.length - 1, decalage: d })
       prec.text += b.text
       prec.anns.push(...b.anns.map((a) => ({ ...a, from: a.from + d, to: a.to + d })))
       prec.cues.push(...b.cues.map((c) => ({ ...c, de: c.de + d, a: c.a + d })))
     } else {
+      destParBloc.push({ tour: tours.length, decalage: 0 })
       tours.push(b)
     }
+  }
+  // Commentaires encore ouverts en bout de fichier : ils se terminent au bout
+  // de leur dernier bloc connu (fichier tronqué, finobs absent).
+  for (const c of commentaires) {
+    if (c.offFin == null) c.offFin = blocs[c.blocFin]?.text.length ?? 0
   }
 
   // 2) Doc ProseMirror : un paragraphe par tour. Les timecodes ne sont PAS des
@@ -229,6 +294,26 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
       )
     }
   })
+
+  // 3bis) Commentaires V1 : remappés en coordonnées de tours FUSIONNÉS (les
+  //    bornes peuvent encadrer une fusion), avec l'auteur d'origine sinon « import »
+  //    (même convention que les autres annotations importées).
+  for (const c of commentaires) {
+    const dd = destParBloc[c.blocDebut]
+    const df = destParBloc[c.blocFin]
+    if (!dd || !df || c.offFin == null) continue
+    const from = charVersPM(longueurs, dd.tour, c.offDebut + dd.decalage)
+    const to = charVersPM(longueurs, df.tour, c.offFin + df.decalage)
+    if (from >= to) continue
+    annotations.push({
+      id: `import-${n++}`,
+      type: 'commentaire',
+      from,
+      to,
+      auteur: c.auteur || 'import',
+      texte: c.texte,
+    })
+  }
 
   // 3b) Ancres temporelles : chaque borne MESURÉE de cue → {pos, t}
   //     (deb = début du texte du cue, fin = sa fin — internes au bloc pour un

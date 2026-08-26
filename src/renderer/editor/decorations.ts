@@ -96,9 +96,14 @@ function construireDecorations(
   entretien: Entretien,
   resoudre: ResolveurCouleur,
   tailleDe?: ResolveurTaille,
+  estCodeActif: (code: string) => boolean = () => true,
   nomDe?: ResolveurNom,
 ): DecorationSet {
-  const actives = entretien.annotations.filter((a) => !estOrpheline(a))
+  // Un codage d'un thème INACTIF est masqué du marquage (ni souligné, ni barre de
+  // chevauchement, ni taille, ni compte) — comme s'il n'existait pas pour l'œil.
+  const actives = entretien.annotations.filter(
+    (a) => !estOrpheline(a) && (a.type !== 'codage' || estCodeActif(a.code ?? '')),
+  )
   if (actives.length === 0) return DecorationSet.empty
 
   // Incluses (chevauchement de règles) : une annotation anon CONTENUE dans une
@@ -279,15 +284,17 @@ export function pluginDecorations(
   entretien: Entretien,
   resoudre: ResolveurCouleur,
   tailleDe?: ResolveurTaille,
+  estCodeActif?: (code: string) => boolean,
   nomDe?: ResolveurNom,
 ): Plugin {
   return new Plugin({
     key: decorationsPluginKey,
     state: {
-      init: (_config, state) => construireDecorations(state, entretien, resoudre, tailleDe, nomDe),
+      init: (_config, state) =>
+        construireDecorations(state, entretien, resoudre, tailleDe, estCodeActif, nomDe),
       apply(tr, value, _oldState, newState) {
         if (tr.docChanged || tr.getMeta(decorationsPluginKey) === 'refresh') {
-          return construireDecorations(newState, entretien, resoudre, tailleDe, nomDe)
+          return construireDecorations(newState, entretien, resoudre, tailleDe, estCodeActif, nomDe)
         }
         return value.map(tr.mapping, tr.doc)
       },

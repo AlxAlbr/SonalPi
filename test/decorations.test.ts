@@ -27,11 +27,22 @@ function doc() {
   ])
 }
 
-function etat(annotations: Annotation[], nomDe?: (code: string) => string): EditorState {
+function etat(
+  annotations: Annotation[],
+  opts: { nomDe?: (code: string) => string; estCodeActif?: (code: string) => boolean } = {},
+): EditorState {
   const entretien = { annotations, ancres: [] } as unknown as Entretien
   return EditorState.create({
     doc: doc(),
-    plugins: [pluginDecorations(entretien, (code) => `couleur(${code})`, undefined, nomDe)],
+    plugins: [
+      pluginDecorations(
+        entretien,
+        (code) => `couleur(${code})`,
+        undefined,
+        opts.estCodeActif,
+        opts.nomDe,
+      ),
+    ],
   })
 }
 
@@ -91,8 +102,38 @@ describe('décorations — soulignés multi-codages', () => {
     expect(sansNom).toEqual(['cat-3']) // pas de résolveur → repli sur l'id
 
     const avecNom = titres(
-      etat([codage('cat-3', 1, 5)], (code) => (code === 'cat-3' ? 'Motivation' : code)),
+      etat([codage('cat-3', 1, 5)], { nomDe: (code) => (code === 'cat-3' ? 'Motivation' : code) }),
     )
     expect(avecNom).toEqual(['Motivation'])
+  })
+})
+
+describe('décorations — thème inactif', () => {
+  const inactifs = (codes: Set<string>) => (code: string) => !codes.has(code)
+
+  test('un codage d\'un thème inactif n\'émet aucun marquage', () => {
+    // 'a' inactif → aucun souligné sur sa plage.
+    const s = styles(etat([codage('a', 1, 5)], { estCodeActif: inactifs(new Set(['a'])) }))
+    expect(s).toEqual([])
+  })
+
+  test('un thème actif reste affiché quand un autre est inactif', () => {
+    // 'a' inactif, 'b' actif : seule la barre de b reste (box-shadow simple).
+    const s = styles(etat([codage('a', 1, 5), codage('b', 1, 7)], { estCodeActif: inactifs(new Set(['a'])) }))
+    expect(s).toContain('box-shadow:inset 0 -2px 0 couleur(b)')
+    // Le souligné de a n'apparaît nulle part (ni dégradé, ni box-shadow).
+    expect(s.join(' ')).not.toContain('couleur(a)')
+  })
+
+  test('chevauchement : le thème inactif ne compte pas pour la hauteur des barres', () => {
+    // b actif seul sur toute la plage → un seul souligné, pas de dégradé multi-barres.
+    const s = styles(etat([codage('a', 1, 7), codage('b', 1, 7)], { estCodeActif: inactifs(new Set(['a'])) }))
+    expect(s).toEqual(['box-shadow:inset 0 -2px 0 couleur(b)'])
+  })
+
+  test('le comptage et le titre ignorent le thème inactif', () => {
+    const s = etat([codage('a', 1, 5), codage('b', 1, 7)], { estCodeActif: inactifs(new Set(['a'])) })
+    // b seul est compté.
+    expect(attributs(s, 'data-annot-count')).toEqual(['1'])
   })
 })

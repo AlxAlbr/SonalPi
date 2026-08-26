@@ -1,4 +1,4 @@
-import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { Extension } from '@tiptap/core'
 import { useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -10,6 +10,7 @@ import { pluginLecture } from '../editor/lecture'
 import { pluginMenuContexte, type CibleMenuContexte } from '../editor/menuContexte'
 import { pluginCommentairesMarge } from '../editor/commentairesMarge'
 import { pluginReperage, reperagePluginKey } from '../editor/reperage'
+import { pluginRecherche, recherchePluginKey, trouverOccurrences, type OccurrenceRecherche } from '../editor/recherche'
 import { snapToWord, snapBornes } from '../editor/snap'
 import { attribuerSelectionTr } from '../editor/attribution'
 import { aplatir, occurrencesDe, plageVersPM, instructionsValiderAnon } from '../../shared/entretien/anon/anonymisation'
@@ -87,6 +88,9 @@ export function useEntretien(deps: {
   /** Taille de police (px) d'un code — la `taille` du codebook (scope corpus),
    *  `undefined` = taille du texte. Même idiome d'injection que `couleurTrait`. */
   tailleTrait?: (code: string) => number | undefined
+  /** Un code est-il ACTIF (définition du codebook, scope corpus) : un thème
+   *  inactif est masqué du marquage de l'éditeur et refusé au codage. */
+  estCodeActif: (code: string) => boolean
   apresSauvegarde: () => Promise<void>
   codeExtraits: () => string
   nomCode: (code: string) => string
@@ -285,6 +289,115 @@ export function useEntretien(deps: {
     const ed = editor.value
     if (ed) ed.view.dispatch(ed.state.tr.setMeta(reperagePluginKey, null))
   }
+
+  // --- Recherche / remplacement (Ctrl+F) -------------------------------------
+  /** Boîte ouverte et texte saisi. Le remplacement est désactivé en lecture
+   *  seule (roContenu côté vue) ; la recherche reste toujours disponible. */
+  const rechercheOuverte = ref(false)
+  const rechercheTexte = ref('')
+  const remplacementTexte = ref('')
+  /** Occurrences courantes dans le document + index de l'occurrence active
+   *  (surlignée différemment) — recalculées à chaque changement (requête ou doc). */
+  const occurrencesRecherche = ref<OccurrenceRecherche[]>([])
+  const indexRecherche = ref(-1)
+
+  /** Pousse les plages + index courant dans le plugin (décorations). */
+  function majDecorationsRecherche() {
+    const ed = editor.value
+    if (!ed) return
+    ed.view.dispatch(
+      ed.state.tr.setMeta(recherchePluginKey, {
+        plages: occurrencesRecherche.value,
+        actif: indexRecherche.value,
+      }),
+    )
+  }
+  /** Sélectionne l'occurrence active et fait défiler jusqu'à elle (centré,
+   *  comme le repérage anon). */
+  function calerOccurrenceActive() {
+    const ed = editor.value
+    const occ = occurrencesRecherche.value[indexRecherche.value]
+    if (!ed || !occ) return
+    ed.commands.setTextSelection({ from: occ.de, to: occ.a })
+    const dom = ed.view.domAtPos(occ.de).node
+    const el = dom instanceof HTMLElement ? dom : dom.parentElement
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  /** Recalcule les occurrences pour la requête courante ; l'index est borné.
+   *  `premier` (changement de requête) sélectionne en plus la première
+   *  occurrence — sans ça, la frappe dans l'éditeur ne bouge pas la sélection. */
+  function recalculerRecherche(premier = false) {
+    const ed = editor.value
+    const q = rechercheTexte.value.trim()
+    occurrencesRecherche.value = ed && q ? trouverOccurrences(ed.state.doc, q) : []
+    if (occurrencesRecherche.value.length === 0) indexRecherche.value = -1
+    else if (premier || indexRecherche.value < 0) {
+      indexRecherche.value = 0
+    } else if (indexRecherche.value >= occurrencesRecherche.value.length) {
+      indexRecherche.value = occurrencesRecherche.value.length - 1
+    }
+    majDecorationsRecherche()
+    if (premier) calerOccurrenceActive()
+  }
+  watch(rechercheTexte, () => {
+    if (!rechercheOuverte.value) return
+    recalculerRecherche(true)
+  })
+  /** Ouvre la boîte (ou y retourne) : préremplit avec la sélection courante si
+   *  elle a du texte, puis focalise le champ de recherche. */
+  async function ouvrirRecherche() {
+    const ed = editor.value
+    if (!rechercheTexte.value && ed) {
+      const { from, to } = ed.state.selection
+      const selection = to > from ? ed.state.doc.textBetween(from, to, ' ') : ''
+      if (selection.trim()) rechercheTexte.value = selection.trim()
+    }
+    rechercheOuverte.value = true
+    await nextTick()
+    const champ = document.getElementById('champ-recherche') as HTMLInputElement | null
+    champ?.focus()
+    champ?.select()
+  }
+  /** Ferme la boîte et efface le surlignage. */
+  function fermerRecherche() {
+    rechercheOuverte.value = false
+    occurrencesRecherche.value = []
+    indexRecherche.value = -1
+    majDecorationsRecherche()
+  }
+  /** Navigation ◄ / ► dans les occurrences (modulo). */
+  function naviguerRecherche(sens: number) {
+    const n = occurrencesRecherche.value.length
+    if (n === 0) return
+    indexRecherche.value = (indexRecherche.value + sens + n) % n
+    majDecorationsRecherche()
+    calerOccurrenceActive()
+  }
+  /** Remplace l'occurrence active par le texte de remplacement, puis se cale
+   *  sur l'occurrence suivante au même rang (le recalcul suit la transaction). */
+  function remplacerOccurrenceCourante() {
+    const ed = editor.value
+    const occ = occurrencesRecherche.value[indexRecherche.value]
+    if (!ed || !occ) return
+    ed.view.dispatch(ed.state.tr.insertText(remplacementTexte.value, occ.de, occ.a))
+    // La transaction a déjà déclenché le recalcul (onUpdate) ; on retombe sur
+    // la même position dans la nouvelle liste (dernière si la liste a fondu).
+    indexRecherche.value = Math.min(indexRecherche.value, Math.max(occurrencesRecherche.value.length - 1, 0))
+    majDecorationsRecherche()
+    calerOccurrenceActive()
+  }
+  /** Remplace TOUTES les occurrences en une seule transaction (une seule
+   *  annulation Ctrl+Z). Les positions d'origine restent valides car les
+   *  remplacements vont de la FIN vers le DÉBUT du document. */
+  function remplacerTout() {
+    const ed = editor.value
+    if (!ed || occurrencesRecherche.value.length === 0) return
+    const tr = ed.state.tr
+    for (const occ of [...occurrencesRecherche.value].reverse()) {
+      tr.insertText(remplacementTexte.value, occ.de, occ.a)
+    }
+    ed.view.dispatch(tr)
+  }
   // Brouillons d'anonymisation entretien-locaux (pas des règles) : entités
   // saisies sans occurrence posée. Persistés dans entretiens/<id>.json.brouillonsAnon.
   const brouillonsAnon = ref<BrouillonAnon[]>([])
@@ -350,10 +463,11 @@ export function useEntretien(deps: {
       return [
         pluginRemap(entretien),
         pluginRemapJournal(journal),
-        pluginDecorations(entretien, deps.couleurTrait, deps.tailleTrait, deps.nomCode),
+        pluginDecorations(entretien, deps.couleurTrait, deps.tailleTrait, deps.estCodeActif, deps.nomCode),
         pluginGouttiere(() => locuteurs.value, deps.clicTour),
         pluginLecture(),
         pluginReperage(),
+        pluginRecherche(),
         pluginMenuContexte(entretien, ouvrirMenuContexte),
         pluginCommentairesMarge(entretien, editerCommentaire),
       ]
@@ -419,6 +533,8 @@ export function useEntretien(deps: {
         texteModifie.value = texteInitial !== '' && ed.getText() !== texteInitial
       }
       rafraichir()
+      // Boîte recherche/remplacement ouverte : les occurrences suivent le texte.
+      if (transaction.docChanged && rechercheOuverte.value) recalculerRecherche()
       // Seule une transaction qui CHANGE LE DOCUMENT programme une écriture :
       // `setEditable` (passage en lecture seule à l'ouverture sous verrou
       // d'autrui) émet une transaction SANS docChanged — si on programmmait
@@ -712,6 +828,12 @@ export function useEntretien(deps: {
     }
     hintCodage.value = null
     const existant = trouverCodage(entretien, { ...snapped, code })
+    // Thème inactif : on refuse de poser un NOUVEAU codage, mais on laisse le
+    // retrait (re-clic sur un passage déjà codé = nettoyage toujours possible).
+    if (!existant && !deps.estCodeActif(code)) {
+      hintCodage.value = 'Thème inactif — réactivez-le pour coder.'
+      return
+    }
     if (existant) {
       retirerAnnotation(entretien, existant.id)
       // L'objet retiré survit dans l'entrée : journalRemap continue à le remapper.
@@ -830,26 +952,6 @@ export function useEntretien(deps: {
       delete l.pseudo
       delete l.pseudoEtat
     }
-    rafraichirGouttiere()
-    planifierSauvegarde()
-  }
-  /** Décision persistée de pseudonymiser (✓ « confirme ») ou non (⊘ « refuse »)
-   *  le libellé d'un locuteur — parité SonalPi `loc-anon` / `loc-suggere-refuse`.
-   *  La décision n'a de sens qu'avec un pseudo posé (garde ci-dessous). */
-  function setPseudoEtatLoc(index: number, etat: 'confirme' | 'refuse') {
-    const l = locuteurs.value.find((x) => x.index === index)
-    if (!l || !l.pseudo) return
-    l.pseudoEtat = etat
-    rafraichirGouttiere()
-    planifierSauvegarde()
-  }
-  /** Bascule la décision de pseudonymisation d'un locuteur en un seul bouton :
-   *  ✓ (confirme) ⟷ ⊘ (refuse). Un pseudo posé sans décision vaut « confirme »
-   *  (pseudonymisé), donc cliquer une 1re fois le passe en « refuse ». */
-  function basculerPseudoEtatLoc(index: number) {
-    const l = locuteurs.value.find((x) => x.index === index)
-    if (!l || !l.pseudo) return
-    l.pseudoEtat = l.pseudoEtat === 'refuse' ? 'confirme' : 'refuse'
     rafraichirGouttiere()
     planifierSauvegarde()
   }
@@ -2110,8 +2212,19 @@ export function useEntretien(deps: {
 
   onBeforeUnmount(() => {
     clearTimeout(tid)
+    window.removeEventListener('keydown', surRaccourciRecherche)
     editor.value?.destroy()
   })
+
+  /** Ctrl+F / Cmd+F : ouvre la boîte recherche/remplacement quand un entretien
+   *  est ouvert (le navigateur n'a pas de recherche propre à détourner ici). */
+  function surRaccourciRecherche(event: KeyboardEvent) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+    if (event.key.toLowerCase() !== 'f' || !ouvertId.value) return
+    event.preventDefault()
+    ouvrirRecherche()
+  }
+  window.addEventListener('keydown', surRaccourciRecherche)
 
   return {
     // état / modèle
@@ -2130,6 +2243,16 @@ export function useEntretien(deps: {
     demarrerReperage,
     naviguerReperage,
     arreterReperage,
+    // recherche / remplacement (Ctrl+F)
+    rechercheOuverte,
+    rechercheTexte,
+    remplacementTexte,
+    occurrencesRecherche,
+    indexRecherche,
+    fermerRecherche,
+    naviguerRecherche,
+    remplacerOccurrenceCourante,
+    remplacerTout,
     brouillonsAnon,
     notes,
     brouillonNote,
@@ -2149,8 +2272,6 @@ export function useEntretien(deps: {
     nouveauLocuteur,
     setInterviewer,
     setPseudoLoc,
-    setPseudoEtatLoc,
-    basculerPseudoEtatLoc,
     choisirCouleurLoc,
     locuteurASupprimer,
     demanderSuppressionLocuteur,

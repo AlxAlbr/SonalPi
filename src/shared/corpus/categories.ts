@@ -118,6 +118,8 @@ export interface NoeudTheme {
   profondeur: number
   premier: boolean // 1er de sa fratrie (▲ désactivé)
   dernier: boolean // dernier de sa fratrie (▼ désactivé)
+  /** A-t-il au moins un enfant direct ? (affiche/masque l'icône de repli.) */
+  aEnfants: boolean
 }
 
 /** Aplatit le codebook en **pré-ordre** (parent puis ses enfants, récursif ;
@@ -135,10 +137,34 @@ export function ordreThemes(codebook: Record<string, Categorie>): NoeudTheme[] {
   const visiter = (parent: string | null, profondeur: number) => {
     const fratrie = enfants(parent)
     fratrie.forEach((cat, i) => {
-      out.push({ cat, profondeur, premier: i === 0, dernier: i === fratrie.length - 1 })
+      out.push({
+        cat,
+        profondeur,
+        premier: i === 0,
+        dernier: i === fratrie.length - 1,
+        aEnfants: enfants(cat.id).length > 0,
+      })
       visiter(cat.id, profondeur + 1)
     })
   }
   visiter(null, 0)
+  return out
+}
+
+/** Filtrage d'AFFICHAGE pour le repli des sous-thèmes (état de Vue, jamais
+ *  persisté) : à partir du pré-ordre complet, retire les DESCENDANTS des
+ *  catégories repliées (la catégorie repliée elle-même reste visible). La pile
+ *  `profondeurReplie` suffit dans un pré-ordre : tant qu'un nœud est plus profond
+ *  que la dernière catégorie repliée rencontrée, il est masqué ; à la sortie du
+ *  sous-arbre (profondeur ≤), on re-évalue. Ne touche pas au modèle. */
+export function visiblesThemes(arbre: NoeudTheme[], replies: ReadonlySet<string>): NoeudTheme[] {
+  const out: NoeudTheme[] = []
+  let profondeurReplie = -1
+  for (const n of arbre) {
+    if (profondeurReplie >= 0 && n.profondeur > profondeurReplie) continue
+    profondeurReplie = -1
+    out.push(n)
+    if (n.aEnfants && replies.has(n.cat.id)) profondeurReplie = n.profondeur
+  }
   return out
 }

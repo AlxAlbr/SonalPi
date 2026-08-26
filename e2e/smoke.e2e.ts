@@ -31,9 +31,10 @@ test('coder une sélection ajoute une annotation au modèle, la retirer l’enl�
   await ed.press('ControlOrMeta+a')
   await coderTheme(page, 'Famille') // cat_001
 
-  // Une annotation au modèle, décorée et porteuse de son code.
+  // Une annotation au modèle, décorée et porteuse du NOM du thème
+  // (le titre affiche le libellé résolu au codebook, pas le code brut).
   await expect.poll(() => compterAnnotations(page)).toBe(1)
-  await expect(ed.locator('.annot').first()).toHaveAttribute('title', /cat_001/)
+  await expect(ed.locator('.annot').first()).toHaveAttribute('title', 'Famille')
 
   // La retirer = re-coder la même plage (toggle — le caret n'a pas bougé).
   await coderTheme(page, 'Famille')
