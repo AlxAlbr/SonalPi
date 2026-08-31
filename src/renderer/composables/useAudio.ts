@@ -33,7 +33,7 @@ export function useAudio() {
   const waveformUrl = ref<string | null>(null)
   const enLecture = ref(false)
   const duree = ref(0)
-  /** Position suivie sur `timeupdate` (~4 Hz, comme SonalPi) — largement assez fin pour la synchro par bloc ;
+  /** Position suivie sur `timeupdate` (~4 Hz, comme SonalPi1) — largement assez fin pour la synchro par bloc ;
    *  la barre de position suit au même rythme. */
   const position = ref(0)
   const vitesse = ref(1)

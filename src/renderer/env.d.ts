@@ -31,6 +31,7 @@ import type {
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
+  VerificationDossierDemo,
   ParamsAnon,
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
@@ -211,7 +212,7 @@ declare global {
         cheminAudio: (racine: string, rel: string) => Promise<string>
         etat: () => Promise<EtatDemoComplet | null>
         memoriser: (etat: EtatDemo) => Promise<void>
-        verifierCorpus: (dir: string) => Promise<{ dejaCorpus: boolean }>
+        verifierCorpus: (dir: string) => Promise<VerificationDossierDemo>
       }
     }
   }

@@ -2,7 +2,7 @@ import type { Annotation } from './entretien/annotation'
 import type { Ancre } from './entretien/audio'
 
 /**
- *  Contrat du FORMAT NATIF SonalTau (docs/dev/modele-objet.md).
+ *  Contrat du FORMAT NATIF SonalPi2 (docs/dev/modele-objet.md).
  *  Partagé main ⇄ renderer.
  *  Toute évolution de structure = bump de FORMAT_VERSION + migration explicite :
  *  une version inconnue est refusée, jamais lue à moitié.
@@ -56,6 +56,14 @@ export interface MarqueurDemo {
   validees?: string[]
 }
 
+/** Résultat de la garde `demo:verifierCorpus` (modale) : `ok` si le dossier est
+ *  libre OU n'abrite qu'un squelette amorcé vide (pas un travail utilisateur) ;
+ *  sinon refus typé : `demo` (corpus d'un mode démo), `dejaCorpus` (non vide),
+ *  `illisible` (`corpus.json` présent mais illisible, prudence). */
+export type VerificationDossierDemo =
+  | { ok: true }
+  | { ok: false; raison: 'demo' | 'dejaCorpus' | 'illisible' }
+
 // ══════════════════════════════════════════════════════════════════════════
 // Corpus — dossier et `corpus.json` (définitions + membership).
 // ══════════════════════════════════════════════════════════════════════════
@@ -72,7 +80,7 @@ export interface RegleAnon {
   categorie?: string
 }
 
-/** Trace d'une migration SonalPi V1 → SonalTau : identité du `.crp` (nom + dateCreation), et chemin absolu vers le fichier d'origine, en mémoire.
+/** Trace d'une migration SonalPi1 → SonalPi2 : identité du `.crp` (nom + dateCreation), et chemin absolu vers le fichier d'origine, en mémoire.
  *  Champ ADDITIF optionnel. */
 export interface SourceV1 {
   /** Chemin absolu du `.crp` migré. */
@@ -183,14 +191,14 @@ export interface BrouillonAnon {
   pseudo?: string
 }
 
-/** Métadonnées d'un entretien : valeurs EAV de portée entretien, référence audio (absolue, formatVersion 3), et trace de migration V1 — champ ADDITIF optionnel, sans bump de formatVersion. */
+/** Métadonnées d'un entretien : valeurs EAV de portée entretien, référence audio (absolue, formatVersion 3), et trace de migration SonalPi1 — champ ADDITIF optionnel, sans bump de formatVersion. */
 export interface MetaEntretien {
   valeursGen: Record<string, string> // idVar → idMod (portée entretien)
   audioRef: string | null // chemin ABSOLU (v3), ou null si aucun audio
   /** Média désigné DANS le Nextcloud : chemin RELATIF à la racine du corpus serveur — c'est la désignation qui porte l'information, pas un dossier ; le miroir télécharge le fichier à chaque tirage.
    *  Champ ADDITIF optionnel. */
   audioDistant?: { chemin: string }
-  /** Chemin RELATIF du `.sonal` V1 d'origine au dossier du `.crp` — trace seule, jamais utilisée pour relire. */
+  /** Chemin RELATIF du `.sonal` SonalPi1 d'origine au dossier du `.crp` — trace seule, jamais utilisée pour relire. */
   sourceV1?: { rtrPath: string | null }
 }
 
@@ -240,7 +248,7 @@ export interface NoteCategory {
 }
 
 /** Note d'entretien : corps HTML sanitisé (texte échappé + passages `<mark>` importants, `<em>` liés à un commentaire) ; ordre par `rang` (manuel, « après la dernière » = max+1).
- *  `date` null = pas de date (bac « générale » migré de la V1) ; `titre` optionnel : affiché seul en vue cartes. */
+ *  `date` null = pas de date (bac « générale » migré de SonalPi1) ; `titre` optionnel : affiché seul en vue cartes. */
 export interface Note {
   id: string
   categorieId: string

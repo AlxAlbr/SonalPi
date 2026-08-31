@@ -32,7 +32,7 @@ type AnnBrute =
   | { type: 'codage'; code: string; from: number; to: number }
   | { type: 'anon'; entite: string; pseudo: string; etat: 'anonymise' | 'exception'; from: number; to: number }
 
-/** Commentaire V1 en cours d'import : ouvert au fragment portant `data-obs`,
+/** Commentaire SonalPi1 en cours d'import : ouvert au fragment portant `data-obs`,
  *  fermé au fragment final (voir fermetures ci-dessous). Coordonnées PRÉ-fusion
  *  (index de bloc brut + offset caractère local) — remappées après la fusion des
  *  tours, comme les autres annotations. */
@@ -48,12 +48,12 @@ interface CommentaireImport {
    *  l'ouverture, résolue quand on rencontre ce rk. */
   finRk: string | null
 }
-/** Génère un id de règle corpus à l'import (les entrées SonalPi n'en portent pas). */
+/** Génère un id de règle corpus à l'import (les entrées SonalPi1 n'en portent pas). */
 function genIdRegle(): string {
   return 'reg-' + Math.random().toString(36).slice(2, 10)
 }
 
-/** Parse l'`anon-json` SonalPi en brouillons (entretien-local) + règles corpus. */
+/** Parse l'`anon-json` SonalPi1 en brouillons (entretien-local) + règles corpus. */
 function parserAnonJson(json: unknown): { brouillons: BrouillonAnon[]; regles: RegleAnon[] } {
   const brouillons: BrouillonAnon[] = []
   const regles: RegleAnon[] = []
@@ -87,21 +87,21 @@ interface BlocImport {
 }
 
 /**
- *  Sas d'import : un HTML `.sonal` (natif, ou produit par un convertisseur
- *  SonalPi — SRT/VTT) → charge utile SonalTau (doc ProseMirror + annotations + locuteurs)
+ *  Sas d'import : un DOM `.sonal` (issu du HTML natif ou d'un convertisseur
+ *  SonalPi1 — SRT/VTT) → charge utile SonalPi2 (doc ProseMirror + annotations + locuteurs)
  *  + codebook + blocs legacy. Les offsets caractère du parseur sont convertis
  *  en positions ProseMirror (positions.ts).
  */
-export function importerSonal(html: string, domDoc: Document): ResultatImport {
+export function importerSonal(domDoc: Document): ResultatImport {
   const contenu = domDoc.getElementById('contenuText')
   if (!contenu) throw new Error('.sonal invalide : pas de #contenuText')
 
-  const tabLoc = (extraireJson(html, 'loc-json') as string[] | null) ?? []
-  const tabThm = (extraireJson(html, 'cat-json') as CategorieV1[] | null) ?? []
-  const anonJson = extraireJson(html, 'anon-json')
+  const tabLoc = (extraireJson(domDoc, 'loc-json') as string[] | null) ?? []
+  const tabThm = (extraireJson(domDoc, 'cat-json') as CategorieV1[] | null) ?? []
+  const anonJson = extraireJson(domDoc, 'anon-json')
   const { brouillons, regles: reglesAnon } = parserAnonJson(anonJson)
-  // Notes V1 : un `<textarea>` de texte libre. On lit son contenu texte
-  //  (textContent — robuste en DOM de test comme navigateur ; la V1 stockait
+  // Notes SonalPi1 : un `<textarea>` de texte libre. On lit son contenu texte
+  //  (textContent — robuste en DOM de test comme navigateur ; SonalPi1 stockait
   //  une chaîne brute). On migre ce contenu en une note « générale » (bac
   //  récupérant le libre, sans date) ; `legacy.notes` conserve aussi la chaîne
   //  brute pour un futur export sans perte.
@@ -115,8 +115,8 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // Catégories de note : elles vivent au CORPUS (bacs par défaut normalisés
   //  à la lecture de corpus.json) — l'entretien importé n'en porte pas. La
   //  note migrée référence le bac « générale » (id stable d'un bac par défaut).
-  // Une seule note migre le texte V1 : bac « générale », pas de date, privée.
-  //  Le `corps` est échappé (HTML sanitisé, sans <mark> : le libre V1 n'en a pas).
+  // Une seule note migre le texte SonalPi1 : bac « générale », pas de date, privée.
+  //  Le `corps` est échappé (HTML sanitisé, sans <mark> : le libre SonalPi1 n'en a pas).
   const notes: Note[] = notesV1
     ? [
         {
@@ -134,7 +134,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     : []
   // EAV : var/dic → définitions de variables ; dat → valeurs distribuées chez
   // leur propriétaire (valeursGen / valeursLoc).
-  const variables = importerVariables(extraireJson(html, 'var-json'), extraireJson(html, 'dic-json'))
+  const variables = importerVariables(extraireJson(domDoc, 'var-json'), extraireJson(domDoc, 'dic-json'))
 
   // 1) Un SEGMENT (.lblseg) = un cue : texte + annotations en offsets locaux +
   //    sa fenêtre temporelle [deb, fin] (bornes mesurées, ou null).
@@ -143,9 +143,9 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   // du tour — pseudonymisé (loc-anon + data-locpseudo) ou refusé
   // (loc-suggere-refuse) → Locuteur.pseudo / pseudoEtat.
   const labelsLoc = new Map<number, { pseudo: string } | { refuse: true }>()
-  // Commentaires V1 (data-obs/data-auth/data-finobs) : collectés à travers les
+  // Commentaires SonalPi1 (data-obs/data-auth/data-finobs) : collectés à travers les
   // segments, remappés après la fusion des tours. Deux conventions de FIN
-  // coexistent dans les fichiers V1 : `data-finobs` = le data-rk du fragment
+  // coexistent dans les fichiers SonalPi1 : `data-finobs` = le data-rk du fragment
   // final (déclaré au fragment d'ouverture), ou un simple marqueur posé sur ce
   // fragment final. Les deux lectures sont couvertes (fermeture par égalité de
   // rk, puis par présence du marqueur) ; sans fin, le commentaire se termine
@@ -176,7 +176,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
       if (frag.classList.contains('anon-exception')) {
         // Une exception ne ré-émet JAMAIS de data-pseudo à
         // l'export — mais un éventuel `data-pseudo` du producteur (hors
-        // convention SonalPi) est CONSERVÉ en mémoire de modèle, comme la
+        // convention SonalPi1) est CONSERVÉ en mémoire de modèle, comme la
         // bascule locale le fait : « remettre en anonymisé » peut alors
         // restituer le pseudo d'origine sans perte. Absent → mémoire vide.
         anns.push({ type: 'anon', entite: t, pseudo: frag.dataset.pseudo ?? '', etat: 'exception', from, to })
@@ -214,7 +214,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
       }
       text += t
     }
-    // data-loc="0" = « aucun locuteur » (convention SonalPi : locut[0] n'existe
+    // data-loc="0" = « aucun locuteur » (convention SonalPi1 : locut[0] n'existe
     // pas) → null au modèle, comme l'absence — sinon la fusion des tours collerait
     // tous les segments sans locuteur d'un texte brut.
     const locBrut = nombreOuNull(seg.dataset.loc)
@@ -295,7 +295,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     }
   })
 
-  // 3bis) Commentaires V1 : remappés en coordonnées de tours FUSIONNÉS (les
+  // 3bis) Commentaires SonalPi1 : remappés en coordonnées de tours FUSIONNÉS (les
   //    bornes peuvent encadrer une fusion), avec l'auteur d'origine sinon « import »
   //    (même convention que les autres annotations importées).
   for (const c of commentaires) {
@@ -333,7 +333,7 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
   })
 
   // 4) Locuteurs depuis tabLoc (position dans le tableau = index du locuteur).
-  //    Un « ? » dans le nom (convention SonalPi) = INTERVIEWER → drapeau au
+  //    Un « ? » dans le nom (convention SonalPi1) = INTERVIEWER → drapeau au
   //    modèle, nom nettoyé ; le « ? » est réintroduit à l'export seulement.
   const locuteurs: Locuteur[] = tabLoc
     .map((nom, index) => ({
@@ -346,11 +346,11 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     .filter((l) => l.index > 0 && l.nom !== '')
 
   // 4b) Valeurs EAV : `l="all"` → valeursGen ; `l=index` → valeursLoc (posé ici).
-  const valeursGen = distribuerValeurs(extraireJson(html, 'dat-json'), locuteurs)
+  const valeursGen = distribuerValeurs(extraireJson(domDoc, 'dat-json'), locuteurs)
 
   // 4c) Marqueurs de libellé du .ligloc → Locuteur.pseudo / pseudoEtat :
   //     pseudonymisé (loc-anon + data-locpseudo) → « confirme » ; refus explicite
-  //     (loc-suggere-refuse) → « refuse ». Parité SonalPi ; le « ? » interviewer
+  //     (loc-suggere-refuse) → « refuse ». Parité SonalPi1 ; le « ? » interviewer
   //     vient du tabLoc (4), jamais des marqueurs.
   for (const l of locuteurs) {
     const label = labelsLoc.get(l.index)
@@ -363,14 +363,14 @@ export function importerSonal(html: string, domDoc: Document): ResultatImport {
     }
   }
 
-  // 5) Codebook depuis cat-json (forme SonalPi → Categorie). La hiérarchie
+  // 5) Codebook depuis cat-json (forme SonalPi1 → Categorie). La hiérarchie
   //    `parent` est RECONSTRUITE depuis la séquence des `rang`=profondeur.
   const parents = parentsDepuisRangs(tabThm.map((t) => ({ id: t.code, rang: Number(t.rang ?? 0) || 0 })))
   const codebook: Categorie[] = tabThm.map((t, i) => ({
     id: t.code,
     nom: t.nom ?? t.code,
     couleur: t.couleur || undefined,
-    // SonalPi stocke un nombre nu (24) ou '' — n'importer qu'un nombre > 0.
+    // SonalPi1 stocke un nombre nu (24) ou '' — n'importer qu'un nombre > 0.
     taille: Number(t.taille) > 0 ? Number(t.taille) : undefined,
     ordre: i,
     parent: parents[t.code] ?? null,
@@ -403,29 +403,66 @@ function nombreOuNull(v: string | undefined): number | null {
   return Number.isNaN(n) ? null : n
 }
 
-/** Extrait et parse un bloc <script id="…-json"> du HTML `.sonal` (port POC1). */
-function extraireJson(html: string, id: string): unknown {
-  const regex = new RegExp(`<script[^>]*id=["']${id}["'][^>]*>([\\s\\S]*?)<\\/script>`, 'i')
-  const match = html.match(regex)
-  if (!match) return null
-  try {
-    let content = match[1]
-      .replace(/\s+/g, ' ')
-      .replace(/,\s*,+/g, ',')
-      .replace(/^\s*,+\s*/, '')
-      .replace(/\s*,+\s*$/, '')
-      .replace(/{\s*,+\s*/, '{')
-      .replace(/,+\s*}/g, '}')
-      .replace(/\[\s*,+\s*/, '[')
-      .replace(/,+\s*\]/g, ']')
-      .trim()
-    if (content.startsWith('{') && content.endsWith('}')) {
-      const inner = content.slice(1, -1).trim()
-      if (inner.startsWith('[') || inner.startsWith('{')) content = inner
-    }
-    if (!content || content.length < 2) return null
-    return JSON.parse(content)
-  } catch {
-    return null
+/** Extrait et parse un bloc `<script id="…-json">` du DOM `.sonal`.
+ *  Le format emballe ses blocs JSON dans des accolades externes.
+ *  Il tolère des virgules sauvages (fichiers SonalPi1) : on déballe, on parse
+ *  STRICT d'abord, et on répare (hors chaînes) en secours. */
+function extraireJson(domDoc: Document, id: string): unknown {
+  const brut = domDoc.getElementById(id)?.textContent?.trim()
+  if (!brut) return null
+  let contenu = brut
+  if (contenu.startsWith('{') && contenu.endsWith('}')) {
+    const interieur = contenu.slice(1, -1).trim()
+    if (interieur.startsWith('[') || interieur.startsWith('{')) contenu = interieur
   }
+  if (contenu.length < 2) return null
+  try {
+    return JSON.parse(contenu)
+  } catch {
+    try {
+      return JSON.parse(reparerJson(contenu))
+    } catch {
+      return null
+    }
+  }
+}
+
+/** Réparation minimale du JSON SonalPi1, hors chaînes.
+ *  Une virgule dans une string n'est jamais touchée : seules les virgules
+ *  doublées, ou collées aux crochets/accolades, sont retirées. */
+function reparerJson(s: string): string {
+  const blancs = ' \n\t\r'
+  let sortie = ''
+  let preced = ''
+  let dansChaine = false
+  let echappe = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (dansChaine) {
+      sortie += c
+      if (echappe) echappe = false
+      else if (c === '\\') echappe = true
+      else if (c === '"') {
+        dansChaine = false
+        preced = c
+      }
+      continue
+    }
+    if (c === '"') {
+      dansChaine = true
+      sortie += c
+      continue
+    }
+    if (c === ',') {
+      let j = i + 1
+      while (j < s.length && blancs.includes(s[j])) j++
+      const suivi = s[j] ?? ''
+      const sauvage = preced === '' || '[,{'.includes(preced) || ']},'.includes(suivi)
+      if (!sauvage) sortie += c
+      continue
+    }
+    if (!blancs.includes(c)) preced = c
+    sortie += c
+  }
+  return sortie
 }

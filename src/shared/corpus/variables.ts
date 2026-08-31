@@ -87,7 +87,7 @@ export interface BlocLocuteur {
  *  variables générales d'une part, bloc par locuteur d'autre part.
  *  Les définitions viennent du corpus,
  *  les valeurs de `meta.valeursGen` et des `valeursLoc` de chaque locuteur ;
- *  une valeur sans définition est ignorée. Parité SonalPi V1 : les locuteurs interviewers (« ? »)
+ *  une valeur sans définition est ignorée. Parité SonalPi1 : les locuteurs interviewers (« ? »)
  *  ne portent pas de bloc de variables. */
 export function detailsVariablesEntretien(
   definitions: Variable[],

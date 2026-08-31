@@ -1,18 +1,18 @@
-# Passer de SonalPi V1 à SonalTau
+# Passer de SonalPi1 à SonalPi2
 
-Guide utilisateur de la migration : un corpus SonalPi V1 (`.crp` + `.Sonal`) devient
-un corpus SonalTau (dossier dédié : `corpus.json` + `entretiens/` + `png/`), en
+Guide utilisateur de la migration : un corpus SonalPi1 (`.crp` + `.Sonal`) devient
+un corpus SonalPi2 (dossier dédié : `corpus.json` + `entretiens/` + `png/`), en
 préservant l'identité du projet et son contenu.
 
 ---
 
 ## 1. Le parcours en 4 étapes
 
-Depuis l'**Accueil**, la carte **« 🚚 Migrer un corpus SonalPi (V1)… »** ouvre la
+Depuis l'**Accueil**, la carte **« 🚚 Migrer un corpus SonalPi1… »** ouvre la
 modale de migration.
 
 1. **Choisir le `.crp`** — le fichier est LU (détection d'encodage automatique :
-   UTF-8 ou windows-1252, comme SonalPi). Rien n'est écrit.
+   UTF-8 ou windows-1252, comme SonalPi1). Rien n'est écrit.
 2. **Aperçu** — nom du corpus, date de création, nombre d'entretiens, thèmes,
    variables et règles d'anonymisation. Si le `.crp` est illisible ou d'une
    version inconnue, un refus clair s'affiche.
@@ -21,35 +21,35 @@ modale de migration.
    un dossier qui contient déjà un `corpus.json` (ou le corpus d'un mode démo)
    est refusé. Un dossier non vide sans `corpus.json` demande un avertissement
    confirmé (ses fichiers non liés restent en place).
-4. **Migrer** — le corpus SonalTau est créé, **ouvert automatiquement** et ajouté aux
+4. **Migrer** — le corpus SonalPi2 est créé, **ouvert automatiquement** et ajouté aux
    Récents.
 
 ## 2. Ce qui est migré
 
-| Contenu V1 | Devenir SonalTau |
+| Contenu SonalPi1 | Devenir SonalPi2 |
 |---|---|
 | `nom` du projet (ou nom de fichier du `.crp`) | `corpus.json.nom` — l'identité voyage avec le corpus, elle survit au renommage du dossier |
 | `dateCreation`, chemin du `.crp` | trace `meta.sourceV1` dans `corpus.json` |
-| `tabThm` (thèmes, couleurs, tailles, hiérarchie) | `codebook` — **l'arbre thématique est repris tel quel**, y compris les suppressions faites en V1 (rien n'est ré-injecté) |
+| `tabThm` (thèmes, couleurs, tailles, hiérarchie) | `codebook` — **l'arbre thématique est repris tel quel**, y compris les suppressions faites en SonalPi1 (rien n'est ré-injecté) |
 | `tabVar` / `tabDic` (variables + modalités) | `variables` (portée entretien/locuteur, privé, modalités) |
-| chaque entretien (`.Sonal`) | un entretien SonalTau `entretiens/<id>.json` : texte, annotations (thèmes, anon), locuteurs, valeurs — avec la trace `meta.sourceV1.rtrPath` |
+| chaque entretien (`.Sonal`) | un entretien SonalPi2 `entretiens/<id>.json` : texte, annotations (thèmes, anon), locuteurs, valeurs — avec la trace `meta.sourceV1.rtrPath` |
 | `audioPath` de chaque entretien | `meta.audioRef` — **chemin absolu référencé, aucune copie** (l'audio reste où il est) |
 | règles d'anonymisation portées par les `.Sonal` (`anon-json`) | `corpus.json.reglesAnon` (dédupliquées par entité) |
 
 ### Cas particuliers
 
 - **`.Sonal` manquant sur disque** : l'entretien est quand même créé — vide, avec
-  son audio s'il y en a un. Le corpus SonalTau reflète toujours le corpus V1.
+  son audio s'il y en a un. Le corpus SonalPi2 reflète toujours le corpus SonalPi1.
 - **Audio absent** : `audioRef` reste `null`, l'entretien est importé quand même.
-- **Un seul `.crp` par dossier dédié** : si le dossier V1 contient plusieurs
+- **Un seul `.crp` par dossier dédié** : si le dossier SonalPi1 contient plusieurs
   `.crp`, on les migre **un par un**, chacun vers son propre dossier dédié.
 - **Idempotence** : re-migrer le même `.crp` vers le même dossier est refusé par
   les gardes (on n'écrase jamais).
 
 ## 3. Consignes
 
-- **Ne pas supprimer l'ancien dossier V1 tout de suite** : il reste lisible par
-  SonalPi V1 tant que la migration n'a pas été validée côté SonalTau. Aucun fichier V1
+- **Ne pas supprimer l'ancien dossier SonalPi1 tout de suite** : il reste lisible par
+  SonalPi1 tant que la migration n'a pas été validée côté SonalPi2. Aucun fichier SonalPi1
   n'est jamais modifié ou renommé par la migration.
 - Si un `.Sonal` référencé a été déplacé, remettez-le à son emplacement d'origine
   (à côté du `.crp`) **avant** de migrer — sinon l'entretien arrivera vide.
@@ -68,23 +68,23 @@ réglages `paramsAnonCorpus` → `paramsAnon`) et **commentaires** posés sur le
 texte (spans `data-obs` / `data-auth` / `data-finobs` → annotations
 `Annotation{type:'commentaire'}`). Ne restent hors périmètre que :
 
-| Élément V1 | Statut | Pourquoi |
+| Élément SonalPi1 | Statut | Pourquoi |
 |---|---|---|
-| Corpus **distants** (GitLab / serveur) en V1 | hors périmètre | Migration locale uniquement |
-| Archives / export `.zip` V1 | hors périmètre | À étudier plus tard |
-| Migration **inverse** SonalTau → V1 | hors périmètre | — |
+| Corpus **distants** (GitLab / serveur) en SonalPi1 | hors périmètre | Migration locale uniquement |
+| Archives / export `.zip` SonalPi1 | hors périmètre | À étudier plus tard |
+| Migration **inverse** SonalPi2 → SonalPi1 | hors périmètre | — |
 
 ## 5. Détails techniques (pour la curiosité / le dépannage)
 
 - **Encodages** : le `.crp` et les `.Sonal` sont détectés (`chardet`) puis
-  décodés (`iconv-lite`) comme SonalPi V1 le fait — UTF-8 ou windows-1252.
+  décodés (`iconv-lite`) comme SonalPi1 le fait — UTF-8 ou windows-1252.
   Les accents survivent.
-- **Versions `.crp` acceptées** : non renseignée (corpus sauvés V1) ou `1.0`.
+- **Versions `.crp` acceptées** : non renseignée (corpus sauvés SonalPi1) ou `1.0`.
   Toute autre version → refus propre.
-- **Identifiants** : les ids V1 sont **conservés comme identité** pour les
+- **Identifiants** : les ids SonalPi1 sont **conservés comme identité** pour les
   thèmes (`cat_NNN`) et reproduits déterministes pour les variables
   (`v{n}`, `v{n}m{m}`) — la parité d'ids avec les `.sonal` importés est
-  préservée. Les entretiens reçoivent de nouveaux ids SonalTau opaques ; le lien avec
+  préservée. Les entretiens reçoivent de nouveaux ids SonalPi2 opaques ; le lien avec
   l'original est gardé dans `meta.sourceV1.rtrPath`.
 - **Dérive de définitions** : si un `.sonal` embarquait des copies divergentes
   des thèmes/variables (plus récentes, ou périmées), **le `.crp` fait foi**

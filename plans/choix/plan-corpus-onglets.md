@@ -97,7 +97,7 @@ Au `renommerLoc` / à la création d'un locuteur ([locuteurs.ts](../../src/share
   naturel** de l'anonymisation corpus.
 - **Round-trip `.sonal`** : le legacy n'a pas de personnes → export : rien à émettre (les
   étiquettes locales suffisent) ; import : rien à lire. Aucune contrainte de parité — c'est un
-  champ purement SonalTau, additif, pas de bump de `formatVersion`.
+  champ purement SonalPi2, additif, pas de bump de `formatVersion`.
 - **Bascule Yjs** : `personnes` suit le traitement standard des définitions corpus (id opaque
   déjà conforme) ; `personneRef` est une référence par id, rien à coudre.
 
@@ -105,8 +105,8 @@ Au `renommerLoc` / à la création d'un locuteur ([locuteurs.ts](../../src/share
 
 **Le partage qui rend l'onglet décidable** : *lire* le codage vs *le retravailler*. La lecture
 analytique (recueils d'extraits, spécificités lexicales) est le territoire de **Synthèse** et
-**Lexico** de SonalPi ([synthese.js](../../SonalPi/modules/synthese.js),
-[lexico.js](../../SonalPi/modules/lexico.js)) — leur portage est un chantier à part, hors de ce
+**Lexico** de SonalPi1 ([synthese.js](../../SonalPi1/modules/synthese.js),
+[lexico.js](../../SonalPi1/modules/lexico.js)) — leur portage est un chantier à part, hors de ce
 plan. L'onglet Thématique, lui, est l'**atelier** : l'endroit où l'on retravaille la
 thématisation elle-même. C'est un moment réel et mal outillé de l'analyse qualitative — entre
 deux passes de codage, un thème s'avère fourre-tout, deux thèmes sont des doublons, l'arbre ne

@@ -23,8 +23,8 @@ const {
 // mémoire démo persistée settings.json. Une question déjà répondue est sautée (ex. « où importer les sources », si elles sont déjà en place).
 // Une fois le corpus du mode créé, « un clic » suffit.
 const modaleDemo = ref<ModeDemo | null>(null)
-// Modale de migration SonalPi V1 → SonalTau : le `.crp` est analysé (aperçu),
-// avant toute écriture ; le corpus SonalTau naît dans un dossier DÉDIÉ (gardes incluses).
+// Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
+// avant toute écriture ; le corpus SonalPi2 naît dans un dossier DÉDIÉ (gardes incluses).
 const modaleMigration = ref(false)
 // Modale « Nouveau corpus… » : choisir un dossier + donner un nom de projet.
 const modaleNouveau = ref(false)
@@ -98,11 +98,11 @@ async function lancerPreparer(mode: ModeDemo) {
       </div>
 
       <div class="migration-bloc">
-        <h3 class="migration-titre">🚧 Migration SonalPi V1 vers SonalTau </h3>
+        <h3 class="migration-titre">🚧 Migration SonalPi1 vers SonalPi2 </h3>
         <div class="cartes-demo">
           <button class="carte-demo migrer-corpus" @click="modaleMigration = true">
-            <div class="carte-titre">Tester SonalTau tout en gardant le contenu lié à SonalPi V1 intact</div>
-            <div class="carte-sous">Migration locale — l’ancien dossier SonalPi V1 reste intact, tout le contenu est repris</div>
+            <div class="carte-titre">Tester SonalPi2 tout en gardant le contenu lié à SonalPi1 intact</div>
+            <div class="carte-sous">Migration locale — l’ancien dossier SonalPi1 reste intact, tout le contenu est repris</div>
           </button>
         </div>
       </div>
@@ -129,7 +129,7 @@ async function lancerPreparer(mode: ModeDemo) {
       <!-- Modale à deux dossiers (sources + corpus de travail) -->
       <ModaleDemo v-if="modaleDemo" :mode="modaleDemo" @fermer="modaleDemo = null" />
 
-      <!-- Modale de migration SonalPi V1 → V2 (aperçu → dossier dédié → exécution) -->
+      <!-- Modale de migration SonalPi1 → SonalPi2 (aperçu → dossier dédié → exécution) -->
       <MigrationCorpus v-if="modaleMigration" @fermer="modaleMigration = false" />
 
       <!-- Modale « Nouveau corpus… » (choisir un dossier + donner un nom) -->
@@ -231,7 +231,7 @@ async function lancerPreparer(mode: ModeDemo) {
   border-radius: 8px;
   padding: 0.6rem;
 }
-/* --- Migration SonalPi V1 : rubrique propre au-dessus des Récents --- */
+/* --- Migration SonalPi1 : rubrique propre au-dessus des Récents --- */
 .migration-bloc {
   border: 1px dashed #d7ccc8;
   border-radius: 10px;

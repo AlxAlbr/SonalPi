@@ -29,10 +29,10 @@ export function couleurPourCode(code: string): { trait: string; fond: string } {
 }
 
 /**
- *  Même teinte, en HEX — pour l'EXPORT `.sonal` : SonalPi colore un codage via
+ *  Même teinte, en HEX — pour l'EXPORT `.sonal` : SonalPi1 colore un codage via
  *  le dégradé CSS `.cat_XXX` construit à partir d'une couleur HEX (`#rrggbb` +
  *  alpha). Une catégorie sans couleur stockée reçoit à l'export la même couleur
- *  synthétisée que celle affichée, pour que le codage soit VISIBLE dans SonalPi.
+ *  synthétisée que celle affichée, pour que le codage soit VISIBLE dans SonalPi1.
  *  (Une catégorie porteuse d'une couleur — ex. import — garde la sienne.)
  */
 export function couleurHexPourCode(code: string): string {
@@ -67,7 +67,7 @@ function hslVersHex(h: number, s: number, l: number): string {
 export type ResolveurCouleur = (code: string) => string
 
 /** Résout la taille de police (px) d'un code — la `taille` STOCKÉE du codebook.
- *  (Parité SonalPi ; `undefined` = taille du texte.) Injecté comme la couleur. */
+ *  (Parité SonalPi1 ; `undefined` = taille du texte.) Injecté comme la couleur. */
 export type ResolveurTaille = (code: string) => number | undefined
 
 /** Résout le NOM lisible d'un code (libellé du thème au codebook).
@@ -195,9 +195,9 @@ function construireDecorations(
       stylesCodage.push(`box-shadow:inset 0 -2px 0 ${traitDe(codagesIci[0], resoudre)}`)
     }
     const marqueCodages = stylesCodage.join(';')
-    // Taille de police du thème (parité SonalPi) : sur un chevauchement, la plus grande l'emporte.
+    // Taille de police du thème (parité SonalPi1) : sur un chevauchement, la plus grande l'emporte.
     // (Les tailles ne s'empilent pas comme les soulignés.)
-    // Comme SonalPi, une taille posée s'accompagne du GRAS : son CSS généré fait font-size + font-weight:bold ensemble.
+    // Comme SonalPi1, une taille posée s'accompagne du GRAS : son CSS généré fait font-size + font-weight:bold ensemble.
     const tailles = couvrant
       .filter((a) => a.type === 'codage')
       .map((a) => tailleDe?.(a.code ?? ''))

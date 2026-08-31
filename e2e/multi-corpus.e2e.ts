@@ -55,7 +55,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   await expect(page.locator('.recents .recent').first()).toContainText(basename(dirB))
 
   // « Ouvrir un corpus… » → dirC (VIERGE) : amorcé VIDE — aucun entretien, et le
-  // codebook par défaut = le bloc Pondérations SonalPi (parent + 3 enfants).
+  // codebook par défaut = le bloc Pondérations SonalPi1 (parent + 3 enfants).
   await page.locator('.carte-demo.ouvrir-corpus').click()
   await attendreCorpus(page)
   await expect(page.locator('.carte-ent')).toHaveCount(0)

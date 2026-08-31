@@ -53,11 +53,11 @@ export function supprimerLocuteur(locuteurs: Locuteur[], index: number): void {
 
 /** Parts d'affichage du libellé de tour (gouttière / exports) : PURE, testable.
  *  - `nom` : nom réel affiché, avec « ? » pour un interviewer (convention
- *    SonalPi, réintroduite au rendu seulement — jamais au modèle) ;
+ *    SonalPi1, réintroduite au rendu seulement — jamais au modèle) ;
  *  - `pseudo` : pseudonyme affiché (libellé BARRÉ + [pseudo]), ou null ;
  *  - `refuse` : décision « ne pas pseudonymiser » persistée (libellé en clair
  *    + ⊘).
- *  Ordre des cas : un refus explicite prime sur le pseudo (parité SonalPi). */
+ *  Ordre des cas : un refus explicite prime sur le pseudo (parité SonalPi1). */
 export interface LibelleGouttiere {
   nom: string
   pseudo: string | null

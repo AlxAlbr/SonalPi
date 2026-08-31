@@ -143,7 +143,7 @@ describe('corpus — détails variables d’un entretien (panneau métadonnées,
     const d = detailsVariablesEntretien(definitions(), {
       meta: { valeursGen: { v1: 'inconnu' } }, // idMod sans définition → pas de valeur affichée
       locuteurs: [
-        { nom: 'Enquêteur ?', valeursLoc: { v2: 'v2m1' } }, // interviewer : exclu (parité SonalPi V1)
+        { nom: 'Enquêteur ?', valeursLoc: { v2: 'v2m1' } }, // interviewer : exclu (parité SonalPi1)
         { nom: 'Karine', valeursLoc: {} },
       ],
     })
@@ -187,7 +187,7 @@ describe('corpus — requêtes calculées depuis une liste d’entretiens', () =
   })
 })
 
-describe('corpus — résumé thématique (calque des cartes, parité SonalPi)', () => {
+describe('corpus — résumé thématique (calque des cartes, parité SonalPi1)', () => {
   // Doc PM à 2 blocs de 4 caractères, contenus PM [1..5[ et [7..11[ ;
   // coordonnée texte 0..8 (les frontières de blocs pèsent 0), total = 8 caractères.
   const doc = {

@@ -100,10 +100,10 @@ export function retirerCategorie(corpus: CorpusFichier, id: string): void {
   delete corpus.codebook[id]
 }
 
-// ── Hiérarchie des thèmes (`parent` = modèle ; `rang` SonalPi = profondeur dérivée à l'export, reconstruite à l'import) ──
+// ── Hiérarchie des thèmes (`parent` = modèle ; `rang` SonalPi1 = profondeur dérivée à l'export, reconstruite à l'import) ──
 
 /** Reconstruit `parent` depuis la séquence de profondeurs `rang`.
- *  À l'import, SonalPi ne stocke que la profondeur : le parent d'un nœud à la
+ *  À l'import, SonalPi1 ne stocke que la profondeur : le parent d'un nœud à la
  *  profondeur d = le dernier nœud rencontré à d-1 ; Gère N niveaux ; profondeur
  *  sans parent → racine. */
 export function parentsDepuisRangs(sequence: { id: string; rang: number }[]): Record<string, string | null> {

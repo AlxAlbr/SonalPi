@@ -22,7 +22,7 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
   <main class="app">
     <header>
       <h1>
-        SonalTau —
+        SonalPi2 —
         <span class="etat" :class="etatSauvegarde.replace('…', '').replace(' ', '-')">
           {{ etatSauvegarde }}
         </span>

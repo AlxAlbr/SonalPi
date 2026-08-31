@@ -1,5 +1,5 @@
 /**
- *  Migration SonalPi V1 → V2 — parseur `.crp`.
+ *  Migration SonalPi1 → SonalPi2 — parseur `.crp`.
  *
  *  FONCTIONS PURES : aucune I/O, aucun electron. Le main ne fait que LIRE le
  *  fichier (avec détection d'encodage, `src/main/encodage.ts`) ; TOUT le travail
@@ -219,7 +219,7 @@ export function analyserCrp(contenu: string, nomFichier?: string): AnalyseCrp {
   let nom = ''
   if (typeof crp.nom === 'string') nom = crp.nom.trim()
   if (nom === '' && nomFichier) nom = nomFichier.replace(/\.[^.]+$/, '').trim()
-  if (nom === '') nom = 'Corpus SonalPi V1'
+  if (nom === '') nom = 'Corpus SonalPi1'
 
   const dateCreation = typeof crp.dateCreation === 'string' && crp.dateCreation !== '' ? crp.dateCreation : null
 
@@ -319,7 +319,7 @@ export function mapperDefinitions(crp: CrpV1): { codebook: Categorie[]; variable
 
 // ── Mapping de l'ANONYMISATION (E4)
 // ─────────────────────────────────────── Le `tabAnon` du .crp et ses settings deviennent des règles V2 + `paramsAnon`.
-// Importés AVANT les règles des `.sonal` (doctrine SonalPi V1 : le global du corpus gagne) —
+// Importés AVANT les règles des `.sonal` (doctrine SonalPi1 : le global du corpus gagne) —
 // la déduplication par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal` idempotent,
 // la catégorie du .crp restant sur la règle.
 

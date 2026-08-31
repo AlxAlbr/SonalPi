@@ -642,7 +642,7 @@ export function utiliserDemo(deps: DepsDemo) {
    *  NON : on reste au Corpus pour que la validation affiche son message « étape terminée ✓ »
    *  (ou « déjà réalisée ») ;
    *  l'ouverture automatique gagnerait la course et l'entretien s'ouvrirait à la place du message,
-   *  c'est l'étape suivante qui ouvrira l'entretien. Partout ailleurs, oui : comportement SonalPi,
+   *  c'est l'étape suivante qui ouvrira l'entretien. Partout ailleurs, oui : comportement SonalPi1,
    *  l'import ouvre l'entretien. */
   function ouvrirApresImport(): boolean {
     return etapeCouranteId.value !== 'charger'

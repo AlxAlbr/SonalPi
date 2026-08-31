@@ -11,7 +11,7 @@ Deux états : ce qui est **stocké** / ce qui est **reconstruit, recalculé**.
 | **Application** (décision portée par un entretien) | codage, masquage, métadonnée (données d'une variable), commentaire | `entretiens/<id>.json` | oui (primaire) |
 | **Requête** (agrégation dérivable) | `Extrait`, matrice EAV, passage « à anonymiser »| — | non — **calculée** |
 
-L'objectif, c'est d'éviter la redondance des informations qui existe malheureusement dans la version actuelle de SonalPi.
+L'objectif, c'est d'éviter la redondance des informations qui existe malheureusement dans la version actuelle de SonalPi1.
 
 ## 2. Différentes représentations des données et interactions
 

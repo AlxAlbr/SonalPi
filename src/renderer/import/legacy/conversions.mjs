@@ -242,14 +242,14 @@ export function Phrasifier(tabSeg) {
 // mute tabSeg en place, puis renvoie { tabSeg, locut }.
 // Pur : l'ancien stash window.tabLocImport / setTabLoc (déjà commenté) est supprimé.
 //
-// ⚠️ Corrections assumées par rapport à SonalPi (bugs constatés à l'import) :
+// ⚠️ Corrections assumées par rapport à SonalPi1 (bugs constatés à l'import) :
 //  - le NOM garde la numérotation du fichier (« Speaker 3 » reste « Speaker 3 » ;
-//    SonalPi renommait N → N+1) ;
+//    SonalPi1 renommait N → N+1) ;
 //  - l'INDEX du bloc est la position du nom dans `locut` (contrat d'import :
-//    position dans le tableau = index du locuteur). SonalPi posait N+1 en index,
+//    position dans le tableau = index du locuteur). SonalPi1 posait N+1 en index,
 //    faux dès que la numérotation du fichier a des trous (Speaker 3, Speaker 7 →
 //    blocs pointant vers des locuteurs inexistants) ;
-//  - numéros multi-chiffres acceptés (« Speaker 12 », SonalPi lisait 1 chiffre) ;
+//  - numéros multi-chiffres acceptés (« Speaker 12 », SonalPi1 lisait 1 chiffre) ;
 //  - préfixe « None: » (diarisation sans locuteur identifié) → bloc SANS locuteur,
 //    préfixe retiré du texte.
 export function convertSpeaker(tabSeg) {

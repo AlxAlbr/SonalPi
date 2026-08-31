@@ -17,14 +17,14 @@ interface DocPM {
   content: BlocPM[]
 }
 
-/** Une règle d'anonymisation à la forme SonalPi (`remplacement`/`remplacementAlt`). */
+/** Une règle d'anonymisation à la forme SonalPi1 (`remplacement`/`remplacementAlt`). */
 function formeSonalPi(entite: string, pseudos: string[]): Record<string, unknown> {
   const out: Record<string, unknown> = { entite, remplacement: pseudos[0] ?? '' }
   if (pseudos[1]) out.remplacementAlt = pseudos[1]
   return out
 }
 
-/** Reconstruit l'`anon-json` (tabAnon SonalPi) depuis le MODÈLE,
+/** Reconstruit l'`anon-json` (tabAnon SonalPi1) depuis le MODÈLE,
  *  pour un round-trip sans perte (retrait du pass-through legacy) : les RÈGLES
  *  CORPUS appliquées dans cet entretien (occurrences `regle`) → entrées
  *  `portee:'corpus'` ; les BROUILLONS → entrées `portee:'brouillon'`,
@@ -71,7 +71,7 @@ export interface EntreeExport {
 }
 
 /**
- *  Recompose un `.sonal` auto-suffisant, ouvrable dans SonalPi.
+ *  Recompose un `.sonal` auto-suffisant, ouvrable dans SonalPi1.
  *  Le TEXTE, les CODAGES/ANON et les LOCUTEURS sont reconstruits depuis le modèle ;
  *  le codebook depuis le corpus ; les blocs non modélisés (règles d'anon, notes)
  *  sont ré-émis depuis le pass-through legacy (round-trip sans perte).
@@ -85,7 +85,7 @@ export function exporterSonal(e: EntreeExport): string {
   const longueurs = blocs.map((b) => b.text.length)
 
   // Un .lblseg par INTERVALLE D'ANCRES : un tour fusionné ressort re-découpé en cues avec leurs data-deb/data-fin —
-  // SonalPi garde sa granularité, et le round-trip re-fusionne à l'import (stable, sans perte).
+  // SonalPi1 garde sa granularité, et le round-trip re-fusionne à l'import (stable, sans perte).
   // À une même pos peuvent vivre la FIN d'un cue et le DEB du suivant (trou) :
   // la première ancre (t min) ferme le segment de gauche, la dernière ouvre celui de droite.
   // Sans ancre interne, le bloc = un seul segment (bornes de scission vides).
@@ -145,12 +145,12 @@ export function exporterSonal(e: EntreeExport): string {
     ].sort((x, y) => x - y)
     const jalons = [0, ...coupes, b.text.length]
     const nomloc = nomDe(b.loc)
-    // Libellé du tour : sur le 1er SEGMENT du 1er BLOC du run (parité SonalPi `.ligloc` « deb »).
+    // Libellé du tour : sur le 1er SEGMENT du 1er BLOC du run (parité SonalPi1 `.ligloc` « deb »).
     // data-nomloc = le VRAI nom ; libellé pseudonymisé (pseudo posé, non refusé)
     // → classe `loc-anon` + `data-locpseudo` ; refus explicite → `loc-suggere-refuse`.
     // La couleur est INTERNE à l'app (aucun marqueur).
-    // `data-nomloc-barre` est un artefact de RENDU SonalPi, re-dérivé à l'ouverture ;
-    // on ne l'émet pas (le vrai nom ne doit pas fuiter, et SonalPi le recompose).
+    // `data-nomloc-barre` est un artefact de RENDU SonalPi1, re-dérivé à l'ouverture ;
+    // on ne l'émet pas (le vrai nom ne doit pas fuiter, et SonalPi1 le recompose).
     const lLoc = e.locuteurs.find((x) => x.index === b.loc)
     let ligloc = ''
     let extraSeg = ''
@@ -232,20 +232,20 @@ export function exporterSonal(e: EntreeExport): string {
   })
 
   // tabLoc : tableau indexé par index de locuteur (position 0 = vide). Le « ? »
-  // de l'interviewer (convention SonalPi) est réintroduit ICI — jamais au modèle.
+  // de l'interviewer (convention SonalPi1) est réintroduit ICI — jamais au modèle.
   const maxIdx = e.locuteurs.reduce((m, l) => Math.max(m, l.index), 0)
   const tabLoc = Array.from({ length: maxIdx + 1 }, (_, i) => {
     const l = e.locuteurs.find((x) => x.index === i)
     return l ? l.nom + (l.interviewer ? '?' : '') : ''
   })
 
-  // tabThm : codebook → forme SonalPi, en PRÉ-ORDRE avec `rang`=profondeur →
+  // tabThm : codebook → forme SonalPi1, en PRÉ-ORDRE avec `rang`=profondeur →
   // chaque sous-thème suit son parent, la hiérarchie se relit sans perte à l'import.
   const parId = Object.fromEntries(e.codebook.map((c) => [c.id, c]))
   const tabThm = ordreThemes(parId).map(({ cat, profondeur }) => ({
     code: cat.codeExport,
     // Couleur stockée si présente, sinon synthétisée (même teinte qu'affichée) →
-    // le codage reste VISIBLE dans SonalPi (le CSS .cat_XXX a besoin d'un HEX).
+    // le codage reste VISIBLE dans SonalPi1 (le CSS .cat_XXX a besoin d'un HEX).
     couleur: cat.couleur || couleurHexPourCode(cat.codeExport),
     nom: cat.nom,
     taille: cat.taille ?? '',

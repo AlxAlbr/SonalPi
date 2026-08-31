@@ -80,9 +80,9 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   function estCodeActif(code: string): boolean {
     return codebook.value.find((c) => c.id === code)?.actif ?? true
   }
-  /** PEINTURE d'un segment de résumé thématique (parité SonalPi) — partagée par les cartes Corpus et la bande du lecteur :
+  /** PEINTURE d'un segment de résumé thématique (parité SonalPi1) — partagée par les cartes Corpus et la bande du lecteur :
    *  couleurs des thèmes couvrants empilées en DÉGRADÉ VERTICAL à bandes égales ; le BLANC (thème « sans effet ») ne peint pas ;
-   *  une pondération (taille > 16, règle SonalPi) pose une bordure noire en bas ; rien à peindre → `masque`. */
+   *  une pondération (taille > 16, règle SonalPi1) pose une bordure noire en bas ; rien à peindre → `masque`. */
   function peintureSegment(codes: string[]): {
     background?: string
     borderBottom?: string
@@ -145,7 +145,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function rafraichirUsages() {
     usages.value = await window.sonal.corpus.usagesParCategorie()
     // Même carburant (les codages sur disque), mêmes moments de fraîcheur :
-    // le calque des cartes Corpus (résumé thématique, parité SonalPi) suit.
+    // le calque des cartes Corpus (résumé thématique, parité SonalPi1) suit.
     resumes.value = await window.sonal.corpus.resumesThematiques()
   }
   async function rafraichirMatrice() {
@@ -242,7 +242,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     }
     majVariables(r.corpus.variables)
   }
-  /** Statut SonalPi : privée = exclue des exports (le champ `priv` voyage déjà dans tabVar à l'import/export —
+  /** Statut SonalPi1 : privée = exclue des exports (le champ `priv` voyage déjà dans tabVar à l'import/export —
    *  ici on ne fait que l'éditer). */
   async function basculerPriveeVariable(id: string, priv: boolean) {
     majVariables((await window.sonal.corpus.modifierVariable(id, { priv })).variables)
@@ -250,7 +250,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function ajouterModalite(idVar: string, lib = 'Modalité') {
     majVariables((await window.sonal.corpus.ajouterModalite(idVar, lib)).variables)
   }
-  /** Modalités pré-remplies (parité SonalPi) : ajoute le modèle en masse et baptise la variable du nom du modèle,
+  /** Modalités pré-remplies (parité SonalPi1) : ajoute le modèle en masse et baptise la variable du nom du modèle,
    *  si elle porte encore le nom par défaut. */
   async function ajouterModalitesModele(idVar: string, nomModele: string, libs: string[]) {
     let c: CorpusFichier | null = null
@@ -325,7 +325,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   async function poserLoc(entretienId: string, index: number, idVar: string, idMod: string) {
     return validerCelluleTable(entretienId, { type: 'locuteur', index }, idVar, idMod)
   }
-  /** SAISIE LIBRE (parité SonalPi `definirValeur`) : trouve-ou-crée la modalité par LIBELLÉ (code max+1 si inconnu —
+  /** SAISIE LIBRE (parité SonalPi1 `definirValeur`) : trouve-ou-crée la modalité par LIBELLÉ (code max+1 si inconnu —
    *  l'export EAV exige une entrée de dictionnaire, une valeur hors dictionnaire serait ignorée à l'export). */
   async function modaliteParLibelle(idVar: string, lib: string): Promise<string> {
     const deja = modalitesDe(idVar).find((m) => m.lib === lib)

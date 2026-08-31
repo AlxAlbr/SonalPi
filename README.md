@@ -1,6 +1,6 @@
-# SonalTau
+# SonalPi2
 
-Réécriture en cours  du cœur de **SonalPi** pour essayer de simplifier le fonctionnement et le code.
+Réécriture en cours  du cœur de **SonalPi1** pour essayer de simplifier le fonctionnement et le code.
 
 
 ## En bref
@@ -9,7 +9,7 @@ Réécriture en cours  du cœur de **SonalPi** pour essayer de simplifier le fon
   d'anonymisation) et l'**Entretien** (applications : codages, masquages, commentaires). Pour
   chaque donnée, deux états : ce qui est **stocké** dans les fichiers et ce qui est **calculé**
   à la demande (requêtes, agrégations).
-- **Un modèle d'objet réduit** par rapport à SonalPi : les trois overlays inline de V1 (codage /
+- **Un modèle d'objet réduit** par rapport à SonalPi1 : ses trois overlays inline (codage /
   anonymisation / commentaire) **fusionnent** en un seul concept — `Annotation` — et le Corpus ne
   garde que des **références légères** aux entretiens. Plus de tables dupliquées local↔corpus :
   une seule vérité par donnée.
@@ -51,9 +51,9 @@ npm run typecheck    # vue-tsc + tsc
 
 | Public | Doc |
 |---|---|
-| Utilisateur | [Migration SonalPi V1 → SonalTau](docs/user/migration-v1.md) |
+| Utilisateur | [Migration SonalPi1 → SonalPi2](docs/user/migration-v1.md) |
 | Développeur | [Documentation développeur](docs/dev/README.md) |
-| Vocabulaire | [Versions : SonalPi V1 / SonalTau / formatVersion / itération / release](docs/dev/versions.md) |
+| Vocabulaire | [Versions : SonalPi1 / SonalPi2 / formatVersion / itération / release](docs/dev/versions.md) |
 
 ## Plans (`plans/`)
 

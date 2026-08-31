@@ -2,7 +2,7 @@ import { Node, Schema } from '@tiptap/pm/model'
 
 /**
  *  Recherche de texte dans le CORPUS (onglet « Recherche » de la vue Corpus),
- *  parité SonalPi `rechercherDansCorpus`. Fonctions PURES (aucun DOM ni disque).
+ *  parité SonalPi1 `rechercherDansCorpus`. Fonctions PURES (aucun DOM ni disque).
  *
  *  Chaque entretien est stocké comme un document ProseMirror (`EntretienFichier.
  *  corpsTexte`, schéma gelé `doc › paragraph{loc} › text`). On le parse avec un
@@ -39,7 +39,7 @@ export interface OptionsRecherche {
   motEntier?: boolean
 }
 
-/** Largeur du contexte autour d'un match — parité SonalPi. */
+/** Largeur du contexte autour d'un match — parité SonalPi1. */
 export const CONTEXTE_MOTS = 15
 
 // Schéma MINIMAL miroir exact de l'éditeur (doc › paragraph{loc} › text).

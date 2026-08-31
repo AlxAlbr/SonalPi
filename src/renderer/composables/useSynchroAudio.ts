@@ -85,7 +85,7 @@ export function useSynchroAudio(deps: {
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  /** Temps interpolé à la position de texte `pos` (clic DANS le texte → seek précis, comme SonalPi).
+  /** Temps interpolé à la position de texte `pos` (clic DANS le texte → seek précis, comme SonalPi1).
    *  Aujourd'hui : prorata entre les 2 ancres qui encadrent le point ; avec des
    *  ancres au mot, la précision suivra toute seule. null si aucune ancre
    *  (texte sans timecodes). */

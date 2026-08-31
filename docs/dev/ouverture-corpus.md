@@ -51,7 +51,7 @@ Conséquences à garder en tête :
   aucun marqueur particulier. C'est pourquoi les gardes du mode démo (§4) distinguent
   « squelette vide » et « vrai travail » par le contenu (`membership` peuplé) et le
   marqueur `demo`.
-- La migration depuis SonalPi V1 (`migrerDepuisV1`) est l'exception : elle n'amorce PAS (le codebook
+- La migration depuis SonalPi1 (`migrerDepuisV1`) est l'exception : elle n'amorce PAS (le codebook
   par défaut serait faux), elle crée depuis le `.crp` après garde explicite.
 
 ## 3. Le démarrage et les récents
@@ -152,7 +152,7 @@ Quand vous modifiez l'ouverture, la démo ou les settings, ne cassez pas :
    (entretiens), par conservation de l'historique (marqueur). Une re-préparation ne doit
    ni dupliquer ni effacer.
 4. **On n'écrase jamais un travail** : toute garde qui refuse un dossier doit distinguer
-   travail réel vs squelette vide (même logique que `migrer:verifierDossier` côté migration depuis SonalPi V1).
+   travail réel vs squelette vide (même logique que `migrer:verifierDossier` côté migration depuis SonalPi1).
 5. **Le renderer ne touche jamais au disque** : détections de présence et copies vivent
    dans le main (`demo:*`, `corpus:*`) ; le renderer n'interprète que leurs retours typés
    (`EtatDemoComplet`, `src/shared/format.ts`).

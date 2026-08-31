@@ -29,14 +29,14 @@ const html1 = fixture('entretien1.sonal')
 
 describe('import .sonal — invariants (golden)', () => {
   test('le texte est chargé dans les blocs', () => {
-    const { payload } = importerSonal(html1, parse(html1))
+    const { payload } = importerSonal(parse(html1))
     const s = JSON.stringify(payload.corpsTexte)
     expect(s).toContain('Karine')
     expect(s).toContain('retraite')
   })
 
   test('un bloc par segment (attr loc) ; les timecodes deviennent des ANCRES', () => {
-    const { payload } = importerSonal(html1, parse(html1))
+    const { payload } = importerSonal(parse(html1))
     const doc = payload.corpsTexte as { content: Array<{ attrs: Record<string, unknown> }> }
     expect(doc.content.length).toBeGreaterThan(3)
     // au moins un bloc porte un locuteur ; les blocs n'ont PLUS de deb/fin.
@@ -49,18 +49,18 @@ describe('import .sonal — invariants (golden)', () => {
   })
 
   test('les codages cat_XXX deviennent des annotations (cat_005 présent)', () => {
-    const { payload } = importerSonal(html1, parse(html1))
+    const { payload } = importerSonal(parse(html1))
     const c = comptesCodage(payload.annotations)
     expect(c['cat_005']).toBeGreaterThan(0)
   })
 
   test('les anonymisations deviennent des annotations anon', () => {
-    const { payload } = importerSonal(html1, parse(html1))
+    const { payload } = importerSonal(parse(html1))
     expect(payload.annotations.filter((a) => a.type === 'anon').length).toBeGreaterThan(0)
   })
 
   test('exception : un data-pseudo hors-convention est CONSERVÉ en mémoire', () => {
-    // SonalPi lui-même supprime le data-pseudo en posant une exception (anon-apply.js) ;
+    // SonalPi1 lui-même supprime le data-pseudo en posant une exception (anon-apply.js) ;
     // si un producteur tiers en laisse un, on le garde comme mémoire de restauration ;
     // jamais affiché, jamais ré-exporté.
     const html = `<!DOCTYPE html><html><body>
@@ -71,7 +71,7 @@ describe('import .sonal — invariants (golden)', () => {
       </div>
       <script id="loc-json">[]</script>
     </body></html>`
-    const { payload } = importerSonal(html, parse(html))
+    const { payload } = importerSonal(parse(html))
     const exc = payload.annotations.filter((a) => a.etat === 'exception')
     expect(exc).toHaveLength(1)
     expect(exc[0].pseudo).toBe('Mme X.')
@@ -85,7 +85,7 @@ describe('import .sonal — invariants (golden)', () => {
       </div>
       <script id="loc-json">["", "Enquêteur", "Martin"]</script>
     </body></html>`
-    const { payload } = importerSonal(html, parse(html))
+    const { payload } = importerSonal(parse(html))
     const enqueteur = payload.locuteurs.find((x) => x.index === 1)
     expect(enqueteur?.pseudo).toBe('Chercheur')
     expect(enqueteur?.pseudoEtat).toBe('confirme')
@@ -95,7 +95,7 @@ describe('import .sonal — invariants (golden)', () => {
   })
 
   test('les locuteurs viennent de loc-json (index + nom)', () => {
-    const { payload } = importerSonal(html1, parse(html1))
+    const { payload } = importerSonal(parse(html1))
     const noms = payload.locuteurs.map((l) => l.nom)
     expect(noms).toContain('Interwiever1')
     expect(noms).toContain('Interwievé1')
@@ -104,28 +104,28 @@ describe('import .sonal — invariants (golden)', () => {
   })
 
   test('le codebook est extrait de cat-json (cat_005 = « Cat1 »)', () => {
-    const { codebook } = importerSonal(html1, parse(html1))
+    const { codebook } = importerSonal(parse(html1))
     const cat5 = codebook.find((c) => c.id === 'cat_005')
     expect(cat5?.nom).toBe('Cat1')
     expect(cat5?.codeExport).toBe('cat_005')
   })
 
-  test('la taille de police SonalPi est importée (nombre nu ; "" → absente)', () => {
-    const { codebook } = importerSonal(html1, parse(html1))
+  test('la taille de police SonalPi1 est importée (nombre nu ; "" → absente)', () => {
+    const { codebook } = importerSonal(parse(html1))
     // entretien1 : cat_002 porte taille 24 ; cat_005 porte '' (pas de taille).
     expect(codebook.find((c) => c.id === 'cat_002')?.taille).toBe(24)
     expect(codebook.find((c) => c.id === 'cat_005')?.taille).toBeUndefined()
   })
 
   test('anon-json : consommé — règles corpus → reglesAnon, brouillons → brouillonsAnon, tabAnon null', () => {
-    const { legacy, reglesAnon, payload } = importerSonal(html1, parse(html1))
+    const { legacy, reglesAnon, payload } = importerSonal(parse(html1))
     // entretien1 a des règles d'anon legacy (sans portee ≡ corpus) → reglesAnon.
     expect(reglesAnon.length).toBeGreaterThan(0)
     expect(legacy.tabAnon).toBeNull()
   })
 
   test('les variables var/dic-json entrent dans le modèle (fin du pass-through EAV)', () => {
-    const { variables } = importerSonal(html1, parse(html1))
+    const { variables } = importerSonal(parse(html1))
     // entretien1 : v1 Lieu (gen), v2 sexe (loc) + modalités.
     const v1 = variables.find((v) => v.id === 'v1')
     expect(v1?.lib).toBe('Lieu')
@@ -147,7 +147,7 @@ describe('import .sonal — CORRECTION DES POSITIONS (le point dur char→PM)', 
   })
 
   test('les positions d’annotation résolvent EXACTEMENT le texte marqué', () => {
-    const { payload } = importerSonal(html1, parse(html1))
+    const { payload } = importerSonal(parse(html1))
     editor = new Editor({
       content: payload.corpsTexte as Record<string, unknown>,
       extensions: [StarterKit, BlocAttributs],
@@ -163,5 +163,27 @@ describe('import .sonal — CORRECTION DES POSITIONS (le point dur char→PM)', 
     // Cible connue de la fixture : le 1er cat_005 marque « d'avoir ».
     const cat5 = payload.annotations.find((a) => a.code === 'cat_005')!
     expect(doc.textBetween(cat5.from, cat5.to)).toBe("d'avoir ")
+  })
+})
+
+describe('import .sonal — tolérance JSON SonalPi1 (virgules sauvages)', () => {
+  const htmlSloppy = (loc: string) => `<!DOCTYPE html><html><head></head><body>
+    <div id="contenuText"><div class="lblseg" data-loc="1"><span data-rk="1">Bonjour</span></div></div>
+    <script id="loc-json" type="application/json">{ ${loc} }</script>
+  </body></html>`
+
+  test('virgules doublées ou collées aux crochets : réparées', () => {
+    const r = importerSonal(parse(htmlSloppy('[, "", "A",, "B",]')))
+    expect(r.payload.locuteurs.map((l) => l.nom)).toEqual(['A', 'B'])
+  })
+
+  test('une virgule dans une string est préservée', () => {
+    const r = importerSonal(parse(htmlSloppy('[, "", "A, B", "C",]')))
+    expect(r.payload.locuteurs.map((l) => l.nom)).toEqual(['A, B', 'C'])
+  })
+
+  test('JSON invalide pour une autre raison → locuteurs vides, pas d’exception', () => {
+    const r = importerSonal(parse(htmlSloppy('["A" "B"]')))
+    expect(r.payload.locuteurs).toEqual([])
   })
 })

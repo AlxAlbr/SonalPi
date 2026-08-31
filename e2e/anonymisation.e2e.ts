@@ -6,7 +6,7 @@ import { lancer, entrerCorpus, ajouterParModale, retourCorpus } from './util'
 
 /**
  *  E2E round-trip ANONYMISATION : importer un `.sonal`
- *  SonalPi anonymisé (spans anon + exception + anon-json de règles corpus) →
+ *  SonalPi1 anonymisé (spans anon + exception + anon-json de règles corpus) →
  *  l'exporter → le ré-importer → les règles corpus SURVIVENT sans doublon
  *  (texte + exceptions + règles, sans perte), dans la vraie app.
  */

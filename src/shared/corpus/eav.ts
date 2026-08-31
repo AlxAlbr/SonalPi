@@ -1,8 +1,8 @@
 import type { Variable } from '../format'
 
 /**
- *  Mapping EAV entre le format LEGACY SonalPi — `.sonal` (`var-json`/`dic-json`)
- *  ET `.crp` (`tabVar`/`tabDic`, MÊME format) — et le MODÈLE SonalTau.
+ *  Mapping EAV entre le format LEGACY SonalPi1 — `.sonal` (`var-json`/`dic-json`)
+ *  ET `.crp` (`tabVar`/`tabDic`, MÊME format) — et le MODÈLE SonalPi2.
  *  Partagé entre l'import `.sonal` (`renderer/import/eav.ts`, qui le ré-exporte)
  *  et la migration `.crp` (`shared/corpus/migrationCrp.ts`) : UNE seule source
  *  de vérité pour le contrat, en parité avec le `eav.ts` historique.
@@ -44,7 +44,7 @@ export function asArray<T>(x: unknown): T[] {
  *  `tabVar` + `tabDic` (`.`sonal` OU `.crp`) → définitions de variables
  *  modélisées. Mapping : `lib→lib`, `champ` (`'gen'`→`portee:'entretien'`,
  *  `'loc'`→`portee:'locuteur'`), `priv` (string `'true'/'false'` → booléen),
- *  la modalité `m=0` (souvent vide en SonalPi) est conservée telle quelle (une
+ *  la modalité `m=0` (souvent vide en SonalPi1) est conservée telle quelle (une
  *  valeur peut y pointer, le round-trip doit la réémettre). Modalité orpheline
  *  (variable absente de `tabVar`) : ignorée.
  */

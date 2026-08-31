@@ -189,7 +189,7 @@ describe('garde-fou perf (~30 000 ancres : dichotomie, pas de balayage)', () => 
   })
 })
 
-describe('enveloppe waveform (S6, calquée sur le worker SonalPi)', () => {
+describe('enveloppe waveform (S6, calquée sur le worker SonalPi1)', () => {
   test('min/max par tranche, dernière tranche partielle tolérée', () => {
     // valeurs exactement représentables en float32 (pas d'écart de précision)
     const canal = new Float32Array([0.125, -0.5, 0.75, 0.25, -0.125, 0.375, 0.625])

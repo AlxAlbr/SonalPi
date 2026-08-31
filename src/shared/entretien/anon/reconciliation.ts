@@ -2,7 +2,7 @@
  *  RÉCONCILIATION POST-PULL — la projection multi-utilisateur du dialogue de
  *  portée (règles corpus vs lignes d'entretien).
  *
- *  Dans SonalTau, une règle ne vit qu'au corpus ; l'entretien porte des brouillons et
+ *  Dans SonalPi2, une règle ne vit qu'au corpus ; l'entretien porte des brouillons et
  *  des occurrences standalone (« portée entretien »). En multi-user, une règle
  *  corpus partageant l'entité d'une ligne locale peut APPARAÎTRE PENDANT notre
  *  session (un collègue l'a poussée entre deux pulls) : au prochain pull qui

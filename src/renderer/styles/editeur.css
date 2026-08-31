@@ -14,7 +14,7 @@
 }
 
 /* Gouttière des locuteurs (refonte étape 2, §3.2) : le nom passe AU-DESSUS du
- * bloc (layout SonalPi .ligloc) — barré + [pseudo] sans décaler le texte, qui
+ * bloc (layout SonalPi1 .ligloc) — barré + [pseudo] sans décaler le texte, qui
  * démarre pleine largeur dessous. Le widget est BLOC (sa propre ligne) ; le
  * clic-tour (curseur + seek audio au début du tour) reste porté par le libellé.
  * Seul le 1er bloc d'un tour porte le libellé (les continuations n'ont RIEN :
@@ -42,7 +42,7 @@
   cursor: default;
 }
 /* Nom réel pseudonymisé : BARRÉ — uniquement quand un pseudo est AFFICHÉ
- * (class loc-anon posée sur le widget, parité SonalPi) — le [pseudo] vit dans
+ * (class loc-anon posée sur le widget, parité SonalPi1) — le [pseudo] vit dans
  * un span SŒUR (le line-through du nom ne se propage pas à un span frère ;
  * l'atomicité inline-block du pseudo le protège aussi du bord, cf. astuce
  * .anon::after). La COULEUR du nom vient du locuteur (inline style, §3.3) :
@@ -65,7 +65,7 @@
   margin-left: 0.3rem;
   opacity: 0.55;
 }
-/* Tours de l'INTERVIEWER (questions) — le `.qst` SonalPi complet : italique
+/* Tours de l'INTERVIEWER (questions) — le `.qst` SonalPi1 complet : italique
  * + demi-gras + gris (l'italique seul était trop discret — retour utilisateur).
  * Pas de teinte de fond par locuteur : rendu neutre (choix utilisateur). */
 .editeur .bloc-interviewer {
@@ -148,7 +148,7 @@
   transition: background-color 0.2s;
 }
 /* Occurrence courante en repérage anon (loupe ◄ i/N ►) : flash jaune
- * transitoire, parité .reperage-hit SonalPi V1 — non destructif. */
+ * transitoire, parité .reperage-hit SonalPi1 — non destructif. */
 .editeur .reperage-hit {
   background: #fff3b0;
   outline: 1px solid #f0c000;

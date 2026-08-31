@@ -3,9 +3,9 @@ import { importerSonal, type ResultatImport } from './importSonal'
 
 /**
  *  Le SAS D'IMPORT UNIQUE : tout format étranger passe par un HTML `.sonal`
- *  (natif, ou produit par un convertisseur SonalPi réutilisé), puis par le SEUL
+ *  (natif, ou produit par un convertisseur SonalPi1 réutilisé), puis par le SEUL
  *  point d'entrée du modèle (`importerSonal`). Zéro parseur neuf, comportement
- *  fidèle à SonalPi (mêmes cues, même détection de locuteurs).
+ *  fidèle à SonalPi1 (mêmes cues, même détection de locuteurs).
  */
 export function importerFichier(
   nomFichier: string,
@@ -25,7 +25,7 @@ export function importerFichier(
     if (!r) throw new Error('VTT vide ou illisible')
     html = r.formatSonal
   } else if (ext === 'txt') {
-    // Transcription brute (convertisseur SonalPi : timestamps « hh:mm » et « Nom : »
+    // Transcription brute (convertisseur SonalPi1 : timestamps « hh:mm » et « Nom : »
     // détectés, sinon un bloc par ligne). Le dialogue d'import propose .txt ;
     // le sas le couvre donc aussi.
     const r = convertTXT(contenu)
@@ -34,5 +34,5 @@ export function importerFichier(
   } else {
     throw new Error(`Format non pris en charge : « .${ext} »`)
   }
-  return importerSonal(html, parseur(html))
+  return importerSonal(parseur(html))
 }

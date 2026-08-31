@@ -1,8 +1,8 @@
-# Documentation développeur — SonalTau
+# Documentation développeur — SonalPi2
 
-Cette documentation décrit l'architecture et le modèle de données de **SonalTau**.
+Cette documentation décrit l'architecture et le modèle de données de **SonalPi2**.
 Elle s'adresse aux développeurs qui veulent comprendre, modifier ou étendre le code.
-La documentation utilisateur vit dans [`docs/user/`](../user/) (migration V1 :
+La documentation utilisateur vit dans [`docs/user/`](../user/) (migration SonalPi1 :
 [migration-v1.md](../user/migration-v1.md), multi-utilisateur :
 [multi-utilisateur.md](../user/multi-utilisateur.md), créer et partager un corpus
 distant : [corpus-distant.md](../user/corpus-distant.md)). Les agents (LLM) trouveront
@@ -19,7 +19,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
 | [plan-lot-table-donnees.md](plan-lot-table-donnees.md) | Plan (proposition) : saisie des valeurs en corpus distant — bouton « Saisir… » par ligne (onglet Donnée de l'entretien) et modification en lot par colonne (verrou court par entretien) |
 | [developpement.md](developpement.md) | Démarrer, commandes, stratégie de test, limitation connue (audio figé sous WSLg) |
-| [versions.md](versions.md) | Le vocabulaire des versions : SonalPi V1 / SonalTau / `formatVersion` / itération / release — la règle « jamais v1/v2 nu » |
+| [versions.md](versions.md) | Le vocabulaire des versions : SonalPi1 / SonalPi2 / `formatVersion` / itération / release — la règle « jamais v1/v2 nu » |
 
 ## Parcours de lecture suggéré
 

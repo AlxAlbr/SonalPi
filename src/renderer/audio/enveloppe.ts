@@ -1,6 +1,6 @@
 /**
  *  Enveloppe min/max d'un canal audio — le calcul du « résumé » de la forme
- *  d'onde, PUR (Float32Array → deux Float32Array), calqué sur le worker SonalPi
+ *  d'onde, PUR (Float32Array → deux Float32Array), calqué sur le worker SonalPi1
  *  (`waveform.worker.js`). Le décodage (AudioContext) et le dessin (canvas)
  *  restent dans la couche renderer ; ici, seulement des nombres → testable headless.
  */

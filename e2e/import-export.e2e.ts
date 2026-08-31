@@ -9,7 +9,7 @@ import { lancer, entrerCorpus, ajouterParModale } from './util'
  *  (showOpenDialog / showSaveDialog) sont STUBBÉS via electronApp.evaluate pour
  *  piloter sans interaction. Critères : import d'un `.sonal` réel → entretien
  *  éditable + codebook fusionné ; export → `.sonal` réémis. (Golden import/export
- *  détaillé en unitaire ; réouverture dans SonalPi = test manuel, cf. PARITE.md.)
+ *  détaillé en unitaire ; réouverture dans SonalPi1 = test manuel, cf. PARITE.md.)
  */
 
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')

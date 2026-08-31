@@ -24,17 +24,20 @@ import type {
   Categorie,
   CibleRegleAnon,
   CibleValeur,
+  CorpusFichier,
   EntreeRecent,
   EtatDemo,
   EtatDemoComplet,
   ItemLotValeur,
   MarqueurDemo,
+  ModeDemo,
   ModeleEAV,
   OuvertureCorpus,
   PatchCategorie,
   PayloadEntretien,
   RegleAnon,
   Variable,
+  VerificationDossierDemo,
   ParamsAnon,
 } from '../shared/format'
 import type {
@@ -106,7 +109,7 @@ interface Settings {
   // Largeur (px) du panneau vidéo, mémorisée PAR CORPUS (clé = chemin du dossier).
   largeurVideo?: Record<string, number>
   /** Dernier signataire d'un commentaire (pré-remplissage de la modale,
-   *  parité SonalPi — pas d'identité, juste une mémoire locale). */
+   *  parité SonalPi1 — pas d'identité, juste une mémoire locale). */
   signataire?: string
   /** Registre des modèles IMPORTÉS par l'utilisateur (« Mes modèles »,
    *  partagés entre tous les corpus ; niveau profil, comme signataire).
@@ -914,7 +917,7 @@ function enregistrerIpcCorpus(): void {
     sessions?.supprimerDivergence(chemin)
   })
 
-  /** Migration SonalPi V1 → SonalTau, EXÉCUTION : crée le corpus SonalTau dans le dossier dédié,
+  /** Migration SonalPi1 → SonalPi2, EXÉCUTION : crée le corpus SonalPi2 dans le dossier dédié,
    *  l'ajoute aux récents, et BASCULE le store dessus (même mécanique que changerDossier). */
   ipcMain.handle('migrer:executer', (_e, req: DemandeMigration) => {
     store = new CorpusStore(req.dossier)
@@ -997,7 +1000,7 @@ function enregistrerIpcCorpus(): void {
   // via electronApp.evaluate, pour piloter sans dialog.
   // `defaultPath` optionnel : en session démo, le dialogue s'ouvre dans le dossier des sources ;
   //  l'utilisateur y retrouve les fichiers.
-  // Modale « Ajouter un entretien » (à la SonalPi, ajout-entretien.html) :
+  // Modale « Ajouter un entretien » (à la SonalPi1, ajout-entretien.html) :
   //  DEUX zones — celle-ci choisit le fichier d'ENTRETIEN (contenu lu ici,
   //  parsé côté renderer) ; la zone son passe par dialog:choisirAudio.
   //  Le main ne touche l'audio qu'à corpus:assignerAudio, qui le RÉFÉRENCE,
@@ -1114,11 +1117,36 @@ function cheminCorpusTest(): string {
     : join(app.getAppPath(), 'CorpusTest')
 }
 
+/** Clefs des sources bundled (une par entretien de démo) ;
+ *  une clef EST le nom de fichier source, sans extension ;
+ *  la complétude sert à la copie comme à la présence. */
+const CLEFS_SOURCES = ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants']
+
+/** Présence RÉELLE des sources de démo : les 8 fichiers (4 SRT + 4 MP3)
+ *  doivent exister, jamais seulement le dossier ; invariant « présence ≠
+ *  existence » (docs/dev/ouverture-corpus.md §4). */
+function sourcesCompletes(racine: string): boolean {
+  return (
+    CLEFS_SOURCES.every((k) => existsSync(join(racine, 'srt', `${k}.srt`))) &&
+    CLEFS_SOURCES.every((k) => existsSync(join(racine, 'audio', `${k}.mp3`)))
+  )
+}
+
+/** Présence d'un corpus de TEST d'un MODE donné : `corpus.json` doit exister,
+ *  et porter le marqueur `demo` du mode attendu. Un squelette amorcé vide
+ *  (dossier « juste regardé ») n'est pas un corpus de démo ; il ne compte pas.
+ *  Un `corpus.json` illisible n'est pas compté présent (prudence). */
+function corpusTestPresent(dir: string, mode: ModeDemo): boolean {
+  const chemin = join(dir, 'corpus.json')
+  if (!existsSync(chemin)) return false
+  try {
+    return (JSON.parse(readFileSync(chemin, 'utf8')) as { demo?: MarqueurDemo })?.demo?.mode === mode
+  } catch {
+    return false
+  }
+}
+
 function enregistrerIpcDemo(): void {
-  /** Clefs des sources bundled (une par entretien de démo) :
-   *  servent à la garde de complétude de `demo:copierSources`.
-   *  Une clef EST le nom de fichier source (sans extension). */
-  const CLEFS_SOURCES = ['1Coordinatrice', '2RetraiteAnticipee', '3Cuisinier', '4Etudiants']
 
   /** Copie les sources bundled `CorpusTest/` (`srt/` + `audio/`, ~13 Mo),
    *  dans le dossier choisi : c'est LA seule copie du flow de démo.
@@ -1127,10 +1155,7 @@ function enregistrerIpcDemo(): void {
    *  les autres étant conservés.
    *  Le corpus de travail référence ensuite ces fichiers, zéro copie. */
   ipcMain.handle('demo:copierSources', (_e, racine: string) => {
-    const complet =
-      CLEFS_SOURCES.every((k) => existsSync(join(racine, 'srt', `${k}.srt`))) &&
-      CLEFS_SOURCES.every((k) => existsSync(join(racine, 'audio', `${k}.mp3`)))
-    if (complet) return
+    if (sourcesCompletes(racine)) return
     cpSync(cheminCorpusTest(), racine, { recursive: true })
   })
   /** Lit un fichier texte des sources (ex. `srt/1Coordinatrice.srt`) → { nom, contenu }.
@@ -1144,7 +1169,8 @@ function enregistrerIpcDemo(): void {
   ipcMain.handle('demo:cheminAudio', (_e, racine: string, rel: string) => join(racine, rel))
 
   /** Mémoire démo persistée dans `settings.json` (niveau profil).
-   *  Lit les dossiers mémorisés et leur présence réelle sur disque ;
+   *  Lit les dossiers mémorisés et leur présence réelle sur disque, par contenu :
+   *  sources = les 8 fichiers ; corpus de test = marqueur `demo` du mode attendu.
    *  `null` = jamais préparé (ou enregistrement corrompu).
    *  La modale adapte ses questions : une réponse déjà en place est sautée. */
   ipcMain.handle('demo:etat', (): EtatDemoComplet | null => {
@@ -1154,9 +1180,9 @@ function enregistrerIpcDemo(): void {
       racineSources: d.racineSources,
       corpusPasAPas: d.corpusPasAPas,
       corpusAutonomie: d.corpusAutonomie,
-      sourcesExist: existsSync(d.racineSources),
-      corpusPasAPasExist: !!d.corpusPasAPas && existsSync(d.corpusPasAPas),
-      corpusAutonomieExist: !!d.corpusAutonomie && existsSync(d.corpusAutonomie),
+      sourcesExist: sourcesCompletes(d.racineSources),
+      corpusPasAPasExist: !!d.corpusPasAPas && corpusTestPresent(d.corpusPasAPas, 'pas-a-pas'),
+      corpusAutonomieExist: !!d.corpusAutonomie && corpusTestPresent(d.corpusAutonomie, 'autonomie'),
     }
   })
   /** Écrit la mémoire démo en PRÉSERVANT les récents.
@@ -1168,23 +1194,38 @@ function enregistrerIpcDemo(): void {
     s.demo = demo
     ecrireSettings(s)
   })
-  /** Garde de la modale : on n'écrase jamais un corpus existant ;
-   *  le dossier choisi ne doit donc pas contenir de `corpus.json`,
-   *  ni être le corpus de l'autre mode. */
-  ipcMain.handle('demo:verifierCorpus', (_e, dir: string) => ({
-    dejaCorpus: existsSync(join(dir, 'corpus.json')),
-  }))
+  /** Garde de la modale ; on n'écrase jamais un travail.
+   *  Refuse un corpus marqué démo, un corpus non marqué mais non vide,
+   *  ou un corpus.json illisible (prudence).
+   *  Laisse passer le squelette amorcé vide.
+   *  Ce n'est pas un travail utilisateur ;
+   *  le bloquer interdirait de reconstruire un corpus,
+   *  dans un dossier qu'une simple ouverture a amorcé. */
+  ipcMain.handle('demo:verifierCorpus', (_e, dir: string): VerificationDossierDemo => {
+    const chemin = join(dir, 'corpus.json')
+    if (!existsSync(chemin)) return { ok: true }
+    try {
+      const c = JSON.parse(readFileSync(chemin, 'utf8')) as Partial<CorpusFichier>
+      if (c.demo) return { ok: false, raison: 'demo' }
+      if (c.membership && Object.keys(c.membership).length > 0) {
+        return { ok: false, raison: 'dejaCorpus' }
+      }
+      return { ok: true }
+    } catch {
+      return { ok: false, raison: 'illisible' }
+    }
+  })
 }
 
-// --- Migration SonalPi V1 → V2 : lecture et aperçu d'un `.crp` ---
-// Choix d'un `.crp` : dialogue natif (filtre crp), lecture + détection d'encodage (chardet + iconv-lite, comme SonalPi V1 — `src/main/encodage.ts`) ;
+// --- Migration SonalPi1 → SonalPi2 : lecture et aperçu d'un `.crp` ---
+// Choix d'un `.crp` : dialogue natif (filtre crp), lecture + détection d'encodage (chardet + iconv-lite, comme SonalPi1 — `src/main/encodage.ts`) ;
 // puis analyse PUR côté `shared/corpus/migrationCrp.ts`. À ce stade, le main ne fait que LIRE ;
 // l'aperçu est affiché avant toute écriture.
 function enregistrerIpcMigration(): void {
   ipcMain.handle('migrer:choisirCrp', async (e) => {
     const r = await montrerOuvrir(e, {
       properties: ['openFile'],
-      filters: [{ name: 'Corpus SonalPi (V1)', extensions: ['crp'] }],
+      filters: [{ name: 'Corpus SonalPi1', extensions: ['crp'] }],
     })
     if (r.canceled || r.filePaths.length === 0) return null
     const chemin = r.filePaths[0]
@@ -1222,7 +1263,7 @@ function enregistrerIpcMigration(): void {
     }
     return { ok: true, nonVide }
   })
-  /** Lit le `.Sonal` d'un entretien V1. `null` = absent/manquant. */
+  /** Lit le `.Sonal` d'un entretien SonalPi1. `null` = absent/manquant. */
   ipcMain.handle('migrer:lireSonal', (_e, cheminCrp: string, rtrPath: string | null) => {
     if (!rtrPath) return null
     const abs = join(dirname(cheminCrp), rtrPath)

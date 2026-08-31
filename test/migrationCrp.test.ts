@@ -8,7 +8,7 @@ import { decoderCrp } from '../src/main/encodage'
 import type { CorpusFichier } from '../src/shared/format'
 
 /**
- *  Lecture + aperçu du `.crp` SonalPi V1.
+ *  Lecture + aperçu du `.crp` SonalPi1.
  *  Le parseur est PUR (`shared/corpus/migrationCrp.ts`) ; le décodage
  *  d'encodage vit dans le main (`src/main/encodage.ts`, chardet + iconv-lite
  *  comme la V1). Ici : parse du JSON V1 réel (fixtures + windows-1252),

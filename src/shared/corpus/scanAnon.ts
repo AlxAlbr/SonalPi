@@ -174,7 +174,7 @@ export function scannerCorpus(regles: RegleAnon[], entretiens: EntretienScan[]):
 /* ── Scan DÉTAILLÉ d'une règle (vue vérification du panneau corpus) ─────────*/
 
 /** Occurrence vue par la vérification corpus : position PM, état,
- *  contexte lisible « avant / match / après » (parité accordéon SonalPi V1). */
+ *  contexte lisible « avant / match / après » (parité accordéon SonalPi1). */
 export interface OccurrenceScan {
   from: number
   to: number

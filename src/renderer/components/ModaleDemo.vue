@@ -7,8 +7,11 @@ import type { ModeDemo } from '../composables/demo'
  *  Modale démo à deux questions : « où placer les sources de la démo » (sautée
  *  si elles sont déjà en place) et « où placer CE corpus de test » (le dossier
  *  du mode cliqué, sauté si déjà connu). Un dossier = un corpus.
- *  Gardes : ni les sources, ni le corpus de l'autre mode, ni un dossier qui est
- *  déjà un corpus (`corpus.json` présent — on n'écrase jamais). `defaultPath`
+ *  Gardes : ni les sources, ni le corpus de l'autre mode ;
+ *  ni un dossier qui porte déjà un travail (marqué démo, non vide,
+ *  ou illisible — on n'écrase jamais).
+ *  Un squelette amorcé vide passe ; il sera reconstruit par `preparer()`.
+ *  `defaultPath`
  *  des pickers hinté Documents/Sonal/démo/<…>. À la validation →
  *  `preparer(mode, { racineSources?, dossierCorpus? })`.
  */
@@ -77,10 +80,16 @@ async function valider() {
     erreur.value = `Ce dossier est déjà le corpus « ${props.mode === 'pas-a-pas' ? 'En autonomie' : 'Pas à pas'} » — choisis un autre dossier.`
     return
   }
-  // Garde 3 — le dossier n'est pas DÉJÀ un corpus (on n'écrase jamais).
+  // Garde 3 — on n'écrase jamais un travail : refus d'un corpus marqué démo,
+  // non vide ou illisible ; un squelette amorcé vide passe (il sera reconstruit).
   const verif = await window.sonal.demo.verifierCorpus(corpus!)
-  if (verif.dejaCorpus) {
-    erreur.value = 'Ce dossier contient déjà un corpus — choisis un dossier vide.'
+  if (!verif.ok) {
+    erreur.value =
+      verif.raison === 'demo'
+        ? 'Ce dossier est le corpus d’un mode démo — choisis un dossier vide.'
+        : verif.raison === 'illisible'
+          ? 'Ce dossier contient un corpus illisible — choisis un dossier vide.'
+          : 'Ce dossier contient déjà un corpus — choisis un dossier vide.'
     return
   }
   await preparer(props.mode, {

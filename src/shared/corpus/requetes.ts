@@ -71,7 +71,7 @@ function longueursDoc(corpsTexte: unknown): number[] {
 }
 
 /**
- *  RÉSUMÉ THÉMATIQUE d'un entretien — parité SonalPi (`resumeGraphique`) : les
+ *  RÉSUMÉ THÉMATIQUE d'un entretien — parité SonalPi1 (`resumeGraphique`) : les
  *  codages projetés sur l'axe du TEXTE (coordonnée caractère cumulée, les
  *  frontières de blocs pèsent 0), en % de la longueur totale. Balayage des bornes
  *  en segments élémentaires (comme les décorations de l'éditeur) : un segment

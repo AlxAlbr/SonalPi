@@ -2,7 +2,7 @@
  *  Alias d'entité — cœur PUR du multi-alias (étape 3a).
  *
  *  Une entité peut porter plusieurs graphies (« Lyon/Lyons ») : le séparateur
- *  `/` (parité V1 SonalPi, `parseAliases`) scinde la saisie en alias. Un alias
+ *  `/` (parité SonalPi1, `parseAliases`) scinde la saisie en alias. Un alias
  *  ne peut gouverner qu'UN seul pseudo : deux règles qui partagent un alias
  *  re-pseudonymiseraient les mêmes occurrences — c'est une COLLISION.
  */

@@ -1,6 +1,6 @@
 # Vocabulaire des versions
 
-> Ce document tranche le vocabulaire des « versions » dans SonalTau. À l'origine,
+> Ce document tranche le vocabulaire des « versions » dans SonalPi2. À l'origine,
 > « v1/v2 » désignait plusieurs choses différentes sans jamais préciser laquelle
 > (générations de produit, versions du format natif, tranches de fonctionnalité,
 > releases) ; la règle ci-dessous met fin à cette surcharge.
@@ -14,19 +14,23 @@ il doit être remplacé par le terme de la dimension concernée :
 
 | Terme | Sens | Exemples dans le repo |
 |---|---|---|
-| **SonalPi V1** (ou « SonalPi » nu) | L'ancien produit (`Vscode/SonalPi`). Seul usage légitime du mot « SonalPi ». | `.crp` (version `1.0`), `.sonal`, encodages UTF-8/windows-1252 (`encodage.ts`), `meta.sourceV1`, « parité accordéon V1 » (`scanAnon.ts`), « Doctrine V1 » (`corpusStore.ts`), dialogue « Corpus SonalPi (V1) » |
-| **SonalTau** | Ce produit (anciennement « SonalPiTestV2 », alias « la V2 »). | « corpus SonalTau », « format natif SonalTau », « Migrer vers SonalTau » |
+| **SonalPi1** | L'ancien produit (`Vscode/SonalPi`). Rétronyme : l'ancien produit ne s'est jamais appelé ainsi — SonalPi2 pose ce nom pour désigner sa propre origine. **Toujours numéroté** : jamais « SonalPi » nu (ambigu : famille de produits ou ancien produit ?). | `.crp` (version `1.0`), `.sonal`, encodages UTF-8/windows-1252 (`encodage.ts`), `meta.sourceV1`, « parité accordéon SonalPi1 » (`scanAnon.ts`), « Doctrine SonalPi1 » (`corpusStore.ts`), dialogue « Corpus SonalPi1 » |
+| **SonalPi2** | Ce produit (anciennement « SonalPiTestV2 », puis « SonalTau »). | « corpus SonalPi2 », « format natif SonalPi2 », « Migrer SonalPi1 → SonalPi2 » |
 | **formatVersion** | Version du format natif (aujourd'hui `3`). Un bump = migration explicite au store ; une version inconnue est refusée. Chaque cache distant (`miroir.ts`, `coffre.ts`) a son propre `formatVersion`, indépendant. | « formatVersion 1 → 2 » (timecodes → ancres), « formatVersion 2 → 3 » (audioRef absolus), `migrerEntretienFormatV1`, `migrerFormatV2Vers3` |
-| **itération** | Tranche de fonctionnalité dans SonalTau. Ce qu'on n'implemente pas encore est « reporté » ou « hors de l'itération N », jamais « v2 ». | « hors périmètre de l'itération 1 », « pas de retry (itération 1) » (`transactions.ts`) |
+| **itération** | Tranche de fonctionnalité dans SonalPi2. Ce qu'on n'implemente pas encore est « reporté » ou « hors de l'itération N », jamais « v2 ». | « hors périmètre de l'itération 1 », « pas de retry (itération 1) » (`transactions.ts`) |
 | **release** | Version livrée du produit = semver dans `package.json`, affichée dans l'app. | `0.2.0` |
 | **versions externes** | Protocoles, modèles, standards tiers. Toujours précédés de leur domaine. | « protocole chunking v2 de Nextcloud », « protocole OCS v1 (Nextcloud) », modèle `parakeet_realtime_eou_120m-v1` |
 
 ## Repères pour trancher
 
 - **Un corpus, un entretien, un cache** → `formatVersion` (numéro), jamais « v2 ».
-- **L'ancien produit** → « SonalPi V1 » (le sigle « V1 » seul reste accepté dans un
-  fichier dont le sujet est explicitement la migration, ex. `migrationCrp.ts`, où le
-  couple V1↔V2 est le mapping ancien produit → modèle SonalTau).
+- **L'ancien produit** → « SonalPi1 » ; **ce produit** → « SonalPi2 ». Jamais
+  « SonalPi » nu, jamais « SonalPi V1 ».
+- **Fichiers de mapping legacy** (`migrationCrp.ts`, `migrationCrp.test.ts`, la
+  section `migrerDepuisV1` de `corpusStore.test.ts`, `e2e/migration-v1.e2e.ts`) :
+  le couple terse **V1↔V2** reste accepté comme abréviation du mapping
+  SonalPi1 → SonalPi2 — le sujet du fichier le qualifie. Les mentions produit
+  complètes y utilisent les noms pleins (« migration SonalPi1 → SonalPi2 »).
 - **Une fonctionnalité découpée** (plans, prototypes) → « itération N » ou pas de
   numéro (« non retenu pour l'instant »).
 - **Une décision sur une livraison** (quoi dans la prochaine release) → semver, ou

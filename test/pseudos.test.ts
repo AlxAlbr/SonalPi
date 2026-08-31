@@ -14,7 +14,7 @@ describe('scinderPseudos — saisie libre « a / b »', () => {
   test('trim + ignore les morceaux vides', () => {
     expect(scinderPseudos('  Claire  /  ')).toEqual(['Claire'])
   })
-  test('capé à 2 pseudos (parité SonalPi V1 remplacement/remplacementAlt)', () => {
+  test('capé à 2 pseudos (parité SonalPi1 remplacement/remplacementAlt)', () => {
     expect(scinderPseudos('a / b / c').length).toBeLessThanOrEqual(MAX_PSEUDOS)
     expect(scinderPseudos('a / b / c')).toEqual(['a', 'b'])
   })

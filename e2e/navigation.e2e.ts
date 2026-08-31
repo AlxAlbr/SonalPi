@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { lancer, attendreAccueil, entrerEntretien } from './util'
 
 /**
- *  Enchaînement SonalPi : l'app DÉMARRE sur l'ACCUEIL, puis Corpus → Entretien.
+ *  Enchaînement SonalPi1 : l'app DÉMARRE sur l'ACCUEIL, puis Corpus → Entretien.
  *  Prouve que les trois écrans existent et que la navigation (cartes + fil d'Ariane +
  *  bouton retour) bascule bien, l'éditeur restant monté (v-show) d'un écran à l'autre.
  */

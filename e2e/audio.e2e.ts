@@ -107,7 +107,7 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
   await expect(page.locator('.editeur .plage-lue')).toContainText('Deuxième segment')
 
   // --- S7 : CLIC dans le texte → la tête de lecture se cale au temps interpolé
-  // à cet endroit (comme SonalPi) — cliquer DANS LE TEXTE du cue 2 (pas au
+  // à cet endroit (comme SonalPi1) — cliquer DANS LE TEXTE du cue 2 (pas au
   // centre de la boîte : au-delà de la fin de ligne, ProseMirror résout la
   // position sur la frontière suivante → seek au deb du cue 3, invariant voulu).
   await page.locator('.editeur p').nth(1).click({ position: { x: 30, y: 14 } })
@@ -160,7 +160,7 @@ test('import SRT+audio en un geste → copie dans le corpus, forme d’onde, lec
   await app.close()
 })
 
-test('S6+ : double-espace dans le texte = play/pause (parité SonalPi), sans insérer d’espaces', async () => {
+test('S6+ : double-espace dans le texte = play/pause (parité SonalPi1), sans insérer d’espaces', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-audio-'))
   const srt = join(dir, 'entretien-audio.srt')
   const wav = join(dir, 'entretien-audio.wav')

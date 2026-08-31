@@ -300,15 +300,15 @@ describe('corpsNoteEnTexte — vue expand', () => {
   })
 })
 
-describe('import .sonal — migration des notes V1', () => {
+describe('import .sonal — migration des notes SonalPi1', () => {
   const html = (notes: string) => `<!DOCTYPE html><html><head></head><body>
     <div id="contenuText"><div class="lblseg" data-loc="1"><span data-rk="1">Bonjour</span></div></div>
     <textarea id="txtnotes">${notes}</textarea>
     <script id="loc-json" type="application/json">["Interviewer","Loc1"]</script>
   </body></html>`
 
-  test('texte libre V1 → une note « générale » sans date, privée', () => {
-    const r = importerSonal(html('mes notes de terrain'), parse(html('mes notes de terrain')))
+  test('texte libre SonalPi1 → une note « générale » sans date, privée', () => {
+    const r = importerSonal(parse(html('mes notes de terrain')))
     expect(r.payload.notes).toHaveLength(1)
     const n = r.payload.notes![0]
     expect(n.categorieId).toBe('ncat_generale')
@@ -319,14 +319,14 @@ describe('import .sonal — migration des notes V1', () => {
     expect(r.legacy.notes).toBe('mes notes de terrain') // préservé
   })
 
-  test('aucune note V1 → liste vide, le payload ne porte PAS les catégories (elles vivent au corpus)', () => {
-    const r = importerSonal(html('   '), parse(html('   ')))
+  test('aucune note SonalPi1 → liste vide, le payload ne porte PAS les catégories (elles vivent au corpus)', () => {
+    const r = importerSonal(parse(html('   ')))
     expect(r.payload.notes).toEqual([])
     expect('categoriesNote' in r.payload).toBe(false)
   })
 
   test('le corps est échappé si la note contient du <', () => {
-    const r = importerSonal(html('a < b & c'), parse(html('a < b & c')))
+    const r = importerSonal(parse(html('a < b & c')))
     expect(r.payload.notes![0].corps).toBe('a &lt; b &amp; c')
   })
 })

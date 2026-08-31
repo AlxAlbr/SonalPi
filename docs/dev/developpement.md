@@ -36,11 +36,11 @@ ressemble à un « disque rayé ». Le gel est **intermittent** et, une fois ins
 **Cause : le pont audio de WSLg lui-même** (`PulseAudioRDPSink`), pas l'app.
 Diagnostic : le même gel se reproduit dans un Electron minimal (aucun code Sonal,
 WAV en mémoire via Blob URL — ni protocole `sonal-media`, ni fichier) et dans
-SonalPi (autre codebase entière). Le protocole custom, la synchro position/
+SonalPi1 (autre codebase entière). Le protocole custom, la synchro position/
 surlignage et le lecteur sont donc sains ; sur un poste avec un vrai backend
 audio, la lecture se comporte normalement.
 
 Si le son sous WSL devenait un jour bloquant en dev : workaround connu = installer
 un serveur PulseAudio sur Windows et pointer `PULSE_SERVER=tcp:…` depuis WSL
 (contourne le pont RDP de WSLg) ; une mise à jour de WSL/Windows peut aussi
-régler le problème. À ne pas traiter comme un bug de SonalTau.
+régler le problème. À ne pas traiter comme un bug de SonalPi2.

@@ -9,7 +9,7 @@ export const gouttierePluginKey = new PluginKey('sonal-locuteurs-gutter')
 
 /**
  *  Élément de gouttière : le libellé passe AU-DESSUS du
- *  bloc (layout SonalPi `.ligloc`) — c'est ce qui permet de barrer le nom et
+ *  bloc (layout SonalPi1 `.ligloc`) — c'est ce qui permet de barrer le nom et
  *  d'afficher `[pseudo]` SANS décaler le texte du tour, qui démarre pleine
  *  largeur dessous. Le widget reste UNE DÉCORATION dans le contenu du paragraphe
  *  (`display:block` = sa propre ligne) : le schéma n'est pas touché, la
@@ -22,7 +22,7 @@ export const gouttierePluginKey = new PluginKey('sonal-locuteurs-gutter')
  *  → nom en clair + ⊘. Le clic-tour (placer le curseur + seek audio au début du
  *  tour) reste porté par le libellé.
  *
- *  Placement (comme SonalPi, header du segment « deb » seulement) :
+ *  Placement (comme SonalPi1, header du segment « deb » seulement) :
  *  - 1er bloc d'un tour AVEC locuteur → libellé ; pseudonymisé, le nom est
  *  barré + [pseudo] sur la même ligne (le texte du tour n'est pas décalé) ;
  *  - 1er bloc d'un tour SANS locuteur (loc null) → gouttière vide cliquable ;
@@ -51,7 +51,7 @@ export function construireLibelleGouttiere(lib: LibelleGouttiere, vide: boolean)
     nom.style.color = lib.couleur
     el.appendChild(nom)
     if (lib.pseudo) {
-      // Classe de pseudonymisation (parité SonalPi `loc-anon`) : elle seule active le BARRÉ du nom dans le CSS —
+      // Classe de pseudonymisation (parité SonalPi1 `loc-anon`) : elle seule active le BARRÉ du nom dans le CSS —
       // sans pseudo posé, le libellé reste en clair (aucune décoration de texte).
       el.classList.add('loc-anon')
       el.appendChild(document.createTextNode(' '))
@@ -101,7 +101,7 @@ function elementGouttiere(
 function construire(state: EditorState, locuteurs: Locuteur[], onClicTour?: (pos: number) => void): DecorationSet {
   const decos: Decoration[] = []
   // Interviewers (ceux qui posent les questions) : leurs tours passent en italique —
-  // le pendant du « ? » SonalPi, sans teinte de fond (rendu neutre).
+  // le pendant du « ? » SonalPi1, sans teinte de fond (rendu neutre).
   const interviewers = new Set(locuteurs.filter((l) => l.interviewer).map((l) => l.index))
   let precedent: number | null | undefined = undefined
   state.doc.forEach((node, offset) => {

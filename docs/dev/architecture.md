@@ -10,7 +10,7 @@ src/
     editor/      TipTap/ProseMirror : schéma, remap des positions, décorations, gouttière,
                  snap, recherche/remplacement (Ctrl+F)
     audio/       lecture : enveloppe sonore + rendu de la forme d'onde
-    import/      sas .sonal / .srt / .vtt (convertisseurs SonalPi vendorés) + export
+    import/      sas .sonal / .srt / .vtt (convertisseurs SonalPi1 vendorés) + export
     notes/       hygiène HTML des notes d'entretien (sanitisation avant v-html)
     composables/ orchestration UI (useCorpus, useEntretien, useProfil, sonal)
     components/  Accueil, Corpus, Entretien, TableDonnees

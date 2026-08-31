@@ -105,9 +105,9 @@ export function useEntretien(deps: {
    *  début du tour (le scope entretien ne connaît pas le lecteur). */
   clicTour?: (posBloc: number) => void
   /** Clic DANS le texte → l'orchestrateur cale l'audio au temps interpolé
-   *  à cet endroit précis (comme SonalPi — la barre suit, play reprend là). */
+   *  à cet endroit précis (comme SonalPi1 — la barre suit, play reprend là). */
   clicTexte?: (pos: number) => void
-  /** Double-espace dans le texte = play/pause (parité SonalPi). Renvoie `true`
+  /** Double-espace dans le texte = play/pause (parité SonalPi1). Renvoie `true`
    *  si un audio était chargé et a donc été (dé)clenché ; `false` sinon (aucun
    *  audio → l'éditeur laisse la 2ᵉ espace se taper normalement). */
   basculerLecture?: () => boolean
@@ -276,7 +276,7 @@ export function useEntretien(deps: {
     reperageAnon.value = { cle, categorie, variante, hits, index: 0 }
     calerSurHitCourant()
   }
-  /** Pas de navigation ◄ / ► (modulo, comme SonalPi V1). */
+  /** Pas de navigation ◄ / ► (modulo, comme SonalPi1). */
   function naviguerReperage(sens: number) {
     const r = reperageAnon.value
     if (!r || r.hits.length === 0) return
@@ -466,7 +466,7 @@ export function useEntretien(deps: {
       ]
     },
   })
-  // Double-espace = play/pause (parité SonalPi) : dans le texte, une espace tape
+  // Double-espace = play/pause (parité SonalPi1) : dans le texte, une espace tape
   // un caractère — c'est la 2ᵉ espace rapprochée qui sert de commande de lecture.
   const SEUIL_DOUBLE_ESPACE = 300 // ms
   let derniereEspace = 0
@@ -903,7 +903,7 @@ export function useEntretien(deps: {
     planifierSauvegarde()
   }
   /** (Dé)clare un locuteur INTERVIEWER : ses tours passent en italique (le
-   *  pendant du « ? » SonalPi). Hors journal (comme + Locuteur) : l'inverse
+   *  pendant du « ? » SonalPi1). Hors journal (comme + Locuteur) : l'inverse
    *  est le re-clic du même interrupteur. */
   function setInterviewer(index: number, actif: boolean) {
     const l = locuteurs.value.find((x) => x.index === index)
@@ -2145,7 +2145,7 @@ export function useEntretien(deps: {
     rafraichirDecorations()
     planifierSauvegarde()
   }
-  /** Retire UN codage sans resélectionner (menu contextuel, parité SonalPi V1) :
+  /** Retire UN codage sans resélectionner (menu contextuel, parité SonalPi1) :
    *  même sillage que le toggle « re-clic = retirer » de coderAvec. */
   function retirerCodageMenu(id: string) {
     const a = entretien.annotations.find((x) => x.id === id)

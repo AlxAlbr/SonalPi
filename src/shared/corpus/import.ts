@@ -23,7 +23,7 @@ export function fusionnerImport(
  *  touche aucune règle existante est ajoutée telle quelle ; un double import
  *  du même `.sonal` n'ajoute rien ; et si l'entrant PARTAGE seulement certains
  *  alias avec des règles existantes, il est ÉCLATÉ — les alias libres restent
- *  libres et deviennent une règle à part (parité SonalPi V1 « garder les alias
+ *  libres et deviennent une règle à part (parité SonalPi1 « garder les alias
  *  libres »), les alias déjà gouvernés restant où ils sont. */
 export function fusionnerReglesAnon(corpus: CorpusFichier, regles: RegleAnon[]): void {
   for (const r of regles) {

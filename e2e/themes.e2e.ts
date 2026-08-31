@@ -11,7 +11,7 @@ import {
 
 /**
  *  Les thèmes s'ÉDITENT dans la fenêtre EditionThemes
- *  (crayon, parité SonalPi : nom/couleur/taille/arbre), ouverte depuis l'écran
+ *  (crayon, parité SonalPi1 : nom/couleur/taille/arbre), ouverte depuis l'écran
  *  Corpus OU l'onglet Thématique ; le CODAGE se fait à l'écran Entretien (clic = coder).
  *  Invariants : (1) recolorer/retailler se reflète en direct SANS
  *  écrire dans l'entretien ; (2) cliquer un thème code la sélection ; (3)
@@ -80,7 +80,7 @@ test('poser une taille de police sur un thème → les passages codés la porten
   await ouvrirEditionThemes(page)
   await page.locator('.liste-thm li[data-nom="Famille"] .taille-thm').selectOption('24')
   await fermerEditionThemes(page)
-  // Taille + GRAS, indissociables (parité SonalPi : son CSS généré pose les deux).
+  // Taille + GRAS, indissociables (parité SonalPi1 : son CSS généré pose les deux).
   // L'effet ne s'applique QU'AU marquage dans le texte ; le nom du thème dans
   // l'onglet reste en taille uniforme (décision utilisateur).
   await expect(page.locator('.editeur .annot')).toHaveAttribute('style', /font-size:\s*24px/)
@@ -104,7 +104,7 @@ test('coder → la carte Corpus porte le résumé thématique (calque, clic = ro
   await expect(page.locator('.etat')).toHaveText('à jour') // codage sur disque
 
   // Retour Corpus : la carte porte UN segment de résumé, calé au début,
-  // en % du texte (parité SonalPi), coloré et titré par le thème.
+  // en % du texte (parité SonalPi1), coloré et titré par le thème.
   await retourCorpus(page)
   const seg = page.locator('.carte-ent .xtr-graph')
   await expect(seg).toHaveCount(1)

@@ -24,6 +24,7 @@ import type {
   ResultatSuppressionCategorie,
   SegmentThematique,
   Variable,
+  VerificationDossierDemo,
   ParamsAnon,
 } from '../shared/format'
 import type { DemandeCreationDistante } from '../shared/distant'
@@ -328,7 +329,7 @@ contextBridge.exposeInMainWorld('sonal', {
     cheminDe: (f: File): string => webUtils.getPathForFile(f),
   },
   migrer: {
-    /** Choix d'un `.crp` SonalPi V1 : dialogue + lecture + analyse (aperçu). */
+    /** Choix d'un `.crp` SonalPi1 : dialogue + lecture + analyse (aperçu). */
     choisirCrp: (): Promise<{ chemin: string; analyse: AnalyseCrp } | null> =>
       invoquer('migrer:choisirCrp'),
     /** Choix du dossier DÉDIÉ, pré-rempli Documents/Sonal/<nom>. */
@@ -337,10 +338,10 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Garde « on n'écrase jamais ». */
     verifierDossier: (dir: string): Promise<VerificationDossierMigration> =>
       invoquer('migrer:verifierDossier', dir),
-    /** Crée le corpus SonalTau dans le dossier dédié et l'OUVRE. */
+    /** Crée le corpus SonalPi2 dans le dossier dédié et l'OUVRE. */
     executer: (req: DemandeMigration): Promise<OuvertureCorpus> =>
       invoquer('migrer:executer', req),
-    /** Lit le `.Sonal` d'un entretien V1. */
+    /** Lit le `.Sonal` d'un entretien SonalPi1. */
     lireSonal: (
       cheminCrp: string,
       rtrPath: string | null,
@@ -365,8 +366,9 @@ contextBridge.exposeInMainWorld('sonal', {
     /** Mémoire démo persistée : à appeler après chaque préparation réussie. */
     memoriser: (etat: EtatDemo): Promise<void> => invoquer('demo:memoriser', etat),
     /** Garde de la modale : le dossier choisi pour le corpus de test ;
-     *  il ne doit pas déjà être un corpus (corpus.json présent). */
-    verifierCorpus: (dir: string): Promise<{ dejaCorpus: boolean }> =>
+     *  refus s'il porte déjà un travail (marqué démo, non vide, illisible) ;
+     *  un squelette amorcé vide passe. */
+    verifierCorpus: (dir: string): Promise<VerificationDossierDemo> =>
       invoquer('demo:verifierCorpus', dir),
   },
 })

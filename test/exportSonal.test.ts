@@ -32,7 +32,7 @@ function anonCount(anns: Annotation[]): number {
 describe('brouillons d’anonymisation — round-trip', () => {
   test('les brouillons sont sérialisés dans l’anon-json en portee « brouillon » (occurrences:0)', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const avecBrouillons: EntreeExport & { brouillonsAnon: BrouillonAnon[] } = {
       ...r.payload,
       brouillonsAnon: [
@@ -51,7 +51,7 @@ describe('brouillons d’anonymisation — round-trip', () => {
   })
   test('sans brouillons ni règle appliquée → anon-json vide', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const out = exporterSonal({ ...r.payload, codebook: r.codebook, variables: r.variables, legacy: r.legacy })
     expect(out).toContain('<script id="anon-json" type="application/json">')
     expect(out).not.toContain('"portee":"brouillon"')
@@ -61,7 +61,7 @@ describe('brouillons d’anonymisation — round-trip', () => {
 describe('export .sonal — règles corpus (portée corpus)', () => {
   test('une occurrence liée à une règle corpus → entrée portee « corpus » dans l’anon-json', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const regle = { id: 'reg-1', entite: ['Karine'], pseudos: ['Claire', 'Rebecca'] }
     const out = exporterSonal({
       ...r.payload,
@@ -80,7 +80,7 @@ describe('export .sonal — règles corpus (portée corpus)', () => {
   })
   test('une règle non appliquée dans l’entretien → absente de son anon-json', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const out = exporterSonal({
       ...r.payload,
       reglesAnon: [{ id: 'reg-x', entite: ['Autre'], pseudos: ['A'] }],
@@ -97,7 +97,7 @@ const fixtures = ['entretien1.sonal', 'entretien2.sonal', 'entretien3.sonal']
 describe('export .sonal — structure', () => {
   test('produit un HTML parsable avec #contenuText et des .lblseg', () => {
     const html = fixture('entretien1.sonal')
-    const { payload, codebook, variables, legacy } = importerSonal(html, parse(html))
+    const { payload, codebook, variables, legacy } = importerSonal(parse(html))
     const out = exporterSonal({ ...payload, codebook, variables, legacy })
     expect(out).toContain('contenuText')
     expect(out).toContain('lblseg')
@@ -105,7 +105,7 @@ describe('export .sonal — structure', () => {
   })
 })
 
-describe('export .sonal — couleur des codages (visibilité dans SonalPi)', () => {
+describe('export .sonal — couleur des codages (visibilité dans SonalPi1)', () => {
   const base = {
     corpsTexte: { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null }, content: [{ type: 'text', text: 'Karine habite Lyon.' }] }] },
     annotations: [{ id: 'a1', type: 'codage' as const, from: 15, to: 19, auteur: 'moi', code: 'cat_003' }],
@@ -135,7 +135,7 @@ describe('export .sonal — couleur des codages (visibilité dans SonalPi)', () 
     expect(out.match(/\.cat_003\s*\{[\s\S]*?\}/)?.[0]).toContain('#0331ff')
   })
 
-  test('la taille de police sort en nombre nu SonalPi ; absente → "" (cat-json)', () => {
+  test('la taille de police sort en nombre nu SonalPi1 ; absente → "" (cat-json)', () => {
     const out = exporterSonal({
       ...base,
       codebook: [
@@ -175,7 +175,7 @@ describe('export .sonal — un lblseg par intervalle d’ancres', () => {
     }
     const out = exporterSonal(entree)
 
-    // SonalPi garde sa granularité : 2 segments, chacun avec SES timecodes (la 1re ancre de la frontière ferme le cue 1,
+    // SonalPi1 garde sa granularité : 2 segments, chacun avec SES timecodes (la 1re ancre de la frontière ferme le cue 1,
     // la dernière ouvre le cue 2).
     const segs = Array.from(parse(out).querySelectorAll('.lblseg')) as HTMLElement[]
     expect(segs.map((s) => [s.dataset.deb, s.dataset.fin, s.dataset.loc])).toEqual([
@@ -184,7 +184,7 @@ describe('export .sonal — un lblseg par intervalle d’ancres', () => {
     ])
 
     // Ré-import : les 2 cues de même loc se RE-fusionnent — texte, bloc unique et ancres identiques (round-trip canonique).
-    const r = importerSonal(out, parse(out))
+    const r = importerSonal(parse(out))
     const doc = r.payload.corpsTexte as { content: Array<{ attrs: { loc: number | null } }> }
     expect(doc.content.length).toBe(1)
     expect(doc.content[0].attrs.loc).toBe(1)
@@ -193,7 +193,7 @@ describe('export .sonal — un lblseg par intervalle d’ancres', () => {
   })
 })
 
-describe('interviewer — le « ? » SonalPi est un artefact d’export (drapeau au modèle)', () => {
+describe('interviewer — le « ? » SonalPi1 est un artefact d’export (drapeau au modèle)', () => {
   test('export : « Nom? » dans tabLoc ; ré-import : drapeau posé, nom nettoyé', () => {
     const out = exporterSonal({
       corpsTexte: {
@@ -211,9 +211,9 @@ describe('interviewer — le « ? » SonalPi est un artefact d’export (drapeau
       meta: { valeursGen: {} },
       legacy: { tabAnon: null, notes: '' },
     })
-    expect(out).toContain('Enquêteur?') // la convention SonalPi, dans loc-json
+    expect(out).toContain('Enquêteur?') // la convention SonalPi1, dans loc-json
 
-    const r = importerSonal(out, parse(out))
+    const r = importerSonal(parse(out))
     expect(r.payload.locuteurs).toEqual([
       { index: 1, nom: 'Enquêteur', interviewer: true, valeursLoc: {}, personneRef: null },
       { index: 2, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null },
@@ -224,7 +224,7 @@ describe('interviewer — le « ? » SonalPi est un artefact d’export (drapeau
 describe('round-trip anon — spans .anon, data-pseudo et exception préservés', () => {
   test('entretien1 : pseudos « Marie » et « test », une exception, restitués à l’export puis au ré-import', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const anns = r.payload.annotations.filter((a) => a.type === 'anon')
     // à l’import : les pseudos lus sur les data-pseudo des spans.
     const pseudos = new Set(anns.map((a) => a.pseudo ?? ''))
@@ -239,7 +239,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(out).toContain('anon-exception')
 
     // ré-import : pseudos (triés, multi-occurrences) et états préservés.
-    const r2 = importerSonal(out, parse(out))
+    const r2 = importerSonal(parse(out))
     const anns2 = r2.payload.annotations.filter((a) => a.type === 'anon')
     expect(anns2.map((a) => a.pseudo ?? '').sort()).toEqual(anns.map((a) => a.pseudo ?? '').sort())
     expect(anns2.filter((a) => a.etat === 'exception')).toHaveLength(1)
@@ -248,7 +248,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
 
   test('une exception ne re-sérialise JAMAIS de data-pseudo, même avec une mémoire de modèle', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const exc = r.payload.annotations.find((a) => a.etat === 'exception')
     expect(exc).toBeDefined()
     // Le menu contextuel (basculerException) conserve le pseudo en MÉMOIRE de modèle —
@@ -268,7 +268,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
 
   test('libellé de tour pseudonymisé : round-trip loc-anon + data-locpseudo sans perte', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const l = r.payload.locuteurs.find((x) => x.index === 1)!
     l.pseudo = 'Chercheur'
     l.pseudoEtat = 'confirme'
@@ -282,7 +282,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     expect(out).toContain('class="lblseg sautlig ligloc loc-anon"')
     expect(out).toContain('data-locpseudo="Chercheur"')
     // ré-import : pseudo + état retrouvés.
-    const r2 = importerSonal(out, parse(out))
+    const r2 = importerSonal(parse(out))
     const l2 = r2.payload.locuteurs.find((x) => x.index === 1)
     expect(l2?.pseudo).toBe('Chercheur')
     expect(l2?.pseudoEtat).toBe('confirme')
@@ -292,7 +292,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
 
   test('refus de libellé : loc-suggere-refuse à l\u2019export, JAMAIS de data-locpseudo', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const l = r.payload.locuteurs.find((x) => x.index === 1)!
     l.pseudo = 'Chercheur' // mémoire conservée (pseudo maintenu)…
     l.pseudoEtat = 'refuse' // …mais refus explicite : le nom reste en clair
@@ -304,7 +304,7 @@ describe('round-trip anon — spans .anon, data-pseudo et exception préservés'
     })
     expect(out).toContain('class="lblseg sautlig ligloc loc-suggere-refuse"')
     expect(out).not.toContain('data-locpseudo')
-    const r2 = importerSonal(out, parse(out))
+    const r2 = importerSonal(parse(out))
     const l2 = r2.payload.locuteurs.find((x) => x.index === 1)
     expect(l2?.pseudoEtat).toBe('refuse')
     expect(l2?.pseudo ?? '').toBe('') // la mémoire ne traverse pas le .sonal d'un refus
@@ -315,9 +315,9 @@ describe('round-trip import → export → ré-import (golden : rien ne se perd)
   for (const nom of fixtures) {
     test(`${nom} : texte, codages, anon et locuteurs préservés`, () => {
       const html = fixture(nom)
-      const r1 = importerSonal(html, parse(html))
+      const r1 = importerSonal(parse(html))
       const out = exporterSonal({ ...r1.payload, codebook: r1.codebook, variables: r1.variables, legacy: r1.legacy })
-      const r2 = importerSonal(out, parse(out))
+      const r2 = importerSonal(parse(out))
 
       expect(texteDe(r2.payload.corpsTexte)).toBe(texteDe(r1.payload.corpsTexte))
       expect(comptesCodage(r2.payload.annotations)).toEqual(comptesCodage(r1.payload.annotations))
@@ -333,7 +333,7 @@ describe('round-trip import → export → ré-import (golden : rien ne se perd)
 describe('export .sonal — round-trip anon-json (règle corpus + brouillon survivent)', () => {
   test('export → ré-import : une règle corpus redevient reglesAnon, un brouillon redevient brouillonAnon', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const regle = [{ id: 'reg-RT', entite: ['Karine'], pseudos: ['Claire', 'Rebecca'] }]
     const out = exporterSonal({
       ...r.payload,
@@ -346,7 +346,7 @@ describe('export .sonal — round-trip anon-json (règle corpus + brouillon surv
       variables: r.variables,
       legacy: r.legacy,
     })
-    const r2 = importerSonal(out, parse(out))
+    const r2 = importerSonal(parse(out))
     expect(r2.reglesAnon).toHaveLength(1)
     expect(r2.reglesAnon[0].pseudos).toEqual(['Claire', 'Rebecca'])
     expect(r2.reglesAnon[0].entite).toEqual(['Karine'])
@@ -359,7 +359,7 @@ describe('export .sonal — round-trip anon-json (règle corpus + brouillon surv
 describe('export .sonal — round-trip RÉEL via la fixture (règles liées à l’import)', () => {
   test('importer entretien1 → ses occurrences anon sont liées → l’export ré-émet la règle corpus', () => {
     const html = fixture('entretien1.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     // La fixture porte un anon-json de règles (portee corpus) : les occurrences anon issues des spans sont donc liées à une règle → l'export les ré-émet.
     const regles = r.reglesAnon
     expect(regles.length).toBeGreaterThan(0)
@@ -374,7 +374,7 @@ describe('export .sonal — round-trip RÉEL via la fixture (règles liées à l
     })
     expect(out).toContain('"portee":"corpus"')
     // Ré-import de l'export → la règle redevient reglesAnon (sans perte).
-    const r2 = importerSonal(out, parse(out))
+    const r2 = importerSonal(parse(out))
     expect(r2.reglesAnon.length).toBeGreaterThan(0)
     expect(r2.payload.annotations.some((a) => a.type === 'anon' && a.regle)).toBe(true)
   })

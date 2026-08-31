@@ -10,7 +10,7 @@ import type { Note, NoteCategory } from '../format'
  */
 
 /** Catégories par défaut d'un corpus sans `categoriesNote`. Quatre bacs :
- *  trois typés + « générale » (bac récupérant le texte libre V1, sans date).
+ *  trois typés + « générale » (bac récupérant le texte libre SonalPi1, sans date).
  *  Couleurs puisées dans la même palette que les locuteurs pour rester cohérent à l'écran. */
 export const CATEGORIES_NOTE_DEFAUT: NoteCategory[] = [
   { id: 'ncat_postcollecte', nom: 'post-collecte', couleur: '#ffb74d' },

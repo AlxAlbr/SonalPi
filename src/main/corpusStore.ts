@@ -309,11 +309,11 @@ export class CorpusStore {
     this.invaliderRefsAudio() // le cache (s'il existait) est périmé
   }
 
-  /** Le bloc « Pondérations » par défaut de SonalPi, aux mêmes codes que lui (cat_001..004).
+  /** Le bloc « Pondérations » par défaut de SonalPi1, aux mêmes codes que lui (cat_001..004).
    *  Ces ids `cat_NNN` sont VOLONTAIREMENT figés (espace réservé, administré),
    *  écrits une fois à l'amorçage, jamais créés par un utilisateur :
    *  ils garantissent que deux corpus neufs partagent le même codebook par défaut,
-   *  et la parité d'ids avec les `.sonal` importés de SonalPi.
+   *  et la parité d'ids avec les `.sonal` importés de SonalPi1.
    *  Toute catégorie créée ENSUITE passe par `genId('cat')` ;
    *  l'id est opaque et sûr en offline divergent,
    *  `cat_NNN` étant relégué au `codeExport`. */
@@ -325,7 +325,7 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Crée un corpus SonalTau DANS un dossier dédié, à partir d'une migration SonalPi V1.
+  /** Crée un corpus SonalPi2 DANS un dossier dédié, à partir d'une migration SonalPi1.
    *  Contrairement à `amorcer()`, on n'écrit PAS le bloc « Pondérations ».
    *  La source de vérité des définitions est le `.crp`, on fusionne exactement ce que la lecture a mappé.
    *  Le dossier a déjà été vérifié par la garde (`migrer:verifierDossier`).
@@ -356,7 +356,7 @@ export class CorpusStore {
     }
     corpusModel.fusionnerImport(corpus, codebook, variables)
     // E4 : le `tabAnon` du .crp devient des règles corpus, écrites AVANT les imports `.sonal`.
-    // Doctrine SonalPi V1 : le global du corpus gagne.
+    // Doctrine SonalPi1 : le global du corpus gagne.
     // La dédup par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal` idempotent.
     // La catégorie/thématique du .crp reste sur la règle.
     for (const r of reglesAnonV1 ?? []) {
@@ -767,7 +767,7 @@ export class CorpusStore {
   }
 
   /** APPLICATION EN MASSE / VALIDATION DU DIFF (étape 2) : applique sur un entretien FERMÉ les changements de la vue vérification (lecture fichier → instructions PURES → écriture atomique).
-   *  `plages` restreint les POSES aux seules occurrences cochées ; `retirer`, `exception` et `retirerException` portent le diff façon SonalPi V1 (« Valider »).
+   *  `plages` restreint les POSES aux seules occurrences cochées ; `retirer`, `exception` et `retirerException` portent le diff façon SonalPi1 (« Valider »).
    *  Renvoie le nombre total de changements écrits. */
   appliquerRegleAnon(
     entretienId: string,
@@ -910,7 +910,7 @@ export class CorpusStore {
 
   /** Assigne un fichier audio à un entretien par RÉFÉRENCE (chemin absolu).
    *  Plus de copie : le fichier d'origine est lu en streaming + forme d'onde,
-   *  jamais écrit par l'app (parité SonalPi).
+   *  jamais écrit par l'app (parité SonalPi1).
    *  Le chemin stocké est normalisé (`file://` → natif, `path.normalize`),
    *  pour une comparaison fiable des chemins.
    *  Écriture ciblée comme `poserValeur` (pas de rotation `.bak`). */

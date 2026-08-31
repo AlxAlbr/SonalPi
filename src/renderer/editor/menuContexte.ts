@@ -15,7 +15,7 @@ export interface CibleMenuContexte {
   /** Occurrence anon couvrante (menu « exception ↔ anonymisé »), sinon null. */
   anon: Annotation | null
   /** Codages couvrant la position — un item de retrait par thème (sans avoir à
-   *  resélectionner, parité SonalPi V1). Plusieurs annotations peuvent porter le même
+   *  resélectionner, parité SonalPi1). Plusieurs annotations peuvent porter le même
    *  code : dédoublonnées côté UI. */
   codages: Annotation[]
   /** Commentaires couvrant la position — un item d'édition par commentaire. */

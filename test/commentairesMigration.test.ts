@@ -21,7 +21,7 @@ const seg = (loc: number, ...fragments: string[]) =>
 const frag = (rk: number, texte: string, extra = '') =>
   `<span data-rk="${rk}"${extra}>${texte}</span>`
 
-describe('import des commentaires V1 (.sonal)', () => {
+describe('import des commentaires SonalPi1 (.sonal)', () => {
   test('convention « data-finobs = rk du fragment final » : la plage couvre les fragments', () => {
     const html = htmlDe(
       seg(
@@ -31,12 +31,12 @@ describe('import des commentaires V1 (.sonal)', () => {
         frag(3, ' Lyon.'),
       ),
     )
-    const cs = commentairesDe(importerSonal(html, parse(html)).payload.annotations)
+    const cs = commentairesDe(importerSonal(parse(html)).payload.annotations)
     expect(cs).toHaveLength(1)
     expect(cs[0].auteur).toBe('Alice')
     expect(cs[0].texte).toBe('passage clé')
     // La plage couvre « Karine habite Lyon. » entière (du 1er au 3e fragment).
-    const doc = importerSonal(html, parse(html)).payload.corpsTexte as {
+    const doc = importerSonal(parse(html)).payload.corpsTexte as {
       content: Array<{ content?: Array<{ text?: string }> }>
     }
     const t = doc.content[0].content?.map((n) => n.text).join('') ?? ''
@@ -47,11 +47,11 @@ describe('import des commentaires V1 (.sonal)', () => {
     const html = htmlDe(
       seg(1, frag(1, 'Karine ', 'data-obs="note"'), frag(2, 'habite'), frag(3, ' Lyon.', ' data-finobs=""')),
     )
-    const cs = commentairesDe(importerSonal(html, parse(html)).payload.annotations)
+    const cs = commentairesDe(importerSonal(parse(html)).payload.annotations)
     expect(cs).toHaveLength(1)
     expect(cs[0].texte).toBe('note')
     // Ferme sur « Lyon. » : la plage couvre tout le tour.
-    const doc = importerSonal(html, parse(html)).payload.corpsTexte as {
+    const doc = importerSonal(parse(html)).payload.corpsTexte as {
       content: Array<{ content?: Array<{ text?: string }> }>
     }
     const t = doc.content[0].content?.map((n) => n.text).join('') ?? ''
@@ -62,9 +62,9 @@ describe('import des commentaires V1 (.sonal)', () => {
     const html = htmlDe(
       seg(1, frag(1, 'Karine'), frag(2, ' habite Lyon.', 'data-obs="mot" data-auth="Bob" data-finobs="2"')),
     )
-    const cs = commentairesDe(importerSonal(html, parse(html)).payload.annotations)
+    const cs = commentairesDe(importerSonal(parse(html)).payload.annotations)
     expect(cs).toHaveLength(1)
-    const doc = importerSonal(html, parse(html)).payload.corpsTexte as {
+    const doc = importerSonal(parse(html)).payload.corpsTexte as {
       content: Array<{ content?: Array<{ text?: string }> }>
     }
     const t = doc.content[0].content?.map((n) => n.text).join('') ?? ''
@@ -73,7 +73,7 @@ describe('import des commentaires V1 (.sonal)', () => {
 
   test('sans data-auth → auteur « import » ; texte vide → pas de perte mais plage valide', () => {
     const html = htmlDe(seg(1, frag(1, 'Karine habite Lyon.', 'data-obs="sans signataire" data-finobs="1"')))
-    const cs = commentairesDe(importerSonal(html, parse(html)).payload.annotations)
+    const cs = commentairesDe(importerSonal(parse(html)).payload.annotations)
     expect(cs).toHaveLength(1)
     expect(cs[0].auteur).toBe('import')
     expect(cs[0].texte).toBe('sans signataire')
@@ -85,7 +85,7 @@ describe('import des commentaires V1 (.sonal)', () => {
       seg(1, frag(2, 'habite Lyon.')),
       seg(2, frag(3, 'Autre tour.')),
     )
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     const cs = commentairesDe(r.payload.annotations)
     expect(cs).toHaveLength(1)
     // Les deux premiers segments ont fusionné en UN bloc :
@@ -99,7 +99,7 @@ describe('import des commentaires V1 (.sonal)', () => {
 })
 
 function entreeDepuisImport(html: string): EntreeExport {
-  const r = importerSonal(html, parse(html))
+  const r = importerSonal(parse(html))
   return { ...r.payload, codebook: r.codebook, variables: r.variables, legacy: r.legacy }
 }
 
@@ -132,9 +132,9 @@ describe('export des commentaires (.sonal) et aller-retour', () => {
       seg(1, frag(1, 'Karine ', 'data-obs="passage clé" data-auth="Alice" data-finobs="3"'), frag(2, 'habite'), frag(3, ' Lyon.')),
       seg(2, frag(4, 'Autre tour.')),
     )
-    const r1 = importerSonal(html, parse(html))
+    const r1 = importerSonal(parse(html))
     const out = exporterSonal({ ...r1.payload, codebook: r1.codebook, variables: r1.variables, legacy: r1.legacy })
-    const r2 = importerSonal(out, parse(out))
+    const r2 = importerSonal(parse(out))
     const c1 = commentairesDe(r1.payload.annotations)
     const c2 = commentairesDe(r2.payload.annotations)
     expect(c2).toHaveLength(1)

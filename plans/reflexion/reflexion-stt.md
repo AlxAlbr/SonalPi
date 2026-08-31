@@ -1,7 +1,7 @@
-# Réflexion STT — transcription vocale au fil de l'eau dans SonalTau
+# Réflexion STT — transcription vocale au fil de l'eau dans SonalPi2
 
 > Document de **réflexion**, pas un plan d'exécution : il synthétise une exploration sur la
-> faisabilité d'une transcription vocale **locale et au fil de l'eau** dans SonalTau
+> faisabilité d'une transcription vocale **locale et au fil de l'eau** dans SonalPi2
 > (dicter un entretien dans l'éditeur), en partant du test du raccourci Ctrl+Espace et de
 > l'essai de l'app Murmure. Aucun code n'a été modifié ; les repos Murmure et parakeet.cpp
 > ont été clonés en lecture seule dans `/tmp` pour analyse.
@@ -10,7 +10,7 @@
 
 ## 1. Contexte : du raccourci Ctrl+Espace à la transcription vocale
 
-1. Le geste « double-espace → play/pause » (hérité de SonalPi) a été testé en **Ctrl+Espace**
+1. Le geste « double-espace → play/pause » (hérité de SonalPi1) a été testé en **Ctrl+Espace**
    dans l'éditeur ([useEntretien.ts](../../src/renderer/composables/useEntretien.ts)) puis **annulé**
    (test seulement, choix non définitif).
 2. L'essai de **Murmure** (STT locale, raccourci Ctrl+Espace) a montré l'intérêt d'une dictée
@@ -81,7 +81,7 @@ en GGUF par le projet ([mudler/parakeet-cpp-gguf](https://huggingface.co/mudler/
 
 ## 5. Deux chemins d'intégration (et leur complexité)
 
-Contexte : SonalTau est **100 % JS/TS, zéro module natif** (Electron + Vue + TipTap) —
+Contexte : SonalPi2 est **100 % JS/TS, zéro module natif** (Electron + Vue + TipTap) —
 un atout de portabilité que l'intégration STT bouscule différemment selon le chemin choisi.
 
 ### Chemin A — CLI sous-processus (le plus simple)

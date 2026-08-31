@@ -95,7 +95,7 @@ arbitrer (décision consignée ici, puis test qui l'incarne) :
    (c) proposer un choix par élément. Position retenue : …
 2. **Locuteurs et décalage d'index.** L'identité d'un locuteur est son INDEX, référencé par
    les blocs du transcript (`attrs.loc` dans le doc ProseMirror), les EAV (`CibleValeur`), le
-   journal d'undo/redo, les requêtes, la migration V1 et l'export. Si le contournement insère
+   journal d'undo/redo, les requêtes, la migration SonalPi1 et l'export. Si le contournement insère
    un locuteur en tête alors que notre copie en avait ajouté un en queue, les indices de la
    copie pointent chez nous vers d'autres tours. La garde « texte identique » ne protège pas
    ici (ajouter un locuteur ne change pas `corpsTexte`).
@@ -105,7 +105,7 @@ arbitrer (décision consignée ici, puis test qui l'incarne) :
    - **(a) Remplacer l'index par un id opaque partout** (comme les catégories, `genId('cat')`) :
      identité robuste, mais coût disproportionné — réécriture des `attrs.loc` de TOUS les
      entretiens existants (migration de données lourde, bump de format), refonte journal /
-     requêtes / import-export / migration V1. Le seul lieu où deux versions parallèles
+     requêtes / import-export / migration SonalPi1. Le seul lieu où deux versions parallèles
      coexistent est la fusion d'une copie de divergence (rare).
    - **(b) Champ ADDITIF `id?: string` sur `Locuteur`** (même idiome que `pseudo`/`couleur`,
      pas de bump de version) : `genId('loc')` à la création (`ajouterLocuteur`), backfill
@@ -119,7 +119,7 @@ arbitrer (décision consignée ici, puis test qui l'incarne) :
    *Position retenue : **(b)** — champ additif `id?: string`. Les catégories peuvent se
    permettre un id opaque natif car rien ne les référençait avant ; les locuteurs, eux, sont
    index-couplés de bout en bout (blocs du transcript, EAV, journal d'undo/redo, requêtes,
-   import/export `.sonal`, migration V1). Une refonte complète imposerait de réécrire les
+   import/export `.sonal`, migration SonalPi1). Une refonte complète imposerait de réécrire les
    `attrs.loc` de tous les entretiens existants (migration lourde + bump de format) pour
    couvrir un seul scénario rare : deux versions parallèles d'un même entretien ne coexistent
    que dans une copie de divergence. Le champ additif donne aux FUSIONS une identité stable

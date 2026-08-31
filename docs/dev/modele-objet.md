@@ -1,9 +1,9 @@
 # Modèle objet — vue à 3 niveaux
 
-> Ce document décrit le modèle d'objet de **SonalTau**, recalé sur le **code actuel**.
+> Ce document décrit le modèle d'objet de **SonalPi2**, recalé sur le **code actuel**.
 > Il reprend la structure « vue à 3 niveaux » des premières réflexions (POC `MODELE_OBJET.md`) :
 > une **vue d'ensemble** stable, puis des **sous-schémas par préoccupation** (un diagramme et un
-> ancrage code chacun), puis des **notes en prose**. Contrairement à SonalPi V1, le modèle est
+> ancrage code chacun), puis des **notes en prose**. Contrairement à SonalPi1, le modèle est
 > ici **explicite** : il est directement écrit en TypeScript dans `src/shared/`.
 
 ---
@@ -16,11 +16,11 @@
 | **2 — Sous-schémas par préoccupation** | un cluster cohérent, sa logique, son lien avec les fichiers | §3 à §10 — un diagramme chacun |
 | **3 — Notes en prose** | asymétries, non-implémenté, carte code ↔ modèle | §11, §12 |
 
-> **Ce qui s'est effondré depuis SonalPi V1.** Le code actuel a **supprimé** une grande partie de
+> **Ce qui s'est effondré depuis SonalPi1.** Le code actuel a **supprimé** une grande partie de
 > la complexité que le doc initial devait documenter : la **double tenue** EAV local↔corpus
-> (SonalTau : une seule vérité par donnée), la **triple tenue** d'anonymisation (règle ↔ occurrence ↔
-> cache corpus), les **fragments** coupés par le marquage (SonalTau : plages de positions ProseMirror),
-> et l'`Extrait` (SonalTau : une **requête**). Chaque sous-schéma ci-dessous le constate au passage.
+> (SonalPi2 : une seule vérité par donnée), la **triple tenue** d'anonymisation (règle ↔ occurrence ↔
+> cache corpus), les **fragments** coupés par le marquage (SonalPi2 : plages de positions ProseMirror),
+> et l'`Extrait` (SonalPi2 : une **requête**). Chaque sous-schéma ci-dessous le constate au passage.
 
 ---
 
@@ -169,7 +169,7 @@ Les valeurs EAV suivent le même patron (§4).
 ## 2. La colonne vertébrale du texte : WYSIWYG, positions PM, ancres
 
 Le texte vit dans un **document ProseMirror** édité librement (WYSIWYG) — champ `corpsTexte` de
-`EntretienFichier`. Il n'y a **plus** de `Token`, `Fragment`, `Segment` ni `Extrait` de SonalPi :
+`EntretienFichier`. Il n'y a **plus** de `Token`, `Fragment`, `Segment` ni `Extrait` de SonalPi1 :
 la retranscription fine (une unité horodatée par *cue* SRT) ne se matérialise **plus** comme
 structure de texte.
 
@@ -186,12 +186,12 @@ structure de texte.
   pure vit dans `entretien/positions.ts` (`debutBloc`, `charVersPM`, `pmVersTranches`) — utilisée
   par le store (migration), l'import/export et les requêtes.
 - **Granularité du snap-to-mot** : une sélection est étendue aux **frontières de mot** (choix
-  SonalPi conservé) — la couche éditeur (`editor/snap.ts`) le fait avant de poser une annotation.
+  SonalPi1 conservé) — la couche éditeur (`editor/snap.ts`) le fait avant de poser une annotation.
   Rien dans le modèle n'impose la longueur d'une plage.
 
 > **Conséquence : un marquage ne coupe plus le texte.** Une `Annotation` est une **plage de
 > positions** [from, to[ sur le doc PM ; elle peut **enjamber plusieurs blocs/locuteurs** en une
-> seule entité. La « plage taillée par le marquage » (fragment coupé) de SonalPi n'a plus
+> seule entité. La « plage taillée par le marquage » (fragment coupé) de SonalPi1 n'a plus
 > d'existence stockée — au mieux une notion **dérivée de rendu** (décorations), jamais persistée.
 
 ---
@@ -204,7 +204,7 @@ structure de texte.
 
 ## 3. Annotation (le concept unificateur)
 
-> **Cadrage.** Les trois overlays inline de SonalPi (codage / anonymisation / commentaire,
+> **Cadrage.** Les trois overlays inline de SonalPi1 (codage / anonymisation / commentaire,
 > portés par des fragments HTML) **fusionnent** en **un seul concept** : `Annotation`. Le patron
 > à 3 étages (§1) suppose que les annotations portent une *borne* de plage `[from, to[` — les
 > seules unités de texte sont des **positions ProseMirror**.
@@ -250,7 +250,7 @@ classDiagram
 
 ## 4. EAV — variables & valeurs
 
-> **Cadrage.** Le cœur « base de données ». Contrairement à SonalPi V1, la **double tenue
+> **Cadrage.** Le cœur « base de données ». Contrairement à SonalPi1, la **double tenue
 > locale↔corpus a disparu** : le **schéma** (`Variable` + `Modalite`) vit au **corpus**, les
 > **valeurs** vivent **chez leur propriétaire** côté entretien. Une seule vérité par donnée.
 
@@ -327,7 +327,7 @@ classDiagram
 
 - **L'ordre et la hiérarchie sont des définitions** : `ordre` (fratrie, réordonnable) et `parent`
   (arbre) vivent **explicitement** sur l'entité — *rien n'est dérivable de la forme du stockage*
-  (en SonalPi, l'ordre était un artefact de la position dans `tabThm`).
+  (en SonalPi1, l'ordre était un artefact de la position dans `tabThm`).
 - **`codeExport` ≠ identité** : l'id est **opaque** (injecté par `genId`, unique par construction —
   sûr en création offline divergente) ; `codeExport` (`cat_XXX`) n'est qu'un attribut de **lisibilité
   à l'export `.sonal`**.
@@ -339,7 +339,7 @@ classDiagram
 - `compterUsagesCategorie` / `usagesParCategorie` — comptages d'usage (politique « refus si
   utilisé » à la suppression) ;
 - `resumeThematique` / `resumesThematiques` — le **résumé thématique** d'un entretien (parité
-  SonalPi `resumeGraphique`) : les codages projetés sur l'axe du texte, en %, avec bornes jointe
+  SonalPi1 `resumeGraphique`) : les codages projetés sur l'axe du texte, en %, avec bornes jointe
   (`SegmentThematique`). C'est le **successeur de l'`Extrait`** ;
 - `matriceCorpus` — voir §4.
 
@@ -349,7 +349,7 @@ classDiagram
 ## 6. Anonymisation
 
 > **Cadrage.** Le patron à 3 étages appliqué à l'anonymisation. **Règle = vérité corpus** ;
-> **occurrence = une `Annotation{type:'anon'}`** à l'entretien. La **triple tenue** de SonalPi
+> **occurrence = une `Annotation{type:'anon'}`** à l'entretien. La **triple tenue** de SonalPi1
 > (DOM ↔ `tabAnon` entretien ↔ `tabAnon` corpus) **a disparu** : le calcul (statuts) est une
 > **requête** re-dérivée du texte + des annotations.
 
@@ -437,14 +437,14 @@ classDiagram
   c'est ce que le `.sonal` référence). **Renommer = éditer l'entrée** ; les blocs, qui ne portent
   que l'index, ne sont pas touchés (référence, pas copie).
 - **`loc` au niveau du bloc, pas de l'annotation** : donner un locuteur à une sous-partie = **scinder
-  le bloc** (asymétrie SonalPi conservée — aucune fusion physique inverse : deux blocs adjacents de
+  le bloc** (asymétrie SonalPi1 conservée — aucune fusion physique inverse : deux blocs adjacents de
   même `loc` restent deux paragraphes, rendus groupés).
 - **Pseudo du libellé** : `pseudo` (pseudonyme du nom) + `pseudoEtat` (`'confirme' | 'refuse'`) —
   décisions **persistées** ; la **suggestion** (nom matchant une règle corpus) est une **requête**
   de l'étape 3, jamais stockée. Rendu par dérivation pure `libelleGouttiere`
   (`entretien/locuteurs.ts`). Ordre des cas : un **refus explicite prime** sur le pseudo.
   L'interface ne propose plus la bascule confirmer/refuser : poser un pseudo pseudonymise
-  directement les étiquettes. Le champ `pseudoEtat` survit pour la **parité fichiers SonalPi V1** :
+  directement les étiquettes. Le champ `pseudoEtat` survit pour la **parité fichiers SonalPi1** :
   un refus importé d'un `.sonal` reste honoré au rendu, mais il n'est plus saisissable ici.
 - **Couleur** : choisie (palette définie `PALETTE_PASTILLES_LOCUTEURS`) ou **auto par index** ;
   stable car l'index est l'identité.
@@ -454,7 +454,7 @@ classDiagram
 
 ## 8. Journal d'actions (undo/redo)
 
-> **Cadrage.** *Nouveau* par rapport au doc initial (SonalPi V1 n'avait pas ce patron). Seules les
+> **Cadrage.** *Nouveau* par rapport au doc initial (SonalPi1 n'avait pas ce patron). Seules les
 > actions de **modèle** y entrent (codages, locuteurs, valeurs) — la frappe de texte reste sur
 > Ctrl+Z. Journal **volatil** : session courante, jamais persisté, vidé à l'ouverture d'un entretien.
 
@@ -590,8 +590,8 @@ classDiagram
   « deux graphies → un pseudo » est couvert par les **alias** `entite[]` (§6), système généraliste
   pour personnes *comme* lieux/organisations. `Personne` ne serait qu'une **identité de locuteur**
   trans-entretien (interopérabilité CAQDAS, longitudinal).
-- **Non implémenté dans SonalTau** : le **Recueil** (§6 de l'ancien doc — collecte d'`ItemRecueil`),
-  le **Storage multi-backend** (factory Local/Serveur/GitLab/Nextcloud : SonalTau ne persiste qu'en local,
+- **Non implémenté dans SonalPi2** : le **Recueil** (§6 de l'ancien doc — collecte d'`ItemRecueil`),
+  le **Storage multi-backend** (factory Local/Serveur/GitLab/Nextcloud : SonalPi2 ne persiste qu'en local,
   cf. §9), et le contenu de `Personne`.
 - **Frontière `shared/` pure** : tout ce qui est modélisé ici vit sous `src/shared/` comme
   fonctions **pures**. Un test **garde-fou** — « discipline d'architecture » dans `test/remap.test.ts`
@@ -619,7 +619,7 @@ src/shared/
     reglesAnon.ts           règles d'anonymisation corpus                (§6)
     scanAnon.ts             scan des statuts d'anonymisation (requête)   (§6)
     import.ts               sas d'import .sonal (fusion idempotente par id)
-    migrationCrp.ts         sas de migration du .crp SonalPi V1
+    migrationCrp.ts         sas de migration du .crp SonalPi1
   entretien/              ── agrégat Entretien ──
     index.ts                surface publique (barrel) + carte des sections
     positions.ts            positions ProseMirror + tranches (texte plat) (§2)

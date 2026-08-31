@@ -15,7 +15,7 @@ export { importerVariables }
 
 /**
  *  Mapping EAV entre le FORMAT LEGACY `.sonal` (tabVar/tabDic/tabDat, codes
- *  numériques + sentinelle `l="all"`) et le MODÈLE SonalTau (variables au
+ *  numériques + sentinelle `l="all"`) et le MODÈLE SonalPi2 (variables au
  *  corpus, valeurs chez leur propriétaire).
  *
  *  Deux invariants portent tout le round-trip :
@@ -80,7 +80,7 @@ export function exporterVariables(variables: Variable[]): { tabVar: VarLegacy[];
 /**
  *  Valeurs modélisées → `tabDat`. La sentinelle `l="all"` et le champ `e` sont
  *  RÉINTRODUITS ICI (jamais dans le modèle). `e="1"` : le `.sonal` exporté est
- *  autonome (un entretien) ; SonalPi réattribue l'index à l'import dans un corpus.
+ *  autonome (un entretien) ; SonalPi1 réattribue l'index à l'import dans un corpus.
  *  Une valeur pointant une variable/modalité inconnue du corpus est ignorée.
  */
 export function exporterValeurs(

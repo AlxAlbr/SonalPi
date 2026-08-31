@@ -46,7 +46,7 @@ export function creerSonal() {
 
   const ent = useEntretien({
     couleurTrait: corpus.couleurTrait, // le marquage résout la couleur d'un code (corpus)
-    tailleTrait: corpus.tailleTheme, // …et sa taille de police (parité SonalPi)
+    tailleTrait: corpus.tailleTheme, // …et sa taille de police (parité SonalPi1)
     // Un thème inactif est masqué du marquage et refusé au codage (scope entretien).
     estCodeActif: corpus.estCodeActif,
     apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
@@ -162,7 +162,7 @@ export function creerSonal() {
     const res = await window.sonal.corpus.lireEntretien(id)
     if (res.ok && corpusSelId.value === id) {
       // Panneau métadonnées (lecture seule) : compteurs + variables résolues,
-      // comme le panneau « Détails de l'entretien » de SonalPi V1.
+      // comme le panneau « Détails de l'entretien » de SonalPi1.
       corpusSelMeta.value = detailsDepuisLecture(res.data)
     }
   }
@@ -576,8 +576,8 @@ export function creerSonal() {
     await rafraichirStatutSession()
   }
 
-  /** Migration SonalPi V1 → SonalTau : exécute la création du corpus SonalTau, le main écrit, ouvre et ajoute aux récents.
-   *  Applique le corpus au modèle, puis IMPORTE les entretiens V1 (lecture des .Sonal + audio).
+  /** Migration SonalPi1 → SonalPi2 : exécute la création du corpus SonalPi2, le main écrit, ouvre et ajoute aux récents.
+   *  Applique le corpus au modèle, puis IMPORTE les entretiens SonalPi1 (lecture des .Sonal + audio).
    *  Même geste de profil que `ouvrirDossier` (nom courant + récents). */
   async function migrerDepuisV1(req: DemandeMigration, tabEntV1?: CrpV1Entretien[]) {
     const r = await window.sonal.migrer.executer(req)
@@ -585,16 +585,23 @@ export function creerSonal() {
     await profil.rafraichirRecents()
     quitterDistant()
     await appliquerCorpus(r.corpus, r.dir)
-    // Migration SonalPi V1 : chaque `tabEnt[]` → un entretien.
+    // Migration SonalPi1 : chaque `tabEnt[]` → un entretien.
     for (const e of mapperEntretiensV1(tabEntV1)) await importerEntretienV1(req.cheminCrp, e)
+    // Les entretiens (et leurs codages) arrivent APRÈS `appliquerCorpus` : on
+    // recalcule le calque thématique des cartes — il serait vide sinon, et seul
+    // un premier aller-retour dans un entretien (sauvegarde → rafraîchir) le ferait apparaître.
+    await corpus.rafraichirUsages()
     await rafraichirAudios()
+    // Même geste qu'à l'ouverture d'un corpus : les ondes manquantes sont
+    // régénérées en fond, le « mur » apparaît dès l'arrivée.
+    void regenererOndesManquantes()
     vue.value = 'corpus'
   }
 
   /** Entretien VIDE (Q1b : .sonal absent ou illisible) — même doc que le store. */
   const DOC_VIDE = { type: 'doc', content: [{ type: 'paragraph', attrs: { loc: null } }] }
 
-  /** Crée un entretien depuis un `tabEnt[]` V1 : lit le `.sonal` via le pipeline `importSonal.ts`,
+  /** Crée un entretien depuis un `tabEnt[]` SonalPi1 : lit le `.sonal` via le pipeline `importSonal.ts`,
    *  y pose `audioRef` (déjà au format v3, référence pas de copie) et la trace `meta.sourceV1.rtrPath`.
    *  DÉFINITIONS à vide : le codebook/variables du .crp font déjà foi, les copies divergentes d'un .sonal ne les touchent pas.
    *  Seules les RÈGLES du .sonal (anon-json) sont reprises, comme à l'import normal (les annotations y sont liées, round-trip).
@@ -738,6 +745,7 @@ export function creerSonal() {
       corpus.majVariables(res.corpus.variables)
       corpus.majCategoriesNote(res.corpus.categoriesNote)
       await corpus.rafraichirScanAnon()
+      await corpus.rafraichirUsages() // le calque des cartes suit le nouvel entretien.
       id = res.id
     } else {
       await ent.sauver()

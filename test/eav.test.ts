@@ -122,14 +122,14 @@ describe('EAV — round-trip GOLDEN sur les fixtures (SUITE S1 : rien ne se perd
   for (const nom of ['entretien1.sonal', 'entretien2.sonal', 'entretien3.sonal']) {
     test(`${nom} : variables + valeurs identiques après export → ré-import`, () => {
       const html = fixture(nom)
-      const r1 = importerSonal(html, parse(html))
+      const r1 = importerSonal(parse(html))
       const out = exporterSonal({
         ...r1.payload,
         codebook: r1.codebook,
         variables: r1.variables,
         legacy: r1.legacy,
       })
-      const r2 = importerSonal(out, parse(out))
+      const r2 = importerSonal(parse(out))
 
       // Définitions de variables (ids, portée, modalités) préservées.
       expect(r2.variables).toEqual(r1.variables)
@@ -144,14 +144,14 @@ describe('EAV — round-trip GOLDEN sur les fixtures (SUITE S1 : rien ne se perd
 
   test('entretien2 porte de vraies valeurs (le golden n’est pas vide)', () => {
     const html = fixture('entretien2.sonal')
-    const r = importerSonal(html, parse(html))
+    const r = importerSonal(parse(html))
     expect(Object.keys(r.payload.meta.valeursGen).length).toBeGreaterThan(0)
     expect(r.payload.locuteurs.some((l) => Object.keys(l.valeursLoc).length > 0)).toBe(true)
   })
 
   test('hiérarchie des thèmes : parent reconstruit à l’import + round-trip sans perte', () => {
     const html = fixture('entretien1.sonal')
-    const r1 = importerSonal(html, parse(html))
+    const r1 = importerSonal(parse(html))
     const parents = Object.fromEntries(r1.codebook.map((c) => [c.id, c.parent]))
     // entretien1 : cat_001 (Pondérations) racine ; cat_002/003/004 ses enfants ;
     // cat_005 (Cat1) racine ; cat_006/007 ses enfants ; cat_008 (Cat2) racine.
@@ -161,20 +161,20 @@ describe('EAV — round-trip GOLDEN sur les fixtures (SUITE S1 : rien ne se perd
     expect(parents['cat_008']).toBeNull()
     // export (rang=profondeur, pré-ordre) → ré-import : mêmes parents.
     const out = exporterSonal({ ...r1.payload, codebook: r1.codebook, variables: r1.variables, legacy: r1.legacy })
-    const r2 = importerSonal(out, parse(out))
+    const r2 = importerSonal(parse(out))
     expect(Object.fromEntries(r2.codebook.map((c) => [c.id, c.parent]))).toEqual(parents)
   })
 
-  test('le tabDat exporté est relu par le parseur SonalPi (extractFichierSonal)', () => {
+  test('le tabDat exporté est relu par le parseur SonalPi1 (extractFichierSonal)', () => {
     const html = fixture('entretien2.sonal')
-    const r1 = importerSonal(html, parse(html))
+    const r1 = importerSonal(parse(html))
     const out = exporterSonal({
       ...r1.payload,
       codebook: r1.codebook,
       variables: r1.variables,
       legacy: r1.legacy,
     })
-    // Le juge de paix : le parseur d'origine SonalPi lit notre export.
+    // Le juge de paix : le parseur d'origine SonalPi1 lit notre export.
     const relu = extractFichierSonal(out, parse(out))
     const dat = relu.tabDat as Array<{ v: number; l: string | number; m: number }>
     // la valeur de portée entretien (Lieu=MonTest → v1,l="all",m1) ressort.

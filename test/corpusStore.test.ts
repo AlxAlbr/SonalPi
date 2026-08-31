@@ -44,7 +44,7 @@ function lireFichier(dir: string, rel: string): EntretienFichier {
 }
 
 describe('CorpusStore — amorçage & round-trip', () => {
-  test('un dossier VIERGE s’amorce VIDE : aucun entretien, codebook = bloc Pondérations SonalPi', () => {
+  test('un dossier VIERGE s’amorce VIDE : aucun entretien, codebook = bloc Pondérations SonalPi1', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-store-vierge-'))
     const corpus = new CorpusStore(dir).ouvrir()
     expect(corpus.formatVersion).toBe(3)
@@ -285,7 +285,7 @@ describe('CorpusStore — cycle de vie du membership', () => {
     expect(existsSync(join(dir, 'corbeille', id + '.json'))).toBe(true)
     expect(existsSync(join(dir, 'corbeille', id + '.png'))).toBe(true)
     expect(existsSync(join(dir, 'png', id + '.png'))).toBe(false)
-    // L'audio EXTERNE n'est JAMAIS touché (c'est le nouveau modèle — parité SonalPi).
+    // L'audio EXTERNE n'est JAMAIS touché (c'est le nouveau modèle — parité SonalPi1).
     expect(existsSync(audioExterne)).toBe(true)
   })
 
@@ -1120,7 +1120,7 @@ describe('CorpusStore — application en masse d’une règle sur un entretien f
   })
 })
 
-describe('CorpusStore — migration SonalPi V1 → V2 (migrerDepuisV1)', () => {
+describe('CorpusStore — migration SonalPi1 → SonalPi2 (migrerDepuisV1)', () => {
   /** Un `.crp` V1 → définitions mappées → store sur le dossier dédié. */
   function definitionsDepuisFixture() {
     const crp = readFileSync(join(process.cwd(), 'test/fixtures/corpusV1.crp'), 'utf8')
@@ -1295,7 +1295,7 @@ describe('CorpusStore — E4 : tabAnon + paramsAnonCorpus écrits à la créatio
     expect(corpus.paramsAnon?.prioriteValidation).toBe('corpus')
     expect(corpus.paramsAnon?.thematiques?.actif).toBe(true)
 
-    // Doctrine SonalPi V1 « le global gagne » : un .sonal ré-important la même entité
+    // Doctrine SonalPi1 « le global gagne » : un .sonal ré-important la même entité
     // est dédupliqué par alias — la règle .crp (et sa catégorie) reste seule.
     fusionnerReglesAnon(corpus, [{ id: 'reg-sonal-1', entite: ['Enquêteur'], pseudos: ['Autre'] }])
     const enqueteur = Object.values(corpus.reglesAnon).filter((r) => r.entite.includes('Enquêteur'))
