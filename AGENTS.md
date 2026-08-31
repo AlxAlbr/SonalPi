@@ -1,6 +1,8 @@
 # AGENTS.md — notes à l'attention des agents
 
-## Commentaires dans le code : rester simple
+## Commentaires 
+
+### Commentaires dans le code : rester simple
 
 Les commentaires dans le code servent à **un nouveau développeur qui arrive sur le projet**.
 Ils doivent expliquer l'**essentiel** : ce que fait un morceau de code et, si utile, pourquoi il existe.
@@ -22,7 +24,7 @@ Règles concrètes :
   fonction, d'un choix non évident (ex. « l'audio est référencé, jamais copié »)
   est la bienvenue : c'est le niveau attendu.
 
-## Mise en forme des commentaires
+### Mise en forme des commentaires
 
 - **Retour à la ligne sur ponctuation.** Chaque ligne d'un commentaire se
   termine sur une ponctuation (point, point-virgule, virgule…) ou une parenthèse fermante.
@@ -37,16 +39,6 @@ Règles concrètes :
 
 En résumé : si un commentaire ne survit pas à la suppression des plans, il ne
  doit pas être dans le code.
-
-## Vocabulaire des versions
-
-- **Jamais « v1/v2 » nu** ; toujours qualifier la dimension (détails : `docs/dev/versions.md`).
-- **SonalPi1** désigne TOUJOURS l'ancien produit de `Vscode/SonalPi`. Le nom est toujours
-  numéroté : jamais « SonalPi » nu, jamais « SonalPi V1 ». Son mapping legacy, ses
-  fichiers `.crp`/`.sonal`, ses conventions d'encodage.
-- **SonalPi2** désigne CE projet ; l'étiquette « V2 »/« la V2 » pour le produit n'existe plus.
-- **formatVersion** : version du format natif (numéro, migrations explicites au store).
-- **itération** : tranche de fonctionnalité ; **release** : semver de `package.json`.
 
 ## Tests : ne retéléchargez JAMAIS les images Docker
 
