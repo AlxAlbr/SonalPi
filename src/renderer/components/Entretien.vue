@@ -154,9 +154,10 @@ const {
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
-// Lecture seule du CONTENU : l'entretien ouvert est figé ssi son verrou est tenu par autrui ;
-// les définitions suivent `lectureSeule`.
-const roContenu = computed(() => verrouAutrui.value !== null)
+// Lecture seule du contenu : verrou détenu par autrui ou session dégradée.
+const roContenu = computed(
+  () => verrouAutrui.value !== null || statutSession.value.etat === 'degrade',
+)
 
 // Compteur « i/N » de la boîte recherche/remplacement (vide sans requête).
 const compteRecherche = computed(() => {
@@ -857,8 +858,8 @@ function focaliserLibre(el: unknown, cle: string) {
       <!-- Corpus distant : bandeau quand le verrou de CET entretien est tenu par autrui ;
            le bandeau dit qui, et depuis quand. -->
       <div v-if="verrouAutrui" class="banniere-ro">
-        🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b>
-        depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}.
+        🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
+        depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
       <div class="grille-ent">
         <!-- Ligne d'actions pleine largeur, en HAUT de l'écran : retour corpus,
@@ -870,7 +871,10 @@ function focaliserLibre(el: unknown, cle: string) {
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
                le bandeau 🔒 au-dessus parle déjà. -->
-          <template v-if="statutSession.etat === 'a-nous'">
+          <span v-if="statutSession.etat === 'degrade'" class="statut-session divergence">
+            ⚠️ Verrou perdu — contenu conservé localement.
+          </span>
+          <template v-else-if="statutSession.etat === 'a-nous'">
             <span v-if="publiErreur" class="statut-session divergence">⚠️ {{ publiErreur }}</span>
             <span v-else-if="statutSession.sale" class="statut-session sale" title="Publication périodique toutes les 5 min ; le bouton force à la demande.">
               ● modifications non publiées<template v-if="statutSession.dernierPubli"> depuis {{ heureDe(statutSession.dernierPubli) }}</template>

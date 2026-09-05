@@ -23,22 +23,23 @@
 
 ## A. Divergences enchaînées
 
-Chaque rétrogradation dépose une copie `sessions/<id>.divergence-<sessionId>.json`. Deux
-découvertes faites en relisant le code (à corriger AVANT d'écrire ces tests) :
+Chaque rétrogradation dépose désormais une copie
+`sessions/<id>.divergence-<sessionId>.copie-<uuid>.json`. Deux découvertes avaient été faites
+en relisant le code :
 
-- **Écrasement silencieux dans un même lancement.** Le `sessionId` du nom de fichier est
-  `SESSION_ID`, généré UNE FOIS PAR LANCEMENT d'app (`src/main/index.ts`), pas par session
-  d'entretien. Deux 412 successifs sur le même entretien dans le même lancement écrivent donc
-  le MÊME chemin (`degrader()` fait un `writeFileSync` direct) : la première copie disparaît
-  sans qu'aucun dialogue ne demande quoi garder.
+- **Écrasement silencieux dans un même lancement — corrigé.** Le `sessionId` reste global au
+  lancement, mais chaque copie porte maintenant son propre UUID et l'écriture refuse de
+  remplacer un fichier existant. La lecture accepte aussi les anciens noms sans UUID. Le banc
+  embarqué vérifie deux publications 412 successives, sous le même `sessionId` et sans
+  résolution intermédiaire : les deux chemins et contenus coexistent.
 - **Le dialogue ne propose que la copie la plus récente.** `proposerFusionDivergence`
   (`sonal.ts`) prend `.at(-1)` sur la liste filtrée par entretien : les copies plus anciennes
   restent sur disque, listées par l'API mais jamais proposées à l'utilisateur.
 
 Options de correction (non exclusives) :
 
-(a) horodater le nom de copie (`<id>.divergence-<sessionId>-<heure>.json`) — plus aucun
-écrasement, `listerDivergences` trie déjà par date ; (b) proposer TOUTES les copies d'un
+(a) rendre le nom de copie unique (`<id>.divergence-<sessionId>.copie-<uuid>.json`) — plus
+aucun écrasement, `listerDivergences` trie déjà par date ; (b) proposer TOUTES les copies d'un
 entretien au dialogue (file ou liste) au lieu de la seule dernière ; (c) avant d'écrire une
 nouvelle copie, fusionner l'existante dedans (union par id, même mécanique que
 `fusionnerEntretiens`) — aucune perte même en gardant le nommage actuel.
@@ -63,7 +64,7 @@ incident de contournement (rare), et le chemin normal est la résolution immédi
 (l'accumulation suppose des « Plus tard » répétés). Pas de ramasse-miettes ; si besoin un jour,
 un nettoyage des copies très anciennes se rajoutera.
 
-Cas à tester une fois la correction posée :
+Cas restant à tester après la régression de coexistence désormais couverte :
 
 1. **Deuxième divergence avant résolution de la première.** Max subit un 412 (copie C1),
    rouvre l'entretien, choisit « Plus tard », retravaille, subit un second 412 (copie C2)

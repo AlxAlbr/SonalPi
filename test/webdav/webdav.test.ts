@@ -22,7 +22,13 @@ import {
 } from '../../src/main/webdav/client'
 import { profilerServeur, sonderPreconditions } from '../../src/main/webdav/sondes'
 import { MiroirWebDAV } from '../../src/main/distant/miroir'
-import { CoffreComptes, idDeCorpus, type Chiffreur } from '../../src/main/distant/coffre'
+import {
+  canoniserUrlServeur,
+  CoffreComptes,
+  idDeCorpus,
+  migrerReferencesProfil,
+  type Chiffreur,
+} from '../../src/main/distant/coffre'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { ecrireSeedDemo } from '../seedDemo'
@@ -595,7 +601,9 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
       utilisateur: 'max',
       motDePasse: 'secret-app',
     })
-    expect(config.id).toBe(idDeCorpus('https://nuage.test/remote.php/dav/files/max/Corpus'))
+    expect(config.id).toBe(
+      idDeCorpus('https://nuage.test/remote.php/dav/files/max/Corpus', 'max'),
+    )
     expect(coffre.motDePasse(config.id)).toBe('secret-app')
     // Le fichier sur disque ne contient PAS le mot de passe en clair.
     const brut = readFileSync(fichier, 'utf8')
@@ -616,6 +624,98 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
     }
     for (const c of Object.values(lu.comptes)) c.motDePasseChiffre = 'zombie'
     writeFileSync(fichier, JSON.stringify(lu), 'utf8')
-    expect(coffre.motDePasse(idDeCorpus('u'))).toBeNull()
+    expect(coffre.motDePasse(idDeCorpus('u', 'm'))).toBeNull()
+  })
+
+  it('refuse un coffre corrompu au lieu de le remplacer par un coffre vide', () => {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'coffre-')), 'comptes.json')
+    writeFileSync(fichier, '{incomplet', 'utf8')
+    const coffre = new CoffreComptes(fichier, chiffreurFactice)
+    expect(() => coffre.lister()).toThrow('corrompu')
+    expect(readFileSync(fichier, 'utf8')).toBe('{incomplet')
+  })
+
+  it('distingue deux corpus du même serveur et deux utilisateurs du même corpus', () => {
+    const racine = 'https://nuage.exemple/remote.php/dav/files/max/'
+    const corpusA = idDeCorpus(`${racine}Corpus-A`, 'max')
+    const corpusB = idDeCorpus(`${racine}Corpus-B`, 'max')
+    expect(corpusA).not.toBe(corpusB)
+    expect(idDeCorpus(`${racine}Corpus-A`, 'lea')).not.toBe(corpusA)
+    expect(corpusA).toMatch(/^sha256-[A-Za-z0-9_-]{43}$/)
+    expect(
+      idDeCorpus('https://nuage.test/remote.php/dav/files/max/Corpus', 'max'),
+    ).toBe('sha256-RBIlD2U5sR0L8HMHd4YZMjy5a4ZddNKOXbZnLcvb_lM')
+  })
+
+  it('canonise les variantes équivalentes avant de calculer l’id', () => {
+    const a = ' HTTPS://Nuage.Exemple:443/remote.php/dav/files/max/Corpus/// '
+    const b = 'https://nuage.exemple/remote.php/dav/files/max/Corpus'
+    expect(canoniserUrlServeur(a)).toBe(b)
+    expect(idDeCorpus(a, ' max ')).toBe(idDeCorpus(b, 'max'))
+    expect(canoniserUrlServeur(`${b}/%7edossier?q=%6dax&f=%2f`)).toBe(
+      `${b}/~dossier?q=max&f=%2F`,
+    )
+  })
+
+  it('migre le coffre v1 et les récents vers les identifiants SHA-256', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'coffre-migration-'))
+    const fichier = join(dir, 'comptes-distant.json')
+    const settings = join(dir, 'settings.json')
+    const ancienId = Buffer.from('https://nuage.test/remote.php/dav/files/max/Corpus')
+      .toString('base64url')
+      .slice(0, 32)
+    const motDePasseChiffre = chiffreurFactice.chiffre('secret-app')
+    const ancienMiroir = join(dir, 'miroirs', ancienId)
+    mkdirSync(ancienMiroir, { recursive: true })
+    writeFileSync(join(ancienMiroir, 'corpus.json'), '{"ancien":true}', 'utf8')
+    writeFileSync(
+      fichier,
+      JSON.stringify({
+        formatVersion: 1,
+        comptes: {
+          [ancienId]: {
+            id: ancienId,
+            urlServeur: 'https://NUAGE.test:443/remote.php/dav/files/max/Corpus/',
+            utilisateur: 'max',
+            motDePasseChiffre,
+          },
+        },
+      }),
+      'utf8',
+    )
+    const nouvelId = idDeCorpus(
+      'https://nuage.test/remote.php/dav/files/max/Corpus',
+      'max',
+    )
+    writeFileSync(
+      settings,
+      JSON.stringify({
+        recents: ['/local'],
+        recentsDistant: [ancienId, nouvelId, ancienId, 'inconnu'],
+        signataire: 'Max',
+      }),
+      'utf8',
+    )
+
+    const migrationInterrompue = new CoffreComptes(fichier, chiffreurFactice, () => {
+      throw new Error('écriture des références impossible')
+    })
+    expect(() => migrationInterrompue.lister()).toThrow('écriture des références impossible')
+    expect(JSON.parse(readFileSync(fichier, 'utf8')).formatVersion).toBe(1)
+
+    const coffre = new CoffreComptes(fichier, chiffreurFactice, (migrations) =>
+      migrerReferencesProfil(dir, migrations),
+    )
+    const [config] = coffre.lister()
+    expect(config.id).toBe(nouvelId)
+    expect(coffre.motDePasse(nouvelId)).toBe('secret-app')
+    expect(existsSync(ancienMiroir)).toBe(true)
+    expect(existsSync(join(dir, 'miroirs', nouvelId))).toBe(false)
+    expect(JSON.parse(readFileSync(fichier, 'utf8')).formatVersion).toBe(2)
+    expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({
+      recents: ['/local'],
+      recentsDistant: [nouvelId, 'inconnu'],
+      signataire: 'Max',
+    })
   })
 })

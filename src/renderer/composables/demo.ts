@@ -82,6 +82,7 @@ export interface DepsDemo {
    *  on revient à la liste « Pas à pas » pour lancer la suivante,
    *  sans l'enchaîner automatiquement. */
   retourCorpus: () => Promise<void>
+  preparerBascule: () => Promise<void>
   vue: Ref<'accueil' | 'corpus' | 'entretien' | 'donnees'>
   // --- pour les prédicats d'étapes (observation du modèle réactif) ---
   membership: Ref<Record<string, EntretienRef>>
@@ -673,6 +674,7 @@ export function utiliserDemo(deps: DepsDemo) {
       // 1. LA seule copie du flow de démo (~13 Mo) — idempotente par complétude.
       await window.sonal.demo.copierSources(racineSources.value)
       // 2. Ouvrir (amorcer si neuf) le dossier du corpus de CE mode.
+      await deps.preparerBascule()
       const res = await window.sonal.corpus.ouvrirDossier(dossierCorpus)
       if (!res) return
       await deps.majDossierCourant()

@@ -152,19 +152,27 @@ describe('CorpusStore — écriture atomique', () => {
 })
 
 describe('CorpusStore — filet .bak à 2 générations, tourné PAR SESSION', () => {
+  test('une lecture simple n’arme pas la rotation des sauvegardes', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    store.lireEntretien('e1')
+    store.ecrireEntretien('e1', payload('MUTATION-CIBLÉE'))
+    expect(existsSync(join(dir, 'entretiens/e1.json.bak1'))).toBe(false)
+  })
+
   test('l’autosave ne tourne pas ; chaque ouverture tourne une fois', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir() // écrit le seed « Karine »
 
     // Session 1 : ouverture (arme la rotation) + deux enregistrements.
-    store.lireEntretien('e1')
+    store.ouvrirEntretienPourEdition('e1')
     store.ecrireEntretien('e1', payload('S1-a')) // 1er write → rotation : seed → .bak1
     store.ecrireEntretien('e1', payload('S1-b')) // autosave → PAS de rotation
     expect(JSON.stringify(lireFichier(dir, 'entretiens/e1.json.bak1').corpsTexte)).toContain('Karine')
     expect(existsSync(join(dir, 'entretiens/e1.json.bak2'))).toBe(false)
 
     // Session 2 : nouvelle ouverture + un enregistrement.
-    store.lireEntretien('e1')
+    store.ouvrirEntretienPourEdition('e1')
     store.ecrireEntretien('e1', payload('S2-a')) // rotation : .bak1(seed)→.bak2, courant(S1-b)→.bak1
 
     // .bak1 = fin de session 1 (S1-b), .bak2 = état d'avant session 1 (seed).
@@ -186,7 +194,7 @@ describe('CorpusStore — version du format natif', () => {
     expect(store.lireEntretien('e1')).toEqual({ ok: false, raison: 'version' })
   })
 
-  test('un entretien formatVersion 1 est MIGRÉ à la lecture : deb/fin des blocs → ancres {pos, t}', () => {
+  test('un entretien formatVersion 1 est adapté en mémoire à la lecture', () => {
     const { store, dir } = storeNeuf()
     store.ouvrir()
     const f = join(dir, 'entretiens', 'e1.json')
@@ -223,7 +231,13 @@ describe('CorpusStore — version du format natif', () => {
       expect(doc.content.map((b) => b.attrs)).toEqual([{ loc: 1 }, { loc: 1 }, { loc: 2 }])
       expect(lu.data.lastModified).toBe('2020-01-01T00:00:00.000Z') // migrer ≠ éditer
     }
-    // La migration est écrite sur disque (la relecture n'a plus rien à migrer).
+    // Une lecture analytique ne réécrit pas le fichier.
+    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(1)
+    const edition = store.ouvrirEntretienPourEdition('e1')
+    if (edition.ok) {
+      const { formatVersion: _formatVersion, lastModified: _lastModified, ...p } = edition.data
+      store.ecrireEntretien('e1', p)
+    }
     expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(3)
   })
 

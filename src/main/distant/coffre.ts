@@ -9,23 +9,39 @@
  *  safeStorage n'existe pas) — la logique reste testée telle quelle.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** Un corpus distant configuré. `cheminDistant` est saisi ou choisi par
- *  navigation WebDAV ; il est PROPRIE À CHAQUE COMPTE (un partage Nextcloud
- *  apparaît à `/remote.php/dav/files/<user>/…`). */
+/** Un corpus distant configuré. Son URL est saisie ou choisie par navigation
+ *  WebDAV ; elle est propre à chaque compte Nextcloud. */
 export interface ConfigCorpusDistant {
-  /** Id stable du corpus distant (dérivé du chemin, ex. encodage base64url). */
+  /** Id stable du compte distant, dérivé de l'URL complète et de l'utilisateur. */
   id: string
   urlServeur: string // racine DAV du corpus, sans barre finale
   utilisateur: string
   motDePasseChiffre: string // préfixé `ss:` (trousseau) ou `b64:` (repli) + base64
 }
 
-interface FichierComptes {
+interface FichierComptesV1 {
   formatVersion: 1
+  comptes: Record<string, ConfigCorpusDistant>
+}
+
+interface FichierComptes {
+  formatVersion: 2
   comptes: Record<string, ConfigCorpusDistant> // clé = id de corpus
+}
+
+export interface MigrationIdCorpus {
+  ancienId: string
+  nouvelId: string
+}
+
+function ecrireJsonAtomique(fichier: string, valeur: unknown): void {
+  const temporaire = `${fichier}.tmp`
+  writeFileSync(temporaire, JSON.stringify(valeur, null, 2), 'utf8')
+  renameSync(temporaire, fichier)
 }
 
 /** Primitives injectables — implémentation réelle : `safeStorage` d'Electron. */
@@ -38,16 +54,47 @@ export class CoffreComptes {
   constructor(
     private readonly fichier: string,
     private readonly chiffreur: Chiffreur,
+    private readonly migrerReferences: (migrations: MigrationIdCorpus[]) => void = () => undefined,
   ) {}
 
   private lire(): FichierComptes {
+    if (!existsSync(this.fichier)) return { formatVersion: 2, comptes: {} }
+    let lu: unknown
     try {
-      const f = JSON.parse(readFileSync(this.fichier, 'utf8')) as FichierComptes
-      if (f.formatVersion === 1 && f.comptes && typeof f.comptes === 'object') return f
+      lu = JSON.parse(readFileSync(this.fichier, 'utf8'))
     } catch {
-      /* absent/corrompu → coffre vide */
+      throw new Error('Le coffre des comptes distants est corrompu.')
     }
-    return { formatVersion: 1, comptes: {} }
+    if (!lu || typeof lu !== 'object' || Array.isArray(lu)) {
+      throw new Error('Le coffre des comptes distants est invalide.')
+    }
+    const f = lu as FichierComptes | FichierComptesV1
+    if (!f.comptes || typeof f.comptes !== 'object' || Array.isArray(f.comptes)) {
+      throw new Error('Le coffre des comptes distants est invalide.')
+    }
+    const version = Number(f.formatVersion)
+    if (version === 2) return f as FichierComptes
+    if (version === 1) return this.migrerV1(f as FichierComptesV1)
+    throw new Error(`Version de coffre distant non supportée : ${String(version)}`)
+  }
+
+  private migrerV1(f: FichierComptesV1): FichierComptes {
+    const comptes: Record<string, ConfigCorpusDistant> = {}
+    const migrations: MigrationIdCorpus[] = []
+    for (const [ancienId, ancienCompte] of Object.entries(f.comptes)) {
+      const urlServeur = canoniserUrlServeur(ancienCompte.urlServeur)
+      const utilisateur = ancienCompte.utilisateur.trim()
+      const nouvelId = idDeCorpus(urlServeur, utilisateur)
+      if (comptes[nouvelId]) {
+        throw new Error(`Plusieurs comptes distants correspondent au même identifiant : ${nouvelId}`)
+      }
+      comptes[nouvelId] = { ...ancienCompte, id: nouvelId, urlServeur, utilisateur }
+      migrations.push({ ancienId, nouvelId })
+    }
+    this.migrerReferences(migrations)
+    const migre: FichierComptes = { formatVersion: 2, comptes }
+    ecrireJsonAtomique(this.fichier, migre)
+    return migre
   }
 
   lister(): ConfigCorpusDistant[] {
@@ -70,32 +117,85 @@ export class CoffreComptes {
     urlServeur: string
     utilisateur: string
     motDePasse: string
-    id?: string
   }): ConfigCorpusDistant {
-    const id = params.id ?? idDeCorpus(params.urlServeur)
+    const urlServeur = canoniserUrlServeur(params.urlServeur)
+    const utilisateur = params.utilisateur.trim()
+    const id = idDeCorpus(urlServeur, utilisateur)
     const comptes = this.lire()
     const config: ConfigCorpusDistant = {
       id,
-      urlServeur: params.urlServeur.replace(/\/+$/, ''),
-      utilisateur: params.utilisateur,
+      urlServeur,
+      utilisateur,
       motDePasseChiffre: this.chiffreur.chiffre(params.motDePasse),
     }
     comptes.comptes[id] = config
-    writeFileSync(this.fichier, JSON.stringify(comptes, null, 2), 'utf8')
+    ecrireJsonAtomique(this.fichier, comptes)
     return config
   }
 
   oublier(id: string): void {
     const comptes = this.lire()
     delete comptes.comptes[id]
-    writeFileSync(this.fichier, JSON.stringify(comptes, null, 2), 'utf8')
+    ecrireJsonAtomique(this.fichier, comptes)
   }
 }
 
-/** Id stable dérivé de l'URL : deux utilisateurs configurant le même dossier
- *  partagé partagent l'id (mais pas les identifiants — chacun son compte). */
-export function idDeCorpus(urlServeur: string): string {
-  return Buffer.from(urlServeur.replace(/\/+$/, ''), 'utf8').toString('base64url').slice(0, 32)
+function normaliserEncodageUrl(composant: string): string {
+  return composant.replace(/%[0-9a-f]{2}/gi, (echappement) => {
+    const valeur = Number.parseInt(echappement.slice(1), 16)
+    const caractere = String.fromCharCode(valeur)
+    return /^[A-Za-z0-9._~-]$/.test(caractere)
+      ? caractere
+      : `%${echappement.slice(1).toUpperCase()}`
+  })
+}
+
+/** Forme stable de l'URL utilisée pour identifier un corpus distant. */
+export function canoniserUrlServeur(urlServeur: string): string {
+  const brut = urlServeur.trim()
+  try {
+    const url = new URL(brut)
+    const chemin = normaliserEncodageUrl(url.pathname).replace(/\/+$/, '')
+    const recherche = normaliserEncodageUrl(url.search)
+    return `${url.origin}${chemin}${recherche}`
+  } catch {
+    return brut.replace(/\/+$/, '')
+  }
+}
+
+/** Id stable d'un compte distant, dérivé de toute son URL et de l'utilisateur. */
+export function idDeCorpus(urlServeur: string, utilisateur: string): string {
+  const identite = `${canoniserUrlServeur(urlServeur)}\0${utilisateur.trim()}`
+  return `sha256-${createHash('sha256').update(identite, 'utf8').digest('base64url')}`
+}
+
+/** Met à jour les raccourcis du profil. Les anciens miroirs restent isolés afin
+ *  que le premier pull avec le nouvel identifiant reparte d'une copie vide. */
+export function migrerReferencesProfil(
+  dirUserData: string,
+  migrations: MigrationIdCorpus[],
+): void {
+  if (migrations.length === 0) return
+  const fichier = join(dirUserData, 'settings.json')
+  if (!existsSync(fichier)) return
+  let lu: unknown
+  try {
+    lu = JSON.parse(readFileSync(fichier, 'utf8'))
+  } catch {
+    return
+  }
+  if (!lu || typeof lu !== 'object' || Array.isArray(lu)) return
+  const settings = lu as Record<string, unknown>
+  if (!Array.isArray(settings.recentsDistant)) return
+  const nouveauxIds = new Map(migrations.map((m) => [m.ancienId, m.nouvelId]))
+  settings.recentsDistant = [
+    ...new Set(
+      settings.recentsDistant
+        .filter((id): id is string => typeof id === 'string')
+        .map((id) => nouveauxIds.get(id) ?? id),
+    ),
+  ]
+  ecrireJsonAtomique(fichier, settings)
 }
 
 /** Coffre pré-branché sur le vrai `safeStorage` (appelé depuis le main).
@@ -125,5 +225,11 @@ export function coffreReel(dirUserData: string): CoffreComptes {
             // chiffré par safeStorage.
             safeStorage.decryptString(Buffer.from(chiffre, 'base64')),
   }
-  return new CoffreComptes(join(dirUserData, 'comptes-distant.json'), chiffreur)
+  const coffre = new CoffreComptes(
+    join(dirUserData, 'comptes-distant.json'),
+    chiffreur,
+    (migrations) => migrerReferencesProfil(dirUserData, migrations),
+  )
+  coffre.lister()
+  return coffre
 }

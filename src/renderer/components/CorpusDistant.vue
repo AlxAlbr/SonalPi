@@ -13,7 +13,7 @@ import type { CompteDistantPublic, ProfilCapacites } from '../../shared/distant'
  *     préconditions est refusé avec le motif.
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
-const { ouvrirCorpusDistant } = utiliserSonal()
+const { ouvrirCorpusDistant, oublierCompteDistant } = utiliserSonal()
 
 const comptes = ref<CompteDistantPublic[]>([])
 const urlServeur = ref('')
@@ -67,7 +67,7 @@ async function ouvrir(id: string) {
 }
 
 async function oublier(id: string) {
-  comptes.value = await window.sonal.distant.oublier(id)
+  comptes.value = await oublierCompteDistant(id)
 }
 </script>
 

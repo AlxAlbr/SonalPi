@@ -233,7 +233,7 @@ test('audio distant : téléverser+désigner chez max, pull miroir chez olivier,
     pOli.on('pageerror', (e) => console.log('⚠️ [olivier] pageerror:', e.message))
     await connecterEtOuvrir(pOli, URL_OLIVIER, OLIVIER.utilisateur, OLIVIER.motDePasse)
 
-    const copieOlivier = join(dirOlivier, 'miroirs', idDeCorpus(URL_OLIVIER), NOM_AUDIO)
+    const copieOlivier = join(dirOlivier, 'miroirs', idDeCorpus(URL_OLIVIER, 'olivier'), NOM_AUDIO)
     await expect
       .poll(() => existsSync(copieOlivier), { timeout: 30_000 })
       .toBe(true)

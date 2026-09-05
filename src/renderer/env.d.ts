@@ -22,8 +22,10 @@ import type {
   ModeleEAV,
   NoteCategory,
   OuvertureCorpus,
+  OuvertureEntretienEdition,
   PatchCategorie,
   PayloadEntretien,
+  TranscriptionEntretien,
   RegleAnon,
   ResultatLotValeur,
   ResultatLotAnon,
@@ -41,10 +43,12 @@ import type {
   DemandeConnexion,
   DemandeCreationDistante,
   DivergenceDistante,
+  EtatSessionPublic,
   OrphelinDistant,
   OuvertureDistante,
   ProgressionTransfert,
   ResultatConnexion,
+  ResultatFermetureSession,
   ResultatTiragePublic,
 } from '../shared/distant'
 
@@ -52,6 +56,9 @@ declare global {
   interface Window {
     sonal: {
       platform: string
+      application: {
+        surPreparationFermeture: (cb: () => Promise<void>) => () => void
+      }
       corpus: {
         surSuppressionCourant: (cb: (r: OuvertureCorpus | null) => void) => () => void
         ouvrir: () => Promise<CorpusFichier>
@@ -65,12 +72,13 @@ declare global {
         verifierNouveau: (dir: string) => Promise<{ dejaCorpus: boolean }>
         creerNouveau: (dir: string, nom: string) => Promise<OuvertureCorpus>
         lireEntretien: (id: string) => Promise<LectureEntretien>
-        fermerEntretien: (id: string) => Promise<boolean>
-        etatSession: (
-          id: string,
-        ) => Promise<{ etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }>
+        ouvrirEntretienPourEdition: (id: string) => Promise<OuvertureEntretienEdition>
+        fermerEntretien: (id: string) => Promise<ResultatFermetureSession>
+        surSessionDegradee: (cb: (id: string) => void) => () => void
+        etatSession: (id: string) => Promise<EtatSessionPublic>
         publierEntretien: (id: string) => Promise<{ ok: boolean; raison?: string }>
         ecrireEntretien: (id: string, p: PayloadEntretien) => Promise<string>
+        remplacerTranscription: (id: string, t: TranscriptionEntretien) => Promise<string | null>
         creerEntretienVide: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
         renommerEntretien: (id: string, titre: string) => Promise<CorpusFichier>
         supprimerEntretien: (id: string) => Promise<CorpusFichier>

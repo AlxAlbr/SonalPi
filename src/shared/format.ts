@@ -261,16 +261,35 @@ export interface Note {
   modifieLe: string | null
 }
 
-/** Résultat de lecture : ok + données, ou refus typé (version inconnue / fichier absent). */
+/** Résultat d'une lecture sans verrou ni effet de bord. */
 export type LectureEntretien =
+  | { ok: true; data: EntretienFichier }
+  | { ok: false; raison: 'version' | 'absent' }
+
+/** Ouverture explicite de l'éditeur.
+ *  Le statut d'accès est toujours présent : il n'est jamais déduit d'un champ
+ *  optionnel. */
+export type OuvertureEntretienEdition =
   | {
       ok: true
       data: EntretienFichier
-      /** Corpus distant uniquement : présent quand l'ouverture est REFUSÉE en écriture (verrou tenu par autrui) → lecture seule avec détenteur.
-       *  Champ ADDITIF optionnel. */
-      verrouTenuParAutrui?: VerrouTenuParAutrui
+      acces: 'edition'
+    }
+  | {
+      ok: true
+      data: EntretienFichier
+      acces: 'lecture-seule'
+      verrouTenuParAutrui: VerrouTenuParAutrui | null
     }
   | { ok: false; raison: 'version' | 'absent' }
+
+/** Contenu importé qui remplace uniquement la transcription d'un entretien. */
+export interface TranscriptionEntretien {
+  corpsTexte: unknown
+  annotations: Annotation[]
+  ancres: Ancre[]
+  locuteurs: Locuteur[]
+}
 
 /** Qui tient le verrou — version affichable, sans détails techniques. */
 export interface VerrouTenuParAutrui {

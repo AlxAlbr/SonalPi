@@ -685,18 +685,42 @@ export function useEntretien(deps: {
 
   // --- Autosave (débounce) + persistance de l'entretien ouvert ---
   let tid: ReturnType<typeof setTimeout> | undefined
+  let sauvegardes = Promise.resolve()
   function planifierSauvegarde() {
     if (chargement || !ouvertId.value) return
     etatSauvegarde.value = 'modifié'
     clearTimeout(tid)
-    tid = setTimeout(sauver, 600)
+    tid = setTimeout(() => {
+      void sauver().catch(() => {
+        etatSauvegarde.value = 'modifié'
+      })
+    }, 600)
   }
-  async function sauver() {
-    if (!ouvertId.value || !editor.value) return
-    etatSauvegarde.value = 'sauvegarde…'
-    await window.sonal.corpus.ecrireEntretien(ouvertId.value, payloadCourant())
-    etatSauvegarde.value = 'à jour'
-    await deps.apresSauvegarde() // les compteurs d'usage corpus reflètent l'état sauvé
+  function sauver(): Promise<void> {
+    clearTimeout(tid)
+    tid = undefined
+    if (!ouvertId.value || !editor.value) return sauvegardes
+    const id = ouvertId.value
+    const payload = payloadCourant()
+    const operation = sauvegardes.then(async () => {
+      if (ouvertId.value === id) etatSauvegarde.value = 'sauvegarde…'
+      await window.sonal.corpus.ecrireEntretien(id, payload)
+      if (ouvertId.value === id) etatSauvegarde.value = 'à jour'
+      await deps.apresSauvegarde()
+    })
+    sauvegardes = operation.catch(() => {})
+    return operation
+  }
+  /** Vide le debounce et attend aussi une sauvegarde déjà en cours. */
+  async function viderSauvegarde(): Promise<void> {
+    await sauver()
+    await sauvegardes
+  }
+  /** Annule le debounce sans créer d'écriture, puis attend l'opération déjà partie. */
+  async function annulerEtAttendreSauvegarde(): Promise<void> {
+    clearTimeout(tid)
+    tid = undefined
+    await sauvegardes
   }
   function payloadCourant() {
     const ed = editor.value!
@@ -721,10 +745,13 @@ export function useEntretien(deps: {
   // --- Cycle de vie de l'entretien ouvert (charger / réinitialiser) ---
   /** Ouvre un entretien : lit le disque, peuple le modèle + l'éditeur. Renvoie
    *  false (+ pose `refusFormat`) si version inconnue / absent (aucune écriture). */
-  async function ouvrir(id: string): Promise<boolean> {
+  async function ouvrir(id: string, sessionExistante = false): Promise<boolean> {
     const ed = editor.value
     if (!ed) return false
-    const res = await window.sonal.corpus.lireEntretien(id)
+    const ouverture = sessionExistante
+      ? null
+      : await window.sonal.corpus.ouvrirEntretienPourEdition(id)
+    const res = ouverture ?? (await window.sonal.corpus.lireEntretien(id))
     if (!res.ok) {
       refusFormat.value =
         res.raison === 'version'
@@ -752,10 +779,18 @@ export function useEntretien(deps: {
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
     chargement = false
-    // Éditable ssi le contenu nous appartient : en corpus distant,
-    // lireEntretien a tenté le verrou — un `verrouTenuParAutrui` présent =
-    // refus = lecture seule avec détenteur affiché.
-    verrouAutrui.value = res.verrouTenuParAutrui ?? null
+    // Le statut d'accès est obligatoire ; l'absence d'identité du détenteur
+    // ne transforme jamais un refus en autorisation d'écrire.
+    if (ouverture?.ok) {
+      verrouAutrui.value =
+        ouverture.acces === 'lecture-seule'
+          ? (ouverture.verrouTenuParAutrui ?? {
+              userId: 'un autre utilisateur',
+              machineId: '',
+              acquiredAt: '',
+            })
+          : null
+    }
     editor.value?.setEditable(deps.entretienEditable ? deps.entretienEditable() : !deps.lectureSeule?.())
     journal.entrees.length = 0 // volatil PAR entretien
     // Le surlignage audio ne survit pas au changement de doc.
@@ -2314,6 +2349,8 @@ export function useEntretien(deps: {
     ouvrir,
     reinitialiser,
     sauver,
+    viderSauvegarde,
+    annulerEtAttendreSauvegarde,
     donneesExport,
     // rafraîchissements (l'App les déclenche après des changements corpus)
     rafraichir,

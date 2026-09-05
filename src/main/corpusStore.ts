@@ -93,7 +93,7 @@ function genIdEntretien(titre: string): string {
  *  Certains dialogs Linux renvoient `file://`, d'où `fileURLToPath` ;
  *  `path.normalize` rend la comparaison des chemins fiable.
  *  Le résultat est toujours un chemin absolu natif et normalisé. */
-function normaliserCheminAudio(source: string): string {
+export function normaliserCheminAudio(source: string): string {
   let p = source
   if (p.startsWith('file:')) p = fileURLToPath(p)
   return normalize(p)
@@ -367,38 +367,36 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Lit un entretien et démarre sa « session »,
-   *  la prochaine écriture fera tourner les `.bak`.
-   *  Pas de contrôle de fraîcheur croisée fichier/membership :
-   *  en mono-utilisateur, le disque est la vérité. */
+  /** Lit un entretien sans modifier le disque ni l'état des sauvegardes.
+   *  Les anciens formats supportés sont adaptés en mémoire ; ils seront
+   *  persistés seulement lors d'une véritable édition. */
   lireEntretien(id: string): LectureEntretien {
     const fichier = this.entretienFile(id)
     if (!existsSync(fichier)) return { ok: false, raison: 'absent' }
 
     let data = JSON.parse(readFileSync(fichier, 'utf8')) as EntretienFichier
-    // Migration EXPLICITE formatVersion 1→2 : deb/fin des blocs → ancres {pos, t}.
-    // Réécrite aussitôt (lastModified préservé — migrer n'est pas une édition).
     if ((data.formatVersion as number) === 1) {
-      data = migrerEntretienFormatV1(data as unknown as Record<string, unknown>) as unknown as EntretienFichier
-      this.ecrireJsonAtomique(fichier, data)
+      data = migrerEntretienFormatV1(
+        data as unknown as Record<string, unknown>,
+      ) as unknown as EntretienFichier
     }
-    // Migration formatVersion 2→3 : audioRef relatif → absolu (filet de sécurité).
-    // La migration principale a lieu dans `ouvrir()` ;
-    // ici, un entretien formatVersion 2 isolé (ex. copié à la main dans un corpus formatVersion 3)
-    // est rattrapé au passage.
     if ((data.formatVersion as number) === 2) {
       const ref = data.meta?.audioRef
       if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
         data.meta.audioRef = resolve(this.dir, ref)
       }
       data.formatVersion = FORMAT_VERSION
-      this.ecrireJsonAtomique(fichier, data)
-      this.invaliderRefsAudio()
     }
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
-
-    this.rotationEnAttente.add(id) // ouverture = début de session
     return { ok: true, data }
+  }
+
+  /** Ouvre explicitement une session d'édition locale.
+   *  La première écriture qui suit conservera l'état antérieur dans `.bak1`. */
+  ouvrirEntretienPourEdition(id: string): LectureEntretien {
+    const lecture = this.lireEntretien(id)
+    if (lecture.ok) this.rotationEnAttente.add(id)
+    return lecture
   }
 
   /** Écrit un entretien (atomique + rotation `.bak` si 1re écriture de session)
@@ -429,6 +427,32 @@ export class CorpusStore {
     // Il n'est écrit que par création, import, renommage ou suppression.
     // Le `lastModified` affiché est dérivé du fichier entretien lui-même.
     return now
+  }
+
+  /** Remplace la transcription en préservant les métadonnées et notes de la
+   *  version fraîche actuellement stockée. */
+  remplacerTranscription(
+    id: string,
+    transcription: Pick<
+      PayloadEntretien,
+      'corpsTexte' | 'annotations' | 'ancres' | 'locuteurs'
+    >,
+  ): string | null {
+    this.verifierEcritureEntretien(id)
+    const lecture = this.lireEntretien(id)
+    if (!lecture.ok) return null
+    const data = lecture.data
+    return this.ecrireEntretien(id, {
+      corpsTexte: transcription.corpsTexte,
+      annotations: transcription.annotations,
+      ancres: transcription.ancres,
+      locuteurs: transcription.locuteurs,
+      meta: data.meta,
+      notes: data.notes,
+      brouillonsAnon: data.brouillonsAnon,
+      pseudosDeclares: data.pseudosDeclares,
+      legacy: data.legacy,
+    })
   }
 
   /** `.bak1` → `.bak2`, puis copie de l'état courant → `.bak1`.
@@ -917,9 +941,9 @@ export class CorpusStore {
   assignerAudio(id: string, source: string): { audioRef: string } | null {
     this.verifierEcritureEntretien(id)
     const f = this.entretienFile(id)
-    if (!existsSync(f) || !existsSync(source)) return null
     // Normaliser : certains dialogs (Linux) renvoient `file://` → natif.
     const ref = normaliserCheminAudio(source)
+    if (!existsSync(f) || !existsSync(ref)) return null
 
     const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
     data.meta.audioRef = ref
@@ -960,6 +984,24 @@ export class CorpusStore {
     }
     this.invaliderRefsAudio()
     return { audioRef: null }
+  }
+
+  /** Aligne les caches et dérivés locaux après une mutation audio publiée par
+   *  une transaction distante. */
+  apresMutationAudio(id: string, efface: boolean): void {
+    if (efface) {
+      const locaux = this.lireAudiosLocaux()
+      if (locaux[id]) {
+        delete locaux[id]
+        writeFileSync(this.cheminAudiosLocaux(), JSON.stringify(locaux, null, 2), 'utf8')
+      }
+      if (existsSync(this.pngDir)) {
+        for (const nom of readdirSync(this.pngDir)) {
+          if (nom.startsWith(id + '.')) unlinkSync(join(this.pngDir, nom))
+        }
+      }
+    }
+    this.invaliderRefsAudio()
   }
 
   /** Écrit le PNG de la forme d'onde (`png/<id>.png`).

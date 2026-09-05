@@ -17,8 +17,10 @@ import type {
   ResultatLotValeur,
   ResultatLotAnon,
   OuvertureCorpus,
+  OuvertureEntretienEdition,
   PatchCategorie,
   PayloadEntretien,
+  TranscriptionEntretien,
   RegleAnon,
   ResultatSuppression,
   ResultatSuppressionCategorie,
@@ -27,12 +29,13 @@ import type {
   VerificationDossierDemo,
   ParamsAnon,
 } from '../shared/format'
-import type { DemandeCreationDistante } from '../shared/distant'
+import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type {
   CompteDistantPublic,
   DemandeConnexion,
   DivergenceDistante,
+  EtatSessionPublic,
   OrphelinDistant,
   OuvertureDistante,
   ProgressionTransfert,
@@ -63,6 +66,21 @@ function invoquer<T>(canal: string, ...args: unknown[]): Promise<T> {
 // tout passe par le main process.
 contextBridge.exposeInMainWorld('sonal', {
   platform: process.platform,
+  application: {
+    /** Demande du main avant fermeture : attendre le callback, puis acquitter. */
+    surPreparationFermeture: (cb: () => Promise<void>): (() => void) => {
+      const ecouteur = async (_e: Electron.IpcRendererEvent, jeton: string): Promise<void> => {
+        try {
+          await cb()
+          ipcRenderer.send('application:fermeturePrete', jeton, true)
+        } catch {
+          ipcRenderer.send('application:fermeturePrete', jeton, false)
+        }
+      }
+      ipcRenderer.on('application:preparerFermeture', ecouteur)
+      return () => ipcRenderer.removeListener('application:preparerFermeture', ecouteur)
+    },
+  },
   corpus: {
     /** S'abonner aux bascules « corpus courant supprimé sur disque ».
      *  Le paramètre est le nouveau courant (`OuvertureCorpus`), ou null si
@@ -92,14 +110,20 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:creerNouveau', dir, nom),
     lireEntretien: (id: string): Promise<LectureEntretien> =>
       invoquer('corpus:lireEntretien', id),
+    ouvrirEntretienPourEdition: (id: string): Promise<OuvertureEntretienEdition> =>
+      invoquer('corpus:ouvrirEntretienPourEdition', id),
     /** Corpus distant : fermer la session (publication finale + libération du verrou).
      *  Sans effet en corpus local. */
-    fermerEntretien: (id: string): Promise<boolean> =>
+    fermerEntretien: (id: string): Promise<ResultatFermetureSession> =>
       invoquer('corpus:fermerEntretien', id),
+    /** Signale sans attendre le prochain poll qu'une session a perdu son verrou. */
+    surSessionDegradee: (cb: (id: string) => void): (() => void) => {
+      const ecouteur = (_e: Electron.IpcRendererEvent, id: string): void => cb(id)
+      ipcRenderer.on('distant:sessionDegradee', ecouteur)
+      return () => ipcRenderer.removeListener('distant:sessionDegradee', ecouteur)
+    },
     /** État de session distant (poll UI) pour un entretien ouvert. */
-    etatSession: (
-      id: string,
-    ): Promise<{ etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }> =>
+    etatSession: (id: string): Promise<EtatSessionPublic> =>
       invoquer('distant:etatSession', id),
     /** « Publier maintenant » : PUT If-Match sous verrou toujours tenu.
      *  { ok: false, raison: 'divergence' } = le serveur a changé sous nos pieds :
@@ -108,6 +132,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('distant:publierEntretien', id),
     ecrireEntretien: (id: string, p: PayloadEntretien): Promise<string> =>
       invoquer('corpus:ecrireEntretien', id, p),
+    remplacerTranscription: (id: string, t: TranscriptionEntretien): Promise<string | null> =>
+      invoquer('corpus:remplacerTranscription', id, t),
     creerEntretienVide: (titre: string): Promise<{ id: string; corpus: CorpusFichier }> =>
       invoquer('corpus:creerEntretienVide', titre),
     renommerEntretien: (id: string, titre: string): Promise<CorpusFichier> =>

@@ -211,7 +211,7 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     const r = await sessions.publier(ID)
     expect(r).toEqual({ ok: false, raison: 'divergence' })
     expect(retrogrades).toEqual([ID])
-    expect(sessions.etat(ID).etat).toBe('aucune')
+    expect(sessions.etat(ID).etat).toBe('degrade')
 
     // 4. L'API copies de divergence : la copie existe, identifiée, et
     //    son contenu est LA VERSION LOCALE de max (pas celle du serveur).
@@ -234,10 +234,13 @@ async function jouerScenarioDivergenceE3b(base: string, verrouNatif: boolean): P
     expect(ajouts.valeurs).toBeGreaterThanOrEqual(1)
     expect(fusion.annotations.map((a) => a.id).sort()).toEqual(['anno-max', 'anno-olivier'])
 
-    // 6. REPRISE sous verrou : le verrou résiduel de la session dégradée est
-    //    d'abord ABANDONNÉ (choix du dialogue de reprise), puis ré-acquis.
+    // 6. REPRISE sous verrou.
+    // Le verrou résiduel est d'abord abandonné.
+    // La fermeture acquitte ensuite l'alerte avant réouverture.
     const cheminVerrou = verrouNatif ? `entretiens/${ID}.json` : `verrous/${ID}.lock.json`
     await sessions.abandonnerOrphelin(cheminVerrou)
+    expect(await sessions.fermer(ID)).toEqual({ fermee: true })
+    expect(sessions.etat(ID).etat).toBe('aucune')
     expect((await sessions.ouvrir(ID)).etat).toBe('a-nous')
 
     // 7. La fusion est écrite localement puis PUBLIÉE : le serveur porte LES

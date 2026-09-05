@@ -22,7 +22,7 @@ garde anti-écrasement, LOCK natif quand files_lock est installé) et d'une disc
 | `verrous/<id>.lock.json` | verrou d'écriture **variante B** (sans plugin) | `ProviderPutConditionnel` |
 | `entretiens/<id>.json` **verrouillé nativement** | verrou **variante A** (files_lock) | `ProviderFilesLock` |
 | `presence/<user>-<machine>.json` | « ce poste consulte tel entretien » — informatif | `PresenceDistante` |
-| `sessions/.verrous-natifs.json`, `sessions/<id>.divergence-<session>.json` | journal local (variante A), copies de divergence | `SessionsDEntretien` |
+| `sessions/.verrous-natifs.json`, `sessions/<id>.divergence-<session>.copie-<uuid>.json` | journal local (variante A), copies de divergence | `SessionsDEntretien` |
 
 NB : `sessions/` et `presence/` sont **hors contenu** (`DOSSIERS_HORS_CONTENU` dans
 `distant/miroir.ts`) — le miroir ne les télécharge pas.
@@ -59,13 +59,34 @@ fermer   : publication finale PUIS déverrouillage — ORDRE INVARIANT (§4.4)
 
 Points de couture à connaître en revue :
 
+- `corpus:lireEntretien` est une lecture pure du miroir. Elle n'acquiert aucun verrou,
+  n'arme aucune sauvegarde et ne contacte pas le serveur. Les métadonnées, la recherche et
+  l'inspection d'anonymisation voient donc l'état du dernier tirage.
+- Seul `corpus:ouvrirEntretienPourEdition` ouvre une session. Son résultat porte toujours
+  `acces: edition` ou `acces: lecture-seule`, même si l'identité du détenteur est inconnue.
+- Les publications, battements et fermetures sont sérialisés par entretien. Une révision
+  monotone empêche un PUT en cours de déclarer publiée une modification plus récente.
+- `fermerToutes()` distingue les sessions fermées de celles bloquées en publication ou en
+  libération. Une bascule de corpus normale est refusée tant qu'une session reste bloquée.
 - **La rétrogradation** met la copie locale de côté hors serveur
-  (`degrader()` → `sessions/<id>.divergence-<sessionId>.json`) puis retire la session.
-  Elle n'est ni perdue ni publiée en silence.
-- **Les orphelins** (crash sans libération, §4.5) sont détectés à l'ouverture du corpus ;
-  dialogue « Reprendre et publier » (ordre invariant appliqué aussi là) / « Abandonner ».
+  (`degraderInterne()` → `sessions/<id>.divergence-<sessionId>.copie-<uuid>.json`) puis retire
+  le droit d'écrire. L'état dégradé reste visible jusqu'à la fermeture de l'entretien et un
+  événement IPC fige immédiatement l'éditeur. L'UUID propre à chaque copie préserve plusieurs
+  divergences successives d'un même lancement.
+- **Les orphelins** sont détectés à l'ouverture du corpus ; le dialogue permet de reprendre
+  et publier, ou d'abandonner.
 - La variante A tient un **journal local** (`sessions/.verrous-natifs.json`) car files_lock
   n'enregistre ni machine ni session.
+
+Les mutations audio et l'import SRT d'un entretien fermé utilisent une session courte :
+acquisition, GET post-verrou, mutation de cette version fraîche, PUT conditionnel, puis
+libération. Le choix ou l'annulation du fichier SRT se produit avant l'acquisition.
+
+Avant une bascule, le renderer vide son autosave et le main ferme toutes les sessions avant
+le remplacement atomique du contexte. Pour une session dégradée, le debounce est annulé et
+seules les écritures déjà parties sont attendues. La fermeture de l'application utilise le même
+ordre, avec des délais bornés ; en cas d'échec, miroir et journal restent disponibles pour la
+reprise.
 
 ## Les transactions de définitions (§4.7/§4.8)
 
@@ -124,8 +145,9 @@ d'écriture, NI par `corpus.json` :
 Une publication 412 signifie : quelqu'un a écrit derrière le verrou. Chaîne complète :
 
 1. `SessionsDEntretien.degrader()` met la copie de côté + callback rétrogradation ;
-2. l'API copies (`listerDivergences/lireDivergence/supprimerDivergence`, chemins validés contre
-   `^sessions\/([^/]+)\.divergence-([^/]+)\.json$` — traversal impossible) expose les copies ;
+2. l'API copies (`listerDivergences/lireDivergence/supprimerDivergence`, chemins validés selon
+   la convention ci-dessus, avec lecture rétrocompatible des anciens noms sans UUID — traversal
+   impossible) expose les copies ;
 3. à la réouverture de l'entretien, le dialogue `DivergenceCopie.vue` propose la fusion ;
 4. la décision pure vit dans `shared/entretien/fusion.ts` : garde `corpsIdentiques`
    (**on ne fusionne jamais deux textes**) puis union par identité stable — annotations par id,

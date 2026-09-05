@@ -16,6 +16,7 @@
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { join, dirname } from 'node:path'
 import { MiroirWebDAV } from './miroir'
 import { ClientWebDAV, ErreurHttp } from '../webdav/client'
@@ -27,7 +28,12 @@ import {
 import { ProviderPutConditionnel } from '../verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../verrous/providerFilesLock'
 import type { VerrouProvider } from '../verrous/types'
-import type { EntreeVerrouPublic } from '../../shared/distant'
+import type {
+  EntreeVerrouPublic,
+  EtatSessionPublic,
+  ResultatFermetureSession,
+  ResultatFermetureToutes,
+} from '../../shared/distant'
 import type { EntretienFichier } from '../../shared/format'
 
 export interface IdentiteSession {
@@ -37,14 +43,9 @@ export interface IdentiteSession {
 }
 
 export type EtatSession =
-  | { etat: 'aucune' }
-  /** Nous tenons le verrou. */
-  | { etat: 'a-nous'; dernierPubli: string | null; sale: boolean }
+  | EtatSessionPublic
   /** Refus d'acquisition : lecture seule avec détenteur affichable. */
   | { etat: 'tenu-par-autrui'; tenuPar: ContenuVerrou | null }
-  /** Notre verrou a été repris/perdu au battement : contenu figé en lecture,
-   *  modifications locales à sauvegarder à part (copie de divergence). */
-  | { etat: 'degrade' }
 
 interface SessionInterne {
   /** Le provider DE CETTE session : le protocole ne connaît que le contrat
@@ -52,8 +53,11 @@ interface SessionInterne {
   provider: VerrouProvider
   cheminVerrou: string
   etagServeur: string | null // ETag du FICHIER entretien côté serveur (garde de publication)
-  sale: boolean
+  /** Révisions monotones : une écriture arrivée pendant un PUT reste sale. */
+  revision: number
+  revisionPubliee: number
   dernierPubli: string | null
+  degrade: boolean
 }
 
 const CHEMIN_ENTRETIEN = (id: string) => `entretiens/${id}.json`
@@ -80,7 +84,14 @@ export interface OptionsSessions {
 
 export class SessionsDEntretien {
   private readonly sessions = new Map<string, SessionInterne>()
+  /** Une rétrogradation reste visible jusqu'à la fermeture de l'entretien. */
+  private readonly sessionsDegradees = new Set<string>()
+  /** File par entretien : acquisition, battement, publication et fermeture ne
+   *  se chevauchent jamais. */
+  private readonly operations = new Map<string, Promise<void>>()
   private minuteur: ReturnType<typeof setInterval> | null = null
+  private fermetureGlobale = false
+  private termine = false
 
   constructor(
     private readonly client: ClientWebDAV,
@@ -104,64 +115,107 @@ export class SessionsDEntretien {
       : new ProviderPutConditionnel(this.client, this.identite)
   }
 
-  /** Ouvre une session d'écriture : verrou + GET serveur + garde. Idempotent
-   *  pour un id déjà tenu par nous (réouverture de la même session). */
-  async ouvrir(id: string): Promise<EtatSession> {
-    const existante = this.sessions.get(id)
-    if (existante) return { etat: 'a-nous', dernierPubli: existante.dernierPubli, sale: existante.sale }
+  /** Exécute une opération après les précédentes du même entretien. */
+  private async serialiser<T>(id: string, operation: () => Promise<T>): Promise<T> {
+    const precedente = this.operations.get(id) ?? Promise.resolve()
+    let liberer!: () => void
+    const verrou = new Promise<void>((resolve) => {
+      liberer = resolve
+    })
+    const file = precedente.catch(() => {}).then(() => verrou)
+    this.operations.set(id, file)
+    await precedente.catch(() => {})
+    try {
+      return await operation()
+    } finally {
+      liberer()
+      if (this.operations.get(id) === file) this.operations.delete(id)
+    }
+  }
 
-    // Un provider PAR session d'écriture ; la variante vient des options.
+  /** Ouvre une session d'écriture : verrou + GET serveur + garde. Idempotent
+   *  pour un id déjà tenu par nous. */
+  async ouvrir(id: string): Promise<EtatSession> {
+    return this.serialiser(id, () => this.ouvrirInterne(id))
+  }
+
+  private async ouvrirInterne(id: string): Promise<EtatSession> {
+    if (this.termine || this.fermetureGlobale) {
+      throw new Error('Le gestionnaire de sessions est en cours de fermeture.')
+    }
+    if (this.sessionsDegradees.has(id)) return { etat: 'degrade' }
+    const existante = this.sessions.get(id)
+    if (existante) {
+      if (existante.degrade) return { etat: 'degrade' }
+      return {
+        etat: 'a-nous',
+        dernierPubli: existante.dernierPubli,
+        sale: existante.revision > existante.revisionPubliee,
+      }
+    }
+
     const provider = this.fabriquerProvider()
     const chemin = this.cheminVerrouDe(id)
     const acquisition = await provider.acquerir(chemin)
     if (!acquisition.ok) {
       return { etat: 'tenu-par-autrui', tenuPar: acquisition.tenuPar }
     }
-    // Variante A : consigner le verrou au JOURNAL LOCAL ; les orphelins ne sont pas détectables serveur.
-    // Files_lock n'enregistre ni machine ni session.
     if (this.options.verrouNatif) this.journalAjouter(id)
 
-    // La version d'APRÈS-verrou fait foi : GET serveur écrit dans le miroir ;
-    // aucune confiance à notre copie locale potentiellement périmée.
-    const cheminFichier = CHEMIN_ENTRETIEN(id)
-    let etagServeur = await this.etagServeurDe(cheminFichier)
-    if (etagServeur) {
-      const contenu = await this.client.getTexte(cheminFichier)
-      this.ecrireLocalFichier(join(this.miroir.dirLocal, cheminFichier), contenu)
-      this.miroir.noterEtagPublie(cheminFichier, etagServeur)
-    } else {
-      // Fichier inconnu du manifeste (créé hors pull ?) : garde nulle → la première publication,
-      // sans If-Match, se fera en création/réécriture franche.
-      etagServeur = null
-    }
-
-    this.sessions.set(id, {
+    // Enregistrer immédiatement le verrou acquis. Si le GET échoue et que la
+    // libération compensatoire échoue aussi, fermerToutes pourra le reprendre.
+    const session: SessionInterne = {
       provider,
       cheminVerrou: chemin,
-      etagServeur,
-      sale: false,
+      etagServeur: null,
+      revision: 0,
+      revisionPubliee: 0,
       dernierPubli: null,
-    })
+      degrade: false,
+    }
+    this.sessions.set(id, session)
     this.demarrerMinuteur()
-    return { etat: 'a-nous', dernierPubli: null, sale: false }
+
+    try {
+      const cheminFichier = CHEMIN_ENTRETIEN(id)
+      const etagServeur = await this.etagServeurDe(cheminFichier)
+      if (etagServeur) {
+        const contenu = await this.client.getTexte(cheminFichier)
+        this.ecrireLocalFichier(join(this.miroir.dirLocal, cheminFichier), contenu)
+        this.miroir.noterEtagPublie(cheminFichier, etagServeur)
+      }
+      session.etagServeur = etagServeur
+      return { etat: 'a-nous', dernierPubli: null, sale: false }
+    } catch (erreur) {
+      try {
+        await provider.liberer(chemin)
+        this.retirerSession(id)
+      } catch {
+        // La session reste suivie afin que la fermeture globale puisse retenter.
+      }
+      throw erreur
+    }
   }
 
   /** Marque le contenu local comme non publié (appelé après chaque autosave). */
   noterSale(id: string): void {
     const s = this.sessions.get(id)
-    if (s) {
-      s.sale = true
-      if (!s.dernierPubli) s.dernierPubli = new Date().toISOString()
-    }
+    if (!s || s.degrade) return
+    s.revision += 1
+    if (!s.dernierPubli) s.dernierPubli = new Date().toISOString()
   }
 
-  /** Publication : PUT If-Match sous verrou toujours tenu.
-   *  412 → divergence : copie locale mise de côté, session dégradée ;
-   *  JAMAIS d'écrasement silencieux. */
+  /** Publication : PUT If-Match sous verrou toujours tenu. */
   async publier(id: string): Promise<{ ok: boolean; raison?: string }> {
+    return this.serialiser(id, () => this.publierInterne(id))
+  }
+
+  private async publierInterne(id: string): Promise<{ ok: boolean; raison?: string }> {
     const s = this.sessions.get(id)
     if (!s) return { ok: false, raison: 'aucune session' }
-    if (!s.sale) return { ok: true }
+    if (s.degrade) return { ok: false, raison: 'divergence' }
+    if (s.revision <= s.revisionPubliee) return { ok: true }
+    const revisionPubliee = s.revision
     const cheminFichier = CHEMIN_ENTRETIEN(id)
     const contenu = readFileSync(join(this.miroir.dirLocal, cheminFichier), 'utf8')
     try {
@@ -173,96 +227,151 @@ export class SessionsDEntretien {
       const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? ''
       this.miroir.noterEtagPublie(cheminFichier, etagFinal)
       s.etagServeur = etagFinal || null
-      s.sale = false
+      // Une écriture arrivée pendant le PUT porte une révision supérieure et
+      // reste donc sale pour la publication suivante.
+      s.revisionPubliee = Math.max(s.revisionPubliee, revisionPubliee)
       s.dernierPubli = new Date().toISOString()
       this.onPublication?.(id, s.dernierPubli)
       return { ok: true }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
-        // Quelqu'un a contourné le verrou (UI web, forçage) : ne pas écraser.
-        await this.degrader(id)
+        await this.degraderInterne(id)
         return { ok: false, raison: 'divergence' }
       }
-      throw e // réseau : réessai au prochain tick / « Publier maintenant »
+      throw e
     }
   }
 
-  /** Fermeture : publication finale PUIS libération — JAMAIS l'inverse.
-   *  Échec RÉSEAU de la publication → le verrou RESTE tenu (le contenu n'est
-   *  pas parti ; retenter « Publier » puis refermer). DIVERGENCE (412) → la
-   *  dégradation a déjà mis la copie locale de côté et retiré la session :
-   *  rien d'autre à faire ici. */
-  async fermer(id: string): Promise<void> {
+  /** Ferme après publication finale, puis libère le verrou. Une erreur garde
+   *  la session suivie et n'est jamais présentée comme une réussite. */
+  async fermer(id: string): Promise<ResultatFermetureSession> {
+    return this.serialiser(id, () => this.fermerInterne(id))
+  }
+
+  private async fermerInterne(id: string): Promise<ResultatFermetureSession> {
     const s = this.sessions.get(id)
-    if (!s) return
-    if (s.sale) {
+    if (!s) {
+      this.sessionsDegradees.delete(id)
+      return { fermee: true }
+    }
+    while (!s.degrade && s.revision > s.revisionPubliee) {
       try {
-        const r = await this.publier(id)
-        if (!r.ok) return // réseau OU divergence : la session est déjà partie
-      } catch {
-        return // réseau : rester sous verrou, retenter plus tard
+        const publication = await this.publierInterne(id)
+        if (!publication.ok && publication.raison !== 'divergence') {
+          return { fermee: false, raison: 'publication', message: publication.raison }
+        }
+      } catch (e) {
+        return {
+          fermee: false,
+          raison: 'publication',
+          message: e instanceof Error ? e.message : String(e),
+        }
       }
     }
     try {
       await s.provider.liberer(s.cheminVerrou)
-    } catch {
-      /* serveur injoignable : orphelin, nettoyé au prochain nettoyage d'ouverture */
+    } catch (e) {
+      return {
+        fermee: false,
+        raison: 'liberation',
+        message: e instanceof Error ? e.message : String(e),
+      }
     }
+    this.retirerSession(id)
+    this.sessionsDegradees.delete(id)
+    return { fermee: true }
+  }
+
+  /** Ferme toutes les sessions et acquitte aussi les états dégradés. */
+  async fermerToutes(): Promise<ResultatFermetureToutes> {
+    this.fermetureGlobale = true
+    const fermees: string[] = []
+    const bloquees: ResultatFermetureToutes['bloquees'] = []
+    const ids = new Set([...this.sessions.keys(), ...this.sessionsDegradees])
+    for (const id of ids) {
+      const resultat = await this.fermer(id)
+      if (resultat.fermee) fermees.push(id)
+      else bloquees.push({ id, raison: resultat.raison, message: resultat.message })
+    }
+    if (bloquees.length > 0) this.fermetureGlobale = false
+    return { fermees, bloquees }
+  }
+
+  /** Arrêt terminal : aucune session ni opération ne peut être oubliée. */
+  dispose(): void {
+    if (this.sessions.size > 0 || this.sessionsDegradees.size > 0 || this.operations.size > 0) {
+      throw new Error('Des sessions ou opérations sont encore actives.')
+    }
+    this.termine = true
+    this.arreterMinuteur()
+  }
+
+  private retirerSession(id: string): void {
     if (this.options.verrouNatif) this.journalRetirer(id)
     this.sessions.delete(id)
     if (this.sessions.size === 0) this.arreterMinuteur()
   }
 
-  /** État consultable par l'UI (poll). Toute session restant dans la carte est
-   *  « à nous » : les refus d'acquisition et les dégradations retirent la
-   *  session (ou ne la créent jamais) et sont signalés par callback/retour. */
-  etat(id: string): EtatSession {
+  /** État consultable par l'UI. */
+  etat(id: string): EtatSessionPublic {
+    if (this.sessionsDegradees.has(id)) return { etat: 'degrade' }
     const s = this.sessions.get(id)
     if (!s) return { etat: 'aucune' }
-    return { etat: 'a-nous', dernierPubli: s.dernierPubli, sale: s.sale }
+    if (s.degrade) return { etat: 'degrade' }
+    return {
+      etat: 'a-nous',
+      dernierPubli: s.dernierPubli,
+      sale: s.revision > s.revisionPubliee,
+    }
   }
 
-  /** Désignation audio distante sur un entretien FERMÉ — micro-session :
-   *  verrou → GET serveur (la version d'après-verrou fait
-   *  foi) → pose de `meta.audioDistant` → publier → fermer. L'ordre et les
-   *  gardes sont EXACTEMENT ceux d'une session normale ; aucun nouveau canal
-   *  protocole. Un entretien OUVERT chez nous passe par le modèle en session
-   *  (l'appelant renderer le sait et ne vient pas ici). */
+  /** Transaction courte sur un entretien fermé : verrou, GET frais, mutation,
+   *  PUT conditionnel, puis libération. */
+  async modifierEntretienFerme<T>(
+    id: string,
+    mutation: (data: EntretienFichier) => T,
+  ): Promise<{ ok: true; resultat: T } | { ok: false; raison: string }> {
+    return this.serialiser(id, async () => {
+      if (this.sessions.has(id)) return { ok: false, raison: 'session-active' }
+      const ouverture = await this.ouvrirInterne(id)
+      if (ouverture.etat !== 'a-nous') {
+        return { ok: false, raison: ouverture.etat === 'tenu-par-autrui' ? 'tenu-par-autrui' : 'session-degradee' }
+      }
+      let resultat!: T
+      try {
+        const abs = join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id))
+        const data = JSON.parse(readFileSync(abs, 'utf8')) as EntretienFichier
+        resultat = mutation(data)
+        data.lastModified = new Date().toISOString()
+        this.ecrireLocalFichier(abs, JSON.stringify(data, null, 2))
+        this.noterSale(id)
+        const publication = await this.publierInterne(id)
+        if (!publication.ok) return { ok: false, raison: publication.raison ?? 'publication' }
+      } catch (e) {
+        const fermeture = await this.fermerInterne(id)
+        if (!fermeture.fermee) {
+          throw new Error(
+            `${e instanceof Error ? e.message : String(e)}; verrou non libéré (${fermeture.raison}).`,
+          )
+        }
+        throw e
+      }
+      const fermeture = await this.fermerInterne(id)
+      if (!fermeture.fermee) return { ok: false, raison: fermeture.raison }
+      return { ok: true, resultat }
+    })
+  }
+
+  /** Désignation audio distante sur un entretien fermé. */
   async designerAudio(
     id: string,
     cheminAudio: string,
   ): Promise<{ ok: boolean; raison?: string }> {
-    // Une session peut EXISTER sans éditeur ouvert : la simple SÉLECTION d'une carte au Corpus,
-    // via lireEntretien, lit le fichier et acquiert le verrou.
-    // L'appelant renderer garantit que l'entretien n'est pas OUVERT dans l'éditeur ;
-    // dans ce cas il passe par son modèle en session. Réutiliser la session est donc sûr :
-    // aucun état non publié à clobber ; le fichier miroir local EST la base publiée.
-    if (!this.sessions.has(id)) {
-      const ouverture = await this.ouvrir(id)
-      if (ouverture.etat !== 'a-nous') {
-        return { ok: false, raison: 'tenu-par-autrui' }
-      }
-    }
-    try {
-      const cheminFichier = CHEMIN_ENTRETIEN(id)
-      const abs = join(this.miroir.dirLocal, cheminFichier)
-      const data = JSON.parse(readFileSync(abs, 'utf8')) as EntretienFichier
-      // Normalisation défensive : un fichier sans meta (vieux banc, écriture partielle)
-      // ne doit pas faire échouer la désignation.
+    const resultat = await this.modifierEntretienFerme(id, (data) => {
       data.meta ??= { valeursGen: {}, audioRef: null }
       data.meta.audioDistant = { chemin: cheminAudio }
-      data.lastModified = new Date().toISOString()
-      // Même discipline d'écriture que ecrireLocalFichier : atomique.
-      const tmp = `${abs}.tmp`
-      writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8')
-      renameSync(tmp, abs)
-      this.noterSale(id)
-      const r = await this.publier(id)
-      if (!r.ok) return r // divergence : la session est déjà partie (dégradée)
-      return { ok: true }
-    } finally {
-      await this.fermer(id).catch(() => {}) // réseau : verrou orphelin, repris au dialogue
-    }
+    })
+    return resultat.ok ? { ok: true } : resultat
   }
 
   /* ── Minuterie unique : battements + publications périodiques ────────────*/
@@ -282,51 +391,75 @@ export class SessionsDEntretien {
     }
   }
 
-/** Un tick du minuteur — PUBLIC pour les tests (déterminisme sans attente 60 s). */
+  /** Un tick du minuteur — public pour les tests. */
   async tic(): Promise<void> {
     const maintenant = Date.now()
-    for (const [id, s] of [...this.sessions.entries()]) {
-      try {
-        const b = await s.provider.battre(s.cheminVerrou)
-        if (!b.ok) {
-          await this.degrader(id) // repris par autrui → rétrogradation immédiate
-          continue
+    for (const id of [...this.sessions.keys()]) {
+      await this.serialiser(id, async () => {
+        const s = this.sessions.get(id)
+        if (!s || s.degrade) return
+        try {
+          const b = await s.provider.battre(s.cheminVerrou)
+          if (!b.ok) {
+            await this.degraderInterne(id, true)
+            return
+          }
+        } catch {
+          return
         }
-      } catch {
-        /* réseau : le TTL + marge tolère plusieurs échecs consécutifs */
-        continue
-      }
-      if (s.sale && s.dernierPubli !== null && maintenant - Date.parse(s.dernierPubli) >= PERIODE_PUBLICATION_MS - 1000) {
-        await this.publier(id).catch(() => {})
-      }
+        if (
+          s.revision > s.revisionPubliee &&
+          s.dernierPubli !== null &&
+          maintenant - Date.parse(s.dernierPubli) >= PERIODE_PUBLICATION_MS - 1000
+        ) {
+          await this.publierInterne(id).catch(() => {})
+        }
+      })
     }
   }
 
-  /** Rétrogradation : notre verrou a été repris. Le contenu local est
-   *  mis de côté hors serveur (copie de divergence) ; la session disparaît —
-   *  l'entretien redevient NON éditable (garde store retirée). */
-  private async degrader(id: string): Promise<void> {
+  /** Rétrogradation : retire le droit d'écrire, conserve une copie locale,
+   *  puis tente de libérer. L'état reste visible jusqu'à sa fermeture. */
+  private async degraderInterne(id: string, verrouPerdu = false): Promise<void> {
     const s = this.sessions.get(id)
-    if (!s) return
+    if (!s || s.degrade) return
+    s.degrade = true
+    this.sessionsDegradees.add(id)
+    this.revoquerEcriture?.(id)
+    this.onRetrogradation?.(id)
     try {
       const brut = readFileSync(join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), 'utf8')
       const dossierSessions = join(this.miroir.dirLocal, 'sessions')
       mkdirSync(dossierSessions, { recursive: true })
-      writeFileSync(
-        join(dossierSessions, `${id}.divergence-${this.identite().sessionId}.json`),
-        brut,
-        'utf8',
-      )
+      let copieEcrite = false
+      while (!copieEcrite) {
+        try {
+          writeFileSync(
+            join(
+              dossierSessions,
+              `${id}.divergence-${this.identite().sessionId}.copie-${randomUUID()}.json`,
+            ),
+            brut,
+            { encoding: 'utf8', flag: 'wx' },
+          )
+          copieEcrite = true
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e
+        }
+      }
     } catch {
       /* rien à mettre de côté */
     }
-    this.revoquerEcriture?.(id)
-    // Variante A : le verrou natif a été PERDU — sortir l'id du journal ; on ne le propose plus comme orphelin à reprendre :
-    // il appartient à autrui.
-    if (this.options.verrouNatif) this.journalRetirer(id)
-    this.sessions.delete(id)
-    if (this.sessions.size === 0) this.arreterMinuteur()
-    this.onRetrogradation?.(id)
+    if (verrouPerdu) {
+      this.retirerSession(id)
+      return
+    }
+    try {
+      await s.provider.liberer(s.cheminVerrou)
+      this.retirerSession(id)
+    } catch {
+      // La session active reste suivie afin que la fermeture retente la libération.
+    }
   }
   revoquerEcriture?: (id: string) => void
 
@@ -338,11 +471,12 @@ export class SessionsDEntretien {
 
   /* ── Copies de DIVERGENCE (fusion assistée) ─────────────────────────────
    *  Une rétrogradation (publication 412) met la copie locale de côté hors
-   *  serveur : `sessions/<id>.divergence-<sessionId>.json`. Elle n'est ni
-   *  perdue ni publiée en silence — listée ici pour le dialogue de fusion.
+   *  serveur. Un id propre préserve les divergences successives d'une session.
+   *  Les anciens noms restent acceptés.
    *  ───────────────────────────────────────────────────────────────────────*/
 
-  private readonly REGEX_DIVERGENCE = /^sessions\/([^/]+)\.divergence-([^/]+)\.json$/
+  private readonly REGEX_DIVERGENCE =
+    /^sessions\/([^/]+)\.divergence-([^/]+?)(?:\.copie-([0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}))?\.json$/i
 
   /** Les copies de divergence de CE POSTE (toutes sessions confondues). */
   listerDivergences(): { chemin: string; id: string; sessionId: string; date: string }[] {
@@ -352,7 +486,7 @@ export class SessionsDEntretien {
         .map((nom) => this.REGEX_DIVERGENCE.exec(`sessions/${nom}`))
         .filter((m): m is RegExpExecArray => !!m)
         .map((m) => ({
-          chemin: `sessions/${m[1]}.divergence-${m[2]}.json`,
+          chemin: m[0],
           id: m[1],
           sessionId: m[2],
           date: statSync(join(this.miroir.dirLocal, m[0])).mtime.toISOString(),

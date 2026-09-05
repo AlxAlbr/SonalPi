@@ -114,11 +114,36 @@ export interface OrphelinDistant {
   acquiredAt: string // ISO
 }
 
+/** État d'une session d'écriture distante exposé au renderer. */
+export type EtatSessionPublic =
+  | { etat: 'aucune' }
+  | { etat: 'a-nous'; dernierPubli: string | null; sale: boolean }
+  | { etat: 'degrade' }
+
+/** Résultat explicite d'une fermeture de session d'écriture. */
+export type ResultatFermetureSession =
+  | { fermee: true }
+  | {
+      fermee: false
+      raison: 'publication' | 'liberation'
+      message?: string
+    }
+
+/** Bilan d'une fermeture de toutes les sessions avant une bascule. */
+export interface ResultatFermetureToutes {
+  fermees: string[]
+  bloquees: Array<{
+    id: string
+    raison: 'publication' | 'liberation'
+    message?: string
+  }>
+}
+
 /** Une copie de DIVERGENCE mise de côté après une rétrogradation de publication 412 —
  *  matière du dialogue de fusion assistée.
  *  Le contenu ne traverse le pont que sur demande explicite (`lireDivergence`). */
 export interface DivergenceDistante {
-  chemin: string // « sessions/<id>.divergence-<sessionId>.json » (relatif miroir)
+  chemin: string // « sessions/<id>.divergence-<sessionId>.copie-<uuid>.json » (relatif miroir)
   id: string // id de l'entretien concerné
   sessionId: string // session d'écriture qui a subi la rétrogradation
   date: string // ISO (mtime de la copie — affichage « copie du JJ/MM HH:MM »)

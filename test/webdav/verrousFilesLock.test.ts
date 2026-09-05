@@ -160,9 +160,11 @@ describe('Session en variante A — cycle inchangé', () => {
     b.serveur.poserVerrouDirect(`entretiens/${ID}.json`, 'olivier')
     await b.sessions.tic()
     expect(b.retrogrades).toEqual([ID])
-    // Copie locale mise de côté (divergence) et session retirée.
-    expect(b.sessions.etat(ID).etat).toBe('aucune')
+    // Copie locale mise de côté, droit d'écriture retiré et état visible.
+    expect(b.sessions.etat(ID).etat).toBe('degrade')
     expect(readFileSync(b.journal(), 'utf8')).not.toContain(ID)
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
+    expect(b.sessions.etat(ID).etat).toBe('aucune')
   })
 })
 

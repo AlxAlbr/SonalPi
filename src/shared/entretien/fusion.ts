@@ -2,10 +2,11 @@
  *  FUSION ASSISTÉE d'une copie de DIVERGENCE.
  *
  *  Quand une publication finit en 412 (contournement du verrou : édition via
- *  l'UI web, forçage), la couche session met la copie locale de côté hors
- *  serveur (`sessions/<id>.divergence-<sessionId>.json`) et rétrograde. La
- *  copie n'est ni perdue ni publiée en silence : ce module fournit les
- *  décisions PURES du dialogue qui la propose à la réconciliation.
+ *  l'UI web, forçage), la couche session rétrograde. Elle met la copie locale
+ *  de côté hors serveur sous un nom unique :
+ *  `sessions/<id>.divergence-<sessionId>.copie-<uuid>.json`.
+ *  La copie n'est ni perdue ni publiée en silence.
+ *  Ce module porte les décisions pures du dialogue de réconciliation.
  *
  *  Politique : les charges utiles sont largement fusionnables par
  *  construction — annotations/ancres par id opaque, locuteurs par index,

@@ -9,7 +9,13 @@ import { texteDuCorps } from '../../shared/entretien/entretien'
 import { squeletteCorpus } from '../../shared/corpus/squelette'
 import { detailsVariablesEntretien, type BlocLocuteur, type LigneValeur } from '../../shared/corpus/variables'
 import { infoGlobale } from '../erreurs'
-import type { EtatVerrouPublic, OrphelinDistant, PresencePublic, ProgressionTransfert } from '../../shared/distant'
+import type {
+  EtatSessionPublic,
+  EtatVerrouPublic,
+  OrphelinDistant,
+  PresencePublic,
+  ProgressionTransfert,
+} from '../../shared/distant'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../shared/corpus/migrationCrp'
 import { useProfil } from './useProfil'
 import { useCorpus } from './useCorpus'
@@ -68,7 +74,10 @@ export function creerSonal() {
       await corpus.rafraichirScanAnon() // la projection des lignes relit la règle fraîche
     },
     lectureSeule: () => lectureSeule.value, // définitions : grisage permanent en distant
-    entretienEditable: () => !lectureSeule.value && !ent.verrouAutrui.value, // ni hors ligne, ni verrou à autrui
+    entretienEditable: () =>
+      !lectureSeule.value &&
+      !ent.verrouAutrui.value &&
+      statutSession.value.etat !== 'degrade',
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -96,7 +105,7 @@ export function creerSonal() {
       return true
     },
   })
-  sauverEntretien = ent.sauver
+  sauverEntretien = ent.viderSauvegarde
 
   // La lecture avance → le bloc lu suit (surlignage + défilement).
   // Décharger l'audio (url null) éteint le surlignage.
@@ -286,9 +295,23 @@ export function creerSonal() {
     vue.value = 'accueil'
   }
 
+  /** Vide l'autosave avant que le main ferme l'ancien contexte. L'éditeur
+   *  reste en place si la préparation du nouveau corpus échoue. */
+  async function preparerBascule() {
+    if (!ent.ouvertId.value) return
+    if (idDistantCourant.value && statutSession.value.etat === 'degrade') {
+      await ent.annulerEtAttendreSauvegarde()
+      return
+    }
+    if (!idDistantCourant.value || (!lectureSeule.value && !ent.verrouAutrui.value)) {
+      await ent.viderSauvegarde()
+    }
+  }
+
   /** « Ouvrir un corpus… » : le scope profil bascule le store sur un autre dossier,
    *  renvoie son contenu ; on l'applique au modèle. */
   async function choisirDossier() {
+    await preparerBascule()
     const r = await profil.choisirDossier()
     if (!r) return
     quitterDistant()
@@ -299,6 +322,7 @@ export function creerSonal() {
    *  Ouvre l'existant si le dossier en contient déjà un (on n'écrase jamais, son nom fait foi).
    *  C'est le pendant création de `choisirDossier`. */
   async function creerNouveauCorpus(dir: string, nom: string) {
+    await preparerBascule()
     const r = await window.sonal.corpus.creerNouveau(dir, nom)
     profil.dossierCourantNom.value = r.nom
     quitterDistant()
@@ -308,6 +332,7 @@ export function creerSonal() {
   /** Rouvrir un corpus récent, local par son chemin ou distant par `distant:ouvrir(id)`.
    *  JAMAIS le chemin miroir en local : le cycle verrou/publie serait contourné. */
   async function ouvrirRecent(entree: EntreeRecent) {
+    await preparerBascule()
     if (entree.type === 'distant') {
       await ouvrirCorpusDistant(entree.id)
       return
@@ -323,6 +348,7 @@ export function creerSonal() {
    *  réseau → exception IPC, l'app reste sur le corpus courant (l'appelant
    *  affiche l'erreur). */
   async function ouvrirCorpusDistant(id: string) {
+    await preparerBascule()
     const r = await window.sonal.distant.ouvrir(id)
     idDistantCourant.value = r.distant.id // active la zone de synchro + le pull doux
     enLigne.value = true // l'ouverture vient de réussir (pull inclus)
@@ -340,6 +366,11 @@ export function creerSonal() {
   /** Création directe d'un corpus distant : publie le squelette sur le serveur puis OUVRE immédiatement,
    *  même comportement que le local : créer = atterrir sur l'écran Corpus.
    *  La publication côté main est idempotente ; un échec lève (l'appelant affiche), le corpus courant reste en place. */
+  async function oublierCompteDistant(id: string) {
+    await fermerEntretien()
+    return window.sonal.distant.oublier(id)
+  }
+
   async function creerCorpusDistant(params: {
     urlServeur: string
     utilisateur: string
@@ -449,6 +480,17 @@ export function creerSonal() {
    *  En ligne, tout est éditable selon ses gardes propres. */
   const lectureSeule = computed(() => idDistantCourant.value !== null && !enLigne.value)
 
+  // Le main attend cet acquittement avant de publier et libérer à la fermeture
+  // normale de l'application.
+  window.sonal.application.surPreparationFermeture(async () => {
+    if (!ent.ouvertId.value) return
+    if (idDistantCourant.value && statutSession.value.etat === 'degrade') {
+      await ent.annulerEtAttendreSauvegarde()
+      return
+    }
+    if (!idDistantCourant.value || !ent.verrouAutrui.value) await ent.viderSauvegarde()
+  })
+
   /** Garde de la Table de données PAR LIGNE.
    *  Dans la table on ne tient JAMAIS de session (y entrer ferme toute session d'écriture), donc tout badge 🔒 est nécessairement autrui.
    *  Ne pas confondre avec `entretienEditable`, propre à l'écran Entretien ouvert. */
@@ -535,18 +577,31 @@ export function creerSonal() {
   // ── Statut de la session d'écriture de l'entretien ouvert ───────────────
   // Poll doux (5 s) tant qu'un entretien est ouvert en corpus distant ;
   // l'état vient du main (`SessionsDEntretien.etat`) : sale ? dernier publi ?
-  type EtatSessionPublic = { etat: 'aucune' | 'a-nous'; dernierPubli?: string | null; sale?: boolean }
   const statutSession = ref<EtatSessionPublic>({ etat: 'aucune' })
   /** Message d'échec de publication (divergence) affiché près du statut. */
   const publiErreur = ref<string | null>(null)
+  function appliquerStatutSession(statut: EtatSessionPublic): void {
+    const nouvelleRetrogradation =
+      statut.etat === 'degrade' && statutSession.value.etat !== 'degrade'
+    statutSession.value = statut
+    if (nouvelleRetrogradation) {
+      ent.editor.value?.setEditable(false)
+      void ent.annulerEtAttendreSauvegarde()
+    }
+  }
+  window.sonal.corpus.surSessionDegradee((id) => {
+    if (idDistantCourant.value && ent.ouvertId.value === id) {
+      appliquerStatutSession({ etat: 'degrade' })
+    }
+  })
   async function rafraichirStatutSession() {
     const id = ent.ouvertId.value
     if (!id || !idDistantCourant.value) {
-      statutSession.value = { etat: 'aucune' }
+      appliquerStatutSession({ etat: 'aucune' })
       return
     }
     try {
-      statutSession.value = await window.sonal.corpus.etatSession(id)
+      appliquerStatutSession(await window.sonal.corpus.etatSession(id))
     } catch {
       /* le main n'a plus de corpus distant : statut inchangé */
     }
@@ -580,6 +635,7 @@ export function creerSonal() {
    *  Applique le corpus au modèle, puis IMPORTE les entretiens SonalPi1 (lecture des .Sonal + audio).
    *  Même geste de profil que `ouvrirDossier` (nom courant + récents). */
   async function migrerDepuisV1(req: DemandeMigration, tabEntV1?: CrpV1Entretien[]) {
+    await preparerBascule()
     const r = await window.sonal.migrer.executer(req)
     profil.dossierCourantNom.value = r.nom
     await profil.rafraichirRecents()
@@ -701,7 +757,13 @@ export function creerSonal() {
   }
   /** Même garde que l'éditeur : le dialogue de fusion n'active « Fusionner »
    *  que si l'entretien ouvert est réellement éditable. */
-  const entretienEditable = computed(() => !lectureSeule.value && !ent.verrouAutrui.value)
+  const entretienEditable = computed(
+    () =>
+      !lectureSeule.value &&
+      !ent.verrouAutrui.value &&
+      statutSession.value.etat !== 'degrade',
+  )
+  watch(entretienEditable, (editable) => ent.editor.value?.setEditable(editable))
 
   /** « Jeter » : la copie est abandonnée explicitement (jamais automatique). */
   async function jeterDivergence() {
@@ -845,26 +907,19 @@ export function creerSonal() {
     srtMessage.value = null
     const ouvert = ent.ouvertId.value === id
     if (ouvert) await ent.sauver() // un autosave en file écrirait l'ancienne transcription.
-    const lecture = await window.sonal.corpus.lireEntretien(id)
-    if (!lecture.ok) return
     try {
-      await window.sonal.corpus.ecrireEntretien(id, {
+      await window.sonal.corpus.remplacerTranscription(id, {
         corpsTexte: importe.payload.corpsTexte,
         annotations: importe.payload.annotations,
         ancres: importe.payload.ancres,
         locuteurs: importe.payload.locuteurs,
-        meta: lecture.data.meta,
-        notes: lecture.data.notes,
-        brouillonsAnon: lecture.data.brouillonsAnon,
-        pseudosDeclares: lecture.data.pseudosDeclares,
-        legacy: lecture.data.legacy,
       })
     } catch (err) {
       srtMessage.value = err instanceof Error ? err.message : String(err)
       return
     }
-    // Session ouverte : recharger depuis le disque (le contenu a changé).
-    if (ouvert) await ent.ouvrir(id)
+    // Session ouverte : recharger sans ouvrir une seconde session locale.
+    if (ouvert) await ent.ouvrir(id, true)
     await rafraichirMetaSelection()
   }
 
@@ -1050,18 +1105,21 @@ export function creerSonal() {
     // Sauvegarde SEULEMENT si nous avons le droit d'écrire : en lecture seule
     // (verrou à autrui / hors ligne), rien n'a pu changer — écrire ferait
     // rejeter par la garde du store et bloquerait la sortie.
+    const sessionDegradee =
+      idDistantCourant.value !== null && statutSession.value.etat === 'degrade'
     const peutEcrire =
-      !idDistantCourant.value || (!lectureSeule.value && !ent.verrouAutrui.value)
-    if (peutEcrire) await ent.sauver()
-    // Corpus distant : publication finale PUIS libération du verrou —
-    // l'ordre est l'invariant central ; le main ne libère jamais sur un
-    // contenu non parti. Sans effet en corpus local.
+      !idDistantCourant.value ||
+      (!lectureSeule.value && !ent.verrouAutrui.value && !sessionDegradee)
+    if (sessionDegradee) await ent.annulerEtAttendreSauvegarde()
+    else if (peutEcrire) await ent.viderSauvegarde()
+    // Une fermeture distante échouée conserve l'éditeur et son état local.
+    // L'appelant peut réessayer au lieu de croire la session terminée.
     if (idDistantCourant.value) {
-      try {
-        await window.sonal.corpus.fermerEntretien(id)
-      } catch {
-        /* serveur injoignable : le verrou reste tenu côté serveur, reprise au
-           prochain passage — jamais de perte locale */
+      const resultat = await window.sonal.corpus.fermerEntretien(id)
+      if (!resultat.fermee) {
+        const geste =
+          resultat.raison === 'publication' ? 'publier les modifications' : 'libérer le verrou'
+        throw new Error(resultat.message ?? `Impossible de ${geste}.`)
       }
     }
     reprise.value = {
@@ -1121,6 +1179,7 @@ export function creerSonal() {
     majDossierCourant: profil.majDossierCourant,
     rafraichirRecents: profil.rafraichirRecents,
     retourCorpus,
+    preparerBascule,
     vue,
     membership: corpus.membership,
     entretien: ent.entretien,
@@ -1209,6 +1268,7 @@ export function creerSonal() {
     choisirDossier,
     creerNouveauCorpus,
     creerCorpusDistant,
+    oublierCompteDistant,
     ouvrirRecent,
     ouvrirCorpusDistant,
     idDistantCourant,

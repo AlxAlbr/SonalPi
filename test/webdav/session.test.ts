@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
@@ -21,9 +21,32 @@ function banc() {
   serveur.poser('corpus.json', '{"membership":{}}')
   serveur.poser(`${'entretiens'}/${ID}.json`, JSON.stringify({ lastModified: 'v1', texte: '' }))
   const dirMiroir = mkdtempSync(join(tmpdir(), 'session-'))
+  const panne = {
+    lecture: false,
+    publication: false,
+    liberation: false,
+    attendrePublication: null as Promise<void> | null,
+    publicationCommencee: null as (() => void) | null,
+  }
+  const fetch: typeof serveur.fetch = async (entree, init) => {
+    const requete = new Request(entree, init)
+    const chemin = new URL(requete.url).pathname
+    if (requete.method === 'GET' && chemin.endsWith(`/entretiens/${ID}.json`)) {
+      if (panne.lecture) return new Response('panne', { status: 503 })
+    }
+    if (requete.method === 'PUT' && chemin.endsWith(`/entretiens/${ID}.json`)) {
+      panne.publicationCommencee?.()
+      if (panne.attendrePublication) await panne.attendrePublication
+      if (panne.publication) return new Response('panne', { status: 503 })
+    }
+    if (requete.method === 'DELETE' && chemin.endsWith(`/verrous/${ID}.lock.json`)) {
+      if (panne.liberation) return new Response('panne', { status: 503 })
+    }
+    return serveur.fetch(entree, init)
+  }
   const client = new ClientWebDAV(
     { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
-    serveur.fetch,
+    fetch,
   )
   const miroir = new MiroirWebDAV(client, dirMiroir)
   const identite: { value: IdentiteSession } = {
@@ -49,6 +72,7 @@ function banc() {
     fichierLocal: join(dirMiroir, 'entretiens', `${ID}.json`),
     verrou: () => serveur.contenuDe(`verrous/${ID}.lock.json`),
     etatVerrou: () => serveur.etagDe(`verrous/${ID}.lock.json`),
+    panne,
   }
 }
 
@@ -62,6 +86,23 @@ describe('Ouverture de session', () => {  it('verrou libre : acquis, le contenu 
     // …l'ouverture a ramené la version serveur (pas confiance au local).
     expect(readFileSync(b.fichierLocal, 'utf8')).toContain('serveur')
     expect(b.verrou()).toBeTruthy()
+  })
+
+  it("une erreur après acquisition libère le verrou ou garde l'état récupérable", async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    b.panne.lecture = true
+    await expect(b.sessions.ouvrir(ID)).rejects.toThrow()
+    expect(b.verrou()).toBeUndefined()
+
+    b.panne.liberation = true
+    await expect(b.sessions.ouvrir(ID)).rejects.toThrow()
+    expect(b.verrou()).toBeTruthy()
+    expect(b.sessions.etat(ID).etat).toBe('a-nous')
+
+    b.panne.lecture = false
+    b.panne.liberation = false
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
   })
 
   it('verrou tenu par autrui : refus avec détenteur, aucun verrou créé par nous', async () => {
@@ -99,17 +140,35 @@ describe('Désignation audio distante — micro-session', () => {
     expect(local.meta?.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
   })
 
-  it('session déjà tenue (lecture de sélection au Corpus) : réutilisée, désignation publiée', async () => {
+  it("refuse la micro-session si l'entretien est déjà ouvert en édition", async () => {
     const b = banc()
     await b.miroir.tirer()
-    await b.sessions.ouvrir(ID) // ex. acquise par la lecture de sélection
+    await b.sessions.ouvrir(ID)
 
     const r = await b.sessions.designerAudio(ID, 'audios/e1.mp3')
-    expect(r.ok).toBe(true)
-    const serveur = JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!) as {
-      meta?: { audioDistant?: { chemin: string } }
-    }
-    expect(serveur.meta?.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+    expect(r).toEqual({ ok: false, raison: 'session-active' })
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).not.toContain('audioDistant')
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
+  })
+
+  it('construit la désignation depuis la version serveur post-verrou', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    b.serveur.poser(
+      `entretiens/${ID}.json`,
+      JSON.stringify({
+        lastModified: 'tiers',
+        texte: 'version fraîche',
+        meta: { valeursGen: { ville: 'lyon' }, audioRef: null },
+      }),
+    )
+
+    expect(await b.sessions.designerAudio(ID, 'audios/e1.mp3')).toEqual({ ok: true })
+    const publie = JSON.parse(b.serveur.contenuDe(`entretiens/${ID}.json`)!)
+    expect(publie.texte).toBe('version fraîche')
+    expect(publie.meta.valeursGen).toEqual({ ville: 'lyon' })
+    expect(publie.meta.audioDistant).toEqual({ chemin: 'audios/e1.mp3' })
+    expect(b.verrou()).toBeUndefined()
   })
 
   it('verrou tenu par autrui : refus sans toucher ni serveur ni miroir', async () => {
@@ -145,6 +204,31 @@ describe('Publication', () => {
     expect(deuxiemeTirage.telecharges).toEqual([])
   })
 
+  it('une modification arrivée pendant le PUT reste sale', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    b.sessions.noterSale(ID)
+    let debloquer!: () => void
+    b.panne.attendrePublication = new Promise<void>((resolve) => {
+      debloquer = resolve
+    })
+    const commencee = new Promise<void>((resolve) => {
+      b.panne.publicationCommencee = resolve
+    })
+
+    const publication = b.sessions.publier(ID)
+    await commencee
+    b.sessions.noterSale(ID)
+    debloquer()
+    expect(await publication).toEqual({ ok: true })
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: true })
+
+    b.panne.attendrePublication = null
+    expect(await b.sessions.publier(ID)).toEqual({ ok: true })
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: false })
+  })
+
   it('publication sans modifications : no-op (aucun trafic inutile)', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -167,7 +251,10 @@ describe('Publication', () => {
     // La session est dégradée : copie de divergence locale hors serveur…
     expect(existsSync(join(b.dirMiroir, 'sessions'))).toBe(true)
     expect(b.retrogrades).toContain(ID)
-    // …et plus aucune session écrivable.
+    // …et l'état reste dégradé jusqu'à la fermeture explicite de l'entretien.
+    expect(b.sessions.etat(ID).etat).toBe('degrade')
+    expect(await b.sessions.ouvrir(ID)).toEqual({ etat: 'degrade' })
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
     expect(b.sessions.etat(ID).etat).toBe('aucune')
   })
 })
@@ -190,8 +277,90 @@ describe('Fermeture — ordre invariant publier PUIS déverrouiller', () => {
     const b = banc()
     await b.miroir.tirer()
     await b.sessions.ouvrir(ID)
-    await b.sessions.fermer(ID)
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
     expect(b.verrou()).toBeUndefined()
+  })
+
+  it('un échec de publication bloque la fermeture et reste récupérable', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    b.sessions.noterSale(ID)
+    b.panne.publication = true
+
+    expect(await b.sessions.fermerToutes()).toMatchObject({
+      fermees: [],
+      bloquees: [{ id: ID, raison: 'publication' }],
+    })
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: true })
+    expect(b.verrou()).toBeTruthy()
+
+    b.panne.publication = false
+    expect(await b.sessions.fermerToutes()).toEqual({ fermees: [ID], bloquees: [] })
+    expect(b.verrou()).toBeUndefined()
+  })
+
+  it('fermerToutes acquitte un état dégradé dont le verrou est déjà libéré', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    b.serveur.poser(`entretiens/${ID}.json`, '{ "contourné": true }')
+    b.sessions.noterSale(ID)
+
+    expect(await b.sessions.publier(ID)).toMatchObject({ ok: false, raison: 'divergence' })
+    expect(b.verrou()).toBeUndefined()
+    expect(await b.sessions.fermerToutes()).toEqual({ fermees: [ID], bloquees: [] })
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'aucune' })
+    expect(() => b.sessions.dispose()).not.toThrow()
+  })
+
+  it('dispose refuse d’oublier une session encore active', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    expect(() => b.sessions.dispose()).toThrow('encore actives')
+    await b.sessions.fermer(ID)
+    expect(() => b.sessions.dispose()).not.toThrow()
+    await expect(b.sessions.ouvrir(ID)).rejects.toThrow('fermeture')
+  })
+
+  it('un échec de libération n’est pas annoncé comme une fermeture réussie', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    b.panne.liberation = true
+
+    expect(await b.sessions.fermer(ID)).toMatchObject({
+      fermee: false,
+      raison: 'liberation',
+    })
+    expect(b.sessions.etat(ID).etat).toBe('a-nous')
+    expect(b.verrou()).toBeTruthy()
+
+    b.panne.liberation = false
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
+    expect(b.verrou()).toBeUndefined()
+  })
+
+  it('une session dégradée reste acquittable si sa première libération échoue', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    b.serveur.poser(`entretiens/${ID}.json`, '{ "contourné": true }')
+    b.sessions.noterSale(ID)
+    b.panne.liberation = true
+
+    expect(await b.sessions.publier(ID)).toMatchObject({ ok: false, raison: 'divergence' })
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+    expect(await b.sessions.fermer(ID)).toMatchObject({
+      fermee: false,
+      raison: 'liberation',
+    })
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+
+    b.panne.liberation = false
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'aucune' })
   })
 })
 
@@ -216,6 +385,9 @@ describe('Rétrogradation', () => {
     await b.sessions.tic()
     expect(b.retrogrades).toEqual([ID])
     expect(existsSync(join(b.dirMiroir, 'sessions'))).toBe(true)
+    expect(b.sessions.etat(ID).etat).toBe('degrade')
+    expect(await b.sessions.ouvrir(ID)).toEqual({ etat: 'degrade' })
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
     expect(b.sessions.etat(ID).etat).toBe('aucune')
   })
 })
@@ -245,10 +417,12 @@ describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
     b.sessions.noterSale(ID)
     await b.sessions.tic()
 
-    // La copie existe et est correctement nommée/idéntifiée.
+    // La copie existe et est correctement nommée/identifiée.
     const divergences = b.sessions.listerDivergences()
     expect(divergences).toHaveLength(1)
-    expect(divergences[0].chemin).toBe(`sessions/${ID}.divergence-s-1.json`)
+    expect(divergences[0].chemin).toMatch(
+      new RegExp(`^sessions/${ID}\\.divergence-s-1\\.copie-[0-9a-f-]{36}\\.json$`),
+    )
     expect(divergences[0].id).toBe(ID)
     expect(divergences[0].sessionId).toBe('s-1')
     expect(divergences[0].date).toBeTruthy()
@@ -268,6 +442,57 @@ describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
     expect(b.sessions.listerDivergences()).toHaveLength(0)
     expect(existsSync(join(b.dirMiroir, divergences[0].chemin))).toBe(false)
     b.sessions.supprimerDivergence(divergences[0].chemin) // déjà partie : ok
+  })
+
+  it('deux divergences successives de la même session conservent les deux copies', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    const travauxLocaux = [
+      { lastModified: 'travail-local-1', texte: 'premier apport' },
+      { lastModified: 'travail-local-2', texte: 'second apport' },
+    ]
+
+    for (const [index, travail] of travauxLocaux.entries()) {
+      await b.sessions.ouvrir(ID)
+      writeFileSync(b.fichierLocal, JSON.stringify(travail))
+      b.sessions.noterSale(ID)
+      b.serveur.poser(
+        `entretiens/${ID}.json`,
+        JSON.stringify({ lastModified: `serveur-${index + 1}`, texte: 'tiers' }),
+      )
+      expect(await b.sessions.publier(ID)).toMatchObject({ ok: false, raison: 'divergence' })
+
+      // La rétrogradation libère le verrou, puis la fermeture acquitte son état.
+      expect(b.serveur.etagDe(`verrous/${ID}.lock.json`)).toBeUndefined()
+      expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+      expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
+    }
+
+    const divergences = b.sessions.listerDivergences()
+    expect(divergences).toHaveLength(2)
+    expect(new Set(divergences.map((d) => d.chemin)).size).toBe(2)
+    expect(divergences.every((d) => d.sessionId === 's-1')).toBe(true)
+    expect(
+      divergences
+        .map((d) => b.sessions.lireDivergence(d.chemin))
+        .sort((a, b) => String(a?.lastModified).localeCompare(String(b?.lastModified))),
+    ).toEqual(travauxLocaux)
+  })
+
+  it('accepte encore les anciens noms de copie', () => {
+    const b = banc()
+    const chemin = `sessions/${ID}.divergence-s-ancienne.json`
+    const contenu = { lastModified: 'ancienne-copie', texte: 'préservé' }
+    const dossier = join(b.dirMiroir, 'sessions')
+    mkdirSync(dossier, { recursive: true })
+    writeFileSync(join(b.dirMiroir, chemin), JSON.stringify(contenu))
+
+    expect(b.sessions.listerDivergences()).toMatchObject([
+      { chemin, id: ID, sessionId: 's-ancienne' },
+    ])
+    expect(b.sessions.lireDivergence(chemin)).toEqual(contenu)
+    b.sessions.supprimerDivergence(chemin)
+    expect(b.sessions.listerDivergences()).toEqual([])
   })
 
   it('sans rétrogradation : aucune divergence listée', async () => {
