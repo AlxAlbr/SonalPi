@@ -1,3 +1,6 @@
+import type { Note } from '../../shared/format'
+import { normaliserNotes } from '../../shared/entretien/notes'
+
 /**
  *  Sanitisation du `corps` d'une note : un contenteditable produit de l'HTML
  *  arbitraire (frappe, collage), on ne conserve QUE le texte et deux balises de
@@ -84,6 +87,14 @@ export function sanitiserCorpsNote(html: string, doc: Document): string {
   serialiser(conteneur, out)
   // Nettoyage des passages vides (rien d'utile dedans) pour éviter du bruit.
   return out.join('').replace(/<(mark|em)[^>]*>\s*<\/\1>/g, '')
+}
+
+/** Normalise et sanitise les notes dès leur entrée dans le renderer. */
+export function normaliserNotesLues(notes: Note[] | null | undefined, doc: Document): Note[] {
+  return normaliserNotes(notes).map((note) => ({
+    ...note,
+    corps: sanitiserCorpsNote(note.corps, doc),
+  }))
 }
 
 /** Renvoie le libellé d'une référence de commentaire tronquée, ex.

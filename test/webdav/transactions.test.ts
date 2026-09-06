@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
@@ -16,7 +16,7 @@ import { CorpusStore } from '../../src/main/corpusStore'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { TransactionsCorpus } from '../../src/main/distant/transactions'
 import type { IdentiteSession } from '../../src/main/distant/sessions'
-import { FORMAT_VERSION, type CorpusFichier } from '../../src/shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../src/shared/format'
 import type { ImplementationFetch } from '../../src/main/webdav/client'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 
@@ -165,8 +165,143 @@ describe('Transaction générique', () => {
     )
     const txHorsLigne = new TransactionsCorpus(clientMort, miroir, () => store, IDENTITE_MAX)
     await expect(txHorsLigne.executer(() => store.poserNom('X'))).rejects.toThrow(/injoignable/)
+    expect(store.ouvrir().nom).toBe('Trans')
     expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(store.lectureSeule).toBe(true)
+  })
+
+  it('réconcilie un PUT appliqué dont la réponse réseau a été perdue', async () => {
+    const { serveur, miroir, store } = await banc()
+    const clientReponsePerdue = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+          await serveur.fetch(entree as URL, init)
+          throw new TypeError('réponse perdue')
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const txReponsePerdue = new TransactionsCorpus(
+      clientReponsePerdue,
+      miroir,
+      () => store,
+      IDENTITE_MAX,
+    )
+
+    await expect(txReponsePerdue.executer(() => store.poserNom('Confirmé'))).resolves.toBeDefined()
+    expect(corpusServeur(serveur).nom).toBe('Confirmé')
+    expect(store.ouvrir().nom).toBe('Confirmé')
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+
+  it('restaure le miroir si la mutation locale lève avant publication', async () => {
+    const { serveur, store, tx } = await banc()
+    await expect(tx.executer(() => {
+      store.poserNom('Mutation partielle')
+      throw new Error('refus métier')
+    })).rejects.toThrow('refus métier')
+
+    expect(store.ouvrir().nom).toBe('Trans')
+    expect(corpusServeur(serveur).nom).toBe('Trans')
+  })
+})
+
+describe('Création et import d’entretien — transaction multi-fichiers', () => {
+  it('publie l’entretien avant son membership et met le miroir à jour', async () => {
+    const { serveur, miroir, store } = await banc()
+    const ordre: string[] = []
+    const clientEspion = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        const url = String(entree)
+        if (init?.method === 'PUT' && url.includes('/entretiens/')) ordre.push('entretien')
+        if (init?.method === 'PUT' && url.endsWith('/corpus.json')) ordre.push('corpus')
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const tx = new TransactionsCorpus(clientEspion, miroir, () => store, IDENTITE_MAX)
+
+    const resultat = await tx.creerEntretienVide('Nouvel entretien')
+
+    expect(ordre).toEqual(['entretien', 'corpus'])
+    expect(corpusServeur(serveur).membership[resultat.id]).toBeDefined()
+    expect(serveur.contenuDe(`entretiens/${resultat.id}.json`)).toBeDefined()
+    expect(store.lireEntretien(resultat.id).ok).toBe(true)
+    expect(miroir.etagDistant(`entretiens/${resultat.id}.json`)).not.toBeNull()
+  })
+
+  it('publie aussi le fichier d’un entretien importé', async () => {
+    const { serveur, tx } = await banc()
+    const fichier = JSON.parse(entretienE1()) as EntretienFichier
+    const { formatVersion: _formatVersion, lastModified: _lastModified, ...payload } = fichier
+    payload.corpsTexte = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Importé' }] }],
+    }
+
+    const resultat = await tx.importerEntretien('Entretien importé', payload)
+
+    expect(corpusServeur(serveur).membership[resultat.id]?.titre).toBe('Entretien importé')
+    expect(serveur.contenuDe(`entretiens/${resultat.id}.json`)).toContain('Importé')
+  })
+
+  it('récupère une réponse perdue après la création exclusive de l’entretien', async () => {
+    const { serveur, miroir, store } = await banc()
+    let reponsePerdue = false
+    const clientReponsePerdue = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        const url = String(entree)
+        if (!reponsePerdue && init?.method === 'PUT' && url.includes('/entretiens/')) {
+          reponsePerdue = true
+          await serveur.fetch(entree as URL, init)
+          throw new TypeError('réponse perdue')
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const tx = new TransactionsCorpus(clientReponsePerdue, miroir, () => store, IDENTITE_MAX)
+
+    const resultat = await tx.creerEntretienVide('Réponse perdue')
+
+    expect(corpusServeur(serveur).membership[resultat.id]).toBeDefined()
+    expect(serveur.contenuDe(`entretiens/${resultat.id}.json`)).toBeDefined()
+  })
+
+  it('retire l’entretien créé si la publication du membership échoue certainement', async () => {
+    const { serveur, miroir, store } = await banc()
+    const clientPanne = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+          return new Response('panne', { status: 503 })
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const tx = new TransactionsCorpus(clientPanne, miroir, () => store, IDENTITE_MAX)
+
+    await expect(tx.creerEntretienVide('Échec corpus')).rejects.toThrow(/erreur|réessayez/i)
+
+    const fichiers = (await clientPanne.propfind('entretiens'))
+      .filter((entree) => !entree.dossier)
+      .map((entree) => entree.chemin)
+    expect(fichiers).toEqual(['e1.json'])
+    expect(Object.keys(corpusServeur(serveur).membership)).toEqual(['e1'])
+  })
+})
+
+describe('Réconciliation des fichiers orphelins', () => {
+  it('archive sous verrou un entretien absent du membership', async () => {
+    const { serveur, tx } = await banc()
+    serveur.poser('entretiens/orphelin.json', entretienE1())
+
+    await expect(tx.reconcilierFichiersOrphelins()).resolves.toEqual(['orphelin'])
+
+    expect(serveur.contenuDe('entretiens/orphelin.json')).toBeUndefined()
+    expect(serveur.contenuDe('corbeille/orphelin.json')).toBeDefined()
+    expect(serveur.contenuDe('entretiens/e1.json')).toBeDefined()
   })
 })
 
@@ -186,6 +321,31 @@ describe('Suppression d\u2019entretien — double verrou', () => {
     expect(store.ouvrir().membership.e1).toBeUndefined()
   })
 
+  it('MOVE appliqué puis réponse perdue : confirme source et destination', async () => {
+    const { serveur, miroir, store } = await banc()
+    const clientReponsePerdue = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'MOVE' && String(entree).endsWith('/entretiens/e1.json')) {
+          await serveur.fetch(entree as URL, init)
+          throw new TypeError('réponse perdue')
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const txReponsePerdue = new TransactionsCorpus(
+      clientReponsePerdue,
+      miroir,
+      () => store,
+      IDENTITE_MAX,
+    )
+
+    await expect(txReponsePerdue.supprimerEntretien('e1')).resolves.toBeDefined()
+    expect(corpusServeur(serveur).membership.e1).toBeUndefined()
+    expect(serveur.contenuDe('entretiens/e1.json')).toBeUndefined()
+    expect(serveur.contenuDe('corbeille/e1.json')).toBeDefined()
+  })
+
   it('refus : l\u2019entretien est verrouillé par olivier → suppression impossible, corpus intact, corpus lock rendu', async () => {
     const { serveur, clientOlivier, tx } = await banc()
     const pOlivier = new ProviderPutConditionnel(clientOlivier, IDENTITE_OLIVIER)
@@ -196,6 +356,30 @@ describe('Suppression d\u2019entretien — double verrou', () => {
     expect(corpusServeur(serveur).membership.e1).toBeDefined()
     expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(await pOlivier.etat('verrous/e1.lock.json')).not.toBeNull()
+  })
+
+  it('échec de publication : restaure membership, entretien, sauvegarde et PNG locaux', async () => {
+    const { serveur, miroir, store } = await banc()
+    writeFileSync(join(miroir.dirLocal, 'entretiens', 'e1.json.bak1'), 'bak', 'utf8')
+    mkdirSync(join(miroir.dirLocal, 'png'), { recursive: true })
+    writeFileSync(join(miroir.dirLocal, 'png', 'e1.png'), 'png', 'utf8')
+    const clientPanne = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+          return new Response('panne', { status: 503 })
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const txPanne = new TransactionsCorpus(clientPanne, miroir, () => store, IDENTITE_MAX)
+
+    await expect(txPanne.supprimerEntretien('e1')).rejects.toThrow(/erreur|réessayez/i)
+    expect(store.ouvrir().membership.e1).toBeDefined()
+    expect(existsSync(join(miroir.dirLocal, 'entretiens', 'e1.json'))).toBe(true)
+    expect(readFileSync(join(miroir.dirLocal, 'entretiens', 'e1.json.bak1'), 'utf8')).toBe('bak')
+    expect(readFileSync(join(miroir.dirLocal, 'png', 'e1.png'), 'utf8')).toBe('png')
+    expect(corpusServeur(serveur).membership.e1).toBeDefined()
   })
 
   it('l\u2019ordre canonique tient : le verrou CORPUS est pris avant le verrou ENTRETIEN)', async () => {
@@ -353,6 +537,35 @@ describe('Lot de valeurs — distant (verrou court par entretien)', () => {
     expect(e1.meta.valeursGen.var_ville).toBeUndefined()
     expect(readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8')).toBe(miroirAvant)
     expect(serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it('réponse perdue après un PUT de valeur : réconcilie serveur et miroir', async () => {
+    const { serveur, miroir, store } = await banc()
+    const clientReponsePerdue = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'PUT' && String(entree).endsWith('/entretiens/e1.json')) {
+          await serveur.fetch(entree as URL, init)
+          throw new TypeError('réponse perdue')
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const txReponsePerdue = new TransactionsCorpus(
+      clientReponsePerdue,
+      miroir,
+      () => store,
+      IDENTITE_MAX,
+    )
+
+    const r = await txReponsePerdue.poserValeurLot([
+      { entretienId: 'e1', cible: { type: 'entretien' }, idVar: 'var_ville', idMod: 'mod_lyon' },
+    ])
+    expect(r).toEqual({ succes: ['e1'], echecs: [] })
+    const serveurJson = JSON.parse(serveur.contenuDe('entretiens/e1.json')!)
+    const miroirJson = JSON.parse(readFileSync(join(miroir.dirLocal, 'entretiens/e1.json'), 'utf8'))
+    expect(serveurJson.meta.valeursGen.var_ville).toBe('mod_lyon')
+    expect(miroirJson.meta.valeursGen.var_ville).toBe('mod_lyon')
   })
 
   it('session à nous (défense en profondeur) : chemin store + noterSale, pas de verrou parallèle', async () => {

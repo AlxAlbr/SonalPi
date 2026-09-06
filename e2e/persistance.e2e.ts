@@ -52,6 +52,30 @@ test('round-trip : coder + éditer → fermer → rouvrir, tout est conservé', 
   await app2.close()
 })
 
+test('fermer immédiatement attend le debounce d’autosave avant de quitter', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-quit-autosave-'))
+  const app1 = await lancer(dir)
+  const page1 = await app1.firstWindow()
+  await entrerCorpus(page1)
+  await entrerEntretien(page1)
+
+  const editeur = page1.locator('.editeur')
+  await editeur.click()
+  await page1.keyboard.press('Control+End')
+  await page1.keyboard.type(' TEXTE-JUSTE-AVANT-FERMETURE')
+  await app1.close()
+
+  const app2 = await lancer(dir)
+  try {
+    const page2 = await app2.firstWindow()
+    await entrerCorpus(page2)
+    await entrerEntretien(page2)
+    await expect(page2.locator('.editeur')).toContainText('TEXTE-JUSTE-AVANT-FERMETURE')
+  } finally {
+    await app2.close()
+  }
+})
+
 test('un entretien de format inconnu est refusé poliment (bannière, pas d’écrasement)', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-ver-'))
 

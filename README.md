@@ -40,9 +40,10 @@ npm run dev          # app en développement (electron-vite)
 npm run build        # build main + preload + renderer
 npm run start        # prévisualiser le build
 
-npm test             # tests unitaires (vitest, headless)
-npm run test:e2e     # e2e Playwright + Electron (build puis lance ; tourne sous WSLg)
-npm run typecheck    # vue-tsc + tsc
+npm test                # tests unitaires (vitest, headless)
+npm run test:e2e        # e2e Playwright + Electron (build puis lance ; tourne sous WSLg)
+npm run diagnostic:e2e  # diagnostics Electron manuels, hors de la suite normale
+npm run typecheck       # vue-tsc + tsc
 ```
 
 **Pile** : Electron + Vue 3 + TipTap/ProseMirror (sans Yjs), electron-vite, vitest, Playwright.

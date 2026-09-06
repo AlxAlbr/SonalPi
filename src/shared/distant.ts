@@ -19,6 +19,8 @@ export interface CompteDistantPublic {
   id: string
   urlServeur: string
   utilisateur: string
+  /** Le main peut ouvrir ce compte sans redemander son mot de passe. */
+  motDePasseDisponible: boolean
 }
 
 export interface DemandeConnexion {

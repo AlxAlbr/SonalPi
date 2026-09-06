@@ -2,32 +2,50 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ecrireSeedDemo } from '../test/seedDemo'
-import { lancer } from './util'
+import { ecrireSeedDemo } from '../../test/seedDemo'
+import { lancer } from '../util'
 
-test('debug A - lancer() partagé', async () => {
-  const app = await lancer(mkdtempSync(join(tmpdir(), 'dbgA-')))
-  const p = await app.firstWindow()
-  await attendreEtRemplir(p)
-  try { await expect(p.locator('.modale-distant .comptes')).toBeVisible({ timeout: 10000 }); console.log('RESULTAT: OK') }
-  catch { console.log('RESULTAT: ECHEC'); console.log('MODALE:', JSON.stringify((await p.locator('.modale-distant').innerText()).slice(-200))) }
-  await app.close()
+test('diagnostic A - lancer() partagé', async () => {
+  const app = await lancer(mkdtempSync(join(tmpdir(), 'diagA-')))
+  try {
+    const page = await app.firstWindow()
+    await attendreEtRemplir(page)
+    await verifierConnexion(page)
+  } finally {
+    await app.close()
+  }
 })
 
-test('debug B - lancement direct', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'dbgB-'))
+test('diagnostic B - lancement direct', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'diagB-'))
   ecrireSeedDemo(join(dir, 'corpus'))
   writeFileSync(join(dir, 'settings.json'), JSON.stringify({ recents: [join(dir, 'corpus')] }))
   const app = await electron.launch({
     args: ['.', '--no-sandbox', `--user-data-dir=${dir}`, '--password-store=basic'],
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '' } as Record<string, string>,
   })
-  const p = await app.firstWindow()
-  await attendreEtRemplir(p)
-  try { await expect(p.locator('.modale-distant .comptes')).toBeVisible({ timeout: 10000 }); console.log('RESULTAT: OK') }
-  catch { console.log('RESULTAT: ECHEC'); console.log('MODALE:', JSON.stringify((await p.locator('.modale-distant').innerText()).slice(-200))) }
-  await app.close()
+  try {
+    const page = await app.firstWindow()
+    await attendreEtRemplir(page)
+    await verifierConnexion(page)
+  } finally {
+    await app.close()
+  }
 })
+
+async function verifierConnexion(page: import('@playwright/test').Page): Promise<void> {
+  try {
+    await expect(page.locator('.modale-distant .comptes')).toBeVisible({ timeout: 10_000 })
+    console.log('RÉSULTAT : connexion réussie.')
+  } catch (erreur) {
+    console.error('RÉSULTAT : échec de connexion.')
+    console.error(
+      'MODALE :',
+      JSON.stringify((await page.locator('.modale-distant').innerText()).slice(-200)),
+    )
+    throw erreur
+  }
+}
 
 async function attendreEtRemplir(p: import('@playwright/test').Page) {
   await expect(p.locator('.ecran.accueil')).toBeVisible({ timeout: 20000 })

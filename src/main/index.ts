@@ -9,7 +9,14 @@ import type {
 import { join, basename, extname, dirname } from 'node:path'
 import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync, readdirSync } from 'node:fs'
 import { Readable } from 'node:stream'
-import { CorpusStore, normaliserCheminAudio } from './corpusStore'
+import {
+  CorpusStore,
+  normaliserCheminAudio,
+  type PreparationOuvertureCorpus,
+} from './corpusStore'
+import { creerTransitionsLocales, oublierCompte } from './transitionContexte'
+import { executerFermetureApplication } from './fermetureApplication'
+import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
 import { ClientWebDAV, ErreurHttp } from './webdav/client'
 import { profilerServeur, sonderFilesLock } from './webdav/sondes'
 import { MiroirWebDAV } from './distant/miroir'
@@ -51,6 +58,7 @@ import type {
   ResultatConnexion,
   ResultatFermetureSession,
   ResultatTiragePublic,
+  CompteDistantPublic,
 } from '../shared/distant'
 import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
 import { EXT_MEDIA } from '../shared/media'
@@ -255,13 +263,10 @@ function createWindow(): void {
     width: 1200,
     height: 860,
     show: false,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      sandbox: false,
-    },
+    webPreferences: preferencesRenderer(join(__dirname, '../preload/index.js')),
   })
 
+  securiserNavigation(win.webContents)
   win.on('ready-to-show', () => win.show())
   win.on('close', (evenement) => {
     if (fermetureAutorisee) return
@@ -290,8 +295,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // La connexion mesure le profil du serveur par sondes RÉELLES,
   // avec les préconditions PUT et les capabilities files_lock.
   // Elle n'enregistre rien avant ces sondes, et refuse un serveur qui ment.
-  // Le secret (mot de passe d'application) vit chiffré dans le coffre (safeStorage) ;
-  // il ne remonte jamais au renderer.
+  // Le secret vit dans safeStorage, ou seulement en mémoire sans trousseau OS.
+  // Il ne remonte jamais du main vers le renderer.
   const coffre = coffreReel(app.getPath('userData'))
   let miroirActif: { id: string; miroir: MiroirWebDAV } | null = null
   // Sessions d'écriture du corpus distant actif : verrous, battements,
@@ -356,25 +361,33 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return resultat
   }
 
-  /** Prépare le nouveau store, ferme l'ancien, puis remplace le contexte sans
-   *  aucun await intermédiaire. */
+  /** Installe un store local après la fermeture réussie de l'ancien contexte. */
+  function finaliserBasculeLocale(
+    nouveauStore: CorpusStore,
+    dir: string,
+    preparation: PreparationOuvertureCorpus,
+  ): OuvertureCorpus {
+    const corpus = nouveauStore.finaliserOuverture(preparation)
+    presence?.arreter()
+    store = nouveauStore
+    sessions = null
+    transactions = null
+    presence = null
+    verrouNatif = false
+    miroirActif = null
+    dossierCourant = dir
+    ajouterRecent(dir)
+    return { dir, nom: corpus.nom ?? basename(dir), corpus }
+  }
+
+  const transitionsLocales = creerTransitionsLocales({
+    fermerContexteActuel,
+    finaliser: finaliserBasculeLocale,
+  })
+
+  /** Prépare la cible sans l'écrire, puis ferme l'ancien contexte avant le commit. */
   const changerDossier = (dir: string) =>
-    transitionner(async () => {
-      const nouveauStore = new CorpusStore(dir)
-      nouveauStore.lectureSeule = false
-      const corpus = nouveauStore.ouvrir()
-      await fermerContexteActuel()
-      presence?.arreter()
-      store = nouveauStore
-      sessions = null
-      transactions = null
-      presence = null
-      verrouNatif = false
-      miroirActif = null
-      dossierCourant = dir
-      ajouterRecent(dir)
-      return { dir, nom: basename(dir), corpus }
-    })
+    transitionner(() => transitionsLocales.ouvrirDossier(dir))
 
   ipcMain.handle('corpus:ouvrir', () => store.ouvrir())
   /** Indicateur pour l'UI : le corpus courant est-il un miroir distant ?
@@ -469,24 +482,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  crée un corpus portant le `nom` saisi ; s'il contient déjà un corpus, l'OUVRE tel quel,
    *  sans rien écraser (son `nom` fait foi). */
   ipcMain.handle('corpus:creerNouveau', (_e, dir: string, nom: string) =>
-    transitionner(async () => {
-      const frais = !existsSync(join(dir, 'corpus.json'))
-      const nouveauStore = new CorpusStore(dir)
-      nouveauStore.lectureSeule = false
-      let corpus = nouveauStore.ouvrir()
-      if (frais && nom && nom.trim()) corpus = nouveauStore.poserNom(nom.trim())
-      await fermerContexteActuel()
-      presence?.arreter()
-      store = nouveauStore
-      sessions = null
-      transactions = null
-      presence = null
-      verrouNatif = false
-      miroirActif = null
-      dossierCourant = dir
-      ajouterRecent(dir)
-      return { dir, nom: corpus.nom ?? basename(dir), corpus }
-    }),
+    transitionner(() => transitionsLocales.creerNouveau(dir, nom)),
   )
   // Session id aléatoire PAR LANCEMENT (portée du bloc corpus entier).
   const SESSION_ID = `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -577,7 +573,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return now
   })
   ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) =>
-    executerDefinitions((cible) => cible.creerEntretienVide(titre)),
+    transactions ? transactions.creerEntretienVide(titre) : store.creerEntretienVide(titre),
   )
   ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
     executerDefinitions((cible) => cible.renommerEntretien(id, titre)),
@@ -605,7 +601,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'corpus:importer',
     (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
-      executerDefinitions((cible) => cible.importerEntretien(titre, payload, codebook, variables, reglesAnon)),
+      transactions
+        ? transactions.importerEntretien(titre, payload, codebook, variables, reglesAnon)
+        : store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
   )
 
   // Codebook (thèmes) — définitions : sous transaction en distant.
@@ -781,7 +779,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
 
   // --- Corpus distant : connexion et ouverture ---
-  const sansSecret = ({ motDePasseChiffre: _s, ...c }: ConfigCorpusDistant) => c
+  const sansSecret = (config: ConfigCorpusDistant): CompteDistantPublic => ({
+    id: config.id,
+    urlServeur: config.urlServeur,
+    utilisateur: config.utilisateur,
+    motDePasseDisponible: coffre.motDePasseDisponible(config.id),
+  })
 
   /** Nettoyage best effort après refus de création : supprime la FEUILLE que nous venons de créer.
    *  (Dossiers vides sans corpus, jamais un dossier préexistant de l'utilisateur.) */
@@ -797,21 +800,26 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   }
 
   ipcMain.handle('distant:lister', () => coffre.lister().map(sansSecret))
+  ipcMain.handle('distant:stockageSecuriseDisponible', () =>
+    coffre.stockageSecuriseDisponible(),
+  )
 
   ipcMain.handle('distant:oublier', (_e, id: string) =>
-    transitionner(async () => {
-      if (miroirActif?.id === id) {
-        await fermerContexteActuel()
+    transitionner(() => oublierCompte({
+      id,
+      idActif: miroirActif?.id ?? null,
+      fermerContexteActuel,
+      desactiverContexte: () => {
         presence?.arreter()
         miroirActif = null
         sessions = null
         transactions = null
         presence = null
         verrouNatif = false
-      }
-      coffre.oublier(id)
-      return coffre.lister().map(sansSecret)
-    }),
+      },
+      oublier: (idCompte) => coffre.oublier(idCompte),
+      lister: () => coffre.lister().map(sansSecret),
+    })),
   )
 
   ipcMain.handle('distant:connecter', async (_e, params: DemandeConnexion) => {
@@ -882,13 +890,13 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   /** Prépare entièrement un corpus distant avant de fermer l'ancien contexte,
    *  puis effectue une bascule atomique. */
-  ipcMain.handle('distant:ouvrir', (_e, id: string) =>
+  ipcMain.handle('distant:ouvrir', (_e, id: string, motDePasseSaisi?: string) =>
     transitionner(async (): Promise<OuvertureDistante> => {
       const config = coffre.lister().find((c) => c.id === id)
       if (!config) throw new Error('Compte distant inconnu')
-      const motDePasse = coffre.motDePasse(id)
+      const motDePasse = motDePasseSaisi || coffre.motDePasse(id)
       if (!motDePasse) {
-        throw new Error('Mot de passe indéchiffrable (trousseau perdu ?) — reconnectez le compte.')
+        throw new Error("Saisissez le mot de passe d'application pour cette session.")
       }
       const client = new ClientWebDAV({
         baseUrl: config.urlServeur,
@@ -943,11 +951,13 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         machineId,
         sessionId: SESSION_ID,
       }))
+      await nouvellesTransactions.reconcilierFichiersOrphelins()
       const corpus = nouveauStore.ouvrir()
       const verrous = nouveauVerrouNatif
         ? await nouvellesSessions.etatVerrousPublicsNatifs()
         : await nouvellesSessions.etatVerrousPublics(tirage.verrous)
 
+      if (motDePasseSaisi) coffre.memoriserMotDePasse(id, motDePasseSaisi)
       await fermerContexteActuel()
       presence?.arreter()
       store = nouveauStore
@@ -963,7 +973,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         dir: dirMiroir,
         nom: corpus.nom ?? basename(config.urlServeur),
         corpus,
-        distant: { id, urlServeur: config.urlServeur, utilisateur: config.utilisateur },
+        distant: sansSecret(config),
         verrous,
         inaccessibles: tirage.inaccessibles.length > 0 ? tirage.inaccessibles : undefined,
       }
@@ -1119,29 +1129,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   /** Migration SonalPi1 → SonalPi2, EXÉCUTION : crée le corpus SonalPi2 dans le dossier dédié,
    *  l'ajoute aux récents, et BASCULE le store dessus (même mécanique que changerDossier). */
   ipcMain.handle('migrer:executer', (_e, req: DemandeMigration) =>
-    transitionner(async () => {
-      const nouveauStore = new CorpusStore(req.dossier)
-      nouveauStore.lectureSeule = false
-      const corpus = nouveauStore.migrerDepuisV1(
-        req.nom,
-        { cheminCrp: req.cheminCrp, dateCreation: req.dateCreation },
-        req.codebook,
-        req.variables,
-        req.reglesAnon,
-        req.paramsAnon,
-      )
-      await fermerContexteActuel()
-      presence?.arreter()
-      store = nouveauStore
-      sessions = null
-      transactions = null
-      presence = null
-      verrouNatif = false
-      miroirActif = null
-      dossierCourant = req.dossier
-      ajouterRecent(req.dossier)
-      return { dir: req.dossier, nom: corpus.nom ?? basename(req.dossier), corpus }
-    }),
+    transitionner(() => transitionsLocales.migrer(req)),
   )
 
   // Protocole `sonal-media` : deux hôtes par nature de ressource.
@@ -1501,19 +1489,14 @@ app.on('before-quit', (evenement) => {
   evenement.preventDefault()
   if (fermetureEnCours) return
   fermetureEnCours = true
-  void (async () => {
-    const renderersVides = await viderRenderersAvantFermeture()
-    if (renderersVides && nettoyerAvantQuit) {
-      // Le réseau peut rester bloqué : après le délai, le miroir et le journal
-      // restent intacts pour la reprise au prochain lancement.
-      await Promise.race([
-        nettoyerAvantQuit().catch(() => {}),
-        new Promise<void>((resolve) => setTimeout(resolve, 6_000)),
-      ])
-    }
-    fermetureAutorisee = true
-    app.quit()
-  })()
+  void executerFermetureApplication({
+    viderRenderers: viderRenderersAvantFermeture,
+    nettoyerDistant: nettoyerAvantQuit,
+    quitter: () => {
+      fermetureAutorisee = true
+      app.quit()
+    },
+  })
 })
 
 app.on('window-all-closed', () => {

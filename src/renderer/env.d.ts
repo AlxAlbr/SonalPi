@@ -160,9 +160,10 @@ declare global {
       }
       distant: {
         lister: () => Promise<CompteDistantPublic[]>
+        stockageSecuriseDisponible: () => Promise<boolean>
         connecter: (params: DemandeConnexion) => Promise<ResultatConnexion>
         creer: (params: DemandeCreationDistante) => Promise<ResultatConnexion>
-        ouvrir: (id: string) => Promise<OuvertureDistante>
+        ouvrir: (id: string, motDePasse?: string) => Promise<OuvertureDistante>
         tirer: () => Promise<ResultatTiragePublic | null>
         /** Navigation du sélecteur « Désigner dans Nextcloud… ». Null si
          *  corpus local ; dossiers d'abord. */

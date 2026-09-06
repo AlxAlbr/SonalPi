@@ -16,8 +16,6 @@ import { defineConfig } from '@playwright/test'
 const PILE = [
   'e2e/audio-distant.e2e.ts',
   'e2e/multi-utilisateur.e2e.ts',
-  'e2e/debug-connexion.e2e.ts',
-  'e2e/debug-verrou.e2e.ts',
 ]
 
 export default defineConfig({

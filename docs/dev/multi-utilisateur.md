@@ -13,6 +13,12 @@ primitives WebDAV (PUT conditionnel `If-None-Match: *` = test-and-set atomique, 
 garde anti-écrasement, LOCK natif quand files_lock est installé) et d'une discipline locale :
 **le miroir tire, les sessions publient, personne n'écrit jamais en cachette.**
 
+`ClientWebDAV` impose HTTPS avant de construire l’en-tête Basic. Seules les boucles locales
+`localhost`, `127.0.0.1` et `::1` acceptent HTTP pour les bancs de développement. Les
+redirections sont refusées. Les échanges JSON, inventaires et verrous sont interrompus après
+30 secondes ; les transferts streamés disposent de 30 minutes et nettoient leur fichier
+`.tmp` en cas d’échec.
+
 ## Les fichiers côté serveur
 
 | Chemin | Rôle | Code |
@@ -92,14 +98,29 @@ reprise.
 
 Les mutations du flux B (codebook, variables, règles corpus, membership, renommage/suppression
 d'entretien) passent par `TransactionsCorpus` (`src/main/distant/transactions.ts`) :
-verrou corpus TOUJOURS variante B → GET frais si périmé → mutation locale → PUT If-Match →
-libération garantie. La suppression d'un entretien est en **double verrou** avec ordre
-canonique : corpus avant entretien, publication avant MOVE corbeille, libération en ordre
-inverse (§4.8).
+verrou corpus TOUJOURS variante B → GET frais si périmé → préparation de la mutation →
+PUT If-Match → libération garantie. La suppression d'un entretien est en **double verrou**
+avec ordre canonique : corpus avant entretien, publication avant MOVE corbeille, libération
+en ordre inverse (§4.8).
+
+La création et l'import sont des transactions multi-fichiers spécialisées : le nouveau fichier
+`entretiens/<id>.json` est créé exclusivement avec `If-None-Match: *`, puis son membership est
+publié dans `corpus.json`. Le miroir n'applique le même plan qu'après confirmation des deux PUT.
+À l'ouverture, les fichiers serveur absents du membership sont archivés sous verrou dans la
+corbeille. Les opérations locales utilisent le journal durable
+`.transaction-fichiers.json`, repris automatiquement après une interruption.
 
 Hors ligne : politique α — les gestes flux B exigent la connexion (refus immédiat net),
 l'édition des entretiens sous verrou continue (flux A). C'est le computed `lectureSeule`
 (`composables/sonal.ts`) observé par l'UI, alimenté par le pull (le pull EST la sonde réseau).
+
+Une transaction courte prend un instantané local avant sa mutation. Après un refus certain,
+le miroir revient à cet état ou à la version serveur relue. Après une coupure ou un timeout,
+un `GET` compare le contenu distant au candidat envoyé : une égalité confirme un PUT dont seule
+la réponse s’est perdue ; une autre version restaure le miroir sans écrasement. Une suppression
+ne déplace les fichiers du miroir qu'après le commit du membership sur le serveur. Cette
+compensation ne s’applique jamais aux autosauvegardes d’une session d’entretien : elles restent
+sales et récupérables jusqu’à publication ou fusion.
 
 ## Écriture de valeurs sans session — le lot par entretien (plan-lot-table-donnees.md)
 

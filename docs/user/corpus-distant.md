@@ -17,6 +17,10 @@ Depuis l'accueil, carte « ☁️ Nouveau corpus distant » (rubrique *En équip
    mot de passe principal).
 3. Le **nom du projet**.
 
+L’adresse doit utiliser **HTTPS**, car les identifiants WebDAV ne doivent jamais
+circuler en clair. HTTP est accepté uniquement pour un serveur de développement
+sur `localhost`, `127.0.0.1` ou `::1`.
+
 Le bouton crée le corpus sur le serveur puis **l'ouvre aussitôt** — même
 comportement que la création locale. Il réapparaîtra dans vos « Récents » avec
 l'icône 🌐.
@@ -27,6 +31,8 @@ l'icône 🌐.
   utilisez alors « Ouvrir un corpus distant ».
 - Une copie de travail est tenue sur votre poste (invisible, gérée par l'app) ;
   le corpus de référence vit sur le serveur.
+- Les opérations réseau ont un délai maximal. Si le serveur cesse de répondre,
+  l’application rend la main sans supprimer les modifications locales non publiées.
 
 ## ⚠️ L'étape indispensable : partager le dossier
 

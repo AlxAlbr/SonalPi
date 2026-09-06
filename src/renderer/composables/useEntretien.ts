@@ -54,12 +54,12 @@ import { suggestionCoeur } from '../../shared/entretien/anon/motsLiaison'
 import type { LegacyBlobs } from '../import/importSonal'
 import {
   genIdNote,
-  normaliserNotes,
   prochainRang,
   renumeroterRangs,
 } from '../../shared/entretien/notes'
 import {
   sanitiserCorpsNote,
+  normaliserNotesLues,
   corpsNoteEnTexte,
   lireLiensNote,
   decoreRefsCommentaires,
@@ -775,7 +775,7 @@ export function useEntretien(deps: {
     meta.audioDistant = res.data.meta.audioDistant ?? null
     brouillonsAnon.value = res.data.brouillonsAnon ?? []
     pseudosDeclares.value = { ...(res.data.pseudosDeclares ?? {}) }
-    notes.value = normaliserNotes(res.data.notes)
+    notes.value = normaliserNotesLues(res.data.notes, document)
     legacyCourant.value = (res.data.legacy as LegacyBlobs | undefined) ?? { tabAnon: null, notes: '' }
     ouvertId.value = id
     chargement = false

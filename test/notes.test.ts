@@ -12,6 +12,7 @@ import {
 } from '../src/shared/entretien/notes'
 import {
   sanitiserCorpsNote,
+  normaliserNotesLues,
   corpsNoteEnTexte,
   echapperTexte,
   surlignerHtml,
@@ -120,6 +121,53 @@ describe('sanitiser — corps de note', () => {
   })
   test('br devient saut de ligne', () => {
     expect(sanitiserCorpsNote('ligne1<br>ligne2', doc())).toBe('ligne1\nligne2')
+  })
+})
+
+describe('sanitiser — notes lues depuis un corpus', () => {
+  test('retire les charges XSS avant leur entrée dans l’état du renderer', () => {
+    const d = doc()
+    const fenetre = d.defaultView as (Window & { __xssCorpus?: number }) | null
+    const [note] = normaliserNotesLues([
+      {
+        id: 'n-xss',
+        categorieId: 'ncat_generale',
+        titre: 'Corpus hostile',
+        date: null,
+        statut: 'prive',
+        corps:
+          '<img src="invalide" onerror="globalThis.__xssCorpus=1">' +
+          '<script>globalThis.__xssCorpus=2</script>' +
+          '<svg onload="globalThis.__xssCorpus=3">dessin</svg>' +
+          '<mark onclick="globalThis.__xssCorpus=4">passage</mark>' +
+          '<a href="javascript:globalThis.__xssCorpus=5">lien</a>',
+        rang: 0,
+        creeLe: '2026-01-01T00:00:00.000Z',
+        modifieLe: null,
+      },
+    ], d)
+
+    expect(fenetre?.__xssCorpus).toBeUndefined()
+    expect(note.corps).toBe('globalThis.__xssCorpus=2dessin<mark>passage</mark>lien')
+    expect(note.corps).not.toMatch(/<(?:img|svg|script|a)\b|\bon\w+\s*=|javascript:/i)
+  })
+
+  test('ne conserve que les passages et les identifiants de liens valides', () => {
+    const [note] = normaliserNotesLues([
+      {
+        id: 'n-attribut',
+        categorieId: 'ncat_generale',
+        titre: '',
+        date: null,
+        statut: 'public',
+        corps: '<em data-liens="a-ok mauvais&lt;id" style="background:url(javascript:x)">lié</em>',
+        rang: 0,
+        creeLe: '',
+        modifieLe: null,
+      },
+    ], doc())
+
+    expect(note.corps).toBe('<em data-liens="a-ok">lié</em>')
   })
 })
 

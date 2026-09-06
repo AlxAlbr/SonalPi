@@ -248,6 +248,8 @@ contextBridge.exposeInMainWorld('sonal', {
   distant: {
     /** Comptes distants configurés — JAMAIS de secret dans le retour. */
     lister: (): Promise<CompteDistantPublic[]> => invoquer('distant:lister'),
+    stockageSecuriseDisponible: (): Promise<boolean> =>
+      invoquer('distant:stockageSecuriseDisponible'),
     connecter: (params: DemandeConnexion): Promise<ResultatConnexion> =>
       invoquer('distant:connecter', params),
     /** Création directe d'un corpus distant : publie le squelette sur le serveur,
@@ -255,7 +257,8 @@ contextBridge.exposeInMainWorld('sonal', {
      *  créer = ouvrir, comme en local. */
     creer: (params: DemandeCreationDistante): Promise<ResultatConnexion> =>
       invoquer('distant:creer', params),
-    ouvrir: (id: string): Promise<OuvertureDistante> => invoquer('distant:ouvrir', id),
+    ouvrir: (id: string, motDePasse?: string): Promise<OuvertureDistante> =>
+      invoquer('distant:ouvrir', id, motDePasse),
     tirer: (): Promise<ResultatTiragePublic | null> => invoquer('distant:tirer'),
     /** Navigation du sélecteur « Désigner dans Nextcloud… » ;
      *  PROPFIND Depth:1 d'un dossier du corpus ; null si corpus local ;

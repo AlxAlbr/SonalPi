@@ -11,16 +11,18 @@ import {
   readFileSync,
   writeFileSync,
   mkdirSync,
+  statSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { join, normalize } from 'node:path'
 import {
   ClientWebDAV,
+  ErreurDelaiWebDAV,
   ErreurHttp,
   analyserMultistatus,
 } from '../../src/main/webdav/client'
-import { profilerServeur, sonderPreconditions } from '../../src/main/webdav/sondes'
+import { profilerServeur, sonderFilesLock, sonderPreconditions } from '../../src/main/webdav/sondes'
 import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import {
   canoniserUrlServeur,
@@ -111,6 +113,107 @@ describe('CorpusStore — résolution EFFECTIVE des audios désignés', () => {
     expect(
       store.cheminMediaAbs(join(tmpdir(), `autre-corpus-${Math.random().toString(36).slice(2)}`, 'audios', 'e1.mp3')),
     ).toBeNull()
+  })
+})
+
+describe('ClientWebDAV — transport sécurisé et borné', () => {
+  it('refuse HTTP hors boucle locale avant tout envoi des identifiants', () => {
+    let appels = 0
+    expect(() => new ClientWebDAV(
+      {
+        baseUrl: 'http://webdav.exemple.org/corpus',
+        identifiants: { utilisateur: 'max', motDePasse: 'secret' },
+      },
+      async () => {
+        appels += 1
+        return new Response(null, { status: 200 })
+      },
+    )).toThrow(/HTTPS.*localhost/i)
+    expect(appels).toBe(0)
+  })
+
+  it.each([
+    'http://localhost.exemple.org/corpus',
+    'ftp://localhost/corpus',
+    'https://max:secret@webdav.exemple.org/corpus',
+    'https://webdav.exemple.org/corpus#fragment',
+  ])('refuse une URL non sûre %s', (baseUrl) => {
+    expect(() => new ClientWebDAV({
+      baseUrl,
+      identifiants: { utilisateur: 'max', motDePasse: 'secret' },
+    }, async () => new Response(null, { status: 200 }))).toThrow()
+  })
+
+  it.each([
+    'https://webdav.exemple.org/corpus',
+    'http://localhost:8080/corpus',
+    'http://127.0.0.1:8080/corpus',
+    'http://[::1]:8080/corpus',
+  ])('accepte le transport autorisé %s', (baseUrl) => {
+    expect(() => new ClientWebDAV({
+      baseUrl,
+      identifiants: { utilisateur: 'max', motDePasse: 'secret' },
+    }, async () => new Response(null, { status: 200 }))).not.toThrow()
+  })
+
+  it('la sonde Nextcloud ne contourne pas le refus de HTTP distant', async () => {
+    let appels = 0
+    await expect(sonderFilesLock(
+      'http://webdav.exemple.org/corpus',
+      { utilisateur: 'max', motDePasse: 'secret' },
+      async () => {
+        appels += 1
+        return new Response(null, { status: 200 })
+      },
+    )).resolves.toBe(false)
+    expect(appels).toBe(0)
+  })
+
+  it('interrompt une requête JSON qui dépasse son délai', async () => {
+    const client = new ClientWebDAV(
+      {
+        baseUrl: 'https://webdav.exemple.org/corpus',
+        identifiants: { utilisateur: 'max', motDePasse: 'secret' },
+      },
+      async (_entree, init) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+      }),
+      { requeteMs: 10 },
+    )
+
+    await expect(client.getTexte('corpus.json')).rejects.toBeInstanceOf(ErreurDelaiWebDAV)
+  })
+
+  it('conserve le délai jusqu’à la consommation complète du corps', async () => {
+    const client = new ClientWebDAV(
+      {
+        baseUrl: 'https://webdav.exemple.org/corpus',
+        identifiants: { utilisateur: 'max', motDePasse: 'secret' },
+      },
+      async (_entree, init) => ({
+        status: 200,
+        text: () => new Promise<string>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        }),
+      }) as Response,
+      { requeteMs: 10 },
+    )
+
+    await expect(client.getTexte('corpus.json')).rejects.toBeInstanceOf(ErreurDelaiWebDAV)
+  })
+
+  it('refuse les redirections afin de ne pas transmettre Basic à une autre origine', async () => {
+    const client = new ClientWebDAV(
+      {
+        baseUrl: 'https://webdav.exemple.org/corpus',
+        identifiants: { utilisateur: 'max', motDePasse: 'secret' },
+      },
+      async (_entree, init) => {
+        expect(init?.redirect).toBe('error')
+        return new Response(null, { status: 200 })
+      },
+    )
+    await expect(client.getTexte('corpus.json')).resolves.toBe('')
   })
 })
 
@@ -585,6 +688,7 @@ describe('Téléversement — putBinaire + garde anti-écrasement', () => {
 
 describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => {
   const chiffreurFactice: Chiffreur = {
+    disponible: () => true,
     chiffre: (s) => Buffer.from(`chiffré(${s})`).toString('base64'),
     dechiffre: (c) => {
       const clair = Buffer.from(c, 'base64').toString('utf8')
@@ -609,9 +713,75 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
     const brut = readFileSync(fichier, 'utf8')
     expect(brut).not.toContain('secret-app')
     expect(brut).toContain(Buffer.from('chiffré(secret-app)').toString('base64'))
+    expect(statSync(fichier).mode & 0o777).toBe(0o600)
+    expect(existsSync(`${fichier}.tmp`)).toBe(false)
     coffre.oublier(config.id)
     expect(coffre.lister()).toEqual([])
     expect(coffre.motDePasse(config.id)).toBeNull()
+  })
+
+  it('sans stockage sécurisé, conserve le secret seulement pendant la session', () => {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'coffre-degrade-')), 'comptes.json')
+    const chiffreurIndisponible: Chiffreur = {
+      disponible: () => false,
+      chiffre: () => {
+        throw new Error('chiffrement indisponible')
+      },
+      dechiffre: (c) => Buffer.from(c.slice(4), 'base64').toString('utf8'),
+    }
+    const coffre = new CoffreComptes(fichier, chiffreurIndisponible)
+    const compte = coffre.enregistrer({
+      urlServeur: 'https://nuage.test/corpus',
+      utilisateur: 'max',
+      motDePasse: 'secret-session',
+    })
+
+    expect(coffre.motDePasse(compte.id)).toBe('secret-session')
+    const persiste = readFileSync(fichier, 'utf8')
+    expect(persiste).not.toContain('secret-session')
+    expect(persiste).not.toContain(Buffer.from('secret-session').toString('base64'))
+    expect(JSON.parse(persiste).comptes[compte.id].motDePasseChiffre).toBeUndefined()
+
+    const apresRedemarrage = new CoffreComptes(fichier, chiffreurIndisponible)
+    expect(apresRedemarrage.lister()).toHaveLength(1)
+    expect(apresRedemarrage.motDePasse(compte.id)).toBeNull()
+    apresRedemarrage.memoriserMotDePasse(compte.id, 'secret-ressaisi')
+    expect(apresRedemarrage.motDePasse(compte.id)).toBe('secret-ressaisi')
+    expect(readFileSync(fichier, 'utf8')).not.toContain('secret-ressaisi')
+  })
+
+  it('retire du disque un ancien secret obfusqué sans le perdre pendant la session', () => {
+    const fichier = join(mkdtempSync(join(tmpdir(), 'coffre-b64-')), 'comptes.json')
+    const id = idDeCorpus('https://nuage.test/corpus', 'max')
+    writeFileSync(
+      fichier,
+      JSON.stringify({
+        formatVersion: 2,
+        comptes: {
+          [id]: {
+            id,
+            urlServeur: 'https://nuage.test/corpus',
+            utilisateur: 'max',
+            motDePasseChiffre: `b64:${Buffer.from('ancien-secret').toString('base64')}`,
+          },
+        },
+      }),
+      'utf8',
+    )
+    const chiffreurIndisponible: Chiffreur = {
+      disponible: () => false,
+      chiffre: () => {
+        throw new Error('chiffrement indisponible')
+      },
+      dechiffre: (c) => Buffer.from(c.slice(4), 'base64').toString('utf8'),
+    }
+    const coffre = new CoffreComptes(fichier, chiffreurIndisponible)
+
+    coffre.assainirSecretsPersistes()
+
+    expect(coffre.motDePasse(id)).toBe('ancien-secret')
+    expect(readFileSync(fichier, 'utf8')).not.toContain('motDePasseChiffre')
+    expect(statSync(fichier).mode & 0o777).toBe(0o600)
   })
 
   it('un secret indéchiffrable (trousseau perdu) renvoie null, jamais une exception', () => {
@@ -624,7 +794,8 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
     }
     for (const c of Object.values(lu.comptes)) c.motDePasseChiffre = 'zombie'
     writeFileSync(fichier, JSON.stringify(lu), 'utf8')
-    expect(coffre.motDePasse(idDeCorpus('u', 'm'))).toBeNull()
+    const apresRedemarrage = new CoffreComptes(fichier, chiffreurFactice)
+    expect(apresRedemarrage.motDePasse(idDeCorpus('u', 'm'))).toBeNull()
   })
 
   it('refuse un coffre corrompu au lieu de le remplacer par un coffre vide', () => {

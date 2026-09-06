@@ -238,7 +238,33 @@ export class SessionsDEntretien {
         await this.degraderInterne(id)
         return { ok: false, raison: 'divergence' }
       }
-      throw e
+      if (e instanceof ErreurHttp) throw e
+      const etagConfirme = await this.confirmerPublicationIncertaine(
+        cheminFichier,
+        contenu,
+        s.etagServeur,
+      )
+      if (!etagConfirme) throw e
+      this.miroir.noterEtagPublie(cheminFichier, etagConfirme)
+      s.etagServeur = etagConfirme
+      s.revisionPubliee = Math.max(s.revisionPubliee, revisionPubliee)
+      s.dernierPubli = new Date().toISOString()
+      this.onPublication?.(id, s.dernierPubli)
+      return { ok: true }
+    }
+  }
+
+  private async confirmerPublicationIncertaine(
+    chemin: string,
+    contenuTente: string,
+    etagAvant: string | null,
+  ): Promise<string | null> {
+    try {
+      const etag = await this.etagServeurDe(chemin)
+      if (!etag || etag === etagAvant) return null
+      return await this.client.getTexte(chemin) === contenuTente ? etag : null
+    } catch {
+      return null
     }
   }
 
@@ -338,28 +364,81 @@ export class SessionsDEntretien {
         return { ok: false, raison: ouverture.etat === 'tenu-par-autrui' ? 'tenu-par-autrui' : 'session-degradee' }
       }
       let resultat!: T
+      const abs = join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id))
+      const contenuAvant = readFileSync(abs, 'utf8')
+      let contenuTente: string | null = null
       try {
-        const abs = join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id))
-        const data = JSON.parse(readFileSync(abs, 'utf8')) as EntretienFichier
+        const data = JSON.parse(contenuAvant) as EntretienFichier
         resultat = mutation(data)
         data.lastModified = new Date().toISOString()
-        this.ecrireLocalFichier(abs, JSON.stringify(data, null, 2))
+        contenuTente = JSON.stringify(data, null, 2)
+        this.ecrireLocalFichier(abs, contenuTente)
         this.noterSale(id)
         const publication = await this.publierInterne(id)
-        if (!publication.ok) return { ok: false, raison: publication.raison ?? 'publication' }
+        if (!publication.ok) {
+          await this.restaurerEntretienCourt(id, contenuAvant)
+          const fermeture = await this.fermerInterne(id)
+          if (!fermeture.fermee) return { ok: false, raison: fermeture.raison }
+          return { ok: false, raison: publication.raison ?? 'publication' }
+        }
       } catch (e) {
+        const reconciliation = contenuTente
+          ? await this.reconcilierEntretienCourt(id, contenuTente, contenuAvant)
+          : false
+        const session = this.sessions.get(id)
+        if (session) session.revisionPubliee = session.revision
         const fermeture = await this.fermerInterne(id)
         if (!fermeture.fermee) {
           throw new Error(
             `${e instanceof Error ? e.message : String(e)}; verrou non libéré (${fermeture.raison}).`,
           )
         }
+        if (reconciliation) return { ok: true, resultat }
         throw e
       }
       const fermeture = await this.fermerInterne(id)
       if (!fermeture.fermee) return { ok: false, raison: fermeture.raison }
       return { ok: true, resultat }
     })
+  }
+
+  /** Relit un PUT court incertain. Un contenu identique confirme le commit. */
+  private async reconcilierEntretienCourt(
+    id: string,
+    contenuTente: string,
+    contenuAvant: string,
+  ): Promise<boolean> {
+    const chemin = CHEMIN_ENTRETIEN(id)
+    try {
+      const etag = await this.etagServeurDe(chemin)
+      if (!etag) {
+        this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenuAvant)
+        return false
+      }
+      const contenuServeur = await this.client.getTexte(chemin)
+      this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenuServeur)
+      this.miroir.noterEtagPublie(chemin, etag)
+      const session = this.sessions.get(id)
+      if (session) session.etagServeur = etag
+      return contenuServeur === contenuTente
+    } catch {
+      this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenuAvant)
+      return false
+    }
+  }
+
+  /** Restaure la version serveur après le refus certain d'une transaction courte. */
+  private async restaurerEntretienCourt(id: string, contenuAvant: string): Promise<void> {
+    const chemin = CHEMIN_ENTRETIEN(id)
+    try {
+      const etag = await this.etagServeurDe(chemin)
+      if (!etag) throw new Error('Entretien distant absent.')
+      const contenuServeur = await this.client.getTexte(chemin)
+      this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenuServeur)
+      this.miroir.noterEtagPublie(chemin, etag)
+    } catch {
+      this.ecrireLocalFichier(join(this.miroir.dirLocal, chemin), contenuAvant)
+    }
   }
 
   /** Désignation audio distante sur un entretien fermé. */

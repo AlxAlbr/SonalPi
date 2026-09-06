@@ -3,14 +3,24 @@
  *  (jamais le principal : révocable individuellement, seul accepté en Basic
  *  auth quand la 2FA est active).
  *
- *  Le secret est chiffré via `safeStorage` d'Electron (clé du trousseau OS) ;
- *  le fichier sur disque ne contient jamais le mot de passe en clair.
- *  Les primitives de chiffrement sont INJECTABLES pour les tests (hors Electron,
- *  safeStorage n'existe pas) — la logique reste testée telle quelle.
+ *  Le secret est chiffré via `safeStorage` d'Electron (clé du trousseau OS).
+ *  Sans stockage sécurisé, il reste seulement en mémoire pour la session.
+ *  Les primitives de chiffrement sont injectables pour tester cette logique
+ *  hors d'Electron.
  */
 
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fchmodSync,
+  fsyncSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 /** Un corpus distant configuré. Son URL est saisie ou choisie par navigation
@@ -20,7 +30,8 @@ export interface ConfigCorpusDistant {
   id: string
   urlServeur: string // racine DAV du corpus, sans barre finale
   utilisateur: string
-  motDePasseChiffre: string // préfixé `ss:` (trousseau) ou `b64:` (repli) + base64
+  /** Absent lorsque le poste ne fournit pas de stockage sécurisé. */
+  motDePasseChiffre?: string
 }
 
 interface FichierComptesV1 {
@@ -40,17 +51,28 @@ export interface MigrationIdCorpus {
 
 function ecrireJsonAtomique(fichier: string, valeur: unknown): void {
   const temporaire = `${fichier}.tmp`
-  writeFileSync(temporaire, JSON.stringify(valeur, null, 2), 'utf8')
+  const descripteur = openSync(temporaire, 'w', 0o600)
+  try {
+    fchmodSync(descripteur, 0o600)
+    writeFileSync(descripteur, JSON.stringify(valeur, null, 2), 'utf8')
+    fsyncSync(descripteur)
+  } finally {
+    closeSync(descripteur)
+  }
   renameSync(temporaire, fichier)
+  chmodSync(fichier, 0o600)
 }
 
 /** Primitives injectables — implémentation réelle : `safeStorage` d'Electron. */
 export interface Chiffreur {
+  disponible(): boolean
   chiffre(clair: string): string
   dechiffre(chiffre: string): string
 }
 
 export class CoffreComptes {
+  private readonly secretsSession = new Map<string, string>()
+
   constructor(
     private readonly fichier: string,
     private readonly chiffreur: Chiffreur,
@@ -101,15 +123,37 @@ export class CoffreComptes {
     return Object.values(this.lire().comptes)
   }
 
-  /** Mot de passe DÉCHIFFRÉ — process main uniquement, jamais renvoyé au
-   *  renderer (le renderer ne connaît que les métadonnées non secrètes). */
+  stockageSecuriseDisponible(): boolean {
+    return this.chiffreur.disponible()
+  }
+
+  /** Mot de passe déchiffré — process main uniquement, jamais renvoyé au
+   *  renderer. Il est gardé en mémoire jusqu'à la fermeture de l'application. */
   motDePasse(id: string): string | null {
-    const c = this.lire().comptes[id]
-    if (!c) return null
+    if (this.secretsSession.has(id)) return this.secretsSession.get(id) ?? null
+    const chiffre = this.lire().comptes[id]?.motDePasseChiffre
+    if (!chiffre) return null
     try {
-      return this.chiffreur.dechiffre(c.motDePasseChiffre)
+      const clair = this.chiffreur.dechiffre(chiffre)
+      this.secretsSession.set(id, clair)
+      return clair
     } catch {
-      return null // plateforme changée / trousseau perdu → reconnexion demandée
+      return null
+    }
+  }
+
+  motDePasseDisponible(id: string): boolean {
+    return this.motDePasse(id) !== null
+  }
+
+  memoriserMotDePasse(id: string, motDePasse: string): void {
+    const comptes = this.lire()
+    const config = comptes.comptes[id]
+    if (!config) throw new Error('Compte distant inconnu')
+    this.secretsSession.set(id, motDePasse)
+    if (this.chiffreur.disponible()) {
+      config.motDePasseChiffre = this.chiffreur.chiffre(motDePasse)
+      ecrireJsonAtomique(this.fichier, comptes)
     }
   }
 
@@ -126,16 +170,50 @@ export class CoffreComptes {
       id,
       urlServeur,
       utilisateur,
-      motDePasseChiffre: this.chiffreur.chiffre(params.motDePasse),
+      ...(this.chiffreur.disponible()
+        ? { motDePasseChiffre: this.chiffreur.chiffre(params.motDePasse) }
+        : {}),
     }
+    this.secretsSession.set(id, params.motDePasse)
     comptes.comptes[id] = config
     ecrireJsonAtomique(this.fichier, comptes)
     return config
   }
 
+  /** Élimine les secrets lisibles qui ne reposent pas sur un trousseau OS.
+   *  Ils restent disponibles en mémoire ou sont rechiffrés si possible. */
+  assainirSecretsPersistes(): void {
+    const comptes = this.lire()
+    const stockageSecurise = this.chiffreur.disponible()
+    let modifie = false
+    for (const config of Object.values(comptes.comptes)) {
+      const chiffre = config.motDePasseChiffre
+      if (!chiffre) continue
+      const obfusque = chiffre.startsWith('b64:')
+      if (!obfusque && stockageSecurise) continue
+      try {
+        const clair = this.chiffreur.dechiffre(chiffre)
+        this.secretsSession.set(config.id, clair)
+        if (stockageSecurise) {
+          config.motDePasseChiffre = this.chiffreur.chiffre(clair)
+        } else {
+          delete config.motDePasseChiffre
+        }
+        modifie = true
+      } catch {
+        if (obfusque) {
+          delete config.motDePasseChiffre
+          modifie = true
+        }
+      }
+    }
+    if (modifie) ecrireJsonAtomique(this.fichier, comptes)
+  }
+
   oublier(id: string): void {
     const comptes = this.lire()
     delete comptes.comptes[id]
+    this.secretsSession.delete(id)
     ecrireJsonAtomique(this.fichier, comptes)
   }
 }
@@ -198,38 +276,35 @@ export function migrerReferencesProfil(
   ecrireJsonAtomique(fichier, settings)
 }
 
-/** Coffre pré-branché sur le vrai `safeStorage` (appelé depuis le main).
- *
- *  REPLI DOCUMENTÉ : sans trousseau système (Linux sans gnome-keyring/kwallet,
- *  WSLg, certains conteneurs), `safeStorage` est indisponible — on ne bloque
- *  pas l'application pour autant. Le secret est alors OBFUSQUÉ en base64.
- *  Chaque valeur est AUTO-DESCRITIVE (`ss:` = chiffrement trousseau, `b64:` =
- *  repli) : le déchiffrement suit le préfixe, donc un compte enregistré quand
- *  le trousseau était là reste lisible même s'il disparaît ensuite (et
- *  réciproquement) ; les valeurs sans préfixe sont l'héritage d'une ancienne
- *  version du format et partent du principe safeStorage. */
+/** Coffre pré-branché sur le vrai `safeStorage` d'Electron. */
 export function coffreReel(dirUserData: string): CoffreComptes {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires -- import paresseux : ce module n'est chargé que dans Electron
+  // eslint-disable-next-line @typescript-eslint/no-var-requires -- import paresseux : ce module n'est chargé que dans Electron.
   const { safeStorage } = require('electron') as typeof import('electron')
+  const disponible = (): boolean => {
+    if (!safeStorage.isEncryptionAvailable()) return false
+    if (process.platform !== 'linux') return true
+    return ['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'].includes(
+      safeStorage.getSelectedStorageBackend(),
+    )
+  }
   const chiffreur: Chiffreur = {
-    chiffre: (clair) =>
-      safeStorage.isEncryptionAvailable()
-        ? 'ss:' + safeStorage.encryptString(clair).toString('base64')
-        : 'b64:' + Buffer.from(clair, 'utf8').toString('base64'),
+    disponible,
+    chiffre: (clair) => 'ss:' + safeStorage.encryptString(clair).toString('base64'),
     dechiffre: (chiffre) =>
       chiffre.startsWith('ss:')
         ? safeStorage.decryptString(Buffer.from(chiffre.slice(3), 'base64'))
         : chiffre.startsWith('b64:')
           ? Buffer.from(chiffre.slice(4), 'base64').toString('utf8')
-          : // Héritage d'une ancienne version du format (sans préfixe) :
-            // chiffré par safeStorage.
-            safeStorage.decryptString(Buffer.from(chiffre, 'base64')),
+          : safeStorage.decryptString(Buffer.from(chiffre, 'base64')),
   }
+  const fichier = join(dirUserData, 'comptes-distant.json')
   const coffre = new CoffreComptes(
-    join(dirUserData, 'comptes-distant.json'),
+    fichier,
     chiffreur,
     (migrations) => migrerReferencesProfil(dirUserData, migrations),
   )
   coffre.lister()
+  if (existsSync(fichier)) chmodSync(fichier, 0o600)
+  coffre.assainirSecretsPersistes()
   return coffre
 }

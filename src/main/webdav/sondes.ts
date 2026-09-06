@@ -14,7 +14,7 @@
  *  jamais du nom du backend.
  */
 
-import { ClientWebDAV, ErreurHttp, retirerGuillemets } from './client'
+import { ClientWebDAV, ErreurHttp, retirerGuillemets, verifierTransportWebDAV } from './client'
 
 export interface ProfilCapacites {
   /** Test-and-set atomique par préconditions : `PUT If-None-Match: *` refuse un second create,
@@ -83,32 +83,42 @@ export const sonderFilesLock = async (
   faireRequete: typeof fetch = fetch,
 ): Promise<boolean> => {
   try {
+    verifierTransportWebDAV(baseUrl)
     // La racine DAV est .../remote.php/dav/files/<user>/<corpus> ;
     // les capabilities vivent à la racine du site : on remonte avant /remote.php/.
     const u = new URL(baseUrl)
     const i = u.pathname.indexOf('/remote.php/')
     const racineSite = i > 0 ? u.pathname.slice(0, i) : ''
     const url = `${u.origin}${racineSite}/ocs/v1.php/cloud/capabilities?format=json`
-    const reponse = await faireRequete(url, {
-      headers: {
-        'OCS-APIRequest': 'true',
-        Authorization:
-          'Basic ' +
-          Buffer.from(`${identifiants.utilisateur}:${identifiants.motDePasse}`).toString('base64'),
-      },
-    })
-    if (!reponse.ok) return false
-    const donnees = (await reponse.json()) as {
-      // Le protocole OCS v1 (Nextcloud) enveloppe la charge utile : { ocs: { meta, data: { capabilities } } }.
-      ocs?: { data?: { capabilities?: { files?: { locking?: boolean | string | number } } } }
-      capabilities?: { files?: { locking?: boolean | string | number } }
+    const controleur = new AbortController()
+    const minuterie = setTimeout(() => controleur.abort(), 30_000)
+    ;(minuterie as unknown as { unref?: () => void }).unref?.()
+    try {
+      const reponse = await faireRequete(url, {
+        headers: {
+          'OCS-APIRequest': 'true',
+          Authorization:
+            'Basic ' +
+            Buffer.from(`${identifiants.utilisateur}:${identifiants.motDePasse}`).toString('base64'),
+        },
+        redirect: 'error',
+        signal: controleur.signal,
+      })
+      if (!reponse.ok) return false
+      const donnees = (await reponse.json()) as {
+        // Le protocole OCS v1 (Nextcloud) enveloppe la charge utile : { ocs: { meta, data: { capabilities } } }.
+        ocs?: { data?: { capabilities?: { files?: { locking?: boolean | string | number } } } }
+        capabilities?: { files?: { locking?: boolean | string | number } }
+      }
+      const fichiers =
+        donnees.ocs?.data?.capabilities?.files ?? donnees.capabilities?.files
+      const locking = fichiers?.locking
+      // Nextcloud expose "1" (string), 1, ou true selon les versions —
+      // tout le reste (absent, "0", 0, false) signifie « plugin absent ».
+      return !!locking && locking !== '0' && locking !== 0
+    } finally {
+      clearTimeout(minuterie)
     }
-    const fichiers =
-      donnees.ocs?.data?.capabilities?.files ?? donnees.capabilities?.files
-    const locking = fichiers?.locking
-    // Nextcloud expose "1" (string), 1, ou true selon les versions —
-    // tout le reste (absent, "0", 0, false) signifie « plugin absent ».
-    return !!locking && locking !== '0' && locking !== 0
   } catch {
     return false
   }

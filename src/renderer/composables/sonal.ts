@@ -8,7 +8,7 @@ import { paramsAnonDefaut, MOTS_LIAISON_DEFAUT } from '../../shared/format'
 import { texteDuCorps } from '../../shared/entretien/entretien'
 import { squeletteCorpus } from '../../shared/corpus/squelette'
 import { detailsVariablesEntretien, type BlocLocuteur, type LigneValeur } from '../../shared/corpus/variables'
-import { infoGlobale } from '../erreurs'
+import { afficherErreurGlobale, effacerErreurGlobaleSi, infoGlobale } from '../erreurs'
 import type {
   EtatSessionPublic,
   EtatVerrouPublic,
@@ -22,6 +22,11 @@ import { useCorpus } from './useCorpus'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
+import {
+  appliquerStatutSession as appliquerStatutSessionApplication,
+  choisirSrtAvantMutation,
+  preparerFermetureEntretien,
+} from '../couturesApplication'
 
 /**
  *  ORCHESTRATION applicative : instancie et COUD les trois scopes (profil,
@@ -347,9 +352,9 @@ export function creerSonal() {
    *  qu'une ouverture locale, il ne sait pas qu'un serveur existe. Échec
    *  réseau → exception IPC, l'app reste sur le corpus courant (l'appelant
    *  affiche l'erreur). */
-  async function ouvrirCorpusDistant(id: string) {
+  async function ouvrirCorpusDistant(id: string, motDePasse?: string) {
     await preparerBascule()
-    const r = await window.sonal.distant.ouvrir(id)
+    const r = await window.sonal.distant.ouvrir(id, motDePasse)
     idDistantCourant.value = r.distant.id // active la zone de synchro + le pull doux
     enLigne.value = true // l'ouverture vient de réussir (pull inclus)
     dernierTirage.value = new Date().toISOString() // le main vient de tirer
@@ -581,13 +586,11 @@ export function creerSonal() {
   /** Message d'échec de publication (divergence) affiché près du statut. */
   const publiErreur = ref<string | null>(null)
   function appliquerStatutSession(statut: EtatSessionPublic): void {
-    const nouvelleRetrogradation =
-      statut.etat === 'degrade' && statutSession.value.etat !== 'degrade'
-    statutSession.value = statut
-    if (nouvelleRetrogradation) {
-      ent.editor.value?.setEditable(false)
-      void ent.annulerEtAttendreSauvegarde()
-    }
+    appliquerStatutSessionApplication(statutSession.value, statut, {
+      definirStatut: (nouveauStatut) => { statutSession.value = nouveauStatut },
+      rendreEditeurNonModifiable: () => ent.editor.value?.setEditable(false),
+      annulerSauvegarde: ent.annulerEtAttendreSauvegarde,
+    })
   }
   window.sonal.corpus.surSessionDegradee((id) => {
     if (idDistantCourant.value && ent.ouvertId.value === id) {
@@ -695,13 +698,27 @@ export function creerSonal() {
     await corpus.rafraichirScanAnon()
   }
 
+  let derniereErreurSortie: string | null = null
+  async function fermerEntretienPourNavigation(): Promise<void> {
+    try {
+      await fermerEntretien()
+      if (derniereErreurSortie) effacerErreurGlobaleSi(derniereErreurSortie)
+      derniereErreurSortie = null
+    } catch (erreur) {
+      derniereErreurSortie = afficherErreurGlobale(
+        erreur,
+        'Vous restez dans l’entretien, car sa fermeture a échoué',
+      )
+      throw erreur
+    }
+  }
   async function retourCorpus() {
-    await fermerEntretien()
+    await fermerEntretienPourNavigation()
     if (idDistantCourant.value) void window.sonal.distant.noterEntretienOuvert(null)
     vue.value = 'corpus'
   }
   async function allerAccueil() {
-    await fermerEntretien()
+    await fermerEntretienPourNavigation()
     if (idDistantCourant.value) void window.sonal.distant.noterEntretienOuvert(null)
     vue.value = 'accueil'
   }
@@ -893,34 +910,37 @@ export function creerSonal() {
    *  Les données saisies AUTOUR sont préservées (valeurs EAV, notes,
    *  brouillons anon et legacy). On remplace le texte, pas les méta. */
   async function importerSrtDans(id: string) {
-    const fichier = await window.sonal.dialog.choisirSrt(demo.racineSources.value ?? undefined)
-    if (!fichier) return
-    let importe: ResultatImport
-    try {
-      importe = importerFichier(fichier.nom, fichier.contenu, (html) =>
-        new DOMParser().parseFromString(html, 'text/html'),
-      )
-    } catch (err) {
-      srtMessage.value = err instanceof Error ? err.message : String(err)
-      return
-    }
-    srtMessage.value = null
-    const ouvert = ent.ouvertId.value === id
-    if (ouvert) await ent.sauver() // un autosave en file écrirait l'ancienne transcription.
-    try {
-      await window.sonal.corpus.remplacerTranscription(id, {
-        corpsTexte: importe.payload.corpsTexte,
-        annotations: importe.payload.annotations,
-        ancres: importe.payload.ancres,
-        locuteurs: importe.payload.locuteurs,
-      })
-    } catch (err) {
-      srtMessage.value = err instanceof Error ? err.message : String(err)
-      return
-    }
-    // Session ouverte : recharger sans ouvrir une seconde session locale.
-    if (ouvert) await ent.ouvrir(id, true)
-    await rafraichirMetaSelection()
+    await choisirSrtAvantMutation(
+      () => window.sonal.dialog.choisirSrt(demo.racineSources.value ?? undefined),
+      async (fichier) => {
+        let importe: ResultatImport
+        try {
+          importe = importerFichier(fichier.nom, fichier.contenu, (html) =>
+            new DOMParser().parseFromString(html, 'text/html'),
+          )
+        } catch (err) {
+          srtMessage.value = err instanceof Error ? err.message : String(err)
+          return
+        }
+        srtMessage.value = null
+        const ouvert = ent.ouvertId.value === id
+        if (ouvert) await ent.sauver() // un autosave en file écrirait l'ancienne transcription.
+        try {
+          await window.sonal.corpus.remplacerTranscription(id, {
+            corpsTexte: importe.payload.corpsTexte,
+            annotations: importe.payload.annotations,
+            ancres: importe.payload.ancres,
+            locuteurs: importe.payload.locuteurs,
+          })
+        } catch (err) {
+          srtMessage.value = err instanceof Error ? err.message : String(err)
+          return
+        }
+        // Session ouverte : recharger sans ouvrir une seconde session locale.
+        if (ouvert) await ent.ouvrir(id, true)
+        await rafraichirMetaSelection()
+      },
+    )
   }
 
   /** « Assigner un audio… » à l'entretien OUVERT (depuis le lecteur, ex. audio référencé introuvable).
@@ -1107,11 +1127,14 @@ export function creerSonal() {
     // rejeter par la garde du store et bloquerait la sortie.
     const sessionDegradee =
       idDistantCourant.value !== null && statutSession.value.etat === 'degrade'
-    const peutEcrire =
-      !idDistantCourant.value ||
-      (!lectureSeule.value && !ent.verrouAutrui.value && !sessionDegradee)
-    if (sessionDegradee) await ent.annulerEtAttendreSauvegarde()
-    else if (peutEcrire) await ent.viderSauvegarde()
+    await preparerFermetureEntretien({
+      distant: idDistantCourant.value !== null,
+      degrade: sessionDegradee,
+      lectureSeule: lectureSeule.value,
+      verrouAutrui: !!ent.verrouAutrui.value,
+      annulerSauvegarde: ent.annulerEtAttendreSauvegarde,
+      viderSauvegarde: ent.viderSauvegarde,
+    })
     // Une fermeture distante échouée conserve l'éditeur et son état local.
     // L'appelant peut réessayer au lieu de croire la session terminée.
     if (idDistantCourant.value) {
@@ -1121,6 +1144,7 @@ export function creerSonal() {
           resultat.raison === 'publication' ? 'publier les modifications' : 'libérer le verrou'
         throw new Error(resultat.message ?? `Impossible de ${geste}.`)
       }
+      appliquerStatutSession({ etat: 'aucune' })
     }
     reprise.value = {
       id,
@@ -1131,7 +1155,7 @@ export function creerSonal() {
     audio.charger(null, null)
   }
   async function allerDonnees() {
-    await fermerEntretien()
+    await fermerEntretienPourNavigation()
     await corpus.rafraichirMatrice()
     vue.value = 'donnees'
   }

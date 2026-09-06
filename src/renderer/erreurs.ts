@@ -22,6 +22,11 @@ export function effacerErreurGlobale(): void {
   erreurGlobale.value = null
 }
 
+/** Efface un message seulement s'il est encore celui qui est affiché. */
+export function effacerErreurGlobaleSi(message: string): void {
+  if (erreurGlobale.value === message) erreurGlobale.value = null
+}
+
 export function effacerInfoGlobale(): void {
   infoGlobale.value = null
 }
@@ -40,6 +45,14 @@ function nettoyerMessage(raison: unknown): string {
   return (m ? m[1] : brut)?.trim() || 'Erreur inattendue.'
 }
 
+/** Affiche une erreur attendue en conservant son détail utile. */
+export function afficherErreurGlobale(raison: unknown, contexte?: string): string {
+  const detail = nettoyerMessage(raison)
+  const message = contexte ? `${contexte} : ${detail}` : detail
+  erreurGlobale.value = message
+  return message
+}
+
 let installe = false
 
 /** À appeler UNE fois au démarrage du renderer (main.ts). Sans effet multiple. */
@@ -48,6 +61,6 @@ export function installerErreursGlobales(): void {
   installe = true
   window.addEventListener('unhandledrejection', (ev) => {
     // On n'appelle PAS preventDefault : la trace reste visible en console dev.
-    erreurGlobale.value = nettoyerMessage(ev.reason)
+    afficherErreurGlobale(ev.reason)
   })
 }

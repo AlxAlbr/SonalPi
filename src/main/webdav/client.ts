@@ -67,6 +67,18 @@ export interface ConfigWebDAV {
   identifiants: Identifiants
 }
 
+export interface DelaisWebDAV {
+  /** Requêtes JSON, verrous et inventaires WebDAV. */
+  requeteMs: number
+  /** Transferts de fichiers potentiellement volumineux. */
+  transfertMs: number
+}
+
+const DELAIS_PAR_DEFAUT: DelaisWebDAV = {
+  requeteMs: 30_000,
+  transfertMs: 30 * 60_000,
+}
+
 /** Entrée d'un PROPFIND Depth:1 : chemin relatif + ETag (+ indicateur dossier,
  *  pour que le miroir distingue `entretiens/` d'un fichier homonyme). */
 export interface EntreePropfind {
@@ -89,6 +101,17 @@ export class ErreurHttp extends Error {
   ) {
     super(message)
     this.name = 'ErreurHttp'
+  }
+}
+
+export class ErreurDelaiWebDAV extends Error {
+  constructor(
+    public readonly methode: string,
+    public readonly chemin: string,
+    public readonly delaiMs: number,
+  ) {
+    super(`${methode} ${chemin} a dépassé le délai de ${delaiMs} ms`)
+    this.name = 'ErreurDelaiWebDAV'
   }
 }
 
@@ -115,6 +138,26 @@ export interface EtatVerrouNatif {
   timeout: number | null
 }
 
+/** Vérifie le transport avant toute construction d'en-tête Basic. */
+export function verifierTransportWebDAV(baseUrl: string): void {
+  let url: URL
+  try {
+    url = new URL(baseUrl)
+  } catch {
+    throw new Error('L’adresse WebDAV est invalide.')
+  }
+  if (url.username || url.password) {
+    throw new Error('L’adresse WebDAV ne doit pas contenir d’identifiants.')
+  }
+  if (url.hash) throw new Error('L’adresse WebDAV ne doit pas contenir de fragment.')
+  const hoteLocal = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(url.hostname.toLowerCase())
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && hoteLocal)) {
+    throw new Error(
+      'Une connexion WebDAV HTTPS est obligatoire. HTTP est accepté uniquement sur localhost.',
+    )
+  }
+}
+
 /** En-tête d'authentification Basic : seule forme acceptée en WebDAV,
  *  quand la 2FA est active, avec un mot de passe d'application. */
 function enteteAuth(identifiants: Identifiants): string {
@@ -122,12 +165,21 @@ function enteteAuth(identifiants: Identifiants): string {
 }
 
 export class ClientWebDAV {
+  private readonly delais: DelaisWebDAV
+
   constructor(
     /** Public en lecture : les sondes remontent l'URL racine du site,
      *  pour interroger les capabilities sans dupliquer la config. */
     public readonly config: ConfigWebDAV,
     private readonly faireRequete: ImplementationFetch = fetch,
-  ) {}
+    delais: Partial<DelaisWebDAV> = {},
+  ) {
+    verifierTransportWebDAV(config.baseUrl)
+    this.delais = { ...DELAIS_PAR_DEFAUT, ...delais }
+    if (this.delais.requeteMs <= 0 || this.delais.transfertMs <= 0) {
+      throw new Error('Les délais WebDAV doivent être strictement positifs.')
+    }
+  }
 
   /** URL absolue d'un chemin relatif (encodage des segments préservé). */
   private url(chemin: string): string {
@@ -135,7 +187,7 @@ export class ClientWebDAV {
     return `${this.config.baseUrl}/${segments}`
   }
 
-  private async requete(
+  private async requete<T = Response>(
     methode: string,
     chemin: string,
     options: {
@@ -145,22 +197,41 @@ export class ClientWebDAV {
       duplex?: 'half'
       /** Statuts considérés normaux (pas d'exception). */
       statutsOk?: number[]
+      /** Un transfert garde un délai plus long que les échanges JSON. */
+      transfert?: boolean
+      /** Le traitement reste sous le même délai que la réception des en-têtes. */
+      traiter?: (reponse: Response) => Promise<T> | T
     } = {},
-  ): Promise<Response> {
-    const reponse = await this.faireRequete(this.url(chemin), {
-      method: methode,
-      headers: {
-        Authorization: enteteAuth(this.config.identifiants),
-        ...options.entetes,
-      },
-      body: options.corps ?? undefined,
-      ...(options.duplex ? { duplex: options.duplex } : {}),
-    })
-    const ok = options.statutsOk ?? [200, 201, 204]
-    if (!ok.includes(reponse.status)) {
-      throw new ErreurHttp(reponse.status, `${methode} ${chemin} → ${reponse.status}`)
+  ): Promise<T> {
+    const delaiMs = options.transfert ? this.delais.transfertMs : this.delais.requeteMs
+    const controleur = new AbortController()
+    const minuterie = setTimeout(() => controleur.abort(), delaiMs)
+    ;(minuterie as unknown as { unref?: () => void }).unref?.()
+    try {
+      const reponse = await this.faireRequete(this.url(chemin), {
+        method: methode,
+        headers: {
+          Authorization: enteteAuth(this.config.identifiants),
+          ...options.entetes,
+        },
+        body: options.corps ?? undefined,
+        signal: controleur.signal,
+        redirect: 'error',
+        ...(options.duplex ? { duplex: options.duplex } : {}),
+      })
+      const ok = options.statutsOk ?? [200, 201, 204]
+      if (!ok.includes(reponse.status)) {
+        throw new ErreurHttp(reponse.status, `${methode} ${chemin} → ${reponse.status}`)
+      }
+      return options.traiter
+        ? await options.traiter(reponse)
+        : reponse as T
+    } catch (e) {
+      if (controleur.signal.aborted) throw new ErreurDelaiWebDAV(methode, chemin, delaiMs)
+      throw e
+    } finally {
+      clearTimeout(minuterie)
     }
-    return reponse
   }
 
   /** PROPFIND Depth:1 sur un dossier relatif (« », « entretiens »).
@@ -175,12 +246,12 @@ export class ClientWebDAV {
     <d:getcontentlength/>
   </d:prop>
 </d:propfind>`
-    const reponse = await this.requete('PROPFIND', dossierRelatif, {
+    const xml = await this.requete<string>('PROPFIND', dossierRelatif, {
       entetes: { Depth: '1', 'Content-Type': 'application/xml' },
       corps,
       statutsOk: [207],
+      traiter: (reponse) => reponse.text(),
     })
-    const xml = await reponse.text()
     // Les `href` du multistatus sont des chemins SERVEUR absolus ;
     // on les relativise contre le chemin de la collection interrogée (baseUrl + dossier),
     // décodés tous les deux pour une comparaison stable.
@@ -201,15 +272,17 @@ export class ClientWebDAV {
   /** GET d'un fichier (texte). 404 → exception typée (l'appelant décide :
    *  corpus absent à l'amorce, fichier disparu entre deux pulls…). */
   async getTexte(chemin: string): Promise<string> {
-    const reponse = await this.requete('GET', chemin)
-    return reponse.text()
+    return this.requete<string>('GET', chemin, {
+      traiter: (reponse) => reponse.text(),
+    })
   }
 
   /** GET d'un fichier binaire EN MÉMOIRE (réservé aux petits fichiers ;
    *  les gros passent par `getBinaireFichier`, streamé vers le disque). */
   async getBinaire(chemin: string): Promise<Uint8Array> {
-    const reponse = await this.requete('GET', chemin)
-    return new Uint8Array(await reponse.arrayBuffer())
+    return this.requete<Uint8Array>('GET', chemin, {
+      traiter: async (reponse) => new Uint8Array(await reponse.arrayBuffer()),
+    })
   }
 
   /** GET d'un fichier binaire ÉCRIT EN FLUX vers un chemin local ABSOLU :
@@ -222,21 +295,25 @@ export class ClientWebDAV {
     destination: string,
     surProgression?: SurProgression,
   ): Promise<void> {
-    const reponse = await this.requete('GET', chemin)
-    if (!reponse.body) throw new ErreurHttp(0, `GET ${chemin} → corps vide`)
-    // Total si le serveur l'expose (Nextcloud le fait) ;
-    // sinon progression indéterminée : l'UI affiche les octets seuls.
-    const tailleBrute = Number(reponse.headers.get('content-length') ?? '')
-    const total = Number.isFinite(tailleBrute) && tailleBrute > 0 ? tailleBrute : null
     const tmp = `${destination}.tmp`
     try {
-      const fluxCompteur = surProgression ? compteurProgression(surProgression, total) : null
-      await pipeline(
-        Readable.fromWeb(reponse.body as unknown as import('node:stream/web').ReadableStream),
-        ...(fluxCompteur ? [fluxCompteur] : []),
-        createWriteStream(tmp),
-      )
-      renameSync(tmp, destination)
+      await this.requete<void>('GET', chemin, {
+        transfert: true,
+        traiter: async (reponse) => {
+          if (!reponse.body) throw new ErreurHttp(0, `GET ${chemin} → corps vide`)
+          // Total si le serveur l'expose (Nextcloud le fait) ;
+          // sinon progression indéterminée : l'UI affiche les octets seuls.
+          const tailleBrute = Number(reponse.headers.get('content-length') ?? '')
+          const total = Number.isFinite(tailleBrute) && tailleBrute > 0 ? tailleBrute : null
+          const fluxCompteur = surProgression ? compteurProgression(surProgression, total) : null
+          await pipeline(
+            Readable.fromWeb(reponse.body as unknown as import('node:stream/web').ReadableStream),
+            ...(fluxCompteur ? [fluxCompteur] : []),
+            createWriteStream(tmp),
+          )
+          renameSync(tmp, destination)
+        },
+      })
     } catch (e) {
       if (existsSync(tmp)) rmSync(tmp)
       throw e
@@ -311,6 +388,7 @@ export class ClientWebDAV {
       // le client écrivant sans lire la réponse en même temps.
       corps,
       duplex: 'half',
+      transfert: true,
     })
     const etag = reponse.headers.get('etag') ?? reponse.headers.get('ETag')
     return etag ? retirerGuillemets(etag) : null
@@ -403,12 +481,12 @@ export class ClientWebDAV {
 </d:propfind>`
     let xml: string
     try {
-      const reponse = await this.requete('PROPFIND', chemin, {
+      xml = await this.requete<string>('PROPFIND', chemin, {
         entetes: { Depth: '0', 'Content-Type': 'application/xml' },
         corps,
         statutsOk: [207],
+        traiter: (reponse) => reponse.text(),
       })
-      xml = await reponse.text()
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 404) return null
       throw e
@@ -432,12 +510,12 @@ export class ClientWebDAV {
     <nc:lock-timeout/>
   </d:prop>
 </d:propfind>`
-    const reponse = await this.requete('PROPFIND', dossierRelatif, {
+    const xml = await this.requete<string>('PROPFIND', dossierRelatif, {
       entetes: { Depth: '1', 'Content-Type': 'application/xml' },
       corps,
       statutsOk: [207],
+      traiter: (reponse) => reponse.text(),
     })
-    const xml = await reponse.text()
     // Même relativisation que `propfind` : hrefs absolus → chemins relatifs,
     // alignés sur la racine du corpus.
     const cheminRacine = decodeURIComponent(new URL(this.config.baseUrl).pathname).replace(

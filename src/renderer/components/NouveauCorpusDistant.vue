@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { utiliserSonal } from '../composables/sonal'
 
 /**
@@ -19,12 +19,18 @@ import { utiliserSonal } from '../composables/sonal'
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const { creerCorpusDistant } = utiliserSonal()
 
+const stockageSecuriseDisponible = ref<boolean | null>(null)
 const urlServeur = ref('')
 const utilisateur = ref('')
 const motDePasse = ref('')
 const nomProjet = ref('')
 const enCours = ref(false)
 const erreur = ref<string | null>(null)
+
+onMounted(async () => {
+  stockageSecuriseDisponible.value =
+    await window.sonal.distant.stockageSecuriseDisponible()
+})
 
 /** URL nettoyée (sans barre finale) — celle que le serveur verra réellement. */
 const urlPropre = computed(() => urlServeur.value.trim().replace(/\/+$/, ''))
@@ -42,6 +48,7 @@ const cibleAffichee = computed(() => {
 
 const pret = computed(
   () =>
+    stockageSecuriseDisponible.value !== null &&
     !enCours.value &&
     urlPropre.value.length > 0 &&
     utilisateur.value.trim().length > 0 &&
@@ -78,6 +85,16 @@ async function creer() {
           l'ouvriront chez eux (« Ouvrir un corpus distant »). Une copie de travail
           est tenue sur ce poste, synchronisée automatiquement.
         </p>
+
+        <div v-if="stockageSecuriseDisponible === false" class="avertissement-coffre">
+          <strong>Stockage sécurisé indisponible</strong>
+          <span>
+            Sonal ne conservera pas votre mot de passe d'application : vous devrez le
+            saisir après chaque redémarrage. Conservez-le dans un gestionnaire comme
+            KeePassXC, ou configurez GNOME Keyring/KWallet. Il restera uniquement en
+            mémoire jusqu'à la fermeture de Sonal.
+          </span>
+        </div>
 
         <!-- 1 — le dossier CIBLE sur le serveur,
              équivalent distant du choix de dossier local + identifiants -->
@@ -170,6 +187,17 @@ async function creer() {
 .note-secret {
   font-style: italic;
   color: #888;
+}
+.avertissement-coffre {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e2a842;
+  border-radius: 6px;
+  background: #fff8e8;
+  color: #704b09;
+  font-size: 0.78rem;
 }
 .question {
   display: flex;

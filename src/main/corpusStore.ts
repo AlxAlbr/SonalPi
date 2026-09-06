@@ -16,6 +16,12 @@ import type { ScanRegle } from '../shared/corpus/scanAnon'
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
+import {
+  TransactionsFichiersCorpus,
+  type PlanAjoutEntretien,
+  type PlanSuppressionEntretien,
+  type PlanTransactionFichiers,
+} from './transactionsFichiers'
 
 /** Pourquoi des numéros de version ?
  *  Chaque évolution du format de fichier est migrée EXPLICITEMENT à la lecture.
@@ -99,6 +105,28 @@ export function normaliserCheminAudio(source: string): string {
   return normalize(p)
 }
 
+interface EntretienV2Prepare {
+  readonly fichier: string
+  readonly contenuInitial: string
+  readonly data: EntretienFichier
+}
+
+interface DeplacementPngPrepare {
+  readonly source: string
+  readonly destination: string
+  readonly contenuSourceInitial: Buffer
+}
+
+/** Résultat d'une préparation en mémoire, sans modification de la cible. */
+export interface PreparationOuvertureCorpus {
+  readonly corpus: CorpusFichier
+  readonly nouveau: boolean
+  readonly contenuCorpusInitial: string | null
+  readonly versionInitiale: number | null
+  readonly entretiensV2: EntretienV2Prepare[]
+  readonly deplacementsPng: DeplacementPngPrepare[]
+}
+
 /** Les RÈGLES du corpus vivent dans `shared/corpus/` (pures) ;
  *  ICI on ne fait que lire → appliquer → écrire.
  *  Cette classe est le point d'entrée de toutes les opérations sur le corpus,
@@ -107,6 +135,8 @@ export class CorpusStore {
 
   /** L'attribut dir contient le chemin vers le répertoire du corpus */
   private readonly dir: string
+
+  private readonly transactionsFichiers: TransactionsFichiersCorpus
 
   /** Cache en mémoire des chemins audio référencés du corpus courant,
    *  id → audioRef absolu.
@@ -162,6 +192,7 @@ export class CorpusStore {
   /** Instanciation de la classe CorpusStore avec le chemin du répertoire du corpus */
   constructor(dir: string) {
     this.dir = dir
+    this.transactionsFichiers = new TransactionsFichiersCorpus(dir)
   }
 
   /** Exemple : dir = "/home/user/projets/mon_corpus",
@@ -198,52 +229,142 @@ export class CorpusStore {
     renameSync(tmp, fichier) // rename atomique : un crash laisse l'ancien fichier intact
   }
 
-  /** Ouvre (ou amorce) le corpus.
-   *  L'amorçage n'a lieu qu'une fois par store, au moment où le dossier est
-   *  CHOISI ; ensuite, un `corpus.json` absent signifie « supprimé sur
-   *  disque » → erreur sentinelle CORPUS_SUPPRIME, jamais de recréation
-   *  silencieuse. La garde précède toute création de dossier : un corpus
-   *  supprimé ne laisse pas de squelette derrière lui. */
-  ouvrir(): CorpusFichier {
+  private verifierDossiersOuverture(): void {
+    for (const [chemin, role] of [
+      [this.dir, 'cible'],
+      [this.entretiensDir, 'entretiens'],
+      [this.pngDir, 'formes d’onde'],
+    ] as const) {
+      if (existsSync(chemin) && !statSync(chemin).isDirectory()) {
+        throw new Error(`Le chemin ${role} n'est pas un dossier.`)
+      }
+    }
+  }
+
+  /** Prépare l'ouverture en mémoire sans créer de dossier ni modifier la cible. */
+  preparerOuverture(nomNouveau?: string): PreparationOuvertureCorpus {
+    this.verifierDossiersOuverture()
+
     if (!existsSync(this.corpusFile)) {
       if (!this.amortissable) {
         throw new Error(
           `${CORPUS_SUPPRIME}: le dossier du corpus courant a été supprimé sur disque.`,
         )
       }
-    } else {
-      this.amortissable = false // un corpus existant est ouvert : plus jamais d'amorçage implicite
+      const corpus = squeletteCorpus()
+      if (nomNouveau?.trim()) corpus.nom = nomNouveau.trim()
+      return {
+        corpus,
+        nouveau: true,
+        contenuCorpusInitial: null,
+        versionInitiale: null,
+        entretiensV2: [],
+        deplacementsPng: [],
+      }
     }
-    if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
-    if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
 
-    // Nouveau corpus : traité plus bas.
-    if (!existsSync(this.corpusFile)) {
-      const amorce = this.amorcer()
-      this.amortissable = false // même un corpus qu'on vient d'amorcer ne se ré-amorce pas
-      return amorce
-    }
+    const contenuCorpusInitial = readFileSync(this.corpusFile, 'utf8')
+    const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
+    const versionInitiale = corpus.formatVersion as number
+    const entretiensV2: EntretienV2Prepare[] = []
+    const deplacementsPng: DeplacementPngPrepare[] = []
 
-    // `CorpusFichier` contient les 5 blocs de définitions : codebook, variables,
-    // reglesAnon, personnes, membership (voir shared/format.ts).
-    const corpus = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
-
-    // Migration formatVersion 1→2.
-    if (corpus.formatVersion === 1) {
+    if (versionInitiale === 1) {
       corpus.formatVersion = FORMAT_VERSION
-      this.ecrireJsonAtomique(this.corpusFile, corpus)
+    } else if (versionInitiale === 2) {
+      for (const id of Object.keys(corpus.membership)) {
+        const fichier = this.entretienFile(id)
+        if (!existsSync(fichier)) continue
+        const contenuInitial = readFileSync(fichier, 'utf8')
+        const data = JSON.parse(contenuInitial) as EntretienFichier
+        if ((data.formatVersion as number) !== 2) continue
+        const ref = data.meta?.audioRef
+        if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
+          data.meta.audioRef = resolve(this.dir, ref)
+        }
+        data.formatVersion = FORMAT_VERSION
+        entretiensV2.push({ fichier, contenuInitial, data })
+      }
+      if (existsSync(this.audioDirLegacy)) {
+        for (const nom of readdirSync(this.audioDirLegacy)) {
+          if (extname(nom).slice(1).toLowerCase() !== 'png') continue
+          const source = join(this.audioDirLegacy, nom)
+          const destination = join(this.pngDir, nom)
+          if (!existsSync(destination)) {
+            deplacementsPng.push({
+              source,
+              destination,
+              contenuSourceInitial: readFileSync(source),
+            })
+          }
+        }
+      }
+      corpus.formatVersion = FORMAT_VERSION
     }
-    // Migration formatVersion 2→3 : audioRef relatifs → absolus, PNG `audio/` → `png/`.
-    // Même mécanique que formatVersion 1→2 : le store migre à la lecture puis réécrit aussitôt ;
-    // jamais de lecture partielle d'une version inconnue.
-    // One-shot : après migration, formatVersion === 3.
-    if (corpus.formatVersion === 2) {
-      this.migrerFormatV2Vers3(corpus)
-    }
+
     if (!versionSupportee(corpus.formatVersion)) {
       throw new Error(`Version de corpus non supportée : ${corpus.formatVersion}`)
     }
-    return corpus
+    return {
+      corpus,
+      nouveau: false,
+      contenuCorpusInitial,
+      versionInitiale,
+      entretiensV2,
+      deplacementsPng,
+    }
+  }
+
+  /** Applique une préparation après avoir vérifié que la cible n'a pas changé. */
+  finaliserOuverture(preparation: PreparationOuvertureCorpus): CorpusFichier {
+    this.verifierDossiersOuverture()
+    let cible = preparation
+    if (this.transactionsFichiers.reprendre()) cible = this.preparerOuverture()
+    const contenuActuel = existsSync(this.corpusFile)
+      ? readFileSync(this.corpusFile, 'utf8')
+      : null
+    if (contenuActuel !== cible.contenuCorpusInitial) {
+      throw new Error('Le corpus cible a changé pendant la préparation de son ouverture.')
+    }
+    for (const entretien of cible.entretiensV2) {
+      if (!existsSync(entretien.fichier)
+        || readFileSync(entretien.fichier, 'utf8') !== entretien.contenuInitial) {
+        throw new Error('Un entretien cible a changé pendant la préparation de son ouverture.')
+      }
+    }
+    for (const deplacement of cible.deplacementsPng) {
+      if (!existsSync(deplacement.source)
+        || existsSync(deplacement.destination)
+        || !readFileSync(deplacement.source).equals(deplacement.contenuSourceInitial)) {
+        throw new Error('Une forme d’onde cible a changé pendant la préparation de son ouverture.')
+      }
+    }
+
+    if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
+    if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
+
+    if (cible.versionInitiale === 2) {
+      if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
+      for (const deplacement of cible.deplacementsPng) {
+        renameSync(deplacement.source, deplacement.destination)
+      }
+      for (const entretien of cible.entretiensV2) {
+        this.ecrireJsonAtomique(entretien.fichier, entretien.data)
+      }
+    }
+    if (cible.nouveau || cible.versionInitiale === 1
+      || cible.versionInitiale === 2) {
+      this.ecrireJsonAtomique(this.corpusFile, cible.corpus)
+      this.invaliderRefsAudio()
+    }
+
+    this.amortissable = false
+    return cible.corpus
+  }
+
+  /** Ouvre ou amorce le corpus en conservant le comportement historique. */
+  ouvrir(): CorpusFichier {
+    return this.finaliserOuverture(this.preparerOuverture())
   }
 
   /** Pose (ou remplace) le `nom` de PROJET du corpus et persiste.
@@ -272,78 +393,24 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Migration formatVersion 2→3 : résout chaque `audioRef` relatif en absolu ;
-   *  déplace les PNG waveform `audio/` → `png/` ;
-   *  passe le corpus et chaque entretien à v3.
-   *  Les mp3 legacy restent dans `audio/`, référencés en absolu sur place ;
-   *  aucune recopie, aucun orphelin. */
-  private migrerFormatV2Vers3(corpus: CorpusFichier): void {
-    if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
-    // 1. Déplacer les PNG waveform `audio/<id>.png` → `png/<id>.png`.
-    if (existsSync(this.audioDirLegacy)) {
-      for (const nom of readdirSync(this.audioDirLegacy)) {
-        if (extname(nom).slice(1).toLowerCase() !== 'png') continue
-        const src = join(this.audioDirLegacy, nom)
-        const dst = join(this.pngDir, nom)
-        if (existsSync(dst)) continue // idempotent : ne pas écraser un PNG déjà migré
-        renameSync(src, dst)
-      }
-    }
-    // 2. Résoudre chaque `audioRef` relatif en absolu + bump entretien à v3.
-    for (const id of Object.keys(corpus.membership)) {
-      const f = this.entretienFile(id)
-      if (!existsSync(f)) continue
-      const data = JSON.parse(readFileSync(f, 'utf8')) as EntretienFichier
-      if ((data.formatVersion as number) === 2) {
-        const ref = data.meta?.audioRef
-        if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
-          data.meta.audioRef = resolve(this.dir, ref)
-        }
-        data.formatVersion = FORMAT_VERSION
-        this.ecrireJsonAtomique(f, data)
-      }
-    }
-    // 3. Bump le corpus à v3.
-    corpus.formatVersion = FORMAT_VERSION
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
-    this.invaliderRefsAudio() // le cache (s'il existait) est périmé
-  }
-
-  /** Le bloc « Pondérations » par défaut de SonalPi1, aux mêmes codes que lui (cat_001..004).
-   *  Ces ids `cat_NNN` sont VOLONTAIREMENT figés (espace réservé, administré),
-   *  écrits une fois à l'amorçage, jamais créés par un utilisateur :
-   *  ils garantissent que deux corpus neufs partagent le même codebook par défaut,
-   *  et la parité d'ids avec les `.sonal` importés de SonalPi1.
-   *  Toute catégorie créée ENSUITE passe par `genId('cat')` ;
-   *  l'id est opaque et sûr en offline divergent,
-   *  `cat_NNN` étant relégué au `codeExport`. */
-  private amorcer(): CorpusFichier {
-    // Squelette partagé avec la création distante : un seul codebook par défaut.
-    // Deux lieux d'écriture possibles : disque local / serveur.
-    const corpus = squeletteCorpus()
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
-    return corpus
-  }
-
-  /** Crée un corpus SonalPi2 DANS un dossier dédié, à partir d'une migration SonalPi1.
-   *  Contrairement à `amorcer()`, on n'écrit PAS le bloc « Pondérations ».
+  /** Prépare un corpus SonalPi2 dans un dossier dédié, à partir d'une migration SonalPi1.
+   *  Contrairement à un corpus neuf, on n'ajoute pas le bloc « Pondérations ».
    *  La source de vérité des définitions est le `.crp`, on fusionne exactement ce que la lecture a mappé.
    *  Le dossier a déjà été vérifié par la garde (`migrer:verifierDossier`).
    *  En défense en profondeur, on REFUSE ici tout corpus.json existant, on n'écrase jamais.
-   *  La lecture des entretiens (.Sonal + audio) se branche après cette création. */
-  migrerDepuisV1(
+   *  La lecture des entretiens (.Sonal + audio) se branche après la finalisation. */
+  preparerMigrationDepuisV1(
     nom: string,
     sourceV1: SourceV1,
     codebook: Categorie[],
     variables: Variable[],
     reglesAnonV1?: RegleAnon[],
     paramsAnon?: ParamsAnon,
-  ): CorpusFichier {
+  ): PreparationOuvertureCorpus {
+    this.verifierDossiersOuverture()
     if (existsSync(this.corpusFile)) {
       throw new Error('Le dossier contient déjà un corpus — la garde a été contournée.')
     }
-    mkdirSync(this.dir, { recursive: true })
-    mkdirSync(this.entretiensDir, { recursive: true })
     const corpus: CorpusFichier = {
       formatVersion: FORMAT_VERSION,
       codebook: {},
@@ -355,16 +422,37 @@ export class CorpusStore {
       meta: { sourceV1 },
     }
     corpusModel.fusionnerImport(corpus, codebook, variables)
-    // E4 : le `tabAnon` du .crp devient des règles corpus, écrites AVANT les imports `.sonal`.
-    // Doctrine SonalPi1 : le global du corpus gagne.
-    // La dédup par alias de `fusionnerReglesAnon` rend ensuite l'import `.sonal` idempotent.
-    // La catégorie/thématique du .crp reste sur la règle.
     for (const r of reglesAnonV1 ?? []) {
       if (!corpus.reglesAnon[r.id]) corpus.reglesAnon[r.id] = r
     }
     if (paramsAnon) corpus.paramsAnon = paramsAnon
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
-    return corpus
+    return {
+      corpus,
+      nouveau: true,
+      contenuCorpusInitial: null,
+      versionInitiale: null,
+      entretiensV2: [],
+      deplacementsPng: [],
+    }
+  }
+
+  migrerDepuisV1(
+    nom: string,
+    sourceV1: SourceV1,
+    codebook: Categorie[],
+    variables: Variable[],
+    reglesAnonV1?: RegleAnon[],
+    paramsAnon?: ParamsAnon,
+  ): CorpusFichier {
+    const preparation = this.preparerMigrationDepuisV1(
+      nom,
+      sourceV1,
+      codebook,
+      variables,
+      reglesAnonV1,
+      paramsAnon,
+    )
+    return this.finaliserOuverture(preparation)
   }
 
   /** Lit un entretien sans modifier le disque ni l'état des sauvegardes.
@@ -466,12 +554,10 @@ export class CorpusStore {
   }
 
 
-  /** Crée un entretien vide (cas où on n'a qu'un AUDIO, pas de fichier entretien).
-   *  Le `titre` est le nom du fichier audio sans extension ; il nomme le fichier sur disque (« nom d'origine_code »).
-   *  Le même `titre` sert d'affichage. */
-  creerEntretienVide(titre: string): { id: string; corpus: CorpusFichier } {
-    this.verifierEcriture()
-    const corpus = this.ouvrir()
+  /** Prépare sans écriture la création d'un entretien vide. */
+  preparerCreationEntretienVide(titre: string): PlanAjoutEntretien {
+    const corpusAvant = this.ouvrir()
+    const corpusApres = structuredClone(corpusAvant)
     const id = genIdEntretien(titre)
     const now = new Date().toISOString()
     const entretien: EntretienFichier = {
@@ -484,15 +570,39 @@ export class CorpusStore {
       brouillonsAnon: [],
       meta: { valeursGen: {}, audioRef: null },
     }
-    this.ecrireJsonAtomique(this.entretienFile(id), entretien)
-    corpus.membership[id] = { titre, date: null, lastModified: now }
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
-    return { id, corpus }
+    corpusApres.membership[id] = { titre, date: null, lastModified: now }
+    return { operation: 'ajout', id, corpusAvant, corpusApres, entretien }
+  }
+
+  /** Crée un entretien vide dans une transaction locale reprise au prochain démarrage. */
+  creerEntretienVide(titre: string): { id: string; corpus: CorpusFichier } {
+    this.verifierEcriture()
+    const plan = this.preparerCreationEntretienVide(titre)
+    this.appliquerTransactionFichiers(plan)
+    return { id: plan.id, corpus: plan.corpusApres }
+  }
+
+  /** Prépare un import et la fusion de ses définitions sans modifier le disque. */
+  preparerImportEntretien(
+    titre: string,
+    payload: PayloadEntretien,
+    codebook: Categorie[] = [],
+    variables: Variable[] = [],
+    reglesAnon: RegleAnon[] = [],
+  ): PlanAjoutEntretien {
+    const corpusAvant = this.ouvrir()
+    const corpusApres = structuredClone(corpusAvant)
+    const id = genIdEntretien(titre)
+    const now = new Date().toISOString()
+    const entretien: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: now, ...payload }
+    corpusModel.fusionnerImport(corpusApres, codebook, variables)
+    corpusModel.fusionnerReglesAnon(corpusApres, reglesAnon)
+    corpusApres.membership[id] = { titre, date: null, lastModified: now }
+    return { operation: 'ajout', id, corpusAvant, corpusApres, entretien }
   }
 
   /** Le parsing du fichier se fait dans sas.ts (importerFichier) ;
-   *  ici, on ne fait que créer un entretien et fusionner les métadonnées.
-   *  Appelé par l'IPC `window.sonal.corpus.importer()` (cf. preload). */
+   *  ici, on crée l'entretien et fusionne ses métadonnées sous transaction. */
   importerEntretien(
     titre: string,
     payload: PayloadEntretien,
@@ -501,17 +611,9 @@ export class CorpusStore {
     reglesAnon: RegleAnon[] = [],
   ): { id: string; corpus: CorpusFichier } {
     this.verifierEcriture()
-    const corpus = this.ouvrir()
-    const id = genIdEntretien(titre)
-    const now = new Date().toISOString()
-    const entretien: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: now, ...payload }
-    this.ecrireJsonAtomique(this.entretienFile(id), entretien)
-
-    corpusModel.fusionnerImport(corpus, codebook, variables)
-    corpusModel.fusionnerReglesAnon(corpus, reglesAnon)
-    corpus.membership[id] = { titre, date: null, lastModified: now }
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
-    return { id, corpus }
+    const plan = this.preparerImportEntretien(titre, payload, codebook, variables, reglesAnon)
+    this.appliquerTransactionFichiers(plan)
+    return { id: plan.id, corpus: plan.corpusApres }
   }
 
   renommerEntretien(id: string, titre: string): CorpusFichier {
@@ -524,30 +626,60 @@ export class CorpusStore {
     return corpus
   }
 
-  /** Retire le fichier du membership et le déplace dans `corbeille/`,
-   *  avec ses `.bak` et son PNG waveform (`png/<id>.png`).
-   *  Jamais d'effacement ni d'orphelin sur disque ;
-   *  l'audio référencé n'est jamais touché, car jamais copié. */
-  supprimerEntretien(id: string): CorpusFichier {
-    this.verifierEcriture()
-    const corpus = this.ouvrir()
-    const corbeille = join(this.dir, 'corbeille')
-    if (!existsSync(corbeille)) mkdirSync(corbeille, { recursive: true })
+  /** Prépare le retrait du membership et l'archivage des fichiers sans écriture. */
+  preparerSuppressionEntretien(id: string): PlanSuppressionEntretien {
+    const corpusAvant = this.ouvrir()
+    const corpusApres = structuredClone(corpusAvant)
+    delete corpusApres.membership[id]
+    const deplacements: PlanSuppressionEntretien['deplacements'] = []
     for (const suffixe of ['.json', '.json.bak1', '.json.bak2']) {
-      const src = join(this.entretiensDir, id + suffixe)
-      if (existsSync(src)) renameSync(src, join(corbeille, id + suffixe))
-    }
-    // Seul le PNG dérivé (dans `png/`) est déplacé en corbeille :
-    // l'audio référencé est externe au corpus, on ne le touche jamais.
-    if (existsSync(this.pngDir)) {
-      for (const f of readdirSync(this.pngDir)) {
-        if (f.startsWith(id + '.')) renameSync(join(this.pngDir, f), join(corbeille, f))
+      const nom = id + suffixe
+      if (existsSync(join(this.entretiensDir, nom))) {
+        deplacements.push({
+          source: join('entretiens', nom),
+          destination: this.destinationCorbeille(nom),
+        })
       }
     }
-    delete corpus.membership[id]
-    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    if (existsSync(this.pngDir)) {
+      for (const nom of readdirSync(this.pngDir)) {
+        if (nom.startsWith(id + '.')) {
+          deplacements.push({
+            source: join('png', nom),
+            destination: this.destinationCorbeille(nom),
+          })
+        }
+      }
+    }
+    return { operation: 'suppression', id, corpusAvant, corpusApres, deplacements }
+  }
+
+  /** Retire le membership avant d'archiver les fichiers, sous journal récupérable.
+   *  L'audio référencé reste externe au corpus et n'est jamais touché. */
+  supprimerEntretien(id: string): CorpusFichier {
+    this.verifierEcriture()
+    const plan = this.preparerSuppressionEntretien(id)
+    this.appliquerTransactionFichiers(plan)
+    return plan.corpusApres
+  }
+
+  /** Applique un plan localement après une transaction locale ou un commit distant confirmé. */
+  appliquerTransactionFichiers(plan: PlanTransactionFichiers): void {
+    this.transactionsFichiers.executer(plan)
     this.invaliderRefsAudio()
-    return corpus
+  }
+
+  /** Termine l'éventuelle intention durable laissée par un arrêt précédent. */
+  reprendreTransactionFichiers(): boolean {
+    const reprise = this.transactionsFichiers.reprendre()
+    if (reprise) this.invaliderRefsAudio()
+    return reprise
+  }
+
+  private destinationCorbeille(nom: string): string {
+    const destination = join('corbeille', nom)
+    if (!existsSync(join(this.dir, destination))) return destination
+    return join('corbeille', `${nom}.copie-${Math.random().toString(36).slice(2, 10)}`)
   }
 
   /** Lit sur disque les fichiers dont les ids sont dans le membership.

@@ -17,6 +17,7 @@
     "e2e/**/*.ts",
     "electron.vite.config.ts",
     "playwright.config.ts",
+    "playwright.diagnostic.config.ts",
     "vitest.config.ts"
   ]
 }

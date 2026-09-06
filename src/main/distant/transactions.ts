@@ -24,9 +24,9 @@
  *  jamais de membership pointant un fichier disparu sans trace.
  */
 
-import { dirname, join } from 'node:path'
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { ClientWebDAV, ErreurHttp } from '../webdav/client'
+import { basename, dirname, join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { ClientWebDAV, ErreurDelaiWebDAV, ErreurHttp } from '../webdav/client'
 import type { MiroirWebDAV } from './miroir'
 import type { CorpusStore } from '../corpusStore'
 import * as corpusModel from '../../shared/corpus'
@@ -43,7 +43,11 @@ import type {
   CibleRegleAnon,
   ResultatLotAnon,
   RegleAnon,
+  PayloadEntretien,
+  Categorie,
+  Variable,
 } from '../../shared/format'
+import type { PlanAjoutEntretien } from '../transactionsFichiers'
 
 /** Chemin VERROUILLÉ pour les transactions de définitions —
  *  TOUJOURS le fichier annexe (PUT conditionnel). */
@@ -110,6 +114,7 @@ export class TransactionsCorpus {
       // La version d'APRÈS-verrou fait foi : si le serveur porte autre chose que notre miroir,
       // on télécharge AVANT de muter — jamais de transformation posée sur une copie périmée.
       const etagServeur = await this.rafraichirCorpusLocal()
+      const contenuAvant = readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8')
 
       const store = this.getStore()
       const gardePrecedente = store.lectureSeule
@@ -117,19 +122,91 @@ export class TransactionsCorpus {
       let resultat: T
       try {
         resultat = mutation()
+      } catch (e) {
+        this.ecrireCorpusLocal(contenuAvant)
+        throw e
       } finally {
         store.lectureSeule = gardePrecedente
       }
 
-      await this.publierCorpus(etagServeur)
+      const contenuTente = readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8')
+      try {
+        await this.publierCorpus(etagServeur)
+      } catch (e) {
+        // Après une coupure ou un délai dépassé, le PUT a pu réussir sans que
+        // sa réponse arrive. Une relecture évite d'annuler un commit réel.
+        const reconciliation = await this.reconcilierCorpusApresEchec(contenuTente)
+        if (reconciliation === 'publie') return resultat
+        if (reconciliation === 'inconnue') this.ecrireCorpusLocal(contenuAvant)
+        throw e
+      }
       return resultat
     } catch (e) {
-      if (e instanceof ErreurHttp && e.statut === 412) {
-        // Divergence : notre mutation locale n'a PAS été publiée —
-        // ré-absorber la version serveur dans le miroir (best effort)
-        // pour ne pas laisser à l'écran une mutation fantôme que le prochain pull effacerait.
-        await this.rafraichirCorpusLocal().catch(() => {})
+      throw classifier(e)
+    } finally {
+      if (verrouTenu) await provider.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
+    }
+  }
+
+  /* ── Création et import — entretien puis corpus ───────────────────────────*/
+
+  async creerEntretienVide(titre: string): Promise<{ id: string; corpus: CorpusFichier }> {
+    return this.ajouterEntretien((store) => store.preparerCreationEntretienVide(titre))
+  }
+
+  async importerEntretien(
+    titre: string,
+    payload: PayloadEntretien,
+    codebook: Categorie[] = [],
+    variables: Variable[] = [],
+    reglesAnon: RegleAnon[] = [],
+  ): Promise<{ id: string; corpus: CorpusFichier }> {
+    return this.ajouterEntretien((store) =>
+      store.preparerImportEntretien(titre, payload, codebook, variables, reglesAnon),
+    )
+  }
+
+  /** Publie le nouveau fichier avant de rendre son membership visible.
+   *  Le miroir n'est modifié qu'après confirmation des deux publications. */
+  private async ajouterEntretien(
+    preparer: (store: CorpusStore) => PlanAjoutEntretien,
+  ): Promise<{ id: string; corpus: CorpusFichier }> {
+    const provider = new ProviderPutConditionnel(this.client, this.identite)
+    let verrouTenu = false
+    try {
+      const acquisition = await provider.acquerir(CHEMIN_VERROU_CORPUS)
+      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
+      verrouTenu = true
+
+      const etagCorpus = await this.rafraichirCorpusLocal()
+      const store = this.getStore()
+      const plan = preparer(store)
+      const cheminEntretien = CHEMIN_ENTRETIEN(plan.id)
+      const contenuEntretien = JSON.stringify(plan.entretien, null, 2)
+      const contenuCorpus = JSON.stringify(plan.corpusApres, null, 2)
+      const etagEntretien = await this.publierNouvelEntretien(
+        cheminEntretien,
+        contenuEntretien,
+      )
+
+      let etagCorpusPublie = ''
+      try {
+        etagCorpusPublie = await this.publierCorpus(etagCorpus, contenuCorpus, false)
+      } catch (e) {
+        const reconciliation = await this.reconcilierCorpusApresEchec(contenuCorpus)
+        if (reconciliation !== 'publie') {
+          if (reconciliation === 'serveur-restaure') {
+            await this.annulerNouvelEntretien(cheminEntretien, etagEntretien)
+          }
+          throw e
+        }
       }
+
+      store.appliquerTransactionFichiers(plan)
+      if (etagCorpusPublie) this.miroir.noterEtagPublie(CHEMIN_CORPUS, etagCorpusPublie)
+      if (etagEntretien) this.miroir.noterEtagPublie(cheminEntretien, etagEntretien)
+      return { id: plan.id, corpus: plan.corpusApres }
+    } catch (e) {
       throw classifier(e)
     } finally {
       if (verrouTenu) await provider.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
@@ -138,17 +215,7 @@ export class TransactionsCorpus {
 
   /* ── Suppression d'entretien — double verrou ──────────────────────────────*/
 
-  /** Supprime un entretien distant sous DOUBLE verrou, ordre canonique : 1.
-   *  verrou CORPUS (PUT conditionnel), 2. GET frais de corpus.json, 3.
-   *  verrou ENTRETIEN (variante mesurée à l'ouverture) ;
-   *  puis mutation locale (membership + fichiers locaux en corbeille miroir),
-   *  publication corpus (PUT If-Match) D'ABORD, MOVE serveur `entretiens/<id>.json →
-   *  corbeille/<id>.json` ENSUITE ; libération en ordre inverse (entretien puis corpus).
-   *
-   *  Pré-requis côté appelant : aucune SESSION d'écriture ne doit rester ouverte
-   *  chez NOUS pour cet id (le renderer ferme l'entretien avant de demander la
-   *  suppression ; le main ferme par sécurité — sinon ce serait notre propre
-   *  verrou qui nous bloquerait, et un orphelin à la clé). */
+  /** Supprime un entretien sous double verrou, sans modifier le miroir avant le commit serveur. */
   async supprimerEntretien(id: string): Promise<CorpusFichier> {
     const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
     let verrouCorpusTenu = false
@@ -167,46 +234,87 @@ export class TransactionsCorpus {
         )
       }
 
-      let corpus: CorpusFichier
+      const store = this.getStore()
+      const plan = store.preparerSuppressionEntretien(id)
+      const contenuCorpus = JSON.stringify(plan.corpusApres, null, 2)
       try {
-        // Mutation locale :
-        // retire le membership et déplace json/.bak/png vers la corbeille DU MIROIR (local pur —
-        // le store opère sur sa copie).
-        const store = this.getStore()
-        const gardePrecedente = store.lectureSeule
-        store.lectureSeule = false
+        let etagCorpusPublie = ''
         try {
-          corpus = store.supprimerEntretien(id)
-        } finally {
-          store.lectureSeule = gardePrecedente
-        }
-        // Publication corpus D'ABORD : le membership à jour part avant la disparition du fichier —
-        // briève redondance, jamais l'inverse.
-        await this.publierCorpus(etagServeur)
-        // MOVE serveur ENSUITE (atomique).
-        // Un échec ici laisse un entretien orphelin CÔTÉ SERVEUR (à ramasser plus tard) — signalé net.
-        await this.client.creerDossier('corbeille')
-        try {
-          await this.client.deplacer(CHEMIN_ENTRETIEN(id), `corbeille/${id}.json`)
+          etagCorpusPublie = await this.publierCorpus(etagServeur, contenuCorpus, false)
         } catch (e) {
-          if (e instanceof ErreurHttp && e.statut === 404) return corpus // déjà parti
-          throw new ErreurTransaction(
-            'Le membership a été mis à jour mais le fichier entretien n\u2019a pas pu être archivé sur le serveur — il sera récupéré au prochain passage.',
-          )
+          const reconciliation = await this.reconcilierCorpusApresEchec(contenuCorpus)
+          if (reconciliation !== 'publie') throw e
         }
-        // Le manifeste liste encore l'ancien chemin :
-        // le prochain pull voit la disparition côté serveur et purge simplement l'entrée (le fichier local est déjà parti en corbeille du miroir via le store).
+
+        await this.client.creerDossier('corbeille')
+        const destination = await this.destinationCorbeilleDistante(id)
+        try {
+          await this.client.deplacer(CHEMIN_ENTRETIEN(id), destination)
+        } catch (e) {
+          if (!(e instanceof ErreurHttp && e.statut === 404)
+            && !await this.deplacementConfirme(CHEMIN_ENTRETIEN(id), destination)) {
+            store.appliquerTransactionFichiers(plan)
+            throw new ErreurTransaction(
+              'Le membership a été mis à jour mais le fichier entretien n\u2019a pas pu être archivé sur le serveur — il sera récupéré au prochain passage.',
+            )
+          }
+        }
+        store.appliquerTransactionFichiers(plan)
+        if (etagCorpusPublie) this.miroir.noterEtagPublie(CHEMIN_CORPUS, etagCorpusPublie)
+        return plan.corpusApres
       } finally {
         await providerEntretien.liberer(cheminVerrou).catch(() => {})
       }
-      return corpus
     } catch (e) {
-      if (e instanceof ErreurHttp && e.statut === 412) {
-        await this.rafraichirCorpusLocal().catch(() => {})
-      }
       throw classifier(e)
     } finally {
       if (verrouCorpusTenu) await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
+    }
+  }
+
+  /** Archive les fichiers serveur qui ne sont plus référencés par le membership.
+   *  Le verrou corpus garantit qu'aucune création ou suppression n'est en cours. */
+  async reconcilierFichiersOrphelins(): Promise<string[]> {
+    const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
+    const acquisition = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
+    if (!acquisition.ok) return []
+    const archives: string[] = []
+    try {
+      await this.rafraichirCorpusLocal()
+      const corpus = this.getStore().ouvrir()
+      const fichiers = (await this.client.propfind('entretiens'))
+        .filter((entree) => !entree.dossier && entree.chemin.endsWith('.json'))
+      await this.client.creerDossier('corbeille')
+      for (const fichier of fichiers) {
+        const id = fichier.chemin.slice(0, -'.json'.length)
+        if (!id || id === '.' || id === '..' || id.includes('/') || id.includes('\\')) continue
+        if (corpus.membership[id]) continue
+        const providerEntretien = this.providerPourEntretien()
+        const cheminVerrou = this.cheminVerrouEntretien(id)
+        let entretienVerrouille = false
+        try {
+          const acqE = await providerEntretien.acquerir(cheminVerrou)
+          if (!acqE.ok) continue
+          entretienVerrouille = true
+          const source = CHEMIN_ENTRETIEN(id)
+          const destination = await this.destinationCorbeilleDistante(id)
+          try {
+            await this.client.deplacer(source, destination)
+          } catch (e) {
+            if (!(e instanceof ErreurHttp && e.statut === 404)
+              && !await this.deplacementConfirme(source, destination)) continue
+          }
+          this.archiverOrphelinLocal(id, basename(destination))
+          archives.push(id)
+        } finally {
+          if (entretienVerrouille) {
+            await providerEntretien.liberer(cheminVerrou).catch(() => {})
+          }
+        }
+      }
+      return archives
+    } finally {
+      await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
     }
   }
 
@@ -291,12 +399,7 @@ export class TransactionsCorpus {
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
       // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
-      const nouveauEtag = await this.client.putTexte(
-        cheminFichier,
-        contenu,
-        etagServeur ? { ifMatch: etagServeur } : {},
-      )
-      const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? etagServeur ?? ''
+      const etagFinal = await this.publierEntretienCourt(cheminFichier, contenu, etagServeur)
       // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en local (écriture atomique,
       // même utilitaire que le store) — la matrice est fraîche sans pull complet.
       const abs = join(this.miroir.dirLocal, cheminFichier)
@@ -428,12 +531,7 @@ export class TransactionsCorpus {
       data.lastModified = new Date().toISOString()
       const contenu = JSON.stringify(data, null, 2)
       // PUT If-Match : divergence (412) → exception ci-dessus, rien n'est écrasé.
-      const nouveauEtag = await this.client.putTexte(
-        cheminFichier,
-        contenu,
-        etagServeur ? { ifMatch: etagServeur } : {},
-      )
-      const etagFinal = nouveauEtag ?? (await this.etagServeurDe(cheminFichier)) ?? etagServeur ?? ''
+      const etagFinal = await this.publierEntretienCourt(cheminFichier, contenu, etagServeur)
       // Écriture THROUGH du MIROIR : le MÊME contenu que le serveur part en local ;
       // compteurs et prochains scans sont à jour sans pull complet.
       const abs = join(this.miroir.dirLocal, cheminFichier)
@@ -467,9 +565,125 @@ export class TransactionsCorpus {
     return etatServeur
   }
 
-  /** PUT If-Match du `corpus.json` local + mise à jour du manifeste. */
-  private async publierCorpus(etagAttendu: string | null): Promise<void> {
-    const contenu = readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8')
+  private archiverOrphelinLocal(id: string, nomDestination: string): void {
+    const source = join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id))
+    if (!existsSync(source)) return
+    const dossier = join(this.miroir.dirLocal, 'corbeille-miroir', 'entretiens')
+    mkdirSync(dossier, { recursive: true })
+    let destination = join(dossier, nomDestination)
+    if (existsSync(destination)) {
+      destination = join(
+        dossier,
+        `${nomDestination}.copie-${Math.random().toString(36).slice(2, 10)}`,
+      )
+    }
+    renameSync(source, destination)
+  }
+
+  private async destinationCorbeilleDistante(id: string): Promise<string> {
+    const destination = `corbeille/${id}.json`
+    if (await this.etagServeurDe(destination) === null) return destination
+    return `corbeille/${id}.copie-${Math.random().toString(36).slice(2, 10)}.json`
+  }
+
+  private async deplacementConfirme(source: string, destination: string): Promise<boolean> {
+    try {
+      const [etagSource, etagDestination] = await Promise.all([
+        this.etagServeurDe(source),
+        this.etagServeurDe(destination),
+      ])
+      return etagSource === null && etagDestination !== null
+    } catch {
+      return false
+    }
+  }
+
+  /** Confirme un PUT court dont la réponse a pu se perdre après le commit. */
+  private async publierEntretienCourt(
+    chemin: string,
+    contenu: string,
+    etagAttendu: string | null,
+  ): Promise<string> {
+    try {
+      const nouveauEtag = await this.client.putTexte(
+        chemin,
+        contenu,
+        etagAttendu ? { ifMatch: etagAttendu } : {},
+      )
+      return nouveauEtag ?? (await this.etagServeurDe(chemin)) ?? etagAttendu ?? ''
+    } catch (e) {
+      try {
+        const etagActuel = await this.etagServeurDe(chemin)
+        if (etagActuel && await this.client.getTexte(chemin) === contenu) return etagActuel
+      } catch {
+        /* L'erreur initiale reste la plus utile. */
+      }
+      throw e
+    }
+  }
+
+  /** Réconcilie un PUT dont la réponse n'est pas exploitable.
+   *  Le miroir ne reçoit que le contenu effectivement relu sur le serveur. */
+  private async reconcilierCorpusApresEchec(
+    contenuTente: string,
+  ): Promise<'publie' | 'serveur-restaure' | 'inconnue'> {
+    try {
+      const etag = await this.etagServeurDe(CHEMIN_CORPUS)
+      if (!etag) return 'inconnue'
+      const contenuServeur = await this.client.getTexte(CHEMIN_CORPUS)
+      this.ecrireCorpusLocal(contenuServeur)
+      this.miroir.noterEtagPublie(CHEMIN_CORPUS, etag)
+      return contenuServeur === contenuTente ? 'publie' : 'serveur-restaure'
+    } catch {
+      return 'inconnue'
+    }
+  }
+
+  private ecrireCorpusLocal(contenu: string): void {
+    const abs = join(this.miroir.dirLocal, CHEMIN_CORPUS)
+    mkdirSync(dirname(abs), { recursive: true })
+    const tmp = `${abs}.tmp`
+    writeFileSync(tmp, contenu, 'utf8')
+    renameSync(tmp, abs)
+  }
+
+  /** Crée exclusivement un entretien et confirme les réponses éventuellement perdues. */
+  private async publierNouvelEntretien(chemin: string, contenu: string): Promise<string> {
+    try {
+      const etag = await this.client.putTexte(chemin, contenu, { ifNoneMatch: '*' })
+      return etag ?? (await this.etagServeurDe(chemin)) ?? ''
+    } catch (e) {
+      try {
+        const etag = await this.etagServeurDe(chemin)
+        if (etag && await this.client.getTexte(chemin) === contenu) return etag
+      } catch {
+        // L'erreur initiale reste la plus utile.
+      }
+      throw e
+    }
+  }
+
+  /** Annule une création dont le membership n'a certainement pas été publié. */
+  private async annulerNouvelEntretien(chemin: string, etag: string): Promise<void> {
+    try {
+      await this.client.supprimer(chemin, etag || undefined)
+    } catch {
+      try {
+        if (await this.etagServeurDe(chemin) === null) return
+      } catch {
+        // L'orphelin sera archivé par une réconciliation ultérieure.
+      }
+    }
+  }
+
+  /** PUT If-Match de `corpus.json`, avec mise à jour optionnelle du manifeste. */
+  private async publierCorpus(
+    etagAttendu: string | null,
+    contenuFourni?: string,
+    noterManifeste = true,
+  ): Promise<string> {
+    const contenu = contenuFourni
+      ?? readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8')
     const nouveauEtag = await this.client.putTexte(
       CHEMIN_CORPUS,
       contenu,
@@ -480,7 +694,8 @@ export class TransactionsCorpus {
       (await this.etagServeurDe(CHEMIN_CORPUS)) ??
       etagAttendu ??
       ''
-    if (etagFinal) this.miroir.noterEtagPublie(CHEMIN_CORPUS, etagFinal)
+    if (etagFinal && noterManifeste) this.miroir.noterEtagPublie(CHEMIN_CORPUS, etagFinal)
+    return etagFinal
   }
 
   /** Provider du verrou ENTRETIEN selon la variante mesurée à l'ouverture. */
@@ -567,6 +782,11 @@ function messageRefusDefinitions(tenuPar: ContenuVerrou | null): string {
  *  et les ErreurTransaction déjà formulées. */
 function classifier(e: unknown): Error {
   if (e instanceof ErreurTransaction) return e
+  if (e instanceof ErreurDelaiWebDAV) {
+    return new ErreurTransaction(
+      'Le serveur n’a pas répondu dans le délai prévu. La modification n’est pas considérée comme publiée.',
+    )
+  }
   if (e instanceof ErreurHttp) {
     if (e.statut === 412) {
       return new ErreurTransaction(

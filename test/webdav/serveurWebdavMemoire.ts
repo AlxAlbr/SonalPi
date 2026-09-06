@@ -40,7 +40,7 @@ export class ServeurWebDAVMemoire {
   /** Branche compte du serveur émulé :
    *  préfixe minimal accepté par le fetch (le publieur peut y créer la chaîne menant à un NOUVEAU dossier corpus). */
   readonly racineCompte = '/remote.php'
-  readonly baseUrl = `http://serveur.test${this.racineDav}`
+  readonly baseUrl = `https://serveur.test${this.racineDav}`
   readonly identifiants = { utilisateur: 'max', motDePasse: 'app-pass-1234' }
   /** Comptes supplémentaires (simulation multi-utilisateurs : refus d'un tiers, imposition du verrou natif…) —
    *  clé = utilisateur. */

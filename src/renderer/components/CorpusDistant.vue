@@ -16,6 +16,8 @@ const emit = defineEmits<{ (e: 'fermer'): void }>()
 const { ouvrirCorpusDistant, oublierCompteDistant } = utiliserSonal()
 
 const comptes = ref<CompteDistantPublic[]>([])
+const stockageSecuriseDisponible = ref<boolean | null>(null)
+const motsDePasseSession = ref<Record<string, string>>({})
 const urlServeur = ref('')
 const utilisateur = ref('')
 const motDePasse = ref('')
@@ -26,7 +28,15 @@ const profilConnecte = ref<ProfilCapacites | null>(null)
 async function rafraichirListe() {
   comptes.value = await window.sonal.distant.lister()
 }
-onMounted(rafraichirListe)
+async function initialiser() {
+  const [liste, stockageSecurise] = await Promise.all([
+    window.sonal.distant.lister(),
+    window.sonal.distant.stockageSecuriseDisponible(),
+  ])
+  comptes.value = liste
+  stockageSecuriseDisponible.value = stockageSecurise
+}
+onMounted(initialiser)
 
 async function connecter() {
   enCours.value = true
@@ -53,11 +63,14 @@ async function connecter() {
   }
 }
 
-async function ouvrir(id: string) {
+async function ouvrir(compte: CompteDistantPublic) {
   enCours.value = true
   erreur.value = null
   try {
-    await ouvrirCorpusDistant(id) // tire le miroir + bascule + va à l'écran Corpus
+    const motDePasse = compte.motDePasseDisponible
+      ? undefined
+      : motsDePasseSession.value[compte.id]
+    await ouvrirCorpusDistant(compte.id, motDePasse)
     emit('fermer')
   } catch (e) {
     erreur.value =
@@ -82,6 +95,16 @@ async function oublier(id: string) {
           cette étape — l'écriture partagée sous verrou vient ensuite.
         </p>
 
+        <div v-if="stockageSecuriseDisponible === false" class="avertissement-coffre">
+          <strong>Stockage sécurisé indisponible</strong>
+          <span>
+            Sonal ne conservera pas votre mot de passe d'application : vous devrez le
+            saisir après chaque redémarrage. Conservez-le dans un gestionnaire comme
+            KeePassXC, ou configurez GNOME Keyring/KWallet. Il restera uniquement en
+            mémoire jusqu'à la fermeture de Sonal.
+          </span>
+        </div>
+
         <!-- 1 — comptes configurés -->
         <div v-if="comptes.length > 0" class="bloc-comptes">
           <span class="q-lbl">Comptes configurés</span>
@@ -91,7 +114,23 @@ async function oublier(id: string) {
                 <span class="compte-user">{{ c.utilisateur }}</span>
                 <span class="compte-url">{{ c.urlServeur }}</span>
               </div>
-              <button class="mini ouvrir" :disabled="enCours" @click="ouvrir(c.id)">Ouvrir</button>
+              <div class="compte-actions">
+                <input
+                  v-if="!c.motDePasseDisponible"
+                  v-model="motsDePasseSession[c.id]"
+                  class="secret-compte"
+                  type="password"
+                  placeholder="Mot de passe pour cette session"
+                  :disabled="enCours"
+                />
+                <button
+                  class="mini ouvrir"
+                  :disabled="stockageSecuriseDisponible === null || enCours || (!c.motDePasseDisponible && !motsDePasseSession[c.id])"
+                  @click="ouvrir(c)"
+                >
+                  Ouvrir
+                </button>
+              </div>
               <button class="mini oubli" title="Oublier ce compte (ne supprime rien au serveur)" @click="oublier(c.id)">✕</button>
             </li>
           </ul>
@@ -121,9 +160,7 @@ async function oublier(id: string) {
           </div>
           <p class="note-secret">
             Jamais votre mot de passe principal : créez un mot de passe d'application
-            dans Nextcloud (Paramètres → Sécurité). Il est chiffré par le trousseau de
-            votre système (simple obfuscation si le poste n'en a pas), jamais stocké
-            en clair.
+            dans Nextcloud (Paramètres → Sécurité).
           </p>
         </template>
         <div v-else class="connecte">
@@ -144,7 +181,7 @@ async function oublier(id: string) {
           <button
             v-if="!profilConnecte"
             class="valider"
-            :disabled="enCours || !urlServeur.trim() || !utilisateur.trim() || !motDePasse"
+            :disabled="stockageSecuriseDisponible === null || enCours || !urlServeur.trim() || !utilisateur.trim() || !motDePasse"
             @click="connecter"
           >
             {{ enCours ? 'Vérification du serveur…' : 'Se connecter' }}
@@ -191,6 +228,17 @@ async function oublier(id: string) {
   font-style: italic;
   color: #888;
 }
+.avertissement-coffre {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e2a842;
+  border-radius: 6px;
+  background: #fff8e8;
+  color: #704b09;
+  font-size: 0.78rem;
+}
 .bloc-comptes {
   display: flex;
   flex-direction: column;
@@ -234,6 +282,18 @@ async function oublier(id: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.compte-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.secret-compte {
+  width: 180px;
+  border: 1px solid #d4a34f;
+  border-radius: 5px;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.75rem;
 }
 .mini {
   border: 1px solid #ccc;

@@ -214,31 +214,54 @@ Sur la question du gitlab : créer un groupe avec les sous-projets : a voir avec
     persistance jusqu'à acquittement, les variantes de verrou, l'échec de libération et
     `fermerToutes()`.
 
- 2. **Éviter les écritures dans la cible avant la fermeture de l'ancien contexte.** Dans
-    `corpus:creerNouveau` et `migrer:executer`, l'ouverture, l'amorçage ou la migration du
-    nouveau store modifient déjà le disque avant `fermerContexteActuel()`. Si une session
-    distante empêche la fermeture, la cible reste amorcée ou partiellement migrée alors que
-    l'application demeure sur l'ancien corpus. Préparer le contenu en mémoire ou dans un
-    fichier temporaire, puis fermer l'ancien contexte avant le commit atomique ; à défaut,
-    restaurer strictement la cible en cas de refus. Vérifier également le cas d'un corpus
-    ancien que `changerDossier()` migre à l'ouverture.
+ 2. **Éviter les écritures dans la cible avant la fermeture de l'ancien contexte — réalisé.**
 
- 3. **Rendre explicite l'échec de sortie de l'entretien.** `retourCorpus()` et
-    `allerAccueil()` conservent correctement l'éditeur si la publication ou la libération
-    échoue, mais leur rejet peut n'aboutir qu'à la console lorsque Vue intercepte la promesse
-    du gestionnaire d'événement. Alimenter explicitement la bannière globale, ou installer
-    un `app.config.errorHandler`, afin d'expliquer pourquoi l'utilisateur reste dans
-    l'entretien.
+    **Statut : corrigé.**
 
- 4. **Compléter les tests aux coutures IPC et application.** Ajouter les scénarios suivants :
-    - refus d'une création, ouverture ou migration quand l'ancien contexte ne peut pas fermer,
-      avec ancien contexte conservé et cible inchangée ;
-    - rétrogradation visible et persistante : éditeur non modifiable, aucune nouvelle écriture,
-      fermeture possible sans autosave, puis acquittement vers l'état `aucune` ;
-    - annulation du sélecteur de fichier SRT sans acquisition de verrou ;
-    - oubli du compte actif avec succès et avec échec de fermeture ;
-    - fermeture de l'application : autosave attendu, nettoyage distant borné et conservation
-      du miroir et du journal en cas d'échec.
+    Les ouvertures, créations et migrations locales suivent désormais trois phases : préparation
+    en mémoire sans effet sur la cible, fermeture de l'ancien contexte, puis écriture et bascule.
+    `CorpusStore` prépare également en mémoire la migration des anciens formats, y compris les
+    entretiens et les déplacements de formes d'onde. Le commit vérifie que les fichiers concernés
+    n'ont pas changé depuis leur lecture. Si la fermeture est refusée, aucun dossier, manifeste,
+    entretien ou PNG n'est créé ou modifié dans la cible.
+
+    Les tests couvrent une création vers un dossier absent, une migration SonalPi1 vers un dossier
+    non vide, l'ouverture d'un corpus v2, une cible invalide et une modification concurrente entre
+    préparation et commit.
+
+ 3. **Rendre explicite l'échec de sortie de l'entretien — réalisé.**
+
+    **Statut : corrigé.**
+
+    Les sorties vers le corpus, l'accueil ou la table de données alimentent désormais
+    explicitement la bannière globale lorsque la fermeture échoue. Le message indique que
+    l'utilisateur reste dans l'entretien et conserve le détail utile de l'échec de publication
+    ou de libération. La promesse reste rejetée pour que les appelants programmatiques ne
+    prennent pas cet échec pour une réussite. Une nouvelle tentative réussie efface uniquement
+    cette bannière si aucune erreur plus récente ne l'a remplacée.
+
+    Les tests couvrent le nettoyage du message IPC, son contexte de fermeture et la préservation
+    d'une erreur plus récente.
+
+
+ 4. **Compléter les tests aux coutures IPC et application — réalisé.**
+
+    **Statut : corrigé.**
+
+    Les opérations communes aux handlers IPC de création, d'ouverture, de migration et d'oubli
+    sont maintenant isolées et testées avec leurs effets observables. Les refus conservent les
+    références de l'ancien contexte, les récents et les cibles sur disque. L'oubli du compte actif
+    respecte l'ordre fermeture, désactivation puis retrait du coffre, et ne retire rien si la
+    fermeture échoue.
+
+    La couture renderer couvre la rétrogradation immédiate, l'annulation du debounce, le refus de
+    toute nouvelle écriture, la fermeture sans nouvel autosave et l'acquittement explicite. Le choix
+    SRT précède désormais une fonction testée qui ne lance aucune IPC mutante en cas d'annulation.
+
+    La fermeture de l'application est pilotée par une fonction testable : elle attend les autosaves,
+    borne le nettoyage distant et poursuit la sortie en conservant les données locales de reprise en
+    cas d'échec ou de délai dépassé. Un test Electron ferme aussi l'application immédiatement après
+    une saisie et vérifie la persistance au lancement suivant.
 
  **Observations mineures :**
 
@@ -250,30 +273,41 @@ Sur la question du gitlab : créer un groupe avec les sous-projets : a voir avec
    une bloquée : le commentaire promettant un contexte entièrement « intact » mérite d'être
    nuancé ou cet invariant renforcé.
 
- ### 5. XSS persistante possible depuis un corpus
+ ### 5. XSS persistante possible depuis un corpus — réalisé
 
- Le sanitiseur est bon lors de l’édition, mais les notes déjà stockées sont seulement converties en chaîne dans src/shared/entretien/notes.ts:49-65. Elles sont ensuite injectées via innerHTML/v-html dans
- Entretien.vue.
+ **Statut : corrigé.**
 
- Un corpus JSON local ou distant spécialement construit pourrait contenir par exemple un gestionnaire onerror. La situation est aggravée par :
+ Les notes issues d'un corpus local ou distant sont désormais normalisées et sanitisées dès leur
+ entrée dans l'état du renderer. Seuls le texte échappé, les passages `<mark>` et `<em>`, ainsi que
+ les identifiants de liens valides peuvent atteindre les usages de `innerHTML` et `v-html`.
 
- - absence de CSP dans src/renderer/index.html;
- - sandbox: false dans src/main/index.ts:214-218;
- - pont window.sonal très puissant.
+ La fenêtre Electron est également durcie :
 
- Correction :
+ - CSP restrictive sans script inline ni `eval`, avec les seules exceptions nécessaires aux styles,
+   aux médias locaux et au serveur de développement;
+ - renderer exécuté avec `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false` et
+   `webSecurity: true`;
+ - navigations de la page bloquées par `will-navigate`;
+ - ouvertures de fenêtres refusées par `setWindowOpenHandler`.
 
- 1. sanitiser systématiquement à la lecture;
- 2. ajouter des tests avec des charges XSS;
- 3. ajouter une CSP stricte;
- 4. passer à sandbox: true si possible;
- 5. bloquer will-navigate et window.open.
+ Les tests unitaires couvrent des charges `img/onerror`, `svg/onload`, `script`, URL `javascript:` et
+ attributs malveillants. Un scénario Electron charge réellement une note hostile, vérifie son rendu
+ inerte, puis contrôle le blocage de `window.open` et d'une navigation externe.
 
- ### 6. Tests de debug inclus dans la suite normale
+ ### 6. Tests de debug inclus dans la suite normale — réalisé
 
- debug-connexion.e2e.ts absorbe des erreurs et peut produire un faux positif. debug-verrou.e2e.ts modifie directement l’état de la pile Nextcloud partagée.
+ **Statut : corrigé.**
 
- Correction : les sortir de test:e2e, les renommer en scripts de diagnostic ou créer un projet Playwright explicitement manuel.
+ Les deux fichiers ont été déplacés dans `e2e/diagnostics/` et renommés avec le suffixe
+ `.diagnostic.ts`. La configuration Playwright normale ne découvre que les fichiers `.e2e.ts` :
+ `npm run test:e2e` ne peut donc plus lancer ces diagnostics ni modifier la pile partagée par leur
+ intermédiaire.
+
+ Une configuration séparée, `playwright.diagnostic.config.ts`, et la commande explicite
+ `npm run diagnostic:e2e` permettent de les lancer manuellement, avec un seul worker. Le diagnostic
+ de connexion rejette désormais réellement son test en cas d'échec au lieu de produire un faux
+ positif. Le diagnostic de verrou est signalé comme destructif et ferme l'application même en cas
+ d'erreur.
 
  ────────────────────────────────────────────────────────────────────────────────
 
@@ -315,31 +349,78 @@ Sur la question du gitlab : créer un groupe avec les sous-projets : a voir avec
  - IPC;
  - imports utilisateurs.
 
- ### Coffre dégradé en base64
+ ### Coffre dégradé en base64 — réalisé
 
- Lorsque safeStorage est indisponible, le mot de passe est stocké avec un simple encodage base64 dans src/main/distant/coffre.ts:115-126.
+ **Statut : corrigé.**
 
- Il faudrait au minimum :
+ Sans trousseau OS sécurisé, le mot de passe d’application Nextcloud n’est plus
+ persisté. L’URL et le login restent enregistrés, tandis que le secret est conservé
+ uniquement dans le process principal jusqu’à la fermeture de Sonal. Il est demandé
+ à nouveau au premier accès suivant un redémarrage, puis réutilisé pendant la session.
 
- - avertir clairement l’utilisateur;
- - écrire le fichier atomiquement avec des permissions 0600;
- - idéalement ne pas persister le secret sans coffre OS.
+ L’interface avertit l’utilisateur dans les écrans de connexion et de création. Elle
+ recommande de conserver le mot de passe d’application dans KeePassXC ou de configurer
+ GNOME Keyring/KWallet. Sous Linux, le backend Electron `basic_text` est explicitement
+ considéré comme non sécurisé, même lorsque `safeStorage` peut chiffrer techniquement.
 
- ### Transport WebDAV
+ Les anciennes valeurs `b64:` sont retirées du disque au démarrage. Elles sont gardées
+ en mémoire pour la session ou rechiffrées immédiatement si un trousseau sécurisé est
+ disponible. Le fichier `comptes-distant.json` est écrit par fichier temporaire puis
+ renommage, avec synchronisation avant renommage et permissions `0600`.
 
- L’application autorise une URL HTTP tout en envoyant une authentification Basic et ne configure pas de délai limite réseau.
+ Validation réalisée : tests unitaires complets, typecheck et build réussis.
 
- Correction :
+ ### Transport WebDAV — réalisé
 
- - imposer HTTPS, sauf exception explicite pour localhost;
- - utiliser AbortController avec des délais adaptés;
- - restaurer le miroir local après tout échec de publication.
+ **Statut : corrigé.**
 
- ### Transactions multi-fichiers
+ Le transport WebDAV est maintenant borné et refuse d’exposer l’authentification Basic :
 
- Créer/importer un entretien écrit d’abord son fichier, puis corpus.json. Une interruption entre les deux peut produire un entretien orphelin. La suppression présente le risque inverse.
+ - HTTPS est obligatoire avant tout appel réseau. HTTP reste accepté uniquement sur les hôtes
+   de boucle locale exacts `localhost`, `127.0.0.1` et `::1`, pour les bancs locaux;
+ - les redirections sont refusées afin que les identifiants ne puissent pas être transmis vers
+   une autre origine;
+ - toutes les requêtes passent par `AbortController`, avec 30 secondes pour les échanges JSON,
+   inventaires et verrous, et 30 minutes pour les transferts de fichiers potentiellement lourds;
+ - la sonde Nextcloud directe applique également HTTPS, le refus des redirections et un délai;
+ - les transactions courtes restaurent l’état antérieur ou la version serveur confirmée après
+   un échec. Si un PUT a réussi mais que sa réponse s’est perdue, son contenu est reconnu par
+   relecture et l’opération est considérée comme publiée;
+ - la suppression restaure aussi les fichiers locaux déplacés lorsque son `corpus.json` n’a pas
+   été publié. Un MOVE dont la réponse s’est perdue est confirmé en vérifiant source et destination;
+ - les entretiens ouverts conservent au contraire leur autosauvegarde locale et leur état sale en
+   cas de panne. Une réponse perdue après commit est réconciliée sans créer de fausse divergence;
+ - les transactions courtes sur entretien et les écritures en lot n’écrivent le miroir qu’après
+   succès confirmé ou réconcilié.
 
- Correction : ajouter une réconciliation au démarrage et, à terme, un petit journal transactionnel.
+ Les tests couvrent le refus de HTTP distant avant envoi du secret, l’exception locale, les délais,
+ les redirections, la restauration des transactions et suppressions, ainsi que la perte de réponse
+ après un commit serveur pour les définitions, sessions et écritures en lot.
+
+ ### Transactions multi-fichiers — réalisé
+
+ **Statut : corrigé.**
+
+ Les créations, imports et suppressions locales sont maintenant décrits par un plan pur, puis
+ exécutés sous un journal durable `.transaction-fichiers.json`. Le retrait du membership est le
+ commit logique d’une suppression ; les fichiers sont ensuite déplacés sans écrasement vers la
+ corbeille. Une opération interrompue est reprise de façon idempotente à l’ouverture. Si
+ `corpus.json` ou un entretien ne correspond plus aux versions connues du journal, la reprise
+ refuse de l’écraser et conserve les éléments nécessaires au diagnostic.
+
+ En distant, création et import publient désormais le nouveau fichier entretien avec
+ `If-None-Match: *` avant de publier son membership dans `corpus.json` avec `If-Match`. Le miroir
+ n’est modifié qu’après confirmation des deux publications. Une réponse perdue est réconciliée par
+ relecture ; un entretien dont le membership a certainement échoué est retiré conditionnellement.
+ La suppression prépare également sa mutation sans toucher le miroir avant le commit serveur.
+
+ À l’ouverture distante, une réconciliation sous verrou corpus puis entretien archive dans la
+ corbeille les fichiers serveur absents du membership. Le contenu reste donc récupérable après une
+ interruption entre le commit de `corpus.json` et le déplacement final.
+
+ Les tests couvrent les reprises locales après chacune des frontières utiles, les conflits avec une
+ modification extérieure, l’ordre de publication distant, création et import, les réponses perdues,
+ la compensation après échec certain et l’archivage des orphelins.
 
  ────────────────────────────────────────────────────────────────────────────────
 

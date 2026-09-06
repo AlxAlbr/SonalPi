@@ -24,6 +24,7 @@ function banc() {
   const panne = {
     lecture: false,
     publication: false,
+    publicationAppliqueePuisPerdue: false,
     liberation: false,
     attendrePublication: null as Promise<void> | null,
     publicationCommencee: null as (() => void) | null,
@@ -38,6 +39,10 @@ function banc() {
       panne.publicationCommencee?.()
       if (panne.attendrePublication) await panne.attendrePublication
       if (panne.publication) return new Response('panne', { status: 503 })
+      if (panne.publicationAppliqueePuisPerdue) {
+        await serveur.fetch(entree, init)
+        throw new TypeError('réponse perdue')
+      }
     }
     if (requete.method === 'DELETE' && chemin.endsWith(`/verrous/${ID}.lock.json`)) {
       if (panne.liberation) return new Response('panne', { status: 503 })
@@ -185,6 +190,30 @@ describe('Désignation audio distante — micro-session', () => {
     expect(r).toMatchObject({ ok: false, raison: 'tenu-par-autrui' })
     expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).not.toContain('audioDistant')
   })
+
+  it('échec certain de publication : restaure le miroir et libère sans republier', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    const avant = readFileSync(b.fichierLocal, 'utf8')
+    b.panne.publication = true
+
+    await expect(b.sessions.designerAudio(ID, 'audios/e1.mp3')).rejects.toThrow()
+    expect(readFileSync(b.fichierLocal, 'utf8')).toBe(avant)
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toBe(avant)
+    expect(b.verrou()).toBeUndefined()
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'aucune' })
+  })
+
+  it('réponse perdue après le commit : reconnaît la publication avant de fermer', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    b.panne.publicationAppliqueePuisPerdue = true
+
+    await expect(b.sessions.designerAudio(ID, 'audios/e1.mp3')).resolves.toEqual({ ok: true })
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toContain('audioDistant')
+    expect(readFileSync(b.fichierLocal, 'utf8')).toContain('audioDistant')
+    expect(b.verrou()).toBeUndefined()
+  })
 })
 
 describe('Publication', () => {
@@ -227,6 +256,20 @@ describe('Publication', () => {
     b.panne.attendrePublication = null
     expect(await b.sessions.publier(ID)).toEqual({ ok: true })
     expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: false })
+  })
+
+  it('réponse perdue après commit : confirme le contenu serveur et marque la session propre', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, JSON.stringify({ lastModified: 'v2', texte: 'hors ligne' }))
+    b.sessions.noterSale(ID)
+    b.panne.publicationAppliqueePuisPerdue = true
+
+    await expect(b.sessions.publier(ID)).resolves.toEqual({ ok: true })
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: false })
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).toContain('hors ligne')
+    expect(await b.sessions.fermer(ID)).toEqual({ fermee: true })
   })
 
   it('publication sans modifications : no-op (aucun trafic inutile)', async () => {

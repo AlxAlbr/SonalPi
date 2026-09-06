@@ -1229,6 +1229,21 @@ describe('CorpusStore — garde lectureSeule (E0 corpus distant)', () => {
     expect(store.ouvrir()).toEqual(new CorpusStore(store['dir']).ouvrir())
   })
 
+  test('la révocation du verrou bloque immédiatement toute nouvelle écriture', () => {
+    const { store, dir } = storeRo()
+    const [id] = Object.keys(store.ouvrir().membership)
+    store.autoriserEcritureEntretien(id)
+    store.ecrireEntretien(id, payload('écriture autorisée'))
+    const fichier = join(dir, 'entretiens', `${id}.json`)
+    const contenuAutorise = readFileSync(fichier, 'utf8')
+
+    store.revoquerEcritureEntretien(id)
+
+    expect(() => store.ecrireEntretien(id, payload('écriture interdite')))
+      .toThrow(/verrou n'est pas tenu/)
+    expect(readFileSync(fichier, 'utf8')).toBe(contenuAutorise)
+  })
+
   test('le flag est par instance : un nouveau store local écrit normalement', () => {
     const { dir } = storeRo()
     const local = new CorpusStore(dir) // défaut : false
