@@ -90,6 +90,27 @@ describe('CorpusStore — amorçage & round-trip', () => {
     expect(lu.ok && JSON.stringify(lu.data.corpsTexte)).toContain('CONTENU-MODIFIÉ')
   })
 
+  test('les anciens locuteurs reçoivent des ids déterministes à la prochaine édition', () => {
+    const { store, dir } = storeNeuf()
+    store.ouvrir()
+    expect(lireFichier(dir, 'entretiens/e1.json').locuteurs.every((l) => !l.id)).toBe(true)
+
+    const premiere = store.ouvrirEntretienPourEdition('e1')
+    const seconde = new CorpusStore(dir).ouvrirEntretienPourEdition('e1')
+    expect(premiere.ok && seconde.ok).toBe(true)
+    if (!premiere.ok || !seconde.ok) return
+
+    const ids = premiere.data.locuteurs.map((l) => l.id)
+    expect(ids.every((id) => /^loc-[A-Za-z0-9_-]{43}$/.test(id ?? ''))).toBe(true)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(seconde.data.locuteurs.map((l) => l.id)).toEqual(ids)
+    expect(lireFichier(dir, 'entretiens/e1.json').locuteurs.every((l) => !l.id)).toBe(true)
+
+    const { formatVersion: _formatVersion, lastModified: _lastModified, ...aEcrire } = premiere.data
+    store.ecrireEntretien('e1', aEcrire)
+    expect(lireFichier(dir, 'entretiens/e1.json').locuteurs.map((l) => l.id)).toEqual(ids)
+  })
+
   test('brouillonsAnon : écrits puis relus tels quels (champ additif, pas de bump de version)', () => {
     const { store } = storeNeuf()
     store.ouvrir()
@@ -657,6 +678,7 @@ describe('CorpusStore — sas d’import & fusion du codebook', () => {
     const lu = store.lireEntretien(id)
     expect(lu.ok && JSON.stringify(lu.data.corpsTexte)).toContain('TEXTE-IMPORTÉ')
     expect(lu.ok && lu.data.legacy).toEqual({ notes: 'n' })
+    expect(lu.ok && lu.data.locuteurs[0].id).toMatch(/^loc-[A-Za-z0-9_-]{43}$/)
     expect(store.ouvrir().membership[id].titre).toBe('Importé')
   })
 

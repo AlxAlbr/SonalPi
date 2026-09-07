@@ -27,9 +27,24 @@ export function renommerLocuteur(locuteurs: Locuteur[], index: number, nom: stri
   if (l) l.nom = nom
 }
 
-/** Ajoute un locuteur avec le prochain index libre ; renvoie l'entrée créée. */
-export function ajouterLocuteur(locuteurs: Locuteur[], nom: string): Locuteur {
-  const l: Locuteur = { index: prochainIndex(locuteurs), nom, valeursLoc: {}, personneRef: null }
+/** Génère l'identité opaque d'un nouveau locuteur. */
+export function genIdLocuteur(): string {
+  return `loc-${globalThis.crypto.randomUUID()}`
+}
+
+/** Ajoute un locuteur avec une identité stable et le prochain index libre. */
+export function ajouterLocuteur(
+  locuteurs: Locuteur[],
+  nom: string,
+  genId: () => string = genIdLocuteur,
+): Locuteur {
+  const l: Locuteur = {
+    id: genId(),
+    index: prochainIndex(locuteurs),
+    nom,
+    valeursLoc: {},
+    personneRef: null,
+  }
   locuteurs.push(l)
   return l
 }

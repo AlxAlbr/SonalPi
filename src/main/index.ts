@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, exists
 import { Readable } from 'node:stream'
 import {
   CorpusStore,
+  completerIdsLocuteurs,
   normaliserCheminAudio,
   type PreparationOuvertureCorpus,
 } from './corpusStore'
@@ -752,7 +753,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         data.corpsTexte = transcription.corpsTexte
         data.annotations = transcription.annotations
         data.ancres = transcription.ancres
-        data.locuteurs = transcription.locuteurs
+        data.locuteurs = completerIdsLocuteurs(id, transcription.locuteurs, data.locuteurs)
         return true
       })
       if (!r.ok) throw new Error(`Import de la transcription impossible : ${r.raison}.`)

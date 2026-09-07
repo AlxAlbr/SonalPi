@@ -5,6 +5,7 @@ import {
   prochainIndex,
   renommerLocuteur,
   ajouterLocuteur,
+  genIdLocuteur,
   libelleGouttiere,
   couleurPourLocuteur,
   nomDeCouleur,
@@ -41,11 +42,17 @@ describe('modèle locuteurs (pur)', () => {
     expect(l.map((x) => x.index)).toEqual([1, 2])
   })
 
-  test('ajouter prend le prochain index libre', () => {
+  test('ajouter attribue une identité stable et le prochain index libre', () => {
     const l = locs()
-    const nouveau = ajouterLocuteur(l, 'Témoin')
-    expect(nouveau.index).toBe(3)
+    const nouveau = ajouterLocuteur(l, 'Témoin', () => 'loc-test')
+    expect(nouveau).toMatchObject({ id: 'loc-test', index: 3 })
     expect(l).toHaveLength(3)
+  })
+
+  test('les identités des nouveaux locuteurs sont opaques et uniques', () => {
+    const ids = [genIdLocuteur(), genIdLocuteur()]
+    expect(ids.every((id) => /^loc-[0-9a-f-]{36}$/.test(id))).toBe(true)
+    expect(new Set(ids).size).toBe(2)
   })
 })
 

@@ -1,165 +1,412 @@
-# Plan multi-utilisateur — finitions (cas de test restants)
+# Plan multi-utilisateur — finitions
 
-> Le plan multi-utilisateur initial (architecture hybride miroir local + WebDAV) est mené à
-> son terme : E0–E4 implémentés et validés contre les deux piles Docker réelles (A avec
-> files_lock, B sans). Il est archivé ; la carte du code vit dans
-> [docs/dev/multi-utilisateur.md](../../docs/dev/multi-utilisateur.md) et la doc utilisateur
-> dans [docs/user/multi-utilisateur.md](../../docs/user/multi-utilisateur.md).
+> Le plan multi-utilisateur initial (architecture hybride miroir local + WebDAV) est
+> achevé pour son chemin normal. La carte du code vit dans
+> [docs/dev/multi-utilisateur.md](../../docs/dev/multi-utilisateur.md) et la documentation
+> utilisateur dans
+> [docs/user/multi-utilisateur.md](../../docs/user/multi-utilisateur.md).
 >
-> Ce document liste ce qui reste à couvrir : essentiellement des **cas limites autour des
-> divergences et de leur fusion** — le chemin heureux (une divergence → proposition → fusion →
-> publication) est testé, les enchaînements et les interactions ne le sont pas encore.
+> Ce plan porte les derniers cas limites de divergence. Le correctif empêchant la perte
+> physique d'une copie est en place. Le chantier restant consiste principalement à rendre
+> les conflits compréhensibles et résolubles sans décision silencieuse.
 
-## Déjà couvert (pour mémoire)
+## 1. État actuel
+
+### Réalisé
+
+- Chaque copie de divergence porte un UUID :
+  `sessions/<id>.divergence-<sessionId>.copie-<uuid>.json`.
+- L'écriture refuse de remplacer une copie existante.
+- Les anciens noms sans UUID restent lisibles.
+- Deux publications 412 successives d'une même session conservent leurs deux contenus.
+- Une session dégradée reste explicitement suivie jusqu'à son acquittement.
+- Les lectures ordinaires ne prennent plus de verrou d'écriture.
+- Les ouvertures d'édition, publications, battements et fermetures sont sérialisés.
+- Les bascules de corpus et la fermeture de l'application attendent le nettoyage distant.
+- Les transactions distantes et les suppressions d'entretien sont conditionnelles et
+  réconciliables après une réponse perdue.
+- Le miroir ne synchronise pas `sessions/` : les copies locales ne sont pas retirées par un
+  tirage distant.
+
+### Couverture existante utile
 
 | Domaine | Banc |
 |---|---|
-| Cycle verrou complet (acquisition, battement, refus d'un tiers, libération) | banc embarqué + piles A et B (`test/webdav/session.test.ts`, `scenario-deux-postes.test.ts`) |
-| Divergence 412 par contournement → copie → fusion assistée → publication réunissant les deux apports | `test/e3b-fusion-reconciliation.test.ts` + `test/webdav/scenario-e3b-divergence.test.ts` (A et B) |
-| Décisions pures de fusion (union par id/index/clef, courant gagne, garde texte identique) | `test/e3b-fusion-reconciliation.test.ts` |
-| Réconciliation I-POR-3 post-pull (règle corpus poussée pendant une session) | idem |
-| Transactions de définitions (double verrou, GET frais, ordre canonique) | `test/webdav/transactions.test.ts` + scénarios deux postes |
-| Présence, badges, audio locaux, reprise crash | `test/webdav/presence.test.ts`, corpusStore.test.ts, e2e multi-postes |
+| Cycle complet d'un verrou | `test/webdav/session.test.ts`, piles A et B |
+| Divergence 412, création et lecture d'une copie | `test/webdav/session.test.ts` |
+| Coexistence de deux copies sous le même `sessionId` | `test/webdav/session.test.ts` |
+| Chemin heureux divergence → fusion → publication | `test/webdav/scenario-e3b-divergence.test.ts` |
+| Fonctions pures de fusion actuelles | `test/e3b-fusion-reconciliation.test.ts` |
+| Reprise après crash | tests de sessions et de verrous files_lock |
+| Transactions de définitions et d'entretiens | `test/webdav/transactions.test.ts` |
+| Fermeture, bascule et coutures renderer/main | tests de fermeture et de transition de contexte |
 
-## A. Divergences enchaînées
+## 2. Priorité immédiate — identité stable des locuteurs
 
-Chaque rétrogradation dépose désormais une copie
-`sessions/<id>.divergence-<sessionId>.copie-<uuid>.json`. Deux découvertes avaient été faites
-en relisant le code :
+**Statut : réalisé.**
 
-- **Écrasement silencieux dans un même lancement — corrigé.** Le `sessionId` reste global au
-  lancement, mais chaque copie porte maintenant son propre UUID et l'écriture refuse de
-  remplacer un fichier existant. La lecture accepte aussi les anciens noms sans UUID. Le banc
-  embarqué vérifie deux publications 412 successives, sous le même `sessionId` et sans
-  résolution intermédiaire : les deux chemins et contenus coexistent.
-- **Le dialogue ne propose que la copie la plus récente.** `proposerFusionDivergence`
-  (`sonal.ts`) prend `.at(-1)` sur la liste filtrée par entretien : les copies plus anciennes
-  restent sur disque, listées par l'API mais jamais proposées à l'utilisateur.
+Cette évolution structurelle précède le gestionnaire de divergences. Elle est utile à tous les
+futurs rapprochements et évite de continuer à créer des locuteurs uniquement identifiés par leur
+position.
 
-Options de correction (non exclusives) :
+Le lot autonome livre :
 
-(a) rendre le nom de copie unique (`<id>.divergence-<sessionId>.copie-<uuid>.json`) — plus
-aucun écrasement, `listerDivergences` trie déjà par date ; (b) proposer TOUTES les copies d'un
-entretien au dialogue (file ou liste) au lieu de la seule dernière ; (c) avant d'écrire une
-nouvelle copie, fusionner l'existante dedans (union par id, même mécanique que
-`fusionnerEntretiens`) — aucune perte même en gardant le nommage actuel.
-*Position retenue : **(a)** seul + une info de pile (voir ci-dessous).*
+- `Locuteur.id?: string` sans remplacement des index existants ;
+- un UUID opaque attribué immédiatement à chaque nouveau locuteur ;
+- un complément déterministe et idempotent des anciens locuteurs lors de leur première ouverture
+  en écriture ;
+- aucune sauvegarde déclenchée uniquement pour ce complément : les identifiants sont persistés
+  avec la prochaine écriture normale ;
+- la conservation des identifiants lors du remplacement d'une transcription ;
+- l'attribution d'identifiants lors de l'import d'un nouvel entretien ;
+- le même identifiant calculé sur deux postes partis du même entretien et du même index.
 
-- **(a)** est le seul qui corrige la PERTE à la source (elle a lieu à l'écriture, avant toute
-  UI). Coût minimal : le nom dans `degrader()`, la seule attention réelle étant une
-  `REGEX_DIVERGENCE` rétrocompatible (anciens ET nouveaux noms acceptés).
-- **(b)** est sur-ingénierie : le mécanisme actuel DRAINE déjà la pile — `.at(-1)` propose la
-  plus récente à chaque ouverture, « Fusionner »/« Jeter » la retire, la prochaine ouverture
-  propose la précédente. Ajouter : dans le dialogue, mention du nombre restant (« N autre(s)
-  copie(s) en attente ») pour que l'utilisateur sache que la pile n'est pas vide.
-- **(c)** écarté : fusionner deux instantanés de notre propre travail sans les montrer est
-  l'écrasement sémantique silencieux qu'on cherche à éliminer (cf. B3), et redondant avec (a).
+Le complément historique utilise un SHA-256 de l'identifiant de l'entretien et de l'ancien index.
+Les nouveaux locuteurs utilisent un UUID. Les tests unitaires complets, le typecheck et le build
+sont validés.
 
-Pourquoi ne pas jeter les copies anciennes en ne gardant que la dernière : chaque copie
-détient un travail qui N'EXISTE NULLE PART AILLEURS. Après un 412, la réouverture recharge
-la VERSION SERVEUR (le contenu mis de côté n'y est pas) ; les modifications suivantes partent
-de cette base, donc la copie suivante ne contient pas la précédente. L'ancienneté d'une copie
-ne dit rien de sa redondance. Le volume reste faible par construction : une copie = un
-incident de contournement (rare), et le chemin normal est la résolution immédiate au dialogue
-(l'accumulation suppose des « Plus tard » répétés). Pas de ramasse-miettes ; si besoin un jour,
-un nettoyage des copies très anciennes se rajoutera.
+## 3. Décisions fonctionnelles du gestionnaire
 
-Cas restant à tester après la régression de coexistence désormais couverte :
+### 3.1 Gestionnaire de divergences
 
-1. **Deuxième divergence avant résolution de la première.** Max subit un 412 (copie C1),
-   rouvre l'entretien, choisit « Plus tard », retravaille, subit un second 412 (copie C2)
-   — DANS LE MÊME LANCEMENT (le cas critique découvert ci-dessus) puis DANS UN SECOND
-   lancement. Attendu : C1 et C2 coexistent dans `listerDivergences`, aucune n'écrase l'autre ;
-   la fusion de C1 puis de C2 cumule les apports sans doublon (les ids de C1 déjà absorbés
-   sont absents de C2… sauf si le contournement a réintroduit les mêmes ids — à préciser).
-   *Banc : embarqué.*
-2. **Fusion → publication → nouveau 412.** Après absorption d'une copie, le serveur bouge
-   encore avant notre publication : nouvelle rétrogradation, nouvelle copie. Vérifier que la
-   boucle divergence/fusion peut se rejouer sans perte ni duplication et que l'UI re-propose
-   bien le dialogue à chaque fois.
-   *Banc : embarqué.*
-3. **« Jeter » sur une copie, l'autre conservée.** Deux copies pendantes, on jette C1 :
-   C2 reste proposable et fusionnable (et effectivement RE-proposée — cf. découverte sur
-   `.at(-1)`).
-   *Banc : embarqué.*
+La file implicite qui proposait uniquement la copie la plus récente est remplacée par un
+**gestionnaire de divergences**.
 
-## B. Sémantique de la fusion — cas à trancher AVANT d'écrire les tests
+Il présente :
 
-La fusion est une union par identité stable, « le courant gagne ». Trois zones d'ombre à
-arbitrer (décision consignée ici, puis test qui l'incarne) :
+- la version serveur actuelle ;
+- toutes les copies locales de l'entretien, datées et ordonnées ;
+- les différences structurées de chaque copie ;
+- l'origine connue de chaque différence lorsque l'instantané de base le permet ;
+- les choix nécessaires pour composer la version à publier.
 
-1. **Résurrection d'éléments supprimés côté serveur.** Si le contournement (ou une édition UI
-   web) SUPPRIME une annotation que notre copie de divergence contient encore, l'union par id
-   la réintroduit : la suppression d'autrui est annulée en silence. Options : (a) accepter
-   (la copie représente « notre travail », on ne perd rien), (b) signaler dans le bilan de
-   fusion (« X éléments présents dans la copie mais absents de la version actuelle »),
-   (c) proposer un choix par élément. Position retenue : …
-2. **Locuteurs et décalage d'index.** L'identité d'un locuteur est son INDEX, référencé par
-   les blocs du transcript (`attrs.loc` dans le doc ProseMirror), les EAV (`CibleValeur`), le
-   journal d'undo/redo, les requêtes, la migration SonalPi1 et l'export. Si le contournement insère
-   un locuteur en tête alors que notre copie en avait ajouté un en queue, les indices de la
-   copie pointent chez nous vers d'autres tours. La garde « texte identique » ne protège pas
-   ici (ajouter un locuteur ne change pas `corpsTexte`).
+Le gestionnaire est accessible de deux façons :
 
-   Options étudiées :
+- automatiquement à l'ouverture d'un entretien concerné ;
+- depuis un bouton « Divergences » avec compteur au niveau du corpus.
 
-   - **(a) Remplacer l'index par un id opaque partout** (comme les catégories, `genId('cat')`) :
-     identité robuste, mais coût disproportionné — réécriture des `attrs.loc` de TOUS les
-     entretiens existants (migration de données lourde, bump de format), refonte journal /
-     requêtes / import-export / migration SonalPi1. Le seul lieu où deux versions parallèles
-     coexistent est la fusion d'une copie de divergence (rare).
-   - **(b) Champ ADDITIF `id?: string` sur `Locuteur`** (même idiome que `pseudo`/`couleur`,
-     pas de bump de version) : `genId('loc')` à la création (`ajouterLocuteur`), backfill
-     opportuniste à l'ouverture des fichiers anciens ; la fusion apparie PAR ID quand les deux
-     côtés en ont un, repli `index + nom` sinon ; garde conservatrice — listes structurellement
-     divergentes (nombres/ordres incompatibles) → PAS de fusion automatique des locuteurs,
-     proposition manuelle.
+Le bouton et les fonctions de récupération ne sont visibles que lorsqu'un problème existe.
+Le fonctionnement normal de l'application reste inchangé.
 
-   NB : l'id règle l'IDENTITÉ, pas la politique de conflit — deux `valeursLoc` contradictoires
-   sur un même locuteur restent « courant gagne » silencieux (cf. point 3 ci-dessous).
-   *Position retenue : **(b)** — champ additif `id?: string`. Les catégories peuvent se
-   permettre un id opaque natif car rien ne les référençait avant ; les locuteurs, eux, sont
-   index-couplés de bout en bout (blocs du transcript, EAV, journal d'undo/redo, requêtes,
-   import/export `.sonal`, migration SonalPi1). Une refonte complète imposerait de réécrire les
-   `attrs.loc` de tous les entretiens existants (migration lourde + bump de format) pour
-   couvrir un seul scénario rare : deux versions parallèles d'un même entretien ne coexistent
-   que dans une copie de divergence. Le champ additif donne aux FUSIONS une identité stable
-   sans toucher au format ni au code existant ; l'index reste la clef interne d'un fichier
-   (ordre des tours), l'id n'est consulté que pour apparier deux versions.*
-3. **Valeurs EAV modifiées des deux côtés.** « Le courant gagne » est silencieux : le bilan ne
-   compte que les AJOUTS de la copie. Une valeur que les deux postes ont fixée différemment
-   prend ours sans que personne ne le sache. À trancher : le bilan doit-il compter des
-   « conflits écartés » affichés au dialogue ?
-   *Position retenue : …*
+« Plus tard » ferme le gestionnaire sans retirer aucune copie. L'utilisateur peut choisir
+librement la copie à examiner ; il n'est plus obligé de fermer et rouvrir l'entretien pour
+drainer une pile.
 
-## C. Interactions avec le reste du protocole
+### 3.2 Comparaison à trois versions
 
-1. **Copie pendante + entretien supprimé par un tiers.** Oliviers supprime l'entretien
-   (double verrou, MOVE corbeille) pendant que max garde une copie de divergence. Attendu :
-   l'ouverture du dialogue ne cible plus rien de cassé ; la copie reste listée (elle est un
-   artefact local) avec une issue nette (« jeter »), jamais une fusion vers un fichier absent ;
-   le pull qui retire l'entretien du miroir n'efface pas les copies de `sessions/`.
-   *Banc : embarqué, puis A/B.*
-2. **Reprise crash §4.5 avec divergences existantes.** Des copies pendantes + verrous orphelins
-   d'un crash : « Abandonner » (déverrouille sans publier) doit préserver les copies ; les
-   deux mécanismes (dialogue orphelins, dialogue fusion) doivent se proposer dans un ordre
-   compréhensible à l'ouverture du corpus puis de l'entretien.
-   *Banc : embarqué.*
-3. **Divergence entretien + transaction corpus.json concurrente dans la même fenêtre.** Max
-   subit un 412 d'entretien PENDANT qu'olivier pousse une règle anon (transaction corpus) :
-   au prochain pull, max doit traverser ET la réconciliation I-POR-3 ET la proposition de
-   fusion, dans cet ordre ou l'inverse, sans que l'une masque l'autre (aujourd'hui testés
-   séparément seulement).
-   *Banc : piles A et B (scénario deux postes étendu).*
-4. **Trois postes.** Max tient le verrou ; olivier contourne (UI web) et écrit ; marie tire à
-   mi-chemin. Attendu : badges cohérents chez les trois, publication de max en 412, copie chez
-   max seul, marie ne voit jamais d'état intermédiaire incohérent.
-   *Banc : piles A et B.*
+Les nouvelles sessions d'édition conservent la version commune qui sert de base à la session.
+Une divergence peut alors comparer :
 
-## Bancs et cadence
+1. l'instantané de base ;
+2. la version serveur actuelle ;
+3. la copie locale.
 
-- Les cas A et C1/C2 se jouent sur le **serveur WebDAV embarqué** (rapides, déterministes) ;
-  C3/C4 et toute décision issue de B se rejouent sur les **deux piles Docker** (variante A pour
-  le verrou entretien, variante B partout), comme les scénarios `test/webdav/scenario-*.test.ts`
-  (`fileParallelism: false` déjà en place).
-- Ordre suggéré : trancher B1–B3 → A1–A3 + C1/C2 sur le banc embarqué → C3/C4 contre Docker.
+L'instantané :
+
+- ne contient que le JSON de l'entretien, jamais l'audio ou la vidéo ;
+- n'entraîne aucune requête réseau supplémentaire, car l'ouverture sous verrou effectue déjà
+  un GET frais ;
+- est écrit localement et référencé par la session ;
+- est dédupliqué par contenu ou ETag afin que plusieurs copies issues de la même base le
+  partagent ;
+- est supprimé après une fermeture normale dès qu'aucune session, copie ou résolution ne le
+  référence ;
+- est conservé après un crash ou une divergence ;
+- est écrit atomiquement.
+
+Le calcul des différences reste paresseux : il n'est lancé qu'à l'ouverture du gestionnaire.
+Le chemin heureux ne paie donc que le coût local de conservation temporaire d'un JSON.
+
+Les anciennes copies sans instantané restent compatibles. Elles utilisent une comparaison à
+deux versions et le gestionnaire signale clairement que l'origine d'une absence ou d'une
+modification est ambiguë.
+
+### 3.3 Résolution des différences structurées
+
+Aucune différence sémantique n'est résolue silencieusement.
+
+Pour un élément présent dans la copie mais absent du serveur, le gestionnaire demande pour
+chaque élément s'il faut :
+
+- restaurer la version de la copie ;
+- respecter son absence côté serveur ;
+- laisser la décision en attente.
+
+Avec un instantané de base, le gestionnaire distingue autant que possible un ajout local d'une
+suppression distante. Sans base, il présente l'absence comme ambiguë.
+
+Pour une même variable EAV modifiée différemment des deux côtés, le gestionnaire affiche :
+
+- la cible et la variable ;
+- la valeur de base lorsqu'elle est connue ;
+- la valeur serveur ;
+- la valeur de chaque copie concernée.
+
+L'utilisateur choisit explicitement la valeur à conserver. Cette règle vaut pour les variables
+générales et les variables de locuteurs.
+
+La même discipline s'applique aux annotations, ancres, brouillons d'anonymisation,
+pseudonymes déclarés et autres données structurées. Les éléments identiques sont dédupliqués ;
+les modifications concurrentes restent à arbitrer.
+
+### 3.4 Utilisation de l'identité stable dans les divergences
+
+`Locuteur` reçoit un champ additif `id?: string` :
+
+- les nouveaux locuteurs reçoivent immédiatement un identifiant opaque ;
+- les anciens locuteurs sont complétés lors de leur première ouverture en écriture ;
+- l'index reste la référence interne des blocs ProseMirror, des EAV, du journal, des requêtes
+  et des imports/exports existants ;
+- le gestionnaire apparie les locuteurs par identifiant lorsque celui-ci existe ;
+- pour une ancienne version sans identifiant, le rapprochement par index et nom est présenté
+  comme incertain et doit être confirmé ;
+- une divergence structurelle de listes de locuteurs n'est jamais fusionnée automatiquement.
+
+Cette évolution reste additive : elle ne provoque ni remplacement général des index ni bump de
+format uniquement pour la fusion.
+
+### 3.5 Transcriptions différentes
+
+Le gestionnaire affiche les différences de transcription, mais ne fusionne pas automatiquement
+le texte.
+
+L'utilisateur choisit une transcription complète : serveur ou copie. Les annotations et ancres
+de cette transcription sont conservées. Les éléments positionnels de l'autre transcription ne
+sont pas injectés automatiquement, car leurs positions ne sont plus fiables.
+
+Les métadonnées indépendantes du texte restent résolubles séparément. La copie non retenue reste
+consultable jusqu'à la validation et à la publication de la résolution.
+
+### 3.6 Validation et publication d'une résolution
+
+Appliquer des choix dans le gestionnaire crée un brouillon local de résolution. Cela ne détruit
+aucune copie source.
+
+Avant publication :
+
+1. Sonal acquiert le verrou d'entretien ;
+2. relit la version serveur ;
+3. vérifie que la comparaison utilisée est encore valable ;
+4. publie avec `If-Match`.
+
+Les copies sources, l'instantané et le brouillon ne sont nettoyés qu'après confirmation de la
+publication serveur.
+
+Si un nouveau 412 survient :
+
+- le brouillon composé est conservé comme nouvelle proposition locale ;
+- la nouvelle version serveur est chargée ;
+- le gestionnaire recalcule les différences ;
+- les choix déjà effectués sont conservés lorsqu'ils restent applicables ;
+- aucune source n'est supprimée avant la publication finalement confirmée.
+
+## 4. Copies dont l'entretien a été supprimé
+
+Une copie liée à un entretien absent du membership reste un artefact local récupérable. Elle est
+visible dans le gestionnaire au niveau du corpus, mais ne peut pas être fusionnée vers un fichier
+absent.
+
+Les choix proposés sont :
+
+- conserver la copie ;
+- l'exporter ;
+- la jeter explicitement.
+
+La restauration directe de l'entretien supprimé n'est pas proposée depuis ce dialogue, afin de
+ne pas annuler implicitement la suppression réalisée par un autre utilisateur.
+
+### 4.1 Exports de récupération
+
+Deux exports sont disponibles uniquement depuis le parcours de récupération :
+
+- un paquet complet `*.sonal-recup.json` ;
+- un export `.sonal` pour l'interopérabilité habituelle.
+
+Le paquet de récupération est un format public versionné, distinct du JSON interne brut. Il
+contient au minimum :
+
+- le type et la version du paquet ;
+- les données complètes de l'entretien ;
+- le titre et l'identifiant d'origine ;
+- les informations de la copie et, lorsqu'il existe, son instantané de base ;
+- les définitions de catégories et de variables nécessaires à l'interprétation des données.
+
+### 4.2 Import d'un paquet de récupération
+
+Sonal accepte l'import d'un `*.sonal-recup.json` et :
+
+1. valide intégralement sa structure et sa version au runtime ;
+2. affiche un aperçu avant toute écriture ;
+3. propose de créer un nouvel entretien ou de rapprocher le paquet d'un entretien existant ;
+4. génère un nouvel identifiant en cas de collision ;
+5. présente les catégories et variables absentes ou contradictoires ;
+6. n'utilise jamais automatiquement une référence audio locale non vérifiée ;
+7. exécute l'import sous les mêmes garanties transactionnelles que les autres créations et
+   imports d'entretien.
+
+L'import arbitraire du JSON interne n'est pas exposé.
+
+## 5. Interaction avec la reprise après crash
+
+Lorsqu'un corpus contient à la fois des verrous orphelins et des copies de divergence :
+
+1. le dialogue de reprise après crash est présenté en premier ;
+2. « Reprendre et publier » ou « Abandonner » traite le verrou sans retirer les copies ;
+3. « Plus tard » laisse le verrou et les copies intacts ;
+4. après traitement des verrous, le compteur de divergences est actualisé ;
+5. le gestionnaire est ensuite proposé lors de l'ouverture de l'entretien concerné.
+
+Une copie de divergence n'est jamais prise pour le contenu à publier automatiquement lors de la
+reprise d'un verrou orphelin.
+
+## 6. Travail d'implémentation restant
+
+### A. Modèle de persistance
+
+- Définir le manifeste ou l'enveloppe associant session, copie, instantané de base et brouillon
+  de résolution.
+- Conserver la lecture des copies historiques nommées sans UUID ou sans métadonnées de base.
+- Ajouter les écritures atomiques et le comptage de références des instantanés.
+- Nettoyer les instantanés non référencés après fermeture normale.
+- Préserver les artefacts nécessaires après crash, délai dépassé ou publication incertaine.
+
+### B. Moteur pur de comparaison et de résolution
+
+- Comparer base, serveur et copie par identité stable.
+- Classer ajouts, suppressions et modifications concurrentes.
+- Produire des décisions explicites et sérialisables.
+- Détecter les conflits EAV par cible et identifiant de variable.
+- Traiter les locuteurs avec identifiant, puis avec un rapprochement incertain pour les anciens
+  fichiers.
+- Afficher les différences de texte sans tenter de remapper automatiquement les positions.
+- Construire un nouveau fichier à partir des décisions sans modifier les entrées.
+- Garantir l'idempotence d'une décision rejouée.
+
+### C. Interface du gestionnaire
+
+- Ajouter le bouton et le compteur au niveau du corpus.
+- Ajouter l'ouverture automatique pour l'entretien courant.
+- Lister toutes les copies et leurs états : à traiter, résolution préparée, publiée ou
+  publication à reprendre.
+- Présenter les différences et recueillir les choix par élément.
+- Signaler les comparaisons ambiguës sans instantané de base.
+- Gérer « Plus tard » sans perte de sélection.
+- Gérer les copies d'entretiens supprimés avec conserver, exporter ou jeter.
+- Ne montrer les outils techniques de récupération qu'en présence d'un incident.
+
+### D. Publication et reprise
+
+- Publier le brouillon sous verrou depuis un GET frais.
+- Revalider ou recalculer les décisions si le serveur a changé.
+- Préserver le brouillon et les sources après un nouveau 412.
+- Nettoyer uniquement après succès confirmé ou réconcilié.
+- Ordonner reprise de crash puis gestion des divergences.
+
+### E. Import et export de récupération
+
+- Définir le schéma versionné de `*.sonal-recup.json`.
+- Ajouter sa validation runtime stricte.
+- Exporter sans référence audio dangereuse ou ambiguë.
+- Importer sous transaction avec aperçu, gestion des identifiants et rapprochement des
+  définitions.
+- Proposer également l'export `.sonal` depuis le gestionnaire.
+
+## 7. Cas de test restants
+
+### Serveur WebDAV embarqué
+
+1. **Chemin heureux sans divergence**
+   - aucun calcul de diff ;
+   - aucune requête réseau supplémentaire ;
+   - instantané supprimé à la fermeture ;
+   - aucun bouton de récupération visible.
+
+2. **Cycle de vie des instantanés**
+   - création à l'ouverture d'édition ;
+   - partage d'une même base entre plusieurs copies ;
+   - conservation après crash ou divergence ;
+   - nettoyage après publication confirmée ;
+   - reprise après interruption pendant une écriture ou un nettoyage.
+
+3. **Divergences enchaînées dans un même lancement et après redémarrage**
+   - C1 et C2 coexistent ;
+   - les deux sont visibles dans le gestionnaire ;
+   - chaque différence peut être retenue ou rejetée ;
+   - la résolution cumulée ne crée aucun doublon.
+
+4. **Fusion puis nouveau 412**
+   - le brouillon et les copies sources restent présents ;
+   - les choix encore valables sont conservés ;
+   - les nouvelles différences sont proposées ;
+   - la seconde publication réunit les apports retenus sans duplication.
+
+5. **Traitement partiel d'une pile**
+   - jeter C1 ne retire pas C2 ;
+   - remettre C2 à plus tard conserve son état ;
+   - le compteur reste exact ;
+   - une copie publiée disparaît seulement après confirmation serveur.
+
+6. **Sémantique à trois versions**
+   - ajout local ;
+   - suppression distante ;
+   - modification concurrente du même élément ;
+   - conflit EAV général et par locuteur ;
+   - locuteurs avec identifiants stables ;
+   - rapprochement incertain d'anciens locuteurs ;
+   - choix d'une transcription complète lorsque les textes diffèrent ;
+   - comparaison ambiguë d'une ancienne copie sans base.
+
+7. **Entretien supprimé**
+   - le tirage retire l'entretien sans toucher aux copies ;
+   - aucune fusion vers un fichier absent n'est possible ;
+   - conserver, exporter et jeter ont chacun un résultat net ;
+   - le paquet de récupération exporté est réimportable ;
+   - l'import gère collision d'identifiant, définitions absentes et référence audio invalide.
+
+8. **Crash et divergences existantes**
+   - le dialogue des verrous orphelins apparaît avant le gestionnaire ;
+   - reprendre, abandonner ou remettre à plus tard préserve les copies ;
+   - aucune copie n'est publiée automatiquement comme contenu de reprise.
+
+### Coutures renderer/main
+
+- Le compteur apparaît et disparaît avec l'état réel des copies.
+- L'ouverture automatique ne se déclenche que pour l'entretien concerné.
+- Les décisions restent présentes après fermeture et réouverture du gestionnaire.
+- Une rétrogradation immédiate pendant la publication fige l'écriture sans perdre le brouillon.
+- Les exports de récupération ne sont pas visibles sur le chemin normal.
+- Une erreur d'import n'écrit ni membership, ni entretien, ni définition partielle.
+
+### Piles Docker A et B
+
+1. **Divergence d'entretien et transaction `corpus.json` concurrente**
+   - une règle d'anonymisation est publiée pendant la session divergente ;
+   - le tirage, la réconciliation de portée et le gestionnaire ne se masquent pas ;
+   - la résolution finale contient les décisions retenues des deux mécanismes.
+
+2. **Trois postes**
+   - Max tient le verrou ;
+   - Olivier contourne et modifie le fichier ;
+   - Marie tire pendant l'incident ;
+   - Max reçoit un 412 et lui seul crée une copie locale ;
+   - aucun poste n'observe un état intermédiaire incohérent ;
+   - les badges et verrous finaux sont cohérents.
+
+3. **Publication d'une résolution puis nouvelle divergence**
+   - rejouer le cycle complet contre files_lock et contre les verrous applicatifs ;
+   - vérifier la conservation des artefacts tant que le commit n'est pas confirmé.
+
+Les piles Docker existantes doivent seulement être démarrées avec les commandes du projet. Les
+images et volumes ne doivent jamais être retéléchargés ou reprovisionnés.
+
+## 8. Ordre de réalisation
+
+1. **Réalisé :** identité stable des locuteurs et validation complète.
+2. Définir le schéma des instantanés, copies et brouillons de résolution.
+3. Écrire le moteur pur de comparaison à trois versions et ses tests.
+4. Construire le gestionnaire et son compteur.
+5. Brancher publication, nouveau 412 et nettoyage après confirmation.
+6. Ajouter les copies orphelines et les exports de récupération.
+7. Ajouter l'import versionné `*.sonal-recup.json`.
+8. Couvrir les interactions crash/divergence sur le banc embarqué.
+9. Terminer par les scénarios concurrents sur les piles Docker A et B.

@@ -11,6 +11,7 @@ import {
 } from 'node:fs'
 import { join, extname, basename, normalize, isAbsolute, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
@@ -42,6 +43,7 @@ import {
   type CorpusFichier,
   type EntretienFichier,
   type LectureEntretien,
+  type Locuteur,
   type MarqueurDemo,
   type MatriceCorpus,
   type PatchCategorie,
@@ -93,6 +95,33 @@ function genIdEntretien(titre: string): string {
       .replace(/^[-.]+|[-.]+$/g, '')
       .slice(0, 60) || 'entretien'
   return `${slug}_${code}`
+}
+
+/** Produit la même identité sur deux postes partis du même ancien entretien. */
+function idLocuteurHistorique(entretienId: string, index: number): string {
+  const empreinte = createHash('sha256')
+    .update(`${entretienId}\0${index}`)
+    .digest('base64url')
+  return `loc-${empreinte}`
+}
+
+/** Complète les anciens locuteurs sans modifier leur index. */
+export function completerIdsLocuteurs(
+  entretienId: string,
+  locuteurs: Locuteur[],
+  existants: Locuteur[] = [],
+): Locuteur[] {
+  const idsParIndex = new Map(
+    existants
+      .filter((locuteur): locuteur is Locuteur & { id: string } => Boolean(locuteur.id))
+      .map((locuteur) => [locuteur.index, locuteur.id] as const),
+  )
+  return locuteurs.map((locuteur) => {
+    if (locuteur.id) return locuteur
+    const id = idsParIndex.get(locuteur.index)
+      ?? idLocuteurHistorique(entretienId, locuteur.index)
+    return { ...locuteur, id }
+  })
 }
 
 /** Normalise un chemin audio reçu d'un dialogue (assignerAudio).
@@ -483,7 +512,10 @@ export class CorpusStore {
    *  La première écriture qui suit conservera l'état antérieur dans `.bak1`. */
   ouvrirEntretienPourEdition(id: string): LectureEntretien {
     const lecture = this.lireEntretien(id)
-    if (lecture.ok) this.rotationEnAttente.add(id)
+    if (lecture.ok) {
+      lecture.data.locuteurs = completerIdsLocuteurs(id, lecture.data.locuteurs)
+      this.rotationEnAttente.add(id)
+    }
     return lecture
   }
 
@@ -534,7 +566,7 @@ export class CorpusStore {
       corpsTexte: transcription.corpsTexte,
       annotations: transcription.annotations,
       ancres: transcription.ancres,
-      locuteurs: transcription.locuteurs,
+      locuteurs: completerIdsLocuteurs(id, transcription.locuteurs, data.locuteurs),
       meta: data.meta,
       notes: data.notes,
       brouillonsAnon: data.brouillonsAnon,
@@ -594,7 +626,12 @@ export class CorpusStore {
     const corpusApres = structuredClone(corpusAvant)
     const id = genIdEntretien(titre)
     const now = new Date().toISOString()
-    const entretien: EntretienFichier = { formatVersion: FORMAT_VERSION, lastModified: now, ...payload }
+    const entretien: EntretienFichier = {
+      formatVersion: FORMAT_VERSION,
+      lastModified: now,
+      ...payload,
+      locuteurs: completerIdsLocuteurs(id, payload.locuteurs),
+    }
     corpusModel.fusionnerImport(corpusApres, codebook, variables)
     corpusModel.fusionnerReglesAnon(corpusApres, reglesAnon)
     corpusApres.membership[id] = { titre, date: null, lastModified: now }

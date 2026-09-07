@@ -302,6 +302,9 @@ export interface VerrouTenuParAutrui {
 
 /** Locuteur : indexé par entretien — le `loc` d'un bloc référence cet index. */
 export interface Locuteur {
+  /** Identité stable utilisée pour rapprocher plusieurs versions d'un entretien.
+   *  Absente dans les anciens fichiers jusqu'à leur prochaine édition. */
+  id?: string
   index: number
   nom: string
   /** Interviewer (celui qui pose les questions) : tours affichés en italique.
