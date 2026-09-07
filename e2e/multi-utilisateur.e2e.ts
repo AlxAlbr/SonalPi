@@ -396,11 +396,10 @@ await expect(pOli.locator('.carte-ent .crayon').first()).toHaveText('🔒', { ti
 })
 
 /* ── Scénario 2 : métadonnées créées SOUS VERROU ───────────────────────────*/
-/** Depuis l'écran Corpus : Actualiser (pull) puis « Ouvrir la base de
- *  données » → écran Table de données. */
+/** Depuis l'écran Corpus : actualise le miroir puis ouvre l'onglet Données. */
 async function ouvrirBaseDonnees(page: Page): Promise<void> {
   await page.locator('.btn-table', { hasText: 'Actualiser' }).click()
-  await page.locator('.btn-table', { hasText: 'base de données' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Données' }).click()
   await expect(page.locator('.donnees-ecran')).toBeVisible({ timeout: 20_000 })
 }
 
@@ -490,8 +489,8 @@ await attendreDefinitionServeur('"Lyon"')
     /* 3. Olivier ouvre la BASE DE DONNÉES : elle reste ACCESSIBLE et
      *  interactive (jamais lecture seule), la colonne « Ville » est là,
      *  mais la ligne de l'entretien porte le badge 🔒 max. */
-    console.log('③ Olivier ouvre la base de données : colonne là, ligne verrouillée…')
-    await narrer(pOli, 'Olivier actualise puis ouvre la base de données (Table de données)…')
+    console.log('③ Olivier ouvre l’onglet Données : colonne là, ligne verrouillée…')
+    await narrer(pOli, 'Olivier actualise puis ouvre l’onglet Données…')
     await ouvrirBaseDonnees(pOli)
     await pause(pOli, 'La table s’ouvre NORMALEMENT — la colonne « Ville » est déjà partagée…')
     await expect(pOli.locator('.matrice th', { hasText: 'Ville' })).toBeVisible({ timeout: 20_000 })
@@ -534,7 +533,7 @@ await attendreDefinitionServeur('"Lyon"')
     const valeursApres = JSON.parse(brutApres) as { meta: { valeursGen: Record<string, string> } }
     expect(Object.keys(valeursApres.meta.valeursGen)).toHaveLength(1) // la valeur est partie
 
-    /* 6. La base de données reflète la valeur au prochain tirage. */
+    /* 6. L’onglet Données reflète la valeur au prochain tirage. */
     console.log('⑥ La table de données montre la valeur après actualisation…')
     await ouvrirBaseDonnees(pOli)
     await expect(pOli.locator('.matrice')).toContainText('Lyon', { timeout: 20_000 })
@@ -616,9 +615,9 @@ test('démo visible : LOT par colonne (refus nominatif, jamais bloquant) puis sa
     const corpusApresVar = await clientMax().getTexte('corpus.json')
     if (!corpusApresVar?.includes('"Ville"')) throw new Error('variable « Ville » absente du serveur')
 
-    /* 3. Olivier ouvre la base de données et lance le LOT sur « Ville ». */
+    /* 3. Olivier ouvre l’onglet Données et lance le lot sur « Ville ». */
     console.log("③ Olivier lance le lot sur la colonne « Ville »…")
-    await narrer(pOli, 'Olivier actualise puis ouvre la base de données…')
+    await narrer(pOli, 'Olivier actualise puis ouvre l’onglet Données…')
     await ouvrirBaseDonnees(pOli)
     await expect(pOli.locator('.matrice th', { hasText: 'Ville' })).toBeVisible({ timeout: 20_000 })
     // Deux lignes cibles (amorcer a créé un second entretien), dont une 🔒 max.

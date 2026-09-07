@@ -69,8 +69,8 @@ test('sortir d’un entretien le ferme ; « Reprendre » (Corpus et table) le ro
   // le point de reprise est proposé dès l'écran Corpus.
   await entrerEntretien(page)
   await retourCorpus(page)
-  await expect(page.locator('.corpus-ecran .btn-reprise')).toBeVisible()
-  await expect(page.locator('.corpus-ecran .btn-reprise')).toContainText('Reprendre')
+  await expect(page.locator('.grille-corpus .btn-reprise')).toBeVisible()
+  await expect(page.locator('.grille-corpus .btn-reprise')).toContainText('Reprendre')
 
   // Dans la table : aucune ligne verrouillée, et la reprise est là aussi.
   await entrerDonnees(page)
@@ -81,6 +81,33 @@ test('sortir d’un entretien le ferme ; « Reprendre » (Corpus et table) le ro
   // Reprendre rouvre l'entretien dans l'éditeur.
   await reprise.click()
   await expect(page.locator('.editeur')).toBeVisible()
+
+  await app.close()
+})
+
+test('le panneau Variables pilote les colonnes sans que sa recherche masque la matrice', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-colonnes-')
+  await creerVarEntretien(page, 'Lyon')
+  await entrerDonnees(page)
+
+  const ligne = page.locator('.ligne-variable').first()
+  await expect(ligne.locator('input')).toBeChecked()
+  await expect(page.locator('.matrice th .titre-var')).toHaveCount(1)
+
+  await page.locator('.recherche-variable input').fill('introuvable')
+  await expect(page.locator('.variables-vide')).toContainText('Aucune variable')
+  await expect(page.locator('.matrice th .titre-var')).toHaveCount(1)
+
+  await page.locator('.recherche-variable input').fill('')
+  await page.getByRole('button', { name: 'Tout masquer' }).click()
+  await expect(page.locator('.table-vide')).toContainText('Aucune colonne')
+  await page.locator('.table-vide').getByRole('button', { name: 'Tout afficher' }).click()
+  await expect(page.locator('.matrice th .titre-var')).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Replier le panneau des variables' }).click()
+  await expect(page.locator('.donnees-gauche')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Afficher le panneau des variables' }).click()
+  await expect(page.locator('.donnees-gauche')).toBeVisible()
 
   await app.close()
 })

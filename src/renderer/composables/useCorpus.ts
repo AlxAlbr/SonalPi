@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { ordreThemes } from '../../shared/corpus'
 import { couleurPourCode, couleurHexPourCode } from '../editor/decorations'
 import type {
@@ -19,6 +19,7 @@ import type {
 import { paramsAnonDefaut } from '../../shared/format'
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import type { ScanRegle } from '../../shared/corpus/scanAnon'
+import type { CommandePersonnes } from '../../shared/corpus/personnes'
 
 /**
  *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
@@ -43,9 +44,15 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   // Registre « Mes modèles » (niveau profil, settings.json) : les modèles IMPORTÉS par l'utilisateur,
   // proposés dans « modèles… » à côté des intégrés.
   const modelesUtilisateur = ref<ModeleEAV[]>([])
-  // Étape 3a — règles corpus + scan anon (lecture seule) : panneau « Pseudos ».
-  const reglesAnon = ref<RegleAnon[]>([]) // corpus.json.reglesAnon
-  const scanAnon = ref<ScanRegle[]>([]) // requête scan (relit le disque)
+  // Règles corpus et projection du scan de pseudonymisation.
+  const reglesAnon = ref<RegleAnon[]>([])
+  const scanAnon = ref<ScanRegle[]>([])
+  const scanAnonCharge = ref(false)
+  const scanAnonPerime = ref(true)
+  const scanAnonEnCours = ref(false)
+  const scanAnonErreur = ref<string | null>(null)
+  const dernierScanAnon = ref<string | null>(null)
+  let chargementScanAnon: Promise<boolean> | null = null
   // Étape 4a — paramètres anon (corpus.json.paramsAnon, défauts si absents).
   const paramsAnon = ref<ParamsAnon>(paramsAnonDefaut())
   // Catégories de note (définitions corpus, comme le codebook).
@@ -53,6 +60,16 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   // ils ne sont écrits sur disque qu'au premier geste d'édition.
   const categoriesNote = ref<NoteCategory[]>(normaliserCategoriesNote())
   const messageCategorieNote = ref<string | null>(null) // ex. refus de suppression
+
+  async function lirePersonnes() {
+    await opts.flush()
+    return window.sonal.corpus.personnesInventaire()
+  }
+
+  async function commanderPersonnes(commande: CommandePersonnes) {
+    await opts.flush()
+    return window.sonal.corpus.personnesCommander(toRaw(commande))
+  }
 
   const varsGen = () => variables.value.filter((v) => v.portee === 'entretien')
   const varsLoc = () => variables.value.filter((v) => v.portee === 'locuteur')
@@ -340,12 +357,49 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     return window.sonal.corpus.poserValeurLot(items)
   }
 
-  // --- Étape 3a — règles corpus & scan (panneau « Pseudos », lecture seule) ---
-  /** Re-requête le scan : relit les règles + tous les entretiens sur disque.
-   *  À appeler à chaque ouverture du panneau (le texte peut avoir changé). */
-  async function rafraichirScanAnon() {
+  // --- Règles corpus et scan de pseudonymisation. ---
+  function perimerScanAnon() {
+    scanAnonPerime.value = true
+  }
+  async function rafraichirReglesAnon() {
     reglesAnon.value = await window.sonal.corpus.reglesAnon()
-    scanAnon.value = await window.sonal.corpus.scanAnon()
+    perimerScanAnon()
+  }
+  function reinitialiserScanAnon() {
+    reglesAnon.value = []
+    scanAnon.value = []
+    scanAnonCharge.value = false
+    scanAnonPerime.value = true
+    scanAnonErreur.value = null
+    dernierScanAnon.value = null
+  }
+  /** Relit les règles et les entretiens, sans lancer deux scans concurrents. */
+  async function rafraichirScanAnon(force = true): Promise<boolean> {
+    if (!force && scanAnonCharge.value && !scanAnonPerime.value) return true
+    if (chargementScanAnon) return chargementScanAnon
+    scanAnonEnCours.value = true
+    scanAnonErreur.value = null
+    chargementScanAnon = (async () => {
+      try {
+        const [regles, scan] = await Promise.all([
+          window.sonal.corpus.reglesAnon(),
+          window.sonal.corpus.scanAnon(),
+        ])
+        reglesAnon.value = regles
+        scanAnon.value = scan
+        scanAnonCharge.value = true
+        scanAnonPerime.value = false
+        dernierScanAnon.value = new Date().toISOString()
+        return true
+      } catch (e) {
+        scanAnonErreur.value = e instanceof Error ? e.message : 'Le scan a échoué.'
+        return false
+      } finally {
+        scanAnonEnCours.value = false
+        chargementScanAnon = null
+      }
+    })()
+    return chargementScanAnon
   }
   /** Écrit les paramètres anon (IPC transactionné) et reflète localement. */
   async function majParamsAnon(params: ParamsAnon) {
@@ -385,10 +439,18 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables,
     rafraichirUsages,
     rafraichirMatrice,
-    // règles corpus & scan anon (panneau « Pseudos »)
+    // règles corpus et scan anon.
     reglesAnon,
     scanAnon,
+    scanAnonCharge,
+    scanAnonPerime,
+    scanAnonEnCours,
+    scanAnonErreur,
+    dernierScanAnon,
     rafraichirScanAnon,
+    rafraichirReglesAnon,
+    perimerScanAnon,
+    reinitialiserScanAnon,
     paramsAnon,
     majParamsAnon,
     // catégories de note (définitions corpus)
@@ -409,6 +471,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     deplacerTheme,
     migrerTheme,
     supprimerTheme,
+    lirePersonnes,
+    commanderPersonnes,
     // variables/modalités
     ajouterVariable,
     renommerVariable,

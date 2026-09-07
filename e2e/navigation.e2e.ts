@@ -22,6 +22,26 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
+  // La navigation du corpus démarre sur son accueil et reste composée d'icônes.
+  const onglets = page.locator('.onglets-corpus button')
+  await expect(onglets).toHaveCount(6)
+  await expect(onglets.nth(3)).toHaveAttribute('aria-label', 'Personnes')
+  await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
+  await expect(page.locator('.accueil-corpus')).toContainText('Données')
+  await expect(page.locator('.accueil-corpus')).toContainText('Pseudonymisation')
+  await expect(page.locator('.cartes-ent')).toBeVisible()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Données' }).click()
+  await expect(page.locator('.donnees-ecran')).toBeVisible()
+  await expect(page.locator('.grille-corpus')).toBeHidden()
+  await expect(page.locator('.fil')).not.toContainText('Table de données')
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
+  await page.getByRole('button', { name: 'Pseudonymisation' }).click()
+  await expect(page.locator('.pseudo-panneau')).toBeVisible()
+  await expect(page.locator('.grille-corpus')).toBeHidden()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
+  await expect(page.locator('.cartes-ent')).toBeVisible()
+  await expect(page.locator('.pseudo-panneau')).toBeHidden()
+
   // Corpus → Accueil (fil d'Ariane) → Corpus.
   await page.locator('.fil .lien-nav', { hasText: 'Accueil' }).click()
   await expect(page.locator('.ecran.accueil')).toBeVisible()

@@ -83,7 +83,7 @@ export interface DepsDemo {
    *  sans l'enchaîner automatiquement. */
   retourCorpus: () => Promise<void>
   preparerBascule: () => Promise<void>
-  vue: Ref<'accueil' | 'corpus' | 'entretien' | 'donnees'>
+  vue: Ref<'accueil' | 'corpus' | 'entretien'>
   // --- pour les prédicats d'étapes (observation du modèle réactif) ---
   membership: Ref<Record<string, EntretienRef>>
   entretien: { annotations: Annotation[] } // reactive (useEntretien)

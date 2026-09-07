@@ -919,12 +919,10 @@ function focaliserLibre(el: unknown, cle: string) {
             </button>
           </nav>
 
-          <!-- Accueil : conseils + vue d'ensemble des onglets (icone + titre) →
-               l'utilisateur qui arrive sur l'entretien comprend d'un coup d'œil
-               ce qu'il peut faire. -->
+          <!-- Présentation de l'entretien : conseils et vue d'ensemble des onglets. -->
           <aside v-show="ongletDroite === 'maison'" class="panneau maison">
             <div class="corpus-tete">
-              <h3>Accueil</h3>
+              <h3>Entretien</h3>
             </div>
             <p class="raccourci">
               🎧 Raccourci : tapez <b>DEUX FOIS</b> sur la touche <b>Espace</b> dans l'éditeur
@@ -1514,7 +1512,7 @@ function focaliserLibre(el: unknown, cle: string) {
                           @click="changerPorteeAnon(l.entite, 'corpus')"
                         >🌐</button>
                       </div>
-                      <!-- Thématique (4c) : badge-sélecteur sur les lignes CORPUS quand le réglage est activé au panneau Pseudos. -->
+                      <!-- Catégorie affichée sur les règles corpus lorsque ce réglage est actif. -->
                       <select
                         v-if="l.etat === 'corpus' && thematiquesActives.length"
                         class="cat-select"

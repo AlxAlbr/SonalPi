@@ -95,7 +95,7 @@ export interface CorpusFichier {
   codebook: Record<string, Categorie>
   variables: Record<string, Variable>
   reglesAnon: Record<string, RegleAnon>
-  personnes: Record<string, unknown>
+  personnes: Record<string, Personne>
   membership: Record<string, EntretienRef>
   /** Identité du PROJET : vit dans corpus.json → insensible au renommage du dossier.
    *  Champ ADDITIF optionnel. */
@@ -300,6 +300,13 @@ export interface VerrouTenuParAutrui {
 
 
 
+/** Identité transverse facultative, indépendante des noms locaux et des pseudonymes. */
+export interface Personne {
+  id: string
+  nom: string
+  note?: string
+}
+
 /** Locuteur : indexé par entretien — le `loc` d'un bloc référence cet index. */
 export interface Locuteur {
   /** Identité stable utilisée pour rapprocher plusieurs versions d'un entretien.
@@ -323,6 +330,7 @@ export interface Locuteur {
   pseudoEtat?: 'confirme' | 'refuse'
   valeursLoc: Record<string, string> // idVar → idMod
   personneRef: string | null
+  rapprochementsRefuses?: string[]
 }
 
 // ══════════════════════════════════════════════════════════════════════════

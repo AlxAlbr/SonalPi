@@ -3,7 +3,6 @@ import { fournirSonal } from './composables/sonal'
 import { erreurGlobale, effacerErreurGlobale, infoGlobale, effacerInfoGlobale } from './erreurs'
 import Accueil from './components/Accueil.vue'
 import Corpus from './components/Corpus.vue'
-import TableDonnees from './components/TableDonnees.vue'
 import Entretien from './components/Entretien.vue'
 import RepriseCrash from './components/RepriseCrash.vue'
 import DivergenceCopie from './components/DivergenceCopie.vue'
@@ -39,10 +38,6 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
             Entretien ({{ (ouvertId && membership[ouvertId]?.titre) || 'sans titre' }})
           </span>
         </template>
-        <template v-if="vue === 'donnees'">
-          <span class="sep">›</span>
-          <span class="lien-nav courant">Table de données</span>
-        </template>
       </nav>
     </header>
 
@@ -67,7 +62,6 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <Corpus v-show="vue === 'corpus'" />
     <!-- Entretien en v-show : l'éditeur TipTap reste MONTÉ d'un écran à l'autre. -->
     <Entretien v-show="vue === 'entretien'" />
-    <TableDonnees v-show="vue === 'donnees'" />
 
     <!-- Reprise crash : orphelins détectés à l'ouverture d'un corpus distant ;
          téléporté, ne s'affiche QUE si la liste est non vide. -->

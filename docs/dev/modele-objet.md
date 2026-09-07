@@ -50,7 +50,7 @@ classDiagram
         +Record codebook «Categorie[]»
         +Record variables «Variable[]»
         +Record reglesAnon «RegleAnon[]»
-        +Record personnes «REFLECHI, non implémenté»
+        +Record personnes «Personne[]»
         +Record membership «EntretienRef[]»
         +string nom?
         +meta? sourceV1, demo
@@ -127,7 +127,7 @@ classDiagram
         +string pseudo? / pseudoEtat? «pseudonymisation du libellé»
         +string couleur?
         +Record valeursLoc «idVar→idMod — portée locuteur»
-        +string personneRef «→ Personne, non implémenté»
+        +string personneRef «→ Personne, facultatif»
     }
 
     CorpusFichier "1" o-- "*" EntretienRef : membership
@@ -389,7 +389,7 @@ classDiagram
   `anon` (couvert, pseudo ∈ pseudos de la règle) / `exc` (exception) / `non` (à traiter). Priorité :
   une occurrence dans une **exception n'est jamais « à traiter »**.
 - **Application** : poser une `Annotation{type:'anon'}` sur la plage d'un match. En **masse** sur un
-  entretien **fermé** (depuis le panneau Pseudos) : `instructionsAppliquerRegle`
+  entretien **fermé** (depuis l’onglet Pseudonymisation du corpus) : `instructionsAppliquerRegle`
   (`entretien/anon/applicationMasse.ts`) calcule les occurrences à poser (sans toucher aux déjà
   couvertes), puis le store écrit atomiquement.
 - **Brouillons** (`BrouillonAnon`, `entretiens/<id>.json.brouillonsAnon`) : une entité saisie sans
@@ -406,7 +406,7 @@ classDiagram
 ## 7. Locuteurs
 
 > **Cadrage.** Le locuteur est **promu en entité** (indexé par entretien) — il possède ses valeurs
-> EAV de portée locuteur (`valeursLoc`) et peut référencer une `Personne` du corpus (à venir).
+> EAV de portée locuteur (`valeursLoc`) et peut référencer une `Personne` du corpus.
 
 ```mermaid
 classDiagram
@@ -421,7 +421,7 @@ classDiagram
         +string pseudo? / pseudoEtat? «pseudonymisation du libellé»
         +string couleur? «palette définie»
         +Record valeursLoc
-        +string personneRef «→ Personne, NON implémenté»
+        +string personneRef «→ Personne, facultatif»
     }
 
     class Bloc {
@@ -448,7 +448,7 @@ classDiagram
   un refus importé d'un `.sonal` reste honoré au rendu, mais il n'est plus saisissable ici.
 - **Couleur** : choisie (palette définie `PALETTE_PASTILLES_LOCUTEURS`) ou **auto par index** ;
   stable car l'index est l'identité.
-- **`personneRef`** : pointe vers `Personne` (corpus) — **non implémenté** (voir §11).
+- **`personneRef`** : pointe vers une `Personne` du corpus, ou vaut `null`. Les corrections manuelles du répertoire sont disponibles en local ; l’inventaire distant reste consultable.
 
 **Code** : `src/shared/entretien/locuteurs.ts`, type `Locuteur` dans `src/shared/format.ts`.
 
@@ -583,16 +583,23 @@ classDiagram
 - **Conséquence assumée — l'attribution au locuteur devient une requête.** Un codage transverse
   n'« appartient » pas à un locuteur : « ce codage relève de quel(s) locuteur(s) ? » = calculé
   (jamais stocké). Important pour les stats par locuteur.
-- **`Personne` (corpus) — à venir, non implémenté.** Le type existe en réserve (`personnes:
-  Record<string, unknown>` dans `corpus.json`, `personneRef` sur `Locuteur`) mais **rien n'est
-  encore modélisé** — c'est une **réflexion tracée**, pas un chantier actif.
-- **Découplée de l'anonymisation (décidé).** `Personne` ne référencera **pas** `RegleAnon` : le cas
+- **`Personne` (corpus).** `personnes: Record<string, Personne>` contient une identité opaque,
+  un nom de référence et une note facultative. Les noms ne sont pas uniques. Les liens sont
+  portés uniquement par les `personneRef` des locuteurs ; aucune valeur EAV ne migre sur la personne.
+  L’inventaire main complète les anciens ids de locuteurs en mémoire, expose les fichiers
+  indisponibles et ne transmet pas les transcriptions. Les commandes locales créent, lient,
+  délient, déplacent et modifient les fiches. Une création écrit la définition avant le lien ;
+  un échec de la seconde écriture conserve une fiche vide et produit une erreur explicite.
+  La suppression exige une fiche vide et un inventaire complet. Les anciens corpus reçoivent
+  `personnes: {}` en mémoire, sans migration de version ni écriture lors de la consultation.
+  Les suggestions et les corrections distantes restent à implémenter.
+- **Découplée de l'anonymisation.** `Personne` ne référence pas `RegleAnon` : le cas
   « deux graphies → un pseudo » est couvert par les **alias** `entite[]` (§6), système généraliste
-  pour personnes *comme* lieux/organisations. `Personne` ne serait qu'une **identité de locuteur**
-  trans-entretien (interopérabilité CAQDAS, longitudinal).
+  pour personnes comme lieux/organisations. `Personne` est une identité transverse de locuteur,
+  jamais exportée dans le format historique `.sonal`.
 - **Non implémenté dans SonalPi2** : le **Recueil** (§6 de l'ancien doc — collecte d'`ItemRecueil`),
   le **Storage multi-backend** (factory Local/Serveur/GitLab/Nextcloud : SonalPi2 ne persiste qu'en local,
-  cf. §9), et le contenu de `Personne`.
+  cf. §9).
 - **Frontière `shared/` pure** : tout ce qui est modélisé ici vit sous `src/shared/` comme
   fonctions **pures**. Un test **garde-fou** — « discipline d'architecture » dans `test/remap.test.ts`
   — vérifie mécaniquement que `src/shared/entretien/` n'importe jamais le DOM/ProseMirror.

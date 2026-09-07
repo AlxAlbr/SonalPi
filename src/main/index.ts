@@ -645,6 +645,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
   ipcMain.handle('corpus:scanAnon', () => store.scanAnon())
+  ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
+  ipcMain.handle('corpus:personnesCommander', (_e, commande: import('../shared/corpus/personnes').CommandePersonnes) => {
+    if (transactions || store.lectureSeule) throw new Error('Les corrections de personnes sont disponibles uniquement dans les corpus locaux pour le moment.')
+    return store.personnesCommander(commande)
+  })
   ipcMain.handle('corpus:regleAnonParEntite', (_e, entite: string) => store.regleAnonParEntite(entite))
   ipcMain.handle('corpus:regleAnonCreer', (_e, entite: string, pseudos: string[]) =>
     executerDefinitions((cible) => cible.regleAnonCreer(entite, pseudos)),

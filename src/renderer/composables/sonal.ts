@@ -60,14 +60,17 @@ export function creerSonal() {
     tailleTrait: corpus.tailleTheme, // …et sa taille de police (parité SonalPi1)
     // Un thème inactif est masqué du marquage et refusé au codage (scope entretien).
     estCodeActif: corpus.estCodeActif,
-    apresSauvegarde: () => corpus.rafraichirUsages(), // après un save, les usages suivent
+    apresSauvegarde: async () => {
+      corpus.perimerScanAnon()
+      await corpus.rafraichirUsages()
+    },
     codeExtraits: () => corpus.codeCourant.value, // filtre de la requête Extraits
     nomCode: (code) => corpus.nomTheme(code), // libellés du journal (noms au corpus)
     // Catégories de note : définitions au corpus, résolues ici pour le scope entretien (nom affichable + défaut du formulaire de création).
     nomCategorieNote: (id) => corpus.nomCategorieNote(id),
     categorieNoteDefaut: () => corpus.categorieNoteDefaut(),
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
-    rafraichirReglesCorpus: () => corpus.rafraichirScanAnon(), // cache règles après mutation
+    rafraichirReglesCorpus: () => corpus.rafraichirReglesAnon(),
     prioriteAnon: () => corpus.paramsAnon.value.prioriteValidation, // étape 4a : portée d'Entrée
     // Mots de liaison : suggestion d'entité-cœur à la validation d'une entité à affixe.
     motsLiaison: () =>
@@ -119,8 +122,8 @@ export function creerSonal() {
     if (!u) ent.majPlageLue(null)
   })
 
-  // --- Navigation : Accueil → Corpus → Entretien (+ Table de données) ---
-  const vue = ref<'accueil' | 'corpus' | 'entretien' | 'donnees'>('corpus')
+  // --- Navigation : Accueil → Corpus → Entretien. ---
+  const vue = ref<'accueil' | 'corpus' | 'entretien'>('corpus')
 
   // --- Largeur du panneau vidéo, mémorisée PAR CORPUS (settings.json) ---
   const dossierCourantDir = ref<string | null>(null)
@@ -270,6 +273,7 @@ export function creerSonal() {
     audio.largeurVideo.value = 0 // la taille mémorisée de l'ANCIEN corpus ne s'applique pas
     reprise.value = null // les ids de reprise non plus
     deselectionnerCorpus()
+    corpus.reinitialiserScanAnon()
     corpus.membership.value = c.membership
     corpus.majCodebook(c.codebook)
     corpus.majVariables(c.variables)
@@ -569,6 +573,7 @@ export function creerSonal() {
     corpus.majVariables(c.variables)
     corpus.majCategoriesNote(c.categoriesNote)
     corpus.paramsAnon.value = { ...paramsAnonDefaut(), ...(c.paramsAnon ?? {}) }
+    corpus.perimerScanAnon()
     await corpus.rafraichirUsages()
     await rafraichirAudios()
   }
@@ -831,6 +836,7 @@ export function creerSonal() {
       const titre = audioChemin!.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '')
       const res = await window.sonal.corpus.creerEntretienVide(titre)
       corpus.membership.value = res.corpus.membership
+      corpus.perimerScanAnon()
       id = res.id
     }
     if (audioChemin) {
@@ -932,6 +938,7 @@ export function creerSonal() {
             ancres: importe.payload.ancres,
             locuteurs: importe.payload.locuteurs,
           })
+          corpus.perimerScanAnon()
         } catch (err) {
           srtMessage.value = err instanceof Error ? err.message : String(err)
           return
@@ -1010,6 +1017,7 @@ export function creerSonal() {
     if (!titre.trim()) return null
     const res = await window.sonal.corpus.creerEntretienVide(titre.trim())
     corpus.membership.value = res.corpus.membership
+    corpus.perimerScanAnon()
     await rafraichirAudios()
     return res.id
   }
@@ -1079,6 +1087,7 @@ export function creerSonal() {
     // et fermer publie puis libère dans l'ordre invariant, jamais d'orphelin.
     if (ent.ouvertId.value === id) await fermerEntretien()
     corpus.membership.value = (await window.sonal.corpus.supprimerEntretien(id)).membership
+    corpus.perimerScanAnon()
     if (reprise.value?.id === id) reprise.value = null
     if (corpusSelId.value === id) deselectionnerCorpus()
   }
@@ -1088,6 +1097,12 @@ export function creerSonal() {
   async function ouvrirAuSegment(id: string, pos: number) {
     await ouvrirEntretien(id)
     ent.allerAuTexte(pos)
+  }
+
+  /** Ouvre les locuteurs en réutilisant le cycle d'ouverture et ses verrous. */
+  async function allerLocuteurs(id: string) {
+    await ouvrirEntretien(id)
+    if (ent.ouvertId.value === id) ent.ongletDroite.value = 'locuteurs'
   }
 
   /** « Saisir… » depuis la Table de données : ouvre CET entretien directement sur son onglet Donnée.
@@ -1153,11 +1168,6 @@ export function creerSonal() {
     }
     ent.reinitialiser()
     audio.charger(null, null)
-  }
-  async function allerDonnees() {
-    await fermerEntretienPourNavigation()
-    await corpus.rafraichirMatrice()
-    vue.value = 'donnees'
   }
   /** Rouvre l'entretien du point de reprise et se recale :
    *  curseur + défilement texte, position audio. */
@@ -1296,6 +1306,7 @@ export function creerSonal() {
     ouvrirRecent,
     ouvrirCorpusDistant,
     idDistantCourant,
+    dossierCourantDir,
     dernierTirage,
     tirageEnCours,
     progressionDistant,
@@ -1326,6 +1337,7 @@ export function creerSonal() {
     plusTardDivergence,
     ouvrirAuSegment,
     allerSaisieDonnees,
+    allerLocuteurs,
     ajouterEntretien,
     exporter,
     renommer,
@@ -1335,7 +1347,6 @@ export function creerSonal() {
     confirmerSuppressionEntretien,
     reprise,
     reprendre,
-    allerDonnees,
     demanderSuppressionTheme,
     confirmerSuppressionTheme,
     listeEntretiens,

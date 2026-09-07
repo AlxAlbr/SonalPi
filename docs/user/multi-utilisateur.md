@@ -59,8 +59,8 @@ Déplacer ensuite ce fichier cassera la référence (il faudra ré-associer).
 
 ## Remplir les valeurs sans ouvrir l'entretien (table de données)
 
-Dans la **base de données** (table de données), trois gestes permettent d'écrire des valeurs
-même quand aucun entretien n'est ouvert chez vous :
+Dans l’onglet **Données** du corpus, trois gestes permettent d'écrire des valeurs même quand
+aucun entretien n'est ouvert chez vous :
 
 - **« Par cellule » (saisie directe)** : chaque cellule d'une ligne libre est éditable
   directement dans la grille. Clavier type tableur : **Entrée** valide et descend la colonne

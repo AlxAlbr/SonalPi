@@ -37,6 +37,7 @@ import type {
   ParamsAnon,
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
   CompteDistantPublic,
@@ -110,6 +111,8 @@ declare global {
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
+        personnesInventaire: () => Promise<InventairePersonnes>
+        personnesCommander: (commande: CommandePersonnes) => Promise<string | null>
         regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>
         regleAnonCreer: (entite: string, pseudos: string[]) => Promise<{ regle: RegleAnon; existait: boolean }>
         regleAnonAjouterPseudo: (id: string, pseudo: string) => Promise<RegleAnon | null>

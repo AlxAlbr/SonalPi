@@ -31,6 +31,7 @@ import type {
 } from '../shared/format'
 import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
 import type {
   CompteDistantPublic,
   DemandeConnexion,
@@ -182,6 +183,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:resumesThematiques'),
     reglesAnon: (): Promise<RegleAnon[]> => invoquer('corpus:reglesAnon'),
     scanAnon: (): Promise<ScanRegle[]> => invoquer('corpus:scanAnon'),
+    personnesInventaire: (): Promise<InventairePersonnes> => invoquer('corpus:personnesInventaire'),
+    personnesCommander: (commande: CommandePersonnes): Promise<string | null> => invoquer('corpus:personnesCommander', commande),
     regleAnonParEntite: (entite: string): Promise<RegleAnon | undefined> =>
       invoquer('corpus:regleAnonParEntite', entite),
     regleAnonCreer: (entite: string, pseudos: string[]): Promise<{ regle: RegleAnon; existait: boolean }> =>

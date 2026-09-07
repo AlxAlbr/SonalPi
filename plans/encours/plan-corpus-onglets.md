@@ -23,8 +23,7 @@
 Squelette : même patron que la nav `ongletDroite` d'[Entretien.vue](../../src/renderer/components/Entretien.vue)
 (`ongletCorpus: 'accueil' | 'personnes' | 'thematique' | 'donnees' | 'anon'`). L'état
 `vue === 'donnees'` de [sonal.ts](../../src/renderer/composables/sonal.ts) disparaît au profit de
-`vue === 'corpus'` + onglet ; `rafraichirMatrice()` se déclenche à l'activation de l'onglet
-(comportement actuel d'`allerDonnees` conservé).
+`vue === 'corpus'` + onglet ; `rafraichirMatrice()` se déclenche à l'activation de l'onglet.
 
 ## 2. Onglet Accueil
 
@@ -32,6 +31,10 @@ La vue actuelle, telle quelle. Seule évolution envisagée à terme : la colonne
 peut s'enrichir (spectrogramme corpus), mais c'est hors de ce plan.
 
 ## 3. Onglet Personnes
+
+> Le plan de mise en œuvre détaillé est désormais
+> [plan-corpus-onglet-personnes.md](plan-corpus-onglet-personnes.md). En cas d’écart, ses
+> décisions UX et techniques prévalent sur cette vision ancienne.
 
 **L'idée** : quand deux entretiens ont un locuteur du même nom, ce sont souvent — mais pas
 toujours — la même personne. L'outil doit (a) le **proposer** au moment où l'utilisateur nomme un
@@ -169,10 +172,16 @@ ou rejette ; à la validation seulement, les commandes de domaine écrivent.
 
 ## 5. Onglet Données
 
-Déplacement pur : l'écran `donnees` ([App.vue](../../src/renderer/App.vue:52)) devient le contenu de
-l'onglet ; `allerDonnees` devient « aller à l'onglet ». Le composant TableDonnees ne change pas.
-À terme, l'onglet est le lieu naturel des colonnes « personne » (nom de la personne liée à côté
-du locuteur) une fois §3 fait.
+L'écran autonome devient un onglet en deux parties : le panneau gauche recherche et filtre les
+variables, puis choisit les colonnes affichées ; la grande partie droite conserve la matrice de
+saisie. Le panneau est redimensionnable et repliable pour laisser toute la largeur aux corpus qui
+portent beaucoup de variables. La fenêtre d'édition des définitions et les commandes de saisie
+existantes sont conservées.
+
+L'état global `vue === 'donnees'` et `allerDonnees` disparaissent. La projection est rafraîchie à
+l'activation de l'onglet et au retour d'un entretien ouvert depuis la matrice. À terme, l'onglet
+est le lieu naturel des colonnes « personne » (nom de la personne liée à côté du locuteur) une
+fois §3 fait.
 
 ## 6. Onglet Anon
 

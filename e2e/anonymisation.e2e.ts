@@ -46,11 +46,11 @@ test('round-trip anonymisation : import → export → ré-import, règles corpu
 
   // --- Compte des règles après le 1ᵉʳ import (référence anti-doublon) ---
   await retourCorpus(page)
-  await page.locator('.btn-table', { hasText: 'Pseudos' }).click()
+  await page.getByRole('button', { name: 'Pseudonymisation' }).click()
   await expect(page.locator('.pseudo-panneau')).toBeVisible()
   const nbAvant = await page.locator('.pseudo-table tbody tr').count()
   expect(nbAvant).toBeGreaterThanOrEqual(1)
-  await page.locator('.pseudo-panneau .close').click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
 
   // --- RÉ-IMPORT du .sonal exporté (2ᵉ entretien, même corpus) ---
   await app.evaluate(({ dialog }, args) => {
@@ -61,9 +61,9 @@ test('round-trip anonymisation : import → export → ré-import, règles corpu
   await expect(page.locator('.editeur')).toContainText('accepté cet entretien', { timeout: 10_000 })
   await expect(page.locator('.editeur .anon').first()).toBeVisible()
 
-  // --- VÉRIF d'absence de doublon : panneau Pseudos → même nombre de lignes ---
+  // --- VÉRIF d'absence de doublon : onglet Pseudonymisation → même nombre de lignes ---
   await retourCorpus(page)
-  await page.locator('.btn-table', { hasText: 'Pseudos' }).click()
+  await page.getByRole('button', { name: 'Pseudonymisation' }).click()
   await expect(page.locator('.pseudo-panneau')).toBeVisible()
   await expect
     .poll(async () => page.locator('.pseudo-table tbody tr').count(), { timeout: 10_000 })

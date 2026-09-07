@@ -64,16 +64,19 @@ export async function entrerEntretien(page: Page, nth = 0): Promise<void> {
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
 }
 
-/** Depuis l'écran Corpus, ouvre la table de données (base de données).
- *  (`hasText` : le bouton « Pseudos » porte aussi la classe `.btn-table`.) */
+/** Depuis l'écran Corpus, ouvre l'onglet Données. */
 export async function entrerDonnees(page: Page): Promise<void> {
-  await page.locator('.btn-table', { hasText: 'base de données' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Données' }).click()
   await expect(page.locator('.donnees-ecran')).toBeVisible({ timeout: 20_000 })
 }
 
-/** Retourne à l'écran Corpus depuis l'entretien (fil d'Ariane). */
+/** Revient au Corpus depuis l'entretien, ou à ses cartes depuis un outil plein écran. */
 export async function retourCorpus(page: Page): Promise<void> {
-  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+  if (await page.locator('.entretien-ecran').isVisible()) {
+    await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+  } else {
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
+  }
   await attendreCorpus(page)
 }
 
@@ -168,10 +171,9 @@ export async function fermerEditionThemes(page: Page): Promise<void> {
   await expect(page.locator('.modale-themes')).toHaveCount(0)
 }
 
-/** Ouvre la fenêtre d'ÉDITION des variables (crayon de la table de données —
- *  même idiome que l'édition des thèmes). */
+/** Ouvre la fenêtre d'édition des variables depuis le panneau de l'onglet Données. */
 export async function ouvrirEditionVariables(page: Page): Promise<void> {
-  await page.locator('.table-tete .crayon').click()
+  await page.locator('.variables-tete .crayon').click()
   await expect(page.locator('.modale-vars')).toBeVisible()
 }
 

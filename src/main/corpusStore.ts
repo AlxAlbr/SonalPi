@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
+import { inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
@@ -294,6 +295,7 @@ export class CorpusStore {
 
     const contenuCorpusInitial = readFileSync(this.corpusFile, 'utf8')
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
+    corpus.personnes ??= {}
     const versionInitiale = corpus.formatVersion as number
     const entretiensV2: EntretienV2Prepare[] = []
     const deplacementsPng: DeplacementPngPrepare[] = []
@@ -734,6 +736,67 @@ export class CorpusStore {
   }
   private datas(): EntretienFichier[] {
     return this.chargerEntretiens().map((e) => e.data)
+  }
+
+  /** Inventaire tolérant : les entretiens illisibles restent signalés. */
+  personnesInventaire(): InventairePersonnes {
+    const corpus = this.ouvrir()
+    const entretiens: corpusModel.EntreeMatrice[] = []
+    const indisponibles: InventairePersonnes['indisponibles'] = []
+    for (const [id, ref] of Object.entries(corpus.membership)) {
+      try {
+        const lecture = this.lireEntretien(id)
+        if (!lecture.ok) throw new Error(lecture.raison === 'absent' ? 'Fichier absent' : 'Version non supportée')
+        lecture.data.locuteurs = completerIdsLocuteurs(id, lecture.data.locuteurs)
+        entretiens.push({ id, titre: ref.titre, data: lecture.data })
+      } catch (erreur) {
+        indisponibles.push({ id, titre: ref.titre, raison: erreur instanceof Error ? erreur.message : String(erreur) })
+      }
+    }
+    return { ...inventorierPersonnes(corpus, entretiens), indisponibles }
+  }
+
+  /** Corrections locales du répertoire, sans réécriture des noms de locuteurs. */
+  personnesCommander(commande: CommandePersonnes): string | null {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    if (commande.type === 'modifier') {
+      modifierPersonne(corpus, commande.personneId, commande.nom, commande.note)
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+      return commande.personneId
+    }
+    if (commande.type === 'supprimer') {
+      supprimerPersonneVide(corpus, this.personnesInventaire(), commande.personneId)
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+      return null
+    }
+    if (commande.type !== 'creer' && commande.type !== 'lier') throw new Error('Commande Personnes inconnue.')
+    if (!corpus.membership[commande.entretienId]) throw new Error('Cet entretien ne fait plus partie du corpus.')
+    const lecture = this.lireEntretien(commande.entretienId)
+    if (!lecture.ok) throw new Error('Cet entretien est indisponible.')
+    const data = lecture.data
+    data.locuteurs = completerIdsLocuteurs(commande.entretienId, data.locuteurs)
+    const locuteur = trouverLocuteur(data, commande.locuteurId)
+    let personneId: string | null
+    if (commande.type === 'creer') {
+      if (locuteur.personneRef) throw new Error('Déliez ce locuteur avant de créer une nouvelle personne.')
+      personneId = creerPersonne(corpus, genId('pers'), commande.nom).id
+    } else {
+      personneId = commande.personneId
+    }
+    lierLocuteur(corpus, data, commande.locuteurId, personneId)
+    // La définition précède son lien : un échec ne laisse jamais une référence pendante.
+    if (commande.type === 'creer') this.ecrireJsonAtomique(this.corpusFile, corpus)
+    const { formatVersion: _version, lastModified: _date, ...payload } = data
+    try {
+      this.ecrireEntretien(commande.entretienId, payload)
+    } catch (erreur) {
+      if (commande.type === 'creer') {
+        throw new Error(`La personne a été créée, mais le lien a échoué. Retrouvez-la dans le répertoire pour réessayer. ${erreur instanceof Error ? erreur.message : String(erreur)}`)
+      }
+      throw erreur
+    }
+    return personneId
   }
 
   // ── Codebook (thèmes) — lire → appliquer (shared/corpus) → écrire ───────────
