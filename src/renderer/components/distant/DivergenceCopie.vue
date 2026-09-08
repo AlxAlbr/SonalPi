@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { utiliserSonal } from '../composables/sonal'
+import { utiliserSonal } from '../../composables/sonal'
 
 /**
  *  Dialogue de FUSION ASSISTÉE — proposé à la

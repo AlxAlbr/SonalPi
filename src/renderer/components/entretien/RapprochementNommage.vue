@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { VueLocuteurPersonne } from '../../shared/corpus/personnes'
-import type { Locuteur, Variable } from '../../shared/format'
-import { type ChoixRepriseLocuteur, natureNomPersonne, reprendreDonneesLocuteur } from '../../shared/corpus/rapprochementsPersonnes'
+import type { VueLocuteurPersonne } from '../../../shared/corpus/personnes'
+import type { Locuteur, Variable } from '../../../shared/format'
+import { type ChoixRepriseLocuteur, natureNomPersonne, reprendreDonneesLocuteur } from '../../../shared/corpus/rapprochementsPersonnes'
 
 const props = defineProps<{ nom: string; lienActuel: string; cible: Locuteur; sources: VueLocuteurPersonne[]; variables: Variable[]; candidats: VueLocuteurPersonne[]; occupe: boolean; message: string }>()
 const emit = defineEmits<{

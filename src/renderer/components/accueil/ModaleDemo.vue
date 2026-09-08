@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import type { ModeDemo } from '../composables/demo'
+import { utiliserSonal } from '../../composables/sonal'
+import type { ModeDemo } from '../../composables/demo'
 
 /**
  *  Modale démo à deux questions : « où placer les sources de la démo » (sautée

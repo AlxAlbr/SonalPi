@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import { celluleVoisine, grilleCellules, type SensNav } from '../tableNavigation'
+import { utiliserSonal } from '../../composables/sonal'
+import { celluleVoisine, grilleCellules, type SensNav } from '../../tableNavigation'
 import EditionVariables from './EditionVariables.vue'
 import LotVariable from './LotVariable.vue'
 

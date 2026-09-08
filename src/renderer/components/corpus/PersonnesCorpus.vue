@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import RapprochementCorpus from './RapprochementCorpus.vue'
-import { utiliserSonal } from '../composables/sonal'
-import { natureNomPersonne, suggestionsExactesPersonnes } from '../../shared/corpus/rapprochementsPersonnes'
-import type { CommandePersonnes, InventairePersonnes, VueLocuteurPersonne } from '../../shared/corpus/personnes'
+import { utiliserSonal } from '../../composables/sonal'
+import { natureNomPersonne, suggestionsExactesPersonnes } from '../../../shared/corpus/rapprochementsPersonnes'
+import type { CommandePersonnes, InventairePersonnes, VueLocuteurPersonne } from '../../../shared/corpus/personnes'
 
 const props = defineProps<{ actif: boolean }>()
 const { lirePersonnes, commanderPersonnes, allerLocuteurs, allerNotes, variables, badgeVerrou,

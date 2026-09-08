@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
+import { utiliserSonal } from '../../composables/sonal'
 
 /**
  * Fenêtre d'ÉDITION des variables : « Ajouter/modifier une variable » — le

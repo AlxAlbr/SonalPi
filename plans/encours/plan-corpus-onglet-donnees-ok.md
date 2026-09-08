@@ -12,7 +12,7 @@ L’accès actuel repose sur :
 - le bouton **Base de données** au-dessus de la navigation du corpus ;
 - l’état global `vue === 'donnees'` ;
 - le rendu autonome de
-  [`TableDonnees.vue`](../../src/renderer/components/TableDonnees.vue) dans
+  [`TableDonnees.vue`](../../src/renderer/components/donnees/TableDonnees.vue) dans
   [`App.vue`](../../src/renderer/App.vue) ;
 - `allerDonnees()`, qui ferme l’entretien éventuel, rafraîchit la matrice puis
   change de vue.
@@ -47,7 +47,7 @@ Ne font pas partie du premier livrable :
 
 ### 2.1 Navigation du corpus
 
-Étendre l’état local de [`Corpus.vue`](../../src/renderer/components/Corpus.vue) :
+Étendre l’état local de [`Corpus.vue`](../../src/renderer/components/corpus/Corpus.vue) :
 
 ```ts
 type OngletCorpus =
@@ -196,7 +196,7 @@ reste la zone principale et conserve son propre défilement.
 
 ### 3.1 Responsabilités de `Corpus.vue`
 
-[`Corpus.vue`](../../src/renderer/components/Corpus.vue) reste responsable de :
+[`Corpus.vue`](../../src/renderer/components/corpus/Corpus.vue) reste responsable de :
 
 - l’onglet actif ;
 - la garde de sortie de Pseudonymisation ;
@@ -252,7 +252,7 @@ comme aujourd’hui.
 ### 3.4 Séparateur
 
 Le comportement est proche de celui de
-[`PseudonymisationCorpus.vue`](../../src/renderer/components/PseudonymisationCorpus.vue),
+[`PseudonymisationCorpus.vue`](../../src/renderer/components/corpus/PseudonymisationCorpus.vue),
 mais il n’est pas nécessaire de créer immédiatement une abstraction commune.
 Les contraintes et seuils des deux écrans ne sont pas forcément identiques.
 Une extraction partagée ne sera faite que si les deux implémentations restent

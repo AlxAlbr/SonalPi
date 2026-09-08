@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
+import { utiliserSonal } from '../../composables/sonal'
 
 /**
  *  Assistant « Nouveau corpus distant… » : créer un corpus directement sur le

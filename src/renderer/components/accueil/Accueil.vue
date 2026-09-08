@@ -5,8 +5,8 @@ import MigrationCorpus from './MigrationCorpus.vue'
 import NouveauCorpus from './NouveauCorpus.vue'
 import CorpusDistant from './CorpusDistant.vue'
 import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
-import { utiliserSonal } from '../composables/sonal'
-import type { ModeDemo } from '../composables/demo'
+import { utiliserSonal } from '../../composables/sonal'
+import type { ModeDemo } from '../../composables/demo'
 
 const {
   recents,

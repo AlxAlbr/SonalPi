@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import type { CompteDistantPublic, ProfilCapacites } from '../../shared/distant'
+import { utiliserSonal } from '../../composables/sonal'
+import type { CompteDistantPublic, ProfilCapacites } from '../../../shared/distant'
 
 /**
  *  Modale « Ouvrir un corpus distant » — deux volets :

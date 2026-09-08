@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
+import { utiliserSonal } from '../../composables/sonal'
 
 /**
  *  Panneau vidéo du mode vidéo de l'écran Entretien.

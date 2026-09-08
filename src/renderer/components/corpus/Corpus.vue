@@ -1,26 +1,25 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
-import EditionThemes from './EditionThemes.vue'
-import MenuTheme from './MenuTheme.vue'
+import EditionThemes from '../themes/EditionThemes.vue'
+import MenuTheme from '../themes/MenuTheme.vue'
 import PasAPas from './PasAPas.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import PersonnesCorpus from './PersonnesCorpus.vue'
-import TableDonnees from './TableDonnees.vue'
-import { utiliserSonal } from '../composables/sonal'
-import { rechercherDansCorpsTexte } from '../editor/rechercheCorpus'
-import { visiblesThemes } from '../../shared/corpus/categories'
-import type { OccurenceRecherche, ResultatRecherche } from '../editor/rechercheCorpus'
-import type { SegmentThematique } from '../../shared/format'
+import TableDonnees from '../donnees/TableDonnees.vue'
+import { utiliserSonal } from '../../composables/sonal'
+import { rechercherDansCorpsTexte } from '../../editor/rechercheCorpus'
+import { visiblesThemes } from '../../../shared/corpus/categories'
+import type { OccurenceRecherche, ResultatRecherche } from '../../editor/rechercheCorpus'
+import type { SegmentThematique } from '../../../shared/format'
 // Icônes des onglets, partagées avec la vue Entretien.
-import icoThemes from '../assets/icones/themes.png'
-import icoRecherche from '../assets/icones/recherche.png'
-import icoDonnees from '../assets/icones/donnees.png'
-import icoAnon from '../assets/icones/anon.png'
-import icoMaison from '../assets/icones/maison.png'
-import icoJournal from '../assets/icones/journal.png'
+import icoThemes from '../../assets/icones/themes.png'
+import icoDonnees from '../../assets/icones/donnees.png'
+import icoAnon from '../../assets/icones/anon.png'
+import icoMaison from '../../assets/icones/maison.png'
+import icoJournal from '../../assets/icones/journal.png'
 // Icônes des onglets, spécifiques au Corpus.
-import icoPersonnes from '../assets/icones/personnes.png'
+import icoPersonnes from '../../assets/icones/personnes.png'
 
 const {
   vue,
@@ -426,9 +425,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <h3>Corpus</h3>
             </div>
             <p class="accueil-intro">Explorez et gérez l’ensemble des entretiens avec ces outils.</p>
+            <p class="raccourci">
+              🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
+            </p>
             <ul class="accueil-outils">
               <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook et ouvrir son édition.</span></li>
-              <li><img :src="icoRecherche" alt="" /><span><b>Recherche (Ctrl+F / Cmd+F)</b> — chercher du texte dans tous les entretiens.</span></li>
               <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
               <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
               <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
@@ -1268,6 +1269,20 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   color: #666;
   font-size: 0.82rem;
   line-height: 1.35;
+}
+.raccourci {
+  background: #fff8e1;
+  border: 1px solid #e0b93a;
+  border-left: 4px solid #e0a03a;
+  color: #5c4a00;
+  border-radius: 6px;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.82rem;
+  margin: 0.7rem 0 0;
+  line-height: 1.35;
+}
+.raccourci b {
+  color: #a37000;
 }
 .accueil-outils {
   list-style: none;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import { EXT_MEDIA } from '../../shared/media'
+import { utiliserSonal } from '../../composables/sonal'
+import { EXT_MEDIA } from '../../../shared/media'
 
 /**
  * « + Ajouter un entretien » — LE point d'entrée unique : une modale à DEUX

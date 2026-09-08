@@ -30,6 +30,8 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
   await expect(page.locator('.accueil-corpus')).toContainText('Données')
   await expect(page.locator('.accueil-corpus')).toContainText('Pseudonymisation')
+  await expect(page.locator('.accueil-corpus .raccourci')).toContainText('Ctrl+F / Cmd+F')
+  await expect(page.locator('.accueil-corpus .accueil-outils')).not.toContainText('Recherche')
   await expect(page.locator('.cartes-ent')).toBeVisible()
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Données' }).click()
   await expect(page.locator('.donnees-ecran')).toBeVisible()

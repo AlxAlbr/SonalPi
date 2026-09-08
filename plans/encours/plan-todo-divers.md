@@ -430,9 +430,9 @@ Sur la question du gitlab : créer un groupe avec les sous-projets : a voir avec
 
  Quelques fichiers concentrent trop de responsabilités :
 
- - src/renderer/components/Entretien.vue : environ 3 167 lignes;
+ - src/renderer/components/entretien/Entretien.vue : environ 3 167 lignes;
  - src/renderer/composables/useEntretien.ts : environ 2 328 lignes;
- - src/renderer/components/Corpus.vue : environ 2 163 lignes;
+ - src/renderer/components/corpus/Corpus.vue : environ 2 163 lignes;
  - src/main/index.ts : environ 1 287 lignes;
  - src/main/corpusStore.ts : environ 1 157 lignes.
 

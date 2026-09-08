@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import { scannerRegleDetaille, type OccurrenceScan } from '../../shared/corpus/scanAnon'
-import { bornerLargeurPanneau, cleOccurrence, construireDiff } from '../corpus/pseudonymisation'
+import { utiliserSonal } from '../../composables/sonal'
+import { scannerRegleDetaille, type OccurrenceScan } from '../../../shared/corpus/scanAnon'
+import { bornerLargeurPanneau, cleOccurrence, construireDiff } from '../../corpus/pseudonymisation'
 
 const props = defineProps<{ actif: boolean }>()
 const emit = defineEmits<{ ouvrirOccurrence: [id: string, pos: number] }>()

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { fournirSonal } from './composables/sonal'
 import { erreurGlobale, effacerErreurGlobale, infoGlobale, effacerInfoGlobale } from './erreurs'
-import Accueil from './components/Accueil.vue'
-import Corpus from './components/Corpus.vue'
-import Entretien from './components/Entretien.vue'
-import RepriseCrash from './components/RepriseCrash.vue'
-import DivergenceCopie from './components/DivergenceCopie.vue'
-import DesignationAudioDistante from './components/DesignationAudioDistante.vue'
+import Accueil from './components/accueil/Accueil.vue'
+import Corpus from './components/corpus/Corpus.vue'
+import Entretien from './components/entretien/Entretien.vue'
+import RepriseCrash from './components/distant/RepriseCrash.vue'
+import DivergenceCopie from './components/distant/DivergenceCopie.vue'
+import DesignationAudioDistante from './components/distant/DesignationAudioDistante.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ;

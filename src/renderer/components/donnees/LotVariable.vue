@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import type { ItemLotValeur } from '../../shared/format'
+import { utiliserSonal } from '../../composables/sonal'
+import type { ItemLotValeur } from '../../../shared/format'
 
 /**
  *  Modale « Modifier en lot » : pour UNE variable

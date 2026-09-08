@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import { visiblesThemes } from '../../shared/corpus/categories'
+import { utiliserSonal } from '../../composables/sonal'
+import { visiblesThemes } from '../../../shared/corpus/categories'
 
 /**
  *  Fenêtre d'ÉDITION des thèmes : le crayon ouvre une modale, la consultation

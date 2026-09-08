@@ -527,7 +527,7 @@ Si une note **n'est pas éditable** :
 
 | Fichier | Description |
 |---------|-------------|
-| `src/renderer/components/NotesCorpus.vue` | Composant principal de l'onglet Notes. |
+| `src/renderer/components/corpus/NotesCorpus.vue` | Composant principal de l'onglet Notes. |
 | `src/renderer/composables/useNotesCorpus.ts` | Logique métier (agrégation, filtres, tri, recherche, édition). |
 | `src/main/notesCorpusStore.ts` | Gestion des verrous par entretien et de l'index `derniereModificationNotes` côté main. |
 
@@ -537,7 +537,7 @@ Si une note **n'est pas éditable** :
 | Fichier | Modification |
 |---------|--------------|
 | `src/shared/format.ts` | Ajouter `auteur: string` et `historique?: HistoriqueNote[]` dans `Note`. Ajouter `derniereModificationNotes?: Record<string, string>` dans `CorpusFichier`. |
-| `src/renderer/components/Corpus.vue` | Ajouter l'onglet "Notes" (bouton + panneau pour `NotesCorpus`). |
+| `src/renderer/components/corpus/Corpus.vue` | Ajouter l'onglet "Notes" (bouton + panneau pour `NotesCorpus`). |
 | `src/renderer/composables/useCorpus.ts` | Ajouter des fonctions pour récupérer les notes du corpus et gérer les verrous. |
 | `src/main/corpusStore.ts` | Étendre pour gérer `derniereModificationNotes` et les verrous par entretien. |
 | `src/preload/index.ts` | Ajouter des méthodes IPC pour les verrous et la mise à jour de `derniereModificationNotes`. |

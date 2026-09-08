@@ -79,7 +79,7 @@ Ne font pas partie de ce livrable :
 ## 2. État existant à réutiliser
 
 L’essentiel du comportement se trouve déjà dans
-[`Corpus.vue`](../../src/renderer/components/Corpus.vue) : état de sélection,
+[`Corpus.vue`](../../src/renderer/components/corpus/Corpus.vue) : état de sélection,
 scan, accordéons, diff local et validation. Le cœur métier reste inchangé :
 
 - [`scanAnon.ts`](../../src/shared/corpus/scanAnon.ts) pour le scan pur ;
@@ -98,7 +98,7 @@ commandes V2 restent la source de vérité.
 ### 3.1 Extraire le contenu de pseudonymisation
 
 Créer un composant dédié, par exemple
-`src/renderer/components/PseudonymisationCorpus.vue`, et y déplacer :
+`src/renderer/components/corpus/PseudonymisationCorpus.vue`, et y déplacer :
 
 - le rendu de la table et du détail ;
 - l’état de règle sélectionnée et d’accordéon ouvert ;

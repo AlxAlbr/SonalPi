@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { utiliserSonal } from '../composables/sonal'
-import type { SegmentThematique } from '../../shared/format'
+import { utiliserSonal } from '../../composables/sonal'
+import type { SegmentThematique } from '../../../shared/format'
 
 /**
  *  Lecteur audio — en HAUT de l'écran entretien : play/pause, position, vitesse,

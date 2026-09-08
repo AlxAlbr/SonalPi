@@ -1,7 +1,7 @@
 # Plan onglets Corpus — vision long terme
 
 > La vue Corpus est aujourd'hui un écran unique (thèmes en consultation + cartes d'entretiens,
-> [Corpus.vue](../../src/renderer/components/Corpus.vue)) plus un écran séparé « base de données ».
+> [Corpus.vue](../../src/renderer/components/corpus/Corpus.vue)) plus un écran séparé « base de données ».
 > Cible : lui donner une **navigation par onglets**, pendant de la colonne droite de la vue
 > Entretien (Thèmes / Loc / Données / Journal). Ce plan est un plan d'**idées à long terme** :
 > il précise surtout l'onglet **Personnes** (activation de la décision D4) et l'onglet
@@ -14,13 +14,13 @@
 
 | Onglet | Contenu | Ancrage existant |
 |---|---|---|
-| **Accueil** | la vue Corpus actuelle (thèmes en consultation + cartes d'entretiens) | [Corpus.vue](../../src/renderer/components/Corpus.vue), renommage |
+| **Accueil** | la vue Corpus actuelle (thèmes en consultation + cartes d'entretiens) | [Corpus.vue](../../src/renderer/components/corpus/Corpus.vue), renommage |
 | **Personnes** | identités transverses aux entretiens (pendant corpus de « Loc ») | `corpus.json.personnes` + `Locuteur.personneRef` — **déjà dans le modèle** (D4, « sans UI ») |
 | **Thématique** | l'**atelier du codebook** : fusion/scission de thèmes (IA en assistance), qualité du codage, accord inter-codeurs | à créer — voir §4 |
-| **Données** | la matrice EAV, aujourd'hui écran séparé | [TableDonnees](../../src/renderer/components/TableDonnees.vue), `vue === 'donnees'` descend en onglet |
+| **Données** | la matrice EAV, aujourd'hui écran séparé | [TableDonnees](../../src/renderer/components/donnees/TableDonnees.vue), `vue === 'donnees'` descend en onglet |
 | **Anon** | règles de portée corpus, scan, application en masse | = panneau « Pseudos » d'E2.2 du plan anon — ce plan-ci lui donne juste son emplacement |
 
-Squelette : même patron que la nav `ongletDroite` d'[Entretien.vue](../../src/renderer/components/Entretien.vue)
+Squelette : même patron que la nav `ongletDroite` d'[Entretien.vue](../../src/renderer/components/entretien/Entretien.vue)
 (`ongletCorpus: 'accueil' | 'personnes' | 'thematique' | 'donnees' | 'anon'`). L'état
 `vue === 'donnees'` de [sonal.ts](../../src/renderer/composables/sonal.ts) disparaît au profit de
 `vue === 'corpus'` + onglet ; `rafraichirMatrice()` se déclenche à l'activation de l'onglet.

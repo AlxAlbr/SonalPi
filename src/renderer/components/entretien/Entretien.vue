@@ -5,7 +5,7 @@ import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
 import VideoPanel from './VideoPanel.vue'
 import MenuContexte from './MenuContexte.vue'
-import MenuTheme from './MenuTheme.vue'
+import MenuTheme from '../themes/MenuTheme.vue'
 import MenuLiensNote from './MenuLiensNote.vue'
 import EditionCommentaire from './EditionCommentaire.vue'
 import {
@@ -16,32 +16,30 @@ import {
   echapperTexte,
   pruneRefsCommentaires,
   surlignerHtml,
-} from '../notes/sanitiser'
-import EditionThemes from './EditionThemes.vue'
-import EditionVariables from './EditionVariables.vue'
-import { utiliserSonal } from '../composables/sonal'
-import { couleurPourLocuteur } from '../../shared/entretien/locuteurs'
-import { visiblesThemes } from '../../shared/corpus/categories'
+} from '../../notes/sanitiser'
+import EditionThemes from '../themes/EditionThemes.vue'
+import PanneauDonneesEntretien from './PanneauDonneesEntretien.vue'
+import { utiliserSonal } from '../../composables/sonal'
+import { couleurPourLocuteur } from '../../../shared/entretien/locuteurs'
+import { visiblesThemes } from '../../../shared/corpus/categories'
 // Icônes des onglets (glyphe noir à plat).
-import icoThemes from '../assets/icones/themes.png'
-import icoLocuteurs from '../assets/icones/locuteurs.png'
-import icoDonnees from '../assets/icones/donnees.png'
-import icoJournal from '../assets/icones/journal.png'
-import icoNotes from '../assets/icones/notes.png'
-import icoMaison from '../assets/icones/maison.png'
-import icoAnon from '../assets/icones/anon.png'
+import icoThemes from '../../assets/icones/themes.png'
+import icoLocuteurs from '../../assets/icones/locuteurs.png'
+import icoDonnees from '../../assets/icones/donnees.png'
+import icoJournal from '../../assets/icones/journal.png'
+import icoNotes from '../../assets/icones/notes.png'
+import icoMaison from '../../assets/icones/maison.png'
+import icoAnon from '../../assets/icones/anon.png'
 
 const {
   codebook,
   lirePersonnes,
-  varsGen,
   varsLoc,
   couleurHex,
   arbreThemes,
   modifierTheme,
   usages,
   locuteurs,
-  meta,
   ongletDroite,
   hintCodage,
   selectionAnon,
@@ -112,10 +110,6 @@ const {
   locuteurASupprimer,
   demanderSuppressionLocuteur,
   confirmerSuppressionLocuteur,
-  setValeurGen,
-  setValeurLoc,
-  modalitesDe,
-  modaliteParLibelle,
   sauver,
   retourCorpus,
   exporter,
@@ -219,10 +213,6 @@ function basculerRepli(id: string) {
   else s.add(id)
   repliesThemes.value = s
 }
-// Idem pour les variables : le crayon de l'onglet Données ouvre la MÊME fenêtre que la Table de données,
-// pour créer des variables d'entretien/locuteur sans repasser par l'écran Corpus.
-const editerVariables = ref(false)
-
 // --- Notes d'entretien (état local de la vue) ---
 // Vue active de l'onglet Notes : cartes (défaut) ou texte concaténé (expand).
 const vueNotes = ref<'cartes' | 'texte'>('cartes')
@@ -525,15 +515,6 @@ function onDropNote(cibleId: string) {
   reordonnerNotes(ordre)
   idNoteGlissee = null
 }
-
-// --- SAISIE LIBRE (même motif que TableDonnees) ---
-// Variable SANS modalité : la ligne est un champ texte permanent, chaque libellé saisi trouve-ou-crée sa modalité (dictionnaire corpus).
-// Variable AVEC modalités : le select garde une option « autre… », qui bascule LA ligne en champ texte.
-// La pose de la valeur passe par setValeurGen/setValeurLoc (journal + autosave de l'entretien ouvert).
-const AUTRE = ' autre' // sentinelle : ne peut pas être un id de modalité
-const celluleLibre = ref<string | null>(null) // clé de LA ligne en mode texte
-const cleGen = (idVar: string) => `gen|${idVar}`
-const cleLoc = (index: number, idVar: string) => `loc|${index}|${idVar}`
 
 // --- ANON : lignes de saisie (en bas du tableau) ---
 // Compteur « à anonymiser » d'une ligne : longueur de la requête (hits PM),
@@ -850,37 +831,6 @@ onBeforeUnmount(() => {
   }
 })
 
-/** Libellé affichable d'une valeur (id de modalité) — id brut si inconnu. */
-function libelleCell(idVar: string, idMod: string | undefined): string {
-  if (!idMod) return ''
-  return modalitesDe(idVar).find((m) => m.id === idMod)?.lib ?? idMod
-}
-function surSelectGen(idVar: string, evt: Event) {
-  const val = (evt.target as HTMLSelectElement).value
-  if (val === AUTRE) celluleLibre.value = cleGen(idVar)
-  else setValeurGen(idVar, val)
-}
-function surSelectLoc(index: number, idVar: string, evt: Event) {
-  const val = (evt.target as HTMLSelectElement).value
-  if (val === AUTRE) celluleLibre.value = cleLoc(index, idVar)
-  else setValeurLoc(index, idVar, val)
-}
-async function surLibreGen(idVar: string, evt: Event) {
-  celluleLibre.value = null
-  const lib = (evt.target as HTMLInputElement).value.trim()
-  setValeurGen(idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
-}
-async function surLibreLoc(index: number, idVar: string, evt: Event) {
-  celluleLibre.value = null
-  const lib = (evt.target as HTMLInputElement).value.trim()
-  setValeurLoc(index, idVar, lib ? await modaliteParLibelle(idVar, lib) : '')
-}
-/** Focus du champ texte OUVERT via « autre… ».
- *  Les champs permanents (clé non matcheuse) ne volent jamais le focus. */
-function focaliserLibre(el: unknown, cle: string) {
-  if (el instanceof HTMLInputElement && celluleLibre.value === cle && document.activeElement !== el)
-    el.focus()
-}
 </script>
 
 <template>
@@ -1107,9 +1057,7 @@ function focaliserLibre(el: unknown, cle: string) {
                     <span class="q">?</span>
                   </label>
                   <button v-if="!roContenu" class="x-loc" title="Supprimer ce locuteur" @click="demanderSuppressionLocuteur(l.index)">✕</button>
-                  <small v-if="l.personneRef" class="lien-personne-loc">
-                    {{ nomsPersonnesLiees[l.personneRef] ? `Lié à « ${nomsPersonnesLiees[l.personneRef]} »` : 'Lié à une personne du corpus' }} — le nom saisi reste local.
-                  </small>
+
                 </li>
               </ul>
             </div>
@@ -1126,83 +1074,10 @@ function focaliserLibre(el: unknown, cle: string) {
             </div>
           </aside>
 
-          <!-- Données de CET entretien : saisie des valeurs (2 niveaux : entretien + locuteur),
-               même saisie libre que la Table de données (« autre… », variable sans modalité = champ texte).
-               Le crayon ouvre la fenêtre EditionVariables partagée (créer/éditer des variables sans repasser par l'écran Corpus) ;
-               la matrice complète reste à la Table. -->
-          <aside v-show="ongletDroite === 'donnees'" class="panneau donnees">
-            <div class="corpus-tete">
-              <h3>Données</h3>
-              <button v-if="!roContenu" class="crayon" title="Éditer les variables (nom, statut, modalités)" @click="editerVariables = true">✏️</button>
-            </div>
-
-            <template v-if="varsGen().length">
-              <h4 class="h4-ent">Valeurs · cet entretien</h4>
-              <div v-for="v in varsGen()" :key="v.id" class="saisie-eav">
-                <span class="saisie-eav-lib">{{ v.lib }}</span>
-                <input
-                  v-if="v.modalites.length === 0 || celluleLibre === cleGen(v.id)"
-                  class="saisie-eav-libre"
-                  placeholder="texte libre"
-                  :disabled="roContenu"
-                  :value="celluleLibre === cleGen(v.id) ? '' : libelleCell(v.id, meta.valeursGen[v.id])"
-                  :ref="(el) => focaliserLibre(el, cleGen(v.id))"
-                  @keyup.enter="($event.target as HTMLInputElement).blur()"
-                  @keyup.esc="celluleLibre = null"
-                  @change="surLibreGen(v.id, $event)"
-                  @blur="celluleLibre = null"
-                />
-                <select
-                  v-else
-                  class="saisie-eav-sel"
-                  :disabled="roContenu"
-                  :value="meta.valeursGen[v.id] ?? ''"
-                  @change="surSelectGen(v.id, $event)"
-                >
-                  <option value="">—</option>
-                  <option v-for="m in v.modalites" :key="m.id" :value="m.id">{{ m.lib }}</option>
-                  <option :value="AUTRE">autre…</option>
-                </select>
-              </div>
-            </template>
-
-            <template v-if="varsLoc().length && locuteurs.length">
-              <h4 class="h4-loc">Valeurs · par locuteur</h4>
-              <div v-for="l in locuteurs" :key="l.index" class="fiche-loc">
-                <div class="fiche-loc-nom">{{ l.nom }}</div>
-                <div v-for="v in varsLoc()" :key="v.id" class="saisie-eav">
-                  <span class="saisie-eav-lib">{{ v.lib }}</span>
-                  <input
-                    v-if="v.modalites.length === 0 || celluleLibre === cleLoc(l.index, v.id)"
-                    class="saisie-eav-libre"
-                    placeholder="texte libre"
-                    :disabled="roContenu"
-                    :value="celluleLibre === cleLoc(l.index, v.id) ? '' : libelleCell(v.id, l.valeursLoc[v.id])"
-                    :ref="(el) => focaliserLibre(el, cleLoc(l.index, v.id))"
-                    @keyup.enter="($event.target as HTMLInputElement).blur()"
-                    @keyup.esc="celluleLibre = null"
-                    @change="surLibreLoc(l.index, v.id, $event)"
-                    @blur="celluleLibre = null"
-                  />
-                  <select
-                    v-else
-                    class="saisie-eav-sel"
-                    :disabled="roContenu"
-                    :value="l.valeursLoc[v.id] ?? ''"
-                    @change="surSelectLoc(l.index, v.id, $event)"
-                  >
-                    <option value="">—</option>
-                    <option v-for="m in v.modalites" :key="m.id" :value="m.id">{{ m.lib }}</option>
-                    <option :value="AUTRE">autre…</option>
-                  </select>
-                </div>
-              </div>
-            </template>
-
-            <p v-if="!varsGen().length && !varsLoc().length" class="vide">
-              Aucune variable — ✏️ pour en créer.
-            </p>
-          </aside>
+          <PanneauDonneesEntretien
+            v-show="ongletDroite === 'donnees'"
+            :lecture-seule="roContenu"
+          />
 
           <!-- Journal des actions de modèle : 10 dernières, annulation sélective. -->
           <aside v-show="ongletDroite === 'journal'" class="panneau journal">
@@ -1721,8 +1596,6 @@ function focaliserLibre(el: unknown, cle: string) {
         @basculer="basculerActifTheme"
         @fermer="menuTheme = null"
       />
-      <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
-
       <!-- Boîte recherche/remplacement (ouverte par Ctrl+F) : flottante en bas à droite,
            visible quel que soit le défilement du texte. Entrée = occurrence suivante,
            Échap ferme ; le remplacement est masqué si le verrou d'autrui fige
@@ -2139,59 +2012,6 @@ function focaliserLibre(el: unknown, cle: string) {
 }
 .ligne-coder .theme-coder {
   flex: 1;
-}
-/* --- Fiche données de CET entretien (saisie EAV) --- */
-.saisie-eav {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0.2rem 0;
-  padding-left: 0.9rem; /* décalé sous le titre « Valeurs… » */
-}
-.saisie-eav-lib {
-  flex: 1;
-  font-size: 0.8rem;
-  color: #444;
-}
-.saisie-eav-sel {
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0.1rem 0.3rem;
-  font-size: 0.8rem;
-}
-/* Champ texte de saisie libre (variable sans modalité, ou « autre… ») —
-   même gabarit que le select pour que la ligne ne saute pas. */
-.saisie-eav-libre {
-  flex: none;
-  width: 9.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 0.1rem 0.3rem;
-  font-size: 0.8rem;
-}
-.saisie-eav-libre::placeholder {
-  color: #bbb;
-  font-style: italic;
-}
-.fiche-loc {
-  border-top: 1px dashed #eee;
-  padding-top: 0.3rem;
-  margin-top: 0.3rem;
-  padding-left: 0.9rem; /* niveau locuteur ; les saisies imbriquées
-                           (saisie-eav) gagnent un second retrait */
-}
-.fiche-loc-nom {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #000;
-}
-/* Couleurs des en-têtes « Valeurs… » alignées sur les badges ent/loc (créés dans EditionVariables),
-   pour raccorder visuellement la fiche données aux variables qu'elle détaille. */
-.h4-ent {
-  color: #5c6bc0;
-}
-.h4-loc {
-  color: #8a6d3b;
 }
 /* --- Panneau Locuteurs --- */
 .locuteurs {

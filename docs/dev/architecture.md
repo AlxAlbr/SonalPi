@@ -13,7 +13,8 @@ src/
     import/      sas .sonal / .srt / .vtt (convertisseurs SonalPi1 vendorés) + export
     notes/       hygiène HTML des notes d'entretien (sanitisation avant v-html)
     composables/ orchestration UI (useCorpus, useEntretien, useProfil, sonal)
-    components/  Accueil, Corpus, Entretien, TableDonnees
+    components/  vues et composants Vue, regroupés par fonctionnalité :
+      accueil/ corpus/ entretien/ donnees/ themes/ distant/
   shared/        le modèle objet pur — chargé par main ET renderer
 ```
 
@@ -41,16 +42,16 @@ Le renderer s'organise par **fonctionnalité**, avec deux cas particuliers qui g
 |---|---|---|
 | `editor/` | Tout ce qui parle le modèle **ProseMirror** — document vivant (plugins, décorations) OU document froid figé en JSON | plugins, snap, `rechercheCorpus.ts` |
 | `audio/`, `import/`, `notes/` | Logique de rendu **isolée et consistante** d'une fonctionnalité — ni composant, ni composable, ni modèle pur | waveform ; sas `.sonal/.srt/.vtt` ; sanitiser HTML |
-| `components/`, `composables/` | Tout le reste | vues Vue, orchestration |
+| `components/<fonctionnalité>/`, `composables/` | Tout le reste | vues Vue regroupées par usage, orchestration |
 
 Le dossier `notes/` (un seul fichier, `sanitiser.ts`) illustre le cas limite : la logique métier
 des notes vit en `shared/entretien/notes.ts` (pur, voir [modele-objet.md §10](modele-objet.md#10-notes-dentretien)),
 le rendu dans les composants — ce qui reste est de l'**hygiène DOM** (nettoyage du HTML tapé ou
 collé avant `v-html`, références de commentaires dans le contenteditable) : ni modèle pur (il
-manipule le DOM vivant), ni composant. À l'inverse, l'anonymisation et les thèmes n'ont PAS de
-dossier renderer : leur logique pure vit sous `shared/` (règle ci-dessus) et leur rendu dans
-`components/` + `editor/`. Créer un dossier de fonctionnalité côté renderer seulement quand un
-tel fragment existe vraiment — sinon un dossier à fichier unique de plus n'apporte rien.
+manipule le DOM vivant), ni composant. À l'inverse, la logique pure de l'anonymisation et des thèmes vit sous `shared/` (règle
+ci-dessus), tandis que leur rendu reste dans `components/` + `editor/`. Créer un dossier de
+logique directement sous `renderer/` seulement quand un tel fragment existe vraiment — sinon
+un dossier à fichier unique de plus n'apporte rien.
 
 ## Les process Electron
 

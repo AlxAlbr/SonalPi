@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
+import { utiliserSonal } from '../../composables/sonal'
 
 /**
  *  Dialogue de REPRISE APRÈS CRASH — listé à l'ouverture d'un corpus distant :

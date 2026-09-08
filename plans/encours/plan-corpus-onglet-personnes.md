@@ -231,9 +231,9 @@ La documentation utilisateur et le modèle objet décrivent ces parcours.
 - `src/renderer/composables/useEntretien.ts` : file de nommages, dialogue et décisions
   appliquées au modèle de session. La définition est écrite avant le lien ; si la
   session change entre les deux, une fiche vide peut rester visible et réparable.
-- `src/renderer/components/RapprochementNommage.vue` : dialogue natif, focus neutre,
+- `src/renderer/components/entretien/RapprochementNommage.vue` : dialogue natif, focus neutre,
   sélection explicite, fermeture sans décision et libellés de déplacement.
-- `src/renderer/components/PersonnesCorpus.vue` : suggestions/refus globaux et reprise
+- `src/renderer/components/corpus/PersonnesCorpus.vue` : suggestions/refus globaux et reprise
   sélective avec choix de l’entretien source.
 - `e2e/personnes*.e2e.ts`, `e2e/rapprochements-personnes.e2e.ts` et les tests unitaires
   Personnes couvrent les incréments livrés.
@@ -814,8 +814,8 @@ disponibles en distant et suffisent pour corriger manuellement.
 
 Créer :
 
-- `src/renderer/components/PersonnesCorpus.vue` : disposition, liste et fiche ;
-- éventuellement `src/renderer/components/RapprochementPersonne.vue` : fenêtre partagée
+- `src/renderer/components/corpus/PersonnesCorpus.vue` : disposition, liste et fiche ;
+- éventuellement `src/renderer/components/corpus/RapprochementPersonne.vue` : fenêtre partagée
   avec l’entretien ;
 - `src/shared/corpus/personnes.ts` : logique pure de modèle et de suggestion.
 

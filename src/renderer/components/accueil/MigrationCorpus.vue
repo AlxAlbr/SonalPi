@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import { mapperDefinitions, mapperTabAnon, mapperParamsAnon, type ApercuCrp, type VerificationDossierMigration } from '../../shared/corpus/migrationCrp'
+import { utiliserSonal } from '../../composables/sonal'
+import { mapperDefinitions, mapperTabAnon, mapperParamsAnon, type ApercuCrp, type VerificationDossierMigration } from '../../../shared/corpus/migrationCrp'
 
 /**
  *  Modale de migration SonalPi1 → SonalPi2.

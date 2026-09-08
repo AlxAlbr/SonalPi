@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, watch, nextTick } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import type { EtapePasAPas } from '../composables/demo'
+import { utiliserSonal } from '../../composables/sonal'
+import type { EtapePasAPas } from '../../composables/demo'
 
 /**
  *  Pas-à-pas : un ONGLET de la vue Corpus (liste des étapes) + un SPOTLIGHT

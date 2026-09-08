@@ -1022,7 +1022,7 @@ export function useEntretien(deps: {
         cible.personneRef = personneId
         planifierSauvegarde()
         await viderSauvegarde()
-        if (ouvertId.value === idEntretien) messagePersonnes.value = `Personne « ${nom} » créée. Le nom local, le pseudo et le rôle restent indépendants.`
+        if (ouvertId.value === idEntretien) messagePersonnes.value = `Personne « ${nom} » créée au niveau du corpus.`
       } catch (e) {
         if (ouvertId.value === idEntretien) messagePersonnes.value = `Identification non terminée : ${e instanceof Error ? e.message : String(e)}. Vérifiez le répertoire Personnes avant de réessayer.`
       }

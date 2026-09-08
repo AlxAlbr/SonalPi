@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import { estMedia, extensionDe, EXT_VIDEO } from '../../shared/media'
+import { utiliserSonal } from '../../composables/sonal'
+import { estMedia, extensionDe, EXT_VIDEO } from '../../../shared/media'
 
 /**
  *  Modale « Désigner dans le Nextcloud… » : lier un
