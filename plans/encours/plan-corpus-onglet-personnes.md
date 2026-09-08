@@ -18,9 +18,11 @@ Premier incrément livré :
 - [x] Séparateur accessible, largeur mémorisée, disposition étroite et retour vers les locuteurs.
 - [x] Consultation distante, affichage des verrous et refus explicite des corrections distantes.
 - [ ] Transactions de liaison distantes avec GET frais, verrou court et PUT conditionnel.
-- [ ] Suggestions exactes au nommage, décisions de refus et annulation.
+- [x] Suggestions exactes au nommage local, décisions de refus et annulation dans le répertoire.
+- [x] Reprise sélective au nommage et dialogue simplifié avec aperçu avant confirmation.
 - [ ] Suggestions proches calibrées.
-- [ ] Séparation, fusion et reprise transactionnelle multi-entretiens.
+- [x] Fusion locale reprenable, notes conservées et refus réconciliés.
+- [ ] Séparation et corrections transactionnelles distantes.
 
 La création locale écrit la définition avant le lien. Si la seconde écriture échoue,
 la fiche vide reste visible avec une erreur expliquant comment reprendre ou supprimer.
@@ -30,6 +32,334 @@ dans un même entretien, pas encore sur les suggestions.
 Validation de cet incrément : `npm test` (701 tests réussis, 21 sautés),
 `npm run typecheck`, `npm run build`, puis les 10 E2E de `personnes`, `navigation`
 et `locuteurs` réussis. Aucun banc distant n’a été démarré.
+
+### Incrément supplémentaire — rapprochements depuis le répertoire
+
+Implémenté en local :
+
+- suggestions exactes et rôles équivalents depuis le détail d’un locuteur ;
+- accès global aux rapprochements depuis « À vérifier », y compris pour les locuteurs liés ;
+- filtre « Décisions écartées », avec noms lisibles et accès au locuteur portant le refus ;
+- regroupement des candidats par Personne, refus étendus à ses autres locuteurs et
+  exclusion des personnes déjà représentées dans l’entretien source ;
+- liaison à la personne du candidat ou création d’une fiche commune ;
+- refus persistants, révocables depuis le détail du locuteur qui les porte ;
+- aperçu de reprise ponctuelle avec source explicite, sélection des variables,
+  pseudo et statut interviewer décochés par défaut, remplacement opt-in ;
+- erreurs explicites si la création ou la liaison réussit seulement en partie ;
+- choix de la source de reprise parmi les entretiens liés à la Personne candidate,
+  avec réinitialisation des choix lors d’un changement de source ;
+- création d’une fiche distincte après refus pour un locuteur non lié portant un nom
+  spécifique, sans création automatique pour les rôles génériques.
+
+Le pseudo repris est le champ du libellé du Locuteur, avec confirmation de son affichage.
+Aucune règle d’anonymisation du texte n’est créée ou étendue.
+
+Validation : 708 tests réussis, 21 sautés ; typecheck et build réussis ;
+les deux E2E Personnes et rapprochements réussis. Le nouvel E2E couvre le refus et son
+annulation, le choix de source, la réinitialisation des choix et la reprise du pseudo
+sans modification du nom ni du rôle.
+
+### Incrément supplémentaire — création au nommage local
+
+Après un véritable changement de nom, un nom spécifique sans candidat crée maintenant
+une définition de Personne. Le lien est ensuite appliqué au modèle de la session ouverte
+et enregistré par sa sauvegarde habituelle, sans réécriture concurrente de l’entretien
+par une commande de répertoire. Les traitements de nommage sont sérialisés et vérifient
+que le locuteur et son nom sont toujours actuels après les opérations asynchrones.
+
+Pas de création au simple ajout, pour les noms génériques, pour les locuteurs déjà liés,
+ni lorsque l’inventaire est incomplet. Les échecs sont signalés et une fiche créée sans
+lien reste réparable dans le répertoire.
+
+Les candidats exacts et les rôles équivalents ouvrent désormais un dialogue natif modal,
+sans présélection, avec focus initial sur « Plus tard » et restitution du focus à la
+fermeture. « Même personne » crée au besoin la fiche depuis le locuteur source puis lie
+le modèle en session ; « Personne différente » mémorise le refus et crée une fiche
+individuelle pour un nom spécifique non lié. Échap et « Plus tard » ne prennent aucune
+décision. Les rôles génériques refusés restent sans création automatique et donnent lieu
+à une invitation facultative à choisir un libellé spécifique.
+
+La reprise sélective reste accessible dans le répertoire, mais n’est pas encore intégrée
+à ce dialogue. Le renommage d’un locuteur déjà lié recherche désormais les autres
+candidats : le dialogue indique le nom de la fiche actuelle et propose « Déplacer vers
+cette personne », « Conserver le lien actuel et écarter ce candidat » et « Plus tard ».
+Sans candidat, un message rappelle que le nom saisi reste local. Aucun renommage de la
+fiche n’est effectué. La décision vérifie aussi que le lien n’a pas changé depuis
+l’ouverture du dialogue.
+
+Un E2E couvre le report sans changement de lien, puis le déplacement confirmé et la
+conservation des deux noms de fiches. Le refus dans le dialogue et la fermeture par Échap
+nécessitent encore des E2E dédiés.
+
+Validation : 708 tests unitaires réussis, 21 sautés ; typecheck et build réussis ;
+11 E2E Locuteurs et Personnes réussis, dont un nouveau test de création au nommage puis
+renommage local sans changement de la fiche ni nouvelle création.
+
+Validation du dialogue : 708 tests unitaires réussis, 21 sautés, typecheck et build OK ;
+les deux E2E nommage et dialogue réussis, avec contrôle du focus neutre, de la liaison
+persistante après une nouvelle sauvegarde et de l’absence de copie implicite du pseudo.
+
+## Point de reprise — état à la pause
+
+**Le plan n’est pas terminé.** Les sections historiques ci-dessous décrivent encore
+la cible complète ; les incréments et ce point de reprise précisent ce qui existe.
+
+Dernière validation du dialogue simplifié : `npm test` (716 réussis, 21 sautés),
+`npm run typecheck`, build et cinq E2E réussis : dialogue, déplacement, refus de reprise,
+choix explicite de source avec métadonnées, refus de toutes les propositions.
+La validation précédente comprenait 16 E2E Navigation, Locuteurs et Personnes.
+Aucun serveur démarré ni image Docker téléchargée.
+
+La reprise sélective est désormais intégrée au dialogue de nommage : choix de source
+parmi les locuteurs de la personne candidate, aperçu des valeurs, variables vides
+présélectionnées, remplacement explicite et retour sans écriture. Le pseudo manquant est
+maintenant proposé par défaut dans l’aperçu ; le rôle reste décoché (évolution UX ci-dessous).
+La confirmation applique les champs choisis au modèle de session avant sa sauvegarde.
+Un changement des données source depuis l’aperçu ou des données cibles avant application
+fait échouer la reprise explicitement ; une fiche source déjà créée reste conservée.
+Le nouveau test `e2e/personnes-reprise-nommage.e2e.ts` couvre le retour sans écriture,
+les cases neutres, la copie confirmée du pseudo et la conservation du rôle et du nom.
+Les changements de source multiples et les conflits dans ce dialogue restent à couvrir
+par des E2E dédiés ; ils ne sont pas réputés validés par ce seul scénario.
+
+### Reprise supplémentaire — garde-fous du nommage et lien visible
+
+- La ligne de chaque locuteur lié rappelle désormais son rattachement dès l’ouverture
+  de l’onglet, avec résolution du nom de référence et erreur de lecture explicite.
+- Le champ additif `Locuteur.personneDeliee` mémorise un retrait volontaire du lien.
+  Il bloque la création automatique au renommage et après refus de propositions,
+  sans interdire une liaison explicite ; celle-ci retire le marqueur.
+- Une création devenue inapplicable pendant le refus au nommage signale maintenant
+  explicitement la fiche conservée au lieu d’annoncer seulement le refus comme réussi.
+- Tests unitaires du marqueur et E2E du retrait, de la réouverture et du renommage
+  sans recréation ; E2E de l’affichage du nom de référence dès l’ouverture.
+
+Validation : 718 tests unitaires réussis, 21 sautés ; typecheck et build réussis.
+Les E2E Personnes et nommage passent en séquentiel, ainsi que les huit E2E Locuteurs.
+Le retrait de Recherche de la barre est confirmé : la recherche est accessible avec
+Ctrl + F. Le test Navigation attend désormais cinq boutons et Personnes en troisième
+position, entre Thèmes et Données. Validation après actualisation : build et E2E
+Navigation réussis en séquentiel.
+L’exécution parallèle a aussi échoué sur la scission codée, réussie en séquentiel.
+Aucun banc distant démarré. Le plan reste ouvert, notamment pour la séparation,
+les écritures distantes, les noms proches et les conflits asynchrones.
+
+### Prochaines tâches, dans l’ordre recommandé
+
+1. Finaliser la couverture de la reprise au nommage : sources multiples, réinitialisation
+   des choix, variables, remplacement explicite et changements de session pendant les awaits.
+   L’intégration de `reprendreDonneesLocuteur` au modèle de session est réalisée.
+2. Indication permanente du lien réalisée et couverte à l’ouverture ; compléter si besoin
+   le diagnostic des références pendantes dans l’éditeur.
+3. Ajouter les E2E du refus au nommage, d’Échap, des rôles génériques et de la reprise
+   dans le dialogue ; tester les erreurs et changements de session pendant les awaits.
+4. La prévention de recréation après déliaison volontaire est réalisée et testée.
+   Tester encore les renommages rapides et l’annulation via le journal,
+   qui ne doit jamais altérer implicitement l’identité.
+5. Livrer la séparation locale en réutilisant le journal de remplacement multi-entretiens.
+   La fusion locale et ses tests de reprise sont désormais réalisés.
+6. Implémenter les écritures distantes : définitions transactionnelles, GET frais,
+   verrou court et PUT conditionnel pour les entretiens fermés ; session existante
+   pour l’entretien ouvert. Les commandes Personnes restent explicitement refusées
+   en distant ; la création au nommage est aussi désactivée via `lectureSeule`.
+7. Calibrer les rapprochements proches sur des cas français, sans sélection automatique.
+8. Finaliser la documentation utilisateur/développeur, harmoniser les sections historiques
+   du présent plan et exécuter les E2E Navigation/Locuteurs ainsi que les bancs distants
+   nécessaires avant de déclarer le livrable terminé.
+
+### Évolution UX validée et réalisée — nommage simplifié
+
+Cette évolution remplace les règles précédentes de reprise entièrement volontaire
+au nommage, sans changer le parcours de regroupement depuis le corpus.
+
+- Introduction courte, adaptée à une ou plusieurs propositions ; les rôles équivalents
+  sont distingués des noms identiques. Aucun nom proche n’est annoncé sans détection.
+- Après sélection, aperçu visible des données qui seront réellement reprises.
+- Par défaut, compléter uniquement le pseudo et les métadonnées manquants.
+  Les valeurs existantes et le statut interviewer sont conservés.
+- Plusieurs entretiens liés imposent le choix explicite d’une source de données ;
+  changer de source réinitialise les champs proposés.
+- « Choisir les données à reprendre, ou ne rien reprendre… » permet de personnaliser
+  la reprise. « Ne reprendre aucune donnée » laisse uniquement le rattachement.
+  Refermer cette section conserve ces choix, sans revenir aux valeurs par défaut.
+- « Confirmer » est la seule validation de la liaison et de la reprise affichée.
+  Échap et « Plus tard » restent neutres, y compris après sélection d’une proposition.
+- « Ce n’est pas cette personne » ou « Aucune de ces personnes » mémorise le refus
+  de toutes les propositions affichées, sans devoir les sélectionner une par une.
+  Les refus restent révocables depuis le répertoire.
+
+L’E2E `personnes-nommage-simplifie` couvre les métadonnées manquantes, la conservation
+du pseudo et des métadonnées renseignées, les sources multiples, la réinitialisation
+des choix, le pluriel, Échap et la persistance du refus de toutes les propositions.
+Les E2E du dialogue et de reprise couvrent le pseudo proposé par défaut et la validation
+d’une liaison sans aucune copie, même après avoir refermé les options.
+
+### Simplification UX validée et réalisée — répertoire corpus
+
+- Un seul accès principal « C’est la même personne… » dans les suggestions.
+- Deux fiches existantes donnent une confirmation de regroupement, avec compteurs,
+  choix du nom conservé, notes visibles et explication des conséquences.
+- Le regroupement ouvre la fiche conservée ; aucune fiche absorbée vide ne subsiste.
+- « Cette personne a une autre fiche… » permet aussi de regrouper des noms différents.
+- « Reprendre aussi certaines données… » est une section repliée, pas un second bouton
+  de décision. La refermer annule la copie ; elle ne concerne que le locuteur indiqué.
+- « Corriger le rattachement… » isole le déplacement ou le retrait d’un seul lien.
+  Une fiche devenue vide est signalée et sa suppression reste volontaire.
+- La commande de regroupement exige un aperçu frais et un inventaire complet,
+  refuse les doublons dans un même entretien et conserve les notes et les refus externes.
+- Le journal local remplace les entretiens avant de retirer la définition absorbée.
+  Tests de reprise après interruption et de refus des modifications externes ajoutés.
+- Le dialogue de nommage utilise aussi la section repliée de reprise. Pour un locuteur
+  déjà lié, il reste explicitement un déplacement du seul rattachement en session,
+  pas une fusion multi-fichiers depuis l’éditeur ouvert.
+
+Le nouveau test `e2e/personnes-regroupement.e2e.ts` couvre l’accès depuis une fiche,
+Échap et le retour du focus, le nom conservé, les notes, l’absence de fiche vide et
+l’annulation d’une reprise en refermant la section, ainsi que le refus d’un aperçu périmé.
+L’E2E de rapprochements couvre
+le regroupement avec copie du pseudo depuis une source choisie parmi plusieurs entretiens.
+La documentation utilisateur et le modèle objet décrivent ces parcours.
+
+### Repères techniques
+
+- `src/shared/corpus/rapprochementsPersonnes.ts` : normalisation, rôles, suggestions
+  exactes regroupées, refus et reprise sélective pure.
+- `src/shared/corpus/personnes.ts` : inventaire enrichi et union des commandes IPC.
+- `src/main/corpusStore.ts` : commandes locales, création de définition seule pour la
+  session ouverte, rapprochement/refus avec erreurs partielles explicites.
+- `src/renderer/composables/useEntretien.ts` : file de nommages, dialogue et décisions
+  appliquées au modèle de session. La définition est écrite avant le lien ; si la
+  session change entre les deux, une fiche vide peut rester visible et réparable.
+- `src/renderer/components/RapprochementNommage.vue` : dialogue natif, focus neutre,
+  sélection explicite, fermeture sans décision et libellés de déplacement.
+- `src/renderer/components/PersonnesCorpus.vue` : suggestions/refus globaux et reprise
+  sélective avec choix de l’entretien source.
+- `e2e/personnes*.e2e.ts`, `e2e/rapprochements-personnes.e2e.ts` et les tests unitaires
+  Personnes couvrent les incréments livrés.
+
+Les modifications sont dans l’arbre de travail, sans commit créé par l’agent.
+Préserver `plans/reflexion/export-sonal-alt.md`, fichier utilisateur hors de ce chantier.
+Cet incrément ne constitue donc pas la fin du plan.
+
+## Évolution validée — création par défaut et reprise sélective
+
+Les décisions ci-dessous priment sur les parcours initiaux décrits plus bas.
+Elles restent à implémenter ; le premier incrément livré ne les inclut pas.
+
+### Création par défaut
+
+Après validation d’un nom spécifique pour un locuteur non lié :
+
+- sans candidat crédible, créer une Personne puis rattacher le locuteur ;
+- avec candidat, proposer le rapprochement avant de créer une fiche ;
+- si le rapprochement est accepté, utiliser la personne existante ou créer une fiche
+  commune lorsque le candidat n’est pas lié ;
+- si l’utilisateur choisit « Personne différente », créer une fiche distincte et
+  mémoriser le refus ;
+- avec « Plus tard » ou fermeture, laisser le locuteur non lié et conserver la
+  suggestion à traiter, sans enregistrer de refus.
+
+Créer une identité individuelle ne constitue pas un rapprochement automatique.
+Les rapprochements entre locuteurs restent toujours explicitement confirmés.
+
+Garde-fous :
+
+- aucune création dès l’ajout d’un « Nouveau locuteur » ;
+- aucune création pour un nom vide, trop court ou générique ;
+- aucune nouvelle fiche au renommage d’un locuteur déjà lié ;
+- aucune recréation automatique consécutive à une déliaison volontaire ;
+- aucune création massive pour les anciens corpus sans action explicite ;
+- conserver l’écriture de la définition avant celle du lien et rendre les échecs visibles.
+
+Le lien reste facultatif pour les inconnus, les rôles génériques et les décisions en
+attente. La fusion locale devient nécessaire dans ce périmètre pour corriger les fiches
+créées séparément faute de rapprochement détecté.
+
+### Cas particulier des rôles génériques
+
+Les rôles explicites « Interviewer », « Intervieweur » et « Enquêteur » peuvent déclencher
+une proposition vers un rôle équivalent dans un autre entretien. La raison affichée est
+« même rôle », jamais « même identité ». Montrer le titre de l’entretien, le nom local et
+le nom de la Personne liée lorsqu’elle existe. Ne présélectionner aucun candidat.
+
+Exemple :
+
+> Un locuteur nommé « Interviewer » existe dans l’entretien B.
+> S’agit-il de la même personne ?
+
+Après un refus, inviter sans obligation à choisir un nom ou un pseudonyme spécifique,
+par exemple « Enquêteur A ». Un nom civil n’est jamais requis. Si le libellé reste
+un rôle générique, ne pas créer automatiquement de Personne distincte.
+L’acceptation explicite peut en revanche créer une fiche commune ou lier à une fiche
+existante, même lorsque les noms locaux restent génériques.
+
+Les refus sont mémorisés et révocables comme les autres refus. « Inconnu », « Anonyme »,
+« Nouveau locuteur », « Non attribué » et les simples libellés « Locuteur » ou « Speaker »
+restent exclus. La liste des rôles équivalents doit être explicite et testée.
+
+### Identité et reprise de données
+
+La fenêtre distingue trois décisions :
+
+1. **Même personne** : modifier uniquement le lien d’identité ;
+2. **Même personne, choisir les données à reprendre…** : préparer une liaison avec une
+   copie sélective depuis un locuteur source ;
+3. **Personne différente** : mémoriser le refus et appliquer les règles de création
+   ci-dessus.
+
+**Plus tard** et la fermeture restent des sorties neutres, sans refus ni copie.
+Ouvrir le choix des données ne valide pas encore la liaison ; revenir en arrière ne
+modifie rien.
+
+L’aperçu de reprise permet de choisir l’entretien source lorsque plusieurs locuteurs
+sont disponibles, puis les champs à copier. Il affiche les valeurs actuelles et proposées.
+Par défaut, proposer seulement de remplir les champs vides ; remplacer une valeur
+existante demande une sélection explicite. Ne jamais arbitrer silencieusement entre
+plusieurs sources.
+
+La reprise est une copie ponctuelle, pas une synchronisation. Le nom local reste
+inchangé. Les valeurs de variables de portée locuteur peuvent évoluer dans le temps ;
+le statut interviewer / répondant peut aussi différer selon l’entretien. Ce statut et
+le pseudonyme restent au niveau du Locuteur, jamais de la Personne.
+
+Proposer la reprise du statut interviewer / répondant et l’action « Utiliser le même
+pseudonyme » avec des cases décochées par défaut. Leur sélection déclenche uniquement
+une reprise ponctuelle explicitement confirmée, sans synchronisation future.
+Une liaison d’identité seule ne change ni le rôle ni la pseudonymisation.
+
+Le pseudonyme nécessite une analyse du modèle actuel de pseudonymisation avant de
+rendre sa reprise disponible : une Personne ne doit pas devenir implicitement une règle
+d’anonymisation. Si sa reprise nécessite de créer ou d’étendre une règle plutôt que de
+copier un champ, l’aperçu doit annoncer cette opération et les textes concernés avant
+confirmation. Présenter uniquement les champs dont la reprise est réellement prise en
+charge et testée.
+
+La commande finale doit appliquer le lien et les données sélectionnées sur un état frais,
+sans écraser une modification concurrente. Toute réussite partielle doit être décrite
+explicitement ; l’interface ne doit pas annoncer une reprise complète en cas d’échec.
+
+### Incidences sur la suite du plan
+
+- Adapter l’état vide et l’aide : une première personne est normalement créée au nommage
+  spécifique, sans attendre une deuxième rencontre.
+- Remplacer l’exclusion absolue des rôles génériques par le parcours particulier ci-dessus.
+- Remplacer les boutons Oui/Non par les décisions d’identité et la reprise sélective,
+  tout en conservant les refus révocables et la sortie neutre.
+- L’interdiction de propagation automatique reste valable ; une copie ponctuelle
+  sélectionnée et confirmée devient autorisée.
+- Avancer la fusion locale transactionnelle dans le périmètre nécessaire à cette évolution.
+- Ajouter les commandes de préparation et de validation de reprise après examen du modèle
+  des variables et de la pseudonymisation.
+- Remplacer le test E2E « nommer un premier locuteur ne crée pas une personne
+  silencieusement » par la création automatique au premier nom spécifique validé.
+- Couvrir création sans candidat, refus avec fiche distincte, attente sans fiche,
+  renommage lié, déliaison sans recréation et absence de migration automatique.
+- Couvrir les rôles équivalents, l’invitation facultative, les refus persistants et
+  l’exclusion des libellés d’attente.
+- Couvrir liaison seule sans modification des données, sélection de source et de champs,
+  remplissage des vides, remplacement explicite, annulation, conflits et échecs partiels.
+- Compléter les critères de fin avec ces parcours et la fusion locale reprenable.
 
 ## 1. Objectif et principes
 
@@ -72,15 +402,16 @@ Ne font pas partie du premier livrable :
 
 ### 2.1 Navigation
 
-Ajouter **Personnes** à la barre d’icônes de `Corpus.vue`, entre Recherche et Données :
+Ajouter **Personnes** à la barre d’icônes de `Corpus.vue`, entre Thèmes et Données :
 
 1. Accueil ;
 2. Thèmes ;
-3. Recherche ;
-4. **Personnes** ;
-5. Données ;
-6. Pseudonymisation ;
-7. Pas à pas, en mode démonstration.
+3. **Personnes** ;
+4. Données ;
+5. Pseudonymisation ;
+6. Pas à pas, en mode démonstration.
+
+La recherche est accessible avec **Ctrl + F**, sans bouton dans cette barre.
 
 L’icône `locuteurs.png` peut être réutilisée au premier livrable. Une icône distincte
 représentant plusieurs silhouettes serait préférable à terme pour ne pas confondre
@@ -542,7 +873,7 @@ Couvrir au minimum :
 
 ### 9.2 Tests E2E locaux
 
-1. Personnes apparaît entre Recherche et Données et masque les cartes ;
+1. Personnes apparaît entre Thèmes et Données et masque les cartes ;
 2. un corpus vide affiche l’aide attendue ;
 3. nommer un premier locuteur ne crée pas une personne silencieusement ;
 4. nommer le même locuteur dans un autre entretien ouvre la fenêtre ;

@@ -449,6 +449,7 @@ classDiagram
 - **Couleur** : choisie (palette définie `PALETTE_PASTILLES_LOCUTEURS`) ou **auto par index** ;
   stable car l'index est l'identité.
 - **`personneRef`** : pointe vers une `Personne` du corpus, ou vaut `null`. Les corrections manuelles du répertoire sont disponibles en local ; l’inventaire distant reste consultable.
+- **`personneDeliee`** : marqueur optionnel de déliaison volontaire, conservé dans l’entretien. Empêche la recréation automatique au nommage, y compris après un refus ; une liaison explicite le retire. Son absence conserve le comportement des anciens fichiers.
 
 **Code** : `src/shared/entretien/locuteurs.ts`, type `Locuteur` dans `src/shared/format.ts`.
 
@@ -551,6 +552,7 @@ classDiagram
         +string categorieId «→ NoteCategory.id (corpus)»
         +string titre? «affiché seul en vue cartes»
         +string corps «HTML sanitisé : texte échappé + <mark>/<em>»
+        +string[] locuteurIds «cibles facultatives dans l'entretien»
         +number rang «ordre manuel, défaut = max + 1»
         +string? date
     }
@@ -568,6 +570,9 @@ classDiagram
 - **Les références de commentaire ne sont jamais persistées** : les spans `[auteur : début…]`
   affichés sont reconstruits à l'affichage depuis les liens (`data-liens`) et jetés à la
   sauvegarde.
+- **Cibles facultatives** : `locuteurIds` associe une note à zéro, un ou plusieurs locuteurs du
+  même entretien. La note reste propriétaire de son contenu ; une personne agrège les notes de
+  ses locuteurs sans les copier. Supprimer un locuteur retire ses références des notes.
 - **Ordre = `rang` manuel** (« après la dernière » = max + 1), réordonnancement manuel.
 - **Catégories au corpus** : CRUD + comptages d'usage (politique « refus si utilisée ») dans
   `shared/corpus/categories.ts` (§5).
@@ -583,16 +588,26 @@ classDiagram
 - **Conséquence assumée — l'attribution au locuteur devient une requête.** Un codage transverse
   n'« appartient » pas à un locuteur : « ce codage relève de quel(s) locuteur(s) ? » = calculé
   (jamais stocké). Important pour les stats par locuteur.
-- **`Personne` (corpus).** `personnes: Record<string, Personne>` contient une identité opaque,
-  un nom de référence et une note facultative. Les noms ne sont pas uniques. Les liens sont
-  portés uniquement par les `personneRef` des locuteurs ; aucune valeur EAV ne migre sur la personne.
+- **`Personne` (corpus).** `personnes: Record<string, Personne>` contient une identité opaque
+  et un nom de référence. Les noms ne sont pas uniques. Les liens sont portés uniquement par les
+  `personneRef` des locuteurs ; aucune valeur EAV ni note ne migre sur la personne.
   L’inventaire main complète les anciens ids de locuteurs en mémoire, expose les fichiers
   indisponibles et ne transmet pas les transcriptions. Les commandes locales créent, lient,
   délient, déplacent et modifient les fiches. Une création écrit la définition avant le lien ;
   un échec de la seconde écriture conserve une fiche vide et produit une erreur explicite.
   La suppression exige une fiche vide et un inventaire complet. Les anciens corpus reçoivent
   `personnes: {}` en mémoire, sans migration de version ni écriture lors de la consultation.
-  Les suggestions et les corrections distantes restent à implémenter.
+  Les suggestions exactes et les refus révocables sont disponibles en local.
+  La commande `fusionner` vérifie que l’inventaire correspond encore à l’aperçu confirmé,
+  exige un inventaire complet et refuse les doublons de locuteurs dans un même entretien.
+  Elle conserve un id et son nom, réaffecte tous les liens, redirige les refus visant la fiche
+  absorbée et retire les refus internes au groupe. Les notes liées restent dans leurs entretiens
+  et apparaissent automatiquement dans l’agrégation de la fiche conservée.
+  `TransactionsFichiersCorpus` journalise les états avant/après des entretiens modifiés,
+  puis remplace `corpus.json` seulement après les liens. La reprise accepte les états avant
+  ou après connus, jamais un état extérieur divergent. Une reprise de données optionnelle
+  fait partie du même journal ; elle ne concerne que le locuteur cible explicitement affiché.
+  Les corrections distantes restent à implémenter.
 - **Découplée de l'anonymisation.** `Personne` ne référence pas `RegleAnon` : le cas
   « deux graphies → un pseudo » est couvert par les **alias** `entite[]` (§6), système généraliste
   pour personnes comme lieux/organisations. `Personne` est une identité transverse de locuteur,

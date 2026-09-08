@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import RapprochementCorpus from './RapprochementCorpus.vue'
 import { utiliserSonal } from '../composables/sonal'
+import { natureNomPersonne, suggestionsExactesPersonnes } from '../../shared/corpus/rapprochementsPersonnes'
 import type { CommandePersonnes, InventairePersonnes, VueLocuteurPersonne } from '../../shared/corpus/personnes'
 
 const props = defineProps<{ actif: boolean }>()
-const { lirePersonnes, commanderPersonnes, allerLocuteurs, variables, badgeVerrou,
-  idDistantCourant, lectureSeule, dernierTirage, dossierCourantDir, vue } = utiliserSonal()
-const inventaire = ref<InventairePersonnes>({ personnes: [], locuteurs: [], indisponibles: [] })
+const { lirePersonnes, commanderPersonnes, allerLocuteurs, allerNotes, variables, badgeVerrou,
+  nomCategorieNote, idDistantCourant, lectureSeule, dernierTirage, dossierCourantDir, vue } = utiliserSonal()
+const inventaire = ref<InventairePersonnes>({ personnes: [], locuteurs: [], notes: [], indisponibles: [] })
 const selection = ref('')
+const titreFiche = ref<HTMLHeadingElement | null>(null)
 const recherche = ref('')
-const filtre = ref<'tous' | 'problemes'>('tous')
+const filtre = ref<'tous' | 'problemes' | 'refus'>('tous')
 const erreur = ref('')
 const message = ref('')
+const ficheVideId = ref('')
+const ficheVide = computed(() => inventaire.value.personnes.find(p => p.id === ficheVideId.value && !inventaire.value.locuteurs.some(l => l.personneRef === p.id)))
 const occupe = ref(false)
 const charge = ref(false)
 let generation = 0
@@ -22,6 +27,27 @@ const cleLocuteur = (l: VueLocuteurPersonne) => JSON.stringify([l.entretienId, l
 const locuteur = computed(() => inventaire.value.locuteurs.find((l) => `l:${cleLocuteur(l)}` === selection.value))
 const idsPersonnes = computed(() => new Set(inventaire.value.personnes.map((p) => p.id)))
 const lies = computed(() => inventaire.value.locuteurs.filter((l) => l.personneRef === personne.value?.id))
+const notesLiees = computed(() => {
+  const ids = new Set(lies.value.map((l) => l.locuteurId))
+  return inventaire.value.notes.filter((note) => note.locuteurIds.some((id) => ids.has(id)))
+})
+const groupesNotesLiees = computed(() => {
+  const groupes = new Map<string, { titre: string; notes: InventairePersonnes['notes'] }>()
+  for (const note of notesLiees.value) {
+    if (!groupes.has(note.entretienId)) groupes.set(note.entretienId, { titre: note.entretienTitre, notes: [] })
+    groupes.get(note.entretienId)!.notes.push(note)
+  }
+  for (const groupe of groupes.values()) groupe.notes.sort((a, b) => a.rang - b.rang)
+  return [...groupes.entries()]
+})
+const texteNote = (corps: string) => {
+  const element = document.createElement('div')
+  element.innerHTML = corps
+  return element.textContent?.trim() ?? ''
+}
+const dateNote = (date: string | null) => date
+  ? new Date(`${date}T00:00`).toLocaleDateString('fr-FR')
+  : 'sans date'
 const nonLies = computed(() => inventaire.value.locuteurs.filter((l) => !l.personneRef || !idsPersonnes.value.has(l.personneRef)))
 const liensInvalides = computed(() => inventaire.value.locuteurs.filter((l) => l.personneRef && !idsPersonnes.value.has(l.personneRef)))
 const doublons = computed(() => inventaire.value.personnes.filter((p) => {
@@ -31,26 +57,52 @@ const doublons = computed(() => inventaire.value.personnes.filter((p) => {
 const cleRecherche = (texte: string) => texte.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('fr')
 const correspond = (texte: string) => cleRecherche(texte).includes(cleRecherche(recherche.value.trim()))
 const personnesVisibles = computed(() => inventaire.value.personnes.filter((p) =>
-  (filtre.value === 'tous' || doublons.value.some((d) => d.id === p.id)) &&
+  (filtre.value === 'tous' || (filtre.value === 'problemes' && doublons.value.some((d) => d.id === p.id))) &&
   correspond([p.nom, ...inventaire.value.locuteurs.filter((l) => l.personneRef === p.id).map((l) => `${l.nom} ${l.entretienTitre}`)].join(' ')),
 ))
 const groupesNonLies = computed(() => {
   const groupes = new Map<string, { titre: string; locuteurs: VueLocuteurPersonne[] }>()
   for (const l of nonLies.value) {
-    if (filtre.value === 'problemes' && !l.personneRef) continue
+    if (filtre.value === 'refus' || (filtre.value === 'problemes' && !l.personneRef)) continue
     if (!correspond(`${l.nom} ${l.entretienTitre}`)) continue
     if (!groupes.has(l.entretienId)) groupes.set(l.entretienId, { titre: l.entretienTitre, locuteurs: [] })
     groupes.get(l.entretienId)!.locuteurs.push(l)
   }
   return [...groupes.entries()]
 })
+const suggestionsParLocuteur = computed(() => {
+  const convertir = (l: VueLocuteurPersonne) => ({ entretienId: l.entretienId, locuteur: { ...l, id: l.locuteurId } })
+  const tous = inventaire.value.locuteurs.map(convertir)
+  return new Map(inventaire.value.locuteurs.map((l) => {
+    const suggestions = suggestionsExactesPersonnes(convertir(l), tous)
+    return [cleLocuteur(l), inventaire.value.locuteurs.filter((c) => suggestions.some((s) => s.entretienId === c.entretienId && s.locuteur.id === c.locuteurId))]
+  }))
+})
+const aVerifier = computed(() => inventaire.value.locuteurs.filter((l) => suggestionsParLocuteur.value.get(cleLocuteur(l))?.length))
+const decisionsEcartees = computed(() => inventaire.value.locuteurs.filter((l) => l.rapprochementsRefuses?.length))
+const candidats = computed(() => locuteur.value ? suggestionsParLocuteur.value.get(cleLocuteur(locuteur.value)) ?? [] : [])
+function libelleRefus(r: string) {
+  if (r.startsWith('personne:')) return inventaire.value.personnes.find((p) => p.id === r.slice(9))?.nom ?? 'Personne absente'
+  const l = inventaire.value.locuteurs.find((l) => l.locuteurId === r.slice(9))
+  return l ? `${l.nom} · ${l.entretienTitre}` : 'Locuteur absent'
+}
+const sourceReprise = ref<VueLocuteurPersonne | null>(null)
+const autreFiche = ref('')
+const cibleRapprochement = computed(() => locuteur.value ?? lies.value[0])
+function verifierAutreFiche() {
+  sourceReprise.value = inventaire.value.locuteurs.find(l => l.personneRef === autreFiche.value) ?? null
+}
+function validerRapprochement(commande: CommandePersonnes) {
+  sourceReprise.value = null
+  void executer(commande)
+}
 const nom = ref('')
-const note = ref('')
 const cible = ref('')
 watch([selection, inventaire], () => {
   nom.value = personne.value?.nom ?? locuteur.value?.nom ?? ''
-  note.value = personne.value?.note ?? ''
   cible.value = ''
+  autreFiche.value = ''
+  sourceReprise.value = null
 })
 const variablesLoc = computed(() => variables.value.filter((v) => v.portee === 'locuteur'))
 function valeur(l: VueLocuteurPersonne, idVar: string) {
@@ -81,11 +133,15 @@ async function executer(commande: CommandePersonnes) {
   message.value = ''
   const jeton = generation
   try {
+    const ancienLien = commande.type === 'lier'
+      ? inventaire.value.locuteurs.find(l => l.entretienId === commande.entretienId && l.locuteurId === commande.locuteurId)?.personneRef : null
     const id = await commanderPersonnes(commande)
     if (jeton !== generation) return
-    if (commande.type === 'creer' && id) selection.value = `p:${id}`
+    if (['creer', 'fusionner', 'rapprocher'].includes(commande.type) && id) selection.value = `p:${id}`
+    if (commande.type === 'fusionner') { filtre.value = 'tous'; recherche.value = '' }
     if (commande.type === 'supprimer') selection.value = ''
-    message.value = 'Modification enregistrée.'
+    ficheVideId.value = ancienLien ?? ''
+    message.value = commande.type === 'fusionner' ? 'Les entretiens sont maintenant réunis sous une même personne.' : 'Modification enregistrée.'
   } catch (e) {
     if (jeton === generation) erreur.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -93,8 +149,35 @@ async function executer(commande: CommandePersonnes) {
       const erreurCommande = erreur.value
       await actualiser()
       if (erreurCommande) erreur.value = erreurCommande
+      if (commande.type === 'fusionner' && !erreur.value) { await nextTick(); titreFiche.value?.focus() }
     }
   }
+}
+
+function enregistrerNom() {
+  const fiche = personne.value
+  if (!fiche || desactive.value) return
+  const valeur = nom.value.trim()
+  if (!valeur) {
+    nom.value = fiche.nom
+    erreur.value = 'Le nom de référence ne peut pas être vide.'
+    return
+  }
+  nom.value = valeur
+  if (valeur === fiche.nom) return
+  void executer({ type: 'modifier', personneId: fiche.id, nom: valeur })
+}
+
+const dialogueAide = ref<HTMLDialogElement | null>(null)
+let retourFocusAide: HTMLElement | null = null
+async function ouvrirAide() {
+  retourFocusAide = document.activeElement as HTMLElement | null
+  await nextTick()
+  dialogueAide.value?.showModal()
+}
+function fermerAide() {
+  dialogueAide.value?.close()
+  retourFocusAide?.focus()
 }
 
 const confirmation = ref<{ texte: string; commande: CommandePersonnes } | null>(null)
@@ -120,12 +203,16 @@ function lier(l: VueLocuteurPersonne, personneId: string | null) {
   const nomCible = inventaire.value.personnes.find((p) => p.id === personneId)?.nom
   const nomSource = inventaire.value.personnes.find((p) => p.id === l.personneRef)?.nom ?? l.personneRef
   const texte = personneId === null
-    ? `Délier « ${l.nom} » dans « ${l.entretienTitre} » de « ${nomSource} » ? Le nom local et ses valeurs seront conservés.`
-    : `Associer « ${l.nom} » dans « ${l.entretienTitre} » à « ${nomCible} » ?${l.personneRef ? ` Le lien avec « ${nomSource} » sera remplacé.` : ''}`
+    ? `Ne plus associer « ${l.nom} » dans « ${l.entretienTitre} » à « ${nomSource} » ? Le nom local et ses valeurs seront conservés.`
+    : `Associer « ${l.nom} » dans « ${l.entretienTitre} » à « ${nomCible} » ?${l.personneRef ? ` L’association avec « ${nomSource} » sera remplacée.` : ''}`
   void demander(texte, { type: 'lier', entretienId: l.entretienId, locuteurId: l.locuteurId, personneId })
 }
 async function ouvrir(l: VueLocuteurPersonne) {
   try { await allerLocuteurs(l.entretienId) }
+  catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
+}
+async function ouvrirNotes(entretienId: string) {
+  try { await allerNotes(entretienId) }
   catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
 }
 
@@ -171,13 +258,14 @@ onMounted(() => {
 onBeforeUnmount(() => { generation++; observateur?.disconnect() })
 watch(dossierCourantDir, () => {
   generation++
-  inventaire.value = { personnes: [], locuteurs: [], indisponibles: [] }
+  inventaire.value = { personnes: [], locuteurs: [], notes: [], indisponibles: [] }
   selection.value = ''; recherche.value = ''; filtre.value = 'tous'; charge.value = false
   erreur.value = ''; message.value = ''; occupe.value = false
   annuler()
 })
 watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
   if (props.actif && vue.value === 'corpus') void actualiser()
+  else if (!props.actif && dialogueAide.value?.open) fermerAide()
 }, { immediate: true })
 </script>
 
@@ -186,22 +274,46 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
     <header class="entete">
       <h2>Personnes</h2>
       <span>{{ inventaire.personnes.length }} personnes · {{ nonLies.length }} locuteurs sans lien valide</span>
-      <button :disabled="occupe" @click="actualiser">Actualiser</button>
+      <button class="actualiser" :disabled="occupe" @click="actualiser">Actualiser</button>
     </header>
     <p v-if="lectureUniquement" class="information">Consultation seule : les corrections de personnes sont disponibles dans les corpus locaux pour le moment.</p>
     <p v-if="erreur" role="alert" class="erreur">{{ erreur }}</p>
     <p v-if="message" role="status">{{ message }}</p>
+    <section v-if="ficheVide" aria-label="Personne sans entretien">
+      <p>« {{ ficheVide.nom }} » n’est plus associée à aucun entretien.</p>
+      <button :disabled="desactive" @click="selection = `p:${ficheVide.id}`">Examiner cette personne</button>
+      <button :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${ficheVide.nom} » ?`, { type: 'supprimer', personneId: ficheVide.id })">Supprimer cette personne…</button>
+    </section>
     <p v-if="occupe" role="status">Chargement…</p>
     <ul v-if="inventaire.indisponibles.length" class="erreur">
       <li v-for="e in inventaire.indisponibles" :key="e.id">{{ e.titre }} : {{ e.raison }}. L’inventaire est incomplet.</li>
     </ul>
     <div ref="panneau" class="deux-colonnes" :class="{ verticale }" :style="{ '--largeur-personnes': largeur + 'px' }">
       <aside class="repertoire" aria-label="Répertoire des personnes">
-        <label>Rechercher une personne, un nom local ou un entretien<input v-model="recherche" type="search" /></label>
+        <div class="barre-recherche-personnes">
+          <label>Rechercher<input v-model="recherche" type="search" /></label>
+          <button class="bouton-aide" type="button" aria-label="Aide sur l’onglet Personnes" title="Aide sur l’onglet Personnes" @click="ouvrirAide">
+            <span aria-hidden="true">?</span>
+          </button>
+        </div>
         <div class="filtres">
           <button :aria-pressed="filtre === 'tous'" @click="filtre = 'tous'">Toutes</button>
-          <button :aria-pressed="filtre === 'problemes'" @click="filtre = 'problemes'">À vérifier {{ liensInvalides.length + doublons.length }}</button>
+          <button :aria-pressed="filtre === 'problemes'" @click="filtre = 'problemes'">À vérifier {{ liensInvalides.length + doublons.length + aVerifier.length }}</button>
+          <button :aria-pressed="filtre === 'refus'" @click="filtre = 'refus'">Décisions écartées {{ decisionsEcartees.length }}</button>
         </div>
+        <section v-if="filtre !== 'refus' && aVerifier.length" aria-label="Suggestions à vérifier">
+          <h3>Rapprochements à vérifier</h3>
+          <ul><li v-for="l in aVerifier.filter(l => correspond(`${l.nom} ${l.entretienTitre}`))" :key="cleLocuteur(l)">
+            <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selection = `l:${cleLocuteur(l)}`">{{ l.nom }} · {{ l.entretienTitre }}</button>
+          </li></ul>
+        </section>
+        <section v-if="filtre === 'refus'" aria-label="Locuteurs avec décisions écartées">
+          <h3>Décisions écartées</h3>
+          <ul><li v-for="l in decisionsEcartees.filter(l => correspond(`${l.nom} ${l.entretienTitre}`))" :key="cleLocuteur(l)">
+            <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selection = `l:${cleLocuteur(l)}`">{{ l.nom }} · {{ l.entretienTitre }}</button>
+          </li></ul>
+          <p v-if="!decisionsEcartees.length">Aucune décision écartée.</p>
+        </section>
         <h3>Répertoire</h3>
         <ul>
           <li v-for="p in personnesVisibles" :key="p.id">
@@ -227,16 +339,45 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
         :aria-valuenow="largeur" :aria-valuemin="240" :aria-valuemax="borner(Infinity)"
         @pointerdown="($event.currentTarget as HTMLElement).setPointerCapture($event.pointerId)"
         @pointermove="redimensionner" @pointerup="terminer" @pointercancel="terminer" @keydown="ajuster"></div>
-      <section class="fiche" aria-label="Fiche personne">
+      <section class="fiche" aria-label="Détails de la personne">
+        <section v-if="locuteur && candidats.length" aria-label="Rapprochements proposés">
+          <h3>Rapprochements proposés</h3>
+          <p v-if="!locuteur.personneRef && natureNomPersonne(locuteur.nom) === 'specifique'">« Personne différente » crée une personne distincte pour ce locuteur et mémorise le refus.</p>
+          <p v-if="natureNomPersonne(locuteur.nom) === 'role'">Même rôle ne signifie pas même personne. En cas d’homonymie, vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer les locuteurs.</p>
+          <ul><li v-for="s in candidats" :key="cleLocuteur(s)">
+            <strong>{{ s.nom }}</strong> · {{ s.entretienTitre }}
+            <span v-if="s.personneRef"> · {{ inventaire.personnes.find(p => p.id === s.personneRef)?.nom }}</span>
+            <button :disabled="desactive" @click="sourceReprise = s">C’est la même personne…</button>
+            <button :disabled="desactive" @click="executer({ type: 'refuser', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, sourceEntretienId: s.entretienId, sourceLocuteurId: s.locuteurId })">Personne différente</button>
+          </li></ul>
+        </section>
+        <RapprochementCorpus v-if="sourceReprise && cibleRapprochement" :inventaire="inventaire" :cible="cibleRapprochement" :candidat="sourceReprise" :variables="variablesLoc"
+          @annuler="sourceReprise = null" @valider="validerRapprochement" />
+        <section v-if="locuteur?.rapprochementsRefuses?.length" aria-label="Décisions écartées">
+          <h3>Décisions écartées</h3>
+          <ul><li v-for="r in locuteur.rapprochementsRefuses" :key="r">{{ libelleRefus(r) }}
+            <button :disabled="desactive" @click="executer({ type: 'annulerRefus', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, cible: r })">Annuler le refus</button>
+          </li></ul>
+        </section>
         <template v-if="personne">
-          <h3>Personne · {{ personne.nom }}</h3>
-          <p v-if="doublons.some(p => p.id === personne?.id)" class="erreur">Cette personne possède plusieurs locuteurs dans un même entretien. Déliez ou déplacez les liens incorrects.</p>
-          <form @submit.prevent="executer({ type: 'modifier', personneId: personne.id, nom, note })">
-            <label>Nom de référence<input v-model="nom" :disabled="desactive" required /></label>
-            <label>Note de la personne<textarea v-model="note" :disabled="desactive" rows="3"></textarea></label>
-            <button :disabled="desactive || !nom.trim()">Enregistrer la fiche</button>
-          </form>
-          <p>Le nom de référence ne remplace pas les noms utilisés dans les entretiens.</p>
+          <h3 ref="titreFiche" tabindex="-1">Personne · {{ personne.nom }}</h3>
+          <p v-if="doublons.some(p => p.id === personne?.id)" class="erreur">Cette personne possède plusieurs locuteurs dans un même entretien. Modifiez les associations incorrectes.</p>
+          <div class="edition-nom">
+            <label>Nom de référence
+              <input v-model="nom" :disabled="desactive" @keydown.enter.prevent="enregistrerNom" @blur="enregistrerNom" />
+            </label>
+            <small>Entrée ou sortie du champ pour enregistrer.</small>
+          </div>
+          <details v-if="lies.length">
+            <summary>Réunir…</summary>
+            <form class="reunir-personne" @submit.prevent="verifierAutreFiche">
+              <label><span>Avec</span><select v-model="autreFiche" :disabled="desactive">
+                <option value="">Choisir une personne…</option>
+                <option v-for="p in inventaire.personnes.filter(p => p.id !== personne?.id && inventaire.locuteurs.some(l => l.personneRef === p.id))" :key="p.id" :value="p.id">{{ p.nom }} · {{ inventaire.locuteurs.filter(l => l.personneRef === p.id).map(l => l.entretienTitre).join(', ') }}</option>
+              </select></label>
+              <button :disabled="desactive || !autreFiche">Continuer…</button>
+            </form>
+          </details>
           <h4>Noms et entretiens</h4>
           <ul class="liens"><li v-for="l in lies" :key="cleLocuteur(l)">
             <strong>{{ l.entretienTitre }} · {{ l.nom }}</strong>
@@ -244,11 +385,23 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
             <span v-if="badgeVerrou(l.entretienId)"> · Verrou tenu par {{ badgeVerrou(l.entretienId)?.userId }}</span>
             <div class="actions">
               <button :disabled="occupe" @click="ouvrir(l)">Ouvrir l’entretien</button>
-              <button :disabled="desactive" @click="lier(l, null)">Délier</button>
-              <button :disabled="desactive" @click="selection = `l:${cleLocuteur(l)}`">Déplacer vers…</button>
+              <button :disabled="desactive" @click="selection = `l:${cleLocuteur(l)}`">Modifier l’association…</button>
             </div>
           </li></ul>
           <p v-if="!lies.length">Cette personne n’a aucun locuteur lié.</p>
+          <details class="notes-liees">
+            <summary>Notes liées ({{ notesLiees.length }})</summary>
+            <p v-if="!notesLiees.length">Aucune note d’entretien ne concerne les locuteurs de cette personne.</p>
+            <section v-for="[entretienId, groupe] in groupesNotesLiees" :key="entretienId">
+              <h5>{{ groupe.titre }}</h5>
+              <article v-for="n in groupe.notes" :key="n.id" class="note-liee">
+                <strong>{{ n.titre || texteNote(n.corps) || 'Note sans titre' }}</strong>
+                <small>{{ nomCategorieNote(n.categorieId) }} · {{ dateNote(n.date) }} · {{ n.statut === 'public' ? 'public' : 'privé' }}</small>
+                <p v-if="n.titre && texteNote(n.corps)">{{ texteNote(n.corps) }}</p>
+                <button :disabled="occupe" @click="ouvrirNotes(entretienId)">Ouvrir l’entretien dans Notes</button>
+              </article>
+            </section>
+          </details>
           <div v-if="lies.length && variablesLoc.length" class="tableau">
             <h4>Données de locuteur</h4>
             <p>Les valeurs restent propres à chaque entretien ; une différence peut être légitime.</p>
@@ -256,37 +409,72 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
               <tbody><tr v-for="l in lies" :key="cleLocuteur(l)"><th scope="row">{{ l.entretienTitre }} · {{ l.nom }}</th><td v-for="v in variablesLoc" :key="v.id">{{ valeur(l, v.id) }}</td></tr></tbody>
             </table>
           </div>
-          <button v-if="!lies.length" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer la fiche vide « ${personne.nom} » ?`, { type: 'supprimer', personneId: personne.id })">Supprimer cette personne vide</button>
+          <button v-if="!lies.length" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${personne.nom} » ?`, { type: 'supprimer', personneId: personne.id })">Supprimer cette personne</button>
         </template>
         <template v-else-if="locuteur">
           <h3>{{ locuteur.nom || 'Locuteur sans nom' }}</h3>
           <p>{{ locuteur.entretienTitre }} <span v-if="locuteur.interviewer">· Enquêteur</span></p>
           <p v-if="badgeVerrou(locuteur.entretienId)">Verrou tenu par {{ badgeVerrou(locuteur.entretienId)?.userId }}</p>
-          <p v-if="locuteur.personneRef && !idsPersonnes.has(locuteur.personneRef)" class="erreur">Référence absente : {{ locuteur.personneRef }}. Vous pouvez délier ce locuteur ou l’associer à une personne existante.</p>
+          <p v-if="locuteur.personneRef && !idsPersonnes.has(locuteur.personneRef)" class="erreur">Référence absente : {{ locuteur.personneRef }}. Associez ce locuteur à une autre personne ou supprimez cette association.</p>
           <button :disabled="occupe" @click="ouvrir(locuteur)">Ouvrir l’entretien</button>
-          <form v-if="!locuteur.personneRef" @submit.prevent="executer({ type: 'creer', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, nom })">
-            <label>Nom de la nouvelle personne<input v-model="nom" :disabled="desactive" required /></label>
-            <button :disabled="desactive || !nom.trim()">Créer une personne depuis ce locuteur</button>
+          <form v-if="!locuteur.personneRef" class="action-personne" @submit.prevent="executer({ type: 'creer', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, nom })">
+            <label><span>Nouvelle personne</span><input v-model="nom" :disabled="desactive" required /></label>
+            <button :disabled="desactive || !nom.trim()">Créer</button>
           </form>
-          <form @submit.prevent="lier(locuteur, cible)">
-            <label>Personne à associer<select v-model="cible" :disabled="desactive">
+          <p v-if="!locuteur.personneRef" class="separateur-action">ou</p>
+          <form class="action-personne" @submit.prevent="lier(locuteur, cible)">
+            <label><span>Associer à</span><select v-model="cible" :disabled="desactive">
               <option value="">Choisir une personne…</option>
-              <option v-for="p in inventaire.personnes" :key="p.id" :value="p.id" :disabled="inventaire.locuteurs.some(l => l.entretienId === locuteur?.entretienId && l.personneRef === p.id)">{{ p.nom }} · {{ p.id }}</option>
+              <option v-for="p in inventaire.personnes" :key="p.id" :value="p.id" :disabled="inventaire.locuteurs.some(l => l.entretienId === locuteur?.entretienId && l.personneRef === p.id)">{{ p.nom }} · {{ inventaire.locuteurs.filter(l => l.personneRef === p.id).map(l => l.entretienTitre).join(', ') }}</option>
             </select></label>
-            <button :disabled="desactive || !cible">{{ locuteur.personneRef ? 'Déplacer le lien' : 'Lier à cette personne' }}</button>
+            <button :disabled="desactive || !cible">{{ locuteur.personneRef ? 'Changer' : 'Associer' }}</button>
           </form>
-          <button v-if="locuteur.personneRef" :disabled="desactive" @click="lier(locuteur, null)">Délier</button>
+          <button v-if="locuteur.personneRef" :disabled="desactive" @click="lier(locuteur, null)">Ne plus associer</button>
         </template>
         <template v-else>
           <h3>Personne</h3>
-          <p v-if="charge && !inventaire.personnes.length">Aucune personne n’est encore identifiée. Choisissez un locuteur non lié pour créer sa fiche.</p>
+          <p v-if="charge && !inventaire.personnes.length">Aucune personne n’est encore identifiée. Choisissez un locuteur non lié pour créer une personne.</p>
           <p v-else>Sélectionnez une personne ou un locuteur dans le répertoire.</p>
-          <p>Une personne relie les locuteurs d’entretiens différents, sans changer leurs noms ni leurs données. Les homonymes peuvent conserver des fiches distinctes.</p>
+          <p>Une personne relie les locuteurs d’entretiens différents, sans changer leurs noms ni leurs données. Les homonymes peuvent rester distincts.</p>
         </template>
       </section>
     </div>
+    <dialog ref="dialogueAide" class="aide-personnes" aria-labelledby="aide-personnes-titre" @cancel.prevent="fermerAide">
+      <h3 id="aide-personnes-titre">Comprendre l’onglet Personnes</h3>
+      <p>Cet onglet permet de reconnaître une même personne dans plusieurs entretiens, sans uniformiser les informations propres à chaque entretien.</p>
+
+      <h4>Personne ou locuteur&nbsp;?</h4>
+      <ul>
+        <li>Une <strong>personne</strong> est une identité commune au corpus, avec un nom de référence.</li>
+        <li>Un <strong>locuteur</strong> appartient à un entretien. Son nom local, son pseudonyme, son rôle et ses données restent dans cet entretien.</li>
+        <li>Une personne peut réunir plusieurs locuteurs, mais jamais deux locuteurs d’un même entretien.</li>
+      </ul>
+
+      <h4>Trouver et vérifier</h4>
+      <ul>
+        <li><strong>Rechercher</strong> consulte les noms de référence, les noms locaux et les titres d’entretien, sans tenir compte des majuscules ni des accents.</li>
+        <li><strong>À vérifier</strong> rassemble les rapprochements proposés, les références absentes et les personnes associées plusieurs fois au même entretien.</li>
+        <li><strong>Décisions écartées</strong> conserve les rapprochements refusés. Un refus peut être annulé.</li>
+      </ul>
+
+      <h4>Créer, associer ou réunir</h4>
+      <ul>
+        <li>Choisissez un locuteur sans lien pour créer une personne ou l’associer à une personne existante.</li>
+        <li>Un nom identique ou un même rôle produit seulement une suggestion&nbsp;: aucun rapprochement n’est validé automatiquement.</li>
+        <li><strong>C’est la même personne…</strong> relie deux locuteurs. <strong>Réunir…</strong> rassemble sous une même personne des entretiens déjà rapprochés séparément.</li>
+        <li><strong>Modifier l’association…</strong> déplace ou dissocie uniquement le locuteur sélectionné. Une personne sans entretien reste disponible jusqu’à sa suppression explicite.</li>
+      </ul>
+
+      <h4>Notes liées</h4>
+      <p>Dans l’onglet Notes d’un entretien, le champ <strong>Concerne</strong> permet d’associer une note à un ou plusieurs locuteurs. La personne réunit automatiquement les notes de tous ses locuteurs, sans les copier ni les déplacer.</p>
+
+      <h4>Ce qui reste inchangé</h4>
+      <p>Modifier une personne ou réunir ses entretiens ne change ni les noms locaux, ni les pseudonymes, ni les rôles, ni les données ou notes des entretiens. Ces informations peuvent différer légitimement d’un entretien à l’autre.</p>
+      <p><strong>Ouvrir l’entretien</strong> permet de consulter ou modifier le locuteur et ses notes dans leur contexte. Les corrections depuis cet onglet sont actuellement réservées aux corpus locaux.</p>
+      <div class="actions"><button autofocus @click="fermerAide">Fermer</button></div>
+    </dialog>
     <dialog ref="dialogue" aria-labelledby="confirmation-personnes-titre" @cancel.prevent="annuler">
-      <h3 id="confirmation-personnes-titre">Confirmer le changement de lien ou de fiche</h3>
+      <h3 id="confirmation-personnes-titre">Confirmer l’association</h3>
       <p>{{ confirmation?.texte }}</p>
       <div class="actions"><button autofocus @click="annuler">Annuler</button><button @click="confirmer">Confirmer</button></div>
     </dialog>
@@ -297,7 +485,22 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
 .personnes-corpus { padding: 16px; min-width: 0; }
 .entete, .actions, .filtres { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .entete h2 { margin: 0; }
-.entete > button { margin-left: auto; }
+.entete .actualiser { margin-left: auto; }
+.bouton-aide {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #64748b;
+  border-radius: 50%;
+  background: transparent;
+  color: #334155;
+  font-weight: 700;
+}
+.bouton-aide:hover { background: #eef3f8; }
+.barre-recherche-personnes { display: grid; grid-template-columns: minmax(0, 1fr) 26px; align-items: start; gap: 8px; }
+.barre-recherche-personnes label { margin-top: 0; }
 .deux-colonnes { display: grid; grid-template-columns: var(--largeur-personnes) 6px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
 .deux-colonnes.verticale { grid-template-columns: minmax(0, 1fr); }
 .repertoire, .fiche { min-width: 0; padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; }
@@ -311,14 +514,38 @@ label { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; }
 input, textarea, select { box-sizing: border-box; width: 100%; padding: 7px; font: inherit; }
 form { margin-bottom: 16px; }
 .liens li { padding: 10px 0; border-bottom: 1px solid #d4dce6; }
+.edition-nom { margin-bottom: 16px; }
+.edition-nom small { display: block; margin-top: -6px; color: #52606d; }
+.reunir-personne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 16px; }
+.reunir-personne label { flex: 1 1 280px; flex-direction: row; align-items: center; margin: 0; }
+.reunir-personne label span { flex: 0 0 auto; }
+.reunir-personne select { flex: 1; width: auto; min-width: 0; }
+.action-personne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.action-personne label { flex: 1 1 280px; flex-direction: row; align-items: center; margin: 0; }
+.action-personne label span { flex: 0 0 auto; }
+.action-personne input, .action-personne select { flex: 1; width: auto; min-width: 0; }
+.separateur-action { margin: -4px 0; color: #52606d; font-size: 1.15rem; font-weight: 600; text-align: center; }
 .actions { margin-top: 8px; }
 .erreur { color: #a82020; }
 .information { padding: 10px; background: #fff5d8; }
 .separateur { background: #e8edf5; cursor: col-resize; touch-action: none; border-radius: 5px; }
 .separateur:focus-visible { outline: 2px solid #1565c0; }
 .tableau { overflow: auto; margin-bottom: 16px; }
+.notes-liees { margin: 16px 0; }
+.notes-liees h5 { margin-bottom: 6px; }
+.note-liee { display: grid; gap: 5px; padding: 10px 0; border-bottom: 1px solid #d4dce6; }
+.note-liee small { color: #52606d; }
+.note-liee p { margin: 2px 0; white-space: pre-wrap; }
+.note-liee button { justify-self: start; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border: 1px solid #d4dce6; padding: 8px; text-align: left; }
 dialog { max-width: min(560px, 85vw); border: 1px solid #9daabc; border-radius: 8px; }
 dialog::backdrop { background: #0006; }
+.aide-personnes { max-height: 80vh; overflow: auto; padding: 24px; }
+.aide-personnes h3 { margin-top: 0; }
+.aide-personnes h4 { margin-bottom: 4px; }
+.aide-personnes ul { margin-top: 4px; padding-left: 22px; }
+.aide-personnes li + li { margin-top: 6px; }
+.aide-personnes .actions { justify-content: flex-end; }
+
 </style>

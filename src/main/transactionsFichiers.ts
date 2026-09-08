@@ -33,7 +33,15 @@ export interface PlanSuppressionEntretien {
   readonly deplacements: DeplacementTransactionFichiers[]
 }
 
-export type PlanTransactionFichiers = PlanAjoutEntretien | PlanSuppressionEntretien
+export interface PlanRemplacementEntretiens {
+  readonly operation: 'remplacement'
+  readonly id: string
+  readonly corpusAvant: CorpusFichier
+  readonly corpusApres: CorpusFichier
+  readonly entretiens: { id: string; avant: EntretienFichier; apres: EntretienFichier }[]
+}
+
+export type PlanTransactionFichiers = PlanAjoutEntretien | PlanSuppressionEntretien | PlanRemplacementEntretiens
 
 interface JournalTransactionFichiers {
   readonly formatVersion: 1
@@ -84,7 +92,7 @@ function synchroniserDossier(dossier: string): void {
   }
 }
 
-/** Coordonne les mutations locales qui touchent `corpus.json` et un entretien.
+/** Coordonne les mutations locales qui touchent `corpus.json` et les entretiens.
  *  Le journal contient l'intention complète et permet de terminer l'opération après un arrêt. */
 export class TransactionsFichiersCorpus {
   private readonly journal: string
@@ -130,7 +138,21 @@ export class TransactionsFichiersCorpus {
         `La transaction de fichiers « ${plan.id} » ne peut pas être reprise : corpus.json a changé.`,
       )
     }
-    if (plan.operation === 'ajout') {
+    if (plan.operation === 'remplacement') {
+      const fichiers = plan.entretiens.map((e) => {
+        if (!e.id || e.id === '.' || e.id === '..' || /[/\\\\]/.test(e.id)) throw new Error('Identifiant d’entretien transactionnel invalide.')
+        const fichier = this.cheminDansCorpus(`entretiens/${e.id}.json`)
+        const contenu = existsSync(fichier) ? readFileSync(fichier, 'utf8') : null
+        const dejaApplique = correspondAuJson(contenu, contenuJson(e.apres))
+        if (!dejaApplique && !correspondAuJson(contenu, contenuJson(e.avant))) {
+          throw new Error(`L'entretien « ${e.id} » a changé pendant la transaction. Aucun état inconnu ne sera écrasé.`)
+        }
+        return { fichier, dejaApplique, apres: e.apres }
+      })
+      // Les définitions absorbées restent présentes jusqu'au remplacement de tous les liens.
+      for (const e of fichiers) if (!e.dejaApplique) ecrireAtomiquement(e.fichier, contenuJson(e.apres))
+      if (!correspondApres) ecrireAtomiquement(fichierCorpus, apres)
+    } else if (plan.operation === 'ajout') {
       const fichierEntretien = join(this.dir, 'entretiens', `${plan.id}.json`)
       const contenuEntretien = contenuJson(plan.entretien)
       if (existsSync(fichierEntretien)) {
@@ -205,7 +227,7 @@ export class TransactionsFichiersCorpus {
     }
     const plan = journal.plan as Partial<PlanTransactionFichiers>
     if (
-      (plan.operation !== 'ajout' && plan.operation !== 'suppression')
+      (plan.operation !== 'ajout' && plan.operation !== 'suppression' && plan.operation !== 'remplacement')
       || typeof plan.id !== 'string'
       || !plan.id
       || plan.id === '.'
@@ -222,6 +244,11 @@ export class TransactionsFichiersCorpus {
     }
     if (plan.operation === 'suppression' && !Array.isArray(plan.deplacements)) {
       throw new Error('Le journal de suppression est incomplet.')
+    }
+    if (plan.operation === 'remplacement' && (!Array.isArray(plan.entretiens)
+      || plan.entretiens.some(e => !e || typeof e.id !== 'string' || !/^[^./\\\\][^/\\\\]*$/.test(e.id) || !e.avant || !e.apres)
+      || new Set(plan.entretiens.map(e => e.id)).size !== plan.entretiens.length)) {
+      throw new Error('Le journal de remplacement est invalide.')
     }
     return journal as JournalTransactionFichiers
   }

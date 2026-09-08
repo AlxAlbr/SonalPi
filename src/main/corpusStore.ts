@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
-import { inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
+import { annulerRefusRapprochement, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur } from '../shared/corpus/rapprochementsPersonnes'
+import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
@@ -760,8 +761,50 @@ export class CorpusStore {
   personnesCommander(commande: CommandePersonnes): string | null {
     this.verifierEcriture()
     const corpus = this.ouvrir()
+    if (commande.type === 'fusionner') {
+      const inventaire = this.personnesInventaire()
+      if (inventaire.indisponibles.length) throw new Error('Réunion impossible : certains entretiens sont illisibles.')
+      if (JSON.stringify(inventaire) !== commande.attendu) throw new Error('Les personnes ou les entretiens ont changé. Actualisez puis vérifiez à nouveau la réunion.')
+      const corpusAvant = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
+      const fichiers = Object.entries(corpus.membership).map(([id, ref]) => {
+        const avant = JSON.parse(readFileSync(this.entretienFile(id), 'utf8')) as EntretienFichier
+        const lecture = this.lireEntretien(id)
+        if (!lecture.ok) throw new Error(`Entretien indisponible : ${ref.titre}`)
+        const apres = lecture.data
+        apres.locuteurs = completerIdsLocuteurs(id, apres.locuteurs)
+        return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
+      })
+      const entretiens = fichiers.map(e => ({ id: e.id, titre: e.titre, data: e.apres }))
+      if (commande.reprise) {
+        const r = commande.reprise
+        const cibleData = entretiens.find(e => e.id === r.entretienId)?.data
+        const sourceData = entretiens.find(e => e.id === r.sourceEntretienId)?.data
+        if (!cibleData || !sourceData || r.entretienId === r.sourceEntretienId) throw new Error('Source de reprise invalide.')
+        const cible = trouverLocuteur(cibleData, r.locuteurId)
+        const source = trouverLocuteur(sourceData, r.sourceLocuteurId)
+        if (![commande.conserverId, commande.absorberId].includes(cible.personneRef ?? '')
+          || ![commande.conserverId, commande.absorberId].includes(source.personneRef ?? '')
+          || cible.personneRef === source.personneRef) throw new Error('Les associations de la reprise ont changé.')
+        reprendreDonneesLocuteur(cible, source, r.choix)
+      }
+      fusionnerPersonnes(corpus, entretiens, commande.conserverId, commande.absorberId)
+      const now = new Date().toISOString()
+      const modifies = fichiers.filter(e => e.initial !== JSON.stringify(e.apres)).map(({ id, avant, apres }) => ({ id, avant, apres }))
+      for (const e of modifies) {
+        e.apres.lastModified = now
+        corpus.membership[e.id].lastModified = now
+      }
+      this.appliquerTransactionFichiers({ operation: 'remplacement', id: genId('fusion'), corpusAvant, corpusApres: corpus, entretiens: modifies })
+      return commande.conserverId
+    }
+    if (commande.type === 'creerDefinition') {
+      if (natureNomPersonne(commande.nom) !== 'specifique') throw new Error('Un nom spécifique est nécessaire pour créer automatiquement une personne.')
+      const id = creerPersonne(corpus, genId('pers'), commande.nom).id
+      this.ecrireJsonAtomique(this.corpusFile, corpus)
+      return id
+    }
     if (commande.type === 'modifier') {
-      modifierPersonne(corpus, commande.personneId, commande.nom, commande.note)
+      modifierPersonne(corpus, commande.personneId, commande.nom)
       this.ecrireJsonAtomique(this.corpusFile, corpus)
       return commande.personneId
     }
@@ -769,6 +812,63 @@ export class CorpusStore {
       supprimerPersonneVide(corpus, this.personnesInventaire(), commande.personneId)
       this.ecrireJsonAtomique(this.corpusFile, corpus)
       return null
+    }
+    if (commande.type === 'refuser' || commande.type === 'annulerRefus' || commande.type === 'rapprocher') {
+      if (commande.type === 'rapprocher' && commande.attendu && JSON.stringify(this.personnesInventaire()) !== commande.attendu) {
+        throw new Error('Les personnes ou les données ont changé. Vérifiez à nouveau le rapprochement.')
+      }
+      const charger = (id: string) => {
+        if (!corpus.membership[id]) throw new Error('Cet entretien ne fait plus partie du corpus.')
+        const lecture = this.lireEntretien(id)
+        if (!lecture.ok) throw new Error('Cet entretien est indisponible.')
+        lecture.data.locuteurs = completerIdsLocuteurs(id, lecture.data.locuteurs)
+        return lecture.data
+      }
+      const enregistrer = (id: string, data: EntretienFichier) => {
+        const { formatVersion: _v, lastModified: _d, ...payload } = data
+        this.ecrireEntretien(id, payload)
+      }
+      const data = charger(commande.entretienId)
+      const cible = trouverLocuteur(data, commande.locuteurId)
+      if (commande.type === 'annulerRefus') {
+        annulerRefusRapprochement(cible, commande.cible)
+        enregistrer(commande.entretienId, data)
+        return cible.personneRef
+      }
+      if (commande.sourceEntretienId === commande.entretienId) throw new Error('Choisissez un autre entretien.')
+      const sourceData = charger(commande.sourceEntretienId)
+      const source = trouverLocuteur(sourceData, commande.sourceLocuteurId)
+      if (commande.type === 'refuser') {
+        refuserRapprochement(cible, source)
+        const creerIdentite = peutCreerPersonneAuNommage(cible)
+        if (creerIdentite) {
+          const id = creerPersonne(corpus, genId('pers'), cible.nom).id
+          lierLocuteur(corpus, data, commande.locuteurId, id)
+          this.ecrireJsonAtomique(this.corpusFile, corpus)
+        }
+        try { enregistrer(commande.entretienId, data) }
+        catch (e) {
+          if (creerIdentite) throw new Error(`La personne distincte a été créée, mais l’association et le refus n’ont pas été enregistrés. Reprenez depuis le répertoire. ${String(e)}`)
+          throw e
+        }
+        return cible.personneRef
+      }
+      if (source.personneRef && cible.personneRef && source.personneRef !== cible.personneRef) {
+        throw new Error('Ces locuteurs sont associés à deux personnes distinctes. Réunissez-les, ou modifiez uniquement l’association du locuteur concerné.')
+      }
+      const id = source.personneRef ?? cible.personneRef ?? genId('pers')
+      if (!corpus.personnes[id]) creerPersonne(corpus, id, source.nom)
+      lierLocuteur(corpus, data, commande.locuteurId, id)
+      if (commande.reprise) reprendreDonneesLocuteur(cible, source, commande.reprise)
+      if (!source.personneRef) {
+        lierLocuteur(corpus, sourceData, commande.sourceLocuteurId, id)
+        this.ecrireJsonAtomique(this.corpusFile, corpus)
+        try { enregistrer(commande.sourceEntretienId, sourceData) }
+        catch (e) { throw new Error(`Personne créée, mais association avec l’entretien source échouée. Reprenez depuis le répertoire. ${String(e)}`) }
+      }
+      try { enregistrer(commande.entretienId, data) }
+      catch (e) { throw new Error(`La personne source est conservée, mais la liaison cible et la reprise ont échoué. Reprenez depuis le répertoire. ${String(e)}`) }
+      return id
     }
     if (commande.type !== 'creer' && commande.type !== 'lier') throw new Error('Commande Personnes inconnue.')
     if (!corpus.membership[commande.entretienId]) throw new Error('Cet entretien ne fait plus partie du corpus.')

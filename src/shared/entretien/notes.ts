@@ -55,6 +55,9 @@ export function normaliserNotes(n?: Note[] | null): Note[] {
     date: x.date ?? null,
     statut: x.statut === 'public' ? 'public' : 'prive',
     corps: String(x.corps ?? ''),
+    locuteurIds: [...new Set(Array.isArray(x.locuteurIds)
+      ? x.locuteurIds.filter((id): id is string => typeof id === 'string' && Boolean(id))
+      : [])],
     rang: Number.isFinite(x.rang) ? x.rang : 0,
     creeLe: String(x.creeLe ?? new Date().toISOString()),
     modifieLe: x.modifieLe ?? null,

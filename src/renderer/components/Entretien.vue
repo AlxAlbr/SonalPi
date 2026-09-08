@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RapprochementNommage from './RapprochementNommage.vue'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount, type Directive } from 'vue'
 import { EditorContent } from '@tiptap/vue-3'
 import LecteurAudio from './LecteurAudio.vue'
@@ -32,6 +33,7 @@ import icoAnon from '../assets/icones/anon.png'
 
 const {
   codebook,
+  lirePersonnes,
   varsGen,
   varsLoc,
   couleurHex,
@@ -98,6 +100,11 @@ const {
   coderAvec,
   attribuerLoc,
   renommerLoc,
+  messagePersonnes,
+  rapprochementNommage,
+  rapprochementOccupe,
+  reporterRapprochement,
+  deciderRapprochement,
   nouveauLocuteur,
   setInterviewer,
   setPseudoLoc,
@@ -149,6 +156,23 @@ const {
   publiErreur,
   publierMaintenant,
 } = utiliserSonal()
+
+const nomsPersonnesLiees = ref<Record<string, string>>({})
+const erreurLiensPersonnes = ref('')
+let lectureLiensPersonnes = 0
+watch(() => [ongletDroite.value, locuteurs.value, ...locuteurs.value.map(l => l.personneRef)], async () => {
+  const lecture = ++lectureLiensPersonnes
+  nomsPersonnesLiees.value = {}
+  erreurLiensPersonnes.value = ''
+  if (ongletDroite.value !== 'locuteurs' || !locuteurs.value.some(l => l.personneRef)) return
+  try {
+    const inventaire = await lirePersonnes()
+    if (lecture !== lectureLiensPersonnes) return
+    nomsPersonnesLiees.value = Object.fromEntries(inventaire.personnes.map(p => [p.id, p.nom]))
+  } catch {
+    if (lecture === lectureLiensPersonnes) erreurLiensPersonnes.value = 'Le nom des personnes liées est indisponible. Consultez le répertoire Personnes.'
+  }
+}, { immediate: true })
 
 // Heure locale courte d'un horodatage ISO (« HH:MM »).
 const heureDe = (iso: string | null | undefined) =>
@@ -288,6 +312,11 @@ async function validerCreationCategorie() {
 
 // Notes triées par rang (ordre d'affichage par défaut de la vue cartes).
 const notesTriees = computed(() => notes.value.slice().sort((a, b) => a.rang - b.rang))
+function nomsLocuteursNote(note: { locuteurIds?: string[] }): string[] {
+  const ids = new Set(note.locuteurIds ?? [])
+  return locuteurs.value.filter((locuteur) => locuteur.id && ids.has(locuteur.id)).map((locuteur) => locuteur.nom)
+}
+const libelleLocuteursNote = (note: { locuteurIds?: string[] }) => nomsLocuteursNote(note).join(', ')
 
 // Recherche parmi les notes : filtre les cartes ET les blocs de la feuille sur le titre,
 //  la catégorie et le corps (insensible à la casse), plus des filtres par catégorie et par statut.
@@ -326,7 +355,7 @@ const notesAffichees = computed(() => {
     if (filtrePassage.value === 'mark' && !n.corps.includes('<mark')) return false
     if (filtrePassage.value === 'lien' && !n.corps.includes(ATTR_LIENS_NOTE)) return false
     if (!q) return true
-    return [n.titre, nomCategorieNote(n.categorieId), corpsNoteEnTexte(n.corps, document)].some((t) =>
+    return [n.titre, nomCategorieNote(n.categorieId), libelleLocuteursNote(n), corpsNoteEnTexte(n.corps, document)].some((t) =>
       t.toLowerCase().includes(q),
     )
   })
@@ -340,7 +369,8 @@ async function copierNotes() {
   const texte = notesAffichees.value
     .map((n) => {
       const titre = n.titre ? `${n.titre}\n` : ''
-      return `[${nomCategorieNote(n.categorieId)} · ${dateLibelle(n.date)} · ${n.statut === 'public' ? 'public' : 'privé'}]\n${titre}${corpsNoteEnTexte(n.corps, document)}`
+      const concerne = libelleLocuteursNote(n)
+      return `[${nomCategorieNote(n.categorieId)} · ${dateLibelle(n.date)} · ${n.statut === 'public' ? 'public' : 'privé'}${concerne ? ` · concerne : ${concerne}` : ''}]\n${titre}${corpsNoteEnTexte(n.corps, document)}`
     })
     .join('\n\n')
   try {
@@ -1028,6 +1058,12 @@ function focaliserLibre(el: unknown, cle: string) {
                 <span>Pseudo (optionnel)</span>
                 <span title="Interviewer — pose les questions (tours en italique)">Interv.</span>
               </div>
+              <RapprochementNommage v-if="rapprochementNommage" :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
+                :cible="rapprochementNommage.cible" :sources="rapprochementNommage.sources" :variables="varsLoc()"
+                :nom="rapprochementNommage.nom" :lien-actuel="rapprochementNommage.lienActuel" :candidats="rapprochementNommage.candidats" :occupe="rapprochementOccupe" :message="messagePersonnes"
+                @reporter="reporterRapprochement" @decider="deciderRapprochement" />
+              <p v-if="messagePersonnes" role="status">{{ messagePersonnes }}</p>
+              <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
               <ul class="liste-loc">
                 <li v-for="(l, i) in locuteurs" :key="l.index">
                   <!-- Sélecteur de couleur du nom : défaut auto par index (palette prédéfinie) ;
@@ -1071,6 +1107,9 @@ function focaliserLibre(el: unknown, cle: string) {
                     <span class="q">?</span>
                   </label>
                   <button v-if="!roContenu" class="x-loc" title="Supprimer ce locuteur" @click="demanderSuppressionLocuteur(l.index)">✕</button>
+                  <small v-if="l.personneRef" class="lien-personne-loc">
+                    {{ nomsPersonnesLiees[l.personneRef] ? `Lié à « ${nomsPersonnesLiees[l.personneRef]} »` : 'Lié à une personne du corpus' }} — le nom saisi reste local.
+                  </small>
                 </li>
               </ul>
             </div>
@@ -1265,6 +1304,7 @@ function focaliserLibre(el: unknown, cle: string) {
                     <button class="mini danger" title="Supprimer" @click="supprimerNote(n.id)">✕</button>
                   </span>
                 </header>
+                <div v-if="nomsLocuteursNote(n).length" class="cibles-note">Concerne : {{ libelleLocuteursNote(n) }}</div>
                 <!-- v-html sûr : titre échappé ou corps sanitisé, puis surlignage des occurrences au DOM.
                      Sans titre : aperçu borné par CSS (.apercu-note) ; avec titre, le titre seul. -->
                 <div v-if="n.titre" class="titre-note" v-html="titreAvecHits(n.titre)"></div>
@@ -1288,7 +1328,7 @@ function focaliserLibre(el: unknown, cle: string) {
               <article v-for="n in notesAffichees" :key="n.id" class="bloc-notes-texte">
                 <!-- En-tête à la couleur de la catégorie, même teinte que la pastille des cartes. -->
                 <!-- En-tête harmonisé avec les cartes : catégorie à sa couleur (en gras), date et statut grisés. -->
-                <span class="tete-notes-texte">[<span class="cat-notes-texte" :style="{ color: couleurCategorieNote(n.categorieId) }">{{ nomCategorieNote(n.categorieId) }}</span><span class="meta-notes-texte"> · {{ dateLibelle(n.date) }} · {{ n.statut === 'public' ? 'public' : 'privé' }}</span>]</span>
+                <span class="tete-notes-texte">[<span class="cat-notes-texte" :style="{ color: couleurCategorieNote(n.categorieId) }">{{ nomCategorieNote(n.categorieId) }}</span><span class="meta-notes-texte"> · {{ dateLibelle(n.date) }} · {{ n.statut === 'public' ? 'public' : 'privé' }}<template v-if="nomsLocuteursNote(n).length"> · concerne : {{ libelleLocuteursNote(n) }}</template></span>]</span>
                 <!-- Le titre s'édite en place quand la feuille est en édition. -->
                 <input v-if="editionFeuille && !roContenu" class="titre-feuille" :value="n.titre"
                   placeholder="(sans titre)"
@@ -1349,6 +1389,17 @@ function focaliserLibre(el: unknown, cle: string) {
                 <!-- Avertissement (ex. « autre… » non créé au moment de la validation) :
                      visible au-dessus des méta. -->
                 <p v-if="avertissementNote" class="msg-avert">{{ avertissementNote }}</p>
+                <fieldset class="cibles-note-form">
+                  <legend>Concerne (optionnel)</legend>
+                  <p>Associez cette note aux locuteurs concernés pour la retrouver dans Personnes.</p>
+                  <div v-if="locuteurs.some((locuteur) => locuteur.id)" class="choix-cibles-note">
+                    <label v-for="locuteur in locuteurs.filter((item) => item.id)" :key="locuteur.id">
+                      <input v-model="brouillonNote.locuteurIds" type="checkbox" :value="locuteur.id" />
+                      <span>{{ locuteur.nom || 'Locuteur sans nom' }}</span>
+                    </label>
+                  </div>
+                  <p v-else>Aucun locuteur n’est disponible dans cet entretien.</p>
+                </fieldset>
                 <div class="modale-note-meta">
                   <label class="champ-note">
                     <span>Catégorie</span>
@@ -2181,6 +2232,12 @@ function focaliserLibre(el: unknown, cle: string) {
 .liste-loc li {
   min-width: 0;
 }
+.lien-personne-loc {
+  grid-column: 2 / -1;
+  color: #595969;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
 .nom-loc {
   width: 100%;
   box-sizing: border-box;
@@ -2820,6 +2877,11 @@ td.col-pseudo {
 .statut-cat.prive { background: #f3f3f3; color: #777; }
 .statut-cat.public { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
 .carte-note-actions { margin-left: auto; display: flex; gap: 0.2rem; }
+.cibles-note {
+  margin-bottom: 0.35rem;
+  color: #52606d;
+  font-size: 0.78rem;
+}
 .corps-note {
   font-size: 0.85rem;
   line-height: 1.4;
@@ -3051,6 +3113,15 @@ td.col-pseudo {
   gap: 0.7rem;
   margin-top: 0.3rem;
 }
+.cibles-note-form {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #c8d0da;
+  border-radius: 5px;
+}
+.cibles-note-form p { margin: 0.25rem 0 0.5rem; color: #52606d; }
+.choix-cibles-note { display: flex; flex-wrap: wrap; gap: 0.45rem 1rem; }
+.choix-cibles-note label { display: inline-flex; align-items: center; gap: 0.3rem; }
 /* Avertissement bloquant de la modale (catégorie « autre… » non créée). */
 .msg-avert {
   margin: 0.4rem 0 0;

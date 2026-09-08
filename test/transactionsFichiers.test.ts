@@ -87,6 +87,43 @@ describe('TransactionsFichiersCorpus', () => {
     expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(false)
   })
 
+  it.each(['avant', 'premier entretien', 'corpus'])('reprend un remplacement interrompu au stade %s', (stade) => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-remplacement-'))
+    const avant = corpus()
+    avant.personnes = { p1: { id: 'p1', nom: 'Marie' }, p2: { id: 'p2', nom: 'Marie D.' } }
+    const apres = structuredClone(avant)
+    delete apres.personnes.p2
+    const fichiers = ['e1', 'e2'].map(id => {
+      const avant = entretien()
+      const apres = { ...avant, lastModified: '2026-02-01T00:00:00.000Z' }
+      return { id, avant, apres }
+    })
+    const plan: PlanTransactionFichiers = { operation: 'remplacement', id: 'fusion', corpusAvant: avant, corpusApres: apres, entretiens: fichiers }
+    ecrireJson(join(dir, 'corpus.json'), stade === 'corpus' ? apres : avant)
+    fichiers.forEach((e, i) => ecrireJson(join(dir, 'entretiens', `${e.id}.json`), stade === 'corpus' || (stade === 'premier entretien' && i === 0) ? e.apres : e.avant))
+    ecrireJournal(dir, plan)
+    const transactions = new TransactionsFichiersCorpus(dir)
+    expect(transactions.reprendre()).toBe(true)
+    expect(transactions.reprendre()).toBe(false)
+    for (const e of fichiers) expect(JSON.parse(readFileSync(join(dir, 'entretiens', `${e.id}.json`), 'utf8'))).toEqual(e.apres)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(apres)
+  })
+
+  it('vérifie tous les entretiens avant de reprendre un remplacement', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-remplacement-conflit-'))
+    const avant = corpus()
+    const apres = { ...avant, nom: 'Après' }
+    const fichiers = ['e1', 'e2'].map(id => ({ id, avant: entretien(), apres: { ...entretien(), lastModified: 'nouveau' } }))
+    ecrireJson(join(dir, 'corpus.json'), avant)
+    ecrireJson(join(dir, 'entretiens/e1.json'), fichiers[0].avant)
+    ecrireJson(join(dir, 'entretiens/e2.json'), { ...entretien(), lastModified: 'externe' })
+    ecrireJournal(dir, { operation: 'remplacement', id: 'fusion', corpusAvant: avant, corpusApres: apres, entretiens: fichiers })
+    expect(() => new TransactionsFichiersCorpus(dir).reprendre()).toThrow(/e2.*a changé/)
+    expect(JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8'))).toEqual(fichiers[0].avant)
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8'))).toEqual(avant)
+    expect(existsSync(join(dir, '.transaction-fichiers.json'))).toBe(true)
+  })
+
   it('refuse d’écraser un corpus modifié extérieurement et conserve le journal', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-journal-conflit-'))
     const avant = corpus()

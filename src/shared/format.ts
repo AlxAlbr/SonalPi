@@ -256,6 +256,8 @@ export interface Note {
   date: string | null
   statut: 'prive' | 'public'
   corps: string
+  /** Locuteurs concernés dans cet entretien. Une liste vide désigne une note générale. */
+  locuteurIds?: string[]
   rang: number
   creeLe: string
   modifieLe: string | null
@@ -304,7 +306,6 @@ export interface VerrouTenuParAutrui {
 export interface Personne {
   id: string
   nom: string
-  note?: string
 }
 
 /** Locuteur : indexé par entretien — le `loc` d'un bloc référence cet index. */
@@ -330,6 +331,8 @@ export interface Locuteur {
   pseudoEtat?: 'confirme' | 'refuse'
   valeursLoc: Record<string, string> // idVar → idMod
   personneRef: string | null
+  /** Une déliaison volontaire interdit la recréation automatique au nommage. */
+  personneDeliee?: boolean
   rapprochementsRefuses?: string[]
 }
 

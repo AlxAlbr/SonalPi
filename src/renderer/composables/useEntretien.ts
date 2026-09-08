@@ -83,6 +83,9 @@ type Extrait = { id: string; texte: string; locuteurs: string[] }
  *  - `nomCode` / `libelleValeur` : libellés lisibles pour le journal (les noms
  *    de thèmes/variables vivent au corpus, le journal vit ici).
  */
+import type { VueLocuteurPersonne } from '../../shared/corpus/personnes'
+import { type ChoixRepriseLocuteur, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur, suggestionsExactesPersonnes } from '../../shared/corpus/rapprochementsPersonnes'
+
 export function useEntretien(deps: {
   couleurTrait: (code: string) => string
   /** Taille de police (px) d'un code — la `taille` du codebook (scope corpus),
@@ -806,6 +809,8 @@ export function useEntretien(deps: {
   /** Réinitialise à vide (changement de corpus / suppression de l'entretien ouvert). */
   function reinitialiser() {
     ouvertId.value = null
+    messagePersonnes.value = ''
+    rapprochementNommage.value = null
     verrouAutrui.value = null
     journal.entrees.length = 0
     entretien.annotations.splice(0, entretien.annotations.length)
@@ -916,6 +921,113 @@ export function useEntretien(deps: {
     rafraichirJournal()
     planifierSauvegarde()
   }
+  const messagePersonnes = ref('')
+  const rapprochementNommage = ref<{ entretienId: string; locuteurId: string; nom: string; personneRef: string | null; lienActuel: string; cible: Locuteur; sources: VueLocuteurPersonne[]; candidats: VueLocuteurPersonne[] } | null>(null)
+  const rapprochementOccupe = ref(false)
+  function reporterRapprochement() {
+    if (!rapprochementOccupe.value) rapprochementNommage.value = null
+  }
+  async function deciderRapprochement(sourceId: string, sourceEntretienId: string, decision: 'lier' | 'refuser' | 'refuserTous', reprise?: ChoixRepriseLocuteur) {
+    const demande = rapprochementNommage.value
+    if (!demande || rapprochementOccupe.value) return
+    const courant = () => ouvertId.value === demande.entretienId
+      ? locuteurs.value.find((l) => l.id === demande.locuteurId && l.nom === demande.nom && l.personneRef === demande.personneRef) : undefined
+    if (!courant()) { rapprochementNommage.value = null; return }
+    const cibleInitiale = courant()!
+    const signatureDonnees = (l: Pick<Locuteur, 'pseudo' | 'interviewer' | 'valeursLoc'>) => JSON.stringify([l.pseudo, l.interviewer, l.valeursLoc])
+    rapprochementOccupe.value = true
+    try {
+      await viderSauvegarde()
+      const inventaire = await window.sonal.corpus.personnesInventaire()
+      const source = inventaire.locuteurs.find((l) => l.locuteurId === sourceId && l.entretienId === sourceEntretienId)
+      if (!source || courant() !== cibleInitiale) throw new Error('Le locuteur a changé. Relancez le rapprochement depuis Personnes.')
+      const sourceApercu = demande.sources.find((l) => l.locuteurId === sourceId && l.entretienId === sourceEntretienId)
+      if (decision === 'lier' && (!sourceApercu || source.personneRef !== sourceApercu.personneRef)) throw new Error('La personne sélectionnée a changé. Rouvrez le dialogue pour vérifier l’association.')
+      if (reprise && (!sourceApercu || signatureDonnees(source) !== signatureDonnees(sourceApercu))) throw new Error('Les données source ont changé. Rouvrez le dialogue pour vérifier la reprise.')
+      if (decision === 'refuser' || decision === 'refuserTous') {
+        const refuses = decision === 'refuserTous' ? demande.candidats.map(c => {
+          const frais = inventaire.locuteurs.find(l => l.locuteurId === c.locuteurId && l.entretienId === c.entretienId)
+          if (!frais || frais.personneRef !== c.personneRef || frais.nom !== c.nom) throw new Error('Les propositions ont changé. Rouvrez le dialogue avant de les écarter.')
+          return frais
+        }) : [source]
+        const cible = courant()!
+        for (const refuse of refuses) refuserRapprochement(cible, { ...refuse, id: refuse.locuteurId })
+        planifierSauvegarde()
+        if (peutCreerPersonneAuNommage(cible)) {
+          const id = await window.sonal.corpus.personnesCommander({ type: 'creerDefinition', nom: cible.nom })
+          if (courant() !== cible || !peutCreerPersonneAuNommage(cible) || !id) throw new Error('La personne créée est conservée. Le locuteur a changé : reprenez depuis Personnes.')
+          cible.personneRef = id
+        }
+        messagePersonnes.value = natureNomPersonne(demande.nom) === 'role'
+          ? 'Propositions écartées. Vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer ces locuteurs.'
+          : 'Propositions écartées. Vous pourrez revenir sur ce choix dans Personnes.'
+      } else {
+        let id = source.personneRef
+        if (!id) id = await window.sonal.corpus.personnesCommander({ type: 'creer', entretienId: source.entretienId, locuteurId: source.locuteurId, nom: source.nom })
+        const cible = courant()
+        if (!cible || cible !== cibleInitiale || !id) throw new Error('La personne source est conservée. Le locuteur cible a changé : reprenez depuis Personnes.')
+        if (locuteurs.value.some((l) => l.id !== cible.id && l.personneRef === id)) throw new Error('Cette personne est déjà représentée dans cet entretien.')
+        if (reprise && (cible !== cibleInitiale || signatureDonnees(cible) !== signatureDonnees(demande.cible))) throw new Error('Les données locales ont changé. La personne source est conservée ; rouvrez le dialogue pour vérifier la reprise.')
+        if (reprise) reprendreDonneesLocuteur(cible, { ...source, id: source.locuteurId }, reprise)
+        cible.personneRef = id
+        delete cible.personneDeliee
+        messagePersonnes.value = reprise ? 'Liaison et reprise des champs sélectionnés appliquées.' : `Locuteur lié à « ${inventaire.personnes.find((p) => p.id === id)?.nom ?? source.nom} ». Les données locales sont conservées.`
+      }
+      if (ouvertId.value === demande.entretienId && locuteurs.value.some((l) => l.id === demande.locuteurId && l.nom === demande.nom)) {
+        planifierSauvegarde()
+        await viderSauvegarde()
+      }
+      rapprochementNommage.value = null
+    } catch (e) {
+      messagePersonnes.value = `Rapprochement non terminé : ${e instanceof Error ? e.message : String(e)}`
+    } finally { rapprochementOccupe.value = false }
+  }
+  let nommagesPersonnes = Promise.resolve()
+  function proposerIdentite(index: number, nom: string) {
+    const idEntretien = ouvertId.value
+    const l = locuteurs.value.find((l) => l.index === index)
+    if (!idEntretien || !l?.id || deps.lectureSeule?.() || natureNomPersonne(nom) === 'ignore') return
+    const idLocuteur = l.id
+    nommagesPersonnes = nommagesPersonnes.then(async () => {
+      const courant = () => ouvertId.value === idEntretien
+        ? locuteurs.value.find((l) => l.id === idLocuteur && l.nom === nom) : undefined
+      if (!courant()) return
+      try {
+        await viderSauvegarde()
+        const inventaire = await window.sonal.corpus.personnesInventaire()
+        if (!courant()) return
+        const personneRef = courant()!.personneRef
+        const lienActuel = personneRef ? inventaire.personnes.find((p) => p.id === personneRef)?.nom ?? 'Personne absente' : ''
+        if (personneRef) messagePersonnes.value = `Lié à « ${lienActuel} » — le nom saisi reste le nom local de cet entretien.`
+        const candidats = suggestionsExactesPersonnes({ entretienId: idEntretien, locuteur: courant()! },
+          inventaire.locuteurs.map((l) => ({ entretienId: l.entretienId, locuteur: { ...l, id: l.locuteurId } })))
+        if (candidats.length) {
+          rapprochementNommage.value = { entretienId: idEntretien, locuteurId: idLocuteur, nom, personneRef, lienActuel,
+            cible: JSON.parse(JSON.stringify(courant()!)), sources: inventaire.locuteurs,
+            candidats: inventaire.locuteurs.filter((l) => candidats.some((c) => c.entretienId === l.entretienId && c.locuteur.id === l.locuteurId)) }
+          messagePersonnes.value = `Un rapprochement est proposé pour « ${nom} ». Il reste aussi disponible dans Personnes.`
+          return
+        }
+        if (!peutCreerPersonneAuNommage(courant()!)) return
+        if (inventaire.indisponibles.length) {
+          messagePersonnes.value = 'Création de personne différée : certains entretiens sont indisponibles. Vérifiez le répertoire Personnes.'
+          return
+        }
+        const personneId = await window.sonal.corpus.personnesCommander({ type: 'creerDefinition', nom })
+        const cible = courant()
+        if (!cible || !peutCreerPersonneAuNommage(cible) || !personneId) {
+          if (ouvertId.value === idEntretien) messagePersonnes.value = 'Une personne a été créée, mais le locuteur a changé. Vérifiez le répertoire Personnes.'
+          return
+        }
+        cible.personneRef = personneId
+        planifierSauvegarde()
+        await viderSauvegarde()
+        if (ouvertId.value === idEntretien) messagePersonnes.value = `Personne « ${nom} » créée. Le nom local, le pseudo et le rôle restent indépendants.`
+      } catch (e) {
+        if (ouvertId.value === idEntretien) messagePersonnes.value = `Identification non terminée : ${e instanceof Error ? e.message : String(e)}. Vérifiez le répertoire Personnes avant de réessayer.`
+      }
+    })
+  }
   function renommerLoc(index: number, evt: Event) {
     const nouveau = (evt.target as HTMLInputElement).value
     const ancien = locuteurs.value.find((l) => l.index === index)?.nom
@@ -931,6 +1043,7 @@ export function useEntretien(deps: {
     }
     rafraichirGouttiere()
     planifierSauvegarde()
+    if (ancien !== undefined && ancien !== nouveau) proposerIdentite(index, nouveau)
   }
   function nouveauLocuteur() {
     ajouterLocuteur(locuteurs.value, 'Nouveau locuteur')
@@ -989,6 +1102,7 @@ export function useEntretien(deps: {
   function supprimerLocuteurSilencieux(index: number) {
     const ed = editor.value
     if (!ed) return
+    const locuteurId = locuteurs.value.find((locuteur) => locuteur.index === index)?.id
     const tr = ed.state.tr
     ed.state.doc.forEach((node, offset) => {
       if (node.type.name === 'paragraph' && node.attrs.loc === index) {
@@ -997,6 +1111,9 @@ export function useEntretien(deps: {
     })
     if (tr.steps.length) ed.view.dispatch(tr)
     supprimerLocuteur(locuteurs.value, index)
+    if (locuteurId) {
+      for (const note of notes.value) note.locuteurIds = note.locuteurIds?.filter((id) => id !== locuteurId)
+    }
     locuteurASupprimer.value = null
     rafraichir() // des entrées de journal visant ce locuteur deviennent grisées
     rafraichirGouttiere()
@@ -1039,6 +1156,7 @@ export function useEntretien(deps: {
     date: string | null
     statut: 'prive' | 'public'
     corps: string // HTML du contenteditable (brut, sanitisé à la validation)
+    locuteurIds: string[]
     rang: number
   }
   const brouillonNote = ref<BrouillonNote | null>(null)
@@ -1058,6 +1176,7 @@ export function useEntretien(deps: {
       date: new Date().toISOString().slice(0, 10),
       statut: 'prive',
       corps: '',
+      locuteurIds: [],
       rang: prochainRang(notes.value),
     })
   }
@@ -1074,6 +1193,7 @@ export function useEntretien(deps: {
       date: n.date,
       statut: n.statut,
       corps: n.corps,
+      locuteurIds: [...(n.locuteurIds ?? [])],
       rang: n.rang,
     })
   }
@@ -1095,6 +1215,8 @@ export function useEntretien(deps: {
     const doc = document
     const titre = b.titre.trim()
     const corps = sanitiserCorpsNote(b.corps, doc)
+    const idsExistants = new Set(locuteurs.value.flatMap((locuteur) => locuteur.id ? [locuteur.id] : []))
+    const locuteurIds = [...new Set(b.locuteurIds.filter((id) => idsExistants.has(id)))]
     if (b.id) {
       const cible = notes.value.find((x) => x.id === b.id)
       if (cible) {
@@ -1103,6 +1225,7 @@ export function useEntretien(deps: {
         cible.date = b.date
         cible.statut = b.statut
         cible.corps = corps
+        cible.locuteurIds = locuteurIds
         cible.modifieLe = new Date().toISOString()
       }
     } else {
@@ -1113,6 +1236,7 @@ export function useEntretien(deps: {
         date: b.date,
         statut: b.statut,
         corps,
+        locuteurIds,
         rang: b.rang,
         creeLe: new Date().toISOString(),
         modifieLe: null,
@@ -2280,6 +2404,11 @@ export function useEntretien(deps: {
     retirerCodagesDuCode,
     attribuerLoc,
     renommerLoc,
+    messagePersonnes,
+    rapprochementNommage,
+    rapprochementOccupe,
+    reporterRapprochement,
+    deciderRapprochement,
     nouveauLocuteur,
     setInterviewer,
     setPseudoLoc,

@@ -1105,6 +1105,12 @@ export function creerSonal() {
     if (ent.ouvertId.value === id) ent.ongletDroite.value = 'locuteurs'
   }
 
+  /** Ouvre les notes d'un entretien depuis une vue agrégée du corpus. */
+  async function allerNotes(id: string) {
+    await ouvrirEntretien(id)
+    if (ent.ouvertId.value === id) ent.ongletDroite.value = 'notes'
+  }
+
   /** « Saisir… » depuis la Table de données : ouvre CET entretien directement sur son onglet Donnée.
    *  Le cycle verrou existant fait tout le travail : entretien libre → verrou accordé à l'ouverture, saisie permise ;
    *  ouvert par autrui → lecture seule avec bandeau nominatif. Aucun nouveau protocole,
@@ -1338,6 +1344,7 @@ export function creerSonal() {
     ouvrirAuSegment,
     allerSaisieDonnees,
     allerLocuteurs,
+    allerNotes,
     ajouterEntretien,
     exporter,
     renommer,

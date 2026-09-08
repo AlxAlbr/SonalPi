@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import AjoutEntretien from './AjoutEntretien.vue'
 import EditionThemes from './EditionThemes.vue'
 import MenuTheme from './MenuTheme.vue'
@@ -15,13 +15,15 @@ import type { SegmentThematique } from '../../shared/format'
 // Icônes des onglets, partagées avec la vue Entretien.
 import icoThemes from '../assets/icones/themes.png'
 import icoRecherche from '../assets/icones/recherche.png'
-import icoPersonnes from '../assets/icones/locuteurs.png'
 import icoDonnees from '../assets/icones/donnees.png'
 import icoAnon from '../assets/icones/anon.png'
 import icoMaison from '../assets/icones/maison.png'
 import icoJournal from '../assets/icones/journal.png'
+// Icônes des onglets, spécifiques au Corpus.
+import icoPersonnes from '../assets/icones/personnes.png'
 
 const {
+  vue,
   // thèmes (codebook corpus) — CONSULTATION ; l'édition passe par la modale (crayon)
   codebook,
   usages,
@@ -154,7 +156,34 @@ watch(pasAPas, (v) => {
   if (v) void choisirOnglet('pas-a-pas')
 })
 
-// --- ONGLET RECHERCHE : texte plein CORPUS ---
+// Recherche plein texte du corpus, accessible au clavier.
+const champRecherche = ref<HTMLInputElement | null>(null)
+let ongletAvantRecherche: OngletCorpus = 'accueil'
+async function ouvrirRecherche() {
+  const precedent = ongletCorpus.value
+  await choisirOnglet('recherche')
+  if (ongletCorpus.value !== 'recherche') return
+  if (precedent !== 'recherche') ongletAvantRecherche = precedent
+  deselectionnerCorpus()
+  await nextTick()
+  champRecherche.value?.focus()
+  champRecherche.value?.select()
+}
+function fermerRecherche() {
+  void choisirOnglet(ongletAvantRecherche)
+}
+function raccourciRecherche(event: KeyboardEvent) {
+  if (vue.value !== 'corpus' || event.defaultPrevented) return
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+    event.preventDefault()
+    void ouvrirRecherche()
+  } else if (event.key === 'Escape' && ongletCorpus.value === 'recherche') {
+    event.preventDefault()
+    fermerRecherche()
+  }
+}
+onMounted(() => window.addEventListener('keydown', raccourciRecherche))
+onUnmounted(() => window.removeEventListener('keydown', raccourciRecherche))
 const requete = ref('')
 const motEntier = ref(false)
 const resultats = ref<ResultatRecherche[]>([])
@@ -256,7 +285,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       <nav class="onglets-corpus" aria-label="Navigation du corpus">
         <button :class="{ actif: ongletCorpus === 'accueil' }" title="Accueil" aria-label="Accueil" :aria-current="ongletCorpus === 'accueil' ? 'page' : undefined" @click="choisirOnglet('accueil')"><img class="ico-onglet-corpus" :src="icoMaison" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" aria-label="Thèmes" :aria-current="ongletCorpus === 'themes' ? 'page' : undefined" @click="choisirOnglet('themes')"><img class="ico-onglet-corpus" :src="icoThemes" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'recherche' }" title="Recherche" aria-label="Recherche" :aria-current="ongletCorpus === 'recherche' ? 'page' : undefined" @click="choisirOnglet('recherche')"><img class="ico-onglet-corpus" :src="icoRecherche" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'personnes' }" title="Personnes" aria-label="Personnes" :aria-current="ongletCorpus === 'personnes' ? 'page' : undefined" @click="choisirOnglet('personnes')"><img class="ico-onglet-corpus" :src="icoPersonnes" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'anon' }" title="Pseudonymisation" aria-label="Pseudonymisation" :aria-current="ongletCorpus === 'anon' ? 'page' : undefined" @click="choisirOnglet('anon')"><img class="ico-onglet-corpus" :src="icoAnon" alt="" /></button>
@@ -400,7 +428,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <p class="accueil-intro">Explorez et gérez l’ensemble des entretiens avec ces outils.</p>
             <ul class="accueil-outils">
               <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook et ouvrir son édition.</span></li>
-              <li><img :src="icoRecherche" alt="" /><span><b>Recherche</b> — chercher du texte dans tous les entretiens.</span></li>
+              <li><img :src="icoRecherche" alt="" /><span><b>Recherche (Ctrl+F / Cmd+F)</b> — chercher du texte dans tous les entretiens.</span></li>
               <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
               <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
               <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
@@ -439,15 +467,18 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </ul>
           </aside>
 
-          <!-- Onglet Recherche : recherche plein texte sur TOUS les entretiens. -->
+          <!-- Recherche plein texte sur tous les entretiens. -->
           <div v-else-if="ongletCorpus === 'recherche'" class="panneau recherche">
             <div class="corpus-tete">
               <h3>Recherche</h3>
+              <button class="mini" title="Fermer la recherche (Échap)" aria-label="Fermer la recherche" @click="fermerRecherche">✕</button>
             </div>
             <p class="aide-thm">Cherche dans le texte de tous les entretiens (insensible à la casse).</p>
             <div class="barre-recherche">
               <input
+                ref="champRecherche"
                 class="req-recherche"
+                aria-label="Rechercher dans le corpus"
                 v-model="requete"
                 placeholder="Rechercher…"
                 @keyup.enter="lancerRecherche"
