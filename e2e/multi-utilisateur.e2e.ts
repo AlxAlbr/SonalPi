@@ -61,7 +61,7 @@ import { test, expect, type ElectronApplication, type Page } from '@playwright/t
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, attendreCorpus } from './util'
+import { lancer, attendreAccueil, attendreCorpus, ouvrirPremierCompteDistant } from './util'
 import { ClientWebDAV } from '../src/main/webdav/client'
 import { FORMAT_VERSION, type CorpusFichier } from '../src/shared/format'
 
@@ -206,6 +206,9 @@ async function amorcer(): Promise<{ original: string | null }> {
   await c.supprimer(`verrous/${ID}.lock.json`).catch(() => {})
   await c.supprimer(`verrous/${ID2}.lock.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID}.json`).catch(() => {})
+  // Verrou CORPUS (définitions : `verrous/corpus.lock.json`) laissé par un passage
+  // interrompu : sans nettoyage il bloque toute mutation de définitions (< 24 h).
+  await c.supprimer('verrous/corpus.lock.json').catch(() => {})
   // Présences résiduelles d'un passage antérieur : encore fraîches (< 10 min)
   // elles produiraient des badges fantômes. Purge best effort.
   for (const e of await c.propfind('presence').catch(() => [])) {
@@ -225,6 +228,7 @@ async function nettoyer(original: string | null): Promise<void> {
   await c.supprimer(`verrous/${ID2}.lock.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID}.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID2}.json`).catch(() => {})
+  await c.supprimer('verrous/corpus.lock.json').catch(() => {})
 }
 
 /* ── Gestes UI ──────────────────────────────────────────────────────────────*/
@@ -248,11 +252,8 @@ async function connecterEtOuvrir(
   await page.locator('.modale-distant input[type=password]').fill(mdp)
   await narrer(page, `${qui} se connecte au serveur Nextcloud…`)
   await page.locator('.modale-distant .valider').click()
-  // Compte connecté : la liste des comptes apparaît avec son bouton « Ouvrir ».
-  await expect(page.locator('.modale-distant .comptes')).toBeVisible({ timeout: 20_000 })
   await pause(page, `Compte connecté ✓ — ${qui} ouvre le corpus partagé…`)
-  await page.locator('.modale-distant .mini.ouvrir').first().click()
-  await attendreCorpus(page)
+  await ouvrirPremierCompteDistant(page, mdp)
   await pause(page, `${qui} voit le corpus distant : l'entretien « Entretien partagé » est à lui seul au monde…`)
 }
 
@@ -262,10 +263,16 @@ async function ouvrirEntretien(page: Page, nth = 0): Promise<void> {
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
 }
 
-/** Retour au Corpus via le fil d'Ariane (= fermeture de session :
- *  publication finale PUIS libération du verrou). */
+/** Retour aux cartes du Corpus : fil d'Ariane depuis un entretien
+ *  (= fermeture de session : publication finale PUIS libération du verrou) ;
+ *  sinon, onglet Accueil — les onglets pleine largeur (Données…) masquent les
+ *  cartes et le bouton « Corpus » du fil y est désactivé. */
 async function retourAuCorpus(page: Page): Promise<void> {
-  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+  if (await page.locator('.entretien-ecran').isVisible().catch(() => false)) {
+    await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
+  } else {
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil' }).click()
+  }
   await attendreCorpus(page)
   await page.waitForTimeout(PAUSE)
 }

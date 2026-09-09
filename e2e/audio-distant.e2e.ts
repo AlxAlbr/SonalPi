@@ -23,7 +23,7 @@ import { test, expect, type ElectronApplication, type Page } from '@playwright/t
 import { mkdtempSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil, attendreCorpus } from './util'
+import { lancer, attendreAccueil, ouvrirPremierCompteDistant } from './util'
 import { ClientWebDAV } from '../src/main/webdav/client'
 import { idDeCorpus } from '../src/main/distant/coffre'
 import { FORMAT_VERSION, type CorpusFichier } from '../src/shared/format'
@@ -110,6 +110,9 @@ async function amorcer(): Promise<{ original: string | null }> {
   await c.supprimer(`verrous/${ID_SANS_SON}.lock.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID}.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID_SANS_SON}.json`).catch(() => {})
+  // Verrou CORPUS (définitions) laissé par un passage interrompu : sans nettoyage
+  // il bloque toute mutation du corpus partagé (< 24 h).
+  await c.supprimer('verrous/corpus.lock.json').catch(() => {})
   await purgerPresence(c)
   return { original }
 }
@@ -128,6 +131,7 @@ async function nettoyer(original: string | null): Promise<void> {
   await c.supprimer(`verrous/${ID_SANS_SON}.lock.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID}.json`).catch(() => {})
   await c.deverrouiller(`entretiens/${ID_SANS_SON}.json`).catch(() => {})
+  await c.supprimer('verrous/corpus.lock.json').catch(() => {})
 }
 
 /* ── Gestes UI ──────────────────────────────────────────────────────────────*/
@@ -150,9 +154,7 @@ async function connecterEtOuvrir(
   await page.locator('.modale-distant input.champ').nth(1).fill(u)
   await page.locator('.modale-distant input[type=password]').fill(mdp)
   await page.locator('.modale-distant .valider').click()
-  await expect(page.locator('.modale-distant .comptes')).toBeVisible({ timeout: 20_000 })
-  await page.locator('.modale-distant .mini.ouvrir').first().click()
-  await attendreCorpus(page)
+  await ouvrirPremierCompteDistant(page, mdp)
 }
 
 /** Simule le dialogue natif de fichier : le main répondra TOUJOURS `fichier`.

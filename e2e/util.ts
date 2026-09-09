@@ -57,11 +57,26 @@ export async function entrerCorpus(page: Page): Promise<void> {
   await attendreCorpus(page)
 }
 
-/** Depuis l'écran Corpus, entre dans le n-ième entretien de la liste (0 = 1er)
+/** Depuis l'ACCUEIL, entre dans le n-ième entretien de la liste (0 = 1er)
  *  via le CRAYON de sa carte, et attend que l'éditeur soit monté (écran Entretien). */
 export async function entrerEntretien(page: Page, nth = 0): Promise<void> {
   await page.locator('.carte-ent .crayon').nth(nth).click()
   await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
+}
+
+/** Depuis la modale « Ouvrir un corpus distant » déjà connectée : ouvre le
+ *  premier compte. Sans trousseau OS, le compte n'a pas de mot de passe
+ *  conservé → un champ « Mot de passe pour cette session » apparaît sous le
+ *  compte ; on le remplit avant « Ouvrir ». Sur un poste avec trousseau, le
+ *  champ n'existe pas et le bouton est directement actif. */
+export async function ouvrirPremierCompteDistant(page: Page, motDePasse: string): Promise<void> {
+  await expect(page.locator('.modale-distant .comptes')).toBeVisible({ timeout: 20_000 })
+  const secrets = page.locator('.modale-distant .secret-compte')
+  for (let i = 0; i < (await secrets.count()); i++) {
+    await secrets.nth(i).fill(motDePasse)
+  }
+  await page.locator('.modale-distant .mini.ouvrir').first().click()
+  await attendreCorpus(page)
 }
 
 /** Depuis l'écran Corpus, ouvre l'onglet Données. */

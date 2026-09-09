@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, attendreAccueil } from '../util'
+import { lancer, attendreAccueil, ouvrirPremierCompteDistant } from '../util'
 import { ClientWebDAV } from '../../src/main/webdav/client'
 
 /**
@@ -26,9 +26,7 @@ test('diagnostic du verrou natif avec le compte max', async () => {
     await page.locator('.modale-distant input.champ').nth(1).fill('max')
     await page.locator('.modale-distant input[type=password]').fill('max-max-1234')
     await page.locator('.modale-distant .valider').click()
-    await expect(page.locator('.modale-distant .comptes')).toBeVisible({ timeout: 15_000 })
-    await page.locator('.modale-distant .mini.ouvrir').first().click()
-    await expect(page.locator('.corpus-ecran')).toBeVisible({ timeout: 20_000 })
+    await ouvrirPremierCompteDistant(page, 'max-max-1234')
     await page.locator('.carte-ent .crayon').first().click()
     await expect(page.locator('.editeur')).toBeVisible({ timeout: 20_000 })
     const banniere = await page.locator('.banniere-ro').count()
