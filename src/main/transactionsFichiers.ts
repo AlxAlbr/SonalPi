@@ -39,6 +39,7 @@ export interface PlanRemplacementEntretiens {
   readonly corpusAvant: CorpusFichier
   readonly corpusApres: CorpusFichier
   readonly entretiens: { id: string; avant: EntretienFichier; apres: EntretienFichier }[]
+  readonly ordre?: 'entretiens-puis-corpus' | 'corpus-puis-entretiens'
 }
 
 export type PlanTransactionFichiers = PlanAjoutEntretien | PlanSuppressionEntretien | PlanRemplacementEntretiens
@@ -149,9 +150,12 @@ export class TransactionsFichiersCorpus {
         }
         return { fichier, dejaApplique, apres: e.apres }
       })
-      // Les définitions absorbées restent présentes jusqu'au remplacement de tous les liens.
+      const corpusDAbord = plan.ordre === 'corpus-puis-entretiens'
+      // Une création écrit sa définition avant ses liens.
+      // Une fusion conserve la définition absorbée jusqu'au dernier lien.
+      if (corpusDAbord && !correspondApres) ecrireAtomiquement(fichierCorpus, apres)
       for (const e of fichiers) if (!e.dejaApplique) ecrireAtomiquement(e.fichier, contenuJson(e.apres))
-      if (!correspondApres) ecrireAtomiquement(fichierCorpus, apres)
+      if (!corpusDAbord && !correspondApres) ecrireAtomiquement(fichierCorpus, apres)
     } else if (plan.operation === 'ajout') {
       const fichierEntretien = join(this.dir, 'entretiens', `${plan.id}.json`)
       const contenuEntretien = contenuJson(plan.entretien)
@@ -246,6 +250,7 @@ export class TransactionsFichiersCorpus {
       throw new Error('Le journal de suppression est incomplet.')
     }
     if (plan.operation === 'remplacement' && (!Array.isArray(plan.entretiens)
+      || (plan.ordre !== undefined && plan.ordre !== 'entretiens-puis-corpus' && plan.ordre !== 'corpus-puis-entretiens')
       || plan.entretiens.some(e => !e || typeof e.id !== 'string' || !/^[^./\\\\][^/\\\\]*$/.test(e.id) || !e.avant || !e.apres)
       || new Set(plan.entretiens.map(e => e.id)).size !== plan.entretiens.length)) {
       throw new Error('Le journal de remplacement est invalide.')

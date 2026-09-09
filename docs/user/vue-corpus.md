@@ -6,11 +6,12 @@ La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne a
 - **Personnes**, pour relier les locuteurs d’entretiens différents ;
 - **Données**, pour consulter et saisir les variables de l’ensemble du corpus ;
 - **Pseudonymisation**, pour contrôler et appliquer les règles partagées ;
+- **Journal**, pour annuler les actions récentes prises en charge dans le corpus ;
 - **Pas à pas**, lorsque le parcours de démonstration est actif.
 
 La recherche dans le texte de tous les entretiens est accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 
-Les cartes d’entretiens restent visibles dans Accueil, Thèmes et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
+Les cartes d’entretiens restent visibles dans Accueil, Thèmes, Journal et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
 
 ## Personnes
 
@@ -20,19 +21,33 @@ La personne sélectionnée possède un nom de référence modifiable. Les noms l
 
 **C’est la même personne…** ouvre une confirmation depuis un rapprochement proposé. Si des entretiens désignent déjà séparément la même personne, utilisez **Réunir…**, choisissez la personne correspondante, puis le nom à conserver. La personne réunie s’ouvre après réussite. L’opération est bloquée si plusieurs locuteurs du même entretien seraient rattachés à cette personne.
 
+**Séparer…** corrige le cas inverse : sélectionnez les locuteurs placés par erreur sur une même fiche, puis nommez la nouvelle personne. Au moins un locuteur doit rester sur la fiche d’origine. La séparation change uniquement les associations ; les noms locaux, pseudonymes, rôles, données et notes restent inchangés.
+
 **Reprendre aussi certaines données…** est une option repliée dans la confirmation. Elle permet une copie ponctuelle depuis un entretien source vers le locuteur affiché, pas vers tous les membres de la personne. Le pseudo et le statut interviewer sont décochés par défaut ; remplacer une valeur existante demande une autorisation explicite. Refermer la section annule la reprise. Aucune règle d’anonymisation du texte n’est modifiée.
 
 Un locuteur sans lien propose directement deux choix : créer une personne ou l’associer à une personne existante. Pour un locuteur déjà associé, **Modifier l’association…** permet de choisir une autre personne ou de supprimer l’association, après confirmation. Cette modification concerne uniquement le locuteur sélectionné. Après une dissociation volontaire, renommer le locuteur ne recrée pas automatiquement une personne ; vous pouvez toujours l’associer explicitement. Une personne sans entretien peut être examinée ou supprimée lorsque tous les entretiens sont lisibles. **À vérifier** affiche les rapprochements proposés, les références absentes et les personnes possédant plusieurs locuteurs dans un même entretien. Aucune association incorrecte n’est supprimée automatiquement.
 
 Dans l’onglet Notes d’un entretien, **Concerne** associe une note à un ou plusieurs locuteurs. La section **Notes liées** d’une personne agrège ces notes sans les copier : leur contenu, leur catégorie, leur date et leur statut restent propres à l’entretien. Une association modifiée actualise automatiquement cette liste. **Ouvrir l’entretien dans Notes** permet de modifier la note dans son contexte.
 
-**Ouvrir l’entretien** accède directement à son onglet Locuteurs ; le retour conserve la sélection du répertoire et actualise les données. **Actualiser** permet aussi de relire le corpus. Le séparateur est redimensionnable à la souris ou au clavier, avec une largeur mémorisée ; les panneaux s’empilent dans une fenêtre étroite.
+**Ouvrir l’entretien** accède directement à son onglet Locuteurs ; le retour conserve la sélection du répertoire et actualise les données. Dans l’éditeur, chaque locuteur lié rappelle le nom de sa Personne. Si la définition référencée a disparu, la ligne signale explicitement la référence absente et invite à corriger l’association dans Personnes. **Actualiser** permet aussi de relire le corpus. Le séparateur est redimensionnable à la souris ou au clavier, avec une largeur mémorisée ; les panneaux s’empilent dans une fenêtre étroite.
 
-Ces corrections sont disponibles dans les **corpus locaux**. La réunion de deux personnes est journalisée pour être terminée après une interruption ; une modification extérieure inconnue bloque sa reprise plutôt que d’être écrasée. Dans un corpus distant, le répertoire est consultable et les verrous sont indiqués, mais les corrections restent désactivées. La séparation d’une personne réunie reste à implémenter.
+Dans un **corpus local**, toutes ces corrections sont disponibles. La réunion et la séparation de personnes utilisent un journal technique pour être terminées après une interruption ; une modification extérieure inconnue bloque leur reprise plutôt que d’être écrasée. Ce mécanisme est distinct du Journal visible du corpus.
 
-Au nommage local, un nom spécifique sans candidat crée une personne ; un nom identique ou un rôle équivalent dans un autre entretien ouvre une proposition sans choix présélectionné. Sélectionnez la bonne personne : un aperçu montre les informations manquantes qui seront complétées à la confirmation, notamment le pseudonyme et les métadonnées. Les valeurs déjà renseignées et le statut interviewer restent inchangés par défaut. Si plusieurs entretiens sources sont disponibles, choisissez celui dont vous souhaitez reprendre les informations.
+Dans un **corpus distant connecté**, les corrections du répertoire sont disponibles sous verrous : création, renommage, association, refus, suppression d’une fiche vide, rapprochement, réunion et séparation. Les entretiens concernés sont verrouillés dans un ordre stable et relus depuis le serveur avant la modification. Un entretien déjà ouvert par votre session conserve sa sauvegarde habituelle. Un verrou détenu par une autre personne ou une modification concurrente provoque un refus explicite sans écrasement.
+
+Les opérations composées publient les données dans un ordre qui évite les références absentes. Une création ou une séparation publie d’abord la nouvelle définition, puis les associations. Une réunion modifie d’abord les entretiens et retire seulement ensuite la définition absorbée. Si une publication intermédiaire échoue, les éléments déjà confirmés sont conservés et le message les nomme. Actualisez alors le répertoire : une réunion peut être relancée, tandis que les associations restant après une création ou une séparation peuvent être corrigées directement. La suppression d’une fiche vide contrôle préalablement tous les entretiens dans leur état frais. Hors ligne, le répertoire reste consultable sans écriture.
+
+Au nommage local, un nom spécifique sans candidat crée une personne ; un nom identique, une graphie proche stricte ou un rôle équivalent dans un autre entretien ouvre une proposition sans choix présélectionné. Chaque proposition indique sa raison, par exemple « même nom », « une lettre différente » ou « mêmes mots dans un ordre différent ». Un prénom ou un nom seul n’est jamais proposé sur la seule base d’une ressemblance approximative. Sélectionnez la bonne personne : un aperçu montre les informations manquantes qui seront complétées à la confirmation, notamment le pseudonyme et les métadonnées. Les valeurs déjà renseignées et le statut interviewer restent inchangés par défaut. Si plusieurs entretiens sources sont disponibles, choisissez celui dont vous souhaitez reprendre les informations.
 
 **Choisir les données à reprendre, ou ne rien reprendre…** permet de modifier cette sélection ou de cocher **Ne reprendre aucune donnée**. Refermer cette section conserve vos choix. Seul **Confirmer** applique l’association et la reprise affichée. **Plus tard** et Échap ne prennent aucune décision ; **Ce n’est pas cette personne** ou **Aucune de ces personnes** mémorise le refus des propositions affichées, révocable dans le répertoire. Lorsqu’un locuteur est déjà associé, la confirmation indique que seule son association sera modifiée ; pour réunir tous les entretiens, utilisez le répertoire Personnes.
+
+## Journal
+
+Le Journal du corpus conserve en mémoire jusqu’aux dix dernières actions annulables prises en charge pendant la session. Les actions récentes apparaissent en premier et le bouton **↩** restaure leur état antérieur. Le Journal survit aux changements d’onglet et à un aller-retour dans un entretien, mais il est vidé au changement de corpus et au redémarrage de l’application.
+
+Le premier raccordement concerne les actions simples réalisées depuis Personnes : renommer une personne, associer, dissocier ou déplacer un locuteur, écarter un rapprochement simple et annuler un refus. Les créations, suppressions, reprises de données, réunions et opérations partiellement réussies n’apparaissent pas encore. Les actions effectuées dans un entretien restent rattachées à cet entretien et ne sont pas ajoutées au Journal du corpus.
+
+Une action dont la cible a changé depuis reste visible mais ne peut plus être annulée. Le Journal n’écrase jamais cette modification plus récente. Il ne constitue pas un historique d’audit, n’est enregistré dans aucun fichier et ne propose pas de rétablissement après une annulation. L’annulation des actions d’un corpus distant n’est pas encore disponible.
 
 ## Données
 

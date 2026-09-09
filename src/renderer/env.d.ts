@@ -38,6 +38,7 @@ import type {
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
+import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
   CompteDistantPublic,
@@ -112,7 +113,9 @@ declare global {
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
         personnesInventaire: () => Promise<InventairePersonnes>
-        personnesCommander: (commande: CommandePersonnes) => Promise<string | null>
+        personnesCommander: (commande: CommandePersonnes, depuisRepertoire?: boolean) => Promise<string | null>
+        journalLister: () => Promise<EntreeJournalCorpusVue[]>
+        journalAnnuler: (id: string) => Promise<ResultatAnnulationCorpus>
         regleAnonParEntite: (entite: string) => Promise<RegleAnon | undefined>
         regleAnonCreer: (entite: string, pseudos: string[]) => Promise<{ regle: RegleAnon; existait: boolean }>
         regleAnonAjouterPseudo: (id: string, pseudo: string) => Promise<RegleAnon | null>

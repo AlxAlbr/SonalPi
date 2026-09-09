@@ -27,6 +27,7 @@ const {
 } = utiliserSonal()
 
 const nomsPersonnesLiees = ref<Record<string, string>>({})
+const liensPersonnesCharges = ref(false)
 const erreurLiensPersonnes = ref('')
 let lectureLiensPersonnes = 0
 
@@ -35,6 +36,7 @@ watch(
   async () => {
     const lecture = ++lectureLiensPersonnes
     nomsPersonnesLiees.value = {}
+    liensPersonnesCharges.value = false
     erreurLiensPersonnes.value = ''
     if (!props.actif || !locuteurs.value.some((locuteur) => locuteur.personneRef)) return
     try {
@@ -43,6 +45,7 @@ watch(
       nomsPersonnesLiees.value = Object.fromEntries(
         inventaire.personnes.map((personne) => [personne.id, personne.nom]),
       )
+      liensPersonnesCharges.value = true
     } catch {
       if (lecture === lectureLiensPersonnes) {
         erreurLiensPersonnes.value =
@@ -136,8 +139,14 @@ watch(
             title="Supprimer ce locuteur"
             @click="demanderSuppressionLocuteur(l.index)"
           >✕</button>
-          <span v-if="l.personneRef" class="lien-personne-loc">
-            Lié à « {{ nomsPersonnesLiees[l.personneRef] ?? l.personneRef }} » — le nom saisi reste local.
+          <span v-if="l.personneRef && nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc">
+            Lié à « {{ nomsPersonnesLiees[l.personneRef] }} » — le nom saisi reste local.
+          </span>
+          <span v-else-if="l.personneRef && liensPersonnesCharges" class="lien-personne-loc reference-personne-absente">
+            Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
+          </span>
+          <span v-else-if="l.personneRef" class="lien-personne-loc">
+            Association à « {{ l.personneRef }} » en cours de vérification.
           </span>
         </li>
       </ul>
@@ -201,6 +210,10 @@ watch(
   color: #595969;
   font-size: 0.72rem;
   overflow-wrap: anywhere;
+}
+.reference-personne-absente {
+  color: #a82020;
+  font-weight: 600;
 }
 .nom-loc {
   width: 100%;

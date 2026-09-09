@@ -32,6 +32,7 @@ import type {
 import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
+import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type {
   CompteDistantPublic,
   DemandeConnexion,
@@ -184,7 +185,10 @@ contextBridge.exposeInMainWorld('sonal', {
     reglesAnon: (): Promise<RegleAnon[]> => invoquer('corpus:reglesAnon'),
     scanAnon: (): Promise<ScanRegle[]> => invoquer('corpus:scanAnon'),
     personnesInventaire: (): Promise<InventairePersonnes> => invoquer('corpus:personnesInventaire'),
-    personnesCommander: (commande: CommandePersonnes): Promise<string | null> => invoquer('corpus:personnesCommander', commande),
+    personnesCommander: (commande: CommandePersonnes, depuisRepertoire = false): Promise<string | null> =>
+      invoquer('corpus:personnesCommander', commande, depuisRepertoire),
+    journalLister: (): Promise<EntreeJournalCorpusVue[]> => invoquer('corpus:journalLister'),
+    journalAnnuler: (id: string): Promise<ResultatAnnulationCorpus> => invoquer('corpus:journalAnnuler', id),
     regleAnonParEntite: (entite: string): Promise<RegleAnon | undefined> =>
       invoquer('corpus:regleAnonParEntite', entite),
     regleAnonCreer: (entite: string, pseudos: string[]): Promise<{ regle: RegleAnon; existait: boolean }> =>

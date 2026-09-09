@@ -10,6 +10,7 @@ export interface VueLocuteurPersonne {
   nom: string
   interviewer: boolean
   personneRef: string | null
+  personneDeliee?: boolean
   valeursLoc: Record<string, string>
   pseudo?: string
   pseudoEtat?: 'confirme' | 'refuse'
@@ -36,8 +37,14 @@ export interface InventairePersonnes {
   indisponibles: { id: string; titre: string; raison: string }[]
 }
 
+export interface LocuteurASeparer {
+  entretienId: string
+  locuteurId: string
+}
+
 export type CommandePersonnes =
   | { type: 'fusionner'; conserverId: string; absorberId: string; attendu: string; reprise?: { entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string; choix: ChoixRepriseLocuteur } }
+  | { type: 'separer'; personneId: string; nom: string; locuteurs: LocuteurASeparer[]; attendu: string }
   | { type: 'creerDefinition'; nom: string }
   | { type: 'refuser'; entretienId: string; locuteurId: string; sourceEntretienId: string; sourceLocuteurId: string }
   | { type: 'annulerRefus'; entretienId: string; locuteurId: string; cible: string }
@@ -56,8 +63,9 @@ export function inventorierPersonnes(corpus: CorpusFichier, entretiens: EntreeMa
       return {
         entretienId: e.id, entretienTitre: e.titre, locuteurId: l.id,
         index: l.index, nom: l.nom, interviewer: l.interviewer === true,
-        personneRef: l.personneRef ?? null, valeursLoc: { ...l.valeursLoc },
-        pseudo: l.pseudo, pseudoEtat: l.pseudoEtat,
+        personneRef: l.personneRef ?? null,
+        ...(l.personneDeliee === undefined ? {} : { personneDeliee: l.personneDeliee }),
+        valeursLoc: { ...l.valeursLoc }, pseudo: l.pseudo, pseudoEtat: l.pseudoEtat,
         rapprochementsRefuses: [...(l.rapprochementsRefuses ?? [])],
       }
     })),
@@ -141,6 +149,44 @@ export function fusionnerPersonnes(corpus: CorpusFichier, entretiens: EntreeMatr
     }
   }
   delete corpus.personnes[absorberId]
+}
+
+/** Crée une identité avec une partie des locuteurs d'une personne existante. */
+export function separerPersonne(
+  corpus: CorpusFichier,
+  entretiens: EntreeMatrice[],
+  personneId: string,
+  nouvelleId: string,
+  nom: string,
+  selection: LocuteurASeparer[],
+): Personne {
+  if (!corpus.personnes[personneId]) throw new Error('Cette personne n’existe plus.')
+  if (!selection.length) throw new Error('Choisissez au moins un locuteur à séparer.')
+  const cles = selection.map((locuteur) => `${locuteur.entretienId}\0${locuteur.locuteurId}`)
+  if (new Set(cles).size !== cles.length) throw new Error('La sélection contient plusieurs fois le même locuteur.')
+  if (new Set(selection.map((locuteur) => locuteur.entretienId)).size !== selection.length) {
+    throw new Error('Une personne ne peut pas recevoir plusieurs locuteurs du même entretien.')
+  }
+  const membres = entretiens.flatMap((entretien) => entretien.data.locuteurs
+    .filter((locuteur) => locuteur.personneRef === personneId)
+    .map((locuteur) => ({ entretien, locuteur })))
+  const parCle = new Map(membres.map((membre) => [
+    `${membre.entretien.id}\0${membre.locuteur.id}`,
+    membre,
+  ]))
+  const choisis = cles.map((cle) => parCle.get(cle))
+  if (choisis.some((membre) => !membre)) {
+    throw new Error('Un locuteur sélectionné n’est plus associé à cette personne.')
+  }
+  if (selection.length >= membres.length) {
+    throw new Error('Laissez au moins un locuteur sur la personne d’origine.')
+  }
+  const nouvelle = creerPersonne(corpus, nouvelleId, nom)
+  for (const membre of choisis) {
+    membre!.locuteur.personneRef = nouvelle.id
+    delete membre!.locuteur.personneDeliee
+  }
+  return nouvelle
 }
 
 /** Une lecture incomplète ne permet pas de prouver qu'une personne est vide. */

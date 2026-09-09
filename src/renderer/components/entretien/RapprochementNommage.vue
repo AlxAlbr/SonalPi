@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { VueLocuteurPersonne } from '../../../shared/corpus/personnes'
 import type { Locuteur, Variable } from '../../../shared/format'
-import { type ChoixRepriseLocuteur, natureNomPersonne, reprendreDonneesLocuteur } from '../../../shared/corpus/rapprochementsPersonnes'
+import { analyserRapprochementPersonne, type ChoixRepriseLocuteur, natureNomPersonne, reprendreDonneesLocuteur } from '../../../shared/corpus/rapprochementsPersonnes'
 
 const props = defineProps<{ nom: string; lienActuel: string; cible: Locuteur; sources: VueLocuteurPersonne[]; variables: Variable[]; candidats: VueLocuteurPersonne[]; occupe: boolean; message: string }>()
 const emit = defineEmits<{
@@ -17,6 +17,10 @@ const sourceCle = ref('')
 const aucune = ref(false)
 const choix = ref<ChoixRepriseLocuteur>({ variables: [] })
 const candidat = computed(() => props.candidats.find(l => cle(l) === selection.value))
+const contientNomProche = computed(() => props.candidats.some((l) => {
+  const raison = analyserRapprochementPersonne(props.nom, l.nom)?.raison
+  return raison === 'une-lettre' || raison === 'memes-mots'
+}))
 const sourcesDisponibles = computed(() => candidat.value ? props.sources.filter(l => l.entretienId !== props.sources.find(s => s.locuteurId === props.cible.id)?.entretienId && (candidat.value?.personneRef ? l.personneRef === candidat.value.personneRef : cle(l) === selection.value)) : [])
 const source = computed(() => sourcesDisponibles.value.find(l => cle(l) === sourceCle.value))
 watch(selection, () => {
@@ -60,12 +64,13 @@ onBeforeUnmount(() => { dialogue.value?.close(); retour?.focus() })
     <h2 id="titre-rapprochement-nommage">Une personne déjà rencontrée ?</h2>
     <p>Vous avez nommé ce locuteur <strong>« {{ nom }} »</strong>.</p>
     <p v-if="natureNomPersonne(nom) === 'role'">{{ candidats.length === 1 ? 'Un locuteur a le même rôle dans un autre entretien.' : 'Des locuteurs ont le même rôle dans d’autres entretiens.' }} Ce n’est pas nécessairement la même personne.</p>
+    <p v-else-if="contientNomProche">Une ou plusieurs graphies proches ont été trouvées. Vérifiez les noms et les entretiens avant de décider.</p>
     <p v-else>{{ candidats.length === 1 ? 'Une personne porte déjà ce nom.' : 'Des personnes portent déjà ce nom.' }}</p>
     <fieldset :disabled="occupe">
       <legend>{{ candidats.length === 1 ? 'S’il s’agit de la même personne, sélectionnez la proposition ci-dessous.' : 'S’il s’agit de l’une d’elles, sélectionnez-la ci-dessous.' }}</legend>
       <label v-for="l in candidats" :key="cle(l)">
         <input v-model="selection" type="radio" name="candidat-personne" :value="cle(l)" />
-        {{ l.nom }} · {{ l.entretienTitre }}
+        {{ l.nom }} · {{ l.entretienTitre }} · {{ analyserRapprochementPersonne(nom, l.nom)?.libelle }}
       </label>
     </fieldset>
     <section v-if="candidat" aria-label="Données proposées pour ce locuteur">

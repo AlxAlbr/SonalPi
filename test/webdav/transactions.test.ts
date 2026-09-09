@@ -720,6 +720,670 @@ describe("Lot d'anonymisation en masse — distant (verrou court par entretien)"
   })
 })
 
+describe('Correction courte d’un entretien distant', () => {
+  function avecLocuteur(pseudo?: string): string {
+    const data = JSON.parse(entretienE1()) as EntretienFichier
+    data.locuteurs = [{
+      id: 'loc-1', index: 0, nom: 'Marie locale', interviewer: false,
+      valeursLoc: {}, personneRef: null, ...(pseudo ? { pseudo } : {}),
+    }]
+    return JSON.stringify(data, null, 2)
+  }
+
+  function entretienAvecLocuteur(
+    id: string,
+    nom: string,
+    personneRef: string | null = null,
+  ): string {
+    const data = JSON.parse(entretienE1()) as EntretienFichier
+    data.locuteurs = [{
+      id, index: 0, nom, interviewer: false, valeursLoc: {}, personneRef,
+    }]
+    return JSON.stringify(data, null, 2)
+  }
+
+  async function installerSource(b: Banc, contenu: string): Promise<void> {
+    const corpus = corpusServeur(b.serveur)
+    corpus.membership.e2 = {
+      titre: 'Entretien deux', date: null, lastModified: '2026-01-01T00:00:00Z',
+    }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('entretiens/e2.json', contenu)
+    await b.miroir.tirer()
+  }
+
+  async function creerPersonne(b: Banc): Promise<string> {
+    const id = await b.tx.executer(() => b.store.personnesCommander({ type: 'creerDefinition', nom: 'Marie Dupont' }))
+    if (!id) throw new Error('Personne non créée dans le banc.')
+    return id
+  }
+
+  it('GET frais puis PUT conditionnel conserve les modifications extérieures', async () => {
+    const b = await banc()
+    const personneId = await creerPersonne(b)
+    b.serveur.poser('entretiens/e1.json', avecLocuteur('Pseudo extérieur'))
+
+    await b.tx.executerEntretien('e1', () => b.store.personnesCommander({
+      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
+    }))
+
+    const serveur = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(serveur.locuteurs[0]).toMatchObject({ personneRef: personneId, pseudo: 'Pseudo extérieur' })
+    const miroir = JSON.parse(readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
+    expect(miroir.locuteurs[0]).toMatchObject({ personneRef: personneId, pseudo: 'Pseudo extérieur' })
+    expect(b.store.lectureSeule).toBe(true)
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it('refuse depuis une source fraîche maintenue sous verrou', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Interviewer'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Intervieweur'))
+
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Camille Martin' }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser(
+      'entretiens/e2.json',
+      entretienAvecLocuteur('loc-source', 'Intervieweur', 'pers-source'),
+    )
+
+    await b.tx.executerEntretienAvecSource('e1', 'e2', () => b.store.refuserRapprochementSimple({
+      type: 'refuser',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+    }))
+
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(cible.locuteurs[0].rapprochementsRefuses).toEqual(['personne:pers-source'])
+    const sourceLocale = JSON.parse(
+      readFileSync(join(b.miroir.dirLocal, 'entretiens/e2.json'), 'utf8'),
+    ) as EntretienFichier
+    expect(sourceLocale.locuteurs[0].personneRef).toBe('pers-source')
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/e2.lock.json')).toBeUndefined()
+  })
+
+  it('libère les premiers verrous si la source est tenue par un tiers', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Interviewer'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Intervieweur'))
+    const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
+    await olivier.acquerir('verrous/e2.lock.json')
+
+    await expect(b.tx.executerEntretienAvecSource('e1', 'e2', () =>
+      b.store.refuserRapprochementSimple({
+        type: 'refuser',
+        entretienId: 'e1',
+        locuteurId: 'loc-cible',
+        sourceEntretienId: 'e2',
+        sourceLocuteurId: 'loc-source',
+      }))).rejects.toThrow(/olivier/)
+
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(cible.locuteurs[0].rapprochementsRefuses).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+    expect(await olivier.etat('verrous/e2.lock.json')).not.toBeNull()
+  })
+
+  it('crée une Personne distincte avec son lien et son refus', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Maria Dupont'))
+
+    const personneId = await b.tx.refuserRapprochement({
+      type: 'refuser',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+    })
+
+    expect(personneId).toMatch(/^pers/)
+    expect(corpusServeur(b.serveur).personnes[personneId!]).toMatchObject({
+      id: personneId, nom: 'Marie Dupont',
+    })
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(cible.locuteurs[0]).toMatchObject({
+      personneRef: personneId,
+      rapprochementsRefuses: ['locuteur:loc-source'],
+    })
+  })
+
+  it('conserve la Personne distincte si la publication du refus échoue', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Maria Dupont'))
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e1.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+
+    await expect(b.tx.refuserRapprochement({
+      type: 'refuser',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+    })).rejects.toThrow(/appliquée partiellement.*définition.*e1.*Actualisez/i)
+
+    expect(Object.values(corpusServeur(b.serveur).personnes)).toEqual([
+      expect.objectContaining({ nom: 'Marie Dupont' }),
+    ])
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(cible.locuteurs[0].personneRef).toBeNull()
+    expect(cible.locuteurs[0].rapprochementsRefuses).toBeUndefined()
+  })
+
+  it('refuse sans écriture une décision qui devrait aussi créer une personne', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Maria Dupont'))
+
+    await expect(b.tx.executerEntretienAvecSource('e1', 'e2', () =>
+      b.store.refuserRapprochementSimple({
+        type: 'refuser',
+        entretienId: 'e1',
+        locuteurId: 'loc-cible',
+        sourceEntretienId: 'e2',
+        sourceLocuteurId: 'loc-source',
+      }))).rejects.toThrow(/créer une personne distincte.*composite/i)
+
+    expect(corpusServeur(b.serveur).personnes).toEqual({})
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(cible.locuteurs[0]).toMatchObject({ personneRef: null })
+    expect(cible.locuteurs[0].rapprochementsRefuses).toBeUndefined()
+  })
+
+  it('rapproche vers une Personne existante avec les données fraîches de la source', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Marie Dupont' }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    const source = JSON.parse(
+      entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
+    ) as EntretienFichier
+    source.locuteurs[0].pseudo = 'Pseudo frais'
+    b.serveur.poser('entretiens/e2.json', JSON.stringify(source, null, 2))
+
+    const personneId = await b.tx.rapprocherPersonnes({
+      type: 'rapprocher',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+      reprise: { pseudo: true, variables: [] },
+    })
+
+    expect(personneId).toBe('pers-source')
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(cible.locuteurs[0]).toMatchObject({
+      personneRef: 'pers-source', pseudo: 'Pseudo frais', pseudoEtat: 'confirme',
+    })
+    const sourceServeur = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
+    expect(sourceServeur.locuteurs[0]).toMatchObject({
+      personneRef: 'pers-source', pseudo: 'Pseudo frais',
+    })
+  })
+
+  it('refuse un aperçu de rapprochement devenu périmé', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes['pers-source'] = { id: 'pers-source', nom: 'Marie Dupont' }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser(
+      'entretiens/e2.json',
+      entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
+    )
+    await b.miroir.tirer()
+    const attendu = JSON.stringify(b.store.personnesInventaire())
+    const sourceModifiee = JSON.parse(
+      entretienAvecLocuteur('loc-source', 'Mme Dupont', 'pers-source'),
+    ) as EntretienFichier
+    sourceModifiee.locuteurs[0].pseudo = 'Modification extérieure'
+    b.serveur.poser('entretiens/e2.json', JSON.stringify(sourceModifiee, null, 2))
+
+    await expect(b.tx.rapprocherPersonnes({
+      type: 'rapprocher',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+      attendu,
+    })).rejects.toThrow(/données ont changé/i)
+
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(cible.locuteurs[0].personneRef).toBeNull()
+  })
+
+  it('crée une Personne et lie deux locuteurs non associés', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    const source = JSON.parse(entretienAvecLocuteur('loc-source', 'Mme Dupont')) as EntretienFichier
+    source.locuteurs[0].pseudo = 'Marie D.'
+    await installerSource(b, JSON.stringify(source, null, 2))
+
+    const personneId = await b.tx.rapprocherPersonnes({
+      type: 'rapprocher',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+      reprise: { pseudo: true, variables: [] },
+    })
+
+    expect(personneId).toMatch(/^pers/)
+    expect(corpusServeur(b.serveur).personnes[personneId!]).toMatchObject({
+      id: personneId, nom: 'Mme Dupont',
+    })
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    const sourceFinale = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
+    expect(cible.locuteurs[0]).toMatchObject({
+      personneRef: personneId, pseudo: 'Marie D.', pseudoEtat: 'confirme',
+    })
+    expect(sourceFinale.locuteurs[0].personneRef).toBe(personneId)
+  })
+
+  it('conserve la définition et le lien source après un échec du lien cible', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e1.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+
+    await expect(b.tx.rapprocherPersonnes({
+      type: 'rapprocher',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+    })).rejects.toThrow(/appliquée partiellement.*définition.*e2.*e1.*Actualisez/i)
+
+    const personnes = Object.values(corpusServeur(b.serveur).personnes)
+    expect(personnes).toHaveLength(1)
+    const personneId = personnes[0].id
+    const cible = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    const sourceFinale = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
+    expect(cible.locuteurs[0].personneRef).toBeNull()
+    expect(sourceFinale.locuteurs[0].personneRef).toBe(personneId)
+  })
+
+  it('conserve seulement la définition après un échec du premier lien', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e2.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+
+    await expect(b.tx.rapprocherPersonnes({
+      type: 'rapprocher',
+      entretienId: 'e1',
+      locuteurId: 'loc-cible',
+      sourceEntretienId: 'e2',
+      sourceLocuteurId: 'loc-source',
+    })).rejects.toThrow(/appliquée partiellement.*définition.*e2.*Actualisez/i)
+
+    expect(Object.values(corpusServeur(b.serveur).personnes)).toHaveLength(1)
+    for (const id of ['e1', 'e2']) {
+      const entretien = JSON.parse(b.serveur.contenuDe(`entretiens/${id}.json`)!) as EntretienFichier
+      expect(entretien.locuteurs[0].personneRef).toBeNull()
+    }
+  })
+
+  it('refuse sans écriture un rapprochement qui devrait créer une Personne', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-cible', 'Marie Dupont'))
+    await installerSource(b, entretienAvecLocuteur('loc-source', 'Mme Dupont'))
+
+    await expect(b.tx.executerEntretienAvecSource(
+      'e1',
+      'e2',
+      () => b.store.rapprocherPersonneSimple({
+        type: 'rapprocher',
+        entretienId: 'e1',
+        locuteurId: 'loc-cible',
+        sourceEntretienId: 'e2',
+        sourceLocuteurId: 'loc-source',
+      }),
+    )).rejects.toThrow(/plusieurs associations.*composite/i)
+
+    expect(corpusServeur(b.serveur).personnes).toEqual({})
+    for (const id of ['e1', 'e2']) {
+      const entretien = JSON.parse(b.serveur.contenuDe(`entretiens/${id}.json`)!) as EntretienFichier
+      expect(entretien.locuteurs[0].personneRef).toBeNull()
+    }
+  })
+
+  it('réunit les entretiens avant de retirer la définition absorbée', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
+    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p2'))
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
+    corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    await b.miroir.tirer()
+    const ordre: string[] = []
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'corpus.json' || chemin.startsWith('entretiens/')) ordre.push(chemin)
+      return reel(chemin, contenu, options)
+    }
+
+    await expect(b.tx.fusionnerPersonnes({
+      type: 'fusionner',
+      conserverId: 'p1',
+      absorberId: 'p2',
+      attendu: JSON.stringify(b.store.personnesInventaire()),
+    })).resolves.toBe('p1')
+
+    expect(corpusServeur(b.serveur).personnes).toEqual({
+      p1: { id: 'p1', nom: 'Marie Dupont' },
+    })
+    const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
+    expect(entretien2.locuteurs[0].personneRef).toBe('p1')
+    expect(ordre.indexOf('entretiens/e2.json')).toBeLessThan(ordre.indexOf('corpus.json'))
+  })
+
+  it('publie une session déjà tenue avant de terminer une réunion', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
+    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p2'))
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
+    corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    await b.miroir.tirer()
+    const ordre: string[] = []
+    const txSession = new TransactionsCorpus(b.clientMax, b.miroir, () => b.store, IDENTITE_MAX, {
+      getSessions: () => ({
+        idsTenus: () => ['e2'],
+        noterSale: () => ordre.push('session-sale'),
+        publier: async () => {
+          ordre.push('session-publiee')
+          const contenu = readFileSync(join(b.miroir.dirLocal, 'entretiens/e2.json'), 'utf8')
+          await b.clientMax.putTexte('entretiens/e2.json', contenu)
+          return { ok: true }
+        },
+      }),
+    })
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'corpus.json') ordre.push('corpus')
+      return reel(chemin, contenu, options)
+    }
+
+    await txSession.fusionnerPersonnes({
+      type: 'fusionner',
+      conserverId: 'p1',
+      absorberId: 'p2',
+      attendu: JSON.stringify(b.store.personnesInventaire()),
+    })
+
+    expect(ordre).toEqual(['session-sale', 'session-publiee', 'corpus'])
+    expect(corpusServeur(b.serveur).personnes.p2).toBeUndefined()
+    expect((JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier)
+      .locuteurs[0].personneRef).toBe('p1')
+  })
+
+  it('conserve les deux définitions et reprend une réunion partielle', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie A', 'p2'))
+    await installerSource(b, entretienAvecLocuteur('loc-2', 'Marie B', 'p2'))
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
+    corpus.personnes.p2 = { id: 'p2', nom: 'Mme Dupont' }
+    corpus.membership.e3 = {
+      titre: 'Entretien trois', date: null, lastModified: '2026-01-01T00:00:00Z',
+    }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    b.serveur.poser('entretiens/e3.json', entretienAvecLocuteur('loc-3', 'Marie C', 'p1'))
+    await b.miroir.tirer()
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e2.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+
+    await expect(b.tx.fusionnerPersonnes({
+      type: 'fusionner',
+      conserverId: 'p1',
+      absorberId: 'p2',
+      attendu: JSON.stringify(b.store.personnesInventaire()),
+    })).rejects.toThrow(/partiellement.*e1.*e2.*Actualisez/i)
+
+    expect(Object.keys(corpusServeur(b.serveur).personnes)).toEqual(['p1', 'p2'])
+    expect((JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier)
+      .locuteurs[0].personneRef).toBe('p1')
+    expect((JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier)
+      .locuteurs[0].personneRef).toBe('p2')
+
+    b.clientMax.putTexte = reel
+    await expect(b.tx.fusionnerPersonnes({
+      type: 'fusionner',
+      conserverId: 'p1',
+      absorberId: 'p2',
+      attendu: JSON.stringify(b.store.personnesInventaire()),
+    })).resolves.toBe('p1')
+    expect(Object.keys(corpusServeur(b.serveur).personnes)).toEqual(['p1'])
+    expect((JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier)
+      .locuteurs[0].personneRef).toBe('p1')
+  })
+
+  it('crée la définition séparée avant de déplacer ses locuteurs', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
+    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p1'))
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    await b.miroir.tirer()
+    const attendu = JSON.stringify(b.store.personnesInventaire())
+    const ordre: string[] = []
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'corpus.json' || chemin.startsWith('entretiens/')) ordre.push(chemin)
+      return reel(chemin, contenu, options)
+    }
+
+    const nouvelleId = await b.tx.separerPersonne({
+      type: 'separer',
+      personneId: 'p1',
+      nom: 'Marie entretien 2',
+      locuteurs: [{ entretienId: 'e2', locuteurId: 'loc-2' }],
+      attendu,
+    })
+
+    expect(nouvelleId).toMatch(/^pers/)
+    expect(corpusServeur(b.serveur).personnes[nouvelleId!]).toMatchObject({
+      id: nouvelleId, nom: 'Marie entretien 2',
+    })
+    const entretien1 = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
+    expect(entretien1.locuteurs[0].personneRef).toBe('p1')
+    expect(entretien2.locuteurs[0].personneRef).toBe(nouvelleId)
+    expect(ordre.indexOf('corpus.json')).toBeLessThan(ordre.indexOf('entretiens/e2.json'))
+  })
+
+  it('conserve la nouvelle définition si un déplacement de séparation échoue', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', entretienAvecLocuteur('loc-1', 'Marie', 'p1'))
+    await installerSource(b, entretienAvecLocuteur('loc-2', 'Mme Dupont', 'p1'))
+    const corpus = corpusServeur(b.serveur)
+    corpus.personnes.p1 = { id: 'p1', nom: 'Marie Dupont' }
+    b.serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    await b.miroir.tirer()
+    const attendu = JSON.stringify(b.store.personnesInventaire())
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e2.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+
+    await expect(b.tx.separerPersonne({
+      type: 'separer',
+      personneId: 'p1',
+      nom: 'Marie entretien 2',
+      locuteurs: [{ entretienId: 'e2', locuteurId: 'loc-2' }],
+      attendu,
+    })).rejects.toThrow(/partiellement.*définitions.*e2.*Actualisez/i)
+
+    expect(Object.values(corpusServeur(b.serveur).personnes)).toEqual([
+      { id: 'p1', nom: 'Marie Dupont' },
+      expect.objectContaining({ nom: 'Marie entretien 2' }),
+    ])
+    const entretien2 = JSON.parse(b.serveur.contenuDe('entretiens/e2.json')!) as EntretienFichier
+    expect(entretien2.locuteurs[0].personneRef).toBe('p1')
+  })
+
+  it('supprime une Personne après contrôle frais de tous les entretiens', async () => {
+    const b = await banc()
+    const personneId = await creerPersonne(b)
+
+    await expect(b.tx.supprimerPersonneVide(personneId)).resolves.toBeNull()
+
+    expect(corpusServeur(b.serveur).personnes[personneId]).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it('conserve une Personne qu’un entretien frais référence encore', async () => {
+    const b = await banc()
+    const personneId = await creerPersonne(b)
+    b.serveur.poser(
+      'entretiens/e1.json',
+      entretienAvecLocuteur('loc-cible', 'Marie Dupont', personneId),
+    )
+
+    await expect(b.tx.supprimerPersonneVide(personneId)).rejects.toThrow(/Déliez/)
+
+    expect(corpusServeur(b.serveur).personnes[personneId]).toBeDefined()
+    const miroir = JSON.parse(
+      readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8'),
+    ) as EntretienFichier
+    expect(miroir.locuteurs[0].personneRef).toBe(personneId)
+  })
+
+  it('ne supprime rien si un entretien de contrôle est verrouillé par un tiers', async () => {
+    const b = await banc()
+    const personneId = await creerPersonne(b)
+    const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
+    await olivier.acquerir('verrous/e1.lock.json')
+
+    await expect(b.tx.supprimerPersonneVide(personneId)).rejects.toThrow(/olivier/)
+
+    expect(corpusServeur(b.serveur).personnes[personneId]).toBeDefined()
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(await olivier.etat('verrous/e1.lock.json')).not.toBeNull()
+  })
+
+  it('crée une définition puis son premier lien', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', avecLocuteur())
+
+    const personneId = await b.tx.creerPersonneDepuisLocuteur('e1', 'loc-1', 'Marie Dupont')
+
+    expect(corpusServeur(b.serveur).personnes[personneId]).toMatchObject({
+      id: personneId, nom: 'Marie Dupont',
+    })
+    const entretien = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(entretien.locuteurs[0].personneRef).toBe(personneId)
+  })
+
+  it('conserve la fiche vide et explique un échec du premier lien', async () => {
+    const b = await banc()
+    b.serveur.poser('entretiens/e1.json', avecLocuteur())
+    const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
+    await olivier.acquerir('verrous/e1.lock.json')
+
+    await expect(b.tx.creerPersonneDepuisLocuteur('e1', 'loc-1', 'Marie Dupont'))
+      .rejects.toThrow(/personne a été créée.*lien a échoué.*olivier/i)
+
+    expect(Object.values(corpusServeur(b.serveur).personnes)).toEqual([
+      expect.objectContaining({ nom: 'Marie Dupont' }),
+    ])
+    const entretien = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(entretien.locuteurs[0].personneRef).toBeNull()
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+
+  it('un verrou tiers refuse nominativement la correction et libère le verrou corpus', async () => {
+    const b = await banc()
+    const personneId = await creerPersonne(b)
+    b.serveur.poser('entretiens/e1.json', avecLocuteur())
+    const olivier = new ProviderPutConditionnel(b.clientOlivier, IDENTITE_OLIVIER)
+    await olivier.acquerir('verrous/e1.lock.json')
+
+    await expect(b.tx.executerEntretien('e1', () => b.store.personnesCommander({
+      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
+    }))).rejects.toThrow(/olivier/)
+
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(await olivier.etat('verrous/e1.lock.json')).not.toBeNull()
+  })
+
+  it('une divergence ne laisse ni lien local anticipé ni verrou', async () => {
+    const b = await banc()
+    const personneId = await creerPersonne(b)
+    b.serveur.poser('entretiens/e1.json', avecLocuteur())
+    const reel = b.clientMax.putTexte.bind(b.clientMax)
+    b.clientMax.putTexte = async (chemin, contenu, options) => {
+      if (chemin === 'entretiens/e1.json') throw new ErreurHttp(412, 'simulation divergence')
+      return reel(chemin, contenu, options)
+    }
+
+    await expect(b.tx.executerEntretien('e1', () => b.store.personnesCommander({
+      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
+    }))).rejects.toThrow(/divergence/i)
+
+    const serveur = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    const miroir = JSON.parse(readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
+    expect(serveur.locuteurs[0].personneRef).toBeNull()
+    expect(miroir.locuteurs[0].personneRef).toBeNull()
+    expect(b.serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+
+  it('une session déjà tenue réutilise le store et diffère sa publication', async () => {
+    const b = await banc()
+    const personneId = await creerPersonne(b)
+    const contenu = avecLocuteur()
+    b.serveur.poser('entretiens/e1.json', contenu)
+    writeFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), contenu, 'utf8')
+    const sales: string[] = []
+    const txSession = new TransactionsCorpus(b.clientMax, b.miroir, () => b.store, IDENTITE_MAX, {
+      getSessions: () => ({ idsTenus: () => ['e1'], noterSale: (id) => sales.push(id) }),
+    })
+
+    await txSession.executerEntretien('e1', () => b.store.personnesCommander({
+      type: 'lier', entretienId: 'e1', locuteurId: 'loc-1', personneId,
+    }))
+
+    const serveur = JSON.parse(b.serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    const miroir = JSON.parse(readFileSync(join(b.miroir.dirLocal, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
+    expect(serveur.locuteurs[0].personneRef).toBeNull()
+    expect(miroir.locuteurs[0].personneRef).toBe(personneId)
+    expect(sales).toEqual(['e1'])
+    expect(b.serveur.contenuDe('verrous/e1.lock.json')).toBeUndefined()
+  })
+})
+
 describe("Lot d'anonymisation en masse — corpus LOCAL (boucle directe du store)", () => {
   it('occurrences posées ; doublons dédupliqués ; rien à traiter → succès à 0', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-anon-local-'))

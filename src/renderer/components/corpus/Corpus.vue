@@ -6,6 +6,7 @@ import MenuTheme from '../themes/MenuTheme.vue'
 import PasAPas from './PasAPas.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import PersonnesCorpus from './PersonnesCorpus.vue'
+import PanneauJournalCorpus from './PanneauJournalCorpus.vue'
 import TableDonnees from '../donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { rechercherDansCorpsTexte } from '../../editor/rechercheCorpus'
@@ -20,6 +21,7 @@ import icoMaison from '../../assets/icones/maison.png'
 import icoJournal from '../../assets/icones/journal.png'
 // Icônes des onglets, spécifiques au Corpus.
 import icoPersonnes from '../../assets/icones/personnes.png'
+import icoPasAPas from '../../assets/icones/pas-a-pas.svg'
 
 const {
   vue,
@@ -133,7 +135,7 @@ function basculerRepli(id: string) {
   repliesThemes.value = s
 }
 
-type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'donnees' | 'anon' | 'pas-a-pas'
+type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'donnees' | 'anon' | 'journal' | 'pas-a-pas'
 const ongletCorpus = ref<OngletCorpus>('accueil')
 const pseudonymisation = ref<InstanceType<typeof PseudonymisationCorpus> | null>(null)
 let chargementMatrice: Promise<void> | null = null
@@ -246,9 +248,11 @@ const libelleOnglet = computed(() =>
     ? 'Accueil'
     : ongletCorpus.value === 'recherche'
     ? 'Recherche'
-    : ongletCorpus.value === 'pas-a-pas'
-      ? 'Pas à pas'
-      : 'Thèmes',
+    : ongletCorpus.value === 'journal'
+      ? 'Journal'
+      : ongletCorpus.value === 'pas-a-pas'
+        ? 'Pas à pas'
+        : 'Thèmes',
 )
 
 /** Style d'un segment du calque des cartes : position/largeur en % du TEXTE,
@@ -287,7 +291,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <button :class="{ actif: ongletCorpus === 'personnes' }" title="Personnes" aria-label="Personnes" :aria-current="ongletCorpus === 'personnes' ? 'page' : undefined" @click="choisirOnglet('personnes')"><img class="ico-onglet-corpus" :src="icoPersonnes" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'anon' }" title="Pseudonymisation" aria-label="Pseudonymisation" :aria-current="ongletCorpus === 'anon' ? 'page' : undefined" @click="choisirOnglet('anon')"><img class="ico-onglet-corpus" :src="icoAnon" alt="" /></button>
-        <button v-if="pasAPas" :class="{ actif: ongletCorpus === 'pas-a-pas' }" title="Pas à pas" aria-label="Pas à pas" :aria-current="ongletCorpus === 'pas-a-pas' ? 'page' : undefined" @click="choisirOnglet('pas-a-pas')"><img class="ico-onglet-corpus" :src="icoJournal" alt="" /></button>
+        <button data-onglet="journal" :class="{ actif: ongletCorpus === 'journal' }" title="Journal" aria-label="Journal" :aria-current="ongletCorpus === 'journal' ? 'page' : undefined" @click="choisirOnglet('journal')"><img class="ico-onglet-corpus" :src="icoJournal" alt="" /></button>
+        <button v-if="pasAPas" :class="{ actif: ongletCorpus === 'pas-a-pas' }" title="Pas à pas" aria-label="Pas à pas" :aria-current="ongletCorpus === 'pas-a-pas' ? 'page' : undefined" @click="choisirOnglet('pas-a-pas')"><img class="ico-onglet-corpus" :src="icoPasAPas" alt="" /></button>
       </nav>
 
       <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes'" class="grille-corpus">
@@ -433,7 +438,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
               <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
               <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
-              <li v-if="pasAPas"><img :src="icoJournal" alt="" /><span><b>Pas à pas</b> — suivre le parcours guidé.</span></li>
+              <li><img :src="icoJournal" alt="" /><span><b>Journal</b> — annuler les actions récentes prises en charge depuis les outils du corpus.</span></li>
+              <li v-if="pasAPas"><img :src="icoPasAPas" alt="" /><span><b>Pas à pas</b> — suivre le parcours guidé.</span></li>
             </ul>
           </div>
 
@@ -513,6 +519,8 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </ul>
             <button v-if="resultats.length" class="effacer-rech" @click="effacerRecherche">✕ Effacer</button>
           </div>
+
+          <PanneauJournalCorpus v-else-if="ongletCorpus === 'journal'" :actif="ongletCorpus === 'journal'" />
 
           <!-- Pas à pas (onglet démo) : liste des étapes + spotlight global,
                téléporté en body → visible dans n'importe quelle vue.

@@ -24,12 +24,14 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
 
   // La navigation du corpus démarre sur son accueil et reste composée d'icônes.
   const onglets = page.locator('.onglets-corpus button')
-  await expect(onglets).toHaveCount(5)
+  await expect(onglets).toHaveCount(6)
   await expect(onglets.nth(2)).toHaveAttribute('aria-label', 'Personnes')
+  await expect(onglets.nth(5)).toHaveAttribute('aria-label', 'Journal')
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
   await expect(page.locator('.accueil-corpus')).toContainText('Données')
   await expect(page.locator('.accueil-corpus')).toContainText('Pseudonymisation')
+  await expect(page.locator('.accueil-corpus')).toContainText('Journal')
   await expect(page.locator('.accueil-corpus .raccourci')).toContainText('Ctrl+F / Cmd+F')
   await expect(page.locator('.accueil-corpus .accueil-outils')).not.toContainText('Recherche')
   await expect(page.locator('.cartes-ent')).toBeVisible()

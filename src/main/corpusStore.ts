@@ -15,7 +15,8 @@ import { createHash } from 'node:crypto'
 import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import { annulerRefusRapprochement, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur } from '../shared/corpus/rapprochementsPersonnes'
-import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
+import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
+import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
@@ -25,6 +26,13 @@ import {
   type PlanSuppressionEntretien,
   type PlanTransactionFichiers,
 } from './transactionsFichiers'
+import {
+  JournalCorpus,
+  type EtatInverseJournalCorpus,
+  type EtatLienJournalCorpus,
+  type EtatRefusJournalCorpus,
+  type InverseJournalCorpus,
+} from './journalCorpus'
 
 /** Pourquoi des numéros de version ?
  *  Chaque évolution du format de fichier est migrée EXPLICITEMENT à la lecture.
@@ -168,6 +176,8 @@ export class CorpusStore {
   private readonly dir: string
 
   private readonly transactionsFichiers: TransactionsFichiersCorpus
+
+  private readonly journalCorpus = new JournalCorpus()
 
   /** Cache en mémoire des chemins audio référencés du corpus courant,
    *  id → audioRef absolu.
@@ -757,8 +767,118 @@ export class CorpusStore {
     return { ...inventorierPersonnes(corpus, entretiens), indisponibles }
   }
 
+  private etatLienJournal(locuteur: Locuteur): EtatLienJournalCorpus {
+    return {
+      personneRef: locuteur.personneRef ?? null,
+      ...(locuteur.personneDeliee === undefined ? {} : { personneDeliee: locuteur.personneDeliee }),
+    }
+  }
+
+  private etatRefusJournal(locuteur: Locuteur): EtatRefusJournalCorpus {
+    return locuteur.rapprochementsRefuses === undefined
+      ? {}
+      : { rapprochementsRefuses: [...locuteur.rapprochementsRefuses] }
+  }
+
+  private memeEtatJournal(a: unknown, b: unknown): boolean {
+    return JSON.stringify(a) === JSON.stringify(b)
+  }
+
+  private lireLocuteurJournal(entretienId: string, locuteurId: string):
+    | { ok: true; data: EntretienFichier; locuteur: Locuteur }
+    | { ok: false; raison: 'entretien' | 'locuteur' } {
+    const lecture = this.lireEntretien(entretienId)
+    if (!lecture.ok) return { ok: false, raison: 'entretien' }
+    lecture.data.locuteurs = completerIdsLocuteurs(entretienId, lecture.data.locuteurs)
+    const locuteur = lecture.data.locuteurs.find((candidat) => candidat.id === locuteurId)
+    return locuteur
+      ? { ok: true, data: lecture.data, locuteur }
+      : { ok: false, raison: 'locuteur' }
+  }
+
+  private evaluerInverseJournal(inverse: InverseJournalCorpus): EtatInverseJournalCorpus {
+    if (this.transactionsFichiers.journalPresent()) {
+      return { etat: 'bloquee', raison: 'Une transaction de fichiers doit d’abord être terminée.' }
+    }
+    if (inverse.type === 'personneRenommer') {
+      const personne = this.ouvrir().personnes[inverse.personneId]
+      return personne?.nom === inverse.apres
+        ? { etat: 'annulable' }
+        : { etat: 'inapplicable', raison: 'La personne a été modifiée depuis cette action.' }
+    }
+    const lecture = this.lireLocuteurJournal(inverse.entretienId, inverse.locuteurId)
+    if (!lecture.ok) {
+      if (lecture.raison === 'locuteur' || !this.ouvrir().membership[inverse.entretienId]) {
+        return { etat: 'inapplicable', raison: 'L’entretien ou le locuteur n’existe plus.' }
+      }
+      return { etat: 'bloquee', raison: 'L’entretien nécessaire est momentanément indisponible.' }
+    }
+    const courant = inverse.type === 'personneLier'
+      ? this.etatLienJournal(lecture.locuteur)
+      : this.etatRefusJournal(lecture.locuteur)
+    return this.memeEtatJournal(courant, inverse.apres)
+      ? { etat: 'annulable' }
+      : { etat: 'inapplicable', raison: 'Le locuteur a été modifié depuis cette action.' }
+  }
+
+  private appliquerInverseJournal(
+    inverse: InverseJournalCorpus,
+    impact: ImpactJournalCorpus,
+  ): ResultatAnnulationCorpus {
+    const etat = this.evaluerInverseJournal(inverse)
+    if (etat.etat !== 'annulable') {
+      return { ok: false, raison: etat.raison ?? 'Cette action ne peut plus être annulée.', temporaire: etat.etat === 'bloquee' }
+    }
+    try {
+      if (inverse.type === 'personneRenommer') {
+        const corpus = this.ouvrir()
+        modifierPersonne(corpus, inverse.personneId, inverse.avant)
+        this.ecrireJsonAtomique(this.corpusFile, corpus)
+      } else {
+        const lecture = this.lireLocuteurJournal(inverse.entretienId, inverse.locuteurId)
+        if (!lecture.ok) return { ok: false, raison: 'L’entretien ou le locuteur n’est plus disponible.', temporaire: lecture.raison === 'entretien' }
+        if (inverse.type === 'personneLier') {
+          lecture.locuteur.personneRef = inverse.avant.personneRef
+          if (inverse.avant.personneDeliee === undefined) delete lecture.locuteur.personneDeliee
+          else lecture.locuteur.personneDeliee = inverse.avant.personneDeliee
+        } else if (inverse.avant.rapprochementsRefuses === undefined) {
+          delete lecture.locuteur.rapprochementsRefuses
+        } else {
+          lecture.locuteur.rapprochementsRefuses = [...inverse.avant.rapprochementsRefuses]
+        }
+        const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
+        this.ecrireEntretien(inverse.entretienId, payload)
+      }
+      return { ok: true, impact }
+    } catch (erreur) {
+      return {
+        ok: false,
+        raison: erreur instanceof Error ? erreur.message : String(erreur),
+        temporaire: true,
+      }
+    }
+  }
+
+  journalCorpusLister(): EntreeJournalCorpusVue[] {
+    return this.journalCorpus.lister((inverse) => this.evaluerInverseJournal(inverse))
+  }
+
+  journalCorpusAnnuler(id: string): ResultatAnnulationCorpus {
+    this.verifierEcriture()
+    return this.journalCorpus.annuler(
+      id,
+      (inverse) => this.evaluerInverseJournal(inverse),
+      (inverse, impact) => this.appliquerInverseJournal(inverse, impact),
+    )
+  }
+
   /** Corrections locales du répertoire, sans réécriture des noms de locuteurs. */
-  personnesCommander(commande: CommandePersonnes): string | null {
+  personnesCommander(
+    commande: CommandePersonnes,
+    journaliser = false,
+    autoriserRefusComposite = true,
+    autoriserRapprochementComposite = true,
+  ): string | null {
     this.verifierEcriture()
     const corpus = this.ouvrir()
     if (commande.type === 'fusionner') {
@@ -797,15 +917,56 @@ export class CorpusStore {
       this.appliquerTransactionFichiers({ operation: 'remplacement', id: genId('fusion'), corpusAvant, corpusApres: corpus, entretiens: modifies })
       return commande.conserverId
     }
+    if (commande.type === 'separer') {
+      const inventaire = this.personnesInventaire()
+      if (inventaire.indisponibles.length) throw new Error('Séparation impossible : certains entretiens sont illisibles.')
+      if (JSON.stringify(inventaire) !== commande.attendu) throw new Error('Les personnes ou les entretiens ont changé. Actualisez puis vérifiez à nouveau la séparation.')
+      const corpusAvant = JSON.parse(readFileSync(this.corpusFile, 'utf8')) as CorpusFichier
+      const fichiers = Object.entries(corpus.membership).map(([id, ref]) => {
+        const avant = JSON.parse(readFileSync(this.entretienFile(id), 'utf8')) as EntretienFichier
+        const lecture = this.lireEntretien(id)
+        if (!lecture.ok) throw new Error(`Entretien indisponible : ${ref.titre}`)
+        const apres = lecture.data
+        apres.locuteurs = completerIdsLocuteurs(id, apres.locuteurs)
+        return { id, titre: ref.titre, avant, apres, initial: JSON.stringify(apres) }
+      })
+      const entretiens = fichiers.map((fichier) => ({ id: fichier.id, titre: fichier.titre, data: fichier.apres }))
+      const personneId = genId('pers')
+      separerPersonne(corpus, entretiens, commande.personneId, personneId, commande.nom, commande.locuteurs)
+      const now = new Date().toISOString()
+      const modifies = fichiers
+        .filter((fichier) => fichier.initial !== JSON.stringify(fichier.apres))
+        .map(({ id, avant, apres }) => ({ id, avant, apres }))
+      for (const entretien of modifies) {
+        entretien.apres.lastModified = now
+        corpus.membership[entretien.id].lastModified = now
+      }
+      this.appliquerTransactionFichiers({
+        operation: 'remplacement',
+        id: genId('separation'),
+        corpusAvant,
+        corpusApres: corpus,
+        entretiens: modifies,
+        ordre: 'corpus-puis-entretiens',
+      })
+      return personneId
+    }
     if (commande.type === 'creerDefinition') {
-      if (natureNomPersonne(commande.nom) !== 'specifique') throw new Error('Un nom spécifique est nécessaire pour créer automatiquement une personne.')
-      const id = creerPersonne(corpus, genId('pers'), commande.nom).id
-      this.ecrireJsonAtomique(this.corpusFile, corpus)
-      return id
+      return this.creerDefinitionPersonne(commande.nom, true)
     }
     if (commande.type === 'modifier') {
+      const avant = corpus.personnes[commande.personneId]?.nom
       modifierPersonne(corpus, commande.personneId, commande.nom)
+      const apres = corpus.personnes[commande.personneId].nom
       this.ecrireJsonAtomique(this.corpusFile, corpus)
+      if (journaliser && avant !== undefined && avant !== apres) {
+        this.journalCorpus.enregistrer(
+          `Personne renommée : ${avant} → ${apres}`,
+          'personnes',
+          { type: 'personneRenommer', personneId: commande.personneId, avant, apres },
+          { corpus: true, entretiens: [], projections: ['personnes'] },
+        )
+      }
       return commande.personneId
     }
     if (commande.type === 'supprimer') {
@@ -831,16 +992,35 @@ export class CorpusStore {
       const data = charger(commande.entretienId)
       const cible = trouverLocuteur(data, commande.locuteurId)
       if (commande.type === 'annulerRefus') {
+        const avant = this.etatRefusJournal(cible)
         annulerRefusRapprochement(cible, commande.cible)
+        const apres = this.etatRefusJournal(cible)
         enregistrer(commande.entretienId, data)
+        if (journaliser && !this.memeEtatJournal(avant, apres)) {
+          this.journalCorpus.enregistrer(
+            `Décision de rapprochement rétablie pour « ${cible.nom} »`,
+            'personnes',
+            { type: 'personneRefus', entretienId: commande.entretienId, locuteurId: commande.locuteurId, avant, apres },
+            { corpus: false, entretiens: [commande.entretienId], projections: ['personnes'] },
+          )
+        }
         return cible.personneRef
       }
       if (commande.sourceEntretienId === commande.entretienId) throw new Error('Choisissez un autre entretien.')
       const sourceData = charger(commande.sourceEntretienId)
       const source = trouverLocuteur(sourceData, commande.sourceLocuteurId)
+      if (commande.type === 'rapprocher' && !autoriserRapprochementComposite
+        && (!source.personneRef || cible.personneRef)) {
+        throw new Error('Ce rapprochement doit créer ou modifier plusieurs associations. Cette correction composite n’est pas encore disponible dans les corpus distants.')
+      }
       if (commande.type === 'refuser') {
-        refuserRapprochement(cible, source)
         const creerIdentite = peutCreerPersonneAuNommage(cible)
+        if (creerIdentite && !autoriserRefusComposite) {
+          throw new Error('Cette décision doit aussi créer une personne distincte. Cette correction composite n’est pas encore disponible dans les corpus distants.')
+        }
+        const avant = this.etatRefusJournal(cible)
+        refuserRapprochement(cible, source)
+        const apres = this.etatRefusJournal(cible)
         if (creerIdentite) {
           const id = creerPersonne(corpus, genId('pers'), cible.nom).id
           lierLocuteur(corpus, data, commande.locuteurId, id)
@@ -850,6 +1030,14 @@ export class CorpusStore {
         catch (e) {
           if (creerIdentite) throw new Error(`La personne distincte a été créée, mais l’association et le refus n’ont pas été enregistrés. Reprenez depuis le répertoire. ${String(e)}`)
           throw e
+        }
+        if (journaliser && !creerIdentite && !this.memeEtatJournal(avant, apres)) {
+          this.journalCorpus.enregistrer(
+            `Rapprochement écarté pour « ${cible.nom} »`,
+            'personnes',
+            { type: 'personneRefus', entretienId: commande.entretienId, locuteurId: commande.locuteurId, avant, apres },
+            { corpus: false, entretiens: [commande.entretienId], projections: ['personnes'] },
+          )
         }
         return cible.personneRef
       }
@@ -877,6 +1065,7 @@ export class CorpusStore {
     const data = lecture.data
     data.locuteurs = completerIdsLocuteurs(commande.entretienId, data.locuteurs)
     const locuteur = trouverLocuteur(data, commande.locuteurId)
+    const avantLien = this.etatLienJournal(locuteur)
     let personneId: string | null
     if (commande.type === 'creer') {
       if (locuteur.personneRef) throw new Error('Déliez ce locuteur avant de créer une nouvelle personne.')
@@ -896,7 +1085,52 @@ export class CorpusStore {
       }
       throw erreur
     }
+    if (journaliser && commande.type === 'lier') {
+      const apresLien = this.etatLienJournal(locuteur)
+      if (!this.memeEtatJournal(avantLien, apresLien)) {
+        const nomAvant = avantLien.personneRef
+          ? corpus.personnes[avantLien.personneRef]?.nom ?? 'une personne absente'
+          : null
+        const nomApres = apresLien.personneRef
+          ? corpus.personnes[apresLien.personneRef]?.nom ?? 'une personne absente'
+          : null
+        const libelle = nomAvant && nomApres
+          ? `Association déplacée : ${nomAvant} → ${nomApres}`
+          : nomApres
+            ? `Locuteur associé à ${nomApres}`
+            : `Locuteur dissocié de ${nomAvant ?? 'sa personne'}`
+        this.journalCorpus.enregistrer(
+          libelle,
+          'personnes',
+          { type: 'personneLier', entretienId: commande.entretienId, locuteurId: commande.locuteurId, avant: avantLien, apres: apresLien },
+          { corpus: false, entretiens: [commande.entretienId], projections: ['personnes', 'notes'] },
+        )
+      }
+    }
     return personneId
+  }
+
+  refuserRapprochementSimple(
+    commande: Extract<CommandePersonnes, { type: 'refuser' }>,
+  ): string | null {
+    return this.personnesCommander(commande, false, false)
+  }
+
+  rapprocherPersonneSimple(
+    commande: Extract<CommandePersonnes, { type: 'rapprocher' }>,
+  ): string | null {
+    return this.personnesCommander(commande, false, true, false)
+  }
+
+  creerDefinitionPersonne(nom: string, automatique = false): string {
+    this.verifierEcriture()
+    if (automatique && natureNomPersonne(nom) !== 'specifique') {
+      throw new Error('Un nom spécifique est nécessaire pour créer automatiquement une personne.')
+    }
+    const corpus = this.ouvrir()
+    const id = creerPersonne(corpus, genId('pers'), nom).id
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return id
   }
 
   // ── Codebook (thèmes) — lire → appliquer (shared/corpus) → écrire ───────────

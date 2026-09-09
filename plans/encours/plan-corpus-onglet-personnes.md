@@ -16,14 +16,16 @@ Premier incrément livré :
 - [x] Création depuis un locuteur, liaison, déliaison, déplacement et modification de fiche en local.
 - [x] Comparaison des valeurs locales, suppression des fiches vides avec inventaire complet.
 - [x] Séparateur accessible, largeur mémorisée, disposition étroite et retour vers les locuteurs.
-- [x] Consultation distante, affichage des verrous et refus explicite des corrections distantes.
-- [ ] Transactions de liaison distantes avec GET frais, verrou court et PUT conditionnel.
+- [x] Consultation distante, affichage des verrous et refus explicite des actions non prises en charge.
+- [x] Liaisons distantes simples avec définitions stabilisées, GET frais, verrou court et PUT conditionnel.
+- [x] Refus distant simple avec source fraîche et verrouillée, sans publication de la source.
 - [x] Suggestions exactes au nommage local, décisions de refus et annulation dans le répertoire.
 - [x] Reprise sélective au nommage et dialogue simplifié avec aperçu avant confirmation.
-- [ ] Suggestions proches calibrées.
+- [x] Suggestions proches strictes, explicables et calibrées sur des cas français.
 - [x] Fusion locale reprenable, notes conservées et refus réconciliés.
-- [ ] Journal du corpus local pour annuler les commandes simples du répertoire.
-- [ ] Séparation et corrections transactionnelles distantes.
+- [x] Journal du corpus local pour annuler les commandes simples du répertoire.
+- [x] Séparation locale transactionnelle avec au moins un locuteur conservé à l’origine.
+- [x] Corrections transactionnelles distantes avec ordre sûr et résultats partiels explicites.
 
 La création locale écrit la définition avant le lien. Si la seconde écriture échoue,
 la fiche vide reste visible avec une erreur expliquant comment reprendre ou supprimer.
@@ -101,16 +103,183 @@ Validation du dialogue : 708 tests unitaires réussis, 21 sautés, typecheck et 
 les deux E2E nommage et dialogue réussis, avec contrôle du focus neutre, de la liaison
 persistante après une nouvelle sauvegarde et de l’absence de copie implicite du pseudo.
 
+### Incrément supplémentaire — Journal du corpus local
+
+Le Journal du corpus est livré dans la grille habituelle, avec une icône Pas à pas
+maintenant distincte. Son service volatil vit dans le main, conserve dix inverses ciblés
+et vérifie l’état frais avant toute annulation. Les entrées survivent à la navigation dans
+le même corpus et disparaissent lors d’une bascule ou d’un redémarrage.
+
+Le premier raccordement couvre les renommages de Personne, liaisons, déliaisons,
+déplacements et refus simples validés depuis le répertoire. L’annulation restaure aussi
+`personneDeliee` et l’ensemble exact des refus. Les créations, suppressions, reprises,
+rapprochements composites, fusions et opérations distantes ne créent aucune entrée.
+Les commandes de nommage lancées depuis un entretien restent hors de ce Journal.
+
+Une cible modifiée depuis rend l’entrée inapplicable sans écriture. Après réussite,
+l’inventaire Personnes est invalidé sans réinitialiser globalement le corpus. La
+documentation utilisateur distingue le Journal visible du journal technique de reprise.
+
+Validation : 725 tests unitaires réussis, 21 sautés ; typecheck et build réussis.
+Les E2E Journal, Navigation et Personnes réussissent. Le scénario Journal couvre le
+renommage et la liaison annulés, le grisage après modification extérieure, la conservation
+après un aller-retour dans un entretien et la purge au changement de corpus.
+
+### Incrément supplémentaire — séparation locale
+
+La fiche propose maintenant **Séparer…** lorsqu’elle relie plusieurs locuteurs.
+L’utilisateur choisit les locuteurs déplacés et le nom de la nouvelle Personne, puis
+confirme un aperçu des deux groupes. Une sélection vide ou de tous les locuteurs est
+refusée : au moins un locuteur reste obligatoirement sur la fiche d’origine.
+
+La commande vérifie un inventaire complet et identique à l’aperçu avant de créer la
+définition et de réaffecter les seuls `personneRef` sélectionnés. Noms locaux, pseudo,
+rôle, variables, notes et refus restent inchangés. La transaction technique écrit la
+nouvelle définition avant les liens et reprend l’opération après une interruption sans
+écraser un état extérieur inconnu. La séparation reste hors du Journal visible et hors
+des corpus distants.
+
+Validation : 728 tests unitaires réussis, 21 sautés ; typecheck et build réussis.
+Les cinq E2E Journal, Navigation, Personnes, regroupement et séparation réussissent.
+L’E2E de séparation couvre aussi l’interdiction de vider la fiche d’origine, l’annulation
+de l’aperçu, la conservation des noms locaux et l’absence d’entrée dans le Journal visible.
+
+### Incrément supplémentaire — noms proches
+
+Les propositions couvrent maintenant deux variantes proches strictes en plus des noms
+normalisés identiques : une seule lettre différente avec au moins un mot commun, ou les
+mêmes mots dans un ordre différent. Un nom composé est exigé pour les variantes proches,
+afin qu’un prénom ou un nom seul ne déclenche pas une proposition approximative.
+
+Chaque proposition indique sa raison dans le dialogue de nommage et dans le répertoire.
+Les candidats restent sans présélection et les refus, regroupements par Personne et
+exclusions existantes s’appliquent de la même manière. Lorsque plusieurs locuteurs liés
+représentent une Personne, la meilleure graphie est présentée.
+
+Validation : 732 tests unitaires réussis, 21 sautés ; typecheck et build réussis.
+Les deux scénarios E2E du dialogue réussissent, dont le nouveau cas « Marie Dupont » /
+« Maria Dupont » avec la raison « une lettre différente ». Aucun banc distant démarré.
+
+### Incrément supplémentaire — corrections distantes simples
+
+Le répertoire distant permet maintenant de créer une Personne depuis un locuteur, de
+renommer une Personne, d’associer, dissocier ou déplacer un locuteur, et d’annuler un
+refus. Une définition est modifiée par la transaction corpus existante. Une association
+stabilise les définitions sous verrou, puis réutilise la session si l’entretien est déjà ouvert par ce poste ; sinon elle prend
+un verrou court sur l’entretien, effectue un GET frais et publie par PUT conditionnel.
+
+Le miroir n’est conservé dans l’état tenté qu’après confirmation de la publication. Une
+divergence ou un refus de verrou restaure une version serveur connue et remonte un message
+explicite. Le verrou entretien est libéré avant le verrou corpus. Les opérations distantes
+restent hors du Journal visible.
+
+La création simple publie la définition avant son premier lien. Si l’entretien ne peut
+pas être modifié, la fiche vide reste visible et le message indique comment reprendre.
+Ce chemin sert aussi au dialogue de nommage lorsqu’un candidat source n’est pas encore
+lié. Les rapprochements composites du répertoire, suppressions, fusions et séparations
+restent désactivés en distant.
+
+Validation : 738 tests unitaires réussis, 21 sautés ; typecheck et build réussis.
+Six nouveaux tests WebDAV embarqués couvrent le GET frais, le refus nominatif d’un
+verrou tiers, la divergence, la réutilisation d’une session existante, la création avec
+premier lien et la conservation de la fiche après échec de ce lien. Les sept E2E
+locaux Journal, Navigation et Personnes réussissent. Aucun serveur Nextcloud externe
+n’a été démarré.
+
+### Incrément supplémentaire — refus distant simple
+
+« Personne différente » est maintenant disponible dans le répertoire distant lorsque
+la décision modifie seulement le locuteur cible. La transaction stabilise les définitions,
+prend les verrous des entretiens cible et source dans l’ordre de leurs ids, puis relit les
+deux fichiers avant de calculer la référence refusée. Seul le fichier cible est publié ;
+la source sert de donnée fraîche et reste inchangée. Une session déjà tenue par ce poste
+est réutilisée.
+
+Si le refus d’un locuteur spécifique non lié doit également créer une fiche distincte,
+l’action reste désactivée en distant. Le main refuse aussi ce cas avant toute mutation,
+afin qu’une définition ne puisse pas rester non publiée par une transaction limitée à
+l’entretien. Un verrou tiers sur la source libère les verrous déjà pris et ne modifie pas
+la cible.
+
+Validation : 741 tests unitaires réussis, 21 sautés ; typecheck et build réussis.
+Les deux E2E Personnes et rapprochements réussissent en local. Trois nouveaux tests
+WebDAV embarqués couvrent la source devenue liée après le dernier tirage, le verrou tiers
+sur cette source et le refus sans écriture du cas composite. Aucun banc Nextcloud réel
+n’a été démarré.
+
+### Incrément supplémentaire — corrections distantes composites
+
+Toutes les commandes du répertoire sont maintenant raccordées au distant. Un
+rapprochement vers une Personne existante publie seulement la cible. Avec deux locuteurs
+non liés, la définition est publiée avant le lien source, puis le lien cible et son
+éventuelle reprise de données. Le refus qui crée une fiche distincte suit le même ordre.
+Une réussite intermédiaire est conservée et nommée dans l’erreur afin de permettre une
+correction après actualisation.
+
+La suppression d’une fiche vide verrouille et relit tous les entretiens du membership
+frais avant de retirer sa définition. La réunion publie les réaffectations d’entretiens
+avant de supprimer la définition absorbée ; un échec conserve donc les deux fiches et la
+même commande peut reprendre les liens restants. La séparation publie au contraire sa
+nouvelle définition avant les déplacements. Si l’un d’eux échoue, la nouvelle fiche et
+les déplacements confirmés restent visibles et les associations restantes sont
+corrigeables individuellement.
+
+Le moteur commun prend le verrou corpus puis les verrous entretien dans l’ordre des ids,
+réutilise les sessions de ce poste, relit les fichiers après acquisition et publie chaque
+fichier sous ETag. Il vérifie aussi qu’une commande limitée n’a modifié ni une définition
+ni un entretien de contrôle de façon inattendue. Tous les verrous courts sont libérés en
+ordre inverse, y compris après une publication partielle.
+
+Validation : 757 tests unitaires réussis, 21 sautés ; typecheck et build réussis.
+Les cinq E2E locaux Journal, Personnes, rapprochement, réunion et séparation réussissent.
+Seize tests WebDAV embarqués supplémentaires couvrent rapprochements, refus composites,
+suppressions fraîches, ordre de réunion et séparation, échecs partiels et reprise d’une
+réunion. Aucun banc Nextcloud réel n’a été démarré.
+
+### Incrément supplémentaire — garde-fous visibles du nommage
+
+Deux renommages déclenchés dans la même tâche sont maintenant couverts en E2E : la file
+ignore le premier nom devenu périmé et crée uniquement la Personne correspondant au nom
+final. L’onglet Locuteurs distingue aussi un lien résolu d’une `personneRef` pendante ;
+après lecture de l’inventaire, il affiche l’id absent et renvoie explicitement vers le
+répertoire Personnes au lieu de présenter cet id comme un nom.
+
+Validation : les quatre E2E du dialogue de nommage réussissent, dont les deux nouveaux
+scénarios de renommage immédiat et de référence absente.
+
 ## Point de reprise — état à la pause
 
-**Le plan n’est pas terminé.** Les sections historiques ci-dessous décrivent encore
-la cible complète ; les incréments et ce point de reprise précisent ce qui existe.
+**Le plan n’est pas terminé.** Les sections historiques plus bas conservent les décisions
+et validations intermédiaires ; les chiffres de ce point de reprise sont les plus récents.
 
-Dernière validation du dialogue simplifié : `npm test` (716 réussis, 21 sautés),
-`npm run typecheck`, build et cinq E2E réussis : dialogue, déplacement, refus de reprise,
-choix explicite de source avec métadonnées, refus de toutes les propositions.
-La validation précédente comprenait 16 E2E Navigation, Locuteurs et Personnes.
-Aucun serveur démarré ni image Docker téléchargée.
+État à reprendre :
+
+- le parcours local, le Journal du corpus, la fusion, la séparation et les noms proches
+  sont réalisés ;
+- toutes les commandes du répertoire Personnes sont raccordées en local et en distant ;
+- `TransactionsCorpus` stabilise les définitions, réutilise une session déjà tenue ou
+  applique verrou court, GET frais et PUT conditionnel ;
+- les créations, refus composites et séparations publient la définition avant les liens ;
+- les réunions publient les liens avant de retirer la définition absorbée et sont
+  reprenables après une réussite partielle ;
+- la suppression distante contrôle tous les entretiens frais avant de retirer une fiche ;
+- les renommages immédiats et le diagnostic des références pendantes dans l’éditeur sont
+  couverts ; restent les changements de session artificiellement provoqués pendant les
+  attentes et l’harmonisation des passages historiques.
+
+Dernière validation : `npm test` avec 757 réussites et 21 tests sautés, puis
+`npm run typecheck` et `npm run build` réussis. Les cinq E2E Journal, Personnes,
+rapprochement, réunion et séparation réussissent en local. Les tests WebDAV embarqués
+couvrent les corrections distantes simples et composites, leurs ordres de publication,
+leurs conflits et leurs réussites partielles. Le binaire Docker n’est pas disponible
+dans ce WSL :
+aucun banc Nextcloud réel n’a été lancé et aucune image ne doit être téléchargée.
+
+Les modifications de ce chantier sont toujours dans l’arbre de travail, sans commit.
+La prochaine étape recommandée est de couvrir un changement de session artificiellement
+provoqué pendant les attentes du dialogue de nommage. Il restera ensuite à harmoniser
+les passages historiques du plan et à lancer les bancs Nextcloud déjà provisionnés
+lorsqu’un environnement Docker sera disponible.
 
 La reprise sélective est désormais intégrée au dialogue de nommage : choix de source
 parmi les locuteurs de la personne candidate, aperçu des valeurs, variables vides
@@ -143,12 +312,12 @@ Ctrl + F. Le test Navigation attend désormais cinq boutons et Personnes en troi
 position, entre Thèmes et Données. Validation après actualisation : build et E2E
 Navigation réussis en séquentiel.
 L’exécution parallèle a aussi échoué sur la scission codée, réussie en séquentiel.
-Aucun banc distant démarré. Le plan reste ouvert, notamment pour la séparation,
-les écritures distantes, les noms proches et les conflits asynchrones.
+Aucun banc distant démarré. Le plan reste ouvert, notamment pour les écritures distantes
+et les conflits asynchrones restant à couvrir.
 
-### Évolution validée — Journal du corpus
+### Évolution validée et réalisée — premier raccordement au Journal du corpus
 
-Le répertoire Personnes doit alimenter un **Journal du corpus** distinct du Journal
+Le répertoire Personnes alimente un **Journal du corpus** distinct du Journal
 d’entretien et de `.transaction-fichiers.json`. Ce journal est un outil d’annulation
 volatile limité aux dix dernières actions prises en charge de la session courante : il
 survit aux changements d’onglet et à un aller-retour dans un entretien du même corpus,
@@ -204,7 +373,7 @@ revenir à l’état sans sélection avec un message explicite. Le résultat d�
 porte un impact précis afin de ne pas appeler globalement `appliquerCorpus()` ni
 réinitialiser l’entretien et la navigation.
 
-Le premier incrément devra ajouter `src/shared/corpus/journal.ts`, un service main tel que
+Le premier incrément a ajouté `src/shared/corpus/journal.ts`, un service main dans
 `src/main/journalCorpus.ts`, l’état correspondant dans `useCorpus.ts` et
 `PanneauJournalCorpus.vue`. Le panneau Journal conserve la grille habituelle avec les
 cartes à droite ; ce chantier ne déclenche pas l’extraction générale de `Corpus.vue`.
@@ -231,18 +400,18 @@ la purge au changement de corpus et l’état distant non pris en charge.
 4. La prévention de recréation après déliaison volontaire est réalisée et testée.
    Tester encore les renommages rapides et vérifier que l’annulation du renommage dans
    le Journal d’entretien n’altère jamais implicitement l’identité.
-5. Livrer la séparation locale avec le journal **technique** de remplacement
-   multi-entretiens. La fusion locale et ses tests de reprise sont désormais réalisés ;
-   fusion et séparation restent hors du Journal visible du corpus au premier livrable.
-6. Créer le Journal du corpus local et raccorder les commandes simples de Personnes,
-   avec inverses ciblés, contrôle sur état frais et rafraîchissement précis des projections.
-   Laisser créations/suppressions conditionnelles pour un lot suivant et exclure les
-   commandes composites, partielles et distantes.
-7. Implémenter les écritures distantes : définitions transactionnelles, GET frais,
-   verrou court et PUT conditionnel pour les entretiens fermés ; session existante
-   pour l’entretien ouvert. Les commandes Personnes restent explicitement refusées
-   en distant ; la création au nommage est aussi désactivée via `lectureSeule`.
-8. Calibrer les rapprochements proches sur des cas français, sans sélection automatique.
+5. La séparation locale et sa reprise par le journal **technique** de remplacement
+   multi-entretiens sont réalisées. Fusion et séparation restent hors du Journal visible
+   du corpus au premier livrable.
+6. Le Journal du corpus local et les commandes simples de Personnes sont raccordés.
+   Étudier ultérieurement les créations/suppressions conditionnelles ; conserver
+   l’exclusion des commandes composites, partielles et distantes.
+7. Les créations, renommages, liaisons, refus, rapprochements, suppressions, réunions et
+   séparations distants utilisent les transactions de définitions, les lectures fraîches
+   et les PUT conditionnels. Les opérations multi-fichiers conservent et nomment leurs
+   réussites partielles afin de permettre une reprise explicite.
+8. Les rapprochements proches sont calibrés sur des cas français, expliqués dans les
+   deux interfaces et ne déclenchent aucune sélection automatique.
 9. Finaliser la documentation utilisateur/développeur, harmoniser les sections historiques
    du présent plan et exécuter les E2E Navigation/Locuteurs/Personnes/Journal ainsi que
    les bancs distants nécessaires avant de déclarer le livrable terminé.
@@ -304,10 +473,14 @@ La documentation utilisateur et le modèle objet décrivent ces parcours.
 ### Repères techniques
 
 - `src/shared/corpus/rapprochementsPersonnes.ts` : normalisation, rôles, suggestions
-  exactes regroupées, refus et reprise sélective pure.
+  exactes ou proches regroupées, raisons affichables, refus et reprise sélective pure.
 - `src/shared/corpus/personnes.ts` : inventaire enrichi et union des commandes IPC.
-- `src/main/corpusStore.ts` : commandes locales, création de définition seule pour la
-  session ouverte, rapprochement/refus avec erreurs partielles explicites.
+- `src/main/corpusStore.ts` : commandes locales et primitives utilisées par les
+  transactions distantes, avec erreurs partielles explicites.
+- `src/main/distant/transactions.ts` : définitions distantes, corrections simples et
+  multi-fichiers, lectures fraîches, ordre de publication et résultats partiels.
+- `src/main/index.ts` : répartition IPC entre commandes locales, transactions de
+  définitions, transactions d’entretien et refus des composites non pris en charge.
 - `src/renderer/composables/useEntretien.ts` : file de nommages, dialogue et décisions
   appliquées au modèle de session. La définition est écrite avant le lien ; si la
   session change entre les deux, une fiche vide peut rester visible et réparable.
@@ -315,8 +488,8 @@ La documentation utilisateur et le modèle objet décrivent ces parcours.
   sélection explicite, fermeture sans décision et libellés de déplacement.
 - `src/renderer/components/corpus/PersonnesCorpus.vue` : suggestions/refus globaux et reprise
   sélective avec choix de l’entretien source.
-- `e2e/personnes*.e2e.ts`, `e2e/rapprochements-personnes.e2e.ts` et les tests unitaires
-  Personnes couvrent les incréments livrés.
+- `e2e/personnes*.e2e.ts`, `e2e/rapprochements-personnes.e2e.ts`, les tests unitaires
+  Personnes et `test/webdav/transactions.test.ts` couvrent les incréments livrés.
 
 Les modifications sont dans l’arbre de travail, sans commit créé par l’agent.
 Préserver `plans/reflexion/export-sonal-alt.md`, fichier utilisateur hors de ce chantier.
@@ -583,7 +756,10 @@ Actions de correction au niveau de la fiche :
 
 - **Fusionner avec…** : regrouper deux fiches en conservant explicitement un nom de
   référence ;
-- **Séparer…** : choisir un ou plusieurs locuteurs liés et créer une nouvelle personne ;
+- **Séparer…** : choisir un ou plusieurs locuteurs liés et créer une nouvelle personne.
+  La sélection doit laisser au moins un locuteur sur la fiche d’origine ; déplacer tous
+  les locuteurs est refusé, car il faut alors corriger ou supprimer volontairement la
+  fiche devenue inutile ;
 - **Supprimer** : permis seulement lorsque la personne n’a plus aucun locuteur lié.
 
 Cette dernière règle évite de créer volontairement des références pendantes. Une

@@ -20,6 +20,7 @@ import { paramsAnonDefaut } from '../../shared/format'
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import type { ScanRegle } from '../../shared/corpus/scanAnon'
 import type { CommandePersonnes } from '../../shared/corpus/personnes'
+import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../../shared/corpus/journal'
 
 /**
  *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
@@ -60,6 +61,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   // ils ne sont écrits sur disque qu'au premier geste d'édition.
   const categoriesNote = ref<NoteCategory[]>(normaliserCategoriesNote())
   const messageCategorieNote = ref<string | null>(null) // ex. refus de suppression
+  const entreesJournalCorpus = ref<EntreeJournalCorpusVue[]>([])
+  const revisionPersonnesCorpus = ref(0)
 
   async function lirePersonnes() {
     await opts.flush()
@@ -68,7 +71,24 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
 
   async function commanderPersonnes(commande: CommandePersonnes) {
     await opts.flush()
-    return window.sonal.corpus.personnesCommander(toRaw(commande))
+    return window.sonal.corpus.personnesCommander(toRaw(commande), true)
+  }
+
+  async function rafraichirJournalCorpus(): Promise<void> {
+    await opts.flush()
+    entreesJournalCorpus.value = await window.sonal.corpus.journalLister()
+  }
+
+  async function annulerEntreeJournalCorpus(id: string): Promise<ResultatAnnulationCorpus> {
+    await opts.flush()
+    const resultat = await window.sonal.corpus.journalAnnuler(id)
+    if (resultat.ok) {
+      if (resultat.impact.projections.includes('personnes')) revisionPersonnesCorpus.value++
+      if (resultat.impact.projections.includes('matrice')) await rafraichirMatrice()
+      if (resultat.impact.projections.includes('scanAnon')) perimerScanAnon()
+    }
+    await rafraichirJournalCorpus()
+    return resultat
   }
 
   const varsGen = () => variables.value.filter((v) => v.portee === 'entretien')
@@ -464,6 +484,11 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     renommerCategorieNote,
     majCouleurCategorieNote,
     supprimerCategorieNote,
+    // Journal du corpus.
+    entreesJournalCorpus,
+    revisionPersonnesCorpus,
+    rafraichirJournalCorpus,
+    annulerEntreeJournalCorpus,
     // thèmes
     ajouterTheme,
     ajouterSousTheme,

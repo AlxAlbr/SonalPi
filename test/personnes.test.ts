@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
 import { ecrireSeedDemo } from './seedDemo'
-import { creerPersonne, inventorierPersonnes, lierLocuteur, modifierPersonne, supprimerPersonneVide } from '../src/shared/corpus/personnes'
+import { creerPersonne, inventorierPersonnes, lierLocuteur, modifierPersonne, separerPersonne, supprimerPersonneVide } from '../src/shared/corpus/personnes'
 import { peutCreerPersonneAuNommage, suggestionsExactesPersonnes } from '../src/shared/corpus/rapprochementsPersonnes'
 import { squeletteCorpus } from '../src/shared/corpus/squelette'
 import type { EntretienFichier } from '../src/shared/format'
@@ -77,6 +77,28 @@ describe('Personnes — règles de domaine', () => {
     lierLocuteur(c, e, 'l1', null)
     expect(e.locuteurs[0].personneRef).toBeNull()
     expect(c.personnes.p1).toEqual({ id: 'p1', nom: 'Marie D.' })
+  })
+
+  test('sépare une partie des locuteurs et en laisse au moins un sur la fiche d’origine', () => {
+    const c = squeletteCorpus()
+    creerPersonne(c, 'p1', 'Marie Dupont')
+    const a = entretien()
+    const b = entretien()
+    b.locuteurs = [{ id: 'l3', index: 0, nom: 'Mme Dupont', valeursLoc: {}, personneRef: null }]
+    lierLocuteur(c, a, 'l1', 'p1')
+    lierLocuteur(c, b, 'l3', 'p1')
+    const entretiens = [{ id: 'a', titre: 'A', data: a }, { id: 'b', titre: 'B', data: b }]
+    expect(() => separerPersonne(c, entretiens, 'p1', 'p2', 'Marie B', [])).toThrow('au moins un')
+    expect(() => separerPersonne(c, entretiens, 'p1', 'p2', 'Marie B', [
+      { entretienId: 'a', locuteurId: 'l1' },
+      { entretienId: 'b', locuteurId: 'l3' },
+    ])).toThrow('Laissez au moins un')
+    const nouvelle = separerPersonne(c, entretiens, 'p1', 'p2', 'Marie B', [
+      { entretienId: 'b', locuteurId: 'l3' },
+    ])
+    expect(nouvelle).toEqual({ id: 'p2', nom: 'Marie B' })
+    expect(a.locuteurs[0].personneRef).toBe('p1')
+    expect(b.locuteurs[0].personneRef).toBe('p2')
   })
 
   test('une déliaison persistée empêche la recréation au nommage sans interdire un rapprochement explicite', () => {
@@ -164,6 +186,82 @@ describe('Personnes — stockage local', () => {
     expect(apres.locuteurs.find(l => l.locuteurId === 'l1')).toMatchObject({ personneRef: p1, nom: 'Marie', valeursLoc: { age: '29' }, rapprochementsRefuses: [] })
     expect(apres.locuteurs.find(l => l.locuteurId === 'l2')?.rapprochementsRefuses).toEqual([`personne:${p1}`])
     expect(apres.locuteurs.filter(l => l.personneRef === p1)).toHaveLength(2)
+  })
+
+  test('sépare localement une personne avec un aperçu frais', () => {
+    const { store } = preparer()
+    const premier = store.personnesInventaire().locuteurs.find((locuteur) => locuteur.nom === 'Karine')!
+    const personneId = store.personnesCommander({
+      type: 'creer',
+      entretienId: premier.entretienId,
+      locuteurId: premier.locuteurId,
+      nom: 'Karine Dupont',
+    })!
+    const autre = store.creerEntretienVide('Deuxième entretien')
+    const data = entretien()
+    data.locuteurs[0].nom = 'Mme Dupont'
+    store.ecrireEntretien(autre.id, data)
+    store.personnesCommander({ type: 'lier', entretienId: autre.id, locuteurId: 'l1', personneId })
+    const avant = store.personnesInventaire()
+    expect(() => store.personnesCommander({
+      type: 'separer',
+      personneId,
+      nom: 'Identité vide',
+      locuteurs: avant.locuteurs
+        .filter((locuteur) => locuteur.personneRef === personneId)
+        .map((locuteur) => ({ entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId })),
+      attendu: JSON.stringify(avant),
+    })).toThrow('Laissez au moins un')
+    expect(store.personnesInventaire()).toEqual(avant)
+    const nouvelleId = store.personnesCommander({
+      type: 'separer',
+      personneId,
+      nom: 'Marie distincte',
+      locuteurs: [{ entretienId: autre.id, locuteurId: 'l1' }],
+      attendu: JSON.stringify(avant),
+    }, true)!
+    const apres = store.personnesInventaire()
+    expect(apres.personnes).toEqual(expect.arrayContaining([
+      { id: personneId, nom: 'Karine Dupont' },
+      { id: nouvelleId, nom: 'Marie distincte' },
+    ]))
+    expect(apres.locuteurs.find((locuteur) => locuteur.locuteurId === premier.locuteurId)?.personneRef).toBe(personneId)
+    expect(apres.locuteurs.find((locuteur) => locuteur.locuteurId === 'l1')?.personneRef).toBe(nouvelleId)
+    expect(store.journalCorpusLister()).toEqual([])
+  })
+
+  test('reprend une séparation interrompue après la création de la définition', () => {
+    const { store, dir } = preparer()
+    const premier = store.personnesInventaire().locuteurs.find((locuteur) => locuteur.nom === 'Karine')!
+    const personneId = store.personnesCommander({
+      type: 'creer',
+      entretienId: premier.entretienId,
+      locuteurId: premier.locuteurId,
+      nom: 'Karine Dupont',
+    })!
+    const autre = store.creerEntretienVide('Deuxième entretien')
+    const data = entretien()
+    store.ecrireEntretien(autre.id, data)
+    store.personnesCommander({ type: 'lier', entretienId: autre.id, locuteurId: 'l1', personneId })
+    const avant = store.personnesInventaire()
+    vi.spyOn(store, 'appliquerTransactionFichiers').mockImplementation((plan) => {
+      if (plan.operation !== 'remplacement') throw new Error('Plan inattendu')
+      expect(plan.ordre).toBe('corpus-puis-entretiens')
+      writeFileSync(join(dir, '.transaction-fichiers.json'), JSON.stringify({ formatVersion: 1, plan }))
+      writeFileSync(join(dir, 'corpus.json'), JSON.stringify(plan.corpusApres))
+      throw new Error('Arrêt simulé')
+    })
+    expect(() => store.personnesCommander({
+      type: 'separer',
+      personneId,
+      nom: 'Marie distincte',
+      locuteurs: [{ entretienId: autre.id, locuteurId: 'l1' }],
+      attendu: JSON.stringify(avant),
+    })).toThrow('Arrêt simulé')
+    const apres = new CorpusStore(dir).personnesInventaire()
+    const nouvelle = apres.personnes.find((personne) => personne.nom === 'Marie distincte')!
+    expect(apres.locuteurs.find((locuteur) => locuteur.locuteurId === 'l1')?.personneRef).toBe(nouvelle.id)
+    expect(apres.locuteurs.find((locuteur) => locuteur.locuteurId === premier.locuteurId)?.personneRef).toBe(personneId)
   })
 
   test('bloque le regroupement des locuteurs du même entretien sans changer les fichiers', () => {

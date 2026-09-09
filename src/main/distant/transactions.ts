@@ -48,6 +48,7 @@ import type {
   Variable,
 } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
+import type { CommandePersonnes } from '../../shared/corpus/personnes'
 
 /** Chemin VERROUILLÉ pour les transactions de définitions —
  *  TOUJOURS le fichier annexe (PUT conditionnel). */
@@ -71,12 +72,14 @@ export interface OptionsTransactions {
    *  ; false/absent = PUT conditionnel sur `verrous/<id>.lock.json`. Le verrou corpus, lui,
    *  reste TOUJOURS en PUT conditionnel. */
   verrouNatif?: boolean
-  /** Accès MINIMAL à la couche session — défense en profondeur du lot de valeurs :
-   *  si un entretien visé est OUVERT CHEZ NOUS (impossible depuis la table aujourd'hui,
-   *  qui ferme toute session),
-   *  on écrit par le chemin existant (`poserValeur` garde levée + `noterSale`)
-   *  au lieu d'une auto-concurrence de verrous. */
-  getSessions?: () => { idsTenus(): string[]; noterSale(id: string): void } | null
+  /** Accès à la couche session pour réutiliser un verrou déjà tenu par ce poste.
+   *  Une correction ordinaire marque la session comme sale au lieu de prendre un second verrou.
+   *  Une réunion publie la session avant de retirer une définition encore référencée. */
+  getSessions?: () => {
+    idsTenus(): string[]
+    noterSale(id: string): void
+    publier?(id: string): Promise<{ ok: boolean; raison?: string }>
+  } | null
 }
 
 export class TransactionsCorpus {
@@ -315,6 +318,304 @@ export class TransactionsCorpus {
       return archives
     } finally {
       await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
+    }
+  }
+
+  /* ── Correction courte d'un entretien ────────────────────────────────*/
+
+  /** Stabilise les définitions, relit l'entretien après verrou et publie sous ETag. */
+  async executerEntretien<T>(id: string, mutation: () => T): Promise<T> {
+    return this.executerCorrectionEntretiens(
+      { corpus: false, entretiens: [id] },
+      [id],
+      mutation,
+    )
+  }
+
+  /** Garde une source fraîche et stable pendant la correction d'un autre entretien. */
+  async executerEntretienAvecSource<T>(
+    id: string,
+    sourceId: string,
+    mutation: () => T,
+  ): Promise<T> {
+    if (id === sourceId) throw new ErreurTransaction('Choisissez un autre entretien comme source.')
+    return this.executerCorrectionEntretiens(
+      { corpus: false, entretiens: [id] },
+      [id, sourceId],
+      mutation,
+    )
+  }
+
+  /** Publie une création éventuelle, puis le refus sur sa cible. */
+  async refuserRapprochement(
+    commande: Extract<CommandePersonnes, { type: 'refuser' }>,
+  ): Promise<string | null> {
+    if (commande.entretienId === commande.sourceEntretienId) {
+      throw new ErreurTransaction('Choisissez un autre entretien comme source.')
+    }
+    return this.executerCorrectionEntretiens(
+      { corpus: true, entretiens: [commande.entretienId] },
+      [commande.entretienId, commande.sourceEntretienId],
+      () => this.getStore().personnesCommander(commande, false),
+    )
+  }
+
+  /** Publie une création éventuelle, puis les associations source et cible. */
+  async rapprocherPersonnes(
+    commande: Extract<CommandePersonnes, { type: 'rapprocher' }>,
+  ): Promise<string | null> {
+    if (commande.entretienId === commande.sourceEntretienId) {
+      throw new ErreurTransaction('Choisissez un autre entretien comme source.')
+    }
+    return this.executerCorrectionEntretiens(
+      {
+        corpus: true,
+        entretiens: [commande.sourceEntretienId, commande.entretienId],
+      },
+      [commande.entretienId, commande.sourceEntretienId],
+      () => this.getStore().personnesCommander(commande, false),
+    )
+  }
+
+  /** Réunit les liens avant de retirer la définition absorbée. */
+  async fusionnerPersonnes(
+    commande: Extract<CommandePersonnes, { type: 'fusionner' }>,
+  ): Promise<string | null> {
+    return this.executerCorrectionEntretiens(
+      {
+        corpus: true,
+        entretiens: () => Object.keys(this.getStore().ouvrir().membership),
+        ordreCorpus: 'apres',
+      },
+      () => Object.keys(this.getStore().ouvrir().membership),
+      () => this.getStore().personnesCommander(commande, false),
+    )
+  }
+
+  /** Crée la définition séparée avant de déplacer ses locuteurs. */
+  async separerPersonne(
+    commande: Extract<CommandePersonnes, { type: 'separer' }>,
+  ): Promise<string | null> {
+    return this.executerCorrectionEntretiens(
+      {
+        corpus: true,
+        entretiens: () => Object.keys(this.getStore().ouvrir().membership),
+        ordreCorpus: 'avant',
+      },
+      () => Object.keys(this.getStore().ouvrir().membership),
+      () => this.getStore().personnesCommander(commande, false),
+    )
+  }
+
+  /** Supprime une définition après contrôle frais de tous les entretiens. */
+  async supprimerPersonneVide(personneId: string): Promise<null> {
+    return this.executerCorrectionEntretiens(
+      { corpus: true, entretiens: [] },
+      () => Object.keys(this.getStore().ouvrir().membership),
+      () => {
+        this.getStore().personnesCommander({ type: 'supprimer', personneId }, false)
+        return null
+      },
+    )
+  }
+
+  private async executerCorrectionEntretiens<T>(
+    cibles: {
+      corpus: boolean
+      entretiens: string[] | (() => string[])
+      ordreCorpus?: 'avant' | 'apres'
+    },
+    idsDemandes: string[] | (() => string[]),
+    mutation: () => T,
+  ): Promise<T> {
+    const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
+    let verrouCorpusTenu = false
+    const verrousEntretiens: { provider: VerrouProvider; chemin: string }[] = []
+    const contenusAvant = new Map<string, string>()
+    const etags = new Map<string, string>()
+    try {
+      const acquisitionCorpus = await providerCorpus.acquerir(CHEMIN_VERROU_CORPUS)
+      if (!acquisitionCorpus.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisitionCorpus.tenuPar))
+      verrouCorpusTenu = true
+      const etagCorpus = await this.rafraichirCorpusLocal()
+      const cheminCorpus = join(this.miroir.dirLocal, CHEMIN_CORPUS)
+      const contenuCorpusAvant = readFileSync(cheminCorpus, 'utf8')
+      const idsLus = typeof idsDemandes === 'function' ? idsDemandes() : idsDemandes
+      const ids = [...new Set(idsLus)].sort((a, b) => a.localeCompare(b))
+      const entretiensCibles = typeof cibles.entretiens === 'function'
+        ? cibles.entretiens()
+        : cibles.entretiens
+      if (entretiensCibles.some((id) => !ids.includes(id))) {
+        throw new ErreurTransaction('Une cible de la correction n’a pas été verrouillée.')
+      }
+
+      const sessions = this.options.getSessions?.() ?? null
+      const idsTenus = new Set(sessions?.idsTenus() ?? [])
+      for (const id of ids) {
+        if (idsTenus.has(id)) continue
+        const provider = this.providerPourEntretien()
+        const chemin = this.cheminVerrouEntretien(id)
+        const acquisition = await provider.acquerir(chemin)
+        if (!acquisition.ok) {
+          throw new ErreurTransaction(
+            `« ${id} » est ouvert par ${acquisition.tenuPar?.userId ?? 'un autre utilisateur'} — impossible de le modifier tant que cette session tient.`,
+          )
+        }
+        verrousEntretiens.push({ provider, chemin })
+      }
+
+      for (const id of ids) {
+        const chemin = CHEMIN_ENTRETIEN(id)
+        if (!idsTenus.has(id)) {
+          const etag = await this.etagServeurDe(chemin)
+          if (!etag) throw new ErreurTransaction(`L’entretien « ${id} » est absent du serveur.`)
+          const contenu = await this.client.getTexte(chemin)
+          this.ecrireEntretienLocal(chemin, contenu)
+          this.miroir.noterEtagPublie(chemin, etag)
+          etags.set(id, etag)
+        }
+        contenusAvant.set(id, readFileSync(join(this.miroir.dirLocal, chemin), 'utf8'))
+      }
+
+      const store = this.getStore()
+      const gardePrecedente = store.lectureSeule
+      let resultat: T
+      try {
+        store.lectureSeule = false
+        resultat = mutation()
+        if (!cibles.corpus && readFileSync(cheminCorpus, 'utf8') !== contenuCorpusAvant) {
+          throw new Error('Cette correction modifie aussi les définitions du corpus et doit utiliser une transaction composite.')
+        }
+        const entretiensModifiables = new Set(entretiensCibles)
+        for (const id of ids) {
+          if (entretiensModifiables.has(id)) continue
+          const chemin = CHEMIN_ENTRETIEN(id)
+          if (readFileSync(join(this.miroir.dirLocal, chemin), 'utf8') !== contenusAvant.get(id)) {
+            throw new Error('Un entretien de contrôle a été modifié de façon inattendue.')
+          }
+        }
+      } catch (e) {
+        this.ecrireCorpusLocal(contenuCorpusAvant)
+        for (const [id, contenu] of contenusAvant) {
+          this.ecrireEntretienLocal(CHEMIN_ENTRETIEN(id), contenu)
+        }
+        throw e
+      } finally {
+        store.lectureSeule = gardePrecedente
+      }
+
+      const publies: string[] = []
+      const entretiensAPublier = entretiensCibles
+      const contenuCorpusTente = readFileSync(cheminCorpus, 'utf8')
+      const corpusModifie = contenuCorpusTente !== contenuCorpusAvant
+
+      const publierDefinitions = async (): Promise<void> => {
+        if (!corpusModifie) return
+        try {
+          await this.publierCorpus(etagCorpus)
+          publies.push('les définitions')
+        } catch (e) {
+          const reconciliation = await this.reconcilierCorpusApresEchec(contenuCorpusTente)
+          if (reconciliation === 'publie') {
+            publies.push('les définitions')
+            return
+          }
+          if (reconciliation === 'inconnue') this.ecrireCorpusLocal(contenuCorpusAvant)
+          if (publies.length) {
+            throw new ErreurTransaction(
+              `La correction a été appliquée partiellement (${publies.join(', ')}), mais les définitions n’ont pas été publiées. Actualisez le répertoire puis reprenez l’opération. ${classifier(e).message}`,
+            )
+          }
+          for (const [id, contenu] of contenusAvant) {
+            this.ecrireEntretienLocal(CHEMIN_ENTRETIEN(id), contenu)
+          }
+          throw e
+        }
+      }
+
+      const publierEntretiens = async (): Promise<void> => {
+        for (let index = 0; index < entretiensAPublier.length; index += 1) {
+          const id = entretiensAPublier[index]
+          const chemin = CHEMIN_ENTRETIEN(id)
+          const contenuAvant = contenusAvant.get(id)
+          const contenuTente = readFileSync(join(this.miroir.dirLocal, chemin), 'utf8')
+          if (contenuTente === contenuAvant) continue
+          try {
+            if (idsTenus.has(id)) {
+              sessions?.noterSale(id)
+              if (cibles.ordreCorpus === 'apres' && corpusModifie) {
+                if (!sessions?.publier) {
+                  throw new ErreurTransaction('La session ouverte ne permet pas de confirmer sa publication.')
+                }
+                const publication = await sessions.publier(id)
+                if (!publication.ok) {
+                  throw new ErreurTransaction(
+                    `La session de « ${id} » n’a pas été publiée (${publication.raison ?? 'échec inconnu'}).`,
+                  )
+                }
+              }
+            } else {
+              const etagFinal = await this.publierEntretienCourt(
+                chemin,
+                contenuTente,
+                etags.get(id) ?? null,
+              )
+              if (etagFinal) this.miroir.noterEtagPublie(chemin, etagFinal)
+            }
+            publies.push(`l’entretien « ${id} »`)
+          } catch (e) {
+            await this.rafraichirEntretienLocalApresEchec(chemin, contenuAvant ?? contenuTente)
+            for (const restant of entretiensAPublier.slice(index + 1)) {
+              const avant = contenusAvant.get(restant)
+              if (avant !== undefined) this.ecrireEntretienLocal(CHEMIN_ENTRETIEN(restant), avant)
+            }
+            if (cibles.ordreCorpus === 'apres' && corpusModifie) {
+              this.ecrireCorpusLocal(contenuCorpusAvant)
+            }
+            if (publies.length) {
+              throw new ErreurTransaction(
+                `La correction a été appliquée partiellement (${publies.join(', ')}), mais « ${id} » a échoué. Actualisez le répertoire puis reprenez l’opération. ${classifier(e).message}`,
+              )
+            }
+            throw e
+          }
+        }
+      }
+
+      if (cibles.ordreCorpus === 'apres') {
+        await publierEntretiens()
+        await publierDefinitions()
+      } else {
+        await publierDefinitions()
+        await publierEntretiens()
+      }
+      return resultat
+    } catch (e) {
+      throw classifier(e)
+    } finally {
+      for (const verrou of [...verrousEntretiens].reverse()) {
+        await verrou.provider.liberer(verrou.chemin).catch(() => {})
+      }
+      if (verrouCorpusTenu) await providerCorpus.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
+    }
+  }
+
+  /** Crée la définition avant le lien et conserve la fiche si le second commit échoue. */
+  async creerPersonneDepuisLocuteur(
+    entretienId: string,
+    locuteurId: string,
+    nom: string,
+  ): Promise<string> {
+    const personneId = await this.executer(() => this.getStore().creerDefinitionPersonne(nom))
+    try {
+      await this.executerEntretien(entretienId, () => this.getStore().personnesCommander({
+        type: 'lier', entretienId, locuteurId, personneId,
+      }, false))
+      return personneId
+    } catch (e) {
+      throw new ErreurTransaction(
+        `La personne a été créée, mais le lien a échoué. Retrouvez-la dans le répertoire pour réessayer. ${classifier(e).message}`,
+      )
     }
   }
 
@@ -619,6 +920,28 @@ export class TransactionsCorpus {
         /* L'erreur initiale reste la plus utile. */
       }
       throw e
+    }
+  }
+
+  private ecrireEntretienLocal(chemin: string, contenu: string): void {
+    const abs = join(this.miroir.dirLocal, chemin)
+    mkdirSync(dirname(abs), { recursive: true })
+    const tmp = `${abs}.tmp`
+    writeFileSync(tmp, contenu, 'utf8')
+    renameSync(tmp, abs)
+  }
+
+  private async rafraichirEntretienLocalApresEchec(chemin: string, repli: string): Promise<void> {
+    try {
+      const etag = await this.etagServeurDe(chemin)
+      if (!etag) {
+        this.ecrireEntretienLocal(chemin, repli)
+        return
+      }
+      this.ecrireEntretienLocal(chemin, await this.client.getTexte(chemin))
+      this.miroir.noterEtagPublie(chemin, etag)
+    } catch {
+      this.ecrireEntretienLocal(chemin, repli)
     }
   }
 

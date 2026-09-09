@@ -646,9 +646,54 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
   ipcMain.handle('corpus:scanAnon', () => store.scanAnon())
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
-  ipcMain.handle('corpus:personnesCommander', (_e, commande: import('../shared/corpus/personnes').CommandePersonnes) => {
-    if (transactions || store.lectureSeule) throw new Error('Les corrections de personnes sont disponibles uniquement dans les corpus locaux pour le moment.')
-    return store.personnesCommander(commande)
+  ipcMain.handle('corpus:personnesCommander', async (
+    _e,
+    commande: import('../shared/corpus/personnes').CommandePersonnes,
+    depuisRepertoire = false,
+  ) => {
+    if (!transactions) {
+      if (store.lectureSeule) throw new Error('Le corpus distant est hors ligne. La correction n’a pas été enregistrée.')
+      return store.personnesCommander(commande, depuisRepertoire)
+    }
+    if (commande.type === 'creerDefinition' || commande.type === 'modifier') {
+      return transactions.executer(() => store.personnesCommander(commande, false))
+    }
+    if (commande.type === 'lier' || commande.type === 'annulerRefus') {
+      return transactions.executerEntretien(
+        commande.entretienId,
+        () => store.personnesCommander(commande, false),
+      )
+    }
+    if (commande.type === 'refuser') {
+      return transactions.refuserRapprochement(commande)
+    }
+    if (commande.type === 'rapprocher') {
+      return transactions.rapprocherPersonnes(commande)
+    }
+    if (commande.type === 'creer') {
+      return transactions.creerPersonneDepuisLocuteur(
+        commande.entretienId,
+        commande.locuteurId,
+        commande.nom,
+      )
+    }
+    if (commande.type === 'supprimer') {
+      return transactions.supprimerPersonneVide(commande.personneId)
+    }
+    if (commande.type === 'fusionner') {
+      return transactions.fusionnerPersonnes(commande)
+    }
+    if (commande.type === 'separer') {
+      return transactions.separerPersonne(commande)
+    }
+    throw new Error('Cette correction de personnes n’est pas encore disponible dans les corpus distants.')
+  })
+  ipcMain.handle('corpus:journalLister', () => store.journalCorpusLister())
+  ipcMain.handle('corpus:journalAnnuler', (_e, id: string) => {
+    if (transactions || store.lectureSeule) {
+      return { ok: false, raison: 'L’annulation des actions du corpus distant n’est pas encore disponible.', temporaire: false }
+    }
+    return store.journalCorpusAnnuler(id)
   })
   ipcMain.handle('corpus:regleAnonParEntite', (_e, entite: string) => store.regleAnonParEntite(entite))
   ipcMain.handle('corpus:regleAnonCreer', (_e, entite: string, pseudos: string[]) =>

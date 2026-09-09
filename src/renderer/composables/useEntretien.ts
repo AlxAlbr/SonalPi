@@ -84,7 +84,7 @@ type Extrait = { id: string; texte: string; locuteurs: string[] }
  *    de thèmes/variables vivent au corpus, le journal vit ici).
  */
 import type { VueLocuteurPersonne } from '../../shared/corpus/personnes'
-import { type ChoixRepriseLocuteur, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur, suggestionsExactesPersonnes } from '../../shared/corpus/rapprochementsPersonnes'
+import { type ChoixRepriseLocuteur, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur, suggestionsPersonnes } from '../../shared/corpus/rapprochementsPersonnes'
 
 export function useEntretien(deps: {
   couleurTrait: (code: string) => string
@@ -999,7 +999,7 @@ export function useEntretien(deps: {
         const personneRef = courant()!.personneRef
         const lienActuel = personneRef ? inventaire.personnes.find((p) => p.id === personneRef)?.nom ?? 'Personne absente' : ''
         if (personneRef) messagePersonnes.value = `Lié à « ${lienActuel} » — le nom saisi reste le nom local de cet entretien.`
-        const candidats = suggestionsExactesPersonnes({ entretienId: idEntretien, locuteur: courant()! },
+        const candidats = suggestionsPersonnes({ entretienId: idEntretien, locuteur: courant()! },
           inventaire.locuteurs.map((l) => ({ entretienId: l.entretienId, locuteur: { ...l, id: l.locuteurId } })))
         if (candidats.length) {
           rapprochementNommage.value = { entretienId: idEntretien, locuteurId: idLocuteur, nom, personneRef, lienActuel,

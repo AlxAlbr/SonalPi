@@ -2,12 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import RapprochementCorpus from './RapprochementCorpus.vue'
 import { utiliserSonal } from '../../composables/sonal'
-import { natureNomPersonne, suggestionsExactesPersonnes } from '../../../shared/corpus/rapprochementsPersonnes'
+import { analyserRapprochementPersonne, natureNomPersonne, suggestionsPersonnes } from '../../../shared/corpus/rapprochementsPersonnes'
 import type { CommandePersonnes, InventairePersonnes, VueLocuteurPersonne } from '../../../shared/corpus/personnes'
 
 const props = defineProps<{ actif: boolean }>()
 const { lirePersonnes, commanderPersonnes, allerLocuteurs, allerNotes, variables, badgeVerrou,
-  nomCategorieNote, idDistantCourant, lectureSeule, dernierTirage, dossierCourantDir, vue } = utiliserSonal()
+  nomCategorieNote, idDistantCourant, lectureSeule, dernierTirage, dossierCourantDir, vue,
+  revisionPersonnesCorpus } = utiliserSonal()
 const inventaire = ref<InventairePersonnes>({ personnes: [], locuteurs: [], notes: [], indisponibles: [] })
 const selection = ref('')
 const titreFiche = ref<HTMLHeadingElement | null>(null)
@@ -20,8 +21,14 @@ const ficheVide = computed(() => inventaire.value.personnes.find(p => p.id === f
 const occupe = ref(false)
 const charge = ref(false)
 let generation = 0
-const lectureUniquement = computed(() => !!idDistantCourant.value || lectureSeule.value)
+const corpusDistant = computed(() => !!idDistantCourant.value)
+const lectureUniquement = computed(() => lectureSeule.value)
 const desactive = computed(() => occupe.value || lectureUniquement.value)
+const desactiveComposite = computed(() => desactive.value)
+const refusComposite = (l: VueLocuteurPersonne) =>
+  !l.personneRef && !l.personneDeliee && natureNomPersonne(l.nom) === 'specifique'
+const rapprochementDesactive = (_cible: VueLocuteurPersonne, _source: VueLocuteurPersonne) =>
+  desactive.value
 const personne = computed(() => inventaire.value.personnes.find((p) => `p:${p.id}` === selection.value))
 const cleLocuteur = (l: VueLocuteurPersonne) => JSON.stringify([l.entretienId, l.locuteurId])
 const locuteur = computed(() => inventaire.value.locuteurs.find((l) => `l:${cleLocuteur(l)}` === selection.value))
@@ -74,7 +81,7 @@ const suggestionsParLocuteur = computed(() => {
   const convertir = (l: VueLocuteurPersonne) => ({ entretienId: l.entretienId, locuteur: { ...l, id: l.locuteurId } })
   const tous = inventaire.value.locuteurs.map(convertir)
   return new Map(inventaire.value.locuteurs.map((l) => {
-    const suggestions = suggestionsExactesPersonnes(convertir(l), tous)
+    const suggestions = suggestionsPersonnes(convertir(l), tous)
     return [cleLocuteur(l), inventaire.value.locuteurs.filter((c) => suggestions.some((s) => s.entretienId === c.entretienId && s.locuteur.id === c.locuteurId))]
   }))
 })
@@ -98,11 +105,16 @@ function validerRapprochement(commande: CommandePersonnes) {
 }
 const nom = ref('')
 const cible = ref('')
+const locuteursSeparation = ref<string[]>([])
+const nomSeparation = ref('')
+const separationComplete = computed(() => !!lies.value.length && locuteursSeparation.value.length >= lies.value.length)
 watch([selection, inventaire], () => {
   nom.value = personne.value?.nom ?? locuteur.value?.nom ?? ''
   cible.value = ''
   autreFiche.value = ''
   sourceReprise.value = null
+  locuteursSeparation.value = []
+  nomSeparation.value = ''
 })
 const variablesLoc = computed(() => variables.value.filter((v) => v.portee === 'locuteur'))
 function valeur(l: VueLocuteurPersonne, idVar: string) {
@@ -137,11 +149,15 @@ async function executer(commande: CommandePersonnes) {
       ? inventaire.value.locuteurs.find(l => l.entretienId === commande.entretienId && l.locuteurId === commande.locuteurId)?.personneRef : null
     const id = await commanderPersonnes(commande)
     if (jeton !== generation) return
-    if (['creer', 'fusionner', 'rapprocher'].includes(commande.type) && id) selection.value = `p:${id}`
-    if (commande.type === 'fusionner') { filtre.value = 'tous'; recherche.value = '' }
+    if (['creer', 'fusionner', 'rapprocher', 'separer'].includes(commande.type) && id) selection.value = `p:${id}`
+    if (commande.type === 'fusionner' || commande.type === 'separer') { filtre.value = 'tous'; recherche.value = '' }
     if (commande.type === 'supprimer') selection.value = ''
     ficheVideId.value = ancienLien ?? ''
-    message.value = commande.type === 'fusionner' ? 'Les entretiens sont maintenant réunis sous une même personne.' : 'Modification enregistrée.'
+    message.value = commande.type === 'fusionner'
+      ? 'Les entretiens sont maintenant réunis sous une même personne.'
+      : commande.type === 'separer'
+        ? 'Les locuteurs sélectionnés forment maintenant une nouvelle personne.'
+        : 'Modification enregistrée.'
   } catch (e) {
     if (jeton === generation) erreur.value = e instanceof Error ? e.message : String(e)
   } finally {
@@ -149,7 +165,7 @@ async function executer(commande: CommandePersonnes) {
       const erreurCommande = erreur.value
       await actualiser()
       if (erreurCommande) erreur.value = erreurCommande
-      if (commande.type === 'fusionner' && !erreur.value) { await nextTick(); titreFiche.value?.focus() }
+      if ((commande.type === 'fusionner' || commande.type === 'separer') && !erreur.value) { await nextTick(); titreFiche.value?.focus() }
     }
   }
 }
@@ -197,6 +213,41 @@ function annuler() {
 async function confirmer() {
   const commande = confirmation.value?.commande
   annuler()
+  if (commande) await executer(commande)
+}
+
+type CommandeSeparation = Extract<CommandePersonnes, { type: 'separer' }>
+const separation = ref<{ commande: CommandeSeparation; locuteurs: VueLocuteurPersonne[]; restants: number } | null>(null)
+const dialogueSeparation = ref<HTMLDialogElement | null>(null)
+let retourFocusSeparation: HTMLElement | null = null
+async function demanderSeparation() {
+  const fiche = personne.value
+  const selectionnees = lies.value.filter((lie) => locuteursSeparation.value.includes(cleLocuteur(lie)))
+  const nouveauNom = nomSeparation.value.trim()
+  if (!fiche || !selectionnees.length || selectionnees.length >= lies.value.length || !nouveauNom || desactiveComposite.value) return
+  retourFocusSeparation = document.activeElement as HTMLElement | null
+  separation.value = {
+    commande: {
+      type: 'separer',
+      personneId: fiche.id,
+      nom: nouveauNom,
+      locuteurs: selectionnees.map((lie) => ({ entretienId: lie.entretienId, locuteurId: lie.locuteurId })),
+      attendu: JSON.stringify(inventaire.value),
+    },
+    locuteurs: selectionnees,
+    restants: lies.value.length - selectionnees.length,
+  }
+  await nextTick()
+  dialogueSeparation.value?.showModal()
+}
+function annulerSeparation() {
+  dialogueSeparation.value?.close()
+  separation.value = null
+  retourFocusSeparation?.focus()
+}
+async function confirmerSeparation() {
+  const commande = separation.value?.commande
+  annulerSeparation()
   if (commande) await executer(commande)
 }
 function lier(l: VueLocuteurPersonne, personneId: string | null) {
@@ -262,8 +313,10 @@ watch(dossierCourantDir, () => {
   selection.value = ''; recherche.value = ''; filtre.value = 'tous'; charge.value = false
   erreur.value = ''; message.value = ''; occupe.value = false
   annuler()
+  dialogueSeparation.value?.close()
+  separation.value = null
 })
-watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
+watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonnesCorpus], () => {
   if (props.actif && vue.value === 'corpus') void actualiser()
   else if (!props.actif && dialogueAide.value?.open) fermerAide()
 }, { immediate: true })
@@ -276,7 +329,8 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
       <span>{{ inventaire.personnes.length }} personnes · {{ nonLies.length }} locuteurs sans lien valide</span>
       <button class="actualiser" :disabled="occupe" @click="actualiser">Actualiser</button>
     </header>
-    <p v-if="lectureUniquement" class="information">Consultation seule : les corrections de personnes sont disponibles dans les corpus locaux pour le moment.</p>
+    <p v-if="lectureUniquement" class="information">Consultation seule : reconnectez le corpus distant pour appliquer une correction.</p>
+    <p v-else-if="corpusDistant" class="information">Les corrections sont publiées sous verrou. Une opération touchant plusieurs entretiens peut réussir partiellement ; actualisez alors le répertoire pour reprendre les éléments restants.</p>
     <p v-if="erreur" role="alert" class="erreur">{{ erreur }}</p>
     <p v-if="message" role="status">{{ message }}</p>
     <section v-if="ficheVide" aria-label="Personne sans entretien">
@@ -342,12 +396,13 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
       <section class="fiche" aria-label="Détails de la personne">
         <section v-if="locuteur && candidats.length" aria-label="Rapprochements proposés">
           <h3>Rapprochements proposés</h3>
-          <p v-if="!locuteur.personneRef && natureNomPersonne(locuteur.nom) === 'specifique'">« Personne différente » crée une personne distincte pour ce locuteur et mémorise le refus.</p>
+          <p v-if="refusComposite(locuteur)">« Personne différente » crée une personne distincte pour ce locuteur et mémorise le refus.</p>
           <p v-if="natureNomPersonne(locuteur.nom) === 'role'">Même rôle ne signifie pas même personne. En cas d’homonymie, vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer les locuteurs.</p>
           <ul><li v-for="s in candidats" :key="cleLocuteur(s)">
             <strong>{{ s.nom }}</strong> · {{ s.entretienTitre }}
+            <span> · {{ analyserRapprochementPersonne(locuteur.nom, s.nom)?.libelle }}</span>
             <span v-if="s.personneRef"> · {{ inventaire.personnes.find(p => p.id === s.personneRef)?.nom }}</span>
-            <button :disabled="desactive" @click="sourceReprise = s">C’est la même personne…</button>
+            <button :disabled="rapprochementDesactive(locuteur, s)" @click="sourceReprise = s">C’est la même personne…</button>
             <button :disabled="desactive" @click="executer({ type: 'refuser', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, sourceEntretienId: s.entretienId, sourceLocuteurId: s.locuteurId })">Personne différente</button>
           </li></ul>
         </section>
@@ -371,11 +426,28 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
           <details v-if="lies.length">
             <summary>Réunir…</summary>
             <form class="reunir-personne" @submit.prevent="verifierAutreFiche">
-              <label><span>Avec</span><select v-model="autreFiche" :disabled="desactive">
+              <label><span>Avec</span><select v-model="autreFiche" :disabled="desactiveComposite">
                 <option value="">Choisir une personne…</option>
                 <option v-for="p in inventaire.personnes.filter(p => p.id !== personne?.id && inventaire.locuteurs.some(l => l.personneRef === p.id))" :key="p.id" :value="p.id">{{ p.nom }} · {{ inventaire.locuteurs.filter(l => l.personneRef === p.id).map(l => l.entretienTitre).join(', ') }}</option>
               </select></label>
-              <button :disabled="desactive || !autreFiche">Continuer…</button>
+              <button :disabled="desactiveComposite || !autreFiche">Continuer…</button>
+            </form>
+          </details>
+          <details v-if="lies.length > 1" class="separer-personne">
+            <summary>Séparer…</summary>
+            <form @submit.prevent="demanderSeparation">
+              <fieldset :disabled="desactiveComposite">
+                <legend>Locuteurs à placer dans la nouvelle personne</legend>
+                <label v-for="lie in lies" :key="cleLocuteur(lie)" class="choix-separation">
+                  <input v-model="locuteursSeparation" type="checkbox" :value="cleLocuteur(lie)" />
+                  <span>{{ lie.entretienTitre }} · {{ lie.nom }}</span>
+                </label>
+              </fieldset>
+              <label>Nom de la nouvelle personne
+                <input v-model="nomSeparation" :disabled="desactiveComposite" required />
+              </label>
+              <p v-if="separationComplete" class="erreur">Laissez au moins un locuteur sur « {{ personne.nom }} ».</p>
+              <button :disabled="desactiveComposite || !locuteursSeparation.length || separationComplete || !nomSeparation.trim()">Continuer…</button>
             </form>
           </details>
           <h4>Noms et entretiens</h4>
@@ -460,9 +532,10 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
       <h4>Créer, associer ou réunir</h4>
       <ul>
         <li>Choisissez un locuteur sans lien pour créer une personne ou l’associer à une personne existante.</li>
-        <li>Un nom identique ou un même rôle produit seulement une suggestion&nbsp;: aucun rapprochement n’est validé automatiquement.</li>
+        <li>Un nom identique, une graphie proche stricte ou un même rôle produit seulement une suggestion expliquée&nbsp;: aucun rapprochement n’est validé automatiquement.</li>
         <li><strong>C’est la même personne…</strong> relie deux locuteurs. <strong>Réunir…</strong> rassemble sous une même personne des entretiens déjà rapprochés séparément.</li>
         <li><strong>Modifier l’association…</strong> déplace ou dissocie uniquement le locuteur sélectionné. Une personne sans entretien reste disponible jusqu’à sa suppression explicite.</li>
+        <li><strong>Séparer…</strong> crée une nouvelle personne avec les locuteurs choisis. Au moins un locuteur doit rester sur la fiche d’origine.</li>
       </ul>
 
       <h4>Notes liées</h4>
@@ -470,8 +543,18 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir], () => {
 
       <h4>Ce qui reste inchangé</h4>
       <p>Modifier une personne ou réunir ses entretiens ne change ni les noms locaux, ni les pseudonymes, ni les rôles, ni les données ou notes des entretiens. Ces informations peuvent différer légitimement d’un entretien à l’autre.</p>
-      <p><strong>Ouvrir l’entretien</strong> permet de consulter ou modifier le locuteur et ses notes dans leur contexte. Les corrections depuis cet onglet sont actuellement réservées aux corpus locaux.</p>
+      <p><strong>Ouvrir l’entretien</strong> permet de consulter ou modifier le locuteur et ses notes dans leur contexte. Dans un corpus distant, les corrections utilisent des verrous courts et signalent précisément les publications partielles à reprendre.</p>
       <div class="actions"><button autofocus @click="fermerAide">Fermer</button></div>
+    </dialog>
+    <dialog ref="dialogueSeparation" aria-labelledby="separation-personnes-titre" @cancel.prevent="annulerSeparation">
+      <h3 id="separation-personnes-titre">Séparer cette personne</h3>
+      <template v-if="separation">
+        <p>Créer « {{ separation.commande.nom }} » avec {{ separation.locuteurs.length }} locuteur{{ separation.locuteurs.length > 1 ? 's' : '' }}. « {{ personne?.nom }} » conservera {{ separation.restants }} locuteur{{ separation.restants > 1 ? 's' : '' }}.</p>
+        <ul>
+          <li v-for="lie in separation.locuteurs" :key="cleLocuteur(lie)">{{ lie.entretienTitre }} · {{ lie.nom }}</li>
+        </ul>
+      </template>
+      <div class="actions"><button autofocus @click="annulerSeparation">Annuler</button><button @click="confirmerSeparation">Séparer</button></div>
     </dialog>
     <dialog ref="dialogue" aria-labelledby="confirmation-personnes-titre" @cancel.prevent="annuler">
       <h3 id="confirmation-personnes-titre">Confirmer l’association</h3>
@@ -520,6 +603,10 @@ form { margin-bottom: 16px; }
 .reunir-personne label { flex: 1 1 280px; flex-direction: row; align-items: center; margin: 0; }
 .reunir-personne label span { flex: 0 0 auto; }
 .reunir-personne select { flex: 1; width: auto; min-width: 0; }
+.separer-personne form { margin-top: 8px; }
+.separer-personne fieldset { margin: 8px 0; border: 1px solid #d4dce6; }
+.choix-separation { flex-direction: row; align-items: center; margin: 6px 0; }
+.choix-separation input { width: auto; }
 .action-personne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 .action-personne label { flex: 1 1 280px; flex-direction: row; align-items: center; margin: 0; }
 .action-personne label span { flex: 0 0 auto; }

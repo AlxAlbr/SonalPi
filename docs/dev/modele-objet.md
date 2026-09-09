@@ -448,7 +448,8 @@ classDiagram
   un refus importé d'un `.sonal` reste honoré au rendu, mais il n'est plus saisissable ici.
 - **Couleur** : choisie (palette définie `PALETTE_PASTILLES_LOCUTEURS`) ou **auto par index** ;
   stable car l'index est l'identité.
-- **`personneRef`** : pointe vers une `Personne` du corpus, ou vaut `null`. Les corrections manuelles du répertoire sont disponibles en local ; l’inventaire distant reste consultable.
+- **`personneRef`** : pointe vers une `Personne` du corpus, ou vaut `null`. Dans un corpus distant, les liaisons simples passent par un verrou corpus court, puis par la session déjà ouverte ou par un verrou court avec GET frais et PUT conditionnel de l’entretien.
+- **Rapprochements** : les suggestions sont recalculées et ne sont jamais stockées. Elles couvrent les noms normalisés identiques, les rôles équivalents et deux variantes proches strictes : une lettre différente avec un mot commun, ou les mêmes mots dans un ordre différent. Les variantes proches exigent plusieurs mots afin qu’un prénom ou un nom seul ne suffise pas. En distant, la cible et sa source sont verrouillées et relues dans l’ordre de leurs ids. Un refus simple publie uniquement la cible ; un rapprochement ou un refus créant une définition publie celle-ci avant les associations et conserve les réussites en cas d’échec ultérieur.
 - **`personneDeliee`** : marqueur optionnel de déliaison volontaire, conservé dans l’entretien. Empêche la recréation automatique au nommage, y compris après un refus ; une liaison explicite le retire. Son absence conserve le comportement des anciens fichiers.
 
 **Code** : `src/shared/entretien/locuteurs.ts`, type `Locuteur` dans `src/shared/format.ts`.
@@ -457,7 +458,9 @@ classDiagram
 
 > **Cadrage.** *Nouveau* par rapport au doc initial (SonalPi1 n'avait pas ce patron). Seules les
 > actions de **modèle** y entrent (codages, locuteurs, valeurs) — la frappe de texte reste sur
-> Ctrl+Z. Journal **volatil** : session courante, jamais persisté, vidé à l'ouverture d'un entretien.
+> Ctrl+Z. Les Journaux sont **volatils** et ne proposent pas de rétablissement : le Journal
+> d’entretien est vidé à son ouverture, tandis que celui du corpus est vidé lors d’une bascule
+> de corpus ou au redémarrage.
 
 ```mermaid
 classDiagram
@@ -484,10 +487,15 @@ classDiagram
   inverses (annotation retirée à re-poser, positions de blocs à restaurer) en même temps que le
   modèle. « Cible disparue → grisé » en découle : `estApplicable` refus `false` sans toucher à rien.
 - **Cap** : `CAP_JOURNAL = 10` entrées affichées.
+- **Journal du corpus** : ses inverses ciblés vivent dans le main, qui relit les fichiers et
+  vérifie l’état produit par l’action avant d’écrire. Le premier raccordement couvre les commandes
+  simples du répertoire Personnes. Les rapprochements composites, réunions, séparations,
+  réussites partielles et opérations distantes ne créent pas d’entrée.
 - **Hors périmètre (assumé)** : ajouter un locuteur (pas de suppression modélisée), supprimer un
   thème (acte destructif **non réversible** → pas d'entrée).
 
-**Code** : `src/shared/entretien/journal.ts`, `src/renderer/editor/journalRemap.ts`.
+**Code** : `src/shared/entretien/journal.ts`, `src/renderer/editor/journalRemap.ts`,
+`src/shared/corpus/journal.ts`, `src/main/journalCorpus.ts`.
 
 ## 9. Persistance & stockage
 
@@ -597,17 +605,25 @@ classDiagram
   un échec de la seconde écriture conserve une fiche vide et produit une erreur explicite.
   La suppression exige une fiche vide et un inventaire complet. Les anciens corpus reçoivent
   `personnes: {}` en mémoire, sans migration de version ni écriture lors de la consultation.
-  Les suggestions exactes et les refus révocables sont disponibles en local.
+  Les suggestions exactes et les refus révocables sont disponibles dans le répertoire.
   La commande `fusionner` vérifie que l’inventaire correspond encore à l’aperçu confirmé,
   exige un inventaire complet et refuse les doublons de locuteurs dans un même entretien.
   Elle conserve un id et son nom, réaffecte tous les liens, redirige les refus visant la fiche
-  absorbée et retire les refus internes au groupe. Les notes liées restent dans leurs entretiens
-  et apparaissent automatiquement dans l’agrégation de la fiche conservée.
-  `TransactionsFichiersCorpus` journalise les états avant/après des entretiens modifiés,
-  puis remplace `corpus.json` seulement après les liens. La reprise accepte les états avant
-  ou après connus, jamais un état extérieur divergent. Une reprise de données optionnelle
+  absorbée et retire les refus internes au groupe. La commande `separer` crée une nouvelle
+  définition et y déplace les liens choisis, tout en exigeant qu’un locuteur reste sur la fiche
+  d’origine. Les notes liées restent dans leurs entretiens et suivent leur locuteur par agrégation.
+  `TransactionsFichiersCorpus` journalise les états avant/après des entretiens modifiés. Une
+  fusion remplace les liens avant de retirer la définition absorbée ; une séparation crée la
+  définition avant de remplacer les liens. La reprise accepte les états avant ou après connus,
+  jamais un état extérieur divergent. Une reprise de données optionnelle
   fait partie du même journal ; elle ne concerne que le locuteur cible explicitement affiché.
-  Les corrections distantes restent à implémenter.
+  En distant, le renommage de définition est transactionnel et les associations simples utilisent
+  `TransactionsCorpus.executerEntretien`. Les corrections avec source stabilisent les définitions
+  et tous les entretiens concernés. Créations, refus composites et séparations publient la nouvelle
+  définition avant les liens. Une réunion publie les liens avant de retirer la définition absorbée,
+  de sorte qu’un échec conserve les deux définitions et puisse être repris. Une suppression verrouille
+  et relit tous les entretiens avant de confirmer que la fiche est vide. Toute réussite partielle est
+  conservée et remontée nominativement au renderer.
 - **Découplée de l'anonymisation.** `Personne` ne référence pas `RegleAnon` : le cas
   « deux graphies → un pseudo » est couvert par les **alias** `entite[]` (§6), système généraliste
   pour personnes comme lieux/organisations. `Personne` est une identité transverse de locuteur,

@@ -81,7 +81,7 @@ export function creerSonal() {
       await window.sonal.corpus.regleAnonCategoriser(id, cat)
       await corpus.rafraichirScanAnon() // la projection des lignes relit la règle fraîche
     },
-    lectureSeule: () => lectureSeule.value, // définitions : grisage permanent en distant
+    lectureSeule: () => lectureSeule.value, // hors ligne : aucune écriture partagée n'est tentée
     entretienEditable: () =>
       !lectureSeule.value &&
       !ent.verrouAutrui.value &&
