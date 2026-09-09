@@ -18,6 +18,34 @@ La taille seule ne justifie pas une extraction. Le résultat recherché est surt
 frontière claire : chaque panneau possède son état d’interface, ses gestes et ses styles,
 tandis que le composant d’écran conserve la navigation et la disposition générale.
 
+## Avancement
+
+- [x] `PanneauDonneesEntretien.vue` : template, saisie libre, édition des variables et
+  styles extraits. Typecheck, tests unitaires, build et `e2e/donnees.e2e.ts` validés.
+- [x] `PanneauJournalEntretien.vue` : liste, annulation et styles extraits. Typecheck,
+  tests unitaires, build et `e2e/journal.e2e.ts` validés.
+- [x] `PanneauAccueilEntretien.vue` : raccourcis, présentation des onglets, icônes et
+  styles extraits. Typecheck, tests unitaires, build et `e2e/navigation.e2e.ts` validés.
+- [x] `PanneauThemesEntretien.vue` : arbre, repli, codage, menu contextuel, édition et
+  styles extraits. Typecheck, tests unitaires, build, `e2e/theme-entretien.e2e.ts` et
+  `e2e/themes.e2e.ts` validés.
+- [x] `PanneauLocuteursEntretien.vue` : chargement des personnes liées, tableau,
+  rapprochement, attribution, suppression et styles extraits. Typecheck, tests unitaires,
+  build et les quatre suites E2E ciblées validés.
+- [x] `PanneauNotesEntretien.vue` : cartes, feuille éditable, filtres, brouillon,
+  catégories, liaisons aux commentaires et styles extraits. Un test couvre désormais
+  la conservation du brouillon entre deux onglets. Typecheck, tests unitaires, build
+  et les trois suites E2E ciblées validés.
+- [x] `PanneauAnonymisationEntretien.vue` : lignes, brouillons, repérage, écouteurs
+  de sélection, dialogues et styles extraits. Les dialogues sont téléportés hors de
+  la colonne collante pour conserver leur empilement. Un test couvre l'alimentation
+  depuis la sélection et la conservation du brouillon entre deux onglets. Typecheck,
+  tests unitaires, build et les trois suites E2E ciblées validés.
+- [x] Nettoyage final de `Entretien.vue` : la coquille conserve la navigation, la
+  disposition, le média, l'éditeur, la recherche et ses fenêtres contextuelles. La
+  suite E2E locale complète a été exécutée et les scénarios instables ont été validés
+  après correction ou relance ciblée.
+
 ## Principes de travail
 
 1. Extraire un seul panneau à la fois.

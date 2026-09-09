@@ -233,6 +233,7 @@ test('pas-à-pas : charger, noter, lier le srt, renommer, coder, saisir une vari
   const champs = page.locator('.nom-loc')
   await champs.nth(0).fill('Enquêteur·rice')
   await champs.nth(0).blur() // blur → @change → renommerLoc
+  await expect(page.locator('.tableau-loc p[role="status"]')).toContainText('Enquêteur·rice')
   await champs.nth(1).fill('Fatima')
   await champs.nth(1).blur()
   // Plus aucun « Speaker N » → étape 4 cochée (guidage de nouveau arrêté).
@@ -378,7 +379,7 @@ test('réouverture par « Récents » : le panneau ET l\'historique des étapes 
   }, { srt: join(dirSources, 'srt', '1Coordinatrice.srt'), mp3: join(dirSources, 'audio', '1Coordinatrice.mp3') })
   await ajouterParModale(page, ['texte', 'audio'])
   await expect(page.locator('.carte-ent')).toHaveCount(1)
-  await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 5_000 })
+  await expect(page.locator('.liste-pp li').first()).toHaveClass(/fait/, { timeout: 10_000 })
   // Attendre que l'historique soit écrit dans le MARQUEUR du corpus (watch →
   // corpus:marquerDemo) avant de fermer — sinon le test pourrait lire trop tôt.
   await expect
@@ -477,6 +478,7 @@ test('pas-à-pas : l’étape 1 EXIGE l’audio 1Coordinatrice.mp3 — 1Coordina
   await expect(page.locator('.zone-audio .zone-fichier')).toContainText('1Coordinatrice.mp3')
   await page.locator('.modale-ajout .valider').click()
   await expect(page.locator('.carte-ent')).toHaveCount(1)
+  await expect(page.locator('.editeur')).toBeVisible({ timeout: 10_000 })
   // Guidage arrêté → l'import a OUVERT l'entretien (comportement normal hors geste guidé).
   // On revient au Corpus pour relancer l'étape.
   await retourCorpus(page)

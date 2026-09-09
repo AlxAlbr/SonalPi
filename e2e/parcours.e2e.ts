@@ -45,7 +45,7 @@ test('corpus → import → coder → renommer un locuteur → saisir une donné
   //    offre la modalité « MonTest » : on la choisit (fiche de CET entretien).
   await page.locator('.onglets button[data-onglet="donnees"]').click()
   await page.locator('.saisie-eav-sel').first().selectOption({ label: 'MonTest' })
-  await expect(page.locator('.etat')).toHaveText('à jour')
+  await expect(page.locator('header .etat')).toHaveText('à jour')
 
   // 5) EXPORTER → le .sonal est cohérent : structure + locuteur renommé conservés.
   await page.locator('.exporter').click()

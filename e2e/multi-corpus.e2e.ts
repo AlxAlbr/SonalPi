@@ -59,6 +59,7 @@ test('ouvrir un autre dossier, récents mémorisés, round-trip entre corpus', a
   await page.locator('.carte-demo.ouvrir-corpus').click()
   await attendreCorpus(page)
   await expect(page.locator('.carte-ent')).toHaveCount(0)
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Thèmes' }).click()
   await expect(page.locator('.liste-thm-lecture li')).toHaveCount(4)
   await expect(page.locator('.liste-thm-lecture li').first()).toContainText('Pondérations')
 

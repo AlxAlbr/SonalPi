@@ -138,7 +138,9 @@ function focaliserLibre(el: unknown, cle: string) {
       Aucune variable — ✏️ pour en créer.
     </p>
 
-    <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
+    <Teleport to="body">
+      <EditionVariables v-if="editerVariables" @fermer="editerVariables = false" />
+    </Teleport>
   </aside>
 </template>
 

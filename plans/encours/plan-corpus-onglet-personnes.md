@@ -22,6 +22,7 @@ Premier incrément livré :
 - [x] Reprise sélective au nommage et dialogue simplifié avec aperçu avant confirmation.
 - [ ] Suggestions proches calibrées.
 - [x] Fusion locale reprenable, notes conservées et refus réconciliés.
+- [ ] Journal du corpus local pour annuler les commandes simples du répertoire.
 - [ ] Séparation et corrections transactionnelles distantes.
 
 La création locale écrit la définition avant le lien. Si la seconde écriture échoue,
@@ -145,6 +146,79 @@ L’exécution parallèle a aussi échoué sur la scission codée, réussie en s
 Aucun banc distant démarré. Le plan reste ouvert, notamment pour la séparation,
 les écritures distantes, les noms proches et les conflits asynchrones.
 
+### Évolution validée — Journal du corpus
+
+Le répertoire Personnes doit alimenter un **Journal du corpus** distinct du Journal
+d’entretien et de `.transaction-fichiers.json`. Ce journal est un outil d’annulation
+volatile limité aux dix dernières actions prises en charge de la session courante : il
+survit aux changements d’onglet et à un aller-retour dans un entretien du même corpus,
+mais il est vidé au changement de corpus et au redémarrage. Il n’est écrit dans aucun
+fichier, ne constitue ni un audit ni un historique persistant, ne propose aucun
+rétablissement (« redo ») et reste local dans le premier livrable.
+
+Une action appartient uniquement à l’espace depuis lequel elle est validée. Le premier
+raccordement porte donc sur les commandes simples pleinement réussies depuis
+`PersonnesCorpus.vue` :
+
+| Action du répertoire | Premier raccordement | Inverse ciblé |
+|---|---|---|
+| renommer une Personne | annulable | ancien nom de référence |
+| associer, dissocier ou déplacer un locuteur | annulable | ancien `personneRef` et ancien `personneDeliee` |
+| écarter un rapprochement simple | annulable | ancien ensemble de refus |
+| annuler un refus | annulable | ancien ensemble de refus |
+| créer une Personne et son premier lien | ultérieur, conditionnel | définition et lien si rien ne les a réutilisés |
+| supprimer une fiche vide | ultérieur, conditionnel | fiche exacte si son id est toujours libre |
+| rapprocher avec plusieurs liens ou reprendre des données | exclu initialement | aucun inverse partiel |
+| fusionner ou séparer | exclu initialement | aucun inverse partiel |
+
+Un refus qui crée aussi une fiche distincte et un lien est une action composite exclue.
+Toute opération distante, échouée, annulée dans une fenêtre ou partiellement réussie ne
+crée aucune entrée. Une opération composite ne doit jamais être découpée en plusieurs
+pseudo-entrées indépendantes. Le premier raccordement ne requiert donc aucune annulation
+multi-fichiers.
+
+Le nommage dans l’éditeur reste hors du Journal du corpus : sa sauvegarde générique ne
+permet pas de reconstruire après coup une action sémantique complète. Le renommage du
+locuteur relève du Journal d’entretien, dont l’annulation ne doit jamais modifier
+implicitement `personneRef`. Un éventuel raccordement futur devra d’abord passer par une
+commande coordonnée décrivant définition, lien, refus, données reprises et état attendu.
+
+Le journal vit principalement dans le main. Un service en mémoire attaché au corpus
+courant conserve des inverses typés et ciblés, puis expose seulement des entrées de vue
+et des ids opaques par `corpus:journalLister` et `corpus:journalAnnuler`. Chaque inverse
+contient l’avant à restaurer, l’après attendu, les ids concernés et les projections à
+invalider. Avant toute annulation, le main relit l’état frais et compare uniquement les
+champs concernés. Une cible modifiée rend l’entrée inapplicable sans écriture ; un verrou
+ou fichier indisponible la bloque temporairement. Une modification sans rapport dans le
+même fichier ne doit pas l’invalider.
+
+Les entrées sont affichées de la plus récente à la plus ancienne, avec heure, libellé et
+bouton `↩`. Une ancienne entrée peut être annulée sans dépilage strict. L’annulation
+réussie retire l’entrée sans en créer une autre, puis réévalue les entrées restantes ;
+une entrée plus ancienne peut ainsi redevenir applicable. L’aide doit parler des
+« actions annulables prises en charge », pas de toutes les modifications du corpus.
+
+Après une annulation Personnes, relire l’inventaire, les suggestions, les refus et les
+notes agrégées par Personne. Conserver la sélection si son id existe encore ; sinon,
+revenir à l’état sans sélection avec un message explicite. Le résultat d’annulation
+porte un impact précis afin de ne pas appeler globalement `appliquerCorpus()` ni
+réinitialiser l’entretien et la navigation.
+
+Le premier incrément devra ajouter `src/shared/corpus/journal.ts`, un service main tel que
+`src/main/journalCorpus.ts`, l’état correspondant dans `useCorpus.ts` et
+`PanneauJournalCorpus.vue`. Le panneau Journal conserve la grille habituelle avec les
+cartes à droite ; ce chantier ne déclenche pas l’extraction générale de `Corpus.vue`.
+Le bouton Journal utilise une icône distincte de Pas à pas. Le contrat actuel
+`string | null` de `personnesCommander` pourra devenir un résultat nommé avec l’impact,
+sans exposer l’inverse au renderer.
+
+Les tests dédiés doivent couvrir le cap de dix, la volatilité, l’applicabilité ciblée,
+les deux renommages successifs, l’absence d’entrée pour les actions composites et les
+échecs, ainsi que les inverses de renommage, liaison, déliaison, déplacement et refus.
+Un E2E `journal-corpus.e2e.ts` couvre au minimum le renommage et la liaison annulés,
+l’entrée grisée après modification de sa cible, la conservation dans le même corpus,
+la purge au changement de corpus et l’état distant non pris en charge.
+
 ### Prochaines tâches, dans l’ordre recommandé
 
 1. Finaliser la couverture de la reprise au nommage : sources multiples, réinitialisation
@@ -155,18 +229,23 @@ les écritures distantes, les noms proches et les conflits asynchrones.
 3. Ajouter les E2E du refus au nommage, d’Échap, des rôles génériques et de la reprise
    dans le dialogue ; tester les erreurs et changements de session pendant les awaits.
 4. La prévention de recréation après déliaison volontaire est réalisée et testée.
-   Tester encore les renommages rapides et l’annulation via le journal,
-   qui ne doit jamais altérer implicitement l’identité.
-5. Livrer la séparation locale en réutilisant le journal de remplacement multi-entretiens.
-   La fusion locale et ses tests de reprise sont désormais réalisés.
-6. Implémenter les écritures distantes : définitions transactionnelles, GET frais,
+   Tester encore les renommages rapides et vérifier que l’annulation du renommage dans
+   le Journal d’entretien n’altère jamais implicitement l’identité.
+5. Livrer la séparation locale avec le journal **technique** de remplacement
+   multi-entretiens. La fusion locale et ses tests de reprise sont désormais réalisés ;
+   fusion et séparation restent hors du Journal visible du corpus au premier livrable.
+6. Créer le Journal du corpus local et raccorder les commandes simples de Personnes,
+   avec inverses ciblés, contrôle sur état frais et rafraîchissement précis des projections.
+   Laisser créations/suppressions conditionnelles pour un lot suivant et exclure les
+   commandes composites, partielles et distantes.
+7. Implémenter les écritures distantes : définitions transactionnelles, GET frais,
    verrou court et PUT conditionnel pour les entretiens fermés ; session existante
    pour l’entretien ouvert. Les commandes Personnes restent explicitement refusées
    en distant ; la création au nommage est aussi désactivée via `lectureSeule`.
-7. Calibrer les rapprochements proches sur des cas français, sans sélection automatique.
-8. Finaliser la documentation utilisateur/développeur, harmoniser les sections historiques
-   du présent plan et exécuter les E2E Navigation/Locuteurs ainsi que les bancs distants
-   nécessaires avant de déclarer le livrable terminé.
+8. Calibrer les rapprochements proches sur des cas français, sans sélection automatique.
+9. Finaliser la documentation utilisateur/développeur, harmoniser les sections historiques
+   du présent plan et exécuter les E2E Navigation/Locuteurs/Personnes/Journal ainsi que
+   les bancs distants nécessaires avant de déclarer le livrable terminé.
 
 ### Évolution UX validée et réalisée — nommage simplifié
 
@@ -208,8 +287,9 @@ d’une liaison sans aucune copie, même après avoir refermé les options.
   Une fiche devenue vide est signalée et sa suppression reste volontaire.
 - La commande de regroupement exige un aperçu frais et un inventaire complet,
   refuse les doublons dans un même entretien et conserve les notes et les refus externes.
-- Le journal local remplace les entretiens avant de retirer la définition absorbée.
-  Tests de reprise après interruption et de refus des modifications externes ajoutés.
+- Le journal technique local remplace les entretiens avant de retirer la définition
+  absorbée. Tests de reprise après interruption et de refus des modifications externes
+  ajoutés ; il reste distinct du Journal visible du corpus.
 - Le dialogue de nommage utilise aussi la section repliée de reprise. Pour un locuteur
   déjà lié, il reste explicitement un déplacement du seul rattachement en session,
   pas une fusion multi-fichiers depuis l’éditeur ouvert.
@@ -402,16 +482,21 @@ Ne font pas partie du premier livrable :
 
 ### 2.1 Navigation
 
-Ajouter **Personnes** à la barre d’icônes de `Corpus.vue`, entre Thèmes et Données :
+Ajouter **Personnes** à la barre d’icônes de `Corpus.vue`, entre Thèmes et les outils
+suivants. L’ordre cible, en tenant compte des futurs onglets Notes et Journal, est :
 
 1. Accueil ;
 2. Thèmes ;
 3. **Personnes** ;
-4. Données ;
-5. Pseudonymisation ;
-6. Pas à pas, en mode démonstration.
+4. Notes ;
+5. Données ;
+6. Pseudonymisation ;
+7. Journal ;
+8. Pas à pas, en mode démonstration.
 
-La recherche est accessible avec **Ctrl + F**, sans bouton dans cette barre.
+Les onglets non encore livrés ne réservent pas de bouton vide. La recherche est accessible
+avec **Ctrl + F**, sans bouton dans cette barre. Journal et Pas à pas doivent utiliser des
+icônes distinctes.
 
 L’icône `locuteurs.png` peut être réutilisée au premier livrable. Une icône distincte
 représentant plusieurs silhouettes serait préférable à terme pour ne pas confondre
@@ -793,8 +878,9 @@ boucle.
 
 Ces opérations touchent plusieurs fichiers et demandent une stratégie de reprise dédiée.
 
-En local, étendre le journal `TransactionsFichiersCorpus` à un plan de remplacement de
-plusieurs entretiens et de `corpus.json`, reprenable après arrêt.
+En local, étendre le journal technique `TransactionsFichiersCorpus` à un plan de
+remplacement de plusieurs entretiens et de `corpus.json`, reprenable après arrêt. Ce
+mécanisme n’est pas le Journal visible du corpus et ne crée aucune entrée d’annulation.
 
 En distant :
 
@@ -817,7 +903,10 @@ Créer :
 - `src/renderer/components/corpus/PersonnesCorpus.vue` : disposition, liste et fiche ;
 - éventuellement `src/renderer/components/corpus/RapprochementPersonne.vue` : fenêtre partagée
   avec l’entretien ;
-- `src/shared/corpus/personnes.ts` : logique pure de modèle et de suggestion.
+- `src/shared/corpus/personnes.ts` : logique pure de modèle et de suggestion ;
+- `src/shared/corpus/journal.ts`, `src/main/journalCorpus.ts` et
+  `src/renderer/components/corpus/PanneauJournalCorpus.vue` pour les annulations locales
+  prises en charge depuis le corpus.
 
 Faire évoluer :
 
@@ -947,6 +1036,16 @@ Ce lot apporte déjà un vrai espace de correction sans automatisme fragile.
 4. affichage comparé des variables ;
 5. point d’entrée optionnel vers la pseudonymisation.
 
+### Lot 5 — annulations locales depuis le corpus
+
+1. créer le service volatile main, les contrats de vue et les IPC du Journal ;
+2. ajouter le panneau sans engager d’autre extraction de `Corpus.vue` ;
+3. journaliser les commandes simples de Personnes avec leur avant/après ciblé ;
+4. vérifier l’état frais avant annulation et invalider seulement les projections touchées ;
+5. exclure explicitement rapprochements composites, reprises, fusions, séparations,
+   réussites partielles et opérations distantes ;
+6. raccorder ultérieurement création et suppression de fiche comme actions conditionnelles.
+
 ## 11. Critères de fin du premier livrable
 
 Le premier livrable fonctionnel est terminé lorsque :
@@ -961,6 +1060,9 @@ Le premier livrable fonctionnel est terminé lorsque :
 - aucun rapprochement, renommage ou changement de valeur n’est automatique ;
 - les homonymes sont supportés ;
 - les verrous et échecs partiels distants sont visibles ;
+- le Journal du corpus annule les commandes simples pleinement réussies du répertoire,
+  sans journaliser les actions composites, partielles, distantes ou issues de l’entretien ;
+- une annulation vérifie l’après attendu et ne réécrit jamais une cible modifiée depuis ;
 - les tests unitaires, E2E, le typecheck et le build passent.
 
 ## 12. Évolutions possibles après validation d’usage

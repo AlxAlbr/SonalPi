@@ -2,7 +2,14 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { lancer, entrerCorpus, ajouterParModale, retourCorpus } from './util'
+import {
+  lancer,
+  entrerCorpus,
+  ajouterParModale,
+  ouvrir,
+  retourCorpus,
+  selectionner,
+} from './util'
 
 /**
  *  E2E round-trip ANONYMISATION : importer un `.sonal`
@@ -12,6 +19,26 @@ import { lancer, entrerCorpus, ajouterParModale, retourCorpus } from './util'
  */
 
 const FIXTURE = join(process.cwd(), 'test', 'fixtures', 'entretien1.sonal')
+
+test('la sélection alimente une ligne et le brouillon survit au changement d’onglet', async () => {
+  const { app, page } = await ouvrir('sonal-anon-brouillon-')
+
+  await page.locator('[data-onglet="anon"]').click()
+  await selectionner(page, 'Lyon')
+  await page.locator('.editeur').dispatchEvent('mouseup')
+
+  const saisie = page.locator('.ligne-anon.saisie-anon').first()
+  await expect(saisie.locator('.nom-saisie')).toHaveValue('Lyon')
+  await saisie.locator('.pseudo-anon').fill('Ville témoin')
+
+  await page.locator('[data-onglet="notes"]').click()
+  await page.locator('[data-onglet="anon"]').click()
+  const brouillon = page.locator('.ligne-anon.etat-brouillon', { hasText: 'Lyon' })
+  await expect(brouillon).toBeVisible()
+  await expect(brouillon.locator('.pseudo-anon')).toHaveValue('Ville témoin')
+
+  await app.close()
+})
 
 test('round-trip anonymisation : import → export → ré-import, règles corpus préservées sans doublon', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-anon-'))

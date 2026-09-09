@@ -40,7 +40,7 @@ test('recolorer un thème (fenêtre d’édition, écran Corpus) se reflète sur
   // Rouvrir via la reprise : le surlignage porte la nouvelle couleur, résolue
   // par id à la projection (jamais copiée dans l'entretien), et l'entretien
   // n'a pas été touché par le recoloriage (pas de re-sauvegarde).
-  await page.locator('.corpus-ecran .btn-reprise').click()
+  await page.locator('.corpus-ecran .btn-reprise:visible').click()
   await expect(page.locator('.editeur .annot')).toHaveAttribute('style', /rgb\(255, 0, 0\)/)
   await expect(page.locator('.etat')).toHaveText('à jour')
   await app.close()

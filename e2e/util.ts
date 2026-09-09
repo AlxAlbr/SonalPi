@@ -161,6 +161,11 @@ export async function coderTheme(page: Page, nomTheme: string): Promise<void> {
 /** S8 : ouvre la fenêtre d'ÉDITION des thèmes (crayon du panneau thèmes — écran Corpus ou onglet Thématique de l'Entretien,
  *  selon l'écran affiché). */
 export async function ouvrirEditionThemes(page: Page): Promise<void> {
+  const crayonVisible = page.locator('.panneau .crayon:visible').first()
+  if ((await crayonVisible.count()) === 0) {
+    const ongletThemes = page.locator('.onglets-corpus').getByRole('button', { name: 'Thèmes' })
+    if (await ongletThemes.isVisible()) await ongletThemes.click()
+  }
   await page.locator('.panneau .crayon:visible').first().click()
   await expect(page.locator('.modale-themes')).toBeVisible()
 }
