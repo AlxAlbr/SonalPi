@@ -128,7 +128,7 @@ Journal.
 | Domaine | A — premier raccordement | B — raccordement ultérieur | C — exclu initialement |
 |---|---|---|---|
 | Personnes | renommer, associer, dissocier, déplacer, refuser, annuler un refus | créer, supprimer une fiche vide | rapprocher avec plusieurs liens ou reprise, réunir, séparer |
-| Notes du corpus | modifier une note complète | créer, supprimer, réordonner | édition par frappe non coalescée |
+| Notes du corpus | modifier et supprimer une note (gestes de l'onglet Notes) | créer, réordonner — si l'onglet Notes les propose un jour | édition par frappe non coalescée ; création et ordre hors Journal du corpus tant qu'ils restent des gestes de l'entretien |
 | Thèmes | renommer, recolorer, activer | créer, déplacer, changer de parent, supprimer sans usage | fusion ou scission multi-entretiens |
 | Variables et modalités | renommer, changer un attribut simple | créer, supprimer sans usage, réordonner | lots multi-entretiens |
 | Catégories de notes | renommer, recolorer | créer, supprimer sans usage | modification en cascade des notes |
@@ -490,10 +490,12 @@ Après une annulation Personnes :
 
 ### 8.1 Journal d’annulation et historique ne sont pas synonymes
 
-`plan-corpus-onglet-notes.md` propose un `HistoriqueNote[]` persistant, un auteur,
-un index `derniereModificationNotes` dans `corpus.json` et une restauration
-depuis cet historique. Le nouveau Journal du corpus répond seulement au besoin
-**d’annuler les gestes récents de la session**.
+Une version antérieure de `plan-corpus-onglet-notes.md` proposait un
+`HistoriqueNote[]` persistant, un auteur, un index `derniereModificationNotes`
+dans `corpus.json` et une restauration depuis cet historique. Le nouveau
+Journal du corpus répond seulement au besoin **d'annuler les gestes récents de
+la session**, et le plan Notes a été réécrit en conséquence : ces persistances
+ont été retirées.
 
 Décision recommandée pour le premier onglet Notes :
 
@@ -510,11 +512,14 @@ revanche de faire de cet audit complexe une dépendance de l’onglet Notes.
 L’index proposé n’évite d’ailleurs pas le chargement des entretiens nécessaire
 pour afficher les corps des notes.
 
-Les sections 2.1, 2.2, 4.6, 5, 6, 7, 8 et 9 de
-`plan-corpus-onglet-notes.md` devront être réécrites avant implémentation pour
-retirer cette dépendance. La phrase indiquant qu’une suppression de note serait
-annulable via le Journal d’entretien est actuellement fausse : les notes sont
-explicitement hors de ce journal dans `useEntretien.ts`.
+`plan-corpus-onglet-notes.md` a été réécrit en conséquence (sections 2.1, 2.2,
+4.6, 5, 6, 7, 8 et 9). Son périmètre d'édition a aussi été resserré : l'onglet
+Notes consulte (filtres, recherche, export) et modifie ou supprime une note
+existante par une modale unique ; la création, l'ordre, le « Concerne »
+(locuteurs) et la liaison à un commentaire restent des gestes de l'entretien,
+hors Journal du corpus. La suppression d'une note faite depuis le corpus est
+annulable via le Journal du corpus — jamais via le Journal d'entretien, qui
+exclut explicitement les notes (`useEntretien.ts`).
 
 ### 8.2 Projection et commandes
 
@@ -527,21 +532,27 @@ corpus:notesInventaire
 corpus:notesCommander
 ```
 
-L’inventaire renvoie les notes affichables, leur `entretienId`, le titre de
-l’entretien et les fichiers indisponibles. La commande relit l’entretien frais,
-vérifie un état attendu, modifie la note et enregistre l’inverse dans le Journal
-du corpus après succès.
+L'inventaire renvoie les notes affichables, leur `entretienId`, le titre de
+l'entretien et les fichiers indisponibles. La commande relit l'entretien frais,
+applique le changement et enregistre l'inverse dans le Journal du corpus après
+succès.
 
-Actions et inverses :
+Actions et inverses du premier livrable de l'onglet Notes (périmètre décidé
+dans `plan-corpus-onglet-notes.md`) :
 
-- création : retirer la note créée si elle est encore dans son état initial ;
-- modification : restaurer la note antérieure si la version courante correspond
-  à la version validée ;
-- suppression : réinsérer la note complète et son rang ;
-- réordonnancement : restaurer les rangs des notes concernées.
+- modification : restaurer la note antérieure (action A) ;
+- suppression : réinsérer la note complète et son rang (action B).
 
-Pour éviter d’écraser une édition concurrente, une commande porte au minimum la
-note ou le `lastModified` attendu. L’id seul ne suffit pas.
+La création et le réordonnancement ne sont pas des gestes de l'onglet Notes au
+premier livrable (ils restent dans l'entretien, hors Journal du corpus) ; leurs
+inverses (retirer la note créée si elle est inchangée ; restaurer les rangs) ne
+seront nécessaires que si l'onglet les propose un jour.
+
+En local, un seul chemin d'écriture existe par entretien (invariant
+`sonal.ts`) : la commande relit le fichier frais et échoue proprement si la
+note a disparu, sans garde anti-écrasement supplémentaire. Le contrôle d'un
+état attendu (`If-Match`, verrou court d'entretien) n'arrivera qu'avec le mode
+distant (§9).
 
 ### 8.3 Frontières de validation dans l’interface
 
@@ -549,18 +560,21 @@ Le Journal enregistre des **gestes utilisateur**, pas des événements DOM :
 
 - une validation de modale crée au plus une entrée regroupant corps et
   métadonnées ;
-- en mode Feuille, capturer l’état au focus et valider une modification au blur
-  ou par un bouton explicite ;
+- le premier livrable de l'onglet Notes édite uniquement par **modale** (pas de
+  mode Feuille éditable, pas de glisser-déposer) : les cas ci-dessous ne
+  s'appliquent qu'à une future édition continue, dans l'entretien ou si
+  l'onglet Notes l'acquiert ;
+- en mode Feuille (futur), capturer l'état au focus et valider une modification
+  au blur ou par un bouton explicite ;
 - ne pas créer une entrée à chaque `input` du `contenteditable` ;
-- une sauvegarde différée d’une seconde peut persister le brouillon, mais les
-  modifications d’une même session d’édition doivent être coalescées en une
+- une sauvegarde différée d'une seconde peut persister le brouillon, mais les
+  modifications d'une même session d'édition doivent être coalescées en une
   commande avant/après ;
 - le glisser-déposer complet forme une seule entrée de réordonnancement.
 
-Le modèle proposé dans le plan Notes, où le corps et les métadonnées suivent des
-règles de sauvegarde différentes, doit être simplifié : une commande atomique de
-note complète fournit une frontière plus claire pour les conflits et
-l’annulation.
+Le plan Notes a retenu la simplification demandée : une commande atomique de
+note complète (corps + métadonnées, sans « Concerne ») fournit la frontière
+unique des conflits et de l'annulation.
 
 ### 8.4 Entretien > Notes
 
@@ -643,13 +657,17 @@ n’exigent aucun test d’inverse tant qu’elles restent exclues. Si l’une d
 est promue ultérieurement, ajouter alors les tests multi-fichiers tout ou rien
 et de reprise par `TransactionsFichiersCorpus`.
 
-Pour Notes, au moment de son implémentation :
+Pour Notes, au moment de son implémentation (premier livrable : modification
+et suppression depuis le corpus) :
 
-- création, modification, suppression et ordre ;
-- corps HTML restauré exactement ;
-- modification coalescée en une entrée ;
-- note changée depuis : aucun écrasement ;
-- rafraîchissement de la section Notes liées de Personnes.
+- modification et suppression, corps HTML restauré exactement à l'annulation ;
+- une validation de modale sans changement : aucune commande ni entrée ;
+- note absente à la relecture fraîche : échec sans écriture ;
+- pas d'entrée par frappe (pas de saisie continue au premier livrable) ;
+- rafraîchissement de la section Notes liées de Personnes après une suppression ;
+- si la création ou l'ordre deviennent des gestes de l'onglet Notes, ajouter
+  leurs inverses et tests (retrait de la note créée inchangée, restauration des
+  rangs).
 
 ### 10.2 E2E local
 
@@ -666,9 +684,10 @@ Ajouter `e2e/journal-corpus.e2e.ts` :
 9. le changement d’onglet conserve les états locaux de Personnes ;
 10. le mode distant affiche l’état non pris en charge sans bouton actif.
 
-Quand Notes sera livré, compléter avec création, modification et suppression
-annulées depuis le corpus. Ne pas compter sur `e2e/journal.e2e.ts`, qui ne couvre
-que le Journal d’entretien.
+Quand Notes sera livré, compléter avec modification et suppression annulées
+depuis le corpus (la création d'une note reste un geste de l'onglet Entretien).
+Ne pas compter sur `e2e/journal.e2e.ts`, qui ne couvre que le Journal
+d'entretien.
 
 Les tests de navigation qui comptent ou positionnent les boutons devront être
 mis à jour sans fragiliser leur sélection : préférer les `aria-label` ou un
@@ -733,11 +752,15 @@ charge » et non de toutes les actions de modèle.
 
 ### Lot 4 — futur onglet Notes
 
-1. réviser `plan-corpus-onglet-notes.md` selon les décisions du présent plan ;
+1. s'appuyer sur `plan-corpus-onglet-notes.md`, révisé selon les décisions du
+   présent plan (périmètre : consultation + modale restreinte) ;
 2. créer une projection Notes côté main ;
-3. définir la modification atomique d’une note et la raccorder comme action A ;
-4. raccorder ensuite création, suppression et ordre comme actions B ;
-5. ne pas raccorder l’édition par frappe tant qu’elle n’est pas coalescée ;
+3. raccorder la modification atomique d'une note (modale) comme action A ;
+4. raccorder la suppression d'une note comme action B ; ne raccorder la
+   création ou l'ordre que si l'onglet Notes les propose un jour (au premier
+   livrable ils restent des gestes de l'entretien, hors Journal du corpus) ;
+5. pas de saisie continue au premier livrable (Feuille en lecture) : la règle
+   de coalescence ne s'applique qu'à une future édition continue ;
 6. rafraîchir les projections Notes et Personnes après annulation.
 
 ### Lot 5 — distant
@@ -758,6 +781,12 @@ Le premier livrable local est terminé lorsque :
   technique de reprise ;
 - les commandes A de Personnes pleinement réussies depuis le répertoire ont un
   inverse unique et ciblé ;
+- l'onglet Notes du premier livrable journalise la modification (A) et la
+  suppression (B) faites depuis le corpus, et ne crée aucune entrée pour des
+  gestes d'entretien (création, ordre, « Concerne »), hors du Journal du
+  corpus ;
+- l'onglet Notes n'introduit aucune garde anti-écrasement locale : la commande
+  relit le fichier frais et échoue proprement si la note a disparu ;
 - les commandes C n’ajoutent aucune entrée et restent protégées par leurs
   confirmations et transactions existantes ;
 - une cible modifiée depuis n’est jamais écrasée et grise l’entrée ;
