@@ -1,5 +1,6 @@
 import { ref, toRaw } from 'vue'
 import { ordreThemes } from '../../shared/corpus'
+import { afficherErreurGlobale, effacerErreurGlobaleSi } from '../erreurs'
 import { couleurPourCode, couleurHexPourCode } from '../editor/decorations'
 import type {
   Categorie,
@@ -20,6 +21,7 @@ import { paramsAnonDefaut } from '../../shared/format'
 import { normaliserCategoriesNote } from '../../shared/entretien/notes'
 import type { ScanRegle } from '../../shared/corpus/scanAnon'
 import type { CommandePersonnes } from '../../shared/corpus/personnes'
+import type { CommandeNotes } from '../../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../../shared/corpus/journal'
 
 /**
@@ -41,7 +43,12 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const messageTheme = ref<string | null>(null) // ex. refus de suppression
   const variables = ref<Variable[]>([]) // définitions EAV
   const matrice = ref<MatriceCorpus>([]) // REQUÊTE, jamais stockée
+  const matriceChargee = ref(false)
+  const matriceEnCours = ref(false)
   const messageVar = ref<string | null>(null) // refus de suppression variable/modalité
+  let chargementMatrice: Promise<boolean> | null = null
+  let generationMatrice = 0
+  let derniereErreurMatrice: string | null = null
   // Registre « Mes modèles » (niveau profil, settings.json) : les modèles IMPORTÉS par l'utilisateur,
   // proposés dans « modèles… » à côté des intégrés.
   const modelesUtilisateur = ref<ModeleEAV[]>([])
@@ -63,6 +70,17 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const messageCategorieNote = ref<string | null>(null) // ex. refus de suppression
   const entreesJournalCorpus = ref<EntreeJournalCorpusVue[]>([])
   const revisionPersonnesCorpus = ref(0)
+  const revisionNotesCorpus = ref(0)
+
+  async function lireNotes() {
+    await opts.flush()
+    return window.sonal.corpus.notesInventaire()
+  }
+
+  async function commanderNotes(commande: CommandeNotes) {
+    await opts.flush()
+    return window.sonal.corpus.notesCommander(toRaw(commande))
+  }
 
   async function lirePersonnes() {
     await opts.flush()
@@ -84,6 +102,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     const resultat = await window.sonal.corpus.journalAnnuler(id)
     if (resultat.ok) {
       if (resultat.impact.projections.includes('personnes')) revisionPersonnesCorpus.value++
+      if (resultat.impact.projections.includes('notes')) revisionNotesCorpus.value++
       if (resultat.impact.projections.includes('matrice')) await rafraichirMatrice()
       if (resultat.impact.projections.includes('scanAnon')) perimerScanAnon()
     }
@@ -185,8 +204,46 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     // le calque des cartes Corpus (résumé thématique, parité SonalPi1) suit.
     resumes.value = await window.sonal.corpus.resumesThematiques()
   }
-  async function rafraichirMatrice() {
-    matrice.value = await window.sonal.corpus.matrice()
+  /** Relit la matrice sans masquer le dernier résultat disponible. */
+  async function rafraichirMatrice(): Promise<boolean> {
+    if (chargementMatrice) return chargementMatrice
+    const generation = generationMatrice
+    matriceEnCours.value = true
+    let requete!: Promise<boolean>
+    requete = (async () => {
+      try {
+        const resultat = await window.sonal.corpus.matrice()
+        if (generation !== generationMatrice) return false
+        matrice.value = resultat
+        matriceChargee.value = true
+        if (derniereErreurMatrice) effacerErreurGlobaleSi(derniereErreurMatrice)
+        derniereErreurMatrice = null
+        return true
+      } catch (erreur) {
+        if (generation !== generationMatrice) return false
+        derniereErreurMatrice = afficherErreurGlobale(
+          erreur,
+          'Actualisation des données impossible',
+        )
+        return false
+      } finally {
+        if (generation === generationMatrice) matriceEnCours.value = false
+        if (chargementMatrice === requete) chargementMatrice = null
+      }
+    })()
+    chargementMatrice = requete
+    return requete
+  }
+
+  /** Oublie une projection qui appartient au corpus précédent. */
+  function reinitialiserMatrice() {
+    generationMatrice++
+    matrice.value = []
+    matriceChargee.value = false
+    matriceEnCours.value = false
+    chargementMatrice = null
+    if (derniereErreurMatrice) effacerErreurGlobaleSi(derniereErreurMatrice)
+    derniereErreurMatrice = null
   }
 
   // --- Thèmes (codebook) ---
@@ -398,7 +455,6 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     if (!force && scanAnonCharge.value && !scanAnonPerime.value) return true
     if (chargementScanAnon) return chargementScanAnon
     scanAnonEnCours.value = true
-    scanAnonErreur.value = null
     chargementScanAnon = (async () => {
       try {
         const [regles, scan] = await Promise.all([
@@ -409,6 +465,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
         scanAnon.value = scan
         scanAnonCharge.value = true
         scanAnonPerime.value = false
+        scanAnonErreur.value = null
         dernierScanAnon.value = new Date().toISOString()
         return true
       } catch (e) {
@@ -442,6 +499,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     messageTheme,
     variables,
     matrice,
+    matriceChargee,
+    matriceEnCours,
     messageVar,
     // dérivés / résolveurs
     varsGen,
@@ -459,6 +518,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     majVariables,
     rafraichirUsages,
     rafraichirMatrice,
+    reinitialiserMatrice,
     // règles corpus et scan anon.
     reglesAnon,
     scanAnon,
@@ -487,6 +547,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     // Journal du corpus.
     entreesJournalCorpus,
     revisionPersonnesCorpus,
+    revisionNotesCorpus,
     rafraichirJournalCorpus,
     annulerEntreeJournalCorpus,
     // thèmes
@@ -496,6 +557,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     deplacerTheme,
     migrerTheme,
     supprimerTheme,
+    lireNotes,
+    commanderNotes,
     lirePersonnes,
     commanderPersonnes,
     // variables/modalités

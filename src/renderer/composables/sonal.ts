@@ -274,6 +274,7 @@ export function creerSonal() {
     reprise.value = null // les ids de reprise non plus
     deselectionnerCorpus()
     corpus.reinitialiserScanAnon()
+    corpus.reinitialiserMatrice()
     corpus.membership.value = c.membership
     corpus.majCodebook(c.codebook)
     corpus.majVariables(c.variables)
@@ -533,7 +534,6 @@ export function creerSonal() {
         return false
       }
       enLigne.value = true // le serveur a répondu : connectivité rétablie
-      dernierTirage.value = t.date
       absorberVerrous(t.verrous)
       absorberPresences(t.presences)
       // Audios désignés NON rapatriés au tirage (403 droits, 404, réseau),
@@ -546,12 +546,15 @@ export function creerSonal() {
         ent.detecterDivergencesPostTirage()
       }
       if (t.telecharges.length > 0 || t.corbeille.length > 0) {
-        if (ent.ouvertId.value) {
-          await rafraichirCorpusSansFermer()
-        } else {
-          await appliquerCorpus(await window.sonal.corpus.ouvrir(), dossierCourantDir.value ?? undefined)
+        if (!ent.ouvertId.value) {
+          reprise.value = null
+          deselectionnerCorpus()
         }
+        await rafraichirCorpusSansFermer()
       }
+      // Les projections actives observent cet horodatage. Il ne change qu'une
+      // fois le miroir et les définitions locales prêts à être relus.
+      dernierTirage.value = t.date
       return true
     } catch (e) {
       if (!silencieux) throw e

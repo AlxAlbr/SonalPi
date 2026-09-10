@@ -16,6 +16,15 @@ import * as corpusModel from '../shared/corpus'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import { annulerRefusRapprochement, natureNomPersonne, peutCreerPersonneAuNommage, refuserRapprochement, reprendreDonneesLocuteur } from '../shared/corpus/rapprochementsPersonnes'
 import { fusionnerPersonnes, inventorierPersonnes, creerPersonne, modifierPersonne, trouverLocuteur, lierLocuteur, separerPersonne, supprimerPersonneVide, type InventairePersonnes, type CommandePersonnes } from '../shared/corpus/personnes'
+import {
+  etatNoteJournal,
+  inventorierNotes,
+  memeEtatNote,
+  memesChampsEditables,
+  trouverNote,
+  type CommandeNotes,
+  type InventaireNotes,
+} from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
@@ -65,12 +74,16 @@ import {
   type RegleAnon,
   type Variable,
   type ParamsAnon,
+  type Note,
   type NoteCategory,
   paramsAnonDefaut,
   CORPUS_SUPPRIME,
 } from '../shared/format'
 import {
   normaliserCategoriesNote,
+  normaliserNotes,
+  notesParRang,
+  renumeroterRangs,
   genIdCategorieNote,
   compterUsagesCategorieNote,
 } from '../shared/entretien/notes'
@@ -750,6 +763,27 @@ export class CorpusStore {
   }
 
   /** Inventaire tolérant : les entretiens illisibles restent signalés. */
+  notesInventaire(): InventaireNotes {
+    const corpus = this.ouvrir()
+    const entretiens: corpusModel.EntreeMatrice[] = []
+    const indisponibles: InventaireNotes['indisponibles'] = []
+    for (const [id, ref] of Object.entries(corpus.membership)) {
+      try {
+        const lecture = this.lireEntretien(id)
+        if (!lecture.ok) throw new Error(lecture.raison === 'absent' ? 'Fichier absent' : 'Version non supportée')
+        entretiens.push({ id, titre: ref.titre, data: lecture.data })
+      } catch (erreur) {
+        indisponibles.push({
+          id,
+          titre: ref.titre,
+          raison: erreur instanceof Error ? erreur.message : String(erreur),
+        })
+      }
+    }
+    return { ...inventorierNotes(corpus, entretiens), indisponibles }
+  }
+
+  /** Inventaire tolérant : les entretiens illisibles restent signalés. */
   personnesInventaire(): InventairePersonnes {
     const corpus = this.ouvrir()
     const entretiens: corpusModel.EntreeMatrice[] = []
@@ -796,6 +830,18 @@ export class CorpusStore {
       : { ok: false, raison: 'locuteur' }
   }
 
+  private lireNoteJournal(entretienId: string, noteId: string):
+    | { ok: true; data: EntretienFichier; note: Note }
+    | { ok: false; raison: 'entretien' | 'note' } {
+    const lecture = this.lireEntretien(entretienId)
+    if (!lecture.ok) return { ok: false, raison: 'entretien' }
+    lecture.data.notes = normaliserNotes(lecture.data.notes)
+    const note = lecture.data.notes.find((candidate) => candidate.id === noteId)
+    return note
+      ? { ok: true, data: lecture.data, note }
+      : { ok: false, raison: 'note' }
+  }
+
   private evaluerInverseJournal(inverse: InverseJournalCorpus): EtatInverseJournalCorpus {
     if (this.transactionsFichiers.journalPresent()) {
       return { etat: 'bloquee', raison: 'Une transaction de fichiers doit d’abord être terminée.' }
@@ -805,6 +851,32 @@ export class CorpusStore {
       return personne?.nom === inverse.apres
         ? { etat: 'annulable' }
         : { etat: 'inapplicable', raison: 'La personne a été modifiée depuis cette action.' }
+    }
+    if (inverse.type === 'noteModifier') {
+      const lecture = this.lireNoteJournal(inverse.entretienId, inverse.noteId)
+      if (!lecture.ok) {
+        return lecture.raison === 'note' || !this.ouvrir().membership[inverse.entretienId]
+          ? { etat: 'inapplicable', raison: 'L’entretien ou la note n’existe plus.' }
+          : { etat: 'bloquee', raison: 'L’entretien nécessaire est momentanément indisponible.' }
+      }
+      return memeEtatNote(etatNoteJournal(lecture.note), inverse.apres)
+        ? { etat: 'annulable' }
+        : { etat: 'inapplicable', raison: 'La note a été modifiée depuis cette action.' }
+    }
+    if (inverse.type === 'noteSupprimer') {
+      const lecture = this.lireEntretien(inverse.entretienId)
+      if (!lecture.ok) {
+        return !this.ouvrir().membership[inverse.entretienId]
+          ? { etat: 'inapplicable', raison: 'L’entretien n’existe plus.' }
+          : { etat: 'bloquee', raison: 'L’entretien nécessaire est momentanément indisponible.' }
+      }
+      const ordreCourant = notesParRang(normaliserNotes(lecture.data.notes)).map((note) => note.id)
+      if (ordreCourant.includes(inverse.note.id)) {
+        return { etat: 'inapplicable', raison: 'La note existe de nouveau.' }
+      }
+      return this.memeEtatJournal(ordreCourant, inverse.ordreApres)
+        ? { etat: 'annulable' }
+        : { etat: 'inapplicable', raison: 'L’ordre des notes a changé depuis cette action.' }
     }
     const lecture = this.lireLocuteurJournal(inverse.entretienId, inverse.locuteurId)
     if (!lecture.ok) {
@@ -834,6 +906,24 @@ export class CorpusStore {
         const corpus = this.ouvrir()
         modifierPersonne(corpus, inverse.personneId, inverse.avant)
         this.ecrireJsonAtomique(this.corpusFile, corpus)
+      } else if (inverse.type === 'noteModifier') {
+        const lecture = this.lireNoteJournal(inverse.entretienId, inverse.noteId)
+        if (!lecture.ok) return { ok: false, raison: 'L’entretien ou la note n’est plus disponible.', temporaire: lecture.raison === 'entretien' }
+        const index = lecture.data.notes!.findIndex((note) => note.id === inverse.noteId)
+        lecture.data.notes![index] = {
+          ...structuredClone(inverse.avant),
+          modifieLe: new Date().toISOString(),
+        }
+        const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
+        this.ecrireEntretien(inverse.entretienId, payload)
+      } else if (inverse.type === 'noteSupprimer') {
+        const lecture = this.lireEntretien(inverse.entretienId)
+        if (!lecture.ok) return { ok: false, raison: 'L’entretien n’est plus disponible.', temporaire: true }
+        const notes = notesParRang(normaliserNotes(lecture.data.notes))
+        notes.splice(Math.max(0, Math.min(inverse.note.rang, notes.length)), 0, structuredClone(inverse.note))
+        lecture.data.notes = renumeroterRangs(notes)
+        const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
+        this.ecrireEntretien(inverse.entretienId, payload)
       } else {
         const lecture = this.lireLocuteurJournal(inverse.entretienId, inverse.locuteurId)
         if (!lecture.ok) return { ok: false, raison: 'L’entretien ou le locuteur n’est plus disponible.', temporaire: lecture.raison === 'entretien' }
@@ -870,6 +960,71 @@ export class CorpusStore {
       (inverse) => this.evaluerInverseJournal(inverse),
       (inverse, impact) => this.appliquerInverseJournal(inverse, impact),
     )
+  }
+
+  /** Modifie ou supprime une note après relecture fraîche de son état sémantique. */
+  notesCommander(commande: CommandeNotes, journaliser = false): string | null {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    if (!corpus.membership[commande.entretienId]) {
+      throw new Error('Cet entretien ne fait plus partie du corpus.')
+    }
+    const lecture = this.lireEntretien(commande.entretienId)
+    if (!lecture.ok) throw new Error('Cet entretien est indisponible.')
+    const data = lecture.data
+    data.notes = normaliserNotes(data.notes)
+    const note = trouverNote(data, commande.noteId)
+    if (!memeEtatNote(etatNoteJournal(note), commande.attendu)) {
+      throw new Error('Cette note a changé. Actualisez la liste des notes.')
+    }
+
+    if (commande.type === 'modifier') {
+      if (!normaliserCategoriesNote(corpus.categoriesNote)
+        .some((categorie) => categorie.id === commande.champs.categorieId)) {
+        throw new Error('Cette catégorie de note n’existe plus.')
+      }
+      if (commande.champs.statut !== 'public' && commande.champs.statut !== 'prive') {
+        throw new Error('Le statut de la note est invalide.')
+      }
+      if (typeof commande.champs.titre !== 'string' || typeof commande.champs.corps !== 'string'
+        || (commande.champs.date !== null && typeof commande.champs.date !== 'string')) {
+        throw new Error('Le contenu de la note est invalide.')
+      }
+      if (memesChampsEditables(note, commande.champs)) return note.id
+
+      const avant = structuredClone(note)
+      Object.assign(note, structuredClone(commande.champs))
+      note.modifieLe = new Date().toISOString()
+      const apres = etatNoteJournal(note)
+      const { formatVersion: _version, lastModified: _date, ...payload } = data
+      this.ecrireEntretien(commande.entretienId, payload)
+      if (journaliser) {
+        this.journalCorpus.enregistrer(
+          `Note modifiée : « ${note.titre || '(sans titre)'} »`,
+          'notes',
+          { type: 'noteModifier', entretienId: commande.entretienId, noteId: note.id, avant, apres },
+          { corpus: false, entretiens: [commande.entretienId], projections: ['notes', 'personnes'] },
+        )
+      }
+      return note.id
+    }
+
+    const noteSupprimee = structuredClone(note)
+    data.notes = renumeroterRangs(
+      notesParRang(data.notes).filter((candidate) => candidate.id !== note.id),
+    )
+    const ordreApres = data.notes.map((candidate) => candidate.id)
+    const { formatVersion: _version, lastModified: _date, ...payload } = data
+    this.ecrireEntretien(commande.entretienId, payload)
+    if (journaliser) {
+      this.journalCorpus.enregistrer(
+        `Note supprimée : « ${note.titre || '(sans titre)'} »`,
+        'notes',
+        { type: 'noteSupprimer', entretienId: commande.entretienId, note: noteSupprimee, ordreApres },
+        { corpus: false, entretiens: [commande.entretienId], projections: ['notes', 'personnes'] },
+      )
+    }
+    return null
   }
 
   /** Corrections locales du répertoire, sans réécriture des noms de locuteurs. */

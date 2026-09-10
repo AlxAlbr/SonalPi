@@ -38,6 +38,7 @@ import type {
 } from '../shared/format'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
+import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
@@ -112,6 +113,8 @@ declare global {
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
+        notesInventaire: () => Promise<InventaireNotes>
+        notesCommander: (commande: CommandeNotes) => Promise<string | null>
         personnesInventaire: () => Promise<InventairePersonnes>
         personnesCommander: (commande: CommandePersonnes, depuisRepertoire?: boolean) => Promise<string | null>
         journalLister: () => Promise<EntreeJournalCorpusVue[]>

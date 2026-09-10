@@ -9,7 +9,7 @@ const emit = defineEmits<{ ouvrirOccurrence: [id: string, pos: number] }>()
 const {
   membership, reglesAnon, scanAnon, rafraichirScanAnon, perimerScanAnon,
   scanAnonCharge, scanAnonPerime, scanAnonEnCours, scanAnonErreur,
-  paramsAnon, majParamsAnon, lectureSeule, badgeVerrou, vue,
+  paramsAnon, majParamsAnon, lectureSeule, badgeVerrou, vue, dernierTirage,
 } = utiliserSonal()
 const selectedRegleId = ref<string | null>(null)
 const messagePseudo = ref<string | null>(null)
@@ -389,7 +389,12 @@ watch(() => props.actif, async (actif) => {
   }
 }, { immediate: true })
 watch(vue, (v, avant) => {
-  if (v === 'corpus' && avant === 'entretien' && props.actif) void restaurerContexte()
+  if (v !== 'corpus' || !props.actif) return
+  if (avant === 'entretien') void restaurerContexte()
+  else void charger(false)
+})
+watch(dernierTirage, () => {
+  if (props.actif && vue.value === 'corpus') void charger(true)
 })
 function surResize() { bornerLargeur() }
 onMounted(() => {
@@ -400,7 +405,7 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
 </script>
 
 <template>
-      <section ref="panneau" class="pseudo-panneau pseudo-deux-col" :class="{ vertical: dispositionVerticale }" :style="{ '--pseudo-gauche-w': largeurGauche + 'px' }">
+      <section ref="panneau" class="pseudo-panneau pseudo-deux-col" :class="{ vertical: dispositionVerticale }" :style="{ '--pseudo-gauche-w': largeurGauche + 'px' }" :aria-busy="scanAnonEnCours">
         <div class="pseudo-haut">
           <header class="pseudo-tete">
             <h3>Pseudonymisation <span class="pseudo-sous">— règles d'anonymisation du corpus</span></h3>
@@ -452,9 +457,13 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
               </template>
             </div>
           </div>
-          <p v-if="scanAnonErreur" class="pseudo-erreur">{{ scanAnonErreur }} Le dernier résultat reste affiché.</p>
+          <p v-if="scanAnonErreur && scanAnonCharge" class="pseudo-erreur" role="alert">{{ scanAnonErreur }} Le dernier résultat lisible reste affiché et peut ne plus être à jour.</p>
         </div>
-          <div v-if="scanAnonEnCours && !scanAnonCharge" class="pseudo-vide">Analyse du corpus…</div>
+          <div v-if="scanAnonEnCours && !scanAnonCharge" class="pseudo-vide" role="status">Analyse du corpus…</div>
+          <div v-else-if="scanAnonErreur && !scanAnonCharge" class="pseudo-vide pseudo-premiere-erreur">
+            <p role="alert">{{ scanAnonErreur }}</p>
+            <button type="button" :disabled="scanAnonEnCours" @click="charger(true)">Réessayer</button>
+          </div>
           <div v-else-if="reglesAnon.length === 0" class="pseudo-vide">
             Aucune règle d'anonymisation corpus pour l'instant.
             <div class="pseudo-hint">
@@ -1018,6 +1027,8 @@ onUnmounted(() => window.removeEventListener('resize', surResize))
 .vertical .pseudo-gauche, .vertical .pseudo-droite { width: 100%; min-height: 280px; padding: .5rem 0; border: 0; }
 .actualiser-pseudo { border: 1px solid #bbb; border-radius: 5px; background: #fff; padding: .3rem .55rem; cursor: pointer; }
 .pseudo-erreur { color: #b3261e; font-size: .82rem; }
+.pseudo-premiere-erreur { text-align: center; }
+.pseudo-premiere-erreur p { color: #b3261e; }
 .garde-fond { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: rgba(0,0,0,.35); }
 .garde-dialogue { width: min(440px, 90vw); background: white; border-radius: 8px; padding: 1rem; box-shadow: 0 8px 30px rgba(0,0,0,.3); }
 .garde-dialogue h3 { margin-top: 0; }

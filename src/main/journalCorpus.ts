@@ -1,3 +1,5 @@
+import type { Note } from '../shared/format'
+import type { EtatNoteJournal } from '../shared/corpus/notes'
 import type {
   EntreeJournalCorpusVue,
   ImpactJournalCorpus,
@@ -34,6 +36,19 @@ export type InverseJournalCorpus =
       locuteurId: string
       avant: EtatRefusJournalCorpus
       apres: EtatRefusJournalCorpus
+    }
+  | {
+      type: 'noteModifier'
+      entretienId: string
+      noteId: string
+      avant: Note
+      apres: EtatNoteJournal
+    }
+  | {
+      type: 'noteSupprimer'
+      entretienId: string
+      note: Note
+      ordreApres: string[]
     }
 
 export interface EtatInverseJournalCorpus {

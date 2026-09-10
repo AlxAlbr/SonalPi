@@ -2,16 +2,33 @@
 
 La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne accès à :
 
-- **Thèmes**, pour consulter le codebook et ouvrir son édition ;
+- **Notes**, pour consulter les notes de tous les entretiens ;
 - **Personnes**, pour relier les locuteurs d’entretiens différents ;
-- **Données**, pour consulter et saisir les variables de l’ensemble du corpus ;
 - **Pseudonymisation**, pour contrôler et appliquer les règles partagées ;
+- **Thèmes**, pour consulter le codebook et ouvrir son édition ;
+- **Données**, pour consulter et saisir les variables de l’ensemble du corpus ;
 - **Journal**, pour annuler les actions récentes prises en charge dans le corpus ;
 - **Pas à pas**, lorsque le parcours de démonstration est actif.
 
 La recherche dans le texte de tous les entretiens est accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 
-Les cartes d’entretiens restent visibles dans Accueil, Thèmes, Journal et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
+Les cartes d’entretiens restent visibles dans Accueil, Thèmes, Journal et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
+
+## Chargement et actualisation
+
+Lors de la première ouverture d’un outil, un état de chargement discret remplace sa zone de contenu. Les actualisations suivantes gardent le dernier résultat lisible à l’écran. Si une relecture échoue, l’outil indique que ce résultat peut ne plus être à jour ; si rien n’a encore pu être lu, il propose **Réessayer**. Les entretiens indisponibles sont résumés dans un détail replié et n’empêchent pas de consulter les autres.
+
+Dans un corpus distant, le bouton global **Actualiser** renouvelle aussi l’outil affiché. Une réussite n’ajoute pas de message de confirmation.
+
+## Notes
+
+L’onglet Notes rassemble les notes de tous les entretiens. Le panneau de gauche permet de rechercher, filtrer et trier les résultats. Les filtres portent notamment sur la catégorie, l’entretien, le statut, la date, les passages importants et les liens vers des commentaires. Les affichages **Cartes**, **Feuille** et **Tableau** présentent le même inventaire. **Exporter** produit un fichier Markdown avec les seules notes actuellement affichées.
+
+Dans un corpus local, le crayon modifie le titre, le corps, la catégorie, la date et le statut d’une note existante. La croix la supprime après confirmation. Ces deux gestes alimentent le Journal du corpus et peuvent être annulés tant que la note ou son ordre n’a pas changé depuis. La création, l’ordre, les locuteurs concernés et les liens vers les commentaires restent gérés dans l’entretien.
+
+Dans un corpus distant, l’onglet consulte les notes du dernier miroir synchronisé. L’édition et la suppression directes sont désactivées : **Ouvrir dans l’entretien** utilise le verrou habituel et constitue le chemin d’édition. Le cadenas signale qu’un entretien risque de s’ouvrir en lecture seule. Le bouton global **Actualiser** tire les changements du serveur puis renouvelle l’inventaire ; en cas d’échec, le dernier inventaire lisible reste affiché.
+
+Les filtres, le tri, le mode d’affichage et la largeur du panneau sont conservés pendant un changement d’onglet ou un aller-retour dans un entretien. La largeur est mémorisée sur le poste et les panneaux s’empilent dans une fenêtre étroite.
 
 ## Personnes
 
@@ -45,7 +62,7 @@ Au nommage local, un nom spécifique sans candidat crée une personne ; un nom i
 
 Le Journal du corpus conserve en mémoire jusqu’aux dix dernières actions annulables prises en charge pendant la session. Les actions récentes apparaissent en premier et le bouton **↩** restaure leur état antérieur. Le Journal survit aux changements d’onglet et à un aller-retour dans un entretien, mais il est vidé au changement de corpus et au redémarrage de l’application.
 
-Le premier raccordement concerne les actions simples réalisées depuis Personnes : renommer une personne, associer, dissocier ou déplacer un locuteur, écarter un rapprochement simple et annuler un refus. Les créations, suppressions, reprises de données, réunions et opérations partiellement réussies n’apparaissent pas encore. Les actions effectuées dans un entretien restent rattachées à cet entretien et ne sont pas ajoutées au Journal du corpus.
+Le Journal couvre les actions simples réalisées depuis Personnes : renommer une personne, associer, dissocier ou déplacer un locuteur, écarter un rapprochement simple et annuler un refus. Il couvre aussi la modification et la suppression d’une note réalisées depuis l’onglet Notes du corpus. Les créations de notes, reprises de données, réunions et opérations partiellement réussies n’apparaissent pas. Les actions effectuées dans un entretien restent rattachées à cet entretien et ne sont pas ajoutées au Journal du corpus.
 
 Une action dont la cible a changé depuis reste visible mais ne peut plus être annulée. Le Journal n’écrase jamais cette modification plus récente. Il ne constitue pas un historique d’audit, n’est enregistré dans aucun fichier et ne propose pas de rétablissement après une annulation. L’annulation des actions d’un corpus distant n’est pas encore disponible.
 

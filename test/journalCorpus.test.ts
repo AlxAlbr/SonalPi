@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
 import { JournalCorpus } from '../src/main/journalCorpus'
 import { ecrireSeedDemo } from './seedDemo'
-import type { EntretienFichier } from '../src/shared/format'
+import type { ChampsNote } from '../src/shared/corpus/notes'
+import type { EntretienFichier, Note } from '../src/shared/format'
 
 const dossiers: string[] = []
 afterEach(() => {
@@ -54,6 +55,223 @@ describe('Journal du corpus — service volatile', () => {
       'Action 11', 'Action 10', 'Action 9', 'Action 8', 'Action 7',
       'Action 6', 'Action 5', 'Action 4', 'Action 3', 'Action 2',
     ])
+  })
+})
+
+function ajouterNote(store: CorpusStore): { entretienId: string; note: Note } {
+  const entretienId = Object.keys(store.ouvrir().membership)[0]
+  const lecture = store.lireEntretien(entretienId)
+  if (!lecture.ok) throw new Error('Entretien de test indisponible')
+  const note: Note = {
+    id: 'note-corpus-test',
+    categorieId: 'ncat_resume',
+    titre: 'État A',
+    date: '2025-01-02',
+    statut: 'public',
+    corps: 'Corps A',
+    locuteurIds: [lecture.data.locuteurs[0]?.id ?? 'loc-absent'],
+    rang: 0,
+    creeLe: '2025-01-01T10:00:00.000Z',
+    modifieLe: null,
+  }
+  lecture.data.notes = [note]
+  const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
+  store.ecrireEntretien(entretienId, payload)
+  return { entretienId, note }
+}
+
+function remplacerNotes(store: CorpusStore, notes: Note[]): string {
+  const entretienId = Object.keys(store.ouvrir().membership)[0]
+  const lecture = store.lireEntretien(entretienId)
+  if (!lecture.ok) throw new Error('Entretien de test indisponible')
+  lecture.data.notes = structuredClone(notes)
+  const { formatVersion: _version, lastModified: _date, ...payload } = lecture.data
+  store.ecrireEntretien(entretienId, payload)
+  return entretienId
+}
+
+function champsNote(
+  note: Pick<Note, 'categorieId' | 'titre' | 'date' | 'statut' | 'corps'>,
+  patch: Partial<ChampsNote> = {},
+): ChampsNote {
+  return {
+    categorieId: note.categorieId,
+    titre: note.titre,
+    date: note.date,
+    statut: note.statut,
+    corps: note.corps,
+    ...patch,
+  }
+}
+
+describe('Journal du corpus — commandes Notes', () => {
+  test('modifie atomiquement les champs autorisés et ignore une validation sans changement', () => {
+    const { dir, store } = preparer()
+    const { entretienId } = ajouterNote(store)
+    const corpusAvant = readFileSync(join(dir, 'corpus.json'), 'utf8')
+    const vueAvant = store.notesInventaire().notes[0]
+
+    store.notesCommander({
+      type: 'modifier',
+      entretienId,
+      noteId: vueAvant.id,
+      attendu: vueAvant.attendu,
+      champs: champsNote(vueAvant.attendu, { titre: 'État B', corps: '<mark>Corps B</mark>' }),
+    }, true)
+
+    const lecture = store.lireEntretien(entretienId)
+    if (!lecture.ok) throw new Error('Entretien de test indisponible')
+    expect(lecture.data.notes?.[0]).toMatchObject({
+      titre: 'État B',
+      corps: '<mark>Corps B</mark>',
+      locuteurIds: vueAvant.attendu.locuteurIds,
+      rang: 0,
+    })
+    expect(lecture.data.notes?.[0].modifieLe).toBeTruthy()
+    expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(corpusAvant)
+    expect(store.journalCorpusLister()).toHaveLength(1)
+
+    const vueApres = store.notesInventaire().notes[0]
+    const lastModified = lecture.data.lastModified
+    store.notesCommander({
+      type: 'modifier',
+      entretienId,
+      noteId: vueApres.id,
+      attendu: vueApres.attendu,
+      champs: champsNote(vueApres.attendu),
+    }, true)
+    const relue = store.lireEntretien(entretienId)
+    expect(relue.ok && relue.data.lastModified).toBe(lastModified)
+    expect(store.journalCorpusLister()).toHaveLength(1)
+  })
+
+  test('refuse un brouillon devenu obsolète sans écrire', () => {
+    const { store } = preparer()
+    const { entretienId } = ajouterNote(store)
+    const ancienne = store.notesInventaire().notes[0]
+    store.notesCommander({
+      type: 'modifier', entretienId, noteId: ancienne.id, attendu: ancienne.attendu,
+      champs: champsNote(ancienne.attendu, { titre: 'Modification concurrente' }),
+    })
+
+    expect(() => store.notesCommander({
+      type: 'modifier', entretienId, noteId: ancienne.id, attendu: ancienne.attendu,
+      champs: champsNote(ancienne.attendu, { titre: 'Brouillon obsolète' }),
+    }, true)).toThrow('Cette note a changé')
+    expect(() => store.notesCommander({
+      type: 'supprimer', entretienId, noteId: ancienne.id, attendu: ancienne.attendu,
+    }, true)).toThrow('Cette note a changé')
+    expect(store.notesInventaire().notes[0].titre).toBe('Modification concurrente')
+    expect(store.journalCorpusLister()).toEqual([])
+  })
+
+  test('annule successivement deux modifications de la même note', () => {
+    const { store } = preparer()
+    const { entretienId } = ajouterNote(store)
+    let vue = store.notesInventaire().notes[0]
+    store.notesCommander({
+      type: 'modifier', entretienId, noteId: vue.id, attendu: vue.attendu,
+      champs: champsNote(vue.attendu, { titre: 'État B' }),
+    }, true)
+    vue = store.notesInventaire().notes[0]
+    store.notesCommander({
+      type: 'modifier', entretienId, noteId: vue.id, attendu: vue.attendu,
+      champs: champsNote(vue.attendu, { titre: 'État C' }),
+    }, true)
+
+    let journal = store.journalCorpusLister()
+    expect(journal.map((entree) => entree.etat)).toEqual(['annulable', 'inapplicable'])
+    expect(store.journalCorpusAnnuler(journal[0].id)).toEqual({
+      ok: true,
+      impact: { corpus: false, entretiens: [entretienId], projections: ['notes', 'personnes'] },
+    })
+    expect(store.notesInventaire().notes[0].titre).toBe('État B')
+    journal = store.journalCorpusLister()
+    expect(journal[0].etat).toBe('annulable')
+    expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
+    expect(store.notesInventaire().notes[0].titre).toBe('État A')
+  })
+
+  test('supprime une note puis la restaure exactement à son rang', () => {
+    const { store } = preparer()
+    const modele: Note = {
+      id: 'note-b',
+      categorieId: 'ncat_resume',
+      titre: 'Note centrale',
+      date: '2025-01-02',
+      statut: 'prive',
+      corps: '<mark data-liens="commentaire-1">Corps exact</mark>',
+      locuteurIds: ['locuteur-1'],
+      rang: 1,
+      creeLe: '2025-01-01T10:00:00.000Z',
+      modifieLe: '2025-01-03T10:00:00.000Z',
+    }
+    const entretienId = remplacerNotes(store, [
+      { ...modele, id: 'note-a', titre: 'Avant', rang: 0 },
+      modele,
+      { ...modele, id: 'note-c', titre: 'Après', rang: 2 },
+    ])
+    const vue = store.notesInventaire().notes.find((note) => note.id === modele.id)!
+
+    expect(store.notesCommander({
+      type: 'supprimer', entretienId, noteId: vue.id, attendu: vue.attendu,
+    }, true)).toBeNull()
+    expect(store.notesInventaire().notes.map((note) => [note.id, note.rang])).toEqual([
+      ['note-a', 0], ['note-c', 1],
+    ])
+    const entree = store.journalCorpusLister()[0]
+    expect(entree).toMatchObject({ libelle: 'Note supprimée : « Note centrale »', etat: 'annulable' })
+    expect(store.journalCorpusAnnuler(entree.id)).toEqual({
+      ok: true,
+      impact: { corpus: false, entretiens: [entretienId], projections: ['notes', 'personnes'] },
+    })
+
+    const lecture = store.lireEntretien(entretienId)
+    if (!lecture.ok) throw new Error('Entretien de test indisponible')
+    expect(lecture.data.notes?.map((note) => note.id)).toEqual(['note-a', 'note-b', 'note-c'])
+    expect(lecture.data.notes?.map((note) => note.rang)).toEqual([0, 1, 2])
+    expect(lecture.data.notes?.[1]).toEqual(modele)
+    expect(store.journalCorpusLister()).toEqual([])
+  })
+
+  test('refuse d’annuler deux suppressions dans un ordre incompatible', () => {
+    const { store } = preparer()
+    const modele: Note = {
+      id: 'note-a',
+      categorieId: 'ncat_resume',
+      titre: 'A',
+      date: null,
+      statut: 'public',
+      corps: 'Corps',
+      locuteurIds: [],
+      rang: 0,
+      creeLe: '2025-01-01T10:00:00.000Z',
+      modifieLe: null,
+    }
+    const entretienId = remplacerNotes(store, [
+      modele,
+      { ...modele, id: 'note-b', titre: 'B', rang: 1 },
+      { ...modele, id: 'note-c', titre: 'C', rang: 2 },
+    ])
+    let vue = store.notesInventaire().notes.find((note) => note.id === 'note-b')!
+    store.notesCommander({
+      type: 'supprimer', entretienId, noteId: vue.id, attendu: vue.attendu,
+    }, true)
+    vue = store.notesInventaire().notes.find((note) => note.id === 'note-c')!
+    store.notesCommander({
+      type: 'supprimer', entretienId, noteId: vue.id, attendu: vue.attendu,
+    }, true)
+
+    let journal = store.journalCorpusLister()
+    expect(journal.map((entree) => entree.etat)).toEqual(['annulable', 'inapplicable'])
+    expect(store.journalCorpusAnnuler(journal[1].id)).toMatchObject({ ok: false, temporaire: false })
+    expect(store.notesInventaire().notes.map((note) => note.id)).toEqual(['note-a'])
+
+    expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
+    journal = store.journalCorpusLister()
+    expect(journal[0].etat).toBe('annulable')
+    expect(store.journalCorpusAnnuler(journal[0].id).ok).toBe(true)
+    expect(store.notesInventaire().notes.map((note) => note.id)).toEqual(['note-a', 'note-b', 'note-c'])
   })
 })
 

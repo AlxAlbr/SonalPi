@@ -32,6 +32,7 @@ import type {
 import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
+import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type {
   CompteDistantPublic,
@@ -184,6 +185,9 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:resumesThematiques'),
     reglesAnon: (): Promise<RegleAnon[]> => invoquer('corpus:reglesAnon'),
     scanAnon: (): Promise<ScanRegle[]> => invoquer('corpus:scanAnon'),
+    notesInventaire: (): Promise<InventaireNotes> => invoquer('corpus:notesInventaire'),
+    notesCommander: (commande: CommandeNotes): Promise<string | null> =>
+      invoquer('corpus:notesCommander', commande),
     personnesInventaire: (): Promise<InventairePersonnes> => invoquer('corpus:personnesInventaire'),
     personnesCommander: (commande: CommandePersonnes, depuisRepertoire = false): Promise<string | null> =>
       invoquer('corpus:personnesCommander', commande, depuisRepertoire),

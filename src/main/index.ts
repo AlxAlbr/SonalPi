@@ -645,6 +645,14 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
   ipcMain.handle('corpus:scanAnon', () => store.scanAnon())
+  ipcMain.handle('corpus:notesInventaire', () => store.notesInventaire())
+  ipcMain.handle('corpus:notesCommander', (
+    _e,
+    commande: import('../shared/corpus/notes').CommandeNotes,
+  ) => {
+    if (miroirActif) throw new Error('Édition des notes distantes non disponible.')
+    return store.notesCommander(commande, true)
+  })
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
   ipcMain.handle('corpus:personnesCommander', async (
     _e,

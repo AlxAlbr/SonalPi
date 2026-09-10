@@ -71,6 +71,29 @@ describe('cycle du scan', () => {
     await recharge
     expect(scanAnon).toHaveBeenCalledTimes(2)
   })
+
+  test('conserve un scan chargé après un échec et efface l’alerte au succès suivant', async () => {
+    const scanAnon = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error('Lecture impossible'))
+      .mockResolvedValueOnce([])
+    const reglesAnon = vi.fn().mockResolvedValue([])
+    Object.defineProperty(globalThis, 'window', {
+      value: { sonal: { corpus: { scanAnon, reglesAnon } } },
+      configurable: true,
+    })
+    const corpus = useCorpus({ flush: async () => {} })
+
+    await corpus.rafraichirScanAnon()
+    corpus.perimerScanAnon()
+    await corpus.rafraichirScanAnon()
+    expect(corpus.scanAnonCharge.value).toBe(true)
+    expect(corpus.scanAnonErreur.value).toBe('Lecture impossible')
+
+    await corpus.rafraichirScanAnon()
+    expect(corpus.scanAnonCharge.value).toBe(true)
+    expect(corpus.scanAnonErreur.value).toBeNull()
+  })
 })
 
 describe('largeur du séparateur', () => {

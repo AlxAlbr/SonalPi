@@ -9,6 +9,8 @@ const props = defineProps<{ actif?: boolean }>()
 const {
   variables,
   matrice,
+  matriceChargee,
+  matriceEnCours,
   modalitesDe,
   poserGen,
   poserLoc,
@@ -25,6 +27,7 @@ const {
   allerSaisieDonnees,
   rafraichirMatrice,
   vue,
+  dernierTirage,
 } = utiliserSonal()
 
 const editerVariables = ref(false)
@@ -141,10 +144,11 @@ watch(
     mesurerDisposition()
   },
 )
-watch(vue, (courante, precedente) => {
-  if (courante === 'corpus' && precedente === 'entretien' && props.actif) {
-    void rafraichirMatrice()
-  }
+watch(vue, (courante) => {
+  if (courante === 'corpus' && props.actif) void rafraichirMatrice()
+})
+watch(dernierTirage, () => {
+  if (props.actif && vue.value === 'corpus') void rafraichirMatrice()
 })
 onMounted(() => {
   restaurerLargeur()
@@ -246,6 +250,7 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
     class="donnees-ecran"
     :class="{ vertical: dispositionVerticale, replie: panneauReplie }"
     :style="{ '--donnees-gauche-w': largeurGauche + 'px' }"
+    :aria-busy="matriceEnCours"
   >
     <aside v-if="!panneauReplie" class="donnees-gauche">
       <div class="variables-tete">
@@ -348,7 +353,13 @@ function tabCellule(cle: string, evt: KeyboardEvent) {
         <span><kbd>⇊</kbd> changement par lot</span>
       </p>
 
-      <div v-if="variables.length === 0" class="vide table-vide">
+      <div v-if="matriceEnCours && !matriceChargee" class="vide table-vide" role="status">
+        Chargement…
+      </div>
+      <div v-else-if="!matriceChargee" class="vide table-vide">
+        <button class="mini" type="button" :disabled="matriceEnCours" @click="rafraichirMatrice">Réessayer</button>
+      </div>
+      <div v-else-if="variables.length === 0" class="vide table-vide">
         Aucune variable. Utilisez le crayon du panneau Variables pour en créer.
       </div>
       <div v-else-if="variablesVisibles.length === 0" class="vide table-vide">

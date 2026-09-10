@@ -876,8 +876,8 @@ test('démo visible : PANNEAU MÉTA sous verrou — nom/suppression grisés chez
     await narrer(pOli, 'Olivier actualise : le verrou a disparu — le panneau redevient éditable…')
     await pOli.locator('.btn-table', { hasText: 'Actualiser' }).click()
     await expect(pOli.locator('.badge-verrou')).toHaveCount(0, { timeout: 20_000 })
-    // Le tirage a ramené des fichiers : ré-application complète du corpus,
-    // qui désélectionne la carte — on rouvre le panneau méta.
+    // Le tirage a ramené des fichiers et désélectionné la carte.
+    // On rouvre le panneau des métadonnées.
     await pOli.locator('.carte-ent').first().click()
     await expect(pOli.locator('.meta-ent')).toBeVisible({ timeout: 20_000 })
     await expect(nomOli).toBeEnabled({ timeout: 20_000 })

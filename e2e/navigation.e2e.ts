@@ -24,9 +24,10 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
 
   // La navigation du corpus démarre sur son accueil et reste composée d'icônes.
   const onglets = page.locator('.onglets-corpus button')
-  await expect(onglets).toHaveCount(6)
+  await expect(onglets).toHaveCount(7)
+  await expect(onglets.nth(1)).toHaveAttribute('aria-label', 'Notes')
   await expect(onglets.nth(2)).toHaveAttribute('aria-label', 'Personnes')
-  await expect(onglets.nth(5)).toHaveAttribute('aria-label', 'Journal')
+  await expect(onglets.nth(6)).toHaveAttribute('aria-label', 'Journal')
   await expect(page.locator('.onglets-corpus').getByRole('button', { name: 'Recherche', exact: true })).toHaveCount(0)
   await expect(page.locator('.onglets-corpus button.actif')).toHaveAttribute('aria-label', 'Accueil')
   await expect(page.locator('.accueil-corpus')).toContainText('Données')

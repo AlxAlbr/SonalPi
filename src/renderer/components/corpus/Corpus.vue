@@ -6,6 +6,7 @@ import MenuTheme from '../themes/MenuTheme.vue'
 import PasAPas from './PasAPas.vue'
 import PseudonymisationCorpus from './PseudonymisationCorpus.vue'
 import PersonnesCorpus from './PersonnesCorpus.vue'
+import NotesCorpus from './NotesCorpus.vue'
 import PanneauJournalCorpus from './PanneauJournalCorpus.vue'
 import TableDonnees from '../donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../composables/sonal'
@@ -21,6 +22,7 @@ import icoMaison from '../../assets/icones/maison.png'
 import icoJournal from '../../assets/icones/journal.png'
 // Icônes des onglets, spécifiques au Corpus.
 import icoPersonnes from '../../assets/icones/personnes.png'
+import icoNotes from '../../assets/icones/notes.png'
 import icoPasAPas from '../../assets/icones/pas-a-pas.svg'
 
 const {
@@ -135,23 +137,16 @@ function basculerRepli(id: string) {
   repliesThemes.value = s
 }
 
-type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'donnees' | 'anon' | 'journal' | 'pas-a-pas'
+type OngletCorpus = 'accueil' | 'themes' | 'recherche' | 'personnes' | 'notes' | 'donnees' | 'anon' | 'journal' | 'pas-a-pas'
 const ongletCorpus = ref<OngletCorpus>('accueil')
 const pseudonymisation = ref<InstanceType<typeof PseudonymisationCorpus> | null>(null)
-let chargementMatrice: Promise<void> | null = null
-async function chargerMatrice() {
-  if (!chargementMatrice) {
-    chargementMatrice = rafraichirMatrice().finally(() => { chargementMatrice = null })
-  }
-  await chargementMatrice
-}
 async function choisirOnglet(onglet: OngletCorpus) {
   if (ongletCorpus.value === 'anon' && onglet !== 'anon' && !(await pseudonymisation.value?.autoriserSortie())) return
   if (ongletCorpus.value === onglet) return
   deselectionnerCorpus()
   extraitAffiche.value = null
-  if (onglet === 'donnees') await chargerMatrice()
   ongletCorpus.value = onglet
+  if (onglet === 'donnees') await rafraichirMatrice()
 }
 watch(pasAPas, (v) => {
   if (v) void choisirOnglet('pas-a-pas')
@@ -287,15 +282,16 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
 
       <nav class="onglets-corpus" aria-label="Navigation du corpus">
         <button :class="{ actif: ongletCorpus === 'accueil' }" title="Accueil" aria-label="Accueil" :aria-current="ongletCorpus === 'accueil' ? 'page' : undefined" @click="choisirOnglet('accueil')"><img class="ico-onglet-corpus" :src="icoMaison" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" aria-label="Thèmes" :aria-current="ongletCorpus === 'themes' ? 'page' : undefined" @click="choisirOnglet('themes')"><img class="ico-onglet-corpus" :src="icoThemes" alt="" /></button>
+        <button :class="{ actif: ongletCorpus === 'notes' }" title="Notes" aria-label="Notes" :aria-current="ongletCorpus === 'notes' ? 'page' : undefined" @click="choisirOnglet('notes')"><img class="ico-onglet-corpus" :src="icoNotes" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'personnes' }" title="Personnes" aria-label="Personnes" :aria-current="ongletCorpus === 'personnes' ? 'page' : undefined" @click="choisirOnglet('personnes')"><img class="ico-onglet-corpus" :src="icoPersonnes" alt="" /></button>
-        <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
         <button :class="{ actif: ongletCorpus === 'anon' }" title="Pseudonymisation" aria-label="Pseudonymisation" :aria-current="ongletCorpus === 'anon' ? 'page' : undefined" @click="choisirOnglet('anon')"><img class="ico-onglet-corpus" :src="icoAnon" alt="" /></button>
+        <button :class="{ actif: ongletCorpus === 'themes' }" title="Thèmes" aria-label="Thèmes" :aria-current="ongletCorpus === 'themes' ? 'page' : undefined" @click="choisirOnglet('themes')"><img class="ico-onglet-corpus" :src="icoThemes" alt="" /></button>
+        <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
         <button data-onglet="journal" :class="{ actif: ongletCorpus === 'journal' }" title="Journal" aria-label="Journal" :aria-current="ongletCorpus === 'journal' ? 'page' : undefined" @click="choisirOnglet('journal')"><img class="ico-onglet-corpus" :src="icoJournal" alt="" /></button>
         <button v-if="pasAPas" :class="{ actif: ongletCorpus === 'pas-a-pas' }" title="Pas à pas" aria-label="Pas à pas" :aria-current="ongletCorpus === 'pas-a-pas' ? 'page' : undefined" @click="choisirOnglet('pas-a-pas')"><img class="ico-onglet-corpus" :src="icoPasAPas" alt="" /></button>
       </nav>
 
-      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes'" class="grille-corpus">
+      <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus">
         <!-- Colonne GAUCHE : onglets Thèmes / Pas à pas,
              puis bascule Thèmes ⇄ Métadonnées de l'entretien sélectionné -->
         <aside class="colonne-g-corpus">
@@ -434,10 +430,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               🔍 Raccourci : <b>Ctrl+F / Cmd+F</b> ouvre la recherche dans le texte de tous les entretiens.
             </p>
             <ul class="accueil-outils">
-              <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook et ouvrir son édition.</span></li>
+              <li><img :src="icoNotes" alt="" /><span><b>Notes</b> — consulter les notes de tous les entretiens.</span></li>
               <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
-              <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
               <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
+              <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook et ouvrir son édition.</span></li>
+              <li><img :src="icoDonnees" alt="" /><span><b>Données</b> — consulter et saisir les variables pour l’ensemble du corpus.</span></li>
               <li><img :src="icoJournal" alt="" /><span><b>Journal</b> — annuler les actions récentes prises en charge depuis les outils du corpus.</span></li>
               <li v-if="pasAPas"><img :src="icoPasAPas" alt="" /><span><b>Pas à pas</b> — suivre le parcours guidé.</span></li>
             </ul>
@@ -651,6 +648,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
       </div>
 
       <PersonnesCorpus v-show="ongletCorpus === 'personnes'" :actif="ongletCorpus === 'personnes'" />
+      <NotesCorpus v-show="ongletCorpus === 'notes'" :actif="ongletCorpus === 'notes'" />
       <div v-show="ongletCorpus === 'donnees'" class="donnees-corpus-conteneur">
         <TableDonnees :actif="ongletCorpus === 'donnees'" />
       </div>

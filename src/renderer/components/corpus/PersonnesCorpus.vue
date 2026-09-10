@@ -15,12 +15,14 @@ const titreFiche = ref<HTMLHeadingElement | null>(null)
 const recherche = ref('')
 const filtre = ref<'tous' | 'problemes' | 'refus'>('tous')
 const erreur = ref('')
+const erreurLecture = ref(false)
 const message = ref('')
 const ficheVideId = ref('')
 const ficheVide = computed(() => inventaire.value.personnes.find(p => p.id === ficheVideId.value && !inventaire.value.locuteurs.some(l => l.personneRef === p.id)))
 const occupe = ref(false)
 const charge = ref(false)
 let generation = 0
+let chargementPersonnes: Promise<void> | null = null
 const corpusDistant = computed(() => !!idDistantCourant.value)
 const lectureUniquement = computed(() => lectureSeule.value)
 const desactive = computed(() => occupe.value || lectureUniquement.value)
@@ -87,6 +89,10 @@ const suggestionsParLocuteur = computed(() => {
 })
 const aVerifier = computed(() => inventaire.value.locuteurs.filter((l) => suggestionsParLocuteur.value.get(cleLocuteur(l))?.length))
 const decisionsEcartees = computed(() => inventaire.value.locuteurs.filter((l) => l.rapprochementsRefuses?.length))
+const resumeIndisponibles = computed(() => {
+  const nombre = inventaire.value.indisponibles.length
+  return `${nombre} entretien${nombre > 1 ? 's' : ''} indisponible${nombre > 1 ? 's' : ''}`
+})
 const candidats = computed(() => locuteur.value ? suggestionsParLocuteur.value.get(cleLocuteur(locuteur.value)) ?? [] : [])
 function libelleRefus(r: string) {
   if (r.startsWith('personne:')) return inventaire.value.personnes.find((p) => p.id === r.slice(9))?.nom ?? 'Personne absente'
@@ -124,24 +130,36 @@ function valeur(l: VueLocuteurPersonne, idVar: string) {
 }
 
 async function actualiser() {
+  if (chargementPersonnes) return chargementPersonnes
   const jeton = ++generation
   occupe.value = true
-  erreur.value = ''
-  try {
-    const resultat = await lirePersonnes()
-    if (jeton !== generation) return
-    inventaire.value = resultat
-    charge.value = true
-  } catch (e) {
-    if (jeton === generation) erreur.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    if (jeton === generation) occupe.value = false
-  }
+  let requete!: Promise<void>
+  requete = (async () => {
+    try {
+      const resultat = await lirePersonnes()
+      if (jeton !== generation) return
+      inventaire.value = resultat
+      charge.value = true
+      erreur.value = ''
+      erreurLecture.value = false
+    } catch (e) {
+      if (jeton === generation) {
+        erreur.value = e instanceof Error ? e.message : String(e)
+        erreurLecture.value = true
+      }
+    } finally {
+      if (jeton === generation) occupe.value = false
+      if (chargementPersonnes === requete) chargementPersonnes = null
+    }
+  })()
+  chargementPersonnes = requete
+  return requete
 }
 async function executer(commande: CommandePersonnes) {
   if (desactive.value) return
   occupe.value = true
   erreur.value = ''
+  erreurLecture.value = false
   message.value = ''
   const jeton = generation
   try {
@@ -176,6 +194,7 @@ function enregistrerNom() {
   const valeur = nom.value.trim()
   if (!valeur) {
     nom.value = fiche.nom
+    erreurLecture.value = false
     erreur.value = 'Le nom de référence ne peut pas être vide.'
     return
   }
@@ -260,11 +279,17 @@ function lier(l: VueLocuteurPersonne, personneId: string | null) {
 }
 async function ouvrir(l: VueLocuteurPersonne) {
   try { await allerLocuteurs(l.entretienId) }
-  catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
+  catch (e) {
+    erreurLecture.value = false
+    erreur.value = e instanceof Error ? e.message : String(e)
+  }
 }
 async function ouvrirNotes(entretienId: string) {
   try { await allerNotes(entretienId) }
-  catch (e) { erreur.value = e instanceof Error ? e.message : String(e) }
+  catch (e) {
+    erreurLecture.value = false
+    erreur.value = e instanceof Error ? e.message : String(e)
+  }
 }
 
 const panneau = ref<HTMLElement | null>(null)
@@ -309,9 +334,10 @@ onMounted(() => {
 onBeforeUnmount(() => { generation++; observateur?.disconnect() })
 watch(dossierCourantDir, () => {
   generation++
+  chargementPersonnes = null
   inventaire.value = { personnes: [], locuteurs: [], notes: [], indisponibles: [] }
   selection.value = ''; recherche.value = ''; filtre.value = 'tous'; charge.value = false
-  erreur.value = ''; message.value = ''; occupe.value = false
+  erreur.value = ''; erreurLecture.value = false; message.value = ''; occupe.value = false
   annuler()
   dialogueSeparation.value?.close()
   separation.value = null
@@ -331,18 +357,27 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
     </header>
     <p v-if="lectureUniquement" class="information">Consultation seule : reconnectez le corpus distant pour appliquer une correction.</p>
     <p v-else-if="corpusDistant" class="information">Les corrections sont publiées sous verrou. Une opération touchant plusieurs entretiens peut réussir partiellement ; actualisez alors le répertoire pour reprendre les éléments restants.</p>
-    <p v-if="erreur" role="alert" class="erreur">{{ erreur }}</p>
-    <p v-if="message" role="status">{{ message }}</p>
-    <section v-if="ficheVide" aria-label="Personne sans entretien">
+    <p v-if="erreur && charge" role="alert" class="erreur alerte-projection">
+      {{ erreur }}<template v-if="erreurLecture"> Le répertoire affiché est le dernier résultat lisible et peut ne plus être à jour.</template>
+    </p>
+    <p v-if="message && charge" role="status">{{ message }}</p>
+    <section v-if="ficheVide && charge" aria-label="Personne sans entretien">
       <p>« {{ ficheVide.nom }} » n’est plus associée à aucun entretien.</p>
       <button :disabled="desactive" @click="selection = `p:${ficheVide.id}`">Examiner cette personne</button>
       <button :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${ficheVide.nom} » ?`, { type: 'supprimer', personneId: ficheVide.id })">Supprimer cette personne…</button>
     </section>
-    <p v-if="occupe" role="status">Chargement…</p>
-    <ul v-if="inventaire.indisponibles.length" class="erreur">
-      <li v-for="e in inventaire.indisponibles" :key="e.id">{{ e.titre }} : {{ e.raison }}. L’inventaire est incomplet.</li>
-    </ul>
-    <div ref="panneau" class="deux-colonnes" :class="{ verticale }" :style="{ '--largeur-personnes': largeur + 'px' }">
+    <div v-if="occupe && !charge" class="etat-projection" role="status">Chargement…</div>
+    <div v-else-if="erreurLecture && erreur && !charge" class="etat-projection">
+      <p role="alert">{{ erreur }}</p>
+      <button type="button" :disabled="occupe" @click="actualiser">Réessayer</button>
+    </div>
+    <details v-if="charge && inventaire.indisponibles.length" class="inventaire-incomplet">
+      <summary>{{ resumeIndisponibles }}</summary>
+      <ul>
+        <li v-for="e in inventaire.indisponibles" :key="e.id">{{ e.titre }} : {{ e.raison }}</li>
+      </ul>
+    </details>
+    <div v-show="charge" ref="panneau" class="deux-colonnes" :class="{ verticale }" :style="{ '--largeur-personnes': largeur + 'px' }">
       <aside class="repertoire" aria-label="Répertoire des personnes">
         <div class="barre-recherche-personnes">
           <label>Rechercher<input v-model="recherche" type="search" /></label>
@@ -614,6 +649,11 @@ form { margin-bottom: 16px; }
 .separateur-action { margin: -4px 0; color: #52606d; font-size: 1.15rem; font-weight: 600; text-align: center; }
 .actions { margin-top: 8px; }
 .erreur { color: #a82020; }
+.alerte-projection { margin: 10px 0; padding: 8px 10px; border: 1px solid #e5b4b4; border-radius: 5px; background: #fff8f8; }
+.etat-projection { padding: 24px 12px; color: #52606d; text-align: center; }
+.etat-projection p { color: #a82020; }
+.inventaire-incomplet { margin-top: 10px; padding: 8px 10px; border: 1px solid #e0c77a; border-radius: 5px; background: #fffaf0; color: #6d5700; font-size: 0.85rem; }
+.inventaire-incomplet ul { margin-bottom: 0; }
 .information { padding: 10px; background: #fff5d8; }
 .separateur { background: #e8edf5; cursor: col-resize; touch-action: none; border-radius: 5px; }
 .separateur:focus-visible { outline: 2px solid #1565c0; }
