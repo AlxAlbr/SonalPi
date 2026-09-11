@@ -728,6 +728,152 @@ ipcMain.handle('export-files-zip', async (event, fichiers, defaultName) => {
   }
 });
 
+// ---------------------------------------------------------------
+// REFI-QDA (.qdpx) - Export : emballer project.qde + /sources/*.txt
+// en une archive .qdpx (zip). Reçoit { projectXml, sourceFiles, defaultName }.
+// ---------------------------------------------------------------
+ipcMain.handle('refi:export-qdpx', async (event, payload) => {
+  try {
+    const { projectXml, sourceFiles, defaultName } = payload || {};
+    if (!projectXml) return { success: false, error: 'projectXml manquant' };
+
+    const defaultDir = (Corpus.folder && Corpus.type !== 'distant' && Corpus.type !== 'gitlab')
+      ? Corpus.folder
+      : app.getPath('documents');
+    const defaultPath = path.join(defaultDir, (defaultName || 'corpus') + '.qdpx');
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Exporter au format REFI-QDA',
+      defaultPath,
+      filters: [{ name: 'REFI-QDA Project', extensions: ['qdpx'] }, { name: 'Tous les fichiers', extensions: ['*'] }]
+    });
+    if (canceled || !filePath) return { success: false, canceled: true };
+
+    const zip = new AdmZip();
+    zip.addFile('project.qde', Buffer.from(projectXml, 'utf8'));
+    (sourceFiles || []).forEach(f => {
+      if (!f || !f.nom) return;
+      zip.addFile('sources/' + f.nom, Buffer.from(f.contenu != null ? String(f.contenu) : '', 'utf8'));
+    });
+    zip.writeZip(filePath);
+    console.log('✅ REFI-QDA exporté :', filePath);
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Erreur refi:export-qdpx :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---------------------------------------------------------------
+// REFI-QDA (.qdpx) - Import : ouvrir un .qdpx, dézipper, renvoyer
+// { projectXml, sourceFiles } au renderer pour reconstruction du modèle.
+// ---------------------------------------------------------------
+ipcMain.handle('refi:import-qdpx', async () => {
+  try {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: 'Importer un fichier REFI-QDA',
+      properties: ['openFile'],
+      filters: [{ name: 'REFI-QDA Project', extensions: ['qdpx', 'zip'] }, { name: 'Tous les fichiers', extensions: ['*'] }]
+    });
+    if (canceled || !filePaths || !filePaths[0]) return { success: false, canceled: true };
+
+    const filePath = filePaths[0];
+    const zip = new AdmZip(filePath);
+    const entries = zip.getEntries();
+
+    let projectEntry = null;
+    for (const e of entries) {
+      const name = e.entryName.toLowerCase();
+      if (name === 'project.qde' || name.endsWith('/project.qde') || name === 'project.xml' || name.endsWith('/project.xml')) {
+        projectEntry = e;
+        break;
+      }
+    }
+    if (!projectEntry) {
+      return { success: false, error: 'Aucun project.qde (ou project.xml) trouvé dans l\'archive.' };
+    }
+    const projectXml = projectEntry.getData().toString('utf8');
+
+    const sourceFiles = [];
+    for (const e of entries) {
+      const name = e.entryName;
+      if (e.isDirectory) continue;
+      const low = name.toLowerCase();
+      if (low === 'project.qde' || low.endsWith('/project.qde') ||
+          low === 'project.xml' || low.endsWith('/project.xml')) continue;
+      if (!low.endsWith('.txt')) continue;
+      const baseName = name.split('/').pop();
+      sourceFiles.push({ nom: baseName, contenu: e.getData().toString('utf8') });
+    }
+
+    return { success: true, projectXml, sourceFiles };
+  } catch (error) {
+    console.error('❌ Erreur refi:import-qdpx :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ---------------------------------------------------------------
+// REFI-QDA - Création d'un nouveau corpus local à partir d'un modèle
+// reconstruit par le renderer (import). Écrit le .crp + les fichiers .sonal.
+// Reçoit { projectName, model: { tabThm, tabEnt, tabVar, tabDic, sources } }.
+// ---------------------------------------------------------------
+ipcMain.handle('refi:creer-corpus-import', async (event, payload) => {
+  try {
+    const { projectName, model } = payload || {};
+    if (!model) return { success: false, error: 'modèle manquant' };
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choisir le dossier du nouveau corpus',
+      properties: ['openDirectory']
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths[0]) {
+      return { success: false, canceled: true };
+    }
+    const dossierCorpus = result.filePaths[0];
+    const nomNettoye = (projectName || 'Import_REFI-QDA').replace(/[<>:"/\\|?*]/g, '_').trim() || 'Import_REFI-QDA';
+    const cheminFichier = path.join(dossierCorpus, nomNettoye + '.crp');
+
+    const contenuCrp = JSON.stringify({
+      nom: nomNettoye,
+      dateCreation: new Date().toISOString(),
+      version: '1.0',
+      tabEnt: model.tabEnt.map(({ _html, _rtrPath, _entId, ...e }) => e),
+      tabThm: model.tabThm,
+      tabVar: model.tabVar,
+      tabDic: model.tabDic,
+      tabDat: []
+    }, null, 2);
+    await fs.writeFileSync(cheminFichier, contenuCrp, 'utf8');
+
+    const sources = model.sources || [];
+    for (const s of sources) {
+      if (!s._html || !s._rtrPath) continue;
+      const cheminSonal = path.join(dossierCorpus, s._rtrPath);
+      await fs.writeFileSync(cheminSonal, s._html, 'utf8');
+    }
+
+    console.log('✅ Corpus REFI-QDA créé :', cheminFichier);
+    return { success: true, chemin: cheminFichier };
+  } catch (error) {
+    console.error('❌ Erreur refi:creer-corpus-import :', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Signaler l'ouverture du corpus nouvellement créé pour affichage dans le renderer.
+ipcMain.handle('refi:ouvrir-corpus-cree', async (event, filePath) => {
+  try {
+    const corpus = await ouvrirCorpus(filePath);
+    if (corpus && corpus.success) {
+      mainWindow.webContents.send('afficher-corpus', corpus);
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Ouvrir un fichier avec l'application par défaut du système
 ipcMain.handle('open-path', async (event, filePath) => {
   try {
@@ -3039,6 +3185,13 @@ app.on('ready', () => {
             label: '🗃️ Corpus récents',
             submenu: [{ label: 'Aucun fichier récent', enabled: false }]
           },
+        { type: 'separator' },
+        {
+          label: '📥 Importer un projet REFI-QDA…',
+          click: () => {
+            mainWindow.webContents.send('menu:importer-refiqda');
+          }
+        },
       { type: 'separator' },
         {  // ouvrir un corpus distant (serveur ou GitLab)
           label: '🌐 Ouvrir corpus distant...',
