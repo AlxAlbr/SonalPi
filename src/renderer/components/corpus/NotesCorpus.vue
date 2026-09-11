@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, toRef } from 'vue'
-import { useNotesCorpus } from '../../composables/useNotesCorpus'
+import { useNotesCorpus } from '../../composables/corpus/useNotesCorpus'
 import ModaleNoteCorpus from './ModaleNoteCorpus.vue'
 import type { ChampsNote, LienCommentaireNoteCorpus, VueNoteCorpus } from '../../../shared/corpus/notes'
 

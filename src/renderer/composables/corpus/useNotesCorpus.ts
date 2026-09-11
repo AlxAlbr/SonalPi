@@ -1,8 +1,8 @@
 import { computed, ref, toRaw, watch, type Ref } from 'vue'
-import { utiliserSonal } from './sonal'
-import { corpsAvecRefsCommentaires, corpsNoteEnTexte, sanitiserCorpsNote } from '../notes/sanitiser'
-import { genererMarkdownNotes, nomFichierMarkdownNotes } from '../notes/markdown'
-import type { ChampsNote, CommandeNotes, CritereTriNotes, InventaireNotes, VueNoteCorpus } from '../../shared/corpus/notes'
+import { utiliserSonal } from '../sonal'
+import { corpsAvecRefsCommentaires, corpsNoteEnTexte, sanitiserCorpsNote } from '../../notes/sanitiser'
+import { genererMarkdownNotes, nomFichierMarkdownNotes } from '../../notes/markdown'
+import type { ChampsNote, CommandeNotes, CritereTriNotes, InventaireNotes, VueNoteCorpus } from '../../../shared/corpus/notes'
 
 export function useNotesCorpus(actif: Ref<boolean>) {
   const {
