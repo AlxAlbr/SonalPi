@@ -8,7 +8,6 @@ const props = defineProps<{ actif: boolean; lectureSeule: boolean }>()
 
 const {
   lirePersonnes,
-  varsLoc,
   locuteurs,
   attribuerLoc,
   renommerLoc,
@@ -85,7 +84,6 @@ watch(
         :key="`${rapprochementNommage.entretienId}:${rapprochementNommage.locuteurId}:${rapprochementNommage.nom}`"
         :cible="rapprochementNommage.cible"
         :sources="rapprochementNommage.sources"
-        :variables="varsLoc()"
         :nom="rapprochementNommage.nom"
         :lien-actuel="rapprochementNommage.lienActuel"
         :candidats="rapprochementNommage.candidats"
@@ -94,7 +92,11 @@ watch(
         @reporter="reporterRapprochement"
         @decider="deciderRapprochement"
       />
-      <p v-if="messagePersonnes" role="status">{{ messagePersonnes }}</p>
+      <p
+        v-if="messagePersonnes"
+        :class="{ 'message-personne-creation': messagePersonnes.startsWith('Personne «') }"
+        role="status"
+      >{{ messagePersonnes }}</p>
       <p v-if="erreurLiensPersonnes" role="status">{{ erreurLiensPersonnes }}</p>
       <ul class="liste-loc">
         <li v-for="(l, i) in locuteurs" :key="l.index">
@@ -139,13 +141,10 @@ watch(
             title="Supprimer ce locuteur"
             @click="demanderSuppressionLocuteur(l.index)"
           >✕</button>
-          <span v-if="l.personneRef && nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc">
-            Lié à « {{ nomsPersonnesLiees[l.personneRef] }} » — le nom saisi reste local.
-          </span>
-          <span v-else-if="l.personneRef && liensPersonnesCharges" class="lien-personne-loc reference-personne-absente">
+          <span v-if="l.personneRef && liensPersonnesCharges && !nomsPersonnesLiees[l.personneRef]" class="lien-personne-loc reference-personne-absente">
             Référence de personne absente : « {{ l.personneRef }} ». Corrigez cette association dans Personnes.
           </span>
-          <span v-else-if="l.personneRef" class="lien-personne-loc">
+          <span v-else-if="l.personneRef && !liensPersonnesCharges" class="lien-personne-loc">
             Association à « {{ l.personneRef }} » en cours de vérification.
           </span>
         </li>
@@ -204,6 +203,9 @@ watch(
 }
 .liste-loc li {
   min-width: 0;
+}
+.message-personne-creation {
+  font-size: 0.75rem;
 }
 .lien-personne-loc {
   grid-column: 2 / -1;

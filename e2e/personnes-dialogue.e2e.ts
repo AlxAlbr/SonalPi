@@ -26,6 +26,41 @@ test('un nom proche est proposé avec une raison distincte', async () => {
   }
 })
 
+test('une identité déjà rapprochée est présentée sur une seule ligne avec ses entretiens', async () => {
+  const { app, page } = await ouvrir('sonal-personnes-identite-groupee-')
+  try {
+    await page.evaluate(async () => {
+      const api = (window as any).sonal.corpus
+      const ids: string[] = []
+      for (const titre of ['Source A', 'Source B']) {
+        const { id } = await api.creerEntretienVide(titre)
+        ids.push(id)
+        const { data } = await api.lireEntretien(id)
+        const { formatVersion, lastModified, ...payload } = data
+        payload.locuteurs = [{ id: `marie-${id}`, index: 0, nom: 'Marie Dupont', valeursLoc: {}, personneRef: null }]
+        await api.ecrireEntretien(id, payload)
+      }
+      const personneId = await api.personnesCommander({ type: 'creer', entretienId: ids[0], locuteurId: `marie-${ids[0]}`, nom: 'Marie Dupont' })
+      await api.personnesCommander({ type: 'lier', entretienId: ids[1], locuteurId: `marie-${ids[1]}`, personneId })
+    })
+    await page.locator('.onglets button[data-onglet="locuteurs"]').click()
+    const nom = page.locator('.nom-loc').first()
+    await nom.fill('Marie Dupont')
+    await nom.press('Tab')
+    const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })
+    const propositions = dialogue.locator('.proposition-personne')
+    await expect(propositions).toHaveCount(1)
+    await expect(propositions).toContainText('Identité déjà reliée à 2 entretiens : Source A, Source B.')
+    await propositions.getByRole('radio').check()
+    await expect(dialogue).toContainText('Les informations disponibles sont identiques dans ces entretiens : pseudonyme « non renseigné » et statut interviewé·e.')
+    await expect(dialogue.getByRole('group', { name: /Les informations diffèrent/ })).toHaveCount(0)
+    await expect(dialogue.getByRole('button', { name: 'Confirmer', exact: true })).toBeEnabled()
+    await dialogue.getByRole('button', { name: 'Plus tard' }).click()
+  } finally {
+    await app.close()
+  }
+})
+
 test('une référence de Personne absente est diagnostiquée dans l’éditeur', async () => {
   const { app, page } = await ouvrir('sonal-personnes-reference-absente-')
   try {
@@ -93,7 +128,7 @@ test('le nommage propose une identité et lie sans écraser la session', async (
     await expect(dialogue.getByRole('radio')).not.toBeChecked()
     await dialogue.getByRole('radio').check()
     await expect(dialogue).toContainText('Une personne porte déjà ce nom.')
-    await expect(dialogue.getByRole('region', { name: 'Données proposées pour ce locuteur' })).toContainText('Pseudonyme : Alice')
+    await expect(dialogue.getByRole('checkbox', { name: /Reprendre les informations disponibles/ })).toBeChecked()
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     await nom.fill('Mme Dupont')
@@ -106,7 +141,7 @@ test('le nommage propose une identité et lie sans écraser la session', async (
     expect(cible.personneRef).toBe(source.personneRef)
     expect(cible.pseudo).toBe('Alice')
     expect(cible.pseudoEtat).toBe('confirme')
-    expect(cible.interviewer).toBe(false)
+    expect(cible.interviewer).toBe(true)
     expect(vue.personnes).toHaveLength(1)
   } finally { await app.close() }
 })

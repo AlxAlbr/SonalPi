@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ouvrir } from './util'
 
-test('la reprise au nommage reste annulable et ne copie que les champs choisis', async () => {
+test('la reprise simplifiée au nommage peut être désactivée', async () => {
   const { app, page } = await ouvrir('sonal-personnes-reprise-nommage-')
   try {
     await page.evaluate(async () => {
@@ -18,17 +18,18 @@ test('la reprise au nommage reste annulable et ne copie que les champs choisis',
     await nom.press('Tab')
     const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })
     await dialogue.getByRole('radio').check()
-    await dialogue.locator('summary').click()
-    await expect(dialogue.getByRole('checkbox', { name: /^Pseudonyme/ })).toBeChecked()
-    await expect(dialogue.getByRole('checkbox', { name: /^Interviewer/ })).not.toBeChecked()
-    await dialogue.getByRole('checkbox', { name: 'Ne reprendre aucune donnée' }).check()
-    await dialogue.locator('summary').click()
+    const reprise = dialogue.getByRole('checkbox', { name: /Reprendre les informations disponibles/ })
+    await expect(reprise).toBeChecked()
+    await reprise.uncheck()
     const avant = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     expect(avant.personnes).toHaveLength(0)
-    await expect(dialogue).toContainText('Aucune donnée ne sera reprise.')
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
     await page.locator('.barre .retour').click()
+    await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
+    const panneau = page.locator('.personnes-corpus')
+    await expect(panneau.getByRole('button', { name: 'À vérifier 0', exact: true })).toBeVisible()
+    await expect(panneau.getByRole('region', { name: 'Suggestions à vérifier' })).toContainText('Aucun rapprochement proposé.')
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     const source = vue.locuteurs.find((l: any) => l.locuteurId === 'marie-source')
     const cible = vue.locuteurs.find((l: any) => l.nom === 'Marie Dupont' && l.locuteurId !== 'marie-source')

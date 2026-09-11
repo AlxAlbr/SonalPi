@@ -26,7 +26,7 @@ test('des données source modifiées pendant le dialogue bloquent la reprise san
     const dialogue = page.getByRole('dialog', { name: 'Une personne déjà rencontrée ?' })
     await expect(dialogue).toBeVisible()
     await dialogue.getByRole('radio').check()
-    await expect(dialogue.locator('section > ul')).toContainText('Pseudonyme : Alice')
+    await expect(dialogue.getByRole('checkbox', { name: /Reprendre les informations disponibles/ })).toBeChecked()
     // Changement en coulisse pendant que le dialogue est ouvert : le pseudo de la source change.
     await page.evaluate(async (id) => {
       const api = (window as any).sonal.corpus

@@ -33,8 +33,20 @@ const rapprochementDesactive = (_cible: VueLocuteurPersonne, _source: VueLocuteu
   desactive.value
 const personne = computed(() => inventaire.value.personnes.find((p) => `p:${p.id}` === selection.value))
 const cleLocuteur = (l: VueLocuteurPersonne) => JSON.stringify([l.entretienId, l.locuteurId])
+const rapprochementSelectionne = ref('')
+function selectionner(valeur: string, cleRapprochement = '') {
+  selection.value = valeur
+  rapprochementSelectionne.value = cleRapprochement
+}
 const locuteur = computed(() => inventaire.value.locuteurs.find((l) => `l:${cleLocuteur(l)}` === selection.value))
 const idsPersonnes = computed(() => new Set(inventaire.value.personnes.map((p) => p.id)))
+const nombreEntretiensPersonne = (personneId: string) => new Set(inventaire.value.locuteurs
+  .filter((l) => l.personneRef === personneId)
+  .map((l) => l.entretienId)).size
+const libelleEntretiensPersonne = (personneId: string) => {
+  const nombre = nombreEntretiensPersonne(personneId)
+  return `${nombre} entretien${nombre > 1 ? 's' : ''}`
+}
 const lies = computed(() => inventaire.value.locuteurs.filter((l) => l.personneRef === personne.value?.id))
 const notesLiees = computed(() => {
   const ids = new Set(lies.value.map((l) => l.locuteurId))
@@ -87,13 +99,54 @@ const suggestionsParLocuteur = computed(() => {
     return [cleLocuteur(l), inventaire.value.locuteurs.filter((c) => suggestions.some((s) => s.entretienId === c.entretienId && s.locuteur.id === c.locuteurId))]
   }))
 })
-const aVerifier = computed(() => inventaire.value.locuteurs.filter((l) => suggestionsParLocuteur.value.get(cleLocuteur(l))?.length))
+const cleIdentite = (l: VueLocuteurPersonne) => l.personneRef && idsPersonnes.value.has(l.personneRef)
+  ? `p:${l.personneRef}`
+  : `l:${cleLocuteur(l)}`
+const membresIdentite = (l: VueLocuteurPersonne) => l.personneRef && idsPersonnes.value.has(l.personneRef)
+  ? inventaire.value.locuteurs.filter((membre) => membre.personneRef === l.personneRef)
+  : [l]
+const nomIdentite = (l: VueLocuteurPersonne) => l.personneRef && idsPersonnes.value.has(l.personneRef)
+  ? inventaire.value.personnes.find((p) => p.id === l.personneRef)?.nom ?? l.nom
+  : l.nom
+const libelleIdentite = (l: VueLocuteurPersonne) => {
+  const membres = membresIdentite(l)
+  return membres.length > 1
+    ? `${nomIdentite(l)} · ${membres.length} entretiens (${membres.map((membre) => membre.entretienTitre).join(', ')})`
+    : `${nomIdentite(l)} · ${l.entretienTitre}`
+}
+const rapprochementsAVerifier = computed(() => {
+  const vus = new Set<string>()
+  return inventaire.value.locuteurs.flatMap((cible) =>
+    (suggestionsParLocuteur.value.get(cleLocuteur(cible)) ?? []).flatMap((candidat) => {
+      const cle = [cleIdentite(cible), cleIdentite(candidat)].sort().join('\n')
+      if (vus.has(cle)) return []
+      vus.add(cle)
+      const cibleLiee = cleIdentite(cible).startsWith('p:')
+      const candidatLie = cleIdentite(candidat).startsWith('p:')
+      return cibleLiee && !candidatLie
+        ? [{ cle, cible: candidat, candidat: cible }]
+        : [{ cle, cible, candidat }]
+    }),
+  )
+})
+const rapprochementActif = computed(() => rapprochementsAVerifier.value.find((r) => r.cle === rapprochementSelectionne.value))
 const decisionsEcartees = computed(() => inventaire.value.locuteurs.filter((l) => l.rapprochementsRefuses?.length))
 const resumeIndisponibles = computed(() => {
   const nombre = inventaire.value.indisponibles.length
   return `${nombre} entretien${nombre > 1 ? 's' : ''} indisponible${nombre > 1 ? 's' : ''}`
 })
 const candidats = computed(() => locuteur.value ? suggestionsParLocuteur.value.get(cleLocuteur(locuteur.value)) ?? [] : [])
+const candidatsAffiches = computed(() => rapprochementActif.value
+  ? [rapprochementActif.value.candidat]
+  : candidats.value)
+function entretiensRapprochement(a: VueLocuteurPersonne, b: VueLocuteurPersonne) {
+  const vus = new Set<string>()
+  return [...membresIdentite(a), ...membresIdentite(b)].filter((l) => {
+    if (vus.has(l.entretienId)) return false
+    vus.add(l.entretienId)
+    return true
+  })
+}
 function libelleRefus(r: string) {
   if (r.startsWith('personne:')) return inventaire.value.personnes.find((p) => p.id === r.slice(9))?.nom ?? 'Personne absente'
   const l = inventaire.value.locuteurs.find((l) => l.locuteurId === r.slice(9))
@@ -169,6 +222,7 @@ async function executer(commande: CommandePersonnes) {
     if (jeton !== generation) return
     if (['creer', 'fusionner', 'rapprocher', 'separer'].includes(commande.type) && id) selection.value = `p:${id}`
     if (commande.type === 'fusionner' || commande.type === 'separer') { filtre.value = 'tous'; recherche.value = '' }
+    if (commande.type === 'refuser') { filtre.value = 'refus'; rapprochementSelectionne.value = '' }
     if (commande.type === 'supprimer') selection.value = ''
     ficheVideId.value = ancienLien ?? ''
     message.value = commande.type === 'fusionner'
@@ -352,8 +406,14 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
   <section class="personnes-corpus" aria-label="Personnes du corpus" :aria-busy="occupe">
     <header class="entete">
       <h2>Personnes</h2>
-      <span>{{ inventaire.personnes.length }} personnes · {{ nonLies.length }} locuteurs sans lien valide</span>
+      <span>
+        {{ inventaire.personnes.length }} personne{{ inventaire.personnes.length > 1 ? 's' : '' }} ·
+        {{ nonLies.length }} locuteur{{ nonLies.length > 1 ? 's' : '' }} sans lien valide
+      </span>
       <button class="actualiser" :disabled="occupe" @click="actualiser">Actualiser</button>
+      <button class="bouton-aide" type="button" aria-label="Aide sur l’onglet Personnes" title="Aide sur l’onglet Personnes" @click="ouvrirAide">
+        <span aria-hidden="true">?</span>
+      </button>
     </header>
     <p v-if="lectureUniquement" class="information">Consultation seule : reconnectez le corpus distant pour appliquer une correction.</p>
     <p v-else-if="corpusDistant" class="information">Les corrections sont publiées sous verrou. Une opération touchant plusieurs entretiens peut réussir partiellement ; actualisez alors le répertoire pour reprendre les éléments restants.</p>
@@ -363,7 +423,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
     <p v-if="message && charge" role="status">{{ message }}</p>
     <section v-if="ficheVide && charge" aria-label="Personne sans entretien">
       <p>« {{ ficheVide.nom }} » n’est plus associée à aucun entretien.</p>
-      <button :disabled="desactive" @click="selection = `p:${ficheVide.id}`">Examiner cette personne</button>
+      <button :disabled="desactive" @click="selectionner(`p:${ficheVide.id}`)">Examiner cette personne</button>
       <button :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${ficheVide.nom} » ?`, { type: 'supprimer', personneId: ficheVide.id })">Supprimer cette personne…</button>
     </section>
     <div v-if="occupe && !charge" class="etat-projection" role="status">Chargement…</div>
@@ -379,45 +439,50 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
     </details>
     <div v-show="charge" ref="panneau" class="deux-colonnes" :class="{ verticale }" :style="{ '--largeur-personnes': largeur + 'px' }">
       <aside class="repertoire" aria-label="Répertoire des personnes">
-        <div class="barre-recherche-personnes">
-          <label>Rechercher<input v-model="recherche" type="search" /></label>
-          <button class="bouton-aide" type="button" aria-label="Aide sur l’onglet Personnes" title="Aide sur l’onglet Personnes" @click="ouvrirAide">
-            <span aria-hidden="true">?</span>
-          </button>
-        </div>
-        <div class="filtres">
-          <button :aria-pressed="filtre === 'tous'" @click="filtre = 'tous'">Toutes</button>
-          <button :aria-pressed="filtre === 'problemes'" @click="filtre = 'problemes'">À vérifier {{ liensInvalides.length + doublons.length + aVerifier.length }}</button>
-          <button :aria-pressed="filtre === 'refus'" @click="filtre = 'refus'">Décisions écartées {{ decisionsEcartees.length }}</button>
-        </div>
-        <section v-if="filtre !== 'refus' && aVerifier.length" aria-label="Suggestions à vérifier">
-          <h3>Rapprochements à vérifier</h3>
-          <ul><li v-for="l in aVerifier.filter(l => correspond(`${l.nom} ${l.entretienTitre}`))" :key="cleLocuteur(l)">
-            <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selection = `l:${cleLocuteur(l)}`">{{ l.nom }} · {{ l.entretienTitre }}</button>
-          </li></ul>
+        <section class="carte-repertoire carte-recherche" aria-labelledby="titre-recherche-personnes">
+          <h3 id="titre-recherche-personnes">Rechercher</h3>
+          <label>Nom ou entretien<input v-model="recherche" type="search" /></label>
+          <div class="filtres">
+            <button :aria-pressed="filtre === 'tous'" @click="filtre = 'tous'">Toutes</button>
+            <button :aria-pressed="filtre === 'problemes'" @click="filtre = 'problemes'">À vérifier {{ liensInvalides.length + doublons.length + rapprochementsAVerifier.length }}</button>
+            <button :aria-pressed="filtre === 'refus'" @click="filtre = 'refus'">Écartées {{ decisionsEcartees.length }}</button>
+          </div>
         </section>
-        <section v-if="filtre === 'refus'" aria-label="Locuteurs avec décisions écartées">
+        <section v-if="filtre !== 'refus'" class="carte-repertoire carte-rapprochements" aria-label="Suggestions à vérifier">
+          <h3>Rapprochements à vérifier</h3>
+          <ul v-if="rapprochementsAVerifier.length" class="liste-rapprochements"><li v-for="r in rapprochementsAVerifier.filter(r => correspond(`${libelleIdentite(r.cible)} ${libelleIdentite(r.candidat)}`))" :key="r.cle">
+            <button :aria-pressed="rapprochementSelectionne === r.cle" @click="selectionner(`l:${cleLocuteur(r.cible)}`, r.cle)">
+              <span>{{ libelleIdentite(r.cible) }}</span>
+              <span aria-hidden="true">↔</span>
+              <span>{{ libelleIdentite(r.candidat) }}</span>
+            </button>
+          </li></ul>
+          <p v-else>Aucun rapprochement proposé.</p>
+        </section>
+        <section v-if="filtre === 'refus'" class="carte-repertoire carte-decisions" aria-label="Locuteurs avec décisions écartées">
           <h3>Décisions écartées</h3>
           <ul><li v-for="l in decisionsEcartees.filter(l => correspond(`${l.nom} ${l.entretienTitre}`))" :key="cleLocuteur(l)">
-            <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selection = `l:${cleLocuteur(l)}`">{{ l.nom }} · {{ l.entretienTitre }}</button>
+            <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selectionner(`l:${cleLocuteur(l)}`)">{{ l.nom }} · {{ l.entretienTitre }}</button>
           </li></ul>
           <p v-if="!decisionsEcartees.length">Aucune décision écartée.</p>
         </section>
-        <h3>Répertoire</h3>
-        <ul>
-          <li v-for="p in personnesVisibles" :key="p.id">
-            <button :aria-pressed="selection === `p:${p.id}`" @click="selection = `p:${p.id}`">
-              {{ p.nom }} <small>({{ new Set(inventaire.locuteurs.filter(l => l.personneRef === p.id).map(l => l.entretienId)).size }} entretiens)</small>
-            </button>
-          </li>
-        </ul>
-        <p v-if="!personnesVisibles.length">Aucune personne dans cette liste.</p>
-        <details open>
+        <details class="carte-repertoire carte-personnes" open>
+          <summary>Répertoire ({{ personnesVisibles.length }})</summary>
+          <ul>
+            <li v-for="p in personnesVisibles" :key="p.id">
+              <button :aria-pressed="selection === `p:${p.id}`" @click="selectionner(`p:${p.id}`)">
+                {{ p.nom }} <small>({{ libelleEntretiensPersonne(p.id) }})</small>
+              </button>
+            </li>
+          </ul>
+          <p v-if="!personnesVisibles.length">Aucune personne dans cette liste.</p>
+        </details>
+        <details class="carte-repertoire carte-sans-lien" open>
           <summary>Locuteurs sans lien valide ({{ nonLies.length }})</summary>
           <section v-for="[id, groupe] in groupesNonLies" :key="id">
             <h4>{{ groupe.titre }}</h4>
             <ul><li v-for="l in groupe.locuteurs" :key="cleLocuteur(l)">
-              <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selection = `l:${cleLocuteur(l)}`">
+              <button :aria-pressed="selection === `l:${cleLocuteur(l)}`" @click="selectionner(`l:${cleLocuteur(l)}`)">
                 {{ l.nom || 'Locuteur sans nom' }} <span v-if="l.personneRef">— référence absente</span>
               </button>
             </li></ul>
@@ -429,21 +494,33 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
         @pointerdown="($event.currentTarget as HTMLElement).setPointerCapture($event.pointerId)"
         @pointermove="redimensionner" @pointerup="terminer" @pointercancel="terminer" @keydown="ajuster"></div>
       <section class="fiche" aria-label="Détails de la personne">
-        <section v-if="locuteur && candidats.length" aria-label="Rapprochements proposés">
+        <section v-if="filtre !== 'refus' && locuteur && candidatsAffiches.length" aria-label="Rapprochements proposés">
           <h3>Rapprochements proposés</h3>
+          <p>Chaque proposition compare deux identités. Lorsqu’une identité réunit déjà plusieurs entretiens, la décision vaut pour tout le groupe.</p>
           <p v-if="refusComposite(locuteur)">« Personne différente » crée une personne distincte pour ce locuteur et mémorise le refus.</p>
           <p v-if="natureNomPersonne(locuteur.nom) === 'role'">Même rôle ne signifie pas même personne. En cas d’homonymie, vous pouvez choisir un nom ou pseudonyme spécifique pour distinguer les locuteurs.</p>
-          <ul><li v-for="s in candidats" :key="cleLocuteur(s)">
-            <strong>{{ s.nom }}</strong> · {{ s.entretienTitre }}
-            <span> · {{ analyserRapprochementPersonne(locuteur.nom, s.nom)?.libelle }}</span>
-            <span v-if="s.personneRef"> · {{ inventaire.personnes.find(p => p.id === s.personneRef)?.nom }}</span>
-            <button :disabled="rapprochementDesactive(locuteur, s)" @click="sourceReprise = s">C’est la même personne…</button>
-            <button :disabled="desactive" @click="executer({ type: 'refuser', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, sourceEntretienId: s.entretienId, sourceLocuteurId: s.locuteurId })">Personne différente</button>
+          <ul class="propositions-rapprochements"><li v-for="s in candidatsAffiches" :key="cleLocuteur(s)">
+            <div class="comparaison-identites">
+              <strong>{{ libelleIdentite(locuteur) }}</strong>
+              <span aria-hidden="true">↔</span>
+              <strong>{{ libelleIdentite(s) }}</strong>
+            </div>
+            <p>{{ analyserRapprochementPersonne(locuteur.nom, s.nom)?.libelle }}</p>
+            <div class="actions">
+              <button :disabled="rapprochementDesactive(locuteur, s)" @click="sourceReprise = s">C’est la même personne…</button>
+              <button :disabled="desactive" @click="executer({ type: 'refuser', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, sourceEntretienId: s.entretienId, sourceLocuteurId: s.locuteurId })">Personne différente</button>
+            </div>
+            <div v-if="rapprochementActif" class="acces-entretiens">
+              <strong>Aller à l’entretien</strong>
+              <div class="actions">
+                <button v-for="l in entretiensRapprochement(locuteur, s)" :key="cleLocuteur(l)" :disabled="occupe" @click="ouvrir(l)">{{ l.entretienTitre }}</button>
+              </div>
+            </div>
           </li></ul>
         </section>
         <RapprochementCorpus v-if="sourceReprise && cibleRapprochement" :inventaire="inventaire" :cible="cibleRapprochement" :candidat="sourceReprise" :variables="variablesLoc"
           @annuler="sourceReprise = null" @valider="validerRapprochement" />
-        <section v-if="locuteur?.rapprochementsRefuses?.length" aria-label="Décisions écartées">
+        <section v-if="!rapprochementActif && locuteur?.rapprochementsRefuses?.length" aria-label="Décisions écartées">
           <h3>Décisions écartées</h3>
           <ul><li v-for="r in locuteur.rapprochementsRefuses" :key="r">{{ libelleRefus(r) }}
             <button :disabled="desactive" @click="executer({ type: 'annulerRefus', entretienId: locuteur.entretienId, locuteurId: locuteur.locuteurId, cible: r })">Annuler le refus</button>
@@ -492,7 +569,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
             <span v-if="badgeVerrou(l.entretienId)"> · Verrou tenu par {{ badgeVerrou(l.entretienId)?.userId }}</span>
             <div class="actions">
               <button :disabled="occupe" @click="ouvrir(l)">Ouvrir l’entretien</button>
-              <button :disabled="desactive" @click="selection = `l:${cleLocuteur(l)}`">Modifier l’association…</button>
+              <button :disabled="desactive" @click="selectionner(`l:${cleLocuteur(l)}`)">Modifier l’association…</button>
             </div>
           </li></ul>
           <p v-if="!lies.length">Cette personne n’a aucun locuteur lié.</p>
@@ -518,7 +595,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
           </div>
           <button v-if="!lies.length" :disabled="desactive || !!inventaire.indisponibles.length" @click="demander(`Supprimer « ${personne.nom} » ?`, { type: 'supprimer', personneId: personne.id })">Supprimer cette personne</button>
         </template>
-        <template v-else-if="locuteur">
+        <template v-else-if="locuteur && !rapprochementActif">
           <h3>{{ locuteur.nom || 'Locuteur sans nom' }}</h3>
           <p>{{ locuteur.entretienTitre }} <span v-if="locuteur.interviewer">· Enquêteur</span></p>
           <p v-if="badgeVerrou(locuteur.entretienId)">Verrou tenu par {{ badgeVerrou(locuteur.entretienId)?.userId }}</p>
@@ -538,7 +615,7 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
           </form>
           <button v-if="locuteur.personneRef" :disabled="desactive" @click="lier(locuteur, null)">Ne plus associer</button>
         </template>
-        <template v-else>
+        <template v-else-if="!rapprochementActif">
           <h3>Personne</h3>
           <p v-if="charge && !inventaire.personnes.length">Aucune personne n’est encore identifiée. Choisissez un locuteur non lié pour créer une personne.</p>
           <p v-else>Sélectionnez une personne ou un locuteur dans le répertoire.</p>
@@ -560,8 +637,10 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
       <h4>Trouver et vérifier</h4>
       <ul>
         <li><strong>Rechercher</strong> consulte les noms de référence, les noms locaux et les titres d’entretien, sans tenir compte des majuscules ni des accents.</li>
-        <li><strong>À vérifier</strong> rassemble les rapprochements proposés, les références absentes et les personnes associées plusieurs fois au même entretien.</li>
-        <li><strong>Décisions écartées</strong> conserve les rapprochements refusés. Un refus peut être annulé.</li>
+        <li><strong>À vérifier</strong> affiche chaque rapprochement une seule fois entre deux identités. Une identité peut déjà réunir plusieurs entretiens.</li>
+        <li>Le détail d’un rapprochement permet d’ouvrir tous les entretiens concernés, sans proposer d’association manuelle.</li>
+        <li>Ce filtre rassemble aussi les références absentes et les personnes associées plusieurs fois au même entretien.</li>
+        <li><strong>Écartées</strong> conserve les rapprochements refusés et permet de choisir une autre association. Un refus peut être annulé.</li>
       </ul>
 
       <h4>Créer, associer ou réunir</h4>
@@ -617,14 +696,37 @@ watch([() => props.actif, vue, dernierTirage, dossierCourantDir, revisionPersonn
   font-weight: 700;
 }
 .bouton-aide:hover { background: #eef3f8; }
-.barre-recherche-personnes { display: grid; grid-template-columns: minmax(0, 1fr) 26px; align-items: start; gap: 8px; }
-.barre-recherche-personnes label { margin-top: 0; }
 .deux-colonnes { display: grid; grid-template-columns: var(--largeur-personnes) 6px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
 .deux-colonnes.verticale { grid-template-columns: minmax(0, 1fr); }
-.repertoire, .fiche { min-width: 0; padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; }
-.repertoire { max-height: 72vh; overflow: auto; }
+.repertoire, .fiche { min-width: 0; }
+.fiche { padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; }
+.repertoire { display: grid; align-content: start; gap: 12px; max-height: 72vh; padding: 1px; overflow: auto; }
+.carte-repertoire { padding: 12px; border: 1px solid #d4dce6; border-radius: 6px; background: #fff; }
+.carte-recherche { border-color: #cadbf2; background: #f4f8ff; }
+.carte-rapprochements { border-color: #ead9a6; background: #fff9e8; }
+.carte-decisions { border-color: #edcccc; background: #fff5f5; }
+.carte-personnes { border-color: #c8e2d1; background: #f3faf6; }
+.carte-sans-lien { border-color: #d9d1e8; background: #f7f5fb; }
+.carte-repertoire h3 { margin: 0 0 8px; }
+.carte-repertoire > p:last-child { margin-bottom: 0; }
+.carte-repertoire > summary { cursor: pointer; font-weight: 700; }
+.carte-repertoire[open] > summary { margin-bottom: 10px; }
+.carte-recherche label { margin-bottom: 10px; }
 .repertoire ul, .liens { list-style: none; padding: 0; }
+.repertoire ul { margin-bottom: 0; }
 .repertoire li button { width: 100%; text-align: left; margin: 2px 0; }
+.liste-rapprochements button, .comparaison-identites {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+.liste-rapprochements button span:nth-child(2), .comparaison-identites > span { text-align: center; }
+.propositions-rapprochements { list-style: none; padding: 0; }
+.propositions-rapprochements li { padding: 12px 0; border-bottom: 1px solid #d4dce6; }
+.propositions-rapprochements li > p { margin: 6px 0; color: #52606d; }
+.acces-entretiens { margin-top: 14px; padding-top: 12px; border-top: 1px solid #d4dce6; }
+.acces-entretiens > .actions { margin-top: 6px; }
 button { cursor: pointer; padding: 6px 10px; }
 button:disabled { cursor: default; }
 button[aria-pressed="true"] { background: #e0edff; border-color: #1565c0; }

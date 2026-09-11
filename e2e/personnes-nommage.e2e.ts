@@ -8,7 +8,9 @@ test('un nom spécifique crée une personne sans recopier le rôle ni renommer s
     const nom = page.locator('.nom-loc').first()
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
-    await expect(page.getByRole('status').filter({ hasText: 'Personne « Marie Dupont » créée' })).toBeVisible()
+    const confirmationCreation = page.getByRole('status').filter({ hasText: 'Personne « Marie Dupont » créée' })
+    await expect(confirmationCreation).toBeVisible()
+    await expect(confirmationCreation).toHaveCSS('font-size', '12px')
     const avant = await page.evaluate(async () => {
       const vue = await (window as any).sonal.corpus.personnesInventaire()
       return { personnes: vue.personnes, locuteur: vue.locuteurs.find((l: any) => l.nom === 'Marie Dupont') }

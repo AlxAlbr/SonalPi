@@ -224,7 +224,7 @@ export function useLocuteursEntretien(deps: {
         cible.personneRef = id
         delete cible.personneDeliee
         messagePersonnes.value = reprise
-          ? 'Liaison et reprise des champs sélectionnés appliquées.'
+          ? 'Liaison appliquée avec reprise des informations disponibles.'
           : `Locuteur lié à « ${inventaire.personnes.find((personne) => personne.id === id)?.nom ?? source.nom} ». Les données locales sont conservées.`
       }
       if (
@@ -257,6 +257,7 @@ export function useLocuteursEntretien(deps: {
             )
           : undefined
       if (!courant()) return
+      messagePersonnes.value = ''
       try {
         await deps.effets.viderSauvegarde()
         const inventaire = await window.sonal.corpus.personnesInventaire()
@@ -266,9 +267,6 @@ export function useLocuteursEntretien(deps: {
           ? inventaire.personnes.find((personne) => personne.id === personneRef)?.nom ??
             'Personne absente'
           : ''
-        if (personneRef) {
-          messagePersonnes.value = `Lié à « ${lienActuel} » — le nom saisi reste le nom local de cet entretien.`
-        }
         const candidats = suggestionsPersonnes(
           { entretienId: idEntretien, locuteur: courant()! },
           inventaire.locuteurs.map((source) => ({
