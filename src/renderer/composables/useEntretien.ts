@@ -28,6 +28,8 @@ import { resumeThematique } from '../../shared/corpus'
 import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, RegleAnon, MotsLiaisonParams, Note } from '../../shared/format'
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
+import { creerReperePassage } from '../../shared/entretien/reperesPassages'
+import { snapToWord } from '../editor/snap'
 import type { LegacyBlobs } from '../import/importSonal'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
@@ -107,7 +109,7 @@ export function useEntretien(deps: {
   const genId = () => 'a-' + Math.random().toString(36).slice(2, 9)
 
   // --- Modèle en session (LA vérité ; éditeur et disque = projections) ---
-  const entretien = reactive<Entretien>({ annotations: [], ancres: [] })
+  const entretien = reactive<Entretien>({ annotations: [], ancres: [], reperesPassages: [] })
   const locuteurs = ref<Locuteur[]>([])
   const legacyCourant = ref<LegacyBlobs>({ tabAnon: null, notes: '' })
   const notesEntretien = useNotesEntretien({
@@ -508,6 +510,7 @@ export function useEntretien(deps: {
       corpsTexte: ed.getJSON(),
       annotations: entretien.annotations.map((a) => ({ ...a })),
       ancres: entretien.ancres.map((a) => ({ ...a })),
+      reperesPassages: entretien.reperesPassages.map((repere) => ({ ...repere })),
       // Clone PLAT : locuteurs.value est un proxy réactif Vue, non clonable par l'IPC
       // Electron (structured clone) → on l'aplatit avant l'envoi.
       locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
@@ -547,11 +550,13 @@ export function useEntretien(deps: {
     // construction contre ce doc), puis redessiner.
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
+    entretien.reperesPassages.splice(0, entretien.reperesPassages.length)
     locuteurs.value = res.data.locuteurs
     locuteursEntretien.reinitialiser()
     ed.commands.setContent(res.data.corpsTexte as Record<string, unknown>, { emitUpdate: false })
     for (const a of res.data.annotations) entretien.annotations.push(a)
     for (const a of res.data.ancres ?? []) entretien.ancres.push(a)
+    for (const repere of res.data.reperesPassages ?? []) entretien.reperesPassages.push(repere)
     meta.valeursGen = { ...res.data.meta.valeursGen }
     meta.audioRef = res.data.meta.audioRef
     meta.audioDistant = res.data.meta.audioDistant ?? null
@@ -593,6 +598,7 @@ export function useEntretien(deps: {
     reinitialiserJournal()
     entretien.annotations.splice(0, entretien.annotations.length)
     entretien.ancres.splice(0, entretien.ancres.length)
+    entretien.reperesPassages.splice(0, entretien.reperesPassages.length)
     editor.value?.commands.setContent('<p></p>', { emitUpdate: false })
     refusFormat.value = null
     eteindrePlageLue()
@@ -618,6 +624,7 @@ export function useEntretien(deps: {
   async function absorberFusion(copie: EntretienFichier): Promise<{
     annotations: number
     ancres: number
+    reperesPassages: number
     locuteurs: number
     valeurs: number
   }> {
@@ -627,6 +634,7 @@ export function useEntretien(deps: {
       corpsTexte: editor.value ? editor.value.getJSON() : {},
       annotations: JSON.parse(JSON.stringify(entretien.annotations)),
       ancres: [...entretien.ancres],
+      reperesPassages: JSON.parse(JSON.stringify(entretien.reperesPassages)),
       locuteurs: JSON.parse(JSON.stringify(locuteurs.value)),
       meta: {
         valeursGen: { ...meta.valeursGen },
@@ -639,6 +647,7 @@ export function useEntretien(deps: {
     const { fusion, ajouts } = fusionnerEntretiens(courant, copie)
     entretien.annotations = fusion.annotations
     entretien.ancres = fusion.ancres
+    entretien.reperesPassages = fusion.reperesPassages ?? []
     locuteurs.value = fusion.locuteurs
     Object.assign(meta.valeursGen, fusion.meta.valeursGen)
     brouillonsAnon.value = fusion.brouillonsAnon ?? []
@@ -647,6 +656,35 @@ export function useEntretien(deps: {
     rafraichirDecorations()
     planifierSauvegarde()
     return ajouts
+  }
+
+  /** Crée puis enregistre un repère autonome sur la sélection libre courante. */
+  async function enregistrerRepereSelection(): Promise<{ id: string; from: number; to: number }> {
+    const editeur = editor.value
+    if (!editeur || !ouvertId.value) throw new Error("Aucun entretien n'est ouvert.")
+    if (!editeur.isEditable) throw new Error("L'entretien est ouvert en lecture seule.")
+    const selection = editeur.state.selection
+    if (selection.empty) throw new Error('Sélectionnez un passage avant de l’ajouter au recueil.')
+    const plage = snapToWord(editeur.state, selection.from, selection.to)
+    const repere = creerReperePassage(
+      entretien.reperesPassages,
+      plage,
+      () => `rep-${globalThis.crypto.randomUUID()}`,
+    )
+    if (!repere) throw new Error('La sélection ne contient aucun passage.')
+    planifierSauvegarde()
+    await sauver()
+    return { ...repere }
+  }
+
+  /** Instantané cohérent de la source ouverte pour les projections de recueils. */
+  function donneesSourceOuverte(): EntretienFichier | null {
+    if (!ouvertId.value || !editor.value) return null
+    return {
+      formatVersion: FORMAT_VERSION,
+      lastModified: new Date().toISOString(),
+      ...payloadCourant(),
+    }
   }
 
   /** Données brutes de l'entretien ouvert (pour l'export .sonal, assemblé par l'App). */
@@ -797,6 +835,8 @@ export function useEntretien(deps: {
     viderSauvegarde,
     annulerEtAttendreSauvegarde,
     donneesExport,
+    enregistrerRepereSelection,
+    donneesSourceOuverte,
     // rafraîchissements (l'App les déclenche après des changements corpus)
     rafraichir,
     rafraichirDecorations,

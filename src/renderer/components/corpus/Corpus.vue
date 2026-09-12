@@ -431,6 +431,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </p>
             <ul class="accueil-outils">
               <li><img :src="icoNotes" alt="" /><span><b>Notes</b> — consulter les notes de tous les entretiens.</span></li>
+              <li><span>📚</span><span><b>Recueils</b> — organiser des passages vivants, des titres et des textes libres.</span></li>
               <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
               <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
               <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook et ouvrir son édition.</span></li>

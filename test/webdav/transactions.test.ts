@@ -95,6 +95,38 @@ function corpusServeur(serveur: ServeurWebDAVMemoire): CorpusFichier {
   return JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
 }
 
+describe('Migration distante v3 → v4', () => {
+  it('publie le corpus puis ses entretiens sous verrous', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    const corpusV3 = JSON.parse(corpusInitial()) as CorpusFichier
+    corpusV3.formatVersion = 3 as typeof FORMAT_VERSION
+    const entretienV3 = JSON.parse(entretienE1()) as EntretienFichier
+    entretienV3.formatVersion = 3 as typeof FORMAT_VERSION
+    serveur.poser('corpus.json', JSON.stringify(corpusV3))
+    serveur.poser('entretiens/e1.json', JSON.stringify(entretienV3))
+    const client = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      serveur.fetch,
+    )
+    const miroir = new MiroirWebDAV(client, mkdtempSync(join(tmpdir(), 'sonal-migration-v4-')))
+    await miroir.tirer()
+    const store = new CorpusStore(miroir.dirLocal)
+    store.lectureSeule = true
+    const tx = new TransactionsCorpus(client, miroir, () => store, IDENTITE_MAX)
+
+    await tx.migrerFormatSiNecessaire()
+
+    expect(corpusServeur(serveur).formatVersion).toBe(FORMAT_VERSION)
+    expect(corpusServeur(serveur).recueils).toEqual({})
+    const entretien = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    expect(entretien.formatVersion).toBe(FORMAT_VERSION)
+    expect(entretien.reperesPassages).toEqual([])
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(serveur.contenuDe('verrous/entretiens/e1.lock.json')).toBeUndefined()
+    expect(store.lectureSeule).toBe(true)
+  })
+})
+
 describe('Transaction générique', () => {
   it('chemin heureux : mutation locale publiée sur le serveur, verrou libéré, garde restaurée', async () => {
     const { serveur, store, tx } = await banc()

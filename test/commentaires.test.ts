@@ -4,7 +4,7 @@ import { annuler, appliquerInverse, enregistrer, estApplicable, type CtxInverse 
 
 /** Entretien de test vide + générateur d'ids séquentiels (déterministe). */
 function neuf(): { entretien: Entretien; genId: () => string } {
-  const entretien: Entretien = { annotations: [], ancres: [] }
+  const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
   let n = 0
   return { entretien, genId: () => `a-${++n}` }
 }

@@ -39,6 +39,7 @@ export function useAnnotationsEntretien(deps: {
     codages: { id: string; libelle: string }[]
     commentaires: { id: string; auteur: string; extrait: string }[]
     peutCommenter: boolean
+    peutAjouterRecueil: boolean
   } | null>(null)
   const editionCommentaire = ref<{
     id: string | null
@@ -125,6 +126,7 @@ export function useAnnotationsEntretien(deps: {
       codages,
       commentaires,
       peutCommenter: cible.plageCommenter != null,
+      peutAjouterRecueil: cible.plageSelection != null,
     }
     plageCommenterCourante.value = cible.plageCommenter
   }

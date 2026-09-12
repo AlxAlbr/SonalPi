@@ -54,6 +54,7 @@ const {
   statutSession,
   publiErreur,
   publierMaintenant,
+  afficherRecueils,
 } = utiliserSonal()
 
 // Heure locale courte d'un horodatage ISO (« HH:MM »).
@@ -74,6 +75,10 @@ const compteRecherche = computed(() => {
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
 
+function ouvrirRecueilsDepuisSelection() {
+  fermerMenu()
+  void afficherRecueils()
+}
 
 </script>
 
@@ -251,11 +256,13 @@ const { estVideo, videoVisible, toggleVideo } = audio
         :codages="menuContextuel.codages"
         :commentaires="menuContextuel.commentaires"
         :peut-commenter="menuContextuel.peutCommenter"
+        :peut-ajouter-recueil="menuContextuel.peutAjouterRecueil"
         @basculer-exception="basculerException(menuContextuel.anon!.id)"
         @basculer-anonymise="basculerAnonymise(menuContextuel.anon!.id)"
         @basculer-pseudo="basculerPseudoOccurrence(menuContextuel.anon!.id, $event)"
         @retirer-codage="retirerCodageMenu"
         @commenter="commenterDepuisMenu"
+        @ajouter-recueil="ouvrirRecueilsDepuisSelection"
         @editer-commentaire="editerCommentaire"
         @fermer="fermerMenu"
       />

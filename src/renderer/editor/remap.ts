@@ -3,6 +3,7 @@ import type { Mapping } from '@tiptap/pm/transform'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Ancre } from '../../shared/entretien/audio'
 import type { Entretien } from '../../shared/entretien/entretien'
+import type { ReperePassage } from '../../shared/entretien/reperesPassages'
 
 /**
  *  Le cœur de l'ancrage sans CRDT : les plages du modèle sont remappées à
@@ -39,6 +40,15 @@ export function remapperAncres(ancres: Ancre[], mapping: Mapping): void {
   for (const a of ancres) a.pos = mapping.map(a.pos, -1)
 }
 
+/** Les passages recueillis suivent exactement la même politique de bornes. */
+export function remapperReperesPassages(reperes: ReperePassage[], mapping: Mapping): void {
+  for (const repere of reperes) {
+    repere.from = mapping.map(repere.from, 1)
+    repere.to = mapping.map(repere.to, -1)
+    if (repere.to < repere.from) repere.to = repere.from
+  }
+}
+
 export const remapPluginKey = new PluginKey('sonal-remap-annotations')
 
 /**
@@ -57,6 +67,7 @@ export function pluginRemap(entretien: Entretien): Plugin {
         if (tr.docChanged) {
           remapperAnnotations(entretien.annotations, tr.mapping)
           remapperAncres(entretien.ancres, tr.mapping)
+          remapperReperesPassages(entretien.reperesPassages, tr.mapping)
         }
         return null
       },

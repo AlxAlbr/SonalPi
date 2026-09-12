@@ -47,6 +47,7 @@ import type {
   Categorie,
   Variable,
 } from '../../shared/format'
+import { FORMAT_VERSION } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
 import type { CommandePersonnes } from '../../shared/corpus/personnes'
 
@@ -149,6 +150,22 @@ export class TransactionsCorpus {
     } finally {
       if (verrouTenu) await provider.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
     }
+  }
+
+  /** Migre corpus et entretiens sous leurs verrous avant de rendre le miroir éditable. */
+  async migrerFormatSiNecessaire(): Promise<CorpusFichier> {
+    const brut = JSON.parse(
+      readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8'),
+    ) as { formatVersion?: number }
+    if (brut.formatVersion === FORMAT_VERSION) return this.getStore().ouvrir()
+    const ids = () => Object.keys((JSON.parse(
+      readFileSync(join(this.miroir.dirLocal, CHEMIN_CORPUS), 'utf8'),
+    ) as CorpusFichier).membership ?? {})
+    return this.executerCorrectionEntretiens(
+      { corpus: true, entretiens: ids, ordreCorpus: 'avant' },
+      ids,
+      () => this.getStore().ouvrir(),
+    )
   }
 
   /* ── Création et import — entretien puis corpus ───────────────────────────*/

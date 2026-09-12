@@ -82,7 +82,7 @@ describe('fusionnerEntretiens — union par id, le courant gagne', () => {
     expect(fusion.ancres.map((a) => a.t)).toEqual([1.5, 3.2]) // pos triés, courant gagne
     expect(fusion.locuteurs.map((l) => l.nom)).toEqual(['Enquêteur'])
     expect(fusion.meta.valeursGen).toEqual({ v1: 'm1', v2: 'm2' }) // v1 inchangé
-    expect(ajouts).toEqual({ annotations: 1, ancres: 1, locuteurs: 0, valeurs: 1 })
+    expect(ajouts).toEqual({ annotations: 1, ancres: 1, reperesPassages: 0, locuteurs: 0, valeurs: 1 })
   })
 
   it('valeursLoc complétées PAR INDEX de locuteur ; brouillons unifiés par entité', () => {

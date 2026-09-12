@@ -1,5 +1,6 @@
 import type { Annotation, AnnotationType } from './annotation'
 import type { Ancre } from './audio'
+import type { ReperePassage } from './reperesPassages'
 
 /**
  *  L'agrégat Entretien. Il porte les annotations et les ancres temporelles —
@@ -10,6 +11,7 @@ import type { Ancre } from './audio'
 export interface Entretien {
   annotations: Annotation[]
   ancres: Ancre[]
+  reperesPassages: ReperePassage[]
 }
 
 /**

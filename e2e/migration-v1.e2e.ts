@@ -154,7 +154,7 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 
 
   // ── SUR DISQUE ────────────────────────────────────────────────────────────
   const corpus = lireCorpus(dirCible)
-  expect(corpus.formatVersion).toBe(3)
+  expect(corpus.formatVersion).toBe(4)
   expect(corpus.nom).toBe('MonCorpus')
   expect(corpus.meta).toEqual({ sourceV1: { cheminCrp, dateCreation: null } })
   // Q7 : le codebook = les 5 thèmes que le .crp porte VRAIMENT (cat_004 a été

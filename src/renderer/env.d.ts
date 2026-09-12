@@ -40,6 +40,7 @@ import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
+import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
   CompteDistantPublic,
@@ -111,6 +112,7 @@ declare global {
         supprimerCategorieNote: (id: string) => Promise<ResultatSuppressionCategorie>
         compterUsagesCategorieNote: (id: string) => Promise<number>
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
+        recueilsCommander: (commande: CommandeRecueils) => Promise<CorpusFichier>
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
         notesInventaire: () => Promise<InventaireNotes>

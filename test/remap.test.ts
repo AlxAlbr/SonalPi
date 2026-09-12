@@ -24,7 +24,7 @@ const schema = new Schema({
 })
 
 function creerSession(texte: string) {
-  const entretien: Entretien = { annotations: [], ancres: [] }
+  const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
   const doc = schema.node('doc', null, [schema.node('paragraph', null, [schema.text(texte)])])
   let state = EditorState.create({ doc, plugins: [history(), pluginRemap(entretien)] })
 
@@ -55,6 +55,13 @@ function creerSession(texte: string) {
         { from, to: from + fragment.length, code: 'cat_001', auteur: 'max' },
         () => id,
       )!
+    },
+    /** Pose un repère de recueil sur la première occurrence du fragment. */
+    reperer(fragment: string, id = 'p1') {
+      const from = state.doc.textContent.indexOf(fragment) + 1
+      const repere = { id, from, to: from + fragment.length }
+      entretien.reperesPassages.push(repere)
+      return repere
     },
     /** Pose une occurrence anon (pseudo) sur la 1re occurrence de `fragment`. */
     anonymiser(fragment: string, pseudo: string, id = 'o1') {
@@ -179,6 +186,26 @@ describe('remapping — structure de blocs', () => {
     s.editer((tr) => tr.insertText('X', 1 + 'Alpha B'.length)) // au milieu de « Bravo »
     expect(s.texteAnnote(a1)).toBe('Alpha')
     expect(s.texteAnnote(a2)).toBe('Charlie')
+  })
+})
+
+describe('remapping — repères autonomes des recueils', () => {
+  test('le repère suit les corrections sans dépendre des annotations', () => {
+    const s = creerSession(TEXTE)
+    const repere = s.reperer('Pierre Lemaitre')
+    const codage = s.coder('Pierre Lemaitre')
+    s.editer((tr) => tr.insertText('-Marie', repere.from + 'Pierre'.length))
+    s.entretien.annotations.splice(s.entretien.annotations.indexOf(codage), 1)
+    expect(s.doc.textBetween(repere.from, repere.to)).toBe('Pierre-Marie Lemaitre')
+    expect(s.entretien.reperesPassages).toEqual([repere])
+  })
+
+  test('une suppression totale conserve un repère orphelin', () => {
+    const s = creerSession(TEXTE)
+    const repere = s.reperer('Pierre Lemaitre')
+    s.editer((tr) => tr.delete(repere.from, repere.to))
+    expect(repere.from).toBe(repere.to)
+    expect(s.entretien.reperesPassages).toHaveLength(1)
   })
 })
 

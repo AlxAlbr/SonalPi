@@ -29,6 +29,8 @@ import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCor
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
+import { appliquerCommandeRecueils, normaliserRecueils, type CommandeRecueils } from '../shared/corpus/recueils'
+import { normaliserReperesPassages, rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
 import {
   TransactionsFichiersCorpus,
   type PlanAjoutEntretien,
@@ -51,6 +53,7 @@ import {
  *    pour devenir des ancres `{pos, t}` positionnées dans le texte.
  *  - formatVersion 2 → 3 : `meta.audioRef` devient un chemin ABSOLU uniquement,
  *    l'audio est référencé, plus copié ; les PNG d'onde passent de `audio/` à `png/`.
+ *  - formatVersion 3 → 4 : recueils partagés et repères autonomes de passages.
  *  Voir shared/entretien/migration.ts pour la mécanique de migration.
  */
 
@@ -321,26 +324,33 @@ export class CorpusStore {
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
     corpus.personnes ??= {}
     const versionInitiale = corpus.formatVersion as number
+    if (versionInitiale >= 1 && versionInitiale <= 3) {
+      corpus.recueils = normaliserRecueils(corpus.recueils)
+    }
     const entretiensV2: EntretienV2Prepare[] = []
     const deplacementsPng: DeplacementPngPrepare[] = []
 
     if (versionInitiale === 1) {
       corpus.formatVersion = FORMAT_VERSION
-    } else if (versionInitiale === 2) {
+    } else if (versionInitiale === 2 || versionInitiale === 3) {
       for (const id of Object.keys(corpus.membership)) {
         const fichier = this.entretienFile(id)
         if (!existsSync(fichier)) continue
         const contenuInitial = readFileSync(fichier, 'utf8')
         const data = JSON.parse(contenuInitial) as EntretienFichier
-        if ((data.formatVersion as number) !== 2) continue
-        const ref = data.meta?.audioRef
-        if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
-          data.meta.audioRef = resolve(this.dir, ref)
+        if ((data.formatVersion as number) === 2) {
+          const ref = data.meta?.audioRef
+          if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
+            data.meta.audioRef = resolve(this.dir, ref)
+          }
+        } else if ((data.formatVersion as number) !== 3) {
+          continue
         }
+        data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
         data.formatVersion = FORMAT_VERSION
         entretiensV2.push({ fichier, contenuInitial, data })
       }
-      if (existsSync(this.audioDirLegacy)) {
+      if (versionInitiale === 2 && existsSync(this.audioDirLegacy)) {
         for (const nom of readdirSync(this.audioDirLegacy)) {
           if (extname(nom).slice(1).toLowerCase() !== 'png') continue
           const source = join(this.audioDirLegacy, nom)
@@ -398,17 +408,17 @@ export class CorpusStore {
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true })
     if (!existsSync(this.entretiensDir)) mkdirSync(this.entretiensDir, { recursive: true })
 
-    if (cible.versionInitiale === 2) {
+    if (cible.versionInitiale === 2 && cible.deplacementsPng.length) {
       if (!existsSync(this.pngDir)) mkdirSync(this.pngDir, { recursive: true })
       for (const deplacement of cible.deplacementsPng) {
         renameSync(deplacement.source, deplacement.destination)
       }
-      for (const entretien of cible.entretiensV2) {
-        this.ecrireJsonAtomique(entretien.fichier, entretien.data)
-      }
+    }
+    for (const entretien of cible.entretiensV2) {
+      this.ecrireJsonAtomique(entretien.fichier, entretien.data)
     }
     if (cible.nouveau || cible.versionInitiale === 1
-      || cible.versionInitiale === 2) {
+      || cible.versionInitiale === 2 || cible.versionInitiale === 3) {
       this.ecrireJsonAtomique(this.corpusFile, cible.corpus)
       this.invaliderRefsAudio()
     }
@@ -448,6 +458,26 @@ export class CorpusStore {
     return corpus
   }
 
+  /** Applique une édition ciblée de recueil après relecture du corpus courant. */
+  recueilsCommander(commande: CommandeRecueils): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    corpus.recueils = appliquerCommandeRecueils(corpus.recueils, commande, {
+      maintenant: () => new Date().toISOString(),
+    })
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
+  }
+
+  /** Vérifie qu'un repère a bien été enregistré avant de partager sa référence. */
+  reperePassageExiste(entretienId: string, repereId: string): boolean {
+    const corpus = this.ouvrir()
+    if (!corpus.membership[entretienId]) return false
+    const lecture = this.lireEntretien(entretienId)
+    return lecture.ok
+      && (lecture.data.reperesPassages ?? []).some((repere) => repere.id === repereId)
+  }
+
   /** Prépare un corpus SonalPi2 dans un dossier dédié, à partir d'une migration SonalPi1.
    *  Contrairement à un corpus neuf, on n'ajoute pas le bloc « Pondérations ».
    *  La source de vérité des définitions est le `.crp`, on fusionne exactement ce que la lecture a mappé.
@@ -473,6 +503,7 @@ export class CorpusStore {
       reglesAnon: {},
       personnes: {},
       membership: {},
+      recueils: {},
       nom,
       meta: { sourceV1 },
     }
@@ -530,7 +561,9 @@ export class CorpusStore {
       }
       data.formatVersion = FORMAT_VERSION
     }
+    if ((data.formatVersion as number) === 3) data.formatVersion = FORMAT_VERSION
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
+    data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
     return { ok: true, data }
   }
 
@@ -556,6 +589,7 @@ export class CorpusStore {
       formatVersion: FORMAT_VERSION,
       lastModified: now,
       ...payload,
+      reperesPassages: normaliserReperesPassages(payload.reperesPassages),
     }
 
     if (this.rotationEnAttente.has(id)) {
@@ -595,6 +629,7 @@ export class CorpusStore {
       locuteurs: completerIdsLocuteurs(id, transcription.locuteurs, data.locuteurs),
       meta: data.meta,
       notes: data.notes,
+      reperesPassages: rendreReperesOrphelins(data.reperesPassages),
       brouillonsAnon: data.brouillonsAnon,
       pseudosDeclares: data.pseudosDeclares,
       legacy: data.legacy,
@@ -626,6 +661,7 @@ export class CorpusStore {
       ancres: [],
       locuteurs: [],
       brouillonsAnon: [],
+      reperesPassages: [],
       meta: { valeursGen: {}, audioRef: null },
     }
     corpusApres.membership[id] = { titre, date: null, lastModified: now }
@@ -656,6 +692,7 @@ export class CorpusStore {
       formatVersion: FORMAT_VERSION,
       lastModified: now,
       ...payload,
+      reperesPassages: normaliserReperesPassages(payload.reperesPassages),
       locuteurs: completerIdsLocuteurs(id, payload.locuteurs),
     }
     corpusModel.fusionnerImport(corpusApres, codebook, variables)

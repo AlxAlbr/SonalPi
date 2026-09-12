@@ -8,6 +8,7 @@ import { useMediasCorpus } from './corpus/useMediasCorpus'
 import { useDistantCorpus } from './corpus/useDistantCorpus'
 import { useCycleCorpus } from './corpus/useCycleCorpus'
 import { useOperationsCorpus } from './corpus/useOperationsCorpus'
+import { useRecueilsCorpus } from './corpus/useRecueilsCorpus'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
@@ -368,6 +369,20 @@ export function creerSonal() {
   proposerFusionDepuisCycle = proposerFusionDivergence
   reinitialiserDivergenceDepuisDistant = reinitialiserDivergence
 
+  const recueilsCorpus = useRecueilsCorpus({
+    recueils: corpus.recueils,
+    membership: corpus.membership,
+    ouvertId: ent.ouvertId,
+    sourceOuverte: ent.donneesSourceOuverte,
+    enregistrerRepereSelection: ent.enregistrerRepereSelection,
+    ouvrirSource: ouvrirAuSegment,
+  })
+  watch(ent.etatSauvegarde, (etat) => {
+    if (etat === 'à jour' && recueilsCorpus.recueilOuvertId.value) {
+      void recueilsCorpus.resoudreRecueil()
+    }
+  })
+
   // --- Suppression d'un thème DEPUIS l'entretien (croise corpus ↔ entretien) ---
   async function demanderSuppressionTheme(id: string) {
     ent.hintCodage.value = null
@@ -429,6 +444,7 @@ export function creerSonal() {
     ...profil,
     ...corpus,
     ...ent,
+    ...recueilsCorpus,
     audio, // scope audio (objet nommé : les vues déstructurent ses refs)
     audiosCorpus,
     audiosManquants,

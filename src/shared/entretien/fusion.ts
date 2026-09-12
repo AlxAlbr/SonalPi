@@ -27,7 +27,7 @@ export function corpsIdentiques(a: unknown, b: unknown): boolean {
 
 export interface BilanFusion {
   /** Le nombre d'éléments apportés PAR LA COPIE (absents du courant). */
-  ajouts: { annotations: number; ancres: number; locuteurs: number; valeurs: number }
+  ajouts: { annotations: number; ancres: number; reperesPassages: number; locuteurs: number; valeurs: number }
 }
 
 /** Fusionne LA COPIE DE DIVERGENCE dans la version courante (celle du serveur,
@@ -61,6 +61,15 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
     }
   }
   ancres.sort((x, y) => x.pos - y.pos)
+
+  const idsReperes = new Set((courant.reperesPassages ?? []).map((repere) => repere.id))
+  const reperesPassages = [...(courant.reperesPassages ?? [])]
+  for (const repere of copie.reperesPassages ?? []) {
+    if (!idsReperes.has(repere.id)) {
+      reperesPassages.push(repere)
+      idsReperes.add(repere.id)
+    }
+  }
 
   // Locuteurs : l'identité stable est l'INDEX (position ordinale du tour).
   const indexesLocuteurs = new Set(courant.locuteurs.map((l) => l.index))
@@ -125,6 +134,7 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
       ...courant,
       annotations,
       ancres,
+      reperesPassages,
       locuteurs,
       meta: { ...courant.meta, valeursGen },
       brouillonsAnon: brouillons,
@@ -133,6 +143,7 @@ export function fusionnerEntretiens(courant: EntretienFichier, copie: EntretienF
     ajouts: {
       annotations: annotations.length - courant.annotations.length,
       ancres: ancresAjoutees,
+      reperesPassages: reperesPassages.length - (courant.reperesPassages ?? []).length,
       locuteurs: locuteursAjoutes,
       valeurs: valeursAjoutees,
     },

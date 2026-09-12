@@ -32,7 +32,7 @@ const genId = (() => {
 
 function ctxPur(over: Partial<CtxInverse> = {}): CtxInverse {
   return {
-    entretien: { annotations: [], ancres: [] },
+    entretien: { annotations: [], ancres: [], reperesPassages: [] },
     locuteurs: [],
     valeursGen: {},
     ...over,
@@ -56,7 +56,7 @@ describe('journal — enregistrer (cap, ordre)', () => {
 
 describe('journal — inverses purs (applicabilité + application)', () => {
   test('retirerAnnotation : applicable tant que l’annotation existe, puis grisée', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     const a = ajouterCodage(entretien, { from: 1, to: 5, code: 'c1', auteur: 'moi' }, () => 'a1')!
     const ctx = ctxPur({ entretien })
     const inv = { type: 'retirerAnnotation' as const, annotationId: a.id }
@@ -67,7 +67,7 @@ describe('journal — inverses purs (applicabilité + application)', () => {
   })
 
   test('reposerAnnotation : ré-insère ; refuse si orpheline ou déjà présente', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     const a = ajouterCodage(entretien, { from: 1, to: 5, code: 'c1', auteur: 'moi' }, () => 'a1')!
     retirerAnnotation(entretien, a.id)
     const ctx = ctxPur({ entretien })
@@ -122,7 +122,7 @@ describe('journal — inverses purs (applicabilité + application)', () => {
   })
 
   test('annuler : applique et retire l’entrée ; cible disparue → entrée conservée', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     const a = ajouterCodage(entretien, { from: 1, to: 5, code: 'c1', auteur: 'moi' }, () => 'a1')!
     const j: Journal = { entrees: [] }
     const e = enregistrer(j, 'Codage posé', { type: 'retirerAnnotation', annotationId: a.id }, genId)
@@ -174,7 +174,7 @@ function ctxEditeur(ed: Editor, entretien: Entretien): CtxInverse {
 
 describe('journal — les inverses en attente suivent les éditions (remap)', () => {
   test('annotation retirée puis texte édité AVANT → re-posée au bon endroit', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     const j: Journal = { entrees: [] }
     editor = creerEditeur(entretien, j, '<p>AAAA BBBB CCCC</p>')
     const from = 1 + 'AAAA '.length
@@ -191,7 +191,7 @@ describe('journal — les inverses en attente suivent les éditions (remap)', ()
   })
 
   test('texte annoté SUPPRIMÉ → l’entrée « re-poser » devient non annulable (grisée)', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     const j: Journal = { entrees: [] }
     editor = creerEditeur(entretien, j, '<p>AAAA BBBB CCCC</p>')
     const from = 1 + 'AAAA '.length
@@ -210,7 +210,7 @@ describe('journal — les inverses en attente suivent les éditions (remap)', ()
   })
 
   test('attribution annulée après édition → l’ancien loc revient au BON bloc (scission conservée)', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     const j: Journal = { entrees: [] }
     editor = creerEditeur(entretien, j, '<p data-loc="1" data-deb="0" data-fin="10">AAAA BBBB CCCC</p>')
 

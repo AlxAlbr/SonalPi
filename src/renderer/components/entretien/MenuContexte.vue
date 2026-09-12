@@ -33,6 +33,8 @@ const props = defineProps<{
   commentaires: ItemCommentaire[]
   /** Une plage est commentable (sélection ou annotation sous le clic). */
   peutCommenter: boolean
+  /** Une sélection libre peut être ajoutée à un recueil. */
+  peutAjouterRecueil: boolean
 }>()
 const emit = defineEmits<{
   (e: 'basculer-exception'): void
@@ -40,6 +42,7 @@ const emit = defineEmits<{
   (e: 'basculer-pseudo', pseudo: string): void
   (e: 'retirer-codage', id: string): void
   (e: 'commenter'): void
+  (e: 'ajouter-recueil'): void
   (e: 'editer-commentaire', id: string): void
   (e: 'fermer'): void
 }>()
@@ -114,6 +117,16 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           @click="emit('retirer-codage', c.id)"
         >
           ✕ Retirer le codage « {{ c.libelle }} »
+        </button>
+
+        <button
+          v-if="peutAjouterRecueil"
+          class="menu-ctx-action"
+          role="menuitem"
+          title="Choisir un recueil pour cette sélection libre."
+          @click="emit('ajouter-recueil')"
+        >
+          📌 Ajouter au recueil…
         </button>
 
         <!-- Section COMMENTAIRES : créer, ou éditer chacun de ceux présents. -->

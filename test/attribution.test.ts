@@ -60,7 +60,7 @@ function attribuer(ed: Editor, fragment: string, loc: number | null): void {
 
 describe('attribuerSelectionTr — scission + loc', () => {
   test('sélection au milieu d’un bloc → 3 fragments ; loc au milieu seulement', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     attribuer(editor, 'BBBB', 2)
 
@@ -72,7 +72,7 @@ describe('attribuerSelectionTr — scission + loc', () => {
   })
 
   test('sélection couvrant un bloc ENTIER → aucune scission, loc posé', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB</p>')
     attribuer(editor, 'AAAA BBBB', 2)
 
@@ -80,7 +80,7 @@ describe('attribuerSelectionTr — scission + loc', () => {
   })
 
   test('sélection multi-blocs → extrémités scindées, blocs intérieurs entiers', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(
       entretien,
       '<p data-loc="1">un deux</p>' + '<p data-loc="1">trois</p>' + '<p data-loc="1">quatre cinq</p>',
@@ -103,14 +103,14 @@ describe('attribuerSelectionTr — scission + loc', () => {
   })
 
   test('loc=null (désattribution) sur une sous-partie', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     attribuer(editor, 'BBBB', null)
     expect(blocs(editor)[1]).toEqual({ texte: 'BBBB', loc: null })
   })
 
   test('borne au tout début du bloc → pas de tête vide (le bloc démarre couvert)', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     attribuer(editor, 'AAAA BBBB', 2) // from au tout début
     expect(blocs(editor)).toEqual([
@@ -120,7 +120,7 @@ describe('attribuerSelectionTr — scission + loc', () => {
   })
 
   test('sélection vide (from===to) → aucune transaction', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p>AAAA</p>')
     expect(attribuerSelectionTr(editor.state, 3, 3, 2)).toBeNull()
   })
@@ -133,6 +133,7 @@ describe('attribuerSelectionTr — scission + loc', () => {
         { pos: 1, t: 0 },
         { pos: 15, t: 10 }, // fin du texte « AAAA BBBB CCCC » (14 caractères)
       ],
+      reperesPassages: [],
     }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     attribuer(editor, 'BBBB', 2) // deux coupes (avant et après BBBB)
@@ -151,7 +152,7 @@ describe('attribuerSelectionTr — scission + loc', () => {
 
 describe('attribuerSelectionTr — les annotations enjambent la coupe (remap)', () => {
   test('annotation exactement sur le fragment attribué → conservée', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     const from = editor.state.doc.textContent.indexOf('BBBB') + 1
     const a = ajouterCodage(entretien, { from, to: from + 4, code: 'c1', auteur: 'moi' }, () => 'a1')!
@@ -161,7 +162,7 @@ describe('attribuerSelectionTr — les annotations enjambent la coupe (remap)', 
   })
 
   test('annotation à cheval sur une coupe → texte annoté préservé (enjambe le bloc)', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p data-loc="1">AAAA BBBB CCCC</p>')
     // Annote « AAAA BBBB », puis attribue « BBBB » → coupe DANS l'annotation.
     const a = ajouterCodage(entretien, { from: 1, to: 1 + 'AAAA BBBB'.length, code: 'c1', auteur: 'moi' }, () => 'a1')!
@@ -176,7 +177,7 @@ describe('attribuerSelectionTr — les annotations enjambent la coupe (remap)', 
 
 describe('snapBornes — ne jamais couper un mot en deux', () => {
   test('bornes en milieu de mot → élargies aux frontières de mot', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p>Bonjour Pierre Lemaitre</p>')
     const t = editor.state.doc.textContent
     const from = t.indexOf('ierre') + 1 // milieu de « Pierre »
@@ -186,7 +187,7 @@ describe('snapBornes — ne jamais couper un mot en deux', () => {
   })
 
   test('bornes finissant au DÉBUT d\'un mot (après espace) ne l\'avalent pas', () => {
-    const entretien: Entretien = { annotations: [], ancres: [] }
+    const entretien: Entretien = { annotations: [], ancres: [], reperesPassages: [] }
     editor = creerEditeur(entretien, '<p>Bonjour Thomas, Bonjour Amandine</p>')
     const doc = editor!.state.doc
     // Positions DOC (pas indices de textContent) de « Thomas, » + l'espace de fin,

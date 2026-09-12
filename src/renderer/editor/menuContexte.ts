@@ -24,6 +24,8 @@ export interface CibleMenuContexte {
    *  (snappée au mot), sinon les bornes de l'annotation couvrante la plus
    *  large ; null s'il n'y a rien à commenter. */
   plageCommenter: { from: number; to: number } | null
+  /** Sélection libre, sans repli sur une annotation couvrante. */
+  plageSelection: { from: number; to: number } | null
 }
 
 /** Occurrence anon couvrante la plus LARGE (les incluses sont écartées : pas
@@ -72,9 +74,13 @@ export function pluginMenuContexte(entretien: Entretien, ouvrir: (cible: CibleMe
           // la sélection : elle est encore celle d'avant le clic.
           const sel = view.state.selection
           let plageCommenter: { from: number; to: number } | null = null
+          let plageSelection: { from: number; to: number } | null = null
           if (!sel.empty) {
             const snappe = snapToWord(view.state, sel.from, sel.to)
-            if (snappe.from < snappe.to) plageCommenter = snappe
+            if (snappe.from < snappe.to) {
+              plageCommenter = snappe
+              plageSelection = snappe
+            }
           }
 
           // Annotations couvrantes (la borne droite est exclue : un clic sur le
@@ -98,7 +104,7 @@ export function pluginMenuContexte(entretien: Entretien, ouvrir: (cible: CibleMe
             return false // rien à proposer → menu natif
           }
           event.preventDefault()
-          ouvrir({ x: event.clientX, y: event.clientY, anon, codages, commentaires, plageCommenter })
+          ouvrir({ x: event.clientX, y: event.clientY, anon, codages, commentaires, plageCommenter, plageSelection })
           return true
         },
       },

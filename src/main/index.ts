@@ -28,6 +28,7 @@ import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type {
   Categorie,
   CibleRegleAnon,
@@ -63,6 +64,7 @@ import type {
 } from '../shared/distant'
 import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
 import { EXT_MEDIA } from '../shared/media'
+import { rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev,
 // le renderer est en http://localhost (Vite) et ne lit pas file:// ;
@@ -643,6 +645,21 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     store.compterUsagesCategorieNote(id),
   )
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
+  ipcMain.handle('corpus:recueilsCommander', async (_e, commande: CommandeRecueils) => {
+    if (commande.type === 'inserer-item' && commande.item.type === 'passage') {
+      const { entretienId, repereId } = commande.item.source
+      if (!store.reperePassageExiste(entretienId, repereId)) {
+        throw new Error("Le repère du passage n'a pas été enregistré dans l'entretien.")
+      }
+      if (sessions?.idsTenus().includes(entretienId)) {
+        const publication = await sessions.publier(entretienId)
+        if (!publication.ok) {
+          throw new Error(`Le passage n'a pas été publié (${publication.raison ?? 'échec inconnu'}).`)
+        }
+      }
+    }
+    return executerDefinitions((cible) => cible.recueilsCommander(commande))
+  })
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
   ipcMain.handle('corpus:scanAnon', () => store.scanAnon())
   ipcMain.handle('corpus:notesInventaire', () => store.notesInventaire())
@@ -811,6 +828,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         data.corpsTexte = transcription.corpsTexte
         data.annotations = transcription.annotations
         data.ancres = transcription.ancres
+        data.reperesPassages = rendreReperesOrphelins(data.reperesPassages)
         data.locuteurs = completerIdsLocuteurs(id, transcription.locuteurs, data.locuteurs)
         return true
       })
@@ -1010,6 +1028,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         machineId,
         sessionId: SESSION_ID,
       }))
+      await nouvellesTransactions.migrerFormatSiNecessaire()
       await nouvellesTransactions.reconcilierFichiersOrphelins()
       const corpus = nouveauStore.ouvrir()
       const verrous = nouveauVerrouNatif

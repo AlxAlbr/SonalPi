@@ -101,7 +101,7 @@ describe.skipIf(!serveurPret)('Contrat Nextcloud réel (docker)', () => {
     const premier = await miroir.tirer()
     expect(premier.telecharges).toContain('corpus.json')
     const contenu = JSON.parse(readFileSync(miroir.cheminLocal('corpus.json'), 'utf8'))
-    expect(contenu.formatVersion).toBe(3)
+    expect(contenu.formatVersion).toBe(4)
     // Deuxième tirage : rien ne bouge (diff ETags).
     const second = await miroir.tirer()
     expect(second.telecharges).toEqual([])

@@ -1,5 +1,7 @@
 import type { Annotation } from './entretien/annotation'
 import type { Ancre } from './entretien/audio'
+import type { ReperePassage } from './entretien/reperesPassages'
+import type { Recueil } from './corpus/recueils'
 
 /**
  *  Contrat du FORMAT NATIF SonalPi2 (docs/dev/modele-objet.md).
@@ -13,8 +15,11 @@ import type { Ancre } from './entretien/audio'
  *  formatVersion 3 : `meta.audioRef` devient un chemin ABSOLU uniquement — l'audio est
  *  référencé sur place, plus de copie dans `<corpus>/audio/`. Migration au
  *  store : refs relatives résolues en absolues, PNG d'onde déplacés vers `png/`.
+ *
+ *  formatVersion 4 : les recueils partagés vivent dans `corpus.json` et les
+ *  repères de leurs passages vivent avec chaque entretien.
  */
-export const FORMAT_VERSION = 3
+export const FORMAT_VERSION = 4
 
 export function versionSupportee(v: unknown): boolean {
   return v === FORMAT_VERSION
@@ -114,6 +119,8 @@ export interface CorpusFichier {
   /** Catégories de note : typologie partagée par tout le corpus, comme le codebook ; un corpus existant sans ce champ est normalisé en bacs par défaut.
    *  Champ ADDITIF optionnel. */
   categoriesNote?: NoteCategory[]
+  /** Documents éditoriaux partagés, indexés par leur identité stable. */
+  recueils?: Record<string, Recueil>
 }
 
 /** Paramètres de pseudonymisation au niveau corpus : `prioriteValidation` est la portée appliquée par ENTRÉE à la validation d'une ligne du tableau anon (Maj+Entrée = l'autre ; défaut 'corpus').
@@ -221,6 +228,8 @@ export interface EntretienFichier {
   /** Notes structurées de l'entretien (corps + surlignages + rang) ; normalisées en [] à l'ouverture.
    *  Champ ADDITIF optionnel. */
   notes?: Note[]
+  /** Repères autonomes référencés par les recueils. */
+  reperesPassages?: ReperePassage[]
   /** Blocs `.sonal` non modélisés (règles d'anon, notes), transportés tels quels pour un export sans perte. */
   legacy?: Record<string, unknown>
 }
@@ -237,6 +246,7 @@ export interface PayloadEntretien {
   brouillonsAnon?: BrouillonAnon[]
   pseudosDeclares?: Record<string, string[]>
   notes?: Note[]
+  reperesPassages?: ReperePassage[]
   legacy?: Record<string, unknown>
 }
 
