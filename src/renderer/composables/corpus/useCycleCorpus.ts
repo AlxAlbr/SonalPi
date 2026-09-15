@@ -24,6 +24,8 @@ interface ProfilCycleCorpus {
 interface ModeleCycleCorpus {
   membership: Ref<Record<string, EntretienRef>>
   recueils: Ref<NonNullable<CorpusFichier['recueils']>>
+  cas: Ref<NonNullable<CorpusFichier['cas']>>
+  famillesCas: Ref<NonNullable<CorpusFichier['famillesCas']>>
   paramsAnon: Ref<ParamsAnon>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
   majVariables: (variables: CorpusFichier['variables']) => void
@@ -77,6 +79,7 @@ interface DistantCycleCorpus {
 
 interface EffetsCycleCorpus {
   reinitialiserSelection: () => void
+  reinitialiserFenetresMetier: () => void
   deselectionner: () => void
   apresOuvertureEntretien: (id: string) => Promise<void>
   raccrocherModeCorpus: (
@@ -123,10 +126,13 @@ export function useCycleCorpus(deps: {
     deps.audio.largeurVideo.value = 0
     reprise.value = null
     deps.effets.reinitialiserSelection()
+    deps.effets.reinitialiserFenetresMetier()
     deps.corpus.reinitialiserScanAnon()
     deps.corpus.reinitialiserMatrice()
     deps.corpus.membership.value = corpus.membership
     deps.corpus.recueils.value = corpus.recueils ?? {}
+    deps.corpus.cas.value = corpus.cas ?? {}
+    deps.corpus.famillesCas.value = corpus.famillesCas ?? {}
     deps.corpus.majCodebook(corpus.codebook)
     deps.corpus.majVariables(corpus.variables)
     deps.corpus.majCategoriesNote(corpus.categoriesNote)
@@ -234,6 +240,8 @@ export function useCycleCorpus(deps: {
     const charge = await window.sonal.corpus.ouvrir()
     deps.corpus.membership.value = charge.membership
     deps.corpus.recueils.value = charge.recueils ?? {}
+    deps.corpus.cas.value = charge.cas ?? {}
+    deps.corpus.famillesCas.value = charge.famillesCas ?? {}
     deps.corpus.majCodebook(charge.codebook)
     deps.corpus.majVariables(charge.variables)
     deps.corpus.majCategoriesNote(charge.categoriesNote)

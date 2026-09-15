@@ -31,6 +31,27 @@ function entretien(): EntretienFichier {
 }
 
 describe('Personnes — règles de domaine', () => {
+  test('redirige et déduplique les règles de cas dans la fusion, sans perdre les filtres', () => {
+    const { store } = preparer()
+    const conserverId = store.personnesCommander({ type: 'creerDefinition', nom: 'Identité conservée' }) as string
+    const absorberId = store.personnesCommander({ type: 'creerDefinition', nom: 'Identité absorbée' }) as string
+    const date = '2026-09-01T10:00:00.000Z'
+    store.casCommander({ type: 'creer', cas: {
+      id: 'collectif', nom: 'Collectif', memo: 'Mémo conservé', creeLe: date, modifieLe: date,
+      regles: [
+        { type: 'personne', personneId: conserverId, inclureEnqueteurs: false },
+        { type: 'personnes', membres: [{ personneId: absorberId, inclureEnqueteurs: true }] },
+      ], rattachements: [],
+    } })
+    expect(() => store.personnesCommander({ type: 'supprimer', personneId: absorberId })).toThrow(/Collectif/)
+    store.personnesCommander({ type: 'fusionner', conserverId, absorberId, attendu: JSON.stringify(store.personnesInventaire()) })
+    const cas = store.ouvrir().cas?.collectif
+    expect(cas).toMatchObject({ id: 'collectif', memo: 'Mémo conservé', creeLe: date, rattachements: [] })
+    expect(cas?.regles).toEqual([{ type: 'personnes', membres: [{ personneId: conserverId, inclureEnqueteurs: true }] }])
+    expect(store.ouvrir().personnes[absorberId]).toBeUndefined()
+    expect(() => store.personnesCommander({ type: 'supprimer', personneId: conserverId })).toThrow(/Collectif/)
+  })
+
   test('rapproche deux entretiens avec reprise ponctuelle et refus révocable', () => {
     const { store } = preparer()
     const autre = store.creerEntretienVide('Deuxième entretien')

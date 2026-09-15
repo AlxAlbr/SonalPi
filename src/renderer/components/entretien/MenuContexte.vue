@@ -7,6 +7,7 @@ import { computed, onMounted, onUnmounted } from 'vue'
  *  la cible en contient :
  *  - occurrence anon → « exception ↔ anonymisé » (+ bascule multi-pseudo) ;
  *  - codages couvrants → un item de retrait PAR thème (sans resélectionner) ;
+ *  - sélection libre → association à un cas ou ajout à un recueil ;
  *  - plage disponible → « Commenter » ; commentaires couvrants → un item
  *  d'édition par commentaire.
  *
@@ -33,6 +34,8 @@ const props = defineProps<{
   commentaires: ItemCommentaire[]
   /** Une plage est commentable (sélection ou annotation sous le clic). */
   peutCommenter: boolean
+  /** Une sélection libre peut être associée à un cas. */
+  peutAjouterCas: boolean
   /** Une sélection libre peut être ajoutée à un recueil. */
   peutAjouterRecueil: boolean
 }>()
@@ -42,6 +45,7 @@ const emit = defineEmits<{
   (e: 'basculer-pseudo', pseudo: string): void
   (e: 'retirer-codage', id: string): void
   (e: 'commenter'): void
+  (e: 'ajouter-cas'): void
   (e: 'ajouter-recueil'): void
   (e: 'editer-commentaire', id: string): void
   (e: 'fermer'): void
@@ -117,6 +121,16 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           @click="emit('retirer-codage', c.id)"
         >
           ✕ Retirer le codage « {{ c.libelle }} »
+        </button>
+
+        <button
+          v-if="peutAjouterCas"
+          class="menu-ctx-action"
+          role="menuitem"
+          title="Associer cette sélection libre à un ou plusieurs cas."
+          @click="emit('ajouter-cas')"
+        >
+          🗂 Associer à un cas…
         </button>
 
         <button

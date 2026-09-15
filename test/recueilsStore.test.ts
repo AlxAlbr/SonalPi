@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
 import { ecrireSeedDemo } from './seedDemo'
-import type { EntretienFichier } from '../src/shared/format'
+import { FORMAT_VERSION, type EntretienFichier } from '../src/shared/format'
 
 function storeSeed() {
   const dir = mkdtempSync(join(tmpdir(), 'sonal-recueils-'))
@@ -13,13 +13,14 @@ function storeSeed() {
 }
 
 describe('CorpusStore — recueils et repères', () => {
-  test('migre explicitement v3 vers v4 avec collections normalisées', () => {
+  test('migre explicitement v3 vers le format courant avec collections normalisées', () => {
     const { dir, store } = storeSeed()
     const corpus = store.ouvrir()
-    expect(corpus.formatVersion).toBe(4)
+    expect(corpus.formatVersion).toBe(FORMAT_VERSION)
     expect(corpus.recueils).toEqual({})
+    expect(corpus.cas).toEqual({})
     const entretien = JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')) as EntretienFichier
-    expect(entretien.formatVersion).toBe(4)
+    expect(entretien.formatVersion).toBe(FORMAT_VERSION)
     expect(entretien.reperesPassages).toEqual([])
   })
 

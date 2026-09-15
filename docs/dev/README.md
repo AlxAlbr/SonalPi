@@ -5,7 +5,8 @@ Elle s'adresse aux développeurs qui veulent comprendre, modifier ou étendre le
 La documentation utilisateur vit dans [`docs/user/`](../user/) (migration SonalPi1 :
 [migration-v1.md](../user/migration-v1.md), multi-utilisateur :
 [multi-utilisateur.md](../user/multi-utilisateur.md), créer et partager un corpus
-distant : [corpus-distant.md](../user/corpus-distant.md)). Les agents (LLM) trouveront
+distant : [corpus-distant.md](../user/corpus-distant.md), cas analytiques :
+[cas.md](../user/cas.md)). Les agents (LLM) trouveront
 leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 
 ## Sommaire
@@ -15,6 +16,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [donnees.md](donnees.md) | Les données : natures (définition / application / requête), états (stocké / calculé), représentations (mémoire, DOM, fichier) et leurs interactions |
 | [ouverture-corpus.md](ouverture-corpus.md) | L'ouverture d'un corpus : amorçage, récents auto-ouverts (tagués local 🌐 distant), mémoire démo (« un dossier vide n'est pas un corpus absent »), branche distante (création directe sur serveur), gardes et invariants |
 | [modele-objet.md](modele-objet.md) | Le modèle d'objet (vue à 3 niveaux) : agrégats Corpus / Entretien, patron à 3 étages, sous-schémas par préoccupation (§3–§10), chacun ancré au code actuel
+| [cas.md](cas.md) | Cas analytiques : modèle actuel, références vivantes, commandes et projection ; modèle cible des règles, familles et attributs, avec état des fonctionnalités |
 | [architecture.md](architecture.md) | La structure générale de `src/`, les process Electron (main / preload / renderer), la frontière `shared/` pure et sa testabilité, où placer un module dans `shared/` et dans le renderer |
 | [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
 | [plan-lot-table-donnees.md](plan-lot-table-donnees.md) | Plan (proposition) : saisie des valeurs en corpus distant — bouton « Saisir… » par ligne (onglet Donnée de l'entretien) et modification en lot par colonne (verrou court par entretien) |
@@ -30,6 +32,8 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 - **Pour modifier une commande métier** (poser un codage, renommer un locuteur…) : les fonctions
   pures vivent dans `src/shared/` (carte code ↔ modèle : [modele-objet.md §11](modele-objet.md#11-carte-code--modèle)),
   l'orchestration dans les composables renderer ([donnees.md § 3](donnees.md#3-commandes-métier)).
+- **Pour toucher aux cas** (règles, rattachements, attributs ou export) :
+  [cas.md](cas.md), en distinguant le socle présent des extensions prévues.
 - **Pour toucher à l'éditeur** (rendu, décorations, remap des positions) :
   [donnees.md § 1](donnees.md#1-dom--objet-en-mémoire).
 - **Pour toucher au fonctionnement distant** (verrous, sessions, transactions,

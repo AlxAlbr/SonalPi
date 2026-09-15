@@ -3,13 +3,14 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdi
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { lancer, entrerCorpus, attendreAccueil, attendreCorpus } from './util'
+import { FORMAT_VERSION } from '../src/shared/format'
 
 /**
- *  Migration formatVersion 2→3 SILENCIEUSE à l'ouverture :
+ *  Migration d'un ancien format natif, silencieuse à l'ouverture :
  *  un corpus formatVersion 2 (copies relatives : `audioRef: 'audio/e1.wav'` + PNG waveform
  *  dans `audio/`) est écrit sur disque AVANT le lancement. À l'ouverture, le
  *  store résout chaque `audioRef` relatif en ABSOLU (vers l'emplacement legacy),
- *  déplace les PNG `audio/` → `png/` et bumpe corpus + entretiens à formatVersion 3 — sans
+ *  déplace les PNG `audio/` → `png/` et actualise corpus et entretiens — sans
  *  aucune copie ni recopie. Couvert en unitaire (`corpusStore.test.ts`) ; ici on
  *  vérifie le geste RÉEL : l'app ouvre un corpus formatVersion 2 sans broncher et le lecteur
  *  joue l'audio référencé (whitelist `cheminMediaAbs` sur le chemin migré).
@@ -46,7 +47,7 @@ const PNG_1PX = Buffer.from(
   'base64',
 )
 
-test('J5 : corpus formatVersion 2 (copies relatives) → migration formatVersion 4 silencieuse à l’ouverture, audio jouable', async () => {
+test('J5 : corpus formatVersion 2 (copies relatives) → migration courante silencieuse à l’ouverture, audio jouable', async () => {
   const profil = mkdtempSync(join(tmpdir(), 'sonal-migr-e2e-'))
   const dirCorpus = join(profil, 'corpus') // le corpus par défaut du profil (lancer le charge en 1er récent)
   const now = new Date().toISOString()
@@ -109,9 +110,9 @@ test('J5 : corpus formatVersion 2 (copies relatives) → migration formatVersion
 
   // --- Migration vérifiée SUR DISQUE (silencieuse, une fois) ---
   const corpusJson = JSON.parse(readFileSync(join(dirCorpus, 'corpus.json'), 'utf8'))
-  expect(corpusJson.formatVersion).toBe(4)
+  expect(corpusJson.formatVersion).toBe(FORMAT_VERSION)
   const e1 = JSON.parse(readFileSync(join(dirCorpus, 'entretiens', 'e1.json'), 'utf8'))
-  expect(e1.formatVersion).toBe(4)
+  expect(e1.formatVersion).toBe(FORMAT_VERSION)
   // audioRef RELATIF résolu en ABSOLU vers l'emplacement legacy (aucune recopie).
   expect(e1.meta.audioRef).toBe(join(dirCorpus, 'audio', 'e1.wav'))
   // Le mp3/wav legacy reste dans audio/ (référencé en absolu) ; le PNG a déménagé.
@@ -138,7 +139,7 @@ test('J5 : corpus formatVersion 2 (copies relatives) → migration formatVersion
   await page.locator('.recents .recent').first().click()
   await attendreCorpus(page)
   await expect(page.locator('.carte-ent .ent-titre')).toContainText('Entretien Legacy')
-  expect(JSON.parse(readFileSync(join(dirCorpus, 'corpus.json'), 'utf8')).formatVersion).toBe(4)
+  expect(JSON.parse(readFileSync(join(dirCorpus, 'corpus.json'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
 
   await app.close()
 })

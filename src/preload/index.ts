@@ -35,6 +35,8 @@ import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/pe
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
+import type { CommandeCas } from '../shared/corpus/cas'
+import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type {
   CompteDistantPublic,
   DemandeConnexion,
@@ -142,8 +144,12 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:creerEntretienVide', titre),
     renommerEntretien: (id: string, titre: string): Promise<CorpusFichier> =>
       invoquer('corpus:renommerEntretien', id, titre),
-    supprimerEntretien: (id: string): Promise<CorpusFichier> =>
-      invoquer('corpus:supprimerEntretien', id),
+    analyserSuppressionEntretien: (id: string): Promise<ImpactSuppressionEntretien> =>
+      invoquer('corpus:analyserSuppressionEntretien', id),
+    supprimerEntretien: (
+      id: string,
+      impactAttendu?: ImpactSuppressionEntretien,
+    ): Promise<CorpusFichier> => invoquer('corpus:supprimerEntretien', id, impactAttendu),
     importer: (
       titre: string,
       payload: PayloadEntretien,
@@ -186,6 +192,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:resumesThematiques'),
     recueilsCommander: (commande: CommandeRecueils): Promise<CorpusFichier> =>
       invoquer('corpus:recueilsCommander', commande),
+    casCommander: (commande: CommandeCas): Promise<CorpusFichier> =>
+      invoquer('corpus:casCommander', commande),
     reglesAnon: (): Promise<RegleAnon[]> => invoquer('corpus:reglesAnon'),
     scanAnon: (): Promise<ScanRegle[]> => invoquer('corpus:scanAnon'),
     notesInventaire: (): Promise<InventaireNotes> => invoquer('corpus:notesInventaire'),

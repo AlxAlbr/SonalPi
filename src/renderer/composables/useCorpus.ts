@@ -1,6 +1,7 @@
 import { ref, toRaw } from 'vue'
 import type { EntretienRef } from '../../shared/format'
 import type { Recueil } from '../../shared/corpus/recueils'
+import type { Cas, FamilleCas } from '../../shared/corpus/cas'
 import { useAnonymisationCorpus } from './corpus/useAnonymisationCorpus'
 import { useCategoriesNotesCorpus } from './corpus/useCategoriesNotesCorpus'
 import { useJournalCorpus } from './corpus/useJournalCorpus'
@@ -22,6 +23,8 @@ import type { CommandeNotes } from '../../shared/corpus/notes'
 export function useCorpus(opts: { flush: () => Promise<void> }) {
   const membership = ref<Record<string, EntretienRef>>({})
   const recueils = ref<Record<string, Recueil>>({})
+  const cas = ref<Record<string, Cas>>({})
+  const famillesCas = ref<Record<string, FamilleCas>>({})
   const themes = useThemesCorpus(opts)
   const variables = useVariablesCorpus(opts)
   const anonymisation = useAnonymisationCorpus()
@@ -55,6 +58,8 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     // état
     membership,
     recueils,
+    cas,
+    famillesCas,
     codebook: themes.codebook,
     codeCourant: themes.codeCourant,
     usages: themes.usages,

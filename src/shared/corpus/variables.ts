@@ -1,3 +1,4 @@
+import { compterUsagesCasVariable } from './cas'
 import type { CorpusFichier, Variable } from '../format'
 
 /**
@@ -38,10 +39,12 @@ export function modifierVariable(
   id: string,
   patch: Partial<Pick<Variable, 'lib' | 'portee' | 'priv'>>,
 ): void {
+  if (patch.portee && patch.portee !== corpus.variables[id]?.portee && compterUsagesCasVariable(corpus, id)) throw new Error('Cette variable est utilisée par des cas ou familles.')
   if (corpus.variables[id]) corpus.variables[id] = { ...corpus.variables[id], ...patch }
 }
 
 export function retirerVariable(corpus: CorpusFichier, id: string): void {
+  if (compterUsagesCasVariable(corpus, id)) throw new Error('Cette variable est utilisée par des cas ou familles.')
   delete corpus.variables[id]
 }
 
@@ -62,6 +65,7 @@ export function modifierModalite(corpus: CorpusFichier, idVar: string, idMod: st
 }
 
 export function retirerModalite(corpus: CorpusFichier, idVar: string, idMod: string): void {
+  if (compterUsagesCasVariable(corpus, idVar, idMod)) throw new Error('Cette modalité est utilisée par des cas.')
   const v = corpus.variables[idVar]
   if (v) v.modalites = v.modalites.filter((m) => m.id !== idMod)
 }

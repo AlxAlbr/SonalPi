@@ -29,6 +29,9 @@ import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
+import type { CommandeCas } from '../shared/corpus/cas'
+import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
+import { executerCommandeCas } from './casOrchestration'
 import type {
   Categorie,
   CibleRegleAnon,
@@ -586,11 +589,18 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  Défense en profondeur : si NOUS tenions encore la session de cet entretien,
    *  il faut la fermer d'abord (publication puis libération, ordre invariant) ;
    *  sinon, ce serait notre propre verrou qui bloquerait la suppression. */
-  ipcMain.handle('corpus:supprimerEntretien', async (_e, id: string) => {
+  ipcMain.handle('corpus:analyserSuppressionEntretien', (_e, id: string) =>
+    store.analyserSuppressionEntretien(id),
+  )
+  ipcMain.handle('corpus:supprimerEntretien', async (
+    _e,
+    id: string,
+    impactAttendu?: ImpactSuppressionEntretien,
+  ) => {
     const couche = transactions
     const gestionnaire = sessions
     const magasin = store
-    if (!couche) return magasin.supprimerEntretien(id)
+    if (!couche) return magasin.supprimerEntretien(id, impactAttendu)
     if (gestionnaire) {
       magasin.revoquerEcritureEntretien(id)
       const fermeture = await gestionnaire.fermer(id)
@@ -599,7 +609,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         throw new Error(`Suppression impossible : session non fermée (${fermeture.raison}).`)
       }
     }
-    return couche.supprimerEntretien(id)
+    return couche.supprimerEntretien(id, impactAttendu)
   })
   ipcMain.handle(
     'corpus:importer',
@@ -660,6 +670,19 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
     return executerDefinitions((cible) => cible.recueilsCommander(commande))
   })
+  ipcMain.handle('corpus:casCommander', (_e, commande: CommandeCas) =>
+    executerCommandeCas(commande, {
+      sessionsTenues: () => sessions?.idsTenus() ?? [],
+      publierEntretien: (entretienId) => sessions?.publier(entretienId)
+        ?? Promise.resolve({ ok: true }),
+      verifierReferencesPubliees: transactions
+        ? (references) => transactions!.verifierReferencesPassagesPubliees(references)
+        : undefined,
+      repereExiste: (entretienId, repereId) =>
+        store.reperePassageExiste(entretienId, repereId),
+      executerDefinitions: () => executerDefinitions((cible) => cible.casCommander(commande)),
+    }),
+  )
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
   ipcMain.handle('corpus:scanAnon', () => store.scanAnon())
   ipcMain.handle('corpus:notesInventaire', () => store.notesInventaire())

@@ -12,6 +12,7 @@ import {
   projeterRecueil,
   type ProjectionRecueil,
   type SourceRecueilChargee,
+  type StyleNumerotation,
 } from '../../editor/recueils'
 
 const nouvelId = (prefixe: string): string => `${prefixe}-${globalThis.crypto.randomUUID()}`
@@ -23,6 +24,7 @@ export function useRecueilsCorpus(deps: {
   sourceOuverte: () => EntretienFichier | null
   enregistrerRepereSelection: () => Promise<{ id: string; from: number; to: number }>
   ouvrirSource: (entretienId: string, pos: number) => void
+  fermerAutreFenetre: () => void
 }) {
   const recueilOuvertId = ref<string | null>(null)
   const recueilsOuverts = ref(false)
@@ -83,6 +85,7 @@ export function useRecueilsCorpus(deps: {
   }
 
   async function afficherRecueils(): Promise<void> {
+    deps.fermerAutreFenetre()
     recueilsOuverts.value = true
     if (recueilOuvertId.value) await resoudreRecueil(recueilOuvertId.value)
   }
@@ -323,15 +326,26 @@ export function useRecueilsCorpus(deps: {
 
   async function exporter(
     format: 'md' | 'txt',
-    choix: { incomplet: boolean; commentaires: boolean; sources: boolean },
+    choix: { commentaires: boolean; sources: boolean; numerotation: StyleNumerotation },
+    confirmerIncomplet: (infos: { nombre: number; exemples: string[] }) => Promise<boolean> = async () => false,
   ): Promise<void> {
     const courant = await resoudreRecueil()
     if (!courant) return
+    let incomplet = false
+    if (courant.problemes > 0) {
+      const exemples = courant.items
+        .filter((item) => item.type === 'passage' && item.etat !== 'disponible')
+        .slice(0, 5)
+        .map((item) => item.type === 'passage' ? `${item.titreEntretien} : ${item.diagnostic}` : '')
+      incomplet = await confirmerIncomplet({ nombre: courant.problemes, exemples })
+      if (!incomplet) return
+    }
     const options = {
       commentaires: choix.commentaires,
       sources: choix.sources,
       date: new Date().toLocaleString(),
-      incomplet: choix.incomplet,
+      incomplet,
+      numerotation: choix.numerotation,
     }
     const contenu = format === 'md'
       ? exporterRecueilMarkdown(courant, options)

@@ -9,6 +9,7 @@ import { useDistantCorpus } from './corpus/useDistantCorpus'
 import { useCycleCorpus } from './corpus/useCycleCorpus'
 import { useOperationsCorpus } from './corpus/useOperationsCorpus'
 import { useRecueilsCorpus } from './corpus/useRecueilsCorpus'
+import { useCasCorpus } from './corpus/useCasCorpus'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
@@ -36,6 +37,7 @@ export function creerSonal() {
   let racineSourcesDemo: () => string | null = () => null
   let distantActifPourMedias: () => boolean = () => false
   let actualiserDistantPourMedias: (silencieux?: boolean) => Promise<boolean> = async () => false
+  let reinitialiserFenetresMetier: () => void = () => {}
   const corpus = useCorpus({ flush: () => sauverEntretien() })
 
   // Scope AUDIO : le lecteur de l'entretien ouvert.
@@ -280,6 +282,7 @@ export function creerSonal() {
     },
     effets: {
       reinitialiserSelection: reinitialiserSelectionCorpus,
+      reinitialiserFenetresMetier: () => reinitialiserFenetresMetier(),
       deselectionner: deselectionnerCorpus,
       apresOuvertureEntretien: (id) => proposerFusionDepuisCycle(id),
       raccrocherModeCorpus: (marqueur, dir) => raccrocherModeCorpus(marqueur, dir),
@@ -369,6 +372,7 @@ export function creerSonal() {
   proposerFusionDepuisCycle = proposerFusionDivergence
   reinitialiserDivergenceDepuisDistant = reinitialiserDivergence
 
+  let fermerCasPourRecueils: () => void = () => {}
   const recueilsCorpus = useRecueilsCorpus({
     recueils: corpus.recueils,
     membership: corpus.membership,
@@ -376,11 +380,30 @@ export function creerSonal() {
     sourceOuverte: ent.donneesSourceOuverte,
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
     ouvrirSource: ouvrirAuSegment,
+    fermerAutreFenetre: () => fermerCasPourRecueils(),
   })
+  const casCorpus = useCasCorpus({
+    cas: corpus.cas,
+    famillesCas: corpus.famillesCas,
+    variables: corpus.variables,
+    membership: corpus.membership,
+    ouvertId: ent.ouvertId,
+    sourceOuverte: ent.donneesSourceOuverte,
+    selectionCourante: ent.selectionPassageCourante,
+    enregistrerRepereSelection: ent.enregistrerRepereSelection,
+    lirePersonnes: corpus.lirePersonnes,
+    ouvrirSource: ouvrirAuSegment,
+    fermerRecueils: recueilsCorpus.fermerRecueils,
+  })
+  fermerCasPourRecueils = casCorpus.fermerCas
+  reinitialiserFenetresMetier = () => {
+    recueilsCorpus.fermerRecueils()
+    casCorpus.reinitialiserCas()
+  }
   watch(ent.etatSauvegarde, (etat) => {
-    if (etat === 'à jour' && recueilsCorpus.recueilOuvertId.value) {
-      void recueilsCorpus.resoudreRecueil()
-    }
+    if (etat !== 'à jour') return
+    if (recueilsCorpus.recueilOuvertId.value) void recueilsCorpus.resoudreRecueil()
+    if (casCorpus.casOuverts.value) void casCorpus.rafraichirProjectionsCas()
   })
 
   // --- Suppression d'un thème DEPUIS l'entretien (croise corpus ↔ entretien) ---
@@ -445,6 +468,7 @@ export function creerSonal() {
     ...corpus,
     ...ent,
     ...recueilsCorpus,
+    ...casCorpus,
     audio, // scope audio (objet nommé : les vues déstructurent ses refs)
     audiosCorpus,
     audiosManquants,

@@ -30,6 +30,18 @@ import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 import { appliquerCommandeRecueils, normaliserRecueils, type CommandeRecueils } from '../shared/corpus/recueils'
+import {
+  appliquerCommandeCas,
+  normaliserCas, normaliserFamillesCas, compterUsagesCasVariable,
+  referencesAjouteesCommandeCas,
+  retirerRattachementsCasEntretien,
+  type CommandeCas,
+} from '../shared/corpus/cas'
+import {
+  analyserImpactSuppressionEntretien,
+  memeImpactSuppressionEntretien,
+  type ImpactSuppressionEntretien,
+} from '../shared/corpus/suppressionEntretien'
 import { normaliserReperesPassages, rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
 import {
   TransactionsFichiersCorpus,
@@ -54,6 +66,7 @@ import {
  *  - formatVersion 2 → 3 : `meta.audioRef` devient un chemin ABSOLU uniquement,
  *    l'audio est référencé, plus copié ; les PNG d'onde passent de `audio/` à `png/`.
  *  - formatVersion 3 → 4 : recueils partagés et repères autonomes de passages.
+ *  - formatVersion 4 → 5 : cas analytiques partageant les repères de passages.
  *  Voir shared/entretien/migration.ts pour la mécanique de migration.
  */
 
@@ -324,26 +337,33 @@ export class CorpusStore {
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
     corpus.personnes ??= {}
     const versionInitiale = corpus.formatVersion as number
-    if (versionInitiale >= 1 && versionInitiale <= 3) {
+    if (versionInitiale >= 1 && versionInitiale <= 6) {
       corpus.recueils = normaliserRecueils(corpus.recueils)
+      corpus.cas = normaliserCas(corpus.cas)
+    } else if (versionInitiale === FORMAT_VERSION && corpus.cas !== undefined) {
+      corpus.cas = normaliserCas(corpus.cas)
+    }
+    if (versionInitiale < FORMAT_VERSION || corpus.famillesCas !== undefined) {
+      corpus.famillesCas = normaliserFamillesCas(corpus.famillesCas)
     }
     const entretiensV2: EntretienV2Prepare[] = []
     const deplacementsPng: DeplacementPngPrepare[] = []
 
     if (versionInitiale === 1) {
       corpus.formatVersion = FORMAT_VERSION
-    } else if (versionInitiale === 2 || versionInitiale === 3) {
+    } else if (versionInitiale === 2 || versionInitiale === 3 || versionInitiale === 4 || versionInitiale === 5 || versionInitiale === 6) {
       for (const id of Object.keys(corpus.membership)) {
         const fichier = this.entretienFile(id)
         if (!existsSync(fichier)) continue
         const contenuInitial = readFileSync(fichier, 'utf8')
         const data = JSON.parse(contenuInitial) as EntretienFichier
-        if ((data.formatVersion as number) === 2) {
+        const versionEntretien = data.formatVersion as number
+        if (versionEntretien === 2) {
           const ref = data.meta?.audioRef
           if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
             data.meta.audioRef = resolve(this.dir, ref)
           }
-        } else if ((data.formatVersion as number) !== 3) {
+        } else if (versionEntretien !== 3 && versionEntretien !== 4 && versionEntretien !== 5 && versionEntretien !== 6) {
           continue
         }
         data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
@@ -418,7 +438,8 @@ export class CorpusStore {
       this.ecrireJsonAtomique(entretien.fichier, entretien.data)
     }
     if (cible.nouveau || cible.versionInitiale === 1
-      || cible.versionInitiale === 2 || cible.versionInitiale === 3) {
+      || cible.versionInitiale === 2 || cible.versionInitiale === 3
+      || cible.versionInitiale === 4 || cible.versionInitiale === 5 || cible.versionInitiale === 6) {
       this.ecrireJsonAtomique(this.corpusFile, cible.corpus)
       this.invaliderRefsAudio()
     }
@@ -469,6 +490,26 @@ export class CorpusStore {
     return corpus
   }
 
+  /** Applique une édition ciblée de cas après relecture du corpus courant. */
+  casCommander(commande: CommandeCas): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    for (const reference of referencesAjouteesCommandeCas(commande)) {
+      if (!this.reperePassageExiste(reference.entretienId, reference.repereId)) {
+        throw new Error("La référence de passage n'existe pas dans l'entretien.")
+      }
+    }
+    corpus.famillesCas ??= {}
+    corpus.cas = appliquerCommandeCas(corpus.cas, commande, {
+      familles: corpus.famillesCas, variables: corpus.variables,
+      maintenant: () => new Date().toISOString(),
+      personneExiste: (personneId) => Object.hasOwn(corpus.personnes, personneId),
+      entretienExiste: (entretienId) => Object.hasOwn(corpus.membership, entretienId),
+    })
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
+  }
+
   /** Vérifie qu'un repère a bien été enregistré avant de partager sa référence. */
   reperePassageExiste(entretienId: string, repereId: string): boolean {
     const corpus = this.ouvrir()
@@ -504,6 +545,8 @@ export class CorpusStore {
       personnes: {},
       membership: {},
       recueils: {},
+      cas: {},
+      famillesCas: {},
       nom,
       meta: { sourceV1 },
     }
@@ -561,7 +604,10 @@ export class CorpusStore {
       }
       data.formatVersion = FORMAT_VERSION
     }
-    if ((data.formatVersion as number) === 3) data.formatVersion = FORMAT_VERSION
+    if ((data.formatVersion as number) === 3 || (data.formatVersion as number) === 4
+      || (data.formatVersion as number) === 5 || (data.formatVersion as number) === 6) {
+      data.formatVersion = FORMAT_VERSION
+    }
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }
     data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
     return { ok: true, data }
@@ -726,10 +772,38 @@ export class CorpusStore {
     return corpus
   }
 
+  /** Analyse les références concernées sans verrou durable ni écriture. */
+  analyserSuppressionEntretien(id: string): ImpactSuppressionEntretien {
+    const corpus = this.ouvrir()
+    if (!corpus.membership[id]) throw new Error("Cet entretien n'existe plus.")
+    return analyserImpactSuppressionEntretien(corpus, id)
+  }
+
   /** Prépare le retrait du membership et l'archivage des fichiers sans écriture. */
-  preparerSuppressionEntretien(id: string): PlanSuppressionEntretien {
+  preparerSuppressionEntretien(
+    id: string,
+    impactAttendu?: ImpactSuppressionEntretien,
+  ): PlanSuppressionEntretien {
     const corpusAvant = this.ouvrir()
+    if (!corpusAvant.membership[id]) throw new Error("Cet entretien n'existe plus.")
+    const impactCourant = analyserImpactSuppressionEntretien(corpusAvant, id)
+    if ((impactCourant.passagesRecueils || impactCourant.rattachementsCas || impactCourant.casReglesEntretien) && !impactAttendu) {
+      throw new Error('Confirmez la suppression après avoir consulté les références concernées.')
+    }
+    if (impactAttendu && !memeImpactSuppressionEntretien(impactAttendu, impactCourant)) {
+      throw new Error('Les références de cet entretien ont changé. Vérifiez-les avant de confirmer à nouveau.')
+    }
+
     const corpusApres = structuredClone(corpusAvant)
+    const retrait = retirerRattachementsCasEntretien(
+      corpusApres.cas,
+      id,
+      new Date().toISOString(),
+    )
+    if (retrait.casAffectes !== impactCourant.casAffectes
+      || retrait.rattachementsRetires !== impactCourant.rattachementsCas) {
+      throw new Error("L'impact de la suppression n'a pas pu être vérifié.")
+    }
     delete corpusApres.membership[id]
     const deplacements: PlanSuppressionEntretien['deplacements'] = []
     for (const suffixe of ['.json', '.json.bak1', '.json.bak2']) {
@@ -756,9 +830,9 @@ export class CorpusStore {
 
   /** Retire le membership avant d'archiver les fichiers, sous journal récupérable.
    *  L'audio référencé reste externe au corpus et n'est jamais touché. */
-  supprimerEntretien(id: string): CorpusFichier {
+  supprimerEntretien(id: string, impactAttendu?: ImpactSuppressionEntretien): CorpusFichier {
     this.verifierEcriture()
-    const plan = this.preparerSuppressionEntretien(id)
+    const plan = this.preparerSuppressionEntretien(id, impactAttendu)
     this.appliquerTransactionFichiers(plan)
     return plan.corpusApres
   }
@@ -1634,11 +1708,11 @@ export class CorpusStore {
   }
 
   compterUsagesVariable(idVar: string): number {
-    return corpusModel.compterUsagesVariable(this.datas(), idVar)
+    return corpusModel.compterUsagesVariable(this.datas(), idVar) + compterUsagesCasVariable(this.ouvrir(), idVar)
   }
 
   compterUsagesModalite(idVar: string, idMod: string): number {
-    return corpusModel.compterUsagesModalite(this.datas(), idVar, idMod)
+    return corpusModel.compterUsagesModalite(this.datas(), idVar, idMod) + compterUsagesCasVariable(this.ouvrir(), idVar, idMod)
   }
 
   supprimerVariable(id: string): ResultatSuppression {

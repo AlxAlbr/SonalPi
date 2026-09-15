@@ -1,4 +1,4 @@
-/** Plage autonome d'un entretien référencée par un recueil. */
+/** Plage autonome d'un entretien utilisée par un passage référencé. */
 export interface ReperePassage {
   id: string
   from: number

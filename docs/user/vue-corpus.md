@@ -60,6 +60,17 @@ Au nommage local, un nom spécifique sans candidat crée une personne ; un nom i
 
 Seul **Confirmer** applique l’association et la reprise proposée. **Plus tard** et Échap ne prennent aucune décision ; **Ce n’est pas cette personne** ou **Aucune de ces personnes** mémorise le refus des propositions affichées, révocable dans le répertoire. Lorsqu’un locuteur est déjà associé, la confirmation indique que seule son association sera modifiée ; pour réunir tous les entretiens, utilisez le répertoire Personnes.
 
+## Cas
+
+Le bouton global **Cas**, à côté de **Recueils**, ouvre les dossiers analytiques.
+Ils rassemblent les interventions de personnes, des entretiens entiers et/ou des ajouts manuels,
+sans les copier hors de leurs entretiens. Une personne du répertoire et un cas restent
+deux objets distincts.
+
+Le guide [Utiliser les cas](cas.md) décrit la création individuelle ou en lot, les cas
+collectifs et les vues des matériaux. Il distingue les évolutions encore prévues :
+familles, attributs et export QualCoder.
+
 ## Journal
 
 Le Journal du corpus conserve en mémoire jusqu’aux dix dernières actions annulables prises en charge pendant la session. Les actions récentes apparaissent en premier et le bouton **↩** restaure leur état antérieur. Le Journal survit aux changements d’onglet et à un aller-retour dans un entretien, mais il est vidé au changement de corpus et au redémarrage de l’application.

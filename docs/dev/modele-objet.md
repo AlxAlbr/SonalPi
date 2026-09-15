@@ -8,6 +8,9 @@
 
 ---
 
+> Pour les cas analytiques, leur persistance et leurs évolutions prévues,
+> voir la page dédiée [Cas analytiques — modèle et fonctionnement](cas.md).
+
 ## Principe d'organisation (les 3 niveaux)
 
 | Niveau | Contenu | Section |

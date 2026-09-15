@@ -431,7 +431,6 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             </p>
             <ul class="accueil-outils">
               <li><img :src="icoNotes" alt="" /><span><b>Notes</b> — consulter les notes de tous les entretiens.</span></li>
-              <li><span>📚</span><span><b>Recueils</b> — organiser des passages vivants, des titres et des textes libres.</span></li>
               <li><img :src="icoPersonnes" alt="" /><span><b>Personnes</b> — relier les locuteurs d’entretiens différents et contrôler leurs identités.</span></li>
               <li><img :src="icoAnon" alt="" /><span><b>Pseudonymisation</b> — contrôler et appliquer les règles partagées au corpus.</span></li>
               <li><img :src="icoThemes" alt="" /><span><b>Thèmes</b> — consulter le codebook et ouvrir son édition.</span></li>
@@ -550,8 +549,25 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
           <!-- Confirmation de suppression (acte destructif — mise en corbeille/,
                même idiome de bannière que thèmes et locuteurs). -->
           <div v-if="entretienASupprimer" class="confirm-suppr">
-            Supprimer « {{ entretienASupprimer.titre }} » ? L'entretien (et son audio) part dans
-            <b>corbeille/</b> du dossier de corpus — il disparaît de l'application.
+            <p>
+              Supprimer « {{ entretienASupprimer.titre }} » ? Ses fichiers internes sont archivés
+              dans <b>corbeille/</b> et l'entretien disparaît de l'application. Le fichier audio
+              externe éventuellement référencé n'est pas supprimé.
+            </p>
+            <p v-if="entretienASupprimer.impact.rattachementsCas">
+              {{ entretienASupprimer.impact.rattachementsCas }} rattachement(s) manuel(s), dans
+              {{ entretienASupprimer.impact.casAffectes }} cas, seront retirés. Les cas et leurs
+              règles dynamiques seront conservés.
+            </p>
+            <p v-if="entretienASupprimer.impact.casReglesEntretien">
+              {{ entretienASupprimer.impact.casReglesEntretien }} cas référencent cet entretien entier.
+              Leurs règles seront conservées et signaleront cette source comme retirée du corpus.
+            </p>
+            <p v-if="entretienASupprimer.impact.passagesRecueils">
+              {{ entretienASupprimer.impact.passagesRecueils }} passage(s), dans
+              {{ entretienASupprimer.impact.recueilsAffectes }} recueil(s), resteront présents et
+              seront signalés comme indisponibles.
+            </p>
             <div class="confirm-actions">
               <button class="danger" @click="confirmerSuppressionEntretien">Supprimer</button>
               <button @click="entretienASupprimer = null">Annuler</button>

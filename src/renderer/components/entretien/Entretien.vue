@@ -54,6 +54,7 @@ const {
   statutSession,
   publiErreur,
   publierMaintenant,
+  afficherCasPourAssociation,
   afficherRecueils,
 } = utiliserSonal()
 
@@ -74,6 +75,11 @@ const compteRecherche = computed(() => {
 })
 // État partagé du scope média pour l'organisation d'écran (mode vidéo).
 const { estVideo, videoVisible, toggleVideo } = audio
+
+function ouvrirCasDepuisSelection() {
+  fermerMenu()
+  void afficherCasPourAssociation()
+}
 
 function ouvrirRecueilsDepuisSelection() {
   fermerMenu()
@@ -256,12 +262,14 @@ function ouvrirRecueilsDepuisSelection() {
         :codages="menuContextuel.codages"
         :commentaires="menuContextuel.commentaires"
         :peut-commenter="menuContextuel.peutCommenter"
+        :peut-ajouter-cas="menuContextuel.peutAjouterCas"
         :peut-ajouter-recueil="menuContextuel.peutAjouterRecueil"
         @basculer-exception="basculerException(menuContextuel.anon!.id)"
         @basculer-anonymise="basculerAnonymise(menuContextuel.anon!.id)"
         @basculer-pseudo="basculerPseudoOccurrence(menuContextuel.anon!.id, $event)"
         @retirer-codage="retirerCodageMenu"
         @commenter="commenterDepuisMenu"
+        @ajouter-cas="ouvrirCasDepuisSelection"
         @ajouter-recueil="ouvrirRecueilsDepuisSelection"
         @editer-commentaire="editerCommentaire"
         @fermer="fermerMenu"

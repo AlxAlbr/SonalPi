@@ -99,7 +99,7 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     await opts.flush()
     const resultat = await window.sonal.corpus.supprimerVariable(id)
     if (!resultat.ok) {
-      messageVar.value = `Variable utilisée ${resultat.usages}× — retire d'abord ses valeurs.`
+      messageVar.value = `Variable utilisée ${resultat.usages}× — traite d’abord ses valeurs et ses usages dans les cas ou familles.`
       return
     }
     majVariables(resultat.corpus.variables)
@@ -140,7 +140,7 @@ export function useVariablesCorpus(opts: { flush: () => Promise<void> }) {
     await opts.flush()
     const resultat = await window.sonal.corpus.supprimerModalite(idVar, idMod)
     if (!resultat.ok) {
-      messageVar.value = `Modalité utilisée ${resultat.usages}× — retire d'abord ses valeurs.`
+      messageVar.value = `Modalité utilisée ${resultat.usages}× — traite d’abord ses valeurs et ses usages dans les cas ou familles.`
       return
     }
     majVariables(resultat.corpus.variables)

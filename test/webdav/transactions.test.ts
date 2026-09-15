@@ -18,6 +18,8 @@ import { TransactionsCorpus } from '../../src/main/distant/transactions'
 import type { IdentiteSession } from '../../src/main/distant/sessions'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../src/shared/format'
 import type { ImplementationFetch } from '../../src/main/webdav/client'
+import type { Cas } from '../../src/shared/corpus/cas'
+import { casModalite, familleCas, corpusFamille } from '../fixtures/casFamilles'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 
 const IDENTITE_MAX: () => IdentiteSession = () => ({
@@ -95,20 +97,34 @@ function corpusServeur(serveur: ServeurWebDAVMemoire): CorpusFichier {
   return JSON.parse(serveur.contenuDe('corpus.json')!) as CorpusFichier
 }
 
-describe('Migration distante v3 → v4', () => {
-  it('publie le corpus puis ses entretiens sous verrous', async () => {
+describe('Migration distante vers le format courant', () => {
+  it.each([4, 5, 6])('publie la v%i puis ses entretiens sous verrous sans perdre les recueils ou les cas', async (version) => {
     const serveur = new ServeurWebDAVMemoire()
-    const corpusV3 = JSON.parse(corpusInitial()) as CorpusFichier
-    corpusV3.formatVersion = 3 as typeof FORMAT_VERSION
-    const entretienV3 = JSON.parse(entretienE1()) as EntretienFichier
-    entretienV3.formatVersion = 3 as typeof FORMAT_VERSION
-    serveur.poser('corpus.json', JSON.stringify(corpusV3))
-    serveur.poser('entretiens/e1.json', JSON.stringify(entretienV3))
+    const corpusV4 = JSON.parse(corpusInitial()) as CorpusFichier
+    corpusV4.formatVersion = version
+    if (version >= 5) corpusV4.cas = { c1: {
+      id: 'c1', nom: 'Existant', memo: 'Mémo', creeLe: '2026-01-01T00:00:00.000Z', modifieLe: '2026-01-01T00:00:00.000Z',
+      regles: [
+        { type: 'personne', personneId: 'p1', inclureEnqueteurs: false },
+        { type: 'personne', personneId: 'p2', inclureEnqueteurs: true },
+      ], rattachements: [{ id: 'r1', creeLe: '2026-01-01T00:00:00.000Z', provenance: 'manuel', source: { entretienId: 'e1', repereId: 'p1' } }],
+    } }
+    corpusV4.recueils = {
+      r1: {
+        id: 'r1', nom: 'Synthèse', creeLe: '2026-01-01T00:00:00.000Z',
+        modifieLe: '2026-01-01T00:00:00.000Z', modeTexte: 'pseudonymise', items: [],
+      },
+    }
+    const entretienV4 = JSON.parse(entretienE1()) as EntretienFichier
+    entretienV4.formatVersion = version
+    entretienV4.reperesPassages = [{ id: 'p1', from: 1, to: 1 }]
+    serveur.poser('corpus.json', JSON.stringify(corpusV4))
+    serveur.poser('entretiens/e1.json', JSON.stringify(entretienV4))
     const client = new ClientWebDAV(
       { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
       serveur.fetch,
     )
-    const miroir = new MiroirWebDAV(client, mkdtempSync(join(tmpdir(), 'sonal-migration-v4-')))
+    const miroir = new MiroirWebDAV(client, mkdtempSync(join(tmpdir(), 'sonal-migration-v7-')))
     await miroir.tirer()
     const store = new CorpusStore(miroir.dirLocal)
     store.lectureSeule = true
@@ -117,10 +133,12 @@ describe('Migration distante v3 → v4', () => {
     await tx.migrerFormatSiNecessaire()
 
     expect(corpusServeur(serveur).formatVersion).toBe(FORMAT_VERSION)
-    expect(corpusServeur(serveur).recueils).toEqual({})
+    expect(corpusServeur(serveur).recueils?.r1.nom).toBe('Synthèse')
+    expect(corpusServeur(serveur).cas).toEqual(corpusV4.cas ?? {})
+    expect(corpusServeur(serveur).famillesCas).toEqual({})
     const entretien = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
     expect(entretien.formatVersion).toBe(FORMAT_VERSION)
-    expect(entretien.reperesPassages).toEqual([])
+    expect(entretien.reperesPassages).toEqual([{ id: 'p1', from: 1, to: 1 }])
     expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     expect(serveur.contenuDe('verrous/entretiens/e1.lock.json')).toBeUndefined()
     expect(store.lectureSeule).toBe(true)
@@ -324,6 +342,84 @@ describe('Création et import d’entretien — transaction multi-fichiers', () 
   })
 })
 
+describe('Commandes de cas distantes', () => {
+  it('valide le lot sur le corpus frais, refuse tout le lot puis le publie et le rejoue sans toucher aux sources', async () => {
+    const { serveur, tx, store } = await banc()
+    const date = '2026-01-01T00:00:00.000Z'
+    const nouveaux: Cas[] = ['c1', 'c2'].map((id) => ({
+      id, nom: id, memo: '', creeLe: date, modifieLe: date,
+      regles: [{ type: 'entretiens', entretienIds: [id === 'c1' ? 'e1' : 'absent'] }], rattachements: [],
+    }))
+    const sourceAvant = serveur.contenuDe('entretiens/e1.json')
+    const avant = serveur.contenuDe('corpus.json')
+    await expect(tx.executer(() => store.casCommander({ type: 'creer-lot', cas: nouveaux }))).rejects.toThrow(/partie du corpus/)
+    expect(serveur.contenuDe('corpus.json')).toBe(avant)
+    const frais = corpusServeur(serveur)
+    frais.nom = 'Modification extérieure'
+    serveur.poser('corpus.json', JSON.stringify(frais))
+    nouveaux[1].regles = [{ type: 'entretiens', entretienIds: ['e1'] }]
+    await tx.executer(() => store.casCommander({ type: 'creer-lot', cas: nouveaux }))
+    await tx.executer(() => store.casCommander({ type: 'creer-lot', cas: nouveaux }))
+    expect(corpusServeur(serveur).cas).toEqual({ c1: nouveaux[0], c2: nouveaux[1] })
+    expect(corpusServeur(serveur).nom).toBe('Modification extérieure')
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(sourceAvant)
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+
+  it('publie et rejoue un cas manuel vide sans modifier les entretiens', async () => {
+    const { serveur, tx, store } = await banc()
+    const entretienAvant = serveur.contenuDe('entretiens/e1.json')
+    const cas = {
+      id: 'cas-vide', nom: 'Dossier à préparer', memo: 'Préparation.',
+      creeLe: '2026-01-01T00:00:00.000Z', modifieLe: '2026-01-01T00:00:00.000Z',
+      regles: [], rattachements: [],
+    }
+    await tx.executer(() => store.casCommander({ type: 'creer', cas }))
+    await tx.executer(() => store.casCommander({ type: 'creer', cas }))
+    expect(corpusServeur(serveur).cas).toEqual({ 'cas-vide': cas })
+    expect(store.ouvrir().cas).toEqual({ 'cas-vide': cas })
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(entretienAvant)
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+
+  it('vérifie le repère serveur puis publie la commande corpus ciblée', async () => {
+    const { serveur, tx, store } = await banc()
+    const source = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
+    source.reperesPassages = [{ id: 'p1', from: 1, to: 1 }]
+    serveur.poser('entretiens/e1.json', JSON.stringify(source, null, 2))
+
+    await tx.verifierReferencesPassagesPubliees([{ entretienId: 'e1', repereId: 'p1' }])
+    await tx.executer(() => store.casCommander({
+      type: 'creer',
+      cas: {
+        id: 'cas-1',
+        nom: 'Cas manuel',
+        memo: '',
+        creeLe: '2026-01-01T00:00:00.000Z',
+        modifieLe: '2026-01-01T00:00:00.000Z',
+        regles: [],
+        rattachements: [{
+          id: 'r1',
+          source: { entretienId: 'e1', repereId: 'p1' },
+          provenance: 'manuel',
+          creeLe: '2026-01-01T00:00:00.000Z',
+        }],
+      },
+    }))
+
+    expect(corpusServeur(serveur).cas?.['cas-1'].rattachements).toHaveLength(1)
+    expect(store.reperePassageExiste('e1', 'p1')).toBe(true)
+  })
+
+  it('refuse un repère absent du serveur avant toute commande corpus', async () => {
+    const { serveur, tx } = await banc()
+    await expect(tx.verifierReferencesPassagesPubliees([
+      { entretienId: 'e1', repereId: 'absent' },
+    ])).rejects.toThrow(/n'a pas été publié/)
+    expect(corpusServeur(serveur).cas).toBeUndefined()
+  })
+})
+
 describe('Réconciliation des fichiers orphelins', () => {
   it('archive sous verrou un entretien absent du membership', async () => {
     const { serveur, tx } = await banc()
@@ -351,6 +447,86 @@ describe('Suppression d\u2019entretien — double verrou', () => {
     expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
     // Localement, le store a retiré le membership (fichiers en corbeille du miroir).
     expect(store.ouvrir().membership.e1).toBeUndefined()
+  })
+
+  it('retire atomiquement les rattachements confirmés et conserve les recueils', async () => {
+    const { serveur, miroir, tx, store } = await banc()
+    const courant = corpusServeur(serveur)
+    courant.cas = {
+      'cas-1': {
+        id: 'cas-1',
+        nom: 'Marie',
+        memo: '',
+        creeLe: '2026-01-01T00:00:00.000Z',
+        modifieLe: '2026-01-01T00:00:00.000Z',
+        regles: [{ type: 'personne', personneId: 'personne-1', inclureEnqueteurs: false }],
+        rattachements: [{
+          id: 'r1',
+          source: { entretienId: 'e1', repereId: 'p1' },
+          provenance: 'manuel',
+          creeLe: '2026-01-01T00:00:00.000Z',
+        }],
+      },
+    }
+    courant.recueils = {
+      'recueil-1': {
+        id: 'recueil-1',
+        nom: 'Synthèse',
+        creeLe: '2026-01-01T00:00:00.000Z',
+        modifieLe: '2026-01-01T00:00:00.000Z',
+        modeTexte: 'pseudonymise',
+        items: [{
+          id: 'i1',
+          type: 'passage',
+          source: { entretienId: 'e1', repereId: 'p1' },
+          commentaireEditorial: '',
+        }],
+      },
+    }
+    serveur.poser('corpus.json', JSON.stringify(courant, null, 2))
+    await miroir.tirer()
+    const impact = store.analyserSuppressionEntretien('e1')
+
+    await tx.supprimerEntretien('e1', impact)
+
+    const publie = corpusServeur(serveur)
+    expect(publie.membership.e1).toBeUndefined()
+    expect(publie.cas?.['cas-1'].rattachements).toEqual([])
+    expect(publie.cas?.['cas-1'].regles).toHaveLength(1)
+    expect(publie.recueils?.['recueil-1'].items).toHaveLength(1)
+    expect(serveur.contenuDe('entretiens/e1.json')).toBeUndefined()
+    expect(serveur.contenuDe('corbeille/e1.json')).toBeDefined()
+  })
+
+  it('refuse un aperçu périmé avant le PUT corpus et le MOVE', async () => {
+    const { serveur, tx, store } = await banc()
+    const impact = store.analyserSuppressionEntretien('e1')
+    const concurrent = corpusServeur(serveur)
+    concurrent.cas = {
+      'cas-concurrent': {
+        id: 'cas-concurrent',
+        nom: 'Ajout concurrent',
+        memo: '',
+        creeLe: '2026-01-01T00:00:00.000Z',
+        modifieLe: '2026-01-01T00:00:00.000Z',
+        regles: [],
+        rattachements: [{
+          id: 'r1',
+          source: { entretienId: 'e1', repereId: 'p1' },
+          provenance: 'manuel',
+          creeLe: '2026-01-01T00:00:00.000Z',
+        }],
+      },
+    }
+    serveur.poser('corpus.json', JSON.stringify(concurrent, null, 2))
+
+    await expect(tx.supprimerEntretien('e1', impact)).rejects.toThrow(/ont changé/)
+
+    expect(corpusServeur(serveur).membership.e1).toBeDefined()
+    expect(corpusServeur(serveur).cas?.['cas-concurrent'].rattachements).toHaveLength(1)
+    expect(serveur.contenuDe('entretiens/e1.json')).toBeDefined()
+    expect(serveur.contenuDe('corbeille/e1.json')).toBeUndefined()
+    expect(store.ouvrir().membership.e1).toBeDefined()
   })
 
   it('MOVE appliqué puis réponse perdue : confirme source et destination', async () => {
@@ -1459,5 +1635,50 @@ describe('Lot de valeurs — corpus LOCAL (boucle directe du store)', () => {
       meta: { valeursGen: Record<string, string> }
     }
     expect(data.meta.valeursGen.var_ville).toBe('mod_lyon')
+  })
+})
+
+
+describe('Familles de cas — transactions fraîches', () => {
+  it('création et complément rejouables, conflit concurrent sans lot partiel et suppressions protégées', async () => {
+    const { serveur, tx, store } = await banc()
+    const courant = corpusServeur(serveur)
+    courant.variables = corpusFamille().variables
+    serveur.poser('corpus.json', JSON.stringify(courant))
+    const sourceAvant = serveur.contenuDe('entretiens/e1.json')
+    const famille = familleCas()
+    const creation = { type: 'creer-famille' as const, famille, cas: [casModalite('a')] }
+    await tx.executer(() => store.casCommander(creation))
+    await tx.executer(() => store.casCommander(creation))
+    const complement = { type: 'completer-famille' as const, famille, cas: [casModalite('b')] }
+    await tx.executer(() => store.casCommander(complement))
+    const avant = serveur.contenuDe('corpus.json')
+    await expect(tx.executer(() => store.casCommander({ type: 'completer-famille', famille,
+      cas: [casModalite('c'), casModalite('b', famille, 'concurrent')] }))).rejects.toThrow(/déjà/)
+    expect(serveur.contenuDe('corpus.json')).toBe(avant)
+    await tx.executer(() => store.casCommander(complement))
+    expect(Object.keys(corpusServeur(serveur).cas!)).toHaveLength(2)
+    expect(await tx.executer(() => store.supprimerModalite('v', 'a'))).toEqual({ ok: false, usages: 1 })
+    expect((await tx.executer(() => store.supprimerVariable('v'))).ok).toBe(false)
+    await expect(tx.executer(() => store.casCommander({ type: 'dissoudre-famille', famille,
+      membresAttendus: [casModalite().id] }))).rejects.toThrow(/membres/)
+    await tx.executer(() => store.casCommander({ type: 'dissoudre-famille', famille,
+      membresAttendus: [casModalite().id, casModalite('b').id] }))
+    expect(corpusServeur(serveur).famillesCas).toEqual({})
+    expect(Object.values(corpusServeur(serveur).cas!).every((cas) => !cas.familleId)).toBe(true)
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(sourceAvant)
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+
+  it('refuse une modalité supprimée sur le serveur après l’aperçu, sans famille partielle', async () => {
+    const { serveur, tx, store } = await banc()
+    const courant = corpusServeur(serveur)
+    courant.variables = corpusFamille().variables
+    courant.variables.v.modalites = courant.variables.v.modalites.filter((m) => m.id !== 'b')
+    serveur.poser('corpus.json', JSON.stringify(courant))
+    const avant = serveur.contenuDe('corpus.json')
+    await expect(tx.executer(() => store.casCommander({ type: 'creer-famille', famille: familleCas(),
+      cas: [casModalite(), casModalite('b')] }))).rejects.toThrow(/modalité/)
+    expect(serveur.contenuDe('corpus.json')).toBe(avant)
   })
 })

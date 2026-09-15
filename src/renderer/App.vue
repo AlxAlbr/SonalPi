@@ -8,26 +8,38 @@ import RepriseCrash from './components/distant/RepriseCrash.vue'
 import DivergenceCopie from './components/distant/DivergenceCopie.vue'
 import DesignationAudioDistante from './components/distant/DesignationAudioDistante.vue'
 import RecueilsModale from './components/RecueilsModale.vue'
+import CasModale from './components/CasModale.vue'
+import BarreOutils from './components/app/BarreOutils.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
 // corpus, entretien) et les PROVIDE ;
 // chaque composant de vue les INJECTE (utiliserSonal).
 // App ne garde que l'en-tête, le fil d'Ariane et les bannières.
-const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, refusFormat, dossierCourantNom, afficherRecueils } =
-  fournirSonal()
+const {
+  vue,
+  etatSauvegarde,
+  allerAccueil,
+  retourCorpus,
+  ouvertId,
+  membership,
+  refusFormat,
+  dossierCourantNom,
+} = fournirSonal()
 </script>
 
 
 <template>
   <main class="app">
     <header>
-      <h1>
-        SonalPi2 —
-        <span class="etat" :class="etatSauvegarde.replace('…', '').replace(' ', '-')">
-          {{ etatSauvegarde }}
-        </span>
-        <button v-if="vue !== 'accueil'" class="btn-recueils" title="Ouvrir les recueils" @click="afficherRecueils">Recueils</button>
-      </h1>
+      <div class="tete">
+        <h1>
+          SonalPi2 —
+          <span class="etat" :class="etatSauvegarde.replace('…', '').replace(' ', '-')">
+            {{ etatSauvegarde }}
+          </span>
+        </h1>
+        <BarreOutils />
+      </div>
       <nav class="fil" v-if="vue !== 'accueil'">
         <button class="lien-nav" @click="allerAccueil">Accueil</button>
         <span class="sep">›</span>
@@ -75,6 +87,7 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
     <!-- Désignation audio distante : navigation Nextcloud + micro-session ;
          ne s'affiche que si demandée. -->
     <DesignationAudioDistante />
+    <CasModale />
     <RecueilsModale />
   </main>
 </template>
@@ -88,9 +101,9 @@ const { vue, etatSauvegarde, allerAccueil, retourCorpus, ouvertId, membership, r
   max-width: 1250px;
   margin: 1.2rem auto 0;
   padding: 0 1rem;
-  /* Hauteur de l'en-tête collant (fil d'Ariane / Accueil) ;
+  /* Hauteur de l'en-tête collant (titre + barre d'outils + fil d'Ariane) ;
      elle sert à épingler la barre d'actions de la vue Entretien, juste en dessous. */
-  --entete-h: 4rem;
+  --entete-h: 5rem;
 }
 /* En-tête épinglé en haut de la fenêtre : toujours visible (Accueil,
    fil d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
@@ -113,19 +126,9 @@ h1 {
   margin: 0;
   line-height: 1.2;
 }
-.btn-recueils {
-  margin-left: 1rem;
-  border: 1px solid #bbb;
-  border-radius: 5px;
-  background: #fff;
-  padding: 0.3rem 0.8rem 0.3rem 2rem;
-  cursor: pointer;
-  position: relative;
-}
-.btn-recueils::before {
-  content: '📌';
-  position: absolute;
-  left: 0.65rem;
+.tete {
+  display: flex;
+  align-items: center;
 }
 h1 small {
   color: #999;

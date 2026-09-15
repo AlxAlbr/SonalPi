@@ -41,6 +41,8 @@ import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/pe
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
+import type { CommandeCas } from '../shared/corpus/cas'
+import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
   CompteDistantPublic,
@@ -85,7 +87,11 @@ declare global {
         remplacerTranscription: (id: string, t: TranscriptionEntretien) => Promise<string | null>
         creerEntretienVide: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
         renommerEntretien: (id: string, titre: string) => Promise<CorpusFichier>
-        supprimerEntretien: (id: string) => Promise<CorpusFichier>
+        analyserSuppressionEntretien: (id: string) => Promise<ImpactSuppressionEntretien>
+        supprimerEntretien: (
+          id: string,
+          impactAttendu?: ImpactSuppressionEntretien,
+        ) => Promise<CorpusFichier>
         importer: (
           titre: string,
           p: PayloadEntretien,
@@ -113,6 +119,7 @@ declare global {
         compterUsagesCategorieNote: (id: string) => Promise<number>
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
         recueilsCommander: (commande: CommandeRecueils) => Promise<CorpusFichier>
+        casCommander: (commande: CommandeCas) => Promise<CorpusFichier>
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
         notesInventaire: () => Promise<InventaireNotes>

@@ -1,8 +1,9 @@
 # Plan alternatif — cas analytiques persistants et export QDA
 
-> Alternative à `plans/reflexion/export-sonal.md`.
+> Alternative à `plans/reflexion/export-sonal.md`, réévaluée après l’implémentation
+> des recueils à références vivantes.
 > Ce document propose une évolution du modèle de travail de SonalPi2 avant l’export.
-> Il ne décrit pas une implémentation réalisée et ne remplace pas le plan initial.
+> Il ne décrit pas une implémentation des cas et ne remplace pas le plan initial.
 > L’export historique `.sonal` reste un chantier distinct de l’export REFI-QDA.
 
 ## 1. Orientation
@@ -17,13 +18,26 @@ Actions envisagées :
 - « Créer un cas à partir d’une personne » ;
 - « Créer un cas à partir d’un entretien » ;
 - « Créer un cas par modalité d’une variable » ;
-- « Associer ce passage à un cas » ;
-- « Associer cette annotation à un cas » ;
+- « Associer cette sélection à un cas » ;
 - « Créer une note de cas » ou « Associer cette note à un cas ».
 
-Le changement par rapport au plan initial est explicite : les cas ne sont plus seulement une projection temporaire d’export. Ils deviennent des objets de lecture, d’analyse et de synthèse.
+Le changement par rapport au plan initial est explicite : les cas ne sont plus seulement une projection temporaire d’export. Ils deviennent des objets de lecture et d’analyse dont les rattachements manuels sont conservés jusqu’à l’export.
 
-Ce coût métier n’est justifié que si ces usages dans SonalPi sont souhaités. Pour un besoin strictement limité à l’export, le plan initial reste plus léger.
+Ce coût métier n’est justifié que si l’utilisateur doit constituer ses cas dans SonalPi avant l’export. Pour un besoin limité aux cas déductibles des personnes, entretiens ou variables, le plan initial reste plus léger.
+
+### 1.1 Enseignement du geste « Mark » de QualCoder
+
+QualCoder permet de sélectionner un cas, de surligner librement une portion d’un document textuel puis de choisir « Mark ». Cette action enregistre dans `case_text` une relation entre le cas, la source et les bornes du passage :
+
+```text
+caseid, fid, pos0, pos1, owner, date, memo
+```
+
+Elle ne crée ni code, ni annotation, ni copie éditoriale du texte. Le soulignement visible est reconstruit depuis cette relation et « Unmark » retire la relation sans modifier la source.
+
+Ce geste confirme l’utilité de « Associer cette sélection à un cas » dans SonalPi lorsqu’on veut préparer de vrais cas QualCoder. Une projection créée seulement au dernier écran d’export ne permettrait pas de construire et relire progressivement ces associations, sauf à détourner les recueils de leur fonction.
+
+Il ne justifie en revanche pas « Associer cette annotation à un cas ». Une annotation QualCoder est un mémo de passage distinct de `case_text`, comme un codage est distinct du cas. Dans SonalPi, une sélection codée ou commentée peut être ajoutée au cas, mais le rattachement porte sur la plage, jamais sur l’annotation.
 
 ## 2. Vocabulaire : éviter la confusion avec les traitements
 
@@ -106,17 +120,17 @@ Une typologie facultative des relations (« concerne », « documente », etc.) 
 
 Créer une relation autonome entre un cas et une plage de texte. Ne pas rendre l’appartenance au cas dépendante d’un codage thématique ou d’un commentaire.
 
-Depuis une annotation, « Associer au cas » crée un rattachement sur sa plage actuelle. Il ne s’agit pas, par défaut, d’un lien vivant vers cette annotation.
+L’action principale porte sur une sélection libre, comme « Mark » dans QualCoder. Elle crée un rattachement propre au cas, que le passage soit codé, commenté ou sans annotation.
 
 Conséquences :
 
 - retirer un thème ne retire pas le passage du cas ;
-- modifier ensuite la plage du codage ne modifie pas celle du rattachement ;
+- modifier ensuite la plage d’un codage ne modifie pas celle du rattachement ;
 - le rattachement suit les éditions du document selon ses propres bornes ;
 - une sélection non codée peut être associée directement ;
 - supprimer un rattachement ne supprime ni le texte ni les autres annotations.
 
-Ce comportement doit être visible dans l’interface. Une éventuelle option de suivi vivant d’une annotation serait un autre contrat, à différer.
+Ne pas proposer d’action intitulée « Associer cette annotation à un cas ». Si un raccourci depuis une annotation est étudié plus tard, son libellé doit annoncer qu’il associe seulement le passage actuellement couvert et qu’aucun `annotationId` n’est conservé.
 
 ### 5.2 Ancrage dans le texte
 
@@ -134,11 +148,25 @@ Ne pas stocker uniquement des positions au niveau corpus sans mécanisme de mise
 
 Recommandation : conserver un rattachement devenu orphelin et le signaler, plutôt que le supprimer silencieusement. Les sources supprimées doivent être distinguées des sources temporairement indisponibles.
 
-### 5.3 Différence avec les recueils V1
+### 5.3 Différence avec les recueils
 
-`creerItemExtrait()` stocke notamment une plage et un texte ; l’interface permet de modifier la citation. Ce modèle convient à un recueil éditorial, pas à une référence analytique vivante.
+Les recueils V2 confirment la distinction déjà visible dans SonalPi V1 : un recueil est un document éditorial ordonné. Il agence des passages avec des titres, des textes libres et des commentaires en vue d’une synthèse, d’un article ou d’un autre document.
 
-Reprendre le geste d’ajout et la consultation des extraits, sans faire de la copie du texte la vérité du cas. Un aperçu mis en cache reste dérivé. Une citation figée éventuelle doit être explicitement distinguée du passage source.
+Un cas est au contraire une unité d’étude. Il rassemble sans ordre éditorial des sources ou passages associés à une personne, une organisation, un groupe, une situation ou un événement ; il peut porter un mémo et des attributs et servir au filtrage des analyses.
+
+| Recueil | Cas |
+| --- | --- |
+| Ordre des items significatif | Appartenance analytique, sans plan éditorial |
+| Titres et textes de liaison | Mémo et attributs du cas |
+| Commentaire propre à chaque item | Provenance du rattachement, éventuellement mémo de relation |
+| Répétition volontaire d’une citation possible | Une même plage ne doit pas compter deux fois par accident |
+| Export Markdown/TXT comme document | Export QDA comme unité interrogeable |
+
+Ce plan ne propose donc pas de créer un cas à partir d’un recueil, ni l’inverse. Une telle conversion perdrait soit la structure éditoriale du recueil, soit la sémantique analytique du cas. Si un besoin exceptionnel apparaît plus tard, il devra être conçu comme une copie ou une projection volontaire avec un bilan explicite, pas comme une identité entre les objets.
+
+Les deux fonctions peuvent toutefois réutiliser l’infrastructure de `ReperePassage`, son remappage et ses diagnostics. Le partage d’une primitive d’ancrage ne signifie ni identité métier ni cycle de vie commun.
+
+Dans SonalPi V1, `creerItemExtrait()` conservait une plage et une copie éditable du texte. Les recueils V2 ont remplacé cette copie comme source de vérité par une référence vivante. Les cas doivent reprendre cette référence vivante, pas les titres, l’ordre ou les commentaires éditoriaux du recueil.
 
 ## 6. Alimentation des cas
 
@@ -243,7 +271,7 @@ Noms indicatifs, à confronter au modèle et au stockage existants avant implém
 
 - **Cas** : identifiant, nom, description, éventuel type, références d’origine, dates ;
 - **Règle de cas** : source d’alimentation, paramètres et politique de sélection ;
-- **Rattachement manuel** : identifiant, cas référencé, plage ancrée dans une source, provenance ;
+- **Rattachement manuel** : identifiant, cas référencé, `{ entretienId, repereId }`, provenance ;
 - **Lien de note** : référence de note et référence de cas ;
 - **Attribut de cas** : définition, valeur et origine explicite ;
 - **Sélection résolue** : passages calculés avec source, bornes et provenance ;
@@ -259,7 +287,9 @@ Les passages produits par une règle dynamique sont dérivés. Éviter de les ma
 
 ### 8.1 Stockage et édition distante
 
-Orientation à valider : définitions de cas au niveau corpus, plages manuelles auprès du document qu’elles ancrent, index inverse reconstructible pour la vue du cas.
+Orientation recommandée : définitions de cas au niveau corpus, rattachements manuels référencés par le cas et bornes conservées dans les `ReperePassage` des entretiens. L’index inverse vers les cas reste reconstructible.
+
+Une association depuis une nouvelle sélection crée un repère autonome puis le rattachement au cas. Elle réutilise le modèle, le remappage et les diagnostics déjà construits pour les recueils, sans créer d’item de recueil. Un repère éventuellement référencé par plusieurs objets n’est jamais supprimé en cascade avec l’un d’eux.
 
 Cette répartition évite de modifier un fichier central à chaque déplacement de position dans le texte, mais impose de gérer les références entre fichiers.
 
@@ -348,9 +378,11 @@ Distinguer le nombre de rattachements et le volume de texte unique, si les deux 
 
 ### 10.2 Création et association
 
-Depuis une sélection, proposer un cas existant ou sa création. Une association à plusieurs cas doit être possible sans duplication du texte.
+Depuis une sélection libre, proposer un cas existant ou sa création. Une association à plusieurs cas doit être possible sans duplication du texte.
 
-Depuis une annotation, préciser que sa plage sert à créer un rattachement indépendant.
+Le geste suit le modèle QualCoder : choisir le ou les cas, confirmer la plage puis enregistrer un rattachement indépendant des codes et commentaires qui la couvrent. Il reste disponible sur un passage sans annotation.
+
+Ne pas ajouter d’entrée « Associer cette annotation à un cas ». Un éventuel raccourci ultérieur annonce explicitement « Ajouter au cas le passage couvert par cette annotation » et produit exactement le même rattachement autonome que la sélection libre.
 
 Depuis une personne ou une variable, montrer un aperçu : sources concernées, passages retenus, rôle des enquêteurs, données manquantes et caractère dynamique ou initialisé une fois.
 
@@ -454,9 +486,9 @@ Le mécanisme cas/code signalé dans le plan initial reste une piste à vérifie
 ### Lot 1 — cas manuels utilisables
 
 - Créer, renommer et supprimer un cas.
-- Associer une sélection ou la plage d’une annotation.
+- Associer une sélection libre, sans annotation préalable.
 - Lister les passages et ouvrir leur contexte.
-- Remapper les plages et diagnostiquer les orphelins.
+- Réutiliser le remappage des `ReperePassage` et diagnostiquer les orphelins.
 - Créer des notes de cas et associer des notes existantes selon le contrat retenu.
 - Assurer persistance, sauvegarde et comportement distant.
 
@@ -532,16 +564,18 @@ Critère central : l’utilisateur doit pouvoir construire un cas pendant la lec
 
 ### Décisions recommandées
 
-1. Introduire les cas pour leur utilité analytique dans SonalPi, pas seulement pour l’export.
+1. Introduire les cas pour préparer et relire dans SonalPi les unités qui seront exportées.
 2. Autoriser les cas individuels, collectifs et situationnels.
 3. Séparer identité de personne et dossier de cas.
-4. Utiliser des rattachements autonomes aux passages.
-5. Conserver la provenance et distinguer paroles d’une personne et matériaux de son cas.
-6. Distinguer alimentation manuelle, initialisation ponctuelle et règle dynamique.
-7. Garder les notes hors du matériau lexical par défaut.
-8. Permettre les sélections et comparaisons par variable sans créer de cas.
-9. Mutualiser le moteur de sélection entre cas, traitements et export.
-10. Maintenir la preuve d’import et les exigences techniques du plan initial.
+4. Associer une sélection libre au cas par un rattachement autonome, sur le modèle de « Mark » dans QualCoder.
+5. Ne pas proposer de lien persistant entre annotation et cas.
+6. Ne pas utiliser un recueil comme source de création d’un cas : leurs finalités et structures diffèrent.
+7. Conserver la provenance et distinguer paroles d’une personne et matériaux de son cas.
+8. Distinguer alimentation manuelle, initialisation ponctuelle et règle dynamique.
+9. Garder les notes hors du matériau lexical par défaut.
+10. Permettre les sélections et comparaisons par variable sans créer de cas.
+11. Mutualiser le moteur de sélection entre cas, traitements et export.
+12. Maintenir la preuve d’import et les exigences techniques du plan initial.
 
 ### À trancher avant implémentation
 
@@ -557,13 +591,21 @@ Critère central : l’utilisateur doit pouvoir construire un cas pendant la lec
 ## 16. Sources examinées et limites
 
 - `plans/reflexion/export-sonal.md` : proposition d’export sans cas persistants.
+- `plans/encours/plan-recueil.md` : contrat des recueils à références vivantes.
+- `src/shared/corpus/recueils.ts` : modèle persistant et ordre éditorial des recueils.
+- `src/shared/entretien/reperesPassages.ts` : repères autonomes réutilisables.
+- `src/renderer/editor/recueils.ts` : résolution et projection des passages recueillis.
 - `src/shared/format.ts` : personnes, locuteurs et notes structurées.
 - `src/shared/entretien/annotation.ts` : annotations ancrées et orphelins.
 - `src/shared/entretien/notes.ts` : gestion actuelle des notes d’entretien.
 - `src/renderer/editor/remap.ts` : remappage des plages lors des éditions.
-- `/home/belignem/Vscode/SonalPi/modules/recueil.js` : structure et ajout des extraits aux recueils.
+- `/home/belignem/Vscode/SonalPi/modules/recueil.js` : structure éditoriale des recueils V1.
 - `/home/belignem/Vscode/SonalPi/modules/lexico.js` : chemin de sélection et réagrégation de `_lxRefreshTable()`.
+- Documentation des cas QualCoder : https://qualcoder.org/doc/en/3.3.-Cases/
+- Gestion des cas : https://github.com/ccbogel/QualCoder/blob/master/src/qualcoder/cases.py
+- Marquage des passages d’un cas : https://github.com/ccbogel/QualCoder/blob/master/src/qualcoder/case_file_manager.py
+- Import/export REFI-QDA : https://github.com/ccbogel/QualCoder/blob/master/src/qualcoder/refi.py
 
-L’examen de V1 porte sur ces chemins, pas sur une validation exhaustive de tous ses traitements. La compatibilité QualCoder mentionnée ici reprend les points à vérifier du plan initial ; aucun nouveau test d’import n’a été réalisé pour ce document.
+L’examen de V1 porte sur ces chemins, pas sur une validation exhaustive de tous ses traitements. `master` sert à comprendre QualCoder, pas de contrat stable ; aucun nouveau test d’import n’a été réalisé pour ce document.
 
-**Conclusion :** un cas persistant est un dossier analytique ; une variable reste une dimension descriptive utilisable pour sélectionner ou comparer des données. Le moteur doit distinguer le dossier, les règles qui rassemblent ses matériaux et ce que chaque traitement compte. Cette séparation rend l’alternative utile au travail qualitatif sans imposer une confusion au futur lexico.
+**Conclusion :** un cas persistant est un dossier analytique auquel des sélections libres peuvent être rattachées, comme avec « Mark » dans QualCoder. Un recueil est un document éditorial qui agence des citations. Les deux peuvent partager les repères vivants sans partager leur modèle métier. Cette séparation permet de préparer fidèlement l’export QualCoder sans détourner les recueils de leur usage.

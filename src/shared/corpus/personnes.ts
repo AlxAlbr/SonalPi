@@ -1,6 +1,7 @@
 import type { CorpusFichier, EntretienFichier, Locuteur, Personne } from '../format'
 import type { EntreeMatrice } from './requetes'
 import type { ChoixRepriseLocuteur } from './rapprochementsPersonnes'
+import { membresPersonnesRegle, type MembrePersonneCas } from './cas'
 
 export interface VueLocuteurPersonne {
   entretienId: string
@@ -148,6 +149,19 @@ export function fusionnerPersonnes(corpus: CorpusFichier, entretiens: EntreeMatr
         .filter(r => l.personneRef !== conserverId || (r !== `personne:${conserverId}` && !membres.has(r))))]
     }
   }
+  for (const cas of Object.values(corpus.cas ?? {})) {
+    const membres = cas.regles.flatMap(membresPersonnesRegle)
+    if (!membres.some((membre) => membre.personneId === absorberId)) continue
+    const reunis = new Map<string, MembrePersonneCas>()
+    for (const membre of membres) {
+      const id = membre.personneId === absorberId ? conserverId : membre.personneId
+      const precedent = reunis.get(id)
+      reunis.set(id, { personneId: id, inclureEnqueteurs: membre.inclureEnqueteurs || precedent?.inclureEnqueteurs === true })
+    }
+    // L’union conserve une inclusion des enquêteurs demandée par l’une des règles.
+    cas.regles = [{ type: 'personnes', membres: [...reunis.values()] }]
+    cas.modifieLe = new Date().toISOString()
+  }
   delete corpus.personnes[absorberId]
 }
 
@@ -194,5 +208,10 @@ export function supprimerPersonneVide(corpus: CorpusFichier, inventaire: Inventa
   if (inventaire.indisponibles.length) throw new Error('Suppression impossible : certains entretiens sont illisibles.')
   if (!corpus.personnes?.[id]) throw new Error('Cette personne n’existe plus.')
   if (inventaire.locuteurs.some((l) => l.personneRef === id)) throw new Error('Déliez les locuteurs avant de supprimer cette personne.')
+  const casDependants = Object.values(corpus.cas ?? {}).filter((cas) =>
+    cas.regles.some((regle) => membresPersonnesRegle(regle).some((membre) => membre.personneId === id)))
+  if (casDependants.length) {
+    throw new Error(`Cette personne est utilisée par les règles des cas : ${casDependants.map((cas) => cas.nom).join(', ')}. Traitez ces cas avant de la supprimer.`)
+  }
   delete corpus.personnes[id]
 }

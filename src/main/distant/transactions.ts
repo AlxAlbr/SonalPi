@@ -47,9 +47,11 @@ import type {
   Categorie,
   Variable,
 } from '../../shared/format'
-import { FORMAT_VERSION } from '../../shared/format'
+import { FORMAT_VERSION, versionSupportee } from '../../shared/format'
 import type { PlanAjoutEntretien } from '../transactionsFichiers'
 import type { CommandePersonnes } from '../../shared/corpus/personnes'
+import type { SourcePassageCas } from '../../shared/corpus/cas'
+import type { ImpactSuppressionEntretien } from '../../shared/corpus/suppressionEntretien'
 
 /** Chemin VERROUILLÉ pour les transactions de définitions —
  *  TOUJOURS le fichier annexe (PUT conditionnel). */
@@ -152,6 +154,37 @@ export class TransactionsCorpus {
     }
   }
 
+  /** Relit les sources serveur et actualise le miroir avant de publier leurs références. */
+  async verifierReferencesPassagesPubliees(references: SourcePassageCas[]): Promise<void> {
+    const parEntretien = new Map<string, SourcePassageCas[]>()
+    for (const reference of references) {
+      const groupe = parEntretien.get(reference.entretienId) ?? []
+      groupe.push(reference)
+      parEntretien.set(reference.entretienId, groupe)
+    }
+    for (const [entretienId, groupe] of parEntretien) {
+      const chemin = CHEMIN_ENTRETIEN(entretienId)
+      let contenu: string
+      let data: EntretienFichier
+      try {
+        contenu = await this.client.getTexte(chemin)
+        data = JSON.parse(contenu) as EntretienFichier
+      } catch {
+        throw new ErreurTransaction("La source publiée du passage est indisponible.")
+      }
+      if (!versionSupportee(data.formatVersion)) {
+        throw new ErreurTransaction("La source publiée du passage est invalide.")
+      }
+      const reperes = Array.isArray(data.reperesPassages) ? data.reperesPassages : []
+      for (const reference of groupe) {
+        if (!reperes.some((repere) => repere.id === reference.repereId)) {
+          throw new ErreurTransaction("Le repère du passage n'a pas été publié dans l'entretien.")
+        }
+      }
+      this.ecrireEntretienLocal(chemin, contenu)
+    }
+  }
+
   /** Migre corpus et entretiens sous leurs verrous avant de rendre le miroir éditable. */
   async migrerFormatSiNecessaire(): Promise<CorpusFichier> {
     const brut = JSON.parse(
@@ -236,7 +269,10 @@ export class TransactionsCorpus {
   /* ── Suppression d'entretien — double verrou ──────────────────────────────*/
 
   /** Supprime un entretien sous double verrou, sans modifier le miroir avant le commit serveur. */
-  async supprimerEntretien(id: string): Promise<CorpusFichier> {
+  async supprimerEntretien(
+    id: string,
+    impactAttendu?: ImpactSuppressionEntretien,
+  ): Promise<CorpusFichier> {
     const providerCorpus = new ProviderPutConditionnel(this.client, this.identite)
     let verrouCorpusTenu = false
     try {
@@ -255,7 +291,7 @@ export class TransactionsCorpus {
       }
 
       const store = this.getStore()
-      const plan = store.preparerSuppressionEntretien(id)
+      const plan = store.preparerSuppressionEntretien(id, impactAttendu)
       const contenuCorpus = JSON.stringify(plan.corpusApres, null, 2)
       try {
         let etagCorpusPublie = ''

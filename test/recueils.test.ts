@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
+import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../src/shared/format'
 import {
   appliquerCommandeRecueils,
   bornesSection,
@@ -7,7 +7,12 @@ import {
   type Recueil,
 } from '../src/shared/corpus/recueils'
 import {
+  numeroterTitres,
+  profondeursItems,
+} from '../src/shared/corpus/numerotation'
+import {
   exporterRecueilMarkdown,
+  exporterRecueilTexte,
   projeterRecueil,
 } from '../src/renderer/editor/recueils'
 
@@ -106,9 +111,71 @@ describe('recueils — modèle éditorial pur', () => {
   })
 })
 
+describe('recueils — numérotation et indentation des titres', () => {
+  const titres = [
+    { id: 't1', type: 'titre' as const, niveau: 1 as const, libelle: 'Un' },
+    { id: 'x1', type: 'texte' as const, texte: 'Dans un' },
+    { id: 't2', type: 'titre' as const, niveau: 2 as const, libelle: 'Sous-un' },
+    { id: 't3', type: 'titre' as const, niveau: 3 as const, libelle: 'Sous-sous' },
+    { id: 't4', type: 'titre' as const, niveau: 4 as const, libelle: 'Détail' },
+    { id: 't2b', type: 'titre' as const, niveau: 2 as const, libelle: 'Autre sous-un' },
+    { id: 't1b', type: 'titre' as const, niveau: 1 as const, libelle: 'Deux' },
+  ]
+
+  test('la numérotation décimale suit la hiérarchie et se réinitialise entre sections', () => {
+    expect(numeroterTitres(titres, 'decimal')).toEqual({
+      t1: '1', t2: '1.1', t3: '1.1.1', t4: '1.1.1.1',
+      t2b: '1.2', t1b: '2',
+    })
+    expect(numeroterTitres(titres, 'aucune')).toEqual({})
+  })
+
+  test('la numérotation en plan concatène chiffres romains, lettres et lettres minuscules', () => {
+    expect(numeroterTitres(titres, 'plan')).toEqual({
+      t1: 'I.', t2: 'I.A.', t3: 'I.A.1.', t4: 'I.A.1.a.',
+      t2b: 'I.B.', t1b: 'II.',
+    })
+  })
+
+  test('un titre dont les ancêtres n’ont jamais été déclarés numérote implicitement 1', () => {
+    const orphelin = [
+      { id: 'a', type: 'titre' as const, niveau: 3 as const, libelle: 'Sans parent' },
+      { id: 'b', type: 'titre' as const, niveau: 3 as const, libelle: 'Sans parent' },
+    ]
+    expect(numeroterTitres(orphelin, 'decimal')).toEqual({ a: '1.1.1', b: '1.1.2' })
+  })
+
+  test('seuls les titres sont indentés, le contenu reste aligné sur la marge', () => {
+    expect(profondeursItems(titres)).toEqual({
+      t1: 0, x1: 0, t2: 1, t3: 2, t4: 3, t2b: 1, t1b: 0,
+    })
+  })
+
+  test('les exports reprennent la numérotation choisie', () => {
+    const projection = projeterRecueil(corpus, recueil(), new Map([
+      ['e1', { ok: true as const, data: source() }],
+    ]))
+    const md = exporterRecueilMarkdown(projection, {
+      commentaires: true, sources: true, date: 'maintenant', incomplet: false,
+      numerotation: 'decimal',
+    })
+    expect(md).toContain('## 1.1 Terrain')
+    const txt = exporterRecueilTexte(projection, {
+      commentaires: true, sources: true, date: 'maintenant', incomplet: false,
+      numerotation: 'plan',
+    })
+    expect(txt).toContain('  I.A. Terrain')
+    const brut = exporterRecueilMarkdown(projection, {
+      commentaires: true, sources: true, date: 'maintenant', incomplet: false,
+      numerotation: 'aucune',
+    })
+    expect(brut).toContain('## Terrain')
+  })
+})
+
 function source(): EntretienFichier {
   return {
-    formatVersion: 4,
+    formatVersion: FORMAT_VERSION,
     lastModified: '',
     corpsTexte: {
       type: 'doc',

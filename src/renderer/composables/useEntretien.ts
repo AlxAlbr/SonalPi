@@ -658,17 +658,46 @@ export function useEntretien(deps: {
     return ajouts
   }
 
+  /** Décrit la sélection libre courante sans créer de repère. */
+  function selectionPassageCourante(): {
+    entretienId: string
+    from: number
+    to: number
+    texte: string
+  } | null {
+    const editeur = editor.value
+    if (!editeur || !ouvertId.value || editeur.state.selection.empty) return null
+    const plage = snapToWord(
+      editeur.state,
+      editeur.state.selection.from,
+      editeur.state.selection.to,
+    )
+    if (plage.from >= plage.to) return null
+    return {
+      entretienId: ouvertId.value,
+      ...plage,
+      texte: editeur.state.doc.textBetween(plage.from, plage.to, ' '),
+    }
+  }
+
   /** Crée puis enregistre un repère autonome sur la sélection libre courante. */
-  async function enregistrerRepereSelection(): Promise<{ id: string; from: number; to: number }> {
+  async function enregistrerRepereSelection(attendu?: {
+    entretienId: string
+    from: number
+    to: number
+  }): Promise<{ id: string; from: number; to: number }> {
     const editeur = editor.value
     if (!editeur || !ouvertId.value) throw new Error("Aucun entretien n'est ouvert.")
     if (!editeur.isEditable) throw new Error("L'entretien est ouvert en lecture seule.")
-    const selection = editeur.state.selection
-    if (selection.empty) throw new Error('Sélectionnez un passage avant de l’ajouter au recueil.')
-    const plage = snapToWord(editeur.state, selection.from, selection.to)
+    const selection = selectionPassageCourante()
+    if (!selection) throw new Error('Sélectionnez un passage avant de le référencer.')
+    if (attendu && (attendu.entretienId !== selection.entretienId
+      || attendu.from !== selection.from || attendu.to !== selection.to)) {
+      throw new Error('La sélection a changé. Sélectionnez à nouveau le passage.')
+    }
     const repere = creerReperePassage(
       entretien.reperesPassages,
-      plage,
+      selection,
       () => `rep-${globalThis.crypto.randomUUID()}`,
     )
     if (!repere) throw new Error('La sélection ne contient aucun passage.')
@@ -677,7 +706,7 @@ export function useEntretien(deps: {
     return { ...repere }
   }
 
-  /** Instantané cohérent de la source ouverte pour les projections de recueils. */
+  /** Instantané cohérent de la source ouverte pour les projections de passages. */
   function donneesSourceOuverte(): EntretienFichier | null {
     if (!ouvertId.value || !editor.value) return null
     return {
@@ -835,6 +864,7 @@ export function useEntretien(deps: {
     viderSauvegarde,
     annulerEtAttendreSauvegarde,
     donneesExport,
+    selectionPassageCourante,
     enregistrerRepereSelection,
     donneesSourceOuverte,
     // rafraîchissements (l'App les déclenche après des changements corpus)

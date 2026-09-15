@@ -9,7 +9,7 @@ import { analyserCrp } from '../src/shared/corpus/migrationCrp'
 import { creerRegle } from '../src/shared/corpus/reglesAnon'
 import { ajusterScanApresApplication, type ScanRegle } from '../src/shared/corpus/scanAnon'
 import { ecrireSeedDemo } from './seedDemo'
-import type { PayloadEntretien, EntretienFichier, CorpusFichier } from '../src/shared/format'
+import { FORMAT_VERSION, type PayloadEntretien, type EntretienFichier, type CorpusFichier } from '../src/shared/format'
 
 /** Store sur la BASELINE de démo « Karine » (e1 + 7 thèmes) — l'ex-amorçage
  *  produit, désormais une fixture posée AVANT ouverture (S8 rév.). */
@@ -47,8 +47,10 @@ describe('CorpusStore — amorçage & round-trip', () => {
   test('un dossier VIERGE s’amorce VIDE : aucun entretien, codebook = bloc Pondérations SonalPi1', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sonal-store-vierge-'))
     const corpus = new CorpusStore(dir).ouvrir()
-    expect(corpus.formatVersion).toBe(4)
+    expect(corpus.formatVersion).toBe(FORMAT_VERSION)
     expect(corpus.membership).toEqual({}) // AUCUN entretien de démo (S8 rév.)
+    expect(corpus.recueils).toEqual({})
+    expect(corpus.cas).toEqual({})
     expect(Object.keys(corpus.codebook).sort()).toEqual(['cat_001', 'cat_002', 'cat_003', 'cat_004'])
     expect(corpus.codebook.cat_001).toMatchObject({ nom: 'Pondérations', couleur: '#ffffff', parent: null })
     expect(corpus.codebook.cat_001.taille).toBeUndefined() // le parent n'a AUCUN effet
@@ -168,7 +170,7 @@ describe('CorpusStore — écriture atomique', () => {
     const restes = readdirSync(join(dir, 'entretiens')).filter((f) => f.endsWith('.tmp'))
     expect(restes).toEqual([])
     // (La sûreté au vrai crash repose sur l'atomicité de rename() — non simulée ici.)
-    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(4)
+    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(FORMAT_VERSION)
   })
 })
 
@@ -200,7 +202,7 @@ describe('CorpusStore — filet .bak à 2 générations, tourné PAR SESSION', (
     expect(JSON.stringify(lireFichier(dir, 'entretiens/e1.json.bak1').corpsTexte)).toContain('S1-b')
     expect(JSON.stringify(lireFichier(dir, 'entretiens/e1.json.bak2').corpsTexte)).toContain('Karine')
     // Un .bak reste un entretien ouvrable (JSON valide, versionné).
-    expect(lireFichier(dir, 'entretiens/e1.json.bak1').formatVersion).toBe(4)
+    expect(lireFichier(dir, 'entretiens/e1.json.bak1').formatVersion).toBe(FORMAT_VERSION)
   })
 })
 
@@ -239,7 +241,7 @@ describe('CorpusStore — version du format natif', () => {
     const lu = store.lireEntretien('e1')
     expect(lu.ok).toBe(true)
     if (lu.ok) {
-      expect(lu.data.formatVersion).toBe(4)
+      expect(lu.data.formatVersion).toBe(FORMAT_VERSION)
       // « Un deux. » (8 car.) → deb pos 1, fin pos 9 ; bloc scindé (nulls) → rien ;
       // « Quatre. » (7 car.) : début de bloc 1+(2+8)+(2+6)=19, fin 26.
       expect(lu.data.ancres).toEqual([
@@ -259,7 +261,7 @@ describe('CorpusStore — version du format natif', () => {
       const { formatVersion: _formatVersion, lastModified: _lastModified, ...p } = edition.data
       store.ecrireEntretien('e1', p)
     }
-    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(4)
+    expect(lireFichier(dir, 'entretiens/e1.json').formatVersion).toBe(FORMAT_VERSION)
   })
 
   test('un corpus de version inconnue fait échouer l’ouverture', () => {
@@ -576,10 +578,10 @@ describe('CorpusStore — migration formatVersion 2→3', () => {
     const c = store.ouvrir() // déclenche la migration formatVersion 2→3
 
     // Corpus bumpé à formatVersion 3.
-    expect(c.formatVersion).toBe(4)
+    expect(c.formatVersion).toBe(FORMAT_VERSION)
     // audioRef résolu en absolu vers le fichier existant dans `audio/`.
     const lu = store.lireEntretien('e1')
-    expect(lu.ok && lu.data.formatVersion).toBe(4)
+    expect(lu.ok && lu.data.formatVersion).toBe(FORMAT_VERSION)
     expect(lu.ok && lu.data.meta.audioRef).toBe(join(dir, 'audio', 'e1.mp3'))
     // Le mp3 legacy reste dans `audio/` (référencé en absolu).
     expect(existsSync(join(dir, 'audio', 'e1.mp3'))).toBe(true)
@@ -618,7 +620,7 @@ describe('CorpusStore — migration formatVersion 2→3', () => {
     store.ouvrir() // 1re ouverture → migration
     store.ouvrir() // 2e ouverture → déjà v3, rien à faire
     const lu = store.lireEntretien('e1')
-    expect(lu.ok && lu.data.formatVersion).toBe(4)
+    expect(lu.ok && lu.data.formatVersion).toBe(FORMAT_VERSION)
     expect(lu.ok && lu.data.meta.audioRef).toBe(join(dir, 'audio', 'e1.mp3'))
   })
 
@@ -1174,7 +1176,7 @@ describe('CorpusStore — migration SonalPi1 → SonalPi2 (migrerDepuisV1)', () 
       codebook,
       variables,
     )
-    expect(corpus.formatVersion).toBe(4)
+    expect(corpus.formatVersion).toBe(FORMAT_VERSION)
     expect(corpus.nom).toBe('MonCorpus')
     expect(corpus.meta?.sourceV1).toEqual({
       cheminCrp: '/home/user/MonCorpus.crp',

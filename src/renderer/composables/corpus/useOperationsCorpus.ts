@@ -2,6 +2,7 @@ import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../import/sas'
 import { exporterSonal, type EntreeExport } from '../../import/exportSonal'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../../shared/corpus/migrationCrp'
+import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
 import type {
   Categorie,
   CorpusFichier,
@@ -15,6 +16,8 @@ import type {
 
 interface CorpusOperations {
   membership: Ref<Record<string, EntretienRef>>
+  cas: Ref<NonNullable<CorpusFichier['cas']>>
+  famillesCas: Ref<NonNullable<CorpusFichier['famillesCas']>>
   codebook: Ref<Categorie[]>
   variables: Ref<Variable[]>
   reglesAnon: Ref<RegleAnon[]>
@@ -81,7 +84,11 @@ export function useOperationsCorpus(deps: {
     contenu: unknown
     fusionnable: boolean
   } | null>(null)
-  const entretienASupprimer = ref<{ id: string; titre: string } | null>(null)
+  const entretienASupprimer = ref<{
+    id: string
+    titre: string
+    impact: ImpactSuppressionEntretien
+  } | null>(null)
 
   async function migrerDepuisV1(
     requete: DemandeMigration,
@@ -254,11 +261,15 @@ export function useOperationsCorpus(deps: {
     }
   }
 
-  async function supprimer(id: string): Promise<void> {
+  async function supprimer(
+    id: string,
+    impact?: ImpactSuppressionEntretien,
+  ): Promise<void> {
     if (deps.entretien.ouvertId.value === id) await deps.cycle.fermerEntretien()
-    deps.corpus.membership.value = (
-      await window.sonal.corpus.supprimerEntretien(id)
-    ).membership
+    const corpus = await window.sonal.corpus.supprimerEntretien(id, impact)
+    deps.corpus.membership.value = corpus.membership
+    deps.corpus.cas.value = corpus.cas ?? {}
+    deps.corpus.famillesCas.value = corpus.famillesCas ?? {}
     deps.corpus.perimerScanAnon()
     if (deps.cycle.reprise.value?.id === id) deps.cycle.reprise.value = null
     if (deps.selection.id.value === id) deps.selection.deselectionner()
@@ -277,18 +288,29 @@ export function useOperationsCorpus(deps: {
     if (deps.entretien.ouvertId.value === id) deps.entretien.ongletDroite.value = onglet
   }
 
-  function demanderSuppressionEntretien(id: string): void {
+  async function demanderSuppressionEntretien(id: string): Promise<void> {
+    const impact = await window.sonal.corpus.analyserSuppressionEntretien(id)
     entretienASupprimer.value = {
       id,
       titre: deps.corpus.membership.value[id]?.titre ?? id,
+      impact,
     }
   }
 
   async function confirmerSuppressionEntretien(): Promise<void> {
     const cible = entretienASupprimer.value
     if (!cible) return
-    entretienASupprimer.value = null
-    await supprimer(cible.id)
+    try {
+      await supprimer(cible.id, cible.impact)
+      entretienASupprimer.value = null
+    } catch (erreur) {
+      try {
+        cible.impact = await window.sonal.corpus.analyserSuppressionEntretien(cible.id)
+      } catch {
+        entretienASupprimer.value = null
+      }
+      throw erreur
+    }
   }
 
   return {
