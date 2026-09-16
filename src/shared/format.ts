@@ -3,6 +3,7 @@ import type { Ancre } from './entretien/audio'
 import type { ReperePassage } from './entretien/reperesPassages'
 import type { Recueil } from './corpus/recueils'
 import type { Cas, FamilleCas } from './corpus/cas'
+import type { TableauBord } from './corpus/tableaubord'
 
 /**
  *  Contrat du FORMAT NATIF SonalPi2 (docs/dev/modele-objet.md).
@@ -131,6 +132,9 @@ export interface CorpusFichier {
   /** Unités d'étude analytiques partagées, indexées par leur identité stable. */
   cas?: Record<string, Cas>
   famillesCas?: Record<string, FamilleCas>
+  /** Tableau de bord d'avancement (suivi d'étapes par entretien suivi). Un corpus ancien sans ce champ est normalisé vers le tableau par défaut.
+   *  Champ ADDITIF optionnel — corpus-ONLY, sans bump de version (comme `categoriesNote`). */
+  tableaubord?: TableauBord
 }
 
 /** Paramètres de pseudonymisation au niveau corpus : `prioriteValidation` est la portée appliquée par ENTRÉE à la validation d'une ligne du tableau anon (Maj+Entrée = l'autre ; défaut 'corpus').

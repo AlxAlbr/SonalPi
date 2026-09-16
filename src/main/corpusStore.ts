@@ -31,6 +31,13 @@ import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
 import { appliquerCommandeRecueils, normaliserRecueils, type CommandeRecueils } from '../shared/corpus/recueils'
 import {
+  appliquerCommandeTableauBord,
+  normaliserTableauBord,
+  tableauBordParDefaut,
+  type CommandeTableauBord,
+  type TableauBord,
+} from '../shared/corpus/tableaubord'
+import {
   appliquerCommandeCas,
   normaliserCas, normaliserFamillesCas, compterUsagesCasVariable,
   referencesAjouteesCommandeCas,
@@ -1446,6 +1453,26 @@ export class CorpusStore {
    *  Fonction `usagesParCategorie` de shared/corpus. */
   usagesParCategorie(): Record<string, number> {
     return corpusModel.usagesParCategorie(this.datas())
+  }
+
+  // ── Tableau de bord (définitions corpus) — lire → muter → écrire ─────────
+  /** Le tableau de bord du corpus (`corpus.json.tableaubord`), normalisé :
+   *  un corpus ancien sans le champ obtient le tableau par défaut. */
+  tableauBord(): TableauBord {
+    const c = this.ouvrir()
+    return normaliserTableauBord(c.tableaubord) ?? tableauBordParDefaut()
+  }
+
+  /** Applique une édition ciblée du tableau de bord après relecture du corpus courant. */
+  tableaubordCommander(commande: CommandeTableauBord): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    const actuel = normaliserTableauBord(corpus.tableaubord) ?? tableauBordParDefaut()
+    corpus.tableaubord = appliquerCommandeTableauBord(actuel, commande, {
+      maintenant: () => new Date().toISOString(),
+    })
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
   }
 
   // ── Catégories de note (définitions corpus) — lire → muter → écrire ───────

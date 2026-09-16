@@ -9,6 +9,11 @@ import type {
 } from '../../../shared/format'
 import { paramsAnonDefaut } from '../../../shared/format'
 import { squeletteCorpus } from '../../../shared/corpus/squelette'
+import type { TableauBord } from '../../../shared/corpus/tableaubord'
+import {
+  normaliserTableauBord,
+  tableauBordParDefaut,
+} from '../../../shared/corpus/tableaubord'
 import { afficherErreurGlobale, effacerErreurGlobaleSi, infoGlobale } from '../../erreurs'
 import { preparerFermetureEntretien } from '../../couturesApplication'
 
@@ -26,6 +31,7 @@ interface ModeleCycleCorpus {
   recueils: Ref<NonNullable<CorpusFichier['recueils']>>
   cas: Ref<NonNullable<CorpusFichier['cas']>>
   famillesCas: Ref<NonNullable<CorpusFichier['famillesCas']>>
+  tableaubord: Ref<TableauBord | null>
   paramsAnon: Ref<ParamsAnon>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
   majVariables: (variables: CorpusFichier['variables']) => void
@@ -133,6 +139,7 @@ export function useCycleCorpus(deps: {
     deps.corpus.recueils.value = corpus.recueils ?? {}
     deps.corpus.cas.value = corpus.cas ?? {}
     deps.corpus.famillesCas.value = corpus.famillesCas ?? {}
+    deps.corpus.tableaubord.value = normaliserTableauBord(corpus.tableaubord) ?? tableauBordParDefaut()
     deps.corpus.majCodebook(corpus.codebook)
     deps.corpus.majVariables(corpus.variables)
     deps.corpus.majCategoriesNote(corpus.categoriesNote)
@@ -242,6 +249,7 @@ export function useCycleCorpus(deps: {
     deps.corpus.recueils.value = charge.recueils ?? {}
     deps.corpus.cas.value = charge.cas ?? {}
     deps.corpus.famillesCas.value = charge.famillesCas ?? {}
+    deps.corpus.tableaubord.value = normaliserTableauBord(charge.tableaubord) ?? tableauBordParDefaut()
     deps.corpus.majCodebook(charge.codebook)
     deps.corpus.majVariables(charge.variables)
     deps.corpus.majCategoriesNote(charge.categoriesNote)

@@ -1357,3 +1357,46 @@ describe('CorpusStore — E4 : tabAnon + paramsAnonCorpus écrits à la créatio
     expect(enqueteur[0].categorie).toBe('LOC')
   })
 })
+
+describe('CorpusStore — tableau de bord (définitions corpus)', () => {
+  test('un corpus sans le champ lit le tableau par défaut ; une commande persiste dans corpus.json', () => {
+    const { store, dir } = storeNeuf()
+    const defaut = store.tableauBord()
+    expect(defaut.colonnes.map((c) => c.id)).toEqual(
+      ['problematique', 'dpo', 'guide-entretien', 'contact', 'enregistrement', 'note-chaud', 'correction', 'pseudonymisation', 'variable', 'thematisation'],
+    )
+    expect(defaut.lignes).toEqual([
+      { id: 'ent-1', nom: 'Entretien 1' },
+      { id: 'ent-2', nom: 'Entretien 2' },
+    ])
+    const retour = store.tableaubordCommander({
+      type: 'poser-cellule', ligneId: 'ent-1', colonneId: 'contact', attendu: null,
+      contenu: { badgeId: 'ok', note: 'vu' },
+    })
+    expect(retour.tableaubord!.cellules['ent-1']!.contact).toMatchObject({ badgeId: 'ok', note: 'vu' })
+    const surDisque = JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')) as CorpusFichier
+    expect(surDisque.tableaubord!.cellules['ent-1']!.contact!.badgeId).toBe('ok')
+    // La date a été posée automatiquement par le store.
+    expect(surDisque.tableaubord!.cellules['ent-1']!.contact!.date).toBeTypeOf('string')
+  })
+
+  test('round-trip : relire le store rend le tableau persisté', () => {
+    const { store } = storeNeuf()
+    store.tableaubordCommander({ type: 'ajouter-ligne', id: 'l3', nom: 'Entretien 3' })
+    store.tableaubordCommander({
+      type: 'poser-cellule', ligneId: 'l3', colonneId: 'correction', attendu: null,
+      contenu: { badgeId: 'encours', note: 'à finir', responsable: 'Amina' },
+    })
+    const relu = store.tableauBord()
+    expect(relu.lignes).toHaveLength(3)
+    expect(relu.cellules['l3']!.correction).toMatchObject({ badgeId: 'encours', note: 'à finir', responsable: 'Amina' })
+  })
+
+  test('le tableau suit la garde lectureSeule du corpus distant', () => {
+    const s = storeNeuf()
+    s.store.lectureSeule = true
+    expect(() => s.store.tableaubordCommander({
+      type: 'poser-cellule', ligneId: 'ent-1', colonneId: 'contact', attendu: null, contenu: { badgeId: 'ok' },
+    })).toThrow(/lecture/)
+  })
+})

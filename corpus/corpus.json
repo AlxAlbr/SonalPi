@@ -1,0 +1,78 @@
+{
+  "formatVersion": 3,
+  "codebook": {
+    "cat_001": {
+      "id": "cat_001",
+      "nom": "Famille",
+      "ordre": 0,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_001"
+    },
+    "cat_002": {
+      "id": "cat_002",
+      "nom": "Travail",
+      "ordre": 1,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_002"
+    },
+    "cat_003": {
+      "id": "cat_003",
+      "nom": "Lieu",
+      "ordre": 2,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_003"
+    },
+    "cat_004": {
+      "id": "cat_004",
+      "nom": "Pondérations",
+      "couleur": "#ffffff",
+      "ordre": 3,
+      "parent": null,
+      "actif": true,
+      "codeExport": "cat_004"
+    },
+    "cat_005": {
+      "id": "cat_005",
+      "nom": "★★★ Très important",
+      "couleur": "#ffffff",
+      "taille": 24,
+      "ordre": 4,
+      "parent": "cat_004",
+      "actif": true,
+      "codeExport": "cat_005"
+    },
+    "cat_006": {
+      "id": "cat_006",
+      "nom": "★★☆ Assez important",
+      "couleur": "#ffffff",
+      "taille": 22,
+      "ordre": 5,
+      "parent": "cat_004",
+      "actif": true,
+      "codeExport": "cat_006"
+    },
+    "cat_007": {
+      "id": "cat_007",
+      "nom": "★☆☆ Important",
+      "couleur": "#ffffff",
+      "taille": 20,
+      "ordre": 6,
+      "parent": "cat_004",
+      "actif": true,
+      "codeExport": "cat_007"
+    }
+  },
+  "variables": {},
+  "reglesAnon": {},
+  "personnes": {},
+  "membership": {
+    "e1": {
+      "titre": "Entretien Karine",
+      "date": null,
+      "lastModified": "2026-09-16T12:40:53.025Z"
+    }
+  }
+}

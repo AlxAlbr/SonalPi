@@ -30,6 +30,7 @@ import { analyserCrp } from '../shared/corpus/migrationCrp'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
+import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import { executerCommandeCas } from './casOrchestration'
 import type {
@@ -670,6 +671,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
     return executerDefinitions((cible) => cible.recueilsCommander(commande))
   })
+  ipcMain.handle('corpus:tableaubordCommander', (_e, commande: CommandeTableauBord) =>
+    executerDefinitions((cible) => cible.tableaubordCommander(commande)),
+  )
   ipcMain.handle('corpus:casCommander', (_e, commande: CommandeCas) =>
     executerCommandeCas(commande, {
       sessionsTenues: () => sessions?.idsTenus() ?? [],

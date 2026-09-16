@@ -10,6 +10,7 @@ import { useCycleCorpus } from './corpus/useCycleCorpus'
 import { useOperationsCorpus } from './corpus/useOperationsCorpus'
 import { useRecueilsCorpus } from './corpus/useRecueilsCorpus'
 import { useCasCorpus } from './corpus/useCasCorpus'
+import { useTableauBordCorpus } from './corpus/useTableauBordCorpus'
 import { useEntretien } from './useEntretien'
 import { useAudio } from './useAudio'
 import { utiliserDemo } from './demo'
@@ -396,9 +397,11 @@ export function creerSonal() {
     fermerRecueils: recueilsCorpus.fermerRecueils,
   })
   fermerCasPourRecueils = casCorpus.fermerCas
+  const tableauBordCorpus = useTableauBordCorpus({ tableaubord: corpus.tableaubord })
   reinitialiserFenetresMetier = () => {
     recueilsCorpus.fermerRecueils()
     casCorpus.reinitialiserCas()
+    tableauBordCorpus.fermerTableauBord()
   }
   watch(ent.etatSauvegarde, (etat) => {
     if (etat !== 'à jour') return
@@ -469,6 +472,7 @@ export function creerSonal() {
     ...ent,
     ...recueilsCorpus,
     ...casCorpus,
+    ...tableauBordCorpus,
     audio, // scope audio (objet nommé : les vues déstructurent ses refs)
     audiosCorpus,
     audiosManquants,

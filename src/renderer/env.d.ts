@@ -42,6 +42,7 @@ import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
+import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
@@ -120,6 +121,7 @@ declare global {
         resumesThematiques: () => Promise<Record<string, SegmentThematique[]>>
         recueilsCommander: (commande: CommandeRecueils) => Promise<CorpusFichier>
         casCommander: (commande: CommandeCas) => Promise<CorpusFichier>
+        tableaubordCommander: (commande: CommandeTableauBord) => Promise<CorpusFichier>
         reglesAnon: () => Promise<RegleAnon[]>
         scanAnon: () => Promise<ScanRegle[]>
         notesInventaire: () => Promise<InventaireNotes>

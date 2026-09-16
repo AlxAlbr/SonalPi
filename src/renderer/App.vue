@@ -8,6 +8,7 @@ import RepriseCrash from './components/distant/RepriseCrash.vue'
 import DivergenceCopie from './components/distant/DivergenceCopie.vue'
 import DesignationAudioDistante from './components/distant/DesignationAudioDistante.vue'
 import RecueilsModale from './components/RecueilsModale.vue'
+import TableauBordModale from './components/TableauBordModale.vue'
 import CasModale from './components/CasModale.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 
@@ -89,6 +90,7 @@ const {
     <DesignationAudioDistante />
     <CasModale />
     <RecueilsModale />
+    <TableauBordModale />
   </main>
 </template>
 

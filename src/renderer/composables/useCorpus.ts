@@ -2,6 +2,7 @@ import { ref, toRaw } from 'vue'
 import type { EntretienRef } from '../../shared/format'
 import type { Recueil } from '../../shared/corpus/recueils'
 import type { Cas, FamilleCas } from '../../shared/corpus/cas'
+import type { TableauBord } from '../../shared/corpus/tableaubord'
 import { useAnonymisationCorpus } from './corpus/useAnonymisationCorpus'
 import { useCategoriesNotesCorpus } from './corpus/useCategoriesNotesCorpus'
 import { useJournalCorpus } from './corpus/useJournalCorpus'
@@ -25,6 +26,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const recueils = ref<Record<string, Recueil>>({})
   const cas = ref<Record<string, Cas>>({})
   const famillesCas = ref<Record<string, FamilleCas>>({})
+  const tableaubord = ref<TableauBord | null>(null)
   const themes = useThemesCorpus(opts)
   const variables = useVariablesCorpus(opts)
   const anonymisation = useAnonymisationCorpus()
@@ -60,6 +62,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     recueils,
     cas,
     famillesCas,
+    tableaubord,
     codebook: themes.codebook,
     codeCourant: themes.codeCourant,
     usages: themes.usages,

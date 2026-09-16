@@ -36,6 +36,7 @@ import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
+import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type {
   CompteDistantPublic,
@@ -194,6 +195,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:recueilsCommander', commande),
     casCommander: (commande: CommandeCas): Promise<CorpusFichier> =>
       invoquer('corpus:casCommander', commande),
+    tableaubordCommander: (commande: CommandeTableauBord): Promise<CorpusFichier> =>
+      invoquer('corpus:tableaubordCommander', commande),
     reglesAnon: (): Promise<RegleAnon[]> => invoquer('corpus:reglesAnon'),
     scanAnon: (): Promise<ScanRegle[]> => invoquer('corpus:scanAnon'),
     notesInventaire: (): Promise<InventaireNotes> => invoquer('corpus:notesInventaire'),

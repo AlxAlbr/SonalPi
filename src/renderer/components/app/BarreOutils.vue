@@ -3,13 +3,13 @@ import { utiliserSonal } from '../../composables/sonal'
 
 // Lanceurs des outils transverses du corpus. Le composable garde la propriété
 // fonctionnelle ; ce composant ne fait que déclencher l'ouverture des fenêtres.
-const { vue, afficherCas, afficherRecueils } = utiliserSonal()
+const { vue, afficherCas, afficherRecueils, afficherTableauBord } = utiliserSonal()
 </script>
 
 <template>
   <div v-if="vue !== 'accueil'" class="barre-outils">
     <div class="ligne">
-      <button class="outil avenir" disabled title="À venir">Tableau de bord</button>
+      <button class="outil btn-tableau" title="Ouvrir le tableau de bord" @click="afficherTableauBord">Tableau de bord</button>
       <button class="outil avenir" disabled title="À venir">Ressources du projet</button>
     </div>
     <div class="ligne">
@@ -56,6 +56,7 @@ const { vue, afficherCas, afficherRecueils } = utiliserSonal()
   font-size: 0.68rem;
 }
 .btn-cas::before { content: '🗂'; }
+.btn-tableau::before { content: '📊'; }
 .btn-recueils::before { content: '📌'; }
 .btn-recueils:hover, .btn-cas:hover { background: #f4f7fd; }
 </style>

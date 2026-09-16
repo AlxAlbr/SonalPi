@@ -1,0 +1,53 @@
+{
+  "formatVersion": 3,
+  "lastModified": "2026-09-16T12:40:53.025Z",
+  "corpsTexte": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Karine habite Lyon depuis sa retraite."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "loc": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Elle parle souvent de son travail passé et de sa famille."
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": [],
+  "ancres": [],
+  "locuteurs": [
+    {
+      "index": 1,
+      "nom": "Enquêteur",
+      "valeursLoc": {},
+      "personneRef": null
+    },
+    {
+      "index": 2,
+      "nom": "Karine",
+      "valeursLoc": {},
+      "personneRef": null
+    }
+  ],
+  "meta": {
+    "valeursGen": {},
+    "audioRef": null
+  }
+}

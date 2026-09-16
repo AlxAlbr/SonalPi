@@ -16,7 +16,10 @@ entretien.
 
 L'utilisateur ouvre une fenêtre avec une grille :
 
-- **une ligne par entretien suivie**, initialisée avec une seule ligne « entretien 1 » ;
+- **une ligne par entretien suivie**, initialisée avec deux lignes « Entretien 1 »
+  et « Entretien 2 » ;
+- **trois colonnes traversantes** d'information du corpus en tête : « Problématique »,
+  « DPO », « Guide d'entretien » — une seule case couvre tous les entretiens ;
 - **des colonnes-étapes** créées par défaut : « prise de contact », « enregistrement »,
   « note à chaud », « correction », « pseudonymisation », « variable », « thématisation » ;
 - il peut ajouter, renommer, supprimer lignes et colonnes ;
@@ -36,13 +39,11 @@ dans `src/shared/format.ts`. Identifiants opaques (`genId` existant), l'ordre
 des tableaux est l'ordre affiché (pas de champ `rang` redondant).
 
 ```ts
-type StatutCellule = 'ok' | 'encours'
-
-interface ColonneTableau { id: string ; nom: string }
+interface ColonneTableau { id: string ; nom: string ; traversante?: boolean }
 interface LigneTableau   { id: string ; nom: string }
 
 interface CelluleTableau {
-  statut?: StatutCellule          // absent = case vide (rien posé)
+  badgeId?: string                // badge posé (identité de tableau.badges), absent = rien posé
   note?: string                   // texte court d'accompagnement
   date?: string                   // ISO — posée à la première saisie, conservée ensuite, modifiable (Q2)
   responsable?: string            // nom libre, surtout en corpus distant
@@ -51,12 +52,15 @@ interface CelluleTableau {
 interface TableauBord {
   colonnes: ColonneTableau[]
   lignes: LigneTableau[]
-  /** cellules[ligneId][colonneId] ; absent = case jamais touchée */
+  badges: BadgeTableau[]
+  /** cellules[ligneId][colonneId] ; absent = case jamais touchée. Les cellules des
+   *  colonnes TRAVERSANTES vivent sous une seule rangée dédiée cellules['#traversant']. */
   cellules: Record<string, Record<string, CelluleTableau>>
 }
 ```
 
-Colonnes par défaut (identités stables, jamais régénérées à l'ouverture) :
+Colonnes par défaut (identités stables, jamais régénérées à l'ouverture) : trois
+colonnes traversantes `problematique`, `dpo`, `guide-entretien`, puis les étapes
 `contact`, `enregistrement`, `note-chaud`, `correction`, `pseudonymisation`,
 `variable`, `thematisation`.
 
@@ -102,17 +106,27 @@ aucun diagnostic de référence cassée n'est à construire.
 Un lot optionnel pourra proposer « créer une ligne par entretien du corpus »
 comme geste d'amorçage, sans créer de lien durable.
 
-### Q4 — Périmètre du marqueur — Tranché (proposition)
+### Q4 — Périmètre du marqueur — Tranché (révisé)
 
-Trois états visuels : **vide**, **en cours**, **OK**. Pas de statuts personnalisés
-ni de couleurs libres au premier livrable. La cellule s'édite dans un petit
-popover (statut, note, responsable) ; le survol montre le contenu quand la cellule
-est renseignée.
+**Badges exténsibles définis au niveau du tableau** (révision du « trois états
+figés » initial, retour utilisateur) : la cellule porte un badge, référencé par
+identité dans `tableau.badges` (nom + couleur libres). Jeu par défaut : « En
+cours » (orange), « Priorité » (rouge), et un dégradé de verts « Début » →
+« Milieu » → « Vers fin » → « OK ». L'utilisateur peut créer ses propres badges
+(nom + couleur) et supprimer ceux qu'aucune case n'utilise. Un badge utilisé ne
+se supprime pas (les cases le portant doivent d'abord être vidées). Une cellule
+dont le badge a disparu est normalisée sans son badge (note, date et
+responsable conservés). Le rendu est une pastille de la couleur du badge,
+avec texte sombre sur couleur claire et blanc sur couleur sombre.
 
 ## 4. Comportements notables
 
-- La création d'un tableau (corpus neuf) pose les 7 colonnes par défaut et une
-  ligne « entretien 1 » ; un corpus existant reçoit le même tableau à la migration.
+- La création d'un tableau (corpus neuf) pose les 3 colonnes traversantes, les 7
+  colonnes d'étapes par défaut et deux lignes « Entretien 1 » / « Entretien 2 » ;
+  un corpus existant reçoit le même tableau à la normalisation.
+- Une colonne peut être créée **traversante** (case à cocher à l'ajout) : une seule
+  case pour tous les entretiens, stockée dans la rangée dédiée `#traversant` et
+  rendue en cellule fusionnée. Supprimer une ligne ne touche pas les cellules traversantes.
 - Supprimer une colonne ou une ligne supprime ses cellules — **confirmation** si
   des cellules renseignées disparaissent ; suppression simple sinon.
 - Renommer une colonne ou une ligne ne touche jamais les cellules (identités stables).
@@ -142,7 +156,7 @@ est renseignée.
 | Couche | Travail |
 | --- | --- |
 | `src/shared/corpus/tableaubord.ts` | Types + commandes pures : `tableauBordParDefaut()`, `appliquerCommandeTableauBord()` (ajout/renommage/suppression de lignes et colonnes, édition de cellule), validation |
-| `src/shared/format.ts` | Champ `tableaubord` de `CorpusFichier`, types exportés ; **bump `FORMAT_VERSION` 7 → 8** avec normalisation à la lecture (tableau par défaut si absent), comme pour recueils et cas |
+| `src/shared/format.ts` | Champ `tableaubord` de `CorpusFichier` — **Champ ADDITIF optionnel SANS bump de version** (voir la note ci-dessous), normalisation à la lecture |
 | `src/main/corpusStore.ts` | Lecture du tableau avec le corpus, handler `corpus:commandeTableauBord` calqué sur les commandes recueils |
 | `src/main/distant/transactions.ts` | Les mutations passent dans les `TransactionsCorpus` existantes (verrou corpus court, GET frais, commande ciblée, PUT If-Match) — rien à inventer, stockage dans `corpus.json` retenu |
 | `src/preload/index.ts` | Contrat typé du pont |
@@ -152,8 +166,17 @@ est renseignée.
 
 Points d'attention hérités des chantiers précédents :
 
+- **Pas de bump `FORMAT_VERSION`** : la constante est partagée entre `corpus.json` et les
+  fichiers d'entretien ; un bump pour un champ corpus-seul aurait imposé la migration de
+  tous les entretiens (et un échange distant versionné) sans aucune nécessité. Le tableau
+  suit le precedent des champs additifs sans version (`categoriesNote`, `roles`) :
+  normalisation défensive à la lecture (`normaliserTableauBord`), tableau par défaut si le
+  champ est absent, et le squelette de création pose explicitement le tableau vierge.
+  Un ancien client qui réécrit `corpus.json` conserve le champ (l'objet parsé garde ses
+  propriétés) et reste supporté (version inchangée).
+
 - auditer les chemins qui reconstruisent ou normalisent `corpus.json` (création,
-  import V1, squelette, transactions distantes, miroir) pour que le tableau
+  import V1, transactions distantes, miroir) pour que le tableau
   survive à toutes les réécritures — ne pas conclure « champ optionnel donc
   rétrocompatible » sans vérifier ;
 - ignorer les réponses tardives d'un ancien corpus ou d'un ancien chargement ;
@@ -168,19 +191,20 @@ Points d'attention hérités des chantiers précédents :
 - [x] Q3 : lignes libres, sans lien au `membership`.
 
 ### Lot 1 — Modèle pur et contrat
-- [ ] `shared/corpus/tableaubord.ts` : types, tableau par défaut, commandes pures.
-- [ ] `shared/format.ts` : champ + bump version 8 + normalisation à la lecture.
-- [ ] Tests purs : commandes, suppressions avec/sans cellules, normalisation.
+- [x] `shared/corpus/tableaubord.ts` : types, tableau par défaut, commandes pures.
+- [x] `shared/format.ts` : champ additif sans bump de version + normalisation à la lecture.
+- [x] Tests purs : commandes, suppressions avec/sans cellules, normalisation.
 
 ### Lot 2 — Store, IPC, distant
-- [ ] Handler store + pont preload.
-- [ ] Passage par `TransactionsCorpus` (option A) : conflit ciblé, hors ligne.
-- [ ] Tests store : persistance, migration d'un corpus existant, distance.
+- [x] Handler store + pont preload + `env.d.ts`.
+- [x] Passage par `TransactionsCorpus` (via `executerDefinitions`, comme les autres définitions).
+- [x] Tests store : persistance, tableau par défaut d'un corpus ancien, garde lectureSeule.
 
 ### Lot 3 — Interface
-- [ ] Composable + composant fenêtre + bouton actif.
-- [ ] Survol, popover, confirmations de suppression.
-- [ ] Invalidation après tirage distant / changement de corpus.
+- [x] Composable + composant fenêtre + bouton actif.
+- [x] Survol (info-bulle), popover d'édition, confirmations de suppression.
+- [x] Invalidation : chargement de corpus, tirage distant (`rafraichirCorpusSansFermer`),
+      fermeture des fenêtres métier au changement de corpus.
 
 ### Lot 4 — Finition
 - [ ] Tests E2E du parcours : poser un marqueur, rouvrir, deuxième poste.
@@ -191,7 +215,7 @@ Points d'attention hérités des chantiers précédents :
 | Domaine | Cas |
 | --- | --- |
 | Modèle pur | CRUD lignes/colonnes, édition de cellule, date posée à la première saisie puis conservée aux modifications suivantes, reposée après vidage de la date, suppression avec cellules renseignées (refus sans confirmation côté UI, perte assumée après), identités stables aux renommages |
-| Format | Migration 7 → 8 : tableau par défaut injecté, conservation à toutes les réécritures (création, import, miroir, transactions) |
+| Format | Champ additif sans version : tableau par défaut lu sur un corpus ancien, conservation à toutes les réécritures (création, squelette, transactions) |
 | Store | Round-trip complet, réécriture après commande, échec d'écriture |
 | Distant | Deux postes éditent des cellules différentes (les deux passent), même cellule (conflit résolu par relire-modifier), hors ligne refusé, tirage rafraîchit la vue |
 | UI | Survol révèle note/date/responsable, case vide vs renseignée, suppression confirmée |
