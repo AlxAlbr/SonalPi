@@ -1,13 +1,12 @@
 import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../import/sas'
-import { exporterSonal, type EntreeExport } from '../../import/exportSonal'
+import { exporterSonal, sonalAnonymise, type EntreeExport } from '../../import/exportSonal'
 import {
   genererTxt,
   genererSrt,
   genererVtt,
   genererHtml,
   genererDonneesDocx,
-  sonalAnonymise,
   nomFichierExport,
   FORMATS_EXPORT,
   type ContexteExport,
@@ -299,7 +298,7 @@ export function useOperationsCorpus(deps: {
     switch (format) {
       case 'sonal': {
         const contenu = options.anon
-          ? sonalAnonymise(exporterSonal(ctx.entree))
+          ? sonalAnonymise(ctx.entree)
           : exporterSonal(ctx.entree)
         await window.sonal.dialog.choisirExport(nom, contenu)
         break

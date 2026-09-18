@@ -1,16 +1,15 @@
-import { exporterSonal, type EntreeExport } from './exportSonal'
+import { projeterSegments, appliquerAnonymisation, htmlDeSegment, type SegmentProjete, type FragmentProjete } from './projection'
+import type { EntreeExport } from './exportSonal'
 import type { Categorie, Locuteur, Note, NoteCategory, Variable } from '../../shared/format'
 import { corpsNoteEnTexte } from '../notes/sanitiser'
 
 // ----------------------------------------------------------------
-// EXPORTS TEXTUELS D'UN ENTRETIEN — TXT, SRT, VTT, HTML (+ .sonal anonymisé)
+// EXPORTS TEXTUELS D'UN ENTRETIEN — TXT, SRT, VTT, HTML
 // ----------------------------------------------------------------
 // Tous les générateurs partent de la MÊME source de vérité du découpage :
-// le fragment HTML segmenté produit par `exporterSonal` (spans `.lblseg` avec
-// leurs data-deb/data-fin/data-loc/classes cat_). On le parse avec DOMParser
-// puis on projette vers le format demandé — aucune duplication de la logique
-// de segmentation. Les générateurs sont purs : entrée (EntreeExport + options),
-// sortie = chaîne ; pas d'accès au DOM live ni au store.
+// `projeterSegments` (modèle JSON → segments typés, sans DOM). Les
+// générateurs sont purs : entrée (EntreeExport + options), sortie = chaîne ;
+// pas d'accès au DOM live ni au store.
 
 /** Options de la fenêtre d'export (cases à cocher du panneau « options »). */
 export interface OptionsExport {
@@ -141,87 +140,15 @@ export function optionsEfficaces(format: FormatExport, opts: OptionsExport): Opt
 }
 
 // ----------------------------------------------------------------
-// Projection du fragment `.sonal` en segments
+// Projection des segments (JSON), avec pseudonymisation si demandée
 // ----------------------------------------------------------------
 
-/** Un fragment de texte (span du `.sonal`) et ses catégories codées. */
-interface FragmentExport {
-  texte: string
-  thms: string[]
-}
-
-/** Un segment `.lblseg` du `.sonal` : bornes temporelles, locuteur, fragments de codage. */
-interface SegmentExport {
-  deb: number | null
-  fin: number | null
-  loc: number | null
-  fragments: FragmentExport[]
-}
-
-/** Lit les segments d'un fragment déjà parsé (et éventuellement anonymisé). */
-function extraireSegments(conteneur: Element): SegmentExport[] {
-  const segments: SegmentExport[] = []
-  for (const seg of conteneur.querySelectorAll('.lblseg')) {
-    const el = seg as HTMLElement
-    const fragments: FragmentExport[] = []
-    for (const span of seg.querySelectorAll('span:not(.lblseg)')) {
-      fragments.push({
-        texte: span.textContent ?? '',
-        thms: [...span.classList].filter((c) => c.startsWith('cat_')),
-      })
-    }
-    segments.push({
-      deb: el.dataset.deb ? Number(el.dataset.deb) : null,
-      fin: el.dataset.fin ? Number(el.dataset.fin) : null,
-      loc: el.dataset.loc != null && el.dataset.loc !== '' ? Number(el.dataset.loc) : null,
-      fragments,
-    })
-  }
-  return segments
-}
-
-/** Retire les balises chargeant des RESSOURCES DISTANTES (links, scripts src) :
- *  le DOM de test (happy-dom) les fetcherait, et une page hors ligne n'en veut pas. */
-function htmlSansRessources(html: string): string {
-  return html
-    .replace(/<link\b[^>]*>/gi, '')
-    .replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/gi, '')
-}
-
-/** Parse le `.sonal` sérialisé et extrait la liste ordonnée des segments ;
- *  avec `anon`, le fragment est pseudonymisé avant lecture. */
-function analyserContenu(sonalHtml: string, anon = false): SegmentExport[] {
-  const doc = new DOMParser().parseFromString(htmlSansRessources(sonalHtml), 'text/html')
-  const conteneur = doc.getElementById('contenuText')
-  if (!conteneur) throw new Error('.sonal invalide : pas de #contenuText')
-  if (anon) anonymiserFragment(conteneur)
-  return extraireSegments(conteneur)
-}
-
-/** Applique la pseudonymisation définitive au fragment : le texte des empan
- *  anonymisés devient `[pseudo]`, les exceptions restent en clair. Avec
- *  `garderLibelles`, les data-nomloc/data-locpseudo des tours sont conservés
- *  (voie `.sonal` : SonalPi1 re-dérive le libellé pseudonymisé à l'ouverture) ;
- *  pour les fichiers AUTONOMES (html/txt…), ils sont retirés — pas de fuite du
- *  vrai nom dans le source. */
-function anonymiserFragment(root: Element, garderLibelles = false): void {
-  for (const span of root.querySelectorAll('span.anon')) {
-    if (span.classList.contains('anon-exception')) {
-      span.classList.remove('anon-exception')
-      continue
-    }
-    const pseudo = span.getAttribute('data-pseudo')
-    if (pseudo != null) span.textContent = `[${pseudo}]`
-    span.classList.remove('anon')
-    span.removeAttribute('data-pseudo')
-    span.removeAttribute('data-anon-nt')
-  }
-  if (garderLibelles) return
-  for (const seg of root.querySelectorAll('.lblseg.ligloc')) {
-    seg.removeAttribute('data-nomloc')
-    seg.removeAttribute('data-locpseudo')
-    seg.classList.remove('loc-anon', 'loc-suggere-refuse')
-  }
+/** Segments du modèle pour un run d'export : pseudonymisés si l'option est
+ *  posée (libellés de locuteurs retirés — pas de fuite du vrai nom dans le
+ *  fichier produit). */
+function segmentsExport(e: EntreeExport, anon: boolean): SegmentProjete[] {
+  const segments = projeterSegments(e)
+  return anon ? appliquerAnonymisation(segments, { garderLibelles: false }) : segments
 }
 
 /** Nom AFFICHÉ de chaque locuteur (par index). Pseudonymisé seulement si
@@ -327,53 +254,78 @@ function sectionsContexte(ctx: ContexteExport, opts: OptionsExport, noms: Map<nu
   return { notes, vars }
 }
 
-/** Corps de texte commun TXT/DOCX : segments avec horodatage, libellés de
- *  locuteurs et [catégories] aux changements ; `grasInterviewer` pose le
- *  marqueur `{g}` sur les lignes de l'interviewer (DOCX). */
+/** Texte d'un fragment avec ses SAUTS DE LIGNE du modèle (hardBreak → \n).
+ *  Le `.sonal` les ignore (format SonalPi1 gelé) ; txt/docx les rendent en
+ *  retour à la ligne, les sous-titres les normalisent en espace. */
+function texteAvecSauts(frag: FragmentProjete): string {
+  let out = ''
+  let pos = 0
+  for (const s of frag.sauts) {
+    out += frag.texte.slice(pos, s) + '\n'
+    pos = s
+  }
+  return out + frag.texte.slice(pos)
+}
+
+/** Corps de texte commun TXT/DOCX : la mise en page suit les BLOCS
+ *  (paragraphe de l'éditeur) — un tour nouveau = ligne vide, un bloc du même
+ *  tour = simple retour, les cues internes coulent sans retour. Horodatage et
+ *  libellés de locuteurs aux débuts de tour ; `grasInterviewer` pose le
+ *  marqueur `{g}` sur la 1re ligne du tour (DOCX). */
 function corpsTexte(
   e: EntreeExport,
-  segments: SegmentExport[],
+  segments: SegmentProjete[],
   opts: OptionsExport,
   noms: Map<number, string>,
   grasInterviewer: boolean,
 ): string {
+  const thmStrDe = (frag: FragmentProjete): string =>
+    opts.thm
+      ? frag.codes
+          .map((code) => nomDeCode(e.codebook, code))
+          .filter((x): x is string => x != null)
+          .join(', ')
+      : ''
   let out = ''
-  let segPrec: SegmentExport | null = null
-  let locPrec = ''
+  let segPrec: SegmentProjete | null = null
   let thmPrec = ''
   for (const seg of segments) {
+    const blocChange = segPrec === null || seg.bloc !== segPrec.bloc
+    const tourChange = blocChange && segPrec !== null && seg.loc !== segPrec.loc
     const locNom = opts.loc && seg.loc != null ? (noms.get(seg.loc) ?? '') : ''
     const interviewer =
       grasInterviewer && seg.loc != null
         ? (e.locuteurs.find((l) => l.index === seg.loc)?.interviewer ?? false)
         : false
-    for (const frag of seg.fragments) {
-      const thmStr = opts.thm
-        ? frag.thms
-            .map((code) => nomDeCode(e.codebook, code))
-            .filter((x): x is string => x != null)
-            .join(', ')
-        : ''
-      const segChange = seg !== segPrec
-      const locChange = locNom !== locPrec
-      const thmChange = thmStr !== thmPrec
-      if (segPrec === null || (segChange && locChange)) {
-        if (segPrec !== null) out += '\n\n'
+    if (blocChange) {
+      if (segPrec === null) {
         if (opts.time && seg.deb != null) out += `${tempsCourt(seg.deb)} `
         if (opts.loc && locNom) out += `${interviewer ? '{g}' : ''}${locNom} `
-        if (opts.thm && thmStr) out += `[${thmStr}] `
+        const thmPrem = seg.fragments.length > 0 ? thmStrDe(seg.fragments[0]) : ''
+        if (thmPrem) out += `[${thmPrem}] `
         out += '\n'
-      } else if (segChange) {
+      } else if (tourChange) {
+        out += '\n\n'
+        if (opts.time && seg.deb != null) out += `${tempsCourt(seg.deb)} `
+        if (opts.loc && locNom) out += `${interviewer ? '{g}' : ''}${locNom} `
+        const thmPrem = seg.fragments.length > 0 ? thmStrDe(seg.fragments[0]) : ''
+        if (thmPrem) out += `[${thmPrem}] `
         out += '\n'
-        if (opts.thm && thmChange) out += `[${thmStr || '–'}] `
-      } else if (opts.thm && thmChange) {
-        out += ` [${thmStr || '–'}] `
+      } else {
+        out += '\n'
+        const thmPrem = seg.fragments.length > 0 ? thmStrDe(seg.fragments[0]) : ''
+        if (thmPrem !== thmPrec) out += `[${thmPrem || '–'}] `
       }
-      out += frag.texte
-      segPrec = seg
-      locPrec = locNom
-      thmPrec = thmStr
     }
+    let premierDuBloc = blocChange
+    for (const frag of seg.fragments) {
+      const thmStr = thmStrDe(frag)
+      if (!premierDuBloc && opts.thm && thmStr !== thmPrec) out += ` [${thmStr || '–'}] `
+      out += texteAvecSauts(frag)
+      thmPrec = thmStr
+      premierDuBloc = false
+    }
+    segPrec = seg
   }
   out += '\n'
   return out
@@ -387,7 +339,7 @@ function corpsTexte(
 export function genererTxt(ctx: ContexteExport, optsIn: OptionsExport): string {
   const opts = optionsEfficaces('txt', optsIn)
   const e = ctx.entree
-  const segments = analyserContenu(exporterSonal(e), opts.anon)
+  const segments = segmentsExport(e, opts.anon)
   const noms = nomsAffiches(e, opts.anon)
   const { notes, vars } = sectionsContexte(ctx, opts, noms)
 
@@ -407,14 +359,14 @@ export function genererTxt(ctx: ContexteExport, optsIn: OptionsExport): string {
  *  n'a pas de cue). */
 export function genererSrt(ctx: ContexteExport, optsIn: OptionsExport): string {
   const opts = optionsEfficaces('srt', optsIn)
-  const segments = analyserContenu(exporterSonal(ctx.entree), opts.anon)
+  const segments = segmentsExport(ctx.entree, opts.anon)
   const noms = nomsAffiches(ctx.entree, opts.anon)
   let out = ''
   let n = 0
   for (const seg of segments) {
     if (seg.deb == null || seg.fin == null) continue
     n++
-    const texte = seg.fragments.map((f) => f.texte).join('').trim().replace(/\s+/g, ' ')
+    const texte = seg.fragments.map((f) => texteAvecSauts(f)).join('').trim().replace(/\s+/g, ' ')
     let prefixe = ''
     if (opts.loc && seg.loc != null) {
       const nom = noms.get(seg.loc)
@@ -429,7 +381,7 @@ export function genererSrt(ctx: ContexteExport, optsIn: OptionsExport): string {
  *  borné ; codages en balises `<c.cat_XXX>` et locuteur en `<v Nom>`. */
 export function genererVtt(ctx: ContexteExport, optsIn: OptionsExport): string {
   const opts = optionsEfficaces('vtt', optsIn)
-  const segments = analyserContenu(exporterSonal(ctx.entree), opts.anon)
+  const segments = segmentsExport(ctx.entree, opts.anon)
   const noms = nomsAffiches(ctx.entree, opts.anon)
   const { notes } = sectionsContexte(ctx, opts, noms)
   let out = 'WEBVTT\n\n'
@@ -439,8 +391,8 @@ export function genererVtt(ctx: ContexteExport, optsIn: OptionsExport): string {
     if (seg.deb == null || seg.fin == null) continue
     let payload = ''
     for (const frag of seg.fragments) {
-      if (opts.thm && frag.thms.length > 0) payload += `<c.${frag.thms[0]}>${frag.texte}</c>`
-      else payload += frag.texte
+      if (opts.thm && frag.codes.length > 0) payload += `<c.${frag.codes[0]}>${texteAvecSauts(frag)}</c>`
+      else payload += texteAvecSauts(frag)
     }
     if (opts.loc && seg.loc != null) {
       const nom = noms.get(seg.loc)
@@ -459,7 +411,7 @@ export function genererDonneesDocx(
 ): { titre: string; entete: boolean; notes: string; variables: string; contenuTxt: string } {
   const opts = optionsEfficaces('docx', optsIn)
   const e = ctx.entree
-  const segments = analyserContenu(exporterSonal(e), opts.anon)
+  const segments = segmentsExport(e, opts.anon)
   const noms = nomsAffiches(e, opts.anon)
   const { notes, vars } = sectionsContexte(ctx, opts, noms)
   return {
@@ -520,79 +472,61 @@ function cssThemes(codebook: Categorie[], combos: string[]): string {
   return css
 }
 
-/** HTML autonome : en-tête optionnel, player (audio local référencé),
- *  sections notes/variables, légende des thèmes, texte avec codage. */
+/** Page autonome : en-tête optionnel, player (audio local référencé),
+ *  sections notes/variables, légende des thèmes, texte rendu depuis les
+ *  segments du modèle (en-têtes de locuteurs, boutons de lecture, tooltips). */
 export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string {
   const opts = optionsEfficaces('html', optsIn)
   const e = ctx.entree
-  const doc = new DOMParser().parseFromString(htmlSansRessources(exporterSonal(e)), 'text/html')
-  const conteneur = doc.getElementById('contenuText')
-  if (!conteneur) throw new Error('Fragment d\'export invalide : pas de #contenuText')
-  if (opts.anon) anonymiserFragment(conteneur)
+  const segments = segmentsExport(e, opts.anon)
   const noms = nomsAffiches(e, opts.anon)
 
-  // Combos multi-catégories présents dans le fragment (pour le CSS cumulé).
+  // Combos multi-catégories présents dans le texte (pour le CSS cumulé).
   const combos: string[] = []
-  for (const span of conteneur.querySelectorAll('span')) {
-    const cats = [...span.classList].filter((c) => c.startsWith('cat_'))
-    if (cats.length > 1) combos.push(cats.join(' '))
+  if (opts.thm) {
+    for (const seg of segments) {
+      for (const frag of seg.fragments) {
+        if (frag.codes.length > 1) combos.push(frag.codes.join(' '))
+      }
+    }
   }
   // CSS des thèmes : généré seulement si l'option est cochée (sinon aucune
   // trace de codage dans la page, ni classes ni règles).
   const cssThm = opts.thm ? cssThemes(e.codebook, combos) : ''
 
-  if (!opts.thm) {
-    for (const span of conteneur.querySelectorAll('span')) {
-      for (const c of [...span.classList].filter((x) => x.startsWith('cat_'))) {
-        span.classList.remove(c)
-      }
-    }
-  } else {
-    // Tooltip des catégories sur chaque fragment codé.
-    for (const span of conteneur.querySelectorAll('span')) {
-      const cats = [...span.classList].filter((c) => c.startsWith('cat_'))
-      if (cats.length === 0) continue
-      const nomsCats = cats
-        .map((code) => nomDeCode(e.codebook, code))
-        .filter((x): x is string => x != null)
-      if (nomsCats.length > 0) span.setAttribute('title', nomsCats.join(', \n'))
-    }
-  }
-  if (!opts.time) {
-    for (const el of conteneur.querySelectorAll('[data-deb], [data-fin]')) {
-      el.removeAttribute('data-deb')
-      el.removeAttribute('data-fin')
-    }
-  }
-
-  // En-têtes de locuteurs + boutons de lecture avant chaque tour (.ligloc).
+  // En-têtes de locuteurs + boutons de lecture avant chaque tour (.ligloc) ;
+  // bouton uniquement si l'audio local existe ET que les coordonnées sortent.
   const audioRef = ctx.audioRef ?? null
   const audioUrl = audioRef ? urlAudio(audioRef) : ''
-  if (opts.loc) {
-    for (const seg of Array.from(conteneur.querySelectorAll('.lblseg'))) {
-      if (!seg.classList.contains('ligloc')) continue
-      const el = seg as HTMLElement
-      const locIdx = el.dataset.loc
-      const nom = locIdx != null && locIdx !== '' ? noms.get(Number(locIdx)) : undefined
-      const deb = el.dataset.deb
-      const lignes = document.createElement('div')
-      lignes.className = 'ligloc-header'
-      if (audioUrl && deb) {
-        const btn = document.createElement('button')
-        btn.className = 'btn-play-seg'
-        btn.dataset.deb = deb
-        btn.title = tempsCourt(Number(deb))
-        btn.textContent = '\u25B6'
-        lignes.appendChild(btn)
-      }
-      if (nom) {
-        const nomSpan = document.createElement('span')
-        nomSpan.className = 'speaker-name'
-        nomSpan.textContent = nom
-        lignes.appendChild(nomSpan)
-      }
-      if (lignes.childNodes.length > 0) seg.parentNode?.insertBefore(lignes, seg)
+  const titreDe = (codes: string[]): string | null => {
+    const nomsCats = codes
+      .map((code) => nomDeCode(e.codebook, code))
+      .filter((x): x is string => x != null)
+    return nomsCats.length > 0 ? nomsCats.join(', \n') : null
+  }
+  let corps = ''
+  let segPrec: SegmentProjete | null = null
+  for (const seg of segments) {
+    // La mise en page suit les BLOCS (paragraphe de l'éditeur) : `<br>` aux
+    // frontières de blocs, cues internes coulent — comme dans l'interface ;
+    // les sauts internes d'un tour sont rendus dans les fragments eux-mêmes.
+    if (segPrec !== null && seg.bloc !== segPrec.bloc) corps += '<br>'
+    segPrec = seg
+    if (opts.loc && seg.libelle) {
+      const nom = seg.loc != null ? noms.get(seg.loc) : undefined
+      const btn =
+        audioUrl && seg.deb != null
+          ? `<button class="btn-play-seg" data-deb="${String(seg.deb)}" title="${tempsCourt(seg.deb)}">\u25B6</button>`
+          : ''
+      const nomSpan = nom ? `<span class="speaker-name">${echapper(nom)}</span>` : ''
+      if (btn || nomSpan) corps += `<div class="ligloc-header">${btn}${nomSpan}</div>`
     }
+    corps += htmlDeSegment(seg, {
+      time: opts.time,
+      thm: opts.thm,
+      titre: opts.thm ? titreDe : undefined,
+      sauts: true,
+    })
   }
 
   // Sections optionnelles.
@@ -670,7 +604,7 @@ ${sectionNotes}
 ${sectionVars}
 ${legende}
   <div id="ent-contenu">
-    ${conteneur.innerHTML}
+    ${corps}
   </div>
   <footer class="ent-footer">Sonal π 2</footer>
   ${scriptPlayer}
@@ -681,26 +615,6 @@ ${legende}
 /** Échappe les caractères sensibles d'un texte inséré dans le HTML. */
 function echapper(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-/** `.sonal` anonymisé : le fragment parsé est pseudonymisé puis re-sérialisé
- *  avec un anon-json vide (les règles ne quittent pas l'entretien). */
-export function sonalAnonymise(contenu: string): string {
-  const doc = new DOMParser().parseFromString(htmlSansRessources(contenu), 'text/html')
-  const conteneur = doc.getElementById('contenuText')
-  if (!conteneur) throw new Error('.sonal invalide : pas de #contenuText')
-  anonymiserFragment(conteneur, true)
-  const anonJson = doc.getElementById('anon-json')
-  if (anonJson) anonJson.textContent = '{\n[]\n}'
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-${doc.head.innerHTML}
-</head>
-<body>
-${doc.body.innerHTML}
-</body>
-</html>`
 }
 
 /** CSS de base de la page autonome (port de la V1, sans dépendance distante). */

@@ -7,12 +7,11 @@ import {
   genererHtml,
   genererDonneesDocx,
   nomFichierExport,
-  sonalAnonymise,
   texteVariablesPubliques,
   type OptionsExport,
   type ContexteExport,
 } from '../src/renderer/import/exportFormats'
-import { exporterSonal, type EntreeExport } from '../src/renderer/import/exportSonal'
+import { exporterSonal, sonalAnonymise, type EntreeExport } from '../src/renderer/import/exportSonal'
 import { importerSonal } from '../src/renderer/import/importSonal'
 import type { Note } from '../src/shared/format'
 
@@ -216,6 +215,58 @@ describe('TXT', () => {
   })
 })
 
+describe('mise en page par bloc (retours à la ligne de l éditeur)', () => {
+  /** Deux tours : « Question initiale ? » (Enquêteur), puis « Réponse une. »
+   *  + « Réponse deux. » (Karine) séparés par une ANCRE INTERNE (pos 35 →
+   *  offset plat 13) : deux cues dans le même bloc. */
+  function entreeAvecCues(): EntreeExport {
+    return entreeTeste()
+  }
+
+  /** Un bloc « Avant. » + hardBreak + « Après. » (PM 1..7, 7..8, 8..14). */
+  function entreeAvecSaut(): EntreeExport {
+    const base = entreeTeste()
+    return {
+      ...base,
+      corpsTexte: {
+        type: 'doc',
+        content: [{ type: 'paragraph', attrs: { loc: 1 }, content: [
+          { type: 'text', text: 'Avant.' },
+          { type: 'hardBreak' },
+          { type: 'text', text: 'Après.' },
+        ] }],
+      },
+      annotations: [],
+      ancres: [{ pos: 1, t: 1 }, { pos: 14, t: 3 }],
+      locuteurs: [{ index: 1, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null }],
+    }
+  }
+
+  test('TXT : cue interne = aucun retour, tour = ligne vide, saut = retour', () => {
+    const out = genererTxt(contexte(entreeAvecCues()), OPTIONS_TOUT)
+    // cue interne (2e ancre du bloc 2) : aucun retour entre « Réponse une. »
+    // et « Réponse deux. » ; ligne vide entre les tours ; horodatage/libellé
+    // uniquement aux débuts de tour.
+    expect(out).toContain('00:00:10 Karine \nKarine habite  [Lieu] Lyon [–]  depuis 2020.')
+    expect(out).toContain('\n\n00:00:25 Marc \nOù travaillez-vous ?')
+  })
+
+  test('TXT : un saut de ligne du modèle se retrouve dans l export', () => {
+    const out = genererTxt(contexte(entreeAvecSaut()), OPTIONS_TOUT)
+    expect(out).toContain('00:00:01 Karine \nAvant.\nAprès.')
+  })
+
+  test('SRT : le saut du modèle rend un espace, pas un retour', () => {
+    const out = genererSrt(contexte(entreeAvecSaut()), OPTIONS_TOUT)
+    expect(out).toContain('Avant. Après.')
+  })
+
+  test('HTML : le saut se rend en <br>', () => {
+    const out = genererHtml(contexte(entreeAvecSaut()), OPTIONS_TOUT)
+    expect(out).toContain('Avant.<br>Après.')
+  })
+})
+
 describe('SRT', () => {
   test('cues bornés par les ancres, horodatage virgule, locuteur en préfixe', () => {
     const out = genererSrt(contexte(), OPTIONS_TOUT)
@@ -321,15 +372,16 @@ describe('variables publiques', () => {
 
 describe('sonalAnonymise', () => {
   test('spans anon → [pseudo], anon-json vidé, fichier re-parsable', () => {
-    const sonal = exporterSonal(entreeTeste())
-    const out = sonalAnonymise(sonal)
+    const out = sonalAnonymise(entreeTeste())
     expect(texteDe(out)).toContain('[Marie] habite Lyon depuis 2020.')
     expect(out).not.toContain('>Karine habite')
     // Voie `.sonal` : les libellés restent parsables par SonalPi1 (pseudo conservé,
     // vrai nom posé sur data-nomloc comme la V1).
     expect(out).toContain('data-locpseudo="Claire"')
     expect(out).toContain('data-nomloc="Karine"')
-    expect(out).toContain('{\n[]\n}')
+    expect(out).toContain('<script id="anon-json" type="application/json">')
+    // anon-json vidé (l'export sérialise le tableau vide de serializeSonal).
+    expect(out).toMatch(/id="anon-json"[^>]*>\s*\{\s*\[\]\s*\}\s*<\/script>/)
     const doc = new DOMParser().parseFromString(out, 'text/html')
     const r = importerSonal(doc)
     expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Karine')

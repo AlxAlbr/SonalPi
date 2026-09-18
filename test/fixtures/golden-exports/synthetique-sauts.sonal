@@ -1,0 +1,68 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fichier Whispurge</title>
+   <link href="http://www.sonal-info.com/WHSPRG/CSS/Styles.css" rel="stylesheet"  type="text/css">
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+   <style>
+
+
+    body { margin: 20px; padding: 60px; font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; };
+    h1 { font-size: 24px; margin-bottom: 10px; };
+    h2 { font-size: 20px; margin-bottom: 8px; };
+
+    
+</style>
+ </head>
+
+<body>
+<script id="loc-json" type="application/json">
+        {
+            ["","Karine"]
+        }
+</script>
+<script id="cat-json" type="application/json">
+        {
+
+            []
+        }
+</script>
+<script id="var-json" type="application/json">
+        {
+            []
+        }
+</script>
+<script id="dic-json" type="application/json">
+        {
+            []
+        }
+</script>
+<script id="dat-json" type="application/json">
+        {
+            []
+        }
+</script>
+<script id="anon-json" type="application/json">
+        {
+            []
+        }
+</script>
+
+    <div style="margin-bottom: 5px !important;
+	margin-bottom: 5px !important;
+	margin: 40px;"
+	>
+
+    <H2 > Notes</H2>
+
+        <div id="txtnotes">
+        
+        </div>
+    </div>
+     <div id="contenuText">
+     <span class="lblseg sautlig ligloc" data-deb="1" data-fin="2" data-loc="1" tabindex="1" data-rksg="0" data-nomloc="Karine"><span class="" data-rk="1" data-sg="0" data-len="2">Avant.</span></span><span class="lblseg sautlig ligloc" data-deb="2" data-fin="3" data-loc="1" tabindex="3" data-rksg="1" data-nomloc="Karine"><span class="" data-rk="3" data-sg="1" data-len="2">Après.</span></span>
+</div></body>

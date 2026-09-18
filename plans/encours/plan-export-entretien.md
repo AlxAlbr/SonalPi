@@ -200,14 +200,39 @@ peut être repris tel quel (il ne dépend que de `data-deb` et de l'id audio).
 
 ## 7. Piste d'évolution — projection directe du modèle JSON
 
-Le pivot actuel est le FRAGMENT HTML sérialisé par `exporterSonal` : les
-formats texte le re-parsent avec DOMParser. C'est le port fidèle de la V1 (qui
-parsait aussi son HTML compacté) et le choix prudent : la logique de
-segmentation vit dans un code déjà testé, sans le toucher.
-
-Si une évolution le justifie (gros transcrits, formats structurés type CSV ou
-REFI-QDA), refactorer en une fonction PURE `projeterSegments(entree)` extraite
-de `exporterSonal` : un pipeline JSON modèle → segments typés → N formats,
-sans aller-retour DOM. Précondition : les tests golden/round-trip du `.sonal`
-restent verts (filet de sécurité) ; le refactor ne doit changer AUCUN octet de
-l'export `.sonal`.
+> Statut : **implémenté**. Le pivot est désormais la fonction pure
+> `projeterSegments(entree)` (`src/renderer/import/projection.ts`) : le modèle
+> JSON est projeté en segments typés (fragments, codes cat_*, anonymisation,
+> commentaires, ancres, libellés de tour), sans sérialisation HTML ni DOMParser.
+>
+> - `exportSonal.ts` consomme la projection pour sérialiser le `.sonal` : la
+>   sortie est restée **bit-à-bit identique**, attestée par le test golden
+>   octet par octet (`test/exportSonalGolden.test.ts`, fixtures entretien1-3 +
+>   cas synthétiques dans `test/fixtures/golden-exports/`) en plus des
+>   round-trips existants.
+> - `exportFormats.ts` consomme la projection directement (txt, srt, vtt,
+>   docx) ; la pseudonymisation est une transformation pure du JSON
+>   (`appliquerAnonymisation`), plus de manipulation DOM du fragment.
+> - La page HTML autonome est rendue depuis la projection via
+>   `htmlDeSegment` (options time/thm/tooltip) ; les artefacts de sérialisation
+>   SonalPi1 (data-rk, data-sg, data-len, tabindex) y subsistent comme dans la
+>   version précédente.
+> - `sonalAnonymise` prend désormais l'`EntreeExport` (plus le `.sonal`
+>   sérialisé) : le fichier anonymisé est produit par projection + re-sérialisation,
+>   anon-json vidé. Seuls `data-len`/compteurs rk sont re-dérivés sur les textes
+>   pseudonymisés (plus cohérent avec les contenus réels).
+>
+> Ce pivot ouvre la voie à des formats structurés (CSV d'extraits, REFI-QDA)
+> sans aller-retour DOM.
+>
+> Suite : les RETOURS À LA LIGNE du modèle (nœuds hardBreak, Shift+Entrée) sont
+> désormais portés par la projection (`FragmentProjete.sauts`) et rendus dans
+> les formats texte : retour à la ligne aux frontières de blocs (paragraphe de
+> l'éditeur) et aux hardBreaks, RIEN aux frontières de cues internes (un cue
+> n'est qu'un intervalle d'ancres, pas une ligne). Entre deux tours = ligne vide
+> (`\n\n`), bloc du même tour = simple retour, sous-titres = espace normalisé.
+> Le `.sonal` reste plat (format SonalPi1 gelé) : un aller-retour via `.sonal`
+> perd les sauts internes au paragraphe, la sauvegarde native V2 les conserve.
+> Au passage, l'arithmétique des ancres compte désormais le poids PM du
+> hardBreak : les timecodes des blocs contenant un saut, faussés d'un caractère
+> par occurrence, sont exacts (golden `synthetique-sauts.sonal`).
