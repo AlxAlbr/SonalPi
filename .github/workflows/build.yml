@@ -1,0 +1,79 @@
+name: Build SonalPi (Windows)
+
+# Empaquetage Windows de SonalPi2, sur le modèle du v1 (AlxAlbr/SonalPi) :
+# job test (garde-fou) + job package sur runner Windows natif (electron-vite
+# → electron-builder → installeur NSIS). Pas de signature : installeur non
+# signé, donc SmartScreen à la première installation.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - main # artefacts de branche uniquement (rétention courte)
+  workflow_dispatch: # déclenchement manuel depuis l'interface GitHub
+
+permissions:
+  contents: write # requis pour créer des Releases et déposer les assets
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests unitaires
+        run: npm test
+
+  package:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Compiler puis empaqueter (NSIS)
+        run: npm run pack
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false # pas de signature de code
+
+      - name: Lister les artefacts
+        run: Get-ChildItem -Path "dist\*.exe"
+
+      - name: Uploader les artefacts (branche/manuel)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonalpi-windows
+          path: dist/*.exe
+          retention-days: 7
+
+      - name: Publier la Release (tags uniquement)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

@@ -10,6 +10,7 @@ import DesignationAudioDistante from './components/distant/DesignationAudioDista
 import RecueilsModale from './components/RecueilsModale.vue'
 import TableauBordModale from './components/TableauBordModale.vue'
 import CasModale from './components/CasModale.vue'
+import DocsCadreModale from './components/DocsCadreModale.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
@@ -91,6 +92,7 @@ const {
     <CasModale />
     <RecueilsModale />
     <TableauBordModale />
+    <DocsCadreModale />
   </main>
 </template>
 

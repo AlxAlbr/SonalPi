@@ -1,0 +1,160 @@
+import { test, expect } from '@playwright/test'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { ouvrirSurCorpus } from './util'
+
+function pdfMinimal(): Buffer {
+  const contenu1 = 'BT /F1 18 Tf 40 120 Td (Apercu PDF page 1) Tj ET'
+  const contenu2 = 'BT /F1 18 Tf 40 120 Td (Apercu PDF page 2) Tj ET'
+  const objets = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 320 180] /Resources << /Font << /F1 7 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 320 180] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>',
+    `<< /Length ${contenu1.length} >>\nstream\n${contenu1}\nendstream`,
+    `<< /Length ${contenu2.length} >>\nstream\n${contenu2}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ]
+  let pdf = '%PDF-1.4\n'
+  const positions = [0]
+  objets.forEach((objet, index) => {
+    positions.push(Buffer.byteLength(pdf, 'ascii'))
+    pdf += `${index + 1} 0 obj\n${objet}\nendobj\n`
+  })
+  const positionXref = Buffer.byteLength(pdf, 'ascii')
+  pdf += `xref\n0 ${objets.length + 1}\n0000000000 65535 f \n`
+  for (const position of positions.slice(1)) {
+    pdf += `${String(position).padStart(10, '0')} 00000 n \n`
+  }
+  pdf += `trailer\n<< /Size ${objets.length + 1} /Root 1 0 R >>\nstartxref\n${positionXref}\n%%EOF\n`
+  return Buffer.from(pdf, 'ascii')
+}
+
+/**
+ *  « Docs cadre projet » dans la vraie app : bouton actif depuis l'écran
+ *  Corpus, fenêtre à deux zones (Vos Documents / Documents exemples),
+ *  aperçus fiables (texte brut), actions locales toujours accessibles
+ *  (ajout, ouverture du dossier), lecture seule des exemples et gestion
+ *  retirée de l'interface (renommer/supprimer hors SonalPi).
+ */
+
+test('bouton actif, sections dans l’ordre, état vide et aperçu d’un exemple', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-docs-')
+
+  // Le bouton n'est plus une étiquette « À venir » : il ouvre la fenêtre.
+  const bouton = page.locator('.barre-outils').getByRole('button', { name: 'Docs cadre projet' })
+  await expect(bouton).toBeEnabled()
+  await bouton.click()
+
+  const fenetre = page.locator('.modale-docs-cadre')
+  await expect(fenetre).toBeVisible()
+  // Ordre des sections : Vos Documents PUIS Documents exemples.
+  await expect(fenetre.locator('h3')).toHaveCount(2)
+  await expect(fenetre.locator('h3').first()).toHaveText('Vos Documents')
+  await expect(fenetre.locator('h3').nth(1)).toHaveText('Documents exemples')
+  // État vide : « Vous n'avez pas encore de document. »
+  await expect(fenetre.locator('.cote')).toContainText('Vous n’avez pas encore de document.')
+
+  // L'action ouvre directement le sous-dossier DocsCadre du corpus, et elle
+  // est accessible dès l'état vide (défaut corrigé : elle vivait dans le
+  // panneau droit, donc seulement avec une sélection).
+  await app.evaluate(({ shell }) => {
+    shell.openPath = async (chemin) => {
+      process.env.SONAL_TEST_DOSSIER_OUVERT = chemin
+      return ''
+    }
+  })
+  await expect(fenetre.locator('.cote').getByRole('button', { name: 'Ouvrir le dossier' })).toBeVisible()
+  await fenetre.locator('.cote').getByRole('button', { name: 'Ouvrir le dossier' }).click()
+  await expect.poll(() => app.evaluate(() => process.env.SONAL_TEST_DOSSIER_OUVERT)).toContain('DocsCadre')
+  await expect(fenetre.locator('.message-action')).toContainText('gestionnaire de fichiers')
+
+  // Aperçu d'un exemple embarqué : texte affiché tel quel.
+  await fenetre.locator('.document', { hasText: 'Guide de correction.txt' }).click()
+  await expect(fenetre.locator('.fiche-zone')).toContainText('Guide de correction.txt')
+  await expect(fenetre.locator('.texte-echappe')).toContainText('À venir.')
+  // Les exemples sont immuables : aucune mutation proposée.
+  await expect(fenetre.locator('.fiche-zone')).not.toContainText('Renommer')
+  await expect(fenetre.locator('.fiche-zone')).not.toContainText('Supprimer')
+  await expect(fenetre.locator('.fiche-zone')).toContainText('Enregistrer une copie')
+
+  // Fermeture (bouton Quitter).
+  await fenetre.getByRole('button', { name: /Quitter/ }).click()
+  await expect(fenetre).toBeHidden()
+  await app.close()
+})
+
+test('aperçu PDF intégré avec navigation et zoom', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-docs-pdf-')
+  const userDataDir = await app.evaluate(({ app: application }) => application.getPath('userData'))
+  const cheminDocs = join(userDataDir, 'corpus', 'DocsCadre')
+  mkdirSync(cheminDocs, { recursive: true })
+  writeFileSync(join(cheminDocs, 'Protocole.pdf'), pdfMinimal())
+
+  const fenetre = page.locator('.modale-docs-cadre')
+  await page.locator('.barre-outils').getByRole('button', { name: 'Docs cadre projet' }).click()
+  await fenetre.locator('.document', { hasText: 'Protocole.pdf' }).click()
+  await expect(fenetre.locator('.apercu-pdf')).toBeVisible()
+  await expect(fenetre.locator('.barre-pdf')).toContainText('Page 1 / 2')
+  await expect.poll(() =>
+    fenetre.locator('.page-pdf canvas').evaluate((element) => (element as HTMLCanvasElement).width),
+  ).toBeGreaterThan(0)
+
+  await fenetre.locator('.barre-pdf').getByRole('button', { name: 'Page suivante' }).click()
+  await expect(fenetre.locator('.barre-pdf')).toContainText('Page 2 / 2')
+  await fenetre.locator('.barre-pdf').getByRole('button', { name: 'Agrandir' }).click()
+  await expect(fenetre.locator('.barre-pdf')).toContainText('125 %')
+  await app.close()
+})
+
+test('ajout, lecture seule et persistance d’un document du corpus', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-docs-b-')
+  const source = join(mkdtempSync(join(tmpdir(), 'sonal-docs-src-')), 'Consignes internes.txt')
+  writeFileSync(source, 'Texte des consignes <non interprété>')
+
+  // Stub du dialogue natif d'ouverture : le main copie le fichier choisi.
+  await app.evaluate(({ dialog }, fichier) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [fichier] })
+  }, source)
+
+  const fenetre = page.locator('.modale-docs-cadre')
+  await page.locator('.barre-outils').getByRole('button', { name: 'Docs cadre projet' }).click()
+  await expect(fenetre).toBeVisible()
+  await fenetre.locator('.cote').getByRole('button', { name: /Ajouter un fichier/ }).click()
+
+  // Le document apparaît dans Vos Documents, avec un aperçu TEXTE ÉCHAPPÉ :
+  // ses balises ne sont jamais rendues.
+  await expect(fenetre.locator('.cote .document', { hasText: 'Consignes internes.txt' })).toBeVisible()
+  await expect(fenetre.locator('.texte-echappe')).toContainText('Texte des consignes <non interprété>')
+  await expect(fenetre.locator('.texte-echappe b')).toHaveCount(0)
+
+  // Gestion retirée de l'interface : renommer et supprimer se font hors
+  // SonalPi (gestionnaire de fichiers ou Nextcloud).
+  await fenetre.locator('.cote .document', { hasText: 'Consignes internes.txt' }).click()
+  await expect(fenetre.locator('.fiche-zone')).not.toContainText('Renommer')
+  await expect(fenetre.locator('.fiche-zone')).not.toContainText('Supprimer')
+  await expect(fenetre.locator('.fiche-zone')).toContainText('Ouvrir avec l’application')
+
+  // Réouverture : le document est toujours là (aucune suppression implicite).
+  await fenetre.getByRole('button', { name: /Quitter/ }).click()
+  await page.locator('.barre-outils').getByRole('button', { name: 'Docs cadre projet' }).click()
+  await expect(fenetre.locator('.cote .document', { hasText: 'Consignes internes.txt' })).toBeVisible()
+  await app.close()
+})
+
+test('fichier déposé à la main dans DocsCadre/ est découvert à l’actualisation', async () => {
+  const { app, page } = await ouvrirSurCorpus('sonal-docs-c-')
+  const fenetre = page.locator('.modale-docs-cadre')
+  await page.locator('.barre-outils').getByRole('button', { name: 'Docs cadre projet' }).click()
+  await expect(fenetre).toBeVisible()
+  // L'ouverture de la fenêtre avec action « Ouvrir le dossier » crée DocsCadre/ ;
+  // ici l'utilisateur dépose un fichier à la main puis actualise.
+  const userDataDir = await app.evaluate(({ app: application }) => application.getPath('userData'))
+  const cheminDocs = join(userDataDir, 'corpus', 'DocsCadre')
+  mkdirSync(cheminDocs, { recursive: true })
+  writeFileSync(join(cheminDocs, 'Depose manuelle.txt'), 'Déposé à la main.')
+  await fenetre.locator('.cote').getByRole('button', { name: /Actualiser/ }).click()
+  await expect(fenetre.locator('.cote .document', { hasText: 'Depose manuelle.txt' })).toBeVisible()
+  await app.close()
+})

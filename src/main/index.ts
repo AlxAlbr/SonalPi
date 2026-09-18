@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, protocol, shell } from 'electron'
 import type {
   IpcMainInvokeEvent,
   OpenDialogOptions,
@@ -7,7 +7,7 @@ import type {
   SaveDialogReturnValue,
 } from 'electron'
 import { join, basename, extname, dirname } from 'node:path'
-import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, createReadStream, statSync, cpSync, existsSync, readdirSync, copyFileSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import {
   CorpusStore,
@@ -68,6 +68,33 @@ import type {
 } from '../shared/distant'
 import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
 import { EXT_MEDIA } from '../shared/media'
+import {
+  inventaireDocsCadreLocal,
+  inventaireExemplesDocsCadre,
+  lireApercuLocal,
+  lireApercuExemple,
+  ajouterFichierLocal,
+  deposerFichierLocal,
+  renommerLocal,
+  supprimerLocal,
+  resoudreDossierLocal,
+  resoudreLocal,
+  resoudreExemple,
+  enregistrerCopieLocal,
+} from './docsCadre'
+import {
+  inventaireDocsCadreDistant,
+  lireApercuDistant,
+  enregistrerCopieDistant,
+  urlNextcloudPourCorpus,
+} from './docsCadreDistant'
+import type {
+  InventaireDocsCadre,
+  ResultatLectureDocsCadre,
+  ResultatMutationDocsCadre,
+  SourceDocumentCadre,
+} from '../shared/docsCadre'
+import { estListable } from '../shared/docsCadre'
 import { rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev,
@@ -882,6 +909,147 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     store.marquerDemo(marqueur),
   )
 
+  // --- Docs cadre projet : documents de méthode propres au corpus courant ---
+  // Le renderer ne transmet JAMAIS de chemin : une source ('projet' | 'exemple')
+  // et un nom validé côté main. Les racines (corpus courant, exemples embarqués)
+  // sont résolues ICI, à partir du contexte de corpus — jamais depuis l'IPC.
+  // Les exemples n'ont aucune voie de mutation (lecture + copie seulement).
+  const REFUS_DOCS_CADRE_DISTANT =
+    'Ces documents sont en lecture seule dans un corpus distant. ' +
+    'Pour les modifier, ouvrez le dossier dans Nextcloud.'
+  const dirExemplesDocs = cheminExemplesDocsCadre()
+
+  ipcMain.handle('docsCadre:lister', async (): Promise<InventaireDocsCadre> => {
+    const actif = miroirActif
+    const exemples = inventaireExemplesDocsCadre(dirExemplesDocs)
+    if (actif) {
+      try {
+        return {
+          mode: 'distant',
+          projet: await inventaireDocsCadreDistant(actif.miroir.accesClient()),
+          exemples,
+        }
+      } catch (erreur) {
+        return {
+          mode: 'distant',
+          projet: [],
+          exemples,
+          erreurProjet: erreur instanceof Error
+            ? erreur.message
+            : 'Impossible de lire les documents du corpus distant.',
+        }
+      }
+    }
+    return { mode: 'local', projet: inventaireDocsCadreLocal(dossierCourant), exemples }
+  })
+
+  ipcMain.handle(
+    'docsCadre:lireApercu',
+    async (_e, source: SourceDocumentCadre, nom: string): Promise<ResultatLectureDocsCadre> => {
+      if ((source !== 'projet' && source !== 'exemple') || !estListable(nom)) {
+        throw new Error('Document cadre invalide.')
+      }
+      if (source === 'exemple') return lireApercuExemple(dirExemplesDocs, nom)
+      const actif = miroirActif
+      if (actif) return lireApercuDistant(actif.miroir.accesClient(), nom)
+      return lireApercuLocal(dossierCourant, nom)
+    },
+  )
+
+  /** « Ajouter un fichier » : le sélecteur natif vit ICI ; le chemin choisi ne
+   *  traverse pas le pont. Un 2e appel avec `nomSouhaite` (suffixe proposé
+   *  après collision) copie sous un autre nom, jamais un écrasement. */
+  ipcMain.handle(
+    'docsCadre:ajouterFichier',
+    async (e, nomSouhaite?: string): Promise<ResultatMutationDocsCadre> => {
+      if (miroirActif) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+      const r = await montrerOuvrir(e, {
+        title: 'Ajouter un document au corpus',
+        properties: ['openFile'],
+      })
+      if (r.canceled || r.filePaths.length === 0) return { ok: false, raison: 'annule' }
+      return ajouterFichierLocal(dossierCourant, r.filePaths[0], nomSouhaite)
+    },
+  )
+
+  /** « Glisser-déposer » : copie du fichier déposé vers `DocsCadre/`.
+   *  Le chemin vient du drop (pas d'un dialogue) mais n'existe QUE dans le
+   *  main : validation fichier régulier, refus distant, jamais d'écrasement. */
+  ipcMain.handle(
+    'docsCadre:deposer',
+    (_e, cheminSource: string): ResultatMutationDocsCadre => {
+      if (miroirActif) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+      if (typeof cheminSource !== 'string' || !cheminSource.trim()) {
+        throw new Error('Dépôt invalide : source manquante.')
+      }
+      return deposerFichierLocal(dossierCourant, cheminSource)
+    },
+  )
+
+  ipcMain.handle(
+    'docsCadre:renommer',
+    (_e, ancienNom: string, nouveauNom: string): ResultatMutationDocsCadre => {
+      if (miroirActif) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+      return renommerLocal(dossierCourant, ancienNom, nouveauNom)
+    },
+  )
+
+  ipcMain.handle('docsCadre:supprimer', (_e, nom: string): ResultatMutationDocsCadre => {
+    if (miroirActif) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    return supprimerLocal(dossierCourant, nom)
+  })
+
+  ipcMain.handle('docsCadre:ouvrir', async (_e, nom: string): Promise<void> => {
+    if (miroirActif) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    const erreur = await shell.openPath(resoudreLocal(dossierCourant, nom))
+    if (erreur) throw new Error(`Ouverture impossible : ${erreur}.`)
+  })
+
+  /** Ouvre le dossier `DocsCadre/` dans le gestionnaire de fichiers ; sa
+   *  création explicite ici permet aussi d'y déposer ses documents à la main. */
+  ipcMain.handle('docsCadre:ouvrirDossier', async (): Promise<void> => {
+    if (miroirActif) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    const dir = resoudreDossierLocal(dossierCourant)
+    const erreur = await shell.openPath(dir)
+    if (erreur) throw new Error(`Ouverture du dossier impossible : ${erreur}.`)
+  })
+
+  /** « Enregistrer une copie » : le fichier original, octet pour octet,
+   *  vers une destination choisie ; en FLUX pour un distant volumineux. */
+  ipcMain.handle(
+    'docsCadre:enregistrerCopie',
+    async (e, source: SourceDocumentCadre, nom: string): Promise<boolean> => {
+      if ((source !== 'projet' && source !== 'exemple') || !estListable(nom)) {
+        throw new Error('Document cadre invalide.')
+      }
+      const sourceExemple = source === 'exemple' ? resoudreExemple(dirExemplesDocs, nom) : null
+      const r = await montrerSauver(e, { defaultPath: nom })
+      if (r.canceled || !r.filePath) return false
+      if (sourceExemple) {
+        copyFileSync(sourceExemple, r.filePath)
+        return true
+      }
+      const actif = miroirActif
+      if (actif) {
+        await enregistrerCopieDistant(actif.miroir.accesClient(), nom, r.filePath)
+        return true
+      }
+      enregistrerCopieLocal(dossierCourant, nom, r.filePath)
+      return true
+    },
+  )
+
+  /** « Ouvrir dans Nextcloud » : URL construite et validée côté main,
+   *  JAMAIS fournie par le renderer ; le mot de passe d'application n'est
+   *  jamais transmis au navigateur. Racine non reconnue → refus propre. */
+  ipcMain.handle('docsCadre:ouvrirDansNextcloud', async (): Promise<void> => {
+    const actif = miroirActif
+    if (!actif) throw new Error('Le corpus courant est local : « Ouvrir dans Nextcloud » n’a pas de sens ici.')
+    const url = urlNextcloudPourCorpus(actif.miroir.accesClient().config.baseUrl)
+    if (!url) throw new Error('L’adresse du corpus distant ne correspond pas à un serveur Nextcloud reconnu.')
+    await shell.openExternal(url)
+  })
+
   // --- Corpus distant : connexion et ouverture ---
   const sansSecret = (config: ConfigCorpusDistant): CompteDistantPublic => ({
     id: config.id,
@@ -1418,6 +1586,14 @@ function cheminCorpusTest(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'CorpusTest')
     : join(app.getAppPath(), 'CorpusTest')
+}
+
+/** Ressources « Documents exemples » des Docs cadre (même principe que CorpusTest).
+ *  Dev : ressources/ à la racine du projet ; prod : copié en ressources empaquetées. */
+function cheminExemplesDocsCadre(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'docsCadreExemples')
+    : join(app.getAppPath(), 'ressources', 'docsCadreExemples')
 }
 
 /** Clefs des sources bundled (une par entretien de démo) ;

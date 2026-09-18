@@ -104,6 +104,10 @@ export class PublieurCorpus {
     await client.mkcol('verrous')
     await client.mkcol('presence')
     await client.mkcol('corbeille')
+    // Dossier des « Docs cadre projet » : vidé à la création, rempli par
+    // l'utilisateur sur Nextcloud ; un corpus antérieur sans ce dossier le
+    // traite simplement comme vide (404 → liste vide).
+    await client.mkcol('DocsCadre')
     try {
       await client.putTexte('corpus.json', JSON.stringify(squeletteCorpus(nom), null, 2), {
         ifNoneMatch: '*',

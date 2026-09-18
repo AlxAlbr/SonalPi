@@ -62,6 +62,12 @@ export class MiroirWebDAV {
     private readonly surProgression?: (p: ProgressionTransfert) => void,
   ) {}
 
+  /** Accès client pour les lectures directes hors miroir (ex. DocsCadre/,
+   *  consultation sans copie locale). Le secret ne quitte jamais le main. */
+  accesClient(): ClientWebDAV {
+    return this.client
+  }
+
   private get fichierManifeste(): string {
     return join(this.dirLocal, '.manifeste.json')
   }

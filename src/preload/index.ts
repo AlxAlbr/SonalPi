@@ -30,6 +30,12 @@ import type {
   ParamsAnon,
 } from '../shared/format'
 import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
+import type {
+  InventaireDocsCadre,
+  ResultatLectureDocsCadre,
+  ResultatMutationDocsCadre,
+  SourceDocumentCadre,
+} from '../shared/docsCadre'
 import type { ScanRegle } from '../shared/corpus/scanAnon'
 import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/personnes'
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
@@ -87,6 +93,41 @@ contextBridge.exposeInMainWorld('sonal', {
       ipcRenderer.on('application:preparerFermeture', ecouteur)
       return () => ipcRenderer.removeListener('application:preparerFermeture', ecouteur)
     },
+  },
+  /** Docs cadre projet : documents de méthode propres au corpus courant.
+   *  Le renderer ne transmet qu'une source et un nom, jamais un chemin.
+   *  Les mutations sont refusées par le main en corpus distant et pour les
+   *  exemples (lecture + copie seulement). */
+  docsCadre: {
+    /** Inventaire complet : mode, documents du corpus, exemples embarqués. */
+    lister: (): Promise<InventaireDocsCadre> => invoquer('docsCadre:lister'),
+    /** Fiche + aperçu d'un document ; formats non pris en charge expliqués. */
+    lireApercu: (source: SourceDocumentCadre, nom: string): Promise<ResultatLectureDocsCadre> =>
+      invoquer('docsCadre:lireApercu', source, nom),
+    /** Sélecteur natif + copie du fichier choisi dans DocsCadre/ ;
+     *  un 2e appel avec `nomSouhaite` reprend après collision (suffixe proposé). */
+    ajouterFichier: (nomSouhaite?: string): Promise<ResultatMutationDocsCadre> =>
+      invoquer('docsCadre:ajouterFichier', nomSouhaite),
+    /** Copie d'un fichier glissé-déposé vers DocsCadre/ ; jamais un
+     *  écrasement (homonyme refusé). Vaut pour le corpus local uniquement. */
+    deposer: (cheminSource: string): Promise<ResultatMutationDocsCadre> =>
+      invoquer('docsCadre:deposer', cheminSource),
+    renommer: (ancienNom: string, nouveauNom: string): Promise<ResultatMutationDocsCadre> =>
+      invoquer('docsCadre:renommer', ancienNom, nouveauNom),
+    /** Suppression douce : le fichier part sous corbeille/DocsCadre/. */
+    supprimer: (nom: string): Promise<ResultatMutationDocsCadre> =>
+      invoquer('docsCadre:supprimer', nom),
+    /** Ouvre le document avec l'application par défaut du poste. */
+    ouvrirAvecApplication: (nom: string): Promise<void> =>
+      invoquer('docsCadre:ouvrir', nom),
+    /** Ouvre le dossier DocsCadre/ dans le gestionnaire de fichiers. */
+    ouvrirDossierLocal: (): Promise<void> => invoquer('docsCadre:ouvrirDossier'),
+    /** Copie EXACTE du fichier original vers une destination choisie
+     *  (false si annulé). Flux streamé pour un distant volumineux. */
+    enregistrerCopie: (source: SourceDocumentCadre, nom: string): Promise<boolean> =>
+      invoquer('docsCadre:enregistrerCopie', source, nom),
+    /** Corpus distant : ouvre le dossier du corpus dans l'app Fichiers Nextcloud. */
+    ouvrirDansNextcloud: (): Promise<void> => invoquer('docsCadre:ouvrirDansNextcloud'),
   },
   corpus: {
     /** S'abonner aux bascules « corpus courant supprimé sur disque ».

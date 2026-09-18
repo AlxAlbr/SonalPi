@@ -102,7 +102,6 @@ function ouvrirRecueilsDepuisSelection() {
              vient sous cette barre. -->
         <div class="barre">
           <button class="retour" @click="retourCorpus">← Corpus</button>
-          <span class="barre-aide">Sélectionne du texte, puis clique un thème (onglet Thématique) pour le coder.</span>
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
                le bandeau 🔒 au-dessus parle déjà. -->

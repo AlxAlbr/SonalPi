@@ -58,6 +58,12 @@ import type {
   ResultatFermetureSession,
   ResultatTiragePublic,
 } from '../shared/distant'
+import type {
+  InventaireDocsCadre,
+  ResultatLectureDocsCadre,
+  ResultatMutationDocsCadre,
+  SourceDocumentCadre,
+} from '../shared/docsCadre'
 
 declare global {
   interface Window {
@@ -65,6 +71,18 @@ declare global {
       platform: string
       application: {
         surPreparationFermeture: (cb: () => Promise<void>) => () => void
+      }
+      docsCadre: {
+        lister: () => Promise<InventaireDocsCadre>
+        lireApercu: (source: SourceDocumentCadre, nom: string) => Promise<ResultatLectureDocsCadre>
+        ajouterFichier: (nomSouhaite?: string) => Promise<ResultatMutationDocsCadre>
+        deposer: (cheminSource: string) => Promise<ResultatMutationDocsCadre>
+        renommer: (ancienNom: string, nouveauNom: string) => Promise<ResultatMutationDocsCadre>
+        supprimer: (nom: string) => Promise<ResultatMutationDocsCadre>
+        ouvrirAvecApplication: (nom: string) => Promise<void>
+        ouvrirDossierLocal: () => Promise<void>
+        enregistrerCopie: (source: SourceDocumentCadre, nom: string) => Promise<boolean>
+        ouvrirDansNextcloud: () => Promise<void>
       }
       corpus: {
         surSuppressionCourant: (cb: (r: OuvertureCorpus | null) => void) => () => void

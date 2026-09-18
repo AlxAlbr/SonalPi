@@ -9,6 +9,7 @@ import { useDistantCorpus } from './corpus/useDistantCorpus'
 import { useCycleCorpus } from './corpus/useCycleCorpus'
 import { useOperationsCorpus } from './corpus/useOperationsCorpus'
 import { useRecueilsCorpus } from './corpus/useRecueilsCorpus'
+import { useDocsCadre } from './corpus/useDocsCadre'
 import { useCasCorpus } from './corpus/useCasCorpus'
 import { useTableauBordCorpus } from './corpus/useTableauBordCorpus'
 import { useEntretien } from './useEntretien'
@@ -373,6 +374,22 @@ export function creerSonal() {
   proposerFusionDepuisCycle = proposerFusionDivergence
   reinitialiserDivergenceDepuisDistant = reinitialiserDivergence
 
+  // Fenêtre « Docs cadre projet » : l'espace documentaire propre au corpus.
+  // Le mode local/distant est relu au moment de l'ouverture (le corpus
+  // distant actif est le critère ; le main garantit de toute façon la lecture
+  // seule pour les mutations). Elle ferme les autres fenêtres métier,
+  // et est fermée/resetée par chacune d'elles et à la bascule de corpus.
+  const docsCadre = useDocsCadre({
+    estDistant: () => idDistantCourant.value !== null,
+    fermerAutreFenetre: () => {
+      recueilsCorpus.fermerRecueils()
+      casCorpus.fermerCas()
+      tableauBordCorpus.fermerTableauBord()
+    },
+  })
+  // Closures des autres fenêtres : leur ouverture referme aussi celle-ci.
+  const fermerDocsCadreDepuisFenetre = () => docsCadre.fermerDocsCadre()
+
   let fermerCasPourRecueils: () => void = () => {}
   const recueilsCorpus = useRecueilsCorpus({
     recueils: corpus.recueils,
@@ -381,7 +398,10 @@ export function creerSonal() {
     sourceOuverte: ent.donneesSourceOuverte,
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
     ouvrirSource: ouvrirAuSegment,
-    fermerAutreFenetre: () => fermerCasPourRecueils(),
+    fermerAutreFenetre: () => {
+      fermerCasPourRecueils()
+      fermerDocsCadreDepuisFenetre()
+    },
   })
   const casCorpus = useCasCorpus({
     cas: corpus.cas,
@@ -394,7 +414,10 @@ export function creerSonal() {
     enregistrerRepereSelection: ent.enregistrerRepereSelection,
     lirePersonnes: corpus.lirePersonnes,
     ouvrirSource: ouvrirAuSegment,
-    fermerRecueils: recueilsCorpus.fermerRecueils,
+    fermerRecueils: () => {
+      recueilsCorpus.fermerRecueils()
+      fermerDocsCadreDepuisFenetre()
+    },
   })
   fermerCasPourRecueils = casCorpus.fermerCas
   const tableauBordCorpus = useTableauBordCorpus({ tableaubord: corpus.tableaubord })
@@ -402,6 +425,7 @@ export function creerSonal() {
     recueilsCorpus.fermerRecueils()
     casCorpus.reinitialiserCas()
     tableauBordCorpus.fermerTableauBord()
+    docsCadre.reinitialiserDocsCadre()
   }
   watch(ent.etatSauvegarde, (etat) => {
     if (etat !== 'à jour') return
@@ -473,6 +497,7 @@ export function creerSonal() {
     ...recueilsCorpus,
     ...casCorpus,
     ...tableauBordCorpus,
+    ...docsCadre,
     audio, // scope audio (objet nommé : les vues déstructurent ses refs)
     audiosCorpus,
     audiosManquants,

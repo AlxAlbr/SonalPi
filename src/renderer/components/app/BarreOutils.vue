@@ -3,14 +3,14 @@ import { utiliserSonal } from '../../composables/sonal'
 
 // Lanceurs des outils transverses du corpus. Le composable garde la propriété
 // fonctionnelle ; ce composant ne fait que déclencher l'ouverture des fenêtres.
-const { vue, afficherCas, afficherRecueils, afficherTableauBord } = utiliserSonal()
+const { vue, afficherCas, afficherRecueils, afficherTableauBord, afficherDocsCadre } = utiliserSonal()
 </script>
 
 <template>
   <div v-if="vue !== 'accueil'" class="barre-outils">
     <div class="ligne">
       <button class="outil btn-tableau" title="Ouvrir le tableau de bord" @click="afficherTableauBord">Tableau de bord</button>
-      <button class="outil avenir" disabled title="À venir">Ressources du projet</button>
+      <button class="outil btn-docs-cadre" title="Ouvrir les documents du projet" @click="afficherDocsCadre()">Docs cadre projet</button>
     </div>
     <div class="ligne">
       <button class="outil avenir" disabled title="À venir">Lexico</button>
@@ -58,5 +58,6 @@ const { vue, afficherCas, afficherRecueils, afficherTableauBord } = utiliserSona
 .btn-cas::before { content: '🗂'; }
 .btn-tableau::before { content: '📊'; }
 .btn-recueils::before { content: '📌'; }
-.btn-recueils:hover, .btn-cas:hover { background: #f4f7fd; }
+.btn-docs-cadre::before { content: '📁'; }
+.btn-recueils:hover, .btn-cas:hover, .btn-docs-cadre:hover, .btn-tableau:hover { background: #f4f7fd; }
 </style>

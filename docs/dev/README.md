@@ -6,7 +6,8 @@ La documentation utilisateur vit dans [`docs/user/`](../user/) (migration SonalP
 [migration-v1.md](../user/migration-v1.md), multi-utilisateur :
 [multi-utilisateur.md](../user/multi-utilisateur.md), créer et partager un corpus
 distant : [corpus-distant.md](../user/corpus-distant.md), cas analytiques :
-[cas.md](../user/cas.md)). Les agents (LLM) trouveront
+[cas.md](../user/cas.md), documents cadre projet : [docs-cadre.md](../user/docs-cadre.md)).
+Les agents (LLM) trouveront
 leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 
 ## Sommaire
@@ -17,6 +18,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [ouverture-corpus.md](ouverture-corpus.md) | L'ouverture d'un corpus : amorçage, récents auto-ouverts (tagués local 🌐 distant), mémoire démo (« un dossier vide n'est pas un corpus absent »), branche distante (création directe sur serveur), gardes et invariants |
 | [modele-objet.md](modele-objet.md) | Le modèle d'objet (vue à 3 niveaux) : agrégats Corpus / Entretien, patron à 3 étages, sous-schémas par préoccupation (§3–§10), chacun ancré au code actuel
 | [cas.md](cas.md) | Cas analytiques : modèle actuel, références vivantes, commandes et projection ; modèle cible des règles, familles et attributs, avec état des fonctionnalités |
+| [docs-cadre.md](docs-cadre.md) | « Docs cadre projet » : l'espace documentaire propre au corpus (stockage local, lecture WebDAV directe sans miroir, aperçus, sécurité des chemins, décision PDF) |
 | [architecture.md](architecture.md) | La structure générale de `src/`, les process Electron (main / preload / renderer), la frontière `shared/` pure et sa testabilité, où placer un module dans `shared/` et dans le renderer |
 | [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
 | [plan-lot-table-donnees.md](plan-lot-table-donnees.md) | Plan (proposition) : saisie des valeurs en corpus distant — bouton « Saisir… » par ligne (onglet Donnée de l'entretien) et modification en lot par colonne (verrou court par entretien) |

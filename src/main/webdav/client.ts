@@ -19,6 +19,7 @@ import {
   rmSync,
   statSync,
 } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
@@ -285,6 +286,40 @@ export class ClientWebDAV {
     })
   }
 
+  /** GET en mémoire avec une limite vérifiée pendant la lecture du flux.
+   *  Renvoie null et interrompt la réponse dès que la limite est dépassée. */
+  async getBinaireBorne(chemin: string, limite: number): Promise<Uint8Array | null> {
+    return this.requete<Uint8Array | null>('GET', chemin, {
+      traiter: async (reponse) => {
+        if (!reponse.body) throw new ErreurHttp(0, `GET ${chemin} → corps vide`)
+        const lecteur = reponse.body.getReader()
+        const morceaux: Uint8Array[] = []
+        let taille = 0
+        try {
+          while (true) {
+            const { done, value } = await lecteur.read()
+            if (done) break
+            taille += value.byteLength
+            if (taille > limite) {
+              await lecteur.cancel()
+              return null
+            }
+            morceaux.push(value)
+          }
+        } finally {
+          lecteur.releaseLock()
+        }
+        const resultat = new Uint8Array(taille)
+        let position = 0
+        for (const morceau of morceaux) {
+          resultat.set(morceau, position)
+          position += morceau.byteLength
+        }
+        return resultat
+      },
+    })
+  }
+
   /** GET d'un fichier binaire ÉCRIT EN FLUX vers un chemin local ABSOLU :
    *  le corps HTTP est pipé sur disque par chunks — la mémoire du poste ne
    *  porte JAMAIS le fichier entier, quelle que soit sa taille (vidéos).
@@ -295,7 +330,7 @@ export class ClientWebDAV {
     destination: string,
     surProgression?: SurProgression,
   ): Promise<void> {
-    const tmp = `${destination}.tmp`
+    const tmp = `${destination}.${randomUUID()}.tmp`
     try {
       await this.requete<void>('GET', chemin, {
         transfert: true,
@@ -309,7 +344,7 @@ export class ClientWebDAV {
           await pipeline(
             Readable.fromWeb(reponse.body as unknown as import('node:stream/web').ReadableStream),
             ...(fluxCompteur ? [fluxCompteur] : []),
-            createWriteStream(tmp),
+            createWriteStream(tmp, { flags: 'wx' }),
           )
           renameSync(tmp, destination)
         },

@@ -12,6 +12,8 @@ La vue Corpus s’ouvre sur l’onglet **Accueil**. Sa barre d’icônes donne a
 
 La recherche dans le texte de tous les entretiens est accessible avec **Ctrl + F**, et non depuis la barre d’icônes.
 
+La barre d’outils supérieure donne aussi accès à **Docs cadre projet**, l’espace documentaire propre au corpus (voir [docs-cadre.md](docs-cadre.md)).
+
 Les cartes d’entretiens restent visibles dans Accueil, Thèmes, Journal et Pas à pas. Un clic sur une carte affiche ses métadonnées à gauche. Notes, Personnes, Données et Pseudonymisation occupent toute la largeur et masquent temporairement les cartes.
 
 ## Chargement et actualisation
