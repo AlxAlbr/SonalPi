@@ -118,6 +118,16 @@ export function parseSonal(html, doc) {
  *  paramétré par `tabThm` (au lieu du global). Pur.
  */
 export function cssFromCodebook(tabThm = []) {
+  // Les couleurs et tailles viennent d'un fichier importé (jamais de confiance) :
+  // seules les formes HEX valides sont interpolées (pas d'échappement du bloc
+  // <style>). Le sélecteur, lui, reste le code brut : classe FROISSÉE du format
+  // SonalPi1, identique à celle portée par les spans du corps.
+  var couleurHex = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+  function tailleBorn(taille) {
+    var n = Number(taille);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(72, Math.max(8, Math.round(n)));
+  }
   var chaineCss = `<style>
 
 
@@ -132,13 +142,14 @@ export function cssFromCodebook(tabThm = []) {
 
         `;
 
-    if (tabThm[t].couleur) {
+    if (tabThm[t].couleur && couleurHex.test(tabThm[t].couleur)) {
       chaineCss += `background-image: linear-gradient(rgba(0, 0, 0, 0) 60%, ` + tabThm[t].couleur + `60 95%, ` + tabThm[t].couleur + ` 100%);
             `;
     }
 
-    if (tabThm[t].taille) {
-      chaineCss += `font-size: ` + tabThm[t].taille + `;
+    var taille = tabThm[t].taille ? tailleBorn(tabThm[t].taille) : null;
+    if (taille !== null) {
+      chaineCss += `font-size: ` + taille + `;
             font-weight: bold;
             `;
     }

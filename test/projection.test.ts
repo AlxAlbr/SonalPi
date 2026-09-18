@@ -273,10 +273,12 @@ describe('appliquerAnonymisation', () => {
     expect(out[0].libelle).toEqual({ type: 'simple' }) // la classe ligloc reste
   })
 
-  test('voie .sonal : libellés conservés (pseudo de tour, vrai nom sur nomloc)', () => {
+  test('voie .sonal : libellés conservés (pseudo de tour), vrai nom jamais porté', () => {
     const out = appliquerAnonymisation(SEGMENTS, { garderLibelles: true })
     expect(out[0].fragments.map((f) => f.texte)).toEqual(['[Marie]', ' habite Lyon.'])
-    expect(out[0].nomloc).toBe('Karine')
+    // Copie pseudonymisée : data-nomloc disparaît, le pseudo de tour reste
+    // (les tables de locuteurs sont pseudonymisées en amont).
+    expect(out[0].nomloc).toBeNull()
     expect(out[0].libelle).toEqual({ type: 'pseudo', pseudo: 'Claire' })
   })
 })

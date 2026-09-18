@@ -326,7 +326,7 @@ describe('HTML', () => {
     expect(out).toContain('section-notes')
     expect(out).toContain('section-vars')
     expect(out).toContain('section-legend')
-    expect(out).toContain('.cat_001 {')
+    expect(out).toContain('scat-')
     expect(out).toContain('btn-play-seg')
     expect(out).not.toContain('Ne doit pas sortir.')
   })
@@ -375,15 +375,19 @@ describe('sonalAnonymise', () => {
     const out = sonalAnonymise(entreeTeste())
     expect(texteDe(out)).toContain('[Marie] habite Lyon depuis 2020.')
     expect(out).not.toContain('>Karine habite')
-    // Voie `.sonal` : les libellés restent parsables par SonalPi1 (pseudo conservé,
-    // vrai nom posé sur data-nomloc comme la V1).
+    // Copie réellement pseudonymisée : les tables ne transportent plus le vrai
+    // nom (tabLoc porte le pseudo, data-nomloc disparaît).
     expect(out).toContain('data-locpseudo="Claire"')
-    expect(out).toContain('data-nomloc="Karine"')
+    expect(out).not.toContain('data-nomloc="Karine"')
+    expect(out).not.toContain('"Karine?"')
     expect(out).toContain('<script id="anon-json" type="application/json">')
     // anon-json vidé (l'export sérialise le tableau vide de serializeSonal).
     expect(out).toMatch(/id="anon-json"[^>]*>\s*\{\s*\[\]\s*\}\s*<\/script>/)
     const doc = new DOMParser().parseFromString(out, 'text/html')
     const r = importerSonal(doc)
-    expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Karine')
+    // Le réimport voit les pseudos à la place des vrais noms.
+    expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Claire')
+    expect(r.payload.locuteurs.map((l) => l.nom)).not.toContain('Karine')
+    expect(r.payload.locuteurs.map((l) => l.nom)).not.toContain('Marc')
   })
 })

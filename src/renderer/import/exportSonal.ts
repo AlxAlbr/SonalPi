@@ -8,10 +8,12 @@ import {
 import type { Ancre } from '../../shared/entretien/audio'
 import { exporterVariables, exporterValeurs } from './eav'
 import { ordreThemes } from '../../shared/corpus'
+import { couleurCss } from '../../shared/export/secuCss'
 import { couleurHexPourCode } from '../editor/decorations'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Categorie, Locuteur, Variable, RegleAnon, BrouillonAnon } from '../../shared/format'
 import { scinderPseudos } from '../../shared/entretien/anon'
+import { pseudoUtilisable } from './pseudonymisation'
 import type { LegacyBlobs } from './importSonal'
 
 /** Une règle d'anonymisation à la forme SonalPi1 (`remplacement`/`remplacementAlt`). */
@@ -76,14 +78,21 @@ function serialiserFragmentSonal(segments: SegmentProjete[]): string {
 }
 
 /** Tables SonalPi1 dérivées du modèle : locuteurs, codebook et variables EAV.
- *  Identiques pour tout `.sonal` de l'entretien, anonymisé ou non. */
-function tablesSonal(e: EntreeExport) {
+ *  Avec `anonymer`, les tables ne transportent PLUS les identifiants réels :
+ *  tabLoc porte les pseudos, les variables privées et leurs valeurs sont exclues. */
+function tablesSonal(e: EntreeExport, anonymer = false) {
   // tabLoc : tableau indexé par index de locuteur (position 0 = vide). Le « ? »
   // de l'interviewer (convention SonalPi1) est réintroduit ICI — jamais au modèle.
   const maxIdx = e.locuteurs.reduce((m, l) => Math.max(m, l.index), 0)
   const tabLoc = Array.from({ length: maxIdx + 1 }, (_, i) => {
     const l = e.locuteurs.find((x) => x.index === i)
-    return l ? l.nom + (l.interviewer ? '?' : '') : ''
+    if (!l) return ''
+    if (anonymer) {
+      // Copie pseudonymisée : le pseudo remplace le nom ; sans pseudo, un
+      // locuteur sans libellé vaut mieux qu'un vrai nom en clair.
+      return (pseudoUtilisable(l) ? l.pseudo!.trim() : '') + (l.interviewer ? '?' : '')
+    }
+    return l.nom + (l.interviewer ? '?' : '')
   })
 
   // tabThm : codebook → forme SonalPi1, en PRÉ-ORDRE avec `rang`=profondeur →
@@ -93,7 +102,9 @@ function tablesSonal(e: EntreeExport) {
     code: cat.codeExport,
     // Couleur stockée si présente, sinon synthétisée (même teinte qu'affichée) →
     // le codage reste VISIBLE dans SonalPi1 (le CSS .cat_XXX a besoin d'un HEX).
-    couleur: cat.couleur || couleurHexPourCode(cat.codeExport),
+    // Seule une forme HEX valide est transportée (couleur importée hostile =
+    // pas de couleur, donc pas d'injection dans le CSS du fichier).
+    couleur: couleurCss(cat.couleur) || couleurHexPourCode(cat.codeExport),
     nom: cat.nom,
     taille: cat.taille ?? '',
     cmpct: false,
@@ -103,8 +114,10 @@ function tablesSonal(e: EntreeExport) {
 
   // EAV : variables modélisées → tabVar/tabDic ; valeurs (entretien + locuteurs)
   // → tabDat (la sentinelle `l="all"` est réintroduite ici, jamais dans le modèle).
-  const { tabVar, tabDic } = exporterVariables(e.variables)
-  const tabDat = exporterValeurs(e.meta.valeursGen, e.locuteurs, e.variables)
+  // En pseudonymisé, les variables privées et leurs valeurs ne sortent pas.
+  const visibles = anonymer ? e.variables.filter((v) => !v.priv) : e.variables
+  const { tabVar, tabDic } = exporterVariables(visibles)
+  const tabDat = exporterValeurs(e.meta.valeursGen, e.locuteurs, visibles)
   return { tabLoc, tabThm, tabVar, tabDic, tabDat }
 }
 
@@ -124,13 +137,15 @@ export function exporterSonal(e: EntreeExport): string {
   })
 }
 
-/** `.sonal` anonymisé : pseudonymisation définitive du corps (textes
- *  `[pseudo]`, marqueurs d'occurrence retirés, anon-json vidé — les règles ne
- *  quittent pas l'entretien) ; les libellés de locuteurs restent parsables par
- *  SonalPi1 (pseudo posé sur data-locpseudo, comme la V1). */
+/** `.sonal` pseudonymisé : COPIE réellement pseudonymisée, réimportable dans
+ *  SonalPi1 mais sans identifiant réel : corps pseudonymisé (textes `[pseudo]`,
+ *  marqueurs d'occurrence retirés), data-nomloc absent, tabLoc portant les
+ *  pseudos, anon-json vidé, anciennes notes (migrées privées) et variables
+ *  privées exclues. Ce n'est PAS un export « anonymisé » au sens absolu : le
+ *  titre, les noms de catégories et le texte libre ne sont pas vérifiables. */
 export function sonalAnonymise(e: EntreeExport): string {
   const html = serialiserFragmentSonal(
     appliquerAnonymisation(projeterSegments(e), { garderLibelles: true }),
   )
-  return serializeSonal({ ...tablesSonal(e), tabAnon: [], notes: e.legacy.notes, html })
+  return serializeSonal({ ...tablesSonal(e, true), tabAnon: [], notes: '', html })
 }

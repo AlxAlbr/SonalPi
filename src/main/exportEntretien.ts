@@ -2,7 +2,9 @@ import { app, BrowserWindow } from 'electron'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 import type { DemandeExportDocx } from '../shared/format'
 import { join } from 'node:path'
-import { writeFileSync, unlinkSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { preferencesImpressionPdf, securiserNavigation } from './securiteFenetre'
 
 // ----------------------------------------------------------------
 // EXPORTS D'ENTRETIEN CÔTÉ MAIN — DOCX (lib `docx`) et PDF (printToPDF)
@@ -58,21 +60,23 @@ export async function construireDocxBuffer(demande: DemandeExportDocx): Promise<
   return Packer.toBuffer(doc)
 }
 
-/** Imprime un HTML autonome en PDF : fichier temporaire chargé dans une
- *  fenêtre cachée, `printToPDF` (fond conservé pour les couleurs des codages). */
+/** Imprime un HTML autonome en PDF : dossier temporaire jetable créé de
+ *  manière sûre (toujours nettoyé, succès comme échec), fenêtre cachée et
+ *  sandboxée, `printToPDF` (fond conservé pour les couleurs des codages). */
 export async function imprimerPdf(html: string): Promise<Buffer> {
-  const tmp = join(app.getPath('temp'), `sonal-export-${Date.now()}.html`)
+  const dossier = mkdtempSync(join(tmpdir(), 'sonal-export-'))
+  const tmp = join(dossier, 'export.html')
   writeFileSync(tmp, html, 'utf8')
-  const fenetre = new BrowserWindow({ show: false })
+  const fenetre = new BrowserWindow({
+    show: false,
+    webPreferences: preferencesImpressionPdf(),
+  })
+  securiserNavigation(fenetre.webContents)
   try {
     await fenetre.loadFile(tmp)
     return await fenetre.webContents.printToPDF({ printBackground: true })
   } finally {
     fenetre.destroy()
-    try {
-      unlinkSync(tmp)
-    } catch {
-      // fichier temporaire déjà parti : rien à faire
-    }
+    rmSync(dossier, { recursive: true, force: true })
   }
 }

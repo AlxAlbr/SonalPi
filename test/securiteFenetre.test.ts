@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
-import { preferencesRenderer, securiserNavigation } from '../src/main/securiteFenetre'
+import { preferencesImpressionPdf, preferencesRenderer, securiserNavigation } from '../src/main/securiteFenetre'
 
 describe('sécurité de la fenêtre Electron', () => {
   test('active le sandbox sans exposer Node au renderer', () => {
@@ -51,5 +51,17 @@ describe('sécurité de la fenêtre Electron', () => {
     expect(csp).toContain("frame-src 'none'")
     expect(csp).toContain('sonal-media:')
     expect(csp).not.toMatch(/script-src[^;]*'unsafe-(?:inline|eval)'/)
+  })
+})
+
+describe('fenêtre d’impression PDF', () => {
+  test('sandboxée, sans JavaScript, navigation isolée', () => {
+    expect(preferencesImpressionPdf()).toEqual({
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      javascript: false,
+    })
   })
 })

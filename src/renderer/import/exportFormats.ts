@@ -1,6 +1,7 @@
 import { projeterSegments, appliquerAnonymisation, htmlDeSegment, type SegmentProjete, type FragmentProjete } from './projection'
 import type { EntreeExport } from './exportSonal'
 import type { Categorie, Locuteur, Note, NoteCategory, Variable } from '../../shared/format'
+import { couleurCss, tailleCss, idCssCode } from '../../shared/export/secuCss'
 import { corpsNoteEnTexte } from '../notes/sanitiser'
 
 // ----------------------------------------------------------------
@@ -125,14 +126,15 @@ export function nomFichierExport(titre: string, ext: string, anon: boolean): str
   return `${base}${anon ? '_anonymise' : ''}.${ext}`
 }
 
-/** Neutralise les options sans objet pour le format demandé (elles restent
- *  donc fausses dans les générateurs, même si la modale les a cochées) ;
- *  `.srt`/`.vtt` n'existent que pour des segments bornés par des ancres :
- *  les coordonnées y sont de fait toujours actives. */
+/** Neutralise les options sans objet pour le format demandé : TOUTES les
+ *  options connues sont parcourues, celles que le format ne porte pas tombent
+ *  à false (elles restent donc fausses dans les générateurs, même si la
+ *  modale les a cochées) ; `.srt`/`.vtt` n'existent que pour des segments
+ *  bornés par des ancres : les coordonnées y sont de fait toujours actives. */
 export function optionsEfficaces(format: FormatExport, opts: OptionsExport): OptionsExport {
   const cfg = CONFIG_OPTIONS[format]
   const out = { ...opts }
-  for (const cle of Object.keys(cfg) as Array<keyof OptionsExport>) {
+  for (const { cle } of LIBELLES_OPTIONS) {
     if (cfg[cle] == null) out[cle] = false
   }
   if (format === 'srt' || format === 'vtt') out.time = true
@@ -439,17 +441,25 @@ function urlAudio(chemin: string): string {
 }
 
 /** CSS des catégories du codebook : règles mono-catégorie (dégradé + taille)
- *  et règles multi-catégories (cumul de bandes de couleur, convention V1). */
+ *  et règles multi-catégories (cumul de bandes de couleur, convention V1).
+ *  Codes, couleurs et tailles viennent de fichiers importés (jamais de
+ *  confiance) : le code devient un identifiant sûr dérivé, la couleur n'est
+ *  interpolée que si c'est un HEX valide, la taille est bornée. */
 function cssThemes(codebook: Categorie[], combos: string[]): string {
   const parCode = new Map(codebook.map((c) => [c.codeExport, c]))
+  const classeDe = (code: string): string => idCssCode(code)
   let css = ''
   for (const cat of codebook) {
-    const gradient = cat.couleur
-      ? `background-image: linear-gradient(rgba(0,0,0,0) 60%, ${cat.couleur}60 95%, ${cat.couleur} 100%); padding-bottom: 4px;`
+    const couleur = couleurCss(cat.couleur)
+    const gradient = couleur
+      ? `background-image: linear-gradient(rgba(0,0,0,0) 60%, ${couleur}60 95%, ${couleur} 100%); padding-bottom: 4px;`
       : ''
-    const taille =
-      cat.taille && cat.taille > 18 ? `font-size: ${cat.taille}px; font-weight: bold;` : ''
-    if (gradient || taille) css += `.${cat.codeExport} { ${gradient} ${taille} }\n`
+    const taille = tailleCss(cat.taille)
+    const tailleStyle =
+      taille != null && cat.taille != null && cat.taille > 18
+        ? `font-size: ${taille}px; font-weight: bold;`
+        : ''
+    if (gradient || taille) css += `.${classeDe(cat.codeExport)} { ${gradient} ${taille} }\n`
   }
   const EPAISSEUR = 10
   for (const combo of new Set(combos)) {
@@ -458,16 +468,17 @@ function cssThemes(codebook: Categorie[], combos: string[]): string {
     if (n < 2) continue
     const seuil = 90 - (n - 1) * EPAISSEUR
     const prem = parCode.get(codes[0])
-    if (!prem || !prem.couleur) continue
+    const premCouleur = couleurCss(prem?.couleur)
+    if (!premCouleur) continue
     let chaine = ''
     for (let i = 1; i < n; i++) {
-      const cat = parCode.get(codes[i])
-      if (!cat?.couleur) continue
+      const couleur = couleurCss(parCode.get(codes[i])?.couleur)
+      if (!couleur) continue
       const prog = seuil + EPAISSEUR * i
-      chaine += `, white ${prog}%, white ${prog + 3}%, ${cat.couleur} ${prog + 3}%, ${cat.couleur} ${prog + EPAISSEUR}%`
+      chaine += `, white ${prog}%, white ${prog + 3}%, ${couleur} ${prog + 3}%, ${couleur} ${prog + EPAISSEUR}%`
     }
-    const bg = `linear-gradient(rgba(0,0,0,0) 50%, ${prem.couleur}60 ${seuil}%, ${prem.couleur} ${seuil + 7}%${chaine})`
-    css += `${codes.map((c) => '.' + c).join('')} { background-image: ${bg}; line-height: ${(1.5 + 0.05 * n).toFixed(2)}em; }\n`
+    const bg = `linear-gradient(rgba(0,0,0,0) 50%, ${premCouleur}60 ${seuil}%, ${premCouleur} ${seuil + 7}%${chaine})`
+    css += `${codes.map((c) => '.' + classeDe(c)).join('')} { background-image: ${bg}; line-height: ${(1.5 + 0.05 * n).toFixed(2)}em; }\n`
   }
   return css
 }
@@ -496,7 +507,9 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
 
   // En-têtes de locuteurs + boutons de lecture avant chaque tour (.ligloc) ;
   // bouton uniquement si l'audio local existe ET que les coordonnées sortent.
-  const audioRef = ctx.audioRef ?? null
+  // Le chemin absolu local d'un média ne sort JAMAIS d'un export pseudonymisé
+  // (décision de périmètre : pas de player sans décision explicite).
+  const audioRef = opts.anon ? null : (ctx.audioRef ?? null)
   const audioUrl = audioRef ? urlAudio(audioRef) : ''
   const titreDe = (codes: string[]): string | null => {
     const nomsCats = codes
@@ -524,6 +537,8 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
     corps += htmlDeSegment(seg, {
       time: opts.time,
       thm: opts.thm,
+      // Codebook importé : jamais de code brut en classe CSS dans la page.
+      classeDeCode: idCssCode,
       titre: opts.thm ? titreDe : undefined,
       sauts: true,
     })
@@ -549,15 +564,17 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
   let legende = ''
   if (opts.thm) {
     const avecStyle = e.codebook.filter(
-      (cat) => cat.codeExport && (cat.couleur || (cat.taille != null && cat.taille > 18)),
+      (cat) => cat.codeExport && (couleurCss(cat.couleur) || (cat.taille != null && cat.taille > 18)),
     )
     if (avecStyle.length > 0) {
       const lignes = avecStyle
         .map((cat) => {
           const [nom, desc] = cat.nom.split('//')
-          const swatch = cat.couleur
-            ? `<span class="legend-swatch" style="background:${cat.couleur}"></span>`
-            : `<span class="legend-swatch legend-swatch-size" style="font-size:${cat.taille ?? ''}px;font-weight:bold">A</span>`
+          const couleur = couleurCss(cat.couleur)
+          const taille = tailleCss(cat.taille)
+          const swatch = couleur
+            ? `<span class="legend-swatch" style="background:${couleur}"></span>`
+            : `<span class="legend-swatch legend-swatch-size" style="font-size:${taille ?? ''}px;font-weight:bold">A</span>`
           return `<tr><td>${swatch}</td><td class="legend-name">${echapper(nom ?? '')}</td><td class="legend-desc">${echapper(desc ?? '')}</td></tr>`
         })
         .join('\n')

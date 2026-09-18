@@ -282,17 +282,18 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
 
 /** Pseudonymisation DÉFINITIVE sur la projection : le texte des fragments
  *  anonymisés devient `[pseudo]`, les exceptions restent en clair, les
- *  marqueurs d'anon sont retirés. Avec `garderLibelles` (voie `.sonal` : le
- *  fichier reste parsable par SonalPi1), les libellés de locuteurs sont
- *  conservés ; pour les fichiers AUTONOMES ils sont retirés — pas de fuite du
- *  vrai nom dans le source. */
+ *  marqueurs d'anon sont retirés. Les vrais noms disparaissent TOUTES voies
+ *  confondues : `nomloc` (data-nomloc) est toujours nillé. Avec
+ *  `garderLibelles` (voie `.sonal` : le fichier reste parsable par SonalPi1,
+ *  les tables de locuteurs sont pseudonymisées en amont), les libellés de
+ *  locuteurs sont conservés ; pour les fichiers AUTONOMES ils sont retirés. */
 export function appliquerAnonymisation(
   segments: SegmentProjete[],
   { garderLibelles = false }: { garderLibelles?: boolean } = {},
 ): SegmentProjete[] {
   return segments.map((seg) => ({
     ...seg,
-    nomloc: garderLibelles ? seg.nomloc : null,
+    nomloc: null,
     // Les libellés gardent la classe ligloc (SonalPi1 re-dérive le reste) ;
     // les marqueurs pseudo/refus sont retirés pour un fichier autonome.
     libelle: garderLibelles
@@ -332,6 +333,9 @@ export interface OptionsSegmentHtml {
   time: boolean
   /** Émettre les classes cat_* des fragments (thématiques). */
   thm: boolean
+  /** Transforme un code de catégorie en identifiant de classe SÛR (page
+   *  autonome) ; absent = code brut (voie `.sonal`, classe attendue par la V1). */
+  classeDeCode?: (code: string) => string
   /** Title des fragments codés (tooltip de la page autonome) ; absente = rien. */
   titre?: (codes: string[]) => string | null
   /** Rendre les sauts de ligne du modèle en `<br>` (page autonome) ; absent
@@ -379,7 +383,7 @@ export function htmlDeSegment(seg: SegmentProjete, opts: OptionsSegmentHtml): st
     let classes = ''
     const extra: string[] = []
     if (opts.thm) {
-      for (const c of frag.codes) classes += ` ${c}`
+      for (const c of frag.codes) classes += ` ${opts.classeDeCode ? opts.classeDeCode(c) : c}`
     }
     if (frag.anon) {
       classes += frag.anon.etat === 'exception' ? ' anon-exception' : ' anon'
