@@ -17,6 +17,10 @@ const {
   raccrocherEtatDemo,
   pretUnClic,
   enPreparation,
+  // Modales déclenchables AUSSI depuis le menu applicatif : l'état est partagé
+  // via le contexte sonal (le menu peut les ouvrir depuis n'importe quelle vue).
+  modaleNouveauCorpus,
+  modaleCorpusDistant,
 } = utiliserSonal()
 
 // Modale démo ADAPTATIVE : lancée depuis les cartes démo uniquement si le corpus de CE mode n'est pas déjà connu et présent —
@@ -25,11 +29,13 @@ const {
 const modaleDemo = ref<ModeDemo | null>(null)
 // Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
 // avant toute écriture ; le corpus SonalPi2 naît dans un dossier DÉDIÉ (gardes incluses).
+// Modale de migration SonalPi1 → SonalPi2 : le `.crp` est analysé (aperçu),
+// avant toute écriture ; le corpus SonalPi2 naît dans un dossier DÉDIÉ (gardes incluses).
 const modaleMigration = ref(false)
-// Modale « Nouveau corpus… » : choisir un dossier + donner un nom de projet.
-const modaleNouveau = ref(false)
-// Modale « Ouvrir un corpus distant » : comptes configurés + connexion Nextcloud.
-const modaleDistant = ref(false)
+// Modales « Nouveau corpus… » et « Ouvrir un corpus distant » : état partagé
+// (déclenchées par les cartes ci-dessous ou par le menu applicatif).
+const modaleNouveau = modaleNouveauCorpus
+const modaleDistant = modaleCorpusDistant
 // Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur,
 // puis ouverture immédiate.
 const modaleNouveauDistant = ref(false)

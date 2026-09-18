@@ -21,6 +21,7 @@ import type {
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
+  ModeTriEntretiens,
   ModeleEAV,
   NoteCategory,
   OuvertureCorpus,
@@ -74,6 +75,10 @@ declare global {
       application: {
         surPreparationFermeture: (cb: () => Promise<void>) => () => void
       }
+      menu: {
+        surAction: (cb: (action: string, mode?: ModeTriEntretiens) => void) => () => void
+        surOuvrirRecent: (cb: (entree: EntreeRecent) => void) => () => void
+      }
       docsCadre: {
         lister: () => Promise<InventaireDocsCadre>
         lireApercu: (source: SourceDocumentCadre, nom: string) => Promise<ResultatLectureDocsCadre>
@@ -108,6 +113,7 @@ declare global {
         remplacerTranscription: (id: string, t: TranscriptionEntretien) => Promise<string | null>
         creerEntretienVide: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
         renommerEntretien: (id: string, titre: string) => Promise<CorpusFichier>
+        trierEntretiens: (mode: ModeTriEntretiens) => Promise<CorpusFichier>
         analyserSuppressionEntretien: (id: string) => Promise<ImpactSuppressionEntretien>
         supprimerEntretien: (
           id: string,

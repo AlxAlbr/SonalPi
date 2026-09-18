@@ -1,7 +1,8 @@
 import { ref, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
-import type { MarqueurDemo } from '../../shared/format'
+import type { MarqueurDemo, ModeTriEntretiens } from '../../shared/format'
 import { MOTS_LIAISON_DEFAUT } from '../../shared/format'
 import { useProfil } from './useProfil'
+import { afficherErreurGlobale } from '../erreurs'
 import { useCorpus } from './useCorpus'
 import { useSelectionCorpus } from './corpus/useSelectionCorpus'
 import { useMediasCorpus } from './corpus/useMediasCorpus'
@@ -366,6 +367,7 @@ export function creerSonal() {
     fermerExport,
     exporter,
     renommer,
+    trierEntretiens,
     supprimer,
     ouvrirAuSegment,
     allerSaisieDonnees,
@@ -489,6 +491,86 @@ export function creerSonal() {
   raccrocherModeCorpus = demo.raccrocherModeCorpus
   racineSourcesDemo = () => demo.racineSources.value
 
+  // --- Menu applicatif : routage des items vers les actions existantes. ---
+  // Le main construit le menu et émet ; ICI on route vers les modales et les
+  // fonctions d'orchestration, comme si l'utilisateur avait cliqué dans l'UI.
+  const modaleNouveauCorpus = ref(false)
+  const modaleCorpusDistant = ref(false)
+  /** Signal consommé par AjoutEntretien.vue (la modale vit dans la vue Corpus). */
+  const demandeAjoutEntretien = ref(false)
+
+  window.sonal.menu.surAction(async (action, modeTri) => {
+    try {
+      switch (action) {
+        case 'nouveau-corpus':
+        case 'ouvrir-distant': {
+          // Ces modales vivent sur l'Accueil : on y revient d'abord si besoin
+          // (la navigation ferme proprement l'entretien ouvert).
+          if (vue.value !== 'accueil') await allerAccueil()
+          if (action === 'nouveau-corpus') modaleNouveauCorpus.value = true
+          else modaleCorpusDistant.value = true
+          break
+        }
+        case 'ouvrir-corpus':
+          // Dialogue natif + bascule : marche depuis n'importe quelle vue.
+          await choisirDossier()
+          break
+        case 'enregistrer':
+          // Hors entretien ouvert, rien à enregistrer (les définitions corpus
+          // sont écrites à la volée). Distant : flush + publication immédiate.
+          if (!ent.ouvertId.value) break
+          if (idDistantCourant.value) {
+            if (
+              statutSession.value.etat !== 'degrade' &&
+              !lectureSeule.value &&
+              !ent.verrouAutrui.value
+            ) {
+              await publierMaintenant()
+            }
+          } else {
+            await ent.viderSauvegarde()
+          }
+          break
+        case 'ajouter-entretien': {
+          if (lectureSeule.value) break
+          // La modale vit dans la vue Corpus : on s'y rend d'abord si besoin.
+          if (vue.value === 'entretien') await retourCorpus()
+          else if (vue.value === 'accueil' && Object.keys(corpus.membership.value).length > 0) {
+            vue.value = 'corpus'
+          }
+          if (vue.value === 'corpus') demandeAjoutEntretien.value = true
+          break
+        }
+        case 'trier-entretiens': {
+          const modes: readonly ModeTriEntretiens[] = ['alpha', 'ajout', 'modif', 'longueur']
+          if (!modeTri || !modes.includes(modeTri)) throw new Error('Mode de tri inconnu.')
+          if (lectureSeule.value || Object.keys(corpus.membership.value).length === 0) break
+          if ((modeTri === 'modif' || modeTri === 'longueur') && ent.ouvertId.value) {
+            if (idDistantCourant.value) {
+              if (statutSession.value.etat === 'degrade' || ent.verrouAutrui.value) {
+                throw new Error("L’entretien ouvert ne peut pas être publié avant le tri.")
+              }
+              if (!await publierMaintenant()) {
+                throw new Error(publiErreur.value ?? "L’entretien ouvert n’a pas pu être publié.")
+              }
+            } else {
+              await ent.viderSauvegarde()
+            }
+          }
+          await trierEntretiens(modeTri)
+          break
+        }
+      }
+    } catch (erreur) {
+      afficherErreurGlobale(erreur, 'L’action du menu a échoué')
+    }
+  })
+  window.sonal.menu.surOuvrirRecent((entree) => {
+    void ouvrirRecent(entree).catch((erreur) =>
+      afficherErreurGlobale(erreur, 'L’ouverture du corpus récent a échoué'),
+    )
+  })
+
   onMounted(chargerCorpus)
 
   // Retour PLAT : les templates (App + composants) utilisent des noms nus ;
@@ -574,6 +656,7 @@ export function creerSonal() {
     fermerExport,
     exporter,
     renommer,
+    trierEntretiens,
     supprimer,
     entretienASupprimer,
     demanderSuppressionEntretien,
@@ -583,6 +666,9 @@ export function creerSonal() {
     demanderSuppressionTheme,
     confirmerSuppressionTheme,
     listeEntretiens,
+    modaleNouveauCorpus,
+    modaleCorpusDistant,
+    demandeAjoutEntretien,
     ...demo,
   }
 }

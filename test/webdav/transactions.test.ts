@@ -1682,3 +1682,141 @@ describe('Familles de cas — transactions fraîches', () => {
     expect(serveur.contenuDe('corpus.json')).toBe(avant)
   })
 })
+
+
+describe('Tri distant des entretiens', () => {
+  it('alpha ne télécharge aucun entretien', async () => {
+    const { serveur, miroir, store } = await banc()
+    let lecturesEntretiens = 0
+    const client = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if ((init?.method ?? 'GET') === 'GET' && String(entree).includes('/entretiens/')) {
+          lecturesEntretiens += 1
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const tx = new TransactionsCorpus(client, miroir, () => store, IDENTITE_MAX)
+
+    await tx.executer(() => store.trierEntretiens('alpha'))
+
+    expect(lecturesEntretiens).toBe(0)
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+
+  it('longueur utilise les versions serveur sans remplacer les entretiens locaux', async () => {
+    const { serveur, tx, miroir, store } = await banc()
+    const corpus = corpusServeur(serveur)
+    corpus.membership.e1.rangAjout = 0
+    corpus.membership.e2 = {
+      titre: 'Entretien deux',
+      date: null,
+      lastModified: '2026-01-02T00:00:00Z',
+      rangAjout: 1,
+    }
+    corpus.ordreEntretiens = ['e1', 'e2']
+    serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+
+    const e1 = JSON.parse(entretienE1()) as EntretienFichier
+    e1.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'court' }] }] }
+    const e2 = JSON.parse(entretienE1()) as EntretienFichier
+    e2.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'beaucoup plus long' }] }] }
+    serveur.poser('entretiens/e1.json', JSON.stringify(e1))
+    serveur.poser('entretiens/e2.json', JSON.stringify(e2))
+
+    const cheminLocalE1 = join(miroir.dirLocal, 'entretiens', 'e1.json')
+    const local = JSON.parse(readFileSync(cheminLocalE1, 'utf8')) as EntretienFichier
+    local.corpsTexte = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'VERSION LOCALE OUVERTE' }] }] }
+    writeFileSync(cheminLocalE1, JSON.stringify(local, null, 2), 'utf8')
+
+    const resultat = await tx.trierEntretiens('longueur')
+
+    expect(resultat.ordreEntretiens).toEqual(['e2', 'e1'])
+    expect(corpusServeur(serveur).ordreEntretiens).toEqual(['e2', 'e1'])
+    expect(readFileSync(cheminLocalE1, 'utf8')).toContain('VERSION LOCALE OUVERTE')
+    expect(existsSync(join(miroir.dirLocal, 'entretiens', 'e2.json'))).toBe(false)
+    expect(store.lectureSeule).toBe(true)
+  })
+
+  it('une lecture distante absente interdit tout PUT corpus et libère le verrou', async () => {
+    const { serveur, miroir, store } = await banc()
+    const corpus = corpusServeur(serveur)
+    corpus.membership.absent = {
+      titre: 'Absent',
+      date: null,
+      lastModified: '2026-01-02T00:00:00Z',
+      rangAjout: 1,
+    }
+    corpus.ordreEntretiens = ['e1', 'absent']
+    serveur.poser('corpus.json', JSON.stringify(corpus, null, 2))
+    const avant = serveur.contenuDe('corpus.json')
+    let publicationsCorpus = 0
+    const client = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+          publicationsCorpus += 1
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const tx = new TransactionsCorpus(client, miroir, () => store, IDENTITE_MAX)
+
+    await expect(tx.trierEntretiens('modif')).rejects.toThrow()
+
+    expect(publicationsCorpus).toBe(0)
+    expect(serveur.contenuDe('corpus.json')).toBe(avant)
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+  })
+})
+
+describe('Tri distant — publication conditionnelle', () => {
+  it('refuse une divergence 412 et restaure le miroir depuis le serveur', async () => {
+    const { serveur, clientOlivier, miroir, store } = await banc()
+    const client = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json')) {
+          const concurrent = JSON.parse(corpusInitial()) as CorpusFichier
+          concurrent.nom = 'Version concurrente'
+          await clientOlivier.putTexte('corpus.json', JSON.stringify(concurrent))
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const tx = new TransactionsCorpus(client, miroir, () => store, IDENTITE_MAX)
+
+    await expect(tx.trierEntretiens('modif')).rejects.toThrow(/divergence|changé/i)
+
+    expect(corpusServeur(serveur).nom).toBe('Version concurrente')
+    expect(store.ouvrir().nom).toBe('Version concurrente')
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(store.lectureSeule).toBe(true)
+  })
+
+  it('confirme un tri publié quand seule la réponse du PUT est perdue', async () => {
+    const { serveur, miroir, store } = await banc()
+    let reponsePerdue = false
+    const client = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (entree, init) => {
+        if (init?.method === 'PUT' && String(entree).endsWith('/corpus.json') && !reponsePerdue) {
+          reponsePerdue = true
+          await serveur.fetch(entree as URL, init)
+          throw new TypeError('réponse perdue')
+        }
+        return serveur.fetch(entree as URL, init)
+      },
+    )
+    const tx = new TransactionsCorpus(client, miroir, () => store, IDENTITE_MAX)
+
+    await expect(tx.trierEntretiens('longueur')).resolves.toMatchObject({
+      ordreEntretiens: ['e1'],
+    })
+
+    expect(corpusServeur(serveur).ordreEntretiens).toEqual(['e1'])
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(store.lectureSeule).toBe(true)
+  })
+})

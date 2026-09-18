@@ -11,6 +11,7 @@ import {
 } from 'node:fs'
 import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path'
 import type { CorpusFichier, EntretienFichier } from '../shared/format'
+import { normaliserOrdreEntretiens } from '../shared/corpus/ordreEntretiens'
 
 export interface PlanAjoutEntretien {
   readonly operation: 'ajout'
@@ -60,6 +61,17 @@ function correspondAuJson(contenu: string | null, attendu: string): boolean {
   if (contenu === attendu) return true
   try {
     return contenuJson(JSON.parse(contenu)) === attendu
+  } catch {
+    return false
+  }
+}
+
+function correspondAuCorpus(contenu: string | null, attendu: CorpusFichier): boolean {
+  if (contenu === null) return false
+  try {
+    const courant = normaliserOrdreEntretiens(JSON.parse(contenu) as CorpusFichier)
+    const cible = normaliserOrdreEntretiens(structuredClone(attendu))
+    return contenuJson(courant) === contenuJson(cible)
   } catch {
     return false
   }
@@ -132,8 +144,8 @@ export class TransactionsFichiersCorpus {
     const avant = contenuJson(plan.corpusAvant)
     const apres = contenuJson(plan.corpusApres)
     const courant = existsSync(fichierCorpus) ? readFileSync(fichierCorpus, 'utf8') : null
-    const correspondAvant = correspondAuJson(courant, avant)
-    const correspondApres = correspondAuJson(courant, apres)
+    const correspondAvant = correspondAuCorpus(courant, plan.corpusAvant)
+    const correspondApres = correspondAuCorpus(courant, plan.corpusApres)
     if (!correspondAvant && !correspondApres) {
       throw new Error(
         `La transaction de fichiers « ${plan.id} » ne peut pas être reprise : corpus.json a changé.`,

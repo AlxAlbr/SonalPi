@@ -197,9 +197,9 @@ export function useDistantCorpus(deps: {
     }
   }
 
-  async function publierMaintenant(): Promise<void> {
+  async function publierMaintenant(): Promise<boolean> {
     const id = deps.entretien.ouvertId.value
-    if (!id || !idDistantCourant.value) return
+    if (!id || !idDistantCourant.value) return true
     await deps.entretien.sauver()
     publiErreur.value = null
     try {
@@ -208,10 +208,13 @@ export function useDistantCorpus(deps: {
         publiErreur.value =
           'Le serveur a changé pendant notre session (contournement du verrou). Vos modifications ont été mises de côté localement — rien n’a été écrasé.'
       }
+      await rafraichirStatutSession()
+      return resultat.ok
     } catch {
       publiErreur.value = 'Serveur injoignable — réessayez « Publier maintenant ».'
+      await rafraichirStatutSession()
+      return false
     }
-    await rafraichirStatutSession()
   }
 
   const arreterProgression = window.sonal.distant.surProgression((progression) => {

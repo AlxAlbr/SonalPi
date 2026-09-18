@@ -39,6 +39,7 @@ import type {
   CorpusFichier,
   EntretienFichier,
   ItemLotValeur,
+  ModeTriEntretiens,
   ResultatLotValeur,
   CibleRegleAnon,
   ResultatLotAnon,
@@ -149,6 +150,65 @@ export class TransactionsCorpus {
       return resultat
     } catch (e) {
       throw classifier(e)
+    } finally {
+      if (verrouTenu) await provider.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
+    }
+  }
+
+  /** Trie selon les contenus publiés sans remplacer les fichiers du miroir local. */
+  async trierEntretiens(mode: Extract<ModeTriEntretiens, 'modif' | 'longueur'>): Promise<CorpusFichier> {
+    const provider = new ProviderPutConditionnel(this.client, this.identite)
+    let verrouTenu = false
+    try {
+      const acquisition = await provider.acquerir(CHEMIN_VERROU_CORPUS)
+      if (!acquisition.ok) throw new ErreurTransaction(messageRefusDefinitions(acquisition.tenuPar))
+      verrouTenu = true
+
+      const etagServeur = await this.rafraichirCorpusLocal()
+      const fichierCorpus = join(this.miroir.dirLocal, CHEMIN_CORPUS)
+      const contenuAvant = readFileSync(fichierCorpus, 'utf8')
+      const store = this.getStore()
+      const corpus = store.ouvrir()
+      const entretiens = new Map<string, EntretienFichier>()
+      for (const id of corpus.ordreEntretiens!) {
+        const chemin = CHEMIN_ENTRETIEN(id)
+        const contenu = await this.client.getTexte(chemin)
+        let entretien: EntretienFichier
+        try {
+          entretien = JSON.parse(contenu) as EntretienFichier
+        } catch {
+          throw new Error(`L’entretien « ${corpus.membership[id].titre} » est illisible.`)
+        }
+        if (!versionSupportee(entretien.formatVersion)) {
+          throw new Error(`L’entretien « ${corpus.membership[id].titre} » utilise une version non supportée.`)
+        }
+        entretiens.set(id, entretien)
+      }
+
+      const gardePrecedente = store.lectureSeule
+      store.lectureSeule = false
+      let resultat: CorpusFichier
+      try {
+        resultat = store.trierEntretiensAvecContenus(mode, entretiens)
+      } catch (erreur) {
+        this.ecrireCorpusLocal(contenuAvant)
+        throw erreur
+      } finally {
+        store.lectureSeule = gardePrecedente
+      }
+
+      const contenuTente = readFileSync(fichierCorpus, 'utf8')
+      try {
+        await this.publierCorpus(etagServeur)
+      } catch (erreur) {
+        const reconciliation = await this.reconcilierCorpusApresEchec(contenuTente)
+        if (reconciliation === 'publie') return resultat
+        if (reconciliation === 'inconnue') this.ecrireCorpusLocal(contenuAvant)
+        throw erreur
+      }
+      return resultat
+    } catch (erreur) {
+      throw classifier(erreur)
     } finally {
       if (verrouTenu) await provider.liberer(CHEMIN_VERROU_CORPUS).catch(() => {})
     }

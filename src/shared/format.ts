@@ -110,6 +110,8 @@ export interface CorpusFichier {
   reglesAnon: Record<string, RegleAnon>
   personnes: Record<string, Personne>
   membership: Record<string, EntretienRef>
+  /** Ordre courant des entretiens. Absent dans les anciens corpus. */
+  ordreEntretiens?: string[]
   /** Identité du PROJET : vit dans corpus.json → insensible au renommage du dossier.
    *  Champ ADDITIF optionnel. */
   nom?: string
@@ -196,12 +198,17 @@ export const CORPUS_SUPPRIME = 'CORPUS_SUPPRIME'
 // Entretiens — `entretiens/<id>.json`, leurs locuteurs.
 // ══════════════════════════════════════════════════════════════════════════
 
+/** Modes de tri persistant des entretiens. */
+export type ModeTriEntretiens = 'alpha' | 'ajout' | 'modif' | 'longueur'
+
 /** Métadonnées légères de listing (le membership du corpus). */
 export interface EntretienRef {
   titre: string
   date: string | null
   /** ISO — date du fichier entretien : cache-busting de la forme d'onde des cartes Corpus (`?v=lastModified`) ; le disque est la vérité en mono-utilisateur (cf. corpusStore). */
   lastModified: string
+  /** Rang immuable attribué lors de l'ajout au corpus. */
+  rangAjout?: number
 }
 
 

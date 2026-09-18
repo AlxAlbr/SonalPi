@@ -29,6 +29,7 @@ export function squeletteCorpus(nom?: string): CorpusFichier {
     reglesAnon: {},
     personnes: {},
     membership: {},
+    ordreEntretiens: [],
     recueils: {},
     cas: {},
     famillesCas: {},

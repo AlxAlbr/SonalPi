@@ -29,6 +29,13 @@ import type { EntreeJournalCorpusVue, ImpactJournalCorpus, ResultatAnnulationCor
 import { instructionsAppliquerRegle, poserDansPlages, appliquerDiffAnon } from '../shared/entretien/anon'
 import { migrerEntretienFormatV1 } from '../shared/entretien/migration'
 import { squeletteCorpus } from '../shared/corpus/squelette'
+import {
+  ajouterEntretienOrdre,
+  appliquerOrdreEntretiens,
+  calculerOrdreEntretiens,
+  normaliserOrdreEntretiens,
+  retirerEntretienOrdre,
+} from '../shared/corpus/ordreEntretiens'
 import { appliquerCommandeRecueils, normaliserRecueils, type CommandeRecueils } from '../shared/corpus/recueils'
 import {
   appliquerCommandeTableauBord,
@@ -88,6 +95,7 @@ import {
   type Locuteur,
   type MarqueurDemo,
   type MatriceCorpus,
+  type ModeTriEntretiens,
   type PatchCategorie,
   type PayloadEntretien,
   type ResultatSuppression,
@@ -397,6 +405,7 @@ export class CorpusStore {
     if (!versionSupportee(corpus.formatVersion)) {
       throw new Error(`Version de corpus non supportée : ${corpus.formatVersion}`)
     }
+    normaliserOrdreEntretiens(corpus)
     return {
       corpus,
       nouveau: false,
@@ -551,6 +560,7 @@ export class CorpusStore {
       reglesAnon: {},
       personnes: {},
       membership: {},
+      ordreEntretiens: [],
       recueils: {},
       cas: {},
       famillesCas: {},
@@ -717,7 +727,7 @@ export class CorpusStore {
       reperesPassages: [],
       meta: { valeursGen: {}, audioRef: null },
     }
-    corpusApres.membership[id] = { titre, date: null, lastModified: now }
+    ajouterEntretienOrdre(corpusApres, id, { titre, date: null, lastModified: now })
     return { operation: 'ajout', id, corpusAvant, corpusApres, entretien }
   }
 
@@ -750,7 +760,7 @@ export class CorpusStore {
     }
     corpusModel.fusionnerImport(corpusApres, codebook, variables)
     corpusModel.fusionnerReglesAnon(corpusApres, reglesAnon)
-    corpusApres.membership[id] = { titre, date: null, lastModified: now }
+    ajouterEntretienOrdre(corpusApres, id, { titre, date: null, lastModified: now })
     return { operation: 'ajout', id, corpusAvant, corpusApres, entretien }
   }
 
@@ -767,6 +777,37 @@ export class CorpusStore {
     const plan = this.preparerImportEntretien(titre, payload, codebook, variables, reglesAnon)
     this.appliquerTransactionFichiers(plan)
     return { id: plan.id, corpus: plan.corpusApres }
+  }
+
+  /** Trie les entretiens et ne lit leur contenu que si le critère l'exige. */
+  trierEntretiens(mode: ModeTriEntretiens): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    let entretiens: Map<string, EntretienFichier> | undefined
+    if (mode === 'modif' || mode === 'longueur') {
+      entretiens = new Map()
+      for (const id of corpus.ordreEntretiens!) {
+        const lecture = this.lireEntretien(id)
+        if (!lecture.ok) {
+          throw new Error(`L’entretien « ${corpus.membership[id].titre} » ne peut pas être lu.`)
+        }
+        entretiens.set(id, lecture.data)
+      }
+    }
+    return this.trierEntretiensAvecContenus(mode, entretiens)
+  }
+
+  /** Applique un tri à partir de contenus déjà validés par l'appelant. */
+  trierEntretiensAvecContenus(
+    mode: ModeTriEntretiens,
+    entretiens?: ReadonlyMap<string, EntretienFichier>,
+  ): CorpusFichier {
+    this.verifierEcriture()
+    const corpus = this.ouvrir()
+    const ordre = calculerOrdreEntretiens(corpus, mode, entretiens)
+    appliquerOrdreEntretiens(corpus, ordre)
+    this.ecrireJsonAtomique(this.corpusFile, corpus)
+    return corpus
   }
 
   renommerEntretien(id: string, titre: string): CorpusFichier {
@@ -811,7 +852,7 @@ export class CorpusStore {
       || retrait.rattachementsRetires !== impactCourant.rattachementsCas) {
       throw new Error("L'impact de la suppression n'a pas pu être vérifié.")
     }
-    delete corpusApres.membership[id]
+    retirerEntretienOrdre(corpusApres, id)
     const deplacements: PlanSuppressionEntretien['deplacements'] = []
     for (const suffixe of ['.json', '.json.bak1', '.json.bak2']) {
       const nom = id + suffixe

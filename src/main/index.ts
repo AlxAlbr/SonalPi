@@ -46,6 +46,7 @@ import type {
   ItemLotValeur,
   MarqueurDemo,
   ModeDemo,
+  ModeTriEntretiens,
   ModeleEAV,
   OuvertureCorpus,
   OuvertureEntretienEdition,
@@ -98,6 +99,7 @@ import type {
 } from '../shared/docsCadre'
 import { estListable } from '../shared/docsCadre'
 import { rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
+import { appliquerMenu } from './menuApplication'
 
 // Le protocole qui SERT les médias du corpus au renderer : en dev,
 // le renderer est en http://localhost (Vite) et ne lit pas file:// ;
@@ -220,6 +222,7 @@ function ajouterRecent(dir: string): void {
   const s = lireSettings()
   s.recents = [dir, ...s.recents.filter((d) => d !== dir)].slice(0, 8)
   ecrireSettings(s)
+  majMenu()
 }
 /** Retire un RACCOURCI de la liste des récents ;
  *  le dossier de corpus reste sur disque, jamais touché (l'app n'efface aucun corpus). */
@@ -227,13 +230,20 @@ function retirerRecent(dir: string): void {
   const s = lireSettings()
   s.recents = s.recents.filter((d) => d !== dir)
   ecrireSettings(s)
+  majMenu()
 }
 /** Mémorise l'ouverture d'un corpus distant dans les récents (id de compte). */
 function ajouterRecentDistant(id: string): void {
   const s = lireSettings()
   s.recentsDistant = [id, ...(s.recentsDistant ?? []).filter((d) => d !== id)].slice(0, 8)
   ecrireSettings(s)
+  majMenu()
 }
+
+/** Reconstruction du menu applicatif (sous-menu « Corpus récents » dynamique).
+ *  Crochet affecté par `enregistrerIpcCorpus` (les récents distants dépendent
+ *  du coffre, créé dans sa portée) ; le défaut pré-arme un menu sans récents. */
+let majMenu: () => void = () => appliquerMenu([])
 
 /** Rattache un dialogue NATIF à la fenêtre qui l'a demandé.
  *  Sans fenêtre parente, certains environnements (Linux/WSLg) affichent le dialogue DERRIÈRE l'app, ou sur un autre bureau ;
@@ -438,10 +448,17 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
   })
   ipcMain.handle('corpus:recents', (): EntreeRecent[] => {
+    const recents = listerRecents()
+    majMenu() // le sous-menu du menu applicatif suit la liste fraîche
+    return recents
+  })
+  /** Liste fraîche des récents (locaux vivants + comptes distants du coffre).
+   *  Écriture de retour pour purger les entrées mortes, `demo` préservé. */
+  const listerRecents = (): EntreeRecent[] => {
     const s = lireSettings()
     // Ne garder que les corpus dont le DOSSIER existe encore et contient toujours un corpus.json ;
     // un corpus supprimé à la main (dossier effacé ou vidé de son corpus.json) ne doit plus apparaître dans « Récents » ;
-    // au démarrage, le 1ᵉʳ récent ne doit pas être ré-amorcé en silence. Écriture de retour pour nettoyer settings.json des entrées mortes (demo préservé).
+    // au démarrage, le 1ᵉʳ récent ne doit pas être ré-amorcé en silence.
     const vivants = s.recents.filter((dir) => existsSync(join(dir, 'corpus.json')))
     if (vivants.length !== s.recents.length) {
       s.recents = vivants
@@ -472,7 +489,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       }),
       ...vivants.map((dir): EntreeRecent => ({ type: 'local', dir, nom: basename(dir) })),
     ]
-  })
+  }
+  // Les récents distants dépendent du coffre (portée locale) : le crochet global
+  // du menu est affecté ICI, après que `listerRecents` existe.
+  majMenu = () => appliquerMenu(listerRecents())
+
   /** Retire un RACCOURCI des récents (local OU distant),
    *  sans jamais toucher aux données : ni le dossier disque, ni le serveur, ni le miroir. */
   ipcMain.handle('corpus:retirerRecent', (_e, entree: EntreeRecent) => {
@@ -614,6 +635,14 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
     executerDefinitions((cible) => cible.renommerEntretien(id, titre)),
   )
+  ipcMain.handle('corpus:trierEntretiens', (_e, mode: ModeTriEntretiens) => {
+    if (!['alpha', 'ajout', 'modif', 'longueur'].includes(mode)) {
+      throw new Error('Mode de tri des entretiens inconnu.')
+    }
+    if (!transactions) return store.trierEntretiens(mode)
+    if (mode === 'modif' || mode === 'longueur') return transactions.trierEntretiens(mode)
+    return executerDefinitions((cible) => cible.trierEntretiens(mode))
+  })
   /** Suppression : DOUBLE VERROU distant (corpus PUIS entretien, ordre canonique ;
    *  publication corpus d'abord, MOVE serveur ensuite), ou directe en local.
    *  Défense en profondeur : si NOUS tenions encore la session de cet entretien,
@@ -1784,6 +1813,7 @@ app.whenReady().then(() => {
   nettoyerAvantQuit = enregistrerIpcCorpus()
   enregistrerIpcDemo()
   enregistrerIpcMigration()
+  majMenu()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

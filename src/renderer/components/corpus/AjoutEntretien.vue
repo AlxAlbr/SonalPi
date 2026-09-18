@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { EXT_MEDIA } from '../../../shared/media'
 
@@ -19,7 +19,17 @@ const {
   idDistantCourant,
   creerEntretienVideDistant,
   ouvrirDesignationAudio,
+  demandeAjoutEntretien,
 } = utiliserSonal()
+
+// Ouverture depuis le menu applicatif (« Entretiens → Ajouter un entretien ») :
+// le signal partagé est consommé puis remis à zéro.
+watch(demandeAjoutEntretien, (demande) => {
+  if (demande) {
+    ouverte.value = true
+    demandeAjoutEntretien.value = false
+  }
+})
 
 // Pendant une session démo, les dialogues natifs s'ouvrent dans racineSources
 // (l'utilisateur y retrouve les fichiers du pas-à-pas — ex. srt/1Coordinatrice.srt et

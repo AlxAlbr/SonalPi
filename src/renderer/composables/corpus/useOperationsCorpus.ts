@@ -24,6 +24,7 @@ import type {
   PayloadEntretien,
   RegleAnon,
   MetaEntretien,
+  ModeTriEntretiens,
   Note,
   Variable,
 } from '../../../shared/format'
@@ -342,6 +343,11 @@ export function useOperationsCorpus(deps: {
     }
   }
 
+  async function trierEntretiens(mode: ModeTriEntretiens): Promise<void> {
+    const corpus = await window.sonal.corpus.trierEntretiens(mode)
+    deps.corpus.membership.value = corpus.membership
+  }
+
   async function supprimer(
     id: string,
     impact?: ImpactSuppressionEntretien,
@@ -416,6 +422,7 @@ export function useOperationsCorpus(deps: {
     fermerExport,
     exporter,
     renommer,
+    trierEntretiens,
     supprimer,
     ouvrirAuSegment,
     allerSaisieDonnees: (id: string) => ouvrirOnglet(id, 'donnees'),

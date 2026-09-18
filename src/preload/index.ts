@@ -12,6 +12,7 @@ import type {
   LectureEntretien,
   MarqueurDemo,
   MatriceCorpus,
+  ModeTriEntretiens,
   ModeleEAV,
   NoteCategory,
   ResultatLotValeur,
@@ -94,6 +95,29 @@ contextBridge.exposeInMainWorld('sonal', {
       }
       ipcRenderer.on('application:preparerFermeture', ecouteur)
       return () => ipcRenderer.removeListener('application:preparerFermeture', ecouteur)
+    },
+  },
+  /** Menu applicatif (construit côté main) : les items émettent un canal,
+   *  le renderer route vers les actions/modales existantes. */
+  menu: {
+    /** Action de menu (voir menuApplication.ts). Renvoie le désabonnement. */
+    surAction: (
+      cb: (action: string, mode?: ModeTriEntretiens) => void,
+    ): (() => void) => {
+      const ecouteur = (
+        _e: Electron.IpcRendererEvent,
+        action: string,
+        mode?: ModeTriEntretiens,
+      ): void => cb(action, mode)
+      ipcRenderer.on('menu:action', ecouteur)
+      return () => ipcRenderer.removeListener('menu:action', ecouteur)
+    },
+    /** Choix d'un corpus récent (entrée locale OU distante, jamais un chemin
+     *  miroir) ; le renderer route vers ouvrirRecent. Renvoie le désabonnement. */
+    surOuvrirRecent: (cb: (entree: EntreeRecent) => void): (() => void) => {
+      const ecouteur = (_e: Electron.IpcRendererEvent, entree: EntreeRecent): void => cb(entree)
+      ipcRenderer.on('menu:ouvrirRecent', ecouteur)
+      return () => ipcRenderer.removeListener('menu:ouvrirRecent', ecouteur)
     },
   },
   /** Docs cadre projet : documents de méthode propres au corpus courant.
@@ -188,6 +212,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:creerEntretienVide', titre),
     renommerEntretien: (id: string, titre: string): Promise<CorpusFichier> =>
       invoquer('corpus:renommerEntretien', id, titre),
+    trierEntretiens: (mode: ModeTriEntretiens): Promise<CorpusFichier> =>
+      invoquer('corpus:trierEntretiens', mode),
     analyserSuppressionEntretien: (id: string): Promise<ImpactSuppressionEntretien> =>
       invoquer('corpus:analyserSuppressionEntretien', id),
     supprimerEntretien: (
