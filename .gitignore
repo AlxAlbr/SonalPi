@@ -4,3 +4,4 @@ dist/
 site/
 .env
 plan-*.md
+modules/Anafac_lexico/

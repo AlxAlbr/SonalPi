@@ -71,10 +71,14 @@ async function addVar(mode) {
         await sauvModas();  
 
         await window.sauvegarderCorpus(false);
-        updateVarsDsEnt();
+        await updateVarsDsEnt();
         await window.majFichierSonal();
-        if (document.getElementById("divTabDat")) await affichDataGen();
         hidedlg();
+        if (document.getElementById("divTabDat")) {
+            await affichDataGen();
+        } else if (document.getElementById("listVarGenContent") || document.getElementById("listVarLocContent")) {
+            await affichDataEnt();
+        }
     } else {
         question("Veuillez entrer un nom de variable.", ['OK']);
     }
@@ -252,9 +256,13 @@ async function sauvVar(rgVar, mode) {
 
 
             await window.sauvegarderCorpus(false);
-            updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
+            await updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
             await window.majFichierSonal();
-            if (document.getElementById("divTabDat")) await affichDataGen();
+            if (document.getElementById("divTabDat")) {
+                await affichDataGen();
+            } else if (document.getElementById("listVarGenContent") || document.getElementById("listVarLocContent")) {
+                await affichDataEnt();
+            }
 
 
       
@@ -304,9 +312,13 @@ async function supprVar(rgVar, mode) {
 
 
         await window.sauvegarderCorpus(false);
-        updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
+        await updateVarsDsEnt(); // modification dans les fichiers Sonal de tous les entretiens
         await window.majFichierSonal();
-        await affichDataGen();
+        if (document.getElementById("divTabDat")) {
+            await affichDataGen();
+        } else if (document.getElementById("listVarGenContent") || document.getElementById("listVarLocContent")) {
+            await affichDataEnt();
+        }
 
         hidedlg();
     } else {

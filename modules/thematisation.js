@@ -16,6 +16,22 @@ var dragA = null; // thématique cible du déplacement
 
 let filigraneActif = true;
 const FILIGRANE_OPACITE = 0.55; // opacité du voile blanc (0 = invisible, 1 = blanc total)
+const THM_STYLE_ID = 'sonal-thm-style';
+
+function getThmStyleElement() {
+    let style = document.getElementById(THM_STYLE_ID);
+    if (!style) {
+        style = document.createElement('style');
+        style.type = 'text/css';
+        style.id = THM_STYLE_ID;
+        document.head.appendChild(style);
+    }
+    return style;
+}
+
+function getThmStyleSheet() {
+    return getThmStyleElement().sheet;
+}
 
 async function loadThm(){
 
@@ -27,28 +43,10 @@ async function loadThm(){
          
     let tabThm = await window.electronAPI.getThm(); // récupération du tableau des thématiques depuis main
     
-    // Créer une nouvelle balise <style>
-    const style = document.createElement('style');
-    style.type = 'text/css';
-
-    // Ajouter des règles CSS
-    style.innerHTML = ``
-    
-    /*
-        .survseg {
-        background-color:  rgba(185, 185, 185, 0.25);
-        transition: 1s;
-        }
-
-        .cat_000 {
-            backgroundcolor : rgb(91 91 91 / 72%)
-        }
-
-    `;
-    */
-
-    // Ajouter la feuille de style au document
-    document.head.appendChild(style);
+    // Réutiliser la même feuille de style pour éviter la cohabitation
+    // d'anciennes et nouvelles règles lors des mises à jour successives.
+    const style = getThmStyleElement();
+    style.textContent = '';
 
    /* 
     tabThm=[];
@@ -868,8 +866,7 @@ async function validerModifsThm(){
 
         // récupération de la feuille de style
         //const sheet = document.styleSheets[0];
-        const styleTag = document.querySelector('style'); // Sélectionne la première balise <style>
-        const sheet = styleTag.sheet; // Accède à sa feuille de style
+        const sheet = getThmStyleSheet(); // Accède à la feuille de style thématique
         
 
         // Parcourir les règles CSS
@@ -962,6 +959,18 @@ async function validerModifsThm(){
     // enregistrement du tabThm dans le main
     console.log("enregistrement des modifs de thématiques ", tabThm[rangthm]);
     let envoi = await window.electronAPI.setThm(tabThm);
+
+    // Recalcul des styles après édition : recrée les règles mono et multi-catégories
+    // pour éviter les traces de l'ancienne couleur dans l'éditeur.
+    await loadThm();
+    if (document.getElementById('segments')) {
+        purgeMultiThmCss();
+        multiThm('segments');
+    }
+    if (document.getElementById('segments-contenu')) {
+        purgeMultiThmCss();
+        multiThm('segments-contenu');
+    }
  
      affichListThmEdit(tabThm);
 
@@ -990,8 +999,7 @@ function createThm(code, couleur, taille, filigrane){
     }
 
     // Créer une nouvelle balise <style>
-    const style = document.querySelector('style');
-    const sheet = style.sheet;
+    const sheet = getThmStyleSheet();
 
     // Si la règle existe déjà, la mettre à jour plutôt que d'en ajouter une nouvelle
     for (let i = 0; i < sheet.cssRules.length; i++) {
@@ -1012,13 +1020,8 @@ function createThm(code, couleur, taille, filigrane){
     }
 
     // Ajouter des règles CSS (seulement si la règle n'existait pas)
-    style.innerHTML += `
-    .${code} {
-    ${bgImage}
-    ${font}
-    padding-bottom: 4px;
-    }
-    `;
+    const ruleText = `.${code} { ${bgImage} ${font} padding-bottom: 4px; }`;
+    sheet.insertRule(ruleText, sheet.cssRules.length);
 
 }
 
@@ -1479,8 +1482,7 @@ async function supprStyle(){
     const code = document.getElementById("lblCodeCat").value;
 
     // récupération de la feuille de style
-    const styleTag = document.querySelector('style'); // Sélectionne la première balise <style>
-    const sheet = styleTag.sheet; // Accède à sa feuille de style
+    const sheet = getThmStyleSheet(); // Accède à la feuille de style thématique
 
     // Parcourir les règles CSS
     for (let i = 0; i < sheet.cssRules.length; i++) {
@@ -1855,8 +1857,7 @@ async function multiThm(conteneurID){
          
         // ajout éventuel d'un nouveau style
 
-        const style = document.querySelector('style');
-        const sheet = style.sheet;
+        const sheet = getThmStyleSheet();
 
         // Ajouter des règles CSS via CSSOM pour ne pas écraser les modifications existantes
         const ruleText = chaine + ` { ` + background + ` line-height: ` + (1.5 + (0.05 * nbcats)) + `em; }`;
@@ -2007,8 +2008,7 @@ function getThm(rk){
 // vérifie si une règle css existe déjà (pour ne pas la duppliquer)
 function existCss(chaine){
 
-    const styleTag = document.querySelector('style');
-    const sheet = styleTag.sheet; // Accède à sa feuille de style
+    const sheet = getThmStyleSheet(); // Accède à la feuille de style thématique
     
 
     // Parcourir les règles CSS
@@ -2409,8 +2409,7 @@ function modifCss(regle, attribut, valeur){
     console.log ("css " + regle + " - " + attribut + " - " + valeur )
 
     
-    const styleTag = document.querySelector('style'); // Sélectionne la première balise <style>
-    const styleSheet = styleTag.sheet; // Accède à sa feuille de style
+    const styleSheet = getThmStyleSheet(); // Accède à la feuille de style thématique
 
     // Parcourir les règles CSS de la feuille de style
     for (let i = 0; i < styleSheet.cssRules.length; i++) {
@@ -2727,7 +2726,7 @@ function selAllCat(){
 // Supprime les règles CSS multi-catégories générées par multiThm()
 // afin qu'elles soient recréées avec la bonne opacité de filigrane
 function purgeMultiThmCss() {
-    const sheet = document.querySelector('style').sheet;
+    const sheet = getThmStyleSheet();
     for (let i = sheet.cssRules.length - 1; i >= 0; i--) {
         const sel = sheet.cssRules[i].selectorText || '';
         if ((sel.match(/\.cat_/g) || []).length > 1) {

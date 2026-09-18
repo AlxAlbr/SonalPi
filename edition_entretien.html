@@ -3094,10 +3094,15 @@ function listenersFinSel(){
    
   
           // Écouter les mises à jour
-  window.electronAPI.onUpdateCat((data) => {
-          console.log("demande de modifs reçue")
-             afflistThm(data,"conteneur_cat"); // mise à jour de l'affichage des catégories
-    });
+    window.electronAPI.onUpdateCat(async (data) => {
+                    console.log("demande de modifs reçue")
+                    afflistThm(data,"conteneur_cat"); // mise à jour de l'affichage des catégories
+
+                    // Rechargement des styles pour éviter la cohabitation ancienne/nouvelle couleur.
+                    await loadThm();
+                    if (typeof purgeMultiThmCss === 'function') purgeMultiThmCss();
+                    if (typeof multiThm === 'function') multiThm('segments');
+        });
 
 
     

@@ -178,6 +178,10 @@ var lxOptLemmatiserVerbes = true; // lemmatiser automatiquement les verbes
 var lxOptAfficherVerbesLemmes = true; // afficher les lemmes de verbes dans les vues lexico
 var lxOptAfficherWordle   = true;  // afficher le nuage de mots par défaut
 
+var lxAFVLastJSON = null;          // dernier tableau lexical exporte (.lexaf.json)
+var lxAFVLastResult = null;        // dernier resultat factoriel (memoire session)
+var lxAFVLastSaveInfo = null;      // infos de sauvegarde du JSON lexical
+
 var lxMotsOutils = new Set(); // formes à ignorer (mots vides / mots outils)
 var lxConcatRegles = new Map(); // regles de concatenation chargees/saisies (.cnct)
 
@@ -718,6 +722,15 @@ function _lxHeader(divRoot) {
     btnOptions.textContent = 'Options';
     btnOptions.addEventListener('click', () => _lxOuvrirOptions());
     h.appendChild(btnOptions);
+
+    const btnAFV = document.createElement('button');
+    btnAFV.className = 'btn btn-secondary';
+    btnAFV.style.padding = '10px';
+    btnAFV.textContent = 'AF vocab';
+    btnAFV.title = 'Analyse factorielle du vocabulaire';
+    btnAFV.addEventListener('click', () => _lxAFVOuvrirMenu());
+    // Ajout du bouton AFV (en attente pour l'instant)
+    //h.appendChild(btnAFV);
 
     
 
@@ -3839,6 +3852,957 @@ function _lxRefreshTable() {
 }
 
 // ============================================================
+// ANALYSE FACTORIELLE DU VOCABULAIRE (AFV)
+// ============================================================
+
+function _lxAFVOccurrenceVersCleForme(item) {
+    return (item.substitut && item.substitut.trim()) ? item.substitut.trim() : item.forme;
+}
+
+function _lxAFVOccurrenceFiltreeAffichage(item, forme) {
+    if (!lxOptAfficherChiffres && /^[0-9]+$/.test(forme)) return true;
+    if (lxOptLemmatiserVerbes && !lxOptAfficherVerbesLemmes && _lxFormeEstLemmeVerbeMasquable(forme)) return true;
+    if (lxMotsOutils.size > 0 && lxMotsOutils.has(forme)) return true;
+    return false;
+}
+
+function _lxAFVRecupOccActivesLexico() {
+    return _lxToutesOccurrencesActives({ inclureQuestions: !lxOptExclureQuestions });
+}
+
+function _lxAFVPreparercorpusActif() {
+    _lxReconstruireTypesLemmesParForme();
+
+    const occActives = _lxAFVRecupOccActivesLexico();
+    const compteParForme = new Map();
+
+    occActives.forEach(item => {
+        const forme = _lxAFVOccurrenceVersCleForme(item);
+        if (_lxAFVOccurrenceFiltreeAffichage(item, forme)) return;
+        compteParForme.set(forme, (compteParForme.get(forme) || 0) + 1);
+    });
+
+    const formesValides = new Set();
+    compteParForme.forEach((freq, forme) => {
+        if (freq >= Math.max(1, lxOptOccMin || 1)) formesValides.add(forme);
+    });
+
+    const occFinales = occActives.filter(item => {
+        const forme = _lxAFVOccurrenceVersCleForme(item);
+        return formesValides.has(forme);
+    });
+
+    return {
+        occActives,
+        occFinales,
+        compteParForme,
+        formesValides
+    };
+}
+
+function _lxAFVListeCategories(occurrences) {
+    const mapThm = new Map((tabThm || []).map(t => [t.code, t]));
+    const mapModalites = _lxNuageModalitesParEntretien();
+    const categories = new Map();
+
+    const assurer = (key, type, label) => {
+        if (!categories.has(key)) {
+            categories.set(key, {
+                key,
+                type,
+                label,
+                occurrences: 0,
+                inclure: true,
+                active: true
+            });
+        }
+        return categories.get(key);
+    };
+
+    occurrences.forEach(item => {
+        const deja = new Set();
+
+        (item.thematiques || []).forEach(code => {
+            const thm = mapThm.get(code);
+            const nom = thm
+                ? ((typeof splitNomThm === 'function') ? splitNomThm(thm.nom)[0] : (thm.nom || code))
+                : code;
+            const key = `thm|${code}`;
+            if (deja.has(key)) return;
+            deja.add(key);
+            assurer(key, 'THM', nom).occurrences++;
+        });
+
+        const modsEnt = mapModalites.get(item.entretien);
+        if (modsEnt) {
+            modsEnt.generalEntries.forEach(entry => {
+                if (deja.has(entry.key)) return;
+                deja.add(entry.key);
+                assurer(entry.key, 'MOD', entry.label).occurrences++;
+            });
+            const locKey = String(item.locuteur || '');
+            if (locKey && modsEnt.byLoc.has(locKey)) {
+                modsEnt.byLoc.get(locKey).forEach(entry => {
+                    if (deja.has(entry.key)) return;
+                    deja.add(entry.key);
+                    assurer(entry.key, 'MOD', entry.label).occurrences++;
+                });
+            }
+        }
+
+        const keyEnt = `ent|${item.entretien}`;
+        if (!deja.has(keyEnt)) {
+            deja.add(keyEnt);
+            const nomEnt = (tabEnt[item.entretien] && tabEnt[item.entretien].nom)
+                ? tabEnt[item.entretien].nom
+                : `Entretien ${item.entretien + 1}`;
+            assurer(keyEnt, 'ENT', nomEnt).occurrences++;
+        }
+
+        const loc = String(item.locuteur || '').trim();
+        if (loc) {
+            const keyLoc = `loc|${loc}`;
+            if (!deja.has(keyLoc)) {
+                deja.add(keyLoc);
+                assurer(keyLoc, 'LOC', loc).occurrences++;
+            }
+        }
+    });
+
+    return [...categories.values()]
+        .filter(c => c.occurrences > 0)
+        .sort((a, b) => {
+            const ordreType = { THM: 0, MOD: 1, ENT: 2, LOC: 3 };
+            const dt = (ordreType[a.type] ?? 9) - (ordreType[b.type] ?? 9);
+            if (dt !== 0) return dt;
+            return a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' });
+        });
+}
+
+function _lxAFVEtatsActifsPanneaux() {
+    const thmActifs = new Set();
+    const thmLabels = [...document.querySelectorAll('#lxPnlThm .ligthm[data-code]')];
+    if (thmLabels.length > 0) {
+        thmLabels.forEach(lbl => {
+            const code = String(lbl.dataset.code || '');
+            if (!code) return;
+            if (!lbl.classList.contains('ligthm-inactive')) thmActifs.add(code);
+        });
+    } else {
+        (tabThm || []).forEach(t => {
+            if (t && t.code) thmActifs.add(String(t.code));
+        });
+    }
+
+    const modActifs = new Set();
+    const modBtns = [...document.querySelectorAll('#lxPnlVar .btn-onoff-ent[data-v][data-m]')];
+    if (modBtns.length > 0) {
+        modBtns.forEach(btn => {
+            const v = String(btn.dataset.v || '');
+            const m = String(btn.dataset.m || '');
+            if (!v || !m) return;
+            if (btn.classList.contains('btn-onoff-ent--actif')) modActifs.add(`mod|${v}|${m}`);
+        });
+    }
+
+    const entActifs = new Set();
+    const entBtns = [...document.querySelectorAll('#lxPnlEnt .btn-onoff-ent[data-ent-idx]')];
+    if (entBtns.length > 0) {
+        entBtns.forEach(btn => {
+            const entIdx = String(btn.dataset.entIdx || '');
+            if (!entIdx) return;
+            if (btn.classList.contains('btn-onoff-ent--actif')) entActifs.add(`ent|${entIdx}`);
+        });
+    } else {
+        for (let i = 0; i < (tabEnt || []).length; i++) entActifs.add(`ent|${i}`);
+    }
+
+    return { thmActifs, modActifs, entActifs };
+}
+
+function _lxAFVSelectionParTypesEtActifs(categories, configTypes, etatsPanneaux) {
+    const { thmActifs, modActifs, entActifs } = etatsPanneaux;
+
+    return categories
+        .filter(c => {
+            const cfg = configTypes && configTypes[c.type];
+            return !!(cfg && cfg.include);
+        })
+        .map(c => {
+            let entiteActive = true;
+            if (c.type === 'THM') {
+                const code = c.key.startsWith('thm|') ? c.key.slice(4) : '';
+                entiteActive = code ? thmActifs.has(code) : true;
+            } else if (c.type === 'MOD') {
+                // Si le panneau variables n'est pas present, on conserve tout en actif.
+                if (modActifs.size > 0) entiteActive = modActifs.has(c.key);
+            } else if (c.type === 'ENT') {
+                entiteActive = entActifs.has(c.key);
+            } else if (c.type === 'LOC') {
+                entiteActive = true;
+            }
+            const cfg = configTypes[c.type] || { include: false, role: 'ACT' };
+            return {
+                ...c,
+                inclure: entiteActive,
+                active: cfg.role !== 'SUP'
+            };
+        })
+        .filter(c => c.inclure);
+}
+
+function _lxAFVClesOccurrence(item, mapModalites, mapThm) {
+    const out = new Set();
+
+    (item.thematiques || []).forEach(code => {
+        if (mapThm.has(code)) out.add(`thm|${code}`);
+    });
+
+    const modsEnt = mapModalites.get(item.entretien);
+    if (modsEnt) {
+        modsEnt.generalEntries.forEach(entry => out.add(entry.key));
+        const locKey = String(item.locuteur || '');
+        if (locKey && modsEnt.byLoc.has(locKey)) {
+            modsEnt.byLoc.get(locKey).forEach(entry => out.add(entry.key));
+        }
+    }
+
+    out.add(`ent|${item.entretien}`);
+
+    const loc = String(item.locuteur || '').trim();
+    if (loc) out.add(`loc|${loc}`);
+
+    return out;
+}
+
+function _lxAFVConstruireTableauLexical(selection, occFinales, compteParForme) {
+    const categories = selection.filter(c => c.inclure);
+    const nbCats = categories.length;
+    const mapThm = new Map((tabThm || []).map(t => [t.code, t]));
+    const mapModalites = _lxNuageModalitesParEntretien();
+
+    const rowsMap = new Map();
+    occFinales.forEach(item => {
+        const forme = _lxAFVOccurrenceVersCleForme(item);
+        if (!rowsMap.has(forme)) {
+            rowsMap.set(forme, {
+                forme,
+                total: 0,
+                cat: new Array(nbCats).fill(0)
+            });
+        }
+
+        const row = rowsMap.get(forme);
+        row.total++;
+
+        const cles = _lxAFVClesOccurrence(item, mapModalites, mapThm);
+        for (let i = 0; i < nbCats; i++) {
+            if (cles.has(categories[i].key)) row.cat[i]++;
+        }
+    });
+
+    const rows = [...rowsMap.values()]
+        .filter(r => r.total >= Math.max(1, lxOptOccMin || 1))
+        .sort((a, b) => b.total - a.total || a.forme.localeCompare(b.forme, 'fr', { sensitivity: 'base' }));
+
+    const matrix = rows.map(r => {
+        const vals = [];
+        for (let i = 0; i < nbCats; i++) {
+            const vCat = r.cat[i];
+            const vNon = r.total - vCat;
+            vals.push(vCat, vNon);
+        }
+        return vals;
+    });
+
+    const columns = [];
+    const activeMask = [];
+    categories.forEach((c, i) => {
+        columns.push({ key: `cat_${i + 1}`, role: 'cat', sourceKey: c.key, label: `cat_${c.label}`, active: !!c.active });
+        columns.push({ key: `non_cat_${i + 1}`, role: 'non_cat', sourceKey: c.key, label: `non_cat_${c.label}`, active: !!c.active });
+        activeMask.push(!!c.active, !!c.active);
+    });
+
+    const json = {
+        type: 'sonal-lexico-afv-table',
+        version: 1,
+        createdAt: new Date().toISOString(),
+        options: {
+            exclureQuestions: lxOptExclureQuestions,
+            occMin: lxOptOccMin,
+            afficherChiffres: lxOptAfficherChiffres,
+            afficherVerbesLemmes: lxOptAfficherVerbesLemmes,
+            lemmatiserVerbes: lxOptLemmatiserVerbes
+        },
+        source: {
+            occurrencesActives: occFinales.length,
+            formesRetenues: rows.length,
+            occurrencesTotalesLexico: tabLexico.length
+        },
+        categories: categories.map(c => ({
+            key: c.key,
+            type: c.type,
+            label: c.label,
+            active: !!c.active,
+            occurrences: c.occurrences
+        })),
+        columns,
+        rows: rows.map((r, idx) => {
+            const detail = {};
+            categories.forEach((c, i) => {
+                detail[c.key] = { cat: r.cat[i], non_cat: r.total - r.cat[i] };
+            });
+            return {
+                id: idx + 1,
+                forme: r.forme,
+                total: r.total,
+                detail,
+                values: matrix[idx]
+            };
+        })
+    };
+
+    let ecarts = 0;
+    rows.forEach(r => {
+        for (let i = 0; i < nbCats; i++) {
+            if (r.cat[i] + (r.total - r.cat[i]) !== r.total) ecarts++;
+        }
+    });
+
+    return {
+        json,
+        matrix,
+        rows,
+        columns,
+        activeMask,
+        verification: {
+            ecarts,
+            categories: nbCats,
+            formes: rows.length
+        }
+    };
+}
+
+function _lxAFVDot(a, b) {
+    let s = 0;
+    for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+    return s;
+}
+
+function _lxAFVNorm(v) {
+    return Math.sqrt(Math.max(0, _lxAFVDot(v, v)));
+}
+
+function _lxAFVMatVec(A, v) {
+    const out = new Array(A.length).fill(0);
+    for (let i = 0; i < A.length; i++) {
+        let s = 0;
+        const row = A[i];
+        for (let j = 0; j < row.length; j++) s += row[j] * v[j];
+        out[i] = s;
+    }
+    return out;
+}
+
+function _lxAFVCalculerCA(matrix, activeMask, rowLabels, colLabels, nFacDemandes = 3) {
+    const I = matrix.length;
+    const J = I > 0 ? matrix[0].length : 0;
+    if (!I || !J) throw new Error('Matrice lexicale vide');
+
+    const rowSum = new Array(I).fill(0);
+    const colSum = new Array(J).fill(0);
+    let total = 0;
+
+    for (let i = 0; i < I; i++) {
+        for (let j = 0; j < J; j++) {
+            const v = Number(matrix[i][j]) || 0;
+            rowSum[i] += v;
+            colSum[j] += v;
+            total += v;
+        }
+    }
+    if (total <= 0) throw new Error('Total nul dans la matrice lexicale');
+
+    const r = rowSum.map(v => v / total);
+    const c = colSum.map(v => v / total);
+
+    const activeIdx = [];
+    for (let j = 0; j < J; j++) {
+        if (activeMask[j] && c[j] > 0) activeIdx.push(j);
+    }
+    if (activeIdx.length < 2) throw new Error('Au moins deux colonnes actives non nulles sont requises');
+
+    const S = new Array(I);
+    for (let i = 0; i < I; i++) {
+        S[i] = new Array(activeIdx.length).fill(0);
+        for (let a = 0; a < activeIdx.length; a++) {
+            const j = activeIdx[a];
+            const pij = matrix[i][j] / total;
+            const den = Math.sqrt(Math.max(1e-20, r[i] * c[j]));
+            S[i][a] = (pij - r[i] * c[j]) / den;
+        }
+    }
+
+    const A = new Array(I);
+    for (let i = 0; i < I; i++) {
+        A[i] = new Array(I).fill(0);
+    }
+    for (let i = 0; i < I; i++) {
+        for (let k = 0; k < I; k++) {
+            let s = 0;
+            for (let a = 0; a < activeIdx.length; a++) s += S[i][a] * S[k][a];
+            A[i][k] = s;
+        }
+    }
+
+    let totalInertia = 0;
+    for (let i = 0; i < I; i++) totalInertia += A[i][i];
+
+    const nFac = Math.max(1, Math.min(nFacDemandes, I - 1, activeIdx.length));
+    const eigVals = [];
+    const eigVecs = [];
+
+    for (let f = 0; f < nFac; f++) {
+        let v = new Array(I).fill(0).map((_, i) => Math.sin((i + 1) * (f + 2)) + Math.cos((i + 3) * (f + 1)));
+        let nrm = _lxAFVNorm(v);
+        if (nrm <= 1e-12) break;
+        v = v.map(x => x / nrm);
+
+        let old = v.slice();
+        for (let iter = 0; iter < 400; iter++) {
+            let w = _lxAFVMatVec(A, v);
+
+            for (let p = 0; p < eigVecs.length; p++) {
+                const proj = _lxAFVDot(w, eigVecs[p]);
+                for (let i = 0; i < I; i++) w[i] -= proj * eigVecs[p][i];
+            }
+
+            const nw = _lxAFVNorm(w);
+            if (nw <= 1e-12) break;
+            for (let i = 0; i < I; i++) w[i] /= nw;
+
+            const diff = _lxAFVNorm(w.map((x, i) => x - old[i]));
+            v = w;
+            old = w.slice();
+            if (diff < 1e-10) break;
+        }
+
+        const Av = _lxAFVMatVec(A, v);
+        const lambda = _lxAFVDot(v, Av);
+        if (!isFinite(lambda) || lambda <= 1e-12) break;
+
+        eigVals.push(lambda);
+        eigVecs.push(v.slice());
+    }
+
+    if (eigVals.length === 0) throw new Error('Echec de l\'extraction factorielle (valeurs propres nulles)');
+
+    const F = new Array(I).fill(0).map(() => new Array(eigVals.length).fill(0));
+    const G = new Array(J).fill(0).map(() => new Array(eigVals.length).fill(0));
+    const contribRows = new Array(I).fill(0).map(() => new Array(eigVals.length).fill(0));
+    const contribCols = new Array(J).fill(0).map(() => new Array(eigVals.length).fill(0));
+
+    for (let k = 0; k < eigVals.length; k++) {
+        const sigma = Math.sqrt(eigVals[k]);
+        const uk = eigVecs[k];
+
+        for (let i = 0; i < I; i++) {
+            F[i][k] = r[i] > 0 ? (uk[i] * sigma / Math.sqrt(r[i])) : 0;
+        }
+
+        for (let j = 0; j < J; j++) {
+            if (c[j] <= 0) {
+                G[j][k] = 0;
+                continue;
+            }
+            let s = 0;
+            for (let i = 0; i < I; i++) {
+                if (r[i] <= 0) continue;
+                const pij = matrix[i][j] / total;
+                s += pij * (uk[i] / Math.sqrt(r[i]));
+            }
+            G[j][k] = s / c[j];
+        }
+
+        const lam = Math.max(1e-20, eigVals[k]);
+        for (let i = 0; i < I; i++) {
+            contribRows[i][k] = 100 * r[i] * F[i][k] * F[i][k] / lam;
+        }
+        for (let j = 0; j < J; j++) {
+            if (!activeMask[j]) {
+                contribCols[j][k] = 0;
+            } else {
+                contribCols[j][k] = 100 * c[j] * G[j][k] * G[j][k] / lam;
+            }
+        }
+    }
+
+    const cos2Rows = new Array(I).fill(0).map(() => new Array(eigVals.length).fill(0));
+    const cos2Cols = new Array(J).fill(0).map(() => new Array(eigVals.length).fill(0));
+
+    for (let i = 0; i < I; i++) {
+        let d2 = 0;
+        for (let k = 0; k < eigVals.length; k++) d2 += F[i][k] * F[i][k];
+        if (d2 > 0) {
+            for (let k = 0; k < eigVals.length; k++) cos2Rows[i][k] = 100 * F[i][k] * F[i][k] / d2;
+        }
+    }
+
+    for (let j = 0; j < J; j++) {
+        let d2 = 0;
+        for (let k = 0; k < eigVals.length; k++) d2 += G[j][k] * G[j][k];
+        if (d2 > 0) {
+            for (let k = 0; k < eigVals.length; k++) cos2Cols[j][k] = 100 * G[j][k] * G[j][k] / d2;
+        }
+    }
+
+    const pct = eigVals.map(v => (totalInertia > 0 ? 100 * v / totalInertia : 0));
+
+    return {
+        rowLabels,
+        colLabels,
+        eigVals,
+        pct,
+        totalInertia,
+        F,
+        G,
+        contribRows,
+        contribCols,
+        cos2Rows,
+        cos2Cols,
+        activeMask,
+        rowMass: r,
+        colMass: c
+    };
+}
+
+async function _lxAFVSauvegarderJSON(jsonObj) {
+    const ext = '.lexaf.json';
+    const payload = JSON.stringify(jsonObj, null, 2);
+    const res = await window.electronAPI.sauvegarderAnnexeLexico(ext, payload);
+    lxAFVLastSaveInfo = {
+        ext,
+        success: !!(res && res.success),
+        error: res && res.error ? res.error : ''
+    };
+    return lxAFVLastSaveInfo;
+}
+
+async function _lxAFVOuvrirMenu() {
+    if (!Array.isArray(tabLexico) || tabLexico.length === 0) {
+        await extraireLexico();
+        agreguerLexico();
+        _lxRefreshTable();
+    }
+
+    const prep = _lxAFVPreparercorpusActif();
+    const categories = _lxAFVListeCategories(prep.occFinales);
+
+    if (categories.length === 0) {
+        alert('Aucune catégorie disponible dans le contexte filtré.');
+        return;
+    }
+
+    document.getElementById('lx-afv-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'lx-afv-overlay';
+    overlay.className = 'lx-afv-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'lx-afv-modal';
+
+    const head = document.createElement('div');
+    head.className = 'lx-afv-head';
+    head.innerHTML = `<h3>Analyse factorielle du vocabulaire</h3><div class="close" style="cursor:pointer">✖️</div>`;
+    head.querySelector('.close').addEventListener('click', () => overlay.remove());
+    modal.appendChild(head);
+
+    const resume = document.createElement('div');
+    resume.className = 'lx-afv-resume';
+    resume.textContent = `Occurrences actives: ${prep.occFinales.length.toLocaleString('fr-FR')} | Formes retenues: ${prep.formesValides.size.toLocaleString('fr-FR')}`;
+    modal.appendChild(resume);
+
+    const tools = document.createElement('div');
+    tools.className = 'lx-afv-tools';
+    const nbTHM = categories.filter(c => c.type === 'THM').length;
+    const nbMOD = categories.filter(c => c.type === 'MOD').length;
+    const nbENT = categories.filter(c => c.type === 'ENT').length;
+    const nbLOC = categories.filter(c => c.type === 'LOC').length;
+    tools.innerHTML = `
+        <div class="lx-afv-type-grid">
+            <div class="lx-afv-type-row"><label><input type="checkbox" id="lx-afv-type-thm" checked ${nbTHM ? '' : 'disabled'}> Thématiques (${nbTHM})</label><label>Rôle <select id="lx-afv-role-thm" ${nbTHM ? '' : 'disabled'}><option value="ACT" selected>Actif</option><option value="SUP">Supplémentaire</option></select></label></div>
+            <div class="lx-afv-type-row"><label><input type="checkbox" id="lx-afv-type-mod" checked ${nbMOD ? '' : 'disabled'}> Variables/modalités (${nbMOD})</label><label>Rôle <select id="lx-afv-role-mod" ${nbMOD ? '' : 'disabled'}><option value="ACT" selected>Actif</option><option value="SUP">Supplémentaire</option></select></label></div>
+            <div class="lx-afv-type-row"><label><input type="checkbox" id="lx-afv-type-ent" checked ${nbENT ? '' : 'disabled'}> Entretiens (${nbENT})</label><label>Rôle <select id="lx-afv-role-ent" ${nbENT ? '' : 'disabled'}><option value="ACT">Actif</option><option value="SUP" selected>Supplémentaire</option></select></label></div>
+            <div class="lx-afv-type-row"><label><input type="checkbox" id="lx-afv-type-loc" checked ${nbLOC ? '' : 'disabled'}> Locuteurs (${nbLOC})</label><label>Rôle <select id="lx-afv-role-loc" ${nbLOC ? '' : 'disabled'}><option value="ACT">Actif</option><option value="SUP" selected>Supplémentaire</option></select></label></div>
+        </div>
+        <label style="margin-left:auto">Facteurs: <input id="lx-afv-nfac" type="number" min="2" max="8" value="3" style="width:58px"></label>
+    `;
+    modal.appendChild(tools);
+
+    const hint = document.createElement('div');
+    hint.className = 'lx-afv-resume';
+    hint.innerHTML = 'Pour chaque type: cochez <strong>Inclure</strong> et choisissez le rôle <strong>Actif/Supplémentaire</strong>. Seules les entités actives dans les filtres lexico sont retenues.';
+    modal.appendChild(hint);
+
+    const preview = document.createElement('div');
+    preview.id = 'lx-afv-preview';
+    preview.className = 'lx-afv-resume';
+    modal.appendChild(preview);
+
+    const _lxAFVTypeChecked = id => {
+        const el = tools.querySelector(`#${id}`);
+        return !!(el && el.checked);
+    };
+
+    const _lxAFVRoleValue = id => {
+        const el = tools.querySelector(`#${id}`);
+        return el ? String(el.value || 'ACT') : 'ACT';
+    };
+
+    const lireConfigTypes = () => ({
+        THM: { include: _lxAFVTypeChecked('lx-afv-type-thm'), role: _lxAFVRoleValue('lx-afv-role-thm') },
+        MOD: { include: _lxAFVTypeChecked('lx-afv-type-mod'), role: _lxAFVRoleValue('lx-afv-role-mod') },
+        ENT: { include: _lxAFVTypeChecked('lx-afv-type-ent'), role: _lxAFVRoleValue('lx-afv-role-ent') },
+        LOC: { include: _lxAFVTypeChecked('lx-afv-type-loc'), role: _lxAFVRoleValue('lx-afv-role-loc') }
+    });
+
+    const majPreview = () => {
+        const configTypes = lireConfigTypes();
+        const etatsPanneaux = _lxAFVEtatsActifsPanneaux();
+        const retenues = _lxAFVSelectionParTypesEtActifs(categories, configTypes, etatsPanneaux);
+
+        const cntAct = { THM: 0, MOD: 0, ENT: 0, LOC: 0 };
+        const cntSup = { THM: 0, MOD: 0, ENT: 0, LOC: 0 };
+        retenues.forEach(c => {
+            if (c.active) cntAct[c.type] = (cntAct[c.type] || 0) + 1;
+            else cntSup[c.type] = (cntSup[c.type] || 0) + 1;
+        });
+
+        const totalAct = retenues.filter(c => c.active).length;
+        const totalSup = retenues.length - totalAct;
+
+        preview.innerHTML = [
+            `Retenues (entités actives des filtres) :`,
+            `THM A:${cntAct.THM} / S:${cntSup.THM}`,
+            `MOD A:${cntAct.MOD} / S:${cntSup.MOD}`,
+            `ENT A:${cntAct.ENT} / S:${cntSup.ENT}`,
+            `LOC A:${cntAct.LOC} / S:${cntSup.LOC}`,
+            `Total A:<strong>${totalAct}</strong> / S:<strong>${totalSup}</strong>`
+        ].join(' | ');
+    };
+
+    ['lx-afv-type-thm', 'lx-afv-type-mod', 'lx-afv-type-ent', 'lx-afv-type-loc', 'lx-afv-role-thm', 'lx-afv-role-mod', 'lx-afv-role-ent', 'lx-afv-role-loc'].forEach(id => {
+        const el = tools.querySelector(`#${id}`);
+        if (el) el.addEventListener('change', majPreview);
+    });
+    majPreview();
+
+    const foot = document.createElement('div');
+    foot.className = 'lx-afv-foot';
+
+    const btnRun = document.createElement('button');
+    btnRun.className = 'btn btn-primary';
+    btnRun.textContent = 'Construire tableau + AFC';
+    btnRun.addEventListener('click', async () => {
+        const nfac = Math.max(2, Math.min(8, parseInt(document.getElementById('lx-afv-nfac').value, 10) || 3));
+
+        const configTypes = lireConfigTypes();
+        const nbTypesInclus = Object.values(configTypes).filter(cfg => cfg.include).length;
+
+        if (nbTypesInclus === 0) {
+            alert('Sélectionnez au moins un type de catégorie.');
+            return;
+        }
+
+        const etatsPanneaux = _lxAFVEtatsActifsPanneaux();
+        const selection = _lxAFVSelectionParTypesEtActifs(categories, configTypes, etatsPanneaux);
+
+        const retenues = selection.filter(c => c.inclure);
+        if (retenues.length === 0) {
+            alert('Aucune catégorie active ne correspond à cette sélection de types.');
+            return;
+        }
+
+        if (!retenues.some(c => c.active)) {
+            alert('Au moins une catégorie retenue doit être active pour calculer les axes factoriels.');
+            return;
+        }
+
+        overlay.remove();
+
+        try {
+            if (typeof wait === 'function') wait('Construction du tableau lexical et calcul factoriel...');
+
+            const built = _lxAFVConstruireTableauLexical(selection, prep.occFinales, prep.compteParForme);
+            const result = _lxAFVCalculerCA(
+                built.matrix,
+                built.activeMask,
+                built.rows.map(r => r.forme),
+                built.columns.map(c => c.label),
+                nfac
+            );
+
+            lxAFVLastJSON = built.json;
+            lxAFVLastResult = result;
+
+            await _lxAFVSauvegarderJSON(built.json);
+            _lxAFVAfficherResultats(result, built.json, built.verification);
+        } catch (e) {
+            console.error('[Lexico][AFV] Erreur:', e);
+            alert(`Analyse impossible: ${e.message || e}`);
+        } finally {
+            if (typeof endWait === 'function') endWait();
+        }
+    });
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-secondary';
+    btnCancel.textContent = 'Annuler';
+    btnCancel.addEventListener('click', () => overlay.remove());
+
+    foot.append(btnRun, btnCancel);
+    modal.appendChild(foot);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+}
+
+function _lxAFVAfficherPlan(canvas, result, axeX = 0, axeY = 1) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    const points = [];
+    for (let i = 0; i < result.rowLabels.length; i++) {
+        points.push({
+            type: 'ROW',
+            label: result.rowLabels[i],
+            x: result.F[i][axeX] || 0,
+            y: result.F[i][axeY] || 0,
+            w: (result.contribRows[i][axeX] || 0) + (result.contribRows[i][axeY] || 0)
+        });
+    }
+    for (let j = 0; j < result.colLabels.length; j++) {
+        points.push({
+            type: result.activeMask[j] ? 'COL' : 'SUP',
+            label: result.colLabels[j],
+            x: result.G[j][axeX] || 0,
+            y: result.G[j][axeY] || 0,
+            w: (result.contribCols[j][axeX] || 0) + (result.contribCols[j][axeY] || 0)
+        });
+    }
+
+    let xmin = -1, xmax = 1, ymin = -1, ymax = 1;
+    points.forEach(p => {
+        xmin = Math.min(xmin, p.x);
+        xmax = Math.max(xmax, p.x);
+        ymin = Math.min(ymin, p.y);
+        ymax = Math.max(ymax, p.y);
+    });
+    const marge = 36;
+    const sx = (W - 2 * marge) / Math.max(1e-9, xmax - xmin);
+    const sy = (H - 2 * marge) / Math.max(1e-9, ymax - ymin);
+    const px = v => marge + (v - xmin) * sx;
+    const py = v => H - marge - (v - ymin) * sy;
+
+    const x0 = px(0);
+    const y0 = py(0);
+    ctx.strokeStyle = '#d5d7dc';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marge, y0); ctx.lineTo(W - marge, y0);
+    ctx.moveTo(x0, marge); ctx.lineTo(x0, H - marge);
+    ctx.stroke();
+
+    const topLabels = [...points].sort((a, b) => b.w - a.w).slice(0, 90);
+    const topSet = new Set(topLabels.map(p => `${p.type}|${p.label}`));
+
+    points.forEach(p => {
+        const x = px(p.x);
+        const y = py(p.y);
+        if (p.type === 'ROW') ctx.fillStyle = '#205ec8';
+        else if (p.type === 'COL') ctx.fillStyle = '#1e7a45';
+        else ctx.fillStyle = '#8a8d94';
+        ctx.fillRect(x - 1, y - 1, 3, 3);
+        if (topSet.has(`${p.type}|${p.label}`)) {
+            ctx.font = p.type === 'SUP' ? 'italic 11px Arial' : '11px Arial';
+            ctx.fillText(p.label, x + 4, y - 3);
+        }
+    });
+
+    const pctX = result.pct[axeX] || 0;
+    const pctY = result.pct[axeY] || 0;
+    ctx.fillStyle = '#444';
+    ctx.font = '12px Arial';
+    ctx.fillText(`F${axeX + 1} (${pctX.toFixed(2)}%)`, W - 130, y0 - 8);
+    ctx.save();
+    ctx.translate(x0 + 14, 20);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(`F${axeY + 1} (${pctY.toFixed(2)}%)`, 0, 0);
+    ctx.restore();
+}
+
+function _lxAFVTableDetail(result, topN = 120) {
+    const rankRows = result.rowLabels.map((label, i) => ({
+        label,
+        coord1: result.F[i][0] || 0,
+        coord2: result.F[i][1] || 0,
+        ctr1: result.contribRows[i][0] || 0,
+        ctr2: result.contribRows[i][1] || 0,
+        cos1: result.cos2Rows[i][0] || 0,
+        cos2: result.cos2Rows[i][1] || 0,
+        type: 'Mot'
+    })).sort((a, b) => (b.ctr1 + b.ctr2) - (a.ctr1 + a.ctr2)).slice(0, topN);
+
+    const rankCols = result.colLabels.map((label, j) => ({
+        label,
+        coord1: result.G[j][0] || 0,
+        coord2: result.G[j][1] || 0,
+        ctr1: result.contribCols[j][0] || 0,
+        ctr2: result.contribCols[j][1] || 0,
+        cos1: result.cos2Cols[j][0] || 0,
+        cos2: result.cos2Cols[j][1] || 0,
+        type: result.activeMask[j] ? 'Catégorie active' : 'Catégorie suppl.'
+    })).sort((a, b) => (b.ctr1 + b.ctr2) - (a.ctr1 + a.ctr2)).slice(0, topN);
+
+    const rows = rankRows.concat(rankCols);
+    return `
+        <table class="lx-afv-detail">
+            <thead>
+                <tr>
+                    <th>Type</th><th>Libellé</th><th>F1</th><th>CPF1</th><th>COS2-1</th><th>F2</th><th>CPF2</th><th>COS2-2</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rows.map(r => `
+                    <tr>
+                        <td>${_lxEchapHtml(r.type)}</td>
+                        <td title="${_lxEchapHtml(r.label)}">${_lxEchapHtml(r.label)}</td>
+                        <td>${r.coord1.toFixed(4)}</td>
+                        <td>${r.ctr1.toFixed(2)}</td>
+                        <td>${r.cos1.toFixed(2)}</td>
+                        <td>${r.coord2.toFixed(4)}</td>
+                        <td>${r.ctr2.toFixed(2)}</td>
+                        <td>${r.cos2.toFixed(2)}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+async function _lxAFVRelireJSONDisque() {
+    const res = await window.electronAPI.lireAnnexeLexico('.lexaf.json');
+    if (!res || !res.success || !res.content) return null;
+    return res.content;
+}
+
+function _lxAFVAfficherResultats(result, jsonObj, verification) {
+    document.getElementById('lx-afv-res-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'lx-afv-res-overlay';
+    overlay.className = 'lx-afv-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'lx-afv-res-modal';
+
+    const head = document.createElement('div');
+    head.className = 'lx-afv-head';
+    const vpTxt = result.eigVals.map((v, i) => `F${i + 1}: ${v.toFixed(6)} (${(result.pct[i] || 0).toFixed(2)}%)`).join(' | ');
+    head.innerHTML = `<h3>Résultats AF vocab</h3><div class="close" style="cursor:pointer">✖️</div>`;
+    head.querySelector('.close').addEventListener('click', () => overlay.remove());
+    modal.appendChild(head);
+
+    const info = document.createElement('div');
+    const saveMsg = lxAFVLastSaveInfo?.success
+        ? 'JSON sauvegardé: *.lexaf.json'
+        : `JSON non sauvegardé: ${_lxEchapHtml(lxAFVLastSaveInfo?.error || 'erreur inconnue')}`;
+    info.className = 'lx-afv-resume';
+    info.innerHTML = `
+        <div>Inertie totale: <strong>${result.totalInertia.toFixed(6)}</strong></div>
+        <div>${_lxEchapHtml(vpTxt)}</div>
+        <div>Vérification cat/non-cat: ${verification.ecarts === 0 ? 'OK' : 'écarts=' + verification.ecarts}</div>
+        <div>${saveMsg}</div>
+    `;
+    modal.appendChild(info);
+
+    const axes = document.createElement('div');
+    axes.className = 'lx-afv-tools';
+    axes.innerHTML = `
+        <label>Axe X <select id="lx-afv-axe-x"></select></label>
+        <label>Axe Y <select id="lx-afv-axe-y"></select></label>
+        <button class="btn btn-secondary" id="lx-afv-json-read">Relire JSON</button>
+        <button class="btn btn-secondary" id="lx-afv-json-toggle">Afficher JSON</button>
+    `;
+    modal.appendChild(axes);
+
+    const graphWrap = document.createElement('div');
+    graphWrap.className = 'lx-afv-graph-wrap';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'lx-afv-canvas';
+    canvas.width = 980;
+    canvas.height = 450;
+    graphWrap.appendChild(canvas);
+    modal.appendChild(graphWrap);
+
+    const jsonPre = document.createElement('pre');
+    jsonPre.className = 'lx-afv-json';
+    jsonPre.style.display = 'none';
+    jsonPre.textContent = JSON.stringify(jsonObj, null, 2);
+    modal.appendChild(jsonPre);
+
+    const detail = document.createElement('div');
+    detail.className = 'lx-afv-detail-wrap';
+    detail.innerHTML = _lxAFVTableDetail(result, 150);
+    modal.appendChild(detail);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const selX = document.getElementById('lx-afv-axe-x');
+    const selY = document.getElementById('lx-afv-axe-y');
+    for (let i = 0; i < result.eigVals.length; i++) {
+        const ox = document.createElement('option');
+        ox.value = String(i);
+        ox.textContent = `F${i + 1}`;
+        selX.appendChild(ox);
+
+        const oy = document.createElement('option');
+        oy.value = String(i);
+        oy.textContent = `F${i + 1}`;
+        selY.appendChild(oy);
+    }
+    selX.value = '0';
+    selY.value = String(Math.min(1, result.eigVals.length - 1));
+
+    const redraw = () => _lxAFVAfficherPlan(canvas, result, Number(selX.value), Number(selY.value));
+    selX.addEventListener('change', redraw);
+    selY.addEventListener('change', redraw);
+    redraw();
+
+    document.getElementById('lx-afv-json-toggle').addEventListener('click', () => {
+        jsonPre.style.display = jsonPre.style.display === 'none' ? '' : 'none';
+    });
+
+    document.getElementById('lx-afv-json-read').addEventListener('click', async () => {
+        const content = await _lxAFVRelireJSONDisque();
+        if (!content) {
+            alert('Aucun fichier .lexaf.json lisible pour le corpus courant.');
+            return;
+        }
+        jsonPre.textContent = content;
+        jsonPre.style.display = '';
+    });
+}
+
+// ============================================================
 // STYLES CSS (injectés une seule fois)
 // ============================================================
 
@@ -4982,6 +5946,148 @@ function _lxInjecterStyles() {
         }
         .lx-wordle-close:hover { color: #333; background: #ddd; }
         .lx-wordle-canvas { flex: 1; display: block; width: 100%; }
+
+        /* ---- Analyse factorielle vocabulaire ---- */
+        .lx-afv-overlay {
+            position: fixed; inset: 0; z-index: 250;
+            background: rgba(0,0,0,0.28);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .lx-afv-modal {
+            width: min(980px, 96vw);
+            max-height: 92vh;
+            display: flex; flex-direction: column;
+            background: #fff;
+            border-radius: 7px;
+            border: 1px solid #c9d1dd;
+            overflow: hidden;
+        }
+        .lx-afv-res-modal {
+            width: min(1260px, 98vw);
+            max-height: 94vh;
+            display: flex; flex-direction: column;
+            background: #fff;
+            border-radius: 7px;
+            border: 1px solid #c9d1dd;
+            overflow: hidden;
+        }
+        .lx-afv-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid #d7dce6;
+            background: linear-gradient(to top, #e1e1e1c9, var(--couleur-block));
+        }
+        .lx-afv-head h3 {
+            margin: 0;
+            font-size: 1rem;
+            color: var(--couleur-titre);
+        }
+        .lx-afv-resume {
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #37475f;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 1px solid #e7ebf2;
+            background: #fbfdff;
+        }
+        .lx-afv-tools {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 8px 12px;
+            border-bottom: 1px solid #e7ebf2;
+        }
+        .lx-afv-type-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .lx-afv-type-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+        .lx-afv-tools label { font-size: 12px; color: #47566f; display: inline-flex; align-items: center; gap: 6px; }
+        .lx-afv-tools select, .lx-afv-tools input {
+            border: 1px solid #c8cfda;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+        }
+        .lx-afv-body {
+            overflow: auto;
+            padding: 0 12px 12px;
+        }
+        .lx-afv-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .lx-afv-table th, .lx-afv-table td {
+            border-bottom: 1px solid #edf0f4;
+            padding: 4px 6px;
+            text-align: left;
+        }
+        .lx-afv-table th {
+            position: sticky;
+            top: 0;
+            background: #f5f8fc;
+            z-index: 1;
+        }
+        .lx-afv-foot {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 10px 12px;
+            border-top: 1px solid #dde3ee;
+            background: #f8fafe;
+        }
+        .lx-afv-graph-wrap {
+            padding: 8px 12px;
+        }
+        .lx-afv-canvas {
+            width: 100%;
+            height: 450px;
+            border: 1px solid #d7deea;
+            border-radius: 4px;
+            background: #fff;
+        }
+        .lx-afv-detail-wrap {
+            overflow: auto;
+            padding: 0 12px 12px;
+        }
+        .lx-afv-detail {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .lx-afv-detail th, .lx-afv-detail td {
+            border-bottom: 1px solid #edf0f4;
+            padding: 4px 6px;
+            white-space: nowrap;
+        }
+        .lx-afv-detail th {
+            position: sticky;
+            top: 0;
+            background: #f5f8fc;
+            z-index: 1;
+        }
+        .lx-afv-json {
+            margin: 8px 12px;
+            padding: 8px;
+            border: 1px solid #d7deea;
+            border-radius: 4px;
+            background: #fbfdff;
+            max-height: 220px;
+            overflow: auto;
+            font-size: 11px;
+            line-height: 1.35;
+            white-space: pre;
+        }
     `;
     document.head.appendChild(s);
 

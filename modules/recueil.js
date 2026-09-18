@@ -731,7 +731,13 @@ async function afficherListeRecueilsDansPanneau(conteneur) {
                     contenu = await window.electronAPI.readFileContent(f.path);
                 } else {
                     const res = await window.electronAPI.lireFichierServeur(f.path);
+                    if (!res || !res.success) {
+                        throw new Error((res && res.error) ? res.error : ('Impossible de lire le recueil : ' + f.path));
+                    }
                     contenu = res.content;
+                }
+                if (typeof contenu !== 'string') {
+                    throw new Error('Contenu de recueil invalide (attendu: texte JSON).');
                 }
                 const json = JSON.parse(contenu);
                 return { f, nom: json.nom || f.name.replace(/\.rcl$/i, '') };
@@ -832,12 +838,19 @@ async function creerNouveauRecueilDansPanneau(conteneur) {
     if (!nom) return;
     const corpus  = await window.electronAPI.getCorpus();
     const nomFich = nom.trim().replace(/[<>:"/\\|?*]/g, '_') + '.rcl';
+    const dossierCorpus = (corpus.folder || '').replace(/\/+$/, '');
     const chemin  = corpus.type === 'local'
         ? await window.electronAPI.createPath(corpus.folder, nomFich)
-        : corpus.folder + '/' + nomFich;
+        : (dossierCorpus ? (dossierCorpus + '/' + nomFich) : nomFich);
     const rcl = creerRecueil(nom.trim(), chemin);
     rcl.items.push(creerItemTitre(0, 1, nom.trim()));
-    await sauverRecueil(rcl);
+    const saveRes = await sauverRecueil(rcl);
+    if (!saveRes || !saveRes.success) {
+        const msg = (saveRes && saveRes.error) ? saveRes.error : 'Erreur inconnue lors de la création du recueil.';
+        console.error('Erreur création recueil :', msg);
+        if (typeof notifErreur === 'function') notifErreur(msg);
+        return;
+    }
     await chargerEtAfficherRecueil({ name: nomFich, path: chemin }, conteneur);
 }
 
@@ -850,7 +863,13 @@ async function chargerEtAfficherRecueil(fichier, conteneur) {
             contenu = await window.electronAPI.readFileContent(fichier.path);
         } else {
             const res = await window.electronAPI.lireFichierServeur(fichier.path);
+            if (!res || !res.success) {
+                throw new Error((res && res.error) ? res.error : ('Impossible de lire le recueil : ' + fichier.path));
+            }
             contenu = res.content;
+        }
+        if (typeof contenu !== 'string') {
+            throw new Error('Contenu de recueil invalide (attendu: texte JSON).');
         }
         const json = JSON.parse(contenu);
         json.file = fichier.path;
@@ -972,6 +991,9 @@ async function _marListeRecueils(menu, deb, fin, texte) {
                     contenu = await window.electronAPI.readFileContent(f.path);
                 } else {
                     const res = await window.electronAPI.lireFichierServeur(f.path);
+                    if (!res || !res.success) {
+                        throw new Error((res && res.error) ? res.error : ('Impossible de lire le recueil : ' + f.path));
+                    }
                     contenu = res.content;
                 }
                 const json = JSON.parse(contenu);
