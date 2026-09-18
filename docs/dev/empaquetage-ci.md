@@ -12,9 +12,9 @@ npm run pack    (electron-builder → dist/ + installeur NSIS Windows sur
 
 - `npm run pack:dir` : package local sans installeur (`dist/<plateforme>-unpacked`),
   utile pour valider la config sous WSL avant de pousser en CI.
-- La vraie cible Windows est **GitHub Actions** (runner `windows-latest`) : voir
-  `.github/workflows/build.yml` (job `test` + job `package`, artefacts `dist/*.exe`,
-  Release sur tags `v*.*.*`, déclenchement manuel possible).
+- La vraie cible est **GitHub Actions** (matrix `windows-latest` + `ubuntu-latest`) : voir
+  `.github/workflows/build.yml` (job `test` + job `package`, artefacts `dist/*.exe` et
+  `dist/*.AppImage` + `*.deb`, Release sur tags `v*.*.*`, déclenchement manuel possible).
 
 ## Config electron-builder (champ `build` de package.json)
 
@@ -26,8 +26,10 @@ npm run pack    (electron-builder → dist/ + installeur NSIS Windows sur
 - `extraResources` : `ressources/docsCadreExemples` → `resources/docsCadreExemples`
   et `CorpusTest` → `resources/CorpusTest`. C'est ce que lisent `cheminExemplesDocsCadre()`
   et `cheminCorpusTest()` quand `app.isPackaged` (jamais de chemin dans l'asar).
-- Icône : `build/icon.ico` + `build/icon.png` (reprise de l'icône v1).
-- NSIS : installeur avec choix du dossier (`oneClick: false`), raccourcis bureau/démarrer.
+- Icône : `build/icon.ico` (Windows) + `build/icon.png` (Linux), reprise de l'icône v1
+  badgee « 2 » (distinction V1/V2).
+- Linux : cibles AppImage + deb (catégorie AudioVideo) ; Windows : NSIS avec choix du
+  dossier (`oneClick: false`) et raccourcis bureau/démarrer.
 - Pas de signature de code : installeur « éditeur inconnu » au premier lancement.
 
 ## Validation locale (WSL)

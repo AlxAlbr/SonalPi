@@ -23,6 +23,8 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
 | [plan-lot-table-donnees.md](plan-lot-table-donnees.md) | Plan (proposition) : saisie des valeurs en corpus distant — bouton « Saisir… » par ligne (onglet Donnée de l'entretien) et modification en lot par colonne (verrou court par entretien) |
 | [developpement.md](developpement.md) | Démarrer, commandes, stratégie de test, limitation connue (audio figé sous WSLg) |
+| [empaquetage-ci.md](empaquetage-ci.md) | Empaquetage Windows : electron-builder (asarUnpack PDF, extraResources), workflow GitHub Actions, validation locale `pack:dir` |
+| [git-remotes.md](git-remotes.md) | Les deux remotes (GitLab origine + GitHub miroir CI) : upstream, commandes de comparaison, règles de push |
 | [versions.md](versions.md) | Le vocabulaire des versions : SonalPi1 / SonalPi2 / `formatVersion` / itération / release — la règle « jamais v1/v2 nu » |
 
 ## Parcours de lecture suggéré

@@ -69,6 +69,11 @@
       "target": "nsis",
       "icon": "build/icon.ico"
     },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "build/icon.png",
+      "category": "AudioVideo"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

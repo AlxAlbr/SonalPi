@@ -45,3 +45,14 @@ En résumé : si un commentaire ne survit pas à la suppression des plans, il ne
 Les images et volumes Nextcloud des bancs (`docker/compose-*.yml`) sont déjà en place :
 `npm run nc:up` / `npm run nc-b:up` suffisent à les démarrer. Pas de `pull`, pas de
 re-provisioning ; sans serveur, les bancs concernés se sautent tout seuls.
+
+## Git : deux remotes (GitLab origine + GitHub miroir CI)
+
+- L'upstream des branches est **GitHub** (`github` → `PUD-GA/SonalPiTestV2`, miroir privé
+  pour la CI d'empaquetage) ; `origin` reste GitLab huma-num (en panne par intermittence).
+- `git push` sans argument part **vers GitHub uniquement**. Le push vers GitLab est
+  toujours **explicite** (`git push origin <branche>`) ; ne jamais configurer de push
+  multi-URL vers les deux tant que huma-num n'est pas fiable.
+- Pour comparer avec GitLab : `git fetch origin` puis `git log --oneline --left-right
+  <branche>...origin/<branche>`. Détails : `docs/dev/git-remotes.md`.
+- `out/`, `dist/`, `node_modules/`, `test-results/` sont ignorés : aucun artefact poussé.
