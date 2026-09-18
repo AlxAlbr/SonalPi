@@ -1,6 +1,9 @@
 # Plan — Préparation de l'export au niveau du corpus
 
-> Statut : à implémenter avant l'export multi-entretiens.
+> Statut : phases A et B implémentées (commit « Export : pseudonymisation réelle,
+> audit préalable, durcissement CSS/PDF ») ; C, D, E restent à faire.
+> Avancement détaillé en §12 ; décisions produit prises en §4 (reportées dans
+> le corps du fichier).
 > Périmètre : fiabiliser et découpler l'export d'un entretien, puis fournir les
 > abstractions nécessaires à un futur export de corpus. Ce plan ne définit pas
 > encore l'UX ni le conditionnement final de l'export corpus.
@@ -469,3 +472,82 @@ La préparation est terminée lorsque :
 À ce stade, le chantier « export corpus » peut se concentrer sur les décisions
 produit, l'UX de sélection et l'orchestration du lot, sans reprendre les
 fondations de l'export entretien.
+
+## 12. Avancement
+
+### Fait — phases A et B
+
+Commit : « Export : pseudonymisation réelle, audit préalable, durcissement CSS/PDF »
+(branche `multiongletcorpus`). Suite complète verte (1067 tests), typecheck
+main et renderer propres. Golden `.sonal` normal inchangés.
+
+**Décisions produit prises (§4)**
+
+- Pseudonymisation = **mode strict par défaut** : l'export est bloqué tant
+  qu'une occurrence à pseudonymiser ou un locuteur affiché n'a pas de pseudo
+  exploitable. Un mode **partiel** est sélectionnable dans la modale ; il
+  n'est jamais appelé « anonymisé » et affiche un avertissement explicite.
+- Le `.sonal` pseudonymisé est une **copie réellement pseudonymisée** :
+  tabLoc porte les pseudos, data-nomloc disparaît, notes legacy (migrées
+  privées) et variables privées exclues, reste réimportable dans SonalPi1.
+- Le chemin absolu du média ne sort jamais d'un export pseudonymisé
+  (pas de player sans décision explicite).
+
+**Fichiers créés**
+
+- `src/renderer/import/pseudonymisation.ts` : audit pré-génération
+  (`auditerPseudonymisation`, modes strict/partiel, rapport bloquants /
+  avertissements, `rapportEnTexte`).
+- `src/shared/export/secuCss.ts` : garde-fous CSS partagés (couleurs HEX
+  validées, tailles bornées [8, 72], identifiant de classe sûr
+  `idCssCode`, empreinte FNV-1a `scat-…`).
+- `test/fixtures/export/entretiens.ts` : sentinelles anti-fuite
+  (`NomRéel-SENTINELLE-*`, notes legacy hostiles), codebook hostile
+  (code et couleur injectants), multicodage, textes à marqueurs DOCX.
+- `test/exportSecu.test.ts`, `test/pseudonymisationExport.test.ts`.
+
+**Fichiers modifiés**
+
+- `src/renderer/import/exportSonal.ts` : `sonalAnonymise` = copie
+  pseudonymisée (tables, notes, variables privées) ; couleur du codebook
+  validée HEX avant transport.
+- `src/renderer/import/projection.ts` : `appliquerAnonymisation` met
+  toujours `nomloc` à null ; `htmlDeSegment` accepte un `classeDeCode`
+  (code → classe CSS sûre).
+- `src/renderer/import/exportFormats.ts` : page autonome avec classes
+  sûres, CSS de thèmes sécurisé ; audio absent des exports pseudonymisés ;
+  `optionsEfficaces` parcourt TOUTES les options connues.
+- `src/renderer/import/legacy/sonal.mjs` : `cssFromCodebook` n'interpole
+  que des HEX valides et des tailles bornées (le sélecteur reste le code
+  brut : format SonalPi1 gelé).
+- `src/main/securiteFenetre.ts` : `preferencesImpressionPdf` (sandbox,
+  JS désactivé, navigation/fenêtres refusées) — testable unitairement.
+- `src/main/exportEntretien.ts` : impression PDF via dossier temporaire
+  `mkdtemp` toujours nettoyé, fenêtre sandboxée.
+- `src/renderer/composables/corpus/useOperationsCorpus.ts` : `exporter()`
+  audit l'entretien avant génération (bloquants en strict) et retourne un
+  `ResultatExport` typé (succès | annulation | bloqué | erreur).
+- `src/renderer/components/entretien/ModaleExportEntretien.vue` : retour à
+  l'étape 1 à chaque ouverture, état occupé, bloquants/erreurs affichés et
+  restés visibles, fermeture après succès ou annulation explicite,
+  choix strict/partiel + avertissement quand anon est coché.
+- `test/exportFormats.test.ts`, `test/projection.test.ts`,
+  `test/securiteFenetre.test.ts` : contrats `.sonal` pseudonymisé et
+  preferences impression mis à jour.
+
+### Reste à faire
+
+- **Phase C** — fidélité des formats : document intermédiaire
+  (`DocumentExport`) et réécriture DOCX sans `{g}`/`**…**` ; corrections
+  WebVTT/SRT (échappement, multicodages, arrondis des temps, valeurs
+  inversées) ; résolution audio vérifiée par le main ; option coordonnées
+  HTML qui retire aussi les boutons de lecture ; suite du cycle de la
+  modale (tuple `[activée, cochéeParDéfaut]` → objet nommé).
+- **Phase D** — performance de la projection (indexation blocs, ancres,
+  annotations, locuteurs, catégories) + test de charge.
+- **Phase E** — découplage : module `src/shared/export/`, notes sans DOM
+  global, service renderer d'export, préparateur d'instantané sans
+  `sauver()` automatique, primitives main génération/écriture séparées,
+  nommage de lot avec collisions. Le test « export lecture seule sans
+  écriture » (§9, phase A étape 4) est REPORTÉ ici : il exige le
+  préparateur d'instantané.
