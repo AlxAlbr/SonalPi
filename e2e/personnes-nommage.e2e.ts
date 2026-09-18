@@ -19,7 +19,8 @@ test('un nom spécifique crée une personne sans recopier le rôle ni renommer s
     expect(avant.locuteur.personneRef).toBe(avant.personnes[0].id)
     await nom.fill('Mme Dupont')
     await nom.press('Tab')
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     expect(apres.personnes).toEqual(avant.personnes)
     expect(apres.locuteurs.find((l: any) => l.nom === 'Mme Dupont').personneRef).toBe(avant.personnes[0].id)

@@ -58,7 +58,8 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await page.getByLabel('Titre (optionnel)').fill('Identité vérifiée')
     await page.getByRole('group', { name: 'Concerne (optionnel)' }).getByRole('checkbox', { name: 'Karine' }).check()
     await page.locator('.modale-note-pied').getByRole('button', { name: 'Valider' }).click()
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toBeVisible()
     await expect(panneau.getByRole('heading', { name: 'Personne · K. Dupont' })).toBeVisible()
     await expect(panneau.getByText('Notes liées (1)')).toBeVisible()
@@ -66,7 +67,8 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     await expect(panneau.getByText('Identité vérifiée')).toBeVisible()
     await panneau.getByRole('button', { name: 'Ouvrir l’entretien dans Notes' }).click()
     await expect(page.locator('.entretien-ecran button[data-onglet="notes"].actif')).toHaveAttribute('title', 'Notes')
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(panneau).toHaveAttribute('aria-busy', 'false')
     await panneau.locator('.liens li').filter({ hasText: 'Entretien Karine' }).getByRole('button', { name: 'Modifier l’association…', exact: true }).click()
     await panneau.getByRole('button', { name: 'Ne plus associer', exact: true }).click()
@@ -86,7 +88,8 @@ test('Personnes : créer, renommer, lier deux entretiens, ouvrir et délier', as
     const nomKarine = page.locator('.nom-loc').nth(indexKarine)
     await nomKarine.fill('Karine Durand')
     await nomKarine.press('Tab')
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const apresDeliaison = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     expect(apresDeliaison.personnes).toHaveLength(1)
     expect(apresDeliaison.locuteurs.find((l: any) => l.nom === 'Karine Durand').personneRef).toBeNull()

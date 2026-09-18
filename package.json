@@ -3,7 +3,10 @@
   "version": "0.2.0",
   "description": "SonalPi2 — set minimum SonalPi1 : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
   "main": "./out/main/index.js",
-  "author": { "name": "Alex Alber", "email": "sonalteam@gmail.com" },
+  "author": {
+    "name": "Alex Alber",
+    "email": "sonalteam@gmail.com"
+  },
   "homepage": "https://github.com/PUD-GA/SonalPiTestV2",
   "scripts": {
     "dev": "electron-vite dev",
@@ -48,6 +51,7 @@
     "@tiptap/starter-kit": "^3.26.0",
     "@tiptap/vue-3": "^3.26.0",
     "chardet": "^2.2.0",
+    "docx": "^9.7.1",
     "iconv-lite": "^0.6.3",
     "pdfjs-dist": "^6.3.289",
     "vue": "^3.5.35"
@@ -71,7 +75,10 @@
       "icon": "build/icon.ico"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "build/icon.png",
       "category": "AudioVideo"
     },

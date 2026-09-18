@@ -11,6 +11,7 @@ import RecueilsModale from './components/RecueilsModale.vue'
 import TableauBordModale from './components/TableauBordModale.vue'
 import CasModale from './components/CasModale.vue'
 import DocsCadreModale from './components/DocsCadreModale.vue'
+import ModaleExportEntretien from './components/entretien/ModaleExportEntretien.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
@@ -93,6 +94,7 @@ const {
     <RecueilsModale />
     <TableauBordModale />
     <DocsCadreModale />
+    <ModaleExportEntretien />
   </main>
 </template>
 
@@ -107,7 +109,7 @@ const {
   padding: 0 1rem;
   /* Hauteur de l'en-tête collant (titre + barre d'outils + fil d'Ariane) ;
      elle sert à épingler la barre d'actions de la vue Entretien, juste en dessous. */
-  --entete-h: 5rem;
+  --entete-h: 5.6rem;
 }
 /* En-tête épinglé en haut de la fenêtre : toujours visible (Accueil,
    fil d'Ariane). Il conserve sa place dans le flux (sticky, pas fixed). */
@@ -189,7 +191,9 @@ h1 small {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin: 0.2rem 0 0;
+  /* Marge haute : respiration entre la barre d'outils (Recueils, Cas…)
+     et le fil d'Ariane. */
+  margin: 0.7rem 0 0;
   font-size: 0.85rem;
 }
 .lien-nav {

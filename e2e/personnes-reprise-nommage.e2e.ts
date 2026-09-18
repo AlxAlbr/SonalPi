@@ -25,7 +25,8 @@ test('la reprise simplifiée au nommage peut être désactivée', async () => {
     expect(avant.personnes).toHaveLength(0)
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Personnes', exact: true }).click()
     const panneau = page.locator('.personnes-corpus')
     await expect(panneau.getByRole('button', { name: 'À vérifier 0', exact: true })).toBeVisible()

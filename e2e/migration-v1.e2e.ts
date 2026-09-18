@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { lancer, attendreAccueil, attendreCorpus } from './util'
+import { FORMAT_VERSION } from '../src/shared/format'
 
 /**
  *  Migration SonalPi1 → SonalPi2 : le flux COMPLET.
@@ -154,7 +155,7 @@ test('flux complet — .crp → aperçu → dossier dédié → corpus SonalPi2 
 
   // ── SUR DISQUE ────────────────────────────────────────────────────────────
   const corpus = lireCorpus(dirCible)
-  expect(corpus.formatVersion).toBe(4)
+  expect(corpus.formatVersion).toBe(FORMAT_VERSION)
   expect(corpus.nom).toBe('MonCorpus')
   expect(corpus.meta).toEqual({ sourceV1: { cheminCrp, dateCreation: null } })
   // Q7 : le codebook = les 5 thèmes que le .crp porte VRAIMENT (cat_004 a été

@@ -145,8 +145,8 @@ async function ouvrirEntretien(prefixe: string) {
 }
 
 /** Sauvegarde explicite puis fermeture propre (l'autosave existe, on ne s'en fie pas). */
+/** Fermeture propre : l'autosave écrit le fichier (l'en-tête affiche « à jour »). */
 async function sauverEtFermer(page: Page, app: Awaited<ReturnType<typeof lancer>>) {
-  await page.locator('.sauver').click()
   await expect(page.locator('.etat')).toHaveText('à jour')
   await app.close()
 }

@@ -1,6 +1,19 @@
 import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../import/sas'
 import { exporterSonal, type EntreeExport } from '../../import/exportSonal'
+import {
+  genererTxt,
+  genererSrt,
+  genererVtt,
+  genererHtml,
+  genererDonneesDocx,
+  sonalAnonymise,
+  nomFichierExport,
+  FORMATS_EXPORT,
+  type ContexteExport,
+  type FormatExport,
+  type OptionsExport,
+} from '../../import/exportFormats'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../../shared/corpus/migrationCrp'
 import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
 import type {
@@ -11,6 +24,8 @@ import type {
   NoteCategory,
   PayloadEntretien,
   RegleAnon,
+  MetaEntretien,
+  Note,
   Variable,
 } from '../../../shared/format'
 
@@ -20,6 +35,7 @@ interface CorpusOperations {
   famillesCas: Ref<NonNullable<CorpusFichier['famillesCas']>>
   codebook: Ref<Categorie[]>
   variables: Ref<Variable[]>
+  categoriesNote: Ref<NoteCategory[]>
   reglesAnon: Ref<RegleAnon[]>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
   majVariables: (variables: CorpusFichier['variables']) => void
@@ -34,7 +50,10 @@ interface EntretienOperations {
   ongletDroite: Ref<'maison' | 'themes' | 'locuteurs' | 'donnees' | 'journal' | 'anon' | 'notes'>
   editeurDisponible: () => boolean
   sauver: () => Promise<void>
-  donneesExport: () => Omit<EntreeExport, 'codebook' | 'variables' | 'reglesAnon'>
+  donneesExport: () => Omit<EntreeExport, 'codebook' | 'variables' | 'reglesAnon'> & {
+    notes?: Note[]
+    meta: MetaEntretien & { valeursGen: Record<string, string> }
+  }
   fusionPossible: (copie: EntretienFichier) => boolean
   absorberFusion: (copie: EntretienFichier) => Promise<unknown>
   allerAuTexte: (pos: number) => void
@@ -238,18 +257,81 @@ export function useOperationsCorpus(deps: {
     if (options.ouvrir !== false) await deps.cycle.ouvrirEntretien(id)
   }
 
-  async function exporter(): Promise<void> {
+  /** Fenêtre d'export de l'entretien : le bouton ouvre la fenêtre ; l'export
+   *  part ensuite avec le format et les options choisis. */
+  const exportOuvert = ref(false)
+  function ouvrirExport(): void {
+    exportOuvert.value = true
+  }
+  function fermerExport(): void {
+    exportOuvert.value = false
+  }
+
+  /** Assemble les données d'export de l'entretien ouvert (sauvé au préalable). */
+  async function contexteExport(): Promise<ContexteExport | null> {
     const id = deps.entretien.ouvertId.value
-    if (!id || !deps.entretien.editeurDisponible()) return
+    if (!id || !deps.entretien.editeurDisponible()) return null
     await deps.entretien.sauver()
-    const html = exporterSonal({
-      ...deps.entretien.donneesExport(),
-      codebook: deps.corpus.codebook.value,
-      variables: deps.corpus.variables.value,
-      reglesAnon: deps.corpus.reglesAnon.value,
-    })
+    const donnees = deps.entretien.donneesExport()
     const titre = deps.corpus.membership.value[id]?.titre ?? 'entretien'
-    await window.sonal.dialog.choisirExport(`${titre}.sonal`, html)
+    return {
+      entree: {
+        ...donnees,
+        codebook: deps.corpus.codebook.value,
+        variables: deps.corpus.variables.value,
+        reglesAnon: deps.corpus.reglesAnon.value,
+      },
+      titre,
+      notes: donnees.notes,
+      categoriesNote: deps.corpus.categoriesNote.value,
+      audioRef: donnees.meta.audioRef ?? null,
+    }
+  }
+
+  /** Export de l'entretien ouvert dans le format demandé. Tous les formats
+   *  projetent le MÊME fragment segmenté (source unique du découpage) ; le
+   *  `.sonal` reste la voie d'archivage SonalPi1, inchangée. */
+  async function exporter(format: FormatExport, options: OptionsExport): Promise<void> {
+    const ctx = await contexteExport()
+    if (!ctx) return
+    const ext = FORMATS_EXPORT.find((f) => f.format === format)?.ext ?? `.${format}`
+    const nom = nomFichierExport(ctx.titre, ext.slice(1), options.anon)
+    switch (format) {
+      case 'sonal': {
+        const contenu = options.anon
+          ? sonalAnonymise(exporterSonal(ctx.entree))
+          : exporterSonal(ctx.entree)
+        await window.sonal.dialog.choisirExport(nom, contenu)
+        break
+      }
+      case 'txt':
+      case 'srt':
+      case 'vtt':
+      case 'html': {
+        const contenu =
+          format === 'txt'
+            ? genererTxt(ctx, options)
+            : format === 'srt'
+              ? genererSrt(ctx, options)
+              : format === 'vtt'
+                ? genererVtt(ctx, options)
+                : genererHtml(ctx, options)
+        await window.sonal.dialog.choisirExport(nom, contenu)
+        break
+      }
+      case 'docx': {
+        const donnees = genererDonneesDocx(ctx, options)
+        await window.sonal.export.entretienDocx({ nomSuggere: nom, ...donnees })
+        break
+      }
+      case 'pdf': {
+        await window.sonal.export.entretienPdf({
+          nomSuggere: nom,
+          html: genererHtml(ctx, options),
+        })
+        break
+      }
+    }
   }
 
   async function renommer(id: string, evenement: Event): Promise<void> {
@@ -266,7 +348,12 @@ export function useOperationsCorpus(deps: {
     impact?: ImpactSuppressionEntretien,
   ): Promise<void> {
     if (deps.entretien.ouvertId.value === id) await deps.cycle.fermerEntretien()
-    const corpus = await window.sonal.corpus.supprimerEntretien(id, impact)
+    // L'impact vient souvent d'un état réactif (bannière de confirmation) : l'IPC
+    // exige un objet clonable, on envoie une copie plate.
+    const corpus = await window.sonal.corpus.supprimerEntretien(
+      id,
+      impact ? JSON.parse(JSON.stringify(impact)) : undefined,
+    )
     deps.corpus.membership.value = corpus.membership
     deps.corpus.cas.value = corpus.cas ?? {}
     deps.corpus.famillesCas.value = corpus.famillesCas ?? {}
@@ -325,6 +412,9 @@ export function useOperationsCorpus(deps: {
     jeterDivergence,
     plusTardDivergence,
     ajouterEntretien,
+    exportOuvert,
+    ouvrirExport,
+    fermerExport,
     exporter,
     renommer,
     supprimer,

@@ -27,6 +27,8 @@ import type {
   SegmentThematique,
   Variable,
   VerificationDossierDemo,
+  DemandeExportDocx,
+  DemandeExportPdf,
   ParamsAnon,
 } from '../shared/format'
 import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
@@ -408,6 +410,15 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('dialog:choisirDossier', kind),
     choisirExport: (nomSuggere: string, contenu: string): Promise<string | null> =>
       invoquer('dialog:choisirExport', nomSuggere, contenu),
+  },
+  /** Exports d'entretien dont le BUFFER est construit côté main (DOCX, PDF). */
+  export: {
+    /** DOCX : contenu texte assemblé par le renderer, buffer posé au main. */
+    entretienDocx: (demande: DemandeExportDocx): Promise<string | null> =>
+      invoquer('export:entretienDocx', demande),
+    /** PDF : le HTML autonome est imprimé par le main (printToPDF). */
+    entretienPdf: (demande: DemandeExportPdf): Promise<string | null> =>
+      invoquer('export:entretienPdf', demande),
     /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */
     choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirJson', defaultPath),

@@ -24,7 +24,8 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   await page.locator('.zone-corps-note').fill('Corps initial')
   await page.locator('.modale-note-pied .principal').click()
 
-  await page.locator('.barre .retour').click()
+  // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
   const carte = page.locator('.notes-corpus .carte-note', { hasText: 'Note initiale' })
@@ -89,7 +90,9 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   expect(markdown).toContain('Corps initial')
   expect(markdown).not.toContain('<script')
 
-  await page.getByRole('button', { name: /Tableau/ }).click()
+  // Le bouton de MODE « 📊 Tableau » (affichage) est propre à l'outil Notes ;
+  // sans le scoper, le « 📊 Tableau de bord » de la barre d'outils biaise le rôle.
+  await page.locator('.notes-corpus').getByRole('button', { name: '📊 Tableau' }).click()
   await expect(page.locator('.notes-corpus .tableau-notes')).toBeVisible()
   const ligne = page.locator('.tableau-notes tbody tr', { hasText: 'Note initiale' })
   await expect(ligne).toBeVisible()
@@ -99,9 +102,10 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
 
   await ligne.locator('.entretien').click()
   await expect(page.locator('.entretien-ecran')).toBeVisible()
-  await page.locator('.barre .retour').click()
+  // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
   await expect(page.locator('.notes-corpus .tableau-notes')).toBeVisible()
-  await expect(page.getByRole('button', { name: /Tableau/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.notes-corpus').getByRole('button', { name: '📊 Tableau' })).toHaveAttribute('aria-pressed', 'true')
 
   await page.getByRole('button', { name: /Feuille/ }).click()
   await expect(page.locator('.notes-corpus .feuille-notes')).toBeVisible()

@@ -27,7 +27,9 @@ import { TransactionsCorpus, poserValeurLotLocal, appliquerRegleLotLocal } from 
 import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
+import { construireDocxBuffer, imprimerPdf } from './exportEntretien'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
+import type { DemandeExportDocx, DemandeExportPdf } from '../shared/format'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
@@ -1539,6 +1541,29 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     const r = await montrerSauver(e, { defaultPath: nomSuggere })
     if (r.canceled || !r.filePath) return null
     writeFileSync(r.filePath, contenu, 'utf8')
+    return r.filePath
+  })
+  // Exports d'entretien en DOCX/PDF : le buffer est construit côté main
+  // (lib `docx` / printToPDF), le dialogue de sauvegarde est rattaché à la
+  // fenêtre appelante.
+  ipcMain.handle('export:entretienDocx', async (e, demande: DemandeExportDocx): Promise<string | null> => {
+    const buffer = await construireDocxBuffer(demande)
+    const r = await montrerSauver(e, {
+      defaultPath: demande.nomSuggere,
+      filters: [{ name: 'Document Word', extensions: ['docx'] }],
+    })
+    if (r.canceled || !r.filePath) return null
+    writeFileSync(r.filePath, buffer)
+    return r.filePath
+  })
+  ipcMain.handle('export:entretienPdf', async (e, demande: DemandeExportPdf): Promise<string | null> => {
+    const buffer = await imprimerPdf(demande.html)
+    const r = await montrerSauver(e, {
+      defaultPath: demande.nomSuggere,
+      filters: [{ name: 'Document PDF', extensions: ['pdf'] }],
+    })
+    if (r.canceled || !r.filePath) return null
+    writeFileSync(r.filePath, buffer)
     return r.filePath
   })
   // Import d'un MODÈLE de modalités (« Importer un modèle… » dans l'éditeur de variables) :

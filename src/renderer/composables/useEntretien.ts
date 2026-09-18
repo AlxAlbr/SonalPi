@@ -722,7 +722,7 @@ export function useEntretien(deps: {
     annotations: Annotation[]
     ancres: Ancre[]
     locuteurs: Locuteur[]
-    meta: { valeursGen: Record<string, string> }
+    meta: { valeursGen: Record<string, string>; audioRef: string | null }
     legacy: LegacyBlobs
     brouillonsAnon: BrouillonAnon[]
     notes: Note[]
@@ -732,7 +732,7 @@ export function useEntretien(deps: {
       annotations: entretien.annotations.map((a) => ({ ...a })),
       ancres: entretien.ancres.map((a) => ({ ...a })),
       locuteurs: locuteurs.value,
-      meta: { valeursGen: meta.valeursGen },
+      meta: { valeursGen: meta.valeursGen, audioRef: meta.audioRef },
       legacy: legacyCourant.value,
       brouillonsAnon: brouillonsAnon.value,
       notes: notes.value,

@@ -38,7 +38,7 @@ test('round-trip : coder + éditer → fermer → rouvrir, tout est conservé', 
   await ed1.click({ position: { x: 40, y: 260 } })
   await page1.keyboard.type(' MODIF-PERSISTEE')
 
-  await page1.locator('.sauver').click()
+  // L'autosave a écrit l'entretien (« à jour » dans l'en-tête) avant la fermeture.
   await expect(page1.locator('.etat')).toHaveText('à jour')
   await app1.close()
 

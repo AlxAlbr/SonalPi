@@ -23,13 +23,15 @@ test('recueil vivant accessible par le bouton supérieur, sans onglet dédié', 
   await expect(page.locator('.onglets button[data-onglet="recueils"]')).toHaveCount(0)
   await selectionner(page, 'Karine habite Lyon')
   await page.locator('.btn-recueils').click()
-  await page.getByRole('button', { name: '+ Sélection' }).click()
+  await page.getByRole('button', { name: '＋ Ajouter la sélection' }).click()
   await expect(page.locator('.passage blockquote')).toContainText('Karine habite Lyon')
   await page.getByTitle('Fermer les recueils').click()
 
   await selectionner(page, 'habite')
   await page.keyboard.type('réside')
-  await page.getByRole('button', { name: 'Enregistrer' }).click()
+  // Le recueil relit l'entretien SUR DISQUE : attendre l'autosave (l'en-tête
+  // affiche « à jour » quand l'écriture est terminée).
+  await expect(page.locator('.etat')).toHaveText('à jour')
   await page.locator('.btn-recueils').click()
   await expect(page.locator('.passage blockquote')).toContainText('Karine réside Lyon')
   await expect(page.locator('.passage blockquote')).not.toContainText('habite')

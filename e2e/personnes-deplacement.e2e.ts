@@ -32,7 +32,8 @@ test('nommage lié : Plus tard conserve le lien, déplacer change seulement l’
     await expect(dialogue).toContainText('à la place de « Marie Dupont »')
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const apres = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     expect(apres.locuteurs.find((l: any) => l.nom === 'PAUL MARTIN').personneRef).toBe(sourceId)
     expect(apres.personnes.map((p: any) => p.nom).sort()).toEqual(['Marie Dupont', 'Paul Martin'])

@@ -49,6 +49,9 @@ test('corpus → import → coder → renommer un locuteur → saisir une donné
 
   // 5) EXPORTER → le .sonal est cohérent : structure + locuteur renommé conservés.
   await page.locator('.exporter').click()
+  // Fenêtre d'export en deux étapes : format `.sonal`, puis bouton Exporter.
+  await page.locator('.ligne-format', { hasText: '.sonal' }).click()
+  await page.locator('.actions .exporter').click()
   await expect
     .poll(() => (existsSync(cheminExport) ? readFileSync(cheminExport, 'utf8').length : 0), { timeout: 10_000 })
     .toBeGreaterThan(1000)

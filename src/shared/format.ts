@@ -485,3 +485,20 @@ export interface MatriceEntree {
   locuteurs: { index: number; nom: string; valeursLoc: Record<string, string> }[]
 }
 export type MatriceCorpus = MatriceEntree[]
+
+/** Demande d'export DOCX d'un entretien (renderer → main) : le contenu texte
+ *  est déjà assemblé par le renderer, le main construit le buffer. */
+export interface DemandeExportDocx {
+  nomSuggere: string
+  titre: string
+  entete: boolean
+  notes: string
+  variables: string
+  contenuTxt: string
+}
+
+/** Demande d'export PDF : le HTML autonome est imprimé en PDF par le main. */
+export interface DemandeExportPdf {
+  nomSuggere: string
+  html: string
+}

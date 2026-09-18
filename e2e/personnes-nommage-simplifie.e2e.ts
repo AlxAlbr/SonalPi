@@ -32,7 +32,8 @@ test('le nommage affiche les informations divergentes et reprend la source chois
     await sources.getByRole('radio', { name: /Source A/ }).check()
     await dialogue.getByRole('button', { name: 'Confirmer', exact: true }).click()
     await expect(dialogue).toHaveCount(0)
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     const cible = vue.locuteurs.find((l: any) => l.entretienId === 'e1' && l.nom === 'Marie Dupont')
     expect(cible.pseudo).toBe('Alice')
@@ -75,7 +76,8 @@ test('Aucune de ces personnes écarte toutes les propositions sans sélection pr
     await nom.fill('Marie Dupont')
     await nom.press('Tab')
     await expect(dialogue).toHaveCount(0)
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const persiste = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     expect(persiste.locuteurs.find((l: any) => l.locuteurId === cible.locuteurId).rapprochementsRefuses).toHaveLength(2)
   } finally { await app.close() }

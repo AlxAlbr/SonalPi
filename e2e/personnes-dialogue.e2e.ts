@@ -64,7 +64,8 @@ test('une identité déjà rapprochée est présentée sur une seule ligne avec 
 test('une référence de Personne absente est diagnostiquée dans l’éditeur', async () => {
   const { app, page } = await ouvrir('sonal-personnes-reference-absente-')
   try {
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await page.evaluate(async () => {
       const api = (window as any).sonal.corpus
       const corpus = await api.ouvrir()
@@ -97,7 +98,8 @@ test('deux renommages immédiats ne créent que la Personne du nom final', async
       input.dispatchEvent(new Event('change', { bubbles: true }))
     })
     await expect(page.getByRole('status')).toContainText('Personne « Paul Final » créée')
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     expect(vue.personnes.map((personne: any) => personne.nom)).toEqual(['Paul Final'])
     expect(vue.locuteurs.find((locuteur: any) => locuteur.nom === 'Paul Final')?.personneRef)
@@ -133,7 +135,8 @@ test('le nommage propose une identité et lie sans écraser la session', async (
     await expect(dialogue).toHaveCount(0)
     await nom.fill('Mme Dupont')
     await nom.press('Tab')
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     const vue = await page.evaluate(async () => (window as any).sonal.corpus.personnesInventaire())
     const source = vue.locuteurs.find((l: any) => l.locuteurId === 'marie-source')
     const cible = vue.locuteurs.find((l: any) => l.nom === 'Mme Dupont')

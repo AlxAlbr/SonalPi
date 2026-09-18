@@ -46,9 +46,7 @@ const {
   supprimerCommentaire,
   retirerCodageMenu,
   editor,
-  sauver,
-  retourCorpus,
-  exporter,
+  ouvrirExport,
   audio,
   verrouAutrui,
   statutSession,
@@ -97,11 +95,10 @@ function ouvrirRecueilsDepuisSelection() {
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.
       </div>
       <div class="grille-ent">
-        <!-- Ligne d'actions pleine largeur, en HAUT de l'écran : retour corpus,
-             Enregistrer, Exporter. Toute la vue ci-dessous (les deux colonnes)
-             vient sous cette barre. -->
+        <!-- Ligne d'actions pleine largeur, en HAUT de l'écran : Exporter à
+             droite (le retour au corpus passe par le fil d'Ariane au-dessus).
+             Toute la vue ci-dessous (les deux colonnes) vient sous cette barre. -->
         <div class="barre">
-          <button class="retour" @click="retourCorpus">← Corpus</button>
           <!-- Corpus distant, session à nous : statut de publication + « Publier maintenant ».
                En lecture seule (verrou autrui) : rien à publier,
                le bandeau 🔒 au-dessus parle déjà. -->
@@ -116,8 +113,7 @@ function ouvrirRecueilsDepuisSelection() {
             <span v-else class="statut-session publie">☁ publié<template v-if="statutSession.dernierPubli"> à {{ heureDe(statutSession.dernierPubli) }}</template></span>
             <button v-if="!roContenu" class="publier-maintenant" @click="publierMaintenant">Publier maintenant</button>
           </template>
-          <button v-if="!roContenu" class="sauver" @click="sauver">Enregistrer</button>
-          <button class="exporter" @click="exporter">Exporter .sonal</button>
+          <button class="exporter" @click="ouvrirExport">Exporter</button>
         </div>
 
         <!-- Colonne GAUCHE : onglets + panneau de l'onglet actif ;
@@ -312,6 +308,7 @@ function ouvrirRecueilsDepuisSelection() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  /* « Exporter » est renvoyé à droite (margin-left auto) : les statuts restent à gauche. */
   /* Barre d'actions épinglée juste sous l'en-tête de l'appli (--entete-h est défini dans App.vue).
      Fond opaque pour masquer le contenu qui glisse. */
   position: sticky;
@@ -321,8 +318,8 @@ function ouvrirRecueilsDepuisSelection() {
   height: var(--barre-h);
   box-sizing: border-box;
 }
-.sauver,
 .exporter {
+  margin-left: auto;
   padding: 0.3rem 0.8rem;
   border: 1px solid #bbb;
   background: #fff;

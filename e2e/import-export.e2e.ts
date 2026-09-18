@@ -48,6 +48,9 @@ test('importer un .sonal réel → entretien éditable + codebook fusionné, pui
 
   // --- EXPORT ---
   await page.locator('.exporter').click()
+  // Fenêtre d'export en deux étapes : format `.sonal`, puis bouton Exporter.
+  await page.locator('.ligne-format', { hasText: '.sonal' }).click()
+  await page.locator('.actions .exporter').click()
   await expect
     .poll(() => existsSync(cheminExport), { timeout: 10_000 })
     .toBe(true)

@@ -748,6 +748,11 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   gap: 0.25rem;
   margin-bottom: 0.5rem;
 }
+/* Respiration sous l'en-tête de l'appli (fil d'Ariane) : les icônes d'onglets
+   ne collent pas à sa bordure basse. */
+.corpus-ecran {
+  padding-top: 0.7rem;
+}
 .onglets-corpus button {
   width: 38px;
   height: 34px;

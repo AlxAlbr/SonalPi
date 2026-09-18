@@ -64,6 +64,9 @@ test('round-trip anonymisation : import → export → ré-import, règles corpu
 
   // --- EXPORT --- (l'entretien est ouvert → bouton « Exporter .sonal »)
   await page.locator('.exporter').click()
+  // Fenêtre d'export en deux étapes : format `.sonal`, puis bouton Exporter.
+  await page.locator('.ligne-format', { hasText: '.sonal' }).click()
+  await page.locator('.actions .exporter').click()
   await expect.poll(() => existsSync(out1), { timeout: 10_000 }).toBe(true)
   const exporte = readFileSync(out1, 'utf8')
   expect(exporte).toContain('contenuText')

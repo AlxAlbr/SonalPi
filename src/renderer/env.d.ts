@@ -9,6 +9,8 @@ declare module '*.vue' {
 import type {
   Categorie,
   CibleValeur,
+  DemandeExportDocx,
+  DemandeExportPdf,
   CorpusFichier,
   DossierCorpus,
   EntreeRecent,
@@ -190,6 +192,11 @@ declare global {
         choisirDossier: (kind?: 'sources' | 'corpus' | 'projet') => Promise<string | null>
         choisirExport: (nomSuggere: string, contenu: string) => Promise<string | null>
         choisirJson: (defaultPath?: string) => Promise<{ nom: string; contenu: string } | null>
+      }
+      /** Exports d'entretien dont le BUFFER est construit côté main (DOCX, PDF). */
+      export: {
+        entretienDocx: (demande: DemandeExportDocx) => Promise<string | null>
+        entretienPdf: (demande: DemandeExportPdf) => Promise<string | null>
       }
       /** Registre « Mes modèles » du profil (settings.json), partagé entre corpus. */
       modeles: {

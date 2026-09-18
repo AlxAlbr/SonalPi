@@ -66,7 +66,9 @@ test('Journal du corpus : annuler un renommage et une association Personnes', as
     await expect(journal).toContainText('La personne a été modifiée depuis cette action.')
     await expect(journal.getByRole('button', { name: 'Annuler : Personne renommée' })).toBeDisabled()
     await entrerEntretien(page)
-    await page.locator('.barre .retour').click()
+    // Retour au corpus par le fil d'Ariane (la barre d'actions de l'entretien
+    // n'a plus de bouton « ← Corpus »).
+    await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
     await expect(journal).toBeVisible()
     await expect(journal).toContainText('La personne a été modifiée depuis cette action.')
 

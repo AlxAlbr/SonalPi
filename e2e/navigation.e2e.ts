@@ -62,7 +62,8 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.fil .lien-nav.courant')).toContainText('Karine')
 
   // Entretien → Corpus (bouton « ← Corpus » de la barre).
-  await page.locator('.barre .retour').click()
+  // Retour au corpus par le fil d'Ariane (pas de bouton « ← Corpus » dans la barre).
+  await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
