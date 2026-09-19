@@ -1,7 +1,9 @@
 # Plan — Préparation de l'export au niveau du corpus
 
-> Statut : phases A et B implémentées (commit « Export : pseudonymisation réelle,
-> audit préalable, durcissement CSS/PDF ») ; C, D, E restent à faire.
+> Statut : phases A, B et C implémentées (commits « Export : pseudonymisation
+> réelle, audit préalable, durcissement CSS/PDF » puis « Export : document
+> intermédiaire DOCX, WebVTT/SRT fidèles, audio résolu par le main ») ; D et E
+> restent à faire.
 > Avancement détaillé en §12 ; décisions produit prises en §4 (reportées dans
 > le corps du fichier).
 > Périmètre : fiabiliser et découpler l'export d'un entretien, puis fournir les
@@ -535,6 +537,38 @@ main et renderer propres. Golden `.sonal` normal inchangés.
   `test/securiteFenetre.test.ts` : contrats `.sonal` pseudonymisé et
   preferences impression mis à jour.
 
+### Fait — phase C
+
+Commit : « Export : document intermédiaire DOCX, WebVTT/SRT fidèles, audio
+résolu par le main ». Suite complète verte (1080 tests), typecheck et build
+propres. Golden `.sonal` normal inchangés.
+
+- **Document intermédiaire** : `src/shared/export/documentExport.ts`
+  (`RunTexteExport`, `BlocDocumentExport` titre/section/paragraphe/espace,
+  `sectionDocument`, `texteDocument` aplati TXT). Le corps TXT/DOCX est
+  construit par `corpsDocument` (exportFormats) : le gras de l'interviewer
+  est un run nommé, plus aucun marqueur `{g}`/`**…**` interprété — ces
+  chaînes sortent littéralement (testé en TXT et dans `word/document.xml`).
+- **DOCX** : `DemandeExportDocx` transporte le document structuré ; le main
+  le convertit en Paragraphes/TextRuns (`construireDocxBuffer` réécrit).
+  Tests du buffer réel via JSZip (test/exportDocx.test.ts).
+- **WebVTT/SRT** : arrondi aux millisecondes AVANT décomposition
+  (`msCue`/`horodatageCue`, jamais « 00:00:60 ») ; cues non finis ou
+  inversés écartés, temps négatifs ramenés à 0 ; texte et noms échappés
+  (`echapperVtt`) ; SRT neutralise un `-->` littéral ; TOUTES les
+  catégories d'un fragment multicodé émises en classes imbriquées avec
+  identifiant sûr (`idCssCode`).
+- **Audio** : IPC `export:audioLocal` — le main résout l'audioRef en URL
+  `file://` vérifiée (whitelist du store + existence disque,
+  `urlAudioLocal`) ; `ContexteExport.audioUrl` porte une URL déjà résolue
+  (plus de concaténation `file://` dans le renderer) ; null si média absent
+  ou inaccessible, ou pour un corpus distant.
+- **HTML** : l'option « Coordonnées temporelles » décochée retire aussi les
+  boutons de lecture (le player reste si l'URL est résolue) ; URL du player
+  échappée en attribut.
+- **Modale** : `CONFIG_OPTIONS` en objets nommés `{ activee, defaut }`
+  (plus de tuple `[activée, cochéeParDéfaut]`).
+
 ### Reste à faire
 
 - **Phase C** — fidélité des formats : document intermédiaire
@@ -551,3 +585,6 @@ main et renderer propres. Golden `.sonal` normal inchangés.
   nommage de lot avec collisions. Le test « export lecture seule sans
   écriture » (§9, phase A étape 4) est REPORTÉ ici : il exige le
   préparateur d'instantané.
+  (À noter : `src/shared/export/` a démarré avec la phase C — secuCss.ts
+  (phase B) et documentExport.ts (phase C) y vivent déjà ; le déplacement
+  de la projection et des contrats reste à faire.)
