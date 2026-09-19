@@ -1,7 +1,7 @@
 # Plan — Export au niveau du corpus
 
-> Statut : PHASES A ET B TERMINÉES. Décisions produit actées en §2 ; phases C
-> (UX de la modale) et D (e2e) restantes. Avancement détaillé en §9.
+> Statut : PHASES A À C TERMINÉES. Décisions produit actées en §2 ; phase D
+> (tests e2e) restante. Avancement détaillé en §9.
 > S'appuie sur `plan-prepa-export-corpus.md` (phases A à E terminées) : projection
 > indexée, pseudonymisation réelle avec rapport, document intermédiaire DOCX,
 > primitives main séparées (destination, génération, écriture atomique), nommage
@@ -370,3 +370,38 @@ Suite complète verte (1133 tests), typecheck et build propres.
   non) ; `test/exportDocxCorpus.test.ts` (buffer du combiné, contenu
   littéral, sans en-tête) ; `test/exportCorpus.test.ts` étendu (nom de dossier,
   HTML combiné : sections, CSS commun, pas de player, titre hostile échappé).
+### Fait — phase C (UX de la modale)
+
+Suite complète verte (1133 tests), typecheck et build propres. NOTE : ce
+commit inclut aussi le WIP préexistant dans l'arbre de travail — la fin du
+chantier « pseudonymisation sans mode strict » de la préparation (§4.1 :
+`preparerRapport`/`enregistrerRapport`, aperçu non bloquant consultable avant
+l'export d'entretien, retrait du mode `modeAnon`, libellés), entrelacé avec
+les fichiers de la phase C (`sonal.ts`, `useOperationsCorpus.ts`) et nécessaire
+à leur cohérence.
+
+- **Bouton « Exporter le corpus »** dans la barre des onglets du corpus
+  (`Corpus.vue`, aligné à droite), ouvrant la modale dédiée.
+- **`ModaleExportCorpus.vue`** (montée dans `App.vue`, comme la modale
+  d'entretien) : quatre étapes —
+  1. sélection des entretiens : **tous cochés par défaut**, grille
+     multi-colonnes (3 colonnes au-delà de 20 entretiens, 2 sinon), cases
+     par entretien (titre + date), case « Tous » ;
+  2. formats cochables (TXT, HTML par entretien ; DOCX, PDF combinés),
+     options par format (mêmes libellés que l'entretien), « Copier les
+     médias accessibles » (visible si HTML choisi, défaut oui),
+     « Enregistrer le rapport détaillé » (défaut non), avertissement
+     pseudonymisation ;
+  3. traitement : progression « k / n — Titre… », bouton « Annuler après
+     l'entretien courant » (l'arrêt est pris en compte, le lot finit
+     l'entretien en cours) ;
+  4. résumé final : dossier produit, une ligne par entretien (✅ / ⏹ / ❌
+     avec raison), vue globale du rapport (compteurs par entretien,
+     éléments repliables).
+  Chaque ouverture repart de l'étape 1 ; Esc ferme (sauf pendant un
+  traitement) ; la sélection reste bornée aux entretiens existants.
+- **Wiring** : `useOperationsCorpus` — état `exportCorpusOuvert`,
+  `sourceExportCorpus()` (l'entretien ouvert s'exporte depuis la mémoire via
+  `construireInstantane(sourceExport())`, le reste passe par le main),
+  `exporterCorpusLot(demande, { surProgression, continu })` ; exposition via
+  `sonal.ts` ; modale montée dans `App.vue`.

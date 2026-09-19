@@ -467,8 +467,8 @@ contextBridge.exposeInMainWorld('sonal', {
         invoquer('export:corpusEcrireDocx', demande, nom),
       ecrirePdf: (nom: string, html: string): Promise<ResultatEcritureCorpus> =>
         invoquer('export:corpusEcrirePdf', nom, html),
-      copierMedia: (urlAudio: string, nomSouhaite: string): Promise<ResultatEcritureCorpus> =>
-        invoquer('export:corpusCopierMedia', urlAudio, nomSouhaite),
+      copierMedia: (urlAudio: string): Promise<ResultatEcritureCorpus> =>
+        invoquer('export:corpusCopierMedia', urlAudio),
       fermer: (): Promise<void> => invoquer('export:corpusFermer'),
     },
     /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */

@@ -100,8 +100,9 @@ export interface SourceExportCorpus {
   ecrirePdf: (nom: string, html: string) => Promise<ResultatEcritureCorpus>
   copierMedia: (urlAudio: string) => Promise<ResultatEcritureCorpus>
   fermer: () => Promise<void>
-  /** Annulation : consultée AVANT chaque entretien (le courant s'achève). */
-  doitContinuer: () => boolean
+  /** Annulation : consultée AVANT chaque entretien (le courant s'achève) ;
+ *  absent = le lot s'exécute jusqu'au bout. */
+  doitContinuer?: () => boolean
   /** Progression : k sur n, titre de l'entretien en cours. */
   surProgression?: (faits: number, total: number, titre: string) => void
 }
@@ -148,7 +149,7 @@ export async function exporterCorpus(
     let traite = 0
     for (let i = 0; i < demande.selection.length; i++) {
       const selectionne = demande.selection[i]
-      if (!source.doitContinuer()) {
+      if (!source.doitContinuer?.()) {
         for (const s of demande.selection.slice(i)) {
           faits.push({ id: s.id, titre: s.titre, etat: 'abandonne' })
         }

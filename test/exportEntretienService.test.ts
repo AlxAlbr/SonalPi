@@ -1,7 +1,9 @@
 import { describe, test, expect, vi } from 'vitest'
 import {
   construireInstantane,
+  enregistrerRapportPseudonymisation,
   exporterEntretien,
+  preparerRapportPseudonymisation,
   type SourceExportEntretien,
 } from '../src/renderer/services/exportEntretien'
 import type { DemandeExportDocx, DemandeExportPdf } from '../src/shared/format'
@@ -9,7 +11,7 @@ import type { InstantaneEntretienExport, OptionsExport } from '../src/shared/exp
 import { entreeSentinelle } from './fixtures/export/entretiens'
 
 // ----------------------------------------------------------------
-// SERVICE D'EXPORT D'ENTRETIEN — instantané sans écriture, audit, génération
+// SERVICE D'EXPORT D'ENTRETIEN — instantané, rapport facultatif, génération
 // ----------------------------------------------------------------
 
 const OPTIONS_TXT: OptionsExport = {
@@ -114,6 +116,32 @@ describe('construireInstantane — préparateur d instantané sans sauver() auto
   })
 })
 
+describe('rapport facultatif avant export', () => {
+  test('prépare sans écrire, puis enregistre le rapport séparément', async () => {
+    const source = sourceTeste()
+    const entree = entreeSentinelle()
+    const s: SourceExportEntretien = {
+      ...source,
+      donneesExport: () => ({ ...entree, notes: [], meta: { valeursGen: {}, audioRef: null } }),
+    }
+    const preparation = await preparerRapportPseudonymisation(
+      'txt',
+      { ...OPTIONS_TXT, anon: true },
+      s,
+    )
+    expect(preparation.etat).toBe('succes')
+    expect(source.appels.ecrireTexte).toHaveLength(0)
+    if (preparation.etat !== 'succes') return
+    expect(preparation.apercu.texte).toContain('Éléments conservés')
+    expect(preparation.apercu.nomSuggere).toBe('Entretien Test_rapport-pseudonymisation.txt')
+
+    const enregistrement = await enregistrerRapportPseudonymisation(preparation.apercu, s)
+    expect(enregistrement.etat).toBe('succes')
+    expect(source.appels.ecrireTexte).toHaveLength(1)
+    expect(source.appels.ecrireTexte[0][0]).toBe('Entretien Test_rapport-pseudonymisation.txt')
+  })
+})
+
 describe('exporterEntretien — orchestration', () => {
   test('TXT : contenu généré depuis l instantané, un seul appel d écriture', async () => {
     const source = sourceTeste()
@@ -129,17 +157,17 @@ describe('exporterEntretien — orchestration', () => {
     await exporterEntretien('srt', OPTIONS_TXT, source)
     expect(source.appels.ecrireTexte[0][0]).toBe('Entretien Test.srt')
     await exporterEntretien('vtt', { ...OPTIONS_TXT, anon: true }, source)
-    expect(source.appels.ecrireTexte[1][0]).toBe('Entretien Test_anonymise.vtt')
+    expect(source.appels.ecrireTexte[1][0]).toBe('Entretien Test_pseudonymise.vtt')
   })
 
-  test('pseudonymisation stricte incomplète : BLOQUÉ, aucune écriture', async () => {
+  test('pseudonymisation incomplète : export non bloqué, éléments conservés en clair', async () => {
     const source = sourceTeste()
-    // L'entretien sentinelle contient une occurrence anonymisée sans pseudo.
     const entree = entreeSentinelle()
     const s: SourceExportEntretien = { ...source, donneesExport: () => ({ ...entree, notes: [], meta: { valeursGen: {}, audioRef: null } }) }
     const r = await exporterEntretien('txt', { ...OPTIONS_TXT, anon: true }, s)
-    expect(r.etat).toBe('bloque')
-    expect(source.appels.ecrireTexte).toHaveLength(0)
+    expect(r.etat).toBe('succes')
+    expect(source.appels.ecrireTexte).toHaveLength(1)
+    expect(source.appels.ecrireTexte[0][1]).toContain('Anonymise-moi')
   })
 
   test('annulation du dialogue : résultat « annule », modale informée', async () => {

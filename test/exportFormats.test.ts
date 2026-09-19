@@ -16,7 +16,7 @@ import {
 } from '../src/shared/export/types'
 import { idCssCode } from '../src/shared/export/secuCss'
 import { texteDocument } from '../src/shared/export/documentExport'
-import { exporterSonal, sonalAnonymise } from '../src/renderer/import/exportSonal'
+import { exporterSonal, sonalPseudonymise } from '../src/renderer/import/exportSonal'
 import type { EntreeExport } from '../src/shared/export/types'
 import { importerSonal } from '../src/renderer/import/importSonal'
 import type { Note } from '../src/shared/format'
@@ -179,7 +179,7 @@ function contexte(entree: EntreeExport = entreeTeste()): ContexteExport {
 describe('nomFichierExport', () => {
   test('nettoie les caractères interdits et pose le suffixe anonymisé', () => {
     expect(nomFichierExport('Entretien: A/B', 'txt', false)).toBe('Entretien- A-B.txt')
-    expect(nomFichierExport('Entretien', 'sonal', true)).toBe('Entretien_anonymise.sonal')
+    expect(nomFichierExport('Entretien', 'sonal', true)).toBe('Entretien_pseudonymise.sonal')
     expect(nomFichierExport('   ', 'txt', false)).toBe('entretien.txt')
   })
 })
@@ -386,16 +386,16 @@ describe('variables publiques', () => {
   })
 })
 
-describe('sonalAnonymise', () => {
+describe('sonalPseudonymise', () => {
   test('spans anon → [pseudo], anon-json vidé, fichier re-parsable', () => {
-    const out = sonalAnonymise(entreeTeste())
+    const out = sonalPseudonymise(entreeTeste())
     expect(texteDe(out)).toContain('[Marie] habite Lyon depuis 2020.')
     expect(out).not.toContain('>Karine habite')
-    // Copie réellement pseudonymisée : les tables ne transportent plus le vrai
-    // nom (tabLoc porte le pseudo, data-nomloc disparaît).
+    // Le pseudo configuré remplace Karine ; Marc, sans pseudo, reste en clair.
     expect(out).toContain('data-locpseudo="Claire"')
     expect(out).not.toContain('data-nomloc="Karine"')
     expect(out).not.toContain('"Karine?"')
+    expect(out).toContain('Marc?')
     expect(out).toContain('<script id="anon-json" type="application/json">')
     // anon-json vidé (l'export sérialise le tableau vide de serializeSonal).
     expect(out).toMatch(/id="anon-json"[^>]*>\s*\{\s*\[\]\s*\}\s*<\/script>/)
@@ -404,7 +404,7 @@ describe('sonalAnonymise', () => {
     // Le réimport voit les pseudos à la place des vrais noms.
     expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Claire')
     expect(r.payload.locuteurs.map((l) => l.nom)).not.toContain('Karine')
-    expect(r.payload.locuteurs.map((l) => l.nom)).not.toContain('Marc')
+    expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Marc')
   })
 })
 

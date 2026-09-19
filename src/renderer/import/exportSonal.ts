@@ -69,9 +69,9 @@ function tablesSonal(e: EntreeExport, anonymer = false) {
     const l = e.locuteurs.find((x) => x.index === i)
     if (!l) return ''
     if (anonymer) {
-      // Copie pseudonymisée : le pseudo remplace le nom ; sans pseudo, un
-      // locuteur sans libellé vaut mieux qu'un vrai nom en clair.
-      return (pseudoUtilisable(l) ? l.pseudo!.trim() : '') + (l.interviewer ? '?' : '')
+      // La pseudonymisation applique les pseudos configurés sans masquer les
+      // autres locuteurs : leur nom reste explicitement en clair.
+      return (pseudoUtilisable(l) ? l.pseudo!.trim() : l.nom) + (l.interviewer ? '?' : '')
     }
     return l.nom + (l.interviewer ? '?' : '')
   })
@@ -118,13 +118,11 @@ export function exporterSonal(e: EntreeExport): string {
   })
 }
 
-/** `.sonal` pseudonymisé : COPIE réellement pseudonymisée, réimportable dans
- *  SonalPi1 mais sans identifiant réel : corps pseudonymisé (textes `[pseudo]`,
- *  marqueurs d'occurrence retirés), data-nomloc absent, tabLoc portant les
- *  pseudos, anon-json vidé, anciennes notes (migrées privées) et variables
- *  privées exclues. Ce n'est PAS un export « anonymisé » au sens absolu : le
- *  titre, les noms de catégories et le texte libre ne sont pas vérifiables. */
-export function sonalAnonymise(e: EntreeExport): string {
+/** `.sonal` pseudonymisé : copie réimportable dans SonalPi1. Les pseudos
+ *  configurés remplacent les occurrences et locuteurs concernés ; les autres
+ *  éléments restent en clair. Les marqueurs d'occurrence, règles, anciennes
+ *  notes privées et variables privées sont exclus. */
+export function sonalPseudonymise(e: EntreeExport): string {
   const html = serialiserFragmentSonal(
     appliquerAnonymisation(projeterSegments(e), { garderLibelles: true }),
   )

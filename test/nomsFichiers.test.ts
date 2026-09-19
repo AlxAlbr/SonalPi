@@ -37,9 +37,9 @@ describe('nettoyerBaseNom', () => {
 })
 
 describe('nomFichierExport', () => {
-  test('titre nettoyé, suffixe _anonymise, extension', () => {
+  test('titre nettoyé, suffixe _pseudonymise, extension', () => {
     expect(nomFichierExport('Entretien: A/B', 'txt', false)).toBe('Entretien- A-B.txt')
-    expect(nomFichierExport('Entretien', 'sonal', true)).toBe('Entretien_anonymise.sonal')
+    expect(nomFichierExport('Entretien', 'sonal', true)).toBe('Entretien_pseudonymise.sonal')
     expect(nomFichierExport('   ', 'txt', false)).toBe('entretien.txt')
   })
 })
@@ -69,9 +69,9 @@ describe('attribuerNomsUniques — toute la liste AVANT l écriture', () => {
 
   test('le rang se place avant l extension, et suffixe inclus dans la base', () => {
     const noms = attribuerNomsUniques([
-      { titre: 'Entretien', ext: 'sonal', suffixe: '_anonymise' },
-      { titre: 'Entretien', ext: 'sonal', suffixe: '_anonymise' },
+      { titre: 'Entretien', ext: 'sonal', suffixe: '_pseudonymise' },
+      { titre: 'Entretien', ext: 'sonal', suffixe: '_pseudonymise' },
     ])
-    expect(noms).toEqual(['Entretien_anonymise.sonal', 'Entretien_anonymise (2).sonal'])
+    expect(noms).toEqual(['Entretien_pseudonymise.sonal', 'Entretien_pseudonymise (2).sonal'])
   })
 })

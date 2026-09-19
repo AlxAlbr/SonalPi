@@ -4,15 +4,15 @@ import type { Annotation } from '../../../src/shared/entretien/annotation'
 /**
  *  Fixtures d'export : faux identifiants RECONNAISSABLES (sentinelles), codes
  *  et couleurs HOSTILES, multicodages, textes à marqueurs DOCX. Les sentinelles
- *  servent de détecteur de fuite : toute sortie déclarée pseudonymisée ne doit
- *  en contenir aucune occurrence.
+ *  permettent de vérifier quels identifiants sont remplacés ou conservés selon
+ *  la configuration de pseudonymisation.
  */
 
-/** Nom réel « sentinelle » d'un locuteur (ne doit jamais sortir d'un export pseudonymisé). */
+/** Nom réel « sentinelle » d'un locuteur doté d'un pseudonyme. */
 export const NOM_SENTINELLE = 'NomRéel-SENTINELLE-7'
 /** Pseudo utilisable du locuteur sentinelle. */
 export const PSEUDO_SENTINELLE = 'PseudoFaux-1'
-/** Nom d'un deuxième locuteur SANS pseudo (doit bloquer l'export strict). */
+/** Nom d'un deuxième locuteur sans pseudo, conservé en clair. */
 export const NOM_SENTINELLE_2 = 'NomRéel-SENTINELLE-9'
 /** Texte des anciennes notes SonalPi1 (migrées en notes privées ; ne sortent jamais). */
 export const NOTES_LEGACY_SENTINELLE = 'NotesLegacy-SENTINELLE'
@@ -119,8 +119,7 @@ export function entreeSentinelle(): EntreeExport {
   }
 }
 
-/** Même entretien, mais AUCUN pseudo (les deux locuteurs sans pseudo utilisable) :
- *  l'audit strict doit bloquer sur les locuteurs. */
+/** Même entretien, mais aucun pseudo utilisable pour les deux locuteurs. */
 export function entreeSansPseudos(): EntreeExport {
   const e = entreeSentinelle()
   return {
@@ -132,9 +131,8 @@ export function entreeSansPseudos(): EntreeExport {
   }
 }
 
-/** Même entretien, mais COMPLÈTEMENT pseudonymisable : occurrence et deux
- *  locuteurs ont chacun un pseudo exploitable. Toute sortie anonymisée ne doit
- *  alors contenir AUCUNE sentinelle. */
+/** Même entretien avec un pseudo exploitable pour l'occurrence et les deux
+ *  locuteurs. */
 export function entreePseudonymisable(): EntreeExport {
   const e = entreeSentinelle()
   return {

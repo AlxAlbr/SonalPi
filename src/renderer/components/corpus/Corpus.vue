@@ -76,6 +76,7 @@ const {
   badgeVerrou,
   metaEditables,
   presencesSur,
+  ouvrirExportCorpus,
 } = utiliserSonal()
 
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
@@ -289,6 +290,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
         <button :class="{ actif: ongletCorpus === 'donnees' }" title="Données" aria-label="Données" :aria-current="ongletCorpus === 'donnees' ? 'page' : undefined" @click="choisirOnglet('donnees')"><img class="ico-onglet-corpus" :src="icoDonnees" alt="" /></button>
         <button data-onglet="journal" :class="{ actif: ongletCorpus === 'journal' }" title="Journal" aria-label="Journal" :aria-current="ongletCorpus === 'journal' ? 'page' : undefined" @click="choisirOnglet('journal')"><img class="ico-onglet-corpus" :src="icoJournal" alt="" /></button>
         <button v-if="pasAPas" :class="{ actif: ongletCorpus === 'pas-a-pas' }" title="Pas à pas" aria-label="Pas à pas" :aria-current="ongletCorpus === 'pas-a-pas' ? 'page' : undefined" @click="choisirOnglet('pas-a-pas')"><img class="ico-onglet-corpus" :src="icoPasAPas" alt="" /></button>
+        <button class="btn-export-corpus" title="Exporter le corpus" aria-label="Exporter le corpus" @click="ouvrirExportCorpus">📤</button>
       </nav>
 
       <div v-show="ongletCorpus !== 'anon' && ongletCorpus !== 'donnees' && ongletCorpus !== 'personnes' && ongletCorpus !== 'notes'" class="grille-corpus">
@@ -770,6 +772,14 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
   background: #fff;
   font-weight: 600;
   color: #1565c0;
+}
+/* Bouton « Exporter le corpus » dans la barre des onglets : aligné à droite. */
+.btn-export-corpus {
+  margin-left: auto;
+  font-size: 1rem;
+}
+.btn-export-corpus:hover {
+  background: #fff;
 }
 .ico-onglet-corpus {
   width: 20px;

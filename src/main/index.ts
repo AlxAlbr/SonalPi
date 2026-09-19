@@ -1612,8 +1612,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('export:corpusEcrirePdf', (e, nom: string, html: string) =>
     ecrirePdfCorpus(e, nom, html),
   )
-  ipcMain.handle('export:corpusCopierMedia', (e, urlAudio: string, nomSouhaite: string) =>
-    copierMediaCorpus(e, urlAudio, nomSouhaite),
+  ipcMain.handle('export:corpusCopierMedia', (e, urlAudio: string) =>
+    copierMediaCorpus(e, urlAudio),
   )
   ipcMain.handle('export:corpusFermer', (e) => fermerExportCorpus(e))
   ipcMain.handle('export:entretienPdf', async (e, demande: DemandeExportPdf): Promise<string | null> => {

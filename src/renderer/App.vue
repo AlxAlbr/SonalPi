@@ -12,6 +12,7 @@ import TableauBordModale from './components/TableauBordModale.vue'
 import CasModale from './components/CasModale.vue'
 import DocsCadreModale from './components/DocsCadreModale.vue'
 import ModaleExportEntretien from './components/entretien/ModaleExportEntretien.vue'
+import ModaleExportCorpus from './components/corpus/ModaleExportCorpus.vue'
 import BarreOutils from './components/app/BarreOutils.vue'
 
 // App = COQUILLE. `fournirSonal` crée l'orchestration + les 3 scopes (profil,
@@ -95,6 +96,7 @@ const {
     <TableauBordModale />
     <DocsCadreModale />
     <ModaleExportEntretien />
+    <ModaleExportCorpus />
   </main>
 </template>
 

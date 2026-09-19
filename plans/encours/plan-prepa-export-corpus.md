@@ -66,61 +66,50 @@ actuel est précisément l'un des problèmes à corriger.
 
 ### 4.1 Sens de « pseudonymiser »
 
-Deux contrats sont possibles :
+La pseudonymisation applique les pseudonymes configurés, sans mode strict et
+sans blocage automatique. Une occurrence ou un locuteur sans pseudonyme reste
+en clair : cette situation peut être volontaire et ne constitue pas une erreur.
+La sortie est dite « pseudonymisée », jamais présentée comme anonyme.
 
-1. **Mode strict, recommandé** : le fichier produit ne contient aucun vrai nom
-   connu ni aucune donnée marquée privée. L'export est bloqué si une occurrence
-   à pseudonymiser ou un locuteur inclus n'a pas de pseudo exploitable.
-2. **Mode d'application partielle** : seuls les pseudonymes configurés sont
-   appliqués. Ce mode ne doit pas s'appeler « anonymisé » et doit afficher un
-   avertissement explicite.
+Un rapport facultatif peut être consulté et enregistré avant l'export. Il décrit
+les remplacements appliqués, les éléments conservés en clair et les champs
+libres inclus qui restent à vérifier manuellement :
 
-Il faut également décider du traitement des éléments libres qui peuvent rester
-identifiants sans être couverts par une règle :
-
+- texte libre de la transcription ;
 - titre de l'entretien ;
 - notes publiques ;
 - modalités de variables publiques ;
 - noms de catégories ;
-- nom et chemin du média.
+- commentaires ;
+- nom et chemin du média lorsqu'il sort réellement.
 
-Le moteur doit produire un rapport avant génération, même si le choix final est
-le mode partiel.
+Le rapport tient compte du format et des options choisis. Il ne bloque jamais
+la génération et ne constitue pas une garantie d'anonymat.
 
 ### 4.2 `.sonal` pseudonymisé
 
-Le choix doit être explicite :
-
-- soit il s'agit d'un transfert SonalPi1 encore réimportable, qui peut conserver
-  certaines métadonnées et ne doit pas être présenté comme anonyme ;
-- soit il s'agit d'une copie réellement pseudonymisée, qui remplace aussi les
-  tables de locuteurs, retire les vrais noms et exclut les notes privées.
-
-La compatibilité de réimport ne justifie pas silencieusement la présence des
-identifiants réels dans un fichier suffixé `_anonymise`.
+Le `.sonal` pseudonymisé reste réimportable dans SonalPi1. Les pseudonymes
+configurés remplacent les valeurs concernées dans le texte et les tables de
+locuteurs ; les éléments sans pseudonyme restent en clair. Les notes et
+variables privées restent exclues. Le suffixe `_pseudonymise` décrit cette
+transformation sans promettre un fichier anonyme.
 
 ## 5. Défauts à corriger avant généralisation
 
-### 5.1 Pseudonymisation incomplète
+### 5.1 Pseudonymisation configurée et rapport
 
-`sonalAnonymise()` réutilise actuellement les tables normales : les vrais noms
+L'ancien export pseudonymisé réutilisait les tables normales : les vrais noms
 restent dans `tabLoc` et dans `data-nomloc`. Les anciennes notes SonalPi1 sont
 également réémises, alors qu'elles sont migrées comme notes privées.
 
-Les formats documentaires conservent aussi le vrai nom d'un locuteur sans
-pseudo ou dont le pseudo est refusé. Une occurrence anonymisée sans pseudo peut
-rester en clair.
+Les formats documentaires conservent le vrai nom d'un locuteur sans pseudo ou
+avec un refus explicite. Une occurrence sans pseudo reste également en clair ;
+le rapport facultatif rend ces choix visibles sans empêcher l'export.
 
-Créer un audit central, par exemple :
+Créer un rapport central non bloquant avec trois sections : transformations
+appliquées, éléments conservés et champs à vérifier manuellement.
 
-```ts
-interface RapportPseudonymisationExport {
-  bloquants: ProblemeExport[]
-  avertissements: ProblemeExport[]
-}
-```
-
-L'audit couvre au minimum :
+Le rapport couvre au minimum :
 
 - occurrences anonymisées sans pseudo ;
 - locuteurs affichés sans pseudo utilisable ;
@@ -420,8 +409,8 @@ réutilisable tel quel par l'export corpus.
 ### 10.1 Unitaires
 
 - options applicables et valeurs par défaut de chaque format ;
-- audit strict et partiel de pseudonymisation ;
-- absence de noms réels, notes privées, règles et chemins sensibles ;
+- rapport factuel de pseudonymisation, adapté aux options ;
+- application des pseudonymes configurés et absence de notes privées, règles et chemins sensibles ;
 - échappement HTML, attribut, CSS et WebVTT ;
 - multicodage WebVTT ;
 - arrondis aux changements de seconde, minute et heure ;
@@ -488,21 +477,20 @@ main et renderer propres. Golden `.sonal` normal inchangés.
 
 **Décisions produit prises (§4)**
 
-- Pseudonymisation = **mode strict par défaut** : l'export est bloqué tant
-  qu'une occurrence à pseudonymiser ou un locuteur affiché n'a pas de pseudo
-  exploitable. Un mode **partiel** est sélectionnable dans la modale ; il
-  n'est jamais appelé « anonymisé » et affiche un avertissement explicite.
-- Le `.sonal` pseudonymisé est une **copie réellement pseudonymisée** :
-  tabLoc porte les pseudos, data-nomloc disparaît, notes legacy (migrées
-  privées) et variables privées exclues, reste réimportable dans SonalPi1.
+- La pseudonymisation applique les pseudonymes configurés sans mode strict et
+  sans blocage. Les occurrences et locuteurs sans pseudonyme restent en clair.
+  Un rapport non bloquant peut être consulté et enregistré avant l'export.
+- Le `.sonal` pseudonymisé reste réimportable : tabLoc porte le pseudo quand il
+  existe, sinon le nom conservé en clair ; data-nomloc disparaît, les notes
+  legacy migrées privées et les variables privées sont exclues.
 - Le chemin absolu du média ne sort jamais d'un export pseudonymisé
   (pas de player sans décision explicite).
 
 **Fichiers créés**
 
-- `src/renderer/import/pseudonymisation.ts` : audit pré-génération
-  (`auditerPseudonymisation`, modes strict/partiel, rapport bloquants /
-  avertissements, `rapportEnTexte`).
+- `src/shared/export/pseudonymisation.ts` : rapport facultatif pré-génération
+  (`etablirRapportPseudonymisation`, sections appliquées / conservées / à
+  vérifier, `rapportEnTexte`).
 - `src/shared/export/secuCss.ts` : garde-fous CSS partagés (couleurs HEX
   validées, tailles bornées [8, 72], identifiant de classe sûr
   `idCssCode`, empreinte FNV-1a `scat-…`).
@@ -513,8 +501,8 @@ main et renderer propres. Golden `.sonal` normal inchangés.
 
 **Fichiers modifiés**
 
-- `src/renderer/import/exportSonal.ts` : `sonalAnonymise` = copie
-  pseudonymisée (tables, notes, variables privées) ; couleur du codebook
+- `src/renderer/import/exportSonal.ts` : `sonalPseudonymise` = copie
+  pseudonymisée (pseudos configurés, notes et variables privées exclues) ; couleur du codebook
   validée HEX avant transport.
 - `src/renderer/import/projection.ts` : `appliquerAnonymisation` met
   toujours `nomloc` à null ; `htmlDeSegment` accepte un `classeDeCode`
@@ -529,13 +517,12 @@ main et renderer propres. Golden `.sonal` normal inchangés.
   JS désactivé, navigation/fenêtres refusées) — testable unitairement.
 - `src/main/exportEntretien.ts` : impression PDF via dossier temporaire
   `mkdtemp` toujours nettoyé, fenêtre sandboxée.
-- `src/renderer/composables/corpus/useOperationsCorpus.ts` : `exporter()`
-  audit l'entretien avant génération (bloquants en strict) et retourne un
-  `ResultatExport` typé (succès | annulation | bloqué | erreur).
+- `src/renderer/composables/corpus/useOperationsCorpus.ts` : `exporter()` ne
+  bloque pas la pseudonymisation ; préparation et enregistrement du rapport
+  facultatif sont exposés séparément.
 - `src/renderer/components/entretien/ModaleExportEntretien.vue` : retour à
-  l'étape 1 à chaque ouverture, état occupé, bloquants/erreurs affichés et
-  restés visibles, fermeture après succès ou annulation explicite,
-  choix strict/partiel + avertissement quand anon est coché.
+  l'étape 1 à chaque ouverture, état occupé, erreurs affichées et restées
+  visibles, aperçu et enregistrement facultatifs du rapport avant l'export.
 - `test/exportFormats.test.ts`, `test/projection.test.ts`,
   `test/securiteFenetre.test.ts` : contrats `.sonal` pseudonymisé et
   preferences impression mis à jour.
@@ -644,7 +631,7 @@ lot ». Suite complète verte (1103 tests), typecheck et build propres.
   silencieux, travaillant sur TOUTE la liste avant écriture).
 - **Tests** : `test/exportEntretienService.test.ts` (instantané sans
   écriture, garantie structurelle « aucune fonction d'écriture dans la
-  source », TXT/DOCX, blocage strict, annulation, échec typé),
+  source », TXT/DOCX, pseudonymisation non bloquante, rapport, annulation et échec typé),
   `test/nomsFichiers.test.ts`, et le test « export lecture seule sans
   écriture » de la phase A (§9) : couvert par le contrat du service
   (aucune écriture dans la source, export d'une version non enregistrée).
@@ -653,8 +640,8 @@ lot ». Suite complète verte (1103 tests), typecheck et build propres.
 
 ### Critères de sortie (§11) — vérifiés
 
-Voir §11 : golden `.sonal` bit à bit (suite verte), sentinelles absentes des
-sorties pseudonymisées, marqueurs DOCX préservés, WebVTT fidèle, projection
+Voir §11 : golden `.sonal` normal bit à bit (suite verte), pseudonymes configurés
+appliqués aux sorties, marqueurs DOCX préservés, WebVTT fidèle, projection
 non quadratique, générateurs purs sans Vue/Electron/DOM, main capable de
 générer et d'écrire plusieurs artefacts après un seul choix de destination,
 tests ciblés + typecheck + build passants. Le chantier « export corpus » peut

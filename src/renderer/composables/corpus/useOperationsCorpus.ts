@@ -1,16 +1,26 @@
 import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../import/sas'
 import {
+  enregistrerRapportPseudonymisation,
   exporterEntretien,
+  construireInstantane,
+  preparerRapportPseudonymisation,
+  type ApercuRapportPseudonymisation,
   type ResultatExport,
+  type ResultatPreparationRapport,
   type SourceExportEntretien,
 } from '../../services/exportEntretien'
+import {
+  exporterCorpus,
+  type DemandeLotCorpus,
+  type ResultatLotCorpus,
+  type SourceExportCorpus,
+} from '../../services/exportCorpus'
 import {
   type EntreeExport,
   type FormatExport,
   type OptionsExport,
 } from '../../../shared/export/types'
-import { type ModePseudonymisation } from '../../../shared/export/pseudonymisation'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../../shared/corpus/migrationCrp'
 import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
 import type {
@@ -265,6 +275,17 @@ export function useOperationsCorpus(deps: {
     exportOuvert.value = false
   }
 
+  /** Fenêtre d'export du CORPUS (lot d'entretiens) : le bouton de la barre
+   *  du corpus l'ouvre ; la modale pilote la sélection, la progression et
+   *  l'annulation. */
+  const exportCorpusOuvert = ref(false)
+  function ouvrirExportCorpus(): void {
+    exportCorpusOuvert.value = true
+  }
+  function fermerExportCorpus(): void {
+    exportCorpusOuvert.value = false
+  }
+
   /** Source du service d'export : l'entretien OUVERT (état mémoire) et les
    *  définitions du corpus courant ; les écritures et la résolution audio
    *  passent par le main. Aucune sauvegarde n'est déclenchée : un export est
@@ -290,9 +311,56 @@ export function useOperationsCorpus(deps: {
    *  audit, génération, écriture). */
   function exporter(
     format: FormatExport,
-    options: OptionsExport & { modeAnon?: ModePseudonymisation },
+    options: OptionsExport,
   ): Promise<ResultatExport> {
     return exporterEntretien(format, options, sourceExport())
+  }
+
+  /** Source du service d'export CORPUS : le lot lit et écrit par le main,
+ *  l'entretien ouvert s'exporte depuis la mémoire (aucune relecture disque,
+ *  aucune sauvegarde déclenchée). */
+  function sourceExportCorpus(): SourceExportCorpus {
+    return {
+      nomCorpus: () => deps.profil.dossierCourantNom.value.trim() || 'Corpus',
+      instantaneOuvert: () => construireInstantane(sourceExport()),
+      instantaneDistant: (id) => window.sonal.export.instantaneCorpus(id),
+      choisirDossier: (nomSuggere) => window.sonal.export.corpus.choisirDossier(nomSuggere),
+      listerDestination: () => window.sonal.export.corpus.lister(),
+      ecrireTexte: (nom, contenu) => window.sonal.export.corpus.ecrireTexte(nom, contenu),
+      ecrireDocx: (demande, nom) => window.sonal.export.corpus.ecrireDocx(demande, nom),
+      ecrirePdf: (nom, html) => window.sonal.export.corpus.ecrirePdf(nom, html),
+      copierMedia: (urlAudio) => window.sonal.export.corpus.copierMedia(urlAudio),
+      fermer: () => window.sonal.export.corpus.fermer(),
+    }
+  }
+
+  /** Export d'un lot d'entretiens : délégation au service d'orchestration.
+ *  La modale fournit la progression à afficher et la consultation
+ *  d'annulation ; le lot avance entretien par entretien. */
+  function exporterCorpusLot(
+    demande: DemandeLotCorpus,
+    extras: {
+      surProgression?: (faits: number, total: number, titre: string) => void
+      continu?: () => boolean
+    } = {},
+  ): Promise<ResultatLotCorpus> {
+    return exporterCorpus(
+      demande,
+      { ...sourceExportCorpus(), surProgression: extras.surProgression, doitContinuer: extras.continu },
+    )
+  }
+
+  function preparerRapport(
+    format: FormatExport,
+    options: OptionsExport,
+  ): Promise<ResultatPreparationRapport> {
+    return preparerRapportPseudonymisation(format, options, sourceExport())
+  }
+
+  function enregistrerRapport(
+    apercu: ApercuRapportPseudonymisation,
+  ): Promise<ResultatExport> {
+    return enregistrerRapportPseudonymisation(apercu, sourceExport())
   }
 
   async function renommer(id: string, evenement: Event): Promise<void> {
@@ -381,7 +449,13 @@ export function useOperationsCorpus(deps: {
     exportOuvert,
     ouvrirExport,
     fermerExport,
+    exportCorpusOuvert,
+    ouvrirExportCorpus,
+    fermerExportCorpus,
+    exporterCorpusLot,
     exporter,
+    preparerRapport,
+    enregistrerRapport,
     renommer,
     trierEntretiens,
     supprimer,

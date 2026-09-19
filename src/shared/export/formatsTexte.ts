@@ -16,6 +16,7 @@ import {
   type RunTexteExport,
 } from './documentExport'
 import { corpsNoteEnTexte } from './notesTexte'
+import { pseudoUtilisable } from './pseudonymisation'
 
 // ----------------------------------------------------------------
 // Projection des segments (JSON), avec pseudonymisation si demandée
@@ -35,10 +36,7 @@ function nomsAffiches(e: EntreeExport, anon: boolean): Map<number, string> {
   const out = new Map<number, string>()
   for (const l of e.locuteurs) {
     const reel = l.nom.trim()
-    const aff =
-      anon && l.pseudo && l.pseudoEtat !== 'refuse' && l.pseudo.trim() !== reel
-        ? `[${l.pseudo.trim()}]`
-        : reel
+    const aff = anon && pseudoUtilisable(l) ? `[${l.pseudo!.trim()}]` : reel
     out.set(l.index, aff)
   }
   return out

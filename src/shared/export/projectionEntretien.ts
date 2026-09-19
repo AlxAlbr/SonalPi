@@ -339,12 +339,11 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
 }
 
 /** Pseudonymisation DÉFINITIVE sur la projection : le texte des fragments
- *  anonymisés devient `[pseudo]`, les exceptions restent en clair, les
- *  marqueurs d'anon sont retirés. Les vrais noms disparaissent TOUTES voies
- *  confondues : `nomloc` (data-nomloc) est toujours nillé. Avec
- *  `garderLibelles` (voie `.sonal` : le fichier reste parsable par SonalPi1,
- *  les tables de locuteurs sont pseudonymisées en amont), les libellés de
- *  locuteurs sont conservés ; pour les fichiers AUTONOMES ils sont retirés. */
+ *  dotés d'un pseudo devient `[pseudo]`. Sans pseudo ou en exception, il reste
+ *  en clair. Les marqueurs d'anon sont retirés et `nomloc` est toujours nillé ;
+ *  les noms affichés sont dérivés séparément selon les pseudos disponibles.
+ *  Avec `garderLibelles` (voie `.sonal`), les marqueurs de libellé sont
+ *  conservés ; pour les fichiers autonomes ils sont retirés. */
 export function appliquerAnonymisation(
   segments: SegmentProjete[],
   { garderLibelles = false }: { garderLibelles?: boolean } = {},
@@ -366,7 +365,9 @@ export function appliquerAnonymisation(
       const anon: AnonFragment | null =
         f.anon.etat === 'exception' ? { etat: 'anonymise', pseudo: null } : null
       const texte =
-        f.anon.etat !== 'exception' && f.anon.pseudo != null ? `[${f.anon.pseudo}]` : f.texte
+        f.anon.etat !== 'exception' && (f.anon.pseudo?.trim() ?? '') !== ''
+          ? `[${f.anon.pseudo}]`
+          : f.texte
       return { ...f, texte, anon }
     }),
   }))

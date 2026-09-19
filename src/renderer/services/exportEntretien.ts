@@ -1,4 +1,4 @@
-import { exporterSonal, sonalAnonymise } from '../import/exportSonal'
+import { exporterSonal, sonalPseudonymise } from '../import/exportSonal'
 import type { DemandeExportDocx, DemandeExportPdf } from '../../shared/format'
 import type {
   Categorie,
@@ -17,8 +17,8 @@ import type {
 import {
   FORMATS_EXPORT,
   nomFichierExport,
-  optionsEfficaces,
 } from '../../shared/export/types'
+import { nettoyerBaseNom } from '../../shared/export/nomsFichiers'
 import {
   genererTxt,
   genererSrt,
@@ -27,8 +27,8 @@ import {
   genererDonneesDocx,
 } from '../../shared/export/formatsTexte'
 import {
-  auditerPseudonymisation,
-  type ModePseudonymisation,
+  etablirRapportPseudonymisation,
+  rapportEnTexte,
   type RapportPseudonymisationExport,
 } from '../../shared/export/pseudonymisation'
 
@@ -40,13 +40,20 @@ import {
 // l'entretien ouvert, résolution audio, écritures) sont injectés, ce qui
 // rend le service testable avec des doublures.
 
-/** Résultat d'un run d'export : toujours présenté à l'interface (jamais de
- *  promesse rejetée silencieuse) : fichier écrit, annulation du dialogue,
- *  pseudonymisation incomplète en mode strict, ou erreur de génération. */
+/** Résultat d'un run d'export : toujours présenté à l'interface. */
 export type ResultatExport =
   | { etat: 'succes'; chemin: string }
   | { etat: 'annule' }
-  | { etat: 'bloque'; rapport: RapportPseudonymisationExport }
+  | { etat: 'erreur'; message: string }
+
+export interface ApercuRapportPseudonymisation {
+  rapport: RapportPseudonymisationExport
+  texte: string
+  nomSuggere: string
+}
+
+export type ResultatPreparationRapport =
+  | { etat: 'succes'; apercu: ApercuRapportPseudonymisation }
   | { etat: 'erreur'; message: string }
 
 /** Données brutes de l'entretien ouvert (l'état mémoire de l'éditeur), avec
@@ -104,15 +111,62 @@ export async function construireInstantane(
   }
 }
 
-/** Export de l'entretien ouvert dans le format demandé. Tous les formats
- *  projettent le MÊME fragment segmenté (source unique du découpage) ; le
- *  `.sonal` reste la voie d'archivage SonalPi1. Un export pseudonymisé est
- *  d'abord AUDITÉ : en mode strict, une pseudonymisation incomplète bloque
- *  la génération (rapport présenté) ; en mode partiel, seuls les pseudonymes
- *  configurés s'appliquent (avertissement affiché). */
+/** Prépare le rapport facultatif sans écrire ni générer l'export final. */
+export async function preparerRapportPseudonymisation(
+  format: FormatExport,
+  options: OptionsExport,
+  source: SourceExportEntretien,
+): Promise<ResultatPreparationRapport> {
+  try {
+    const instantane = await construireInstantane(source)
+    if (!instantane) {
+      return { etat: 'erreur', message: "L'entretien à exporter n'est plus disponible." }
+    }
+    const rapport = etablirRapportPseudonymisation(instantane.entretien, {
+      format,
+      options,
+      titre: instantane.titre,
+      notes: instantane.notesPubliques,
+      mediaPresent: instantane.audioLocal != null,
+    })
+    return {
+      etat: 'succes',
+      apercu: {
+        rapport,
+        texte: rapportEnTexte(rapport),
+        nomSuggere: `${nettoyerBaseNom(`${instantane.titre}_rapport-pseudonymisation`, 'txt')}.txt`,
+      },
+    }
+  } catch (erreur) {
+    return {
+      etat: 'erreur',
+      message: `Le rapport n'a pas pu être préparé : ${erreur instanceof Error ? erreur.message : String(erreur)}`,
+    }
+  }
+}
+
+/** Enregistre un rapport déjà consulté, sans lancer l'export final. */
+export async function enregistrerRapportPseudonymisation(
+  apercu: ApercuRapportPseudonymisation,
+  source: SourceExportEntretien,
+): Promise<ResultatExport> {
+  try {
+    const chemin = await source.ecrireTexte(apercu.nomSuggere, apercu.texte)
+    return chemin ? { etat: 'succes', chemin } : { etat: 'annule' }
+  } catch (erreur) {
+    return {
+      etat: 'erreur',
+      message: `L'enregistrement du rapport a échoué : ${erreur instanceof Error ? erreur.message : String(erreur)}`,
+    }
+  }
+}
+
+/** Export de l'entretien ouvert dans le format demandé. La pseudonymisation
+ *  applique les remplacements configurés sans bloquer sur les éléments qui
+ *  restent en clair. */
 export async function exporterEntretien(
   format: FormatExport,
-  options: OptionsExport & { modeAnon?: ModePseudonymisation },
+  options: OptionsExport,
   source: SourceExportEntretien,
 ): Promise<ResultatExport> {
   const instantane = await construireInstantane(source)
@@ -128,24 +182,10 @@ export async function exporterEntretien(
   const ext = FORMATS_EXPORT.find((f) => f.format === format)?.ext ?? `.${format}`
   const nom = nomFichierExport(instantane.titre, ext.slice(1), options.anon)
   try {
-    if (options.anon) {
-      const rapport = auditerPseudonymisation(instantane.entretien, {
-        mode: options.modeAnon ?? 'strict',
-        // Le .sonal porte toujours les locuteurs (tables) ; pour les formats
-        // documentaires, l'option « Locuteurs » décide.
-        locuteursInclus: format === 'sonal' || optionsEfficaces(format, options).loc,
-        notes: instantane.notesPubliques,
-        titre: instantane.titre,
-        media: format === 'html',
-      })
-      if ((options.modeAnon ?? 'strict') === 'strict' && rapport.bloquants.length > 0) {
-        return { etat: 'bloque', rapport }
-      }
-    }
     switch (format) {
       case 'sonal': {
         const contenu = options.anon
-          ? sonalAnonymise(instantane.entretien)
+          ? sonalPseudonymise(instantane.entretien)
           : exporterSonal(instantane.entretien)
         const chemin = await source.ecrireTexte(nom, contenu)
         return chemin ? { etat: 'succes', chemin } : { etat: 'annule' }

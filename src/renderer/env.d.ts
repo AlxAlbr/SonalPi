@@ -219,7 +219,7 @@ declare global {
           ecrireTexte: (nom: string, contenu: string) => Promise<ResultatEcritureCorpus>
           ecrireDocx: (demande: DemandeExportDocxCorpus, nom: string) => Promise<ResultatEcritureCorpus>
           ecrirePdf: (nom: string, html: string) => Promise<ResultatEcritureCorpus>
-          copierMedia: (urlAudio: string, nomSouhaite: string) => Promise<ResultatEcritureCorpus>
+          copierMedia: (urlAudio: string) => Promise<ResultatEcritureCorpus>
           fermer: () => Promise<void>
         }
       }

@@ -195,7 +195,6 @@ export async function ecrirePdfCorpus(
 export async function copierMediaCorpus(
   e: IpcMainInvokeEvent,
   urlAudio: string,
-  nomSouhaite: string,
 ): Promise<ResultatEcritureCorpus> {
   const dossier = dossierDe(e)
   if (!dossier) return { etat: 'echec', message: 'Aucun dossier de destination choisi.' }

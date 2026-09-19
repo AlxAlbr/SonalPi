@@ -12,10 +12,9 @@ import {
   COULEUR_HOSTILE,
   CODE_SECOND,
 } from './fixtures/export/entretiens'
-import { sonalAnonymise } from '../src/renderer/import/exportSonal'
+import { sonalPseudonymise } from '../src/renderer/import/exportSonal'
 import { genererTxt, genererHtml } from '../src/shared/export/formatsTexte'
 import { optionsEfficaces, type OptionsExport } from '../src/shared/export/types'
-import { auditerPseudonymisation } from '../src/shared/export/pseudonymisation'
 
 const OPTS: OptionsExport = {
   entete: true,
@@ -33,42 +32,38 @@ function texteDe(html: string): string {
   return new DOMParser().parseFromString(brut, 'text/html').body.textContent ?? ''
 }
 
-describe('.sonal pseudonymisé — aucune sentinelle ne fuit', () => {
-  test('les vrais noms quittent tabLoc et data-nomloc', () => {
-    const out = sonalAnonymise(entreeSentinelle())
+describe('.sonal pseudonymisé — application des pseudos configurés', () => {
+  test('remplace le locuteur préparé et conserve en clair celui sans pseudo', () => {
+    const out = sonalPseudonymise(entreeSentinelle())
     expect(out).not.toContain(NOM_SENTINELLE)
-    expect(out).not.toContain(NOM_SENTINELLE_2)
+    expect(out).toContain(NOM_SENTINELLE_2)
     expect(out).not.toContain('data-nomloc')
-    // Les pseudos restent en place (fichier parsable par SonalPi1).
     expect(out).toContain(PSEUDO_SENTINELLE)
   })
 
   test('les anciennes notes SonalPi1 (migrées privées) ne sortent plus', () => {
-    const out = sonalAnonymise(entreeSentinelle())
+    const out = sonalPseudonymise(entreeSentinelle())
     expect(out).not.toContain(NOTES_LEGACY_SENTINELLE)
     expect(out).not.toContain('window.__notesInjete')
   })
 
   test('les variables privées ne sortent plus', () => {
-    const out = sonalAnonymise(entreeSentinelle())
+    const out = sonalPseudonymise(entreeSentinelle())
     expect(out).not.toContain('Privée-SENTINELLE')
     expect(out).not.toContain('Secret-SENTINELLE')
   })
 
   test('les règles et brouillons d anonymisation ne sortent plus', () => {
-    const out = sonalAnonymise(entreeSentinelle())
+    const out = sonalPseudonymise(entreeSentinelle())
     expect(out).toMatch(/id="anon-json"[^>]*>\s*\{\s*\[\]\s*\}\s*<\/script>/)
   })
 })
 
-describe('formats documentaires pseudonymisés — aucune sentinelle ne fuit', () => {
-  test('TXT : occurrence sans pseudo impossible en clair (audit strict en amont)', () => {
-    // Le flux productif passe l'audit strict AVANT génération : ici on vérifie
-    // que la sentinelle sans pseudo est bien un cas bloquant.
-    const rapport = auditerPseudonymisation(entreeSansPseudos(), { mode: 'strict' })
-    expect(rapport.bloquants.length).toBeGreaterThan(0)
-    const noms = rapport.bloquants.filter((p) => p.message.includes(NOM_SENTINELLE_2))
-    expect(noms).toHaveLength(1)
+describe('formats documentaires pseudonymisés — application non bloquante', () => {
+  test('TXT : les éléments sans pseudo restent en clair', () => {
+    const out = genererTxt({ entree: entreeSansPseudos(), titre: 'T', notes: [], audioUrl: null }, OPTS)
+    expect(out).toContain(NOM_SENTINELLE)
+    expect(out).toContain(NOM_SENTINELLE_2)
   })
 
   test('TXT pseudonymisable : aucun nom réel', () => {

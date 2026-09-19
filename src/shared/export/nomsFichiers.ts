@@ -34,10 +34,9 @@ export function nettoyerBaseNom(titre: string, ext: string): string {
   return tronque.replace(/[. ]+$/, '') || REPLI
 }
 
-/** Nom de fichier d'un export : titre nettoyé, suffixe `_anonymise`, extension.
- *  (Aplati de la convention historique sur `nettoyerBaseNom`.) */
+/** Nom de fichier d'un export : titre nettoyé, suffixe `_pseudonymise`, extension. */
 export function nomFichierExport(titre: string, ext: string, anon: boolean): string {
-  return `${nettoyerBaseNom(titre, ext)}${anon ? '_anonymise' : ''}.${ext}`
+  return `${nettoyerBaseNom(titre, ext)}${anon ? '_pseudonymise' : ''}.${ext}`
 }
 
 /** Nom de candidat avec un rang de collision (0 = pas de rang) : le rang est

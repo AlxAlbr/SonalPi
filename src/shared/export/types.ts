@@ -154,7 +154,7 @@ export const LIBELLES_OPTIONS: Array<{ cle: keyof OptionsExport; label: string }
   { cle: 'time', label: 'Coordonnées temporelles' },
   { cle: 'loc', label: 'Locuteurs' },
   { cle: 'thm', label: 'Catégories thématiques' },
-  { cle: 'anon', label: 'Anonymiser (appliquer la pseudonymisation de manière définitive)' },
+  { cle: 'anon', label: 'Appliquer la pseudonymisation' },
 ]
 
 /** Nommage des fichiers d'export (nettoyage, suffixe, collisions) : vit dans
