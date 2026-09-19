@@ -3,7 +3,8 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { importerSonal } from '../src/renderer/import/importSonal'
-import { exporterSonal, type EntreeExport } from '../src/renderer/import/exportSonal'
+import { exporterSonal } from '../src/renderer/import/exportSonal'
+import type { EntreeExport } from '../src/shared/export/types'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 /** Filet de sécurité du refactoring d'export : la sortie `exporterSonal` est

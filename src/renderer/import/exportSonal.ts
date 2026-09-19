@@ -4,7 +4,9 @@ import {
   appliquerAnonymisation,
   htmlDeSegment,
   type SegmentProjete,
-} from './projection'
+} from '../../shared/export/projectionEntretien'
+import { pseudoUtilisable } from '../../shared/export/pseudonymisation'
+import type { EntreeExport, LegacyBlobs } from '../../shared/export/types'
 import type { Ancre } from '../../shared/entretien/audio'
 import { exporterVariables, exporterValeurs } from './eav'
 import { ordreThemes } from '../../shared/corpus'
@@ -13,8 +15,6 @@ import { couleurHexPourCode } from '../editor/decorations'
 import type { Annotation } from '../../shared/entretien/annotation'
 import type { Categorie, Locuteur, Variable, RegleAnon, BrouillonAnon } from '../../shared/format'
 import { scinderPseudos } from '../../shared/entretien/anon'
-import { pseudoUtilisable } from './pseudonymisation'
-import type { LegacyBlobs } from './importSonal'
 
 /** Une règle d'anonymisation à la forme SonalPi1 (`remplacement`/`remplacementAlt`). */
 function formeSonalPi(entite: string, pseudos: string[]): Record<string, unknown> {
@@ -49,25 +49,6 @@ function construireTabAnon(e: EntreeExport): unknown[] {
   return tab
 }
 
-export interface EntreeExport {
-  corpsTexte: unknown
-  annotations: Annotation[]
-  /** Ancres temporelles → re-dérivées en data-deb/data-fin par segment. */
-  ancres: Ancre[]
-  locuteurs: Locuteur[]
-  codebook: Categorie[]
-  /** Définitions de variables du corpus → tabVar/tabDic. */
-  variables: Variable[]
-  /** Valeurs de portée entretien → tabDat `l="all"` (les valeurs de portée locuteur viennent des `valeursLoc` de chaque locuteur). */
-  meta: { valeursGen: Record<string, string> }
-  legacy: LegacyBlobs
-  /** Règles corpus partagées (corpus.json.reglesAnon).
-   *  Les règles appliquées dans cet entretien ressortent en entries
-   *  `portee:'corpus'` de l'`anon-json`. */
-  reglesAnon?: RegleAnon[]
-  /** Brouillons d'anonymisation de CET entretien → entries `portee:'brouillon'`. */
-  brouillonsAnon?: BrouillonAnon[]
-}
 
 /** Segments projetés → HTML du corps `.sonal` (fidèle au format SonalPi1 :
  *  rien n'est filtré, coordonnées et thématiques toujours émises). */

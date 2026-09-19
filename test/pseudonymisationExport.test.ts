@@ -12,9 +12,9 @@ import {
   auditerPseudonymisation,
   pseudoUtilisable,
   rapportEnTexte,
-} from '../src/renderer/import/pseudonymisation'
+} from '../src/shared/export/pseudonymisation'
 import { couleurCss, tailleCss, idCssCode } from '../src/shared/export/secuCss'
-import type { EntreeExport } from '../src/renderer/import/exportSonal'
+import type { EntreeExport } from '../src/shared/export/types'
 import type { Locuteur } from '../src/shared/format'
 
 describe('auditerPseudonymisation — mode strict', () => {

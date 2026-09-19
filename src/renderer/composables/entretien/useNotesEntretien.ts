@@ -334,7 +334,7 @@ export function useNotesEntretien(deps: {
         const date = note.date ?? 'sans date'
         const statut = note.statut === 'public' ? 'public' : 'privé'
         const titre = note.titre ? `${note.titre}\n` : ''
-        const corps = corpsNoteEnTexte(note.corps, document)
+        const corps = corpsNoteEnTexte(note.corps)
         return `[${categorie} · ${date} · ${statut}]\n${titre}${corps}`
       })
       .join('\n\n')

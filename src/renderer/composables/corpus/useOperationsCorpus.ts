@@ -1,25 +1,28 @@
 import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../import/sas'
-import { exporterSonal, sonalAnonymise, type EntreeExport } from '../../import/exportSonal'
+import { exporterSonal, sonalAnonymise } from '../../import/exportSonal'
 import {
   genererTxt,
   genererSrt,
   genererVtt,
   genererHtml,
   genererDonneesDocx,
+} from '../../../shared/export/formatsTexte'
+import {
   nomFichierExport,
-  optionsEfficaces,
   FORMATS_EXPORT,
+  optionsEfficaces,
   type ContexteExport,
+  type EntreeExport,
   type FormatExport,
   type OptionsExport,
-} from '../../import/exportFormats'
+} from '../../../shared/export/types'
 import {
   auditerPseudonymisation,
   rapportEnTexte,
   type ModePseudonymisation,
   type RapportPseudonymisationExport,
-} from '../../import/pseudonymisation'
+} from '../../../shared/export/pseudonymisation'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../../shared/corpus/migrationCrp'
 import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
 import type {

@@ -1,5 +1,6 @@
 import type { Note } from '../../shared/format'
 import { normaliserNotes } from '../../shared/entretien/notes'
+import { corpsNoteEnTexte as corpsNoteEnTexteSanitise } from '../../shared/export/notesTexte'
 
 /**
  *  Sanitisation du `corps` d'une note : un contenteditable produit de l'HTML
@@ -200,31 +201,9 @@ export function surlignerHtml(html: string, requete: string, doc: Document): str
   return conteneur.innerHTML
 }
 
-/** Convertit un corps de note sanitisé en texte brut pour la vue « expand » :
- *  les balises `<mark>` encadrent toujours le passage important, mais ici on
- *  veut une représentation lisible en plain text — on garde les marqueurs
- *  ▸…◂ pour signaler le surlignage. */
-export function corpsNoteEnTexte(html: string, doc: Document): string {
-  if (!html) return ''
-  const conteneur = doc.createElement('div')
-  conteneur.innerHTML = html
-  const out: string[] = []
-  function parcourir(n: Node) {
-    for (const e of Array.from(n.childNodes)) {
-      if (e.nodeType === 3) out.push(e.textContent ?? '')
-      else if (e.nodeType === 1) {
-        const el = e as Element
-        if (el.tagName.toLowerCase() === 'mark') {
-          out.push('▸')
-          parcourir(el)
-          out.push('◂')
-        } else {
-          parcourir(el)
-          if (/^div$/i.test(el.tagName)) out.push('\n')
-        }
-      }
-    }
-  }
-  parcourir(conteneur)
-  return out.join('')
+/** Convertit un corps de note sanitisé en texte brut (vue « expand », exports) :
+ *  réutilise le convertisseur PUR partagé — plus aucun accès au DOM global
+ *  pour convertir les notes. */
+export function corpsNoteEnTexte(html: string): string {
+  return corpsNoteEnTexteSanitise(html)
 }

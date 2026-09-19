@@ -1,6 +1,6 @@
-import { projeterSegments } from './projection'
-import type { EntreeExport } from './exportSonal'
-import type { Locuteur } from '../../shared/format'
+import { projeterSegments } from './projectionEntretien'
+import type { EntreeExport } from './types'
+import type { Locuteur } from '../format'
 
 // ----------------------------------------------------------------
 // AUDIT DE PSEUDONYMISATION — rapport AVANT génération

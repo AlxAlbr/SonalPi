@@ -53,7 +53,7 @@ export function useNotesCorpus(actif: Ref<boolean>) {
   })
 
   function texte(note: VueNoteCorpus): string {
-    return corpsNoteEnTexte(note.corps, document).replaceAll('▸', '').replaceAll('◂', '')
+    return corpsNoteEnTexte(note.corps).replaceAll('▸', '').replaceAll('◂', '')
   }
 
   function cleRecherche(valeur: string): string {

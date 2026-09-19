@@ -6,15 +6,18 @@ import {
   genererVtt,
   genererHtml,
   genererDonneesDocx,
-  nomFichierExport,
   texteVariablesPubliques,
-  CONFIG_OPTIONS,
   type OptionsExport,
   type ContexteExport,
-} from '../src/renderer/import/exportFormats'
+} from '../src/shared/export/formatsTexte'
+import {
+  nomFichierExport,
+  CONFIG_OPTIONS,
+} from '../src/shared/export/types'
 import { idCssCode } from '../src/shared/export/secuCss'
 import { texteDocument } from '../src/shared/export/documentExport'
-import { exporterSonal, sonalAnonymise, type EntreeExport } from '../src/renderer/import/exportSonal'
+import { exporterSonal, sonalAnonymise } from '../src/renderer/import/exportSonal'
+import type { EntreeExport } from '../src/shared/export/types'
 import { importerSonal } from '../src/renderer/import/importSonal'
 import type { Note } from '../src/shared/format'
 

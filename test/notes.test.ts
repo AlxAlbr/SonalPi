@@ -351,7 +351,7 @@ describe('surlignerHtml — surbrillance de la recherche', () => {
 
 describe('corpsNoteEnTexte — vue expand', () => {
   test('marques rendues en ▸…◂, texte préservé', () => {
-    const t = corpsNoteEnTexte('intro <mark>passage</mark> fin', doc())
+    const t = corpsNoteEnTexte('intro <mark>passage</mark> fin')
     expect(t).toBe('intro ▸passage◂ fin')
   })
 })

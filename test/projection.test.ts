@@ -4,8 +4,8 @@ import {
   projeterSegments,
   appliquerAnonymisation,
   type SegmentProjete,
-} from '../src/renderer/import/projection'
-import type { EntreeExport } from '../src/renderer/import/exportSonal'
+} from '../src/shared/export/projectionEntretien'
+import type { EntreeExport } from '../src/shared/export/types'
 
 /** EntreeExport minimale, complétée par le cas de test. */
 function entree(partiel: Partial<EntreeExport>): EntreeExport {

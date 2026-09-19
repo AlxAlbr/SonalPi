@@ -1,7 +1,7 @@
-import { debutBloc } from '../../shared/entretien/positions'
-import type { Annotation } from '../../shared/entretien/annotation'
-import type { Ancre } from '../../shared/entretien/audio'
-import type { EntreeExport } from './exportSonal'
+import { debutBloc } from '../entretien/positions'
+import type { Annotation } from '../entretien/annotation'
+import type { Ancre } from '../entretien/audio'
+import type { EntreeExport } from './types'
 
 // ----------------------------------------------------------------
 // PROJECTION DES SEGMENTS — modèle JSON → segments typés

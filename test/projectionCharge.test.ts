@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
-import { projeterSegments } from '../src/renderer/import/projection'
-import type { EntreeExport } from '../src/renderer/import/exportSonal'
+import { projeterSegments } from '../src/shared/export/projectionEntretien'
+import type { EntreeExport } from '../src/shared/export/types'
 import type { Annotation, Ancre } from '../src/shared/entretien/annotation'
 
 /** Corpus de charge synthétique : `blocs` blocs alternant deux locuteurs,

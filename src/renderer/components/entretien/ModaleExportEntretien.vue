@@ -7,7 +7,7 @@ import {
   LIBELLES_OPTIONS,
   type FormatExport,
   type OptionsExport,
-} from '../../import/exportFormats'
+} from '../../../shared/export/types'
 
 const { exportOuvert, fermerExport, exporter } = utiliserSonal()
 

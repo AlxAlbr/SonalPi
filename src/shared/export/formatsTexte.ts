@@ -1,163 +1,21 @@
-import { projeterSegments, appliquerAnonymisation, htmlDeSegment, type SegmentProjete, type FragmentProjete } from './projection'
-import type { EntreeExport } from './exportSonal'
-import type { Categorie, Locuteur, Note, NoteCategory, Variable } from '../../shared/format'
-import { couleurCss, tailleCss, idCssCode } from '../../shared/export/secuCss'
+import { projeterSegments, appliquerAnonymisation, htmlDeSegment, type SegmentProjete, type FragmentProjete } from './projectionEntretien'
+import {
+  EntreeExport,
+  OptionsExport,
+  FormatExport,
+  ContexteExport,
+  optionsEfficaces,
+} from './types'
+import type { Categorie, Locuteur, Note, NoteCategory, Variable } from '../format'
+import { couleurCss, tailleCss, idCssCode } from './secuCss'
 import {
   texteDocument,
   sectionDocument,
   type BlocDocumentExport,
   type DocumentExport,
   type RunTexteExport,
-} from '../../shared/export/documentExport'
-import { corpsNoteEnTexte } from '../notes/sanitiser'
-
-// ----------------------------------------------------------------
-// EXPORTS TEXTUELS D'UN ENTRETIEN — TXT, SRT, VTT, HTML
-// ----------------------------------------------------------------
-// Tous les générateurs partent de la MÊME source de vérité du découpage :
-// `projeterSegments` (modèle JSON → segments typés, sans DOM). Les
-// générateurs sont purs : entrée (EntreeExport + options), sortie = chaîne ;
-// pas d'accès au DOM live ni au store.
-
-/** Options de la fenêtre d'export (cases à cocher du panneau « options »). */
-export interface OptionsExport {
-  /** En-tête (nom de l'entretien + ligne d'export). */
-  entete: boolean
-  /** Notes publiques de l'entretien (les notes privées ne sortent jamais). */
-  notes: boolean
-  /** Variables (portée entretien + portée locuteur). */
-  vars: boolean
-  /** Coordonnées temporelles (dérivées des ancres). */
-  time: boolean
-  /** Libellés de locuteurs en préfixe. */
-  loc: boolean
-  /** Catégories thématiques (codages). */
-  thm: boolean
-  /** Pseudonymisation appliquée définitivement dans le fichier produit. */
-  anon: boolean
-}
-
-export type FormatExport = 'sonal' | 'txt' | 'srt' | 'vtt' | 'html' | 'docx' | 'pdf'
-
-/** Données assemblées une fois par run d'export, consommées par les générateurs. */
-export interface ContexteExport {
-  entree: EntreeExport
-  titre: string
-  /** Notes structurées de l'entretien (seules les notes publiques sortent). */
-  notes?: Note[]
-  /** Définitions de catégories de notes (niveau corpus) pour regrouper les notes. */
-  categoriesNote?: NoteCategory[]
-  /** URL de l'audio local, RÉSOLUE et vérifiée par le main (fichier présent
-   *  sur ce poste) ; `null` = média absent/inaccessible ou corpus distant :
-   *  pas de player. Une URL déjà construite ne se recombine JAMAIS ici. */
-  audioUrl?: string | null
-}
-
-/** Un format exportable : extension + description affichée dans la fenêtre. */
-export interface FormatExportable {
-  format: FormatExport
-  ext: string
-  details: string
-}
-
-export const FORMATS_EXPORT: FormatExportable[] = [
-  { format: 'sonal', ext: '.sonal', details: 'Fichier SonalPi V1 (sauvegarde, export vers un autre projet)' },
-  { format: 'txt', ext: '.txt', details: 'Texte brut' },
-  { format: 'srt', ext: '.srt', details: 'Sous-titres SRT' },
-  { format: 'vtt', ext: '.vtt', details: 'Sous-titres WebVTT' },
-  { format: 'html', ext: '.html', details: 'Page web autonome (codage + son)' },
-  { format: 'docx', ext: '.docx', details: 'Traitement de texte (Word)' },
-  { format: 'pdf', ext: '.pdf', details: 'Document PDF' },
-]
-
-/** Options applicables à un format : `activee` (case proposée) et `defaut`
- *  (état au choix du format). Absent = option sans objet (case masquée).
- *  Le `.sonal` transporte tout : seule la pseudonymisation y est proposée. */
-export interface OptionFormatExport {
-  activee: boolean
-  defaut: boolean
-}
-export const CONFIG_OPTIONS: Record<
-  FormatExport,
-  Partial<Record<keyof OptionsExport, OptionFormatExport>>
-> = {
-  sonal: { anon: { activee: true, defaut: false } },
-  txt: {
-    entete: { activee: true, defaut: true },
-    notes: { activee: true, defaut: true },
-    vars: { activee: true, defaut: true },
-    time: { activee: true, defaut: true },
-    loc: { activee: true, defaut: false },
-    thm: { activee: true, defaut: false },
-    anon: { activee: true, defaut: true },
-  },
-  srt: { loc: { activee: true, defaut: true }, anon: { activee: true, defaut: false } },
-  vtt: {
-    notes: { activee: true, defaut: true },
-    loc: { activee: true, defaut: false },
-    thm: { activee: true, defaut: false },
-    anon: { activee: true, defaut: false },
-  },
-  html: {
-    entete: { activee: true, defaut: false },
-    notes: { activee: true, defaut: true },
-    vars: { activee: true, defaut: true },
-    time: { activee: true, defaut: true },
-    loc: { activee: true, defaut: true },
-    thm: { activee: true, defaut: true },
-    anon: { activee: true, defaut: true },
-  },
-  docx: {
-    entete: { activee: true, defaut: true },
-    notes: { activee: true, defaut: true },
-    vars: { activee: true, defaut: true },
-    time: { activee: true, defaut: true },
-    loc: { activee: true, defaut: false },
-    thm: { activee: true, defaut: false },
-    anon: { activee: true, defaut: true },
-  },
-  pdf: {
-    entete: { activee: true, defaut: true },
-    notes: { activee: true, defaut: true },
-    vars: { activee: true, defaut: true },
-    time: { activee: true, defaut: true },
-    loc: { activee: true, defaut: false },
-    thm: { activee: true, defaut: false },
-    anon: { activee: true, defaut: false },
-  },
-}
-
-/** Libellé affiché pour chaque option (ordre d'affichage du panneau). */
-export const LIBELLES_OPTIONS: Array<{ cle: keyof OptionsExport; label: string }> = [
-  { cle: 'entete', label: 'En-tête (Sonal π + nom de l\'entretien)' },
-  { cle: 'notes', label: 'Notes (les notes privées ne sont jamais exportées)' },
-  { cle: 'vars', label: 'Variables' },
-  { cle: 'time', label: 'Coordonnées temporelles' },
-  { cle: 'loc', label: 'Locuteurs' },
-  { cle: 'thm', label: 'Catégories thématiques' },
-  { cle: 'anon', label: 'Anonymiser (appliquer la pseudonymisation de manière définitive)' },
-]
-
-/** Nom de fichier d'un export : titre nettoyé, suffixe `_anonymise`, extension. */
-export function nomFichierExport(titre: string, ext: string, anon: boolean): string {
-  const base = titre.replace(/[/\\?%*:|"<>\x00-\x1f]/g, '-').trim() || 'entretien'
-  return `${base}${anon ? '_anonymise' : ''}.${ext}`
-}
-
-/** Neutralise les options sans objet pour le format demandé : TOUTES les
- *  options connues sont parcourues, celles que le format ne porte pas tombent
- *  à false (elles restent donc fausses dans les générateurs, même si la
- *  modale les a cochées) ; `.srt`/`.vtt` n'existent que pour des segments
- *  bornés par des ancres : les coordonnées y sont de fait toujours actives. */
-export function optionsEfficaces(format: FormatExport, opts: OptionsExport): OptionsExport {
-  const cfg = CONFIG_OPTIONS[format]
-  const out = { ...opts }
-  for (const { cle } of LIBELLES_OPTIONS) {
-    if (cfg[cle] == null) out[cle] = false
-  }
-  if (format === 'srt' || format === 'vtt') out.time = true
-  return out
-}
+} from './documentExport'
+import { corpsNoteEnTexte } from './notesTexte'
 
 // ----------------------------------------------------------------
 // Projection des segments (JSON), avec pseudonymisation si demandée
@@ -261,7 +119,6 @@ export function indexLocuteurs(locuteurs: Locuteur[]): Map<number, Locuteur> {
 export function texteNotesPubliques(
   notes: Note[],
   categoriesNote: NoteCategory[] | undefined,
-  document_: Document = document,
 ): string {
   const publiques = notes.filter((n) => n.statut === 'public').sort((a, b) => a.rang - b.rang)
   const parCat = new Map<string, Note[]>()
@@ -277,7 +134,7 @@ export function texteNotesPubliques(
     lignes.push(`[${nomCat}]`)
     for (const n of lns) {
       const titre = n.titre.trim()
-      const corps = corpsNoteEnTexte(n.corps, document_).trim()
+      const corps = corpsNoteEnTexte(n.corps).trim()
       lignes.push(titre ? `- ${titre} — ${corps}` : `- ${corps}`)
     }
   }

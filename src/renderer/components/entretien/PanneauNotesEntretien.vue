@@ -133,7 +133,7 @@ const notesAffichees = computed(() => {
     if (filtrePassage.value === 'mark' && !n.corps.includes('<mark')) return false
     if (filtrePassage.value === 'lien' && !n.corps.includes(ATTR_LIENS_NOTE)) return false
     if (!q) return true
-    return [n.titre, nomCategorieNote(n.categorieId), libelleLocuteursNote(n), corpsNoteEnTexte(n.corps, document)].some((t) =>
+    return [n.titre, nomCategorieNote(n.categorieId), libelleLocuteursNote(n), corpsNoteEnTexte(n.corps)].some((t) =>
       t.toLowerCase().includes(q),
     )
   })
@@ -145,7 +145,7 @@ async function copierNotes() {
     .map((n) => {
       const titre = n.titre ? `${n.titre}\n` : ''
       const concerne = libelleLocuteursNote(n)
-      return `[${nomCategorieNote(n.categorieId)} · ${dateLibelle(n.date)} · ${n.statut === 'public' ? 'public' : 'privé'}${concerne ? ` · concerne : ${concerne}` : ''}]\n${titre}${corpsNoteEnTexte(n.corps, document)}`
+      return `[${nomCategorieNote(n.categorieId)} · ${dateLibelle(n.date)} · ${n.statut === 'public' ? 'public' : 'privé'}${concerne ? ` · concerne : ${concerne}` : ''}]\n${titre}${corpsNoteEnTexte(n.corps)}`
     })
     .join('\n\n')
   try {

@@ -1,4 +1,4 @@
-import type { EntreeExport } from '../../../src/renderer/import/exportSonal'
+import type { EntreeExport } from '../../../src/shared/export/types'
 import type { Annotation } from '../../../src/shared/entretien/annotation'
 
 /**

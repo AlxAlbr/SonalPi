@@ -13,9 +13,9 @@ import {
   CODE_SECOND,
 } from './fixtures/export/entretiens'
 import { sonalAnonymise } from '../src/renderer/import/exportSonal'
-import { genererTxt, genererHtml, optionsEfficaces } from '../src/renderer/import/exportFormats'
-import type { OptionsExport } from '../src/renderer/import/exportFormats'
-import { auditerPseudonymisation } from '../src/renderer/import/pseudonymisation'
+import { genererTxt, genererHtml } from '../src/shared/export/formatsTexte'
+import { optionsEfficaces, type OptionsExport } from '../src/shared/export/types'
+import { auditerPseudonymisation } from '../src/shared/export/pseudonymisation'
 
 const OPTS: OptionsExport = {
   entete: true,

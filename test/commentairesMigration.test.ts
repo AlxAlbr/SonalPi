@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, test, expect } from 'vitest'
 import { importerSonal } from '../src/renderer/import/importSonal'
-import { exporterSonal, type EntreeExport } from '../src/renderer/import/exportSonal'
+import { exporterSonal } from '../src/renderer/import/exportSonal'
+import type { EntreeExport } from '../src/shared/export/types'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 function parse(html: string): Document {

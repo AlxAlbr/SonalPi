@@ -8,13 +8,11 @@ import { scinderPseudos } from '../../shared/entretien/anon'
 import { cleEntite } from '../../shared/entretien/anon'
 import { genIdNote } from '../../shared/entretien/notes'
 import { echapperTexte } from '../notes/sanitiser'
+import type { LegacyBlobs } from '../../shared/export/types'
 
 /** Blocs legacy encore en pass-through : `anon` (règles) et `notes`. Les EAV
  *  (var/dic/dat) sont modélisées → hors de ce blob. */
-export interface LegacyBlobs {
-  tabAnon: unknown
-  notes: string
-}
+export type { LegacyBlobs } from '../../shared/export/types'
 
 export interface ResultatImport {
   payload: PayloadEntretien
