@@ -66,7 +66,7 @@ test('export complet : fichier par entretien + index + DOCX combiné', async () 
   }, { destination })
 
   // Bouton de la barre des onglets → modale dédiée, étape sélection.
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter le corpus' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
   const modale = page.locator('.modale-export-corpus')
   await expect(modale).toBeVisible()
   await expect(modale.locator('.option', { hasText: 'Tous les entretiens' })).toBeChecked()
@@ -104,15 +104,20 @@ test('sélection partielle + rapport détaillé enregistré', async () => {
   ajouterEntretien(dirCorpus, 'e2', 'Entretien deux')
 
   const destination = join(dir, 'sortie')
+  const cheminRapport = join(dir, 'rapport-corpus.txt')
   const app = await lancer(dir)
   const page = await app.firstWindow()
   await entrerCorpus(page)
 
   await app.evaluate(({ dialog }, args) => {
-    dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.destination })
-  }, { destination })
+    let appel = 0
+    dialog.showSaveDialog = async () => ({
+      canceled: false,
+      filePath: appel++ === 0 ? args.cheminRapport : args.destination,
+    })
+  }, { destination, cheminRapport })
 
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter le corpus' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
   const modale = page.locator('.modale-export-corpus')
   await expect(modale).toBeVisible()
   await expect(modale.locator('.ligne-entretien')).toHaveCount(2)
@@ -120,17 +125,22 @@ test('sélection partielle + rapport détaillé enregistré', async () => {
   // On décoche le deuxième entretien de la grille.
   await modale.locator('.ligne-entretien', { hasText: 'Entretien deux' }).locator('input').uncheck()
   await modale.getByRole('button', { name: /Suivant/ }).click()
-  await modale.locator('.option', { hasText: 'Appliquer la pseudonymisation' }).uncheck()
-  await modale.locator('.option', { hasText: 'Enregistrer le rapport détaillé' }).click()
+  await modale.locator('.option', { hasText: 'Consulter le rapport de pseudonymisation' }).click()
   await modale.locator('.actions .exporter').click()
+
+  await expect(modale.locator('.etape', { hasText: 'Rapport de pseudonymisation avant' })).toBeVisible()
+  await expect(modale.locator('.rapport-contenu')).toContainText('Entretien Karine')
+  await modale.getByRole('button', { name: 'Enregistrer le rapport' }).click()
+  await expect(modale.locator('.message-information')).toContainText('Rapport enregistré')
+  await modale.getByRole('button', { name: /Lancer l’export/ }).click()
 
   await expect(modale.locator('.etape', { hasText: 'Export terminé' })).toBeVisible({ timeout: 20_000 })
 
-  expect(lister(destination)).toEqual(['Entretien Karine.txt', '_index.txt', '_rapport-pseudonymisation.txt'])
+  expect(lister(destination)).toEqual(['Entretien Karine_pseudonymise.txt', '_index.txt'])
   const index = readFileSync(join(destination, '_index.txt'), 'utf8')
   expect(index).toContain('1 entretien exporté.')
   expect(index).not.toContain('Entretien deux')
-  const rapport = readFileSync(join(destination, '_rapport-pseudonymisation.txt'), 'utf8')
+  const rapport = readFileSync(cheminRapport, 'utf8')
   expect(rapport).toContain('Entretien : Entretien Karine')
   expect(rapport).toContain('Rapport de pseudonymisation')
 
@@ -156,7 +166,7 @@ test('succès partiel : entretien cassé sauté, expliqué, absent de l’index'
     dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.destination })
   }, { destination })
 
-  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter le corpus' }).click()
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
   const modale = page.locator('.modale-export-corpus')
   await expect(modale).toBeVisible()
   await modale.getByRole('button', { name: /Suivant/ }).click()

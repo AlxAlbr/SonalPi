@@ -5,9 +5,9 @@ fenêtre composée de deux zones : à gauche la barre latérale **Vos Documents*
 **Documents exemples** ; à droite le panneau de consultation du document sélectionné.
 
 Un corpus d’entretiens s’accompagne souvent de documents de méthode ou de conformité :
-notice de consentement DPO, guide de correction, guide de pseudonymisation, consignes
-internes, fichiers Word ou PDF. Ces documents sont propres au corpus courant ; ils ne sont
-ni des notes d’entretien ni des réglages du profil.
+déclaration de traitement DPO, notice de consentement DPO, guide de correction, guide de
+pseudonymisation, consignes internes, fichiers Word ou PDF. Ces documents sont propres au
+corpus courant ; ils ne sont ni des notes d’entretien ni des réglages du profil.
 
 ## Un principe : jamais de modification du contenu
 
@@ -71,10 +71,11 @@ décodé au hasard.
 
 ## Documents exemples
 
-La section **Documents exemples** rassemble des exemples livrés avec l’application
-(notice de consentement DPO, guide de correction, guide de pseudonymisation). Ils sont
-immuables : consultables et enregistrables comme copie, mais jamais modifiables. Ils
-restent disponibles même quand un corpus distant est hors ligne.
+La section **Documents exemples** rassemble des exemples livrés avec l’application, dans un
+ordre fixe : déclaration de traitement DPO, notice de consentement DPO, guide de correction,
+puis guide de pseudonymisation. Ils sont immuables : consultables et enregistrables comme
+copie, mais jamais modifiables. Ils restent disponibles même quand un corpus distant est
+hors ligne.
 
 ## Corpus distant
 

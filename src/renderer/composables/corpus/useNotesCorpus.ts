@@ -40,7 +40,7 @@ export function useNotesCorpus(actif: Ref<boolean>) {
   const avecLiens = ref(false)
   const critereTri = ref<CritereTriNotes>('creeLe')
   const ordreTri = ref<'asc' | 'desc'>('desc')
-  const modeAffichage = ref<'cartes' | 'tableau' | 'feuille'>('cartes')
+  const modeAffichage = ref<'tableau' | 'feuille'>('tableau')
 
   const entretiensDisponibles = computed(() => {
     const uniques = new Map(inventaire.value.notes.map((note) => [note.entretienId, note.entretienTitre]))
@@ -251,7 +251,7 @@ export function useNotesCorpus(actif: Ref<boolean>) {
     toutAfficher()
     critereTri.value = 'creeLe'
     ordreTri.value = 'desc'
-    modeAffichage.value = 'cartes'
+    modeAffichage.value = 'tableau'
   })
 
   watch([actif, vue, dernierTirage, dossierCourantDir, revisionNotesCorpus], () => {

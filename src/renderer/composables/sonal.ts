@@ -2,7 +2,7 @@ import { ref, watch, onMounted, provide, inject, type InjectionKey } from 'vue'
 import type { MarqueurDemo, ModeTriEntretiens } from '../../shared/format'
 import { MOTS_LIAISON_DEFAUT } from '../../shared/format'
 import { useProfil } from './useProfil'
-import { afficherErreurGlobale } from '../erreurs'
+import { afficherErreurGlobale, infoGlobale } from '../erreurs'
 import { useCorpus } from './useCorpus'
 import { useSelectionCorpus } from './corpus/useSelectionCorpus'
 import { useMediasCorpus } from './corpus/useMediasCorpus'
@@ -369,6 +369,8 @@ export function creerSonal() {
     ouvrirExportCorpus,
     fermerExportCorpus,
     exporterCorpusLot,
+    preparerRapportCorpus,
+    enregistrerRapportCorpus,
     exporter,
     preparerRapport,
     enregistrerRapport,
@@ -566,6 +568,31 @@ export function creerSonal() {
           await trierEntretiens(modeTri)
           break
         }
+        case 'exporter-corpus': {
+          // La modale d'export vit sur l'App.
+          // Elle s'ouvre depuis n'importe quelle vue et laisse choisir les entretiens du lot.
+          ouvrirExportCorpus()
+          break
+        }
+        case 'sauvegarde-zip': {
+          if (idDistantCourant.value) {
+            infoGlobale.value =
+              "La copie de sauvegarde (ZIP) n'est disponible que pour un corpus local."
+            break
+          }
+          // L'archive doit refléter ce qui est à l'écran.
+          // On vide donc d'abord le délai d'autosave de l'entretien ouvert.
+          if (ent.ouvertId.value) await ent.viderSauvegarde()
+          const archive = await window.sonal.corpus.copieSauvegardeZip()
+          if (archive.etat === 'succes') {
+            infoGlobale.value = `Copie de sauvegarde créée (${archive.fichiers} fichier(s)) : ${archive.chemin}`
+          } else if (archive.etat === 'refus') {
+            infoGlobale.value = archive.message
+          } else if (archive.etat === 'echec') {
+            afficherErreurGlobale(archive.message)
+          }
+          break
+        }
       }
     } catch (erreur) {
       afficherErreurGlobale(erreur, 'L’action du menu a échoué')
@@ -664,6 +691,8 @@ export function creerSonal() {
     ouvrirExportCorpus,
     fermerExportCorpus,
     exporterCorpusLot,
+    preparerRapportCorpus,
+    enregistrerRapportCorpus,
     exporter,
     preparerRapport,
     enregistrerRapport,

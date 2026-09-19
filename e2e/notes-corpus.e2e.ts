@@ -28,16 +28,18 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   await page.locator('.fil .lien-nav', { hasText: 'Corpus' }).click()
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
-  const carte = page.locator('.notes-corpus .carte-note', { hasText: 'Note initiale' })
-  await expect(carte).toBeVisible()
-  await expect(page.getByRole('button', { name: /Cartes/ })).toHaveAttribute('aria-pressed', 'true')
+  const ligneNote = page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note initiale' })
+  await expect(ligneNote).toBeVisible()
+  // Le bouton de MODE « 📊 Tableau » (affichage) est propre à l'outil Notes ;
+  // sans le scoper, le « 📊 Tableau de bord » de la barre d'outils biaise le rôle.
+  await expect(page.locator('.notes-corpus').getByRole('button', { name: '📊 Tableau' })).toHaveAttribute('aria-pressed', 'true')
 
-  await carte.getByRole('button', { name: /Modifier la note/ }).click()
+  await ligneNote.getByRole('button', { name: /Modifier la note/ }).click()
   const modale = page.locator('.modale-note[role="dialog"]')
   await expect(modale).toBeVisible()
   await modale.getByLabel('Titre').fill('Note modifiée')
   await modale.getByRole('button', { name: 'Valider' }).click()
-  await expect(page.locator('.notes-corpus .carte-note', { hasText: 'Note modifiée' })).toBeVisible()
+  await expect(page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note modifiée' })).toBeVisible()
 
   await page.locator('.onglets-corpus button[data-onglet="journal"]').click()
   const entree = page.locator('.journal-corpus .entrees-journal li', { hasText: 'Note modifiée' })
@@ -45,22 +47,22 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   await entree.locator('.annuler-action').click()
 
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
-  const carteRestauree = page.locator('.notes-corpus .carte-note', { hasText: 'Note initiale' })
-  await expect(carteRestauree).toBeVisible()
+  const ligneRestauree = page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note initiale' })
+  await expect(ligneRestauree).toBeVisible()
 
   page.once('dialog', async (dialog) => {
     expect(dialog.message()).toContain("Supprimer la note 'Note initiale'")
     await dialog.accept()
   })
-  await carteRestauree.getByRole('button', { name: /Supprimer la note/ }).click()
-  await expect(carteRestauree).toHaveCount(0)
+  await ligneRestauree.getByRole('button', { name: /Supprimer la note/ }).click()
+  await expect(ligneRestauree).toHaveCount(0)
 
   await page.locator('.onglets-corpus button[data-onglet="journal"]').click()
   const suppression = page.locator('.journal-corpus .entrees-journal li', { hasText: 'Note supprimée' })
   await expect(suppression).toBeVisible()
   await suppression.locator('.annuler-action').click()
   await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
-  await expect(page.locator('.notes-corpus .carte-note', { hasText: 'Note initiale' })).toBeVisible()
+  await expect(page.locator('.notes-corpus .tableau-notes tbody tr', { hasText: 'Note initiale' })).toBeVisible()
 
   await page.getByPlaceholder('Titre, corps, catégorie…').fill('Note initiale')
   await page.evaluate(() => {
@@ -90,9 +92,7 @@ test('l’onglet Notes suit Accueil, modifie et supprime une note locale avec an
   expect(markdown).toContain('Corps initial')
   expect(markdown).not.toContain('<script')
 
-  // Le bouton de MODE « 📊 Tableau » (affichage) est propre à l'outil Notes ;
-  // sans le scoper, le « 📊 Tableau de bord » de la barre d'outils biaise le rôle.
-  await page.locator('.notes-corpus').getByRole('button', { name: '📊 Tableau' }).click()
+  // La vue Tableau est la vue par défaut de l'onglet Notes.
   await expect(page.locator('.notes-corpus .tableau-notes')).toBeVisible()
   const ligne = page.locator('.tableau-notes tbody tr', { hasText: 'Note initiale' })
   await expect(ligne).toBeVisible()

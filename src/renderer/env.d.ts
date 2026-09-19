@@ -31,6 +31,7 @@ import type {
   PayloadEntretien,
   TranscriptionEntretien,
   RegleAnon,
+  ResultatArchiveCorpus,
   ResultatLotValeur,
   ResultatLotAnon,
   ResultatSuppression,
@@ -185,6 +186,7 @@ declare global {
         associerAudioLocal: (id: string, source: string) => Promise<{ audioRef: string } | null>
         audios: () => Promise<Record<string, { audio: string | null; waveform: string | null }>>
         verifierAudios: () => Promise<Record<string, 'ok' | 'manquant'>>
+        copieSauvegardeZip: () => Promise<ResultatArchiveCorpus>
         poserValeur: (
           entretienId: string,
           cible: CibleValeur,

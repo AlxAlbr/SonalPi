@@ -58,6 +58,7 @@ const { vue, afficherCas, afficherRecueils, afficherTableauBord, afficherDocsCad
 .btn-cas::before { content: '🗂'; }
 .btn-tableau::before { content: '📊'; }
 .btn-recueils::before { content: '📌'; }
-.btn-docs-cadre::before { content: '📁'; }
+/* Même icône que l'en-tête de DocsCadreModale.vue (test e2e : les deux doivent rester identiques). */
+.btn-docs-cadre::before { content: '🖼️'; }
 .btn-recueils:hover, .btn-cas:hover, .btn-docs-cadre:hover, .btn-tableau:hover { background: #f4f7fd; }
 </style>

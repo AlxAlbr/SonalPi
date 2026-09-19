@@ -208,12 +208,27 @@ export const LIMITE_APERCU_PDF_OCTETS = 30_000_000
 
 /* ── Ressources exemples embarquées ──────────────────────────────────────── */
 
-/** Contenu initial des trois exemples livrés avec l'application ;
+/** Contenu initial des exemples livrés avec l'application ;
  *  les contenus définitifs les remplaceront sans changer l'API. */
 export const CONTENU_EXEMPLE_A_VENIR = 'À venir.'
 
+/** Ordre d'affichage des exemples, décidé par l'application : les documents de
+ *  conformité d'abord, les guides de méthode ensuite. Cet ordre fait foi pour
+ *  la fenêtre ; il ne dépend pas du tri alphabétique. */
 export const NOMS_EXEMPLES_DOCS = [
+  'Déclaration traitement DPO.txt',
   'Notice de consentement DPO.txt',
   'Guide de correction.txt',
   'Guide de pseudonymisation.txt',
 ] as const
+
+/** Range des exemples dans l'ordre de `NOMS_EXEMPLES_DOCS`. Un fichier non
+ *  déclaré (déposé à la main dans le dossier des exemples) vient après les
+ *  documents connus, trié alphabétiquement. */
+export function trierExemplesDocs(liste: ResumeDocumentCadre[]): ResumeDocumentCadre[] {
+  const rang = (nom: string): number => {
+    const index = NOMS_EXEMPLES_DOCS.indexOf(nom as (typeof NOMS_EXEMPLES_DOCS)[number])
+    return index === -1 ? NOMS_EXEMPLES_DOCS.length : index
+  }
+  return [...liste].sort((a, b) => rang(a.nom) - rang(b.nom) || a.nom.localeCompare(b.nom, 'fr'))
+}

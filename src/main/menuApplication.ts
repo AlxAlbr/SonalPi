@@ -2,7 +2,8 @@ import { Menu, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import type { EntreeRecent } from '../shared/format'
 
 /** Menu applicatif de l'app (parité SonalPi1, sans le volet GitLab) :
- *  Corpus (ouvrir, récents, distant, enregistrer, quitter),
+ *  Corpus (ouvrir, récents, distant, enregistrer, copie de sauvegarde ZIP,
+ *  export du corpus, quitter),
  *  Édition (rôles standards : copier/coller indispensables à l'éditeur),
  *  Entretiens (ajouter et trier).
  *  Les items ne font RIEN eux-mêmes : ils émettent `menu:action` (ou
@@ -46,6 +47,15 @@ export function appliquerMenu(recents: EntreeRecent[]): void {
       {
         label: 'Enregistrer',
         click: () => envoyer('menu:action', 'enregistrer'),
+      },
+      { type: 'separator' },
+      {
+        label: 'Faire une copie de sauvegarde du corpus (ZIP)…',
+        click: () => envoyer('menu:action', 'sauvegarde-zip'),
+      },
+      {
+        label: 'Exporter le corpus…',
+        click: () => envoyer('menu:action', 'exporter-corpus'),
       },
       { type: 'separator' },
       { label: 'Quitter', role: 'quit' },

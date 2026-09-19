@@ -49,12 +49,29 @@ test('bouton actif, sections dans l’ordre, état vide et aperçu d’un exempl
 
   const fenetre = page.locator('.modale-docs-cadre')
   await expect(fenetre).toBeVisible()
+
+  // Même icône dans la barre d'outils et dans l'en-tête de la fenêtre : la
+  // garde compare les deux sources, une divergence casse ce test.
+  const iconeBarre = await bouton.evaluate((el) =>
+    getComputedStyle(el, '::before').content.replaceAll('"', ''),
+  )
+  expect(iconeBarre.length).toBeGreaterThan(0)
+  expect((await fenetre.locator('h2').textContent())?.trim().split(' ')[0]).toBe(iconeBarre)
   // Ordre des sections : Vos Documents PUIS Documents exemples.
   await expect(fenetre.locator('h3')).toHaveCount(2)
   await expect(fenetre.locator('h3').first()).toHaveText('Vos Documents')
   await expect(fenetre.locator('h3').nth(1)).toHaveText('Documents exemples')
   // État vide : « Vous n'avez pas encore de document. »
   await expect(fenetre.locator('.cote')).toContainText('Vous n’avez pas encore de document.')
+
+  // Exemples dans l'ORDRE DÉFINI (conformité DPO, puis les guides), et non
+  // alphabétique : la place de chaque document est un choix de l'application.
+  await expect(fenetre.locator('.liste').nth(1).locator('.document .nom')).toHaveText([
+    'Déclaration traitement DPO.txt',
+    'Notice de consentement DPO.txt',
+    'Guide de correction.txt',
+    'Guide de pseudonymisation.txt',
+  ])
 
   // L'action ouvre directement le sous-dossier DocsCadre du corpus, et elle
   // est accessible dès l'état vide (défaut corrigé : elle vivait dans le

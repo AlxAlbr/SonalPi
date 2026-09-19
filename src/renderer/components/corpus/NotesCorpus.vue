@@ -170,19 +170,14 @@ onBeforeUnmount(() => observateur?.disconnect())
         <div class="modes-notes" role="group" aria-label="Mode d’affichage des notes">
           <button
             type="button"
-            :aria-pressed="modeAffichage === 'cartes'"
-            @click="modeAffichage = 'cartes'"
-          >🃏 Cartes</button>
+            :aria-pressed="modeAffichage === 'tableau'"
+            @click="modeAffichage = 'tableau'"
+          >📊 Tableau</button>
           <button
             type="button"
             :aria-pressed="modeAffichage === 'feuille'"
             @click="modeAffichage = 'feuille'"
           >📄 Feuille</button>
-          <button
-            type="button"
-            :aria-pressed="modeAffichage === 'tableau'"
-            @click="modeAffichage = 'tableau'"
-          >📊 Tableau</button>
         </div>
         <button
           type="button"
@@ -314,66 +309,7 @@ onBeforeUnmount(() => observateur?.disconnect())
         <p v-else-if="charge && !inventaire.notes.length" class="vide">Aucune note dans ce corpus.</p>
         <p v-else-if="charge && !notesFiltrees.length" class="vide">Aucune note ne correspond aux filtres.</p>
 
-        <div v-if="notesFiltrees.length && modeAffichage === 'cartes'" class="cartes-notes">
-          <article
-            v-for="note in notesFiltrees"
-            :key="`${note.entretienId}:${note.id}`"
-            class="carte-note"
-            :class="{ editable: !idDistantCourant }"
-            @dblclick="doubleClic(note, $event)"
-          >
-            <header>
-              <div class="titre-note">
-                <span class="pastille" :style="{ background: couleurCategorieNote(note.categorieId) }"></span>
-                <h3>{{ note.titre || '(sans titre)' }}</h3>
-              </div>
-              <div class="actions-note">
-                <button
-                  type="button"
-                  class="editer-note"
-                  :disabled="!!idDistantCourant || commandeEnCours"
-                  :title="idDistantCourant ? 'Édition des notes distantes non disponible' : 'Modifier la note'"
-                  :aria-label="`Modifier la note ${note.titre || 'sans titre'}`"
-                  @click="ouvrirEdition(note)"
-                >✎</button>
-                <button
-                  type="button"
-                  class="supprimer-note"
-                  :disabled="!!idDistantCourant || commandeEnCours"
-                  :title="idDistantCourant ? 'Édition des notes distantes non disponible' : 'Supprimer la note'"
-                  :aria-label="`Supprimer la note ${note.titre || 'sans titre'}`"
-                  @click="confirmerSuppression(note)"
-                >✕</button>
-                <span class="statut" :class="note.statut">{{ note.statut === 'public' ? 'public' : 'privé' }}</span>
-              </div>
-            </header>
-            <div class="metadonnees">
-              <button type="button" class="entretien" @click="ouvrir(note)">{{ note.entretienTitre }}</button>
-              <span>{{ nomCategorieNote(note.categorieId) }}</span>
-              <span>{{ dateAffichee(note.date, note.creeLe) }}</span>
-              <span v-if="badgeVerrou(note.entretienId)" class="verrou">
-                🔒 {{ badgeVerrou(note.entretienId)?.userId }}
-              </span>
-            </div>
-            <div class="corps-note" v-html="corpsAffiche(note)"></div>
-            <div v-if="note.liensCommentaires.length" class="liens-commentaires">
-              <strong>Liens :</strong>
-              <button
-                v-for="lien in note.liensCommentaires"
-                :key="lien.commentaireId"
-                type="button"
-                @click="ouvrir(note)"
-              >
-                [{{ libelleLien(lien) }}]<span v-if="lien.timecodeSecondes !== null"> ({{ timecode(lien.timecodeSecondes) }})</span>
-              </button>
-            </div>
-            <footer>
-              <button type="button" @click="ouvrir(note)">Ouvrir dans l’entretien</button>
-            </footer>
-          </article>
-        </div>
-
-        <div v-else-if="notesFiltrees.length && modeAffichage === 'tableau'" class="conteneur-tableau-notes">
+        <div v-if="notesFiltrees.length && modeAffichage === 'tableau'" class="conteneur-tableau-notes">
           <table class="tableau-notes">
             <thead>
               <tr>
@@ -538,10 +474,8 @@ legend { font-size: 0.82rem; }
 .separateur-notes { background: #e8edf5; cursor: col-resize; touch-action: none; border-radius: 5px; }
 .separateur-notes:focus-visible { outline: 2px solid #1565c0; }
 .liste-notes { min-width: 0; }
-.cartes-notes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); align-content: start; gap: 12px; }
-.carte-note { display: flex; flex-direction: column; min-width: 0; border: 1px solid #d4dce6; border-radius: 8px; padding: 12px; background: #fff; }
-.carte-note > header, .bloc-feuille-note > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.carte-note.editable, .bloc-feuille-note.editable, .tableau-notes tr.editable { cursor: default; }
+.bloc-feuille-note > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.bloc-feuille-note.editable, .tableau-notes tr.editable { cursor: default; }
 .titre-note { display: flex; align-items: center; min-width: 0; gap: 8px; }
 .titre-note h3 { overflow: hidden; margin: 0; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
 .pastille { display: inline-block; width: 12px; height: 12px; flex: none; border: 1px solid #0002; border-radius: 50%; }
@@ -581,7 +515,6 @@ legend { font-size: 0.82rem; }
 .bloc-feuille-note footer { display: flex; justify-content: flex-end; padding-top: 12px; }
 .liens-commentaires { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; padding-top: 8px; border-top: 1px dashed #d4dce6; color: #52606d; font-size: 0.76rem; }
 .liens-commentaires button { padding: 0; border: 0; background: transparent; color: #1565c0; font: inherit; text-align: left; }
-.carte-note footer { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 10px; }
 .erreur { color: #a82020; }
 .alerte-projection { margin: 10px 0; padding: 8px 10px; border: 1px solid #e5b4b4; border-radius: 5px; background: #fff8f8; }
 .etat-projection { padding: 24px 12px; color: #52606d; text-align: center; }
@@ -593,7 +526,6 @@ legend { font-size: 0.82rem; }
   .entete-notes { align-items: flex-start; flex-direction: column; }
   .actions-entete-notes { justify-content: flex-start; }
   .filtres-notes { max-height: none; }
-  .cartes-notes { grid-template-columns: minmax(0, 1fr); }
   .bloc-feuille-note { padding: 14px; }
 }
 </style>

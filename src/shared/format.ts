@@ -195,6 +195,16 @@ export interface OuvertureCorpus extends DossierCorpus {
 /** Préfixe de l'erreur quand le dossier du corpus courant disparaît sur disque en session : le store refuse de le ré-amorcer en silence, le renderer bascule sur un autre récent. */
 export const CORPUS_SUPPRIME = 'CORPUS_SUPPRIME'
 
+/** Résultat d'une copie de sauvegarde du corpus local en archive ZIP.
+ *  `refus` couvre les cas où il n'y a rien à archiver (corpus distant,
+ *  aucun corpus ouvert) ; `echec` les erreurs d'écriture.
+ *  L'appelant distingue les deux, pour choisir entre information et erreur. */
+export type ResultatArchiveCorpus =
+  | { etat: 'succes'; chemin: string; fichiers: number }
+  | { etat: 'annule' }
+  | { etat: 'refus'; message: string }
+  | { etat: 'echec'; message: string }
+
 // ══════════════════════════════════════════════════════════════════════════
 // Entretiens — `entretiens/<id>.json`, leurs locuteurs.
 // ══════════════════════════════════════════════════════════════════════════

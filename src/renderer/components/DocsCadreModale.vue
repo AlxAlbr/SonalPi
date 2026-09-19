@@ -17,7 +17,8 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
     <div v-show="docsCadreOuverts" class="fond-docs-cadre" role="dialog" aria-modal="true" aria-label="Docs cadre projet">
       <section class="modale-docs-cadre">
         <header>
-          <h2>🗂 Docs cadre projet</h2>
+          <!-- Un tableau et son tour ; même icône que .btn-docs-cadre (BarreOutils.vue). -->
+          <h2>🖼️ Docs cadre projet</h2>
           <button title="Fermer les docs cadre" @click="fermerDocsCadre">Quitter ✕</button>
         </header>
         <div class="corps"><DocsCadre /></div>

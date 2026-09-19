@@ -29,6 +29,7 @@ import {
   LIMITE_APERCU_PDF_OCTETS,
   nomLibre,
   trierDocuments,
+  trierExemplesDocs,
   type ResumeDocumentCadre,
 } from '../src/shared/docsCadre'
 
@@ -363,10 +364,12 @@ describe('exemples embarqués', () => {
   it('inventaire et aperçu des exemples livrés avec l’application', () => {
     const dir = join(__dirname, '..', 'ressources', 'docsCadreExemples')
     const inventaire = inventaireExemplesDocsCadre(dir)
+    // Ordre défini : conformité DPO d'abord, guides ensuite (pas alphabétique).
     expect(inventaire.map((d) => d.nom)).toEqual([
+      'Déclaration traitement DPO.txt',
+      'Notice de consentement DPO.txt',
       'Guide de correction.txt',
       'Guide de pseudonymisation.txt',
-      'Notice de consentement DPO.txt',
     ])
     for (const d of inventaire) {
       expect(d.source).toBe('exemple')
@@ -380,5 +383,23 @@ describe('exemples embarqués', () => {
   it('exemple absent : absence expliquée', () => {
     const dir = join(__dirname, '..', 'ressources', 'docsCadreExemples')
     expect(lireApercuExemple(dir, 'Fantome.txt').apercu).toEqual({ genre: 'aucun', raison: 'absent' })
+  })
+
+  it('exemple non déclaré : rangé après les documents connus, par ordre alphabétique', () => {
+    const exemple = (nom: string): ResumeDocumentCadre => ({
+      source: 'exemple', nom, type: 'texte', taille: 1, modifieLe: null,
+    })
+    const liste = trierExemplesDocs([
+      exemple('Zebre.txt'),
+      exemple('Guide de correction.txt'),
+      exemple('Aaa.txt'),
+      exemple('Déclaration traitement DPO.txt'),
+    ])
+    expect(liste.map((d) => d.nom)).toEqual([
+      'Déclaration traitement DPO.txt',
+      'Guide de correction.txt',
+      'Aaa.txt',
+      'Zebre.txt',
+    ])
   })
 })

@@ -24,7 +24,7 @@ Dans un corpus distant, le bouton global **Actualiser** renouvelle aussi l’out
 
 ## Notes
 
-L’onglet Notes rassemble les notes de tous les entretiens. Le panneau de gauche permet de rechercher, filtrer et trier les résultats. Les filtres portent notamment sur la catégorie, l’entretien, le statut, la date, les passages importants et les liens vers des commentaires. Les affichages **Cartes**, **Feuille** et **Tableau** présentent le même inventaire. **Exporter** produit un fichier Markdown avec les seules notes actuellement affichées.
+L’onglet Notes rassemble les notes de tous les entretiens. Le panneau de gauche permet de rechercher, filtrer et trier les résultats. Les filtres portent notamment sur la catégorie, l’entretien, le statut, la date, les passages importants et les liens vers des commentaires. Les affichages **Tableau** (par défaut) et **Feuille** présentent le même inventaire. **Exporter** produit un fichier Markdown avec les seules notes actuellement affichées.
 
 Dans un corpus local, le crayon modifie le titre, le corps, la catégorie, la date et le statut d’une note existante. La croix la supprime après confirmation. Ces deux gestes alimentent le Journal du corpus et peuvent être annulés tant que la note ou son ordre n’a pas changé depuis. La création, l’ordre, les locuteurs concernés et les liens vers les commentaires restent gérés dans l’entretien.
 

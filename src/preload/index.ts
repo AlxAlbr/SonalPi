@@ -23,6 +23,7 @@ import type {
   PayloadEntretien,
   TranscriptionEntretien,
   RegleAnon,
+  ResultatArchiveCorpus,
   ResultatSuppression,
   ResultatSuppressionCategorie,
   SegmentThematique,
@@ -320,6 +321,9 @@ contextBridge.exposeInMainWorld('sonal', {
     effacerAudio: (id: string): Promise<{ audioRef: null }> => invoquer('corpus:effacerAudio', id),
     ecrireWaveform: (id: string, png: Uint8Array): Promise<string> =>
       invoquer('corpus:ecrireWaveform', id, png),
+    /** Copie de sauvegarde du corpus LOCAL en archive ZIP (refus en distant). */
+    copieSauvegardeZip: (): Promise<ResultatArchiveCorpus> =>
+      invoquer('corpus:copieSauvegardeZip'),
     /** « Associer l'audio local… » : référence un fichier de CE poste,
      *  pour un entretien dont l'audioRef partagée n'y pointe nulle part. */
     associerAudioLocal: (id: string, source: string): Promise<{ audioRef: string } | null> =>

@@ -39,6 +39,7 @@ import {
   LIMITE_APERCU_TEXTE_OCTETS,
   nomLibre,
   trierDocuments,
+  trierExemplesDocs,
   mimeImage,
   type RaisonSansApercu,
   type ResultatLectureDocsCadre,
@@ -421,11 +422,12 @@ export function enregistrerCopieLocal(racineCorpus: string, nom: string, destina
 
 /* ── Exemples embarqués ──────────────────────────────────────────────────── */
 
-/** Inventaire des exemples livrés avec l'application. Toujours consultables,
- *  y compris quand un corpus distant est hors ligne. */
+/** Inventaire des exemples livrés avec l'application, dans l'ordre défini par
+ *  `NOMS_EXEMPLES_DOCS`. Toujours consultables, y compris quand un corpus
+ *  distant est hors ligne. */
 export function inventaireExemplesDocsCadre(dirExemples: string): ResumeDocumentCadre[] {
   const resultats = inventaireDossier(dirExemples).map((r) => ({ ...r, source: 'exemple' as const }))
-  return trierDocuments(resultats)
+  return trierExemplesDocs(resultats)
 }
 
 /** Lecture d'un aperçu d'un exemple embarqué. */

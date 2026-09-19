@@ -6,12 +6,18 @@ import {
   type FormatExport,
   type OptionsExport,
 } from '../../../shared/export/types'
-import type { ResultatLotCorpus } from '../../services/exportCorpus'
+import type {
+  ApercuRapportPseudonymisationCorpus,
+  DemandeLotCorpus,
+  ResultatLotCorpus,
+} from '../../services/exportCorpus'
 
 const {
   exportCorpusOuvert,
   fermerExportCorpus,
   exporterCorpusLot,
+  preparerRapportCorpus,
+  enregistrerRapportCorpus,
   listeEntretiens,
   ouvertId,
 } = utiliserSonal()
@@ -19,8 +25,8 @@ const {
 /** Liste des entretiens du corpus, dans l'ordre de la grille. */
 const entretiens = computed(() => listeEntretiens())
 
-/** Étape courante : sélection → options → traitement → résumé. */
-const etape = ref<'selection' | 'options' | 'traitement' | 'resume'>('selection')
+/** Étape courante : sélection → options → rapport → traitement → résumé. */
+const etape = ref<'selection' | 'options' | 'rapport' | 'traitement' | 'resume'>('selection')
 
 /** Entretiens cochés (tous par défaut). */
 const selectionnes = ref<Set<string>>(new Set())
@@ -46,7 +52,8 @@ const options = ref<OptionsExport>({
   anon: true,
 })
 const copierMedias = ref(true)
-const enregistrerRapport = ref(false)
+const rapportDemande = ref(false)
+const apercuRapport = ref<ApercuRapportPseudonymisationCorpus | null>(null)
 
 /** Traitement en cours : progression « k / n — Titre… », arrêt demandé. */
 const progression = ref<{ faits: number; total: number; titre: string } | null>(null)
@@ -55,6 +62,7 @@ const arretPrisEnCompte = ref(false)
 const resultat = ref<ResultatLotCorpus | null>(null)
 
 const message = ref<string | null>(null)
+const messageEstErreur = ref(true)
 const occupe = ref(false)
 
 // Chaque ouverture repart de l'étape de sélection, avec TOUS les entretiens.
@@ -64,12 +72,14 @@ watch(exportCorpusOuvert, (ouvert) => {
   selectionnes.value = new Set(entretiens.value.map((e) => e.id))
   formats.value = new Set(['txt'])
   copierMedias.value = true
-  enregistrerRapport.value = false
+  rapportDemande.value = false
+  apercuRapport.value = null
   progression.value = null
   arretDemande.value = false
   arretPrisEnCompte.value = false
   resultat.value = null
   message.value = null
+  messageEstErreur.value = true
   occupe.value = false
 })
 
@@ -96,11 +106,13 @@ const copierMediasVisible = computed(() => formats.value.has('html'))
 
 function basculerFormat(f: FormatExport): void {
   if (formats.value.has(f)) {
-    if (formats.value.size === 1) return // au moins un format
+    if (formats.value.size === 1) return
     formats.value.delete(f)
   } else {
     formats.value.add(f)
   }
+  apercuRapport.value = null
+  message.value = null
 }
 
 function etapeSuivante(): void {
@@ -110,31 +122,62 @@ function etapeSuivante(): void {
 }
 
 function revenirSelection(): void {
+  apercuRapport.value = null
   message.value = null
   etape.value = 'selection'
 }
 
-async function lancerExport(): Promise<void> {
-  if (occupe.value) return
+function demandeCourante(): DemandeLotCorpus | null {
   const selection = entretiens.value
     .filter((e) => selectionnes.value.has(e.id))
     .map((e) => ({ id: e.id, titre: e.titre, date: e.date }))
-  if (selection.length === 0) return
+  if (selection.length === 0) return null
+  return {
+    selection,
+    idOuvert: ouvertId.value,
+    formats: [...formats.value],
+    options: { ...options.value },
+    copierMedias: copierMediasVisible.value && copierMedias.value,
+    enregistrerRapport: false,
+  }
+}
+
+/** Le premier clic prépare l'aperçu demandé, sans lancer l'export final. */
+async function lancerExport(): Promise<void> {
+  const demande = demandeCourante()
+  if (!demande || occupe.value) return
+  if (options.value.anon && rapportDemande.value && !apercuRapport.value) {
+    occupe.value = true
+    message.value = null
+    messageEstErreur.value = true
+    try {
+      const preparation = await preparerRapportCorpus(demande)
+      if (preparation.etat === 'erreur') {
+        message.value = preparation.message
+        return
+      }
+      apercuRapport.value = preparation.apercu
+      etape.value = 'rapport'
+    } finally {
+      occupe.value = false
+    }
+    return
+  }
+  await lancerExportFinal()
+}
+
+async function lancerExportFinal(): Promise<void> {
+  const demande = demandeCourante()
+  if (!demande || occupe.value) return
   occupe.value = true
   arretDemande.value = false
   arretPrisEnCompte.value = false
   message.value = null
+  messageEstErreur.value = true
   etape.value = 'traitement'
   try {
     const r = await exporterCorpusLot(
-      {
-        selection,
-        idOuvert: ouvertId.value,
-        formats: [...formats.value],
-        options: { ...options.value },
-        copierMedias: copierMediasVisible.value && copierMedias.value,
-        enregistrerRapport: enregistrerRapport.value,
-      },
+      demande,
       {
         surProgression: (faits, total, titre) => {
           progression.value = { faits, total, titre }
@@ -146,11 +189,35 @@ async function lancerExport(): Promise<void> {
     etape.value = 'resume'
   } catch (erreur) {
     message.value = `L'export du corpus a échoué : ${erreur instanceof Error ? erreur.message : String(erreur)}`
-    etape.value = 'options'
+    etape.value = apercuRapport.value ? 'rapport' : 'options'
   } finally {
     occupe.value = false
     progression.value = null
   }
+}
+
+async function sauvegarderRapport(): Promise<void> {
+  if (!apercuRapport.value || occupe.value) return
+  occupe.value = true
+  message.value = null
+  messageEstErreur.value = true
+  try {
+    const enregistrement = await enregistrerRapportCorpus(apercuRapport.value)
+    if (enregistrement.etat === 'erreur') {
+      message.value = enregistrement.message
+    } else if (enregistrement.etat === 'succes') {
+      messageEstErreur.value = false
+      message.value = `Rapport enregistré : ${enregistrement.chemin}`
+    }
+  } finally {
+    occupe.value = false
+  }
+}
+
+function revenirAuxOptions(): void {
+  apercuRapport.value = null
+  message.value = null
+  etape.value = 'options'
 }
 
 /** Annulation : le lot s'arrête APRÈS l'entretien courant (jamais au milieu
@@ -238,9 +305,9 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
               <input type="checkbox" v-model="copierMedias" />
               Copier les médias accessibles (dossier <code>medias/</code>)
             </label>
-            <label class="option">
-              <input type="checkbox" v-model="enregistrerRapport" />
-              Enregistrer le rapport détaillé de pseudonymisation
+            <label v-if="options.anon" class="option rapport-option">
+              <input type="checkbox" v-model="rapportDemande" />
+              Consulter le rapport de pseudonymisation avant l'export
             </label>
             <p v-if="options.anon" class="avertissement-anon">
               Seuls les pseudonymes configurés sont appliqués. Les autres
@@ -251,12 +318,55 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           <div class="actions">
             <button class="retour" :disabled="occupe" @click="revenirSelection">← Retour</button>
             <button class="exporter" :disabled="occupe" @click="lancerExport">
-              📥 Exporter {{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }}
+              {{ occupe ? '⏳ Préparation…' : `📥 Exporter ${selectionnes.size} entretien${selectionnes.size > 1 ? 's' : ''}` }}
             </button>
           </div>
         </div>
 
-        <!-- ÉTAPE 3 — traitement : progression par entretien, arrêt possible. -->
+        <!-- ÉTAPE 3 — consultation et enregistrement facultatif du rapport. -->
+        <div v-else-if="etape === 'rapport' && apercuRapport" class="corps">
+          <p class="etape">3 — Rapport de pseudonymisation avant l'export</p>
+          <p class="limite-rapport">
+            Ce rapport décrit les remplacements configurés. Il ne constitue pas une garantie d'anonymat.
+          </p>
+          <div v-if="apercuRapport.indisponibles.length > 0" class="avertissement-anon">
+            <b>Aperçu incomplet :</b>
+            <div v-for="item in apercuRapport.indisponibles" :key="item.id">
+              {{ item.titre }} — {{ item.raison }}
+            </div>
+          </div>
+          <div class="rapport-contenu">
+            <article v-for="entretien in apercuRapport.entretiens" :key="entretien.id">
+              <h3>{{ entretien.titre }}</h3>
+              <section v-for="detail in entretien.formats" :key="detail.format">
+                <h4 v-if="entretien.formats.length > 1">Format {{ detail.format.toUpperCase() }}</h4>
+                <h5>Pseudonymisation appliquée</h5>
+                <ul><li v-for="ligne in detail.rapport.appliquees" :key="ligne.code">{{ ligne.message }}</li></ul>
+                <h5>Éléments conservés</h5>
+                <ul><li v-for="ligne in detail.rapport.conserves" :key="ligne.code">{{ ligne.message }}</li></ul>
+                <h5>Éléments à vérifier manuellement</h5>
+                <ul v-if="detail.rapport.aVerifier.length > 0">
+                  <li v-for="ligne in detail.rapport.aVerifier" :key="ligne.code">{{ ligne.message }}</li>
+                </ul>
+                <p v-else>Aucun élément à signaler.</p>
+              </section>
+            </article>
+          </div>
+          <p
+            v-if="message"
+            :class="messageEstErreur ? 'message-erreur' : 'message-information'"
+            :role="messageEstErreur ? 'alert' : 'status'"
+          >{{ message }}</p>
+          <div class="actions actions-rapport">
+            <button class="retour" :disabled="occupe" @click="revenirAuxOptions">← Options</button>
+            <button class="enregistrer" :disabled="occupe" @click="sauvegarderRapport">Enregistrer le rapport</button>
+            <button class="exporter" :disabled="occupe" @click="lancerExportFinal">
+              {{ occupe ? '⏳ Traitement…' : '📥 Lancer l’export' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- ÉTAPE 4 — traitement : progression par entretien, arrêt possible. -->
         <div v-else-if="etape === 'traitement'" class="corps">
           <p class="etape">Export en cours…</p>
           <p class="progression">
@@ -274,7 +384,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           </div>
         </div>
 
-        <!-- ÉTAPE 4 — résumé final : réussites, échecs expliqués, dossier. -->
+        <!-- ÉTAPE 5 — résumé final : réussites, échecs expliqués, dossier. -->
         <div v-else-if="etape === 'resume' && resultat" class="corps">
           <p class="etape">
             <template v-if="resultat.etat === 'succes'">Export terminé ✅</template>
@@ -346,11 +456,14 @@ h2 { margin: 0; font-size: 1.1rem; }
 .tous-option { border-bottom: 1px solid #ddd; padding-bottom: .5rem; margin-bottom: .5rem; }
 .option { display: flex; align-items: baseline; gap: .6rem; padding: .3rem 0; cursor: pointer; }
 .options { display: flex; flex-direction: column; gap: .1rem; }
+.rapport-option { margin-top: .25rem; border-top: 1px solid #ddd; padding-top: .65rem; }
 hr { border: none; border-top: 1px solid #eee; margin: .8rem 0; }
 .avertissement-anon { margin: .4rem 0 0; padding: .5rem .7rem; border-radius: 5px; background: #fff8e1; color: #7a5c00; border: 1px solid #ffe082; font-size: .85rem; }
 .progression { font-size: 1rem; }
 .dossier { font-size: .9rem; word-break: break-all; }
-.message-erreur { margin: .6rem 0 0; padding: .6rem .8rem; border-radius: 5px; font-size: .9rem; white-space: pre-wrap; background: #fdecea; color: #b71c1c; border: 1px solid #f5c6cb; }
+.message-erreur, .message-information { margin: .6rem 0 0; padding: .6rem .8rem; border-radius: 5px; font-size: .9rem; white-space: pre-wrap; }
+.message-erreur { background: #fdecea; color: #b71c1c; border: 1px solid #f5c6cb; }
+.message-information { background: #edf7ed; color: #1b5e20; border: 1px solid #a5d6a7; }
 .resume-ligne { display: flex; align-items: baseline; gap: .5rem; padding: .15rem 0; font-size: .9rem; }
 .resume-ligne .titre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume-ligne .raison { color: #b71c1c; font-size: .85rem; }
@@ -360,9 +473,17 @@ hr { border: none; border-top: 1px solid #eee; margin: .8rem 0; }
 .actions button:disabled { opacity: .55; cursor: default; }
 .actions .retour { flex: 1; border: 1px solid #bbb; background: #fff; }
 .actions .annuler { flex: 1; border: 1px solid #b71c1c; color: #b71c1c; background: #fff; }
+.actions .enregistrer { flex: 2; border: 1px solid #1565c0; color: #0d47a1; background: #e3f2fd; }
 .actions .suivant, .actions .exporter { flex: 2; border: 1px solid #2e7d32; color: #fff; background: #2e7d32; }
+.actions-rapport { flex-wrap: wrap; }
 .actions .exporter:hover:not(:disabled), .actions .suivant:hover:not(:disabled) { background: #256a28; }
 .limite-rapport { padding: .5rem .7rem; border-radius: 5px; background: #fff8e1; color: #5f4900; font-size: .85rem; }
+.rapport-contenu article { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid #ddd; }
+.rapport-contenu h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.rapport-contenu h4 { margin: .7rem 0 .35rem; font-size: .9rem; color: #555; }
+.rapport-contenu h5 { margin: .55rem 0 .2rem; font-size: .9rem; }
+.rapport-contenu ul { margin: 0; padding-left: 1.25rem; }
+.rapport-contenu p { margin: 0; font-size: .9rem; }
 .rapport-global { margin-top: .8rem; }
 .rapport-global summary { cursor: pointer; font-weight: 600; }
 .ligne-rapport { padding: .2rem 0; font-size: .9rem; }

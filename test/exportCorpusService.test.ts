@@ -9,7 +9,9 @@ import type {
 } from '../src/shared/export/corpus'
 import type { DemandeExportDocxCorpus } from '../src/shared/format'
 import {
+  enregistrerRapportPseudonymisationCorpus,
   exporterCorpus,
+  preparerRapportPseudonymisationCorpus,
   type SourceExportCorpus,
   type SuiviEntretienLot,
 } from '../src/renderer/services/exportCorpus'
@@ -116,6 +118,59 @@ function demande(formats: FormatExport[], extra: Partial<Parameters<typeof expor
 function suivi(faits: SuiviEntretienLot[], id: string): SuiviEntretienLot | undefined {
   return faits.find((f) => f.id === id)
 }
+
+describe('rapport de corpus avant export', () => {
+  it('prépare un aperçu agrégé sans choisir de destination ni écrire', async () => {
+    const { source } = sourceDoublure({ ouvertId: 'e1' })
+    const choisirDossier = vi.spyOn(source, 'choisirDossier')
+    const ecrireTexte = vi.spyOn(source, 'ecrireTexte')
+    const distant = vi.spyOn(source, 'instantaneDistant')
+
+    const preparation = await preparerRapportPseudonymisationCorpus(
+      demande(['txt', 'html'], {
+        idOuvert: 'e1',
+        options: { ...OPTIONS_DEFAUT, anon: true },
+      }),
+      source,
+    )
+
+    expect(preparation.etat).toBe('succes')
+    expect(choisirDossier).not.toHaveBeenCalled()
+    expect(ecrireTexte).not.toHaveBeenCalled()
+    expect(distant).not.toHaveBeenCalledWith('e1')
+    if (preparation.etat !== 'succes') return
+    expect(preparation.apercu.entretiens).toHaveLength(3)
+    expect(preparation.apercu.entretiens[0].formats.map((r) => r.format)).toEqual(['txt', 'html'])
+    expect(preparation.apercu.texte).toContain('Format : TXT')
+    expect(preparation.apercu.texte).toContain('Format : HTML')
+    expect(preparation.apercu.nomSuggere).toBe('Corpus test_rapport-pseudonymisation.txt')
+  })
+
+  it('signale les entretiens indisponibles tout en présentant les autres', async () => {
+    const { source } = sourceDoublure({ echecDistantPour: ['e2'] })
+    const preparation = await preparerRapportPseudonymisationCorpus(demande(['txt']), source)
+
+    expect(preparation.etat).toBe('succes')
+    if (preparation.etat !== 'succes') return
+    expect(preparation.apercu.entretiens.map((e) => e.id)).toEqual(['e1', 'e3'])
+    expect(preparation.apercu.indisponibles).toEqual([
+      { id: 'e2', titre: 'Entretien deux', raison: "L'entretien « e2 » est introuvable dans le corpus." },
+    ])
+  })
+
+  it('enregistre séparément le rapport déjà consulté', async () => {
+    const { source } = sourceDoublure()
+    const preparation = await preparerRapportPseudonymisationCorpus(demande(['txt']), source)
+    expect(preparation.etat).toBe('succes')
+    if (preparation.etat !== 'succes') return
+    const ecrire = vi.fn(async (nom: string, _contenu: string) => `/rapports/${nom}`)
+
+    const resultat = await enregistrerRapportPseudonymisationCorpus(preparation.apercu, ecrire)
+
+    expect(resultat.etat).toBe('succes')
+    expect(ecrire).toHaveBeenCalledWith(preparation.apercu.nomSuggere, preparation.apercu.texte)
+  })
+})
 
 describe('exporterCorpus — formats par entretien', () => {
   it('un fichier par entretien, index avec tous les exportés, ordre de la sélection', async () => {

@@ -63,6 +63,30 @@ export interface ResumeRapportEntretien {
   aVerifier: number
 }
 
+/** Rapport consultable d'un entretien, décliné pour chaque format demandé. */
+export interface RapportEntretienCorpus {
+  id: string
+  titre: string
+  formats: Array<{ format: FormatExport; rapport: RapportPseudonymisationExport }>
+}
+
+/** Rapport agrégé préparé avant l'export, sans aucune écriture. */
+export interface ApercuRapportPseudonymisationCorpus {
+  entretiens: RapportEntretienCorpus[]
+  indisponibles: Array<{ id: string; titre: string; raison: string }>
+  texte: string
+  nomSuggere: string
+}
+
+export type ResultatPreparationRapportCorpus =
+  | { etat: 'succes'; apercu: ApercuRapportPseudonymisationCorpus }
+  | { etat: 'erreur'; message: string }
+
+export type ResultatEnregistrementRapportCorpus =
+  | { etat: 'succes'; chemin: string }
+  | { etat: 'annule' }
+  | { etat: 'erreur'; message: string }
+
 /** Résultat d'un run : toujours présenté à l'interface. */
 export type ResultatLotCorpus =
   | { etat: 'succes'; dossier: string; faits: SuiviEntretienLot[]; rapportResume: ResumeRapportEntretien[]; rapportTexte: string }
@@ -109,6 +133,75 @@ export interface SourceExportCorpus {
 
 const NOM_INDEX = '_index'
 const NOM_RAPPORT = '_rapport-pseudonymisation'
+
+/** Prépare le rapport du lot sélectionné sans choisir de destination ni écrire. */
+export async function preparerRapportPseudonymisationCorpus(
+  demande: DemandeLotCorpus,
+  source: SourceExportCorpus,
+): Promise<ResultatPreparationRapportCorpus> {
+  try {
+    const entretiens: RapportEntretienCorpus[] = []
+    const indisponibles: ApercuRapportPseudonymisationCorpus['indisponibles'] = []
+    const textes: string[] = []
+
+    for (const selectionne of demande.selection) {
+      const resultat = await instantaneDe(selectionne.id, demande, source)
+      if (!resultat.instantane) {
+        indisponibles.push({
+          id: selectionne.id,
+          titre: selectionne.titre,
+          raison: resultat.raison ?? "L'entretien n'est plus disponible.",
+        })
+        continue
+      }
+      const instantane = resultat.instantane
+      const rapports = formatsRapport(demande).map((format) => ({
+        format,
+        rapport: rapportDe(instantane, demande, format),
+      }))
+      entretiens.push({ id: instantane.id, titre: instantane.titre, formats: rapports })
+      textes.push(rapports.map(({ rapport }) => rapportEnTexte(rapport)).join('\n'))
+    }
+
+    if (entretiens.length === 0) {
+      return {
+        etat: 'erreur',
+        message: indisponibles[0]?.raison ?? 'Aucun entretien sélectionné ne peut être analysé.',
+      }
+    }
+
+    return {
+      etat: 'succes',
+      apercu: {
+        entretiens,
+        indisponibles,
+        texte: textes.join('\n'),
+        nomSuggere: `${nettoyerBaseNom(`${source.nomCorpus()}_rapport-pseudonymisation`, 'txt')}.txt`,
+      },
+    }
+  } catch (erreur) {
+    return {
+      etat: 'erreur',
+      message: `Le rapport n'a pas pu être préparé : ${erreur instanceof Error ? erreur.message : String(erreur)}`,
+    }
+  }
+}
+
+/** Enregistre un rapport déjà consulté, indépendamment du dossier d'export. */
+export async function enregistrerRapportPseudonymisationCorpus(
+  apercu: ApercuRapportPseudonymisationCorpus,
+  ecrireTexte: (nomSuggere: string, contenu: string) => Promise<string | null>,
+): Promise<ResultatEnregistrementRapportCorpus> {
+  try {
+    const chemin = await ecrireTexte(apercu.nomSuggere, apercu.texte)
+    return chemin ? { etat: 'succes', chemin } : { etat: 'annule' }
+  } catch (erreur) {
+    return {
+      etat: 'erreur',
+      message: `L'enregistrement du rapport a échoué : ${erreur instanceof Error ? erreur.message : String(erreur)}`,
+    }
+  }
+}
 
 /** Export d'un lot d'entretiens : dossier choisi une fois, un entretien à la
  *  fois ; un échec est expliqué et n'interrompt jamais le lot. L'index ne

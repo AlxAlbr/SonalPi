@@ -54,3 +54,30 @@ describe('menu applicatif des entretiens', () => {
     ])
   })
 })
+
+describe('menu applicatif du corpus', () => {
+  beforeEach(() => {
+    electron.send.mockClear()
+    electron.setApplicationMenu.mockClear()
+    appliquerMenu([])
+  })
+
+  /** Item du sous-menu Corpus par son libellé. */
+  function itemCorpus(label: string): MenuItemConstructorOptions {
+    const corpus = electron.template.find((item) => item.label === 'Corpus')!
+    return sousMenu(corpus).find((item) => item.label?.startsWith(label))!
+  }
+
+  test('la copie de sauvegarde ZIP et l’export du corpus sont proposés', () => {
+    const sauvegarde = itemCorpus('Faire une copie de sauvegarde')
+    const exporter = itemCorpus('Exporter le corpus')
+
+    ;(sauvegarde.click as () => void)()
+    ;(exporter.click as () => void)()
+
+    expect(electron.send.mock.calls).toEqual([
+      ['menu:action', 'sauvegarde-zip'],
+      ['menu:action', 'exporter-corpus'],
+    ])
+  })
+})

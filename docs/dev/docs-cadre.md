@@ -43,7 +43,9 @@ Module pur partagé main/preload/renderer/tests : `SourceDocumentCadre`, `ModeDo
 explicites, jamais d'écrasement). Fonctions pures : `estNomSain` (portabilité : séparateurs,
 noms réservés Windows, contrôle, point/espace final — casse et accents conservés),
 `estListable` (cachés, `~$…`, temporaires exclus), `categoriserDocument`, `nomLibre`,
-`trierDocuments` (locale fr) et les limites d'aperçu (`LIMITE_APERCU_TEXTE_OCTETS`,
+`trierDocuments` (locale fr), `trierExemplesDocs` (ordre défini des exemples : les noms
+déclarés dans `NOMS_EXEMPLES_DOCS` d'abord, les autres ensuite par ordre alphabétique) et
+les limites d'aperçu (`LIMITE_APERCU_TEXTE_OCTETS`,
 `LIMITE_APERCU_BINAIRE_OCTETS`, `LIMITE_APERCU_PDF_OCTETS`).
 
 Le renderer ne reçoit jamais de chemin absolu : chaque opération transmet une source
@@ -56,7 +58,7 @@ Le renderer ne reçoit jamais de chemin absolu : chaque opération transmet une 
   contrôle de signature), ajout copié, dépôt glisser-déposer (`deposerFichierLocal` :
   fichier régulier exigé, homonyme refusé sans écrasement), renommage sans écrasement,
   corbeille (logiques conservées, boutons retirés), résolution de chemin validée pour
-  l'ouverture externe, exemples embarqués.
+  l'ouverture externe, exemples embarqués (inventaire dans l'ordre de `NOMS_EXEMPLES_DOCS`).
 - `src/main/docsCadreDistant.ts` : inventaire et aperçu par `ClientWebDAV` du miroir actif
   (`PROPFIND DocsCadre` ; `GET` streamé et borné pour les aperçus acceptés ; copie exacte
   streamée via `getBinaireFichier`), `urlNextcloudPourCorpus` (HTTPS ou hôte local ;

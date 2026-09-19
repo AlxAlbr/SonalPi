@@ -39,13 +39,13 @@ test('les projections gardent leur dernier résultat et replient les entretiens 
 
     renameSync(cheminSecours, cheminCorpus)
     await notes.getByRole('button', { name: 'Réessayer' }).click()
-    await expect(notes.locator('.carte-note', { hasText: 'Résultat lisible' })).toBeVisible()
+    await expect(notes.locator('.tableau-notes tbody tr', { hasText: 'Résultat lisible' })).toBeVisible()
     await expect(notes.getByRole('alert')).toHaveCount(0)
 
     renameSync(cheminCorpus, cheminSecours)
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Accueil', exact: true }).click()
     await page.locator('.onglets-corpus').getByRole('button', { name: 'Notes', exact: true }).click()
-    await expect(notes.locator('.carte-note', { hasText: 'Résultat lisible' })).toBeVisible()
+    await expect(notes.locator('.tableau-notes tbody tr', { hasText: 'Résultat lisible' })).toBeVisible()
     await expect(notes.getByRole('alert')).toContainText('dernier résultat lisible')
 
     renameSync(cheminSecours, cheminCorpus)

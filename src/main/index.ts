@@ -28,6 +28,7 @@ import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
+import { archiverCorpusLocal } from './archiveCorpus'
 import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus } from './exportCorpus'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DemandeExportDocx, DemandeExportPdf, DemandeExportDocxCorpus } from '../shared/format'
@@ -55,6 +56,7 @@ import type {
   PayloadEntretien,
   TranscriptionEntretien,
   RegleAnon,
+  ResultatArchiveCorpus,
   Variable,
   VerificationDossierDemo,
   ParamsAnon,
@@ -935,6 +937,20 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
   ipcMain.handle('corpus:audios', () => store.audios())
   ipcMain.handle('corpus:verifierAudios', () => store.verifierAudios())
+  /** « Faire une copie de sauvegarde du corpus (ZIP) ».
+   *  Archive le dossier du corpus courant, réservé au corpus local.
+   *  Un corpus distant vit sur son serveur, qui porte sa propre sauvegarde. */
+  ipcMain.handle('corpus:copieSauvegardeZip', (e): Promise<ResultatArchiveCorpus> => {
+    let nom = basename(dossierCourant)
+    if (!miroirActif) {
+      try {
+        nom = store.ouvrir().nom ?? nom
+      } catch {
+        /* dossier disparu : l'absence de corpus.json fera refuser l'archive */
+      }
+    }
+    return archiverCorpusLocal(e, dossierCourant, nom, miroirActif !== null)
+  })
   // Marqueur de corpus de TEST (`corpus.json: { demo }`) : identité, mode,
   // sources et étapes validées. Champ additif optionnel, pas de bump de version.
   ipcMain.handle('corpus:marquerDemo', (_e, marqueur: MarqueurDemo) =>

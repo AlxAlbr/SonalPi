@@ -11,9 +11,14 @@ import {
   type SourceExportEntretien,
 } from '../../services/exportEntretien'
 import {
+  enregistrerRapportPseudonymisationCorpus,
   exporterCorpus,
+  preparerRapportPseudonymisationCorpus,
+  type ApercuRapportPseudonymisationCorpus,
   type DemandeLotCorpus,
+  type ResultatEnregistrementRapportCorpus,
   type ResultatLotCorpus,
+  type ResultatPreparationRapportCorpus,
   type SourceExportCorpus,
 } from '../../services/exportCorpus'
 import {
@@ -350,6 +355,21 @@ export function useOperationsCorpus(deps: {
     )
   }
 
+  function preparerRapportCorpus(
+    demande: DemandeLotCorpus,
+  ): Promise<ResultatPreparationRapportCorpus> {
+    return preparerRapportPseudonymisationCorpus(demande, sourceExportCorpus())
+  }
+
+  function enregistrerRapportCorpus(
+    apercu: ApercuRapportPseudonymisationCorpus,
+  ): Promise<ResultatEnregistrementRapportCorpus> {
+    return enregistrerRapportPseudonymisationCorpus(
+      apercu,
+      (nom, contenu) => window.sonal.dialog.choisirExport(nom, contenu),
+    )
+  }
+
   function preparerRapport(
     format: FormatExport,
     options: OptionsExport,
@@ -453,6 +473,8 @@ export function useOperationsCorpus(deps: {
     ouvrirExportCorpus,
     fermerExportCorpus,
     exporterCorpusLot,
+    preparerRapportCorpus,
+    enregistrerRapportCorpus,
     exporter,
     preparerRapport,
     enregistrerRapport,
