@@ -1,4 +1,5 @@
 import type { Annotation } from './entretien/annotation'
+import type { DocumentExport } from './export/documentExport'
 import type { Ancre } from './entretien/audio'
 import type { ReperePassage } from './entretien/reperesPassages'
 import type { Recueil } from './corpus/recueils'
@@ -493,15 +494,15 @@ export interface MatriceEntree {
 }
 export type MatriceCorpus = MatriceEntree[]
 
-/** Demande d'export DOCX d'un entretien (renderer → main) : le contenu texte
- *  est déjà assemblé par le renderer, le main construit le buffer. */
+/** Demande d'export DOCX d'un entretien (renderer → main) : le document
+ *  intermédiaire structuré est déjà assemblé par le renderer ; le main le
+ *  convertit en Paragraphes et TextRuns sans décoder AUCUN marqueur textuel
+ *  du contenu (`{g}`, `**…**` restent littéraux). */
 export interface DemandeExportDocx {
   nomSuggere: string
   titre: string
   entete: boolean
-  notes: string
-  variables: string
-  contenuTxt: string
+  document: DocumentExport
 }
 
 /** Demande d'export PDF : le HTML autonome est imprimé en PDF par le main. */

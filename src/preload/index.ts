@@ -439,12 +439,16 @@ contextBridge.exposeInMainWorld('sonal', {
   },
   /** Exports d'entretien dont le BUFFER est construit côté main (DOCX, PDF). */
   export: {
-    /** DOCX : contenu texte assemblé par le renderer, buffer posé au main. */
+    /** DOCX : document intermédiaire assemblé par le renderer, buffer posé au main. */
     entretienDocx: (demande: DemandeExportDocx): Promise<string | null> =>
       invoquer('export:entretienDocx', demande),
     /** PDF : le HTML autonome est imprimé par le main (printToPDF). */
     entretienPdf: (demande: DemandeExportPdf): Promise<string | null> =>
       invoquer('export:entretienPdf', demande),
+    /** URL audio locale vérifiée pour l'export HTML ; null si média absent
+     *  ou inaccessible (le chemin est whiteliste par le main). */
+    audioLocal: (audioRef: string): Promise<string | null> =>
+      invoquer('export:audioLocal', audioRef),
     /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */
     choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirJson', defaultPath),

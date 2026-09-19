@@ -203,6 +203,9 @@ declare global {
       export: {
         entretienDocx: (demande: DemandeExportDocx) => Promise<string | null>
         entretienPdf: (demande: DemandeExportPdf) => Promise<string | null>
+        /** URL audio locale vérifiée pour l'export HTML ; null si le média
+         *  est absent, inaccessible ou non whiteliste (corpus distant). */
+        audioLocal: (audioRef: string) => Promise<string | null>
       }
       /** Registre « Mes modèles » du profil (settings.json), partagé entre corpus. */
       modeles: {

@@ -35,8 +35,7 @@ watch(format, (f) => {
   if (!f) return
   const cfg = CONFIG_OPTIONS[f]
   for (const { cle } of LIBELLES_OPTIONS) {
-    const defaut = cfg[cle]
-    options.value[cle] = defaut ? defaut[1] : false
+    options.value[cle] = cfg[cle]?.defaut ?? false
   }
   message.value = null
 })

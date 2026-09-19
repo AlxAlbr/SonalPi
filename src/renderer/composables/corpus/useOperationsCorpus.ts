@@ -283,13 +283,18 @@ export function useOperationsCorpus(deps: {
     exportOuvert.value = false
   }
 
-  /** Assemble les données d'export de l'entretien ouvert (sauvé au préalable). */
+  /** Assemble les données d'export de l'entretien ouvert (sauvé au préalable).
+   *  La référence audio est RÉSOLUE par le main : URL locale vérifiée ou null
+   *  (média absent/inaccessible, corpus distant) — l'export HTML ne construit
+   *  ni n'interroge lui-même le système de fichiers. */
   async function contexteExport(): Promise<ContexteExport | null> {
     const id = deps.entretien.ouvertId.value
     if (!id || !deps.entretien.editeurDisponible()) return null
     await deps.entretien.sauver()
     const donnees = deps.entretien.donneesExport()
     const titre = deps.corpus.membership.value[id]?.titre ?? 'entretien'
+    const refAudio = donnees.meta.audioRef ?? null
+    const audioUrl = refAudio ? await window.sonal.export.audioLocal(refAudio) : null
     return {
       entree: {
         ...donnees,
@@ -300,7 +305,7 @@ export function useOperationsCorpus(deps: {
       titre,
       notes: donnees.notes,
       categoriesNote: deps.corpus.categoriesNote.value,
-      audioRef: donnees.meta.audioRef ?? null,
+      audioUrl,
     }
   }
 

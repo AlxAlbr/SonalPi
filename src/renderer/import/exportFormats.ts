@@ -2,6 +2,13 @@ import { projeterSegments, appliquerAnonymisation, htmlDeSegment, type SegmentPr
 import type { EntreeExport } from './exportSonal'
 import type { Categorie, Locuteur, Note, NoteCategory, Variable } from '../../shared/format'
 import { couleurCss, tailleCss, idCssCode } from '../../shared/export/secuCss'
+import {
+  texteDocument,
+  sectionDocument,
+  type BlocDocumentExport,
+  type DocumentExport,
+  type RunTexteExport,
+} from '../../shared/export/documentExport'
 import { corpsNoteEnTexte } from '../notes/sanitiser'
 
 // ----------------------------------------------------------------
@@ -40,8 +47,10 @@ export interface ContexteExport {
   notes?: Note[]
   /** Définitions de catégories de notes (niveau corpus) pour regrouper les notes. */
   categoriesNote?: NoteCategory[]
-  /** Chemin LOCAL de l'audio référencé ; `null`/absent (corpus distant) = pas de player. */
-  audioRef?: string | null
+  /** URL de l'audio local, RÉSOLUE et vérifiée par le main (fichier présent
+   *  sur ce poste) ; `null` = média absent/inaccessible ou corpus distant :
+   *  pas de player. Une URL déjà construite ne se recombine JAMAIS ici. */
+  audioUrl?: string | null
 }
 
 /** Un format exportable : extension + description affichée dans la fenêtre. */
@@ -61,51 +70,60 @@ export const FORMATS_EXPORT: FormatExportable[] = [
   { format: 'pdf', ext: '.pdf', details: 'Document PDF' },
 ]
 
-/** Matrice d'options par format, `[activée, cochéeParDéfaut]` ; absent = option
- *  sans objet pour ce format (case masquée). Le `.sonal` transporte tout :
- *  seule la pseudonymisation y est proposée. */
+/** Options applicables à un format : `activee` (case proposée) et `defaut`
+ *  (état au choix du format). Absent = option sans objet (case masquée).
+ *  Le `.sonal` transporte tout : seule la pseudonymisation y est proposée. */
+export interface OptionFormatExport {
+  activee: boolean
+  defaut: boolean
+}
 export const CONFIG_OPTIONS: Record<
   FormatExport,
-  Partial<Record<keyof OptionsExport, [boolean, boolean]>>
+  Partial<Record<keyof OptionsExport, OptionFormatExport>>
 > = {
-  sonal: { anon: [true, false] },
+  sonal: { anon: { activee: true, defaut: false } },
   txt: {
-    entete: [true, true],
-    notes: [true, true],
-    vars: [true, true],
-    time: [true, true],
-    loc: [true, false],
-    thm: [true, false],
-    anon: [true, true],
+    entete: { activee: true, defaut: true },
+    notes: { activee: true, defaut: true },
+    vars: { activee: true, defaut: true },
+    time: { activee: true, defaut: true },
+    loc: { activee: true, defaut: false },
+    thm: { activee: true, defaut: false },
+    anon: { activee: true, defaut: true },
   },
-  srt: { loc: [true, true], anon: [true, false] },
-  vtt: { notes: [true, true], loc: [true, false], thm: [true, false], anon: [true, false] },
+  srt: { loc: { activee: true, defaut: true }, anon: { activee: true, defaut: false } },
+  vtt: {
+    notes: { activee: true, defaut: true },
+    loc: { activee: true, defaut: false },
+    thm: { activee: true, defaut: false },
+    anon: { activee: true, defaut: false },
+  },
   html: {
-    entete: [true, false],
-    notes: [true, true],
-    vars: [true, true],
-    time: [true, true],
-    loc: [true, true],
-    thm: [true, true],
-    anon: [true, true],
+    entete: { activee: true, defaut: false },
+    notes: { activee: true, defaut: true },
+    vars: { activee: true, defaut: true },
+    time: { activee: true, defaut: true },
+    loc: { activee: true, defaut: true },
+    thm: { activee: true, defaut: true },
+    anon: { activee: true, defaut: true },
   },
   docx: {
-    entete: [true, true],
-    notes: [true, true],
-    vars: [true, true],
-    time: [true, true],
-    loc: [true, false],
-    thm: [true, false],
-    anon: [true, true],
+    entete: { activee: true, defaut: true },
+    notes: { activee: true, defaut: true },
+    vars: { activee: true, defaut: true },
+    time: { activee: true, defaut: true },
+    loc: { activee: true, defaut: false },
+    thm: { activee: true, defaut: false },
+    anon: { activee: true, defaut: true },
   },
   pdf: {
-    entete: [true, true],
-    notes: [true, true],
-    vars: [true, true],
-    time: [true, true],
-    loc: [true, false],
-    thm: [true, false],
-    anon: [true, false],
+    entete: { activee: true, defaut: true },
+    notes: { activee: true, defaut: true },
+    vars: { activee: true, defaut: true },
+    time: { activee: true, defaut: true },
+    loc: { activee: true, defaut: false },
+    thm: { activee: true, defaut: false },
+    anon: { activee: true, defaut: false },
   },
 }
 
@@ -177,13 +195,34 @@ function tempsCourt(sec: number): string {
   return [h, m, s].map((x) => String(x).padStart(2, '0')).join(':')
 }
 
-/** Horodatage précis `HH:MM:SS.mmm` ; avec virgule pour le SRT normalisé. */
-function tempsPrecis(sec: number, virgule: boolean): string {
-  const t = Number(sec)
-  const h = Math.floor(t / 3600)
-  const m = Math.floor((t - h * 3600) / 60)
-  const s = (t - h * 3600 - m * 60).toFixed(3).padStart(6, '0')
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${virgule ? s.replace('.', ',') : s}`
+/** Millisecondes entières d'un temps de cue : arrondies AVANT toute
+ *  décomposition (59.9999 → 60 000 ms, jamais « 00:00:60.000 »). Un temps
+ *  non fini (NaN, ±Infini) est inutilisable : null. Un temps négatif est
+ *  ramené à 0. */
+function msCue(sec: unknown): number | null {
+  if (typeof sec !== 'number' || !Number.isFinite(sec)) return null
+  return Math.max(0, Math.round(sec * 1000))
+}
+
+/** Horodatage d'un cue depuis des millisecondes : virgule pour le SRT,
+ *  point pour le WebVTT. */
+function horodatageCue(ms: number, virgule: boolean): string {
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms - h * 3600000) / 60000)
+  const s = Math.floor((ms - h * 3600000 - m * 60000) / 1000)
+  const milli = String(ms % 1000).padStart(3, '0')
+  return (
+    `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:` +
+    `${String(s).padStart(2, '0')}${virgule ? ',' : '.'}${milli}`
+  )
+}
+
+/** Échappe un texte inséré dans un cue WebVTT : `<` ouvre une balise de
+ *  synchronisation ou de style, et toute occurrence de `>` pourrait
+ *  ressembler à la fin d'un séparateur `-->`. Les références HTML sont la
+ *  forme d'échappement officielle du WebVTT. */
+function echapperVtt(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** Nom d'affichage d'un code de catégorie (partie avant `//`, convention V1). */
@@ -269,18 +308,18 @@ function texteAvecSauts(frag: FragmentProjete): string {
   return out + frag.texte.slice(pos)
 }
 
-/** Corps de texte commun TXT/DOCX : la mise en page suit les BLOCS
- *  (paragraphe de l'éditeur) — un tour nouveau = ligne vide, un bloc du même
- *  tour = simple retour, les cues internes coulent sans retour. Horodatage et
- *  libellés de locuteurs aux débuts de tour ; `grasInterviewer` pose le
- *  marqueur `{g}` sur la 1re ligne du tour (DOCX). */
-function corpsTexte(
+/** Corps du document structuré (aplati pour le TXT, converti pour le DOCX).
+ *  La mise en page suit les BLOCS (paragraphe de l'éditeur) — un tour nouveau
+ *  = ligne vide, un bloc du même tour = simple retour, les cues internes
+ *  coulent sans retour. Horodatage et libellés de locuteurs aux débuts de
+ *  tour ; le libellé d'un tour d'interviewer est posé comme run GRAS du
+ *  document, sans aucun marqueur textuel interprété. */
+function corpsDocument(
   e: EntreeExport,
   segments: SegmentProjete[],
   opts: OptionsExport,
   noms: Map<number, string>,
-  grasInterviewer: boolean,
-): string {
+): BlocDocumentExport[] {
   const thmStrDe = (frag: FragmentProjete): string =>
     opts.thm
       ? frag.codes
@@ -288,7 +327,12 @@ function corpsTexte(
           .filter((x): x is string => x != null)
           .join(', ')
       : ''
-  let out = ''
+  const blocs: BlocDocumentExport[] = []
+  let ligne: RunTexteExport[] = []
+  const cloturer = (): void => {
+    blocs.push({ type: 'paragraphe', runs: ligne })
+    ligne = []
+  }
   let segPrec: SegmentProjete | null = null
   let thmPrec = ''
   for (const seg of segments) {
@@ -296,48 +340,57 @@ function corpsTexte(
     const tourChange = blocChange && segPrec !== null && seg.loc !== segPrec.loc
     const locNom = opts.loc && seg.loc != null ? (noms.get(seg.loc) ?? '') : ''
     const interviewer =
-      grasInterviewer && seg.loc != null
-        ? (e.locuteurs.find((l) => l.index === seg.loc)?.interviewer ?? false)
-        : false
+      seg.loc != null ? (e.locuteurs.find((l) => l.index === seg.loc)?.interviewer ?? false) : false
     if (blocChange) {
-      if (segPrec === null) {
-        if (opts.time && seg.deb != null) out += `${tempsCourt(seg.deb)} `
-        if (opts.loc && locNom) out += `${interviewer ? '{g}' : ''}${locNom} `
+      if (segPrec === null || tourChange) {
+        // Tour nouveau : fermer la ligne courante puis une ligne vide.
+        if (segPrec !== null) {
+          cloturer()
+          blocs.push({ type: 'espace' })
+        }
+        const enTete: RunTexteExport[] = []
+        if (opts.time && seg.deb != null) enTete.push({ texte: `${tempsCourt(seg.deb)} ` })
+        if (opts.loc && locNom) enTete.push({ texte: `${locNom} `, gras: interviewer })
         const thmPrem = seg.fragments.length > 0 ? thmStrDe(seg.fragments[0]) : ''
-        if (thmPrem) out += `[${thmPrem}] `
-        out += '\n'
-      } else if (tourChange) {
-        out += '\n\n'
-        if (opts.time && seg.deb != null) out += `${tempsCourt(seg.deb)} `
-        if (opts.loc && locNom) out += `${interviewer ? '{g}' : ''}${locNom} `
-        const thmPrem = seg.fragments.length > 0 ? thmStrDe(seg.fragments[0]) : ''
-        if (thmPrem) out += `[${thmPrem}] `
-        out += '\n'
+        if (thmPrem) enTete.push({ texte: `[${thmPrem}] ` })
+        blocs.push({ type: 'paragraphe', runs: enTete })
       } else {
-        out += '\n'
+        cloturer()
         const thmPrem = seg.fragments.length > 0 ? thmStrDe(seg.fragments[0]) : ''
-        if (thmPrem !== thmPrec) out += `[${thmPrem || '–'}] `
+        if (thmPrem !== thmPrec) ligne.push({ texte: `[${thmPrem || '–'}] ` })
       }
     }
     let premierDuBloc = blocChange
     for (const frag of seg.fragments) {
       const thmStr = thmStrDe(frag)
-      if (!premierDuBloc && opts.thm && thmStr !== thmPrec) out += ` [${thmStr || '–'}] `
-      out += texteAvecSauts(frag)
+      if (!premierDuBloc && opts.thm && thmStr !== thmPrec) {
+        ligne.push({ texte: ` [${thmStr || '–'}] ` })
+      }
+      // Les sauts de ligne du modèle (hardBreak → \n) ouvrent chacun une
+      // nouvelle ligne du document.
+      let pos = 0
+      for (const s of frag.sauts) {
+        ligne.push({ texte: frag.texte.slice(pos, s) })
+        cloturer()
+        pos = s
+      }
+      ligne.push({ texte: frag.texte.slice(pos) })
       thmPrec = thmStr
       premierDuBloc = false
     }
     segPrec = seg
   }
-  out += '\n'
-  return out
+  cloturer()
+  return blocs
 }
 
 // ----------------------------------------------------------------
 // Générateurs
 // ----------------------------------------------------------------
 
-/** Segments → TXT : en-tête, notes, variables, puis corps de texte. */
+/** Segments → TXT : en-tête, notes, variables, puis corps de texte (le
+ *  document intermédiaire est aplati : les styles sont perdus, le contenu
+ *  reste littéral). */
 export function genererTxt(ctx: ContexteExport, optsIn: OptionsExport): string {
   const opts = optionsEfficaces('txt', optsIn)
   const e = ctx.entree
@@ -352,13 +405,15 @@ export function genererTxt(ctx: ContexteExport, optsIn: OptionsExport): string {
   }
   if (notes) out += `Notes de l'entretien :\n${notes}\n\n`
   if (vars) out += `Variables associées :\n${vars}\n\n`
-  out += corpsTexte(e, segments, opts, noms, false)
+  out += texteDocument({ blocs: corpsDocument(e, segments, opts, noms) })
   return out
 }
 
 /** Sous-titres SRT : un sous-titre par segment borné par des ancres ; les
- *  segments sans coordonnées sont ignorés (une transcription sans audio
- *  n'a pas de cue). */
+ *  segments sans coordonnées finies sont ignorés, tout comme un cue inversé
+ *  (fin ≤ début). Le texte est aplati (les sauts du modèle deviennent des
+ *  espaces) ; un `-->` littéral est neutralisé pour ne jamais ressembler à
+ *  un séparateur de cue. */
 export function genererSrt(ctx: ContexteExport, optsIn: OptionsExport): string {
   const opts = optionsEfficaces('srt', optsIn)
   const segments = segmentsExport(ctx.entree, opts.anon)
@@ -366,21 +421,31 @@ export function genererSrt(ctx: ContexteExport, optsIn: OptionsExport): string {
   let out = ''
   let n = 0
   for (const seg of segments) {
-    if (seg.deb == null || seg.fin == null) continue
+    const deb = msCue(seg.deb)
+    const fin = msCue(seg.fin)
+    if (deb == null || fin == null || fin <= deb) continue
     n++
-    const texte = seg.fragments.map((f) => texteAvecSauts(f)).join('').trim().replace(/\s+/g, ' ')
+    const texte = seg.fragments
+      .map((f) => texteAvecSauts(f))
+      .join('')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/-->/g, '- ->')
     let prefixe = ''
     if (opts.loc && seg.loc != null) {
       const nom = noms.get(seg.loc)
       if (nom) prefixe = `${nom}: `
     }
-    out += `${n}\n${tempsPrecis(seg.deb, true)} --> ${tempsPrecis(seg.fin, true)}\n${prefixe}${texte}\n\n`
+    out += `${n}\n${horodatageCue(deb, true)} --> ${horodatageCue(fin, true)}\n${prefixe}${texte}\n\n`
   }
   return out
 }
 
 /** Sous-titres WebVTT : NOTE des notes publiques, puis un cue par segment
- *  borné ; codages en balises `<c.cat_XXX>` et locuteur en `<v Nom>`. */
+ *  borné ; TOUTES les catégories d'un fragment multicodé sont émises en
+ *  classes `<c>` imbriquées (identifiants sûrs, jamais le code brut), et le
+ *  locuteur en `<v Nom>` échappé. Textes et noms sont échappés : un texte
+ *  importé ne peut ni ouvrir une balise ni ressembler à un séparateur de cue. */
 export function genererVtt(ctx: ContexteExport, optsIn: OptionsExport): string {
   const opts = optionsEfficaces('vtt', optsIn)
   const segments = segmentsExport(ctx.entree, opts.anon)
@@ -390,55 +455,66 @@ export function genererVtt(ctx: ContexteExport, optsIn: OptionsExport): string {
   if (notes) out += `NOTE\n${notes.replace(/\n{2,}/g, '\n').trim()}\n\n`
   let n = 0
   for (const seg of segments) {
-    if (seg.deb == null || seg.fin == null) continue
+    const deb = msCue(seg.deb)
+    const fin = msCue(seg.fin)
+    if (deb == null || fin == null || fin <= deb) continue
     let payload = ''
     for (const frag of seg.fragments) {
-      if (opts.thm && frag.codes.length > 0) payload += `<c.${frag.codes[0]}>${texteAvecSauts(frag)}</c>`
-      else payload += texteAvecSauts(frag)
+      // Un fragment multicodé porte chacune de ses catégories : classes
+      // imbriquées `<c.scat-…><c.scat-…>texte</c></c>`.
+      if (opts.thm && frag.codes.length > 0) {
+        payload +=
+          frag.codes.map((c) => `<c.${idCssCode(c)}>`).join('') +
+          echapperVtt(texteAvecSauts(frag)) +
+          '</c>'.repeat(frag.codes.length)
+      } else {
+        payload += echapperVtt(texteAvecSauts(frag))
+      }
     }
     if (opts.loc && seg.loc != null) {
       const nom = noms.get(seg.loc)
-      if (nom) payload = `<v ${nom}>${payload}</v>`
+      if (nom) payload = `<v ${echapperVtt(nom)}>${payload}</v>`
     }
-    out += `${++n}\n${tempsPrecis(seg.deb, false)} --> ${tempsPrecis(seg.fin, false)}\n${payload.trim().replace(/\s+/g, ' ')}\n\n`
+    out += `${++n}\n${horodatageCue(deb, false)} --> ${horodatageCue(fin, false)}\n${payload.trim().replace(/\s+/g, ' ')}\n\n`
   }
   return out
 }
 
-/** Contenu TXT du DOCX : sections notes/variables à part (posées en titres
- *  Word par le main), corps avec marqueur `{g}` pour le gras interviewer. */
-export function genererDonneesDocx(
-  ctx: ContexteExport,
-  optsIn: OptionsExport,
-): { titre: string; entete: boolean; notes: string; variables: string; contenuTxt: string } {
+/** Données du DOCX : titre, en-tête, et le document intermédiaire structuré
+ *  (sections notes/variables/contenu ; le gras de l'interviewer est un run,
+ *  plus aucun marqueur `{g}`/`**…**` à décoder par le main). */
+export interface DonneesDocxExport {
+  titre: string
+  entete: boolean
+  document: DocumentExport
+}
+
+export function genererDonneesDocx(ctx: ContexteExport, optsIn: OptionsExport): DonneesDocxExport {
   const opts = optionsEfficaces('docx', optsIn)
   const e = ctx.entree
   const segments = segmentsExport(e, opts.anon)
   const noms = nomsAffiches(e, opts.anon)
   const { notes, vars } = sectionsContexte(ctx, opts, noms)
+  const lignes = (texte: string): RunTexteExport[][] =>
+    texte.split('\n').map((l) => [{ texte: l }])
+  const blocs: BlocDocumentExport[] = []
+  if (notes) blocs.push(...sectionDocument('NOTES', lignes(notes)), { type: 'espace' })
+  if (vars) blocs.push(...sectionDocument('VARIABLES', lignes(vars)), { type: 'espace' })
+  blocs.push(
+    ...sectionDocument('CONTENU', []),
+    ...corpsDocument(e, segments, opts, noms),
+    { type: 'espace' },
+  )
   return {
     titre: ctx.titre,
     entete: opts.entete,
-    notes,
-    variables: vars,
-    contenuTxt: corpsTexte(e, segments, opts, noms, true),
+    document: { blocs },
   }
 }
 
 // ----------------------------------------------------------------
 // HTML autonome
 // ----------------------------------------------------------------
-
-/** URL `file://` d'un chemin audio local (l'audio est référencé, jamais embarqué). */
-function urlAudio(chemin: string): string {
-  const normalise = chemin.replace(/\\/g, '/')
-  const url = /^[a-zA-Z]:\//.test(normalise)
-    ? `file:///${normalise}`
-    : normalise.startsWith('/')
-      ? `file://${normalise}`
-      : normalise
-  return url.replace(/"/g, '&quot;')
-}
 
 /** CSS des catégories du codebook : règles mono-catégorie (dégradé + taille)
  *  et règles multi-catégories (cumul de bandes de couleur, convention V1).
@@ -506,11 +582,11 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
   const cssThm = opts.thm ? cssThemes(e.codebook, combos) : ''
 
   // En-têtes de locuteurs + boutons de lecture avant chaque tour (.ligloc) ;
-  // bouton uniquement si l'audio local existe ET que les coordonnées sortent.
-  // Le chemin absolu local d'un média ne sort JAMAIS d'un export pseudonymisé
-  // (décision de périmètre : pas de player sans décision explicite).
-  const audioRef = opts.anon ? null : (ctx.audioRef ?? null)
-  const audioUrl = audioRef ? urlAudio(audioRef) : ''
+  // bouton uniquement si les coordonnées sortent ET que l'URL locale existe
+  // (résolue et vérifiée par le main ; `null` = média absent, inaccessible
+  // ou corpus distant). Le chemin absolu local d'un média ne sort JAMAIS
+  // d'un export pseudonymisé (pas de player sans décision explicite).
+  const audioUrl = opts.anon ? null : (ctx.audioUrl ?? null)
   const titreDe = (codes: string[]): string | null => {
     const nomsCats = codes
       .map((code) => nomDeCode(e.codebook, code))
@@ -528,7 +604,7 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
     if (opts.loc && seg.libelle) {
       const nom = seg.loc != null ? noms.get(seg.loc) : undefined
       const btn =
-        audioUrl && seg.deb != null
+        opts.time && audioUrl && seg.deb != null
           ? `<button class="btn-play-seg" data-deb="${String(seg.deb)}" title="${tempsCourt(seg.deb)}">\u25B6</button>`
           : ''
       const nomSpan = nom ? `<span class="speaker-name">${echapper(nom)}</span>` : ''
@@ -583,7 +659,7 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
   }
 
   const player = audioUrl
-    ? `<div class="audio-player-wrapper"><audio id="audio-export" controls src="${audioUrl}">Votre navigateur ne supporte pas la lecture audio.</audio></div>`
+    ? `<div class="audio-player-wrapper"><audio id="audio-export" controls src="${echapperAttrUrl(audioUrl)}">Votre navigateur ne supporte pas la lecture audio.</audio></div>`
     : ''
   const entete = opts.entete
     ? `<header class="ent-header"><h1>${echapper(ctx.titre)}</h1><p class="ent-meta">Exporté par Sonal π 2 le ${new Date().toLocaleString()}</p></header>`
@@ -632,6 +708,11 @@ ${legende}
 /** Échappe les caractères sensibles d'un texte inséré dans le HTML. */
 function echapper(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** Échappe une URL insérée dans un attribut HTML (guillemets compris). */
+function echapperAttrUrl(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 
 /** CSS de base de la page autonome (port de la V1, sans dépendance distante). */

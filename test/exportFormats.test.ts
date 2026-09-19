@@ -8,9 +8,12 @@ import {
   genererDonneesDocx,
   nomFichierExport,
   texteVariablesPubliques,
+  CONFIG_OPTIONS,
   type OptionsExport,
   type ContexteExport,
 } from '../src/renderer/import/exportFormats'
+import { idCssCode } from '../src/shared/export/secuCss'
+import { texteDocument } from '../src/shared/export/documentExport'
 import { exporterSonal, sonalAnonymise, type EntreeExport } from '../src/renderer/import/exportSonal'
 import { importerSonal } from '../src/renderer/import/importSonal'
 import type { Note } from '../src/shared/format'
@@ -166,7 +169,7 @@ function contexte(entree: EntreeExport = entreeTeste()): ContexteExport {
     titre: 'Entretien Test',
     notes: NOTES,
     categoriesNote: [{ id: 'ncat_public', nom: 'Analyse', couleur: '#ccc' }],
-    audioRef: null,
+    audioUrl: null,
   }
 }
 
@@ -287,7 +290,8 @@ describe('VTT', () => {
     expect(out.startsWith('WEBVTT\n\n')).toBe(true)
     expect(out).toContain('NOTE\n')
     expect(out).toContain('00:00:10.500 --> 00:00:20.250')
-    expect(out).toContain('<c.cat_001>Lyon</c>')
+    // Le code (importé, jamais de confiance) devient une classe SÛRE dérivée.
+    expect(out).toContain(`<c.${idCssCode('cat_001')}>Lyon</c>`)
     expect(out).toContain('<v Karine>')
   })
   test('sans options : cues simples, sans balises ni NOTE', () => {
@@ -301,28 +305,37 @@ describe('VTT', () => {
 })
 
 describe('DOCX (données transmises au main)', () => {
-  test('sections séparées, corps avec marqueur {g} sur les lignes interviewer', () => {
+  test('sections séparées, corps structuré, interviewer en run gras', () => {
     const d = genererDonneesDocx(contexte(), OPTIONS_TOUT)
     expect(d.titre).toBe('Entretien Test')
     expect(d.entete).toBe(true)
-    expect(d.notes).toContain('[Analyse]')
-    expect(d.notes).not.toContain('Ne doit pas sortir.')
-    expect(d.variables).toContain('sexe : Karine : F, Marc : H')
-    expect(d.contenuTxt).toContain('00:00:10 Karine')
-    expect(d.contenuTxt).toContain('[Lieu] Lyon')
-    expect(d.contenuTxt).toContain('00:00:25 {g}Marc')
-    expect(d.contenuTxt).toContain('Où travaillez-vous ?')
+    const texte = texteDocument(d.document)
+    expect(texte).toContain('[Analyse]')
+    expect(texte).not.toContain('Ne doit pas sortir.')
+    expect(texte).toContain('sexe : Karine : F, Marc : H')
+    expect(texte).toContain('00:00:10 Karine')
+    expect(texte).toContain('[Lieu] Lyon')
+    expect(texte).toContain('00:00:25 Marc')
+    expect(texte).toContain('Où travaillez-vous ?')
+    // Gras interviewer = run structuré, plus aucun marqueur {g} ni **…**.
+    expect(texte).not.toContain('{g}')
+    const marc = d.document.blocs.find(
+      (b) =>
+        b.type === 'paragraphe' &&
+        (b.runs ?? []).some((r) => r.texte === 'Marc ' && r.gras === true),
+    )
+    expect(marc).toBeDefined()
   })
 })
 
 describe('HTML', () => {
-  test('page autonome : player (audio local), sections, légende, CSS thèmes', () => {
+  test('page autonome : player (URL audio résolue), sections, légende, CSS thèmes', () => {
     const ctx = contexte()
-    ctx.audioRef = 'C:\\corpus\\entretien.wav'
+    ctx.audioUrl = 'file:///C:/corpus/entretien.wav'
     const out = genererHtml(ctx, OPTIONS_TOUT)
     expect(out.startsWith('<!DOCTYPE html>')).toBe(true)
     expect(out).toContain('<audio id="audio-export"')
-    expect(out).toContain('file:///C:/corpus/entretien')
+    expect(out).toContain('file:///C:/corpus/entretien.wav')
     expect(out).toContain('section-notes')
     expect(out).toContain('section-vars')
     expect(out).toContain('section-legend')
@@ -332,14 +345,14 @@ describe('HTML', () => {
   })
   test('sans audio référencé : pas de player (corpus distant)', () => {
     const ctx = contexte()
-    ctx.audioRef = null
+    ctx.audioUrl = null
     const out = genererHtml(ctx, OPTIONS_TOUT)
     expect(out).not.toContain('audio-export')
     expect(out).not.toContain('<button')
   })
   test('thm et time décochés : ni classes cat_, ni coordonnées, ni CSS de codage', () => {
     const ctx = contexte()
-    ctx.audioRef = null
+    ctx.audioUrl = null
     const out = genererHtml(ctx, { ...OPTIONS_TOUT, thm: false, time: false })
     expect(out).not.toContain('cat_001')
     expect(out).not.toContain('data-deb=')
@@ -347,7 +360,7 @@ describe('HTML', () => {
   })
   test('anonymisé : aucun nom réel dans le texte ni dans les data-* du source', () => {
     const ctx = contexte()
-    ctx.audioRef = null
+    ctx.audioUrl = null
     const out = genererHtml(ctx, { ...OPTIONS_TOUT, anon: true })
     expect(texteDe(out)).toContain('[Marie] habite Lyon depuis 2020.')
     expect(out).toContain('[Claire]')
@@ -389,5 +402,134 @@ describe('sonalAnonymise', () => {
     expect(r.payload.locuteurs.map((l) => l.nom)).toContain('Claire')
     expect(r.payload.locuteurs.map((l) => l.nom)).not.toContain('Karine')
     expect(r.payload.locuteurs.map((l) => l.nom)).not.toContain('Marc')
+  })
+})
+
+// ----------------------------------------------------------------
+// Phase C — fidélité des formats
+// ----------------------------------------------------------------
+
+const TEXTE_HOSTILE = 'Texte avec --> et <b>balise</b> {g} et **gras**.'
+
+/** Un fragment portant des chaînes ressemblant à des marqueurs/balises, des
+ *  ancres aux bornes arrondies, sans aucune annotation. */
+function entreeHostile(): EntreeExport {
+  const base = entreeTeste()
+  return {
+    ...base,
+    corpsTexte: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', attrs: { loc: 1 }, content: [{ type: 'text', text: TEXTE_HOSTILE }] },
+      ],
+    },
+    annotations: [],
+    ancres: [{ pos: 1, t: 59.9999 }, { pos: 1 + TEXTE_HOSTILE.length, t: 61 }],
+    locuteurs: [{ index: 1, nom: 'Karine', interviewer: false, valeursLoc: {}, personneRef: null }],
+  }
+}
+
+describe('marqueurs textuels préservés littéralement', () => {
+  test('TXT : `{g}` et `**gras**` restent exactement tels que saisis', () => {
+    const out = genererTxt(contexte(entreeHostile()), OPTIONS_TOUT)
+    expect(out).toContain(TEXTE_HOSTILE)
+  })
+
+  test('DOCX : le document transmis ne décode jamais `{g}` ni `**…**`', () => {
+    const d = genererDonneesDocx(contexte(entreeHostile()), OPTIONS_TOUT)
+    const texte = texteDocument(d.document)
+    expect(texte).toContain(TEXTE_HOSTILE)
+    expect(texte).not.toContain('[**gras**') // aucune interprétation
+  })
+})
+
+describe('temps des cues (SRT/VTT)', () => {
+  test('arrondi AVANT décomposition : 59.9999 s → 00:01:00, jamais 00:00:60', () => {
+    const srt = genererSrt(contexte(entreeHostile()), OPTIONS_TOUT)
+    expect(srt).toContain('00:01:00,000 --> 00:01:01,000')
+    const vtt = genererVtt(contexte(entreeHostile()), OPTIONS_TOUT)
+    expect(vtt).toContain('00:01:00.000 --> 00:01:01.000')
+    expect(vtt).not.toContain('00:00:60')
+  })
+
+  test('cues inversés, négatifs ou non finis : le cue fautif n est pas émis', () => {
+    const base = entreeTeste()
+    const inverse = contexte({ ...base, ancres: [{ pos: 1, t: 30 }, { pos: 32, t: 10 }, { pos: 34, t: 20 }, { pos: 54, t: 25 }] })
+    expect(genererSrt(inverse, OPTIONS_TOUT)).not.toContain('00:00:30')
+    expect(genererSrt(inverse, OPTIONS_TOUT)).toContain('00:00:20,000 --> 00:00:25,000')
+    expect(genererVtt(inverse, OPTIONS_TOUT)).not.toContain('00:00:30')
+    const nonFini = contexte({ ...base, ancres: [{ pos: 1, t: Number.NaN }, { pos: 32, t: 20 }, { pos: 34, t: 25 }, { pos: 54, t: 30 }] })
+    const srt = genererSrt(nonFini, OPTIONS_TOUT)
+    expect(srt).not.toContain('NaN')
+    expect(srt).not.toContain('00:00:20,000 --> 00:00:25,000')
+    expect(srt).toContain('00:00:25,000 --> 00:00:30,000')
+    const negatif = contexte({ ...base, ancres: [{ pos: 1, t: -3 }, { pos: 32, t: 20 }, { pos: 34, t: 25 }, { pos: 54, t: 30 }] })
+    expect(genererSrt(negatif, OPTIONS_TOUT)).toContain('00:00:00,000 --> 00:00:20,000')
+  })
+})
+
+describe('échappement WebVTT', () => {
+  test('balises et séparateurs de cue neutralisés dans le texte et le nom', () => {
+    const base = entreeHostile()
+    base.locuteurs = [{ index: 1, nom: 'Karine<1>', interviewer: false, valeursLoc: {}, personneRef: null }]
+    const out = genererVtt(contexte(base), { ...OPTIONS_TOUT, loc: true })
+    expect(out).toContain('&lt;b&gt;balise&lt;/b&gt;')
+    expect(out).toContain('--&gt;')
+    expect(out).toContain('<v Karine&lt;1&gt;>')
+    expect(out).not.toContain('<b>balise')
+  })
+
+  test('SRT : un `-->` littéral ne ressemble jamais à un séparateur de cue', () => {
+    const out = genererSrt(contexte(entreeHostile()), OPTIONS_TOUT)
+    expect(out).toContain('- ->')
+  })
+})
+
+describe('multicodage WebVTT', () => {
+  test('TOUTES les catégories d un fragment sortent en classes imbriquées', () => {
+    const base = entreeTeste()
+    base.codebook = [
+      ...base.codebook,
+      {
+        id: 'c2',
+        nom: 'Second//axe',
+        couleur: '#00ff00',
+        ordre: 1,
+        parent: null,
+        actif: true,
+        codeExport: 'cat_002',
+      },
+    ]
+    base.annotations = [
+      { id: 'a1', type: 'codage', from: 15, to: 19, auteur: 'moi', code: 'cat_001' },
+      { id: 'a1b', type: 'codage', from: 15, to: 19, auteur: 'moi', code: 'cat_002' },
+      ...base.annotations.filter((a) => a.id !== 'a1'),
+    ]
+    const out = genererVtt(contexte(base), OPTIONS_TOUT)
+    const scat1 = idCssCode('cat_001')
+    const scat2 = idCssCode('cat_002')
+    expect(out).toContain(`<c.${scat1}><c.${scat2}>Lyon</c></c>`)
+  })
+})
+
+describe('HTML : option coordonnées temporelles', () => {
+  test('time décoché : les boutons de lecture disparaissent aussi', () => {
+    const ctx = contexte()
+    ctx.audioUrl = 'file:///corpus/entretien.wav'
+    const out = genererHtml(ctx, { ...OPTIONS_TOUT, time: false })
+    expect(out).toContain('audio-export') // le player reste
+    expect(out).not.toContain('<button class="btn-play-seg"')
+  })
+})
+
+describe('matrice d options par format', () => {
+  test('options nommées : activée + défaut explicites pour chaque format', () => {
+    for (const [, cfg] of Object.entries(CONFIG_OPTIONS)) {
+      for (const [cle, o] of Object.entries(cfg)) {
+        expect(o, `${cle}`).toMatchObject({ activee: true, defaut: expect.any(Boolean) })
+      }
+    }
+    // Le .sonal ne propose que la pseudonymisation ; les autres options sont masquées.
+    expect(CONFIG_OPTIONS.sonal).toEqual({ anon: { activee: true, defaut: false } })
   })
 })

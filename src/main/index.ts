@@ -27,7 +27,7 @@ import { TransactionsCorpus, poserValeurLotLocal, appliquerRegleLotLocal } from 
 import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
-import { construireDocxBuffer, imprimerPdf } from './exportEntretien'
+import { construireDocxBuffer, imprimerPdf, urlAudioLocal } from './exportEntretien'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DemandeExportDocx, DemandeExportPdf } from '../shared/format'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -1585,6 +1585,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     writeFileSync(r.filePath, buffer)
     return r.filePath
   })
+  // URL audio locale pour l'export HTML : le chemin est vérifié par le main
+  // (whitelist des audioRef du corpus + existence disque) ; null sinon.
+  ipcMain.handle('export:audioLocal', (_e, audioRef: string): string | null =>
+    urlAudioLocal(store, audioRef),
+  )
   ipcMain.handle('export:entretienPdf', async (e, demande: DemandeExportPdf): Promise<string | null> => {
     const buffer = await imprimerPdf(demande.html)
     const r = await montrerSauver(e, {
