@@ -1,28 +1,16 @@
 import { ref, type Ref } from 'vue'
 import { importerFichier } from '../../import/sas'
-import { exporterSonal, sonalAnonymise } from '../../import/exportSonal'
 import {
-  genererTxt,
-  genererSrt,
-  genererVtt,
-  genererHtml,
-  genererDonneesDocx,
-} from '../../../shared/export/formatsTexte'
+  exporterEntretien,
+  type ResultatExport,
+  type SourceExportEntretien,
+} from '../../services/exportEntretien'
 import {
-  nomFichierExport,
-  FORMATS_EXPORT,
-  optionsEfficaces,
-  type ContexteExport,
   type EntreeExport,
   type FormatExport,
   type OptionsExport,
 } from '../../../shared/export/types'
-import {
-  auditerPseudonymisation,
-  rapportEnTexte,
-  type ModePseudonymisation,
-  type RapportPseudonymisationExport,
-} from '../../../shared/export/pseudonymisation'
+import { type ModePseudonymisation } from '../../../shared/export/pseudonymisation'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../../shared/corpus/migrationCrp'
 import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
 import type {
@@ -38,15 +26,6 @@ import type {
   Note,
   Variable,
 } from '../../../shared/format'
-
-/** Résultat d'un run d'export : toujours présenté à l'interface (jamais de
- *  promesse rejetée silencieuse) : fichier écrit, annulation du dialogue,
- *  pseudonymisation incomplète en mode strict, ou erreur de génération. */
-export type ResultatExport =
-  | { etat: 'succes'; chemin: string }
-  | { etat: 'annule' }
-  | { etat: 'bloque'; rapport: RapportPseudonymisationExport }
-  | { etat: 'erreur'; message: string }
 
 interface CorpusOperations {
   membership: Ref<Record<string, EntretienRef>>
@@ -286,103 +265,34 @@ export function useOperationsCorpus(deps: {
     exportOuvert.value = false
   }
 
-  /** Assemble les données d'export de l'entretien ouvert (sauvé au préalable).
-   *  La référence audio est RÉSOLUE par le main : URL locale vérifiée ou null
-   *  (média absent/inaccessible, corpus distant) — l'export HTML ne construit
-   *  ni n'interroge lui-même le système de fichiers. */
-  async function contexteExport(): Promise<ContexteExport | null> {
-    const id = deps.entretien.ouvertId.value
-    if (!id || !deps.entretien.editeurDisponible()) return null
-    await deps.entretien.sauver()
-    const donnees = deps.entretien.donneesExport()
-    const titre = deps.corpus.membership.value[id]?.titre ?? 'entretien'
-    const refAudio = donnees.meta.audioRef ?? null
-    const audioUrl = refAudio ? await window.sonal.export.audioLocal(refAudio) : null
+  /** Source du service d'export : l'entretien OUVERT (état mémoire) et les
+   *  définitions du corpus courant ; les écritures et la résolution audio
+   *  passent par le main. Aucune sauvegarde n'est déclenchée : un export est
+   *  une photographie, pas une persistance. */
+  function sourceExport(): SourceExportEntretien {
     return {
-      entree: {
-        ...donnees,
-        codebook: deps.corpus.codebook.value,
-        variables: deps.corpus.variables.value,
-        reglesAnon: deps.corpus.reglesAnon.value,
-      },
-      titre,
-      notes: donnees.notes,
-      categoriesNote: deps.corpus.categoriesNote.value,
-      audioUrl,
+      ouvertId: () => deps.entretien.ouvertId.value,
+      titre: (id) => deps.corpus.membership.value[id]?.titre ?? 'entretien',
+      donneesExport: deps.entretien.donneesExport,
+      codebook: () => deps.corpus.codebook.value,
+      variables: () => deps.corpus.variables.value,
+      categoriesNote: () => deps.corpus.categoriesNote.value,
+      reglesAnon: () => deps.corpus.reglesAnon.value,
+      audioLocal: (audioRef) =>
+        audioRef ? window.sonal.export.audioLocal(audioRef) : Promise.resolve(null),
+      ecrireTexte: (nom, contenu) => window.sonal.dialog.choisirExport(nom, contenu),
+      ecrireDocx: (demande) => window.sonal.export.entretienDocx(demande),
+      ecrirePdf: (demande) => window.sonal.export.entretienPdf(demande),
     }
   }
 
-  /** Export de l'entretien ouvert dans le format demandé. Tous les formats
-   *  projettent le MÊME fragment segmenté (source unique du découpage) ; le
-   *  `.sonal` reste la voie d'archivage SonalPi1, inchangée. Un export
-   *  pseudonymisé est d'abord AUDITÉ : en mode strict, une pseudonymisation
-   *  incomplète bloque la génération (rapport présenté) ; en mode partiel,
-   *  seuls les pseudonymes configurés s'appliquent (avertissement affiché). */
-  async function exporter(
+  /** Export de l'entretien ouvert : délégation au service dédié (instantané,
+   *  audit, génération, écriture). */
+  function exporter(
     format: FormatExport,
     options: OptionsExport & { modeAnon?: ModePseudonymisation },
   ): Promise<ResultatExport> {
-    const ctx = await contexteExport()
-    if (!ctx) return { etat: 'erreur', message: "L'entretien à exporter n'est plus disponible." }
-    const ext = FORMATS_EXPORT.find((f) => f.format === format)?.ext ?? `.${format}`
-    const nom = nomFichierExport(ctx.titre, ext.slice(1), options.anon)
-    try {
-      if (options.anon) {
-        const rapport = auditerPseudonymisation(ctx.entree, {
-          mode: options.modeAnon ?? 'strict',
-          // Le .sonal porte toujours les locuteurs (tables) ; pour les formats
-          // documentaires, l'option « Locuteurs » décide.
-          locuteursInclus: format === 'sonal' || optionsEfficaces(format, options).loc,
-          notes: ctx.notes,
-          titre: ctx.titre,
-          media: format === 'html',
-        })
-        if ((options.modeAnon ?? 'strict') === 'strict' && rapport.bloquants.length > 0) {
-          return { etat: 'bloque', rapport }
-        }
-      }
-      switch (format) {
-        case 'sonal': {
-          const contenu = options.anon
-            ? sonalAnonymise(ctx.entree)
-            : exporterSonal(ctx.entree)
-          const chemin = await window.sonal.dialog.choisirExport(nom, contenu)
-          return chemin ? { etat: 'succes', chemin } : { etat: 'annule' }
-        }
-        case 'txt':
-        case 'srt':
-        case 'vtt':
-        case 'html': {
-          const contenu =
-            format === 'txt'
-              ? genererTxt(ctx, options)
-              : format === 'srt'
-                ? genererSrt(ctx, options)
-                : format === 'vtt'
-                  ? genererVtt(ctx, options)
-                  : genererHtml(ctx, options)
-          const chemin = await window.sonal.dialog.choisirExport(nom, contenu)
-          return chemin ? { etat: 'succes', chemin } : { etat: 'annule' }
-        }
-        case 'docx': {
-          const donnees = genererDonneesDocx(ctx, options)
-          const chemin = await window.sonal.export.entretienDocx({ nomSuggere: nom, ...donnees })
-          return chemin ? { etat: 'succes', chemin } : { etat: 'annule' }
-        }
-        case 'pdf': {
-          const chemin = await window.sonal.export.entretienPdf({
-            nomSuggere: nom,
-            html: genererHtml(ctx, options),
-          })
-          return chemin ? { etat: 'succes', chemin } : { etat: 'annule' }
-        }
-      }
-    } catch (erreur) {
-      return {
-        etat: 'erreur',
-        message: `L'export a échoué : ${erreur instanceof Error ? erreur.message : String(erreur)}`,
-      }
-    }
+    return exporterEntretien(format, options, sourceExport())
   }
 
   async function renommer(id: string, evenement: Event): Promise<void> {

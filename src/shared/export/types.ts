@@ -157,11 +157,9 @@ export const LIBELLES_OPTIONS: Array<{ cle: keyof OptionsExport; label: string }
   { cle: 'anon', label: 'Anonymiser (appliquer la pseudonymisation de manière définitive)' },
 ]
 
-/** Nom de fichier d'un export : titre nettoyé, suffixe `_anonymise`, extension. */
-export function nomFichierExport(titre: string, ext: string, anon: boolean): string {
-  const base = titre.replace(/[/\\?%*:|"<>\x00-\x1f]/g, '-').trim() || 'entretien'
-  return `${base}${anon ? '_anonymise' : ''}.${ext}`
-}
+/** Nommage des fichiers d'export (nettoyage, suffixe, collisions) : vit dans
+ *  nomsFichiers.ts, réexporté ici pour la commodité des consommateurs. */
+export { nomFichierExport } from './nomsFichiers'
 
 /** Neutralise les options sans objet pour le format demandé : TOUTES les
  *  options connues sont parcourues, celles que le format ne porte pas tombent

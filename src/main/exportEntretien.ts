@@ -1,9 +1,10 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
+import type { IpcMainInvokeEvent, SaveDialogOptions } from 'electron'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 import type { DemandeExportDocx } from '../shared/format'
 import type { BlocDocumentExport, RunTexteExport } from '../shared/export/documentExport'
-import { join } from 'node:path'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { mkdtempSync, rmSync, writeFileSync, renameSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { preferencesImpressionPdf, securiserNavigation } from './securiteFenetre'
@@ -61,6 +62,35 @@ export async function construireDocxBuffer(demande: DemandeExportDocx): Promise<
 export function urlAudioLocal(store: CorpusStore, audioRef: string): string | null {
   const chemin = store.cheminMediaAbs(audioRef)
   return chemin ? pathToFileURL(chemin).href : null
+}
+
+/** Choix d'une destination par l'utilisateur (dialogue natif). Une commande
+ *  dédiée plutôt qu'un dialogue noyé dans l'écriture : un futur export corpus
+ *  pourra choisir la destination UNE fois puis générer plusieurs artefacts. */
+/** Choix d'une destination par l'utilisateur (dialogue natif rattaché à la
+ *  fenêtre appelante). Une commande dédiée plutôt qu'un dialogue noyé dans
+ *  l'écriture : un futur export corpus pourra choisir la destination UNE fois
+ *  puis générer plusieurs artefacts sans dialogue intermédiaire. */
+export async function choisirDestination(
+  e: IpcMainInvokeEvent,
+  options: SaveDialogOptions,
+): Promise<string | null> {
+  const fenetre = BrowserWindow.fromWebContents(e.sender)
+  const r = fenetre ? await dialog.showSaveDialog(fenetre, options) : await dialog.showSaveDialog(options)
+  return r.canceled || !r.filePath ? null : r.filePath
+}
+
+/** Écriture ATOMIQUE dans un fichier : le contenu part dans un temporaire du
+ *  dossier cible, posé par rename — un échec d'écriture ne laisse jamais un
+ *  fichier à moitié écrit à la place de la cible. */
+export function ecrireFichierAtomique(chemin: string, contenu: string | Buffer): void {
+  const temp = join(dirname(chemin), `.sonal-export-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  try {
+    writeFileSync(temp, contenu)
+    renameSync(temp, chemin)
+  } finally {
+    if (existsSync(temp)) rmSync(temp, { force: true })
+  }
 }
 
 /** Imprime un HTML autonome en PDF : dossier temporaire jetable créé de

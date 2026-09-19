@@ -27,7 +27,7 @@ import { TransactionsCorpus, poserValeurLotLocal, appliquerRegleLotLocal } from 
 import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
-import { construireDocxBuffer, imprimerPdf, urlAudioLocal } from './exportEntretien'
+import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DemandeExportDocx, DemandeExportPdf } from '../shared/format'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -1572,18 +1572,19 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     writeFileSync(r.filePath, contenu, 'utf8')
     return r.filePath
   })
-  // Exports d'entretien en DOCX/PDF : le buffer est construit côté main
-  // (lib `docx` / printToPDF), le dialogue de sauvegarde est rattaché à la
-  // fenêtre appelante.
+  // Exports d'entretien en DOCX/PDF : GENERATION (buffer construit côté main,
+  // lib `docx` / printToPDF), puis CHOIX DE DESTINATION, puis ECRITURE
+  // ATOMIQUE — trois primitives séparées, réutilisables par un futur export
+  // corpus qui choisirait la destination une fois pour un lot.
   ipcMain.handle('export:entretienDocx', async (e, demande: DemandeExportDocx): Promise<string | null> => {
     const buffer = await construireDocxBuffer(demande)
-    const r = await montrerSauver(e, {
+    const chemin = await choisirDestination(e, {
       defaultPath: demande.nomSuggere,
       filters: [{ name: 'Document Word', extensions: ['docx'] }],
     })
-    if (r.canceled || !r.filePath) return null
-    writeFileSync(r.filePath, buffer)
-    return r.filePath
+    if (!chemin) return null
+    ecrireFichierAtomique(chemin, buffer)
+    return chemin
   })
   // URL audio locale pour l'export HTML : le chemin est vérifié par le main
   // (whitelist des audioRef du corpus + existence disque) ; null sinon.
@@ -1592,13 +1593,13 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
   ipcMain.handle('export:entretienPdf', async (e, demande: DemandeExportPdf): Promise<string | null> => {
     const buffer = await imprimerPdf(demande.html)
-    const r = await montrerSauver(e, {
+    const chemin = await choisirDestination(e, {
       defaultPath: demande.nomSuggere,
       filters: [{ name: 'Document PDF', extensions: ['pdf'] }],
     })
-    if (r.canceled || !r.filePath) return null
-    writeFileSync(r.filePath, buffer)
-    return r.filePath
+    if (!chemin) return null
+    ecrireFichierAtomique(chemin, buffer)
+    return chemin
   })
   // Import d'un MODÈLE de modalités (« Importer un modèle… » dans l'éditeur de variables) :
   //  le dialogue n'accepte qu'un JSON, lu ici (même gabarit que dialog:choisirTexte) ;

@@ -1,5 +1,12 @@
 import { describe, test, expect, vi } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import JSZip from 'jszip'
@@ -10,12 +17,21 @@ import type { BlocDocumentExport } from '../src/shared/export/documentExport'
 
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(), on: vi.fn(), quit: vi.fn() },
-  BrowserWindow: vi.fn(),
+  BrowserWindow: { fromWebContents: vi.fn(() => null) },
   Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
+  dialog: {
+    showSaveDialog: vi.fn(async (_fenetre: unknown, opts: { defaultPath?: string }) => ({
+      canceled: true,
+      filePath: undefined as string | undefined,
+      defaultPath: opts?.defaultPath,
+    })),
+  },
 }))
 
 // Import différé : la couche Electron doit être moquée AVANT le chargement.
-const { construireDocxBuffer, urlAudioLocal } = await import('../src/main/exportEntretien')
+const { construireDocxBuffer, urlAudioLocal, choisirDestination, ecrireFichierAtomique } = await import(
+  '../src/main/exportEntretien'
+)
 
 describe('DOCX : le buffer construit par le main respecte le document intermédiaire', () => {
   test('contenu littéral (marqueurs préservés), gras par run, espace = ligne vide', async () => {
@@ -127,6 +143,66 @@ describe('résolution audio vérifiée par le main', () => {
         'utf8',
       )
       expect(urlAudioLocal(new CorpusStore(dir), join(dir, 'disparu.wav'))).toBeNull()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+// ----------------------------------------------------------------
+// Primitives main séparées : destination, génération, écriture atomique.
+// Le futur export corpus choisira la destination UNE fois puis générera
+// plusieurs artefacts sans dialogue intermédiaire.
+// ----------------------------------------------------------------
+
+describe('destination et écriture séparées', () => {
+  test('annulation du dialogue : null, aucune écriture', async () => {
+    const { dialog } = (await import('electron')) as unknown as {
+      dialog: { showSaveDialog: ReturnType<typeof vi.fn> }
+    }
+    const avant = dialog.showSaveDialog.mock.calls.length
+    const r = await choisirDestination(
+      { sender: {} as never },
+      { defaultPath: 'x.txt' },
+    )
+    expect(r).toBeNull()
+    expect(dialog.showSaveDialog).toHaveBeenCalledTimes(avant + 1)
+  })
+
+  test('plusieurs artefacts générés et écrits après UN choix de destination', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-export-lot-'))
+    try {
+      // Simulation : la destination est choisie une fois (dans l'usage réel
+      // par l'utilisateur, ici posée par le test), puis plusieurs artefacts
+      // sont générés et écrits SANS nouveau dialogue.
+      const destination = join(dir, 'lot')
+      mkdirSync(destination, { recursive: true })
+      const artefacts: Array<[string, string]> = [
+        ['a.txt', 'premier'],
+        ['b.txt', 'deuxième'],
+      ]
+      for (const [nom, contenu] of artefacts) {
+        ecrireFichierAtomique(join(destination, nom), contenu)
+      }
+      expect(readFileSync(join(destination, 'a.txt'), 'utf8')).toBe('premier')
+      expect(readFileSync(join(destination, 'b.txt'), 'utf8')).toBe('deuxième')
+      // Aucun temporaire résiduel après écriture.
+      expect(readdirSync(destination).filter((n) => n.startsWith('.sonal-export-'))).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('écriture atomique : un échec ne laisse aucun résidu ni cible à moitié écrite', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-export-atom-'))
+    try {
+      // Le rename échoue quand la cible est un DOSSIER : le temporaire est
+      // posé, l'écriture échoue, la cible reste inchangée et le temporaire
+      // est nettoyé.
+      const cible = join(dir, 'cible.txt')
+      mkdirSync(cible)
+      expect(() => ecrireFichierAtomique(cible, 'contenu')).toThrow()
+      expect(readdirSync(dir).filter((n) => n.startsWith('.sonal-export-'))).toEqual([])
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
