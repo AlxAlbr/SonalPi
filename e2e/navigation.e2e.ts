@@ -22,9 +22,10 @@ test('démarrage sur Accueil, puis Accueil ↔ Corpus ↔ Entretien', async () =
   await expect(page.locator('.corpus-ecran')).toBeVisible()
   await expect(page.locator('.entretien-ecran')).toBeHidden()
 
-  // La navigation du corpus démarre sur son accueil et reste composée d'icônes.
+  // La navigation du corpus démarre sur son accueil et reste composée d'icônes
+  // (7 onglets + le bouton « Exporter le corpus » aligné à droite).
   const onglets = page.locator('.onglets-corpus button')
-  await expect(onglets).toHaveCount(7)
+  await expect(onglets).toHaveCount(8)
   await expect(onglets.nth(1)).toHaveAttribute('aria-label', 'Notes')
   await expect(onglets.nth(2)).toHaveAttribute('aria-label', 'Personnes')
   await expect(onglets.nth(6)).toHaveAttribute('aria-label', 'Journal')

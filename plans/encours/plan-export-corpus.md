@@ -1,7 +1,8 @@
 # Plan — Export au niveau du corpus
 
-> Statut : PHASES A À C TERMINÉES. Décisions produit actées en §2 ; phase D
-> (tests e2e) restante. Avancement détaillé en §9.
+> Statut : PHASES A À D TERMINÉES (e2e local). Décisions produit actées en §2 ;
+> reste : e2e du corpus distant (bancs Nextcloud, projet « pile » de Playwright).
+> Avancement détaillé en §9.
 > S'appuie sur `plan-prepa-export-corpus.md` (phases A à E terminées) : projection
 > indexée, pseudonymisation réelle avec rapport, document intermédiaire DOCX,
 > primitives main séparées (destination, génération, écriture atomique), nommage
@@ -405,3 +406,31 @@ les fichiers de la phase C (`sonal.ts`, `useOperationsCorpus.ts`) et nécessaire
   `construireInstantane(sourceExport())`, le reste passe par le main),
   `exporterCorpusLot(demande, { surProgression, continu })` ; exposition via
   `sonal.ts` ; modale montée dans `App.vue`.
+
+### Fait — phase D (tests e2e)
+
+Suite e2e complète verte (124 passés, 7 pile Nextcloud skippés sans serveur),
+tests unitaires (1133) et typecheck OK.
+
+- **`e2e/export-corpus.e2e.ts`** (3 scénarios, dialogs natifs stubbés,
+  sérialisés pour le démarrage à froid d'Electron) :
+  1. export complet : fichier par entretien (`Entretien Karine_pseudonymise.txt`,
+     le défaut pseudonymise), `_index.txt` (corpus, date, « 1 entretien
+     exporté », 17 mots comptés), DOCX combiné (archive zip valide), résumé
+     « Export terminé » ;
+  2. sélection partielle : e2 décoché dans la grille → seul e1 exporté, index
+     sans e2, rapport détaillé `_rapport-pseudonymisation.txt` enregistré ;
+  3. succès partiel : e2 cassé (version non prise en charge) → ❌ expliqué
+     (« version ») dans le résumé, le lot continue, index sans e2. Le fichier
+     est corrompu APRÈS le lancement : le corrompre avant fait échouer
+     l'ouverture du corpus elle-même (voir anomalie ci-dessous).
+- **`e2e/navigation.e2e.ts`** aligné : la barre des onglets compte désormais
+  8 boutons (7 onglets + « Exporter le corpus »).
+- **Anomalie préexistante découverte** (hors périmètre, à traiter séparément) :
+  un fichier entretien malformé présent au démarrage fait échouer le scan
+  `corpus:usagesParCategorie` (`e.annotations is not iterable`) et l'app
+  n'atteint jamais l'écran Accueil. L'export de lot, lui, le gère correctement
+  (échec typé, lot interrompu localement seulement).
+- **Restant** : e2e du corpus distant (entretiens lus sans ouverture, export en
+  lecture seule, média distant non résolu) — à écrire sur les bancs Nextcloud
+  (projet « pile », un seul worker).
