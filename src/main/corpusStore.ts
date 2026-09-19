@@ -46,7 +46,7 @@ import {
 } from '../shared/corpus/tableaubord'
 import {
   appliquerCommandeCas,
-  normaliserCas, normaliserFamillesCas, compterUsagesCasVariable,
+  normaliserCas, normaliserFamillesCas, normaliserAttributsCas, compterUsagesCasVariable,
   referencesAjouteesCommandeCas,
   retirerRattachementsCasEntretien,
   type CommandeCas,
@@ -352,7 +352,7 @@ export class CorpusStore {
     const corpus = JSON.parse(contenuCorpusInitial) as CorpusFichier
     corpus.personnes ??= {}
     const versionInitiale = corpus.formatVersion as number
-    if (versionInitiale >= 1 && versionInitiale <= 6) {
+    if (versionInitiale >= 1 && versionInitiale <= 7) {
       corpus.recueils = normaliserRecueils(corpus.recueils)
       corpus.cas = normaliserCas(corpus.cas)
     } else if (versionInitiale === FORMAT_VERSION && corpus.cas !== undefined) {
@@ -361,12 +361,15 @@ export class CorpusStore {
     if (versionInitiale < FORMAT_VERSION || corpus.famillesCas !== undefined) {
       corpus.famillesCas = normaliserFamillesCas(corpus.famillesCas)
     }
+    if (versionInitiale < FORMAT_VERSION || corpus.attributsCas !== undefined) {
+      corpus.attributsCas = normaliserAttributsCas(corpus.attributsCas)
+    }
     const entretiensV2: EntretienV2Prepare[] = []
     const deplacementsPng: DeplacementPngPrepare[] = []
 
     if (versionInitiale === 1) {
       corpus.formatVersion = FORMAT_VERSION
-    } else if (versionInitiale === 2 || versionInitiale === 3 || versionInitiale === 4 || versionInitiale === 5 || versionInitiale === 6) {
+    } else if (versionInitiale === 2 || versionInitiale === 3 || versionInitiale === 4 || versionInitiale === 5 || versionInitiale === 6 || versionInitiale === 7) {
       for (const id of Object.keys(corpus.membership)) {
         const fichier = this.entretienFile(id)
         if (!existsSync(fichier)) continue
@@ -378,7 +381,7 @@ export class CorpusStore {
           if (typeof ref === 'string' && ref && !isAbsolute(ref)) {
             data.meta.audioRef = resolve(this.dir, ref)
           }
-        } else if (versionEntretien !== 3 && versionEntretien !== 4 && versionEntretien !== 5 && versionEntretien !== 6) {
+        } else if (versionEntretien !== 3 && versionEntretien !== 4 && versionEntretien !== 5 && versionEntretien !== 6 && versionEntretien !== 7) {
           continue
         }
         data.reperesPassages = normaliserReperesPassages(data.reperesPassages)
@@ -516,8 +519,9 @@ export class CorpusStore {
       }
     }
     corpus.famillesCas ??= {}
+    corpus.attributsCas ??= {}
     corpus.cas = appliquerCommandeCas(corpus.cas, commande, {
-      familles: corpus.famillesCas, variables: corpus.variables,
+      familles: corpus.famillesCas, attributs: corpus.attributsCas, variables: corpus.variables,
       maintenant: () => new Date().toISOString(),
       personneExiste: (personneId) => Object.hasOwn(corpus.personnes, personneId),
       entretienExiste: (entretienId) => Object.hasOwn(corpus.membership, entretienId),
@@ -564,6 +568,7 @@ export class CorpusStore {
       recueils: {},
       cas: {},
       famillesCas: {},
+      attributsCas: {},
       nom,
       meta: { sourceV1 },
     }
@@ -622,7 +627,8 @@ export class CorpusStore {
       data.formatVersion = FORMAT_VERSION
     }
     if ((data.formatVersion as number) === 3 || (data.formatVersion as number) === 4
-      || (data.formatVersion as number) === 5 || (data.formatVersion as number) === 6) {
+      || (data.formatVersion as number) === 5 || (data.formatVersion as number) === 6
+      || (data.formatVersion as number) === 7) {
       data.formatVersion = FORMAT_VERSION
     }
     if (!versionSupportee(data.formatVersion)) return { ok: false, raison: 'version' }

@@ -33,6 +33,7 @@ export function squeletteCorpus(nom?: string): CorpusFichier {
     recueils: {},
     cas: {},
     famillesCas: {},
+    attributsCas: {},
     tableaubord: tableauBordParDefaut(),
   }
   return corpus

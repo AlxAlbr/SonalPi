@@ -3,7 +3,7 @@ import type { DocumentExport } from './export/documentExport'
 import type { Ancre } from './entretien/audio'
 import type { ReperePassage } from './entretien/reperesPassages'
 import type { Recueil } from './corpus/recueils'
-import type { Cas, FamilleCas } from './corpus/cas'
+import type { Cas, FamilleCas, DefinitionAttributCas } from './corpus/cas'
 import type { TableauBord } from './corpus/tableaubord'
 
 /**
@@ -27,8 +27,9 @@ import type { TableauBord } from './corpus/tableaubord'
  *
  *  formatVersion 6 : les règles de cas réunissent des personnes ou des entretiens entiers.
  */
-/** Format 7 : familles et règles de modalités, sans copie des textes projetés. */
-export const FORMAT_VERSION = 7
+/** Format 7 : familles et règles de modalités, sans copie des textes projetés.
+ *  Format 8 : définitions d'attributs de cas, valeurs saisies et recettes de dérivation. */
+export const FORMAT_VERSION = 8
 
 export function versionSupportee(v: unknown): boolean {
   return v === FORMAT_VERSION
@@ -135,6 +136,9 @@ export interface CorpusFichier {
   /** Unités d'étude analytiques partagées, indexées par leur identité stable. */
   cas?: Record<string, Cas>
   famillesCas?: Record<string, FamilleCas>
+  /** Définitions d'attributs de cas, partagées par tout le corpus ;
+   *  les valeurs, elles, vivent sur chaque cas. Champ ADDITIF optionnel (format 8). */
+  attributsCas?: Record<string, DefinitionAttributCas>
   /** Tableau de bord d'avancement (suivi d'étapes par entretien suivi). Un corpus ancien sans ce champ est normalisé vers le tableau par défaut.
    *  Champ ADDITIF optionnel — corpus-ONLY, sans bump de version (comme `categoriesNote`). */
   tableaubord?: TableauBord

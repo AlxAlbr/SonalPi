@@ -27,6 +27,34 @@ export interface FamilleCas {
   creeLe: string
   origine: { variableId: string; portee: 'entretien' }
     | { variableId: string; portee: 'locuteur'; inclureEnqueteurs: boolean }
+  /** Recettes d'attributs dérivés partagées par tous les cas de la famille. */
+  derivationsAttributs?: DerivationAttributCas[]
+}
+
+/** Modalité d'un attribut de cas : domaine de saisie propre à sa définition. */
+export interface ModaliteAttributCas {
+  id: string
+  lib: string
+}
+
+/** Définition d'attribut de cas, partagée par tout le corpus ; chaque valeur vit
+ *  sur un cas. Distinct des variables EAV : aucune portée, aucun héritage. */
+export interface DefinitionAttributCas {
+  id: string
+  lib: string
+  type: 'texte' | 'modalites'
+  priv: boolean
+  ordre: number
+  /** Domaine de saisie ; toujours vide pour un attribut de texte. */
+  modalites: ModaliteAttributCas[]
+}
+
+/** Recette d'attribut dérivé : la valeur est recalculée à la lecture depuis la
+ *  variable source portée par les membres de la règle, jamais copiée. */
+export interface DerivationAttributCas {
+  attributId: string
+  variableSourceId: string
+  porteeSource: 'entretien' | 'locuteur'
 }
 
 export type CommandeFamilleCas =
@@ -55,6 +83,10 @@ export interface Cas {
   regles: RegleCas[]
   rattachements: RattachementCas[]
   familleId?: string
+  /** Valeurs saisies directement : attributId vers une modalité de l'attribut ou un texte. */
+  valeursAttributsSaisis?: Record<string, string>
+  /** Recettes d'attributs dérivés propres à un cas avec règle, hors famille. */
+  derivationsPropres?: DerivationAttributCas[]
 }
 
 export type CommandeCas =
@@ -76,9 +108,52 @@ export type CommandeCas =
       rattachementId: string
       attendu: RattachementCas
     }
+  | { type: 'creer-attribut'; definition: DefinitionAttributCas }
+  | {
+      type: 'modifier-attribut'
+      attributId: string
+      attendu: DefinitionAttributCas
+      patch: Partial<Pick<DefinitionAttributCas, 'lib' | 'priv' | 'modalites'>>
+    }
+  | { type: 'supprimer-attribut'; attributId: string }
+  | {
+      type: 'definir-valeur-attribut'
+      casId: string
+      attributId: string
+      /** Valeur actuelle attendue ; null signifie « aucune valeur ». */
+      attendu: string | null
+      /** Nouvelle valeur ; null efface la valeur saisie. */
+      valeur: string | null
+    }
+  | {
+      type: 'ajouter-derivation-famille'
+      familleId: string
+      membresAttendus: string[]
+      derivation: DerivationAttributCas
+      definition?: DefinitionAttributCas
+    }
+  | {
+      type: 'retirer-derivation-famille'
+      familleId: string
+      attributId: string
+      attendu: DerivationAttributCas
+    }
+  | {
+      type: 'ajouter-derivation-cas'
+      casId: string
+      derivation: DerivationAttributCas
+      definition?: DefinitionAttributCas
+    }
+  | {
+      type: 'retirer-derivation-cas'
+      casId: string
+      attributId: string
+      attendu: DerivationAttributCas
+    }
 
 export interface DependancesCas {
   familles?: Record<string, FamilleCas>
+  attributs?: Record<string, DefinitionAttributCas>
   variables?: Record<string, Variable>
   maintenant: () => string
   personneExiste: (personneId: string) => boolean
@@ -177,6 +252,41 @@ function validerRattachement(rattachement: unknown): asserts rattachement is Rat
   }
 }
 
+function validerDerivation(valeur: unknown): asserts valeur is DerivationAttributCas {
+  const derivation = valeur as DerivationAttributCas | null
+  if (!derivation || typeof derivation !== 'object' || !identifiantValide(derivation.attributId)
+    || !identifiantValide(derivation.variableSourceId)
+    || (derivation.porteeSource !== 'entretien' && derivation.porteeSource !== 'locuteur')) {
+    throw new Error('La recette d’attribut dérivé est invalide.')
+  }
+}
+
+function validerModalitesAttribut(valeur: unknown): asserts valeur is ModaliteAttributCas[] {
+  if (!Array.isArray(valeur)) throw new Error('Les modalités de l’attribut sont invalides.')
+  const ids = new Set<string>()
+  for (const modalite of valeur) {
+    if (!modalite || typeof modalite !== 'object' || !identifiantValide(modalite.id)
+      || typeof modalite.lib !== 'string' || !modalite.lib.trim()) {
+      throw new Error('Les modalités de l’attribut sont invalides.')
+    }
+    if (ids.has(modalite.id)) throw new Error('Une modalité d’attribut est présente deux fois.')
+    ids.add(modalite.id)
+  }
+}
+
+function validerDefinitionAttribut(valeur: unknown): asserts valeur is DefinitionAttributCas {
+  const definition = valeur as DefinitionAttributCas | null
+  if (!definition || typeof definition !== 'object' || !identifiantValide(definition.id)
+    || typeof definition.lib !== 'string' || !definition.lib.trim()
+    || (definition.type !== 'texte' && definition.type !== 'modalites')
+    || typeof definition.priv !== 'boolean' || typeof definition.ordre !== 'number'
+    || !Number.isInteger(definition.ordre)) throw new Error('La définition d’attribut est invalide.')
+  validerModalitesAttribut(definition.modalites)
+  if (definition.type === 'texte' && definition.modalites.length) {
+    throw new Error('Un attribut de texte ne possède pas de modalités.')
+  }
+}
+
 function validerCas(cas: unknown): asserts cas is Cas {
   if (!cas || typeof cas !== 'object') throw new Error('Le cas est invalide.')
   const candidate = cas as Partial<Cas>
@@ -188,6 +298,24 @@ function validerCas(cas: unknown): asserts cas is Cas {
   }
   if (candidate.familleId !== undefined && (!identifiantValide(candidate.familleId)
     || candidate.regles.length !== 1 || candidate.regles[0]?.type !== 'modalite')) throw new Error('La famille du cas est invalide.')
+  if (candidate.valeursAttributsSaisis !== undefined) {
+    const valeurs = candidate.valeursAttributsSaisis
+    if (!valeurs || typeof valeurs !== 'object' || Array.isArray(valeurs)) throw new Error('Le cas est invalide.')
+    for (const [attributId, valeur] of Object.entries(valeurs)) {
+      if (!identifiantValide(attributId) || typeof valeur !== 'string' || !valeur) {
+        throw new Error('Le cas est invalide.')
+      }
+    }
+  }
+  if (candidate.derivationsPropres !== undefined) {
+    if (!Array.isArray(candidate.derivationsPropres)) throw new Error('Le cas est invalide.')
+    const attributs = new Set<string>()
+    for (const derivation of candidate.derivationsPropres) {
+      validerDerivation(derivation)
+      if (attributs.has(derivation.attributId)) throw new Error('Le cas est invalide.')
+      attributs.add(derivation.attributId)
+    }
+  }
   if (candidate.regles.some((regle) => regle.type === 'modalite') && candidate.regles.length !== 1) {
     throw new Error('Une règle de modalité ne peut pas être mélangée à d’autres règles.')
   }
@@ -229,6 +357,51 @@ function exigerCas(cas: Record<string, Cas>, id: string): Cas {
   return cible
 }
 
+/** Portée des observations d'un cas avec règle ; null pour un cas manuel. */
+export function porteeObservationsCas(cas: Pick<Cas, 'regles'>): 'entretien' | 'locuteur' | null {
+  for (const regle of cas.regles) {
+    if (regle.type === 'entretiens'
+      || (regle.type === 'modalite' && regle.portee === 'entretien')) return 'entretien'
+    if ((regle.type === 'personne' || regle.type === 'personnes')
+      || (regle.type === 'modalite' && regle.portee === 'locuteur')) return 'locuteur'
+  }
+  return null
+}
+
+/** Recette de dérivation portée par le cas lui-même ou par sa famille. */
+function derivationAttributCas(
+  cas: Cas,
+  familles: Record<string, FamilleCas> | undefined,
+  attributId: string,
+): DerivationAttributCas | null {
+  const propre = (cas.derivationsPropres ?? []).find((derivation) => derivation.attributId === attributId)
+  if (propre) return propre
+  return (familles?.[cas.familleId ?? '']?.derivationsAttributs ?? [])
+    .find((derivation) => derivation.attributId === attributId) ?? null
+}
+
+/** Enregistre une définition d'attribut ; une commande rejouée à l'identique ne change rien. */
+function enregistrerDefinitionAttribut(
+  attributs: Record<string, DefinitionAttributCas>,
+  brute: DefinitionAttributCas,
+): void {
+  validerDefinitionAttribut(brute)
+  const definition = structuredClone(brute)
+  definition.lib = definition.lib.trim()
+  definition.modalites = definition.modalites.map((modalite) =>
+    ({ ...modalite, lib: modalite.lib.trim() }))
+  const existante = attributs[definition.id]
+  if (existante) {
+    if (identiques(existante, definition)) return
+    throw new Error("Cette identité d'attribut est déjà utilisée.")
+  }
+  if (Object.values(attributs).some((autre) =>
+    normaliserNomCas(autre.lib) === normaliserNomCas(definition.lib))) {
+    throw new Error('Un attribut porte déjà ce libellé.')
+  }
+  attributs[definition.id] = definition
+}
+
 function verifierNomUnique(cas: Record<string, Cas>, nom: string, saufId?: string): void {
   const cle = normaliserNomCas(nom)
   if (Object.values(cas).some((candidate) => candidate.id !== saufId
@@ -258,6 +431,9 @@ export function appliquerCommandeCas(
       const membres = Object.values(cible).filter((cas) => cas.familleId === famille.id).map((cas) => cas.id).sort()
       if (!existante && !membres.length) return cible
       if (!identiques(membres, [...commande.membresAttendus].sort())) throw new Error('Les membres de la famille ont changé.')
+      if ((existante?.derivationsAttributs ?? []).length) {
+        throw new Error('Retirez d’abord les recettes d’attributs dérivés de cette famille.')
+      }
       for (const id of membres) {
         delete cible[id].familleId
         cible[id].modifieLe = deps.maintenant()
@@ -295,6 +471,117 @@ export function appliquerCommandeCas(
     }
     Object.assign(cible, provisoire)
     familles[famille.id] = famille
+    return cible
+  }
+
+  if (commande.type === 'creer-attribut') {
+    const attributs = deps.attributs
+    if (!attributs) throw new Error('Les attributs de cas ne sont pas disponibles.')
+    enregistrerDefinitionAttribut(attributs, commande.definition)
+    return cible
+  }
+
+  if (commande.type === 'modifier-attribut') {
+    const attributs = deps.attributs
+    if (!attributs) throw new Error('Les attributs de cas ne sont pas disponibles.')
+    const courante = attributs[commande.attributId]
+    if (!courante) throw new Error("Cet attribut n'existe plus.")
+    if (!identiques(courante, commande.attendu)) {
+      throw new Error('L’attribut a changé. Actualisez-le avant de le modifier.')
+    }
+    const patch = commande.patch
+    if (patch.lib !== undefined) {
+      const lib = patch.lib
+      if (!lib.trim()) throw new Error('Le libellé de l’attribut est obligatoire.')
+      if (Object.values(attributs).some((autre) => autre.id !== commande.attributId
+        && normaliserNomCas(autre.lib) === normaliserNomCas(lib))) {
+        throw new Error('Un attribut porte déjà ce libellé.')
+      }
+    }
+    if (patch.modalites !== undefined) {
+      validerModalitesAttribut(patch.modalites)
+      if (courante.type === 'texte' && patch.modalites.length) {
+        throw new Error('Un attribut de texte ne possède pas de modalités.')
+      }
+    }
+    const modifiee: DefinitionAttributCas = {
+      ...courante,
+      ...(patch.lib !== undefined ? { lib: patch.lib.trim() } : {}),
+      ...(patch.priv !== undefined ? { priv: patch.priv } : {}),
+      ...(patch.modalites !== undefined ? { modalites: patch.modalites.map((modalite) =>
+        ({ ...modalite, lib: modalite.lib.trim() })) } : {}),
+    }
+    if (patch.modalites !== undefined) {
+      const conserves = new Set(modifiee.modalites.map((modalite) => modalite.id))
+      const utilisee = Object.values(cible).some((cas) => Object.entries(cas.valeursAttributsSaisis ?? {})
+        .some(([attributId, valeur]) =>
+          attributId === commande.attributId && !conserves.has(valeur)))
+      if (utilisee) throw new Error('Une modalité encore utilisée par une valeur saisie ne peut pas être retirée.')
+    }
+    if (!identiques(courante, modifiee)) attributs[commande.attributId] = modifiee
+    return cible
+  }
+
+  if (commande.type === 'supprimer-attribut') {
+    const attributs = deps.attributs
+    if (!attributs) throw new Error('Les attributs de cas ne sont pas disponibles.')
+    if (!attributs[commande.attributId]) throw new Error("Cet attribut n'existe plus.")
+    const usages = compterUsagesAttributCas({ cas: cible, famillesCas: deps.familles ?? {} }, commande.attributId)
+    if (usages.valeursSaisies || usages.derivationsFamilles || usages.derivationsCas) {
+      throw new Error('Cet attribut est encore utilisé ; traitez d’abord ses valeurs et recettes.')
+    }
+    delete attributs[commande.attributId]
+    return cible
+  }
+
+  if (commande.type === 'ajouter-derivation-famille' || commande.type === 'retirer-derivation-famille') {
+    const familles = deps.familles
+    if (!familles) throw new Error('Les familles ne sont pas disponibles.')
+    const famille = familles[commande.familleId]
+    if (!famille) throw new Error('La famille n’existe plus.')
+    if (commande.type === 'ajouter-derivation-famille') {
+      const attributs = deps.attributs
+      if (!attributs) throw new Error('Les attributs de cas ne sont pas disponibles.')
+      validerDerivation(commande.derivation)
+      if (commande.definition) {
+        validerDefinitionAttribut(commande.definition)
+        if (commande.definition.id !== commande.derivation.attributId) {
+          throw new Error('La définition ne correspond pas à la recette.')
+        }
+      }
+      const membres = Object.values(cible).filter((cas) => cas.familleId === famille.id)
+        .map((cas) => cas.id).sort()
+      if (!identiques(membres, [...commande.membresAttendus].sort())) {
+        throw new Error('Les membres de la famille ont changé.')
+      }
+      const definition = attributs[commande.derivation.attributId] ?? commande.definition
+      if (!definition) throw new Error("L'attribut de la recette n'existe pas.")
+      const variable = deps.variables?.[commande.derivation.variableSourceId]
+      if (!variable || variable.portee !== commande.derivation.porteeSource
+        || variable.portee !== famille.origine.portee) {
+        throw new Error('La variable source est absente ou sa portée ne correspond pas à la famille.')
+      }
+      const existante = (famille.derivationsAttributs ?? []).find((derivation) =>
+        derivation.attributId === commande.derivation.attributId)
+      if (existante) {
+        if (identiques(existante, commande.derivation)) return cible
+        throw new Error('Cet attribut est déjà dérivé pour cette famille.')
+      }
+      if (membres.some((id) => cible[id].valeursAttributsSaisis?.[commande.derivation.attributId] !== undefined)) {
+        throw new Error('Un cas de la famille porte déjà une valeur saisie pour cet attribut.')
+      }
+      if (commande.definition) enregistrerDefinitionAttribut(attributs, commande.definition)
+      famille.derivationsAttributs = [...(famille.derivationsAttributs ?? []), structuredClone(commande.derivation)]
+      return cible
+    }
+    const derivations = famille.derivationsAttributs ?? []
+    const index = derivations.findIndex((derivation) => derivation.attributId === commande.attributId)
+    if (index < 0) throw new Error('Cette recette a déjà été retirée.')
+    if (!identiques(derivations[index], commande.attendu)) {
+      throw new Error('La recette a changé. Actualisez la famille avant de la retirer.')
+    }
+    derivations.splice(index, 1)
+    if (!derivations.length) delete famille.derivationsAttributs
     return cible
   }
 
@@ -403,6 +690,88 @@ export function appliquerCommandeCas(
   }
 
   const casCourant = exigerCas(cible, commande.casId)
+
+  if (commande.type === 'definir-valeur-attribut') {
+    const definition = deps.attributs?.[commande.attributId]
+    if (!definition) throw new Error("Cet attribut n'existe plus.")
+    if (derivationAttributCas(casCourant, deps.familles, commande.attributId)) {
+      throw new Error('Cet attribut est dérivé pour ce cas ; saisissez-le sous un attribut distinct.')
+    }
+    const valeurs = casCourant.valeursAttributsSaisis ?? {}
+    const actuelle = valeurs[commande.attributId] ?? null
+    if (actuelle !== commande.attendu) {
+      throw new Error('La valeur de l’attribut a changé. Actualisez le cas.')
+    }
+    let nouvelle: string | null
+    if (commande.valeur === null) nouvelle = null
+    else if (definition.type === 'modalites') {
+      if (!definition.modalites.some((modalite) => modalite.id === commande.valeur)) {
+        throw new Error('Cette modalité n’appartient pas à l’attribut.')
+      }
+      nouvelle = commande.valeur
+    } else {
+      nouvelle = commande.valeur.trim()
+      if (!nouvelle) throw new Error('La valeur de texte est vide.')
+    }
+    if (nouvelle === actuelle) return cible
+    if (nouvelle === null) delete valeurs[commande.attributId]
+    else casCourant.valeursAttributsSaisis = { ...valeurs, [commande.attributId]: nouvelle }
+    casCourant.modifieLe = deps.maintenant()
+    return cible
+  }
+
+  if (commande.type === 'ajouter-derivation-cas') {
+    const attributs = deps.attributs
+    if (!attributs) throw new Error('Les attributs de cas ne sont pas disponibles.')
+    validerDerivation(commande.derivation)
+    if (commande.definition) {
+      validerDefinitionAttribut(commande.definition)
+      if (commande.definition.id !== commande.derivation.attributId) {
+        throw new Error('La définition ne correspond pas à la recette.')
+      }
+    }
+    if (!casCourant.regles.length) {
+      throw new Error('Un cas manuel ne peut pas recevoir d’attribut dérivé.')
+    }
+    const definition = attributs[commande.derivation.attributId] ?? commande.definition
+    if (!definition) throw new Error("L'attribut de la recette n'existe pas.")
+    const variable = deps.variables?.[commande.derivation.variableSourceId]
+    if (!variable || variable.portee !== commande.derivation.porteeSource
+      || porteeObservationsCas(casCourant) !== commande.derivation.porteeSource) {
+      throw new Error('La variable source est absente ou sa portée ne correspond pas à ce cas.')
+    }
+    if (deps.familles?.[casCourant.familleId ?? '']?.derivationsAttributs
+      ?.some((derivation) => derivation.attributId === commande.derivation.attributId)) {
+      throw new Error('Cet attribut est déjà dérivé pour la famille de ce cas.')
+    }
+    if (casCourant.valeursAttributsSaisis?.[commande.derivation.attributId] !== undefined) {
+      throw new Error('Ce cas porte déjà une valeur saisie pour cet attribut.')
+    }
+    const existante = (casCourant.derivationsPropres ?? []).find((derivation) =>
+      derivation.attributId === commande.derivation.attributId)
+    if (existante) {
+      if (identiques(existante, commande.derivation)) return cible
+      throw new Error('Cet attribut est déjà dérivé pour ce cas.')
+    }
+    if (commande.definition) enregistrerDefinitionAttribut(attributs, commande.definition)
+    casCourant.derivationsPropres = [...(casCourant.derivationsPropres ?? []), structuredClone(commande.derivation)]
+    casCourant.modifieLe = deps.maintenant()
+    return cible
+  }
+
+  if (commande.type === 'retirer-derivation-cas') {
+    const derivations = casCourant.derivationsPropres ?? []
+    const index = derivations.findIndex((derivation) => derivation.attributId === commande.attributId)
+    if (index < 0) throw new Error('Cette recette a déjà été retirée.')
+    if (!identiques(derivations[index], commande.attendu)) {
+      throw new Error('La recette a changé. Actualisez le cas avant de la retirer.')
+    }
+    derivations.splice(index, 1)
+    if (!derivations.length) delete casCourant.derivationsPropres
+    casCourant.modifieLe = deps.maintenant()
+    return cible
+  }
+
   if (commande.type === 'renommer') {
     if (casCourant.nom !== commande.attendu) throw new Error('Le nom du cas a changé.')
     const nom = nomAffiche(commande.nom)
@@ -471,6 +840,15 @@ function validerFamille(valeur: unknown): asserts valeur is FamilleCas {
     || !identifiantValide(famille.origine.variableId)
     || !(famille.origine.portee === 'entretien' || (famille.origine.portee === 'locuteur'
       && typeof famille.origine.inclureEnqueteurs === 'boolean'))) throw new Error('La famille est invalide.')
+  if (famille.derivationsAttributs !== undefined) {
+    if (!Array.isArray(famille.derivationsAttributs)) throw new Error('La famille est invalide.')
+    const attributs = new Set<string>()
+    for (const derivation of famille.derivationsAttributs) {
+      validerDerivation(derivation)
+      if (attributs.has(derivation.attributId)) throw new Error('La famille est invalide.')
+      attributs.add(derivation.attributId)
+    }
+  }
 }
 
 /** Conserve les recettes valides, même si leur variable est devenue introuvable. */
@@ -488,15 +866,58 @@ export function normaliserFamillesCas(valeur: unknown): Record<string, FamilleCa
   return resultat
 }
 
+/** Conserve les définitions valides, même si aucune valeur ne les utilise encore. */
+export function normaliserAttributsCas(valeur: unknown): Record<string, DefinitionAttributCas> {
+  if (!valeur || typeof valeur !== 'object' || Array.isArray(valeur)) return {}
+  const resultat: Record<string, DefinitionAttributCas> = {}
+  for (const [id, brut] of Object.entries(valeur)) {
+    try {
+      validerDefinitionAttribut(brut)
+      if ((brut as DefinitionAttributCas).id !== id) continue
+      const copie = structuredClone(brut) as DefinitionAttributCas
+      copie.lib = copie.lib.trim()
+      copie.modalites = copie.modalites.map((modalite) => ({ ...modalite, lib: modalite.lib.trim() }))
+      resultat[id] = copie
+    } catch {
+      // Une définition mal formée ne peut pas être utilisée.
+    }
+  }
+  return resultat
+}
+
+/** Inventaire des usages d'un attribut : valeurs saisies et recettes de dérivation. */
+export function compterUsagesAttributCas(
+  corpus: { cas?: Record<string, Cas>; famillesCas?: Record<string, FamilleCas> },
+  attributId: string,
+): { valeursSaisies: number; derivationsFamilles: number; derivationsCas: number } {
+  let valeursSaisies = 0
+  let derivationsCas = 0
+  for (const cas of Object.values(corpus.cas ?? {})) {
+    if (cas.valeursAttributsSaisis?.[attributId] !== undefined) valeursSaisies++
+    if ((cas.derivationsPropres ?? []).some((derivation) => derivation.attributId === attributId)) derivationsCas++
+  }
+  const derivationsFamilles = Object.values(corpus.famillesCas ?? {})
+    .filter((famille) => (famille.derivationsAttributs ?? [])
+      .some((derivation) => derivation.attributId === attributId)).length
+  return { valeursSaisies, derivationsFamilles, derivationsCas }
+}
+
 /** Compte les recettes dépendantes, indépendamment des valeurs observées. */
 export function compterUsagesCasVariable(
   corpus: { cas?: Record<string, Cas>; famillesCas?: Record<string, FamilleCas> },
   variableId: string,
   modaliteId?: string,
 ): number {
-  return Object.values(corpus.cas ?? {}).filter((cas) => cas.regles.some((regle) =>
+  const regles = Object.values(corpus.cas ?? {}).filter((cas) => cas.regles.some((regle) =>
     regle.type === 'modalite' && regle.variableId === variableId
     && (modaliteId === undefined || regle.modaliteId === modaliteId))).length
-    + (modaliteId === undefined ? Object.values(corpus.famillesCas ?? {})
-      .filter((famille) => famille.origine.variableId === variableId).length : 0)
+  if (modaliteId !== undefined) return regles
+  const familles = Object.values(corpus.famillesCas ?? {}).filter((famille) =>
+    famille.origine.variableId === variableId
+    || (famille.derivationsAttributs ?? []).some((derivation) =>
+      derivation.variableSourceId === variableId)).length
+  const propres = Object.values(corpus.cas ?? {}).filter((cas) =>
+    (cas.derivationsPropres ?? []).some((derivation) =>
+      derivation.variableSourceId === variableId)).length
+  return regles + familles + propres
 }
