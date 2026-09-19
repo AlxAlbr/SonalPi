@@ -4,7 +4,9 @@
 > Suite de `plan-cas.md`, fondée sur le code présent dans l’arbre de travail.
 > Ordre de réalisation : consolider les cas → export spécifique QualCoder décrit
 > dans `plan-export-sonal.pi` → envisager ensuite REFI-QDA.
-> Les lots C1 à C3 sont implémentés ; C4 et C5 restent à réaliser.
+> Les lots C1 à C3 sont implémentés. Le socle persistant et le résolveur partagé
+> de C4 sont réalisés ; l’interface, la fraîcheur visible et la recette restent à terminer.
+> C5 reste à réaliser.
 > Le premier plan conserve l’historique de ses décisions.
 
 ## 1. Analyse et décisions proposées
@@ -46,11 +48,19 @@ Lecture de `src/shared/format.ts`, `src/shared/corpus/cas.ts`,
 `src/renderer/editor/cas.ts`, `src/renderer/editor/passages.ts` et
 `src/renderer/composables/corpus/useCasCorpus.ts` :
 
-- format natif actuellement à **7** ; cas dans `corpus.cas` ;
-- `Cas` contient nom, mémo, dates, `regles[]` et `rattachements[]` ;
+- format natif actuellement à **8** ; cas dans `corpus.cas` ;
+- `Cas` contient nom, mémo, dates, `regles[]`, `rattachements[]`, valeurs saisies
+  et recettes de dérivation propres optionnelles ;
 - règles reconnues : `personne` (compatibilité), `personnes` avec filtre par membre,
   et `entretiens` avec liste d’identifiants ; `modalite` avec IDs et portée explicites ;
-- `famillesCas` organise les cas via `familleId`, avec aperçu, création, complément et dissolution ciblés ;
+- `famillesCas` organise les cas via `familleId`, avec aperçu, création, complément,
+  recettes de dérivation partagées et dissolution ciblée ;
+- `attributsCas` porte les définitions partagées, séparées des variables EAV ;
+  texte et modalités sont pris en charge, avec indicateur de confidentialité ;
+- le résolveur partagé recalcule les observations depuis les membres des règles,
+  déduplique par propriétaire et ignore les rattachements manuels ;
+- le store recontrôle une nouvelle recette sur les sources courantes avant écriture ;
+  l’affichage renderer des attributs et diagnostics n’est pas encore raccordé ;
 - assistant multi-personnes et multi-entretiens : cas collectif ou un cas par élément,
   aperçu des noms et matériaux, validation atomique et rejeu du lot ;
 - création volontairement vide autorisée ; les cas vides restent conservés ;
@@ -339,9 +349,9 @@ première personne : la vérification porte sur toutes les observations admissib
 Un futur cas de locuteur local utiliserait `(entretienId, locuteurId)` ; aucun
 rapprochement de locuteurs homonymes ne doit être réalisé.
 
-## 7. Modèle persistant proposé
+## 7. Modèle persistant retenu
 
-Noms indicatifs à stabiliser avant codage :
+Noms stabilisés pour le socle C4 :
 
 ```text
 Cas
@@ -365,7 +375,7 @@ FamilleCas
   cohérence stricte pour toute la famille, sans option par cas
 
 DefinitionAttributCas
-  id, libelle, type, priv, modalites ?
+  id, lib, type texte | modalites, priv, ordre, modalites[]
 
 DerivationAttributCas
   attributId, variableSourceId, porteeSource
@@ -379,6 +389,11 @@ Ne pas stocker simultanément une liste de membres dans la famille et une second
 liste faisant autorité dans les cas : dériver les membres depuis `familleId`.
 La création en lot depuis plusieurs personnes n’impose pas forcément une famille
 persistante ; la famille est nécessaire ici pour les attributs et contrôles communs.
+
+Les modalités d’une définition servent à la saisie directe. Pour une dérivation,
+la valeur et son libellé sont résolus depuis les modalités de la variable source ;
+aucune copie ou correspondance par libellé n’est persistée. Un attribut de texte
+porte toujours une liste de modalités vide.
 
 Invariants :
 
@@ -411,7 +426,10 @@ Le lot C2 introduit la migration **5 → 6** pour les règles multi-personnes et
 Les anciennes règles restent inchangées, y compris leurs filtres distincts. Les migrations
 locales et distantes sont testées, sans perdre les repères, rattachements ni recueils.
 Le lot C3 introduit la migration **6 → 7** pour les familles et règles de modalités.
-Les attributs nécessiteront une évolution ultérieure du format.
+Le socle C4 introduit la migration **7 → 8** pour `attributsCas`, les valeurs saisies
+et les recettes de dérivation. Les anciens corpus reçoivent un registre vide, sans
+valeur inventée ; les fichiers d’entretien sont seulement renumérotés au format 8,
+sans changement de leur contenu métier.
 
 Contrat de compatibilité des évolutions :
 
@@ -421,6 +439,8 @@ Contrat de compatibilité des évolutions :
 - conserver les filtres distincts des anciennes règles de personnes ; si elles sont
   regroupées dans une règle multi-personnes, préserver le filtre de chaque membre ;
 - initialiser les nouvelles collections d’attributs et familles sans inventer de valeurs ;
+- conserver les valeurs saisies et recettes structurellement valides ; diagnostiquer
+  à la lecture une définition ou variable source devenue introuvable ;
 - aucune matérialisation des interventions automatiques en repères manuels ;
 - recueils et repères partagés inchangés.
 
@@ -463,9 +483,12 @@ Une modification de règle utilise sa valeur attendue ou une révision, pas seul
 Une commande rejouée ne recrée ni famille ni cas ni attribut.
 Ne jamais garder un verrou pendant les choix de l’utilisateur.
 
-Une recette peut être enregistrée avec un diagnostic non vérifiable ; ne pas certifier
-sa valeur sur un aperçu périmé. Recontrôler avant validation et avant export ; invalidation
-sur texte, rôles, liens de personnes, valeurs, modalités, membership et changements distants.
+Une nouvelle recette conflictuelle ou non vérifiable ne peut pas être enregistrée :
+le main relit les sources et recontrôle le diagnostic au moment de la commande.
+Une recette déjà enregistrée qui devient ensuite conflictuelle ou non vérifiable est
+conservée mais sa valeur est suspendue ; aucune ancienne valeur n’est persistée comme vérité.
+Recontrôler également avant export ; invalidation sur rôles, liens de personnes, valeurs,
+modalités, membership, disponibilité des sources et changements distants.
 
 ## 10. Cycle de vie des dépendances
 
@@ -483,7 +506,8 @@ sur texte, rôles, liens de personnes, valeurs, modalités, membership et change
 - Suppression de personne utilisée : inventaire des cas dépendants et choix explicite ;
   ne pas s’appuyer uniquement sur l’absence de locuteurs.
 - Suppression d’attribut ou de famille : afficher usages ; pas de cascade implicite sur
-  les cas et leurs valeurs. Dissoudre une famille exige de décider du devenir des recettes.
+  les cas et leurs valeurs. La dissolution est refusée tant que la famille porte une recette ;
+  l’utilisateur doit d’abord retirer explicitement ses dérivations.
 
 Ces usages doivent être intégrés aux mêmes contrôles en local et en distant.
 
@@ -593,11 +617,44 @@ Validation C3 : résultats définitifs consignés après la recette ci-dessous.
 
 ### C4 — attributs et cohérence
 
-- [ ] Définitions, saisies, recettes et confidentialité.
-- [ ] Résolveur partagé des observations et diagnostics détaillés.
-- [ ] Politique familiale stricte : conflit dans A → attribut indisponible pour A/B/C.
-- [ ] Réévaluation après changement et absence de valeur périmée.
-- [ ] Ajout/retrait manuel sans effet sur les valeurs et diagnostics des attributs dérivés.
+- [x] Modèle persistant, commandes de définition/saisie/dérivation et migration 7 → 8.
+- [ ] Interface de définition, saisie et dérivation ; confidentialité visible et éditable.
+- [x] Résolveur partagé des observations et diagnostics détaillés.
+- [x] Politique familiale stricte : conflit dans A → attribut indisponible pour A/B/C.
+- [x] Recalcul pur sans valeur dérivée persistée et recontrôle frais à la commande.
+- [ ] Raccordement du renderer : actualisation visible et aucune valeur périmée affichée.
+- [x] Ajout/retrait manuel sans effet sur les valeurs et diagnostics des attributs dérivés.
+
+Réalisation C4 en cours :
+
+- `attributsCas` contient les définitions partagées (`texte` ou `modalites`, ordre et
+  confidentialité). `Cas` porte les valeurs saisies et recettes propres ; `FamilleCas`
+  porte les recettes communes. Un cas manuel accepte la saisie, mais pas la dérivation.
+- Les commandes sont rejouables et protégées par valeur attendue, identité stable,
+  unicité de libellé, portée de variable, membres de famille attendus et absence de
+  concurrence entre saisie et dérivation sous le même attribut.
+- Les suppressions de définition, variable et modalité inventorient les usages ; une
+  famille ne peut pas être dissoute tant que ses recettes n’ont pas été retirées.
+- `observationsAttributs.ts` énumère les propriétaires admissibles des règles, y compris
+  les membres sans texte, et distingue valeur absente, référence invalide et source
+  illisible. Il compare les identités de modalités sur tous les entretiens du cas.
+- Statuts calculés : absent, cohérent, cohérent incomplet, incohérent et non vérifiable.
+  Une valeur connue avec données manquantes reste disponible avec avertissement.
+- Une dérivation propre est possible pour tout cas avec règle. Dans une famille, une
+  recette propre distincte reste possible, mais elle ne peut jamais contourner la
+  suspension de la même définition partagée.
+- Le main recontrôle les sources au moment d’ajouter une recette ; conflit et source
+  illisible refusent l’écriture. Une recette existante reste persistée et sera suspendue
+  par la projection si les données changent ensuite.
+- Les tests couvrent A/B/C, personne multi-entretiens, membre muet, valeurs manquantes,
+  modalités supprimées, sources illisibles, portée entretien, ajout manuel sans effet,
+  correction d’un conflit, migration et concurrence structurelle.
+
+Validation intermédiaire : `npm test` : **1173 réussis, 21 sautés** ; typage et build
+valides. Aucun scénario Electron ni banc Nextcloud C4 n’a encore été exécuté : cette
+validation reste à faire après raccordement de l’interface.
+
+Commandes : `npm test`, `npm run typecheck`, `npm run build`.
 
 ### C5 — recette et contrat d’export
 
@@ -651,11 +708,22 @@ données et constater le recalcul sans perdre les cas et passages déjà constit
 7. Dériver les attributs depuis des variables de même portée que les observations
    sélectionnées ; les dérivations entre portées sont différées.
 8. Laisser l’audio et sa synchronisation hors du présent chantier d’export.
+9. Autoriser les dérivations propres sur tout cas avec règle ; un cas manuel ne reçoit
+   que des attributs saisis. Une recette propre ne contourne pas une recette familiale
+   du même attribut.
+10. Faire évoluer le format natif de 7 à 8 pour protéger les attributs persistés contre
+    une ancienne application qui les ignorerait ou les perdrait.
+11. Recontrôler une nouvelle recette au main ; la refuser si elle est conflictuelle ou
+    non vérifiable. Conserver et suspendre une recette existante devenue invalide.
 
 ### Points restant à préciser techniquement
 
-- La migration des attributs reste à détailler techniquement ; les nouvelles règles et familles sont migrées en v7 ;
-  les combinaisons existantes de règles et d’ajouts restent des cas ordinaires.
+- Raccorder la projection partagée aux événements de fraîcheur du renderer et à la fiche
+  du cas/de la famille, avec accès aux observations sources.
+- Appliquer la confidentialité dans les aperçus, rapports et exports ; une dérivation
+  créée depuis une variable privée devra proposer un attribut privé par défaut.
+- Compléter la recette Electron et distante après l’interface ; les 21 tests sautés ne
+  constituent pas une validation de ces bancs.
 
 ## 14. Sources de travail
 
@@ -668,6 +736,8 @@ données et constater le recalcul sans perdre les cas et passages déjà constit
 - Code QualCoder local : `case_file_manager.py`, `__main__.py`, `sonal_import.py`.
 
 Les lots C1 à C3 sont implémentés : création vide et en lot, règles de personnes,
-d’entretiens et de modalités, familles avec complément explicite. Les attributs et
-leur cohérence (C4), puis la recette d’export (C5), restent à réaliser. Les règles de noms,
-repères et persistance existantes sont conservées sauf changement explicitement décrit.
+d’entretiens et de modalités, familles avec complément explicite. Le modèle persistant,
+les commandes et le résolveur partagé des attributs de C4 sont implémentés ; leur interface,
+la fraîcheur visible, la confidentialité appliquée et la recette restent à réaliser.
+C5 reste ensuite à mener. Les règles de noms, repères et persistance existantes sont
+conservées sauf changement explicitement décrit.

@@ -85,7 +85,7 @@ export interface Cas {
   familleId?: string
   /** Valeurs saisies directement : attributId vers une modalité de l'attribut ou un texte. */
   valeursAttributsSaisis?: Record<string, string>
-  /** Recettes d'attributs dérivés propres à un cas avec règle, hors famille. */
+  /** Recettes d'attributs dérivés propres au cas, distinctes de celles de sa famille. */
   derivationsPropres?: DerivationAttributCas[]
 }
 
