@@ -1,10 +1,12 @@
 # Plan — Préparation de l'export au niveau du corpus
 
-> Statut : phases A, B, C et D implémentées (commits « Export : pseudonymisation
-> réelle, audit préalable, durcissement CSS/PDF », « Export : document
-> intermédiaire DOCX, WebVTT/SRT fidèles, audio résolu par le main », puis
-> « Export : projection indexée (fin du comportement quadratique) + test de
-> charge ») ; E reste à faire.
+> Statut : PHASE TERMINÉE (A à E). Commits « Export : pseudonymisation réelle,
+> audit préalable, durcissement CSS/PDF », « Export : document intermédiaire
+> DOCX, WebVTT/SRT fidèles, audio résolu par le main », « Export : projection
+> indexée (fin du comportement quadratique) + test de charge », « Export :
+> projection, pseudonymisation et contrats déplacés dans le module partagé ;
+> notes converties sans DOM », puis « Export : service renderer + instantané
+> sans sauvegarde, primitives main séparées, nommage de lot ».
 > Avancement détaillé en §12 ; décisions produit prises en §4 (reportées dans
 > le corps du fichier).
 > Périmètre : fiabiliser et découpler l'export d'un entretien, puis fournir les
@@ -597,14 +599,64 @@ propres, golden `.sonal` normal inchangés (bit à bit).
   sous-quadratique (4× la taille ≈ 4× le temps, marge 8×), seuil temporel
   généreux (5 s pour un corpus qui prenait 80 s).
 
-### Reste à faire
+### Fait — phase E
 
-- **Phase E** — découplage : module `src/shared/export/`, notes sans DOM
-  global, service renderer d'export, préparateur d'instantané sans
-  `sauver()` automatique, primitives main génération/écriture séparées,
-  nommage de lot avec collisions. Le test « export lecture seule sans
-  écriture » (§9, phase A étape 4) est REPORTÉ ici : il exige le
-  préparateur d'instantané.
-  (À noter : `src/shared/export/` a démarré avec la phase C — secuCss.ts
-  (phase B) et documentExport.ts (phase C) y vivent déjà ; le déplacement
-  de la projection et des contrats reste à faire.)
+Deux commits : « Export : projection, pseudonymisation et contrats déplacés
+dans le module partagé ; notes converties sans DOM », puis « Export : service
+renderer + instantané sans sauvegarde, primitives main séparées, nommage de
+lot ». Suite complète verte (1103 tests), typecheck et build propres.
+
+- **Module partagé `src/shared/export/`** — `types.ts` (EntreeExport,
+  LegacyBlobs, OptionsExport, matrice des formats, ContexteExport,
+  InstantaneEntretienExport, optionsEfficaces ; nomFichierExport
+  réexporté), `projectionEntretien.ts`, `pseudonymisation.ts`,
+  `formatsTexte.ts`, `documentExport.ts`, `secuCss.ts`, `notesTexte.ts`,
+  `nomsFichiers.ts`. Aucune dépendance Vue/Electron/DOM ; la dépendance de
+  projection.ts vers exportSonal.ts a disparu (type partagé). Le renderer
+  garde `import/exportSonal.ts` (sérialisation `.sonal`, liée au DOM
+  d'import) et `import/importSonal.ts` ; le `.sonal` reste la seule voie
+  d'archivage.
+- **Notes sans DOM global** : `notesTexte.ts` convertit le sous-HTML
+  sanitisé (texte, mark → ▸…◂, em) en texte PUR ; `corpsNoteEnTexte`
+  n'a plus de paramètre `Document` (renderer, tests Node) ; les
+  générateurs ne lisent jamais `globalThis.document`.
+- **Préparateur d'instantané** : `InstantaneEntretienExport` (§7.3) et
+  `construireInstantane()` — photographie de l'état MÉMOIRE de l'entretien
+  ouvert, sans `sauver()` (décision §7.3 : l'export n'est pas une
+  persistance ; l'entretien en lecture seule s'exporte autant qu'un autre).
+  L'audio arrive déjà résolu (URL vérifiée par le main ou null).
+- **Service renderer d'export** : `src/renderer/services/exportEntretien.ts`
+  (sans Vue) orchestre instantané → audit → génération → écriture, et
+  retourne un `ResultatExport` typé. `SourceExportEntretien` n'expose
+  AUCUNE fonction d'écriture : la garantie « un instantané ne déclenche
+  jamais de sauvegarde » est structurelle. `useOperationsCorpus.ts` ne
+  conserve que l'état de la modale et une délégation mince.
+- **Primitives main séparées** (§7.5) : `choisirDestination()` (dialogue
+  dédié), `ecrireFichierAtomique()` (temporaire + rename dans le dossier
+  cible, toujours nettoyé), génération de buffer déjà isolée — les IPC
+  DOCX/PDF composent ces primitives ; un lot pourra choisir la destination
+  une fois et générer plusieurs artefacts sans dialogue intermédiaire.
+- **Nommage de lot** (§8) : `nomsFichiers.ts` — `nettoyerBaseNom`
+  (caractères interdits trois plateformes, noms réservés Windows,
+  points/espaces finaux, longueur bornée extension comprise, repli si vide),
+  `attribuerNomsUniques` (collisions du lot ET du disque résolues de façon
+  déterministe `Entretien (2).txt`, rang avant extension, jamais d'écrasement
+  silencieux, travaillant sur TOUTE la liste avant écriture).
+- **Tests** : `test/exportEntretienService.test.ts` (instantané sans
+  écriture, garantie structurelle « aucune fonction d'écriture dans la
+  source », TXT/DOCX, blocage strict, annulation, échec typé),
+  `test/nomsFichiers.test.ts`, et le test « export lecture seule sans
+  écriture » de la phase A (§9) : couvert par le contrat du service
+  (aucune écriture dans la source, export d'une version non enregistrée).
+  DOCX : tests des primitives main (destination annulée, plusieurs
+  artefacts après UN choix, atomie).
+
+### Critères de sortie (§11) — vérifiés
+
+Voir §11 : golden `.sonal` bit à bit (suite verte), sentinelles absentes des
+sorties pseudonymisées, marqueurs DOCX préservés, WebVTT fidèle, projection
+non quadratique, générateurs purs sans Vue/Electron/DOM, main capable de
+générer et d'écrire plusieurs artefacts après un seul choix de destination,
+tests ciblés + typecheck + build passants. Le chantier « export corpus » peut
+commencer : ses décisions restantes (conditionnement, formats, UX, sélection)
+sont listées en §2.
