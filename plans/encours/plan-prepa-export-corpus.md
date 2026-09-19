@@ -1,9 +1,10 @@
 # Plan — Préparation de l'export au niveau du corpus
 
-> Statut : phases A, B et C implémentées (commits « Export : pseudonymisation
-> réelle, audit préalable, durcissement CSS/PDF » puis « Export : document
-> intermédiaire DOCX, WebVTT/SRT fidèles, audio résolu par le main ») ; D et E
-> restent à faire.
+> Statut : phases A, B, C et D implémentées (commits « Export : pseudonymisation
+> réelle, audit préalable, durcissement CSS/PDF », « Export : document
+> intermédiaire DOCX, WebVTT/SRT fidèles, audio résolu par le main », puis
+> « Export : projection indexée (fin du comportement quadratique) + test de
+> charge ») ; E reste à faire.
 > Avancement détaillé en §12 ; décisions produit prises en §4 (reportées dans
 > le corps du fichier).
 > Périmètre : fiabiliser et découpler l'export d'un entretien, puis fournir les
@@ -569,16 +570,35 @@ propres. Golden `.sonal` normal inchangés.
 - **Modale** : `CONFIG_OPTIONS` en objets nommés `{ activee, defaut }`
   (plus de tuple `[activée, cochéeParDéfaut]`).
 
+### Fait — phase D
+
+Commit : « Export : projection indexée (fin du comportement quadratique) +
+test de charge ». Suite complète verte (1083 tests), typecheck et build
+propres, golden `.sonal` normal inchangés (bit à bit).
+
+- **Indexation de la projection** (`projection.ts`) :
+  - tranches de CHAQUE annotation calculées UNE SEULE fois puis réparties
+    par bloc (`annsParBloc`) — l'ancien recalcul par couple bloc×annotation
+    approchait `O(blocs² × annotations)` ;
+  - ancres localisées une fois par dichotomie (`blocDe`) puis réparties
+    (`ancresParBloc`, bornes de cue et coupes internes) ;
+  - dichotomie aussi pour `platDe` (comptage des sauts, relSauts triés) et
+    pour les bornes de `tranchesPlates` (seuls les blocs intersectant la
+    plage sont parcourus) ;
+  - locuteurs indexés dans un `Map` préparé une fois (premier homonyme
+    gagnant, sémantique du `find()` remplacé).
+- **Indexation des générateurs** (`exportFormats.ts`) : codebook et
+  locuteurs indexés en `Map` (`indexCodebook` / `indexLocuteurs`), un find
+  par fragment/segment supprimé dans TXT/DOCX/HTML.
+- **Test de charge** (`test/projectionCharge.test.ts`) : corpus synthétique
+  8 000 blocs / 800 ancres / 400 codages traversant des centaines de blocs.
+  Mesures AVANT/APRÈS : 232/1450/10195/80571 ms → 16/23/45/86 ms ;
+  assertions : contenu complet et ordonné sur le gros corpus, ratio
+  sous-quadratique (4× la taille ≈ 4× le temps, marge 8×), seuil temporel
+  généreux (5 s pour un corpus qui prenait 80 s).
+
 ### Reste à faire
 
-- **Phase C** — fidélité des formats : document intermédiaire
-  (`DocumentExport`) et réécriture DOCX sans `{g}`/`**…**` ; corrections
-  WebVTT/SRT (échappement, multicodages, arrondis des temps, valeurs
-  inversées) ; résolution audio vérifiée par le main ; option coordonnées
-  HTML qui retire aussi les boutons de lecture ; suite du cycle de la
-  modale (tuple `[activée, cochéeParDéfaut]` → objet nommé).
-- **Phase D** — performance de la projection (indexation blocs, ancres,
-  annotations, locuteurs, catégories) + test de charge.
 - **Phase E** — découplage : module `src/shared/export/`, notes sans DOM
   global, service renderer d'export, préparateur d'instantané sans
   `sauver()` automatique, primitives main génération/écriture séparées,
