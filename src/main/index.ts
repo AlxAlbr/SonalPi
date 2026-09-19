@@ -28,6 +28,7 @@ import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
+import { assemblerInstantaneDistant } from './exportCorpus'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DemandeExportDocx, DemandeExportPdf } from '../shared/format'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -1590,6 +1591,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // (whitelist des audioRef du corpus + existence disque) ; null sinon.
   ipcMain.handle('export:audioLocal', (_e, audioRef: string): string | null =>
     urlAudioLocal(store, audioRef),
+  )
+  // Instantané d'un entretien NON ouvert, assemblé par le main depuis les
+  // fichiers natifs (export de lot) ; échec typé, jamais une exception.
+  ipcMain.handle('export:instantaneCorpus', (_e, id: string) =>
+    assemblerInstantaneDistant(store, id),
   )
   ipcMain.handle('export:entretienPdf', async (e, demande: DemandeExportPdf): Promise<string | null> => {
     const buffer = await imprimerPdf(demande.html)

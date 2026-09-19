@@ -185,6 +185,9 @@ export function optionsEfficaces(format: FormatExport, opts: OptionsExport): Opt
 export interface InstantaneEntretienExport {
   id: string
   titre: string
+  /** Date de l'entretien, telle que portée par le corpus (peut être absente) ;
+   *  utilisée par l'index d'un export de lot. */
+  date?: string | null
   entretien: EntreeExport
   /** Corps des notes PUBLIQUES déjà aplati en texte (voit la conversion
    *  HTML→texte à sa place ; les générateurs ne connaissent plus le DOM). */

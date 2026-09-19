@@ -44,6 +44,7 @@ import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/pe
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
+import type { ResultatInstantaneCorpus } from '../shared/export/corpus'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
@@ -449,6 +450,10 @@ contextBridge.exposeInMainWorld('sonal', {
      *  ou inaccessible (le chemin est whiteliste par le main). */
     audioLocal: (audioRef: string): Promise<string | null> =>
       invoquer('export:audioLocal', audioRef),
+    /** Instantané d'un entretien NON ouvert, assemblé par le main depuis les
+     *  fichiers du corpus (export de lot) ; échec typé sinon. */
+    instantaneCorpus: (id: string): Promise<ResultatInstantaneCorpus> =>
+      invoquer('export:instantaneCorpus', id),
     /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */
     choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirJson', defaultPath),
