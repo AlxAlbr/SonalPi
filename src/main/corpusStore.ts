@@ -58,6 +58,11 @@ import {
 } from '../shared/corpus/suppressionEntretien'
 import { normaliserReperesPassages, rendreReperesOrphelins } from '../shared/entretien/reperesPassages'
 import {
+  evaluerDerivationFamille,
+  resoudreDerivationCas,
+  type LectureSourceAttributs,
+} from '../shared/corpus/observationsAttributs'
+import {
   TransactionsFichiersCorpus,
   type PlanAjoutEntretien,
   type PlanSuppressionEntretien,
@@ -518,6 +523,9 @@ export class CorpusStore {
         throw new Error("La référence de passage n'existe pas dans l'entretien.")
       }
     }
+    if (commande.type === 'ajouter-derivation-famille' || commande.type === 'ajouter-derivation-cas') {
+      this.verifierCoherenceDerivation(corpus, commande)
+    }
     corpus.famillesCas ??= {}
     corpus.attributsCas ??= {}
     corpus.cas = appliquerCommandeCas(corpus.cas, commande, {
@@ -528,6 +536,39 @@ export class CorpusStore {
     })
     this.ecrireJsonAtomique(this.corpusFile, corpus)
     return corpus
+  }
+
+  /** Lit toutes les sources du corpus pour recalculer les observations d'attributs. */
+  private sourcesObservations(corpus: CorpusFichier): Map<string, LectureSourceAttributs> {
+    const sources = new Map<string, LectureSourceAttributs>()
+    for (const id of Object.keys(corpus.membership)) {
+      const lecture = this.lireEntretien(id)
+      sources.set(id, lecture.ok ? { ok: true, data: lecture.data } : { ok: false, raison: lecture.raison })
+    }
+    return sources
+  }
+
+  /** Recontrôle une recette sur les sources fraîches : un conflit ou une
+   *  source illisible suspend la dérivation, jamais les cas eux-mêmes. */
+  private verifierCoherenceDerivation(corpus: CorpusFichier, commande: CommandeCas): void {
+    const sources = this.sourcesObservations(corpus)
+    if (commande.type === 'ajouter-derivation-famille') {
+      const famille = corpus.famillesCas?.[commande.familleId]
+      if (!famille) return
+      const evaluation = evaluerDerivationFamille(corpus, famille, commande.derivation, sources)
+      if (!evaluation.disponible) {
+        throw new Error(`La recette ne peut pas être enregistrée : ${evaluation.problemes.join(' ')}`)
+      }
+      return
+    }
+    if (commande.type === 'ajouter-derivation-cas') {
+      const cas = corpus.cas?.[commande.casId]
+      if (!cas) return
+      const diagnostic = resoudreDerivationCas(corpus, cas, commande.derivation, sources)
+      if (diagnostic.statut === 'incoherent' || diagnostic.statut === 'non-verifiable') {
+        throw new Error(`La recette ne peut pas être enregistrée : ${diagnostic.problemes.join(' ')}`)
+      }
+    }
   }
 
   /** Vérifie qu'un repère a bien été enregistré avant de partager sa référence. */
