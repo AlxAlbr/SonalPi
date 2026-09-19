@@ -231,6 +231,32 @@ function nomDeCode(codebook: Categorie[], code: string): string | null {
   return cat ? cat.nom.split('//')[0].trim() || null : null
 }
 
+/** Nom d'affichage depuis l'index du codebook (variante indexée de nomDeCode). */
+function nomDeCodeDe(parCode: Map<string, Categorie>, code: string): string | null {
+  const cat = parCode.get(code)
+  return cat ? cat.nom.split('//')[0].trim() || null : null
+}
+
+/** Index d'un codebook par code d'export (premier homonyme gagnant, comme le
+ *  find() qu'il remplace) : préparé une fois par run d'export, pas un find()
+ *  par fragment. */
+export function indexCodebook(codebook: Categorie[]): Map<string, Categorie> {
+  const out = new Map<string, Categorie>()
+  for (const c of codebook) {
+    if (c.codeExport && !out.has(c.codeExport)) out.set(c.codeExport, c)
+  }
+  return out
+}
+
+/** Index des locuteurs par index d'affichage (premier homonyme gagnant). */
+export function indexLocuteurs(locuteurs: Locuteur[]): Map<number, Locuteur> {
+  const out = new Map<number, Locuteur>()
+  for (const l of locuteurs) {
+    if (!out.has(l.index)) out.set(l.index, l)
+  }
+  return out
+}
+
 /** Notes PUBLIQUES uniquement, regroupées par catégorie, triées par rang. */
 export function texteNotesPubliques(
   notes: Note[],
@@ -323,10 +349,12 @@ function corpsDocument(
   const thmStrDe = (frag: FragmentProjete): string =>
     opts.thm
       ? frag.codes
-          .map((code) => nomDeCode(e.codebook, code))
+          .map((code) => nomDeCodeDe(parCode, code))
           .filter((x): x is string => x != null)
           .join(', ')
       : ''
+  const parCode = indexCodebook(e.codebook)
+  const interviewerDe = indexLocuteurs(e.locuteurs)
   const blocs: BlocDocumentExport[] = []
   let ligne: RunTexteExport[] = []
   const cloturer = (): void => {
@@ -340,7 +368,7 @@ function corpsDocument(
     const tourChange = blocChange && segPrec !== null && seg.loc !== segPrec.loc
     const locNom = opts.loc && seg.loc != null ? (noms.get(seg.loc) ?? '') : ''
     const interviewer =
-      seg.loc != null ? (e.locuteurs.find((l) => l.index === seg.loc)?.interviewer ?? false) : false
+      seg.loc != null ? (interviewerDe.get(seg.loc)?.interviewer ?? false) : false
     if (blocChange) {
       if (segPrec === null || tourChange) {
         // Tour nouveau : fermer la ligne courante puis une ligne vide.
@@ -587,9 +615,10 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
   // ou corpus distant). Le chemin absolu local d'un média ne sort JAMAIS
   // d'un export pseudonymisé (pas de player sans décision explicite).
   const audioUrl = opts.anon ? null : (ctx.audioUrl ?? null)
+  const parCode = indexCodebook(e.codebook)
   const titreDe = (codes: string[]): string | null => {
     const nomsCats = codes
-      .map((code) => nomDeCode(e.codebook, code))
+      .map((code) => nomDeCodeDe(parCode, code))
       .filter((x): x is string => x != null)
     return nomsCats.length > 0 ? nomsCats.join(', \n') : null
   }

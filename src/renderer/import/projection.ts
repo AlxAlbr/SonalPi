@@ -1,5 +1,6 @@
 import { debutBloc } from '../../shared/entretien/positions'
 import type { Annotation } from '../../shared/entretien/annotation'
+import type { Ancre } from '../../shared/entretien/audio'
 import type { EntreeExport } from './exportSonal'
 
 // ----------------------------------------------------------------
@@ -110,25 +111,25 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
     return { loc: p.attrs.loc, texte, sauts, relSauts, poids: relPM }
   })
 
-  /** Offset plat d'une position PM relative au bloc : les sauts ne pèsent
-   *  aucun caractère, on les soustrait. Ex. relPM 7 avec un saut à 6 → plat 6.
-   */
-  function platDe(b: (typeof blocs)[number], relPM: number): number {
-    let nb = 0
-    for (const s of b.relSauts) if (s < relPM) nb++
-    return relPM - nb
+  /** Indexation des LOCUTEURS : un Map préparé une fois (premier homonyme
+   *  gagnant, comme le find() qu'il remplace), pas un find() par segment. */
+  const locuteurDe = new Map<number, (typeof e.locuteurs)[number]>()
+  for (const l of e.locuteurs) {
+    if (!locuteurDe.has(l.index)) locuteurDe.set(l.index, l)
   }
 
-  /** Tranches par bloc d'une plage PM, en offsets PLATS (sauts exclus).
-   *  Variante de pmVersTranches dont le poids des blocs compte les hardBreaks. */
-  function tranchesPlates(from: number, to: number): Array<{ bloc: number; debut: number; fin: number }> {
-    const out: Array<{ bloc: number; debut: number; fin: number }> = []
-    for (let k = 0; k < blocs.length; k++) {
-      const d = Math.max(from, p0[k]) - p0[k]
-      const f = Math.min(to, p0[k] + blocs[k].poids) - p0[k]
-      if (d < f) out.push({ bloc: k, debut: platDe(blocs[k], d), fin: platDe(blocs[k], f) })
+  /** Offset plat d'une position PM relative au bloc : les sauts ne pèsent
+   *  aucun caractère, on les soustrait. Ex. relPM 7 avec un saut à 6 → plat 6.
+   *  Dichotomie : les relSauts sont triés (ordre d'émission). */
+  function platDe(b: (typeof blocs)[number], relPM: number): number {
+    let lo = 0
+    let hi = b.relSauts.length
+    while (lo < hi) {
+      const m = (lo + hi) >> 1
+      if (b.relSauts[m] < relPM) lo = m + 1
+      else hi = m
     }
-    return out
+    return relPM - lo
   }
 
   // Un segment par INTERVALLE D'ANCRES : un tour fusionné ressort re-découpé en
@@ -142,25 +143,87 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
   const p0: number[] = []
   for (let k = 0, pos = debutBloc(blocs.map((b) => b.poids), 0); k < blocs.length; pos += 2 + blocs[k].poids, k++)
     p0.push(pos)
+  /** Localise une position PM : le bloc la portant (premier tel que
+   *  p0[k] ≤ pos ≤ p0[k] + poids), ou -1. Dichotomie sur p0 (strictement
+   *  croissant, chaque bloc coûte ≥ 2) : équivaut au findIndex d'origine,
+   *  qui balayait TOUS les blocs pour chaque ancre. */
+  function blocDe(pos: number): number {
+    let lo = 0
+    let hi = p0.length - 1
+    while (lo < hi) {
+      const m = (lo + hi + 1) >> 1
+      if (p0[m] <= pos) lo = m
+      else hi = m - 1
+    }
+    return lo >= 0 && p0[lo] <= pos && pos - p0[lo] <= blocs[lo].poids ? lo : -1
+  }
+
+  /** Tranches par bloc d'une plage PM, en offsets PLATS (sauts exclus).
+   *  Variante de pmVersTranches dont le poids des blocs compte les hardBreaks.
+   *  Dichotomie aux bornes : seuls les blocs intersectant [from, to[ sont
+   *  parcourus (le balayage global rendait la projection quadratique). */
+  function tranchesPlates(from: number, to: number): Array<{ bloc: number; debut: number; fin: number }> {
+    const out: Array<{ bloc: number; debut: number; fin: number }> = []
+    // Premier bloc dont la fin dépasse from (fin[k] = p0[k] + poids) ; dernier
+    // dont le début précède to. Les blocs hors de ces bornes ne peuvent pas
+    // intersecter la plage.
+    let k0 = 0
+    let hi = p0.length - 1
+    while (hi > k0) {
+      const m = (k0 + hi) >> 1
+      if (p0[m] + blocs[m].poids > from) hi = m
+      else k0 = m + 1
+    }
+    let hi2 = p0.length
+    let lo2 = k0
+    while (lo2 < hi2) {
+      const m = (lo2 + hi2) >> 1
+      if (p0[m] < to) lo2 = m + 1
+      else hi2 = m
+    }
+    for (let k = k0; k < hi2; k++) {
+      const d = Math.max(from, p0[k]) - p0[k]
+      const f = Math.min(to, p0[k] + blocs[k].poids) - p0[k]
+      if (d < f) out.push({ bloc: k, debut: platDe(blocs[k], d), fin: platDe(blocs[k], f) })
+    }
+    return out
+  }
+  const anns = e.annotations.filter((a) => a.to > a.from)
+
+  // Tranches de CHAQUE annotation calculées UNE SEULE fois (l'ancien calcul
+  // par couple bloc×annotation rendait la projection quadratique), puis
+  // réparties par bloc en gardant l'ordre des annotations.
+  const tranchesParAnn = anns.map((a) => tranchesPlates(a.from, a.to))
+  const annsParBloc: Array<Array<{ from: number; to: number; ann: Annotation }>> = blocs.map(() => [])
+  for (let i = 0; i < anns.length; i++) {
+    for (const tr of tranchesParAnn[i]) {
+      annsParBloc[tr.bloc].push({ from: tr.debut, to: tr.fin, ann: anns[i] })
+    }
+  }
+
+  // Ancres localisées UNE fois (dichotomie), puis réparties par bloc :
+  // bornes de cue (deb/fin à un même offset plat) et coupes internes.
   const debParBloc = blocs.map(() => new Map<number, number>())
   const finParBloc = blocs.map(() => new Map<number, number>())
+  const ancresParBloc: Array<Array<Ancre>> = blocs.map(() => [])
   for (const a of e.ancres) {
-    const k = blocs.findIndex((b, i) => { const rel = a.pos - p0[i]; return rel >= 0 && rel <= b.poids })
+    const k = blocDe(a.pos)
     if (k < 0) continue
+    ancresParBloc[k].push(a)
     const flat = platDe(blocs[k], a.pos - p0[k])
     debParBloc[k].set(flat, a.t) // la dernière à cette offset gagne
     if (!finParBloc[k].has(flat)) finParBloc[k].set(flat, a.t) // la première gagne
   }
-  const anns = e.annotations.filter((a) => a.to > a.from)
 
   // Commentaires : le fragment D'OUVERTURE porte obs/auth ;
   // le fragment FINAL porte data-finobs (= son propre rk).
   // Clés « bloc:offset-plat » locales.
   const obsDebut = new Map<string, Annotation>()
   const finsObs = new Set<string>()
-  for (const a of anns) {
+  for (let i = 0; i < anns.length; i++) {
+    const a = anns[i]
     if (a.type !== 'commentaire') continue
-    const trs = tranchesPlates(a.from, a.to)
+    const trs = tranchesParAnn[i]
     if (trs.length === 0) continue
     const t0 = trs[0]
     const tn = trs[trs.length - 1]
@@ -168,8 +231,7 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
     finsObs.add(`${tn.bloc}:${tn.fin}`) // la dernière gagne
   }
 
-  const nomDe = (loc: number | null) =>
-    loc == null ? null : (e.locuteurs.find((l) => l.index === loc)?.nom ?? null)
+  const nomDe = (loc: number | null) => (loc == null ? null : (locuteurDe.get(loc)?.nom ?? null))
 
   const segments: SegmentProjete[] = []
   let rk = 1
@@ -183,21 +245,17 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
     const premierDuTour = b.loc !== locPrecedent
     locPrecedent = b.loc
 
-    // Annotations de ce bloc, ramenées en offsets PLATS locaux.
-    const local = anns
-      .map((a) => {
-        const tr = tranchesPlates(a.from, a.to).find((t) => t.bloc === k)
-        return tr ? { from: tr.debut, to: tr.fin, ann: a } : null
-      })
-      .filter((x): x is { from: number; to: number; ann: Annotation } => x !== null)
+    // Annotations de ce bloc, précalculées ci-dessus (offsets PLATS locaux).
+    const local = annsParBloc[k]
 
     // Coupes de segments = ancres INTERNES au texte du bloc (offsets plats :
     // le relPM strictement interne [0, poids] projeté en plat [0, len)).
     const coupes = [
       ...new Set(
-        e.ancres
-          .filter((a) => { const rel = a.pos - p0[k]; return rel > 0 && rel < b.poids })
-          .map((a) => platDe(b, a.pos - p0[k])),
+        ancresParBloc[k]
+          .map((a) => a.pos - p0[k])
+          .filter((rel) => rel > 0 && rel < b.poids)
+          .map((rel) => platDe(b, rel)),
       ),
     ].sort((x, y) => x - y)
     const jalons = [0, ...coupes, b.texte.length]
@@ -207,7 +265,7 @@ export function projeterSegments(e: EntreeExport): SegmentProjete[] {
     // refusé) → type 'pseudo' ; refus explicite → 'refuse'. La couleur est
     // INTERNE à l'app (aucun marqueur). data-nomloc-barre est un artefact de
     // RENDU SonalPi1, re-dérivé à l'ouverture ; on ne le porte pas.
-    const lLoc = e.locuteurs.find((x) => x.index === b.loc)
+    const lLoc = locuteurDe.get(b.loc ?? -1)
     let libelle: LibelleTour | null = null
     if (premierDuTour && b.loc != null && nomloc) {
       if (lLoc?.pseudo && lLoc.pseudoEtat !== 'refuse') libelle = { type: 'pseudo', pseudo: lLoc.pseudo }
