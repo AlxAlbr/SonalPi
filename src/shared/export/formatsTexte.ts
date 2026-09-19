@@ -447,7 +447,20 @@ function cssThemes(codebook: Categorie[], combos: string[]): string {
 /** Page autonome : en-tête optionnel, player (audio local référencé),
  *  sections notes/variables, légende des thèmes, texte rendu depuis les
  *  segments du modèle (en-têtes de locuteurs, boutons de lecture, tooltips). */
-export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string {
+export interface PiecesPageHtml {
+  cssThm: string
+  entete: string
+  player: string
+  sectionNotes: string
+  sectionVars: string
+  legende: string
+  corps: string
+  scriptPlayer: string
+}
+
+/** Construit les pièces d'une page autonome SANS les assembler ; réutilisées
+ *  à l'identique par `genererHtml` et par le document combiné du corpus. */
+export function piecesPageHtml(ctx: ContexteExport, optsIn: OptionsExport): PiecesPageHtml {
   const opts = optionsEfficaces('html', optsIn)
   const e = ctx.entree
   const segments = segmentsExport(e, opts.anon)
@@ -566,6 +579,12 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
   <\/script>`
     : ''
 
+  return { cssThm, entete, player, sectionNotes, sectionVars, legende, corps, scriptPlayer }
+}
+
+/** Assemble une page autonome complète à partir des pièces. */
+export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string {
+  const p = piecesPageHtml(ctx, optsIn)
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -574,19 +593,57 @@ export function genererHtml(ctx: ContexteExport, optsIn: OptionsExport): string 
   <title>${echapper(ctx.titre)}</title>
   <style>
 ${CSS_BASE}
+${p.cssThm}  </style>
+</head>
+<body>
+${p.entete}
+${p.player}
+${p.sectionNotes}
+${p.sectionVars}
+${p.legende}
+  <div id="ent-contenu">
+    ${p.corps}
+  </div>
+  <footer class="ent-footer">Sonal π 2</footer>
+  ${p.scriptPlayer}
+</body>
+</html>`
+}
+
+/** Page combinée du CORPUS, source du PDF combiné : une section par entretien
+ *  (titre + contenu), CSS des thèmes mis en commun, SANS player ni script —
+ *  un PDF ne lit pas d'audio, donc aucun bouton de lecture n'y a de sens. */
+export function genererHtmlCombineCorpus(
+  items: Array<{ titre: string; ctx: ContexteExport; options: OptionsExport }>,
+  nomCorpus: string,
+  dateExport: string,
+): string {
+  const pieces = items.map((item) =>
+    piecesPageHtml({ ...item.ctx, audioUrl: null }, item.options),
+  )
+  const cssThm = [...new Set(pieces.flatMap((p) => p.cssThm.split('\n')))].join('\n')
+  const sections = pieces
+    .map((p, i) =>
+      `<section class="section-entretien-corpus"><h1>${echapper(items[i].titre)}</h1>\n`
+      + `${p.sectionNotes}${p.sectionVars}${p.legende}`
+      + `<div id="ent-contenu">\n    ${p.corps}\n  </div>\n</section>`)
+    .join('\n')
+  const entete = `<header class="ent-header"><h1>${echapper(nomCorpus)}</h1>`
+    + `<p class="ent-meta">Exporté par Sonal π 2 le ${dateExport}</p></header>`
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${echapper(nomCorpus)}</title>
+  <style>
+${CSS_BASE}
 ${cssThm}  </style>
 </head>
 <body>
 ${entete}
-${player}
-${sectionNotes}
-${sectionVars}
-${legende}
-  <div id="ent-contenu">
-    ${corps}
-  </div>
+${sections}
   <footer class="ent-footer">Sonal π 2</footer>
-  ${scriptPlayer}
 </body>
 </html>`
 }

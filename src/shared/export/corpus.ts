@@ -8,6 +8,7 @@
 import type { CorpusFichier, EntretienFichier } from '../format'
 import type { EntreeExport, InstantaneEntretienExport } from './types'
 import { projeterSegments } from './projectionEntretien'
+import { nettoyerBaseNom } from './nomsFichiers'
 
 /** Résultat de l'assemblage d'un instantané par le main : soit un instantané
  *  comme un autre, soit un échec expliqué (fichier absent, version non prise
@@ -92,4 +93,18 @@ export function texteIndexCorpus(
     (l) => `- ${l.titre}${l.date ? ` (${l.date})` : ''} — ${l.nbMots} mots`,
   )
   return `${[...entetes, ...corps].join('\n')}\n`
+}
+
+/** Résultat d'une écriture ou d'une copie de média dans le dossier de
+ *  destination (le chemin retourné est RELATIF à ce dossier) ; l'écriture
+ *  est atomique et un échec est expliqué, jamais silencieux. */
+export type ResultatEcritureCorpus =
+  | { etat: 'succes'; cheminRelatif: string }
+  | { etat: 'echec'; message: string }
+
+/** Nom de dossier proposé pour un export de lot : titre du corpus nettoyé,
+ *  suivi de la date du jour. */
+export function nomDossierExportCorpus(nomCorpus: string, date: string): string {
+  const base = nettoyerBaseNom(nomCorpus, '')
+  return `${base}_${date}`
 }

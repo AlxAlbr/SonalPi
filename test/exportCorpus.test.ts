@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
-import type { EntreeExport } from '../src/shared/export/types'
+import type { ContexteExport, EntreeExport, OptionsExport } from '../src/shared/export/types'
 import {
   assemblerInstantaneCorpus,
   compterMots,
+  nomDossierExportCorpus,
   texteIndexCorpus,
 } from '../src/shared/export/corpus'
 import { documentCombine } from '../src/shared/export/documentCorpus'
+import { genererHtmlCombineCorpus } from '../src/shared/export/formatsTexte'
 import { projeterSegments } from '../src/shared/export/projectionEntretien'
 import { entreeSentinelle } from './fixtures/export/entretiens'
+
+const OPTIONS: OptionsExport = {
+  entete: true, notes: true, vars: true, time: true, loc: true, thm: true, anon: false,
+}
 
 /** Corpus minimal : codebook et variables DÉSORDONNÉS pour vérifier le tri. */
 function corpusFichier(): CorpusFichier {
@@ -190,5 +196,55 @@ describe('documentCombine', () => {
     ])
     expect(combine.blocs[0].type).toBe('titre')
     expect(combine.blocs[0].runs?.[0].texte).toBe('**Titre** {g}')
+  })
+})
+
+describe('nomDossierExportCorpus', () => {
+  it('nom sûr du corpus + date du jour, repli si nom vide', () => {
+    expect(nomDossierExportCorpus('Corpus des Entretiens', '2025-09-19')).toBe('Corpus des Entretiens_2025-09-19')
+    expect(nomDossierExportCorpus('a/b:c?', '2025-09-19')).toBe('a-b-c-_2025-09-19')
+    expect(nomDossierExportCorpus('', '2025-09-19')).toBe('entretien_2025-09-19')
+  })
+})
+
+describe('genererHtmlCombineCorpus', () => {
+  it('une section par entretien (titre + contenu), CSS mis en commun, aucun player', () => {
+    const ctx = (titre: string): ContexteExport => ({
+      entree: { ...entreeSentinelle() },
+      titre,
+      notes: [],
+      audioUrl: 'file:///media/audio.mp3',
+    })
+    const opts: OptionsExport = {
+      entete: true, notes: true, vars: true, time: true, loc: true, thm: true, anon: false,
+    }
+    const html = genererHtmlCombineCorpus(
+      [
+        { titre: 'Entretien un', ctx: ctx('Entretien un'), options: opts },
+        { titre: 'Entretien deux', ctx: ctx('Entretien deux'), options: opts },
+      ],
+      'Corpus test',
+      '19/09/2025 10:00',
+    )
+    expect(html).toContain('<title>Corpus test</title>')
+    expect(html).toContain('Exporté par Sonal π 2 le 19/09/2025 10:00')
+    expect(html).toContain('<h1>Entretien un</h1>')
+    expect(html).toContain('<h1>Entretien deux</h1>')
+    // Le média ne sort PAS dans le PDF combiné : pas de player ni de script.
+    expect(html).not.toContain('<audio id="audio-export"')
+    expect(html).not.toContain('<script>')
+    // Le contenu textuel est bien rendu.
+    expect(html).toContain('Anonymise-moi')
+  })
+
+  it('un titre hostile est échappé', () => {
+    const ctx = { entree: entreeSentinelle(), titre: 'x', notes: [], audioUrl: null }
+    const html = genererHtmlCombineCorpus(
+      [{ titre: '<script>window.__x=1</script>', ctx, options: OPTIONS }],
+      'C',
+      'd',
+    )
+    expect(html).not.toContain('<script>window.__x=1</script>')
+    expect(html).toContain('&lt;script&gt;')
   })
 })

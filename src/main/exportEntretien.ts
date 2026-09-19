@@ -21,8 +21,9 @@ function runDe(r: RunTexteExport): TextRun {
 }
 
 /** Un bloc du document intermédiaire → Paragraph. `titre`/`section` deviennent
- *  des titres Word ; `espace` une ligne vide (séparation visuelle). */
-function paragrapheDe(bloc: BlocDocumentExport): Paragraph {
+ *  des titres Word ; `espace` une ligne vide (séparation visuelle). Exporté
+ *  pour le document combiné du corpus (exportCorpus.ts). */
+export function paragrapheDe(bloc: BlocDocumentExport): Paragraph {
   if (bloc.type === 'espace') {
     return new Paragraph({ children: [], spacing: { after: 200 } })
   }

@@ -28,9 +28,9 @@ import { PresenceDistante } from './distant/presence'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
-import { assemblerInstantaneDistant } from './exportCorpus'
+import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus } from './exportCorpus'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
-import type { DemandeExportDocx, DemandeExportPdf } from '../shared/format'
+import type { DemandeExportDocx, DemandeExportPdf, DemandeExportDocxCorpus } from '../shared/format'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
@@ -1597,6 +1597,25 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('export:instantaneCorpus', (_e, id: string) =>
     assemblerInstantaneDistant(store, id),
   )
+  // Session d'écriture d'un lot de corpus : dossier choisi UNE fois, puis
+  // écritures atomiques limitées à ce dossier (noms re-sécurisés au main).
+  ipcMain.handle('export:corpusChoisirDossier', (e, nomSuggere: string) =>
+    choisirDossierCorpus(e, nomSuggere),
+  )
+  ipcMain.handle('export:corpusLister', (e) => listerDossierCorpus(e))
+  ipcMain.handle('export:corpusEcrireTexte', (e, nom: string, contenu: string) =>
+    ecrireTexteCorpus(e, nom, contenu),
+  )
+  ipcMain.handle('export:corpusEcrireDocx', (e, demande: DemandeExportDocxCorpus, nom: string) =>
+    ecrireDocxCorpus(e, demande, nom),
+  )
+  ipcMain.handle('export:corpusEcrirePdf', (e, nom: string, html: string) =>
+    ecrirePdfCorpus(e, nom, html),
+  )
+  ipcMain.handle('export:corpusCopierMedia', (e, urlAudio: string, nomSouhaite: string) =>
+    copierMediaCorpus(e, urlAudio, nomSouhaite),
+  )
+  ipcMain.handle('export:corpusFermer', (e) => fermerExportCorpus(e))
   ipcMain.handle('export:entretienPdf', async (e, demande: DemandeExportPdf): Promise<string | null> => {
     const buffer = await imprimerPdf(demande.html)
     const chemin = await choisirDestination(e, {

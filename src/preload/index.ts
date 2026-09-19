@@ -30,6 +30,7 @@ import type {
   VerificationDossierDemo,
   DemandeExportDocx,
   DemandeExportPdf,
+  DemandeExportDocxCorpus,
   ParamsAnon,
 } from '../shared/format'
 import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
@@ -44,7 +45,7 @@ import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/pe
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
-import type { ResultatInstantaneCorpus } from '../shared/export/corpus'
+import type { ResultatInstantaneCorpus, ResultatEcritureCorpus } from '../shared/export/corpus'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
@@ -454,6 +455,22 @@ contextBridge.exposeInMainWorld('sonal', {
      *  fichiers du corpus (export de lot) ; échec typé sinon. */
     instantaneCorpus: (id: string): Promise<ResultatInstantaneCorpus> =>
       invoquer('export:instantaneCorpus', id),
+    /** Session d'écriture d'un LOT de corpus : dossier choisi une fois, puis
+     *  écritures atomiques limitées à ce dossier (noms re-sécurisés au main). */
+    corpus: {
+      choisirDossier: (nomSuggere: string): Promise<string | null> =>
+        invoquer('export:corpusChoisirDossier', nomSuggere),
+      lister: (): Promise<string[]> => invoquer('export:corpusLister'),
+      ecrireTexte: (nom: string, contenu: string): Promise<ResultatEcritureCorpus> =>
+        invoquer('export:corpusEcrireTexte', nom, contenu),
+      ecrireDocx: (demande: DemandeExportDocxCorpus, nom: string): Promise<ResultatEcritureCorpus> =>
+        invoquer('export:corpusEcrireDocx', demande, nom),
+      ecrirePdf: (nom: string, html: string): Promise<ResultatEcritureCorpus> =>
+        invoquer('export:corpusEcrirePdf', nom, html),
+      copierMedia: (urlAudio: string, nomSouhaite: string): Promise<ResultatEcritureCorpus> =>
+        invoquer('export:corpusCopierMedia', urlAudio, nomSouhaite),
+      fermer: (): Promise<void> => invoquer('export:corpusFermer'),
+    },
     /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */
     choisirJson: (defaultPath?: string): Promise<{ nom: string; contenu: string } | null> =>
       invoquer('dialog:choisirJson', defaultPath),

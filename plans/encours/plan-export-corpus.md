@@ -1,7 +1,7 @@
 # Plan — Export au niveau du corpus
 
-> Statut : PHASE A TERMINÉE. Décisions produit actées en §2 ; phases B (service
-> d'orchestration), C (UX) et D (e2e) restantes. Avancement détaillé en §9.
+> Statut : PHASES A ET B TERMINÉES. Décisions produit actées en §2 ; phases C
+> (UX de la modale) et D (e2e) restantes. Avancement détaillé en §9.
 > S'appuie sur `plan-prepa-export-corpus.md` (phases A à E terminées) : projection
 > indexée, pseudonymisation réelle avec rapport, document intermédiaire DOCX,
 > primitives main séparées (destination, génération, écriture atomique), nommage
@@ -324,3 +324,49 @@ Suite complète verte (1113 tests), typecheck et build propres.
 - `test/exportCorpus.test.ts` : 10 tests (assemblage et replis, comptage de
   mots, index avec et sans pluriel, lot vide, combiné : titres, séparateurs,
   lot vide, marqueurs littéraux préservés).
+
+### Fait — phase B (service d'orchestration)
+
+Suite complète verte (1133 tests), typecheck et build propres.
+
+- **Session d'écriture au main** (`src/main/exportCorpus.ts`) : une session par
+  fenêtre ; le dossier choisi (`export:corpusChoisirDossier`, dialogue de
+  sauvegarde + `mkdir`) est la SEULE zone où le lot a le droit d'écrire, les
+  noms sont re-sécurisés au main (basename + `nettoyerBaseNom`). Primitives :
+  `listerDossierCorpus` (collisions du disque), `ecrireTexteCorpus`,
+  `ecrireDocxCorpus` (buffer via `construireDocxBufferCorpus`, en-tête
+  « CORPUS » optionnel), `ecrirePdfCorpus` (`printToPDF` sandboxée du HTML
+  combiné), `copierMediaCorpus` (URL file:// déjà vérifiée → copie dans
+  `medias/`, collisions résolues, chemin RELATIF retourné), `fermerExportCorpus`.
+  Écritures atomiques ; échec typé, jamais une exception.
+- **Refactor HTML** (`formatsTexte.ts`) : `genererHtml` décomposé en
+  `piecesPageHtml` (pièces réutilisées à l'identique) + assemblage ; nouveau
+  `genererHtmlCombineCorpus` — une section par entretien (titre + notes +
+  variables + légende + contenu), CSS des thèmes mis en commun, SANS player ni
+  script (un PDF ne lit pas d'audio) ; titre échappé.
+- **Service renderer** (`src/renderer/services/exportCorpus.ts`, sans Vue) :
+  boucle SÉQUENTIELLE entretien par entretien — instantané (mémoire pour
+  l'ouvert via `idOuvert`, IPC pour les autres ; la raison d'échec est
+  conservée), génération pure TXT/HTML, accumulation des combinés DOCX/PDF
+  (générés UNE fois en fin de lot), index `_index.txt` (nombres de mots via
+  `compterMots`), rapport de pseudonymisation par entretien ET par format
+  (`rapportTextes` + synthèse `resumeRapport` pour la modale), rapport
+  détaillé `_rapport-pseudonymisation.txt` si demandé, médias copiés avec
+  références relatives dans l'HTML. Nommage : `attribuerNomsUniques` par
+  famille de format, contre le disque, avant toute écriture. Progression
+  `surProgression(k/n, titre)` ; annulation = `doitContinuer()` consulté avant
+  chaque entretien, les restants sont marqués `abandonne` et le résultat est
+  `annule`. Retours typés `succes | annule | echec`, session toujours fermée
+  (succès, annulation, échec global).
+- **IPC + preload + `env.d.ts`** : `window.sonal.export.corpus.*`
+  (choisirDossier, lister, ecrireTexte, ecrireDocx, ecrirePdf, copierMedia,
+  fermer) ; `DemandeExportDocxCorpus` dans `shared/format.ts` ;
+  `paragrapheDe` exporté de `exportEntretien.ts` pour le combiné.
+- **Tests** : `test/exportCorpusService.test.ts` (15 : lot TXT nommé et indexé,
+  suffixe `_pseudonymise`, TXT+HTML en une passe, médias copiés/échoués,
+  combinés DOCX/PDF et sautés si rien n'a réussi, échec distant sans
+  interruption, instantané mémoire sans appel distant, annulation avec
+  abandons, annulation au choix du dossier, progression, rapport enregistré ou
+  non) ; `test/exportDocxCorpus.test.ts` (buffer du combiné, contenu
+  littéral, sans en-tête) ; `test/exportCorpus.test.ts` étendu (nom de dossier,
+  HTML combiné : sections, CSS commun, pas de player, titre hostile échappé).

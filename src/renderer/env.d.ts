@@ -11,6 +11,7 @@ import type {
   CibleValeur,
   DemandeExportDocx,
   DemandeExportPdf,
+  DemandeExportDocxCorpus,
   CorpusFichier,
   DossierCorpus,
   EntreeRecent,
@@ -44,7 +45,7 @@ import type { CommandePersonnes, InventairePersonnes } from '../shared/corpus/pe
 import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
-import type { ResultatInstantaneCorpus } from '../shared/export/corpus'
+import type { ResultatInstantaneCorpus, ResultatEcritureCorpus } from '../shared/export/corpus'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
@@ -210,6 +211,17 @@ declare global {
         /** Instantané d'un entretien NON ouvert, assemblé par le main depuis
          *  les fichiers du corpus (export de lot) ; échec typé sinon. */
         instantaneCorpus: (id: string) => Promise<ResultatInstantaneCorpus>
+        /** Session d'écriture d'un LOT : dossier choisi une fois, puis
+         *  écritures atomiques limitées à ce dossier. */
+        corpus: {
+          choisirDossier: (nomSuggere: string) => Promise<string | null>
+          lister: () => Promise<string[]>
+          ecrireTexte: (nom: string, contenu: string) => Promise<ResultatEcritureCorpus>
+          ecrireDocx: (demande: DemandeExportDocxCorpus, nom: string) => Promise<ResultatEcritureCorpus>
+          ecrirePdf: (nom: string, html: string) => Promise<ResultatEcritureCorpus>
+          copierMedia: (urlAudio: string, nomSouhaite: string) => Promise<ResultatEcritureCorpus>
+          fermer: () => Promise<void>
+        }
       }
       /** Registre « Mes modèles » du profil (settings.json), partagé entre corpus. */
       modeles: {

@@ -510,3 +510,12 @@ export interface DemandeExportPdf {
   nomSuggere: string
   html: string
 }
+
+/** Demande d'export DOCX du CORPUS (document combiné) : le buffer est
+ *  construit par le main dans le dossier de destination déjà choisi. */
+export interface DemandeExportDocxCorpus {
+  /** Nom du corpus (en-tête du document combiné). */
+  titre: string
+  entete: boolean
+  document: DocumentExport
+}
