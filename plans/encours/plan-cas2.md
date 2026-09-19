@@ -319,8 +319,8 @@ Pour garder un fonctionnement simple, appliquer une politique familiale stricte 
   un cas est conflictuel ou non vérifiable ;
 - les cas et leurs passages restent créables et consultables ; seule la dérivation
   de cet attribut est refusée ;
-- ne pas permettre de contourner cette interdiction par un ajout individuel du même
-  attribut dérivé sur un cas de cette famille ;
+- pour ce premier lot, ne permettre aucune dérivation propre sur un membre de famille :
+  toutes ses dérivations passent par la famille ; les attributs saisis restent autorisés ;
 - après correction des données, la variable redevient disponible.
 
 Si Taille est incohérente pour A, cet attribut est indisponible pour A, B et C.
@@ -409,6 +409,8 @@ Invariants :
 - unicité de la modalité au sein d’une famille ; pas de duplication lors d’un rejeu ;
 - une même variable peut donner plusieurs familles si le choix est explicite ;
 - attribut saisi et dérivé ne peuvent pas se concurrencer sous le même ID sur un cas ;
+- dérivations propres réservées aux cas avec règle sans famille ; un membre de famille
+  reçoit toutes ses dérivations depuis les recettes partagées de la famille ;
 - valeurs dérivées, diagnostics et textes projetés non persistés comme vérité.
 
 ## 8. Migration : conserver naturellement règles et ajouts existants
@@ -640,9 +642,9 @@ Réalisation C4 en cours :
   illisible. Il compare les identités de modalités sur tous les entretiens du cas.
 - Statuts calculés : absent, cohérent, cohérent incomplet, incohérent et non vérifiable.
   Une valeur connue avec données manquantes reste disponible avec avertissement.
-- Une dérivation propre est possible pour tout cas avec règle. Dans une famille, une
-  recette propre distincte reste possible, mais elle ne peut jamais contourner la
-  suspension de la même définition partagée.
+- Une dérivation propre est possible pour tout cas avec règle sans famille. Un membre
+  de famille conserve ses attributs saisis, mais toutes ses dérivations passent par les
+  recettes communes de la famille.
 - Le main recontrôle les sources au moment d’ajouter une recette ; conflit et source
   illisible refusent l’écriture. Une recette existante reste persistée et sera suspendue
   par la projection si les données changent ensuite.
@@ -708,9 +710,9 @@ données et constater le recalcul sans perdre les cas et passages déjà constit
 7. Dériver les attributs depuis des variables de même portée que les observations
    sélectionnées ; les dérivations entre portées sont différées.
 8. Laisser l’audio et sa synchronisation hors du présent chantier d’export.
-9. Autoriser les dérivations propres sur tout cas avec règle ; un cas manuel ne reçoit
-   que des attributs saisis. Une recette propre ne contourne pas une recette familiale
-   du même attribut.
+9. Autoriser les dérivations propres sur les cas avec règle sans famille ; un cas manuel
+   ne reçoit que des attributs saisis. Un membre de famille peut recevoir des attributs
+   saisis, mais toutes ses dérivations passent par la famille.
 10. Faire évoluer le format natif de 7 à 8 pour protéger les attributs persistés contre
     une ancienne application qui les ignorerait ou les perdrait.
 11. Recontrôler une nouvelle recette au main ; la refuser si elle est conflictuelle ou

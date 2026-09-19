@@ -214,7 +214,7 @@ describe('cas — dérivations propres', () => {
     expect(() => commande({ type: 'definir-valeur-attribut', casId: 'p', attributId: 'attr', attendu: null, valeur: 't1' })).toThrow(/dérivé/)
   })
 
-  test('règle d’entretiens dérive de variables d’entretien ; famille et cas ne se court-circuitent pas', () => {
+  test('règle d’entretiens dérive de variables d’entretien ; un membre de famille ne porte aucune recette propre', () => {
     const { corpus, commande } = modele()
     corpus.variables.gen = variableTaille('entretien')
     commande({ type: 'creer', cas: { ...casManuel('e'), nom: 'Cas entretiens', regles: [{ type: 'entretiens', entretienIds: ['e1'] }] } })
@@ -228,12 +228,9 @@ describe('cas — dérivations propres', () => {
     commande({ type: 'creer-attribut', definition: definitionAttribut('attrF', 'Taille F') })
     commande({ type: 'ajouter-derivation-famille', familleId: famille.id, membresAttendus: [membre, casModalite('b').id],
       derivation: derivation('attrF') })
-    expect(() => commande({ type: 'ajouter-derivation-cas', casId: membre, derivation: derivation('attrF') })).toThrow(/famille/)
-    commande({ type: 'ajouter-derivation-cas', casId: membre, derivation: derivation('attrE') })
-    expect(corpus.cas![membre].derivationsPropres).toEqual([derivation('attrE')])
-    commande({ type: 'retirer-derivation-cas', casId: membre, attributId: 'attrE', attendu: derivation('attrE') })
-    expect(() => commande({ type: 'retirer-derivation-cas', casId: membre, attributId: 'attrE', attendu: derivation('attrE') })).toThrow(/déjà été retirée/)
-    expect(() => commande({ type: 'retirer-derivation-cas', casId: membre, attributId: 'attrF', attendu: derivation('attrF') })).toThrow(/déjà été retirée/)
+    expect(() => commande({ type: 'ajouter-derivation-cas', casId: membre, derivation: derivation('attrF') })).toThrow(/membre d’une famille/)
+    expect(() => commande({ type: 'ajouter-derivation-cas', casId: membre, derivation: derivation('attrE') })).toThrow(/membre d’une famille/)
+    expect(corpus.cas![membre].derivationsPropres).toBeUndefined()
   })
 })
 
@@ -262,15 +259,25 @@ describe('cas — usages des attributs et des variables', () => {
     expect(normaliserAttributsCas({ mauvais: { id: 'autre', lib: 'Mauvais' }, invalide: { ...definition, priv: 'oui' }, attr: definition }))
       .toEqual({ attr: definition })
     const cas = casModalite()
-    cas.valeursAttributsSaisis = { attr: 't1' }
+    delete cas.familleId
+    cas.valeursAttributsSaisis = { saisi: 't1' }
     cas.derivationsPropres = [derivation()]
     expect(normaliserCas({ [cas.id]: cas })).toEqual({ [cas.id]: cas })
     const famille = familleCas()
     famille.derivationsAttributs = [derivation()]
     expect(normaliserFamillesCas({ f: famille })).toEqual({ f: famille })
     const duplique = casModalite()
+    delete duplique.familleId
     duplique.derivationsPropres = [derivation(), derivation()]
     expect(normaliserCas({ [duplique.id]: duplique })).toEqual({})
+    const membreAvecRecettePropre = casModalite()
+    membreAvecRecettePropre.derivationsPropres = [derivation()]
+    expect(normaliserCas({ [membreAvecRecettePropre.id]: membreAvecRecettePropre })).toEqual({})
+    const concurrence = casModalite()
+    delete concurrence.familleId
+    concurrence.valeursAttributsSaisis = { attr: 't1' }
+    concurrence.derivationsPropres = [derivation()]
+    expect(normaliserCas({ [concurrence.id]: concurrence })).toEqual({})
     const casAvant = casModalite()
     casAvant.valeursAttributsSaisis = { attr: '' }
     expect(normaliserCas({ [casAvant.id]: casAvant })).toEqual({})

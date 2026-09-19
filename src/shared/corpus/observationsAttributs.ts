@@ -241,8 +241,8 @@ export function projeterAttributsCas(
   for (const derivation of famille?.derivationsAttributs ?? []) {
     derivations.set(derivation.attributId, { derivation, origine: 'derivation-famille' })
   }
-  for (const derivation of cas.derivationsPropres ?? []) {
-    if (!derivations.has(derivation.attributId)) {
+  if (!famille) {
+    for (const derivation of cas.derivationsPropres ?? []) {
       derivations.set(derivation.attributId, { derivation, origine: 'derivation-propre' })
     }
   }

@@ -85,7 +85,7 @@ export interface Cas {
   familleId?: string
   /** Valeurs saisies directement : attributId vers une modalité de l'attribut ou un texte. */
   valeursAttributsSaisis?: Record<string, string>
-  /** Recettes d'attributs dérivés propres au cas, distinctes de celles de sa famille. */
+  /** Recettes d'attributs dérivés d'un cas avec règle qui n'appartient à aucune famille. */
   derivationsPropres?: DerivationAttributCas[]
 }
 
@@ -308,11 +308,17 @@ function validerCas(cas: unknown): asserts cas is Cas {
     }
   }
   if (candidate.derivationsPropres !== undefined) {
-    if (!Array.isArray(candidate.derivationsPropres)) throw new Error('Le cas est invalide.')
+    if (!Array.isArray(candidate.derivationsPropres)
+      || (candidate.familleId !== undefined && candidate.derivationsPropres.length)) {
+      throw new Error('Le cas est invalide.')
+    }
     const attributs = new Set<string>()
     for (const derivation of candidate.derivationsPropres) {
       validerDerivation(derivation)
-      if (attributs.has(derivation.attributId)) throw new Error('Le cas est invalide.')
+      if (attributs.has(derivation.attributId)
+        || candidate.valeursAttributsSaisis?.[derivation.attributId] !== undefined) {
+        throw new Error('Le cas est invalide.')
+      }
       attributs.add(derivation.attributId)
     }
   }
@@ -733,16 +739,15 @@ export function appliquerCommandeCas(
     if (!casCourant.regles.length) {
       throw new Error('Un cas manuel ne peut pas recevoir d’attribut dérivé.')
     }
+    if (casCourant.familleId) {
+      throw new Error('Un cas membre d’une famille reçoit ses dérivations depuis la famille.')
+    }
     const definition = attributs[commande.derivation.attributId] ?? commande.definition
     if (!definition) throw new Error("L'attribut de la recette n'existe pas.")
     const variable = deps.variables?.[commande.derivation.variableSourceId]
     if (!variable || variable.portee !== commande.derivation.porteeSource
       || porteeObservationsCas(casCourant) !== commande.derivation.porteeSource) {
       throw new Error('La variable source est absente ou sa portée ne correspond pas à ce cas.')
-    }
-    if (deps.familles?.[casCourant.familleId ?? '']?.derivationsAttributs
-      ?.some((derivation) => derivation.attributId === commande.derivation.attributId)) {
-      throw new Error('Cet attribut est déjà dérivé pour la famille de ce cas.')
     }
     if (casCourant.valeursAttributsSaisis?.[commande.derivation.attributId] !== undefined) {
       throw new Error('Ce cas porte déjà une valeur saisie pour cet attribut.')

@@ -187,7 +187,7 @@ describe('résolution d’une dérivation — personnes et sources entières', (
 })
 
 describe('projection des attributs d’un cas', () => {
-  test('saisies, dérivation de famille et dérivation propre coexistent sans se concurrencer', () => {
+  test('un membre de famille combine saisies et dérivations familiales ; la dérivation propre reste hors famille', () => {
     const corpus = corpusAvecFamille()
     corpus.attributsCas = { attr: definition('attr'), statut: definition('statut', 'texte'), attr2: definition('attr2') }
     const famille = familleCas()
@@ -195,18 +195,23 @@ describe('projection des attributs d’un cas', () => {
     corpus.famillesCas = { f: famille }
     const cas = casModalite('a', famille)
     cas.valeursAttributsSaisis = { statut: 'à revoir' }
-    cas.derivationsPropres = [derivation('v', 'locuteur', 'attr2')]
-    const projection = projeterAttributsCas(corpus, cas, sources(
+    const lectures = sources(
       avecTaille(sourceFamille(), { 2: 'taille1', 3: 'taille1', 6: 'taille1' }),
       avecTaille(sourceFamille(true), { 3: 'taille1', 6: 'taille1' }),
-    ))
+    )
+    const projection = projeterAttributsCas(corpus, cas, lectures)
     expect(projection.map((a) => [a.attributId, a.origine])).toEqual([
       ['attr', 'derivation-famille'],
-      ['attr2', 'derivation-propre'],
       ['statut', 'saisi'],
     ])
     expect(projection[0].diagnostic?.statut).toBe('coherent')
-    expect(projection[2].diagnostic).toBeNull()
+    expect(projection[1].diagnostic).toBeNull()
+
+    const autonome = casModalite('a')
+    delete autonome.familleId
+    autonome.derivationsPropres = [derivation('v', 'locuteur', 'attr2')]
+    expect(projeterAttributsCas(corpus, autonome, lectures).map((a) => [a.attributId, a.origine]))
+      .toEqual([['attr2', 'derivation-propre']])
     expect(libelleValeurSaisie(corpus.attributsCas!.statut, 'à revoir')).toBe('à revoir')
     expect(libelleValeurSaisie(definition('choix'), 'x')).toBe('Choix')
   })
