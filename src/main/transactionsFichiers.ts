@@ -82,9 +82,10 @@ function ecrireAtomiquement(fichier: string, contenu: string, mode?: number): vo
   const dossier = dirname(fichier)
   mkdirSync(dossier, { recursive: true })
   const temporaire = `${fichier}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
-  writeFileSync(temporaire, contenu, mode === undefined ? {} : { mode })
-  const descripteur = openSync(temporaire, 'r')
+  // Windows exige un descripteur inscriptible pour synchroniser le fichier.
+  const descripteur = openSync(temporaire, 'w', mode)
   try {
+    writeFileSync(descripteur, contenu, 'utf8')
     fsyncSync(descripteur)
   } finally {
     closeSync(descripteur)
