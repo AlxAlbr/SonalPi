@@ -4,7 +4,7 @@
   "description": "SonalPi2 — set minimum SonalPi1 : import, locuteurs, thèmes, données (asynchrone, ProseMirror sans Yjs)",
   "main": "./out/main/index.js",
   "author": {
-    "name": "Alex Alber",
+    "name": "Max Beligné",
     "email": "sonalteam@gmail.com"
   },
   "homepage": "https://github.com/PUD-GA/SonalPiTestV2",
@@ -58,8 +58,8 @@
     "vue": "^3.5.35"
   },
   "build": {
-    "appId": "com.sonal.id",
-    "productName": "Sonal",
+    "appId": "com.sonal.v2",
+    "productName": "Sonal V2",
     "npmRebuild": false,
     "directories": {
       "output": "dist",
