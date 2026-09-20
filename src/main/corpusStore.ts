@@ -463,7 +463,8 @@ export class CorpusStore {
     }
     if (cible.nouveau || cible.versionInitiale === 1
       || cible.versionInitiale === 2 || cible.versionInitiale === 3
-      || cible.versionInitiale === 4 || cible.versionInitiale === 5 || cible.versionInitiale === 6) {
+      || cible.versionInitiale === 4 || cible.versionInitiale === 5
+      || cible.versionInitiale === 6 || cible.versionInitiale === 7) {
       this.ecrireJsonAtomique(this.corpusFile, cible.corpus)
       this.invaliderRefsAudio()
     }

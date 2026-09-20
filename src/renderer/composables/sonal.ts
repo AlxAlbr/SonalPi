@@ -419,6 +419,7 @@ export function creerSonal() {
   const casCorpus = useCasCorpus({
     cas: corpus.cas,
     famillesCas: corpus.famillesCas,
+    attributsCas: corpus.attributsCas,
     variables: corpus.variables,
     membership: corpus.membership,
     ouvertId: ent.ouvertId,

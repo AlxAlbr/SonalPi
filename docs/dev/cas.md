@@ -1,8 +1,8 @@
 # Cas analytiques — modèle et fonctionnement
 
-> Cette page distingue le **socle présent dans le code** du **modèle cible validé**.
-> Les créations en lot et les règles d’entretiens entiers sont disponibles.
-> Les familles de modalités sont disponibles ; attributs de cas et export QualCoder restent prévus.
+> Cette page décrit le socle présent dans le code. Les créations en lot, les règles
+> d’entretiens entiers, les familles et les attributs saisis ou dérivés sont disponibles.
+> L’export QualCoder reste un chantier séparé.
 > Guide fonctionnel : [Utiliser les cas](../user/cas.md).
 
 ## 1. Rôle des objets
@@ -45,7 +45,7 @@ Un rattachement de cas ne référence jamais un identifiant de codage ou de comm
 | Entretiens entiers : cas collectif ou un cas par entretien | Présent, y compris sources vides et futurs ajouts |
 | Règles de modalités | Présentes, portées locuteur et entretien distinctes |
 | Familles | Présentes, création et complément explicites, dissolution sans cascade |
-| Attributs de cas | Prévus |
+| Attributs de cas | Présents : définitions, saisies, dérivations propres/familiales et diagnostics frais |
 | Vues séparées automatique/manuelle/ensemble | Présentes, avec métriques et diagnostics par vue |
 | Projet natif QualCoder `.qda` | Prévu ; audio et REFI-QDA différés |
 
@@ -68,6 +68,8 @@ interface Cas {
   regles: RegleCas[]
   rattachements: RattachementCas[]
   familleId?: string
+  valeursAttributsSaisis?: Record<string, string>
+  derivationsPropres?: DerivationAttributCas[]
 }
 
 interface MembrePersonneCas {
@@ -101,11 +103,14 @@ interface ReperePassage {
 ```text
 corpus.json
   personnes[personneId]
-  famillesCas[familleId] → nom, creeLe, origine { variableId, portee, filtre local éventuel }
+  attributsCas[attributId] → libellé, type, confidentialité, ordre, modalités de saisie
+  famillesCas[familleId] → origine et derivationsAttributs[] partagées
   cas[casId]
     familleId? → organisation, sans seconde liste de membres
     regles[] → personneId, membres[], entretienIds[] ou variableId/modaliteId
     rattachements[] → { entretienId, repereId }
+    valeursAttributsSaisis? → attributId vers texte ou modalité
+    derivationsPropres? → recettes du cas hors famille
 
 entretiens/<entretienId>.json
   corpsTexte
@@ -118,16 +123,18 @@ Elles restent dans l’entretien pour être remappées avec la transcription, sa
 modifier `corpus.json` à chaque correction de texte. Le texte du passage n’est jamais
 la source de vérité dans le cas.
 
-Le format natif actuel est **7**, défini dans [format.ts](../../src/shared/format.ts).
+Le format natif actuel est **8**, défini dans [format.ts](../../src/shared/format.ts).
 `corpus.cas` est optionnel dans le type ; la normalisation prend en charge son absence.
 La migration 5 → 6 conserve telles quelles les anciennes règles `personne`, leurs filtres
 individuels, les cas vides, les ajouts manuels et les recueils. Elle ne matérialise aucun
 texte automatique en repère. Corpus et entretiens changent de version selon le protocole
 existant, sous verrous en distant. Les migrations depuis les versions antérieures restent
 prises en charge. La migration 6 → 7 initialise `famillesCas` sans transformer les anciennes
-règles, filtres, dates ou références ; elle met à jour les versions des entretiens sans
-matérialiser de projection. Un fichier courant sans collection facultative reste lisible,
-sans ajout de clé à la simple lecture. Les filtres de vue ne sont pas persistés.
+règles, filtres, dates ou références. La migration 7 → 8 initialise `attributsCas`,
+conserve valeurs et recettes valides et met à jour les versions des entretiens sans
+matérialiser de valeur dérivée. La finalisation persiste bien `corpus.json` et les
+entretiens en local comme dans la transaction distante. Un fichier courant sans collection
+facultative reste lisible ; les filtres de vue ne sont pas persistés.
 
 ### Invariants
 
@@ -183,7 +190,7 @@ La portée enregistrée doit correspondre à celle de la variable courante.
 L’origine `regle-modalite` garde les IDs et l’index local, ou `null` pour une source entière.
 `observationsModalite` compte les propriétaires admissibles, même muets, une fois par source :
 membres, valeurs absentes, références de valeurs invalides, enquêteurs exclus et sources illisibles.
-Les ajouts manuels ne changent aucun de ces compteurs. Il ne s’agit pas d’attributs C4.
+Les ajouts manuels ne changent aucun de ces compteurs. Il ne s’agit pas des attributs du cas.
 Une source indisponible ou invalide porte un diagnostic, jamais une valeur simplement manquante.
 Le chargement et le parsing sont partagés entre modalités ; aucun registre de personnes requis.
 
@@ -221,7 +228,8 @@ n’a aucun effet sur le rattachement autonome.
 
 `CommandeCas` expose actuellement : création, création en lot (`creer-lot`), renommage,
 modification du mémo, suppression du cas, ajout multi-cas et retrait d’un rattachement,
-ainsi que `creer-famille`, `completer-famille` et `dissoudre-famille`.
+les commandes familiales, ainsi que création/modification/suppression de définition,
+saisie de valeur et ajout/retrait de dérivation propre ou familiale.
 Le renderer ne remplace pas toute la collection depuis une copie périmée.
 
 Pour un lot, l’aperçu alloue les identités, propose des noms uniques et signale les cas
@@ -241,9 +249,11 @@ Pour une sélection nouvelle :
 5. Annoncer le succès après confirmation de l’association.
 
 [casOrchestration.ts](../../src/main/casOrchestration.ts) assure l’ordre
-publication/vérification/commande de définitions. Les transactions distantes utilisent
-un verrou corpus court, une lecture fraîche et une écriture conditionnelle.
-Aucun choix utilisateur ne doit maintenir un verrou de transaction ouvert.
+publication/vérification/commande de définitions. Les transactions distantes utilisent un verrou corpus court, une lecture fraîche et
+une écriture conditionnelle. L’ajout d’une dérivation verrouille et relit aussi tous les
+entretiens de contrôle ; les sources restent inchangées et seule la définition corpus est
+publiée. Les sources détenues par la session sont publiées avant ce contrôle. Aucun choix
+utilisateur ne maintient un verrou de transaction ouvert.
 
 Si le repère a été enregistré mais pas l’association, le composable conserve une
 tentative avec les mêmes identifiants. Le rejeu d’un ajout identique évite une duplication ;
@@ -336,17 +346,29 @@ ou **un cas par élément**. La création en lot n’impose pas une famille pers
 L’éditeur de critères d’un cas existant reste à implémenter ; la fiche expose actuellement
 ses critères en lecture seule.
 
-### Attributs — prévus
+### Attributs présents
 
-Les familles décrites ci-dessus sont implémentées. Les définitions d’attributs,
-`valeursAttributsSaisis`, `derivationsPropres` et les dérivations familiales ne le sont pas.
-Les prochaines étapes conservent la famille comme organisation, sans seconde liste de membres.
+`DefinitionAttributCas` est un registre séparé des variables EAV : ID, libellé, type
+`texte | modalites`, confidentialité, ordre et modalités de saisie. Les valeurs saisies
+vivent sur le cas. `DerivationAttributCas` conserve seulement l’attribut cible, la variable
+source et sa portée ; aucune valeur calculée n’est persistée.
+
+Une dérivation propre est réservée à un cas avec règle hors famille. Un membre de famille
+reçoit ses dérivations exclusivement depuis `FamilleCas.derivationsAttributs`, tout en
+conservant ses valeurs saisies. Un attribut ne peut pas être à la fois saisi et dérivé
+sous le même ID pour un cas.
+
+[observationsAttributs.ts](../../src/shared/corpus/observationsAttributs.ts) énumère les
+propriétaires admissibles, calcule statuts et observations puis projette valeurs saisies
+et recettes. Le renderer réutilise les sources déjà chargées pour les matériaux et recalcule
+les attributs à chaque actualisation, sauvegarde de source, changement de cas, variable,
+famille ou membership.
 
 Ne pas étendre implicitement `Variable.portee` à `cas` : les variables sources conservent
-leurs deux portées actuelles. Les attributs de cas ont leurs propres définitions.
-Un attribut ne peut pas être à la fois saisi et dérivé sous le même ID pour un cas.
+leurs deux portées actuelles. Une nouvelle définition issue d’une variable privée est
+proposée privée par défaut dans l’interface ; la confidentialité reste éditable et visible.
 
-## 7. Contrat des attributs dérivés — cible
+## 7. Contrat des attributs dérivés
 
 La dérivation utilise **exclusivement les membres sélectionnés par la règle**.
 Les ajouts manuels n’ajoutent aucune observation, valeur manquante ou contradiction.
@@ -382,7 +404,9 @@ mais interdisent un âge unique non daté sur ce périmètre.
 **Politique familiale stricte :** si Taille est incohérente pour A, Taille est indisponible
 pour A/B/C. Les autres attributs restent utilisables. Aucun choix partiel par cas.
 Une dérivation devenue invalide conserve sa recette et son diagnostic, pas une ancienne
-valeur présentée comme encore valide. Après correction, elle est recalculable.
+valeur présentée comme encore valide. `suspensionFamille` garde le diagnostic local mais
+masque valeur et libellé pour tous les membres dès qu’un cas est conflictuel ou non vérifiable.
+Après correction, l’actualisation recalcule et réactive la valeur.
 
 La valeur dérivée et les diagnostics sont des résultats, pas des copies persistées
 faisant autorité. Leur confidentialité dépend aussi de celle de la variable source.
@@ -412,7 +436,8 @@ Une appartenance à une famille issue d’une variable privée peut être sensib
 
 | Fichier | Responsabilité |
 | --- | --- |
-| [shared/corpus/cas.ts](../../src/shared/corpus/cas.ts) | Types actuels, commandes, normalisation et suppression des rattachements d’entretien |
+| [shared/corpus/cas.ts](../../src/shared/corpus/cas.ts) | Types, définitions d’attributs, commandes, normalisation et usages |
+| [shared/corpus/observationsAttributs.ts](../../src/shared/corpus/observationsAttributs.ts) | Observations, diagnostics, politique familiale et projection des attributs |
 | [shared/format.ts](../../src/shared/format.ts) | Format natif et relation corpus/entretiens |
 | [shared/entretien/reperesPassages.ts](../../src/shared/entretien/reperesPassages.ts) | Repères autonomes et orphelins |
 | [renderer/editor/remap.ts](../../src/renderer/editor/remap.ts) | Remappage avec les éditions |
@@ -423,16 +448,19 @@ Une appartenance à une famille issue d’une variable privée peut être sensib
 | [main/distant/transactions.ts](../../src/main/distant/transactions.ts) | Transactions de définitions distantes |
 | [renderer/composables/corpus/useCasCorpus.ts](../../src/renderer/composables/corpus/useCasCorpus.ts) | Chargement, sélection, commandes et reprise d’association |
 | [renderer/components/corpus/CasCorpus.vue](../../src/renderer/components/corpus/CasCorpus.vue) | Répertoire, fiche et parcours actuels |
+| [renderer/components/corpus/DefinitionsAttributsCas.vue](../../src/renderer/components/corpus/DefinitionsAttributsCas.vue) | Registre, modalités de saisie et confidentialité |
+| [renderer/components/corpus/AttributsCasFiche.vue](../../src/renderer/components/corpus/AttributsCasFiche.vue) | Saisies, dérivations propres et diagnostics du cas |
+| [renderer/components/corpus/AttributsFamilleFiche.vue](../../src/renderer/components/corpus/AttributsFamilleFiche.vue) | Recettes partagées, disponibilité et valeurs par membre |
 | [renderer/components/corpus/CreationFamilleCas.vue](../../src/renderer/components/corpus/CreationFamilleCas.vue) | Aperçu des deux portées, sélection opt-in et reprise de création/complément |
 | [renderer/components/corpus/CreationLotCas.vue](../../src/renderer/components/corpus/CreationLotCas.vue) | Sélection multiple, aperçu, contrôle des noms et reprise de création |
 | [renderer/components/CasModale.vue](../../src/renderer/components/CasModale.vue) | Fenêtre globale |
 
 Les tests existants se trouvent dans `test/cas*.test.ts`, `test/personnes.test.ts`,
-`test/webdav/transactions.test.ts`, `e2e/cas.e2e.ts`, `e2e/casLots.e2e.ts` et `e2e/casFamilles.e2e.ts`.
-`test/casFamilles*.test.ts` couvre modèle, projection, store et reprise renderer ;
-les tests WebDAV embarqués couvrent migration v6, conflits de complément et suppressions protégées.
-Les parcours Electron couvrent notamment 30 cas individuels, leur collectif, l’annulation
-de l’aperçu, les homonymes, les sources vides et les ajouts de texte après création.
+`test/webdav/transactions.test.ts` et les scénarios `e2e/cas*.e2e.ts`.
+Les tests couvrent modèle, observations, projection, store, reprise renderer, migrations
+jusqu’à v8, contrôle frais distant, concurrence et confidentialité. Les parcours Electron
+couvrent notamment 30 cas individuels, leur collectif, familles aux deux portées, saisie,
+dérivation familiale, suspension après conflit et réactivation après correction.
 Lors de l’extension, couvrir en particulier :
 
 - migration des cas avec et sans ajouts, sans conversion spéciale des mixtes ;
@@ -448,4 +476,4 @@ native disponible. Préserver règles, filtres, repères, rattachements et recue
 Les bancs Nextcloud utilisent les images déjà présentes : aucun téléchargement Docker.
 
 Pour le suivi des travaux, voir [le plan des cas](../../plans/encours/plan-cas2.md)
-et [le plan d’export](../../plans/encours/plan-export-sonal.pi).
+et [le plan d’export](../../plans/encours/plan-export-sonalpi.md).

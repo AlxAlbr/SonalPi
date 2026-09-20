@@ -746,6 +746,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       repereExiste: (entretienId, repereId) =>
         store.reperePassageExiste(entretienId, repereId),
       executerDefinitions: () => executerDefinitions((cible) => cible.casCommander(commande)),
+      executerDefinitionsAvecSources: transactions
+        ? () => transactions!.executerDefinitionsAvecSources(
+          () => Object.keys(store.ouvrir().membership),
+          () => store.casCommander(commande),
+        )
+        : undefined,
     }),
   )
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())

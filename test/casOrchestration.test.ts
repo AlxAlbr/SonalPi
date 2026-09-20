@@ -114,4 +114,22 @@ describe('orchestration main des commandes de cas', () => {
     })).rejects.toThrow(/n'a pas été enregistré/)
     expect(executer).not.toHaveBeenCalled()
   })
+
+  test('une nouvelle dérivation publie les sources tenues et utilise la transaction de contrôle fraîche', async () => {
+    const trace: string[] = []
+    const commande: CommandeCas = {
+      type: 'ajouter-derivation-cas',
+      casId: 'cas-1',
+      derivation: { attributId: 'taille', variableSourceId: 'v-taille', porteeSource: 'locuteur' },
+    }
+    const resultat = await executerCommandeCas(commande, {
+      sessionsTenues: () => ['e2', 'e1'],
+      publierEntretien: async (id) => { trace.push(`publier:${id}`); return { ok: true } },
+      repereExiste: () => true,
+      executerDefinitions: () => { trace.push('definitions'); return corpus },
+      executerDefinitionsAvecSources: () => { trace.push('sources-fraiches'); return corpus },
+    })
+    expect(resultat).toBe(corpus)
+    expect(trace).toEqual(['publier:e2', 'publier:e1', 'sources-fraiches'])
+  })
 })

@@ -1,9 +1,10 @@
 # Plan — export SonalPi V2 spécifique à QualCoder
 
-> Document de planification, conservé sous le nom demandé `plan-export-sonal.pi`.
-> Cette extension de document ne désigne pas un nouveau format d’échange.
-> Statut : voie native et installation cible validées ; aucun exporteur ni projet QualCoder produit à ce stade.
-> Prérequis métier : `plan-cas2.md`. REFI-QDA vient ensuite, pas comme préalable.
+> Document de planification conservé sous `plan-export-sonalpi.md`.
+> Son nom ne désigne pas un nouveau format d’échange.
+> Statut : voie native et installation cible validées ; le contrat de cas et
+> d’attributs de `plan-cas2.md` est raccordé et testé, mais aucun exporteur ni projet
+> QualCoder n’est encore produit. REFI-QDA vient ensuite, pas comme préalable.
 
 ## 1. Objectif et périmètre
 
@@ -89,16 +90,19 @@ ces chaînes ne rendent pas les attributs individuels interrogeables.
 - `EntretienFichier` : document ProseMirror, annotations, ancres temporelles, locuteurs,
   valeurs générales, notes structurées et repères de passage ;
 - identité transverse des personnes et rôle local explicite des locuteurs ;
-- cas manuels, règles multi-personnes et d’entretiens entiers, projection et références vivantes ;
+- cas manuels, règles de personnes, d’entretiens et de modalités, familles et références vivantes ;
 - création en lot ou collective depuis personnes et entretiens, avec aperçu et rejeu idempotent ;
 - création manuelle vide, modes Manuel/Avec règle et vues ensemble/règles/manuels ;
+- définitions d’attributs, valeurs saisies, dérivations propres ou familiales et confidentialité ;
+- observations et diagnostics recalculés, avec suspension stricte de toute la famille ;
+- contrôle frais local et distant d’une nouvelle recette, sans valeur dérivée persistée ;
 - notes avec statut privé/public ; variables avec `priv` ;
 - export historique `.sonal` dans `src/renderer/import/exportSonal.ts`.
 
 ### À terminer ou créer
 
-- familles par variables, attributs saisis/dérivés et contrôle de cohérence ;
 - projection du **document final complet** avec table de positions ;
+- modèle intermédiaire d’export réunissant sources, cas, attributs et diagnostics ;
 - adaptateur et assistant QualCoder, contrôles réels dans l’application cible.
 
 `textePassage()` fournit des extraits de lecture, avec des séparateurs et substitutions
@@ -509,10 +513,13 @@ src/renderer/components/ExportQualcoderModale.vue
   Options, aperçu, diagnostics, acceptation et progression.
 ```
 
-Réutiliser le résolveur de cas et d’attributs de Cas2 ; extraire au besoin les primitives
-pures actuellement dans `src/renderer/editor/cas.ts` et `passages.ts` vers une couche
-partageable sans DOM. Ne pas copier leur logique dans deux implémentations divergentes.
-Le coût de parsing d’un document doit être mutualisé entre tous ses cas et annotations.
+Réutiliser le résolveur de cas et d’attributs de Cas2 :
+`projeterCasDepuisSourcesPreparees` pour les matériaux,
+`projeterAttributsCas` pour la fiche exportable et `evaluerDerivationFamille` pour la
+politique stricte. Ces fonctions sont pures et indépendantes de Vue ; les deux premières
+vivent encore dans des modules différents et devront être réunies par le modèle intermédiaire,
+sans recopier leur logique. Le coût de parsing d’un document doit être mutualisé entre
+tous ses cas et annotations.
 
 Le modèle intermédiaire contient : sources finales, codes/catégories, codages,
 commentaires, cas, plages, attributs, correspondances et diagnostics. Une source

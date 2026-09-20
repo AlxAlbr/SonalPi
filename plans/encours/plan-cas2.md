@@ -3,10 +3,10 @@
 > Statut : plan partiellement validé ; décisions confirmées et questions restantes en section 13.
 > Suite de `plan-cas.md`, fondée sur le code présent dans l’arbre de travail.
 > Ordre de réalisation : consolider les cas → export spécifique QualCoder décrit
-> dans `plan-export-sonal.pi` → envisager ensuite REFI-QDA.
-> Les lots C1 à C3 sont implémentés. Le socle persistant et le résolveur partagé
-> de C4 sont réalisés ; l’interface, la fraîcheur visible et la recette restent à terminer.
-> C5 reste à réaliser.
+> dans `plan-export-sonalpi.md` → envisager ensuite REFI-QDA.
+> Les lots C1 à C5 sont implémentés et validés pour le périmètre des cas.
+> Le projet natif QualCoder reste le chantier distinct décrit dans
+> `plan-export-sonalpi.md` ; C5 en fournit désormais le contrat d’entrée testé.
 > Le premier plan conserve l’historique de ses décisions.
 
 ## 1. Analyse et décisions proposées
@@ -60,7 +60,7 @@ Lecture de `src/shared/format.ts`, `src/shared/corpus/cas.ts`,
 - le résolveur partagé recalcule les observations depuis les membres des règles,
   déduplique par propriétaire et ignore les rattachements manuels ;
 - le store recontrôle une nouvelle recette sur les sources courantes avant écriture ;
-  l’affichage renderer des attributs et diagnostics n’est pas encore raccordé ;
+  le renderer affiche définitions, saisies, recettes, confidentialité et diagnostics frais ;
 - assistant multi-personnes et multi-entretiens : cas collectif ou un cas par élément,
   aperçu des noms et matériaux, validation atomique et rejeu du lot ;
 - création volontairement vide autorisée ; les cas vides restent conservés ;
@@ -519,8 +519,8 @@ Ces usages doivent être intégrés aux mêmes contrôles en local et en distant
 
 - [x] Répondre aux questions fonctionnelles de la section 13 ; détails techniques restants identifiés.
 - [x] Rejouer les tests existants des cas avant évolution : 31 tests réussis et typage valide.
-- [ ] Inventorier les cas mixtes et les dépendances aux deux portées EAV.
-- [ ] Maquetter les six parcours et la fiche des attributs.
+- [x] Inventorier les cas mixtes et les dépendances aux deux portées EAV.
+- [x] Maquetter les six parcours et la fiche des attributs ; les maquettes ont été remplacées par l’interface testée.
 
 ### C1 — alimentation souple et création vide
 
@@ -620,14 +620,14 @@ Validation C3 : résultats définitifs consignés après la recette ci-dessous.
 ### C4 — attributs et cohérence
 
 - [x] Modèle persistant, commandes de définition/saisie/dérivation et migration 7 → 8.
-- [ ] Interface de définition, saisie et dérivation ; confidentialité visible et éditable.
+- [x] Interface de définition, saisie et dérivation ; confidentialité visible et éditable.
 - [x] Résolveur partagé des observations et diagnostics détaillés.
 - [x] Politique familiale stricte : conflit dans A → attribut indisponible pour A/B/C.
 - [x] Recalcul pur sans valeur dérivée persistée et recontrôle frais à la commande.
-- [ ] Raccordement du renderer : actualisation visible et aucune valeur périmée affichée.
+- [x] Raccordement du renderer : actualisation visible et aucune valeur périmée affichée.
 - [x] Ajout/retrait manuel sans effet sur les valeurs et diagnostics des attributs dérivés.
 
-Réalisation C4 en cours :
+Réalisation C4 :
 
 - `attributsCas` contient les définitions partagées (`texte` ou `modalites`, ordre et
   confidentialité). `Cas` porte les valeurs saisies et recettes propres ; `FamilleCas`
@@ -646,24 +646,55 @@ Réalisation C4 en cours :
   de famille conserve ses attributs saisis, mais toutes ses dérivations passent par les
   recettes communes de la famille.
 - Le main recontrôle les sources au moment d’ajouter une recette ; conflit et source
-  illisible refusent l’écriture. Une recette existante reste persistée et sera suspendue
-  par la projection si les données changent ensuite.
+  illisible refusent l’écriture. Une recette existante reste persistée et sa projection
+  masque valeur et libellé pour toute la famille dès qu’un membre est conflictuel ou
+  non vérifiable, tout en conservant le diagnostic local détaillé.
+- Le renderer porte le registre partagé, l’édition de la confidentialité, les valeurs
+  saisies, les dérivations propres et la fiche familiale. Il recalcule les attributs
+  avec les mêmes sources que les matériaux après sauvegarde ou actualisation.
+- Une variable privée propose un nouvel attribut privé par défaut. Le caractère privé
+  reste visible et éditable ; usages et recettes protègent les suppressions.
+- En distant, une nouvelle dérivation publie les sources tenues, verrouille et relit
+  tous les entretiens de contrôle, puis publie seulement `corpus.json`. Une édition
+  concurrente de définition est refusée sur sa valeur attendue.
+- La finalisation de migration persiste désormais explicitement le passage 7 → 8 de
+  `corpus.json` ; la migration distante couvre aussi cette version.
 - Les tests couvrent A/B/C, personne multi-entretiens, membre muet, valeurs manquantes,
   modalités supprimées, sources illisibles, portée entretien, ajout manuel sans effet,
-  correction d’un conflit, migration et concurrence structurelle.
+  conflit puis correction, migration, concurrence et confidentialité.
 
-Validation intermédiaire : `npm test` : **1173 réussis, 21 sautés** ; typage et build
-valides. Aucun scénario Electron ni banc Nextcloud C4 n’a encore été exécuté : cette
-validation reste à faire après raccordement de l’interface.
+Validation C4/C5 : `npm test` : **1180 réussis, 21 sautés** ; typage et build
+valides. Neuf scénarios Electron locaux réussissent sur le lot de recette, dont définition,
+saisie, dérivation privée, suspension familiale visible et réactivation après correction.
+Le banc WebDAV embarqué couvre lecture fraîche des sources, rejeu, concurrence et migration
+v7 → v8 ; les bancs dépendant d’un serveur externe restent sautés selon leur garde et ne
+sont pas présentés comme réussis.
 
-Commandes : `npm test`, `npm run typecheck`, `npm run build`.
+Commandes : `npm test`, `npm run typecheck`, `npm run build`, puis
+`npx playwright test e2e/cas.e2e.ts e2e/casFamilles.e2e.ts e2e/casLots.e2e.ts e2e/casAttributs.e2e.ts e2e/recueils.e2e.ts e2e/migration.e2e.ts --project=local --workers=1`.
 
 ### C5 — recette et contrat d’export
 
-- [ ] Cas résolus avec membres, sources entières, passages, attributs et diagnostics.
-- [ ] Tests local/distant, migration, concurrence et confidentialité.
-- [ ] Recette établissement A/B/C et personne multi-entretiens.
-- [ ] Raccordement au plan d’export spécifique QualCoder, sans exiger REFI-QDA.
+- [x] Cas résolus avec membres, sources entières, passages, attributs et diagnostics.
+- [x] Tests local/distant, migration, concurrence et confidentialité.
+- [x] Recette établissement A/B/C et personne multi-entretiens.
+- [x] Raccordement au plan d’export spécifique QualCoder, sans exiger REFI-QDA.
+
+Réalisation C5 :
+
+- La photographie exportable d’un cas se compose de la projection de ses matériaux
+  (`projeterCasDepuisSourcesPreparees`) et de ses attributs recalculés
+  (`projeterAttributsCas`). `evaluerDerivationFamille` reste l’autorité pour la
+  disponibilité familiale ; aucune valeur suspendue ne doit atteindre un adaptateur.
+- Sources entières, contributions de règles, ajouts manuels et diagnostics conservent
+  leurs provenances. Une plage commune n’est comptée qu’une fois dans l’union mais peut
+  appartenir à plusieurs cas.
+- La recette A/B/C vérifie conflit sur A, valeur propre à B, absence sur C, suspension
+  de toute la famille puis réactivation après correction. La personne multi-entretiens
+  vérifie qu’une variation locale est annoncée comme incompatible avec une valeur unique.
+- `plan-export-sonalpi.md` référence désormais explicitement ces primitives pures et
+  place le modèle intermédiaire, la projection du texte final et l’adaptateur QualCoder
+  dans ses lots E1/E2. Aucun projet `.qda` n’est déclaré produit par le présent lot.
 
 ## 12. Matrice de tests et critères d’acceptation
 
@@ -718,14 +749,15 @@ données et constater le recalcul sans perdre les cas et passages déjà constit
 11. Recontrôler une nouvelle recette au main ; la refuser si elle est conflictuelle ou
     non vérifiable. Conserver et suspendre une recette existante devenue invalide.
 
-### Points restant à préciser techniquement
+### Suites hors du périmètre Cas2
 
-- Raccorder la projection partagée aux événements de fraîcheur du renderer et à la fiche
-  du cas/de la famille, avec accès aux observations sources.
-- Appliquer la confidentialité dans les aperçus, rapports et exports ; une dérivation
-  créée depuis une variable privée devra proposer un attribut privé par défaut.
-- Compléter la recette Electron et distante après l’interface ; les 21 tests sautés ne
-  constituent pas une validation de ces bancs.
+- Construire le modèle intermédiaire et l’adaptateur natif QualCoder décrits dans
+  `plan-export-sonalpi.md`, puis prouver leur ouverture dans l’installation cible.
+- Appliquer les choix de confidentialité aux sorties QualCoder et à leurs rapports ; le
+  registre de cas fournit désormais le statut privé et les valeurs suspendues à exclure.
+- Les 21 tests sautés dépendent de bancs externes absents ou désactivés. Le WebDAV
+  embarqué valide le contrat transactionnel, sans être présenté comme une recette sur
+  une instance Nextcloud réelle.
 
 ## 14. Sources de travail
 
@@ -737,9 +769,8 @@ données et constater le recalcul sans perdre les cas et passages déjà constit
 - `/home/belignem/Vscode/InteropQuali/Plan/planSonalToQualcoderGenerique.md`.
 - Code QualCoder local : `case_file_manager.py`, `__main__.py`, `sonal_import.py`.
 
-Les lots C1 à C3 sont implémentés : création vide et en lot, règles de personnes,
-d’entretiens et de modalités, familles avec complément explicite. Le modèle persistant,
-les commandes et le résolveur partagé des attributs de C4 sont implémentés ; leur interface,
-la fraîcheur visible, la confidentialité appliquée et la recette restent à réaliser.
-C5 reste ensuite à mener. Les règles de noms, repères et persistance existantes sont
-conservées sauf changement explicitement décrit.
+Les lots C1 à C5 sont implémentés : création vide et en lot, règles de personnes,
+d’entretiens et de modalités, familles, attributs saisis ou dérivés, interface et
+fraîcheur visible. Les recettes locales et WebDAV embarquées couvrent le contrat des cas.
+La génération d’un projet QualCoder demeure dans `plan-export-sonalpi.md`. Les règles
+de noms, repères et persistance existantes sont conservées sauf changement explicitement décrit.

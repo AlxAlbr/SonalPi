@@ -46,6 +46,7 @@ interface CorpusOperations {
   membership: Ref<Record<string, EntretienRef>>
   cas: Ref<NonNullable<CorpusFichier['cas']>>
   famillesCas: Ref<NonNullable<CorpusFichier['famillesCas']>>
+  attributsCas: Ref<NonNullable<CorpusFichier['attributsCas']>>
   codebook: Ref<Categorie[]>
   variables: Ref<Variable[]>
   categoriesNote: Ref<NoteCategory[]>
@@ -411,6 +412,7 @@ export function useOperationsCorpus(deps: {
     deps.corpus.membership.value = corpus.membership
     deps.corpus.cas.value = corpus.cas ?? {}
     deps.corpus.famillesCas.value = corpus.famillesCas ?? {}
+    deps.corpus.attributsCas.value = corpus.attributsCas ?? {}
     deps.corpus.perimerScanAnon()
     if (deps.cycle.reprise.value?.id === id) deps.cycle.reprise.value = null
     if (deps.selection.id.value === id) deps.selection.deselectionner()

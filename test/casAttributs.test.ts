@@ -308,6 +308,7 @@ describe('CorpusStore — migration v7 → v8 et attributs persistés', () => {
     const store = new CorpusStore(dir)
     const migre = store.ouvrir()
     expect(migre).toMatchObject({ formatVersion: FORMAT_VERSION, cas: corpus.cas, famillesCas: { f: famille }, attributsCas: { attr: definitionAttribut() } })
+    expect(JSON.parse(readFileSync(join(dir, 'corpus.json'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
     expect(JSON.parse(readFileSync(join(dir, 'entretiens/e1.json'), 'utf8')).formatVersion).toBe(FORMAT_VERSION)
     const rouvert = new CorpusStore(dir).ouvrir()
     expect(rouvert.attributsCas).toEqual({ attr: definitionAttribut() })

@@ -3,14 +3,28 @@ import type { EntretienFichier, EntretienRef, Variable } from '../../../shared/f
 import type { InventairePersonnes } from '../../../shared/corpus/personnes'
 import {
   normaliserNomCas,
+  compterUsagesAttributCas,
+  porteeObservationsCas,
   type FamilleCas,
   type CommandeFamilleCas,
   type Cas,
   type CommandeCas,
   type RattachementCas,
   type RegleCas,
+  type DefinitionAttributCas,
+  type DerivationAttributCas,
   membresPersonnesRegle,
 } from '../../../shared/corpus/cas'
+import {
+  evaluerDerivationFamille,
+  libelleValeurSaisie,
+  projeterAttributsCas,
+  resoudreDerivationCas,
+  variablesDisponiblesFamille,
+  type AttributCasProjete,
+  type DiagnosticAttributCas,
+  type VariableCandidateFamille,
+} from '../../../shared/corpus/observationsAttributs'
 import {
   projeterCas,
   projeterCasDepuisSourcesPreparees,
@@ -70,6 +84,7 @@ export interface SelectionAssociationCas {
 export function useCasCorpus(deps: {
   cas: Ref<Record<string, Cas>>
   famillesCas?: Ref<Record<string, FamilleCas>>
+  attributsCas?: Ref<Record<string, DefinitionAttributCas>>
   variables?: Ref<Variable[]>
   membership: Ref<Record<string, EntretienRef>>
   ouvertId: Ref<string | null>
@@ -103,6 +118,8 @@ export function useCasCorpus(deps: {
   const famillesCas = deps.famillesCas ?? ref<Record<string, FamilleCas>>({})
   const variablesCas = deps.variables ?? ref<Variable[]>([])
   const creationFamilleEnAttente = ref<Exclude<CommandeFamilleCas, { type: 'dissoudre-famille' }> | null>(null)
+  const attributsCasRef = deps.attributsCas ?? ref<Record<string, DefinitionAttributCas>>({})
+  const attributsProjeteCas = ref<Record<string, AttributCasProjete[]>>({})
   let familleEnCours = false
   const generationsApercus = new WeakMap<object, number>()
   let generation = 0
@@ -114,6 +131,9 @@ export function useCasCorpus(deps: {
   )
   const projectionCas = computed(() =>
     casOuvertId.value ? projectionsCas.value[casOuvertId.value] ?? null : null,
+  )
+  const attributsCasOuvert = computed(() =>
+    casOuvertId.value ? attributsProjeteCas.value[casOuvertId.value] ?? [] : [],
   )
   const vueMateriauxCas = computed(() =>
     projectionCas.value?.vues[modeMateriauxCas.value] ?? null,
@@ -173,11 +193,23 @@ export function useCasCorpus(deps: {
     return [...ids]
   }
 
+  function corpusPourProjections() {
+    return {
+      membership: deps.membership.value,
+      personnes: {},
+      variables: Object.fromEntries(variablesCas.value.map((v) => [v.id, v])),
+      famillesCas: famillesCas.value,
+      attributsCas: attributsCasRef.value,
+      cas: deps.cas.value,
+    }
+  }
+
   async function rafraichirProjections(): Promise<void> {
     const courants = Object.values(deps.cas.value)
     const maGeneration = ++generation
     if (!courants.length) {
       projectionsCas.value = {}
+      attributsProjeteCas.value = {}
       chargementCas.value = false
       return
     }
@@ -190,14 +222,21 @@ export function useCasCorpus(deps: {
       if (maGeneration !== generation) return
       const personnes = Object.fromEntries((inventaire?.personnes ?? []).map((personne) => [personne.id, personne]))
       const preparees = preparerSourcesPassages(sources)
+      const corpus = corpusPourProjections()
       projectionsCas.value = Object.fromEntries(courants.map((courant) => [
         courant.id,
         projeterCasDepuisSourcesPreparees(
-          { membership: deps.membership.value, personnes, variables: Object.fromEntries(variablesCas.value.map((v) => [v.id, v])) },
+          { membership: deps.membership.value, personnes, variables: corpus.variables },
           structuredClone(toRaw(courant)),
           preparees,
           modeTexteCas.value,
         ),
+      ]))
+      // Les attributs dérivés sont recalculés depuis ces mêmes sources : aucune
+      // valeur issue d'un état antérieur n'est jamais réaffichée comme valide.
+      attributsProjeteCas.value = Object.fromEntries(courants.map((courant) => [
+        courant.id,
+        projeterAttributsCas(corpus, structuredClone(toRaw(courant)), sources),
       ]))
     } finally {
       if (maGeneration === generation) chargementCas.value = false
@@ -250,6 +289,8 @@ export function useCasCorpus(deps: {
     creationCasEnAttente.value = null
     creationFamilleEnAttente.value = null
     famillesCas.value = {}
+    attributsCasRef.value = {}
+    attributsProjeteCas.value = {}
     casOuverts.value = false
     casOuvertId.value = null
     modeTexteCas.value = 'pseudonymise'
@@ -278,6 +319,7 @@ export function useCasCorpus(deps: {
       if (corpusAttendu !== generationCorpus) throw new Error('Le corpus a changé pendant la commande.')
       deps.cas.value = corpus.cas ?? {}
       famillesCas.value = corpus.famillesCas ?? {}
+      attributsCasRef.value = corpus.attributsCas ?? {}
       variablesCas.value = Object.values(corpus.variables ?? {})
       etatSauvegardeCas.value = 'à jour'
       await rafraichirProjections()
@@ -290,6 +332,7 @@ export function useCasCorpus(deps: {
         if (corpusAttendu !== generationCorpus) throw erreur
         deps.cas.value = corpus.cas ?? {}
         famillesCas.value = corpus.famillesCas ?? {}
+        attributsCasRef.value = corpus.attributsCas ?? {}
         variablesCas.value = Object.values(corpus.variables ?? {})
         await rafraichirProjections()
       } catch {
@@ -616,6 +659,219 @@ export function useCasCorpus(deps: {
     })
   }
 
+  /** Inventaire des usages d'une définition, pour annoncer la suppression. */
+  function usagesAttribut(attributId: string) {
+    return compterUsagesAttributCas(
+      { cas: deps.cas.value, famillesCas: famillesCas.value },
+      attributId,
+    )
+  }
+
+  /** Enregistre une définition partagée ; l'ordre suit la fin du registre. */
+  async function creerDefinitionAttribut(params: {
+    lib: string
+    type: 'texte' | 'modalites'
+    priv: boolean
+    modalites: Array<{ id?: string; lib: string }>
+  }): Promise<void> {
+    const ordre = Object.values(attributsCasRef.value)
+      .reduce((maximum, definition) => Math.max(maximum, definition.ordre), 0)
+    await commanderCas({
+      type: 'creer-attribut',
+      definition: {
+        id: nouvelId('attribut-cas'),
+        lib: params.lib,
+        type: params.type,
+        priv: params.priv,
+        ordre: ordre + 1,
+        modalites: params.type === 'texte' ? [] : params.modalites.map((modalite) => ({
+          id: modalite.id ?? nouvelId('mod-attribut'),
+          lib: modalite.lib,
+        })),
+      },
+    })
+  }
+
+  async function modifierDefinitionAttribut(
+    attributId: string,
+    patch: Partial<Pick<DefinitionAttributCas, 'lib' | 'priv' | 'modalites'>>,
+  ): Promise<void> {
+    const courante = attributsCasRef.value[attributId]
+    if (!courante) throw new Error("Cet attribut n'existe plus.")
+    await commanderCas({
+      type: 'modifier-attribut',
+      attributId,
+      attendu: structuredClone(toRaw(courante)),
+      patch: structuredClone(toRaw(patch)),
+    })
+  }
+
+  async function supprimerDefinitionAttribut(attributId: string): Promise<void> {
+    await commanderCas({ type: 'supprimer-attribut', attributId })
+  }
+
+  /** Saisit (ou efface) une valeur sur le cas ouvert, sous valeur attendue. */
+  async function definirValeurAttribut(attributId: string, valeur: string | null): Promise<void> {
+    const courant = casOuvert.value
+    if (!courant) throw new Error('Aucun cas ouvert.')
+    await commanderCas({
+      type: 'definir-valeur-attribut',
+      casId: courant.id,
+      attributId,
+      attendu: courant.valeursAttributsSaisis?.[attributId] ?? null,
+      valeur,
+    })
+  }
+
+  /** Variables de la portée de la famille, avec disponibilité et diagnostics. */
+  async function apercuVariablesFamille(familleId: string): Promise<VariableCandidateFamille[]> {
+    const famille = famillesCas.value[familleId]
+    if (!famille) throw new Error('La famille n’existe plus.')
+    const sources = await chargerSources(Object.keys(deps.membership.value))
+    return variablesDisponiblesFamille(corpusPourProjections(), famille, sources)
+  }
+
+  /** Évalue une recette pour toute la famille, sans écrire dans le corpus. */
+  async function apercuDerivationFamille(
+    familleId: string,
+    variableSourceId: string,
+  ): Promise<{ famille: FamilleCas; derivation: DerivationAttributCas; evaluation: ReturnType<typeof evaluerDerivationFamille> }> {
+    const famille = famillesCas.value[familleId]
+    if (!famille) throw new Error('La famille n’existe plus.')
+    const derivation: DerivationAttributCas = {
+      attributId: 'apercu', variableSourceId, porteeSource: famille.origine.portee,
+    }
+    const sources = await chargerSources(Object.keys(deps.membership.value))
+    return {
+      famille, derivation,
+      evaluation: evaluerDerivationFamille(corpusPourProjections(), famille, derivation, sources),
+    }
+  }
+
+  async function ajouterDerivationFamille(
+    familleId: string,
+    params: {
+      variableSourceId: string
+      attributExistantId?: string
+      nouvelleDefinition?: { lib: string; priv: boolean }
+    },
+  ): Promise<void> {
+    const famille = famillesCas.value[familleId]
+    if (!famille) throw new Error('La famille n’existe plus.')
+    const variable = variablesCas.value.find((v) => v.id === params.variableSourceId)
+    if (!variable || variable.portee !== famille.origine.portee) {
+      throw new Error('La variable source est absente ou sa portée ne correspond pas à la famille.')
+    }
+    const { derivation, definition } = construireRecette(
+      params, famille.origine.portee,
+    )
+    const membresAttendus = Object.values(deps.cas.value)
+      .filter((courant) => courant.familleId === familleId).map((courant) => courant.id).sort()
+    await commanderCas({
+      type: 'ajouter-derivation-famille', familleId,
+      membresAttendus, derivation,
+      ...(definition ? { definition } : {}),
+    })
+  }
+
+  async function retirerDerivationFamille(familleId: string, attributId: string): Promise<void> {
+    const famille = famillesCas.value[familleId]
+    if (!famille) throw new Error('La famille n’existe plus.')
+    const attendu = (famille.derivationsAttributs ?? []).find((derivation) =>
+      derivation.attributId === attributId)
+    if (!attendu) throw new Error('Cette recette a déjà été retirée.')
+    await commanderCas({
+      type: 'retirer-derivation-famille', familleId, attributId,
+      attendu: structuredClone(toRaw(attendu)),
+    })
+  }
+
+  /** Variables dérivables pour le cas ouvert : même portée que ses observations. */
+  async function apercuVariablesDerivationCas(casId: string): Promise<Variable[]> {
+    const courant = deps.cas.value[casId]
+    if (!courant) throw new Error('Ce cas n’existe plus.')
+    const portee = porteeObservationsCas(courant)
+    if (!portee) return []
+    return variablesCas.value.filter((variable) => variable.portee === portee)
+  }
+
+  /** Évalue une dérivation propre sur le cas, sans écrire dans le corpus. */
+  async function apercuDerivationPropre(
+    casId: string,
+    variableSourceId: string,
+  ): Promise<DiagnosticAttributCas> {
+    const courant = deps.cas.value[casId]
+    if (!courant) throw new Error('Ce cas n’existe plus.')
+    const variable = variablesCas.value.find((v) => v.id === variableSourceId)
+    const portee = porteeObservationsCas(courant)
+    if (!variable || variable.portee !== portee) {
+      throw new Error('La variable doit avoir la même portée que les observations du cas.')
+    }
+    const derivation: DerivationAttributCas = {
+      attributId: 'apercu', variableSourceId, porteeSource: variable.portee,
+    }
+    const sources = await chargerSources(idsSources([courant]))
+    return resoudreDerivationCas(corpusPourProjections(), courant, derivation, sources)
+  }
+
+  /** Construit la recette et, si demandé, la définition cible (ordre suivant
+   *  le registre, sans modalités : la valeur dérivée se résout depuis la
+   *  variable source, aucune copie n'est persistée). */
+  function construireRecette(
+    params: { variableSourceId: string; attributExistantId?: string; nouvelleDefinition?: { lib: string; priv: boolean } },
+    porteeSource: DerivationAttributCas['porteeSource'],
+  ): { derivation: DerivationAttributCas; definition?: DefinitionAttributCas } {
+    if (params.attributExistantId) {
+      return {
+        derivation: { attributId: params.attributExistantId, variableSourceId: params.variableSourceId, porteeSource },
+      }
+    }
+    const lib = params.nouvelleDefinition?.lib?.trim()
+    if (!lib) throw new Error('Le libellé du nouvel attribut est obligatoire.')
+    const ordre = Object.values(attributsCasRef.value)
+      .reduce((maximum, definition) => Math.max(maximum, definition.ordre), 0)
+    const id = nouvelId('attribut-cas')
+    return {
+      derivation: { attributId: id, variableSourceId: params.variableSourceId, porteeSource },
+      definition: {
+        id, lib, type: 'modalites',
+        priv: params.nouvelleDefinition?.priv ?? false,
+        ordre: ordre + 1, modalites: [],
+      },
+    }
+  }
+
+  async function ajouterDerivationPropre(
+    casId: string,
+    params: {
+      variableSourceId: string
+      attributExistantId?: string
+      nouvelleDefinition?: { lib: string; priv: boolean }
+    },
+  ): Promise<void> {
+    const courant = deps.cas.value[casId]
+    if (!courant) throw new Error('Ce cas n’existe plus.')
+    const portee = porteeObservationsCas(courant)
+    if (!portee) throw new Error('Un cas manuel ne peut pas recevoir d’attribut dérivé.')
+    const { derivation, definition } = construireRecette(params, portee)
+    await commanderCas({
+      type: 'ajouter-derivation-cas', casId, derivation,
+      ...(definition ? { definition } : {}),
+    })
+  }
+
+  async function retirerDerivationPropre(casId: string, attributId: string): Promise<void> {
+    const courant = deps.cas.value[casId]
+    if (!courant) throw new Error('Ce cas n’existe plus.')
+    const attendu = (courant.derivationsPropres ?? []).find((derivation) =>
+      derivation.attributId === attributId)
+    if (!attendu) throw new Error('Cette recette a déjà été retirée.')
+    await commanderCas({
+      type: 'retirer-derivation-cas', casId, attributId,
+      attendu: structuredClone(toRaw(attendu)),
+    })
+  }
+
   async function changerModeTexteCas(mode: ModeTextePassage): Promise<void> {
     modeTexteCas.value = mode
     await rafraichirProjections()
@@ -638,7 +894,7 @@ export function useCasCorpus(deps: {
       void rafraichirProjections()
     }
   })
-  watch([variablesCas, famillesCas], () => {
+  watch([variablesCas, famillesCas, attributsCasRef], () => {
     if (casOuverts.value) void rafraichirProjections()
   })
   watch(deps.membership, () => {
@@ -648,6 +904,22 @@ export function useCasCorpus(deps: {
   return {
     famillesCas, variablesCas, preparerFamilleCas, creerOuCompleterFamilleCas,
     creationFamilleEnAttente, abandonnerCreationFamilleCas, dissoudreFamilleCas,
+    attributsCas: attributsCasRef,
+    attributsProjeteCas,
+    attributsCasOuvert,
+    usagesAttribut,
+    creerDefinitionAttribut,
+    modifierDefinitionAttribut,
+    supprimerDefinitionAttribut,
+    definirValeurAttribut,
+    apercuVariablesFamille,
+    apercuDerivationFamille,
+    ajouterDerivationFamille,
+    retirerDerivationFamille,
+    apercuVariablesDerivationCas,
+    apercuDerivationPropre,
+    ajouterDerivationPropre,
+    retirerDerivationPropre,
     listeCas,
     casOuvert,
     casOuvertId,

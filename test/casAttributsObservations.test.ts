@@ -93,6 +93,36 @@ describe('résolution d’une dérivation — famille Établissement (portée lo
     expect(famille.problemes.join(' ')).toContain('cas-f-a')
   })
 
+  test('recette A/B/C : conflit sur A, B cohérent, C absent, puis réactivation après correction', () => {
+    const corpus = corpusAvecFamille()
+    corpus.variables.v.modalites.push({ id: 'c', lib: 'C', mExport: 3 })
+    corpus.cas!['cas-f-c'] = casModalite('c')
+    const premier = sourceFamille()
+    premier.locuteurs.find((locuteur) => locuteur.index === 5)!.valeursLoc.v = 'c'
+    const second = sourceFamille(true)
+    avecTaille(premier, { 2: 'taille1', 3: 'taille1', 4: 'taille2', 6: 'taille1' })
+    avecTaille(second, { 2: 'taille2', 3: 'taille2', 4: 'taille2', 6: 'taille1' })
+    const lectures = sources(premier, second)
+    const recette = derivation('taille')
+
+    const conflit = evaluerDerivationFamille(corpus, familleCas(), recette, lectures)
+    expect(conflit.disponible).toBe(false)
+    expect(conflit.parCas.map((entree) => [entree.nomCas, entree.diagnostic.statut])).toEqual([
+      ['cas-f-a', 'incoherent'],
+      ['cas-f-b', 'coherent'],
+      ['cas-f-c', 'absent'],
+    ])
+
+    second.locuteurs.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'taille1'
+    const corrige = evaluerDerivationFamille(corpus, familleCas(), recette, lectures)
+    expect(corrige.disponible).toBe(true)
+    expect(corrige.parCas.map((entree) => [entree.nomCas, entree.diagnostic.statut])).toEqual([
+      ['cas-f-a', 'coherent'],
+      ['cas-f-b', 'coherent'],
+      ['cas-f-c', 'absent'],
+    ])
+  })
+
   test('les identités de modalités sont comparées, pas leurs libellés', () => {
     const corpus = corpusAvecFamille()
     corpus.variables.taille = variable('taille', 'Taille', 'locuteur', ['petit', 'petit'])
@@ -214,6 +244,26 @@ describe('projection des attributs d’un cas', () => {
       .toEqual([['attr2', 'derivation-propre']])
     expect(libelleValeurSaisie(corpus.attributsCas!.statut, 'à revoir')).toBe('à revoir')
     expect(libelleValeurSaisie(definition('choix'), 'x')).toBe('Choix')
+  })
+
+  test('un conflit local suspend aussi la valeur cohérente des autres membres de la famille', () => {
+    const corpus = corpusAvecFamille()
+    corpus.attributsCas = { attr: definition('attr') }
+    const famille = familleCas()
+    famille.derivationsAttributs = [derivation('taille')]
+    corpus.famillesCas = { f: famille }
+    const lectures = sources(
+      avecTaille(sourceFamille(), { 2: 'taille1', 3: 'taille2', 6: 'taille1' }),
+      avecTaille(sourceFamille(true), { 2: 'taille2', 3: 'taille2', 6: 'taille2' }),
+    )
+    const projectionB = projeterAttributsCas(corpus, corpus.cas!['cas-f-b'], lectures)[0]
+    expect(projectionB.diagnostic).toMatchObject({
+      statut: 'coherent-incomplet',
+      valeur: null,
+      valeurLibelle: null,
+      suspensionFamille: {},
+    })
+    expect(projectionB.diagnostic?.problemes.join(' ')).toMatch(/suspendu pour toute la famille/)
   })
 
   test('variables proposées à la famille : portée filtrée et disponibilité calculée', () => {

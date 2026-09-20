@@ -31,6 +31,7 @@ interface ModeleCycleCorpus {
   recueils: Ref<NonNullable<CorpusFichier['recueils']>>
   cas: Ref<NonNullable<CorpusFichier['cas']>>
   famillesCas: Ref<NonNullable<CorpusFichier['famillesCas']>>
+  attributsCas: Ref<NonNullable<CorpusFichier['attributsCas']>>
   tableaubord: Ref<TableauBord | null>
   paramsAnon: Ref<ParamsAnon>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
@@ -139,6 +140,7 @@ export function useCycleCorpus(deps: {
     deps.corpus.recueils.value = corpus.recueils ?? {}
     deps.corpus.cas.value = corpus.cas ?? {}
     deps.corpus.famillesCas.value = corpus.famillesCas ?? {}
+    deps.corpus.attributsCas.value = corpus.attributsCas ?? {}
     deps.corpus.tableaubord.value = normaliserTableauBord(corpus.tableaubord) ?? tableauBordParDefaut()
     deps.corpus.majCodebook(corpus.codebook)
     deps.corpus.majVariables(corpus.variables)
@@ -249,6 +251,7 @@ export function useCycleCorpus(deps: {
     deps.corpus.recueils.value = charge.recueils ?? {}
     deps.corpus.cas.value = charge.cas ?? {}
     deps.corpus.famillesCas.value = charge.famillesCas ?? {}
+    deps.corpus.attributsCas.value = charge.attributsCas ?? {}
     deps.corpus.tableaubord.value = normaliserTableauBord(charge.tableaubord) ?? tableauBordParDefaut()
     deps.corpus.majCodebook(charge.codebook)
     deps.corpus.majVariables(charge.variables)

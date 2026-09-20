@@ -40,6 +40,10 @@ export interface DiagnosticAttributCas {
   valeurLibelle: string | null
   observations: ObservationAttributCas[]
   problemes: string[]
+  /** La valeur locale est masquée parce qu'un autre membre rend la recette
+   *  indisponible pour toute la famille. Les diagnostics locaux restent
+   *  consultables pour permettre la correction des données. */
+  suspensionFamille?: { problemes: string[] }
 }
 
 /** Un propriétaire de valeurs admissible par la règle, sans texte requis. */
@@ -250,13 +254,28 @@ export function projeterAttributsCas(
   const vus = new Set<string>()
   for (const [attributId, { derivation, origine }] of derivations) {
     vus.add(attributId)
+    let diagnostic = resoudreDerivationCas(corpus, cas, derivation, sources)
+    if (origine === 'derivation-famille' && famille) {
+      const evaluation = evaluerDerivationFamille(corpus, famille, derivation, sources)
+      const local = evaluation.parCas.find((entree) => entree.casId === cas.id)?.diagnostic ?? diagnostic
+      diagnostic = evaluation.disponible ? local : {
+        ...local,
+        valeur: null,
+        valeurLibelle: null,
+        suspensionFamille: { problemes: evaluation.problemes },
+        problemes: [
+          ...local.problemes,
+          'Cet attribut est suspendu pour toute la famille tant qu’un cas reste conflictuel ou non vérifiable.',
+        ],
+      }
+    }
     attributs.push({
       attributId,
       definition: corpus.attributsCas?.[attributId] ?? null,
       origine,
       valeurSaisie: null,
       derivation,
-      diagnostic: resoudreDerivationCas(corpus, cas, derivation, sources),
+      diagnostic,
     })
   }
   for (const [attributId, valeur] of Object.entries(cas.valeursAttributsSaisis ?? {})) {

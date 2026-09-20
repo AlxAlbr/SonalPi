@@ -7,9 +7,8 @@ que tu souhaites analyser.
 Les passages restent dans leurs entretiens. Le cas permet de les retrouver ensemble,
 de les relire et d’ouvrir leur contexte, sans fabriquer une nouvelle transcription.
 
-> Ce guide distingue les fonctions **présentes dans le code actuel** des **évolutions
-> prévues**. La création en lot et les entretiens entiers sont disponibles.
-> Les familles de modalités sont disponibles ; attributs de cas et export natif QualCoder restent à venir.
+> La création en lot, les entretiens entiers, les familles de modalités et les
+> attributs de cas sont disponibles. L’export natif QualCoder reste un chantier séparé.
 
 ## Cas, personne, thème ou recueil ?
 
@@ -235,39 +234,65 @@ suivre les mêmes identifiants. Une variable ou modalité utilisée par des cas 
 être supprimée sans traiter ces usages ; une famille protège aussi sa variable de regroupement.
 Dissoudre ne retire pas les règles des cas : elles continuent donc de protéger leurs variables.
 
-## 2. Évolutions prévues — pas encore disponibles
+## 2. Attributs saisis ou dérivés
 
-### Attributs saisis ou dérivés
-
-Un attribut décrit un cas. Deux origines seront distinguées :
+Un attribut décrit un cas. Deux origines sont distinguées :
 
 - **Saisi** : tu renseignes directement une propriété, par exemple le statut de suivi du dossier.
-- **Dérivé** : tu demandes au logiciel d’utiliser une variable des membres sélectionnés par la règle.
+- **Dérivé** : SonalPi utilise une variable des membres sélectionnés par la règle.
 
-Exemple : les locuteurs portent les variables **Établissement** et **Taille de l’établissement**.
-Tu crées les cas A/B/C depuis Établissement, puis choisis Taille comme attribut dérivé.
-Les deux variables doivent avoir la **même portée** : ici, celle du locuteur.
-L’utilisation d’une variable d’entretien comme attribut d’un regroupement de locuteurs
-est laissée de côté pour le moment.
+### Définir et saisir un attribut
 
-Le logiciel vérifiera les valeurs au sein de chaque cas, sur l’ensemble de ses entretiens :
+Dans la fenêtre **Cas**, choisis **Attributs** pour ouvrir le registre partagé du corpus.
+Tu peux y créer un attribut de texte libre ou un attribut avec modalités, le renommer,
+modifier son domaine de saisie et le déclarer **privé**. Une modalité encore utilisée
+ne peut pas être retirée. Une définition encore liée à une valeur ou à une recette
+ne peut pas être supprimée avant traitement de ces usages.
+
+Ouvre ensuite un cas et déplie **Saisir un attribut**. Choisis sa définition et sa valeur.
+Les cas manuels, y compris vides, peuvent recevoir des valeurs saisies. Une valeur saisie
+et une recette ne peuvent pas occuper le même attribut sur le même cas.
+
+### Dériver depuis une règle ou une famille
+
+Pour un cas avec règle qui n’appartient pas à une famille, déplie
+**Dériver un attribut des membres de la règle**. Pour une famille, utilise le filtre
+**Famille**, puis **Attributs de la famille** et **Ajouter un attribut à la famille**.
+L’aperçu détaille chaque cas avant l’enregistrement.
+
+Exemple : les locuteurs portent les variables **Établissement** et
+**Taille de l’établissement**. Tu crées les cas A/B/C depuis Établissement, puis choisis
+Taille comme attribut dérivé. Les deux variables doivent avoir la **même portée** : ici,
+celle du locuteur. Les dérivations entre portée entretien et portée locuteur ne sont
+pas proposées.
+
+Le logiciel vérifie les valeurs sur l’ensemble des membres et entretiens concernés :
 
 - aucune valeur connue : attribut absent ;
-- une valeur connue, même avec des données manquantes : disponible, avec avertissement si nécessaire ;
-- plusieurs valeurs contradictoires pour A : cet attribut sera indisponible pour **toute la famille A/B/C** ;
-- données nécessaires illisibles : cohérence non vérifiable, pas de valeur certifiée.
+- une valeur connue, même avec des données manquantes : disponible, avec avertissement ;
+- plusieurs valeurs contradictoires pour A : attribut suspendu pour **toute la famille A/B/C** ;
+- source illisible ou référence invalide : cohérence non vérifiable, sans valeur certifiée.
 
-Les cas et les autres attributs resteront utilisables. Après correction des données,
-l’attribut pourra être recalculé. Avoir une taille différente pour A et B est normal :
-le problème est d’avoir plusieurs tailles pour le même établissement sur le périmètre choisi.
-Une variation peut aussi être légitime, comme un âge qui change : elle ne fournit
-simplement pas une valeur unique non datée.
+La fiche conserve les observations locales pour expliquer le diagnostic. Une valeur
+localement cohérente de B n’est plus affichée comme disponible tant que le conflit de A
+suspend la recette familiale. Après correction des données et **Actualiser**, les valeurs
+sont recalculées sans perdre les cas, règles ou passages.
 
-**Les ajouts manuels ne modifieront pas les attributs dérivés.** Ajouter au cas A un
-passage d’un locuteur de B n’introduira ni la taille de B ni ses données manquantes
-dans le calcul des attributs de A.
+Avoir une taille différente pour A et B est normal : le problème est d’avoir plusieurs
+tailles pour le même établissement sur le périmètre choisi. Une variation peut aussi
+être légitime, comme un âge qui change ; elle ne fournit simplement pas une valeur unique
+non datée.
 
-### Export vers QualCoder
+**Les ajouts manuels ne modifient pas les attributs dérivés.** Ajouter au cas A un passage
+d’un locuteur de B n’introduit ni la taille de B ni ses données manquantes dans le calcul.
+Une variable privée propose un nouvel attribut privé par défaut. Vérifie malgré tout les
+noms de cas et de familles : ils peuvent eux-mêmes révéler une information sensible.
+
+Une famille portant une recette ne peut pas être dissoute avant retrait explicite de ses
+recettes. Dans un corpus distant, les sources de contrôle sont relues sous verrou lors de
+l’ajout d’une recette ; une modification concurrente impose de refaire l’aperçu.
+
+## 3. Export vers QualCoder
 
 L’export prévu produira un projet natif QualCoder `.qda`, testé avec l’installation
 cible du projet. Il conservera les transcriptions complètes, les cas et leurs plages,

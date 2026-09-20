@@ -11,6 +11,8 @@ export interface DependancesCommandeCas {
   verifierReferencesPubliees?: (references: SourcePassageCas[]) => Promise<void>
   repereExiste: (entretienId: string, repereId: string) => boolean
   executerDefinitions: () => Promise<CorpusFichier> | CorpusFichier
+  /** Transaction distante qui relit aussi les entretiens de contrôle. */
+  executerDefinitionsAvecSources?: () => Promise<CorpusFichier> | CorpusFichier
 }
 
 /** Publie les sources concernées avant la transaction courte sur le corpus. */
@@ -19,8 +21,13 @@ export async function executerCommandeCas(
   deps: DependancesCommandeCas,
 ): Promise<CorpusFichier> {
   const references = referencesAjouteesCommandeCas(commande)
-  const entretiens = [...new Set(references.map((reference) => reference.entretienId))]
+  const ajoutDerivation = commande.type === 'ajouter-derivation-famille'
+    || commande.type === 'ajouter-derivation-cas'
   const tenues = new Set(deps.sessionsTenues())
+  const entretiens = new Set(references.map((reference) => reference.entretienId))
+  // Une recette est contrôlée sur toutes ses sources. Les sources détenues par
+  // cette session sont donc publiées avant la transaction de lecture fraîche.
+  if (ajoutDerivation) for (const entretienId of tenues) entretiens.add(entretienId)
   for (const entretienId of entretiens) {
     if (!tenues.has(entretienId)) continue
     const publication = await deps.publierEntretien(entretienId)
@@ -34,6 +41,9 @@ export async function executerCommandeCas(
     if (!deps.repereExiste(reference.entretienId, reference.repereId)) {
       throw new Error("Le repère du passage n'a pas été enregistré dans l'entretien.")
     }
+  }
+  if (ajoutDerivation && deps.executerDefinitionsAvecSources) {
+    return deps.executerDefinitionsAvecSources()
   }
   return deps.executerDefinitions()
 }

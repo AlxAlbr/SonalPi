@@ -10,6 +10,7 @@ import { useThemesCorpus } from './corpus/useThemesCorpus'
 import { useVariablesCorpus } from './corpus/useVariablesCorpus'
 import type { CommandePersonnes } from '../../shared/corpus/personnes'
 import type { CommandeNotes } from '../../shared/corpus/notes'
+import type { DefinitionAttributCas } from '../../shared/corpus/cas'
 
 /**
  *  Scope CORPUS : définitions (codebook, variables), membership (index LÉGER —
@@ -26,6 +27,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
   const recueils = ref<Record<string, Recueil>>({})
   const cas = ref<Record<string, Cas>>({})
   const famillesCas = ref<Record<string, FamilleCas>>({})
+  const attributsCas = ref<Record<string, DefinitionAttributCas>>({})
   const tableaubord = ref<TableauBord | null>(null)
   const themes = useThemesCorpus(opts)
   const variables = useVariablesCorpus(opts)
@@ -62,6 +64,7 @@ export function useCorpus(opts: { flush: () => Promise<void> }) {
     recueils,
     cas,
     famillesCas,
+    attributsCas,
     tableaubord,
     codebook: themes.codebook,
     codeCourant: themes.codeCourant,

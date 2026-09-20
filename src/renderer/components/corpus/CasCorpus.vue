@@ -6,6 +6,9 @@ import type { PassageCasProjete } from '../../editor/cas'
 import type { ApercuPersonneCas } from '../../composables/corpus/useCasCorpus'
 import CreationLotCas from './CreationLotCas.vue'
 import CreationFamilleCas from './CreationFamilleCas.vue'
+import AttributsCasFiche from './AttributsCasFiche.vue'
+import AttributsFamilleFiche from './AttributsFamilleFiche.vue'
+import DefinitionsAttributsCas from './DefinitionsAttributsCas.vue'
 
 const {
   famillesCas, variablesCas, creationFamilleEnAttente, dissoudreFamilleCas,
@@ -43,6 +46,8 @@ const {
 
 const recherche = ref('')
 const creationOuverte = ref(false)
+const registreAttributsOuvert = ref(false)
+const familleFicheId = ref<string | null>(null)
 const modeCreation = ref<'personne' | 'vide' | 'personnes' | 'entretiens' | 'variable-locuteur' | 'variable-entretien'>('personne')
 const familleCompletionId = ref<string | undefined>()
 const filtreFamille = ref('')
@@ -161,6 +166,8 @@ watch([personneId, inclureEnqueteurs, modeCreation], async ([id, inclure, mode])
 })
 
 function commencerCreation() {
+  registreAttributsOuvert.value = false
+  familleFicheId.value = null
   familleCompletionId.value = undefined
   creationOuverte.value = true
   modeCreation.value = creationCasEnAttente.value
@@ -180,6 +187,20 @@ function commencerCreation() {
   casOuvertId.value = null
 }
 
+function ouvrirRegistreAttributs() {
+  creationOuverte.value = false
+  familleFicheId.value = null
+  casOuvertId.value = null
+  registreAttributsOuvert.value = true
+}
+
+function ouvrirFicheFamille(id: string) {
+  creationOuverte.value = false
+  registreAttributsOuvert.value = false
+  casOuvertId.value = null
+  familleFicheId.value = id
+}
+
 function completerFamille(id: string) {
   if (creationFamilleEnAttente.value) { commencerCreation(); return }
   const famille = famillesCas.value[id]
@@ -196,7 +217,10 @@ async function dissoudreFamille(id: string) {
   const membres = listeCas.value.filter((cas) => cas.familleId === id).map((cas) => cas.id)
   if (!confirm(`Dissoudre « ${famille.nom} » ? Les ${membres.length} cas, leurs règles et ajouts manuels seront conservés. Les règles resteront actives et protégeront les variables et modalités utilisées.`)) return
   await tenter(() => dissoudreFamilleCas(famille, membres))
-  if (!famillesCas.value[id]) filtreFamille.value = ''
+  if (!famillesCas.value[id]) {
+    filtreFamille.value = ''
+    familleFicheId.value = null
+  }
 }
 
 function annulerCreation() {
@@ -299,7 +323,10 @@ function clePassage(passage: PassageCasProjete, index: number): string {
     <aside class="repertoire-cas">
       <div class="tete-repertoire">
         <h2>Cas</h2>
-        <button :disabled="lectureSeule || Boolean(associationCas)" @click="commencerCreation">Nouveau cas</button>
+        <span class="actions-repertoire">
+          <button :disabled="lectureSeule || Boolean(associationCas)" @click="ouvrirRegistreAttributs">Attributs</button>
+          <button :disabled="lectureSeule || Boolean(associationCas)" @click="commencerCreation">Nouveau cas</button>
+        </span>
       </div>
       <input v-model="recherche" class="recherche" type="search" placeholder="Rechercher un cas" aria-label="Rechercher un cas" />
       <label>Famille<select v-model="filtreFamille" aria-label="Filtrer les familles"><option value="">Toutes les familles et cas</option><option v-for="f in famillesCas" :key="f.id" :value="f.id">{{ f.nom }}</option></select></label>
@@ -309,6 +336,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
         <p>{{ listeCas.filter((cas) => cas.familleId === filtreFamille).length }} cas ; nouvelles modalités ajoutées uniquement sur demande.</p>
         <button :disabled="lectureSeule" @click="completerFamille(filtreFamille)">Compléter la famille</button>
         <button :disabled="lectureSeule" @click="dissoudreFamille(filtreFamille)">Dissoudre la famille</button>
+        <button @click="ouvrirFicheFamille(filtreFamille)">Attributs de la famille</button>
       </div>
       <p v-if="!listeCas.length" class="vide">Aucun cas. Créez un cas manuel vide ou un cas depuis une personne.</p>
       <p v-else-if="!casFiltres.length" class="vide">Aucun cas ne correspond à cette recherche.</p>
@@ -317,7 +345,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
         :key="courant.id"
         class="carte-cas"
         :class="{ actif: casOuvertId === courant.id }"
-        @click="creationOuverte = false; ouvrirCas(courant.id)"
+        @click="creationOuverte = false; registreAttributsOuvert = false; familleFicheId = null; ouvrirCas(courant.id)"
       >
         <span class="nom-carte"><b>{{ courant.nom }}</b><em v-if="projectionsCas[courant.id]?.problemes">⚠ {{ projectionsCas[courant.id].problemes }}</em></span>
         <span>{{ projectionsCas[courant.id]?.metriques.passagesDisponibles ?? '…' }} passage(s)</span>
@@ -452,6 +480,16 @@ function clePassage(passage: PassageCasProjete, index: number): string {
         </template>
       </section>
 
+      <DefinitionsAttributsCas
+        v-else-if="registreAttributsOuvert"
+        @fermer="registreAttributsOuvert = false"
+      />
+      <AttributsFamilleFiche
+        v-else-if="familleFicheId"
+        :famille-id="familleFicheId"
+        @fermer="familleFicheId = null"
+      />
+
       <p v-else-if="!casOuvert" class="vide grande">Créez ou ouvrez un cas.</p>
 
       <template v-else>
@@ -500,6 +538,8 @@ function clePassage(passage: PassageCasProjete, index: number): string {
             @change="enregistrerMemo"
           ></textarea>
         </label>
+
+        <AttributsCasFiche />
 
         <label class="filtre-materiaux">
           Matériaux affichés
@@ -575,6 +615,7 @@ function clePassage(passage: PassageCasProjete, index: number): string {
 .cas-corpus { display: grid; grid-template-columns: 280px 1fr; gap: 1rem; min-height: 65vh; }
 .repertoire-cas, .fiche-cas { border: 1px solid #ddd; border-radius: 8px; background: #fff; padding: .8rem; }
 .tete-repertoire, .creation-cas > header, .association-cas > header, .barre-cas { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.actions-repertoire { display: flex; gap: .3rem; }
 h2, h3 { margin: 0; }
 .tete-repertoire h2 { font-size: 1.1rem; }
 .recherche { width: 100%; box-sizing: border-box; margin: .7rem 0; padding: .4rem; }

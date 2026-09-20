@@ -155,6 +155,20 @@ export class TransactionsCorpus {
     }
   }
 
+  /** Modifie les définitions après avoir verrouillé et relu les entretiens de
+   *  contrôle. Ces sources restent inchangées ; seule la définition corpus est
+   *  publiée. */
+  async executerDefinitionsAvecSources<T>(
+    idsDemandes: string[] | (() => string[]),
+    mutation: () => T,
+  ): Promise<T> {
+    return this.executerCorrectionEntretiens(
+      { corpus: true, entretiens: [] },
+      idsDemandes,
+      mutation,
+    )
+  }
+
   /** Trie selon les contenus publiés sans remplacer les fichiers du miroir local. */
   async trierEntretiens(mode: Extract<ModeTriEntretiens, 'modif' | 'longueur'>): Promise<CorpusFichier> {
     const provider = new ProviderPutConditionnel(this.client, this.identite)

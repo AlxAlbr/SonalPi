@@ -19,7 +19,7 @@ import type { IdentiteSession } from '../../src/main/distant/sessions'
 import { FORMAT_VERSION, type CorpusFichier, type EntretienFichier } from '../../src/shared/format'
 import type { ImplementationFetch } from '../../src/main/webdav/client'
 import type { Cas } from '../../src/shared/corpus/cas'
-import { casModalite, familleCas, corpusFamille } from '../fixtures/casFamilles'
+import { casModalite, familleCas, corpusFamille, sourceFamille } from '../fixtures/casFamilles'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 
 const IDENTITE_MAX: () => IdentiteSession = () => ({
@@ -98,7 +98,7 @@ function corpusServeur(serveur: ServeurWebDAVMemoire): CorpusFichier {
 }
 
 describe('Migration distante vers le format courant', () => {
-  it.each([4, 5, 6])('publie la v%i puis ses entretiens sous verrous sans perdre les recueils ou les cas', async (version) => {
+  it.each([4, 5, 6, 7])('publie la v%i puis ses entretiens sous verrous sans perdre les recueils ou les cas', async (version) => {
     const serveur = new ServeurWebDAVMemoire()
     const corpusV4 = JSON.parse(corpusInitial()) as CorpusFichier
     corpusV4.formatVersion = version
@@ -136,6 +136,7 @@ describe('Migration distante vers le format courant', () => {
     expect(corpusServeur(serveur).recueils?.r1.nom).toBe('Synthèse')
     expect(corpusServeur(serveur).cas).toEqual(corpusV4.cas ?? {})
     expect(corpusServeur(serveur).famillesCas).toEqual({})
+    expect(corpusServeur(serveur).attributsCas).toEqual({})
     const entretien = JSON.parse(serveur.contenuDe('entretiens/e1.json')!) as EntretienFichier
     expect(entretien.formatVersion).toBe(FORMAT_VERSION)
     expect(entretien.reperesPassages).toEqual([{ id: 'p1', from: 1, to: 1 }])
@@ -1680,6 +1681,75 @@ describe('Familles de cas — transactions fraîches', () => {
     await expect(tx.executer(() => store.casCommander({ type: 'creer-famille', famille: familleCas(),
       cas: [casModalite(), casModalite('b')] }))).rejects.toThrow(/modalité/)
     expect(serveur.contenuDe('corpus.json')).toBe(avant)
+  })
+
+  it('relit les sources serveur avant une dérivation et protège la confidentialité contre une édition concurrente', async () => {
+    const { serveur, tx, store } = await banc()
+    const courant = corpusServeur(serveur)
+    courant.variables = corpusFamille().variables
+    courant.variables.taille = {
+      id: 'taille', lib: 'Taille', portee: 'locuteur', priv: true, ordre: 1, vExport: 2,
+      modalites: [
+        { id: 'petit', lib: 'Moins de 10', mExport: 1 },
+        { id: 'grand', lib: '10 à 100', mExport: 2 },
+      ],
+    }
+    courant.famillesCas = { f: familleCas() }
+    courant.cas = { 'cas-f-a': casModalite('a') }
+    courant.attributsCas = {}
+    serveur.poser('corpus.json', JSON.stringify(courant))
+
+    const source = sourceFamille()
+    for (const locuteur of source.locuteurs) {
+      if (locuteur.index === 2 || locuteur.index === 6) locuteur.valeursLoc.taille = 'petit'
+      if (locuteur.index === 3) locuteur.valeursLoc.taille = 'grand'
+    }
+    serveur.poser('entretiens/e1.json', JSON.stringify(source))
+    const contenuSourceConflictuel = serveur.contenuDe('entretiens/e1.json')
+    const definition = {
+      id: 'attr-taille', lib: 'Taille du cas', type: 'modalites' as const,
+      priv: true, ordre: 0, modalites: [],
+    }
+    const commande = {
+      type: 'ajouter-derivation-famille' as const,
+      familleId: 'f', membresAttendus: ['cas-f-a'],
+      derivation: { attributId: definition.id, variableSourceId: 'taille', porteeSource: 'locuteur' as const },
+      definition,
+    }
+    const executer = () => tx.executerDefinitionsAvecSources(
+      () => Object.keys(store.ouvrir().membership),
+      () => store.casCommander(commande),
+    )
+
+    await expect(executer()).rejects.toThrow(/recette ne peut pas être enregistrée/i)
+    expect(corpusServeur(serveur).attributsCas).toEqual({})
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(contenuSourceConflictuel)
+
+    source.locuteurs.find((locuteur) => locuteur.index === 3)!.valeursLoc.taille = 'petit'
+    serveur.poser('entretiens/e1.json', JSON.stringify(source))
+    const contenuSourceCorrige = serveur.contenuDe('entretiens/e1.json')
+    await executer()
+    await executer()
+    const apres = corpusServeur(serveur)
+    expect(apres.attributsCas?.[definition.id]).toEqual(definition)
+    expect(apres.famillesCas?.f.derivationsAttributs).toEqual([commande.derivation])
+    expect(serveur.contenuDe('entretiens/e1.json')).toBe(contenuSourceCorrige)
+
+    const concurrent = corpusServeur(serveur)
+    concurrent.attributsCas![definition.id].priv = false
+    serveur.poser('corpus.json', JSON.stringify(concurrent))
+    await expect(tx.executerDefinitionsAvecSources(
+      () => Object.keys(store.ouvrir().membership),
+      () => store.casCommander({
+        type: 'modifier-attribut', attributId: definition.id,
+        attendu: definition, patch: { lib: 'Taille renommée' },
+      }),
+    )).rejects.toThrow(/attribut a changé/i)
+    expect(corpusServeur(serveur).attributsCas?.[definition.id]).toMatchObject({
+      lib: 'Taille du cas', priv: false,
+    })
+    expect(serveur.contenuDe('verrous/corpus.lock.json')).toBeUndefined()
+    expect(serveur.contenuDe('verrous/entretiens/e1.lock.json')).toBeUndefined()
   })
 })
 
