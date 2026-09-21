@@ -249,12 +249,11 @@ désormais ignorée (cf. `rognerPonctuationBords` ci-dessus) — « Lyon. » et 
 - Appariement `debsel`→`finsel` **structurel**, pas par pseudo (collisions, §2).
 - Refacto : **petites extractions vérifiables**, jamais mélanger déplacement de code et
   changement de comportement dans un même commit.
-- **Export anonymisé** (`anon-export-document.js`) : tout passe par `extraireTexteAnonymiseDepuisSpans`
-  (lit le DOM marqué → multi-pseudo via `data-pseudo` du `finsel`, longs runs en un seul `[pseudo]`,
-  incluses couvertes par le run large). `AnonymiserSegments()` (export `.Sonal` anonymisé via `chkAnon`)
-  est désormais **implémentée** (remplace définitivement chaque run par `[pseudo]`, structure des
-  segments préservée → réouvrable). `exportTxtAvecClasses` borne l'extraction **au segment** (sinon
-  étiquettes de locuteur perdues).
+- **Export anonymisé** : les exports entretien/corpus passent par `preparerDocumentAnonymise`
+  (`anon-regles.js`, §13) : texte, attributs de locuteurs ET `tabLoc` sérialisé sont nettoyés ensemble.
+  `AnonymiserHtml`, `_anonymiserHtml` et `AnonymiserSegments` utilisent ce même cœur.
+  `extraireTexteAnonymiseDepuisSpans` reste l'extracteur des copies/sélections et anciens exports texte ;
+  il n'est PAS le moteur des modales d'export. `exportTxtAvecClasses` borne l'extraction au segment.
 - **Multi-pseudo** : ne jamais aplatir une occurrence portant un pseudo autorisé, ni laisser
   un `remplacementAlt` orphelin au nettoyage de spans (§9).
 
@@ -507,7 +506,8 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
   live — [tableau_global.js](tableau_global.js)). Locuteur pseudonymisé → « [Pseudo] », sinon nom en clair
   (gaté sur `opts.anon`). `sauvHtmlAnonymise` neutralise les **deux** fuites — `loc-json` sérialise les
   pseudos ; `AnonymiserSegments` réécrit `data-nomloc` (pseudo) + retire les marqueurs **ET
-  `data-nomloc-barre`** (vrai nom barré) sur un **clone** (`_anonymiserHtml` n'agit que sur les `[data-rk]`).
+  `data-nomloc-barre`** (vrai nom barré) sur un **clone**. `_anonymiserHtml` nettoie désormais le texte
+  **et** les libellés, via `preparerDocumentAnonymise` (§13).
   Le cœur ligloc est **mutualisé** : `_anonymiserLiglocsDansElement` ([anon-regles.js](anon-regles.js),
   les deux fenêtres).
 - **Export CSV Base de données** (`exportTabDat`, [gestion_data.js](../gestion_data.js)) : question à
@@ -524,6 +524,8 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
   des `.Sonal` ; (3) `tabEnt[].tabLoc` du `.crp` exporté. Le `tabLoc` pseudonymisé est dérivé des
   `.ligloc` **AVANT** le retrait des marqueurs (ils portent l'état), statut « ? » préservé, et sert aux
   canaux (2) et (3). Locuteur sans pseudo ou refusé → nom réel (garde-fou export global, point ouvert).
+  Le HTML frais du main prime sur la copie disque pour l'export anonymisé ; les chemins audio/image
+  sont vidés dans le `.crp` exporté (médias non anonymisés, non embarqués).
   ⚠️ Reste **array-only sans** résolution du pseudo (`ent.tabLoc[]`, à dériver des règles) : stats
   corpus → nom réel. ⚠️ Hors périmètre assumé : `notes` (texte libre), **noms de fichiers/entretiens**
   (`ent.nom`) et le **contenu des modalités** (variable libre contenant un nom) partent tels quels.
@@ -543,3 +545,33 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
   pour les entités texte+personne.
 
 ---
+
+## 13. Contrat de sécurité des exports et tests
+
+`preparerDocumentAnonymise(html, tabLoc)` (`anon-regles.js`) prépare un DOM détaché et renvoie
+`{html, tabLoc}`. Tous les chemins `.Sonal` (modale entretien, ancien `chkAnon`, corpus réouvrable)
+utilisent ce résultat ; les exports de lecture utilisent le même nettoyage via `_anonymiserHtml`.
+
+- **Texte** : remplacement structurel des runs par `[pseudo]`, variante réelle conservée ; les
+  occurrences incluses sont couvertes par le run englobant. Les rangs/segments/temps sont conservés.
+- **Locuteurs** : les noms confirmés **et suggérés** sont résolus avant retrait des marqueurs.
+  `loc-json`/`tabEnt[].tabLoc` stockent le pseudo sans crochets, avec le suffixe interrogateur `?`
+  conservé. Le HTML ne garde ni le nom réel dans `data-nomloc`, ni `data-nomloc-barre`, ni marqueurs
+  `loc-*`. Les en-têtes de lecture utilisent toujours la convention `[Pseudo]`.
+- **Intégrité** : un run `.anon` orphelin, sans fin, sans pseudo ou incohérent **interrompt** l'export.
+  Aucun repli sur le vrai texte, aucune suppression silencieuse. Les commandes affichent l'erreur et
+  n'écrivent aucun fichier/ZIP partiel. Ce garde-fou ne répare pas le marquage du document de travail.
+- **Sources** : pour les exports corpus de lecture, `getHtml()` frais prime sur `ent.html`, même
+  quand le cache est vide. Pour le corpus Sonal anonymisé, le cache frais prime sur le HTML du disque
+  (repli disque si absent) ; la copie non anonymisée garde le comportement de copie du fichier source.
+- **Médias** : pas de lecteur/lien audio dans le HTML individuel anonymisé ; `audioPath` et `imgPath`
+  vidés dans le `.crp` anonymisé. Les exports non anonymisés conservent les liens.
+- **Non-mutation** : le DOM live et les tableaux d'origine ne sont pas anonymisés en place.
+- **Limites explicites** : les exceptions, noms non marqués/refusés, notes, contenus libres des variables,
+  titres et noms de fichiers ne sont pas anonymisés automatiquement. Les modales le rappellent.
+  Ce nettoyage n'est ni une détection automatique de données personnelles, ni une garantie d'anonymat.
+
+Tests : `npm test` — [tests/anonymisation-exports.test.cjs](../../tests/anonymisation-exports.test.cjs).
+Ils exécutent les scripts réels dans jsdom, contrôlent les sorties sérialisées et les charges utiles
+DOCX/PDF, la relecture Sonal, les caches périmés, les exports en clair et l'absence de mutation.
+Les E/S Electron sont simulées ; voir [tests/README.md](../../tests/README.md) pour la recette manuelle.

@@ -35,7 +35,8 @@ function tronquerEntiteAffichage(texte, n = 6) {
  * - run anonymisé (debsel.anon … finsel.anon) → remplacé par « [pseudo] » (pseudo lu sur le finsel →
  *   gère le multi-pseudo par occurrence) ; les spans absorbés internes (incluses) sont vidés ;
  * - exception (.anon-exception) / « à anonymiser » (data-anon-nt) → texte original conservé, marqueurs retirés.
- * Ne touche QUE le marquage d'anonymisation : la structure (data-rk/data-sg/data-deb…) est préservée.
+ * Préserve la structure (data-rk/data-sg/data-deb…). Un marquage incomplet interrompt l'export :
+ * jamais de repli sur le texte original ni de suppression silencieuse d'une occurrence corrompue.
  * Placé ici (anon-regles.js, chargé dans LES DEUX fenêtres) car l'export corpus tourne côté index.html
  * alors qu'anon-export-document.js n'est chargé que côté entretien. @returns {HTMLElement} root muté
  */
@@ -48,39 +49,71 @@ function _anonymiserDansElement(root) {
         s.removeAttribute('data-anon-nt');
         s.removeAttribute('data-pseudo-absorbe');
     };
-    let i = 0;
-    while (i < spans.length) {
-        const span = spans[i];
-        if (span.classList.contains('anon') && span.classList.contains('debsel')) {
-            let fin = i;
-            for (let j = i; j < spans.length; j++) {
-                if (spans[j].classList.contains('finsel') && spans[j].classList.contains('anon')) { fin = j; break; }
-            }
-            const pseudo = (spans[fin].dataset.pseudo || span.dataset.pseudo || span.textContent || '').trim();
-            for (let k = i; k <= fin; k++) {
-                const s = spans[k];
-                nettoyerMarqueurs(s);
-                s.textContent = (k === i) ? `[${pseudo}]` : '';
-            }
-            i = fin + 1;
-        } else {
-            i++;
+    const erreurMarquage = () => new Error(
+        "Export anonymisé interrompu : marquage de pseudonymisation incomplet ou incohérent. " +
+        "Vérifiez les occurrences dans l'entretien avant de réexporter.");
+    // Valider TOUTES les plages avant de modifier le clone. Deux entités partageant un pseudo
+    // restent deux plages distinctes : appariement structurel, jamais par valeur du pseudo.
+    const plages = [];
+    for (let i = 0; i < spans.length; i++) {
+        const debut = spans[i];
+        if (!debut.classList.contains('anon')) continue;
+        if (!debut.classList.contains('debsel')) throw erreurMarquage();
+        let fin = -1;
+        for (let j = i; j < spans.length; j++) {
+            const s = spans[j];
+            if (j > i && s.classList.contains('anon') && s.classList.contains('debsel')) break;
+            // Les espaces neutres produits par l'application corpus sont autorisés dans un run.
+            if (!s.classList.contains('anon') && s.textContent.trim()) break;
+            if (s.classList.contains('anon-exception')) break;
+            if (s.classList.contains('anon') && s.classList.contains('finsel')) { fin = j; break; }
+        }
+        if (fin < 0) throw erreurMarquage();
+        const pseudoDebut = (debut.dataset.pseudo || '').trim();
+        const pseudoFin = (spans[fin].dataset.pseudo || '').trim();
+        const pseudo = pseudoFin || pseudoDebut;
+        if (!pseudo || (pseudoDebut && pseudoFin && pseudoDebut !== pseudoFin)) throw erreurMarquage();
+        plages.push({ debut: i, fin, pseudo });
+        i = fin;
+    }
+    for (const { debut, fin, pseudo } of plages) {
+        for (let k = debut; k <= fin; k++) {
+            nettoyerMarqueurs(spans[k]);
+            spans[k].textContent = (k === debut) ? `[${pseudo}]` : '';
         }
     }
-    root.querySelectorAll('.anon-exception, [data-anon-nt]').forEach(nettoyerMarqueurs);
+    // Retirer aussi les mémos d'absorption et marqueurs de sélection résiduels hors des runs.
+    spans.forEach(nettoyerMarqueurs);
     return root;
 }
 
 /**
- * Variante chaîne : anonymise définitivement un fragment HTML stocké (ex. tabEnt[i].html) et renvoie
- * le HTML nettoyé. Utilisée par l'export corpus (index.html) et l'export document (entretien).
- * @param {string} html @returns {string}
+ * Prépare une copie définitive pour TOUS les exports : texte ET attributs des locuteurs.
+ * Le tableau de locuteurs est résolu AVANT de retirer les marqueurs HTML. Sa convention est celle
+ * du stockage Sonal (sans crochets, suffixe interrogateur « ? » conservé), pas celle de l'affichage.
+ * Aucun changement du DOM live, des tableaux sources ou des fichiers originaux.
+ * Les exceptions, noms non marqués et champs libres ne sont pas anonymisés automatiquement.
+ * @param {string} html
+ * @param {string[]} tabLoc - locuteurs d'origine, indexés comme data-loc
+ * @returns {{html:string, tabLoc:string[]}}
  */
-function _anonymiserHtml(html) {
+function preparerDocumentAnonymise(html, tabLoc = []) {
     const tmp = document.createElement('div');
-    tmp.innerHTML = (html == null ? '' : String(html)).replace(/^`|`$/g, ''); // certains HTML stockés sont entourés de backticks
+    tmp.innerHTML = (html == null ? '' : String(html)).replace(/^`|`$/g, '');
+    const locuteurs = (tabLoc || []).map((nom, i) => {
+        if (!nom) return nom;
+        const lig = tmp.querySelector(`.ligloc[data-loc="${i}"]`);
+        const aff = lig ? nomLocAffiche(lig, { anonymise: true }) : String(nom).replace(/\?/g, '');
+        return String(nom).endsWith('?') ? aff + '?' : aff;
+    });
     _anonymiserDansElement(tmp);
-    return tmp.innerHTML;
+    _anonymiserLiglocsDansElement(tmp);
+    return { html: tmp.innerHTML, tabLoc: locuteurs };
+}
+
+/** Variante HTML seul : même nettoyage complet que les exports Sonal. */
+function _anonymiserHtml(html) {
+    return preparerDocumentAnonymise(html).html;
 }
 
 /**
@@ -94,8 +127,9 @@ function _anonymiserHtml(html) {
  */
 function _anonymiserLiglocsDansElement(root) {
     if (!root) return root;
-    root.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
-        const aff = (typeof nomLocAffiche === 'function') ? nomLocAffiche(lig, { anonymise: true }) : lig.dataset.nomloc;
+    root.querySelectorAll('.ligloc').forEach(lig => {
+        // Pas de repli silencieux sur le vrai nom si le résolveur partagé manque.
+        const aff = nomLocAffiche(lig, { anonymise: true });
         lig.dataset.nomloc = aff;
         lig.classList.remove('loc-anon', 'loc-suggere', 'loc-suggere-refuse');
         delete lig.dataset.locpseudo;

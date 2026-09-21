@@ -2069,27 +2069,22 @@ async function exportEntretien(format) {
 
     // préparation des données de l'entretien
     const ent = tabEnt[ent_cur];
-    let contenuHtmlCmpct = await compactHtml(); // compactage du html
-    let tabAnonloc = ent.tabAnon; 
-    if (opts.anon) { // anonymisation éventuelle
-        contenuHtmlCmpct = AnonymiserHtml(contenuHtmlCmpct); // remplacement des pseudos dans le texte
-        tabAnonloc = [] //suppression de la table d'anonymisation de l'export
+    let contenuHtmlCmpct = await compactHtml(); // instantané, sans mutation du DOM live
+    let tabAnonloc = ent.tabAnon;
+    let tabLocSonal = ent.tabLoc;
+    // En-têtes lisibles et données structurelles sont dérivés du MÊME instantané, avant nettoyage.
+    const locuteursExport = locuteursAffiches({ tabLoc: locut }, contenuHtmlCmpct, opts.anon);
+    if (opts.anon) {
+        try {
+            const documentAnon = preparerDocumentAnonymise(contenuHtmlCmpct, locut);
+            contenuHtmlCmpct = documentAnon.html;
+            tabLocSonal = documentAnon.tabLoc;
+            tabAnonloc = [];
+        } catch (error) {
+            dialog('Export interrompu', error.message);
+            return; // aucun fichier partiellement anonymisé ne doit être écrit
+        }
     }
-
-    // LIBELLÉS de locuteurs (plan-locuteurs-pseudo.md) : AnonymiserHtml n'anonymise que le TEXTE, pas les
-    // en-têtes de locuteurs (construits par index depuis locut[] dans chaque case). À l'export anonymisé,
-    // le nom AFFICHÉ doit être le PSEUDO du libellé (loc-anon/data-locpseudo sur le .ligloc), pas le vrai
-    // nom. On pré-calcule un tableau indexé comme locut via nomLocAffiche (lit l'état sur le DOM live —
-    // compactHtml/AnonymiserHtml ne modifient pas le DOM). Non-anon : on garde locut (vrais noms).
-    // Locuteur RÉELLEMENT pseudonymisé (nom affiché ≠ vrai nom) → mis entre crochets « [Pseudo] » comme
-    // le texte anonymisé ; un locuteur sans règle reste en clair, SANS crochets (il n'est pas anonymisé).
-    const locuteursExport = (opts.anon && typeof nomLocAffiche === 'function')
-        ? locut.map((nom, i) => {
-            const reel = (nom || '').replace(/\?/g, '').trim();
-            const aff  = (nomLocAffiche(i, { anonymise: true }) || '').trim();
-            return (aff && aff !== reel) ? '[' + aff + ']' : aff;
-        })
-        : locut;
 
     //if (opts.vars) {
         // locuteursExport injecté : les variables « par locuteur » sortent avec le même nom
@@ -2104,7 +2099,7 @@ async function exportEntretien(format) {
             contenuHtmlCmpct = String(contenuHtmlCmpct).replace(/`/g, ''); // mise en string
            
  
-            const contenu = sauvHtml(ent.tabLoc, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, tabAnonloc); // création du fichier Sonal
+            const contenu = sauvHtml(tabLocSonal, tabThm, tabVar, tabDic, ent.tabDat, ent.notes, contenuHtmlCmpct, tabAnonloc); // loc-json et HTML nettoyés ensemble
             SauvegarderSurDisque(contenu, detailsf[1] +  suffixeAnon + '.Sonal', 'UTF-8'); // enregistrement
 
             
@@ -2210,7 +2205,9 @@ async function exportEntretien(format) {
             const locuteurs = locuteursExport;
 
             // --- 1b. Convertir audioPath en URL file:// utilisable dans un navigateur ---
-            const audioSrcPath = ent.audioPath || '';
+            // L'audio n'est pas anonymisé ; ni sa voix ni son chemin privé ne doivent accompagner
+            // une copie anonymisée. L'export en clair conserve le lecteur et le lien d'origine.
+            const audioSrcPath = opts.anon ? '' : (ent.audioPath || '');
             let audioSrcUrl = '';
             if (audioSrcPath) {
                 const normalized = audioSrcPath.replace(/\\/g, '/');
@@ -3014,33 +3011,7 @@ async function genererExportPdfEntretien(ent, opts, txtvars, nomFichier, contenu
 }
 
 
-function AnonymiserHtml (contenuHtml) {
-
-    // affecter le contenu html à un conteneur temporaire pour manipulation
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = contenuHtml;
-    
-    //sélectionner tous les mots qui contiennent la classe anon mais pas finsel et anon (dernier span qui contient le pseudo)
-    const motsASuppr = tempDiv.querySelectorAll('span.anon:not(.finsel)');
-
-    motsASuppr.forEach(mot => {
-        mot.remove(); // Supprimer les spans intermédiaires de l'anonymisation
-    });
-
-
-    const motsAAnonymiser = tempDiv.querySelectorAll('span.anon.finsel');
-
-    motsAAnonymiser.forEach(mot => {
-        const pseudo = mot.dataset.pseudo ; // Récupérer le pseudo 
-        if (pseudo) {
-            mot.textContent = "[" + pseudo + "]"; // Remplacer le texte du span par le pseudo
-            mot.classList.remove('anon', 'finsel'); // Retirer les classes d'anonymisation
-            delete mot.dataset.pseudo; // Supprimer l'attribut de pseudo
-        }
-    });
-        
-    htmlAnonymise = tempDiv.innerHTML;
-    tempDiv.remove(); // Nettoyer le conteneur temporaire
-    
-    return htmlAnonymise;
+// Compatibilité avec les anciens appelants : aucun second moteur d'export.
+function AnonymiserHtml(contenuHtml) {
+    return _anonymiserHtml(contenuHtml);
 }

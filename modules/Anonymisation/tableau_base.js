@@ -877,50 +877,74 @@ function nettoyerTabAnon() {
   return Array.from(map.values());
 }
 
+// Recalcule les plages d'une règle depuis le TEXTE de son entité. Le cache matchPositions peut être
+// périmé et la valeur du pseudo n'est pas une identité de règle (plusieurs entités peuvent partager
+// « ville »). Un run anon n'appartient à la règle que si ses frontières coïncident exactement avec
+// l'occurrence ; une occurrence au milieu d'un run plus large reste incluse, même avec le même pseudo.
+function _positionsCourantesRegle(paire, tousLesSpans) {
+    if (!paire || !paire.entite) return [];
+    const pseudos = pseudosDe(paire);
+    const pseudosBas = pseudos.map(p => p.toLowerCase());
+    return analyserOccurrences(document, paire.entite, paire.remplacement, pseudos, true).map(o => {
+        let isIncluded = o.etat === 'incluse';
+        if (o.etat === 'anon') {
+            const debut = tousLesSpans[o.indexDebut];
+            const fin = tousLesSpans[o.indexFin];
+            const pseudoDebut = ((debut && debut.dataset.pseudo) || '').toLowerCase();
+            const pseudoFin = ((fin && fin.dataset.pseudo) || '').toLowerCase();
+            const runExact = !!debut && !!fin && debut.classList.contains('debsel') &&
+                fin.classList.contains('finsel') && pseudosBas.includes(pseudoDebut) &&
+                pseudosBas.includes(pseudoFin);
+            if (!runExact) isIncluded = true;
+        }
+        return {
+            start: o.indexDebut,
+            end: o.indexFin,
+            isException: o.etat === 'exception',
+            isNonTraite: o.etat === 'non-traite',
+            isIncluded,
+            pseudoAbsorbe: o.pseudoAbsorbe || ''
+        };
+    });
+}
+
 // Sauvegarde d'une ligne du tableau (quand on change le champ entité ou pseudo)
 // Démarque toutes les occurrences d'une ligne et la repasse « en attente » (occurrences=0).
 // affichTableauAnon re-scanne ensuite le texte démarqué et re-détecte les occurrences en
 // « à traiter » (orange) — donc la ligne réapparaît en attente avec le bouton « Valider et
 // appliquer ». Réutilisé par sauvAnon : vidage du nom (Cas 1) et modification d'une ligne déjà
-// appliquée (Cas 4). anciensPseudos = pseudos AVANT modification (filet de sécurité multi-pseudo).
-function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos) {
+// appliquée (Cas 4). Les anciennes valeurs sont indispensables car sauvAnon met la paire à jour avant
+// de démarquer le DOM.
+function demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite) {
     const paire = window.tabAnon[idx];
     if (!paire) return;
     const tousLesSpans = document.querySelectorAll('[data-rk]');
+    const regleAvantEdition = {
+        entite: ancienneEntite == null ? paire.entite : ancienneEntite,
+        remplacement: anciensPseudos[0] || paire.remplacement,
+        remplacementAlt: anciensPseudos[1]
+    };
+    const positions = _positionsCourantesRegle(regleAvantEdition, tousLesSpans);
 
-    // §G-bis : portées des runs possédés par CETTE règle (hors incluses), à libérer après nettoyage.
-    const rangesLiberees = (paire.matchPositions || [])
-        .filter(m => !m.isIncluded).map(m => ({ start: m.start, end: m.end }));
+    // Portées des runs réellement possédés par CETTE règle, à libérer après nettoyage.
+    const rangesLiberees = positions
+        .filter(m => !m.isIncluded && !m.isException && !m.isNonTraite)
+        .map(m => ({ start: m.start, end: m.end }));
 
-    // 1. Démarquage par positions exactes (matchPositions) — couvre anon ET anon-exception.
-    if (paire.matchPositions && paire.matchPositions.length > 0) {
-        paire.matchPositions.forEach(match => {
-            if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
-            for (let i = match.start; i <= match.end; i++) {
-                if (tousLesSpans[i]) {
-                    tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                    tousLesSpans[i].removeAttribute('data-anon-nt');
-                    delete tousLesSpans[i].dataset.pseudo;
-                }
+    // Démarquage borné aux occurrences de l'entité. Ne jamais balayer le DOM par pseudo : ce pseudo
+    // peut légitimement appartenir à une autre règle.
+    positions.forEach(match => {
+        if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
+        for (let i = match.start; i <= match.end; i++) {
+            if (tousLesSpans[i]) {
+                tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                tousLesSpans[i].removeAttribute('data-anon-nt');
+                delete tousLesSpans[i].dataset.pseudo;
             }
-        });
-    }
+        }
+    });
 
-    // 2. Filet de sécurité via les anciens pseudos (matchPositions vide/périmé). Multi-pseudo :
-    //    couvrir CHAQUE pseudo autorisé (primaire ET alt).
-    const pseudosBas = (anciensPseudos || []).map(p => (p || '').toLowerCase()).filter(Boolean);
-    if (pseudosBas.length > 0) {
-        tousLesSpans.forEach(span => {
-            const dp = (span.dataset.pseudo || '').toLowerCase();
-            if (dp && pseudosBas.includes(dp)) {
-                span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                span.removeAttribute('data-anon-nt');
-                delete span.dataset.pseudo;
-            }
-        });
-    }
-
-    // §G-bis / Partie 2 : runs retirés → RESTAURER les occurrences absorbées (pseudo réaligné).
+    // Runs retirés → RESTAURER les occurrences absorbées (pseudo réaligné).
     rangesLiberees.forEach(r => restaurerAbsorbeesDansPortee(r.start, r.end, idx));
 
     // 3. Reset → « en attente ». Le re-scan « à traiter » est fait par affichTableauAnon
@@ -972,7 +996,7 @@ function sauvAnon(idx) {
     // → démarquer + reset. L'entité étant désormais vide, affichTableauAnon ne re-scanne pas :
     //   les 3 compteurs (anon / exc / non) disparaissent.
     if (ancienneEntite && !nouvelleEntite && aOccurrences) {
-        demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+        demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
         return;
     }
 
@@ -1019,12 +1043,12 @@ function sauvAnon(idx) {
             // SEUL le pseudo change (nom identique) → relabel EN PLACE (préserve les choix par occurrence).
             // Fallback démarquage si mapping ambigu (≥2 changements) ; 'annule' gère son propre revert.
             relabelPseudoEnPlace(idx, anciensPseudos).then(r => {
-                if (r === 'ambigu') demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+                if (r === 'ambigu') demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
             });
             return;
         }
         if (nomChange || pseudoChange) {
-            demarquerLigneEtRemettreEnAttente(idx, anciensPseudos);
+            demarquerLigneEtRemettreEnAttente(idx, anciensPseudos, ancienneEntite);
             return;
         }
     }
@@ -1131,40 +1155,27 @@ async function supprimeLigneAnon(idx) {
 
     if (paireSupprimee) {
         const tousLesSpans = document.querySelectorAll('[data-rk]');
+        const positions = _positionsCourantesRegle(paireSupprimee, tousLesSpans);
 
-        // §G-bis : portées des runs possédés par CETTE règle (hors incluses), pour libérer après
-        // nettoyage les occurrences que ces runs absorbaient (→ re-bascule en 'non-traité', I-INC-7).
-        const rangesLiberees = (paireSupprimee.matchPositions || [])
-            .filter(m => !m.isIncluded).map(m => ({ start: m.start, end: m.end }));
+        // Portées des runs possédés par CETTE règle, pour restaurer ensuite les occurrences absorbées.
+        const rangesLiberees = positions
+            .filter(m => !m.isIncluded && !m.isException && !m.isNonTraite)
+            .map(m => ({ start: m.start, end: m.end }));
 
-        // 1. Nettoyer via matchPositions (indices NodeList exacts) — couvre aussi anon-exception
-        if (paireSupprimee.matchPositions && paireSupprimee.matchPositions.length > 0) {
-            paireSupprimee.matchPositions.forEach(match => {
-                if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
-                for (let i = match.start; i <= match.end; i++) {
-                    if (tousLesSpans[i]) {
-                        tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                        delete tousLesSpans[i].dataset.pseudo;
-                    }
+        // Nettoyer uniquement les occurrences retrouvées par l'entité, y compris si matchPositions est
+        // vide ou périmé. Un pseudo partagé n'est jamais utilisé comme clé de propriété.
+        positions.forEach(match => {
+            if (match.isIncluded) return; // span possédé par la règle LARGE — ne pas percer son run (I-INC-2)
+            for (let i = match.start; i <= match.end; i++) {
+                if (tousLesSpans[i]) {
+                    tousLesSpans[i].classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+                    tousLesSpans[i].removeAttribute('data-anon-nt');
+                    delete tousLesSpans[i].dataset.pseudo;
                 }
-            });
-        }
+            }
+        });
 
-        // 2. Filet de sécurité : balayer les spans encore marqués data-pseudo (cas où matchPositions
-        //    serait vide/périmé). Multi-pseudo : couvrir CHAQUE pseudo autorisé (primaire ET alt).
-        const pseudosAEffacer = pseudosDe(paireSupprimee).map(p => p.toLowerCase());
-        if (pseudosAEffacer.length > 0) {
-            tousLesSpans.forEach(span => {
-                const dp = (span.dataset.pseudo || '').toLowerCase();
-                if (dp && pseudosAEffacer.includes(dp)) {
-                    span.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
-                    delete span.dataset.pseudo;
-                }
-            });
-        }
-
-        // §G-bis / Partie 2 : les spans des runs retirés sont redevenus nus → RESTAURER les
-        // occurrences que ces runs absorbaient (pseudo réaligné sur la règle courante).
+        // Les spans des runs retirés sont redevenus nus → RESTAURER les occurrences absorbées.
         rangesLiberees.forEach(r => restaurerAbsorbeesDansPortee(r.start, r.end, idx));
     }
 
@@ -1406,10 +1417,9 @@ function reindexerMatchPositions(idxPaire) {
 }
 
 // Vrai si [s,e] est strictement à l'INTÉRIEUR d'un run ÉTRANGER plus large (déborde d'au moins un
-// côté). Sert au principe « le large absorbe l'étroit » (Plan §A) : un match d'une règle étroite posé
-// dans un run déjà ouvert par une règle large ne doit PAS être marqué → il reste incluse.
-// Un run = debsel(pseudo) … [anon] … finsel(pseudo) ; seuls debsel/finsel portent data-pseudo.
-function _runEtrangerEnglobe(spans, s, e, pseudosRegle) {
+// côté). L'identité de la règle englobante est d'abord établie par son ENTITÉ et sa plage ; le pseudo
+// n'est qu'un repli pour les anciens DOM dont la règle n'est plus chargée.
+function _runEtrangerEnglobe(spans, s, e, pseudosRegle, idxPaire) {
     if (!spans[s] || !spans[e]) return false;
     // Frontière d'un VRAI run d'anonymisation = debsel/finsel portant un data-pseudo (≠ marqueur de
     // sélection, qui n'en a pas). On ignore donc les debsel/finsel sans pseudo pendant le scan.
@@ -1420,13 +1430,17 @@ function _runEtrangerEnglobe(spans, s, e, pseudosRegle) {
     while (d >= 0 && spans[d] && spans[d].classList.contains('anon') && !estDeb(spans[d])) d--;
     if (d < 0 || !spans[d] || !spans[d].classList.contains('anon') || !estDeb(spans[d])) return false;
     const dp = spans[d].dataset.pseudo || '';
-    const etranger = !!dp && !pseudosRegle.some(p => (p || '').toLowerCase() === dp.toLowerCase());
-    if (!etranger) return false;
     // Descendre au finsel qui ferme le run à partir de e.
     let f = e;
     while (f < spans.length && spans[f] && spans[f].classList.contains('anon') && !estFin(spans[f])) f++;
     if (f >= spans.length || !spans[f] || !estFin(spans[f])) return false;
-    return d < s || f > e; // run [d,f] déborde [s,e] → englobant
+    if (!(d < s || f > e)) return false;
+
+    const appartientAutreEntite = (window.tabAnon || []).some((p, j) =>
+        j !== idxPaire && p && p.entite &&
+        trouverMatchesEntiteDOM(p.entite, spans).some(m => m.start === d && m.end === f));
+    const pseudoEtranger = !!dp && !pseudosRegle.some(p => (p || '').toLowerCase() === dp.toLowerCase());
+    return appartientAutreEntite || pseudoEtranger;
 }
 
 // Réindexe les règles AUTRES que idxSource dont au moins une occurrence chevauche [start,end].
@@ -1498,13 +1512,8 @@ function appliquerAnonymisationPour(idxPaire) {
         }
     });
 
-    // Retirer d'abord les classes de cette paire spécifique
-    tousLesSpans.forEach(span => {
-        if (span.dataset.pseudo === paire.remplacement) {
-            span.classList.remove('debsel', 'finsel');
-            delete span.dataset.pseudo;
-        }
-    });
+    // Ne surtout pas « nettoyer » par valeur de data-pseudo : deux règles distinctes peuvent partager
+    // le même pseudo. La pose ci-dessous est idempotente et ne touche que les plages de l'entité.
 
     // Chercher TOUTES les occurrences (insensible à la casse + tous les alias « / »)
     const matches = trouverMatchesEntiteDOM(paire.entite, tousLesSpans).map(({ start, end }) => {
@@ -1550,7 +1559,7 @@ function appliquerAnonymisationPour(idxPaire) {
         matches.forEach((match, matchIdx) => {
             // §A — « le large absorbe l'étroit » : si ce match est strictement à l'intérieur d'un run
             // ÉTRANGER plus large, on ne le marque PAS — il reste incluse (possédé par la règle large).
-            if (_runEtrangerEnglobe(tousLesSpans, match.start, match.end, pseudosPaire)) {
+            if (_runEtrangerEnglobe(tousLesSpans, match.start, match.end, pseudosPaire, idxPaire)) {
                 match.isIncluded = true;
                 return;
             }
@@ -1567,7 +1576,10 @@ function appliquerAnonymisationPour(idxPaire) {
                     // Le data-pseudo de CETTE règle est préservé (no-flatten I6) ; seuls debsel/finsel
                     // étrangers portent un pseudo → détectables via dpI.
                     const dpI = tousLesSpans[i].dataset.pseudo;
-                    if (dpI && !pseudosPaire.some(p => p.toLowerCase() === dpI.toLowerCase())) {
+                    const frontiereInterieure =
+                        (i !== match.start && tousLesSpans[i].classList.contains('debsel')) ||
+                        (i !== match.end && tousLesSpans[i].classList.contains('finsel'));
+                    if (dpI && (frontiereInterieure || !pseudosPaire.some(p => p.toLowerCase() === dpI.toLowerCase()))) {
                         // Mémoriser la variante d'origine AVANT de l'effacer : sert à poser l'exposant
                         // sur le bon badge de variante, et (Partie 2) à restaurer le pseudo si on retire
                         // l'englobante. (Fondation §10)

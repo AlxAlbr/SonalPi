@@ -2807,10 +2807,15 @@ async function exporterReglesCorpusJSON() {
     question(`Export réussi : ${correspondances.length} règle(s) exportée(s).`, ['OK']);
 }
 
-// Anonymise le HTML stocké d'un entretien en préservant l'encadrement par backticks (cf. le format
-// stocké, lireCrpSonal2). Source = ent.html (persisté dans le .crp) ou le cache tabHtml en repli.
+// Le cache main fourni par getHtml() est autoritaire, même vide. ent.html n'est qu'un repli
+// legacy quand le cache est absent : ne jamais préférer un instantané .crp périmé.
+function _sourceHtmlExport(ent, htmlCache) {
+    return htmlCache != null ? htmlCache : ((ent && ent.html) || '');
+}
+
+// Anonymise le texte ET les libellés, en préservant l'encadrement legacy par backticks.
 function _htmlEntretienAnonymise(ent, htmlCache) {
-    const raw = (ent && ent.html != null && ent.html !== '') ? ent.html : (htmlCache || '');
+    const raw = _sourceHtmlExport(ent, htmlCache);
     const aBackticks = typeof raw === 'string' && raw.startsWith('`') && raw.endsWith('`');
     const inner = aBackticks ? raw.slice(1, -1) : raw;
     const anon = _anonymiserHtml(inner); // cœur partagé (anon-regles.js) : runs → « [pseudo] »
@@ -2819,16 +2824,16 @@ function _htmlEntretienAnonymise(ent, htmlCache) {
 
 /**
  * HTML stocké d'un entretien prêt pour la génération de texte (txt/docx) : anonymisé si demandé,
- * et toujours dé-encadré des backticks. Source = ent.html (persisté .crp) ou cache tabHtml en repli.
+ * et toujours dé-encadré des backticks. Source = cache main frais ; ent.html en repli seulement.
  * @param {object} ent
- * @param {string} htmlCache - tabHtml[i] (repli)
+ * @param {string} htmlCache - HTML frais obtenu par getHtml(i)
  * @param {boolean} anon - appliquer la pseudonymisation
  * @returns {string} HTML interne (sans backticks)
  */
 function _htmlEntretienPourExport(ent, htmlCache, anon) {
     let html = anon
         ? _htmlEntretienAnonymise(ent, htmlCache)
-        : ((ent && ent.html != null && ent.html !== '') ? ent.html : (htmlCache || ''));
+        : _sourceHtmlExport(ent, htmlCache);
     if (typeof html === 'string' && html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
     return html || '';
 }
@@ -2935,6 +2940,11 @@ function dialogExportCorpusChoixOptions(format) {
             ${opt('opt-thm', 'logo-cat', 'Catégories thématiques', oth)}
             <hr style="margin: 6px 0;">
             ${opt('opt-anon', 'logo-anon', 'Anonymiser (appliquer la pseudonymisation de manière définitive)', oa)}
+            <p style="font-size:0.85em;color:#666;margin:6px 0;">
+                Seuls le texte et les libellés de locuteurs marqués sont pseudonymisés.
+                Vérifiez les exceptions, les notes, le contenu libre des variables, les titres et les noms de fichiers avant partage.
+                Les exports anonymisés ne sont pas liés aux médias originaux.
+            </p>
             <hr style="margin:6px 0;">
         </div>
         <div style="display:flex;gap:10px;margin-top:10px;">
@@ -2964,10 +2974,16 @@ async function exporterCorpusAvecOptions(format) {
         entete: getChk('opt-entete'),
     };
     hidedlg();
-    if (format === 'sonal')      await exporterCorpusReouvrable(opts);
-    else if (format === 'html')  await exporterCorpusPartage(opts);
-    else if (format === 'txt')   await exporterCorpusTxtZip(opts);
-    else if (format === 'docx')  await exporterCorpusDocxZip(opts);
+    try {
+        if (format === 'sonal')      await exporterCorpusReouvrable(opts);
+        else if (format === 'html')  await exporterCorpusPartage(opts);
+        else if (format === 'txt')   await exporterCorpusTxtZip(opts);
+        else if (format === 'docx')  await exporterCorpusDocxZip(opts);
+    } catch (error) {
+        // Les générateurs préparent TOUS les fichiers avant l'IPC d'écriture : un marquage
+        // invalide dans un entretien annule l'archive entière, pas seulement cet entretien.
+        dialog('Export interrompu', error.message);
+    }
 }
 
 /**
@@ -3019,8 +3035,9 @@ async function exporterCorpusTxtZip(opts = {}) {
  * IMPORTANT (cf. format SonalPi) : un corpus = un .crp (métadonnées + liste d'entretiens via rtrPath)
  * + les .Sonal qui portent le CONTENU. À la réouverture, loadHtml relit les .Sonal depuis le disque ;
  * le .crp seul ne suffit pas et un .crp « anonymisé » sans .Sonal anonymisés rechargerait les noms
- * d'origine. On régénère donc chaque .Sonal : relecture du fichier disque → anonymisation du HTML →
- * réécriture (tabAnon vidé). Les rtrPath sont aplatis en « <nom>.Sonal » et les originaux NON mutés.
+ * d'origine. On régénère donc chaque .Sonal : métadonnées du fichier disque + HTML frais du main
+ * (repli disque si absent) → nettoyage partagé → réécriture (tabAnon vidé). Les rtrPath sont aplatis
+ * en « <nom>.Sonal » ; les liens médias sont vidés si anonymisé. Les originaux ne sont PAS mutés.
  *
  * ⚠️ N'anonymise que ce qui est EFFECTIVEMENT marqué dans le HTML stocké : valider d'abord
  * l'application de toutes les règles (panneau Pseudos — lignes vertes).
@@ -3035,6 +3052,10 @@ async function exporterCorpusReouvrable(opts = {}) {
     const tabDic = (await window.electronAPI.getDic()) || [];
     // Non anonymisé : on garde le contenu d'origine ET les règles (copie fidèle réouvrable).
     const tabAnonGlobal = opts.anon ? [] : (await window.electronAPI.getAnon() || []);
+    let htmlFrais = [];
+    if (opts.anon) {
+        try { htmlFrais = (await window.electronAPI.getHtml()) || []; } catch (e) { /* repli disque */ }
+    }
 
     const fichiers = [];        // [{nom, contenu}] → contenu du zip
     const tabEntExport = [];    // tabEnt aplati pour le .crp (rtrPath = <nom>.Sonal)
@@ -3060,30 +3081,18 @@ async function exporterCorpusReouvrable(opts = {}) {
 
         // 3. Extraction → (anonymisation conditionnelle du HTML) → réécriture du .Sonal.
         const data = extractFichierSonal(contenu);
-        let html = data.html || '';
+        // Pour l'anonymisation, les marques en mémoire priment sur une copie disque périmée.
+        // Une copie NON anonymisée garde son comportement de copie fidèle du fichier source.
+        const aCacheFrais = opts.anon && htmlFrais[i] != null;
+        let html = aCacheFrais ? htmlFrais[i] : (data.html || '');
         if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
         let htmlOut = html;
         let tabLocOut = data.tabLoc;
         if (opts.anon) {
-            // Miroir de sauvHtmlAnonymise (anon-export-document.js), SANS DOM live : les vrais noms
-            // de locuteurs voyagent par TROIS canaux — data-nomloc(-barre) des .ligloc, bloc loc-json,
-            // tabLoc du .crp. Le tabLoc pseudonymisé est dérivé des .ligloc AVANT le retrait des
-            // marqueurs (ils portent l'état) ; statut « ? » préservé ; locuteur sans pseudo (ou
-            // refusé) → nom réel (relève du garde-fou export global, non traité ici).
-            const tmp = document.createElement('div');
-            tmp.innerHTML = html;
-            tabLocOut = (data.tabLoc || ent.tabLoc || []).map((nom, idx) => {
-                if (!nom) return nom;
-                const estQ = String(nom).endsWith('?');
-                const lig = tmp.querySelector(`.ligloc[data-loc="${idx}"]`);
-                const aff = (lig && typeof nomLocAffiche === 'function')
-                    ? nomLocAffiche(lig, { anonymise: true })
-                    : String(nom).replace(/\?/g, '');
-                return estQ ? aff + '?' : aff;
-            });
-            _anonymiserLiglocsDansElement(tmp); // libellés → nom affiché, marqueurs + data-nomloc-barre retirés
-            _anonymiserDansElement(tmp);        // runs marqués → « [pseudo] »
-            htmlOut = tmp.innerHTML;
+            const baseLoc = aCacheFrais ? (ent.tabLoc || data.tabLoc) : (data.tabLoc || ent.tabLoc);
+            const documentAnon = preparerDocumentAnonymise(html, baseLoc);
+            htmlOut = documentAnon.html;
+            tabLocOut = documentAnon.tabLoc;
         }
         const sonalOut = sauvHtml(
             tabLocOut, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
@@ -3104,6 +3113,12 @@ async function exporterCorpusReouvrable(opts = {}) {
         const entExport = { ...ent, tabAnon: opts.anon ? [] : (ent.tabAnon || []),
             tabLoc: opts.anon ? tabLocOut : ent.tabLoc, rtrPath: nomFichier };
         delete entExport.html;
+        if (opts.anon) {
+            // Aucun média n'est anonymisé ni embarqué dans cette archive. Ne pas divulguer
+            // les chemins locaux/URL (souvent nominatifs), ni relier la copie à l'audio original.
+            entExport.audioPath = '';
+            entExport.imgPath = '';
+        }
         tabEntExport.push(entExport);
     }
 

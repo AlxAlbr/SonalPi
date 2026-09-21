@@ -161,6 +161,8 @@ function exportTxtAvecClasses(rgDeb, rgFin, avecLoc){
  * @returns {string} Le contenu HTML anonymisé
  */
 function sauvHtmlAnonymise(){
+    const segmentsEl = document.getElementById('segments');
+    const documentAnon = preparerDocumentAnonymise(segmentsEl ? segmentsEl.innerHTML : '', locut);
 
     var contenuHtml =`
 <!DOCTYPE html>
@@ -174,19 +176,8 @@ function sauvHtmlAnonymise(){
    
    `
 
-    // ANONYMISATION DES LIBELLÉS (plan-locuteurs-pseudo.md) : le bloc loc-json ne doit pas fuiter les
-    // vrais noms. Pour chaque locuteur pseudonymisé (libellé confirmé OU suggéré), on sérialise le
-    // PSEUDO (nomLocAffiche) ; le statut interrogateur « ? » est préservé. Locuteur sans pseudo (ou
-    // refusé) → nom réel (relève du garde-fou export, non traité ici).
-    const locAnonymise = (locut || []).map((nom, i) => {
-        if (!nom) return nom;
-        const estQ = String(nom).endsWith('?');
-        const aff = (typeof nomLocAffiche === 'function')
-            ? nomLocAffiche(i, { anonymise: true })
-            : String(nom).replace(/\?/g, '');
-        return estQ ? aff + '?' : aff;
-    });
-    const locJSON = JSON.stringify(locAnonymise, null);
+    // Même instantané et même nettoyage que la modale d'export et le corpus réouvrable.
+    const locJSON = JSON.stringify(documentAnon.tabLoc, null);
     const thmJSON = JSON.stringify(tabThm,null)
     const varJSON = JSON.stringify(tabVar,null)
     const dicJSON = JSON.stringify(tabDic,null)
@@ -260,16 +251,9 @@ function sauvHtmlAnonymise(){
     </div>
     `; 
 
-    // suppression du menu contextuel 
-    const oldMenu = document.getElementById("contextMenu")
-    if (oldMenu) {oldMenu.remove()}
-
-    // suppression des surlignements
-    effaceSel();
-    effaceSurv();
-
-    // Générer le contenu avec texte anonymisé
-    let segmentsAnonymises = AnonymiserSegments();
+    // Le nettoyage s'effectue uniquement sur la copie : ne pas effacer les sélections ou
+    // les marqueurs d'anonymisation du document de travail pendant un export.
+    const segmentsAnonymises = documentAnon.html;
 
     // sauvegarde du contenu HTML principal
     contenuHtml +=` <div id="contenuText"> 
@@ -297,13 +281,6 @@ function sauvHtmlAnonymise(){
 function AnonymiserSegments() {
     const segmentsEl = document.getElementById('segments');
     if (!segmentsEl) return '';
-    // LIBELLÉS de locuteurs : sur un CLONE (sans toucher le DOM live), remplacer data-nomloc par le nom
-    // AFFICHÉ anonymisé et retirer les marqueurs runtime — sinon le vrai nom fuiterait via le ::before
-    // du libellé dans le fichier partagé. Cœur partagé _anonymiserLiglocsDansElement (anon-regles.js).
-    const clone = segmentsEl.cloneNode(true);
-    _anonymiserLiglocsDansElement(clone);
-    // Cœur partagé _anonymiserHtml (anon-regles.js) : remplace chaque run par « [pseudo] », garde
-    // exceptions/à-traiter en clair, préserve la structure. (cf. anon.md §8)
-    return _anonymiserHtml(clone.innerHTML);
+    return _anonymiserHtml(segmentsEl.innerHTML); // texte ET libellés, sur une copie
 }
 

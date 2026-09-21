@@ -733,8 +733,12 @@ async function exportFichierSonal(){
             const chkAnon = document.getElementById("chkAnon");
             if (chkAnon && chkAnon.checked) {
                 console.log("Anonymisation activée pour l'export .Sonal");
-                const contenuAnonymise = sauvHtmlAnonymise();
-                SauvegarderSurDisque(contenuAnonymise, detailsf[1] + "_anonymise.Sonal", "UTF-8");
+                try {
+                    const contenuAnonymise = sauvHtmlAnonymise();
+                    SauvegarderSurDisque(contenuAnonymise, detailsf[1] + "_anonymise.Sonal", "UTF-8");
+                } catch (error) {
+                    dialog('Export interrompu', error.message);
+                }
                 return;
             }
 
