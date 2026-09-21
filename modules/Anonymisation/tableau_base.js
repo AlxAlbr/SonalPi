@@ -310,23 +310,35 @@ function detecterOccurrencesToutesLesPaires() {
 }
 
 /**
- * Compte, sur l'entretien OUVERT, le total des occurrences « à anonymiser » (isNonTraite),
- * toutes règles confondues (locales ET corpus présentes mais pas encore appliquées ici). Lit
- * window.tabAnon[].matchPositions, re-dérivé du DOM (source de vérité, anon.md §2) — même notion
- * exacte que le compteur orange `nbNon` de chaque ligne (affichTableauAnon). N'inclut NI les
- * incluses NI les exceptions (assumées). À appeler APRÈS detecterOccurrencesToutesLesPaires/
- * affichTableauAnon pour que matchPositions soit à jour.
- * @returns {{ total:number, lignes:Array<{entite:string, nb:number}> }}
+ * Compte, sur l'entretien OUVERT, tout ce qui reste « à anonymiser » : occurrences textuelles
+ * `isNonTraite` ET règles dont un libellé de locuteur est pending. Toutes règles confondues (locales
+ * et corpus présentes mais pas encore appliquées ici). Les incluses et exceptions sont résolues.
+ * À appeler APRÈS detecterOccurrencesToutesLesPaires/affichTableauAnon pour que le DOM et les
+ * matchPositions soient à jour.
+ * @returns {{total:number,totalOccurrences:number,totalLocuteurs:number,
+ *   lignes:Array<{entite:string,nb:number,locuteurPending:boolean}>}}
  */
 function compterAnonATraiterEntretien() {
-    let total = 0;
+    let totalOccurrences = 0;
+    let totalLocuteurs = 0;
     const lignes = [];
+    const idxLibLoc = _indexerLibellesLocuteurs();
     (window.tabAnon || []).forEach(p => {
         if (!p || !p.entite || !p.entite.trim()) return;
         const nbNon = (p.matchPositions || []).filter(m => m && m.isNonTraite).length;
-        if (nbNon > 0) { total += nbNon; lignes.push({ entite: p.entite, nb: nbNon }); }
+        const locuteurPending = _etatLocuteurLigne(p, idxLibLoc) === 'pending';
+        if (nbNon > 0 || locuteurPending) {
+            totalOccurrences += nbNon;
+            if (locuteurPending) totalLocuteurs++;
+            lignes.push({ entite: p.entite, nb: nbNon, locuteurPending });
+        }
     });
-    return { total, lignes };
+    return {
+        total: totalOccurrences + totalLocuteurs,
+        totalOccurrences,
+        totalLocuteurs,
+        lignes
+    };
 }
 
 /**
@@ -355,7 +367,7 @@ async function verifierEntretien() {
     // loc-anon/data-locpseudo). Démarque les libellés orphelins, resynchronise les pseudos changés.
     await resynchroniserLibellesLocuteurs();
 
-    const { total, lignes } = compterAnonATraiterEntretien();
+    const { total, totalOccurrences, totalLocuteurs, lignes } = compterAnonATraiterEntretien();
 
     // Brouillons « parqués » ayant des occurrences réelles dans le texte : ce ne sont PAS des
     // « à anonymiser » (I-POR-4 : un brouillon ne le devient jamais seul, matchPositions=[]), mais un
@@ -384,11 +396,20 @@ async function verifierEntretien() {
     }
 
     const detail = lignes
-        .sort((a, b) => b.nb - a.nb)
-        .map(l => `• ${tronq(l.entite)} — ${l.nb}`)
+        .sort((a, b) => (Number(b.locuteurPending) + b.nb) - (Number(a.locuteurPending) + a.nb))
+        .map(l => {
+            const restes = [];
+            if (l.nb > 0) restes.push(`${l.nb} occurrence(s) dans le texte`);
+            if (l.locuteurPending) restes.push('libellé de locuteur à pseudonymiser');
+            return `• ${tronq(l.entite)} — ${restes.join(' + ')}`;
+        })
         .join('\n');
+    const resume = [
+        totalOccurrences > 0 ? `${totalOccurrences} occurrence(s) dans le texte` : '',
+        totalLocuteurs > 0 ? `${totalLocuteurs} locuteur(s)` : ''
+    ].filter(Boolean).join(' et ');
     await question(
-        `⚠️ ${total} occurrence(s) encore « à anonymiser » dans cet entretien :\n\n${detail}\n\n` +
+        `⚠️ Il reste ${resume} à pseudonymiser dans cet entretien :\n\n${detail}\n\n` +
         `Les lignes concernées sont en orange dans le panneau ci-dessous. Appliquez-les avant l'export.` +
         listeBrouillons + noteNER,
         ['OK']);
@@ -476,7 +497,8 @@ function suffixeTooltipIncluse(nbIncl, noms) {
 }
 
 // Affichage du tableau d'anonymisation
-// FILTRAGE : affiche les paires avec occurrences > 0, + les paires en cours de remplissage (entité sans occurrences), + lignes vides
+// FILTRAGE : affiche les paires avec occurrences > 0, les règles correspondant à un libellé de
+// locuteur, les paires en cours de remplissage (entité sans occurrences), + lignes vides.
 function affichTableauAnon() {
     const tableauDiv = document.getElementById('tableauAnon');
     if (!tableauDiv) return;
@@ -484,8 +506,13 @@ function affichTableauAnon() {
     // Réinitialiser le compteur actif (les flèches disparaissent au re-rendu)
     window._activeCounter = null;
 
+    // Précalcul (1×/rendu) des LIBELLÉS locuteurs. Il sert dès le filtrage : une règle corpus qui ne
+    // figure pas dans le texte doit néanmoins apparaître si l'entité est le nom d'un locuteur.
+    const idxLibLoc = _indexerLibellesLocuteurs();
+
     // 1. Construire la liste des indices à afficher
     // - Toutes les paires avec occurrences > 0
+    // - Les règles correspondant à un libellé de locuteur, même sans occurrence textuelle
     // - Les paires avec entité mais 0 occurrences (en cours de remplissage par l'utilisateur)
     // - Plus les dernières lignes vides du tabAnon pour permettre l'ajout
     const indicesToDisplay = [];
@@ -501,9 +528,11 @@ function affichTableauAnon() {
             indicesToDisplay.push(i);
         } else if (p.entite && p.entite.trim()) {
             // En cours de remplissage / brouillon. Pour les entrées globales non encore appliquées
-            // localement, ne montrer que si l'entité est réellement présente dans le texte.
+            // localement, montrer la règle si l'entité est présente dans le texte OU correspond à un
+            // libellé de locuteur. Ce second cas rend enfin visibles les règles « locuteur seulement ».
             if (p.source === 'Global' && !p.existeLocalement) {
-                if (compterOccurrencesEntite(p.entite) > 0) {
+                const estLocuteurIci = _etatLocuteurLigne(p, idxLibLoc) !== null;
+                if (compterOccurrencesEntite(p.entite) > 0 || estLocuteurIci) {
                     indicesToDisplay.push(i);
                 }
             } else {
@@ -540,10 +569,6 @@ function affichTableauAnon() {
             <tbody>
     `;
     
-    // Précalcul (1×/rendu) des LIBELLÉS locuteurs : leur liste et leurs clés d'alias sont identiques
-    // pour toutes les lignes → on évite un querySelectorAll + N×M clesAlias par ligne (cf. pastille 👤).
-    const idxLibLoc = _indexerLibellesLocuteurs();
-
     for (let displayIdx = 0; displayIdx < indicesToDisplay.length; displayIdx++) {
         const i = indicesToDisplay[displayIdx];
         const paire = window.tabAnon[i];
@@ -565,13 +590,20 @@ function affichTableauAnon() {
         const nbExc  = paire.matchPositions ? paire.matchPositions.filter(m => m.isException).length : 0;
         const nbNon  = paire.matchPositions ? paire.matchPositions.filter(m => m.isNonTraite).length : 0;
         const nbIncl = paire.matchPositions ? paire.matchPositions.filter(m => m.isIncluded).length : 0;
-        const estPending = nbNon > 0;
-        // Ligne verte uniquement si toutes les occurrences sont traitées (anonymisées ou en exception)
-        const estAnonymisee = aDesOccurrences && paire.remplacement.trim().length > 0 && nbNon === 0;
-        // État LIBELLÉ locuteur de CET entretien (null / 'pending' / 'resolu') — sert à la pastille 👤 ET
-        // à masquer la loupe de repérage (une entité qui n'est QUE locuteur n'a pas d'occurrence de texte
-        // à repérer). Utilise l'index pré-calculé hors boucle.
+        // État LIBELLÉ locuteur de CET entretien (null / 'pending' / 'resolu') — sert à la pastille 👤,
+        // à l'état global de la ligne ET à masquer la loupe de repérage (une entité qui n'est QUE
+        // locuteur n'a pas d'occurrence de texte à repérer).
         const etatLoc = _etatLocuteurLigne(paire, idxLibLoc);
+        const estPending = nbNon > 0 || etatLoc === 'pending';
+        // Une ligne peut être entièrement traitée sans occurrence textuelle : un libellé de locuteur
+        // confirmé (ou explicitement refusé) est une matérialisation résolue à part entière.
+        const estAnonymisee = (aDesOccurrences || etatLoc === 'resolu') &&
+            paire.remplacement.trim().length > 0 && !estPending;
+        // Règle héritée du corpus, visible ici uniquement parce qu'elle correspond à un locuteur :
+        // elle n'est pas un brouillon local. On ne lui propose donc pas l'action « supprimer ce
+        // brouillon » (la suppression de la règle corpus reste disponible dans le panneau Pseudos).
+        const estRegleCorpusHeriteeLocSeul = !aDesOccurrences && !!etatLoc &&
+            paire.source === 'Global' && !paire.existeLocalement;
 
         // Compteur(s) « anonymisées » : pour une ligne MULTI-PSEUDO, un badge PAR variante (compté
         // depuis le DOM via data-pseudo) avec navigation propre (cat 'anon0'/'anon1') ; sinon un seul
@@ -682,10 +714,10 @@ function affichTableauAnon() {
                             ${badgesAnonHtml}
                             ${nbExc > 0 ? `<button class="btn-nav-cat btn-nav-cat-exc" data-idx="${i}" data-cat="exc" onclick="clicCompteur(this,${i},'exc')" title="${nbExc} exception(s) — cliquer pour naviguer">${nbExc}</button>` : ''}
                             ${nbNon > 0 ? `<button class="btn-nav-cat btn-nav-cat-non" data-idx="${i}" data-cat="non" onclick="clicCompteur(this,${i},'non')" title="${nbNon} occurrence(s) non encore traitée(s) — cliquer pour naviguer">${nbNon}</button>` : ''}
-                            ${_badgeLocuteurHtml(etatLoc)}
+                            ${_badgeLocuteurHtml(etatLoc, i)}
                             ${aDesOccurrences
                                 ? `<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer"><span class="btn-main-icon">✖️</span></button>`
-                                : (montrerSlider
+                                : (montrerSlider && !estRegleCorpusHeriteeLocSeul
                                     ? `${(nbNon > 0 || etatLoc) ? '' : _reperageHtml(i, paire)}<button class="btn-action btn-action-delete" onclick="supprimeLigneAnon(${i})" title="Supprimer ce brouillon"><span class="btn-main-icon">✖️</span></button>`
                                     : '')}
                         </div>
@@ -2148,7 +2180,7 @@ function _indexerLibellesLocuteurs() {
  *   'resolu' = tous les libellés matchants sont pseudonymisés (loc-anon) ou refusés (loc-suggere-refuse).
  */
 function _etatLocuteurLigne(paire, index) {
-    if (!paire || !paire.entite) return null;
+    if (!paire || !paire.entite || (paire.portee || 'corpus') === 'brouillon') return null;
     const cles = new Set(clesAlias(paire.entite));
     if (cles.size === 0) return null;
     const libs = index || _indexerLibellesLocuteurs();
@@ -2161,15 +2193,18 @@ function _etatLocuteurLigne(paire, index) {
  * Pastille 👤 « locuteur de cet entretien » pour une ligne (couleurs alignées sur le 👤 corpus).
  * @param {null|'pending'|'resolu'} etat - état pré-calculé par _etatLocuteurLigne (évite un 2e parcours DOM).
  */
-function _badgeLocuteurHtml(etat) {
+function _badgeLocuteurHtml(etat, idxPaire) {
     if (!etat) return '';
     const pending = etat === 'pending';
     const c = pending ? '#e65100' : '#2e7d32';
-    const titre = pending
-        ? 'Locuteur de cet entretien — libellé à pseudonymiser'
-        : 'Locuteur de cet entretien — libellé pseudonymisé/refusé';
-    return `<span class="badge-loc-entretien" title="${titre}" style="color:${c};font-size:0.72rem;`
-        + `white-space:nowrap;align-self:center;margin-left:6px;">👤${pending ? '●' : '✓'}</span>`;
+    if (pending) {
+        return `<button type="button" class="badge-loc-entretien badge-loc-entretien-action" `
+            + `onclick="confirmerPseudoLibellesLigne(${idxPaire})" `
+            + `title="Locuteur de cet entretien — cliquer pour appliquer le pseudo" `
+            + `style="color:${c};font-size:0.72rem;white-space:nowrap;align-self:center;margin-left:6px;">👤●</button>`;
+    }
+    return `<span class="badge-loc-entretien" title="Locuteur de cet entretien — libellé pseudonymisé/refusé" `
+        + `style="color:${c};font-size:0.72rem;white-space:nowrap;align-self:center;margin-left:6px;">👤✓</span>`;
 }
 
 /**

@@ -4660,6 +4660,24 @@ SYNTHESE
     border-radius: 2px;
 }
 
+/* État des libellés de locuteur dans le tableau d'anonymisation. La pastille orange est une action :
+   elle confirme directement toutes les suggestions correspondant aux alias de la règle. */
+.badge-loc-entretien-action {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 2px 3px;
+    font-family: inherit;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.badge-loc-entretien-action:hover,
+.badge-loc-entretien-action:focus-visible {
+    background: #ffe0b2;
+    outline: 1px solid #ffb74d;
+}
+
 /* Boutons de navigation par catégorie (vert = anonymisée / gris = exception / orange = non traitée) */
 .btn-nav-cat {
     display: inline-flex;

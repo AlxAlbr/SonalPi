@@ -89,8 +89,13 @@ function ouvrirAideAnonymisation() {
                         exceptions : occurrences laissées volontairement en clair.</li>
                         <li><span style="background:#ff9800;color:#fff;border-radius:3px;padding:1px 6px;font-size:0.78rem;font-weight:bold;">N</span>
                         à anonymiser : occurrences encore <em>en clair</em>.</li>
-                        <li>Fond de la ligne : 🟩 tout traité · 🟧 il reste des « à anonymiser » ·
-                        ⬜ brouillon.</li>
+                        <li><span style="color:#e65100;font-weight:bold;">👤●</span> : l'entité correspond
+                        à un locuteur dont le libellé reste à pseudonymiser. Cela vaut aussi lorsque son
+                        nom n'apparaît jamais dans le texte. Cliquez sur la pastille pour appliquer le
+                        pseudo ; <span style="color:#2e7d32;font-weight:bold;">👤✓</span> indique un
+                        libellé résolu (pseudonymisé ou explicitement refusé).</li>
+                        <li>Fond de la ligne : 🟩 tout traité · 🟧 il reste du texte ou un locuteur
+                        « à anonymiser » · ⬜ brouillon.</li>
                     </ul>
 
                     <h3 style="color:#333;font-weight:600;">6) Alias, multi-pseudos et occurrences incluses</h3>

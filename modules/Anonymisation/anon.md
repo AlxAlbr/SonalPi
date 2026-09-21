@@ -187,9 +187,10 @@ Ordre effectif :
 - **Scan entretien** (« 🔍 Scan anonymisation entretien », pendant local du scan corpus —
   [tableau_base.js](tableau_base.js)) : `verifierEntretien()` → `detecterOccurrencesToutesLesPaires()`
   + `affichTableauAnon()` (re-dérive depuis le DOM, source de vérité §2) → bilan consolidé via
-  `compterAnonATraiterEntretien()` : total « à anonymiser » (somme des `nbNon` = `isNonTraite`, toutes
-  règles locales **et** corpus présentes-non-appliquées) + rappel **non bloquant** des brouillons ayant
-  des occurrences réelles (`compterOccurrencesEntite`, I-POR-4 : un brouillon n'est jamais « à
+  `compterAnonATraiterEntretien()` : bilan « à anonymiser » combinant les occurrences textuelles
+  (`nbNon` = `isNonTraite`, règles locales **et** corpus présentes-non-appliquées) et les règles dont
+  un libellé de locuteur reste en attente (`👤●`) + rappel **non bloquant** des brouillons ayant des
+  occurrences réelles (`compterOccurrencesEntite`, I-POR-4 : un brouillon n'est jamais « à
   anonymiser »). **Limite assumée** : ne couvre que les entités déjà repérées (pas de NER) — même
   limite que le scan corpus.
 - **Import table de correspondance** (JSON `[{entite_init, entite_pseudo}]`) : moteur de
@@ -463,13 +464,17 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
   brouillon) si elle marque des occurrences de TEXTE (`occ>0`) **ou** un libellé. ⇒ une règle peut être
   **document/corpus à 0 occurrence de texte**. Tout test `occ>0` valant « appliqué » doit l'inclure
   (`aLibellePseudonymise`, sinon slider mal routé). `nettoyerTabAnon` conserve ces règles **locales** ;
-  confirmer une suggestion **corpus** pose `existeLocalement=true` (sinon fantôme caché par le filtre
-  d'affichage `Global && occ-texte=0`).
+  confirmer une suggestion **corpus** pose `existeLocalement=true` pour qu'elle survive à la sauvegarde.
+  Une règle corpus correspondant uniquement à un locuteur est visible avant confirmation dans le tableau
+  de l'entretien : ligne orange + pastille `👤●`, même avec 0 occurrence textuelle. Après confirmation
+  (`👤✓`), la ligne devient verte ; un refus explicite est lui aussi considéré comme résolu.
 - **Flux** ([tableau_base.js](tableau_base.js) sauf mention) :
   - *Création* : dialogue post-validation `proposerPseudoLocuteur` (miroir de `proposerRegleCoeurAffixe`),
     match d'alias `clesAlias` contre `data-nomloc`. Couvre le locuteur **non cité dans le texte**.
   - *Suggestion* (corpus → nouvel entretien) : `detecterLibellesASuggerer` en fin de
-    `detecterOccurrencesToutesLesPaires` (ouverture + scan).
+    `detecterOccurrencesToutesLesPaires` (ouverture + scan). `affichTableauAnon` inclut les règles
+    corpus dont un alias correspond à un `.ligloc`, indépendamment de leur présence dans le texte ; la
+    pastille `👤●` confirme en un clic tous les libellés suggérés de la règle sans annuler les refus.
   - *Menu libellé* ([anon-menus.js](anon-menus.js)) : clic-droit sur le `.ligloc` (détecté car **hors
     `[data-rk]`**) — confirmer / refuser / ré-activer / retirer (local ; **≠** suppression de règle, §11).
   - *Propagation* : `resynchroniserLibellesLocuteurs` (suppression, parking 🚧, édition de pseudo,
