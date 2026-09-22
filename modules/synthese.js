@@ -88,12 +88,10 @@ function traiterTexteExtrait(spans, { anonymise = true, tousLesSpans = null } = 
 
 async function synthese(critereEt){ // fonction permettant de compiler toutes les parties d'entretien relatives au(x) thème(s) sélectionné(s)
 
- if (tabThm.length == 0){
-  tabThm = await window.electronAPI.getThm()
-}
-if (tabEnt.length == 0){
-  tabEnt = await window.electronAPI.getEnt()
-}
+ // Toujours relire l'état courant : les tris à plat et les sélections manuelles
+ // peuvent avoir changé depuis le dernier affichage de la synthèse.
+ tabThm = await window.electronAPI.getThm();
+ tabEnt = await window.electronAPI.getEnt();
 
     let tabHtml = await window.electronAPI.getHtml();
 //console.log("début de la synthèse. TabTHm=" + JSON.stringify (tabThm) + " / tabEnt=" + JSON.stringify (tabEnt) );
@@ -560,7 +558,8 @@ if (tabEnt.length == 0){
 
     // Traitement asynchrone des entretiens (entretiens inactifs exclus)
     for (let i = 0; i < tabHtml.length; i++) {
-        if (tabEnt[i] && tabEnt[i].actif === 0) continue;
+        const actif = tabEnt[i] ? tabEnt[i].actif : undefined;
+        if (actif === 0 || actif === '0' || actif === false || actif === 'false') continue;
         await traiterEntretien(i);
     }
 

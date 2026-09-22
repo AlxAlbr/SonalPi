@@ -2266,6 +2266,24 @@ background-color: #8d8d8d91;
      
 
   }
+
+/* La fenêtre des métadonnées peut dépasser sur les petits écrans.
+   direction:rtl place sa barre de défilement à gauche ; les enfants
+   repassent en ltr pour conserver la disposition habituelle du contenu. */
+.dialog-content--metadata {
+  top: 2vh !important;
+  max-height: 96vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  direction: rtl;
+}
+
+.dialog-content--metadata > * {
+  direction: ltr;
+}
+
 .txtnotes {
     height: calc(100vh - 200px);
     width: 100%;
@@ -2306,7 +2324,34 @@ background-color: #8d8d8d91;
 
 .libmoda{
   width:90%;
-  padding:3px; 
+  padding:3px;
+}
+
+.ligmoda .libmoda {
+  flex: 1;
+  min-width: 0;
+}
+
+.aide-modalites {
+  margin: -6px 0 4px;
+  color: #555;
+  font-size: 0.9em;
+}
+
+.supprmod {
+  flex: 0 0 30px;
+  height: 28px;
+  margin: 0 4px 3px 2px;
+  border: 1px solid #c62828;
+  border-radius: 3px;
+  background: #fff;
+  color: #c62828;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.supprmod:hover {
+  background: #ffebee;
 }
  
 

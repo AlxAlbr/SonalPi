@@ -12,6 +12,14 @@ var placerApresVar = "dernier"; // valeur de positionnement pour les variables :
 var txtmod_cur = null; // mémorisation du texte de modalité en cours de modification (pour le menu)
 var filtreVarGen = "all"; // filtre d'affichage du tableau global : "all" | "gen" | "loc"
 
+// État propre aux tris à plat. Les modalités sélectionnées sont conservées
+// indépendamment de `ent.actif`, qui reste la sélection finale consommée par
+// la synthèse et les autres vues.
+var etatFiltresTAP = new Map();       // code variable -> Set(codes modalités, "0" = non-renseigné)
+var baseActifsTAP = new Map();        // sélection manuelle avant application des filtres
+var signatureFiltresTAP = "";
+var filtresTAPActifs = false;
+
 // AJOUTER UNE VARIABLE
 async function addVar(mode) {
 
@@ -55,19 +63,7 @@ async function addVar(mode) {
         
 
          
-        // y'a-t-il des modalités à ajouter?
-        const inputs = document.querySelectorAll(".libmoda");
-        inputs.forEach(input => {
-            let rkV = Number(input.dataset.v)
-            let rkM = Number(input.dataset.m); 
-            
-            if (input.value != input.dataset.lib && rkV && rkM) {
-                chgDic(rkV, rkM, input.value)
-            }
-        });
-
-
-       // Mise à jour des modalités
+        // Mise à jour des modalités saisies dans l'éditeur.
         await sauvModas();  
 
         await window.sauvegarderCorpus(false);
@@ -133,69 +129,10 @@ async function editVar(rgVar, mode) {
         etq.classList.add("mdc-floating-label", "floatingstatic");
             fondDico.appendChild(etq);
         
-        // ajout des modalités
-        ligsDic.forEach((mod, index) => {
-
-                        
-                // création de la div de fond de la modalité
-                const fondMod = document.createElement("div");
-                fondMod.classList.add("ligmoda"); 
-                //fondMod.setAttribute("onclick", "menuMod('" + v.v + "'); alert('clic')");
-                fondDico.appendChild(fondMod);
-
-                // récupération des valeurs d'index
-                var moda =mod.m; 
-                var libellé =mod.lib; 
-
-                // création de la case du code
-                const divCode = document.createElement("input");
-                divCode.type = "text";
-                divCode.classList = "codemoda"
-                divCode.disabled=true; 
-                divCode.value = moda; 
-                 
-                fondMod.appendChild(divCode);
-
-
-                // création de la case du libellé
-                const divLib = document.createElement("input");
-                divLib.type = "text";
-                divLib.classList = "libmoda"
-                divLib.dataset.m = moda
-                divLib.dataset.v = rgVar
-                divLib.dataset.lib = libellé
-                divLib.value = libellé; 
-                divLib.setAttribute('onfocus', 'dsTxtArea=false;dsTxtAutre=true');
-                divLib.setAttribute('onfocusout', 'dsTxtAutre=false');
-                 
-                fondMod.appendChild(divLib);
-
-
-                // ajout d'une croix pour supprimer la modalité
-                divLib.insertAdjacentHTML('afterend', '<span class="supprmod" style="margin-left:5px; cursor:pointer;color:red;font-weight:bold">x</span>');
-                const supprMod = divLib.nextSibling;
-                supprMod.addEventListener('click', async function() {
-       
-                     
-                  
-                        // suppression de la modalité (retrait du composant de la page)
-                        fondMod.remove();
-
-                        // suppression de la modalité dans tabDic local et global
-                        const indexDicGlobal = tabDic.findIndex(item => item.v == rgVar && item.m == moda);
-                        if (indexDicGlobal !== -1) {
-                            tabDic.splice(indexDicGlobal, 1);
-                        }
-                        
-
-                    
-                });
-
-
-
-
-            
-
+        // ajout des modalités. La suppression n'est appliquée qu'à la validation
+        // afin que fermer la boîte de dialogue conserve les données initiales.
+        ligsDic.forEach(mod => {
+            ajouterLigneModaliteEditeur(rgVar, mod.m, mod.lib);
         }); 
 
         // afichage des modalités
@@ -327,82 +264,94 @@ async function supprVar(rgVar, mode) {
 }
 
 // sauvegarde des modalités depuis la fenêtre d'édition des variables
-async function sauvModas(ode) {
+async function sauvModas(mode) {
+    const rgVar = Number(document.getElementById("lblCodeVar").value);
+    const fondDico = document.getElementById("dico");
+    const modalitesSaisies = [];
 
-    // console.log("Sauvegarde des modalités");
+    // Une ligne vide (ou retirée avec ✕) est volontairement supprimée à la validation.
+    if (fondDico) {
+        fondDico.querySelectorAll(".libmoda").forEach(input => {
+            const rkM = Number(input.dataset.m);
+            const lib = input.value.trim();
+            if (Number.isFinite(rkM) && rkM > 0 && lib !== "") {
+                modalitesSaisies.push({ v: rgVar, m: rkM, lib });
+            }
+        });
+    }
 
-    // récupération de la variable courante
-    const rgVar = document.getElementById("lblCodeVar").value;
-
-    // récupération des modalités
-    const inputs = document.querySelectorAll(".libmoda");
-    inputs.forEach(input => {
-        let rkV = Number(input.dataset.v);
-        let rkM = Number(input.dataset.m);
-        let newValue = input.value;
-
-        // console.log("Sauvegarde de la modalité pour la variable :", rkV, "et la modalité :", rkM, "avec la valeur :", newValue);
-
-        // mise à jour de la modalité dans tabDic
-        if (rkV && rkM && input.value) {
-             chgDic(rkV, rkM, input.value)
-        };
-
+    // Synchroniser exactement la variable éditée, tout en conservant sa modalité 0.
+    tabDic = tabDic.filter(item => Number(item.v) !== rgVar || Number(item.m) === 0);
+    modalitesSaisies.forEach(modalite => {
+        const index = tabDic.findIndex(item => Number(item.v) === rgVar && Number(item.m) === modalite.m);
+        if (index === -1) tabDic.push(modalite);
+        else tabDic[index] = modalite;
     });
-     await electronAPI.setDic(tabDic);
 
-    
+    await electronAPI.setDic(tabDic);
+}
+
+/** Crée une ligne de modalité avec une commande de suppression explicite. */
+function ajouterLigneModaliteEditeur(v, moda, libelle = "") {
+    const fondDico = document.getElementById("dico");
+    if (!fondDico) return null;
+
+    const fondMod = document.createElement("div");
+    fondMod.classList.add("ligmoda");
+
+    const divCode = document.createElement("input");
+    divCode.type = "text";
+    divCode.className = "codemoda";
+    divCode.disabled = true;
+    divCode.value = moda;
+    divCode.setAttribute("aria-label", "Code de la modalité");
+    fondMod.appendChild(divCode);
+
+    const divLib = document.createElement("input");
+    divLib.type = "text";
+    divLib.className = "libmoda";
+    divLib.dataset.m = moda;
+    divLib.dataset.v = v;
+    divLib.dataset.lib = libelle;
+    divLib.value = libelle;
+    divLib.placeholder = "Nouvelle modalité";
+    divLib.setAttribute('onfocus', 'dsTxtArea=false;dsTxtAutre=true');
+    divLib.setAttribute('onfocusout', 'dsTxtAutre=false');
+    fondMod.appendChild(divLib);
+
+    const btnSupprimer = document.createElement("button");
+    btnSupprimer.type = "button";
+    btnSupprimer.className = "supprmod";
+    btnSupprimer.textContent = "✕";
+    btnSupprimer.title = "Supprimer cette modalité";
+    btnSupprimer.setAttribute("aria-label", "Supprimer cette modalité");
+    btnSupprimer.addEventListener("click", () => fondMod.remove());
+    fondMod.appendChild(btnSupprimer);
+
+    fondDico.appendChild(fondMod);
+    return divLib;
 }
 
 // ajout d'une modalité à la variable éditée
 function addMod(v) {
+    const rgVar = Number(v);
+    const codesExistants = tabDic
+        .filter(item => Number(item.v) === rgVar && Number(item.m) > 0)
+        .map(item => Number(item.m));
 
-console.log ("ajout d'une modalité")
+    const fondDico = document.getElementById("dico");
+    if (fondDico) {
+        fondDico.querySelectorAll(".libmoda").forEach(input => {
+            const code = Number(input.dataset.m);
+            if (Number.isFinite(code)) codesExistants.push(code);
+        });
+    }
 
-    const fondDico = document.getElementById("dico")
-
-    // création de la div de fond de la modalité
-                const fondMod = document.createElement("div");
-                fondMod.classList.add("ligmoda"); 
-                //fondMod.setAttribute("onclick", "menuMod('" + v.v + "'); alert('clic')");
-                fondDico.appendChild(fondMod);
-
-                // récupération des valeurs d'index
-                // quel est le rang de modalité le plus avancé? 
-                const ligsDic= tabDic.filter (vr => vr.v == v);
-                const maxMod = Math.max(...ligsDic.map(item => item.m)); 
-
-                if (maxMod == -Infinity) { // il n'existe aucune modalité pour cette variable), on commence à 1
-                    var moda = 1;
-                } else {
-                    var moda = maxMod + 1;
-                }
-                tabDic.push({'v': Number(v), 'm' : moda , 'lib' :""})
-                var libellé =""; 
-
-                // création de la case du code
-                const divCode = document.createElement("input");
-                divCode.type = "text";
-                divCode.classList = "codemoda"
-                divCode.disabled=true; 
-                divCode.value = moda; 
-                 
-                fondMod.appendChild(divCode);
-
-                // création de la case du libellé
-                const divLib = document.createElement("input");
-                divLib.type = "text";
-                divLib.classList = "libmoda"
-                divLib.dataset.m = moda
-                divLib.dataset.v = v
-                divLib.dataset.lib = libellé
-                divLib.value = libellé; 
-                divLib.setAttribute('onfocus', 'dsTxtArea=false;dsTxtAutre=true');
-                divLib.setAttribute('onfocusout', 'dsTxtAutre=false');
-                 
-                fondMod.appendChild(divLib);
-                divLib.focus();
-
+    const moda = codesExistants.length > 0 ? Math.max(...codesExistants) + 1 : 1;
+    const input = ajouterLigneModaliteEditeur(rgVar, moda, "");
+    const fondMod = document.getElementById("fond_mod");
+    if (fondMod) fondMod.style.display = "block";
+    if (input) input.focus();
 }
 
 // ajout en masse de modalités issues de modèles
@@ -424,6 +373,10 @@ function ajoutListeModas(type){
 
     let tabmods = []; // tableau des modalités à ajouter
     switch(type) {
+        case "vide":
+        case "rien": // compatibilité avec les anciennes boîtes de dialogue
+            tabmods = [""];
+            break;
         case "sexe":
             tabmods = modsexe;
             break;
@@ -453,56 +406,24 @@ function ajoutListeModas(type){
         const fondDico = document.getElementById("dico")
         fondDico.innerHTML=""; 
         
-        // ajout des modalités
-        tabmods.forEach((mod, index) => {
-
-            if (index===0){return}
-     
-            // création de la div de fond de la modalité
-            const fondMod = document.createElement("div");
-            fondMod.classList.add("ligmoda");
-            //fondMod.setAttribute("onclick", "menuMod('" + v.v + "'); alert('clic')");
-            fondDico.appendChild(fondMod);
-
-                // récupération des valeurs d'index
-                var moda =index; 
-                var libellé =mod; 
-
-                // création de la case du code
-                const divCode = document.createElement("input");
-                divCode.type = "text";
-                divCode.classList = "codemoda"
-                divCode.disabled=true; 
-                divCode.value = moda; 
-                 
-                fondMod.appendChild(divCode);
-
-
-                // création de la case du libellé
-                const divLib = document.createElement("input");
-                divLib.type = "text";
-                divLib.classList = "libmoda"
-                divLib.dataset.m = moda
-                divLib.dataset.v = rgVar
-                divLib.dataset.lib = libellé
-                divLib.value = libellé; 
-                divLib.setAttribute('onfocus', 'dsTxtArea=false;dsTxtAutre=true');
-                divLib.setAttribute('onfocusout', 'dsTxtAutre=false');
-                 
-                fondMod.appendChild(divLib);
-
-
-            
-
-        }); 
+        // ajout des modalités du modèle. Le modèle vide fournit une première
+        // ligne libre pour rendre la création personnalisée immédiatement visible.
+        if (type === "vide" || type === "rien") {
+            ajouterLigneModaliteEditeur(rgVar, 1, "");
+        } else {
+            tabmods.forEach((mod, index) => {
+                if (index === 0) return;
+                ajouterLigneModaliteEditeur(rgVar, index, mod);
+            });
+        }
 
         // afichage des modalités
         document.getElementById("fond_mod").style.display = "block";
 
         // si le champ de libellé de la variable est vide, on le remplit avec le nom du type de modalité
         const lblLibVar = document.getElementById("lblLibVar"); 
-        if (lblLibVar.value === "") {
-            lblLibVar.value =  type; // Mettre un libellé par défaut
+        if (lblLibVar.value === "" && type !== "vide" && type !== "rien") {
+            lblLibVar.value = type; // Mettre un libellé par défaut pour les modèles nommés
         }   
 
 }; 
@@ -1927,48 +1848,159 @@ function majLigentsDOM(tabEntLocal) {
  * Met à jour l'état visuel des interrupteurs du panneau tris à plat
  * en fonction de l'état actif/inactif des entretiens.
  */
-function majSwitchesTAP(tabEntLocal) {
-    // Interrupteurs modalités normales
-    document.querySelectorAll('.tap-row > .btn-onoff-ent:not([data-nr])').forEach(btn => {
-        const rkV = btn.dataset.v;
-        const rkM = Number(btn.dataset.m);
-        const champ = btn.dataset.champ;
+function estEntretienActifTAP(ent) {
+    const actif = ent ? ent.actif : undefined;
+    return actif !== 0 && actif !== '0' && actif !== false && actif !== 'false';
+}
 
-        const cibles = tabEntLocal.filter(en =>
-            Array.isArray(en.tabDat) && en.tabDat.some(d =>
-                Number(d.v) === Number(rkV) &&
-                Number(d.m) === rkM &&
-                (champ === 'gen' ? d.l == 'all' : true)
-            )
-        );
+function cleEntretienTAP(ent, index) {
+    return ent && ent.id !== undefined && ent.id !== null
+        ? String(ent.id)
+        : `index:${index}`;
+}
 
-        const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
-        btn.classList.toggle('btn-onoff-ent--actif', tousActifs);
-    });
+function definitionsFiltresTAP(tabVarLocal = tabVar, tabDicLocal = tabDic, tabEntLocal = null) {
+    return (tabVarLocal || []).map(v => {
+        const codesModalites = (tabDicLocal || [])
+            .filter(d => Number(d.v) === Number(v.v) && Number(d.m) > 0)
+            .map(d => String(Number(d.m)));
+        const modalites = new Set(codesModalites);
 
-    // Interrupteurs non-réponses
-    document.querySelectorAll('.tap-row > .btn-onoff-ent[data-nr="1"]').forEach(btn => {
-        const rkV = btn.dataset.v;
-        const champ = btn.dataset.champ;
-        const varMods = tabDic.filter(d => Number(d.v) === Number(rkV) && Number(d.m) > 0);
-        const cibles = tabEntLocal.filter(e => {
-            if (!Array.isArray(e.tabDat)) return true;
-            return !varMods.some(dic =>
-                e.tabDat.some(d =>
-                    Number(d.v) === Number(rkV) &&
-                    Number(d.m) === Number(dic.m) &&
-                    (champ === 'gen' ? d.l == 'all' : true)
-                )
+        // "0" représente une absence de modalité valide pour la variable. On ne
+        // l'ajoute à l'état que si la ligne « Non renseigné » est effectivement
+        // affichable (ou si aucun corpus n'est fourni, pour l'usage utilitaire).
+        const aNonRenseigne = !Array.isArray(tabEntLocal) || tabEntLocal.some(ent => {
+            const lignes = Array.isArray(ent && ent.tabDat) ? ent.tabDat : [];
+            return !lignes.some(d =>
+                Number(d.v) === Number(v.v) &&
+                codesModalites.includes(String(Number(d.m))) &&
+                (v.champ !== 'gen' || d.l == 'all' || d.l == null)
             );
         });
-        const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
-        btn.classList.toggle('btn-onoff-ent--actif', tousActifs);
+        if (aNonRenseigne) modalites.add('0');
+
+        return { code: String(v.v), champ: v.champ, modalites };
+    }).filter(def => def.modalites.size > 0);
+}
+
+function modalitesEntretienTAP(ent, definition) {
+    const valeurs = new Set();
+    const autorisees = definition.modalites;
+    const lignes = Array.isArray(ent && ent.tabDat) ? ent.tabDat : [];
+
+    lignes.forEach(d => {
+        if (Number(d.v) !== Number(definition.code)) return;
+        // Les anciens corpus peuvent ne pas porter explicitement l="all".
+        if (definition.champ === 'gen' && d.l !== 'all' && d.l !== undefined && d.l !== null) return;
+        const m = String(Number(d.m));
+        if (m !== '0' && autorisees.has(m)) valeurs.add(m);
     });
 
-    // Interrupteur global
+    if (valeurs.size === 0) valeurs.add('0');
+    return valeurs;
+}
+
+/**
+ * OU entre les modalités d'une variable, ET entre les variables filtrées.
+ * Une variable dont toutes les modalités sont sélectionnées est neutre.
+ */
+function entretienRespecteFiltresTAP(ent, definitions, etats = etatFiltresTAP) {
+    return definitions.every(definition => {
+        const selectionnees = etats.get(definition.code) || definition.modalites;
+        if (selectionnees.size === definition.modalites.size &&
+            [...definition.modalites].every(m => selectionnees.has(m))) return true;
+        if (selectionnees.size === 0) return false;
+        return [...modalitesEntretienTAP(ent, definition)].some(m => selectionnees.has(m));
+    });
+}
+
+function memoriserBaseActifsTAP(tabEntLocal) {
+    baseActifsTAP = new Map((tabEntLocal || []).map((ent, index) => [
+        cleEntretienTAP(ent, index),
+        estEntretienActifTAP(ent)
+    ]));
+}
+
+function selectionnerToutesModalitesTAP(definitions) {
+    etatFiltresTAP = new Map(definitions.map(def => [def.code, new Set(def.modalites)]));
+}
+
+function filtresTAPSontNeutres(definitions) {
+    return definitions.every(def => {
+        const selectionnees = etatFiltresTAP.get(def.code);
+        return selectionnees && selectionnees.size === def.modalites.size &&
+            [...def.modalites].every(m => selectionnees.has(m));
+    });
+}
+
+function synchroniserStructureFiltresTAP(tabEntLocal, tabVarLocal, tabDicLocal) {
+    const definitions = definitionsFiltresTAP(tabVarLocal, tabDicLocal, tabEntLocal);
+    const signature = JSON.stringify({
+        entretiens: (tabEntLocal || []).map((ent, index) => cleEntretienTAP(ent, index)),
+        variables: definitions.map(def => [def.code, def.champ, [...def.modalites]])
+    });
+
+    if (signature !== signatureFiltresTAP) {
+        signatureFiltresTAP = signature;
+        selectionnerToutesModalitesTAP(definitions);
+        memoriserBaseActifsTAP(tabEntLocal);
+        filtresTAPActifs = false;
+    } else if (!filtresTAPActifs) {
+        // Hors filtrage, les activations manuelles deviennent la nouvelle base.
+        memoriserBaseActifsTAP(tabEntLocal);
+    }
+    return definitions;
+}
+
+async function appliquerFiltresTAP(tabEntLocal, definitions) {
+    const neutres = filtresTAPSontNeutres(definitions);
+
+    tabEntLocal.forEach((ent, index) => {
+        const cle = cleEntretienTAP(ent, index);
+        const actifAvantFiltre = baseActifsTAP.has(cle)
+            ? baseActifsTAP.get(cle)
+            : estEntretienActifTAP(ent);
+        ent.actif = actifAvantFiltre && (neutres || entretienRespecteFiltresTAP(ent, definitions)) ? 1 : 0;
+    });
+
+    filtresTAPActifs = !neutres;
+    await window.electronAPI.setEnt(tabEntLocal);
+    majLigentsDOM(tabEntLocal);
+    majSwitchesTAP(tabEntLocal);
+    await compterEntActifs();
+}
+
+async function changerModaliteFiltreTAP(codeVariable, codeModalite, isoler = false) {
+    tabEnt = await window.electronAPI.getEnt();
+    const definitions = synchroniserStructureFiltresTAP(tabEnt, tabVar, tabDic);
+    const definition = definitions.find(def => def.code === String(codeVariable));
+    if (!definition) return;
+
+    if (!filtresTAPActifs) memoriserBaseActifsTAP(tabEnt);
+
+    const code = String(codeModalite);
+    const selectionnees = etatFiltresTAP.get(definition.code) || new Set(definition.modalites);
+    if (isoler) {
+        etatFiltresTAP.set(definition.code, new Set([code]));
+    } else {
+        if (selectionnees.has(code)) selectionnees.delete(code);
+        else selectionnees.add(code);
+        etatFiltresTAP.set(definition.code, selectionnees);
+    }
+
+    await appliquerFiltresTAP(tabEnt, definitions);
+}
+
+/** Met à jour l'affichage des critères, sans les déduire des résultats filtrés. */
+function majSwitchesTAP(tabEntLocal) {
+    document.querySelectorAll('.tap-row > .btn-onoff-ent[data-v][data-m]').forEach(btn => {
+        const selectionnees = etatFiltresTAP.get(String(btn.dataset.v));
+        btn.classList.toggle('btn-onoff-ent--actif', !!selectionnees && selectionnees.has(String(btn.dataset.m)));
+    });
+
     const globalSwitch = document.getElementById('tap-global-switch');
     if (globalSwitch) {
-        const tousActifs = tabEntLocal.length > 0 && tabEntLocal.every(e => e.actif !== 0);
+        const tousActifs = tabEntLocal.length > 0 && tabEntLocal.every(estEntretienActifTAP);
         globalSwitch.classList.toggle('btn-onoff-ent--actif', tousActifs);
     }
 }
@@ -1991,6 +2023,7 @@ async function affichTriAPlat() {
     const nbEnt = tabEnt.length;
     let varIdx = 0; // indice pour les couleurs (cycle sur --coul-loc1..20)
     const tapGroups = []; // pour le bouton compact global
+    const definitions = synchroniserStructureFiltresTAP(tabEnt, tabVar, tabDic);
 
     for (const v of tabVar) {
 
@@ -2043,7 +2076,7 @@ async function affichTriAPlat() {
                 Array.isArray(e.tabDat) && e.tabDat.some(d =>
                     Number(d.v) === Number(v.v) &&
                     Number(d.m) === Number(dic.m) &&
-                    (v.champ === 'gen' ? d.l == 'all' : true)
+                    (v.champ === 'gen' ? (d.l == 'all' || d.l == null) : true)
                 )
             );
 
@@ -2092,42 +2125,16 @@ async function affichTriAPlat() {
             barWrap.appendChild(barLbl);
 
             // ---- Handlers partagés (switch, libellé, barre) ----
-            const doToggle = async () => {
-                tabEnt = await window.electronAPI.getEnt();
-                const cibles = tabEnt.filter(en =>
-                    Array.isArray(en.tabDat) && en.tabDat.some(d =>
-                        Number(d.v) === Number(v.v) &&
-                        Number(d.m) === Number(dic.m) &&
-                        (v.champ === 'gen' ? d.l == 'all' : true)
-                    )
-                );
-                const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
-                cibles.forEach(en => { en.actif = tousActifs ? 0 : 1; });
-                await window.electronAPI.setEnt(tabEnt);
-                majLigentsDOM(tabEnt);
-                majSwitchesTAP(tabEnt);
-                compterEntActifs();
-            };
-
-            const doIsolate = async () => {
-                tabEnt = await window.electronAPI.getEnt();
-                tabEnt.forEach(en => {
-                    const aMod = Array.isArray(en.tabDat) && en.tabDat.some(d =>
-                        Number(d.v) === Number(v.v) &&
-                        Number(d.m) === Number(dic.m) &&
-                        (v.champ === 'gen' ? d.l == 'all' : true)
-                    );
-                    en.actif = aMod ? 1 : 0;
-                });
-                await window.electronAPI.setEnt(tabEnt);
-                majLigentsDOM(tabEnt);
-                majSwitchesTAP(tabEnt);
-                compterEntActifs();
-            };
-
             [btnSwitch, lblMod, barWrap].forEach(el => {
-                el.addEventListener('click', (e) => { e.stopPropagation(); doToggle(); });
-                el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); doIsolate(); });
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    changerModaliteFiltreTAP(v.v, dic.m);
+                });
+                el.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    changerModaliteFiltreTAP(v.v, dic.m, true);
+                });
             });
         }
 
@@ -2137,7 +2144,7 @@ async function affichTriAPlat() {
                 en.tabDat.some(d =>
                     Number(d.v) === Number(v.v) &&
                     Number(d.m) === Number(dic.m) &&
-                    (v.champ === 'gen' ? d.l == 'all' : true)
+                    (v.champ === 'gen' ? (d.l == 'all' || d.l == null) : true)
                 )
             );
         const entNR = tabEnt.filter(e => !hasModality(e));
@@ -2153,10 +2160,10 @@ async function affichTriAPlat() {
             const btnSwitchNR = document.createElement('button');
             btnSwitchNR.classList.add('btn-onoff-ent');
             btnSwitchNR.dataset.v = v.v;
+            btnSwitchNR.dataset.m = '0';
             btnSwitchNR.dataset.champ = v.champ;
             btnSwitchNR.dataset.nr = '1';
             btnSwitchNR.title = 'Clic gauche\u00a0: activer/d\u00e9sactiver les non-r\u00e9ponses\nClic droit\u00a0: isoler';
-            if (entNR.every(en => en.actif !== 0)) btnSwitchNR.classList.add('btn-onoff-ent--actif');
             divRowNR.appendChild(btnSwitchNR);
 
             const lblModNR = document.createElement('div');
@@ -2183,29 +2190,16 @@ async function affichTriAPlat() {
             barLblNR.textContent = countNR + '\u00a0(' + pctNR + '\u00a0%)';
             barWrapNR.appendChild(barLblNR);
 
-            const doToggleNR = async () => {
-                tabEnt = await window.electronAPI.getEnt();
-                const cibles = tabEnt.filter(e => !hasModality(e));
-                const tousActifs = cibles.length > 0 && cibles.every(en => en.actif !== 0);
-                cibles.forEach(en => { en.actif = tousActifs ? 0 : 1; });
-                await window.electronAPI.setEnt(tabEnt);
-                majLigentsDOM(tabEnt);
-                majSwitchesTAP(tabEnt);
-                compterEntActifs();
-            };
-
-            const doIsolateNR = async () => {
-                tabEnt = await window.electronAPI.getEnt();
-                tabEnt.forEach(en => { en.actif = hasModality(en) ? 0 : 1; });
-                await window.electronAPI.setEnt(tabEnt);
-                majLigentsDOM(tabEnt);
-                majSwitchesTAP(tabEnt);
-                compterEntActifs();
-            };
-
             [btnSwitchNR, lblModNR, barWrapNR].forEach(el => {
-                el.addEventListener('click', (e) => { e.stopPropagation(); doToggleNR(); });
-                el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); doIsolateNR(); });
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    changerModaliteFiltreTAP(v.v, '0');
+                });
+                el.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    changerModaliteFiltreTAP(v.v, '0', true);
+                });
             });
         }
     }
@@ -2230,12 +2224,21 @@ async function affichTriAPlat() {
         globalSwitch.onclick = async function (e) {
             e.stopPropagation();
             tabEnt = await window.electronAPI.getEnt();
-            const tousActifs = tabEnt.length > 0 && tabEnt.every(en => en.actif !== 0);
-            tabEnt.forEach(en => { en.actif = tousActifs ? 0 : 1; });
+            const defs = synchroniserStructureFiltresTAP(tabEnt, tabVar, tabDic);
+            const tousActifs = tabEnt.length > 0 && tabEnt.every(estEntretienActifTAP);
+            const nouvelEtat = !tousActifs;
+
+            // Le bouton global remet les critères à zéro puis définit une nouvelle
+            // sélection manuelle de référence.
+            selectionnerToutesModalitesTAP(defs);
+            tabEnt.forEach(en => { en.actif = nouvelEtat ? 1 : 0; });
+            memoriserBaseActifsTAP(tabEnt);
+            filtresTAPActifs = false;
+
             await window.electronAPI.setEnt(tabEnt);
             majLigentsDOM(tabEnt);
             majSwitchesTAP(tabEnt);
-            compterEntActifs();
+            await compterEntActifs();
         };
     }
 
