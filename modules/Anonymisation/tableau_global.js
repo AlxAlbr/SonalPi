@@ -829,12 +829,14 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
                     window._anonDetailDirty = false;
                 }
 
-                // Incluse écartée des catégories de nav (cohérent avec l'entretien, I-INC-3) ;
-                // rattachée à 'anon' pour le ciblage, et exclue des filtres pour ne pas décaler les index.
-                const occCat = occ.incluse ? 'anon' : occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
+                // L'ordinal sémantique (parmi toutes les occurrences de l'entité) est recalculable
+                // après normalisation locale. Contrairement au spanId/aux offsets runtime, il ne
+                // dépend pas du découpage compacté observé dans la vue corpus.
+                const occCat = occ.incluse ? 'incluse' : occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
                 const occIdxInCat = occurrences
                     .slice(0, occurrences.indexOf(occ))
                     .filter(o =>
+                        (occCat === 'incluse' && o.incluse) ||
                         (occCat === 'exc'  &&  o.exclue) ||
                         (occCat === 'anon' && !o.exclue &&  o.applique && !o.incluse) ||
                         (occCat === 'non'  && !o.exclue && !o.applique && !o.incluse)
@@ -844,9 +846,12 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
                 await window.electronAPI.editerEntretien(entIndex, {
                     entite: anon.entite,
                     pseudo: anon.remplacement,
-                    spanId: occ.spanId,
+                    spanId: occ.spanId, // diagnostic seulement ; jamais utilisé pour choisir l'occurrence
                     occCat,
-                    occIdxInCat
+                    occIdxInCat,
+                    occOrdinal: occ.cible && Number.isInteger(occ.cible.ordinal)
+                        ? occ.cible.ordinal
+                        : occurrences.indexOf(occ)
                 });
             } catch (err) {
                 console.error("Erreur lors de l'ouverture de l'entretien:", err);
@@ -975,83 +980,86 @@ async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEn
             }
         }
         
-        // === PHASE 2: Appliquer les changements par entretien ===
+        // === PHASE 2: appliquer chaque entretien en UNE transaction HTML précise ===
         let totalAjouter = 0, totalRetirer = 0, totalExclure = 0, totalDesexclure = 0;
+        let totalEchecsCibles = 0;
+        const echecsSauvegarde = [];
         const tabEntPourMaj = await window.electronAPI.getEnt();
         let tabEntModifie = false;
-        
+        let htmlModifie = false;
+
         for (const entIdStr in changementsParEntretien) {
-            const { aAjouter, aRetirer, aExclure, aDesexclure } = changementsParEntretien[entIdStr];
-            
-            if (aAjouter.length === 0 && aRetirer.length === 0 && aExclure.length === 0 && aDesexclure.length === 0) {
-                continue; // Pas de changement pour cet entretien
-            }
-            
+            const changements = changementsParEntretien[entIdStr];
+            const { aAjouter, aRetirer, aExclure, aDesexclure } = changements;
+            if (aAjouter.length === 0 && aRetirer.length === 0 && aExclure.length === 0 && aDesexclure.length === 0) continue;
+
             const entData = occurrencesParEntretien[entIdStr];
             if (!entData) continue;
-            
-            // 1. D'abord retirer les exceptions (pour que les pseudonymisations suivantes voient un HTML propre)
-            if (aDesexclure.length > 0) {
-                await retirerExceptionOccurrencesSpecifiques(entData.index, aDesexclure, anon);
-                totalDesexclure += aDesexclure.length;
+            const entretien = tabEntPourMaj[entData.index];
+            let resultat;
+            try {
+                resultat = await modifierOccurrencesEntretienDepuisCorpus(
+                    entData.index,
+                    anon,
+                    changements,
+                    { reglesLocales: entretien && Array.isArray(entretien.tabAnon) ? entretien.tabAnon : [] }
+                );
+            } catch (error) {
+                console.error(`Échec de mutation de l'entretien ${entData.index}:`, error);
+                echecsSauvegarde.push(`${entData.nom || `Entretien ${entData.index + 1}`} : ${error.message || error}`);
+                continue;
             }
 
-            // 2. Pseudonymiser seulement les spans sélectionnés
-            if (aAjouter.length > 0) {
-                const spanIdsATraiter = new Set(aAjouter.map(occ => occ.spanId));
-                await pseudonymiserEntretienSpecifique(entData.index, anon.entite, anon.remplacement, spanIdsATraiter, true);
-                totalAjouter += aAjouter.length;
+            totalAjouter += resultat.parAction.ajouter;
+            totalRetirer += resultat.parAction.retirer;
+            totalExclure += resultat.parAction.exclure;
+            totalDesexclure += resultat.parAction.desexclure;
+            totalEchecsCibles += resultat.echecs.length;
+            htmlModifie = htmlModifie || resultat.htmlSauvegarde;
 
-                // Ajouter au tabAnon local les variantes de casse explicitement traitées
-                const entretien = tabEntPourMaj[entData.index];
-                if (entretien) {
-                    const tabAnonLocal = entretien.tabAnon || [];
-                    const entitesDejaPresentes = new Set(tabAnonLocal.map(p => p.entite));
-                    for (const occ of aAjouter) {
-                        if (!entitesDejaPresentes.has(occ.entite)) {
-                            tabAnonLocal.push({ entite: occ.entite, remplacement: anon.remplacement });
-                            entitesDejaPresentes.add(occ.entite);
-                            tabEntModifie = true;
-                        }
+            if (resultat.htmlSauvegarde && !resultat.sonalSauvegarde) {
+                echecsSauvegarde.push(
+                    `${entData.nom || `Entretien ${entData.index + 1}`} : HTML mis à jour en mémoire, ` +
+                    `mais fichier Sonal non réécrit${resultat.erreurSauvegarde ? ` (${resultat.erreurSauvegarde})` : ''}`
+                );
+            }
+
+            // Ajouter au tabAnon local uniquement les variantes effectivement anonymisées.
+            if (entretien && resultat.parAction.ajouter > 0) {
+                const tabAnonLocal = entretien.tabAnon || [];
+                const entitesDejaPresentes = new Set(tabAnonLocal.map(p => p.entite));
+                for (const succes of resultat.reussites.filter(r => r.action === 'ajouter')) {
+                    if (!entitesDejaPresentes.has(succes.entite)) {
+                        tabAnonLocal.push({ entite: succes.entite, remplacement: anon.remplacement });
+                        entitesDejaPresentes.add(succes.entite);
                     }
-                    entretien.tabAnon = tabAnonLocal;
                 }
+                entretien.tabAnon = tabAnonLocal;
             }
 
-            // 3. Retirer les pseudonymes désélectionnés
-            if (aRetirer.length > 0) {
-                await retirerPseudoOccurrencesSpecifiques(entData.index, aRetirer, anon);
-                totalRetirer += aRetirer.length;
+            if (resultat.htmlSauvegarde) {
+                // Compteurs et matchPositions sont dérivés du HTML réellement obtenu, jamais de l'intention.
+                await recalculerStatsAnonEntretien(entData.index, anon.entite, anon.remplacement, tabEntPourMaj);
+                tabEntModifie = true;
             }
-
-            // 4. Marquer les nouvelles exceptions
-            if (aExclure.length > 0) {
-                await marquerExceptionOccurrencesSpecifiques(entData.index, aExclure, anon);
-                totalExclure += aExclure.length;
-            }
-
-            // Recalculer les stats (occurrences + matchPositions) depuis le HTML mis à jour
-            await recalculerStatsAnonEntretien(entData.index, anon.entite, anon.remplacement, tabEntPourMaj);
-            tabEntModifie = true;
         }
 
-        // Sauvegarder les mises à jour du tabAnon local
-        if (tabEntModifie) {
-            await window.electronAPI.setEnt(tabEntPourMaj);
-        }
-        
-        // === PHASE 3: Message de confirmation ===
+        if (tabEntModifie) await window.electronAPI.setEnt(tabEntPourMaj);
+
+        // === PHASE 3: bilan fondé sur les mutations vérifiées ===
         const totalChangements = totalAjouter + totalRetirer + totalExclure + totalDesexclure;
-        if (totalChangements > 0) {
+        const aDesEchecs = totalEchecsCibles > 0 || echecsSauvegarde.length > 0;
+        if (totalChangements > 0 || aDesEchecs) {
             const lignesMaj = [];
-            if (totalAjouter   > 0) lignesMaj.push(`✅ ${totalAjouter} occurrence(s) anonymisée(s)`);
-            if (totalRetirer   > 0) lignesMaj.push(`↩️ ${totalRetirer} occurrence(s) dé-pseudonymisée(s)`);
-            if (totalExclure   > 0) lignesMaj.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
+            if (totalAjouter > 0) lignesMaj.push(`✅ ${totalAjouter} occurrence(s) anonymisée(s)`);
+            if (totalRetirer > 0) lignesMaj.push(`↩️ ${totalRetirer} occurrence(s) dé-pseudonymisée(s)`);
+            if (totalExclure > 0) lignesMaj.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
             if (totalDesexclure > 0) lignesMaj.push(`🔓 ${totalDesexclure} exception(s) retirée(s)`);
-            dialog('Message', `Changements enregistrés :\n${lignesMaj.join('\n')}`);
-            window._anonDetailDirty = false;
-            // Level 2 : mise à jour du cache sans invalider le scan global
-            await mettreAJourCacheEntite(anon.entite, anon.remplacement);
+            if (totalEchecsCibles > 0) lignesMaj.push(`⚠️ ${totalEchecsCibles} occurrence(s) non modifiée(s) : cible périmée ou conflit`);
+            if (echecsSauvegarde.length > 0) lignesMaj.push(`❌ Écriture incomplète :\n${echecsSauvegarde.join('\n')}`);
+            dialog('Message', `${aDesEchecs ? 'Validation partielle' : 'Changements enregistrés'} :\n${lignesMaj.join('\n')}`);
+            window._anonDetailDirty = aDesEchecs;
+            if (htmlModifie) await mettreAJourCacheEntite(anon.entite, anon.remplacement);
         } else {
             dialog('Message', 'Aucun changement effectué.');
         }
@@ -2814,11 +2822,14 @@ function _sourceHtmlExport(ent, htmlCache) {
 }
 
 // Anonymise le texte ET les libellés, en préservant l'encadrement legacy par backticks.
-function _htmlEntretienAnonymise(ent, htmlCache) {
+function _htmlEntretienAnonymise(ent, htmlCache, contexteIntegrite = null) {
     const raw = _sourceHtmlExport(ent, htmlCache);
     const aBackticks = typeof raw === 'string' && raw.startsWith('`') && raw.endsWith('`');
     const inner = aBackticks ? raw.slice(1, -1) : raw;
-    const anon = _anonymiserHtml(inner); // cœur partagé (anon-regles.js) : runs → « [pseudo] »
+    const anon = avecContexteIntegriteAnonymisation(
+        () => _anonymiserHtml(inner),
+        contexteIntegrite || {}
+    ); // cœur partagé (anon-regles.js) : runs → « [pseudo] »
     return aBackticks ? '`' + anon + '`' : anon;
 }
 
@@ -2830,9 +2841,9 @@ function _htmlEntretienAnonymise(ent, htmlCache) {
  * @param {boolean} anon - appliquer la pseudonymisation
  * @returns {string} HTML interne (sans backticks)
  */
-function _htmlEntretienPourExport(ent, htmlCache, anon) {
+function _htmlEntretienPourExport(ent, htmlCache, anon, contexteIntegrite = null) {
     let html = anon
-        ? _htmlEntretienAnonymise(ent, htmlCache)
+        ? _htmlEntretienAnonymise(ent, htmlCache, contexteIntegrite)
         : _sourceHtmlExport(ent, htmlCache);
     if (typeof html === 'string' && html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
     return html || '';
@@ -2982,7 +2993,17 @@ async function exporterCorpusAvecOptions(format) {
     } catch (error) {
         // Les générateurs préparent TOUS les fichiers avant l'IPC d'écriture : un marquage
         // invalide dans un entretien annule l'archive entière, pas seulement cet entretien.
-        dialog('Export interrompu', error.message);
+        if (estErreurIntegriteAnonymisation(error)) {
+            afficherErreurIntegriteAnonymisation(error, async () => {
+                if (!Number.isInteger(error.entretienIndex)) return;
+                await ouvrirEntretienAnonGen(error.entretienIndex, {
+                    spanId: error.rang,
+                    segment: error.segment,
+                });
+            });
+        } else {
+            dialog('Message', error.message);
+        }
     }
 }
 
@@ -3009,7 +3030,10 @@ async function exporterCorpusTxtZip(opts = {}) {
         while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
         nomsUtilises.add(nom.toLowerCase());
 
-        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+            entretienIndex: i,
+            entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+        });
         // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
         const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
         const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
@@ -3090,7 +3114,10 @@ async function exporterCorpusReouvrable(opts = {}) {
         let tabLocOut = data.tabLoc;
         if (opts.anon) {
             const baseLoc = aCacheFrais ? (ent.tabLoc || data.tabLoc) : (data.tabLoc || ent.tabLoc);
-            const documentAnon = preparerDocumentAnonymise(html, baseLoc);
+            const documentAnon = avecContexteIntegriteAnonymisation(
+                () => preparerDocumentAnonymise(html, baseLoc),
+                { entretienIndex: i, entretienNom: libelle }
+            );
             htmlOut = documentAnon.html;
             tabLocOut = documentAnon.tabLoc;
         }
@@ -3164,7 +3191,10 @@ async function exporterCorpusPartage(opts = {}) {
     const fichiers = [];
     for (let i = 0; i < tabEnt.length; i++) {
         const ent = tabEnt[i];
-        const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+            entretienIndex: i,
+            entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+        });
         // Traitement loc/thm partagé avec l'export entretien (en-têtes locuteurs, classes/CSS de
         // thématiques, coordonnées) ; pas de boutons audio en partage (audioSrcUrl vide).
         // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
@@ -3240,7 +3270,10 @@ async function exporterCorpusDocxZip(opts = {}) {
         while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
         nomsUtilises.add(nom.toLowerCase());
 
-        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+            entretienIndex: i,
+            entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+        });
         // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
         const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
         const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
@@ -3306,7 +3339,7 @@ async function importTableCorpus(files) {
     // Règles déjà présentes dans le corpus (toutes les paires entité→pseudo du global).
     const reglesExistantes = (await window.electronAPI.getAnon() || [])
         .filter(a => a.entite && a.remplacement)
-        .map(a => ({ entite: a.entite, remplacement: a.remplacement }));
+        .map(a => ({ entite: a.entite, remplacement: a.remplacement, remplacementAlt: a.remplacementAlt }));
 
     // Moteur partagé : détecte les conflits (entité déjà mappée) et applique via le callback corpus.
     traiterImportCorrespondances(allCorrespondances, {

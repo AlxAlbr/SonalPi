@@ -830,31 +830,51 @@ document.addEventListener('DOMContentLoaded', () => {
             let agi = false;
             const TIMEOUT_MS = 15000;
 
-            // Tente d'agir : si le span cible existe et que tabAnon est un array,
-            // ouvre le panneau Pseudonymisation, défile et applique le highlight.
+            // Tente d'agir une fois le document et tabAnon chargés. Pour une occurrence issue du
+            // corpus, le spanId n'est qu'un indice visuel potentiellement périmé : la vraie cible
+            // est l'entité + son ordinal, consommés après le recalcul local par
+            // activerNavigationCorpusVersEntretien(). Les diagnostics d'intégrité, sans entité,
+            // conservent le repli direct rang/segment.
             const essayer = () => {
                 if (agi) return true;
-                const span = segments.querySelector(`[data-rk="${spanIdEscape}"]`);
-                if (!span || !Array.isArray(window.tabAnon)) return false;
+                if (!Array.isArray(window.tabAnon) || !segments.querySelector('[data-rk]')) return false;
+
+                const span = segments.querySelector(`[data-rk="${spanIdEscape}"]`) ||
+                    (navTarget.segment != null
+                        ? segments.querySelector(`[data-sg="${CSS.escape(String(navTarget.segment))}"]`)
+                        : null);
+                if (!navTarget.entite && !span) return false;
+
                 agi = true;
                 try {
+                    if (navTarget.entite) {
+                        // Poser la cible AVANT l'ouverture du panneau : un rendu synchrone peut ainsi
+                        // la consommer immédiatement. Si le tableau n'est pas prêt, elle reste en attente.
+                        window._pendingNavActivation = {
+                            entite:       navTarget.entite,
+                            pseudo:       navTarget.pseudo,
+                            cat:          navTarget.occCat || 'non',
+                            occIdxInCat:  navTarget.occIdxInCat || 0,
+                            occOrdinal:   Number.isInteger(navTarget.occOrdinal) ? navTarget.occOrdinal : null
+                        };
+                    }
+
                     const btnAnon = document.getElementById('imgpananon');
                     const panneauAnon = document.getElementById('fond_anon');
                     const panneauOuvert = panneauAnon && panneauAnon.classList.contains('blocvisible');
                     if (btnAnon && !panneauOuvert) btnAnon.click();
-                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    span.classList.remove('nav-highlight');
-                    void span.offsetWidth;
-                    span.classList.add('nav-highlight');
-                    setTimeout(() => span.classList.remove('nav-highlight'), 2200);
-                    // Stocker les infos sémantiques (pas le span DOM, instable après cleanHTML).
-                    // affichTableauAnon() les consommera une fois matchPositions et boutons prêts.
-                    window._pendingNavActivation = {
-                        entite:       navTarget.entite,
-                        pseudo:       navTarget.pseudo,
-                        cat:          navTarget.occCat || 'non',
-                        occIdxInCat:  navTarget.occIdxInCat || 0
-                    };
+
+                    if (navTarget.entite) {
+                        if (typeof activerNavigationCorpusVersEntretien === 'function') {
+                            activerNavigationCorpusVersEntretien();
+                        }
+                    } else if (span) {
+                        span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        span.classList.remove('nav-highlight');
+                        void span.offsetWidth;
+                        span.classList.add('nav-highlight');
+                        setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                    }
                 } catch (err) {
                     console.error("Erreur focalisation navigation:", err);
                 }

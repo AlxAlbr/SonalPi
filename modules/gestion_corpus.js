@@ -2197,7 +2197,8 @@ async function triEntCorpus(mode) { // fonction permettant de trier les entretie
         await window.electronAPI.setGrph(index, tabGrph[index]);
     }
 
-   
+    // L'index inversé du scan stocke les rangs d'entretiens : le tri le rend inutilisable.
+    if (typeof invaliderScanAnonCorpus === 'function') invaliderScanAnonCorpus();
 
     console.log("tri des entretiens du corpus effectué");
 

@@ -523,7 +523,10 @@ function chargeAudio(event) {
         var contenuNotes = "";
     
         var dsContenuHtml = false ;
-        var contenuHtml = "" ;        
+        var contenuHtml = "" ;
+        // anon-json décrit les règles ; son cache de positions ne doit être interprété qu'APRÈS
+        // insertion et normalisation du HTML réellement sauvegardé.
+        var donneeAnonSonal = null;
         
     
      
@@ -556,8 +559,10 @@ function chargeAudio(event) {
             if (dsCat){
 
                 if (lignesFich[s].trim() != "</script>"){
-                
-                lignecat += lignesFich[s].trim() 
+                    // sauvHtml encadre historiquement le tableau JSON par des lignes « { » / « } »
+                    // décoratives. Elles ne font pas partie du JSON utile.
+                    const morceauCat = lignesFich[s].trim();
+                    if (morceauCat && morceauCat !== "{" && morceauCat !== "}") lignecat += morceauCat;
                 
                 } else {
                     
@@ -608,8 +613,7 @@ function chargeAudio(event) {
     
             if (ligne.indexOf("anon-json") > -1) {
                 var ligneanon = lignesFich[s+2].trim();
-                const donneeAnon = JSON.parse(ligneanon);
-                importerAnonSonal(donneeAnon);
+                donneeAnonSonal = JSON.parse(ligneanon);
             }
             
     
@@ -672,6 +676,14 @@ function chargeAudio(event) {
     let segments = document.getElementById("segments")
     segments.innerHTML = "" // vide le contenu avant d'ajouter les nœuds
     if (segments) {segments.append(...doc.body.childNodes);} // Ajoute les nœuds proprement
+
+    // Le .Sonal contient un HTML compacté. Le normaliser avant de dériver matchPositions garantit
+    // des coordonnées runtime cohérentes, sans exécuter les effets UI de cleanHTML (backup, wait…).
+    cleanHTML({ sansEffets: true });
+
+    // Le HTML marqué est maintenant en place : conserver ses états par occurrence et reconstruire
+    // uniquement les caches depuis ce DOM. Ne jamais rejouer les anciens start/end d'anon-json.
+    if (donneeAnonSonal !== null) importerAnonSonal(donneeAnonSonal);
     
     //cleanHTML();
     
@@ -737,7 +749,24 @@ async function exportFichierSonal(){
                     const contenuAnonymise = sauvHtmlAnonymise();
                     SauvegarderSurDisque(contenuAnonymise, detailsf[1] + "_anonymise.Sonal", "UTF-8");
                 } catch (error) {
-                    dialog('Export interrompu', error.message);
+                    contextualiserErreurIntegriteAnonymisation(error, {
+                        entretienIndex: ent_cur,
+                        entretienNom: ent && ent.nom,
+                    });
+                    if (estErreurIntegriteAnonymisation(error)) {
+                        afficherErreurIntegriteAnonymisation(error, async () => {
+                            const span = error.rang != null
+                                ? document.querySelector(`[data-rk="${CSS.escape(String(error.rang))}"]`)
+                                : null;
+                            if (span) {
+                                span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                span.classList.add('nav-highlight');
+                                setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                            }
+                        });
+                    } else {
+                        dialog('Message', error.message);
+                    }
                 }
                 return;
             }
@@ -913,13 +942,13 @@ return contenuHtml;
 
  
  
-function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventuelles
+function cleanHTML(options = {}){ // fonction servant à nettoyer le html des erreurs eventuelles
 
-    effaceSurv();
-    
-
-    backUp();
-     
+    const sansEffets = options && options.sansEffets === true;
+    if (!sansEffets) {
+        effaceSurv();
+        backUp();
+    }
 
     const conteneur = document.getElementById('segments');
     const segs = conteneur.querySelectorAll('.lblseg');
@@ -1013,6 +1042,11 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
                 if (enfant.dataset.pseudo) {
                     nvSpan.dataset.pseudo = enfant.dataset.pseudo || "";
                 }
+                // Variante d'origine d'une occurrence absorbée : fait partie de l'état persistant
+                // et doit survivre au redécoupage du HTML compacté (lot E).
+                if (enfant.dataset.pseudoAbsorbe) {
+                    nvSpan.dataset.pseudoAbsorbe = enfant.dataset.pseudoAbsorbe;
+                }
                 
                 nvSeg.appendChild(nvSpan);
                 rkMot++;
@@ -1039,9 +1073,10 @@ function cleanHTML(){ // fonction servant à nettoyer le html des erreurs eventu
         scrollContainer.scrollTop = savedScrollTop;
     }
 
-    checkloc(locut); // correction éventuelle des changements de locuteurs
-
-    endWait();
+    if (!sansEffets) {
+        checkloc(locut); // correction éventuelle des changements de locuteurs
+        endWait();
+    }
 
 }
 
@@ -1369,6 +1404,13 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
     const chkAnon = document.getElementById("chkAnon");
     const avecAnon = chkAnon && chkAnon.checked;
     if (avecAnon) { console.log("Anonymisation activée pour l'export .srt"); }
+
+    // Conserver le contexte du document entier : un run `.anon` peut traverser une limite de
+    // segment, alors que le SRT est produit segment par segment.
+    const tousLesSpansDocument = avecAnon
+        ? Array.from(document.querySelectorAll('#segments [data-rk]'))
+        : [];
+    const indexParSpan = new Map(tousLesSpansDocument.map((span, index) => [span, index]));
   
     var RkSegs=0;
         for (m=rgDeb;m<=rgFin;m++){
@@ -1393,9 +1435,18 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
             // ajout du texte (anonymisé ou brut selon chkAnon)
             let texte;
             if (avecAnon) {
-                const spans = seg.querySelectorAll('span');
-                const resultat = extraireTexteAnonymiseDepuisSpans(spans, 0);
-                texte = resultat.texte;
+                const spansSegment = Array.from(seg.querySelectorAll('[data-rk]'));
+                const indexDebut = spansSegment.length ? indexParSpan.get(spansSegment[0]) : undefined;
+                const indexFin = spansSegment.length ? indexParSpan.get(spansSegment[spansSegment.length - 1]) : undefined;
+                try {
+                    texte = indexDebut === undefined || indexFin === undefined
+                        ? ''
+                        : extraireTexteAnonymiseDepuisSpans(tousLesSpansDocument, indexDebut, indexFin).texte;
+                } catch (error) {
+                    console.error('Export SRT anonymisé interrompu :', error);
+                    if (typeof dialog === 'function') dialog('Export interrompu', error.message);
+                    return; // txtSrt est encore en mémoire : aucun fichier partiel n'est écrit
+                }
             } else {
                 texte = seg.textContent;
             }
@@ -1437,8 +1488,13 @@ async function SauvegarderSurDisque(textToWrite, fileNameToSaveAs, format) {
     if (chkAnon && chkAnon.checked) {
         console.log("Anonymisation activée pour l'export .txt");
         let nbspans = getNbSpans();
-        let txtAnonymise = exportTxtAvecClasses(1, nbspans, true);
-        SauvegarderSurDisque(txtAnonymise, detailsf[1] + "_anonymise.txt", "UTF-8");
+        try {
+            let txtAnonymise = exportTxtAvecClasses(1, nbspans, true);
+            SauvegarderSurDisque(txtAnonymise, detailsf[1] + "_anonymise.txt", "UTF-8");
+        } catch (error) {
+            console.error('Export texte anonymisé interrompu :', error);
+            if (typeof dialog === 'function') dialog('Export interrompu', error.message);
+        }
         return;
     }
 

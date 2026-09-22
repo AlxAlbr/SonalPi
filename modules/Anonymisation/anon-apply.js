@@ -468,6 +468,342 @@ async function pseudonymiserEntretienSpecifique(indexEnt, entite, pseudo, spanId
     }
 }
 
+////////////////////////////////////////////////////////////////////////
+// MOTEUR PRÉCIS D'APPLICATION DEPUIS LE CORPUS (lot D)
+////////////////////////////////////////////////////////////////////////
+
+/**
+ * Éclate un span compacté en conservant les rangs virtuels encodés par data-rk/data-len.
+ * Seuls les spans touchés par une validation corpus passent ici ; aucune normalisation continue
+ * n'est installée dans l'éditeur d'entretien.
+ */
+function _normaliserSpanCompacteAnon(span) {
+    if (!span || !span.parentNode) return false;
+    const morceaux = tokeniserCommeSegmentationAvecOffsets(span.textContent || '');
+    if (morceaux.length <= 1) return false;
+
+    const rkBase = Number(span.dataset.rk);
+    const lenDeclare = Number(span.dataset.len);
+    if (!Number.isInteger(rkBase) || !Number.isInteger(lenDeclare) || lenDeclare !== morceaux.length) {
+        const err = new Error('Span compacté incohérent : impossible de préserver ses rangs.');
+        err.code = 'ANON_SPAN_COMPACT_INCOHERENT';
+        throw err;
+    }
+
+    const doc = span.ownerDocument;
+    const frag = doc.createDocumentFragment();
+    const avaitDebut = span.classList.contains('debsel');
+    const avaitFin = span.classList.contains('finsel');
+    const pseudo = span.dataset.pseudo || '';
+
+    morceaux.forEach((m, i) => {
+        const clone = span.cloneNode(false);
+        clone.textContent = m.texte;
+        clone.dataset.rk = String(rkBase + i);
+        clone.removeAttribute('data-len');
+
+        // Une frontière/pseudo appartient au bord du run, pas à chacun des fragments clonés.
+        clone.classList.remove('debsel', 'finsel');
+        delete clone.dataset.pseudo;
+        if (i === 0 && avaitDebut) {
+            clone.classList.add('debsel');
+            if (pseudo) clone.dataset.pseudo = pseudo;
+        }
+        if (i === morceaux.length - 1 && avaitFin) {
+            clone.classList.add('finsel');
+            if (pseudo) clone.dataset.pseudo = pseudo;
+        }
+        frag.appendChild(clone);
+    });
+    span.parentNode.replaceChild(frag, span);
+    return true;
+}
+
+function _runsAnonDansSpans(spans) {
+    const runs = [];
+    let ouvert = null;
+    for (let i = 0; i < spans.length; i++) {
+        const s = spans[i];
+        if (!s.classList.contains('anon')) continue;
+        if (s.classList.contains('debsel') && s.dataset.pseudo) {
+            // Un second début avant la fin rend le marquage ambigu : le run précédent reste orphelin.
+            if (ouvert) runs.push({ ...ouvert, fin: -1, invalide: true });
+            ouvert = { debut: i, pseudo: s.dataset.pseudo };
+        }
+        if (ouvert && s.classList.contains('finsel') && s.dataset.pseudo) {
+            runs.push({ ...ouvert, fin: i, invalide: false });
+            ouvert = null;
+        }
+    }
+    if (ouvert) runs.push({ ...ouvert, fin: -1, invalide: true });
+    return runs;
+}
+
+function _nettoyerMarquagePlage(spans, debut, fin) {
+    for (let i = debut; i <= fin; i++) {
+        const s = spans[i];
+        if (!s) continue;
+        s.classList.remove('anon', 'anon-exception', 'debsel', 'finsel');
+        s.removeAttribute('data-anon-nt');
+        delete s.dataset.pseudo;
+    }
+}
+
+/**
+ * Restaure, après retrait d'une englobante, les runs étroits mémorisés par data-pseudo-absorbe.
+ * Les règles locales donnent les limites textuelles ; aucune identité d'occurrence n'est persistée.
+ */
+function _restaurerAbsorbeesCorpus(racine, debutLibere, finLiberee, reglesLocales, entiteSource) {
+    if (!Array.isArray(reglesLocales) || reglesLocales.length === 0) return;
+    for (const regle of reglesLocales) {
+        if (!regle || !regle.entite || !regle.remplacement) continue;
+        if (typeof cleEntite === 'function' && cleEntite(regle.entite) === cleEntite(entiteSource)) continue;
+        const pseudos = typeof pseudosDe === 'function' ? pseudosDe(regle) : [regle.remplacement];
+        const occ = analyserOccurrences(racine, regle.entite, regle.remplacement, pseudos, true);
+        const spans = Array.from(racine.querySelectorAll('[data-rk]'));
+        for (const o of occ) {
+            if (o.indexDebut < debutLibere || o.indexFin > finLiberee) continue;
+            let pseudoMemo = '';
+            for (let i = o.indexDebut; i <= o.indexFin; i++) {
+                const memo = (spans[i] && spans[i].dataset.pseudoAbsorbe) || '';
+                if (memo && pseudos.some(p => p.toLowerCase() === memo.toLowerCase())) {
+                    pseudoMemo = memo;
+                    break;
+                }
+            }
+            if (!pseudoMemo) continue;
+            for (let i = o.indexDebut; i <= o.indexFin; i++) {
+                const s = spans[i];
+                s.classList.remove('anon-exception');
+                s.classList.add('anon');
+                s.removeAttribute('data-anon-nt');
+                delete s.dataset.pseudoAbsorbe;
+                if (i === o.indexDebut) { s.classList.add('debsel'); s.dataset.pseudo = pseudoMemo; }
+                if (i === o.indexFin) { s.classList.add('finsel'); s.dataset.pseudo = pseudoMemo; }
+            }
+        }
+    }
+}
+
+function _poserPseudoPlage(racine, occurrence, pseudo) {
+    const spans = Array.from(racine.querySelectorAll('[data-rk]'));
+    const debut = occurrence.indexDebut;
+    const fin = occurrence.indexFin;
+    const runs = _runsAnonDansSpans(spans);
+
+    // Un run étranger qui déborde de la cible ne peut pas être représenté avec des runs plats.
+    for (const run of runs) {
+        if (run.invalide) {
+            const touche = run.debut <= fin && (run.fin < 0 || run.fin >= debut);
+            if (touche) return { ok: false, code: 'MARQUAGE_ANON_INCOHERENT' };
+            continue;
+        }
+        if (run.fin < debut || run.debut > fin) continue;
+        if (run.debut < debut || run.fin > fin) {
+            return { ok: false, code: 'CHEVAUCHEMENT_NON_REPRESENTABLE' };
+        }
+    }
+    // Une classe anon sans frontières valides est une corruption, pas une occurrence à absorber.
+    for (let i = debut; i <= fin; i++) {
+        if (!spans[i].classList.contains('anon')) continue;
+        const couvert = runs.some(r => !r.invalide && r.debut <= i && r.fin >= i);
+        if (!couvert) return { ok: false, code: 'MARQUAGE_ANON_INCOHERENT' };
+    }
+
+    // Les runs strictement internes sont absorbés selon la politique existante « le large absorbe
+    // l'étroit ». Leur pseudo est mémorisé sur leurs frontières pour permettre la restauration.
+    for (const run of runs) {
+        if (run.invalide || run.fin < debut || run.debut > fin) continue;
+        if (run.debut === debut && run.fin === fin) {
+            // Même plage mais pseudo étranger : ne jamais réattribuer silencieusement son propriétaire.
+            if ((run.pseudo || '').toLowerCase() !== (pseudo || '').toLowerCase()) {
+                return { ok: false, code: 'OCCURRENCE_DEJA_ANONYMISEE_AUTRE_PSEUDO' };
+            }
+            continue;
+        }
+        for (const idx of new Set([run.debut, run.fin])) {
+            spans[idx].dataset.pseudoAbsorbe = run.pseudo;
+            delete spans[idx].dataset.pseudo;
+            spans[idx].classList.remove('debsel', 'finsel');
+        }
+    }
+
+    for (let i = debut; i <= fin; i++) {
+        const s = spans[i];
+        s.classList.remove('anon-exception', 'debsel', 'finsel');
+        s.classList.add('anon');
+        s.removeAttribute('data-anon-nt');
+        delete s.dataset.pseudo;
+    }
+    spans[debut].classList.add('debsel');
+    spans[debut].dataset.pseudo = pseudo;
+    spans[fin].classList.add('finsel');
+    spans[fin].dataset.pseudo = pseudo;
+    return { ok: true };
+}
+
+function _cibleDeDemande(demande) {
+    return demande && demande.cible ? demande.cible : null;
+}
+
+/**
+ * Applique en une seule transaction HTML toutes les décisions corpus d'un entretien.
+ * Les cibles sont vérifiées sur le HTML frais puis oubliées ; aucun offset n'est persisté.
+ *
+ * @returns {Promise<{demandees:number,modifiees:number,dejaConformes:number,echecs:Array,
+ *                    parAction:Object,htmlSauvegarde:boolean,sonalSauvegarde:boolean}>}
+ */
+async function modifierOccurrencesEntretienDepuisCorpus(indexEnt, anon, changements, options = {}) {
+    const priorite = { desexclure: 1, retirer: 2, ajouter: 3, exclure: 4 };
+    const etatVise = { desexclure: 'non-traite', retirer: 'exception', ajouter: 'anon', exclure: 'exception' };
+    const decisions = new Map();
+    const demandesSansCible = [];
+    const ajouterDecisions = (liste, action) => {
+        for (const demande of (liste || [])) {
+            const cible = _cibleDeDemande(demande);
+            const cle = cible && (cible.cle || (typeof cleCibleOccurrence === 'function' && cleCibleOccurrence(cible)));
+            if (!cle) {
+                demandesSansCible.push({ action, code: 'CIBLE_RUNTIME_ABSENTE' });
+                continue;
+            }
+            const precedente = decisions.get(cle);
+            if (!precedente || priorite[action] >= priorite[precedente.action]) {
+                decisions.set(cle, { demande, cible, cle, action, etatVise: etatVise[action] });
+            }
+        }
+    };
+    ajouterDecisions(changements.aDesexclure, 'desexclure');
+    ajouterDecisions(changements.aRetirer, 'retirer');
+    ajouterDecisions(changements.aAjouter, 'ajouter');
+    ajouterDecisions(changements.aExclure, 'exclure');
+
+    const resultat = {
+        demandees: decisions.size + demandesSansCible.length,
+        modifiees: 0,
+        dejaConformes: 0,
+        echecs: [...demandesSansCible],
+        parAction: { ajouter: 0, retirer: 0, exclure: 0, desexclure: 0 },
+        reussites: [],
+        htmlSauvegarde: false,
+        sonalSauvegarde: false,
+        erreurSauvegarde: ''
+    };
+    if (decisions.size === 0) return resultat;
+
+    const htmlInitial = await window.electronAPI.getHtml(indexEnt);
+    if (!htmlInitial) throw new Error(`Impossible de récupérer le contenu de l'entretien ${indexEnt}.`);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlInitial;
+    const pseudos = typeof pseudosDe === 'function' ? pseudosDe(anon) : [anon.remplacement];
+
+    // Vérification anti-cible-périmée AVANT toute découpe : même rk, mêmes offsets et même structure.
+    let occurrences = analyserOccurrences(tempDiv, anon.entite, anon.remplacement, pseudos, false, true);
+    const parCle = new Map(occurrences.map(o => [o.cible.cle, o]));
+    const valides = [];
+    for (const decision of decisions.values()) {
+        const occ = parCle.get(decision.cle);
+        if (!occ) {
+            resultat.echecs.push({ action: decision.action, code: 'CIBLE_PERIMEE' });
+            continue;
+        }
+        decision.ordinal = occ.ordinal;
+        decision.etatAvant = occ.etat;
+        valides.push(decision);
+    }
+    if (valides.length === 0) return resultat;
+
+    // Éclater uniquement les spans compactés qui intersectent les cibles retenues. Les références
+    // sont collectées avant mutation ; chaque span n'est normalisé qu'une fois.
+    const spansAvant = Array.from(tempDiv.querySelectorAll('[data-rk]'));
+    const aNormaliser = new Set();
+    for (const d of valides) {
+        const o = parCle.get(d.cle);
+        for (let i = o.indexDebut; i <= o.indexFin; i++) {
+            if (tokeniserCommeSegmentationAvecOffsets(spansAvant[i].textContent || '').length > 1) {
+                aNormaliser.add(spansAvant[i]);
+            }
+        }
+    }
+    for (const span of aNormaliser) _normaliserSpanCompacteAnon(span);
+
+    // Le texte n'a pas changé : l'ordinal sémantique reste stable malgré la nouvelle structure DOM.
+    occurrences = analyserOccurrences(tempDiv, anon.entite, anon.remplacement, pseudos, false, true);
+    valides.sort((a, b) => b.ordinal - a.ordinal); // ordre inverse, défensif pour les mutations groupées
+
+    for (const decision of valides) {
+        const occ = occurrences[decision.ordinal];
+        if (!occ) {
+            resultat.echecs.push({ action: decision.action, code: 'CIBLE_INTROUVABLE_APRES_NORMALISATION' });
+            continue;
+        }
+        if (occ.etat === decision.etatVise) {
+            resultat.dejaConformes++;
+            continue;
+        }
+
+        const spans = Array.from(tempDiv.querySelectorAll('[data-rk]'));
+        if (decision.etatVise === 'anon') {
+            const pose = _poserPseudoPlage(tempDiv, occ, anon.remplacement);
+            if (!pose.ok) {
+                resultat.echecs.push({ action: decision.action, code: pose.code });
+                continue;
+            }
+        } else {
+            // Un retrait ne peut viser qu'un run appartenant exactement à cette occurrence.
+            if (occ.etat === 'anon') {
+                const deb = spans[occ.indexDebut];
+                const fin = spans[occ.indexFin];
+                const exact = deb && fin && deb.classList.contains('debsel') && fin.classList.contains('finsel') &&
+                    pseudos.some(p => p.toLowerCase() === (deb.dataset.pseudo || '').toLowerCase()) &&
+                    pseudos.some(p => p.toLowerCase() === (fin.dataset.pseudo || '').toLowerCase());
+                if (!exact) {
+                    resultat.echecs.push({ action: decision.action, code: 'RUN_NON_EXACT' });
+                    continue;
+                }
+            }
+            _nettoyerMarquagePlage(spans, occ.indexDebut, occ.indexFin);
+            if (decision.etatVise === 'exception') {
+                for (let i = occ.indexDebut; i <= occ.indexFin; i++) spans[i].classList.add('anon-exception');
+            }
+            _restaurerAbsorbeesCorpus(
+                tempDiv, occ.indexDebut, occ.indexFin,
+                options.reglesLocales || [], anon.entite
+            );
+        }
+        decision.modifiee = true;
+        resultat.modifiees++;
+        resultat.parAction[decision.action]++;
+        resultat.reussites.push({ action: decision.action, entite: decision.demande.entite || anon.entite });
+    }
+
+    if (resultat.modifiees === 0) return resultat;
+
+    // Vérification de l'état réellement obtenu avant toute écriture.
+    const apres = analyserOccurrences(tempDiv, anon.entite, anon.remplacement, pseudos, false, true);
+    for (const decision of valides) {
+        if (!decision.modifiee) continue;
+        const occ = apres[decision.ordinal];
+        if (!occ || occ.etat !== decision.etatVise) {
+            const err = new Error('La vérification du marquage obtenu a échoué ; aucune sauvegarde effectuée.');
+            err.code = 'ANON_VERIFICATION_ECHEC';
+            throw err;
+        }
+    }
+
+    await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
+    resultat.htmlSauvegarde = true;
+    if (typeof window.majFichierSonal === 'function') {
+        try {
+            await window.majFichierSonal(indexEnt, indexEnt + 1, { propagerErreur: true });
+        } catch (error) {
+            resultat.erreurSauvegarde = error && error.message ? error.message : String(error);
+            return resultat;
+        }
+    }
+    resultat.sonalSauvegarde = true;
+    return resultat;
+}
+
 /**
  * Re-pseudonymise une entité dans UN entretien : remplace le pseudo des occurrences déjà
  * anonymisées avec `ancienPseudo` par `nouveauPseudo`. Approche « relabel » — on ne retouche PAS

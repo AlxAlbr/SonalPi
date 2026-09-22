@@ -6,80 +6,129 @@
 // la table de correspondance (les règles entité↔pseudo, restée dans anon-correspondance).
 //
 // Dépend de getNbSpans (segmentation.js), exportThmcss (thematisation.js), effaceSel/effaceSurv
-// (segmentation.js) et de globaux runtime de l'entretien. Chargé UNIQUEMENT dans
-// edition_entretien.html — seule fenêtre où ces fonctions étaient disponibles auparavant.
+// (segmentation.js) et de globaux runtime de l'entretien. Le noyau d'extraction bornée est aussi
+// chargé dans index.html afin que les exports de synthèse partagent exactement les mêmes garanties.
 ////////////////////////////////////////////////////////////////////////
 
 /**
- * Extrait le texte d'un ensemble de spans en appliquant les anonymisations
- * Fonction utilitaire réutilisable pour tous les exports
- * @param {NodeList|Array} spans - Liste des spans à traiter
- * @param {number} startIndex - Index de départ dans la liste
- * @param {number} endIndex - Index de fin (optionnel, traite tous si non spécifié)
- * @returns {Object} {texte: string, nextIndex: number} - Le texte extrait et l'index suivant
+ * Construit une erreur d'extraction sans recopier le texte sensible dans le message.
+ */
+function erreurExtractionAnonymisee(code) {
+    const error = new Error(
+        "Extraction anonymisée interrompue : marquage de pseudonymisation incomplet ou incohérent. " +
+        "Vérifiez les occurrences dans l'entretien avant de recommencer."
+    );
+    error.name = 'ErreurExtractionAnonymisee';
+    error.code = code;
+    return error;
+}
+
+/**
+ * Retrouve le run structurel contenant un span `.anon`.
+ *
+ * La recherche porte sur la liste COMPLÈTE fournie, et non sur les seules bornes d'extraction :
+ * une copie ou un export par segment peut couper un run valide. Les spans d'espacement neutres
+ * sont admis à l'intérieur d'un run, comme dans le validateur des exports définitifs.
+ */
+function trouverRunAnonPourExtraction(spans, index) {
+    const courant = spans[index];
+    if (!courant || !courant.classList || !courant.classList.contains('anon')) {
+        throw erreurExtractionAnonymisee('SPAN_ANON_ATTENDU');
+    }
+
+    const estAnon = span => !!span && !!span.classList && span.classList.contains('anon');
+    const estNeutre = span => !!span && !estAnon(span)
+        && !(span.classList && span.classList.contains('anon-exception'))
+        && !(span.textContent || '').trim();
+
+    // Remonter jusqu'au debsel du run. Un finsel antérieur ferme nécessairement un autre run.
+    let debut = -1;
+    for (let j = index; j >= 0; j--) {
+        const span = spans[j];
+        if (j < index && estAnon(span) && span.classList.contains('finsel')) break;
+        if (estAnon(span) && span.classList.contains('debsel')) {
+            debut = j;
+            break;
+        }
+        if (!estAnon(span) && !estNeutre(span)) break;
+    }
+    if (debut < 0) throw erreurExtractionAnonymisee('DEBUT_ANON_ABSENT');
+
+    // Le premier finsel ferme le run. Un nouveau debsel ou du texte clair avant lui est incohérent.
+    let fin = -1;
+    for (let j = debut; j < spans.length; j++) {
+        const span = spans[j];
+        if (j > debut && estAnon(span) && span.classList.contains('debsel')) break;
+        if (!estAnon(span) && !estNeutre(span)) break;
+        if (estAnon(span) && span.classList.contains('finsel')) {
+            fin = j;
+            break;
+        }
+    }
+    if (fin < index) throw erreurExtractionAnonymisee('FIN_ANON_ABSENTE');
+
+    const pseudoDebut = (spans[debut].dataset.pseudo || '').trim();
+    const pseudoFin = (spans[fin].dataset.pseudo || '').trim();
+    if (!pseudoDebut && !pseudoFin) throw erreurExtractionAnonymisee('PSEUDO_ABSENT');
+    if (pseudoDebut && pseudoFin && pseudoDebut !== pseudoFin) {
+        throw erreurExtractionAnonymisee('PSEUDOS_INCOHERENTS');
+    }
+
+    return { debut, fin, pseudo: pseudoFin || pseudoDebut };
+}
+
+/**
+ * Extrait une plage d'une liste COMPLÈTE de spans en appliquant les anonymisations.
+ *
+ * Une plage bornée qui intersecte un run `.anon` produit exactement une fois le pseudo dans cette
+ * plage, même si debsel ou finsel est hors des bornes. Une `.anon-exception` conserve simplement son
+ * texte : les exceptions n'ont, par conception, ni debsel ni finsel. Un run réellement incomplet
+ * ou sans pseudo lève une erreur ; le texte original n'est jamais utilisé comme pseudo de secours.
+ *
+ * @param {NodeList|Array} spans - Liste complète et ordonnée des spans du document
+ * @param {number} startIndex - Index inclusif de début de la plage
+ * @param {number|null} endIndex - Index inclusif de fin (toute la liste si omis)
+ * @returns {{texte:string, nextIndex:number}}
  */
 function extraireTexteAnonymiseDepuisSpans(spans, startIndex, endIndex = null) {
-    let texteExtrait = "";
-    let i = startIndex;
-    const maxIndex = endIndex !== null ? endIndex : spans.length - 1;
-    
-    while (i <= maxIndex && i < spans.length) {
-        const span = spans[i];
-        
+    const tousLesSpans = Array.from(spans || []);
+    if (tousLesSpans.length === 0) return { texte: '', nextIndex: 0 };
+
+    let i = Number.isFinite(Number(startIndex)) ? Math.max(0, Number(startIndex)) : 0;
+    const maxIndexDemande = endIndex === null || endIndex === undefined
+        ? tousLesSpans.length - 1
+        : Number(endIndex);
+    const maxIndex = Number.isFinite(maxIndexDemande)
+        ? Math.min(tousLesSpans.length - 1, maxIndexDemande)
+        : tousLesSpans.length - 1;
+    if (i > maxIndex) return { texte: '', nextIndex: i };
+
+    let texteExtrait = '';
+    while (i <= maxIndex) {
+        const span = tousLesSpans[i];
         if (!span) {
             i++;
             continue;
         }
-        
-        // Si c'est une anonymisation (classe 'anon')
-        if (span.classList.contains('anon')) {
-            // Chercher le pseudo du dernier span de cette anonymisation
-            let pseudo = span.dataset.pseudo;
-            
-            // Parcourir jusqu'au finsel pour trouver le pseudo
-            let j = i;
-            while (j <= maxIndex && j < spans.length) {
-                const nextSpan = spans[j];
-                if (nextSpan && nextSpan.classList.contains('finsel') && nextSpan.classList.contains('anon')) {
-                    pseudo = nextSpan.dataset.pseudo || pseudo || span.textContent;
-                    i = j + 1; // Avancer après le finsel
-                    break;
-                }
-                j++;
-            }
-            
-            // Ajouter le pseudo entre crochets
-            texteExtrait += "[" + (pseudo || span.textContent) + "]";
-        }
-        // Si c'est une exception (anon-exception)
-        else if (span.classList.contains('anon-exception')) {
-            // Parcourir jusqu'au finsel pour récupérer tout le texte original
-            let texteException = span.textContent;
-            
-            if (!span.classList.contains('finsel')) {
-                let j = i + 1;
-                while (j <= maxIndex && j < spans.length) {
-                    const nextSpan = spans[j];
-                    texteException += nextSpan.textContent;
-                    if (nextSpan && nextSpan.classList.contains('finsel') && nextSpan.classList.contains('anon-exception')) {
-                        i = j + 1;
-                        break;
-                    }
-                    j++;
-                }
-            } else {
-                i++;
-            }
-            
-            texteExtrait += texteException;
-        }
-        // Sinon, texte normal
-        else {
-            texteExtrait += span.textContent;
+
+        const estAnon = !!span.classList && span.classList.contains('anon');
+        const estException = !!span.classList && span.classList.contains('anon-exception');
+        if (estAnon && estException) throw erreurExtractionAnonymisee('ETATS_INCOHERENTS');
+
+        if (estAnon) {
+            const run = trouverRunAnonPourExtraction(tousLesSpans, i);
+            texteExtrait += '[' + run.pseudo + ']';
+            // Ne pas consommer ce qui est hors de la plage : un export par segment doit pouvoir
+            // traiter le fragment du même run dans le segment suivant, sans divulguer son texte.
+            i = Math.min(run.fin, maxIndex) + 1;
+        } else {
+            // Exception ou texte normal : même traitement textuel. Surtout, ne pas chercher de
+            // finsel pour une exception et ne pas agréger les spans voisins.
+            texteExtrait += span.textContent || '';
             i++;
         }
     }
-    
+
     return { texte: texteExtrait, nextIndex: i };
 }
 

@@ -218,6 +218,7 @@ async function ajouterEntretien(fichTxt, fichAudio, batchMode = false){
 
     // mise à jour du tableau des entretiens dans main
     await window.electronAPI.setEnt(tabEnt);
+    if (typeof invaliderScanAnonCorpus === 'function') invaliderScanAnonCorpus();
 
     let rknv = tabEnt.length - 1; // rang de l'entretien ajouté
     console.log("Entretien ajouté avec le rang " + rknv, nouveauEnt);
@@ -1296,12 +1297,8 @@ async function retirerEnt(rk){
     await window.electronAPI.setHtml(null, tabHtml); // remplacement complet du tableau HTML
     await window.electronAPI.setGrph(null, tabGrph); // remplacement complet du tableau graphique
 
-    // La suppression change le corpus → le scan d'anonymisation en cache est périmé.
-    // (sinon les badges corpus resteraient ceux d'avant suppression)
-    if (window._anonScanCache) {
-        window._anonScanStale = true;
-        window._anonIndexInverse = null;
-    }
+    // La suppression change les rangs du corpus : stats, index inversé et détail courant sont périmés.
+    if (typeof invaliderScanAnonCorpus === 'function') invaliderScanAnonCorpus();
 
     // sauvegarde du corpus
     window.sauvegarderCorpus();
@@ -1654,17 +1651,19 @@ async function miseàjourEntretien(rkEnt){ // depuis WhisPurge
 
  
 
-async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sonal depuis les données en mémoire
+async function majFichierSonal(rkD,rkF, options = {}){ // permet de réécrire un fichier Sonal depuis les données en mémoire
 
+    const erreursEcriture = [];
     let tabEnt = await window.electronAPI.getEnt(); // récupération du tableau des entretiens depuis main
     let tabThm = await window.electronAPI.getThm(); // récupération des thématiques depuis main
     let tabVar = await window.electronAPI.getVar(); // récupération des variables depuis main
     let tabDic = await window.electronAPI.getDic(); // récupération des dictionnaires depuis main
 
-     if (!rkD || !rkD){rkD=0; rkF=tabEnt.length} // si les rangs de début et de fin ne sont pas précisés, on traite tous les entretiens
-
-    if (!rkD || rkD<0){rkD=0}
-    if (!rkF || rkF>tabEnt.length){rkF=tabEnt.length}
+    // 0 est un index valide : ne pas le confondre avec « argument absent », sinon une modification
+    // du premier entretien réécrirait inutilement tous les fichiers du corpus.
+    if (rkD === undefined || rkD === null) { rkD = 0; rkF = tabEnt.length; }
+    if (rkD < 0) rkD = 0;
+    if (rkF === undefined || rkF === null || rkF > tabEnt.length) rkF = tabEnt.length;
 
     for (let rkEnt=rkD; rkEnt<rkF; rkEnt++){
     
@@ -1683,22 +1682,37 @@ async function majFichierSonal(rkD,rkF){ // permet de réécrire un fichier Sona
      try {
  
             let Corpus = await window.electronAPI.getCorpus(); // récupération du corpus depuis main
-            let cheminEnt = ""; 
+            let cheminEnt = "";
+            let res;
             if (Corpus.type == "local") {
                 cheminEnt = await window.electronAPI.createPath(Corpus.folder, ent.rtrPath);
-                const res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
+                res = await window.electronAPI.sauvegarderFichier(cheminEnt, contenuFichierSonal);
             } else {
                 cheminEnt = [Corpus.folder, ent.rtrPath].filter(Boolean).join('/');
-                const res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
+                res = await window.electronAPI.sauvegarderSurServeur(cheminEnt, contenuFichierSonal);
             }
-            
-              
+            if (!res || res.success !== true) {
+                throw new Error((res && res.error) || `Écriture impossible : ${cheminEnt}`);
+            }
 
         }  catch(err) {
             console.error("impossible de modifier:", err);
+            erreursEcriture.push({ index: rkEnt, erreur: err });
         }
  
     }
+
+    // Les appelants historiques conservent le comportement non bloquant. Les mutations précises
+    // depuis le corpus demandent explicitement la propagation afin de ne jamais annoncer à tort
+    // « changements enregistrés » lorsque le fichier .sonal n'a pas été réécrit.
+    if (options && options.propagerErreur && erreursEcriture.length > 0) {
+        const erreur = new Error(erreursEcriture.map(e =>
+            `entretien ${e.index + 1}: ${(e.erreur && e.erreur.message) || e.erreur}`).join('; '));
+        erreur.code = 'SONAL_ECRITURE_ECHEC';
+        erreur.details = erreursEcriture;
+        throw erreur;
+    }
+    return { ok: erreursEcriture.length === 0, erreurs: erreursEcriture };
 }
 
 // conversion des anciens fichiers RTR
@@ -2081,7 +2095,24 @@ async function exportEntretien(format) {
             tabLocSonal = documentAnon.tabLoc;
             tabAnonloc = [];
         } catch (error) {
-            dialog('Export interrompu', error.message);
+            contextualiserErreurIntegriteAnonymisation(error, {
+                entretienIndex: ent_cur,
+                entretienNom: ent && ent.nom,
+            });
+            if (estErreurIntegriteAnonymisation(error)) {
+                afficherErreurIntegriteAnonymisation(error, async () => {
+                    const span = error.rang != null
+                        ? document.querySelector(`[data-rk="${CSS.escape(String(error.rang))}"]`)
+                        : null;
+                    if (span) {
+                        span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        span.classList.add('nav-highlight');
+                        setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                    }
+                });
+            } else {
+                dialog('Message', error.message);
+            }
             return; // aucun fichier partiellement anonymisé ne doit être écrit
         }
     }

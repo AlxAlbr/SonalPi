@@ -92,8 +92,10 @@ seulement** (le `.crp` ne la stocke pas) — voir §11.
   `reconstituerTabAnonGlobal` en sont des enveloppes ; `reconstituer` passe l'**ancien global EN
   PREMIER** (son pseudo gagne) puis les entretiens, et **signale** les divergences
   (`conflitsPseudoParEntite` → dialogue, rien perdu en silence).
-- **Entretien `.sonal`** (bloc `anon-json`) = `tabAnon` local avec occurrences +
-  matchPositions (+ champs runtime, considérés gelés).
+- **Entretien `.sonal`** (bloc `anon-json`) = `tabAnon` local avec règles, portées, brouillons et
+  un ancien cache occurrences/matchPositions conservé pour compatibilité. Ce cache positionnel n'est
+  jamais autoritaire à la réouverture : l'état des occurrences et les indices runtime sont redérivés
+  du HTML marqué après sa normalisation.
 - **Pas de « fantômes » dans le `tabAnon` local** : une règle venue **uniquement** du corpus
   (`source:'Global'`, `!existeLocalement`, `occurrences===0`) est fusionnée à l'ouverture pour
   affichage mais **n'appartient pas** à l'entretien. Les **deux** chemins de sauvegarde l'excluent :
@@ -142,7 +144,7 @@ l'état d'ouverture du corpus — il **ne voit pas** les anonymisations de la se
 | `anon-regles.js` | ~330 | **Cœur des règles corpus** (rapatrié de gestion_corpus.js) : clés canoniques (`cleAnon`, `clesAlias`, `cleEntite`, `regleEnCollisionAlias`), fusion/déduplication (`fusionnerRegles`, `conflitsPseudoParEntite`), persistance (`reglesCorpusPropres`, `persisterReglesCorpus`, `synchroniserTabAnonGlobal`) **+ helpers multi-pseudo** (`pseudosDe`, `estMultiPseudo`, `parsePseudos`, `analyserChampsEntitePseudo`, `normaliserRegle`, `ajouterPseudoAltCorpus`). Pas d'état UI. Charger **après** anon-detection.js. | **les deux** |
 | `anon-correspondance.js` | 281 | **Moteur de conflits partagé** (import table de correspondance JSON) : `traiterImportCorrespondances` paramétré par `ctx={reglesExistantes, appliquer}`. Découplé. | **les deux** |
 | `anon-scan.js` | 282 | Scan corpus : `reconstituerTabAnonGlobal`, `lancerScanCorpus`, `appliquerResultatsScan`, `mettreAJourCacheEntite`. | index.html |
-| `anon-apply.js` | 479 | **Mutation du HTML d'entretien** : `pseudonymiserEntretienSpecifique`, `retirer/marquer…Exception…`. | index.html |
+| `anon-apply.js` | — | **Mutation du HTML d'entretien** : ancien applicateur par span et moteur corpus précis/groupé `modifierOccurrencesEntretienDepuisCorpus` (cibles runtime, normalisation locale, bilan réel). | index.html |
 | `anon-styles.js` | 230 | CSS-in-JS `ajouterStylesAnonGen` (style injecté une fois). | index.html |
 | `anon-import_export.js` | 352 | Import table correspondance **entretien** (`importTableCorrespondance`, `appliquerImportCorrespondances`) + **restauration `.sonal`** (`importerAnonSonal`, `reappliquerAnonymisationsSonal`). | edition_entretien.html |
 | `anon-export-document.js` | 570 | Export du **document final** (txt/word/srt/html). | edition_entretien.html |
@@ -179,9 +181,12 @@ Ordre effectif :
   (après `cleanHTML`) `detecterOccurrencesToutesLesPaires()` → `affichTableauAnon()` →
   sauvegarde du local nettoyé (exclut les règles `source:'Global'` non encore locales).
 - **Restauration `.sonal`** (≠ ci-dessus) : `openFich('.SONAL')` →
-  `chargerHTMLSONAL` → au bloc `anon-json` → `importerAnonSonal(donnees)` →
-  `reappliquerAnonymisationsSonal()` (rejoue le marquage depuis `matchPositions`). **Ne passe
-  PAS par `fusionnerTabAnon`** — flux distinct. (C'est ici que vit le bug `tabAnon` nu, B.)
+  `chargerHTMLSONAL` collecte `anon-json`, insère puis normalise le HTML →
+  `importerAnonSonal(donnees)` → `reappliquerAnonymisationsSonal()`. Malgré son nom historique,
+  cette dernière ne rejoue plus le marquage : elle conserve les états portés par le DOM et redérive
+  `matchPositions`/`occurrences`. Si un ancien JSON annonce un traitement absent du HTML, les
+  occurrences restent « à traiter » et un avertissement est affiché. Ce flux **ne passe pas par
+  `fusionnerTabAnon`** ; l'ouverture depuis un corpus suit, elle, normalisation → fusion → détection.
 - **Scan corpus** : panneau Pseudos → `reconstituerTabAnonGlobal` → `lancerScanCorpus`
   (index inversé + `trouverOccurrencesDansDoc` sur chaque entretien) → badges/états par règle.
 - **Scan entretien** (« 🔍 Scan anonymisation entretien », pendant local du scan corpus —
@@ -199,15 +204,12 @@ Ordre effectif :
 
 ---
 
-## 7. Détection : deux vues, critères alignés mais pas encore unifiés
+## 7. Détection unifiée et application corpus précise
 
-Le cœur historique des bugs : **deux implémentations** de la détection qui peuvent
-re-diverger.
+Les vues entretien et corpus partagent la détection ; le matcher de plages live de l'entretien reste
+un adaptateur distinct pour la pose locale sur le DOM déjà normalisé.
 
-- Entretien : `reindexerMatchPositions`/`trouverMatchesEntiteDOM`.
-- Corpus : `trouverOccurrencesDansDoc`.
-
-**✅ Unifié (todosynth point C, ⏳ test manuel).** Une seule fonction
+**✅ Détection unifiée (todosynth point C, ⏳ test manuel).** Une seule fonction
 `analyserOccurrences(racineDOM, entite, pseudo)` ([anon-detection.js](anon-detection.js)) fait la
 détection + classification pour les deux vues. Principe : chercher le **texte de l'entité** sur un
 **flux de tokens couvrant TOUS les spans** (les spans anonymisés gardent leur texte d'origine), puis
@@ -225,8 +227,16 @@ pseudo) → tue la collision.
 - Adaptateur entretien : `reindexerMatchPositions` → `{start,end,isException,isNonTraite}` +
   marquage `data-anon-nt` (garde l'état : mute `matchPositions`, touche `window.tabAnon`).
 - Adaptateur corpus : `trouverOccurrencesDansDoc` → `{applique,exclue,contextAvant,contextApres,
-  entite,spanId}` (contexte reconstruit par `analyserOccurrences`/`construireContexteFlux`
-  depuis le flux de tokens — robuste aux spans multi-mots des entretiens jamais ouverts).
+  entite,spanId,cible}` (contexte reconstruit par `analyserOccurrences`/`construireContexteFlux`
+  depuis le flux de tokens — robuste aux spans multi-mots des entretiens jamais ouverts). `cible`
+  contient les spans et offsets runtime qui distinguent plusieurs occurrences dans un même span ;
+  elle est invalidée après mutation et n'est jamais persistée.
+- **Application corpus (lot D)** : `modifierOccurrencesEntretienDepuisCorpus` relit le HTML frais,
+  vérifie les cibles, normalise seulement les spans compactés touchés puis applique toutes les
+  décisions d'un entretien en une passe. Les plages sont ensuite rescannées avant sauvegarde et le
+  bilan utilise les changements réellement obtenus. Une erreur de réécriture `.sonal` est remontée
+  comme écriture partielle, sans faux message de succès. Ce traitement n'ajoute aucun coût continu
+  à la correction ou à la thématisation d'un entretien.
 - `trouverMatchesEntiteDOM` (matcher de plages live) **reste** : utilisé par
   `appliquerAnonymisationPour` (application réelle du marquage) et `compterOccurrencesEntite`.
 
@@ -253,7 +263,12 @@ désormais ignorée (cf. `rognerPonctuationBords` ci-dessus) — « Lyon. » et 
   (`anon-regles.js`, §13) : texte, attributs de locuteurs ET `tabLoc` sérialisé sont nettoyés ensemble.
   `AnonymiserHtml`, `_anonymiserHtml` et `AnonymiserSegments` utilisent ce même cœur.
   `extraireTexteAnonymiseDepuisSpans` reste l'extracteur des copies/sélections et anciens exports texte ;
-  il n'est PAS le moteur des modales d'export. `exportTxtAvecClasses` borne l'extraction au segment.
+  il n'est PAS le moteur des modales d'export. Il reçoit toujours la liste **complète** des spans puis
+  des bornes : si une plage coupe un run `.anon`, elle émet une fois `[pseudo]` sans divulguer le
+  fragment original. Les `.anon-exception`, dépourvues de `debsel`/`finsel` par conception, sont lues
+  span par span en texte original. Un run `.anon` réellement incomplet ou sans pseudo lève une erreur.
+  `exportTxtAvecClasses` et le SRT restent bornés au segment ; si un run traverse deux segments,
+  chaque bloc autonome qui l'intersecte affiche `[pseudo]`.
 - **Multi-pseudo** : ne jamais aplatir une occurrence portant un pseudo autorisé, ni laisser
   un `remplacementAlt` orphelin au nettoyage de spans (§9).
 
@@ -296,8 +311,13 @@ forcer un gagnant. Helpers dans [anon-regles.js](anon-regles.js).
   Note `resoudreConflitCorpus` : si la saisie **inclut déjà** le(s) pseudo(s) corpus et ajoute un alt
   (total ≤ 2, ex. corpus `ville` + saisie `ville/cité`), l'extension est **silencieuse** (intention non
   ambiguë) — pas de dialogue « aligner sur le corpus » qui jetait le nouvel alt.
-- ⬜ **Reste** (cf. ex-plan, branche `PseudoGlobal`) : réconcilier le cas où le primaire **local**
-  diffère du primaire **corpus** (clé `cleAnon` différente → risque de 2 lignes pour une entité).
+- **Fusion corpus/entretien (lot F)** : `fusionnerTabAnon` compare l'identité canonique de l'entité
+  et l'**ensemble non ordonné** des pseudos. Un couple `ville/cité` local est donc la même règle que
+  `cité/ville` au corpus : l'ordre du corpus est gardé, avec les données runtime locales et sans
+  réécriture du DOM. Une divergence réelle porte `_conflitFusion` jusqu'à la résolution explicite à
+  l'ouverture, puis les deux lignes sont consolidées. Une collision partielle d'alias est éclatée :
+  l'alias commun suit la règle existante et les alias libres restent sur leur propre ligne. Le même
+  critère est appliqué par `nettoyerTabAnon`, afin qu'une sauvegarde ne recrée pas le doublon.
 
 ---
 
@@ -487,8 +507,13 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
   **synthétiques** (posés sur le 1ᵉʳ mot d'une prise de parole) : `traiterEntretien` **recopie** les
   marqueurs `loc-*` + `data-locpseudo(-suggere)` + `data-nomloc-barre` depuis le vrai `.ligloc[data-loc]`
   du HTML — sans cette recopie, `nomLocAffiche` retombe sur le nom réel (affichage, exports synthèse,
-  recueils). Libellé pseudonymisé rendu « [Pseudo] » (convention `locuteursExport`). La capture
-  « Ajouter au recueil »/« Copier » depuis l'entretien (`txtSelectionSpans`) passe par
+  recueils). Libellé pseudonymisé rendu « [Pseudo] » (convention `locuteursExport`). Pour l'export,
+  chaque extrait conserve aussi le contexte complet des spans : `traiterTexteExtrait` appelle
+  `extraireTexteAnonymiseDepuisSpans` avec les bornes de l'extrait. Une sélection au milieu d'un run
+  produit donc son pseudo ; un marquage incomplet interrompt tous les formats avant écriture. En HTML
+  anonymisé, lecteur, boutons/script de lecture et chemins audio sont absents. Le DOCX ne reçoit par
+  IPC que le nom d'entretien et les variables nécessaires, jamais les chemins média ni les tables
+  internes. La capture « Ajouter au recueil »/« Copier » depuis l'entretien (`txtSelectionSpans`) passe par
   `extraireTexteAnonymiseDepuisSpans` + `nomLocAffiche`. ⚠️ Un **recueil `.rcl` = instantané figé**
   (texte plat, non ré-anonymisable) : une règle créée *après* la capture ne s'y propage pas ; l'item
   extrait stocke le **nom de l'entretien source** (traçabilité, re-dérivation future possible).
@@ -534,7 +559,7 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
   le tableau résolu (convention « [Pseudo] ») est **injecté par l'APPELANT**, jamais recalculé en interne
   (perf : appels en boucle ; cohérence : même source que les en-têtes de parole). Export **entretien** :
   `locuteursExport` (DOM live) gaté sur `opts.anon` ; export **corpus** : `locuteursExportCorpus` hissé et
-  partagé en-têtes/variables ; **synthèse** : anon **systématique** (comme `texteTraite`) via le résolveur
+  partagé en-têtes/variables ; **synthèse pseudonymisée** : résolution via le résolveur
   mémoïsé `creerResolveurLocAffSynthese` ([synthese.js](../synthese.js), `getHtml()` frais §3.4 +
   `locuteursAffiches`). `varsPubliquesXtr(xtr, {anon})` (copie d'extrait) se résout **seule**, sans IPC :
   les liglocs synthétiques de `xtr.texte` portent les marqueurs `loc-*`. Défaut (`null`/`anon:false`) =
@@ -559,8 +584,16 @@ utilisent ce résultat ; les exports de lecture utilisent le même nettoyage via
   conservé. Le HTML ne garde ni le nom réel dans `data-nomloc`, ni `data-nomloc-barre`, ni marqueurs
   `loc-*`. Les en-têtes de lecture utilisent toujours la convention `[Pseudo]`.
 - **Intégrité** : un run `.anon` orphelin, sans fin, sans pseudo ou incohérent **interrompt** l'export.
-  Aucun repli sur le vrai texte, aucune suppression silencieuse. Les commandes affichent l'erreur et
-  n'écrivent aucun fichier/ZIP partiel. Ce garde-fou ne répare pas le marquage du document de travail.
+  Aucun repli sur le vrai texte, aucune suppression silencieuse. L'erreur structurée
+  `ANON_EXPORT_INTEGRITE` précise le type, le rang et le segment sans recopier le texte, l'entité ni
+  le pseudo. Pour un corpus, elle indique aussi l'entretien et propose d'ouvrir directement le passage.
+  Tous les fichiers sont préparés avant l'écriture : un défaut, même dans le deuxième entretien,
+  annule le ZIP entier.
+- **Correction d'un défaut d'intégrité** : utiliser « Aller au passage », ouvrir le panneau de
+  pseudonymisation, retirer puis réappliquer la règle concernée, contrôler visuellement les frontières,
+  enregistrer, puis relancer l'export. Ne pas modifier les classes/attributs du HTML à la main. Aucune
+  réparation automatique n'est tentée, car elle pourrait supprimer du texte ou valider une mauvaise
+  occurrence. Les exceptions restent volontaires et ne sont pas bloquées par ce contrôle.
 - **Sources** : pour les exports corpus de lecture, `getHtml()` frais prime sur `ent.html`, même
   quand le cache est vide. Pour le corpus Sonal anonymisé, le cache frais prime sur le HTML du disque
   (repli disque si absent) ; la copie non anonymisée garde le comportement de copie du fichier source.
