@@ -315,9 +315,25 @@ forcer un gagnant. Helpers dans [anon-regles.js](anon-regles.js).
   `resoudreConflitCorpus` (extrait de `validerLigneAnon`, partagé) ; « Annuler » restaure l'ancien
   pseudo. Réalignement sur l'ensemble **résolu** (peut différer du saisi si aligné corpus). Les
   occurrences **incluses** suivent via `data-pseudo-absorbe` remappé (cohérent avec la restauration §10).
+  La validation par **Entrée/Maj+Entrée** réconcilie d'abord les champs encore focalisés avec cette
+  ancienne règle et **attend** le relabel avant d'appliquer les occurrences restantes : `A/B → A/C`
+  conserve ainsi les choix `B` en les renommant `C`, puis applique `A` aux seuls restes à traiter.
+  `onchange` et Entrée sont sérialisés par ligne. Une annulation de conflit intervient avant toute
+  mutation des runs ; un changement d'entité nettoie les anciens marquages avant la nouvelle pose.
   Note `resoudreConflitCorpus` : si la saisie **inclut déjà** le(s) pseudo(s) corpus et ajoute un alt
   (total ≤ 2, ex. corpus `ville` + saisie `ville/cité`), l'extension est **silencieuse** (intention non
   ambiguë) — pas de dialogue « aligner sur le corpus » qui jetait le nouvel alt.
+- **Remplacement explicite d'une variante corpus** : un conflit propose quatre actions identifiées par
+  des ids stables (indépendants des libellés longs) : remplacer, ajouter comme alternative si le cap
+  le permet, conserver, annuler. Remplacer exige une seconde confirmation avec le bilan frais des
+  entretiens et usages. Le relabel est ciblé par **entité/alias + ancienne variante** : texte, libellés
+  et `data-pseudo-absorbe` suivent, tandis que les exceptions, refus et occurrences à traiter gardent
+  leur statut ; une autre entité partageant la même valeur de pseudo reste intacte. Les règles
+  document/brouillon en collision sont signalées et bloquent l'opération au lieu d'être modifiées
+  silencieusement. Les HTML, règles locales corpus et `.Sonal` sont écrits avant la règle `.crp` ; sur
+  erreur, tous les instantanés sont restaurés autant que possible et un rollback incomplet est annoncé.
+  Le renommage direct du panneau corpus utilise exactement ce même orchestrateur. Cette opération ne
+  change jamais la portée d'une règle et ne pseudonymise aucune occurrence en attente.
 - **Fusion corpus/entretien (lot F)** : `fusionnerTabAnon` compare l'identité canonique de l'entité
   et l'**ensemble non ordonné** des pseudos. Un couple `ville/cité` local est donc la même règle que
   `cité/ville` au corpus : l'ordre du corpus est gardé, avec les données runtime locales et sans
@@ -437,10 +453,20 @@ vers le `.crp` — en oublier un = fuite :
 - **I-POR-5** : quitter corpus vers **document** quand la règle est partagée déclenche une
   **dissociation globale** (`demanderDissociationRegleCorpus`) : les entretiens qui portent un usage
   réel (run, exception, libellé) ou une règle locale explicite passent tous en `document`, les
-  fantômes sont retirés, puis la règle disparaît du `.crp`. Le DOM n'est pas modifié. Les `.Sonal`
-  concernés sont réécrits avant le `.crp` et un rollback est tenté en cas d'échec. Le passage direct
-  corpus→brouillon reste refusé tant que la règle est partagée ; la suppression locale de ligne garde
-  également son garde-fou (`regleEstIsolee`).
+  fantômes sont retirés, puis la règle disparaît du `.crp`. Avant toute écriture, chaque règle
+  document est reconstruite depuis la couverture effective corpus + locale + marquages HTML : tous
+  les alias, variantes choisies, exceptions et libellés confirmés restent donc expliqués après
+  réouverture. Les alias à couverture mono-pseudo identique peuvent être regroupés ; une couverture
+  multi-pseudo reste mono-entité conformément à I2. Une troisième variante nécessaire bloque tout le
+  lot avec un diagnostic au lieu d'écraser une règle divergente. Pour l'entretien ouvert, le DOM et
+  `window.tabAnon` live priment sur le cache main lors du bilan et de la préparation : un usage
+  confirmé ou une édition fraîche est conservé en document. Après le succès complet seulement, une
+  ligne héritée qui ne porte que des occurrences « à traiter » est retirée du modèle live afin qu'une
+  sauvegarde ne republie pas la règle supprimée ; les marqueurs runtime sont redérivés sans modifier
+  les runs, exceptions ou libellés confirmés. Les `.Sonal` concernés sont réécrits avant le `.crp` et
+  un rollback des règles complètes est tenté en cas d'échec. Le passage direct corpus→brouillon reste
+  refusé tant que la règle est partagée ; la suppression locale de ligne garde également son
+  garde-fou (`regleEstIsolee`).
 - **I-POR-6** : la promotion inverse document→corpus inventorie, sur la seule entité ciblée, les
   règles locales des autres entretiens (`analyserPromotionRegleCorpus`). Si leurs pseudos sont
   compatibles, une confirmation les rattache en lot au corpus et réécrit leurs `.Sonal` sans toucher

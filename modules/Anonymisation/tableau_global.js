@@ -1883,11 +1883,9 @@ function creerLigneAnonGen(anon, tabEnt) {
 }
 
 // Édition du pseudo d'une règle depuis le panneau corpus (au blur du textarea).
-// Côté corpus il n'y a pas de texte vivant : on met à jour la RÈGLE et on PROPAGE le renommage
-// à tous les entretiens via repseudonymiserEntiteDansEntretien (relabel des occurrences anon,
-// exceptions/à-traiter préservées) — même logique que supprimerRegleAnonGen.
-// Volontairement borné au RENOMMAGE simple (même nombre de pseudos, un seul qui change) : pour
-// ajouter/retirer un 2ᵉ pseudo, l'utilisateur passe par ✖ Supprimer / ➕ Ajouter.
+// Le renommage simple délègue à l'orchestrateur partagé : bilan frais, confirmation préalable,
+// relabel ciblé par entité + variante, écritures .Sonal/.crp et rollback. Ajouter/retirer une
+// variante reste une opération distincte (dialogue de conflit ou création explicite).
 async function renommerPseudoCorpus(inputPseudo, anon, tr) {
     const canoniqueAvant = pseudosDe(anon).join('/');
     const valeur = inputPseudo.value.trim();
@@ -1920,78 +1918,25 @@ async function renommerPseudoCorpus(inputPseudo, anon, tr) {
     const ancienPseudo = retires[0];
     const nouveauPseudo = ajoutes[0];
 
-    // 1. Mettre à jour la règle corpus + persister.
+    // Le même orchestrateur est utilisé depuis le dialogue de conflit et depuis le panneau corpus :
+    // bilan frais, confirmation AVANT écriture, sauvegardes groupées et rollback partagé.
+    const resultat = await demanderRemplacementPseudoCorpus(anon.entite, ancienPseudo, nouveauPseudo);
+    if (!resultat.ok) { revert(); return; }
+
     const tabAnonGlobal = await window.electronAPI.getAnon() || [];
-    const regle = tabAnonGlobal.find(a => a && cleEntite(a.entite) === cleEntite(anon.entite))
-               || regleEnCollisionAlias(anon.entite, tabAnonGlobal);
+    const regle = regleEnCollisionAlias(anon.entite, tabAnonGlobal);
     if (!regle) { revert(); return; }
-    // Capture de l'état AVANT renommage, pour un éventuel rollback (bouton « Annuler »).
-    const regleRemplacementAvant = regle.remplacement;
-    const regleRemplacementAltAvant = regle.remplacementAlt;
-    regle.remplacement = analyse.remplacement;
-    if (analyse.remplacementAlt) regle.remplacementAlt = analyse.remplacementAlt;
-    else delete regle.remplacementAlt;
-    await persisterReglesCorpus(tabAnonGlobal);
-
-    // 2. Propager le renommage à tous les entretiens (la primitive gère HTML + tabAnon local + .sonal).
-    const tabEnt = await window.electronAPI.getEnt() || [];
-    let nbEntretiens = 0;
-    for (let i = 0; i < tabEnt.length; i++) {
-        const n = await repseudonymiserEntiteDansEntretien(i, anon.entite, ancienPseudo, nouveauPseudo);
-        if (n > 0) nbEntretiens++;
-    }
-
-    // 3. Rafraîchir la ligne en place (les closures 🔍/✖ lisent anon.* au moment du clic).
-    anon.remplacement = analyse.remplacement;
-    if (analyse.remplacementAlt) anon.remplacementAlt = analyse.remplacementAlt;
+    anon.remplacement = regle.remplacement;
+    if (regle.remplacementAlt) anon.remplacementAlt = regle.remplacementAlt;
     else delete anon.remplacementAlt;
     if (tr) tr.dataset.pseudo = anon.remplacement;
     inputPseudo.value = pseudosDe(anon).join('/');
     autoResizeTextarea(inputPseudo);
 
-    // 4. Les badges du scan reflètent l'ancien pseudo → marquer périmé (bannière « Relancez l'analyse »).
     if (window._anonScanCache) {
-        window._anonScanStale = true;
-        window._anonIndexInverse = null;
         const banner = document.getElementById('anon-stale-banner');
         if (banner) banner.style.display = 'flex';
     }
-
-    // 5. Retour utilisateur — avec possibilité d'ANNULER (rollback du renommage).
-    const msg = (nbEntretiens > 0
-        ? `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».\n${nbEntretiens} entretien(s) mis à jour.`
-        : `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».`)
-        + `\n\nCliquez « Annuler » pour revenir en arrière.`;
-    const rep = await question(msg, ['Annuler', 'OK']);
-    if (rep !== 'annuler') {
-        // Renommage confirmé → écrire le .crp (persisterReglesCorpus n'a touché que la mémoire main).
-        await window.sauvegarderCorpus(false);
-        return;
-    }
-
-    // ROLLBACK : on rejoue le renommage en sens inverse (nouveau → ancien) et on restaure la règle.
-    const tabAnonGlobalRb = await window.electronAPI.getAnon() || [];
-    const regleRb = tabAnonGlobalRb.find(a => a && cleEntite(a.entite) === cleEntite(anon.entite))
-                 || regleEnCollisionAlias(anon.entite, tabAnonGlobalRb);
-    if (regleRb) {
-        regleRb.remplacement = regleRemplacementAvant;
-        if (regleRemplacementAltAvant) regleRb.remplacementAlt = regleRemplacementAltAvant;
-        else delete regleRb.remplacementAlt;
-        await persisterReglesCorpus(tabAnonGlobalRb);
-    }
-    const tabEntRb = await window.electronAPI.getEnt() || [];
-    for (let i = 0; i < tabEntRb.length; i++) {
-        await repseudonymiserEntiteDansEntretien(i, anon.entite, nouveauPseudo, ancienPseudo);
-    }
-    // Restaurer l'affichage de la ligne.
-    anon.remplacement = regleRemplacementAvant;
-    if (regleRemplacementAltAvant) anon.remplacementAlt = regleRemplacementAltAvant;
-    else delete anon.remplacementAlt;
-    if (tr) tr.dataset.pseudo = anon.remplacement;
-    inputPseudo.value = pseudosDe(anon).join('/');
-    autoResizeTextarea(inputPseudo);
-    // Rollback confirmé → écrire le .crp avec l'état restauré.
-    await window.sauvegarderCorpus(false);
 }
 
 /**
