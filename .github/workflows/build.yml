@@ -5,7 +5,6 @@ on:
       - 'v*.*.*'
     branches:
       - main  # build automatique sur cette branche (artefacts uniquement)
-      - AmeliorPseudo  # build automatique sur la branche de développement
   workflow_dispatch:         # déclenchement manuel depuis l'interface GitHub
 permissions:
   contents: write  # Required for creating releases and uploading assets
