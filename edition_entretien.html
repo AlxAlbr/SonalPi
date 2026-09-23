@@ -830,31 +830,51 @@ document.addEventListener('DOMContentLoaded', () => {
             let agi = false;
             const TIMEOUT_MS = 15000;
 
-            // Tente d'agir : si le span cible existe et que tabAnon est un array,
-            // ouvre le panneau Pseudonymisation, défile et applique le highlight.
+            // Tente d'agir une fois le document et tabAnon chargés. Pour une occurrence issue du
+            // corpus, le spanId n'est qu'un indice visuel potentiellement périmé : la vraie cible
+            // est l'entité + son ordinal, consommés après le recalcul local par
+            // activerNavigationCorpusVersEntretien(). Les diagnostics d'intégrité, sans entité,
+            // conservent le repli direct rang/segment.
             const essayer = () => {
                 if (agi) return true;
-                const span = segments.querySelector(`[data-rk="${spanIdEscape}"]`);
-                if (!span || !Array.isArray(window.tabAnon)) return false;
+                if (!Array.isArray(window.tabAnon) || !segments.querySelector('[data-rk]')) return false;
+
+                const span = segments.querySelector(`[data-rk="${spanIdEscape}"]`) ||
+                    (navTarget.segment != null
+                        ? segments.querySelector(`[data-sg="${CSS.escape(String(navTarget.segment))}"]`)
+                        : null);
+                if (!navTarget.entite && !span) return false;
+
                 agi = true;
                 try {
+                    if (navTarget.entite) {
+                        // Poser la cible AVANT l'ouverture du panneau : un rendu synchrone peut ainsi
+                        // la consommer immédiatement. Si le tableau n'est pas prêt, elle reste en attente.
+                        window._pendingNavActivation = {
+                            entite:       navTarget.entite,
+                            pseudo:       navTarget.pseudo,
+                            cat:          navTarget.occCat || 'non',
+                            occIdxInCat:  navTarget.occIdxInCat || 0,
+                            occOrdinal:   Number.isInteger(navTarget.occOrdinal) ? navTarget.occOrdinal : null
+                        };
+                    }
+
                     const btnAnon = document.getElementById('imgpananon');
                     const panneauAnon = document.getElementById('fond_anon');
                     const panneauOuvert = panneauAnon && panneauAnon.classList.contains('blocvisible');
                     if (btnAnon && !panneauOuvert) btnAnon.click();
-                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    span.classList.remove('nav-highlight');
-                    void span.offsetWidth;
-                    span.classList.add('nav-highlight');
-                    setTimeout(() => span.classList.remove('nav-highlight'), 2200);
-                    // Stocker les infos sémantiques (pas le span DOM, instable après cleanHTML).
-                    // affichTableauAnon() les consommera une fois matchPositions et boutons prêts.
-                    window._pendingNavActivation = {
-                        entite:       navTarget.entite,
-                        pseudo:       navTarget.pseudo,
-                        cat:          navTarget.occCat || 'non',
-                        occIdxInCat:  navTarget.occIdxInCat || 0
-                    };
+
+                    if (navTarget.entite) {
+                        if (typeof activerNavigationCorpusVersEntretien === 'function') {
+                            activerNavigationCorpusVersEntretien();
+                        }
+                    } else if (span) {
+                        span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        span.classList.remove('nav-highlight');
+                        void span.offsetWidth;
+                        span.classList.add('nav-highlight');
+                        setTimeout(() => span.classList.remove('nav-highlight'), 2200);
+                    }
                 } catch (err) {
                     console.error("Erreur focalisation navigation:", err);
                 }
@@ -2413,6 +2433,7 @@ function dialog(type){
     element.style.display = "block";
     
     let contenu = document.getElementById('ssdlg');
+    contenu.classList.toggle('dialog-content--metadata', type === 'Métadonnées');
 
     //element.classList.remove('dnone');
 
@@ -2708,20 +2729,14 @@ function dialog(type){
                           
 
 
-                        <div id="fond_mod" style="display:none">
+                        <div id="fond_mod" style="display:block">
 
-                            <H3 >Modalités </H3>
+                            <H3>Modalités</H3>
+                            <p class="aide-modalites">Saisissez vos propres modalités. Une ligne laissée vide ou retirée avec ✕ sera supprimée à la validation.</p>
                             <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto;overflow-x: hidden; ">
 
                                 
-                               <div id= "dico" style="padding: 11px">
-                                    
-                                    <div class="ligmoda" style="">
-                                        <input type="text" class=" case-moda codemoda floating-input lbl-code-thm" placeholder=" " onkeyup="" value="1"/>  
-                                        <input type="text" class="case-moda libmoda floating-input lbl-code-thm" placeholder="Nouvelle modalité" onkeyup="" value=""/> 
-                                    </div>
-
-                                </div>
+                               <div id="dico" style="padding: 11px"></div>
                                     
                                  
 
@@ -2732,7 +2747,7 @@ function dialog(type){
                             
                        
                             <div class = "floating-label-container" style="margin-top: 10px;">
-                             <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px;   ";">+ ajouter une modalité</label> 
+                             <button type="button" id="btnaddmod" class="btnfonction btnlarge" style="margin-top:5px; margin-left:5px;" onclick="addMod(document.getElementById('lblCodeVar').value)">+ Ajouter une modalité</button>
 
               
                                 </div>
@@ -2745,9 +2760,9 @@ function dialog(type){
 
                                      <div class="floating-label-container" style=""> 
 
-                                    <label for="maListe" class="mdc-floating-label  floatingstatic"> Modalités pré-remplies</label>
+                                    <label for="maListe" class="mdc-floating-label  floatingstatic">Modèle de modalités</label>
                                     <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;padding:5px" onchange="ajoutListeModas(this.value)">
-                                    <option value="rien">choisissez un modèle...</option>
+                                    <option value="vide" selected>Vide — modalités personnalisées</option>
                                     <option value="sexe">Sexe</option>
                                     <option value="age5">Age en classes de 5</option>
                                     <option value="age10">Age en classes de 10</option>
@@ -2761,6 +2776,7 @@ function dialog(type){
                            <label id = "btnValidVar" class='btnfonction btnlarge' style = "margin-top : 20px"; onclick="addVar('loc')">Valider</label> 
         `
 
+        ajoutListeModas("vide");
         document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
 
         break;   
@@ -2861,7 +2877,12 @@ function dialogExportChoixOptions(format) {
             ${opt('opt-thm', 'logo-cat', 'Catégories thématiques', oth)}
 
             <hr style="margin: 6px 0;">
-            ${opt('opt-anon', 'logo-anon', 'Anonymiser (appliquer la pseudonymisation de manière définitve)', oa)}
+            ${opt('opt-anon', 'logo-anon', 'Anonymiser (appliquer la pseudonymisation de manière définitive)', oa)}
+            <p style="font-size:0.85em;color:#666;margin:6px 0;">
+                Seuls le texte et les libellés de locuteurs marqués sont pseudonymisés.
+                Vérifiez les exceptions, les notes, le contenu libre des variables, les titres et les noms de fichiers avant partage.
+                Les exports anonymisés ne sont pas liés aux médias originaux.
+            </p>
             <hr style="margin:6px 0;">
         </div>
         <div style="display:flex;gap:10px;margin-top:10px;">

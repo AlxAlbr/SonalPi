@@ -2,6 +2,10 @@ node_modules/
 out
 dist/
 site/
+tests/
+!tests/
+tests/*
+!tests/anonymisation-remplacement-corpus.test.cjs
 .env
 plan-*.md
 modules/Anafac_lexico/

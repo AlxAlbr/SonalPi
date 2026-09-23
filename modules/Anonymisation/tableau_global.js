@@ -829,12 +829,14 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
                     window._anonDetailDirty = false;
                 }
 
-                // Incluse écartée des catégories de nav (cohérent avec l'entretien, I-INC-3) ;
-                // rattachée à 'anon' pour le ciblage, et exclue des filtres pour ne pas décaler les index.
-                const occCat = occ.incluse ? 'anon' : occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
+                // L'ordinal sémantique (parmi toutes les occurrences de l'entité) est recalculable
+                // après normalisation locale. Contrairement au spanId/aux offsets runtime, il ne
+                // dépend pas du découpage compacté observé dans la vue corpus.
+                const occCat = occ.incluse ? 'incluse' : occ.exclue ? 'exc' : occ.applique ? 'anon' : 'non';
                 const occIdxInCat = occurrences
                     .slice(0, occurrences.indexOf(occ))
                     .filter(o =>
+                        (occCat === 'incluse' && o.incluse) ||
                         (occCat === 'exc'  &&  o.exclue) ||
                         (occCat === 'anon' && !o.exclue &&  o.applique && !o.incluse) ||
                         (occCat === 'non'  && !o.exclue && !o.applique && !o.incluse)
@@ -844,9 +846,12 @@ function creerAccordeonEntretien(entId, entNom, entIndex, anonymisee, occurrence
                 await window.electronAPI.editerEntretien(entIndex, {
                     entite: anon.entite,
                     pseudo: anon.remplacement,
-                    spanId: occ.spanId,
+                    spanId: occ.spanId, // diagnostic seulement ; jamais utilisé pour choisir l'occurrence
                     occCat,
-                    occIdxInCat
+                    occIdxInCat,
+                    occOrdinal: occ.cible && Number.isInteger(occ.cible.ordinal)
+                        ? occ.cible.ordinal
+                        : occurrences.indexOf(occ)
                 });
             } catch (err) {
                 console.error("Erreur lors de l'ouverture de l'entretien:", err);
@@ -975,83 +980,86 @@ async function validerOccurrencesSelectionnees(scrollContainer, occurrencesParEn
             }
         }
         
-        // === PHASE 2: Appliquer les changements par entretien ===
+        // === PHASE 2: appliquer chaque entretien en UNE transaction HTML précise ===
         let totalAjouter = 0, totalRetirer = 0, totalExclure = 0, totalDesexclure = 0;
+        let totalEchecsCibles = 0;
+        const echecsSauvegarde = [];
         const tabEntPourMaj = await window.electronAPI.getEnt();
         let tabEntModifie = false;
-        
+        let htmlModifie = false;
+
         for (const entIdStr in changementsParEntretien) {
-            const { aAjouter, aRetirer, aExclure, aDesexclure } = changementsParEntretien[entIdStr];
-            
-            if (aAjouter.length === 0 && aRetirer.length === 0 && aExclure.length === 0 && aDesexclure.length === 0) {
-                continue; // Pas de changement pour cet entretien
-            }
-            
+            const changements = changementsParEntretien[entIdStr];
+            const { aAjouter, aRetirer, aExclure, aDesexclure } = changements;
+            if (aAjouter.length === 0 && aRetirer.length === 0 && aExclure.length === 0 && aDesexclure.length === 0) continue;
+
             const entData = occurrencesParEntretien[entIdStr];
             if (!entData) continue;
-            
-            // 1. D'abord retirer les exceptions (pour que les pseudonymisations suivantes voient un HTML propre)
-            if (aDesexclure.length > 0) {
-                await retirerExceptionOccurrencesSpecifiques(entData.index, aDesexclure, anon);
-                totalDesexclure += aDesexclure.length;
+            const entretien = tabEntPourMaj[entData.index];
+            let resultat;
+            try {
+                resultat = await modifierOccurrencesEntretienDepuisCorpus(
+                    entData.index,
+                    anon,
+                    changements,
+                    { reglesLocales: entretien && Array.isArray(entretien.tabAnon) ? entretien.tabAnon : [] }
+                );
+            } catch (error) {
+                console.error(`Échec de mutation de l'entretien ${entData.index}:`, error);
+                echecsSauvegarde.push(`${entData.nom || `Entretien ${entData.index + 1}`} : ${error.message || error}`);
+                continue;
             }
 
-            // 2. Pseudonymiser seulement les spans sélectionnés
-            if (aAjouter.length > 0) {
-                const spanIdsATraiter = new Set(aAjouter.map(occ => occ.spanId));
-                await pseudonymiserEntretienSpecifique(entData.index, anon.entite, anon.remplacement, spanIdsATraiter, true);
-                totalAjouter += aAjouter.length;
+            totalAjouter += resultat.parAction.ajouter;
+            totalRetirer += resultat.parAction.retirer;
+            totalExclure += resultat.parAction.exclure;
+            totalDesexclure += resultat.parAction.desexclure;
+            totalEchecsCibles += resultat.echecs.length;
+            htmlModifie = htmlModifie || resultat.htmlSauvegarde;
 
-                // Ajouter au tabAnon local les variantes de casse explicitement traitées
-                const entretien = tabEntPourMaj[entData.index];
-                if (entretien) {
-                    const tabAnonLocal = entretien.tabAnon || [];
-                    const entitesDejaPresentes = new Set(tabAnonLocal.map(p => p.entite));
-                    for (const occ of aAjouter) {
-                        if (!entitesDejaPresentes.has(occ.entite)) {
-                            tabAnonLocal.push({ entite: occ.entite, remplacement: anon.remplacement });
-                            entitesDejaPresentes.add(occ.entite);
-                            tabEntModifie = true;
-                        }
+            if (resultat.htmlSauvegarde && !resultat.sonalSauvegarde) {
+                echecsSauvegarde.push(
+                    `${entData.nom || `Entretien ${entData.index + 1}`} : HTML mis à jour en mémoire, ` +
+                    `mais fichier Sonal non réécrit${resultat.erreurSauvegarde ? ` (${resultat.erreurSauvegarde})` : ''}`
+                );
+            }
+
+            // Ajouter au tabAnon local uniquement les variantes effectivement anonymisées.
+            if (entretien && resultat.parAction.ajouter > 0) {
+                const tabAnonLocal = entretien.tabAnon || [];
+                const entitesDejaPresentes = new Set(tabAnonLocal.map(p => p.entite));
+                for (const succes of resultat.reussites.filter(r => r.action === 'ajouter')) {
+                    if (!entitesDejaPresentes.has(succes.entite)) {
+                        tabAnonLocal.push({ entite: succes.entite, remplacement: anon.remplacement });
+                        entitesDejaPresentes.add(succes.entite);
                     }
-                    entretien.tabAnon = tabAnonLocal;
                 }
+                entretien.tabAnon = tabAnonLocal;
             }
 
-            // 3. Retirer les pseudonymes désélectionnés
-            if (aRetirer.length > 0) {
-                await retirerPseudoOccurrencesSpecifiques(entData.index, aRetirer, anon);
-                totalRetirer += aRetirer.length;
+            if (resultat.htmlSauvegarde) {
+                // Compteurs et matchPositions sont dérivés du HTML réellement obtenu, jamais de l'intention.
+                await recalculerStatsAnonEntretien(entData.index, anon.entite, anon.remplacement, tabEntPourMaj);
+                tabEntModifie = true;
             }
-
-            // 4. Marquer les nouvelles exceptions
-            if (aExclure.length > 0) {
-                await marquerExceptionOccurrencesSpecifiques(entData.index, aExclure, anon);
-                totalExclure += aExclure.length;
-            }
-
-            // Recalculer les stats (occurrences + matchPositions) depuis le HTML mis à jour
-            await recalculerStatsAnonEntretien(entData.index, anon.entite, anon.remplacement, tabEntPourMaj);
-            tabEntModifie = true;
         }
 
-        // Sauvegarder les mises à jour du tabAnon local
-        if (tabEntModifie) {
-            await window.electronAPI.setEnt(tabEntPourMaj);
-        }
-        
-        // === PHASE 3: Message de confirmation ===
+        if (tabEntModifie) await window.electronAPI.setEnt(tabEntPourMaj);
+
+        // === PHASE 3: bilan fondé sur les mutations vérifiées ===
         const totalChangements = totalAjouter + totalRetirer + totalExclure + totalDesexclure;
-        if (totalChangements > 0) {
+        const aDesEchecs = totalEchecsCibles > 0 || echecsSauvegarde.length > 0;
+        if (totalChangements > 0 || aDesEchecs) {
             const lignesMaj = [];
-            if (totalAjouter   > 0) lignesMaj.push(`✅ ${totalAjouter} occurrence(s) anonymisée(s)`);
-            if (totalRetirer   > 0) lignesMaj.push(`↩️ ${totalRetirer} occurrence(s) dé-pseudonymisée(s)`);
-            if (totalExclure   > 0) lignesMaj.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
+            if (totalAjouter > 0) lignesMaj.push(`✅ ${totalAjouter} occurrence(s) anonymisée(s)`);
+            if (totalRetirer > 0) lignesMaj.push(`↩️ ${totalRetirer} occurrence(s) dé-pseudonymisée(s)`);
+            if (totalExclure > 0) lignesMaj.push(`🚫 ${totalExclure} exception(s) ajoutée(s)`);
             if (totalDesexclure > 0) lignesMaj.push(`🔓 ${totalDesexclure} exception(s) retirée(s)`);
-            dialog('Message', `Changements enregistrés :\n${lignesMaj.join('\n')}`);
-            window._anonDetailDirty = false;
-            // Level 2 : mise à jour du cache sans invalider le scan global
-            await mettreAJourCacheEntite(anon.entite, anon.remplacement);
+            if (totalEchecsCibles > 0) lignesMaj.push(`⚠️ ${totalEchecsCibles} occurrence(s) non modifiée(s) : cible périmée ou conflit`);
+            if (echecsSauvegarde.length > 0) lignesMaj.push(`❌ Écriture incomplète :\n${echecsSauvegarde.join('\n')}`);
+            dialog('Message', `${aDesEchecs ? 'Validation partielle' : 'Changements enregistrés'} :\n${lignesMaj.join('\n')}`);
+            window._anonDetailDirty = aDesEchecs;
+            if (htmlModifie) await mettreAJourCacheEntite(anon.entite, anon.remplacement);
         } else {
             dialog('Message', 'Aucun changement effectué.');
         }
@@ -1355,7 +1363,7 @@ async function affichAnonGen() {
                     </div>
                     <input type="file" id="file-import-corpus" multiple accept=".json" style="display:none;" onchange="importTableCorpus(this.files)">
                     <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de règles JSON (ajoute des règles au corpus)">Import règles 📥</label>
-                    <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterReglesCorpusJSON();" title="Exporter les règles (entité→pseudo) en JSON, réimportable dans un autre corpus">Export règles 📤</label>
+                    <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="ouvrirModaleExportReglesCorpus();" title="Exporter les règles d'anonymisation (entité→pseudo) en JSON, réimportable dans un autre corpus">Export règles 📤</label>
                     <label id="btn-params-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="ouvrirParamsAnonCorpus();" title="Paramètres de pseudonymisation (mots de liaison…)">Paramètres ⚙</label>
                     <label id="btn-quit-anon" class="btn btn-secondary" style="padding:10px" onclick="hideAnonGen();" title="Fermer la table">Quitter ✖️</label>
                 </div>
@@ -1822,7 +1830,29 @@ function creerLigneAnonGen(anon, tabEnt) {
         await verifierEtAfficherEtatEntite(anon.entite, anon.remplacement, tabEnt);
     });
 
-    // Bouton Supprimer la règle
+    // Bouton Dissocier : retire la portée corpus mais conserve tous les marquages existants en
+    // transformant les règles des entretiens concernés en règles 📄 document.
+    const btnDissocier = document.createElement("button");
+    btnDissocier.textContent = "📄";
+    btnDissocier.style.height = "33px";
+    btnDissocier.style.width = "33px";
+    btnDissocier.style.padding = "5px";
+    btnDissocier.style.marginLeft = "6px";
+    btnDissocier.classList.add("btn");
+    btnDissocier.title = `Dissocier "${anon.entite}" du corpus en conservant les pseudonymisations`;
+
+    btnDissocier.addEventListener("click", async (e) => {
+        e.preventDefault();
+        btnDissocier.disabled = true;
+        try {
+            const resultat = await demanderDissociationRegleCorpus(anon.entite);
+            if (resultat.ok) afficherResultatDissociationCorpus(resultat, tr);
+        } finally {
+            btnDissocier.disabled = false;
+        }
+    });
+
+    // Bouton Supprimer la règle et restaurer le texte partout.
     const btnSupprimer = document.createElement("button");
     btnSupprimer.textContent = "✖";
     btnSupprimer.style.height = "33px";
@@ -1830,7 +1860,7 @@ function creerLigneAnonGen(anon, tabEnt) {
     btnSupprimer.style.padding = "5px";
     btnSupprimer.style.marginLeft = "6px";
     btnSupprimer.classList.add("btn", "btn-danger");
-    btnSupprimer.title = `Supprimer la règle "${anon.entite}" → "${anon.remplacement}"`;
+    btnSupprimer.title = `Supprimer partout la règle "${anon.entite}" → "${anon.remplacement}" et restaurer le texte`;
 
     btnSupprimer.addEventListener("click", async (e) => {
         e.preventDefault();
@@ -1838,6 +1868,7 @@ function creerLigneAnonGen(anon, tabEnt) {
     });
 
     tdActions.appendChild(btnVerifier);
+    tdActions.appendChild(btnDissocier);
     tdActions.appendChild(btnSupprimer);
 
     // Badge de thématique (opt-in) — placé SOUS la ligne des boutons 🔍/✖ (display:block centré).
@@ -1852,11 +1883,9 @@ function creerLigneAnonGen(anon, tabEnt) {
 }
 
 // Édition du pseudo d'une règle depuis le panneau corpus (au blur du textarea).
-// Côté corpus il n'y a pas de texte vivant : on met à jour la RÈGLE et on PROPAGE le renommage
-// à tous les entretiens via repseudonymiserEntiteDansEntretien (relabel des occurrences anon,
-// exceptions/à-traiter préservées) — même logique que supprimerRegleAnonGen.
-// Volontairement borné au RENOMMAGE simple (même nombre de pseudos, un seul qui change) : pour
-// ajouter/retirer un 2ᵉ pseudo, l'utilisateur passe par ✖ Supprimer / ➕ Ajouter.
+// Le renommage simple délègue à l'orchestrateur partagé : bilan frais, confirmation préalable,
+// relabel ciblé par entité + variante, écritures .Sonal/.crp et rollback. Ajouter/retirer une
+// variante reste une opération distincte (dialogue de conflit ou création explicite).
 async function renommerPseudoCorpus(inputPseudo, anon, tr) {
     const canoniqueAvant = pseudosDe(anon).join('/');
     const valeur = inputPseudo.value.trim();
@@ -1889,78 +1918,25 @@ async function renommerPseudoCorpus(inputPseudo, anon, tr) {
     const ancienPseudo = retires[0];
     const nouveauPseudo = ajoutes[0];
 
-    // 1. Mettre à jour la règle corpus + persister.
+    // Le même orchestrateur est utilisé depuis le dialogue de conflit et depuis le panneau corpus :
+    // bilan frais, confirmation AVANT écriture, sauvegardes groupées et rollback partagé.
+    const resultat = await demanderRemplacementPseudoCorpus(anon.entite, ancienPseudo, nouveauPseudo);
+    if (!resultat.ok) { revert(); return; }
+
     const tabAnonGlobal = await window.electronAPI.getAnon() || [];
-    const regle = tabAnonGlobal.find(a => a && cleEntite(a.entite) === cleEntite(anon.entite))
-               || regleEnCollisionAlias(anon.entite, tabAnonGlobal);
+    const regle = regleEnCollisionAlias(anon.entite, tabAnonGlobal);
     if (!regle) { revert(); return; }
-    // Capture de l'état AVANT renommage, pour un éventuel rollback (bouton « Annuler »).
-    const regleRemplacementAvant = regle.remplacement;
-    const regleRemplacementAltAvant = regle.remplacementAlt;
-    regle.remplacement = analyse.remplacement;
-    if (analyse.remplacementAlt) regle.remplacementAlt = analyse.remplacementAlt;
-    else delete regle.remplacementAlt;
-    await persisterReglesCorpus(tabAnonGlobal);
-
-    // 2. Propager le renommage à tous les entretiens (la primitive gère HTML + tabAnon local + .sonal).
-    const tabEnt = await window.electronAPI.getEnt() || [];
-    let nbEntretiens = 0;
-    for (let i = 0; i < tabEnt.length; i++) {
-        const n = await repseudonymiserEntiteDansEntretien(i, anon.entite, ancienPseudo, nouveauPseudo);
-        if (n > 0) nbEntretiens++;
-    }
-
-    // 3. Rafraîchir la ligne en place (les closures 🔍/✖ lisent anon.* au moment du clic).
-    anon.remplacement = analyse.remplacement;
-    if (analyse.remplacementAlt) anon.remplacementAlt = analyse.remplacementAlt;
+    anon.remplacement = regle.remplacement;
+    if (regle.remplacementAlt) anon.remplacementAlt = regle.remplacementAlt;
     else delete anon.remplacementAlt;
     if (tr) tr.dataset.pseudo = anon.remplacement;
     inputPseudo.value = pseudosDe(anon).join('/');
     autoResizeTextarea(inputPseudo);
 
-    // 4. Les badges du scan reflètent l'ancien pseudo → marquer périmé (bannière « Relancez l'analyse »).
     if (window._anonScanCache) {
-        window._anonScanStale = true;
-        window._anonIndexInverse = null;
         const banner = document.getElementById('anon-stale-banner');
         if (banner) banner.style.display = 'flex';
     }
-
-    // 5. Retour utilisateur — avec possibilité d'ANNULER (rollback du renommage).
-    const msg = (nbEntretiens > 0
-        ? `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».\n${nbEntretiens} entretien(s) mis à jour.`
-        : `Pseudonyme « ${ancienPseudo} » renommé en « ${nouveauPseudo} ».`)
-        + `\n\nCliquez « Annuler » pour revenir en arrière.`;
-    const rep = await question(msg, ['Annuler', 'OK']);
-    if (rep !== 'annuler') {
-        // Renommage confirmé → écrire le .crp (persisterReglesCorpus n'a touché que la mémoire main).
-        await window.sauvegarderCorpus(false);
-        return;
-    }
-
-    // ROLLBACK : on rejoue le renommage en sens inverse (nouveau → ancien) et on restaure la règle.
-    const tabAnonGlobalRb = await window.electronAPI.getAnon() || [];
-    const regleRb = tabAnonGlobalRb.find(a => a && cleEntite(a.entite) === cleEntite(anon.entite))
-                 || regleEnCollisionAlias(anon.entite, tabAnonGlobalRb);
-    if (regleRb) {
-        regleRb.remplacement = regleRemplacementAvant;
-        if (regleRemplacementAltAvant) regleRb.remplacementAlt = regleRemplacementAltAvant;
-        else delete regleRb.remplacementAlt;
-        await persisterReglesCorpus(tabAnonGlobalRb);
-    }
-    const tabEntRb = await window.electronAPI.getEnt() || [];
-    for (let i = 0; i < tabEntRb.length; i++) {
-        await repseudonymiserEntiteDansEntretien(i, anon.entite, nouveauPseudo, ancienPseudo);
-    }
-    // Restaurer l'affichage de la ligne.
-    anon.remplacement = regleRemplacementAvant;
-    if (regleRemplacementAltAvant) anon.remplacementAlt = regleRemplacementAltAvant;
-    else delete anon.remplacementAlt;
-    if (tr) tr.dataset.pseudo = anon.remplacement;
-    inputPseudo.value = pseudosDe(anon).join('/');
-    autoResizeTextarea(inputPseudo);
-    // Rollback confirmé → écrire le .crp avec l'état restauré.
-    await window.sauvegarderCorpus(false);
 }
 
 /**
@@ -2560,6 +2536,34 @@ async function ajouterLigneAuTableauAnonGen(anon) {
 }
 
 /**
+ * Termine visuellement une dissociation réussie depuis le panneau corpus.
+ */
+function afficherResultatDissociationCorpus(resultat, tr) {
+    if (tr) {
+        tr.style.transition = "opacity 0.3s";
+        tr.style.opacity = "0";
+        setTimeout(() => tr.remove(), 300);
+    }
+    if (window._lastVerifiedAnon && typeof cleEntite === 'function'
+        && cleEntite(window._lastVerifiedAnon.entite || '') === cleEntite(resultat.regle.entite)) {
+        const fondVerif = document.getElementById('fond_verif_anon');
+        if (fondVerif) fondVerif.innerHTML = '<div style="padding:20px;color:#999;">Règle dissociée du corpus.</div>';
+        window._lastVerifiedAnon = null;
+    }
+    const compteur = document.getElementById('anon-gen-compteur');
+    if (compteur) {
+        const restantes = document.querySelectorAll('.ligne-anon-gen').length - (tr && tr.isConnected ? 1 : 0);
+        compteur.textContent = `${Math.max(0, restantes)} règle(s)`;
+    }
+    dialog(
+        'Message',
+        `Règle "${resultat.regle.entite}" retirée du corpus.\n` +
+        `${resultat.nbEntretiens} entretien(s) possèdent maintenant une règle locale 📄.\n` +
+        `Les pseudonymisations, exceptions et choix de locuteurs ont été conservés.`
+    );
+}
+
+/**
  * Supprime une règle d'anonymisation du tabAnon global, retire le pseudo de tout le corpus
  * et retire la ligne du tableau
  * @param {string} entite - Entité à supprimer
@@ -2780,55 +2784,287 @@ async function retirerLibelleDeEntretien(indexEnt, entite) {
  * Exporte les RÈGLES du corpus (entité→pseudo) en JSON, au format de la table de
  * correspondance [{ entite_init, entite_pseudo }, ...] — donc **réimportable** via 📂 Importer
  * (dans ce corpus ou un autre).
+ * Point d'entrée du bouton « Export règles 📤 » : ouvre d'abord la modale de choix
+ * (périmètre corpus / corpus+entretiens, filtrage par labels de thématique).
  */
-async function exporterReglesCorpusJSON() {
-    const tabAnonGlobal = (await window.electronAPI.getAnon()) || [];
-    const correspondances = tabAnonGlobal
-        .filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim())
-        .map(a => ({ entite_init: a.entite.trim(), entite_pseudo: a.remplacement.trim() }));
+function exporterReglesCorpusJSON() {
+    return ouvrirModaleExportReglesCorpus();
+}
 
-    if (correspondances.length === 0) {
-        dialog('Message', 'Aucune règle à exporter.');
-        return;
-    }
+////////////////////////////////////////////////////////////////////////
+// MODALE D'EXPORT DES RÈGLES D'ANONYMISATION (choix du périmètre + labels)
+////////////////////////////////////////////////////////////////////////
 
+// Règles VALIDES du corpus (entité + pseudo non vides).
+async function _reglesCorpusPourExport() {
+    return ((await window.electronAPI.getAnon()) || [])
+        .filter(a => a && a.entite && String(a.entite).trim()
+            && a.remplacement && String(a.remplacement).trim());
+}
+
+// Règles VALIDES portées par les ENTRETIENS du corpus (ent.tabAnon), hors brouillons.
+// Sert à l'option « corpus + entités anonymisées des entretiens » : on y trouve notamment
+// les règles de portée 'document' (locales à un entretien, jamais remontées au corpus).
+async function _reglesEntretiensPourExport() {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    return tabEnt.flatMap(ent => ((ent && ent.tabAnon) || [])
+        .filter(r => r && (r.portee || 'corpus') !== 'brouillon'
+            && r.entite && String(r.entite).trim()
+            && r.remplacement && String(r.remplacement).trim()));
+}
+
+// Labels (thématiques) DISTINCTS portés par un ensemble de règles, avec effectifs :
+// [[label, effectif], ...] trié alphabétiquement. Les règles sans label sont ignorées.
+function _labelsReglesPourExport(regles) {
+    const effectifs = new Map();
+    (regles || []).forEach(r => {
+        const t = ((r && r.thematique) || '').trim().toUpperCase();
+        if (!t) return;
+        effectifs.set(t, (effectifs.get(t) || 0) + 1);
+    });
+    return [...effectifs.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+// Convertit une règle (entité→pseudos, ± label de thématique) au format de la table de
+// correspondance réimportable : [{ entite_init, entite_pseudo, entite_pseudo_alt?, thematique? }].
+// L'alt (« garder les deux ») et le label sont émis SEULEMENT s'ils portent une information
+// (l'import les ignore sinon — champs optionnels, cf. appliquerImportCorpus / appliquerImportCorrespondances).
+function _regleVersCorrespondanceExport(r) {
+    const c = { entite_init: String(r.entite).trim(), entite_pseudo: String(r.remplacement).trim() };
+    const alt = String(r.remplacementAlt || '').trim();
+    if (alt && alt.toLowerCase() !== c.entite_pseudo.toLowerCase()) c.entite_pseudo_alt = alt;
+    const theme = String(r.thematique || '').trim();
+    if (theme) c.thematique = theme.toUpperCase();
+    return c;
+}
+
+// Déclenche le téléchargement de la table de correspondance JSON.
+function _telechargerTableRegles(correspondances, suffixe) {
     const json = JSON.stringify(correspondances, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    link.download = `regles_corpus_${timestamp}.json`;
+    link.download = `regles_${suffixe}_${timestamp}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
     question(`Export réussi : ${correspondances.length} règle(s) exportée(s).`, ['OK']);
 }
 
-// Anonymise le HTML stocké d'un entretien en préservant l'encadrement par backticks (cf. le format
-// stocké, lireCrpSonal2). Source = ent.html (persisté dans le .crp) ou le cache tabHtml en repli.
-function _htmlEntretienAnonymise(ent, htmlCache) {
-    const raw = (ent && ent.html != null && ent.html !== '') ? ent.html : (htmlCache || '');
+/**
+ * Ouvre la modale d'export des règles d'anonymisation (bouton « Export règles 📤 » du panneau
+ * Pseudos du corpus). L'utilisateur choisit :
+ *  - le périmètre : « règles du corpus seulement » ou « corpus + entités anonymisées des
+ *    entretiens » (fusion corpus autoritaire, même moteur que reconstituerTabAnonGlobal) ;
+ *  - et, si des règles du périmètre portent un label de thématique (PER, LOC…), une option
+ *    « exporter une sélection de labels seulement » avec une case à cocher par label.
+ * Le fichier produit reste la table de correspondance JSON réimportable (📥 Import règles).
+ */
+async function ouvrirModaleExportReglesCorpus() {
+    const element = document.getElementById('dlg');
+    const contenu = document.getElementById('ssdlg');
+    if (!element || !contenu) return;
+
+    const reglesCorpus = await _reglesCorpusPourExport();
+    if (reglesCorpus.length === 0) {
+        dialog('Message', 'Aucune règle à exporter.');
+        return;
+    }
+
+    // Fusion corpus AUTORITAIRE + entretiens (corpus d'abord, les entretiens ne peuvent
+    // qu'AJOUTER des entités nouvelles — cf. reconstituerTabAnonGlobal / fusionnerRegles).
+    const reglesEntretiens = await _reglesEntretiensPourExport();
+    const reglesToutes = fusionnerRegles(reglesCorpus, reglesEntretiens);
+    const nbNouvelles = reglesToutes.length - reglesCorpus.length; // propres aux entretiens
+
+    // État de la modale, partagé avec les handlers globaux ci-dessous.
+    window._exportReglesCorpusEtat = {
+        reglesCorpus,
+        reglesToutes,
+        portee: 'corpus',
+        filtrerLabels: false,
+        labelsCoche: new Set(),
+    };
+
+    element.style.display = 'block';
+    contenu.classList.remove('dialog-content--metadata');
+    contenu.style.top = '20%';
+    contenu.style.height = '';
+    contenu.style.width = '45%';
+    contenu.style.display = 'flex';
+    contenu.style.flexDirection = 'column';
+
+    contenu.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+            <img src="img/logoSonal.png" alt="" style="height:40px; width:auto;">
+            <div class="close" onclick="hidedlg()" style="cursor:pointer;">✖️</div>
+        </div>
+        <h3 style="margin:0 0 14px 0;">Exporter les règles d'anonymisation</h3>
+        <div style="margin-bottom:10px;">
+            <label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;">
+                <input type="radio" name="xprt-regles-portee" id="xprt-portee-corpus" checked style="width:15px;height:15px;flex-shrink:0;">
+                <span>Exporter les règles du corpus seulement <span style="color:#666;font-size:0.85em;">(${reglesCorpus.length} règle(s))</span></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:${nbNouvelles > 0 ? 'pointer' : 'not-allowed'};${nbNouvelles === 0 ? 'opacity:0.75;' : ''}">
+                <input type="radio" name="xprt-regles-portee" id="xprt-portee-tout" ${nbNouvelles === 0 ? 'disabled' : ''} style="width:15px;height:15px;flex-shrink:0;">
+                <span>Exporter les règles du corpus et les entités anonymisées des entretiens <span style="color:#666;font-size:0.85em;">(${reglesToutes.length} règle(s), dont ${nbNouvelles} propre(s) aux entretiens)</span></span>
+            </label>
+        </div>
+        <div id="xprt-regles-zone-labels" style="display:none;">
+            <hr style="margin:6px 0;">
+            <label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;">
+                <input type="checkbox" id="xprt-filtre-labels" style="width:15px;height:15px;flex-shrink:0;">
+                <span>Exporter une sélection de labels seulement</span>
+            </label>
+            <div id="xprt-regles-liste-labels" style="display:none; padding:2px 0 4px 25px; max-height:150px; overflow-y:auto;"></div>
+        </div>
+        <hr style="margin:6px 0;">
+        <div id="xprt-regles-erreur" style="display:none;color:#c62828;font-size:0.88rem;padding:4px 0;"></div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <label class="btnfonction" style="flex:1;text-align:center;cursor:pointer;padding:8px 0;margin-top:6px;height:36px" onclick="hidedlg()">Annuler</label>
+            <label class="btn btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;" onclick="_validerExportReglesCorpus()">↗️ Exporter</label>
+        </div>`;
+
+    // Périmètre : bascule l'état + rafraîchit la liste des labels disponibles.
+    const radioCorpus = document.getElementById('xprt-portee-corpus');
+    const radioTout = document.getElementById('xprt-portee-tout');
+    if (radioCorpus) radioCorpus.addEventListener('change', () => {
+        window._exportReglesCorpusEtat.portee = 'corpus';
+        _rendreLabelsExportReglesCorpus();
+    });
+    if (radioTout) radioTout.addEventListener('change', () => {
+        window._exportReglesCorpusEtat.portee = 'tout';
+        _rendreLabelsExportReglesCorpus();
+    });
+
+    // Option « sélection de labels seulement » : révèle/cache la liste des cases à cocher.
+    const chkFiltre = document.getElementById('xprt-filtre-labels');
+    if (chkFiltre) chkFiltre.addEventListener('change', () => {
+        window._exportReglesCorpusEtat.filtrerLabels = chkFiltre.checked;
+        const liste = document.getElementById('xprt-regles-liste-labels');
+        if (liste) liste.style.display = chkFiltre.checked ? 'block' : 'none';
+    });
+
+    // Cases à cocher par label (délégation : la liste est reconstruite à chaque périmètre).
+    const listeLabels = document.getElementById('xprt-regles-liste-labels');
+    if (listeLabels) listeLabels.addEventListener('change', e => {
+        if (!e.target.matches('.xprt-chk-label')) return;
+        const st = window._exportReglesCorpusEtat;
+        const lbl = e.target.dataset.label;
+        if (!st || !lbl) return;
+        if (e.target.checked) st.labelsCoche.add(lbl);
+        else st.labelsCoche.delete(lbl);
+    });
+
+    _rendreLabelsExportReglesCorpus();
+}
+
+/**
+ * (Re)construit la zone « sélection de labels » de la modale d'export : visible seulement si
+ * le périmètre courant contient des règles labellisées. Conserve les cases cochées qui
+ * restent dans le périmètre ; les autres sont retirées de la sélection.
+ */
+function _rendreLabelsExportReglesCorpus() {
+    const st = window._exportReglesCorpusEtat;
+    const zone = document.getElementById('xprt-regles-zone-labels');
+    const liste = document.getElementById('xprt-regles-liste-labels');
+    if (!st || !zone || !liste) return;
+
+    const regles = st.portee === 'tout' ? st.reglesToutes : st.reglesCorpus;
+    const labels = _labelsReglesPourExport(regles);
+    zone.style.display = labels.length > 0 ? 'block' : 'none';
+    if (labels.length === 0) {
+        st.filtrerLabels = false;
+        st.labelsCoche.clear();
+        const chk = document.getElementById('xprt-filtre-labels');
+        if (chk) chk.checked = false;
+        liste.style.display = 'none';
+        liste.innerHTML = '';
+        return;
+    }
+
+    // Purger la sélection des labels disparus du périmètre.
+    const labelsDispos = new Set(labels.map(([l]) => l));
+    st.labelsCoche = new Set([...st.labelsCoche].filter(l => labelsDispos.has(l)));
+
+    liste.innerHTML = labels.map(([lbl, nb]) => `
+        <label style="display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;">
+            <input type="checkbox" class="xprt-chk-label" data-label="${_escAnonMenu(lbl)}" ${st.labelsCoche.has(lbl) ? 'checked' : ''} style="width:14px;height:14px;flex-shrink:0;">
+            <span>${_escAnonMenu(lbl)} <span style="color:#666;font-size:0.85em;">(${nb} règle(s))</span></span>
+        </label>`).join('');
+}
+
+/**
+ * Valide la modale d'export : lit l'état (périmètre + éventuel filtre par labels), construit
+ * la table de correspondance et déclenche le téléchargement. Un filtrage actif sans aucun
+ * label coché est refusé (rien ne serait exporté sans que ce soit explicitement voulu).
+ */
+function _validerExportReglesCorpus() {
+    const st = window._exportReglesCorpusEtat;
+    if (!st) { hidedlg(); return; }
+
+    // Message inline (ne pas utiliser dialog() : il REMPLACERAIT le contenu de la modale).
+    const montrerErreur = (msg) => {
+        const err = document.getElementById('xprt-regles-erreur');
+        if (err) { err.textContent = msg; err.style.display = 'block'; }
+    };
+
+    let regles = st.portee === 'tout' ? st.reglesToutes : st.reglesCorpus;
+    if (st.filtrerLabels) {
+        if (st.labelsCoche.size === 0) {
+            montrerErreur("⚠️ Cochez au moins un label à exporter, ou décochez « Exporter une sélection de labels seulement ».");
+            return;
+        }
+        // « SEULEMENT » : les règles sans label (ou dont le label n'est pas coché) sont exclues.
+        regles = regles.filter(r => st.labelsCoche.has(((r.thematique || '').trim().toUpperCase())));
+    }
+
+    if (regles.length === 0) {
+        montrerErreur('⚠️ Aucune règle à exporter pour ce périmètre.');
+        return;
+    }
+
+    hidedlg();
+    const correspondances = regles.map(_regleVersCorrespondanceExport);
+    const suffixe = (st.portee === 'tout' ? 'corpus_et_entretiens' : 'corpus')
+        + (st.filtrerLabels ? '_labels' : '');
+    window._exportReglesCorpusEtat = null;
+    _telechargerTableRegles(correspondances, suffixe);
+}
+
+// Le cache main fourni par getHtml() est autoritaire, même vide. ent.html n'est qu'un repli
+// legacy quand le cache est absent : ne jamais préférer un instantané .crp périmé.
+function _sourceHtmlExport(ent, htmlCache) {
+    return htmlCache != null ? htmlCache : ((ent && ent.html) || '');
+}
+
+// Anonymise le texte ET les libellés, en préservant l'encadrement legacy par backticks.
+function _htmlEntretienAnonymise(ent, htmlCache, contexteIntegrite = null) {
+    const raw = _sourceHtmlExport(ent, htmlCache);
     const aBackticks = typeof raw === 'string' && raw.startsWith('`') && raw.endsWith('`');
     const inner = aBackticks ? raw.slice(1, -1) : raw;
-    const anon = _anonymiserHtml(inner); // cœur partagé (anon-regles.js) : runs → « [pseudo] »
+    const anon = avecContexteIntegriteAnonymisation(
+        () => _anonymiserHtml(inner),
+        contexteIntegrite || {}
+    ); // cœur partagé (anon-regles.js) : runs → « [pseudo] »
     return aBackticks ? '`' + anon + '`' : anon;
 }
 
 /**
  * HTML stocké d'un entretien prêt pour la génération de texte (txt/docx) : anonymisé si demandé,
- * et toujours dé-encadré des backticks. Source = ent.html (persisté .crp) ou cache tabHtml en repli.
+ * et toujours dé-encadré des backticks. Source = cache main frais ; ent.html en repli seulement.
  * @param {object} ent
- * @param {string} htmlCache - tabHtml[i] (repli)
+ * @param {string} htmlCache - HTML frais obtenu par getHtml(i)
  * @param {boolean} anon - appliquer la pseudonymisation
  * @returns {string} HTML interne (sans backticks)
  */
-function _htmlEntretienPourExport(ent, htmlCache, anon) {
+function _htmlEntretienPourExport(ent, htmlCache, anon, contexteIntegrite = null) {
     let html = anon
-        ? _htmlEntretienAnonymise(ent, htmlCache)
-        : ((ent && ent.html != null && ent.html !== '') ? ent.html : (htmlCache || ''));
+        ? _htmlEntretienAnonymise(ent, htmlCache, contexteIntegrite)
+        : _sourceHtmlExport(ent, htmlCache);
     if (typeof html === 'string' && html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
     return html || '';
 }
@@ -2935,6 +3171,11 @@ function dialogExportCorpusChoixOptions(format) {
             ${opt('opt-thm', 'logo-cat', 'Catégories thématiques', oth)}
             <hr style="margin: 6px 0;">
             ${opt('opt-anon', 'logo-anon', 'Anonymiser (appliquer la pseudonymisation de manière définitive)', oa)}
+            <p style="font-size:0.85em;color:#666;margin:6px 0;">
+                Seuls le texte et les libellés de locuteurs marqués sont pseudonymisés.
+                Vérifiez les exceptions, les notes, le contenu libre des variables, les titres et les noms de fichiers avant partage.
+                Les exports anonymisés ne sont pas liés aux médias originaux.
+            </p>
             <hr style="margin:6px 0;">
         </div>
         <div style="display:flex;gap:10px;margin-top:10px;">
@@ -2964,10 +3205,26 @@ async function exporterCorpusAvecOptions(format) {
         entete: getChk('opt-entete'),
     };
     hidedlg();
-    if (format === 'sonal')      await exporterCorpusReouvrable(opts);
-    else if (format === 'html')  await exporterCorpusPartage(opts);
-    else if (format === 'txt')   await exporterCorpusTxtZip(opts);
-    else if (format === 'docx')  await exporterCorpusDocxZip(opts);
+    try {
+        if (format === 'sonal')      await exporterCorpusReouvrable(opts);
+        else if (format === 'html')  await exporterCorpusPartage(opts);
+        else if (format === 'txt')   await exporterCorpusTxtZip(opts);
+        else if (format === 'docx')  await exporterCorpusDocxZip(opts);
+    } catch (error) {
+        // Les générateurs préparent TOUS les fichiers avant l'IPC d'écriture : un marquage
+        // invalide dans un entretien annule l'archive entière, pas seulement cet entretien.
+        if (estErreurIntegriteAnonymisation(error)) {
+            afficherErreurIntegriteAnonymisation(error, async () => {
+                if (!Number.isInteger(error.entretienIndex)) return;
+                await ouvrirEntretienAnonGen(error.entretienIndex, {
+                    spanId: error.rang,
+                    segment: error.segment,
+                });
+            });
+        } else {
+            dialog('Message', error.message);
+        }
+    }
 }
 
 /**
@@ -2993,7 +3250,10 @@ async function exporterCorpusTxtZip(opts = {}) {
         while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
         nomsUtilises.add(nom.toLowerCase());
 
-        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+            entretienIndex: i,
+            entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+        });
         // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
         const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
         const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
@@ -3019,8 +3279,9 @@ async function exporterCorpusTxtZip(opts = {}) {
  * IMPORTANT (cf. format SonalPi) : un corpus = un .crp (métadonnées + liste d'entretiens via rtrPath)
  * + les .Sonal qui portent le CONTENU. À la réouverture, loadHtml relit les .Sonal depuis le disque ;
  * le .crp seul ne suffit pas et un .crp « anonymisé » sans .Sonal anonymisés rechargerait les noms
- * d'origine. On régénère donc chaque .Sonal : relecture du fichier disque → anonymisation du HTML →
- * réécriture (tabAnon vidé). Les rtrPath sont aplatis en « <nom>.Sonal » et les originaux NON mutés.
+ * d'origine. On régénère donc chaque .Sonal : métadonnées du fichier disque + HTML frais du main
+ * (repli disque si absent) → nettoyage partagé → réécriture (tabAnon vidé). Les rtrPath sont aplatis
+ * en « <nom>.Sonal » ; les liens médias sont vidés si anonymisé. Les originaux ne sont PAS mutés.
  *
  * ⚠️ N'anonymise que ce qui est EFFECTIVEMENT marqué dans le HTML stocké : valider d'abord
  * l'application de toutes les règles (panneau Pseudos — lignes vertes).
@@ -3035,6 +3296,10 @@ async function exporterCorpusReouvrable(opts = {}) {
     const tabDic = (await window.electronAPI.getDic()) || [];
     // Non anonymisé : on garde le contenu d'origine ET les règles (copie fidèle réouvrable).
     const tabAnonGlobal = opts.anon ? [] : (await window.electronAPI.getAnon() || []);
+    let htmlFrais = [];
+    if (opts.anon) {
+        try { htmlFrais = (await window.electronAPI.getHtml()) || []; } catch (e) { /* repli disque */ }
+    }
 
     const fichiers = [];        // [{nom, contenu}] → contenu du zip
     const tabEntExport = [];    // tabEnt aplati pour le .crp (rtrPath = <nom>.Sonal)
@@ -3060,30 +3325,21 @@ async function exporterCorpusReouvrable(opts = {}) {
 
         // 3. Extraction → (anonymisation conditionnelle du HTML) → réécriture du .Sonal.
         const data = extractFichierSonal(contenu);
-        let html = data.html || '';
+        // Pour l'anonymisation, les marques en mémoire priment sur une copie disque périmée.
+        // Une copie NON anonymisée garde son comportement de copie fidèle du fichier source.
+        const aCacheFrais = opts.anon && htmlFrais[i] != null;
+        let html = aCacheFrais ? htmlFrais[i] : (data.html || '');
         if (html.startsWith('`') && html.endsWith('`')) html = html.slice(1, -1);
         let htmlOut = html;
         let tabLocOut = data.tabLoc;
         if (opts.anon) {
-            // Miroir de sauvHtmlAnonymise (anon-export-document.js), SANS DOM live : les vrais noms
-            // de locuteurs voyagent par TROIS canaux — data-nomloc(-barre) des .ligloc, bloc loc-json,
-            // tabLoc du .crp. Le tabLoc pseudonymisé est dérivé des .ligloc AVANT le retrait des
-            // marqueurs (ils portent l'état) ; statut « ? » préservé ; locuteur sans pseudo (ou
-            // refusé) → nom réel (relève du garde-fou export global, non traité ici).
-            const tmp = document.createElement('div');
-            tmp.innerHTML = html;
-            tabLocOut = (data.tabLoc || ent.tabLoc || []).map((nom, idx) => {
-                if (!nom) return nom;
-                const estQ = String(nom).endsWith('?');
-                const lig = tmp.querySelector(`.ligloc[data-loc="${idx}"]`);
-                const aff = (lig && typeof nomLocAffiche === 'function')
-                    ? nomLocAffiche(lig, { anonymise: true })
-                    : String(nom).replace(/\?/g, '');
-                return estQ ? aff + '?' : aff;
-            });
-            _anonymiserLiglocsDansElement(tmp); // libellés → nom affiché, marqueurs + data-nomloc-barre retirés
-            _anonymiserDansElement(tmp);        // runs marqués → « [pseudo] »
-            htmlOut = tmp.innerHTML;
+            const baseLoc = aCacheFrais ? (ent.tabLoc || data.tabLoc) : (data.tabLoc || ent.tabLoc);
+            const documentAnon = avecContexteIntegriteAnonymisation(
+                () => preparerDocumentAnonymise(html, baseLoc),
+                { entretienIndex: i, entretienNom: libelle }
+            );
+            htmlOut = documentAnon.html;
+            tabLocOut = documentAnon.tabLoc;
         }
         const sonalOut = sauvHtml(
             tabLocOut, tabThm, (data.tabVar || tabVar), (data.tabDic || tabDic),
@@ -3104,6 +3360,12 @@ async function exporterCorpusReouvrable(opts = {}) {
         const entExport = { ...ent, tabAnon: opts.anon ? [] : (ent.tabAnon || []),
             tabLoc: opts.anon ? tabLocOut : ent.tabLoc, rtrPath: nomFichier };
         delete entExport.html;
+        if (opts.anon) {
+            // Aucun média n'est anonymisé ni embarqué dans cette archive. Ne pas divulguer
+            // les chemins locaux/URL (souvent nominatifs), ni relier la copie à l'audio original.
+            entExport.audioPath = '';
+            entExport.imgPath = '';
+        }
         tabEntExport.push(entExport);
     }
 
@@ -3149,7 +3411,10 @@ async function exporterCorpusPartage(opts = {}) {
     const fichiers = [];
     for (let i = 0; i < tabEnt.length; i++) {
         const ent = tabEnt[i];
-        const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const htmlSrc = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+            entretienIndex: i,
+            entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+        });
         // Traitement loc/thm partagé avec l'export entretien (en-têtes locuteurs, classes/CSS de
         // thématiques, coordonnées) ; pas de boutons audio en partage (audioSrcUrl vide).
         // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
@@ -3225,7 +3490,10 @@ async function exporterCorpusDocxZip(opts = {}) {
         while (nomsUtilises.has(nom.toLowerCase())) { nom = base + '_' + n; n++; }
         nomsUtilises.add(nom.toLowerCase());
 
-        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon);
+        const html = _htmlEntretienPourExport(ent, tabHtml[i], opts.anon, {
+            entretienIndex: i,
+            entretienNom: (ent && ent.nom) ? ent.nom : ('Entretien ' + (i + 1)),
+        });
         // Résolu UNE fois, réutilisé par les en-têtes de parole ET les variables « par locuteur ».
         const locAff = locuteursExportCorpus(ent, tabHtml[i], opts.anon);
         const txtvars = opts.vars ? ((await varsPubliquesEnt(i, opts.anon ? locAff : null))[1] || '') : '';
@@ -3291,7 +3559,7 @@ async function importTableCorpus(files) {
     // Règles déjà présentes dans le corpus (toutes les paires entité→pseudo du global).
     const reglesExistantes = (await window.electronAPI.getAnon() || [])
         .filter(a => a.entite && a.remplacement)
-        .map(a => ({ entite: a.entite, remplacement: a.remplacement }));
+        .map(a => ({ entite: a.entite, remplacement: a.remplacement, remplacementAlt: a.remplacementAlt }));
 
     // Moteur partagé : détecte les conflits (entité déjà mappée) et applique via le callback corpus.
     traiterImportCorrespondances(allCorrespondances, {

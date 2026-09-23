@@ -20,8 +20,8 @@
   <script  src="modules/gestion_data.js"></script>
   <script  src="modules/recueil.js"></script>
   <script  src="modules/export_recueil.js"></script>
+  <script  src="modules/Anonymisation/anon-export-document.js"></script>
   <script  src="modules/synthese.js"></script>
-  <script  src="modules/export_synthese_extended.js"></script>
   <script  src="modules/segmentation.js"></script>
   <script  src="modules/Anonymisation/anon-detection.js"></script>
   <script  src="modules/Anonymisation/anon-regles.js"></script>
@@ -40,7 +40,7 @@
   <script  src="renderer.js"></script>
   <script>
     // numéro de version
-    const version = "1.0.77";
+    const version = "1.0.79";
   </script>
 
 <body>
@@ -834,6 +834,7 @@ function dialog(type, message){
     element.style.display = "block";
     
     let contenu = document.getElementById('ssdlg');
+    contenu.classList.toggle('dialog-content--metadata', type === 'Métadonnées');
 
     //element.classList.remove('dnone');
 
@@ -1122,21 +1123,15 @@ function dialog(type, message){
                           
 
 
-                        <div id="fond_mod" style="display:none">
+                        <div id="fond_mod" style="display:block">
 
-                            <H3 >Modalités </H3>
+                            <H3>Modalités</H3>
+                            <p class="aide-modalites">Saisissez vos propres modalités. Une ligne laissée vide ou retirée avec ✕ sera supprimée à la validation.</p>
                             <div id="dictionnaire" style="margin:0px; max-height:175px; overflow-y:auto;overflow-x: hidden; ">
 
  
                                 
-                                <div id= "dico" style="padding: 11px">
-                                    
-                                    <div class="ligmoda" style="">
-                                        <input type="text" class=" case-moda codemoda floating-input lbl-code-thm" placeholder=" " onkeyup="" value="1"/>  
-                                        <input type="text" class="case-moda libmoda floating-input lbl-code-thm" placeholder="Nouvelle modalité" onkeyup="" value=""/> 
-                                    </div>
-
-                                </div>
+                                <div id="dico" style="padding: 11px"></div>
                                     
                                  
 
@@ -1148,7 +1143,7 @@ function dialog(type, message){
                        
                             <div class = "floating-label-container" style="margin-top: 10px;">
                              
-                              <label id = "btnaddmod" class='btnfonction btnlarge' style = "margin-top : 5px; margin-left:5px; ";">+ ajouter une modalité</label> 
+                              <button type="button" id="btnaddmod" class="btnfonction btnlarge" style="margin-top:5px; margin-left:5px;" onclick="addMod(document.getElementById('lblCodeVar').value)">+ Ajouter une modalité</button>
 
               
                                 </div>
@@ -1161,9 +1156,9 @@ function dialog(type, message){
 
                                      <div class="floating-label-container" style=""> 
 
-                                    <label for="maListe" class="mdc-floating-label  floatingstatic"> Modalités pré-remplies</label>
+                                    <label for="maListe" class="mdc-floating-label  floatingstatic">Modèle de modalités</label>
                                     <select id="maListe" name="maListe" placeholder="Choisissez un type" style="width:98%; margin-left:5px;padding:5px" onchange="ajoutListeModas(this.value)">
-                                    <option value="rien">choisissez un modèle...</option>
+                                    <option value="vide" selected>Vide — modalités personnalisées</option>
                                     <option value="sexe">Sexe</option>
                                     <option value="age5">Age en classes de 5</option>
                                     <option value="age10">Age en classes de 10</option>
@@ -1194,6 +1189,7 @@ function dialog(type, message){
                          </div>   
                            `
 
+        ajoutListeModas("vide");
         document.getElementById("lblLibVar").focus(); // focus sur le libellé de la variable
         remplirCmbVar("gen");
 

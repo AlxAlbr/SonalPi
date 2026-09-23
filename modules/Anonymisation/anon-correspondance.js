@@ -15,7 +15,8 @@
 // des règles au .crp. Seul le callback `appliquer` change.
 //
 // Chargé dans index.html ET edition_entretien.html (ce dernier en chemins antislash).
-// Dépend uniquement de `question` (utilitaires) + DOM.
+// Dépend de `question` (utilitaires), du DOM et des primitives canoniques chargées avant lui :
+// `parseAliases`, `cleEntite`, `regleEnCollisionAlias`, `pseudosDe`.
 ////////////////////////////////////////////////////////////////////////
 
 // Contexte du dernier import lancé (règles existantes + callback d'application).
@@ -28,11 +29,20 @@ let _ctxImportCorrespondance = null;
  * @param {Array} correspondances
  */
 function appliquerCorrespondancesImport(correspondances) {
-    if (_ctxImportCorrespondance && typeof _ctxImportCorrespondance.appliquer === 'function') {
-        _ctxImportCorrespondance.appliquer(correspondances);
+    const appliquer = _ctxImportCorrespondance && _ctxImportCorrespondance.appliquer;
+    // Le contexte contient un callback lié à la fenêtre courante : ne jamais le laisser survivre à
+    // l'import (notamment après annulation puis nouvel import).
+    _ctxImportCorrespondance = null;
+    if (typeof appliquer === 'function') {
+        appliquer(correspondances);
     } else {
         console.error("Import correspondance : aucun callback d'application (ctx.appliquer).");
     }
+}
+
+/** Indique si un dialogue/import détient encore un contexte d'application. */
+function contexteImportCorrespondanceActif() {
+    return _ctxImportCorrespondance !== null;
 }
 
 /**
@@ -46,7 +56,9 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
 
     const conflits = [];
     const valides = [];
-    const mapEntites = {}; // { entite_init: [pseudo, ...] } — pseudos UNIQUES (casse insensible, 1ère casse gardée)
+    // Clé = identité canonique de l'entité : la casse et l'ordre des alias ne doivent pas créer deux
+    // groupes lors d'un round-trip JSON. La première graphie rencontrée est conservée à l'affichage.
+    const mapEntites = new Map(); // cleEntite → { entite, pseudos, thematique }
 
     // Règles déjà présentes (pour l'entretien = règles validées occurrences>0 ; pour le corpus =
     // toutes). La détection de conflit se fait AU NIVEAU ALIAS (regleEnCollisionAlias) : un import
@@ -61,22 +73,61 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
     allCorrespondances.forEach((corr) => {
         const entiteInit = (corr.entite_init || '').trim();
         if (!entiteInit) return;
-        if (!mapEntites[entiteInit]) mapEntites[entiteInit] = [];
+        const cle = cleEntite(entiteInit);
+        if (!cle) return;
+        if (!mapEntites.has(cle)) {
+            mapEntites.set(cle, {
+                entite: entiteInit,
+                pseudos: [],
+                thematique: (corr.thematique || '').trim()
+            });
+        }
+        const groupe = mapEntites.get(cle);
+        if (!groupe.thematique && corr.thematique) groupe.thematique = String(corr.thematique).trim();
         const ajout = (p) => {
             const v = (p || '').trim();
-            if (v && !mapEntites[entiteInit].some(x => x.toLowerCase() === v.toLowerCase())) {
-                mapEntites[entiteInit].push(v);
+            if (v && !groupe.pseudos.some(x => x.toLowerCase() === v.toLowerCase())) {
+                groupe.pseudos.push(v);
             }
         };
         ajout(corr.entite_pseudo);
         ajout(corr.entite_pseudo_alt);
     });
 
+    const avecMeta = (groupe, corr) => {
+        if (groupe.thematique) corr.thematique = groupe.thematique;
+        return corr;
+    };
+
+    // Découper les collisions partielles : avec `Lyon` déjà connu, importer `Lyon/Lyons` ne doit
+    // jamais jeter l'alias libre `Lyons`. Les règles valides réservées plus tôt dans le même import
+    // participent aussi à la détection, afin que deux fichiers importés ensemble soient cohérents.
+    const groupesDecoupes = [];
+    const reglesReservees = reglesExistantes.slice();
+    for (const groupe of mapEntites.values()) {
+        const parProprietaire = new Map();
+        for (const alias of parseAliases(groupe.entite)) {
+            const proprietaire = regleEnCollisionAlias(alias, reglesReservees);
+            if (!parProprietaire.has(proprietaire)) parProprietaire.set(proprietaire, []);
+            parProprietaire.get(proprietaire).push(alias.trim());
+        }
+        for (const [regleExistante, aliases] of parProprietaire) {
+            const sousGroupe = { ...groupe, entite: aliases.join('/'), pseudos: groupe.pseudos.slice() };
+            groupesDecoupes.push({ groupe: sousGroupe, regleExistante });
+            if (!regleExistante && sousGroupe.pseudos.length > 0 && sousGroupe.pseudos.length <= 2) {
+                reglesReservees.push({
+                    entite: sousGroupe.entite,
+                    remplacement: sousGroupe.pseudos[0],
+                    remplacementAlt: sousGroupe.pseudos[1]
+                });
+            }
+        }
+    }
 
     // Analyser les conflits. Cap système : une entité a AU PLUS 2 pseudos (anon.md §9).
-    Object.keys(mapEntites).forEach(entiteInit => {
-        const pseudosUniques = mapEntites[entiteInit];
-        const regleExistante = regleEnCollisionAlias(entiteInit, reglesExistantes);
+    groupesDecoupes.forEach(({ groupe, regleExistante }) => {
+        const entiteInit = groupe.entite;
+        const pseudosUniques = groupe.pseudos;
 
         if (regleExistante) {
             // Comparer aux pseudos EXISTANTS — primaire ET alt (pas seulement le primaire).
@@ -85,7 +136,7 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
             const nouveaux = pseudosUniques.filter(p => !existLower.includes(p.toLowerCase()));
             if (nouveaux.length === 0) {
                 // Réimport : tous les pseudos importés sont déjà dans la règle → doublon (préserver l'existant + alt).
-                valides.push({ entite_init: entiteInit, entite_pseudo: existPseudos[0], entite_pseudo_alt: existPseudos[1] });
+                valides.push(avecMeta(groupe, { entite_init: entiteInit, entite_pseudo: existPseudos[0], entite_pseudo_alt: existPseudos[1] }));
             } else {
                 // Divergence avec l'existant → l'utilisateur tranche. « Garder les deux » n'est proposé
                 // que si l'UNION des pseudos respecte le cap ≤2 (vérifié CONTRE l'alt existant).
@@ -95,18 +146,19 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
                     entite_init: entiteInit,
                     pseudo_existant: existPseudos.join('/'),
                     pseudos_import: nouveaux,
-                    peutGarderLesDeux: union.length <= 2
+                    peutGarderLesDeux: union.length <= 2,
+                    thematique: groupe.thematique
                 });
             }
         } else if (pseudosUniques.length === 1) {
-            valides.push({ entite_init: entiteInit, entite_pseudo: pseudosUniques[0] });
+            valides.push(avecMeta(groupe, { entite_init: entiteInit, entite_pseudo: pseudosUniques[0] }));
         } else if (pseudosUniques.length === 2) {
             // 2 pseudos pour la même entité = multi-pseudo LÉGITIME (round-trip « a/b ») → garder les deux,
             // sans dialogue (ce n'est pas un conflit mais une donnée multi-pseudo valide, cap respecté).
-            valides.push({ entite_init: entiteInit, entite_pseudo: pseudosUniques[0], entite_pseudo_alt: pseudosUniques[1] });
+            valides.push(avecMeta(groupe, { entite_init: entiteInit, entite_pseudo: pseudosUniques[0], entite_pseudo_alt: pseudosUniques[1] }));
         } else {
             // ≥3 pseudos → dépasse le cap : conflit, l'utilisateur choisit lequel appliquer.
-            conflits.push({ type: 'multi-pseudo', entite_init: entiteInit, options: pseudosUniques });
+            conflits.push({ type: 'multi-pseudo', entite_init: entiteInit, options: pseudosUniques, thematique: groupe.thematique });
         }
     });
 
@@ -116,6 +168,7 @@ function traiterImportCorrespondances(allCorrespondances, ctx) {
     } else if (valides.length > 0) {
         appliquerCorrespondancesImport(valides);
     } else {
+        _ctxImportCorrespondance = null;
         question("Aucune correspondance valide trouvée dans les fichiers.", ['OK']);
     }
 }
@@ -254,9 +307,8 @@ function afficherDialogueResolutionConflits(conflits, valides, allCorrespondance
  */
 function fermerDialogueConflits() {
     const dialogue = document.getElementById('dialogue-conflits');
-    if (dialogue) {
-        dialogue.parentElement.remove();
-    }
+    if (dialogue) dialogue.parentElement.remove();
+    _ctxImportCorrespondance = null;
 }
 
 /**
@@ -274,20 +326,22 @@ function validerResolutionConflits(conflits, valides) {
         if (choix === 'skip') return;
         if (choix === 'both') {
             // Garder les deux → correspondance multi-pseudo : primaire = existant, alt = importé.
-            correspondancesFinales.push({
+            const corr = {
                 entite_init: conflit.entite_init,
                 entite_pseudo: conflit.pseudo_existant,
                 entite_pseudo_alt: conflit.pseudos_import[0]
-            });
+            };
+            if (conflit.thematique) corr.thematique = conflit.thematique;
+            correspondancesFinales.push(corr);
             return;
         }
         if (conflit.type === 'deja-anonymisee' && choix === 'existing') return; // garder l'existant
-        correspondancesFinales.push({ entite_init: conflit.entite_init, entite_pseudo: choix });
+        const corr = { entite_init: conflit.entite_init, entite_pseudo: choix };
+        if (conflit.thematique) corr.thematique = conflit.thematique;
+        correspondancesFinales.push(corr);
     });
 
-    // Fermer le dialogue
-    fermerDialogueConflits();
-
-    // Appliquer les correspondances (callback injecté : entretien=DOM, corpus=règles .crp)
+    // Appliquer AVANT de fermer : appliquerCorrespondancesImport capture puis libère le contexte.
     appliquerCorrespondancesImport(correspondancesFinales);
+    fermerDialogueConflits();
 }

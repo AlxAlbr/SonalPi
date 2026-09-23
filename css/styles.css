@@ -2266,6 +2266,24 @@ background-color: #8d8d8d91;
      
 
   }
+
+/* La fenêtre des métadonnées peut dépasser sur les petits écrans.
+   direction:rtl place sa barre de défilement à gauche ; les enfants
+   repassent en ltr pour conserver la disposition habituelle du contenu. */
+.dialog-content--metadata {
+  top: 2vh !important;
+  max-height: 96vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  direction: rtl;
+}
+
+.dialog-content--metadata > * {
+  direction: ltr;
+}
+
 .txtnotes {
     height: calc(100vh - 200px);
     width: 100%;
@@ -2306,7 +2324,34 @@ background-color: #8d8d8d91;
 
 .libmoda{
   width:90%;
-  padding:3px; 
+  padding:3px;
+}
+
+.ligmoda .libmoda {
+  flex: 1;
+  min-width: 0;
+}
+
+.aide-modalites {
+  margin: -6px 0 4px;
+  color: #555;
+  font-size: 0.9em;
+}
+
+.supprmod {
+  flex: 0 0 30px;
+  height: 28px;
+  margin: 0 4px 3px 2px;
+  border: 1px solid #c62828;
+  border-radius: 3px;
+  background: #fff;
+  color: #c62828;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.supprmod:hover {
+  background: #ffebee;
 }
  
 
@@ -4660,6 +4705,24 @@ SYNTHESE
     border-radius: 2px;
 }
 
+/* État des libellés de locuteur dans le tableau d'anonymisation. La pastille orange est une action :
+   elle confirme directement toutes les suggestions correspondant aux alias de la règle. */
+.badge-loc-entretien-action {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 2px 3px;
+    font-family: inherit;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 3px;
+}
+.badge-loc-entretien-action:hover,
+.badge-loc-entretien-action:focus-visible {
+    background: #ffe0b2;
+    outline: 1px solid #ffb74d;
+}
+
 /* Boutons de navigation par catégorie (vert = anonymisée / gris = exception / orange = non traitée) */
 .btn-nav-cat {
     display: inline-flex;
@@ -4780,11 +4843,11 @@ tr.p-brouillon .input-remplacement { font-style: italic; color: #777; }
     transform: scale(1.05);
 }
 
-/* Verrou : entité partagée avec d'autres entretiens → impossible de quitter le corpus (§6).
-   Les crans brouillon/document sont signalés non cliquables et un 🔒 s'affiche à droite. */
+/* Verrou : entité partagée avec d'autres entretiens. Le passage direct en brouillon reste bloqué ;
+   le cran document reste cliquable et ouvre la dissociation globale avec confirmation. */
 .portee-slider.verrou { margin-right: 16px; }
-.portee-slider.verrou .portee-cran[data-cran="brouillon"],
-.portee-slider.verrou .portee-cran[data-cran="document"] { cursor: not-allowed; }
+.portee-slider.verrou .portee-cran[data-cran="brouillon"] { cursor: not-allowed; }
+.portee-slider.verrou .portee-cran[data-cran="document"] { cursor: pointer; }
 .portee-slider.verrou .portee-thumb { border-color: #9aa; }
 .portee-slider.verrou::after {
     content: "🔒";

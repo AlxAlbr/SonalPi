@@ -81,11 +81,11 @@ function ouvrirParamsAnonCorpus() {
 
             
             <h3 style="color:#333;font-weight:600;margin:26px 0 6px;">1) Priorité de validation</h3>
-            <p style="color:#555;line-height:1.5;margin:0 0 12px;">
+            <p style="color:#555;line-height:1.5;margin:0 0 12px 14px;">
                 Au niveau d'un entretien, choisit la portée appliquée par Entrée quand vous
                 validez une ligne (Maj&nbsp;+&nbsp;Entrée fait l'inverse).
             </p>
-            <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;flex-direction:column;gap:8px;margin-left:14px;">
                 <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">
                     <input type="radio" name="params-priorite" value="corpus" style="margin-top:3px;">
                     <span>Priorité corpus (défaut) — Entrée&nbsp;→&nbsp;📁&nbsp;corpus,
@@ -119,14 +119,14 @@ function ouvrirParamsAnonCorpus() {
                     <span class="slider"></span>
                 </label>
             </div>
-            <p style="color:#555;line-height:1.5;margin:0 0 12px;">
+            <p style="color:#555;line-height:1.5;margin:0 0 12px 14px;">
                 Catégorisez chaque entité par une thématique (PER, LOC, ORG, DAT…) via un
                 badge dans la colonne Actions, puis retrouvez toutes les entités d'un thème
                 en tapant son nom dans la case « Rechercher ». Fonctionnalité optionnelle,
                 réglage partagé par tout le corpus.
             </p>
 
-            <div id="params-themes-body">
+            <div id="params-themes-body" style="margin-left:14px;">
                 <div id="params-themes-chips"
                      style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #ccc;
                             border-radius:6px;padding:8px;min-height:44px;"></div>
@@ -150,14 +150,14 @@ function ouvrirParamsAnonCorpus() {
                     <span class="slider"></span>
                 </label>
             </div>
-            <p style="color:#555;line-height:1.5;margin:0 0 12px;">
+            <p style="color:#555;line-height:1.5;margin:0 0 12px 14px;">
                 Quand vous pseudonymisez une expression qui commence par un de ces mots
                 suivi d'un nom propre (« <em>à&nbsp;Lyon</em> »), SonalPi vous propose aussi la règle
                 générale sans mot de liaison (« <em>Lyon</em> »), pour capter l'entité partout. Réglage
                 partagé par tout le corpus.
             </p>
 
-            <div id="params-liaison-body">
+            <div id="params-liaison-body" style="margin-left:14px;">
                 <div id="params-liaison-chips"
                      style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #ccc;
                             border-radius:6px;padding:8px;min-height:44px;"></div>

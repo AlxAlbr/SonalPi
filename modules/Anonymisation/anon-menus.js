@@ -558,6 +558,19 @@ function showMenuNonTraite(span, idxPaire, matchIdx) {
     document.addEventListener('mousedown', closeMenu);
 }
 
+/** Retourne la règle non-brouillon qui couvre les clés d'un nom de locuteur. */
+function _reglePourLocuteur(clesNom) {
+    return (window.tabAnon || []).find(p =>
+        p && p.entite && (p.portee || 'corpus') !== 'brouillon'
+        && clesAlias(p.entite).some(k => clesNom.includes(k))) || null;
+}
+
+/** Variantes autorisées pour un locuteur, dans l'ordre primaire puis alternatif. */
+function _pseudosPourLocuteur(nomLoc) {
+    const regle = _reglePourLocuteur(clesAlias(nomLoc || ''));
+    return regle ? pseudosDe(regle) : [];
+}
+
 /**
  * Menu contextuel du LIBELLÉ pseudonymisé d'un locuteur (plan-locuteurs-pseudo.md Étape 4) : retrait
  * LOCAL de la pseudonymisation du libellé — distinct de la suppression de la règle (qui obéit, elle, à
@@ -585,22 +598,33 @@ function showMenuLibelleLocuteur(lig) {
         menuDiv.appendChild(item);
     };
 
+    const nomLoc = lig.dataset.nomloc || '';
+    const variantesRegle = _pseudosPourLocuteur(nomLoc);
+
     if (lig.classList.contains('loc-anon')) {
         const pseudo = lig.dataset.locpseudo || '';
+        // Multi-pseudo : le choix porte sur le LOCUTEUR dans cet entretien et s'applique à toutes
+        // ses prises de parole, comme les autres actions du menu de libellé.
+        variantesRegle
+            .filter(p => p.toLowerCase() !== pseudo.toLowerCase())
+            .forEach(p => ajouterItem(`↔ Pseudonymiser ce locuteur comme « ${p} » (cet entretien)`,
+                () => confirmerPseudoLibelleLocuteur(nomLoc, p)));
         ajouterItem(`🚫 Ne plus pseudonymiser « ${pseudo} » (ce locuteur, cet entretien)`,
-            () => retirerPseudoLibelleLocuteur(lig.dataset.nomloc));
-        ajouterItem(`🗑 Supprimer la règle « ${lig.dataset.nomloc || ''} → ${pseudo} »…`,
-            () => supprimerRegleDepuisLibelle(lig.dataset.nomloc));
+            () => retirerPseudoLibelleLocuteur(nomLoc));
+        ajouterItem(`🗑 Supprimer la règle « ${nomLoc} → ${pseudo} »…`,
+            () => supprimerRegleDepuisLibelle(nomLoc));
     } else if (lig.classList.contains('loc-suggere')) {
-        const pseudo = lig.dataset.locpseudoSuggere || '';
-        ajouterItem(`✓ Pseudonymiser ce locuteur en « ${pseudo} » (cet entretien)`,
-            () => confirmerPseudoLibelleLocuteur(lig.dataset.nomloc));
+        const variantes = variantesRegle.length > 0
+            ? variantesRegle : [lig.dataset.locpseudoSuggere || ''].filter(Boolean);
+        variantes.forEach(p => ajouterItem(`✓ Pseudonymiser ce locuteur en « ${p} » (cet entretien)`,
+            () => confirmerPseudoLibelleLocuteur(nomLoc, p)));
         ajouterItem(`✕ Ne pas pseudonymiser ce locuteur (cet entretien)`,
-            () => refuserPseudoLibelleLocuteur(lig.dataset.nomloc));
+            () => refuserPseudoLibelleLocuteur(nomLoc));
     } else if (lig.classList.contains('loc-suggere-refuse')) {
-        const pseudo = lig.dataset.locpseudoSuggere || '';
-        ajouterItem(`✓ Pseudonymiser ce locuteur en « ${pseudo} » (cet entretien)`,
-            () => confirmerPseudoLibelleLocuteur(lig.dataset.nomloc));
+        const variantes = variantesRegle.length > 0
+            ? variantesRegle : [lig.dataset.locpseudoSuggere || ''].filter(Boolean);
+        variantes.forEach(p => ajouterItem(`✓ Pseudonymiser ce locuteur en « ${p} » (cet entretien)`,
+            () => confirmerPseudoLibelleLocuteur(nomLoc, p)));
     } else {
         menuDiv.remove(); // état inattendu : pas de menu
         return;
@@ -663,42 +687,90 @@ async function retirerPseudoLibelleLocuteur(nomLoc) {
 }
 
 /**
- * Confirme une SUGGESTION de pseudonymisation de libellé (plan-locuteurs-pseudo.md Étape 3) : promeut
- * tous les `.ligloc.loc-suggere` du même locuteur (match par nom, N→1) en `loc-anon` + `data-locpseudo`.
- * Local + persistance cache HTML. La RÈGLE (corpus ou locale) n'est PAS touchée — c'est l'opt-in LOCAL.
- * @param {string} nomLoc - data-nomloc du locuteur
+ * Cœur de confirmation d'un ou plusieurs libellés de locuteurs. `clesCibles` peut représenter un
+ * nom précis (menu contextuel) ou tous les alias d'une règle (pastille du tableau). Le clic dans le
+ * tableau ne réactive jamais un refus explicite ; seul le menu du libellé le permet.
+ * @param {string[]} clesCibles
+ * @param {{inclureRefuses?:boolean, inclureConfirmes?:boolean, pseudo?:string}} [opts]
  */
-async function confirmerPseudoLibelleLocuteur(nomLoc) {
+async function _confirmerPseudoLibelles(clesCibles,
+    { inclureRefuses = true, inclureConfirmes = false, pseudo = '' } = {}) {
+    if (!Array.isArray(clesCibles) || clesCibles.length === 0) return false;
+    const selecteurs = ['.ligloc.loc-suggere[data-nomloc]'];
+    if (inclureRefuses) selecteurs.push('.ligloc.loc-suggere-refuse[data-nomloc]');
+    // Un choix explicite de variante concerne le locuteur entier : inclure même un éventuel libellé
+    // resté sans marqueur dans un DOM ancien/partiellement reconstruit.
+    const selecteur = inclureConfirmes ? '.ligloc[data-nomloc]' : selecteurs.join(', ');
+    const cibles = Array.from(document.querySelectorAll(selecteur)).filter(l =>
+        clesAlias(l.dataset.nomloc || '').some(k => clesCibles.includes(k)));
+    if (cibles.length === 0) return false;
+
     if (typeof backUp === 'function') backUp();
-    const clesNom = clesAlias(nomLoc || '');
-    // 1. Promouvoir les libellés suggérés OU refusés → confirmés (loc-suggere/-refuse → loc-anon).
-    document.querySelectorAll('.ligloc.loc-suggere[data-nomloc], .ligloc.loc-suggere-refuse[data-nomloc]').forEach(l => {
-        if (!clesAlias(l.dataset.nomloc || '').some(k => clesNom.includes(k))) return;
-        const pseudo = (l.dataset.locpseudoSuggere || '').trim();
+    const pseudoImpose = String(pseudo || '').trim();
+    cibles.forEach(l => {
+        const pseudoCible = pseudoImpose || (l.dataset.locpseudoSuggere || '').trim();
         l.classList.remove('loc-suggere', 'loc-suggere-refuse');
         delete l.dataset.locpseudoSuggere;
-        if (pseudo) {
+        if (pseudoCible) {
             l.classList.add('loc-anon');
-            l.dataset.locpseudo = pseudo;
+            l.dataset.locpseudo = pseudoCible;
         }
         majBarreLoc(l); // confirmé → nom barré (data-nomloc-barre) pour le ::before
     });
-    // 2. La règle (corpus fusionnée) est désormais MATÉRIALISÉE ici par le libellé → elle APPARTIENT à
-    //    l'entretien : existeLocalement=true. Sinon, fantôme corpus (occ texte=0) → cachée du tableau
-    //    (filtre affichTableauAnon) et jetée à la sauvegarde. Cohérent avec « matérialisé = texte OU
-    //    libellé » : la règle s'affiche comme règle corpus (à 0 occurrence de texte) et survit.
+
+    // La règle corpus fusionnée est désormais MATÉRIALISÉE ici par le libellé : elle appartient à
+    // l'entretien (`existeLocalement=true`) et doit survivre à la sauvegarde malgré 0 occurrence texte.
     let regleTouchee = false;
     (window.tabAnon || []).forEach(p => {
         if (p && p.entite && !p.existeLocalement
-            && clesAlias(p.entite).some(k => clesNom.includes(k))) {
-            p.existeLocalement = true; regleTouchee = true;
+            && clesAlias(p.entite).some(k => clesCibles.includes(k))) {
+            p.existeLocalement = true;
+            regleTouchee = true;
         }
     });
-    // Re-render inconditionnel : la pastille 👤 par ligne (tableau_base.js) dépend de l'état des
-    // libellés, pas seulement de regleTouchee (existeLocalement). La persistance reste gâtée.
     if (typeof affichTableauAnon === 'function') affichTableauAnon();
     if (regleTouchee && typeof sauvegarderTabAnonEnt === 'function') await sauvegarderTabAnonEnt();
     if (typeof syncHtmlVersMainProcess === 'function') await syncHtmlVersMainProcess();
+    return true;
+}
+
+/**
+ * Confirme une suggestion depuis le menu contextuel d'un libellé. Les libellés explicitement refusés
+ * peuvent être réactivés par ce chemin.
+ * @param {string} nomLoc - data-nomloc du locuteur
+ * @param {string} [pseudo] - variante choisie ; vide = variante suggérée (primaire par défaut)
+ */
+async function confirmerPseudoLibelleLocuteur(nomLoc, pseudo = '') {
+    const clesNom = clesAlias(nomLoc || '');
+    let variante = '';
+    if (pseudo) {
+        // Ne jamais écrire un pseudo arbitraire depuis un appel externe : retrouver la graphie exacte
+        // parmi les variantes de la règle couvrant ce locuteur.
+        const regle = _reglePourLocuteur(clesNom);
+        variante = regle
+            ? (pseudosDe(regle).find(p => p.toLowerCase() === String(pseudo).trim().toLowerCase()) || '')
+            : '';
+        if (!variante) return false;
+    }
+    return _confirmerPseudoLibelles(clesNom, {
+        inclureRefuses: true,
+        inclureConfirmes: !!variante,
+        pseudo: variante,
+    });
+}
+
+/**
+ * Confirme depuis la pastille 👤● du tableau tous les libellés encore suggérés qui correspondent aux
+ * alias de la règle. Les refus explicites restent intacts.
+ * @param {number} idxPaire
+ */
+async function confirmerPseudoLibellesLigne(idxPaire) {
+    const paire = (window.tabAnon || [])[idxPaire];
+    if (!paire || !paire.entite) return false;
+    // Filet de sécurité si le panneau a été ouvert pendant les quelques millisecondes précédant le
+    // scan différé d'ouverture : poser d'abord les marqueurs loc-suggere.
+    if (typeof detecterLibellesASuggerer === 'function') detecterLibellesASuggerer();
+    return _confirmerPseudoLibelles(clesAlias(paire.entite), { inclureRefuses: false });
 }
 
 /**

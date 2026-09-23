@@ -18,6 +18,18 @@
 ////////////////////////////////////////////////////////////////////////
 
 /**
+ * Invalide tous les dérivés du scan corpus après une mutation structurelle (ajout, retrait ou tri
+ * d'entretiens). L'index contient des rangs d'entretiens : un simple tri le rend donc périmé même si
+ * les statistiques agrégées semblent encore correctes.
+ */
+function invaliderScanAnonCorpus() {
+    if (typeof window === 'undefined') return;
+    if (window._anonScanCache) window._anonScanStale = true;
+    window._anonIndexInverse = null;
+    window._lastVerifiedAnon = null;
+}
+
+/**
  * Reconstitue le tabAnon global à partir des entretiens
  * - Inventorie tous les tabAnon présents dans tabEnt
  * @param {Array} entretiens - Tableau des entretiens (tabEnt)

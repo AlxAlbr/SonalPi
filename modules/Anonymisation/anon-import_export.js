@@ -43,17 +43,30 @@ function exportTableCorrespondance() {
         const aLibelle = (typeof aLibellePseudonymise === 'function') && aLibellePseudonymise(paire);
         if (!(paire.entite && paire.remplacement && (paire.occurrences > 0 || aLibelle))) continue;
 
-        // Label-only (0 occurrence de TEXTE) : pas de spans à interroger → on consigne entité → pseudo
-        // primaire (= le pseudo du libellé). La logique multi-pseudo ci-dessous ne vaut que pour le texte.
+        const pseudosLigne = pseudosDe(paire);
+        // Variantes réellement portées par les LIBELLÉS correspondants. Indispensable pour une règle
+        // label-only et pour le cas texte=primaire / locuteur=alternatif : la table « qui est qui » doit
+        // alors contenir les deux correspondances réellement utilisées.
+        const clesEntite = new Set(clesAlias(paire.entite));
+        const utilisesLibelles = new Set();
+        document.querySelectorAll('.ligloc.loc-anon[data-nomloc][data-locpseudo]').forEach(lig => {
+            if (!clesAlias(lig.dataset.nomloc || '').some(k => clesEntite.has(k))) return;
+            const dp = (lig.dataset.locpseudo || '').trim().toLowerCase();
+            if (dp) utilisesLibelles.add(dp);
+        });
+
+        // Label-only (0 occurrence de TEXTE) : exporter la variante réellement choisie sur le libellé.
+        // Repli primaire pour les anciens DOM marqués sans data-locpseudo exploitable.
         if (!(paire.occurrences > 0)) {
-            pousser(paire.entite, paire.remplacement, paire);
+            const variantes = pseudosLigne.filter(p => utilisesLibelles.has(p.toLowerCase()));
+            (variantes.length > 0 ? variantes : [paire.remplacement])
+                .forEach(p => pousser(paire.entite, p, paire));
             continue;
         }
 
-        const pseudosLigne = pseudosDe(paire);
         if (pseudosLigne.length > 1) {
-            // Multi-pseudo : exporter chaque variante RÉELLEMENT appliquée (lue au DOM), → 2 entrées.
-            const utilises = new Set();
+            // Multi-pseudo : exporter chaque variante RÉELLEMENT appliquée dans le texte OU au libellé.
+            const utilises = new Set(utilisesLibelles);
             (paire.matchPositions || []).forEach(m => {
                 if (m.isException || m.isNonTraite || m.isIncluded) return; // incluse : couverte par l'autre règle
                 const dp = ((spansExport[m.start] && spansExport[m.start].dataset.pseudo) || '').toLowerCase();
@@ -152,7 +165,7 @@ function importTableCorrespondance(files) {
                     traiterImportCorrespondances(allCorrespondances, {
                         reglesExistantes: (window.tabAnon || [])
                             .filter(p => p && p.entite && p.occurrences > 0)
-                            .map(p => ({ entite: p.entite, remplacement: p.remplacement })),
+                            .map(p => ({ entite: p.entite, remplacement: p.remplacement, remplacementAlt: p.remplacementAlt })),
                         appliquer: appliquerImportCorrespondances
                     });
                 }
@@ -206,7 +219,7 @@ async function appliquerImportCorrespondances(correspondances) {
         // Vérifier s'il existe déjà une ligne avec cette entité
         let idxLigneExistante = -1;
         for (let i = 0; i < tabAnon.length; i++) {
-            if (tabAnon[i].entite && tabAnon[i].entite.trim() === entiteInit) {
+            if (tabAnon[i].entite && cleEntite(tabAnon[i].entite) === cleEntite(entiteInit)) {
                 idxLigneExistante = i;
                 break;
             }
@@ -280,9 +293,11 @@ function validerImportsAutomatic(correspondances) {
     correspondances.forEach(corr => {
         // Chercher la ligne correspondante dans tabAnon
         for (let i = 0; i < tabAnon.length; i++) {
-            if (tabAnon[i].entite && tabAnon[i].entite.trim() === corr.entite_init.trim() &&
-                tabAnon[i].remplacement && tabAnon[i].remplacement.trim() === corr.entite_pseudo.trim() &&
-                tabAnon[i].occurrences === 0) {
+            const pseudosImportes = [corr.entite_pseudo, corr.entite_pseudo_alt]
+                .filter(Boolean).map(p => p.trim().toLowerCase());
+            const memeEntite = tabAnon[i].entite && cleEntite(tabAnon[i].entite) === cleEntite(corr.entite_init);
+            const contientPseudoImporte = pseudosDe(tabAnon[i]).some(p => pseudosImportes.includes(p.toLowerCase()));
+            if (memeEntite && contientPseudoImporte && tabAnon[i].occurrences === 0) {
 
                 // Appliquer l'anonymisation
                 appliquerAnonymisationPour(i);
@@ -338,68 +353,76 @@ function importerAnonSonal(donneeImportees) {
         return;
     }
 
-    // Remplacer window.tabAnon complètement
+    // Remplacer window.tabAnon complètement. Les règles et brouillons viennent d'anon-json ;
+    // l'état de chaque occurrence vient, lui, des marqueurs du HTML chargé.
     window.tabAnon = donneeImportees;
-    
-    // Rafraîchir l'affichage du tableau
+
+    const resultat = reappliquerAnonymisationsSonal();
+
+    // N'afficher qu'après la réindexation : les compteurs doivent déjà refléter le DOM chargé.
     affichTableauAnon();
-    
-    // Réappliquer les anonymisations validées
-    reappliquerAnonymisationsSonal();
-    
+    return resultat;
 }
 
 /**
- * Réapplique toutes les anonymisations validées sur le texte
- * Préserve aussi les lignes en attente (sans appliquer l'anonymisation)
- * Gère correctement les exceptions avec isException
+ * Restaure les caches d'anonymisation depuis le DOM chargé.
+ *
+ * Malgré son nom historique, cette fonction ne « rejoue » plus matchPositions : start/end sont des
+ * indices runtime rendus périmés par le compactage, la normalisation ou une édition du document.
+ * Le HTML marqué porte l'état effectif par occurrence (pseudo réellement choisi, exception,
+ * occurrence incluse). anon-json reste autoritaire pour les règles, les portées et les brouillons.
+ *
+ * Repli legacy : si anon-json annonce des occurrences traitées absentes du HTML, elles restent
+ * explicitement « à traiter ». On avertit l'utilisateur au lieu de deviner à partir d'indices
+ * potentiellement faux.
+ *
+ * @returns {{source:string, avertissementLegacy:boolean}}
  */
 function reappliquerAnonymisationsSonal() {
-    const tousLesSpans = document.querySelectorAll('[data-rk]');
-    
-    // Parcourir chaque paire d'anonymisation (array ACTIF de l'entretien — cf. importerAnonSonal ;
-    // idxPaire doit indexer le MÊME array que compterExceptions, qui lit window.tabAnon).
+    if (!Array.isArray(window.tabAnon)) {
+        return { source: 'dom', avertissementLegacy: false };
+    }
+
+    // data-anon-nt est un marqueur runtime : repartir du DOM persistant avant de le recalculer.
+    document.querySelectorAll('[data-anon-nt]').forEach(s => s.removeAttribute('data-anon-nt'));
+
+    let etatPersistantManquant = false;
+
     window.tabAnon.forEach((paire, idxPaire) => {
-        // SUBTILITÉ 1 : Si occurrences === 0, c'est une ligne en attente
-        // On NE la réapplique PAS sur le texte, mais elle reste dans le tableau
-        if (paire.occurrences === 0) {
-            return; // Skip la réapplication, mais la ligne existe toujours dans tabAnon
+        if (!paire || !paire.entite || !paire.entite.trim()) return;
+
+        const anciennesPositions = Array.isArray(paire.matchPositions) ? paire.matchPositions : [];
+        const nbTraiteAnnonce = anciennesPositions.length > 0
+            ? anciennesPositions.filter(m => m && m.isNonTraite !== true).length
+            : Math.max(0, Number(paire.occurrences) || 0);
+
+        // Un brouillon appartient à anon-json mais ne doit jamais être détecté/appliqué tout seul.
+        if ((paire.portee || 'corpus') === 'brouillon') {
+            paire.matchPositions = [];
+            paire.occurrences = 0;
+            paire.indexCourant = 0;
+            return;
         }
-        
-        // SUBTILITÉ 2 : Si occurrences > 0, réappliquer avec exceptions
-        if (!paire.matchPositions || paire.matchPositions.length === 0) {
-            return; // Ligne validée mais sans matchPositions (cas anormal)
-        }
-        
-        // Pour chaque match position stockée
-        paire.matchPositions.forEach((match, matchIdx) => {
-            for (let i = match.start; i <= match.end; i++) {
-                if (tousLesSpans[i]) {
-                    // SUBTILITÉ 2 : Vérifier isException pour appliquer la bonne classe
-                    if (match.isException) {
-                        // Exception : afficher le texte original sans remplacement
-                        tousLesSpans[i].classList.add('anon-exception');
-                        // Retirer le pseudo pour ne pas afficher le remplacement
-                        delete tousLesSpans[i].dataset.pseudo;
-                    } else {
-                        // Anonymisé normalement
-                        tousLesSpans[i].classList.add('anon');
-                        // Ajouter le pseudo aux spans de début et fin
-                        if (i === match.start || i === match.end) {
-                            tousLesSpans[i].dataset.pseudo = paire.remplacement;
-                        }
-                    }
-                    
-                    // Ajouter les classes de position (debsel/finsel)
-                    if (i === match.start) {
-                        tousLesSpans[i].classList.add('debsel');
-                    }
-                    if (i === match.end) {
-                        tousLesSpans[i].classList.add('finsel');
-                    }
-                }
-            }
-        });
-        
+
+        // Lecture seule du DOM : reindexerMatchPositions classe les occurrences sans poser ni
+        // retirer anon/anon-exception et conserve donc le data-pseudo réellement sauvegardé.
+        reindexerMatchPositions(idxPaire);
+        paire.occurrences = paire.matchPositions.length;
+        paire.indexCourant = paire.occurrences > 0
+            ? Math.min(Math.max(0, Number(paire.indexCourant) || 0), paire.occurrences - 1)
+            : 0;
+
+        const nbTraiteDansDom = paire.matchPositions.filter(m => m && m.isNonTraite !== true).length;
+        if (nbTraiteAnnonce > nbTraiteDansDom) etatPersistantManquant = true;
     });
+
+    if (typeof detecterLibellesASuggerer === 'function') detecterLibellesASuggerer();
+
+    if (etatPersistantManquant) {
+        const message = "Le fichier annonce des occurrences pseudonymisées qui ne sont pas marquées dans son HTML. Elles ont été laissées « à traiter » : vérifiez l'entretien avant tout export.";
+        if (typeof dialog === 'function') dialog('Restauration de la pseudonymisation', message);
+        else console.warn(message);
+    }
+
+    return { source: 'dom', avertissementLegacy: etatPersistantManquant };
 }

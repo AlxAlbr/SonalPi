@@ -1,6 +1,6 @@
 {
   "name": "sonal",
-  "version": "1.0.77",
+  "version": "1.0.79",
   "author": {
     "name": "Alex Alber",
     "email": "sonalteam@gmail.com"
@@ -8,6 +8,7 @@
   "main": "main.js",
   "description": "Sonal application",
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
     "start": "electron .",
     "build": "electron-builder",
     "publish": "electron-builder --publish always",
@@ -109,6 +110,7 @@
   "devDependencies": {
     "electron": "^38.1.2",
     "electron-builder": "^26.0.12",
-    "electron-icon-builder": "^2.0.1"
+    "electron-icon-builder": "^2.0.1",
+    "jsdom": "^26.1.0"
   }
 }

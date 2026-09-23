@@ -1624,21 +1624,54 @@ function txtSelectionSpans(deb, fin, { anonymise = true } = {}) {
             }
         }
     }
-    // Texte de la sélection : runs .anon → [pseudo], exceptions → texte original.
-    // En clair (anonymise=false) : concaténation brute des spans — même sortie que la
-    // version pseudonymisée quand la plage ne contient aucun run .anon (comparables).
-    const spans = [];
-    for (let rk = deb; rk <= fin; rk++) {
-        const sp = getSpan(rk);
-        if (sp) spans.push(sp);
+    // Texte de la sélection : l'extracteur reçoit le document COMPLET avec les bornes de la
+    // sélection. Il peut ainsi retrouver debsel/finsel et le pseudo lorsqu'une sélection commence
+    // ou se termine au milieu d'un run `.anon`. Les exceptions, sans frontières par conception,
+    // restent en clair. En mode clair, seuls les spans demandés sont concaténés.
+    const tousLesSpans = Array.from(document.querySelectorAll('#segments [data-rk]'));
+    const indexDebut = tousLesSpans.findIndex(sp => Number(sp.dataset.rk) === Number(deb));
+    let indexFin = -1;
+    for (let i = tousLesSpans.length - 1; i >= 0; i--) {
+        if (Number(tousLesSpans[i].dataset.rk) === Number(fin)) { indexFin = i; break; }
     }
+    if (indexDebut < 0 || indexFin < indexDebut) return prefix;
+
     let txt = '';
     if (anonymise && typeof extraireTexteAnonymiseDepuisSpans === 'function') {
-        txt = extraireTexteAnonymiseDepuisSpans(spans, 0).texte;
+        txt = extraireTexteAnonymiseDepuisSpans(tousLesSpans, indexDebut, indexFin).texte;
     } else {
-        for (const sp of spans) txt += sp.textContent;
+        for (let i = indexDebut; i <= indexFin; i++) txt += tousLesSpans[i].textContent;
     }
     return prefix + txt;
+}
+
+function signalerErreurExtractionSelection(error) {
+    console.error('Extraction de la sélection interrompue :', error);
+    const message = error && error.name === 'ErreurExtractionAnonymisee'
+        ? error.message
+        : "Impossible d'extraire cette sélection.";
+    if (typeof dialog === 'function') dialog('Action interrompue', message);
+    else if (typeof notifErreur === 'function') notifErreur(message);
+}
+
+// Les handlers du menu calculent le texte AVANT toute copie ou écriture dans un recueil : une
+// erreur de marquage ne peut donc produire ni presse-papiers ni recueil partiellement anonymisé.
+async function copierSelectionSpans(deb, fin) {
+    try {
+        const texte = txtSelectionSpans(deb, fin);
+        await navigator.clipboard.writeText(texte);
+    } catch (error) {
+        signalerErreurExtractionSelection(error);
+    }
+}
+
+async function ajouterSelectionAuRecueil(deb, fin, anchorEl) {
+    try {
+        const texte = txtSelectionSpans(deb, fin);
+        await ouvrirMenuAjoutRecueil(deb, fin, texte, anchorEl);
+    } catch (error) {
+        signalerErreurExtractionSelection(error);
+    }
 }
 
 // ============================================================
@@ -1717,8 +1750,8 @@ async function afficherMenuSel() {
 
     chaine += `
         <div class="menu-sel-action" onmousedown="addComment()">💬 Commenter...</div>
-        <div class="menu-sel-action" onmousedown="navigator.clipboard.writeText(txtSelectionSpans(${deb}, ${fin}))">📋 Copier</div>
-        <div class="menu-sel-action" onmousedown="ouvrirMenuAjoutRecueil(${deb}, ${fin}, txtSelectionSpans(${deb}, ${fin}), event.target)">📌 Ajouter au recueil</div>`;
+        <div class="menu-sel-action" onmousedown="copierSelectionSpans(${deb}, ${fin})">📋 Copier</div>
+        <div class="menu-sel-action" onmousedown="ajouterSelectionAuRecueil(${deb}, ${fin}, event.currentTarget || event.target)">📌 Ajouter au recueil</div>`;
 
     const menu = document.createElement('div');
     menu.id = 'menu-sel';
