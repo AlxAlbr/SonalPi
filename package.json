@@ -17,6 +17,7 @@
     "pack:dir": "npm run build && electron-builder --dir",
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
+    "test:charge": "node scripts/test-charge.mjs",
     "diagnostic:e2e": "npm run build && playwright test --config=playwright.diagnostic.config.ts",
     "test:multiuser": "npm run build && playwright test e2e/multi-utilisateur.e2e.ts --workers=1",
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",

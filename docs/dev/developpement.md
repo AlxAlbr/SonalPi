@@ -10,6 +10,7 @@ npm run start        # prévisualiser le build
 
 npm test                # tests unitaires (vitest, headless)
 npm run test:e2e        # e2e Playwright + Electron (build puis lance ; tourne sous WSLg)
+npm run test:charge     # benchmark reproductible de l’éditeur, hors suite normale
 npm run diagnostic:e2e  # diagnostics Electron manuels, hors de la suite normale
 npm run typecheck       # vue-tsc + tsc
 ```
@@ -24,6 +25,8 @@ npm run typecheck       # vue-tsc + tsc
 - **`npm run test:e2e`** (Playwright + Electron) : après un `build`, lance l'app complète et
   couvre les parcours utilisateur (import/export, marquage, anonymisation, patron, navigation,
   persistance…). Tourne sous WSLg.
+- **`npm run test:charge`** : lance seul le benchmark reproductible de l’éditeur et produit des
+  rapports comparables entre postes. Matrice, mesures et options : [test-charge.md](test-charge.md).
 - **`npm run diagnostic:e2e`** : lance explicitement les diagnostics de connexion et de verrou.
   Ils sont exclus de la suite normale, car ils dépendent de la pile Nextcloud locale et peuvent
   modifier son corpus partagé. Un seul diagnostic peut être ciblé, par exemple avec
