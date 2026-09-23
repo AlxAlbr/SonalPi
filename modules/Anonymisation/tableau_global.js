@@ -1363,7 +1363,7 @@ async function affichAnonGen() {
                     </div>
                     <input type="file" id="file-import-corpus" multiple accept=".json" style="display:none;" onchange="importTableCorpus(this.files)">
                     <label id="btn-import-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="document.getElementById('file-import-corpus').click()" title="Importer une ou plusieurs tables de règles JSON (ajoute des règles au corpus)">Import règles 📥</label>
-                    <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="exporterReglesCorpusJSON();" title="Exporter les règles (entité→pseudo) en JSON, réimportable dans un autre corpus">Export règles 📤</label>
+                    <label id="btn-export-regles-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="ouvrirModaleExportReglesCorpus();" title="Exporter les règles d'anonymisation (entité→pseudo) en JSON, réimportable dans un autre corpus">Export règles 📤</label>
                     <label id="btn-params-anon" class="btn btn-secondary" style="padding:10px;margin-right:6px" onclick="ouvrirParamsAnonCorpus();" title="Paramètres de pseudonymisation (mots de liaison…)">Paramètres ⚙</label>
                     <label id="btn-quit-anon" class="btn btn-secondary" style="padding:10px" onclick="hideAnonGen();" title="Fermer la table">Quitter ✖️</label>
                 </div>
@@ -2784,31 +2784,255 @@ async function retirerLibelleDeEntretien(indexEnt, entite) {
  * Exporte les RÈGLES du corpus (entité→pseudo) en JSON, au format de la table de
  * correspondance [{ entite_init, entite_pseudo }, ...] — donc **réimportable** via 📂 Importer
  * (dans ce corpus ou un autre).
+ * Point d'entrée du bouton « Export règles 📤 » : ouvre d'abord la modale de choix
+ * (périmètre corpus / corpus+entretiens, filtrage par labels de thématique).
  */
-async function exporterReglesCorpusJSON() {
-    const tabAnonGlobal = (await window.electronAPI.getAnon()) || [];
-    const correspondances = tabAnonGlobal
-        .filter(a => a.entite && a.entite.trim() && a.remplacement && a.remplacement.trim())
-        .map(a => ({ entite_init: a.entite.trim(), entite_pseudo: a.remplacement.trim() }));
+function exporterReglesCorpusJSON() {
+    return ouvrirModaleExportReglesCorpus();
+}
 
-    if (correspondances.length === 0) {
-        dialog('Message', 'Aucune règle à exporter.');
-        return;
-    }
+////////////////////////////////////////////////////////////////////////
+// MODALE D'EXPORT DES RÈGLES D'ANONYMISATION (choix du périmètre + labels)
+////////////////////////////////////////////////////////////////////////
 
+// Règles VALIDES du corpus (entité + pseudo non vides).
+async function _reglesCorpusPourExport() {
+    return ((await window.electronAPI.getAnon()) || [])
+        .filter(a => a && a.entite && String(a.entite).trim()
+            && a.remplacement && String(a.remplacement).trim());
+}
+
+// Règles VALIDES portées par les ENTRETIENS du corpus (ent.tabAnon), hors brouillons.
+// Sert à l'option « corpus + entités anonymisées des entretiens » : on y trouve notamment
+// les règles de portée 'document' (locales à un entretien, jamais remontées au corpus).
+async function _reglesEntretiensPourExport() {
+    const tabEnt = (await window.electronAPI.getEnt()) || [];
+    return tabEnt.flatMap(ent => ((ent && ent.tabAnon) || [])
+        .filter(r => r && (r.portee || 'corpus') !== 'brouillon'
+            && r.entite && String(r.entite).trim()
+            && r.remplacement && String(r.remplacement).trim()));
+}
+
+// Labels (thématiques) DISTINCTS portés par un ensemble de règles, avec effectifs :
+// [[label, effectif], ...] trié alphabétiquement. Les règles sans label sont ignorées.
+function _labelsReglesPourExport(regles) {
+    const effectifs = new Map();
+    (regles || []).forEach(r => {
+        const t = ((r && r.thematique) || '').trim().toUpperCase();
+        if (!t) return;
+        effectifs.set(t, (effectifs.get(t) || 0) + 1);
+    });
+    return [...effectifs.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+// Convertit une règle (entité→pseudos, ± label de thématique) au format de la table de
+// correspondance réimportable : [{ entite_init, entite_pseudo, entite_pseudo_alt?, thematique? }].
+// L'alt (« garder les deux ») et le label sont émis SEULEMENT s'ils portent une information
+// (l'import les ignore sinon — champs optionnels, cf. appliquerImportCorpus / appliquerImportCorrespondances).
+function _regleVersCorrespondanceExport(r) {
+    const c = { entite_init: String(r.entite).trim(), entite_pseudo: String(r.remplacement).trim() };
+    const alt = String(r.remplacementAlt || '').trim();
+    if (alt && alt.toLowerCase() !== c.entite_pseudo.toLowerCase()) c.entite_pseudo_alt = alt;
+    const theme = String(r.thematique || '').trim();
+    if (theme) c.thematique = theme.toUpperCase();
+    return c;
+}
+
+// Déclenche le téléchargement de la table de correspondance JSON.
+function _telechargerTableRegles(correspondances, suffixe) {
     const json = JSON.stringify(correspondances, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    link.download = `regles_corpus_${timestamp}.json`;
+    link.download = `regles_${suffixe}_${timestamp}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
     question(`Export réussi : ${correspondances.length} règle(s) exportée(s).`, ['OK']);
+}
+
+/**
+ * Ouvre la modale d'export des règles d'anonymisation (bouton « Export règles 📤 » du panneau
+ * Pseudos du corpus). L'utilisateur choisit :
+ *  - le périmètre : « règles du corpus seulement » ou « corpus + entités anonymisées des
+ *    entretiens » (fusion corpus autoritaire, même moteur que reconstituerTabAnonGlobal) ;
+ *  - et, si des règles du périmètre portent un label de thématique (PER, LOC…), une option
+ *    « exporter une sélection de labels seulement » avec une case à cocher par label.
+ * Le fichier produit reste la table de correspondance JSON réimportable (📥 Import règles).
+ */
+async function ouvrirModaleExportReglesCorpus() {
+    const element = document.getElementById('dlg');
+    const contenu = document.getElementById('ssdlg');
+    if (!element || !contenu) return;
+
+    const reglesCorpus = await _reglesCorpusPourExport();
+    if (reglesCorpus.length === 0) {
+        dialog('Message', 'Aucune règle à exporter.');
+        return;
+    }
+
+    // Fusion corpus AUTORITAIRE + entretiens (corpus d'abord, les entretiens ne peuvent
+    // qu'AJOUTER des entités nouvelles — cf. reconstituerTabAnonGlobal / fusionnerRegles).
+    const reglesEntretiens = await _reglesEntretiensPourExport();
+    const reglesToutes = fusionnerRegles(reglesCorpus, reglesEntretiens);
+    const nbNouvelles = reglesToutes.length - reglesCorpus.length; // propres aux entretiens
+
+    // État de la modale, partagé avec les handlers globaux ci-dessous.
+    window._exportReglesCorpusEtat = {
+        reglesCorpus,
+        reglesToutes,
+        portee: 'corpus',
+        filtrerLabels: false,
+        labelsCoche: new Set(),
+    };
+
+    element.style.display = 'block';
+    contenu.classList.remove('dialog-content--metadata');
+    contenu.style.top = '20%';
+    contenu.style.height = '';
+    contenu.style.width = '45%';
+    contenu.style.display = 'flex';
+    contenu.style.flexDirection = 'column';
+
+    contenu.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+            <img src="img/logoSonal.png" alt="" style="height:40px; width:auto;">
+            <div class="close" onclick="hidedlg()" style="cursor:pointer;">✖️</div>
+        </div>
+        <h3 style="margin:0 0 14px 0;">Exporter les règles d'anonymisation</h3>
+        <div style="margin-bottom:10px;">
+            <label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;">
+                <input type="radio" name="xprt-regles-portee" id="xprt-portee-corpus" checked style="width:15px;height:15px;flex-shrink:0;">
+                <span>Exporter les règles du corpus seulement <span style="color:#666;font-size:0.85em;">(${reglesCorpus.length} règle(s))</span></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:${nbNouvelles > 0 ? 'pointer' : 'not-allowed'};${nbNouvelles === 0 ? 'opacity:0.75;' : ''}">
+                <input type="radio" name="xprt-regles-portee" id="xprt-portee-tout" ${nbNouvelles === 0 ? 'disabled' : ''} style="width:15px;height:15px;flex-shrink:0;">
+                <span>Exporter les règles du corpus et les entités anonymisées des entretiens <span style="color:#666;font-size:0.85em;">(${reglesToutes.length} règle(s), dont ${nbNouvelles} propre(s) aux entretiens)</span></span>
+            </label>
+        </div>
+        <div id="xprt-regles-zone-labels" style="display:none;">
+            <hr style="margin:6px 0;">
+            <label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer;">
+                <input type="checkbox" id="xprt-filtre-labels" style="width:15px;height:15px;flex-shrink:0;">
+                <span>Exporter une sélection de labels seulement</span>
+            </label>
+            <div id="xprt-regles-liste-labels" style="display:none; padding:2px 0 4px 25px; max-height:150px; overflow-y:auto;"></div>
+        </div>
+        <hr style="margin:6px 0;">
+        <div id="xprt-regles-erreur" style="display:none;color:#c62828;font-size:0.88rem;padding:4px 0;"></div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+            <label class="btnfonction" style="flex:1;text-align:center;cursor:pointer;padding:8px 0;margin-top:6px;height:36px" onclick="hidedlg()">Annuler</label>
+            <label class="btn btn-primary" style="flex:3;text-align:center;cursor:pointer;padding:8px 0;" onclick="_validerExportReglesCorpus()">↗️ Exporter</label>
+        </div>`;
+
+    // Périmètre : bascule l'état + rafraîchit la liste des labels disponibles.
+    const radioCorpus = document.getElementById('xprt-portee-corpus');
+    const radioTout = document.getElementById('xprt-portee-tout');
+    if (radioCorpus) radioCorpus.addEventListener('change', () => {
+        window._exportReglesCorpusEtat.portee = 'corpus';
+        _rendreLabelsExportReglesCorpus();
+    });
+    if (radioTout) radioTout.addEventListener('change', () => {
+        window._exportReglesCorpusEtat.portee = 'tout';
+        _rendreLabelsExportReglesCorpus();
+    });
+
+    // Option « sélection de labels seulement » : révèle/cache la liste des cases à cocher.
+    const chkFiltre = document.getElementById('xprt-filtre-labels');
+    if (chkFiltre) chkFiltre.addEventListener('change', () => {
+        window._exportReglesCorpusEtat.filtrerLabels = chkFiltre.checked;
+        const liste = document.getElementById('xprt-regles-liste-labels');
+        if (liste) liste.style.display = chkFiltre.checked ? 'block' : 'none';
+    });
+
+    // Cases à cocher par label (délégation : la liste est reconstruite à chaque périmètre).
+    const listeLabels = document.getElementById('xprt-regles-liste-labels');
+    if (listeLabels) listeLabels.addEventListener('change', e => {
+        if (!e.target.matches('.xprt-chk-label')) return;
+        const st = window._exportReglesCorpusEtat;
+        const lbl = e.target.dataset.label;
+        if (!st || !lbl) return;
+        if (e.target.checked) st.labelsCoche.add(lbl);
+        else st.labelsCoche.delete(lbl);
+    });
+
+    _rendreLabelsExportReglesCorpus();
+}
+
+/**
+ * (Re)construit la zone « sélection de labels » de la modale d'export : visible seulement si
+ * le périmètre courant contient des règles labellisées. Conserve les cases cochées qui
+ * restent dans le périmètre ; les autres sont retirées de la sélection.
+ */
+function _rendreLabelsExportReglesCorpus() {
+    const st = window._exportReglesCorpusEtat;
+    const zone = document.getElementById('xprt-regles-zone-labels');
+    const liste = document.getElementById('xprt-regles-liste-labels');
+    if (!st || !zone || !liste) return;
+
+    const regles = st.portee === 'tout' ? st.reglesToutes : st.reglesCorpus;
+    const labels = _labelsReglesPourExport(regles);
+    zone.style.display = labels.length > 0 ? 'block' : 'none';
+    if (labels.length === 0) {
+        st.filtrerLabels = false;
+        st.labelsCoche.clear();
+        const chk = document.getElementById('xprt-filtre-labels');
+        if (chk) chk.checked = false;
+        liste.style.display = 'none';
+        liste.innerHTML = '';
+        return;
+    }
+
+    // Purger la sélection des labels disparus du périmètre.
+    const labelsDispos = new Set(labels.map(([l]) => l));
+    st.labelsCoche = new Set([...st.labelsCoche].filter(l => labelsDispos.has(l)));
+
+    liste.innerHTML = labels.map(([lbl, nb]) => `
+        <label style="display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;">
+            <input type="checkbox" class="xprt-chk-label" data-label="${_escAnonMenu(lbl)}" ${st.labelsCoche.has(lbl) ? 'checked' : ''} style="width:14px;height:14px;flex-shrink:0;">
+            <span>${_escAnonMenu(lbl)} <span style="color:#666;font-size:0.85em;">(${nb} règle(s))</span></span>
+        </label>`).join('');
+}
+
+/**
+ * Valide la modale d'export : lit l'état (périmètre + éventuel filtre par labels), construit
+ * la table de correspondance et déclenche le téléchargement. Un filtrage actif sans aucun
+ * label coché est refusé (rien ne serait exporté sans que ce soit explicitement voulu).
+ */
+function _validerExportReglesCorpus() {
+    const st = window._exportReglesCorpusEtat;
+    if (!st) { hidedlg(); return; }
+
+    // Message inline (ne pas utiliser dialog() : il REMPLACERAIT le contenu de la modale).
+    const montrerErreur = (msg) => {
+        const err = document.getElementById('xprt-regles-erreur');
+        if (err) { err.textContent = msg; err.style.display = 'block'; }
+    };
+
+    let regles = st.portee === 'tout' ? st.reglesToutes : st.reglesCorpus;
+    if (st.filtrerLabels) {
+        if (st.labelsCoche.size === 0) {
+            montrerErreur("⚠️ Cochez au moins un label à exporter, ou décochez « Exporter une sélection de labels seulement ».");
+            return;
+        }
+        // « SEULEMENT » : les règles sans label (ou dont le label n'est pas coché) sont exclues.
+        regles = regles.filter(r => st.labelsCoche.has(((r.thematique || '').trim().toUpperCase())));
+    }
+
+    if (regles.length === 0) {
+        montrerErreur('⚠️ Aucune règle à exporter pour ce périmètre.');
+        return;
+    }
+
+    hidedlg();
+    const correspondances = regles.map(_regleVersCorrespondanceExport);
+    const suffixe = (st.portee === 'tout' ? 'corpus_et_entretiens' : 'corpus')
+        + (st.filtrerLabels ? '_labels' : '');
+    window._exportReglesCorpusEtat = null;
+    _telechargerTableRegles(correspondances, suffixe);
 }
 
 // Le cache main fourni par getHtml() est autoritaire, même vide. ent.html n'est qu'un repli
