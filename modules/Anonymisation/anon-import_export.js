@@ -43,17 +43,30 @@ function exportTableCorrespondance() {
         const aLibelle = (typeof aLibellePseudonymise === 'function') && aLibellePseudonymise(paire);
         if (!(paire.entite && paire.remplacement && (paire.occurrences > 0 || aLibelle))) continue;
 
-        // Label-only (0 occurrence de TEXTE) : pas de spans à interroger → on consigne entité → pseudo
-        // primaire (= le pseudo du libellé). La logique multi-pseudo ci-dessous ne vaut que pour le texte.
+        const pseudosLigne = pseudosDe(paire);
+        // Variantes réellement portées par les LIBELLÉS correspondants. Indispensable pour une règle
+        // label-only et pour le cas texte=primaire / locuteur=alternatif : la table « qui est qui » doit
+        // alors contenir les deux correspondances réellement utilisées.
+        const clesEntite = new Set(clesAlias(paire.entite));
+        const utilisesLibelles = new Set();
+        document.querySelectorAll('.ligloc.loc-anon[data-nomloc][data-locpseudo]').forEach(lig => {
+            if (!clesAlias(lig.dataset.nomloc || '').some(k => clesEntite.has(k))) return;
+            const dp = (lig.dataset.locpseudo || '').trim().toLowerCase();
+            if (dp) utilisesLibelles.add(dp);
+        });
+
+        // Label-only (0 occurrence de TEXTE) : exporter la variante réellement choisie sur le libellé.
+        // Repli primaire pour les anciens DOM marqués sans data-locpseudo exploitable.
         if (!(paire.occurrences > 0)) {
-            pousser(paire.entite, paire.remplacement, paire);
+            const variantes = pseudosLigne.filter(p => utilisesLibelles.has(p.toLowerCase()));
+            (variantes.length > 0 ? variantes : [paire.remplacement])
+                .forEach(p => pousser(paire.entite, p, paire));
             continue;
         }
 
-        const pseudosLigne = pseudosDe(paire);
         if (pseudosLigne.length > 1) {
-            // Multi-pseudo : exporter chaque variante RÉELLEMENT appliquée (lue au DOM), → 2 entrées.
-            const utilises = new Set();
+            // Multi-pseudo : exporter chaque variante RÉELLEMENT appliquée dans le texte OU au libellé.
+            const utilises = new Set(utilisesLibelles);
             (paire.matchPositions || []).forEach(m => {
                 if (m.isException || m.isNonTraite || m.isIncluded) return; // incluse : couverte par l'autre règle
                 const dp = ((spansExport[m.start] && spansExport[m.start].dataset.pseudo) || '').toLowerCase();

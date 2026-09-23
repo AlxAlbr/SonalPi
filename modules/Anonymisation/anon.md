@@ -226,6 +226,10 @@ DOM **normalisé** (un token/span) et
 pseudo) → tue la collision.
 - Adaptateur entretien : `reindexerMatchPositions` → `{start,end,isException,isNonTraite}` +
   marquage `data-anon-nt` (garde l'état : mute `matchPositions`, touche `window.tabAnon`).
+  **Attention : `occurrences > 0` signifie « occurrences trouvées », pas « règle entièrement
+  appliquée »** ; le statut se lit dans `matchPositions` (`isNonTraite`) et, pour les locuteurs, via
+  `_etatLocuteurLigne`. `gererEntrePseudo` utilise ces états avant de choisir validation complète ou
+  simple réconciliation d'une ligne déjà traitée.
 - Adaptateur corpus : `trouverOccurrencesDansDoc` → `{applique,exclue,contextAvant,contextApres,
   entite,spanId,cible}` (contexte reconstruit par `analyserOccurrences`/`construireContexteFlux`
   depuis le flux de tokens — robuste aux spans multi-mots des entretiens jamais ouverts). `cible`
@@ -294,10 +298,13 @@ forcer un gagnant. Helpers dans [anon-regles.js](anon-regles.js).
   `verifierEtAfficherEtatMultiEntite`), **pas** d'application en masse.
 - **Défaut = primaire, travail préservé** : créer/promouvoir une règle multi-pseudo ne ré-écrit
   **jamais** une occurrence déjà appliquée ou en exception ; seules les occurrences « à traiter »
-  reçoivent le primaire (rebascule par occurrence ensuite).
+  reçoivent le primaire (rebascule par occurrence ensuite). Pour un **libellé de locuteur**, le choix
+  vaut pour toutes ses prises de parole dans l'entretien : sélection primaire/alternative au menu du
+  libellé (ou au dialogue de création), conservation de la variante à la resynchronisation, repli sur
+  le primaire uniquement si la variante disparaît.
 - **Compteurs / badges scindés par variante** : entretien (`affichTableauAnon`, catégories
   `anon0`/`anon1`) et corpus (`anon-scan.js`, 2 appels `analyserOccurrences`). Export table de
-  correspondance = une entrée par variante **réellement appliquée**.
+  correspondance = une entrée par variante **réellement appliquée** dans le texte ou sur un libellé.
 - **Invariants clés** : I2 — jamais `/` simultané côté entité ET côté pseudo. I5 — `remplacement`
   n'est jamais vide ni « a/b ». I6 — création/promotion préserve appliquées + exceptions.
 - **Édition d'un pseudo EN PLACE** : si SEUL le pseudo change (nom inchangé), `sauvAnon` (Cas 4)
@@ -427,11 +434,20 @@ vers le `.crp` — en oublier un = fuite :
 - **I-POR-4** : `brouillon` ⇒ `occ=0`, aucun marquage. La détection auto l'**ignore**
   (`reindexerMatchPositions` ET `detecterOccurrencesNonTraitees` : garde `portee==='brouillon'`) →
   il ne devient jamais « à anonymiser » tout seul ; son repérage se fait à la demande (loupe).
-- **I-POR-5** : on ne peut **quitter corpus** (→ document/brouillon) que si la règle est **isolée** —
-  `regleEstIsolee` : aucune AUTRE fenêtre d'entretien ne la **traite réellement** (`_aOccurrenceTraitee`
-  = ≥1 occurrence **anonymisée OU exception**, hors « à anonymiser » et incluse). Sinon transition
-  **refusée** (🔒). Même garde-fou sur la **suppression** de ligne (`supprimeLigneAnon`).
-- **I-POR-6** : `brouillon`/`document` survivent à `nettoyerTabAnon`/`nettoyerPairesOrphelines` ; les
+- **I-POR-5** : quitter corpus vers **document** quand la règle est partagée déclenche une
+  **dissociation globale** (`demanderDissociationRegleCorpus`) : les entretiens qui portent un usage
+  réel (run, exception, libellé) ou une règle locale explicite passent tous en `document`, les
+  fantômes sont retirés, puis la règle disparaît du `.crp`. Le DOM n'est pas modifié. Les `.Sonal`
+  concernés sont réécrits avant le `.crp` et un rollback est tenté en cas d'échec. Le passage direct
+  corpus→brouillon reste refusé tant que la règle est partagée ; la suppression locale de ligne garde
+  également son garde-fou (`regleEstIsolee`).
+- **I-POR-6** : la promotion inverse document→corpus inventorie, sur la seule entité ciblée, les
+  règles locales des autres entretiens (`analyserPromotionRegleCorpus`). Si leurs pseudos sont
+  compatibles, une confirmation les rattache en lot au corpus et réécrit leurs `.Sonal` sans toucher
+  au DOM ; un brouillon redevient donc une règle corpus « à traiter ». Une divergence de pseudo ou un
+  brouillon sans pseudo bloque la promotion jusqu'à résolution explicite. Même stratégie de rollback
+  que pour la dissociation.
+- **I-POR-7** : `brouillon`/`document` survivent à `nettoyerTabAnon`/`nettoyerPairesOrphelines` ; les
   **fantômes** corpus (`source:'Global' && !existeLocalement && occ=0`) restent jetés.
 
 ### UI
@@ -440,7 +456,11 @@ vers le `.crp` — en oublier un = fuite :
   gardes). Poignée bleue glissante, crans inactifs grisés ; **pas de lettres** (icônes seules). CSS
   `.portee-slider` / `.portee-thumb` / `.portee-cran` / `.verrou` dans [css/styles.css](../../css/styles.css).
 - **🔒 verrou** posé par une passe **asynchrone** après chaque rendu (`marquerVerrousPortee`, lit
-  `getEnt`) — le rendu étant synchrone, l'isolement ne peut pas être calculé pendant.
+  `getEnt`) — il signale que le passage 📁→📄 sera une opération globale avec confirmation, pas une
+  impossibilité définitive. Le rendu étant synchrone, l'usage partagé ne peut pas être calculé pendant.
+- **Panneau corpus** : 📄 = « dissocier » (conserve les marquages en règles document) ; ✖ =
+  « supprimer partout » (retire les marquages et restaure le texte). La confirmation de dissociation
+  liste jusqu'à huit entretiens et résume pseudonymisations, exceptions, locuteurs et restes à traiter.
 - **Encodage typographique** de la ligne, orthogonal : **fond** = statut (vert tout traité / orange à
   traiter / gris brouillon) ; **typo** = portée (gras corpus, italique brouillon). Le gras était libre
   (`.ligne-anonymisee` = vert sans `font-weight`).
@@ -496,6 +516,8 @@ moteur d'occurrences de texte (même comportement, plomberie distincte). Détail
     pastille `👤●` confirme en un clic tous les libellés suggérés de la règle sans annuler les refus.
   - *Menu libellé* ([anon-menus.js](anon-menus.js)) : clic-droit sur le `.ligloc` (détecté car **hors
     `[data-rk]`**) — confirmer / refuser / ré-activer / retirer (local ; **≠** suppression de règle, §11).
+    Pour une règle multi-pseudo, confirmer ou ré-activer propose chaque variante et un libellé déjà
+    confirmé peut basculer de l'une à l'autre ; `data-locpseudo` conserve le choix par locuteur.
   - *Propagation* : `resynchroniserLibellesLocuteurs` (suppression, parking 🚧, édition de pseudo,
     re-locutarisation via scan) → réaligne les `loc-anon` sur les règles **non-brouillon**.
 - **Synthèse & recueils** ([synthese.js](../synthese.js), [recueil.js](../recueil.js),

@@ -1830,7 +1830,29 @@ function creerLigneAnonGen(anon, tabEnt) {
         await verifierEtAfficherEtatEntite(anon.entite, anon.remplacement, tabEnt);
     });
 
-    // Bouton Supprimer la règle
+    // Bouton Dissocier : retire la portée corpus mais conserve tous les marquages existants en
+    // transformant les règles des entretiens concernés en règles 📄 document.
+    const btnDissocier = document.createElement("button");
+    btnDissocier.textContent = "📄";
+    btnDissocier.style.height = "33px";
+    btnDissocier.style.width = "33px";
+    btnDissocier.style.padding = "5px";
+    btnDissocier.style.marginLeft = "6px";
+    btnDissocier.classList.add("btn");
+    btnDissocier.title = `Dissocier "${anon.entite}" du corpus en conservant les pseudonymisations`;
+
+    btnDissocier.addEventListener("click", async (e) => {
+        e.preventDefault();
+        btnDissocier.disabled = true;
+        try {
+            const resultat = await demanderDissociationRegleCorpus(anon.entite);
+            if (resultat.ok) afficherResultatDissociationCorpus(resultat, tr);
+        } finally {
+            btnDissocier.disabled = false;
+        }
+    });
+
+    // Bouton Supprimer la règle et restaurer le texte partout.
     const btnSupprimer = document.createElement("button");
     btnSupprimer.textContent = "✖";
     btnSupprimer.style.height = "33px";
@@ -1838,7 +1860,7 @@ function creerLigneAnonGen(anon, tabEnt) {
     btnSupprimer.style.padding = "5px";
     btnSupprimer.style.marginLeft = "6px";
     btnSupprimer.classList.add("btn", "btn-danger");
-    btnSupprimer.title = `Supprimer la règle "${anon.entite}" → "${anon.remplacement}"`;
+    btnSupprimer.title = `Supprimer partout la règle "${anon.entite}" → "${anon.remplacement}" et restaurer le texte`;
 
     btnSupprimer.addEventListener("click", async (e) => {
         e.preventDefault();
@@ -1846,6 +1868,7 @@ function creerLigneAnonGen(anon, tabEnt) {
     });
 
     tdActions.appendChild(btnVerifier);
+    tdActions.appendChild(btnDissocier);
     tdActions.appendChild(btnSupprimer);
 
     // Badge de thématique (opt-in) — placé SOUS la ligne des boutons 🔍/✖ (display:block centré).
@@ -2565,6 +2588,34 @@ async function ajouterLigneAuTableauAnonGen(anon) {
         setTimeout(() => tr.classList.remove("ligent-flash"), 3000);
     }, 400);
 
+}
+
+/**
+ * Termine visuellement une dissociation réussie depuis le panneau corpus.
+ */
+function afficherResultatDissociationCorpus(resultat, tr) {
+    if (tr) {
+        tr.style.transition = "opacity 0.3s";
+        tr.style.opacity = "0";
+        setTimeout(() => tr.remove(), 300);
+    }
+    if (window._lastVerifiedAnon && typeof cleEntite === 'function'
+        && cleEntite(window._lastVerifiedAnon.entite || '') === cleEntite(resultat.regle.entite)) {
+        const fondVerif = document.getElementById('fond_verif_anon');
+        if (fondVerif) fondVerif.innerHTML = '<div style="padding:20px;color:#999;">Règle dissociée du corpus.</div>';
+        window._lastVerifiedAnon = null;
+    }
+    const compteur = document.getElementById('anon-gen-compteur');
+    if (compteur) {
+        const restantes = document.querySelectorAll('.ligne-anon-gen').length - (tr && tr.isConnected ? 1 : 0);
+        compteur.textContent = `${Math.max(0, restantes)} règle(s)`;
+    }
+    dialog(
+        'Message',
+        `Règle "${resultat.regle.entite}" retirée du corpus.\n` +
+        `${resultat.nbEntretiens} entretien(s) possèdent maintenant une règle locale 📄.\n` +
+        `Les pseudonymisations, exceptions et choix de locuteurs ont été conservés.`
+    );
 }
 
 /**

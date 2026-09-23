@@ -558,6 +558,19 @@ function showMenuNonTraite(span, idxPaire, matchIdx) {
     document.addEventListener('mousedown', closeMenu);
 }
 
+/** Retourne la règle non-brouillon qui couvre les clés d'un nom de locuteur. */
+function _reglePourLocuteur(clesNom) {
+    return (window.tabAnon || []).find(p =>
+        p && p.entite && (p.portee || 'corpus') !== 'brouillon'
+        && clesAlias(p.entite).some(k => clesNom.includes(k))) || null;
+}
+
+/** Variantes autorisées pour un locuteur, dans l'ordre primaire puis alternatif. */
+function _pseudosPourLocuteur(nomLoc) {
+    const regle = _reglePourLocuteur(clesAlias(nomLoc || ''));
+    return regle ? pseudosDe(regle) : [];
+}
+
 /**
  * Menu contextuel du LIBELLÉ pseudonymisé d'un locuteur (plan-locuteurs-pseudo.md Étape 4) : retrait
  * LOCAL de la pseudonymisation du libellé — distinct de la suppression de la règle (qui obéit, elle, à
@@ -585,22 +598,33 @@ function showMenuLibelleLocuteur(lig) {
         menuDiv.appendChild(item);
     };
 
+    const nomLoc = lig.dataset.nomloc || '';
+    const variantesRegle = _pseudosPourLocuteur(nomLoc);
+
     if (lig.classList.contains('loc-anon')) {
         const pseudo = lig.dataset.locpseudo || '';
+        // Multi-pseudo : le choix porte sur le LOCUTEUR dans cet entretien et s'applique à toutes
+        // ses prises de parole, comme les autres actions du menu de libellé.
+        variantesRegle
+            .filter(p => p.toLowerCase() !== pseudo.toLowerCase())
+            .forEach(p => ajouterItem(`↔ Pseudonymiser ce locuteur comme « ${p} » (cet entretien)`,
+                () => confirmerPseudoLibelleLocuteur(nomLoc, p)));
         ajouterItem(`🚫 Ne plus pseudonymiser « ${pseudo} » (ce locuteur, cet entretien)`,
-            () => retirerPseudoLibelleLocuteur(lig.dataset.nomloc));
-        ajouterItem(`🗑 Supprimer la règle « ${lig.dataset.nomloc || ''} → ${pseudo} »…`,
-            () => supprimerRegleDepuisLibelle(lig.dataset.nomloc));
+            () => retirerPseudoLibelleLocuteur(nomLoc));
+        ajouterItem(`🗑 Supprimer la règle « ${nomLoc} → ${pseudo} »…`,
+            () => supprimerRegleDepuisLibelle(nomLoc));
     } else if (lig.classList.contains('loc-suggere')) {
-        const pseudo = lig.dataset.locpseudoSuggere || '';
-        ajouterItem(`✓ Pseudonymiser ce locuteur en « ${pseudo} » (cet entretien)`,
-            () => confirmerPseudoLibelleLocuteur(lig.dataset.nomloc));
+        const variantes = variantesRegle.length > 0
+            ? variantesRegle : [lig.dataset.locpseudoSuggere || ''].filter(Boolean);
+        variantes.forEach(p => ajouterItem(`✓ Pseudonymiser ce locuteur en « ${p} » (cet entretien)`,
+            () => confirmerPseudoLibelleLocuteur(nomLoc, p)));
         ajouterItem(`✕ Ne pas pseudonymiser ce locuteur (cet entretien)`,
-            () => refuserPseudoLibelleLocuteur(lig.dataset.nomloc));
+            () => refuserPseudoLibelleLocuteur(nomLoc));
     } else if (lig.classList.contains('loc-suggere-refuse')) {
-        const pseudo = lig.dataset.locpseudoSuggere || '';
-        ajouterItem(`✓ Pseudonymiser ce locuteur en « ${pseudo} » (cet entretien)`,
-            () => confirmerPseudoLibelleLocuteur(lig.dataset.nomloc));
+        const variantes = variantesRegle.length > 0
+            ? variantesRegle : [lig.dataset.locpseudoSuggere || ''].filter(Boolean);
+        variantes.forEach(p => ajouterItem(`✓ Pseudonymiser ce locuteur en « ${p} » (cet entretien)`,
+            () => confirmerPseudoLibelleLocuteur(nomLoc, p)));
     } else {
         menuDiv.remove(); // état inattendu : pas de menu
         return;
@@ -667,25 +691,29 @@ async function retirerPseudoLibelleLocuteur(nomLoc) {
  * nom précis (menu contextuel) ou tous les alias d'une règle (pastille du tableau). Le clic dans le
  * tableau ne réactive jamais un refus explicite ; seul le menu du libellé le permet.
  * @param {string[]} clesCibles
- * @param {{inclureRefuses?:boolean}} [opts]
+ * @param {{inclureRefuses?:boolean, inclureConfirmes?:boolean, pseudo?:string}} [opts]
  */
-async function _confirmerPseudoLibelles(clesCibles, { inclureRefuses = true } = {}) {
+async function _confirmerPseudoLibelles(clesCibles,
+    { inclureRefuses = true, inclureConfirmes = false, pseudo = '' } = {}) {
     if (!Array.isArray(clesCibles) || clesCibles.length === 0) return false;
-    const selecteur = inclureRefuses
-        ? '.ligloc.loc-suggere[data-nomloc], .ligloc.loc-suggere-refuse[data-nomloc]'
-        : '.ligloc.loc-suggere[data-nomloc]';
+    const selecteurs = ['.ligloc.loc-suggere[data-nomloc]'];
+    if (inclureRefuses) selecteurs.push('.ligloc.loc-suggere-refuse[data-nomloc]');
+    // Un choix explicite de variante concerne le locuteur entier : inclure même un éventuel libellé
+    // resté sans marqueur dans un DOM ancien/partiellement reconstruit.
+    const selecteur = inclureConfirmes ? '.ligloc[data-nomloc]' : selecteurs.join(', ');
     const cibles = Array.from(document.querySelectorAll(selecteur)).filter(l =>
         clesAlias(l.dataset.nomloc || '').some(k => clesCibles.includes(k)));
     if (cibles.length === 0) return false;
 
     if (typeof backUp === 'function') backUp();
+    const pseudoImpose = String(pseudo || '').trim();
     cibles.forEach(l => {
-        const pseudo = (l.dataset.locpseudoSuggere || '').trim();
+        const pseudoCible = pseudoImpose || (l.dataset.locpseudoSuggere || '').trim();
         l.classList.remove('loc-suggere', 'loc-suggere-refuse');
         delete l.dataset.locpseudoSuggere;
-        if (pseudo) {
+        if (pseudoCible) {
             l.classList.add('loc-anon');
-            l.dataset.locpseudo = pseudo;
+            l.dataset.locpseudo = pseudoCible;
         }
         majBarreLoc(l); // confirmé → nom barré (data-nomloc-barre) pour le ::before
     });
@@ -710,9 +738,25 @@ async function _confirmerPseudoLibelles(clesCibles, { inclureRefuses = true } = 
  * Confirme une suggestion depuis le menu contextuel d'un libellé. Les libellés explicitement refusés
  * peuvent être réactivés par ce chemin.
  * @param {string} nomLoc - data-nomloc du locuteur
+ * @param {string} [pseudo] - variante choisie ; vide = variante suggérée (primaire par défaut)
  */
-async function confirmerPseudoLibelleLocuteur(nomLoc) {
-    return _confirmerPseudoLibelles(clesAlias(nomLoc || ''), { inclureRefuses: true });
+async function confirmerPseudoLibelleLocuteur(nomLoc, pseudo = '') {
+    const clesNom = clesAlias(nomLoc || '');
+    let variante = '';
+    if (pseudo) {
+        // Ne jamais écrire un pseudo arbitraire depuis un appel externe : retrouver la graphie exacte
+        // parmi les variantes de la règle couvrant ce locuteur.
+        const regle = _reglePourLocuteur(clesNom);
+        variante = regle
+            ? (pseudosDe(regle).find(p => p.toLowerCase() === String(pseudo).trim().toLowerCase()) || '')
+            : '';
+        if (!variante) return false;
+    }
+    return _confirmerPseudoLibelles(clesNom, {
+        inclureRefuses: true,
+        inclureConfirmes: !!variante,
+        pseudo: variante,
+    });
 }
 
 /**

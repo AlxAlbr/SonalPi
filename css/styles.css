@@ -4843,11 +4843,11 @@ tr.p-brouillon .input-remplacement { font-style: italic; color: #777; }
     transform: scale(1.05);
 }
 
-/* Verrou : entité partagée avec d'autres entretiens → impossible de quitter le corpus (§6).
-   Les crans brouillon/document sont signalés non cliquables et un 🔒 s'affiche à droite. */
+/* Verrou : entité partagée avec d'autres entretiens. Le passage direct en brouillon reste bloqué ;
+   le cran document reste cliquable et ouvre la dissociation globale avec confirmation. */
 .portee-slider.verrou { margin-right: 16px; }
-.portee-slider.verrou .portee-cran[data-cran="brouillon"],
-.portee-slider.verrou .portee-cran[data-cran="document"] { cursor: not-allowed; }
+.portee-slider.verrou .portee-cran[data-cran="brouillon"] { cursor: not-allowed; }
+.portee-slider.verrou .portee-cran[data-cran="document"] { cursor: pointer; }
 .portee-slider.verrou .portee-thumb { border-color: #9aa; }
 .portee-slider.verrou::after {
     content: "🔒";

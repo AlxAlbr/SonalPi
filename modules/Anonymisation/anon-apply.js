@@ -813,13 +813,14 @@ async function modifierOccurrencesEntretienDepuisCorpus(indexEnt, anon, changeme
  * Sert à PROPAGER le pseudo retenu (décision « corpus autoritaire ») aux entretiens qui en
  * utilisaient un autre. S'appuie sur analyserOccurrences (fonction unifiée) pour ne cibler que
  * les occurrences de CETTE entité portant l'ANCIEN pseudo (pas celles d'une autre entité qui
- * partagerait par hasard le même pseudo — cas collision).
+ * partagerait par hasard le même pseudo — cas collision). Met aussi à jour les libellés de locuteur
+ * (`data-locpseudo(-suggere)`) et la bonne variante de la règle locale multi-pseudo.
  *
  * @param {number} indexEnt
  * @param {string} entite
  * @param {string} ancienPseudo
  * @param {string} nouveauPseudo
- * @returns {Promise<number>} nombre d'occurrences relabellisées (0 si rien / erreur)
+ * @returns {Promise<number>} nombre de marqueurs relabellisés (texte/libellé ; 0 si rien / erreur)
  */
 async function repseudonymiserEntiteDansEntretien(indexEnt, entite, ancienPseudo, nouveauPseudo) {
     try {
@@ -833,38 +834,62 @@ async function repseudonymiserEntiteDansEntretien(indexEnt, entite, ancienPseudo
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlContent;
 
+        const ancienLower = ancienPseudo.trim().toLowerCase();
+
         // Occurrences de cette entité déjà anonymisées avec l'ANCIEN pseudo.
         const occ = analyserOccurrences(tempDiv, entite, ancienPseudo).filter(o => o.etat === 'anon');
         let n = 0;
         for (const o of occ) {
             // Seuls debsel/finsel portent data-pseudo ; relabelliser les deux (= même span si 1 mot).
             for (const span of [o.spanDebut, o.spanFin]) {
-                if (span && span.dataset && span.dataset.pseudo === ancienPseudo) {
+                if (span && span.dataset && (span.dataset.pseudo || '').toLowerCase() === ancienLower) {
                     span.dataset.pseudo = nouveauPseudo;
                     n++;
                 }
             }
         }
-        if (n === 0) return 0;
 
-        await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
+        // Libellés du locuteur : préserver la variante choisie lors d'un renommage corpus. Les
+        // suggestions/refus conservent elles aussi leur variante dans data-locpseudo-suggere.
+        const clesEntite = new Set(clesAlias(entite));
+        tempDiv.querySelectorAll('.ligloc[data-nomloc]').forEach(lig => {
+            if (!clesAlias(lig.dataset.nomloc || '').some(k => clesEntite.has(k))) return;
+            for (const attr of ['locpseudo', 'locpseudoSuggere']) {
+                if ((lig.dataset[attr] || '').trim().toLowerCase() !== ancienLower) continue;
+                lig.dataset[attr] = nouveauPseudo;
+                n++;
+            }
+        });
+        if (n > 0) await window.electronAPI.setHtml(indexEnt, tempDiv.innerHTML);
 
-        // Mettre à jour la règle locale de l'entretien (entité → nouveauPseudo).
+        // Mettre à jour la BONNE variante de la règle locale (primaire ou alternative), sans écraser
+        // le primaire quand seul l'alternatif est renommé.
         const tabEnt = await window.electronAPI.getEnt();
         const ent = tabEnt[indexEnt];
+        let regleModifiee = false;
         if (ent && Array.isArray(ent.tabAnon)) {
             ent.tabAnon.forEach(r => {
-                if (r && r.entite && cleEntite(r.entite) === cleEntite(entite)) r.remplacement = nouveauPseudo;
+                if (!r || !r.entite || cleEntite(r.entite) !== cleEntite(entite)) return;
+                if ((r.remplacement || '').trim().toLowerCase() === ancienLower) {
+                    r.remplacement = nouveauPseudo;
+                    regleModifiee = true;
+                }
+                if ((r.remplacementAlt || '').trim().toLowerCase() === ancienLower) {
+                    r.remplacementAlt = nouveauPseudo;
+                    regleModifiee = true;
+                }
             });
-            await window.electronAPI.setEnt(tabEnt);
+            if (regleModifiee) await window.electronAPI.setEnt(tabEnt);
         }
+
+        if (n === 0 && !regleModifiee) return 0;
 
         // Re-sauver le .sonal (même mécanisme que les autres mutations par entretien).
         if (typeof window.majFichierSonal === 'function') {
             await window.majFichierSonal(indexEnt, indexEnt + 1);
         }
 
-        return occ.length;
+        return n || 1;
     } catch (error) {
         console.error("Erreur dans repseudonymiserEntiteDansEntretien():", error);
         return 0;

@@ -2300,7 +2300,7 @@ function question(message, bouttons) { // fonction d'affichage d'une question av
         let positiveButtonIndex = -1;
 
         (bouttons || []).forEach((btn, index) => {
-            const isPositive = /^(oui|valider|ok)$/i.test(btn.trim());
+            const isPositive = /^(oui|valider|ok|rendre locales|retirer du corpus|rattacher au corpus)$/i.test(btn.trim());
             const lbl = document.createElement('label');
             lbl.className = 'btnfonction btnquestion' + (isPositive ? ' btnoui' : '');
             lbl.textContent = btn;
