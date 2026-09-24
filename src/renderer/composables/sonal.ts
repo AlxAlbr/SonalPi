@@ -205,6 +205,7 @@ export function creerSonal() {
       verrouAutrui: () => ent.verrouAutrui.value !== null,
       sauver: ent.sauver,
       viderSauvegarde: ent.viderSauvegarde,
+      preserverEtAnnulerSauvegarde: ent.preserverEtAnnulerSauvegarde,
       annulerEtAttendreSauvegarde: ent.annulerEtAttendreSauvegarde,
     },
     effets: {

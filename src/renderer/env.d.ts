@@ -113,6 +113,7 @@ declare global {
         etatSession: (id: string) => Promise<EtatSessionPublic>
         publierEntretien: (id: string) => Promise<{ ok: boolean; raison?: string }>
         ecrireEntretien: (id: string, p: PayloadEntretien) => Promise<string>
+        preserverEntretienDegrade: (id: string, p: PayloadEntretien) => Promise<boolean>
         remplacerTranscription: (id: string, t: TranscriptionEntretien) => Promise<string | null>
         creerEntretienVide: (titre: string) => Promise<{ id: string; corpus: CorpusFichier }>
         renommerEntretien: (id: string, titre: string) => Promise<CorpusFichier>

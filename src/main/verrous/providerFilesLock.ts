@@ -29,6 +29,7 @@ import type {
   ResultatBattement,
   VerrouProvider,
 } from './types'
+import { MARGE_DERIVE_S } from './types'
 
 /** TTL affiché/décisionnel quand le serveur n'annonce pas de timeout.
  *  `lock-timeout: 0` = n'expire jamais (défaut files_lock).
@@ -51,7 +52,11 @@ export class ProviderFilesLock implements VerrouProvider {
     if (dejaLa) return { ok: false, tenuPar: dejaLa }
     try {
       await this.client.verrouiller(cheminVerrou)
-      return { ok: true, etag: 'files-lock' } // pas d'ETag en variante A : garde symbolique
+      return {
+        ok: true,
+        etag: 'files-lock',
+        dureeGarantieMs: (TTL_PAR_DEFAUT_S + MARGE_DERIVE_S) * 1000,
+      }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 423) {
         return { ok: false, tenuPar: await this.etat(cheminVerrou) }
@@ -65,7 +70,10 @@ export class ProviderFilesLock implements VerrouProvider {
   async battre(cheminVerrou: string): Promise<ResultatBattement> {
     try {
       await this.client.verrouiller(cheminVerrou)
-      return { ok: true }
+      return {
+        ok: true,
+        dureeGarantieMs: (TTL_PAR_DEFAUT_S + MARGE_DERIVE_S) * 1000,
+      }
     } catch (e) {
       if (e instanceof ErreurHttp && (e.statut === 423 || e.statut === 404)) {
         return { ok: false }

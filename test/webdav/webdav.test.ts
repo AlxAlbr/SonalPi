@@ -368,13 +368,9 @@ describe('MiroirWebDAV — pull incrémental', () => {
     const tirage = await miroir.tirer()
     expect(tirage.telecharges.sort()).toEqual(['corpus.json', 'entretiens/e1.json'])
     expect(readFileSync(miroir.cheminLocal('corpus.json'), 'utf8')).toBe('{"membership":{}}')
-    // verrous/ et presence/ ne sont PAS du contenu…
+    // Les dossiers de protocole ne sont ni téléchargés ni interprétés par le miroir.
     expect(existsSync(miroir.cheminLocal('verrous/e2.lock.json'))).toBe(false)
     expect(existsSync(miroir.cheminLocal('presence/max.json'))).toBe(false)
-    // …mais les verrous vus sont remontés pour les badges.
-    expect(tirage.verrous).toEqual([
-      { chemin: 'verrous/e2.lock.json', etag: serveur.etagDe('verrous/e2.lock.json') },
-    ])
   })
 
   it('deuxième tirage sans changement : rien ne re-télécharge (diff par ETags)', async () => {

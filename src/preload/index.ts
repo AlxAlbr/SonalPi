@@ -209,6 +209,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('distant:publierEntretien', id),
     ecrireEntretien: (id: string, p: PayloadEntretien): Promise<string> =>
       invoquer('corpus:ecrireEntretien', id, p),
+    preserverEntretienDegrade: (id: string, p: PayloadEntretien): Promise<boolean> =>
+      invoquer('corpus:preserverEntretienDegrade', id, p),
     remplacerTranscription: (id: string, t: TranscriptionEntretien): Promise<string | null> =>
       invoquer('corpus:remplacerTranscription', id, t),
     creerEntretienVide: (titre: string): Promise<{ id: string; corpus: CorpusFichier }> =>

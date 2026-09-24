@@ -24,6 +24,7 @@ function creerContexte(tirer: () => Promise<ResultatTiragePublic | null>) {
   const arreterProgression = vi.fn()
   const arreterSession = vi.fn()
   const arreterFermeture = vi.fn()
+  const preserverSauvegarde = vi.fn(async () => true)
   const annulerSauvegarde = vi.fn(async () => {})
   const viderSauvegarde = vi.fn(async () => {})
   const effets = {
@@ -81,6 +82,7 @@ function creerContexte(tirer: () => Promise<ResultatTiragePublic | null>) {
       verrouAutrui: () => false,
       sauver: vi.fn(async () => {}),
       viderSauvegarde,
+      preserverEtAnnulerSauvegarde: preserverSauvegarde,
       annulerEtAttendreSauvegarde: annulerSauvegarde,
     },
     effets,
@@ -90,6 +92,7 @@ function creerContexte(tirer: () => Promise<ResultatTiragePublic | null>) {
     distant,
     effets,
     ouvertId,
+    preserverSauvegarde,
     annulerSauvegarde,
     viderSauvegarde,
     signalerProgression: (progression: Parameters<typeof signalerProgression>[0]) =>
@@ -168,7 +171,75 @@ describe('orchestration distante du renderer', () => {
     await expect(contexte.distant.actualiserDistant(false)).rejects.toThrow('réseau indisponible')
   })
 
-  test('une session dégradée neutralise la sauvegarde et les ressources sont nettoyées', async () => {
+  test.each([true, false])('un tirage échoué suspend l’édition sans oublier la session (silencieux : %s)', async (silencieux) => {
+    const contexte = creerContexte(async () => {
+      throw new Error('réseau indisponible')
+    })
+    contexte.ouvertId.value = 'e1'
+    contexte.distant.activerDistant('d1', [], [])
+    await nextTick()
+    expect(contexte.distant.statutSession.value.etat).toBe('a-nous')
+    expect(contexte.distant.entretienEditable.value).toBe(true)
+    contexte.effets.rendreEditeurEditable.mockClear()
+
+    if (silencieux) {
+      expect(await contexte.distant.actualiserDistant(true)).toBe(false)
+    } else {
+      await expect(contexte.distant.actualiserDistant(false)).rejects.toThrow('réseau indisponible')
+    }
+    await nextTick()
+
+    expect(contexte.distant.entretienEditable.value).toBe(false)
+    expect(contexte.effets.rendreEditeurEditable).toHaveBeenLastCalledWith(false)
+    expect(contexte.distant.statutSession.value.etat).toBe('a-nous')
+    expect(contexte.ouvertId.value).toBe('e1')
+    expect(contexte.effets.nettoyerMiroirChange).not.toHaveBeenCalled()
+    expect(contexte.effets.rafraichirCorpusSansFermer).not.toHaveBeenCalled()
+    expect(contexte.annulerSauvegarde).not.toHaveBeenCalled()
+    expect(window.sonal.corpus.publierEntretien).not.toHaveBeenCalled()
+  })
+
+  test('le retour du réseau ne réactive pas une session dont le droit a été perdu', async () => {
+    const tirer = vi.fn(async (): Promise<ResultatTiragePublic> => ({
+      telecharges: [],
+      corbeille: [],
+      verrous: [],
+      date: '2026-01-01T10:05:00.000Z',
+    }))
+    const contexte = creerContexte(tirer)
+    contexte.ouvertId.value = 'e1'
+    contexte.distant.activerDistant('d1', [], [])
+    await nextTick()
+    expect(contexte.distant.statutSession.value.etat).toBe('a-nous')
+    contexte.signalerSessionDegradee('e1')
+    contexte.distant.enLigne.value = false
+    await nextTick()
+
+    expect(await contexte.distant.actualiserDistant(true)).toBe(true)
+    await nextTick()
+
+    expect(contexte.distant.enLigne.value).toBe(true)
+    expect(contexte.distant.statutSession.value).toEqual({ etat: 'degrade' })
+    expect(contexte.distant.entretienEditable.value).toBe(false)
+    expect(contexte.effets.rendreEditeurEditable).toHaveBeenLastCalledWith(false)
+    expect(window.sonal.corpus.publierEntretien).not.toHaveBeenCalled()
+  })
+
+  test('un échec de copie de récupération reste visible', async () => {
+    const contexte = creerContexte(async () => null)
+    contexte.ouvertId.value = 'e1'
+    contexte.distant.activerDistant('d1', [], [])
+    contexte.preserverSauvegarde.mockResolvedValueOnce(false)
+    await nextTick()
+
+    contexte.signalerSessionDegradee('e1')
+    await nextTick()
+
+    expect(contexte.distant.publiErreur.value).toContain('Gardez cette fenêtre ouverte')
+    expect(contexte.distant.entretienEditable.value).toBe(false)
+  })
+
+  test('une session dégradée préserve le debounce puis nettoie les ressources', async () => {
     const contexte = creerContexte(async () => null)
     contexte.ouvertId.value = 'e1'
     contexte.distant.activerDistant('d1', [], [])
@@ -177,10 +248,11 @@ describe('orchestration distante du renderer', () => {
     contexte.signalerSessionDegradee('e1')
     expect(contexte.distant.statutSession.value).toEqual({ etat: 'degrade' })
     expect(contexte.effets.rendreEditeurEditable).toHaveBeenCalledWith(false)
-    expect(contexte.annulerSauvegarde).toHaveBeenCalledOnce()
+    expect(contexte.preserverSauvegarde).toHaveBeenCalledOnce()
+    expect(contexte.annulerSauvegarde).not.toHaveBeenCalled()
 
     await contexte.preparerFermeture()
-    expect(contexte.annulerSauvegarde).toHaveBeenCalledTimes(2)
+    expect(contexte.annulerSauvegarde).toHaveBeenCalledOnce()
     expect(contexte.viderSauvegarde).not.toHaveBeenCalled()
 
     contexte.scope.stop()

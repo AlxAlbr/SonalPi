@@ -498,6 +498,16 @@ export function useEntretien(deps: {
     await sauver()
     await sauvegardes
   }
+  /** Annule le debounce et préserve l'état courant hors du miroir publiable. */
+  async function preserverEtAnnulerSauvegarde(): Promise<boolean> {
+    clearTimeout(tid)
+    tid = undefined
+    const id = ouvertId.value
+    const payload = id && editor.value ? payloadCourant() : null
+    await sauvegardes
+    if (!id || !payload) return true
+    return window.sonal.corpus.preserverEntretienDegrade(id, payload)
+  }
   /** Annule le debounce sans créer d'écriture, puis attend l'opération déjà partie. */
   async function annulerEtAttendreSauvegarde(): Promise<void> {
     clearTimeout(tid)
@@ -862,6 +872,7 @@ export function useEntretien(deps: {
     reinitialiser,
     sauver,
     viderSauvegarde,
+    preserverEtAnnulerSauvegarde,
     annulerEtAttendreSauvegarde,
     donneesExport,
     selectionPassageCourante,

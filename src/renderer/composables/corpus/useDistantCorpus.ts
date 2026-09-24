@@ -25,6 +25,7 @@ interface EntretienDistantCorpus {
   verrouAutrui: () => boolean
   sauver: () => Promise<void>
   viderSauvegarde: () => Promise<void>
+  preserverEtAnnulerSauvegarde: () => Promise<boolean>
   annulerEtAttendreSauvegarde: () => Promise<void>
 }
 
@@ -146,8 +147,8 @@ export function useDistantCorpus(deps: {
       dernierTirage.value = tirage.date
       return true
     } catch (erreur) {
-      if (!silencieux) throw erreur
       enLigne.value = false
+      if (!silencieux) throw erreur
       return false
     } finally {
       tirageEnCours.value = false
@@ -180,7 +181,18 @@ export function useDistantCorpus(deps: {
         statutSession.value = nouveauStatut
       },
       rendreEditeurNonModifiable: () => deps.effets.rendreEditeurEditable(false),
-      annulerSauvegarde: deps.entretien.annulerEtAttendreSauvegarde,
+      preserverEtAnnulerSauvegarde: async () => {
+        try {
+          const preserve = await deps.entretien.preserverEtAnnulerSauvegarde()
+          if (!preserve) {
+            publiErreur.value =
+              'La dernière modification n’a pas pu être mise de côté. Gardez cette fenêtre ouverte pour ne pas la perdre.'
+          }
+        } catch {
+          publiErreur.value =
+            'La dernière modification n’a pas pu être mise de côté. Gardez cette fenêtre ouverte pour ne pas la perdre.'
+        }
+      },
     })
   }
 

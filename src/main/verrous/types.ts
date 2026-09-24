@@ -25,16 +25,19 @@ export interface ContenuVerrou {
 }
 
 export type ResultatAcquisition =
-  | { ok: true; etag: string }
+  | { ok: true; etag: string; dureeGarantieMs: number }
   /** Refus atomique (le serveur a tranché) : le détenteur est lu pour l'UI. */
   | { ok: false; tenuPar: ContenuVerrou | null }
 
-export interface ResultatBattement {
-  /** false = NOTRE verrou a été repris par quelqu'un d'autre (détection de forçage) →
-   *  l'appelant doit se rétrograder en lecture seule. */
-  ok: boolean
-  etag?: string
-}
+export type ResultatBattement =
+  | {
+      ok: true
+      etag?: string
+      /** Durée pendant laquelle le dernier succès garantit encore notre droit. */
+      dureeGarantieMs: number
+    }
+  /** Le verrou a été repris ou a disparu. */
+  | { ok: false }
 
 /** L'interface commune aux deux variantes.
  *  `cheminVerrou` est relatif à la racine DAV (« verrous/ent-abc.lock.json »). */

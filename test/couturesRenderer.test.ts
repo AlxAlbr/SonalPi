@@ -17,7 +17,7 @@ describe('rétrogradation visible du renderer', () => {
     let editable = true
     const ecrire = vi.fn()
     let debounce: ReturnType<typeof setTimeout> | undefined = setTimeout(ecrire, 600)
-    const annulerSauvegarde = vi.fn(async () => {
+    const preserverEtAnnulerSauvegarde = vi.fn(async () => {
       clearTimeout(debounce)
       debounce = undefined
     })
@@ -25,27 +25,27 @@ describe('rétrogradation visible du renderer', () => {
     appliquerStatutSession(statut, { etat: 'degrade' }, {
       definirStatut: (nouveau) => { statut = nouveau },
       rendreEditeurNonModifiable: () => { editable = false },
-      annulerSauvegarde,
+      preserverEtAnnulerSauvegarde,
     })
 
     expect(statut).toEqual({ etat: 'degrade' })
     expect(editable).toBe(false)
-    expect(annulerSauvegarde).toHaveBeenCalledOnce()
+    expect(preserverEtAnnulerSauvegarde).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(1_000)
     expect(ecrire).not.toHaveBeenCalled()
 
     appliquerStatutSession(statut, { etat: 'a-nous', dernierPubli: null, sale: false }, {
       definirStatut: (nouveau) => { statut = nouveau },
       rendreEditeurNonModifiable: () => { editable = false },
-      annulerSauvegarde,
+      preserverEtAnnulerSauvegarde,
     })
     expect(statut).toEqual({ etat: 'degrade' })
-    expect(annulerSauvegarde).toHaveBeenCalledOnce()
+    expect(preserverEtAnnulerSauvegarde).toHaveBeenCalledOnce()
 
     appliquerStatutSession(statut, { etat: 'aucune' }, {
       definirStatut: (nouveau) => { statut = nouveau },
       rendreEditeurNonModifiable: () => { editable = false },
-      annulerSauvegarde,
+      preserverEtAnnulerSauvegarde,
     })
     expect(statut).toEqual({ etat: 'aucune' })
   })

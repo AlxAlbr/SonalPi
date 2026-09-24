@@ -34,7 +34,7 @@ import type {
   ResultatFermetureSession,
   ResultatFermetureToutes,
 } from '../../shared/distant'
-import type { EntretienFichier } from '../../shared/format'
+import { FORMAT_VERSION, type EntretienFichier, type PayloadEntretien } from '../../shared/format'
 
 export interface IdentiteSession {
   userId: string
@@ -57,6 +57,8 @@ interface SessionInterne {
   revision: number
   revisionPubliee: number
   dernierPubli: string | null
+  /** Limite locale au-delà de laquelle une panne de renouvellement suspend l'édition. */
+  droitValideJusqua: number
   degrade: boolean
 }
 
@@ -80,6 +82,8 @@ export interface OptionsSessions {
   /** true = variante A (files_lock sur `entretiens/<id>.json`) ; false/absent
    *  = variante B (PUT conditionnel sur `verrous/<id>.lock.json`). */
   verrouNatif?: boolean
+  /** Horloge injectable pour vérifier les échéances sans attendre en test. */
+  maintenant?: () => number
 }
 
 export class SessionsDEntretien {
@@ -160,7 +164,7 @@ export class SessionsDEntretien {
     if (!acquisition.ok) {
       return { etat: 'tenu-par-autrui', tenuPar: acquisition.tenuPar }
     }
-    if (this.options.verrouNatif) this.journalAjouter(id)
+    this.journalAjouter(id)
 
     // Enregistrer immédiatement le verrou acquis. Si le GET échoue et que la
     // libération compensatoire échoue aussi, fermerToutes pourra le reprendre.
@@ -171,6 +175,7 @@ export class SessionsDEntretien {
       revision: 0,
       revisionPubliee: 0,
       dernierPubli: null,
+      droitValideJusqua: this.maintenant() + acquisition.dureeGarantieMs,
       degrade: false,
     }
     this.sessions.set(id, session)
@@ -214,6 +219,10 @@ export class SessionsDEntretien {
     const s = this.sessions.get(id)
     if (!s) return { ok: false, raison: 'aucune session' }
     if (s.degrade) return { ok: false, raison: 'divergence' }
+    if (this.maintenant() > s.droitValideJusqua) {
+      await this.degraderInterne(id)
+      return { ok: false, raison: 'droit-expire' }
+    }
     if (s.revision <= s.revisionPubliee) return { ok: true }
     const revisionPubliee = s.revision
     const cheminFichier = CHEMIN_ENTRETIEN(id)
@@ -333,7 +342,7 @@ export class SessionsDEntretien {
   }
 
   private retirerSession(id: string): void {
-    if (this.options.verrouNatif) this.journalRetirer(id)
+    this.journalRetirer(id)
     this.sessions.delete(id)
     if (this.sessions.size === 0) this.arreterMinuteur()
   }
@@ -470,9 +479,13 @@ export class SessionsDEntretien {
     }
   }
 
+  private maintenant(): number {
+    return this.options.maintenant?.() ?? Date.now()
+  }
+
   /** Un tick du minuteur — public pour les tests. */
   async tic(): Promise<void> {
-    const maintenant = Date.now()
+    const maintenant = this.maintenant()
     for (const id of [...this.sessions.keys()]) {
       await this.serialiser(id, async () => {
         const s = this.sessions.get(id)
@@ -483,7 +496,11 @@ export class SessionsDEntretien {
             await this.degraderInterne(id, true)
             return
           }
+          s.droitValideJusqua = this.maintenant() + b.dureeGarantieMs
         } catch {
+          if (this.maintenant() > s.droitValideJusqua) {
+            await this.degraderInterne(id)
+          }
           return
         }
         if (
@@ -508,26 +525,9 @@ export class SessionsDEntretien {
     this.onRetrogradation?.(id)
     try {
       const brut = readFileSync(join(this.miroir.dirLocal, CHEMIN_ENTRETIEN(id)), 'utf8')
-      const dossierSessions = join(this.miroir.dirLocal, 'sessions')
-      mkdirSync(dossierSessions, { recursive: true })
-      let copieEcrite = false
-      while (!copieEcrite) {
-        try {
-          writeFileSync(
-            join(
-              dossierSessions,
-              `${id}.divergence-${this.identite().sessionId}.copie-${randomUUID()}.json`,
-            ),
-            brut,
-            { encoding: 'utf8', flag: 'wx' },
-          )
-          copieEcrite = true
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e
-        }
-      }
+      this.ecrireCopieRecuperation(id, brut)
     } catch {
-      /* rien à mettre de côté */
+      /* Rien à mettre de côté. */
     }
     if (verrouPerdu) {
       this.retirerSession(id)
@@ -541,6 +541,46 @@ export class SessionsDEntretien {
     }
   }
   revoquerEcriture?: (id: string) => void
+
+  /** Préserve le dernier état du renderer sans le remettre dans le miroir publiable. */
+  preserverRecuperation(id: string, payload: PayloadEntretien): boolean {
+    if (!this.sessionsDegradees.has(id)) return false
+    const fichier: EntretienFichier = {
+      ...payload,
+      formatVersion: FORMAT_VERSION,
+      lastModified: new Date(this.maintenant()).toISOString(),
+    }
+    return this.ecrireCopieRecuperation(id, JSON.stringify(fichier, null, 2))
+  }
+
+  private ecrireCopieRecuperation(id: string, brut: string): boolean {
+    try {
+      const dossierSessions = join(this.miroir.dirLocal, 'sessions')
+      mkdirSync(dossierSessions, { recursive: true })
+      while (true) {
+        try {
+          writeFileSync(
+            join(
+              dossierSessions,
+              `${id}.divergence-${this.identite().sessionId}.copie-${randomUUID()}.json`,
+            ),
+            brut,
+            { encoding: 'utf8', flag: 'wx' },
+          )
+          return true
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e
+        }
+      }
+    } catch {
+      return false
+    }
+  }
+
+  /** Ids retrouvés dans le journal local avant toute lecture distante. */
+  idsRecuperablesLocalement(): string[] {
+    return Object.keys(this.lireJournal())
+  }
 
   /** Ids des entretiens DONT NOUS tenons le verrou — passés au pull comme
    *  exclusions (le miroir n'écrase jamais une copie de travail sous verrou). */
@@ -742,13 +782,15 @@ export class SessionsDEntretien {
     } catch (e) {
       if (!(e instanceof ErreurHttp && (e.statut === 404 || e.statut === 412))) throw e
     }
+    const id = idDe(cheminVerrou)
+    if (id) this.journalRetirer(id)
   }
 
-  /* ── Journal LOCAL des verrous natifs tenus ───────────────────────────
-   * files_lock n'expose que l'UTILISATEUR détenteur — ni machine ni session.
-   * Pour retrouver nos orphelins après un crash, chaque acquisition native
-   * est consignée ici (`sessions/.verrous-natifs.json`, local pur), retirée à
-   * la fermeture/libération. Format : { id: acquiredAt ISO }.
+  /* ── Journal LOCAL des sessions tenues ────────────────────────────────
+   * Chaque acquisition est consignée avant l'édition afin qu'un redémarrage
+   * protège la copie locale avant le premier tirage. Le nom historique du
+   * fichier est conservé pour relire les journaux files_lock existants.
+   * Format : { id: acquiredAt ISO }.
    * ─────────────────────────────────────────────────────────────────────────*/
   private get fichierJournal(): string {
     return join(this.miroir.dirLocal, 'sessions', '.verrous-natifs.json')
@@ -769,8 +811,7 @@ export class SessionsDEntretien {
   }
 
   private ecrireJournal(j: Record<string, string>): void {
-    mkdirSync(dirname(this.fichierJournal), { recursive: true })
-    writeFileSync(this.fichierJournal, JSON.stringify(j, null, 2), 'utf8')
+    this.ecrireLocalFichier(this.fichierJournal, JSON.stringify(j, null, 2))
   }
 
   private journalAjouter(id: string): void {

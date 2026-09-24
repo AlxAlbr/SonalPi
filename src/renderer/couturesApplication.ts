@@ -3,10 +3,10 @@ import type { EtatSessionPublic } from '../shared/distant'
 interface ActionsStatutSession {
   definirStatut: (statut: EtatSessionPublic) => void
   rendreEditeurNonModifiable: () => void
-  annulerSauvegarde: () => Promise<void>
+  preserverEtAnnulerSauvegarde: () => Promise<void>
 }
 
-/** Applique immédiatement une perte de verrou et neutralise l'autosave différé. */
+/** Fige l'éditeur et préserve l'autosave différé après une perte de verrou. */
 export function appliquerStatutSession(
   statutCourant: EtatSessionPublic,
   nouveauStatut: EtatSessionPublic,
@@ -21,7 +21,7 @@ export function appliquerStatutSession(
   actions.definirStatut(statutEffectif)
   if (!nouvelleRetrogradation) return
   actions.rendreEditeurNonModifiable()
-  void actions.annulerSauvegarde()
+  void actions.preserverEtAnnulerSauvegarde()
 }
 
 interface AccesEntretien {

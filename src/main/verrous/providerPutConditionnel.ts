@@ -33,7 +33,7 @@ import type {
   ResultatBattement,
   VerrouProvider,
 } from './types'
-import { estLeNousMeme } from './types'
+import { estLeNousMeme, MARGE_DERIVE_S } from './types'
 
 /** Fabrique le contenu d'un verrou pour notre session. */
 export function contenuVerrou(
@@ -66,7 +66,11 @@ export class ProviderPutConditionnel implements VerrouProvider {
       // MÉMORISER la garde : battement et libération porteront CET ETag —
       // la version que nous avons créée, preuve de notre détention.
       this.etags.set(cheminVerrou, etag)
-      return { ok: true, etag }
+      return {
+        ok: true,
+        etag,
+        dureeGarantieMs: (this.ttlS + MARGE_DERIVE_S) * 1000,
+      }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
         return { ok: false, tenuPar: await this.etat(cheminVerrou) }
@@ -98,7 +102,11 @@ export class ProviderPutConditionnel implements VerrouProvider {
       // porterait un ETag périmé et échouerait en 412 (bug attrapé par le
       // contrat réel — acquire→batte→libère — jamais testé côté mémoire).
       if (etag) this.etags.set(cheminVerrou, etag)
-      return { ok: true, etag }
+      return {
+        ok: true,
+        etag,
+        dureeGarantieMs: (this.ttlS + MARGE_DERIVE_S) * 1000,
+      }
     } catch (e) {
       if (e instanceof ErreurHttp && e.statut === 412) {
         // Notre verrou a été FORCÉ entre-temps, détecté au battement suivant.

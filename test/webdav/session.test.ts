@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
@@ -13,10 +13,11 @@ import { MiroirWebDAV } from '../../src/main/distant/miroir'
 import { SessionsDEntretien, type IdentiteSession } from '../../src/main/distant/sessions'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
+import type { PayloadEntretien } from '../../src/shared/format'
 
 const ID = 'ent-abc'
 
-function banc() {
+function banc(options: { maintenant?: () => number } = {}) {
   const serveur = new ServeurWebDAVMemoire()
   serveur.poser('corpus.json', '{"membership":{}}')
   serveur.poser(`${'entretiens'}/${ID}.json`, JSON.stringify({ lastModified: 'v1', texte: '' }))
@@ -28,12 +29,16 @@ function banc() {
     liberation: false,
     attendrePublication: null as Promise<void> | null,
     publicationCommencee: null as (() => void) | null,
+    battement: false,
   }
   const fetch: typeof serveur.fetch = async (entree, init) => {
     const requete = new Request(entree, init)
     const chemin = new URL(requete.url).pathname
     if (requete.method === 'GET' && chemin.endsWith(`/entretiens/${ID}.json`)) {
       if (panne.lecture) return new Response('panne', { status: 503 })
+    }
+    if (requete.method === 'PUT' && chemin.endsWith(`/verrous/${ID}.lock.json`) && panne.battement) {
+      return new Response('panne', { status: 503 })
     }
     if (requete.method === 'PUT' && chemin.endsWith(`/entretiens/${ID}.json`)) {
       panne.publicationCommencee?.()
@@ -65,6 +70,8 @@ function banc() {
     miroir,
     () => ({ ...identite.value }),
     (id) => retrogrades.push(id),
+    undefined,
+    { maintenant: options.maintenant },
   )
   return {
     serveur,
@@ -408,6 +415,62 @@ describe('Fermeture — ordre invariant publier PUIS déverrouiller', () => {
 })
 
 describe('Rétrogradation', () => {
+  it('tolère une panne de renouvellement seulement jusqu’à l’expiration du droit', async () => {
+    let maintenant = Date.now()
+    const b = banc({ maintenant: () => maintenant })
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, JSON.stringify({ lastModified: 'local', texte: 'à préserver' }))
+    b.sessions.noterSale(ID)
+    b.panne.battement = true
+
+    maintenant += 419_000
+    await b.sessions.tic()
+    expect(b.sessions.etat(ID)).toMatchObject({ etat: 'a-nous', sale: true })
+    expect(b.retrogrades).toEqual([])
+
+    maintenant += 2_000
+    await b.sessions.tic()
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+    expect(b.retrogrades).toEqual([ID])
+    expect(b.sessions.listerDivergences()).toHaveLength(1)
+    expect(b.sessions.lireDivergence(b.sessions.listerDivergences()[0].chemin))
+      .toMatchObject({ texte: 'à préserver' })
+  })
+
+  it('refuse une publication si le droit a expiré avant le prochain battement', async () => {
+    let maintenant = Date.now()
+    const b = banc({ maintenant: () => maintenant })
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    writeFileSync(b.fichierLocal, JSON.stringify({ lastModified: 'local', texte: 'non publié' }))
+    b.sessions.noterSale(ID)
+    maintenant += 421_000
+
+    await expect(b.sessions.publier(ID)).resolves.toEqual({
+      ok: false,
+      raison: 'droit-expire',
+    })
+    expect(b.serveur.contenuDe(`entretiens/${ID}.json`)).not.toContain('non publié')
+    expect(b.sessions.etat(ID)).toEqual({ etat: 'degrade' })
+  })
+
+  it('un renouvellement réussi repousse l’expiration locale', async () => {
+    let maintenant = Date.now()
+    const b = banc({ maintenant: () => maintenant })
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+
+    maintenant += 300_000
+    await b.sessions.tic()
+    b.panne.battement = true
+    maintenant += 300_000
+    await b.sessions.tic()
+
+    expect(b.sessions.etat(ID).etat).toBe('a-nous')
+    expect(b.retrogrades).toEqual([])
+  })
+
   it('battement raté après forçage : callback + copie de divergence locale', async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -438,6 +501,30 @@ describe('Rétrogradation', () => {
 /* ── Copies de divergence : lister / lire / supprimer ───────────────────*/
 
 describe("Copies de divergence — l'API du dialogue de fusion (E3b)", () => {
+  it('préserve séparément le dernier état reçu du renderer après rétrogradation', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    await b.sessions.ouvrir(ID)
+    const payload = {
+      corpsTexte: { type: 'doc', content: [{ type: 'paragraph', text: 'debounce récent' }] },
+      annotations: [],
+      ancres: [],
+      locuteurs: [],
+      meta: { valeursGen: {}, audioRef: null },
+    } satisfies PayloadEntretien
+
+    expect(b.sessions.preserverRecuperation(ID, payload)).toBe(false)
+    b.serveur.poser(`entretiens/${ID}.json`, '{ "contourné": true }')
+    b.sessions.noterSale(ID)
+    expect(await b.sessions.publier(ID)).toMatchObject({ ok: false, raison: 'divergence' })
+
+    expect(b.sessions.preserverRecuperation(ID, payload)).toBe(true)
+    const copies = b.sessions.listerDivergences()
+      .map((copie) => b.sessions.lireDivergence(copie.chemin))
+    expect(copies).toHaveLength(2)
+    expect(copies).toContainEqual(expect.objectContaining({ corpsTexte: payload.corpsTexte }))
+  })
+
   it("après rétrogradation : la copie est listée, lisible puis supprimable", async () => {
     const b = banc()
     await b.miroir.tirer()
@@ -618,6 +705,54 @@ describe('Reprise après crash', () => {
     writeFileSync(b.fichierLocal, nonPublie)
     b.identite.value = { userId: 'max', machineId: 'poste-1', sessionId: 's-NOUVELLE' }
   }
+
+  it('le journal protège la copie locale avant le premier tirage du redémarrage', async () => {
+    const b = banc()
+    await crash(b)
+    const copieLocale = readFileSync(b.fichierLocal, 'utf8')
+    b.serveur.poser(
+      `entretiens/${ID}.json`,
+      JSON.stringify({ lastModified: 'serveur-après-crash', texte: 'serveur' }),
+    )
+    const sessionsRelancees = new SessionsDEntretien(
+      b.client,
+      b.miroir,
+      () => ({ userId: 'max', machineId: 'poste-1', sessionId: 's-RELANCE' }),
+    )
+
+    const idsProteges = sessionsRelancees.idsRecuperablesLocalement()
+    expect(idsProteges).toEqual([ID])
+    const tirage = await b.miroir.tirer(
+      idsProteges.map((id) => `entretiens/${id}.json`),
+    )
+
+    expect(tirage.telecharges).not.toContain(`entretiens/${ID}.json`)
+    expect(readFileSync(b.fichierLocal, 'utf8')).toBe(copieLocale)
+  })
+
+  it('un ancien crash sans journal est protégé par le verrou distant observé avant tirage', async () => {
+    const b = banc()
+    await crash(b)
+    const copieLocale = readFileSync(b.fichierLocal, 'utf8')
+    unlinkSync(join(b.dirMiroir, 'sessions', '.verrous-natifs.json'))
+    b.serveur.poser(
+      `entretiens/${ID}.json`,
+      JSON.stringify({ lastModified: 'serveur-après-crash', texte: 'serveur' }),
+    )
+    const sessionsRelancees = new SessionsDEntretien(
+      b.client,
+      b.miroir,
+      () => ({ userId: 'max', machineId: 'poste-1', sessionId: 's-RELANCE' }),
+    )
+
+    const orphelins = await sessionsRelancees.orphelins()
+    expect(orphelins.map((orphelin) => orphelin.id)).toEqual([ID])
+    await b.miroir.tirer(
+      orphelins.map((orphelin) => `entretiens/${orphelin.id}.json`),
+    )
+
+    expect(readFileSync(b.fichierLocal, 'utf8')).toBe(copieLocale)
+  })
 
   it('détection : un verrou de NOTRE machine mais d\'UNE AUTRE session est orphelin', async () => {
     const b = banc()
