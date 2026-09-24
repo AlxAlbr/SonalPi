@@ -20,6 +20,7 @@
     "test:charge": "node scripts/test-charge.mjs",
     "diagnostic:e2e": "npm run build && playwright test --config=playwright.diagnostic.config.ts",
     "test:multiuser": "npm run build && playwright test e2e/multi-utilisateur.e2e.ts --workers=1",
+    "test:gitlab": "vitest run test/gitlab",
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "nc:up": "docker compose -f docker/compose.yml up -d",
     "nc:provision": "bash docker/provisionner.sh",

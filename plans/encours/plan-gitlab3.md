@@ -444,6 +444,10 @@ justifiée et mesurée, pas ajoutée à chaque publication par facilité.
 
 Les éditions externes de sources non écrites peuvent sortir de ces garanties :
 le rapport doit préciser cette limite, voire restreindre les commandes concernées.
+Le banc GitLab 18.11 confirme toutefois une option bornée : inclure une action
+update qui renvoie le contenu inchangé de la source avec son `last_commit_id`.
+Une garde périmée refuse alors atomiquement la cible. Cette source entre de fait
+dans les actions du commit ; évaluer coût, taille et verrous avant généralisation.
 
 ### 7.3 Journal durable et résultat indéterminé
 
@@ -679,7 +683,14 @@ Rapport détaillé : [qualification GitLab et état du chantier](../../docs/dev/
 - [x] Séparer l'observation des verrous et migrer le manifeste vers un format discriminé v2 ; sélection : 251 tests réussis.
 - [x] Rendre l'installation locale reprenable par journal et préparation complète ; sélection : 254 tests réussis.
 - [x] Extraire les transferts binaires et injecter l'adaptateur WebDAV sans changer les parcours média ; sélection : 254 tests réussis.
-- [ ] Qualifier concurrence et médias sur un GitLab réel ; aucun serveur disponible testé.
+- [x] Redémarrer sans téléchargement le banc GitLab Docker existant et isoler deux projets LFS actif/inactif.
+- [x] Qualifier create, atomicité multi-actions, gardes update/delete/move et interaction LFS Locks/commits REST sur GitLab 18.11.
+- [x] Valider le transfert LFS binaire sans push Git, du batch upload à la lecture vérifiée par le second compte.
+- [x] Valider qu'un bail versionné bloque atomiquement une ancienne génération, y compris avec deux postes sous le même compte.
+- [x] Réconcilier par identifiant un commit accepté dont la réponse réseau est perdue.
+- [x] Mesurer une première série de renouvellements et leur course sur une même garde.
+- [x] Protéger une source métier lue par une action conditionnelle inchangée dans le commit.
+- [ ] Compléter les interactions avec sessions longues, la mesure longue durée/CI et les transferts LFS volumineux, annulés ou refusés par quota.
 
 Le typecheck est bloqué par l'installation locale incomplète (`pdfjs-dist`,
 `jszip`, `docx` absents). Aucune dépendance installée pour contourner ce blocage.
@@ -966,24 +977,34 @@ Avant toute installation :
   nettoyage automatique de données existantes ou déplacement imposé.
   Toute éventuelle suppression de fixtures fait l'objet d'une autorisation distincte.
 
-Constat en lecture seule lors de cette discussion :
+Constat en lecture seule le plus récent :
 
-- Racine Linux WSL : environ 897 Gio annoncés libres dans un disque virtuel
-  d'environ 1 Tio ; cette valeur ne garantit pas la place sur le disque hôte.
-- Disque Windows `C:` : environ **12 Gio libres**, occupation à 96 %.
-- Mémoire visible par cette distribution WSL : environ **3,7 Gio au total**, dont
-  1,2 Gio disponibles au moment de la mesure ; budget Docker Desktop non vérifié.
-- Docker n'est pas accessible depuis cette distribution : la commande indique
-  que l'intégration WSL Docker Desktop n'est pas disponible. Impossible de
-  relever les images existantes ou l'emplacement effectif du stockage Docker.
+- Docker est accessible dans cette distribution ; son stockage visible sous
+  `/var/lib/docker` dispose d'environ 676 Gio et la machine expose 30 Gio de RAM.
+- L'image locale `gitlab/gitlab-ce` contient GitLab CE 18.11.0-ce.0. Le conteneur
+  arrêté `gitlab`, les trois volumes nommés et un jeu de certificats existent déjà
+  sous `/home/belignem/TestGitlabLocal` ; aucun téléchargement n'est nécessaire.
+- Les volumes contiennent une instance initialisée et des dépôts de qualification.
+  Les journaux attestent un service sain et des appels LFS Locks antérieurs, sans
+  suffire à valider les scénarios de concurrence et de transfert exigés par ce plan.
+- Une erreur de cible du volume de logs dans `docker-compose.yml` expliquait le
+  dernier échec. Le Compose a été corrigé, l'image locale épinglée par digest et
+  le pull interdit. Le conteneur défectueux reste conservé ; aucun volume nommé,
+  conteneur historique ni fichier de qualification n'a été supprimé.
+- Le certificat autosigné et sa clé correspondent. Le nouveau conteneur utilise
+  les volumes nommés et répond sur les ports 80, 443 et 2222 sans redémarrage ni OOM.
+- Deux projets dédiés exposent LFS actif/inactif. `user1` et `user2` y accèdent ;
+  les jetons temporaires sont stockés hors dépôt dans un fichier de mode `0600`.
 
-**Conclusion : ne pas installer GitLab localement à ce stade.** Confirmer d'abord
-le disque hébergeant Docker et ses ressources. Si le stockage est sur `C:`, la
-marge observée est trop faible pour engager sereinement ce banc. Les alternatives
-sont un autre poste/serveur de test ou un projet de qualification institutionnel,
-pas un nettoyage automatique. La lecture V1, les tests en mémoire et l'extraction
-Nextcloud peuvent avancer sans cette installation. Docker ne remplace pas la
-recette finale des droits, quotas, OAuth et certificats institutionnels.
+**Conclusion : le banc GitLab 18.11 est opérationnel sans réinstallation.** Les
+essais valident create exclusif, atomicité multi-actions, gardes update/delete/move
+et imposition des LFS Locks aux commits REST entre deux comptes. Le transfert LFS
+binaire complet fonctionne aussi sans push Git et depuis le second compte. Un
+verrou LFS appartient toutefois au compte : deux postes utilisant le même compte
+ne sont pas exclus l'un de l'autre. Le bail versionné bloque cette course dans le
+premier scénario réel et devient le candidat principal à mesurer. Docker ne
+remplace pas la recette finale des
+droits, quotas, OAuth et certificats institutionnels.
 
 ## 13. Risques, arbitrages restants et définition de terminé
 
@@ -991,7 +1012,7 @@ recette finale des droits, quotas, OAuth et certificats institutionnels.
 
 - Branche/tag V1 correspondant si possible aux utilisateurs et fonctions pratiquées,
   notamment médias ; le chemin du dépôt est confirmé, l'étude peut commencer.
-- Disponibilité et ressources du moteur Docker, ou autre hébergement du banc.
+- Décision de protocole face à la limite des LFS Locks pour deux postes utilisant le même compte.
 - Instance institutionnelle, version, état LFS du projet, scopes et configuration OAuth.
 - Quotas/protections de branche/CI, taille des corpus et médias, concurrence attendue.
 - Acceptation de la conservation historique et procédure de copie anonymisée.
@@ -1040,8 +1061,10 @@ recette de la version distribuée n'a été exécutée pour rédiger ce document
 
 La rédaction initiale ne comportait aucun essai applicatif. Depuis, la première
 itération a exécuté les tests en mémoire détaillés dans `docs/dev/gitlab.md`.
-Aucun compte réel utilisé, aucun corpus distant modifié, aucune installation
-Docker engagée. La première façade de contexte, les contrats de lecture et de transfert ainsi
+Aucun compte institutionnel utilisé et aucun corpus utilisateur distant modifié.
+Le banc Docker local préexistant a été redémarré sans téléchargement ; les gardes,
+la réponse perdue et le premier transfert LFS réel sont consignés dans
+`docs/dev/gitlab.md`. La première façade de contexte, les contrats de lecture et de transfert ainsi
 que l'installation locale reprenable sont implémentés ; les contrats de
 publication et de coordination restent à extraire.
 

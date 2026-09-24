@@ -1,7 +1,7 @@
 # GitLab — qualification et état du chantier
 
-**État : étude V1 et caractérisation V2 en cours ; aucun connecteur GitLab V2
-ni protocole GitLab réel validé à ce stade.**
+**État : étude V1 et caractérisation V2 en cours ; aucun connecteur GitLab V2,
+mais premières gardes REST et LFS Locks qualifiées sur le banc Docker.**
 
 Le [plan directeur](../../plans/encours/plan-gitlab3.md) fixe la cible : miroir
 commun, édition exclusive, publications conditionnelles, médias selon les
@@ -38,10 +38,11 @@ restent toutefois à qualifier pour la V2.
 
 ### V2
 
-Base inspectée : `c99ba4f7667b5108c8eef915d2889768894e0b2c`.
-Tests exécutés avec transports injectés en mémoire et fichiers temporaires de
-fixtures. Pas de requête vers un compte GitLab, pas de banc Docker démarré,
-pas de dépendance installée, pas de suppression de données existantes.
+Base initialement inspectée : `c99ba4f7667b5108c8eef915d2889768894e0b2c`.
+Les premières itérations ont utilisé des transports injectés en mémoire et des
+fichiers temporaires. Le banc Docker préexistant est désormais démarré avec des
+projets synthétiques séparés ; aucune dépendance n'a été installée et aucun ancien
+projet, volume, conteneur ou fichier de qualification n'a été supprimé.
 
 ## 2. Acquis V1 et différences à traiter
 
@@ -238,27 +239,79 @@ sans leur attribuer prématurément des garanties communes.
 
 ## 6. Qualification GitLab encore nécessaire
 
-Pas de Docker accessible et ressources locales contraintes : ne pas installer
-GitLab ni nettoyer le poste pour débloquer artificiellement le chantier.
-Cible de banc : une instance, deux projets avec LFS activé/désactivé, deux comptes,
-deux postes logiques. Une qualification sur l'instance institutionnelle reste
-nécessaire après les essais reproductibles.
+Un banc Docker préexistant a été retrouvé après la première étude. Docker est
+accessible et les ressources visibles sont suffisantes ; l'image locale contient
+GitLab CE 18.11.0-ce.0, avec volumes et données déjà initialisés. Le Compose a été
+corrigé, l'image locale épinglée et le pull interdit. Un nouveau conteneur utilise
+les volumes nommés ; l'ancien conteneur défectueux reste conservé.
+
+Le banc est maintenant reproductible avec deux projets LFS activé/désactivé,
+deux comptes et deux postes logiques. Les essais ci-dessous utilisent uniquement
+des données synthétiques dédiées. Une qualification institutionnelle reste
+nécessaire pour les droits, quotas, OAuth et certificats de la cible réelle.
 
 | Question | Vérification ciblée | État |
 |---|---|---|
-| Gardes des actions | Create exclusif ; update/delete/move périmés ; action invalide refusant tout le commit. | Non exécuté. |
-| Locks V1 et REST | Commit sous verrou détenu par autrui, même compte sur deux postes, reprise puis ancien détenteur. | Code V1 inspecté ; serveur non testé. |
-| Bail versionné candidat | Publication + mutation réelle du verrou, ancienne génération, renouvellement concurrent, réponse perdue. | Non exécuté ; option non sélectionnée. |
-| Dépendances métier | Source lue mais non écrite, transaction corpus face à une session longue. | Non exécuté. |
-| LFS média | Batch upload, objet, pointeur, association au projet et lecture binaire depuis le second compte sans push Git. | Download texte retrouvé en V1 ; parcours V2 non qualifié. |
-| Détection | Réglage projet actif/inactif, 403, timeout, lecteur sans droit d'envoi, revérification. | Parcours décidé ; non implémenté. |
+| Gardes des actions | Create exclusif ; update/delete/move périmés ; action invalide refusant tout le commit. | Validés sur GitLab 18.11 : create exclusif, gardes `last_commit_id` périmées pour update/delete/move et atomicité d'un commit contenant une action invalide. |
+| Locks V1 et REST | Commit sous verrou détenu par autrui, même compte sur deux postes, reprise puis ancien détenteur. | LFS Lock imposé aux commits REST d'un autre compte ; après reprise par `user2`, l'ancien `user1` est refusé. Deux jetons de `user1` restent toutefois le même détenteur : le second poste peut publier sous le verrou du premier. |
+| Bail versionné candidat | Publication + mutation réelle du verrou, ancienne génération, renouvellement concurrent, réponse perdue. | Acquisition concurrente : un seul create réussit. Après reprise par une nouvelle génération du même compte, publication et mutation périmée de l'ancien sont refusées atomiquement ; la génération courante publie. Deux renouvellements sur la même garde donnent un succès et un refus ; huit renouvellements séquentiels réussissent. |
+| Résultat indéterminé | Couper la réponse après acceptation, retrouver l'opération au bon commit et vérifier son contenu. | Un proxy local laisse GitLab répondre 201 puis détruit la connexion avant toute réponse au client. L'opération est retrouvée par son identifiant dans l'historique et son fichier est vérifié. |
+| Dépendances métier | Source lue mais non écrite, transaction corpus face à une session longue. | Une action update renvoyant le contenu inchangé avec `last_commit_id` protège la source dans le même commit : fraîche, elle est acceptée ; périmée, elle refuse aussi la mutation de la cible. Sans cette action, la cible est publiée malgré la source modifiée. À borner selon taille et matrice métier. |
+| LFS média | Batch upload, objet, pointeur, association au projet et lecture binaire depuis le second compte sans push Git. | Parcours complet validé avec un binaire de 1 048 833 octets : batch, upload, pointeur + `.gitattributes` + désignation en un commit, batch download par `user2`, taille, SHA-256 et octets vérifiés. Le projet sans LFS refuse le batch. Gros volumes, streaming disque, quotas et annulation restent à tester. |
+| Détection | Réglage projet actif/inactif, 403, timeout, lecteur sans droit d'envoi, revérification. | Deux projets réels exposent correctement `lfs_enabled=true/false` aux comptes de test ; erreurs et revérification restent à implémenter. |
 | OAuth institutionnel | Configuration disponible, scopes REST/LFS, renouvellement et certificat. | Parcours V1 inspecté ; instance non testée. |
-| Coût | Commits de coordination, CI, limites de débit, mémoire et disque des médias. | Non mesuré. |
+| Coût | Commits de coordination, CI, limites de débit, mémoire et disque des médias. | Série courte : huit renouvellements en 2 613 ms, soit 327 ms/commit en moyenne locale. Chaque renouvellement crée bien un commit ; durée de journée, CI et croissance du dépôt restent à mesurer. |
 
 Aucun résultat fictif d'un faux serveur ne doit remplir la colonne des preuves
 réelles. Aucun seuil de charge arbitraire ne remplace les volumes des équipes.
 
 ## 7. Résultats reproductibles de la première itération
+
+### Qualification GitLab Docker
+
+Le banc utilise GitLab CE 18.11.0, deux comptes, deux jetons distincts pour les
+deux postes logiques de `user1`, et deux projets dédiés avec LFS actif/inactif.
+Les secrets temporaires restent hors dépôt dans un fichier `0600`.
+
+```sh
+set -a
+source /home/belignem/TestGitlabLocal/qualification.env
+set +a
+NODE_EXTRA_CA_CERTS="$GITLAB_CA" npm run test:gitlab
+```
+
+Résultat : **11 tests réussis**. Ils prouvent la création exclusive, l'atomicité
+d'un commit multi-actions refusé, les gardes `last_commit_id` sur update/delete/move,
+les capacités des deux projets et l'application des LFS Locks aux commits REST.
+La limite importante est confirmée : GitLab identifie le propriétaire du verrou
+par compte, pas par poste ou session. Deux postes partageant le même compte ne
+sont donc pas exclus l'un de l'autre par ce mécanisme seul.
+
+Le candidat de bail versionné distingue au contraire deux générations du même
+compte. Deux acquisitions concurrentes produisent un seul gagnant ; une reprise
+rend ensuite atomiquement impossible la publication de l'ancienne génération.
+Deux renouvellements concurrents fondés sur la même garde donnent aussi un seul
+gagnant. Une série de huit renouvellements a pris 2 613 ms, soit 327 ms par commit
+en moyenne locale ; elle confirme le coût d'un commit par battement sans mesurer
+encore une journée complète ni l'effet d'une CI institutionnelle.
+Un proxy local reproduit aussi un résultat indéterminé réel : GitLab accepte le
+commit et produit sa réponse, puis la connexion est détruite avant que le client
+ne reçoive le statut. L'identifiant d'opération permet de retrouver le bon commit
+et d'en vérifier le contenu sans rejouer la mutation.
+
+Pour une dépendance métier lue, GitLab accepte une action update qui renvoie son
+contenu inchangé sous `last_commit_id`. Si cette source change avant le commit,
+toute la publication est refusée ; sans cette action, la cible seule est acceptée.
+Cette technique place volontairement la source dans les actions du commit et doit
+rester bornée aux dépendances et tailles validées.
+
+Le transfert LFS complet sans push Git est également validé avec un binaire de
+1 048 833 octets, relu par le second compte avec contrôle de la taille, du SHA-256
+et des octets. Le banc ne teste pas encore gros volumes, mémoire bornée, annulation,
+quota, renouvellements sur une journée complète ni coût CI/stockage des commits de bail.
+Les fichiers et verrous synthétiques sont conservés pour examen ; aucun nettoyage
+automatique n'est effectué hors suppression explicitement exercée par le scénario
+de garde delete.
 
 ### Tests exécutés
 
@@ -331,7 +384,9 @@ La suite bornée est :
 2. Continuer à déplacer les intentions des handlers vers le contexte, en
    capturant le contexte de départ pour les commandes asynchrones.
 
-En parallèle, reprendre la qualification GitLab dès qu'un moteur Docker doté
-de ressources suffisantes ou un projet de test autorisé est disponible.
-L'étude V1 est exploitable dès maintenant ; elle n'impose pas de toucher aux
-sources V1 ni de réinstaller les services existants.
+En parallèle, étendre le banc GitLab désormais opérationnel aux renouvellements
+et au coût du bail, à une vraie réponse réseau perdue et aux transferts LFS
+volumineux/annulés. La limite « même compte sur deux postes » écarte LFS Locks
+seuls pour satisfaire l'invariant visé ; le bail versionné devient le candidat
+principal à mesurer avant L4. L'étude V1 reste exploitable sans toucher à ses
+sources ni réinstaller les services existants.
