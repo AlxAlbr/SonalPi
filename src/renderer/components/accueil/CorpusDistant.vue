@@ -1,31 +1,27 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
-import type {
-  BrancheGitLabPublic,
-  CompteDistantPublic,
-  DestinationGitLabPublic,
-  ProfilCapacites,
-  ProjetGitLabPublic,
-} from '../../../shared/distant'
+import { useProjetGitLab } from '../../composables/corpus/useProjetGitLab'
+import type { DestinationGitLabPublic } from '../../../shared/gitlab'
+import type { DestinationWebDAVPublic, ProfilCapacitesWebDAV } from '../../../shared/webdav'
 
 /**
  *  Ouvre une destination Nextcloud ou GitLab.
- *  Les secrets restent dans le main process.
+ *  Les secrets saisis sont transmis au main, jamais renvoyés par le coffre.
  */
 const props = defineProps<{
   fournisseurInitiale?: 'nextcloud' | 'gitlab'
 }>()
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const {
-  ouvrirCorpusDistant,
+  ouvrirCorpusWebDAV,
   ouvrirDestinationGitLab,
   enregistrerEtOuvrirGitLab,
-  oublierCompteDistant,
+  oublierDestinationWebDAV,
 } = utiliserSonal()
 
 const fournisseur = ref<'nextcloud' | 'gitlab'>(props.fournisseurInitiale ?? 'nextcloud')
-const comptes = ref<CompteDistantPublic[]>([])
+const comptes = ref<DestinationWebDAVPublic[]>([])
 const destinationsGitLab = ref<DestinationGitLabPublic[]>([])
 const stockageSecuriseDisponible = ref<boolean | null>(null)
 const motsDePasseSession = ref<Record<string, string>>({})
@@ -35,26 +31,23 @@ const utilisateur = ref('')
 const motDePasse = ref('')
 const enCours = ref(false)
 const erreur = ref<string | null>(null)
-const profilConnecte = ref<ProfilCapacites | null>(null)
-const urlGitLab = ref('')
-const urlProjetGitLab = ref('')
-const utilisateurGitLab = ref('')
-const jetonGitLab = ref('')
-const projetGitLab = ref<number | null>(null)
-const nomProjetGitLab = ref('')
-const brancheGitLab = ref('')
-const racineGitLab = ref('')
-const projetsGitLab = ref<ProjetGitLabPublic[]>([])
-const branchesGitLab = ref<BrancheGitLabPublic[]>([])
-const branchesGitLabTronquees = ref(false)
-const actionGitLab = ref<'decouverte' | 'branches' | 'ouverture' | null>(null)
+const profilConnecte = ref<ProfilCapacitesWebDAV | null>(null)
+const {
+  urlProjet: urlProjetGitLab,
+  jeton: jetonGitLab,
+  racine: racineGitLab,
+  projet: projetGitLab,
+  demande: demandeGitLab,
+  chargement: chargementGitLab,
+  charger: chargerProjetGitLab,
+} = useProjetGitLab({ enCours, erreur })
 
 async function rafraichirListe() {
-  comptes.value = await window.sonal.distant.lister()
+  comptes.value = await window.sonal.webdav.lister()
 }
 async function initialiser() {
   const [liste, gitlab, stockageSecurise] = await Promise.all([
-    window.sonal.distant.lister(),
+    window.sonal.webdav.lister(),
     window.sonal.gitlab.lister(),
     window.sonal.distant.stockageSecuriseDisponible(),
   ])
@@ -68,7 +61,7 @@ async function connecter() {
   enCours.value = true
   erreur.value = null
   try {
-    const r = await window.sonal.distant.connecter({
+    const r = await window.sonal.webdav.connecter({
       urlServeur: urlServeur.value.trim().replace(/\/+$/, ''),
       utilisateur: utilisateur.value.trim(),
       motDePasse: motDePasse.value,
@@ -89,14 +82,14 @@ async function connecter() {
   }
 }
 
-async function ouvrir(compte: CompteDistantPublic) {
+async function ouvrir(compte: DestinationWebDAVPublic) {
   enCours.value = true
   erreur.value = null
   try {
     const motDePasse = compte.motDePasseDisponible
       ? undefined
       : motsDePasseSession.value[compte.id]
-    await ouvrirCorpusDistant(compte.id, motDePasse)
+    await ouvrirCorpusWebDAV(compte.id, motDePasse)
     emit('fermer')
   } catch (e) {
     erreur.value =
@@ -106,7 +99,7 @@ async function ouvrir(compte: CompteDistantPublic) {
 }
 
 async function oublier(id: string) {
-  comptes.value = await oublierCompteDistant(id)
+  comptes.value = await oublierDestinationWebDAV(id)
 }
 
 async function ouvrirGitLab(destination: DestinationGitLabPublic) {
@@ -124,104 +117,15 @@ async function ouvrirGitLab(destination: DestinationGitLabPublic) {
   }
 }
 
-function invaliderDecouverteGitLab(): void {
-  projetGitLab.value = null
-  nomProjetGitLab.value = ''
-  brancheGitLab.value = ''
-  projetsGitLab.value = []
-  branchesGitLab.value = []
-  branchesGitLabTronquees.value = false
-}
-
-async function chargerProjetGitLab(): Promise<void> {
-  if (!jetonGitLab.value || !urlProjetGitLab.value.trim()) return
-  actionGitLab.value = 'decouverte'
-  enCours.value = true
-  erreur.value = null
-  try {
-    const projetUrl = new URL(urlProjetGitLab.value.trim())
-    if (projetUrl.protocol !== 'https:' && projetUrl.hostname !== 'localhost' && projetUrl.hostname !== '127.0.0.1') {
-      throw new Error('Adresse du projet GitLab HTTPS requise.')
-    }
-    urlGitLab.value = projetUrl.origin
-    utilisateurGitLab.value = await window.sonal.gitlab.lireUtilisateur({
-      urlInstance: urlGitLab.value,
-      jeton: jetonGitLab.value,
-    })
-    const projet = await window.sonal.gitlab.chargerProjet({
-      urlInstance: urlGitLab.value.trim(),
-      jeton: jetonGitLab.value,
-      projet: urlProjetGitLab.value.trim(),
-    })
-    projetsGitLab.value = [projet]
-    projetGitLab.value = projet.id
-    await choisirProjetGitLab()
-  } catch (e) {
-    erreur.value = e instanceof Error ? e.message : 'Chargement du projet GitLab impossible.'
-  } finally {
-    actionGitLab.value = null
-    enCours.value = false
-  }
-}
-
-async function choisirProjetGitLab(): Promise<void> {
-  const projet = projetsGitLab.value.find((candidate) => candidate.id === projetGitLab.value)
-  brancheGitLab.value = ''
-  branchesGitLab.value = []
-  branchesGitLabTronquees.value = false
-  nomProjetGitLab.value = projet?.nom ?? ''
-  if (!projet) return
-  if (projet.archive) {
-    erreur.value = 'Ce projet GitLab est archivé et ne peut pas être ouvert.'
-    return
-  }
-
-  actionGitLab.value = 'branches'
-  enCours.value = true
-  erreur.value = null
-  try {
-    const resultat = await window.sonal.gitlab.decouvrirBranches({
-      urlInstance: urlGitLab.value.trim(),
-      jeton: jetonGitLab.value,
-      projetId: projet.id,
-    })
-    branchesGitLab.value = resultat.elements
-    branchesGitLabTronquees.value = resultat.tronque
-    const brancheParDefaut = resultat.elements.find((branche) => branche.parDefaut)
-    brancheGitLab.value = brancheParDefaut?.nom
-      ?? resultat.elements.find((branche) => branche.nom === projet.brancheParDefaut)?.nom
-      ?? resultat.elements[0]?.nom
-      ?? ''
-    if (!brancheGitLab.value) {
-      erreur.value = 'Ce projet ne contient aucune branche lisible.'
-    }
-  } catch (e) {
-    erreur.value = e instanceof Error ? e.message : 'Découverte des branches impossible.'
-  } finally {
-    actionGitLab.value = null
-    enCours.value = false
-  }
-}
-
 async function connecterGitLab() {
-  if (projetGitLab.value === null) return
-  actionGitLab.value = 'ouverture'
+  if (enCours.value || !demandeGitLab.value) return
   enCours.value = true
   erreur.value = null
   try {
-    await enregistrerEtOuvrirGitLab({
-      urlInstance: urlGitLab.value,
-      utilisateur: utilisateurGitLab.value,
-      jeton: jetonGitLab.value,
-      projetId: projetGitLab.value,
-      nomProjet: nomProjetGitLab.value,
-      branche: brancheGitLab.value,
-      racine: racineGitLab.value,
-    })
+    await enregistrerEtOuvrirGitLab(demandeGitLab.value)
     emit('fermer')
   } catch (e) {
     erreur.value = e instanceof Error ? e.message : 'Connexion GitLab impossible.'
-    actionGitLab.value = null
     enCours.value = false
   }
 }
@@ -351,13 +255,14 @@ async function oublierGitLab(id: string) {
         <details class="aide-gitlab">
           <summary>Préparer la connexion GitLab</summary>
           <ol>
-            <li>Le projet GitLab doit déjà exister.</li>
+            <li>Le projet GitLab doit déjà exister et contenir le corpus à ouvrir.</li>
             <li>
               Donnez aux collaborateurs le rôle Developer au minimum. Si la branche est protégée,
               autorisez les Developers à pousser.
             </li>
             <li>
-              Copiez l’adresse du projet depuis GitLab, puis indiquez-la ci-dessus avec le PAT.
+              Copiez l’adresse du projet depuis GitLab, puis indiquez-la ci-dessous avec le PAT.
+              Sonal utilise automatiquement la branche par défaut du projet.
             </li>
           </ol>
         </details>
@@ -394,10 +299,6 @@ async function oublierGitLab(id: string) {
         </div>
 
         <div class="question">
-          <span class="q-lbl">Jeton d'accès personnel</span>
-          <input v-model="jetonGitLab" class="champ jeton-gitlab" type="password" :disabled="enCours" @input="invaliderDecouverteGitLab" />
-        </div>
-        <div class="question">
           <span class="q-lbl">Adresse du projet GitLab</span>
           <input
             v-model="urlProjetGitLab"
@@ -406,46 +307,35 @@ async function oublierGitLab(id: string) {
             placeholder="https://gitlab.exemple.org/mon-groupe/mon-corpus"
             spellcheck="false"
             :disabled="enCours"
-            @input="invaliderDecouverteGitLab"
           />
+        </div>
+        <div class="question">
+          <span class="q-lbl">Jeton d'accès personnel</span>
+          <input v-model="jetonGitLab" class="champ jeton-gitlab" type="password" :disabled="enCours" />
           <button
             class="mini charger-projet-gitlab"
             :disabled="enCours || !jetonGitLab || !urlProjetGitLab.trim()"
             @click="chargerProjetGitLab"
           >
-            {{ actionGitLab === 'decouverte' ? 'Chargement…' : 'Charger le projet' }}
+            {{ chargementGitLab ? 'Chargement…' : 'Charger le projet' }}
           </button>
         </div>
-        <div v-if="projetGitLab !== null" class="ligne-2">
-          <div class="question">
-            <span class="q-lbl">Branche</span>
-            <select
-              v-if="projetGitLab !== null"
-              v-model="brancheGitLab"
-              class="champ branche-gitlab"
-              :disabled="enCours || branchesGitLab.length === 0"
-            >
-              <option value="">Choisir une branche…</option>
-              <option v-for="branche in branchesGitLab" :key="branche.nom" :value="branche.nom">
-                {{ branche.nom }}{{ branche.parDefaut ? ' (par défaut)' : '' }}
-              </option>
-            </select>
-          </div>
+        <template v-if="projetGitLab">
+          <p class="note-secret">
+            {{ projetGitLab.nomProjet }} — branche par défaut :
+            <span class="branche-gitlab">{{ projetGitLab.branche }}</span>
+          </p>
           <div class="question">
             <span class="q-lbl">Racine du corpus (facultatif)</span>
-            <input v-model="racineGitLab" class="champ racine-gitlab" type="text" placeholder="donnees/mon-corpus" spellcheck="false" />
+            <input v-model="racineGitLab" class="champ racine-gitlab" type="text" placeholder="donnees/mon-corpus" spellcheck="false" :disabled="enCours" />
           </div>
-        </div>
-        <p v-if="branchesGitLabTronquees" class="note-decouverte">
-          La liste des branches est tronquée. Choisissez la branche affichée si elle
-          convient ; les branches suivantes ne sont pas encore listées.
-        </p>
+        </template>
         <button
           class="valider"
-          :disabled="enCours || !urlGitLab.trim() || !utilisateurGitLab.trim() || !jetonGitLab || !projetGitLab || !brancheGitLab"
+          :disabled="enCours || !demandeGitLab"
           @click="connecterGitLab"
         >
-          {{ actionGitLab === 'ouverture' ? 'Ouverture…' : 'Ouvrir depuis GitLab' }}
+          {{ enCours && !chargementGitLab ? 'Ouverture…' : 'Ouvrir depuis GitLab' }}
         </button>
         </template>
 
@@ -624,14 +514,6 @@ async function oublierGitLab(id: string) {
 .mini.ouvrir:hover:not(:disabled) {
   border-color: #2e73d8;
   background: #f0f6ff;
-}
-.mini.decouvrir-gitlab {
-  align-self: flex-start;
-}
-.note-decouverte {
-  margin: -0.25rem 0 0;
-  color: #795500;
-  font-size: 0.75rem;
 }
 .mini.oubli {
   opacity: 0.5;

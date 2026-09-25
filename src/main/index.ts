@@ -26,30 +26,20 @@ import { ClientWebDAV, ErreurHttp } from './webdav/client'
 import { profilerServeur, sonderFilesLock } from './webdav/sondes'
 import {
   coffreReel,
-  idDeCompteGitLab,
-  idDeDestinationGitLab,
-  normaliserRacineGitLab,
-  type ConfigCompteGitLab,
   type ConfigCorpusDistant,
-  type ConfigDestinationGitLab,
 } from './distant/coffre'
 import { poserValeurLotLocal, appliquerRegleLotLocal } from './distant/transactions'
 import { preparerContexteNextcloud, ContexteCorpusDistant } from './distant/contexte'
+import { ContexteGitLab } from './gitlab/contexte'
 import {
-  ContexteGitLab,
-  preparerContexteGitLabLectureSeule,
-} from './gitlab/contexte'
-import { ClientGitLab } from './gitlab/client'
-import { DepotCommitsGitLabClient } from './gitlab/bailGitLab'
-import { DecouverteGitLab } from './gitlab/decouverte'
-import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from './gitlab/journalPublication'
-import { JournalSessionsGitLab } from './gitlab/journalSession'
-import { assemblerSessionGitLab } from './gitlab/assemblageSession'
+  destinationGitLabPublique,
+  ServiceOuvertureGitLab,
+} from './gitlab/ouverture'
+import { preparerProjetGitLab } from './gitlab/preparationProjet'
 import { INTERVALLE_VERIFICATION_GITLAB_MS } from './gitlab/parametresSession'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
-import { squeletteCorpus } from '../shared/corpus/squelette'
 import { archiverCorpusLocal } from './archiveCorpus'
 import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus, ecrireQualcoderCorpus } from './exportCorpus'
 import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
@@ -85,23 +75,25 @@ import type {
   ParamsAnon,
 } from '../shared/format'
 import type {
-  DemandeConnexion,
-  DemandeCreationDistante,
-  DemandeCreationGitLab,
-  DemandeDecouverteBranchesGitLab,
-  DemandeDecouverteGitLab,
-  DemandeProjetGitLab,
-  DemandeOuvertureGitLab,
-  DestinationGitLabPublic,
   EtatSessionPublic,
   OrphelinDistant,
   OuvertureDistante,
   ProgressionTransfert,
-  ResultatConnexion,
   ResultatFermetureSession,
   ResultatTiragePublic,
-  CompteDistantPublic,
 } from '../shared/distant'
+import type {
+  DemandeConnexionWebDAV,
+  DemandeCreationWebDAV,
+  DestinationWebDAVPublic,
+  ResultatConnexionWebDAV,
+} from '../shared/webdav'
+import type {
+  DemandeCreationGitLab,
+  DemandeOuvertureGitLab,
+  DemandePreparationProjetGitLab,
+  DestinationGitLabPublic,
+} from '../shared/gitlab'
 import { PublieurCorpus, ErreurDejaCorpus } from './distant/publication'
 import { EXT_MEDIA } from '../shared/media'
 import {
@@ -183,9 +175,9 @@ const EXT_TEXTE = ['sonal', 'srt', 'vtt', 'txt']
 // --- Réglages du profil : corpus récents + mémoire démo + largeur vidéo par corpus ---
 interface Settings {
   recents: string[] // chemins de dossiers, le plus récent en tête
-  /** Ids de comptes distants ouverts récemment. Séparés des locaux,
-   *  la réouverture d'un récent distant passe par `distant:ouvrir(id)`, jamais
-   *  par le chemin miroir (le cycle verrou/publie serait contourné). */
+  /** Identifiants des destinations distantes récemment ouvertes.
+   *  La réouverture passe par leur fournisseur, jamais par le chemin du miroir.
+   */
   recentsDistant?: string[]
   demo?: EtatDemo // dossiers du « Mini Corpus Test » choisis une fois
   // Largeur (px) du panneau vidéo, mémorisée PAR CORPUS (clé = chemin du dossier).
@@ -1386,7 +1378,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
 
   // --- Corpus distant : connexion et ouverture ---
-  const sansSecret = (config: ConfigCorpusDistant): CompteDistantPublic => ({
+  const sansSecret = (config: ConfigCorpusDistant): DestinationWebDAVPublic => ({
     fournisseur: 'webdav',
     id: config.id,
     urlServeur: config.urlServeur,
@@ -1394,29 +1386,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     motDePasseDisponible: coffre.motDePasseDisponible(config.id),
   })
 
-  const destinationGitLabPublique = (
-    destination: ConfigDestinationGitLab,
-  ): DestinationGitLabPublic | null => {
-    const compte = coffre.listerComptesGitLab()
-      .find((candidat) => candidat.id === destination.compteId)
-    if (!compte) return null
-    return {
-      fournisseur: 'gitlab',
-      id: destination.id,
-      compteId: compte.id,
-      urlInstance: compte.urlInstance,
-      utilisateur: compte.utilisateur,
-      projetId: destination.projetId,
-      nomProjet: destination.nomProjet,
-      branche: destination.branche,
-      racine: destination.racine,
-      jetonDisponible: coffre.jetonGitLabDisponible(compte.id),
-    }
-  }
-
   const listerDestinationsGitLabPubliques = (): DestinationGitLabPublic[] =>
     coffre.listerDestinationsGitLab()
-      .map(destinationGitLabPublique)
+      .map((destination) => destinationGitLabPublique(coffre, destination))
       .filter((destination): destination is DestinationGitLabPublic => destination !== null)
 
   /** Nettoyage best effort après refus de création : supprime la FEUILLE que nous venons de créer.
@@ -1432,32 +1404,17 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
   }
 
-  ipcMain.handle('distant:lister', () => coffre.lister().map(sansSecret))
+  ipcMain.handle('webdav:lister', () => coffre.lister().map(sansSecret))
   ipcMain.handle('gitlab:lister', listerDestinationsGitLabPubliques)
   ipcMain.handle(
-    'gitlab:decouvrirProjets',
-    (_e, demande: DemandeDecouverteGitLab) => new DecouverteGitLab(demande).listerProjets(),
-  )
-  ipcMain.handle(
-    'gitlab:lireUtilisateur',
-    (_e, demande: DemandeDecouverteGitLab) => new DecouverteGitLab(demande).lireUtilisateur(),
-  )
-  ipcMain.handle(
-    'gitlab:chargerProjet',
-    (_e, demande: DemandeProjetGitLab) => new DecouverteGitLab(demande).chargerProjet(demande.projet),
-  )
-  ipcMain.handle(
-    'gitlab:decouvrirBranches',
-    (_e, demande: DemandeDecouverteBranchesGitLab) => {
-      const { projetId, ...acces } = demande
-      return new DecouverteGitLab(acces).listerBranches(projetId)
-    },
+    'gitlab:preparerProjet',
+    (_e, demande: DemandePreparationProjetGitLab) => preparerProjetGitLab(demande),
   )
   ipcMain.handle('distant:stockageSecuriseDisponible', () =>
     coffre.stockageSecuriseDisponible(),
   )
 
-  ipcMain.handle('distant:oublier', (_e, id: string) =>
+  ipcMain.handle('webdav:oublier', (_e, id: string) =>
     transitionner(() => oublierCompte({
       id,
       idActif: contextesDistants.actuel?.id ?? null,
@@ -1470,7 +1427,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     })),
   )
 
-  ipcMain.handle('distant:connecter', async (_e, params: DemandeConnexion) => {
+  ipcMain.handle('webdav:connecter', async (_e, params: DemandeConnexionWebDAV): Promise<ResultatConnexionWebDAV> => {
     const client = new ClientWebDAV({
       baseUrl: params.urlServeur.replace(/\/+$/, ''),
       identifiants: { utilisateur: params.utilisateur, motDePasse: params.motDePasse },
@@ -1496,10 +1453,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
   })
 
-  /** Création directe d'un corpus distant : profilage du serveur, publication du squelette construit en mémoire, puis enregistrement du compte ;
-   *  publication gardée par If-None-Match côté publieur, jamais d'écrasement d'un corpus existant.
-   *  L'OUVERTURE reste l'apanage de `distant:ouvrir` ; le renderer enchaîne dessus immédiatement (même comportement que le local). */
-  ipcMain.handle('distant:creer', async (_e, params: DemandeCreationDistante): Promise<ResultatConnexion> => {
+  /** Crée un corpus WebDAV sans écraser un corpus existant.
+   *  La destination est enregistrée après publication ; le renderer enchaîne sur l'ouverture.
+   */
+  ipcMain.handle('webdav:creer', async (_e, params: DemandeCreationWebDAV): Promise<ResultatConnexionWebDAV> => {
     const baseUrl = params.urlServeur.trim().replace(/\/+$/, '')
     const identifiants = { utilisateur: params.utilisateur.trim(), motDePasse: params.motDePasse }
     try {
@@ -1520,7 +1477,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         }
       }
       // 3. Publication puis enregistrement EN DERNIER : un échec réseau ou un « déjà corpus » ne laisse aucun compte fantôme.
-      await publieur.publierSquelette(params.nomProjet.trim())
+      await publieur.publierSquelette(params.nomCorpus.trim())
       const config = coffre.enregistrer({ urlServeur: baseUrl, utilisateur: params.utilisateur, motDePasse: params.motDePasse })
       return {
         ok: true as const,
@@ -1538,7 +1495,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   /** Prépare entièrement un corpus distant avant de fermer l'ancien contexte,
    *  puis effectue une bascule atomique. */
-  ipcMain.handle('distant:ouvrir', (_e, id: string, motDePasseSaisi?: string) =>
+  ipcMain.handle('webdav:ouvrir', (_e, id: string, motDePasseSaisi?: string) =>
     transitionner(async (): Promise<OuvertureDistante> => {
       const config = coffre.lister().find((c) => c.id === id)
       if (!config) throw new Error('Compte distant inconnu')
@@ -1601,218 +1558,34 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }),
   )
 
-  async function preparerOuvertureGitLab(
-    compte: ConfigCompteGitLab,
-    destination: ConfigDestinationGitLab,
-    jeton: string,
-  ) {
-    const dirMiroir = join(app.getPath('userData'), 'miroirs', destination.id)
-    const client = new ClientGitLab({
-      urlInstance: compte.urlInstance,
-      projetId: destination.projetId,
-      jeton,
-    })
-    const journalRepertoire = join(
-      app.getPath('userData'),
-      'operations-gitlab',
-      destination.id,
-    )
-    const journal = new JournalPublicationGitLab(destination.id, journalRepertoire)
-    const journalSessions = new JournalSessionsGitLab(destination.id, journalRepertoire)
-    const reconciliateur = new ReconciliateurPublicationGitLab(
-      new DepotCommitsGitLabClient(client),
-      journal,
-    )
-    for (const entree of journal.lister()) {
-      const resultat = await reconciliateur.reconcilier(entree)
-      if (resultat.statut === 'confirme') {
-        const actions = journal.chargerActions(entree)
-        const action = actions.find((candidate) =>
-          candidate.action === 'update' || candidate.action === 'create')
-        if (action?.content !== undefined) {
-          journalSessions.confirmerPublication(
-            entree.resourceHash,
-            resultat.commitId,
-            action.content,
-          )
-        }
-        journal.supprimer(entree.operationId)
-      }
-    }
-    const preparation = await preparerContexteGitLabLectureSeule({
-      id: destination.id,
-      dirLocal: dirMiroir,
-      client,
-      branche: destination.branche,
-      racine: destination.racine,
-      cheminsRecuperables: journalSessions.lister().map(({ cheminRelatif }) => cheminRelatif),
-      creerSession: (ressource, cheminRelatif) => assemblerSessionGitLab({
-        destinationId: destination.id,
-        dirLocal: dirMiroir,
-        client,
-        branche: destination.branche,
-        racine: destination.racine,
-        ressource,
-        cheminRelatif,
-        journalSessions,
-        identite: () => ({
-          userId: compte.utilisateur,
-          machineId,
-          sessionId: SESSION_ID,
-        }),
-        journalRepertoire,
-      }).session,
-    })
-    return { ...preparation, dirMiroir }
-  }
-
-  async function installerContexteGitLab(
-    compte: ConfigCompteGitLab,
-    destination: ConfigDestinationGitLab,
-    preparation: Awaited<ReturnType<typeof preparerOuvertureGitLab>>,
-  ): Promise<OuvertureDistante> {
-    await fermerContexteActuel()
-    store = preparation.contexte.store
-    dossierCourant = preparation.contexte.dirLocal
-    contextesDistants.remplacer(preparation.contexte)
-    ajouterRecentDistant(destination.id)
-    const destinationPublique = destinationGitLabPublique(destination)
-    if (!destinationPublique) throw new Error('Compte GitLab inconnu.')
-    return {
-      dir: preparation.dirMiroir,
-      nom: preparation.corpus.nom ?? destination.nomProjet,
-      corpus: preparation.corpus,
-      distant: destinationPublique,
-      verrous: [],
-      inaccessibles: preparation.inaccessibles,
-    }
-  }
+  // Ouverture GitLab : la séquence (préparation, coffre, fermeture,
+  // installation) vit dans le service ; les handlers ne gardent que la file
+  // de transitions, propriétaire unique de la sérialisation des bascules.
+  const ouvertureGitLab = new ServiceOuvertureGitLab({
+    coffre,
+    dirProfil: app.getPath('userData'),
+    identiteSession: { machineId, sessionId: SESSION_ID },
+    fermerContexte: fermerContexteActuel,
+    installer: (destination, preparation) => {
+      store = preparation.contexte.store
+      dossierCourant = preparation.contexte.dirLocal
+      contextesDistants.remplacer(preparation.contexte)
+      ajouterRecentDistant(destination.id)
+    },
+  })
 
   ipcMain.handle(
     'gitlab:creerEtOuvrir',
-    (_e, demande: DemandeCreationGitLab) => transitionner(async () => {
-      if (!demande.nom.trim()) throw new Error('Nom du corpus GitLab manquant.')
-      const racine = normaliserRacineGitLab(demande.racine ?? '')
-      const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
-      const client = new ClientGitLab({
-        urlInstance: demande.urlInstance,
-        projetId: demande.projetId,
-        jeton: demande.jeton,
-      })
-      const depot = new DepotCommitsGitLabClient(client)
-      if (await depot.lireFichier(cheminCorpus, demande.branche)) {
-        throw new Error('Un corpus existe déjà à cet emplacement GitLab.')
-      }
-      const squelette = squeletteCorpus()
-      squelette.nom = demande.nom.trim()
-      await depot.publierCommit(
-        demande.branche,
-        `Sonal création ${racine || 'racine'}`,
-        [{
-          action: 'create',
-          file_path: cheminCorpus,
-          content: JSON.stringify(squelette, null, 2),
-        }],
-      )
-      const compteCandidat: ConfigCompteGitLab = {
-        fournisseur: 'gitlab',
-        id: idDeCompteGitLab(demande.urlInstance, demande.utilisateur),
-        urlInstance: demande.urlInstance,
-        utilisateur: demande.utilisateur.trim(),
-      }
-      const destinationCandidat: ConfigDestinationGitLab = {
-        fournisseur: 'gitlab',
-        id: idDeDestinationGitLab({
-          compteId: compteCandidat.id,
-          projetId: demande.projetId,
-          branche: demande.branche,
-          racine,
-        }),
-        compteId: compteCandidat.id,
-        projetId: demande.projetId,
-        nomProjet: demande.nomProjet.trim(),
-        branche: demande.branche.trim(),
-        racine,
-      }
-      const preparation = await preparerOuvertureGitLab(
-        compteCandidat,
-        destinationCandidat,
-        demande.jeton,
-      )
-      const compte = coffre.enregistrerCompteGitLab({
-        urlInstance: demande.urlInstance,
-        utilisateur: demande.utilisateur,
-        jeton: demande.jeton,
-      })
-      const destination = coffre.enregistrerDestinationGitLab({
-        compteId: compte.id,
-        projetId: demande.projetId,
-        nomProjet: demande.nomProjet,
-        branche: demande.branche,
-        racine,
-      })
-      return installerContexteGitLab(compte, destination, preparation)
-    }),
+    (_e, demande: DemandeCreationGitLab) => transitionner(() => ouvertureGitLab.creerEtOuvrir(demande)),
   )
-
   ipcMain.handle(
     'gitlab:enregistrerEtOuvrir',
-    (_e, demande: DemandeOuvertureGitLab) => transitionner(async () => {
-      const compteId = idDeCompteGitLab(demande.urlInstance, demande.utilisateur)
-      const racine = normaliserRacineGitLab(demande.racine ?? '')
-      const destinationId = idDeDestinationGitLab({
-        compteId,
-        projetId: demande.projetId,
-        branche: demande.branche,
-        racine,
-      })
-      const compteCandidat: ConfigCompteGitLab = {
-        fournisseur: 'gitlab',
-        id: compteId,
-        urlInstance: demande.urlInstance,
-        utilisateur: demande.utilisateur.trim(),
-      }
-      const destinationCandidate: ConfigDestinationGitLab = {
-        fournisseur: 'gitlab',
-        id: destinationId,
-        compteId,
-        projetId: demande.projetId,
-        nomProjet: demande.nomProjet.trim(),
-        branche: demande.branche.trim(),
-        racine,
-      }
-      const preparation = await preparerOuvertureGitLab(
-        compteCandidat,
-        destinationCandidate,
-        demande.jeton,
-      )
-      const compte = coffre.enregistrerCompteGitLab(demande)
-      const destination = coffre.enregistrerDestinationGitLab({
-        compteId: compte.id,
-        projetId: demande.projetId,
-        nomProjet: demande.nomProjet,
-        branche: demande.branche,
-        racine,
-      })
-      return installerContexteGitLab(compte, destination, preparation)
-    }),
+    (_e, demande: DemandeOuvertureGitLab) => transitionner(() => ouvertureGitLab.enregistrerEtOuvrir(demande)),
   )
 
   ipcMain.handle(
     'gitlab:ouvrir',
-    (_e, id: string, jetonSaisi?: string) => transitionner(async () => {
-      const destination = coffre.listerDestinationsGitLab()
-        .find((candidate) => candidate.id === id)
-      if (!destination) throw new Error('Destination GitLab inconnue.')
-      const compte = coffre.listerComptesGitLab()
-        .find((candidate) => candidate.id === destination.compteId)
-      if (!compte) throw new Error('Compte GitLab inconnu.')
-      const jeton = jetonSaisi || coffre.jetonGitLab(compte.id)
-      if (!jeton) throw new Error('Saisissez le jeton GitLab pour cette session.')
-      const preparation = await preparerOuvertureGitLab(compte, destination, jeton)
-      if (jetonSaisi) coffre.memoriserJetonGitLab(compte.id, jetonSaisi)
-      return installerContexteGitLab(compte, destination, preparation)
-    }),
+    (_e, id: string, jetonSaisi?: string) => transitionner(() => ouvertureGitLab.ouvrir(id, jetonSaisi)),
   )
 
   ipcMain.handle('gitlab:oublierDestination', (_e, id: string) =>

@@ -1,98 +1,9 @@
-/**
- *  Types partagés main ⇄ renderer pour les corpus distants. Types purs uniquement — aucune logique, aucun secret : le mot de passe
- *  d'application ne traverse JAMAIS le pont IPC vers le renderer.
- */
-
+/** Contrats communs aux corpus WebDAV et GitLab, sans secret retourné au renderer. */
 import type { OuvertureCorpus } from './format'
+import type { DestinationGitLabPublic } from './gitlab'
+import type { DestinationWebDAVPublic } from './webdav'
 
-/** Profil de capacités mesuré par les sondes de connexion. */
-export interface ProfilCapacites {
-  /** Préconditions HTTP honorées (test-and-set possible → variante B). */
-  preconditions: boolean
-  /** Plugin files_lock détecté (variante A). */
-  filesLock: boolean
-  notes?: string[]
-}
-
-/** Compte distant tel que vu du renderer : JAMAIS de champ secret ici. */
-export interface CompteDistantPublic {
-  fournisseur: 'webdav'
-  id: string
-  urlServeur: string
-  utilisateur: string
-  /** Le main peut ouvrir ce compte sans redemander son mot de passe. */
-  motDePasseDisponible: boolean
-}
-
-export interface DestinationGitLabPublic {
-  fournisseur: 'gitlab'
-  id: string
-  compteId: string
-  urlInstance: string
-  utilisateur: string
-  projetId: number
-  nomProjet: string
-  branche: string
-  racine: string
-  jetonDisponible: boolean
-}
-
-export interface ProjetGitLabPublic {
-  id: number
-  nom: string
-  chemin: string
-  brancheParDefaut: string | null
-  archive: boolean
-}
-
-export interface BrancheGitLabPublic {
-  nom: string
-  parDefaut: boolean
-}
-
-export interface ResultatDecouverteGitLab<T> {
-  elements: T[]
-  tronque: boolean
-}
-
-export interface DemandeDecouverteGitLab {
-  urlInstance: string
-  jeton: string
-}
-
-export interface DemandeDecouverteBranchesGitLab extends DemandeDecouverteGitLab {
-  projetId: number
-}
-
-export interface DemandeProjetGitLab extends DemandeDecouverteGitLab {
-  projet: string
-}
-
-export interface DemandeOuvertureGitLab {
-  urlInstance: string
-  utilisateur: string
-  jeton: string
-  projetId: number
-  nomProjet: string
-  branche: string
-  racine?: string
-}
-
-export interface DemandeCreationGitLab extends DemandeOuvertureGitLab {
-  nom: string
-}
-
-export interface DemandeConnexion {
-  /** Racine DAV du corpus, ex. https://nuage.exemple.org/remote.php/dav/files/max/MonCorpus */
-  urlServeur: string
-  utilisateur: string
-  /** Mot de passe d'APPLICATION Nextcloud (jamais le principal). */
-  motDePasse: string
-}
-
-export type ResultatConnexion =
-  | { ok: true; compte: CompteDistantPublic; profil: ProfilCapacites }
-  | { ok: false; note: string }
+export type DestinationDistantePublic = DestinationWebDAVPublic | DestinationGitLabPublic
 
 /** Progression d'un transfert binaire :
  *  émise périodiquement par le main pendant le pull miroir (« rapatriement ») et le téléversement.
@@ -104,19 +15,12 @@ export interface ProgressionTransfert {
   total: number | null
 }
 
-/** Création d'un nouveau corpus distant :
- *  mêmes identifiants que la connexion plus le nom de projet.
- *  Le compte n'est enregistré au coffre qu'après une publication réussie (rien de semi-créé). */
-export interface DemandeCreationDistante extends DemandeConnexion {
-  nomProjet: string
-}
-
 /** Ouverture d'un corpus distant : le corpus vient du MIROIR local (`userData/miroirs/<id>`)
  *  fraîchement tiré — le renderer ne sait pas faire la différence avec un corpus local :
  *  c'est voulu. Le pull d'ouverture livre aussi l'état des verrous (badges fiables,
  *  sans second aller-retour). */
 export interface OuvertureDistante extends OuvertureCorpus {
-  distant: CompteDistantPublic | DestinationGitLabPublic
+  distant: DestinationDistantePublic
   verrous: EntreeVerrouPublic[]
   /** Audios désignés non rapatriés par le pull d'ouverture (403/404/réseau)
    *  — alimente l'étiquette du lecteur dès l'arrivée.
@@ -217,4 +121,29 @@ export interface DivergenceDistante {
   id: string // id de l'entretien concerné
   sessionId: string // session d'écriture qui a subi la rétrogradation
   date: string // ISO (mtime de la copie — affichage « copie du JJ/MM HH:MM »)
+}
+
+/** Services du corpus distant courant, selon les capacités de son fournisseur. */
+export interface ApiDistant {
+  stockageSecuriseDisponible(): Promise<boolean>
+  tirer(): Promise<ResultatTiragePublic | null>
+  listerDossier(dossier: string): Promise<{ entrees: { nom: string; dossier: boolean }[] } | null>
+  designerAudio(id: string, cheminAudio: string): Promise<{
+    ok: boolean
+    raison?: string
+    tenuPar?: string
+  }>
+  televerserAudio(sourceLocale: string, cheminCible: string): Promise<{
+    ok: boolean
+    raison?: string
+    suggere?: string
+  }>
+  orphelins(): Promise<OrphelinDistant[] | null>
+  surProgression(cb: (progression: ProgressionTransfert) => void): () => void
+  reprendreOrphelin(cheminVerrou: string): Promise<{ ok: boolean; raison?: string }>
+  abandonnerOrphelin(cheminVerrou: string): Promise<void>
+  listerDivergences(): Promise<DivergenceDistante[]>
+  lireDivergence(chemin: string): Promise<unknown>
+  supprimerDivergence(chemin: string): Promise<void>
+  noterEntretienOuvert(id: string | null): Promise<void>
 }

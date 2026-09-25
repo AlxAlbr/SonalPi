@@ -53,27 +53,12 @@ import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
-  BrancheGitLabPublic,
-  CompteDistantPublic,
-  DemandeConnexion,
-  DemandeCreationDistante,
-  DemandeCreationGitLab,
-  DemandeDecouverteBranchesGitLab,
-  DemandeDecouverteGitLab,
-  DemandeProjetGitLab,
-  DemandeOuvertureGitLab,
-  DestinationGitLabPublic,
-  DivergenceDistante,
+  ApiDistant,
   EtatSessionPublic,
-  OrphelinDistant,
-  OuvertureDistante,
-  ProjetGitLabPublic,
-  ProgressionTransfert,
-  ResultatConnexion,
-  ResultatDecouverteGitLab,
   ResultatFermetureSession,
-  ResultatTiragePublic,
 } from '../shared/distant'
+import type { ApiGitLab } from '../shared/gitlab'
+import type { ApiWebDAV } from '../shared/webdav'
 import type {
   InventaireDocsCadre,
   ResultatLectureDocsCadre,
@@ -245,57 +230,9 @@ declare global {
         lire: () => Promise<ModeleEAV[]>
         ajouter: (modele: ModeleEAV) => Promise<ModeleEAV[]>
       }
-      gitlab: {
-        lister: () => Promise<DestinationGitLabPublic[]>
-        decouvrirProjets: (
-          demande: DemandeDecouverteGitLab,
-        ) => Promise<ResultatDecouverteGitLab<ProjetGitLabPublic>>
-        lireUtilisateur: (demande: DemandeDecouverteGitLab) => Promise<string>
-        chargerProjet: (demande: DemandeProjetGitLab) => Promise<ProjetGitLabPublic>
-        decouvrirBranches: (
-          demande: DemandeDecouverteBranchesGitLab,
-        ) => Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>>
-        enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab) => Promise<OuvertureDistante>
-        creerEtOuvrir: (demande: DemandeCreationGitLab) => Promise<OuvertureDistante>
-        ouvrir: (id: string, jeton?: string) => Promise<OuvertureDistante>
-        oublierDestination: (id: string) => Promise<DestinationGitLabPublic[]>
-      }
-      distant: {
-        lister: () => Promise<CompteDistantPublic[]>
-        stockageSecuriseDisponible: () => Promise<boolean>
-        connecter: (params: DemandeConnexion) => Promise<ResultatConnexion>
-        creer: (params: DemandeCreationDistante) => Promise<ResultatConnexion>
-        ouvrir: (id: string, motDePasse?: string) => Promise<OuvertureDistante>
-        tirer: () => Promise<ResultatTiragePublic | null>
-        /** Navigation du sélecteur « Désigner dans Nextcloud… ». Null si
-         *  corpus local ; dossiers d'abord. */
-        listerDossier: (
-          dossier: string,
-        ) => Promise<{ entrees: { nom: string; dossier: boolean }[] } | null>
-        /** Désignation audio distante sur un entretien FERMÉ (micro-session). */
-        designerAudio: (
-          id: string,
-          cheminAudio: string,
-        ) => Promise<{ ok: boolean; raison?: string; tenuPar?: string }>
-        /** Téléversement d'un fichier LOCAL vers le serveur. */
-        televerserAudio: (
-          sourceLocale: string,
-          cheminCible: string,
-        ) => Promise<{ ok: boolean; raison?: string; suggere?: string }>
-        orphelins: () => Promise<OrphelinDistant[] | null>
-        /** Progression des transferts binaires (rapatriements du tirage et
-         *  téléversements). Renvoie la fonction de désabonnement. */
-        surProgression: (cb: (p: ProgressionTransfert) => void) => () => void
-        reprendreOrphelin: (cheminVerrou: string) => Promise<{ ok: boolean; raison?: string }>
-        abandonnerOrphelin: (cheminVerrou: string) => Promise<void>
-        listerDivergences: () => Promise<DivergenceDistante[]>
-        lireDivergence: (chemin: string) => Promise<unknown>
-        supprimerDivergence: (chemin: string) => Promise<void>
-        /** Présence : signale l'entretien ouvert sur CE poste (null =
-         *  aucun / retour à l'écran Corpus). Best effort côté main. */
-        noterEntretienOuvert: (id: string | null) => Promise<void>
-        oublier: (id: string) => Promise<CompteDistantPublic[]>
-      }
+      gitlab: ApiGitLab
+      webdav: ApiWebDAV
+      distant: ApiDistant
       media: {
         lireLargeurVideo: (dir: string) => Promise<number | null>
         ecrireLargeurVideo: (dir: string, largeur: number) => Promise<void>

@@ -1,11 +1,11 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue'
 import type {
-  DemandeOuvertureGitLab,
-  DemandeCreationGitLab,
   EntreeVerrouPublic,
   EtatSessionPublic,
   OuvertureDistante,
 } from '../../../shared/distant'
+import type { DemandeCreationGitLab, DemandeOuvertureGitLab } from '../../../shared/gitlab'
+import type { DemandeCreationWebDAV } from '../../../shared/webdav'
 import type {
   CorpusFichier,
   EntreeRecent,
@@ -215,7 +215,7 @@ export function useCycleCorpus(deps: {
     await preparerBascule()
     if (entree.type === 'distant') {
       if (entree.fournisseur === 'gitlab') await ouvrirDestinationGitLab(entree.id)
-      else await ouvrirCorpusDistant(entree.id)
+      else await ouvrirCorpusWebDAV(entree.id)
       return
     }
     deps.distant.quitter()
@@ -240,10 +240,10 @@ export function useCycleCorpus(deps: {
     deps.vue.value = 'corpus'
   }
 
-  async function ouvrirCorpusDistant(id: string, motDePasse?: string): Promise<void> {
+  async function ouvrirCorpusWebDAV(id: string, motDePasse?: string): Promise<void> {
     await preparerBascule()
     await appliquerOuvertureDistante(
-      await window.sonal.distant.ouvrir(id, motDePasse),
+      await window.sonal.webdav.ouvrir(id, motDePasse),
     )
   }
 
@@ -272,22 +272,17 @@ export function useCycleCorpus(deps: {
     )
   }
 
-  async function creerCorpusDistant(params: {
-    urlServeur: string
-    utilisateur: string
-    motDePasse: string
-    nomProjet: string
-  }) {
-    const resultat = await window.sonal.distant.creer(params)
+  async function creerCorpusWebDAV(params: DemandeCreationWebDAV) {
+    const resultat = await window.sonal.webdav.creer(params)
     if (!resultat.ok) throw new Error(resultat.note)
     await deps.profil.rafraichirRecents()
-    await ouvrirCorpusDistant(resultat.compte.id)
+    await ouvrirCorpusWebDAV(resultat.compte.id)
     return resultat.compte
   }
 
-  async function oublierCompteDistant(id: string) {
+  async function oublierDestinationWebDAV(id: string) {
     await fermerEntretien()
-    return window.sonal.distant.oublier(id)
+    return window.sonal.webdav.oublier(id)
   }
 
   async function rafraichirCorpusSansFermer(): Promise<void> {
@@ -436,12 +431,12 @@ export function useCycleCorpus(deps: {
     choisirDossier,
     creerNouveauCorpus,
     ouvrirRecent,
-    ouvrirCorpusDistant,
+    ouvrirCorpusWebDAV,
     ouvrirDestinationGitLab,
     enregistrerEtOuvrirGitLab,
     creerEtOuvrirGitLab,
-    creerCorpusDistant,
-    oublierCompteDistant,
+    creerCorpusWebDAV,
+    oublierDestinationWebDAV,
     rafraichirCorpusSansFermer,
     nettoyerMiroirChange,
     retourCorpus,

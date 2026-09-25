@@ -57,15 +57,18 @@ projet en sont déduits.
 
 ### Préparer le projet
 
-1. Créez ou faites créer un projet GitLab privé pour le corpus.
+1. Créez ou faites créer un projet GitLab privé pour le corpus. Initialisez le dépôt,
+   par exemple en ajoutant un README dans GitLab, pour disposer d'une branche par défaut.
 2. Vérifiez que votre compte et votre jeton peuvent lire le projet et écrire dans la
-   branche choisie. Si la branche est protégée, autorisez les développeurs à y pousser.
+   branche par défaut. Si la branche est protégée, autorisez les développeurs à y pousser.
 3. Utilisez un jeton d’accès personnel GitLab adapté à votre instance. Dans Humanum,
    il peut être créé après une connexion avec HumanID. Pour une autre instance,
    suivez la procédure de votre administrateur GitLab.
 
 Sonal ne crée aucun projet pendant cette étape. Il vérifie l’URL et les accès,
-puis utilise la branche par défaut du projet.
+puis utilise automatiquement la branche par défaut du projet, à la création comme
+à l'ouverture. Il n'y a pas de branche à choisir. Si le dépôt est vide ou archivé,
+un message explique pourquoi il ne peut pas être utilisé.
 
 ### Créer le corpus Sonal
 
@@ -75,7 +78,7 @@ Dans « ☁️ Nouveau corpus distant » :
    `https://gitlab.exemple.org/mon-groupe/mon-corpus` ;
 2. renseignez votre jeton d’accès personnel ;
 3. cliquez sur « Charger le projet » ;
-4. laissez Sonal utiliser la branche par défaut du projet ;
+4. vérifiez le projet chargé (sa branche par défaut est affichée à titre informatif) ;
 5. indiquez la racine du corpus si elle n’est pas à la racine du dépôt ;
 6. donnez un nom au corpus Sonal ;
 7. cliquez sur « Créer le corpus et l’ouvrir ».

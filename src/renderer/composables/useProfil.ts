@@ -7,9 +7,8 @@ import type { CorpusFichier, EntreeRecent } from '../../shared/format'
  *  laisse l'orchestration (App) l'appliquer via le scope corpus. Working set minimal :
  *  juste des métadonnées de dossiers, jamais de contenu d'entretien.
  *
- *  Les récents sont TAGUÉS local/distant : l'appelant branche — un récent distant
- *  se rouvre via `distant:ouvrir(id)`, JAMAIS son chemin miroir en tant que dossier
- *  local.
+ *  Un récent distant se rouvre par son fournisseur et son identifiant,
+ *  jamais par son miroir comme s'il s'agissait d'un dossier local.
  */
 export function useProfil() {
   const dossierCourantNom = ref('')

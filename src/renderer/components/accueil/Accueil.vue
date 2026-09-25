@@ -61,7 +61,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
           return
         }
       } else {
-        const compte = (await window.sonal.distant.lister())
+        const compte = (await window.sonal.webdav.lister())
           .find((candidate) => candidate.id === entree.id)
         if (compte && !compte.motDePasseDisponible) {
           modaleDistant.value = true

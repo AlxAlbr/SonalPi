@@ -55,8 +55,7 @@ async function scenarioPublication(base: string) {
 
   const publieur = new PublieurCorpus(config)
 
-  // 1. Chaîne de dossiers D'ABORD, dans l'ordre de `distant:creer` : la sonde
-  //    de préconditions écrit dans la cible et échouerait en 409 sinon.
+  // La sonde écrit dans la cible : ses dossiers doivent déjà exister.
   await publieur.preparerRacine()
 
   // 2. Préconditions réelles, mesurées sur une cible qui existe désormais.

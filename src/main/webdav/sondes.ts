@@ -16,15 +16,7 @@
 
 import { ClientWebDAV, ErreurHttp, retirerGuillemets, verifierTransportWebDAV } from './client'
 
-export interface ProfilCapacites {
-  /** Test-and-set atomique par préconditions : `PUT If-None-Match: *` refuse un second create,
-   *  et `If-Match` garde une publication. Base de la variante B. */
-  preconditions: boolean
-  /** Verrou natif files_lock détecté (variante A). */
-  filesLock: boolean
-  /** Détail humain des échecs de sonde (log + message UI). */
-  notes?: string[]
-}
+import type { ProfilCapacitesWebDAV } from '../../shared/webdav'
 
 /** Sonde des préconditions : séquence réelle contre un fichier jetable dans le dossier fourni (`sonde/` à la racine du corpus).
  *  Toute l'arithmétique du test-and-set tient dans ces quatre attentes :
@@ -126,7 +118,7 @@ export const sonderFilesLock = async (
 
 /** Les deux sondes ensemble — c'est CE profil que la connexion stocke,
  *  et que le protocole consulte à chaque ouverture. */
-export async function profilerServeur(client: ClientWebDAV): Promise<ProfilCapacites> {
+export async function profilerServeur(client: ClientWebDAV): Promise<ProfilCapacitesWebDAV> {
   const notes: string[] = []
   const preconditions = await sonderPreconditions(client)
   if (!preconditions.ok && preconditions.note) notes.push(preconditions.note)

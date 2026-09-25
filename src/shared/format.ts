@@ -186,7 +186,9 @@ export interface DossierCorpus {
   nom: string
 }
 
-/** Entrée des « Récents », locale ou distante. Un récent distant rouvre via `distant:ouvrir(id)`, jamais par son chemin miroir local ; sinon, le cycle verrou/publié serait contourné. */
+/** Entrée des récents, locale ou distante.
+ *  Une destination distante se rouvre par son fournisseur, jamais par son chemin miroir.
+ */
 export type EntreeRecent =
   | ({ type: 'local' } & DossierCorpus)
   | {

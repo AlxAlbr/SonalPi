@@ -180,14 +180,19 @@ migration v2 ajoute le discriminant WebDAV sans changer les identifiants ni les
 récents existants. Trois tests couvrent la séparation compte/destinations, le
 renouvellement du jeton sans nouveau miroir et la migration WebDAV compatible.
 
-Les modales de création et d'ouverture distantes proposent maintenant deux onglets,
+Les modales de création et d'ouverture distantes proposent deux onglets,
 Nextcloud et GitLab. La création GitLab produit un squelette dans un projet
 existant, puis l'ouvre comme une destination normale ; aucun projet GitLab ni
 dossier distant n'est créé implicitement. L'ouverture permet de retrouver les
-comptes et destinations déjà configurés. Une découverte paginée liste les projets accessibles
-au compte, puis les branches du projet choisi. Elle
-est bornée à cinq pages de 50 éléments et signale une liste tronquée ; elle
-n'envoie que des requêtes GET et ne modifie pas le jeton saisi. L'ouverture
+comptes et destinations déjà configurés. Le formulaire charge directement le projet
+à partir de son URL et du jeton saisi ; l'exploration de la liste des projets
+n'est plus exposée. Les deux formulaires utilisent `useProjetGitLab` et un seul appel
+IPC `gitlab:preparerProjet`. Le main lit le projet et l'utilisateur, puis retourne
+la branche par défaut annoncée par GitLab. Aucune liste de branches n'est chargée
+et aucun sélecteur n'est affiché. Un dépôt sans branche par défaut est refusé avec
+une invitation à l'initialiser ; aucune branche `main` n'est supposée.
+Ces lectures n'envoient que des requêtes GET. Les destinations déjà enregistrées
+conservent leur branche mémorisée. L'ouverture
 prépare entièrement le miroir avant la bascule, n'enregistre la destination
 qu'après une lecture réussie, puis active l'édition des entretiens sous bail.
 Les opérations de corpus, Docs cadre et médias partagés restent indisponibles
@@ -333,11 +338,35 @@ régressions avant l'extraction des classes.
 
 ## 5. Frontières d'extraction repérées
 
+### Contrats IPC des accès distants
+
+Les contrats partagés sont séparés par responsabilité :
+
+- `src/shared/distant.ts` : résultats d'ouverture, tirages, sessions et `ApiDistant` ;
+- `src/shared/webdav.ts` : destinations, connexion et création WebDAV, `ApiWebDAV` ;
+- `src/shared/gitlab.ts` : préparation de projet et destinations GitLab, `ApiGitLab`.
+
+Le preload vérifie ses trois objets avec `satisfies` ; `env.d.ts` référence ces
+mêmes interfaces au lieu de recopier les signatures. `sonal.webdav` configure et
+ouvre les destinations WebDAV ; `sonal.gitlab` fait de même pour GitLab.
+`sonal.distant` conserve les services du corpus courant, selon les capacités du
+fournisseur, ainsi que la disponibilité du coffre sécurisé.
+
+Le nom du corpus à créer est `nomCorpus` pour les deux fournisseurs ; `nomProjet`
+désigne le projet GitLab. Les demandes peuvent transporter le secret saisi vers
+le main, mais les destinations publiques retournées n'en contiennent jamais.
+Ces changements ne modifient ni le format du coffre, ni les identifiants des
+récents et miroirs. Les tests du pont sont dans `test/preloadDistant.test.ts`.
+La préparation en lecture seule est testée dans `test/gitlab/preparationProjet.test.ts` ;
+l'invalidation du formulaire et ses réponses tardives dans `test/projetGitLabRenderer.test.ts`.
+
+### Services main
+
 | Emplacement | Couplage actuel | Première couture envisagée |
 |---|---|---|
 | `distant/miroir.ts`, `distant/miroirWebDAV.ts`, `distant/installationMiroir.ts`, `distant/validationMiroir.ts` | Le miroir commun ne construit aucun transport ; l'adaptateur WebDAV conserve la compatibilité des sessions et transactions. | Stabiliser les ports de publication avant de généraliser le contexte éditable. |
 | `distant/lecture.ts`, `lecteurWebDAV.ts`, `transfert.ts`, `transfertWebDAV.ts` | Les contrats de lecture et de transfert sont distincts, avec adaptateurs WebDAV sans publication. | Ajouter le transfert GitLab/LFS seulement après sa qualification dédiée. |
-| `gitlab/client.ts`, `gitlab/lecture.ts`, `gitlab/contexte.ts`, `gitlab/decouverte.ts` | Client borné en lecture et mutation sans retry, lecteur à SHA fixé, découverte paginée et contexte de consultation. | Ajouter la reprise durable des publications et l'injection sans activer l'interface. |
+| `gitlab/client.ts`, `gitlab/lecture.ts`, `gitlab/contexte.ts`, `gitlab/preparationProjet.ts`, `gitlab/ouverture.ts` | Client borné en lecture et mutation sans retry, lecteur à SHA fixé, préparation du projet par URL, contexte GitLab et service d'ouverture. | Garder la préparation du formulaire indépendante des sessions et de la publication. |
 | `gitlab/bailGitLab.ts`, `gitlab/publication.ts`, `gitlab/journalPublication.ts`, `gitlab/session.ts`, `gitlab/assemblageSession.ts` | Droit opaque, bail versionné, commit conditionnel, journal durable, cycle local d'une session et chemins local/distant explicites. | Tester la reprise après crash et la fermeture applicative complète. |
 | `distant/coordination.ts`, `observationVerrousWebDAV.ts` | Observation des badges Nextcloud séparée du tirage de contenu. | Garder ce port d'observation distinct ; ne pas le confondre avec le bail GitLab. |
 | `distant/sessions.ts` | Providers créés en interne, appels DAV et scans de verrous. | Coordination injectée avec publication sous droit détenu ; récupération locale séparée. |
@@ -354,6 +383,18 @@ ignore le résultat d'un tirage terminé après remplacement du contexte. Les
 contrats de lecture, de découverte et de publication GitLab sont extraits. Le
 bail reste un connecteur spécialisé jusqu'à ce que son journal durable et son
 intégration aux sessions existent.
+
+L'orchestration d'ouverture GitLab vit désormais dans `gitlab/ouverture.ts` :
+le service `ServiceOuvertureGitLab` porte les trois opérations explicites
+(créer, enregistrer, ouvrir), la séquence commune des nouvelles destinations,
+la réconciliation des journaux et la construction du résultat public sans
+secret. Il reçoit le répertoire du profil, l'identité de session, le coffre et
+deux effets explicites — fermer l'ancien contexte, installer le préparé.
+Les handlers IPC de `main/index.ts` ne gardent que la file de transitions,
+restée propriétaire unique de la sérialisation des bascules.
+L'ordre et les échecs (préparation, coffre, fermeture, installation) sont
+couverts par `test/gitlab/ouverture.test.ts`, avec les vrais journaux pour la
+réconciliation et le premier tirage.
 
 ## 6. Qualification GitLab encore nécessaire
 

@@ -1,0 +1,704 @@
+import { createHash } from 'node:crypto'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import {
+  CoffreComptes,
+  idDeCompteGitLab,
+  idDeDestinationGitLab,
+  type Chiffreur,
+  type ConfigDestinationGitLab,
+} from '../../src/main/distant/coffre'
+import { ContexteGitLab } from '../../src/main/gitlab/contexte'
+import {
+  ServiceOuvertureGitLab,
+  type OptionsServiceOuvertureGitLab,
+  type PreparationOuvertureGitLab,
+} from '../../src/main/gitlab/ouverture'
+import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
+import { JournalSessionsGitLab } from '../../src/main/gitlab/journalSession'
+import { squeletteCorpus } from '../../src/shared/corpus/squelette'
+import type { DemandeCreationGitLab, DemandeOuvertureGitLab } from '../../src/shared/gitlab'
+import {
+  corpusDistantValide,
+  entretienDistantValide,
+} from '../webdav/fixturesCorpusDistant'
+
+const chiffreur: Chiffreur = {
+  disponible: () => true,
+  chiffre: (clair) => `chiffre:${Buffer.from(clair).toString('base64')}`,
+  dechiffre: (secret) => Buffer.from(secret.slice('chiffre:'.length), 'base64').toString(),
+}
+
+const demande: DemandeOuvertureGitLab = {
+  urlInstance: 'https://gitlab.example.org',
+  utilisateur: 'max',
+  projetId: 42,
+  nomProjet: 'Corpus pilote',
+  branche: 'equipe/terrain',
+  racine: 'donnees',
+  jeton: 'jeton-saisi',
+}
+const demandeCreation: DemandeCreationGitLab = {
+  ...demande,
+  nomCorpus: 'Enquête 2026',
+}
+
+/** Préparation factice : seuls les champs réellement lus par l'installation comptent. */
+function preparationFactice(
+  destination: ConfigDestinationGitLab,
+  dirProfil: string,
+): PreparationOuvertureGitLab {
+  const dirMiroir = join(dirProfil, 'miroirs', destination.id)
+  return {
+    contexte: {
+      id: destination.id,
+      store: { marque: destination.id },
+      dirLocal: dirMiroir,
+    } as unknown as ContexteGitLab,
+    corpus: squeletteCorpus(`Corpus ${destination.nomProjet}`),
+    dirMiroir,
+  }
+}
+
+function preparerFactice(
+  dirProfil: string,
+  observé?: (compte: { utilisateur: string }, destination: ConfigDestinationGitLab, jeton: string) => void,
+): NonNullable<OptionsServiceOuvertureGitLab['preparer']> {
+  return async (compte, destination, jeton) => {
+    observé?.(compte, destination, jeton)
+    return preparationFactice(destination, dirProfil)
+  }
+}
+
+/** Banc d'orchestration : vrai coffre, préparation remplaçable, effets espionnés. */
+function bancOuverture(
+  options: Partial<OptionsServiceOuvertureGitLab> = {},
+): {
+  service: ServiceOuvertureGitLab
+  coffre: CoffreComptes
+  dirProfil: string
+  traces: string[]
+  installées: { destination: ConfigDestinationGitLab; preparation: PreparationOuvertureGitLab }[]
+} {
+  const dirProfil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-ouverture-'))
+  const coffre = new CoffreComptes(join(dirProfil, 'comptes-distant.json'), chiffreur)
+  const traces: string[] = []
+  const installées: { destination: ConfigDestinationGitLab; preparation: PreparationOuvertureGitLab }[] = []
+  const service = new ServiceOuvertureGitLab({
+    coffre,
+    dirProfil,
+    identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
+    fermerContexte: async () => {
+      traces.push('fermer')
+    },
+    installer: (destination, preparation) => {
+      traces.push('installer')
+      installées.push({ destination, preparation })
+    },
+    ...options,
+  })
+  return { service, coffre, dirProfil, traces, installées }
+}
+
+function enregistrerDestination(
+  coffre: CoffreComptes,
+  demandeLocale: DemandeOuvertureGitLab = demande,
+): ConfigDestinationGitLab {
+  const compte = coffre.enregistrerCompteGitLab({
+    urlInstance: demandeLocale.urlInstance,
+    utilisateur: demandeLocale.utilisateur,
+    jeton: demandeLocale.jeton,
+  })
+  return coffre.enregistrerDestinationGitLab({
+    compteId: compte.id,
+    projetId: demandeLocale.projetId,
+    nomProjet: demandeLocale.nomProjet,
+    branche: demandeLocale.branche,
+    racine: demandeLocale.racine,
+  })
+}
+
+/** Dépôt GitLab simulé : lectures à SHA fixé, publications observées. */
+interface DepotFactice {
+  fichiers: Record<string, string>
+  branche: string
+  commit: string
+  /** Commits visibles par la recherche de réconciliation. */
+  commits?: Array<{ id: string; title: string }>
+  /** Statut HTTP renvoyé aux publications ; 201 sinon. */
+  refusPublier?: number
+  /** Coupe le réseau sur la recherche de commits (résultat indéterminé). */
+  couperRecherche?: boolean
+  requetes: { url: URL; init?: RequestInit }[]
+}
+
+function fetchGitLabFactice(depot: DepotFactice): typeof fetch {
+  const reponseJson = (valeur: unknown) =>
+    new Response(JSON.stringify(valeur), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  return (async (entree: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(entree))
+    depot.requetes.push({ url, init })
+    const chemin = decodeURIComponent(url.pathname)
+    if (chemin.includes('/repository/commits')) {
+      if (init?.method === 'POST') {
+        if (depot.refusPublier) return new Response('refusé', { status: depot.refusPublier })
+        return reponseJson({ id: depot.commit })
+      }
+      if (depot.couperRecherche) throw new Error('réseau coupé')
+      return reponseJson(depot.commits ?? [])
+    }
+    if (chemin.includes('/repository/branches/')) {
+      return reponseJson({ commit: { id: depot.commit } })
+    }
+    if (chemin.includes('/repository/tree')) {
+      // Inventaire non récursif, comme GitLab : enfants directs seulement.
+      const dossier = url.searchParams.get('path') ?? ''
+      const prefixe = dossier ? `${dossier}/` : ''
+      const entrees: { id: string; name: string; type: string; path: string; mode: string }[] = []
+      const vus = new Set<string>()
+      for (const fichier of Object.keys(depot.fichiers)) {
+        if (prefixe && !fichier.startsWith(prefixe)) continue
+        const reste = fichier.slice(prefixe.length)
+        const intermediaire = reste.includes('/')
+        const nom = reste.split('/')[0]
+        const cheminEntree = `${prefixe}${nom}`
+        if (vus.has(cheminEntree)) continue
+        vus.add(cheminEntree)
+        entrees.push({
+          id: createHash('sha1').update(cheminEntree).digest('hex'),
+          name: nom,
+          type: intermediaire ? 'tree' : 'blob',
+          path: cheminEntree,
+          mode: intermediaire ? '040000' : '100644',
+        })
+      }
+      return new Response(JSON.stringify(entrees), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'x-next-page': '' },
+      })
+    }
+    if (chemin.includes('/repository/files/')) {
+      const fichier = chemin.slice(
+        chemin.lastIndexOf('/repository/files/') + '/repository/files/'.length,
+      ).replace(/\/raw$/, '')
+      const contenu = depot.fichiers[fichier]
+      if (contenu === undefined) return new Response(null, { status: 404 })
+      if (url.pathname.includes('/raw')) return new Response(contenu)
+      return reponseJson({
+        file_path: fichier,
+        content: Buffer.from(contenu).toString('base64'),
+        encoding: 'base64',
+        last_commit_id: depot.commit,
+      })
+    }
+    return new Response(null, { status: 404 })
+  }) as typeof fetch
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('ouverture GitLab — orchestration du service', () => {
+  test('nouvelle destination : préparation avant coffre, fermeture avant installation', async () => {
+    const { service, coffre, dirProfil, traces, installées } = bancOuverture({
+      preparer: async (compte, destination, jeton) => {
+        traces.push('preparer')
+        expect(compte.utilisateur).toBe('max')
+        expect(jeton).toBe('jeton-saisi')
+        // La destination n'est encore nulle part au moment de la préparation.
+        expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+        return preparationFactice(destination, dirProfil)
+      },
+      fermerContexte: async () => {
+        traces.push('fermer')
+        // Le coffre a été écrit avant la fermeture de l'ancien contexte.
+        expect(coffre.listerDestinationsGitLab()).toHaveLength(1)
+      },
+    })
+
+    const resultat = await service.enregistrerEtOuvrir(demande)
+
+    expect(traces).toEqual(['preparer', 'fermer', 'installer'])
+    expect(installées).toHaveLength(1)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(1)
+    expect(coffre.listerComptesGitLab()).toHaveLength(1)
+    expect(resultat).toMatchObject({
+      dir: installées[0].preparation.dirMiroir,
+      nom: 'Corpus Corpus pilote',
+      distant: {
+        fournisseur: 'gitlab',
+        projetId: 42,
+        nomProjet: 'Corpus pilote',
+        branche: 'equipe/terrain',
+        racine: 'donnees',
+        jetonDisponible: true,
+      },
+      verrous: [],
+    })
+    // Aucun secret ne traverse le résultat public.
+    expect(JSON.stringify(resultat)).not.toContain('jeton-saisi')
+  })
+
+  test('destination enregistrée : mêmes identifiants et branche, jeton du coffre transmis', async () => {
+    const observé = vi.fn(async (_compte: { utilisateur: string }, destination: ConfigDestinationGitLab) =>
+      preparationFactice(destination, ''))
+    const { service, coffre } = bancOuverture({ preparer: observé })
+    const destination = enregistrerDestination(coffre, {
+      ...demande,
+      jeton: 'jeton-du-coffre',
+    })
+
+    const resultat = await service.ouvrir(destination.id)
+
+    expect(observé).toHaveBeenCalledTimes(1)
+    const [compteRecu, destinationRecue, jetonRecu] = observé.mock.calls[0]
+    expect(compteRecu.utilisateur).toBe('max')
+    expect(destinationRecue).toEqual(destination)
+    expect(jetonRecu).toBe('jeton-du-coffre')
+    expect(resultat.distant).toMatchObject({
+      id: destination.id,
+      branche: destination.branche,
+      racine: destination.racine,
+    })
+    expect(resultat.corpus.membership).toEqual({})
+  })
+
+  test('jeton ressaisi transmis à la préparation puis mémorisé au coffre', async () => {
+    const observé = vi.fn(async (_compte: { utilisateur: string }, destination: ConfigDestinationGitLab) =>
+      preparationFactice(destination, ''))
+    const { service, coffre } = bancOuverture({ preparer: observé })
+    const destination = enregistrerDestination(coffre, {
+      ...demande,
+      jeton: 'jeton-du-coffre',
+    })
+
+    await service.ouvrir(destination.id, 'jeton-ressaisi')
+
+    expect(observé.mock.calls[0][2]).toBe('jeton-ressaisi')
+    expect(coffre.jetonGitLab(destination.compteId)).toBe('jeton-ressaisi')
+    // Sans ressaisie, le jeton mémorisé reste celui du coffre.
+    await service.ouvrir(destination.id)
+    expect(observé.mock.calls[1][2]).toBe('jeton-ressaisi')
+  })
+
+  test('destination, compte ou jeton absent : refus avant tout effet', async () => {
+    const { service, coffre, traces, installées } = bancOuverture({
+      preparer: async () => {
+        throw new Error('la préparation ne doit pas être appelée')
+      },
+    })
+    await expect(service.ouvrir('destination-inconnue'))
+      .rejects.toThrow('Destination GitLab inconnue.')
+
+    const destination = enregistrerDestination(coffre)
+    coffre.oublier(destination.compteId)
+    await expect(service.ouvrir(destination.id))
+      .rejects.toThrow('Compte GitLab inconnu.')
+
+    // Compte présent au coffre mais sans jeton lisible : refus, rien préparé.
+    const compteId = idDeCompteGitLab(demande.urlInstance, demande.utilisateur)
+    const destinationId = idDeDestinationGitLab({
+      compteId,
+      projetId: demande.projetId,
+      branche: demande.branche,
+      racine: demande.racine,
+    })
+    const dirSansJeton = mkdtempSync(join(tmpdir(), 'sonal-gitlab-ouverture-'))
+    writeFileSync(join(dirSansJeton, 'comptes-distant.json'), JSON.stringify({
+      formatVersion: 3,
+      comptes: {
+        [compteId]: {
+          fournisseur: 'gitlab',
+          id: compteId,
+          urlInstance: demande.urlInstance,
+          utilisateur: demande.utilisateur,
+        },
+      },
+      destinationsGitLab: {
+        [destinationId]: {
+          fournisseur: 'gitlab',
+          id: destinationId,
+          compteId,
+          projetId: demande.projetId,
+          nomProjet: demande.nomProjet,
+          branche: demande.branche,
+          racine: demande.racine,
+        },
+      },
+    }), 'utf8')
+    const coffreSansJeton = new CoffreComptes(join(dirSansJeton, 'comptes-distant.json'), chiffreur)
+    const refus = vi.fn(async () => {
+      throw new Error('la préparation ne doit pas être appelée')
+    })
+    const serviceSansJeton = new ServiceOuvertureGitLab({
+      coffre: coffreSansJeton,
+      dirProfil: dirSansJeton,
+      identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
+      fermerContexte: async () => {
+        throw new Error('la fermeture ne doit pas être appelée')
+      },
+      installer: () => {
+        throw new Error('l’installation ne doit pas être appelée')
+      },
+      preparer: refus,
+    })
+    await expect(serviceSansJeton.ouvrir(destinationId))
+      .rejects.toThrow('Saisissez le jeton GitLab pour cette session.')
+    expect(refus).not.toHaveBeenCalled()
+
+    expect(traces).toEqual([])
+    expect(installées).toHaveLength(0)
+  })
+
+  test('échec de préparation : rien d’enregistré, fermé ni installé', async () => {
+    const { service, coffre, traces, installées } = bancOuverture({
+      preparer: async () => {
+        throw new Error('le dépôt ne fournit pas de commit valide')
+      },
+    })
+
+    await expect(service.enregistrerEtOuvrir(demande))
+      .rejects.toThrow('le dépôt ne fournit pas de commit valide')
+
+    expect(coffre.listerComptesGitLab()).toHaveLength(0)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+    expect(traces).toEqual([])
+    expect(installées).toHaveLength(0)
+  })
+
+  test('échec d’enregistrement : pas de fermeture ni d’installation, compte seul au coffre', async () => {
+    const { coffre, dirProfil } = bancOuverture()
+    vi.spyOn(coffre, 'enregistrerDestinationGitLab').mockImplementation(() => {
+      throw new Error('coffre indisponible')
+    })
+    const service = new ServiceOuvertureGitLab({
+      coffre,
+      dirProfil,
+      identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
+      fermerContexte: async () => {
+        throw new Error('la fermeture ne doit pas être appelée')
+      },
+      installer: () => {
+        throw new Error('l’installation ne doit pas être appelée')
+      },
+      preparer: preparerFactice(dirProfil),
+    })
+
+    await expect(service.enregistrerEtOuvrir(demande)).rejects.toThrow('coffre indisponible')
+
+    // Effet partiel caractérisé : le compte est enregistré, pas la destination.
+    expect(coffre.listerComptesGitLab()).toHaveLength(1)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+  })
+
+  test('fermeture refusée : pas d’installation, erreur remontée, coffre conservé', async () => {
+    const { coffre, dirProfil } = bancOuverture()
+    const installées: unknown[] = []
+    const service = new ServiceOuvertureGitLab({
+      coffre,
+      dirProfil,
+      identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
+      fermerContexte: async () => {
+        throw new Error('publication impossible')
+      },
+      installer: (destination, preparation) => {
+        installées.push({ destination, preparation })
+      },
+      preparer: preparerFactice(dirProfil),
+    })
+
+    await expect(service.enregistrerEtOuvrir(demande)).rejects.toThrow('publication impossible')
+
+    expect(installées).toHaveLength(0)
+    // Le coffre conserve l'enregistrement déjà effectué : pas de compensation.
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(1)
+  })
+
+  test('deux ouvertures rapprochées restent sérialisées par la file de transitions', async () => {
+    const { coffre, dirProfil } = bancOuverture()
+    const destinationA = enregistrerDestination(coffre, { ...demande, projetId: 42, racine: 'donnees' })
+    const destinationB = enregistrerDestination(coffre, { ...demande, projetId: 43, racine: 'archives' })
+    let enCours = 0
+    let auPlus = 0
+    const service = new ServiceOuvertureGitLab({
+      coffre,
+      dirProfil,
+      identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
+      fermerContexte: async () => {
+        enCours += 1
+        auPlus = Math.max(auPlus, enCours)
+      },
+      installer: () => {
+        enCours -= 1
+      },
+      preparer: async (_compte, destination) => {
+        // Laisse une vraie fenêtre de concurrence apparaître si elle existait.
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        return preparationFactice(destination, dirProfil)
+      },
+    })
+    // File de transitions identique à celle du main : une seule bascule à la fois.
+    let file: Promise<void> = Promise.resolve()
+    const transitionner = <T>(operation: () => Promise<T>): Promise<T> => {
+      const resultat = file.then(operation, operation)
+      file = resultat.then(
+        () => undefined,
+        () => undefined,
+      )
+      return resultat
+    }
+
+    const [resultatA, resultatB] = await Promise.all([
+      transitionner(() => service.ouvrir(destinationA.id)),
+      transitionner(() => service.ouvrir(destinationB.id)),
+    ])
+
+    expect(auPlus).toBe(1)
+    expect(resultatA.distant.id).toBe(destinationA.id)
+    expect(resultatB.distant.id).toBe(destinationB.id)
+  })
+})
+
+describe('ouverture GitLab — création du squelette distant', () => {
+  function depotFactice(fichiers: Record<string, string> = {}): DepotFactice {
+    return {
+      fichiers,
+      branche: demande.branche,
+      commit: 'a'.repeat(40),
+      requetes: [],
+    }
+  }
+
+  test('création réussie : un seul commit de squelette puis chemin commun d’ouverture', async () => {
+    const depot = depotFactice()
+    const observé = vi.fn((_compte: { utilisateur: string }, destination: ConfigDestinationGitLab) => {
+      expect(destination.branche).toBe('equipe/terrain')
+    })
+    const { service, coffre, traces, installées } = bancOuverture({
+      fetchImpl: fetchGitLabFactice(depot),
+      preparer: preparerFactice('', observé),
+    })
+
+    const resultat = await service.creerEtOuvrir(demandeCreation)
+
+    const publications = depot.requetes.filter(({ init }) => init?.method === 'POST')
+    expect(publications).toHaveLength(1)
+    const corps = JSON.parse(String(publications[0].init?.body)) as {
+      branch: string
+      commit_message: string
+      actions: { action: string; file_path: string; content: string }[]
+    }
+    expect(corps.branch).toBe('equipe/terrain')
+    expect(corps.commit_message).toBe('Sonal création donnees')
+    expect(corps.actions).toHaveLength(1)
+    expect(corps.actions[0].action).toBe('create')
+    expect(corps.actions[0].file_path).toBe('donnees/corpus.json')
+    expect(JSON.parse(corps.actions[0].content).nom).toBe('Enquête 2026')
+    expect(observé).toHaveBeenCalledTimes(1)
+    expect(traces).toEqual(['fermer', 'installer'])
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(1)
+    expect(installées).toHaveLength(1)
+    expect(resultat.distant).toMatchObject({
+      fournisseur: 'gitlab',
+      branche: 'equipe/terrain',
+      racine: 'donnees',
+      jetonDisponible: true,
+    })
+  })
+
+  test('corpus déjà présent : aucun commit, aucune destination ni installation', async () => {
+    const depot = depotFactice({ 'donnees/corpus.json': corpusDistantValide([]) })
+    const { service, coffre, traces, installées } = bancOuverture({
+      fetchImpl: fetchGitLabFactice(depot),
+      preparer: preparerFactice(''),
+    })
+
+    await expect(service.creerEtOuvrir(demandeCreation))
+      .rejects.toThrow('Un corpus existe déjà à cet emplacement GitLab.')
+
+    expect(depot.requetes.filter(({ init }) => init?.method === 'POST')).toHaveLength(0)
+    expect(coffre.listerComptesGitLab()).toHaveLength(0)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+    expect(traces).toEqual([])
+    expect(installées).toHaveLength(0)
+  })
+
+  test('publication refusée : pas d’enregistrement ni d’installation', async () => {
+    const depot = depotFactice()
+    depot.refusPublier = 400
+    const { service, coffre, traces, installées } = bancOuverture({
+      fetchImpl: fetchGitLabFactice(depot),
+      preparer: preparerFactice(''),
+    })
+
+    await expect(service.creerEtOuvrir(demandeCreation)).rejects.toThrow()
+
+    expect(coffre.listerComptesGitLab()).toHaveLength(0)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+    expect(traces).toEqual([])
+    expect(installées).toHaveLength(0)
+  })
+
+  test('création publiée puis ouverture échouée : corpus distant conservé, pas de rejeu', async () => {
+    const depot = depotFactice()
+    const { service, coffre } = bancOuverture({
+      fetchImpl: fetchGitLabFactice(depot),
+      preparer: async () => {
+        throw new Error('ouverture interrompue')
+      },
+    })
+
+    await expect(service.creerEtOuvrir(demandeCreation))
+      .rejects.toThrow('ouverture interrompue')
+
+    // Le squelette publié reste sur le dépôt : un seul commit, aucune compensation.
+    const publications = depot.requetes.filter(({ init }) => init?.method === 'POST')
+    expect(publications).toHaveLength(1)
+    expect(coffre.listerComptesGitLab()).toHaveLength(0)
+    expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
+  })
+})
+
+describe('ouverture GitLab — préparation réelle avec journaux', () => {
+  const SHA_PUB = 'c'.repeat(40)
+
+  function bancReel() {
+    const dirProfil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-ouverture-'))
+    const coffre = new CoffreComptes(join(dirProfil, 'comptes-distant.json'), chiffreur)
+    const destination = enregistrerDestination(coffre)
+    const journalRepertoire = join(dirProfil, 'operations-gitlab', destination.id)
+    const ressource = `entretien:${destination.id}:e1`
+    const resourceHash = createHash('sha256').update(ressource).digest('hex')
+    const contenuPublie = entretienDistantValide()
+    const depot: DepotFactice = {
+      fichiers: {
+        'donnees/corpus.json': corpusDistantValide(['e1']),
+        'donnees/entretiens/e1.json': contenuPublie,
+      },
+      branche: destination.branche,
+      commit: 'b'.repeat(40),
+      commits: [{ id: SHA_PUB, title: 'Sonal op-crash' }],
+      requetes: [],
+    }
+    return {
+      coffre,
+      dirProfil,
+      destination,
+      journalRepertoire,
+      ressource,
+      resourceHash,
+      contenuPublie,
+      depot,
+    }
+  }
+
+  function serviceReel(banc: ReturnType<typeof bancReel>) {
+    const installées: PreparationOuvertureGitLab[] = []
+    const service = new ServiceOuvertureGitLab({
+      coffre: banc.coffre,
+      dirProfil: banc.dirProfil,
+      identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
+      fermerContexte: async () => undefined,
+      installer: (_destination, preparation) => {
+        installées.push(preparation)
+      },
+      fetchImpl: fetchGitLabFactice(banc.depot),
+    })
+    return { service, installées }
+  }
+
+  function semerJournaux(banc: ReturnType<typeof bancReel>) {
+    const journal = new JournalPublicationGitLab(banc.destination.id, banc.journalRepertoire)
+    journal.preparer({
+      operationId: 'op-crash',
+      branche: banc.destination.branche,
+      resourceHash: banc.resourceHash,
+      generation: 'generation-test',
+      leaseCommitId: 'd'.repeat(40),
+      etat: 'prepare',
+      actions: [{
+        action: 'update',
+        file_path: 'donnees/entretiens/e1.json',
+        content: banc.contenuPublie,
+        last_commit_id: 'e'.repeat(40),
+      }],
+    })
+    const journalSessions = new JournalSessionsGitLab(banc.destination.id, banc.journalRepertoire)
+    journalSessions.ouvrir(
+      banc.ressource,
+      'entretiens/e1.json',
+      'donnees/entretiens/e1.json',
+      banc.destination.branche,
+      'f'.repeat(40),
+      banc.contenuPublie,
+    )
+    return { journal, journalSessions }
+  }
+
+  test('journal confirmé : session confirmée avant la suppression de l’opération', async () => {
+    const banc = bancReel()
+    const { journal, journalSessions } = semerJournaux(banc)
+    const ordre: string[] = []
+    const confirmerOrigine = JournalSessionsGitLab.prototype.confirmerPublication
+    const supprimerOrigine = JournalPublicationGitLab.prototype.supprimer
+    vi.spyOn(JournalSessionsGitLab.prototype, 'confirmerPublication')
+      .mockImplementation(function (this: JournalSessionsGitLab, ...args: Parameters<typeof confirmerOrigine>) {
+        ordre.push('confirmer')
+        return confirmerOrigine.apply(this, args)
+      })
+    vi.spyOn(JournalPublicationGitLab.prototype, 'supprimer')
+      .mockImplementation(function (this: JournalPublicationGitLab, ...args: Parameters<typeof supprimerOrigine>) {
+        ordre.push('supprimer')
+        return supprimerOrigine.apply(this, args)
+      })
+    const { service, installées } = serviceReel(banc)
+
+    const resultat = await service.ouvrir(banc.destination.id)
+
+    expect(ordre).toEqual(['confirmer', 'supprimer'])
+    expect(journal.lister()).toHaveLength(0)
+    const reprise = journalSessions.lire(banc.ressource)
+    expect(reprise).not.toBeNull()
+    expect(reprise?.commitId).toBe(SHA_PUB)
+    expect(installées).toHaveLength(1)
+    expect(resultat.distant.id).toBe(banc.destination.id)
+    expect(resultat.corpus.membership).toHaveProperty('e1')
+  })
+
+  test('journal indéterminé : copie récupérable exclue du premier tirage, sans nouvelle publication', async () => {
+    const banc = bancReel()
+    const { journal } = semerJournaux(banc)
+    banc.depot.couperRecherche = true
+    // Copie locale non publiée, déjà présente dans le miroir avant l'ouverture.
+    const dirMiroir = join(banc.dirProfil, 'miroirs', banc.destination.id)
+    mkdirSync(join(dirMiroir, 'entretiens'), { recursive: true })
+    const copieLocale = entretienDistantValide({
+      corpsTexte: { type: 'doc', content: [{ type: 'paragraph' }] },
+    })
+    writeFileSync(join(dirMiroir, 'entretiens', 'e1.json'), copieLocale, 'utf8')
+    const { service, installées } = serviceReel(banc)
+
+    const resultat = await service.ouvrir(banc.destination.id)
+
+    // L'opération indéterminée est conservée, et rien n'a été republié.
+    expect(journal.lister()).toHaveLength(1)
+    expect(banc.depot.requetes.every(({ init }) => init?.method !== 'POST')).toBe(true)
+    // Le premier tirage a remplacé corpus.json mais épargné la copie récupérable.
+    expect(readFileSync(join(dirMiroir, 'entretiens', 'e1.json'), 'utf8')).toBe(copieLocale)
+    expect(existsSync(join(dirMiroir, 'corpus.json'))).toBe(true)
+    expect(installées).toHaveLength(1)
+    expect(resultat.corpus.membership).toHaveProperty('e1')
+  })
+})

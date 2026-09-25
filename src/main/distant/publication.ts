@@ -8,9 +8,8 @@
  *  temporaire, donc aucune fenêtre de crash avec temporaire orphelin ; une
  *  reprise après échec réseau est naturellement idempotente.
  *
- *  Le renderer ne voit jamais cette classe : il ne connaît que l'IPC
- *  `distant:creer`. Les tests la branchent sur un serveur WebDAV via le fetch
- *  injectable.
+ *  Le renderer demande la création via `webdav:creer`.
+ *  Le transport est injectable pour les tests.
  */
 
 import {

@@ -34,7 +34,8 @@ import type {
   DemandeExportDocxCorpus,
   ParamsAnon,
 } from '../shared/format'
-import type { DemandeCreationDistante, ResultatFermetureSession } from '../shared/distant'
+import type { ApiGitLab } from '../shared/gitlab'
+import type { ApiWebDAV } from '../shared/webdav'
 import type {
   InventaireDocsCadre,
   ResultatLectureDocsCadre,
@@ -52,24 +53,10 @@ import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type {
-  BrancheGitLabPublic,
-  CompteDistantPublic,
-  DemandeConnexion,
-  DemandeCreationGitLab,
-  DemandeDecouverteBranchesGitLab,
-  DemandeDecouverteGitLab,
-  DemandeProjetGitLab,
-  DemandeOuvertureGitLab,
-  DestinationGitLabPublic,
-  ProjetGitLabPublic,
-  DivergenceDistante,
+  ApiDistant,
   EtatSessionPublic,
-  OrphelinDistant,
-  OuvertureDistante,
   ProgressionTransfert,
-  ResultatConnexion,
-  ResultatDecouverteGitLab,
-  ResultatTiragePublic,
+  ResultatFermetureSession,
 } from '../shared/distant'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import { CORPUS_SUPPRIME } from '../shared/format'
@@ -370,93 +357,40 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('corpus:poserValeurLot', items),
   },
   gitlab: {
-    lister: (): Promise<DestinationGitLabPublic[]> => invoquer('gitlab:lister'),
-    decouvrirProjets: (
-      demande: DemandeDecouverteGitLab,
-    ): Promise<ResultatDecouverteGitLab<ProjetGitLabPublic>> =>
-      invoquer('gitlab:decouvrirProjets', demande),
-    lireUtilisateur: (demande: DemandeDecouverteGitLab): Promise<string> =>
-      invoquer('gitlab:lireUtilisateur', demande),
-    chargerProjet: (demande: DemandeProjetGitLab): Promise<ProjetGitLabPublic> =>
-      invoquer('gitlab:chargerProjet', demande),
-    decouvrirBranches: (
-      demande: DemandeDecouverteBranchesGitLab,
-    ): Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>> =>
-      invoquer('gitlab:decouvrirBranches', demande),
-    enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab): Promise<OuvertureDistante> =>
-      invoquer('gitlab:enregistrerEtOuvrir', demande),
-    creerEtOuvrir: (demande: DemandeCreationGitLab): Promise<OuvertureDistante> =>
-      invoquer('gitlab:creerEtOuvrir', demande),
-    ouvrir: (id: string, jeton?: string): Promise<OuvertureDistante> =>
-      invoquer('gitlab:ouvrir', id, jeton),
-    oublierDestination: (id: string): Promise<DestinationGitLabPublic[]> =>
-      invoquer('gitlab:oublierDestination', id),
-  },
+    lister: () => invoquer('gitlab:lister'),
+    preparerProjet: (demande) => invoquer('gitlab:preparerProjet', demande),
+    enregistrerEtOuvrir: (demande) => invoquer('gitlab:enregistrerEtOuvrir', demande),
+    creerEtOuvrir: (demande) => invoquer('gitlab:creerEtOuvrir', demande),
+    ouvrir: (id, jeton) => invoquer('gitlab:ouvrir', id, jeton),
+    oublierDestination: (id) => invoquer('gitlab:oublierDestination', id),
+  } satisfies ApiGitLab,
+  webdav: {
+    lister: () => invoquer('webdav:lister'),
+    connecter: (demande) => invoquer('webdav:connecter', demande),
+    creer: (demande) => invoquer('webdav:creer', demande),
+    ouvrir: (id, motDePasse) => invoquer('webdav:ouvrir', id, motDePasse),
+    oublier: (id) => invoquer('webdav:oublier', id),
+  } satisfies ApiWebDAV,
   distant: {
-    /** Comptes distants configurés — JAMAIS de secret dans le retour. */
-    lister: (): Promise<CompteDistantPublic[]> => invoquer('distant:lister'),
-    stockageSecuriseDisponible: (): Promise<boolean> =>
-      invoquer('distant:stockageSecuriseDisponible'),
-    connecter: (params: DemandeConnexion): Promise<ResultatConnexion> =>
-      invoquer('distant:connecter', params),
-    /** Création directe d'un corpus distant : publie le squelette sur le serveur,
-     *  puis enregistre le compte. L'appelant enchaîne sur `ouvrir(compte.id)` —
-     *  créer = ouvrir, comme en local. */
-    creer: (params: DemandeCreationDistante): Promise<ResultatConnexion> =>
-      invoquer('distant:creer', params),
-    ouvrir: (id: string, motDePasse?: string): Promise<OuvertureDistante> =>
-      invoquer('distant:ouvrir', id, motDePasse),
-    tirer: (): Promise<ResultatTiragePublic | null> => invoquer('distant:tirer'),
-    /** Navigation du sélecteur « Désigner dans Nextcloud… » ;
-     *  PROPFIND Depth:1 d'un dossier du corpus ; null si corpus local ;
-     *  dossiers d'abord. */
-    listerDossier: (
-      dossier: string,
-    ): Promise<{ entrees: { nom: string; dossier: boolean }[] } | null> =>
-      invoquer('distant:listerDossier', dossier),
-    /** Désignation audio distante sur un entretien FERMÉ (micro-session D4). */
-    designerAudio: (
-      id: string,
-      cheminAudio: string,
-    ): Promise<{ ok: boolean; raison?: string; tenuPar?: string }> =>
-      invoquer('distant:designerAudio', id, cheminAudio),
-    /** Téléversement d'un fichier LOCAL vers le serveur (D5) :
-     *  le main lit le fichier et l'envoie avec la garde anti-écrasement,
-     *  jamais le renderer ne touche au disque.
-     *  { raison:'existe', suggere } en cas de collision. */
-    televerserAudio: (
-      sourceLocale: string,
-      cheminCible: string,
-    ): Promise<{ ok: boolean; raison?: string; suggere?: string }> =>
+    stockageSecuriseDisponible: () => invoquer('distant:stockageSecuriseDisponible'),
+    tirer: () => invoquer('distant:tirer'),
+    listerDossier: (dossier) => invoquer('distant:listerDossier', dossier),
+    designerAudio: (id, cheminAudio) => invoquer('distant:designerAudio', id, cheminAudio),
+    televerserAudio: (sourceLocale, cheminCible) =>
       invoquer('distant:televerserAudio', sourceLocale, cheminCible),
-    /** Verrous orphelins d'un crash sans libération. Null si corpus local. */
-    orphelins: (): Promise<OrphelinDistant[] | null> => invoquer('distant:orphelins'),
-    /** Progression des transferts binaires (rapatriements du tirage,
-     *  téléversements). Renvoie la fonction de désabonnement. */
-    surProgression: (cb: (p: ProgressionTransfert) => void): (() => void) => {
+    orphelins: () => invoquer('distant:orphelins'),
+    surProgression: (cb) => {
       const ecouteur = (_e: Electron.IpcRendererEvent, p: ProgressionTransfert): void => cb(p)
       ipcRenderer.on('distant:progression', ecouteur)
       return () => ipcRenderer.removeListener('distant:progression', ecouteur)
     },
-    /** Choix « reprendre et publier » : publie la copie locale PUIS libère. */
-    reprendreOrphelin: (cheminVerrou: string): Promise<{ ok: boolean; raison?: string }> =>
-      invoquer('distant:reprendreOrphelin', cheminVerrou),
-    /** Choix « abandonner » : déverrouille SANS publier. */
-    abandonnerOrphelin: (cheminVerrou: string): Promise<void> =>
-      invoquer('distant:abandonnerOrphelin', cheminVerrou),
-    /** Copies de divergence mises de côté (fusion assistée). */
-    listerDivergences: (): Promise<DivergenceDistante[]> =>
-      invoquer('distant:listerDivergences'),
-    lireDivergence: (chemin: string): Promise<unknown> =>
-      invoquer('distant:lireDivergence', chemin),
-    supprimerDivergence: (chemin: string): Promise<void> =>
-      invoquer('distant:supprimerDivergence', chemin),
-    /** Présence : signale l'entretien ouvert sur CE poste. */
-    noterEntretienOuvert: (id: string | null): Promise<void> =>
-      invoquer('distant:noterEntretienOuvert', id),
-    oublier: (id: string): Promise<CompteDistantPublic[]> =>
-      invoquer('distant:oublier', id),
-  },
+    reprendreOrphelin: (cheminVerrou) => invoquer('distant:reprendreOrphelin', cheminVerrou),
+    abandonnerOrphelin: (cheminVerrou) => invoquer('distant:abandonnerOrphelin', cheminVerrou),
+    listerDivergences: () => invoquer('distant:listerDivergences'),
+    lireDivergence: (chemin) => invoquer('distant:lireDivergence', chemin),
+    supprimerDivergence: (chemin) => invoquer('distant:supprimerDivergence', chemin),
+    noterEntretienOuvert: (id) => invoquer('distant:noterEntretienOuvert', id),
+  } satisfies ApiDistant,
   media: {
     /** Largeur (px) du panneau vidéo mémorisée pour un corpus (dir), ou null. */
     lireLargeurVideo: (dir: string): Promise<number | null> =>
