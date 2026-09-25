@@ -1,7 +1,10 @@
 # Corpus distants Nextcloud et GitLab — plan directeur d'implémentation
 
 **Statut : chantier commencé ; L0/L1 en cours, façade et premières extractions L2 engagées.**
-**Les protocoles GitLab de concurrence et de transfert LFS restent à valider.**
+**La consultation GitLab, la découverte et la recette Electron à deux profils sont validées.**
+**Le même parcours réussit dans le binaire Linux empaqueté, y compris sans LFS.**
+**Le bail versionné, les transferts LFS streamés et leur annulation/reprise sont qualifiés sur le banc.**
+**La CI, le quota LFS, le journal durable et l’orchestration de session restent à valider.**
 
 Ce document remplace la proposition précédente de `plan-gitlab3.md`, qui
 privilégiait l'édition optimiste. Ce n'est plus la cible retenue.
@@ -697,13 +700,23 @@ Rapport détaillé : [qualification GitLab et état du chantier](../../docs/dev/
 - [x] Réconcilier par identifiant un commit accepté dont la réponse réseau est perdue.
 - [x] Mesurer une première série de renouvellements et leur course sur une même garde.
 - [x] Protéger une source métier lue par une action conditionnelle inchangée dans le commit.
-- [ ] Compléter les interactions avec sessions longues, la mesure longue durée/CI et les transferts LFS volumineux, annulés ou refusés par quota.
+- [x] Jouer la consultation GitLab dans deux profils Electron, avec actualisation, bascule local ↔ GitLab et réouverture d'un récent ; un test E2E réel réussi.
+- [x] Ajouter la découverte paginée et bornée des projets et branches accessibles, sans écriture ; 4 tests unitaires et le parcours E2E réussis.
+- [x] Jouer le refus d'un jeton invalide et la consultation d'un projet sans LFS sans création de miroir ni commit.
+- [x] Rejouer les trois scénarios E2E dans le binaire Linux empaqueté.
+- [x] Extraire un droit GitLab opaque, un bail versionné et un publieur conditionnel sans les exposer dans le renderer.
+- [x] Ajouter un journal local atomique, un candidat opaque et une réconciliation par identifiant sans rejeu automatique.
+- [x] Valider sur GitLab réel qu'une reprise à horloge décalée bloque l'ancienne génération et que la génération courante publie.
+- [x] Mesurer deux campagnes accélérées de 480 renouvellements du bail, sans attendre 60 s entre chaque commit.
+- [x] Transférer un objet LFS de 32 MiJ en flux, le relire depuis le second compte, puis annuler et reprendre un objet de 8 MiJ.
+- [ ] Mesurer une interaction réelle avec une CI et un refus pour quota LFS ; le banc local n'a actuellement ni CI ni quota configuré.
 
 Le typecheck est de nouveau passant dans l'installation locale courante.
 Ni L0 ni L1 ne sont déclarés terminés : les preuves serveur, l'isolation de la
 coordination et les autres extractions restent à faire. Le prochain travail
-borné est de tester le parcours de consultation dans Electron à deux profils,
-puis d'ajouter la découverte bornée des projets et branches avant le pilote.
+borné est d'ajouter l'orchestration de session et la reprise de ce journal après
+redémarrage, toujours sans exposer l'édition dans le renderer. La CI et le quota
+LFS restent à qualifier sur une instance qui en fournit réellement.
 
 ### L0 — Capitalisation V1 et qualification GitLab ciblée
 
@@ -943,6 +956,10 @@ npm test -- test/distantRenderer.test.ts test/docsCadreDistant.test.ts
 npm test
 npm run build
 npm run test:multiuser
+npm run test:gitlab
+npm run test:gitlab:long
+npm run test:gitlab:e2e
+npm run test:gitlab:e2e:packaged
 ```
 
 Ajouter les suites GitLab/LFS sans rendre un compte institutionnel obligatoire
@@ -1074,8 +1091,13 @@ la réponse perdue et le premier transfert LFS réel sont consignés dans
 `docs/dev/gitlab.md`. La façade de contexte, les contrats de lecture et de
 transfert ainsi que l'installation locale reprenable sont implémentés. Le
 premier lecteur GitLab à SHA fixé est assemblé dans un contexte de consultation
-sans écriture serveur ; les contrats de publication et de coordination restent
-à extraire.
+sans écriture serveur. La découverte des projets et branches, l'ouverture, la
+consultation, l'actualisation, les récents et la bascule local ↔ GitLab ont été
+joués dans deux profils Electron sur le banc réel, puis dans le binaire Linux
+empaqueté. Le jeton invalide et le projet sans LFS sont également couverts. Les
+ports de bail et de publication sont extraits et testés. Le journal local et la
+réconciliation par identifiant sont également implémentés, mais restent
+désolidarisés des sessions jusqu'à l'orchestration complète.
 
 Références :
 
@@ -1092,7 +1114,10 @@ Références :
 - [Protocole LFS batch](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md).
 - [Protocole LFS locking](https://github.com/git-lfs/git-lfs/blob/main/docs/api/locking.md).
 
-**Prochaine étape : tester le parcours de consultation GitLab dans Electron à
-deux profils, puis ajouter la découverte bornée des projets et branches. La
-qualification GitLab réelle reprendra sur les scénarios longue durée et les
-transferts volumineux, sans réécriture de l'application ni serveur Sonal.**
+**Prochaine étape : ajouter l'orchestration de session et la reprise du journal
+après redémarrage, puis rejouer acquisition, veille, reprise, publication et
+fermeture sans activer l'édition dans l'interface. La série de 480 renouvellements,
+le LFS de 32 MiJ, l'annulation/reprise et le bail conditionnel sont validés ; une
+CI et un quota LFS restent à qualifier sur une instance qui les configure. Les
+droits institutionnels et la recette du packaging destinataire restent également
+à confirmer.**

@@ -37,6 +37,33 @@ export interface DestinationGitLabPublic {
   jetonDisponible: boolean
 }
 
+export interface ProjetGitLabPublic {
+  id: number
+  nom: string
+  chemin: string
+  brancheParDefaut: string | null
+  archive: boolean
+}
+
+export interface BrancheGitLabPublic {
+  nom: string
+  parDefaut: boolean
+}
+
+export interface ResultatDecouverteGitLab<T> {
+  elements: T[]
+  tronque: boolean
+}
+
+export interface DemandeDecouverteGitLab {
+  urlInstance: string
+  jeton: string
+}
+
+export interface DemandeDecouverteBranchesGitLab extends DemandeDecouverteGitLab {
+  projetId: number
+}
+
 export interface DemandeOuvertureGitLab {
   urlInstance: string
   utilisateur: string

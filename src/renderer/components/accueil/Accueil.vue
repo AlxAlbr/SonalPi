@@ -7,6 +7,7 @@ import CorpusDistant from './CorpusDistant.vue'
 import NouveauCorpusDistant from './NouveauCorpusDistant.vue'
 import { utiliserSonal } from '../../composables/sonal'
 import type { ModeDemo } from '../../composables/demo'
+import type { EntreeRecent } from '../../../shared/format'
 
 const {
   recents,
@@ -44,6 +45,33 @@ async function lancerPreparer(mode: ModeDemo) {
   await raccrocherEtatDemo()
   if (pretUnClic(mode)) void preparer(mode)
   else modaleDemo.value = mode
+}
+
+/** Demande le secret dans la modale lorsqu'un récent ne peut pas rouvrir seul. */
+async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
+  if (entree.type === 'distant') {
+    try {
+      if (entree.fournisseur === 'gitlab') {
+        const destination = (await window.sonal.gitlab.lister())
+          .find((candidate) => candidate.id === entree.id)
+        if (destination && !destination.jetonDisponible) {
+          modaleDistant.value = true
+          return
+        }
+      } else {
+        const compte = (await window.sonal.distant.lister())
+          .find((candidate) => candidate.id === entree.id)
+        if (compte && !compte.motDePasseDisponible) {
+          modaleDistant.value = true
+          return
+        }
+      }
+    } catch {
+      modaleDistant.value = true
+      return
+    }
+  }
+  await ouvrirRecent(entree)
 }
 </script>
 
@@ -117,7 +145,7 @@ async function lancerPreparer(mode: ModeDemo) {
       <p v-if="recents.length === 0" class="vide">Aucun corpus récent.</p>
       <ul class="recents">
         <li v-for="r in recents" :key="r.type === 'distant' ? `d-${r.id}` : r.dir">
-          <button class="recent" @click="ouvrirRecent(r)">
+          <button class="recent" @click="ouvrirRecentEntree(r)">
             <span v-if="r.type === 'distant'" title="Corpus distant (serveur)">🌐</span>
             {{ r.nom }}
           </button>

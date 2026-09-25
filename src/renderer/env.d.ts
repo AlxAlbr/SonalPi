@@ -53,17 +53,22 @@ import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type {
+  BrancheGitLabPublic,
   CompteDistantPublic,
   DemandeConnexion,
   DemandeCreationDistante,
+  DemandeDecouverteBranchesGitLab,
+  DemandeDecouverteGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
   DivergenceDistante,
   EtatSessionPublic,
   OrphelinDistant,
   OuvertureDistante,
+  ProjetGitLabPublic,
   ProgressionTransfert,
   ResultatConnexion,
+  ResultatDecouverteGitLab,
   ResultatFermetureSession,
   ResultatTiragePublic,
 } from '../shared/distant'
@@ -237,6 +242,12 @@ declare global {
       }
       gitlab: {
         lister: () => Promise<DestinationGitLabPublic[]>
+        decouvrirProjets: (
+          demande: DemandeDecouverteGitLab,
+        ) => Promise<ResultatDecouverteGitLab<ProjetGitLabPublic>>
+        decouvrirBranches: (
+          demande: DemandeDecouverteBranchesGitLab,
+        ) => Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>>
         enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab) => Promise<OuvertureDistante>
         ouvrir: (id: string, jeton?: string) => Promise<OuvertureDistante>
         oublierDestination: (id: string) => Promise<DestinationGitLabPublic[]>

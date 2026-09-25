@@ -2,9 +2,11 @@
 import { ref, onMounted } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import type {
+  BrancheGitLabPublic,
   CompteDistantPublic,
   DestinationGitLabPublic,
   ProfilCapacites,
+  ProjetGitLabPublic,
 } from '../../../shared/distant'
 
 /**
@@ -36,8 +38,13 @@ const utilisateurGitLab = ref('')
 const jetonGitLab = ref('')
 const projetGitLab = ref<number | null>(null)
 const nomProjetGitLab = ref('')
-const brancheGitLab = ref('main')
+const brancheGitLab = ref('')
 const racineGitLab = ref('')
+const projetsGitLab = ref<ProjetGitLabPublic[]>([])
+const branchesGitLab = ref<BrancheGitLabPublic[]>([])
+const projetsGitLabTronques = ref(false)
+const branchesGitLabTronquees = ref(false)
+const actionGitLab = ref<'decouverte' | 'branches' | 'ouverture' | null>(null)
 
 async function rafraichirListe() {
   comptes.value = await window.sonal.distant.lister()
@@ -114,8 +121,82 @@ async function ouvrirGitLab(destination: DestinationGitLabPublic) {
   }
 }
 
+function invaliderDecouverteGitLab(): void {
+  projetGitLab.value = null
+  nomProjetGitLab.value = ''
+  brancheGitLab.value = ''
+  projetsGitLab.value = []
+  branchesGitLab.value = []
+  projetsGitLabTronques.value = false
+  branchesGitLabTronquees.value = false
+}
+
+async function decouvrirProjetsGitLab(): Promise<void> {
+  if (!urlGitLab.value.trim() || !jetonGitLab.value) return
+  actionGitLab.value = 'decouverte'
+  enCours.value = true
+  erreur.value = null
+  try {
+    const resultat = await window.sonal.gitlab.decouvrirProjets({
+      urlInstance: urlGitLab.value.trim(),
+      jeton: jetonGitLab.value,
+    })
+    invaliderDecouverteGitLab()
+    projetsGitLab.value = resultat.elements
+    projetsGitLabTronques.value = resultat.tronque
+    if (resultat.elements.length === 0) {
+      erreur.value = 'Aucun projet accessible n’a été trouvé avec ce jeton.'
+    }
+  } catch (e) {
+    erreur.value = e instanceof Error ? e.message : 'Découverte des projets impossible.'
+  } finally {
+    actionGitLab.value = null
+    enCours.value = false
+  }
+}
+
+async function choisirProjetGitLab(): Promise<void> {
+  const projet = projetsGitLab.value.find((candidate) => candidate.id === projetGitLab.value)
+  brancheGitLab.value = ''
+  branchesGitLab.value = []
+  branchesGitLabTronquees.value = false
+  nomProjetGitLab.value = projet?.nom ?? ''
+  if (!projet) return
+  if (projet.archive) {
+    erreur.value = 'Ce projet GitLab est archivé et ne peut pas être ouvert.'
+    return
+  }
+
+  actionGitLab.value = 'branches'
+  enCours.value = true
+  erreur.value = null
+  try {
+    const resultat = await window.sonal.gitlab.decouvrirBranches({
+      urlInstance: urlGitLab.value.trim(),
+      jeton: jetonGitLab.value,
+      projetId: projet.id,
+    })
+    branchesGitLab.value = resultat.elements
+    branchesGitLabTronquees.value = resultat.tronque
+    const brancheParDefaut = resultat.elements.find((branche) => branche.parDefaut)
+    brancheGitLab.value = brancheParDefaut?.nom
+      ?? resultat.elements.find((branche) => branche.nom === projet.brancheParDefaut)?.nom
+      ?? resultat.elements[0]?.nom
+      ?? ''
+    if (!brancheGitLab.value) {
+      erreur.value = 'Ce projet ne contient aucune branche lisible.'
+    }
+  } catch (e) {
+    erreur.value = e instanceof Error ? e.message : 'Découverte des branches impossible.'
+  } finally {
+    actionGitLab.value = null
+    enCours.value = false
+  }
+}
+
 async function connecterGitLab() {
   if (projetGitLab.value === null) return
+  actionGitLab.value = 'ouverture'
   enCours.value = true
   erreur.value = null
   try {
@@ -131,6 +212,7 @@ async function connecterGitLab() {
     emit('fermer')
   } catch (e) {
     erreur.value = e instanceof Error ? e.message : 'Connexion GitLab impossible.'
+    actionGitLab.value = null
     enCours.value = false
   }
 }
@@ -270,44 +352,73 @@ async function oublierGitLab(id: string) {
 
         <div class="question">
           <span class="q-lbl">URL de l'instance GitLab</span>
-          <input v-model="urlGitLab" class="champ" type="text" placeholder="https://gitlab.exemple.org" spellcheck="false" />
+          <input v-model="urlGitLab" class="champ url-gitlab" type="text" placeholder="https://gitlab.exemple.org" spellcheck="false" :disabled="enCours" @input="invaliderDecouverteGitLab" />
         </div>
         <div class="ligne-2">
           <div class="question">
             <span class="q-lbl">Utilisateur</span>
-            <input v-model="utilisateurGitLab" class="champ" type="text" spellcheck="false" />
+            <input v-model="utilisateurGitLab" class="champ utilisateur-gitlab" type="text" spellcheck="false" :disabled="enCours" @input="invaliderDecouverteGitLab" />
           </div>
           <div class="question">
             <span class="q-lbl">Jeton d'accès personnel</span>
-            <input v-model="jetonGitLab" class="champ" type="password" />
-          </div>
-        </div>
-        <div class="ligne-2">
-          <div class="question">
-            <span class="q-lbl">ID numérique du projet</span>
-            <input v-model.number="projetGitLab" class="champ" type="number" min="1" />
-          </div>
-          <div class="question">
-            <span class="q-lbl">Nom affiché du projet</span>
-            <input v-model="nomProjetGitLab" class="champ" type="text" />
-          </div>
-        </div>
-        <div class="ligne-2">
-          <div class="question">
-            <span class="q-lbl">Branche</span>
-            <input v-model="brancheGitLab" class="champ" type="text" spellcheck="false" />
-          </div>
-          <div class="question">
-            <span class="q-lbl">Racine du corpus (facultatif)</span>
-            <input v-model="racineGitLab" class="champ" type="text" placeholder="donnees/mon-corpus" spellcheck="false" />
+            <input v-model="jetonGitLab" class="champ jeton-gitlab" type="password" :disabled="enCours" @input="invaliderDecouverteGitLab" />
           </div>
         </div>
         <button
+          class="mini decouvrir-gitlab"
+          :disabled="enCours || !urlGitLab.trim() || !utilisateurGitLab.trim() || !jetonGitLab"
+          @click="decouvrirProjetsGitLab"
+        >
+          {{ actionGitLab === 'decouverte' ? 'Recherche…' : 'Découvrir les projets' }}
+        </button>
+        <p v-if="projetsGitLabTronques" class="note-decouverte">
+          Les 250 premiers projets ont été lus. Affinez la sélection ou utilisez un
+          jeton disposant d’un accès plus restreint.
+        </p>
+        <div v-if="projetsGitLab.length > 0" class="question">
+          <span class="q-lbl">Projet</span>
+          <select
+            v-model.number="projetGitLab"
+            class="champ projet-gitlab"
+            :disabled="enCours"
+            @change="choisirProjetGitLab"
+          >
+            <option :value="null">Choisir un projet…</option>
+            <option v-for="projet in projetsGitLab" :key="projet.id" :value="projet.id">
+              {{ projet.nom }} — {{ projet.chemin }}{{ projet.archive ? ' (archivé)' : '' }}
+            </option>
+          </select>
+        </div>
+        <div v-if="projetGitLab !== null" class="ligne-2">
+          <div class="question">
+            <span class="q-lbl">Branche</span>
+            <select
+              v-if="projetGitLab !== null"
+              v-model="brancheGitLab"
+              class="champ branche-gitlab"
+              :disabled="enCours || branchesGitLab.length === 0"
+            >
+              <option value="">Choisir une branche…</option>
+              <option v-for="branche in branchesGitLab" :key="branche.nom" :value="branche.nom">
+                {{ branche.nom }}{{ branche.parDefaut ? ' (par défaut)' : '' }}
+              </option>
+            </select>
+          </div>
+          <div class="question">
+            <span class="q-lbl">Racine du corpus (facultatif)</span>
+            <input v-model="racineGitLab" class="champ racine-gitlab" type="text" placeholder="donnees/mon-corpus" spellcheck="false" />
+          </div>
+        </div>
+        <p v-if="branchesGitLabTronquees" class="note-decouverte">
+          La liste des branches est tronquée. Choisissez la branche affichée si elle
+          convient ; les branches suivantes ne sont pas encore listées.
+        </p>
+        <button
           class="valider"
-          :disabled="enCours || !urlGitLab.trim() || !utilisateurGitLab.trim() || !jetonGitLab || !projetGitLab || !brancheGitLab.trim()"
+          :disabled="enCours || !urlGitLab.trim() || !utilisateurGitLab.trim() || !jetonGitLab || !projetGitLab || !brancheGitLab"
           @click="connecterGitLab"
         >
-          {{ enCours ? 'Ouverture…' : 'Ouvrir depuis GitLab' }}
+          {{ actionGitLab === 'ouverture' ? 'Ouverture…' : 'Ouvrir depuis GitLab' }}
         </button>
 
         <p v-if="erreur" class="msg">{{ erreur }}</p>
@@ -442,6 +553,14 @@ async function oublierGitLab(id: string) {
 .mini.ouvrir:hover:not(:disabled) {
   border-color: #2e73d8;
   background: #f0f6ff;
+}
+.mini.decouvrir-gitlab {
+  align-self: flex-start;
+}
+.note-decouverte {
+  margin: -0.25rem 0 0;
+  color: #795500;
+  font-size: 0.75rem;
 }
 .mini.oubli {
   opacity: 0.5;

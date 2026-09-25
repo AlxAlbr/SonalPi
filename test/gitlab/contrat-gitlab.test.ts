@@ -6,10 +6,27 @@
  *  Les fichiers et verrous sont conservés pour permettre l'examen après test.
  */
 
+import { once } from 'node:events'
 import { createHash } from 'node:crypto'
+import {
+  createReadStream,
+  createWriteStream,
+  mkdtempSync,
+  rmSync,
+  statfsSync,
+} from 'node:fs'
+import { open, stat } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { setTimeout as attendre } from 'node:timers/promises'
 import { describe, expect, it } from 'vitest'
+import { BailGitLab, DepotCommitsGitLabClient } from '../../src/main/gitlab/bailGitLab'
+import { ClientGitLab } from '../../src/main/gitlab/client'
+import { PublieurGitLab } from '../../src/main/gitlab/publication'
 
 const configuration = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''),
@@ -23,6 +40,10 @@ const configuration = {
 }
 
 const configurationPresente = Object.values(configuration).every((valeur) => Boolean(valeur))
+const campagneBailActivee = process.env.GITLAB_BAIL_CAMPAIGN === '1'
+const nombreCommitsBail = Number(process.env.GITLAB_BAIL_COMMITS ?? 480)
+const tailleLfsVolumineuse = Number(process.env.GITLAB_LFS_TAILLE_OCTETS ?? 32 * 1024 * 1024)
+const tailleLfsAnnulation = Number(process.env.GITLAB_LFS_TAILLE_ANNULATION ?? 8 * 1024 * 1024)
 const idExecution = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 
 interface ReponseHttp<T = unknown> {
@@ -90,6 +111,20 @@ function requete<T>(url: string, token: string, initialisation: RequestInit = {}
 
 function api<T>(chemin: string, token: string, initialisation: RequestInit = {}): Promise<ReponseHttp<T>> {
   return requete<T>(`${configuration.url}/api/v4${chemin}`, token, initialisation)
+}
+
+async function compterCommitsBranche(projet: string, jeton: string): Promise<number> {
+  let total = 0
+  for (let page = 1; page <= 100; page += 1) {
+    const commits = await api<unknown[]>(
+      `/projects/${projet}/repository/commits?ref_name=main&per_page=100&page=${page}`,
+      jeton,
+    )
+    if (commits.statut !== 200) throw new Error(detail(commits))
+    total += commits.corps.length
+    if (commits.corps.length < 100) return total
+  }
+  throw new Error('Le comptage des commits GitLab dépasse la borne de qualification.')
 }
 
 function cheminFichier(projetId: string, chemin: string): string {
@@ -164,6 +199,103 @@ function entetesActionLfs(action: ActionLfs): Headers {
 
 function verifierOrigineActionLfs(action: ActionLfs): void {
   expect(new URL(action.href).origin).toBe(new URL(configuration.url as string).origin)
+}
+
+async function creerFichierSynthétique(fichier: string, taille: number): Promise<void> {
+  const flux = createWriteStream(fichier)
+  const morceau = Buffer.alloc(256 * 1024)
+  for (let position = 0; position < taille; position += morceau.length) {
+    const longueur = Math.min(morceau.length, taille - position)
+    for (let index = 0; index < longueur; index += 1) {
+      morceau[index] = (position + index) % 251
+    }
+    if (position === 0) Buffer.from(`Sonal ${idExecution}`).copy(morceau)
+    if (!flux.write(morceau.subarray(0, longueur))) {
+      await once(flux, 'drain')
+    }
+  }
+  flux.end()
+  await once(flux, 'finish')
+}
+
+async function hacherFichier(fichier: string): Promise<string> {
+  const hache = createHash('sha256')
+  for await (const morceau of createReadStream(fichier)) hache.update(morceau)
+  return hache.digest('hex')
+}
+
+function initialisationFlux(body: Readable, signal?: AbortSignal): RequestInit {
+  return {
+    body: body as unknown as BodyInit,
+    ...(signal ? { signal } : {}),
+    duplex: 'half',
+  } as RequestInit
+}
+
+async function mesurerPicHeap<T>(operation: () => Promise<T>): Promise<{
+  valeur: T
+  picHeap: number
+  dureeMs: number
+}> {
+  let picHeap = process.memoryUsage().heapUsed
+  const debut = performance.now()
+  const minuteur = setInterval(() => {
+    picHeap = Math.max(picHeap, process.memoryUsage().heapUsed)
+  }, 25)
+  try {
+    return { valeur: await operation(), picHeap, dureeMs: performance.now() - debut }
+  } finally {
+    clearInterval(minuteur)
+  }
+}
+
+async function creerFluxLent(
+  fichier: string,
+  taille: number,
+  compteurOctets: { lus: number },
+): Promise<Readable> {
+  const handle = await open(fichier, 'r')
+  let position = 0
+  return new Readable({
+    highWaterMark: 256 * 1024,
+    async read() {
+      if (this.destroyed) return
+      if (position >= taille) {
+        this.push(null)
+        return
+      }
+      await attendre(25)
+      if (this.destroyed) return
+      const longueur = Math.min(256 * 1024, taille - position)
+      const morceau = Buffer.allocUnsafe(longueur)
+      const { bytesRead } = await handle.read(morceau, 0, longueur, position)
+      if (bytesRead !== longueur) {
+        this.destroy(new Error(`Lecture LFS interrompue à ${position}.`))
+        return
+      }
+      position += bytesRead
+      compteurOctets.lus = position
+      this.push(morceau)
+    },
+    async destroy(erreur, callback) {
+      await handle.close()
+      callback(erreur)
+    },
+  })
+}
+
+async function telechargerVersFichier(action: ActionLfs, fichier: string): Promise<void> {
+  verifierOrigineActionLfs(action)
+  const reponse = await fetch(action.href, {
+    headers: entetesActionLfs(action),
+    signal: AbortSignal.timeout(120_000),
+  })
+  expect(reponse.status, `Le téléchargement LFS a répondu HTTP ${reponse.status}.`).toBe(200)
+  if (!reponse.body) throw new Error('Réponse LFS sans corps.')
+  await pipeline(
+    Readable.fromWeb(reponse.body as never),
+    createWriteStream(fichier),
+  )
 }
 
 const decrire = configurationPresente ? describe : describe.skip
@@ -455,6 +587,169 @@ decrire('Contrat GitLab réel', () => {
     expect(recu.equals(contenu)).toBe(true)
   })
 
+  it('transfère un objet LFS volumineux en flux et le relit sur disque', { timeout: 300_000 }, async () => {
+    expect(Number.isSafeInteger(tailleLfsVolumineuse)).toBe(true)
+    expect(tailleLfsVolumineuse).toBeGreaterThanOrEqual(1024 * 1024)
+    expect(tailleLfsVolumineuse).toBeLessThanOrEqual(512 * 1024 * 1024)
+
+    const repertoire = mkdtempSync(join(tmpdir(), 'sonal-lfs-volume-'))
+    const source = join(repertoire, 'source.bin')
+    const telecharge = join(repertoire, 'telecharge.bin')
+    try {
+      const systeme = statfsSync(repertoire)
+      const espaceLibre = systeme.bavail * systeme.bsize
+      expect(espaceLibre, 'Espace disque insuffisant pour la qualification LFS.').toBeGreaterThan(
+        tailleLfsVolumineuse * 2 + 100 * 1024 * 1024,
+      )
+      await creerFichierSynthétique(source, tailleLfsVolumineuse)
+      const oid = await hacherFichier(source)
+      const objet = { oid, size: tailleLfsVolumineuse }
+      const demande = await demanderObjetLfs('upload', objet, 'user1', configuration.token1 as string)
+      expect(demande.statut, detail(demande)).toBe(200)
+      const actionEnvoi = demande.corps.objects[0].actions?.upload
+      expect(actionEnvoi).toBeDefined()
+      verifierOrigineActionLfs(actionEnvoi as ActionLfs)
+
+      const mesureEnvoi = await mesurerPicHeap(async () => {
+        const reponse = await fetch((actionEnvoi as ActionLfs).href, {
+          method: 'PUT',
+          headers: entetesActionLfs(actionEnvoi as ActionLfs),
+          ...initialisationFlux(createReadStream(source)),
+          signal: AbortSignal.timeout(180_000),
+        })
+        return reponse
+      })
+      expect(mesureEnvoi.valeur.status, `L'envoi LFS a répondu HTTP ${mesureEnvoi.valeur.status}.`).toBe(200)
+      await mesureEnvoi.valeur.body?.cancel()
+
+      const actionVerification = demande.corps.objects[0].actions?.verify
+      if (actionVerification) {
+        verifierOrigineActionLfs(actionVerification)
+        const entetes = entetesActionLfs(actionVerification)
+        entetes.set('Content-Type', 'application/vnd.git-lfs+json')
+        const verification = await fetch(actionVerification.href, {
+          method: 'POST',
+          headers: entetes,
+          body: JSON.stringify(objet),
+          signal: AbortSignal.timeout(30_000),
+        })
+        expect(verification.status, detail(verification)).toBe(200)
+      }
+
+      const dossier = `qualification/${idExecution}/volumineux`
+      const cheminMedia = `${dossier}/media.bin`
+      const pointeur = `version https://git-lfs.github.com/spec/v1\noid sha256:${oid}\nsize ${objet.size}\n`
+      const publication = await publierCommit(
+        configuration.projetLfsId as string,
+        configuration.token1 as string,
+        `qualification ${idExecution}: pointeur LFS volumineux`,
+        [
+          {
+            action: 'create',
+            file_path: `${dossier}/.gitattributes`,
+            content: '*.bin filter=lfs diff=lfs merge=lfs -text\n',
+          },
+          { action: 'create', file_path: cheminMedia, content: pointeur },
+          {
+            action: 'create',
+            file_path: `${dossier}/entretien.json`,
+            content: JSON.stringify({ audioDistant: { chemin: cheminMedia } }),
+          },
+        ],
+      )
+      expect(publication.statut, detail(publication)).toBe(201)
+
+      const demandeLecture = await demanderObjetLfs('download', objet, 'user2', configuration.token2 as string)
+      expect(demandeLecture.statut, detail(demandeLecture)).toBe(200)
+      const actionLecture = demandeLecture.corps.objects[0].actions?.download
+      expect(actionLecture).toBeDefined()
+      const mesureLecture = await mesurerPicHeap(async () => {
+        await telechargerVersFichier(actionLecture as ActionLfs, telecharge)
+      })
+      const telechargeStat = await stat(telecharge)
+      expect(telechargeStat.size).toBe(tailleLfsVolumineuse)
+      expect(await hacherFichier(telecharge)).toBe(oid)
+      const projet = await api<{ statistics?: { lfs_objects_size?: number } }>(
+        `/projects/${configuration.projetLfsId}?statistics=true`,
+        configuration.token1 as string,
+      )
+      expect(projet.statut, detail(projet)).toBe(200)
+      const bilan = {
+        octets: tailleLfsVolumineuse,
+        uploadMs: Math.round(mesureEnvoi.dureeMs),
+        lectureMs: Math.round(mesureLecture.dureeMs),
+        picHeapEnvoi: mesureEnvoi.picHeap,
+        picHeapLecture: mesureLecture.picHeap,
+        lfsStockeApres: projet.corps.statistics?.lfs_objects_size ?? null,
+      }
+      process.stderr.write(`LFS volumineux : ${JSON.stringify(bilan)}\n`)
+    } finally {
+      rmSync(repertoire, { recursive: true, force: true })
+    }
+  })
+
+  it('annule un upload LFS partiel puis réessaie le même objet sans erreur', { timeout: 180_000 }, async () => {
+    expect(Number.isSafeInteger(tailleLfsAnnulation)).toBe(true)
+    expect(tailleLfsAnnulation).toBeGreaterThanOrEqual(2 * 1024 * 1024)
+    expect(tailleLfsAnnulation).toBeLessThanOrEqual(128 * 1024 * 1024)
+
+    const repertoire = mkdtempSync(join(tmpdir(), 'sonal-lfs-annulation-'))
+    const source = join(repertoire, 'source.bin')
+    const telecharge = join(repertoire, 'telecharge.bin')
+    try {
+      await creerFichierSynthétique(source, tailleLfsAnnulation)
+      const oid = await hacherFichier(source)
+      const objet = { oid, size: tailleLfsAnnulation }
+      const demande = await demanderObjetLfs('upload', objet, 'user1', configuration.token1 as string)
+      expect(demande.statut, detail(demande)).toBe(200)
+      const actionEnvoi = demande.corps.objects[0].actions?.upload
+      expect(actionEnvoi).toBeDefined()
+      verifierOrigineActionLfs(actionEnvoi as ActionLfs)
+
+      const controleur = new AbortController()
+      const compteur = { lus: 0 }
+      const fluxAnnule = await creerFluxLent(source, tailleLfsAnnulation, compteur)
+      const uploadAnnule = fetch((actionEnvoi as ActionLfs).href, {
+        method: 'PUT',
+        headers: entetesActionLfs(actionEnvoi as ActionLfs),
+        ...initialisationFlux(fluxAnnule, controleur.signal),
+      })
+      const minuteur = setTimeout(() => controleur.abort(), 80)
+      let octetsAuRefus = 0
+      try {
+        await expect(uploadAnnule).rejects.toThrow()
+      } finally {
+        clearTimeout(minuteur)
+        octetsAuRefus = compteur.lus
+        fluxAnnule.destroy()
+      }
+      expect(octetsAuRefus).toBeGreaterThan(0)
+      expect(octetsAuRefus).toBeLessThan(tailleLfsAnnulation)
+
+      const reprise = await fetch((actionEnvoi as ActionLfs).href, {
+        method: 'PUT',
+        headers: entetesActionLfs(actionEnvoi as ActionLfs),
+        ...initialisationFlux(createReadStream(source)),
+        signal: AbortSignal.timeout(120_000),
+      })
+      expect(reprise.status, `La reprise LFS a répondu HTTP ${reprise.status}.`).toBe(200)
+      await reprise.body?.cancel()
+
+      const demandeLecture = await demanderObjetLfs('download', objet, 'user2', configuration.token2 as string)
+      expect(demandeLecture.statut, detail(demandeLecture)).toBe(200)
+      const actionLecture = demandeLecture.corps.objects[0].actions?.download
+      expect(actionLecture).toBeDefined()
+      await telechargerVersFichier(actionLecture as ActionLfs, telecharge)
+      expect((await stat(telecharge)).size).toBe(tailleLfsAnnulation)
+      expect(await hacherFichier(telecharge)).toBe(oid)
+      process.stderr.write(
+        `LFS annulé : ${JSON.stringify({ octets: tailleLfsAnnulation, octetsEnvoyesAvantAnnulation: octetsAuRefus, reprise: true })}\n`,
+      )
+    } finally {
+      rmSync(repertoire, { recursive: true, force: true })
+    }
+  })
+
   it('refuse le batch LFS lorsque le projet le désactive', { timeout: 30_000 }, async () => {
     const contenu = Buffer.from(`LFS désactivé ${idExecution}`)
     const objet = { oid: createHash('sha256').update(contenu).digest('hex'), size: contenu.length }
@@ -531,6 +826,70 @@ decrire('Contrat GitLab réel', () => {
     expect(publicationB.statut, detail(publicationB)).toBe(201)
     const fichierB = await lireFichier(projet, marqueurB, tokenPosteA)
     expect(Buffer.from(fichierB.corps.content, 'base64').toString('utf8')).toBe('publié par la génération courante')
+  })
+
+  it('refuse l’ancienne génération après une reprise à horloge décalée', { timeout: 60_000 }, async () => {
+    const projetId = Number(configuration.projetLfsId)
+    const client = new ClientGitLab({
+      urlInstance: configuration.url as string,
+      projetId,
+      jeton: configuration.token1 as string,
+    })
+    const depot = new DepotCommitsGitLabClient(client)
+    const instantBase = Date.now()
+    const posteA = new BailGitLab({
+      branche: 'main',
+      depot,
+      identite: () => ({
+        userId: 'user1',
+        machineId: `qualification-${idExecution}-a`,
+        sessionId: `session-${idExecution}-a`,
+      }),
+      maintenant: () => instantBase,
+      nouvelleGeneration: () => `generation-${idExecution}-a`,
+      dureeBailMs: 60_000,
+    })
+    const posteB = new BailGitLab({
+      branche: 'main',
+      depot,
+      identite: () => ({
+        userId: 'user1',
+        machineId: `qualification-${idExecution}-b`,
+        sessionId: `session-${idExecution}-b`,
+      }),
+      maintenant: () => instantBase + 120_000,
+      nouvelleGeneration: () => `generation-${idExecution}-b`,
+      dureeBailMs: 60_000,
+    })
+    const ancien = await posteA.acquireRessource(`${idExecution}-entretien-horloge`)
+    expect(ancien.ok).toBe(true)
+    if (!ancien.ok) throw new Error('Acquisition réelle du bail impossible.')
+    const reprise = await posteB.acquireRessource(`${idExecution}-entretien-horloge`)
+    expect(reprise.ok).toBe(true)
+    if (!reprise.ok) throw new Error('Reprise réelle du bail impossible.')
+
+    const marqueurAncien = `qualification/${idExecution}-publication-ancienne-coordonnee.txt`
+    const publieurA = new PublieurGitLab({ branche: 'main', depot, coordination: posteA })
+    await expect(publieurA.publierSousDroit({
+      operationId: `${idExecution}-ancienne-generation-coordonnee`,
+      actions: [{ action: 'create', chemin: marqueurAncien, contenu: 'interdit' }],
+    }, ancien.droit)).resolves.toEqual({ statut: 'refuse', raison: 'droit-perdu' })
+    expect((await lireFichier(projetId.toString(), marqueurAncien, configuration.token1 as string)).statut).toBe(404)
+
+    const marqueurCourant = `qualification/${idExecution}-publication-courante-coordonnee.txt`
+    const publieurB = new PublieurGitLab({ branche: 'main', depot, coordination: posteB })
+    await expect(publieurB.publierSousDroit({
+      operationId: `${idExecution}-generation-courante-coordonnee`,
+      actions: [{ action: 'create', chemin: marqueurCourant, contenu: 'accepté' }],
+    }, reprise.droit)).resolves.toMatchObject({ statut: 'confirme', compteurBail: 2 })
+    const contenu = await lireFichier(
+      projetId.toString(),
+      marqueurCourant,
+      configuration.token2 as string,
+    )
+    expect(contenu.statut, detail(contenu)).toBe(200)
+    expect(Buffer.from(contenu.corps.content, 'base64').toString('utf8')).toBe('accepté')
+    await expect(posteB.liberer(reprise.droit)).resolves.toBe('libere')
   })
 
   it('protège une source lue par une action conditionnelle dans le même commit', { timeout: 45_000 }, async () => {
@@ -675,6 +1034,103 @@ decrire('Contrat GitLab réel', () => {
     const final = await lireFichier(projet, chemin, tokenA)
     const contenu = JSON.parse(Buffer.from(final.corps.content, 'base64').toString('utf8')) as { compteur: number }
     expect(contenu.compteur).toBe(nombreRenouvellements + 1)
+  })
+
+  describe.skipIf(!campagneBailActivee)('campagne longue du bail', () => {
+    it('mesure une journée accélérée de renouvellements et la présence de CI', { timeout: 900_000 }, async () => {
+      expect(Number.isSafeInteger(nombreCommitsBail), 'GITLAB_BAIL_COMMITS doit être entier.').toBe(true)
+      expect(nombreCommitsBail).toBeGreaterThanOrEqual(1)
+      expect(nombreCommitsBail).toBeLessThanOrEqual(2_000)
+
+      const projet = configuration.projetLfsId as string
+      const jeton = configuration.token1 as string
+      const chemin = `qualification/${idExecution}-bail-journee.json`
+      const projetAvant = await api<{
+        statistics?: { repository_size?: number }
+      }>(`/projects/${projet}?statistics=true`, jeton)
+      expect(projetAvant.statut, detail(projetAvant)).toBe(200)
+      const commitsAvant = await compterCommitsBranche(projet, jeton)
+      const configurationCi = await lireFichier(projet, '.gitlab-ci.yml', jeton)
+      const ciConfiguree = configurationCi.statut === 200
+
+      const creation = await publierCommit(projet, jeton, `qualification ${idExecution}: début journée`, [
+        {
+          action: 'create',
+          file_path: chemin,
+          content: JSON.stringify({ generation: idExecution, compteur: 0 }),
+        },
+      ])
+      expect(creation.statut, detail(creation)).toBe(201)
+
+      let garde = creation.corps.id
+      const durees: number[] = []
+      let premierPipeline: string | null = null
+      const debut = performance.now()
+      for (let compteur = 1; compteur <= nombreCommitsBail; compteur += 1) {
+        const instantRenouvellement = Date.now() + compteur * 60_000
+        const debutRenouvellement = performance.now()
+        const renouvellement = await publierCommit(
+          projet,
+          jeton,
+          `qualification ${idExecution}: journée ${compteur}`,
+          [
+            {
+              action: 'update',
+              file_path: chemin,
+              content: JSON.stringify({
+                generation: idExecution,
+                compteur,
+                echeance: new Date(instantRenouvellement).toISOString(),
+              }),
+              last_commit_id: garde,
+            },
+          ],
+        )
+        durees.push(performance.now() - debutRenouvellement)
+        expect(renouvellement.statut, detail(renouvellement)).toBe(201)
+        garde = renouvellement.corps.id
+
+        if (compteur === 1 && ciConfiguree) {
+          for (let tentative = 0; tentative < 10 && !premierPipeline; tentative += 1) {
+            const pipelines = await api<Array<{ status: string }>>(
+              `/projects/${projet}/pipelines?sha=${encodeURIComponent(garde)}&per_page=1`,
+              jeton,
+            )
+            premierPipeline = pipelines.corps[0]?.status ?? null
+            if (!premierPipeline) await new Promise((resolve) => setTimeout(resolve, 500))
+          }
+        }
+      }
+      const dureeTotale = performance.now() - debut
+      const final = await lireFichier(projet, chemin, jeton)
+      const contenu = JSON.parse(Buffer.from(final.corps.content, 'base64').toString('utf8')) as {
+        compteur: number
+      }
+      expect(contenu.compteur).toBe(nombreCommitsBail)
+
+      const projetApres = await api<{
+        statistics?: { repository_size?: number }
+      }>(`/projects/${projet}?statistics=true`, jeton)
+      expect(projetApres.statut, detail(projetApres)).toBe(200)
+      const commitsApres = await compterCommitsBranche(projet, jeton)
+      const triees = [...durees].sort((a, b) => a - b)
+      const percentile = (fraction: number): number =>
+        triees[Math.min(triees.length - 1, Math.floor(triees.length * fraction))] ?? 0
+      const bilan = {
+        renewlements: nombreCommitsBail,
+        intervalleSimuleSecondes: 60,
+        dureeTotaleMs: Math.round(dureeTotale),
+        medianeMs: Math.round(percentile(0.5)),
+        p95Ms: Math.round(percentile(0.95)),
+        tailleDepotAvant: projetAvant.corps.statistics?.repository_size ?? null,
+        tailleDepotApres: projetApres.corps.statistics?.repository_size ?? null,
+        commitsAvant,
+        commitsApres,
+        ci: ciConfiguree ? (premierPipeline ?? 'non observée') : 'non configurée',
+      }
+      process.stderr.write(`Campagne GitLab : ${JSON.stringify(bilan)}\n`)
+      expect(commitsApres - commitsAvant).toBeGreaterThanOrEqual(nombreCommitsBail + 1)
+    })
   })
 
   it('impose LFS Locks aux commits REST, mais identifie le détenteur par compte', { timeout: 45_000 }, async () => {

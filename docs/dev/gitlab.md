@@ -1,7 +1,8 @@
 # GitLab — qualification et état du chantier
 
-**État : étude V1 et caractérisation V2 en cours ; préversion de consultation
-GitLab exposée dans le renderer, gardes REST et LFS Locks qualifiées sur le banc Docker.**
+**État : préversion de consultation GitLab exposée ; gardes REST, LFS Locks,
+bail versionné et transferts LFS streamés qualifiés sur le banc Docker.**
+**La CI et le quota LFS institutionnels restent à qualifier.**
 
 Le [plan directeur](../../plans/encours/plan-gitlab3.md) fixe la cible : miroir
 commun, édition exclusive, publications conditionnelles, médias selon les
@@ -179,13 +180,56 @@ migration v2 ajoute le discriminant WebDAV sans changer les identifiants ni les
 récents existants. Trois tests couvrent la séparation compte/destinations, le
 renouvellement du jeton sans nouveau miroir et la migration WebDAV compatible.
 
-La modale distante expose une préversion GitLab par PAT et saisie du projet
-numérique, de la branche et de la racine. L'ouverture prépare entièrement le
-miroir avant la bascule, n'enregistre la destination qu'après une lecture
-réussie, puis force tous les écrans métier en consultation seule. Actualisation,
-récents et oubli d'une destination sont branchés ; édition, Docs cadre et médias
-partagés restent explicitement indisponibles. Ce parcours est compilé et testé
-par contrats, mais pas encore joué en E2E Electron ni sur deux profils réels.
+La modale distante expose une préversion GitLab par PAT. Une découverte paginée
+liste les projets accessibles au compte, puis les branches du projet choisi. Elle
+est bornée à cinq pages de 50 éléments et signale une liste tronquée ; elle
+n'envoie que des requêtes GET et ne modifie pas le jeton saisi. L'ouverture
+prépare entièrement le miroir avant la bascule, n'enregistre la destination
+qu'après une lecture réussie, puis force tous les écrans métier en consultation
+seule. Édition, Docs cadre et médias partagés restent explicitement
+indisponibles.
+
+`e2e/gitlab-consultation.e2e.ts` joue ce parcours sur le banc réel avec deux
+comptes et deux profils Electron isolés. Chacun découvre son projet, consulte le
+corps en lecture seule, actualise, revient au corpus local puis rouvre GitLab au
+même commit. Un profil est relancé et rouvre son récent GitLab en redemandant le
+jeton en mémoire. Les deux miroirs restent distincts et la tête de branche reste
+inchangée pendant toute l'application. Un jeton invalide est refusé sans créer de
+miroir. Le projet de référence dont LFS est désactivé reste ouvrable pour consulter
+ses transcriptions. La fixture est amorcée dans une racine synthétique unique avant
+le lancement ; elle est ensuite conservée pour examen. Les trois scénarios
+réussissent aussi dans le binaire Linux produit par `electron-builder --dir`.
+
+`gitlab/bailGitLab.ts` introduit un droit d'édition opaque, propre au main et à
+une génération. Le fichier de bail vit sous `.sonal/verrous/`, porte un chemin
+haché et ne peut pas être fourni directement par un plan de publication. Il
+enregistre l'identité de session, une génération, une échéance et un compteur.
+L'acquisition, la reprise, le renouvellement et la libération restent sérialisés
+par ce port. `gitlab/publication.ts` compile au plus cent actions, refuse les
+chemins de bail, les doublons et les gardes mal formées, puis ajoute au même
+commit la mutation conditionnelle du bail. Une réponse réseau perdue suspend le
+droit et interdit tout rejeu automatique.
+
+Le client REST écrit désormais avec une requête JSON bornée, un délai, une
+annulation, l'interdiction des redirections et aucun retry, y compris sur 429.
+Les refus et réponses serveur sont expurgés. Huit tests en mémoire couvrent
+l'exclusion du même compte sur deux postes, la reprise à horloge décalée, la
+sérialisation, le conflit de garde, l'ancienne génération, la réponse perdue et
+la limite 429. Un essai GitLab réel confirme qu'une reprise à horloge décalée
+refuse atomiquement l'ancienne génération, que la génération courante publie et
+que sa libération conditionnelle réussit.
+
+`gitlab/journalPublication.ts` sépare désormais les métadonnées de l'opération et
+son candidat opaque. Le journal est stocké sous le `userData`, par destination,
+dans `operations-gitlab/<destinationId>/`. Les actions sensibles ne sont pas dans
+le JSON lisible : elles sont dans un fichier candidat temporaire séparé, protégé
+en `0600`, avec empreinte et taille dans les métadonnées. Une opération confirmée
+ou refusée est supprimée ; une opération indéterminée reste disponible pour une
+recherche de commit au redémarrage. Une recherche ne rejoue rien : elle vérifie le
+contenu au commit trouvé. Cinq tests de journal et deux tests d'intégration
+publisher-journal couvrent le stockage, la corruption, l'absence, la confirmation
+et la conservation après perte de réponse. Ce port n'est pas encore injecté dans
+les sessions ni exposé dans le renderer.
 
 `test/webdav/coordination.test.ts` vérifie que les badges de verrous coopératifs
 sont observés par un port de coordination séparé. Le miroir n'inventorie plus
@@ -272,8 +316,9 @@ régressions avant l'extraction des classes.
 |---|---|---|
 | `distant/miroir.ts`, `distant/miroirWebDAV.ts`, `distant/installationMiroir.ts`, `distant/validationMiroir.ts` | Le miroir commun ne construit aucun transport ; l'adaptateur WebDAV conserve la compatibilité des sessions et transactions. | Stabiliser les ports de publication avant de généraliser le contexte éditable. |
 | `distant/lecture.ts`, `lecteurWebDAV.ts`, `transfert.ts`, `transfertWebDAV.ts` | Les contrats de lecture et de transfert sont distincts, avec adaptateurs WebDAV sans publication. | Ajouter le transfert GitLab/LFS seulement après sa qualification dédiée. |
-| `gitlab/client.ts`, `gitlab/lecture.ts`, `gitlab/contexte.ts` | Client borné, lecteur à SHA fixé et contexte de consultation exposés sans mutation serveur. | Ajouter la découverte des projets/branches et la recette Electron à deux profils. |
-| `distant/coordination.ts`, `observationVerrousWebDAV.ts` | Observation des badges séparée du tirage de contenu. | Étendre ce port avec prudence lors de l'injection de l'acquisition et de la publication sous droit. |
+| `gitlab/client.ts`, `gitlab/lecture.ts`, `gitlab/contexte.ts`, `gitlab/decouverte.ts` | Client borné en lecture et mutation sans retry, lecteur à SHA fixé, découverte paginée et contexte de consultation. | Ajouter la reprise durable des publications et l'injection sans activer l'interface. |
+| `gitlab/bailGitLab.ts`, `gitlab/publication.ts` | Droit opaque, bail versionné et commit de données lié à sa garde atomique. | Ajouter le journal durable, la réconciliation et l'orchestration de session avant toute exposition renderer. |
+| `distant/coordination.ts`, `observationVerrousWebDAV.ts` | Observation des badges Nextcloud séparée du tirage de contenu. | Garder ce port d'observation distinct ; ne pas le confondre avec le bail GitLab. |
 | `distant/sessions.ts` | Providers créés en interne, appels DAV et scans de verrous. | Coordination injectée avec publication sous droit détenu ; récupération locale séparée. |
 | `distant/transactions.ts` | Providers, relectures et PUT mêlés aux mutations locales. | Préparer les opérations métier puis exécuter selon le connecteur, commande par commande. |
 | `distant/publication.ts` | Création de dossiers et squelette WebDAV. | Création initiale spécifique, distincte du contrat général de publication. |
@@ -285,8 +330,9 @@ régressions avant l'extraction des classes.
 La première façade est maintenant introduite sans interface universelle de
 stockage. Elle assemble les services Nextcloud existants, protège la bascule et
 ignore le résultat d'un tirage terminé après remplacement du contexte. Les
-contrats spécialisés seront extraits avec le lecteur puis la coordination,
-sans leur attribuer prématurément des garanties communes.
+contrats de lecture, de découverte et de publication GitLab sont extraits. Le
+bail reste un connecteur spécialisé jusqu'à ce que son journal durable et son
+intégration aux sessions existent.
 
 ## 6. Qualification GitLab encore nécessaire
 
@@ -305,13 +351,13 @@ nécessaire pour les droits, quotas, OAuth et certificats de la cible réelle.
 |---|---|---|
 | Gardes des actions | Create exclusif ; update/delete/move périmés ; action invalide refusant tout le commit. | Validés sur GitLab 18.11 : create exclusif, gardes `last_commit_id` périmées pour update/delete/move et atomicité d'un commit contenant une action invalide. |
 | Locks V1 et REST | Commit sous verrou détenu par autrui, même compte sur deux postes, reprise puis ancien détenteur. | LFS Lock imposé aux commits REST d'un autre compte ; après reprise par `user2`, l'ancien `user1` est refusé. Deux jetons de `user1` restent toutefois le même détenteur : le second poste peut publier sous le verrou du premier. |
-| Bail versionné candidat | Publication + mutation réelle du verrou, ancienne génération, renouvellement concurrent, réponse perdue. | Acquisition concurrente : un seul create réussit. Après reprise par une nouvelle génération du même compte, publication et mutation périmée de l'ancien sont refusées atomiquement ; la génération courante publie. Deux renouvellements sur la même garde donnent un succès et un refus ; huit renouvellements séquentiels réussissent. |
+| Bail versionné candidat | Publication + mutation réelle du verrou, ancienne génération, renouvellement concurrent, réponse perdue, série longue. | Acquisition concurrente : un seul create réussit. Après reprise par une nouvelle génération du même compte, publication et mutation périmée de l'ancien sont refusées atomiquement ; la génération courante publie. Deux renouvellements concurrents donnent un succès et un refus. Deux campagnes de 480 renouvellements simulés à 60 s ont pris 182,3 s et 174,5 s, soit environ 380 et 363 ms par commit sur le banc local. La série est accélérée et ne mesure pas une pause réelle de 60 s. |
 | Résultat indéterminé | Couper la réponse après acceptation, retrouver l'opération au bon commit et vérifier son contenu. | Un proxy local laisse GitLab répondre 201 puis détruit la connexion avant toute réponse au client. L'opération est retrouvée par son identifiant dans l'historique et son fichier est vérifié. |
 | Dépendances métier | Source lue mais non écrite, transaction corpus face à une session longue. | Une action update renvoyant le contenu inchangé avec `last_commit_id` protège la source dans le même commit : fraîche, elle est acceptée ; périmée, elle refuse aussi la mutation de la cible. Sans cette action, la cible est publiée malgré la source modifiée. À borner selon taille et matrice métier. |
-| LFS média | Batch upload, objet, pointeur, association au projet et lecture binaire depuis le second compte sans push Git. | Parcours complet validé avec un binaire de 1 048 833 octets : batch, upload, pointeur + `.gitattributes` + désignation en un commit, batch download par `user2`, taille, SHA-256 et octets vérifiés. Le projet sans LFS refuse le batch. Gros volumes, streaming disque, quotas et annulation restent à tester. |
+| LFS média | Batch upload, objet, pointeur, association au projet et lecture binaire depuis le second compte sans push Git. | Parcours complet validé avec un binaire de 1 048 833 octets. Un objet de 32 MiB a ensuite été produit et relu en flux depuis un fichier, sans Keep-Alive mémoire proportionnel : envoi 286 ms, lecture 190 ms, pic de heap du banc 15,2 MiB puis 18,2 MiB, SHA-256 et taille vérifiés. Un upload de 8 MiB annulé après 524 288 octets a été repris avec le même OID puis relu intégralement. Le projet sans LFS refuse le batch. Le refus pour quota réel reste à qualifier. |
 | Détection | Réglage projet actif/inactif, 403, timeout, lecteur sans droit d'envoi, revérification. | Deux projets réels exposent correctement `lfs_enabled=true/false` aux comptes de test ; erreurs et revérification restent à implémenter. |
 | OAuth institutionnel | Configuration disponible, scopes REST/LFS, renouvellement et certificat. | Parcours V1 inspecté ; instance non testée. |
-| Coût | Commits de coordination, CI, limites de débit, mémoire et disque des médias. | Série courte : huit renouvellements en 2 613 ms, soit 327 ms/commit en moyenne locale. Chaque renouvellement crée bien un commit ; durée de journée, CI et croissance du dépôt restent à mesurer. |
+| Coût | Commits de coordination, CI, limites de débit, mémoire et disque des médias. | Les deux campagnes de 480 commits et le transfert LFS de 32 MiB sont mesurés. Le projet de banc ne contient ni `.gitlab-ci.yml` ni runner disponible : aucune CI réelle n'a été déclenchée, donc son coût et ses collisions restent inconnus. Les statistiques de stockage GitLab consultées après campagne sont restée en cache ; le comptage direct donnait 1 117 commits sur la branche principale. |
 
 Aucun résultat fictif d'un faux serveur ne doit remplir la colonne des preuves
 réelles. Aucun seuil de charge arbitraire ne remplace les volumes des équipes.
@@ -329,11 +375,17 @@ set -a
 source /home/belignem/TestGitlabLocal/qualification.env
 set +a
 NODE_EXTRA_CA_CERTS="$GITLAB_CA" npm run test:gitlab
+NODE_EXTRA_CA_CERTS="$GITLAB_CA" npm run test:gitlab:long
+NODE_EXTRA_CA_CERTS="$GITLAB_CA" npm run test:gitlab:e2e
+NODE_EXTRA_CA_CERTS="$GITLAB_CA" npm run test:gitlab:e2e:packaged
 ```
 
-Résultat : **11 tests réussis**. Ils prouvent la création exclusive, l'atomicité
-d'un commit multi-actions refusé, les gardes `last_commit_id` sur update/delete/move,
-les capacités des deux projets et l'application des LFS Locks aux commits REST.
+Résultat : **14 tests réguliers réussis**, plus une campagne longue volontairement
+sautée par le script normal. Ils prouvent la création exclusive, l'atomicité d'un
+commit multi-actions refusé, les gardes `last_commit_id` sur update/delete/move,
+les capacités des deux projets, l'application des LFS Locks, le bail versionné,
+le transfert LFS volumineux en flux, l'annulation/reprise, la réconciliation et
+le coordinateur GitLab par bail versionné.
 La limite importante est confirmée : GitLab identifie le propriétaire du verrou
 par compte, pas par poste ou session. Deux postes partageant le même compte ne
 sont donc pas exclus l'un de l'autre par ce mécanisme seul.
@@ -342,9 +394,11 @@ Le candidat de bail versionné distingue au contraire deux générations du mêm
 compte. Deux acquisitions concurrentes produisent un seul gagnant ; une reprise
 rend ensuite atomiquement impossible la publication de l'ancienne génération.
 Deux renouvellements concurrents fondés sur la même garde donnent aussi un seul
-gagnant. Une série de huit renouvellements a pris 2 613 ms, soit 327 ms par commit
-en moyenne locale ; elle confirme le coût d'un commit par battement sans mesurer
-encore une journée complète ni l'effet d'une CI institutionnelle.
+gagnant. Deux séries accélérées de 480 renouvellements, chacune représentant
+huit heures à un battement de 60 s sans attendre réellement ce délai, ont pris
+182,3 s et 174,5 s. Cela correspond à environ 380 et 363 ms par commit sur cette
+instance locale. Le banc ne possède ni configuration CI ni runner : la série ne
+permet pas de conclure sur le coût d'une CI et cette interaction reste ouverte.
 Un proxy local reproduit aussi un résultat indéterminé réel : GitLab accepte le
 commit et produit sa réponse, puis la connexion est détruite avant que le client
 ne reçoive le statut. L'identifiant d'opération permet de retrouver le bon commit
@@ -356,13 +410,17 @@ toute la publication est refusée ; sans cette action, la cible seule est accept
 Cette technique place volontairement la source dans les actions du commit et doit
 rester bornée aux dépendances et tailles validées.
 
-Le transfert LFS complet sans push Git est également validé avec un binaire de
-1 048 833 octets, relu par le second compte avec contrôle de la taille, du SHA-256
-et des octets. Le banc ne teste pas encore gros volumes, mémoire bornée, annulation,
-quota, renouvellements sur une journée complète ni coût CI/stockage des commits de bail.
-Les fichiers et verrous synthétiques sont conservés pour examen ; aucun nettoyage
-automatique n'est effectué hors suppression explicitement exercée par le scénario
-de garde delete.
+Le transfert LFS complet sans push Git est validé avec un binaire de
+1 048 833 octets, puis avec un objet de 32 MiB produit et relu en flux sur disque.
+Le second compte vérifie la taille et le SHA-256. Les pics de heap du processus de
+qualification sont restés à environ 15,2 Mo pendant l'envoi et 18,2 Mo pendant la
+lecture ; ce ne sont pas des mesures de la mémoire du serveur GitLab. Un envoi de
+8 MiB annulé après 524 288 octets a été recommencé avec le même OID, puis relu
+intégralement. Le refus pour quota réel reste non testé : aucun quota LFS n'est
+configuré sur le projet dédié, et la qualification ne modifie pas ses réglages
+pour en fabriquer un. Les fichiers et verrous synthétiques sont conservés pour
+examen ; aucun nettoyage automatique n'est effectué hors suppression explicitement
+exercée par le scénario de garde delete.
 
 ### Tests exécutés
 
@@ -407,14 +465,18 @@ npm test -- \
   la façade : **261 tests réussis dans les mêmes 18 fichiers**.
 - Après extension aux sessions, transactions et documents : **263 tests réussis
   dans les mêmes 18 fichiers**.
-- Le client, le lecteur, le contexte et le coffre GitLab donnent **14 tests
-  réussis** ; `npm run test:gitlab` donne ces 14 réussites et 12 scénarios réels
-  sautés sans configuration du banc.
-- Aucun test sauté dans la sélection WebDAV ; les bancs serveurs réels et les E2E
-  ne sont **pas sélectionnés**, et donc pas validés.
+- Le client, le lecteur, le contexte, le coffre, la découverte, le bail, le
+  publieur et le journal GitLab donnent **39 tests unitaires réussis**. Avec le
+  banc configuré, `npm run test:gitlab` donne **53 réussites et un saut**, ce saut
+  étant la campagne longue réservée à sa commande dédiée.
+- L'E2E GitLab opt-in a réussi sur le banc réel dans le build et le binaire
+  empaqueté : deux comptes, deux profils, découverte, consultation,
+  actualisation, bascule local ↔ GitLab, redémarrage, réouverture d'un récent,
+  refus d'un jeton invalide et consultation d'un projet sans LFS.
+- Aucun test sauté dans la sélection WebDAV.
 - La suite `test/webdav` complète donne **219 tests réussis et 21 sautés** :
   les six fichiers dépendant des bancs réels sont sautés faute de serveur.
-- La suite globale donne **1 236 tests réussis et 33 sautés** dans 102 fichiers
+- La suite globale donne **1 261 tests réussis et 36 sautés** dans 106 fichiers
   réussis et 7 fichiers sautés. Les erreurs réseau Happy DOM pendant le démontage
   n'ont pas fait échouer les suites.
 - Vitest exécuté localement : 4.1.9. Aucune installation de dépendance effectuée.
@@ -422,27 +484,35 @@ npm test -- \
 ### Vérification de types et environnement
 
 `npm run typecheck`, la vérification main séparée avec
-`./node_modules/.bin/tsc --noEmit -p tsconfig.node.json` et `npm run build`
-passent dans l'installation locale courante. Aucune dépendance n'a été installée
-pendant cette itération. E2E non exécutés.
+`./node_modules/.bin/tsc --noEmit -p tsconfig.node.json`, `npm run build` et
+l'E2E GitLab dans le binaire empaqueté passent sur le banc réel dans
+l'installation locale courante. Aucune dépendance n'a été installée pendant
+cette itération.
 
 ## 8. Prochaine étape bornée
 
-La façade, le miroir commun, les lecteurs injectés, l'observation séparée des
-verrous, le manifeste v2, le journal d'installation locale, le transfert injecté
-et la garde de génération des principales commandes sont en place. Le contexte
-GitLab de consultation renouvelle son instantané à chaque tirage ; le client
-borne aussi 429, annulation et taille des réponses. Le coffre et le renderer
-portent désormais cette consultation sans écriture cachée. La suite bornée est :
+La consultation GitLab à deux profils, la découverte des projets et branches,
+les récents après redémarrage, la bascule local ↔ GitLab et le binaire empaqueté
+sont désormais joués sur le banc. L'ouverture reste sans commit, verrou,
+présence ni sonde. Un jeton invalide ne crée pas de miroir ; un projet connu
+comme archivé est refusé ; une réponse 404 reste expliquée comme une ressource
+introuvable ou inaccessible, jamais comme un projet vide. Un projet sans LFS
+permet toujours de consulter les transcriptions.
 
-1. Jouer l'ouverture, l'actualisation, les récents et la bascule avec deux profils
-   Electron isolés, puis corriger les gardes de contexte découvertes.
-2. Remplacer la seule saisie manuelle par une découverte paginée et bornée des
-   projets et branches accessibles, sans sonde d'écriture.
+La sortie locale de L3 est couverte. La série longue et les transferts LFS
+volumineux, annulés et repris sont également qualifiés. Le journal local et la
+réconciliation bornée sont maintenant implémentés et testés, mais pas encore
+injectés dans une session complète. Le banc ne permet pas de conclure sur une CI,
+faute de configuration et de runner, ni sur un refus de quota, faute de quota
+configuré ; ces deux points demandent une campagne dédiée sans modifier
+abusivement le projet de qualification.
 
-En parallèle, étendre le banc GitLab désormais opérationnel aux renouvellements
-et au coût du bail, à une vraie réponse réseau perdue et aux transferts LFS
-volumineux/annulés. La limite « même compte sur deux postes » écarte LFS Locks
-seuls pour satisfaire l'invariant visé ; le bail versionné devient le candidat
-principal à mesurer avant L4. L'étude V1 reste exploitable sans toucher à ses
-sources ni réinstaller les services existants.
+Le coordinateur GitLab par bail versionné, le publieur conditionnel et le journal
+durable sont maintenant extraits, testés en mémoire et validés sur le banc réel,
+sans être exposés dans l'interface. Le prochain lot technique ajoute
+l'orchestration de session et la reprise de ce journal après redémarrage. Il devra
+rejouer acquisition, veille, reprise, publication et fermeture avant d'envisager
+l'activation renderer de L4. La limite « même compte sur deux
+postes » écarte toujours LFS Locks seuls ; le bail versionné reste le candidat
+principal. L'étude V1 reste exploitable sans toucher à ses sources ni réinstaller
+les services existants.

@@ -51,9 +51,10 @@ mémorise l'adresse de chaque compte).
 ## Préversion GitLab en consultation seule
 
 « ☁️ Ouvrir un corpus distant » permet aussi de consulter un corpus déjà présent
-dans un projet GitLab. Renseignez l'URL de l'instance, votre utilisateur, un jeton
-d'accès personnel autorisé à lire le dépôt, l'ID numérique du projet, la branche
-et, si nécessaire, le sous-dossier qui contient `corpus.json`.
+dans un projet GitLab. Renseignez l'URL de l'instance, votre utilisateur et un
+jeton d'accès personnel autorisé à lire le dépôt, puis cliquez sur « Découvrir
+les projets ». Choisissez le projet et sa branche. Si le corpus est dans un
+sous-dossier, indiquez la racine qui contient `corpus.json`.
 
 Cette préversion :
 
@@ -64,9 +65,10 @@ Cette préversion :
 - ouvre les entretiens et toutes les opérations métier en lecture seule ;
 - ne prend pas encore en charge les médias partagés GitLab ni les Docs cadre.
 
-Le projet et la branche sont actuellement saisis manuellement. L'édition GitLab
-ne sera activée qu'après validation complète du protocole d'exclusion et de
-publication. Les corpus Nextcloud conservent leur fonctionnement éditable actuel.
+La découverte est limitée aux premiers projets et branches accessibles afin de ne
+pas charger une instance entière. L'édition GitLab ne sera activée qu'après
+validation complète du protocole d'exclusion et de publication. Les corpus
+Nextcloud conservent leur fonctionnement éditable actuel.
 
 ## Au quotidien
 

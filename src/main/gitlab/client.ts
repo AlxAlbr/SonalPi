@@ -1,9 +1,11 @@
 export interface ConfigurationClientGitLab {
   urlInstance: string
-  projetId: number
+  /** Absent pour une découverte à l'échelle de l'instance. */
+  projetId?: number
   jeton: string
   delaiMs?: number
   tailleMaxReponseOctets?: number
+  tailleMaxRequeteOctets?: number
   nombreRelances429?: number
   delaiRelanceMaxMs?: number
   attendre?: (delaiMs: number, signal: AbortSignal) => Promise<void>
@@ -12,6 +14,12 @@ export interface ConfigurationClientGitLab {
 export interface OptionsLectureGitLab {
   signal?: AbortSignal
   tailleMaxOctets?: number
+}
+
+export interface OptionsEcritureGitLab {
+  signal?: AbortSignal
+  tailleMaxRequeteOctets?: number
+  tailleMaxReponseOctets?: number
 }
 
 export class ErreurGitLab extends Error {
@@ -24,18 +32,29 @@ export class ErreurGitLab extends Error {
   }
 }
 
+export class ErreurEcritureGitLab extends Error {
+  constructor(
+    public readonly statut: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'ErreurEcritureGitLab'
+  }
+}
+
 export interface ReponseGitLab<T> {
   corps: T
   entetes: Headers
 }
 
-/** Client REST GitLab interne, limité pour l'instant aux lectures du dépôt. */
+/** Client REST GitLab interne pour les lectures et les mutations conditionnelles. */
 export class ClientGitLab {
   private readonly racineApi: string
-  private readonly projet: string
+  private readonly projet: string | null
   private readonly delaiMs: number
   private readonly jeton: string
   private readonly tailleMaxReponseOctets: number
+  private readonly tailleMaxRequeteOctets: number
   private readonly nombreRelances429: number
   private readonly delaiRelanceMaxMs: number
   private readonly attendre: (delaiMs: number, signal: AbortSignal) => Promise<void>
@@ -52,21 +71,29 @@ export class ClientGitLab {
     if (instance.protocol !== 'https:' && !(instance.protocol === 'http:' && hoteLocal)) {
       throw new Error('Une adresse GitLab HTTPS est requise.')
     }
-    if (!Number.isSafeInteger(configuration.projetId) || configuration.projetId <= 0) {
+    if (
+      configuration.projetId !== undefined &&
+      (!Number.isSafeInteger(configuration.projetId) || configuration.projetId <= 0)
+    ) {
       throw new Error('Identifiant de projet GitLab invalide.')
     }
     if (!configuration.jeton) throw new Error('Jeton GitLab manquant.')
 
     const base = instance.toString().replace(/\/+$/, '')
     this.racineApi = `${base}/api/v4`
-    this.projet = encodeURIComponent(String(configuration.projetId))
+    this.projet = configuration.projetId === undefined
+      ? null
+      : encodeURIComponent(String(configuration.projetId))
     this.delaiMs = configuration.delaiMs ?? 15_000
     this.tailleMaxReponseOctets = configuration.tailleMaxReponseOctets ?? 64 * 1024 * 1024
+    this.tailleMaxRequeteOctets = configuration.tailleMaxRequeteOctets ?? 2 * 1024 * 1024
     this.nombreRelances429 = configuration.nombreRelances429 ?? 2
     this.delaiRelanceMaxMs = configuration.delaiRelanceMaxMs ?? 2_000
     if (
       !Number.isSafeInteger(this.tailleMaxReponseOctets) ||
       this.tailleMaxReponseOctets <= 0 ||
+      !Number.isSafeInteger(this.tailleMaxRequeteOctets) ||
+      this.tailleMaxRequeteOctets <= 0 ||
       !Number.isSafeInteger(this.nombreRelances429) ||
       this.nombreRelances429 < 0 ||
       !Number.isFinite(this.delaiRelanceMaxMs) ||
@@ -109,10 +136,7 @@ export class ClientGitLab {
         await this.attendre(delai, signalAttente)
         continue
       }
-      throw new ErreurGitLab(
-        reponse.status,
-        `Lecture GitLab refusée (HTTP ${reponse.status}).`,
-      )
+      throw new ErreurGitLab(reponse.status, this.messageErreurLecture(reponse.status))
     }
   }
 
@@ -133,6 +157,51 @@ export class ClientGitLab {
   ): Promise<string> {
     const reponse = await this.lireReponse(chemin, parametres, options)
     return this.lireCorpsBorne(reponse, options.tailleMaxOctets)
+  }
+
+  /** Envoie exactement une mutation JSON. Un transport ambigu reste une erreur réseau. */
+  async ecrireJson<T>(
+    chemin: string,
+    corps: unknown,
+    options: OptionsEcritureGitLab = {},
+  ): Promise<ReponseGitLab<T>> {
+    const limiteRequete = options.tailleMaxRequeteOctets ?? this.tailleMaxRequeteOctets
+    if (!Number.isSafeInteger(limiteRequete) || limiteRequete <= 0) {
+      throw new Error('Limite de requête GitLab invalide.')
+    }
+    const texte = JSON.stringify(corps)
+    if (texte === undefined) throw new Error('Corps de requête GitLab invalide.')
+    const octets = new TextEncoder().encode(texte)
+    if (octets.byteLength > limiteRequete) {
+      throw new Error('Requête GitLab trop volumineuse.')
+    }
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(this.delaiMs)])
+      : AbortSignal.timeout(this.delaiMs)
+    const reponse = await this.fetchImpl(this.url(chemin), {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Content-Length': String(octets.byteLength),
+        'PRIVATE-TOKEN': this.jeton,
+      },
+      body: texte,
+      signal,
+      redirect: 'error',
+    })
+    if (!reponse.ok) {
+      await reponse.body?.cancel()
+      throw new ErreurEcritureGitLab(
+        reponse.status,
+        this.messageErreurEcriture(reponse.status),
+      )
+    }
+    const texteReponse = await this.lireCorpsBorne(
+      reponse,
+      options.tailleMaxReponseOctets,
+    )
+    return { corps: JSON.parse(texteReponse) as T, entetes: reponse.headers }
   }
 
   private async lireCorpsBorne(
@@ -172,6 +241,47 @@ export class ClientGitLab {
     }
   }
 
+  private messageErreurLecture(statut: number): string {
+    if (statut === 401 || statut === 403) {
+      return 'Accès GitLab refusé. Vérifiez le jeton et les droits sur le projet.'
+    }
+    if (statut === 404) {
+      return 'Ressource GitLab introuvable ou inaccessible. Vérifiez le projet et la branche.'
+    }
+    if (statut === 429) {
+      return 'GitLab demande de ralentir. Réessayez dans quelques instants.'
+    }
+    if (statut >= 500) {
+      return 'Le service GitLab est temporairement indisponible.'
+    }
+    return `Lecture GitLab refusée (HTTP ${statut}).`
+  }
+
+  private messageErreurEcriture(statut: number): string {
+    if (statut === 400) {
+      return 'Publication GitLab refusée. Une action est invalide ou une garde est périmée.'
+    }
+    if (statut === 401 || statut === 403) {
+      return 'Écriture GitLab refusée. Vérifiez le jeton et les droits du projet.'
+    }
+    if (statut === 404) {
+      return 'Ressource GitLab introuvable ou inaccessible pendant l’écriture.'
+    }
+    if (statut === 409) {
+      return 'Conflit GitLab pendant l’écriture.'
+    }
+    if (statut === 413) {
+      return 'La publication GitLab dépasse la taille autorisée.'
+    }
+    if (statut === 429) {
+      return 'GitLab limite les écritures. Aucune relance automatique ne sera tentée.'
+    }
+    if (statut >= 500) {
+      return 'Le service GitLab est temporairement indisponible.'
+    }
+    return `Écriture GitLab refusée (HTTP ${statut}).`
+  }
+
   private delaiAvantRelance(retryAfter: string | null, tentative: number): number {
     let delai = 250 * 2 ** tentative
     if (retryAfter) {
@@ -187,6 +297,7 @@ export class ClientGitLab {
   }
 
   cheminProjet(suffixe: string): string {
+    if (this.projet === null) throw new Error('Aucun projet GitLab sélectionné.')
     return `/projects/${this.projet}${suffixe}`
   }
 }

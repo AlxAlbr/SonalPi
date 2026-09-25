@@ -1,8 +1,8 @@
 import { defineConfig } from '@playwright/test'
 
-// E2E Electron. Pas de webServer : Playwright lance l'app Electron elle-même via
-// _electron (args ['.'] → ./out/main/index.js). Le build doit être à jour ; le
-// script `test:e2e` le (re)fait avant.
+// E2E Electron. Pas de webServer : Playwright lance l'app locale via _electron
+// et l'argument « . », ou le binaire d'un test d'empaquetage. Le build doit être
+// à jour ; le script `test:e2e` le refait avant.
 //
 // PARALLÈLE : chaque test lance SA propre instance Electron sur un `--user-data-dir`
 // isolé (mkdtemp) → aucune ressource partagée, donc parallélisable. `workers` borné

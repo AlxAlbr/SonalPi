@@ -40,6 +40,7 @@ import {
   preparerContexteGitLabLectureSeule,
 } from './gitlab/contexte'
 import { ClientGitLab } from './gitlab/client'
+import { DecouverteGitLab } from './gitlab/decouverte'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
@@ -80,6 +81,8 @@ import type {
 import type {
   DemandeConnexion,
   DemandeCreationDistante,
+  DemandeDecouverteBranchesGitLab,
+  DemandeDecouverteGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
   OrphelinDistant,
@@ -1341,6 +1344,17 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   ipcMain.handle('distant:lister', () => coffre.lister().map(sansSecret))
   ipcMain.handle('gitlab:lister', listerDestinationsGitLabPubliques)
+  ipcMain.handle(
+    'gitlab:decouvrirProjets',
+    (_e, demande: DemandeDecouverteGitLab) => new DecouverteGitLab(demande).listerProjets(),
+  )
+  ipcMain.handle(
+    'gitlab:decouvrirBranches',
+    (_e, demande: DemandeDecouverteBranchesGitLab) => {
+      const { projetId, ...acces } = demande
+      return new DecouverteGitLab(acces).listerBranches(projetId)
+    },
+  )
   ipcMain.handle('distant:stockageSecuriseDisponible', () =>
     coffre.stockageSecuriseDisponible(),
   )

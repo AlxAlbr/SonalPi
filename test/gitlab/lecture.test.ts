@@ -159,8 +159,18 @@ describe('lecture GitLab à commit fixé', () => {
     const erreur = await lecteur.lireTexte('corpus.json').catch((cause) => cause)
     expect(erreur).toBeInstanceOf(ErreurGitLab)
     expect(erreur.statut).toBe(403)
+    expect(erreur.message).toContain('droits')
     expect(erreur.message).not.toContain(TOKEN)
     expect(erreur.message).not.toContain('accès refusé')
+  })
+
+  test('ne confond pas une ressource absente avec un projet vide', async () => {
+    const { client } = clientAvec(() => new Response(null, { status: 404 }))
+
+    await expect(client.lireTexte('/introuvable')).rejects.toMatchObject({
+      statut: 404,
+      message: expect.stringContaining('Vérifiez le projet et la branche'),
+    })
   })
 
   test('relance un 429 en lecture dans une limite explicite', async () => {

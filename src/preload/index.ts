@@ -52,16 +52,21 @@ import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type {
+  BrancheGitLabPublic,
   CompteDistantPublic,
   DemandeConnexion,
+  DemandeDecouverteBranchesGitLab,
+  DemandeDecouverteGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
+  ProjetGitLabPublic,
   DivergenceDistante,
   EtatSessionPublic,
   OrphelinDistant,
   OuvertureDistante,
   ProgressionTransfert,
   ResultatConnexion,
+  ResultatDecouverteGitLab,
   ResultatTiragePublic,
 } from '../shared/distant'
 import type { AnalyseCrp, DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
@@ -352,6 +357,14 @@ contextBridge.exposeInMainWorld('sonal', {
   },
   gitlab: {
     lister: (): Promise<DestinationGitLabPublic[]> => invoquer('gitlab:lister'),
+    decouvrirProjets: (
+      demande: DemandeDecouverteGitLab,
+    ): Promise<ResultatDecouverteGitLab<ProjetGitLabPublic>> =>
+      invoquer('gitlab:decouvrirProjets', demande),
+    decouvrirBranches: (
+      demande: DemandeDecouverteBranchesGitLab,
+    ): Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>> =>
+      invoquer('gitlab:decouvrirBranches', demande),
     enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab): Promise<OuvertureDistante> =>
       invoquer('gitlab:enregistrerEtOuvrir', demande),
     ouvrir: (id: string, jeton?: string): Promise<OuvertureDistante> =>
