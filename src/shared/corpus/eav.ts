@@ -3,7 +3,7 @@ import type { Variable } from '../format'
 /**
  *  Mapping EAV entre le format LEGACY SonalPi1 — `.sonal` (`var-json`/`dic-json`)
  *  ET `.crp` (`tabVar`/`tabDic`, MÊME format) — et le MODÈLE SonalPi2.
- *  Partagé entre l'import `.sonal` (`renderer/import/eav.ts`, qui le ré-exporte)
+ *  Partagé entre l'import `.sonal` (`renderer/formatSonal/eav.ts`, qui le ré-exporte)
  *  et la migration `.crp` (`shared/corpus/migrationCrp.ts`) : UNE seule source
  *  de vérité pour le contrat, en parité avec le `eav.ts` historique.
  *

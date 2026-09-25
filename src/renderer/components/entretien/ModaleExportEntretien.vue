@@ -8,7 +8,7 @@ import {
   type FormatExport,
   type OptionsExport,
 } from '../../../shared/export/types'
-import type { ApercuRapportPseudonymisation } from '../../services/exportEntretien'
+import type { ApercuRapportPseudonymisation } from '../../export/exportEntretien'
 
 const {
   exportOuvert,

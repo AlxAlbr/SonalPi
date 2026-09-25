@@ -1,5 +1,5 @@
 import { ref, watch, computed, type Ref } from 'vue'
-import { importerFichier } from '../import/sas'
+import { importerFichier } from '../formatSonal/sas'
 import type { CorpusFichier, EntretienRef, Locuteur, MarqueurDemo, Variable, Note } from '../../shared/format'
 import type { ModeDemo, EtatDemo } from '../../shared/format'
 export type { ModeDemo, EtatDemo }

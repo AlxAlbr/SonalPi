@@ -1,6 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
-import { importerFichier } from '../../import/sas'
-import type { ResultatImport } from '../../import/importSonal'
+import { importerFichier } from '../../formatSonal/sas'
+import type { ResultatImport } from '../../formatSonal/importSonal'
 import { urlMediaAudio, urlMediaWaveform, genererEtEcrireWaveform } from '../../audio/waveform'
 import { choisirSrtAvantMutation } from '../../couturesApplication'
 import { texteDuCorps } from '../../../shared/entretien/entretien'

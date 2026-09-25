@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import TableauBord from './corpus/TableauBord.vue'
+import { utiliserSonal } from '../../composables/sonal'
+import TableauBord from '../corpus/TableauBord.vue'
 
 const { tableauBordOuverts, fermerTableauBord } = utiliserSonal()
 

@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import type { OccurrenceScan } from '../src/shared/corpus/scanAnon'
 import {
-  bornerLargeurPanneau,
   construireDiff,
   etatsDepuisDetails,
-} from '../src/renderer/corpus/pseudonymisation'
+  type OccurrenceScan,
+} from '../src/shared/corpus/scanAnon'
 import { useCorpus } from '../src/renderer/composables/useCorpus'
 
 const fenetreInitiale = globalThis.window
@@ -93,13 +92,5 @@ describe('cycle du scan', () => {
     await corpus.rafraichirScanAnon()
     expect(corpus.scanAnonCharge.value).toBe(true)
     expect(corpus.scanAnonErreur.value).toBeNull()
-  })
-})
-
-describe('largeur du séparateur', () => {
-  test('borne les valeurs mémorisées invalides', () => {
-    expect(bornerLargeurPanneau(Number.NaN, 1000)).toBe(280)
-    expect(bornerLargeurPanneau(900, 1000)).toBe(680)
-    expect(bornerLargeurPanneau(100, 1000)).toBe(280)
   })
 })

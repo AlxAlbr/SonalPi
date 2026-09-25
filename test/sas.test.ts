@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, test, expect } from 'vitest'
-import { importerFichier } from '../src/renderer/import/sas'
+import { importerFichier } from '../src/renderer/formatSonal/sas'
 
 function parse(html: string): Document {
   const inerte = html

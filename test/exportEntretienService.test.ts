@@ -5,7 +5,7 @@ import {
   exporterEntretien,
   preparerRapportPseudonymisation,
   type SourceExportEntretien,
-} from '../src/renderer/services/exportEntretien'
+} from '../src/renderer/export/exportEntretien'
 import type { DemandeExportDocx, DemandeExportPdf } from '../src/shared/format'
 import type { InstantaneEntretienExport, OptionsExport } from '../src/shared/export/types'
 import { entreeSentinelle } from './fixtures/export/entretiens'

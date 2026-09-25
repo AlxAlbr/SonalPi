@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { BlocAttributs } from '../src/renderer/editor/schema'
-import { importerSonal } from '../src/renderer/import/importSonal'
+import { importerSonal } from '../src/renderer/formatSonal/importSonal'
 import type { Annotation } from '../src/shared/entretien/annotation'
 
 function parse(html: string): Document {

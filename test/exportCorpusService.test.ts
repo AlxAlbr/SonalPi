@@ -14,7 +14,7 @@ import {
   preparerRapportPseudonymisationCorpus,
   type SourceExportCorpus,
   type SuiviEntretienLot,
-} from '../src/renderer/services/exportCorpus'
+} from '../src/renderer/export/exportCorpus'
 import { entreeSentinelle } from './fixtures/export/entretiens'
 
 /** Doublure d'écriture : mémoire de ce qui a été « écrit » sur disque. */

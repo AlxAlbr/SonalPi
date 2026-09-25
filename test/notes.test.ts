@@ -24,7 +24,7 @@ import {
   CLASSE_REF_NOTE,
   ATTR_LIENS_NOTE,
 } from '../src/renderer/notes/sanitiser'
-import { importerSonal } from '../src/renderer/import/importSonal'
+import { importerSonal } from '../src/renderer/formatSonal/importSonal'
 import type { Note } from '../src/shared/format'
 
 function doc(): Document {

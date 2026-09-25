@@ -10,7 +10,7 @@ import type {
   ApercuRapportPseudonymisationCorpus,
   DemandeLotCorpus,
   ResultatLotCorpus,
-} from '../../services/exportCorpus'
+} from '../../export/exportCorpus'
 
 const {
   exportCorpusOuvert,

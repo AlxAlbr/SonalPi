@@ -16,7 +16,7 @@
  *  mute rien, aucune I/O — testable headless.
  */
 
-import type { EntretienFichier, RegleAnon } from '../format'
+import type { CibleRegleAnon, EntretienFichier, RegleAnon } from '../format'
 import { aplatir, occurrencesDe, plageVersPM, type Plage, type TextePlat } from '../entretien/anon'
 import { parserAliases } from '../entretien/anon/alias'
 import { cleEntite } from '../entretien/anon/brouillonsAnon'
@@ -212,6 +212,86 @@ export function scannerRegleDetaille(
     }
   }
   return out.sort((x, y) => x.from - y.from)
+}
+
+/* ── Diff de la vue vérification (édition locale vs dernier scan) ───────────*/
+
+/** Clé d'identification d'une occurrence dans les états éditables. */
+export const cleOccurrence = (o: { from: number; to: number }): string => `${o.from}:${o.to}`
+
+/** États éditables par occurrence (clé « from:to »), par entretien. */
+export type EtatsOccurrences = Record<string, Record<string, boolean>>
+
+/** États éditables initiaux d'un scan détaillé : cochée = déjà anonymisée,
+ *  marque d'exception posée ; les incluses n'y figurent pas (non modifiables). */
+export function etatsDepuisDetails(details: Record<string, OccurrenceScan[]>): {
+  cochees: EtatsOccurrences
+  exceptions: EtatsOccurrences
+} {
+  const cochees: EtatsOccurrences = {}
+  const exceptions: EtatsOccurrences = {}
+  for (const [id, occurrences] of Object.entries(details)) {
+    cochees[id] = {}
+    exceptions[id] = {}
+    for (const o of occurrences) {
+      if (o.etat === 'incl') continue
+      const cle = cleOccurrence(o)
+      cochees[id][cle] = o.etat === 'anon'
+      exceptions[id][cle] = o.etat === 'exc'
+    }
+  }
+  return { cochees, exceptions }
+}
+
+/** Diff prêt à valider : cibles du lot IPC (`CibleRegleAnon[]`),
+ *  et compteurs d'affichage des changements. */
+export interface DiffPseudonymisation {
+  cibles: CibleRegleAnon[]
+  poses: number
+  retraits: number
+  exceptionsAjoutees: number
+  exceptionsRetirees: number
+}
+
+/** Compare l'édition locale au dernier scan détaillé : chaque occurrence dont
+ *  la case (ou l'exception) diverge de l'état scanné entre dans la cible de
+ *  son entretien. PURE : ne mute rien, aucune I/O. */
+export function construireDiff(
+  regleId: string,
+  details: Record<string, OccurrenceScan[]>,
+  cochees: EtatsOccurrences,
+  exceptions: EtatsOccurrences,
+): DiffPseudonymisation {
+  const diff: DiffPseudonymisation = {
+    cibles: [],
+    poses: 0,
+    retraits: 0,
+    exceptionsAjoutees: 0,
+    exceptionsRetirees: 0,
+  }
+  for (const [entretienId, occurrences] of Object.entries(details)) {
+    if (!cochees[entretienId]) continue
+    const plages: { from: number; to: number }[] = []
+    const retirer: { from: number; to: number }[] = []
+    const exception: { from: number; to: number }[] = []
+    const retirerException: { from: number; to: number }[] = []
+    const cible: CibleRegleAnon = { entretienId, regleId, plages, retirer, exception, retirerException }
+    for (const o of occurrences) {
+      if (o.etat === 'incl') continue
+      const cle = cleOccurrence(o)
+      const cochee = !!cochees[entretienId]?.[cle]
+      const estException = !!exceptions[entretienId]?.[cle]
+      const plage = { from: o.from, to: o.to }
+      if (cochee && o.etat === 'non') { plages.push(plage); diff.poses++ }
+      if (!cochee && o.etat === 'anon') { retirer.push(plage); diff.retraits++ }
+      if (estException && o.etat !== 'exc') { exception.push(plage); diff.exceptionsAjoutees++ }
+      if (!estException && o.etat === 'exc') { retirerException.push(plage); diff.exceptionsRetirees++ }
+    }
+    if (plages.length || retirer.length || exception.length || retirerException.length) {
+      diff.cibles.push(cible)
+    }
+  }
+  return diff
 }
 
 /* ── Ajustement des compteurs après application en masse ────────────────────*/

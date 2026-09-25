@@ -7,10 +7,10 @@ import {
   distribuerValeurs,
   exporterVariables,
   exporterValeurs,
-} from '../src/renderer/import/eav'
-import { importerSonal } from '../src/renderer/import/importSonal'
-import { exporterSonal } from '../src/renderer/import/exportSonal'
-import { extractFichierSonal } from '../src/renderer/import/legacy/conversions.mjs'
+} from '../src/renderer/formatSonal/eav'
+import { importerSonal } from '../src/renderer/formatSonal/importSonal'
+import { exporterSonal } from '../src/renderer/formatSonal/exportSonal'
+import { extractFichierSonal } from '../src/renderer/formatSonal/legacy/conversions.mjs'
 import type { Locuteur } from '../src/renderer/../shared/format'
 
 function parse(html: string): Document {

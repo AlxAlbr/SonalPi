@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
-import { scannerRegleDetaille, type OccurrenceScan } from '../../../shared/corpus/scanAnon'
-import { bornerLargeurPanneau, cleOccurrence, construireDiff } from '../../corpus/pseudonymisation'
+import {
+  cleOccurrence,
+  construireDiff,
+  etatsDepuisDetails,
+  scannerRegleDetaille,
+  type OccurrenceScan,
+} from '../../../shared/corpus/scanAnon'
 
 const props = defineProps<{ actif: boolean }>()
 const emit = defineEmits<{ ouvrirOccurrence: [id: string, pos: number] }>()
@@ -81,15 +86,9 @@ const cleOcc = cleOccurrence
 /** Initialise l'état éditable d'un entretien depuis son scan détaillé ;
  *  les incluses n'y figurent pas (non modifiables). */
 function initEtatEnt(id: string) {
-  const c: Record<string, boolean> = {}
-  const x: Record<string, boolean> = {}
-  for (const o of occurrencesDe(id)) {
-    if (o.etat === 'incl') continue
-    c[cleOcc(o)] = o.etat === 'anon'
-    x[cleOcc(o)] = o.etat === 'exc'
-  }
-  cochees.value[id] = c
-  exceptions.value[id] = x
+  const etats = etatsDepuisDetails({ [id]: occurrencesDe(id) })
+  cochees.value[id] = etats.cochees[id]
+  exceptions.value[id] = etats.exceptions[id]
 }
 /** État VISUEL d'une occurrence : suit les modifications locales,
  *  pas le dernier scan (couleurs, gras du match, affichage du pseudo). */
@@ -220,6 +219,12 @@ const largeurGauche = ref(420)
 const dispositionVerticale = ref(false)
 let redimensionnement = false
 function largeurDisponible() { return panneau.value?.clientWidth ?? 0 }
+/** Largeur du panneau gauche bornée : au moins `minGauche`,
+ *  sans rogner le panneau droit en dessous de `minDroite`. */
+function bornerLargeurPanneau(valeur: number, disponible: number, minGauche = 280, minDroite = 320): number {
+  if (!Number.isFinite(valeur)) valeur = minGauche
+  return Math.max(minGauche, Math.min(valeur, Math.max(minGauche, disponible - minDroite)))
+}
 function bornerLargeur() {
   const disponible = largeurDisponible()
   dispositionVerticale.value = disponible > 0 && disponible < 620
@@ -304,23 +309,9 @@ const aDesChangements = computed(() => {
   return !!id && construireDiff(id, details.value, cochees.value, exceptions.value).cibles.length > 0
 })
 function abandonner() {
-  const etats = etatsLocaux()
+  const etats = etatsDepuisDetails(details.value)
   cochees.value = etats.cochees
   exceptions.value = etats.exceptions
-}
-function etatsLocaux() {
-  const c: Record<string, Record<string, boolean>> = {}
-  const x: Record<string, Record<string, boolean>> = {}
-  for (const id of Object.keys(details.value)) {
-    c[id] = {}
-    x[id] = {}
-    for (const o of details.value[id]) {
-      if (o.etat === 'incl') continue
-      c[id][cleOcc(o)] = o.etat === 'anon'
-      x[id][cleOcc(o)] = o.etat === 'exc'
-    }
-  }
-  return { cochees: c, exceptions: x }
 }
 const gardeOuverte = ref(false)
 let resoudreGarde: ((choix: 'valider' | 'abandonner' | 'rester') => void) | null = null

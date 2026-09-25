@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assemblerModeleQualcoder } from '../src/renderer/services/exportQualcoder'
+import { assemblerModeleQualcoder } from '../src/renderer/export/exportQualcoder'
 import { projeterTexteQualcoder, plageTexteQualcoder } from '../src/shared/export/qualcoder/projection'
 import type { InstantaneEntretienExport } from '../src/shared/export/types'
 import type { Cas, DefinitionAttributCas } from '../src/shared/corpus/cas'

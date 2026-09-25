@@ -16,9 +16,9 @@ import {
 } from '../src/shared/export/types'
 import { idCssCode } from '../src/shared/export/secuCss'
 import { texteDocument } from '../src/shared/export/documentExport'
-import { exporterSonal, sonalPseudonymise } from '../src/renderer/import/exportSonal'
+import { exporterSonal, sonalPseudonymise } from '../src/renderer/formatSonal/exportSonal'
 import type { EntreeExport } from '../src/shared/export/types'
-import { importerSonal } from '../src/renderer/import/importSonal'
+import { importerSonal } from '../src/renderer/formatSonal/importSonal'
 import type { Note } from '../src/shared/format'
 
 /** Texte brut d'une page exportée (scripts exclus) : le contenu est splitté en

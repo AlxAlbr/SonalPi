@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import DocsCadre from './corpus/DocsCadre.vue'
+import { utiliserSonal } from '../../composables/sonal'
+import DocsCadre from '../corpus/DocsCadre.vue'
 
 const { docsCadreOuverts, fermerDocsCadre } = utiliserSonal()
 

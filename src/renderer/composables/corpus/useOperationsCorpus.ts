@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import { importerFichier } from '../../import/sas'
+import { importerFichier } from '../../formatSonal/sas'
 import {
   enregistrerRapportPseudonymisation,
   exporterEntretien,
@@ -9,7 +9,7 @@ import {
   type ResultatExport,
   type ResultatPreparationRapport,
   type SourceExportEntretien,
-} from '../../services/exportEntretien'
+} from '../../export/exportEntretien'
 import {
   enregistrerRapportPseudonymisationCorpus,
   exporterCorpus,
@@ -20,8 +20,8 @@ import {
   type ResultatLotCorpus,
   type ResultatPreparationRapportCorpus,
   type SourceExportCorpus,
-} from '../../services/exportCorpus'
-import { assemblerModeleQualcoder } from '../../services/exportQualcoder'
+} from '../../export/exportCorpus'
+import { assemblerModeleQualcoder } from '../../export/exportQualcoder'
 import {
   type EntreeExport,
   type FormatExport,

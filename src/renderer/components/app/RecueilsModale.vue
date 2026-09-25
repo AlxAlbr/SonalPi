@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import RecueilsCorpus from './corpus/RecueilsCorpus.vue'
+import { utiliserSonal } from '../../composables/sonal'
+import RecueilsCorpus from '../corpus/RecueilsCorpus.vue'
 
 const { recueilsOuverts, fermerRecueils } = utiliserSonal()
 

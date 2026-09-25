@@ -12,7 +12,7 @@ import {
   COULEUR_HOSTILE,
   CODE_SECOND,
 } from './fixtures/export/entretiens'
-import { sonalPseudonymise } from '../src/renderer/import/exportSonal'
+import { sonalPseudonymise } from '../src/renderer/formatSonal/exportSonal'
 import { genererTxt, genererHtml } from '../src/shared/export/formatsTexte'
 import { optionsEfficaces, type OptionsExport } from '../src/shared/export/types'
 

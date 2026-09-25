@@ -31,7 +31,7 @@ import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fus
 import { creerReperePassage } from '../../shared/entretien/reperesPassages'
 import type { ReperePassage } from '../../shared/entretien/reperesPassages'
 import { snapToWord } from '../editor/snap'
-import type { LegacyBlobs } from '../import/importSonal'
+import type { LegacyBlobs } from '../formatSonal/importSonal'
 
 type Extrait = { id: string; texte: string; locuteurs: string[] }
 

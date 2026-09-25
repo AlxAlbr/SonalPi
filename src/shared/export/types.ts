@@ -2,7 +2,7 @@
  *  Contrats partagés de l'export d'entretien : options, formats, contexte de
  *  génération et instantané d'entretien. Le renderer et le main consomment
  *  les MÊMES définitions — la projection (projectionEntretien.ts) et la
- *  sérialisation .sonal (renderer/import/exportSonal.ts) n'ont plus de
+ *  sérialisation .sonal (renderer/formatSonal/exportSonal.ts) n'ont plus de
  *  dépendance entre elles.
  */
 import type { Ancre } from '../entretien/audio'

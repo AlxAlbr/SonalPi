@@ -1,4 +1,4 @@
-import { exporterSonal, sonalPseudonymise } from '../import/exportSonal'
+import { exporterSonal, sonalPseudonymise } from '../formatSonal/exportSonal'
 import type { DemandeExportDocx, DemandeExportPdf } from '../../shared/format'
 import type {
   Categorie,

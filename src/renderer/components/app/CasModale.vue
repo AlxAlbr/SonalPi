@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
-import { utiliserSonal } from '../composables/sonal'
-import CasCorpus from './corpus/CasCorpus.vue'
+import { utiliserSonal } from '../../composables/sonal'
+import CasCorpus from '../corpus/CasCorpus.vue'
 
 const { casOuverts, fermerCas } = utiliserSonal()
 
