@@ -62,6 +62,7 @@ function branchePublique(valeur: unknown): BrancheGitLabPublic {
 /** Découverte en lecture des projets et branches accessibles au jeton fourni. */
 export class DecouverteGitLab {
   private readonly client: ClientGitLab
+  private readonly instance: URL
   private readonly taillePage: number
   private readonly nombrePagesMax: number
   private readonly tailleMaxReponseOctets: number
@@ -80,6 +81,7 @@ export class DecouverteGitLab {
       throw new Error('Limites de découverte GitLab invalides.')
     }
     this.tailleMaxReponseOctets = configuration.tailleMaxReponseOctets ?? 4 * 1024 * 1024
+    this.instance = new URL(configuration.urlInstance)
     this.client = new ClientGitLab({
       urlInstance: configuration.urlInstance,
       jeton: configuration.jeton,
@@ -100,6 +102,28 @@ export class DecouverteGitLab {
     )
   }
 
+  async lireUtilisateur(): Promise<string> {
+    const reponse = await this.client.lireJson<{ username?: unknown }>(
+      '/user',
+      {},
+      { tailleMaxOctets: this.tailleMaxReponseOctets },
+    )
+    if (typeof reponse.corps.username !== 'string' || !reponse.corps.username.trim()) {
+      throw new Error('Utilisateur GitLab invalide.')
+    }
+    return reponse.corps.username.trim()
+  }
+
+  async chargerProjet(entree: string): Promise<ProjetGitLabPublic> {
+    const chemin = this.cheminProjet(entree)
+    const reponse = await this.client.lireJson<unknown>(
+      `/projects/${encodeURIComponent(chemin)}`,
+      {},
+      { tailleMaxOctets: this.tailleMaxReponseOctets },
+    )
+    return projetPublic(reponse.corps)
+  }
+
   async listerBranches(projetId: number): Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>> {
     if (!Number.isSafeInteger(projetId) || projetId <= 0) {
       throw new Error('Identifiant de projet GitLab invalide.')
@@ -109,6 +133,28 @@ export class DecouverteGitLab {
       {},
       branchePublique,
     )
+  }
+
+  private cheminProjet(entree: string): string {
+    const valeur = entree.trim()
+    if (!valeur) throw new Error('Adresse du projet GitLab manquante.')
+    let chemin = valeur
+    if (/^https?:\/\//i.test(valeur)) {
+      const url = new URL(valeur)
+      if (url.origin !== this.instance.origin) {
+        throw new Error('Le projet doit appartenir à l’instance GitLab indiquée.')
+      }
+      chemin = decodeURIComponent(url.pathname)
+    }
+    chemin = chemin.replace(/^\/+|\/+$/g, '').replace(/\.git$/, '')
+    const segments = chemin.split('/')
+    if (
+      !chemin ||
+      segments.some((segment) => !segment || segment === '.' || segment === '..' || segment.includes('\\'))
+    ) {
+      throw new Error('Adresse du projet GitLab invalide.')
+    }
+    return segments.map((segment) => decodeURIComponent(segment)).join('/')
   }
 
   private async listerPages<T>(

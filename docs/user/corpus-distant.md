@@ -48,26 +48,48 @@ il se connecte avec SES identifiants à SON adresse du dossier (Nextcloud prése
 le dossier partagé à un emplacement propre à chacun ; c'est normal, et l'app
 mémorise l'adresse de chaque compte).
 
-## Préversion GitLab en consultation seule
+## GitLab : préparer et créer un corpus
 
-« ☁️ Ouvrir un corpus distant » permet aussi de consulter un corpus déjà présent
-dans un projet GitLab. Renseignez l'URL de l'instance, votre utilisateur et un
-jeton d'accès personnel autorisé à lire le dépôt, puis cliquez sur « Découvrir
-les projets ». Choisissez le projet et sa branche. Si le corpus est dans un
-sous-dossier, indiquez la racine qui contient `corpus.json`.
+Dans « ☁️ Nouveau corpus distant », l’onglet GitLab suppose qu’un **projet GitLab
+existe déjà**. Sonal ne crée pas de projet GitLab et ne demande pas son identifiant
+numérique. Vous saisissez directement l’adresse du projet ; l’instance et le nom du
+projet en sont déduits.
 
-Cette préversion :
+### Préparer le projet
 
-- télécharge les transcriptions à un commit fixé pour chaque actualisation ;
-- ne crée aucun commit, verrou ou fichier de sonde ;
-- conserve le jeton dans le stockage sécurisé du poste, ou seulement en mémoire
-  si ce stockage est indisponible ;
-- ouvre les entretiens et toutes les opérations métier en lecture seule ;
-- ne prend pas encore en charge les médias partagés GitLab ni les Docs cadre.
+1. Créez ou faites créer un projet GitLab privé pour le corpus.
+2. Vérifiez que votre compte et votre jeton peuvent lire le projet et écrire dans la
+   branche choisie. Si la branche est protégée, autorisez les développeurs à y pousser.
+3. Utilisez un jeton d’accès personnel GitLab adapté à votre instance. Dans Humanum,
+   il peut être créé après une connexion avec HumanID. Pour une autre instance,
+   suivez la procédure de votre administrateur GitLab.
 
-La découverte est limitée aux premiers projets et branches accessibles afin de ne
-pas charger une instance entière. L'édition GitLab ne sera activée qu'après
-validation complète du protocole d'exclusion et de publication. Les corpus
+Sonal ne crée aucun projet pendant cette étape. Il vérifie l’URL et les accès,
+puis utilise la branche par défaut du projet.
+
+### Créer le corpus Sonal
+
+Dans « ☁️ Nouveau corpus distant » :
+
+1. saisissez l’adresse du projet GitLab, par exemple
+   `https://gitlab.exemple.org/mon-groupe/mon-corpus` ;
+2. renseignez votre jeton d’accès personnel ;
+3. cliquez sur « Charger le projet » ;
+4. laissez Sonal utiliser la branche par défaut du projet ;
+5. indiquez la racine du corpus si elle n’est pas à la racine du dépôt ;
+6. donnez un nom au corpus Sonal ;
+7. cliquez sur « Créer le corpus et l’ouvrir ».
+
+La création ajoute le squelette du corpus dans le projet sélectionné. Le projet GitLab
+et son historique ne sont pas supprimés. Si le projet contient déjà un corpus, utilisez
+« Ouvrir un corpus distant » plutôt que la création.
+
+Le jeton n’est jamais renvoyé au renderer, affiché dans l’interface ou inscrit dans
+les logs et messages d’erreur. Il est conservé dans le coffre chiffré du poste
+lorsqu’il est disponible, sinon seulement en mémoire.
+
+Pour le premier parcours des transcriptions, Git LFS n’est pas nécessaire. Les médias
+partagés GitLab et les Docs cadre ne sont pas encore pris en charge. Les corpus
 Nextcloud conservent leur fonctionnement éditable actuel.
 
 ## Au quotidien

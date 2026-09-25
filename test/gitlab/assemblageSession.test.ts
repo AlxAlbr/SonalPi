@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -14,9 +15,14 @@ afterEach(() => {
 describe('assemblage de session GitLab', () => {
   test('sépare le chemin local de la racine GitLab configurée', async () => {
     const requetes: string[] = []
-    const fetchImpl = vi.fn(async (entree: string | URL | Request): Promise<Response> => {
+    const corps: Array<Record<string, unknown>> = []
+    const fetchImpl = vi.fn(async (
+      entree: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
       const url = new URL(String(entree))
       requetes.push(`${url.pathname}?${url.searchParams.toString()}`)
+      if (init?.body) corps.push(JSON.parse(String(init.body)) as Record<string, unknown>)
       if (url.pathname.endsWith('/repository/commits') && url.searchParams.has('ref_name')) {
         return new Response(JSON.stringify([]), {
           status: 200,
@@ -72,5 +78,11 @@ describe('assemblage de session GitLab', () => {
       .toBe(true)
     expect(readFileSync(join(racine, 'entretiens', 'e1.json'), 'utf8'))
       .toBe('{"formatVersion":8}')
+    const actionBail = corps
+      .flatMap((corps) => corps.actions as Array<{ file_path: string }> | undefined)
+      .find(({ file_path: chemin }) => chemin.startsWith('.sonal/verrous/'))
+    expect(actionBail?.file_path).toBe(`.sonal/verrous/${createHash('sha256')
+      .update('branche:main\u0000chemin:donnees/entretiens/e1.json')
+      .digest('hex')}.json`)
   })
 })

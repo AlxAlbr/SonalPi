@@ -58,6 +58,7 @@ import type {
   DemandeCreationGitLab,
   DemandeDecouverteBranchesGitLab,
   DemandeDecouverteGitLab,
+  DemandeProjetGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
   ProjetGitLabPublic,
@@ -107,6 +108,16 @@ contextBridge.exposeInMainWorld('sonal', {
       }
       ipcRenderer.on('application:preparerFermeture', ecouteur)
       return () => ipcRenderer.removeListener('application:preparerFermeture', ecouteur)
+    },
+    surSuspensionSysteme: (cb: () => Promise<void>): (() => void) => {
+      const ecouteur = (): void => { void cb() }
+      ipcRenderer.on('application:systemeSuspendu', ecouteur)
+      return () => ipcRenderer.removeListener('application:systemeSuspendu', ecouteur)
+    },
+    surReveilSysteme: (cb: () => Promise<void>): (() => void) => {
+      const ecouteur = (): void => { void cb() }
+      ipcRenderer.on('application:systemeReveille', ecouteur)
+      return () => ipcRenderer.removeListener('application:systemeReveille', ecouteur)
     },
   },
   /** Menu applicatif (construit côté main) : les items émettent un canal,
@@ -211,6 +222,8 @@ contextBridge.exposeInMainWorld('sonal', {
     /** État de session distant (poll UI) pour un entretien ouvert. */
     etatSession: (id: string): Promise<EtatSessionPublic> =>
       invoquer('distant:etatSession', id),
+    revaliderSession: (id: string): Promise<EtatSessionPublic> =>
+      invoquer('corpus:revaliderSession', id),
     /** « Publier maintenant » : PUT If-Match sous verrou toujours tenu.
      *  { ok: false, raison: 'divergence' } = le serveur a changé sous nos pieds :
      *  la copie locale a été mise de côté, JAMAIS écrasée. */
@@ -362,6 +375,10 @@ contextBridge.exposeInMainWorld('sonal', {
       demande: DemandeDecouverteGitLab,
     ): Promise<ResultatDecouverteGitLab<ProjetGitLabPublic>> =>
       invoquer('gitlab:decouvrirProjets', demande),
+    lireUtilisateur: (demande: DemandeDecouverteGitLab): Promise<string> =>
+      invoquer('gitlab:lireUtilisateur', demande),
+    chargerProjet: (demande: DemandeProjetGitLab): Promise<ProjetGitLabPublic> =>
+      invoquer('gitlab:chargerProjet', demande),
     decouvrirBranches: (
       demande: DemandeDecouverteBranchesGitLab,
     ): Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>> =>

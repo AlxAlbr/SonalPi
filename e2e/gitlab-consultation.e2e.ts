@@ -8,6 +8,7 @@
  */
 
 import { expect, test, type Page } from '@playwright/test'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -77,6 +78,17 @@ async function teteBranche(
   return brancheLue.commit.id
 }
 
+async function adresseProjet(
+  jeton: string,
+  projetId = configuration.projetId as string,
+): Promise<string> {
+  const projet = await api<{ path_with_namespace: string }>(
+    `/projects/${projetId}`,
+    jeton,
+  )
+  return `${(configuration.url as string).replace(/\/$/, '')}/${projet.path_with_namespace}`
+}
+
 async function amorcerConsultation(
   jeton: string,
   projetId = configuration.projetId as string,
@@ -139,6 +151,43 @@ async function verifierBasculeLocalePuisGitLab(page: Page): Promise<void> {
   await expect(page.locator('.ent-titre', { hasText: titreEntretien })).toBeVisible()
 }
 
+async function expirerBailE2E(
+  jeton: string,
+  racineCourante: string,
+  projetId = configuration.projetId as string,
+): Promise<void> {
+  const cheminEntretien = `${racineCourante}/entretiens/${idEntretien}.json`
+  const resource = `branche:${branche}\u0000chemin:${cheminEntretien}`
+  const resourceHash = createHash('sha256').update(resource).digest('hex')
+  const cheminBail = `.sonal/verrous/${resourceHash}.json`
+  const fichier = await api<{ content: string; last_commit_id: string }>(
+    `/projects/${projetId}/repository/files/${encodeURIComponent(cheminBail)}?ref=${branche}`,
+    jeton,
+  )
+  const bail = JSON.parse(Buffer.from(fichier.content, 'base64').toString('utf8')) as {
+    expireLe: string
+  }
+  bail.expireLe = new Date(Date.now() - 1_000).toISOString()
+  await api(
+    `/projects/${projetId}/repository/commits`,
+    jeton,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        branch: branche,
+        commit_message: `E2E GitLab ${idExecution} : expiration du bail`,
+        actions: [{
+          action: 'update',
+          file_path: cheminBail,
+          content: Buffer.from(JSON.stringify(bail)).toString('base64'),
+          encoding: 'base64',
+          last_commit_id: fichier.last_commit_id,
+        }],
+      }),
+    },
+  )
+}
+
 async function ouvrirDestinationPourCrash(
   page: Page,
   utilisateur: string,
@@ -149,11 +198,10 @@ async function ouvrirDestinationPourCrash(
   await attendreAccueil(page)
   await page.locator('.carte-demo.distant-corpus').click()
   await page.getByRole('tab', { name: 'GitLab' }).click()
-  await page.locator('.url-gitlab').fill(configuration.url as string)
-  await page.locator('.utilisateur-gitlab').fill(utilisateur)
   await page.locator('.jeton-gitlab').fill(jeton)
-  await page.getByRole('button', { name: 'Découvrir les projets' }).click()
-  await page.locator('.projet-gitlab').selectOption(projetId)
+  await page.locator('.url-projet-gitlab').fill(await adresseProjet(jeton, projetId))
+  await page.getByRole('button', { name: 'Charger le projet' }).click()
+  await expect(page.locator('.branche-gitlab')).toHaveValue(branche)
   await page.locator('.racine-gitlab').fill(racineCourante)
   await page.getByRole('button', { name: 'Ouvrir depuis GitLab' }).click()
   await attendreCorpus(page)
@@ -171,13 +219,9 @@ async function consulterDansProfil(
   await attendreAccueil(page)
   await page.locator('.carte-demo.distant-corpus').click()
   await page.getByRole('tab', { name: 'GitLab' }).click()
-  await page.locator('.url-gitlab').fill(configuration.url as string)
-  await page.locator('.utilisateur-gitlab').fill(utilisateur)
   await page.locator('.jeton-gitlab').fill(jeton)
-  await page.getByRole('button', { name: 'Découvrir les projets' }).click()
-  const selecteurProjet = page.locator('.projet-gitlab')
-  await expect(selecteurProjet.locator('option')).not.toHaveCount(1)
-  await selecteurProjet.selectOption(projetId)
+  await page.locator('.url-projet-gitlab').fill(await adresseProjet(jeton, projetId))
+  await page.getByRole('button', { name: 'Charger le projet' }).click()
   const selecteurBranche = page.locator('.branche-gitlab')
   await expect(selecteurBranche).toHaveValue(branche)
   await page.locator('.racine-gitlab').fill(racine)
@@ -275,6 +319,11 @@ test.describe('Consultation GitLab à deux profils', () => {
     }
     const racineCreation = `${racine}-creation-${Date.now().toString(36)}`
     const nomCreation = `Corpus créé ${idExecution}`
+    const projet = await api<{ path_with_namespace: string }>(
+      `/projects/${configuration.projetId}`,
+      configuration.token1 as string,
+    )
+    const urlProjet = `${(configuration.url as string).replace(/\/$/, '')}/${projet.path_with_namespace}`
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-creation-'))
     const app = await lancerProfil(profil)
     try {
@@ -282,12 +331,10 @@ test.describe('Consultation GitLab à deux profils', () => {
       await attendreAccueil(page)
       await page.locator('.nouveau-corpus-distant').click()
       await page.getByRole('tab', { name: 'GitLab' }).click()
-      await page.locator('.url-gitlab').fill(configuration.url as string)
-      await page.locator('.utilisateur-gitlab').fill('user1')
       await page.locator('.jeton-gitlab').fill(configuration.token1 as string)
-      await page.getByRole('button', { name: 'Découvrir les projets' }).click()
-      await page.locator('.projet-gitlab').selectOption(configuration.projetId as string)
-      await expect(page.locator('.branche-gitlab')).toHaveValue(branche, { timeout: 20_000 })
+      await page.locator('.url-projet-gitlab').fill(urlProjet)
+      await page.getByRole('button', { name: 'Charger le projet' }).click()
+      await expect(page.locator('.racine-gitlab')).toBeVisible({ timeout: 20_000 })
       await page.locator('.racine-gitlab').fill(racineCreation)
       await page.locator('.champ-nom').fill(nomCreation)
       await page.getByRole('button', { name: 'Créer le corpus et l’ouvrir' }).click()
@@ -342,12 +389,58 @@ test.describe('Consultation GitLab à deux profils', () => {
     }
   })
 
+  test('un second profil reprend après expiration et l’ancien poste est refusé', async () => {
+    if (executableEmpaquete && !existsSync(executableEmpaquete)) {
+      throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
+    }
+    const racineReprise = `${racine}-reprise-${Date.now().toString(36)}`
+    const jetonA = configuration.token1 as string
+    const jetonB = tokenSecondPoste as string
+    await amorcerConsultation(jetonA, configuration.projetId as string, racineReprise)
+    const profilA = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-reprise-a-'))
+    const profilB = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-reprise-b-'))
+    let appA = await lancerProfil(profilA)
+    let appB = await lancerProfil(profilB)
+    try {
+      const pageA = await appA.firstWindow()
+      await ouvrirDestinationPourCrash(pageA, 'user1', jetonA, racineReprise)
+      await pageA.locator('.editeur').click()
+      await pageA.keyboard.press('End')
+      await pageA.keyboard.type(` Ancien poste ${idExecution}.`)
+      await expect(pageA.locator('.statut-session.sale')).toBeVisible({ timeout: 10_000 })
+      await appA.evaluate(({ powerMonitor }) => powerMonitor.emit('suspend'))
+      await expect(pageA.locator('.editeur')).toContainText(`Ancien poste ${idExecution}.`)
+      await pageA.waitForTimeout(1_000)
+      await appA.evaluate(({ powerMonitor }) => powerMonitor.emit('resume'))
+      await expect(pageA.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
+      await pageA.waitForTimeout(1_000)
+      await expirerBailE2E(jetonA, racineReprise)
+
+      const pageB = await appB.firstWindow()
+      await ouvrirDestinationPourCrash(pageB, 'user2', jetonB, racineReprise)
+      await expect(pageB.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
+
+      await pageA.getByRole('button', { name: 'Publier maintenant' }).click()
+      await expect(pageA.locator('.statut-session.divergence')).toContainText(
+        /Droit d’édition perdu|Le serveur a changé/,
+      )
+      await expect(pageA.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
+      await expect(pageA.locator('.editeur')).toContainText(`Ancien poste ${idExecution}.`)
+      await expect(pageB.locator('.editeur')).not.toContainText(`Ancien poste ${idExecution}.`)
+    } finally {
+      await Promise.allSettled([appA.close(), appB.close()])
+      rmSync(profilA, { recursive: true, force: true })
+      rmSync(profilB, { recursive: true, force: true })
+    }
+  })
+
   test('un jeton invalide est refusé sans créer de miroir ni modifier le projet', async () => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
     const jetonEcriture = configuration.token1 as string
     const teteInitiale = await teteBranche(jetonEcriture)
+    const urlProjet = await adresseProjet(jetonEcriture)
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-refus-'))
     const app = await lancerProfil(profil)
 
@@ -356,10 +449,9 @@ test.describe('Consultation GitLab à deux profils', () => {
       await attendreAccueil(page)
       await page.locator('.carte-demo.distant-corpus').click()
       await page.getByRole('tab', { name: 'GitLab' }).click()
-      await page.locator('.url-gitlab').fill(configuration.url as string)
-      await page.locator('.utilisateur-gitlab').fill('user1')
       await page.locator('.jeton-gitlab').fill('jeton-invalide-e2e')
-      await page.getByRole('button', { name: 'Découvrir les projets' }).click()
+      await page.locator('.url-projet-gitlab').fill(urlProjet)
+      await page.getByRole('button', { name: 'Charger le projet' }).click()
       await expect(page.locator('.modale-distant .msg')).toContainText('droits')
       expect(existsSync(join(profil, 'miroirs'))).toBe(false)
       expect(await teteBranche(jetonEcriture)).toBe(teteInitiale)

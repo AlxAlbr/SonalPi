@@ -277,6 +277,31 @@ export function useDistantCorpus(deps: {
     [deps.entretien.ouvertId, idDistantCourant],
     () => void rafraichirStatutSession(),
   )
+  const arreterSuspensionSysteme = window.sonal.application.surSuspensionSysteme
+    ? window.sonal.application.surSuspensionSysteme(async () => {
+      if (!idDistantCourant.value || !deps.entretien.ouvertId.value) return
+      try {
+        await deps.entretien.viderSauvegarde()
+      } catch {
+        /* La copie locale déjà journalisée reste la dernière protection. */
+      }
+    })
+    : () => undefined
+  const arreterReveilSysteme = window.sonal.application.surReveilSysteme
+    ? window.sonal.application.surReveilSysteme(async () => {
+      const id = deps.entretien.ouvertId.value
+      if (!idDistantCourant.value || !id) return
+      deps.effets.rendreEditeurEditable(false)
+      try {
+        await deps.entretien.viderSauvegarde()
+        const statut = await window.sonal.corpus.revaliderSession(id)
+        appliquerStatutSession(statut)
+        if (statut.etat === 'a-nous') deps.effets.rendreEditeurEditable(true)
+      } catch {
+        appliquerStatutSession({ etat: 'degrade', raison: 'reseau' })
+      }
+    })
+    : () => undefined
   const arreterEdition = watch(entretienEditable, (editable) => {
     deps.effets.rendreEditeurEditable(editable)
   })
@@ -296,6 +321,8 @@ export function useDistantCorpus(deps: {
     arreterPreparationFermeture()
     arreterSessionDegradee()
     arreterSuiviSession()
+    arreterSuspensionSysteme()
+    arreterReveilSysteme()
     arreterEdition()
   })
 

@@ -35,6 +35,7 @@ export type ResultatFermetureSessionGitLab =
 export interface OptionsSessionGitLab {
   id: string
   ressource: string
+  ressourcePartagee?: string
   cheminRelatif: string
   cheminDistant: string
   branche: string
@@ -47,22 +48,33 @@ export interface OptionsSessionGitLab {
   reconciliateur?: ReconciliateurPublicationGitLab
   repriseExplicite?: boolean
   nouvelleOperation?: () => string
+  maintenant?: () => number
+  intervallePublicationMs?: number
+  margeRenouvellementMs?: number
 }
 
 interface SessionOuverte {
   droit: DroitsEditionGitLab
   commitId: string
   contenuPublie: string
+  contenuCapture: string
   revision: number
+  revisionDemandee: number
+  revisionCapturee: number
   revisionPubliee: number
+  dernierePublication: number
   degrade: boolean
   raisonDegradation: RaisonDegradationSession | null
 }
 
 export class SessionGitLab {
   private readonly nouvelleOperation: () => string
+  private readonly maintenant: () => number
+  private readonly intervallePublicationMs: number
+  private readonly margeRenouvellementMs: number
   private session: SessionOuverte | null = null
-  private readonly operations = new Map<string, Promise<unknown>>()
+  private operations: Promise<void> = Promise.resolve()
+  private readonly marquesEnCours = new Set<Promise<void>>()
 
   constructor(private readonly options: OptionsSessionGitLab) {
     if (!options.id || !options.ressource || !options.cheminDistant) {
@@ -70,14 +82,26 @@ export class SessionGitLab {
     }
     verifierCheminDistant(options.cheminDistant)
     this.nouvelleOperation = options.nouvelleOperation ?? (() => `session-${randomUUID()}`)
+    this.maintenant = options.maintenant ?? Date.now
+    this.intervallePublicationMs = options.intervallePublicationMs ?? 2 * 60 * 1000
+    this.margeRenouvellementMs = options.margeRenouvellementMs ?? 5 * 60 * 1000
+    if (
+      !Number.isSafeInteger(this.intervallePublicationMs) ||
+      this.intervallePublicationMs < 1_000 ||
+      !Number.isSafeInteger(this.margeRenouvellementMs) ||
+      this.margeRenouvellementMs < 0
+    ) {
+      throw new Error('Rythmes de session GitLab invalides.')
+    }
   }
 
   async ouvrir(): Promise<EtatSessionGitLab> {
-    return this.serialiser('ouvrir', async () => {
+    return this.serialiser(async () => {
       if (this.session) return this.etat()
-      let acquisition = await this.options.coordination.acquireRessource(this.options.ressource)
+      const ressourceBail = this.options.ressourcePartagee ?? this.options.ressource
+      let acquisition = await this.options.coordination.acquireRessource(ressourceBail)
       if (!acquisition.ok && this.options.repriseExplicite) {
-        acquisition = await this.options.coordination.reprendreRessource(this.options.ressource)
+        acquisition = await this.options.coordination.reprendreRessource(ressourceBail)
       }
       if (!acquisition.ok) {
         return { etat: 'lecture-seule', raison: 'bail', tenupar: acquisition.tenupar }
@@ -137,8 +161,12 @@ export class SessionGitLab {
           droit: acquisition.droit,
           commitId: distant.commitId,
           contenuPublie: distant.contenu,
+          contenuCapture: contenuLocal,
           revision,
+          revisionDemandee: revision,
+          revisionCapturee: revision,
           revisionPubliee: 0,
+          dernierePublication: this.maintenant(),
           degrade: false,
           raisonDegradation: null,
         }
@@ -157,74 +185,110 @@ export class SessionGitLab {
   async marquerSale(): Promise<void> {
     const session = this.session
     if (!session || session.degrade) return
-    this.options.journalSessions?.majCandidat(
-      this.options.ressource,
-      await this.options.stockageLocal.lire(),
-    )
-    session.revision += 1
+    const revision = ++session.revisionDemandee
+    const marque = (async () => {
+      const contenu = await this.options.stockageLocal.lire()
+      if (this.session !== session || revision < session.revisionDemandee) return
+      this.options.journalSessions?.majCandidat(this.options.ressource, contenu)
+      session.contenuCapture = contenu
+      session.revisionCapturee = revision
+      session.revision = Math.max(session.revision, revision)
+    })()
+    this.marquesEnCours.add(marque)
+    try {
+      await marque
+    } finally {
+      this.marquesEnCours.delete(marque)
+    }
+  }
+
+  async preserverCandidat(): Promise<boolean> {
+    const session = this.session
+    if (!session) return false
+    const contenu = await this.options.stockageLocal.lire()
+    this.options.journalSessions?.majCandidat(this.options.ressource, contenu)
+    session.contenuCapture = contenu
+    session.revision = Math.max(session.revision, session.revisionDemandee) + 1
+    session.revisionDemandee = session.revision
+    session.revisionCapturee = session.revision
+    return true
   }
 
   async publier(): Promise<ResultatPublicationGitLab> {
-    return this.serialiser('publier', async () => {
-      const session = this.session
-      if (!session || session.degrade) {
-        return { statut: 'refuse', raison: 'droit-perdu' }
-      }
-      const contenu = await this.options.stockageLocal.lire()
-      if (contenu === session.contenuPublie) {
-        session.revisionPubliee = session.revision
-        return { statut: 'confirme', commitId: session.commitId, compteurBail: this.compteur() }
-      }
-      const revisionAuDepart = session.revision
-      const plan: PlanPublicationGitLab = {
-        operationId: this.nouvelleOperation(),
-        actions: [{
-          action: 'update',
-          chemin: this.options.cheminDistant,
-          contenu,
-          commitId: session.commitId,
-        }],
-      }
-      const resultat = await this.options.publication.publierSousDroit(plan, session.droit)
-      if (resultat.statut === 'confirme') {
-        session.commitId = resultat.commitId
-        session.contenuPublie = contenu
-        session.revisionPubliee = Math.max(session.revisionPubliee, revisionAuDepart)
-        const reprise = this.options.journalSessions?.lire(this.options.ressource)
-        if (reprise) {
-          this.options.journalSessions?.confirmerPublication(
-            reprise.resourceHash,
-            resultat.commitId,
-            contenu,
-          )
-        }
-        return resultat
-      }
-      session.degrade = true
-      session.raisonDegradation = resultat.statut === 'indetermine'
-        ? 'indetermine'
-        : resultat.raison === 'droit-perdu'
-          ? 'droit-perdu'
-          : resultat.raison === 'droits'
-            ? 'droits'
-            : resultat.raison === 'limite'
-              ? 'limite'
-              : 'conflit'
-      return resultat
-    })
+    return this.serialiser(() => this.publierInterne())
   }
 
-  async renouveler(): Promise<boolean> {
-    return this.serialiser('renouveler', async () => {
+  private async publierInterne(): Promise<ResultatPublicationGitLab> {
+    const session = this.session
+    if (!session || session.degrade) {
+      return { statut: 'refuse', raison: 'droit-perdu' }
+    }
+    await this.attendreMarques()
+    const contenu = session.contenuCapture
+    const revisionAuDepart = session.revisionCapturee
+    if (contenu === session.contenuPublie) {
+      session.revisionPubliee = Math.max(session.revisionPubliee, revisionAuDepart)
+      session.dernierePublication = this.maintenant()
+      return { statut: 'confirme', commitId: session.commitId, compteurBail: this.compteur() }
+    }
+    const plan: PlanPublicationGitLab = {
+      operationId: this.nouvelleOperation(),
+      actions: [{
+        action: 'update',
+        chemin: this.options.cheminDistant,
+        contenu,
+        commitId: session.commitId,
+      }],
+    }
+    const resultat = await this.options.publication.publierSousDroit(plan, session.droit)
+    if (resultat.statut === 'confirme') {
+      session.commitId = resultat.commitId
+      session.contenuPublie = contenu
+      session.revisionPubliee = Math.max(session.revisionPubliee, revisionAuDepart)
+      session.dernierePublication = this.maintenant()
+      const reprise = this.options.journalSessions?.lire(this.options.ressource)
+      if (reprise) {
+        this.options.journalSessions?.confirmerPublication(
+          reprise.resourceHash,
+          resultat.commitId,
+          contenu,
+        )
+      }
+      return resultat
+    }
+    session.degrade = true
+    session.raisonDegradation = resultat.statut === 'indetermine'
+      ? 'indetermine'
+      : resultat.raison === 'droit-perdu'
+        ? 'droit-perdu'
+        : resultat.raison === 'droits'
+          ? 'droits'
+          : resultat.raison === 'limite'
+            ? 'limite'
+            : 'conflit'
+    return resultat
+  }
+
+  async revalider(): Promise<boolean> {
+    return this.serialiser(async () => {
       const session = this.session
       if (!session || session.degrade) return false
       try {
-        const renouvele = await this.options.coordination.renouveler(session.droit)
-        if (!renouvele) {
+        if (!await this.options.coordination.revalider(session.droit)) {
           session.degrade = true
           session.raisonDegradation = 'droit-perdu'
+          return false
         }
-        return renouvele
+        const distant = await this.options.depot.lireFichier(
+          this.options.cheminDistant,
+          this.options.branche,
+        )
+        if (!distant || distant.commitId !== session.commitId) {
+          session.degrade = true
+          session.raisonDegradation = 'conflit'
+          return false
+        }
+        return true
       } catch {
         session.degrade = true
         session.raisonDegradation = 'reseau'
@@ -233,18 +297,64 @@ export class SessionGitLab {
     })
   }
 
+  async publierPeriodique(): Promise<ResultatPublicationGitLab | null> {
+    return this.serialiser(async () => {
+      const session = this.session
+      if (!session || session.degrade) return null
+      const maintenant = this.maintenant()
+      const bail = this.options.coordination.snapshot(session.droit)
+      const doitPublier = session.revision > session.revisionPubliee &&
+        (maintenant - session.dernierePublication >= this.intervallePublicationMs ||
+          bail.expireLe - maintenant <= this.margeRenouvellementMs)
+      return doitPublier ? this.publierInterne() : null
+    })
+  }
+
+  async renouvelerSiNecessaire(): Promise<boolean> {
+    return this.serialiser(async () => {
+      const session = this.session
+      if (!session || session.degrade) return false
+      const bail = this.options.coordination.snapshot(session.droit)
+      if (session.revision > session.revisionPubliee) return false
+      if (bail.expireLe - this.maintenant() > this.margeRenouvellementMs) return false
+      return this.renouvelerInterne()
+    })
+  }
+
+  async renouveler(): Promise<boolean> {
+    return this.serialiser(() => this.renouvelerInterne())
+  }
+
+  private async renouvelerInterne(): Promise<boolean> {
+    const session = this.session
+    if (!session || session.degrade) return false
+    try {
+      const renouvele = await this.options.coordination.renouveler(session.droit)
+      if (!renouvele) {
+        session.degrade = true
+        session.raisonDegradation = 'droit-perdu'
+      }
+      return renouvele
+    } catch {
+      session.degrade = true
+      session.raisonDegradation = 'reseau'
+      return false
+    }
+  }
+
   async fermer(): Promise<ResultatFermetureSessionGitLab> {
-    return this.serialiser('fermer', async () => {
+    return this.serialiser(async () => {
       const session = this.session
       if (!session) return { fermee: true }
+      await this.attendreMarques()
       if (session.degrade) return { fermee: false, raison: 'degrade' }
-      if (session.contenuPublie !== await this.options.stockageLocal.lire()) {
-        const resultat = await this.publier()
+      if (session.contenuPublie !== session.contenuCapture) {
+        const resultat = await this.publierInterne()
         if (resultat.statut !== 'confirme') {
           return { fermee: false, raison: resultat.statut === 'refuse' && resultat.raison === 'droit-perdu' ? 'bail-perdu' : 'publication' }
         }
       }
-      if (session.contenuPublie !== await this.options.stockageLocal.lire()) {
+      if (session.contenuPublie !== session.contenuCapture) {
         return { fermee: false, raison: 'publication' }
       }
       await this.options.coordination.liberer(session.droit)
@@ -258,17 +368,19 @@ export class SessionGitLab {
     operationId: string
     resultat: Awaited<ReturnType<ReconciliateurPublicationGitLab['reconcilier']>>
   }>> {
-    if (!this.options.journal || !this.options.reconciliateur) return []
-    const resultats: Array<{
-      operationId: string
-      resultat: Awaited<ReturnType<ReconciliateurPublicationGitLab['reconcilier']>>
-    }> = []
-    for (const entree of this.options.journal.lister()) {
-      const resultat = await this.options.reconciliateur.reconcilier(entree)
-      resultats.push({ operationId: entree.operationId, resultat })
-      if (resultat.statut === 'confirme') this.options.journal.supprimer(entree.operationId)
-    }
-    return resultats
+    return this.serialiser(async () => {
+      if (!this.options.journal || !this.options.reconciliateur) return []
+      const resultats: Array<{
+        operationId: string
+        resultat: Awaited<ReturnType<ReconciliateurPublicationGitLab['reconcilier']>>
+      }> = []
+      for (const entree of this.options.journal.lister()) {
+        const resultat = await this.options.reconciliateur.reconcilier(entree)
+        resultats.push({ operationId: entree.operationId, resultat })
+        if (resultat.statut === 'confirme') this.options.journal.supprimer(entree.operationId)
+      }
+      return resultats
+    })
   }
 
   etat(): EtatSessionGitLab {
@@ -276,6 +388,11 @@ export class SessionGitLab {
     if (!session) return { etat: 'lecture-seule', raison: 'bail', tenupar: null }
     if (session.degrade) {
       return { etat: 'degrade', raison: session.raisonDegradation ?? 'droit-perdu' }
+    }
+    if (this.options.coordination.snapshot(session.droit).expireLe <= this.maintenant()) {
+      session.degrade = true
+      session.raisonDegradation = 'droit-perdu'
+      return { etat: 'degrade', raison: 'droit-perdu' }
     }
     return {
       etat: 'edition',
@@ -292,19 +409,16 @@ export class SessionGitLab {
     return this.session ? this.options.coordination.snapshot(this.session.droit).compteur : 0
   }
 
-  private async serialiser<T>(cle: string, operation: () => Promise<T>): Promise<T> {
-    const precedente = this.operations.get(cle) ?? Promise.resolve()
-    let liberer!: () => void
-    const attente = new Promise<void>((resolve) => { liberer = resolve })
-    const file = precedente.catch(() => undefined).then(() => attente)
-    this.operations.set(cle, file)
-    await precedente.catch(() => undefined)
-    try {
-      return await operation()
-    } finally {
-      liberer()
-      if (this.operations.get(cle) === file) this.operations.delete(cle)
+  private async attendreMarques(): Promise<void> {
+    while (this.marquesEnCours.size > 0) {
+      await Promise.allSettled([...this.marquesEnCours])
     }
+  }
+
+  private serialiser<T>(operation: () => Promise<T>): Promise<T> {
+    const resultat = this.operations.then(operation, operation)
+    this.operations = resultat.then(() => undefined, () => undefined)
+    return resultat
   }
 }
 

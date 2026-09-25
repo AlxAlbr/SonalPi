@@ -106,6 +106,44 @@ describe('découverte GitLab', () => {
     expect(pagesVues).toEqual(['1', '2'])
   })
 
+  it('charge un projet par son adresse complète et sa branche par défaut', async () => {
+    const appels: Appel[] = []
+    const fetchImpl = vi.fn(async (entree: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(entree))
+      appels.push({
+        url,
+        jeton: new Headers(init?.headers).get('PRIVATE-TOKEN'),
+        methode: init?.method,
+      })
+      expect(url.pathname).toBe('/api/v4/projects/groupe%2Fcorpus')
+      return reponse(projet(42, 'Corpus'))
+    }) as typeof fetch
+
+    await expect(new DecouverteGitLab({
+      urlInstance: 'https://gitlab.example.org',
+      jeton: 'jeton',
+      fetchImpl,
+    }).chargerProjet('https://gitlab.example.org/groupe/corpus.git')).resolves.toEqual({
+      id: 42,
+      nom: 'Corpus',
+      chemin: 'groupe/corpus',
+      brancheParDefaut: 'main',
+      archive: false,
+    })
+    expect(appels[0]).toMatchObject({ jeton: 'jeton', methode: 'GET' })
+  })
+
+  it('refuse une adresse de projet appartenant à une autre instance', async () => {
+    const fetchImpl = vi.fn(async () => reponse(projet(42))) as typeof fetch
+
+    await expect(new DecouverteGitLab({
+      urlInstance: 'https://gitlab.example.org',
+      jeton: 'jeton',
+      fetchImpl,
+    }).chargerProjet('https://autre.example.org/groupe/corpus')).rejects.toThrow('instance')
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('liste les branches du projet sélectionné et conserve la branche par défaut', async () => {
     const fetchImpl = vi.fn(async (entree: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(entree))

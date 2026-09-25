@@ -64,6 +64,10 @@ export interface DemandeDecouverteBranchesGitLab extends DemandeDecouverteGitLab
   projetId: number
 }
 
+export interface DemandeProjetGitLab extends DemandeDecouverteGitLab {
+  projet: string
+}
+
 export interface DemandeOuvertureGitLab {
   urlInstance: string
   utilisateur: string

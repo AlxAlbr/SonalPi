@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import {
   BailGitLab,
+  cleRessourceBailGitLab,
   type ActionCommitGitLab,
   type DepotCommitsGitLab,
   type FichierGitLab,
@@ -173,6 +175,76 @@ describe('bail GitLab versionné', () => {
     const chemin = posteA.snapshot(premier.droit).chemin
     expect(chemin).toMatch(/^\.sonal\/verrous\/[a-f0-9]{64}\.json$/)
     expect(chemin).not.toContain('e1')
+    expect(JSON.parse(depot.fichiers.get(chemin)?.contenu ?? '{}')).toMatchObject({
+      version: 2,
+      protocole: 'sonal-bail-v2',
+    })
+  })
+
+  test('un seul compte obtient la session pour deux comptes distincts', async () => {
+    const depot = new DepotMemoire()
+    const maintenant = () => Date.UTC(2026, 0, 1)
+    const ressource = cleRessourceBailGitLab('main', 'entretiens/e1.json')
+    const posteA = new BailGitLab({
+      branche: 'main',
+      depot,
+      identite: () => ({ userId: 'alice', machineId: 'poste-a', sessionId: 'session-a' }),
+      maintenant,
+      nouvelleGeneration: () => 'generation-a',
+    })
+    const posteB = new BailGitLab({
+      branche: 'main',
+      depot,
+      identite: () => ({ userId: 'bob', machineId: 'poste-b', sessionId: 'session-b' }),
+      maintenant,
+      nouvelleGeneration: () => 'generation-b',
+    })
+
+    const resultats = await Promise.all([
+      posteA.acquireRessource(ressource),
+      posteB.acquireRessource(ressource),
+    ])
+    expect(resultats.filter((resultat) => resultat.ok)).toHaveLength(1)
+    const refuse = resultats.find((resultat) => !resultat.ok)
+    expect(refuse).toMatchObject({ ok: false, raison: 'tenu' })
+    if (!refuse || refuse.ok) throw new Error('Refus test invalide.')
+    expect(['alice', 'bob']).toContain(refuse.tenupar?.userId)
+  })
+
+  test('refuse une nouvelle acquisition lorsqu’un ancien marqueur existe', async () => {
+    const depot = new DepotMemoire()
+    const maintenant = () => Date.UTC(2026, 0, 1)
+    const ressourceLegacy = 'destination-ancien:entretien:e1'
+    const hashLegacy = createHash('sha256').update(ressourceLegacy).digest('hex')
+    depot.fichiers.set(`.sonal/verrous/${hashLegacy}.json`, {
+      contenu: JSON.stringify({
+        version: 1,
+        protocole: 'sonal-bail-v1',
+        resourceHash: hashLegacy,
+        generation: 'ancienne-generation',
+        holder: { userId: 'alice', machineId: 'poste-avant', sessionId: 'session-avant' },
+        expireLe: new Date(Date.UTC(2026, 0, 1, 0, 5)).toISOString(),
+        compteur: 3,
+      }),
+      commitId: '1'.repeat(40),
+    })
+
+    const nouveau = new BailGitLab({
+      branche: 'main',
+      depot,
+      identite: () => identidade('session-apres-migration'),
+      maintenant,
+      ressourcesLegacy: [ressourceLegacy],
+    })
+    const resultat = await nouveau.acquireRessource(
+      cleRessourceBailGitLab('main', 'entretiens/e1.json'),
+    )
+    expect(resultat).toMatchObject({
+      ok: false,
+      raison: 'tenu',
+      tenupar: { userId: 'alice' },
+    })
+    expect(depot.commits).toHaveLength(0)
   })
 
   test('la reprise change la génération et bloque l’ancien détenteur', async () => {

@@ -84,10 +84,10 @@ la rédaction. Le dépôt contient du travail non commité ; le préserver.
 |---|---|
 | Consultation, miroir, journaux et publication conditionnelle | Implémentations et preuves existantes à réutiliser. Ne pas recommencer une démonstration générale de faisabilité. |
 | Bail et ancienne génération | Primitives qualifiées en tests et sur le banc. Cela ne prouve pas toute leur intégration Electron. |
-| Identité du verrou | `ContexteGitLab.ressourceEntretien()` inclut l’ID de destination, lequel inclut le compte dans `idDeDestinationGitLab()`. Deux comptes peuvent viser deux verrous pour le même fichier : correction prioritaire. |
-| Renouvellement | `renouvelerSession()` existe, mais aucun ordonnanceur applicatif ne l’appelle actuellement. Le bail est de cinq minutes dans le code. |
-| Sérialisation | `SessionGitLab.serialiser()` utilise des files par nom d’opération. Publication, renouvellement et fermeture ne sont donc pas une file unique. |
-| État public | `SessionGitLab.etat()` ne vérifie pas directement l’échéance. Le contrôle au moment de publier ne suffit pas à garantir une suspension visible à temps. |
+| Identité du verrou | La resource locale reste isolée pour les miroirs et journaux. La resource du bail est dérivée de la branche et du chemin distant canonique ; un ancien marqueur est détecté conservativement. |
+| Renouvellement | Un ordonnanceur unique du main appelle publication et renouvellement avec une file par entretien. Les valeurs par défaut sont 15 minutes de bail, 5 minutes de marge et 2 minutes entre publications. |
+| Sérialisation | `SessionGitLab.serialiser()` utilise une file commune pour acquisition, publication, renouvellement, réconciliation et fermeture. Les autosaves restent hors de cette file réseau. |
+| État public | `SessionGitLab.etat()` vérifie l’échéance locale et suspend une session expirée avant de la considérer comme éditable. |
 | Fermeture applicative | `executerFermetureApplication()` appelle toujours `quitter()`, même après certains échecs ou expiration du nettoyage. |
 | E2E à deux profils | Le scénario principal relu parcourt successivement deux profils avec le même compte. Il ne prouve pas une exclusion simultanée entre deux comptes. |
 | Campagnes de 480 commits | Renouvellements accélérés produits par le banc, pas comportement automatique de l’application. Latence mesurée, croissance disque non établie. |
@@ -347,39 +347,39 @@ script destructif non testé ni nettoyage périodique automatique dans cette tra
 
 ### G0 — Stabiliser le point de départ
 
-- [ ] Préserver et relire le travail non commité, puis établir les tests de base.
+- [x] Préserver et relire le travail non commité, puis établir les tests de base.
 - [ ] Corriger le rapport d’avancement pour distinguer banc, tests simulés et E2E.
 - [ ] Faire confirmer les durées proposées et les volumes de travail attendus.
 
 ### G1 — Une même ressource, une seule session autorisée
 
-- [ ] Séparer identité locale et clé du verrou partagé ; prévoir la compatibilité.
-- [ ] Introduire une vraie file commune sans appel imbriqué bloquant.
-- [ ] Garder les autosauvegardes et révisions indépendantes des attentes réseau.
-- [ ] Tester simultanément deux comptes, puis deux postes du même compte.
+- [x] Séparer identité locale et clé du verrou partagé ; prévoir la compatibilité.
+- [x] Introduire une vraie file commune sans appel imbriqué bloquant.
+- [x] Garder les autosauvegardes et révisions indépendantes des attentes réseau.
+- [x] Tester simultanément deux comptes, puis deux postes du même compte.
 
 **Sortie :** un seul gagnant pour le même entretien, deux entretiens différents
 publiables sans verrou global, caches distincts et aucune copie locale sacrifiée.
 
 ### G2 — Renouveler seulement quand nécessaire
 
-- [ ] Brancher l’ordonnanceur dans le main et centraliser les paramètres.
-- [ ] Replanifier après publication confirmée ; éviter tout renouvellement doublon.
-- [ ] Publier périodiquement uniquement les contenus modifiés.
-- [ ] Donner un titre commun aux renouvellements seuls, avec tests excluant les commits mixtes.
+- [x] Brancher l’ordonnanceur dans le main et centraliser les paramètres.
+- [x] Replanifier après publication confirmée ; éviter tout renouvellement doublon.
+- [x] Publier périodiquement uniquement les contenus modifiés.
+- [x] Donner un titre commun aux renouvellements seuls, avec tests excluant les commits mixtes.
 - [ ] Suspendre sur perte de garantie et traiter le réveil avant reprise d’édition.
-- [ ] Tester échéances, absence de changement, nouvelles révisions et réponses tardives.
+- [x] Tester échéances, absence de changement, nouvelles révisions et réponses tardives.
 
 **Sortie :** compteur de commits conforme à la politique, aucune dépendance au
 minuteur du renderer, aucun renouvellement d’un droit expiré ou d’un ancien contexte.
 
 ### G3 — Veille, coupure, crash et fermeture de bout en bout
 
-- [ ] Préserver aussi l’état encore en debounce lors de la suspension GitLab.
+- [x] Préserver aussi l’état encore en debounce lors de la suspension GitLab.
 - [ ] Faire reprendre Léna après expiration, puis réveiller l’ancien poste.
-- [ ] Vérifier refus de l’ancien détenteur et récupération de son candidat.
+- [x] Vérifier refus de l’ancien détenteur et récupération de son candidat.
 - [ ] Bloquer une fermeture normale incertaine et proposer une sortie forcée explicite.
-- [ ] Réconcilier les réponses perdues, même si plusieurs commits ont suivi.
+- [x] Réconcilier les réponses perdues, même si plusieurs commits ont suivi.
 - [ ] Rejouer dans Electron puis le binaire empaqueté ; consigner une veille réelle.
 
 **Sortie :** récit utilisateur reproduit et résolu, dernière version publiée
@@ -431,6 +431,7 @@ la qualification. Tout test d’écriture reste dans un projet synthétique auto
   liées, à activer famille par famille après protection de leurs dépendances.
 - OAuth V2 : la V1 fournit un acquis à reprendre ; PAT acceptable pour le banc,
   pas un substitut automatiquement accepté pour la diffusion non technicienne.
+  Le chantier d’authentification est décrit dans [plan-gitlab-oauth.md](plan-gitlab-oauth.md).
 - Médias partagés et Docs cadre : chantier séparé. [plan-media.md](plan-media.md)
   propose des médias WebDAV secondaires ; ne pas le considérer comme déjà validé
   ni rendre le quota LFS obligatoire pour ce pilote de transcriptions.

@@ -83,6 +83,8 @@ function creerSession(
   journal?: JournalPublicationGitLab,
   repriseExplicite = false,
   journalSessions?: JournalSessionsGitLab,
+  margeRenouvellementMs = 5 * 60 * 1000,
+  dureeBailMs = 60_000,
 ): SessionGitLab {
   let generation = 0
   const coordination = new BailGitLab({
@@ -91,7 +93,7 @@ function creerSession(
     identite: () => ({ userId: 'alice', machineId: 'poste-a', sessionId }),
     maintenant,
     nouvelleGeneration: () => `generation-${sessionId}-${++generation}`,
-    dureeBailMs: 60_000,
+    dureeBailMs,
   })
   const publication = new PublieurGitLab({ branche: 'main', depot, coordination, journal })
   return new SessionGitLab({
@@ -108,6 +110,9 @@ function creerSession(
     journalSessions,
     reconciliateur: journal ? new ReconciliateurPublicationGitLab(depot, journal) : undefined,
     repriseExplicite,
+    maintenant,
+    intervallePublicationMs: 60_000,
+    margeRenouvellementMs,
     nouvelleOperation: () => `operation-${sessionId}-${Math.random().toString(36).slice(2, 8)}`,
   })
 }
@@ -126,6 +131,65 @@ describe('session GitLab', () => {
     expect(session.etat()).toEqual({ etat: 'edition', revision: 1, revisionPubliee: 1 })
     await expect(session.fermer()).resolves.toEqual({ fermee: true })
     expect([...depot.fichiers.keys()].some((chemin) => chemin.startsWith('.sonal/verrous/'))).toBe(false)
+  })
+
+  test('sérialise renouvellement et publication dans la même file', async () => {
+    const depot = new DepotSession()
+    const stockage = new StockageMemoire('')
+    const session = creerSession(depot, 'session-a', () => Date.UTC(2026, 0, 1), stockage)
+    await session.ouvrir()
+    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    await session.marquerSale()
+
+    let liberer!: () => void
+    let observer!: () => void
+    const attente = new Promise<void>((resolve) => { liberer = resolve })
+    const publicationCommencee = new Promise<void>((resolve) => { observer = resolve })
+    const publier = depot.publierCommit.bind(depot)
+    depot.publierCommit = async (...args) => {
+      observer()
+      await attente
+      return publier(...args)
+    }
+
+    const publication = session.publier()
+    await publicationCommencee
+    const renouvellement = session.renouveler()
+    liberer()
+
+    await expect(publication).resolves.toMatchObject({ statut: 'confirme' })
+    await expect(renouvellement).resolves.toBe(true)
+    expect(depot.commits.at(-1)?.title).toBe('[Sonal] Renouvellement du bail')
+    expect(session.etat()).toMatchObject({ etat: 'edition' })
+  })
+
+  test('respecte les trois rythmes et ne publie que le contenu modifié', async () => {
+    const depot = new DepotSession()
+    let maintenant = Date.UTC(2026, 0, 1)
+    const stockage = new StockageMemoire('')
+    const session = creerSession(
+      depot,
+      'session-a',
+      () => maintenant,
+      stockage,
+      undefined,
+      false,
+      undefined,
+      0,
+      120_000,
+    )
+    await session.ouvrir()
+    await expect(session.publierPeriodique()).resolves.toBeNull()
+    await expect(session.renouvelerSiNecessaire()).resolves.toBe(false)
+    expect(depot.commits.at(-1)?.title).not.toBe('[Sonal] Renouvellement du bail')
+
+    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    await session.marquerSale()
+    maintenant += 30_000
+    await expect(session.publierPeriodique()).resolves.toBeNull()
+    maintenant += 30_000
+    await expect(session.publierPeriodique()).resolves.toMatchObject({ statut: 'confirme' })
+    expect(depot.commits.at(-1)?.title).not.toBe('[Sonal] Renouvellement du bail')
   })
 
   test('un second poste reste en lecture seule pendant un bail actif', async () => {
@@ -158,6 +222,53 @@ describe('session GitLab', () => {
     await expect(premier.publier()).resolves.toMatchObject({ statut: 'refuse', raison: 'droit-perdu' })
     expect(premier.etat()).toMatchObject({ etat: 'degrade', raison: 'droit-perdu' })
     await expect(premier.fermer()).resolves.toEqual({ fermee: false, raison: 'degrade' })
+  })
+
+  test('conserve une révision écrite pendant la publication comme sale', async () => {
+    const depot = new DepotSession()
+    const stockage = new StockageMemoire('')
+    const session = creerSession(depot, 'session-a', () => Date.UTC(2026, 0, 1), stockage)
+    await session.ouvrir()
+    stockage.valeur = '{"formatVersion":8,"revision":1}'
+    await session.marquerSale()
+
+    let liberer!: () => void
+    let observer!: () => void
+    const attente = new Promise<void>((resolve) => { liberer = resolve })
+    const publicationCommencee = new Promise<void>((resolve) => { observer = resolve })
+    const publier = depot.publierCommit.bind(depot)
+    depot.publierCommit = async (...args) => {
+      observer()
+      await attente
+      return publier(...args)
+    }
+
+    const publication = session.publier()
+    await publicationCommencee
+    stockage.valeur = '{"formatVersion":8,"revision":2}'
+    await session.marquerSale()
+    liberer()
+
+    await expect(publication).resolves.toMatchObject({ statut: 'confirme' })
+    expect(session.etat()).toEqual({ etat: 'edition', revision: 2, revisionPubliee: 1 })
+    await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
+    expect(session.etat()).toEqual({ etat: 'edition', revision: 2, revisionPubliee: 2 })
+  })
+
+  test('revalide le bail et la base distante au réveil', async () => {
+    const depot = new DepotSession()
+    const session = creerSession(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+    await session.ouvrir()
+    await expect(session.revalider()).resolves.toBe(true)
+
+    const droit = session.droit()
+    if (!droit) throw new Error('Droit de session absent.')
+    const cheminBail = [...depot.fichiers.keys()].find((chemin) =>
+      chemin.startsWith('.sonal/verrous/')) as string
+    expect(cheminBail).toMatch(/^\.sonal\/verrous\//)
+    depot.fichiers.delete(cheminBail)
+    await expect(session.revalider()).resolves.toBe(false)
+    expect(session.etat()).toMatchObject({ etat: 'degrade', raison: 'droit-perdu' })
   })
 
   test('le renouvellement expiré dégrade la session', async () => {

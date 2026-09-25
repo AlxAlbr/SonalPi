@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, powerMonitor, protocol, shell } from 'electron'
 import type {
   IpcMainInvokeEvent,
   OpenDialogOptions,
@@ -45,6 +45,7 @@ import { DecouverteGitLab } from './gitlab/decouverte'
 import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from './gitlab/journalPublication'
 import { JournalSessionsGitLab } from './gitlab/journalSession'
 import { assemblerSessionGitLab } from './gitlab/assemblageSession'
+import { INTERVALLE_VERIFICATION_GITLAB_MS } from './gitlab/parametresSession'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
@@ -89,6 +90,7 @@ import type {
   DemandeCreationGitLab,
   DemandeDecouverteBranchesGitLab,
   DemandeDecouverteGitLab,
+  DemandeProjetGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
   EtatSessionPublic,
@@ -379,6 +381,26 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // Il n'est remplacé qu'après fermeture réussie de l'ancien.
   type ContexteDistantActif = ContexteCorpusDistant | ContexteGitLab
   const contextesDistants = new RegistreContexteCourant<ContexteDistantActif>()
+  const minuteurSessionsGitLab = setInterval(() => {
+    const contexte = contextesDistants.actuel
+    if (contexte instanceof ContexteGitLab) {
+      void contexte.maintenirSessions().catch(() => {
+        /* La session suspendra l'édition si sa garantie devient incertaine. */
+      })
+    }
+  }, INTERVALLE_VERIFICATION_GITLAB_MS)
+  const surSuspensionSysteme = () => {
+    for (const fenetre of BrowserWindow.getAllWindows()) {
+      if (!fenetre.isDestroyed()) fenetre.webContents.send('application:systemeSuspendu')
+    }
+  }
+  const surReveilSysteme = () => {
+    for (const fenetre of BrowserWindow.getAllWindows()) {
+      if (!fenetre.isDestroyed()) fenetre.webContents.send('application:systemeReveille')
+    }
+  }
+  powerMonitor.on('suspend', surSuspensionSysteme)
+  powerMonitor.on('resume', surReveilSysteme)
   // Identité de session : machineId stable par poste (généré une fois, stocké dans le profil) ;
   // sessionId aléatoire par lancement d'app (voir SESSION_ID plus bas).
   // Un verrou n'est jamais hérité d'une session précédente.
@@ -724,6 +746,22 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }
     return { etat: 'aucune' }
   })
+  ipcMain.handle('corpus:revaliderSession', async (_e, id: string): Promise<EtatSessionPublic> => {
+    const contexte = contextesDistants.actuel
+    if (!(contexte instanceof ContexteGitLab)) return { etat: 'aucune' }
+    await contexte.revaliderSessions()
+    const etat = contexte.etatSession(contexte.ressourceEntretien(id))
+    if (etat.etat === 'edition') {
+      return {
+        etat: 'a-nous',
+        dernierPubli: null,
+        sale: etat.revision > etat.revisionPubliee,
+      }
+    }
+    return etat.etat === 'degrade'
+      ? { etat: 'degrade', raison: etat.raison }
+      : { etat: 'aucune' }
+  })
   ipcMain.handle('corpus:ecrireEntretien', async (_e, id: string, p: PayloadEntretien) => {
     const contexte = contextesDistants.actuel
     if (contexte instanceof ContexteGitLab) {
@@ -741,11 +779,20 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   ipcMain.handle(
     'corpus:preserverEntretienDegrade',
-    (_e, id: string, p: PayloadEntretien): boolean => {
+    async (_e, id: string, p: PayloadEntretien): Promise<boolean> => {
       const contexte = contextesDistants.actuel
-      return estContexteNextcloud(contexte)
-        ? contexte.sessions.preserverRecuperation(id, p)
-        : false
+      if (estContexteNextcloud(contexte)) {
+        return contexte.sessions.preserverRecuperation(id, p)
+      }
+      if (contexte instanceof ContexteGitLab) {
+        try {
+          contexte.store.ecrireEntretien(id, p)
+          return await contexte.preserverSessionDegrade(contexte.ressourceEntretien(id))
+        } catch {
+          return false
+        }
+      }
+      return false
     },
   )
   ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) =>
@@ -1390,6 +1437,14 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'gitlab:decouvrirProjets',
     (_e, demande: DemandeDecouverteGitLab) => new DecouverteGitLab(demande).listerProjets(),
+  )
+  ipcMain.handle(
+    'gitlab:lireUtilisateur',
+    (_e, demande: DemandeDecouverteGitLab) => new DecouverteGitLab(demande).lireUtilisateur(),
+  )
+  ipcMain.handle(
+    'gitlab:chargerProjet',
+    (_e, demande: DemandeProjetGitLab) => new DecouverteGitLab(demande).chargerProjet(demande.projet),
   )
   ipcMain.handle(
     'gitlab:decouvrirBranches',
@@ -2145,6 +2200,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
 
   return async () => {
+    clearInterval(minuteurSessionsGitLab)
+    powerMonitor.removeListener('suspend', surSuspensionSysteme)
+    powerMonitor.removeListener('resume', surReveilSysteme)
     const contexte = contextesDistants.actuel
     if (estContexteNextcloud(contexte)) contexte.arreterPresence()
     await contexte?.fermer()

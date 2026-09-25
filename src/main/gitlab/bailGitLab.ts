@@ -4,10 +4,15 @@ import {
   ErreurEcritureGitLab,
   ErreurGitLab,
 } from './client'
+import { DUREE_BAIL_GITLAB_MS } from './parametresSession'
 
-export const DUREE_BAIL_MS = 5 * 60 * 1000
-const VERSION_BAIL = 1
+export const DUREE_BAIL_MS = DUREE_BAIL_GITLAB_MS
+const VERSION_BAIL = 2
+const VERSION_BAIL_LEGACY = 1
+const PROTOCOLE_BAIL = 'sonal-bail-v2'
+const PROTOCOLE_BAIL_LEGACY = 'sonal-bail-v1'
 const PREFIXE_BAIL = '.sonal/verrous'
+const SEPARATEUR_RESSOURCE = '\u0000'
 
 export interface IdentiteBailGitLab {
   userId: string
@@ -84,11 +89,12 @@ export interface OptionsBailGitLab {
   maintenant?: () => number
   nouvelleGeneration?: () => string
   dureeBailMs?: number
+  ressourcesLegacy?: string[]
 }
 
 interface BailEnregistre {
-  version: 1
-  protocole: 'sonal-bail-v1'
+  version: 1 | 2
+  protocole: 'sonal-bail-v1' | 'sonal-bail-v2'
   resourceHash: string
   generation: string
   holder: IdentiteBailGitLab
@@ -162,23 +168,32 @@ export class BailGitLab {
   private readonly maintenant: () => number
   private readonly nouvelleGeneration: () => string
   private readonly dureeBailMs: number
+  private readonly ressourcesLegacy: string[]
 
   constructor(private readonly options: OptionsBailGitLab) {
     if (!options.branche.trim()) throw new Error('Branche GitLab manquante.')
     this.maintenant = options.maintenant ?? Date.now
     this.nouvelleGeneration = options.nouvelleGeneration ?? randomUUID
     this.dureeBailMs = options.dureeBailMs ?? DUREE_BAIL_MS
+    this.ressourcesLegacy = [...new Set(options.ressourcesLegacy ?? [])]
     if (!Number.isSafeInteger(this.dureeBailMs) || this.dureeBailMs < 60_000) {
       throw new Error('Durée du bail GitLab invalide.')
     }
   }
 
   async acquireRessource(ressource: string): Promise<ResultatAcquisitionBailGitLab> {
+    const ancien = await this.refusLegacy()
+    if (ancien) return ancien
     const resourceHash = hacherRessource(ressource)
     const chemin = cheminBail(resourceHash)
     const bail = this.nouveauBail(resourceHash)
     try {
       const commit = await this.publierBail('acquisition', chemin, bail, null)
+      const ancienApresEcriture = await this.refusLegacy()
+      if (ancienApresEcriture) {
+        await this.supprimerBail(chemin, bail, commit.id)
+        return ancienApresEcriture
+      }
       return { ok: true, droit: this.creerDroit(chemin, bail, commit.id) }
     } catch (erreur) {
       if (!refusMutationConnu(erreur)) throw erreur
@@ -188,6 +203,11 @@ export class BailGitLab {
     if (!observe) {
       try {
         const commit = await this.publierBail('acquisition', chemin, bail, null)
+        const ancienApresEcriture = await this.refusLegacy()
+        if (ancienApresEcriture) {
+          await this.supprimerBail(chemin, bail, commit.id)
+          return ancienApresEcriture
+        }
         return { ok: true, droit: this.creerDroit(chemin, bail, commit.id) }
       } catch (erreur) {
         if (!refusMutationConnu(erreur)) throw erreur
@@ -206,6 +226,11 @@ export class BailGitLab {
         repris,
         observe.commitId,
       )
+      const ancienApresEcriture = await this.refusLegacy()
+      if (ancienApresEcriture) {
+        await this.supprimerBail(chemin, repris, commit.id)
+        return ancienApresEcriture
+      }
       return { ok: true, droit: this.creerDroit(chemin, repris, commit.id) }
     } catch (erreur) {
       if (!refusMutationConnu(erreur)) throw erreur
@@ -214,6 +239,8 @@ export class BailGitLab {
   }
 
   async reprendreRessource(ressource: string): Promise<ResultatAcquisitionBailGitLab> {
+    const ancien = await this.refusLegacy()
+    if (ancien) return ancien
     const resourceHash = hacherRessource(ressource)
     const chemin = cheminBail(resourceHash)
     const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
@@ -225,11 +252,34 @@ export class BailGitLab {
     const repris = this.nouveauBail(resourceHash)
     try {
       const commit = await this.publierBail('reprise', chemin, repris, observe.commitId)
+      const ancienApresEcriture = await this.refusLegacy()
+      if (ancienApresEcriture) {
+        await this.supprimerBail(chemin, repris, commit.id)
+        return ancienApresEcriture
+      }
       return { ok: true, droit: this.creerDroit(chemin, repris, commit.id) }
     } catch (erreur) {
       if (!refusMutationConnu(erreur)) throw erreur
       return this.refusObserve(chemin)
     }
+  }
+
+  async revalider(droit: DroitsEditionGitLab): Promise<boolean> {
+    const etat = this.etatActif(droit)
+    if (this.maintenant() >= etat.expireLe) {
+      etat.invalide = true
+      return false
+    }
+    const observe = await this.options.depot.lireFichier(etat.chemin, this.options.branche)
+    if (!observe) {
+      etat.invalide = true
+      return false
+    }
+    const courant = lireBail(observe.contenu, etat.resourceHash)
+    return observe.commitId === etat.commitId &&
+      courant.generation === etat.generation &&
+      courant.compteur === etat.compteur &&
+      Date.parse(courant.expireLe) > this.maintenant()
   }
 
   async renouveler(droit: DroitsEditionGitLab): Promise<boolean> {
@@ -385,6 +435,42 @@ export class BailGitLab {
     if (etat) etat.invalide = true
   }
 
+  private async refusLegacy(): Promise<ResultatAcquisitionBailGitLab | null> {
+    for (const ressource of this.ressourcesLegacy) {
+      const chemin = cheminBail(hacherRessource(ressource))
+      const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
+      if (observe) {
+        const resourceHash = resourceHashDeChemin(chemin)
+        return {
+          ok: false,
+          raison: 'tenu',
+          tenupar: partie(lireBail(observe.contenu, resourceHash, true)),
+        }
+      }
+    }
+    return null
+  }
+
+  private async supprimerBail(
+    chemin: string,
+    bail: BailEnregistre,
+    commitId: string,
+  ): Promise<void> {
+    try {
+      await this.options.depot.publierCommit(
+        this.options.branche,
+        `Sonal bail ${bail.resourceHash.slice(0, 12)} rollback acquisition`,
+        [{
+          action: 'delete',
+          file_path: chemin,
+          last_commit_id: commitId,
+        }],
+      )
+    } catch (erreur) {
+      if (!refusMutationConnu(erreur)) throw erreur
+    }
+  }
+
   private async refusObserve(chemin: string): Promise<ResultatAcquisitionBailGitLab> {
     const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
     if (!observe) throw new Error('Le bail GitLab reste introuvable après un refus.')
@@ -400,7 +486,7 @@ export class BailGitLab {
     }
     return {
       version: VERSION_BAIL,
-      protocole: 'sonal-bail-v1',
+      protocole: PROTOCOLE_BAIL,
       resourceHash,
       generation: this.nouvelleGeneration(),
       holder: { ...identite },
@@ -425,7 +511,9 @@ export class BailGitLab {
         }
     return this.options.depot.publierCommit(
       this.options.branche,
-      `Sonal bail ${bail.resourceHash.slice(0, 12)} ${motif}`,
+      motif === 'renouvellement'
+        ? '[Sonal] Renouvellement du bail'
+        : `Sonal bail ${bail.resourceHash.slice(0, 12)} ${motif}`,
       [action],
     )
   }
@@ -455,7 +543,7 @@ export class BailGitLab {
   private sauvegardeBail(etat: EtatDroit, expireLe: number): BailEnregistre {
     return {
       version: VERSION_BAIL,
-      protocole: 'sonal-bail-v1',
+      protocole: PROTOCOLE_BAIL,
       resourceHash: etat.resourceHash,
       generation: etat.generation,
       holder: { ...etat.identite },
@@ -494,6 +582,12 @@ export function estCheminBailGitLab(chemin: string): boolean {
   return chemin.startsWith(`${PREFIXE_BAIL}/`)
 }
 
+export function cleRessourceBailGitLab(branche: string, cheminDistant: string): string {
+  if (!branche.trim()) throw new Error('Branche GitLab manquante pour le bail.')
+  verifierCheminGitLab(cheminDistant)
+  return `branche:${branche}${SEPARATEUR_RESSOURCE}chemin:${cheminDistant}`
+}
+
 function hacherRessource(ressource: string): string {
   if (!ressource.trim()) throw new Error('Ressource GitLab manquante.')
   return createHash('sha256').update(ressource, 'utf8').digest('hex')
@@ -509,7 +603,11 @@ function resourceHashDeChemin(chemin: string): string {
   return resourceHash
 }
 
-function lireBail(contenu: string, resourceHash: string): BailEnregistre {
+function lireBail(
+  contenu: string,
+  resourceHash: string,
+  legacy = false,
+): BailEnregistre {
   let brut: unknown
   try {
     brut = JSON.parse(contenu)
@@ -521,9 +619,12 @@ function lireBail(contenu: string, resourceHash: string): BailEnregistre {
   }
   const bail = brut as Partial<BailEnregistre>
   const holder = bail.holder
+  const versionValide = legacy
+    ? (bail.version === VERSION_BAIL || bail.version === VERSION_BAIL_LEGACY) &&
+      (bail.protocole === PROTOCOLE_BAIL || bail.protocole === PROTOCOLE_BAIL_LEGACY)
+    : bail.version === VERSION_BAIL && bail.protocole === PROTOCOLE_BAIL
   if (
-    bail.version !== VERSION_BAIL ||
-    bail.protocole !== 'sonal-bail-v1' ||
+    !versionValide ||
     bail.resourceHash !== resourceHash ||
     typeof bail.generation !== 'string' ||
     !bail.generation ||

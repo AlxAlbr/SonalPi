@@ -1,5 +1,6 @@
 import {
   BailGitLab,
+  cleRessourceBailGitLab,
   DepotCommitsGitLabClient,
   type DepotCommitsGitLab,
   type IdentiteBailGitLab,
@@ -11,6 +12,11 @@ import { JournalSessionsGitLab } from './journalSession'
 import { PublieurGitLab } from './publication'
 import { SessionGitLab } from './session'
 import { StockageLocalEntretienGitLab } from './stockageSession'
+import {
+  DUREE_BAIL_GITLAB_MS,
+  INTERVALLE_PUBLICATION_GITLAB_MS,
+  MARGE_RENOUVELLEMENT_GITLAB_MS,
+} from './parametresSession'
 
 export interface OptionsAssemblageSessionGitLab {
   destinationId: string
@@ -25,6 +31,8 @@ export interface OptionsAssemblageSessionGitLab {
   journalSessions?: JournalSessionsGitLab
   maintenant?: () => number
   dureeBailMs?: number
+  intervallePublicationMs?: number
+  margeRenouvellementMs?: number
   repriseExplicite?: boolean
   nouvelleOperation?: () => string
 }
@@ -46,6 +54,7 @@ export function assemblerSessionGitLab(
   const maintenant = options.maintenant ?? Date.now
   const racine = normaliserRacineGitLab(options.racine ?? '')
   const cheminDistant = racine ? `${racine}/${options.cheminRelatif}` : options.cheminRelatif
+  const ressourcePartagee = cleRessourceBailGitLab(options.branche, cheminDistant)
   const depot = new DepotCommitsGitLabClient(options.client)
   const journal = new JournalPublicationGitLab(
     options.destinationId,
@@ -62,7 +71,8 @@ export function assemblerSessionGitLab(
     depot,
     identite: options.identite,
     maintenant,
-    dureeBailMs: options.dureeBailMs,
+    dureeBailMs: options.dureeBailMs ?? DUREE_BAIL_GITLAB_MS,
+    ressourcesLegacy: [options.ressource],
   })
   const publication = new PublieurGitLab({
     branche: options.branche,
@@ -74,6 +84,7 @@ export function assemblerSessionGitLab(
   const session = new SessionGitLab({
     id: options.destinationId,
     ressource: options.ressource,
+    ressourcePartagee,
     cheminRelatif: options.cheminRelatif,
     cheminDistant,
     branche: options.branche,
@@ -89,6 +100,9 @@ export function assemblerSessionGitLab(
     reconciliateur,
     repriseExplicite: options.repriseExplicite,
     nouvelleOperation: options.nouvelleOperation,
+    maintenant,
+    intervallePublicationMs: options.intervallePublicationMs ?? INTERVALLE_PUBLICATION_GITLAB_MS,
+    margeRenouvellementMs: options.margeRenouvellementMs ?? MARGE_RENOUVELLEMENT_GITLAB_MS,
   })
   return { depot, coordination, publication, journal, journalSessions, reconciliateur, session }
 }

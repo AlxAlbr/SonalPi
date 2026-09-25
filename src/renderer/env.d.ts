@@ -60,6 +60,7 @@ import type {
   DemandeCreationGitLab,
   DemandeDecouverteBranchesGitLab,
   DemandeDecouverteGitLab,
+  DemandeProjetGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
   DivergenceDistante,
@@ -86,6 +87,8 @@ declare global {
       platform: string
       application: {
         surPreparationFermeture: (cb: () => Promise<void>) => () => void
+        surSuspensionSysteme: (cb: () => Promise<void>) => () => void
+        surReveilSysteme: (cb: () => Promise<void>) => () => void
       }
       menu: {
         surAction: (cb: (action: string, mode?: ModeTriEntretiens) => void) => () => void
@@ -120,6 +123,7 @@ declare global {
         fermerEntretien: (id: string) => Promise<ResultatFermetureSession>
         surSessionDegradee: (cb: (id: string) => void) => () => void
         etatSession: (id: string) => Promise<EtatSessionPublic>
+        revaliderSession: (id: string) => Promise<EtatSessionPublic>
         publierEntretien: (id: string) => Promise<{ ok: boolean; raison?: string }>
         ecrireEntretien: (id: string, p: PayloadEntretien) => Promise<string>
         preserverEntretienDegrade: (id: string, p: PayloadEntretien) => Promise<boolean>
@@ -246,6 +250,8 @@ declare global {
         decouvrirProjets: (
           demande: DemandeDecouverteGitLab,
         ) => Promise<ResultatDecouverteGitLab<ProjetGitLabPublic>>
+        lireUtilisateur: (demande: DemandeDecouverteGitLab) => Promise<string>
+        chargerProjet: (demande: DemandeProjetGitLab) => Promise<ProjetGitLabPublic>
         decouvrirBranches: (
           demande: DemandeDecouverteBranchesGitLab,
         ) => Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>>

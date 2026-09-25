@@ -120,13 +120,13 @@ export class ContexteGitLab {
       const lecture = this.store.ouvrirEntretienPourEdition(id)
       if (!lecture.ok) {
         this.store.revoquerEcritureEntretien(id)
-        await this.session(`entretien:${id}`).fermer()
+        await this.session(this.ressourceEntretien(id)).fermer()
         return lecture
       }
       return { ...lecture, acces: 'edition' }
     } catch (erreur) {
       this.store.revoquerEcritureEntretien(id)
-      await this.session(`entretien:${id}`).fermer()
+      await this.session(this.ressourceEntretien(id)).fermer()
       throw erreur
     }
   }
@@ -135,12 +135,32 @@ export class ContexteGitLab {
     await this.session(ressource).marquerSale()
   }
 
+  async preserverSessionDegrade(ressource: string): Promise<boolean> {
+    return this.session(ressource).preserverCandidat()
+  }
+
   async publierSession(ressource: string): Promise<ResultatPublicationGitLab> {
     return this.session(ressource).publier()
   }
 
   async renouvelerSession(ressource: string): Promise<boolean> {
     return this.session(ressource).renouveler()
+  }
+
+  async revaliderSessions(): Promise<void> {
+    for (const entree of this.sessions.values()) {
+      await entree.session.revalider()
+    }
+  }
+
+  /** Exécute les publication et renouvellements périodiques de toutes les sessions. */
+  async maintenirSessions(): Promise<void> {
+    for (const entree of this.sessions.values()) {
+      const publication = await entree.session.publierPeriodique()
+      if (!publication || publication.statut !== 'confirme') {
+        await entree.session.renouvelerSiNecessaire()
+      }
+    }
   }
 
   async fermerSession(ressource: string): Promise<boolean> {

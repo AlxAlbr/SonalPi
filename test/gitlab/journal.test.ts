@@ -148,6 +148,44 @@ describe('journal de publication GitLab', () => {
     }
   })
 
+  test('retrouve l’opération après plusieurs commits suivants', async () => {
+    const { root, journal } = creerJournal()
+    const depot = new DepotJournal()
+    try {
+      const action = actionCreate('{"version":"retrouvee"}')
+      journal.preparer({
+        operationId: 'operation-journal-6',
+        branche: 'main',
+        resourceHash: '5'.repeat(64),
+        generation: 'generation-6',
+        leaseCommitId: '6'.repeat(40),
+        etat: 'indetermine',
+        actions: [action],
+      })
+      await depot.publierCommit('main', 'Sonal operation-journal-6', [action])
+      await depot.publierCommit('main', 'Qualification sans rapport', [{
+        action: 'create',
+        file_path: 'qualification/autre.json',
+        content: '{}',
+      }])
+      await depot.publierCommit('main', 'Qualification encore plus récente', [{
+        action: 'create',
+        file_path: 'qualification/plus-recent.json',
+        content: '{}',
+      }])
+      const [entree] = journal.lister()
+      const reconciliateur = new ReconciliateurPublicationGitLab(depot, journal)
+
+      await expect(reconciliateur.reconcilier(entree)).resolves.toEqual({
+        statut: 'confirme',
+        commitId: expect.stringMatching(/^[a-f0-9]{40}$/),
+      })
+      expect(depot.commits).toHaveLength(3)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   test('un résultat absent ne rejoue pas automatiquement le plan', async () => {
     const { root, journal } = creerJournal()
     const depot = new DepotJournal()
