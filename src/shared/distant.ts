@@ -74,6 +74,10 @@ export interface DemandeOuvertureGitLab {
   racine?: string
 }
 
+export interface DemandeCreationGitLab extends DemandeOuvertureGitLab {
+  nom: string
+}
+
 export interface DemandeConnexion {
   /** Racine DAV du corpus, ex. https://nuage.exemple.org/remote.php/dav/files/max/MonCorpus */
   urlServeur: string
@@ -167,11 +171,20 @@ export interface OrphelinDistant {
   acquiredAt: string // ISO
 }
 
+/** Raison publique d'une suspension de session. */
+export type RaisonDegradationSession =
+  | 'droit-perdu'
+  | 'conflit'
+  | 'droits'
+  | 'limite'
+  | 'indetermine'
+  | 'reseau'
+
 /** État d'une session d'écriture distante exposé au renderer. */
 export type EtatSessionPublic =
   | { etat: 'aucune' }
   | { etat: 'a-nous'; dernierPubli: string | null; sale: boolean }
-  | { etat: 'degrade' }
+  | { etat: 'degrade'; raison?: RaisonDegradationSession }
 
 /** Résultat explicite d'une fermeture de session d'écriture. */
 export type ResultatFermetureSession =

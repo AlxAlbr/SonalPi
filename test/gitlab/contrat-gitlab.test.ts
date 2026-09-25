@@ -26,7 +26,11 @@ import { setTimeout as attendre } from 'node:timers/promises'
 import { describe, expect, it } from 'vitest'
 import { BailGitLab, DepotCommitsGitLabClient } from '../../src/main/gitlab/bailGitLab'
 import { ClientGitLab } from '../../src/main/gitlab/client'
+import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from '../../src/main/gitlab/journalPublication'
+import { JournalSessionsGitLab } from '../../src/main/gitlab/journalSession'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
+import { SessionGitLab } from '../../src/main/gitlab/session'
+import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 
 const configuration = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''),
@@ -318,6 +322,70 @@ decrire('Contrat GitLab réel', () => {
     expect(projetLfs.corps.lfs_enabled).toBe(true)
     expect(projetSansLfs.statut, detail(projetSansLfs)).toBe(200)
     expect(projetSansLfs.corps.lfs_enabled).toBe(false)
+  })
+
+  it('joue le cycle complet d’une session locale sur le projet de qualification', { timeout: 60_000 }, async () => {
+    const projet = configuration.projetLfsId as string
+    const token = configuration.token1 as string
+    const chemin = `qualification/${idExecution}-session-cycle.json`
+    const contenuInitial = JSON.stringify({ formatVersion: 8, cycle: 'initial' })
+    const contenuModifie = JSON.stringify({ formatVersion: 8, cycle: 'modifie' })
+    const creation = await publierCommit(projet, token, `qualification ${idExecution}: session initiale`, [
+      { action: 'create', file_path: chemin, content: contenuInitial },
+    ])
+    expect(creation.statut, detail(creation)).toBe(201)
+
+    const racine = mkdtempSync(join(tmpdir(), 'sonal-gitlab-session-cycle-'))
+    try {
+      const client = new ClientGitLab({
+        urlInstance: configuration.url as string,
+        projetId: Number(projet),
+        jeton: token,
+      })
+      const depot = new DepotCommitsGitLabClient(client)
+      const journalRepertoire = join(racine, 'operations')
+      const journal = new JournalPublicationGitLab('session-cycle', journalRepertoire)
+      const journalSessions = new JournalSessionsGitLab('session-cycle', journalRepertoire)
+      const coordination = new BailGitLab({
+        branche: 'main',
+        depot,
+        identite: () => ({ userId: 'user1', machineId: 'poste-cycle', sessionId: idExecution }),
+      })
+      const publication = new PublieurGitLab({
+        branche: 'main',
+        depot,
+        coordination,
+        journal,
+      })
+      const session = new SessionGitLab({
+        id: 'session-cycle',
+        ressource: `entretien:${idExecution}`,
+        cheminRelatif: chemin,
+        cheminDistant: chemin,
+        branche: 'main',
+        depot,
+        coordination,
+        publication,
+        stockageLocal: new StockageLocalEntretienGitLab(racine, chemin),
+        journal,
+        journalSessions,
+        reconciliateur: new ReconciliateurPublicationGitLab(depot, journal),
+      })
+
+      await expect(session.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
+      await new StockageLocalEntretienGitLab(racine, chemin).ecrire(contenuModifie)
+      await session.marquerSale()
+      await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
+      await expect(session.renouveler()).resolves.toBe(true)
+      await expect(session.fermer()).resolves.toEqual({ fermee: true })
+
+      const observe = await lireFichier(projet, chemin, token)
+      expect(observe.statut, detail(observe)).toBe(200)
+      expect(Buffer.from(observe.corps.content, 'base64').toString('utf8')).toBe(contenuModifie)
+      expect(journalSessions.lister()).toEqual([])
+    } finally {
+      rmSync(racine, { recursive: true, force: true })
+    }
   })
 
   it('refuse une création concurrente et conserve l’atomicité du commit', { timeout: 30_000 }, async () => {

@@ -57,6 +57,7 @@ import type {
   CompteDistantPublic,
   DemandeConnexion,
   DemandeCreationDistante,
+  DemandeCreationGitLab,
   DemandeDecouverteBranchesGitLab,
   DemandeDecouverteGitLab,
   DemandeOuvertureGitLab,
@@ -249,6 +250,7 @@ declare global {
           demande: DemandeDecouverteBranchesGitLab,
         ) => Promise<ResultatDecouverteGitLab<BrancheGitLabPublic>>
         enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab) => Promise<OuvertureDistante>
+        creerEtOuvrir: (demande: DemandeCreationGitLab) => Promise<OuvertureDistante>
         ouvrir: (id: string, jeton?: string) => Promise<OuvertureDistante>
         oublierDestination: (id: string) => Promise<DestinationGitLabPublic[]>
       }

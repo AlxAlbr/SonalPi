@@ -74,11 +74,8 @@ export function creerSonal() {
       await window.sonal.corpus.regleAnonCategoriser(id, cat)
       await corpus.rafraichirScanAnon() // la projection des lignes relit la règle fraîche
     },
-    lectureSeule: () => lectureSeule.value, // hors ligne : aucune écriture partagée n'est tentée
-    entretienEditable: () =>
-      !lectureSeule.value &&
-      !ent.verrouAutrui.value &&
-      statutSession.value.etat !== 'degrade',
+    lectureSeule: () => !distant.entretienEditable.value, // aucune écriture d'entretien si la session n'est pas éditable
+    entretienEditable: () => distant.entretienEditable.value,
     libelleValeur: (idVar, idMod) => {
       const v = corpus.variables.value.find((x) => x.id === idVar)
       const nomVar = v?.lib ?? idVar
@@ -278,6 +275,7 @@ export function creerSonal() {
     distant: {
       idCourant: idDistantCourant,
       lectureSeule,
+      entretienEditable,
       statutSession,
       activer: activerDistant,
       rafraichirOrphelins,
@@ -304,6 +302,7 @@ export function creerSonal() {
     ouvrirCorpusDistant,
     ouvrirDestinationGitLab,
     enregistrerEtOuvrirGitLab,
+    creerEtOuvrirGitLab,
     creerCorpusDistant,
     oublierCompteDistant,
     rafraichirCorpusSansFermer,
@@ -659,6 +658,7 @@ export function creerSonal() {
     ouvrirCorpusDistant,
     ouvrirDestinationGitLab,
     enregistrerEtOuvrirGitLab,
+    creerEtOuvrirGitLab,
     idDistantCourant,
     dossierCourantDir,
     dernierTirage,

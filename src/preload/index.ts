@@ -55,6 +55,7 @@ import type {
   BrancheGitLabPublic,
   CompteDistantPublic,
   DemandeConnexion,
+  DemandeCreationGitLab,
   DemandeDecouverteBranchesGitLab,
   DemandeDecouverteGitLab,
   DemandeOuvertureGitLab,
@@ -367,6 +368,8 @@ contextBridge.exposeInMainWorld('sonal', {
       invoquer('gitlab:decouvrirBranches', demande),
     enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab): Promise<OuvertureDistante> =>
       invoquer('gitlab:enregistrerEtOuvrir', demande),
+    creerEtOuvrir: (demande: DemandeCreationGitLab): Promise<OuvertureDistante> =>
+      invoquer('gitlab:creerEtOuvrir', demande),
     ouvrir: (id: string, jeton?: string): Promise<OuvertureDistante> =>
       invoquer('gitlab:ouvrir', id, jeton),
     oublierDestination: (id: string): Promise<DestinationGitLabPublic[]> =>

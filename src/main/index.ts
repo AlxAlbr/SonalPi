@@ -36,14 +36,19 @@ import {
 import { poserValeurLotLocal, appliquerRegleLotLocal } from './distant/transactions'
 import { preparerContexteNextcloud, ContexteCorpusDistant } from './distant/contexte'
 import {
-  ContexteGitLabLectureSeule,
+  ContexteGitLab,
   preparerContexteGitLabLectureSeule,
 } from './gitlab/contexte'
 import { ClientGitLab } from './gitlab/client'
+import { DepotCommitsGitLabClient } from './gitlab/bailGitLab'
 import { DecouverteGitLab } from './gitlab/decouverte'
+import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from './gitlab/journalPublication'
+import { JournalSessionsGitLab } from './gitlab/journalSession'
+import { assemblerSessionGitLab } from './gitlab/assemblageSession'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
+import { squeletteCorpus } from '../shared/corpus/squelette'
 import { archiverCorpusLocal } from './archiveCorpus'
 import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus, ecrireQualcoderCorpus } from './exportCorpus'
 import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
@@ -81,10 +86,12 @@ import type {
 import type {
   DemandeConnexion,
   DemandeCreationDistante,
+  DemandeCreationGitLab,
   DemandeDecouverteBranchesGitLab,
   DemandeDecouverteGitLab,
   DemandeOuvertureGitLab,
   DestinationGitLabPublic,
+  EtatSessionPublic,
   OrphelinDistant,
   OuvertureDistante,
   ProgressionTransfert,
@@ -370,7 +377,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   const coffre = coffreReel(app.getPath('userData'))
   // Le contexte assemble un seul miroir avec ses sessions, transactions et présence.
   // Il n'est remplacé qu'après fermeture réussie de l'ancien.
-  type ContexteDistantActif = ContexteCorpusDistant | ContexteGitLabLectureSeule
+  type ContexteDistantActif = ContexteCorpusDistant | ContexteGitLab
   const contextesDistants = new RegistreContexteCourant<ContexteDistantActif>()
   // Identité de session : machineId stable par poste (généré une fois, stocké dans le profil) ;
   // sessionId aléatoire par lancement d'app (voir SESSION_ID plus bas).
@@ -641,11 +648,15 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'corpus:ouvrirEntretienPourEdition',
     async (_e, id: string): Promise<OuvertureEntretienEdition> => {
-      if (contextesDistants.actuel instanceof ContexteGitLabLectureSeule) {
-        const lecture = store.lireEntretien(id)
-        return lecture.ok
-          ? { ...lecture, acces: 'lecture-seule', verrouTenuParAutrui: null }
-          : lecture
+      if (contextesDistants.actuel instanceof ContexteGitLab) {
+        const execution = executerContexteCommun((contexte) =>
+          contexte.ouvrirEntretienPourEdition(id))
+        if (!execution) throw new Error('Le corpus GitLab a été remplacé.')
+        const resultat = await execution
+        if (!resultat.courant) {
+          throw new Error("Le corpus a changé pendant l'ouverture de l'entretien.")
+        }
+        return resultat.valeur
       }
       const execution = executerContexteDistant((contexte) =>
         contexte.ouvrirEntretienPourEdition(id))
@@ -665,9 +676,18 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'corpus:fermerEntretien',
     async (_e, id: string): Promise<ResultatFermetureSession> => {
-      if (contextesDistants.actuel instanceof ContexteGitLabLectureSeule) {
-        store.revoquerEcritureEntretien(id)
-        return { fermee: true }
+      if (contextesDistants.actuel instanceof ContexteGitLab) {
+        const execution = executerContexteCommun<{ fermee: boolean; raison?: string }>(
+          (contexte) => contexte.fermerEntretien(id),
+        )
+        if (!execution) throw new Error('Le corpus GitLab a été remplacé.')
+        const resultat = await execution
+        if (!resultat.courant) {
+          throw new Error("Le corpus a changé pendant la fermeture de l'entretien.")
+        }
+        return resultat.valeur.fermee
+          ? { fermee: true }
+          : { fermee: false, raison: 'publication', message: resultat.valeur.raison }
       }
       const execution = executerContexteDistant((contexte) =>
         contexte.fermerEntretien(id))
@@ -684,15 +704,38 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
 
   /** État de session (poll UI) : publication en attente ? */
-  ipcMain.handle('distant:etatSession', (_e, id: string) => {
+  ipcMain.handle('distant:etatSession', (_e, id: string): EtatSessionPublic => {
     const contexte = contextesDistants.actuel
-    return estContexteNextcloud(contexte)
-      ? contexte.sessions.etat(id)
-      : { etat: 'aucune' as const }
+    if (estContexteNextcloud(contexte)) return contexte.sessions.etat(id)
+    if (contexte instanceof ContexteGitLab) {
+      const etat = contexte.etatSession(contexte.ressourceEntretien(id))
+      if (etat.etat === 'edition') {
+        return {
+          etat: 'a-nous',
+          dernierPubli: null,
+          sale: etat.revision > etat.revisionPubliee,
+        }
+      }
+      if (etat.etat === 'degrade') {
+        return etat.raison
+          ? { etat: 'degrade', raison: etat.raison }
+          : { etat: 'degrade' }
+      }
+    }
+    return { etat: 'aucune' }
   })
   ipcMain.handle('corpus:ecrireEntretien', async (_e, id: string, p: PayloadEntretien) => {
-    const now = store.ecrireEntretien(id, p)
     const contexte = contextesDistants.actuel
+    if (contexte instanceof ContexteGitLab) {
+      const etat = contexte.etatSession(contexte.ressourceEntretien(id))
+      if (etat.etat !== 'edition') {
+        throw new Error('La session GitLab ne permet pas cette écriture.')
+      }
+      const now = store.ecrireEntretien(id, p)
+      await contexte.marquerSessionSale(contexte.ressourceEntretien(id))
+      return now
+    }
+    const now = store.ecrireEntretien(id, p)
     if (estContexteNextcloud(contexte)) contexte.sessions.noterSale(id)
     return now
   })
@@ -1514,12 +1557,56 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       projetId: destination.projetId,
       jeton,
     })
+    const journalRepertoire = join(
+      app.getPath('userData'),
+      'operations-gitlab',
+      destination.id,
+    )
+    const journal = new JournalPublicationGitLab(destination.id, journalRepertoire)
+    const journalSessions = new JournalSessionsGitLab(destination.id, journalRepertoire)
+    const reconciliateur = new ReconciliateurPublicationGitLab(
+      new DepotCommitsGitLabClient(client),
+      journal,
+    )
+    for (const entree of journal.lister()) {
+      const resultat = await reconciliateur.reconcilier(entree)
+      if (resultat.statut === 'confirme') {
+        const actions = journal.chargerActions(entree)
+        const action = actions.find((candidate) =>
+          candidate.action === 'update' || candidate.action === 'create')
+        if (action?.content !== undefined) {
+          journalSessions.confirmerPublication(
+            entree.resourceHash,
+            resultat.commitId,
+            action.content,
+          )
+        }
+        journal.supprimer(entree.operationId)
+      }
+    }
     const preparation = await preparerContexteGitLabLectureSeule({
       id: destination.id,
       dirLocal: dirMiroir,
       client,
       branche: destination.branche,
       racine: destination.racine,
+      cheminsRecuperables: journalSessions.lister().map(({ cheminRelatif }) => cheminRelatif),
+      creerSession: (ressource, cheminRelatif) => assemblerSessionGitLab({
+        destinationId: destination.id,
+        dirLocal: dirMiroir,
+        client,
+        branche: destination.branche,
+        racine: destination.racine,
+        ressource,
+        cheminRelatif,
+        journalSessions,
+        identite: () => ({
+          userId: compte.utilisateur,
+          machineId,
+          sessionId: SESSION_ID,
+        }),
+        journalRepertoire,
+      }).session,
     })
     return { ...preparation, dirMiroir }
   }
@@ -1545,6 +1632,73 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       inaccessibles: preparation.inaccessibles,
     }
   }
+
+  ipcMain.handle(
+    'gitlab:creerEtOuvrir',
+    (_e, demande: DemandeCreationGitLab) => transitionner(async () => {
+      if (!demande.nom.trim()) throw new Error('Nom du corpus GitLab manquant.')
+      const racine = normaliserRacineGitLab(demande.racine ?? '')
+      const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
+      const client = new ClientGitLab({
+        urlInstance: demande.urlInstance,
+        projetId: demande.projetId,
+        jeton: demande.jeton,
+      })
+      const depot = new DepotCommitsGitLabClient(client)
+      if (await depot.lireFichier(cheminCorpus, demande.branche)) {
+        throw new Error('Un corpus existe déjà à cet emplacement GitLab.')
+      }
+      const squelette = squeletteCorpus()
+      squelette.nom = demande.nom.trim()
+      await depot.publierCommit(
+        demande.branche,
+        `Sonal création ${racine || 'racine'}`,
+        [{
+          action: 'create',
+          file_path: cheminCorpus,
+          content: JSON.stringify(squelette, null, 2),
+        }],
+      )
+      const compteCandidat: ConfigCompteGitLab = {
+        fournisseur: 'gitlab',
+        id: idDeCompteGitLab(demande.urlInstance, demande.utilisateur),
+        urlInstance: demande.urlInstance,
+        utilisateur: demande.utilisateur.trim(),
+      }
+      const destinationCandidat: ConfigDestinationGitLab = {
+        fournisseur: 'gitlab',
+        id: idDeDestinationGitLab({
+          compteId: compteCandidat.id,
+          projetId: demande.projetId,
+          branche: demande.branche,
+          racine,
+        }),
+        compteId: compteCandidat.id,
+        projetId: demande.projetId,
+        nomProjet: demande.nomProjet.trim(),
+        branche: demande.branche.trim(),
+        racine,
+      }
+      const preparation = await preparerOuvertureGitLab(
+        compteCandidat,
+        destinationCandidat,
+        demande.jeton,
+      )
+      const compte = coffre.enregistrerCompteGitLab({
+        urlInstance: demande.urlInstance,
+        utilisateur: demande.utilisateur,
+        jeton: demande.jeton,
+      })
+      const destination = coffre.enregistrerDestinationGitLab({
+        compteId: compte.id,
+        projetId: demande.projetId,
+        nomProjet: demande.nomProjet,
+        branche: demande.branche,
+        racine,
+      })
+      return installerContexteGitLab(compte, destination, preparation)
+    }),
+  )
 
   ipcMain.handle(
     'gitlab:enregistrerEtOuvrir',
@@ -1694,7 +1848,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   /** « Publier maintenant » : publication sous le droit du contexte capturé. */
   ipcMain.handle('distant:publierEntretien', async (_e, id: string) => {
-    const execution = executerContexteDistant((contexte) => contexte.publierEntretien(id))
+    const contexte = contextesDistants.actuel
+    const execution = contexte instanceof ContexteGitLab
+      ? executerContexteCommun((courant) => courant.publierEntretien(id))
+      : executerContexteDistant((courant) => courant.publierEntretien(id))
     if (!execution) return { ok: false as const, raison: 'aucune session' }
     const resultat = await execution
     return resultat.courant
@@ -1704,6 +1861,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   /** Orphelins détectables après un crash. */
   ipcMain.handle('distant:orphelins', async (): Promise<OrphelinDistant[] | null> => {
+    if (contextesDistants.actuel instanceof ContexteGitLab) return []
     const execution = executerContexteDistant((contexte) => contexte.listerOrphelins())
     if (!execution) return null
     const resultat = await execution

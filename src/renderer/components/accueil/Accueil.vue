@@ -37,6 +37,7 @@ const modaleMigration = ref(false)
 // (déclenchées par les cartes ci-dessous ou par le menu applicatif).
 const modaleNouveau = modaleNouveauCorpus
 const modaleDistant = modaleCorpusDistant
+const modaleDistantFournisseur = ref<'nextcloud' | 'gitlab'>('nextcloud')
 // Assistant « Nouveau corpus distant… » : publication du squelette sur le serveur,
 // puis ouverture immédiate.
 const modaleNouveauDistant = ref(false)
@@ -55,6 +56,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
         const destination = (await window.sonal.gitlab.lister())
           .find((candidate) => candidate.id === entree.id)
         if (destination && !destination.jetonDisponible) {
+          modaleDistantFournisseur.value = 'gitlab'
           modaleDistant.value = true
           return
         }
@@ -67,6 +69,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
         }
       }
     } catch {
+      modaleDistantFournisseur.value = entree.fournisseur === 'gitlab' ? 'gitlab' : 'nextcloud'
       modaleDistant.value = true
       return
     }
@@ -123,9 +126,9 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
                même comportement que la création locale. -->
           <button class="carte-demo nouveau-corpus-distant" @click="modaleNouveauDistant = true">
             <div class="carte-titre">☁️ Nouveau corpus distant</div>
-            <div class="carte-sous">Travail à plusieurs <br>sur un serveur Nextcloud</div>
+            <div class="carte-sous">Travail à plusieurs<br>sur Nextcloud ou GitLab</div>
           </button>
-          <button class="carte-demo distant-corpus" @click="modaleDistant = true">
+          <button class="carte-demo distant-corpus" @click="modaleDistantFournisseur = 'nextcloud'; modaleDistant = true">
             <div class="carte-titre">☁️ Ouvrir un corpus distant</div>
           </button>
         </div>
@@ -170,7 +173,11 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
       <NouveauCorpus v-if="modaleNouveau" @fermer="modaleNouveau = false" />
 
       <!-- Modale « Ouvrir un corpus distant » (comptes Nextcloud + connexion) -->
-      <CorpusDistant v-if="modaleDistant" @fermer="modaleDistant = false" />
+      <CorpusDistant
+        v-if="modaleDistant"
+        :fournisseur-initiale="modaleDistantFournisseur"
+        @fermer="modaleDistant = false"
+      />
 
       <!-- Assistant « Nouveau corpus distant » : créer directement sur le serveur -->
       <NouveauCorpusDistant v-if="modaleNouveauDistant" @fermer="modaleNouveauDistant = false" />

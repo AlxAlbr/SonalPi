@@ -1,6 +1,7 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue'
 import type {
   DemandeOuvertureGitLab,
+  DemandeCreationGitLab,
   EntreeVerrouPublic,
   EtatSessionPublic,
   OuvertureDistante,
@@ -78,12 +79,14 @@ interface MediasCycleCorpus {
 interface DistantCycleCorpus {
   idCourant: Ref<string | null>
   lectureSeule: Ref<boolean>
+  entretienEditable: Ref<boolean>
   statutSession: Ref<EtatSessionPublic>
   activer: (
     id: string,
     verrous: EntreeVerrouPublic[],
     inaccessibles?: { chemin: string; raison: string }[],
     lectureSeuleForcee?: boolean,
+    corpusModifiableForce?: boolean,
   ) => void
   rafraichirOrphelins: () => Promise<void>
   quitter: () => void
@@ -184,7 +187,7 @@ export function useCycleCorpus(deps: {
     }
     if (
       !deps.distant.idCourant.value ||
-      (!deps.distant.lectureSeule.value && !deps.entretien.verrouAutrui())
+      (!deps.distant.entretienEditable.value && !deps.entretien.verrouAutrui())
     ) {
       await deps.entretien.viderSauvegarde()
     }
@@ -229,6 +232,7 @@ export function useCycleCorpus(deps: {
       resultat.verrous,
       resultat.inaccessibles,
       consultationSeule,
+      resultat.distant.fournisseur !== 'gitlab',
     )
     deps.profil.dossierCourantNom.value = resultat.nom
     await appliquerCorpus(resultat.corpus, resultat.dir)
@@ -247,7 +251,6 @@ export function useCycleCorpus(deps: {
     await preparerBascule()
     await appliquerOuvertureDistante(
       await window.sonal.gitlab.ouvrir(id, jeton),
-      true,
     )
   }
 
@@ -257,7 +260,15 @@ export function useCycleCorpus(deps: {
     await preparerBascule()
     await appliquerOuvertureDistante(
       await window.sonal.gitlab.enregistrerEtOuvrir(demande),
-      true,
+    )
+  }
+
+  async function creerEtOuvrirGitLab(
+    demande: DemandeCreationGitLab,
+  ): Promise<void> {
+    await preparerBascule()
+    await appliquerOuvertureDistante(
+      await window.sonal.gitlab.creerEtOuvrir(demande),
     )
   }
 
@@ -346,7 +357,7 @@ export function useCycleCorpus(deps: {
     await preparerFermetureEntretien({
       distant: deps.distant.idCourant.value !== null,
       degrade: sessionDegradee,
-      lectureSeule: deps.distant.lectureSeule.value,
+      lectureSeule: !deps.distant.entretienEditable.value,
       verrouAutrui: deps.entretien.verrouAutrui(),
       annulerSauvegarde: deps.entretien.annulerEtAttendreSauvegarde,
       viderSauvegarde: deps.entretien.viderSauvegarde,
@@ -428,6 +439,7 @@ export function useCycleCorpus(deps: {
     ouvrirCorpusDistant,
     ouvrirDestinationGitLab,
     enregistrerEtOuvrirGitLab,
+    creerEtOuvrirGitLab,
     creerCorpusDistant,
     oublierCompteDistant,
     rafraichirCorpusSansFermer,

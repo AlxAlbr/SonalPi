@@ -10,10 +10,12 @@ import type {
 } from '../../../shared/distant'
 
 /**
- *  Ouvre une destination Nextcloud éditable.
- *  Une destination GitLab reste en consultation seule.
+ *  Ouvre une destination Nextcloud ou GitLab.
  *  Les secrets restent dans le main process.
  */
+const props = defineProps<{
+  fournisseurInitiale?: 'nextcloud' | 'gitlab'
+}>()
 const emit = defineEmits<{ (e: 'fermer'): void }>()
 const {
   ouvrirCorpusDistant,
@@ -22,6 +24,7 @@ const {
   oublierCompteDistant,
 } = utiliserSonal()
 
+const fournisseur = ref<'nextcloud' | 'gitlab'>(props.fournisseurInitiale ?? 'nextcloud')
 const comptes = ref<CompteDistantPublic[]>([])
 const destinationsGitLab = ref<DestinationGitLabPublic[]>([])
 const stockageSecuriseDisponible = ref<boolean | null>(null)
@@ -229,9 +232,27 @@ async function oublierGitLab(id: string) {
         <h3>☁️ Ouvrir un corpus distant</h3>
         <p class="intro">
           Le corpus vit sur le serveur ; l'app en garde une <b>copie locale</b> et se
-          synchronise à l'ouverture et sur « Actualiser ». <b>Lecture seule</b> pour
-          cette étape — l'écriture partagée sous verrou vient ensuite.
+          synchronise à l'ouverture et sur « Actualiser ».
         </p>
+
+        <div class="onglets-fournisseur" role="tablist" aria-label="Fournisseur distant">
+          <button
+            :class="{ actif: fournisseur === 'nextcloud' }"
+            role="tab"
+            :aria-selected="fournisseur === 'nextcloud'"
+            @click="fournisseur = 'nextcloud'"
+          >
+            Nextcloud
+          </button>
+          <button
+            :class="{ actif: fournisseur === 'gitlab' }"
+            role="tab"
+            :aria-selected="fournisseur === 'gitlab'"
+            @click="fournisseur = 'gitlab'"
+          >
+            GitLab
+          </button>
+        </div>
 
         <div v-if="stockageSecuriseDisponible === false" class="avertissement-coffre">
           <strong>Stockage sécurisé indisponible</strong>
@@ -243,6 +264,7 @@ async function oublierGitLab(id: string) {
           </span>
         </div>
 
+        <template v-if="fournisseur === 'nextcloud'">
         <!-- 1 — comptes configurés -->
         <div v-if="comptes.length > 0" class="bloc-comptes">
           <span class="q-lbl">Comptes configurés</span>
@@ -304,19 +326,20 @@ async function oublierGitLab(id: string) {
         <div v-else class="connecte">
           Compte connecté ✓
           <span v-if="profilConnecte.filesLock">
-            Verrouillage natif détecté (il sera utilisé dès l'étape écriture).
+            Verrouillage natif détecté (il sera utilisé dès l'étape édition).
           </span>
           <span v-else>
             Verrouillage natif indisponible — l'app utilisera son propre verrou
             (fonctionnel, invisible dans l'UI web Nextcloud).
           </span>
         </div>
+        </template>
 
-        <hr />
-        <span class="q-lbl">GitLab — consultation seule</span>
+        <template v-else>
+        <span class="q-lbl">Destinations GitLab configurées</span>
         <p class="note-secret">
-          Cette préversion consulte les transcriptions sans commit, verrou ni sonde
-          d'écriture. L'édition et les médias partagés GitLab restent indisponibles.
+          Utilisez un PAT obtenu après connexion à Humanum avec HumanID. Le jeton
+          reste dans le coffre ou en mémoire et n'est jamais renvoyé au renderer.
         </p>
 
         <div v-if="destinationsGitLab.length > 0" class="bloc-comptes">
@@ -420,13 +443,14 @@ async function oublierGitLab(id: string) {
         >
           {{ actionGitLab === 'ouverture' ? 'Ouverture…' : 'Ouvrir depuis GitLab' }}
         </button>
+        </template>
 
         <p v-if="erreur" class="msg">{{ erreur }}</p>
 
         <div class="pied-modale">
           <button class="annuler" :disabled="enCours" @click="emit('fermer')">Fermer</button>
           <button
-            v-if="!profilConnecte"
+            v-if="fournisseur === 'nextcloud' && !profilConnecte"
             class="valider"
             :disabled="stockageSecuriseDisponible === null || enCours || !urlServeur.trim() || !utilisateur.trim() || !motDePasse"
             @click="connecter"
@@ -464,6 +488,26 @@ async function oublierGitLab(id: string) {
 .modale-distant h3 {
   margin: 0;
   color: #1565c0;
+}
+.onglets-fournisseur {
+  display: flex;
+  gap: 0.35rem;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 0.35rem;
+}
+.onglets-fournisseur button {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px 6px 0 0;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+.onglets-fournisseur button.actif {
+  border-color: #ddd;
+  border-bottom-color: white;
+  background: #f5f9ff;
+  color: #1565c0;
+  font-weight: 600;
 }
 .intro,
 .note-secret {

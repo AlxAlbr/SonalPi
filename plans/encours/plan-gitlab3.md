@@ -4,13 +4,19 @@
 **La consultation GitLab, la découverte et la recette Electron à deux profils sont validées.**
 **Le même parcours réussit dans le binaire Linux empaqueté, y compris sans LFS.**
 **Le bail versionné, les transferts LFS streamés et leur annulation/reprise sont qualifiés sur le banc.**
-**La CI, le quota LFS, le journal durable et l’orchestration de session restent à valider.**
+**La CI et le quota LFS restent à valider ; l’édition d’entretien GitLab est maintenant exposée et qualifiée en E2E.**
 
-Ce document remplace la proposition précédente de `plan-gitlab3.md`, qui
+**Suite du chantier : [plan-gitlab4.md](plan-gitlab4.md) fait désormais foi pour
+le périmètre immédiat, les priorités et les critères de sortie.** Il recentre le
+travail sur les retours utilisateurs, rectifie les limites de qualification de
+l'intégration et conserve le bail versionné avec renouvellements espacés.
+Le présent document reste la référence des besoins plus larges, pas une seconde
+feuille de route à exécuter en parallèle.
+
+Ce document remplaçait la proposition précédente de `plan-gitlab3.md`, qui
 privilégiait l'édition optimiste. Ce n'est plus la cible retenue.
 Les [premier](plan-gitlab.md) et [deuxième](plan-gitlab2.md) plans restent des
-études de référence, pas deux feuilles de route supplémentaires à exécuter.
-En cas de divergence, ce document fait foi pour le périmètre et l'architecture.
+études de référence.
 
 ## 1. Décisions et périmètre
 
@@ -703,9 +709,22 @@ Rapport détaillé : [qualification GitLab et état du chantier](../../docs/dev/
 - [x] Jouer la consultation GitLab dans deux profils Electron, avec actualisation, bascule local ↔ GitLab et réouverture d'un récent ; un test E2E réel réussi.
 - [x] Ajouter la découverte paginée et bornée des projets et branches accessibles, sans écriture ; 4 tests unitaires et le parcours E2E réussis.
 - [x] Jouer le refus d'un jeton invalide et la consultation d'un projet sans LFS sans création de miroir ni commit.
-- [x] Rejouer les trois scénarios E2E dans le binaire Linux empaqueté.
+- [x] Rejouer les cinq scénarios E2E dans le binaire Linux empaqueté.
 - [x] Extraire un droit GitLab opaque, un bail versionné et un publieur conditionnel sans les exposer dans le renderer.
 - [x] Ajouter un journal local atomique, un candidat opaque et une réconciliation par identifiant sans rejeu automatique.
+- [x] Orchestrer une session GitLab locale : ouverture, révision, publication, renouvellement, fermeture et reprise.
+- [x] Isoler l'assemblage des ports GitLab et le stockage local atomique de session.
+- [x] Brancher la factory main et la réconciliation des opérations confirmées avant l'ouverture, sans exposer l'écriture.
+- [x] Rejouer les intentions d'une session depuis la façade main, avec exclusion du tirage et fermeture bloquée conservatrice.
+- [x] Valider sur disque la reconstruction après un redémarrage simulé d'une publication confirmée malgré la perte de réponse.
+- [x] Protéger et reprendre une autosave non publiée après redémarrage, avec exclusion avant le premier tirage.
+- [x] Rejouer le cycle session complet sur GitLab réel : acquisition, lecture, autosave, publication, renouvellement et fermeture.
+- [x] Brancher l'ouverture, l'autosave et la fermeture sur `CorpusStore`, avec édition E2E renderer et capacités de corpus encore désactivées.
+- [x] Exposer les raisons publiques de divergence, perte de droit, droits, limite et résultat indéterminé.
+- [x] Tuer le processus après autosave dans l'E2E empaqueté et vérifier la protection du candidat au redémarrage.
+- [x] Unifier la création et l'ouverture distantes avec des onglets Nextcloud/GitLab, et créer un squelette GitLab dans un projet existant.
+- [x] Qualifier sur Humanum l'accès PAT, LFS, la création, la garde `last_commit_id` et la relecture par un second PAT.
+- [x] Distinguer le chemin local de la racine GitLab dans l'assemblage de session.
 - [x] Valider sur GitLab réel qu'une reprise à horloge décalée bloque l'ancienne génération et que la génération courante publie.
 - [x] Mesurer deux campagnes accélérées de 480 renouvellements du bail, sans attendre 60 s entre chaque commit.
 - [x] Transférer un objet LFS de 32 MiJ en flux, le relire depuis le second compte, puis annuler et reprendre un objet de 8 MiJ.
@@ -714,9 +733,13 @@ Rapport détaillé : [qualification GitLab et état du chantier](../../docs/dev/
 Le typecheck est de nouveau passant dans l'installation locale courante.
 Ni L0 ni L1 ne sont déclarés terminés : les preuves serveur, l'isolation de la
 coordination et les autres extractions restent à faire. Le prochain travail
-borné est d'ajouter l'orchestration de session et la reprise de ce journal après
-redémarrage, toujours sans exposer l'édition dans le renderer. La CI et le quota
-LFS restent à qualifier sur une instance qui en fournit réellement.
+borné est de tester la reprise après crash et la fermeture applicative complète,
+puis d'étendre les capacités sans exposer les transactions de corpus non
+qualifiées.
+La CI et le quota LFS restent à qualifier sur une instance qui en fournit
+réellement. Humanum a confirmé l'accès de base et l'E2E à deux PAT de deux comptes dans
+quatre scénarios sur cinq ; la recette complète reste à étendre au projet de
+qualification.
 
 ### L0 — Capitalisation V1 et qualification GitLab ciblée
 
@@ -1095,9 +1118,14 @@ sans écriture serveur. La découverte des projets et branches, l'ouverture, la
 consultation, l'actualisation, les récents et la bascule local ↔ GitLab ont été
 joués dans deux profils Electron sur le banc réel, puis dans le binaire Linux
 empaqueté. Le jeton invalide et le projet sans LFS sont également couverts. Les
-ports de bail et de publication sont extraits et testés. Le journal local et la
-réconciliation par identifiant sont également implémentés, mais restent
-désolidarisés des sessions jusqu'à l'orchestration complète.
+ports de bail et de publication sont extraits et testés. Le journal local, la
+réconciliation par identifiant, l'orchestrateur, l'assemblage de stockage, le
+journal de session et les intentions de la façade main sont reliés à la factory.
+Une publication confirmée malgré une réponse perdue et une autosave locale non
+publiée survivent à une reconstruction sur disque ; le tirage protège la reprise.
+Le cycle local complet est validé sur GitLab réel, puis l'E2E Electron vérifie
+l'édition, la publication et la fermeture. Les raisons publiques de suspension
+sont désormais transmises au renderer.
 
 Références :
 
@@ -1114,10 +1142,13 @@ Références :
 - [Protocole LFS batch](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md).
 - [Protocole LFS locking](https://github.com/git-lfs/git-lfs/blob/main/docs/api/locking.md).
 
-**Prochaine étape : ajouter l'orchestration de session et la reprise du journal
-après redémarrage, puis rejouer acquisition, veille, reprise, publication et
-fermeture sans activer l'édition dans l'interface. La série de 480 renouvellements,
-le LFS de 32 MiJ, l'annulation/reprise et le bail conditionnel sont validés ; une
-CI et un quota LFS restent à qualifier sur une instance qui les configure. Les
-droits institutionnels et la recette du packaging destinataire restent également
-à confirmer.**
+**Prochaine étape : qualifier une interaction CI et un refus de quota LFS, puis
+tester la fermeture applicative bloquée. La reconstruction sur disque d'une
+publication confirmée malgré la réponse perdue, la reprise d'une autosave non
+publiée, le cycle local sur GitLab réel, la fermeture normale, la publication
+finale et la protection après crash forcé dans l'E2E Electron et le binaire
+empaqueté, la série de 480 renouvellements, le LFS de 32 MiB,
+l'annulation/reprise, le bail conditionnel, le journal, la factory main, le
+stockage local et les raisons publiques de suspension sont validés ; une CI et
+un quota LFS restent à qualifier sur une instance qui les configure. Les droits
+institutionnels restent également à confirmer.**

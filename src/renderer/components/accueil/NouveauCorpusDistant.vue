@@ -1,41 +1,44 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
+import type {
+  BrancheGitLabPublic,
+  ProjetGitLabPublic,
+} from '../../../shared/distant'
 
-/**
- *  Assistant « Nouveau corpus distant… » : créer un corpus directement sur le
- *  serveur Nextcloud, pour celui qui sait d'emblée qu'il travaillera à
- *  plusieurs.
- *
- *  Deux champs + les identifiants, dans la même logique que la création
- *  locale : le « dossier » est l'URL DAV du futur dossier du corpus, le nom
- *  devient `corpus.json.nom`. Le chemin cible résolu est affiché avant
- *  publication, pour éviter de créer au mauvais endroit. La publication est
- *  gardée par If-None-Match côté main : si un corpus existe déjà à cet
- *  emplacement, refus net sans rien écraser. En cas de succès, le corpus
- *  s'ouvre aussitôt (miroir tiré + écran Corpus) — même comportement que la
- *  création locale.
- */
+/** Assistant commun de création d'un corpus distant. */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
-const { creerCorpusDistant } = utiliserSonal()
+const { creerCorpusDistant, creerEtOuvrirGitLab } = utiliserSonal()
 
+const fournisseur = ref<'nextcloud' | 'gitlab'>('nextcloud')
 const stockageSecuriseDisponible = ref<boolean | null>(null)
+const enCours = ref(false)
+const erreur = ref<string | null>(null)
+
 const urlServeur = ref('')
 const utilisateur = ref('')
 const motDePasse = ref('')
 const nomProjet = ref('')
-const enCours = ref(false)
-const erreur = ref<string | null>(null)
+
+const urlGitLab = ref('')
+const utilisateurGitLab = ref('')
+const jetonGitLab = ref('')
+const projetGitLab = ref<number | null>(null)
+const nomProjetGitLab = ref('')
+const brancheGitLab = ref('')
+const racineGitLab = ref('')
+const projetsGitLab = ref<ProjetGitLabPublic[]>([])
+const branchesGitLab = ref<BrancheGitLabPublic[]>([])
+const projetsGitLabTronques = ref(false)
+const branchesGitLabTronquees = ref(false)
+const actionGitLab = ref<'decouverte' | 'branches' | 'creation' | null>(null)
 
 onMounted(async () => {
   stockageSecuriseDisponible.value =
     await window.sonal.distant.stockageSecuriseDisponible()
 })
 
-/** URL nettoyée (sans barre finale) — celle que le serveur verra réellement. */
 const urlPropre = computed(() => urlServeur.value.trim().replace(/\/+$/, ''))
-/** Chemin cible affiché à l'utilisateur avant publication,
- *  pour éviter de créer au mauvais endroit. */
 const cibleAffichee = computed(() => {
   if (!urlPropre.value) return null
   try {
@@ -46,31 +49,127 @@ const cibleAffichee = computed(() => {
   }
 })
 
-const pret = computed(
-  () =>
-    stockageSecuriseDisponible.value !== null &&
+const pretNextcloud = computed(
+  () => stockageSecuriseDisponible.value !== null &&
     !enCours.value &&
     urlPropre.value.length > 0 &&
     utilisateur.value.trim().length > 0 &&
     motDePasse.value.length > 0 &&
     nomProjet.value.trim().length > 0,
 )
+const pretGitLab = computed(
+  () => stockageSecuriseDisponible.value !== null &&
+    !enCours.value &&
+    urlGitLab.value.trim().length > 0 &&
+    utilisateurGitLab.value.trim().length > 0 &&
+    jetonGitLab.value.length > 0 &&
+    projetGitLab.value !== null &&
+    brancheGitLab.value.length > 0 &&
+    nomProjet.value.trim().length > 0,
+)
+const pret = computed(() => fournisseur.value === 'nextcloud' ? pretNextcloud.value : pretGitLab.value)
 
-async function creer() {
+function invaliderDecouverteGitLab(): void {
+  projetGitLab.value = null
+  nomProjetGitLab.value = ''
+  brancheGitLab.value = ''
+  projetsGitLab.value = []
+  branchesGitLab.value = []
+  projetsGitLabTronques.value = false
+  branchesGitLabTronquees.value = false
+}
+
+async function decouvrirProjetsGitLab(): Promise<void> {
+  if (!urlGitLab.value.trim() || !jetonGitLab.value) return
+  actionGitLab.value = 'decouverte'
+  enCours.value = true
+  erreur.value = null
+  try {
+    const resultat = await window.sonal.gitlab.decouvrirProjets({
+      urlInstance: urlGitLab.value.trim(),
+      jeton: jetonGitLab.value,
+    })
+    invaliderDecouverteGitLab()
+    projetsGitLab.value = resultat.elements
+    projetsGitLabTronques.value = resultat.tronque
+    if (resultat.elements.length === 0) {
+      erreur.value = 'Aucun projet accessible n’a été trouvé avec ce jeton.'
+    }
+  } catch (e) {
+    erreur.value = e instanceof Error ? e.message : 'Découverte des projets impossible.'
+  } finally {
+    actionGitLab.value = null
+    enCours.value = false
+  }
+}
+
+async function choisirProjetGitLab(): Promise<void> {
+  const projet = projetsGitLab.value.find((candidate) => candidate.id === projetGitLab.value)
+  brancheGitLab.value = ''
+  branchesGitLab.value = []
+  branchesGitLabTronquees.value = false
+  nomProjetGitLab.value = projet?.nom ?? ''
+  if (!projet) return
+  if (projet.archive) {
+    erreur.value = 'Ce projet GitLab est archivé et ne peut pas être utilisé.'
+    return
+  }
+
+  actionGitLab.value = 'branches'
+  enCours.value = true
+  erreur.value = null
+  try {
+    const resultat = await window.sonal.gitlab.decouvrirBranches({
+      urlInstance: urlGitLab.value.trim(),
+      jeton: jetonGitLab.value,
+      projetId: projet.id,
+    })
+    branchesGitLab.value = resultat.elements
+    branchesGitLabTronquees.value = resultat.tronque
+    const brancheParDefaut = resultat.elements.find((branche) => branche.parDefaut)
+    brancheGitLab.value = brancheParDefaut?.nom
+      ?? resultat.elements.find((branche) => branche.nom === projet.brancheParDefaut)?.nom
+      ?? resultat.elements[0]?.nom
+      ?? ''
+    if (!brancheGitLab.value) erreur.value = 'Ce projet ne contient aucune branche lisible.'
+  } catch (e) {
+    erreur.value = e instanceof Error ? e.message : 'Découverte des branches impossible.'
+  } finally {
+    actionGitLab.value = null
+    enCours.value = false
+  }
+}
+
+async function creer(): Promise<void> {
   if (!pret.value) return
   enCours.value = true
   erreur.value = null
   try {
-    await creerCorpusDistant({
-      urlServeur: urlPropre.value,
-      utilisateur: utilisateur.value.trim(),
-      motDePasse: motDePasse.value,
-      nomProjet: nomProjet.value.trim(),
-    })
-    emit('fermer') // succès : le corpus est déjà ouvert (écran Corpus derrière)
+    if (fournisseur.value === 'nextcloud') {
+      await creerCorpusDistant({
+        urlServeur: urlPropre.value,
+        utilisateur: utilisateur.value.trim(),
+        motDePasse: motDePasse.value,
+        nomProjet: nomProjet.value.trim(),
+      })
+    } else {
+      actionGitLab.value = 'creation'
+      await creerEtOuvrirGitLab({
+        urlInstance: urlGitLab.value.trim(),
+        utilisateur: utilisateurGitLab.value.trim(),
+        jeton: jetonGitLab.value,
+        projetId: projetGitLab.value as number,
+        nomProjet: nomProjetGitLab.value,
+        branche: brancheGitLab.value,
+        racine: racineGitLab.value.trim(),
+        nom: nomProjet.value.trim(),
+      })
+    }
+    emit('fermer')
   } catch (e) {
     erreur.value = e instanceof Error ? e.message : 'Création impossible.'
     enCours.value = false
+    actionGitLab.value = null
   }
 }
 </script>
@@ -81,62 +180,129 @@ async function creer() {
       <div class="modale-nouveau-distant">
         <h3>☁️ Nouveau corpus distant</h3>
         <p class="intro">
-          Le corpus vivra sur votre <b>serveur Nextcloud</b> et vos collègues
-          l'ouvriront chez eux (« Ouvrir un corpus distant »). Une copie de travail
-          est tenue sur ce poste, synchronisée automatiquement.
+          Choisissez un fournisseur, puis créez la copie de travail et son miroir local.
         </p>
+
+        <div class="onglets-fournisseur" role="tablist" aria-label="Fournisseur distant">
+          <button
+            :class="{ actif: fournisseur === 'nextcloud' }"
+            role="tab"
+            :aria-selected="fournisseur === 'nextcloud'"
+            @click="fournisseur = 'nextcloud'"
+          >
+            Nextcloud
+          </button>
+          <button
+            :class="{ actif: fournisseur === 'gitlab' }"
+            role="tab"
+            :aria-selected="fournisseur === 'gitlab'"
+            @click="fournisseur = 'gitlab'"
+          >
+            GitLab
+          </button>
+        </div>
 
         <div v-if="stockageSecuriseDisponible === false" class="avertissement-coffre">
           <strong>Stockage sécurisé indisponible</strong>
           <span>
-            Sonal ne conservera pas votre mot de passe d'application : vous devrez le
-            saisir après chaque redémarrage. Conservez-le dans un gestionnaire comme
-            KeePassXC, ou configurez GNOME Keyring/KWallet. Il restera uniquement en
-            mémoire jusqu'à la fermeture de Sonal.
+            Le secret restera uniquement en mémoire. Vous devrez le saisir après chaque
+            redémarrage.
           </span>
         </div>
 
-        <!-- 1 — le dossier CIBLE sur le serveur,
-             équivalent distant du choix de dossier local + identifiants -->
-        <div class="question">
-          <span class="q-lbl">1 — Emplacement du futur corpus sur le serveur</span>
-          <input
-            v-model="urlServeur"
-            class="champ"
-            type="text"
-            placeholder="https://nuage.exemple.org/remote.php/dav/files/moi/MonCorpus"
-            spellcheck="false"
-          />
-          <span v-if="cibleAffichee" class="cible">
-            Sera créé à&nbsp;: <b>{{ cibleAffichee }}</b>
-          </span>
-        </div>
-        <div class="ligne-2">
+        <template v-if="fournisseur === 'nextcloud'">
+          <p class="intro">
+            Le corpus sera créé dans un nouveau dossier de votre serveur Nextcloud.
+          </p>
           <div class="question">
-            <span class="q-lbl">Login</span>
-            <input v-model="utilisateur" class="champ" type="text" spellcheck="false" />
+            <span class="q-lbl">1 — Emplacement du futur corpus sur le serveur</span>
+            <input
+              v-model="urlServeur"
+              class="champ"
+              type="text"
+              placeholder="https://nuage.exemple.org/remote.php/dav/files/moi/MonCorpus"
+              spellcheck="false"
+            />
+            <span v-if="cibleAffichee" class="cible">
+              Sera créé à&nbsp;: <b>{{ cibleAffichee }}</b>
+            </span>
           </div>
-          <div class="question">
-            <span class="q-lbl">Mot de passe d'application</span>
-            <input v-model="motDePasse" class="champ" type="password" />
+          <div class="ligne-2">
+            <div class="question">
+              <span class="q-lbl">Login</span>
+              <input v-model="utilisateur" class="champ" type="text" spellcheck="false" />
+            </div>
+            <div class="question">
+              <span class="q-lbl">Mot de passe d'application</span>
+              <input v-model="motDePasse" class="champ" type="password" />
+            </div>
           </div>
-        </div>
-        <p class="note-secret">
-          Jamais votre mot de passe principal : créez un mot de passe d'application
-          dans Nextcloud (Paramètres → Sécurité).
-        </p>
+          <p class="note-secret">
+            Utilisez un mot de passe d'application Nextcloud, jamais votre mot de passe principal.
+          </p>
+        </template>
 
-        <!-- 2 — nom du projet -->
+        <template v-else>
+          <p class="intro">
+            Le corpus sera créé dans un projet GitLab existant, à l'emplacement choisi.
+          </p>
+          <div class="question">
+            <span class="q-lbl">URL de l'instance GitLab</span>
+            <input v-model="urlGitLab" class="champ url-gitlab" type="text" placeholder="https://gitlab.exemple.org" spellcheck="false" :disabled="enCours" @input="invaliderDecouverteGitLab" />
+          </div>
+          <div class="ligne-2">
+            <div class="question">
+              <span class="q-lbl">Utilisateur</span>
+              <input v-model="utilisateurGitLab" class="champ utilisateur-gitlab" type="text" spellcheck="false" :disabled="enCours" @input="invaliderDecouverteGitLab" />
+            </div>
+            <div class="question">
+              <span class="q-lbl">Jeton d'accès personnel</span>
+              <input v-model="jetonGitLab" class="champ jeton-gitlab" type="password" :disabled="enCours" @input="invaliderDecouverteGitLab" />
+            </div>
+          </div>
+          <p class="note-secret">
+            Connectez-vous à Humanum avec HumanID, puis créez un PAT dans GitLab. Sonal
+            ne conserve jamais le jeton dans les logs ou les messages d'erreur.
+          </p>
+          <button
+            class="mini decouvrir-gitlab"
+            :disabled="enCours || !urlGitLab.trim() || !utilisateurGitLab.trim() || !jetonGitLab"
+            @click="decouvrirProjetsGitLab"
+          >
+            {{ actionGitLab === 'decouverte' ? 'Recherche…' : 'Découvrir les projets' }}
+          </button>
+          <p v-if="projetsGitLabTronques" class="note-decouverte">
+            La liste est tronquée. Choisissez un projet visible ou utilisez un jeton plus restreint.
+          </p>
+          <div v-if="projetsGitLab.length > 0" class="question">
+            <span class="q-lbl">Projet GitLab</span>
+            <select v-model.number="projetGitLab" class="champ projet-gitlab" :disabled="enCours" @change="choisirProjetGitLab">
+              <option :value="null">Choisir un projet…</option>
+              <option v-for="projet in projetsGitLab" :key="projet.id" :value="projet.id">
+                {{ projet.nom }} — {{ projet.chemin }}{{ projet.archive ? ' (archivé)' : '' }}
+              </option>
+            </select>
+          </div>
+          <div v-if="projetGitLab !== null" class="ligne-2">
+            <div class="question">
+              <span class="q-lbl">Branche</span>
+              <select v-model="brancheGitLab" class="champ branche-gitlab" :disabled="enCours || branchesGitLab.length === 0">
+                <option value="">Choisir une branche…</option>
+                <option v-for="branche in branchesGitLab" :key="branche.nom" :value="branche.nom">
+                  {{ branche.nom }}{{ branche.parDefaut ? ' (par défaut)' : '' }}
+                </option>
+              </select>
+            </div>
+            <div class="question">
+              <span class="q-lbl">Racine du corpus (facultatif)</span>
+              <input v-model="racineGitLab" class="champ racine-gitlab" type="text" placeholder="donnees/mon-corpus" spellcheck="false" :disabled="enCours" />
+            </div>
+          </div>
+        </template>
+
         <div class="question">
-          <span class="q-lbl">2 — Quel est le nom du projet&nbsp;?</span>
-          <input
-            v-model="nomProjet"
-            class="champ-nom"
-            :disabled="enCours"
-            type="text"
-            placeholder="Nom du projet"
-            @keyup.enter="creer"
-          />
+          <span class="q-lbl">2 — Nom du corpus</span>
+          <input v-model="nomProjet" class="champ-nom" :disabled="enCours" type="text" placeholder="Nom du corpus" @keyup.enter="creer" />
         </div>
 
         <p v-if="erreur" class="msg">{{ erreur }}</p>
@@ -163,7 +329,7 @@ async function creer() {
   z-index: 50;
 }
 .modale-nouveau-distant {
-  width: min(560px, 94vw);
+  width: min(600px, 94vw);
   background: #fff;
   border-radius: 10px;
   padding: 1.1rem 1.2rem;
@@ -179,14 +345,36 @@ async function creer() {
   color: #0277bd;
 }
 .intro,
-.note-secret {
+.note-secret,
+.note-decouverte {
   margin: 0;
   font-size: 0.78rem;
   color: #555;
 }
-.note-secret {
+.note-secret,
+.note-decouverte {
   font-style: italic;
-  color: #888;
+  color: #777;
+}
+.onglets-fournisseur {
+  display: flex;
+  gap: 0.35rem;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 0.35rem;
+}
+.onglets-fournisseur button {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px 6px 0 0;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+.onglets-fournisseur button.actif {
+  border-color: #ddd;
+  border-bottom-color: white;
+  background: #f5f9ff;
+  color: #1565c0;
+  font-weight: 600;
 }
 .avertissement-coffre {
   display: flex;
@@ -232,6 +420,9 @@ async function creer() {
   font-family: monospace;
   word-break: break-all;
 }
+.decouvrir-gitlab {
+  align-self: flex-start;
+}
 .msg {
   margin: 0;
   background: #fdecea;
@@ -248,25 +439,11 @@ async function creer() {
   gap: 0.5rem;
   margin-top: 0.2rem;
 }
-.annuler,
-.valider {
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: #fff;
+button {
   cursor: pointer;
-  padding: 0.4rem 1rem;
-  font-size: 0.85rem;
 }
-.valider {
-  border-color: #1565c0;
-  background: #2e73d8;
-  color: #fff;
-}
-.annuler:disabled,
-.valider:disabled {
-  border-color: #ccc;
-  background: #e6e6e6;
-  color: #999;
+button:disabled {
   cursor: not-allowed;
+  opacity: 0.55;
 }
 </style>

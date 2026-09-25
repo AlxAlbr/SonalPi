@@ -53,13 +53,16 @@ export function useDistantCorpus(deps: {
     return Math.min(100, Math.round((progression.octets / progression.total) * 100))
   })
 
+  const corpusModifiable = ref(true)
   const lectureSeule = computed(
-    () => idDistantCourant.value !== null && (!enLigne.value || consultationSeule.value),
+    () => idDistantCourant.value !== null &&
+      (!enLigne.value || consultationSeule.value || !corpusModifiable.value),
   )
 
   const entretienEditable = computed(
     () =>
-      !lectureSeule.value &&
+      enLigne.value &&
+      !consultationSeule.value &&
       !deps.entretien.verrouAutrui() &&
       statutSession.value.etat !== 'degrade',
   )
@@ -94,10 +97,12 @@ export function useDistantCorpus(deps: {
     verrous: EntreeVerrouPublic[],
     inaccessibles: { chemin: string; raison: string }[] = [],
     lectureSeuleForcee = false,
+    corpusModifiableForce = true,
   ): void {
     idDistantCourant.value = id
     enLigne.value = true
     consultationSeule.value = lectureSeuleForcee
+    corpusModifiable.value = corpusModifiableForce
     dernierTirage.value = new Date().toISOString()
     absorberVerrous(verrous)
     deps.effets.majAudiosInaccessibles(inaccessibles)
@@ -118,6 +123,7 @@ export function useDistantCorpus(deps: {
     deps.effets.reinitialiserDivergence()
     enLigne.value = true
     consultationSeule.value = false
+    corpusModifiable.value = true
   }
 
   function tableLigneEditable(id: string): boolean {
@@ -220,9 +226,23 @@ export function useDistantCorpus(deps: {
     publiErreur.value = null
     try {
       const resultat = await window.sonal.corpus.publierEntretien(id)
-      if (!resultat.ok && resultat.raison === 'divergence') {
-        publiErreur.value =
-          'Le serveur a changé pendant notre session (contournement du verrou). Vos modifications ont été mises de côté localement — rien n’a été écrasé.'
+      if (!resultat.ok) {
+        const messages: Record<string, string> = {
+          conflit:
+            'Le serveur a changé pendant notre session. Vos modifications ont été mises de côté localement — rien n’a été écrasé.',
+          'droit-perdu':
+            'Le droit d’édition GitLab a été perdu. Le travail local est conservé et la session reste suspendue.',
+          droits:
+            'Les droits GitLab nécessaires à la publication ont été retirés. Le travail local est conservé.',
+          limite:
+            'GitLab a refusé la publication pour une limite de service. Le travail local est conservé.',
+          indetermine:
+            'Le résultat de la publication est indéterminé. Le travail local et son journal sont conservés.',
+          reseau:
+            'La publication GitLab a échoué côté réseau. Le travail local est conservé.',
+        }
+        publiErreur.value = messages[resultat.raison ?? ''] ??
+          'La publication n’a pas abouti. Le travail local est conservé.'
       }
       await rafraichirStatutSession()
       return resultat.ok
@@ -286,6 +306,7 @@ export function useDistantCorpus(deps: {
     progressionDistant,
     pourcentageProgression,
     lectureSeule,
+    corpusModifiable,
     entretienEditable,
     enLigne,
     badgesVerrous,

@@ -65,6 +65,20 @@ const roContenu = computed(
   () => verrouAutrui.value !== null || statutSession.value.etat === 'degrade',
 )
 
+const messageSessionSuspendue = computed(() => {
+  if (statutSession.value.etat !== 'degrade') return ''
+  const messages: Record<string, string> = {
+    conflit: 'Le serveur a changé — le travail local est conservé.',
+    'droit-perdu': 'Droit d’édition perdu — le travail local est conservé.',
+    droits: 'Droits GitLab retirés — le travail local est conservé.',
+    limite: 'Limite GitLab atteinte — le travail local est conservé.',
+    indetermine: 'Résultat de publication à vérifier — le travail local est conservé.',
+    reseau: 'Perte réseau — le travail local est conservé.',
+  }
+  return messages[statutSession.value.raison ?? ''] ??
+    'La session est suspendue — le travail local est conservé.'
+})
+
 // Compteur « i/N » de la boîte recherche/remplacement (vide sans requête).
 const compteRecherche = computed(() => {
   if (!rechercheTexte.value.trim()) return ''
@@ -103,7 +117,7 @@ function ouvrirRecueilsDepuisSelection() {
                En lecture seule (verrou autrui) : rien à publier,
                le bandeau 🔒 au-dessus parle déjà. -->
           <span v-if="statutSession.etat === 'degrade'" class="statut-session divergence">
-            ⚠️ Verrou perdu — contenu conservé localement.
+            ⚠️ {{ messageSessionSuspendue }}
           </span>
           <template v-else-if="statutSession.etat === 'a-nous'">
             <span v-if="publiErreur" class="statut-session divergence">⚠️ {{ publiErreur }}</span>
