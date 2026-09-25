@@ -15,19 +15,37 @@ import {
   normaliserCheminAudio,
   type PreparationOuvertureCorpus,
 } from './corpusStore'
-import { creerTransitionsLocales, oublierCompte } from './transitionContexte'
+import {
+  creerTransitionsLocales,
+  oublierCompte,
+  RegistreContexteCourant,
+} from './transitionContexte'
 import { executerFermetureApplication } from './fermetureApplication'
 import { preferencesRenderer, securiserNavigation } from './securiteFenetre'
 import { ClientWebDAV, ErreurHttp } from './webdav/client'
 import { profilerServeur, sonderFilesLock } from './webdav/sondes'
-import { coffreReel, type ConfigCorpusDistant } from './distant/coffre'
+import {
+  coffreReel,
+  idDeCompteGitLab,
+  idDeDestinationGitLab,
+  normaliserRacineGitLab,
+  type ConfigCompteGitLab,
+  type ConfigCorpusDistant,
+  type ConfigDestinationGitLab,
+} from './distant/coffre'
 import { poserValeurLotLocal, appliquerRegleLotLocal } from './distant/transactions'
-import { preparerContexteNextcloud, type ContexteCorpusDistant } from './distant/contexte'
+import { preparerContexteNextcloud, ContexteCorpusDistant } from './distant/contexte'
+import {
+  ContexteGitLabLectureSeule,
+  preparerContexteGitLabLectureSeule,
+} from './gitlab/contexte'
+import { ClientGitLab } from './gitlab/client'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
 import { construireDocxBuffer, imprimerPdf, urlAudioLocal, choisirDestination, ecrireFichierAtomique } from './exportEntretien'
 import { archiverCorpusLocal } from './archiveCorpus'
-import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus } from './exportCorpus'
+import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, ecrireTexteCorpus, ecrireDocxCorpus, ecrirePdfCorpus, copierMediaCorpus, fermerExportCorpus, ecrireQualcoderCorpus } from './exportCorpus'
+import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DemandeExportDocx, DemandeExportPdf, DemandeExportDocxCorpus } from '../shared/format'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
@@ -62,6 +80,8 @@ import type {
 import type {
   DemandeConnexion,
   DemandeCreationDistante,
+  DemandeOuvertureGitLab,
+  DestinationGitLabPublic,
   OrphelinDistant,
   OuvertureDistante,
   ProgressionTransfert,
@@ -347,7 +367,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   const coffre = coffreReel(app.getPath('userData'))
   // Le contexte assemble un seul miroir avec ses sessions, transactions et présence.
   // Il n'est remplacé qu'après fermeture réussie de l'ancien.
-  let contexteDistant: ContexteCorpusDistant | null = null
+  type ContexteDistantActif = ContexteCorpusDistant | ContexteGitLabLectureSeule
+  const contextesDistants = new RegistreContexteCourant<ContexteDistantActif>()
   // Identité de session : machineId stable par poste (généré une fois, stocké dans le profil) ;
   // sessionId aléatoire par lancement d'app (voir SESSION_ID plus bas).
   // Un verrou n'est jamais hérité d'une session précédente.
@@ -367,7 +388,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   /** Ferme l'ancien contexte avant toute bascule. Une publication ou une
    *  libération bloquée refuse la transition et conserve le contexte intact. */
   async function fermerContexteActuel(): Promise<void> {
-    await contexteDistant?.fermer()
+    await contextesDistants.actuel?.fermer()
   }
 
   let fileTransitions: Promise<void> = Promise.resolve()
@@ -380,6 +401,69 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return resultat
   }
 
+  function estContexteNextcloud(
+    contexte: ContexteDistantActif | null,
+  ): contexte is ContexteCorpusDistant {
+    return contexte instanceof ContexteCorpusDistant
+  }
+
+  /** Lie une commande asynchrone à son contexte Nextcloud de départ. */
+  function executerContexteDistant<T>(
+    operation: (
+      contexte: ContexteCorpusDistant,
+      estContexteCourant: () => boolean,
+    ) => Promise<T>,
+  ) {
+    const capture = contextesDistants.capturer()
+    if (!capture) return null
+    return contextesDistants.executer(capture, (contexte) => {
+      if (!estContexteNextcloud(contexte)) {
+        throw new Error('Ce corpus GitLab est ouvert en consultation seule.')
+      }
+      return operation(contexte, () => contextesDistants.estCourante(capture))
+    })
+  }
+
+  /** Lie une lecture aux deux fournisseurs distants. */
+  function executerContexteCommun<T>(
+    operation: (contexte: ContexteDistantActif) => Promise<T>,
+  ) {
+    const capture = contextesDistants.capturer()
+    if (!capture) return null
+    return contextesDistants.executer(capture, operation)
+  }
+
+  function executerIntentionDistante<T>(
+    operation: (contexte: ContexteCorpusDistant) => Promise<T>,
+  ): Promise<T> | null {
+    const execution = executerContexteDistant(operation)
+    if (!execution) return null
+    return execution.then((resultat) => {
+      if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+      return resultat.valeur
+    })
+  }
+
+  /** Capture aussi les corpus locaux, qui n'ont pas de façade distante. */
+  function capturerCorpusCourant() {
+    return {
+      generation: contextesDistants.generationActuelle,
+      contexte: contextesDistants.actuel,
+      store,
+      dossier: dossierCourant,
+    }
+  }
+
+  function verifierCorpusCourant(capture: ReturnType<typeof capturerCorpusCourant>): void {
+    if (
+      !contextesDistants.estGenerationCourante(capture.generation) ||
+      store !== capture.store ||
+      dossierCourant !== capture.dossier
+    ) {
+      throw new Error('Le corpus a changé pendant la commande.')
+    }
+  }
+
   /** Installe un store local après la fermeture réussie de l'ancien contexte. */
   function finaliserBasculeLocale(
     nouveauStore: CorpusStore,
@@ -388,7 +472,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ): OuvertureCorpus {
     const corpus = nouveauStore.finaliserOuverture(preparation)
     store = nouveauStore
-    contexteDistant = null
+    contextesDistants.remplacer(null)
     dossierCourant = dir
     ajouterRecent(dir)
     return { dir, nom: corpus.nom ?? basename(dir), corpus }
@@ -412,7 +496,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return {
       dir: dossierCourant,
       nom: corpus.nom ?? basename(dossierCourant),
-      distant: contexteDistant?.id ?? null,
+      distant: contextesDistants.actuel?.id ?? null,
     }
   })
   ipcMain.handle('corpus:recents', (): EntreeRecent[] => {
@@ -436,24 +520,43 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     // Le nom vient du miroir (`corpus.json`) si présent, sinon du dernier segment de l'URL.
     // Le chemin miroir n'est JAMAIS exposé comme dossier local.
     const comptes = new Map(coffre.lister().map((c) => [c.id, c]))
-    const distants = (s.recentsDistant ?? []).filter((id) => comptes.has(id))
+    const comptesGitLab = new Map(coffre.listerComptesGitLab().map((c) => [c.id, c]))
+    const destinationsGitLab = new Map(
+      coffre.listerDestinationsGitLab()
+        .filter((destination) => comptesGitLab.has(destination.compteId))
+        .map((destination) => [destination.id, destination]),
+    )
+    const distants = (s.recentsDistant ?? [])
+      .filter((id) => comptes.has(id) || destinationsGitLab.has(id))
     if (distants.length !== (s.recentsDistant ?? []).length) {
       s.recentsDistant = distants
       ecrireSettings(s)
     }
     return [
       ...distants.map((id): EntreeRecent => {
-        const c = comptes.get(id)!
-        let nom = basename(c.urlServeur)
+        const compteWebDAV = comptes.get(id)
+        const destinationGitLab = destinationsGitLab.get(id)
+        const compteGitLab = destinationGitLab
+          ? comptesGitLab.get(destinationGitLab.compteId)
+          : undefined
+        let nom = compteWebDAV
+          ? basename(compteWebDAV.urlServeur)
+          : destinationGitLab?.nomProjet || `Projet ${destinationGitLab?.projetId}`
         try {
           const miroirCorpus = JSON.parse(
             readFileSync(join(app.getPath('userData'), 'miroirs', id, 'corpus.json'), 'utf8'),
           ) as { nom?: string }
           if (miroirCorpus.nom) nom = miroirCorpus.nom
         } catch {
-          /* pas encore de miroir (corpus créé mais jamais rouvert depuis ici) → URL */
+          /* Le nom configuré reste affiché tant que le miroir est absent. */
         }
-        return { type: 'distant', id, nom, url: c.urlServeur }
+        return {
+          type: 'distant',
+          id,
+          nom,
+          url: compteWebDAV?.urlServeur ?? compteGitLab?.urlInstance ?? '',
+          ...(destinationGitLab ? { fournisseur: 'gitlab' as const } : {}),
+        }
       }),
       ...vivants.map((dir): EntreeRecent => ({ type: 'local', dir, nom: basename(dir) })),
     ]
@@ -516,8 +619,15 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  ou écriture directe du store en local ; les refus (`ErreurTransaction`) remontent à la bannière renderer via l'exception IPC. */
   function executerDefinitions<T>(fn: (cible: CorpusStore) => T): Promise<T> | T {
     const cible = store
-    const couche = contexteDistant?.transactions
-    return couche ? couche.executer(() => fn(cible)) : fn(cible)
+    const execution = executerContexteDistant((contexte) =>
+      contexte.executerDefinitions(() => fn(cible)))
+    if (!execution) return fn(cible)
+    return execution.then((resultat) => {
+      if (!resultat.courant) {
+        throw new Error('Le corpus a changé pendant la commande.')
+      }
+      return resultat.valeur
+    })
   }
 
   /** Lecture pure du miroir issu du dernier tirage en corpus distant.
@@ -528,43 +638,23 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'corpus:ouvrirEntretienPourEdition',
     async (_e, id: string): Promise<OuvertureEntretienEdition> => {
-      const gestionnaire = contexteDistant?.sessions
-      if (!gestionnaire) {
+      if (contextesDistants.actuel instanceof ContexteGitLabLectureSeule) {
+        const lecture = store.lireEntretien(id)
+        return lecture.ok
+          ? { ...lecture, acces: 'lecture-seule', verrouTenuParAutrui: null }
+          : lecture
+      }
+      const execution = executerContexteDistant((contexte) =>
+        contexte.ouvrirEntretienPourEdition(id))
+      if (!execution) {
         const lecture = store.ouvrirEntretienPourEdition(id)
         return lecture.ok ? { ...lecture, acces: 'edition' } : lecture
       }
-      const magasin = store
-      const etat = await gestionnaire.ouvrir(id)
-      if (etat.etat !== 'a-nous') {
-        const lecture = magasin.lireEntretien(id)
-        if (!lecture.ok) return lecture
-        return {
-          ...lecture,
-          acces: 'lecture-seule',
-          verrouTenuParAutrui:
-            etat.etat === 'tenu-par-autrui' && etat.tenuPar
-              ? {
-                  userId: etat.tenuPar.userId,
-                  machineId: etat.tenuPar.machineId,
-                  acquiredAt: etat.tenuPar.acquiredAt,
-                }
-              : null,
-        }
+      const resultat = await execution
+      if (!resultat.courant) {
+        throw new Error("Le corpus a changé pendant l'ouverture de l'entretien.")
       }
-      try {
-        magasin.autoriserEcritureEntretien(id)
-        const lecture = magasin.ouvrirEntretienPourEdition(id)
-        if (!lecture.ok) {
-          magasin.revoquerEcritureEntretien(id)
-          await gestionnaire.fermer(id)
-          return lecture
-        }
-        return { ...lecture, acces: 'edition' }
-      } catch (e) {
-        magasin.revoquerEcritureEntretien(id)
-        await gestionnaire.fermer(id)
-        throw e
-      }
+      return resultat.valeur
     },
   )
 
@@ -572,39 +662,50 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'corpus:fermerEntretien',
     async (_e, id: string): Promise<ResultatFermetureSession> => {
-      const gestionnaire = contexteDistant?.sessions
-      const magasin = store
-      if (!gestionnaire) {
-        magasin.revoquerEcritureEntretien(id)
+      if (contextesDistants.actuel instanceof ContexteGitLabLectureSeule) {
+        store.revoquerEcritureEntretien(id)
         return { fermee: true }
       }
-      magasin.revoquerEcritureEntretien(id)
-      const resultat = await gestionnaire.fermer(id)
-      if (!resultat.fermee && gestionnaire.etat(id).etat === 'a-nous') {
-        magasin.autoriserEcritureEntretien(id)
+      const execution = executerContexteDistant((contexte) =>
+        contexte.fermerEntretien(id))
+      if (!execution) {
+        store.revoquerEcritureEntretien(id)
+        return { fermee: true }
       }
-      return resultat
+      const resultat = await execution
+      if (!resultat.courant) {
+        throw new Error("Le corpus a changé pendant la fermeture de l'entretien.")
+      }
+      return resultat.valeur
     },
   )
 
   /** État de session (poll UI) : publication en attente ? */
-  ipcMain.handle('distant:etatSession', (_e, id: string) =>
-    contexteDistant?.sessions.etat(id) ?? { etat: 'aucune' as const },
-  )
+  ipcMain.handle('distant:etatSession', (_e, id: string) => {
+    const contexte = contextesDistants.actuel
+    return estContexteNextcloud(contexte)
+      ? contexte.sessions.etat(id)
+      : { etat: 'aucune' as const }
+  })
   ipcMain.handle('corpus:ecrireEntretien', async (_e, id: string, p: PayloadEntretien) => {
     const now = store.ecrireEntretien(id, p)
-    contexteDistant?.sessions.noterSale(id)
+    const contexte = contextesDistants.actuel
+    if (estContexteNextcloud(contexte)) contexte.sessions.noterSale(id)
     return now
   })
   ipcMain.handle(
     'corpus:preserverEntretienDegrade',
-    (_e, id: string, p: PayloadEntretien): boolean =>
-      contexteDistant?.sessions.preserverRecuperation(id, p) ?? false,
+    (_e, id: string, p: PayloadEntretien): boolean => {
+      const contexte = contextesDistants.actuel
+      return estContexteNextcloud(contexte)
+        ? contexte.sessions.preserverRecuperation(id, p)
+        : false
+    },
   )
   ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) =>
-    contexteDistant
-      ? contexteDistant.transactions.creerEntretienVide(titre)
-      : store.creerEntretienVide(titre),
+    executerIntentionDistante((contexte) =>
+      contexte.transactions.creerEntretienVide(titre))
+      ?? store.creerEntretienVide(titre),
   )
   ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
     executerDefinitions((cible) => cible.renommerEntretien(id, titre)),
@@ -613,9 +714,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     if (!['alpha', 'ajout', 'modif', 'longueur'].includes(mode)) {
       throw new Error('Mode de tri des entretiens inconnu.')
     }
-    if (!contexteDistant) return store.trierEntretiens(mode)
     if (mode === 'modif' || mode === 'longueur') {
-      return contexteDistant.transactions.trierEntretiens(mode)
+      return executerIntentionDistante((contexte) =>
+        contexte.transactions.trierEntretiens(mode))
+        ?? store.trierEntretiens(mode)
     }
     return executerDefinitions((cible) => cible.trierEntretiens(mode))
   })
@@ -632,32 +734,37 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     id: string,
     impactAttendu?: ImpactSuppressionEntretien,
   ) => {
-    const couche = contexteDistant?.transactions
-    const gestionnaire = contexteDistant?.sessions
     const magasin = store
-    if (!couche) return magasin.supprimerEntretien(id, impactAttendu)
-    if (gestionnaire) {
+    const execution = executerContexteDistant(async (contexte) => {
       magasin.revoquerEcritureEntretien(id)
-      const fermeture = await gestionnaire.fermer(id)
+      const fermeture = await contexte.sessions.fermer(id)
       if (!fermeture.fermee) {
-        if (gestionnaire.etat(id).etat === 'a-nous') magasin.autoriserEcritureEntretien(id)
-        throw new Error(`Suppression impossible : session non fermée (${fermeture.raison}).`)
+        if (contexte.sessions.etat(id).etat === 'a-nous') {
+          magasin.autoriserEcritureEntretien(id)
+        }
+        throw new Error(
+          `Suppression impossible : session non fermée (${fermeture.raison}).`,
+        )
       }
-    }
-    return couche.supprimerEntretien(id, impactAttendu)
+      return contexte.transactions.supprimerEntretien(id, impactAttendu)
+    })
+    if (!execution) return magasin.supprimerEntretien(id, impactAttendu)
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+    return resultat.valeur
   })
   ipcMain.handle(
     'corpus:importer',
     (_e, titre: string, payload: PayloadEntretien, codebook: Categorie[], variables: Variable[], reglesAnon: RegleAnon[]) =>
-      contexteDistant
-        ? contexteDistant.transactions.importerEntretien(
+      executerIntentionDistante((contexte) =>
+        contexte.transactions.importerEntretien(
           titre,
           payload,
           codebook,
           variables,
           reglesAnon,
-        )
-        : store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
+        ))
+        ?? store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
   )
 
   // Codebook (thèmes) — définitions : sous transaction en distant.
@@ -697,44 +804,57 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
   ipcMain.handle('corpus:recueilsCommander', async (_e, commande: CommandeRecueils) => {
-    if (commande.type === 'inserer-item' && commande.item.type === 'passage') {
-      const { entretienId, repereId } = commande.item.source
-      if (!store.reperePassageExiste(entretienId, repereId)) {
-        throw new Error("Le repère du passage n'a pas été enregistré dans l'entretien.")
-      }
-      if (contexteDistant?.sessions.idsTenus().includes(entretienId)) {
-        const publication = await contexteDistant.sessions.publier(entretienId)
+    const magasin = store
+    const passage = commande.type === 'inserer-item' && commande.item.type === 'passage'
+      ? commande.item.source
+      : null
+    if (passage && !magasin.reperePassageExiste(passage.entretienId, passage.repereId)) {
+      throw new Error("Le repère du passage n'a pas été enregistré dans l'entretien.")
+    }
+    const execution = executerContexteDistant(async (contexte) => {
+      if (passage && contexte.sessions.idsTenus().includes(passage.entretienId)) {
+        const publication = await contexte.publierEntretien(passage.entretienId)
         if (!publication.ok) {
-          throw new Error(`Le passage n'a pas été publié (${publication.raison ?? 'échec inconnu'}).`)
+          throw new Error(
+            `Le passage n'a pas été publié (${publication.raison ?? 'échec inconnu'}).`,
+          )
         }
       }
-    }
-    return executerDefinitions((cible) => cible.recueilsCommander(commande))
+      return contexte.executerDefinitions(() => magasin.recueilsCommander(commande))
+    })
+    if (!execution) return magasin.recueilsCommander(commande)
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+    return resultat.valeur
   })
   ipcMain.handle('corpus:tableaubordCommander', (_e, commande: CommandeTableauBord) =>
     executerDefinitions((cible) => cible.tableaubordCommander(commande)),
   )
   ipcMain.handle('corpus:casCommander', (_e, commande: CommandeCas) => {
-    const contexte = contexteDistant
     const magasin = store
+    const execution = executerIntentionDistante((contexte) =>
+      executerCommandeCas(commande, {
+        sessionsTenues: () => contexte.sessions.idsTenus(),
+        publierEntretien: (entretienId) => contexte.publierEntretien(entretienId),
+        verifierReferencesPubliees: (references) =>
+          contexte.transactions.verifierReferencesPassagesPubliees(references),
+        repereExiste: (entretienId, repereId) =>
+          magasin.reperePassageExiste(entretienId, repereId),
+        executerDefinitions: () =>
+          contexte.executerDefinitions(() => magasin.casCommander(commande)),
+        executerDefinitionsAvecSources: () =>
+          contexte.transactions.executerDefinitionsAvecSources(
+            () => Object.keys(magasin.ouvrir().membership),
+            () => magasin.casCommander(commande),
+          ),
+      }))
+    if (execution) return execution
     return executerCommandeCas(commande, {
-      sessionsTenues: () => contexte?.sessions.idsTenus() ?? [],
-      publierEntretien: (entretienId) => contexte?.sessions.publier(entretienId)
-        ?? Promise.resolve({ ok: true }),
-      verifierReferencesPubliees: contexte
-        ? (references) => contexte.transactions.verifierReferencesPassagesPubliees(references)
-        : undefined,
+      sessionsTenues: () => [],
+      publierEntretien: async () => ({ ok: true }),
       repereExiste: (entretienId, repereId) =>
         magasin.reperePassageExiste(entretienId, repereId),
-      executerDefinitions: () => contexte
-        ? contexte.transactions.executer(() => magasin.casCommander(commande))
-        : magasin.casCommander(commande),
-      executerDefinitionsAvecSources: contexte
-        ? () => contexte.transactions.executerDefinitionsAvecSources(
-          () => Object.keys(magasin.ouvrir().membership),
-          () => magasin.casCommander(commande),
-        )
-        : undefined,
+      executerDefinitions: () => magasin.casCommander(commande),
     })
   })
   ipcMain.handle('corpus:reglesAnon', () => store.reglesAnon())
@@ -744,7 +864,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     _e,
     commande: import('../shared/corpus/notes').CommandeNotes,
   ) => {
-    if (contexteDistant) throw new Error('Édition des notes distantes non disponible.')
+    if (contextesDistants.actuel) throw new Error('Édition des notes distantes non disponible.')
     return store.notesCommander(commande, true)
   })
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
@@ -753,47 +873,59 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     commande: import('../shared/corpus/personnes').CommandePersonnes,
     depuisRepertoire = false,
   ) => {
-    const transactions = contexteDistant?.transactions
-    if (!transactions) {
-      if (store.lectureSeule) throw new Error('Le corpus distant est hors ligne. La correction n’a pas été enregistrée.')
-      return store.personnesCommander(commande, depuisRepertoire)
-    }
-    if (commande.type === 'creerDefinition' || commande.type === 'modifier') {
-      return transactions.executer(() => store.personnesCommander(commande, false))
-    }
-    if (commande.type === 'lier' || commande.type === 'annulerRefus') {
-      return transactions.executerEntretien(
-        commande.entretienId,
-        () => store.personnesCommander(commande, false),
+    const magasin = store
+    const execution = executerContexteDistant(async (contexte) => {
+      const transactions = contexte.transactions
+      if (commande.type === 'creerDefinition' || commande.type === 'modifier') {
+        return transactions.executer(() => magasin.personnesCommander(commande, false))
+      }
+      if (commande.type === 'lier' || commande.type === 'annulerRefus') {
+        return transactions.executerEntretien(
+          commande.entretienId,
+          () => magasin.personnesCommander(commande, false),
+        )
+      }
+      if (commande.type === 'refuser') {
+        return transactions.refuserRapprochement(commande)
+      }
+      if (commande.type === 'rapprocher') {
+        return transactions.rapprocherPersonnes(commande)
+      }
+      if (commande.type === 'creer') {
+        return transactions.creerPersonneDepuisLocuteur(
+          commande.entretienId,
+          commande.locuteurId,
+          commande.nom,
+        )
+      }
+      if (commande.type === 'supprimer') {
+        return transactions.supprimerPersonneVide(commande.personneId)
+      }
+      if (commande.type === 'fusionner') {
+        return transactions.fusionnerPersonnes(commande)
+      }
+      if (commande.type === 'separer') {
+        return transactions.separerPersonne(commande)
+      }
+      throw new Error(
+        'Cette correction de personnes n’est pas encore disponible dans les corpus distants.',
       )
+    })
+    if (!execution) {
+      if (magasin.lectureSeule) {
+        throw new Error(
+          'Le corpus distant est hors ligne. La correction n’a pas été enregistrée.',
+        )
+      }
+      return magasin.personnesCommander(commande, depuisRepertoire)
     }
-    if (commande.type === 'refuser') {
-      return transactions.refuserRapprochement(commande)
-    }
-    if (commande.type === 'rapprocher') {
-      return transactions.rapprocherPersonnes(commande)
-    }
-    if (commande.type === 'creer') {
-      return transactions.creerPersonneDepuisLocuteur(
-        commande.entretienId,
-        commande.locuteurId,
-        commande.nom,
-      )
-    }
-    if (commande.type === 'supprimer') {
-      return transactions.supprimerPersonneVide(commande.personneId)
-    }
-    if (commande.type === 'fusionner') {
-      return transactions.fusionnerPersonnes(commande)
-    }
-    if (commande.type === 'separer') {
-      return transactions.separerPersonne(commande)
-    }
-    throw new Error('Cette correction de personnes n’est pas encore disponible dans les corpus distants.')
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+    return resultat.valeur
   })
   ipcMain.handle('corpus:journalLister', () => store.journalCorpusLister())
   ipcMain.handle('corpus:journalAnnuler', (_e, id: string) => {
-    if (contexteDistant || store.lectureSeule) {
+    if (contextesDistants.actuel || store.lectureSeule) {
       return { ok: false, raison: 'L’annulation des actions du corpus distant n’est pas encore disponible.', temporaire: false }
     }
     return store.journalCorpusAnnuler(id)
@@ -821,9 +953,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     executerDefinitions((cible) => cible.regleAnonCategoriser(id, categorie)),
   )
   ipcMain.handle('corpus:appliquerRegleAnonLot', (_e, cibles: CibleRegleAnon[]) =>
-    contexteDistant
-      ? contexteDistant.transactions.appliquerRegleLot(cibles)
-      : appliquerRegleLotLocal(store, cibles),
+    executerIntentionDistante((contexte) =>
+      contexte.transactions.appliquerRegleLot(cibles))
+      ?? appliquerRegleLotLocal(store, cibles),
   )
   ipcMain.handle('corpus:compterUsagesCategorie', (_e, code: string, exceptId?: string) =>
     store.compterUsagesCategorie(code, exceptId),
@@ -854,66 +986,90 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // fermé distant, la mutation est une transaction courte construite depuis
   // le GET effectué après acquisition du verrou.
   ipcMain.handle('corpus:assignerAudio', async (_e, id: string, source: string) => {
-    const gestionnaire = contexteDistant?.sessions
-    const magasin = store
-    if (!gestionnaire || gestionnaire.idsTenus().includes(id)) {
-      const r = magasin.assignerAudio(id, source)
-      if (r) gestionnaire?.noterSale(id)
-      return r
-    }
-    const ref = normaliserCheminAudio(source)
-    if (!existsSync(ref)) return null
-    const r = await gestionnaire.modifierEntretienFerme(id, (data) => {
-      data.meta.audioRef = ref
-      return { audioRef: ref }
+    const execution = executerContexteDistant(async (contexte) => {
+      const gestionnaire = contexte.sessions
+      const magasin = contexte.store
+      if (gestionnaire.idsTenus().includes(id)) {
+        const resultat = magasin.assignerAudio(id, source)
+        if (resultat) gestionnaire.noterSale(id)
+        return resultat
+      }
+      const ref = normaliserCheminAudio(source)
+      if (!existsSync(ref)) return null
+      const resultat = await gestionnaire.modifierEntretienFerme(id, (data) => {
+        data.meta.audioRef = ref
+        return { audioRef: ref }
+      })
+      if (!resultat.ok) {
+        if (resultat.raison === 'liberation') magasin.apresMutationAudio(id, false)
+        throw new Error(`Assignation audio impossible : ${resultat.raison}.`)
+      }
+      magasin.apresMutationAudio(id, false)
+      return resultat.resultat
     })
-    if (!r.ok) {
-      if (r.raison === 'liberation') magasin.apresMutationAudio(id, false)
-      throw new Error(`Assignation audio impossible : ${r.raison}.`)
-    }
-    magasin.apresMutationAudio(id, false)
-    return r.resultat
+    if (!execution) return store.assignerAudio(id, source)
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+    return resultat.valeur
   })
   ipcMain.handle('corpus:effacerAudio', async (_e, id: string) => {
-    const gestionnaire = contexteDistant?.sessions
-    const magasin = store
-    if (!gestionnaire || gestionnaire.idsTenus().includes(id)) {
-      const r = magasin.effacerAudio(id)
-      gestionnaire?.noterSale(id)
-      return r
-    }
-    const r = await gestionnaire.modifierEntretienFerme(id, (data) => {
-      data.meta.audioRef = null
-      delete data.meta.audioDistant
-      return { audioRef: null as null }
+    const execution = executerContexteDistant(async (contexte) => {
+      const gestionnaire = contexte.sessions
+      const magasin = contexte.store
+      if (gestionnaire.idsTenus().includes(id)) {
+        const resultat = magasin.effacerAudio(id)
+        gestionnaire.noterSale(id)
+        return resultat
+      }
+      const resultat = await gestionnaire.modifierEntretienFerme(id, (data) => {
+        data.meta.audioRef = null
+        delete data.meta.audioDistant
+        return { audioRef: null as null }
+      })
+      if (!resultat.ok) {
+        if (resultat.raison === 'liberation') magasin.apresMutationAudio(id, true)
+        throw new Error(`Suppression audio impossible : ${resultat.raison}.`)
+      }
+      magasin.apresMutationAudio(id, true)
+      return resultat.resultat
     })
-    if (!r.ok) {
-      if (r.raison === 'liberation') magasin.apresMutationAudio(id, true)
-      throw new Error(`Suppression audio impossible : ${r.raison}.`)
-    }
-    magasin.apresMutationAudio(id, true)
-    return r.resultat
+    if (!execution) return store.effacerAudio(id)
+    const resultat = await execution
+    if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+    return resultat.valeur
   })
   ipcMain.handle(
     'corpus:remplacerTranscription',
     async (_e, id: string, transcription: TranscriptionEntretien) => {
-      const gestionnaire = contexteDistant?.sessions
-      const magasin = store
-      if (!gestionnaire || gestionnaire.idsTenus().includes(id)) {
-        const date = magasin.remplacerTranscription(id, transcription)
-        if (date) gestionnaire?.noterSale(id)
-        return date
-      }
-      const r = await gestionnaire.modifierEntretienFerme(id, (data) => {
-        data.corpsTexte = transcription.corpsTexte
-        data.annotations = transcription.annotations
-        data.ancres = transcription.ancres
-        data.reperesPassages = rendreReperesOrphelins(data.reperesPassages)
-        data.locuteurs = completerIdsLocuteurs(id, transcription.locuteurs, data.locuteurs)
-        return true
+      const execution = executerContexteDistant(async (contexte) => {
+        const gestionnaire = contexte.sessions
+        const magasin = contexte.store
+        if (gestionnaire.idsTenus().includes(id)) {
+          const date = magasin.remplacerTranscription(id, transcription)
+          if (date) gestionnaire.noterSale(id)
+          return date
+        }
+        const resultat = await gestionnaire.modifierEntretienFerme(id, (data) => {
+          data.corpsTexte = transcription.corpsTexte
+          data.annotations = transcription.annotations
+          data.ancres = transcription.ancres
+          data.reperesPassages = rendreReperesOrphelins(data.reperesPassages)
+          data.locuteurs = completerIdsLocuteurs(
+            id,
+            transcription.locuteurs,
+            data.locuteurs,
+          )
+          return true
+        })
+        if (!resultat.ok) {
+          throw new Error(`Import de la transcription impossible : ${resultat.raison}.`)
+        }
+        return new Date().toISOString()
       })
-      if (!r.ok) throw new Error(`Import de la transcription impossible : ${r.raison}.`)
-      return new Date().toISOString()
+      if (!execution) return store.remplacerTranscription(id, transcription)
+      const resultat = await execution
+      if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+      return resultat.valeur
     },
   )
   ipcMain.handle('corpus:ecrireWaveform', (_e, id: string, png: Uint8Array) =>
@@ -932,16 +1088,24 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   /** « Faire une copie de sauvegarde du corpus (ZIP) ».
    *  Archive le dossier du corpus courant, réservé au corpus local.
    *  Un corpus distant vit sur son serveur, qui porte sa propre sauvegarde. */
-  ipcMain.handle('corpus:copieSauvegardeZip', (e): Promise<ResultatArchiveCorpus> => {
-    let nom = basename(dossierCourant)
-    if (!contexteDistant) {
+  ipcMain.handle('corpus:copieSauvegardeZip', async (e): Promise<ResultatArchiveCorpus> => {
+    const capture = capturerCorpusCourant()
+    let nom = basename(capture.dossier)
+    if (!capture.contexte) {
       try {
-        nom = store.ouvrir().nom ?? nom
+        nom = capture.store.ouvrir().nom ?? nom
       } catch {
         /* dossier disparu : l'absence de corpus.json fera refuser l'archive */
       }
     }
-    return archiverCorpusLocal(e, dossierCourant, nom, contexteDistant !== null)
+    const resultat = await archiverCorpusLocal(
+      e,
+      capture.dossier,
+      nom,
+      capture.contexte !== null,
+    )
+    verifierCorpusCourant(capture)
+    return resultat
   })
   // Marqueur de corpus de TEST (`corpus.json: { demo }`) : identité, mode,
   // sources et étapes validées. Champ additif optionnel, pas de bump de version.
@@ -959,17 +1123,25 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     'Pour les modifier, ouvrez le dossier dans Nextcloud.'
   const dirExemplesDocs = cheminExemplesDocsCadre()
 
+  function clientDocsCadre(contexte: ContexteDistantActif): ClientWebDAV {
+    if (!estContexteNextcloud(contexte)) {
+      throw new Error('Les documents cadre GitLab ne sont pas encore disponibles.')
+    }
+    return contexte.miroir.accesClient()
+  }
+
   ipcMain.handle('docsCadre:lister', async (): Promise<InventaireDocsCadre> => {
-    const actif = contexteDistant
+    const capture = capturerCorpusCourant()
     const exemples = inventaireExemplesDocsCadre(dirExemplesDocs)
-    if (actif) {
+    if (capture.contexte) {
       try {
-        return {
-          mode: 'distant',
-          projet: await inventaireDocsCadreDistant(actif.miroir.accesClient()),
-          exemples,
-        }
+        const projet = await inventaireDocsCadreDistant(
+          clientDocsCadre(capture.contexte),
+        )
+        verifierCorpusCourant(capture)
+        return { mode: 'distant', projet, exemples }
       } catch (erreur) {
+        verifierCorpusCourant(capture)
         return {
           mode: 'distant',
           projet: [],
@@ -980,7 +1152,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         }
       }
     }
-    return { mode: 'local', projet: inventaireDocsCadreLocal(dossierCourant), exemples }
+    return {
+      mode: 'local',
+      projet: inventaireDocsCadreLocal(capture.dossier),
+      exemples,
+    }
   })
 
   ipcMain.handle(
@@ -990,9 +1166,16 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         throw new Error('Document cadre invalide.')
       }
       if (source === 'exemple') return lireApercuExemple(dirExemplesDocs, nom)
-      const actif = contexteDistant
-      if (actif) return lireApercuDistant(actif.miroir.accesClient(), nom)
-      return lireApercuLocal(dossierCourant, nom)
+      const capture = capturerCorpusCourant()
+      if (capture.contexte) {
+        const resultat = await lireApercuDistant(
+          clientDocsCadre(capture.contexte),
+          nom,
+        )
+        verifierCorpusCourant(capture)
+        return resultat
+      }
+      return lireApercuLocal(capture.dossier, nom)
     },
   )
 
@@ -1002,13 +1185,15 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'docsCadre:ajouterFichier',
     async (e, nomSouhaite?: string): Promise<ResultatMutationDocsCadre> => {
-      if (contexteDistant) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+      const capture = capturerCorpusCourant()
+      if (capture.contexte) throw new Error(REFUS_DOCS_CADRE_DISTANT)
       const r = await montrerOuvrir(e, {
         title: 'Ajouter un document au corpus',
         properties: ['openFile'],
       })
+      verifierCorpusCourant(capture)
       if (r.canceled || r.filePaths.length === 0) return { ok: false, raison: 'annule' }
-      return ajouterFichierLocal(dossierCourant, r.filePaths[0], nomSouhaite)
+      return ajouterFichierLocal(capture.dossier, r.filePaths[0], nomSouhaite)
     },
   )
 
@@ -1018,7 +1203,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'docsCadre:deposer',
     (_e, cheminSource: string): ResultatMutationDocsCadre => {
-      if (contexteDistant) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+      if (contextesDistants.actuel) throw new Error(REFUS_DOCS_CADRE_DISTANT)
       if (typeof cheminSource !== 'string' || !cheminSource.trim()) {
         throw new Error('Dépôt invalide : source manquante.')
       }
@@ -1029,28 +1214,32 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle(
     'docsCadre:renommer',
     (_e, ancienNom: string, nouveauNom: string): ResultatMutationDocsCadre => {
-      if (contexteDistant) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+      if (contextesDistants.actuel) throw new Error(REFUS_DOCS_CADRE_DISTANT)
       return renommerLocal(dossierCourant, ancienNom, nouveauNom)
     },
   )
 
   ipcMain.handle('docsCadre:supprimer', (_e, nom: string): ResultatMutationDocsCadre => {
-    if (contexteDistant) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    if (contextesDistants.actuel) throw new Error(REFUS_DOCS_CADRE_DISTANT)
     return supprimerLocal(dossierCourant, nom)
   })
 
   ipcMain.handle('docsCadre:ouvrir', async (_e, nom: string): Promise<void> => {
-    if (contexteDistant) throw new Error(REFUS_DOCS_CADRE_DISTANT)
-    const erreur = await shell.openPath(resoudreLocal(dossierCourant, nom))
+    const capture = capturerCorpusCourant()
+    if (capture.contexte) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    const erreur = await shell.openPath(resoudreLocal(capture.dossier, nom))
+    verifierCorpusCourant(capture)
     if (erreur) throw new Error(`Ouverture impossible : ${erreur}.`)
   })
 
   /** Ouvre le dossier `DocsCadre/` dans le gestionnaire de fichiers ; sa
    *  création explicite ici permet aussi d'y déposer ses documents à la main. */
   ipcMain.handle('docsCadre:ouvrirDossier', async (): Promise<void> => {
-    if (contexteDistant) throw new Error(REFUS_DOCS_CADRE_DISTANT)
-    const dir = resoudreDossierLocal(dossierCourant)
+    const capture = capturerCorpusCourant()
+    if (capture.contexte) throw new Error(REFUS_DOCS_CADRE_DISTANT)
+    const dir = resoudreDossierLocal(capture.dossier)
     const erreur = await shell.openPath(dir)
+    verifierCorpusCourant(capture)
     if (erreur) throw new Error(`Ouverture du dossier impossible : ${erreur}.`)
   })
 
@@ -1062,19 +1251,25 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       if ((source !== 'projet' && source !== 'exemple') || !estListable(nom)) {
         throw new Error('Document cadre invalide.')
       }
+      const capture = capturerCorpusCourant()
       const sourceExemple = source === 'exemple' ? resoudreExemple(dirExemplesDocs, nom) : null
       const r = await montrerSauver(e, { defaultPath: nom })
+      verifierCorpusCourant(capture)
       if (r.canceled || !r.filePath) return false
       if (sourceExemple) {
         copyFileSync(sourceExemple, r.filePath)
         return true
       }
-      const actif = contexteDistant
-      if (actif) {
-        await enregistrerCopieDistant(actif.miroir.accesClient(), nom, r.filePath)
+      if (capture.contexte) {
+        await enregistrerCopieDistant(
+          clientDocsCadre(capture.contexte),
+          nom,
+          r.filePath,
+        )
+        verifierCorpusCourant(capture)
         return true
       }
-      enregistrerCopieLocal(dossierCourant, nom, r.filePath)
+      enregistrerCopieLocal(capture.dossier, nom, r.filePath)
       return true
     },
   )
@@ -1083,20 +1278,53 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  JAMAIS fournie par le renderer ; le mot de passe d'application n'est
    *  jamais transmis au navigateur. Racine non reconnue → refus propre. */
   ipcMain.handle('docsCadre:ouvrirDansNextcloud', async (): Promise<void> => {
-    const actif = contexteDistant
-    if (!actif) throw new Error('Le corpus courant est local : « Ouvrir dans Nextcloud » n’a pas de sens ici.')
-    const url = urlNextcloudPourCorpus(actif.miroir.accesClient().config.baseUrl)
-    if (!url) throw new Error('L’adresse du corpus distant ne correspond pas à un serveur Nextcloud reconnu.')
+    const capture = capturerCorpusCourant()
+    if (!capture.contexte) {
+      throw new Error('Le corpus courant est local : « Ouvrir dans Nextcloud » n’a pas de sens ici.')
+    }
+    const url = urlNextcloudPourCorpus(
+      clientDocsCadre(capture.contexte).config.baseUrl,
+    )
+    if (!url) {
+      throw new Error('L’adresse du corpus distant ne correspond pas à un serveur Nextcloud reconnu.')
+    }
     await shell.openExternal(url)
+    verifierCorpusCourant(capture)
   })
 
   // --- Corpus distant : connexion et ouverture ---
   const sansSecret = (config: ConfigCorpusDistant): CompteDistantPublic => ({
+    fournisseur: 'webdav',
     id: config.id,
     urlServeur: config.urlServeur,
     utilisateur: config.utilisateur,
     motDePasseDisponible: coffre.motDePasseDisponible(config.id),
   })
+
+  const destinationGitLabPublique = (
+    destination: ConfigDestinationGitLab,
+  ): DestinationGitLabPublic | null => {
+    const compte = coffre.listerComptesGitLab()
+      .find((candidat) => candidat.id === destination.compteId)
+    if (!compte) return null
+    return {
+      fournisseur: 'gitlab',
+      id: destination.id,
+      compteId: compte.id,
+      urlInstance: compte.urlInstance,
+      utilisateur: compte.utilisateur,
+      projetId: destination.projetId,
+      nomProjet: destination.nomProjet,
+      branche: destination.branche,
+      racine: destination.racine,
+      jetonDisponible: coffre.jetonGitLabDisponible(compte.id),
+    }
+  }
+
+  const listerDestinationsGitLabPubliques = (): DestinationGitLabPublic[] =>
+    coffre.listerDestinationsGitLab()
+      .map(destinationGitLabPublique)
+      .filter((destination): destination is DestinationGitLabPublic => destination !== null)
 
   /** Nettoyage best effort après refus de création : supprime la FEUILLE que nous venons de créer.
    *  (Dossiers vides sans corpus, jamais un dossier préexistant de l'utilisateur.) */
@@ -1112,6 +1340,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   }
 
   ipcMain.handle('distant:lister', () => coffre.lister().map(sansSecret))
+  ipcMain.handle('gitlab:lister', listerDestinationsGitLabPubliques)
   ipcMain.handle('distant:stockageSecuriseDisponible', () =>
     coffre.stockageSecuriseDisponible(),
   )
@@ -1119,10 +1348,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('distant:oublier', (_e, id: string) =>
     transitionner(() => oublierCompte({
       id,
-      idActif: contexteDistant?.id ?? null,
+      idActif: contextesDistants.actuel?.id ?? null,
       fermerContexteActuel,
       desactiverContexte: () => {
-        contexteDistant = null
+        contextesDistants.remplacer(null)
       },
       oublier: (idCompte) => coffre.oublier(idCompte),
       lister: () => coffre.lister().map(sansSecret),
@@ -1210,16 +1439,20 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         identifiants: { utilisateur: config.utilisateur, motDePasse },
       })
       const dirMiroir = join(app.getPath('userData'), 'miroirs', id)
+      let evenementDuContexteCourant = (): boolean => true
       const surProgression = (p: ProgressionTransfert): void => {
+        if (!evenementDuContexteCourant()) return
         for (const w of BrowserWindow.getAllWindows()) w.webContents.send('distant:progression', p)
       }
       const nouveauVerrouNatif = await sonderFilesLock(config.urlServeur, {
         utilisateur: config.utilisateur,
         motDePasse,
       })
-      const exclusionsSupplementaires = contexteDistant?.id === id
-        ? contexteDistant.sessions.idsTenus()
-        : []
+      const contextePrecedent = contextesDistants.actuel
+      const exclusionsSupplementaires =
+        contextePrecedent?.id === id && estContexteNextcloud(contextePrecedent)
+          ? contextePrecedent.sessions.idsTenus()
+          : []
       const preparation = await preparerContexteNextcloud({
         id,
         dirLocal: dirMiroir,
@@ -1229,6 +1462,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         exclusionsSupplementaires,
         surProgression,
         surRetrogradation: (idRetire) => {
+          if (!evenementDuContexteCourant()) return
           for (const w of BrowserWindow.getAllWindows()) {
             w.webContents.send('distant:sessionDegradee', idRetire)
           }
@@ -1239,8 +1473,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
       await fermerContexteActuel()
       store = preparation.contexte.store
       dossierCourant = preparation.contexte.dirLocal
-      contexteDistant = preparation.contexte
-      contexteDistant.demarrer()
+      contextesDistants.remplacer(preparation.contexte)
+      const captureInstallee = contextesDistants.capturer()!
+      evenementDuContexteCourant = () => contextesDistants.estCourante(captureInstallee)
+      preparation.contexte.demarrer()
       ajouterRecentDistant(id)
       return {
         dir: dirMiroir,
@@ -1253,6 +1489,120 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     }),
   )
 
+  async function preparerOuvertureGitLab(
+    compte: ConfigCompteGitLab,
+    destination: ConfigDestinationGitLab,
+    jeton: string,
+  ) {
+    const dirMiroir = join(app.getPath('userData'), 'miroirs', destination.id)
+    const client = new ClientGitLab({
+      urlInstance: compte.urlInstance,
+      projetId: destination.projetId,
+      jeton,
+    })
+    const preparation = await preparerContexteGitLabLectureSeule({
+      id: destination.id,
+      dirLocal: dirMiroir,
+      client,
+      branche: destination.branche,
+      racine: destination.racine,
+    })
+    return { ...preparation, dirMiroir }
+  }
+
+  async function installerContexteGitLab(
+    compte: ConfigCompteGitLab,
+    destination: ConfigDestinationGitLab,
+    preparation: Awaited<ReturnType<typeof preparerOuvertureGitLab>>,
+  ): Promise<OuvertureDistante> {
+    await fermerContexteActuel()
+    store = preparation.contexte.store
+    dossierCourant = preparation.contexte.dirLocal
+    contextesDistants.remplacer(preparation.contexte)
+    ajouterRecentDistant(destination.id)
+    const destinationPublique = destinationGitLabPublique(destination)
+    if (!destinationPublique) throw new Error('Compte GitLab inconnu.')
+    return {
+      dir: preparation.dirMiroir,
+      nom: preparation.corpus.nom ?? destination.nomProjet,
+      corpus: preparation.corpus,
+      distant: destinationPublique,
+      verrous: [],
+      inaccessibles: preparation.inaccessibles,
+    }
+  }
+
+  ipcMain.handle(
+    'gitlab:enregistrerEtOuvrir',
+    (_e, demande: DemandeOuvertureGitLab) => transitionner(async () => {
+      const compteId = idDeCompteGitLab(demande.urlInstance, demande.utilisateur)
+      const racine = normaliserRacineGitLab(demande.racine ?? '')
+      const destinationId = idDeDestinationGitLab({
+        compteId,
+        projetId: demande.projetId,
+        branche: demande.branche,
+        racine,
+      })
+      const compteCandidat: ConfigCompteGitLab = {
+        fournisseur: 'gitlab',
+        id: compteId,
+        urlInstance: demande.urlInstance,
+        utilisateur: demande.utilisateur.trim(),
+      }
+      const destinationCandidate: ConfigDestinationGitLab = {
+        fournisseur: 'gitlab',
+        id: destinationId,
+        compteId,
+        projetId: demande.projetId,
+        nomProjet: demande.nomProjet.trim(),
+        branche: demande.branche.trim(),
+        racine,
+      }
+      const preparation = await preparerOuvertureGitLab(
+        compteCandidat,
+        destinationCandidate,
+        demande.jeton,
+      )
+      const compte = coffre.enregistrerCompteGitLab(demande)
+      const destination = coffre.enregistrerDestinationGitLab({
+        compteId: compte.id,
+        projetId: demande.projetId,
+        nomProjet: demande.nomProjet,
+        branche: demande.branche,
+        racine,
+      })
+      return installerContexteGitLab(compte, destination, preparation)
+    }),
+  )
+
+  ipcMain.handle(
+    'gitlab:ouvrir',
+    (_e, id: string, jetonSaisi?: string) => transitionner(async () => {
+      const destination = coffre.listerDestinationsGitLab()
+        .find((candidate) => candidate.id === id)
+      if (!destination) throw new Error('Destination GitLab inconnue.')
+      const compte = coffre.listerComptesGitLab()
+        .find((candidate) => candidate.id === destination.compteId)
+      if (!compte) throw new Error('Compte GitLab inconnu.')
+      const jeton = jetonSaisi || coffre.jetonGitLab(compte.id)
+      if (!jeton) throw new Error('Saisissez le jeton GitLab pour cette session.')
+      const preparation = await preparerOuvertureGitLab(compte, destination, jeton)
+      if (jetonSaisi) coffre.memoriserJetonGitLab(compte.id, jetonSaisi)
+      return installerContexteGitLab(compte, destination, preparation)
+    }),
+  )
+
+  ipcMain.handle('gitlab:oublierDestination', (_e, id: string) =>
+    transitionner(() => oublierCompte({
+      id,
+      idActif: contextesDistants.actuel?.id ?? null,
+      fermerContexteActuel,
+      desactiverContexte: () => contextesDistants.remplacer(null),
+      oublier: (destinationId) => coffre.oublierDestinationGitLab(destinationId),
+      lister: listerDestinationsGitLabPubliques,
+    })),
+  )
+
   /** « Actualiser » / pull doux : null si le corpus courant est local.
    *  Les fichiers SOUS NOTRE verrou sont exclus du pull — le miroir n'écrase
    *  jamais une copie de travail en session ; la divergence passe par If-Match
@@ -1260,58 +1610,51 @@ function enregistrerIpcCorpus(): () => Promise<void> {
    *  Les verrous sont enrichis pour les badges : scan `verrous/`, ou PROPFIND
    *  files_lock sur `entretiens/`. */
   ipcMain.handle('distant:tirer', async (): Promise<ResultatTiragePublic | null> => {
-    const contexte = contexteDistant
-    if (!contexte) return null
-    try {
-      const tirage = await contexte.actualiser()
-      return contexteDistant === contexte ? tirage : null
-    } catch (erreur) {
-      if (contexteDistant !== contexte) return null
-      throw erreur
-    }
+    const execution = executerContexteCommun((contexte) => contexte.actualiser())
+    if (!execution) return null
+    const resultat = await execution
+    return resultat.courant ? resultat.valeur : null
   })
 
   /* ── Publication manuelle + reprise crash + badges ────────────────────── */
 
-  /** Navigation du sélecteur « Désigner dans Nextcloud… » : PROPFIND Depth:1 sur un dossier du corpus ;
-   *  entrées triées (dossiers d'abord). Null si corpus local ; erreur typée si dossier inaccessible. */
+  /** Navigation du sélecteur « Désigner dans Nextcloud… ».
+   *  L'inventaire est borné au corpus et les réponses obsolètes sont ignorées. */
   ipcMain.handle('distant:listerDossier', async (_e, dossier: string) => {
-    const actif = contexteDistant
-    if (!actif) return null
-    const entrees = await actif.miroir.listerDossier(dossier)
-    return { entrees }
+    const execution = executerContexteCommun((contexte) => contexte.listerDossier(dossier))
+    if (!execution) return null
+    const resultat = await execution
+    return resultat.courant ? { entrees: resultat.valeur } : null
   })
 
-  /** Désignation audio : micro-session si l'entretien est FERMÉ ;
-   *  l'appelant renderer ne vient ici que dans ce cas (un entretien ouvert en
-   *  session passe par son modèle). Le chemin est RELATIF à la racine corpus. */
+  /** Désignation audio : micro-session si l'entretien est fermé. */
   ipcMain.handle('distant:designerAudio', async (_e, id: string, cheminAudio: string) => {
-    const gestionnaire = contexteDistant?.sessions
-    if (!gestionnaire) return { ok: false as const, raison: 'corpus-local' }
-    return gestionnaire.designerAudio(id, cheminAudio)
+    const execution = executerContexteDistant((contexte) =>
+      contexte.designerAudio(id, cheminAudio))
+    if (!execution) return { ok: false as const, raison: 'corpus-local' }
+    const resultat = await execution
+    return resultat.courant
+      ? resultat.valeur
+      : { ok: false as const, raison: 'contexte-remplace' }
   })
 
-  /** Téléversement d'un fichier LOCAL vers le Nextcloud. Le renderer ne touche jamais au disque ;
-   *  c'est le main qui lit le fichier choisi par dialogue, en FLUX vers le PUT (`televerserFichier` avec un chemin), sans limite de taille mémoire.
-   *  La DÉSIGNATION reste un geste séparé du renderer (même chemin que pour un fichier déjà présent). */
+  /** Téléversement en flux d'un média choisi localement. */
   ipcMain.handle(
     'distant:televerserAudio',
     async (_e, sourceLocale: string, cheminCible: string) => {
-      const actif = contexteDistant
-      if (!actif) return { ok: false as const, raison: 'corpus-local' }
-      // Existence/lisibilité vérifiée TÔT pour distinguer « fichier illisible »
-      // d'un échec réseau pendant l'envoi.
+      if (!contextesDistants.actuel) return { ok: false as const, raison: 'corpus-local' }
       try {
         statSync(sourceLocale)
       } catch {
         return { ok: false as const, raison: 'lecture-impossible' }
       }
-      try {
-        return await actif.miroir.televerserFichier(
+      const execution = executerContexteDistant((contexte, estContexteCourant) =>
+        contexte.televerserFichier(
           cheminCible,
           sourceLocale,
           typeMimeAudio(cheminCible),
           (octets, total) => {
+            if (!estContexteCourant()) return
             for (const w of BrowserWindow.getAllWindows()) {
               w.webContents.send('distant:progression', {
                 sens: 'televersement',
@@ -1321,7 +1664,13 @@ function enregistrerIpcCorpus(): () => Promise<void> {
               } satisfies ProgressionTransfert)
             }
           },
-        )
+        ))
+      if (!execution) return { ok: false as const, raison: 'corpus-local' }
+      try {
+        const resultat = await execution
+        return resultat.courant
+          ? resultat.valeur
+          : { ok: false as const, raison: 'contexte-remplace' }
       } catch (e) {
         if (e instanceof ErreurHttp) return { ok: false as const, raison: String(e.statut) }
         return { ok: false as const, raison: 'reseau' }
@@ -1329,63 +1678,70 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     },
   )
 
-  /** « Publier maintenant » : PUT If-Match sous verrou toujours tenu. */
+  /** « Publier maintenant » : publication sous le droit du contexte capturé. */
   ipcMain.handle('distant:publierEntretien', async (_e, id: string) => {
-    const gestionnaire = contexteDistant?.sessions
-    if (!gestionnaire) return { ok: false as const, raison: 'aucune session' }
-    return gestionnaire.publier(id)
+    const execution = executerContexteDistant((contexte) => contexte.publierEntretien(id))
+    if (!execution) return { ok: false as const, raison: 'aucune session' }
+    const resultat = await execution
+    return resultat.courant
+      ? resultat.valeur
+      : { ok: false as const, raison: 'contexte-remplace' }
   })
 
-  /** Orphelins détectables (verrous de NOTRE machine, autre session),
-   *  matière du dialogue de reprise crash. Null si corpus local. */
+  /** Orphelins détectables après un crash. */
   ipcMain.handle('distant:orphelins', async (): Promise<OrphelinDistant[] | null> => {
-    const sessions = contexteDistant?.sessions
-    if (!sessions) return null
-    const liste = await sessions.orphelins()
-    return liste.map(({ cheminVerrou, id, verrou }) => ({
-      cheminVerrou,
-      id,
-      userId: verrou.userId,
-      machineId: verrou.machineId,
-      acquiredAt: verrou.acquiredAt,
-    }))
+    const execution = executerContexteDistant((contexte) => contexte.listerOrphelins())
+    if (!execution) return null
+    const resultat = await execution
+    return resultat.courant ? resultat.valeur : null
   })
 
   /** Choix « reprendre et publier » du dialogue de reprise crash. */
   ipcMain.handle('distant:reprendreOrphelin', async (_e, cheminVerrou: string) => {
-    const sessions = contexteDistant?.sessions
-    if (!sessions) return { ok: false as const, raison: 'aucun corpus distant' }
-    return sessions.reprendreOrphelin(cheminVerrou)
+    const execution = executerContexteDistant((contexte) =>
+      contexte.reprendreOrphelin(cheminVerrou))
+    if (!execution) return { ok: false as const, raison: 'aucun corpus distant' }
+    const resultat = await execution
+    return resultat.courant
+      ? resultat.valeur
+      : { ok: false as const, raison: 'contexte-remplace' }
   })
 
-  /** Choix « abandonner » (déverrouille sans publier) du dialogue de reprise crash. */
+  /** Choix « abandonner » du dialogue de reprise crash. */
   ipcMain.handle('distant:abandonnerOrphelin', async (_e, cheminVerrou: string) => {
-    const sessions = contexteDistant?.sessions
-    if (!sessions) return
-    await sessions.abandonnerOrphelin(cheminVerrou)
+    const execution = executerContexteDistant((contexte) =>
+      contexte.abandonnerOrphelin(cheminVerrou))
+    if (execution) await execution
   })
 
   /* ── Présence ────────────────────────────────────────────────────────── */
 
   /** Le renderer signale l'entretien qu'il ouvre/ferme.
    *  La présence est publiée immédiatement, sans attendre le prochain battement. */
-  ipcMain.handle('distant:noterEntretienOuvert', (_e, id: string | null) => {
-    void contexteDistant?.presence.noterEntretienOuvert(id)
+  ipcMain.handle('distant:noterEntretienOuvert', async (_e, id: string | null) => {
+    const contexte = contextesDistants.actuel
+    if (!estContexteNextcloud(contexte)) return
+    const execution = executerContexteDistant((courant) =>
+      courant.noterEntretienOuvert(id))
+    if (execution) await execution
   })
 
   /* --- Copies de divergence (fusion assistée) --- */
 
   /** Les copies mises de côté par les rétrogradations (publication 412). */
-  ipcMain.handle('distant:listerDivergences', () =>
-    contexteDistant?.sessions.listerDivergences() ?? [],
-  )
+  ipcMain.handle('distant:listerDivergences', () => {
+    const contexte = contextesDistants.actuel
+    return estContexteNextcloud(contexte) ? contexte.sessions.listerDivergences() : []
+  })
   /** Contenu d'une copie (null = absente/corrompue/chemin invalide). */
-  ipcMain.handle('distant:lireDivergence', (_e, chemin: string) =>
-    contexteDistant?.sessions.lireDivergence(chemin) ?? null,
-  )
+  ipcMain.handle('distant:lireDivergence', (_e, chemin: string) => {
+    const contexte = contextesDistants.actuel
+    return estContexteNextcloud(contexte) ? contexte.sessions.lireDivergence(chemin) : null
+  })
   /** Jette une copie — choix EXPLICITE du dialogue, jamais automatique. */
   ipcMain.handle('distant:supprimerDivergence', (_e, chemin: string) => {
-    contexteDistant?.sessions.supprimerDivergence(chemin)
+    const contexte = contextesDistants.actuel
+    if (estContexteNextcloud(contexte)) contexte.sessions.supprimerDivergence(chemin)
   })
 
   /** Migration SonalPi1 → SonalPi2, EXÉCUTION : crée le corpus SonalPi2 dans le dossier dédié,
@@ -1438,16 +1794,17 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     'corpus:poserValeur',
     async (_e, entretienId: string, cible: CibleValeur, idVar: string, idMod: string) => {
       const ok = store.poserValeur(entretienId, cible, idVar, idMod)
-      if (ok) contexteDistant?.sessions.noterSale(entretienId)
+      const contexte = contextesDistants.actuel
+      if (ok && estContexteNextcloud(contexte)) contexte.sessions.noterSale(entretienId)
       return ok
     },
   )
   // Lot « modifier en lot » : distant → transactions (verrou court par entretien,
   // échecs nommés) ; local → boucle directe du store. Mêmes résultats dans les deux modes.
   ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) =>
-    contexteDistant
-      ? contexteDistant.transactions.poserValeurLot(items)
-      : poserValeurLotLocal(store, items),
+    executerIntentionDistante((contexte) =>
+      contexte.transactions.poserValeurLot(items))
+      ?? poserValeurLotLocal(store, items),
   )
 
   // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) ;
@@ -1574,6 +1931,9 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('export:corpusCopierMedia', (e, urlAudio: string) =>
     copierMediaCorpus(e, urlAudio),
   )
+  ipcMain.handle('export:corpusEcrireQualcoder', (e, modele: QualcoderExportModel) =>
+    ecrireQualcoderCorpus(e, modele),
+  )
   ipcMain.handle('export:corpusFermer', (e) => fermerExportCorpus(e))
   ipcMain.handle('export:entretienPdf', async (e, demande: DemandeExportPdf): Promise<string | null> => {
     const buffer = await imprimerPdf(demande.html)
@@ -1613,8 +1973,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
 
   return async () => {
-    const contexte = contexteDistant
-    contexte?.arreterPresence()
+    const contexte = contextesDistants.actuel
+    if (estContexteNextcloud(contexte)) contexte.arreterPresence()
     await contexte?.fermer()
   }
 }

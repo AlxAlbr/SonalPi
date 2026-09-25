@@ -40,6 +40,7 @@ export function useDistantCorpus(deps: {
   const tirageEnCours = ref(false)
   const progressionDistant = ref<ProgressionTransfert | null>(null)
   const enLigne = ref(true)
+  const consultationSeule = ref(false)
   const badgesVerrous = ref<Record<string, EtatVerrouPublic>>({})
   const presences = ref<PresencePublic[]>([])
   const orphelinsDistants = ref<OrphelinDistant[]>([])
@@ -53,7 +54,7 @@ export function useDistantCorpus(deps: {
   })
 
   const lectureSeule = computed(
-    () => idDistantCourant.value !== null && !enLigne.value,
+    () => idDistantCourant.value !== null && (!enLigne.value || consultationSeule.value),
   )
 
   const entretienEditable = computed(
@@ -92,9 +93,11 @@ export function useDistantCorpus(deps: {
     id: string,
     verrous: EntreeVerrouPublic[],
     inaccessibles: { chemin: string; raison: string }[] = [],
+    lectureSeuleForcee = false,
   ): void {
     idDistantCourant.value = id
     enLigne.value = true
+    consultationSeule.value = lectureSeuleForcee
     dernierTirage.value = new Date().toISOString()
     absorberVerrous(verrous)
     deps.effets.majAudiosInaccessibles(inaccessibles)
@@ -114,6 +117,7 @@ export function useDistantCorpus(deps: {
     publiErreur.value = null
     deps.effets.reinitialiserDivergence()
     enLigne.value = true
+    consultationSeule.value = false
   }
 
   function tableLigneEditable(id: string): boolean {

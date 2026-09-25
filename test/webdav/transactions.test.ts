@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/distant/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { TransactionsCorpus } from '../../src/main/distant/transactions'

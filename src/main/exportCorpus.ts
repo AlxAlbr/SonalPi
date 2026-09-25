@@ -10,13 +10,16 @@ import { assemblerInstantaneCorpus } from '../shared/export/corpus'
 import { urlAudioLocal } from './exportEntretien'
 import { BrowserWindow, dialog } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import { basename, join } from 'node:path'
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { DemandeExportDocxCorpus } from '../shared/format'
 import type { ResultatEcritureCorpus } from '../shared/export/corpus'
 import { nettoyerBaseNom } from '../shared/export/nomsFichiers'
 import { paragrapheDe, ecrireFichierAtomique, imprimerPdf } from './exportEntretien'
+import { ecrireProjetQualcoder } from './exportQualcoder'
+import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 
 /** Assemble l'instantané complet d'un entretien non ouvert : fichier natif
@@ -222,4 +225,26 @@ export async function copierMediaCorpus(
 /** Libère la session de la fenêtre (appelé en fin de lot, succès comme échec). */
 export function fermerExportCorpus(e: IpcMainInvokeEvent): void {
   sessions.delete(e.sender.id)
+}
+
+/** Écrit le projet QDA dans le dossier choisi par la session corpus. */
+export function ecrireQualcoderCorpus(
+  e: IpcMainInvokeEvent,
+  modele: QualcoderExportModel,
+): void {
+  const dossier = dossierDe(e)
+  if (!dossier) throw new Error('Aucun dossier de destination choisi.')
+  if (existsSync(dossier) && readdirSync(dossier).length > 0) {
+    throw new Error('Le dossier de destination contient déjà des fichiers.')
+  }
+  if (existsSync(dossier)) rmSync(dossier, { recursive: true })
+  const parent = dirname(dossier)
+  const temporaire = join(parent, `.${basename(dossier)}.tmp-${randomUUID()}`)
+  try {
+    ecrireProjetQualcoder(modele, temporaire)
+    renameSync(temporaire, dossier)
+  } catch (erreur) {
+    rmSync(temporaire, { recursive: true, force: true })
+    throw erreur
+  }
 }

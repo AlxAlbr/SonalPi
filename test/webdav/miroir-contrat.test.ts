@@ -2,20 +2,21 @@ import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { MiroirWebDAV } from '../../src/main/distant/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { LecteurWebDAV } from '../../src/main/distant/lecteurWebDAV'
 import type { LectureDistante } from '../../src/main/distant/lecture'
 import { ClientWebDAV } from '../../src/main/webdav/client'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
+import { corpusDistantValide, entretienDistantValide } from './fixturesCorpusDistant'
 
 const CHEMIN = 'entretiens/e1.json'
-const BASE = JSON.stringify({ texte: 'version initiale', meta: {} })
-const DISTANT = JSON.stringify({ texte: 'version distante', meta: {} })
-const LOCAL = JSON.stringify({ texte: 'travail local non publié', meta: {} })
+const BASE = entretienDistantValide({ texte: 'version initiale' })
+const DISTANT = entretienDistantValide({ texte: 'version distante' })
+const LOCAL = entretienDistantValide({ texte: 'travail local non publié' })
 
 function banc() {
   const serveur = new ServeurWebDAVMemoire()
-  serveur.poser('corpus.json', JSON.stringify({ membership: { e1: {} } }))
+  serveur.poser('corpus.json', corpusDistantValide(['e1']))
   serveur.poser(CHEMIN, BASE)
   const requetes: { methode: string; chemin: string }[] = []
   const panne = { inventaireEntretiens: null as number | null }
@@ -101,6 +102,7 @@ describe('miroir distant — protection du travail local', () => {
     expect(b.miroir.etagDistant(CHEMIN)).toBe(versionInitiale)
     expect(existsSync(join(b.dir, 'corbeille-miroir', CHEMIN))).toBe(false)
 
+    b.serveur.poser('corpus.json', corpusDistantValide())
     const tirageSansExclusion = await b.miroir.tirer()
     expect(tirageSansExclusion.corbeille).toEqual([CHEMIN])
     expect(readFileSync(join(b.dir, 'corbeille-miroir', CHEMIN), 'utf8')).toBe(LOCAL)
@@ -131,6 +133,70 @@ describe('miroir distant — protection du travail local', () => {
     expect(readFileSync(b.manifeste, 'utf8')).toBe(manifesteInitial)
     expect(existsSync(join(b.dir, '.installation-miroir.json'))).toBe(false)
     expect(existsSync(join(b.dir, '.installation-miroir'))).toBe(false)
+  })
+
+  test('un candidat métier invalide ne remplace aucun fichier du miroir', async () => {
+    const b = banc()
+    await b.miroir.tirer()
+    const manifesteInitial = readFileSync(b.manifeste, 'utf8')
+    b.serveur.poser(CHEMIN, '{json incomplet')
+
+    await expect(b.miroir.tirer()).rejects.toThrow('JSON valide')
+
+    expect(readFileSync(b.fichier, 'utf8')).toBe(BASE)
+    expect(readFileSync(b.manifeste, 'utf8')).toBe(manifesteInitial)
+    expect(existsSync(join(b.dir, '.installation-miroir.json'))).toBe(false)
+    expect(existsSync(join(b.dir, '.installation-miroir'))).toBe(false)
+  })
+
+  test('un membership incomplet ne peut pas amorcer un miroir vide', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    serveur.poser('corpus.json', corpusDistantValide(['absent']))
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-miroir-membership-'))
+    const miroir = new MiroirWebDAV(
+      new ClientWebDAV(
+        { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+        serveur.fetch,
+      ),
+      dir,
+    )
+
+    await expect(miroir.tirer()).rejects.toThrow('entretien distant absent')
+
+    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(dir, '.manifeste.json'))).toBe(false)
+  })
+
+  test('deux chemins incompatibles sous Windows sont refusés avant installation', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    serveur.poser('corpus.json', corpusDistantValide())
+    serveur.poser('entretiens/e1.json', entretienDistantValide())
+    serveur.poser('entretiens/E1.json', entretienDistantValide())
+    const dir = mkdtempSync(join(tmpdir(), 'sonal-miroir-collision-'))
+    const miroir = new MiroirWebDAV(
+      new ClientWebDAV(
+        { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+        serveur.fetch,
+      ),
+      dir,
+    )
+
+    await expect(miroir.tirer()).rejects.toThrow('chemins incompatibles')
+
+    expect(existsSync(join(dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(join(dir, '.manifeste.json'))).toBe(false)
+  })
+
+  test('une version métier inconnue est refusée avant installation', async () => {
+    const b = banc()
+    const corpus = JSON.parse(b.serveur.contenuDe('corpus.json')!) as { formatVersion: number }
+    corpus.formatVersion = 999
+    b.serveur.poser('corpus.json', JSON.stringify(corpus))
+
+    await expect(b.miroir.tirer()).rejects.toThrow('version non supportée')
+
+    expect(existsSync(join(b.dir, 'corpus.json'))).toBe(false)
+    expect(existsSync(b.manifeste)).toBe(false)
   })
 
   test.each([403, 503])('un inventaire refusé (%i) ne vaut pas suppression', async (statut) => {

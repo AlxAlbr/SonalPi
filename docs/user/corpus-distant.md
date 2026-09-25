@@ -48,6 +48,26 @@ il se connecte avec SES identifiants à SON adresse du dossier (Nextcloud prése
 le dossier partagé à un emplacement propre à chacun ; c'est normal, et l'app
 mémorise l'adresse de chaque compte).
 
+## Préversion GitLab en consultation seule
+
+« ☁️ Ouvrir un corpus distant » permet aussi de consulter un corpus déjà présent
+dans un projet GitLab. Renseignez l'URL de l'instance, votre utilisateur, un jeton
+d'accès personnel autorisé à lire le dépôt, l'ID numérique du projet, la branche
+et, si nécessaire, le sous-dossier qui contient `corpus.json`.
+
+Cette préversion :
+
+- télécharge les transcriptions à un commit fixé pour chaque actualisation ;
+- ne crée aucun commit, verrou ou fichier de sonde ;
+- conserve le jeton dans le stockage sécurisé du poste, ou seulement en mémoire
+  si ce stockage est indisponible ;
+- ouvre les entretiens et toutes les opérations métier en lecture seule ;
+- ne prend pas encore en charge les médias partagés GitLab ni les Docs cadre.
+
+Le projet et la branche sont actuellement saisis manuellement. L'édition GitLab
+ne sera activée qu'après validation complète du protocole d'exclusion et de
+publication. Les corpus Nextcloud conservent leur fonctionnement éditable actuel.
+
 ## Au quotidien
 
 - Vos corpus d'équipe portent l'icône 🌐 dans « Récents » : un clic les rouvre.

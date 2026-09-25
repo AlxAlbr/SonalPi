@@ -7,8 +7,9 @@ import { LecteurWebDAV } from '../../src/main/distant/lecteurWebDAV'
 import { TransfertWebDAV } from '../../src/main/distant/transfertWebDAV'
 import type { EntreeLectureDistante, LectureDistante } from '../../src/main/distant/lecture'
 import type { TransfertFichiersDistants } from '../../src/main/distant/transfert'
-import { MiroirWebDAV } from '../../src/main/distant/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
+import { corpusDistantValide, entretienDistantValide } from './fixturesCorpusDistant'
 
 class LectureMemoire implements LectureDistante {
   readonly inventorier = vi.fn(async (dossier: string): Promise<EntreeLectureDistante[]> => {
@@ -40,10 +41,14 @@ class LectureMemoire implements LectureDistante {
   })
 
   readonly lireTexte = vi.fn(async (chemin: string): Promise<string> => {
-    if (chemin === 'corpus.json') return JSON.stringify({ membership: { e1: {} } })
-    return JSON.stringify({
+    if (chemin === 'corpus.json') return corpusDistantValide(['e1'])
+    return entretienDistantValide({
       texte: 'lu par le contrat',
-      meta: { audioDistant: { chemin: 'audio/extrait.mp3' } },
+      meta: {
+        valeursGen: {},
+        audioRef: null,
+        audioDistant: { chemin: 'audio/extrait.mp3' },
+      },
     })
   })
 }

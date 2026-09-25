@@ -18,7 +18,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join, dirname } from 'node:path'
-import { MiroirWebDAV } from './miroir'
+import { MiroirWebDAV } from './miroirWebDAV'
 import { ClientWebDAV, ErreurHttp } from '../webdav/client'
 import {
   PERIODE_BATTEMENT_MS,

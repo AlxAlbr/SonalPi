@@ -1,7 +1,7 @@
 # GitLab — qualification et état du chantier
 
-**État : étude V1 et caractérisation V2 en cours ; aucun connecteur GitLab V2,
-mais premières gardes REST et LFS Locks qualifiées sur le banc Docker.**
+**État : étude V1 et caractérisation V2 en cours ; préversion de consultation
+GitLab exposée dans le renderer, gardes REST et LFS Locks qualifiées sur le banc Docker.**
 
 Le [plan directeur](../../plans/encours/plan-gitlab3.md) fixe la cible : miroir
 commun, édition exclusive, publications conditionnelles, médias selon les
@@ -139,10 +139,53 @@ problème, décrit ci-dessous.
 complet sans démarrage anticipé de la présence, fermeture du cycle de vie et
 protection d'une copie journalisée pendant l'ouverture complète.
 
+Le registre du contexte courant porte maintenant une génération à chaque
+bascule. Les commandes distantes d'actualisation, navigation, désignation,
+téléversement, publication, reprise et présence capturent cette génération ;
+leur réponse, leur erreur et leurs événements de progression sont ignorés si
+un autre contexte a été installé entre-temps. La même garde couvre désormais
+l'ouverture et la fermeture des sessions d'édition, les mutations de définitions,
+les principales transactions d'entretiens et de personnes, ainsi que les attentes
+des documents cadre. Les dialogues locaux conservent aussi le dossier capturé
+et refusent leur résultat si un autre corpus a été installé pendant l'attente.
+Quatre tests couvrent une réponse retardée, une erreur retardée, la réinstallation
+du même objet et deux générations successives de corpus locaux. La façade porte
+les intentions de session et de définitions correspondantes.
+
 `test/webdav/lecture.test.ts` vérifie le premier contrat de lecture distante :
 l'adaptateur WebDAV expose des empreintes qui ne sont pas des gardes d'écriture,
 les binaires sont téléchargés en flux, et le miroir utilise bien le lecteur
 injecté plutôt que son client WebDAV pour les lectures.
+
+`src/main/gitlab/client.ts` et `lecture.ts` portent le second adaptateur. Chaque
+tirage résout la branche une fois vers un commit, puis pagination, inventaires
+et lectures de texte emploient uniquement ce SHA. Le client garde le jeton dans
+le main, interdit les redirections, borne délai et taille des réponses, relaie
+l'annulation et limite les reprises après 429. Dix tests sans serveur couvrent
+branche avec `/`, pagination, racine de corpus, empreintes de blob, lecture
+brute à SHA fixé, chemins ambigus, symlinks, sous-modules, refus HTTP expurgé,
+429, réponse volumineuse et annulation.
+
+`MiroirDistant` ne construit plus de client WebDAV. `MiroirWebDAV` assemble les
+ports existants dans un adaptateur séparé, tandis que le premier contexte GitLab
+injecte un nouveau lecteur figé à chaque tirage. Un test d'intégration ouvre un
+corpus sous une racine du dépôt, vérifie la consultation seule, avance la branche,
+puis confirme que le tirage suivant reste cohérent sur le nouveau SHA. Toutes
+les requêtes observées sont des GET.
+
+Le coffre v3 distingue maintenant les comptes GitLab, qui portent l'instance et
+le jeton chiffré, des destinations, qui portent projet, branche et racine. La
+migration v2 ajoute le discriminant WebDAV sans changer les identifiants ni les
+récents existants. Trois tests couvrent la séparation compte/destinations, le
+renouvellement du jeton sans nouveau miroir et la migration WebDAV compatible.
+
+La modale distante expose une préversion GitLab par PAT et saisie du projet
+numérique, de la branche et de la racine. L'ouverture prépare entièrement le
+miroir avant la bascule, n'enregistre la destination qu'après une lecture
+réussie, puis force tous les écrans métier en consultation seule. Actualisation,
+récents et oubli d'une destination sont branchés ; édition, Docs cadre et médias
+partagés restent explicitement indisponibles. Ce parcours est compilé et testé
+par contrats, mais pas encore joué en E2E Electron ni sur deux profils réels.
 
 `test/webdav/coordination.test.ts` vérifie que les badges de verrous coopératifs
 sont observés par un port de coordination séparé. Le miroir n'inventorie plus
@@ -159,6 +202,13 @@ accessibles avant installation, puis ne publie le nouveau manifeste qu'après
 les remplacements et archivages. Un échec pendant la préparation ne modifie
 aucun fichier visible ; un arrêt pendant l'installation conserve les candidats
 et reprend les actions de manière idempotente au tirage suivant.
+
+La vue métier préparée est maintenant validée avant le premier remplacement :
+JSON objets, versions supportées, structure minimale du corpus et des entretiens,
+chemins sans collision de casse et cohérence du membership. Un entretien sous
+session reste exclu de cette validation, comme de son remplacement. Quatre tests
+vérifient les refus d'un JSON invalide, d'un membership incomplet, d'une version
+inconnue ou de chemins incompatibles, sans altérer ni amorcer le miroir.
 
 `distant/transfert.ts` sépare désormais les transferts binaires de la lecture
 d'inventaire et de texte. `TransfertWebDAV` conserve le téléchargement streamé,
@@ -207,7 +257,7 @@ pas validés comme des garanties acquises par les suites vertes.
 | Haute | `publierInterne()` protège le JSON par son ETag, mais ne lie pas sa publication au fichier de verrou coopératif. | Tester la reprise entre deux battements ; distinguer garantie DAV native et coopérative, ne pas exporter cette hypothèse vers GitLab. |
 | Traitée | Le handler `distant:ouvrir` tirait avant création des nouvelles sessions ; ses exclusions ne venaient que de sessions déjà actives. | Les acquisitions sont maintenant journalisées pour les deux variantes. L'ouverture relit ce journal et observe les orphelins distants avant le premier tirage. |
 | Traitée | La rétrogradation copiait le fichier sur disque puis annulait le debounce renderer de 600 ms. | L'état courant du renderer est maintenant conservé dans une copie de récupération séparée, sans publication autorisée. |
-| Partiellement traitée | `MiroirWebDAV.tirer()` installait les fichiers successivement et avançait le manifeste en cours de route. | La préparation et le journal d'installation sont en place. La validation métier complète des candidats reste à ajouter avant installation. |
+| Traitée | `MiroirWebDAV.tirer()` installait les fichiers successivement et avançait le manifeste en cours de route. | La préparation, la validation de la vue métier et le journal d'installation précèdent désormais tout remplacement visible. |
 | Moyenne | `televerserFichier()` vérifie le nom par inventaire puis envoie sans précondition de création. | Tester deux téléversements homonymes concurrents ; protéger l'envoi lui-même, pas seulement la liste préalable. |
 | Moyenne | `distant:ouvrir` appelle migration et réconciliation de fichiers après tirage. | Distinguer consultation et mutations explicites avant une ouverture GitLab avec compte lecteur. |
 
@@ -220,16 +270,17 @@ régressions avant l'extraction des classes.
 
 | Emplacement | Couplage actuel | Première couture envisagée |
 |---|---|---|
-| `distant/miroir.ts`, `distant/installationMiroir.ts` | La lecture, le transfert et l'installation locale sont injectés ou séparés ; le manifeste v2 identifie la destination. | Ajouter la validation métier des candidats avant installation. |
-| `distant/lecture.ts`, `lecteurWebDAV.ts`, `transfert.ts`, `transfertWebDAV.ts` | Les contrats de lecture et de transfert sont distincts, avec adaptateurs WebDAV sans publication. | Ajouter les adaptateurs GitLab à SHA fixé et LFS après stabilisation du miroir commun. |
+| `distant/miroir.ts`, `distant/miroirWebDAV.ts`, `distant/installationMiroir.ts`, `distant/validationMiroir.ts` | Le miroir commun ne construit aucun transport ; l'adaptateur WebDAV conserve la compatibilité des sessions et transactions. | Stabiliser les ports de publication avant de généraliser le contexte éditable. |
+| `distant/lecture.ts`, `lecteurWebDAV.ts`, `transfert.ts`, `transfertWebDAV.ts` | Les contrats de lecture et de transfert sont distincts, avec adaptateurs WebDAV sans publication. | Ajouter le transfert GitLab/LFS seulement après sa qualification dédiée. |
+| `gitlab/client.ts`, `gitlab/lecture.ts`, `gitlab/contexte.ts` | Client borné, lecteur à SHA fixé et contexte de consultation exposés sans mutation serveur. | Ajouter la découverte des projets/branches et la recette Electron à deux profils. |
 | `distant/coordination.ts`, `observationVerrousWebDAV.ts` | Observation des badges séparée du tirage de contenu. | Étendre ce port avec prudence lors de l'injection de l'acquisition et de la publication sous droit. |
 | `distant/sessions.ts` | Providers créés en interne, appels DAV et scans de verrous. | Coordination injectée avec publication sous droit détenu ; récupération locale séparée. |
 | `distant/transactions.ts` | Providers, relectures et PUT mêlés aux mutations locales. | Préparer les opérations métier puis exécuter selon le connecteur, commande par commande. |
 | `distant/publication.ts` | Création de dossiers et squelette WebDAV. | Création initiale spécifique, distincte du contrat général de publication. |
-| `distant/coffre.ts`, `shared/distant.ts` | Compte monomorphe URL DAV/login, versions ETag publiques. | Destination discriminée et versions internes opaques, migrations compatibles. |
+| `distant/coffre.ts`, `shared/distant.ts` | Coffre v3 discriminé ; comptes GitLab séparés des destinations, migration WebDAV compatible. | Étendre les capacités publiques sans exposer les versions ni secrets internes. |
 | `docsCadreDistant.ts` | Lectures directes via client DAV. | Lecteur borné indépendant du fournisseur, sans aspirer les docs dans le miroir. |
-| `main/index.ts` | Les handlers spécialisés utilisent encore directement certains services du contexte. | Déplacer progressivement les intentions vers la façade et vérifier la génération capturée. |
-| `distant/contexte.ts` | Première façade et fabrique Nextcloud : assemblage cohérent, actualisation, démarrage et fermeture. | Garder ce cycle commun tout en extrayant les ports de lecture, publication et coordination. |
+| `main/index.ts` | Les principales commandes distantes, sessions, transactions et attentes de documents capturent leur génération ; quelques orchestrations spécialisées restent à inventorier. | Terminer l'inventaire résiduel sans déplacer les règles métier dans les handlers. |
+| `distant/contexte.ts` | Façade et fabrique Nextcloud : assemblage cohérent, cycle de vie, sessions, définitions, actualisation, transferts, publication et reprise. | Garder ce cycle commun tout en extrayant les ports de lecture, publication et coordination. |
 
 La première façade est maintenant introduite sans interface universelle de
 stockage. Elle assemble les services Nextcloud existants, protège la bascule et
@@ -350,39 +401,44 @@ npm test -- \
   réussis dans 17 fichiers**.
 - Après ajout de l'installation locale reprenable : **254 tests réussis dans
   18 fichiers**.
-- Aucun test sauté dans cette sélection ; les bancs serveurs réels et les E2E
+- Après validation métier avant installation : **258 tests réussis dans les
+  mêmes 18 fichiers**.
+- Après capture de la génération du contexte pour les premières commandes de
+  la façade : **261 tests réussis dans les mêmes 18 fichiers**.
+- Après extension aux sessions, transactions et documents : **263 tests réussis
+  dans les mêmes 18 fichiers**.
+- Le client, le lecteur, le contexte et le coffre GitLab donnent **14 tests
+  réussis** ; `npm run test:gitlab` donne ces 14 réussites et 12 scénarios réels
+  sautés sans configuration du banc.
+- Aucun test sauté dans la sélection WebDAV ; les bancs serveurs réels et les E2E
   ne sont **pas sélectionnés**, et donc pas validés.
-- La suite `test/webdav` complète donne **215 tests réussis et 21 sautés** :
+- La suite `test/webdav` complète donne **219 tests réussis et 21 sautés** :
   les six fichiers dépendant des bancs réels sont sautés faute de serveur.
-- La suite globale a ensuite donné **1 190 tests réussis**, 21 sautés et trois
-  suites non chargées (`archiveCorpus`, `exportDocx`, `exportDocxCorpus`) à cause
-  de `jszip` absent du `node_modules` local. Les erreurs réseau Happy DOM pendant
-  le démontage n'ont pas fait échouer d'autre suite.
+- La suite globale donne **1 236 tests réussis et 33 sautés** dans 102 fichiers
+  réussis et 7 fichiers sautés. Les erreurs réseau Happy DOM pendant le démontage
+  n'ont pas fait échouer les suites.
 - Vitest exécuté localement : 4.1.9. Aucune installation de dépendance effectuée.
 
 ### Vérification de types et environnement
 
-`npm run typecheck` est bloqué par une dépendance absente du `node_modules`
-existant : `pdfjs-dist` dans `ApercuPdf.vue` (TS2307).
-La vérification main lancée séparément par
-`./node_modules/.bin/tsc --noEmit -p tsconfig.node.json` signale aussi l'absence
-de `jszip` et `docx` dans les modules d'archive/export.
-
-Ces dépendances sont déclarées dans `package.json`, mais leur installation locale
-est incomplète ; les fichiers concernés n'ont pas été modifiés dans cette
-itération. Ne pas annoncer le typecheck vert ni lancer une réinstallation
-sans tenir compte de la place disponible. Build et E2E non exécutés ; la suite
-globale n'a pas été relancée après les dernières extractions.
+`npm run typecheck`, la vérification main séparée avec
+`./node_modules/.bin/tsc --noEmit -p tsconfig.node.json` et `npm run build`
+passent dans l'installation locale courante. Aucune dépendance n'a été installée
+pendant cette itération. E2E non exécutés.
 
 ## 8. Prochaine étape bornée
 
-La façade, le lecteur injecté, l'observation séparée des verrous, le manifeste
-v2, le journal d'installation locale et le transfert injecté sont en place.
-La suite bornée est :
+La façade, le miroir commun, les lecteurs injectés, l'observation séparée des
+verrous, le manifeste v2, le journal d'installation locale, le transfert injecté
+et la garde de génération des principales commandes sont en place. Le contexte
+GitLab de consultation renouvelle son instantané à chaque tirage ; le client
+borne aussi 429, annulation et taille des réponses. Le coffre et le renderer
+portent désormais cette consultation sans écriture cachée. La suite bornée est :
 
-1. Ajouter la validation métier des candidats préparés avant leur installation.
-2. Continuer à déplacer les intentions des handlers vers le contexte, en
-   capturant le contexte de départ pour les commandes asynchrones.
+1. Jouer l'ouverture, l'actualisation, les récents et la bascule avec deux profils
+   Electron isolés, puis corriger les gardes de contexte découvertes.
+2. Remplacer la seule saisie manuelle par une découverte paginée et bornée des
+   projets et branches accessibles, sans sonde d'écriture.
 
 En parallèle, étendre le banc GitLab désormais opérationnel aux renouvellements
 et au coût du bail, à une vraie réponse réseau perdue et aux transferts LFS

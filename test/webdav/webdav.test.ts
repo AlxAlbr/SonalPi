@@ -23,7 +23,7 @@ import {
   analyserMultistatus,
 } from '../../src/main/webdav/client'
 import { profilerServeur, sonderFilesLock, sonderPreconditions } from '../../src/main/webdav/sondes'
-import { MiroirWebDAV } from '../../src/main/distant/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import {
   canoniserUrlServeur,
   CoffreComptes,
@@ -35,6 +35,7 @@ import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 import { CorpusStore } from '../../src/main/corpusStore'
 import { ecrireSeedDemo } from '../seedDemo'
 import type { EntretienFichier } from '../../src/shared/format'
+import { corpusDistantValide, entretienDistantValide } from './fixturesCorpusDistant'
 
 function clientSur(serveur: ServeurWebDAVMemoire): ClientWebDAV {
   return new ClientWebDAV(
@@ -357,25 +358,28 @@ describe('MiroirWebDAV — pull incrémental', () => {
 
   it('premier tirage : télécharge le contenu JSON, pas les dossiers de protocole', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{"membership":{}}')
-    serveur.poser('entretiens/e1.json', '{"lastModified":"2026-08-01"}')
+    const corpus = corpusDistantValide([])
+    serveur.poser('corpus.json', corpus)
+    serveur.poser('entretiens/e1.json', entretienDistantValide({ lastModified: '2026-08-01' }))
     serveur.creerDossierRelatif('verrous')
     serveur.creerDossierRelatif('presence')
     serveur.poser('verrous/e2.lock.json', '{"userId":"olivier"}')
     serveur.poser('presence/max.json', '{}')
+    serveur.poser('configuration.json', '{"externe":true}')
     const { miroir, dir } = miroirSur(serveur)
 
     const tirage = await miroir.tirer()
     expect(tirage.telecharges.sort()).toEqual(['corpus.json', 'entretiens/e1.json'])
-    expect(readFileSync(miroir.cheminLocal('corpus.json'), 'utf8')).toBe('{"membership":{}}')
+    expect(readFileSync(miroir.cheminLocal('corpus.json'), 'utf8')).toBe(corpus)
     // Les dossiers de protocole ne sont ni téléchargés ni interprétés par le miroir.
     expect(existsSync(miroir.cheminLocal('verrous/e2.lock.json'))).toBe(false)
     expect(existsSync(miroir.cheminLocal('presence/max.json'))).toBe(false)
+    expect(existsSync(miroir.cheminLocal('configuration.json'))).toBe(false)
   })
 
   it('deuxième tirage sans changement : rien ne re-télécharge (diff par ETags)', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
+    serveur.poser('corpus.json', corpusDistantValide())
 
     let gets = 0
     const clientCompteur = new ClientWebDAV(
@@ -396,28 +400,30 @@ describe('MiroirWebDAV — pull incrémental', () => {
 
   it('changement côté serveur : seul le fichier changé est re-téléchargé', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', 'v1')
-    serveur.poser('entretiens/e1.json', 'a')
-    serveur.poser('entretiens/e2.json', 'b')
+    serveur.poser('corpus.json', corpusDistantValide())
+    serveur.poser('entretiens/e1.json', entretienDistantValide({ texte: 'a' }))
+    serveur.poser('entretiens/e2.json', entretienDistantValide({ texte: 'b' }))
     const { miroir } = miroirSur(serveur)
     await miroir.tirer()
 
-    serveur.poser('entretiens/e1.json', 'a-modifié') // nouveau contenu → nouvel ETag
+    const entretienModifie = entretienDistantValide({ texte: 'a-modifié' })
+    serveur.poser('entretiens/e1.json', entretienModifie) // nouveau contenu → nouvel ETag
     const tirage = await miroir.tirer()
     expect(tirage.telecharges).toEqual(['entretiens/e1.json'])
-    expect(readFileSync(miroir.cheminLocal('entretiens/e1.json'), 'utf8')).toBe('a-modifié')
+    expect(readFileSync(miroir.cheminLocal('entretiens/e1.json'), 'utf8')).toBe(entretienModifie)
   })
 
   it('fichier disparu côté serveur : déplacé en corbeille du miroir, jamais effacé', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
-    serveur.poser('entretiens/e1.json', 'x')
+    serveur.poser('corpus.json', corpusDistantValide())
+    const entretienInitial = entretienDistantValide({ texte: 'x' })
+    serveur.poser('entretiens/e1.json', entretienInitial)
     const { miroir, dir } = miroirSur(serveur)
     await miroir.tirer()
 
     // Le serveur « supprime » e1.json : on reconstruit le banc sans lui.
     const serveurVide = new ServeurWebDAVMemoire()
-    serveurVide.poser('corpus.json', '{}')
+    serveurVide.poser('corpus.json', corpusDistantValide())
     const miroir2 = new MiroirWebDAV(
       new ClientWebDAV({ baseUrl: serveurVide.baseUrl, identifiants: serveurVide.identifiants }, serveurVide.fetch),
       dir,
@@ -425,7 +431,7 @@ describe('MiroirWebDAV — pull incrémental', () => {
     const tirage = await miroir2.tirer()
     expect(tirage.corbeille).toEqual(['entretiens/e1.json'])
     expect(existsSync(miroir.cheminLocal('entretiens/e1.json'))).toBe(false)
-    expect(readFileSync(join(dir, 'corbeille-miroir/entretiens/e1.json'), 'utf8')).toBe('x')
+    expect(readFileSync(join(dir, 'corbeille-miroir/entretiens/e1.json'), 'utf8')).toBe(entretienInitial)
   })
 })
 
@@ -437,8 +443,10 @@ describe('MiroirWebDAV — audios désignés', () => {
 
   /** Amorce un corpus dont l'entretien e1 désigne `audios/e1.mp3`. */
   function amorcerAvecDesignation(serveur: ServeurWebDAVMemoire): void {
-    serveur.poser('corpus.json', '{}')
-    serveur.poser('entretiens/e1.json', JSON.stringify({ meta: { audioDistant: { chemin: 'audios/e1.mp3' } } }))
+    serveur.poser('corpus.json', corpusDistantValide(['e1']))
+    serveur.poser('entretiens/e1.json', entretienDistantValide({
+      meta: { valeursGen: {}, audioRef: null, audioDistant: { chemin: 'audios/e1.mp3' } },
+    }))
     serveur.creerDossierRelatif('audios')
     serveur.poser('audios/e1.mp3', 'MP3BINAIRES')
   }
@@ -499,7 +507,7 @@ describe('MiroirWebDAV — audios désignés', () => {
     // On simule en écrivant directement la copie miroir.
     writeFileSync(
       miroir.cheminLocal('entretiens/e1.json'),
-      JSON.stringify({ meta: {} }),
+      entretienDistantValide(),
       'utf8',
     )
     const tirage = await miroir.tirer()
@@ -511,8 +519,10 @@ describe('MiroirWebDAV — audios désignés', () => {
   it('désigné mais inaccessible (404) : tirage non bloqué, puis rattrapage quand le fichier apparaît', async () => {
     const serveur = new ServeurWebDAVMemoire()
     // Le JSON désigne, mais le fichier audio n'est pas encore là/accessible.
-    serveur.poser('corpus.json', '{}')
-    serveur.poser('entretiens/e1.json', JSON.stringify({ meta: { audioDistant: { chemin: 'audios/e1.mp3' } } }))
+    serveur.poser('corpus.json', corpusDistantValide(['e1']))
+    serveur.poser('entretiens/e1.json', entretienDistantValide({
+      meta: { valeursGen: {}, audioRef: null, audioDistant: { chemin: 'audios/e1.mp3' } },
+    }))
     const { miroir, dir } = miroirSur(serveur)
 
     const premier = await miroir.tirer() // propfind('audios') → 404 : NE JETTE PAS
@@ -532,10 +542,12 @@ describe('MiroirWebDAV — audios désignés', () => {
 
   it('garde anti-traversal : une désignation qui remonte hors du corpus est ignorée', async () => {
     const serveur = new ServeurWebDAVMemoire()
-    serveur.poser('corpus.json', '{}')
+    serveur.poser('corpus.json', corpusDistantValide(['e1']))
     serveur.poser(
       'entretiens/e1.json',
-      JSON.stringify({ meta: { audioDistant: { chemin: '../../secret.mp3' } } }),
+      entretienDistantValide({
+        meta: { valeursGen: {}, audioRef: null, audioDistant: { chemin: '../../secret.mp3' } },
+      }),
     )
     const { miroir } = miroirSur(serveur)
 
@@ -874,11 +886,11 @@ describe('CoffreComptes — secret chiffré, jamais en clair sur disque', () => 
       migrerReferencesProfil(dir, migrations),
     )
     const [config] = coffre.lister()
-    expect(config.id).toBe(nouvelId)
+    expect(config).toMatchObject({ id: nouvelId, fournisseur: 'webdav' })
     expect(coffre.motDePasse(nouvelId)).toBe('secret-app')
     expect(existsSync(ancienMiroir)).toBe(true)
     expect(existsSync(join(dir, 'miroirs', nouvelId))).toBe(false)
-    expect(JSON.parse(readFileSync(fichier, 'utf8')).formatVersion).toBe(2)
+    expect(JSON.parse(readFileSync(fichier, 'utf8')).formatVersion).toBe(3)
     expect(JSON.parse(readFileSync(settings, 'utf8'))).toEqual({
       recents: ['/local'],
       recentsDistant: [nouvelId, 'inconnu'],

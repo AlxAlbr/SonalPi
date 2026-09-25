@@ -683,6 +683,13 @@ Rapport détaillé : [qualification GitLab et état du chantier](../../docs/dev/
 - [x] Séparer l'observation des verrous et migrer le manifeste vers un format discriminé v2 ; sélection : 251 tests réussis.
 - [x] Rendre l'installation locale reprenable par journal et préparation complète ; sélection : 254 tests réussis.
 - [x] Extraire les transferts binaires et injecter l'adaptateur WebDAV sans changer les parcours média ; sélection : 254 tests réussis.
+- [x] Valider la vue métier préparée avant toute installation dans le miroir ; sélection : 258 tests réussis.
+- [x] Capturer la génération du contexte pour les premières intentions asynchrones de la façade ; sélection : 261 tests réussis.
+- [x] Étendre cette capture aux sessions, transactions principales et documents ; sélection : 263 tests réussis.
+- [x] Préparer le client et le lecteur GitLab à SHA fixé ; 10 tests unitaires réussis.
+- [x] Retirer la construction WebDAV du miroir commun et assembler un premier contexte GitLab en consultation seule ; 1 test d'intégration réussi.
+- [x] Migrer le coffre vers des comptes et destinations GitLab discriminés sans changer les identifiants WebDAV ; 3 tests réussis.
+- [x] Exposer une préversion de consultation GitLab par PAT, projet, branche et racine ; typecheck, build et sélection de 84 tests réussis.
 - [x] Redémarrer sans téléchargement le banc GitLab Docker existant et isoler deux projets LFS actif/inactif.
 - [x] Qualifier create, atomicité multi-actions, gardes update/delete/move et interaction LFS Locks/commits REST sur GitLab 18.11.
 - [x] Valider le transfert LFS binaire sans push Git, du batch upload à la lecture vérifiée par le second compte.
@@ -692,11 +699,11 @@ Rapport détaillé : [qualification GitLab et état du chantier](../../docs/dev/
 - [x] Protéger une source métier lue par une action conditionnelle inchangée dans le commit.
 - [ ] Compléter les interactions avec sessions longues, la mesure longue durée/CI et les transferts LFS volumineux, annulés ou refusés par quota.
 
-Le typecheck est bloqué par l'installation locale incomplète (`pdfjs-dist`,
-`jszip`, `docx` absents). Aucune dépendance installée pour contourner ce blocage.
+Le typecheck est de nouveau passant dans l'installation locale courante.
 Ni L0 ni L1 ne sont déclarés terminés : les preuves serveur, l'isolation de la
 coordination et les autres extractions restent à faire. Le prochain travail
-borné est la validation métier des candidats préparés avant installation.
+borné est de tester le parcours de consultation dans Electron à deux profils,
+puis d'ajouter la découverte bornée des projets et branches avant le pilote.
 
 ### L0 — Capitalisation V1 et qualification GitLab ciblée
 
@@ -1064,9 +1071,11 @@ itération a exécuté les tests en mémoire détaillés dans `docs/dev/gitlab.m
 Aucun compte institutionnel utilisé et aucun corpus utilisateur distant modifié.
 Le banc Docker local préexistant a été redémarré sans téléchargement ; les gardes,
 la réponse perdue et le premier transfert LFS réel sont consignés dans
-`docs/dev/gitlab.md`. La première façade de contexte, les contrats de lecture et de transfert ainsi
-que l'installation locale reprenable sont implémentés ; les contrats de
-publication et de coordination restent à extraire.
+`docs/dev/gitlab.md`. La façade de contexte, les contrats de lecture et de
+transfert ainsi que l'installation locale reprenable sont implémentés. Le
+premier lecteur GitLab à SHA fixé est assemblé dans un contexte de consultation
+sans écriture serveur ; les contrats de publication et de coordination restent
+à extraire.
 
 Références :
 
@@ -1083,7 +1092,7 @@ Références :
 - [Protocole LFS batch](https://github.com/git-lfs/git-lfs/blob/main/docs/api/batch.md).
 - [Protocole LFS locking](https://github.com/git-lfs/git-lfs/blob/main/docs/api/locking.md).
 
-**Prochaine étape : valider les candidats préparés avant leur installation,
-puis continuer les intentions de la façade. La qualification GitLab réelle
-reprendra quand un banc autorisé sera disponible, sans réécriture de
-l'application ni serveur Sonal.**
+**Prochaine étape : tester le parcours de consultation GitLab dans Electron à
+deux profils, puis ajouter la découverte bornée des projets et branches. La
+qualification GitLab réelle reprendra sur les scénarios longue durée et les
+transferts volumineux, sans réécriture de l'application ni serveur Sonal.**

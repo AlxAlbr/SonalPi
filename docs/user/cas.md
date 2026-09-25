@@ -8,7 +8,9 @@ Les passages restent dans leurs entretiens. Le cas permet de les retrouver ensem
 de les relire et d’ouvrir leur contexte, sans fabriquer une nouvelle transcription.
 
 > La création en lot, les entretiens entiers, les familles de modalités et les
-> attributs de cas sont disponibles. L’export natif QualCoder reste un chantier séparé.
+> attributs de cas sont disponibles. L’export natif QualCoder est accessible depuis
+> Corpus → Exporter le corpus ; il produit un projet `.qda` avec les sources, les cas
+> sélectionnés et les attributs disponibles. L’audio reste différé.
 
 ## Cas, personne, thème ou recueil ?
 
@@ -294,14 +296,17 @@ l’ajout d’une recette ; une modification concurrente impose de refaire l’a
 
 ## 3. Export vers QualCoder
 
-L’export prévu produira un projet natif QualCoder `.qda`, testé avec l’installation
-cible du projet. Il conservera les transcriptions complètes, les cas et leurs plages,
-ainsi que les attributs disponibles. Les ajouts manuels feront partie des matériaux exportés.
+Depuis **Corpus → Exporter le corpus**, choisis **Projet QualCoder (.qda)**, les
+entretiens puis les cas à inclure. Le dossier produit s’ouvre comme un projet
+QualCoder et contient les transcriptions complètes, les passages des cas et les
+attributs disponibles. Les ajouts manuels font partie des matériaux exportés.
 
-Les règles SonalPi ne deviendront pas des règles dynamiques dans QualCoder : ce dernier
-recevra les matériaux correspondant au moment de l’export.
-Cet export n’est pas encore disponible. L’audio et sa synchronisation sont différés ;
-REFI-QDA viendra éventuellement ensuite.
+Les règles SonalPi ne deviennent pas des règles dynamiques dans QualCoder : le projet
+reçoit une photographie des matériaux au moment de l’export. Les familles sont
+conservées comme organisation de cas ; les noms et mémos sont visibles. Cette première
+version utilise le texte source : la pseudonymisation et le rapport détaillé des pertes
+restent à valider avant de partager un projet. L’audio et sa synchronisation sont
+différés.
 
 ## Pour aller plus loin
 

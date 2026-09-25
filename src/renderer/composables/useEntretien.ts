@@ -29,6 +29,7 @@ import type { EntretienFichier, Locuteur, SegmentThematique, BrouillonAnon, Regl
 import { FORMAT_VERSION } from '../../shared/format'
 import { fusionnerEntretiens, corpsIdentiques } from '../../shared/entretien/fusion'
 import { creerReperePassage } from '../../shared/entretien/reperesPassages'
+import type { ReperePassage } from '../../shared/entretien/reperesPassages'
 import { snapToWord } from '../editor/snap'
 import type { LegacyBlobs } from '../import/importSonal'
 
@@ -736,6 +737,7 @@ export function useEntretien(deps: {
     legacy: LegacyBlobs
     brouillonsAnon: BrouillonAnon[]
     notes: Note[]
+    reperesPassages: ReperePassage[]
   } {
     return {
       corpsTexte: editor.value!.getJSON(),
@@ -746,6 +748,7 @@ export function useEntretien(deps: {
       legacy: legacyCourant.value,
       brouillonsAnon: brouillonsAnon.value,
       notes: notes.value,
+      reperesPassages: entretien.reperesPassages.map((repere) => ({ ...repere })),
     }
   }
 

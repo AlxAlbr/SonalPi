@@ -1,5 +1,10 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue'
-import type { EntreeVerrouPublic, EtatSessionPublic } from '../../../shared/distant'
+import type {
+  DemandeOuvertureGitLab,
+  EntreeVerrouPublic,
+  EtatSessionPublic,
+  OuvertureDistante,
+} from '../../../shared/distant'
 import type {
   CorpusFichier,
   EntreeRecent,
@@ -78,6 +83,7 @@ interface DistantCycleCorpus {
     id: string,
     verrous: EntreeVerrouPublic[],
     inaccessibles?: { chemin: string; raison: string }[],
+    lectureSeuleForcee?: boolean,
   ) => void
   rafraichirOrphelins: () => Promise<void>
   quitter: () => void
@@ -205,7 +211,8 @@ export function useCycleCorpus(deps: {
   async function ouvrirRecent(entree: EntreeRecent): Promise<void> {
     await preparerBascule()
     if (entree.type === 'distant') {
-      await ouvrirCorpusDistant(entree.id)
+      if (entree.fournisseur === 'gitlab') await ouvrirDestinationGitLab(entree.id)
+      else await ouvrirCorpusDistant(entree.id)
       return
     }
     deps.distant.quitter()
@@ -213,18 +220,45 @@ export function useCycleCorpus(deps: {
     deps.vue.value = 'corpus'
   }
 
-  async function ouvrirCorpusDistant(id: string, motDePasse?: string): Promise<void> {
-    await preparerBascule()
-    const resultat = await window.sonal.distant.ouvrir(id, motDePasse)
+  async function appliquerOuvertureDistante(
+    resultat: OuvertureDistante,
+    consultationSeule = false,
+  ): Promise<void> {
     deps.distant.activer(
       resultat.distant.id,
       resultat.verrous,
       resultat.inaccessibles,
+      consultationSeule,
     )
     deps.profil.dossierCourantNom.value = resultat.nom
     await appliquerCorpus(resultat.corpus, resultat.dir)
-    await deps.distant.rafraichirOrphelins()
+    if (!consultationSeule) await deps.distant.rafraichirOrphelins()
     deps.vue.value = 'corpus'
+  }
+
+  async function ouvrirCorpusDistant(id: string, motDePasse?: string): Promise<void> {
+    await preparerBascule()
+    await appliquerOuvertureDistante(
+      await window.sonal.distant.ouvrir(id, motDePasse),
+    )
+  }
+
+  async function ouvrirDestinationGitLab(id: string, jeton?: string): Promise<void> {
+    await preparerBascule()
+    await appliquerOuvertureDistante(
+      await window.sonal.gitlab.ouvrir(id, jeton),
+      true,
+    )
+  }
+
+  async function enregistrerEtOuvrirGitLab(
+    demande: DemandeOuvertureGitLab,
+  ): Promise<void> {
+    await preparerBascule()
+    await appliquerOuvertureDistante(
+      await window.sonal.gitlab.enregistrerEtOuvrir(demande),
+      true,
+    )
   }
 
   async function creerCorpusDistant(params: {
@@ -392,6 +426,8 @@ export function useCycleCorpus(deps: {
     creerNouveauCorpus,
     ouvrirRecent,
     ouvrirCorpusDistant,
+    ouvrirDestinationGitLab,
+    enregistrerEtOuvrirGitLab,
     creerCorpusDistant,
     oublierCompteDistant,
     rafraichirCorpusSansFermer,

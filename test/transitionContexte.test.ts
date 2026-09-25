@@ -9,7 +9,10 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { CorpusStore } from '../src/main/corpusStore'
-import { executerTransitionPreparee } from '../src/main/transitionContexte'
+import {
+  executerTransitionPreparee,
+  RegistreContexteCourant,
+} from '../src/main/transitionContexte'
 import type { CorpusFichier, EntretienFichier } from '../src/shared/format'
 
 function cibleAbsente(prefixe: string): string {
@@ -21,6 +24,67 @@ function ecrireJson(fichier: string, valeur: unknown): void {
   mkdirSync(dirname(fichier), { recursive: true })
   writeFileSync(fichier, JSON.stringify(valeur, null, 2), 'utf8')
 }
+
+describe('registre du contexte courant', () => {
+  test('ignore une réponse terminée après le remplacement du contexte', async () => {
+    const registre = new RegistreContexteCourant<{ id: string }>()
+    registre.remplacer({ id: 'ancien' })
+    const capture = registre.capturer()!
+    let terminer!: (valeur: string) => void
+    const attente = registre.executer(
+      capture,
+      () => new Promise<string>((resolve) => { terminer = resolve }),
+    )
+
+    registre.remplacer({ id: 'nouveau' })
+    terminer('réponse obsolète')
+
+    await expect(attente).resolves.toEqual({ courant: false })
+    expect(registre.actuel?.id).toBe('nouveau')
+  })
+
+  test('une génération remplacée reste obsolète même si le même objet revient', async () => {
+    const contexte = { id: 'distant' }
+    const registre = new RegistreContexteCourant<typeof contexte>()
+    registre.remplacer(contexte)
+    const capture = registre.capturer()!
+
+    registre.remplacer(null)
+    registre.remplacer(contexte)
+
+    await expect(registre.executer(capture, async () => 'ancien résultat'))
+      .resolves.toEqual({ courant: false })
+  })
+
+  test('invalide aussi la génération entre deux corpus locaux', () => {
+    const registre = new RegistreContexteCourant<{ id: string }>()
+    registre.remplacer(null)
+    const generation = registre.generationActuelle
+
+    registre.remplacer(null)
+
+    expect(registre.estGenerationCourante(generation)).toBe(false)
+  })
+
+  test('masque une erreur d’un contexte remplacé mais propage une erreur courante', async () => {
+    const registre = new RegistreContexteCourant<{ id: string }>()
+    registre.remplacer({ id: 'ancien' })
+    const ancienne = registre.capturer()!
+    let refuser!: (raison: Error) => void
+    const attente = registre.executer(
+      ancienne,
+      () => new Promise<never>((_resolve, reject) => { refuser = reject }),
+    )
+    registre.remplacer({ id: 'nouveau' })
+    refuser(new Error('panne ancienne'))
+    await expect(attente).resolves.toEqual({ courant: false })
+
+    const courante = registre.capturer()!
+    await expect(registre.executer(courante, async () => {
+      throw new Error('panne courante')
+    })).rejects.toThrow('panne courante')
+  })
+})
 
 describe('transition de contexte préparée', () => {
   test('un refus de fermeture ne crée pas un nouveau corpus', async () => {

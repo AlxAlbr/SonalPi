@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
 import { profilerServeur } from '../../src/main/webdav/sondes'
-import { MiroirWebDAV } from '../../src/main/distant/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { ProviderFilesLock } from '../../src/main/verrous/providerFilesLock'
 

@@ -1,39 +1,55 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
-import type { CompteDistantPublic, ProfilCapacites } from '../../../shared/distant'
+import type {
+  CompteDistantPublic,
+  DestinationGitLabPublic,
+  ProfilCapacites,
+} from '../../../shared/distant'
 
 /**
- *  Modale « Ouvrir un corpus distant » — deux volets :
- *  1. les comptes déjà configurés : ouvrir (tire le miroir) ou oublier (le
- *     miroir local n'est jamais effacé) ;
- *  2. la connexion : URL DAV du corpus + login + mot de passe d'application
- *     (jamais le principal). La connexion mesure les sondes sur le serveur
- *     réel avant d'enregistrer quoi que ce soit ; un serveur qui ignore les
- *     préconditions est refusé avec le motif.
+ *  Ouvre une destination Nextcloud éditable.
+ *  Une destination GitLab reste en consultation seule.
+ *  Les secrets restent dans le main process.
  */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
-const { ouvrirCorpusDistant, oublierCompteDistant } = utiliserSonal()
+const {
+  ouvrirCorpusDistant,
+  ouvrirDestinationGitLab,
+  enregistrerEtOuvrirGitLab,
+  oublierCompteDistant,
+} = utiliserSonal()
 
 const comptes = ref<CompteDistantPublic[]>([])
+const destinationsGitLab = ref<DestinationGitLabPublic[]>([])
 const stockageSecuriseDisponible = ref<boolean | null>(null)
 const motsDePasseSession = ref<Record<string, string>>({})
+const jetonsGitLabSession = ref<Record<string, string>>({})
 const urlServeur = ref('')
 const utilisateur = ref('')
 const motDePasse = ref('')
 const enCours = ref(false)
 const erreur = ref<string | null>(null)
 const profilConnecte = ref<ProfilCapacites | null>(null)
+const urlGitLab = ref('')
+const utilisateurGitLab = ref('')
+const jetonGitLab = ref('')
+const projetGitLab = ref<number | null>(null)
+const nomProjetGitLab = ref('')
+const brancheGitLab = ref('main')
+const racineGitLab = ref('')
 
 async function rafraichirListe() {
   comptes.value = await window.sonal.distant.lister()
 }
 async function initialiser() {
-  const [liste, stockageSecurise] = await Promise.all([
+  const [liste, gitlab, stockageSecurise] = await Promise.all([
     window.sonal.distant.lister(),
+    window.sonal.gitlab.lister(),
     window.sonal.distant.stockageSecuriseDisponible(),
   ])
   comptes.value = liste
+  destinationsGitLab.value = gitlab
   stockageSecuriseDisponible.value = stockageSecurise
 }
 onMounted(initialiser)
@@ -82,13 +98,53 @@ async function ouvrir(compte: CompteDistantPublic) {
 async function oublier(id: string) {
   comptes.value = await oublierCompteDistant(id)
 }
+
+async function ouvrirGitLab(destination: DestinationGitLabPublic) {
+  enCours.value = true
+  erreur.value = null
+  try {
+    const jeton = destination.jetonDisponible
+      ? undefined
+      : jetonsGitLabSession.value[destination.compteId]
+    await ouvrirDestinationGitLab(destination.id, jeton)
+    emit('fermer')
+  } catch (e) {
+    erreur.value = e instanceof Error ? e.message : 'Ouverture GitLab impossible.'
+    enCours.value = false
+  }
+}
+
+async function connecterGitLab() {
+  if (projetGitLab.value === null) return
+  enCours.value = true
+  erreur.value = null
+  try {
+    await enregistrerEtOuvrirGitLab({
+      urlInstance: urlGitLab.value,
+      utilisateur: utilisateurGitLab.value,
+      jeton: jetonGitLab.value,
+      projetId: projetGitLab.value,
+      nomProjet: nomProjetGitLab.value,
+      branche: brancheGitLab.value,
+      racine: racineGitLab.value,
+    })
+    emit('fermer')
+  } catch (e) {
+    erreur.value = e instanceof Error ? e.message : 'Connexion GitLab impossible.'
+    enCours.value = false
+  }
+}
+
+async function oublierGitLab(id: string) {
+  destinationsGitLab.value = await window.sonal.gitlab.oublierDestination(id)
+}
 </script>
 
 <template>
   <Teleport to="body">
     <div class="voile-modale" @click.self="emit('fermer')">
       <div class="modale-distant">
-        <h3>☁️ Ouvrir un corpus distant (Nextcloud)</h3>
+        <h3>☁️ Ouvrir un corpus distant</h3>
         <p class="intro">
           Le corpus vit sur le serveur ; l'app en garde une <b>copie locale</b> et se
           synchronise à l'ouverture et sur « Actualiser ». <b>Lecture seule</b> pour
@@ -98,7 +154,7 @@ async function oublier(id: string) {
         <div v-if="stockageSecuriseDisponible === false" class="avertissement-coffre">
           <strong>Stockage sécurisé indisponible</strong>
           <span>
-            Sonal ne conservera pas votre mot de passe d'application : vous devrez le
+            Sonal ne conservera pas votre mot de passe ou jeton : vous devrez le
             saisir après chaque redémarrage. Conservez-le dans un gestionnaire comme
             KeePassXC, ou configurez GNOME Keyring/KWallet. Il restera uniquement en
             mémoire jusqu'à la fermeture de Sonal.
@@ -173,6 +229,86 @@ async function oublier(id: string) {
             (fonctionnel, invisible dans l'UI web Nextcloud).
           </span>
         </div>
+
+        <hr />
+        <span class="q-lbl">GitLab — consultation seule</span>
+        <p class="note-secret">
+          Cette préversion consulte les transcriptions sans commit, verrou ni sonde
+          d'écriture. L'édition et les médias partagés GitLab restent indisponibles.
+        </p>
+
+        <div v-if="destinationsGitLab.length > 0" class="bloc-comptes">
+          <ul class="comptes">
+            <li v-for="destination in destinationsGitLab" :key="destination.id">
+              <div class="compte-info">
+                <span class="compte-user">{{ destination.nomProjet || destination.projetId }}</span>
+                <span class="compte-url">
+                  {{ destination.urlInstance }} · {{ destination.branche }}<template v-if="destination.racine">/{{ destination.racine }}</template>
+                </span>
+              </div>
+              <div class="compte-actions">
+                <input
+                  v-if="!destination.jetonDisponible"
+                  v-model="jetonsGitLabSession[destination.compteId]"
+                  class="secret-compte"
+                  type="password"
+                  placeholder="Jeton pour cette session"
+                  :disabled="enCours"
+                />
+                <button
+                  class="mini ouvrir"
+                  :disabled="enCours || (!destination.jetonDisponible && !jetonsGitLabSession[destination.compteId])"
+                  @click="ouvrirGitLab(destination)"
+                >
+                  Ouvrir
+                </button>
+              </div>
+              <button class="mini oubli" title="Oublier cette destination" @click="oublierGitLab(destination.id)">✕</button>
+            </li>
+          </ul>
+        </div>
+
+        <div class="question">
+          <span class="q-lbl">URL de l'instance GitLab</span>
+          <input v-model="urlGitLab" class="champ" type="text" placeholder="https://gitlab.exemple.org" spellcheck="false" />
+        </div>
+        <div class="ligne-2">
+          <div class="question">
+            <span class="q-lbl">Utilisateur</span>
+            <input v-model="utilisateurGitLab" class="champ" type="text" spellcheck="false" />
+          </div>
+          <div class="question">
+            <span class="q-lbl">Jeton d'accès personnel</span>
+            <input v-model="jetonGitLab" class="champ" type="password" />
+          </div>
+        </div>
+        <div class="ligne-2">
+          <div class="question">
+            <span class="q-lbl">ID numérique du projet</span>
+            <input v-model.number="projetGitLab" class="champ" type="number" min="1" />
+          </div>
+          <div class="question">
+            <span class="q-lbl">Nom affiché du projet</span>
+            <input v-model="nomProjetGitLab" class="champ" type="text" />
+          </div>
+        </div>
+        <div class="ligne-2">
+          <div class="question">
+            <span class="q-lbl">Branche</span>
+            <input v-model="brancheGitLab" class="champ" type="text" spellcheck="false" />
+          </div>
+          <div class="question">
+            <span class="q-lbl">Racine du corpus (facultatif)</span>
+            <input v-model="racineGitLab" class="champ" type="text" placeholder="donnees/mon-corpus" spellcheck="false" />
+          </div>
+        </div>
+        <button
+          class="valider"
+          :disabled="enCours || !urlGitLab.trim() || !utilisateurGitLab.trim() || !jetonGitLab || !projetGitLab || !brancheGitLab.trim()"
+          @click="connecterGitLab"
+        >
+          {{ enCours ? 'Ouverture…' : 'Ouvrir depuis GitLab' }}
+        </button>
 
         <p v-if="erreur" class="msg">{{ erreur }}</p>
 

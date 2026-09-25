@@ -27,7 +27,7 @@
 import { basename, dirname, join } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { ClientWebDAV, ErreurDelaiWebDAV, ErreurHttp } from '../webdav/client'
-import type { MiroirWebDAV } from './miroir'
+import type { MiroirWebDAV } from './miroirWebDAV'
 import type { CorpusStore } from '../corpusStore'
 import * as corpusModel from '../../shared/corpus'
 import type { IdentiteSession } from './sessions'

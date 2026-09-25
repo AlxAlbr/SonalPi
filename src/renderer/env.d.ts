@@ -47,6 +47,7 @@ import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { ResultatInstantaneCorpus, ResultatEcritureCorpus } from '../shared/export/corpus'
+import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
@@ -55,6 +56,8 @@ import type {
   CompteDistantPublic,
   DemandeConnexion,
   DemandeCreationDistante,
+  DemandeOuvertureGitLab,
+  DestinationGitLabPublic,
   DivergenceDistante,
   EtatSessionPublic,
   OrphelinDistant,
@@ -223,6 +226,7 @@ declare global {
           ecrireDocx: (demande: DemandeExportDocxCorpus, nom: string) => Promise<ResultatEcritureCorpus>
           ecrirePdf: (nom: string, html: string) => Promise<ResultatEcritureCorpus>
           copierMedia: (urlAudio: string) => Promise<ResultatEcritureCorpus>
+          ecrireQualcoder: (modele: QualcoderExportModel) => Promise<void>
           fermer: () => Promise<void>
         }
       }
@@ -230,6 +234,12 @@ declare global {
       modeles: {
         lire: () => Promise<ModeleEAV[]>
         ajouter: (modele: ModeleEAV) => Promise<ModeleEAV[]>
+      }
+      gitlab: {
+        lister: () => Promise<DestinationGitLabPublic[]>
+        enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab) => Promise<OuvertureDistante>
+        ouvrir: (id: string, jeton?: string) => Promise<OuvertureDistante>
+        oublierDestination: (id: string) => Promise<DestinationGitLabPublic[]>
       }
       distant: {
         lister: () => Promise<CompteDistantPublic[]>

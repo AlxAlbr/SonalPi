@@ -156,6 +156,17 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.distant.pourcentageProgression.value).toBe(25)
   })
 
+  test('un contexte GitLab reste en consultation seule même en ligne', () => {
+    const contexte = creerContexte(vi.fn())
+
+    contexte.distant.activerDistant('gitlab-1', [], [], true)
+
+    expect(contexte.distant.enLigne.value).toBe(true)
+    expect(contexte.distant.lectureSeule.value).toBe(true)
+    expect(contexte.distant.tableLigneEditable('e1')).toBe(false)
+    expect(contexte.distant.metaEditables('e1')).toBe(false)
+  })
+
   test('un échec silencieux conserve le miroir et verrouille les définitions', async () => {
     const tirer = vi.fn(async () => {
       throw new Error('réseau indisponible')

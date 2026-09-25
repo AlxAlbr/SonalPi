@@ -7,6 +7,7 @@ import type {
   RegleAnon,
   Variable,
 } from '../../shared/format'
+import type { ReperePassage } from '../../shared/entretien/reperesPassages'
 import type {
   ContexteExport,
   EntreeExport,
@@ -63,6 +64,7 @@ export type DonneesEntretienOuvert = Omit<
   'codebook' | 'variables' | 'reglesAnon'
 > & {
   notes?: Note[]
+  reperesPassages: ReperePassage[]
   meta: { valeursGen: Record<string, string>; audioRef: string | null }
 }
 
@@ -100,6 +102,8 @@ export async function construireInstantane(
   return {
     id,
     titre: source.titre(id),
+    date: null,
+    reperesPassages: donnees.reperesPassages,
     entretien: {
       ...donnees,
       codebook: source.codebook(),

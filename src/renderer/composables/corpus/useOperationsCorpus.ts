@@ -21,6 +21,7 @@ import {
   type ResultatPreparationRapportCorpus,
   type SourceExportCorpus,
 } from '../../services/exportCorpus'
+import { assemblerModeleQualcoder } from '../../services/exportQualcoder'
 import {
   type EntreeExport,
   type FormatExport,
@@ -28,6 +29,7 @@ import {
 } from '../../../shared/export/types'
 import { mapperEntretiensV1, type CrpV1Entretien, type DemandeMigration, type EntretienV1Import } from '../../../shared/corpus/migrationCrp'
 import type { ImpactSuppressionEntretien } from '../../../shared/corpus/suppressionEntretien'
+import type { ReperePassage } from '../../../shared/entretien/reperesPassages'
 import type {
   Categorie,
   CorpusFichier,
@@ -49,6 +51,7 @@ interface CorpusOperations {
   attributsCas: Ref<NonNullable<CorpusFichier['attributsCas']>>
   codebook: Ref<Categorie[]>
   variables: Ref<Variable[]>
+  lirePersonnes: () => Promise<{ personnes: Array<{ id: string; nom: string }> }>
   categoriesNote: Ref<NoteCategory[]>
   reglesAnon: Ref<RegleAnon[]>
   majCodebook: (codebook: CorpusFichier['codebook']) => void
@@ -66,6 +69,7 @@ interface EntretienOperations {
   sauver: () => Promise<void>
   donneesExport: () => Omit<EntreeExport, 'codebook' | 'variables' | 'reglesAnon'> & {
     notes?: Note[]
+    reperesPassages: ReperePassage[]
     meta: MetaEntretien & { valeursGen: Record<string, string> }
   }
   fusionPossible: (copie: EntretienFichier) => boolean
@@ -356,6 +360,54 @@ export function useOperationsCorpus(deps: {
     )
   }
 
+  async function exporterQualcoderLot(
+    selection: Array<{ id: string; titre: string; date: string | null }>,
+    casSelectionnes: string[],
+  ): Promise<{ etat: 'succes'; dossier: string } | { etat: 'annule' } | { etat: 'echec'; message: string }> {
+    const snapshots = []
+    try {
+      for (const item of selection) {
+        const resultat = item.id === deps.entretien.ouvertId.value
+          ? { etat: 'succes' as const, instantane: await construireInstantane(sourceExport()) }
+          : await window.sonal.export.instantaneCorpus(item.id)
+        if (resultat.etat === 'echec' || !resultat.instantane) {
+          throw new Error(resultat.etat === 'echec' ? resultat.message : `L'entretien « ${item.titre} » n'est plus disponible.`)
+        }
+        snapshots.push({
+          ...resultat.instantane,
+          date: resultat.instantane.date ?? item.date,
+          reperesPassages: resultat.instantane.reperesPassages,
+        })
+      }
+      const inventaire = await deps.corpus.lirePersonnes()
+      const modele = assemblerModeleQualcoder({
+        nom: deps.profil.dossierCourantNom.value.trim() || 'Corpus',
+        selection: snapshots,
+        corpus: {
+          membership: deps.corpus.membership.value,
+          variables: Object.fromEntries(deps.corpus.variables.value.map((variable) => [variable.id, variable])),
+          famillesCas: deps.corpus.famillesCas.value,
+          attributsCas: deps.corpus.attributsCas.value,
+          codebook: Object.fromEntries(deps.corpus.codebook.value.map((category) => [category.id, category])),
+          cas: deps.corpus.cas.value,
+        },
+        personnes: Object.fromEntries(inventaire.personnes.map((personne) => [personne.id, personne])),
+        casSelectionnes,
+        owner: 'SonalPi',
+      })
+      const dossier = await window.sonal.export.corpus.choisirDossier(`${modele.nom}_qualcoder.qda`)
+      if (!dossier) return { etat: 'annule' }
+      try {
+        await window.sonal.export.corpus.ecrireQualcoder(modele)
+        return { etat: 'succes', dossier }
+      } finally {
+        await window.sonal.export.corpus.fermer()
+      }
+    } catch (erreur) {
+      return { etat: 'echec', message: erreur instanceof Error ? erreur.message : String(erreur) }
+    }
+  }
+
   function preparerRapportCorpus(
     demande: DemandeLotCorpus,
   ): Promise<ResultatPreparationRapportCorpus> {
@@ -475,6 +527,7 @@ export function useOperationsCorpus(deps: {
     ouvrirExportCorpus,
     fermerExportCorpus,
     exporterCorpusLot,
+    exporterQualcoderLot,
     preparerRapportCorpus,
     enregistrerRapportCorpus,
     exporter,

@@ -16,6 +16,8 @@ const {
   exportCorpusOuvert,
   fermerExportCorpus,
   exporterCorpusLot,
+  exporterQualcoderLot,
+  listeCas,
   preparerRapportCorpus,
   enregistrerRapportCorpus,
   listeEntretiens,
@@ -27,6 +29,8 @@ const entretiens = computed(() => listeEntretiens())
 
 /** Étape courante : sélection → options → rapport → traitement → résumé. */
 const etape = ref<'selection' | 'options' | 'rapport' | 'traitement' | 'resume'>('selection')
+const modeExport = ref<'lecture' | 'qualcoder'>('lecture')
+const casSelectionnes = ref<Set<string>>(new Set())
 
 /** Entretiens cochés (tous par défaut). */
 const selectionnes = ref<Set<string>>(new Set())
@@ -60,6 +64,12 @@ const progression = ref<{ faits: number; total: number; titre: string } | null>(
 const arretDemande = ref(false)
 const arretPrisEnCompte = ref(false)
 const resultat = ref<ResultatLotCorpus | null>(null)
+const resultatQualcoder = ref<
+  | { etat: 'succes'; dossier: string }
+  | { etat: 'annule' }
+  | { etat: 'echec'; message: string }
+  | null
+>(null)
 
 const message = ref<string | null>(null)
 const messageEstErreur = ref(true)
@@ -70,6 +80,8 @@ watch(exportCorpusOuvert, (ouvert) => {
   if (!ouvert) return
   etape.value = 'selection'
   selectionnes.value = new Set(entretiens.value.map((e) => e.id))
+  modeExport.value = 'lecture'
+  casSelectionnes.value = new Set(listeCas.value.map((cas) => cas.id))
   formats.value = new Set(['txt'])
   copierMedias.value = true
   rapportDemande.value = false
@@ -78,6 +90,7 @@ watch(exportCorpusOuvert, (ouvert) => {
   arretDemande.value = false
   arretPrisEnCompte.value = false
   resultat.value = null
+  resultatQualcoder.value = null
   message.value = null
   messageEstErreur.value = true
   occupe.value = false
@@ -88,6 +101,12 @@ watch(exportCorpusOuvert, (ouvert) => {
 watch(entretiens, (liste) => {
   for (const id of selectionnes.value) {
     if (!liste.some((e) => e.id === id)) selectionnes.value.delete(id)
+  }
+})
+
+watch(listeCas, (liste) => {
+  for (const id of casSelectionnes.value) {
+    if (!liste.some((cas) => cas.id === id)) casSelectionnes.value.delete(id)
   }
 })
 
@@ -104,6 +123,17 @@ const libellesFormats: Record<FormatExport, string> = {
 /** L'option « copier les médias » n'a de sens que si l'HTML sort. */
 const copierMediasVisible = computed(() => formats.value.has('html'))
 
+function changerCas(event: Event, id: string): void {
+  const target = event.target as HTMLInputElement
+  if (target.checked) casSelectionnes.value.add(id)
+  else casSelectionnes.value.delete(id)
+}
+
+function changerTousLesCas(event: Event): void {
+  const target = event.target as HTMLInputElement
+  casSelectionnes.value = target.checked ? new Set(listeCas.value.map((cas) => cas.id)) : new Set()
+}
+
 function basculerFormat(f: FormatExport): void {
   if (formats.value.has(f)) {
     if (formats.value.size === 1) return
@@ -116,7 +146,8 @@ function basculerFormat(f: FormatExport): void {
 }
 
 function etapeSuivante(): void {
-  if (selectionnes.value.size === 0 || formats.value.size === 0) return
+  if (selectionnes.value.size === 0) return
+  if (modeExport.value === 'lecture' && formats.value.size === 0) return
   message.value = null
   etape.value = 'options'
 }
@@ -142,8 +173,34 @@ function demandeCourante(): DemandeLotCorpus | null {
   }
 }
 
+async function lancerQualcoder(): Promise<void> {
+  if (occupe.value || selectionnes.value.size === 0) return
+  occupe.value = true
+  message.value = null
+  messageEstErreur.value = true
+  etape.value = 'traitement'
+  const selection = entretiens.value
+    .filter((e) => selectionnes.value.has(e.id))
+    .map((e) => ({ id: e.id, titre: e.titre, date: e.date }))
+  try {
+    const r = await exporterQualcoderLot(selection, [...casSelectionnes.value])
+    resultatQualcoder.value = r
+    etape.value = 'resume'
+  } catch (erreur) {
+    message.value = `L'export QualCoder a échoué : ${erreur instanceof Error ? erreur.message : String(erreur)}`
+    etape.value = 'options'
+  } finally {
+    occupe.value = false
+    progression.value = null
+  }
+}
+
 /** Le premier clic prépare l'aperçu demandé, sans lancer l'export final. */
 async function lancerExport(): Promise<void> {
+  if (modeExport.value === 'qualcoder') {
+    await lancerQualcoder()
+    return
+  }
   const demande = demandeCourante()
   if (!demande || occupe.value) return
   if (options.value.anon && rapportDemande.value && !apercuRapport.value) {
@@ -268,6 +325,17 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
                 <span v-if="e.date" class="date">{{ e.date }}</span>
               </label>
             </div>
+            <fieldset class="mode-export">
+              <legend>Type d’export</legend>
+              <label class="option">
+                <input v-model="modeExport" type="radio" value="lecture" />
+                Formats de lecture (TXT, HTML, DOCX, PDF)
+              </label>
+              <label class="option">
+                <input v-model="modeExport" type="radio" value="qualcoder" />
+                Projet QualCoder (.qda)
+              </label>
+            </fieldset>
             <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
             <div class="actions">
               <button class="annuler" :disabled="occupe" @click="fermer">Annuler</button>
@@ -282,7 +350,34 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
 
         <!-- ÉTAPE 2 — formats, options, pseudonymisation, rapport. -->
         <div v-else-if="etape === 'options'" class="corps">
-          <p class="etape">2 — Formats et éléments à intégrer (pour {{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }})</p>
+          <p class="etape">2 — {{ modeExport === 'qualcoder' ? 'Cas à intégrer au projet QualCoder' : 'Formats et éléments à intégrer' }} (pour {{ selectionnes.size }} entretien{{ selectionnes.size > 1 ? 's' : '' }})</p>
+          <template v-if="modeExport === 'qualcoder'">
+            <p class="avertissement-anon">
+              Le projet QualCoder contiendra les sources sélectionnées, leurs passages,
+              les cas choisis et les attributs disponibles. Les règles dynamiques ne
+              deviendront pas des règles QualCoder.
+            </p>
+            <p class="limite-rapport">
+              Cette première version exporte le texte source. La pseudonymisation et
+              le rapport détaillé des pertes restent à valider avant de partager un projet.
+            </p>
+            <div class="selection-cas">
+              <label class="option tous-option">
+                <input
+                  type="checkbox"
+                  :checked="listeCas.length > 0 && casSelectionnes.size === listeCas.length"
+                  @change="changerTousLesCas"
+                />
+                Tous les cas ({{ listeCas.length }})
+              </label>
+              <label v-for="cas in listeCas" :key="cas.id" class="option cas-export">
+                <input type="checkbox" :checked="casSelectionnes.has(cas.id)" @change="changerCas($event, cas.id)" />
+                <span>{{ cas.nom }} <small>({{ cas.regles.length ? 'avec règle' : 'manuel' }})</small></span>
+              </label>
+              <p v-if="listeCas.length === 0" class="vide">Aucun cas dans ce corpus.</p>
+            </div>
+          </template>
+          <template v-else>
           <div class="formats">
             <label v-for="f in FORMATS_LOT" :key="f" class="option">
               <input
@@ -314,6 +409,7 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
               éléments restent en clair ; cette opération ne garantit pas l'anonymat.
             </p>
           </div>
+          </template>
           <p v-if="message" class="message-erreur" role="alert">{{ message }}</p>
           <div class="actions">
             <button class="retour" :disabled="occupe" @click="revenirSelection">← Retour</button>
@@ -381,6 +477,24 @@ onUnmounted(() => window.removeEventListener('keydown', surTouche))
           <div class="actions">
             <button v-if="!arretDemande" class="annuler" @click="demanderArret">Annuler après l'entretien courant</button>
             <button v-else class="annuler" disabled>⏳ Arrêt en cours…</button>
+          </div>
+        </div>
+
+        <!-- ÉTAPE 5 — résumé du projet QualCoder. -->
+        <div v-else-if="etape === 'resume' && resultatQualcoder" class="corps">
+          <p class="etape">
+            <template v-if="resultatQualcoder.etat === 'succes'">Projet QualCoder créé ✅</template>
+            <template v-else-if="resultatQualcoder.etat === 'annule'">Export QualCoder annulé</template>
+            <template v-else>Export QualCoder en échec ❌</template>
+          </p>
+          <p v-if="resultatQualcoder.etat === 'succes'" class="dossier">
+            Dossier : <code>{{ resultatQualcoder.dossier }}</code>
+          </p>
+          <p v-if="resultatQualcoder.etat === 'echec'" class="message-erreur" role="alert">
+            {{ resultatQualcoder.message }}
+          </p>
+          <div class="actions">
+            <button class="retour" @click="fermerExportCorpus">Fermer</button>
           </div>
         </div>
 
@@ -454,6 +568,11 @@ h2 { margin: 0; font-size: 1.1rem; }
 .ligne-entretien .titre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ligne-entretien .date { color: #999; font-size: .8rem; }
 .tous-option { border-bottom: 1px solid #ddd; padding-bottom: .5rem; margin-bottom: .5rem; }
+.mode-export { border: 1px solid #ddd; border-radius: 5px; padding: .5rem .7rem; margin: .8rem 0 0; }
+.mode-export legend { padding: 0 .3rem; font-weight: 600; }
+.selection-cas { max-height: 42vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: .5rem .7rem; }
+.cas-export { border-bottom: 1px solid #eee; }
+.cas-export:last-of-type { border-bottom: 0; }
 .option { display: flex; align-items: baseline; gap: .6rem; padding: .3rem 0; cursor: pointer; }
 .options { display: flex; flex-direction: column; gap: .1rem; }
 .rapport-option { margin-top: .25rem; border-top: 1px solid #ddd; padding-top: .65rem; }

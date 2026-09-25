@@ -16,11 +16,35 @@ export interface ProfilCapacites {
 
 /** Compte distant tel que vu du renderer : JAMAIS de champ secret ici. */
 export interface CompteDistantPublic {
+  fournisseur: 'webdav'
   id: string
   urlServeur: string
   utilisateur: string
   /** Le main peut ouvrir ce compte sans redemander son mot de passe. */
   motDePasseDisponible: boolean
+}
+
+export interface DestinationGitLabPublic {
+  fournisseur: 'gitlab'
+  id: string
+  compteId: string
+  urlInstance: string
+  utilisateur: string
+  projetId: number
+  nomProjet: string
+  branche: string
+  racine: string
+  jetonDisponible: boolean
+}
+
+export interface DemandeOuvertureGitLab {
+  urlInstance: string
+  utilisateur: string
+  jeton: string
+  projetId: number
+  nomProjet: string
+  branche: string
+  racine?: string
 }
 
 export interface DemandeConnexion {
@@ -57,7 +81,7 @@ export interface DemandeCreationDistante extends DemandeConnexion {
  *  c'est voulu. Le pull d'ouverture livre aussi l'état des verrous (badges fiables,
  *  sans second aller-retour). */
 export interface OuvertureDistante extends OuvertureCorpus {
-  distant: CompteDistantPublic
+  distant: CompteDistantPublic | DestinationGitLabPublic
   verrous: EntreeVerrouPublic[]
   /** Audios désignés non rapatriés par le pull d'ouverture (403/404/réseau)
    *  — alimente l'étiquette du lecteur dès l'arrivée.

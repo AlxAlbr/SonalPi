@@ -7,6 +7,7 @@
  */
 import type { Ancre } from '../entretien/audio'
 import type { Annotation } from '../entretien/annotation'
+import type { ReperePassage } from '../entretien/reperesPassages'
 import type { Categorie, Locuteur, Note, NoteCategory, Variable, RegleAnon, BrouillonAnon } from '../format'
 
 /** Blobs SonalPi1 non modélisés, re-émis tels quels (round-trip sans perte). */
@@ -188,6 +189,8 @@ export interface InstantaneEntretienExport {
   /** Date de l'entretien, telle que portée par le corpus (peut être absente) ;
    *  utilisée par l'index d'un export de lot. */
   date?: string | null
+  /** Repères nécessaires aux rattachements manuels des cas. */
+  reperesPassages: ReperePassage[]
   entretien: EntreeExport
   /** Corps des notes PUBLIQUES déjà aplati en texte (voit la conversion
    *  HTML→texte à sa place ; les générateurs ne connaissent plus le DOM). */

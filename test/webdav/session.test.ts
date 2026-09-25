@@ -9,18 +9,19 @@ import { mkdtempSync, readFileSync, existsSync, mkdirSync, unlinkSync, writeFile
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/distant/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import { SessionsDEntretien, type IdentiteSession } from '../../src/main/distant/sessions'
 import { ProviderPutConditionnel } from '../../src/main/verrous/providerPutConditionnel'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
 import type { PayloadEntretien } from '../../src/shared/format'
+import { corpusDistantValide, entretienDistantValide } from './fixturesCorpusDistant'
 
 const ID = 'ent-abc'
 
 function banc(options: { maintenant?: () => number } = {}) {
   const serveur = new ServeurWebDAVMemoire()
-  serveur.poser('corpus.json', '{"membership":{}}')
-  serveur.poser(`${'entretiens'}/${ID}.json`, JSON.stringify({ lastModified: 'v1', texte: '' }))
+  serveur.poser('corpus.json', corpusDistantValide([ID]))
+  serveur.poser(`${'entretiens'}/${ID}.json`, entretienDistantValide({ lastModified: 'v1', texte: '' }))
   const dirMiroir = mkdtempSync(join(tmpdir(), 'session-'))
   const panne = {
     lecture: false,

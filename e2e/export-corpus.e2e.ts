@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import type { CorpusFichier } from '../src/shared/format'
 import { lancer, entrerCorpus } from './util'
 import { ecrireSeedDemo } from '../test/seedDemo'
@@ -93,6 +94,36 @@ test('export complet : fichier par entretien + index + DOCX combiné', async () 
   const docx = readFileSync(join(destination, 'corpus.docx'))
   expect(docx.subarray(0, 2).toString('ascii')).toBe('PK') // archive zip valide
 
+  await app.close()
+})
+
+test('export QualCoder : projet .qda créé depuis Corpus', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sonal-qda-'))
+  const destination = join(dir, 'projet.qda')
+  const app = await lancer(dir)
+  const page = await app.firstWindow()
+  await entrerCorpus(page)
+
+  await app.evaluate(({ dialog }, args) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: args.destination })
+  }, { destination })
+
+  await page.locator('.onglets-corpus').getByRole('button', { name: 'Exporter ce corpus' }).click()
+  const modale = page.locator('.modale-export-corpus')
+  await modale.getByRole('radio', { name: 'Projet QualCoder (.qda)' }).check()
+  await modale.getByRole('button', { name: /Suivant/ }).click()
+  await expect(modale.locator('.etape')).toContainText('Cas à intégrer')
+  await expect(modale.getByText('Aucun cas dans ce corpus.')).toBeVisible()
+  await modale.locator('.actions .exporter').click()
+
+  await expect(modale.locator('.etape', { hasText: 'Projet QualCoder créé' })).toBeVisible({ timeout: 20_000 })
+  const base = new DatabaseSync(join(destination, 'data.qda'))
+  try {
+    expect(base.prepare('PRAGMA integrity_check').get()).toEqual({ integrity_check: 'ok' })
+    expect(base.prepare('SELECT name FROM source').get()).toMatchObject({ name: 'Entretien Karine.txt' })
+  } finally {
+    base.close()
+  }
   await app.close()
 })
 

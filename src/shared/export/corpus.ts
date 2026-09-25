@@ -32,6 +32,7 @@ export function assemblerInstantaneCorpus(
     id,
     titre: ref?.titre ?? 'entretien',
     date: ref?.date ?? null,
+    reperesPassages: fichier.reperesPassages ?? [],
     entretien: {
       corpsTexte: fichier.corpsTexte,
       annotations: fichier.annotations,

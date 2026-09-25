@@ -2,7 +2,8 @@
 
 > Cette page décrit le socle présent dans le code. Les créations en lot, les règles
 > d’entretiens entiers, les familles et les attributs saisis ou dérivés sont disponibles.
-> L’export QualCoder reste un chantier séparé.
+> L’export QualCoder est accessible depuis Corpus → Exporter le corpus et produit un
+> projet `.qda` textuel ; l’audio reste différé.
 > Guide fonctionnel : [Utiliser les cas](../user/cas.md).
 
 ## 1. Rôle des objets
@@ -47,11 +48,12 @@ Un rattachement de cas ne référence jamais un identifiant de codage ou de comm
 | Familles | Présentes, création et complément explicites, dissolution sans cascade |
 | Attributs de cas | Présents : définitions, saisies, dérivations propres/familiales et diagnostics frais |
 | Vues séparées automatique/manuelle/ensemble | Présentes, avec métriques et diagnostics par vue |
-| Projet natif QualCoder `.qda` | Prévu ; audio et REFI-QDA différés |
+| Projet natif QualCoder `.qda` | Présent via Corpus → Exporter le corpus ; audio et REFI-QDA différés |
 
 Le socle de création vide et de vues séparées est couvert par des tests unitaires,
-de persistance et d’interface Electron. Cela ne certifie ni les extensions encore prévues
-ni l’export QualCoder.
+de persistance et d’interface Electron. L’export QualCoder est couvert par un modèle
+de test et une recette Electron ; cela ne certifie pas encore les pertes hors périmètre,
+l’audio, les positions Unicode sur toutes les versions Qt ou le rapport de confidentialité.
 
 ## 3. Modèle persistant actuel
 

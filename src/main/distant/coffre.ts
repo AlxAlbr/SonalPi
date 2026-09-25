@@ -1,7 +1,7 @@
 /**
- *  Coffre du compte distant — URL serveur + login + MOT DE PASSE D'APPLICATION
- *  (jamais le principal : révocable individuellement, seul accepté en Basic
- *  auth quand la 2FA est active).
+ *  Coffre des accès distants.
+ *  Il conserve un mot de passe d'application Nextcloud ou un jeton GitLab.
+ *  Les destinations GitLab restent séparées du compte et du secret.
  *
  *  Le secret est chiffré via `safeStorage` d'Electron (clé du trousseau OS).
  *  Sans stockage sécurisé, il reste seulement en mémoire pour la session.
@@ -23,25 +23,55 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
-/** Un corpus distant configuré. Son URL est saisie ou choisie par navigation
- *  WebDAV ; elle est propre à chaque compte Nextcloud. */
+/** Destination WebDAV historique, qui porte aussi l'identité du compte. */
 export interface ConfigCorpusDistant {
-  /** Id stable du compte distant, dérivé de l'URL complète et de l'utilisateur. */
+  fournisseur: 'webdav'
+  /** Id stable dérivé de l'URL complète et de l'utilisateur. */
   id: string
-  urlServeur: string // racine DAV du corpus, sans barre finale
+  urlServeur: string
   utilisateur: string
   /** Absent lorsque le poste ne fournit pas de stockage sécurisé. */
   motDePasseChiffre?: string
 }
 
+/** Compte GitLab réutilisable par plusieurs projets et racines. */
+export interface ConfigCompteGitLab {
+  fournisseur: 'gitlab'
+  id: string
+  urlInstance: string
+  utilisateur: string
+  jetonChiffre?: string
+}
+
+/** Destination GitLab sans secret, liée à un compte enregistré. */
+export interface ConfigDestinationGitLab {
+  fournisseur: 'gitlab'
+  id: string
+  compteId: string
+  projetId: number
+  nomProjet: string
+  branche: string
+  racine: string
+}
+
+type ConfigCompteStocke = ConfigCorpusDistant | ConfigCompteGitLab
+
+type ConfigCorpusDistantV2 = Omit<ConfigCorpusDistant, 'fournisseur'>
+
 interface FichierComptesV1 {
   formatVersion: 1
-  comptes: Record<string, ConfigCorpusDistant>
+  comptes: Record<string, ConfigCorpusDistantV2>
+}
+
+interface FichierComptesV2 {
+  formatVersion: 2
+  comptes: Record<string, ConfigCorpusDistantV2>
 }
 
 interface FichierComptes {
-  formatVersion: 2
-  comptes: Record<string, ConfigCorpusDistant> // clé = id de corpus
+  formatVersion: 3
+  comptes: Record<string, ConfigCompteStocke>
+  destinationsGitLab: Record<string, ConfigDestinationGitLab>
 }
 
 export interface MigrationIdCorpus {
@@ -80,7 +110,9 @@ export class CoffreComptes {
   ) {}
 
   private lire(): FichierComptes {
-    if (!existsSync(this.fichier)) return { formatVersion: 2, comptes: {} }
+    if (!existsSync(this.fichier)) {
+      return { formatVersion: 3, comptes: {}, destinationsGitLab: {} }
+    }
     let lu: unknown
     try {
       lu = JSON.parse(readFileSync(this.fichier, 'utf8'))
@@ -90,18 +122,29 @@ export class CoffreComptes {
     if (!lu || typeof lu !== 'object' || Array.isArray(lu)) {
       throw new Error('Le coffre des comptes distants est invalide.')
     }
-    const f = lu as FichierComptes | FichierComptesV1
+    const f = lu as FichierComptes | FichierComptesV2 | FichierComptesV1
     if (!f.comptes || typeof f.comptes !== 'object' || Array.isArray(f.comptes)) {
       throw new Error('Le coffre des comptes distants est invalide.')
     }
     const version = Number(f.formatVersion)
-    if (version === 2) return f as FichierComptes
+    if (version === 3) {
+      const courant = f as FichierComptes
+      if (
+        !courant.destinationsGitLab ||
+        typeof courant.destinationsGitLab !== 'object' ||
+        Array.isArray(courant.destinationsGitLab)
+      ) {
+        throw new Error('Le coffre des comptes distants est invalide.')
+      }
+      return courant
+    }
+    if (version === 2) return this.migrerV2(f as FichierComptesV2)
     if (version === 1) return this.migrerV1(f as FichierComptesV1)
     throw new Error(`Version de coffre distant non supportée : ${String(version)}`)
   }
 
   private migrerV1(f: FichierComptesV1): FichierComptes {
-    const comptes: Record<string, ConfigCorpusDistant> = {}
+    const comptes: Record<string, ConfigCompteStocke> = {}
     const migrations: MigrationIdCorpus[] = []
     for (const [ancienId, ancienCompte] of Object.entries(f.comptes)) {
       const urlServeur = canoniserUrlServeur(ancienCompte.urlServeur)
@@ -110,28 +153,66 @@ export class CoffreComptes {
       if (comptes[nouvelId]) {
         throw new Error(`Plusieurs comptes distants correspondent au même identifiant : ${nouvelId}`)
       }
-      comptes[nouvelId] = { ...ancienCompte, id: nouvelId, urlServeur, utilisateur }
+      comptes[nouvelId] = {
+        ...ancienCompte,
+        fournisseur: 'webdav',
+        id: nouvelId,
+        urlServeur,
+        utilisateur,
+      }
       migrations.push({ ancienId, nouvelId })
     }
     this.migrerReferences(migrations)
-    const migre: FichierComptes = { formatVersion: 2, comptes }
+    const migre: FichierComptes = {
+      formatVersion: 3,
+      comptes,
+      destinationsGitLab: {},
+    }
+    ecrireJsonAtomique(this.fichier, migre)
+    return migre
+  }
+
+  private migrerV2(f: FichierComptesV2): FichierComptes {
+    const comptes = Object.fromEntries(
+      Object.entries(f.comptes).map(([id, compte]) => [id, {
+        ...compte,
+        fournisseur: 'webdav' as const,
+      }]),
+    )
+    const migre: FichierComptes = {
+      formatVersion: 3,
+      comptes,
+      destinationsGitLab: {},
+    }
     ecrireJsonAtomique(this.fichier, migre)
     return migre
   }
 
   lister(): ConfigCorpusDistant[] {
     return Object.values(this.lire().comptes)
+      .filter((compte): compte is ConfigCorpusDistant => compte.fournisseur === 'webdav')
+  }
+
+  listerComptesGitLab(): ConfigCompteGitLab[] {
+    return Object.values(this.lire().comptes)
+      .filter((compte): compte is ConfigCompteGitLab => compte.fournisseur === 'gitlab')
+  }
+
+  listerDestinationsGitLab(): ConfigDestinationGitLab[] {
+    return Object.values(this.lire().destinationsGitLab)
   }
 
   stockageSecuriseDisponible(): boolean {
     return this.chiffreur.disponible()
   }
 
-  /** Mot de passe déchiffré — process main uniquement, jamais renvoyé au
-   *  renderer. Il est gardé en mémoire jusqu'à la fermeture de l'application. */
-  motDePasse(id: string): string | null {
+  /** Secret déchiffré — process main uniquement, jamais renvoyé au renderer. */
+  private secret(id: string): string | null {
     if (this.secretsSession.has(id)) return this.secretsSession.get(id) ?? null
-    const chiffre = this.lire().comptes[id]?.motDePasseChiffre
+    const compte = this.lire().comptes[id]
+    const chiffre = compte?.fournisseur === 'gitlab'
+      ? compte.jetonChiffre
+      : compte?.motDePasseChiffre
     if (!chiffre) return null
     try {
       const clair = this.chiffreur.dechiffre(chiffre)
@@ -142,17 +223,47 @@ export class CoffreComptes {
     }
   }
 
+  motDePasse(id: string): string | null {
+    const compte = this.lire().comptes[id]
+    return compte?.fournisseur === 'webdav' ? this.secret(id) : null
+  }
+
+  jetonGitLab(id: string): string | null {
+    const compte = this.lire().comptes[id]
+    return compte?.fournisseur === 'gitlab' ? this.secret(id) : null
+  }
+
   motDePasseDisponible(id: string): boolean {
     return this.motDePasse(id) !== null
   }
 
+  jetonGitLabDisponible(id: string): boolean {
+    return this.jetonGitLab(id) !== null
+  }
+
   memoriserMotDePasse(id: string, motDePasse: string): void {
+    this.memoriserSecret(id, motDePasse, 'webdav')
+  }
+
+  memoriserJetonGitLab(id: string, jeton: string): void {
+    this.memoriserSecret(id, jeton, 'gitlab')
+  }
+
+  private memoriserSecret(
+    id: string,
+    secret: string,
+    fournisseur: ConfigCompteStocke['fournisseur'],
+  ): void {
     const comptes = this.lire()
     const config = comptes.comptes[id]
-    if (!config) throw new Error('Compte distant inconnu')
-    this.secretsSession.set(id, motDePasse)
+    if (!config || config.fournisseur !== fournisseur) {
+      throw new Error('Compte distant inconnu')
+    }
+    this.secretsSession.set(id, secret)
     if (this.chiffreur.disponible()) {
-      config.motDePasseChiffre = this.chiffreur.chiffre(motDePasse)
+      const chiffre = this.chiffreur.chiffre(secret)
+      if (config.fournisseur === 'gitlab') config.jetonChiffre = chiffre
+      else config.motDePasseChiffre = chiffre
       ecrireJsonAtomique(this.fichier, comptes)
     }
   }
@@ -167,6 +278,7 @@ export class CoffreComptes {
     const id = idDeCorpus(urlServeur, utilisateur)
     const comptes = this.lire()
     const config: ConfigCorpusDistant = {
+      fournisseur: 'webdav',
       id,
       urlServeur,
       utilisateur,
@@ -180,6 +292,70 @@ export class CoffreComptes {
     return config
   }
 
+  enregistrerCompteGitLab(params: {
+    urlInstance: string
+    utilisateur: string
+    jeton: string
+  }): ConfigCompteGitLab {
+    const urlInstance = canoniserUrlInstanceGitLab(params.urlInstance)
+    const utilisateur = params.utilisateur.trim()
+    if (!utilisateur) throw new Error('Identité GitLab manquante.')
+    if (!params.jeton) throw new Error('Jeton GitLab manquant.')
+    const id = idDeCompteGitLab(urlInstance, utilisateur)
+    const fichier = this.lire()
+    const config: ConfigCompteGitLab = {
+      fournisseur: 'gitlab',
+      id,
+      urlInstance,
+      utilisateur,
+      ...(this.chiffreur.disponible()
+        ? { jetonChiffre: this.chiffreur.chiffre(params.jeton) }
+        : {}),
+    }
+    this.secretsSession.set(id, params.jeton)
+    fichier.comptes[id] = config
+    ecrireJsonAtomique(this.fichier, fichier)
+    return config
+  }
+
+  enregistrerDestinationGitLab(params: {
+    compteId: string
+    projetId: number
+    nomProjet: string
+    branche: string
+    racine?: string
+  }): ConfigDestinationGitLab {
+    const fichier = this.lire()
+    const compte = fichier.comptes[params.compteId]
+    if (!compte || compte.fournisseur !== 'gitlab') {
+      throw new Error('Compte GitLab inconnu.')
+    }
+    if (!Number.isSafeInteger(params.projetId) || params.projetId <= 0) {
+      throw new Error('Identifiant de projet GitLab invalide.')
+    }
+    const branche = params.branche.trim()
+    if (!branche) throw new Error('Branche GitLab manquante.')
+    const racine = normaliserRacineGitLab(params.racine ?? '')
+    const id = idDeDestinationGitLab({
+      compteId: compte.id,
+      projetId: params.projetId,
+      branche,
+      racine,
+    })
+    const config: ConfigDestinationGitLab = {
+      fournisseur: 'gitlab',
+      id,
+      compteId: compte.id,
+      projetId: params.projetId,
+      nomProjet: params.nomProjet.trim(),
+      branche,
+      racine,
+    }
+    fichier.destinationsGitLab[id] = config
+    ecrireJsonAtomique(this.fichier, fichier)
+    return config
+  }
+
   /** Élimine les secrets lisibles qui ne reposent pas sur un trousseau OS.
    *  Ils restent disponibles en mémoire ou sont rechiffrés si possible. */
   assainirSecretsPersistes(): void {
@@ -187,7 +363,9 @@ export class CoffreComptes {
     const stockageSecurise = this.chiffreur.disponible()
     let modifie = false
     for (const config of Object.values(comptes.comptes)) {
-      const chiffre = config.motDePasseChiffre
+      const chiffre = config.fournisseur === 'gitlab'
+        ? config.jetonChiffre
+        : config.motDePasseChiffre
       if (!chiffre) continue
       const obfusque = chiffre.startsWith('b64:')
       if (!obfusque && stockageSecurise) continue
@@ -195,14 +373,19 @@ export class CoffreComptes {
         const clair = this.chiffreur.dechiffre(chiffre)
         this.secretsSession.set(config.id, clair)
         if (stockageSecurise) {
-          config.motDePasseChiffre = this.chiffreur.chiffre(clair)
+          const rechiffre = this.chiffreur.chiffre(clair)
+          if (config.fournisseur === 'gitlab') config.jetonChiffre = rechiffre
+          else config.motDePasseChiffre = rechiffre
+        } else if (config.fournisseur === 'gitlab') {
+          delete config.jetonChiffre
         } else {
           delete config.motDePasseChiffre
         }
         modifie = true
       } catch {
         if (obfusque) {
-          delete config.motDePasseChiffre
+          if (config.fournisseur === 'gitlab') delete config.jetonChiffre
+          else delete config.motDePasseChiffre
           modifie = true
         }
       }
@@ -214,6 +397,12 @@ export class CoffreComptes {
     const comptes = this.lire()
     delete comptes.comptes[id]
     this.secretsSession.delete(id)
+    ecrireJsonAtomique(this.fichier, comptes)
+  }
+
+  oublierDestinationGitLab(id: string): void {
+    const comptes = this.lire()
+    delete comptes.destinationsGitLab[id]
     ecrireJsonAtomique(this.fichier, comptes)
   }
 }
@@ -244,6 +433,58 @@ export function canoniserUrlServeur(urlServeur: string): string {
 /** Id stable d'un compte distant, dérivé de toute son URL et de l'utilisateur. */
 export function idDeCorpus(urlServeur: string, utilisateur: string): string {
   const identite = `${canoniserUrlServeur(urlServeur)}\0${utilisateur.trim()}`
+  return idStable(identite)
+}
+
+export function canoniserUrlInstanceGitLab(urlInstance: string): string {
+  const url = new URL(urlInstance.trim())
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('Adresse GitLab invalide.')
+  }
+  const hoteLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && hoteLocal)) {
+    throw new Error('Une adresse GitLab HTTPS est requise.')
+  }
+  const chemin = normaliserEncodageUrl(url.pathname).replace(/\/+$/, '')
+  return `${url.origin}${chemin}`
+}
+
+export function idDeCompteGitLab(urlInstance: string, utilisateur: string): string {
+  const identite = utilisateur.trim()
+  if (!identite) throw new Error('Identité GitLab manquante.')
+  return idStable(
+    `gitlab\0${canoniserUrlInstanceGitLab(urlInstance)}\0${identite}`,
+  )
+}
+
+export function idDeDestinationGitLab(params: {
+  compteId: string
+  projetId: number
+  branche: string
+  racine?: string
+}): string {
+  const branche = params.branche.trim()
+  if (!branche) throw new Error('Branche GitLab manquante.')
+  const racine = normaliserRacineGitLab(params.racine ?? '')
+  return idStable(
+    `gitlab-destination\0${params.compteId}\0${params.projetId}\0${branche}\0${racine}`,
+  )
+}
+
+export function normaliserRacineGitLab(racine: string): string {
+  const propre = racine.trim().replace(/\/+$/, '')
+  if (propre === '') return ''
+  if (
+    propre.startsWith('/') ||
+    propre.includes('\\') ||
+    propre.split('/').some((segment) => segment === '.' || segment === '..' || !segment)
+  ) {
+    throw new Error('Racine GitLab invalide.')
+  }
+  return propre
+}
+
+function idStable(identite: string): string {
   return `sha256-${createHash('sha256').update(identite, 'utf8').digest('base64url')}`
 }
 

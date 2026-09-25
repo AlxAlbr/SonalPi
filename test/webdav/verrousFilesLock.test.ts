@@ -16,20 +16,21 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ClientWebDAV } from '../../src/main/webdav/client'
-import { MiroirWebDAV } from '../../src/main/distant/miroir'
+import { MiroirWebDAV } from '../../src/main/distant/miroirWebDAV'
 import {
   SessionsDEntretien,
   type IdentiteSession,
 } from '../../src/main/distant/sessions'
 import { ProviderFilesLock } from '../../src/main/verrous/providerFilesLock'
 import { ServeurWebDAVMemoire } from './serveurWebdavMemoire'
+import { corpusDistantValide, entretienDistantValide } from './fixturesCorpusDistant'
 
 const ID = 'ent-abc'
 
 function banc() {
   const serveur = new ServeurWebDAVMemoire({ olivier: 'pass-oli' })
-  serveur.poser('corpus.json', '{"membership":{}}')
-  serveur.poser(`entretiens/${ID}.json`, JSON.stringify({ lastModified: 'v1', texte: '' }))
+  serveur.poser('corpus.json', corpusDistantValide([ID]))
+  serveur.poser(`entretiens/${ID}.json`, entretienDistantValide({ lastModified: 'v1', texte: '' }))
   const dirMiroir = mkdtempSync(join(tmpdir(), 'fileslock-'))
   const clientMax = new ClientWebDAV(
     { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },

@@ -302,6 +302,8 @@ export function creerSonal() {
     creerNouveauCorpus,
     ouvrirRecent,
     ouvrirCorpusDistant,
+    ouvrirDestinationGitLab,
+    enregistrerEtOuvrirGitLab,
     creerCorpusDistant,
     oublierCompteDistant,
     rafraichirCorpusSansFermer,
@@ -317,7 +319,10 @@ export function creerSonal() {
 
   const operationsCorpus = useOperationsCorpus({
     vue,
-    corpus,
+    corpus: {
+      ...corpus,
+      lirePersonnes: corpus.lirePersonnes,
+    },
     entretien: {
       ouvertId: ent.ouvertId,
       ongletDroite: ent.ongletDroite,
@@ -370,6 +375,7 @@ export function creerSonal() {
     ouvrirExportCorpus,
     fermerExportCorpus,
     exporterCorpusLot,
+    exporterQualcoderLot,
     preparerRapportCorpus,
     enregistrerRapportCorpus,
     exporter,
@@ -651,6 +657,8 @@ export function creerSonal() {
     oublierCompteDistant,
     ouvrirRecent,
     ouvrirCorpusDistant,
+    ouvrirDestinationGitLab,
+    enregistrerEtOuvrirGitLab,
     idDistantCourant,
     dossierCourantDir,
     dernierTirage,
@@ -693,6 +701,7 @@ export function creerSonal() {
     ouvrirExportCorpus,
     fermerExportCorpus,
     exporterCorpusLot,
+    exporterQualcoderLot,
     preparerRapportCorpus,
     enregistrerRapportCorpus,
     exporter,

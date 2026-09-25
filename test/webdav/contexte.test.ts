@@ -88,6 +88,28 @@ describe('contexte de corpus distant', () => {
     await expect(preparation.contexte.actualiser()).rejects.toThrow('fermé')
   })
 
+  test('porte les intentions de session et de définitions', async () => {
+    const b = banc()
+    const preparation = await preparerContexteNextcloud({
+      id: 'compte-1',
+      dirLocal: b.dirLocal,
+      client: b.client,
+      identite,
+      verrouNatif: false,
+    })
+
+    await expect(preparation.contexte.ouvrirEntretienPourEdition(ID))
+      .resolves.toMatchObject({ ok: true, acces: 'edition' })
+    await expect(preparation.contexte.fermerEntretien(ID))
+      .resolves.toEqual({ fermee: true })
+
+    await preparation.contexte.executerDefinitions(() =>
+      preparation.contexte.store.renommerEntretien(ID, 'Titre modifié'))
+    expect(preparation.contexte.store.ouvrir().membership[ID].titre).toBe('Titre modifié')
+
+    await preparation.contexte.fermer()
+  })
+
   test('protège une copie journalisée avant le premier tirage complet', async () => {
     const b = banc()
     mkdirSync(join(b.dirLocal, 'entretiens'), { recursive: true })

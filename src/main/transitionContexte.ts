@@ -2,6 +2,64 @@ import { CorpusStore, type PreparationOuvertureCorpus } from './corpusStore'
 import type { OuvertureCorpus } from '../shared/format'
 import type { DemandeMigration } from '../shared/corpus/migrationCrp'
 
+export interface CaptureContexteCourant<T> {
+  contexte: T
+  generation: number
+}
+
+export type ResultatCommandeContexte<T> =
+  | { courant: true; valeur: T }
+  | { courant: false }
+
+/** Conserve l'identité du contexte afin d'écarter les réponses devenues obsolètes. */
+export class RegistreContexteCourant<T> {
+  private contexte: T | null = null
+  private generation = 0
+
+  get actuel(): T | null {
+    return this.contexte
+  }
+
+  get generationActuelle(): number {
+    return this.generation
+  }
+
+  remplacer(contexte: T | null): void {
+    this.contexte = contexte
+    this.generation += 1
+  }
+
+  capturer(): CaptureContexteCourant<T> | null {
+    return this.contexte === null
+      ? null
+      : { contexte: this.contexte, generation: this.generation }
+  }
+
+  estCourante(capture: CaptureContexteCourant<T>): boolean {
+    return this.contexte === capture.contexte && this.generation === capture.generation
+  }
+
+  estGenerationCourante(generation: number): boolean {
+    return this.generation === generation
+  }
+
+  async executer<R>(
+    capture: CaptureContexteCourant<T>,
+    operation: (contexte: T) => Promise<R>,
+  ): Promise<ResultatCommandeContexte<R>> {
+    if (!this.estCourante(capture)) return { courant: false }
+    try {
+      const valeur = await operation(capture.contexte)
+      return this.estCourante(capture)
+        ? { courant: true, valeur }
+        : { courant: false }
+    } catch (erreur) {
+      if (!this.estCourante(capture)) return { courant: false }
+      throw erreur
+    }
+  }
+}
+
 /** Exécute une bascule en trois phases : préparation sans écriture,
  *  fermeture de l'ancien contexte, puis finalisation de la cible. */
 export async function executerTransitionPreparee<T, R>(

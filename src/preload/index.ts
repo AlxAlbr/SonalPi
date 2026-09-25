@@ -47,12 +47,15 @@ import type { CommandeNotes, InventaireNotes } from '../shared/corpus/notes'
 import type { EntreeJournalCorpusVue, ResultatAnnulationCorpus } from '../shared/corpus/journal'
 import type { CommandeRecueils } from '../shared/corpus/recueils'
 import type { ResultatInstantaneCorpus, ResultatEcritureCorpus } from '../shared/export/corpus'
+import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
 import type {
   CompteDistantPublic,
   DemandeConnexion,
+  DemandeOuvertureGitLab,
+  DestinationGitLabPublic,
   DivergenceDistante,
   EtatSessionPublic,
   OrphelinDistant,
@@ -347,6 +350,15 @@ contextBridge.exposeInMainWorld('sonal', {
     poserValeurLot: (items: ItemLotValeur[]): Promise<ResultatLotValeur> =>
       invoquer('corpus:poserValeurLot', items),
   },
+  gitlab: {
+    lister: (): Promise<DestinationGitLabPublic[]> => invoquer('gitlab:lister'),
+    enregistrerEtOuvrir: (demande: DemandeOuvertureGitLab): Promise<OuvertureDistante> =>
+      invoquer('gitlab:enregistrerEtOuvrir', demande),
+    ouvrir: (id: string, jeton?: string): Promise<OuvertureDistante> =>
+      invoquer('gitlab:ouvrir', id, jeton),
+    oublierDestination: (id: string): Promise<DestinationGitLabPublic[]> =>
+      invoquer('gitlab:oublierDestination', id),
+  },
   distant: {
     /** Comptes distants configurés — JAMAIS de secret dans le retour. */
     lister: (): Promise<CompteDistantPublic[]> => invoquer('distant:lister'),
@@ -475,6 +487,8 @@ contextBridge.exposeInMainWorld('sonal', {
         invoquer('export:corpusEcrirePdf', nom, html),
       copierMedia: (urlAudio: string): Promise<ResultatEcritureCorpus> =>
         invoquer('export:corpusCopierMedia', urlAudio),
+      ecrireQualcoder: (modele: QualcoderExportModel): Promise<void> =>
+        invoquer('export:corpusEcrireQualcoder', modele),
       fermer: (): Promise<void> => invoquer('export:corpusFermer'),
     },
     /** Choisir un fichier MODÈLE de modalités (JSON, contenu lu ici). */

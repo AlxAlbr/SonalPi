@@ -2,9 +2,12 @@
 
 > Document de planification conservé sous `plan-export-sonalpi.md`.
 > Son nom ne désigne pas un nouveau format d’échange.
-> Statut : voie native et installation cible validées ; le contrat de cas et
-> d’attributs de `plan-cas2.md` est raccordé et testé, mais aucun exporteur ni projet
-> QualCoder n’est encore produit. REFI-QDA vient ensuite, pas comme préalable.
+> Statut : voie native et installation cible validées ; la gestion des cas et des
+> attributs de `plan-cas2.md` est implémentée, raccordée et testée. L’export doit
+> être accessible depuis **Corpus → Exporter le corpus** ; aucun exporteur ni projet
+> Un premier exporteur textuel et une recette locale sont produits ; le rapport de
+> pertes, la confidentialité et la compatibilité QualCoder complète restent à valider.
+> REFI-QDA vient ensuite, pas comme préalable.
 
 ## 1. Objectif et périmètre
 
@@ -15,9 +18,9 @@ vérifiée. Les personnes sont des identités explicites, pas des noms à rappro
 
 Priorités :
 
-1. terminer les modes de cas et les attributs cohérents dans SonalPi ;
+1. s’appuyer sur les modes de cas et les attributs cohérents déjà implémentés dans SonalPi ;
 2. prouver un transfert **spécifique QualCoder** sur une version identifiée ;
-3. livrer l’export textuel, avec diagnostic des pertes ;
+3. livrer l’export textuel depuis Corpus → Exporter le corpus, avec diagnostic des pertes ;
 4. étudier séparément l’audiovisuel puis un adaptateur REFI-QDA.
 
 Ni synchronisation retour, ni fusion dans un projet QualCoder existant, ni export
@@ -103,7 +106,11 @@ ces chaînes ne rendent pas les attributs individuels interrogeables.
 
 - projection du **document final complet** avec table de positions ;
 - modèle intermédiaire d’export réunissant sources, cas, attributs et diagnostics ;
-- adaptateur et assistant QualCoder, contrôles réels dans l’application cible.
+- adaptateur et assistant QualCoder, contrôles réels dans l’application cible ;
+- point d’entrée dans l’export du corpus, avec sélection des entretiens et choix explicite
+  du projet QualCoder sans confondre ce mode avec les exports TXT, HTML, DOCX et PDF ;
+- premier adaptateur textuel, transaction SQLite et recette de création du projet, avant
+  l’assistant de confidentialité et le rapport complet des pertes.
 
 `textePassage()` fournit des extraits de lecture, avec des séparateurs et substitutions
 propres à chaque plage. Concaténer ces extraits ne fournit pas le `fulltext` canonique
@@ -120,6 +127,12 @@ pseudonymisé de partage. Ne pas s’en servir comme intermédiaire obligé vers
 Produire un dossier de projet QualCoder contenant `data.qda` et les répertoires requis,
 avec un adaptateur versionné. L’utilisateur l’ouvre comme projet, sans passer par
 l’importeur Sonal V1 et sans modification locale obligatoire de QualCoder.
+
+Le déclencheur est l’export au niveau du corpus : **Corpus → Exporter le corpus**.
+La sélection des entretiens reste commune aux exports de lecture. Le choix QualCoder
+ouvre ensuite un parcours dédié, qui présente les cas, les sources exclues, les
+attributs, la confidentialité et le rapport de pertes avant toute écriture. Un dossier
+`.qda` n’est pas produit par le générateur de TXT, HTML, DOCX ou PDF.
 
 Avantages : cas, rattachements, attributs et annotations deviennent directement des
 objets QualCoder ; pas de code artificiel de transport des cas ; pas d’attente REFI.
@@ -509,6 +522,9 @@ src/main/exportQualcoder.ts
 src/main/qualcoder/profils/<version>/
   Schéma/fixture contrôlé et adaptateur de version.
 
+src/renderer/components/corpus/ModaleExportCorpus.vue
+  Point d’entrée commun : sélection du corpus et choix du mode QualCoder.
+
 src/renderer/components/ExportQualcoderModale.vue
   Options, aperçu, diagnostics, acceptation et progression.
 ```
@@ -558,6 +574,8 @@ Un profil mémorise des choix, pas des décisions de cohérence devenues périm�
   une personne récurrente, un autre participant et un enquêteur.
 - [ ] Exporter sources complètes, un code, un cas avec deux passages, un cas vide,
   un cas source entière, un attribut fichier et un attribut cas.
+- [ ] Vérifier que le mode QualCoder est proposé depuis Corpus → Exporter le corpus
+  et qu’il ne déclenche pas les écritures TXT, HTML, DOCX ou PDF.
 - [ ] Inclure emoji et accents combinés pour trancher les conventions de positions.
 - [ ] Ouvrir réellement dans QualCoder ; vérifier navigation, sélection et rapport filtré.
 
@@ -636,7 +654,7 @@ et toutes les pertes observées correspondent au rapport accepté.
 ### Validé par l’utilisateur
 
 1. Générer depuis le modèle natif SonalPi V2 un projet natif QualCoder `.qda`,
-   sans passer par l’importeur historique Sonal.
+   sans passer par l’importeur historique Sonal, depuis Corpus → Exporter le corpus.
 2. Cibler l’installation `/home/belignem/Vscode/QualCoder` et prouver l’ouverture avec elle.
 3. Proposer cas collectif et création d’un cas par personne/fichier au choix.
 4. Incohérence d’un attribut pour un cas : attribut indisponible pour toute sa famille.
@@ -649,8 +667,8 @@ et toutes les pertes observées correspondent au rapport accepté.
 ### À préciser ou vérifier
 
 - Relever l’état exact de l’installation cible au début du prototype.
-- Détailler les nouvelles structures et les points restants de Cas2, sans traitement
-  spécial des cas combinant règles et ajouts.
+- Détailler les structures de Cas2 déjà implémentées et le seul point éventuellement
+  hors périmètre : l’éditeur de critères d’un cas existant.
 - L’audio ne fait plus partie des arbitrages bloquants : son traitement est différé.
 
 ## 18. Références et limites de cette rédaction

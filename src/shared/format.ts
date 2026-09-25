@@ -189,7 +189,13 @@ export interface DossierCorpus {
 /** Entrée des « Récents », locale ou distante. Un récent distant rouvre via `distant:ouvrir(id)`, jamais par son chemin miroir local ; sinon, le cycle verrou/publié serait contourné. */
 export type EntreeRecent =
   | ({ type: 'local' } & DossierCorpus)
-  | { type: 'distant'; id: string; nom: string; url: string }
+  | {
+      type: 'distant'
+      id: string
+      nom: string
+      url: string
+      fournisseur?: 'webdav' | 'gitlab'
+    }
 
 /** Identité du dossier + contenu du corpus, dans un seul message IPC. */
 export interface OuvertureCorpus extends DossierCorpus {

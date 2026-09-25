@@ -18,14 +18,12 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ClientWebDAV, ErreurHttp } from '../webdav/client'
 import type { ProgressionTransfert } from '../../shared/distant'
 import type {
   EmpreinteLectureDistante,
   EntreeLectureDistante,
   LectureDistante,
 } from './lecture'
-import { LecteurWebDAV } from './lecteurWebDAV'
 import {
   InstallationLocaleMiroir,
   type IdentiteMiroirDistant,
@@ -36,13 +34,9 @@ import type {
   SurProgressionFichier,
   TransfertFichiersDistants,
 } from './transfert'
-import { TransfertWebDAV } from './transfertWebDAV'
+import { validerCandidatsMiroir } from './validationMiroir'
 
 export type { IdentiteMiroirDistant } from './installationMiroir'
-
-/** Dossiers distants qui ne sont PAS du contenu du corpus.
- *  Le miroir les ignore entièrement. */
-const DOSSIERS_HORS_CONTENU = ['verrous', 'presence', 'corbeille', 'sonde']
 
 export interface ResultatTirage {
   /** Fichiers téléchargés (contenu changé ou nouveaux). */
@@ -50,7 +44,7 @@ export interface ResultatTirage {
   /** Fichiers disparus côté serveur, déplacés vers la corbeille du miroir. */
   corbeille: string[]
   /** Audios désignés (meta.audioDistant) dont la récupération a ÉCHOUÉ (403 droits insuffisants, 404 disparu, réseau).
-   *  JAMAIS bloquants : leur ETag n'est pas noté au manifeste.
+   *  JAMAIS bloquants : leur empreinte n'est pas notée au manifeste.
    *  Le prochain tirage re-tentera automatiquement (droits ouverts plus tard,
    *  rattrapage sans action). */
   inaccessibles: { chemin: string; raison: string }[]
@@ -58,31 +52,22 @@ export interface ResultatTirage {
   date: string
 }
 
-export class MiroirWebDAV {
-  constructor(
-    private readonly client: ClientWebDAV,
-    /** Public en lecture : la couche session lit/écrit les fichiers du miroir,
-     *  et y range les copies de divergence (sessions/). */
-    public readonly dirLocal: string,
-    /** Progression des transferts binaires, relais IPC `distant:progression`, émise pendant les rapatriements du tirage.
-     *  Le main la relaie aux fenêtres. */
-    private readonly surProgression?: (p: ProgressionTransfert) => void,
-    private readonly lecture: LectureDistante = new LecteurWebDAV(client),
-    private readonly identiteMiroir: IdentiteMiroirDistant = {
-      fournisseur: 'webdav',
-      destinationId: `${client.config.baseUrl}#${client.config.identifiants.utilisateur}`,
-    },
-    private readonly transfert: TransfertFichiersDistants = new TransfertWebDAV(client),
-  ) {
-    this.installationLocale = new InstallationLocaleMiroir(dirLocal, identiteMiroir)
-  }
+export type OuvrirLectureDistante = () => Promise<LectureDistante>
 
+/** Copie locale commune, indépendante du protocole de la destination. */
+export class MiroirDistant {
   private readonly installationLocale: InstallationLocaleMiroir
 
-  /** Accès client pour les lectures directes hors miroir (ex. DocsCadre/,
-   *  consultation sans copie locale). Le secret ne quitte jamais le main. */
-  accesClient(): ClientWebDAV {
-    return this.client
+  constructor(
+    /** Dossier utilisé par le store et les copies de récupération. */
+    public readonly dirLocal: string,
+    private readonly ouvrirLecture: OuvrirLectureDistante,
+    private readonly identiteMiroir: IdentiteMiroirDistant,
+    private readonly transfert: TransfertFichiersDistants | null = null,
+    /** Progression des transferts binaires relayée vers le renderer. */
+    private readonly surProgression?: (p: ProgressionTransfert) => void,
+  ) {
+    this.installationLocale = new InstallationLocaleMiroir(dirLocal, identiteMiroir)
   }
 
   private get fichierManifeste(): string {
@@ -154,33 +139,31 @@ export class MiroirWebDAV {
    *  corbeille. La couche session y passe les fichiers SOUS NOTRE verrou :
    *  une édition hors app (UI web) ne doit jamais écraser notre copie de
    *  travail pendant la session.
-   *  La divergence sera tranchée par If-Match à la publication, pas par un
-   *  pull sauvage.
+   *  La divergence sera tranchée par les gardes du connecteur à la publication,
+   *  pas par un pull sauvage.
    */
   async tirer(exclus: string[] = []): Promise<ResultatTirage> {
     const horsJeu = new Set(exclus)
     if (!existsSync(this.dirLocal)) mkdirSync(this.dirLocal, { recursive: true })
     this.installationLocale.reprendre()
     const manifeste = this.lireManifeste()
+    const lecture = await this.ouvrirLecture()
 
     // L'inventaire et tous les téléchargements sont terminés avant que le
     // premier fichier visible du miroir soit remplacé.
-    const racine = await this.lecture.inventorier('')
+    const racine = await lecture.inventorier('')
     let entretiens: EntreeLectureDistante[] = []
     if (racine.some((e) => e.dossier && e.chemin === 'entretiens')) {
-      entretiens = (await this.lecture.inventorier('entretiens')).map((e) => ({
+      entretiens = (await lecture.inventorier('entretiens')).map((e) => ({
         ...e,
         chemin: `entretiens/${e.chemin}`,
       }))
     }
     const candidats = [...new Map(
       [...racine, ...entretiens]
-        .filter(
-          (e) =>
-            !e.dossier &&
-            e.chemin.endsWith('.json') &&
-            !DOSSIERS_HORS_CONTENU.some((d) => e.chemin.startsWith(`${d}/`)) &&
-            !e.chemin.startsWith('.'),
+        .filter((e) =>
+          !e.dossier &&
+          (e.chemin === 'corpus.json' || /^entretiens\/[^/]+\.json$/.test(e.chemin)),
         )
         .map((entree) => [entree.chemin, entree]),
     ).values()]
@@ -199,9 +182,12 @@ export class MiroirWebDAV {
     try {
       for (const entree of candidats) {
         if (!entree.empreinte) continue
-        if (manifeste.empreintes[entree.chemin]?.valeur === entree.empreinte.valeur) continue
+        if (
+          this.memeEmpreinte(manifeste.empreintes[entree.chemin], entree.empreinte) &&
+          existsSync(join(this.dirLocal, entree.chemin))
+        ) continue
         if (horsJeu.has(entree.chemin)) continue
-        const contenu = await this.lecture.lireTexte(entree.chemin)
+        const contenu = await lecture.lireTexte(entree.chemin)
         const fichierPrepare = this.installationLocale.cheminFichierPrepare(
           preparation,
           numeroPreparation++,
@@ -213,15 +199,29 @@ export class MiroirWebDAV {
         telecharges.push(entree.chemin)
       }
 
+      validerCandidatsMiroir({
+        dirLocal: this.dirLocal,
+        candidats,
+        contenusPrepares,
+        exclus: horsJeu,
+      })
+
       const designations = this.designationsAudio(candidats, horsJeu, contenusPrepares)
       for (const chemin of designations) {
         try {
-          const entree = await this.entreeDistanteFichier(chemin)
-          if (!entree) throw new ErreurHttp(404, `${chemin} absent du serveur`)
-          if (entree.empreinte === null) {
-            throw new ErreurHttp(404, `${chemin} sans empreinte serveur`)
+          const entree = await this.entreeDistanteFichier(lecture, chemin)
+          if (!entree?.empreinte) {
+            inaccessibles.push({ chemin, raison: '404' })
+            continue
           }
-          if (manifeste.empreintes[chemin]?.valeur === entree.empreinte.valeur) continue
+          if (
+            this.memeEmpreinte(manifeste.empreintes[chemin], entree.empreinte) &&
+            existsSync(join(this.dirLocal, chemin))
+          ) continue
+          if (!this.transfert) {
+            inaccessibles.push({ chemin, raison: 'indisponible' })
+            continue
+          }
           const fichierPrepare = this.installationLocale.cheminFichierPrepare(
             preparation,
             numeroPreparation++,
@@ -233,9 +233,7 @@ export class MiroirWebDAV {
           manifesteFinal.empreintes[chemin] = entree.empreinte
           telecharges.push(chemin)
         } catch (e) {
-          const raison =
-            e instanceof ErreurHttp ? String(e.statut) : e instanceof Error ? 'réseau' : 'erreur'
-          inaccessibles.push({ chemin, raison })
+          inaccessibles.push({ chemin, raison: this.raisonErreurTransfert(e) })
         }
       }
 
@@ -326,36 +324,38 @@ export class MiroirWebDAV {
     return !chemin.split('/').some((s) => s === '' || s === '.' || s === '..')
   }
 
-  /** Entrée serveur d'un fichier précis (empreinte + taille).
-   *  PROPFIND Depth:1 du dossier parent, puis entrée du basename.
+  /** Cherche un fichier dans l'inventaire direct de son dossier parent.
    *  Null si le fichier est absent côté serveur. */
-  private async entreeDistanteFichier(cheminRelatif: string): Promise<EntreeLectureDistante | null> {
+  private async entreeDistanteFichier(
+    lecture: LectureDistante,
+    cheminRelatif: string,
+  ): Promise<EntreeLectureDistante | null> {
     const i = cheminRelatif.lastIndexOf('/')
     const dossier = i === -1 ? '' : cheminRelatif.slice(0, i)
     const nom = i === -1 ? cheminRelatif : cheminRelatif.slice(i + 1)
-    const entrees = await this.lecture.inventorier(dossier)
+    const entrees = await lecture.inventorier(dossier)
     return entrees.find((e) => e.chemin === nom) ?? null
   }
 
-  /* ── Garde-fou de publication ─────────────────────────────────────────────
-   *  Le manifeste est la mémoire des ETags SERVEUR vus.
-   *  La publication d'un fichier en a besoin comme garde If-Match (« je publie
-   *  SI le serveur porte encore la version que j'ai tirée »), et doit le
-   *  METTRE À JOUR après un PUT réussi — sinon le prochain pull
-   *  retéléchargerait notre propre publication.
+  /* ── Versions observées ───────────────────────────────────────────────────
+   *  Le manifeste mémorise les empreintes du dernier tirage installé.
+   *  Un connecteur peut les actualiser après une publication confirmée afin
+   *  que le tirage suivant ne retélécharge pas son propre contenu.
    *  ──────────────────────────────────────────────────────────────────────────*/
 
-  /** ETag serveur connu pour un chemin relatif (null = jamais vu). */
-  etagDistant(cheminRelatif: string): string | null {
-    const empreinte = this.lireManifeste().empreintes[cheminRelatif]
-    return empreinte?.type === 'webdav-etag' ? empreinte.valeur : null
+  /** Empreinte observée lors du dernier tirage installé. */
+  empreinteDistante(cheminRelatif: string): EmpreinteLectureDistante | null {
+    return this.lireManifeste().empreintes[cheminRelatif] ?? null
   }
 
-  /** Note l'ETag post-publication, sans toucher au fichier local : il est déjà la version serveur après un PUT réussi. */
-  noterEtagPublie(cheminRelatif: string, etag: string): void {
-    const m = this.lireManifeste()
-    m.empreintes[cheminRelatif] = { type: 'webdav-etag', valeur: etag }
-    this.ecrireManifeste(m)
+  /** Note l'empreinte confirmée par une publication du connecteur. */
+  noterEmpreintePubliee(
+    cheminRelatif: string,
+    empreinte: EmpreinteLectureDistante,
+  ): void {
+    const manifeste = this.lireManifeste()
+    manifeste.empreintes[cheminRelatif] = empreinte
+    this.ecrireManifeste(manifeste)
   }
 
   /** Chemin local du miroir pour un chemin relatif du corpus.
@@ -372,14 +372,30 @@ export class MiroirWebDAV {
     dossierRelatif: string,
   ): Promise<{ nom: string; dossier: boolean }[]> {
     if (!this.cheminSurEstSain(dossierRelatif) && dossierRelatif !== '') {
-      throw new ErreurHttp(400, `chemin de navigation invalide : ${dossierRelatif}`)
+      throw new Error(`Chemin de navigation distant invalide : ${dossierRelatif}.`)
     }
-    const entrees = await this.lecture.inventorier(dossierRelatif)
+    const lecture = await this.ouvrirLecture()
+    const entrees = await lecture.inventorier(dossierRelatif)
     return entrees
       .map((e) => ({ nom: e.chemin.split('/').pop() ?? e.chemin, dossier: e.dossier }))
       .sort((a, b) =>
         a.dossier !== b.dossier ? (a.dossier ? -1 : 1) : a.nom < b.nom ? -1 : 1,
       )
+  }
+
+  private memeEmpreinte(
+    gauche: EmpreinteLectureDistante | undefined,
+    droite: EmpreinteLectureDistante,
+  ): boolean {
+    return gauche?.type === droite.type && gauche.valeur === droite.valeur
+  }
+
+  private raisonErreurTransfert(erreur: unknown): string {
+    if (erreur && typeof erreur === 'object' && 'statut' in erreur) {
+      const statut = (erreur as { statut?: unknown }).statut
+      if (typeof statut === 'number') return String(statut)
+    }
+    return erreur instanceof Error ? 'réseau' : 'erreur'
   }
 
   /** Téléverse un fichier par le connecteur de la destination. */
@@ -389,6 +405,9 @@ export class MiroirWebDAV {
     contentType?: string,
     surProgression?: SurProgressionFichier,
   ): Promise<ResultatTeleversement> {
+    if (!this.transfert) {
+      return Promise.resolve({ ok: false, raison: 'indisponible' })
+    }
     return this.transfert.televerserFichier(
       cheminCible,
       contenu,

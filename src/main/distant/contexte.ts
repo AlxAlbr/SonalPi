@@ -3,12 +3,17 @@ import { join } from 'node:path'
 import { CorpusStore } from '../corpusStore'
 import type {
   EntreeVerrouPublic,
+  OrphelinDistant,
   ProgressionTransfert,
+  ResultatFermetureSession,
   ResultatTiragePublic,
 } from '../../shared/distant'
-import type { CorpusFichier } from '../../shared/format'
+import type {
+  CorpusFichier,
+  OuvertureEntretienEdition,
+} from '../../shared/format'
 import type { ClientWebDAV } from '../webdav/client'
-import { MiroirWebDAV } from './miroir'
+import { MiroirWebDAV } from './miroirWebDAV'
 import {
   SessionsDEntretien,
   type IdentiteSession,
@@ -17,6 +22,10 @@ import { TransactionsCorpus } from './transactions'
 import { PresenceDistante } from './presence'
 import { LecteurWebDAV } from './lecteurWebDAV'
 import { TransfertWebDAV } from './transfertWebDAV'
+import type {
+  ResultatTeleversement,
+  SurProgressionFichier,
+} from './transfert'
 import type { ObservationCoordinationDistante } from './coordination'
 import { ObservationVerrousWebDAV } from './observationVerrousWebDAV'
 
@@ -59,6 +68,129 @@ export class ContexteCorpusDistant {
       inaccessibles: tirage.inaccessibles.length > 0 ? tirage.inaccessibles : undefined,
       date: tirage.date,
     }
+  }
+
+  /** Ouvre un entretien après acquisition de son droit d'édition. */
+  async ouvrirEntretienPourEdition(id: string): Promise<OuvertureEntretienEdition> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    const etat = await this.sessions.ouvrir(id)
+    if (etat.etat !== 'a-nous') {
+      const lecture = this.store.lireEntretien(id)
+      if (!lecture.ok) return lecture
+      return {
+        ...lecture,
+        acces: 'lecture-seule',
+        verrouTenuParAutrui:
+          etat.etat === 'tenu-par-autrui' && etat.tenuPar
+            ? {
+                userId: etat.tenuPar.userId,
+                machineId: etat.tenuPar.machineId,
+                acquiredAt: etat.tenuPar.acquiredAt,
+              }
+            : null,
+      }
+    }
+    try {
+      this.store.autoriserEcritureEntretien(id)
+      const lecture = this.store.ouvrirEntretienPourEdition(id)
+      if (!lecture.ok) {
+        this.store.revoquerEcritureEntretien(id)
+        await this.sessions.fermer(id)
+        return lecture
+      }
+      return { ...lecture, acces: 'edition' }
+    } catch (erreur) {
+      this.store.revoquerEcritureEntretien(id)
+      await this.sessions.fermer(id)
+      throw erreur
+    }
+  }
+
+  /** Publie puis ferme la session d'un entretien. */
+  async fermerEntretien(id: string): Promise<ResultatFermetureSession> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    this.store.revoquerEcritureEntretien(id)
+    const resultat = await this.sessions.fermer(id)
+    if (!resultat.fermee && this.sessions.etat(id).etat === 'a-nous') {
+      this.store.autoriserEcritureEntretien(id)
+    }
+    return resultat
+  }
+
+  /** Exécute une mutation des définitions avec les gardes distantes. */
+  async executerDefinitions<T>(mutation: () => T): Promise<T> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.transactions.executer(mutation)
+  }
+
+  /** Liste un dossier de la destination courante pour les sélecteurs. */
+  async listerDossier(dossier: string): Promise<{ nom: string; dossier: boolean }[]> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.miroir.listerDossier(dossier)
+  }
+
+  /** Désigne un média partagé par une session courte. */
+  async designerAudio(
+    id: string,
+    cheminAudio: string,
+  ): Promise<{ ok: boolean; raison?: string }> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.sessions.designerAudio(id, cheminAudio)
+  }
+
+  /** Téléverse un fichier vers la destination du contexte. */
+  async televerserFichier(
+    cheminCible: string,
+    sourceLocale: string,
+    contentType: string,
+    surProgression?: SurProgressionFichier,
+  ): Promise<ResultatTeleversement> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.miroir.televerserFichier(
+      cheminCible,
+      sourceLocale,
+      contentType,
+      surProgression,
+    )
+  }
+
+  /** Publie l'état local d'un entretien sous son droit d'édition. */
+  async publierEntretien(id: string): Promise<{ ok: boolean; raison?: string }> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.sessions.publier(id)
+  }
+
+  /** Retourne les sessions d'un lancement précédent récupérables. */
+  async listerOrphelins(): Promise<OrphelinDistant[]> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    const liste = await this.sessions.orphelins()
+    return liste.map(({ cheminVerrou, id, verrou }) => ({
+      cheminVerrou,
+      id,
+      userId: verrou.userId,
+      machineId: verrou.machineId,
+      acquiredAt: verrou.acquiredAt,
+    }))
+  }
+
+  /** Reprend et publie une session récupérable. */
+  async reprendreOrphelin(
+    cheminVerrou: string,
+  ): Promise<{ ok: boolean; raison?: string }> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    return this.sessions.reprendreOrphelin(cheminVerrou)
+  }
+
+  /** Libère une session récupérable sans publier sa copie locale. */
+  async abandonnerOrphelin(cheminVerrou: string): Promise<void> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    await this.sessions.abandonnerOrphelin(cheminVerrou)
+  }
+
+  /** Met à jour la présence informative du poste. */
+  async noterEntretienOuvert(id: string | null): Promise<void> {
+    if (this.termine) throw new Error('Le contexte distant est fermé.')
+    await this.presence.noterEntretienOuvert(id)
   }
 
   /** Publie et libère toutes les sessions avant de terminer le contexte. */
