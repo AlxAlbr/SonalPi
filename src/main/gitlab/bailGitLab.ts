@@ -37,6 +37,12 @@ export interface FichierGitLab {
 
 export interface DepotCommitsGitLab {
   lireFichier(chemin: string, ref: string): Promise<FichierGitLab | null>
+  /** Résout la tête d'une branche en SHA : toutes les lectures d'un même geste
+   *  se font alors sur un instantané unique du dépôt. */
+  resoudreTete(branche: string): Promise<string>
+  /** Contenu brut d'un fichier, sans garde ni enveloppe base64. Un tri lit ainsi
+   *  des entretiens que la lecture avec garde refuserait de transporter. */
+  lireContenuBrut(chemin: string, ref: string): Promise<string | null>
   rechercherCommits(ref: string, recherche: string): Promise<Array<{ id: string; title: string }>>
   publierCommit(
     branche: string,
@@ -88,6 +94,8 @@ export type ResultatAcquisitionBailGitLab =
 export interface BailObserveGitLab {
   userId: string
   machineId: string
+  sessionId: string
+  generation: string
   expireLe: string
   legacy: boolean
 }
@@ -110,6 +118,10 @@ interface BailEnregistre {
   holder: IdentiteBailGitLab
   expireLe: string
   compteur: number
+}
+
+interface BrancheGitLab {
+  commit?: { id?: string }
 }
 
 export class DepotCommitsGitLabClient implements DepotCommitsGitLab {
@@ -141,6 +153,31 @@ export class DepotCommitsGitLabClient implements DepotCommitsGitLab {
         commitId: reponse.corps.last_commit_id,
         contenu,
       }
+    } catch (erreur) {
+      if (erreur instanceof ErreurGitLab && erreur.statut === 404) return null
+      throw erreur
+    }
+  }
+
+  async resoudreTete(branche: string): Promise<string> {
+    if (!branche.trim()) throw new Error('Branche GitLab manquante.')
+    const reponse = await this.client.lireJson<BrancheGitLab>(
+      this.client.cheminProjet(`/repository/branches/${encodeURIComponent(branche)}`),
+    )
+    const commit = reponse.corps.commit?.id
+    if (!commit || !/^[a-f0-9]{40,64}$/.test(commit)) {
+      throw new Error('La branche GitLab ne fournit pas de commit valide.')
+    }
+    return commit
+  }
+
+  async lireContenuBrut(chemin: string, ref: string): Promise<string | null> {
+    verifierCheminGitLab(chemin)
+    try {
+      return await this.client.lireTexte(
+        this.client.cheminProjet(`/repository/files/${encodeURIComponent(chemin)}/raw`),
+        { ref },
+      )
     } catch (erreur) {
       if (erreur instanceof ErreurGitLab && erreur.statut === 404) return null
       throw erreur
@@ -668,13 +705,19 @@ export function cheminBailRessourceGitLab(ressource: string): string {
 /** Lit un bail observé par son chemin de dépôt, sans en tirer de droit.
  *  Lève si le contenu n'est pas un bail exploitable : l'observateur omet alors
  *  le badge plutôt que de le deviner. */
-export function observerBailGitLab(contenu: string, chemin: string): BailObserveGitLab {
-  const bail = lireBail(contenu, resourceHashDeChemin(chemin), true)
+export function observerBailGitLab(
+  contenu: string,
+  chemin: string,
+  legacy = false,
+): BailObserveGitLab {
+  const bail = lireBail(contenu, resourceHashDeChemin(chemin), legacy)
   return {
     userId: bail.holder.userId,
     machineId: bail.holder.machineId,
+    sessionId: bail.holder.sessionId,
+    generation: bail.generation,
     expireLe: bail.expireLe,
-    legacy: bail.version === VERSION_BAIL_LEGACY || bail.protocole === PROTOCOLE_BAIL_LEGACY,
+    legacy,
   }
 }
 

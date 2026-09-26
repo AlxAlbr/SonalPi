@@ -19,24 +19,48 @@ import {
   type DepotCommitsGitLab,
 } from './bailGitLab'
 
-const VERSION_JOURNAL = 1
+const VERSION_JOURNAL = 2
+const VERSION_JOURNAL_ANCIENNE = 1
 const TAILLE_MAX_ENTREE = 3 * 1024 * 1024
 const SHA_COMMIT = /^[a-f0-9]{40,64}$/
 const SHA256 = /^[a-f0-9]{64}$/
 const CANDIDAT = /^[a-f0-9]{64}\.bin$/
 const IDENT_OPERATION = /^[A-Za-z0-9._:-]{1,120}$/
+const PREFIXE_VERROUS = '.sonal/verrous'
 
 export type EtatJournalPublication = 'prepare' | 'indetermine'
+
+/** Ce qu'une publication transportait : une session d'entretien, ou une
+ *  transaction de corpus (définitions, création, import). Les deux se
+ *  réconcilient différemment, jamais par la forme de leur première action. */
+export type NaturePublicationGitLab = 'session-entretien' | 'transaction-corpus'
+
+const NATURES: readonly NaturePublicationGitLab[] = ['session-entretien', 'transaction-corpus']
+
+/** Une entrée dont la nature n'a pas pu être établie avec certitude : elle
+ *  reste récupérable, bloque sa ressource, et n'est jamais rejouée. */
+export type NatureEntreeJournal = NaturePublicationGitLab | 'inconnue'
 
 type ActionJournalGitLab = Omit<ActionCommitGitLab, 'content'> & {
   contentSha256?: string
   contentOctets?: number
 }
 
+/** Ce que l'appelant fournit au journal : la version, la destination et
+ *  l'horodatage sont ajoutés par le journal lui-même. */
+type EntreeJournalNue = Omit<
+  EntreeJournalPublication,
+  'version' | 'destinationId' | 'ecritLe' | 'actions' | 'candidat' | 'nature'
+> & {
+  nature: NaturePublicationGitLab
+  actions: ActionCommitGitLab[]
+}
+
 export interface EntreeJournalPublication {
-  version: 1
+  version: 2
   destinationId: string
   operationId: string
+  nature: NatureEntreeJournal
   branche: string
   resourceHash: string
   generation: string
@@ -45,6 +69,13 @@ export interface EntreeJournalPublication {
   ecritLe: string
   actions: ActionJournalGitLab[]
   candidat: string
+}
+
+/** La ressource canonique de `corpus.json`, seule à même de reconnaître une
+ *  ancienne entrée de publication de corpus. */
+export interface RessourceCorpusJournal {
+  chemin: string
+  resourceHash: string
 }
 
 export type ResultatReconciliationGitLab =
@@ -60,6 +91,8 @@ export class JournalPublicationGitLab {
     private readonly destinationId: string,
     repertoire: string,
     private readonly maintenant: () => Date = () => new Date(),
+    /** Facultatif tant qu'aucune ancienne entrée n'a à être classée. */
+    private readonly ressourceCorpus?: RessourceCorpusJournal,
   ) {
     if (!destinationId.trim()) throw new Error('Destination de journal GitLab manquante.')
     this.operations = join(repertoire, 'operations')
@@ -70,12 +103,21 @@ export class JournalPublicationGitLab {
     chmodSync(this.candidates, 0o700)
   }
 
-  preparer(entree: Omit<
-    EntreeJournalPublication,
-    'version' | 'destinationId' | 'ecritLe' | 'actions' | 'candidat'
-  > & { actions: ActionCommitGitLab[] }): void {
+  /** Entrées de publication de corpus encore journalisées : elles bloquent
+   *  toute nouvelle transaction sur `corpus.json` tant qu'elles ne sont pas
+   *  réconciliées. Une entrée de nature inconnue bloque aussi. */
+  transactionsCorpusJournalisees(): EntreeJournalPublication[] {
+    return this.lister().filter(
+      (entree) => entree.nature === 'transaction-corpus' || entree.nature === 'inconnue',
+    )
+  }
+
+  preparer(entree: EntreeJournalNue): void {
     if (this.lireSiPresent(entree.operationId)) {
       throw new Error('Une opération GitLab de ce nom est déjà journalisée.')
+    }
+    if (!NATURES.includes(entree.nature)) {
+      throw new Error('Nature de publication GitLab inconnue.')
     }
     const actions = entree.actions
     validerActions(actions)
@@ -206,7 +248,7 @@ export class JournalPublicationGitLab {
     }
     const operationId = (brut as Partial<EntreeJournalPublication>).operationId
     if (typeof operationId !== 'string') throw new Error('Entrée de journal GitLab invalide.')
-    return validerEntree(brut, this.destinationId, operationId)
+    return validerEntree(brut, this.destinationId, operationId, this.ressourceCorpus)
   }
 
   private chemin(operationId: string): string {
@@ -297,13 +339,15 @@ function validerEntree(
   valeur: unknown,
   destinationId: string,
   operationIdAttendu: string,
+  ressourceCorpus?: RessourceCorpusJournal,
 ): EntreeJournalPublication {
   if (!valeur || typeof valeur !== 'object' || Array.isArray(valeur)) {
     throw new Error('Entrée de journal GitLab invalide.')
   }
   const entree = valeur as Partial<EntreeJournalPublication>
+  const version = (valeur as { version?: unknown }).version
   if (
-    entree.version !== VERSION_JOURNAL ||
+    (version !== VERSION_JOURNAL && version !== VERSION_JOURNAL_ANCIENNE) ||
     entree.destinationId !== destinationId ||
     entree.operationId !== operationIdAttendu ||
     !IDENT_OPERATION.test(entree.operationId) ||
@@ -328,7 +372,38 @@ function validerEntree(
     if ('content' in action) throw new Error('Le journal ne doit pas contenir le contenu.')
     validerActionJournal(action)
   }
-  return entree as EntreeJournalPublication
+  const nature = version === VERSION_JOURNAL_ANCIENNE
+    ? classerAncienne(entree, ressourceCorpus)
+    : entree.nature
+  if (nature !== 'inconnue' && !NATURES.includes(nature as NaturePublicationGitLab)) {
+    throw new Error('Nature de publication GitLab inconnue.')
+  }
+  return { ...entree, version: VERSION_JOURNAL, nature } as EntreeJournalPublication
+}
+
+/** Reconnaît une entrée écrite avant l'existence des natures.
+ *
+ *  Une publication de corpus ne peut être déduite de la forme de sa première
+ *  action : seule l'égalité exacte avec la ressource canonique de
+ *  `corpus.json`, conjointe à des actions toutes compatibles avec une
+ *  transaction de corpus, autorise cette lecture. Le reste reste « inconnue »,
+ *  donc récupérable et bloquant. */
+function classerAncienne(
+  entree: Partial<EntreeJournalPublication>,
+  ressourceCorpus?: RessourceCorpusJournal,
+): NatureEntreeJournal {
+  if (!ressourceCorpus) return 'inconnue'
+  if (entree.resourceHash !== ressourceCorpus.resourceHash) return 'session-entretien'
+  const metadonnees = entree.actions ?? []
+  const metier = metadonnees.filter(
+    (action) => !action.file_path.startsWith(`${PREFIXE_VERROUS}/`),
+  )
+  if (metier.length !== 1) return 'inconnue'
+  const action = metier[0]
+  if (action.file_path !== ressourceCorpus.chemin || action.action !== 'update') {
+    return 'inconnue'
+  }
+  return 'transaction-corpus'
 }
 
 function validerActions(actions: ActionCommitGitLab[]): void {

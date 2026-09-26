@@ -1224,7 +1224,9 @@ export async function appliquerRegleLotLocal(
 /* ── Classification des échecs en messages utilisateur ───────────────────────*/
 
 function messageRefusDefinitions(tenuPar: ContenuVerrou | null): string {
-  return `Définitions en cours de modification par ${tenuPar?.userId ?? 'un autre utilisateur'} — réessayez dans un instant.`
+  const qui = tenuPar?.userId ?? 'un autre utilisateur'
+  return `Le corpus est en cours de modification par ${qui}, qui a peut-être déjà terminé. ` +
+    'Actualisez le corpus, puis réessayez dans un instant.'
 }
 
 /** Traduit les échecs techniques en messages utilisateur ;

@@ -1043,6 +1043,162 @@ decrire('Contrat GitLab réel', () => {
     expect(Buffer.from(sourceFinale.corps.content, 'base64').toString('utf8')).toBe(sourceV2)
   })
 
+  it('mesure l’effet d’une garde de source inchangée sur une session longue', { timeout: 120_000 }, async () => {
+    const projet = configuration.projetLfsId as string
+    const token1 = configuration.token1 as string
+    const token2 = configuration.token2 as string
+    const source = `qualification/${idExecution}-session-source.json`
+    const corpus = `qualification/${idExecution}-session-corpus.json`
+    const contenuSource = JSON.stringify({ formatVersion: 8, cycle: 'source' })
+    const contenuSourceModifie = JSON.stringify({ formatVersion: 8, cycle: 'source modifie' })
+    const contenuCorpus = JSON.stringify({ membership: {} })
+
+    const creation = await publierCommit(projet, token1, `qualification ${idExecution}: source et corpus`, [
+      { action: 'create', file_path: source, content: contenuSource },
+      { action: 'create', file_path: corpus, content: contenuCorpus },
+    ])
+    expect(creation.statut, detail(creation)).toBe(201)
+
+    const racine = mkdtempSync(join(tmpdir(), 'sonal-gitlab-garde-inchangee-'))
+    try {
+      const client = new ClientGitLab({
+        urlInstance: configuration.url as string,
+        projetId: Number(projet),
+        autorisation: { type: 'jeton-prive', jeton: token1 },
+      })
+      const depot = new DepotCommitsGitLabClient(client)
+      const journal = new JournalPublicationGitLab('garde-inchangee', join(racine, 'operations'))
+      const journalSessions = new JournalSessionsGitLab('garde-inchangee', join(racine, 'operations'))
+      const coordination = new BailGitLab({
+        branche: 'main',
+        depot,
+        identite: () => ({ userId: 'user1', machineId: 'poste-garde', sessionId: idExecution }),
+      })
+      const session = new SessionGitLab({
+        id: 'garde-inchangee',
+        ressource: `entretien:${idExecution}`,
+        cheminRelatif: source,
+        cheminDistant: source,
+        branche: 'main',
+        depot,
+        coordination,
+        publication: new PublieurGitLab({ branche: 'main', depot, coordination, journal }),
+        stockageLocal: new StockageLocalEntretienGitLab(racine, source),
+        journal,
+        journalSessions,
+        reconciliateur: new ReconciliateurPublicationGitLab(depot, journal),
+      })
+      const stockage = new StockageLocalEntretienGitLab(racine, source)
+
+      await expect(session.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
+      const sourceAvant = await lireFichier(projet, source, token1)
+      const corpusAvant = await lireFichier(projet, corpus, token1)
+
+      // Un second compte modifie corpus.json et garde la source sans la changer.
+      const publication = await publierCommit(
+        projet,
+        token2,
+        `qualification ${idExecution}: corpus gardé, source inchangée`,
+        [
+          {
+            action: 'update',
+            file_path: corpus,
+            content: JSON.stringify({ membership: { e1: { titre: 'E1' } } }),
+            last_commit_id: corpusAvant.corps.last_commit_id,
+          },
+          {
+            action: 'update',
+            file_path: source,
+            content: contenuSource,
+            last_commit_id: sourceAvant.corps.last_commit_id,
+          },
+        ],
+      )
+      expect(publication.statut, detail(publication)).toBe(201)
+
+      const sourceApres = await lireFichier(projet, source, token1)
+      const sourceAvancee = sourceApres.corps.last_commit_id !== sourceAvant.corps.last_commit_id
+      const contenuInchange = Buffer.from(sourceApres.corps.content, 'base64').toString('utf8')
+      // Fait mesuré : c'est lui qui décide si une session doit réadopter sa garde.
+      console.log(
+        `[banc] garde inchangée — last_commit_id ${sourceAvant.corps.last_commit_id.slice(0, 8)}`
+        + ` → ${sourceApres.corps.last_commit_id.slice(0, 8)} (avancé : ${sourceAvancee})`,
+      )
+      expect(contenuInchange).toBe(contenuSource)
+
+      // Sans candidat, la session ne publie rien : sa garde n'est pas consultée.
+      await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
+      expect(await session.revalider()).toBe(!sourceAvancee)
+
+      await stockage.ecrire(contenuSourceModifie)
+      await session.marquerSale()
+      if (sourceAvancee) {
+        // Le cycle est bloqué, et le candidat doit survivre au refus.
+        await expect(session.publier()).resolves.toMatchObject({ statut: 'refuse', raison: 'conflit' })
+        await expect(session.renouveler()).resolves.toBe(false)
+        await expect(session.preserverCandidat()).resolves.toBe(true)
+        expect(await stockage.lire()).toBe(contenuSourceModifie)
+        expect(journalSessions.lire(`entretien:${idExecution}`)).not.toBeNull()
+      } else {
+        await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
+        await expect(session.renouveler()).resolves.toBe(true)
+      }
+      await expect(session.fermer()).resolves.toEqual({ fermee: true })
+
+      // Une garde de source réellement périmée refuse tout le commit, et le
+      // corpus reste intact. Un témoin distinct rend la mesure indépendante de
+      // ce que la session vient de publier.
+      const temoin = `qualification/${idExecution}-temoin.json`
+      const creationTemoine = await publierCommit(
+        projet,
+        token1,
+        `qualification ${idExecution}: témoin`,
+        [{ action: 'create', file_path: temoin, content: contenuSource }],
+      )
+      expect(creationTemoine.statut, detail(creationTemoine)).toBe(201)
+      const gardeTemoine = await lireFichier(projet, temoin, token1)
+      const corpusAvantRefus = await lireFichier(projet, corpus, token1)
+      const modificationTemoin = await publierCommit(
+        projet,
+        token2,
+        `qualification ${idExecution}: témoin modifié`,
+        [{
+          action: 'update',
+          file_path: temoin,
+          content: contenuSourceModifie,
+          last_commit_id: gardeTemoine.corps.last_commit_id,
+        }],
+      )
+      expect(modificationTemoin.statut, detail(modificationTemoin)).toBe(201)
+      const refuse = await publierCommit(
+        projet,
+        token1,
+        `qualification ${idExecution}: garde de source périmée`,
+        [
+          {
+            action: 'update',
+            file_path: corpus,
+            content: JSON.stringify({ membership: { e2: { titre: 'E2' } } }),
+            last_commit_id: corpusAvantRefus.corps.last_commit_id,
+          },
+          {
+            action: 'update',
+            file_path: temoin,
+            content: contenuSource,
+            last_commit_id: gardeTemoine.corps.last_commit_id,
+          },
+        ],
+      )
+      expect(refuse.statut, detail(refuse)).toBe(400)
+      const corpusFinal = await lireFichier(projet, corpus, token1)
+      expect(Buffer.from(corpusFinal.corps.content, 'base64').toString('utf8'))
+        .toBe(Buffer.from(corpusAvantRefus.corps.content, 'base64').toString('utf8'))
+    } finally {
+
+      rmSync(racine, { recursive: true, force: true })
+    }
+  })
+
   it('sérialise les renouvellements du bail et mesure leur coût local', { timeout: 60_000 }, async () => {
     const projet = configuration.projetLfsId as string
     const tokenA = configuration.token1 as string

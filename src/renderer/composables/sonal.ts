@@ -6,7 +6,7 @@ import { afficherErreurGlobale, infoGlobale } from '../erreurs'
 import { useCorpus } from './useCorpus'
 import { useSelectionCorpus } from './corpus/useSelectionCorpus'
 import { useMediasCorpus } from './corpus/useMediasCorpus'
-import { useDistantCorpus } from './corpus/useDistantCorpus'
+import { useDistantCorpus, verifierTriContenu } from './corpus/useDistantCorpus'
 import { useCycleCorpus } from './corpus/useCycleCorpus'
 import { useOperationsCorpus } from './corpus/useOperationsCorpus'
 import { useRecueilsCorpus } from './corpus/useRecueilsCorpus'
@@ -237,8 +237,12 @@ export function creerSonal() {
     rafraichirOrphelins,
     quitterDistant,
     actualiserDistant,
+    capacites,
+    gesteDisponible,
     tableLigneEditable,
     metaEditables,
+    renommagePossible,
+    suppressionPossible,
     reprendreOrphelin,
     abandonnerOrphelin,
     appliquerStatutSession,
@@ -563,17 +567,14 @@ export function creerSonal() {
           const modes: readonly ModeTriEntretiens[] = ['alpha', 'ajout', 'modif', 'longueur']
           if (!modeTri || !modes.includes(modeTri)) throw new Error('Mode de tri inconnu.')
           if (lectureSeule.value || Object.keys(corpus.membership.value).length === 0) break
-          if ((modeTri === 'modif' || modeTri === 'longueur') && ent.ouvertId.value) {
-            if (idDistantCourant.value) {
-              if (statutSession.value.etat === 'degrade' || ent.verrouAutrui.value) {
-                throw new Error("L’entretien ouvert ne peut pas être publié avant le tri.")
-              }
-              if (!await publierMaintenant()) {
-                throw new Error(publiErreur.value ?? "L’entretien ouvert n’a pas pu être publié.")
-              }
-            } else {
-              await ent.viderSauvegarde()
-            }
+          if (modeTri === 'modif' || modeTri === 'longueur') {
+            verifierTriContenu({
+              capacite: gesteDisponible('triContenu'),
+              distant: idDistantCourant.value !== null,
+              entretienOuvert: ent.ouvertId.value !== null,
+            })
+            // En local, le tri se fait sur le dossier : vider la sauvegarde suffit.
+            if (ent.ouvertId.value) await ent.viderSauvegarde()
           }
           await trierEntretiens(modeTri)
           break
@@ -673,8 +674,12 @@ export function creerSonal() {
     ajoutEntretienPossible,
     fournisseurCourant,
     verrousIndisponibles,
+    capacites,
+    gesteDisponible,
     tableLigneEditable,
     metaEditables,
+    renommagePossible,
+    suppressionPossible,
     enLigne,
     badgesVerrous,
     badgeVerrou,

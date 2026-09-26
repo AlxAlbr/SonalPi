@@ -638,3 +638,223 @@ contenu corrompu, dossier absent, 403, coupure, pagination) et par le scénario
 E2E à deux comptes, joué sur le banc : le second profil voit le badge du premier
 avant d'ouvrir, s'ouvre en lecture seule avec une bannière qui le nomme, puis
 récupère l'entretien une fois le bail expiré et le badge effacé.
+
+## 9. Définitions du corpus sous bail
+
+Les définitions du corpus GitLab sont désormais modifiables. Elles constituent
+le premier lot d'écritures : tout ce qui précède ne faisait que lire.
+
+### Portée des gestes
+
+`gitlab/politiqueGestes.ts` classe chaque commande du corpus selon ce qu'elle
+doit savoir pour se calculer : `definitions-corpus` (le seul `corpus.json`),
+`definitions-avec-sources` (des entretiens publiés), `suppression-entretien`, ou
+`indisponible` sur un corpus distant. Le classement est par commande, et par
+variante de commande pour CAS et les recueils : insérer un passage se distingue
+d'insérer un texte, un tri alphabétique se distingue d'un tri par dernière
+modification. Le main nomme le geste de chaque handler et refuse par son nom tout
+geste hors de portée du fournisseur courant, y compris par appel IPC direct.
+Une interface grisée ne suffit donc pas.
+
+`matriceCapacites` déduit de ces portées la matrice publique reçue avec le
+résultat d'ouverture. Elle remplace le drapeau unique qui déverrouillait aussi
+des gestes inexistants : sur GitLab, les définitions simples et le renommage
+d'entretien sont ouverts, les définitions qui lisent les entretiens, les tris
+par contenu et la suppression ne le sont pas, et les métadonnées d'un entretien
+hors session restent bloquées. Le hors ligne et la consultation seule
+s'appliquent au-dessus de la matrice ; l'édition d'un entretien garde en plus sa
+garde de session.
+
+### Préparation isolée
+
+`gitlab/preparationDefinitions.ts` construit un `CorpusStore` neuf dans un
+dossier temporaire initialisé avec le seul `corpus.json` lu sur GitLab, et le
+détruit en `finally`. Le store du miroir actif ne sert jamais à préparer et
+n'est jamais déverrouillé : il reste en lecture seule, et ne reçoit ni base
+fraîche ni candidat avant que leur statut soit certain.
+
+L'absence de fichiers d'entretien n'est pas une garde suffisante. Certaines
+lectures du store ignorent volontairement un entretien absent et concluraient
+à tort à zéro usage ; le store temporaire est donc en mode **corpus seul**,
+où toute lecture, tout inventaire et toute écriture d'entretien échoue avec une
+erreur dédiée (`ErreurCorpusSeul`). C'est une seconde garde, jamais un
+remplacement du dispatch.
+
+L'autorisation d'écriture y est une capacité propre à ce store, bornée à un
+callback synchrone et révoquée en `finally`. Un callback qui retourne une
+Promise est refusé : aucune continuation ne doit survivre à l'autorisation ni à
+la suppression du dossier.
+
+### Déroulement d'une transaction
+
+`TransactionsGitLab.executerDefinitions` prend le bail de `corpus.json`, lit et
+valide le fichier frais avec son `last_commit_id`, prépare dans le store corpus
+seul, compare le candidat à la base fraîche **normalisée** (jamais aux seuls
+octets reçus ni au miroir), puis publie `update corpus.json` et la mutation
+conditionnelle du bail dans le même commit. Après confirmation seulement, le
+candidat est installé localement par un plan `remplacement` de
+`TransactionsFichiersCorpus` dont le `corpusAvant` est l'état **local** réellement
+remplacé, jamais la base fraîche du serveur. L'ajout et l'import passent par le
+même helper : leur plan local est reconstruit sur l'état local, ce qui les rend
+acceptables même depuis un miroir en retard.
+
+Une commande sans changement est un succès sans commit de données ; l'acquisition
+et la libération du bail restent payées, et les octets frais sont néanmoins
+installés avant le retour, pour ne pas rester sur une base périmée. Un refus
+métier ne publie rien et ne modifie pas le miroir.
+
+Une opération au résultat indéterminé reste journalisée : toute nouvelle
+transaction sur `corpus.json`, ajout et import compris, est refusée avec un
+message de reprise. Les lectures et le tirage restent permis, et c'est le tirage
+normal qui installe l'état publié.
+
+### Sérialisation et reprise
+
+`FileOperationsContexte` est la file unique du contexte : elle couvre la
+transaction corpus entière, les tirages et leurs installations, et l'entrée en
+fermeture. Sans elle, un tirage commencé avant une publication pourrait
+réinstaller une base plus ancienne après le succès de cette publication. La
+fermeture verrouille l'entrée, attend l'opération déjà engagée, puis ferme les
+sessions ; la capture de génération du main reste utile pour écarter une réponse
+tardive, mais elle ne remplace pas cette barrière.
+
+Le journal de publication porte désormais une nature explicite et versionnée,
+`session-entretien` ou `transaction-corpus`. Une entrée écrite avant cette
+distinction n'est reconnue comme transaction de corpus que si son `resourceHash`
+correspond exactement à la ressource canonique de `corpus.json` **et** que
+l'ensemble de ses actions lui est compatible ; la forme de sa première action ne
+suffit jamais. Toute entrée non classée avec certitude reste récupérable, bloque
+sa ressource et n'est jamais rejouée. À l'ouverture, une publication de session
+confirme son journal de session ; une transaction de corpus ne le confirme jamais.
+
+### Couverture
+
+`test/gitlab/transactions.test.ts` couvre le refus métier sans effet local, la
+commande sans changement sur miroir à jour puis périmé, la garde périmée, le
+bail tenu par un tiers, la préparation refusée sur toute lecture d'entretien,
+la sérialisation de deux transactions et d'un tirage, la fermeture attendue puis
+le refus suivant, l'ajout et l'import depuis un miroir en retard, la réponse
+perdue retrouvée, le retry bloqué, la réapplication sans effet et la reprise d'une
+installation interrompue. `test/gitlab/politiqueGestes.test.ts` énumère les
+gestes de CAS, de recueils et de tris, et vérifie que GitLab refuse par leur nom
+les gestes qui lisent les entretiens ou suppriment, sans régression des
+parcours déjà acquis. `test/distantRenderer.test.ts` vérifie la matrice publique
+des deux fournisseurs et la primauté du hors ligne.
+
+**Non qualifié sur banc.** Le jalon de recette reste à jouer à deux comptes sur
+l'instance locale : coût en requêtes et en commits d'une mutation de définitions,
+deux commandes concurrentes, garde périmée par un tiers, et reprise après
+coupure. Le manifeste GitLab n'est volontairement pas mis à jour après une
+installation issue d'un GET ou d'un commit : le prochain tirage peut donc
+retélécharger le fichier, ce qui est sans effet mais doit être constaté.
+
+## 10. Définitions qui lisent les entretiens publiés
+
+Les gestes qui ajoutent une référence — un rattachement ou une création de cas qui
+en porte, une dérivation de famille ou de cas, l'insertion d'un passage de recueil
+ou le changement de sa source — se calculent sur les **versions publiées** des
+entretiens qu'ils contrôlent. Le tri par modification ou par longueur relit, lui,
+tous les entretiens sans en garder aucun. Les deux gestes sont écrits et couverts
+par des tests, mais leurs capacités restent fermées tant que la qualification sur
+banc n'est pas consignée : `PORTEEES_OVERTES_GITLAB` est la liste qui décide de ce
+que l'interface propose, et le dispatch refuse tout le reste par son nom.
+
+### Portées distinctes
+
+`politiqueGestes.ts` distingue désormais quatre portées au lieu de deux :
+`definitions-avec-sources` pour ce qui écrit une référence ou une recette,
+`tri-contenus` pour les tris par contenu, `suppression-definition` pour le retrait
+d'un thème, d'une variable, d'une modalité, d'une catégorie de note ou d'une règle,
+et `suppression-entretien`. Les capacités `definitionsAvecSources` et `triContenu`
+en découlent séparément : un fournisseur peut savoir garder des sources sans
+savoir trier, ou l'inverse.
+
+### Sources publiées et gardées
+
+Une source nécessaire entre dans le commit sous son **contenu inchangé** et son
+`last_commit_id`. Le gesture se déroule ainsi :
+
+1. un aperçu sans droit, sur la tête de branche, compte les sources et refuse
+   named le dépassement avant tout commit de coordination ;
+2. les sources que nous détenons sont publiées, et un résultat incertain arrête la
+   commande ; une source tenue par un tiers n'est jamais publiée en son nom, et son
+   travail non publié n'est ni lu ni remplacé ;
+3. le bail de `corpus.json` est acquis ;
+4. la branche est résolue **une fois** en SHA ; `corpus.json` et chaque source sont
+   lues à ce SHA, un seul contenu par source ;
+5. le geste est préparé dans le store temporaire, avec ces sources comme seules
+   lectures autorisées ; le miroir n'est ni consulté ni écrit ;
+6. `corpus.json`, les gardes de sources et la mutation du bail partent dans le
+   **même commit** ; une source qui a bougé depuis la lecture fait donc refuser le
+   tout, et le corpus publié reste intact.
+
+Le store de préparation (`preparationDefinitions.ts`) dépose les sources lues et
+n'accorde de droit de lecture qu'à elles : toute autre lecture est une erreur
+(`ErreurCorpusSeul`), jamais une absence, et une écriture d'entretien y reste
+refusée même pour une source prévue. C'est ce qui rend les validations locales
+indépendantes de l'état du miroir : un miroir périmé ne produit ni faux refus ni
+fausse validation.
+
+### Le tri sur un corpus calme
+
+Le tri ne produit qu'un ordre : une lecture légèrement périmée donne un rang faux,
+corrigé au tri suivant, et ne crée jamais de référence pendante. Aucun entretien
+n'est donc gardé, et le commit ne porte que `corpus.json` et le bail. En échange,
+le tri refuse **avant** toute acquisition dès qu'un entretien est tenu, y compris
+par notre propre application : l'observation distante fraîche et les sessions
+locales du contexte sont combinées, une observation en panne vaut un refus, et les
+détenteurs trouvés sont nommés. Les contenus sont lus par l'endpoint brut, au SHA du
+corpus, hors de la limite de 256 Kio de la lecture avec garde.
+
+L'interface ne publie plus l'entretien ouvert pour faire passer un tri : elle
+annonce que le tri de contenu demande la fermeture de tous les entretiens
+(`verifierTriContenu` dans `useDistantCorpus.ts`).
+
+### Bornes
+
+Quatre limites existent et ne se confondent plus :
+
+| Limite | Valeur | Périmètre |
+|---|---|---|
+| Actions du commit | 100 | le plan complet, **bail compris** ; 98 sources au maximum |
+| Plan sérialisé | 1 500 000 octets | actions métier, marge de sécurité |
+| Corps HTTP | 2 Mio | corps exact, échappement compris |
+| Réponse de lecture | 256 Kio | lecture JSON base64 d'un fichier avec garde |
+
+`verifierBornesPublication` mesure le corps final au moment de l'envoi ;
+`verifierBornesAnticipees` fait le même calcul avant l'acquisition du droit, bail
+réservé. Un dépassement est refusé par son nom, jamais contourné par plusieurs
+commits ni par la suppression d'une garde.
+
+### Une garde inchangée ne périme personne
+
+Le fait décisif a été mesuré sur le banc : un `update` au contenu inchangé sous son
+`last_commit_id` est une garde **pure**. Le `last_commit_id` du fichier ne bouge
+pas, et une session longue garde ensuite revalider, publier son candidat, renouveler
+son bail et se fermer sans conflit. Le chemin de réadoption de garde n'a donc pas
+été écrit : il n'aurait coûté une lecture et une écriture de journal par source que
+pour réparer un risque écarté. Le scénario qui l'établit est dans
+`test/gitlab/contrat-gitlab.test.ts` ; il affiche son résultat :
+
+```text
+[banc] garde inchangée — last_commit_id 0d499b66 → 0d499b66 (avancé : false)
+```
+
+### Couverture
+
+`test/gitlab/definitionsSources.test.ts` couvre la garde des sources dans le
+commit, l'absence de double lecture, le refus atomique quand une source change
+pendant la préparation, un repère absent de la version publiée, une source
+disparue, la borne de 98 sources refusée avant le bail, la publication préalable
+d'une source détenue et son échec, puis le tri : corpus publié sans aucune source
+gardée, refus avant acquisition, entretien illisible, tri sans changement.
+`test/gitlab/contexte.test.ts` couvre le refus de tri sur un entretien local, sur un
+détenteur nommé et sur une observation en panne. `test/gitlab/bailPublication.test.ts`
+couvre les bornes du commit et du corps. `test/distantRenderer.test.ts` couvre la
+règle de tri côté interface.
+
+**Non qualifié sur banc.** Reste la qualification à deux comptes du jalon d du lot C
+avant d'ouvrir les capacités, puis les recettes de gesture à sources : coût en
+requêtes, en commits et en mémoire pour un rattachement, une dérivation
+représentative et un tri complet, comportement face à une source réellement périmée
+en cours de préparation, et le volume réel du corpus pilote face aux bornes.

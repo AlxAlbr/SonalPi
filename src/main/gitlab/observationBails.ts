@@ -8,6 +8,7 @@ import {
   cheminBailRessourceGitLab,
   cleRessourceBailGitLab,
   observerBailGitLab,
+  type BailObserveGitLab,
 } from './bailGitLab'
 import { ErreurGitLab } from './client'
 import type { InstantaneLectureGitLab, LecteurGitLab } from './lecture'
@@ -21,10 +22,10 @@ export interface OptionsObservationBailsGitLab {
   /** Identifiants des entretiens du corpus local : seuls leurs bails sont lus,
    *  les autres fichiers du dossier de coordination restent ignorés. */
   idsEntretiens: () => string[]
-  /** Ressource de bail d'un entretien, calculée par les sessions. */
+  /** Ressource historique d'un entretien, utilisée par les anciens marqueurs. */
   ressource: (id: string) => string
-  /** Ressources dont ce poste détient effectivement la session. */
-  ressourcesTenues: () => string[]
+  /** Confirme qu'un bail observé est celui d'une session locale active. */
+  bailTenuLocalement: (id: string, bail: BailObserveGitLab) => boolean
   maintenant?: () => number
 }
 
@@ -48,8 +49,8 @@ export class ObservationBailsGitLab implements ObservationCoordinationDistante {
     try {
       badges = await this.relever(ids)
     } catch {
-      // L'inventaire des bails n'a pas abouti : les listes ne peuvent plus rien
-      // dire des exclusions. Le tirage des contenus, lui, est déjà acquis.
+      // Une panne d'observation empêche les listes de décrire les exclusions.
+      // Le tirage des contenus, lui, reste acquis.
       return { entrees: [], indisponible: true }
     }
     return { entrees: badges, indisponible: false }
@@ -59,21 +60,23 @@ export class ObservationBailsGitLab implements ObservationCoordinationDistante {
     const lecteur = await this.options.instantane.racineDepot()
     const presents = await this.inventorier(lecteur)
     if (presents.size === 0) return []
-    const tenues = new Set(this.options.ressourcesTenues())
     const out: EntreeVerrouPublic[] = []
     for (const id of ids) {
-      const chemin = this.cheminDuBail(id, presents)
-      if (!chemin) continue
-      if (tenues.has(this.options.ressource(id))) continue
-      const bail = await this.lireBail(lecteur, chemin)
-      // Un bail expiré ne vaut plus exclusion ; un ancien marqueur en vaut
-      // toujours une, le coordinateur le refusant sans regarder l'échéance.
-      if (!bail || (!bail.legacy && Date.parse(bail.expireLe) <= this.maintenant())) continue
-      out.push({
-        chemin: `entretiens/${id}.json`,
-        etag: null,
-        contenu: { userId: bail.userId, machineId: bail.machineId, acquiredAt: '' },
-      })
+      for (const candidat of this.cheminsDuBail(id)) {
+        if (!presents.has(candidat.chemin)) continue
+        const bail = await this.lireBail(lecteur, candidat.chemin, candidat.legacy)
+        if (!bail) continue
+        // Le coordinateur refuse d'abord tout marqueur historique. Un bail v2,
+        // lui, ne bloque plus après son expiration.
+        if (!bail.legacy && Date.parse(bail.expireLe) <= this.maintenant()) continue
+        if (this.options.bailTenuLocalement(id, bail)) break
+        out.push({
+          chemin: `entretiens/${id}.json`,
+          etag: null,
+          contenu: { userId: bail.userId, machineId: bail.machineId, acquiredAt: '' },
+        })
+        break
+      }
     }
     return out
   }
@@ -94,15 +97,17 @@ export class ObservationBailsGitLab implements ObservationCoordinationDistante {
     }
   }
 
-  /** Fichier de bail de l'entretien : le versionné s'il existe, sinon
-   *  l'ancien marqueur écrit sous la seule ressource. */
-  private cheminDuBail(id: string, presents: Set<string>): string | null {
-    const courant = cheminBailRessourceGitLab(
-      cleRessourceBailGitLab(this.options.branche, this.cheminEntretien(id)),
-    )
-    if (presents.has(courant)) return courant
-    const ancien = cheminBailRessourceGitLab(this.options.ressource(id))
-    return presents.has(ancien) ? ancien : null
+  /** Marqueur historique puis bail courant, dans l'ordre de refus du coordinateur. */
+  private cheminsDuBail(id: string): Array<{ chemin: string; legacy: boolean }> {
+    return [
+      { chemin: cheminBailRessourceGitLab(this.options.ressource(id)), legacy: true },
+      {
+        chemin: cheminBailRessourceGitLab(
+          cleRessourceBailGitLab(this.options.branche, this.cheminEntretien(id)),
+        ),
+        legacy: false,
+      },
+    ]
   }
 
   private cheminEntretien(id: string): string {
@@ -110,13 +115,17 @@ export class ObservationBailsGitLab implements ObservationCoordinationDistante {
     return this.racine ? `${this.racine}/${chemin}` : chemin
   }
 
-  /** Un bail illisible est omis : le badge ne se devine pas. */
+  /** Un contenu illisible est omis.
+   *  Une panne de transport rend l'observation indisponible.
+   *  L'absence de badge ne serait sinon plus fiable. */
   private async lireBail(
     lecteur: LecteurGitLab,
     chemin: string,
-  ): Promise<ReturnType<typeof observerBailGitLab> | null> {
+    legacy: boolean,
+  ): Promise<BailObserveGitLab | null> {
+    const contenu = await lecteur.lireTexte(chemin)
     try {
-      return observerBailGitLab(await lecteur.lireTexte(chemin), chemin)
+      return observerBailGitLab(contenu, chemin, legacy)
     } catch {
       return null
     }

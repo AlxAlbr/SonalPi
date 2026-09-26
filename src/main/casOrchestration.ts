@@ -15,6 +15,24 @@ export interface DependancesCommandeCas {
   executerDefinitionsAvecSources?: () => Promise<CorpusFichier> | CorpusFichier
 }
 
+/** Entretiens publiés dont une commande CAS a besoin : les sources de ses
+ *  rattachements, ou le membership entier pour une dérivation, dont la recette
+ *  se contrôle sur toutes ses sources. `null` quand la commande n'en lit
+ *  aucune et se calcule sur le seul corpus. */
+export function deduireSourcesCas(
+  commande: CommandeCas,
+): ((corpus: CorpusFichier) => string[]) | null {
+  if (
+    commande.type === 'ajouter-derivation-famille' ||
+    commande.type === 'ajouter-derivation-cas'
+  ) {
+    return (corpus) => Object.keys(corpus.membership)
+  }
+  const ids = referencesAjouteesCommandeCas(commande).map((reference) => reference.entretienId)
+  if (ids.length === 0) return null
+  return () => ids
+}
+
 /** Publie les sources concernées avant la transaction courte sur le corpus. */
 export async function executerCommandeCas(
   commande: CommandeCas,

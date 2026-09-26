@@ -5,7 +5,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { BailGitLab, cleRessourceBailGitLab } from '../../src/main/gitlab/bailGitLab'
-import { PublieurGitLab } from '../../src/main/gitlab/publication'
+import {
+  MAX_ACTIONS_PUBLICATION,
+  PublieurGitLab,
+  verifierBornesPublication,
+} from '../../src/main/gitlab/publication'
+
+const MiB = 1024 * 1024
 import { DepotMemoire } from './depotMemoire'
 
 function identidade(sessionId: string) {
@@ -147,6 +153,7 @@ describe('publication GitLab sous droit', () => {
 
     await expect(publieur.publierSousDroit({
       operationId: 'operation-1',
+      nature: 'session-entretien',
       actions: [{ action: 'create', chemin: 'entretiens/e1.json', contenu: '{}' }],
     }, droit.droit)).resolves.toEqual({
       statut: 'confirme',
@@ -163,6 +170,43 @@ describe('publication GitLab sous droit', () => {
     expect(coordination.snapshot(droit.droit).compteur).toBe(2)
   })
 
+  test('refuse par son nom un plan trop volumineux, bail laissé intact', async () => {
+    const depot = new DepotMemoire()
+    const maintenant = () => Date.UTC(2026, 0, 1)
+    const coordination = bail(depot, 'session-a', maintenant)
+    const droit = await coordination.acquireRessource('entretien:e1')
+    if (!droit.ok) throw new Error('Acquisition test invalide.')
+    const publieur = new PublieurGitLab({ branche: 'main', depot, coordination })
+    const actions = Array.from({ length: MAX_ACTIONS_PUBLICATION }, (_vide, index) => ({
+      action: 'update' as const,
+      chemin: `entretiens/e${index}.json`,
+      contenu: '{}',
+      commitId: 'a'.repeat(40),
+    }))
+
+    // Cent actions métier plus le bail dépassent la borne du commit.
+    await expect(publieur.publierSousDroit({
+      operationId: 'operation-borne',
+      nature: 'transaction-corpus',
+      actions,
+    }, droit.droit)).rejects.toThrow(/101 actions/)
+    expect(depot.commits).toHaveLength(1)
+    // Le droit reste utilisable : la préparation de bail a été annulée.
+    expect(() => coordination.preparerPublication(droit.droit)).not.toThrow()
+  })
+
+  test('un corps trop lourd est refusé avant l’envoi', () => {
+    const action = { action: 'update', file_path: 'corpus.json', content: 'x'.repeat(1024) }
+    expect(() => verifierBornesPublication('main', 'Sonal operation', [action])).not.toThrow()
+    const lourd = Array.from({ length: 3 }, (_vide, index) => ({
+      ...action,
+      file_path: `corpus-${index}.json`,
+      content: 'x'.repeat(MiB),
+    }))
+    expect(() => verifierBornesPublication('main', 'Sonal operation', lourd))
+      .toThrow(/Kio acceptés par GitLab/)
+  })
+
   test('journalise puis supprime une publication confirmée', async () => {
     const depot = new DepotMemoire()
     const root = mkdtempSync(join(tmpdir(), 'sonal-journal-publie-'))
@@ -175,6 +219,7 @@ describe('publication GitLab sous droit', () => {
 
       await expect(publieur.publierSousDroit({
         operationId: 'operation-journal-confirme',
+        nature: 'session-entretien',
         actions: [{ action: 'create', chemin: 'entretiens/e1.json', contenu: '{}' }],
       }, droit.droit)).resolves.toMatchObject({ statut: 'confirme' })
       expect(journal.lister()).toEqual([])
@@ -196,6 +241,7 @@ describe('publication GitLab sous droit', () => {
 
       await expect(publieur.publierSousDroit({
         operationId: 'operation-journal-indetermine',
+        nature: 'session-entretien',
         actions: [{ action: 'create', chemin: 'entretiens/e1.json', contenu: '{}' }],
       }, droit.droit)).resolves.toMatchObject({ statut: 'indetermine' })
       expect(journal.lister()[0]).toMatchObject({
@@ -218,10 +264,12 @@ describe('publication GitLab sous droit', () => {
     const resultats = await Promise.all([
       publieur.publierSousDroit({
         operationId: 'operation-parallele-1',
+        nature: 'session-entretien',
         actions: [{ action: 'create', chemin: 'entretiens/e1.json', contenu: '{}' }],
       }, droit.droit),
       publieur.publierSousDroit({
         operationId: 'operation-parallele-2',
+        nature: 'session-entretien',
         actions: [{ action: 'create', chemin: 'entretiens/autre.json', contenu: '{}' }],
       }, droit.droit),
     ])
@@ -248,6 +296,7 @@ describe('publication GitLab sous droit', () => {
 
     await expect(publieur.publierSousDroit({
       operationId: 'operation-conflit',
+      nature: 'session-entretien',
       actions: [{
         action: 'update',
         chemin: 'entretiens/e1.json',

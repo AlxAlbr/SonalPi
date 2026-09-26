@@ -7,7 +7,7 @@ import {
   type DroitsEditionGitLab,
 } from './bailGitLab'
 import { ErreurEcritureGitLab } from './client'
-import type { JournalPublicationGitLab } from './journalPublication'
+import type { JournalPublicationGitLab, NaturePublicationGitLab } from './journalPublication'
 
 export type ActionPlanGitLab =
   | { action: 'create'; chemin: string; contenu: string }
@@ -22,6 +22,9 @@ export type ActionPlanGitLab =
 
 export interface PlanPublicationGitLab {
   operationId: string
+  /** Ce que la publication transporte : une session d'entretien ou une
+   *  transaction de corpus. La réconciliation en dépend. */
+  nature: NaturePublicationGitLab
   actions: ActionPlanGitLab[]
 }
 
@@ -50,6 +53,77 @@ export interface OptionsPublieurGitLab {
 const SHA_COMMIT = /^[a-f0-9]{40,64}$/
 const IDENT_OPERATION = /^[A-Za-z0-9._:-]{1,120}$/
 const TAILLE_MAX_PLAN = 1_500_000
+/** GitLab refuse au-delà de cent actions dans un même commit, bail compris. */
+export const MAX_ACTIONS_PUBLICATION = 100
+/** Taille du corps HTTP de publication, bail et échappement compris. */
+export const MAX_CORPS_PUBLICATION = 2 * 1024 * 1024
+/** Marge réservée pour l'enveloppe et l'action de bail lors d'un contrôle
+ *  anticipé, effectué avant l'acquisition du droit. */
+export const RESERVE_ENVELOPPE_PUBLICATION = 8 * 1024
+
+/** Un geste trop volumineux pour un seul commit : il est refusé par son nom,
+ *  jamais découpé en plusieurs commits ni dégardé. */
+export class RefusLimitePublicationGitLab extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RefusLimitePublicationGitLab'
+  }
+}
+
+/** Octets du corps exact que l'API recevra, branche et actions comprises. */
+export function mesurerCorpsPublication(
+  branche: string,
+  message: string,
+  actions: readonly unknown[],
+  reserve = 0,
+): number {
+  return Buffer.byteLength(
+    JSON.stringify({ branch: branche, commit_message: message, actions }),
+    'utf8',
+  ) + reserve
+}
+
+/** Contrôle définitif des bornes, sur le corps complet, bail compris : c'est
+ *  lui que GitLab compte. */
+export function verifierBornesPublication(
+  branche: string,
+  message: string,
+  actions: readonly unknown[],
+): void {
+  if (actions.length > MAX_ACTIONS_PUBLICATION) throw refusActions(actions.length)
+  const octets = mesurerCorpsPublication(branche, message, actions)
+  if (octets > MAX_CORPS_PUBLICATION) throw refusTaille(octets)
+}
+
+/** Même contrôle avant l'acquisition du droit : l'action de bail n'existe pas
+ *  encore, sa place est donc comptée à l'avance. */
+export function verifierBornesAnticipees(
+  branche: string,
+  message: string,
+  actions: readonly unknown[],
+): void {
+  if (actions.length + 1 > MAX_ACTIONS_PUBLICATION) {
+    throw refusActions(actions.length + 1)
+  }
+  const octets = mesurerCorpsPublication(branche, message, actions, RESERVE_ENVELOPPE_PUBLICATION)
+  if (octets > MAX_CORPS_PUBLICATION) throw refusTaille(octets)
+}
+
+function refusActions(total: number): RefusLimitePublicationGitLab {
+  return new RefusLimitePublicationGitLab(
+    `Ce geste porterait ${total} actions dans un seul commit, `
+    + `au-delà des ${MAX_ACTIONS_PUBLICATION} acceptées par GitLab. `
+    + 'Réduisez le nombre d’entretiens concernés.',
+  )
+}
+
+function refusTaille(octets: number): RefusLimitePublicationGitLab {
+  return new RefusLimitePublicationGitLab(
+    `Cette publication ferait ${Math.round(octets / 1024)} Kio, `
+    + `au-delà des ${Math.round(MAX_CORPS_PUBLICATION / 1024)} Kio acceptés par GitLab. `
+    + 'Réduisez le nombre d’entretiens concernés.',
+  )
+}
 
 export class PublieurGitLab {
   private readonly operations = new Map<string, Promise<void>>()
@@ -82,10 +156,18 @@ export class PublieurGitLab {
       throw erreur
     }
     const actionsComplete = [...actions, transition.action]
+    const message = `Sonal ${plan.operationId}`
+    try {
+      // Le bail vient d'être posé : un dépassement doit le laisser intact.
+      verifierBornesPublication(this.options.branche, message, actionsComplete)    } catch (erreur) {
+      this.options.coordination.annulerPreparation(droit)
+      throw erreur
+    }
     if (this.options.journal) {
       try {
         this.options.journal.preparer({
           operationId: plan.operationId,
+          nature: plan.nature,
           branche: this.options.branche,
           resourceHash: avant.resourceHash,
           generation: avant.generation,
@@ -101,7 +183,7 @@ export class PublieurGitLab {
     try {
       const commit = await this.options.depot.publierCommit(
         this.options.branche,
-        `Sonal ${plan.operationId}`,
+        message,
         actionsComplete,
       )
       if (!SHA_COMMIT.test(commit.id)) {
@@ -204,7 +286,7 @@ function compilerPlan(plan: PlanPublicationGitLab): ActionCommitGitLab[] {
   if (!IDENT_OPERATION.test(plan.operationId)) {
     throw new Error('Identifiant d’opération GitLab invalide.')
   }
-  if (plan.actions.length === 0 || plan.actions.length > 100) {
+  if (plan.actions.length === 0) {
     throw new Error('Plan de publication GitLab invalide.')
   }
   const vus = new Set<string>()

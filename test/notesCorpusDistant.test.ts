@@ -88,7 +88,7 @@ describe('Notes du corpus — consultation distante', () => {
         statut: premiere.statut,
         corps: premiere.corps,
       },
-    }, true)).toThrow(/lecture seule/)
+    }, true)).toThrow(/transaction sous droit/)
 
     serveur.poser('entretiens/e1.json', JSON.stringify(entretien(note('Version B', 'Corps B'))))
     await miroir.tirer()

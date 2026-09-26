@@ -848,8 +848,9 @@ export class SessionsDEntretien {
     const out: EntreeVerrouPublic[] = []
     for (const { chemin, etag } of chemins) {
       let contenu: EntreeVerrouPublic['contenu'] = null
+      const texte = await this.client.getTexte(chemin)
       try {
-        const v = JSON.parse(await this.client.getTexte(chemin)) as Partial<ContenuVerrou>
+        const v = JSON.parse(texte) as Partial<ContenuVerrou>
         if (
           typeof v.userId === 'string' &&
           typeof v.sessionId === 'string' &&
@@ -859,7 +860,7 @@ export class SessionsDEntretien {
           contenu = { userId: v.userId, machineId: v.machineId ?? '', acquiredAt: v.acquiredAt }
         }
       } catch {
-        /* illisible/injoignable : badge omis */
+        /* Un contenu illisible est omis sans inventer de détenteur. */
       }
       out.push({ chemin, etag, contenu })
     }

@@ -1239,14 +1239,14 @@ describe('CorpusStore — garde lectureSeule (E0 corpus distant)', () => {
     const { store } = storeRo()
     const [id] = Object.keys(store.ouvrir().membership)
     expect(() => store.ecrireEntretien(id, payload('x'))).toThrow(/verrou n'est pas tenu/)
-    expect(() => store.poserNom('nouveau nom')).toThrow(/lecture seule/)
-    expect(() => store.creerEntretienVide('nouveau')).toThrow(/lecture seule/)
-    expect(() => store.renommerEntretien(id, 'titre')).toThrow(/lecture seule/)
-    expect(() => store.supprimerEntretien(id)).toThrow(/lecture seule/)
-    expect(() => store.ajouterCategorie('thème')).toThrow(/lecture seule/)
-    expect(() => store.ajouterVariable('var', 'entretien')).toThrow(/lecture seule/)
-    expect(() => store.regleAnonCreer('ACME', ['A.'])).toThrow(/lecture seule/)
-    expect(() => store.marquerDemo({ mode: 'pas-a-pas', racineSources: '/x', validees: [] })).toThrow(/lecture seule/)
+    expect(() => store.poserNom('nouveau nom')).toThrow(/transaction sous droit/)
+    expect(() => store.creerEntretienVide('nouveau')).toThrow(/transaction sous droit/)
+    expect(() => store.renommerEntretien(id, 'titre')).toThrow(/transaction sous droit/)
+    expect(() => store.supprimerEntretien(id)).toThrow(/transaction sous droit/)
+    expect(() => store.ajouterCategorie('thème')).toThrow(/transaction sous droit/)
+    expect(() => store.ajouterVariable('var', 'entretien')).toThrow(/transaction sous droit/)
+    expect(() => store.regleAnonCreer('ACME', ['A.'])).toThrow(/transaction sous droit/)
+    expect(() => store.marquerDemo({ mode: 'pas-a-pas', racineSources: '/x', validees: [] })).toThrow(/transaction sous droit/)
     // Rien n'a bougé sur disque.
     const { store: temoin } = storeNeuf()
     void temoin
@@ -1397,6 +1397,6 @@ describe('CorpusStore — tableau de bord (définitions corpus)', () => {
     s.store.lectureSeule = true
     expect(() => s.store.tableaubordCommander({
       type: 'poser-cellule', ligneId: 'ent-1', colonneId: 'contact', attendu: null, contenu: { badgeId: 'ok' },
-    })).toThrow(/lecture/)
+    })).toThrow(/transaction sous droit/)
   })
 })

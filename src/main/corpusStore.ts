@@ -205,6 +205,22 @@ interface DeplacementPngPrepare {
   readonly contenuSourceInitial: Buffer
 }
 
+/** Un store de préparation ne connaît que `corpus.json` et les sources qu'on
+ *  lui a prévues : toute lecture, tout inventaire et toute écriture d'entretien
+ *  non prévue y est un défaut, pas une donnée absente. Les lectures
+ *  « tolérantes » du store ignorent volontairement un entretien manquant et
+ *  concluraient donc à tort à zéro usage ; cette erreur les coupe à la racine. */
+export class ErreurCorpusSeul extends Error {
+  constructor(id?: string) {
+    super(
+      id
+        ? `La préparation ne peut pas lire l’entretien « ${id} » : il n’est pas une source prévue.`
+        : 'Cette préparation ne peut pas lire les entretiens.',
+    )
+    this.name = 'ErreurCorpusSeul'
+  }
+}
+
 /** Résultat d'une préparation en mémoire, sans modification de la cible. */
 export interface PreparationOuvertureCorpus {
   readonly corpus: CorpusFichier
@@ -245,17 +261,60 @@ export class CorpusStore {
    *  Les dérivés locaux purs (PNG waveform) restent permis. */
   lectureSeule = false
 
+  /** Préparation d'une transaction de définitions : ce store ne connaît que
+   *  `corpus.json`, et les seuls entretiens qui lui sont confiés comme sources.
+   *  Voir `ErreurCorpusSeul`. */
+  private sourcesPreparation: Set<string> | null = null
+
   /** Amorçage encore permis pour CE store ? Vrai à la création (le dossier vient d'être choisi explicitement, neuf ou vide),
    *  puis faux dès qu'un corpus existe.
    *  Si `corpus.json` disparaît ensuite (dossier supprimé à l'extérieur de l'app), `ouvrir()` lève CORPUS_SUPPRIME au lieu de recréer un corpus fantôme en silence. */
   private amortissable = true
 
+  /** Écriture du corpus accordée pour la durée d'un callback de préparation.
+   *  Elle ne porte que sur ce store : le miroir actif n'en profite jamais. */
+  private ecritureCorpusAutorisee = false
+
   private verifierEcriture(): void {
+    if (this.ecritureCorpusAutorisee) return
     if (this.lectureSeule) {
       throw new Error(
-        'Corpus distant ouvert en lecture seule : la modification partagée sous verrou arrive avec la prochaine étape.',
+        'Le corpus partagé n’est pas modifiable directement : la modification passe par une transaction sous droit.',
       )
     }
+  }
+
+  /** Branche ce store en mode préparation : il n'inventorie rien de plus que
+   *  les sources prévues, et signale toute autre lecture. */
+  activerModePreparation(sources?: Iterable<string>): void {
+    this.lectureSeule = true
+    this.sourcesPreparation = new Set(sources ?? [])
+  }
+
+  /** Accorde l'écriture du corpus le temps d'un callback SYNCHRONE, puis la
+   *  révoque. Une continuation asynchrone est refusée : elle survivrait à la
+   *  révocation et à la suppression du dossier de préparation. */
+  avecEcritureCorpus<T>(operation: () => T): T {
+    if (this.ecritureCorpusAutorisee) {
+      throw new Error('Une écriture du corpus est déjà en préparation.')
+    }
+    this.ecritureCorpusAutorisee = true
+    try {
+      const resultat = operation()
+      if (resultat && typeof (resultat as { then?: unknown }).then === 'function') {
+        throw new Error('La préparation du corpus doit être synchrone.')
+      }
+      return resultat
+    } finally {
+      this.ecritureCorpusAutorisee = false
+    }
+  }
+
+  private verifierEntretienLisible(id?: string): void {
+    const sources = this.sourcesPreparation
+    if (sources === null) return
+    if (id !== undefined && sources.has(id)) return
+    throw new ErreurCorpusSeul(id)
   }
 
   /** Exception PAR ENTRETIEN : quand le corpus distant est en lecture seule (les définitions partagées restent bloquées),
@@ -272,6 +331,12 @@ export class CorpusStore {
   }
 
   private verifierEcritureEntretien(id: string): void {
+    this.verifierEntretienLisible(id)
+    if (this.sourcesPreparation !== null) {
+      // Les sources d'une préparation sont des copies de lecture : jamais des
+      // fichiers à modifier, même lorsqu'ils sont prévus.
+      throw new ErreurCorpusSeul(id)
+    }
     if (!this.lectureSeule) return // corpus local : tout est permis
     if (this.ecrituresAutorisees.has(id)) return // notre verrou tient
     throw new Error(
@@ -652,6 +717,7 @@ export class CorpusStore {
    *  Les anciens formats supportés sont adaptés en mémoire ; ils seront
    *  persistés seulement lors d'une véritable édition. */
   lireEntretien(id: string): LectureEntretien {
+    this.verifierEntretienLisible(id)
     const fichier = this.entretienFile(id)
     if (!existsSync(fichier)) return { ok: false, raison: 'absent' }
 
@@ -880,6 +946,7 @@ export class CorpusStore {
     id: string,
     impactAttendu?: ImpactSuppressionEntretien,
   ): PlanSuppressionEntretien {
+    this.verifierEntretienLisible(id)
     const corpusAvant = this.ouvrir()
     if (!corpusAvant.membership[id]) throw new Error("Cet entretien n'existe plus.")
     const impactCourant = analyserImpactSuppressionEntretien(corpusAvant, id)
@@ -935,6 +1002,11 @@ export class CorpusStore {
 
   /** Applique un plan localement après une transaction locale ou un commit distant confirmé. */
   appliquerTransactionFichiers(plan: PlanTransactionFichiers): void {
+    if (this.sourcesPreparation !== null) {
+      throw new ErreurCorpusSeul(
+        plan.operation === 'remplacement' ? plan.entretiens[0]?.id : plan.id,
+      )
+    }
     this.transactionsFichiers.executer(plan)
     this.invaliderRefsAudio()
   }
@@ -956,6 +1028,7 @@ export class CorpusStore {
    *  C'est ce qu'utilisent toutes les requêtes analytiques (usages de thèmes,
    *  matrice corpus…). Si un fichier est manquant, on le passe silencieusement. */
   private chargerEntretiens(): corpusModel.EntreeMatrice[] {
+    this.verifierEntretienLisible()
     const corpus = this.ouvrir()
     const out: corpusModel.EntreeMatrice[] = []
     for (const [id, ref] of Object.entries(corpus.membership)) {
@@ -971,6 +1044,7 @@ export class CorpusStore {
 
   /** Inventaire tolérant : les entretiens illisibles restent signalés. */
   notesInventaire(): InventaireNotes {
+    this.verifierEntretienLisible()
     const corpus = this.ouvrir()
     const entretiens: corpusModel.EntreeMatrice[] = []
     const indisponibles: InventaireNotes['indisponibles'] = []
@@ -992,6 +1066,7 @@ export class CorpusStore {
 
   /** Inventaire tolérant : les entretiens illisibles restent signalés. */
   personnesInventaire(): InventairePersonnes {
+    this.verifierEntretienLisible()
     const corpus = this.ouvrir()
     const entretiens: corpusModel.EntreeMatrice[] = []
     const indisponibles: InventairePersonnes['indisponibles'] = []
@@ -2104,6 +2179,7 @@ export class CorpusStore {
    *  La passe de lecture est partagée entre `cheminMediaAbs` et `audios()` :
    *  whitelist des chemins d'une part, liste des audios d'autre part. */
   private refsAudio(): Map<string, string> {
+    this.verifierEntretienLisible()
     if (this.cacheRefsAudio) return this.cacheRefsAudio
     const out = new Map<string, string>()
     const corpus = this.ouvrir()
@@ -2123,6 +2199,7 @@ export class CorpusStore {
    *  écriture extérieure au store qu'aucun appel métier n'invalide, donc pas
    *  de cache ici (fichiers petits, fréquence faible). */
   private refsAudioDistants(): Map<string, { chemin: string }> {
+    this.verifierEntretienLisible()
     const out = new Map<string, { chemin: string }>()
     const corpus = this.ouvrir()
     for (const id of Object.keys(corpus.membership)) {

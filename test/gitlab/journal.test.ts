@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createHash } from 'node:crypto'
 import {
   JournalPublicationGitLab,
   ReconciliateurPublicationGitLab,
@@ -70,6 +71,7 @@ describe('journal de publication GitLab', () => {
       const action = actionCreate('{"formatVersion":3}')
       journal.preparer({
         operationId: 'operation-journal-1',
+        nature: 'session-entretien',
         branche: 'main',
         resourceHash: 'a'.repeat(64),
         generation: 'generation-1',
@@ -101,6 +103,7 @@ describe('journal de publication GitLab', () => {
     try {
       journal.preparer({
         operationId: 'operation-journal-2',
+        nature: 'session-entretien',
         branche: 'main',
         resourceHash: 'c'.repeat(64),
         generation: 'generation-2',
@@ -125,6 +128,7 @@ describe('journal de publication GitLab', () => {
       const action = actionCreate('{"version":"confirmee"}')
       journal.preparer({
         operationId: 'operation-journal-3',
+        nature: 'session-entretien',
         branche: 'main',
         resourceHash: 'e'.repeat(64),
         generation: 'generation-3',
@@ -155,6 +159,7 @@ describe('journal de publication GitLab', () => {
       const action = actionCreate('{"version":"retrouvee"}')
       journal.preparer({
         operationId: 'operation-journal-6',
+        nature: 'session-entretien',
         branche: 'main',
         resourceHash: '5'.repeat(64),
         generation: 'generation-6',
@@ -193,6 +198,7 @@ describe('journal de publication GitLab', () => {
       const action = actionCreate('absent')
       journal.preparer({
         operationId: 'operation-journal-4',
+        nature: 'session-entretien',
         branche: 'main',
         resourceHash: '1'.repeat(64),
         generation: 'generation-4',
@@ -218,6 +224,7 @@ describe('journal de publication GitLab', () => {
       const action = actionCreate('avant-corruption')
       journal.preparer({
         operationId: 'operation-journal-5',
+        nature: 'session-entretien',
         branche: 'main',
         resourceHash: '3'.repeat(64),
         generation: 'generation-5',
@@ -233,6 +240,133 @@ describe('journal de publication GitLab', () => {
       writeFileSync(candidatePath, '[]', 'utf8')
       const reconciliateur = new ReconciliateurPublicationGitLab(depot, journal)
       await expect(reconciliateur.reconcilier(entree)).resolves.toEqual({ statut: 'indetermine' })
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('nature des entrées de publication', () => {
+  const CORPUS = 'donnees/corpus.json'
+  const HACHAGE_CORPUS = '9'.repeat(64)
+  const HACHAGE_BAIL = '8'.repeat(64)
+
+  function banc(avecRessourceCorpus: boolean) {
+    const root = mkdtempSync(join(tmpdir(), 'sonal-journal-nature-'))
+    const journal = new JournalPublicationGitLab(
+      'destination-test',
+      root,
+      () => new Date('2026-01-01T00:00:00Z'),
+      avecRessourceCorpus ? { chemin: CORPUS, resourceHash: HACHAGE_CORPUS } : undefined,
+    )
+    return { root, journal }
+  }
+
+  /** Simule une entrée écrite avant l'existence des natures. */
+  function semerAncienne(
+    journal: JournalPublicationGitLab,
+    racine: string,
+    operationId: string,
+    resourceHash: string,
+    actions: ActionCommitGitLab[],
+  ): void {
+    journal.preparer({
+      operationId,
+      nature: 'session-entretien',
+      branche: 'main',
+      resourceHash,
+      generation: 'generation-1',
+      leaseCommitId: 'a'.repeat(40),
+      etat: 'indetermine',
+      actions,
+    })
+    const fichier = join(racine, 'operations',
+      // Le journal range par empreinte de l'identifiant d'opération.
+      createHash('sha256').update(operationId).digest('hex') + '.json')
+    const entree = JSON.parse(readFileSync(fichier, 'utf8'))
+    delete entree.nature
+    entree.version = 1
+    writeFileSync(fichier, JSON.stringify(entree, null, 2), 'utf8')
+  }
+
+  const actionCorpus: ActionCommitGitLab = {
+    action: 'update',
+    file_path: CORPUS,
+    content: '{}',
+    last_commit_id: 'b'.repeat(40),
+  }
+  const actionBail: ActionCommitGitLab = {
+    action: 'update',
+    file_path: `.sonal/verrous/${HACHAGE_CORPUS}.json`,
+    content: '{}',
+    last_commit_id: 'b'.repeat(40),
+  }
+
+  test('reconnaît une ancienne transaction de corpus par sa ressource et ses actions', () => {
+    const { root, journal } = banc(true)
+    try {
+      semerAncienne(journal, root, 'ancienne-corpus', HACHAGE_CORPUS, [actionCorpus, actionBail])
+      expect(journal.lister()[0].nature).toBe('transaction-corpus')
+      expect(journal.transactionsCorpusJournalisees()).toHaveLength(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('une ancienne entrée de session reste une session', () => {
+    const { root, journal } = banc(true)
+    try {
+      semerAncienne(journal, root, 'ancienne-session', HACHAGE_BAIL, [{
+        action: 'update',
+        file_path: 'donnees/entretiens/e1.json',
+        content: '{}',
+        last_commit_id: 'b'.repeat(40),
+      }])
+      expect(journal.lister()[0].nature).toBe('session-entretien')
+      expect(journal.transactionsCorpusJournalisees()).toHaveLength(0)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('une ancienne entrée au contenu mixte reste inconnue et bloquante', () => {
+    const { root, journal } = banc(true)
+    try {
+      semerAncienne(journal, root, 'ancienne-mixte', HACHAGE_CORPUS, [
+        actionCorpus,
+        { action: 'create', file_path: 'donnees/entretiens/e1.json', content: '{}' },
+      ])
+      expect(journal.lister()[0].nature).toBe('inconnue')
+      expect(journal.transactionsCorpusJournalisees()).toHaveLength(1)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('sans ressource de corpus connue, une ancienne entrée reste inconnue', () => {
+    const { root, journal } = banc(false)
+    try {
+      semerAncienne(journal, root, 'ancienne-sans-ressource', HACHAGE_CORPUS, [actionCorpus])
+      expect(journal.lister()[0].nature).toBe('inconnue')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('une nature déclarée est conservée telle quelle', () => {
+    const { root, journal } = banc(true)
+    try {
+      journal.preparer({
+        operationId: 'declaree',
+        nature: 'transaction-corpus',
+        branche: 'main',
+        resourceHash: HACHAGE_BAIL,
+        generation: 'generation-1',
+        leaseCommitId: 'a'.repeat(40),
+        etat: 'prepare',
+        actions: [actionCorpus],
+      })
+      expect(journal.lister()[0].nature).toBe('transaction-corpus')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

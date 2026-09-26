@@ -11,19 +11,27 @@ import {
   FORMAT_VERSION,
   type Categorie,
   type CorpusFichier,
+  type ModeTriEntretiens,
   type OuvertureEntretienEdition,
   type PayloadEntretien,
   type RegleAnon,
   type Variable,
   type VerrouTenuParAutrui,
 } from '../../shared/format'
-import type { PartieBailGitLab } from './bailGitLab'
+import type { BailObserveGitLab, PartieBailGitLab } from './bailGitLab'
 import { ClientGitLab } from './client'
+import { FileOperationsContexte } from './fileOperations'
 import { LecteurGitLab, InstantaneLectureGitLab } from './lecture'
 import { ObservationBailsGitLab } from './observationBails'
+import {
+  exigerGeste,
+  porteeGeste,
+  RefusGesteError,
+  type GesteCorpus,
+} from './politiqueGestes'
 import type { ResultatPublicationGitLab } from './publication'
 import type { EtatSessionGitLab, SessionGitLab } from './session'
-import type { TransactionsGitLab } from './transactions'
+import type { ResultatTransactionDefinitions, TransactionsGitLab } from './transactions'
 
 export interface OptionsContexteGitLabLectureSeule {
   id: string
@@ -33,7 +41,7 @@ export interface OptionsContexteGitLabLectureSeule {
   racine?: string
   cheminsRecuperables?: string[]
   creerSession?: (ressource: string, cheminRelatif: string) => SessionGitLab
-  creerTransactions?: (store: CorpusStore) => TransactionsGitLab
+  creerTransactions?: (store: CorpusStore, file: FileOperationsContexte) => TransactionsGitLab
 }
 
 export interface PreparationContexteGitLabLectureSeule {
@@ -54,6 +62,9 @@ export class ContexteGitLab {
     protege: boolean
   }>()
 
+  /** File unique du contexte : transactions de corpus, tirages et fermeture. */
+  readonly file = new FileOperationsContexte()
+
   constructor(
     public readonly id: string,
     public readonly store: CorpusStore,
@@ -68,15 +79,16 @@ export class ContexteGitLab {
     return this.miroir.dirLocal
   }
 
-  /** Ressources de bail effectivement tenues par ce poste : leurs baux ne
-   *  produisent aucun badge. */
-  sessionsTenues(): string[] {
-    return [...this.sessions.entries()]
-      .filter(([, entree]) => entree.protege)
-      .map(([ressource]) => ressource)
+  /** Vérifie qu'un bail observé appartient encore à notre session active. */
+  bailTenuLocalement(id: string, bail: BailObserveGitLab): boolean {
+    return this.sessions.get(this.ressourceEntretien(id))?.session.tientBail(bail) ?? false
   }
 
   async actualiser(): Promise<ResultatTiragePublic> {
+    return this.file.executer(() => this.actualiserInterne())
+  }
+
+  private async actualiserInterne(): Promise<ResultatTiragePublic> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
     try {
       const tirage = await this.miroir.tirer(
@@ -172,6 +184,113 @@ export class ContexteGitLab {
       variables,
       reglesAnon,
     )
+  }
+
+  /** Mutation de définitions sous bail de `corpus.json`.
+   *  Le geste est nommé : le dispatch refuse ici tout ce que GitLab ne sait
+   *  pas garder cohérent, avant même de construire la préparation. */
+  executerDefinitions<T>(
+    geste: GesteCorpus,
+    preparer: (store: CorpusStore) => T,
+  ): Promise<ResultatTransactionDefinitions<T>> {
+    exigerGeste('gitlab', geste)
+    if (!this.transactions) {
+      throw new Error('Définitions GitLab non configurées pour ce contexte.')
+    }
+    return this.transactions.executerDefinitions(preparer)
+  }
+
+  /** Mutation de définitions qui écrit une référence ou une recette.
+   *
+   *  Les sources lues par le geste sont publiées d'abord si nous les détenons,
+   *  puis gardées dans le même commit que le corpus. Un entretien tenu par un
+   *  tiers n'est jamais publié en son nom : le calcul porte sur la version
+   *  publiée, et le travail non publié du détenteur reste intact. La garde
+   *  portée par ce commit ne modifie pas l'identifiant du fichier distant,
+   *  mesuré sur banc : elle ne périme donc aucune session ouverte. */
+  executerDefinitionsAvecSources<T>(
+    geste: GesteCorpus,
+    preparer: (store: CorpusStore) => T,
+    deduire: (corpus: CorpusFichier) => string[],
+  ): Promise<ResultatTransactionDefinitions<T>> {
+    exigerGeste('gitlab', geste)
+    if (porteeGeste(geste) !== 'definitions-avec-sources') {
+      throw new RefusGesteError(geste, 'Ce geste ne lit aucun entretien publié.')
+    }
+    if (!this.transactions) {
+      throw new Error('Définitions GitLab non configurées pour ce contexte.')
+    }
+    return this.transactions.executerDefinitionsAvecSources(preparer, {
+      deduire,
+      publierSource: (id) => this.publierSourceDetenue(id),
+    })
+  }
+
+  /** Publie une source que nous détenons, et attend un résultat certain.
+   *
+   *  Un entretien que nous tenons et ne pouvons plus publier suspend le geste :
+   *  la commande ne se calculerait pas sur notre travail, et l'interface ne
+   *  doit pas laisser croire que si. */
+  private async publierSourceDetenue(entretienId: string): Promise<void> {
+    const entree = this.sessions.get(this.ressourceEntretien(entretienId))
+    if (!entree) return
+    const etat = entree.session.etat()
+    if (etat.etat === 'degrade') {
+      throw new Error(
+        `La source « ${entretienId} » est dans une session qui ne peut plus publier. `
+        + 'Fermez-la ou réparez sa session avant de relancer l’opération.',
+      )
+    }
+    if (etat.etat !== 'edition') return
+    const publication = await entree.session.publier()
+    if (publication.statut === 'confirme') return
+    throw new Error(
+      `La source « ${entretienId} » n’a pas pu être publiée `
+      + `(${(publication.statut === 'refuse' ? publication.raison : 'résultat inconnu')}).`,
+    )
+  }
+
+  /** Tri par modification ou par longueur : un corpus calme, sans entretien
+   *  tenu nulle part. Le refus précède l'acquisition du bail corpus. */
+  async trierEntretiens(
+    mode: Extract<ModeTriEntretiens, 'modif' | 'longueur'>,
+  ): Promise<CorpusFichier> {
+    exigerGeste('gitlab', 'entretien.trier-contenus')
+    if (!this.transactions) {
+      throw new Error('Tri GitLab non configuré pour ce contexte.')
+    }
+    return this.transactions.trierEntretiens(mode, () => this.verifierCorpusCalme())
+  }
+
+  /** Personne ne tient un entretien, nous compris. L'observation publique
+   *  masque nos propres baux : nos sessions sont donc comptées à part, et une
+   *  observation en panne vaut un refus. */
+  private async verifierCorpusCalme(): Promise<void> {
+    const locaux = [...this.sessions.values()]
+      .filter(({ session }) => session.etat().etat === 'edition')
+      .map(({ chemin }) => chemin.replace(/^entretiens\//, '').replace(/\.json$/, ''))
+    if (locaux.length > 0) {
+      throw new Error(
+        `Le tri de contenu demande la fermeture de tous les entretiens : `
+        + `« ${locaux.join(' », « ')} » est encore ouvert dans cette application.`,
+      )
+    }
+    if (!this.observation) return
+    const observation = await this.observation.observerVerrous()
+    if (observation.indisponible) {
+      throw new Error(
+        'Le tri de contenu demande un corpus sans entretien tenu : les détenteurs sont indisponibles.',
+      )
+    }
+    const tenus = observation.entrees
+      .map((entree) => /^entretiens\/(.+)\.json$/.exec(entree.chemin)?.[1])
+      .filter((id): id is string => Boolean(id))
+    if (tenus.length > 0) {
+      throw new Error(
+        `Le tri de contenu demande la fermeture de tous les entretiens : `
+        + `« ${tenus.join(' », « ')} » est tenu par un autre poste.`,
+      )
+    }
   }
 
   async ouvrirEntretienPourEdition(id: string): Promise<OuvertureEntretienEdition> {
@@ -283,8 +402,11 @@ export class ContexteGitLab {
     return this.miroir.listerDossier(dossier)
   }
 
+  /** Ferme le contexte : plus aucune opération n'est acceptée, l'opération déjà
+   *  engagée est attendue, puis les sessions sont rendues. */
   async fermer(): Promise<void> {
     if (this.termine) return
+    await this.file.fermer()
     for (const [ressource, entree] of this.sessions) {
       const fermeture = await entree.session.fermer()
       if (!fermeture.fermee) {
@@ -340,19 +462,20 @@ export async function preparerContexteGitLabLectureSeule(
   const store = new CorpusStore(options.dirLocal)
   store.lectureSeule = true
   const corpus = store.ouvrir()
+  const file = new FileOperationsContexte()
   const contexte: ContexteGitLab = new ContexteGitLab(
     options.id,
     store,
     miroir,
     options.creerSession,
-    options.creerTransactions?.(store),
+    options.creerTransactions?.(store, file),
     new ObservationBailsGitLab({
       instantane,
       branche: options.branche,
       racine: options.racine,
       idsEntretiens: () => Object.keys(store.ouvrir().membership),
       ressource: (id: string): string => contexte.ressourceEntretien(id),
-      ressourcesTenues: () => [...contexte.sessionsTenues()],
+      bailTenuLocalement: (id, bail) => contexte.bailTenuLocalement(id, bail),
     }),
     instantane,
   )

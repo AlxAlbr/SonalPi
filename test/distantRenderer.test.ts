@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { effectScope, nextTick, ref, type EffectScope } from 'vue'
-import { useDistantCorpus } from '../src/renderer/composables/corpus/useDistantCorpus'
+import {
+  useDistantCorpus,
+  verifierTriContenu,
+} from '../src/renderer/composables/corpus/useDistantCorpus'
+import { matriceCapacites } from '../src/main/gitlab/politiqueGestes'
 import type { ResultatTiragePublic } from '../src/shared/distant'
 
 const fenetreInitiale = globalThis.window
@@ -156,16 +160,50 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.distant.pourcentageProgression.value).toBe(25)
   })
 
-  test('un contexte GitLab bloque les définitions mais permet l’ajout', () => {
+  test('un contexte GitLab ouvre les définitions simples et bloque le reste', () => {
     const contexte = creerContexte(vi.fn())
 
-    contexte.distant.activerDistant('gitlab-1', [], [], false, false, 'gitlab')
+    contexte.distant.activerDistant('gitlab-1', [], [], false, matriceCapacites('gitlab'), 'gitlab')
 
     expect(contexte.distant.enLigne.value).toBe(true)
-    expect(contexte.distant.lectureSeule.value).toBe(true)
+    expect(contexte.distant.lectureSeule.value).toBe(false)
+    expect(contexte.distant.gesteDisponible('definitions')).toBe(true)
+    expect(contexte.distant.gesteDisponible('definitionsAvecSources')).toBe(false)
+    expect(contexte.distant.gesteDisponible('triContenu')).toBe(false)
     expect(contexte.distant.ajoutEntretienPossible.value).toBe(true)
+    expect(contexte.distant.renommagePossible('e1')).toBe(true)
     expect(contexte.distant.tableLigneEditable('e1')).toBe(false)
     expect(contexte.distant.metaEditables('e1')).toBe(false)
+    expect(contexte.distant.suppressionPossible('e1')).toBe(false)
+  })
+
+  test('un corpus Nextcloud garde toutes ses capacités', () => {
+    const contexte = creerContexte(vi.fn())
+
+    contexte.distant.activerDistant('webdav-1', [], [], false, matriceCapacites('webdav'), 'webdav')
+
+    expect(contexte.distant.lectureSeule.value).toBe(false)
+    expect(contexte.distant.gesteDisponible('definitionsAvecSources')).toBe(true)
+    expect(contexte.distant.gesteDisponible('personnes')).toBe(true)
+    expect(contexte.distant.gesteDisponible('notes')).toBe(false)
+    expect(contexte.distant.tableLigneEditable('e1')).toBe(true)
+    expect(contexte.distant.metaEditables('e1')).toBe(true)
+    expect(contexte.distant.suppressionPossible('e1')).toBe(true)
+  })
+
+  test('l’hors ligne et la consultation seule priment sur les capacités', () => {
+    const contexte = creerContexte(vi.fn())
+
+    contexte.distant.activerDistant('gitlab-1', [], [], false, matriceCapacites('gitlab'), 'gitlab')
+    contexte.distant.enLigne.value = false
+    expect(contexte.distant.lectureSeule.value).toBe(true)
+    expect(contexte.distant.gesteDisponible('definitions')).toBe(false)
+    expect(contexte.distant.ajoutEntretienPossible.value).toBe(false)
+
+    contexte.distant.enLigne.value = true
+    contexte.distant.activerDistant('gitlab-1', [], [], true, matriceCapacites('gitlab'), 'gitlab')
+    expect(contexte.distant.lectureSeule.value).toBe(true)
+    expect(contexte.distant.gesteDisponible('definitions')).toBe(false)
   })
 
   test('une observation des détenteurs en panne est signalée, puis effacée', async () => {
@@ -184,7 +222,7 @@ describe('orchestration distante du renderer', () => {
         date: '2026-01-01T10:03:00.000Z',
       } satisfies ResultatTiragePublic)
     const contexte = creerContexte(tirer)
-    contexte.distant.activerDistant('d1', [], [], false, true, 'gitlab', true)
+    contexte.distant.activerDistant('d1', [], [], false, matriceCapacites('webdav'), 'webdav', true)
     expect(contexte.distant.verrousIndisponibles.value).toBe(true)
 
     await expect(contexte.distant.actualiserDistant()).resolves.toBe(true)
@@ -304,5 +342,24 @@ describe('orchestration distante du renderer', () => {
     expect(contexte.arreterProgression).toHaveBeenCalledOnce()
     expect(contexte.arreterSession).toHaveBeenCalledOnce()
     expect(contexte.arreterFermeture).toHaveBeenCalledOnce()
+  })
+})
+
+describe('tri par contenu', () => {
+  test('un corpus qui ne sait pas le trier le dit par son nom', () => {
+    expect(() => verifierTriContenu({ capacite: false, distant: true, entretienOuvert: false }))
+      .toThrow(/n’est pas disponible sur ce corpus/)
+  })
+
+  test('un corpus distant refuse un entretien ouvert plutôt que de le publier', () => {
+    expect(() => verifierTriContenu({ capacite: true, distant: true, entretienOuvert: true }))
+      .toThrow(/fermeture de tous les entretiens/)
+    expect(() => verifierTriContenu({ capacite: true, distant: true, entretienOuvert: false }))
+      .not.toThrow()
+  })
+
+  test('en local, un entretien ouvert se vide comme avant', () => {
+    expect(() => verifierTriContenu({ capacite: true, distant: false, entretienOuvert: true }))
+      .not.toThrow()
   })
 })

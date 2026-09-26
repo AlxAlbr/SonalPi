@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   BailGitLab,
+  type BailObserveGitLab,
   type DepotCommitsGitLab,
   type DroitsEditionGitLab,
   type PartieBailGitLab,
@@ -233,6 +234,7 @@ export class SessionGitLab {
     }
     const plan: PlanPublicationGitLab = {
       operationId: this.nouvelleOperation(),
+      nature: 'session-entretien',
       actions: [{
         action: 'update',
         chemin: this.options.cheminDistant,
@@ -403,6 +405,22 @@ export class SessionGitLab {
 
   droit(): DroitsEditionGitLab | null {
     return this.session?.droit ?? null
+  }
+
+  /** Indique si un bail observé est bien celui de cette session active. */
+  tientBail(bail: BailObserveGitLab): boolean {
+    const session = this.session
+    if (!session || session.degrade || bail.legacy) return false
+    try {
+      const local = this.options.coordination.snapshot(session.droit)
+      return local.expireLe > this.maintenant() &&
+        bail.generation === local.generation &&
+        bail.userId === local.identite.userId &&
+        bail.machineId === local.identite.machineId &&
+        bail.sessionId === local.identite.sessionId
+    } catch {
+      return false
+    }
   }
 
   private compteur(): number {

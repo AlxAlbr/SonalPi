@@ -15,12 +15,48 @@ export interface ProgressionTransfert {
   total: number | null
 }
 
+/** Capacités du corpus, vues par l'interface. Elles disent ce que le
+ *  fournisseur courant sait faire, jamais ce qu'une session en cours autorise :
+ *  l'hors ligne et la consultation seule s'appliquent au-dessus. */
+export interface CapacitesCorpus {
+  /** Définitions calculées sur le seul corpus partagé. */
+  definitions: boolean
+  /** Définitions qui relisent les entretiens publiés. */
+  definitionsAvecSources: boolean
+  /** Tri par dernière modification ou par longueur. */
+  triContenu: boolean
+  /** Création et import d'un entretien. */
+  ajoutEntretien: boolean
+  /** Édition d'un entretien sous session d'écriture. */
+  editionEntretien: boolean
+  /** Retrait et archivage d'un entretien. */
+  suppressionEntretien: boolean
+  /** Renommage d'un entretien, publié avec les définitions. */
+  renommageEntretien: boolean
+  /** Audio, SRT et autres métadonnées d'un entretien hors session. */
+  metadonneesEntretien: boolean
+  /** Saisie de valeurs dans la table de données d'un entretien. */
+  tableDonnees: boolean
+  /** Notes du corpus, par entretien. */
+  notes: boolean
+  /** Corrections de personnes. */
+  personnes: boolean
+  /** Annulation d'une action du journal du corpus. */
+  annulationJournal: boolean
+  /** Médias partagés d'une destination. */
+  mediasPartages: boolean
+  /** Documents cadre d'une destination. */
+  docsCadre: boolean
+}
+
 /** Ouverture d'un corpus distant : le corpus vient du MIROIR local (`userData/miroirs/<id>`)
  *  fraîchement tiré — le renderer ne sait pas faire la différence avec un corpus local :
  *  c'est voulu. Le pull d'ouverture livre aussi l'état des verrous (badges fiables,
  *  sans second aller-retour). */
 export interface OuvertureDistante extends OuvertureCorpus {
   distant: DestinationDistantePublic
+  /** Ce que ce fournisseur sait faire, déduit des gestes classés. */
+  capacites: CapacitesCorpus
   verrous: EntreeVerrouPublic[]
   /** L'observation des détenteurs a échoué à l'ouverture : les listes ne
    *  montrent aucun badge, et cela ne prouve rien sur les exclusions. */

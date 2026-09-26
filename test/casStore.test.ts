@@ -347,10 +347,10 @@ describe('CorpusStore — commandes et suppression des cas', () => {
     const avant = readFileSync(join(dir, 'corpus.json'), 'utf8')
     store.lectureSeule = true
     expect(() => store.casCommander({ type: 'creer', cas: casPersonne('cas-1', 'Marie') }))
-      .toThrow(/lecture seule/)
+      .toThrow(/transaction sous droit/)
     expect(() => store.casCommander({
       type: 'creer', cas: { ...casPersonne('vide', 'Vide'), regles: [] },
-    })).toThrow(/lecture seule/)
+    })).toThrow(/transaction sous droit/)
     expect(readFileSync(join(dir, 'corpus.json'), 'utf8')).toBe(avant)
   })
 })

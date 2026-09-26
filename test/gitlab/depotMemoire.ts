@@ -9,17 +9,30 @@ interface Fichier {
   contenu: string
   commitId: string
 }
-
 /** Dépôt GitLab de test : garde `last_commit_id` vérifiée, actions appliquées
  *  dans l'ordre, et pannes injectables (avant envoi, après acceptation, refus). */
 export class DepotMemoire implements DepotCommitsGitLab {
   readonly fichiers = new Map<string, Fichier>()
   readonly commits: Array<{ id: string; message: string; actions: ActionCommitGitLab[] }> = []
+  /** Nombre de lectures de contenu par chemin : une préparation ne relit
+   *  jamais deux fois la même source. */
+  readonly lectures = new Map<string, number>()
   private compteur = 0
+  private tete = this.sha()
   private echecAvant: unknown = null
   private echecApres: unknown = null
   private statutRefus: number | null = null
   private delaiProchainCommit = 0
+
+  /** Remplit le dépôt d'un coup, comme un dépôt déjà peuplé. */
+  charger(fichiers: Map<string, string>): void {
+    this.compteur = 1
+    this.lectures.clear()
+    for (const [chemin, contenu] of fichiers) {
+      this.fichiers.set(chemin, { contenu, commitId: this.sha() })
+    }
+    this.tete = this.sha()
+  }
 
   echouerApresAccepter(erreur: unknown): void {
     this.echecApres = erreur
@@ -37,9 +50,18 @@ export class DepotMemoire implements DepotCommitsGitLab {
     this.delaiProchainCommit = delaiMs
   }
 
-  async lireFichier(chemin: string): Promise<FichierGitLab | null> {
+  async lireFichier(chemin: string, _ref?: string): Promise<FichierGitLab | null> {
+    this.lectures.set(chemin, (this.lectures.get(chemin) ?? 0) + 1)
     const fichier = this.fichiers.get(chemin)
     return fichier ? { chemin, ...fichier } : null
+  }
+
+  async lireContenuBrut(chemin: string, _ref?: string): Promise<string | null> {
+    return this.fichiers.get(chemin)?.contenu ?? null
+  }
+
+  async resoudreTete(_branche: string): Promise<string> {
+    return this.tete
   }
 
   async rechercherCommits(_ref: string, recherche: string): Promise<Array<{ id: string; title: string }>> {
@@ -72,6 +94,7 @@ export class DepotMemoire implements DepotCommitsGitLab {
     this.validerActions(actions)
     const id = this.nouvelId()
     this.appliquer(actions, id)
+    this.tete = id
     this.commits.push({ id, message, actions })
     if (this.echecApres) {
       const erreur = this.echecApres
@@ -127,5 +150,9 @@ export class DepotMemoire implements DepotCommitsGitLab {
   private nouvelId(): string {
     this.compteur += 1
     return this.compteur.toString(16).padStart(40, '0')
+  }
+
+  private sha(): string {
+    return this.nouvelId()
   }
 }

@@ -1,5 +1,6 @@
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type {
+  CapacitesCorpus,
   EntreeVerrouPublic,
   EtatSessionPublic,
   EtatVerrouPublic,
@@ -10,6 +11,24 @@ import type {
 import { appliquerStatutSession as appliquerStatutSessionApplication } from '../../couturesApplication'
 
 type VueApplication = 'accueil' | 'corpus' | 'entretien'
+
+/** Un corpus local sait tout faire : c'est la référence des capacités. */
+const TOUTES_CAPACITES: CapacitesCorpus = {
+  definitions: true,
+  definitionsAvecSources: true,
+  triContenu: true,
+  ajoutEntretien: true,
+  editionEntretien: true,
+  suppressionEntretien: true,
+  renommageEntretien: true,
+  metadonneesEntretien: true,
+  tableDonnees: true,
+  notes: true,
+  personnes: true,
+  annulationJournal: true,
+  mediasPartages: true,
+  docsCadre: true,
+}
 
 interface EffetsDistantCorpus {
   rafraichirCorpusSansFermer: () => Promise<void>
@@ -27,6 +46,25 @@ interface EntretienDistantCorpus {
   viderSauvegarde: () => Promise<void>
   preserverEtAnnulerSauvegarde: () => Promise<boolean>
   annulerEtAttendreSauvegarde: () => Promise<void>
+}
+
+/** Le tri par contenu se calcule sur les versions publiées de tous les
+ *  entretiens : il demande donc un corpus calme. Sur un corpus distant, un
+ *  entretien ouvert n'est jamais publié en silence pour le faire passer. */
+export function verifierTriContenu(options: {
+  capacite: boolean
+  distant: boolean
+  entretienOuvert: boolean
+}): void {
+  if (!options.capacite) {
+    throw new Error('Le tri par contenu n’est pas disponible sur ce corpus.')
+  }
+  if (options.distant && options.entretienOuvert) {
+    throw new Error(
+      'Le tri par contenu demande la fermeture de tous les entretiens : '
+      + 'fermez celui qui est ouvert, puis relancez le tri.',
+    )
+  }
 }
 
 /** Gère l'état, les tirages et les sessions d'un corpus distant. */
@@ -57,20 +95,24 @@ export function useDistantCorpus(deps: {
     return Math.min(100, Math.round((progression.octets / progression.total) * 100))
   })
 
-  const corpusModifiable = ref(true)
+  /** Ce que le fournisseur courant sait faire, reçu du main à l'ouverture.
+   *  Il ne décide d'aucun accès : l'hors ligne et la consultation seule
+   *  s'appliquent au-dessus, la session d'un entretien en plus. */
+  const capacites = ref<CapacitesCorpus>(TOUTES_CAPACITES)
+
+  /** Blocage d'ordre général : réseau et mode consultation. */
+  const indisponible = computed(
+    () => !enLigne.value || consultationSeule.value,
+  )
+
   const lectureSeule = computed(
-    () => idDistantCourant.value !== null &&
-      (!enLigne.value || consultationSeule.value || !corpusModifiable.value),
+    () => idDistantCourant.value !== null && (indisponible.value || !capacites.value.definitions),
   )
 
   const ajoutEntretienPossible = computed(
     () =>
       idDistantCourant.value === null ||
-      (
-        enLigne.value &&
-        !consultationSeule.value &&
-        (corpusModifiable.value || fournisseurCourant.value === 'gitlab')
-      ),
+      (!indisponible.value && capacites.value.ajoutEntretien),
   )
 
   const entretienEditable = computed(
@@ -111,14 +153,14 @@ export function useDistantCorpus(deps: {
     verrous: EntreeVerrouPublic[],
     inaccessibles: { chemin: string; raison: string }[] = [],
     lectureSeuleForcee = false,
-    corpusModifiableForce = true,
+    capacitesCourant: CapacitesCorpus = TOUTES_CAPACITES,
     fournisseur: 'webdav' | 'gitlab' = 'webdav',
     observationIndisponible = false,
   ): void {
     idDistantCourant.value = id
     enLigne.value = true
     consultationSeule.value = lectureSeuleForcee
-    corpusModifiable.value = corpusModifiableForce
+    capacites.value = capacitesCourant
     fournisseurCourant.value = fournisseur
     dernierTirage.value = new Date().toISOString()
     verrousIndisponibles.value = observationIndisponible
@@ -142,16 +184,32 @@ export function useDistantCorpus(deps: {
     deps.effets.reinitialiserDivergence()
     enLigne.value = true
     consultationSeule.value = false
-    corpusModifiable.value = true
+    capacites.value = TOUTES_CAPACITES
     fournisseurCourant.value = null
   }
 
+  /** Un geste est proposé quand le fournisseur le sait faire et qu'on est en
+   *  ligne. L'observation des détenteurs n'entre pas ici : un badge manquant ne
+   *  prouve aucune absence d'exclusion, et c'est le bail qui refuse. */
+  function gesteDisponible(capacite: keyof CapacitesCorpus): boolean {
+    return idDistantCourant.value === null ||
+      (!indisponible.value && capacites.value[capacite])
+  }
+
   function tableLigneEditable(id: string): boolean {
-    return !lectureSeule.value && !badgeVerrou(id)
+    return gesteDisponible('tableDonnees') && !badgeVerrou(id)
   }
 
   function metaEditables(id: string): boolean {
-    return !lectureSeule.value && !badgeVerrou(id)
+    return gesteDisponible('metadonneesEntretien') && !badgeVerrou(id)
+  }
+
+  function renommagePossible(id: string): boolean {
+    return gesteDisponible('renommageEntretien') && !badgeVerrou(id)
+  }
+
+  function suppressionPossible(id: string): boolean {
+    return gesteDisponible('suppressionEntretien') && !badgeVerrou(id)
   }
 
   async function actualiserDistant(silencieux = false): Promise<boolean> {
@@ -354,7 +412,8 @@ export function useDistantCorpus(deps: {
     progressionDistant,
     pourcentageProgression,
     lectureSeule,
-    corpusModifiable,
+    capacites,
+    gesteDisponible,
     ajoutEntretienPossible,
     fournisseurCourant,
     verrousIndisponibles,
@@ -373,6 +432,8 @@ export function useDistantCorpus(deps: {
     actualiserDistant,
     tableLigneEditable,
     metaEditables,
+    renommagePossible,
+    suppressionPossible,
     reprendreOrphelin,
     abandonnerOrphelin,
     appliquerStatutSession,

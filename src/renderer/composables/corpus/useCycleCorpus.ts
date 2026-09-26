@@ -1,5 +1,6 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue'
 import type {
+  CapacitesCorpus,
   EntreeVerrouPublic,
   EtatSessionPublic,
   OuvertureDistante,
@@ -86,7 +87,7 @@ interface DistantCycleCorpus {
     verrous: EntreeVerrouPublic[],
     inaccessibles?: { chemin: string; raison: string }[],
     lectureSeuleForcee?: boolean,
-    corpusModifiableForce?: boolean,
+    capacites?: CapacitesCorpus,
     fournisseur?: 'webdav' | 'gitlab',
     observationIndisponible?: boolean,
   ) => void
@@ -234,7 +235,7 @@ export function useCycleCorpus(deps: {
       resultat.verrous,
       resultat.inaccessibles,
       consultationSeule,
-      resultat.distant.fournisseur !== 'gitlab',
+      resultat.capacites,
       resultat.distant.fournisseur,
       resultat.verrousIndisponibles,
     )

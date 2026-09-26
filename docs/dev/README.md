@@ -22,6 +22,7 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 | [architecture.md](architecture.md) | La structure générale de `src/`, les process Electron (main / preload / renderer), la frontière `shared/` pure et sa testabilité, où placer un module dans `shared/` et dans le renderer |
 | [multi-utilisateur.md](multi-utilisateur.md) | Le mode corpus distant (WebDAV) : verrous et variantes A/B, cycle de session, transactions, divergence/fusion, présence, audio local — la carte du code, ancrée aux tests |
 | [gitlab.md](gitlab.md) | Qualification GitLab en cours : acquis V1, caractérisation V2, résultats des tests et garanties restant à vérifier ; pas encore de connecteur GitLab livré |
+| [gestes-fournisseur.md](gestes-fournisseur.md) | Les gestes du corpus selon le fournisseur (local / WebDAV / GitLab) : portées sémantiques, gardes dans l'ordre, matrice publique `CapacitesCorpus`, recette pour ajouter ou reclasser un geste |
 | [gitlab-oauth.md](gitlab-oauth.md) | La connexion OAuth GitLab : application à enregistrer sur l'instance, redirect URI, scopes, cycle de vie du credential et règles de diagnostic |
 | [plan-lot-table-donnees.md](plan-lot-table-donnees.md) | Plan (proposition) : saisie des valeurs en corpus distant — bouton « Saisir… » par ligne (onglet Donnée de l'entretien) et modification en lot par colonne (verrou court par entretien) |
 | [developpement.md](developpement.md) | Démarrer, commandes, stratégie de test, limitation connue (audio figé sous WSLg) |
@@ -45,6 +46,9 @@ leurs notes de travail dans [AGENTS.md](../../AGENTS.md) (tests, Docker).
 - **Pour toucher au fonctionnement distant** (verrous, sessions, transactions,
   divergence/fusion, présence) : [multi-utilisateur.md](multi-utilisateur.md), avec
   les cas de test restants dans [plans/encours/plan-multiuser-finition.md](../../plans/encours/plan-multiuser-finition.md).
+- **Pour toucher à une commande métier et à sa disponibilité selon le fournisseur**
+  (griser un bouton, refuser une mutation, ouvrir un parcours) :
+  [gestes-fournisseur.md](gestes-fournisseur.md).
 - **Pour toucher à la création/ouverture d'un corpus distant** (publication,
   récents tagués, assistant) : [ouverture-corpus.md § 7](ouverture-corpus.md#7-la-branche-distante-créer-et-rouvrir-un-corpus-sur-serveur).
 - **Pour ajouter une sauvegarde / un format** : [donnees.md § 2](donnees.md#2-objet-mémoire--fichier)

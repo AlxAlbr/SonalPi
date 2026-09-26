@@ -3,14 +3,26 @@ import { utiliserSonal } from '../../composables/sonal'
 
 // Lanceurs des outils transverses du corpus. Le composable garde la propriété
 // fonctionnelle ; ce composant ne fait que déclencher l'ouverture des fenêtres.
-const { vue, afficherCas, afficherRecueils, afficherTableauBord, afficherDocsCadre } = utiliserSonal()
+const {
+  vue,
+  afficherCas,
+  afficherRecueils,
+  afficherTableauBord,
+  afficherDocsCadre,
+  gesteDisponible,
+} = utiliserSonal()
 </script>
 
 <template>
   <div v-if="vue !== 'accueil'" class="barre-outils">
     <div class="ligne">
       <button class="outil btn-tableau" title="Ouvrir le tableau de bord" @click="afficherTableauBord">Tableau de bord</button>
-      <button class="outil btn-docs-cadre" title="Ouvrir les documents du projet" @click="afficherDocsCadre()">Docs cadre projet</button>
+      <button
+        v-if="gesteDisponible('docsCadre')"
+        class="outil btn-docs-cadre"
+        title="Ouvrir les documents du projet"
+        @click="afficherDocsCadre()"
+      >Docs cadre projet</button>
     </div>
     <div class="ligne">
       <button class="outil avenir" disabled title="À venir">Lexico</button>

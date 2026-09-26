@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { BailGitLab, cleRessourceBailGitLab } from '../../src/main/gitlab/bailGitLab'
 import { ClientGitLab } from '../../src/main/gitlab/client'
 import {
@@ -12,6 +12,11 @@ import { PublieurGitLab } from '../../src/main/gitlab/publication'
 import { SessionGitLab } from '../../src/main/gitlab/session'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { CorpusStore } from '../../src/main/corpusStore'
+import type { ObservationCoordinationDistante } from '../../src/main/distant/coordination'
+import { PORTEEES_OVERTES_GITLAB } from '../../src/main/gitlab/politiqueGestes'
+import type { TransactionsGitLab } from '../../src/main/gitlab/transactions'
+import { preparerDefinitions } from '../../src/main/gitlab/preparationDefinitions'
+import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import { DepotMemoire } from './depotMemoire'
 import {
   corpusDistantValide,
@@ -380,5 +385,205 @@ describe('détenteur connu à l’ouverture d’un entretien GitLab', () => {
       acces: 'lecture-seule',
       verrouTenuParAutrui: null,
     })
+  })
+})
+
+describe('façade des définitions du contexte GitLab', () => {
+  function contexteAvecTransactions() {
+    const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-facade-'))
+    mkdirSync(join(dirLocal, 'entretiens'), { recursive: true })
+    writeFileSync(join(dirLocal, 'corpus.json'), JSON.stringify(squeletteCorpus('Miroir')))
+    const store = new CorpusStore(dirLocal)
+    store.lectureSeule = true
+    // Le callback reçoit un store de préparation jetable, jamais le miroir.
+    const transactions = {
+      executerDefinitions: vi.fn(async (preparer: (cible: CorpusStore) => unknown) => ({
+        valeur: preparerDefinitions(
+          JSON.stringify(squeletteCorpus('Miroir')),
+          preparer,
+        ).valeur,
+        corpus: store.ouvrir(),
+      })),
+    }
+    const contexte = new ContexteGitLab(
+      'destination-test',
+      store,
+      { tirer: async () => ({
+        telecharges: [],
+        corbeille: [],
+        inaccessibles: [],
+        date: new Date(0).toISOString(),
+      }) } as never,
+      undefined,
+      transactions as unknown as TransactionsGitLab,
+      undefined,
+      undefined,
+    )
+    return { contexte, store, transactions }
+  }
+
+  test('un geste hors portée est refusé par son nom, avant toute préparation', () => {
+    const { contexte, transactions } = contexteAvecTransactions()
+    expect(() => contexte.executerDefinitions('cas.ajouter-derivation-cas', () => 1))
+      .toThrow(/relit les entretiens publiés/)
+    expect(() => contexte.executerDefinitions('entretien.supprimer', () => 1))
+      .toThrow(/suppression d’un entretien/)
+    expect(transactions.executerDefinitions).not.toHaveBeenCalled()
+  })
+
+  test('un geste simple atteint le store de préparation', async () => {
+    const { contexte, transactions } = contexteAvecTransactions()
+    await contexte.executerDefinitions('theme.creer', (cible) => cible.ajouterCategorie('T', null))
+    expect(transactions.executerDefinitions).toHaveBeenCalledOnce()
+  })
+
+  test('un geste inconnu est refusé', () => {
+    const { contexte } = contexteAvecTransactions()
+    expect(() => contexte.executerDefinitions('geste.inexistant', () => 1))
+      .toThrow(/n’est pas connue/)
+  })
+
+  test('le miroir n’est jamais déverrouillé par une définition', async () => {
+    const { contexte, store } = contexteAvecTransactions()
+    await contexte.executerDefinitions('theme.creer', (cible) => cible.ajouterCategorie('T', null))
+    expect(store.lectureSeule).toBe(true)
+  })
+})
+
+describe('tri de contenu et sources gardées', () => {
+  // Le tri et les sources gardées sont écrits mais pas encore ouverts à
+  // l'interface : on ouvre leurs portées le temps de ces tests.
+  beforeEach(() => {
+    PORTEEES_OVERTES_GITLAB.push('tri-contenus', 'definitions-avec-sources')
+  })
+  afterEach(() => {
+    PORTEEES_OVERTES_GITLAB.length = 0
+    PORTEEES_OVERTES_GITLAB.push('definitions-corpus')
+  })
+
+  function contexteTri(
+    observation: ObservationCoordinationDistante | undefined,
+    supplement?: Record<string, unknown>,
+  ) {
+    const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-tri-'))
+    mkdirSync(join(dirLocal, 'entretiens'), { recursive: true })
+    writeFileSync(join(dirLocal, 'corpus.json'), corpusDistantValide(['e1']))
+    const store = new CorpusStore(dirLocal)
+    store.lectureSeule = true
+    const session = sessionFactice()
+    // Le double exécute le contrôle qui lui est confié : c'est lui qui décide
+    // si le tri s'engage.
+    const transactions = {
+      trierEntretiens: vi.fn(async (_mode: string, avantBail: () => Promise<void>) => {
+        await avantBail()
+        return store.ouvrir()
+      }),
+      ...supplement,
+    }
+    const contexte = new ContexteGitLab(
+      'destination-test',
+      store,
+      { tirer: vi.fn() } as never,
+      () => session as unknown as SessionGitLab,
+      transactions as unknown as TransactionsGitLab,
+      observation,
+    )
+    return { contexte, session, transactions }
+  }
+
+  const aucunDetenteur: ObservationCoordinationDistante = {
+    observerVerrous: async () => ({ entrees: [], indisponible: false }),
+  }
+
+  test('refuse un entretien que nous tenons, avant toute acquisition', async () => {
+    const { contexte, transactions } = contexteTri(aucunDetenteur)
+    await contexte.ouvrirSessionEntretien('e1')
+
+    // Le refus vient du contrôle, donc d'avant toute acquisition de droit.
+    await expect(contexte.trierEntretiens('modif')).rejects.toThrow(/fermeture de tous les entretiens/)
+  })
+
+  test('refuse un entretien tenu par un autre poste, et le nomme', async () => {
+    const { contexte, transactions } = contexteTri({
+      observerVerrous: async () => ({
+        entrees: [{
+          chemin: 'entretiens/e2.json',
+          etag: null,
+          contenu: { userId: 'olivier', machineId: 'poste-b', acquiredAt: '' },
+        }],
+        indisponible: false,
+      }),
+    })
+
+    await expect(contexte.trierEntretiens('longueur')).rejects.toThrow(/e2/)
+  })
+
+  test('une observation en panne vaut un refus, jamais une permission', async () => {
+    const { contexte, transactions } = contexteTri({
+      observerVerrous: async () => ({ entrees: [], indisponible: true }),
+    })
+
+    await expect(contexte.trierEntretiens('modif')).rejects.toThrow(/détenteurs sont indisponibles/)
+  })
+
+  test('un corpus calme passe par la transaction', async () => {
+    const { contexte, transactions } = contexteTri(aucunDetenteur)
+
+    await expect(contexte.trierEntretiens('modif')).resolves.toBeDefined()
+    expect(transactions.trierEntretiens).toHaveBeenCalledOnce()
+  })
+
+  test('un geste qui ne lit aucun entretien ne passe pas par les sources', () => {
+    const { contexte } = contexteTri(aucunDetenteur)
+    expect(() => contexte.executerDefinitionsAvecSources(
+      'theme.creer',
+      () => 1,
+      () => [],
+    )).toThrow(/ne lit aucun entretien publié/)
+  })
+
+  test('un entretien que nous détenons est publié avant la préparation', async () => {
+    const executerDefinitionsAvecSources = vi.fn(async () => ({
+      valeur: null,
+      corpus: squeletteCorpus('Miroir'),
+    }))
+    const { contexte, session } = contexteTri(aucunDetenteur, { executerDefinitionsAvecSources })
+    await contexte.ouvrirSessionEntretien('e1')
+
+    await contexte.executerDefinitionsAvecSources(
+      'cas.ajouter-rattachement',
+      () => 1,
+      () => ['e1'],
+    )
+
+    expect(executerDefinitionsAvecSources).toHaveBeenCalledOnce()
+    // Le store de préparation reçoit la publication de la source détenue.
+    const sources = executerDefinitionsAvecSources.mock.calls[0][1] as {
+      publierSource?: (id: string) => Promise<void>
+    }
+    await sources.publierSource?.('e1')
+    expect(session.publier).toHaveBeenCalled()
+  })
+
+  test('une session qui ne peut plus publier suspend le geste', async () => {
+    const executerDefinitionsAvecSources = vi.fn(async () => ({
+      valeur: null,
+      corpus: squeletteCorpus('Miroir'),
+    }))
+    const { contexte, session } = contexteTri(aucunDetenteur, { executerDefinitionsAvecSources })
+    await contexte.ouvrirSessionEntretien('e1')
+    session.etat.mockReturnValue({ etat: 'degrade', raison: 'conflit' })
+
+    await contexte.executerDefinitionsAvecSources(
+      'cas.ajouter-rattachement',
+      () => 1,
+      () => ['e1'],
+    )
+
+    const sources = executerDefinitionsAvecSources.mock.calls[0][1] as {
+      publierSource?: (id: string) => Promise<void>
+    }
+    await expect(sources.publierSource?.('e1')).rejects.toThrow(/ne peut plus publier/)
+    expect(session.publier).not.toHaveBeenCalled()
   })
 })

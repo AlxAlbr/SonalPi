@@ -1,6 +1,6 @@
 # GitLab — exclusion visible et opérations de corpus
 
-**Statut : plan de continuation relu sur l'arbre de travail courant, modifications non commitées comprises ; le cycle d'édition d'un entretien est qualifié sur banc, pas les lots ci-dessous.**
+**Statut : lots A et B livrés et qualifiés sur banc ; lot C écrit et couvert par des tests simulés, qualification sur banc GitLab à deux comptes restante (jalon d). Le cycle d'édition d'un entretien est qualifié sur banc, pas les lots ci-dessous. Les décisions du lot D sont consignées en §15 ; le jalon D1 est écrit et testé, ses capacités restent fermées tant que le jalon d n'est pas qualifié, et la mesure bloquante de 15.2 est faite (§15.2).**
 **Priorité : rendre le corpus GitLab utilisable au quotidien — savoir qui tient un entretien, puis pouvoir définir et supprimer.**
 
 Ce document prolonge [plan-gitlab4.md](plan-gitlab4.md), qui fixe le bail versionné,
@@ -19,7 +19,7 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 | Savoir qui tient un entretien | Livré et qualifié sur banc | `gitlab/contexte.ts:144` |
 | Badge 🔒 dans les listes | Livré et qualifié sur banc | `gitlab/observationBails.ts` |
 | Présence 👁 | **Absent**, et hors périmètre (section 9) | `main/index.ts:1791` |
-| Modifier les définitions du corpus | **Absent** : lecture seule garantie | `main/corpusStore.ts:254` |
+| Modifier les définitions du corpus | **Implémenté** : préparation isolée, bail de `corpus.json`, publication gardée, installation locale sous file ; gestes hors portée refusés par leur nom | `gitlab/transactions.ts`, `gitlab/politiqueGestes.ts` |
 | Supprimer un entretien | **Absent** | `main/index.ts:842` |
 | Médias partagés, Docs cadre, notes du corpus, lots, personnes | **Absent** | `main/index.ts:1261`, `main/index.ts:984` |
 
@@ -207,6 +207,10 @@ Tester aussi les appels IPC directs : une interface grisée n'est pas une garde
 métier. Conserver les capacités GitLab déjà acquises, notamment l'ajout/import et
 l'édition sous session.
 
+Les choix de mise en œuvre arrêtés pour ce lot — découpage, préparation isolée,
+installation locale, reprise, inventaire — sont consignés en §14. Ils ne
+préjugent pas des lots D et E, dont la politique reste celle des sections 6 et 7.
+
 ## 6. Lot D — Définitions qui lisent les entretiens publiés
 
 | Famille | Lecture nécessaire |
@@ -245,10 +249,11 @@ Préparation et bornes :
   miroir, en particulier ceux sous session. Dédupliquer les lectures : un GET
   de contenu par source dans la préparation normale, hors réconciliation/retry.
 - `compilerPlan` borne actuellement **100 actions métier** et 1 500 000 octets
-  de JSON sérialisé avant ajout du bail : avec `update corpus.json`, au plus
-  99 sources gardées dans cette implémentation. Borne totale HTTP et actions de
-  coordination à vérifier aussi ; `DepotCommitsGitLabClient.lireFichier` limite
-  sa réponse JSON base64 à 256 Kio, ce qui peut bloquer bien avant le plan.
+  de JSON sérialisé avant ajout du bail. Avec 99 sources et `update corpus.json`,
+  le plan métier atteint 100 actions, mais le commit envoyé en contient 101 après
+  ajout du bail. La borne totale doit donc être décidée et vérifiée sur le corps
+  HTTP final ; `DepotCommitsGitLabClient.lireFichier` limite par ailleurs sa
+  réponse JSON base64 à 256 Kio, ce qui peut bloquer bien avant le plan.
 - Refuser explicitement les corpus trop volumineux avant publication. Ne pas
   découper une opération atomique en plusieurs commits ni supprimer des gardes.
 - Qualifier l'effet des `update` inchangés sur les sessions qui détiennent les
@@ -333,11 +338,15 @@ et la suppression empiète sur sa session. Le bail corpus ne protège pas contre
   cinq commits hors renouvellement, publication préalable ou incident. Mesurer
   requêtes, taille et coût CI ; ne pas reprendre « coût serveur nul » pour les GET.
 - **Journal distant et installation locale.** Le publieur supprime son journal à
-  confirmation, avant que l'appelant installe le résultat. Le chemin d'ouverture
-  réconcilie surtout des sessions et ne sait pas rejouer un plan local de suppression.
-  Ajouter un journal transactionnel durable couvrant préparation, commit confirmé
-  et application locale idempotente. Bloquer un nouveau geste équivalent tant que
-  le résultat précédent reste indéterminé ; ne jamais republier automatiquement.
+  confirmation, avant que l'appelant installe le résultat. Pour les seules mutations
+  de `corpus.json` du lot C, le journal de publication typé, le journal local de
+  `TransactionsFichiersCorpus` et un tirage frais suffisent : une opération corpus
+  indéterminée bloque toute nouvelle transaction corpus, et une confirmation suivie
+  d'un crash est réparée par le tirage, sans republication. Les opérations composites
+  des lots D et surtout E demanderont encore un journal transactionnel durable couvrant
+  leurs sources, leur plan local et leur application idempotente. Le chemin d'ouverture
+  doit distinguer ces transactions des publications de sessions ; ne jamais republier
+  automatiquement une opération indéterminée.
 - **Manifeste après publication.** Les empreintes GitLab sont des SHA de blobs,
   distincts des gardes d'écriture. Sans mise à jour, un fichier publié peut être
   retéléchargé. Après suppression, le miroir archive en `corbeille-miroir` seulement
@@ -412,34 +421,55 @@ par GET sur l'instance locale, zéro commit. Détail dans `docs/dev/gitlab.md`.*
 
 ### C — Les définitions simples
 
-- [ ] Inventaire par commande ; préparation isolée sans écriture du miroir actif.
-- [ ] Transaction sous bail corpus, façade et dispatch avec contexte capturé.
-- [ ] Capacités renderer/main ; blocage des opérations non prises en charge.
-- [ ] Journal transactionnel et installation locale idempotente ; coordination avec
-      tirage, fermeture et bascule de corpus.
-- [ ] Tests : refus métier, commande sans changement, refus sans bail, garde périmée,
-      bail perdu, coupure avant/après envoi et réconciliation sans rejeu.
-- [ ] Crash après commit avant installation ; aucune perte ni double application.
-- [ ] Non-régression : `test/gitlab`, `test/webdav`, `test/distantRenderer.test.ts`.
+- [x] Inventaire sémantique par commande ; préparation isolée en mode corpus seul,
+      avec refus explicite de toute lecture ou écriture d'entretien.
+- [x] Transaction sous bail corpus, façade et dispatch avec contexte capturé.
+- [x] Capacités renderer/main ; blocage des opérations non prises en charge.
+- [x] Journal de publication typé, blocage des transactions corpus indéterminées et
+      installation locale idempotente ; coordination avec tirage, fermeture et bascule.
+- [x] Tests : refus métier, commande sans changement sur miroir à jour et périmé,
+      refus sans bail, garde périmée, bail perdu, coupure avant/après envoi et
+      réconciliation sans rejeu.
+- [x] Crash après commit avant installation ; aucune perte ni double application.
+- [x] Ajout/import préparé sans écriture préalable du miroir, puis installé depuis un
+      plan local fondé sur l'état local réellement remplacé.
+- [x] Non-régression : `test/gitlab`, `test/webdav`, `test/distantRenderer.test.ts`.
 
 **Sortie :** seules les commandes sans dépendance sont activées, avec un commit de
  données par mutation effective, plus les commits de coordination. Aucun effet
  local du candidat avant confirmation.
+*Qualification sur banc à deux comptes : à faire (jalon d).*
 
 ### D — Les définitions qui lisent le distant
 
-- [ ] Classifier passages CAS/recueils, dérivations, tris et suppressions dépendantes.
-- [ ] Publier nos sources lorsque nécessaire, puis lire sur un même SHA et garder
-      les sources dans le commit, sans remplacer les copies sous session.
-- [ ] Bornes des réponses, actions métier/coordination et taille HTTP totale ; refus
-      explicite au-delà, jamais de découpage silencieux.
-- [ ] Décision préalable et tests sur les décomptes et les références republiées
-      par une session déjà ouverte après suppression d'une définition.
+- [ ] Séparer passages CAS/recueils, dérivations, tris de contenu et suppressions
+      dépendantes dans l'inventaire des gestes et dans les capacités publiques.
+- [ ] Qualifier sur GitLab réel l'effet d'un `update` au contenu inchangé sur le
+      `last_commit_id` de la source et sur une session longue ; aligner les doubles
+      de test et le cycle des sessions sur le comportement observé.
+- [ ] CAS et recueils : publier nos sources lorsque nécessaire, puis lire sur un même
+      SHA et garder les sources dans le commit, sans remplacer les copies sous session.
+- [ ] Couvrir toutes les variantes qui ajoutent une référence : créations CAS avec
+      rattachements et modification de la source d'un passage de recueil comprises.
+- [ ] Tri : aucune source gardée, commit limité à `corpus.json`, refus préalable et
+      nommé tant qu'un entretien est tenu, y compris par nous, et mention de l'état
+      publié dans l'interface.
+- [ ] Valider les repères et les dérivations dans le store de préparation alimenté
+      par l'instantané Git, jamais par une vérification préalable du miroir actif.
+- [ ] Borner les réponses, le total des actions métier et de coordination, le plan
+      compilé et le corps HTTP final ; refuser explicitement, sans découpage silencieux.
+- [ ] Décider et tester les décomptes et les références republiées par une session
+      déjà ouverte avant d'activer les suppressions de définitions.
 - [ ] Source modifiée pendant la préparation → aucun changement de corpus publié.
-- [ ] Coexistence d'une source gardée inchangée et d'une session longue qualifiée.
+- [ ] Coexistence d'une source gardée inchangée et d'une session longue qualifiée,
+      sans perte de candidat ni promesse injustifiée de libération d'un bail incertain.
+- [ ] Capacités réellement consommées par les commandes du renderer, avec refus du
+      main conservé pour les appels IPC directs.
 
-**Sortie :** décisions fondées sur des sources publiées et gardées au commit ;
-les limites de cohérence après ce commit sont explicites et testées.
+**Sortie :** les décisions qui écrivent une référence sont fondées sur des sources
+publiées et gardées au commit, et les limites de cohérence après ce commit sont
+explicites et testées ; le tri est publié sur un corpus calme, sans toucher au
+contenu ni au bail d'aucun entretien.
 
 ### E — La suppression
 
@@ -465,9 +495,12 @@ baux, application locale récupérable.
 | Bail v2 expiré | Aucun badge après observation fraîche ; reprise à l'ouverture si personne ne l'a repris entre-temps |
 | Observation indisponible, contenu accessible | Consultation possible, aucun faux droit d'édition déduit des badges absents |
 | Deux ajouts de thème concurrents | Pas d'écrasement : refus si bail occupé, ou deux succès sérialisés sur bases fraîches ; un seul gagnant si les acquisitions sont forcées à se chevaucher |
+| Commande sans changement sur miroir périmé | Aucun commit de données ; la base GitLab fraîche remplace néanmoins la base locale avant le retour |
+| Transaction corpus à résultat indéterminé | Toute nouvelle définition, création ou import est bloqué sans rejeu jusqu'à une réconciliation certaine |
 | Définition et publication d'entretien indépendantes | Les deux peuvent réussir sans perte ; conflit uniquement sur une garde effectivement invalidée |
 | Suppression de définition puis publication d'une ancienne référence | Politique du lot D vérifiée ; aucune promesse de cohérence fondée sur le seul décompte initial |
-| Tri modif/longueur avec une session détenue ailleurs | Ordre calculé sur les versions publiées et gardées ; travail local du détenteur inchangé |
+| Ajout d'une référence avec une source tenue ailleurs | Décision calculée sur la version publiée et source gardée atomiquement ; candidat local du détenteur inchangé |
+| Tri modif/longueur avec une session détenue ailleurs ou par nous | Refus nommé avant acquisition du bail corpus ; aucun contenu ni bail d'entretien modifié |
 | Suppression d'un entretien tenu par un tiers | Refus nommé sans mutation des données ; éventuels commits de coordination comptabilisés |
 | Un poste ouvre pendant la suppression | Une seule acquisition du bail entretien gagne ; suppression impossible sous un droit perdu |
 | Suppression avec réponse perdue | Commit et contenu déplacé retrouvés ; application locale une seule fois |
@@ -498,3 +531,587 @@ volumes Docker existants, sans téléchargement ni reprovisionnement.
 - [ ] Documentation utilisateur distinguant GitLab et Nextcloud : badges indicatifs,
       présence, définitions disponibles, tris publiés, suppression non annulable,
       reprise après crash, fusion de divergence et médias.
+
+## 13. Points à revoir après les lots A et B
+
+Les trois corrections sont locales et ne demandent pas de refonte. Elles ont été
+appliquées dans le code et couvertes par des tests simulés, mais restent à revoir
+lors de la prochaine qualification sur le banc GitLab réel.
+
+| Importance | Effort | Point à revoir | Vérification attendue |
+|---|---|---|---|
+| Importante | Facile | Ne masquer un badge que si le bail observé correspond exactement à notre session active. Une session locale expirée ou dégradée ne doit pas cacher le détenteur qui a repris le bail. | [ ] Laisser expirer un bail local, le reprendre depuis un second profil, puis vérifier que le premier profil affiche le nouveau détenteur après actualisation. |
+| Importante | Facile | Distinguer un contenu de bail corrompu d'une lecture impossible. Un refus HTTP ou une coupure pendant la lecture d'un bail inventorié doit signaler « détenteurs indisponibles », sur GitLab comme sur Nextcloud. | [ ] Provoquer un refus sur la lecture du fichier de bail, sans bloquer le tirage du corpus, puis vérifier le signalement dans l'interface. |
+| Moins importante | Facile | En présence simultanée d'un marqueur historique et d'un bail v2, appliquer le même ordre conservateur que le coordinateur : le marqueur historique est prioritaire et reste bloquant. | [ ] Faire coexister les deux fichiers sur le banc, puis vérifier que le badge et le refus d'ouverture désignent le détenteur historique. |
+
+Aucun de ces points ne demande beaucoup de travail d'implémentation. La partie la
+plus coûteuse est la recette réelle à deux profils, car elle requiert de préparer
+les deux états de bail et les pannes ciblées sans confondre test simulé et preuve
+serveur.
+
+## 14. Décisions prises pour le lot C
+
+Ces choix ferment les questions laissées ouvertes en 5.2 avant d'écrire le code.
+Ils valent pour le jalon C et ne changent rien à la politique des lots D et E.
+Les noms employés dans le code décrivent des capacités métier ; ils ne reprennent
+ni les lettres des lots ni le découpage de ce plan.
+
+### 14.1 Découpage
+
+| Jalon | Contenu | Arrêt avant de continuer |
+|---|---|---|
+| a | Inventaire sémantique par commande, préparation isolée en mode corpus seul, `TransactionsGitLab.executerDefinitions`, façade, dispatch et tests simulés | oui |
+| b | File d'opérations du contexte, installation locale idempotente, journal typé, reprise après coupure ou crash, fermeture et bascule | oui |
+| c | Capacités par fournisseur dans le main et le renderer, blocage des gestes non pris en charge | — |
+| d | Banc GitLab réel à deux comptes, coût mesuré, `docs/dev/gitlab.md`, cases du lot C | — |
+
+Les arrêts de `a` et `b` sont des points de revue, pas des états livrables. Les
+commandes restent inaccessibles dans l'interface tant que la file du contexte, la
+reprise et les capacités ne sont pas en place. Le main les refuse toujours si leur
+geste n'est pas autorisé, indépendamment de l'état du renderer.
+
+### 14.2 Préparation isolée : un store jetable en mode corpus seul
+
+La préparation construit un `CorpusStore` neuf dans un dossier temporaire initialisé
+uniquement avec le `corpus.json` frais. Aucun entretien, audio ou PNG du miroir n'est
+copié. `CorpusStore.ouvrir()` peut créer ses dossiers techniques vides ; ils ne sont
+jamais des sources métier. Le dossier temporaire est supprimé en `finally`.
+
+Le store du miroir actif ne sert jamais à préparer et n'est jamais déverrouillé :
+`lectureSeule` y reste vrai, les écritures d'entretien y restent refusées, et le
+miroir ne reçoit ni base fraîche ni candidat avant que leur statut soit certain.
+
+L'absence de fichiers d'entretien n'est pas, à elle seule, une garde suffisante.
+Certaines lectures historiques du store ignorent volontairement un entretien absent
+et pourraient conclure à tort à zéro usage. Le store temporaire reçoit donc un mode
+explicite **corpus seul** : toute tentative de lire, inventorier, écrire ou inclure un
+entretien dans une transaction échoue avec une erreur dédiée. Chaque commande admise
+est testée dans ce mode ; une commande dépendante des entretiens doit échouer même si
+son routage est accidentellement mauvais.
+
+Le mode préparation en mémoire dans le store actif est écarté. Il obligerait à
+intercepter toutes les lectures pour choisir entre miroir périmé et sources distantes,
+et augmenterait le risque de laisser une autorisation sur le corpus courant. Le
+store jetable conserve les règles métier et les écritures atomiques existantes sans
+faire du miroir une zone de préparation.
+
+L'autorisation d'écriture de la préparation est une capacité **corpus** propre au
+store jetable, pas un basculement générique de `lectureSeule`. Elle est créée par le
+helper de préparation, bornée à un callback synchrone et révoquée en `finally`. Un
+callback retournant une Promise est refusé explicitement : aucune continuation ne
+doit survivre à l'autorisation ni à la suppression du dossier. Cette capacité n'est
+pas disponible pour le store actif et n'autorise jamais une écriture d'entretien.
+
+### 14.3 Déroulement d'une transaction de définitions
+
+Sous la file d'opérations du contexte, `executerDefinitions` suit cet ordre :
+
+1. vérifier que le contexte accepte encore de nouvelles opérations et qu'aucune
+   transaction corpus indéterminée n'est journalisée ;
+2. acquérir le bail de `corpus.json`, puis lire et valider le fichier frais avec son
+   `last_commit_id` ; conserver séparément les octets serveur, la base normalisée et
+   l'état local qui pourra être remplacé ;
+3. préparer dans le store corpus seul, à partir de la base fraîche, et produire le
+   résultat métier ainsi que `corpusApres` sans toucher au miroir ;
+4. comparer `corpusApres` à la base fraîche **normalisée**, jamais aux seuls octets
+   reçus ni au miroir ;
+5. si le candidat diffère, publier `update corpus.json` sous son `last_commit_id` et
+   la mutation conditionnelle du bail dans le même commit ;
+6. après confirmation, installer localement le candidat, puis seulement retourner le
+   résultat au renderer ; tenter enfin la libération du bail sans transformer une
+   réponse indéterminée en refus certain.
+
+Un refus métier ne publie rien et ne modifie pas le miroir. Le dossier temporaire est
+jeté, puis le bail est libéré autant que son état le permet.
+
+Une commande sans changement est un succès sans commit de données. L'acquisition et
+la libération du bail restent payées. Si le miroir était périmé, les octets frais lus
+sur GitLab sont néanmoins installés localement avant le retour, avec le même plan
+`remplacement` fondé sur l'état local réellement remplacé : réussir une commande sur
+la bonne base ne doit pas laisser l'application sur une ancienne base. Cette
+installation ne prétend pas connaître l'empreinte de blob et le prochain tirage peut
+la télécharger à nouveau.
+
+### 14.4 Installation locale et sérialisation du contexte
+
+Après une publication confirmée, l'installation utilise un plan `remplacement` sans
+entretien de `TransactionsFichiersCorpus` :
+
+- `corpusAvant` est l'état **local** réellement remplacé, capturé sous la même file ;
+- `corpusApres` est le candidat publié ;
+- l'identifiant du plan est celui de l'opération distante ou un dérivé stable ;
+- l'écriture est atomique et sa reprise est idempotente.
+
+Le `corpusAvant` distant ne doit pas être réutilisé comme état local attendu : un
+miroir périmé ferait refuser à juste titre `TransactionsFichiersCorpus` une telle
+installation. La même règle vaut pour l'ajout et l'import.
+
+Une file unique appartient à chaque `ContexteGitLab`. Elle couvre la transaction
+corpus entière, les tirages et leurs installations, ainsi que l'entrée en fermeture.
+Une publication d'entretien indépendante peut continuer à utiliser sa propre garde de
+fichier, mais elle ne doit pas contourner une dépendance explicite à `corpus.json`.
+
+La fermeture passe d'abord le contexte à l'état « fermeture en cours », refuse toute
+nouvelle transaction, puis attend la fin de l'opération déjà engagée avant de fermer
+les sessions et de rendre la bascule possible. Une capture de génération reste utile
+pour écarter une réponse tardive, mais elle ne remplace pas cette barrière : aucune
+ancienne transaction ne doit encore publier après l'installation du nouveau contexte.
+Un tirage commencé avant une mutation ne peut donc pas réinstaller ensuite une base
+plus ancienne.
+
+### 14.5 Journal, réponse perdue et crash
+
+Le journal de publication porte une nature explicite et versionnée, au minimum
+`session-entretien` ou `transaction-corpus`, ainsi que les informations nécessaires
+pour retrouver la ressource et ses actions. Le changement de format prévoit la
+lecture des entrées existantes. Une ancienne entrée sans nature n'est reconnue comme
+transaction corpus que si son `resourceHash` correspond exactement à la ressource
+canonique de `corpus.json` et si l'ensemble de ses actions est compatible ; la forme
+de sa première action ne suffit jamais. Toute entrée qui ne peut pas être classée de
+façon certaine reste récupérable et bloque sa ressource sans être rejouée.
+
+À l'ouverture, la réconciliation traite les deux natures séparément :
+
+- une publication de session peut confirmer son `JournalSessionsGitLab` ;
+- une transaction corpus ne confirme jamais un journal de session ; lorsqu'elle est
+  retrouvée, le tirage normal installe atomiquement l'état publié, y compris le nouvel
+  entretien d'un ajout/import ;
+- une opération certainement absente peut être abandonnée selon la politique de
+  réconciliation ; une opération encore indéterminée reste journalisée.
+
+Tant qu'une entrée `transaction-corpus` est indéterminée, toute nouvelle transaction
+sur `corpus.json`, ajout et import compris, est refusée avec un message de reprise.
+Les lectures et le tirage restent permis. Un retry utilisateur ne crée jamais un
+nouvel identifiant d'opération et ne republie pas silencieusement le candidat.
+
+Les fenêtres de panne sont traitées ainsi :
+
+- avant l'envoi : aucun candidat n'est installé et le refus est certain ;
+- après l'envoi sans réponse : le journal de publication reste la preuve à
+  réconcilier, sans rejeu ;
+- après confirmation, avant création du journal local : le miroir peut rester en
+  retard, mais le prochain tirage récupère l'état GitLab ;
+- pendant l'installation locale : le journal de `TransactionsFichiersCorpus` termine
+  le remplacement au prochain démarrage ;
+- après installation : réappliquer le plan ou tirer le même contenu est sans effet.
+
+Pour les mutations de `corpus.json` seules, cette combinaison suffit au lot C. Le
+journal transactionnel plus large du §8 reste nécessaire aux opérations composites
+qui devront conserver des sources et des déplacements locaux, notamment au lot E.
+
+### 14.6 Inventaire et capacités
+
+Un inventaire unique, nommé selon le domaine — par exemple
+`POLITIQUE_GESTES_CORPUS` — associe chaque geste à une portée sémantique :
+
+- `definitions-corpus` pour une mutation calculée sur le seul `corpus.json` ;
+- `definitions-avec-sources` pour une mutation dépendant d'entretiens publiés ;
+- `suppression-entretien` pour le retrait et l'archive ;
+- `indisponible` pour un parcours non pris en charge sur GitLab.
+
+Aucune lettre de lot, numéro de jalon ou référence à ce plan n'entre dans le code.
+L'inventaire est par commande et, pour CAS ou recueils, par variante de commande :
+le gestionnaire IPC partagé n'est pas une granularité suffisante. Chaque handler du
+main fournit lui-même l'identifiant du geste ; le renderer ne peut pas déclarer une
+commande plus permissive que celle réellement exécutée.
+
+Le dispatch du main consulte cet inventaire avant de construire le callback de
+préparation. Pendant le lot C, un geste qui exige des sources ou une suppression est
+refusé nommément sur GitLab, y compris par appel IPC direct. Les capacités
+correspondantes seront ouvertes par les lots D et E seulement après leur qualification.
+Le mode corpus seul constitue une seconde garde, pas un remplacement de ce dispatch.
+
+La matrice publique est dérivée de ces gestes en capacités métier stables et reçue
+avec le résultat d'ouverture. Le main la contrôle et le renderer l'utilise pour
+masquer ou désactiver chaque commande. `corpusModifiable` disparaît pour les
+opérations de définitions ; il ne doit pas être mis à `true` pour déverrouiller en
+bloc les métadonnées d'entretien, personnes, lots, notes ou autres parcours encore
+absents. L'état global hors ligne ou consultation seule s'applique au-dessus de la
+matrice, tandis que l'édition d'un entretien conserve en plus sa garde de session.
+
+### 14.7 Portée du refactor ajout/import
+
+`TransactionsGitLab.ajouterEntretien` utilise le même helper pour préparer sur la
+base fraîche, sans écrire d'abord cette base dans le miroir. Le plan métier distant
+conserve le `corpusAvant` frais et publie dans un seul commit la création de
+l'entretien, la mise à jour gardée de `corpus.json` et la mutation du bail.
+
+Après confirmation, le plan **local** est reconstruit : son `corpusAvant` est l'état
+local capturé sous la file, son `corpusApres` est le membership publié, et il contient
+le nouvel entretien. Réutiliser directement le plan distant échouerait dès que le
+miroir était en retard. Une réponse perdue suit la même entrée journalisée
+`transaction-corpus` et bloque tout nouvel ajout/import jusqu'à réconciliation.
+
+### 14.8 Limites assumées et tests d'arrêt
+
+- À l'issue du lot C, les gestes dépendant d'entretiens restent refusés jusqu'à leur
+  qualification au lot D, et la suppression jusqu'à sa livraison au lot E, y compris
+  par appel IPC direct. Ce ne sont pas des limitations définitives visées par le plan.
+- Le dossier temporaire est supprimé en `finally` ; un crash peut en laisser un dans
+  le dossier temporaire du système, sans effet sur le miroir ni sur le dépôt.
+- La non-régression du corpus local et du corpus Nextcloud fait partie des tests du
+  premier jalon. L'autorisation corpus seul n'est jamais utilisée par leurs chemins.
+- Le manifeste GitLab n'est pas mis à jour avec une empreinte inventée après une
+  installation issue d'un GET ou d'un commit ; un téléchargement ultérieur est
+  accepté.
+
+Les tests simulés bloquant la poursuite couvrent au minimum :
+
+- chaque geste admis sur un store sans entretien, et chaque tentative de lecture ou
+  d'écriture d'entretien refusée explicitement ;
+- commande sans changement sur miroir à jour puis périmé, avec remise à niveau locale
+  dans le second cas et aucun commit de données ;
+- refus métier sans effet local, conflit de garde et perte du bail ;
+- tirage déjà commencé, deux transactions corpus concurrentes, fermeture et bascule
+  pendant une transaction ;
+- réponse perdue retrouvée, opération toujours indéterminée et retry bloqué, sans
+  contamination du journal des sessions ;
+- crash avant le journal local, puis pendant et après l'installation ;
+- ajout/import depuis un miroir périmé, sans écriture locale avant confirmation ;
+- appels IPC directs pour chaque capacité refusée, puis non-régression locale,
+  Nextcloud et édition GitLab sous session.
+
+## 15. Décisions prises pour le lot D
+
+Ces choix ferment les questions laissées ouvertes en §6 avant d'écrire le code du
+lot D. Ils valent pour le jalon D1 décrit en 15.1 et ne changent rien à la politique
+du lot E. Les noms employés dans le code décrivent des capacités métier ; ils ne
+reprennent ni les lettres des lots ni le découpage de ce plan.
+
+### 15.1 Découpage : D1 sans suppressions, suppressions reportées
+
+Le lot D est livré en deux jalons :
+
+| Jalon | Contenu | Sortie |
+|---|---|---|
+| D1 | tri par dernière modification et par longueur ; toute commande CAS qui ajoute un rattachement, y compris lors d'une création ; ajout d'une dérivation de famille ou de cas ; insertion d'un passage dans un recueil ou modification de sa source | `definitionsAvecSources` et `triContenu` ouverts indépendamment dans la matrice |
+| D2 | suppression d'un thème, d'une variable, d'une modalité, d'une catégorie de note ou d'une règle d'anonymisation | politique de validation des références à la publication d'un entretien arrêtée et qualifiée |
+
+La raison du découpage tient à la nature des gestes. Les gestes de D1 ajoutent des
+références ou des recettes, mais n'en détruisent aucune. Une suppression crée une
+garantie qu'aucun commit de corpus ne peut tenir seul : une session déjà ouverte
+peut republier plus tard une référence vers la définition disparue. Traiter les deux
+ensemble ferait porter à tout le lot une décision qui concerne aussi la publication
+des entretiens.
+
+Le report a un coût de conception immédiat : la portée
+`definitions-avec-sources` mélange aujourd'hui gestes de D1, tris et suppressions.
+L'inventaire de `politiqueGestes.ts` doit distinguer au minimum :
+
+- les mutations qui écrivent une référence ou une recette à partir de sources
+  publiées et gardées ;
+- les tris calculés sur les contenus publiés, sans garde des sources ;
+- les suppressions de définitions, refusées sur GitLab tant que D2 n'est pas
+  qualifié.
+
+Les capacités publiques `definitionsAvecSources` et `triContenu` restent séparées
+et sont dérivées de ces portées distinctes. Les commandes du renderer les consomment
+réellement ; `lectureSeule` ne suffit pas à différencier les variantes. Le main
+conserve son propre refus par geste pour les appels IPC directs.
+
+### 15.2 Mesure bloquante : que fait réellement une action inchangée ?
+
+Le banc réel a déjà prouvé qu'une action `update` renvoyant le contenu inchangé sous
+`last_commit_id` sert de garde atomique : fraîche, elle laisse publier la cible ;
+périmée, elle fait refuser tout le commit. Il n'a pas encore prouvé que cette action
+fait avancer le `last_commit_id` de la source. Le test réel relit la source après le
+commit, mais ne compare pas son identifiant précédent au nouvel identifiant.
+
+Cette distinction change toute la coexistence avec les sessions. Un commit Git ne
+modifie normalement pas l'arbre pour un blob identique ; il ne faut donc pas déduire
+du seul succès de l'action que GitLab considère ensuite le fichier comme modifié.
+Les dépôts mémoire ne font pas foi sur ce point : ils attribuent aujourd'hui le
+nouvel identifiant de commit à toutes les actions, même lorsque leur contenu est
+inchangé.
+
+Avant toute mise en œuvre de D1, un scénario GitLab réel vérifie dans cet ordre :
+
+1. ouvrir une session longue et conserver sa garde de fichier ;
+2. publier depuis l'autre compte un commit qui modifie `corpus.json` et garde la
+   source par un `update` inchangé ;
+3. relire le `last_commit_id` de la source et le comparer à celui d'avant ;
+4. revalider, renouveler puis publier depuis la session longue, avec et sans
+   candidat local ;
+5. répéter avec une garde de source réellement périmée pour confirmer le refus
+   atomique du corpus.
+
+La suite dépend du résultat :
+
+- si le `last_commit_id` reste identique, l'action est une garde sans effet sur le
+  cycle de la session ; les corrections de reprise décrites en 15.3 ne sont pas des
+  préalables à D1 ;
+- s'il avance, D1 met en place le chemin de réadoption de garde de 15.3 avant
+  d'ouvrir les capacités ;
+- dans les deux cas, les doubles de test reproduisent le comportement observé au
+  lieu de l'inventer.
+
+**Mesuré le 26 septembre 2026 sur le banc (GitLab CE 18.11, deux comptes).** Le
+scénario ci-dessus est écrit dans `test/gitlab/contrat-gitlab.test.ts`, et son fait
+décisif est affiché par le test lui-même :
+
+```text
+[banc] garde inchangée — last_commit_id 0d499b66 → 0d499b66 (avancé : false)
+```
+
+C'est donc la première branche. Une garde inchangée est une **garde pure** : elle ne
+touche pas au cycle des sessions, et la réadoption de garde de 15.3 n'a pas été
+écrite — elle n'aurait coûté qu'une lecture et une écriture de journal par source,
+pour réparer un risque que la mesure exclut. Mesuré dans la même passe : la session
+longue revalide, publie son candidat, renouvelle son bail et se ferme sans conflit
+après le commit de corpus ; une garde de source réellement périmée refuse toujours
+le commit entier, `corpus.json` restant intact.
+
+Reste à faire avant d'ouvrir les capacités : la qualification à deux comptes du
+jalon d du lot C, puis les recettes du §10 (source modifiée pendant la préparation,
+source tenue ailleurs, corpus calme, résultat indéterminé).
+
+### 15.3 Gestes qui écrivent une référence : sources publiées et gardées
+
+Un rattachement CAS, une dérivation ou un passage de recueil est fondé sur un
+instantané publié. Chaque source nécessaire entre dans le commit sous forme d'un
+`update` au contenu inchangé et sous son `last_commit_id`. Si une source a bougé
+depuis la lecture, tout le commit est refusé et `corpus.json` reste inchangé.
+
+Les alternatives restent écartées :
+
+| Alternative | Raison de l'écarter |
+|---|---|
+| Ne garder que `corpus.json` | un rattachement pourrait viser un repère supprimé entre la lecture et le commit |
+| Revérifier juste avant le commit | cela ajoute une requête par source tout en laissant une nouvelle fenêtre de course |
+| Garder seulement les sources sans bail | le contrôle d'une dérivation peut porter sur tout le membership et rendrait le geste presque aussi indisponible que le tri |
+
+La présence d'un bail tiers ne fait donc pas refuser un geste à référence. La
+commande utilise la version publiée complète et vérifiable de la source ; le travail
+non publié du détenteur n'est ni lu ni remplacé. La garde protège cette version
+contre une publication concurrente jusqu'au commit. Cette règle est volontairement
+différente de celle du tri.
+
+Trois situations sont traitées explicitement :
+
+- si nous détenons une source avec un candidat non publié, nous la publions d'abord,
+  comme `casOrchestration.ts` le fait déjà ; un résultat refusé ou indéterminé arrête
+  la commande avant le bail corpus ;
+- si un tiers détient une source, nous ne publions rien en son nom et nous calculons
+  sur sa version publiée ;
+- si une source n'existe plus, est illisible ou utilise une version non prise en
+  charge dans l'instantané Git, la commande est refusée sans candidat de corpus.
+
+Les ensembles de sources sont exacts et dédupliqués :
+
+- un rattachement CAS ou un passage de recueil garde les entretiens effectivement
+  référencés ;
+- une création CAS qui transporte déjà des rattachements suit la même règle ;
+- la modification d'un item de passage garde sa nouvelle source ;
+- une dérivation garde toutes les sources effectivement lues par son contrôle de
+  cohérence, potentiellement tout le membership frais.
+
+Les validations finales n'utilisent jamais le miroir actif. Les contenus Git sont
+injectés dans un store temporaire capable de lire uniquement les sources prévues.
+Les vérifications locales exécutées avant le dispatch GitLab sont supprimées ou
+routées vers cette préparation : un miroir périmé ne doit produire ni faux refus ni
+fausse validation. Les copies sous session ne sont jamais remplacées.
+
+#### Cycle des sessions si la garde inchangée avance
+
+Cette sous-section ne devient un préalable à D1 que si la mesure de 15.2 montre que
+GitLab avance réellement le `last_commit_id` de la source. **Elle ne s'applique pas :
+la mesure ne montre pas d'avancée** (§15.2). Elle est laissée telle quelle pour
+documenter ce qui resterait à faire si la loi de GitLab change un jour ; aucun code
+de réadoption n'existe.
+
+Une session qui retrouve un contenu distant identique à son contenu publié réadopte
+la garde courante sans perdre son candidat. Cette réadoption intervient avant toute
+nouvelle publication, pas seulement au réveil du poste. Pour une session que nous
+détenons, la transaction et les publications de session sont coordonnées afin
+qu'une édition arrivée après la publication préalable ne parte jamais sous une
+garde devenue périmée.
+
+Le journal de session met alors à jour la garde et l'empreinte de base sans écraser
+le candidat local. La réouverture retrouve ce candidat sur la nouvelle garde si la
+base distante a conservé la même empreinte.
+
+La fermeture distingue les causes de dégradation :
+
+- après un conflit certainement neutre, elle préserve le candidat, tente de libérer
+  le bail encore connu et conserve l'entrée de reprise ;
+- après perte du droit, elle ne prétend pas avoir libéré un bail qui ne nous
+  appartient plus ;
+- après résultat indéterminé ou panne réseau, elle conserve l'incertitude et ne
+  promet pas une libération avant réconciliation.
+
+Le motif public est nommé et expliqué ; l'interface n'affiche jamais directement
+`degrade` ou un autre mot interne. La recette porte sur un rattachement, une
+dérivation ou un passage gardé pendant une session longue — jamais sur un tri, qui
+ne garde aucune source et refuse les sessions ouvertes.
+
+### 15.4 Le tri : un corpus calme, sans garde de source
+
+Le tri par modification ou par longueur produit seulement un ordre. Une lecture
+légèrement périmée peut donner un rang faux, corrigé au tri suivant ; elle ne crée
+pas une référence pendante. Le commit du tri contient donc uniquement
+`corpus.json` et la mutation du bail corpus.
+
+Le tri refuse avant l'acquisition du bail corpus dès qu'un entretien est tenu, y
+compris par notre application. Le contrôle combine :
+
+- les sessions locales actives du `ContexteGitLab`, car l'observation publique
+  masque volontairement nos propres baux ;
+- une observation distante fraîche prise dans la file du contexte, et non les
+  badges déjà affichés.
+
+Si l'observation échoue, le tri est refusé avec « détenteurs indisponibles ». Si un
+ou plusieurs tiers sont présents, le refus les nomme. L'interface annonce avant le
+geste qu'un tri de contenu demande la fermeture de tous les entretiens ; elle ne
+publie pas silencieusement notre entretien ouvert pour continuer.
+
+Après ce contrôle, le tri acquiert le bail corpus, résout un instantané Git et lit
+les entretiens par l'endpoint brut, au même SHA. Il n'est soumis ni à la réponse
+base64 de la lecture avec garde ni à la taille d'un commit contenant les sources.
+L'ordre porte explicitement sur les versions publiées de cet instantané.
+
+Une course résiduelle est acceptée : un poste peut ouvrir puis publier un entretien
+après l'observation. Selon le SHA retenu, le tri verra la version précédente ou la
+nouvelle. La conséquence reste un rang révisable. Cette tolérance ne s'étend pas
+aux gestes qui écrivent une référence.
+
+### 15.5 Préparation cohérente et ordre de la transaction
+
+La préparation normale d'un geste à sources suit cet ordre :
+
+1. vérifier le contexte, le journal et les capacités du geste ;
+2. effectuer un préflight sans bail sur un instantané immuable pour déterminer les
+   sources et détecter les dépassements évidents, en particulier leur nombre ;
+3. publier nos éventuelles sources concernées, puis attendre un résultat certain ;
+4. acquérir le bail de `corpus.json` ;
+5. résoudre une seule fois la branche en SHA après acquisition, puis lire
+   `corpus.json` et toutes les sources à ce SHA ;
+6. déduire à nouveau les sources depuis le membership frais et refaire les contrôles
+   exacts de nombre et de taille ;
+7. préparer dans le store temporaire, sans toucher au miroir ;
+8. publier `corpus.json`, les gardes de sources et la mutation du bail dans un seul
+   commit ;
+9. après confirmation, installer seulement le candidat de corpus ; aucune session
+   locale n'a à être coordonnée, la garde de source n'ayant pas bougé (15.2) ;
+10. libérer le bail corpus sans transformer un résultat indéterminé en refus certain.
+
+Le double contrôle de bornes est intentionnel. Avant acquisition, il évite la
+plupart des commits de coordination inutiles. Après acquisition, il garantit que la
+décision porte sur le membership réellement protégé. Si le second contrôle refuse,
+le bail est libéré et aucun candidat métier n'est publié.
+
+Une source modifiée entre le SHA de lecture et le commit périme sa garde et fait
+refuser atomiquement toutes les actions. Une source modifiée avant le SHA est lue
+dans sa nouvelle version. Dans aucun cas la base du miroir ne sert de preuve de
+fraîcheur.
+
+### 15.6 Bornes : compter le commit réellement envoyé
+
+Quatre limites distinctes sont prises en compte :
+
+| Limite actuelle | Où | Périmètre réel |
+|---|---|---|
+| 100 actions du plan métier | `publication.ts`, `compilerPlan` | exclut aujourd'hui l'action de coordination ajoutée ensuite |
+| 1 500 000 octets du plan sérialisé | `publication.ts`, `compilerPlan` | mesure les actions métier avant ajout du bail et de l'enveloppe HTTP |
+| 2 Mio de requête | `client.ts`, `ecrireJson` | mesure le corps HTTP final, avec échappement JSON |
+| 256 Kio de réponse de lecture | `bailGitLab.ts`, `lireFichier` | borne un fichier lu en JSON base64, métadonnées comprises |
+
+Le plafond de 100 ne doit pas être présenté comme une limite totale tant que le
+bail est ajouté après compilation. Avec 99 sources, `corpus.json` et le bail, le
+corps contient 101 actions. D1 fixe une borne unique sur les **actions totales** et
+la vérifie sur le plan complet. Si cette borne reste 100, un geste peut garder au
+plus 98 sources ; aucune valeur 98 ou 99 n'est documentée avant cette décision.
+
+De même, la taille utile n'est pas la somme des fichiers bruts. Elle est mesurée sur
+le corps exact qui sera donné à `ecrireJson`, branche, message, actions métier,
+action de bail et échappement compris. La limite interne de 1 500 000 octets peut
+rester une marge de sécurité, mais elle ne remplace pas ce calcul final.
+
+La lecture base64 à 256 Kio permet environ 192 Kio de contenu seulement avant les
+métadonnées. Les mesures actuelles projettent environ 116 Kio pour trente minutes,
+229 Kio pour une heure, 567 Kio pour deux heures trente et 1,1 Mio pour quatre
+heures, avec une forte dépendance au nombre d'ancres et de codages. Ce plafond est
+une garde du client, pas une limite GitLab.
+
+D1 ne réduit pas la densité des ancres à l'import pour contourner ce plafond. Une
+telle transformation touche la précision temporelle, ne corrige pas les corpus
+existants et relève d'une décision produit séparée.
+
+Le traitement des gros fichiers dépend des mesures du corpus pilote :
+
+- si ses fichiers tiennent dans la limite actuelle, D1 peut conserver cette limite
+  avec un refus nommé pour les fichiers exceptionnels ;
+- si la limite doit être relevée, le seuil de réponse, le délai de lecture, le plan
+  sérialisé et le corps de publication sont testés ensemble ; lire un fichier ne
+  suffit pas à prouver qu'il peut être republié ;
+- l'alternative endpoint brut plus lecture séparée de la garde reste mesurable :
+  elle réduit le transfert par source mais ajoute une requête et doit conserver un
+  même instantané.
+
+Un relèvement ne déclare pas automatiquement les gros corpus supportés. Le délai de
+quinze secondes par requête reçoit un message dédié, et la durée ainsi que la mémoire
+du tirage séquentiel sont mesurées. Le manifeste après publication et la mémoire du
+miroir restent des optimisations transversales ; elles ne bloquent D1 que si les
+mesures du corpus pilote montrent un dépassement réel.
+
+Aucun dépassement n'est contourné par plusieurs commits ou par la suppression d'une
+garde. Une dérivation portant sur plusieurs centaines d'entretiens peut donc rester
+refusée. Si ce refus est inacceptable, la garantie doit être redécoupée par lots
+dans un chantier distinct.
+
+### 15.7 Journal et résultat indéterminé
+
+Le journal typé du lot C est réutilisé sans nouveau format tant qu'aucune information
+manquante n'est démontrée. Son candidat contient déjà toutes les actions compilées,
+y compris les chemins, les gardes et les contenus des sources inchangées. Le
+réconciliateur peut donc vérifier le commit retrouvé action par action.
+
+Une opération D1 reste de nature `transaction-corpus`. Une opération indéterminée
+bloque toute nouvelle transaction sur `corpus.json` jusqu'à réconciliation certaine
+et n'est jamais rejouée automatiquement. Après confirmation ou réconciliation, le
+même remplacement local de `corpus.json` que dans le lot C suffit ; les sources
+n'ont aucun effet local à installer et les copies sous session restent exclues.
+
+Une liste supplémentaire de sources ou un lien vers un second plan local n'est
+ajouté que si la mise en œuvre révèle une information que les actions journalisées
+ne permettent pas de reconstruire. Si 15.2 montre que les gardes inchangées avancent,
+la coordination des sessions actives peut nécessiter un état dédié ; ce besoin est
+traité explicitement plutôt que caché dans un journal transactionnel redondant.
+
+Le tri conserve exactement le journal du lot C puisqu'il ne publie que
+`corpus.json` et le bail corpus. L'ouverture distingue toujours une transaction de
+corpus d'une publication de session.
+
+### 15.8 Mesures et arrêts avant activation
+
+La qualification réelle du jalon d du lot C précède l'activation de D1. Le code de
+D1 peut être préparé derrière des capacités fermées, mais aucune capacité n'est
+ouverte sur un socle C non qualifié à deux comptes.
+
+Les mesures suivantes sont consignées séparément des tests simulés :
+
+1. **Action inchangée et session longue** : résultat du scénario de 15.2,
+   `last_commit_id` avant/après, revalidation, renouvellement, publication et reprise
+   avec candidat local.
+2. **Corpus calme** : durée réelle, sur une journée de travail représentative, des
+   fenêtres sans aucune session locale ni aucun bail distant. Cette mesure décide si
+   la politique du tri est utilisable.
+3. **Volume du pilote** : nombre d'entretiens, taille brute et réponse base64 du plus
+   gros fichier, ancres comprises, et nombre réel de sources d'un rattachement, d'un
+   passage de recueil et d'une dérivation.
+4. **Bornes complètes** : nombre total d'actions, taille du plan métier, taille du
+   corps HTTP final après ajout du bail, durée sur lien lent et message obtenu au
+   dépassement ou au délai.
+5. **Coût opérationnel** : requêtes, commits, durée et mémoire pour un geste à une
+   source, une dérivation représentative et un tri complet.
+
+L'activation de D1 exige enfin les recettes suivantes :
+
+- source changée pendant la préparation : aucun changement de corpus ;
+- source tenue par un tiers : référence calculée sur la version publiée et gardée,
+  candidat local du tiers intact ;
+- tri avec une session locale ou un bail tiers : refus nommé avant le bail corpus ;
+- résultat indéterminé : blocage, réconciliation et installation sans rejeu ;
+- fermeture, bascule et tirage concurrents : aucun effet appliqué au mauvais
+  contexte ;
+- appels IPC directs et commandes renderer : mêmes capacités, sans régression locale
+  ni Nextcloud.

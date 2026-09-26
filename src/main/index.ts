@@ -38,6 +38,16 @@ import {
   ServiceOuvertureGitLab,
 } from './gitlab/ouverture'
 import { preparerProjetGitLab } from './gitlab/preparationProjet'
+import {
+  exigerGeste,
+  gesteAutorise,
+  gestureCas,
+  gestureRecueil,
+  gestureTri,
+  matriceCapacites,
+  type GesteCorpus,
+  type FournisseurCorpus,
+} from './gitlab/politiqueGestes'
 import { detecterInstanceGitLab } from './gitlab/detectionInstance'
 import { INTERVALLE_VERIFICATION_GITLAB_MS } from './gitlab/parametresSession'
 import { decoderCrp } from './encodage'
@@ -48,11 +58,11 @@ import { assemblerInstantaneDistant, choisirDossierCorpus, listerDossierCorpus, 
 import type { QualcoderExportModel } from '../shared/export/qualcoder/modele'
 import type { DemandeMigration, VerificationDossierMigration } from '../shared/corpus/migrationCrp'
 import type { DemandeExportDocx, DemandeExportPdf, DemandeExportDocxCorpus } from '../shared/format'
-import type { CommandeRecueils } from '../shared/corpus/recueils'
+import type { CommandeRecueils, SourcePassageRecueil } from '../shared/corpus/recueils'
 import type { CommandeCas } from '../shared/corpus/cas'
 import type { CommandeTableauBord } from '../shared/corpus/tableaubord'
 import type { ImpactSuppressionEntretien } from '../shared/corpus/suppressionEntretien'
-import { executerCommandeCas } from './casOrchestration'
+import { executerCommandeCas, deduireSourcesCas } from './casOrchestration'
 import type {
   Categorie,
   CibleRegleAnon,
@@ -663,19 +673,72 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // Session id aléatoire PAR LANCEMENT (portée du bloc corpus entier).
   const SESSION_ID = `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
-  /** Exécute une mutation de DÉFINITIONS : transaction complète en corpus distant (verrou corpus, GET frais, mutation, PUT If-Match),
-   *  ou écriture directe du store en local ; les refus (`ErreurTransaction`) remontent à la bannière renderer via l'exception IPC. */
-  function executerDefinitions<T>(fn: (cible: CorpusStore) => T): Promise<T> | T {
-    const cible = store
-    const execution = executerContexteDistant((contexte) =>
-      contexte.executerDefinitions(() => fn(cible)))
-    if (!execution) return fn(cible)
+  /** Exécute une mutation de DÉFINITIONS.
+   *
+   *  Chaque appelant nomme son geste : le dispatch refuse alors, sur GitLab,
+   *  tout ce qui relit les entretiens publiés ou retire un entretien — y compris
+   *  par appel IPC direct. Le calcul se fait sur une base fraîche, dans un store
+   *  de préparation : le store du miroir n'est jamais la cible de la mutation.
+   *  Les refus (`Error`) remontent à la bannière renderer via l'exception IPC. */
+  function executerDefinitions<T>(
+    geste: GesteCorpus,
+    fn: (cible: CorpusStore) => T,
+  ): Promise<T> | T {
+    const execution = executerContexteCommun((contexte) => {
+      if (contexte instanceof ContexteGitLab) {
+        return contexte.executerDefinitions(geste, fn).then((resultat) => resultat.valeur)
+      }
+      exigerGeste('webdav', geste)
+      return contexte.executerDefinitions(() => fn(store))
+    })
+    if (!execution) {
+      exigerGeste('local', geste)
+      return fn(store)
+    }
     return execution.then((resultat) => {
       if (!resultat.courant) {
         throw new Error('Le corpus a changé pendant la commande.')
       }
       return resultat.valeur
     })
+  }
+
+  /** Fournisseur du corpus courant, pour un refus nommé. */
+  function fournisseurCourant(): FournisseurCorpus {
+    const contexte = contextesDistants.actuel
+    if (contexte instanceof ContexteGitLab) return 'gitlab'
+    if (contexte) return 'webdav'
+    return 'local'
+  }
+
+  /** Opération réservée au corpus GitLab courant. Un corpus local ou un autre
+   *  fournisseur ne l'a pas : le refus est nommé, jamais silencieux. */
+  function executerGitLab<T>(
+    operation: (contexte: ContexteGitLab) => Promise<T>,
+  ): Promise<T> {
+    const execution = executerContexteCommun((contexte) => {
+      if (!(contexte instanceof ContexteGitLab)) {
+        throw new Error('Cette opération n’est disponible que sur un corpus GitLab.')
+      }
+      return operation(contexte)
+    })
+    if (!execution) throw new Error('Ce corpus distant n’est pas un corpus GitLab.')
+    return execution.then((resultat) => {
+      if (!resultat.courant) throw new Error('Le corpus a changé pendant la commande.')
+      return resultat.valeur
+    })
+  }
+
+  /** Source d'un item de recueil : un passage renvoie à un repère d'entretien
+   *  publié, et geste qui le reprend en dépend. */
+  function sourceRecueil(commande: CommandeRecueils): SourcePassageRecueil | null {
+    if (
+      (commande.type === 'inserer-item' || commande.type === 'modifier-item') &&
+      commande.item.type === 'passage'
+    ) {
+      return commande.item.source
+    }
+    return null
   }
 
   /** Lecture pure du miroir issu du dernier tirage en corpus distant.
@@ -814,37 +877,48 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:creerEntretienVide', (_e, titre: string) =>
     executerAjoutDistant(
       (contexte) => contexte.transactions.creerEntretienVide(titre),
-      (contexte) => contexte.creerEntretienVide(titre),
+      (contexte) => {
+        exigerGeste('gitlab', 'entretien.creer')
+        return contexte.creerEntretienVide(titre)
+      },
     ) ?? store.creerEntretienVide(titre),
   )
   ipcMain.handle('corpus:renommerEntretien', (_e, id: string, titre: string) =>
-    executerDefinitions((cible) => cible.renommerEntretien(id, titre)),
+    executerDefinitions('entretien.renommer', (cible) => cible.renommerEntretien(id, titre)),
   )
   ipcMain.handle('corpus:trierEntretiens', (_e, mode: ModeTriEntretiens) => {
     if (!['alpha', 'ajout', 'modif', 'longueur'].includes(mode)) {
       throw new Error('Mode de tri des entretiens inconnu.')
     }
     if (mode === 'modif' || mode === 'longueur') {
+      // Le tri de contenu se fait sur un corpus calme : le contexte GitLab
+      // refuse un entretien tenu, de notre application comme d'un autre poste.
+      if (fournisseurCourant() === 'gitlab') {
+        return executerGitLab((contexte) => contexte.trierEntretiens(mode))
+      }
+      exigerGeste(fournisseurCourant(), gestureTri(mode))
       return executerIntentionDistante((contexte) =>
         contexte.transactions.trierEntretiens(mode))
         ?? store.trierEntretiens(mode)
     }
-    return executerDefinitions((cible) => cible.trierEntretiens(mode))
+    return executerDefinitions(gestureTri(mode), (cible) => cible.trierEntretiens(mode))
   })
   /** Suppression : DOUBLE VERROU distant (corpus PUIS entretien, ordre canonique ;
    *  publication corpus d'abord, MOVE serveur ensuite), ou directe en local.
    *  Défense en profondeur : si NOUS tenions encore la session de cet entretien,
    *  il faut la fermer d'abord (publication puis libération, ordre invariant) ;
    *  sinon, ce serait notre propre verrou qui bloquerait la suppression. */
-  ipcMain.handle('corpus:analyserSuppressionEntretien', (_e, id: string) =>
-    store.analyserSuppressionEntretien(id),
-  )
+  ipcMain.handle('corpus:analyserSuppressionEntretien', (_e, id: string) => {
+    exigerGeste(fournisseurCourant(), 'entretien.analyser-suppression')
+    return store.analyserSuppressionEntretien(id)
+  })
   ipcMain.handle('corpus:supprimerEntretien', async (
     _e,
     id: string,
     impactAttendu?: ImpactSuppressionEntretien,
   ) => {
     const magasin = store
+    exigerGeste(fournisseurCourant(), 'entretien.supprimer')
     const execution = executerContexteDistant(async (contexte) => {
       magasin.revoquerEcritureEntretien(id)
       const fermeture = await contexte.sessions.fermer(id)
@@ -874,47 +948,50 @@ function enregistrerIpcCorpus(): () => Promise<void> {
           variables,
           reglesAnon,
         ),
-        (contexte) => contexte.importerEntretien(
-          titre,
-          payload,
-          codebook,
-          variables,
-          reglesAnon,
-        ),
+        (contexte) => {
+          exigerGeste('gitlab', 'entretien.importer')
+          return contexte.importerEntretien(
+            titre,
+            payload,
+            codebook,
+            variables,
+            reglesAnon,
+          )
+        },
       ) ?? store.importerEntretien(titre, payload, codebook, variables, reglesAnon),
   )
 
   // Codebook (thèmes) — définitions : sous transaction en distant.
   ipcMain.handle('corpus:ajouterCategorie', (_e, nom: string, parent: string | null) =>
-    executerDefinitions((cible) => cible.ajouterCategorie(nom, parent)),
+    executerDefinitions('theme.creer', (cible) => cible.ajouterCategorie(nom, parent)),
   )
   ipcMain.handle('corpus:modifierCategorie', (_e, id: string, patch: PatchCategorie) =>
-    executerDefinitions((cible) => cible.modifierCategorie(id, patch)),
+    executerDefinitions('theme.modifier', (cible) => cible.modifierCategorie(id, patch)),
   )
   ipcMain.handle('corpus:deplacerCategorie', (_e, id: string, sens: -1 | 1) =>
-    executerDefinitions((cible) => cible.deplacerCategorie(id, sens)),
+    executerDefinitions('theme.deplacer', (cible) => cible.deplacerCategorie(id, sens)),
   )
   ipcMain.handle('corpus:migrerCategorie', (_e, id: string, nouveauParent: string | null) =>
-    executerDefinitions((cible) => cible.migrerCategorie(id, nouveauParent)),
+    executerDefinitions('theme.migrer', (cible) => cible.migrerCategorie(id, nouveauParent)),
   )
   ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string) =>
-    executerDefinitions((cible) => cible.supprimerCategorie(id, exceptId)),
+    executerDefinitions('theme.supprimer', (cible) => cible.supprimerCategorie(id, exceptId)),
   )
   ipcMain.handle('corpus:usagesParCategorie', () => store.usagesParCategorie())
 
   // Catégories de note (définitions corpus) : lecture simple, mutations sous transaction, comme les autres définitions.
   ipcMain.handle('corpus:categoriesNote', () => store.categoriesNote())
   ipcMain.handle('corpus:ajouterCategorieNote', (_e, nom: string, couleur: string) =>
-    executerDefinitions((cible) => cible.ajouterCategorieNote(nom, couleur)),
+    executerDefinitions('note.creer-categorie', (cible) => cible.ajouterCategorieNote(nom, couleur)),
   )
   ipcMain.handle('corpus:renommerCategorieNote', (_e, id: string, nom: string) =>
-    executerDefinitions((cible) => cible.renommerCategorieNote(id, nom)),
+    executerDefinitions('note.renommer-categorie', (cible) => cible.renommerCategorieNote(id, nom)),
   )
   ipcMain.handle('corpus:majCouleurCategorieNote', (_e, id: string, couleur: string) =>
-    executerDefinitions((cible) => cible.majCouleurCategorieNote(id, couleur)),
+    executerDefinitions('note.colorer-categorie', (cible) => cible.majCouleurCategorieNote(id, couleur)),
   )
   ipcMain.handle('corpus:supprimerCategorieNote', (_e, id: string) =>
-    executerDefinitions((cible) => cible.supprimerCategorieNote(id)),
+    executerDefinitions('note.supprimer-categorie', (cible) => cible.supprimerCategorieNote(id)),
   )
   ipcMain.handle('corpus:compterUsagesCategorieNote', (_e, id: string) =>
     store.compterUsagesCategorieNote(id),
@@ -922,15 +999,29 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:resumesThematiques', () => store.resumesThematiques())
   ipcMain.handle('corpus:recueilsCommander', async (_e, commande: CommandeRecueils) => {
     const magasin = store
-    const passage = commande.type === 'inserer-item' && commande.item.type === 'passage'
-      ? commande.item.source
-      : null
-    if (passage && !magasin.reperePassageExiste(passage.entretienId, passage.repereId)) {
+    const geste = gestureRecueil(commande)
+    const source = sourceRecueil(commande)
+    // Un recueil qui reprend un passage lit un entretien publié : sur GitLab, ce
+    // geste passe par une transaction qui garde cette source, et sa validation
+    // ne doit rien demander au miroir.
+    if (contextesDistants.actuel instanceof ContexteGitLab) {
+      return executerGitLab((contexte) => {
+        const preparer = (cible: CorpusStore) => cible.recueilsCommander(commande)
+        if (!source) return contexte.executerDefinitions(geste, preparer)
+        return contexte.executerDefinitionsAvecSources(
+          geste,
+          preparer,
+          () => [source.entretienId],
+        )
+      }).then((resultat) => resultat.valeur)
+    }
+    if (source && !magasin.reperePassageExiste(source.entretienId, source.repereId)) {
       throw new Error("Le repère du passage n'a pas été enregistré dans l'entretien.")
     }
+    exigerGeste(fournisseurCourant(), geste)
     const execution = executerContexteDistant(async (contexte) => {
-      if (passage && contexte.sessions.idsTenus().includes(passage.entretienId)) {
-        const publication = await contexte.publierEntretien(passage.entretienId)
+      if (source && contexte.sessions.idsTenus().includes(source.entretienId)) {
+        const publication = await contexte.publierEntretien(source.entretienId)
         if (!publication.ok) {
           throw new Error(
             `Le passage n'a pas été publié (${publication.raison ?? 'échec inconnu'}).`,
@@ -945,10 +1036,23 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     return resultat.valeur
   })
   ipcMain.handle('corpus:tableaubordCommander', (_e, commande: CommandeTableauBord) =>
-    executerDefinitions((cible) => cible.tableaubordCommander(commande)),
+    executerDefinitions('tableau-bord.modifier', (cible) => cible.tableaubordCommander(commande)),
   )
   ipcMain.handle('corpus:casCommander', (_e, commande: CommandeCas) => {
     const magasin = store
+    const geste = gestureCas(commande)
+    // Sur GitLab, une commande CAS se prépare sur l'instantané Git : les
+    // entretiens publiés qu'elle contrôle sont gardés dans le même commit, et
+    // aucun repère n'est validé sur le miroir.
+    if (contextesDistants.actuel instanceof ContexteGitLab) {
+      return executerGitLab((contexte) => {
+        const preparer = (cible: CorpusStore) => cible.casCommander(commande)
+        const deduire = deduireSourcesCas(commande)
+        if (!deduire) return contexte.executerDefinitions(geste, preparer)
+        return contexte.executerDefinitionsAvecSources(geste, preparer, deduire)
+      }).then((resultat) => resultat.valeur)
+    }
+    exigerGeste(fournisseurCourant(), geste)
     const execution = executerIntentionDistante((contexte) =>
       executerCommandeCas(commande, {
         sessionsTenues: () => contexte.sessions.idsTenus(),
@@ -981,7 +1085,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     _e,
     commande: import('../shared/corpus/notes').CommandeNotes,
   ) => {
-    if (contextesDistants.actuel) throw new Error('Édition des notes distantes non disponible.')
+    exigerGeste(fournisseurCourant(), 'note.editer')
     return store.notesCommander(commande, true)
   })
   ipcMain.handle('corpus:personnesInventaire', () => store.personnesInventaire())
@@ -991,6 +1095,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
     depuisRepertoire = false,
   ) => {
     const magasin = store
+    if (contextesDistants.actuel instanceof ContexteGitLab) {
+      exigerGeste('gitlab', 'personnes.commande')
+    }
+    exigerGeste(fournisseurCourant(), 'personnes.commande')
     const execution = executerContexteDistant(async (contexte) => {
       const transactions = contexte.transactions
       if (commande.type === 'creerDefinition' || commande.type === 'modifier') {
@@ -1042,60 +1150,61 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   ipcMain.handle('corpus:journalLister', () => store.journalCorpusLister())
   ipcMain.handle('corpus:journalAnnuler', (_e, id: string) => {
-    if (contextesDistants.actuel || store.lectureSeule) {
+    if (!gesteAutorise(fournisseurCourant(), 'journal.annuler')) {
       return { ok: false, raison: 'L’annulation des actions du corpus distant n’est pas encore disponible.', temporaire: false }
     }
     return store.journalCorpusAnnuler(id)
   })
   ipcMain.handle('corpus:regleAnonParEntite', (_e, entite: string) => store.regleAnonParEntite(entite))
   ipcMain.handle('corpus:regleAnonCreer', (_e, entite: string, pseudos: string[]) =>
-    executerDefinitions((cible) => cible.regleAnonCreer(entite, pseudos)),
+    executerDefinitions('anon.creer-regle', (cible) => cible.regleAnonCreer(entite, pseudos)),
   )
   ipcMain.handle('corpus:regleAnonAjouterPseudo', (_e, id: string, pseudo: string) =>
-    executerDefinitions((cible) => cible.regleAnonAjouterPseudo(id, pseudo)),
+    executerDefinitions('anon.ajouter-pseudo', (cible) => cible.regleAnonAjouterPseudo(id, pseudo)),
   )
   ipcMain.handle('corpus:regleAnonUtiliseeAilleurs', (_e, id: string, exceptId?: string) =>
     store.regleAnonUtiliseeAilleurs(id, exceptId),
   )
   ipcMain.handle('corpus:regleAnonSupprimer', (_e, id: string) =>
-    executerDefinitions((cible) => cible.regleAnonSupprimer(id)),
+    executerDefinitions('anon.supprimer-regle', (cible) => cible.regleAnonSupprimer(id)),
   )
   // Paramètres de pseudonymisation (étape 4) : lecture directe, écriture sous transaction de définitions (corpus.json est un fichier partagé).
   ipcMain.handle('corpus:paramsAnonLire', () => store.lireParamsAnon())
   ipcMain.handle('corpus:paramsAnonEcrire', (_e, params: ParamsAnon) =>
-    executerDefinitions((cible) => cible.ecrireParamsAnon(params)),
+    executerDefinitions('anon.ecrire-parametres', (cible) => cible.ecrireParamsAnon(params)),
   )
   // Thématique d'une règle (4c) : mutation de corpus.json sous transaction.
   ipcMain.handle('corpus:regleAnonCategoriser', (_e, id: string, categorie: string | null) =>
-    executerDefinitions((cible) => cible.regleAnonCategoriser(id, categorie)),
+    executerDefinitions('anon.renommer-theme', (cible) => cible.regleAnonCategoriser(id, categorie)),
   )
-  ipcMain.handle('corpus:appliquerRegleAnonLot', (_e, cibles: CibleRegleAnon[]) =>
-    executerIntentionDistante((contexte) =>
+  ipcMain.handle('corpus:appliquerRegleAnonLot', (_e, cibles: CibleRegleAnon[]) => {
+    exigerGeste(fournisseurCourant(), 'regles.lot')
+    return executerIntentionDistante((contexte) =>
       contexte.transactions.appliquerRegleLot(cibles))
-      ?? appliquerRegleLotLocal(store, cibles),
-  )
+      ?? appliquerRegleLotLocal(store, cibles)
+  })
   ipcMain.handle('corpus:compterUsagesCategorie', (_e, code: string, exceptId?: string) =>
     store.compterUsagesCategorie(code, exceptId),
   )
 
   // Variables & modalités (EAV) — définitions : sous transaction distant.
   ipcMain.handle('corpus:ajouterVariable', (_e, lib: string, portee: 'entretien' | 'locuteur') =>
-    executerDefinitions((cible) => cible.ajouterVariable(lib, portee)),
+    executerDefinitions('variable.creer', (cible) => cible.ajouterVariable(lib, portee)),
   )
   ipcMain.handle('corpus:modifierVariable', (_e, id: string, patch: Partial<Variable>) =>
-    executerDefinitions((cible) => cible.modifierVariable(id, patch)),
+    executerDefinitions('variable.modifier', (cible) => cible.modifierVariable(id, patch)),
   )
   ipcMain.handle('corpus:supprimerVariable', (_e, id: string) =>
-    executerDefinitions((cible) => cible.supprimerVariable(id)),
+    executerDefinitions('variable.supprimer', (cible) => cible.supprimerVariable(id)),
   )
   ipcMain.handle('corpus:ajouterModalite', (_e, idVar: string, lib: string) =>
-    executerDefinitions((cible) => cible.ajouterModalite(idVar, lib)),
+    executerDefinitions('modalite.creer', (cible) => cible.ajouterModalite(idVar, lib)),
   )
   ipcMain.handle('corpus:modifierModalite', (_e, idVar: string, idMod: string, lib: string) =>
-    executerDefinitions((cible) => cible.modifierModalite(idVar, idMod, lib)),
+    executerDefinitions('modalite.modifier', (cible) => cible.modifierModalite(idVar, idMod, lib)),
   )
   ipcMain.handle('corpus:supprimerModalite', (_e, idVar: string, idMod: string) =>
-    executerDefinitions((cible) => cible.supprimerModalite(idVar, idMod)),
+    executerDefinitions('modalite.supprimer', (cible) => cible.supprimerModalite(idVar, idMod)),
   )
   ipcMain.handle('corpus:matrice', () => store.matriceCorpus())
 
@@ -1245,9 +1354,10 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   })
   // Marqueur de corpus de TEST (`corpus.json: { demo }`) : identité, mode,
   // sources et étapes validées. Champ additif optionnel, pas de bump de version.
-  ipcMain.handle('corpus:marquerDemo', (_e, marqueur: MarqueurDemo) =>
-    store.marquerDemo(marqueur),
-  )
+  ipcMain.handle('corpus:marquerDemo', (_e, marqueur: MarqueurDemo) => {
+    exigerGeste(fournisseurCourant(), 'corpus.marquer-demo')
+    return store.marquerDemo(marqueur)
+  })
 
   // --- Docs cadre projet : documents de méthode propres au corpus courant ---
   // Le renderer ne transmet JAMAIS de chemin : une source ('projet' | 'exemple')
@@ -1623,6 +1733,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         nom: preparation.corpus.nom ?? basename(config.urlServeur),
         corpus: preparation.corpus,
         distant: sansSecret(config),
+        capacites: matriceCapacites('webdav'),
         verrous: preparation.verrous,
         verrousIndisponibles: preparation.verrousIndisponibles,
         inaccessibles: preparation.inaccessibles,
@@ -1874,11 +1985,12 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   )
   // Lot « modifier en lot » : distant → transactions (verrou court par entretien,
   // échecs nommés) ; local → boucle directe du store. Mêmes résultats dans les deux modes.
-  ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) =>
-    executerIntentionDistante((contexte) =>
+  ipcMain.handle('corpus:poserValeurLot', (_e, items: ItemLotValeur[]) => {
+    exigerGeste(fournisseurCourant(), 'valeurs.lot')
+    return executerIntentionDistante((contexte) =>
       contexte.transactions.poserValeurLot(items))
-      ?? poserValeurLotLocal(store, items),
-  )
+      ?? poserValeurLotLocal(store, items)
+  })
 
   // Dialogs fichier : le parsing d'import se fait côté renderer (DOMParser) ;
   // le main ne fait que LIRE/ÉCRIRE le fichier choisi. En e2e, les dialogs sont stubbés,

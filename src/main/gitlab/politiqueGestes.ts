@@ -1,0 +1,308 @@
+/**
+ *  Portée sémantique des gestes du corpus, par commande.
+ *
+ *  Un corpus distant n'implémente pas tous les gestes : un même drapeau
+ *  « modifiable » déverrouillerait des mutations que le serveur ne sait pas
+ *  garder cohérentes. Chaque geste est donc classé une fois pour toutes, et le
+ *  dispatch du main refuse par son nom tout geste hors de portée du
+ *  fournisseur courant — y compris par appel IPC direct.
+ *
+ *  Le classement est sémantique, jamais technique : une commande ne dépend
+ *  d'entretiens que si elle lit ou contrôle des entretiens publiés.
+ */
+
+import type { CapacitesCorpus } from '../../shared/distant'
+import { referencesAjouteesCommandeCas, type CommandeCas } from '../../shared/corpus/cas'
+import type { CommandeRecueils } from '../../shared/corpus/recueils'
+import type { ModeTriEntretiens } from '../../shared/format'
+
+/** Ce qu'un geste doit savoir du corpus pour se calculer. */
+export type PorteeGesteCorpus =
+  /** Mutation calculée sur le seul `corpus.json`. */
+  | 'definitions-corpus'
+  /** Mutation qui écrit une référence ou une recette à partir des entretiens
+   *  publiés : chaque source lue entre dans le commit, sous sa garde. */
+  | 'definitions-avec-sources'
+  /** Tri calculé sur les contenus publiés, sans garder aucun entretien. */
+  | 'tri-contenus'
+  /** Retrait d'une définition : les usages qui la référencent décideront du
+   *  refus, et une session ouverte peut la republier plus tard. */
+  | 'suppression-definition'
+  /** Retrait et archivage d'un entretien. */
+  | 'suppression-entretien'
+  /** Parcours non pris en charge sur un corpus distant. */
+  | 'indisponible'
+
+export type GesteCorpus = string
+
+/** Portées que GitLab ouvre à l'interface.
+ *
+ *  Les définitions qui lisent les entretiens publiés et le tri de contenu sont
+ *  écrits et couverts par des tests, mais n'y figurent pas tant que leur
+ *  qualification sur banc n'est pas consignée : le code existe, la commande est
+ *  refusée par son nom. C'est cette liste, et elle seule, qui décide de ce que
+ *  l'interface propose. */
+export const PORTEEES_OVERTES_GITLAB: PorteeGesteCorpus[] = ['definitions-corpus']
+
+/** Portées accordées par fournisseur. Un fournisseur n'accorde jamais une
+ *  portée qu'aucun de ses gestes ne partage. */
+const PORTEEES_ACCORDEES: Record<FournisseurCorpus, readonly PorteeGesteCorpus[]> = {
+  local: [
+    'definitions-corpus',
+    'definitions-avec-sources',
+    'tri-contenus',
+    'suppression-definition',
+    'suppression-entretien',
+    'indisponible',
+  ],
+  webdav: [
+    'definitions-corpus',
+    'definitions-avec-sources',
+    'tri-contenus',
+    'suppression-definition',
+    'suppression-entretien',
+  ],
+  gitlab: PORTEEES_OVERTES_GITLAB,
+}
+
+
+/** Fournisseurs de corpus : le dossier local, ou un miroir distant. */
+export type FournisseurCorpus = 'local' | 'webdav' | 'gitlab'
+
+/** Chaque geste du corpus, avec la lecture qu'il exige. */
+const PORTEE_PAR_GESTE: Readonly<Record<GesteCorpus, PorteeGesteCorpus>> = {
+  // Codebook (thèmes).
+  'theme.creer': 'definitions-corpus',
+  'theme.modifier': 'definitions-corpus',
+  'theme.deplacer': 'definitions-corpus',
+  'theme.migrer': 'definitions-corpus',
+  'theme.supprimer': 'suppression-definition',
+
+  // Catégories de note du corpus.
+  'note.creer-categorie': 'definitions-corpus',
+  'note.renommer-categorie': 'definitions-corpus',
+  'note.colorer-categorie': 'definitions-corpus',
+  'note.supprimer-categorie': 'suppression-definition',
+
+  // Recueils : un passage renvoie à un repère d'entretien publié.
+  'recueil.creer': 'definitions-corpus',
+  'recueil.renommer': 'definitions-corpus',
+  'recueil.changer-mode': 'definitions-corpus',
+  'recueil.supprimer': 'definitions-corpus',
+  'recueil.inserer-item': 'definitions-corpus',
+  'recueil.modifier-item': 'definitions-corpus',
+  'recueil.supprimer-item': 'definitions-corpus',
+  'recueil.deplacer-item': 'definitions-corpus',
+  'recueil.deplacer-section': 'definitions-corpus',
+  'recueil.supprimer-section': 'definitions-corpus',
+  /** Un recueil qui reprend un passage : il dépend de l'entretien publié. */
+  'recueil.passage': 'definitions-avec-sources',
+
+  // Tableau de bord.
+  'tableau-bord.modifier': 'definitions-corpus',
+
+  // CAS : un rattachement et une dérivation lisent les entretiens publiés.
+  'cas.creer-famille': 'definitions-corpus',
+  'cas.completer-famille': 'definitions-corpus',
+  'cas.dissoudre-famille': 'definitions-corpus',
+  'cas.creer': 'definitions-corpus',
+  'cas.creer-lot': 'definitions-corpus',
+  'cas.renommer': 'definitions-corpus',
+  'cas.modifier-memo': 'definitions-corpus',
+  'cas.supprimer': 'definitions-corpus',
+  'cas.ajouter-rattachement': 'definitions-avec-sources',
+  'cas.retirer-rattachement': 'definitions-corpus',
+  'cas.creer-attribut': 'definitions-corpus',
+  'cas.modifier-attribut': 'definitions-corpus',
+  'cas.supprimer-attribut': 'definitions-corpus',
+  'cas.definir-valeur-attribut': 'definitions-corpus',
+  'cas.ajouter-derivation-famille': 'definitions-avec-sources',
+  'cas.retirer-derivation-famille': 'definitions-corpus',
+  'cas.ajouter-derivation-cas': 'definitions-avec-sources',
+  'cas.retirer-derivation-cas': 'definitions-corpus',
+
+  // Pseudonymisation.
+  'anon.creer-regle': 'definitions-corpus',
+  'anon.ajouter-pseudo': 'definitions-corpus',
+  'anon.supprimer-regle': 'suppression-definition',
+  'anon.renommer-theme': 'definitions-corpus',
+  'anon.ecrire-parametres': 'definitions-corpus',
+
+  // Variables et modalités.
+  'variable.creer': 'definitions-corpus',
+  'variable.modifier': 'definitions-corpus',
+  'variable.supprimer': 'suppression-definition',
+  'modalite.creer': 'definitions-corpus',
+  'modalite.modifier': 'definitions-corpus',
+  'modalite.supprimer': 'suppression-definition',
+
+  // Entretiens : identité, ordre, création et retrait.
+  'entretien.renommer': 'definitions-corpus',
+  'entretien.trier-definitions': 'definitions-corpus',
+  'entretien.trier-contenus': 'tri-contenus',
+  'entretien.creer': 'definitions-corpus',
+  'entretien.importer': 'definitions-corpus',
+  'entretien.analyser-suppression': 'suppression-entretien',
+  'entretien.supprimer': 'suppression-entretien',
+
+  // Parcours refusés sur un corpus distant, quel que soit le fournisseur.
+  'note.editer': 'indisponible',
+  'personnes.commande': 'indisponible',
+  'journal.annuler': 'indisponible',
+  'valeurs.lot': 'indisponible',
+  'regles.lot': 'indisponible',
+  'corpus.marquer-demo': 'indisponible',
+}
+
+/** Refus explicite et nommé, jamais un échec silencieux de la commande. */
+export class RefusGesteError extends Error {
+  constructor(readonly geste: GesteCorpus, readonly motif: string) {
+    super(motif)
+    this.name = 'RefusGesteError'
+  }
+}
+
+export function porteeGeste(geste: GesteCorpus): PorteeGesteCorpus | null {
+  return Object.hasOwn(PORTEE_PAR_GESTE, geste) ? PORTEE_PAR_GESTE[geste] : null
+}
+
+/** Le fournisseur courant accepte-t-il ce geste ?
+ *  Un geste inconnu est refusé : mieux vaut un refus qu'un geste non classé. */
+export function gesteAutorise(
+  fournisseur: FournisseurCorpus,
+  geste: GesteCorpus,
+): boolean {
+  const portee = porteeGeste(geste)
+  if (!portee) return false
+  return PORTEEES_ACCORDEES[fournisseur].includes(portee)
+}
+
+/** Vérifie un geste et renvoie son nom, pour un refus compréhensible. */
+export function exigerGeste(fournisseur: FournisseurCorpus, geste: GesteCorpus): void {
+  if (gesteAutorise(fournisseur, geste)) return
+  const portee = porteeGeste(geste)
+  throw new RefusGesteError(
+    geste,
+    portee
+      ? messageRefusPortee(portee)
+      : `L’opération « ${geste} » n’est pas connue de ce corpus.`,
+  )
+}
+
+function messageRefusPortee(portee: PorteeGesteCorpus): string {
+  if (portee === 'definitions-avec-sources') {
+    return 'Cette opération relit les entretiens publiés : elle n’est pas encore disponible sur un corpus GitLab.'
+  }
+  if (portee === 'tri-contenus') {
+    return 'Le tri par contenu relit tous les entretiens publiés : il n’est pas encore disponible sur un corpus GitLab.'
+  }
+  if (portee === 'suppression-definition') {
+    return 'La suppression d’une définition doit refuser ses usages sur le corpus entier : elle n’est pas encore disponible sur un corpus GitLab.'
+  }
+  if (portee === 'suppression-entretien') {
+    return 'La suppression d’un entretien n’est pas encore disponible sur un corpus GitLab.'
+  }
+  return 'Cette opération n’est pas disponible sur un corpus distant.'
+}
+
+/** Geste d'une commande CAS : un rattachement de passage et une dérivation
+ *  demandent la version publiée de l'entretien qui les porte. */
+export function gestureCas(commande: CommandeCas): GesteCorpus {
+  if (commande.type === 'ajouter-rattachements') return 'cas.ajouter-rattachement'
+  if (commande.type === 'ajouter-derivation-famille') return 'cas.ajouter-derivation-famille'
+  if (commande.type === 'ajouter-derivation-cas') return 'cas.ajouter-derivation-cas'
+  // Créer un cas, une famille ou un lot peut déjà y attacher un passage.
+  if (referencesAjouteesCommandeCas(commande).length > 0) return 'cas.ajouter-rattachement'
+  if (commande.type === 'retirer-rattachement'
+    || commande.type === 'retirer-derivation-famille'
+    || commande.type === 'retirer-derivation-cas') {
+    return `cas.${commande.type}`
+  }
+  if (commande.type === 'supprimer-cas') return 'cas.supprimer'
+  return `cas.${commande.type}`
+}
+
+/** Geste d'une commande de recueil : reprendre un passage le distingue des
+ *  autres insertions, qui ne portent que du texte. */
+export function gestureRecueil(commande: CommandeRecueils): GesteCorpus {
+  if (
+    (commande.type === 'inserer-item' || commande.type === 'modifier-item') &&
+    commande.item.type === 'passage'
+  ) {
+    return 'recueil.passage'
+  }
+  if (commande.type === 'supprimer-recueil') return 'recueil.supprimer'
+  return `recueil.${commande.type}`
+}
+
+/** Geste d'un tri : seuls le tri alphabétique et le tri d'ajout se calculent
+ *  sur le corpus ; les autres lisent le contenu des entretiens. */
+export function gestureTri(mode: ModeTriEntretiens): GesteCorpus {
+  return mode === 'alpha' || mode === 'ajout'
+    ? 'entretien.trier-definitions'
+    : 'entretien.trier-contenus'
+}
+
+/** Capacités du corpus vues par l'interface : ce que le fournisseur courant
+ *  sait faire, indépendamment de l'état réseau ou d'une session en cours. */
+export type { CapacitesCorpus }
+
+/** Parcours propres à chaque transport, en plus des portées accordées. */
+const PARCOURS_PAR_FOURNISSEUR: Record<FournisseurCorpus, Omit<
+  CapacitesCorpus,
+  | 'definitions'
+  | 'definitionsAvecSources'
+  | 'triContenu'
+  | 'ajoutEntretien'
+  | 'editionEntretien'
+  | 'suppressionEntretien'
+>> = {
+  local: {
+    renommageEntretien: true,
+    metadonneesEntretien: true,
+    tableDonnees: true,
+    notes: true,
+    personnes: true,
+    annulationJournal: true,
+    mediasPartages: false,
+    docsCadre: true,
+  },
+  webdav: {
+    renommageEntretien: true,
+    metadonneesEntretien: true,
+    tableDonnees: true,
+    notes: false,
+    personnes: true,
+    annulationJournal: false,
+    mediasPartages: true,
+    docsCadre: true,
+  },
+  gitlab: {
+    // Le renommage part avec les définitions ; l'audio et le SRT d'un
+    // entretien fermé demanderaient une session d'écriture, qui n'est pas
+    // ouverte pour ce geste.
+    renommageEntretien: true,
+    metadonneesEntretien: false,
+    tableDonnees: false,
+    notes: false,
+    personnes: false,
+    annulationJournal: false,
+    mediasPartages: false,
+    docsCadre: false,
+  },
+}
+
+/** Matrice publique d'un fournisseur, dérivée des portées accordées puis
+ *  complétée des parcours propres à son transport. */
+export function matriceCapacites(fournisseur: FournisseurCorpus): CapacitesCorpus {
+  const portees = new Set(PORTEEES_ACCORDEES[fournisseur])
+  return {
+    definitions: portees.has('definitions-corpus'),
+    definitionsAvecSources: portees.has('definitions-avec-sources'),
+    triContenu: portees.has('tri-contenus'),
+    ajoutEntretien: portees.has('definitions-corpus'),
+    editionEntretien: true,
+    suppressionEntretien: portees.has('suppression-entretien'),
+    ...PARCOURS_PAR_FOURNISSEUR[fournisseur],
+  }
+}

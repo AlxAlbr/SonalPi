@@ -63,6 +63,29 @@ describe('observation de la coordination WebDAV', () => {
     })
   })
 
+  test('une panne de lecture d’un verrou inventorié rend l’observation indisponible', async () => {
+    const serveur = new ServeurWebDAVMemoire()
+    serveur.poser('verrous/e1.lock.json', '{}')
+    const client = new ClientWebDAV(
+      { baseUrl: serveur.baseUrl, identifiants: serveur.identifiants },
+      async (requete, init) => {
+        const methode = init?.method ?? (requete instanceof Request ? requete.method : 'GET')
+        const url = requete instanceof Request ? requete.url : String(requete)
+        return methode === 'GET' && new URL(url).pathname.endsWith('/verrous/e1.lock.json')
+          ? new Response(null, { status: 503 })
+          : serveur.fetch(requete, init)
+      },
+    )
+    const sessions = new SessionsDEntretien(client, {} as never, () => ({
+      userId: 'max',
+      machineId: 'poste-max',
+      sessionId: 'session-max',
+    }))
+
+    await expect(new ObservationVerrousWebDAV(client, sessions, false).observerVerrous())
+      .resolves.toEqual({ entrees: [], indisponible: true })
+  })
+
   test('une panne d’inventaire se signale au lieu de ressembler à « personne »', async () => {
     const serveur = new ServeurWebDAVMemoire()
     const client = new ClientWebDAV(

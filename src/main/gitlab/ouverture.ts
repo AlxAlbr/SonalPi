@@ -14,17 +14,24 @@ import {
   type ConfigCompteGitLab,
   type ConfigDestinationGitLab,
 } from '../distant/coffre'
+import { createHash } from 'node:crypto'
 import type { ClientGitLab } from './client'
 import {
   BailGitLab,
   DepotCommitsGitLabClient,
+  cleRessourceBailGitLab,
   type IdentiteBailGitLab,
 } from './bailGitLab'
 import { type ContexteGitLab, preparerContexteGitLabLectureSeule } from './contexte'
-import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from './journalPublication'
+import {
+  JournalPublicationGitLab,
+  ReconciliateurPublicationGitLab,
+  type EntreeJournalPublication,
+} from './journalPublication'
 import { JournalSessionsGitLab } from './journalSession'
 import { assemblerSessionGitLab } from './assemblageSession'
 import type { ServiceAuthentificationGitLab } from './authentification'
+import { matriceCapacites } from './politiqueGestes'
 import { PublieurGitLab } from './publication'
 import { TransactionsGitLab } from './transactions'
 
@@ -176,6 +183,7 @@ export class ServiceOuvertureGitLab {
       nom: preparation.corpus.nom ?? destination.nomProjet,
       corpus: preparation.corpus,
       distant: destinationPublique,
+      capacites: matriceCapacites('gitlab'),
       verrous: preparation.verrous ?? [],
       verrousIndisponibles: preparation.verrousIndisponibles,
       inaccessibles: preparation.inaccessibles,
@@ -246,25 +254,24 @@ async function preparerOuvertureDestination(options: {
     'operations-gitlab',
     options.destination.id,
   )
-  const journal = new JournalPublicationGitLab(options.destination.id, journalRepertoire)
+  const racine = normaliserRacineGitLab(options.destination.racine)
+  const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
+  const journal = new JournalPublicationGitLab(
+    options.destination.id,
+    journalRepertoire,
+    undefined,
+    {
+      chemin: cheminCorpus,
+      resourceHash: createHash('sha256')
+        .update(cleRessourceBailGitLab(options.destination.branche, cheminCorpus), 'utf8')
+        .digest('hex'),
+    },
+  )
   const journalSessions = new JournalSessionsGitLab(options.destination.id, journalRepertoire)
   const depot = new DepotCommitsGitLabClient(client)
   const reconciliateur = new ReconciliateurPublicationGitLab(depot, journal)
   for (const entree of journal.lister()) {
-    const resultat = await reconciliateur.reconcilier(entree)
-    if (resultat.statut === 'confirme') {
-      const actions = journal.chargerActions(entree)
-      const action = actions.find((candidate) =>
-        candidate.action === 'update' || candidate.action === 'create')
-      if (action?.content !== undefined) {
-        journalSessions.confirmerPublication(
-          entree.resourceHash,
-          resultat.commitId,
-          action.content,
-        )
-      }
-      journal.supprimer(entree.operationId)
-    }
+    await reconcilierPublication(entree, reconciliateur, journal, journalSessions)
   }
   const preparation = await preparerContexteGitLabLectureSeule({
     id: options.destination.id,
@@ -285,7 +292,7 @@ async function preparerOuvertureDestination(options: {
       identite: options.identite,
       journalRepertoire,
     }).session,
-    creerTransactions: (store) => {
+    creerTransactions: (store, file) => {
       const coordination = new BailGitLab({
         branche: options.destination.branche,
         depot,
@@ -293,7 +300,6 @@ async function preparerOuvertureDestination(options: {
       })
       return new TransactionsGitLab({
         destination: options.destination,
-        dirLocal: dirMiroir,
         store,
         depot,
         coordination,
@@ -303,8 +309,40 @@ async function preparerOuvertureDestination(options: {
           coordination,
           journal,
         }),
+        file,
+        journal,
       })
     },
   })
   return { ...preparation, dirMiroir }
+}
+
+/** Réconcilie une publication retrouvée au démarrage, selon sa nature.
+ *
+ *  Une session d'entretien confirme son journal de session. Une transaction de
+ *  corpus ne confirme JAMAIS un journal de session : son état publié sera
+ *  installé par le tirage normal, qui remplace le miroir d'un seul tenant. Une
+ *  opération certainement absente peut être abandonnée ; une opération encore
+ *  indéterminée reste journalisée et bloque sa ressource. */
+async function reconcilierPublication(
+  entree: EntreeJournalPublication,
+  reconciliateur: ReconciliateurPublicationGitLab,
+  journal: JournalPublicationGitLab,
+  journalSessions: JournalSessionsGitLab,
+): Promise<void> {
+  const resultat = await reconciliateur.reconcilier(entree)
+  if (resultat.statut === 'indetermine') return
+  if (resultat.statut === 'confirme' && entree.nature === 'session-entretien') {
+    const actions = journal.chargerActions(entree)
+    const action = actions.find(
+      (candidate) => candidate.action === 'update' || candidate.action === 'create')
+    if (action?.content !== undefined) {
+      journalSessions.confirmerPublication(
+        entree.resourceHash,
+        resultat.commitId,
+        action.content,
+      )
+    }
+  }
+  journal.supprimer(entree.operationId)
 }

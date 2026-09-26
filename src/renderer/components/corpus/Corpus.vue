@@ -77,7 +77,10 @@ const {
   verrousIndisponibles,
   // Badges de verrou fiables (état « tenu par X » venant du serveur)
   badgeVerrou,
+  gesteDisponible,
   metaEditables,
+  renommagePossible,
+  suppressionPossible,
   presencesSur,
   ouvrirExportCorpus,
 } = utiliserSonal()
@@ -348,7 +351,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
               <input
                 class="titre-meta"
                 :value="membership[corpusSelId]?.titre"
-                :disabled="!metaEditables(corpusSelId)"
+                :disabled="!renommagePossible(corpusSelId)"
                 :title="titreChampMeta(corpusSelId)"
                 @change="renommer(corpusSelId, $event)"
               />
@@ -364,7 +367,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                  la confirmation réutilise le bandeau commun. -->
             <button
               class="mini suppr-meta"
-              :disabled="!metaEditables(corpusSelId)"
+              :disabled="!suppressionPossible(corpusSelId)"
               :title="titreChampMeta(corpusSelId)"
               @click="demanderSuppressionEntretien(corpusSelId)"
             >❌ Supprimer cet entretien du corpus</button>
@@ -406,7 +409,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
             <!-- Distant uniquement : lier un audio qui vit sur le serveur ;
                  la copie miroir vit chez chaque membre. -->
             <button
-              v-if="idDistantCourant && corpusSelId"
+              v-if="gesteDisponible('mediasPartages') && corpusSelId"
               class="mini assigner-audio"
               :disabled="!metaEditables(corpusSelId)"
               @click="ouvrirDesignationAudio(corpusSelId)"

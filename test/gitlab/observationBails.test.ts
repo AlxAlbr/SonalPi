@@ -342,6 +342,46 @@ describe('observation des bails GitLab', () => {
     }
   })
 
+  test('signale une panne pendant la lecture d’un bail inventorié', async () => {
+    const bail = bailEntretien('e1', { expireLe: VIVANT })
+    const journal: Requete[] = []
+    const preparation = await ouvrir(
+      corpusDeTest({ [bail.chemin]: bail.contenu }),
+      journal,
+      {
+        pannes: [(url) =>
+          decodeURIComponent(url.pathname).includes('/repository/files/.sonal/verrous/')
+            ? new Response(null, { status: 403 })
+            : undefined],
+      },
+    )
+
+    expect(preparation.verrous).toEqual([])
+    expect(preparation.verrousIndisponibles).toBe(true)
+  })
+
+  test('préfère le marqueur historique lorsque les deux protocoles coexistent', async () => {
+    const courant = bailEntretien('e1', {
+      expireLe: VIVANT,
+      holder: { userId: 'alice', machineId: 'poste-a', sessionId: 'session-a' },
+    })
+    const ancien = bailEntretien('e1', {
+      expireLe: PERIME,
+      version: 1,
+      holder: { userId: 'bob', machineId: 'poste-b', sessionId: 'session-b' },
+    })
+    const preparation = await ouvrir(corpusDeTest({
+      [courant.chemin]: courant.contenu,
+      [ancien.chemin]: ancien.contenu,
+    }), [])
+
+    expect(preparation.verrous).toEqual([{
+      chemin: 'entretiens/e1.json',
+      etag: null,
+      contenu: { userId: 'bob', machineId: 'poste-b', acquiredAt: '' },
+    }])
+  })
+
   test('suit la pagination de l’inventaire des baux', async () => {
     const e1 = bailEntretien('e1', { expireLe: VIVANT })
     const enBails: Record<string, string> = { [e1.chemin]: e1.contenu }
@@ -366,12 +406,14 @@ describe('observation des bails GitLab', () => {
     const session = {
       ouvrir: vi.fn(async () => ({ etat: 'edition', revision: 0, revisionPubliee: 0 })),
       etat: vi.fn(() => ({ etat: 'edition', revision: 0, revisionPubliee: 0 })),
+      tientBail: vi.fn((bail: { sessionId: string }) => bail.sessionId === 'session-a'),
       fermer: vi.fn(async () => ({ fermee: true })),
     } as unknown as SessionGitLab
-    const preparation = await ouvrir(corpusDeTest({
+    const depot = corpusDeTest({
       [mien.chemin]: mien.contenu,
       [collegue.chemin]: collegue.contenu,
-    }), journal, { creerSession: () => session })
+    })
+    const preparation = await ouvrir(depot, journal, { creerSession: () => session })
 
     await preparation.contexte.ouvrirSessionEntretien('e1')
     const tirage = await preparation.contexte.actualiser()
@@ -380,9 +422,21 @@ describe('observation des bails GitLab', () => {
       etag: null,
       contenu: { userId: 'bob', machineId: 'poste-b', acquiredAt: '' },
     }])
-    // Le prochain tirage résout un nouveau commit.
+    // Une ancienne session locale ne masque pas un bail repris.
+    // Le nouveau détenteur reste visible.
+    const repris = bailEntretien('e1', {
+      expireLe: VIVANT,
+      holder: { userId: 'charlie', machineId: 'poste-c', sessionId: 'session-c' },
+    })
+    depot.fichiers[repris.chemin] = repris.contenu
+    depot.commit = '2'.repeat(40)
     const resolutionsAvant = journal.filter(({ chemin }) => chemin.includes('/repository/branches/')).length
-    await preparation.contexte.actualiser()
+    const suivant = await preparation.contexte.actualiser()
+    expect(suivant.verrous).toContainEqual({
+      chemin: 'entretiens/e1.json',
+      etag: null,
+      contenu: { userId: 'charlie', machineId: 'poste-c', acquiredAt: '' },
+    })
     expect(journal.filter(({ chemin }) => chemin.includes('/repository/branches/'))).toHaveLength(
       resolutionsAvant + 1,
     )
@@ -401,7 +455,7 @@ describe('observation des bails GitLab', () => {
       racine: RACINE,
       idsEntretiens: () => [],
       ressource: ressourceEntretien,
-      ressourcesTenues: () => [],
+      bailTenuLocalement: () => false,
     })
 
     await expect(observation.observerVerrous()).resolves.toEqual({

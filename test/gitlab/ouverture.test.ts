@@ -671,6 +671,7 @@ describe('ouverture GitLab — préparation réelle avec journaux', () => {
     const journal = new JournalPublicationGitLab(banc.destination.id, banc.journalRepertoire)
     journal.preparer({
       operationId: 'op-crash',
+      nature: 'session-entretien',
       branche: banc.destination.branche,
       resourceHash: banc.resourceHash,
       generation: 'generation-test',

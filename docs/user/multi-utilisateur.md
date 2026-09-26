@@ -1,8 +1,35 @@
 # Travailler à plusieurs sur un corpus distant
 
 Ce guide décrit le fonctionnement multi-utilisateur de SonalPi2 quand un corpus est ouvert
-en **distant** (serveur Nextcloud/WebDAV). Pour CRÉER un corpus directement sur le serveur et
+en **distant** (serveur Nextcloud/WebDAV, ou projet GitLab). Pour CRÉER un corpus directement sur le serveur et
 le partager à l'équipe, voir [corpus-distant.md](corpus-distant.md). Il complète [la migration SonalPi1](migration-v1.md).
+
+## Ce que chaque fournisseur sait faire
+
+Les deux fournisseurs distant ne proposent pas les mêmes gestes : ce que l'un sait
+garder cohérent, l'autre non. L'interface grise ce qui n'est pas possible, et le
+refus porte toujours un nom — l'absence d'un bouton n'est jamais la seule protection.
+
+| Geste | Nextcloud | GitLab |
+|---|---|---|
+| Thèmes, variables et modalités, catégories de note, tableau de bord, pseudonymisation | oui | oui |
+| Recueils, cas, familles et attributs | oui | oui, sauf ce qui référence un passage d'entretien ou une recette |
+| Renommer un entretien, le trier par ordre d'ajout ou alphabétiquement | oui | oui |
+| Tri par dernière modification ou par longueur | oui | non |
+| Suppression d'un thème, d'une variable, d'une modalité, d'une catégorie de note, d'une règle | oui | non (ils comptent leurs usages dans les entretiens) |
+| Supprimer un entretien | oui | non |
+| Créer ou importer un entretien, l'éditer sous session | oui | oui |
+| L'audio ou le SRT d'un entretien fermé, les valeurs dans la table de données | oui | non |
+| Notes du corpus, corrections de personnes, annulation d'une action du journal | non | non |
+| Médias partagés, Docs cadre | oui | non |
+
+Une commande refusée par le fournisseur le dit explicitement, même appelée
+directement : une interface grisée n'est pas la garde.
+
+Chaque modification des définitions part dans un **commit unique** qui porte le
+fichier du corpus, la nouvelle version et le droit de modification. Deux collègues
+peuvent donc ajouter chacun un thème en même temps sans jamais s'écraser. Une
+commande qui ne change rien n'écrit pas de commit.
 
 ## Le principe en trois phrases
 
@@ -48,6 +75,13 @@ C'est rare : cela arrive si quelqu'un a modifié le fichier **en contournant l'a
 À la réouverture du corpus distant, l'application détecte les verrous restés coincés par VOTRE
 machine et propose : **Reprendre et publier** (votre dernière version part sur le serveur puis
 le verrou se libère) ou **Abandonner** (libérer sans publier).
+
+Si une modification des définitions a été envoyée au serveur sans que la réponse
+ne revienne, l'application ne la rejoue pas et ne l'annule pas non plus : elle
+vous le signale, et **toute nouvelle modification des définitions, création ou
+import est refusé** jusqu'à ce que la réouverture du corpus ait réconcilié
+l'opération. Une actualisation suffit généralement ; en cas de coupure pendant
+l'installation locale, elle se termine toute seule.
 
 ## Être hors ligne
 
