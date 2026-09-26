@@ -1043,8 +1043,9 @@ decrire('Contrat GitLab réel', () => {
     expect(Buffer.from(sourceFinale.corps.content, 'base64').toString('utf8')).toBe(sourceV2)
   })
 
-  it('mesure l’effet d’une garde de source inchangée sur une session longue', { timeout: 120_000 }, async () => {
-    const projet = configuration.projetLfsId as string
+  /** Une garde au contenu inchangé est-elle une garde pure ? La réponse doit
+   *  être la même avec et sans LFS : seule l'API Repository entre en jeu. */
+  async function mesurerGardeInchangee(projet: string, etiquette: string) {
     const token1 = configuration.token1 as string
     const token2 = configuration.token2 as string
     const source = `qualification/${idExecution}-session-source.json`
@@ -1121,7 +1122,8 @@ decrire('Contrat GitLab réel', () => {
       const contenuInchange = Buffer.from(sourceApres.corps.content, 'base64').toString('utf8')
       // Fait mesuré : c'est lui qui décide si une session doit réadopter sa garde.
       console.log(
-        `[banc] garde inchangée — last_commit_id ${sourceAvant.corps.last_commit_id.slice(0, 8)}`
+        `[banc] garde inchangée (${etiquette}) — last_commit_id `
+        + `${sourceAvant.corps.last_commit_id.slice(0, 8)}`
         + ` → ${sourceApres.corps.last_commit_id.slice(0, 8)} (avancé : ${sourceAvancee})`,
       )
       expect(contenuInchange).toBe(contenuSource)
@@ -1197,6 +1199,14 @@ decrire('Contrat GitLab réel', () => {
 
       rmSync(racine, { recursive: true, force: true })
     }
+  }
+
+  it('une garde de source inchangée n’est qu’une garde, projet avec LFS', { timeout: 120_000 }, async () => {
+    await mesurerGardeInchangee(configuration.projetLfsId as string, 'avec LFS')
+  })
+
+  it('une garde de source inchangée n’est qu’une garde, projet sans LFS', { timeout: 120_000 }, async () => {
+    await mesurerGardeInchangee(configuration.projetSansLfsId as string, 'sans LFS')
   })
 
   it('sérialise les renouvellements du bail et mesure leur coût local', { timeout: 60_000 }, async () => {

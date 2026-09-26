@@ -20,6 +20,7 @@ class DepotSession implements DepotCommitsGitLab {
   readonly commits: Array<{ id: string; title: string }> = []
   private compteur = 0
   private echecApresProchainCommit = false
+  private commitsIllisibles = false
 
   constructor() {
     this.fichiers.set('entretiens/e1.json', {
@@ -33,7 +34,14 @@ class DepotSession implements DepotCommitsGitLab {
     return fichier ? { chemin, ...fichier } : null
   }
 
+  /** L'historique devient illisible : la réconciliation immédiate ne peut pas
+   *  conclure, et l'entrée attend le démarrage. */
+  rendreCommitsIllisibles(illisibles: boolean): void {
+    this.commitsIllisibles = illisibles
+  }
+
   async rechercherCommits(_ref: string, recherche: string): Promise<Array<{ id: string; title: string }>> {
+    if (this.commitsIllisibles) throw new Error('historique indisponible')
     return this.commits.filter((commit) => commit.title.includes(recherche))
   }
 
@@ -349,7 +357,11 @@ describe('session GitLab', () => {
       writeFileSync(cheminLocal, candidat, 'utf8')
       await premier.marquerSale()
       depot.perdreLaProchaineReponse()
+      // L'historique est illisible : personne ne peut conclure sur le moment,
+      // et c'est bien le démarrage qui doit trancher.
+      depot.rendreCommitsIllisibles(true)
       await expect(premier.publier()).resolves.toMatchObject({ statut: 'indetermine' })
+      depot.rendreCommitsIllisibles(false)
 
       const journalRedemarre = new JournalPublicationGitLab('destination-test', cheminJournal)
       const reconciliateur = new ReconciliateurPublicationGitLab(depot, journalRedemarre)
@@ -389,9 +401,11 @@ describe('session GitLab', () => {
       stockage.valeur = '{"formatVersion":8,"perdu":true}'
       await session.marquerSale()
       depot.perdreLaProchaineReponse()
+      depot.rendreCommitsIllisibles(true)
 
       await expect(session.publier()).resolves.toMatchObject({ statut: 'indetermine' })
       expect(journal.lister()).toHaveLength(1)
+      depot.rendreCommitsIllisibles(false)
       const resultats = await session.reconcilierOperationsPending()
       expect(resultats[0].resultat).toMatchObject({ statut: 'confirme' })
       expect(journal.lister()).toEqual([])

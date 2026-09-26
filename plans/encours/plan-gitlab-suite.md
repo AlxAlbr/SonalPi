@@ -1,6 +1,6 @@
 # GitLab — exclusion visible et opérations de corpus
 
-**Statut : lots A et B livrés et qualifiés sur banc ; lot C écrit et couvert par des tests simulés, qualification sur banc GitLab à deux comptes restante (jalon d). Le cycle d'édition d'un entretien est qualifié sur banc, pas les lots ci-dessous. Les décisions du lot D sont consignées en §15 ; le jalon D1 est écrit et testé, ses capacités restent fermées tant que le jalon d n'est pas qualifié, et la mesure bloquante de 15.2 est faite (§15.2).**
+**Statut : lots A, B et C livrés et qualifiés sur banc (jalon d fait, §16). Les décisions du lot D sont consignées en §15 ; le jalon D1 est écrit et testé, ses capacités restent fermées tant que ses recettes à sources ne sont pas jouées sur banc.**
 **Priorité : rendre le corpus GitLab utilisable au quotidien — savoir qui tient un entretien, puis pouvoir définir et supprimer.**
 
 Ce document prolonge [plan-gitlab4.md](plan-gitlab4.md), qui fixe le bail versionné,
@@ -438,32 +438,32 @@ par GET sur l'instance locale, zéro commit. Détail dans `docs/dev/gitlab.md`.*
 **Sortie :** seules les commandes sans dépendance sont activées, avec un commit de
  données par mutation effective, plus les commits de coordination. Aucun effet
  local du candidat avant confirmation.
-*Qualification sur banc à deux comptes : à faire (jalon d).*
+*Qualification sur banc à deux comptes : faite au jalon d (§16).*
 
 ### D — Les définitions qui lisent le distant
 
-- [ ] Séparer passages CAS/recueils, dérivations, tris de contenu et suppressions
+- [x] Séparer passages CAS/recueils, dérivations, tris de contenu et suppressions
       dépendantes dans l'inventaire des gestes et dans les capacités publiques.
-- [ ] Qualifier sur GitLab réel l'effet d'un `update` au contenu inchangé sur le
+- [x] Qualifier sur GitLab réel l'effet d'un `update` au contenu inchangé sur le
       `last_commit_id` de la source et sur une session longue ; aligner les doubles
       de test et le cycle des sessions sur le comportement observé.
-- [ ] CAS et recueils : publier nos sources lorsque nécessaire, puis lire sur un même
+- [x] CAS et recueils : publier nos sources lorsque nécessaire, puis lire sur un même
       SHA et garder les sources dans le commit, sans remplacer les copies sous session.
-- [ ] Couvrir toutes les variantes qui ajoutent une référence : créations CAS avec
+- [x] Couvrir toutes les variantes qui ajoutent une référence : créations CAS avec
       rattachements et modification de la source d'un passage de recueil comprises.
-- [ ] Tri : aucune source gardée, commit limité à `corpus.json`, refus préalable et
+- [x] Tri : aucune source gardée, commit limité à `corpus.json`, refus préalable et
       nommé tant qu'un entretien est tenu, y compris par nous, et mention de l'état
       publié dans l'interface.
-- [ ] Valider les repères et les dérivations dans le store de préparation alimenté
+- [x] Valider les repères et les dérivations dans le store de préparation alimenté
       par l'instantané Git, jamais par une vérification préalable du miroir actif.
-- [ ] Borner les réponses, le total des actions métier et de coordination, le plan
+- [x] Borner les réponses, le total des actions métier et de coordination, le plan
       compilé et le corps HTTP final ; refuser explicitement, sans découpage silencieux.
 - [ ] Décider et tester les décomptes et les références republiées par une session
       déjà ouverte avant d'activer les suppressions de définitions.
-- [ ] Source modifiée pendant la préparation → aucun changement de corpus publié.
-- [ ] Coexistence d'une source gardée inchangée et d'une session longue qualifiée,
+- [x] Source modifiée pendant la préparation → aucun changement de corpus publié.
+- [x] Coexistence d'une source gardée inchangée et d'une session longue qualifiée,
       sans perte de candidat ni promesse injustifiée de libération d'un bail incertain.
-- [ ] Capacités réellement consommées par les commandes du renderer, avec refus du
+- [x] Capacités réellement consommées par les commandes du renderer, avec refus du
       main conservé pour les appels IPC directs.
 
 **Sortie :** les décisions qui écrivent une référence sont fondées sur des sources
@@ -850,8 +850,12 @@ scénario ci-dessus est écrit dans `test/gitlab/contrat-gitlab.test.ts`, et son
 décisif est affiché par le test lui-même :
 
 ```text
-[banc] garde inchangée — last_commit_id 0d499b66 → 0d499b66 (avancé : false)
+[banc] garde inchangée (avec LFS) — last_commit_id abc4db7a → abc4db7a (avancé : false)
+[banc] garde inchangée (sans LFS) — last_commit_id a4e9e04d → a4e9e04d (avancé : false)
 ```
+
+La mesure est faite sur les deux projets du banc, avec et sans LFS : seule l'API
+Repository entre en jeu, et le résultat est le même des deux côtés.
 
 C'est donc la première branche. Une garde inchangée est une **garde pure** : elle ne
 touche pas au cycle des sessions, et la réadoption de garde de 15.3 n'a pas été
@@ -1115,3 +1119,111 @@ L'activation de D1 exige enfin les recettes suivantes :
   contexte ;
 - appels IPC directs et commandes renderer : mêmes capacités, sans régression locale
   ni Nextcloud.
+
+## 16. Ce que le jalon d a trouvé
+
+La qualification du lot C contre l'instance réelle, à deux comptes, est dans
+`test/gitlab/qualificationDefinitions.test.ts`. Elle instancie la pile de
+l'application — client, dépôt, bail, journal, store, transactions — et joue les
+scénarios de la matrice de recette. Mesures relevées :
+
+| Scénario | Résultat mesuré |
+|---|---|
+| Mutation de définitions | 1 commit de données, 3 commits au total (acquisition, données, libération), 4 requêtes, ≈ 1,2 s |
+| Commande sans changement | 0 commit de données, la base fraîche remplace le miroir, 2 commits de coordination |
+| Bail tenu par un tiers | refus nommé de l'autre compte, sans commit de données |
+| Transactions après libération du bail | les deux se succèdent, rien n'est écrasé |
+| Acquisitions forcées à se chevaucher | 1 succès, 1 refus nommé, 1 seul commit de données |
+| Garde `corpus.json` périmée par un tiers | commit refusé, corpus du tiers intact, miroir local inchangé |
+| Panne avant tout envoi | refus certain, 1 seule requête, rien de journalisé, miroir intact |
+| Coupure de la réponse d'un commit de données | résultat indéterminé annoncé, toute nouvelle transaction bloquée, réconciliation retrouvant le commit et son contenu, aucun rejeu |
+
+Les deux réserves ouvertes par cette qualification sont levées et qualifiées.
+
+### 16.1 Deux commits simultanés : GitLab refuse le second, quels que soient les fichiers
+
+Sonde directe sur GitLab CE 18.11, deux requêtes de commit envoyées au même
+instant, avec des gardes valides et **deux fichiers différents** :
+
+```text
+A → 201   B → 400   {"message":"9:reference update: reference does not point to expected object."}
+```
+
+L'API Repository n'est donc pas seulement conditionnelle par fichier : elle l'est
+aussi par tête de branche. Toute publication qui croise une autre publication est
+refusée, même sans rapport entre elles. Or l'application sérialise aujourd'hui
+par ressource (`PublieurGitLab.serialiser` prend la clé de la ressource), donc :
+
+- une transaction de `corpus.json` et la publication d'un entretien tenu peuvent
+  se croiser — c'est le cas ordinaire quand un entretien est ouvert et qu'on ajoute
+  un thème ; l'une des deux est refusée avec un « conflit » qui ne décrit aucune
+  contradiction métier ;
+- le même vaut pour deux entretiens distincts, et pour l'acquisition ou la
+  libération d'un bail pendant une publication.
+
+La preuve dans le banc est un refus `conflit` d'une session de publication dont la
+garde de fichier n'avait pas bougé. Le candidat local n'est pas perdu, mais
+l'utilisateur voit un entretien dégradé qui n'a aucune raison de l'être. La
+qualification antérieure des « deux renouvellements concurrents : un succès, un
+refus » doit donc se relire : elle prouvait la garde du bail, pas l'atomicité
+d'une collision de branche.
+
+**Résolu et qualifié.** Deux corrections, dans cet ordre.
+
+1. **Une file de commits par destination** (`BailGitLab.serierCommit`), partagée par
+   la publication et par le bail, au lieu d'une file par ressource. Un appel
+   réentrant n'attend pas la file : il est déjà dans la section critique.
+2. **Un réessai vérifié** : sur un refus 400/409, les gardes du plan sont relues ;
+   si aucune n'a bougé, le refus ne parle pas de notre édition, et le même commit
+   repart une fois après 400 ms. Une garde qui a bougé reste un vrai conflit, et le
+   refus d'aujourd'hui tient. Le message d'erreur du serveur n'est jamais lu.
+
+Mesure sur le banc, deux postes au même instant, fichiers sans rapport :
+
+```text
+poste 2 — Sonal session-… → 400     collision de branche
+poste 1 — Sonal op-c11a-… → 201
+poste 2 — Sonal session-… → 201     réessai, abouti
+```
+
+Ce qui reste hors de portée : deux postes qui réessaient exactement au même instant
+pourraient encore se percuter une seconde fois. Le second échec retombe alors sur
+le comportement d'avant — refus nommé, candidat conservé — et non sur une perte.
+
+### 16.2 Un bail de corpus reste acquis après une réponse perdue — résolu
+
+Quand la réponse d'un commit de données est perdue, l'application ne peut pas
+libérer le bail : la libération s'appuie sur l'identifiant d'avant la publication,
+que GitLab a déjà remplacé. Le bail reste donc en place jusqu'à son expiration —
+quinze minutes par défaut — et la transaction suivante est refusée, en nommant
+l'utilisateur lui-même comme détenteur :
+
+```text
+[banc lot C] réconciliation certaine — le bail de corpus reste pourtant acquis
+```
+
+Cela contredit la ligne de la matrice qui veut que toute nouvelle définition soit
+bloquée « jusqu'à réconciliation certaine » : la réconciliation est certaine, et le
+blocage dure quand même. Le même état survit à un redémarrage, où aucun processus
+ne détient plus le droit.
+
+**Résolu et qualifié**, en deux temps.
+
+1. **Réconciliation immédiate.** Une publication dont la réponse s'est perdue est
+   réconciliée sur-le-champ : le commit est retrouvé, et l'état de bail qu'il
+   portait est adopté — vérifié par l'invariant du coordinateur, une publication
+   incrémentant le compteur d'exactement un. La libération suivante porte alors la
+   bonne garde, et l'appelant installe son candidat au lieu d'apprendre qu'il
+   ignore. Sur le banc, la libération du bail passe de 400 à 201 et la commande
+   n'échoue plus.
+2. **Reprise au démarrage.** Après un arrêt entre la perte de réponse et la
+   réconciliation, aucun droit ne survit en mémoire. À l'ouverture, un bail est
+   rendu s'il porte encore notre compte et la génération de l'opération retrouvée :
+   une reprise par un tiers change la génération, donc un bail qui la porte encore
+   est le nôtre. Sans les deux preuves, rien n'est touché.
+
+Un bail de **corpus** n'a pas d'entretien à rouvrir ; le refus le dit désormais
+ainsi — « retenu par ce poste, qui a peut-être déjà terminé », avec l'échéance —
+au lieu de désigner l'utilisateur comme un tiers. Un entretien tenu, lui, se ferme
+et se rouvre, et n'a jamais souffert de ce message.
+

@@ -19,7 +19,9 @@ import type { ClientGitLab } from './client'
 import {
   BailGitLab,
   DepotCommitsGitLabClient,
+  cheminBailDepuisEmpreinteGitLab,
   cleRessourceBailGitLab,
+  FileCommitsGitLab,
   type IdentiteBailGitLab,
 } from './bailGitLab'
 import { type ContexteGitLab, preparerContexteGitLabLectureSeule } from './contexte'
@@ -269,9 +271,18 @@ async function preparerOuvertureDestination(options: {
   )
   const journalSessions = new JournalSessionsGitLab(options.destination.id, journalRepertoire)
   const depot = new DepotCommitsGitLabClient(client)
+  // Une seule file de commits pour toute la destination : les sessions et les
+  // transactions de corpus ne peuvent pas se croiser.
+  const fileCommits = new FileCommitsGitLab()
+  const coordination = new BailGitLab({
+    branche: options.destination.branche,
+    depot,
+    identite: options.identite,
+    fileCommits,
+  })
   const reconciliateur = new ReconciliateurPublicationGitLab(depot, journal)
   for (const entree of journal.lister()) {
-    await reconcilierPublication(entree, reconciliateur, journal, journalSessions)
+    await reconcilierPublication(entree, reconciliateur, journal, journalSessions, coordination)
   }
   const preparation = await preparerContexteGitLabLectureSeule({
     id: options.destination.id,
@@ -284,6 +295,7 @@ async function preparerOuvertureDestination(options: {
       destinationId: options.destination.id,
       dirLocal: dirMiroir,
       client,
+      fileCommits,
       branche: options.destination.branche,
       racine: options.destination.racine,
       ressource,
@@ -293,11 +305,6 @@ async function preparerOuvertureDestination(options: {
       journalRepertoire,
     }).session,
     creerTransactions: (store, file) => {
-      const coordination = new BailGitLab({
-        branche: options.destination.branche,
-        depot,
-        identite: options.identite,
-      })
       return new TransactionsGitLab({
         destination: options.destination,
         store,
@@ -329,6 +336,7 @@ async function reconcilierPublication(
   reconciliateur: ReconciliateurPublicationGitLab,
   journal: JournalPublicationGitLab,
   journalSessions: JournalSessionsGitLab,
+  coordination: BailGitLab,
 ): Promise<void> {
   const resultat = await reconciliateur.reconcilier(entree)
   if (resultat.statut === 'indetermine') return
@@ -341,6 +349,22 @@ async function reconcilierPublication(
         entree.resourceHash,
         resultat.commitId,
         action.content,
+      )
+    }
+  }
+  // Une transaction de corpus laisse un bail derrière elle quand l'opération
+  // a abouti sans que l'application puisse le rendre. Le bail porte encore notre
+  // compte et la génération de l'opération : il est donc le nôtre, et le rendre
+  // évite quinze minutes de refus sur nos propres gestes.
+  if (entree.nature === 'transaction-corpus') {
+    const rendu = await coordination.rendreBailNotre(
+      cheminBailDepuisEmpreinteGitLab(entree.resourceHash),
+      entree.generation,
+    )
+    if (rendu === 'libere') {
+      console.info(
+        `[GitLab] bail de ${entree.resourceHash.slice(0, 12)} rendu au démarrage `
+        + `(${entree.operationId}).`,
       )
     }
   }

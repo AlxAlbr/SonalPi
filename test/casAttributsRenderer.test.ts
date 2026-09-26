@@ -93,6 +93,7 @@ function outil() {
     lirePersonnes: vi.fn(async () => ({ personnes: [], locuteurs: [] })),
     ouvrirSource: vi.fn(),
     fermerRecueils: vi.fn(),
+    definitionsAvecSources: () => true,
   })
   return { api, disque, sources, attributsCas, casCommander }
 }

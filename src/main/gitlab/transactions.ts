@@ -297,10 +297,25 @@ export class TransactionsGitLab {
   private async acquerirBailCorpus(): Promise<DroitsEditionGitLab> {
     const acquisition = await this.options.coordination.acquireRessource(this.ressourceCorpus)
     if (!acquisition.ok) {
-      const utilisateur = acquisition.tenupar?.userId ?? 'un autre utilisateur'
-      throw new Error(`Le corpus GitLab est en cours de modification par ${utilisateur}.`)
+      throw new Error(this.messageBailTenu(acquisition.tenupar))
     }
     return acquisition.droit
+  }
+
+  /** Un bail de corpus n'a pas d'entretien à rouvrir : dire « en cours de
+   *  modification par nous » ne donne rien à faire. On nomme l'échéance,
+   *  qui est la seule issue cuando personne ne le rend. */
+  private messageBailTenu(tenupar: { userId: string; expireLe: string } | null): string {
+    if (!tenupar) return 'Le corpus GitLab est en cours de modification par un poste inconnu.'
+    if (tenupar.userId === this.options.coordination.compteCourant()) {
+      const echeance = Date.parse(tenupar.expireLe)
+      const quand = Number.isFinite(echeance)
+        ? ` Il est rendable jusqu'à ${new Date(echeance).toLocaleTimeString('fr-FR')}, `
+        : ''
+      return `Le corpus GitLab est retenu par ce poste, qui a peut-être déjà terminé.${quand}`
+        + 'Actualisez le corpus, puis réessayez.'
+    }
+    return `Le corpus GitLab est en cours de modification par ${tenupar.userId}.`
   }
 
   private async libererBail(droit: DroitsEditionGitLab): Promise<void> {

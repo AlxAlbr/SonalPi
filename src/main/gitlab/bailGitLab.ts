@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createHash, randomUUID } from 'node:crypto'
 import {
   ClientGitLab,
@@ -13,6 +14,7 @@ const PROTOCOLE_BAIL = 'sonal-bail-v2'
 const PROTOCOLE_BAIL_LEGACY = 'sonal-bail-v1'
 const PREFIXE_BAIL = '.sonal/verrous'
 const SEPARATEUR_RESSOURCE = '\u0000'
+const SHA256 = /^[a-f0-9]{64}$/
 
 export interface IdentiteBailGitLab {
   userId: string
@@ -78,6 +80,34 @@ interface EtatDroit {
 
 const états = new WeakMap<DroitsEditionGitLab, EtatDroit>()
 
+/** Un seul commit à la fois par destination.
+ *
+ *  L'API Repository de GitLab refuse deux commits simultanés sur la même
+ *  branche, même quand ils portent sur des fichiers différents et que leurs
+ *  gardes sont valides : le refus tient à la tête de branche, pas au contenu
+ *  des actions (qualifié sur banc). La file est donc prise sur la destination
+ *  entière, et pas sur la seule ressource.
+ *
+ *  Elle appartient à la destination : toutes les sessions d'un même corpus et
+ *  ses transactions de corpus partagent celle-ci. Un lien par `BailGitLab`
+ *  laisserait deux entretiens ouverts se percuter.
+ *
+ *  Un appel réentrant n'attend pas la file — il l'exécute directement : il est
+ *  déjà dans la section critique, et l'attendre deadlockerait. */
+export class FileCommitsGitLab {
+  private readonly courant = new AsyncLocalStorage<true>()
+  private file: Promise<unknown> = Promise.resolve()
+
+  executer<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.courant.getStore()) return operation()
+    return this.courant.run(true, () => {
+      const resultat = this.file.then(operation, operation)
+      this.file = resultat.then(() => undefined, () => undefined)
+      return resultat
+    })
+  }
+}
+
 export interface PartieBailGitLab {
   userId: string
   generation: string
@@ -103,6 +133,10 @@ export interface BailObserveGitLab {
 export interface OptionsBailGitLab {
   branche: string
   depot: DepotCommitsGitLab
+  /** File de commits de la destination, partagée par toutes les sessions et
+   *  par les transactions de corpus. Absente, chaque coordinateur aurait la
+   *  sienne, et la garantie ne vaudrait plus rien. */
+  fileCommits?: FileCommitsGitLab
   identite: () => IdentiteBailGitLab
   maintenant?: () => number
   nouvelleGeneration?: () => string
@@ -216,19 +250,35 @@ export class BailGitLab {
   private readonly nouvelleGeneration: () => string
   private readonly dureeBailMs: number
   private readonly ressourcesLegacy: string[]
+  private readonly commits: FileCommitsGitLab
 
   constructor(private readonly options: OptionsBailGitLab) {
     if (!options.branche.trim()) throw new Error('Branche GitLab manquante.')
     this.maintenant = options.maintenant ?? Date.now
     this.nouvelleGeneration = options.nouvelleGeneration ?? randomUUID
     this.dureeBailMs = options.dureeBailMs ?? DUREE_BAIL_MS
+    this.commits = options.fileCommits ?? new FileCommitsGitLab()
     this.ressourcesLegacy = [...new Set(options.ressourcesLegacy ?? [])]
     if (!Number.isSafeInteger(this.dureeBailMs) || this.dureeBailMs < 60_000) {
       throw new Error('Durée du bail GitLab invalide.')
     }
   }
 
+  /** Exécute une opération de commit en exclusivité sur la destination.
+   *  Publications de sessions et transactions de corpus passent toutes par là,
+   *  comme les mutations de bail : deux commits ne se croisent jamais. */
+  serierCommit<T>(operation: () => Promise<T>): Promise<T> {
+    return this.commits.executer(operation)
+  }
+
   async acquireRessource(ressource: string): Promise<ResultatAcquisitionBailGitLab> {
+    return this.serierCommit(() => this.acquerirInterne(ressource, false))
+  }
+
+  private async acquerirInterne(
+    ressource: string,
+    repriseExplicite: boolean,
+  ): Promise<ResultatAcquisitionBailGitLab> {
     const ancien = await this.refusLegacy()
     if (ancien) return ancien
     const resourceHash = hacherRessource(ressource)
@@ -244,6 +294,28 @@ export class BailGitLab {
       return { ok: true, droit: this.creerDroit(chemin, bail, commit.id) }
     } catch (erreur) {
       if (!refusMutationConnu(erreur)) throw erreur
+    }
+
+    if (repriseExplicite) {
+      const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
+      if (!observe) throw new Error('Bail GitLab absent lors de la reprise.')
+      const courant = lireBail(observe.contenu, resourceHash)
+      if (Date.parse(courant.expireLe) > this.maintenant()) {
+        return { ok: false, raison: 'tenu', tenupar: partie(courant) }
+      }
+      const repris = this.nouveauBail(resourceHash)
+      try {
+        const commit = await this.publierBail('reprise', chemin, repris, observe.commitId)
+        const ancienApresEcriture = await this.refusLegacy()
+        if (ancienApresEcriture) {
+          await this.supprimerBail(chemin, repris, commit.id)
+          return ancienApresEcriture
+        }
+        return { ok: true, droit: this.creerDroit(chemin, repris, commit.id) }
+      } catch (erreur) {
+        if (!refusMutationConnu(erreur)) throw erreur
+        return this.refusObserve(chemin)
+      }
     }
 
     const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
@@ -286,29 +358,7 @@ export class BailGitLab {
   }
 
   async reprendreRessource(ressource: string): Promise<ResultatAcquisitionBailGitLab> {
-    const ancien = await this.refusLegacy()
-    if (ancien) return ancien
-    const resourceHash = hacherRessource(ressource)
-    const chemin = cheminBail(resourceHash)
-    const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
-    if (!observe) throw new Error('Bail GitLab absent lors de la reprise.')
-    const courant = lireBail(observe.contenu, resourceHash)
-    if (Date.parse(courant.expireLe) > this.maintenant()) {
-      return { ok: false, raison: 'tenu', tenupar: partie(courant) }
-    }
-    const repris = this.nouveauBail(resourceHash)
-    try {
-      const commit = await this.publierBail('reprise', chemin, repris, observe.commitId)
-      const ancienApresEcriture = await this.refusLegacy()
-      if (ancienApresEcriture) {
-        await this.supprimerBail(chemin, repris, commit.id)
-        return ancienApresEcriture
-      }
-      return { ok: true, droit: this.creerDroit(chemin, repris, commit.id) }
-    } catch (erreur) {
-      if (!refusMutationConnu(erreur)) throw erreur
-      return this.refusObserve(chemin)
-    }
+    return this.serierCommit(() => this.acquerirInterne(ressource, true))
   }
 
   async revalider(droit: DroitsEditionGitLab): Promise<boolean> {
@@ -330,6 +380,10 @@ export class BailGitLab {
   }
 
   async renouveler(droit: DroitsEditionGitLab): Promise<boolean> {
+    return this.serierCommit(() => this.renouvelerInterne(droit))
+  }
+
+  private async renouvelerInterne(droit: DroitsEditionGitLab): Promise<boolean> {
     const etat = this.etatActif(droit)
     if (etat.suspendu || etat.transition) {
       throw new Error('Droit d’édition GitLab en attente de réconciliation.')
@@ -358,6 +412,10 @@ export class BailGitLab {
   }
 
   async liberer(droit: DroitsEditionGitLab): Promise<'libere' | 'deja-perdu'> {
+    return this.serierCommit(() => this.libererInterne(droit))
+  }
+
+  private async libererInterne(droit: DroitsEditionGitLab): Promise<'libere' | 'deja-perdu'> {
     const etat = this.etatActif(droit)
     try {
       await this.options.depot.publierCommit(
@@ -480,6 +538,75 @@ export class BailGitLab {
   invalider(droit: DroitsEditionGitLab): void {
     const etat = états.get(droit)
     if (etat) etat.invalide = true
+  }
+
+  /** Adopte l'état de bail d'une publication dont on connaît le commit.
+   *
+   *  Une publication dont la réponse s'est perdue a pourtant bien pu aboutir.
+   *  La réconciliation en retrouve le commit et la mutation de bail qu'il
+   *  portait ; sans cette adoption, la libération viserait une garde périmée
+   *  et laisserait le bail acquis jusqu'à son expiration. */
+  constaterPublicationReconciliee(
+    droit: DroitsEditionGitLab,
+    commitId: string,
+    bail: { compteur: number; expireLe: string },
+  ): void {
+    const etat = this.etatActif(droit)
+    const expireLe = Date.parse(bail.expireLe)
+    // La publication(Long) incrémente le compteur d'exactement un : c'est le
+    // contrôle qui relie le bail retrouvé à celui que nous portions.
+    if (bail.compteur !== etat.compteur + 1 || !Number.isFinite(expireLe)) {
+      throw new Error('État de bail réconcilié incohérent avec la publication.')
+    }
+    etat.commitId = commitId
+    etat.compteur = bail.compteur
+    etat.expireLe = expireLe
+    etat.suspendu = false
+    etat.transition = undefined
+  }
+
+  /** Rend un bail que l'on sait être le nôtre.
+   *
+   *  Un poste qui s'arrête au milieu d'une opération laisse son bail derrière
+   *  lui : personne d'autre ne peut le prendre avant son expiration, et
+   *  l'utilisateur se voit refuser ses propres gestes pendant ce temps. Deux
+   *  preuves autorisent la reprise : le détenteur est bien notre compte, et la
+   *  génération est celle de l'opération retrouvée. Une reprise par un tiers
+   *  change la génération, donc un bail qui la porte encore est le nôtre. */
+  async rendreBailNotre(
+    chemin: string,
+    generationAttendue: string,
+  ): Promise<'libere' | 'absent' | 'autre'> {
+    return this.serierCommit(async () => {
+      const resourceHash = resourceHashDeChemin(chemin)
+      const observe = await this.options.depot.lireFichier(chemin, this.options.branche)
+      if (!observe) return 'absent'
+      const courant = lireBail(observe.contenu, resourceHash)
+      if (
+        courant.holder.userId !== this.options.identite().userId
+        || courant.generation !== generationAttendue
+      ) {
+        return 'autre'
+      }
+      try {
+        await this.options.depot.publierCommit(
+          this.options.branche,
+          `Sonal bail ${courant.resourceHash.slice(0, 12)} reprise au démarrage`,
+          [{ action: 'delete', file_path: chemin, last_commit_id: observe.commitId }],
+        )
+        return 'libere'
+      } catch (erreur) {
+        // Un refus laisse le bail à son expiration, comme avant cette reprise.
+        if (!refusMutationConnu(erreur)) throw erreur
+        return 'autre'
+      }
+    })
+  }
+
+  /** Le compte de cette application, pour nommer un refus sans se nommer
+   *  soi-même comme détenteur d'un bail. */
+  compteCourant(): string {
+    return this.options.identite().userId
   }
 
   private async refusLegacy(): Promise<ResultatAcquisitionBailGitLab | null> {
@@ -700,6 +827,12 @@ function partie(bail: BailEnregistre): PartieBailGitLab {
 /** Chemin du fichier de bail d'une ressource, tous protocoles confondus. */
 export function cheminBailRessourceGitLab(ressource: string): string {
   return cheminBail(hacherRessource(ressource))
+}
+
+/** Chemin du fichier de bail d'une ressource déjà décrite par son empreinte. */
+export function cheminBailDepuisEmpreinteGitLab(resourceHash: string): string {
+  if (!SHA256.test(resourceHash)) throw new Error('Empreinte de bail GitLab invalide.')
+  return cheminBail(resourceHash)
 }
 
 /** Lit un bail observé par son chemin de dépôt, sans en tirer de droit.

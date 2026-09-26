@@ -730,7 +730,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   }
 
   /** Source d'un item de recueil : un passage renvoie à un repère d'entretien
-   *  publié, et geste qui le reprend en dépend. */
+   *  publié, et le geste qui le reprend en dépend. */
   function sourceRecueil(commande: CommandeRecueils): SourcePassageRecueil | null {
     if (
       (commande.type === 'inserer-item' || commande.type === 'modifier-item') &&

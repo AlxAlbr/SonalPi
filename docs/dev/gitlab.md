@@ -420,7 +420,7 @@ nécessaire pour les droits, quotas, OAuth et certificats de la cible réelle.
 | Locks V1 et REST | Commit sous verrou détenu par autrui, même compte sur deux postes, reprise puis ancien détenteur. | LFS Lock imposé aux commits REST d'un autre compte ; après reprise par `user2`, l'ancien `user1` est refusé. Deux jetons de `user1` restent toutefois le même détenteur : le second poste peut publier sous le verrou du premier. |
 | Bail versionné candidat | Publication + mutation réelle du verrou, ancienne génération, renouvellement concurrent, réponse perdue, série longue. | Acquisition concurrente : un seul create réussit. Après reprise par une nouvelle génération du même compte, publication et mutation périmée de l'ancien sont refusées atomiquement ; la génération courante publie. Deux renouvellements concurrents donnent un succès et un refus. Deux campagnes de 480 renouvellements simulés à 60 s ont pris 182,3 s et 174,5 s, soit environ 380 et 363 ms par commit sur le banc local. La série est accélérée et ne mesure pas une pause réelle de 60 s. |
 | Résultat indéterminé | Couper la réponse après acceptation, retrouver l'opération au bon commit et vérifier son contenu. | Un proxy local laisse GitLab répondre 201 puis détruit la connexion avant toute réponse au client. L'opération est retrouvée par son identifiant dans l'historique et son fichier est vérifié. |
-| Dépendances métier | Source lue mais non écrite, transaction corpus face à une session longue. | Une action update renvoyant le contenu inchangé avec `last_commit_id` protège la source dans le même commit : fraîche, elle est acceptée ; périmée, elle refuse aussi la mutation de la cible. Sans cette action, la cible est publiée malgré la source modifiée. À borner selon taille et matrice métier. |
+| Dépendances métier | Source lue mais non écrite, transaction corpus face à une session longue. | Une action update renvoyant le contenu inchangé avec `last_commit_id` protège la source dans le même commit : fraîche, elle est acceptée ; périmée, elle refuse aussi la mutation de la cible. Sans cette action, la cible est publiée malgré la source modifiée. Mesuré ensuite sur les deux projets du banc, avec et sans LFS : cette action ne fait pas avancer le `last_commit_id` de la source, et une session longue garde ensuite revalider, publier son candidat, renouveler son bail et se fermer. Reste à borner selon taille et matrice métier. |
 | LFS média | Batch upload, objet, pointeur, association au projet et lecture binaire depuis le second compte sans push Git. | Parcours complet validé avec un binaire de 1 048 833 octets. Un objet de 32 MiB a ensuite été produit et relu en flux depuis un fichier, sans Keep-Alive mémoire proportionnel : envoi 286 ms, lecture 190 ms, pic de heap du banc 15,2 MiB puis 18,2 MiB, SHA-256 et taille vérifiés. Un upload de 8 MiB annulé après 524 288 octets a été repris avec le même OID puis relu intégralement. Le projet sans LFS refuse le batch. Le refus pour quota réel reste à qualifier. |
 | Détection | Réglage projet actif/inactif, 403, timeout, lecteur sans droit d'envoi, revérification. | Deux projets réels exposent correctement `lfs_enabled=true/false` aux comptes de test ; erreurs et revérification restent à implémenter. |
 | OAuth institutionnel | Configuration disponible, scopes REST/LFS, renouvellement et certificat. | Parcours V1 inspecté ; instance non testée. |
@@ -703,10 +703,41 @@ et la libération du bail restent payées, et les octets frais sont néanmoins
 installés avant le retour, pour ne pas rester sur une base périmée. Un refus
 métier ne publie rien et ne modifie pas le miroir.
 
-Une opération au résultat indéterminé reste journalisée : toute nouvelle
-transaction sur `corpus.json`, ajout et import compris, est refusée avec un
-message de reprise. Les lectures et le tirage restent permis, et c'est le tirage
+Une publication dont la réponse s'est perdue est réconciliée immédiatement : le
+commit est retrouvé, et l'état de bail qu'il portait est adopté — la reprise est
+acceptée si le compteur publié vaut exactement le compteur porté, incrémenté d'un.
+La libération qui suit porte alors la bonne garde, et l'appelant installe son
+candidat au lieu d'apprendre qu'il ignore. Si l'historique ne permet pas de
+conclure, l'entrée reste journalisée et le résultat demeure indéterminé.
+
+Un poste qui s'arrête entre la perte de réponse et la réconciliation ne laisse
+aucun droit en mémoire. À l'ouverture, le bail de `corpus.json` est alors rendu
+s'il porte encore notre compte **et** la génération de l'opération retrouvée : une
+reprise par un tiers change la génération, donc un bail qui la porte encore est le
+nôtre. À défaut des deux preuves, rien n'est touché et le bail expire comme
+avant. Un bail de corpus n'ayant pas d'entretien à rouvrir, son refus le dit
+ainsi — « retenu par ce poste, qui a peut-être déjà terminé », avec l'échéance. Les lectures et le tirage restent permis, et c'est le tirage
 normal qui installe l'état publié.
+
+### File de commits et collision de branche
+
+L'API Repository de GitLab est conditionnelle **par tête de branche** : deux
+commits envoyés au même instant se percutent, même sur des fichiers sans rapport
+(qualifié sur banc, `9:reference update: reference does not point to expected
+object`). Toutes les publications et toutes les mutations de bail passent donc par
+une **file unique par destination** (`BailGitLab.serierCommit`). Un appel
+réentrant s'exécute au lieu d'attendre : il est déjà dans la section critique.
+
+Elle appartient à la **destination** : toutes les sessions d'un même corpus et ses
+transactions de corpus partagent le même objet, passé à chaque coordinateur. Un
+lien par `BailGitLab` laisserait deux entretiens ouverts se percuter — c'est
+précisément le montage réel, où chaque session a son coordinateur.
+
+Cette file ne couvre pas deux postes distincts. Le cas entre deux postes est absorbé par
+un réessai vérifié : sur un refus 400/409, les gardes du plan sont relues, et si
+aucune n'a bougé le refus ne concernait pas notre édition — le même commit repart
+une fois après 400 ms. Une garde déplacée reste un conflit métier, et le refus
+nommé tient. Aucun message d'erreur du serveur n'est lu pour décider.
 
 ### Sérialisation et reprise
 
@@ -810,6 +841,12 @@ L'interface ne publie plus l'entretien ouvert pour faire passer un tri : elle
 annonce que le tri de contenu demande la fermeture de tous les entretiens
 (`verifierTriContenu` dans `useDistantCorpus.ts`).
 
+Les commandes du renderer consomment réellement ces capacités. Un corpus qui ne
+sait pas garder de sources refuse donc **avant** d'enregistrer un repère dans
+l'entretien : l'association d'un passage à un cas, l'ajout d'une dérivation de
+famille ou de cas, et l'insertion d'un passage dans un recueil. Le refus est
+nommé, et le main garde le sien par geste pour les appels IPC directs.
+
 ### Bornes
 
 Quatre limites existent et ne se confondent plus :
@@ -837,8 +874,12 @@ pour réparer un risque écarté. Le scénario qui l'établit est dans
 `test/gitlab/contrat-gitlab.test.ts` ; il affiche son résultat :
 
 ```text
-[banc] garde inchangée — last_commit_id 0d499b66 → 0d499b66 (avancé : false)
+[banc] garde inchangée (avec LFS) — last_commit_id abc4db7a → abc4db7a (avancé : false)
+[banc] garde inchangée (sans LFS) — last_commit_id a4e9e04d → a4e9e04d (avancé : false)
 ```
+
+Le scénario est joué sur les deux projets du banc, LFS activé et LFS désactivé :
+seule l'API Repository entre en jeu, et le résultat est identique.
 
 ### Couverture
 
@@ -849,12 +890,18 @@ disparue, la borne de 98 sources refusée avant le bail, la publication préalab
 d'une source détenue et son échec, puis le tri : corpus publié sans aucune source
 gardée, refus avant acquisition, entretien illisible, tri sans changement.
 `test/gitlab/contexte.test.ts` couvre le refus de tri sur un entretien local, sur un
-détenteur nommé et sur une observation en panne. `test/gitlab/bailPublication.test.ts`
-couvre les bornes du commit et du corps. `test/distantRenderer.test.ts` couvre la
-règle de tri côté interface.
+détenteur nommé et sur une observation en panne, ainsi que la publication préalable
+d'une source détenue. `test/gitlab/bailPublication.test.ts` couvre les bornes du
+commit et du corps. `test/distantRenderer.test.ts` couvre la règle de tri côté
+interface, et `test/casRenderer.test.ts` le refus d'une association de passage avant
+l'enregistrement du repère.
 
-**Non qualifié sur banc.** Reste la qualification à deux comptes du jalon d du lot C
-avant d'ouvrir les capacités, puis les recettes de gesture à sources : coût en
+**Qualifié sur banc** (deux comptes, GitLab CE 18.11) pour la mesure de la garde
+et pour le jalon d du lot C, dont les résultats et les deux réserves ouvertes sont
+consignés dans le plan (`test/gitlab/qualificationDefinitions.test.ts`).
+
+**Non qualifié sur banc.** Restent les recettes de gesture à sources : coût en
 requêtes, en commits et en mémoire pour un rattachement, une dérivation
 représentative et un tri complet, comportement face à une source réellement périmée
-en cours de préparation, et le volume réel du corpus pilote face aux bornes.
+en cours de préparation, et le volume réel du corpus pilote face aux bornes. Les
+capacités restent fermées tant que ces réserves ne sont pas levées.

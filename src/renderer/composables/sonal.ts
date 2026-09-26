@@ -428,6 +428,7 @@ export function creerSonal() {
       fermerCasPourRecueils()
       fermerDocsCadreDepuisFenetre()
     },
+    definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
   })
   const casCorpus = useCasCorpus({
     cas: corpus.cas,
@@ -445,6 +446,7 @@ export function creerSonal() {
       recueilsCorpus.fermerRecueils()
       fermerDocsCadreDepuisFenetre()
     },
+    definitionsAvecSources: () => gesteDisponible('definitionsAvecSources'),
   })
   fermerCasPourRecueils = casCorpus.fermerCas
   const tableauBordCorpus = useTableauBordCorpus({ tableaubord: corpus.tableaubord })

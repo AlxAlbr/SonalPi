@@ -53,6 +53,7 @@ function outilLot() {
     }),
     ouvertId: ref(null), sourceOuverte: () => null, selectionCourante: () => null,
     enregistrerRepereSelection, lirePersonnes, ouvrirSource: vi.fn(), fermerRecueils: vi.fn(),
+    definitionsAvecSources: () => true,
   })
   return { cas, dictionnaire, personnes, lirePersonnes, lireEntretien, enregistrerRepereSelection, casCommander }
 }
@@ -155,6 +156,7 @@ describe('orchestration renderer des cas', () => {
       lirePersonnes,
       ouvrirSource: vi.fn(),
       fermerRecueils: vi.fn(),
+      definitionsAvecSources: () => true,
     })
 
     const id = await cas.creerCasVide({ nom: 'À documenter', memo: 'Premières idées.' })
@@ -206,6 +208,7 @@ describe('orchestration renderer des cas', () => {
       lirePersonnes: async () => ({ personnes: [], locuteurs: [], notes: [], indisponibles: [] }),
       ouvrirSource: vi.fn(),
       fermerRecueils: vi.fn(),
+      definitionsAvecSources: () => true,
     })
 
     await cas.afficherCasPourAssociation()
@@ -250,6 +253,7 @@ describe('orchestration renderer des cas', () => {
       lirePersonnes: async () => ({ personnes: [], locuteurs: [], notes: [], indisponibles: [] }),
       ouvrirSource: vi.fn(),
       fermerRecueils: vi.fn(),
+      definitionsAvecSources: () => true,
     })
 
     await cas.afficherCasPourAssociation()
@@ -265,5 +269,36 @@ describe('orchestration renderer des cas', () => {
     expect(casCommander.mock.calls[1][0]).toEqual(premiereCommande)
     expect(cas.ajoutCasEnAttente.value).toBeNull()
     expect(Object.values(dictionnaire.value)).toHaveLength(1)
+  })
+  test('un corpus qui ne garde pas les sources refuse avant d’enregistrer un repère', async () => {
+    const enregistrer = vi.fn(async () => ({ id: 'repere-1', from: 1, to: 20 }))
+    const casCommander = vi.fn()
+    ;(window as any).sonal = { corpus: {
+      lireEntretien: vi.fn(),
+      casCommander,
+      ouvrir: vi.fn(),
+    } }
+    const cas = useCasCorpus({
+      cas: ref({}),
+      membership: ref({ e1: { titre: 'Entretien 1', date: null, lastModified: maintenant } }),
+      ouvertId: ref('e1'),
+      sourceOuverte: () => source(),
+      selectionCourante: () => ({
+        entretienId: 'e1', from: 1, to: 20, texte: 'Passage sélectionné.',
+      }),
+      enregistrerRepereSelection: enregistrer,
+      lirePersonnes: async () => ({ personnes: [], locuteurs: [], notes: [], indisponibles: [] }),
+      ouvrirSource: vi.fn(),
+      fermerRecueils: vi.fn(),
+      definitionsAvecSources: () => false,
+    })
+
+    await cas.afficherCasPourAssociation()
+
+    // Ni le repère ni la commande : le refus précède les deux.
+    await expect(cas.associerSelectionCas([], { nom: 'Cas manuel', memo: '' }))
+      .rejects.toThrow(/ne sait pas relire les entretiens publiés/)
+    expect(enregistrer).not.toHaveBeenCalled()
+    expect(casCommander).not.toHaveBeenCalled()
   })
 })

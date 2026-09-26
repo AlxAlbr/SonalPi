@@ -238,6 +238,29 @@ describe('définitions du corpus GitLab', () => {
     expect(commitsDeDonnees(depot)).toHaveLength(0)
   })
 
+  test('un bail resté par ce poste ne se nomme pas comme un autre compte', async () => {
+    const { transactions, depot } = banc()
+    // Même compte, autre session : le refus doit dire ce qu'on peut faire, pas
+    // désigner l'utilisateur comme un tiers.
+    const autre = new BailGitLab({
+      branche: destination.branche,
+      depot,
+      identite: () => ({ userId: 'max', machineId: 'poste-2', sessionId: 'session-2' }),
+      dureeBailMs: 600_000,
+    })
+    const acquisition = await autre.acquireRessource(
+      cleRessourceBailGitLab(destination.branche, `${RACINE}/corpus.json`),
+    )
+    expect(acquisition.ok).toBe(true)
+
+    await expect(transactions.executerDefinitions(
+      (store) => store.ajouterCategorie('Thème ajouté', null),
+    )).rejects.toThrow(/retenu par ce poste/)
+    await expect(transactions.executerDefinitions(
+      (store) => store.ajouterCategorie('Thème ajouté', null),
+    )).rejects.not.toThrow(/en cours de modification par max/)
+  })
+
   test('le store de préparation refuse toute lecture d’entretien', async () => {
     const serveur = corpusAvecTheme()
     serveur.membership.e1 = { titre: 'E1', date: null, lastModified: null, rangAjout: 0 }
@@ -392,20 +415,45 @@ describe('reprise après coupure', () => {
     expect(nomDuTheme(lireLocal())).toBeUndefined()
   })
 
-  test('le commit est retrouvé au démarrage et l’entrée est abandonnée', async () => {
+  test('le commit est réconcilié sur place, et le miroir suit enfin la publication', async () => {
     const { transactions, journal, depot, lireLocal } = banc()
 
     // La réponse se perd APRÈS l'acceptation : le commit a donc bien eu lieu.
-    await expect(transactions.executerDefinitions((store) => {
+    // La réconciliation immédiate le retrouve, et l'appelant n'installe plus
+    // un candidat sous un sort inconnu.
+    const resultat = await transactions.executerDefinitions((store) => {
       depot.echouerApresAccepter(new Error('réponse perdue'))
       return store.ajouterCategorie('Thème ajouté', null)
-    })).rejects.toThrow(/n’a pas été confirmée/)
-    expect(journal.transactionsCorpusJournalisees()).toHaveLength(1)
-    // Le miroir, lui, n'a pas bougé : c'est le tirage suivant qui le remettra.
-    expect(nomDuTheme(lireLocal())).toBeUndefined()
+    })
+
+    const nomsLocaux = Object.values(lireLocal().codebook).map((c) => c.nom)
+    expect(Object.values(resultat.corpus.codebook).map((c) => c.nom)).toContain('Thème ajouté')
+    expect(nomsLocaux).toContain('Thème ajouté')
+    expect(journal.transactionsCorpusJournalisees()).toHaveLength(0)
     const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
     expect(Object.values(publie.codebook).map((c) => c.nom)).toContain('Thème ajouté')
+    // Le bail a pu être rendu : la garde porte bien sur le commit publié.
+    expect([...depot.commits].at(-1)?.actions.some(
+      (action) => action.action === 'delete' && action.file_path.startsWith('.sonal/verrous/'),
+    )).toBe(true)
+  })
 
+  test('un sort impossible à trancher reste journalisé pour le démarrage', async () => {
+    const { transactions, journal, depot, lireLocal } = banc()
+
+    // L'historique est illisible au moment de la publication : personne ne peut
+    // conclure, et l'application ne peut donc rien affirmer à l'utilisateur.
+    await expect(transactions.executerDefinitions((store) => {
+      depot.echouerApresAccepter(new Error('réponse perdue'))
+      depot.rendreCommitsIllisibles()
+      return store.ajouterCategorie('Thème ajouté', null)
+    })).rejects.toThrow(/n’a pas été confirmée/)
+
+    expect(journal.transactionsCorpusJournalisees()).toHaveLength(1)
+    // Le miroir, lui, n'a pas bougé : c'est le tirage suivant qui le remettra.
+    expect(Object.values(lireLocal().codebook).map((c) => c.nom)).not.toContain('Thème ajouté')
+    const publie = JSON.parse(depot.fichiers.get(`${RACINE}/corpus.json`)!.contenu) as CorpusFichier
+    expect(Object.values(publie.codebook).map((c) => c.nom)).toContain('Thème ajouté')
     const [entree] = journal.lister()
     expect(entree.nature).toBe('transaction-corpus')
     expect(entree.etat).toBe('indetermine')

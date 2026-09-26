@@ -17,7 +17,11 @@ export class DepotMemoire implements DepotCommitsGitLab {
   /** Nombre de lectures de contenu par chemin : une préparation ne relit
    *  jamais deux fois la même source. */
   readonly lectures = new Map<string, number>()
+  /** Nombre maximal de commits menés de front : la file doit le tenir à un. */
+  readonly plusGrandEnvol = { valeur: 0 }
   private compteur = 0
+  private commitsIllisibles = false
+  private enVol = 0
   private tete = this.sha()
   private echecAvant: unknown = null
   private echecApres: unknown = null
@@ -64,7 +68,14 @@ export class DepotMemoire implements DepotCommitsGitLab {
     return this.tete
   }
 
+  /** L'historique des commits devient illisible : la réconciliation ne peut
+   *  plus conclure, et l'entrée reste journalisée. */
+  rendreCommitsIllisibles(): void {
+    this.commitsIllisibles = true
+  }
+
   async rechercherCommits(_ref: string, recherche: string): Promise<Array<{ id: string; title: string }>> {
+    if (this.commitsIllisibles) throw new Error('historique indisponible')
     return this.commits
       .filter((commit) => commit.message.includes(recherche))
       .map((commit) => ({ id: commit.id, title: commit.message }))
@@ -76,11 +87,14 @@ export class DepotMemoire implements DepotCommitsGitLab {
     message: string,
     actions: ActionCommitGitLab[],
   ): Promise<{ id: string }> {
-    if (this.delaiProchainCommit > 0) {
-      const delai = this.delaiProchainCommit
-      this.delaiProchainCommit = 0
-      await new Promise((resolve) => setTimeout(resolve, delai))
+    this.enVol += 1
+    this.plusGrandEnvol.valeur = Math.max(this.plusGrandEnvol.valeur, this.enVol)
+    try {
+      await new Promise((resolve) => setTimeout(resolve, this.delaiProchainCommit))
+    } finally {
+      this.enVol -= 1
     }
+    this.delaiProchainCommit = 0
     if (this.echecAvant) {
       const erreur = this.echecAvant
       this.echecAvant = null

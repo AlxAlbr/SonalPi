@@ -7,7 +7,12 @@ import {
   type DroitsEditionGitLab,
 } from './bailGitLab'
 import { ErreurEcritureGitLab } from './client'
-import type { JournalPublicationGitLab, NaturePublicationGitLab } from './journalPublication'
+import {
+  ReconciliateurPublicationGitLab,
+  type EntreeJournalPublication,
+  type JournalPublicationGitLab,
+  type NaturePublicationGitLab,
+} from './journalPublication'
 
 export type ActionPlanGitLab =
   | { action: 'create'; chemin: string; contenu: string }
@@ -48,7 +53,14 @@ export interface OptionsPublieurGitLab {
   depot: DepotCommitsGitLab
   coordination: BailGitLab
   journal?: JournalPublicationGitLab
+  /** Attente avant le réessai d'une collision de branche, et avant tout. */
+  attendre?: (delaiMs: number) => Promise<void>
 }
+
+/** Délai avant de renvoyer un commit refusé alors que ses gardes tiennent : il
+ *  faut laisser l'autre poste finir son commit, mesuré à 200–400 ms sur
+ *  l'instance de qualification. */
+export const DELAI_REESSAI_BRANCHE_MS = 400
 
 const SHA_COMMIT = /^[a-f0-9]{40,64}$/
 const IDENT_OPERATION = /^[A-Za-z0-9._:-]{1,120}$/
@@ -126,18 +138,25 @@ function refusTaille(octets: number): RefusLimitePublicationGitLab {
 }
 
 export class PublieurGitLab {
-  private readonly operations = new Map<string, Promise<void>>()
+  private readonly attendre: (delaiMs: number) => Promise<void>
 
   constructor(private readonly options: OptionsPublieurGitLab) {
     if (!options.branche.trim()) throw new Error('Branche GitLab manquante.')
+    this.attendre = options.attendre ?? ((delaiMs) => new Promise((resolve) => {
+      setTimeout(resolve, delaiMs)
+    }))
   }
 
+  /** Publie sous un droit, dans la file de commits de la destination.
+   *
+   *  Deux publications de ressources différentes ne se croisent donc jamais :
+   *  GitLab refuse la seconde quand elles se chevauchent, quelle que soit la
+   *  disjointure de leurs fichiers. */
   publierSousDroit(
     plan: PlanPublicationGitLab,
     droit: DroitsEditionGitLab,
   ): Promise<ResultatPublicationGitLab> {
-    const cle = this.options.coordination.snapshot(droit).resourceHash
-    return this.serialiser(cle, () => this.publierInterne(plan, droit))
+    return this.options.coordination.serierCommit(() => this.publierInterne(plan, droit))
   }
 
   private async publierInterne(
@@ -181,27 +200,41 @@ export class PublieurGitLab {
       }
     }
     try {
-      const commit = await this.options.depot.publierCommit(
-        this.options.branche,
-        message,
-        actionsComplete,
-      )
-      if (!SHA_COMMIT.test(commit.id)) {
-        this.options.coordination.suspendrePublicationIndeterminee(droit)
-        this.marquerIndetermine(plan.operationId)
-        return { statut: 'indetermine', operationId: plan.operationId }
-      }
-      this.options.coordination.confirmerPublication(
-        droit,
-        commit.id,
-        transition.expireLe,
-        transition.compteur,
-      )
-      this.supprimerJournal(plan.operationId)
-      return {
-        statut: 'confirme',
-        commitId: commit.id,
-        compteurBail: transition.compteur,
+      let reessai = false
+      for (;;) {
+        try {
+          const commit = await this.options.depot.publierCommit(
+            this.options.branche,
+            message,
+            actionsComplete,
+          )
+          if (!SHA_COMMIT.test(commit.id)) {
+            return this.reconcilierPerdu(plan, droit, transition)
+          }
+          this.options.coordination.confirmerPublication(
+            droit,
+            commit.id,
+            transition.expireLe,
+            transition.compteur,
+          )
+          this.supprimerJournal(plan.operationId)
+          return {
+            statut: 'confirme',
+            commitId: commit.id,
+            compteurBail: transition.compteur,
+          }
+        } catch (erreur) {
+          // Un refus alors que toutes les gardes tiennent encore ne parle pas
+          // de notre édition : c'est la tête de branche qui a bougé pendant
+          // l'envoi. Le même commit repart, une fois.
+          const collisionDeBranche = erreur instanceof ErreurEcritureGitLab
+            && (erreur.statut === 400 || erreur.statut === 409)
+            && !reessai
+            && await this.gardesTiennent(actionsComplete)
+          if (!collisionDeBranche) throw erreur
+          reessai = true
+          await this.attendre(DELAI_REESSAI_BRANCHE_MS)
+        }
       }
     } catch (erreur) {
       if (erreur instanceof ErreurEcritureGitLab) {
@@ -232,10 +265,110 @@ export class PublieurGitLab {
         }
       }
       this.options.coordination.suspendrePublicationIndeterminee(droit)
-      this.marquerIndetermine(plan.operationId)
-      return { statut: 'indetermine', operationId: plan.operationId }
+      return this.reconcilierPerdu(plan, droit, transition)
     }
   }
+
+  /** Sort d'une publication dont la réponse s'est perdue.
+   *
+   *  Le commit peut avoir abouti : la réconciliation le retrouve et en vérifie
+   *  le contenu, et l'état de bail qu'il portait est adopté pour que la
+   *  libération suivante porte la bonne garde. Si le commit n'existe pas, le
+   *  refus est certain et la publication est déclarée telle. Tant que le sort
+   *  reste inconnu, l'entrée demeure journalisée et l'appelant est informé
+   *  d'un résultat indéterminé, comme avant. */
+  private async reconcilierPerdu(
+    plan: PlanPublicationGitLab,
+    droit: DroitsEditionGitLab,
+    transition: { expireLe: number; compteur: number },
+  ): Promise<ResultatPublicationGitLab> {
+    this.marquerIndetermine(plan.operationId)
+    if (!this.options.journal) return { statut: 'indetermine', operationId: plan.operationId }
+    const entree = this.options.journal.lireSiPresent(plan.operationId)
+    if (!entree) return { statut: 'indetermine', operationId: plan.operationId }
+    const reconciliateur = new ReconciliateurPublicationGitLab(
+      this.options.depot,
+      this.options.journal,
+    )
+    let resultat: Awaited<ReturnType<ReconciliateurPublicationGitLab['reconcilier']>>
+    try {
+      resultat = await reconciliateur.reconcilier(entree)
+    } catch {
+      return { statut: 'indetermine', operationId: plan.operationId }
+    }
+    if (resultat.statut === 'indetermine') {
+      return { statut: 'indetermine', operationId: plan.operationId }
+    }
+    if (resultat.statut === 'absent') {
+      // Le commit n'a jamais existé : le refus est certain, et la libération
+      // portera encore la bonne garde.
+      this.supprimerJournal(plan.operationId)
+      return { statut: 'refuse', raison: 'conflit' }
+    }
+    this.adopterBailReconcilie(droit, resultat.commitId, entree)
+    this.supprimerJournal(plan.operationId)
+    return {
+      statut: 'confirme',
+      commitId: resultat.commitId,
+      compteurBail: transition.compteur,
+    }
+  }
+
+  /** Reprend l'état de bail que la publication reconciliée portait. */
+  private adopterBailReconcilie(
+    droit: DroitsEditionGitLab,
+    commitId: string,
+    entree: EntreeJournalPublication,
+  ): void {
+    if (!this.options.journal) return
+    let actions: ActionCommitGitLab[]
+    try {
+      actions = this.options.journal.chargerActions(entree)
+    } catch {
+      return
+    }
+    const cheminBail = this.options.coordination.snapshot(droit).chemin
+    const action = actions.find((candidate) => candidate.file_path === cheminBail)
+    if (action?.content === undefined) return
+    let bail: unknown
+    try {
+      bail = JSON.parse(action.content)
+    } catch {
+      return
+    }
+    const compteur = (bail as { compteur?: unknown }).compteur
+    const expireLe = (bail as { expireLe?: unknown }).expireLe
+    if (!Number.isSafeInteger(compteur) || typeof expireLe !== 'string') return
+    try {
+      this.options.coordination.constaterPublicationReconciliee(droit, commitId, {
+        compteur: compteur as number,
+        expireLe,
+      })
+    } catch {
+      /* Un bail incohérent laisse la suspension en place : la libération
+         échouera proprement, comme elle le ferait sans réconciliation. */
+    }
+  }
+
+  /** Les gardes du plan sont-elles encore celles envoyées ?
+   *
+   *  C'est le seul contrôle qui distingue un conflit métier d'une collision de
+   *  branche : une garde qui a bougé EST un conflit, une garde intacte ne peut
+   *  pas l'être. Le coût est proportionnel au plan, et il n'est payé que sur un
+   *  refus. */
+  private async gardesTiennent(actions: ActionCommitGitLab[]): Promise<boolean> {
+    try {
+      for (const action of actions) {
+        if (action.action === 'create') continue
+        const observe = await this.options.depot.lireFichier(action.file_path, this.options.branche)
+        if (!observe || observe.commitId !== action.last_commit_id) return false
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
 
   private marquerIndetermine(operationId: string): void {
     try {
@@ -261,23 +394,6 @@ export class PublieurGitLab {
       return typeof brut.generation === 'string' ? brut.generation : null
     } catch {
       return null
-    }
-  }
-
-  private async serialiser<T>(cle: string, operation: () => Promise<T>): Promise<T> {
-    const precedente = this.operations.get(cle) ?? Promise.resolve()
-    let liberer!: () => void
-    const attente = new Promise<void>((resolve) => {
-      liberer = resolve
-    })
-    const file = precedente.catch(() => undefined).then(() => attente)
-    this.operations.set(cle, file)
-    await precedente.catch(() => undefined)
-    try {
-      return await operation()
-    } finally {
-      liberer()
-      if (this.operations.get(cle) === file) this.operations.delete(cle)
     }
   }
 }

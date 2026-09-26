@@ -98,7 +98,17 @@ export function useCasCorpus(deps: {
   lirePersonnes: () => Promise<InventairePersonnes>
   ouvrirSource: (entretienId: string, pos: number) => Promise<void> | void
   fermerRecueils: () => void
+  /** Le fournisseur sait-il garder les sources qu'un rattachement ou une
+   *  recette désignent ? Un corpus distant peut refuser. */
+  definitionsAvecSources: () => boolean
 }) {
+  function exigerSources(): void {
+    if (deps.definitionsAvecSources()) return
+    throw new Error(
+      'Ce corpus ne sait pas relire les entretiens publiés : '
+      + 'cette opération n’est pas disponible ici.',
+    )
+  }
   const casOuverts = ref(false)
   const casOuvertId = ref<string | null>(null)
   const modeTexteCas = ref<ModeTextePassage>('pseudonymise')
@@ -573,6 +583,7 @@ export function useCasCorpus(deps: {
     casIds: string[],
     nouveau?: { nom: string; memo: string },
   ): Promise<void> {
+    exigerSources()
     const selection = associationCas.value
     if (!selection) throw new Error('La sélection à associer n’est plus disponible.')
     let attente = ajoutCasEnAttente.value
@@ -756,6 +767,7 @@ export function useCasCorpus(deps: {
       nouvelleDefinition?: { lib: string; priv: boolean }
     },
   ): Promise<void> {
+    exigerSources()
     const famille = famillesCas.value[familleId]
     if (!famille) throw new Error('La famille n’existe plus.')
     const variable = variablesCas.value.find((v) => v.id === params.variableSourceId)
@@ -788,6 +800,7 @@ export function useCasCorpus(deps: {
 
   /** Variables dérivables pour le cas ouvert : même portée que ses observations. */
   async function apercuVariablesDerivationCas(casId: string): Promise<Variable[]> {
+    exigerSources()
     const courant = deps.cas.value[casId]
     if (!courant) throw new Error('Ce cas n’existe plus.')
     const portee = porteeObservationsCas(courant)
@@ -849,6 +862,7 @@ export function useCasCorpus(deps: {
       nouvelleDefinition?: { lib: string; priv: boolean }
     },
   ): Promise<void> {
+    exigerSources()
     const courant = deps.cas.value[casId]
     if (!courant) throw new Error('Ce cas n’existe plus.')
     const portee = porteeObservationsCas(courant)

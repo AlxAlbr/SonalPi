@@ -21,7 +21,7 @@ import {
 import type { BailObserveGitLab, PartieBailGitLab } from './bailGitLab'
 import { ClientGitLab } from './client'
 import { FileOperationsContexte } from './fileOperations'
-import { LecteurGitLab, InstantaneLectureGitLab } from './lecture'
+import { InstantaneLectureGitLab } from './lecture'
 import { ObservationBailsGitLab } from './observationBails'
 import {
   exigerGeste,

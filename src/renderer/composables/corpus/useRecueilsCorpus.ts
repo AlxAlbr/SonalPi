@@ -25,6 +25,8 @@ export function useRecueilsCorpus(deps: {
   enregistrerRepereSelection: () => Promise<{ id: string; from: number; to: number }>
   ouvrirSource: (entretienId: string, pos: number) => void
   fermerAutreFenetre: () => void
+  /** Le fournisseur sait-il garder la source publiée d'un passage repris ? */
+  definitionsAvecSources: () => boolean
 }) {
   const recueilOuvertId = ref<string | null>(null)
   const recueilsOuverts = ref(false)
@@ -166,6 +168,14 @@ export function useRecueilsCorpus(deps: {
   }
 
   async function ajouterSelectionAuRecueil(recueilId: string, avantId: string | null = null): Promise<void> {
+    // Reprendre un passage écrit une référence : le repère ne doit pas être
+    // enregistré dans l'entretien pour une commande que le corpus refuse.
+    if (!deps.definitionsAvecSources()) {
+      throw new Error(
+        'Ce corpus ne sait pas relire les entretiens publiés : '
+        + 'reprendre un passage n’y est pas disponible.',
+      )
+    }
     recueilOuvertId.value = recueilId
     let recueil = deps.recueils.value[recueilId]
     if (!recueil) throw new Error("Ce recueil n'existe plus.")

@@ -4,7 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
-import { BailGitLab, cleRessourceBailGitLab } from '../../src/main/gitlab/bailGitLab'
+import {
+  BailGitLab,
+  cleRessourceBailGitLab,
+  FileCommitsGitLab,
+} from '../../src/main/gitlab/bailGitLab'
 import {
   MAX_ACTIONS_PUBLICATION,
   PublieurGitLab,
@@ -22,6 +26,7 @@ function bail(
   depot: DepotMemoire,
   sessionId: string,
   maintenant: () => number,
+  fileCommits?: FileCommitsGitLab,
 ): BailGitLab {
   let generation = 0
   return new BailGitLab({
@@ -31,6 +36,7 @@ function bail(
     maintenant,
     nouvelleGeneration: () => `generation-${sessionId}-${++generation}`,
     dureeBailMs: 60_000,
+    fileCommits,
   })
 }
 
@@ -207,6 +213,290 @@ describe('publication GitLab sous droit', () => {
       .toThrow(/Kio acceptés par GitLab/)
   })
 
+  test('deux ressources différentes ne publient jamais en même temps', async () => {
+    const depot = new DepotMemoire()
+    depot.charger(new Map([
+      ['entretiens/e1.json', '{}'],
+      ['entretiens/e2.json', '{}'],
+    ]))
+    const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+    const premier = await coordination.acquireRessource('entretien:e1')
+    const second = await coordination.acquireRessource('entretien:e2')
+    if (!premier.ok || !second.ok) throw new Error('Acquisition test invalide.')
+    const publieur = new PublieurGitLab({ branche: 'main', depot, coordination })
+    for (let tour = 0; tour < 4; tour += 1) {
+      depot.ralentirProchainCommit(15)
+      await Promise.all([
+        publieur.publierSousDroit({
+          operationId: `operation-e1-${tour}`,
+          nature: 'session-entretien',
+          actions: [{
+            action: 'update',
+            chemin: 'entretiens/e1.json',
+            contenu: JSON.stringify({ tour }),
+            commitId: depot.fichiers.get('entretiens/e1.json')!.commitId,
+          }],
+        }, premier.droit),
+        publieur.publierSousDroit({
+          operationId: `operation-e2-${tour}`,
+          nature: 'session-entretien',
+          actions: [{
+            action: 'update',
+            chemin: 'entretiens/e2.json',
+            contenu: JSON.stringify({ tour }),
+            commitId: depot.fichiers.get('entretiens/e2.json')!.commitId,
+          }],
+        }, second.droit),
+      ])
+    }
+    // GitLab refuse deux commits simultanés sur une même branche, même sur des
+    // fichiers distincts : la file de la destination doit donc les séparer.
+    expect(depot.plusGrandEnvol.valeur).toBe(1)
+    expect(depot.commits).toHaveLength(2 + 8)
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"tour":3}')
+  })
+
+  test('deux coordinateurs distincts partagent la file de la destination', async () => {
+    const depot = new DepotMemoire()
+    depot.charger(new Map([
+      ['entretiens/e1.json', '{}'],
+      ['entretiens/e2.json', '{}'],
+    ]))
+    // Deux coordinateurs, comme le montage réel : une session d'entretien et
+    // les transactions de corpus ont chacun le leur, pour la même destination.
+    const fileCommits = new FileCommitsGitLab()
+    const alice = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1), fileCommits)
+    const bob = bail(depot, 'session-b', () => Date.UTC(2026, 0, 1), fileCommits)
+    const premier = await alice.acquireRessource('entretien:e1')
+    const second = await bob.acquireRessource('entretien:e2')
+    if (!premier.ok || !second.ok) throw new Error('Acquisition test invalide.')
+    const publieurAlice = new PublieurGitLab({ branche: 'main', depot, coordination: alice })
+    const publieurBob = new PublieurGitLab({ branche: 'main', depot, coordination: bob })
+
+    for (let tour = 0; tour < 4; tour += 1) {
+      depot.ralentirProchainCommit(15)
+      await Promise.all([
+        publieurAlice.publierSousDroit({
+          operationId: `partage-a-${tour}`,
+          nature: 'session-entretien',
+          actions: [{
+            action: 'update',
+            chemin: 'entretiens/e1.json',
+            contenu: JSON.stringify({ tour }),
+            commitId: depot.fichiers.get('entretiens/e1.json')!.commitId,
+          }],
+        }, premier.droit),
+        publieurBob.publierSousDroit({
+          operationId: `partage-b-${tour}`,
+          nature: 'session-entretien',
+          actions: [{
+            action: 'update',
+            chemin: 'entretiens/e2.json',
+            contenu: JSON.stringify({ tour }),
+            commitId: depot.fichiers.get('entretiens/e2.json')!.commitId,
+          }],
+        }, second.droit),
+      ])
+    }
+
+    expect(depot.plusGrandEnvol.valeur).toBe(1)
+  })
+
+  test('sans file partagée, deux coordinateurs se croisent bien', async () => {
+    // Ce test ne décrit pas un comportement wishes : il fixe pourquoi la file
+    // appartient à la destination. Deux coordinateurs sans lien commun ont deux
+    // files, et leurs commits se chevauchent.
+    const depot = new DepotMemoire()
+    depot.charger(new Map([
+      ['entretiens/e1.json', '{}'],
+      ['entretiens/e2.json', '{}'],
+    ]))
+    const alice = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+    const bob = bail(depot, 'session-b', () => Date.UTC(2026, 0, 1))
+    const premier = await alice.acquireRessource('entretien:e1')
+    const second = await bob.acquireRessource('entretien:e2')
+    if (!premier.ok || !second.ok) throw new Error('Acquisition test invalide.')
+    const publieurAlice = new PublieurGitLab({ branche: 'main', depot, coordination: alice })
+    const publieurBob = new PublieurGitLab({ branche: 'main', depot, coordination: bob })
+    depot.ralentirProchainCommit(20)
+    await Promise.all([
+      publieurAlice.publierSousDroit({
+        operationId: 'isole-a',
+        nature: 'session-entretien',
+        actions: [{
+          action: 'update',
+          chemin: 'entretiens/e1.json',
+          contenu: '{"v":1}',
+          commitId: depot.fichiers.get('entretiens/e1.json')!.commitId,
+        }],
+      }, premier.droit),
+      publieurBob.publierSousDroit({
+        operationId: 'isole-b',
+        nature: 'session-entretien',
+        actions: [{
+          action: 'update',
+          chemin: 'entretiens/e2.json',
+          contenu: '{"v":1}',
+          commitId: depot.fichiers.get('entretiens/e2.json')!.commitId,
+        }],
+      }, second.droit),
+    ])
+
+    expect(depot.plusGrandEnvol.valeur).toBe(2)
+  })
+
+  test('une publication et une acquisition de bail ne se croisent pas', async () => {
+    const depot = new DepotMemoire()
+    const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+    const courant = await coordination.acquireRessource('entretien:e1')
+    if (!courant.ok) throw new Error('Acquisition test invalide.')
+    const publieur = new PublieurGitLab({ branche: 'main', depot, coordination })
+    const [, autre] = await Promise.all([
+      publieur.publierSousDroit({
+        operationId: 'operation-croisee',
+        nature: 'session-entretien',
+        actions: [{ action: 'create', chemin: 'entretiens/e9.json', contenu: '{}' }],
+      }, courant.droit),
+      coordination.acquireRessource('entretien:e2'),
+    ])
+    expect(autre.ok).toBe(true)
+    expect(depot.plusGrandEnvol.valeur).toBe(1)
+  })
+
+  test('une opération déjà dans la file n’attend pas la file', async () => {
+    const depot = new DepotMemoire()
+    const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+    const courant = await coordination.acquireRessource('entretien:e1')
+    if (!courant.ok) throw new Error('Acquisition test invalide.')
+    // Un appel réentrant s'exécute : il est déjà dans la section critique.
+    await coordination.serierCommit(async () => {
+      expect(await coordination.snapshot(courant.droit).resourceHash).toBeTruthy()
+      expect(coordination.snapshot(courant.droit).expireLe).toBeGreaterThan(0)
+    })
+  })
+
+  test('un refus dont toutes les gardes tiennent est renvoyé une fois', async () => {
+    const depot = new DepotMemoire()
+    depot.charger(new Map([['entretiens/e1.json', '{"v":1}']]))
+    const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+    const courant = await coordination.acquireRessource('entretien:e1')
+    if (!courant.ok) throw new Error('Acquisition test invalide.')
+    const publieur = new PublieurGitLab({
+      branche: 'main', depot, coordination, attendre: async () => {},
+    })
+    // Le dépôt simule une collision de branche : refus, sans toucher aux gardes.
+    depot.refuser(400)
+
+    await expect(publieur.publierSousDroit({
+      operationId: 'operation-collision',
+      nature: 'session-entretien',
+      actions: [{
+        action: 'update',
+        chemin: 'entretiens/e1.json',
+        contenu: '{"v":2}',
+        commitId: depot.fichiers.get('entretiens/e1.json')!.commitId,
+      }],
+    }, courant.droit)).resolves.toMatchObject({ statut: 'confirme' })
+
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"v":2}')
+  })
+
+  test('un refus dont une garde a bougé n’est pas renvoyé', async () => {
+    const depot = new DepotMemoire()
+    depot.charger(new Map([['entretiens/e1.json', '{"v":1}']]))
+    const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+    const courant = await coordination.acquireRessource('entretien:e1')
+    if (!courant.ok) throw new Error('Acquisition test invalide.')
+    const publieur = new PublieurGitLab({ branche: 'main', depot, coordination })
+    const garde = depot.fichiers.get('entretiens/e1.json')!.commitId
+    // Un tiers a réellement modifié l'entretien entre la lecture et l'envoi.
+    const original = depot.publierCommit.bind(depot)
+    depot.publierCommit = async (branche, message, actions) => {
+      if (message.startsWith('Sonal ')) {
+        depot.modifierHorsProtocole('entretiens/e1.json', '{"v":9}')
+        return original(branche, message, actions)
+      }
+      return original(branche, message, actions)
+    }
+
+    await expect(publieur.publierSousDroit({
+      operationId: 'operation-conflit',
+      nature: 'session-entretien',
+      actions: [{
+        action: 'update',
+        chemin: 'entretiens/e1.json',
+        contenu: '{"v":2}',
+        commitId: garde,
+      }],
+    }, courant.droit)).resolves.toMatchObject({ statut: 'refuse', raison: 'conflit' })
+
+    // Le refus n'a pas été réessayé : une seule tentative de données.
+    const donnees = depot.commits.filter((commit) => commit.message.startsWith('Sonal '))
+    expect(donnees).toHaveLength(1)
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"v":9}')
+  })
+
+  describe('reprise d’un bail laissé par ce poste', () => {
+    async function bailGenere(coordination: BailGitLab, ressource: string) {
+      const acquisition = await coordination.acquireRessource(ressource)
+      if (!acquisition.ok) throw new Error('Acquisition test invalide.')
+      return {
+        generation: coordination.snapshot(acquisition.droit).generation,
+        chemin: coordination.snapshot(acquisition.droit).chemin,
+        droit: acquisition.droit,
+      }
+    }
+
+    test('rend un bail dont nous sommes encore le détenteur', async () => {
+      const depot = new DepotMemoire()
+      const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+      const pris = await bailGenere(coordination, 'corpus:main')
+
+      expect(await coordination.rendreBailNotre(pris.chemin, pris.generation)).toBe('libere')
+      expect(depot.fichiers.has(pris.chemin)).toBe(false)
+      // Le droit en mémoire ne vaut plus rien de published : la reprise est un
+      // gesture de démarrage, elle ne passe pas par un droit détenu.
+      expect(coordination.snapshot(pris.droit).generation).toBe(pris.generation)
+    })
+
+    test('ne rend pas un bail repris par un tiers', async () => {
+      const depot = new DepotMemoire()
+      const alice = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+      const bob = bail(depot, 'session-b', () => Date.UTC(2026, 0, 1))
+      const pris = await bailGenere(alice, 'corpus:main')
+      await alice.liberer(pris.droit)
+      const repris = await bailGenere(bob, 'corpus:main')
+
+      // Génération différente : la preuve manque, on ne touche à rien.
+      expect(await alice.rendreBailNotre(repris.chemin, pris.generation)).toBe('autre')
+      expect(depot.fichiers.has(repris.chemin)).toBe(true)
+    })
+
+    test('ne rend pas un bail tenu par un autre compte', async () => {
+      const depot = new DepotMemoire()
+      const alice = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+      const pris = await bailGenere(alice, 'corpus:main')
+      // Le même compte, mais pas nous : on ne rend rien.
+      const autre = new BailGitLab({
+        branche: 'main',
+        depot,
+        identite: () => ({ userId: 'olivier', machineId: 'poste-b', sessionId: 's-b' }),
+        maintenant: () => Date.UTC(2026, 0, 1),
+        dureeBailMs: 60_000,
+      })
+      expect(await autre.rendreBailNotre(pris.chemin, pris.generation)).toBe('autre')
+      expect(depot.fichiers.has(pris.chemin)).toBe(true)
+    })
+
+    test('un bail déjà rendu ne fait rien', async () => {
+      const depot = new DepotMemoire()
+      const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+      const pris = await bailGenere(coordination, 'corpus:main')
+      await coordination.liberer(pris.droit)
+      expect(await coordination.rendreBailNotre(pris.chemin, pris.generation)).toBe('absent')
+    })
+  })
+
   test('journalise puis supprime une publication confirmée', async () => {
     const depot = new DepotMemoire()
     const root = mkdtempSync(join(tmpdir(), 'sonal-journal-publie-'))
@@ -228,7 +518,33 @@ describe('publication GitLab sous droit', () => {
     }
   })
 
-  test('conserve le journal après une publication acceptée mais perdue', async () => {
+  test('une réponse perdue mais un commit passé est réconcilié sur place', async () => {
+    const depot = new DepotMemoire()
+    const root = mkdtempSync(join(tmpdir(), 'sonal-journal-reconcilie-'))
+    try {
+      const journal = new JournalPublicationGitLab('destination-test', root)
+      const coordination = bail(depot, 'session-a', () => Date.UTC(2026, 0, 1))
+      const droit = await coordination.acquireRessource('entretien:e1')
+      if (!droit.ok) throw new Error('Acquisition test invalide.')
+      depot.echouerApresAccepter(new Error('réponse perdue'))
+      const publieur = new PublieurGitLab({ branche: 'main', depot, coordination, journal })
+
+      // Le commit a abouti : la réconciliation le retrouve, et l'appelant
+      // n'est pas told qu'il ignore ce qui est arrivé.
+      await expect(publieur.publierSousDroit({
+        operationId: 'operation-reconciliee',
+        nature: 'session-entretien',
+        actions: [{ action: 'create', chemin: 'entretiens/e1.json', contenu: '{}' }],
+      }, droit.droit)).resolves.toMatchObject({ statut: 'confirme' })
+      expect(journal.lister()).toEqual([])
+      // Le bail reste alors récupérable : la libération porte la bonne garde.
+      await expect(coordination.liberer(droit.droit)).resolves.toBe('libere')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('une réponse perdue et un sort inconnu restent journalisés', async () => {
     const depot = new DepotMemoire()
     const root = mkdtempSync(join(tmpdir(), 'sonal-journal-indetermine-'))
     try {
@@ -237,6 +553,8 @@ describe('publication GitLab sous droit', () => {
       const droit = await coordination.acquireRessource('entretien:e1')
       if (!droit.ok) throw new Error('Acquisition test invalide.')
       depot.echouerApresAccepter(new Error('réponse perdue'))
+      // L'historique reste illisible : personne ne peut conclure.
+      depot.rendreCommitsIllisibles()
       const publieur = new PublieurGitLab({ branche: 'main', depot, coordination, journal })
 
       await expect(publieur.publierSousDroit({

@@ -3,6 +3,7 @@ import {
   cleRessourceBailGitLab,
   DepotCommitsGitLabClient,
   type DepotCommitsGitLab,
+  type FileCommitsGitLab,
   type IdentiteBailGitLab,
 } from './bailGitLab'
 import { normaliserRacineGitLab } from '../distant/coffre'
@@ -22,6 +23,8 @@ export interface OptionsAssemblageSessionGitLab {
   destinationId: string
   dirLocal: string
   client: ClientGitLab
+  /** File de commits de la destination, partagée avec les autres sessions. */
+  fileCommits?: FileCommitsGitLab
   branche: string
   racine?: string
   ressource: string
@@ -73,6 +76,7 @@ export function assemblerSessionGitLab(
     maintenant,
     dureeBailMs: options.dureeBailMs ?? DUREE_BAIL_GITLAB_MS,
     ressourcesLegacy: [options.ressource],
+    fileCommits: options.fileCommits,
   })
   const publication = new PublieurGitLab({
     branche: options.branche,
