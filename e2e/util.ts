@@ -17,7 +17,7 @@ function launchEnv() {
 
 export async function lancer(
   userDataDir: string,
-  opts?: { preserverSettings?: boolean; executablePath?: string },
+  opts?: { preserverSettings?: boolean; executablePath?: string; env?: Record<string, string> },
 ): Promise<ElectronApplication> {
   // Un corpus neuf naît VIDE (S8 rév.) ; les specs reposent sur la baseline de démo « Karine »,
   // écrite dans le corpus par défaut du profil AVANT le lancement (un dossier pické par un test reste vierge,
@@ -43,7 +43,7 @@ export async function lancer(
       `--user-data-dir=${userDataDir}`,
       '--password-store=basic',
     ],
-    env: launchEnv(),
+    env: { ...launchEnv(), ...opts?.env },
   })
 }
 

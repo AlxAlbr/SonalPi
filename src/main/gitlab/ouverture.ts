@@ -8,24 +8,25 @@ import type {
   DestinationGitLabPublic,
 } from '../../shared/gitlab'
 import {
-  idDeCompteGitLab,
   idDeDestinationGitLab,
   normaliserRacineGitLab,
   type CoffreComptes,
   type ConfigCompteGitLab,
   type ConfigDestinationGitLab,
 } from '../distant/coffre'
-import { ClientGitLab } from './client'
+import type { ClientGitLab } from './client'
 import { DepotCommitsGitLabClient, type IdentiteBailGitLab } from './bailGitLab'
 import { type ContexteGitLab, preparerContexteGitLabLectureSeule } from './contexte'
 import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from './journalPublication'
 import { JournalSessionsGitLab } from './journalSession'
 import { assemblerSessionGitLab } from './assemblageSession'
+import type { ServiceAuthentificationGitLab } from './authentification'
 
 /** Destination GitLab enregistrée, rendue au renderer sans aucun secret. */
 export function destinationGitLabPublique(
   coffre: CoffreComptes,
   destination: ConfigDestinationGitLab,
+  connexionDisponible: (compteId: string) => boolean = () => false,
 ): DestinationGitLabPublic | null {
   const compte = coffre.listerComptesGitLab()
     .find((candidat) => candidat.id === destination.compteId)
@@ -40,7 +41,7 @@ export function destinationGitLabPublique(
     nomProjet: destination.nomProjet,
     branche: destination.branche,
     racine: destination.racine,
-    jetonDisponible: coffre.jetonGitLabDisponible(compte.id),
+    connexionDisponible: connexionDisponible(compte.id),
   }
 }
 
@@ -55,6 +56,8 @@ export interface PreparationOuvertureGitLab {
 /** Effets applicatifs et dépendances du service, explicites et remplaçables. */
 export interface OptionsServiceOuvertureGitLab {
   coffre: CoffreComptes
+  /** Propriétaire des credentials : fournit un client déjà autorisé. */
+  authentification: ServiceAuthentificationGitLab
   /** Répertoire du profil : les miroirs et journaux d'opérations vivent dessous. */
   dirProfil: string
   /** Identité du poste et de la session en cours ;
@@ -69,7 +72,7 @@ export interface OptionsServiceOuvertureGitLab {
   preparer?: (
     compte: ConfigCompteGitLab,
     destination: ConfigDestinationGitLab,
-    jeton: string,
+    client: ClientGitLab,
   ) => Promise<PreparationOuvertureGitLab>
   /** Transport injectable pour les tests ; le fetch global sinon. */
   fetchImpl?: typeof fetch
@@ -85,7 +88,8 @@ export class ServiceOuvertureGitLab {
     if (!demande.nomCorpus.trim()) throw new Error('Nom du corpus GitLab manquant.')
     const racine = normaliserRacineGitLab(demande.racine ?? '')
     const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
-    const client = this.client(demande.urlInstance, demande.projetId, demande.jeton)
+    const compte = this.compte(demande.compteId)
+    const client = await this.options.authentification.client(compte.id, demande.projetId)
     const depot = new DepotCommitsGitLabClient(client)
     if (await depot.lireFichier(cheminCorpus, demande.branche)) {
       throw new Error('Un corpus existe déjà à cet emplacement GitLab.')
@@ -112,18 +116,14 @@ export class ServiceOuvertureGitLab {
     )
   }
 
-  /** Ouvre une destination enregistrée, avec le jeton du coffre ou ressaisi. */
-  async ouvrir(id: string, jetonSaisi?: string): Promise<OuvertureDistante> {
+  /** Ouvre une destination enregistrée avec le credential du compte connecté. */
+  async ouvrir(id: string): Promise<OuvertureDistante> {
     const destination = this.options.coffre.listerDestinationsGitLab()
       .find((candidate) => candidate.id === id)
     if (!destination) throw new Error('Destination GitLab inconnue.')
-    const compte = this.options.coffre.listerComptesGitLab()
-      .find((candidate) => candidate.id === destination.compteId)
-    if (!compte) throw new Error('Compte GitLab inconnu.')
-    const jeton = jetonSaisi || this.options.coffre.jetonGitLab(compte.id)
-    if (!jeton) throw new Error('Saisissez le jeton GitLab pour cette session.')
-    const preparation = await this.preparer(compte, destination, jeton)
-    if (jetonSaisi) this.options.coffre.memoriserJetonGitLab(compte.id, jetonSaisi)
+    const compte = this.compte(destination.compteId)
+    const client = await this.options.authentification.client(compte.id, destination.projetId)
+    const preparation = await this.preparer(compte, destination, client)
     return this.installer(destination, preparation)
   }
 
@@ -135,12 +135,12 @@ export class ServiceOuvertureGitLab {
     demande: DemandeOuvertureGitLab,
     racine: string,
   ): Promise<OuvertureDistante> {
-    const compte = this.candidatCompte(demande)
+    const compte = this.compte(demande.compteId)
     const destination = this.candidatDestination(demande, racine, compte.id)
-    const preparation = await this.preparer(compte, destination, demande.jeton)
-    const compteEnregistre = this.options.coffre.enregistrerCompteGitLab(demande)
+    const client = await this.options.authentification.client(compte.id, demande.projetId)
+    const preparation = await this.preparer(compte, destination, client)
     const destinationEnregistree = this.options.coffre.enregistrerDestinationGitLab({
-      compteId: compteEnregistre.id,
+      compteId: compte.id,
       projetId: demande.projetId,
       nomProjet: demande.nomProjet,
       branche: demande.branche,
@@ -157,7 +157,11 @@ export class ServiceOuvertureGitLab {
   ): Promise<OuvertureDistante> {
     await this.options.fermerContexte()
     this.options.installer(destination, preparation)
-    const destinationPublique = destinationGitLabPublique(this.options.coffre, destination)
+    const destinationPublique = destinationGitLabPublique(
+      this.options.coffre,
+      destination,
+      (compteId) => this.options.authentification.aConnecte(compteId),
+    )
     if (!destinationPublique) throw new Error('Compte GitLab inconnu.')
     return {
       dir: preparation.dirMiroir,
@@ -172,36 +176,28 @@ export class ServiceOuvertureGitLab {
   private preparer(
     compte: ConfigCompteGitLab,
     destination: ConfigDestinationGitLab,
-    jeton: string,
+    client: ClientGitLab,
   ): Promise<PreparationOuvertureGitLab> {
     if (this.options.preparer) {
-      return this.options.preparer(compte, destination, jeton)
+      return this.options.preparer(compte, destination, client)
     }
     return preparerOuvertureDestination({
-      compte,
       destination,
-      jeton,
+      client,
       dirProfil: this.options.dirProfil,
       identite: () => ({
         userId: compte.utilisateur,
         machineId: this.options.identiteSession.machineId,
         sessionId: this.options.identiteSession.sessionId,
       }),
-      fetchImpl: this.options.fetchImpl,
     })
   }
 
-  private client(urlInstance: string, projetId: number, jeton: string): ClientGitLab {
-    return new ClientGitLab({ urlInstance, projetId, jeton }, this.options.fetchImpl)
-  }
-
-  private candidatCompte(demande: DemandeOuvertureGitLab): ConfigCompteGitLab {
-    return {
-      fournisseur: 'gitlab',
-      id: idDeCompteGitLab(demande.urlInstance, demande.utilisateur),
-      urlInstance: demande.urlInstance,
-      utilisateur: demande.utilisateur.trim(),
-    }
+  private compte(compteId: string): ConfigCompteGitLab {
+    const compte = this.options.coffre.listerComptesGitLab()
+      .find((candidat) => candidat.id === compteId)
+    if (!compte) throw new Error('Compte GitLab inconnu. Reconnectez-vous à GitLab.')
+    return compte
   }
 
   private candidatDestination(
@@ -226,22 +222,16 @@ export class ServiceOuvertureGitLab {
   }
 }
 
-/** Préparation réelle d'une destination : client, journaux et leur
- *  réconciliation, miroir et fabrique de sessions d'édition. */
+/** Préparation réelle d'une destination : journaux et leur réconciliation,
+ *  miroir et fabrique de sessions d'édition. */
 async function preparerOuvertureDestination(options: {
-  compte: ConfigCompteGitLab
   destination: ConfigDestinationGitLab
-  jeton: string
+  client: ClientGitLab
   dirProfil: string
   identite: () => IdentiteBailGitLab
-  fetchImpl?: typeof fetch
 }): Promise<PreparationOuvertureGitLab> {
+  const { client } = options
   const dirMiroir = join(options.dirProfil, 'miroirs', options.destination.id)
-  const client = new ClientGitLab({
-    urlInstance: options.compte.urlInstance,
-    projetId: options.destination.projetId,
-    jeton: options.jeton,
-  }, options.fetchImpl)
   const journalRepertoire = join(
     options.dirProfil,
     'operations-gitlab',

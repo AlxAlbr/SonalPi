@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { useProjetGitLab } from '../../composables/corpus/useProjetGitLab'
+import AideGitLab from './AideGitLab.vue'
 import type { DestinationGitLabPublic } from '../../../shared/gitlab'
 import type { DestinationWebDAVPublic, ProfilCapacitesWebDAV } from '../../../shared/webdav'
 
@@ -25,22 +26,32 @@ const comptes = ref<DestinationWebDAVPublic[]>([])
 const destinationsGitLab = ref<DestinationGitLabPublic[]>([])
 const stockageSecuriseDisponible = ref<boolean | null>(null)
 const motsDePasseSession = ref<Record<string, string>>({})
-const jetonsGitLabSession = ref<Record<string, string>>({})
 const urlServeur = ref('')
 const utilisateur = ref('')
 const motDePasse = ref('')
 const enCours = ref(false)
 const erreur = ref<string | null>(null)
+const aideGitLabOuverte = ref(false)
 const profilConnecte = ref<ProfilCapacitesWebDAV | null>(null)
 const {
   urlProjet: urlProjetGitLab,
-  jeton: jetonGitLab,
   racine: racineGitLab,
-  projet: projetGitLab,
   demande: demandeGitLab,
   chargement: chargementGitLab,
-  charger: chargerProjetGitLab,
+  clientId: clientIdGitLab,
+  comptes: comptesGitLab,
+  compteChoisi: compteChoisiGitLab,
+  compteCourant: compteCourantGitLab,
+  connexionEnCours: connexionEnCoursGitLab,
+  detecter: detecterInstanceGitLab,
+  deconnecter: deconnecterCompteGitLabOAuth,
+  charger: preparerProjetGitLab,
 } = useProjetGitLab({ enCours, erreur })
+
+/** Destinations du compte choisi : c'est lui qui autorise l'ouverture. */
+const destinationsDuCompte = computed(() => destinationsGitLab.value.filter(
+  (destination) => !compteChoisiGitLab.value || destination.compteId === compteChoisiGitLab.value,
+))
 
 async function rafraichirListe() {
   comptes.value = await window.sonal.webdav.lister()
@@ -106,10 +117,16 @@ async function ouvrirGitLab(destination: DestinationGitLabPublic) {
   enCours.value = true
   erreur.value = null
   try {
-    const jeton = destination.jetonDisponible
-      ? undefined
-      : jetonsGitLabSession.value[destination.compteId]
-    await ouvrirDestinationGitLab(destination.id, jeton)
+    if (!destination.connexionDisponible) {
+      await window.sonal.gitlab.connecter(destination.urlInstance)
+      destinationsGitLab.value = await window.sonal.gitlab.lister()
+      destination = destinationsGitLab.value.find((candidate) => candidate.id === destination.id)
+        ?? destination
+      if (!destination.connexionDisponible) {
+        throw new Error('La reconnexion GitLab n’a pas abouti.')
+      }
+    }
+    await ouvrirDestinationGitLab(destination.id)
     emit('fermer')
   } catch (e) {
     erreur.value = e instanceof Error ? e.message : 'Ouverture GitLab impossible.'
@@ -118,9 +135,11 @@ async function ouvrirGitLab(destination: DestinationGitLabPublic) {
 }
 
 async function connecterGitLab() {
-  if (enCours.value || !demandeGitLab.value) return
-  enCours.value = true
+  if (enCours.value || chargementGitLab.value || connexionEnCoursGitLab.value) return
   erreur.value = null
+  const projetPret = await preparerProjetGitLab()
+  if (!projetPret || !demandeGitLab.value) return
+  enCours.value = true
   try {
     await enregistrerEtOuvrirGitLab(demandeGitLab.value)
     emit('fermer')
@@ -128,6 +147,11 @@ async function connecterGitLab() {
     erreur.value = e instanceof Error ? e.message : 'Connexion GitLab impossible.'
     enCours.value = false
   }
+}
+
+async function deconnecterGitLabOAuth() {
+  await deconnecterCompteGitLabOAuth()
+  destinationsGitLab.value = await window.sonal.gitlab.lister()
 }
 
 async function oublierGitLab(id: string) {
@@ -166,11 +190,14 @@ async function oublierGitLab(id: string) {
 
         <div v-if="stockageSecuriseDisponible === false" class="avertissement-coffre">
           <strong>Stockage sécurisé indisponible</strong>
-          <span>
-            Sonal ne conservera pas votre mot de passe ou jeton : vous devrez le
-            saisir après chaque redémarrage. Conservez-le dans un gestionnaire comme
-            KeePassXC, ou configurez GNOME Keyring/KWallet. Il restera uniquement en
-            mémoire jusqu'à la fermeture de Sonal.
+          <span v-if="fournisseur === 'nextcloud'">
+            Sonal ne conservera pas votre mot de passe : vous devrez le saisir après
+            chaque redémarrage. Conservez-le dans un gestionnaire comme KeePassXC, ou
+            configurez GNOME Keyring/KWallet.
+          </span>
+          <span v-else>
+            Sonal ne conservera pas votre connexion GitLab : vous devrez vous reconnecter
+            dans le navigateur après chaque redémarrage.
           </span>
         </div>
 
@@ -246,30 +273,21 @@ async function oublierGitLab(id: string) {
         </template>
 
         <template v-else>
-        <span class="q-lbl">Destinations GitLab configurées</span>
-        <p class="note-secret">
-          Utilisez un jeton d’accès personnel GitLab disposant des droits requis sur le projet.
-          Si vous utilisez Humanum, vous pouvez l’obtenir après votre connexion avec HumanID.
-          Le jeton reste dans le coffre ou en mémoire et n’est jamais renvoyé au renderer.
-        </p>
-        <details class="aide-gitlab">
-          <summary>Préparer la connexion GitLab</summary>
-          <ol>
-            <li>Le projet GitLab doit déjà exister et contenir le corpus à ouvrir.</li>
-            <li>
-              Donnez aux collaborateurs le rôle Developer au minimum. Si la branche est protégée,
-              autorisez les Developers à pousser.
-            </li>
-            <li>
-              Copiez l’adresse du projet depuis GitLab, puis indiquez-la ci-dessous avec le PAT.
-              Sonal utilise automatiquement la branche par défaut du projet.
-            </li>
-          </ol>
-        </details>
+        <div class="intro-gitlab">
+          <div>
+            <span class="q-lbl">Projets GitLab</span>
+            <p class="note-secret">
+              Aucun jeton à créer : la connexion se fait dans votre navigateur.
+            </p>
+          </div>
+          <button class="lien-aide-gitlab" type="button" @click="aideGitLabOuverte = true">
+            Guide de préparation GitLab
+          </button>
+        </div>
 
-        <div v-if="destinationsGitLab.length > 0" class="bloc-comptes">
+        <div v-if="destinationsDuCompte.length > 0" class="bloc-comptes">
           <ul class="comptes">
-            <li v-for="destination in destinationsGitLab" :key="destination.id">
+            <li v-for="destination in destinationsDuCompte" :key="destination.id">
               <div class="compte-info">
                 <span class="compte-user">{{ destination.nomProjet || destination.projetId }}</span>
                 <span class="compte-url">
@@ -277,20 +295,12 @@ async function oublierGitLab(id: string) {
                 </span>
               </div>
               <div class="compte-actions">
-                <input
-                  v-if="!destination.jetonDisponible"
-                  v-model="jetonsGitLabSession[destination.compteId]"
-                  class="secret-compte"
-                  type="password"
-                  placeholder="Jeton pour cette session"
-                  :disabled="enCours"
-                />
                 <button
                   class="mini ouvrir"
-                  :disabled="enCours || (!destination.jetonDisponible && !jetonsGitLabSession[destination.compteId])"
+                  :disabled="enCours"
                   @click="ouvrirGitLab(destination)"
                 >
-                  Ouvrir
+                  {{ destination.connexionDisponible ? 'Ouvrir' : 'Se reconnecter et ouvrir' }}
                 </button>
               </div>
               <button class="mini oubli" title="Oublier cette destination" @click="oublierGitLab(destination.id)">✕</button>
@@ -298,45 +308,74 @@ async function oublierGitLab(id: string) {
           </ul>
         </div>
 
-        <div class="question">
-          <span class="q-lbl">Adresse du projet GitLab</span>
-          <input
-            v-model="urlProjetGitLab"
-            class="champ url-projet-gitlab"
-            type="text"
-            placeholder="https://gitlab.exemple.org/mon-groupe/mon-corpus"
-            spellcheck="false"
-            :disabled="enCours"
-          />
-        </div>
-        <div class="question">
-          <span class="q-lbl">Jeton d'accès personnel</span>
-          <input v-model="jetonGitLab" class="champ jeton-gitlab" type="password" :disabled="enCours" />
+        <div class="nouveau-projet-gitlab">
+          <span class="q-lbl">Ouvrir un autre projet</span>
+          <div class="question">
+            <span class="q-lbl secondaire">Adresse du projet GitLab</span>
+            <input
+              v-model="urlProjetGitLab"
+              class="champ url-projet-gitlab"
+              type="text"
+              placeholder="https://gitlab.exemple.org/mon-groupe/mon-corpus"
+              spellcheck="false"
+              :disabled="enCours || chargementGitLab || connexionEnCoursGitLab"
+              @change="detecterInstanceGitLab"
+            />
+            <span class="aide-champ">Copiez l’adresse de la page du projet.</span>
+          </div>
+          <div class="question">
+            <span class="q-lbl secondaire">Client ID OAuth</span>
+            <input
+              v-model="clientIdGitLab"
+              class="champ client-id-gitlab"
+              type="text"
+              placeholder="Fourni par votre institution ou créé avec le guide"
+              spellcheck="false"
+              :disabled="enCours || chargementGitLab || connexionEnCoursGitLab"
+            />
+            <span class="aide-champ">
+              Public et non secret. Laissez vide si Sonal connaît déjà cette instance.
+            </span>
+          </div>
+          <div v-if="comptesGitLab.length > 1" class="question">
+            <span class="q-lbl secondaire">Compte GitLab</span>
+            <select v-model="compteChoisiGitLab" class="champ" :disabled="enCours">
+              <option v-for="compte in comptesGitLab" :key="compte.id" :value="compte.id">
+                {{ compte.utilisateur }}{{ compte.connecte ? '' : ' — à reconnecter' }}
+              </option>
+            </select>
+          </div>
+          <div v-if="compteCourantGitLab?.connecte" class="connexion-compacte">
+            <span>Connecté avec {{ compteCourantGitLab.utilisateur }}.</span>
+            <button class="mini deconnecter-gitlab" type="button" @click="deconnecterGitLabOAuth">
+              Se déconnecter
+            </button>
+          </div>
+          <details class="options-gitlab">
+            <summary>Options avancées</summary>
+            <div class="question">
+              <span class="q-lbl secondaire">Dossier du corpus dans le projet</span>
+              <input
+                v-model="racineGitLab"
+                class="champ racine-gitlab"
+                type="text"
+                placeholder="donnees/mon-corpus"
+                spellcheck="false"
+                :disabled="enCours"
+              />
+              <span class="aide-champ">Laissez vide pour utiliser la racine du projet.</span>
+            </div>
+          </details>
           <button
-            class="mini charger-projet-gitlab"
-            :disabled="enCours || !jetonGitLab || !urlProjetGitLab.trim()"
-            @click="chargerProjetGitLab"
+            class="valider action-gitlab"
+            :disabled="enCours || chargementGitLab || connexionEnCoursGitLab || !urlProjetGitLab.trim()"
+            @click="connecterGitLab"
           >
-            {{ chargementGitLab ? 'Chargement…' : 'Charger le projet' }}
+            {{ chargementGitLab || connexionEnCoursGitLab
+              ? 'Connexion et vérification…'
+              : enCours ? 'Ouverture…' : 'Ouvrir le corpus' }}
           </button>
         </div>
-        <template v-if="projetGitLab">
-          <p class="note-secret">
-            {{ projetGitLab.nomProjet }} — branche par défaut :
-            <span class="branche-gitlab">{{ projetGitLab.branche }}</span>
-          </p>
-          <div class="question">
-            <span class="q-lbl">Racine du corpus (facultatif)</span>
-            <input v-model="racineGitLab" class="champ racine-gitlab" type="text" placeholder="donnees/mon-corpus" spellcheck="false" :disabled="enCours" />
-          </div>
-        </template>
-        <button
-          class="valider"
-          :disabled="enCours || !demandeGitLab"
-          @click="connecterGitLab"
-        >
-          {{ enCours && !chargementGitLab ? 'Ouverture…' : 'Ouvrir depuis GitLab' }}
-        </button>
         </template>
 
         <p v-if="erreur" class="msg">{{ erreur }}</p>
@@ -355,6 +394,7 @@ async function oublierGitLab(id: string) {
       </div>
     </div>
   </Teleport>
+  <AideGitLab v-if="aideGitLabOuverte" @fermer="aideGitLabOuverte = false" />
 </template>
 
 <style scoped>
@@ -419,22 +459,61 @@ async function oublierGitLab(id: string) {
   color: #777;
   font-size: 0.72rem;
 }
-.aide-gitlab {
-  padding: 0.65rem 0.8rem;
+.intro-gitlab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.lien-aide-gitlab {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: #1565c0;
+  cursor: pointer;
+  font-size: 0.76rem;
+  text-decoration: underline;
+}
+.nouveau-projet-gitlab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #ddd;
+}
+.q-lbl.secondaire {
+  color: #555;
+  font-size: 0.76rem;
+}
+.options-gitlab {
+  padding: 0.55rem 0.7rem;
   border: 1px solid #d7e3ec;
   border-radius: 6px;
   background: #f7fafc;
-  color: #444;
-  font-size: 0.78rem;
 }
-.aide-gitlab summary {
+.options-gitlab summary {
   cursor: pointer;
-  color: #245b7a;
+  color: #555;
+  font-size: 0.78rem;
   font-weight: 600;
 }
-.aide-gitlab ol {
-  margin: 0.6rem 0 0;
-  padding-left: 1.2rem;
+.options-gitlab .question {
+  margin-top: 0.65rem;
+}
+.connexion-compacte {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #bfe3c2;
+  border-radius: 6px;
+  background: #edf7ee;
+  color: #2e7d32;
+  font-size: 0.78rem;
+}
+.action-gitlab {
+  align-self: flex-end;
 }
 .avertissement-coffre {
   display: flex;

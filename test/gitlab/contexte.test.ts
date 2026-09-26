@@ -109,7 +109,7 @@ describe('contexte GitLab en lecture seule', () => {
     const client = new ClientGitLab({
       urlInstance: 'https://gitlab.example.org',
       projetId: 42,
-      jeton: 'secret',
+      autorisation: { type: 'jeton-prive', jeton: 'secret' },
     }, fetchImpl)
 
     const preparation = await preparerContexteGitLabLectureSeule({

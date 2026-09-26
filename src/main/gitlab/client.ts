@@ -1,8 +1,22 @@
+/**
+ *  Secret présenté à l'instance, sans origine ni stockage.
+ *  `bearer` est le mode OAuth ; `jeton-prive` ne sert que le temps de la
+ *  transition des comptes existants vers OAuth.
+ */
+export type AutorisationGitLab =
+  | { type: 'bearer'; accessToken: string }
+  | { type: 'jeton-prive'; jeton: string }
+
+/** Autorisation OAuth ; un compte connecté n'a pas à fournir son jeton. */
+export function autorisationOAuth(accessToken: string): AutorisationGitLab {
+  return { type: 'bearer', accessToken }
+}
+
 export interface ConfigurationClientGitLab {
   urlInstance: string
   /** Absent pour une découverte à l'échelle de l'instance. */
   projetId?: number
-  jeton: string
+  autorisation: AutorisationGitLab
   delaiMs?: number
   tailleMaxReponseOctets?: number
   tailleMaxRequeteOctets?: number
@@ -22,9 +36,18 @@ export interface OptionsEcritureGitLab {
   tailleMaxReponseOctets?: number
 }
 
+/**
+ *  Nature d'un refus HTTP.
+ *  `acces` regroupe les cas d'authentification et de droits : l'appelant doit
+ *  tenter un renouvellement du credential avant d'en conclure à une permission
+ *  métier. `introuvable` peut aussi cacher un projet interdit.
+ */
+export type NatureRefusGitLab = 'acces' | 'introuvable' | 'limite' | 'service' | 'autre'
+
 export class ErreurGitLab extends Error {
   constructor(
     public readonly statut: number,
+    public readonly nature: NatureRefusGitLab,
     message: string,
   ) {
     super(message)
@@ -35,11 +58,20 @@ export class ErreurGitLab extends Error {
 export class ErreurEcritureGitLab extends Error {
   constructor(
     public readonly statut: number,
+    public readonly nature: NatureRefusGitLab,
     message: string,
   ) {
     super(message)
     this.name = 'ErreurEcritureGitLab'
   }
+}
+
+function natureRefus(statut: number): NatureRefusGitLab {
+  if (statut === 401 || statut === 403) return 'acces'
+  if (statut === 404) return 'introuvable'
+  if (statut === 429) return 'limite'
+  if (statut >= 500) return 'service'
+  return 'autre'
 }
 
 export interface ReponseGitLab<T> {
@@ -52,7 +84,7 @@ export class ClientGitLab {
   private readonly racineApi: string
   private readonly projet: string | null
   private readonly delaiMs: number
-  private readonly jeton: string
+  private readonly entetesAutorisation: Record<string, string>
   private readonly tailleMaxReponseOctets: number
   private readonly tailleMaxRequeteOctets: number
   private readonly nombreRelances429: number
@@ -77,7 +109,13 @@ export class ClientGitLab {
     ) {
       throw new Error('Identifiant de projet GitLab invalide.')
     }
-    if (!configuration.jeton) throw new Error('Jeton GitLab manquant.')
+    if (
+      configuration.autorisation.type === 'bearer'
+        ? !configuration.autorisation.accessToken
+        : !configuration.autorisation.jeton
+    ) {
+      throw new Error('Accès GitLab manquant.')
+    }
 
     const base = instance.toString().replace(/\/+$/, '')
     this.racineApi = `${base}/api/v4`
@@ -102,7 +140,9 @@ export class ClientGitLab {
       throw new Error('Limites du client GitLab invalides.')
     }
     this.attendre = configuration.attendre ?? attendreAvecSignal
-    this.jeton = configuration.jeton
+    this.entetesAutorisation = configuration.autorisation.type === 'bearer'
+      ? { Authorization: `Bearer ${configuration.autorisation.accessToken}` }
+      : { 'PRIVATE-TOKEN': configuration.autorisation.jeton }
   }
 
   private url(chemin: string, parametres: Record<string, string | undefined> = {}): string {
@@ -124,7 +164,7 @@ export class ClientGitLab {
         : AbortSignal.timeout(this.delaiMs)
       const reponse = await this.fetchImpl(this.url(chemin, parametres), {
         method: 'GET',
-        headers: { 'PRIVATE-TOKEN': this.jeton },
+        headers: this.entetesAutorisation,
         signal,
         redirect: 'error',
       })
@@ -136,7 +176,11 @@ export class ClientGitLab {
         await this.attendre(delai, signalAttente)
         continue
       }
-      throw new ErreurGitLab(reponse.status, this.messageErreurLecture(reponse.status))
+      throw new ErreurGitLab(
+        reponse.status,
+        natureRefus(reponse.status),
+        this.messageErreurLecture(reponse.status),
+      )
     }
   }
 
@@ -184,7 +228,7 @@ export class ClientGitLab {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'Content-Length': String(octets.byteLength),
-        'PRIVATE-TOKEN': this.jeton,
+        ...this.entetesAutorisation,
       },
       body: texte,
       signal,
@@ -194,6 +238,7 @@ export class ClientGitLab {
       await reponse.body?.cancel()
       throw new ErreurEcritureGitLab(
         reponse.status,
+        natureRefus(reponse.status),
         this.messageErreurEcriture(reponse.status),
       )
     }
@@ -242,8 +287,11 @@ export class ClientGitLab {
   }
 
   private messageErreurLecture(statut: number): string {
-    if (statut === 401 || statut === 403) {
-      return 'Accès GitLab refusé. Vérifiez le jeton et les droits sur le projet.'
+    if (statut === 401) {
+      return 'Accès GitLab refusé : votre connexion a expiré ou a été révoquée.'
+    }
+    if (statut === 403) {
+      return 'Accès GitLab refusé. Votre connexion ne couvre pas ce projet.'
     }
     if (statut === 404) {
       return 'Ressource GitLab introuvable ou inaccessible. Vérifiez le projet et la branche.'
@@ -261,8 +309,11 @@ export class ClientGitLab {
     if (statut === 400) {
       return 'Publication GitLab refusée. Une action est invalide ou une garde est périmée.'
     }
-    if (statut === 401 || statut === 403) {
-      return 'Écriture GitLab refusée. Vérifiez le jeton et les droits du projet.'
+    if (statut === 401) {
+      return 'Écriture GitLab refusée : votre connexion a expiré ou a été révoquée.'
+    }
+    if (statut === 403) {
+      return 'Écriture GitLab refusée. Votre connexion ne couvre pas ce projet.'
     }
     if (statut === 404) {
       return 'Ressource GitLab introuvable ou inaccessible pendant l’écriture.'

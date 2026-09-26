@@ -358,10 +358,17 @@ contextBridge.exposeInMainWorld('sonal', {
   },
   gitlab: {
     lister: () => invoquer('gitlab:lister'),
+    detecterInstance: (urlProjet) => invoquer('gitlab:detecterInstance', urlProjet),
+    etat: (urlInstance) => invoquer('gitlab:etat', urlInstance),
+    connecter: (urlInstance, clientId) => invoquer('gitlab:connecter', urlInstance, clientId),
+    deconnecter: (urlInstance, utilisateur) =>
+      invoquer('gitlab:deconnecter', urlInstance, utilisateur),
+    oublierCompte: (urlInstance, utilisateur) =>
+      invoquer('gitlab:oublierCompte', urlInstance, utilisateur),
     preparerProjet: (demande) => invoquer('gitlab:preparerProjet', demande),
     enregistrerEtOuvrir: (demande) => invoquer('gitlab:enregistrerEtOuvrir', demande),
     creerEtOuvrir: (demande) => invoquer('gitlab:creerEtOuvrir', demande),
-    ouvrir: (id, jeton) => invoquer('gitlab:ouvrir', id, jeton),
+    ouvrir: (id) => invoquer('gitlab:ouvrir', id),
     oublierDestination: (id) => invoquer('gitlab:oublierDestination', id),
   } satisfies ApiGitLab,
   webdav: {

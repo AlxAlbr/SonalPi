@@ -340,7 +340,7 @@ decrire('Contrat GitLab réel', () => {
       const client = new ClientGitLab({
         urlInstance: configuration.url as string,
         projetId: Number(projet),
-        jeton: token,
+        autorisation: { type: 'jeton-prive', jeton: token },
       })
       const depot = new DepotCommitsGitLabClient(client)
       const journalRepertoire = join(racine, 'operations')
@@ -901,7 +901,7 @@ decrire('Contrat GitLab réel', () => {
     const client = new ClientGitLab({
       urlInstance: configuration.url as string,
       projetId,
-      jeton: configuration.token1 as string,
+      autorisation: { type: 'jeton-prive', jeton: configuration.token1 as string },
     })
     const depot = new DepotCommitsGitLabClient(client)
     const instantBase = Date.now()

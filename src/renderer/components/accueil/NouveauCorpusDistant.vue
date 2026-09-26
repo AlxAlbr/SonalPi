@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { useProjetGitLab } from '../../composables/corpus/useProjetGitLab'
+import AideGitLab from './AideGitLab.vue'
 
 /** Assistant commun de création d'un corpus distant. */
 const emit = defineEmits<{ (e: 'fermer'): void }>()
@@ -11,6 +12,7 @@ const fournisseur = ref<'nextcloud' | 'gitlab'>('nextcloud')
 const stockageSecuriseDisponible = ref<boolean | null>(null)
 const enCours = ref(false)
 const erreur = ref<string | null>(null)
+const aideGitLabOuverte = ref(false)
 
 const urlServeur = ref('')
 const utilisateur = ref('')
@@ -19,12 +21,17 @@ const nomCorpus = ref('')
 
 const {
   urlProjet: urlProjetGitLab,
-  jeton: jetonGitLab,
   racine: racineGitLab,
-  projet: projetGitLab,
   demande: demandeGitLab,
   chargement: chargementGitLab,
-  charger: chargerProjetGitLab,
+  clientId: clientIdGitLab,
+  comptes: comptesGitLab,
+  compteChoisi: compteChoisiGitLab,
+  compteCourant: compteCourantGitLab,
+  connexionEnCours: connexionEnCoursGitLab,
+  detecter: detecterInstanceGitLab,
+  deconnecter: deconnecterGitLabOAuth,
+  charger: preparerProjetGitLab,
 } = useProjetGitLab({ enCours, erreur })
 
 onMounted(async () => {
@@ -54,15 +61,21 @@ const pretNextcloud = computed(
 const pretGitLab = computed(
   () => stockageSecuriseDisponible.value !== null &&
     !enCours.value &&
-    demandeGitLab.value !== null &&
+    !chargementGitLab.value &&
+    !connexionEnCoursGitLab.value &&
+    urlProjetGitLab.value.trim().length > 0 &&
     nomCorpus.value.trim().length > 0,
 )
 const pret = computed(() => fournisseur.value === 'nextcloud' ? pretNextcloud.value : pretGitLab.value)
 
 async function creer(): Promise<void> {
   if (!pret.value) return
-  enCours.value = true
   erreur.value = null
+  if (fournisseur.value === 'gitlab') {
+    const projetPret = await preparerProjetGitLab()
+    if (!projetPret || !demandeGitLab.value) return
+  }
+  enCours.value = true
   try {
     if (fournisseur.value === 'nextcloud') {
       await creerCorpusWebDAV({
@@ -115,9 +128,13 @@ async function creer(): Promise<void> {
 
         <div v-if="stockageSecuriseDisponible === false" class="avertissement-coffre">
           <strong>Stockage sécurisé indisponible</strong>
-          <span>
-            Le secret restera uniquement en mémoire. Vous devrez le saisir après chaque
+          <span v-if="fournisseur === 'nextcloud'">
+            Le mot de passe restera uniquement en mémoire. Vous devrez le saisir après chaque
             redémarrage.
+          </span>
+          <span v-else>
+            Sonal ne conservera pas votre connexion GitLab. Vous devrez vous reconnecter dans
+            le navigateur après chaque redémarrage.
           </span>
         </div>
 
@@ -154,30 +171,15 @@ async function creer(): Promise<void> {
         </template>
 
         <template v-else>
-          <p class="intro">
-            Le corpus sera créé dans un projet GitLab existant, à l'emplacement choisi.
-          </p>
-          <details class="aide-gitlab">
-            <summary>Préparer la connexion GitLab</summary>
-            <ol>
-              <li>
-                Créez ou faites créer un projet GitLab privé pour le corpus,
-                initialisé avec un README pour disposer d’une branche par défaut.
-              </li>
-              <li>
-                Vérifiez que votre compte et votre jeton peuvent lire le projet et écrire sur la
-                branche par défaut. Si cette branche est protégée, autorisez les développeurs à y pousser.
-              </li>
-              <li>
-                Saisissez l’adresse du projet ci-dessous et cliquez sur « Charger le projet ».
-                La branche par défaut est détectée automatiquement. Cette étape ne crée rien sur GitLab.
-              </li>
-            </ol>
-            <p>
-              Le projet GitLab doit donc déjà exister. La branche par défaut est choisie
-              automatiquement.
+          <div class="intro-gitlab">
+            <p class="intro">
+              Le projet GitLab doit déjà exister. Sonal se chargera de la connexion,
+              de sa vérification et de la création du corpus.
             </p>
-          </details>
+            <button class="lien-aide-gitlab" type="button" @click="aideGitLabOuverte = true">
+              Première utilisation ? Voir le guide de préparation GitLab
+            </button>
+          </div>
           <div class="question">
             <span class="q-lbl">Adresse du projet GitLab</span>
             <input
@@ -186,30 +188,54 @@ async function creer(): Promise<void> {
               type="text"
               placeholder="https://gitlab.exemple.org/mon-groupe/mon-corpus"
               spellcheck="false"
-              :disabled="enCours"
+              :disabled="enCours || chargementGitLab || connexionEnCoursGitLab"
+              @change="detecterInstanceGitLab"
             />
+            <span class="aide-champ">Copiez l’adresse de la page du projet.</span>
           </div>
           <div class="question">
-            <span class="q-lbl">Jeton d'accès personnel</span>
-            <input v-model="jetonGitLab" class="champ jeton-gitlab" type="password" :disabled="enCours" />
-            <button
-              class="mini charger-projet-gitlab"
-              :disabled="enCours || !jetonGitLab || !urlProjetGitLab.trim()"
-              @click="chargerProjetGitLab"
-            >
-              {{ chargementGitLab ? 'Chargement…' : 'Charger le projet' }}
+            <span class="q-lbl">Client ID OAuth</span>
+            <input
+              v-model="clientIdGitLab"
+              class="champ client-id-gitlab"
+              type="text"
+              placeholder="Fourni par votre institution ou créé avec le guide"
+              spellcheck="false"
+              :disabled="enCours || chargementGitLab || connexionEnCoursGitLab"
+            />
+            <span class="aide-champ">
+              Public et non secret. Laissez vide si Sonal connaît déjà cette instance.
+            </span>
+          </div>
+          <div v-if="comptesGitLab.length > 1" class="question">
+            <span class="q-lbl">Compte GitLab</span>
+            <select v-model="compteChoisiGitLab" class="champ" :disabled="enCours">
+              <option v-for="compte in comptesGitLab" :key="compte.id" :value="compte.id">
+                {{ compte.utilisateur }}{{ compte.connecte ? '' : ' — à reconnecter' }}
+              </option>
+            </select>
+          </div>
+          <div v-if="compteCourantGitLab?.connecte" class="connexion-compacte">
+            <span>Connecté avec {{ compteCourantGitLab.utilisateur }}.</span>
+            <button class="mini deconnecter-gitlab" type="button" @click="deconnecterGitLabOAuth">
+              Se déconnecter
             </button>
           </div>
-          <template v-if="projetGitLab">
-            <p class="note-secret">
-              {{ projetGitLab.nomProjet }} — branche par défaut :
-              <span class="branche-gitlab">{{ projetGitLab.branche }}</span>
-            </p>
+          <details class="options-gitlab">
+            <summary>Options avancées</summary>
             <div class="question">
-              <span class="q-lbl">Racine du corpus (facultatif)</span>
-              <input v-model="racineGitLab" class="champ racine-gitlab" type="text" placeholder="donnees/mon-corpus" spellcheck="false" :disabled="enCours" />
+              <span class="q-lbl">Dossier du corpus dans le projet</span>
+              <input
+                v-model="racineGitLab"
+                class="champ racine-gitlab"
+                type="text"
+                placeholder="donnees/mon-corpus"
+                spellcheck="false"
+                :disabled="enCours"
+              />
+              <span class="aide-champ">Laissez vide pour utiliser la racine du projet.</span>
             </div>
-          </template>
+          </details>
         </template>
 
         <div class="question">
@@ -222,12 +248,15 @@ async function creer(): Promise<void> {
         <div class="pied-modale">
           <button class="annuler" :disabled="enCours" @click="emit('fermer')">Annuler</button>
           <button class="valider" :disabled="!pret" @click="creer">
-            {{ enCours && !chargementGitLab ? 'Création sur le serveur…' : 'Créer le corpus et l’ouvrir' }}
+            {{ fournisseur === 'gitlab' && (chargementGitLab || connexionEnCoursGitLab)
+              ? 'Connexion et vérification…'
+              : enCours ? 'Création sur le serveur…' : 'Créer le corpus et l’ouvrir' }}
           </button>
         </div>
       </div>
     </div>
   </Teleport>
+  <AideGitLab v-if="aideGitLabOuverte" @fermer="aideGitLabOuverte = false" />
 </template>
 
 <style scoped>
@@ -272,25 +301,53 @@ async function creer(): Promise<void> {
   color: #777;
   font-size: 0.72rem;
 }
-.aide-gitlab {
-  padding: 0.65rem 0.8rem;
+.intro-gitlab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.lien-aide-gitlab {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: #1565c0;
+  font-size: 0.76rem;
+  text-decoration: underline;
+}
+.options-gitlab {
+  padding: 0.55rem 0.7rem;
   border: 1px solid #d7e3ec;
   border-radius: 6px;
   background: #f7fafc;
-  color: #444;
-  font-size: 0.78rem;
 }
-.aide-gitlab summary {
+.options-gitlab summary {
   cursor: pointer;
-  color: #245b7a;
+  color: #555;
+  font-size: 0.78rem;
   font-weight: 600;
 }
-.aide-gitlab ol {
-  margin: 0.6rem 0 0;
-  padding-left: 1.2rem;
+.options-gitlab .question {
+  margin-top: 0.65rem;
 }
-.aide-gitlab p {
-  margin: 0.6rem 0 0;
+.connexion-compacte {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #bfe3c2;
+  border-radius: 6px;
+  background: #edf7ee;
+  color: #2e7d32;
+  font-size: 0.78rem;
+}
+.mini {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
 }
 .onglets-fournisseur {
   display: flex;

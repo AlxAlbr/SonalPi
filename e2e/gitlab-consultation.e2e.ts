@@ -5,6 +5,11 @@
  *  puis vérifie que deux comptes consultent le même contenu et peuvent ouvrir
  *  une session d'édition contrôlée.
  *  La fixture distante est conservée pour examen.
+ *
+ *  L'application se connecte par OAuth : le banc intercepte l'ouverture de
+ *  l'URL d'autorisation et joue lui-même le consentement GitLab, comme la
+ *  personne qui qualifie. Les jetons d'accès personnel ne servent plus qu'au
+ *  harnais, qui sème et vérifie la fixture par l'API.
  */
 
 import { expect, test, type Page } from '@playwright/test'
@@ -16,21 +21,43 @@ import {
   corpusDistantValide,
   entretienDistantValide,
 } from '../test/webdav/fixturesCorpusDistant'
+import {
+  attendreUrlAutorisation,
+  consentir,
+  intercepterOuvertureUrl,
+  pathAvecShim,
+  sessionQualification,
+  type IdentifiantsGitLab,
+  type InterceptionOuvertureUrl,
+  type SessionQualification,
+} from './qualification/connexionOAuth'
 import { attendreAccueil, attendreCorpus, lancer, retourCorpus } from './util'
 
 const configuration = {
   url: process.env.GITLAB_URL?.replace(/\/$/, ''),
   projetId: process.env.GITLAB_LFS_PROJECT_ID,
   projetSansLfsId: process.env.GITLAB_NO_LFS_PROJECT_ID,
+  projetInterditId: process.env.GITLAB_FORBIDDEN_PROJECT_ID,
   token1: process.env.GITLAB_USER1_TOKEN,
   tokenSecondPoste: process.env.GITLAB_USER1_SECOND_TOKEN,
   token2: process.env.GITLAB_USER2_TOKEN,
+  clientId: process.env.GITLAB_OAUTH_CLIENT_ID,
+  utilisateur: process.env.GITLAB_OAUTH_USER1 ?? 'user1',
+  motDePasse: process.env.GITLAB_OAUTH_PASSWORD1,
+  motDePasse2: process.env.GITLAB_OAUTH_PASSWORD2,
+  ca: process.env.GITLAB_CA,
 }
+// Le jeton du harnais sème et relit la fixture ; l'application, elle, ne
+// connaît que l'identifiant public de l'application OAuth.
 const configurationPresente = Boolean(
-  configuration.url && configuration.projetId && configuration.token1 && configuration.tokenSecondPoste,
+  configuration.url &&
+  configuration.projetId &&
+  configuration.token1 &&
+  configuration.clientId &&
+  configuration.motDePasse,
 )
 const tokenSecondPoste = configuration.token2 ?? configuration.tokenSecondPoste
-const sansLfsConfigure = Boolean(configuration.projetSansLfsId)
+const sansLfsConfigure = Boolean(configuration.projetSansLfsId && tokenSecondPoste)
 const branche = 'main'
 const idExecution = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 const racine = `consultation-e2e-${idExecution}`
@@ -43,8 +70,86 @@ const executableEmpaquete = process.env.GITLAB_E2E_PACKAGED === '1'
   ? join(process.cwd(), 'dist/linux-unpacked/sonalpi2')
   : undefined
 
-function lancerProfil(userDataDir: string, preserverSettings = false) {
-  return lancer(userDataDir, { preserverSettings, executablePath: executableEmpaquete })
+/** Chaque poste testé intercepte sa propre ouverture d'URL. */
+function lancerProfil(
+  userDataDir: string,
+  interception: InterceptionOuvertureUrl,
+  preserverSettings = false,
+) {
+  return lancer(userDataDir, {
+    preserverSettings,
+    executablePath: executableEmpaquete,
+    env: {
+      PATH: pathAvecShim(interception.repertoire),
+      SONAL_URL_OUVRTE: interception.fichierUrl,
+    },
+  })
+}
+
+function identifiantsDe(utilisateur: string): IdentifiantsGitLab {
+  return {
+    utilisateur,
+    motDePasse: utilisateur === (process.env.GITLAB_OAUTH_USER2 ?? 'user2')
+      ? (process.env.GITLAB_OAUTH_PASSWORD2 ?? '')
+      : (configuration.motDePasse as string),
+  }
+}
+
+/** Prépare les seuls renseignements demandés avant l'action finale. */
+async function remplirAccesGitLab(
+  page: Page,
+  projetId: string,
+  racineCourante: string,
+  jetonPourAdresse = configuration.token1 as string,
+): Promise<void> {
+  await page.getByRole('tab', { name: 'GitLab' }).click()
+  await page.locator('.url-projet-gitlab').fill(
+    await adresseProjet(jetonPourAdresse, projetId),
+  )
+  await page.locator('.client-id-gitlab').fill(configuration.clientId as string)
+  if (racineCourante) {
+    const options = page.locator('details.options-gitlab')
+    if (!await options.getAttribute('open')) await options.locator('summary').click()
+    await page.locator('.racine-gitlab').fill(racineCourante)
+  }
+}
+
+/** Joue le consentement déclenché par l'unique bouton du formulaire. */
+async function consentirApresAction(
+  page: Page,
+  interception: InterceptionOuvertureUrl,
+  session: SessionQualification,
+  identifiants: IdentifiantsGitLab,
+  bouton: RegExp,
+): Promise<void> {
+  await page.getByRole('button', { name: bouton }).click()
+  const urlAutorisation = await attendreUrlAutorisation(interception)
+  const navigateur = await session.newPage()
+  try {
+    await navigateur.goto(urlAutorisation)
+    await consentir(navigateur, identifiants)
+  } finally {
+    await navigateur.close()
+  }
+}
+
+async function ouvrirDepuisFormulaireGitLab(
+  page: Page,
+  interception: InterceptionOuvertureUrl,
+  session: SessionQualification,
+  identifiants: IdentifiantsGitLab,
+  racineCourante: string,
+  projetId = configuration.projetId as string,
+  jetonPourAdresse = configuration.token1 as string,
+): Promise<void> {
+  await remplirAccesGitLab(page, projetId, racineCourante, jetonPourAdresse)
+  await consentirApresAction(
+    page,
+    interception,
+    session,
+    identifiants,
+    /^Ouvrir le corpus$/,
+  )
 }
 
 async function api<T>(
@@ -190,21 +295,19 @@ async function expirerBailE2E(
 
 async function ouvrirDestinationPourCrash(
   page: Page,
-  utilisateur: string,
-  jeton: string,
+  interception: InterceptionOuvertureUrl,
+  session: SessionQualification,
   racineCourante: string,
-  projetId = configuration.projetId as string,
 ): Promise<void> {
   await attendreAccueil(page)
   await page.locator('.carte-demo.distant-corpus').click()
-  await page.getByRole('tab', { name: 'GitLab' }).click()
-  await page.locator('.jeton-gitlab').fill(jeton)
-  await page.locator('.url-projet-gitlab').fill(await adresseProjet(jeton, projetId))
-  await page.getByRole('button', { name: 'Charger le projet' }).click()
-  await expect(page.locator('.branche-gitlab')).toHaveText(branche)
-  await expect(page.locator('select.branche-gitlab')).toHaveCount(0)
-  await page.locator('.racine-gitlab').fill(racineCourante)
-  await page.getByRole('button', { name: 'Ouvrir depuis GitLab' }).click()
+  await ouvrirDepuisFormulaireGitLab(
+    page,
+    interception,
+    session,
+    identifiantsDe(configuration.utilisateur as string),
+    racineCourante,
+  )
   await attendreCorpus(page)
   await page.locator('.carte-ent .crayon').click()
   await expect(page.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
@@ -212,21 +315,21 @@ async function ouvrirDestinationPourCrash(
 
 async function consulterDansProfil(
   page: Page,
-  utilisateur: string,
-  jeton: string,
+  interception: InterceptionOuvertureUrl,
+  session: SessionQualification,
   projetId = configuration.projetId as string,
   modifier = false,
 ): Promise<void> {
   await attendreAccueil(page)
   await page.locator('.carte-demo.distant-corpus').click()
-  await page.getByRole('tab', { name: 'GitLab' }).click()
-  await page.locator('.jeton-gitlab').fill(jeton)
-  await page.locator('.url-projet-gitlab').fill(await adresseProjet(jeton, projetId))
-  await page.getByRole('button', { name: 'Charger le projet' }).click()
-  await expect(page.locator('.branche-gitlab')).toHaveText(branche)
-  await expect(page.locator('select.branche-gitlab')).toHaveCount(0)
-  await page.locator('.racine-gitlab').fill(racine)
-  await page.getByRole('button', { name: 'Ouvrir depuis GitLab' }).click()
+  await ouvrirDepuisFormulaireGitLab(
+    page,
+    interception,
+    session,
+    identifiantsDe(configuration.utilisateur as string),
+    racine,
+    projetId,
+  )
 
   await attendreCorpus(page)
   await expect(page.locator('.ent-titre', { hasText: titreEntretien })).toBeVisible()
@@ -238,13 +341,13 @@ async function consulterDansProfil(
     await page.locator('.editeur').click()
     await page.keyboard.press('End')
     await page.keyboard.type(suffixeE2E)
-    await expect(page.locator('.statut-session.sale')).toBeVisible()
+    await expect(page.locator('.statut-session.sale')).toBeVisible({ timeout: 10_000 })
     await page.getByRole('button', { name: 'Publier maintenant' }).click()
-    await expect(page.locator('.statut-session.publie')).toBeVisible()
+    await expect(page.locator('.statut-session.publie')).toBeVisible({ timeout: 30_000 })
     await page.locator('.editeur').click()
     await page.keyboard.press('End')
     await page.keyboard.type(suffixeFermetureE2E)
-    await expect(page.locator('.statut-session.sale')).toBeVisible()
+    await expect(page.locator('.statut-session.sale')).toBeVisible({ timeout: 10_000 })
   }
 
   await retourCorpus(page)
@@ -257,7 +360,7 @@ test.describe('Consultation GitLab à deux profils', () => {
   test.skip(!configurationPresente, 'variables GITLAB_* absentes')
   test.setTimeout(180_000)
 
-  test('deux postes isolés consultent le même contenu et ouvrent une session contrôlée', async () => {
+  test('deux postes isolés consultent le même contenu et ouvrent une session contrôlée', async ({ browser }) => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
@@ -266,22 +369,21 @@ test.describe('Consultation GitLab à deux profils', () => {
     const teteInitiale = await teteBranche(jetonEcriture)
     const profil1 = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-1-'))
     const profil2 = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-2-'))
-    let app1 = await lancerProfil(profil1)
-    const app2 = await lancerProfil(profil2)
+    const shim1 = intercepterOuvertureUrl()
+    const shim2 = intercepterOuvertureUrl()
+    const session = await sessionQualification(browser, Boolean(configuration.ca))
+    let app1 = await lancerProfil(profil1, shim1)
+    const app2 = await lancerProfil(profil2, shim2)
 
     try {
       await consulterDansProfil(
         await app1.firstWindow(),
-        'user1',
-        configuration.token1 as string,
+        shim1,
+        session,
         configuration.projetId as string,
         true,
       )
-      await consulterDansProfil(
-        await app2.firstWindow(),
-        'user1',
-        configuration.token1 as string,
-      )
+      await consulterDansProfil(await app2.firstWindow(), shim2, session)
 
       const miroirs1 = readdirSync(join(profil1, 'miroirs'))
       const miroirs2 = readdirSync(join(profil2, 'miroirs'))
@@ -293,13 +395,20 @@ test.describe('Consultation GitLab à deux profils', () => {
       )
 
       await app1.close()
-      app1 = await lancerProfil(profil1, true)
+      // Le profil conserve la destination.
+      // Sans coffre sécurisé, une nouvelle connexion OAuth suit le redémarrage.
+      app1 = await lancerProfil(profil1, shim1, true)
       const pageRedemarrée = await app1.firstWindow()
       await attendreAccueil(pageRedemarrée)
       await pageRedemarrée.locator('.recent').first().click()
       await expect(pageRedemarrée.locator('.modale-distant')).toBeVisible()
-      await pageRedemarrée.locator('.secret-compte').fill(configuration.token1 as string)
-      await pageRedemarrée.locator('.mini.ouvrir').first().click()
+      await consentirApresAction(
+        pageRedemarrée,
+        shim1,
+        session,
+        identifiantsDe(configuration.utilisateur as string),
+        /^Se reconnecter et ouvrir$/,
+      )
       await attendreCorpus(pageRedemarrée)
       await expect(pageRedemarrée.locator('.ent-titre', { hasText: titreEntretien })).toBeVisible()
       await pageRedemarrée.locator('.carte-ent .crayon').click()
@@ -308,13 +417,15 @@ test.describe('Consultation GitLab à deux profils', () => {
       expect(readdirSync(join(profil1, 'miroirs'))).toEqual(miroirs1)
       expect(await teteBranche(jetonEcriture)).not.toBe(teteInitiale)
     } finally {
-      await Promise.allSettled([app1.close(), app2.close()])
+      await Promise.allSettled([app1.close(), app2.close(), session.fermer()])
+      shim1.nettoyer()
+      shim2.nettoyer()
       rmSync(profil1, { recursive: true, force: true })
       rmSync(profil2, { recursive: true, force: true })
     }
   })
 
-  test('le bouton de création crée un corpus GitLab dans un projet existant', async () => {
+  test('le bouton de création crée un corpus GitLab dans un projet existant', async ({ browser }) => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
@@ -326,21 +437,27 @@ test.describe('Consultation GitLab à deux profils', () => {
     )
     const urlProjet = `${(configuration.url as string).replace(/\/$/, '')}/${projet.path_with_namespace}`
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-creation-'))
-    const app = await lancerProfil(profil)
+    const shim = intercepterOuvertureUrl()
+    const session = await sessionQualification(browser, Boolean(configuration.ca))
+    const app = await lancerProfil(profil, shim)
     try {
       const page = await app.firstWindow()
       await attendreAccueil(page)
       await page.locator('.nouveau-corpus-distant').click()
-      await page.getByRole('tab', { name: 'GitLab' }).click()
-      await page.locator('.jeton-gitlab').fill(configuration.token1 as string)
+      await remplirAccesGitLab(
+        page,
+        configuration.projetId as string,
+        racineCreation,
+      )
       await page.locator('.url-projet-gitlab').fill(urlProjet)
-      await page.getByRole('button', { name: 'Charger le projet' }).click()
-      await expect(page.locator('.racine-gitlab')).toBeVisible({ timeout: 20_000 })
-      await expect(page.locator('.branche-gitlab')).toHaveText(branche)
-      await expect(page.locator('select.branche-gitlab')).toHaveCount(0)
-      await page.locator('.racine-gitlab').fill(racineCreation)
       await page.locator('.champ-nom').fill(nomCreation)
-      await page.getByRole('button', { name: 'Créer le corpus et l’ouvrir' }).click()
+      await consentirApresAction(
+        page,
+        shim,
+        session,
+        identifiantsDe(configuration.utilisateur as string),
+        /^Créer le corpus et l’ouvrir$/,
+      )
       await attendreCorpus(page)
       const corpusCree = await api<{ content: string }>(
         `/projects/${configuration.projetId}/repository/files/${encodeURIComponent(`${racineCreation}/corpus.json`)}?ref=${branche}`,
@@ -351,11 +468,13 @@ test.describe('Consultation GitLab à deux profils', () => {
       )
     } finally {
       await app.close().catch(() => undefined)
+      await session.fermer().catch(() => undefined)
+      shim.nettoyer()
       rmSync(profil, { recursive: true, force: true })
     }
   })
 
-  test('un crash conserve une autosave et protège sa reprise', async () => {
+  test('un crash conserve une autosave et protège sa reprise', async ({ browser }) => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
@@ -363,10 +482,12 @@ test.describe('Consultation GitLab à deux profils', () => {
     const jeton = configuration.token1 as string
     await amorcerConsultation(jeton, configuration.projetId as string, racineCrash)
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-crash-'))
-    let app = await lancerProfil(profil)
+    const shim = intercepterOuvertureUrl()
+    const session = await sessionQualification(browser, Boolean(configuration.ca))
+    let app = await lancerProfil(profil, shim)
     try {
       const page = await app.firstWindow()
-      await ouvrirDestinationPourCrash(page, 'user1', jeton, racineCrash)
+      await ouvrirDestinationPourCrash(page, shim, session, racineCrash)
       const suffixe = ` Autosave crash ${idExecution}.`
       await page.locator('.editeur').click()
       await page.keyboard.press('End')
@@ -375,38 +496,49 @@ test.describe('Consultation GitLab à deux profils', () => {
       app.process()?.kill('SIGKILL')
       await new Promise((resolve) => setTimeout(resolve, 1_000))
 
-      app = await lancerProfil(profil, true)
+      app = await lancerProfil(profil, shim, true)
       const pageRedemarree = await app.firstWindow()
       await attendreAccueil(pageRedemarree)
       await pageRedemarree.locator('.recent').first().click()
       await expect(pageRedemarree.locator('.modale-distant')).toBeVisible()
-      await pageRedemarree.locator('.secret-compte').fill(jeton)
-      await pageRedemarree.locator('.mini.ouvrir').first().click()
+      await consentirApresAction(
+        pageRedemarree,
+        shim,
+        session,
+        identifiantsDe(configuration.utilisateur as string),
+        /^Se reconnecter et ouvrir$/,
+      )
       await attendreCorpus(pageRedemarree)
       await pageRedemarree.locator('.carte-ent .crayon').click()
       await expect(pageRedemarree.locator('.editeur')).toContainText(suffixe.trim())
       await expect(pageRedemarree.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
     } finally {
       await app.close().catch(() => undefined)
+      await session.fermer().catch(() => undefined)
+      shim.nettoyer()
       rmSync(profil, { recursive: true, force: true })
     }
   })
 
-  test('un second profil reprend après expiration et l’ancien poste est refusé', async () => {
+  test('un second profil reprend après expiration et l’ancien poste est refusé', async ({ browser }) => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
     const racineReprise = `${racine}-reprise-${Date.now().toString(36)}`
+    test.skip(!configuration.motDePasse2, 'identifiants OAuth du second compte absents')
     const jetonA = configuration.token1 as string
-    const jetonB = tokenSecondPoste as string
     await amorcerConsultation(jetonA, configuration.projetId as string, racineReprise)
     const profilA = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-reprise-a-'))
     const profilB = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-reprise-b-'))
-    let appA = await lancerProfil(profilA)
-    let appB = await lancerProfil(profilB)
+    const shimA = intercepterOuvertureUrl()
+    const shimB = intercepterOuvertureUrl()
+    const sessionA = await sessionQualification(browser, Boolean(configuration.ca))
+    const sessionB = await sessionQualification(browser, Boolean(configuration.ca))
+    let appA = await lancerProfil(profilA, shimA)
+    let appB = await lancerProfil(profilB, shimB)
     try {
       const pageA = await appA.firstWindow()
-      await ouvrirDestinationPourCrash(pageA, 'user1', jetonA, racineReprise)
+      await ouvrirDestinationPourCrash(pageA, shimA, sessionA, racineReprise)
       await pageA.locator('.editeur').click()
       await pageA.keyboard.press('End')
       await pageA.keyboard.type(` Ancien poste ${idExecution}.`)
@@ -420,7 +552,18 @@ test.describe('Consultation GitLab à deux profils', () => {
       await expirerBailE2E(jetonA, racineReprise)
 
       const pageB = await appB.firstWindow()
-      await ouvrirDestinationPourCrash(pageB, 'user2', jetonB, racineReprise)
+      // Second compte sur la même instance : sa propre connexion OAuth.
+      await attendreAccueil(pageB)
+      await pageB.locator('.carte-demo.distant-corpus').click()
+      await ouvrirDepuisFormulaireGitLab(
+        pageB,
+        shimB,
+        sessionB,
+        identifiantsDe(process.env.GITLAB_OAUTH_USER2 ?? 'user2'),
+        racineReprise,
+      )
+      await attendreCorpus(pageB)
+      await pageB.locator('.carte-ent .crayon').click()
       await expect(pageB.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
 
       await pageA.getByRole('button', { name: 'Publier maintenant' }).click()
@@ -431,40 +574,59 @@ test.describe('Consultation GitLab à deux profils', () => {
       await expect(pageA.locator('.editeur')).toContainText(`Ancien poste ${idExecution}.`)
       await expect(pageB.locator('.editeur')).not.toContainText(`Ancien poste ${idExecution}.`)
     } finally {
-      await Promise.allSettled([appA.close(), appB.close()])
+      await Promise.allSettled([
+        appA.close(), appB.close(), sessionA.fermer(), sessionB.fermer(),
+      ])
+      shimA.nettoyer()
+      shimB.nettoyer()
       rmSync(profilA, { recursive: true, force: true })
       rmSync(profilB, { recursive: true, force: true })
     }
   })
 
-  test('un jeton invalide est refusé sans créer de miroir ni modifier le projet', async () => {
+  test('un projet interdit est refusé sans créer de miroir ni modifier le projet', async ({ browser }) => {
+    test.skip(
+      !configuration.projetInterditId || !configuration.token2,
+      'projet interdit ou jeton du compte autorisé absent',
+    )
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
-    const jetonEcriture = configuration.token1 as string
-    const teteInitiale = await teteBranche(jetonEcriture)
-    const urlProjet = await adresseProjet(jetonEcriture)
+    const projetInterdit = configuration.projetInterditId as string
+    const jetonAutorise = configuration.token2 as string
+    const teteInitiale = await teteBranche(jetonAutorise, projetInterdit)
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-refus-'))
-    const app = await lancerProfil(profil)
+    const interception = intercepterOuvertureUrl()
+    const session = await sessionQualification(browser, Boolean(configuration.ca))
+    const app = await lancerProfil(profil, interception)
 
     try {
       const page = await app.firstWindow()
       await attendreAccueil(page)
       await page.locator('.carte-demo.distant-corpus').click()
-      await page.getByRole('tab', { name: 'GitLab' }).click()
-      await page.locator('.jeton-gitlab').fill('jeton-invalide-e2e')
-      await page.locator('.url-projet-gitlab').fill(urlProjet)
-      await page.getByRole('button', { name: 'Charger le projet' }).click()
-      await expect(page.locator('.modale-distant .msg')).toContainText('droits')
+      // Connexion réelle, puis tentative sur un projet que le compte ne voit pas :
+      // le refus porte sur le projet, jamais sur la connexion.
+      await ouvrirDepuisFormulaireGitLab(
+        page,
+        interception,
+        session,
+        identifiantsDe(configuration.utilisateur as string),
+        racine,
+        projetInterdit,
+        jetonAutorise,
+      )
+      await expect(page.locator('.modale-distant .msg')).toContainText(/introuvable|inaccessible/i)
       expect(existsSync(join(profil, 'miroirs'))).toBe(false)
-      expect(await teteBranche(jetonEcriture)).toBe(teteInitiale)
+      expect(await teteBranche(jetonAutorise, projetInterdit)).toBe(teteInitiale)
     } finally {
       await app.close()
+      await session.fermer().catch(() => undefined)
+      interception.nettoyer()
       rmSync(profil, { recursive: true, force: true })
     }
   })
 
-  test('un projet sans LFS reste consultable pour ses transcriptions', async () => {
+  test('un projet sans LFS reste consultable pour ses transcriptions', async ({ browser }) => {
     test.skip(!sansLfsConfigure, 'aucun projet sans LFS configuré')
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
@@ -474,18 +636,17 @@ test.describe('Consultation GitLab à deux profils', () => {
     await amorcerConsultation(jeton, projetSansLfs)
     const teteInitiale = await teteBranche(jeton, projetSansLfs)
     const profil = mkdtempSync(join(tmpdir(), 'sonal-gitlab-e2e-sans-lfs-'))
-    const app = await lancerProfil(profil)
+    const shim = intercepterOuvertureUrl()
+    const session = await sessionQualification(browser, Boolean(configuration.ca))
+    const app = await lancerProfil(profil, shim)
 
     try {
-      await consulterDansProfil(
-        await app.firstWindow(),
-        'user1',
-        jeton,
-        projetSansLfs,
-      )
+      await consulterDansProfil(await app.firstWindow(), shim, session, projetSansLfs)
       expect(await teteBranche(jeton, projetSansLfs)).not.toBe(teteInitiale)
     } finally {
       await app.close()
+      await session.fermer().catch(() => undefined)
+      shim.nettoyer()
       rmSync(profil, { recursive: true, force: true })
     }
   })

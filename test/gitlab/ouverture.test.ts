@@ -17,6 +17,10 @@ import {
   type ConfigDestinationGitLab,
 } from '../../src/main/distant/coffre'
 import { ContexteGitLab } from '../../src/main/gitlab/contexte'
+import { ServiceAuthentificationGitLab } from '../../src/main/gitlab/authentification'
+import { InstancesGitLab } from '../../src/main/gitlab/oauth/instances'
+import { ClientGitLab, type AutorisationGitLab } from '../../src/main/gitlab/client'
+import type { CredentialOAuthGitLab } from '../../src/main/gitlab/oauth/credential'
 import {
   ServiceOuvertureGitLab,
   type OptionsServiceOuvertureGitLab,
@@ -37,14 +41,17 @@ const chiffreur: Chiffreur = {
   dechiffre: (secret) => Buffer.from(secret.slice('chiffre:'.length), 'base64').toString(),
 }
 
+const URL_INSTANCE = 'https://gitlab.example.org'
+const COMPTE_ID = idDeCompteGitLab(URL_INSTANCE, 'max')
+
 const demande: DemandeOuvertureGitLab = {
-  urlInstance: 'https://gitlab.example.org',
+  compteId: COMPTE_ID,
+  urlInstance: URL_INSTANCE,
   utilisateur: 'max',
   projetId: 42,
   nomProjet: 'Corpus pilote',
   branche: 'equipe/terrain',
   racine: 'donnees',
-  jeton: 'jeton-saisi',
 }
 const demandeCreation: DemandeCreationGitLab = {
   ...demande,
@@ -70,11 +77,55 @@ function preparationFactice(
 
 function preparerFactice(
   dirProfil: string,
-  observé?: (compte: { utilisateur: string }, destination: ConfigDestinationGitLab, jeton: string) => void,
+  observé?: (
+    compte: { utilisateur: string },
+    destination: ConfigDestinationGitLab,
+    autorisation: AutorisationGitLab,
+  ) => void,
 ): NonNullable<OptionsServiceOuvertureGitLab['preparer']> {
-  return async (compte, destination, jeton) => {
-    observé?.(compte, destination, jeton)
+  return async (compte, destination, autorisation) => {
+    observé?.(compte, destination, autorisation)
     return preparationFactice(destination, dirProfil)
+  }
+}
+
+/** Connexion déjà établie : le compte existe au coffre avec son credential. */
+function connecterCompte(coffre: CoffreComptes, utilisateur = 'max'): string {
+  return coffre.enregistrerCompteGitLab({
+    urlInstance: URL_INSTANCE,
+    utilisateur,
+    credential: credentialOAuth(),
+  }).id
+}
+
+/** Service d'authentification sans connexion possible : seul le client est utile. */
+function authentificationFactice(
+  coffre: CoffreComptes,
+  fetchImpl?: typeof fetch,
+): ServiceAuthentificationGitLab {
+  const instances = new InstancesGitLab(
+    join(mkdtempSync(join(tmpdir(), 'sonal-gitlab-instances-')), 'instances.json'),
+  )
+  // Un renouvellement doit pouvoir s'adresser à l'instance.
+  instances.declarer(URL_INSTANCE, 'client-de-test')
+  return new ServiceAuthentificationGitLab({
+    coffre,
+    instances,
+    ouvrirNavigateur: () => {
+      throw new Error('aucune connexion attendue dans ce test')
+    },
+    ...(fetchImpl ? { fetchImpl } : {}),
+  })
+}
+
+function credentialOAuth(surcharge: Partial<CredentialOAuthGitLab> = {}): CredentialOAuthGitLab {
+  return {
+    accessToken: 'access-oauth',
+    refreshToken: 'refresh-oauth',
+    expiresAt: Date.now() + 3_600_000,
+    scopes: ['api'],
+    rotationneeLe: Date.now(),
+    ...surcharge,
   }
 }
 
@@ -94,6 +145,7 @@ function bancOuverture(
   const installées: { destination: ConfigDestinationGitLab; preparation: PreparationOuvertureGitLab }[] = []
   const service = new ServiceOuvertureGitLab({
     coffre,
+    authentification: authentificationFactice(coffre, options.fetchImpl),
     dirProfil,
     identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
     fermerContexte: async () => {
@@ -112,13 +164,9 @@ function enregistrerDestination(
   coffre: CoffreComptes,
   demandeLocale: DemandeOuvertureGitLab = demande,
 ): ConfigDestinationGitLab {
-  const compte = coffre.enregistrerCompteGitLab({
-    urlInstance: demandeLocale.urlInstance,
-    utilisateur: demandeLocale.utilisateur,
-    jeton: demandeLocale.jeton,
-  })
+  const compteId = connecterCompte(coffre, demandeLocale.utilisateur)
   return coffre.enregistrerDestinationGitLab({
-    compteId: compte.id,
+    compteId,
     projetId: demandeLocale.projetId,
     nomProjet: demandeLocale.nomProjet,
     branche: demandeLocale.branche,
@@ -213,10 +261,10 @@ afterEach(() => {
 describe('ouverture GitLab — orchestration du service', () => {
   test('nouvelle destination : préparation avant coffre, fermeture avant installation', async () => {
     const { service, coffre, dirProfil, traces, installées } = bancOuverture({
-      preparer: async (compte, destination, jeton) => {
+      preparer: async (compte, destination, client) => {
         traces.push('preparer')
         expect(compte.utilisateur).toBe('max')
-        expect(jeton).toBe('jeton-saisi')
+        expect(client).toBeDefined()
         // La destination n'est encore nulle part au moment de la préparation.
         expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
         return preparationFactice(destination, dirProfil)
@@ -228,6 +276,7 @@ describe('ouverture GitLab — orchestration du service', () => {
       },
     })
 
+    connecterCompte(coffre)
     const resultat = await service.enregistrerEtOuvrir(demande)
 
     expect(traces).toEqual(['preparer', 'fermer', 'installer'])
@@ -243,30 +292,27 @@ describe('ouverture GitLab — orchestration du service', () => {
         nomProjet: 'Corpus pilote',
         branche: 'equipe/terrain',
         racine: 'donnees',
-        jetonDisponible: true,
+        connexionDisponible: true,
       },
       verrous: [],
     })
     // Aucun secret ne traverse le résultat public.
-    expect(JSON.stringify(resultat)).not.toContain('jeton-saisi')
+    expect(JSON.stringify(resultat)).not.toContain('access-secret')
   })
 
-  test('destination enregistrée : mêmes identifiants et branche, jeton du coffre transmis', async () => {
+  test('destination enregistrée : mêmes identifiants et branche, client du compte transmis', async () => {
     const observé = vi.fn(async (_compte: { utilisateur: string }, destination: ConfigDestinationGitLab) =>
       preparationFactice(destination, ''))
     const { service, coffre } = bancOuverture({ preparer: observé })
-    const destination = enregistrerDestination(coffre, {
-      ...demande,
-      jeton: 'jeton-du-coffre',
-    })
+    const destination = enregistrerDestination(coffre)
 
     const resultat = await service.ouvrir(destination.id)
 
     expect(observé).toHaveBeenCalledTimes(1)
-    const [compteRecu, destinationRecue, jetonRecu] = observé.mock.calls[0]
+    const [compteRecu, destinationRecue, clientRecu] = observé.mock.calls[0]
     expect(compteRecu.utilisateur).toBe('max')
     expect(destinationRecue).toEqual(destination)
-    expect(jetonRecu).toBe('jeton-du-coffre')
+    expect(clientRecu).toBeInstanceOf(ClientGitLab)
     expect(resultat.distant).toMatchObject({
       id: destination.id,
       branche: destination.branche,
@@ -275,25 +321,30 @@ describe('ouverture GitLab — orchestration du service', () => {
     expect(resultat.corpus.membership).toEqual({})
   })
 
-  test('jeton ressaisi transmis à la préparation puis mémorisé au coffre', async () => {
+  test('un credential périmé est renouvelé avant la préparation', async () => {
     const observé = vi.fn(async (_compte: { utilisateur: string }, destination: ConfigDestinationGitLab) =>
       preparationFactice(destination, ''))
-    const { service, coffre } = bancOuverture({ preparer: observé })
-    const destination = enregistrerDestination(coffre, {
-      ...demande,
-      jeton: 'jeton-du-coffre',
+    const { service, coffre } = bancOuverture({
+      preparer: observé,
+      fetchImpl: vi.fn(async () => new Response(JSON.stringify({
+        access_token: 'access-roté',
+        refresh_token: 'refresh-roté',
+        expires_in: 7200,
+        scope: 'read_api write_repository',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch,
     })
+    const destination = enregistrerDestination(coffre)
+    coffre.memoriserCredentialOAuthGitLab(destination.compteId, credentialOAuth({
+      expiresAt: Date.now() - 1,
+    }))
 
-    await service.ouvrir(destination.id, 'jeton-ressaisi')
-
-    expect(observé.mock.calls[0][2]).toBe('jeton-ressaisi')
-    expect(coffre.jetonGitLab(destination.compteId)).toBe('jeton-ressaisi')
-    // Sans ressaisie, le jeton mémorisé reste celui du coffre.
     await service.ouvrir(destination.id)
-    expect(observé.mock.calls[1][2]).toBe('jeton-ressaisi')
+
+    expect(observé.mock.calls[0][2]).toBeInstanceOf(ClientGitLab)
+    expect(coffre.credentialOAuthGitLab(destination.compteId)?.accessToken).toBe('access-roté')
   })
 
-  test('destination, compte ou jeton absent : refus avant tout effet', async () => {
+  test('destination ou compte absent : refus avant tout effet', async () => {
     const { service, coffre, traces, installées } = bancOuverture({
       preparer: async () => {
         throw new Error('la préparation ne doit pas être appelée')
@@ -307,44 +358,32 @@ describe('ouverture GitLab — orchestration du service', () => {
     await expect(service.ouvrir(destination.id))
       .rejects.toThrow('Compte GitLab inconnu.')
 
-    // Compte présent au coffre mais sans jeton lisible : refus, rien préparé.
-    const compteId = idDeCompteGitLab(demande.urlInstance, demande.utilisateur)
-    const destinationId = idDeDestinationGitLab({
+    // Compte présent au coffre mais sans credential : refus, rien préparé.
+    const dirSansConnexion = mkdtempSync(join(tmpdir(), 'sonal-gitlab-ouverture-'))
+    const coffreSansConnexion = new CoffreComptes(
+      join(dirSansConnexion, 'comptes-distant.json'),
+      chiffreur,
+    )
+    const compteId = coffreSansConnexion.enregistrerCompteGitLab({
+      urlInstance: demande.urlInstance,
+      utilisateur: demande.utilisateur,
+      credential: credentialOAuth(),
+    }).id
+    const destinationSansConnexion = coffreSansConnexion.enregistrerDestinationGitLab({
       compteId,
       projetId: demande.projetId,
+      nomProjet: demande.nomProjet,
       branche: demande.branche,
       racine: demande.racine,
     })
-    const dirSansJeton = mkdtempSync(join(tmpdir(), 'sonal-gitlab-ouverture-'))
-    writeFileSync(join(dirSansJeton, 'comptes-distant.json'), JSON.stringify({
-      formatVersion: 3,
-      comptes: {
-        [compteId]: {
-          fournisseur: 'gitlab',
-          id: compteId,
-          urlInstance: demande.urlInstance,
-          utilisateur: demande.utilisateur,
-        },
-      },
-      destinationsGitLab: {
-        [destinationId]: {
-          fournisseur: 'gitlab',
-          id: destinationId,
-          compteId,
-          projetId: demande.projetId,
-          nomProjet: demande.nomProjet,
-          branche: demande.branche,
-          racine: demande.racine,
-        },
-      },
-    }), 'utf8')
-    const coffreSansJeton = new CoffreComptes(join(dirSansJeton, 'comptes-distant.json'), chiffreur)
+    coffreSansConnexion.oublierCredentialOAuthGitLab(compteId)
     const refus = vi.fn(async () => {
       throw new Error('la préparation ne doit pas être appelée')
     })
-    const serviceSansJeton = new ServiceOuvertureGitLab({
-      coffre: coffreSansJeton,
-      dirProfil: dirSansJeton,
+    const serviceSansConnexion = new ServiceOuvertureGitLab({
+      coffre: coffreSansConnexion,
+      authentification: authentificationFactice(coffreSansConnexion),
+      dirProfil: dirSansConnexion,
       identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
       fermerContexte: async () => {
         throw new Error('la fermeture ne doit pas être appelée')
@@ -354,8 +393,8 @@ describe('ouverture GitLab — orchestration du service', () => {
       },
       preparer: refus,
     })
-    await expect(serviceSansJeton.ouvrir(destinationId))
-      .rejects.toThrow('Saisissez le jeton GitLab pour cette session.')
+    await expect(serviceSansConnexion.ouvrir(destinationSansConnexion.id))
+      .rejects.toThrow('expiré ou a été révoquée')
     expect(refus).not.toHaveBeenCalled()
 
     expect(traces).toEqual([])
@@ -368,23 +407,25 @@ describe('ouverture GitLab — orchestration du service', () => {
         throw new Error('le dépôt ne fournit pas de commit valide')
       },
     })
+    connecterCompte(coffre)
 
     await expect(service.enregistrerEtOuvrir(demande))
       .rejects.toThrow('le dépôt ne fournit pas de commit valide')
 
-    expect(coffre.listerComptesGitLab()).toHaveLength(0)
     expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
     expect(traces).toEqual([])
     expect(installées).toHaveLength(0)
   })
 
-  test('échec d’enregistrement : pas de fermeture ni d’installation, compte seul au coffre', async () => {
+  test('échec d’enregistrement de la destination : pas de fermeture ni d’installation', async () => {
     const { coffre, dirProfil } = bancOuverture()
+    connecterCompte(coffre)
     vi.spyOn(coffre, 'enregistrerDestinationGitLab').mockImplementation(() => {
       throw new Error('coffre indisponible')
     })
     const service = new ServiceOuvertureGitLab({
       coffre,
+      authentification: authentificationFactice(coffre),
       dirProfil,
       identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
       fermerContexte: async () => {
@@ -398,16 +439,18 @@ describe('ouverture GitLab — orchestration du service', () => {
 
     await expect(service.enregistrerEtOuvrir(demande)).rejects.toThrow('coffre indisponible')
 
-    // Effet partiel caractérisé : le compte est enregistré, pas la destination.
+    // Le compte connecté reste, la destination n'est pas enregistrée.
     expect(coffre.listerComptesGitLab()).toHaveLength(1)
     expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
   })
 
   test('fermeture refusée : pas d’installation, erreur remontée, coffre conservé', async () => {
     const { coffre, dirProfil } = bancOuverture()
+    connecterCompte(coffre)
     const installées: unknown[] = []
     const service = new ServiceOuvertureGitLab({
       coffre,
+      authentification: authentificationFactice(coffre),
       dirProfil,
       identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
       fermerContexte: async () => {
@@ -434,6 +477,7 @@ describe('ouverture GitLab — orchestration du service', () => {
     let auPlus = 0
     const service = new ServiceOuvertureGitLab({
       coffre,
+      authentification: authentificationFactice(coffre),
       dirProfil,
       identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
       fermerContexte: async () => {
@@ -490,6 +534,7 @@ describe('ouverture GitLab — création du squelette distant', () => {
       fetchImpl: fetchGitLabFactice(depot),
       preparer: preparerFactice('', observé),
     })
+    connecterCompte(coffre)
 
     const resultat = await service.creerEtOuvrir(demandeCreation)
 
@@ -514,7 +559,7 @@ describe('ouverture GitLab — création du squelette distant', () => {
       fournisseur: 'gitlab',
       branche: 'equipe/terrain',
       racine: 'donnees',
-      jetonDisponible: true,
+      connexionDisponible: true,
     })
   })
 
@@ -525,11 +570,11 @@ describe('ouverture GitLab — création du squelette distant', () => {
       preparer: preparerFactice(''),
     })
 
+    connecterCompte(coffre)
     await expect(service.creerEtOuvrir(demandeCreation))
       .rejects.toThrow('Un corpus existe déjà à cet emplacement GitLab.')
 
     expect(depot.requetes.filter(({ init }) => init?.method === 'POST')).toHaveLength(0)
-    expect(coffre.listerComptesGitLab()).toHaveLength(0)
     expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
     expect(traces).toEqual([])
     expect(installées).toHaveLength(0)
@@ -543,9 +588,9 @@ describe('ouverture GitLab — création du squelette distant', () => {
       preparer: preparerFactice(''),
     })
 
+    connecterCompte(coffre)
     await expect(service.creerEtOuvrir(demandeCreation)).rejects.toThrow()
 
-    expect(coffre.listerComptesGitLab()).toHaveLength(0)
     expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
     expect(traces).toEqual([])
     expect(installées).toHaveLength(0)
@@ -560,13 +605,13 @@ describe('ouverture GitLab — création du squelette distant', () => {
       },
     })
 
+    connecterCompte(coffre)
     await expect(service.creerEtOuvrir(demandeCreation))
       .rejects.toThrow('ouverture interrompue')
 
     // Le squelette publié reste sur le dépôt : un seul commit, aucune compensation.
     const publications = depot.requetes.filter(({ init }) => init?.method === 'POST')
     expect(publications).toHaveLength(1)
-    expect(coffre.listerComptesGitLab()).toHaveLength(0)
     expect(coffre.listerDestinationsGitLab()).toHaveLength(0)
   })
 })
@@ -608,13 +653,16 @@ describe('ouverture GitLab — préparation réelle avec journaux', () => {
     const installées: PreparationOuvertureGitLab[] = []
     const service = new ServiceOuvertureGitLab({
       coffre: banc.coffre,
+      authentification: authentificationFactice(
+        banc.coffre,
+        fetchGitLabFactice(banc.depot),
+      ),
       dirProfil: banc.dirProfil,
       identiteSession: { machineId: 'poste-test', sessionId: 'session-test' },
       fermerContexte: async () => undefined,
       installer: (_destination, preparation) => {
         installées.push(preparation)
       },
-      fetchImpl: fetchGitLabFactice(banc.depot),
     })
     return { service, installées }
   }

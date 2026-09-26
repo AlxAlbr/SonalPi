@@ -1,7 +1,7 @@
 /**
  *  Coffre des accès distants.
- *  Il conserve un mot de passe d'application Nextcloud ou un jeton GitLab.
- *  Les destinations GitLab restent séparées du compte et du secret.
+ *  Il conserve un mot de passe d'application Nextcloud ou un credential OAuth
+ *  GitLab. Les destinations GitLab restent séparées du compte et du secret.
  *
  *  Le secret est chiffré via `safeStorage` d'Electron (clé du trousseau OS).
  *  Sans stockage sécurisé, il reste seulement en mémoire pour la session.
@@ -22,6 +22,10 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
+import {
+  credentialDepuisJson,
+  type CredentialOAuthGitLab,
+} from '../gitlab/oauth/credential'
 
 /** Destination WebDAV historique, qui porte aussi l'identité du compte. */
 export interface ConfigCorpusDistant {
@@ -34,13 +38,22 @@ export interface ConfigCorpusDistant {
   motDePasseChiffre?: string
 }
 
+/** Credential OAuth persisté, toujours chiffré sur disque. */
+export interface CredentialOAuthPersiste {
+  accessTokenChiffre: string
+  refreshTokenChiffre: string
+  expiresAt: number
+  scopes: string[]
+  rotationneeLe: number
+}
+
 /** Compte GitLab réutilisable par plusieurs projets et racines. */
 export interface ConfigCompteGitLab {
   fournisseur: 'gitlab'
   id: string
   urlInstance: string
   utilisateur: string
-  jetonChiffre?: string
+  oauth?: CredentialOAuthPersiste
 }
 
 /** Destination GitLab sans secret, liée à un compte enregistré. */
@@ -69,8 +82,15 @@ interface FichierComptesV2 {
 }
 
 interface FichierComptes {
-  formatVersion: 3
+  formatVersion: 4
   comptes: Record<string, ConfigCompteStocke>
+  destinationsGitLab: Record<string, ConfigDestinationGitLab>
+}
+
+/** Coffre 3 : comptes GitLab porteurs d'un jeton d'accès personnel. */
+interface FichierComptesV3 {
+  formatVersion: 3
+  comptes: Record<string, ConfigCompteStocke & { jetonChiffre?: string }>
   destinationsGitLab: Record<string, ConfigDestinationGitLab>
 }
 
@@ -102,6 +122,7 @@ export interface Chiffreur {
 
 export class CoffreComptes {
   private readonly secretsSession = new Map<string, string>()
+  private readonly credentialsSession = new Map<string, CredentialOAuthGitLab>()
 
   constructor(
     private readonly fichier: string,
@@ -111,7 +132,7 @@ export class CoffreComptes {
 
   private lire(): FichierComptes {
     if (!existsSync(this.fichier)) {
-      return { formatVersion: 3, comptes: {}, destinationsGitLab: {} }
+      return { formatVersion: 4, comptes: {}, destinationsGitLab: {} }
     }
     let lu: unknown
     try {
@@ -122,12 +143,12 @@ export class CoffreComptes {
     if (!lu || typeof lu !== 'object' || Array.isArray(lu)) {
       throw new Error('Le coffre des comptes distants est invalide.')
     }
-    const f = lu as FichierComptes | FichierComptesV2 | FichierComptesV1
+    const f = lu as FichierComptes | FichierComptesV3 | FichierComptesV2 | FichierComptesV1
     if (!f.comptes || typeof f.comptes !== 'object' || Array.isArray(f.comptes)) {
       throw new Error('Le coffre des comptes distants est invalide.')
     }
     const version = Number(f.formatVersion)
-    if (version === 3) {
+    if (version === 4) {
       const courant = f as FichierComptes
       if (
         !courant.destinationsGitLab ||
@@ -138,9 +159,36 @@ export class CoffreComptes {
       }
       return courant
     }
+    if (version === 3) return this.migrerV3(f as FichierComptesV3)
     if (version === 2) return this.migrerV2(f as FichierComptesV2)
     if (version === 1) return this.migrerV1(f as FichierComptesV1)
     throw new Error(`Version de coffre distant non supportée : ${String(version)}`)
+  }
+
+  /**
+   *  Le jeton d'accès personnel disparaît du coffre : le compte garde son
+   *  identité, son credential OAuth s'il en existe un, et toutes ses
+   *  destinations, miroirs et candidats locaux.
+   */
+  private migrerV3(f: FichierComptesV3): FichierComptes {
+    const comptes: Record<string, ConfigCompteStocke> = {}
+    for (const [id, compte] of Object.entries(f.comptes)) {
+      if (compte.fournisseur === 'gitlab') {
+        const { jetonChiffre: _jeton, ...sansJeton } = compte as ConfigCompteGitLab & {
+          jetonChiffre?: string
+        }
+        comptes[id] = sansJeton
+        continue
+      }
+      comptes[id] = compte
+    }
+    const migre: FichierComptes = {
+      formatVersion: 4,
+      comptes,
+      destinationsGitLab: f.destinationsGitLab ?? {},
+    }
+    ecrireJsonAtomique(this.fichier, migre)
+    return migre
   }
 
   private migrerV1(f: FichierComptesV1): FichierComptes {
@@ -164,7 +212,7 @@ export class CoffreComptes {
     }
     this.migrerReferences(migrations)
     const migre: FichierComptes = {
-      formatVersion: 3,
+      formatVersion: 4,
       comptes,
       destinationsGitLab: {},
     }
@@ -180,7 +228,7 @@ export class CoffreComptes {
       }]),
     )
     const migre: FichierComptes = {
-      formatVersion: 3,
+      formatVersion: 4,
       comptes,
       destinationsGitLab: {},
     }
@@ -206,16 +254,13 @@ export class CoffreComptes {
     return this.chiffreur.disponible()
   }
 
-  /** Secret déchiffré — process main uniquement, jamais renvoyé au renderer. */
+  /** Mot de passe applicatif déchiffré — process main uniquement. */
   private secret(id: string): string | null {
     if (this.secretsSession.has(id)) return this.secretsSession.get(id) ?? null
     const compte = this.lire().comptes[id]
-    const chiffre = compte?.fournisseur === 'gitlab'
-      ? compte.jetonChiffre
-      : compte?.motDePasseChiffre
-    if (!chiffre) return null
+    if (compte?.fournisseur !== 'webdav' || !compte.motDePasseChiffre) return null
     try {
-      const clair = this.chiffreur.dechiffre(chiffre)
+      const clair = this.chiffreur.dechiffre(compte.motDePasseChiffre)
       this.secretsSession.set(id, clair)
       return clair
     } catch {
@@ -228,44 +273,75 @@ export class CoffreComptes {
     return compte?.fournisseur === 'webdav' ? this.secret(id) : null
   }
 
-  jetonGitLab(id: string): string | null {
+  /** Credential OAuth du compte, déchiffré — process main uniquement. */
+  credentialOAuthGitLab(id: string): CredentialOAuthGitLab | null {
+    const enSession = this.credentialsSession.get(id)
+    if (enSession) return enSession
     const compte = this.lire().comptes[id]
-    return compte?.fournisseur === 'gitlab' ? this.secret(id) : null
+    if (compte?.fournisseur !== 'gitlab' || !compte.oauth) return null
+    try {
+      const credential = credentialDepuisJson(JSON.stringify({
+        accessToken: this.chiffreur.dechiffre(compte.oauth.accessTokenChiffre),
+        refreshToken: this.chiffreur.dechiffre(compte.oauth.refreshTokenChiffre),
+        expiresAt: compte.oauth.expiresAt,
+        scopes: compte.oauth.scopes,
+        rotationneeLe: compte.oauth.rotationneeLe,
+      }))
+      if (!credential) return null
+      this.credentialsSession.set(id, credential)
+      return credential
+    } catch {
+      return null
+    }
+  }
+
+  /** Enregistre le credential OAuth du compte, en le chiffrant s'il le poste le permet. */
+  memoriserCredentialOAuthGitLab(id: string, credential: CredentialOAuthGitLab): void {
+    const comptes = this.lire()
+    const compte = comptes.comptes[id]
+    if (!compte || compte.fournisseur !== 'gitlab') {
+      throw new Error('Compte GitLab inconnu')
+    }
+    this.credentialsSession.set(id, credential)
+    if (!this.chiffreur.disponible()) return
+    compte.oauth = {
+      accessTokenChiffre: this.chiffreur.chiffre(credential.accessToken),
+      refreshTokenChiffre: this.chiffreur.chiffre(credential.refreshToken),
+      expiresAt: credential.expiresAt,
+      scopes: credential.scopes,
+      rotationneeLe: credential.rotationneeLe,
+    }
+    ecrireJsonAtomique(this.fichier, comptes)
+  }
+
+  /** Retire le credential OAuth ; les destinations et miroirs sont conservés. */
+  oublierCredentialOAuthGitLab(id: string): void {
+    const comptes = this.lire()
+    const compte = comptes.comptes[id]
+    if (!compte || compte.fournisseur !== 'gitlab') return
+    delete compte.oauth
+    this.credentialsSession.delete(id)
+    ecrireJsonAtomique(this.fichier, comptes)
   }
 
   motDePasseDisponible(id: string): boolean {
     return this.motDePasse(id) !== null
   }
 
-  jetonGitLabDisponible(id: string): boolean {
-    return this.jetonGitLab(id) !== null
+  credentialOAuthGitLabDisponible(id: string): boolean {
+    return this.credentialOAuthGitLab(id) !== null
   }
 
   memoriserMotDePasse(id: string, motDePasse: string): void {
-    this.memoriserSecret(id, motDePasse, 'webdav')
-  }
-
-  memoriserJetonGitLab(id: string, jeton: string): void {
-    this.memoriserSecret(id, jeton, 'gitlab')
-  }
-
-  private memoriserSecret(
-    id: string,
-    secret: string,
-    fournisseur: ConfigCompteStocke['fournisseur'],
-  ): void {
     const comptes = this.lire()
     const config = comptes.comptes[id]
-    if (!config || config.fournisseur !== fournisseur) {
+    if (!config || config.fournisseur !== 'webdav') {
       throw new Error('Compte distant inconnu')
     }
-    this.secretsSession.set(id, secret)
-    if (this.chiffreur.disponible()) {
-      const chiffre = this.chiffreur.chiffre(secret)
-      if (config.fournisseur === 'gitlab') config.jetonChiffre = chiffre
-      else config.motDePasseChiffre = chiffre
-      ecrireJsonAtomique(this.fichier, comptes)
-    }
+    this.secretsSession.set(id, motDePasse)
+    if (!this.chiffreur.disponible()) return
+    config.motDePasseChiffre = this.chiffreur.chiffre(motDePasse)
+    ecrireJsonAtomique(this.fichier, comptes)
   }
 
   enregistrer(params: {
@@ -292,15 +368,15 @@ export class CoffreComptes {
     return config
   }
 
+  /** Enregistre un compte GitLab et son credential OAuth, chiffrés s'il le poste le permet. */
   enregistrerCompteGitLab(params: {
     urlInstance: string
     utilisateur: string
-    jeton: string
+    credential: CredentialOAuthGitLab
   }): ConfigCompteGitLab {
     const urlInstance = canoniserUrlInstanceGitLab(params.urlInstance)
     const utilisateur = params.utilisateur.trim()
     if (!utilisateur) throw new Error('Identité GitLab manquante.')
-    if (!params.jeton) throw new Error('Jeton GitLab manquant.')
     const id = idDeCompteGitLab(urlInstance, utilisateur)
     const fichier = this.lire()
     const config: ConfigCompteGitLab = {
@@ -309,13 +385,23 @@ export class CoffreComptes {
       urlInstance,
       utilisateur,
       ...(this.chiffreur.disponible()
-        ? { jetonChiffre: this.chiffreur.chiffre(params.jeton) }
+        ? { oauth: this.persisterCredential(params.credential) }
         : {}),
     }
-    this.secretsSession.set(id, params.jeton)
+    this.credentialsSession.set(id, params.credential)
     fichier.comptes[id] = config
     ecrireJsonAtomique(this.fichier, fichier)
     return config
+  }
+
+  private persisterCredential(credential: CredentialOAuthGitLab): CredentialOAuthPersiste {
+    return {
+      accessTokenChiffre: this.chiffreur.chiffre(credential.accessToken),
+      refreshTokenChiffre: this.chiffreur.chiffre(credential.refreshToken),
+      expiresAt: credential.expiresAt,
+      scopes: credential.scopes,
+      rotationneeLe: credential.rotationneeLe,
+    }
   }
 
   enregistrerDestinationGitLab(params: {
@@ -363,9 +449,11 @@ export class CoffreComptes {
     const stockageSecurise = this.chiffreur.disponible()
     let modifie = false
     for (const config of Object.values(comptes.comptes)) {
-      const chiffre = config.fournisseur === 'gitlab'
-        ? config.jetonChiffre
-        : config.motDePasseChiffre
+      if (config.fournisseur === 'gitlab') {
+        if (this.assainirCredentialPersiste(config, stockageSecurise)) modifie = true
+        continue
+      }
+      const chiffre = config.motDePasseChiffre
       if (!chiffre) continue
       const obfusque = chiffre.startsWith('b64:')
       if (!obfusque && stockageSecurise) continue
@@ -373,19 +461,14 @@ export class CoffreComptes {
         const clair = this.chiffreur.dechiffre(chiffre)
         this.secretsSession.set(config.id, clair)
         if (stockageSecurise) {
-          const rechiffre = this.chiffreur.chiffre(clair)
-          if (config.fournisseur === 'gitlab') config.jetonChiffre = rechiffre
-          else config.motDePasseChiffre = rechiffre
-        } else if (config.fournisseur === 'gitlab') {
-          delete config.jetonChiffre
+          config.motDePasseChiffre = this.chiffreur.chiffre(clair)
         } else {
           delete config.motDePasseChiffre
         }
         modifie = true
       } catch {
         if (obfusque) {
-          if (config.fournisseur === 'gitlab') delete config.jetonChiffre
-          else delete config.motDePasseChiffre
+          delete config.motDePasseChiffre
           modifie = true
         }
       }
@@ -393,10 +476,55 @@ export class CoffreComptes {
     if (modifie) ecrireJsonAtomique(this.fichier, comptes)
   }
 
+  /** Même traitement pour un credential OAuth : rien de lisible ne subsiste
+   *  hors du trousseau OS, et un secret illisible est retiré. */
+  private assainirCredentialPersiste(
+    compte: ConfigCompteGitLab,
+    stockageSecurise: boolean,
+  ): boolean {
+    const oauth = compte.oauth
+    if (!oauth) return false
+    const obfusque = oauth.accessTokenChiffre.startsWith('b64:')
+    if (!obfusque && stockageSecurise) return false
+    try {
+      const credential = credentialDepuisJson(JSON.stringify({
+        accessToken: this.chiffreur.dechiffre(oauth.accessTokenChiffre),
+        refreshToken: this.chiffreur.dechiffre(oauth.refreshTokenChiffre),
+        expiresAt: oauth.expiresAt,
+        scopes: oauth.scopes,
+        rotationneeLe: oauth.rotationneeLe,
+      }))
+      if (!credential) {
+        delete compte.oauth
+        return true
+      }
+      this.credentialsSession.set(compte.id, credential)
+      if (!stockageSecurise) {
+        delete compte.oauth
+        return true
+      }
+      compte.oauth = {
+        accessTokenChiffre: this.chiffreur.chiffre(credential.accessToken),
+        refreshTokenChiffre: this.chiffreur.chiffre(credential.refreshToken),
+        expiresAt: credential.expiresAt,
+        scopes: credential.scopes,
+        rotationneeLe: credential.rotationneeLe,
+      }
+      return true
+    } catch {
+      if (obfusque) {
+        delete compte.oauth
+        return true
+      }
+      return false
+    }
+  }
+
   oublier(id: string): void {
     const comptes = this.lire()
     delete comptes.comptes[id]
     this.secretsSession.delete(id)
+    this.credentialsSession.delete(id)
     ecrireJsonAtomique(this.fichier, comptes)
   }
 

@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import {
+  autorisationOAuth,
   ClientGitLab,
   ErreurGitLab,
   type ConfigurationClientGitLab,
@@ -35,7 +36,7 @@ function clientAvec(
     client: new ClientGitLab({
       urlInstance: 'https://gitlab.example.org/instance/',
       projetId: 42,
-      jeton: TOKEN,
+      autorisation: autorisationOAuth(TOKEN),
       ...configuration,
     }, fetchImpl),
     requetes,
@@ -108,7 +109,7 @@ describe('lecture GitLab à commit fixé', () => {
       expect(requete.url.searchParams.get('recursive')).toBe('false')
     }
     expect(requetes.every((requete) => !requete.url.toString().includes(TOKEN))).toBe(true)
-    expect(new Headers(requetes[0].init?.headers).get('PRIVATE-TOKEN')).toBe(TOKEN)
+    expect(new Headers(requetes[0].init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`)
   })
 
   test('lit le texte brut au commit fixé sans suivre la branche', async () => {
@@ -159,9 +160,34 @@ describe('lecture GitLab à commit fixé', () => {
     const erreur = await lecteur.lireTexte('corpus.json').catch((cause) => cause)
     expect(erreur).toBeInstanceOf(ErreurGitLab)
     expect(erreur.statut).toBe(403)
-    expect(erreur.message).toContain('droits')
+    // 401 et 403 ne se confondent pas : le premier demande un renouvellement.
+    expect(erreur.nature).toBe('acces')
     expect(erreur.message).not.toContain(TOKEN)
     expect(erreur.message).not.toContain('accès refusé')
+
+    const { client: clientExpire } = clientAvec(() => new Response(null, { status: 401 }))
+    await expect(clientExpire.lireTexte('/lecture')).rejects.toMatchObject({
+      statut: 401,
+      message: expect.stringContaining('expiré ou a été révoquée'),
+    })
+  })
+
+  test('conserve le header du jeton d’accès personnel pendant la transition', async () => {
+    const requetes: { init?: RequestInit }[] = []
+    const fetchImpl = vi.fn(async (_entree: string | URL | Request, init?: RequestInit) => {
+      requetes.push({ init })
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }) as typeof fetch
+    const client = new ClientGitLab({
+      urlInstance: 'https://gitlab.example.org',
+      autorisation: { type: 'jeton-prive', jeton: TOKEN },
+    }, fetchImpl)
+
+    await client.lireJson('/projets')
+
+    const entetes = new Headers(requetes[0].init?.headers)
+    expect(entetes.get('PRIVATE-TOKEN')).toBe(TOKEN)
+    expect(entetes.get('Authorization')).toBeNull()
   })
 
   test('ne confond pas une ressource absente avec un projet vide', async () => {

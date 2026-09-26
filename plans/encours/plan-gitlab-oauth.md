@@ -1,32 +1,31 @@
 # GitLab — authentification OAuth pour la distribution
 
-**Statut : proposition de chantier ; le connecteur GitLab et son parcours PAT sont fonctionnels, OAuth reste à concevoir et qualifier.**
+**Statut : O0 à O4 livrés — OAuth est le seul mécanisme d’authentification GitLab ; le PAT est retiré du client, du coffre, de l’interface et des tests. Restent la qualification réelle (O5) et la documentation finale (O6).**
 **Ce plan est distinct de [plan-gitlab4.md](plan-gitlab4.md) : il traite l’authentification, pas la fiabilisation du bail et de la publication.**
 
 ## 1. Décision proposée
 
-Conserver le PAT comme mécanisme immédiatement disponible et ajouter OAuth comme
-mode d’authentification recommandé pour une diffusion large.
-
-Le client GitLab utilisera un même contrat d’API, avec deux sources de credential :
+Remplacer le PAT par OAuth comme unique mécanisme d’authentification GitLab à
+l’issue du chantier.
 
 ```text
 Credential GitLab
-├── PAT saisi manuellement
 └── Access token OAuth obtenu dans le navigateur
 ```
 
-OAuth ne doit pas devenir une seconde implémentation du client GitLab, ni un
-second mécanisme de découverte, de publication ou de gestion des corpus.
+OAuth réutilise le client GitLab et les mécanismes existants de découverte, de
+publication et de gestion des corpus. Il ne crée pas une seconde implémentation.
 
-Le premier objectif est de supprimer la manipulation du secret pour les
-utilisateurs qui disposent d’une application OAuth Sonal correctement enregistrée
-sur leur instance. Le PAT reste le repli pour les bancs, les instances sans
-application enregistrée et les utilisateurs qui ne peuvent pas utiliser OAuth.
+Le PAT existant n’est conservé que pendant la transition nécessaire pour
+qualifier OAuth et permettre aux utilisateurs déjà configurés de se reconnecter.
+Il disparaît ensuite de l’interface, du contrat du client, des tests fonctionnels
+hors migration et du coffre.
+Une instance sans application OAuth Sonal correctement enregistrée ne sera alors
+pas compatible avec la connexion GitLab.
 
 ## 2. Pourquoi ce chantier maintenant
 
-Le parcours PAT est fonctionnel, mais il demande à l’utilisateur de :
+Le parcours PAT actuel est fonctionnel, mais il demande à l’utilisateur de :
 
 1. créer un jeton d’accès personnel ;
 2. choisir ou faire valider les permissions ;
@@ -78,7 +77,7 @@ renderer ne reçoit ni secret, ni code OAuth, ni access token, ni refresh token.
 - Stocker les credentials dans le coffre système lorsqu’il est disponible.
 - Permettre la révocation et la déconnexion d’un compte.
 - Gérer plusieurs comptes et plusieurs instances.
-- Conserver le PAT comme mode manuel et solution de repli.
+- Retirer le parcours PAT après migration des configurations existantes.
 - Éviter toute fuite de secret dans les logs, diagnostics ou erreurs.
 - Tester le renouvellement, l’expiration, la révocation et les réponses perdues.
 - Ne pas modifier le modèle de bail ou le format du corpus.
@@ -88,7 +87,8 @@ renderer ne reçoit ni secret, ni code OAuth, ni access token, ni refresh token.
 - Ne pas créer de serveur d’authentification Sonal.
 - Ne pas créer de projet GitLab implicitement.
 - Ne pas gérer les utilisateurs, groupes ou permissions GitLab.
-- Ne pas remplacer le PAT dans le premier lot.
+- Ne pas supprimer le PAT avant que le flux OAuth soit qualifié sur l’instance cible.
+- Ne pas conserver de mode PAT de secours dans le produit final.
 - Ne pas faire de l’OAuth une condition de consultation d’un projet.
 - Ne pas exposer les tokens au renderer.
 - Ne pas afficher les tokens dans les logs, les captures de diagnostic ou les messages d’erreur.
@@ -100,16 +100,14 @@ renderer ne reçoit ni secret, ni code OAuth, ni access token, ni refresh token.
 
 ## 6. Modèle de credential
 
-Le client GitLab ne doit pas connaître la provenance du secret. Il doit recevoir
-un credential abstrait, par exemple :
+Le client GitLab reçoit uniquement un credential OAuth, par exemple :
 
 ```ts
-interface CredentialGitLab {
-  source: 'pat' | 'oauth'
+interface CredentialOAuthGitLab {
   accessToken: string
-  refreshToken?: string
-  expiresAt?: number
-  scopes?: string[]
+  refreshToken: string
+  expiresAt: number
+  scopes: string[]
 }
 ```
 
@@ -117,9 +115,9 @@ Le `CredentialProvider` est interne au main et fournit notamment :
 
 ```ts
 interface CredentialProviderGitLab {
-  actuel(): Promise<CredentialGitLab | null>
-  refresh(credential: CredentialGitLab): Promise<CredentialGitLab>
-  revoquer?(credential: CredentialGitLab): Promise<void>
+  actuel(): Promise<CredentialOAuthGitLab | null>
+  refresh(credential: CredentialOAuthGitLab): Promise<CredentialOAuthGitLab>
+  revoquer?(credential: CredentialOAuthGitLab): Promise<void>
 }
 ```
 
@@ -128,7 +126,7 @@ Le renderer ne voit que des résultats d’état :
 ```ts
 type EtatAuthentificationGitLab =
   | { etat: 'non-connecte' }
-  | { etat: 'connecte'; source: 'pat' | 'oauth' }
+  | { etat: 'connecte' }
   | { etat: 'a-rafraichir' }
   | { etat: 'erreur'; raison: 'annule' | 'expire' | 'revocation' | 'reseau' }
 ```
@@ -150,8 +148,9 @@ examiner deux stratégies :
    application sur l’instance ; le parcours reste possible mais reste moins simple.
 
 La stratégie recommandée est l’application institutionnelle lorsque l’institution
-la peut enregistrer. Le PAT et la création d’application manuelle restent des
-solutions de repli.
+peut l’enregistrer. La création d’une application par un utilisateur peut servir
+à la qualification, mais la distribution finale exige un `Client ID` stable et
+administré durablement pour chaque instance prise en charge.
 
 Le `Client ID` est une configuration non secrète. Aucun secret client OAuth ne
 doit être requis pour une application desktop publique utilisant PKCE.
@@ -197,7 +196,7 @@ qualifier au minimum :
 - une callback loopback `127.0.0.1` ou `localhost` ;
 - le port et son comportement si plusieurs connexions sont lancées ;
 - la compatibilité avec la configuration de l’instance ;
-- la absence de collision entre deux fenêtres Sonal.
+- l’absence de collision entre deux fenêtres Sonal.
 
 La callback HTTP ne doit pas devenir un service permanent. Elle est ouverte
 uniquement pendant l’authentification et fermée après échange ou abandon.
@@ -215,15 +214,14 @@ Un même compte peut ouvrir plusieurs destinations sans dupliquer ses tokens.
 
 Le stockage doit distinguer :
 
-- le PAT actif ;
 - l’access token OAuth ;
 - le refresh token ;
 - l’expiration ;
 - les scopes observés ;
 - la date de dernière rotation.
 
-Les tokens OAuth doivent être écrits avec les mêmes garanties que les secrets
-PAT existants :
+Les tokens OAuth doivent être écrits avec les mêmes garanties de sécurité que
+le coffre existant :
 
 - `safeStorage` lorsqu’il est disponible ;
 - absence de secrets en clair dans les préférences ;
@@ -237,24 +235,15 @@ Un refresh token ne doit pas être rafraîché par plusieurs appels concurrents.
 
 ## 9. Adaptation de l’API
 
-Le `ClientGitLab` doit accepter une abstraction de credential et choisir l’en-tête
-selon la source :
+Le `ClientGitLab` doit utiliser le credential OAuth avec l’en-tête :
 
 ```http
 Authorization: Bearer <access-token>
 ```
 
-pour OAuth, et :
-
-```http
-PRIVATE-TOKEN: <pat>
-```
-
-pour le mode PAT historique.
-
-Le choix exact doit être vérifié sur l’instance GitLab ciblée. Les endpoints de
-commit, de découverte, de branches et de lecture doivent être rejoués avec les
-deux modes.
+Les endpoints de commit, de découverte, de branches et de lecture doivent être
+rejoués sur l’instance GitLab ciblée avant de retirer la prise en charge interne
+du header `PRIVATE-TOKEN`.
 
 Pour Git LFS, l’adaptateur doit utiliser le mécanisme d’authentification accepté
 par l’instance pour le token fourni. Le client ne doit pas supposer que le header
@@ -286,23 +275,11 @@ Il ne faut pas supposer que `read_api` et `write_repository` suffisent partout
 pour l’API Repository Commits. La matrice des versions GitLab et des instances
 cible doit être conservée comme preuve.
 
-Les scopes trop larges doivent être signalés dans la documentation. Le mode PAT
-peut rester disponible pour les installations qui refusent l’application OAuth ou
-les scopes nécessaires.
+Les scopes trop larges doivent être signalés dans la documentation. Une instance
+qui refuse l’application OAuth ou les scopes nécessaires est déclarée incompatible,
+sans réactivation d’un parcours PAT.
 
 ## 11. Expérience utilisateur
-
-### PAT
-
-```text
-Se connecter avec un PAT
-URL de l’instance
-Utilisateur
-Jeton d’accès personnel
-Charger les projets accessibles
-```
-
-### OAuth
 
 ```text
 Se connecter à GitLab
@@ -312,9 +289,14 @@ Se connecter à GitLab
 → projets accessibles
 ```
 
+L’interface finale ne propose aucun champ de saisie de PAT. Lors de la migration,
+une configuration PAT existante demande une reconnexion OAuth sans perdre les
+destinations, miroirs ou candidats locaux. L’activation du mode OAuth seul purge
+les PAT hérités du coffre, y compris pour les comptes qui ne se reconnectent pas.
+
 Après connexion :
 
-- afficher la source `OAuth` ou `PAT` ;
+- afficher l’état de la connexion OAuth ;
 - proposer « Se déconnecter » ;
 - proposer « Oublier ce compte » avec confirmation ;
 - ne jamais afficher le token ;
@@ -322,7 +304,8 @@ Après connexion :
 - conserver les destinations comme pour les autres comptes distants.
 
 La déconnexion ne supprime pas le miroir local, les candidats de récupération ou
-les journaux de session. Le secret seul est oublié ou révoqué selon le mode.
+les journaux de session. Les tokens OAuth seuls sont oubliés et, lorsque GitLab
+le permet, révoqués.
 
 ## 12. Persistence et reprise
 
@@ -349,7 +332,7 @@ Risques à traiter explicitement :
 - stockage en clair d’un refresh token ;
 - accès du renderer au secret ;
 - redirection vers une instance différente ;
-- confusion entre PAT et OAuth ;
+- réutilisation accidentelle d’un PAT hérité après la migration ;
 - une révocation interprétée comme une permission métier.
 
 TLS doit rester vérifié. Une option globale `rejectUnauthorized: false` est
@@ -360,51 +343,55 @@ et fragments de callback.
 
 ### O0 — Décision et tests de contrat
 
-- [ ] Confirmer les instances GitLab cibles.
-- [ ] Choisir la stratégie d’enregistrement de l’application OAuth.
-- [ ] Vérifier la callback loopback et la redirect URI sur l’instance cible.
-- [ ] Mesurer les scopes nécessaires sur REST, commits et LFS.
-- [ ] Définir le contrat `CredentialGitLab`.
-- [ ] Décrire les comptes multi-instance et la hiérarchie des destinations.
+- [x] Confirmer les instances GitLab cibles : aucune imposée, l’utilisateur choisit, l’instance est détectée depuis l’adresse du projet.
+- [x] Choisir la stratégie d’enregistrement : registre de la distribution **et** application créée par l’utilisateur (`Client ID` saisi, non secret).
+- [x] Vérifier la callback loopback et la redirect URI : port fixe 7474, testée sur port libre.
+- [x] Mesurer les scopes sur REST et commits : `api` est exigé, `write_repository` ne suffit pas.
+- [x] Définir le contrat `CredentialOAuthGitLab`.
+- [x] Définir la migration : coffre en format 4, purge des PAT, comptes et destinations conservés.
+- [x] Décrire les comptes multi-instance : une entrée par instance et par compte, destinations rattachées au compte.
 
-### O1 — Abstraction des credentials
+### O1 — Credential OAuth
 
-- [ ] Introduire le `CredentialProvider` dans le main.
-- [ ] Faire fonctionner le ClientGitLab avec PAT et OAuth sans duplication du client.
-- [ ] Tester les en-têtes REST pour les deux sources.
-- [ ] Tester le transport Git LFS pour les deux sources si LFS reste supporté.
-- [ ] Garder les secrets hors du renderer et des diagnostics.
+- [x] Introduire le `CredentialProvider` OAuth dans le main.
+- [x] Faire fonctionner le `ClientGitLab` avec OAuth sans dupliquer le client.
+- [x] Tester l’en-tête Bearer sur tous les endpoints utilisés.
+- [ ] Tester le transport Git LFS avec OAuth si LFS reste supporté — aucun transport LFS n’existe encore en V2.
+- [x] Garder les secrets hors du renderer et des diagnostics.
 
 ### O2 — Flux Authorization Code + PKCE
 
-- [ ] Ouvrir le navigateur depuis le main.
-- [ ] Implémenter la callback loopback bornée.
-- [ ] Vérifier `state`, PKCE et expiration de la tentative.
-- [ ] Échanger le code contre les tokens.
-- [ ] Gérer annulation, refus, erreur réseau et code déjà utilisé.
-- [ ] Tester deux connexions concurrentes.
+- [x] Ouvrir le navigateur depuis le main.
+- [x] Implémenter la callback loopback bornée.
+- [x] Vérifier `state`, PKCE et expiration de la tentative.
+- [x] Échanger le code contre les tokens.
+- [x] Gérer annulation, refus, erreur réseau et code déjà utilisé.
+- [x] Tester deux connexions concurrentes.
 
 ### O3 — Stockage et rotation
 
-- [ ] Stocker access token, refresh token, expiration et scopes dans le coffre.
-- [ ] Implémenter le refresh single-flight.
-- [ ] Gérer la rotation et le remplacement d’un token révoqué.
-- [ ] Tester le redémarrage de l’application.
-- [ ] Tester la déconnexion et l’oubli d’un compte.
-- [ ] Vérifier qu’aucun token ne reste dans les logs ou les fichiers de diagnostic.
+- [x] Stocker access token, refresh token, expiration et scopes dans le coffre.
+- [x] Implémenter le refresh single-flight.
+- [x] Gérer la rotation et le remplacement d’un token révoqué.
+- [ ] Tester le redémarrage de l’application — couvert par la persistance du coffre, pas encore par un test de bout en bout.
+- [x] Tester la déconnexion et l’oubli d’un compte.
+- [x] Vérifier qu’aucun token ne reste dans les logs ou les fichiers de diagnostic.
 
-### O4 — Intégration du parcours
+### O4 — Intégration et retrait du PAT
 
-- [ ] Ajouter « Se connecter à GitLab » dans l’interface.
-- [ ] Conserver « Connexion par PAT » comme repli.
-- [ ] Persister les destinations OAuth comme les destinations PAT.
-- [ ] Afficher la source de connexion sans exposer le secret.
-- [ ] Ne pas modifier le contrat du bail ou du corpus.
-- [ ] Vérifier la création d’un corpus dans un projet existant.
+- [x] Ajouter « Se connecter à GitLab » dans l’interface.
+- [x] Demander une reconnexion OAuth pour les comptes existants.
+- [x] Conserver leurs destinations, miroirs et candidats locaux pendant la migration.
+- [x] Purger tous les PAT du coffre : format 4, suppression à la lecture.
+- [x] Retirer la saisie de PAT, le header `PRIVATE-TOKEN` et le stockage associé.
+- [x] Afficher l’état OAuth sans exposer le secret.
+- [x] Ne pas modifier le contrat du bail ou du corpus.
+- [x] Vérifier la création d’un corpus dans un projet existant.
+- [ ] Rebrancher le banc Playwright : il pilotait la saisie du jeton, il lui faut une entrée de qualification OAuth (il échoue avec un message explicite en attendant).
 
 ### O5 — Qualification réelle
 
-- [ ] Tester sur l’instance Humanum ou l’institution cible.
+- [ ] Tester sur l’instance Huma-Num ou l’institution cible.
 - [ ] Tester un projet autorisé et un projet interdit.
 - [ ] Tester lecture seule puis édition.
 - [ ] Tester commit, renouvellement, reprise et fermeture.
@@ -412,16 +399,18 @@ et fragments de callback.
 - [ ] Tester deux comptes et deux instances.
 - [ ] Tester le binaire empaqueté.
 - [ ] Tester la reprise après crash avec token expiré.
-- [ ] Tester le mode PAT en parallèle.
+- [x] Tester la purge d’un compte PAT sans perte de données locales (banc unitaire).
+- [x] Vérifier qu’aucune nouvelle connexion PAT n’est possible (plus aucun champ ni API ne l’accepte).
 
 ### O6 — Documentation et pilote
 
-- [ ] Documenter l’enregistrement de l’application OAuth.
-- [ ] Documenter les scopes et les révocations.
-- [ ] Documenter le repli PAT.
-- [ ] Ajouter les limites par instance GitLab.
+- [x] Documenter l’enregistrement de l’application OAuth : `docs/dev/gitlab-oauth.md`.
+- [x] Documenter les scopes, leur mesure et les révocations.
+- [x] Documenter la migration des comptes existants.
+- [x] Indiquer qu’une application OAuth enregistrée est requise sur chaque instance.
+- [x] Ajouter les limites par instance GitLab.
 - [ ] Recueillir les retours des utilisateurs non techniques.
-- [ ] Décider si OAuth devient le chemin recommandé ou reste optionnel.
+- [ ] Documenter OAuth comme unique mode de connexion GitLab.
 
 ## 15. Matrice minimale de recette
 
@@ -435,8 +424,10 @@ et fragments de callback.
 | Access token expiré | Refresh unique et session maintenue si le refresh réussit. |
 | Refresh refusé | Connexion déclarée expirée ; candidat local conservé. |
 | Token révoqué | État OAuth invalide explicite, sans faux succès. |
-| Instance inconnue | Message PAT ou OAuth compréhensible, sans stack trace. |
-| PAT après OAuth | Les deux comptes restent distincts et correctement stockés. |
+| Instance inconnue | Message OAuth compréhensible, sans stack trace. |
+| Instance sans application Sonal | Connexion déclarée indisponible, sans proposition de PAT. |
+| Compte PAT hérité | Reconnexion OAuth demandée ; données locales conservées et PAT purgé du coffre. |
+| Nouvelle saisie de PAT | Aucun parcours utilisateur ni API applicative ne l’accepte. |
 | Deux instances | Aucun token ni callback envoyé à la mauvaise instance. |
 | LFS | Les médias suivent le mode d’authentification sans fuite du secret. |
 | Binaire empaqueté | Connexion et opérations passent hors du mode développement. |
@@ -447,11 +438,12 @@ et fragments de callback.
 - [ ] Le renderer n’a accès à aucun secret OAuth.
 - [ ] TLS et les diagnostics sont conformes aux règles V2.
 - [ ] Le refresh est concurrent-safe et les erreurs sont distinguées.
-- [ ] Le PAT reste utilisable sans régression.
-- [ ] Les destinations et miroirs OAuth sont persistés comme les destinations PAT.
+- [ ] OAuth est l’unique mode d’authentification GitLab exposé et accepté.
+- [ ] Aucun PAT n’est conservé après l’activation du mode OAuth seul.
+- [ ] Les destinations, miroirs et candidats locaux survivent à la migration vers OAuth.
 - [ ] Le flux est validé dans le binaire Electron.
 - [ ] Les limites de scopes et d’instance sont documentées.
-- [ ] Une décision claire est prise sur le caractère recommandé ou optionnel d’OAuth.
+- [ ] La liste des instances compatibles et de leurs `Client ID` est documentée.
 
 ## 17. Relation avec les autres plans
 

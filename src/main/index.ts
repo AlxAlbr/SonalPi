@@ -31,11 +31,14 @@ import {
 import { poserValeurLotLocal, appliquerRegleLotLocal } from './distant/transactions'
 import { preparerContexteNextcloud, ContexteCorpusDistant } from './distant/contexte'
 import { ContexteGitLab } from './gitlab/contexte'
+import { ServiceAuthentificationGitLab } from './gitlab/authentification'
+import { InstancesGitLab } from './gitlab/oauth/instances'
 import {
   destinationGitLabPublique,
   ServiceOuvertureGitLab,
 } from './gitlab/ouverture'
 import { preparerProjetGitLab } from './gitlab/preparationProjet'
+import { detecterInstanceGitLab } from './gitlab/detectionInstance'
 import { INTERVALLE_VERIFICATION_GITLAB_MS } from './gitlab/parametresSession'
 import { decoderCrp } from './encodage'
 import { analyserCrp } from '../shared/corpus/migrationCrp'
@@ -369,6 +372,13 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // Le secret vit dans safeStorage, ou seulement en mémoire sans trousseau OS.
   // Il ne remonte jamais du main vers le renderer.
   const coffre = coffreReel(app.getPath('userData'))
+  // Authentification GitLab : propriétaire unique des credentials. Le renderer
+  // ne voit que des états, et le navigateur du poste porte l'URL d'autorisation.
+  const authentificationGitLab = new ServiceAuthentificationGitLab({
+    coffre,
+    instances: new InstancesGitLab(join(app.getPath('userData'), 'instances-gitlab.json')),
+    ouvrirNavigateur: (url) => shell.openExternal(url),
+  })
   // Le contexte assemble un seul miroir avec ses sessions, transactions et présence.
   // Il n'est remplacé qu'après fermeture réussie de l'ancien.
   type ContexteDistantActif = ContexteCorpusDistant | ContexteGitLab
@@ -1388,7 +1398,11 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   const listerDestinationsGitLabPubliques = (): DestinationGitLabPublic[] =>
     coffre.listerDestinationsGitLab()
-      .map((destination) => destinationGitLabPublique(coffre, destination))
+      .map((destination) => destinationGitLabPublique(
+        coffre,
+        destination,
+        (compteId) => authentificationGitLab.aConnecte(compteId),
+      ))
       .filter((destination): destination is DestinationGitLabPublic => destination !== null)
 
   /** Nettoyage best effort après refus de création : supprime la FEUILLE que nous venons de créer.
@@ -1406,9 +1420,25 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   ipcMain.handle('webdav:lister', () => coffre.lister().map(sansSecret))
   ipcMain.handle('gitlab:lister', listerDestinationsGitLabPubliques)
+  ipcMain.handle('gitlab:detecterInstance', (_e, urlProjet: string) =>
+    detecterInstanceGitLab(urlProjet))
+  ipcMain.handle('gitlab:etat', (_e, urlInstance: string) =>
+    authentificationGitLab.etat(urlInstance))
+  ipcMain.handle('gitlab:connecter', (_e, urlInstance: string, clientId?: string) =>
+    authentificationGitLab.connecter(urlInstance, clientId))
+  ipcMain.handle(
+    'gitlab:deconnecter',
+    (_e, urlInstance: string, utilisateur: string) =>
+      authentificationGitLab.deconnecter(urlInstance, utilisateur),
+  )
+  ipcMain.handle('gitlab:oublierCompte', (_e, urlInstance: string, utilisateur: string) => {
+    authentificationGitLab.oublierCompte(urlInstance, utilisateur)
+    return listerDestinationsGitLabPubliques()
+  })
   ipcMain.handle(
     'gitlab:preparerProjet',
-    (_e, demande: DemandePreparationProjetGitLab) => preparerProjetGitLab(demande),
+    (_e, demande: DemandePreparationProjetGitLab) =>
+      preparerProjetGitLab(demande, authentificationGitLab),
   )
   ipcMain.handle('distant:stockageSecuriseDisponible', () =>
     coffre.stockageSecuriseDisponible(),
@@ -1563,6 +1593,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   // de transitions, propriétaire unique de la sérialisation des bascules.
   const ouvertureGitLab = new ServiceOuvertureGitLab({
     coffre,
+    authentification: authentificationGitLab,
     dirProfil: app.getPath('userData'),
     identiteSession: { machineId, sessionId: SESSION_ID },
     fermerContexte: fermerContexteActuel,
@@ -1585,7 +1616,7 @@ function enregistrerIpcCorpus(): () => Promise<void> {
 
   ipcMain.handle(
     'gitlab:ouvrir',
-    (_e, id: string, jetonSaisi?: string) => transitionner(() => ouvertureGitLab.ouvrir(id, jetonSaisi)),
+    (_e, id: string) => transitionner(() => ouvertureGitLab.ouvrir(id)),
   )
 
   ipcMain.handle('gitlab:oublierDestination', (_e, id: string) =>

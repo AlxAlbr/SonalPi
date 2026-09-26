@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import {
+  autorisationOAuth,
   ClientGitLab,
   ErreurEcritureGitLab,
   type ConfigurationClientGitLab,
@@ -26,7 +27,7 @@ function clientAvec(
     client: new ClientGitLab({
       urlInstance: 'https://gitlab.example.org/instance/',
       projetId: 42,
-      jeton: TOKEN,
+      autorisation: autorisationOAuth(TOKEN),
       ...configuration,
     }, fetchImpl),
     requetes,
@@ -57,7 +58,7 @@ describe('écriture GitLab', () => {
     expect(requetes[0].init?.redirect).toBe('error')
     expect(requetes[0].init?.body).toBe(JSON.stringify(corps))
     const entetes = new Headers(requetes[0].init?.headers)
-    expect(entetes.get('PRIVATE-TOKEN')).toBe(TOKEN)
+    expect(entetes.get('Authorization')).toBe(`Bearer ${TOKEN}`)
     expect(entetes.get('Content-Type')).toBe('application/json')
   })
 

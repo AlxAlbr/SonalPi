@@ -55,7 +55,7 @@ async function ouvrirRecentEntree(entree: EntreeRecent): Promise<void> {
       if (entree.fournisseur === 'gitlab') {
         const destination = (await window.sonal.gitlab.lister())
           .find((candidate) => candidate.id === entree.id)
-        if (destination && !destination.jetonDisponible) {
+        if (destination && !destination.connexionDisponible) {
           modaleDistantFournisseur.value = 'gitlab'
           modaleDistant.value = true
           return

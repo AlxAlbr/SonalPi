@@ -53,7 +53,7 @@ describe('assemblage de session GitLab', () => {
     const client = new ClientGitLab({
       urlInstance: 'https://gitlab.example.org',
       projetId: 42,
-      jeton: 'secret',
+      autorisation: { type: 'jeton-prive', jeton: 'secret' },
     }, fetchImpl)
     const dirJournal = join(racine, 'operations')
 

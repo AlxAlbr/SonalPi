@@ -247,10 +247,10 @@ export function useCycleCorpus(deps: {
     )
   }
 
-  async function ouvrirDestinationGitLab(id: string, jeton?: string): Promise<void> {
+  async function ouvrirDestinationGitLab(id: string): Promise<void> {
     await preparerBascule()
     await appliquerOuvertureDistante(
-      await window.sonal.gitlab.ouvrir(id, jeton),
+      await window.sonal.gitlab.ouvrir(id),
     )
   }
 

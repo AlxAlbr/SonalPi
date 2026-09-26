@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiDistant, ProgressionTransfert } from '../src/shared/distant'
-import type { ApiGitLab, DemandeCreationGitLab } from '../src/shared/gitlab'
+import type { ApiGitLab, ConnexionGitLabPublique, DemandeCreationGitLab } from '../src/shared/gitlab'
 import type { ApiWebDAV, DemandeCreationWebDAV } from '../src/shared/webdav'
 
 const electron = vi.hoisted(() => ({
@@ -18,9 +18,15 @@ const creationWebDAV: DemandeCreationWebDAV = {
   motDePasse: 'secret-de-test',
   nomCorpus: 'Mon corpus',
 }
-const accesGitLab = { urlInstance: 'https://gitlab.example.org', jeton: 'jeton-de-test' }
+const accesGitLab = { urlInstance: 'https://gitlab.example.org', compteId: 'compte-1' }
+const connexionGitLab: ConnexionGitLabPublique = {
+  urlInstance: accesGitLab.urlInstance,
+  applicationConnue: true,
+  uriCallback: 'http://127.0.0.1:7474/callback',
+  comptes: [],
+}
 const preparationGitLab = {
-  urlProjet: `${accesGitLab.urlInstance}/groupe/corpus`, jeton: accesGitLab.jeton,
+  urlProjet: `${accesGitLab.urlInstance}/groupe/corpus`, compteId: accesGitLab.compteId,
 }
 const creationGitLab: DemandeCreationGitLab = {
   ...accesGitLab,
@@ -65,8 +71,12 @@ describe('pont IPC des corpus distants', () => {
     { canal: 'gitlab:preparerProjet', appeler: () => api.gitlab.preparerProjet(preparationGitLab), arguments: [preparationGitLab] },
     { canal: 'gitlab:enregistrerEtOuvrir', appeler: () => api.gitlab.enregistrerEtOuvrir(ouvertureGitLab), arguments: [ouvertureGitLab] },
     { canal: 'gitlab:creerEtOuvrir', appeler: () => api.gitlab.creerEtOuvrir(creationGitLab), arguments: [creationGitLab] },
-    { canal: 'gitlab:ouvrir', appeler: () => api.gitlab.ouvrir('destination-gitlab', 'jeton'), arguments: ['destination-gitlab', 'jeton'] },
-    { canal: 'gitlab:ouvrir', appeler: () => api.gitlab.ouvrir('destination-gitlab'), arguments: ['destination-gitlab', undefined] },
+    { canal: 'gitlab:ouvrir', appeler: () => api.gitlab.ouvrir('destination-gitlab'), arguments: ['destination-gitlab'] },
+    { canal: 'gitlab:detecterInstance', appeler: () => api.gitlab.detecterInstance(`${accesGitLab.urlInstance}/groupe/corpus`), arguments: [`${accesGitLab.urlInstance}/groupe/corpus`] },
+    { canal: 'gitlab:etat', appeler: () => api.gitlab.etat(accesGitLab.urlInstance), arguments: [accesGitLab.urlInstance] },
+    { canal: 'gitlab:connecter', appeler: () => api.gitlab.connecter(accesGitLab.urlInstance, 'client-sonal'), arguments: [accesGitLab.urlInstance, 'client-sonal'] },
+    { canal: 'gitlab:deconnecter', appeler: () => api.gitlab.deconnecter(accesGitLab.urlInstance, 'moi'), arguments: [accesGitLab.urlInstance, 'moi'] },
+    { canal: 'gitlab:oublierCompte', appeler: () => api.gitlab.oublierCompte(accesGitLab.urlInstance, 'moi'), arguments: [accesGitLab.urlInstance, 'moi'] },
     { canal: 'gitlab:oublierDestination', appeler: () => api.gitlab.oublierDestination('destination-gitlab'), arguments: ['destination-gitlab'] },
     { canal: 'distant:stockageSecuriseDisponible', appeler: () => api.distant.stockageSecuriseDisponible(), arguments: [] },
     { canal: 'distant:tirer', appeler: () => api.distant.tirer(), arguments: [] },

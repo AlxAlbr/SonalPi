@@ -184,10 +184,15 @@ Les modales de création et d'ouverture distantes proposent deux onglets,
 Nextcloud et GitLab. La création GitLab produit un squelette dans un projet
 existant, puis l'ouvre comme une destination normale ; aucun projet GitLab ni
 dossier distant n'est créé implicitement. L'ouverture permet de retrouver les
-comptes et destinations déjà configurés. Le formulaire charge directement le projet
-à partir de son URL et du jeton saisi ; l'exploration de la liste des projets
-n'est plus exposée. Les deux formulaires utilisent `useProjetGitLab` et un seul appel
-IPC `gitlab:preparerProjet`. Le main lit le projet et l'utilisateur, puis retourne
+comptes et destinations déjà configurés. Le formulaire demande l'adresse du
+projet et, lors de la première configuration d'une instance, son Client ID
+OAuth public. Une seule action enchaîne la détection de l'instance, la connexion
+dans le navigateur, la vérification du projet et son ouverture ou la création
+du corpus. La racine facultative reste rangée dans les options avancées. Un
+guide intégré reprend la préparation du projet et de l'application OAuth, sans
+configuration LFS. L'exploration de la liste des projets n'est pas exposée. Les
+deux formulaires utilisent `useProjetGitLab` et un seul appel IPC
+`gitlab:preparerProjet`. Le main lit le projet et l'utilisateur, puis retourne
 la branche par défaut annoncée par GitLab. Aucune liste de branches n'est chargée
 et aucun sélecteur n'est affiché. Un dépôt sans branche par défaut est refusé avec
 une invitation à l'initialiser ; aucune branche `main` n'est supposée.
@@ -202,14 +207,14 @@ dans cette tranche.
 comptes et deux profils Electron isolés. Chacun découvre son projet, consulte le
 corps en édition contrôlée, publie une modification, actualise, revient au corpus
 local puis rouvre GitLab. Un profil est relancé et rouvre son récent GitLab en
-redemandant le jeton en mémoire. Un autre parcours tue le processus après une
-autosave non publiée, puis vérifie que le candidat reste visible et en lecture
-seule tant que le bail ancien est actif. Les deux miroirs restent distincts. Un
-jeton invalide est refusé sans créer de miroir. Le projet de référence dont LFS
-est désactivé reste ouvrable pour consulter ses transcriptions. La fixture est
-amorcée dans une racine synthétique unique avant le lancement ; elle est ensuite
-conservée pour examen. Les cinq scénarios réussissent aussi dans le binaire
-Linux produit par `electron-builder --dir`.
+rejouant OAuth lorsque le coffre système est indisponible. Un autre parcours tue
+le processus après une autosave non publiée, puis vérifie que le candidat reste
+visible et en lecture seule tant que le bail ancien est actif. Les deux miroirs
+restent distincts. Un projet inaccessible est refusé sans créer de miroir. Le
+projet de référence dont LFS est désactivé reste ouvrable pour consulter ses
+transcriptions. La fixture est amorcée dans une racine synthétique unique avant
+le lancement ; elle est ensuite conservée pour examen. Les six scénarios
+réussissent aussi dans le binaire Linux produit par `electron-builder --dir`.
 
 `gitlab/bailGitLab.ts` introduit un droit d'édition opaque, propre au main et à
 une génération. Le fichier de bail vit sous `.sonal/verrous/`, porte un chemin
