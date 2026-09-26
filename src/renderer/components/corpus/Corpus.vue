@@ -12,6 +12,7 @@ import TableDonnees from '../donnees/TableDonnees.vue'
 import { utiliserSonal } from '../../composables/sonal'
 import { rechercherDansCorpsTexte } from '../../editor/rechercheCorpus'
 import { visiblesThemes } from '../../../shared/corpus/categories'
+import type { EtatVerrouPublic } from '../../../shared/distant'
 import type { OccurenceRecherche, ResultatRecherche } from '../../editor/rechercheCorpus'
 import type { SegmentThematique } from '../../../shared/format'
 // Icônes des onglets, partagées avec la vue Entretien.
@@ -83,6 +84,10 @@ const {
 /** Heure locale courte d'un horodatage ISO (« HH:MM »). */
 const heureDe = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+/** Rappel du détenteur d'un entretien. Les baux GitLab ne disent pas l'heure
+ *  d'acquisition : le « depuis » est alors omis plutôt qu'inventé. */
+const detentionDe = (v: EtatVerrouPublic) =>
+  `Verrou tenu par ${v.userId}${v.acquiredAt ? ` depuis ${heureDe(v.acquiredAt)}` : ''} — ouverture en lecture seule.`
 /** Infobulle des champs du panneau méta : si l'entretien est tenu par autrui,
  *  on explique pourquoi tout est grisé (même vocabulaire que les badges 🔒). */
 function titreChampMeta(id: string): string {
@@ -96,9 +101,7 @@ function titreChampMeta(id: string): string {
  *  conséquence) ; sinon le geste normal. */
 const titreCrayon = (id: string): string => {
   const v = badgeVerrou(id)
-  return v
-    ? `Verrou tenu par ${v.userId} depuis ${heureDe(v.acquiredAt)} — ouverture en lecture seule.`
-    : 'Éditer l’entretien'
+  return v ? detentionDe(v) : 'Éditer l’entretien'
 }
 /** « Actualiser » : tire le miroir à la demande ;
  *  les erreurs crient, ce n'est pas la minuterie silencieuse. */
@@ -608,7 +611,7 @@ function styleSegment(s: SegmentThematique): Record<string, string> {
                      scan verrous/ au pull, jamais d'une déduction.
                      Notre propre session n'est pas badgée (filtrée côté main). -->
                 <span v-if="badgeVerrou(e.id)" class="badge-verrou"
-                      :title="`Verrou tenu par ${badgeVerrou(e.id)!.userId} depuis ${heureDe(badgeVerrou(e.id)!.acquiredAt)} — ouverture en lecture seule.`">
+                      :title="detentionDe(badgeVerrou(e.id)!)">
                   🔒 {{ badgeVerrou(e.id)!.userId }}
                 </span>
                 <!-- Présence : « consulté par X » — informatif, JAMAIS décisionnel,

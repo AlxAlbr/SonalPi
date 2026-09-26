@@ -136,3 +136,33 @@ export class LecteurGitLab implements LectureDistante {
     return [this.racine, cheminRelatif].filter(Boolean).join('/')
   }
 }
+
+/** Résout la branche une fois par tirage : le miroir et l'observation des bails
+ *  décrivent alors le même commit, sans seconde résolution de tête. */
+export class InstantaneLectureGitLab {
+  private lecteur: LecteurGitLab | null = null
+
+  constructor(
+    private readonly client: ClientGitLab,
+    private readonly branche: string,
+    private readonly racine = '',
+  ) {}
+
+  async ouvrir(): Promise<LecteurGitLab> {
+    this.lecteur = this.lecteur
+      ?? await LecteurGitLab.depuisBranche(this.client, this.branche, this.racine)
+    return this.lecteur
+  }
+
+  /** Lecteur à la racine du dépôt, figé sur le même commit : les fichiers de
+   *  coordination vivent hors du dossier du corpus, même quand il est imbriqué. */
+  async racineDepot(): Promise<LecteurGitLab> {
+    const lecteur = await this.ouvrir()
+    return this.racine ? new LecteurGitLab(this.client, lecteur.commit) : lecteur
+  }
+
+  /** Ferme l'instantané : le tirage suivant résousera un nouveau commit. */
+  oublier(): void {
+    this.lecteur = null
+  }
+}

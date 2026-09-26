@@ -608,5 +608,22 @@ audio reprennent cet identifiant au lieu d'un « un autre utilisateur » génér
 Le bail GitLab ne dit ni poste ni heure d'acquisition, donc ces deux champs
 restent vides et l'interface omet l'heure. Ce comportement est couvert par des
 tests simulés (dépôt en mémoire, deux comptes, sessions du même compte, bail
-expiré repris, refus sans bail lisible) ; il reste à rejouer sur le banc réel,
-où l'E2E d'un entretien tenu par un autre compte n'existe pas encore.
+expiré repris, refus sans bail lisible) ; il reste à rejouer sur le banc réel.
+
+Les listes portent en outre un badge 🔒, observé à l'ouverture du corpus et à
+chaque actualisation, sans aucun commit. Le commit de branche est résolu une
+seule fois par tirage : l'observateur des baux lit au même commit que le miroir.
+L'inventaire de `.sonal/verrous/` est paginé et seuls les fichiers dont le nom
+est l'empreinte attendue d'un entretien du membership sont lus — le bail du
+corpus, ceux d'autres corpus et les fichiers étrangers ne sont jamais
+demandés. Le coût est donc d'une requête d'inventaire plus une requête par
+entretien réellement détenu, à chaque actualisation ; il reste à le mesurer sur
+le banc. Un bail expiré ne badge pas, un ancien marqueur badge toujours, un
+bail illisible est omis sans être deviné, et un inventaire en échec (dossier
+absent, 403, coupure) laisse la consultation ouverte sans badge. Un badge
+n'autorise ni ne refuse quoi que ce soit : l'exclusion se vérifie à l'ouverture,
+par le bail. Ces comportements sont couverts par des tests simulés (racine imbriquée,
+branche à '/', deux corpus d'un même dépôt, expirations, contenu corrompu,
+dossier absent, 403, coupure, pagination) ; le scénario E2E à deux comptes a
+été réécrit pour exiger le badge et la bannière nommant le détenteur, mais n'a
+pas été rejoué faute de banc configuré ici.

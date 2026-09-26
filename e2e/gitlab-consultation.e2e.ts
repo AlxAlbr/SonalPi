@@ -520,7 +520,7 @@ test.describe('Consultation GitLab à deux profils', () => {
     }
   })
 
-  test('un second profil reprend après expiration et l’ancien poste est refusé', async ({ browser }) => {
+  test('un second profil est exclu puis reprend après expiration du bail', async ({ browser }) => {
     if (executableEmpaquete && !existsSync(executableEmpaquete)) {
       throw new Error('Binaire Linux empaqueté absent. Lancez npm run pack:dir.')
     }
@@ -549,7 +549,6 @@ test.describe('Consultation GitLab à deux profils', () => {
       await appA.evaluate(({ powerMonitor }) => powerMonitor.emit('resume'))
       await expect(pageA.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
       await pageA.waitForTimeout(1_000)
-      await expirerBailE2E(jetonA, racineReprise)
 
       const pageB = await appB.firstWindow()
       // Second compte sur la même instance : sa propre connexion OAuth.
@@ -563,6 +562,20 @@ test.describe('Consultation GitLab à deux profils', () => {
         racineReprise,
       )
       await attendreCorpus(pageB)
+      // Le bail du premier poste est vif : le second voit qui tient l'entretien,
+      // et l'ouverture en lecture seule reste proposée.
+      await expect(pageB.locator('.badge-verrou').first())
+        .toContainText(configuration.utilisateur as string)
+      await pageB.locator('.carte-ent .crayon').click()
+      await expect(pageB.locator('.editeur')).toHaveAttribute('contenteditable', 'false')
+      await expect(pageB.locator('.banniere-ro')).toContainText(configuration.utilisateur as string)
+
+      await expirerBailE2E(jetonA, racineReprise)
+      // Le bail expiré ne badge plus, et son absence ne prouve rien :
+      // l'ouverture tente l'acquisition et réussit.
+      await retourCorpus(pageB)
+      await pageB.getByRole('button', { name: /Actualiser/ }).click()
+      await expect(pageB.locator('.badge-verrou')).toHaveCount(0)
       await pageB.locator('.carte-ent .crayon').click()
       await expect(pageB.locator('.editeur')).toHaveAttribute('contenteditable', 'true')
 

@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { CorpusStore } from '../corpusStore'
 import { MiroirDistant } from '../distant/miroir'
-import type { ResultatTiragePublic } from '../../shared/distant'
+import type { ObservationCoordinationDistante } from '../distant/coordination'
+import type { EntreeVerrouPublic, ResultatTiragePublic } from '../../shared/distant'
 import {
   FORMAT_VERSION,
   type Categorie,
@@ -15,7 +16,8 @@ import {
 } from '../../shared/format'
 import type { PartieBailGitLab } from './bailGitLab'
 import { ClientGitLab } from './client'
-import { LecteurGitLab } from './lecture'
+import { LecteurGitLab, InstantaneLectureGitLab } from './lecture'
+import { ObservationBailsGitLab } from './observationBails'
 import type { ResultatPublicationGitLab } from './publication'
 import type { EtatSessionGitLab, SessionGitLab } from './session'
 import type { TransactionsGitLab } from './transactions'
@@ -35,6 +37,8 @@ export interface PreparationContexteGitLabLectureSeule {
   contexte: ContexteGitLab
   corpus: CorpusFichier
   inaccessibles?: { chemin: string; raison: string }[]
+  /** Badges d'exclusion relevés au même commit que le tirage d'ouverture. */
+  verrous: EntreeVerrouPublic[]
 }
 
 /** Contexte GitLab de préversion, avec services de session réservés au main. */
@@ -52,27 +56,53 @@ export class ContexteGitLab {
     public readonly miroir: MiroirDistant,
     private readonly creerSession?: (ressource: string, cheminRelatif: string) => SessionGitLab,
     public readonly transactions?: TransactionsGitLab,
+    private readonly observation?: ObservationCoordinationDistante,
+    private readonly instantane?: InstantaneLectureGitLab,
   ) {}
 
   get dirLocal(): string {
     return this.miroir.dirLocal
   }
 
+  /** Ressources de bail effectivement tenues par ce poste : leurs baux ne
+   *  produisent aucun badge. */
+  sessionsTenues(): string[] {
+    return [...this.sessions.entries()]
+      .filter(([, entree]) => entree.protege)
+      .map(([ressource]) => ressource)
+  }
+
   async actualiser(): Promise<ResultatTiragePublic> {
     if (this.termine) throw new Error('Le contexte distant est fermé.')
-    const tirage = await this.miroir.tirer(
-      [...this.sessions.values()]
-        .filter(({ protege }) => protege)
-        .map(({ chemin }) => chemin),
-    )
-    return {
-      telecharges: tirage.telecharges,
-      corbeille: tirage.corbeille,
-      verrous: [],
-      inaccessibles: tirage.inaccessibles.length > 0
-        ? tirage.inaccessibles
-        : undefined,
-      date: tirage.date,
+    try {
+      const tirage = await this.miroir.tirer(
+        [...this.sessions.values()]
+          .filter(({ protege }) => protege)
+          .map(({ chemin }) => chemin),
+      )
+      return {
+        telecharges: tirage.telecharges,
+        corbeille: tirage.corbeille,
+        verrous: await this.observerVerrous(),
+        inaccessibles: tirage.inaccessibles.length > 0
+          ? tirage.inaccessibles
+          : undefined,
+        date: tirage.date,
+      }
+    } finally {
+      // Le tirage suivant résoudra un nouveau commit.
+      this.instantane?.oublier()
+    }
+  }
+
+  /** Badges d'exclusion du cycle courant, sans commit.
+   *  Un inventaire de baux raté ne retire aucun contenu déjà tiré : les badges
+   *  restent indicatifs, l'exclusion se vérifie à l'ouverture, par le bail. */
+  async observerVerrous(): Promise<EntreeVerrouPublic[]> {
+    try {
+      return (await this.observation?.observerVerrous()) ?? []
+    } catch {
+      return []
     }
   }
 
@@ -278,13 +308,14 @@ function nommerDetenteur(tenupar: PartieBailGitLab | null): VerrouTenuParAutrui 
 export async function preparerContexteGitLabLectureSeule(
   options: OptionsContexteGitLabLectureSeule,
 ): Promise<PreparationContexteGitLabLectureSeule> {
+  const instantane = new InstantaneLectureGitLab(
+    options.client,
+    options.branche,
+    options.racine,
+  )
   const miroir = new MiroirDistant(
     options.dirLocal,
-    () => LecteurGitLab.depuisBranche(
-      options.client,
-      options.branche,
-      options.racine,
-    ),
+    () => instantane.ouvrir(),
     { fournisseur: 'gitlab', destinationId: options.id },
   )
   const tirage = await miroir.tirer(options.cheminsRecuperables ?? [])
@@ -302,17 +333,35 @@ export async function preparerContexteGitLabLectureSeule(
   const store = new CorpusStore(options.dirLocal)
   store.lectureSeule = true
   const corpus = store.ouvrir()
-  return {
-    contexte: new ContexteGitLab(
-      options.id,
-      store,
-      miroir,
-      options.creerSession,
-      options.creerTransactions?.(store),
-    ),
-    corpus,
-    inaccessibles: tirage.inaccessibles.length > 0
-      ? tirage.inaccessibles
-      : undefined,
+  const contexte: ContexteGitLab = new ContexteGitLab(
+    options.id,
+    store,
+    miroir,
+    options.creerSession,
+    options.creerTransactions?.(store),
+    new ObservationBailsGitLab({
+      instantane,
+      branche: options.branche,
+      racine: options.racine,
+      idsEntretiens: () => Object.keys(store.ouvrir().membership),
+      ressource: (id: string): string => contexte.ressourceEntretien(id),
+      ressourcesTenues: () => [...contexte.sessionsTenues()],
+    }),
+    instantane,
+  )
+  try {
+    // Badges relevés au commit du tirage d'ouverture : le premier affichage
+    // n'attend pas le cycle périodique suivant.
+    const verrous = await contexte.observerVerrous()
+    return {
+      contexte,
+      corpus,
+      verrous,
+      inaccessibles: tirage.inaccessibles.length > 0
+        ? tirage.inaccessibles
+        : undefined,
+    }
+  } finally {
+    instantane.oublier()
   }
 }

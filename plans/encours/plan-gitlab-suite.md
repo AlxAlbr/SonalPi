@@ -17,7 +17,7 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 | Éditer un entretien sous bail, publier, renouveler, fermer | Livré et qualifié sur banc | `gitlab/session.ts`, `gitlab/bailGitLab.ts` |
 | Créer un entretien vide, importer un entretien | Implémenté dans l'arbre de travail ; un commit de données, plus acquisition et libération du bail ; recette à distinguer | `gitlab/transactions.ts`, `test/gitlab/transactions.test.ts` |
 | Savoir qui tient un entretien | Livré, testé en simulation ; à qualifier sur banc | `gitlab/contexte.ts:144` |
-| Badge 🔒 dans les listes | **Absent** : aucun verrou observé | `gitlab/contexte.ts:74` |
+| Badge 🔒 dans les listes | Livré, testé en simulation ; E2E écrit, banc à rejouer | `gitlab/observationBails.ts`, `gitlab/contexte.ts:74` |
 | Présence 👁 | **Absent**, et hors périmètre (section 9) | `main/index.ts:1791` |
 | Modifier les définitions du corpus | **Absent** : lecture seule garantie | `main/corpusStore.ts:254` |
 | Supprimer un entretien | **Absent** | `main/index.ts:842` |
@@ -397,14 +397,18 @@ et la suppression empiète sur sa session. Le bail corpus ne protège pas contre
 
 ### B — Les badges d'exclusion
 
-- [ ] Port d'observation, instantané explicite, inventaire paginé et hash canonique.
-- [ ] Filtres v2, sessions réellement détenues, bail corpus et politique legacy.
-- [ ] Observation à l'ouverture initiale et à l'actualisation ; infobulles sans date.
-- [ ] Tests : racine imbriquée, branche contenant `/`, plusieurs corpus, expirations,
+- [x] Port d'observation, instantané explicite, inventaire paginé et hash canonique.
+- [x] Filtres v2, sessions réellement détenues, bail corpus et politique legacy.
+- [x] Observation à l'ouverture initiale et à l'actualisation ; infobulles sans date.
+- [x] Tests : racine imbriquée, branche contenant `/`, plusieurs corpus, expirations,
       bail corrompu, dossier absent, 403, coupure et pagination.
 - [ ] E2E deux comptes : badge avant ouverture ; ouverture toujours proposée.
+      *Scénario écrit dans `e2e/gitlab-consultation.e2e.ts`, non rejoué : banc absent.*
 
 **Sortie :** information indicative, aucun commit ajouté, coût des GET mesuré.
+*Coût analytique : une résolution de branche partagée par tirage, un inventaire
+paginé de `.sonal/verrous`, une lecture par entretien réellement détenu. La
+mesure sur banc reste à faire.*
 
 ### C — Les définitions simples
 

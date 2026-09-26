@@ -82,6 +82,16 @@ export type ResultatAcquisitionBailGitLab =
   | { ok: true; droit: DroitsEditionGitLab }
   | { ok: false; raison: 'tenu'; tenupar: PartieBailGitLab | null }
 
+/** Ce qu'un bail observé dit de son détenteur, sans droit ni écriture.
+ *  `legacy` signale un ancien marqueur : le coordinateur le refuse même expiré,
+ *  donc l'exclusion est affichée sans condition de date. */
+export interface BailObserveGitLab {
+  userId: string
+  machineId: string
+  expireLe: string
+  legacy: boolean
+}
+
 export interface OptionsBailGitLab {
   branche: string
   depot: DepotCommitsGitLab
@@ -647,6 +657,24 @@ function partie(bail: BailEnregistre): PartieBailGitLab {
     userId: bail.holder.userId,
     generation: bail.generation,
     expireLe: bail.expireLe,
+  }
+}
+
+/** Chemin du fichier de bail d'une ressource, tous protocoles confondus. */
+export function cheminBailRessourceGitLab(ressource: string): string {
+  return cheminBail(hacherRessource(ressource))
+}
+
+/** Lit un bail observé par son chemin de dépôt, sans en tirer de droit.
+ *  Lève si le contenu n'est pas un bail exploitable : l'observateur omet alors
+ *  le badge plutôt que de le deviner. */
+export function observerBailGitLab(contenu: string, chemin: string): BailObserveGitLab {
+  const bail = lireBail(contenu, resourceHashDeChemin(chemin), true)
+  return {
+    userId: bail.holder.userId,
+    machineId: bail.holder.machineId,
+    expireLe: bail.expireLe,
+    legacy: bail.version === VERSION_BAIL_LEGACY || bail.protocole === PROTOCOLE_BAIL_LEGACY,
   }
 }
 

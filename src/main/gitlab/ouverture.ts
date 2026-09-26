@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import type { OuvertureDistante } from '../../shared/distant'
+import type { EntreeVerrouPublic, OuvertureDistante } from '../../shared/distant'
 import type { CorpusFichier } from '../../shared/format'
 import { squeletteCorpus } from '../../shared/corpus/squelette'
 import type {
@@ -56,6 +56,7 @@ export interface PreparationOuvertureGitLab {
   contexte: ContexteGitLab
   corpus: CorpusFichier
   inaccessibles?: { chemin: string; raison: string }[]
+  verrous?: EntreeVerrouPublic[]
   dirMiroir: string
 }
 
@@ -174,7 +175,7 @@ export class ServiceOuvertureGitLab {
       nom: preparation.corpus.nom ?? destination.nomProjet,
       corpus: preparation.corpus,
       distant: destinationPublique,
-      verrous: [],
+      verrous: preparation.verrous ?? [],
       inaccessibles: preparation.inaccessibles,
     }
   }
