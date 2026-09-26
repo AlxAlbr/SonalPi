@@ -7,8 +7,10 @@ import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublicati
 import {
   BailGitLab,
   cleRessourceBailGitLab,
+  DepotCommitsGitLabClient,
   FileCommitsGitLab,
 } from '../../src/main/gitlab/bailGitLab'
+import { ClientGitLab, TAILLE_MAX_DOCUMENT_GITLAB } from '../../src/main/gitlab/client'
 import {
   MAX_ACTIONS_PUBLICATION,
   PublieurGitLab,
@@ -17,6 +19,33 @@ import {
 
 const MiB = 1024 * 1024
 import { DepotMemoire } from './depotMemoire'
+
+/** Un entretien de la taille demandée, au format réel : c'est la taille qui
+ *  est en jeu dans les bornes, pas la forme du contenu. */
+function entretienLong(octets: number): string {
+  const entretien = { formatVersion: 8, texte: 'x'.repeat(octets) }
+  return JSON.stringify(entretien, null, 2)
+}
+
+/** Dépôt qui répond à la lecture d'un fichier par le contenu fourni. */
+async function lireFichierAvecTaille(contenu: string): Promise<{ depot: DepotCommitsGitLabClient }> {
+  const reponse = JSON.stringify({
+    file_path: 'entretiens/e1.json',
+    content: Buffer.from(contenu, 'utf8').toString('base64'),
+    encoding: 'base64',
+    last_commit_id: 'a'.repeat(40),
+  })
+  const fetchImpl: typeof fetch = async () => new Response(reponse, {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })
+  const client = new ClientGitLab({
+    urlInstance: 'https://gitlab.example.org',
+    projetId: 42,
+    autorisation: { type: 'jeton-prive', jeton: 'jeton-test' },
+  }, fetchImpl)
+  return { depot: new DepotCommitsGitLabClient(client) }
+}
 
 function identidade(sessionId: string) {
   return { userId: 'alice', machineId: 'poste-a', sessionId }
@@ -211,6 +240,68 @@ describe('publication GitLab sous droit', () => {
     }))
     expect(() => verifierBornesPublication('main', 'Sonal operation', lourd))
       .toThrow(/Kio acceptés par GitLab/)
+  })
+
+  test('un entretien lisible reste publiable', async () => {
+    // Un entretien de deux heures trente, à la taille mesurée sur les corpus
+    // réels. Il doit passer les deux bornes : c'est l'invariant qui a motivé
+    // leur relèvement, et il se vérifie sur un cas concret plutôt qu'à
+    // l'intuition.
+    const entretien = entretienLong(567 * 1024)
+    const lire = await lireFichierAvecTaille(entretien)
+
+    // La lecture avec garde passe.
+    const fichier = await lire.depot.lireFichier('entretiens/e1.json', 'main')
+    expect(fichier?.contenu).toBe(entretien)
+
+    // La publication du même fichier passe aussi.
+    expect(() => verifierBornesPublication('main', 'Sonal operation', [{
+      action: 'update',
+      file_path: 'entretiens/e1.json',
+      content: entretien,
+      last_commit_id: 'a'.repeat(40),
+    }])).not.toThrow()
+  })
+
+  test('la lecture avec garde refuse juste au-dessus de sa valeur', async () => {
+    // La borne porte sur la réponse base64, pas sur le fichier : elle admet
+    // environ trois quarts de sa valeur en octets de contenu.
+    const lisible = await lireFichierAvecTaille(entretienLong(1_400 * 1024))
+    await expect(lisible.depot.lireFichier('entretiens/e1.json', 'main'))
+      .resolves.toMatchObject({ chemin: 'entretiens/e1.json' })
+
+    // Au-delà, la source est refusée par son nom : l'entretien qui dépasse la
+    // borne est nommé, et le plafond seul ne sort jamais seul.
+    const tropGros = await lireFichierAvecTaille(entretienLong(1_600 * 1024))
+    await expect(tropGros.depot.lireFichier('entretiens/e1.json', 'main'))
+      .rejects.toThrow(/trop volumineuse/)
+  })
+
+  test('le plus grand fichier lisible reste publiable', async () => {
+    // La lecture est élargie par le base64, la publication par l'échappement :
+    // à bornes égales, le plus grand fichier lisible tient sous le plan de
+    // publication. C'est l'invariant à garder si les deux bornes sont relevées
+    // à nouveau.
+    const lisible = await lireFichierAvecTaille(entretienLong(1_500 * 1024))
+    const fichier = await lisible.depot.lireFichier('entretiens/e1.json', 'main')
+    expect(fichier).not.toBeNull()
+    expect(() => verifierBornesPublication('main', 'Sonal operation', [{
+      action: 'update',
+      file_path: 'entretiens/e1.json',
+      content: fichier?.contenu ?? '',
+      last_commit_id: 'a'.repeat(40),
+    }])).not.toThrow()
+  })
+
+  test('le plan de publication refuse juste au-dessus de sa valeur', () => {
+    expect(() => verifierBornesPublication('main', 'Sonal operation', [{
+      action: 'update', file_path: 'corpus.json',
+      content: 'x'.repeat(TAILLE_MAX_DOCUMENT_GITLAB - 8 * 1024),
+    }])).not.toThrow()
+    expect(() => verifierBornesPublication('main', 'Sonal operation', [{
+      action: 'update', file_path: 'corpus.json',
+      content: 'x'.repeat(TAILLE_MAX_DOCUMENT_GITLAB),
+    }])).toThrow(/Kio acceptés par GitLab/)
   })
 
   test('deux ressources différentes ne publient jamais en même temps', async () => {

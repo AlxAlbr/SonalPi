@@ -22,6 +22,7 @@ import {
   type FichierGitLab,
 } from './bailGitLab'
 import type { FileOperationsContexte } from './fileOperations'
+import { ErreurReponseTropVolumineuseGitLab } from './client'
 import type { JournalPublicationGitLab } from './journalPublication'
 import {
   preparerDefinitions,
@@ -369,19 +370,46 @@ export class TransactionsGitLab {
   ): Promise<Array<SourcePreparation & { readonly commitId: string }>> {
     const sources: Array<SourcePreparation & { readonly commitId: string }> = []
     for (const id of ids) {
-      const fichier = await this.options.depot.lireFichier(
-        this.cheminDistant(`entretiens/${id}.json`),
-        sha,
-      )
-      if (!fichier) {
-        throw new Error(
-          `L’entretien « ${corpus.membership[id]?.titre ?? id} » n’existe plus sur GitLab.`,
-        )
-      }
-      this.verifierEntretien(fichier.contenu, corpus, id)
+      const fichier = await this.lireSource(id, sha, corpus)
       sources.push({ id, contenu: fichier.contenu, commitId: fichier.commitId })
     }
     return sources
+  }
+
+  /** Un entretien hors de la limite de lecture avec garde est nommé, pas
+   *  transformé en panne anonyme : c'est lui qui rend le geste impossible. */
+  private async lireSource(
+    id: string,
+    sha: string,
+    corpus: CorpusFichier,
+  ): Promise<FichierGitLab> {
+    const chemin = this.cheminDistant(`entretiens/${id}.json`)
+    try {
+      const fichier = await this.options.depot.lireFichier(chemin, sha)
+      if (!fichier) throw this.entretienIntrouvable(id, corpus)
+      this.verifierEntretien(fichier.contenu, corpus, id)
+      return fichier
+    } catch (erreur) {
+      if (erreur instanceof ErreurReponseTropVolumineuseGitLab) {
+        throw new Error(
+          `L’entretien « ${this.titreDe(id, corpus)} » est trop volumineux pour être gardé `
+          + `dans un commit GitLab : il dépasse les ${Math.round(erreur.limiteOctets / 1024)} Kio `
+          + 'de la lecture avec sa garde. Cet entretien reste consultable, '
+          + 'mais il ne peut pas porter de référence ni de recette.',
+        )
+      }
+      throw erreur
+    }
+  }
+
+  private entretienIntrouvable(id: string, corpus: CorpusFichier): Error {
+    return new Error(
+      `L’entretien « ${this.titreDe(id, corpus)} » n’existe plus sur GitLab.`,
+    )
+  }
+
+  private titreDe(id: string, corpus: CorpusFichier): string {
+    return corpus.membership[id]?.titre ?? id
   }
 
   /** Contenus publiés lus par l'endpoint brut, pour un tri par contenu. */
@@ -396,11 +424,7 @@ export class TransactionsGitLab {
         this.cheminDistant(`entretiens/${id}.json`),
         sha,
       )
-      if (contenu === null) {
-        throw new Error(
-          `L’entretien « ${corpus.membership[id]?.titre ?? id} » n’existe plus sur GitLab.`,
-        )
-      }
+      if (contenu === null) throw this.entretienIntrouvable(id, corpus)
       this.verifierEntretien(contenu, corpus, id)
       conversations.set(id, JSON.parse(contenu) as EntretienFichier)
     }

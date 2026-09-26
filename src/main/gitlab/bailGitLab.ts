@@ -4,6 +4,7 @@ import {
   ClientGitLab,
   ErreurEcritureGitLab,
   ErreurGitLab,
+  TAILLE_MAX_DOCUMENT_GITLAB,
 } from './client'
 import { DUREE_BAIL_GITLAB_MS } from './parametresSession'
 
@@ -172,7 +173,7 @@ export class DepotCommitsGitLabClient implements DepotCommitsGitLab {
       }>(
         this.client.cheminProjet(`/repository/files/${encodeURIComponent(chemin)}`),
         { ref },
-        { tailleMaxOctets: 256 * 1024 },
+        { tailleMaxOctets: TAILLE_MAX_DOCUMENT_GITLAB },
       )
       if (
         reponse.corps.file_path !== chemin ||

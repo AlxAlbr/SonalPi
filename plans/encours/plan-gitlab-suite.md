@@ -1,6 +1,6 @@
 # GitLab — exclusion visible et opérations de corpus
 
-**Statut : lots A, B et C livrés et qualifiés sur banc (jalon d fait, §16). Les décisions du lot D sont consignées en §15 ; le jalon D1 est écrit et testé, ses capacités restent fermées tant que ses recettes à sources ne sont pas jouées sur banc.**
+**Statut : lots A, B et C livrés et qualifiés sur banc (jalon d fait, §16). Les décisions du lot D sont consignées en §15 ; le jalon D1 est qualifié sur banc (§17) et ses capacités sont ouvertes. Restent les suppressions de définitions, reportées au jalon D2, et le lot E, la suppression d'un entretien.**
 **Priorité : rendre le corpus GitLab utilisable au quotidien — savoir qui tient un entretien, puis pouvoir définir et supprimer.**
 
 Ce document prolonge [plan-gitlab4.md](plan-gitlab4.md), qui fixe le bail versionné,
@@ -19,7 +19,7 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 | Savoir qui tient un entretien | Livré et qualifié sur banc | `gitlab/contexte.ts:144` |
 | Badge 🔒 dans les listes | Livré et qualifié sur banc | `gitlab/observationBails.ts` |
 | Présence 👁 | **Absent**, et hors périmètre (section 9) | `main/index.ts:1791` |
-| Modifier les définitions du corpus | **Implémenté** : préparation isolée, bail de `corpus.json`, publication gardée, installation locale sous file ; gestes hors portée refusés par leur nom | `gitlab/transactions.ts`, `gitlab/politiqueGestes.ts` |
+| Modifier les définitions du corpus | **Qualifié sur banc** : définitions simples, gestures à sources gardées et tri de contenu ouverts ; suppressions refusées par leur nom | `gitlab/transactions.ts`, `gitlab/politiqueGestes.ts` |
 | Supprimer un entretien | **Absent** | `main/index.ts:842` |
 | Médias partagés, Docs cadre, notes du corpus, lots, personnes | **Absent** | `main/index.ts:1261`, `main/index.ts:984` |
 
@@ -459,7 +459,8 @@ par GET sur l'instance locale, zéro commit. Détail dans `docs/dev/gitlab.md`.*
 - [x] Borner les réponses, le total des actions métier et de coordination, le plan
       compilé et le corps HTTP final ; refuser explicitement, sans découpage silencieux.
 - [ ] Décider et tester les décomptes et les références republiées par une session
-      déjà ouverte avant d'activer les suppressions de définitions.
+      déjà ouverte avant d'activer les suppressions de définitions (jalon D2,
+      §15.1 ; ce jalon n'appartient pas à D1).
 - [x] Source modifiée pendant la préparation → aucun changement de corpus publié.
 - [x] Coexistence d'une source gardée inchangée et d'une session longue qualifiée,
       sans perte de candidat ni promesse injustifiée de libération d'un bail incertain.
@@ -470,6 +471,7 @@ par GET sur l'instance locale, zéro commit. Détail dans `docs/dev/gitlab.md`.*
 publiées et gardées au commit, et les limites de cohérence après ce commit sont
 explicites et testées ; le tri est publié sur un corpus calme, sans toucher au
 contenu ni au bail d'aucun entretien.
+*Qualifié sur banc à deux comptes : §17. Les capacités sont ouvertes.*
 
 ### E — La suppression
 
@@ -1015,9 +1017,28 @@ Quatre limites distinctes sont prises en compte :
 | Limite actuelle | Où | Périmètre réel |
 |---|---|---|
 | 100 actions du plan métier | `publication.ts`, `compilerPlan` | exclut aujourd'hui l'action de coordination ajoutée ensuite |
-| 1 500 000 octets du plan sérialisé | `publication.ts`, `compilerPlan` | mesure les actions métier avant ajout du bail et de l'enveloppe HTTP |
+| 2 Mio de plan sérialisé | `publication.ts`, `compilerPlan` | mesure les actions métier avant ajout du bail et de l'enveloppe HTTP |
 | 2 Mio de requête | `client.ts`, `ecrireJson` | mesure le corps HTTP final, avec échappement JSON |
-| 256 Kio de réponse de lecture | `bailGitLab.ts`, `lireFichier` | borne un fichier lu en JSON base64, métadonnées comprises |
+| 2 Mio de réponse de lecture | `bailGitLab.ts`, `lireFichier` | borne un fichier lu en JSON base64, métadonnées comprises |
+
+Les trois bornes de taille portent la même valeur, `TAILLE_MAX_DOCUMENT_GITLAB`,
+définie une fois dans `client.ts`. Ce n'est pas une coïncidence : la lecture d'un
+fichier est élargie par le base64 (1,34 fois le fichier), sa publication par
+l'échappement JSON (1,13 fois). À bornes égales, le plus grand fichier lisible
+tient donc sous le plan de publication, et l'invariant « ce qui s'ouvre
+s'enregistre » tient par construction. Il est vérifié par un test, sur un
+entretien de la taille maximale lisible.
+
+En pratique, la lecture est la borne la plus étroite des deux : elle admet environ
+**1,5 Mio de fichier**, contre 1,77 Mio pour le plan seul. La capacité réelle
+annoncée est donc la plus petite, jamais celle d'une borne isolée.
+
+La borne de 100 actions mérite la même prudence. Elle est un compte d'actions, pas
+une capacité en entretiens : chaque source gardée en est une. Avec des entretiens
+de 2 h 30 (567 Kio), le plan de 2 Mio permet **trois sources**, pas 98 — la
+quatrième ferait 2,5 Mio. Les 98 de `MAX_SOURCES_GARDEES` ne valent que pour de
+petits fichiers, et toute annonce de capacité doit citer le nombre de sources
+réellement acceptables à la taille des corpus en usage.
 
 Le plafond de 100 ne doit pas être présenté comme une limite totale tant que le
 bail est ajouté après compilation. Avec 99 sources, `corpus.json` et le bail, le
@@ -1036,17 +1057,69 @@ métadonnées. Les mesures actuelles projettent environ 116 Kio pour trente minu
 heures, avec une forte dépendance au nombre d'ancres et de codages. Ce plafond est
 une garde du client, pas une limite GitLab.
 
+#### Ce que coûte réellement une lecture
+
+Les deux facteurs qui PAYENT ont été mesurés sur un entretien réel de 28 084 octets
+(`ent-l9r31p9z.json`) : le fichier inscrit dans un commit est une chaîne échappée,
+soit 1,13 fois sa taille, et la réponse base64 avec son enveloppe 1,34 fois. Un
+fichier de S octets occupe donc environ 1,34 S à la lecture et 1,13 S à la
+publication.
+
+| Fichier S | Lecture (1,34 S) | Publication (1,13 S) | Tenue par |
+|---|---|---|---|
+| 195 Kio | 256 Kio | 220 Kio | l'ancienne lecture, à 256 Kio |
+| 1,5 Mio | 2,0 Mio | 1,70 Mio | **la lecture, à 2 Mio** |
+| 1,77 Mio | 2,37 Mio | 2,0 Mio | le plan, à 2 Mio |
+
+Avec les trois bornes à 2 Mio, la lecture est redevenue la plus étroite : elle
+admet 1,5 Mio de fichier, là où le plan en admettrait 1,77 Mio. C'est la
+situation voulue : une borne qui refuse de lire refuse d'écrire, et son message
+serait tout aussi obscur. Relever la lecture seule n'aurait pas suffi : le plan de
+1 500 000 octets serait alors devenu la borne effective, et un entretien lisible
+mais non enregistrable est un corpus qu'on ouvre et qu'on ne peut plus sauvegarder,
+sans qu'aucun message n'explique le décalage. Les deux bornes se lisent donc ensemble, et toute annonce de capacité
+cite la plus petite.
+
+Le délai de quinze secondes par requête n'est pas le premier obstacle, mais il
+devient le mur bien avant que le débit ne gêne. À la taille d'un entretien de
+2 h 30 (567 Kio, 756 Kio de réponse), la lecture prend :
+
+| Débit | Temps de lecture |
+|---|---|
+| 100 Mbit/s (fibre) | 0,06 s |
+| 20 Mbit/s | 0,3 s |
+| 5 Mbit/s (connexion correcte) | 1,3 s |
+| 2 Mbit/s (correct DSL) | 3,2 s |
+| 1 Mbit/s | 6,3 s |
+| 400 kbit/s | 15,9 s → **le délai expire** |
+
+Le seuil est à environ **420 kbit/s** : toute connexion correcte lit un entretien
+de 2 h 30 en moins de quatre secondes. Ce tableau est une division de la taille
+par le débit, non une mesure de transfert : le banc est en boucle locale et ne
+prouverait rien sur un réseau réel. Il indique une direction, pas une garantie.
+
+Le coût qui devient réellement visible à cette taille n'est pas la lecture d'un
+fichier, c'est le tri : il télécharge tous les entretiens en séquence, soit environ
+17 Mio pour trente entretiens de 2 h 30. Cela prend 1,3 s à 100 Mbit/s mais 27 s à
+5 Mbit/s, et retient environ 34 Mio de chaînes en UTF-16. Un tri qui prend une
+demi-minute n'est plus un clic : il lui faut une progression affichée et une
+annulation.
+
 D1 ne réduit pas la densité des ancres à l'import pour contourner ce plafond. Une
 telle transformation touche la précision temporelle, ne corrige pas les corpus
 existants et relève d'une décision produit séparée.
 
-Le traitement des gros fichiers dépend des mesures du corpus pilote :
+Le traitement des gros fichiers ne dépend plus d'une mesure préalable : les bornes
+ont été relevées ensemble, après le constat qu'elles-annulaient les gestes à
+sources sur les entretiens de plus de trois quarts d'heure. Ce qui reste à mesurer
+porte sur le comportement, non sur la capacité :
 
-- si ses fichiers tiennent dans la limite actuelle, D1 peut conserver cette limite
-  avec un refus nommé pour les fichiers exceptionnels ;
-- si la limite doit être relevée, le seuil de réponse, le délai de lecture, le plan
-  sérialisé et le corps de publication sont testés ensemble ; lire un fichier ne
-  suffit pas à prouver qu'il peut être republié ;
+- un entretien qui dépasse la borne de lecture est refusé par son nom, avec la
+  limite franchie ; il reste consultable et éditable, mais ne peut plus porter de
+  référence ni de recette ;
+- un corpus qui dépasse la borne de plan est refusé avant l'envoi, et le refus
+  nomme le dépassement ; aucun découpage en plusieurs commits, aucune garde
+  supprimée ;
 - l'alternative endpoint brut plus lecture séparée de la garde reste mesurable :
   elle réduit le transfert par source mais ajoute une requête et doit conserver un
   même instantané.
@@ -1089,7 +1162,8 @@ corpus d'une publication de session.
 
 La qualification réelle du jalon d du lot C précède l'activation de D1. Le code de
 D1 peut être préparé derrière des capacités fermées, mais aucune capacité n'est
-ouverte sur un socle C non qualifié à deux comptes.
+ouverte sur un socle C non qualifié à deux comptes. Les mesures et les recettes
+exigées ici sont consignées au §17.
 
 Les mesures suivantes sont consignées séparément des tests simulés :
 
@@ -1227,3 +1301,74 @@ ainsi — « retenu par ce poste, qui a peut-être déjà terminé », avec l'é
 au lieu de désigner l'utilisateur comme un tiers. Un entretien tenu, lui, se ferme
 et se rouvre, et n'a jamais souffert de ce message.
 
+## 17. Ce que la qualification D1 a trouvé
+
+Le jalon D1 est qualifié sur l'instance réelle, à deux comptes, dans
+`test/gitlab/qualificationSources.test.ts`. Le banc instancie la pile de
+l'application — client, dépôt, bail, journal, store, transactions — et
+n'ouvre aucune porte de côté : les capacités sont celles que la liste accorde.
+
+### 17.1 Mesures
+
+| Scénario | Résultat mesuré |
+|---|---|
+| Rattachement d'un passage | 1 commit de données, 3 commits au total, 8 requêtes, ≈ 1,4 s |
+| Tri par modification, trois entretiens | 1 commit de données (corpus seul), 9 requêtes, ≈ 1,4 à 1,8 s |
+| 99 sources demandées | refus nommé avant le bail, aucun commit |
+| Rattachement sur une source périmée | commit refusé, corpus et miroir intacts |
+| Rattachement sur un repère absent de la version publiée | geste suspendu, aucun commit de données |
+| Rattachement sur une source tenue ailleurs | décision sur la version publiée, candidat du tiers intact, session du tiers publiante |
+| Tri avec un entretien tenu ailleurs | refus nommé, aucun bail de corpus |
+| Tri avec une session locale, puis observation en panne | deux refus, aucun commit |
+| Coupure de la réponse d'un commit de données | résultat indéterminé, transactions bloquées, réconciliation retrouvant le commit et sa garde de source, aucun rejeu |
+
+La séquence de requêtes d'un rattachement est celle attendue, et l'aperçu sans
+droit est bien le seul coût supplémentaire :
+
+```text
+POST /repository/commits                        acquisition du bail de corpus
+GET  /files/…/corpus.json?ref=main              aperçu des sources, avant droit
+POST /repository/commits                        acquisition du bail de corpus
+GET  /repository/branches/main                  un seul instantané
+GET  /files/…/corpus.json?ref=<sha>             base fraîche
+GET  /files/…/entretiens/e1.json?ref=<sha>      une source, une lecture
+POST /repository/commits                        corpus, garde de source, bail
+POST /repository/commits                        libération du bail
+```
+
+Le `last_commit_id` de la source est identique avant et après le commit : la
+garde est bien pure sur l'instance réelle, comme la mesure de 15.2 l'avait
+établie sur les deux projets du banc.
+
+### 17.2 Ce que cela décide
+
+Les capacités `definitionsAvecSources` et `triContenu` sont ouvertes : un
+rattachement CAS, une dérivation, un passage de recueil et les tris par
+modification et par longueur sont proposés par l'interface et acceptés par le
+main, qui continue de refuser par son nom tout ce qui n'est pas dans la liste.
+
+Les suppressions de définitions restent refusées. Elles ne sont pas un oubli :
+leur politique de références fait l'objet du jalon D2, et le premier jalon
+n'était pas censé les couvrir.
+
+### 17.3 Ce qui reste ouvert
+
+La qualification de D1 joue sur des entretiens de quelques centaines d'octets.
+Elle prouve la mécanique des gestes — sources gardées, refus atomique, tri sur
+corpus calme — mais elle ne mesure pas le comportement aux tailles réelles. Trois
+choses restent donc à relever sur un corpus pilote, et aucune ne remet en cause
+ce qui est livré :
+
+- **le volume réel** : nombre d'entretiens et taille du plus gros fichier, pour
+  vérifier que la borne de lecture de 2 Mio, soit 1,5 Mio de fichier, suffit au
+  corpus en usage ;
+- **la mémoire d'un geste à sources** : le geste charge en mémoire les sources
+  qu'il garde, et un tri de trente entretiens de 2 h 30 retient environ 34 Mio de
+  chaînes. Sur un dossier de plusieurs heures, cela doit être mesuré avant
+  d'annoncer que le tri reste un clic ;
+- **la durée du tri sur lien lent** : 27 s à 5 Mbit/s pour trente entretiens de
+  2 h 30. Un tel geste a besoin d'une progression affichée et d'une annulation,
+  ce qui n'existe pas encore.
+
+Tant que ces relevés ne sont pas faits, la capacité annoncée reste celle de la
+borne la plus étroite, et un entretien qui la dépasse est refusé par son nom.

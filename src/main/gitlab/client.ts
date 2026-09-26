@@ -7,6 +7,17 @@ export type AutorisationGitLab =
   | { type: 'bearer'; accessToken: string }
   | { type: 'jeton-prive'; jeton: string }
 
+/** Taille maximale d'un document GitLab échangé dans un seul aller-retour.
+ *
+ *  La lecture d'un fichier avec sa garde, le plan de publication et le corps
+ *  HTTP valent tous les trois cette taille. Les aligner n'est pas cosmétique :
+ *  un fichier lisible doit rester publiable, sans quoi un entretien s'ouvre,
+ *  s'édite, puis refuse de s'enregistrer — un refus dont la cause n'apparaît
+ *  nulle part dans l'interface. Un fichier est envoyé plus compact qu'il n'est
+ *  stocké, alors que sa lecture est élargie par le base64 ; à taille égale de
+ *  garde, la publication passe donc avant la lecture. */
+export const TAILLE_MAX_DOCUMENT_GITLAB = 2 * 1024 * 1024
+
 /** Autorisation OAuth ; un compte connecté n'a pas à fournir son jeton. */
 export function autorisationOAuth(accessToken: string): AutorisationGitLab {
   return { type: 'bearer', accessToken }
@@ -63,6 +74,18 @@ export class ErreurEcritureGitLab extends Error {
   ) {
     super(message)
     this.name = 'ErreurEcritureGitLab'
+  }
+}
+
+/** Une réponse GitLab dépasse la limite de lecture demandée.
+ *
+ *  L'appelant qui sait de quoi il s'agit — un entretien, une source — peut
+ *  alors nommer le fichier concerné plutôt que de remonter un plafond
+ *  anonyme. */
+export class ErreurReponseTropVolumineuseGitLab extends Error {
+  constructor(readonly limiteOctets: number) {
+    super('Réponse GitLab trop volumineuse.')
+    this.name = 'ErreurReponseTropVolumineuseGitLab'
   }
 }
 
@@ -261,7 +284,7 @@ export class ClientGitLab {
     const tailleAnnoncee = Number(reponse.headers.get('content-length'))
     if (Number.isFinite(tailleAnnoncee) && tailleAnnoncee > limite) {
       await reponse.body?.cancel()
-      throw new Error('Réponse GitLab trop volumineuse.')
+      throw new ErreurReponseTropVolumineuseGitLab(limite)
     }
     if (!reponse.body) return ''
 
@@ -276,7 +299,7 @@ export class ClientGitLab {
         taille += value.byteLength
         if (taille > limite) {
           await lecteur.cancel()
-          throw new Error('Réponse GitLab trop volumineuse.')
+          throw new ErreurReponseTropVolumineuseGitLab(limite)
         }
         texte += decodeur.decode(value, { stream: true })
       }

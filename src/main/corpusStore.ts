@@ -572,6 +572,15 @@ export class CorpusStore {
   /** Applique une édition ciblée de recueil après relecture du corpus courant. */
   recueilsCommander(commande: CommandeRecueils): CorpusFichier {
     this.verifierEcriture()
+    // En préparation GitLab, le repère doit exister dans la source publiée.
+    if (
+      this.sourcesPreparation !== null &&
+      (commande.type === 'inserer-item' || commande.type === 'modifier-item') &&
+      commande.item.type === 'passage' &&
+      !this.reperePassageExiste(commande.item.source.entretienId, commande.item.source.repereId)
+    ) {
+      throw new Error("Le repère du passage n'a pas été enregistré dans l'entretien.")
+    }
     const corpus = this.ouvrir()
     corpus.recueils = appliquerCommandeRecueils(corpus.recueils, commande, {
       maintenant: () => new Date().toISOString(),

@@ -107,18 +107,13 @@ describe('portée des gestes du corpus', () => {
     expect(porteeGeste('entretien.trier-contenus')).toBe('tri-contenus')
   })
 
-  test('GitLab refuse par leur nom les gestes qui lisent les entretiens ou suppriment', () => {
+  test('GitLab refuse par leur nom les gestes qui suppriment', () => {
     for (const geste of [
       'theme.supprimer',
       'note.supprimer-categorie',
       'variable.supprimer',
       'modalite.supprimer',
       'anon.supprimer-regle',
-      'recueil.passage',
-      'cas.ajouter-rattachement',
-      'cas.ajouter-derivation-famille',
-      'cas.ajouter-derivation-cas',
-      'entretien.trier-contenus',
       'entretien.supprimer',
       'entretien.analyser-suppression',
     ]) {
@@ -150,32 +145,33 @@ describe('portée des gestes du corpus', () => {
   })
 
   test('les refus de GitLab disent ce qui manque, geste par geste', () => {
-    expect(() => exigerGeste('gitlab', 'entretien.trier-contenus')).toThrow(/tri par contenu/i)
+    expect(() => exigerGeste('gitlab', 'entretien.supprimer')).toThrow(/suppression d’un entretien/)
     expect(() => exigerGeste('gitlab', 'theme.supprimer')).toThrow(/suppression d’une définition/)
-    expect(() => exigerGeste('gitlab', 'recueil.passage')).toThrow(/relit les entretiens publiés/)
   })
 
-  test('ouvrir une portée de GitLab ouvre la capacité qui en dépend', () => {
-    expect(matriceCapacites('gitlab').triContenu).toBe(false)
-    PORTEEES_OVERTES_GITLAB.push('tri-contenus', 'definitions-avec-sources')
+  test('fermer une portée de GitLab ferme la capacité qui en dépend', () => {
+    expect(matriceCapacites('gitlab')).toMatchObject({
+      definitionsAvecSources: true,
+      triContenu: true,
+    })
+    PORTEEES_OVERTES_GITLAB.length = 0
     try {
       expect(matriceCapacites('gitlab')).toMatchObject({
-        definitionsAvecSources: true,
-        triContenu: true,
+        definitionsAvecSources: false,
+        triContenu: false,
       })
-      expect(gesteAutorise('gitlab', 'cas.ajouter-rattachement')).toBe(true)
+      expect(gesteAutorise('gitlab', 'cas.ajouter-rattachement')).toBe(false)
+      expect(() => exigerGeste('gitlab', 'entretien.trier-contenus')).toThrow(/n’est pas disponible/)
     } finally {
-      PORTEEES_OVERTES_GITLAB.length = 0
-      PORTEEES_OVERTES_GITLAB.push('definitions-corpus')
+      PORTEEES_OVERTES_GITLAB.push('definitions-corpus', 'definitions-avec-sources', 'tri-contenus')
     }
-    expect(matriceCapacites('gitlab').triContenu).toBe(false)
   })
 
-  test('la matrice de GitLab n’ouvre que les définitions simples', () => {
+  test('la matrice de GitLab ouvre les définitions et le tri, pas les suppressions', () => {
     expect(matriceCapacites('gitlab')).toEqual({
       definitions: true,
-      definitionsAvecSources: false,
-      triContenu: false,
+      definitionsAvecSources: true,
+      triContenu: true,
       ajoutEntretien: true,
       editionEntretien: true,
       suppressionEntretien: false,

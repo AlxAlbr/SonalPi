@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { BailGitLab, cleRessourceBailGitLab } from '../../src/main/gitlab/bailGitLab'
 import { ClientGitLab } from '../../src/main/gitlab/client'
 import {
@@ -13,7 +13,6 @@ import { SessionGitLab } from '../../src/main/gitlab/session'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { CorpusStore } from '../../src/main/corpusStore'
 import type { ObservationCoordinationDistante } from '../../src/main/distant/coordination'
-import { PORTEEES_OVERTES_GITLAB } from '../../src/main/gitlab/politiqueGestes'
 import type { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { preparerDefinitions } from '../../src/main/gitlab/preparationDefinitions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
@@ -424,10 +423,10 @@ describe('façade des définitions du contexte GitLab', () => {
 
   test('un geste hors portée est refusé par son nom, avant toute préparation', () => {
     const { contexte, transactions } = contexteAvecTransactions()
-    expect(() => contexte.executerDefinitions('cas.ajouter-derivation-cas', () => 1))
-      .toThrow(/relit les entretiens publiés/)
     expect(() => contexte.executerDefinitions('entretien.supprimer', () => 1))
       .toThrow(/suppression d’un entretien/)
+    expect(() => contexte.executerDefinitions('theme.supprimer', () => 1))
+      .toThrow(/suppression d’une définition/)
     expect(transactions.executerDefinitions).not.toHaveBeenCalled()
   })
 
@@ -451,16 +450,6 @@ describe('façade des définitions du contexte GitLab', () => {
 })
 
 describe('tri de contenu et sources gardées', () => {
-  // Le tri et les sources gardées sont écrits mais pas encore ouverts à
-  // l'interface : on ouvre leurs portées le temps de ces tests.
-  beforeEach(() => {
-    PORTEEES_OVERTES_GITLAB.push('tri-contenus', 'definitions-avec-sources')
-  })
-  afterEach(() => {
-    PORTEEES_OVERTES_GITLAB.length = 0
-    PORTEEES_OVERTES_GITLAB.push('definitions-corpus')
-  })
-
   function contexteTri(
     observation: ObservationCoordinationDistante | undefined,
     supplement?: Record<string, unknown>,
@@ -541,7 +530,6 @@ describe('tri de contenu et sources gardées', () => {
       () => [],
     )).toThrow(/ne lit aucun entretien publié/)
   })
-
   test('un entretien que nous détenons est publié avant la préparation', async () => {
     const executerDefinitionsAvecSources = vi.fn(async () => ({
       valeur: null,

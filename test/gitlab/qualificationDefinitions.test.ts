@@ -12,248 +12,47 @@
 
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { CorpusStore } from '../../src/main/corpusStore'
-import type { ConfigDestinationGitLab } from '../../src/main/distant/coffre'
 import {
-  BailGitLab,
   cheminBailDepuisEmpreinteGitLab,
-  cheminBailRessourceGitLab,
   cleRessourceBailGitLab,
   DepotCommitsGitLabClient,
   type DepotCommitsGitLab,
 } from '../../src/main/gitlab/bailGitLab'
-import { ClientGitLab, ErreurGitLab } from '../../src/main/gitlab/client'
+import { ErreurGitLab } from '../../src/main/gitlab/client'
 import { FileOperationsContexte } from '../../src/main/gitlab/fileOperations'
-import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from '../../src/main/gitlab/journalPublication'
-import { PublieurGitLab } from '../../src/main/gitlab/publication'
+import { ReconciliateurPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { SessionGitLab } from '../../src/main/gitlab/session'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import type { CorpusFichier } from '../../src/shared/format'
+import {
+  cheminBailCorpus,
+  commitsTouchant,
+  configuration,
+  configurationPresente,
+  contenuDe,
+  creerRacine,
+  definirPrefixeBanc,
+  etiquetteExecution,
+  lireFichier,
+  nettoyer,
+  ouvrirSession,
+  pile,
+} from './qualificationBanc'
 
-const configuration = {
-  url: process.env.GITLAB_URL?.replace(/\/$/, ''),
-  token1: process.env.GITLAB_USER1_TOKEN,
-  token2: process.env.GITLAB_USER2_TOKEN,
-  projetId: process.env.GITLAB_LFS_PROJECT_ID,
-}
-
-const configurationPresente = Object.values(configuration).every((valeur) => Boolean(valeur))
-const idExecution = `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-
-/** Une racine par scénario : les baux et les comptes de commits ne doivent
- *  jamais se croiser d'un test à l'autre, ni avec le reste du banc. */
-function racineDe(suffixe: string): string {
-  return `qualification/${idExecution}-${suffixe}`
-}
-
-interface FichierGitLab {
-  file_path: string
-  content: string
-  last_commit_id: string
-}
-
-async function api<T>(chemin: string, jeton: string): Promise<{ statut: number; corps: T; texte: string }> {
-  const reponse = await fetch(`${configuration.url}/api/v4${chemin}`, {
-    headers: { 'PRIVATE-TOKEN': jeton },
-    signal: AbortSignal.timeout(15_000),
-  })
-  const texte = await reponse.text()
-  let corps: T
-  try {
-    corps = JSON.parse(texte) as T
-  } catch {
-    corps = texte as T
-  }
-  return { statut: reponse.status, corps, texte }
-}
-
-async function lireFichier(chemin: string, jeton: string) {
-  return api<FichierGitLab>(
-    `/projects/${configuration.projetId}/repository/files/${encodeURIComponent(chemin)}?ref=main`,
-    jeton,
-  )
-}
-
-function contenuDe(reponse: { corps: FichierGitLab }): string {
-  return Buffer.from(reponse.corps.content, 'base64').toString('utf8')
-}
-
-/** Commits ayant touché un chemin : le comptage d'un geste ne dépend ainsi
- *  d'aucun autre trafic sur le projet du banc. */
-async function commitsTouchant(chemin: string): Promise<number> {
-  let total = 0
-  for (let page = 1; page <= 100; page += 1) {
-    const commits = await api<unknown[]>(
-      `/projects/${configuration.projetId}/repository/commits`
-      + `?ref_name=main&path=${encodeURIComponent(chemin)}&per_page=100&page=${page}`,
-      configuration.token1 as string,
-    )
-    if (commits.statut !== 200) throw new Error(commits.texte.slice(0, 300))
-    total += commits.corps.length
-    if (commits.corps.length < 100) return total
-  }
-  throw new Error('Le comptage des commits dépasse la borne de qualification.')
-}
-
-/** Dépôt d'un corpus de qualification sous une racine qui lui est propre. */
-async function creerRacine(suffixe: string, corpus = squeletteCorpus('Qualification lot C')): Promise<string> {
-  const racine = racineDe(suffixe)
-  const depot = new DepotCommitsGitLabClient(new ClientGitLab({
-    urlInstance: configuration.url as string,
-    projetId: Number(configuration.projetId),
-    autorisation: { type: 'jeton-prive', jeton: configuration.token1 as string },
-  }))
-  try {
-    await depot.publierCommit('main', `qualification ${idExecution}: corpus ${suffixe}`, [{
-      action: 'create',
-      file_path: `${racine}/corpus.json`,
-      content: JSON.stringify(corpus, null, 2),
-    }])
-  } catch (erreur) {
-    // Une racine déjà déposée n'est pas un échec de qualification.
-    if (!(erreur instanceof ErreurGitLab && erreur.statut === 400)) throw erreur
-  }
-  return racine
-}
-
-/** Chemin du bail de `corpus.json` : les commits de coordination s'y comptent. */
-function cheminBailCorpus(racine: string): string {
-  return cheminBailRessourceGitLab(cleRessourceBailGitLab('main', `${racine}/corpus.json`))
-}
-
-interface Pile {
-  store: CorpusStore
-  depot: DepotCommitsGitLab
-  coordination: BailGitLab
-  publication: PublieurGitLab
-  journal: JournalPublicationGitLab
-  transactions: TransactionsGitLab
-  /** Une requête = une ligne « METHOLE /chemin », dans l'ordre. */
-  requetes: string[]
-  dossier: string
-  lireLocal(): CorpusFichier
-}
-
-/** Pile de production sur l'instance réelle, dans un dossier local neuf.
- *  Le miroir est volontairement en retard : il ne doit rien prouver. */
-function pile(options: {
-  racine: string
-  jeton: string
-  userId: string
-  sessionId: string
-  instance?: string
-  fetchImpl?: typeof fetch
-  /** Dossier de journal partagé : une pile relancée le relit tel quel. */
-  journalRepertoire?: string
-}): Pile {
-  const dossier = mkdtempSync(join(tmpdir(), 'sonal-qualification-c-'))
-  mkdirSync(join(dossier, 'entretiens'), { recursive: true })
-  writeFileSync(
-    join(dossier, 'corpus.json'),
-    JSON.stringify(squeletteCorpus('Miroir périmé'), null, 2),
-    'utf8',
-  )
-  const store = new CorpusStore(dossier)
-  store.lectureSeule = true
-  const requetes: string[] = []
-  const fetchCompte: typeof fetch = async (entree, init) => {
-    const url = new URL(String(entree))
-    requetes.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`)
-    return fetch(entree as never, init)
-  }
-  const client = new ClientGitLab({
-    urlInstance: options.instance ?? (configuration.url as string),
-    projetId: Number(configuration.projetId),
-    autorisation: { type: 'jeton-prive', jeton: options.jeton },
-  }, options.fetchImpl ?? fetchCompte)
-  const depot = new DepotCommitsGitLabClient(client)
-  const destination: ConfigDestinationGitLab = {
-    fournisseur: 'gitlab',
-    id: `qualification-${options.sessionId}`,
-    compteId: options.userId,
-    projetId: Number(configuration.projetId),
-    nomProjet: 'Qualification lot C',
-    branche: 'main',
-    racine: options.racine,
-  }
-  const journal = new JournalPublicationGitLab(
-    destination.id,
-    options.journalRepertoire ?? join(dossier, 'operations'),
-    undefined,
-    {
-      chemin: `${options.racine}/corpus.json`,
-      resourceHash: cleRessourceBailGitLab('main', `${options.racine}/corpus.json`),
-    },
-  )
-  const coordination = new BailGitLab({
-    branche: 'main',
-    depot,
-    identite: () => ({
-      userId: options.userId,
-      machineId: `poste-${options.sessionId}`,
-      sessionId: options.sessionId,
-    }),
-    dureeBailMs: 120_000,
-  })
-  const publication = new PublieurGitLab({ branche: 'main', depot, coordination, journal })
-  const transactions = new TransactionsGitLab({
-    destination,
-    store,
-    depot,
-    coordination,
-    publication,
-    file: new FileOperationsContexte(),
-    journal,
-    nouvelleOperation: () => `op-${options.sessionId}-${Math.random().toString(36).slice(2, 8)}`,
-  })
-  return {
-    store,
-    depot,
-    coordination,
-    publication,
-    journal,
-    transactions,
-    requetes,
-    dossier,
-    lireLocal: () => JSON.parse(readFileSync(join(dossier, 'corpus.json'), 'utf8')) as CorpusFichier,
-  }
-}
-
-/** Session réelle d'un entretien de qualification, avec son stockage local. */
-function ouvrirSession(p: Pile, cheminDistant: string, suffixe: string, userId: string) {
-  const stockage = new StockageLocalEntretienGitLab(p.dossier, `entretiens/${suffixe}.json`)
-  const session = new SessionGitLab({
-    id: suffixe,
-    ressource: `entretien:qualification:${suffixe}`,
-    cheminRelatif: `entretiens/${suffixe}.json`,
-    cheminDistant,
-    branche: 'main',
-    depot: p.depot,
-    coordination: p.coordination,
-    publication: p.publication,
-    stockageLocal: stockage,
-    journal: p.journal,
-  })
-  return Object.assign(session, {
-    ecrire: (contenu: string) => stockage.ecrire(contenu),
-  })
-}
-
-function nettoyer(...piles: Pile[]): void {
-  for (const p of piles) rmSync(p.dossier, { recursive: true, force: true })
-}
+definirPrefixeBanc('c')
 
 const decrire = configurationPresente ? describe : describe.skip
 
 decrire('définitions du corpus GitLab — qualification à deux comptes', () => {
   it('mesure le coût d’une mutation et n’écrit le miroir qu’après confirmation', { timeout: 60_000 }, async () => {
-    const racine = await creerRacine('c1')
+    const racine = await creerRacine('c1', { nom: 'Qualification lot C' })
     const cheminCorpus = `${racine}/corpus.json`
     const cheminBail = cheminBailCorpus(racine)
     const avant = await commitsTouchant(cheminCorpus)
@@ -285,7 +84,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('une commande sans changement ne publie pas de données et remet le miroir à niveau', { timeout: 60_000 }, async () => {
-    const racine = await creerRacine('c2')
+    const racine = await creerRacine('c2', { nom: 'Qualification lot C' })
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c2' })
     const avant = await commitsTouchant(`${racine}/corpus.json`)
 
@@ -302,7 +101,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('deux transactions concurrentes ne s’écrasent pas', { timeout: 90_000 }, async () => {
-    const racine = await creerRacine('c3')
+    const racine = await creerRacine('c3', { nom: 'Qualification lot C' })
     const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c3a' })
     const bob = pile({ racine, jeton: configuration.token2 as string, userId: 'user2', sessionId: 'c3b' })
 
@@ -355,7 +154,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('une garde périmée par un tiers refuse le commit sans rien publier', { timeout: 60_000 }, async () => {
-    const racine = await creerRacine('c4')
+    const racine = await creerRacine('c4', { nom: 'Qualification lot C' })
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c4' })
     const localAvant = JSON.stringify(p.lireLocal())
     const cheminCorpus = `${racine}/corpus.json`
@@ -372,7 +171,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
           await lireFichier(cheminCorpus, configuration.token2 as string),
         )) as CorpusFichier
         concurrent.nom = 'Écrit par un tiers'
-        await publier(branche, `qualification ${idExecution}: corpus du tiers`, [{
+        await publier(branche, `qualification ${etiquetteExecution()}: corpus du tiers`, [{
           action: 'update',
           file_path: cheminCorpus,
           content: JSON.stringify(concurrent, null, 2),
@@ -397,7 +196,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('une panne avant tout envoi refuse la commande et n’installe rien', { timeout: 60_000 }, async () => {
-    const racine = await creerRacine('c5')
+    const racine = await creerRacine('c5', { nom: 'Qualification lot C' })
     let requetes = 0
     const p = pile({
       racine,
@@ -424,7 +223,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('une coupure après l’envoi est réconciliée, jamais rejouée', { timeout: 120_000 }, async () => {
-    const racine = await creerRacine('c6')
+    const racine = await creerRacine('c6', { nom: 'Qualification lot C' })
     let commitsVue = 0
     const serveur: Server = createServer(async (entree, sortie) => {
       const morceaux: Buffer[] = []
@@ -504,10 +303,10 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('une définition et une publication d’entretien réussissent ensemble', { timeout: 90_000 }, async () => {
-    const racine = await creerRacine('c7')
+    const racine = await creerRacine('c7', { nom: 'Qualification lot C' })
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c7' })
     const cheminEntretien = `${racine}/entretiens/c7.json`
-    await p.depot.publierCommit('main', `qualification ${idExecution}: entretien de session`, [{
+    await p.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien de session`, [{
       action: 'create',
       file_path: cheminEntretien,
       content: JSON.stringify({ formatVersion: 8, cycle: 'qualification' }),
@@ -515,7 +314,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     const stockage = new StockageLocalEntretienGitLab(p.dossier, 'entretiens/c7.json')
     const session = new SessionGitLab({
       id: 'c7',
-      ressource: `entretien:qualification:${idExecution}-c7`,
+      ressource: `entretien:qualification:${etiquetteExecution()}-c7`,
       cheminRelatif: 'entretiens/c7.json',
       cheminDistant: cheminEntretien,
       branche: 'main',
@@ -551,7 +350,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('après un redémarrage, le bail de corpus est rendu à l’ouverture', { timeout: 120_000 }, async () => {
-    const racine = await creerRacine('c9')
+    const racine = await creerRacine('c9', { nom: 'Qualification lot C' })
     const journalRepertoire = mkdtempSync(join(tmpdir(), 'sonal-journal-redemarrage-'))
     // Un proxy qui laisse passer tout, sauf l'historique des commits : au
     // moment de la publication, personne ne peut donc rien conclure.
@@ -648,10 +447,10 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('deux publications de ressources différentes se succèdent sans se croiser', { timeout: 90_000 }, async () => {
-    const racine = await creerRacine('c10')
+    const racine = await creerRacine('c10', { nom: 'Qualification lot C' })
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c10' })
     const cheminEntretien = `${racine}/entretiens/c10.json`
-    await p.depot.publierCommit('main', `qualification ${idExecution}: entretien c10`, [{
+    await p.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien c10`, [{
       action: 'create',
       file_path: cheminEntretien,
       content: JSON.stringify({ formatVersion: 8, cycle: 'c10' }),
@@ -659,7 +458,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     const stockage = new StockageLocalEntretienGitLab(p.dossier, 'entretiens/c10.json')
     const session = new SessionGitLab({
       id: 'c10',
-      ressource: `entretien:qualification:${idExecution}-c10`,
+      ressource: `entretien:qualification:${etiquetteExecution()}-c10`,
       cheminRelatif: 'entretiens/c10.json',
       cheminDistant: cheminEntretien,
       branche: 'main',
@@ -691,7 +490,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('deux postes qui publient au même instant finissent par aboutir', { timeout: 90_000 }, async () => {
-    const racine = await creerRacine('c11')
+    const racine = await creerRacine('c11', { nom: 'Qualification lot C' })
     // Les deux postes partent en même temps : leurs envois se croisent, et les
     // fichiers concernés n'ont rien de commun. C'est la collision de branche.
     const lent = (etiquette: string) => async (
@@ -721,13 +520,13 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
       fetchImpl: lent('poste 2') as typeof fetch,
     })
     const cheminEntretien = `${racine}/entretiens/c11.json`
-    await alice.depot.publierCommit('main', `qualification ${idExecution}: entretien c11`, [{
+    await alice.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien c11`, [{
       action: 'create', file_path: cheminEntretien, content: JSON.stringify({ formatVersion: 8, cycle: 'c11' }),
     }])
     const stockage = new StockageLocalEntretienGitLab(bob.dossier, 'entretiens/c11.json')
     const session = new SessionGitLab({
       id: 'c11b',
-      ressource: `entretien:qualification:${idExecution}-c11`,
+      ressource: `entretien:qualification:${etiquetteExecution()}-c11`,
       cheminRelatif: 'entretiens/c11.json',
       cheminDistant: cheminEntretien,
       branche: 'main',
@@ -761,16 +560,16 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('deux comptes qui se relaient sans se croiser ne se refusent pas', { timeout: 90_000 }, async () => {
-    const racine = await creerRacine('c12')
+    const racine = await creerRacine('c12', { nom: 'Qualification lot C' })
     const alice = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c12a' })
     const bob = pile({ racine, jeton: configuration.token2 as string, userId: 'user2', sessionId: 'c12b' })
     const cheminEntretien = `${racine}/entretiens/c12.json`
-    await alice.depot.publierCommit('main', `qualification ${idExecution}: entretien c12`, [{
+    await alice.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien c12`, [{
       action: 'create', file_path: cheminEntretien, content: JSON.stringify({ formatVersion: 8, texte: 'départ' }),
     }])
 
     // Alice travaille, publie, referme. Bob ne commence qu'après.
-    const sessionAlice = ouvrirSession(alice, cheminEntretien, 'c12a', 'user1')
+    const sessionAlice = ouvrirSession(alice, cheminEntretien, 'c12a')
     await expect(sessionAlice.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
     await sessionAlice.ecrire(JSON.stringify({ formatVersion: 8, texte: 'écrit par Alice' }))
     await sessionAlice.marquerSale()
@@ -778,7 +577,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     await expect(sessionAlice.fermer()).resolves.toEqual({ fermee: true })
 
     // Bob reprend le même entretien, sans jamais avoir croisé Alice.
-    const sessionBob = ouvrirSession(bob, cheminEntretien, 'c12b', 'user2')
+    const sessionBob = ouvrirSession(bob, cheminEntretien, 'c12b')
     await expect(sessionBob.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
     await sessionBob.ecrire(JSON.stringify({ formatVersion: 8, texte: 'écrit par Bob' }))
     await sessionBob.marquerSale()
@@ -803,7 +602,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
   })
 
   it('une lecture de frais impossible suspend le geste sans toucher au miroir', { timeout: 60_000 }, async () => {
-    const racine = await creerRacine('c8')
+    const racine = await creerRacine('c8', { nom: 'Qualification lot C' })
     const p = pile({ racine, jeton: configuration.token1 as string, userId: 'user1', sessionId: 'c8' })
     const localAvant = JSON.stringify(p.lireLocal())
     const depotQuiTombe: DepotCommitsGitLab = {

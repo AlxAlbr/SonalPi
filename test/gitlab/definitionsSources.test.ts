@@ -20,12 +20,14 @@ import {
   type FichierGitLab,
 } from '../../src/main/gitlab/bailGitLab'
 import { FileOperationsContexte } from '../../src/main/gitlab/fileOperations'
+import { ErreurReponseTropVolumineuseGitLab } from '../../src/main/gitlab/client'
 import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { preparerDefinitions } from '../../src/main/gitlab/preparationDefinitions'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
 import { MAX_SOURCES_GARDEES, TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import type { CommandeCas } from '../../src/shared/corpus/cas'
+import type { CommandeRecueils, ItemRecueil } from '../../src/shared/corpus/recueils'
 import type { CorpusFichier } from '../../src/shared/format'
 import { deduireSourcesCas } from '../../src/main/casOrchestration'
 import { DepotMemoire } from './depotMemoire'
@@ -246,6 +248,64 @@ describe('définitions qui lisent les entretiens publiés', () => {
     expect(lireLocal()).toEqual(avant)
   })
 
+  test('un passage de recueil se valide sur le repère publié, pas sur le miroir', async () => {
+    const corpus = corpusAvec({ e1: 'Entretien 1' })
+    corpus.recueils = {
+      r1: { id: 'r1', nom: 'Extraits', creeLe: '2026-01-01', modifieLe: '2026-01-01', modeTexte: 'original', items: [] },
+    }
+    const { transactions, depot, lireLocal } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpus, null, 2)],
+      [`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien('Texte', ['p1']), null, 2)],
+    ]))
+    const item: ItemRecueil = {
+      id: 'i1', type: 'passage', source: { entretienId: 'e1', repereId: 'p1' }, commentaireEditorial: '',
+    }
+    const commande: CommandeRecueils = {
+      type: 'inserer-item', recueilId: 'r1', attenduOrdre: [], avantId: null, item,
+    }
+    await transactions.executerDefinitionsAvecSources(
+      (store) => store.recueilsCommander(commande),
+      { deduire: () => ['e1'] },
+    )
+
+    expect(lireLocal().recueils?.r1.items).toEqual([item])
+    expect(publicationDeDonnees(depot).map((action) => action.file_path)).toEqual([
+      CHEMIN_CORPUS, `${RACINE}/entretiens/e1.json`,
+    ])
+  })
+
+  test.each(['inserer-item', 'modifier-item'] as const)(
+    '%s refuse un passage dont le repère manque sur GitLab', async (type) => {
+      const corpus = corpusAvec({ e1: 'Entretien 1' })
+      const ancien: ItemRecueil = {
+        id: 'i1', type: 'passage', source: { entretienId: 'e1', repereId: 'p1' }, commentaireEditorial: '',
+      }
+      corpus.recueils = {
+        r1: {
+          id: 'r1', nom: 'Extraits', creeLe: '2026-01-01', modifieLe: '2026-01-01',
+          modeTexte: 'original', items: type === 'modifier-item' ? [ancien] : [],
+        },
+      }
+      const { transactions, depot, lireLocal } = banc(new Map([
+        [CHEMIN_CORPUS, JSON.stringify(corpus, null, 2)],
+        [`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien('Texte', ['p1']), null, 2)],
+      ]))
+      const avant = lireLocal()
+      const item: ItemRecueil = {
+        ...ancien, source: { entretienId: 'e1', repereId: 'p-absent' },
+      }
+      const commande: CommandeRecueils = type === 'inserer-item'
+        ? { type, recueilId: 'r1', attenduOrdre: [], avantId: null, item }
+        : { type, recueilId: 'r1', itemId: 'i1', attendu: ancien, item }
+      await expect(transactions.executerDefinitionsAvecSources(
+        (store) => store.recueilsCommander(commande),
+        { deduire: () => ['e1'] },
+      )).rejects.toThrow("Le repère du passage n'a pas été enregistré dans l'entretien.")
+      expect(commitsDeDonnees(depot)).toHaveLength(0)
+      expect(lireLocal()).toEqual(avant)
+    },
+  )
+
   test('une source disparue du dépôt suspend le geste', async () => {
     const { transactions, depot } = banc(new Map([
       [CHEMIN_CORPUS, JSON.stringify(corpusAvec({ e1: 'Entretien 1', e2: 'Entretien 2' }), null, 2)],
@@ -257,6 +317,32 @@ describe('définitions qui lisent les entretiens publiés', () => {
       (store) => store.casCommander(commande),
       { deduire: () => ['e1', 'e2'] },
     )).rejects.toThrow(/n’existe plus sur GitLab/)
+    expect(commitsDeDonnees(depot)).toHaveLength(0)
+  })
+
+  test('une source trop volumineuse est refusée par son nom, pas par un plafond anonyme', async () => {
+    const { transactions, depot } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpusAvec({ e1: 'Entretien 1' }), null, 2)],
+      [`${RACINE}/entretiens/e1.json`, JSON.stringify(entretien('Texte', ['p1']), null, 2)],
+    ]))
+    // La lecture avec garde est plafonnée : un entretien plus long la fait
+    // échouer. Le refus doit nommer l'entretien et la limite, sinon
+    // l'utilisateur ne comprend pas ce qui bloque son geste.
+    const lire = depot.lireFichier.bind(depot)
+    depot.lireFichier = async (chemin: string, ref?: string) => {
+      if (chemin.endsWith('e1.json')) throw new ErreurReponseTropVolumineuseGitLab(256 * 1024)
+      return lire(chemin, ref)
+    }
+
+    const commande = commandeRattachement()
+    await expect(transactions.executerDefinitionsAvecSources(
+      (store) => store.casCommander(commande),
+      { deduire: deduireSourcesCas(commande) ?? (() => []) },
+    )).rejects.toThrow(/« Entretien 1 » est trop volumineux/)
+    await expect(transactions.executerDefinitionsAvecSources(
+      (store) => store.casCommander(commande),
+      { deduire: deduireSourcesCas(commande) ?? (() => []) },
+    )).rejects.toThrow(/256 Kio/)
     expect(commitsDeDonnees(depot)).toHaveLength(0)
   })
 

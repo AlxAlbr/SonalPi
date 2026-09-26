@@ -6,7 +6,7 @@ import {
   type DepotCommitsGitLab,
   type DroitsEditionGitLab,
 } from './bailGitLab'
-import { ErreurEcritureGitLab } from './client'
+import { ErreurEcritureGitLab, TAILLE_MAX_DOCUMENT_GITLAB } from './client'
 import {
   ReconciliateurPublicationGitLab,
   type EntreeJournalPublication,
@@ -64,11 +64,13 @@ export const DELAI_REESSAI_BRANCHE_MS = 400
 
 const SHA_COMMIT = /^[a-f0-9]{40,64}$/
 const IDENT_OPERATION = /^[A-Za-z0-9._:-]{1,120}$/
-const TAILLE_MAX_PLAN = 1_500_000
+/** Le plan sérialisé vaut la lecture d'un fichier : ce qui s'ouvre doit
+ *  pouvoir s'enregistrer. */
+const TAILLE_MAX_PLAN = TAILLE_MAX_DOCUMENT_GITLAB
 /** GitLab refuse au-delà de cent actions dans un même commit, bail compris. */
 export const MAX_ACTIONS_PUBLICATION = 100
 /** Taille du corps HTTP de publication, bail et échappement compris. */
-export const MAX_CORPS_PUBLICATION = 2 * 1024 * 1024
+export const MAX_CORPS_PUBLICATION = TAILLE_MAX_DOCUMENT_GITLAB
 /** Marge réservée pour l'enveloppe et l'action de bail lors d'un contrôle
  *  anticipé, effectué avant l'acquisition du droit. */
 export const RESERVE_ENVELOPPE_PUBLICATION = 8 * 1024

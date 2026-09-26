@@ -826,6 +826,16 @@ refusée même pour une source prévue. C'est ce qui rend les validations locale
 indépendantes de l'état du miroir : un miroir périmé ne produit ni faux refus ni
 fausse validation.
 
+### Capacités
+
+`PORTEEES_OVERTES_GITLAB` accorde désormais `definitions-corpus`,
+`definitions-avec-sources` et `tri-contenus`. Un rattachement CAS, une
+dérivation, un passage de recueil et les tris par modification et par longueur
+sont donc proposés par l'interface, et le main continue de refuser par son nom
+tout ce qui n'est pas dans la liste. Les suppressions de définitions et
+d'entretien restent fermées : leur garantie dépasse ce qu'un commit de corpus
+peut tenir.
+
 ### Le tri sur un corpus calme
 
 Le tri ne produit qu'un ordre : une lecture légèrement périmée donne un rang faux,
@@ -835,7 +845,7 @@ le tri refuse **avant** toute acquisition dès qu'un entretien est tenu, y compr
 par notre propre application : l'observation distante fraîche et les sessions
 locales du contexte sont combinées, une observation en panne vaut un refus, et les
 détenteurs trouvés sont nommés. Les contenus sont lus par l'endpoint brut, au SHA du
-corpus, hors de la limite de 256 Kio de la lecture avec garde.
+corpus, hors de la limite de lecture avec garde, soit 1,5 Mio de fichier.
 
 L'interface ne publie plus l'entretien ouvert pour faire passer un tri : elle
 annonce que le tri de contenu demande la fermeture de tous les entretiens
@@ -854,14 +864,29 @@ Quatre limites existent et ne se confondent plus :
 | Limite | Valeur | Périmètre |
 |---|---|---|
 | Actions du commit | 100 | le plan complet, **bail compris** ; 98 sources au maximum |
-| Plan sérialisé | 1 500 000 octets | actions métier, marge de sécurité |
-| Corps HTTP | 2 Mio | corps exact, échappement compris |
-| Réponse de lecture | 256 Kio | lecture JSON base64 d'un fichier avec garde |
+| Plan sérialisé | 2 Mio | actions métier, échappement compris |
+| Corps HTTP | 2 Mio | corps exact, bail compris |
+| Réponse de lecture | 2 Mio | réponse JSON base64 d'un fichier avec garde, soit **1,5 Mio de fichier** |
+
+Les trois bornes de taille portent la même valeur, `TAILLE_MAX_DOCUMENT_GITLAB`
+dans `client.ts`. Les aligner n'est pas cosmétique : un fichier est élargi par le
+base64 à la lecture (1,34 fois) et par l'échappement à la publication (1,13 fois,
+mesuré sur un entretien réel), donc à bornes égales le plus grand fichier lisible
+tient nécessairement sous le plan. L'invariant « ce qui s'ouvre s'enregistre » est
+vérifié par un test sur un entretien de la taille maximale lisible.
+
+La lecture reste la borne la plus étroite : 1,5 Mio de fichier, là où le plan en
+admettrait 1,77 Mio. La capacité annoncée est toujours la plus petite des bornes,
+jamais celle d'une borne isolée. De même, « 98 sources » est un compte d'actions :
+avec des entretiens de 2 h 30 (567 Kio), le plan de 2 Mio n'en accepte que
+**trois**.
 
 `verifierBornesPublication` mesure le corps final au moment de l'envoi ;
 `verifierBornesAnticipees` fait le même calcul avant l'acquisition du droit, bail
 réservé. Un dépassement est refusé par son nom, jamais contourné par plusieurs
-commits ni par la suppression d'une garde.
+commits ni par la suppression d'une garde. Un entretien trop gros pour la lecture
+avec garde est refusé en nommant l'entretien et la limite franchie : il reste
+consultable et éditable, mais ne peut plus porter de référence ni de recette.
 
 ### Une garde inchangée ne périme personne
 
@@ -893,15 +918,18 @@ gardée, refus avant acquisition, entretien illisible, tri sans changement.
 détenteur nommé et sur une observation en panne, ainsi que la publication préalable
 d'une source détenue. `test/gitlab/bailPublication.test.ts` couvre les bornes du
 commit et du corps. `test/distantRenderer.test.ts` couvre la règle de tri côté
-interface, et `test/casRenderer.test.ts` le refus d'une association de passage avant
-l'enregistrement du repère.
+interface, et `test/casRenderer.test.ts` le refus d'une association de passage
+sur un corpus qui ne garde pas les sources, avant l'enregistrement du repère.
+`test/gitlab/qualificationBanc.ts` porte le harnais partagé des deux bancs :
+pile réelle, comptage des commits et lectures directes de l'API.
 
-**Qualifié sur banc** (deux comptes, GitLab CE 18.11) pour la mesure de la garde
-et pour le jalon d du lot C, dont les résultats et les deux réserves ouvertes sont
-consignés dans le plan (`test/gitlab/qualificationDefinitions.test.ts`).
+**Qualifié sur banc** (deux comptes, GitLab CE 18.11) pour la mesure de la garde,
+pour le jalon d du lot C et pour le jalon D1 des gestes à sources, dont les
+résultats et les réserves sont consignés dans le plan
+(`test/gitlab/qualificationDefinitions.test.ts`, `test/gitlab/qualificationSources.test.ts`).
 
-**Non qualifié sur banc.** Restent les recettes de gesture à sources : coût en
-requêtes, en commits et en mémoire pour un rattachement, une dérivation
-représentative et un tri complet, comportement face à une source réellement périmée
-en cours de préparation, et le volume réel du corpus pilote face aux bornes. Les
-capacités restent fermées tant que ces réserves ne sont pas levées.
+**Non qualifié sur banc.** Le volume du corpus pilote : nombre d'entretiens,
+taille brute et réponse base64 du plus gros fichier, nombre réel de sources
+d'un rattachement et d'une dérivation, mémoire pendant un geste à sources. Les
+bornes de 100 actions et de 2 Mio restent celles du §15.6, et un fichier
+exceptionnel est refusé par son nom tant que ce relevé n'a pas été fait.

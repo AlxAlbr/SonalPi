@@ -3,6 +3,7 @@ import {
   autorisationOAuth,
   ClientGitLab,
   ErreurGitLab,
+  ErreurReponseTropVolumineuseGitLab,
   type ConfigurationClientGitLab,
 } from '../../src/main/gitlab/client'
 import { LecteurGitLab } from '../../src/main/gitlab/lecture'
@@ -240,6 +241,9 @@ describe('lecture GitLab à commit fixé', () => {
     const erreur = await client.lireTexte('/lecture').catch((cause) => cause)
     expect(erreur.message).toContain('trop volumineuse')
     expect(erreur.message).not.toContain(secret)
+    // Le type permet à l'appelant de nommer le fichier, pas seulement le plafond.
+    expect(erreur).toBeInstanceOf(ErreurReponseTropVolumineuseGitLab)
+    expect(erreur.limiteOctets).toBe(4)
   })
 
   test('propage une annulation au transport', async () => {

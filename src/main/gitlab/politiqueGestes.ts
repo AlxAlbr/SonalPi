@@ -37,12 +37,15 @@ export type GesteCorpus = string
 
 /** Portées que GitLab ouvre à l'interface.
  *
- *  Les définitions qui lisent les entretiens publiés et le tri de contenu sont
- *  écrits et couverts par des tests, mais n'y figurent pas tant que leur
- *  qualification sur banc n'est pas consignée : le code existe, la commande est
- *  refusée par son nom. C'est cette liste, et elle seule, qui décide de ce que
- *  l'interface propose. */
-export const PORTEEES_OVERTES_GITLAB: PorteeGesteCorpus[] = ['definitions-corpus']
+ *  C'est cette liste, et elle seule, qui décide de ce que l'interface propose
+ *  et de ce que le dispatch accepte. Les suppressions de définitions et
+ *  d'entretien en sont absentes : elles créent une garantie qu'aucun commit de
+ *  corpus ne peut tenir seule, faute d'une politique de références qualifiée. */
+export const PORTEEES_OVERTES_GITLAB: PorteeGesteCorpus[] = [
+  'definitions-corpus',
+  'definitions-avec-sources',
+  'tri-contenus',
+]
 
 /** Portées accordées par fournisseur. Un fournisseur n'accorde jamais une
  *  portée qu'aucun de ses gestes ne partage. */
@@ -190,12 +193,6 @@ export function exigerGeste(fournisseur: FournisseurCorpus, geste: GesteCorpus):
 }
 
 function messageRefusPortee(portee: PorteeGesteCorpus): string {
-  if (portee === 'definitions-avec-sources') {
-    return 'Cette opération relit les entretiens publiés : elle n’est pas encore disponible sur un corpus GitLab.'
-  }
-  if (portee === 'tri-contenus') {
-    return 'Le tri par contenu relit tous les entretiens publiés : il n’est pas encore disponible sur un corpus GitLab.'
-  }
   if (portee === 'suppression-definition') {
     return 'La suppression d’une définition doit refuser ses usages sur le corpus entier : elle n’est pas encore disponible sur un corpus GitLab.'
   }
