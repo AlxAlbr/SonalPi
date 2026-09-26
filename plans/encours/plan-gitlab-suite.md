@@ -16,7 +16,7 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 | Consulter les transcriptions, tenir le miroir à jour | Livré et qualifié sur banc | `gitlab/lecture.ts`, `distant/miroir.ts` |
 | Éditer un entretien sous bail, publier, renouveler, fermer | Livré et qualifié sur banc | `gitlab/session.ts`, `gitlab/bailGitLab.ts` |
 | Créer un entretien vide, importer un entretien | Implémenté dans l'arbre de travail ; un commit de données, plus acquisition et libération du bail ; recette à distinguer | `gitlab/transactions.ts`, `test/gitlab/transactions.test.ts` |
-| Savoir qui tient un entretien | **Absent** : l'éditeur dit « un autre utilisateur » | `gitlab/contexte.ts:144` |
+| Savoir qui tient un entretien | Livré, testé en simulation ; à qualifier sur banc | `gitlab/contexte.ts:144` |
 | Badge 🔒 dans les listes | **Absent** : aucun verrou observé | `gitlab/contexte.ts:74` |
 | Présence 👁 | **Absent**, et hors périmètre (section 9) | `main/index.ts:1791` |
 | Modifier les définitions du corpus | **Absent** : lecture seule garantie | `main/corpusStore.ts:254` |
@@ -388,11 +388,12 @@ et la suppression empiète sur sa session. Le bail corpus ne protège pas contre
 
 ### A — Le détenteur connu
 
-- [ ] Remplir `verrouTenuParAutrui` depuis `tenupar`, sans inventer date ni machine.
-- [ ] Tester tiers, même compte sur deux sessions, ancienne session du même poste,
+- [x] Remplir `verrouTenuParAutrui` depuis `tenupar`, sans inventer date ni machine.
+- [x] Tester tiers, même compte sur deux sessions, ancienne session du même poste,
       réutilisation de la session courante, bail expiré repris et détenteur inconnu.
 
 **Sortie :** l'identifiant connu est affiché ; aucun accès n'est accordé sur son nom.
+*Tests simulés uniquement : la lecture du bandeau par l'E2E à deux comptes reste à jouer sur le banc.*
 
 ### B — Les badges d'exclusion
 

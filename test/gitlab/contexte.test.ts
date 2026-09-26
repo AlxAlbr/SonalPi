@@ -1,13 +1,18 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test, vi } from 'vitest'
+import { BailGitLab, cleRessourceBailGitLab } from '../../src/main/gitlab/bailGitLab'
 import { ClientGitLab } from '../../src/main/gitlab/client'
 import {
   ContexteGitLab,
   preparerContexteGitLabLectureSeule,
 } from '../../src/main/gitlab/contexte'
-import type { SessionGitLab } from '../../src/main/gitlab/session'
+import { PublieurGitLab } from '../../src/main/gitlab/publication'
+import { SessionGitLab } from '../../src/main/gitlab/session'
+import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
+import { CorpusStore } from '../../src/main/corpusStore'
+import { DepotMemoire } from './depotMemoire'
 import {
   corpusDistantValide,
   entretienDistantValide,
@@ -217,5 +222,163 @@ describe('contexte GitLab en lecture seule', () => {
     await expect(contexte.fermer()).rejects.toThrow('empêche la fermeture')
     session.fermer.mockResolvedValueOnce({ fermee: true })
     await expect(contexte.fermer()).resolves.toBeUndefined()
+  })
+})
+
+/** Contexte complet : store local, session réelle et dépôt partagé en mémoire. */
+function storeAvecE1(): string {
+  const dirLocal = mkdtempSync(join(tmpdir(), 'sonal-gitlab-banc-'))
+  mkdirSync(join(dirLocal, 'entretiens'), { recursive: true })
+  writeFileSync(join(dirLocal, 'corpus.json'), corpusDistantValide(['e1']))
+  writeFileSync(join(dirLocal, 'entretiens', 'e1.json'), entretienDistantValide())
+  return dirLocal
+}
+
+function contexteBanc(
+  depot: DepotMemoire,
+  identite: { userId: string; machineId: string; sessionId: string },
+  maintenant: () => number,
+): ContexteGitLab {
+  const dirLocal = storeAvecE1()
+  const store = new CorpusStore(dirLocal)
+  store.lectureSeule = true
+  const coordination = new BailGitLab({
+    branche: 'main',
+    depot,
+    identite: () => identite,
+    maintenant,
+    dureeBailMs: 60_000,
+  })
+  const cheminDistant = 'entretiens/e1.json'
+  return new ContexteGitLab(
+    'destination-test',
+    store,
+    { tirer: async () => ({
+      telecharges: [],
+      corbeille: [],
+      inaccessibles: [],
+      date: new Date(maintenant()).toISOString(),
+    }) } as never,
+    (ressource, cheminRelatif) => new SessionGitLab({
+      id: identite.sessionId,
+      ressource,
+      ressourcePartagee: cleRessourceBailGitLab('main', cheminDistant),
+      cheminRelatif,
+      cheminDistant,
+      branche: 'main',
+      depot,
+      coordination,
+      publication: new PublieurGitLab({ branche: 'main', depot, coordination }),
+      stockageLocal: new StockageLocalEntretienGitLab(dirLocal, cheminRelatif),
+      maintenant,
+      nouvelleOperation: () => `operation-${identite.sessionId}`,
+    }),
+  )
+}
+
+function depotAvecE1(): DepotMemoire {
+  const depot = new DepotMemoire()
+  depot.fichiers.set('entretiens/e1.json', {
+    contenu: entretienDistantValide(),
+    commitId: '1'.repeat(40),
+  })
+  return depot
+}
+
+describe('détenteur connu à l’ouverture d’un entretien GitLab', () => {
+  test('nomme le compte qui tient l’entretien, sans date ni poste inventés', async () => {
+    const depot = depotAvecE1()
+    const maintenant = () => Date.UTC(2026, 0, 1)
+    const alice = contexteBanc(depot, { userId: 'alice', machineId: 'poste-a', sessionId: 's-a' }, maintenant)
+    const bob = contexteBanc(depot, { userId: 'bob', machineId: 'poste-b', sessionId: 's-b' }, maintenant)
+
+    await expect(alice.ouvrirEntretienPourEdition('e1')).resolves.toMatchObject({
+      ok: true,
+      acces: 'edition',
+    })
+    // La session qu'on détient déjà n'affiche personne.
+    await expect(alice.ouvrirEntretienPourEdition('e1')).resolves.toMatchObject({
+      ok: true,
+      acces: 'edition',
+    })
+    await expect(bob.ouvrirEntretienPourEdition('e1')).resolves.toEqual({
+      ok: true,
+      acces: 'lecture-seule',
+      data: expect.anything(),
+      verrouTenuParAutrui: { userId: 'alice', machineId: '', acquiredAt: '' },
+    })
+  })
+
+  test('exclut le même compte sur une autre session et le nomme quand même', async () => {
+    const depot = depotAvecE1()
+    const maintenant = () => Date.UTC(2026, 0, 1)
+    const premiere = contexteBanc(depot, { userId: 'alice', machineId: 'poste-a', sessionId: 's-1' }, maintenant)
+    const seconde = contexteBanc(depot, { userId: 'alice', machineId: 'poste-a', sessionId: 's-2' }, maintenant)
+    const autrePoste = contexteBanc(depot, { userId: 'alice', machineId: 'poste-b', sessionId: 's-3' }, maintenant)
+
+    await premiere.ouvrirEntretienPourEdition('e1')
+    for (const contexte of [seconde, autrePoste]) {
+      const ouverture = await contexte.ouvrirEntretienPourEdition('e1')
+      expect(ouverture).toMatchObject({
+        acces: 'lecture-seule',
+        verrouTenuParAutrui: { userId: 'alice' },
+      })
+    }
+  })
+
+  test('un bail expiré repris n’est plus un détenteur nommé', async () => {
+    const depot = depotAvecE1()
+    let maintenant = Date.UTC(2026, 0, 1)
+    const alice = contexteBanc(depot, { userId: 'alice', machineId: 'poste-a', sessionId: 's-a' }, () => maintenant)
+    const bob = contexteBanc(depot, { userId: 'bob', machineId: 'poste-b', sessionId: 's-b' }, () => maintenant)
+
+    await alice.ouvrirEntretienPourEdition('e1')
+    maintenant += 60_001
+    await expect(bob.ouvrirEntretienPourEdition('e1')).resolves.toMatchObject({
+      acces: 'edition',
+    })
+  })
+
+  test('un refus sans bail lisible ne nomme personne et n’accorde aucune écriture', async () => {
+    const store = new CorpusStore(storeAvecE1())
+    store.lectureSeule = true
+    const autoriser = vi.spyOn(store, 'autoriserEcritureEntretien')
+    const session = sessionFactice()
+    session.ouvrir.mockResolvedValue({ etat: 'lecture-seule', raison: 'bail', tenupar: null })
+    const contexte = new ContexteGitLab(
+      'destination-test',
+      store,
+      { tirer: vi.fn(async () => ({
+        telecharges: [],
+        corbeille: [],
+        inaccessibles: [],
+        date: new Date(0).toISOString(),
+      })) } as never,
+      () => session as unknown as SessionGitLab,
+    )
+
+    await expect(contexte.ouvrirEntretienPourEdition('e1')).resolves.toMatchObject({
+      acces: 'lecture-seule',
+      verrouTenuParAutrui: null,
+    })
+    expect(autoriser).not.toHaveBeenCalled()
+  })
+
+  test('une session dégradée ne nomme aucun détenteur', async () => {
+    const store = new CorpusStore(storeAvecE1())
+    store.lectureSeule = true
+    const session = sessionFactice()
+    session.ouvrir.mockResolvedValue({ etat: 'degrade', raison: 'reseau' })
+    const contexte = new ContexteGitLab(
+      'destination-test',
+      store,
+      { tirer: vi.fn() } as never,
+      () => session as unknown as SessionGitLab,
+    )
+
+    await expect(contexte.ouvrirEntretienPourEdition('e1')).resolves.toMatchObject({
+      acces: 'lecture-seule',
+      verrouTenuParAutrui: null,
+    })
   })
 })

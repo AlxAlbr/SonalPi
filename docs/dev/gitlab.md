@@ -601,3 +601,12 @@ protection après crash forcé sont couvertes par l'E2E empaqueté. La limite «
 postes » écarte toujours LFS Locks seuls ; le bail versionné reste le candidat
 principal. L'étude V1 reste exploitable sans toucher à ses sources ni réinstaller
 les services existants.
+
+L'ouverture en lecture seule nomme désormais le compte qui tient l'entretien,
+lorsque le bail l'identifie : le bandeau de l'éditeur et le refus d'assignation
+audio reprennent cet identifiant au lieu d'un « un autre utilisateur » générique.
+Le bail GitLab ne dit ni poste ni heure d'acquisition, donc ces deux champs
+restent vides et l'interface omet l'heure. Ce comportement est couvert par des
+tests simulés (dépôt en mémoire, deux comptes, sessions du même compte, bail
+expiré repris, refus sans bail lisible) ; il reste à rejouer sur le banc réel,
+où l'E2E d'un entretien tenu par un autre compte n'existe pas encore.

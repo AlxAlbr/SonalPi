@@ -11,7 +11,9 @@ import {
   type PayloadEntretien,
   type RegleAnon,
   type Variable,
+  type VerrouTenuParAutrui,
 } from '../../shared/format'
+import type { PartieBailGitLab } from './bailGitLab'
 import { ClientGitLab } from './client'
 import { LecteurGitLab } from './lecture'
 import type { ResultatPublicationGitLab } from './publication'
@@ -140,9 +142,14 @@ export class ContexteGitLab {
     const etat = await this.ouvrirSessionEntretien(id)
     if (etat.etat !== 'edition') {
       const lecture = this.store.lireEntretien(id)
-      return lecture.ok
-        ? { ...lecture, acces: 'lecture-seule', verrouTenuParAutrui: null }
-        : lecture
+      if (!lecture.ok) return lecture
+      return {
+        ...lecture,
+        acces: 'lecture-seule',
+        verrouTenuParAutrui: etat.etat === 'lecture-seule'
+          ? nommerDetenteur(etat.tenupar)
+          : null,
+      }
     }
     this.store.autoriserEcritureEntretien(id)
     try {
@@ -257,6 +264,14 @@ export class ContexteGitLab {
     if (!entree) throw new Error('Session GitLab non ouverte dans ce contexte.')
     return entree.session
   }
+}
+
+/** Le bail GitLab retient le compte qui tient l'entretien, ni le poste ni
+ *  l'instant d'acquisition : les champs inconnus restent vides et l'interface
+ *  omet ce qu'elle ne sait pas. Un bail illisible ne nomme personne. */
+function nommerDetenteur(tenupar: PartieBailGitLab | null): VerrouTenuParAutrui | null {
+  if (!tenupar) return null
+  return { userId: tenupar.userId, machineId: '', acquiredAt: '' }
 }
 
 /** Prépare une consultation GitLab sans sonde ni mutation du projet. */

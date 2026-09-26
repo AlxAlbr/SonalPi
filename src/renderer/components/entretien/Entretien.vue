@@ -103,7 +103,7 @@ function ouvrirRecueilsDepuisSelection() {
 <template>
     <section class="ecran entretien-ecran">
       <!-- Corpus distant : bandeau quand le verrou de CET entretien est tenu par autrui ;
-           le bandeau dit qui, et depuis quand. -->
+           le bandeau dit qui, et l'heure seulement quand le serveur la connaît. -->
       <div v-if="verrouAutrui" class="banniere-ro">
         🔒 Ouvert en lecture seule — verrou tenu par <b>{{ verrouAutrui.userId }}</b><template v-if="verrouAutrui.acquiredAt">
         depuis {{ new Date(verrouAutrui.acquiredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</template>.

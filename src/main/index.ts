@@ -1108,7 +1108,8 @@ function enregistrerIpcCorpus(): () => Promise<void> {
         const ouverture = await contexte.ouvrirEntretienPourEdition(id)
         if (!ouverture.ok) throw new Error(ouverture.raison)
         if (ouverture.acces !== 'edition') {
-          throw new Error('Cet entretien GitLab est déjà modifié par un autre utilisateur.')
+          const utilisateur = ouverture.verrouTenuParAutrui?.userId ?? 'un autre utilisateur'
+          throw new Error(`Cet entretien GitLab est déjà modifié par ${utilisateur}.`)
         }
         const resultat = contexte.store.assignerAudio(id, source)
         if (resultat) {
