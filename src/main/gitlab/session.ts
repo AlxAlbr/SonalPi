@@ -8,9 +8,11 @@ import {
 } from './bailGitLab'
 import {
   PublieurGitLab,
+  type ActionPlanGitLab,
   type PlanPublicationGitLab,
   type ResultatPublicationGitLab,
 } from './publication'
+import { ReferencesDefinitionsInvalidesError } from './referencesDefinitions'
 import {
   ReconciliateurPublicationGitLab,
   type JournalPublicationGitLab,
@@ -52,6 +54,8 @@ export interface OptionsSessionGitLab {
   maintenant?: () => number
   intervallePublicationMs?: number
   margeRenouvellementMs?: number
+  /** Valide le candidat contre le corpus courant et fournit sa garde. */
+  preparerGardeDefinitions?: (contenuEntretien: string) => Promise<ActionPlanGitLab>
 }
 
 interface SessionOuverte {
@@ -232,17 +236,15 @@ export class SessionGitLab {
       session.dernierePublication = this.maintenant()
       return { statut: 'confirme', commitId: session.commitId, compteurBail: this.compteur() }
     }
-    const plan: PlanPublicationGitLab = {
-      operationId: this.nouvelleOperation(),
-      nature: 'session-entretien',
-      actions: [{
-        action: 'update',
-        chemin: this.options.cheminDistant,
-        contenu,
-        commitId: session.commitId,
-      }],
+    let resultat = await this.publierCandidat(session, contenu)
+    if (
+      resultat.statut === 'refuse' &&
+      resultat.raison === 'conflit' &&
+      this.options.preparerGardeDefinitions &&
+      await this.reprendreApresConflitDeDefinitions(session)
+    ) {
+      resultat = await this.publierCandidat(session, contenu)
     }
-    const resultat = await this.options.publication.publierSousDroit(plan, session.droit)
     if (resultat.statut === 'confirme') {
       session.commitId = resultat.commitId
       session.contenuPublie = contenu
@@ -256,6 +258,9 @@ export class SessionGitLab {
           contenu,
         )
       }
+      return resultat
+    }
+    if (resultat.statut === 'refuse' && resultat.raison === 'references') {
       return resultat
     }
     session.degrade = true
@@ -418,6 +423,58 @@ export class SessionGitLab {
         bail.userId === local.identite.userId &&
         bail.machineId === local.identite.machineId &&
         bail.sessionId === local.identite.sessionId
+    } catch {
+      return false
+    }
+  }
+
+  /** Valide les définitions et publie dans la même section critique locale. */
+  private publierCandidat(
+    session: SessionOuverte,
+    contenu: string,
+  ): Promise<ResultatPublicationGitLab> {
+    return this.options.coordination.serierCommit(async () => {
+      let gardeDefinitions: ActionPlanGitLab | null = null
+      try {
+        gardeDefinitions = await this.options.preparerGardeDefinitions?.(contenu) ?? null
+      } catch (erreur) {
+        if (erreur instanceof ReferencesDefinitionsInvalidesError) {
+          return { statut: 'refuse', raison: 'references', message: erreur.message } as const
+        }
+        throw erreur
+      }
+      const plan: PlanPublicationGitLab = {
+        operationId: this.nouvelleOperation(),
+        nature: 'session-entretien',
+        actions: [
+          {
+            action: 'update',
+            chemin: this.options.cheminDistant,
+            contenu,
+            commitId: session.commitId,
+          },
+          ...(gardeDefinitions ? [gardeDefinitions] : []),
+        ],
+      }
+      return this.options.publication.publierSousDroit(plan, session.droit)
+    })
+  }
+
+  /** Un autre poste a pu modifier seulement le corpus entre validation et
+   *  commit. Si l'entretien et le bail n'ont pas bougé, la validation peut
+   *  repartir une fois sur les définitions fraîches. */
+  private async reprendreApresConflitDeDefinitions(
+    session: SessionOuverte,
+  ): Promise<boolean> {
+    try {
+      const entretien = await this.options.depot.lireFichier(
+        this.options.cheminDistant,
+        this.options.branche,
+      )
+      if (!entretien || entretien.commitId !== session.commitId) return false
+      if (!await this.options.coordination.revalider(session.droit)) return false
+      this.options.coordination.reprendreApresConflitNeutre(session.droit)
+      return true
     } catch {
       return false
     }

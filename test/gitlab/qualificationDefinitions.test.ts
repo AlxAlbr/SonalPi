@@ -12,7 +12,7 @@
 
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -26,8 +26,6 @@ import {
 import { ErreurGitLab } from '../../src/main/gitlab/client'
 import { FileOperationsContexte } from '../../src/main/gitlab/fileOperations'
 import { ReconciliateurPublicationGitLab } from '../../src/main/gitlab/journalPublication'
-import { SessionGitLab } from '../../src/main/gitlab/session'
-import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import type { CorpusFichier } from '../../src/shared/format'
@@ -40,6 +38,7 @@ import {
   creerRacine,
   definirPrefixeBanc,
   etiquetteExecution,
+  entretienPublie,
   lireFichier,
   nettoyer,
   ouvrirSession,
@@ -309,23 +308,11 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     await p.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien de session`, [{
       action: 'create',
       file_path: cheminEntretien,
-      content: JSON.stringify({ formatVersion: 8, cycle: 'qualification' }),
+      content: entretienPublie('qualification'),
     }])
-    const stockage = new StockageLocalEntretienGitLab(p.dossier, 'entretiens/c7.json')
-    const session = new SessionGitLab({
-      id: 'c7',
-      ressource: `entretien:qualification:${etiquetteExecution()}-c7`,
-      cheminRelatif: 'entretiens/c7.json',
-      cheminDistant: cheminEntretien,
-      branche: 'main',
-      depot: p.depot,
-      coordination: p.coordination,
-      publication: p.publication,
-      stockageLocal: stockage,
-      journal: p.journal,
-    })
+    const session = ouvrirSession(p, cheminEntretien, 'c7')
     await expect(session.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-    await stockage.ecrire(JSON.stringify({ formatVersion: 8, cycle: 'qualification modifiée' }))
+    await session.ecrire(entretienPublie('qualification modifiée'))
 
     // Le corpus change pendant que la session est ouverte : les deux écritures
     // portent sur des ressources distinctes, aucune garde n'est invalidée.
@@ -344,7 +331,8 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     expect(contenuDe(await lireFichier(cheminEntretien, configuration.token1 as string)))
       .toContain('qualification modifiée')
     // Le candidat local de la session comme son contenu publié sont intacts.
-    expect(await stockage.lire()).toContain('qualification modifiée')
+    expect(readFileSync(join(p.dossier, 'entretiens/c7.json'), 'utf8'))
+      .toContain('qualification modifiée')
     await expect(session.fermer()).resolves.toEqual({ fermee: true })
     nettoyer(p)
   })
@@ -453,23 +441,11 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     await p.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien c10`, [{
       action: 'create',
       file_path: cheminEntretien,
-      content: JSON.stringify({ formatVersion: 8, cycle: 'c10' }),
+      content: entretienPublie('c10'),
     }])
-    const stockage = new StockageLocalEntretienGitLab(p.dossier, 'entretiens/c10.json')
-    const session = new SessionGitLab({
-      id: 'c10',
-      ressource: `entretien:qualification:${etiquetteExecution()}-c10`,
-      cheminRelatif: 'entretiens/c10.json',
-      cheminDistant: cheminEntretien,
-      branche: 'main',
-      depot: p.depot,
-      coordination: p.coordination,
-      publication: p.publication,
-      stockageLocal: stockage,
-      journal: p.journal,
-    })
+    const session = ouvrirSession(p, cheminEntretien, 'c10')
     await expect(session.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-    await stockage.ecrire(JSON.stringify({ formatVersion: 8, cycle: 'c10 modifié' }))
+    await session.ecrire(entretienPublie('c10 modifié'))
 
     const [, publication] = await Promise.all([
       p.transactions.executerDefinitions(
@@ -521,23 +497,11 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     })
     const cheminEntretien = `${racine}/entretiens/c11.json`
     await alice.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien c11`, [{
-      action: 'create', file_path: cheminEntretien, content: JSON.stringify({ formatVersion: 8, cycle: 'c11' }),
+      action: 'create', file_path: cheminEntretien, content: entretienPublie('c11'),
     }])
-    const stockage = new StockageLocalEntretienGitLab(bob.dossier, 'entretiens/c11.json')
-    const session = new SessionGitLab({
-      id: 'c11b',
-      ressource: `entretien:qualification:${etiquetteExecution()}-c11`,
-      cheminRelatif: 'entretiens/c11.json',
-      cheminDistant: cheminEntretien,
-      branche: 'main',
-      depot: bob.depot,
-      coordination: bob.coordination,
-      publication: bob.publication,
-      stockageLocal: stockage,
-      journal: bob.journal,
-    })
+    const session = ouvrirSession(bob, cheminEntretien, 'c11')
     await expect(session.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-    await stockage.ecrire(JSON.stringify({ formatVersion: 8, cycle: 'c11 modifié' }))
+    await session.ecrire(entretienPublie('c11 modifié'))
 
     const [corpus, publication] = await Promise.all([
       alice.transactions.executerDefinitions(
@@ -565,13 +529,13 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     const bob = pile({ racine, jeton: configuration.token2 as string, userId: 'user2', sessionId: 'c12b' })
     const cheminEntretien = `${racine}/entretiens/c12.json`
     await alice.depot.publierCommit('main', `qualification ${etiquetteExecution()}: entretien c12`, [{
-      action: 'create', file_path: cheminEntretien, content: JSON.stringify({ formatVersion: 8, texte: 'départ' }),
+      action: 'create', file_path: cheminEntretien, content: entretienPublie('départ'),
     }])
 
     // Alice travaille, publie, referme. Bob ne commence qu'après.
     const sessionAlice = ouvrirSession(alice, cheminEntretien, 'c12a')
     await expect(sessionAlice.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-    await sessionAlice.ecrire(JSON.stringify({ formatVersion: 8, texte: 'écrit par Alice' }))
+    await sessionAlice.ecrire(entretienPublie('écrit par Alice'))
     await sessionAlice.marquerSale()
     expect((await sessionAlice.publier()).statut).toBe('confirme')
     await expect(sessionAlice.fermer()).resolves.toEqual({ fermee: true })
@@ -579,7 +543,7 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     // Bob reprend le même entretien, sans jamais avoir croisé Alice.
     const sessionBob = ouvrirSession(bob, cheminEntretien, 'c12b')
     await expect(sessionBob.ouvrir()).resolves.toMatchObject({ etat: 'edition' })
-    await sessionBob.ecrire(JSON.stringify({ formatVersion: 8, texte: 'écrit par Bob' }))
+    await sessionBob.ecrire(entretienPublie('écrit par Bob'))
     await sessionBob.marquerSale()
     expect((await sessionBob.publier()).statut).toBe('confirme')
     await expect(sessionBob.fermer()).resolves.toEqual({ fermee: true })
@@ -588,10 +552,10 @@ decrire('définitions du corpus GitLab — qualification à deux comptes', () =>
     await bob.transactions.executerDefinitions(
       (store) => store.ajouterCategorie('Thème après le relai', null),
     )
-    const final = JSON.parse(contenuDe(
+    const final = contenuDe(
       await lireFichier(cheminEntretien, configuration.token1 as string),
-    )) as { texte: string }
-    expect(final.texte).toBe('écrit par Bob')
+    )
+    expect(final).toContain('écrit par Bob')
     const corpusFinal = JSON.parse(contenuDe(
       await lireFichier(`${racine}/corpus.json`, configuration.token1 as string),
     )) as CorpusFichier

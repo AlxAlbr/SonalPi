@@ -87,6 +87,8 @@ export function useEntretien(deps: {
    *  « garder les deux », déliage/suppression) — injecté par l'orchestrateur
    *  pour que la projection des lignes reflète la règle fraîche. */
   rafraichirReglesCorpus?: () => Promise<void>
+  /** Publie le retrait local avant de supprimer sa définition partagée. */
+  publierAvantSuppressionDefinition?: () => Promise<boolean>
   /** Priorité de validation définie dans `corpus.json.paramsAnon` : la portée
    *  qu'applique ENTRÉE sur une ligne du tableau ; Maj+Entrée fait l'inverse. */
   prioriteAnon: () => 'corpus' | 'entretien'
@@ -184,6 +186,7 @@ export function useEntretien(deps: {
     lireEditeur: () => editor.value ?? null,
     reglesAnon: deps.reglesAnon,
     rafraichirReglesCorpus: deps.rafraichirReglesCorpus,
+    publierAvantSuppressionDefinition: deps.publierAvantSuppressionDefinition,
     prioriteAnon: deps.prioriteAnon,
     motsLiaison: deps.motsLiaison,
     thematiques: deps.thematiques,

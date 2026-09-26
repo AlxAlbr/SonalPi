@@ -648,8 +648,9 @@ le premier lot d'écritures : tout ce qui précède ne faisait que lire.
 
 `gitlab/politiqueGestes.ts` classe chaque commande du corpus selon ce qu'elle
 doit savoir pour se calculer : `definitions-corpus` (le seul `corpus.json`),
-`definitions-avec-sources` (des entretiens publiés), `suppression-entretien`, ou
-`indisponible` sur un corpus distant. Le classement est par commande, et par
+`definitions-avec-sources` (des entretiens publiés), `tri-contenus`,
+`suppression-definition`, `suppression-entretien`, ou `indisponible` sur un
+corpus distant. Le classement est par commande, et par
 variante de commande pour CAS et les recueils : insérer un passage se distingue
 d'insérer un texte, un tri alphabétique se distingue d'un tri par dernière
 modification. Le main nomme le geste de chaque handler et refuse par son nom tout
@@ -658,10 +659,10 @@ Une interface grisée ne suffit donc pas.
 
 `matriceCapacites` déduit de ces portées la matrice publique reçue avec le
 résultat d'ouverture. Elle remplace le drapeau unique qui déverrouillait aussi
-des gestes inexistants : sur GitLab, les définitions simples et le renommage
-d'entretien sont ouverts, les définitions qui lisent les entretiens, les tris
-par contenu et la suppression ne le sont pas, et les métadonnées d'un entretien
-hors session restent bloquées. Le hors ligne et la consultation seule
+des gestes inexistants : sur GitLab, les définitions simples, les gestes à
+sources, les tris par contenu, les suppressions de définitions et le renommage
+d'entretien sont ouverts. La suppression d'entretien et les métadonnées d'un
+entretien hors session restent bloquées. Le hors ligne et la consultation seule
 s'appliquent au-dessus de la matrice ; l'édition d'un entretien garde en plus sa
 garde de session.
 
@@ -677,8 +678,10 @@ L'absence de fichiers d'entretien n'est pas une garde suffisante. Certaines
 lectures du store ignorent volontairement un entretien absent et concluraient
 à tort à zéro usage ; le store temporaire est donc en mode **corpus seul**,
 où toute lecture, tout inventaire et toute écriture d'entretien échoue avec une
-erreur dédiée (`ErreurCorpusSeul`). C'est une seconde garde, jamais un
-remplacement du dispatch.
+erreur dédiée (`ErreurCorpusSeul`). Une suppression reçoit explicitement
+l'inventaire complet du membership frais ; le helper vérifie que chaque source
+est présente avant d'autoriser ce seul inventaire. C'est une seconde garde,
+jamais un remplacement du dispatch.
 
 L'autorisation d'écriture y est une capacité propre à ce store, bornée à un
 callback synchrone et révoquée en `finally`. Un callback qui retourne une
@@ -767,17 +770,16 @@ la sérialisation de deux transactions et d'un tirage, la fermeture attendue pui
 le refus suivant, l'ajout et l'import depuis un miroir en retard, la réponse
 perdue retrouvée, le retry bloqué, la réapplication sans effet et la reprise d'une
 installation interrompue. `test/gitlab/politiqueGestes.test.ts` énumère les
-gestes de CAS, de recueils et de tris, et vérifie que GitLab refuse par leur nom
-les gestes qui lisent les entretiens ou suppriment, sans régression des
+gestes de CAS, de recueils, de tris et de suppression, sans régression des
 parcours déjà acquis. `test/distantRenderer.test.ts` vérifie la matrice publique
 des deux fournisseurs et la primauté du hors ligne.
 
-**Non qualifié sur banc.** Le jalon de recette reste à jouer à deux comptes sur
-l'instance locale : coût en requêtes et en commits d'une mutation de définitions,
-deux commandes concurrentes, garde périmée par un tiers, et reprise après
-coupure. Le manifeste GitLab n'est volontairement pas mis à jour après une
-installation issue d'un GET ou d'un commit : le prochain tirage peut donc
-retélécharger le fichier, ce qui est sans effet mais doit être constaté.
+**Qualifié sur banc.** Le jalon de recette à deux comptes a validé le coût en
+requêtes et en commits, les commandes concurrentes, la garde périmée par un tiers
+et la reprise après coupure ; les mesures sont consignées au §16 du plan. Le
+manifeste GitLab n'est volontairement pas mis à jour après une installation issue
+d'un GET ou d'un commit : le prochain tirage peut donc retélécharger le fichier,
+ce qui reste sans effet.
 
 ## 10. Définitions qui lisent les entretiens publiés
 
@@ -785,10 +787,10 @@ Les gestes qui ajoutent une référence — un rattachement ou une création de 
 en porte, une dérivation de famille ou de cas, l'insertion d'un passage de recueil
 ou le changement de sa source — se calculent sur les **versions publiées** des
 entretiens qu'ils contrôlent. Le tri par modification ou par longueur relit, lui,
-tous les entretiens sans en garder aucun. Les deux gestes sont écrits et couverts
-par des tests, mais leurs capacités restent fermées tant que la qualification sur
-banc n'est pas consignée : `PORTEEES_OVERTES_GITLAB` est la liste qui décide de ce
-que l'interface propose, et le dispatch refuse tout le reste par son nom.
+tous les entretiens sans en garder aucun. Ces gestes sont écrits, couverts par des tests et qualifiés sur le banc réel :
+`PORTEEES_OVERTES_GITLAB` les ouvre. Les suppressions de définitions sont elles
+aussi ouvertes depuis leur qualification à deux comptes ; le dispatch refuse
+tout le reste par son nom.
 
 ### Portées distinctes
 
@@ -826,15 +828,56 @@ refusée même pour une source prévue. C'est ce qui rend les validations locale
 indépendantes de l'état du miroir : un miroir périmé ne produit ni faux refus ni
 fausse validation.
 
+### Suppressions et sessions déjà ouvertes
+
+Une suppression de thème, catégorie de note, règle d'anonymisation, variable ou
+modalité relit **tous** les entretiens du membership frais au même SHA. Les
+sessions locales sont publiées avant ce décompte. Si aucun usage ne subsiste, le
+commit retire la définition et garde chaque entretien sous son contenu inchangé
+et son `last_commit_id`. Une publication concurrente périme donc une garde et
+fait refuser tout le retrait.
+
+La protection réciproque se trouve dans chaque publication de session. Avant le
+commit, SonalPi relit `corpus.json`, valide toutes les références du candidat,
+puis ajoute le corpus inchangé sous son `last_commit_id`. Une session ouverte
+avant un retrait ne peut ainsi pas réintroduire ensuite la définition : elle
+reste éditable avec son candidat local, mais sa publication est refusée jusqu'au
+retrait de la référence. Si le corpus change entre validation et commit alors que
+l'entretien et son bail sont intacts, la session relit les définitions et réessaie
+une fois. Une mutation indépendante peut ainsi aboutir ; une suppression rend la
+référence invalide et conserve le candidat sans l'écrire.
+
+La file de commits locale simplifie ce protocole sur un même poste, mais ne le
+remplace pas : deux postes ont deux files. Ce sont les gardes croisées — tous les
+entretiens dans le commit de suppression, `corpus.json` dans le commit de session
+— qui ferment la course distribuée.
+
+Les limites de D1 s'appliquent sans dérogation : 98 sources au plus et 2 Mio pour
+le corps final. Une suppression trop grande est refusée ; elle n'est ni découpée
+ni publiée avec moins de gardes. Les tests simulés sont dans
+`definitionsSources.test.ts`, `referencesDefinitions.test.ts` et
+`session.test.ts`. La recette réelle de `qualificationSuppressions.test.ts` a
+réussi le 26 septembre 2026 sur GitLab CE 18.11, à deux comptes :
+
+| Scénario | Résultat mesuré |
+|---|---|
+| Suppression face à une session déjà ouverte | 1 commit de données, 3 commits au total, 7 requêtes, 2,2 s |
+| Définition utilisée dans une version publiée | refus avec un usage, 0 commit de données, 2 commits de coordination, 6 requêtes, 0,9 s |
+
+Le premier scénario retire le thème, refuse ensuite l'ancien candidat avec le
+motif `references` sans dégrader la session, puis accepte le candidat corrigé.
+Le second conserve la définition et le corpus distant intacts. Le fichier de
+qualification reste sauté sans les variables du banc ; un saut n'est pas une
+nouvelle preuve, mais ne retire pas celle consignée ici.
+
 ### Capacités
 
 `PORTEEES_OVERTES_GITLAB` accorde désormais `definitions-corpus`,
-`definitions-avec-sources` et `tri-contenus`. Un rattachement CAS, une
-dérivation, un passage de recueil et les tris par modification et par longueur
-sont donc proposés par l'interface, et le main continue de refuser par son nom
-tout ce qui n'est pas dans la liste. Les suppressions de définitions et
-d'entretien restent fermées : leur garantie dépasse ce qu'un commit de corpus
-peut tenir.
+`definitions-avec-sources`, `tri-contenus` et `suppression-definition`. Un
+rattachement CAS, une dérivation, un passage de recueil, les tris par modification
+et par longueur, ainsi que les suppressions de définitions sont proposés par
+l'interface. Le main continue de refuser par son nom tout ce qui n'est pas dans
+la liste. La suppression d'entretien reste absente.
 
 ### Le tri sur un corpus calme
 
@@ -924,9 +967,11 @@ sur un corpus qui ne garde pas les sources, avant l'enregistrement du repère.
 pile réelle, comptage des commits et lectures directes de l'API.
 
 **Qualifié sur banc** (deux comptes, GitLab CE 18.11) pour la mesure de la garde,
-pour le jalon d du lot C et pour le jalon D1 des gestes à sources, dont les
-résultats et les réserves sont consignés dans le plan
-(`test/gitlab/qualificationDefinitions.test.ts`, `test/gitlab/qualificationSources.test.ts`).
+pour le jalon d du lot C, pour le jalon D1 des gestes à sources et pour le jalon
+D2 des suppressions de définitions. Les résultats et les réserves sont consignés
+dans le plan (`test/gitlab/qualificationDefinitions.test.ts`,
+`test/gitlab/qualificationSources.test.ts`,
+`test/gitlab/qualificationSuppressions.test.ts`).
 
 **Non qualifié sur banc.** Le volume du corpus pilote : nombre d'entretiens,
 taille brute et réponse base64 du plus gros fichier, nombre réel de sources

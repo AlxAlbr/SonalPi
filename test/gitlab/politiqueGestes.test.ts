@@ -107,16 +107,18 @@ describe('portée des gestes du corpus', () => {
     expect(porteeGeste('entretien.trier-contenus')).toBe('tri-contenus')
   })
 
-  test('GitLab refuse par leur nom les gestes qui suppriment', () => {
+  test('GitLab ouvre les suppressions de définitions, pas celle d’un entretien', () => {
     for (const geste of [
       'theme.supprimer',
       'note.supprimer-categorie',
       'variable.supprimer',
       'modalite.supprimer',
       'anon.supprimer-regle',
-      'entretien.supprimer',
-      'entretien.analyser-suppression',
     ]) {
+      expect(gesteAutorise('gitlab', geste), geste).toBe(true)
+      expect(() => exigerGeste('gitlab', geste), geste).not.toThrow()
+    }
+    for (const geste of ['entretien.supprimer', 'entretien.analyser-suppression']) {
       expect(gesteAutorise('gitlab', geste), geste).toBe(false)
       expect(() => exigerGeste('gitlab', geste), geste).toThrow(/GitLab/)
     }
@@ -144,9 +146,8 @@ describe('portée des gestes du corpus', () => {
     }
   })
 
-  test('les refus de GitLab disent ce qui manque, geste par geste', () => {
+  test('le refus de GitLab nomme la suppression d’entretien', () => {
     expect(() => exigerGeste('gitlab', 'entretien.supprimer')).toThrow(/suppression d’un entretien/)
-    expect(() => exigerGeste('gitlab', 'theme.supprimer')).toThrow(/suppression d’une définition/)
   })
 
   test('fermer une portée de GitLab ferme la capacité qui en dépend', () => {
@@ -163,11 +164,16 @@ describe('portée des gestes du corpus', () => {
       expect(gesteAutorise('gitlab', 'cas.ajouter-rattachement')).toBe(false)
       expect(() => exigerGeste('gitlab', 'entretien.trier-contenus')).toThrow(/n’est pas disponible/)
     } finally {
-      PORTEEES_OVERTES_GITLAB.push('definitions-corpus', 'definitions-avec-sources', 'tri-contenus')
+      PORTEEES_OVERTES_GITLAB.push(
+        'definitions-corpus',
+        'definitions-avec-sources',
+        'tri-contenus',
+        'suppression-definition',
+      )
     }
   })
 
-  test('la matrice de GitLab ouvre les définitions et le tri, pas les suppressions', () => {
+  test('la matrice de GitLab ouvre les définitions et le tri, pas la suppression d’entretien', () => {
     expect(matriceCapacites('gitlab')).toEqual({
       definitions: true,
       definitionsAvecSources: true,

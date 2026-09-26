@@ -24,6 +24,7 @@ import { FileOperationsContexte } from '../../src/main/gitlab/fileOperations'
 import { JournalPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
 import { SessionGitLab } from '../../src/main/gitlab/session'
+import { verifierContenusReferencesDefinitions } from '../../src/main/gitlab/referencesDefinitions'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { TransactionsGitLab } from '../../src/main/gitlab/transactions'
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
@@ -255,6 +256,7 @@ export function pile(options: {
 /** Session réelle d'un entretien de qualification, avec son stockage local. */
 export function ouvrirSession(p: Pile, cheminDistant: string, suffixe: string) {
   const stockage = new StockageLocalEntretienGitLab(p.dossier, `entretiens/${suffixe}.json`)
+  const cheminCorpus = p.racine ? `${p.racine}/corpus.json` : 'corpus.json'
   const session = new SessionGitLab({
     id: suffixe,
     ressource: `entretien:qualification:${suffixe}`,
@@ -266,6 +268,17 @@ export function ouvrirSession(p: Pile, cheminDistant: string, suffixe: string) {
     publication: p.publication,
     stockageLocal: stockage,
     journal: p.journal,
+    preparerGardeDefinitions: async (contenuEntretien) => {
+      const corpus = await p.depot.lireFichier(cheminCorpus, 'main')
+      if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
+      verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu)
+      return {
+        action: 'update',
+        chemin: cheminCorpus,
+        contenu: corpus.contenu,
+        commitId: corpus.commitId,
+      }
+    },
   })
   return Object.assign(session, {
     ecrire: (contenu: string) => stockage.ecrire(contenu),

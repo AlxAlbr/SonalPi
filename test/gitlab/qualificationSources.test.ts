@@ -18,6 +18,7 @@ import { describe, expect, it } from 'vitest'
 import { ContexteGitLab } from '../../src/main/gitlab/contexte'
 import type { ObservationCoordinationDistante } from '../../src/main/distant/coordination'
 import { SessionGitLab } from '../../src/main/gitlab/session'
+import { verifierContenusReferencesDefinitions } from '../../src/main/gitlab/referencesDefinitions'
 import { ReconciliateurPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { MAX_SOURCES_GARDEES } from '../../src/main/gitlab/transactions'
@@ -130,6 +131,17 @@ function sessionDe(p: Pile, id: string, idSession: string) {
       publication: p.publication,
       stockageLocal: stockage,
       journal: p.journal,
+      preparerGardeDefinitions: async (contenuEntretien) => {
+        const corpus = await p.depot.lireFichier(`${p.racine}/corpus.json`, 'main')
+        if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
+        verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu)
+        return {
+          action: 'update',
+          chemin: `${p.racine}/corpus.json`,
+          contenu: corpus.contenu,
+          commitId: corpus.commitId,
+        }
+      },
     }),
     stockage,
   }

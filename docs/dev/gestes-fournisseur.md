@@ -20,7 +20,9 @@ entretiens publiés.
 | Portée | Ce qu'elle exige | Gestes typiques |
 |---|---|---|
 | `definitions-corpus` | le seul `corpus.json` | thèmes, variables, modalités, catégories de note, tableau de bord, pseudonymisation, recueils, CAS, renommage d'entretien, tri alphabétique et tri d'ajout, création et import d'un entretien |
-| `definitions-avec-sources` | des entretiens **publiés** | suppressions de définitions, tri par dernière modification ou par longueur, passage inséré dans un recueil, rattachement et dérivation CAS |
+| `definitions-avec-sources` | des entretiens **publiés et gardés** | passage inséré dans un recueil, rattachement et dérivation CAS |
+| `tri-contenus` | tous les entretiens publiés, sans garde | tri par dernière modification ou par longueur |
+| `suppression-definition` | tous les entretiens publiés et gardés, avec validation réciproque des sessions | suppression d'un thème, d'une variable, d'une modalité, d'une catégorie de note ou d'une règle |
 | `suppression-entretien` | retrait puis archivage d'un entretien | analyse de suppression, suppression |
 | `indisponible` | rien — parcours refusés sur **tout** corpus distant | édition d'une note du corpus, personnes, annulation d'une action du journal, lots de valeurs et de règles, marqueur de démonstration |
 
@@ -36,13 +38,16 @@ Un fournisseur n'accorde jamais une portée qu'aucun de ses gestes ne partage.
 | Portée | `local` | `webdav` | `gitlab` |
 |---|---|---|---|
 | `definitions-corpus` | oui | oui | oui |
-| `definitions-avec-sources` | oui | oui | non |
+| `definitions-avec-sources` | oui | oui | oui |
+| `tri-contenus` | oui | oui | oui |
+| `suppression-definition` | oui | oui | oui |
 | `suppression-entretien` | oui | oui | non |
 | `indisponible` | oui | non | non |
 
-GitLab n'accorde donc que les définitions simples : c'est la conséquence directe
-du fait que le mirror de travail peut être périmé, et qu'une lecture d'entretien
-non publiée ne fonderait pas un tri, un compte d'usages ou un repère référencé.
+GitLab accorde toutes les opérations de définitions qualifiées. Les gestes à
+sources gardent les versions publiées dans le commit, les tris exigent un corpus
+calme et les suppressions ajoutent une garde croisée avec les publications de
+session. Seule la suppression d'un entretien reste absente dans cette famille.
 
 ## 3. Les gardes, dans l'ordre
 
@@ -68,8 +73,8 @@ accès.
 | Capacité | `local` | `webdav` | `gitlab` | Origine |
 |---|---|---|---|---|
 | `definitions` | oui | oui | oui | portée `definitions-corpus` |
-| `definitionsAvecSources` | oui | oui | non | idem |
-| `triContenu` | oui | oui | non | idem |
+| `definitionsAvecSources` | oui | oui | oui | idem |
+| `triContenu` | oui | oui | oui | idem |
 | `ajoutEntretien` | oui | oui | oui | idem |
 | `suppressionEntretien` | oui | oui | non | portée `suppression-entretien` |
 | `editionEntretien` | oui | oui | oui | toujours vraie : la garde de session s'applique par-dessus |

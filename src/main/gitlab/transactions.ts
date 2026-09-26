@@ -51,6 +51,11 @@ export interface SourcesTransaction {
   publierSource?: (entretienId: string) => Promise<void>
 }
 
+/** Sessions locales à publier avant un décompte de suppressions. */
+export interface SourcesSuppressionDefinitions {
+  publierSource?: (entretienId: string) => Promise<void>
+}
+
 export interface OptionsTransactionsGitLab {
   destination: ConfigDestinationGitLab
   /** Store du miroir actif : il reste en lecture seule et n'installe qu'après
@@ -173,6 +178,59 @@ export class TransactionsGitLab {
             actions,
           }, droit)
           this.verifierPublication(resultat, 'La modification du corpus')
+        }
+        const installe = preparation.candidat ?? preparation.baseFraîche
+        this.installer(operationId, installe)
+        return { valeur: preparation.valeur, corpus: installe }
+      } finally {
+        await this.libererBail(droit)
+      }
+    })
+  }
+
+  /** Suppression refusée dès qu'une version publiée utilise la définition.
+   *
+   *  Les entretiens du membership frais sont lus au même SHA et gardés dans
+   *  le commit : une publication concurrente fait refuser la suppression. */
+  executerSuppressionDefinitions<T>(
+    preparer: (store: CorpusStore) => T,
+    sources: SourcesSuppressionDefinitions = {},
+  ): Promise<ResultatTransactionDefinitions<T>> {
+    return this.options.file.executer(async () => {
+      this.verifierTransactionReconciliee()
+      const apercu = await this.lireBase(this.branche)
+      const prevues = this.sourcesAttendues(
+        (corpus) => Object.keys(corpus.membership),
+        apercu.corpus,
+      )
+      for (const entretienId of prevues) {
+        await sources.publierSource?.(entretienId)
+      }
+      const droit = await this.acquerirBailCorpus()
+      try {
+        const sha = await this.options.depot.resoudreTete(this.branche)
+        const frais = await this.lireBase(sha)
+        const retenues = this.sourcesAttendues(
+          (corpus) => Object.keys(corpus.membership),
+          frais.corpus,
+        )
+        const lues = await this.lireSources(retenues, sha, frais.corpus)
+        const operationId = this.nouvelleOperation()
+        const preparation = preparerDefinitions(
+          frais.fichier.contenu,
+          preparer,
+          lues.map((source) => ({ id: source.id, contenu: source.contenu })),
+          { inventaireComplet: true },
+        )
+        if (preparation.candidat) {
+          const actions = this.actionsGardees(frais, preparation, lues)
+          this.verifierBornes(operationId, actions)
+          const resultat = await this.options.publication.publierSousDroit({
+            operationId,
+            nature: 'transaction-corpus',
+            actions,
+          }, droit)
+          this.verifierPublication(resultat, 'La suppression de la définition')
         }
         const installe = preparation.candidat ?? preparation.baseFraîche
         this.installer(operationId, installe)
@@ -515,6 +573,7 @@ export class TransactionsGitLab {
         `${sujet} GitLab n’a pas été confirmée. Actualisez le corpus avant de réessayer.`,
       )
     }
+    if (resultat.raison === 'references') throw new Error(resultat.message)
     const messages = {
       conflit: `${sujet} a été refusée : le corpus GitLab a changé pendant l’opération. Actualisez puis réessayez.`,
       'droit-perdu': `${sujet} a été refusée : le droit de modification GitLab a été perdu.`,

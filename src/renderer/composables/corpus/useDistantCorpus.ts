@@ -320,7 +320,7 @@ export function useDistantCorpus(deps: {
           reseau:
             'La publication GitLab a échoué côté réseau. Le travail local est conservé.',
         }
-        publiErreur.value = messages[resultat.raison ?? ''] ??
+        publiErreur.value = messages[resultat.raison ?? ''] ?? resultat.raison ??
           'La publication n’a pas abouti. Le travail local est conservé.'
       }
       await rafraichirStatutSession()

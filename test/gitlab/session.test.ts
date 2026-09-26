@@ -11,13 +11,18 @@ import {
 import { ErreurEcritureGitLab } from '../../src/main/gitlab/client'
 import { JournalPublicationGitLab, ReconciliateurPublicationGitLab } from '../../src/main/gitlab/journalPublication'
 import { PublieurGitLab } from '../../src/main/gitlab/publication'
-import { SessionGitLab, type StockageLocalSessionGitLab } from '../../src/main/gitlab/session'
+import {
+  SessionGitLab,
+  type OptionsSessionGitLab,
+  type StockageLocalSessionGitLab,
+} from '../../src/main/gitlab/session'
+import { ReferencesDefinitionsInvalidesError } from '../../src/main/gitlab/referencesDefinitions'
 import { StockageLocalEntretienGitLab } from '../../src/main/gitlab/stockageSession'
 import { JournalSessionsGitLab } from '../../src/main/gitlab/journalSession'
 
 class DepotSession implements DepotCommitsGitLab {
   readonly fichiers = new Map<string, { contenu: string; commitId: string }>()
-  readonly commits: Array<{ id: string; title: string }> = []
+  readonly commits: Array<{ id: string; title: string; actions: ActionCommitGitLab[] }> = []
   private compteur = 0
   private echecApresProchainCommit = false
   private commitsIllisibles = false
@@ -64,7 +69,7 @@ class DepotSession implements DepotCommitsGitLab {
       if (action.action === 'delete') this.fichiers.delete(action.file_path)
       else this.fichiers.set(action.file_path, { contenu: action.content ?? '', commitId: id })
     }
-    this.commits.push({ id, title: message })
+    this.commits.push({ id, title: message, actions })
     if (this.echecApresProchainCommit) {
       this.echecApresProchainCommit = false
       throw new Error('réponse perdue')
@@ -93,6 +98,7 @@ function creerSession(
   journalSessions?: JournalSessionsGitLab,
   margeRenouvellementMs = 5 * 60 * 1000,
   dureeBailMs = 60_000,
+  preparerGardeDefinitions?: OptionsSessionGitLab['preparerGardeDefinitions'],
 ): SessionGitLab {
   let generation = 0
   const coordination = new BailGitLab({
@@ -122,6 +128,7 @@ function creerSession(
     intervallePublicationMs: 60_000,
     margeRenouvellementMs,
     nouvelleOperation: () => `operation-${sessionId}-${Math.random().toString(36).slice(2, 8)}`,
+    preparerGardeDefinitions,
   })
 }
 
@@ -139,6 +146,169 @@ describe('session GitLab', () => {
     expect(session.etat()).toEqual({ etat: 'edition', revision: 1, revisionPubliee: 1 })
     await expect(session.fermer()).resolves.toEqual({ fermee: true })
     expect([...depot.fichiers.keys()].some((chemin) => chemin.startsWith('.sonal/verrous/'))).toBe(false)
+  })
+
+  test('publie l’entretien avec une garde inchangée de corpus.json', async () => {
+    const depot = new DepotSession()
+    depot.fichiers.set('corpus.json', {
+      contenu: '{"formatVersion":8}',
+      commitId: '2'.repeat(40),
+    })
+    const stockage = new StockageMemoire('')
+    const session = creerSession(
+      depot,
+      'session-garde-corpus',
+      () => Date.UTC(2026, 0, 1),
+      stockage,
+      undefined,
+      false,
+      undefined,
+      5 * 60 * 1000,
+      60_000,
+      async () => {
+        const corpus = await depot.lireFichier('corpus.json')
+        return {
+          action: 'update',
+          chemin: 'corpus.json',
+          contenu: corpus!.contenu,
+          commitId: corpus!.commitId,
+        }
+      },
+    )
+
+    await session.ouvrir()
+    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    await session.marquerSale()
+    await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
+
+    const commit = depot.commits.find((entree) =>
+      entree.actions.some((action) => action.file_path === 'entretiens/e1.json'))
+    expect(commit?.actions.map((action) => action.file_path)).toContain('corpus.json')
+  })
+
+  test('une suppression concurrente de définition refuse atomiquement la publication', async () => {
+    const depot = new DepotSession()
+    depot.fichiers.set('corpus.json', {
+      contenu: '{"formatVersion":8,"codebook":{"theme":{}}}',
+      commitId: '2'.repeat(40),
+    })
+    const stockage = new StockageMemoire('')
+    let validations = 0
+    const session = creerSession(
+      depot,
+      'session-course-corpus',
+      () => Date.UTC(2026, 0, 1),
+      stockage,
+      undefined,
+      false,
+      undefined,
+      5 * 60 * 1000,
+      60_000,
+      async () => {
+        validations += 1
+        if (validations > 1) {
+          throw new ReferencesDefinitionsInvalidesError('Le thème a été supprimé.')
+        }
+        const corpus = await depot.lireFichier('corpus.json')
+        depot.fichiers.set('corpus.json', {
+          contenu: '{"formatVersion":8,"codebook":{}}',
+          commitId: '3'.repeat(40),
+        })
+        return {
+          action: 'update',
+          chemin: 'corpus.json',
+          contenu: corpus!.contenu,
+          commitId: corpus!.commitId,
+        }
+      },
+    )
+
+    await session.ouvrir()
+    stockage.valeur = '{"formatVersion":8,"theme":"theme"}'
+    await session.marquerSale()
+    await expect(session.publier()).resolves.toEqual({
+      statut: 'refuse',
+      raison: 'references',
+      message: 'Le thème a été supprimé.',
+    })
+    expect(session.etat()).toMatchObject({ etat: 'edition' })
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"formatVersion":8}')
+  })
+
+  test('revalide une modification indépendante du corpus avant de republier', async () => {
+    const depot = new DepotSession()
+    depot.fichiers.set('corpus.json', {
+      contenu: '{"formatVersion":8,"nom":"avant"}',
+      commitId: '2'.repeat(40),
+    })
+    const stockage = new StockageMemoire('')
+    let validations = 0
+    const session = creerSession(
+      depot,
+      'session-revalidation-corpus',
+      () => Date.UTC(2026, 0, 1),
+      stockage,
+      undefined,
+      false,
+      undefined,
+      5 * 60 * 1000,
+      60_000,
+      async () => {
+        validations += 1
+        const corpus = await depot.lireFichier('corpus.json')
+        if (validations === 1) {
+          depot.fichiers.set('corpus.json', {
+            contenu: '{"formatVersion":8,"nom":"après"}',
+            commitId: '3'.repeat(40),
+          })
+        }
+        return {
+          action: 'update',
+          chemin: 'corpus.json',
+          contenu: corpus!.contenu,
+          commitId: corpus!.commitId,
+        }
+      },
+    )
+
+    await session.ouvrir()
+    stockage.valeur = '{"formatVersion":8,"modifie":true}'
+    await session.marquerSale()
+    await expect(session.publier()).resolves.toMatchObject({ statut: 'confirme' })
+    expect(validations).toBe(2)
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toContain('modifie')
+  })
+
+  test('une référence supprimée conserve le candidat et la session éditable', async () => {
+    const depot = new DepotSession()
+    const stockage = new StockageMemoire('')
+    const session = creerSession(
+      depot,
+      'session-reference-supprimee',
+      () => Date.UTC(2026, 0, 1),
+      stockage,
+      undefined,
+      false,
+      undefined,
+      5 * 60 * 1000,
+      60_000,
+      async () => {
+        throw new ReferencesDefinitionsInvalidesError(
+          'Le thème « supprimé » doit être retiré avant publication.',
+        )
+      },
+    )
+
+    await session.ouvrir()
+    stockage.valeur = '{"formatVersion":8,"theme":"supprimé"}'
+    await session.marquerSale()
+    await expect(session.publier()).resolves.toEqual({
+      statut: 'refuse',
+      raison: 'references',
+      message: 'Le thème « supprimé » doit être retiré avant publication.',
+    })
+    expect(session.etat()).toEqual({ etat: 'edition', revision: 1, revisionPubliee: 0 })
+    expect(depot.fichiers.get('entretiens/e1.json')?.contenu).toBe('{"formatVersion":8}')
   })
 
   test('sérialise renouvellement et publication dans la même file', async () => {

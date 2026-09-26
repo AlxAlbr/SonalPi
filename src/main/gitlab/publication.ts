@@ -44,6 +44,11 @@ export type ResultatPublicationGitLab =
       raison: 'conflit' | 'droit-perdu' | 'droits' | 'limite'
     }
   | {
+      statut: 'refuse'
+      raison: 'references'
+      message: string
+    }
+  | {
       statut: 'indetermine'
       operationId: string
     }

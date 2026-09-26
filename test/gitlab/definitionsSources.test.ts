@@ -28,7 +28,7 @@ import { MAX_SOURCES_GARDEES, TransactionsGitLab } from '../../src/main/gitlab/t
 import { squeletteCorpus } from '../../src/shared/corpus/squelette'
 import type { CommandeCas } from '../../src/shared/corpus/cas'
 import type { CommandeRecueils, ItemRecueil } from '../../src/shared/corpus/recueils'
-import type { CorpusFichier } from '../../src/shared/format'
+import type { CorpusFichier, EntretienFichier } from '../../src/shared/format'
 import { deduireSourcesCas } from '../../src/main/casOrchestration'
 import { DepotMemoire } from './depotMemoire'
 
@@ -465,6 +465,97 @@ describe('tri par contenu', () => {
   })
 })
 
+describe('suppression de définitions GitLab', () => {
+  function corpusAvecTheme(): CorpusFichier {
+    const corpus = corpusAvec({ e1: 'Entretien 1', e2: 'Entretien 2' })
+    corpus.codebook.theme = {
+      id: 'theme',
+      nom: 'Thème supprimable',
+      parent: null,
+      ordre: 0,
+      actif: true,
+      codeExport: 'theme',
+    }
+    return corpus
+  }
+
+  test('décompte toutes les versions publiées et les garde dans le commit', async () => {
+    const corpus = corpusAvecTheme()
+    const sourceE1 = JSON.stringify(entretien('Sans usage'), null, 2)
+    const sourceE2 = JSON.stringify(entretien('Sans usage non plus'), null, 2)
+    const { transactions, depot } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpus, null, 2)],
+      [`${RACINE}/entretiens/e1.json`, sourceE1],
+      [`${RACINE}/entretiens/e2.json`, sourceE2],
+    ]))
+
+    const resultat = await transactions.executerSuppressionDefinitions(
+      (store) => store.supprimerCategorie('theme'),
+    )
+
+    expect(resultat.valeur.ok).toBe(true)
+    expect(resultat.corpus.codebook.theme).toBeUndefined()
+    expect(publicationDeDonnees(depot).map((action) => action.file_path).sort()).toEqual([
+      CHEMIN_CORPUS,
+      `${RACINE}/entretiens/e1.json`,
+      `${RACINE}/entretiens/e2.json`,
+    ])
+  })
+
+  test('refuse un usage publié sans commit de données', async () => {
+    const corpus = corpusAvecTheme()
+    const source = entretien('Usage publié') as EntretienFichier
+    source.annotations.push({
+      id: 'a1',
+      type: 'codage',
+      from: 1,
+      to: 2,
+      auteur: 'alice',
+      code: 'theme',
+    })
+    const { transactions, depot } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpus, null, 2)],
+      [`${RACINE}/entretiens/e1.json`, JSON.stringify(source, null, 2)],
+      [`${RACINE}/entretiens/e2.json`, JSON.stringify(entretien('Sans usage'), null, 2)],
+    ]))
+
+    const resultat = await transactions.executerSuppressionDefinitions(
+      (store) => store.supprimerCategorie('theme'),
+    )
+
+    expect(resultat.valeur).toEqual({ ok: false, usages: 1 })
+    expect(resultat.corpus.codebook.theme).toBeDefined()
+    expect(commitsDeDonnees(depot)).toHaveLength(0)
+  })
+
+  test('une source republiée pendant le décompte refuse toute la suppression', async () => {
+    const corpus = corpusAvecTheme()
+    const source = JSON.stringify(entretien('Version lue'), null, 2)
+    const { transactions, depot } = banc(new Map([
+      [CHEMIN_CORPUS, JSON.stringify(corpus, null, 2)],
+      [`${RACINE}/entretiens/e1.json`, source],
+      [`${RACINE}/entretiens/e2.json`, JSON.stringify(entretien('Autre source'), null, 2)],
+    ]))
+    const publier = depot.publierCommit.bind(depot)
+    vi.spyOn(depot, 'publierCommit').mockImplementation(async (branche, message, actions) => {
+      if (actions.some((action) => action.file_path === CHEMIN_CORPUS)) {
+        depot.modifierHorsProtocole(
+          `${RACINE}/entretiens/e1.json`,
+          JSON.stringify(entretien('Version concurrente'), null, 2),
+        )
+      }
+      return publier(branche, message, actions)
+    })
+
+    await expect(transactions.executerSuppressionDefinitions(
+      (store) => store.supprimerCategorie('theme'),
+    )).rejects.toThrow(/corpus GitLab a changé/)
+
+    const distant = JSON.parse(depot.fichiers.get(CHEMIN_CORPUS)!.contenu) as CorpusFichier
+    expect(distant.codebook.theme).toBeDefined()
+  })
+})
+
 describe('store de préparation et ses sources', () => {
   const corpus = JSON.stringify(corpusAvec({ e1: 'Entretien 1', e2: 'Entretien 2' }), null, 2)
   const sourceE1 = JSON.stringify(entretien('Source 1', ['p1']), null, 2)
@@ -485,6 +576,15 @@ describe('store de préparation et ses sources', () => {
   test('une lecture non prévue est une erreur, pas une donnée absente', () => {
     expect(() => preparerDefinitions(corpus, (store) => store.notesInventaire(),
       [{ id: 'e1', contenu: sourceE1 }])).toThrow(ErreurCorpusSeul)
+  })
+
+  test('un inventaire complet refuse une source manquante', () => {
+    expect(() => preparerDefinitions(
+      corpus,
+      (store) => store.notesInventaire(),
+      [{ id: 'e1', contenu: sourceE1 }],
+      { inventaireComplet: true },
+    )).toThrow(/tous les entretiens/)
   })
 
   test('une écriture d’entretien reste refusée même pour une source prévue', () => {

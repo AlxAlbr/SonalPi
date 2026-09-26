@@ -506,6 +506,16 @@ export class BailGitLab {
     if (droitPerdu) etat.invalide = true
   }
 
+  /** Réactive un droit après un conflit qui ne concernait pas sa ressource.
+   *  L'appelant doit avoir revérifié le bail et la garde métier. */
+  reprendreApresConflitNeutre(droit: DroitsEditionGitLab): void {
+    const etat = this.etatActif(droit)
+    if (!etat.suspendu || etat.transition) {
+      throw new Error('Le droit d’édition GitLab n’est pas suspendu après un conflit.')
+    }
+    etat.suspendu = false
+  }
+
   suspendrePublicationIndeterminee(droit: DroitsEditionGitLab): void {
     const etat = this.etatActif(droit)
     if (!etat.transition) throw new Error('Aucune publication GitLab à suspendre.')

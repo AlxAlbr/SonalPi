@@ -29,6 +29,7 @@ export function creerSonal() {
   // Indirection pour casser le cycle : le scope corpus doit sauver l'entretien ouvert avant un compte d'usages (`flush`),
   // mais l'entretien est créé APRÈS le corpus, qui lui injecte `couleurTrait` ; on route `flush` via un holder réaffecté.
   let sauverEntretien: () => Promise<void> = async () => {}
+  let publierAvantSuppressionDefinition: () => Promise<boolean> = async () => true
   // Indirection pour casser un cycle de dépendances :
   //     `appliquerCorpus` doit restaurer le mode démo (panneau « Pas à pas ») quand le corpus ouvert porte un marqueur `demo`,
   //     mais le scope demo est créé APRÈS (il injecte `appliquerCorpus`).
@@ -64,6 +65,7 @@ export function creerSonal() {
     categorieNoteDefaut: () => corpus.categorieNoteDefaut(),
     reglesAnon: () => corpus.reglesAnon.value, // règles corpus (menu multi-pseudo, promotions 3b)
     rafraichirReglesCorpus: () => corpus.rafraichirReglesAnon(),
+    publierAvantSuppressionDefinition: () => publierAvantSuppressionDefinition(),
     prioriteAnon: () => corpus.paramsAnon.value.prioriteValidation, // étape 4a : portée d'Entrée
     // Mots de liaison : suggestion d'entité-cœur à la validation d'une entité à affixe.
     motsLiaison: () =>
@@ -250,6 +252,13 @@ export function creerSonal() {
   } = distant
   distantActifPourMedias = () => idDistantCourant.value !== null
   actualiserDistantPourMedias = actualiserDistant
+  publierAvantSuppressionDefinition = async () => {
+    if (idDistantCourant.value === null) {
+      await ent.sauver()
+      return true
+    }
+    return publierMaintenant()
+  }
 
   const cycleCorpus = useCycleCorpus({
     vue,
@@ -479,10 +488,10 @@ export function creerSonal() {
     const cible = themeASupprimer.value
     if (!cible) return
     ent.retirerCodagesDuCode(cible.id)
+    if (!await publierAvantSuppressionDefinition()) return
     const r = await window.sonal.corpus.supprimerCategorie(cible.id, ent.ouvertId.value ?? undefined)
     if (r.ok) corpus.majCodebook(r.corpus.codebook)
     themeASupprimer.value = null
-    await ent.sauver()
   }
 
   const listeEntretiens = () =>

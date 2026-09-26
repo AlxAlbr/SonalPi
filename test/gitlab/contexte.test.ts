@@ -395,14 +395,16 @@ describe('façade des définitions du contexte GitLab', () => {
     const store = new CorpusStore(dirLocal)
     store.lectureSeule = true
     // Le callback reçoit un store de préparation jetable, jamais le miroir.
+    const executer = async (preparer: (cible: CorpusStore) => unknown) => ({
+      valeur: preparerDefinitions(
+        JSON.stringify(squeletteCorpus('Miroir')),
+        preparer,
+      ).valeur,
+      corpus: store.ouvrir(),
+    })
     const transactions = {
-      executerDefinitions: vi.fn(async (preparer: (cible: CorpusStore) => unknown) => ({
-        valeur: preparerDefinitions(
-          JSON.stringify(squeletteCorpus('Miroir')),
-          preparer,
-        ).valeur,
-        corpus: store.ouvrir(),
-      })),
+      executerDefinitions: vi.fn(executer),
+      executerSuppressionDefinitions: vi.fn(executer),
     }
     const contexte = new ContexteGitLab(
       'destination-test',
@@ -425,8 +427,14 @@ describe('façade des définitions du contexte GitLab', () => {
     const { contexte, transactions } = contexteAvecTransactions()
     expect(() => contexte.executerDefinitions('entretien.supprimer', () => 1))
       .toThrow(/suppression d’un entretien/)
-    expect(() => contexte.executerDefinitions('theme.supprimer', () => 1))
-      .toThrow(/suppression d’une définition/)
+    expect(transactions.executerDefinitions).not.toHaveBeenCalled()
+    expect(transactions.executerSuppressionDefinitions).not.toHaveBeenCalled()
+  })
+
+  test('une suppression de définition suit la transaction qui garde les entretiens', async () => {
+    const { contexte, transactions } = contexteAvecTransactions()
+    await contexte.executerDefinitions('theme.supprimer', () => 1)
+    expect(transactions.executerSuppressionDefinitions).toHaveBeenCalledOnce()
     expect(transactions.executerDefinitions).not.toHaveBeenCalled()
   })
 

@@ -1,6 +1,6 @@
 # GitLab — exclusion visible et opérations de corpus
 
-**Statut : lots A, B et C livrés et qualifiés sur banc (jalon d fait, §16). Les décisions du lot D sont consignées en §15 ; le jalon D1 est qualifié sur banc (§17) et ses capacités sont ouvertes. Restent les suppressions de définitions, reportées au jalon D2, et le lot E, la suppression d'un entretien.**
+**Statut : lots A, B et C livrés et qualifiés sur banc (jalon d fait, §16). Les jalons D1 (§17) et D2 (§18) sont qualifiés sur banc et leurs capacités sont ouvertes. Reste le lot E, la suppression d'un entretien.**
 **Priorité : rendre le corpus GitLab utilisable au quotidien — savoir qui tient un entretien, puis pouvoir définir et supprimer.**
 
 Ce document prolonge [plan-gitlab4.md](plan-gitlab4.md), qui fixe le bail versionné,
@@ -19,7 +19,7 @@ n'ajoute aucune preuve et ne transforme pas un test simulé en recette.
 | Savoir qui tient un entretien | Livré et qualifié sur banc | `gitlab/contexte.ts:144` |
 | Badge 🔒 dans les listes | Livré et qualifié sur banc | `gitlab/observationBails.ts` |
 | Présence 👁 | **Absent**, et hors périmètre (section 9) | `main/index.ts:1791` |
-| Modifier les définitions du corpus | **Qualifié sur banc** : définitions simples, gestures à sources gardées et tri de contenu ouverts ; suppressions refusées par leur nom | `gitlab/transactions.ts`, `gitlab/politiqueGestes.ts` |
+| Modifier les définitions du corpus | **D1 et D2 qualifiés sur banc** : définitions simples, gestes à sources gardées, tri de contenu et suppressions de définitions ouverts | `gitlab/transactions.ts`, `gitlab/referencesDefinitions.ts`, `gitlab/politiqueGestes.ts` |
 | Supprimer un entretien | **Absent** | `main/index.ts:842` |
 | Médias partagés, Docs cadre, notes du corpus, lots, personnes | **Absent** | `main/index.ts:1261`, `main/index.ts:984` |
 
@@ -316,6 +316,11 @@ et la suppression empiète sur sa session. Le bail corpus ne protège pas contre
   au commit retrouvé. Une réponse perdue ne doit pas laisser tout `move`
   indéterminé ni provoquer une seconde suppression.
 
+Le découpage, l'ordre exact des opérations, le format de journal et les arrêts avant
+activation sont fixés en §19. Le lot ne commence pas par ouvrir la capacité : les
+fondations à deux droits et la reprise du plan local restent inaccessibles au
+renderer jusqu'à la qualification finale.
+
 ### 7.3 Choix à enregistrer
 
 - **Archiver ou supprimer ?** Retenir une archive sous la racine du corpus,
@@ -458,9 +463,9 @@ par GET sur l'instance locale, zéro commit. Détail dans `docs/dev/gitlab.md`.*
       par l'instantané Git, jamais par une vérification préalable du miroir actif.
 - [x] Borner les réponses, le total des actions métier et de coordination, le plan
       compilé et le corps HTTP final ; refuser explicitement, sans découpage silencieux.
-- [ ] Décider et tester les décomptes et les références republiées par une session
-      déjà ouverte avant d'activer les suppressions de définitions (jalon D2,
-      §15.1 ; ce jalon n'appartient pas à D1).
+- [x] Qualifier sur banc les décomptes et les références republiées par une session
+      déjà ouverte avant d'activer les suppressions de définitions. La politique
+      et les résultats du jalon D2 sont consignés en §15.9 et §18.
 - [x] Source modifiée pendant la préparation → aucun changement de corpus publié.
 - [x] Coexistence d'une source gardée inchangée et d'une session longue qualifiée,
       sans perte de candidat ni promesse injustifiée de libération d'un bail incertain.
@@ -471,7 +476,7 @@ par GET sur l'instance locale, zéro commit. Détail dans `docs/dev/gitlab.md`.*
 publiées et gardées au commit, et les limites de cohérence après ce commit sont
 explicites et testées ; le tri est publié sur un corpus calme, sans toucher au
 contenu ni au bail d'aucun entretien.
-*Qualifié sur banc à deux comptes : §17. Les capacités sont ouvertes.*
+*Qualifié sur banc à deux comptes : D1 en §17, D2 en §18. Les capacités sont ouvertes.*
 
 ### E — La suppression
 
@@ -487,6 +492,7 @@ contenu ni au bail d'aucun entretien.
 
 **Sortie :** retrait et archive distants atomiques, exclusion garantie par les deux
 baux, application locale récupérable.
+*Découpage de mise en œuvre et critères d'arrêt : §19.*
 
 ## 11. Matrice minimale de recette
 
@@ -1194,6 +1200,45 @@ L'activation de D1 exige enfin les recettes suivantes :
 - appels IPC directs et commandes renderer : mêmes capacités, sans régression locale
   ni Nextcloud.
 
+
+### 15.9 Politique D2 : garde croisée entre corpus et entretiens
+
+Une suppression de définition porte sur toutes les versions publiées du membership
+frais. Après acquisition du bail de `corpus.json`, la transaction résout un SHA,
+lit chaque entretien à ce SHA, prépare le décompte dans un store dont l'inventaire
+complet est explicitement autorisé, puis place toutes ces sources inchangées sous
+leur `last_commit_id` dans le même commit que le retrait. Une source republiée entre
+la lecture et le commit fait refuser atomiquement la suppression.
+
+Avant ce décompte, les sessions locales concernées sont publiées. Les parcours qui
+retirent une référence dans l'entretien ouvert publient ce retrait avant de demander
+la suppression partagée. Un appel IPC GitLab ne peut pas utiliser l'exception locale
+qui ignorait l'entretien courant : le décompte porte toujours sur les versions
+réellement publiées.
+
+Réciproquement, chaque publication d'entretien relit `corpus.json`, valide les
+références de thèmes, catégories de note, règles d'anonymisation, variables et
+modalités, puis ajoute le corpus inchangé sous sa garde dans le commit de session.
+Une référence déjà supprimée produit un refus réparable sans dégrader la session ;
+le candidat local reste éditable. Si le corpus change après la validation mais que
+l'entretien et son bail n'ont pas bougé, la session relit les définitions et tente
+une seconde fois : une mutation indépendante peut donc aboutir, tandis qu'une
+suppression rend la référence invalide et refuse le candidat. Si la publication
+gagne d'abord, sa garde d'entretien fait refuser la suppression. La file locale de
+commits évite les collisions d'une même application, mais cette garde croisée est
+ce qui tient entre deux postes.
+
+Les bornes restent celles de D1 : au plus 98 entretiens gardés et 2 Mio pour le corps
+final. Un corpus dépassant ces limites est refusé avant toute suppression ; aucune
+source n'est retirée du plan et l'opération n'est pas découpée. Les tests simulés
+couvrent l'usage publié, le commit avec toutes les sources, la source republiée
+pendant le décompte, la validation de chaque famille de référence, la suppression
+qui gagne face à une session déjà ouverte et la conservation du candidat refusé.
+`test/gitlab/qualificationSuppressions.test.ts` porte les scénarios réels à deux
+comptes ; ils restent sautés en l'absence de configuration du banc. Leur succès
+sur GitLab CE 18.11 est consigné en §18 et la portée `suppression-definition`
+est ouverte dans `PORTEEES_OVERTES_GITLAB`.
+
 ## 16. Ce que le jalon d a trouvé
 
 La qualification du lot C contre l'instance réelle, à deux comptes, est dans
@@ -1347,9 +1392,9 @@ rattachement CAS, une dérivation, un passage de recueil et les tris par
 modification et par longueur sont proposés par l'interface et acceptés par le
 main, qui continue de refuser par son nom tout ce qui n'est pas dans la liste.
 
-Les suppressions de définitions restent refusées. Elles ne sont pas un oubli :
-leur politique de références fait l'objet du jalon D2, et le premier jalon
-n'était pas censé les couvrir.
+À l'issue de D1, les suppressions de définitions restaient refusées. Elles
+n'étaient pas un oubli : leur politique de références relevait du jalon D2,
+qualifié ensuite en §18.
 
 ### 17.3 Ce qui reste ouvert
 
@@ -1372,3 +1417,374 @@ ce qui est livré :
 
 Tant que ces relevés ne sont pas faits, la capacité annoncée reste celle de la
 borne la plus étroite, et un entretien qui la dépasse est refusé par son nom.
+
+## 18. Ce que la qualification D2 a trouvé
+
+Le jalon D2 est qualifié le 26 septembre 2026 sur GitLab CE 18.11, à deux comptes,
+dans `test/gitlab/qualificationSuppressions.test.ts`. Les deux scénarios ont
+réussi contre l'instance réelle.
+
+| Scénario | Résultat mesuré |
+|---|---|
+| Suppression face à une session déjà ouverte | 1 commit de données, 3 commits au total, 7 requêtes, ≈ 2,2 s |
+| Suppression d'une définition encore utilisée dans une version publiée | refus métier avec un usage, 0 commit de données, 2 commits de coordination, 6 requêtes, ≈ 0,9 s |
+
+Dans le premier scénario, Alice retire le thème pendant que Bob tient déjà
+l'entretien. Le candidat de Bob qui réintroduit ce thème est refusé avec le motif
+`references`, sans dégrader sa session ni modifier la version publiée. Après
+retrait de la référence, le même candidat est publié et la session se ferme
+normalement. Le corpus distant conserve la suppression pendant toute la séquence.
+
+Dans le second scénario, l'entretien publié porte déjà le thème. Le décompte frais
+renvoie un usage, aucun commit de données ne retire la définition et le corpus
+reste intact. Ces résultats valident les deux sens de la garde croisée : une
+suppression confirmée bloque une ancienne référence, et une référence publiée
+bloque la suppression. La portée `suppression-definition` est donc ouverte ; la
+suppression d'un entretien reste fermée et relève du lot E.
+
+## 19. Décisions et étapes du lot E
+
+Cette section ferme les choix laissés ouverts en §7 avant d'écrire la suppression
+GitLab. Elle décrit un seul geste métier, mais celui-ci traverse quatre états
+persistants : préparation distante, publication atomique, confirmation distante et
+application locale. Les noms du code décriront ces états et ces responsabilités ;
+ils ne reprendront ni la lettre du lot ni les numéros de jalon.
+
+### 19.1 Découpage et arrêts
+
+| Jalon | Contenu | Zones principales | Arrêt avant de continuer |
+|---|---|---|---|
+| E1 | Contrats de plans distant et local, analyse d'impact fraîche, destination d'archive et tests du `move` GitLab | `shared/corpus/suppressionEntretien.ts`, `transactionsFichiers.ts`, `gitlab/transactions.ts`, test de contrat | oui : aucun dispatch ni capacité ouverte |
+| E2 | Publication sous deux droits, journal versionné et réconciliation certaine d'un `move` | `gitlab/bailGitLab.ts`, `gitlab/publication.ts`, `gitlab/journalPublication.ts` | oui : perte de réponse et perte séparée de chaque droit couvertes |
+| E3 | Orchestration de suppression, fermeture de session, installation locale durable et reprise au démarrage | `gitlab/transactions.ts`, `gitlab/contexte.ts`, `gitlab/ouverture.ts`, `corpusStore.ts` | oui : scénarios de crash couverts sans réémission du commit |
+| E4 | Façade du contexte, dispatch main, consommation de la capacité par le renderer, documentation et non-régressions | `main/index.ts`, `gitlab/politiqueGestes.ts`, composables renderer et documentation | oui : capacité encore fermée pour le banc |
+| E5 | Qualification GitLab réelle à deux comptes, mesures, puis ouverture de `suppressionEntretien` et `entretien.supprimer` | test de qualification, `docs/dev/gitlab.md`, documentation utilisateur | sortie du lot |
+
+Les arrêts de E1 à E4 sont des points de revue. Un plan distant correct sans reprise
+locale n'est pas une suppression livrable ; réciproquement, déplacer des sauvegardes
+locales ne prouve rien sur l'atomicité GitLab. Jusqu'au succès de E5, l'analyse et la
+suppression restent refusées par le main pour GitLab, même si leur code est testable
+directement.
+
+### 19.2 États et invariants de l'opération
+
+Une suppression possède un identifiant stable créé avant la préparation. Son journal
+ne change jamais cet identifiant et l'opération n'est jamais réémise automatiquement.
+Les états utiles sont :
+
+1. **préparée** : les deux droits sont détenus, les actions distantes et le plan local
+   sont durables, mais aucun commit de données n'est confirmé ;
+2. **indéterminée** : l'envoi a pu aboutir, aucune conclusion locale n'est permise ;
+3. **confirmée à installer** : le commit a été reçu ou retrouvé, le retrait local
+   reste à terminer ;
+4. **installée** : le plan local est entièrement appliqué et le journal composite
+   peut être supprimé.
+
+Les invariants suivants valent dans tous les jalons :
+
+- ni `corpus.json` ni un fichier local n'est modifié avant la confirmation distante ;
+- le commit de données contient le retrait du membership, le déplacement du JSON et
+  les transitions des deux baux, ou ne contient rien de tout cela ;
+- une opération indéterminée bloque toute nouvelle transaction sur `corpus.json` et
+  toute nouvelle suppression, mais reste consultable et réconciliable ;
+- une confirmation distante ne supprime pas le journal tant que le plan local n'est
+  pas appliqué ;
+- une reprise applique le même plan idempotent, jamais un second `move` GitLab ;
+- une fermeture ou une bascule de contexte attend l'opération engagée et n'applique
+  jamais son résultat au corpus suivant.
+
+Le journal de publication actuel disparaît dès la confirmation. Ce cycle convient aux
+mutations de `corpus.json` réparables par un tirage, mais pas à une suppression : un
+tirage ne sait pas où archiver les `.bak` et les PNG. E2 introduit donc explicitement
+un état « confirmé à installer », au lieu de compter sur une fenêtre sans crash entre
+le retour du publieur et `appliquerTransactionFichiers`.
+
+### 19.3 Analyse d'impact et fermeture de notre session
+
+L'analyse affichée avant confirmation ne lit plus le seul miroir pour GitLab. Une
+méthode dédiée lit un `corpus.json` publié à une référence immuable, valide sa version
+et calcule `ImpactSuppressionEntretien`. Elle ne prend aucun bail et n'accorde aucun
+droit : son résultat est un aperçu susceptible de périmer.
+
+La commande confirmée suit ensuite cet ordre, dans le contexte capturé :
+
+1. marquer l'identifiant comme « suppression en cours » afin qu'une nouvelle ouverture
+   locale ne puisse pas recréer une session pendant l'opération ;
+2. fermer notre éventuelle session par `ContexteGitLab.fermerEntretien`, ce qui publie
+   d'abord son candidat puis libère son bail ;
+3. si la fermeture est refusée, dégradée ou indéterminée, enlever la marque, restaurer
+   l'autorisation d'écriture si la session tient encore réellement son droit, et
+   arrêter sans acquérir le bail corpus ;
+4. acquérir ensuite les droits de suppression et recalculer l'impact sur la base
+   fraîche protégée ;
+5. comparer cet impact à celui confirmé par l'utilisateur. Toute différence demande
+   une nouvelle confirmation et ne publie aucun commit de données.
+
+Fermer notre session ne réserve pas l'entretien. Entre sa libération et l'acquisition
+du droit de suppression, un autre poste peut gagner : c'est attendu, et la suppression
+est alors refusée en nommant ce détenteur. Aucun raccourci fondé sur le même compte,
+la même machine ou une ancienne génération n'est admis. Un candidat que notre session
+ne peut pas publier reste récupérable ; la suppression ne l'écrase jamais pour avancer.
+
+L'ouverture d'entretien et la suppression doivent partager une barrière du contexte.
+La solution peut être une entrée dans la file du contexte ou un registre explicite
+des suppressions en cours, mais pas un simple test avant l'acquisition : une ouverture
+locale arrivée pendant l'attente du second bail doit être refusée jusqu'à la fin ou à
+l'abandon de l'opération.
+
+### 19.4 Acquisition et libération des deux droits
+
+Les ressources sont le `corpus.json` canonique et
+`entretiens/<id>.json`, tous deux préfixés par la racine GitLab avant l'appel à
+`cleRessourceBailGitLab`. L'ordre est global et immuable :
+
+1. acquérir le droit du corpus ;
+2. acquérir le droit de l'entretien ;
+3. préparer et publier sous les deux droits ;
+4. après un résultat certain, libérer l'entretien puis le corpus.
+
+Si le second droit est tenu, l'erreur nomme son détenteur et le droit corpus déjà
+acquis est rendu. Si une acquisition ou une libération rencontre un marqueur legacy,
+les règles conservatrices du coordinateur restent prioritaires. Une libération en
+échec réseau ne transforme pas une suppression confirmée en refus ; elle laisse un
+bail expirer et la documentation de reprise indique son état.
+
+Sans session préalable à fermer, le chemin nominal coûte cinq commits hors incident :
+deux acquisitions, un commit de données et deux libérations. Les deux acquisitions
+restent séparées pour conserver l'ordre canonique et les refus nommés. En revanche,
+les deux renouvellements portés
+par la publication sont dans le même commit que les données.
+
+Une opération indéterminée suspend les deux droits. Ils ne sont pas libérés avec des
+gardes anciennes : la réconciliation adopte d'abord, pour chacun, le commit, le
+compteur et l'expiration retrouvés. Au démarrage, un bail n'est rendu que si son compte
+et sa génération correspondent à l'entrée journalisée. Une reprise par un tiers
+change la génération et interdit donc toute libération abusive.
+
+### 19.5 Préparation fraîche et destination distante
+
+Après les deux acquisitions, la transaction résout une seule fois la branche en SHA,
+puis lit à ce SHA :
+
+- `corpus.json`, avec son `last_commit_id` ;
+- `entretiens/<id>.json`, avec son propre `last_commit_id` et son contenu attendu ;
+- la destination d'archive choisie, pour vérifier son absence.
+
+La préparation valide versions, membership, identifiant et impact confirmé. Un
+entretien absent du membership, un JSON source absent ou illisible et une version non
+prise en charge sont des refus explicites. Si une suppression journalisée de ce même
+entretien existe déjà, seule sa reprise est permise ; une nouvelle opération ne tente
+pas de rendre le geste artificiellement idempotent.
+
+La première destination proposée est `corbeille/<id>.json`. Si elle existe déjà, la
+transaction choisit un nom non conflictuel portant un suffixe stable dérivé de
+l'identifiant d'opération, puis enregistre ce chemin exact dans le journal. Le même
+nom est réutilisé après redémarrage. Un test de contrat réel vérifie avant E2 qu'un
+`move` vers une destination occupée est refusé sans écrasement ; quel que soit le
+résultat de cette sonde, le code ne compte pas sur un écrasement GitLab pour résoudre
+une collision.
+
+Le plan distant contient exactement deux actions métier :
+
+1. `update <racine>/corpus.json` sous sa garde, avec le membership et les références
+   CAS ajustés par les règles métier existantes ;
+2. `move <racine>/entretiens/<id>.json` vers la destination enregistrée, sous la garde
+   de la source.
+
+Le corps final ajoute les deux actions de bail. Les contrôles de nombre et de taille
+portent donc sur quatre actions et sur le JSON HTTP exact. Aucun `.bak1`, `.bak2`, PNG
+ou média n'entre dans le dépôt. Les médias restent référencés à leur emplacement et
+ne sont ni lus ni supprimés par ce geste.
+
+### 19.6 Publication atomique sous deux droits
+
+`PublieurGitLab` reçoit une primitive multi-droits ; l'API à un droit délègue à cette
+primitive pour éviter deux protocoles divergents. La primitive :
+
+1. refuse une liste vide, un droit dupliqué ou deux droits sur la même ressource ;
+2. prend la file de commits de la destination une seule fois ;
+3. capture l'état des deux droits, puis prépare leur transition sans envoyer de
+   commit ;
+4. compile les actions métier, ajoute les deux mutations de bail et contrôle les
+   bornes finales ;
+5. journalise l'ensemble avant l'envoi ;
+6. confirme les deux transitions avec le même identifiant de commit, ou les annule
+   toutes avant envoi si la préparation ou l'écriture du journal échoue.
+
+Sur un refus 400/409, toutes les gardes métier et de bail sont relues. Si elles
+n'ont pas bougé, le réessai unique de collision de branche reste permis. Si l'une a
+bougé, le résultat indique quel droit ou quelle donnée a été perdu, sans présenter
+l'autre droit comme intact par supposition. Un 401/403, une limite ou une expiration
+reste un refus atomique du commit entier.
+
+Après une erreur de transport, les deux droits passent à l'état suspendu. Une
+réconciliation confirmée adopte les deux états de bail ; une absence certaine annule
+les transitions sans installer le candidat ; une incertitude conserve journal et
+blocage. Il n'existe aucun état serveur où un seul des deux baux aurait été renouvelé
+par le commit de données, puisque leurs actions partagent ce commit.
+
+Les tests du coordinateur couvrent séparément : expiration du droit corpus, expiration
+du droit entretien, perte de chaque génération, erreur pendant la préparation du
+second droit, journal impossible à écrire, collision de branche et réponse perdue.
+Chaque cas vérifie les deux états internes, pas seulement le résultat public.
+
+### 19.7 Journal composite et réconciliation du `move`
+
+Le journal gagne une nature explicite `suppression-entretien` et une version capable
+de porter :
+
+- la liste des deux ressources avec `resourceHash`, génération et garde de bail ;
+- les actions distantes compilées et leurs contenus séparés comme aujourd'hui ;
+- le chemin source, le chemin d'archive et l'empreinte SHA-256 du JSON déplacé ;
+- le plan local complet, avec ses destinations déjà choisies ;
+- l'état `prepare`, `indetermine` ou `confirme-a-installer` et, dans ce dernier cas,
+  l'identifiant du commit retrouvé.
+
+Les entrées anciennes à un droit restent lisibles et sont projetées vers une liste
+d'un élément. Une entrée qui ne peut pas être classée reste bloquante et récupérable,
+comme aujourd'hui. `transactionsCorpusJournalisees` inclut la suppression, puisqu'elle
+écrit `corpus.json`.
+
+La réconciliation d'un `move` ne compare jamais la destination à
+`action.content`, qui n'existe pas dans la requête GitLab. Pour le commit exact retrouvé,
+elle vérifie :
+
+1. le contenu publié de `corpus.json` et des deux baux, comme pour les actions
+   `update` ;
+2. l'absence de l'ancien chemin à ce commit ;
+3. la présence de la destination et son empreinte égale à celle du JSON source lu
+   pendant la préparation ;
+4. si nécessaire pour diagnostiquer une incohérence, la même empreinte à l'ancien
+   chemin sur sa révision gardée.
+
+Une seule divergence laisse le résultat indéterminé ; elle n'autorise ni installation
+locale ni nouvel envoi. Un commit confirmé passe à `confirme-a-installer` sans supprimer
+l'entrée. Un commit certainement absent retire l'intention distante et conserve tous
+les fichiers locaux. La recherche par titre exact et identifiant stable reste bornée
+comme dans le réconciliateur actuel.
+
+### 19.8 Plan local et reprise après crash
+
+Le plan local est distinct du plan distant. Il est construit dans la file du contexte,
+avant l'envoi, avec :
+
+- `corpusAvant` égal à l'état du miroir réellement présent à cet instant ;
+- `corpusApres` égal au candidat distant préparé sur la base fraîche ;
+- le déplacement de `entretiens/<id>.json` s'il est présent localement ;
+- les `.json.bak1`, `.json.bak2` et tous les PNG préfixés par l'identifiant qui
+  existent au moment de la préparation ;
+- une destination locale non conflictuelle, choisie une fois et enregistrée pour
+  chaque fichier.
+
+La préparation métier du retrait est extraite de l'inventaire de fichiers : le même
+calcul frais produit `corpusApres`, tandis que l'inventaire local ne décide jamais du
+commit GitLab. L'aléa actuel de `destinationCorbeille` ne doit pas être rejoué au
+redémarrage. Aucune destination existante n'est écrasée ; une collision apparue après
+la préparation suspend l'application et conserve le journal pour intervention ou
+nouvelle reprise sûre.
+
+Après confirmation, `appliquerTransactionFichiers` écrit d'abord le retrait du
+membership puis effectue les déplacements, selon son protocole journalisé et
+idempotent. Le journal composite n'est supprimé qu'après son succès. Les fenêtres de
+panne sont traitées ainsi :
+
+- arrêt avant l'envoi : aucune donnée distante ni locale n'a changé ;
+- arrêt après envoi sans réponse : le commit est recherché, jamais rejoué ;
+- arrêt après confirmation avant journal local : le plan composite suffit à créer et
+  appliquer la transaction locale ;
+- arrêt pendant l'application : `.transaction-fichiers.json` termine l'opération ;
+- arrêt après application avant nettoyage : le même plan constate le corpus cible et
+  les destinations déjà présentes, puis termine sans double déplacement.
+
+À l'ouverture, une transaction locale déjà commencée est d'abord reprise. Les
+publications composites sont ensuite réconciliées ; une suppression confirmée est
+installée avant le tirage normal, afin que le miroir ne transforme pas prématurément
+le JSON en orphelin de `corbeille-miroir`. Le tirage remet enfin le manifeste au niveau
+du commit publié. Si le corpus ou un fichier local ne correspond ni à l'avant ni à
+l'après attendus, rien n'est écrasé et l'ouverture signale une reprise bloquée.
+
+Le miroir neuf n'a aucun plan local à appliquer : il tire seulement le membership
+sans l'entretien et ignore `corbeille/`. Le miroir d'origine, lui, conserve JSON,
+sauvegardes et PNG dans sa corbeille locale. Ces deux chemins font partie de la
+recette, car ils prouvent des propriétés différentes.
+
+### 19.9 Façade, capacités et messages
+
+`ContexteGitLab` expose deux opérations métier, analyser puis supprimer, et centralise
+la fermeture de session ainsi que la barrière d'ouverture dans le processus main. Le
+handler IPC ne réutilise pas le chemin Nextcloud ni son objet `sessions` : il route
+explicitement vers le contexte GitLab capturé, après `exigerGeste`.
+
+La capacité publique `suppressionEntretien` reste fausse jusqu'à E5. Une fois ouverte,
+le renderer réutilise la confirmation d'impact existante, mais les messages distinguent :
+
+- impact périmé, qui demande une nouvelle confirmation ;
+- entretien tenu, avec l'identifiant connu ;
+- candidat local non publiable ;
+- publication indéterminée, qui demande une actualisation sans proposer de recommencer ;
+- suppression distante confirmée mais archivage local à reprendre.
+
+L'interface et la documentation indiquent que la suppression GitLab n'est pas
+annulable depuis le journal Sonal. Elles précisent que le JSON est archivé dans le
+dépôt, que les sauvegardes et PNG ne le sont que localement, que les médias restent en
+place et que les orphelins GitLab antérieurs ne sont pas balayés par ce lot.
+
+### 19.10 Tests simulés bloquants
+
+Avant le banc, les suites couvrent au minimum :
+
+- analyse sur miroir périmé, puis impact inchangé et impact modifié au moment protégé ;
+- fermeture d'une session propre, publication de son candidat, refus de fermeture et
+  conservation d'un candidat dégradé ;
+- acquisition corpus puis entretien, second bail tenu, marqueur legacy et libérations
+  dans l'ordre inverse ;
+- ouverture locale concurrente avant le premier bail, entre les deux acquisitions et
+  pendant le commit ;
+- source ou membership disparu, garde corpus périmée, garde entretien périmée et
+  destination distante occupée, sans mutation partielle ;
+- perte séparée de chacun des droits, expiration pendant la préparation et collision
+  de branche sans rapport ;
+- `move` confirmé, absent et incohérent ; destination correcte mais source encore
+  présente, source absente mais empreinte incorrecte ;
+- réponse perdue retrouvée, réponse toujours indéterminée et commit certainement
+  absent, sans second envoi ;
+- crash à chaque frontière décrite en 19.8, avec JSON, deux sauvegardes et plusieurs
+  PNG, puis reprise idempotente ;
+- miroir périmé, miroir sans JSON local, collision de corbeille locale, miroir neuf et
+  absence de réimport de l'archive distante ;
+- médias référencés inchangés, manifeste remis à niveau, tirage concurrent, fermeture
+  et bascule de contexte ;
+- appels IPC directs avec capacité fermée puis ouverte, commandes renderer, et
+  non-régression des suppressions locale et Nextcloud.
+
+Les doubles reproduisent les propriétés GitLab mesurées : `move` gardé, destination
+non écrasée et commit atomique. Si la sonde réelle de E1 contredit l'une d'elles, le
+plan est corrigé avant E2 ; le double n'est jamais utilisé pour inventer le contrat.
+
+### 19.11 Qualification réelle et activation
+
+La recette E5 utilise deux comptes et les images déjà présentes. Elle exécute au
+moins les scénarios suivants :
+
+1. suppression nominale avec impact CAS, archive distante, archive locale complète,
+   réouverture du miroir d'origine et ouverture d'un miroir neuf ;
+2. entretien tenu par l'autre compte, puis course où ce compte ouvre pendant la
+   suppression : une seule acquisition gagne et aucune donnée n'est partiellement
+   modifiée ;
+3. réponse du commit de données perdue, commit retrouvé, deux baux rendus et plan
+   local appliqué une seule fois ;
+4. arrêt après commit avant installation, redémarrage et reprise des sauvegardes et
+   PNG sans republication ;
+5. collision d'archive distante et locale, sans écrasement ;
+6. garde de `corpus.json` puis garde de l'entretien périmée à tour de rôle, avec
+   atomicité vérifiée sur la branche.
+
+Le compte rendu sépare les tests simulés, la sonde de contrat et les scénarios E2E.
+Il mesure requêtes, cinq commits nominaux, durée, taille du corps et temps de reprise,
+puis consigne ces résultats dans `docs/dev/gitlab.md`. La documentation utilisateur
+est mise à jour dans la même passe.
+
+La capacité n'est ouverte qu'après vérification des quatre preuves suivantes : retrait
+et archive dans un même commit, exclusion effective par les deux baux, réconciliation
+sans rejeu et récupération locale après crash. Un scénario sauté faute de banc laisse
+la capacité fermée.

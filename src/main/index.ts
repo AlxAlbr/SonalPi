@@ -974,9 +974,19 @@ function enregistrerIpcCorpus(): () => Promise<void> {
   ipcMain.handle('corpus:migrerCategorie', (_e, id: string, nouveauParent: string | null) =>
     executerDefinitions('theme.migrer', (cible) => cible.migrerCategorie(id, nouveauParent)),
   )
-  ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string) =>
-    executerDefinitions('theme.supprimer', (cible) => cible.supprimerCategorie(id, exceptId)),
-  )
+  ipcMain.handle('corpus:supprimerCategorie', (_e, id: string, exceptId?: string) => {
+    if (contextesDistants.actuel instanceof ContexteGitLab) {
+      return executerGitLab((contexte) =>
+        contexte.executerDefinitions(
+          'theme.supprimer',
+          (cible) => cible.supprimerCategorie(id),
+        )).then((resultat) => resultat.valeur)
+    }
+    return executerDefinitions(
+      'theme.supprimer',
+      (cible) => cible.supprimerCategorie(id, exceptId),
+    )
+  })
   ipcMain.handle('corpus:usagesParCategorie', () => store.usagesParCategorie())
 
   // Catégories de note (définitions corpus) : lecture simple, mutations sous transaction, comme les autres définitions.

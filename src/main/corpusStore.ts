@@ -265,6 +265,7 @@ export class CorpusStore {
    *  `corpus.json`, et les seuls entretiens qui lui sont confiés comme sources.
    *  Voir `ErreurCorpusSeul`. */
   private sourcesPreparation: Set<string> | null = null
+  private inventairePreparationComplet = false
 
   /** Amorçage encore permis pour CE store ? Vrai à la création (le dossier vient d'être choisi explicitement, neuf ou vide),
    *  puis faux dès qu'un corpus existe.
@@ -286,9 +287,13 @@ export class CorpusStore {
 
   /** Branche ce store en mode préparation : il n'inventorie rien de plus que
    *  les sources prévues, et signale toute autre lecture. */
-  activerModePreparation(sources?: Iterable<string>): void {
+  activerModePreparation(
+    sources?: Iterable<string>,
+    inventaireComplet = false,
+  ): void {
     this.lectureSeule = true
     this.sourcesPreparation = new Set(sources ?? [])
+    this.inventairePreparationComplet = inventaireComplet
   }
 
   /** Accorde l'écriture du corpus le temps d'un callback SYNCHRONE, puis la
@@ -313,6 +318,7 @@ export class CorpusStore {
   private verifierEntretienLisible(id?: string): void {
     const sources = this.sourcesPreparation
     if (sources === null) return
+    if (id === undefined && this.inventairePreparationComplet) return
     if (id !== undefined && sources.has(id)) return
     throw new ErreurCorpusSeul(id)
   }
@@ -1774,9 +1780,12 @@ export class CorpusStore {
     })
   }
 
-  /** Supprime une règle du corpus (l'appelant a déjà vérifié l'isolation). */
+  /** Supprime une règle du corpus seulement lorsqu'aucun entretien ne l'utilise. */
   regleAnonSupprimer(id: string): void {
     this.verifierEcriture()
+    if (this.regleAnonUtiliseeAilleurs(id)) {
+      throw new Error('Cette règle d’anonymisation est encore utilisée dans un entretien.')
+    }
     const corpus = this.ouvrir()
     corpusModel.retirerRegle(corpus, id)
     this.ecrireJsonAtomique(this.corpusFile, corpus)

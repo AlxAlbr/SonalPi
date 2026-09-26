@@ -13,6 +13,7 @@ import { JournalSessionsGitLab } from './journalSession'
 import { PublieurGitLab } from './publication'
 import { SessionGitLab } from './session'
 import { StockageLocalEntretienGitLab } from './stockageSession'
+import { verifierContenusReferencesDefinitions } from './referencesDefinitions'
 import {
   DUREE_BAIL_GITLAB_MS,
   INTERVALLE_PUBLICATION_GITLAB_MS,
@@ -57,6 +58,7 @@ export function assemblerSessionGitLab(
   const maintenant = options.maintenant ?? Date.now
   const racine = normaliserRacineGitLab(options.racine ?? '')
   const cheminDistant = racine ? `${racine}/${options.cheminRelatif}` : options.cheminRelatif
+  const cheminCorpus = racine ? `${racine}/corpus.json` : 'corpus.json'
   const ressourcePartagee = cleRessourceBailGitLab(options.branche, cheminDistant)
   const depot = new DepotCommitsGitLabClient(options.client)
   const journal = new JournalPublicationGitLab(
@@ -107,6 +109,17 @@ export function assemblerSessionGitLab(
     maintenant,
     intervallePublicationMs: options.intervallePublicationMs ?? INTERVALLE_PUBLICATION_GITLAB_MS,
     margeRenouvellementMs: options.margeRenouvellementMs ?? MARGE_RENOUVELLEMENT_GITLAB_MS,
+    preparerGardeDefinitions: async (contenuEntretien) => {
+      const corpus = await depot.lireFichier(cheminCorpus, options.branche)
+      if (!corpus) throw new Error('Le fichier corpus.json est introuvable sur GitLab.')
+      verifierContenusReferencesDefinitions(contenuEntretien, corpus.contenu)
+      return {
+        action: 'update',
+        chemin: cheminCorpus,
+        contenu: corpus.contenu,
+        commitId: corpus.commitId,
+      }
+    },
   })
   return { depot, coordination, publication, journal, journalSessions, reconciliateur, session }
 }

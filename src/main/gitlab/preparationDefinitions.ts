@@ -27,6 +27,11 @@ export interface SourcePreparation {
   readonly contenu: string
 }
 
+export interface OptionsPreparationDefinitions {
+  /** Toutes les sources du membership sont présentes et peuvent être inventoriées. */
+  readonly inventaireComplet?: boolean
+}
+
 export interface ResultatPreparationDefinitions<T> {
   /** Valeur de retour du gesture métier, calculée sur la base fraîche. */
   readonly valeur: T
@@ -64,6 +69,7 @@ export function preparerDefinitions<T>(
   contenuServeur: string,
   gesture: (store: CorpusStore) => T,
   sources: readonly SourcePreparation[] = [],
+  options: OptionsPreparationDefinitions = {},
 ): ResultatPreparationDefinitions<T> {
   const dossier = mkdtempSync(join(tmpdir(), 'sonal-gitlab-definitions-'))
   try {
@@ -74,8 +80,18 @@ export function preparerDefinitions<T>(
       writeFileSync(join(dossier, 'entretiens', `${source.id}.json`), source.contenu, 'utf8')
     }
     const store = new CorpusStore(dossier)
-    store.activerModePreparation(sources.map((source) => source.id))
     const baseFraîche = store.ouvrir()
+    if (options.inventaireComplet) {
+      const attendus = Object.keys(baseFraîche.membership).sort()
+      const recus = [...new Set(sources.map((source) => source.id))].sort()
+      if (JSON.stringify(attendus) !== JSON.stringify(recus)) {
+        throw new Error('La préparation ne possède pas tous les entretiens du corpus.')
+      }
+    }
+    store.activerModePreparation(
+      sources.map((source) => source.id),
+      options.inventaireComplet ?? false,
+    )
     const valeur = store.avecEcritureCorpus(() => gesture(store))
     const apres = store.ouvrir()
     const candidat = basesEquivalentes(baseFraîche, apres) ? null : apres

@@ -13,10 +13,10 @@ refus porte toujours un nom — l'absence d'un bouton n'est jamais la seule prot
 | Geste | Nextcloud | GitLab |
 |---|---|---|
 | Thèmes, variables et modalités, catégories de note, tableau de bord, pseudonymisation | oui | oui |
-| Recueils, cas, familles et attributs | oui | oui, sauf ce qui référence un passage d'entretien ou une recette |
+| Recueils, cas, familles et attributs | oui | oui |
 | Renommer un entretien, le trier par ordre d'ajout ou alphabétiquement | oui | oui |
-| Tri par dernière modification ou par longueur | oui | non |
-| Suppression d'un thème, d'une variable, d'une modalité, d'une catégorie de note, d'une règle | oui | non (ils comptent leurs usages dans les entretiens) |
+| Tri par dernière modification ou par longueur | oui | oui, quand aucun entretien n'est tenu |
+| Suppression d'un thème, d'une variable, d'une modalité, d'une catégorie de note, d'une règle | oui | oui, après décompte des usages publiés |
 | Supprimer un entretien | oui | non |
 | Créer ou importer un entretien, l'éditer sous session | oui | oui |
 | L'audio ou le SRT d'un entretien fermé, les valeurs dans la table de données | oui | non |
@@ -30,6 +30,11 @@ Chaque modification des définitions part dans un **commit unique** qui porte le
 fichier du corpus, la nouvelle version et le droit de modification. Deux collègues
 peuvent donc ajouter chacun un thème en même temps sans jamais s'écraser. Une
 commande qui ne change rien n'écrit pas de commit.
+
+Sur GitLab, une suppression vérifie toutes les versions publiées des entretiens.
+Une session déjà ouverte ne peut pas republier ensuite une référence supprimée :
+la publication est refusée, mais le candidat local reste éditable afin de retirer
+la référence et de publier à nouveau.
 
 ## Le principe en trois phrases
 

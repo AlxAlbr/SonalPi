@@ -197,6 +197,11 @@ export class ContexteGitLab {
     if (!this.transactions) {
       throw new Error('Définitions GitLab non configurées pour ce contexte.')
     }
+    if (porteeGeste(geste) === 'suppression-definition') {
+      return this.transactions.executerSuppressionDefinitions(preparer, {
+        publierSource: (id) => this.publierSourceDetenue(id),
+      })
+    }
     return this.transactions.executerDefinitions(preparer)
   }
 
@@ -389,7 +394,11 @@ export class ContexteGitLab {
     if (resultat.statut === 'confirme') return { ok: true }
     return {
       ok: false,
-      raison: resultat.statut === 'indetermine' ? 'indetermine' : resultat.raison,
+      raison: resultat.statut === 'indetermine'
+        ? 'indetermine'
+        : resultat.raison === 'references'
+          ? resultat.message
+          : resultat.raison,
     }
   }
 
